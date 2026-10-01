@@ -13,8 +13,7 @@ media requests, and whoever made a request hears back when it is answered.
   **Settings → Notifications**, once per browser. The server creates its push
   keys on first start; see [E-mail and notifications](environment/notifications.md#browser-push)
   to bring your own. Browsers allow push only on an HTTPS address (or
-  `localhost`); elsewhere the setting says **Push notifications not configured
-  on this server.** The Android and TV apps do not receive push notifications.
+  `localhost`); elsewhere the setting says **Push notifications need an HTTPS address: open this server over HTTPS to turn them on.** The Android and TV apps do not receive push notifications.
 - **E-mail**: once SMTP is set up, every notification is also sent to the
   account's address. There is no per-user opt-out, and an account with several
   profiles receives one e-mail per profile.

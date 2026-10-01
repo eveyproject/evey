@@ -1,5 +1,5 @@
 ---
-source_sha: ee8527dd07b1c7262f2f353e0f33f6004d9ae87c801d3274d9c9a31c109637be
+source_sha: 64f12b2cc77ed7069bf33f581c2d91e3b13b6ff04cc4a3bc62db72c3607b46fe
 reviewed: false
 ---
 # Manual de recuperación
@@ -30,11 +30,9 @@ password: <random 24-byte base64url>
 ```
 
 Notas:
-- Se actualiza el `updated_at` del usuario, pero no cambia ningún otro estado.
-- Las sesiones existentes siguen siendo válidas hasta que caducan de forma
-  natural. Para cerrar la sesión del usuario en todas partes, desactiva la cuenta
-  en **Admin → Usuarios** (**Desactivar**) y vuelve a activarla: desactivarla
-  borra sus tokens de actualización e invalida sus tokens de acceso de inmediato.
+- Todas las sesiones del usuario terminan: se eliminan sus tokens de
+  actualización y se revocan sus tokens de acceso. Una aplicación abierta lo
+  nota en unos 30 segundos y pide volver a iniciar sesión.
 - La contraseña en claro nunca se registra. Si pierdes la salida, tienes que
   volver a ejecutar el comando.
 
@@ -51,20 +49,18 @@ Comportamiento:
   `/data/jwt.key`) se renombra a `<path>.rotated-<UTC-timestamp>`.
 - En el siguiente arranque del servidor, `LoadOrGenerateRSAKey` genera una clave
   RSA nueva de 2048 bits.
-- Todos los tokens de acceso emitidos antes fallan la verificación de firma.
-- Los tokens de actualización se comprueban contra el hash guardado en la base de
-  datos, no contra la clave, así que siguen siendo válidos: una aplicación cuyo
-  token de acceso se rechaza lo renueva y sigue funcionando. Para terminar también
-  todas las sesiones, vacía la tabla:
-  ```sql
-  DELETE FROM refresh_tokens;
-  ```
+- Todas las sesiones terminan de inmediato, sin esperar al reinicio: el comando
+  elimina todos los tokens de actualización y revoca todos los tokens de acceso
+  en la base de datos. Las aplicaciones abiertas lo notan en unos 30 segundos y
+  todos vuelven a iniciar sesión.
+- Si no se puede contactar con la base de datos, la clave se aparta igualmente y
+  el comando lo indica: vuelve a ejecutarlo cuando la base responda.
 
 Cuándo usarlo:
 - Sospecha de fuga de la clave: nadie puede ya emitir tokens de acceso válidos
   con la clave antigua.
-- Cierre masivo de sesiones: junto con el `DELETE` de arriba. Para una sola
-  cuenta, basta con desactivarla en **Admin → Usuarios**.
+- Cierre masivo de sesiones. Para una sola cuenta basta con desactivarla en
+  **Admin → Usuarios**, o con `reset-password`.
 
 ## restore-backup
 

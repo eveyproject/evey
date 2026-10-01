@@ -1,5 +1,5 @@
 ---
-source_sha: 20c15f25fe69f68ab885ee03c012f737103bebcc94ce6da6d3efd20c3bbaff60
+source_sha: 974b056c376498e40c4211ccbde7fd2d3f94c52f343c81353f4cc6f083b62a40
 reviewed: false
 ---
 # Medienzustand
@@ -14,7 +14,7 @@ markiert werden.
   <figcaption>Ein Scan, bei dem nichts mehr zu tun ist: Jede Datei ist gesund (Oberfläche auf Englisch).</figcaption>
 </figure>
 
-## Zwei Urteile
+## Drei Urteile
 
 | Urteil | Was es bedeutet | Was Evey tut |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ markiert werden.
 | **Hier reparierbar** | Ein Fehler, den Evey auf diesem Server repariert. | **Alle reparieren** erledigt sie im Hintergrund. |
 | **Information** | Etwas an der Datei Gemessenes, das Evey nicht von selbst umschreibt. | Nichts. Markieren Sie es als gesehen. |
 
-Es gibt kein drittes Urteil, das Ihnen eine Aufgabe zuschiebt. Eine Messung, auf
+Keines davon schiebt Ihnen eine Aufgabe zu. Eine Messung, auf
 die Evey nicht reagieren kann, ist ein Hinweis, und eine Messung kann falsch
 sein: Wenn die Datei gut läuft, ist sie in Ordnung.
 

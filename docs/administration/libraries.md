@@ -136,7 +136,7 @@ players can offer to skip them. The timings come from community databases
 analysis of the files otherwise. An administrator can adjust the segments of a
 title by hand, or run the detection again.
 
-Players show a **Skip** button by default. **Auto-skip intros** (**Admin →
+Players show **Skip Intro**, **Skip Recap** and **Skip Credits** buttons by default. **Auto-skip intros** (**Admin →
 Server Config → Server Settings**, off by default) makes every player skip them
 on its own.
 

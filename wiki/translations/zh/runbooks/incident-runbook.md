@@ -1,5 +1,5 @@
 ---
-source_sha: cb3a20b8cc9545de2abfb60adb9e7c2272d0ad6fbc8666679ce2cb180603bae4
+source_sha: 183e65df2f01ed4e879613548dd30f3675ca6c82fa34bb3521c12c68938b83be
 reviewed: false
 ---
 # 事故手册
@@ -229,16 +229,13 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 
 ## 8. 投放卡住、没有声音，或者手机一直在转圈
 
-下面的所有内容都可以从管理日志页面读取（或者 `GET /api/v1/admin/logs/search?q=<term>&limit=200`）：不需要在机器上打开 shell。时间为 UTC。每个信标都是一条带有 `type=` 和 `details=` 字符串的 `player-client: playback event
-reported` 行。凭据从不出现在这些路由返回的内容中（bearer、JWT 以及 `token=`/`password=` 的值显示为 `[redacted]`），所以投放 URL 中的令牌不是日志搜索能找回的：请搜索媒体 id，而不是令牌。
+下面的所有内容都可以从管理日志页面读取（或者 `GET /api/v1/admin/logs/search?q=<term>&limit=200`）：不需要在机器上打开 shell。时间为 UTC。每个信标都是一条带有 `type=` 和 `details=` 字符串的 `player-client: playback event reported` 行。凭据从不出现在这些路由返回的内容中（bearer、JWT 以及 `token=`/`password=` 的值显示为 `[redacted]`），所以投放 URL 中的令牌不是日志搜索能找回的：请搜索媒体 id，而不是令牌。
 
 1. **接收器是否还活着，活到什么时候？** 搜索 `cast_receiver_alive`。接收器在播放时每 30 秒发送一次；`details` 带有 `buf=<behind>/<ahead>/<ranges>`（播放头后方和前方已缓冲的秒数）和 `pos_sec`。健康的播放显示 `ahead` 为几十秒。**最后一个信标的时间就是接收器死掉或被杀掉的时间**：此后什么都没有，就表示电视已经不再运行接收器，无论手机显示什么。
 2. **为什么停止了？** 搜索 `cast_receiver_finished`：`reason=INTERRUPTED` 表示一个新的 LOAD 替换了正在运行的那个（查找几秒之前的 `StartStream`），`reason=ERROR` 带有播放器错误。最后一个 `alive` 之后完全没有 `finished` = 接收器进程消失了（最常见的是 Chromecast HD 在 20+ Mbps 直拷 master 上因内存不足被杀掉）。
 3. **手机看到了什么？** 搜索 `cast_sender_stall`：当 Cast SDK 仍然显示 PLAYING 但位置 20 秒没有变化时，发送端会发送 `state=playing frozen=<n>s pos=<p>`；当接收器报告了空闲原因时，发送 `state=idle reason=<r>`。这些行以 WARN 级别记录，所以管理日志页面的警告筛选器会显示它们。这是同一分钟内发送端这一侧的情况：把它的 `pos` 与接收器最后的 `pos_sec` 进行比较。
 4. **会话是否发生了连锁反应？** 搜索 `refresh rejected`：刷新令牌 "not found" 会让应用登出再登录（保存的凭据），从而重新签发流；这一行现在会给出令牌的 `jti`、`issued` 和 `age`，可以区分过期的副本和伪造的令牌。搜索 `StartStream` 查看重新签发；对于同一个条目重新签发的 URL，发送端不再重新加载接收器。
-5. **流对设备来说是否太大？** 搜索 `advertises a fallback
-   rung`（直拷 master 的峰值码率）和 `plan fitted to the client's
-   line`（接收器的 `maxKbps` 测量值或其 `abr=floor` 救援，现在是计划的输入：随后的转码 master 带有原因 `client_line_exceeded` 或 `abr_floor_requested`）：一个从 20+ Mbps 直拷 master 开始、几秒后降到适配的 1080p 档位的会话，是保底救援在正常工作；而重新 LOAD 又从直拷 master 开始，正是会杀掉 Chromecast HD 的模式。
+5. **流对设备来说是否太大？** 搜索 `advertises a fallback rung`（直拷 master 的峰值码率）和 `plan fitted to the client's line`（接收器的 `maxKbps` 测量值或其 `abr=floor` 救援，现在是计划的输入：随后的转码 master 带有原因 `client_line_exceeded` 或 `abr_floor_requested`）：一个从 20+ Mbps 直拷 master 开始、几秒后降到适配的 1080p 档位的会话，是保底救援在正常工作；而重新 LOAD 又从直拷 master 开始，正是会杀掉 Chromecast HD 的模式。
 6. **服务器端资源不足？** 搜索 `on-demand resource refused`：连续分段上的一阵 `context canceled` 拒绝是快速拖动（每个请求都被下一个取消），而不是服务器故障；持续时间很长的 `served` 行才是。
 
 如果第 1 至 3 步显示接收器还活着而发送端没有动静，问题在手机的 Cast 会话（SDK、到电视的网络）；如果接收器的信标先停止，就该检查电视（内存、编码、流的码率）。
@@ -260,7 +257,7 @@ reported` 行。凭据从不出现在这些路由返回的内容中（bearer、J
    ```sh
    docker compose restart evey
    ```
-4. 如果账户本身被盗用，对它执行 **Admin → 用户 → 禁用**：这会删除它的刷新令牌并立即使它的访问令牌失效，因此所有设备都会被登出。设置一个新密码（`evey admin reset-password --user <email>`，它本身不会结束任何会话），然后再 **启用** 该账户。
+4. 如果账户本身被盗用，对它执行 **Admin → 用户 → 禁用**：这会删除它的刷新令牌并立即使它的访问令牌失效，因此所有设备都会被登出。设置一个新密码（`evey admin reset-password --user <email>`，它也会结束该账户的会话），然后再 **启用** 该账户。
 
 ## 解除卡住的媒体库扫描
 

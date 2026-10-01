@@ -1,5 +1,5 @@
 ---
-source_sha: 3b28483f95cf0e01f8af366abbbe130d63e2bfdb7657c49aefe090c25a5ced6f
+source_sha: 3f509ca8086807c1f4d1c33d492ae026a83e372b7e31aba45a835fc6bbbd56d9
 reviewed: false
 ---
 # Reverse Proxy
@@ -148,7 +148,8 @@ es keinen Caddy**: Evey sendet seine eigenen Sicherheits-Header und eine
 vollständige CSP, und die Streaming-Regeln kann ohnehin nur der Proxy
 durchsetzen, der dem Client gegenübersteht - ein zweiter Proxy dahinter bringt
 nichts. Hängen Sie den Dienst evey in das Netzwerk dieses Proxys und zielen Sie
-auf `evey-server:9091`:
+auf `evey-server:9091` (der Containername; der Dienstname `evey` funktioniert
+ebenso):
 
 ```yaml title="docker-compose.yml"
 services:

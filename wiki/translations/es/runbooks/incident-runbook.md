@@ -1,5 +1,5 @@
 ---
-source_sha: cb3a20b8cc9545de2abfb60adb9e7c2272d0ad6fbc8666679ce2cb180603bae4
+source_sha: 183e65df2f01ed4e879613548dd30f3675ca6c82fa34bb3521c12c68938b83be
 reviewed: false
 ---
 # Manual de incidentes
@@ -280,8 +280,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 
 Todo lo de abajo se puede leer desde la página de registros de administración (o
 `GET /api/v1/admin/logs/search?q=<term>&limit=200`): no hace falta un shell en la
-máquina. Las horas están en UTC. Cada baliza es una línea `player-client: playback event
-reported` con `type=` y una cadena `details=`. Las credenciales nunca aparecen
+máquina. Las horas están en UTC. Cada baliza es una línea `player-client: playback event reported` con `type=` y una cadena `details=`. Las credenciales nunca aparecen
 en lo que devuelven estas rutas (los bearer, los JWT y los valores `token=`/`password=` se leen
 `[redacted]`), así que el token de una URL de envío no es algo que una búsqueda en
 los registros pueda recuperar: busca el id del medio, no el token.
@@ -312,9 +311,7 @@ los registros pueda recuperar: busca el id del medio, no el token.
    indica ahora el `jti`, `issued` y `age` del token, lo que distingue una copia
    obsoleta de una falsificada. Busca `StartStream` para ver las reemisiones; el
    emisor ya no recarga el receptor con una URL reemitida para el mismo título.
-5. **¿Era el flujo demasiado grande para el dispositivo?** Busca `advertises a fallback
-   rung` (el bitrate de pico del master de copia) y `plan fitted to the client's
-   line` (la medida `maxKbps` del receptor o su rescate `abr=floor`, ahora una
+5. **¿Era el flujo demasiado grande para el dispositivo?** Busca `advertises a fallback rung` (el bitrate de pico del master de copia) y `plan fitted to the client's line` (la medida `maxKbps` del receptor o su rescate `abr=floor`, ahora una
    entrada del plan: el master de transcodificación que sigue lleva el motivo
    `client_line_exceeded` o `abr_floor_requested`): una sesión que empezó con un
    master de copia de más de 20 Mbps y bajó a un escalón 1080p ajustado al cabo
@@ -349,7 +346,7 @@ Síntoma: el administrador ve un dispositivo inesperado en **Reproduciendo ahora
    ```sh
    docker compose restart evey
    ```
-4. Si la propia cuenta está comprometida, **Admin → Usuarios → Desactivar** sobre ella: eso borra sus tokens de actualización e invalida sus tokens de acceso de inmediato, así que se cierra la sesión en todos los dispositivos. Define una contraseña nueva (`evey admin reset-password --user <email>`, que por sí solo no termina ninguna sesión) y después vuelve a **Activar** la cuenta.
+4. Si la propia cuenta está comprometida, **Admin → Usuarios → Desactivar** sobre ella: eso borra sus tokens de actualización e invalida sus tokens de acceso de inmediato, así que se cierra la sesión en todos los dispositivos. Define una contraseña nueva (`evey admin reset-password --user <email>`, que también termina las sesiones de la cuenta) y después vuelve a **Activar** la cuenta.
 
 ## Desbloquear un escaneo de biblioteca atascado
 

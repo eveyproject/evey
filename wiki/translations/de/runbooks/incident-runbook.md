@@ -1,5 +1,5 @@
 ---
-source_sha: cb3a20b8cc9545de2abfb60adb9e7c2272d0ad6fbc8666679ce2cb180603bae4
+source_sha: 183e65df2f01ed4e879613548dd30f3675ca6c82fa34bb3521c12c68938b83be
 reviewed: false
 ---
 # Störungshandbuch
@@ -310,9 +310,7 @@ Medien-ID, nicht nach dem Token.
    unterscheidet. Suchen Sie `StartStream`, um Neuausstellungen zu sehen; der
    Sender lädt den Empfänger bei einer neu ausgestellten URL für denselben Titel
    nicht mehr neu.
-5. **War der Stream zu groß für das Gerät?** Suchen Sie `advertises a fallback
-   rung` (die Spitzenbitrate des Kopie-Masters) und `plan fitted to the client's
-   line` (die Messung `maxKbps` des Empfängers oder seine Rettung `abr=floor`,
+5. **War der Stream zu groß für das Gerät?** Suchen Sie `advertises a fallback rung` (die Spitzenbitrate des Kopie-Masters) und `plan fitted to the client's line` (die Messung `maxKbps` des Empfängers oder seine Rettung `abr=floor`,
    jetzt eine Eingabe des Plans - der folgende Transkodierungs-Master trägt den
    Grund `client_line_exceeded` oder `abr_floor_requested`): Eine Sitzung, die auf
    einem Kopie-Master mit 20+ Mbps begann und nach einigen Sekunden auf eine
@@ -346,7 +344,7 @@ Symptom: Der Administrator sieht ein unerwartetes Gerät unter **Aktuelle Wieder
    ```sh
    docker compose restart evey
    ```
-4. Ist das Konto selbst kompromittiert, **Admin → Benutzer → Deaktivieren** bei diesem Konto: Das löscht seine Refresh-Tokens und macht seine Zugriffstokens sofort ungültig, sodass jedes Gerät abgemeldet wird. Setzen Sie ein neues Passwort (`evey admin reset-password --user <email>`, was allein keine Sitzung beendet), dann **Aktivieren** Sie das Konto wieder.
+4. Ist das Konto selbst kompromittiert, **Admin → Benutzer → Deaktivieren** bei diesem Konto: Das löscht seine Refresh-Tokens und macht seine Zugriffstokens sofort ungültig, sodass jedes Gerät abgemeldet wird. Setzen Sie ein neues Passwort (`evey admin reset-password --user <email>`, was auch die Sitzungen des Kontos beendet), dann **Aktivieren** Sie das Konto wieder.
 
 ## Einen hängenden Bibliotheksscan lösen
 

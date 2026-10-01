@@ -1,5 +1,5 @@
 ---
-source_sha: 20c15f25fe69f68ab885ee03c012f737103bebcc94ce6da6d3efd20c3bbaff60
+source_sha: 974b056c376498e40c4211ccbde7fd2d3f94c52f343c81353f4cc6f083b62a40
 reviewed: true
 ---
 # Santé des médias
@@ -14,7 +14,7 @@ comme vu.
   <figcaption>Une analyse sans rien à faire : tous les fichiers sont sains (interface en anglais).</figcaption>
 </figure>
 
-## Deux verdicts
+## Trois verdicts
 
 | Verdict | Ce qu'il signifie | Ce que fait Evey |
 | --- | --- | --- |
@@ -22,7 +22,7 @@ comme vu.
 | **Réparable ici** | Un défaut qu'Evey répare sur ce serveur. | **Tout réparer** s'en charge en arrière-plan. |
 | **Information** | Une mesure faite sur le fichier, qu'Evey ne réécrit pas de lui-même. | Rien. Marquez-la comme vue. |
 
-Il n'y a pas de troisième verdict qui vous confierait une corvée. Une mesure sur
+Aucun ne vous confie une corvée. Une mesure sur
 laquelle Evey ne peut pas agir reste une remarque, et une mesure peut se tromper :
 si le fichier se lit bien, il va bien.
 

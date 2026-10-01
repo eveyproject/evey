@@ -1,5 +1,5 @@
 ---
-source_sha: 68ae93ace6a6ac1dc58140bf8cdc28c60bd2db3d0b2ce148ec58433940070f68
+source_sha: 771f24a342b202edfea3fa8ec419ba1e7d488e2112cdd4a535c84b7cd1b586c4
 reviewed: false
 ---
 # Migraciones de la base de datos
@@ -126,7 +126,7 @@ Para quienes contribuyen. Ejemplos en `internal/adapters/driven/postgres/migrati
 Pautas:
 
 - **ALTER largo** que reescribe la tabla (cambio de tipo, añadir un valor por defecto no constante en un PG antiguo) → espera una interrupción del servicio con un catálogo grande.
-- **DROP COLUMN** → solo metadatos, pero la columna no se puede recuperar sin una copia. Nunca la elimines en la misma versión en la que se despliega una nueva versión del código: mejor en dos pasos, dejar de leer la columna, desplegar, y eliminarla en la versión siguiente.
+- **DROP COLUMN** → solo metadatos, pero la columna no se puede recuperar sin una copia. Nunca la elimines en la misma versión que el código que deja de leerla: mejor en dos pasos, dejar de leer la columna, desplegar, y eliminarla en la versión siguiente.
 - **FK en tablas grandes** → `ADD CONSTRAINT ... NOT VALID` y después `VALIDATE CONSTRAINT` en una migración posterior. Evita un único `ADD CONSTRAINT ... FOREIGN KEY ...` bloqueante.
 - **UPDATE masivo / relleno** → nunca en una sola migración sobre una tabla grande. Entrega una migración de esquema vacía + una tarea en segundo plano.
 - **Sustitución de columna (expand → migrate → contract)** → no juntes `ADD COLUMN` + relleno + `SET NOT NULL` + `DROP COLUMN` de la antigua en una sola migración. Esa forma solo funciona porque hoy Evey se ejecuta en una sola instancia, con las migraciones aplicadas de forma síncrona al arrancar: durante la ventana, el código antiguo que lee la columna eliminada y el código nuevo que lee la nueva no pueden convivir, así que un despliegue progresivo o con varias réplicas serviría errores desde la mitad que va por detrás.

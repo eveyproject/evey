@@ -1,5 +1,5 @@
 ---
-source_sha: 3b28483f95cf0e01f8af366abbbe130d63e2bfdb7657c49aefe090c25a5ced6f
+source_sha: 3f509ca8086807c1f4d1c33d492ae026a83e372b7e31aba45a835fc6bbbd56d9
 reviewed: false
 ---
 # Proxy inverso
@@ -141,7 +141,8 @@ un Traefik en una red Docker compartida), **no hace falta Caddy**: Evey emite su
 propias cabeceras de seguridad y una CSP completa, y las reglas de streaming solo
 puede aplicarlas el proxy que da la cara al cliente: un segundo proxy detrás no
 aporta nada. Pon el servicio evey en la red de ese proxy y apunta a
-`evey-server:9091`:
+`evey-server:9091` (el nombre del contenedor; el nombre del servicio, `evey`,
+también funciona):
 
 ```yaml title="docker-compose.yml"
 services:

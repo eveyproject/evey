@@ -1,5 +1,5 @@
 ---
-source_sha: 9ec526fd6900c24c0897b5487d0abdf140e3fd5aee6f9a754b78d5e5514fc8d4
+source_sha: f3462cd1e79cf16db4a38f3ecb82da3588ca9b03301e7d32db33118bb80ea428
 reviewed: false
 ---
 # Bibliotheken und Metadaten
@@ -154,7 +154,8 @@ und sonst aus der eigenen Analyse der Dateien durch den Server. Ein
 Administrator kann die Segmente eines Titels von Hand anpassen oder die
 Erkennung erneut ausführen.
 
-Die Player zeigen standardmäßig eine Schaltfläche **Überspringen**.
+Die Player zeigen standardmäßig die Schaltflächen **Intro überspringen**,
+**Rückblick überspringen** und **Abspann überspringen**.
 **Intros automatisch überspringen** (**Admin → Serverkonfiguration →
 Servereinstellungen**, standardmäßig aus) lässt jeden Player sie von selbst
 überspringen.

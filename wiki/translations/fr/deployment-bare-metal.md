@@ -1,5 +1,5 @@
 ---
-source_sha: 87e3250d0329fdea4d7710ddda0cd4624c81d6c2177820f2e45502be4f6fe75f
+source_sha: df7413e4af441d34d3b23275ec280881e68c4257572b636312f678009cf80c2e
 reviewed: true
 ---
 # Installation sans Docker
@@ -320,8 +320,7 @@ plugin, regardez le journal du serveur :
 - **par plugin** (à chaque démarrage de plugin) :
   `plugin sandbox applied  sandbox_mode=landlock plugin_id=...`
 - **repli sur basic** (un avertissement que vous ne voulez *pas* voir si vous
-  attendiez Landlock) : `plugin sandbox auto-detection fell back to basic mode:
-  no per-path filesystem isolation available …` : ni Landlock ni un bwrap
+  attendiez Landlock) : `plugin sandbox auto-detection fell back to basic mode: no per-path filesystem isolation available …` : ni Landlock ni un bwrap
   fonctionnel n'ont été trouvés. Revoyez le §3.
 
 Vérifiez les éléments du noyau indépendamment :

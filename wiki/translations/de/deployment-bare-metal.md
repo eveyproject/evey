@@ -1,5 +1,5 @@
 ---
-source_sha: 87e3250d0329fdea4d7710ddda0cd4624c81d6c2177820f2e45502be4f6fe75f
+source_sha: df7413e4af441d34d3b23275ec280881e68c4257572b636312f678009cf80c2e
 reviewed: false
 ---
 # Bereitstellung ohne Container (kein Docker)
@@ -315,8 +315,7 @@ Start des ersten Plugins das Server-Log:
 - **pro Plugin** (bei jedem Plugin-Start):
   `plugin sandbox applied  sandbox_mode=landlock plugin_id=...`
 - **auf basic zurückgefallen** (eine Warnung, die Sie *nicht* sehen wollen, wenn
-  Sie Landlock erwartet haben): `plugin sandbox auto-detection fell back to basic mode: no per-path
-  filesystem isolation available …` - bedeutet, dass weder Landlock noch ein
+  Sie Landlock erwartet haben): `plugin sandbox auto-detection fell back to basic mode: no per-path filesystem isolation available …` - bedeutet, dass weder Landlock noch ein
   funktionierendes bwrap gefunden wurde. Prüfen Sie §3 erneut.
 
 Prüfen Sie die Kernelbausteine unabhängig davon:

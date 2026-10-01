@@ -1,5 +1,5 @@
 ---
-source_sha: 3b28483f95cf0e01f8af366abbbe130d63e2bfdb7657c49aefe090c25a5ced6f
+source_sha: 3f509ca8086807c1f4d1c33d492ae026a83e372b7e31aba45a835fc6bbbd56d9
 reviewed: false
 ---
 # 反向代理
@@ -83,7 +83,7 @@ EVEY_DOMAIN=media.example.com
 
 ### 在你已有的代理之后（TLS 在上游终止）
 
-在已经有反向代理的 NAS 上（厂商自带的、Nginx Proxy Manager、共享 Docker 网络上的 Traefik），**不需要 Caddy**：Evey 会发出自己的安全头和完整的 CSP，而流媒体规则无论如何都只能由面向客户端的那个代理执行：在它后面再放一个代理没有任何好处。把 evey 服务放到那个代理的网络中，并指向 `evey-server:9091`：
+在已经有反向代理的 NAS 上（厂商自带的、Nginx Proxy Manager、共享 Docker 网络上的 Traefik），**不需要 Caddy**：Evey 会发出自己的安全头和完整的 CSP，而流媒体规则无论如何都只能由面向客户端的那个代理执行：在它后面再放一个代理没有任何好处。把 evey 服务放到那个代理的网络中，并指向 `evey-server:9091`（容器名；服务名 `evey` 同样可用）：
 
 ```yaml title="docker-compose.yml"
 services:

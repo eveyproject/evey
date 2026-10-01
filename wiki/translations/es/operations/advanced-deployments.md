@@ -1,5 +1,5 @@
 ---
-source_sha: 6c5be1c7b73eceb506748f84e685e858d94021c34fe6715f0d4127dfd10d261f
+source_sha: fffc05516a2ca96d615a64bc159a1b837a7601876648b7e40b6167296b59f1d5
 reviewed: false
 ---
 # Despliegues avanzados
@@ -183,7 +183,7 @@ La imagen es `gravityz/evey`.
 
 - Las etiquetas de versión `vX.Y.Z` publican `X.Y.Z`, `X.Y`, `X` y `latest`.
   `latest` es siempre la versión estable más reciente: una versión previa
-  (`vX.Y.Z-beta.N`) solo publica su propia etiqueta y nunca la mueve.
+  (`vX.Y.Z-beta.N`) solo publica su propia etiqueta y nunca mueve `latest`.
 - Las compilaciones de rama publican el nombre de la rama (por ejemplo
   `beta-0.0.1`) y `sha-<commit>`.
 - **Entornos de ejecución de plugins.** La imagen por defecto incluye Python 3
