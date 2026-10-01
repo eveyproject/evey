@@ -1681,7 +1681,7 @@ sso:
   buttonLabel: "Texto del botón"
   buttonLabelHint: "Opcional. Sustituye \"Iniciar sesión con SSO\" en las pantallas de inicio de sesión."
   linkByEmail: "Vincular con cuentas existentes por correo verificado"
-  linkByEmailHint: "Un primer inicio de sesión SSO con el correo de una cuenta existente entra en esa cuenta. Solo si el proveedor confirma la dirección (email_verified). Una cuenta desactivada sigue rechazada."
+  linkByEmailHint: "Un primer inicio de sesión SSO con el correo de una cuenta existente entra en esa cuenta. Solo si el proveedor confirma la dirección (email_verified). Una cuenta desactivada sigue rechazada. Las cuentas de administrador nunca se vinculan así."
   allowSignup: "Crear cuentas para nuevos usuarios SSO"
   allowSignupHint: "Desactivado por defecto mientras no se permita ningún dominio arriba: con un proveedor público, cualquiera con una cuenta allí podría conseguir una aquí. Desactivado, solo las cuentas existentes o vinculadas pueden usar SSO."
   defaultAccess: "Acceso a bibliotecas de las nuevas cuentas SSO"

@@ -180,6 +180,21 @@ func TestFindOrCreate_NeverLinksOnUnverifiedEmail(t *testing.T) {
 	}
 }
 
+func TestFindOrCreate_NeverLinksAnAdminByEmail(t *testing.T) {
+	svc, repo, _ := newPolicySvc()
+	u := localUser(t, repo, "root", "root@example.com")
+	u.IsAdmin = true
+	_ = repo.Update(context.Background(), u)
+	cfg := OIDCConfig{Issuer: testIssuer, LinkByEmail: true, AllowSignup: true}
+	_, err := svc.findOrCreateUser(context.Background(), cfg, oidcIdentity{Sub: "s-root", Email: "root@example.com", EmailVerified: true})
+	if !errors.Is(err, ErrOIDCAccountExists) {
+		t.Fatalf("got %v, want ErrOIDCAccountExists", err)
+	}
+	if _, err := repo.GetByOIDCSubject(context.Background(), testIssuer, "s-root"); !errors.Is(err, shared.ErrNotFound) {
+		t.Error("an administrator account was linked by e-mail")
+	}
+}
+
 func TestFindOrCreate_LinkSwitchOff(t *testing.T) {
 	svc, repo, _ := newPolicySvc()
 	localUser(t, repo, "bob", "bob@example.com")

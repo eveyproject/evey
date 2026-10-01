@@ -635,6 +635,12 @@ func (s *OIDCService) linkExisting(ctx context.Context, cfg OIDCConfig, ident oi
 		slog.WarnContext(ctx, "oidc: e-mail matches an account linked to another identity", slog.String("user_id", string(u.ID)))
 		return nil, ErrOIDCAccountExists
 	}
+	// Never by e-mail alone for an administrator: a misconfigured provider must
+	// not be enough to take over an admin account.
+	if u.IsAdmin {
+		slog.WarnContext(ctx, "oidc: e-mail matches an administrator account, not linked automatically", slog.String("user_id", string(u.ID)))
+		return nil, ErrOIDCAccountExists
+	}
 	if err := s.userRepo.LinkOIDCIdentity(ctx, u.ID, cfg.Issuer, ident.Sub); err != nil {
 		if errors.Is(err, shared.ErrConflict) {
 			return nil, ErrOIDCAccountExists

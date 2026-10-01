@@ -1681,7 +1681,7 @@ sso:
   buttonLabel: "Button label"
   buttonLabelHint: "Optional. Replaces \"Sign in with SSO\" on the sign-in screens."
   linkByEmail: "Link to existing accounts by verified e-mail"
-  linkByEmailHint: "A first SSO sign-in with the e-mail of an existing account signs into that account. Only when the provider confirms the address (email_verified). A disabled account stays refused."
+  linkByEmailHint: "A first SSO sign-in with the e-mail of an existing account signs into that account. Only when the provider confirms the address (email_verified). A disabled account stays refused. Administrator accounts are never linked this way."
   allowSignup: "Create accounts for new SSO users"
   allowSignupHint: "Off by default unless e-mail domains are allowed above: with a public provider, anyone holding an account there could otherwise get one here. When off, only existing or linked accounts can use SSO."
   defaultAccess: "Library access for new SSO accounts"

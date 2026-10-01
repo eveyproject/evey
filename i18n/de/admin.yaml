@@ -1681,7 +1681,7 @@ sso:
   buttonLabel: "Beschriftung der Schaltfläche"
   buttonLabelHint: "Optional. Ersetzt \"Mit SSO anmelden\" auf den Anmeldeseiten."
   linkByEmail: "Mit bestehenden Konten über bestätigte E-Mail verknüpfen"
-  linkByEmailHint: "Eine erste SSO-Anmeldung mit der E-Mail eines bestehenden Kontos meldet bei diesem Konto an. Nur wenn der Anbieter die Adresse bestätigt (email_verified). Ein deaktiviertes Konto bleibt abgewiesen."
+  linkByEmailHint: "Eine erste SSO-Anmeldung mit der E-Mail eines bestehenden Kontos meldet bei diesem Konto an. Nur wenn der Anbieter die Adresse bestätigt (email_verified). Ein deaktiviertes Konto bleibt abgewiesen. Administratorkonten werden nie auf diese Weise verknüpft."
   allowSignup: "Konten für neue SSO-Benutzer anlegen"
   allowSignupHint: "Standardmäßig aus, solange oben keine E-Mail-Domains zugelassen sind: Bei einem öffentlichen Anbieter könnte sonst jeder mit einem Konto dort hier eines bekommen. Wenn aus, können nur bestehende oder verknüpfte Konten SSO nutzen."
   defaultAccess: "Bibliothekszugriff neuer SSO-Konten"
