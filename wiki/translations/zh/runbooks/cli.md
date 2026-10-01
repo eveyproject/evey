@@ -1,15 +1,12 @@
 ---
-source_sha: 0cbab39ffa95c9d5b92240456049d1f9bc27697af69bc1423e9f3c1f3d4a7556
+source_sha: fc91b3be124757e49009dbe56dd9647724bd582d2bc356702367e4982e757455
+reviewed: false
 ---
-
 # Evey CLI - `evey admin`
 
-Evey 的服务器二进制文件同时也是运维用的 CLI。不带参数执行 `evey`，它启动 HTTP/gRPC
-服务器；把 `admin` 作为第一个参数，它就切换到一次性的运维模式，命令跑完就退出。
+Evey 服务器的二进制文件同时也是运维 CLI。不带参数调用 `evey` 时，它会启动 HTTP/gRPC 服务器；第一个参数为 `admin` 时，它会切换到一次性的运维模式，命令完成后即退出。
 
-所有命令读取的配置，和服务器本身来自同一批 `EVEY_*` 环境变量（`EVEY_DB_USER`、
-`EVEY_DB_PASSWORD`、`EVEY_DB_HOST`、`EVEY_DB_PORT`、`EVEY_DB_NAME`、
-`EVEY_DB_SSLMODE`、`EVEY_BACKUP_DIR` 等等）。
+所有命令都从与服务器本身相同的 `EVEY_*` 环境变量读取配置（`EVEY_DB_USER`、`EVEY_DB_PASSWORD`、`EVEY_DB_HOST`、`EVEY_DB_PORT`、`EVEY_DB_NAME`、`EVEY_DB_SSLMODE`、`EVEY_BACKUP_DIR`……）。
 
 ```
 evey                          Start the server.
@@ -21,16 +18,14 @@ evey man [--text]             The manual: roff for `man`, plain text with --text
 evey completion bash          The bash completion script.
 ```
 
-其他任何第一个参数都会被拒绝（退出码 1），而不是悄悄启动服务器。`cmd/evey/admin_commands.go`
-里的 Go 表是每个子命令的唯一描述：用法列表、`--help`、手册、补全脚本和容器 shell 都由
-`cmd/evey/admin_cli_test.go` 对照它进行检查。
+任何其他第一个参数都会被拒绝（退出码 1），而不是悄悄启动服务器。`cmd/evey/admin_commands.go` 中的 Go 表格是每个子命令的唯一描述：用法列表、`--help`、手册、补全脚本和容器 shell 都由 `cmd/evey/admin_cli_test.go` 对照它进行检查。
 
-## 速查
+## 快速参考
 
 ```
 evey admin reset-password --user <email>     Generate a new password, print it once.
 evey admin rotate-jwt-key                    Regenerate JWT signing key (kills ALL sessions).
-evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required).
+evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required; not the panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch index from Postgres (--purge clears orphan docs first; if Meili is down, reports the Postgres fallback and does nothing).
 evey admin migrate up [--no-backup]          Apply pending migrations.
 evey admin migrate down [--no-backup]        Roll back one migration step.
@@ -97,16 +92,40 @@ evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Per-title probe timing and early-stop rate on the files.
 ```
 
-> 永远最新的完整列表，是不带子命令直接执行 `evey admin` - 由它打印出来。
-> 2026-07-23；`reindex-no-cue`，也就是那些反复出现的续播慢故障背后的跳转索引修复，
-> 当时就在缺失之列。
+### 演示实例
 
-## 怎么执行
+```
+evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the demo administrator,
+                                             the visitor accounts, the four libraries, and with
+                                             --media the freely licensed media (gigabytes). Refuses
+                                             unless EVEY_DEMO=1. Dry-run by default.
+```
 
-### 从宿主机执行，前提是整套服务在跑（Docker 开发环境 / 生产环境）
+> 完整且始终最新的列表就是不带子命令的 `evey admin`：它会输出二进制文件包含的每个子命令。
 
-Makefile 把最常用的几项操作包成了容器内的 shell 调用，这样不用 source `.env`，
-宿主机上也不用装 pg_dump：
+## 如何调用
+
+### 在容器中（标准安装）
+
+```sh
+docker exec evey-server evey admin doctor
+docker exec -it evey-server bash      # 管理 shell：evey admin ...、man evey
+```
+
+镜像设置了数据库密码文件，所以这些命令无需任何额外环境就能连到内置数据库。
+
+### 在不使用容器的安装上（没有 Docker）
+
+```sh
+evey admin reset-password --user alice@example.com
+evey admin migrate version
+```
+
+预装的二进制文件已经内置了所有子命令。
+
+### 在开发环境中
+
+Makefile 封装了迁移命令，它们在开发容器 `evey-server` 中从源代码树运行：
 
 ```sh
 make migrate-version
@@ -114,76 +133,46 @@ make migrate-up
 make migrate-down
 ```
 
-它们底下执行的是 `docker exec -w /app evey-server sh -c 'go run ./cmd/evey admin migrate <op>'`，
-所以 `evey-server` 必须在运行；没在跑的话，先用 `make dev` 把它起来。
-
-### 直接进到运行中的容器里
-
-```sh
-docker exec -it evey-server sh
-/app # go run ./cmd/evey admin reset-password --user alice@example.com
-```
-
-### 不使用容器的安装（不用 Docker）
-
-```sh
-evey admin reset-password --user alice@example.com
-evey admin migrate version
-```
-
-预装好的二进制文件里，每一个子命令都已经编译进去了。
-
 ## Tab 补全与手册
 
-二进制文件自带 bash 补全和手册，所以两者总是与它所带的子命令一致：
+二进制文件自带 bash 补全和手册，所以两者总是与它包含的子命令一致：
 
 ```sh
 evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
 evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null && sudo mandb -q
 ```
 
-zsh 用户：先执行 `autoload -U +X bashcompinit && bashcompinit`，再 source 同一个脚本。
-补全覆盖子命令、它们的参数及参数取值（`--mode`、`--backend`、`--scenario`），`--user`
-之后的用户邮箱，`--root` 之后服务器已知的媒体库根目录（以及任意目录），`ladder-bench`、
-`ladder-probe` 和 `route-bench` 的文件参数只补全媒体文件，`restore-backup` 则补全 `.sql.gz` 转储。
+zsh 用户：先执行 `autoload -U +X bashcompinit && bashcompinit`，然后加载同一个脚本。补全覆盖子命令、它们的选项和选项值（`--mode`、`--backend`、`--scenario`）、`--user` 之后的用户邮箱、`--root` 之后服务器已知的媒体库根目录（以及任何目录）、`ladder-bench`、`ladder-probe` 和 `route-bench` 的文件参数仅限媒体文件，以及 `restore-backup` 的 `.sql.gz` 转储。
 
-Docker 镜像在构建时就装好了补全，它的管理 shell（`docker exec -it evey-server bash`）
-在你输入 `man evey` 时会分页显示 `evey man --text`，因为镜像里没有 `man` 程序。
+Docker 镜像在构建时安装补全，它的管理 shell（`docker exec -it evey-server bash`）通过分页显示 `evey man --text` 来响应 `man evey`，因为镜像中没有 `man` 程序。
 
-## 子命令详解
+## 子命令详情
 
 ### `migrate`
 
-- `up` 会按顺序应用所有待执行的迁移。设置了 `EVEY_BACKUP_DIR` 时（Docker 镜像里默认是
-  `/data/backups`），迁移前会自动做一次 `pg_dump`。Up 跑到一半失败会留下
-  `schema_migrations.dirty = true`；见 `migration-runbook.md`。
-- `down` 只回滚一个迁移。它是外科手术式的，不是“全部推倒” - 没有 `down --all` 这种东西。
-  回滚前同样会做一次 `pg_dump`。
-- `version` 打印当前的 schema 版本。上一次迁移跑了一半就失败时（也就是 `Up` 的语句执行了一部分、
-  没有全部执行完），它会带着 `DIRTY` 警告以退出码 1 返回。
-- `--no-backup` 在两个方向上都会跳过 pg_dump。在没装 `postgres-client` 的宿主机上很有用
-  （典型场景是 WSL 开发环境，Makefile 那边已经带上了这个参数）。
+- `up` 按顺序应用所有待执行的迁移。当设置了 `EVEY_BACKUP_DIR` 时（Docker 镜像中默认为 `/data/backups`），会自动进行一次迁移前的 `pg_dump`。在 Up 中途失败会留下 `schema_migrations.dirty = true`；见 `migration-runbook.md`。
+- `down` 恰好回滚一个迁移。这是精确的操作，而不是"全部拆掉"：没有 `down --all`。它同样会先进行一次回滚前的 `pg_dump`。
+- `version` 输出当前的架构版本。当之前的某个迁移中途失败时（即部分而非全部 `Up` 语句已执行），返回退出码 1 并带有 `DIRTY` 警告。
+- `--no-backup` 在两个方向上都跳过 pg_dump。适用于没有安装 `postgres-client` 的主机（典型的 WSL 开发环境，Makefile 已经传入这个选项）。
 
 ### `reset-password`、`rotate-jwt-key`、`restore-backup`、`reindex-search`
 
-完整流程、前提条件和执行后的状态，见 `docs/runbooks/recovery.md`。
+完整步骤、前提条件和事后状态见 `docs/runbooks/recovery.md`。
 
-## `evey admin` 里*没有*的东西
+## `evey admin` 中*没有*的东西
 
-有三个独立的二进制文件和 `cmd/evey` 放在一起，因为按恢复和 schema 的标准来说，
-它们算不上运维命令：
+有三个独立的二进制文件位于 `cmd/evey` 旁边，因为它们不是恢复或架构意义上的运维命令：
 
-| 二进制 | 用途 | 为什么单独拆出来 |
+| 二进制文件 | 用途 | 为什么独立 |
 |---|---|---|
-| `cmd/intro-backfill` | 流水线改动之后，对片库的一部分重跑片头识别 | **它是 API 客户端** - 带着 Bearer 令牌去调 `/api/v1/admin/media/{id}/detect-segments`，不在进程内跑。 |
-| `cmd/intro-diag` | 诊断某部剧集的 pHash 片头识别为什么匹配上了（或者为什么没匹配上） | **开发者调试**工具 - 从磁盘读 trickplay 雪碧图，逐帧打印汉明距离的匹配图。还可以再跑一遍可选的音频互相关。 |
-| `cmd/trickplay-verify` | 核对每一块 trickplay 图块，画的确实是记录的那个时间点的那一帧 | **QA/CI** 工具 - 用 ffmpeg 重新抽出源文件的帧，算 aHash 再和图块比对。 |
+| `cmd/intro-backfill` | 在流水线变更后，为片库的一部分刷新片头检测 | **API 客户端**：用 bearer 令牌访问 `/api/v1/admin/media/{id}/detect-segments`，不在进程内运行。 |
+| `cmd/intro-diag` | 诊断 pHash 片头检测为什么在某部剧上匹配（或没有匹配） | **开发者调试**工具：从磁盘读取 trickplay 精灵图，逐帧输出汉明距离匹配图。可选的音频互相关步骤。 |
+| `cmd/trickplay-verify` | 验证每个 trickplay 图块确实显示了所记录时间戳处的画面 | **QA/CI** 工具：用 ffmpeg 重新提取源画面，并与图块比较 aHash。 |
 
-它们之所以作为独立二进制发布，是因为谁都不需要服务器那一整套配置接线 -
-它们是范围明确、跑一次就完的工具，不属于恢复这个面。
+它们作为独立的二进制文件发布，是因为它们都不需要完整的服务器配置：它们是范围明确、一次性运行的工具，不属于恢复功能的一部分。
 
 ## 相关手册
 
-- `migration-runbook.md` - schema 的部署、回滚，以及 dirty 状态的恢复。
-- `recovery.md` - 重置密码、轮换 JWT 密钥、恢复备份、重建搜索索引。
-- `incident-runbook.md` - 服务器不对劲时的第一响应。
+- `migration-runbook.md`：架构部署、回滚、dirty 状态恢复。
+- `recovery.md`：密码重置、JWT 密钥轮换、备份恢复、搜索重建索引。
+- `incident-runbook.md`：服务器运行异常时的第一响应。
