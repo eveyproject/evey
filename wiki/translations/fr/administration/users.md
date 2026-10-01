@@ -1,5 +1,5 @@
 ---
-source_sha: 8485c27cee750eebc4a2f82a04e647554aa7e8ce88bb1b27e705c8904d573fb0
+source_sha: 93a7bbd14075f9a561be863d85aabddbc09ed2371d0b43390f14adc88a26778f
 reviewed: true
 ---
 # Utilisateurs, profils et contrôle parental
@@ -35,7 +35,7 @@ partage en général un compte, avec un profil par personne.
 | Réglage | Effet |
 | --- | --- |
 | **Accès aux bibliothèques** | Les bibliothèques visibles par le compte. Le reste n'apparaît ni dans ses recherches, ni sur sa page d'accueil, ni dans les réponses de l'API. |
-| **Débit maximal** | Un plafond sur le débit reçu par les lecteurs du compte (0 = illimité). Un titre au-dessus est transcodé pour s'y conformer. |
+| **Débit maximal** | Un plafond sur le débit de la vidéo que le serveur encode pour les lecteurs du compte (0 = illimité). |
 | **Profils max** | Le nombre de profils que le compte peut créer (0 = illimité). |
 | **Appareils max par profil** | Le nombre de lectures que chaque profil peut avoir en cours en même temps, tous appareils confondus (0 = illimité). Une lecture de plus est refusée à son démarrage. |
 
