@@ -1,5 +1,5 @@
 ---
-source_sha: 00f9d5811af70059e3ff6fc49a0defb49e3801f0005d12d5b22033634e960f33
+source_sha: 65b23365db26b7098f71c51fcbae29e81a9f718d1b2be22250829cabd85987c1
 reviewed: false
 ---
 # Configuración de OIDC / SSO
@@ -54,10 +54,10 @@ falta, la parte del correo anterior a `@`. La cuenta es un usuario normal y,
 como toda cuenta sin restricciones, ve todas las bibliotecas: restríngela
 después en **Admin → Usuarios** (ver [Usuarios](administration/users.md)).
 
-**Limita los registros con `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Vacío,
+**Limita los registros con `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Si está vacía,
 cualquiera que tenga una cuenta en el proveedor obtiene una en tu servidor, lo
 que con un proveedor público como Google significa cualquiera. Con dominios,
-solo se aceptan esas direcciones, y el proveedor debe marcar la dirección como
+solo se aceptan las direcciones de esos dominios, y el proveedor debe marcar la dirección como
 verificada.
 
 Una cuenta se reconoce por el proveedor y su identificador de usuario, no por el

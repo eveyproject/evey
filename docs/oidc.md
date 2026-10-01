@@ -49,10 +49,10 @@ of the e-mail before `@`. The account is a regular user and, like any account
 without restrictions, sees every library: narrow it in **Admin → Users**
 afterwards (see [Users](administration/users.md)).
 
-**Restrict sign-ups with `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Empty, anyone who
-holds an account at the provider gets one on your server, which with a public
-provider such as Google means anyone. With domains set, only those addresses are
-accepted, and the provider must mark the address as verified.
+**Restrict sign-ups with `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** If it is empty,
+anyone who holds an account at the provider gets one on your server, which with
+a public provider such as Google means anyone. With domains set, only addresses
+in those domains are accepted, and the provider must mark the address as verified.
 
 An account is recognised by the provider and its user ID, not by e-mail. A
 person who already has a local account with the same e-mail or username cannot

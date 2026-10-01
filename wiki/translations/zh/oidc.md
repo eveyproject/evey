@@ -1,5 +1,5 @@
 ---
-source_sha: 00f9d5811af70059e3ff6fc49a0defb49e3801f0005d12d5b22033634e960f33
+source_sha: 65b23365db26b7098f71c51fcbae29e81a9f718d1b2be22250829cabd85987c1
 reviewed: false
 ---
 # OIDC / SSO 设置
