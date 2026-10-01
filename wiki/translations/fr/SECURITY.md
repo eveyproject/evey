@@ -1,5 +1,5 @@
 ---
-source_sha: 0ac15ab64c61bb43ae41b6ec652dda6261a8eed8431ec891b4f9ad3b33dd7d21
+source_sha: 9801f6b285c5e1ea390ba144ca0203b22282b5894237ea831d28ac7ef58f400e
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace
@@ -192,7 +192,7 @@ Appels système refusés :
 | Catégorie | Appels système |
 |---|---|
 | Débogage | `ptrace`, `process_vm_readv`, `process_vm_writev` |
-| Signaux | `kill` ; le filtre noyau refuse aussi `tgkill`, le filtre `LD_PRELOAD` refuse `tkill`/`tgkill` visant le PID 1 |
+| Signaux | `kill`, `pidfd_send_signal`, `pidfd_getfd` (vole un descripteur de fichier) ; le filtre noyau refuse aussi `tkill`, `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo`, le filtre `LD_PRELOAD` n'autorise ces quatre-là que vers le plugin lui-même. Avec Landlock ABI 6 ou plus, un plugin ne peut pas non plus envoyer de signal à un processus hors de sa sandbox |
 | Montages | `mount`, `umount2`, `pivot_root`, `chroot` |
 | Namespaces | `unshare`, `setns` |
 | Modules noyau | `init_module`, `finit_module`, `delete_module` |
