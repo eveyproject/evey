@@ -1,5 +1,5 @@
 ---
-source_sha: 1ba4c65cfb14b1f65376a6dcc31dd7a325cfffb9e3f20082f430ba214a292009
+source_sha: 88ef0be48e8114ca12ceadc61b0194ba4760d654ae7cc58afdf1a52a3405c78f
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture
@@ -72,7 +72,8 @@ du serveur ont varié.
 
 Certaines limites ne sont pas encore déclarées par les lecteurs. Le serveur les
 applique alors comme une règle de compatibilité prudente, identique pour tous :
-la vidéo H.264 en 10 bits, en 4:2:2 ou en 12 bits est réencodée, alors que le
+le H.264 en 10 bits, et toute vidéo en 4:2:2, en 4:4:4 ou en 12 bits, sont
+réencodés, alors que le
 HEVC, le VP9 et l'AV1 jusqu'à 10 bits en 4:2:0 dépendent de la prise en charge
 du codec par le lecteur. Le Dolby Vision n'est conservé que sous une forme que
 le lecteur affiche correctement : voir [HDR et Dolby Vision](hdr.md).
