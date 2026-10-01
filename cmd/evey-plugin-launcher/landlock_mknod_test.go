@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -87,5 +88,32 @@ func TestLandlock_NoSymlinkOrFifoInPluginDir(t *testing.T) {
 	}
 	if out, err := run("echo ok > " + filepath.Join(allowed, "file.txt")); err != nil {
 		t.Fatalf("regular file creation must still work: err=%v output=%q", err, out)
+	}
+}
+
+func TestScopedAccess_PerABI(t *testing.T) {
+	for abi := 1; abi <= 5; abi++ {
+		if scopedAccess(abi) != 0 {
+			t.Errorf("abi %d: scopes landed in v6, must be 0", abi)
+		}
+	}
+	want := uint64(unix.LANDLOCK_SCOPE_SIGNAL | unix.LANDLOCK_SCOPE_ABSTRACT_UNIX_SOCKET)
+	if scopedAccess(6) != want {
+		t.Errorf("abi 6: got %#x want %#x", scopedAccess(6), want)
+	}
+}
+
+// TestLandlock_SignalScope runs without -seccomp so Landlock is the only
+// barrier: the plugin must not signal a process outside its domain.
+func TestLandlock_SignalScope(t *testing.T) {
+	if abi, err := landlockABI(); err != nil || abi < 6 {
+		t.Skipf("Landlock signal scoping needs ABI v6 (abi=%d err=%v)", abi, err)
+	}
+	args := []string{"-ro", "/usr", "-ro", "/bin", "-ro", "/lib", "-ro", "/lib64", "-ro", "/etc",
+		"-rw", t.TempDir(), "-require-landlock", "--", "/bin/sh", "-c", "kill -0 " + strconv.Itoa(os.Getpid())}
+	cmd := exec.Command(os.Args[0], args...)
+	cmd.Env = append(os.Environ(), "EVEY_LAUNCHER_REEXEC=1")
+	if out, err := cmd.CombinedOutput(); err == nil {
+		t.Fatalf("plugin signalled a process outside its Landlock domain: %q", out)
 	}
 }

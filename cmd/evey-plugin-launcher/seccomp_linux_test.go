@@ -59,6 +59,29 @@ func seccompChild(denyInet bool) {
 		fmt.Fprintf(os.Stderr, "userfaultfd not denied: errno=%v\n", errno)
 		os.Exit(16)
 	}
+	// Every other way to signal (or steal an fd from) a same-uid process. The
+	// args would otherwise reach the kernel and fail differently (0/EFAULT/EBADF).
+	tid := uintptr(unix.Gettid())
+	undenied := false
+	for _, sc := range []struct {
+		name string
+		nr   uintptr
+		args [3]uintptr
+	}{
+		{"tkill", unix.SYS_TKILL, [3]uintptr{tid, 0, 0}},
+		{"rt_sigqueueinfo", unix.SYS_RT_SIGQUEUEINFO, [3]uintptr{uintptr(os.Getpid()), 0, 0}},
+		{"rt_tgsigqueueinfo", unix.SYS_RT_TGSIGQUEUEINFO, [3]uintptr{uintptr(os.Getpid()), tid, 0}},
+		{"pidfd_send_signal", unix.SYS_PIDFD_SEND_SIGNAL, [3]uintptr{^uintptr(0), 0, 0}},
+		{"pidfd_getfd", unix.SYS_PIDFD_GETFD, [3]uintptr{^uintptr(0), 0, 0}},
+	} {
+		if _, _, errno := unix.Syscall(sc.nr, sc.args[0], sc.args[1], sc.args[2]); errno != unix.EPERM {
+			fmt.Fprintf(os.Stderr, "%s not denied: errno=%v\n", sc.name, errno)
+			undenied = true
+		}
+	}
+	if undenied {
+		os.Exit(17)
+	}
 	// AF_UNIX must always work - the plugin talks to HostService over it.
 	if fd, _, errno := unix.Syscall(unix.SYS_SOCKET, uintptr(unix.AF_UNIX), uintptr(unix.SOCK_STREAM), 0); errno != 0 {
 		fmt.Fprintf(os.Stderr, "AF_UNIX socket denied: errno=%v\n", errno)

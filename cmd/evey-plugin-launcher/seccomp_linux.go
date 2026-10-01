@@ -53,7 +53,11 @@ const (
 func deniedSyscalls() []uint32 {
 	return []uint32{
 		unix.SYS_PTRACE, unix.SYS_PROCESS_VM_READV, unix.SYS_PROCESS_VM_WRITEV,
-		unix.SYS_KILL, unix.SYS_TGKILL,
+		// Every signal path to a same-uid process (server, Postgres, Meilisearch),
+		// plus pidfd_getfd, which copies an fd out of such a process.
+		unix.SYS_KILL, unix.SYS_TKILL, unix.SYS_TGKILL,
+		unix.SYS_RT_SIGQUEUEINFO, unix.SYS_RT_TGSIGQUEUEINFO,
+		unix.SYS_PIDFD_SEND_SIGNAL, unix.SYS_PIDFD_GETFD,
 		unix.SYS_MOUNT, unix.SYS_UMOUNT2, unix.SYS_PIVOT_ROOT, unix.SYS_CHROOT,
 		unix.SYS_UNSHARE, unix.SYS_SETNS,
 		unix.SYS_INIT_MODULE, unix.SYS_FINIT_MODULE, unix.SYS_DELETE_MODULE,
