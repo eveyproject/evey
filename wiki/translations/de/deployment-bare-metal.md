@@ -9,8 +9,8 @@ statt mit dem [Docker-Image](installation.md). Das Docker-Image ist der
 empfohlene Weg - es bringt die Plugin-Sandbox, die Härtung und die Laufzeiten
 fertig verdrahtet mit. Ohne Container stellen **Sie** diese Haltung selbst her:
 die richtigen Programme nebeneinander, ein eigener Benutzer ohne root-Rechte,
-das Sandbox-Backend, das Ihr Kernel unterstützt, und geheime Verzeichnisse, die
-nur ihrem Besitzer gehören. Diese Seite ist die Schritt-für-Schritt-Anleitung
+das Sandbox-Backend, das Ihr Kernel unterstützt, und Verzeichnisse mit
+Geheimnissen, auf die nur ihr Besitzer zugreifen kann. Diese Seite ist die Schritt-für-Schritt-Anleitung
 dafür.
 
 Wenn Sie nur die einfache Installation wollen, hören Sie hier auf und nutzen
@@ -232,8 +232,8 @@ nicht `setuid(0)` aufrufen, weil der Server keine Capabilities hält; nur der
 winzige Launcher ohne Eingaben tut es (und er verweigert jede Ziel-UID unter
 1000). Kann der Launcher nicht herabstufen (Capability fehlt oder
 `no_new_privs` gesetzt), wird ein Plugin im Modus `basic` **verweigert** - die UID
-ist dort seine einzige Mauer um die Geheimnisse; unter Landlock protokolliert er
-eine Warnung und läuft mit der UID des Servers.
+ist dort seine einzige Mauer um die Geheimnisse; unter Landlock wird eine Warnung
+protokolliert, und das Plugin läuft mit der UID des Servers.
 
 > **Nicht vereinbar mit `no_new_privs`.** Starten Sie den Server mit
 > `no-new-privileges` (oder systemd `NoNewPrivileges=yes`), wird die

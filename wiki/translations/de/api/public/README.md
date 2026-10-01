@@ -28,4 +28,4 @@ Endpunkte für Benutzer, verfügbar für alle angemeldeten Benutzer.
 
 ## Authentifizierung
 
-Die Endpunkte erwarten `Authorization: Bearer <token>`: ein Sitzungstoken aus der Anmeldung oder einen API-Schlüssel (siehe [Webhooks und API-Schlüssel](../../webhooks-api-keys.md)). Ohne erreichbar: Anmelden und Erneuern einer Sitzung, Registrieren mit einer Einladung, Quick Connect, Zurücksetzen des Passworts, der Einrichtungsassistent und sein Status sowie öffentliche Download-Links.
+Die Endpunkte erwarten `Authorization: Bearer <token>`: ein Sitzungstoken aus der Anmeldung oder einen API-Schlüssel (siehe [Webhooks und API-Schlüssel](../../webhooks-api-keys.md)). Ohne erreichbar: Anmelden und Erneuern einer Sitzung, Registrieren mit einer Einladung, Schnellverbindung, Zurücksetzen des Passworts, der Einrichtungsassistent und sein Status sowie öffentliche Download-Links.

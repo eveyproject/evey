@@ -69,7 +69,7 @@ Fernzugriff**:
   jede Adresse abdeckt (`0.0.0.0/0`, `::/0`), wird verweigert: Jeder Client
   könnte sonst die Adresse wählen, mit der er gesehen wird.
 
-Ohne Proxy liefert Eveys Repository einen Caddy-Dienst mit, der sich selbst ein
+Haben Sie noch keinen Proxy, liefert Eveys Repository einen Caddy-Dienst mit, der sich selbst ein
 Let's-Encrypt-Zertifikat besorgt. Fertige Konfigurationen für Caddy, Nginx,
 Traefik und Nginx Proxy Manager, und was die Standardeinstellungen eines
 Proxys mit dem Streaming machen: [Reverse-Proxy-Konfigurationen](../reverse-proxy.md).

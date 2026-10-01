@@ -55,7 +55,7 @@ Verhalten:
   2048-Bit-RSA-Schlüssel.
 - Alle zuvor ausgestellten Zugriffstokens scheitern an der
   Signaturprüfung.
-- Refresh-Tokens werden gegen die in der Datenbank gespeicherte Prüfsumme
+- Refresh-Tokens werden gegen den in der Datenbank gespeicherten Hash
   geprüft, nicht gegen den Schlüssel, und bleiben daher gültig: Eine App, deren
   Zugriffstoken abgelehnt wird, erneuert es und macht weiter. Um außerdem jede
   Sitzung zu beenden, leeren Sie die Tabelle:

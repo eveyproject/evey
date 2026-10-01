@@ -63,7 +63,7 @@ nichts ändern:
 **Standard: automatisch.** Sind `PUID`/`PGID` nicht gesetzt, sieht sich der
 Entrypoint beim Start den Besitzer Ihrer `/media*`-Einbindungen an und führt
 den Server als diesen Benutzer aus, sodass die Funktionen, die *in* Ihre
-Bibliothek *schreiben* (die Reparatur des Wiedergabeindex baut Dateien an Ort
+Bibliothek *schreiben* (die Reparatur des Seek-Index baut Dateien an Ort
 und Stelle neu), ohne Weiteres funktionieren - kein `chown`, keine
 Konfiguration. Das Startlog sagt, was gewählt wurde:
 

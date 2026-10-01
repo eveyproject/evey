@@ -134,7 +134,7 @@ für eine Datei. Manche Änderungen lassen sich dort ohne Kopie rückgängig mac
 
 | Änderung | Rückgängig |
 | --- | --- |
-| Audiospur verschoben | Wendet genau die entgegengesetzte Verschiebung an. |
+| Tonspur verschoben | Wendet genau die entgegengesetzte Verschiebung an. |
 | In `.mp4` umbenannt | Benennt sie zurück. |
 | Index neu aufgebaut | Nichts rückgängig zu machen: Bild und Ton bleiben unberührt. |
 | Beschädigter Abschnitt übersprungen | Nur die Sicherung bringt die verlorenen Bytes zurück, deshalb behält diese Reparatur immer eine. |
@@ -150,5 +150,5 @@ Dieselbe Maschinerie gibt es in der Betreiber-CLI (siehe `cli.md`):
 
 - `evey admin reindex-no-cue --root <dir> [--apply] [--resync]` baut die
   fehlenden Indizes neu auf, als Probelauf, solange `--apply` fehlt;
-- `evey admin validate-streaming --root <dir>` gibt den schreibgeschützten
-  Bericht zur Streaming-Bereitschaft aus.
+- `evey admin validate-streaming --root <dir>` gibt den Bericht zur
+  Streaming-Bereitschaft aus, ohne etwas zu schreiben.

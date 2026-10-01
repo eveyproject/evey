@@ -361,8 +361,8 @@ Der aufgelöste Modus wird protokolliert und in der Zeile **Host-Sandbox** unter
 
 Der letzte Ausweg von `auto`: der eigene Benutzer, der Kernelfilter, der
 `LD_PRELOAD`-Filter, `-deny-inet` und Landlock, wenn der Kernel es hat. Auf einem
-Kernel ohne Landlock gibt es keine Einschränkung pro Pfad: Ein Plugin kann nicht
-sensible, für alle lesbare Dateien lesen und die Prozessliste sehen. Die
+Kernel ohne Landlock gibt es keine Einschränkung pro Pfad: Ein Plugin kann für
+alle lesbare, nicht sensible Dateien lesen und die Prozessliste sehen. Die
 Geheimnisse des Servers bleiben durch den eigenen Benutzer und `PR_SET_DUMPABLE`
 geschützt, das Netzwerk ist gekappt, und gefährliche Systemaufrufe werden
 verweigert, kompilierte Programme eingeschlossen.
@@ -402,7 +402,7 @@ einfachen Worten: [Plugin-Sandbox einrichten](plugins/sandbox-deployment.md).
 
 | Grenze | Auswirkung | Was sie heute begrenzt |
 |---|---|---|
-| Keine Einschränkung pro Pfad in `basic` auf einem Kernel ohne Landlock | Ein Plugin kann nicht sensible, für alle lesbare Dateien und die Verzeichnisse anderer Plugins lesen | Geheimnisse durch den eigenen Benutzer und `PR_SET_DUMPABLE` geschützt; `auto` bevorzugt Landlock oder bubblewrap |
+| Keine Einschränkung pro Pfad in `basic` auf einem Kernel ohne Landlock | Ein Plugin kann für alle lesbare, nicht sensible Dateien und die Verzeichnisse anderer Plugins lesen | Geheimnisse durch den eigenen Benutzer und `PR_SET_DUMPABLE` geschützt; `auto` bevorzugt Landlock oder bubblewrap |
 | Alle Plugins teilen den Benutzer 1001 | Ein Plugin kann seinen Geschwistern Signale senden (Signale an den Server werden verweigert) | `PR_SET_DUMPABLE` verhindert das Lesen anderer Prozesse über `/proc`; Landlock und bubblewrap isolieren die Plugin-Verzeichnisse |
 | Seccomp ist eine Sperrliste | Datei- und Unix-Socket-Aufrufe bleiben erlaubt | Pfade werden von Landlock oder bubblewrap eingeschränkt; IP-Sockets werden verweigert |
 | Der Broker verlagert die SSRF-Angriffsfläche auf den Host | Ein Fehler in der Prüfung des Brokers könnte eine interne Adresse erreichen | Erlaubnisliste und SSRF-sicherer Client in Go; eine Ausgangsregel am Container als unabhängige Schicht |

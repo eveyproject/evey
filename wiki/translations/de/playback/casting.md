@@ -62,7 +62,7 @@ Android), läuft ein Tippen über den Server, der es in dieser Reihenfolge
 versucht und bei jedem Schritt das erste gefundene Gerät nimmt:
 
 1. ein Chromecast im Netzwerk des Geräts, das Sie in der Hand halten,
-   abgespielt über Eveys Receiver wie oben;
+   abgespielt über Eveys Empfänger wie oben;
 2. ein DLNA-Fernseher im Netzwerk des Servers. Er erhält den Stream, den der
    Browser gerade abgespielt hat (die Originaldatei bei Direktwiedergabe,
    sonst den transkodierten Stream): Für den Fernseher selbst wird keine

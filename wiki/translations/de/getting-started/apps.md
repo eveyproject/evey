@@ -38,8 +38,8 @@ mit demselben Konto angemeldet.
     die App für einen Film, der zu groß für das Telefon ist, eine kleinere, vom
     Server vorbereitete Kopie an. Ein Download bleibt 30 Tage lang offline
     abspielbar, ohne Kontakt zum Server, und nur für Profile, die ihn sehen
-    dürfen: Ein Kinderprofil kann keinen Film öffnen, den ein anderes Profil
-    oberhalb seiner Altersgrenze heruntergeladen hat.
+    dürfen: Ein Kinderprofil kann einen Film oberhalb seiner Altersgrenze nicht
+    öffnen, auch wenn ein anderes Profil ihn heruntergeladen hat.
   - **Streamen** auf einen Chromecast.
 - **Android TV.** Eine Oberfläche, die für die Fernbedienung gebaut ist.
 

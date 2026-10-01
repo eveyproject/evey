@@ -36,7 +36,7 @@ Bild vor dem Kodieren per Tone Mapping auf SDR um. Stream-Info führt dann
 **HDR nach SDR konvertiert (Tone-Mapping)** auf.
 
 Hätte das Original gesendet werden können, kann der Server es aber noch nicht
-als Kopie ausliefern (zum Beispiel, weil sein Wiedergabeindex noch aufgebaut
+als Kopie ausliefern (zum Beispiel, weil sein Seek-Index noch aufgebaut
 wird), wird das Video auf einer solchen Karte mit erhaltenem HDR neu kodiert,
 und Stream-Info zeigt **Kopie nicht verfügbar, HDR beim Neukodieren erhalten**.
 

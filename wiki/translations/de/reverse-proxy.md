@@ -93,7 +93,7 @@ Richtlinie, die sie weglässt, lässt die Einschleusung von `<base href>` und da
 Einbetten per `<object>`/`<embed>` uneingeschränkt. Behalten Sie sie, wenn Sie
 Ihre eigene Richtlinie setzen.
 
-Eine Seite braucht eine weitere Richtlinie: `/cast-receiver.html`, die Seite,
+Eine Seite braucht eine weiter gefasste Richtlinie: `/cast-receiver.html`, die Seite,
 die ein Chromecast lädt, wenn er von Evey abspielt. Der Cast-Player fügt darin
 Stile, Schriften und Bilder von `www.gstatic.com` ein, und die Anwendung sendet
 dieser Seite deshalb eine eigene Richtlinie. Lassen Sie auf diesem Pfad den

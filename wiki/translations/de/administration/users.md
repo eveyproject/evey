@@ -67,8 +67,8 @@ er den Inhalt, statt ihn zuzulassen. Administratoren unterliegen keinen
 Profilgrenzen.
 
 Ein auf ein Telefon heruntergeladener Film bleibt auch offline der Grenze
-unterworfen: Ein Kinderprofil kann keinen Download öffnen, den ein anderes
-Profil oberhalb seiner Altersgrenze erstellt hat.
+unterworfen: Ein Kinderprofil kann einen Download oberhalb seiner Altersgrenze
+nicht öffnen, auch wenn ein anderes Profil ihn erstellt hat.
 
 ## Anfragen
 
@@ -80,8 +80,8 @@ alle, mit Ausnahmen pro Benutzer.
 
 ## Öffentliche Download-Links
 
-Auf der Seite eines Films oder einer Folge kann ein Administrator einen
-**Öffentlichen Download-Link** erstellen (Web- und Android-App). Das ist eine
+Auf der Seite eines Films oder einer Folge kann ein Administrator über
+**Öffentlicher Download-Link** einen Link erstellen (Web- und Android-App). Das ist eine
 Adresse, die jeder ohne Konto öffnen kann, um die Originaldatei
 herunterzuladen; sie wird in die Zwischenablage kopiert.
 

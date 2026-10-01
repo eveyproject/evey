@@ -40,4 +40,4 @@ Verwaltungsendpunkte, beschränkt auf Benutzer mit Administratorrechten.
 
 ## Authentifizierung
 
-Jeder Endpunkt verlangt einen Administrator: das Sitzungstoken eines Administratorkontos oder einen API-Schlüssel, der immer einem gehört (seine Scopes können ihn einschränken).
+Jeder Endpunkt verlangt einen Administrator: das Sitzungstoken eines Administratorkontos oder einen API-Schlüssel, der immer einem gehört (seine Berechtigungen können ihn einschränken).

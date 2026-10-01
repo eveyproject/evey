@@ -32,7 +32,7 @@ im Admin-Bereich, das gewinnt, sobald dort ein Wert gespeichert ist.
 | --- | --- | --- |
 | `EVEY_INTRO_PROVIDERS_ENABLED` | `false` | Nutzt die Community-Datenbanken (TheIntroDB, dann IntroDB) vor der eigenen Erkennung des Servers. **Admin → Serverkonfiguration → Intro-Skip-Anbieter** gewinnt; nach einer Änderung neu starten. |
 | `EVEY_INTRO_TIDB_API_KEY` | leer | Ein TheIntroDB-Schlüssel: 500 Abfragen pro Tag statt 100. |
-| `EVEY_INTRO_AUTO_SKIP_ENABLED` | `false` | Jeder Player überspringt erkannte Intros von selbst. Gilt aus dem Admin-Bereich sofort. |
-| `EVEY_INTRO_SKIP_PREVIEW_ENABLED` | `false` | Bietet auch an, die Vorschau auf die nächste Folge zu überspringen. Gilt aus dem Admin-Bereich sofort. |
+| `EVEY_INTRO_AUTO_SKIP_ENABLED` | `false` | Jeder Player überspringt erkannte Intros von selbst. Im Admin-Bereich geändert, gilt es sofort. |
+| `EVEY_INTRO_SKIP_PREVIEW_ENABLED` | `false` | Bietet auch an, die Vorschau auf die nächste Folge zu überspringen. Im Admin-Bereich geändert, gilt es sofort. |
 | `EVEY_INTRO_DETECTION_MAX_PARALLEL` | aus dem CPU-Anteil | Gleichzeitig analysierte Titel. Von Hand gesetzt, umgeht er den Anteil **Zugeteilte Rechenleistung** für diese Aufgabe. |
 | `EVEY_INTRO_FFMPEG_THREADS` | `1` | Threads pro ffmpeg-Prozess während der Erkennung (1 bis 16). |

@@ -56,7 +56,7 @@ Scan.
 Der Scanner liest MP3-, FLAC-, M4A-, OGG-, Opus-, WAV- und AAC-Dateien und
 entnimmt jeden Titel seinen Tags: Titel (der Dateiname, wenn er fehlt),
 Künstler, Albumkünstler, Album, Jahr, Titel- und CD-Nummer, Genre. Künstler
-werden nach Albumkünstler gruppiert, oder nach Künstler, wenn dieser Tag leer
+werden nach Albumkünstler gruppiert, oder nach Künstler, wenn dieses Tag leer
 ist.
 
 **Ein Album ist ein Ordner.** Titel werden nach dem Ordner gruppiert, in dem sie

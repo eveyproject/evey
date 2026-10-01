@@ -90,7 +90,7 @@ um sie zu lesen.
 ## Die Wiedergabe stoppt, puffert oder startet nicht
 
 - Nur ein Titel: Öffnen Sie **Admin → Medienzustand**. Eine Datei ohne
-  Wiedergabeindex, ein beschädigter Abschnitt oder in Blöcken gespeicherte
+  Seek-Index, ein beschädigter Abschnitt oder in Blöcken gespeicherte
   Spuren erklären Aussetzer und langsame Sprünge, und die meisten davon werden
   an Ort und Stelle repariert. Siehe [Medienzustand](../runbooks/media-health.md).
 - Mehrere Titel, wenn mehrere Personen schauen: Der Server ist vielleicht an
