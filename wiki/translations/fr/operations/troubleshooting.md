@@ -1,5 +1,5 @@
 ---
-source_sha: 07ef437cfda80f904ab9b75af363b1bc953955e06ee27538265b4d7564457422
+source_sha: 358930f5d871a10d9184002e80eb788d14685e06174afd3a569a059380aa6d0b
 reviewed: true
 ---
 # Dépannage
@@ -58,6 +58,30 @@ auprès d'elle et est refusée quand elle ne répond pas ; le journal le dit) et
 reverse proxy absent des **Proxys de confiance**, qui place tout le monde sous
 une seule limite de connexions. Une clé de signature perdue ou remplacée ne
 déconnecte personne à elle seule : les applications renouvellent leurs jetons.
+
+## La connexion SSO échoue
+
+La page de connexion affiche « Échec de la connexion SSO » :
+
+- la personne a déjà un compte local avec le même e-mail ou le même nom
+  d'utilisateur ;
+- son adresse est hors de `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`, ou le fournisseur
+  ne l'a pas marquée comme vérifiée (le journal dit
+  `oidc: email domain not allowed` ou
+  `oidc: unverified email rejected under domain allowlist`).
+
+Une page d'erreur affichée par le fournisseur lui-même signifie le plus souvent
+que l'URI de redirection déclarée chez lui n'est pas celle qu'utilise Evey. Voir
+[Authentification unique (OIDC)](../oidc.md).
+
+## Les e-mails n'arrivent pas
+
+Le SMTP est lu dans les variables `EVEY_SMTP_*` au démarrage, pas dans la carte
+**E-mail / SMTP**. Quand il est actif, le journal de démarrage affiche
+`SMTP email notifications enabled` avec l'hôte. Un envoi qui échoue est
+journalisé comme `email: send notification`, avec la réponse du serveur ; un
+mode TLS qui ne correspond pas au port (`starttls` avec 587, `ssl` avec 465) est
+l'erreur habituelle. Voir [Notifications](../notifications.md).
 
 ## Un titre est transcodé alors que vous attendiez une lecture directe
 

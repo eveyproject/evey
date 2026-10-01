@@ -1,5 +1,5 @@
 ---
-source_sha: 07ef437cfda80f904ab9b75af363b1bc953955e06ee27538265b4d7564457422
+source_sha: 358930f5d871a10d9184002e80eb788d14685e06174afd3a569a059380aa6d0b
 reviewed: false
 ---
 # 故障排除
@@ -38,6 +38,19 @@ docker exec evey-server evey admin doctor
 ## 所有人都被登出，或者每次登录都失败
 
 [所有登录都返回 401](../runbooks/incident-runbook.md#2-all-logins-return-401)。常见原因是数据库（每个请求都会向数据库核对账户，数据库无法应答时请求会被拒绝；日志会说明这一点），以及反向代理未列入 **受信任的代理**，导致所有人共用同一个登录频率限制。仅仅丢失或替换签名密钥不会让任何人登出：应用会续期它们的令牌。
+
+## SSO 登录失败
+
+登录页显示“SSO 登录失败”：
+
+- 该用户已经拥有一个电子邮件或用户名相同的本地账户；
+- 其地址不在 `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` 之内，或提供方没有将其标记为已验证（日志显示 `oidc: email domain not allowed` 或 `oidc: unverified email rejected under domain allowlist`）。
+
+如果是提供方自己显示的错误页，通常意味着在那里注册的重定向 URI 与 Evey 使用的不一致。见 [OIDC / SSO 设置](../oidc.md)。
+
+## 收不到电子邮件
+
+SMTP 在启动时从 `EVEY_SMTP_*` 变量读取，而不是从 **邮件 / SMTP** 卡片读取。启用时，启动日志会显示 `SMTP email notifications enabled` 及主机名。发送失败会以 `email: send notification` 记录，并附上服务器的应答；TLS 模式与端口不匹配（`starttls` 对应 587，`ssl` 对应 465）是常见错误。见[通知](../notifications.md)。
 
 ## 你本以为是直接播放的条目却在转码
 
