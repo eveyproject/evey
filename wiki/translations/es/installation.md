@@ -1,5 +1,5 @@
 ---
-source_sha: 1e142f5db633e6ce71b5b8f23cc10423cca89071a75c05bb222572fb579f2645
+source_sha: a6c61f9f7b1e619f46c4d5eea7ca2c2b93356f93c04681e95963303bdf287723
 reviewed: false
 ---
 # Instalación
@@ -52,7 +52,7 @@ volumes:
   evey-cache:
 ```
 
-1. `latest` es la versión más reciente. Fija una etiqueta en cuanto uses Evey en
+1. `latest` es la versión estable más reciente. Fija una etiqueta en cuanto uses Evey en
    serio, para que dos descargas con un día de diferencia ejecuten el mismo
    código: consulta [Copias de seguridad y actualizaciones](backups.md#updating-evey).
 2. La API y la interfaz web, en un solo puerto, en HTTP sin cifrar.

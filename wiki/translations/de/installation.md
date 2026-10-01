@@ -1,5 +1,5 @@
 ---
-source_sha: 1e142f5db633e6ce71b5b8f23cc10423cca89071a75c05bb222572fb579f2645
+source_sha: a6c61f9f7b1e619f46c4d5eea7ca2c2b93356f93c04681e95963303bdf287723
 reviewed: false
 ---
 # Installation
@@ -53,7 +53,7 @@ volumes:
   evey-cache:
 ```
 
-1. `latest` ist die neueste Version. Legen Sie ein Tag fest, sobald Sie Evey
+1. `latest` ist die neueste stabile Version. Legen Sie ein Tag fest, sobald Sie Evey
    ernsthaft betreiben, damit zwei Pulls im Abstand eines Tages denselben Code
    ausführen: siehe [Sicherungen und Updates](backups.md#updating-evey).
 2. Die API und die Weboberfläche, auf einem Port, in einfachem HTTP.
