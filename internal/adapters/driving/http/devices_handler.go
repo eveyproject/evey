@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -15,6 +16,7 @@ import (
 
 	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
 	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
@@ -33,6 +35,13 @@ const deviceCmdMaxBody = 4 << 10 // 4 KiB - commands are tiny JSON
 // payloads at will. Same cap and same rationale as SyncPlay's
 // syncPlayMaxFrameBytes (syncplay_handler.go).
 const deviceWSMaxFrameBytes = 8 << 10
+
+// deviceWSRegisterWait is how long a freshly upgraded device socket may stay
+// silent before the server gives up on its register frame. Atomic so a test
+// can shorten it while hijacked socket goroutines it cannot join still read it.
+var deviceWSRegisterWait atomic.Int64
+
+func init() { deviceWSRegisterWait.Store(int64(10 * time.Second)) }
 
 type devicesHandler struct {
 	registry *appsyncplay.DeviceRegistry
@@ -141,10 +150,19 @@ func (h *devicesHandler) wsUpgradeHandler(w http.ResponseWriter, r *http.Request
 
 		// First frame: registration. Reject the connection if it doesn't
 		// arrive promptly or isn't a valid register request.
-		_ = ws.SetReadDeadline(time.Now().Add(10 * time.Second)) //nolint:errcheck // best-effort deadline refresh
+		// The warning names the client and how long it stayed silent: prod
+		// showed bursts of "i/o timeout" here with no way to tell a phone
+		// from a browser tab, nor a frozen client from a lost frame.
+		upgradedAt := time.Now()
+		_ = ws.SetReadDeadline(upgradedAt.Add(time.Duration(deviceWSRegisterWait.Load()))) //nolint:errcheck // best-effort deadline refresh
 		var raw string
 		if err := websocket.Message.Receive(ws, &raw); err != nil {
-			slog.WarnContext(r.Context(), "devices ws: no register frame", slog.String("user", userID), slog.Any("err", err))
+			slog.WarnContext(r.Context(), "devices ws: no register frame",
+				slog.String("user", userID),
+				slog.String("user_agent", r.UserAgent()),
+				slog.String("client_ip", ratelimit.ClientIP(r)),
+				slog.Int64("waited_ms", time.Since(upgradedAt).Milliseconds()),
+				slog.Any("err", err))
 			return
 		}
 		var reg domainsyncplay.DeviceRegisterRequest
