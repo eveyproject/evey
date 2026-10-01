@@ -1,5 +1,5 @@
 ---
-source_sha: 053efa5319e4b48ff12a944ce76f5755b01c4022ff1105d87cf82c5135ac1b4d
+source_sha: 0d64371960f5bb56be25ad84664ab862f39caf2e438a08da552c1713a2274048
 reviewed: false
 ---
 # Mitwirken
@@ -32,8 +32,10 @@ Ausgangspunkt, bevor man vorschlägt, eine dieser Entscheidungen zu ändern.
 
 ## Bevor Sie einen Pull Request öffnen
 
-- `make pre-push` ist die einzige Hürde. Sie spiegelt die CI: Ein grüner Lauf
-  dort heißt eine grüne Pipeline.
+- `make pre-push` ist die Hürde: Es führt die Prüfungen der CI lokal aus (vet,
+  Schwachstellensuche, Build, Unit-Tests mit `-race`, Frontend, Lint,
+  Architekturwächter). Das Docker-Image und die Android-Apps baut es nicht:
+  Nach Änderungen am `Dockerfile` oder an Kotlin-Code bauen Sie sie selbst.
 - Tests werden für neues Verhalten und für jede Fehlerbehebung erwartet.
 - Externe Beiträge brauchen eine einmalige Zustimmung zur
   [Contributor License Agreement](../CLA.md): Evey steht unter

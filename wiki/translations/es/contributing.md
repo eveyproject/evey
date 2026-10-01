@@ -1,5 +1,5 @@
 ---
-source_sha: 053efa5319e4b48ff12a944ce76f5755b01c4022ff1105d87cf82c5135ac1b4d
+source_sha: 0d64371960f5bb56be25ad84664ab862f39caf2e438a08da552c1713a2274048
 reviewed: false
 ---
 # Contribuir
@@ -33,8 +33,11 @@ decisiones.
 
 ## Antes de abrir una pull request
 
-- `make pre-push` es la única puerta. Reproduce la CI: una ejecución en verde ahí
-  significa una canalización en verde.
+- `make pre-push` es la puerta: ejecuta en local las comprobaciones de la CI
+  (vet, búsqueda de vulnerabilidades, build, pruebas unitarias con `-race`,
+  frontend, lint, guardas de arquitectura). No construye la imagen Docker ni
+  las aplicaciones Android: tras tocar el `Dockerfile` o código Kotlin,
+  constrúyelas tú.
 - Se esperan pruebas para todo comportamiento nuevo y para cada corrección de
   errores.
 - Las contribuciones externas necesitan aceptar una vez el
