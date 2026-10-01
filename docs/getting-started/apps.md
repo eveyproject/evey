@@ -22,7 +22,8 @@ is signed in to the same account.
 
 ## What each app adds
 
-- **Web.** Keyboard shortcuts in the player (`?` lists them) and the
+- **Web.** Keyboard shortcuts in the player (`?` lists them), browser push
+  notifications (see [Notifications](../notifications.md)), and the
   administration panel.
 - **Android.**
   - **Downloads** for offline viewing. When the administrator has turned it

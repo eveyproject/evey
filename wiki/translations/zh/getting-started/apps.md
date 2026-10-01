@@ -1,5 +1,5 @@
 ---
-source_sha: ab4170436ce4da6a8bd0fb6a6c4ec318ebec1134d74c74bfa4dbb33e0edd5a3a
+source_sha: fb9873d46e2323723ae54ede6035d085a424d9e6c047c3fb833962b8358dd857
 reviewed: false
 ---
 # 应用与设备
@@ -21,7 +21,7 @@ reviewed: false
 
 ## 每个应用额外提供的功能
 
-- **网页。** 播放器中的键盘快捷键（按 `?` 列出）以及管理面板。
+- **网页。** 播放器中的键盘快捷键（按 `?` 列出）、浏览器推送通知（见[通知](../notifications.md)）以及管理面板。
 - **Android。**
   - **下载**，用于离线观看。当管理员开启后（`downloads.quality_choice`，见[播放分发与下载](../environment/playback-delivery.md)），对于手机放不下的电影，应用会提供一个由服务器准备的较小副本。下载的内容在不联系服务器的情况下可离线播放 30 天，并且只对允许观看它的个人资料可用：儿童个人资料无法打开另一个个人资料下载的、超出其年龄限制的电影。
   - **投放**到 Chromecast。

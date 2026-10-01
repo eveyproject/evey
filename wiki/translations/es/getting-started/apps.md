@@ -1,5 +1,5 @@
 ---
-source_sha: ab4170436ce4da6a8bd0fb6a6c4ec318ebec1134d74c74bfa4dbb33e0edd5a3a
+source_sha: fb9873d46e2323723ae54ede6035d085a424d9e6c047c3fb833962b8358dd857
 reviewed: false
 ---
 # Aplicaciones y dispositivos
@@ -28,8 +28,9 @@ televisión queda conectada a la misma cuenta.
 
 ## Lo que aporta cada aplicación
 
-- **Web.** Atajos de teclado en el reproductor (`?` los lista) y el panel de
-  administración.
+- **Web.** Atajos de teclado en el reproductor (`?` los lista), notificaciones
+  push del navegador (consulta [Notificaciones](../notifications.md)) y el panel
+  de administración.
 - **Android.**
   - **Descargas** para ver sin conexión. Cuando el administrador lo ha activado
     (`downloads.quality_choice`, consulta
