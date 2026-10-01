@@ -34,7 +34,7 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	silence := opts.SilenceDurationSec > 0
 
 	var args []string
-	args = append(args, "-nostdin")
+	args = append(args, "-hide_banner", "-nostdin") // banner out of the stderr ClassifyHWFailure reads
 
 	switch {
 	case silence:
