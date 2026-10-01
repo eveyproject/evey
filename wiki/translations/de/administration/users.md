@@ -1,5 +1,5 @@
 ---
-source_sha: 493189a86da40c20ad5dae6f15c10a6d11082963e6bc451cc0804389e0fbe494
+source_sha: 8485c27cee750eebc4a2f82a04e647554aa7e8ce88bb1b27e705c8904d573fb0
 reviewed: false
 ---
 # Benutzer, Profile und Kindersicherung
@@ -36,7 +36,7 @@ typischerweise ein Konto, mit einem Profil pro Person.
 | **Bibliothekszugriff** | Die Bibliotheken, die das Konto sieht. Alles andere fehlt in seinen Suchen, auf seiner Startseite und in den API-Antworten. |
 | **Maximale Bitrate** | Eine Obergrenze für die Bitrate, die die Player des Kontos erhalten (0 = unbegrenzt). Ein Titel darüber wird auf diese Grenze heruntertranskodiert. |
 | **Max. Profile** | Wie viele Profile das Konto anlegen darf (0 = unbegrenzt). |
-| **Max. Geräte pro Profil** | Wie viele Geräte jedes Profil registrieren darf (0 = unbegrenzt). |
+| **Max. Geräte pro Profil** | Wie viele Wiedergaben jedes Profil gleichzeitig laufen haben darf, über alle seine Geräte (0 = unbegrenzt). Eine weitere wird beim Start abgewiesen. |
 
 **Anmelden als** öffnet den Server so, wie dieser Benutzer ihn sieht, um eine
 Einschränkung zu prüfen oder ein Problem nachzustellen. Ein Banner bleibt
