@@ -38,8 +38,8 @@ func runUnderShim(t *testing.T, test string) ([]byte, error) {
 		}
 	}
 	so := filepath.Join(t.TempDir(), "libevey-sandbox.so")
-	if out, err := exec.Command(cc, "-shared", "-fPIC", "-nostartfiles", "-o", so, "../../sandbox/sandbox.c").CombinedOutput(); err != nil {
-		t.Fatalf("build sandbox.c: %v\n%s", err, out)
+	if out, buildErr := exec.Command(cc, "-shared", "-fPIC", "-nostartfiles", "-o", so, "../../sandbox/sandbox.c").CombinedOutput(); buildErr != nil {
+		t.Fatalf("build sandbox.c: %v\n%s", buildErr, out)
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=^"+test+"$")
 	cmd.Env = append(os.Environ(), "EVEY_SHIM_PROBE=1", "LD_PRELOAD="+so)

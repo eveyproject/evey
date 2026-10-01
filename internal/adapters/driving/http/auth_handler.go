@@ -184,6 +184,7 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 			return
 		}
 		// Lax: the callback is a top-level GET coming from the IdP.
+		//nolint:gosec // G124: Secure follows httpsOnly() like the other auth cookies; HttpOnly + Lax always set
 		http.SetCookie(w, &http.Cookie{
 			Name:     oidcLoginCookieName,
 			Value:    verifier,
@@ -208,6 +209,7 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 		if c, err := r.Cookie(oidcLoginCookieName); err == nil {
 			verifier = c.Value
 		}
+		//nolint:gosec // G124: same attributes as the login cookie it expires
 		http.SetCookie(w, &http.Cookie{
 			Name:     oidcLoginCookieName,
 			Value:    "",

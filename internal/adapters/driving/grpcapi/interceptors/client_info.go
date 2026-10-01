@@ -3,6 +3,7 @@ package interceptors
 import (
 	"context"
 	"net"
+	"slices"
 	"strings"
 
 	"google.golang.org/grpc"
@@ -64,9 +65,9 @@ func enrichClientInfo(ctx context.Context) context.Context {
 func lastMD(md metadata.MD, keys ...string) string {
 	for _, k := range keys {
 		vals := md.Get(k)
-		for i := len(vals) - 1; i >= 0; i-- {
-			if vals[i] != "" {
-				return vals[i]
+		for _, val := range slices.Backward(vals) {
+			if val != "" {
+				return val
 			}
 		}
 	}

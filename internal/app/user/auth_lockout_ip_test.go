@@ -15,7 +15,7 @@ func TestLogin_LockIsPerClientIP(t *testing.T) {
 	d := newAuthTestDeps()
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
 
-	for i := 0; i < loginMaxAttempts; i++ {
+	for i := range loginMaxAttempts {
 		if _, _, err := d.svc.Login(fromIP("198.51.100.1"), "alice", "wrong"); !errors.Is(err, ErrInvalidCredentials) {
 			t.Fatalf("attempt %d: %v", i+1, err)
 		}
@@ -33,7 +33,7 @@ func TestLogin_LockIsPerClientIP(t *testing.T) {
 func TestLogin_LockedIPDoesNotFeedUserCap(t *testing.T) {
 	d := newAuthTestDeps()
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
-	for i := 0; i < loginUserMaxAttempts+10; i++ {
+	for range loginUserMaxAttempts + 10 {
 		_, _, _ = d.svc.Login(fromIP("198.51.100.1"), "alice", "wrong")
 	}
 	if _, _, err := d.svc.Login(fromIP("203.0.113.2"), "alice", "correct"); err != nil {
@@ -45,7 +45,7 @@ func TestLogin_LockedIPDoesNotFeedUserCap(t *testing.T) {
 func TestLogin_DistributedFailuresLockTheUser(t *testing.T) {
 	d := newAuthTestDeps()
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
-	for i := 0; i < loginUserMaxAttempts; i++ {
+	for i := range loginUserMaxAttempts {
 		_, _, _ = d.svc.Login(fromIP(fmt.Sprintf("198.51.100.%d", i+1)), "alice", "wrong")
 	}
 	if _, _, err := d.svc.Login(fromIP("203.0.113.2"), "alice", "correct"); !errors.Is(err, ErrAccountLocked) {
@@ -58,7 +58,7 @@ func TestLogin_DistributedFailuresLockTheUser(t *testing.T) {
 func TestLogin_MissingClientIPSharesOneBucket(t *testing.T) {
 	d := newAuthTestDeps()
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
-	for i := 0; i < loginMaxAttempts; i++ {
+	for range loginMaxAttempts {
 		_, _, _ = d.svc.Login(context.Background(), "alice", "wrong")
 	}
 	for name, ctx := range map[string]context.Context{"no value": context.Background(), "empty": fromIP(""), "garbage": fromIP("not-an-ip")} {

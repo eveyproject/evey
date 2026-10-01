@@ -11,7 +11,7 @@ func TestVerifyCurrentPassword_SharesLoginLockKeys(t *testing.T) {
 	d := newAuthTestDeps()
 	seedAuthUser(t, d, "u1", "alice", "correct", false, true)
 
-	for i := 0; i < loginMaxAttempts; i++ {
+	for i := range loginMaxAttempts {
 		if err := d.svc.VerifyCurrentPassword(fromIP("198.51.100.1"), "u1", "wrong"); !errors.Is(err, ErrInvalidCredentials) {
 			t.Fatalf("attempt %d: %v", i+1, err)
 		}

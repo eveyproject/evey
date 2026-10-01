@@ -154,7 +154,7 @@ func TestUpdateUser_AdminOnSelf_RequiresCurrent(t *testing.T) {
 func TestUpdateUser_SelfCurrent_SharesLoginLockout(t *testing.T) {
 	env := seedSelf(t)
 	pw, wrong, good := "brandnewpass1", "notmypassword", "oldpassword"
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		_, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{Id: "usr-1", Password: &pw, CurrentPassword: &wrong})
 		assertCode(t, err, codes.PermissionDenied)
 	}
@@ -185,5 +185,3 @@ func TestUpdateUser_SelfSSOAccount_NoLocalPassword(t *testing.T) {
 		t.Fatalf("admin sets a password on the SSO account: %v", err)
 	}
 }
-
-func strPtr(s string) *string { return &s }

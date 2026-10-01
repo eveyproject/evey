@@ -209,7 +209,7 @@ func TestUpdateUser_Self(t *testing.T) {
 	resp, err := env.handler.UpdateUser(ctx, &eveyv1.UpdateUserRequest{
 		Id:              "usr-1",
 		Username:        &newName,
-		CurrentPassword: strPtr("pass12345678"),
+		CurrentPassword: new("pass12345678"),
 	})
 	if err != nil {
 		t.Fatalf("UpdateUser: %v", err)
@@ -227,7 +227,7 @@ func TestUpdateUser_TrimsUsernameAndEmail(t *testing.T) {
 
 	newName, newMail := " alice2 ", " a2@b.com "
 	resp, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
-		Id: "usr-1", Username: &newName, Email: &newMail, CurrentPassword: strPtr("pass12345678"),
+		Id: "usr-1", Username: &newName, Email: &newMail, CurrentPassword: new("pass12345678"),
 	})
 	if err != nil {
 		t.Fatalf("UpdateUser: %v", err)
@@ -391,7 +391,7 @@ func TestUpdateUser_EmptyPassword_KeepsCurrent(t *testing.T) {
 	empty := ""
 	newName := "alice2"
 	if _, err := env.handler.UpdateUser(userCtx("usr-1", "prf-1"), &eveyv1.UpdateUserRequest{
-		Id: "usr-1", Username: &newName, Password: &empty, CurrentPassword: strPtr("oldpassword"),
+		Id: "usr-1", Username: &newName, Password: &empty, CurrentPassword: new("oldpassword"),
 	}); err != nil {
 		t.Fatalf("UpdateUser: %v", err)
 	}
