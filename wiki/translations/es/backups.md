@@ -1,5 +1,5 @@
 ---
-source_sha: 97b31b19a771829c011c797f4712f4cccf1903064069d080bb2eaadb59c386e2
+source_sha: cd66a9194ddc930c849aec83b5d0a19bb86c2f982c6fcf9e5f4211e0a00e0cde
 reviewed: false
 ---
 # Copias de seguridad y actualizaciones
@@ -70,7 +70,7 @@ minutos, y el contenedor se declara sano en cuanto vuelve a servir. Evey
 comprueba cada 6 horas si hay una imagen más reciente publicada y lo indica en el
 panel de administración; nunca se actualiza solo.
 
-**Fija lo que ejecutas.** `latest` sigue la versión más reciente. Para un
+**Fija lo que ejecutas.** `latest` sigue la versión estable más reciente. Para un
 servidor del que dependes, pon una etiqueta de versión (`0.2.0`) o una etiqueta
 inmutable `sha-<commit>` en la línea `image:`, para que dos descargas con un día
 de diferencia ejecuten el mismo código. Una etiqueta de rama como `beta-0.0.1`

@@ -1,5 +1,5 @@
 ---
-source_sha: 97b31b19a771829c011c797f4712f4cccf1903064069d080bb2eaadb59c386e2
+source_sha: cd66a9194ddc930c849aec83b5d0a19bb86c2f982c6fcf9e5f4211e0a00e0cde
 reviewed: true
 ---
 # Sauvegardes et mises à jour
@@ -73,7 +73,7 @@ santé dès que le serveur répond. Evey vérifie toutes les 6 heures si une ima
 est publiée et le signale dans le panneau d'administration ; il ne se met
 jamais à jour tout seul.
 
-**Figez ce que vous exécutez.** `latest` suit la dernière version publiée.
+**Figez ce que vous exécutez.** `latest` suit la dernière version stable.
 Pour un serveur sur lequel vous comptez, mettez un tag de version (`0.2.0`)
 ou un tag immuable `sha-<commit>` sur la ligne `image:`, pour que deux `pull`
 à un jour d'écart exécutent le même code. Un tag de branche comme

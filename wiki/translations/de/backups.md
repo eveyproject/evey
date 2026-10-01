@@ -1,5 +1,5 @@
 ---
-source_sha: 97b31b19a771829c011c797f4712f4cccf1903064069d080bb2eaadb59c386e2
+source_sha: cd66a9194ddc930c849aec83b5d0a19bb86c2f982c6fcf9e5f4211e0a00e0cde
 reviewed: false
 ---
 # Sicherungen und Updates
@@ -70,7 +70,7 @@ und der Container meldet sich als gesund, sobald er wieder ausliefert. Evey
 prüft alle 6 Stunden, ob ein neueres Image veröffentlicht wurde, und zeigt das
 im Admin-Bereich an; er aktualisiert sich nie selbst.
 
-**Legen Sie fest, was Sie betreiben.** `latest` folgt der neuesten Version. Für
+**Legen Sie fest, was Sie betreiben.** `latest` folgt der neuesten stabilen Version. Für
 einen Server, auf den Sie sich verlassen, setzen Sie ein Release-Tag (`0.2.0`)
 oder ein unveränderliches Tag `sha-<commit>` in die Zeile `image:`, damit zwei
 Pulls im Abstand eines Tages denselben Code ausführen. Ein Branch-Tag wie
