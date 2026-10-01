@@ -1,5 +1,5 @@
 ---
-source_sha: 07ef437cfda80f904ab9b75af363b1bc953955e06ee27538265b4d7564457422
+source_sha: 358930f5d871a10d9184002e80eb788d14685e06174afd3a569a059380aa6d0b
 reviewed: false
 ---
 # Solución de problemas
@@ -56,6 +56,30 @@ ella y se rechaza cuando no responde; el registro lo indica) y un proxy inverso
 que falta en **Proxies de confianza**, que pone a todos bajo un único límite de
 inicios de sesión. Una clave de firma perdida o sustituida no cierra la sesión de
 nadie por sí sola: las aplicaciones renuevan sus tokens.
+
+## El inicio de sesión SSO falla
+
+La página de inicio de sesión dice «Error de inicio de sesión con SSO»:
+
+- la persona ya tiene una cuenta local con el mismo correo o el mismo nombre de
+  usuario;
+- su dirección está fuera de `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`, o el proveedor
+  no la marcó como verificada (el registro dice
+  `oidc: email domain not allowed` o
+  `oidc: unverified email rejected under domain allowlist`).
+
+Una página de error mostrada por el propio proveedor suele significar que la URI
+de redirección registrada allí no es la que usa Evey. Consulta
+[Configuración de OIDC / SSO](../oidc.md).
+
+## Los correos no llegan
+
+El SMTP se lee de las variables `EVEY_SMTP_*` al arrancar, no de la tarjeta
+**Correo / SMTP**. Cuando está activo, el registro de arranque muestra
+`SMTP email notifications enabled` con el host. Un envío que falla se registra
+como `email: send notification`, con la respuesta del servidor; un modo TLS que
+no corresponde al puerto (`starttls` con 587, `ssl` con 465) es el error
+habitual. Consulta [Notificaciones](../notifications.md).
 
 ## Un título se transcodifica cuando esperabas Reproducción directa
 

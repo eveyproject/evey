@@ -1,5 +1,5 @@
 ---
-source_sha: 07ef437cfda80f904ab9b75af363b1bc953955e06ee27538265b4d7564457422
+source_sha: 358930f5d871a10d9184002e80eb788d14685e06174afd3a569a059380aa6d0b
 reviewed: false
 ---
 # Fehlerbehebung
@@ -56,6 +56,30 @@ wird abgewiesen, wenn sie nicht antwortet; das Log sagt es) und ein Reverse
 Proxy, der unter **Vertrauenswürdige Proxys** fehlt, wodurch alle unter ein
 einziges Anmeldelimit fallen. Ein verlorener oder ersetzter Signaturschlüssel
 allein meldet niemanden ab: Die Apps erneuern ihre Token.
+
+## Die SSO-Anmeldung schlägt fehl
+
+Die Anmeldeseite meldet „SSO-Anmeldung fehlgeschlagen":
+
+- die Person hat bereits ein lokales Konto mit derselben E-Mail oder demselben
+  Benutzernamen;
+- ihre Adresse liegt außerhalb von `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`, oder der
+  Anbieter hat sie nicht als verifiziert gekennzeichnet (das Log sagt
+  `oidc: email domain not allowed` oder
+  `oidc: unverified email rejected under domain allowlist`).
+
+Eine Fehlerseite des Anbieters selbst bedeutet meist, dass die dort
+registrierte Weiterleitungs-URI nicht die ist, die Evey verwendet. Siehe
+[OIDC / SSO einrichten](../oidc.md).
+
+## E-Mails kommen nicht an
+
+SMTP wird beim Start aus den Variablen `EVEY_SMTP_*` gelesen, nicht aus der
+Karte **E-Mail / SMTP**. Ist es aktiv, zeigt das Startlog
+`SMTP email notifications enabled` mit dem Host. Ein fehlgeschlagener Versand
+wird als `email: send notification` mit der Antwort des Servers protokolliert;
+ein TLS-Modus, der nicht zum Port passt (`starttls` mit 587, `ssl` mit 465), ist
+der übliche Fehler. Siehe [Benachrichtigungen](../notifications.md).
 
 ## Ein Titel läuft transkodiert, obwohl Sie Direktwiedergabe erwartet hatten
 
