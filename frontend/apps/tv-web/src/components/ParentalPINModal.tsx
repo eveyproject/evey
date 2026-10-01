@@ -26,10 +26,15 @@ interface Props {
   onVerified: (pinToken?: string) => void;
   onClose: () => void;
   initialError?: string | null;
+  /** Overrides for another use of the keypad (the kids opening-hours lock). */
+  title?: string;
+  description?: string;
+  /** Checks the PIN itself: resolves to an error to show, or null on success. */
+  submitPin?: (pin: string) => Promise<string | null>;
 }
 
 /** The Android television's PIN dialog: four dots and a keypad the remote walks. */
-export function ParentalPINModal({ profileId, fallbackProfileId, onVerified, onClose, initialError }: Props) {
+export function ParentalPINModal({ profileId, fallbackProfileId, onVerified, onClose, initialError, title, description, submitPin }: Props) {
   const { t } = useTranslation();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(initialError ?? null);
@@ -39,6 +44,16 @@ export function ParentalPINModal({ profileId, fallbackProfileId, onVerified, onC
   async function submit(candidate: string) {
     setLoading(true);
     setError(null);
+    if (submitPin) {
+      const err = await submitPin(candidate);
+      setLoading(false);
+      if (err === null) onVerified();
+      else {
+        setError(err);
+        setPin("");
+      }
+      return;
+    }
     try {
       const pinToken = await verifyParentalPin({ targetProfileId: profileId, leavingProfileId: fallbackProfileId, pin: candidate });
       if (pinToken !== null) {
@@ -72,8 +87,8 @@ export function ParentalPINModal({ profileId, fallbackProfileId, onVerified, onC
   return (
     <div className="modal-backdrop">
       <FocusRoot autoFocus boundary className="pin-dialog">
-        <h2 className="pin-title">{t("common.parental.restrictedContent", "Restricted Content")}</h2>
-        <p className="pin-desc">{t("common.parental.pinRequired", "Enter your parental PIN to continue")}</p>
+        <h2 className="pin-title">{title ?? t("common.parental.restrictedContent", "Restricted Content")}</h2>
+        <p className="pin-desc">{description ?? t("common.parental.pinRequired", "Enter your parental PIN to continue")}</p>
         <div className="pin-dots" aria-label={t("media.parental.pinDigitsEntered", { count: pin.length, total: PIN_LENGTH })}>
           {Array.from({ length: PIN_LENGTH }, (_, i) => (
             <span key={i} className={`pin-dot ${i < pin.length ? "filled" : ""} ${error ? "error" : ""}`} />

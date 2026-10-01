@@ -14,17 +14,41 @@
 
 const QUALITY_TIERS = [360, 480, 720, 1080, 1440, 2160];
 
-// nominalQualityTier maps an ENCODED height to the nearest standard tier. A
-// widescreen master (2.40:1, say) is scaled to a fixed rung WIDTH with the
-// height left to preserve aspect, so the "1080p" rung of a 1920x800 film is
-// really 1920x798 - and 798p reads as a bug to a viewer. Round it for display
-// only; playback and rung selection still key off the exact height.
-export function nominalQualityTier(height: number): number {
+// The standard tier a frame belongs to (2160, 1440, 1080, 720), or 0 below
+// 720p. The width counts as much as the height: a scope film cropped to
+// 1920x818 is a 1080p file, and a label read off its height said "818p" on
+// one screen and "720p" on another. Slack on the width absorbs encodes that
+// shave a few columns (1916x798). The title page and the player's quality menu
+// both name a frame through this, so they cannot disagree.
+export function resolutionTier(width?: number, height?: number): number {
+  const w = width ?? 0;
+  const h = height ?? 0;
+  const byHeight = h >= 2160 ? 2160 : h >= 1440 ? 1440 : h >= 1080 ? 1080 : h >= 720 ? 720 : 0;
+  const byWidth = w >= 3800 ? 2160 : w >= 2500 ? 1440 : w >= 1880 ? 1080 : w >= 1240 ? 720 : 0;
+  return Math.max(byHeight, byWidth);
+}
+
+// nominalQualityTier maps an ENCODED rung to the tier a viewer recognises.
+// With its width, the rung is named like the title page names the file: the
+// 1920x818 rung of a scope film is "1080p" there and must be here too - from
+// the height alone it rounded to 720p (demo, 2026-10-01). Without a width the
+// height rounds to the nearest tier. Display only; playback and rung selection
+// still key off the exact height.
+export function nominalQualityTier(height: number, width?: number): number {
   if (!height || height <= 0) return 0;
-  return QUALITY_TIERS.reduce((best, tier) =>
+  const nearest = QUALITY_TIERS.reduce((best, tier) =>
     Math.abs(tier - height) < Math.abs(best - height) ? tier : best,
   );
+  return width && width > 0 ? Math.max(nearest, resolutionTier(width, height)) : nearest;
 }
+
+// A rung as the master declares it. The height alone is accepted where the
+// width is unknown.
+export interface RungSize {
+  width?: number;
+  height: number;
+}
+export type QualityLevel = number | RungSize;
 
 // parseHlsMasterHeights lists the heights declared by a master playlist, in the
 // order they appear. A variant without RESOLUTION contributes nothing: it is
@@ -34,17 +58,23 @@ export function nominalQualityTier(height: number): number {
 // playlist, an error page, an empty body - so a caller that fetched the wrong
 // thing falls back to its static ladder instead of showing an empty menu.
 export function parseHlsMasterHeights(manifest: string): number[] {
+  return parseHlsMasterResolutions(manifest).map((r) => r.height);
+}
+
+// parseHlsMasterResolutions is parseHlsMasterHeights with each rung's width,
+// which its label needs.
+export function parseHlsMasterResolutions(manifest: string): Required<RungSize>[] {
   if (!manifest) return [];
-  const out: number[] = [];
+  const out: Required<RungSize>[] = [];
   for (const line of manifest.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed.startsWith("#EXT-X-STREAM-INF")) continue;
-    // RESOLUTION=<width>x<height>, unquoted per RFC 8216, and the height is
-    // what a rung is named after.
+    // RESOLUTION=<width>x<height>, unquoted per RFC 8216.
     const m = /RESOLUTION=(\d+)x(\d+)/i.exec(trimmed);
     if (!m) continue;
+    const width = Number(m[1]);
     const height = Number(m[2]);
-    if (Number.isFinite(height) && height > 0) out.push(height);
+    if (Number.isFinite(height) && height > 0) out.push({ width: Number.isFinite(width) ? width : 0, height });
   }
   return out;
 }
@@ -63,12 +93,13 @@ export interface QualityRung {
 //
 // Returns an empty list when there is nothing to offer, which is the caller's
 // signal to keep its static ladder rather than render an empty menu.
-export function qualityRungsFromHeights(heights: readonly number[]): QualityRung[] {
+export function qualityRungsFromHeights(levels: readonly QualityLevel[]): QualityRung[] {
   const seen = new Set<number>();
-  return [...heights]
-    .filter((h) => Number.isFinite(h) && h > 0)
-    .sort((a, b) => b - a)
-    .map((h) => ({ tier: nominalQualityTier(h), h }))
+  return levels
+    .map((l) => (typeof l === "number" ? { width: 0, height: l } : { width: l.width ?? 0, height: l.height }))
+    .filter(({ height }) => Number.isFinite(height) && height > 0)
+    .sort((a, b) => b.height - a.height)
+    .map(({ width, height }) => ({ tier: nominalQualityTier(height, width), h: height }))
     .filter(({ tier }) => (seen.has(tier) ? false : (seen.add(tier), true)))
     .map(({ tier, h }) => ({ value: h, label: `${tier}p` }));
 }

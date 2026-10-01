@@ -74,9 +74,14 @@ type Profile struct {
 	SubtitleLanguages []string // ordered fallback list
 	MaxBitrateKbps    *int
 	Parental          *ParentalSettings
-	Locale            string  // UI locale (en, fr, es, zh, hi)
-	Region            *string // ISO 3166-1 alpha-2 (FR, BE, CH, SN, ...) - nil = resolve via server/locale fallback
-	CreatedAt         time.Time
+	// Schedule is when a kids profile may be used (nil: no opening hours).
+	Schedule *AccessSchedule
+	// ScheduleOverrideUntil keeps a closed profile open after a parent's PIN,
+	// until the next opening (nil: no override).
+	ScheduleOverrideUntil *time.Time
+	Locale                string  // UI locale (en, fr, es, zh, hi)
+	Region                *string // ISO 3166-1 alpha-2 (FR, BE, CH, SN, ...) - nil = resolve via server/locale fallback
+	CreatedAt             time.Time
 	// LastActiveAt is when an access token was last minted for this profile
 	// (login or refresh). nil = never. Impersonation does not stamp it.
 	LastActiveAt *time.Time

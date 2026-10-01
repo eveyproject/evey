@@ -415,3 +415,64 @@ func TestProfileRepo_SetDefault_ListAdminProfiles_TouchLastActive(t *testing.T) 
 	require.NotNil(t, mp.LastActiveAt)
 	assert.True(t, mp.LastActiveAt.Equal(at))
 }
+
+// Opening hours round-trip through every read, are written column-scoped (a
+// full Update from a stale snapshot does not erase them), and a stored value
+// that no longer decodes keeps the profile CLOSED, never open.
+func TestProfileRepo_AccessSchedule_RoundTripScopedAndFailClosed(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("sched-u")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("sched-p", u.ID)
+	p.IsKids = true
+	require.NoError(t, profileRepo.Create(ctx, p))
+
+	got, err := profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.Schedule, "no opening hours until a parent sets them")
+
+	s := user.DefaultKidsSchedule()
+	require.NoError(t, profileRepo.UpdateSchedule(ctx, p.ID, &s))
+	until := time.Now().UTC().Add(2 * time.Hour).Truncate(time.Microsecond)
+	require.NoError(t, profileRepo.SetScheduleOverride(ctx, p.ID, &until))
+
+	got, err = profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Schedule)
+	assert.Equal(t, s, *got.Schedule)
+	require.NotNil(t, got.ScheduleOverrideUntil)
+	assert.True(t, until.Equal(*got.ScheduleOverrideUntil))
+
+	list, err := profileRepo.GetByUserID(ctx, u.ID)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, s, *list[0].Schedule, "the list read carries the schedule too")
+
+	stale := newTestProfile("sched-p", u.ID)
+	stale.IsKids = true
+	stale.Name = "renamed"
+	require.NoError(t, profileRepo.Update(ctx, stale))
+	got, err = profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Equal(t, s, *got.Schedule, "a full-row update must not erase the opening hours")
+
+	_, err = db.ExecContext(ctx, `UPDATE profiles SET access_schedule = '{"enabled":true,"mode":"week","rules":[{"days":[1],"ranges":[{"start":60,"end":60}]}]}' WHERE id = $1`, string(p.ID))
+	require.NoError(t, err)
+	got, err = profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Schedule)
+	assert.True(t, got.Schedule.Enabled)
+	assert.Empty(t, got.Schedule.Rules, "an invalid stored schedule reads as closed, not as no schedule")
+
+	require.NoError(t, profileRepo.UpdateSchedule(ctx, p.ID, nil))
+	require.NoError(t, profileRepo.SetScheduleOverride(ctx, p.ID, nil))
+	got, err = profileRepo.GetByID(ctx, p.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.Schedule)
+	assert.Nil(t, got.ScheduleOverrideUntil)
+}

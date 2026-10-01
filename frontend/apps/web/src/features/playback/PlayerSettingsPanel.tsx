@@ -6,7 +6,7 @@ import type { SubtitleStream } from "./SubtitleSelector";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { SleepTimerState } from "@/hooks/useSleepTimer";
 import { SPEED_OPTIONS } from "./constants";
-import { qualityRungsFromHeights, trackDisplayName } from "@evey/api";
+import { qualityRungsFromHeights, trackDisplayName, type QualityLevel } from "@evey/api";
 import { SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive, SUBTITLE_BG_COLORS, srtToVtt, assToVtt } from "@evey/client";
 
 // Mirrors the mobile/TV sleep timer presets (apps/mobile/src/components/SleepTimerPicker.tsx,
@@ -175,7 +175,7 @@ export interface SettingsPanelProps {
   audioOffsetAvailable?: boolean;
   brightness?: number;
   onBrightnessChange?: (value: number) => void;
-  availableQualities?: number[];
+  availableQualities?: readonly QualityLevel[];
   /** Current sleep timer state, or null/undefined when no timer is active. */
   /** Per-profile choice, persisted by the caller; the row only shows when
    *  the caller can persist it (a series context). */

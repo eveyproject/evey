@@ -11,7 +11,7 @@ const H = vi.hoisted(() => {
     static instances: FakeHls[] = [];
     handlers = new Map<string, (evt: string, data: any) => void>();
     config: Record<string, unknown>;
-    levels: { height: number; bitrate: number }[] = [{ height: 480, bitrate: 1e6 }, { height: 1080, bitrate: 8e6 }];
+    levels: { width?: number; height: number; bitrate: number }[] = [{ width: 854, height: 480, bitrate: 1e6 }, { width: 1920, height: 1080, bitrate: 8e6 }];
     audioTracks: { name?: string; lang?: string }[] = [{ name: "French", lang: "fr" }, { name: "English", lang: "en" }];
     audioTrack = -1;
     currentLevel = -1;
@@ -54,7 +54,12 @@ vi.mock("./hlsPlayerUtils", () => ({
   MAX_FORWARD_BUFFER_SEC: 30,
 }));
 const report = vi.hoisted(() => vi.fn());
-vi.mock("@evey/api", () => ({ createPlayerEventReporter: () => report }));
+const notifyProfileClosed = vi.hoisted(() => vi.fn());
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
+  createPlayerEventReporter: () => report,
+  notifyProfileClosed,
+}));
 vi.mock("../playbackSnapshot", () => ({ playbackSnapshot: () => "snap" }));
 
 import { useTranscodePlayback } from "./useTranscodePlayback";
@@ -125,6 +130,8 @@ describe("useTranscodePlayback - start", () => {
 
     await act(async () => hls().emit("LEVEL_SWITCHED", { level: 0 }));
     expect(hook.result.current.autoLevelHeight).toBe(480);
+    expect(hook.result.current.autoLevelWidth).toBe(854);
+    expect(hook.result.current.hlsLevelSizes).toEqual([{ width: 854, height: 480 }, { width: 1920, height: 1080 }]);
   });
 
   it("honours a manual rung, a client-side audio switch, and does not resume while paused", async () => {
@@ -179,6 +186,19 @@ describe("useTranscodePlayback - errors", () => {
     act(() => hls().emit("ERROR", net503("levelLoadError", { networkDetails: { responseText: "<html>503</html>" } })));
     expect(spies.setShedReason).toHaveBeenLastCalledWith("too_many_streams");
     expect(hls().startLoad).not.toHaveBeenCalled();
+    expect(spies.setFatalError).not.toHaveBeenCalled();
+  });
+
+  // A kids profile's hours end mid-film: the refused segment raises the lock
+  // at once and is not retried as a network fault.
+  it("raises the profile lock on a profile_closed segment refusal", () => {
+    const { spies, hls } = setup();
+    act(() => hls().emit("ERROR", {
+      fatal: false, type: "networkError", details: "fragLoadError",
+      response: { code: 403, text: "Forbidden" },
+      networkDetails: { getResponseHeader: (n: string) => (n === "X-Evey-Error" ? "profile_closed" : null) },
+    }));
+    expect(notifyProfileClosed).toHaveBeenCalledWith({});
     expect(spies.setFatalError).not.toHaveBeenCalled();
   });
 

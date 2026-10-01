@@ -170,9 +170,8 @@ function PosterShelf({
 // four original steps traced (0.1, 0.35, 0.7, 0.95), sampled finer.
 const FADE_STEPS = Array.from({ length: 16 }, (_, i) => Math.round((0.05 + 0.9 * ((i + 0.5) / 16) ** 1.4) * 1000) / 1000);
 
-// "More like this". Same two-step as web and mobile: the recommendation feed
-// first, and a same-genre listing when the feed has nothing to say - a page
-// that ends on an empty shelf is a dead end for the remote.
+// "More like this": the server's list or no shelf. A same-genre fallback
+// filled it with titles sharing one catch-all genre (2026-10-01).
 function SimilarShelf({
   item,
   serverUrl,
@@ -184,22 +183,13 @@ function SimilarShelf({
 }) {
   const { t } = useTranslation();
   const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
-  const hasSimilar = (similarData?.items?.length ?? 0) > 0;
-  const firstGenre = item.genres?.[0];
-  const { data: byGenreData } = useLibraryServiceListMediaItems(
-    { genre: firstGenre, type: item.type as never },
-    { query: { enabled: !hasSimilar && !!firstGenre } } as never,
+  const cards = useMemo(
+    () =>
+      (similarData?.items ?? [])
+        .filter((fi) => !!fi.mediaItemId)
+        .map((fi) => ({ id: fi.mediaItemId as string, title: fi.title })),
+    [similarData],
   );
-
-  const cards = useMemo(() => {
-    const fromFeed = (similarData?.items ?? [])
-      .filter((fi) => !!fi.mediaItemId)
-      .map((fi) => ({ id: fi.mediaItemId as string, title: fi.title }));
-    if (fromFeed.length > 0) return fromFeed;
-    return (byGenreData?.items ?? [])
-      .filter((m) => m.id && m.id !== item.id)
-      .map((m) => ({ id: m.id as string, title: m.title }));
-  }, [similarData, byGenreData, item.id]);
 
   return (
     <PosterShelf

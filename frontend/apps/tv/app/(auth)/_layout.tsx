@@ -11,6 +11,7 @@ import { HomeShortcutButton, HOME_SHORTCUT_INSET } from "../../src/components/Ho
 import { isDeepScreenPath, HOME_PATH } from "../../src/lib/homeShortcut";
 import { ErrorBoundary } from "../../src/components/ErrorBoundary";
 import { DemoBanner } from "../../src/components/DemoBanner";
+import { ProfileLockScreen } from "../../src/components/ProfileLockScreen";
 import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
 import { resolveServerUrl } from "../../src/lib/server-config";
 import { initI18n } from "../../src/i18n";
@@ -114,6 +115,7 @@ export default function AuthLayout() {
         <HomeShortcutButton onPress={() => router.replace(HOME_PATH as never)} bottomOffset={musicBarInset} />
       )}
       <TVMusicPlayer />
+      <ProfileLockScreen />
     </View>
   );
 }

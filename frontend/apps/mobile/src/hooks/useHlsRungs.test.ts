@@ -23,7 +23,7 @@ describe("useHlsRungs", () => {
   it("reads the rungs off the master, sending the stream token as a bearer", async () => {
     fetchMock.mockResolvedValue({ ok: true, text: () => Promise.resolve(master) });
     const { result } = renderHook(() => useHlsRungs("https://h/api/v1/media/m1/hls/master.m3u8", "tok"));
-    await waitFor(() => expect(result.current).toEqual([1080, 720]));
+    await waitFor(() => expect(result.current).toEqual([{ width: 1920, height: 1080 }, { width: 1280, height: 720 }]));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain("master.m3u8");

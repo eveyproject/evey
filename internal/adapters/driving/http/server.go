@@ -266,6 +266,12 @@ type HTTPServer struct {
 	ProfileRepo       domainuser.ProfileRepository
 	UserRepo          domainuser.UserRepository
 	Hasher            domainuser.PasswordHasher
+	// ServerCfgSvc is the application's config service (event bus and unit of
+	// work wired): multi-key admin saves go through it atomically.
+	ServerCfgSvc *appconfig.Service
+	// ProfileHours closes kids profiles outside their opening hours (nil:
+	// no hours enforced, tests).
+	ProfileHours *appuser.ProfileSchedules
 
 	// Plugin
 	PluginRepo                 domainplugin.PluginRepository
@@ -488,6 +494,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	// parental filter by hitting these endpoints directly. Gating the HLS master
 	// (which creates the session) transitively protects the segment handler.
 	parentalChk := NewParentalChecker(s.UserQuerySvc)
+	// Kids opening hours, checked inside the two auth middlewares every
+	// route below goes through.
+	if s.ProfileHours != nil {
+		SetProfileAccessGate(s.ProfileHours)
+	}
 	// Short-TTL caches for the per-request hot paths (HLS segments, direct-play
 	// Range requests, trickplay tiles): the access verdict and the library
 	// roots are stable across a playback burst, parental stays live.
@@ -788,7 +799,8 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		}
 		registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL, cfgSvc)
 	}()
-	registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen)
+	parental := registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen)
+	registerScheduleRoutes(mux, parental, s.ProfileHours)
 	// The web + mobile admin panels both call GET/PATCH
 	// .../admin/users/{id}/bitrate-limit, but neither the proto nor this mux
 	// ever exposed it - the "max bitrate per user" modal has 404'd since it
@@ -871,10 +883,19 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		registerQoEDashboardRoute(mux, s.TokenGen, s.QoEQuerySvc)
 	}
 
+	configLanguage := "en"
+	if s.Cfg != nil && s.Cfg.Metadata.Language != "" {
+		configLanguage = s.Cfg.Metadata.Language
+	}
+	registerConfigDefaultsRoute(mux, s.TokenGen, s.ServerCfgRepo, configLanguage)
+
 	if s.OIDCSvc != nil {
 		registerOIDCRoutesFn(mux, s.OIDCSvc, s.https, s.OIDCLoginRL)
 		var ssoStore ssoSettingsStore
-		if s.ServerCfgRepo != nil {
+		switch {
+		case s.ServerCfgSvc != nil:
+			ssoStore = s.ServerCfgSvc // transactional SetMany
+		case s.ServerCfgRepo != nil:
 			ssoStore = appconfig.NewService(s.ServerCfgRepo)
 		}
 		var ssoLibs ssoLibraryLookup

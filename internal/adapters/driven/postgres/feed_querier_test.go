@@ -90,13 +90,49 @@ func TestFeedQuerier_SimilarItems_GenrePrefilter(t *testing.T) {
 	assert.Equal(t, 2, scores["sim-c"], "sim-c shares 2 genres")
 	assert.Equal(t, 2, scores["sim-e"], "sim-e shares 2 genres")
 
-	// Nothing better than one shared genre: those stay, a thin row beats none.
+	// Nothing better than one shared genre of two: no row rather than a lie.
 	mk("one-t", []string{"Western", "Music"})
 	mk("one-a", []string{"Western"})
 	items, err = fq.SimilarItems(ctx, "one-t", "prf-x", 10)
 	require.NoError(t, err)
-	require.Len(t, items, 1)
-	assert.Equal(t, "one-a", string(items[0].MediaItemID))
+	assert.Empty(t, items)
+}
+
+// A catch-all genre alone is no link: a western is not similar to a
+// science-fiction film because both are dramas, nor to an animated series because both
+// are family viewing (Bonanza on the demo, 2026-10-01).
+func TestFeedQuerier_SimilarItems_CatchAllGenreAloneIsNoLink(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	fq := postgres.NewFeedQuerier(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("weslib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	mk := func(id string, genres []string) {
+		it := newTestMediaItem(id, lib.ID)
+		it.Catalog.Genres = genres
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	mk("wes-t", []string{"Western", "Action & Adventure", "Drama", "Family"})
+	mk("wes-scifi", []string{"Drama", "Science Fiction"})
+	mk("wes-animation", []string{"Animation", "Comedy", "Family"})
+	mk("wes-quest", []string{"Fantasy", "Adventure"})
+	items, err := fq.SimilarItems(ctx, "wes-t", "prf-x", 10)
+	require.NoError(t, err)
+	got := []string{}
+	for _, it := range items {
+		got = append(got, string(it.MediaItemID))
+	}
+	assert.Empty(t, got, "Drama, Family or a lone Adventure is no neighbour for a western")
+
+	// A target with nothing but catch-alls still finds its matches.
+	mk("dra-t", []string{"Drama"})
+	items, err = fq.SimilarItems(ctx, "dra-t", "prf-x", 10)
+	require.NoError(t, err)
+	assert.NotEmpty(t, items, "a pure drama is still similar to dramas")
 }
 
 // A series carries TMDB's combined genres ("Sci-Fi & Fantasy") where a film

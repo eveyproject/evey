@@ -26,7 +26,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { QualityPicker } from "../../../src/components/QualityPicker";
@@ -335,6 +335,16 @@ export default function PlayerScreen() {
     }
     if (resumeAfterRestartRef.current) p.play();
   });
+
+  // A kids profile reaching the end of its opening hours: the lock screen
+  // covers the player, and the film stops instead of playing its buffer out.
+  const profileLock = useProfileLock();
+  useEffect(() => {
+    if (!profileLock.closed) return;
+    try {
+      if (player.playing) player.pause();
+    } catch { /* released */ }
+  }, [profileLock.closed, player]);
 
   // expo-video hands JavaScript a proxy onto a NATIVE object. When the source
   // changes - a quality switch, an audio-track switch, leaving the screen -

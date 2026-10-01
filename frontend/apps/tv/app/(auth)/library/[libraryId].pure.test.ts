@@ -29,7 +29,8 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({ useTheme: () => ({ colo
 vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrl: () => "http://srv.test" }));
 vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({ useAuthHeaders: () => ({}) }));
 vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetLibrary: vi.fn(),
   useLibraryServiceListMediaItems: vi.fn(),
   useLibraryServiceListGenres: vi.fn(),

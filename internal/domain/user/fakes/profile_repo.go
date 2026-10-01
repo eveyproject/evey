@@ -242,3 +242,43 @@ func cloneProfile(p *user.Profile) *user.Profile {
 	}
 	return &cp
 }
+
+// UpdateSchedule mirrors the postgres column-scoped write.
+func (r *FakeProfileRepository) UpdateSchedule(_ context.Context, id shared.ProfileID, s *user.AccessSchedule) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	if s == nil {
+		p.Schedule = nil
+		return nil
+	}
+	cp := *s
+	p.Schedule = &cp
+	return nil
+}
+
+// SetScheduleOverride mirrors the postgres column-scoped write.
+func (r *FakeProfileRepository) SetScheduleOverride(_ context.Context, id shared.ProfileID, until *time.Time) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	p, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	if until == nil {
+		p.ScheduleOverrideUntil = nil
+		return nil
+	}
+	t := *until
+	p.ScheduleOverrideUntil = &t
+	return nil
+}

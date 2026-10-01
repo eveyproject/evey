@@ -465,13 +465,13 @@ func (q *FeedQuerier) SimilarItems(ctx context.Context, mediaItemID, profileID s
 		WHERE mi.id != $1
 		  AND mi.type IN ('movie', 'series')
 		  -- GIN pre-filter (idx_media_catalog_genres_gin): only candidates that
-		  -- share ≥1 target genre, by index. Replaces the INNER JOIN LATERAL
-		  -- score>=1 that forced a per-row genre scan over the whole catalogue.
-		  AND mc.genres ?| $3::text[]
+		  -- share ≥1 linking genre (see linkingGenres), by index. Replaces the
+		  -- INNER JOIN LATERAL score>=1 that forced a per-row genre scan.
+		  AND mc.genres ?| $5::text[]
 		  AND w.completed = FALSE
 		ORDER BY score DESC, mcl.community_rating DESC NULLS LAST
 		LIMIT $4
-	`, mediaItemID, profileID, pq.Array(targetGenres), limit)
+	`, mediaItemID, profileID, pq.Array(targetGenres), limit, pq.Array(linkingGenres(targetGenres)))
 	if err != nil {
 		return nil, err
 	}

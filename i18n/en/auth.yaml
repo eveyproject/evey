@@ -121,6 +121,46 @@ profile:
   deleted: Profile deleted
   editProfile: Edit Profile
   switchFailed: Could not switch profile
+  closingSoon: "This profile closes at {time} ({minutes} min left)."
+  schedule:
+    title: "Opening hours"
+    description: "Choose when this kids profile can be used. Outside these hours it locks on every device, playback included."
+    enable: "Limit to opening hours"
+    modeWeek: "Weekdays / weekend"
+    modeDaily: "Day by day"
+    weekdays: "Monday to Friday"
+    weekend: "Saturday and Sunday"
+    addRange: "Add a time range"
+    removeRange: "Remove this time range"
+    from: "From"
+    to: "To"
+    dayClosed: "Closed"
+    nextDay: "until the next day"
+    noHours: "No time range: the profile stays locked at all times."
+    emptyRange: "A time range must not start and end at the same time."
+    timezone: "Times follow the server's time zone ({{zone}})."
+    useProposal: "Use the suggested hours"
+    cannotWeek: "Some days differ from the rest of their block: keep the day-by-day view, or make them alike first."
+    saved: "Opening hours saved"
+    saveFailed: "Could not save the opening hours"
+    statusOpenUntil: "Open now, until {{time}}"
+    statusClosedUntil: "Locked now, opens {{when}}"
+    statusClosed: "Locked now"
+    statusOverridden: "Opened by a parent until the next opening"
+    kidsOnly: "Opening hours apply to kids profiles."
+  locked:
+    title: "This profile is locked right now"
+    body: "It opens again {{when}}."
+    bodyNoNext: "No opening is planned in the coming days."
+    pinLabel: "Parent PIN"
+    pinHint: "A parent's PIN opens the profile until its next opening."
+    unlock: "Unlock"
+    switchProfile: "Switch profile"
+    signOut: "Sign out"
+    wrongPin: "Wrong parent PIN"
+    noParentPin: "No parent PIN is set on this account."
+    rateLimited: "Too many attempts, try again in a minute."
+    failed: "Could not unlock the profile."
   select:
     title: Who's watching?
     description: Select a profile to continue.

@@ -134,13 +134,14 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*
 	var pPINHash string
 	var pBlockedTags []string
 	var pEnabled bool
+	var scheduleJSON []byte
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at, last_active_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at, last_active_at, access_schedule, schedule_override_until
 		 FROM profiles WHERE id = $1`, string(id),
 	).Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault, &p.IsKids,
 		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps,
 		&pMaxAge, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
-		&p.Locale, &p.Region, &p.CreatedAt, &p.LastActiveAt)
+		&p.Locale, &p.Region, &p.CreatedAt, &p.LastActiveAt, &scheduleJSON, &p.ScheduleOverrideUntil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -156,6 +157,7 @@ func (r *ProfileRepository) GetByID(ctx context.Context, id shared.ProfileID) (*
 		slog.Warn("json unmarshal", slog.String("field", "preferences"), slog.Any("err", err))
 	}
 	p.Parental = parentalFromColumns(pMaxAge, pBlockedTags, pPINHash, pEnabled)
+	p.Schedule = scheduleFromJSON(p.ID, scheduleJSON)
 	return p, nil
 }
 
@@ -166,7 +168,7 @@ func (r *ProfileRepository) GetByUserID(ctx context.Context, userID shared.UserI
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at, last_active_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at, last_active_at, access_schedule, schedule_override_until
 		 FROM profiles WHERE user_id = $1 ORDER BY is_default DESC, name`, string(userID))
 	if err != nil {
 		span.RecordError(err)
@@ -378,7 +380,7 @@ func (r *ProfileRepository) GetAll(ctx context.Context) ([]*user.Profile, error)
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at, last_active_at
+		`SELECT id, user_id, name, avatar_path, preferences, max_rating, is_default, is_kids, audio_languages, subtitle_languages, max_bitrate_kbps, parental_max_age, parental_blocked_tags, parental_pin_hash, parental_enabled, locale, region, created_at, last_active_at, access_schedule, schedule_override_until
 		 FROM profiles ORDER BY user_id, is_default DESC, name LIMIT 1000`)
 	if err != nil {
 		span.RecordError(err)
@@ -432,16 +434,18 @@ func scanProfile(rows *sql.Rows) (*user.Profile, error) {
 	var pPINHash string
 	var pBlockedTags []string
 	var pEnabled bool
+	var scheduleJSON []byte
 	if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.AvatarPath, &prefsJSON, &p.MaxRating, &p.IsDefault, &p.IsKids,
 		pq.Array(&p.AudioLanguages), pq.Array(&p.SubtitleLanguages), &p.MaxBitrateKbps,
 		&pMaxAge, pq.Array(&pBlockedTags), &pPINHash, &pEnabled,
-		&p.Locale, &p.Region, &p.CreatedAt, &p.LastActiveAt); err != nil {
+		&p.Locale, &p.Region, &p.CreatedAt, &p.LastActiveAt, &scheduleJSON, &p.ScheduleOverrideUntil); err != nil {
 		return nil, fmt.Errorf("scanProfile: %w", err)
 	}
 	if err := json.Unmarshal(prefsJSON, &p.Preferences); err != nil {
 		slog.Warn("json unmarshal", slog.String("field", "preferences"), slog.Any("err", err))
 	}
 	p.Parental = parentalFromColumns(pMaxAge, pBlockedTags, pPINHash, pEnabled)
+	p.Schedule = scheduleFromJSON(p.ID, scheduleJSON)
 	return p, nil
 }
 
@@ -468,6 +472,111 @@ func parentalFromColumns(maxAge *int, blockedTags []string, pinHash string, enab
 	}
 }
 
+// UpdateSchedule writes ONLY access_schedule (nil clears it), column-scoped
+// like UpdateParentalSettings.
+func (r *ProfileRepository) UpdateSchedule(ctx context.Context, id shared.ProfileID, s *user.AccessSchedule) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.UpdateSchedule")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var raw []byte
+	if s != nil {
+		b, err := json.Marshal(scheduleToDTO(*s))
+		if err != nil {
+			return fmt.Errorf("ProfileRepo.UpdateSchedule marshal: %w", err)
+		}
+		raw = b
+	}
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE profiles SET access_schedule=$1 WHERE id=$2`, raw, string(id))
+	if err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("ProfileRepo.UpdateSchedule: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
+// SetScheduleOverride writes ONLY schedule_override_until (nil clears it).
+func (r *ProfileRepository) SetScheduleOverride(ctx context.Context, id shared.ProfileID, until *time.Time) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.profile.SetScheduleOverride")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, `UPDATE profiles SET schedule_override_until=$1 WHERE id=$2`, until, string(id))
+	if err != nil {
+		span.RecordError(err)
+		return fmt.Errorf("ProfileRepo.SetScheduleOverride: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
+// scheduleDTO is the stored JSON shape of an AccessSchedule.
+type scheduleDTO struct {
+	Enabled bool              `json:"enabled"`
+	Mode    string            `json:"mode"`
+	Rules   []scheduleRuleDTO `json:"rules"`
+}
+
+type scheduleRuleDTO struct {
+	Days   []int         `json:"days"`
+	Ranges []scheduleRng `json:"ranges"`
+}
+
+type scheduleRng struct {
+	Start int `json:"start"`
+	End   int `json:"end"`
+}
+
+func scheduleToDTO(s user.AccessSchedule) scheduleDTO {
+	out := scheduleDTO{Enabled: s.Enabled, Mode: string(s.Mode), Rules: make([]scheduleRuleDTO, 0, len(s.Rules))}
+	for _, r := range s.Rules {
+		rd := scheduleRuleDTO{Days: make([]int, 0, len(r.Days)), Ranges: make([]scheduleRng, 0, len(r.Ranges))}
+		for _, d := range r.Days {
+			rd.Days = append(rd.Days, int(d))
+		}
+		for _, tr := range r.Ranges {
+			rd.Ranges = append(rd.Ranges, scheduleRng(tr))
+		}
+		out.Rules = append(out.Rules, rd)
+	}
+	return out
+}
+
+// scheduleFromJSON decodes a stored schedule. A row that does not decode or
+// validate becomes an enabled schedule with no rule - closed, never open:
+// a corrupt kids schedule must not unlock the profile (fail-closed).
+func scheduleFromJSON(id shared.ProfileID, raw []byte) *user.AccessSchedule {
+	if len(raw) == 0 {
+		return nil
+	}
+	var dto scheduleDTO
+	if err := json.Unmarshal(raw, &dto); err != nil {
+		slog.Error("profile access schedule unreadable, profile kept closed", slog.String("profile_id", string(id)), slog.Any("err", err))
+		return &user.AccessSchedule{Enabled: true, Mode: user.ScheduleModeWeek}
+	}
+	s := user.AccessSchedule{Enabled: dto.Enabled, Mode: user.ScheduleMode(dto.Mode), Rules: make([]user.ScheduleRule, 0, len(dto.Rules))}
+	for _, rd := range dto.Rules {
+		r := user.ScheduleRule{}
+		for _, d := range rd.Days {
+			r.Days = append(r.Days, time.Weekday(d))
+		}
+		for _, tr := range rd.Ranges {
+			r.Ranges = append(r.Ranges, user.TimeRange(tr))
+		}
+		s.Rules = append(s.Rules, r)
+	}
+	if err := s.Validate(); err != nil {
+		slog.Error("profile access schedule invalid, profile kept closed", slog.String("profile_id", string(id)), slog.Any("err", err))
+		return &user.AccessSchedule{Enabled: true, Mode: user.ScheduleModeWeek}
+	}
+	return &s
+}
+
 // ListAdminProfiles returns profiles whose user has is_admin=TRUE.
 // Used by notification service to route security alerts.
 func (r *ProfileRepository) ListAdminProfiles(ctx context.Context) ([]*user.Profile, error) {
@@ -478,7 +587,7 @@ func (r *ProfileRepository) ListAdminProfiles(ctx context.Context) ([]*user.Prof
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT p.id, p.user_id, p.name, p.avatar_path, p.preferences, p.max_rating, p.is_default, p.is_kids,
 		 p.audio_languages, p.subtitle_languages, p.max_bitrate_kbps, p.parental_max_age, p.parental_blocked_tags,
-		 p.parental_pin_hash, p.parental_enabled, p.locale, p.region, p.created_at, p.last_active_at
+		 p.parental_pin_hash, p.parental_enabled, p.locale, p.region, p.created_at, p.last_active_at, p.access_schedule, p.schedule_override_until
 		 FROM profiles p
 		 INNER JOIN users u ON u.id = p.user_id
 		 WHERE u.is_admin = TRUE

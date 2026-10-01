@@ -36,8 +36,8 @@ func TestKeepMostRelevant_CutsOneGenreMatchesWhenBetterExist(t *testing.T) {
 	if n := count(keepMostRelevant(scored(3, 3, 2, 1, 1, 1), 3)); n != 3 {
 		t.Errorf("three-genre target: kept %d, want the 3 titles sharing two genres or more", n)
 	}
-	if n := count(keepMostRelevant(scored(1, 1, 1), 3)); n != 3 {
-		t.Errorf("best match is one genre: kept %d, want all 3 rather than an empty row", n)
+	if n := count(keepMostRelevant(scored(1, 1, 1), 3)); n != 0 {
+		t.Errorf("best match is one genre of three: kept %d, want an empty row rather than a lie", n)
 	}
 	if n := count(keepMostRelevant(scored(1, 1), 1)); n != 2 {
 		t.Errorf("one-genre target: kept %d, want 2", n)

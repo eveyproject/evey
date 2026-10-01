@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nominalQualityTier, parseHlsMasterHeights, qualityRungsFromHeights } from "./hlsRungs";
+import { nominalQualityTier, parseHlsMasterHeights, parseHlsMasterResolutions, qualityRungsFromHeights, resolutionTier } from "./hlsRungs";
 
 const MASTER = `#EXTM3U
 #EXT-X-VERSION:6
@@ -29,6 +29,27 @@ describe("nominalQualityTier", () => {
   it("has no tier for nothing", () => {
     expect(nominalQualityTier(0)).toBe(0);
     expect(nominalQualityTier(-5)).toBe(0);
+  });
+});
+
+// The quality menu and the title page name the same frame the same way: a
+// copied 1920x818 scope film read "1080p" on the page and "Auto (720p)" in the
+// player (demo, 2026-10-01).
+describe("a rung's label agrees with the title page", () => {
+  it("names a scope rung by its width once the width is known", () => {
+    expect(nominalQualityTier(818, 1920)).toBe(1080);
+    expect(nominalQualityTier(798, 1920)).toBe(resolutionTier(1920, 798));
+    expect(nominalQualityTier(532, 1280)).toBe(720);
+    expect(nominalQualityTier(720, 1280)).toBe(720);
+    expect(nominalQualityTier(1080, 1920)).toBe(1080);
+  });
+
+  it("labels the menu from the master's widths", () => {
+    expect(parseHlsMasterResolutions(MASTER)).toEqual([{ width: 1920, height: 798 }, { width: 1280, height: 532 }]);
+    expect(qualityRungsFromHeights(parseHlsMasterResolutions(MASTER))).toEqual([
+      { value: 798, label: "1080p" },
+      { value: 532, label: "720p" },
+    ]);
   });
 });
 

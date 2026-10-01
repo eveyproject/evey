@@ -1,6 +1,8 @@
 // Custom fetch wrapper used by all orval-generated hooks
 // Injects Authorization header from the auth store automatically
 
+import { notifyProfileClosed, profileClosedFromBody, type ProfileClosedInfo } from "./profileClosed";
+
 let getToken: (() => string | null) | null = null;
 let updateTokens: ((access: string) => void) | null = null;
 let getLocale: (() => string) | null = null;
@@ -226,6 +228,19 @@ async function fetchWithRefresh(
     fireUnauthorized();
   }
 
+  // A kids profile outside its opening hours: every app shows its lock screen
+  // whichever request found out, the player's progress tick included.
+  let closed: ProfileClosedInfo | null = null;
+  if (response.status === 403) {
+    try {
+      closed = profileClosedFromBody(await response.clone().json());
+    } catch {
+      closed = null;
+    }
+    if (!closed && response.headers.get("X-Evey-Error") === "profile_closed") closed = {};
+    if (closed) notifyProfileClosed(closed);
+  }
+
   // rawOnError: hand the caller the Response even on non-2xx (except 401, which
   // still triggers the refresh/unauthorized flow above) so it can inspect
   // res.status/body itself - e.g. a 428 permission-escalation or 403 blocked
@@ -261,7 +276,8 @@ async function fetchWithRefresh(
     // (2026-07-29). Header wins, body is the fallback for stripping proxies.
     const header = Number.parseInt(response.headers.get("Retry-After") ?? "", 10);
     if (Number.isFinite(header) && header > 0) retryAfterSeconds = header;
-    throw Object.assign(new Error(message), { httpStatus: response.status, retryAfterSeconds, errorCode });
+    if (closed) errorCode = "profile_closed";
+    throw Object.assign(new Error(message), { httpStatus: response.status, retryAfterSeconds, errorCode, nextOpen: closed?.nextOpen });
   }
 
   return response;

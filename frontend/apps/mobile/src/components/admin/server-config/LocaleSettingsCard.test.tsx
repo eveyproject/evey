@@ -23,6 +23,10 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
 }));
 
+// The defaults the server reports for empty settings.
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: { "server.language": "en", "metadata.language": "en", "server.timezone": "Europe/Paris" } }),
+}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key),

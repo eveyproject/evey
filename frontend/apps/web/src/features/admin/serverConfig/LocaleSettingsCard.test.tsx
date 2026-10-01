@@ -8,8 +8,20 @@ vi.mock("./hooks", () => ({ useSetConfigEntry: () => ({ mutate: setMutate, isPen
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 const setLocale = vi.hoisted(() => vi.fn());
 vi.mock("@evey/store", () => ({ toast, useLocaleStore: (sel: (s: { setLocale: typeof setLocale }) => unknown) => sel({ setLocale }) }));
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k, i18n: { language: "en" } }) }));
-vi.mock("@evey/api", () => ({ defaultRegionForLocale: (l: string) => (l === "fr" ? "FR" : "US") }));
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (k: string, o?: { value?: string; time?: string }) => (o?.value ?? o?.time ? `${k}:${o?.value ?? o?.time}` : k),
+    i18n: { language: "en" },
+  }),
+}));
+vi.mock("@evey/api", () => ({
+  defaultRegionForLocale: (l: string) => (l === "fr" ? "FR" : "US"),
+  configDefaultsKey: ["defaults"],
+  getConfigDefaults: vi.fn(),
+}));
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: () => ({ data: { "server.language": "en", "metadata.language": "fr", "server.timezone": "Europe/Paris", now: "2026-10-05T16:42:00Z" } }),
+}));
 vi.mock("@/features/user/regionList", () => ({ ISO_REGIONS: ["FR", "US", "DE"] }));
 vi.mock("@/i18n", () => ({ supportedLanguages: [{ code: "en", label: "English" }, { code: "fr", label: "Français" }] }));
 vi.mock("@/components/ui/Spinner", () => ({ Spinner: () => null }));
@@ -33,7 +45,13 @@ describe("LocaleSettingsCard", () => {
     render(<LocaleSettingsCard entries={[{ key: "server.language", value: "fr" }, { key: "server.region", value: "FR" }]} />);
     expect((screen.getByLabelText("admin.serverConfig.serverLanguage") as HTMLSelectElement).value).toBe("fr");
     expect((screen.getByLabelText("admin.serverConfig.serverRegion") as HTMLSelectElement).value).toBe("FR");
-    expect(screen.getByText("admin.serverConfig.envDefault (FR)")).toBeInTheDocument();
+    // Each empty choice names the value it resolves to, not "env default".
+    expect(screen.getByText("admin.serverConfig.defaultValue:English")).toBeInTheDocument();
+    expect(screen.getByText("admin.serverConfig.defaultValue:France")).toBeInTheDocument();
+    expect(screen.getByText("admin.serverConfig.defaultValue:Français")).toBeInTheDocument();
+    expect(screen.getByText("admin.serverConfig.defaultValue:Europe/Paris")).toBeInTheDocument();
+    // The time in force, by the server's clock, in the default zone.
+    expect(screen.getByTestId("server-time")).toHaveTextContent(/^admin\.serverConfig\.timezoneNow:0?6:4\d PM$/);
     expect((screen.getByLabelText("admin.serverConfig.metadataLanguage") as HTMLSelectElement).value).toBe("");
 
     fireEvent.change(screen.getByLabelText("admin.serverConfig.serverLanguage"), { target: { value: "en" } });

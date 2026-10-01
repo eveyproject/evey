@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Hls from "hls.js";
-import { createPlayerEventReporter } from "@evey/api";
+import { createPlayerEventReporter, notifyProfileClosed, type RungSize } from "@evey/api";
 import { buildTranscodeHlsUrl, liftForcedMuteOnNextGesture, pickPinnedLevel, pickTranscodeResumeSec, prefersNativeHLS, startPlayback, forwardBufferSeconds, MAX_FORWARD_BUFFER_SEC } from "./hlsPlayerUtils";
 import { playbackSnapshot } from "../playbackSnapshot";
 import { dashUrlFor, devDashEnabled, retireDevDash, startDevDash } from "./devDash";
@@ -151,6 +151,8 @@ export function useTranscodePlayback({
   // hls.js instance (audio/quality switches rebuild the instance).
   const reportPlayerEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   const [hlsLevels, setHlsLevels] = useState<number[]>([]);
+  // The same rungs with their widths: a rung is labelled from both.
+  const [hlsLevelSizes, setHlsLevelSizes] = useState<RungSize[]>([]);
   // The audio renditions the MASTER declares, read straight from hls.js. The
   // menu is normally built from the server's stream list, but a guest in a
   // "watch together" room cannot ask for it - GetStreamInfo needs a JWT they do
@@ -164,6 +166,7 @@ export function useTranscodePlayback({
   // Height (px) of the rung hls.js is actually playing right now. Surfaced so the
   // settings panel can show "Auto (1080p)" instead of a redundant bare "Auto".
   const [autoLevelHeight, setAutoLevelHeight] = useState(0);
+  const [autoLevelWidth, setAutoLevelWidth] = useState(0);
   // The variant decoded right now and every variant's BANDWIDTH: the stream
   // info panel describes that rung, not the plan negotiated at start.
   const [playingVariant, setPlayingVariant] = useState<PlayingVariant | null>(null);
@@ -237,13 +240,14 @@ export function useTranscodePlayback({
         setHandoffGen((g) => g + 1);
       };
       const started = startDevDash(video, dashUrlFor(hlsUrl), initialSeekSec, {
-        onQuality: (l) => { setAutoLevelHeight(l.height); setPlayingVariant(playingFromHlsLevel(l)); },
+        onQuality: (l) => { setAutoLevelHeight(l.height); setAutoLevelWidth(l.width ?? 0); setPlayingVariant(playingFromHlsLevel(l)); },
         onError: fallBack,
       }, () => cancelled);
       started.then((s) => {
         if (cancelled) return; // retired below, in the chain
         hlsRef.current = s.shim;
         setHlsLevels(s.levels.map((l) => l.height));
+        setHlsLevelSizes(s.levels.map((l) => ({ width: l.width ?? 0, height: l.height })));
         setLadderBitrates(s.levels.map((l) => l.bitrate));
         setManifestAudioTracks(s.audioTracks);
         const override = audioTrackOverrideRef?.current;
@@ -399,8 +403,11 @@ export function useTranscodePlayback({
     // Track the rung ABR actually settled on, so "Auto" can show its resolution.
     hls.on(Hls.Events.LEVEL_SWITCHED, (_evt, data) => {
       fitBufferToLevel(data.level);
-      const h = hls.levels?.[data.level]?.height;
-      if (h) setAutoLevelHeight(h);
+      const lvl = hls.levels?.[data.level];
+      if (lvl?.height) {
+        setAutoLevelHeight(lvl.height);
+        setAutoLevelWidth(lvl.width ?? 0);
+      }
       setPlayingVariant(playingFromHlsLevel(hls.levels?.[data.level]));
     });
 
@@ -422,6 +429,7 @@ export function useTranscodePlayback({
       }
       if (pinned >= 0) fitBufferToLevel(pinned);
       setHlsLevels(hls.levels.map((l) => l.height));
+      setHlsLevelSizes(hls.levels.map((l) => ({ width: l.width ?? 0, height: l.height })));
       setLadderBitrates(hls.levels.map((l) => l.bitrate));
       // A master with no audio group has no audioTracks at all, and neither
       // does a stripped-down player in a test: absent is a legitimate answer.
@@ -497,6 +505,13 @@ export function useTranscodePlayback({
           posSec: transcodeOffsetRef.current + (video.currentTime || 0),
           state: playbackSnapshot(video),
         });
+      }
+      // A kids profile reaching the end of its opening hours: the server
+      // refuses the next segment, and the lock screen takes over at once
+      // instead of after the next progress tick.
+      if (data.response?.code === 403 && (data.networkDetails as { getResponseHeader?: (n: string) => string | null } | undefined)?.getResponseHeader?.("X-Evey-Error") === "profile_closed") {
+        notifyProfileClosed({});
+        return;
       }
       if (!data.fatal) return;
       if (import.meta.env.DEV) console.warn("[player] HLS fatal error:", data.type, data.details, data.response?.code);
@@ -666,5 +681,5 @@ export function useTranscodePlayback({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- streamTokenRef/onStreamTokenRefreshRef read imperatively; setFatalError/setShedReason/setIsBuffering/setTranscodeStartTime are stable setState
   }, [transcodeMode, mediaId, onEnded, currentTrackIndex, transcodeStartTime, selectedBurnInTrack, audioOffsetMs, gapless, wasmAudio, handoffGen]);
 
-  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode };
+  return { transcodeStartTime, setTranscodeStartTime, hlsLevels, hlsLevelSizes, autoLevelHeight, autoLevelWidth, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode };
 }

@@ -1,29 +1,18 @@
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem } from "@evey/api";
-import { useFeedServiceSimilarItems, useLibraryServiceListMediaItems } from "@evey/api";
+import { useFeedServiceSimilarItems } from "@evey/api";
 import { MediaCardWithModals as MediaCard } from "./MediaCardWithModals";
 
 export function SimilarSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
-  const firstGenre = item.genres?.[0];
-  const hasSimilar = (similarData?.items?.length ?? 0) > 0;
-  const { data: byGenreData } = useLibraryServiceListMediaItems(
-    { genre: firstGenre, type: item.type as never },
-    { query: { enabled: !hasSimilar && !!firstGenre } } as never
-  );
-
-  const fromFeed: Array<{ id: string; title?: string }> =
+  // The server's list or nothing: a same-genre fallback filled the row with
+  // titles sharing one catch-all genre, which is not "similar" (2026-10-01).
+  const cards: Array<{ id: string; title?: string }> =
     (similarData?.items ?? [])
       .filter((fi) => !!fi.mediaItemId)
       .map((fi) => ({ id: fi.mediaItemId!, title: fi.title }));
 
-  const fromGenre: Array<{ id: string; title?: string; year?: number; type?: string }> =
-    (byGenreData?.items ?? []).filter((m) => m.id && m.id !== item.id).map((m) => ({
-      id: m.id!, title: m.title, year: m.year, type: m.type,
-    }));
-
-  const cards = fromFeed.length ? fromFeed : fromGenre;
   if (!cards.length) return null;
 
   return (

@@ -444,6 +444,9 @@ func (d *adminSystemHandler) UpdateServerConfig(ctx context.Context, req *eveyv1
 		}
 		if err := d.serverCfgSvc.Set(ctx, k, v); err != nil {
 			span.RecordError(err)
+			if errors.Is(err, appconfig.ErrInvalidValue) {
+				return nil, status.Error(codes.InvalidArgument, err.Error())
+			}
 			return nil, internalError(ctx, "update server config", err)
 		}
 	}

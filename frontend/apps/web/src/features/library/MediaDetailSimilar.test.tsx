@@ -45,14 +45,16 @@ describe("SimilarSection", () => {
     expect(screen.getByTestId("card-s-2")).toBeInTheDocument();
   });
 
-  it("falls back to genre items when no feed results", () => {
+  // No same-genre fallback: a title sharing one catch-all genre is not
+  // "similar", and a row of them lied (2026-10-01).
+  it("shows no row when the server has no similar title, even with same-genre titles around", () => {
     mockSimilarItems.mockReturnValue({ data: { items: [] } });
     mockListMediaItems.mockReturnValue({
-      data: { items: [{ id: "g-1", title: "Genre Movie" }, { id: "m-1", title: "Self" }] },
+      data: { items: [{ id: "g-1", title: "Genre Movie" }] },
     });
-    render(<SimilarSection item={makeItem()} />);
-    expect(screen.getByTestId("card-g-1")).toBeInTheDocument();
-    expect(screen.queryByTestId("card-m-1")).not.toBeInTheDocument();
+    const { container } = render(<SimilarSection item={makeItem()} />);
+    expect(container.innerHTML).toBe("");
+    expect(mockListMediaItems).not.toHaveBeenCalled();
   });
 
   it("filters out items without mediaItemId from feed", () => {

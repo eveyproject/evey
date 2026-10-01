@@ -8,6 +8,7 @@ import (
 	"net"
 	"slices"
 	"strings"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -58,6 +59,9 @@ type playbackHandler struct {
 	// request-time pins) - bound by the composition root once the HTTP
 	// pipeline that owns the resolver exists, before this server starts.
 	decider apptranscoding.PlaybackDecider
+	// hours warns a kids profile's player before its opening ends. Optional.
+	hours        ProfileHoursReader
+	closingWarns closingWarnings
 }
 
 func (h *playbackHandler) playbackDecider() apptranscoding.PlaybackDecider {
@@ -706,6 +710,9 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 		if cmd, cmdErr := h.cmd.ConsumeRemoteCommand(ctx, req.SessionId); cmdErr == nil && cmd != "" {
 			resp.RemoteCommand = cmd
 		}
+	}
+	if resp.RemoteCommand == "" && claims != nil {
+		resp.RemoteCommand = closingSoonMessage(ctx, h.hours, &h.closingWarns, h.translator, claims.ProfileID, req.SessionId, time.Now())
 	}
 	if err := h.cmd.ReportProgressBySession(ctx, req.SessionId, req.PositionMs, req.IsPaused, req.CastDeviceName); err != nil {
 		span.RecordError(err)

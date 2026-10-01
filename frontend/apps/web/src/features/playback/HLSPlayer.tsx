@@ -736,7 +736,7 @@ export function HLSPlayer({
     canWasmDecodeAC3() &&
     isWasmDecodableAudioCodec(selectedAudioCodec);
 
-  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, autoLevelHeight, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode } = useTranscodePlayback({
+  const { transcodeStartTime, setTranscodeStartTime, hlsLevels, hlsLevelSizes, autoLevelHeight, autoLevelWidth, playingVariant, ladderBitrates, manifestAudioTracks, handoffToTranscode } = useTranscodePlayback({
     videoRef, hlsRef, positionRef, transcodeOffsetRef,
     wasPausedRef, streamTokenRef, onStreamTokenRefreshRef, audioTrackOverrideRef,
     pinnedQualityRef, onFragStatsRef, onBufferStallRef,
@@ -1193,10 +1193,10 @@ export function HLSPlayer({
   // In Auto, surface the rung ABR actually picked (e.g. "1080p") so the menu
   // shows "Auto (1080p)" rather than a redundant "Auto". Empty until the first
   // level switch (panel then shows a bare "Auto").
-  // Label the rung by its nearest standard tier, not the raw encoded height: a
-  // 2.40:1 master's "1080p" rung is 1920×798, and "798p" reads as a bug.
+  // Label the rung the way the title page labels the file, width included: a
+  // 2.40:1 master's "1080p" rung is 1920×798, which is neither "798p" nor 720p.
   const served = useMemo(() => servedVariant(streamInfo, playingVariant, ladderBitrates), [streamInfo, playingVariant, ladderBitrates]);
-  const autoQualityLabel = autoQuality && autoLevelHeight ? `${nominalQualityTier(autoLevelHeight)}p` : undefined;
+  const autoQualityLabel = autoQuality && autoLevelHeight ? `${nominalQualityTier(autoLevelHeight, autoLevelWidth)}p` : undefined;
 
   const nextEpisode = (() => {
     if (!episodes || !currentEpisodeId) return null;
@@ -1453,7 +1453,7 @@ export function HLSPlayer({
         audioOffsetAvailable={transcodeMode}
         streamToken={streamToken}
         brightness={brightness}
-        availableQualities={hlsLevels}
+        availableQualities={hlsLevelSizes}
         remotePlaybackActive={remotePlaybackActive}
       >
         <PlayerControls
