@@ -1680,7 +1680,7 @@ sso:
   buttonLabel: "Libellé du bouton"
   buttonLabelHint: "Facultatif. Remplace « Se connecter avec SSO » sur les écrans de connexion."
   linkByEmail: "Relier aux comptes existants par e-mail vérifié"
-  linkByEmailHint: "Une première connexion SSO avec l'e-mail d'un compte existant ouvre ce compte. Seulement si le fournisseur confirme l'adresse (email_verified). Un compte désactivé reste refusé."
+  linkByEmailHint: "Une première connexion SSO avec l'e-mail d'un compte existant ouvre ce compte. Seulement si le fournisseur confirme l'adresse (email_verified). Un compte désactivé reste refusé. Les comptes administrateurs ne sont jamais reliés ainsi."
   allowSignup: "Créer un compte pour les nouveaux utilisateurs SSO"
   allowSignupHint: "Désactivé par défaut tant qu'aucun domaine e-mail n'est autorisé ci-dessus : avec un fournisseur public, quiconque y a un compte pourrait sinon en obtenir un ici. Désactivé, seuls les comptes existants ou reliés peuvent utiliser le SSO."
   defaultAccess: "Accès aux bibliothèques des nouveaux comptes SSO"

@@ -54,7 +54,7 @@ sign-in attempt, at most every 30 seconds.
 2. Otherwise, with **Link to existing accounts by verified e-mail** on, an
    existing account with the same e-mail is linked to the provider and signed
    in, but only when the provider confirms the address. The account keeps its
-   password.
+   password. Administrator accounts are never linked this way.
 3. Otherwise, with **Create accounts for new SSO users** on, a new account is
    created, with one profile and the library access chosen in the card. Its
    username is the provider's `preferred_username`, otherwise the part of the

@@ -1681,7 +1681,7 @@ sso:
   buttonLabel: "按钮文字"
   buttonLabelHint: "可选。在登录界面上替换“使用 SSO 登录”。"
   linkByEmail: "通过已验证的电子邮件关联现有账户"
-  linkByEmailHint: "首次 SSO 登录时，若电子邮件与现有账户相同，则登录该账户。仅当提供方确认该地址 (email_verified) 时生效。已停用的账户仍会被拒绝。"
+  linkByEmailHint: "首次 SSO 登录时，若电子邮件与现有账户相同，则登录该账户。仅当提供方确认该地址 (email_verified) 时生效。已停用的账户仍会被拒绝。管理员账户永远不会以这种方式关联。"
   allowSignup: "为新的 SSO 用户创建账户"
   allowSignupHint: "若上方未允许任何电子邮件域名，则默认关闭：使用公共提供方时，任何在那里有账户的人都可能在此获得账户。关闭时，只有现有或已关联的账户可以使用 SSO。"
   defaultAccess: "新 SSO 账户的媒体库访问权限"

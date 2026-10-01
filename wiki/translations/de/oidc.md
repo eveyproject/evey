@@ -1,5 +1,5 @@
 ---
-source_sha: 4a1aad8cb9228c4a82e7b9a0a3cbe3ee43a07f46b3a7109eb678dd7331ba9fd2
+source_sha: c2a4be8940674cf2726d11beb92251a00699761b6ec0ce9ceb1c8eba368e9b0e
 reviewed: false
 ---
 # OIDC / SSO einrichten
@@ -60,7 +60,8 @@ Sekunden.
 2. Sonst wird bei eingeschaltetem **Mit bestehenden Konten über bestätigte
    E-Mail verknüpfen** ein bestehendes Konto mit derselben E-Mail mit dem
    Anbieter verknüpft und angemeldet, aber nur, wenn der Anbieter die Adresse
-   bestätigt. Das Konto behält sein Passwort.
+   bestätigt. Das Konto behält sein Passwort. Administratorkonten werden nie auf
+   diese Weise verknüpft.
 3. Sonst wird bei eingeschaltetem **Konten für neue SSO-Benutzer anlegen** ein
    neues Konto angelegt, mit einem Profil und dem in der Karte gewählten
    Bibliothekszugriff. Sein Benutzername ist der `preferred_username` des

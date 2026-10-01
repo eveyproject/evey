@@ -1298,7 +1298,7 @@
   "admin.sso.issuerHint": "The provider's address. Evey reads its configuration from /.well-known/openid-configuration under it.",
   "admin.sso.lastChecked": "Checked {{time}}",
   "admin.sso.linkByEmail": "Link to existing accounts by verified e-mail",
-  "admin.sso.linkByEmailHint": "A first SSO sign-in with the e-mail of an existing account signs into that account. Only when the provider confirms the address (email_verified). A disabled account stays refused.",
+  "admin.sso.linkByEmailHint": "A first SSO sign-in with the e-mail of an existing account signs into that account. Only when the provider confirms the address (email_verified). A disabled account stays refused. Administrator accounts are never linked this way.",
   "admin.sso.logoutSupported": "Signing out of Evey also signs out of the provider.",
   "admin.sso.logoutUnsupported": "The provider has no logout endpoint: signing out of Evey keeps the provider session open.",
   "admin.sso.postLogoutUri": "Post-logout redirect URI",

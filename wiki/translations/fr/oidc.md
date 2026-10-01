@@ -1,5 +1,5 @@
 ---
-source_sha: 4a1aad8cb9228c4a82e7b9a0a3cbe3ee43a07f46b3a7109eb678dd7331ba9fd2
+source_sha: c2a4be8940674cf2726d11beb92251a00699761b6ec0ce9ceb1c8eba368e9b0e
 reviewed: true
 ---
 # Authentification unique (OIDC)
@@ -60,7 +60,7 @@ recontacté à la tentative de connexion suivante, au plus toutes les 30 seconde
 2. Sinon, avec **Relier aux comptes existants par e-mail vérifié** activé, un
    compte existant ayant le même e-mail est relié au fournisseur et connecté,
    mais seulement si le fournisseur confirme l'adresse. Le compte garde son mot
-   de passe.
+   de passe. Les comptes administrateurs ne sont jamais reliés ainsi.
 3. Sinon, avec **Créer un compte pour les nouveaux utilisateurs SSO** activé, un
    nouveau compte est créé, avec un profil et l'accès aux bibliothèques choisi
    dans la carte. Son nom d'utilisateur est le `preferred_username` du

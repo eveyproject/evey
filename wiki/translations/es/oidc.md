@@ -1,5 +1,5 @@
 ---
-source_sha: 4a1aad8cb9228c4a82e7b9a0a3cbe3ee43a07f46b3a7109eb678dd7331ba9fd2
+source_sha: c2a4be8940674cf2726d11beb92251a00699761b6ec0ce9ceb1c8eba368e9b0e
 reviewed: false
 ---
 # Configuración de OIDC / SSO
@@ -60,7 +60,7 @@ segundos.
 2. Si no, con **Vincular con cuentas existentes por correo verificado** activado,
    una cuenta existente con el mismo correo se vincula al proveedor y entra,
    pero solo si el proveedor confirma la dirección. La cuenta conserva su
-   contraseña.
+   contraseña. Las cuentas de administrador nunca se vinculan así.
 3. Si no, con **Crear cuentas para nuevos usuarios SSO** activado, se crea una
    cuenta nueva, con un perfil y el acceso a bibliotecas elegido en la tarjeta.
    Su nombre de usuario es el `preferred_username` del proveedor o, si falta, la
