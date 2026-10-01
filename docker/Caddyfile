@@ -21,10 +21,17 @@
 		# helpers.go): without them <base href> injection and <object>/<embed>
 		# embedding stay unrestricted even though default-src is 'self'. This proxy
 		# strips the app's own CSP (header_down below), so any hardening added there
-		# must be mirrored HERE or it never reaches the browser.
-		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' https: data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:; frame-src https://www.gstatic.com"
+		# must be mirrored in the policy below or it never reaches the browser.
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	}
+
+	# The Chromecast receiver page carries its own, wider policy (Cast styles and
+	# fonts from gstatic, https media): the app sends it, this proxy keeps it.
+	@receiver path /cast-receiver.html
+	header @notReceiver {
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; img-src 'self' https: data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:; frame-src https://www.gstatic.com"
+	}
+	@notReceiver not path /cast-receiver.html
 
 	# Streaming endpoints need no timeout
 	@streaming {
@@ -42,6 +49,10 @@
 			# policy above, so the app's own header is stripped.
 			header_down -Content-Security-Policy
 		}
+	}
+
+	handle @receiver {
+		reverse_proxy evey:9091
 	}
 
 	# Everything else goes to the backend (which serves both API and frontend)
