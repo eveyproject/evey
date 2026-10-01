@@ -1,5 +1,5 @@
 ---
-source_sha: 00f9d5811af70059e3ff6fc49a0defb49e3801f0005d12d5b22033634e960f33
+source_sha: 65b23365db26b7098f71c51fcbae29e81a9f718d1b2be22250829cabd85987c1
 reviewed: false
 ---
 # OIDC / SSO einrichten
@@ -53,10 +53,10 @@ Teil der E-Mail vor `@`. Das Konto ist ein normaler Benutzer und sieht wie
 jedes Konto ohne Einschränkungen alle Bibliotheken: Schränken Sie es danach
 unter **Admin → Benutzer** ein (siehe [Benutzer](administration/users.md)).
 
-**Begrenzen Sie Registrierungen mit `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Leer
-bekommt jeder, der ein Konto beim Anbieter hat, eines auf Ihrem Server, was bei
-einem öffentlichen Anbieter wie Google jeden bedeutet. Mit Domains werden nur
-diese Adressen angenommen, und der Anbieter muss die Adresse als verifiziert
+**Begrenzen Sie Registrierungen mit `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS`.** Ist
+die Variable leer, bekommt jeder, der ein Konto beim Anbieter hat, eines auf
+Ihrem Server, was bei einem öffentlichen Anbieter wie Google jeden bedeutet. Mit
+Domains werden nur Adressen dieser Domains angenommen, und der Anbieter muss die Adresse als verifiziert
 kennzeichnen.
 
 Ein Konto wird am Anbieter und seiner Benutzerkennung erkannt, nicht an der
