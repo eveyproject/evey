@@ -7,6 +7,7 @@ import { UserRow } from "./UserRow";
 
 const mockDeleteMutate = vi.fn();
 const mockDisableMutate = vi.fn();
+const mockEnableMutate = vi.fn();
 const mockInvalidateQueries = vi.fn().mockResolvedValue(undefined);
 
 let mockDeleteIsPending = false;
@@ -17,6 +18,7 @@ let deleteOnSuccess: (() => void) | undefined;
 let deleteOnError: ((err: Error) => void) | undefined;
 let disableOnSuccess: (() => void) | undefined;
 let disableOnError: ((err: Error) => void) | undefined;
+let enableOnSuccess: (() => void) | undefined;
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -43,6 +45,12 @@ vi.mock("@evey/api", async (importOriginal) => ({
     disableOnSuccess = opts?.mutation?.onSuccess;
     disableOnError = opts?.mutation?.onError;
     return { mutate: mockDisableMutate, isPending: mockDisableIsPending };
+  },
+  useUserServiceEnableUser: (opts: {
+    mutation?: { onSuccess?: () => void; onError?: (err: Error) => void };
+  }) => {
+    enableOnSuccess = opts?.mutation?.onSuccess;
+    return { mutate: mockEnableMutate, isPending: false };
   },
   useUserServiceImpersonateUser: () => ({ mutate: vi.fn(), isPending: false }),
   getUserServiceListUsersQueryKey: () => ["/api/v1/users"],
@@ -216,14 +224,22 @@ describe("UserRow", () => {
     });
   });
 
-  it("clicking Enable calls disableUser.mutate with id and disabled:false (was disabled)", () => {
+  it("clicking Enable calls enableUser.mutate with the id (was disabled)", () => {
     renderRow(DISABLED_USER);
     fireEvent.click(screen.getByRole("button", { name: /^enable$/i }));
-    expect(mockDisableMutate).toHaveBeenCalledOnce();
-    expect(mockDisableMutate).toHaveBeenCalledWith({
-      id: "usr-dis",
-      params: { disabled: false },
-    });
+    expect(mockDisableMutate).not.toHaveBeenCalled();
+    expect(mockEnableMutate).toHaveBeenCalledWith({ id: "usr-dis" });
+  });
+
+  it("enableUser onSuccess invalidates USERS_QUERY_KEY", async () => {
+    renderRow(DISABLED_USER);
+    fireEvent.click(screen.getByRole("button", { name: /^enable$/i }));
+    enableOnSuccess?.();
+    await waitFor(() =>
+      expect(mockInvalidateQueries).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ["/api/v1/users"] }),
+      ),
+    );
   });
 
   it("disableUser onSuccess invalidates USERS_QUERY_KEY", async () => {

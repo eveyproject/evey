@@ -244,45 +244,50 @@ func (h *userHandler) ImpersonateUser(ctx context.Context, req *eveyv1.Impersona
 func (h *userHandler) DisableUser(ctx context.Context, req *eveyv1.DisableUserRequest) (*eveyv1.User, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.DisableUser")
 	defer span.End()
-	// req.Disabled = true → disable, false → enable. The previous handler
-	// ignored the flag and always disabled, leaving no way to re-enable.
-	op := "disable_user"
-	if req.Disabled {
-		if err := h.userSvc.DisableUser(ctx, req.Id); err != nil {
-			span.RecordError(err)
-			span.SetStatus(otelcodes.Error, err.Error())
-			switch {
-			case errors.Is(err, appuser.ErrLastAdmin):
-				return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.last_admin_disable")
-			case errors.Is(err, shared.ErrNotFound):
-				return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
-			default:
-				return nil, internalError(ctx, "disable user", err)
-			}
-		}
-	} else {
-		op = "enable_user"
-		if err := h.userSvc.EnableUser(ctx, req.Id); err != nil {
-			span.RecordError(err)
-			span.SetStatus(otelcodes.Error, err.Error())
-			if errors.Is(err, shared.ErrNotFound) {
-				return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
-			}
-			return nil, internalError(ctx, "enable user", err)
+	// Always disables, whatever req.Disabled says: a bare call to the
+	// "disable" route used to re-enable the account. EnableUser re-enables.
+	if err := h.userSvc.DisableUser(ctx, req.Id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, appuser.ErrLastAdmin):
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.last_admin_disable")
+		case errors.Is(err, shared.ErrNotFound):
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
+		default:
+			return nil, internalError(ctx, "disable user", err)
 		}
 	}
-	claims := interceptors.ClaimsFromContext(ctx)
-	callerID := req.Id
-	if claims != nil {
+	return h.afterEnableToggle(ctx, req.Id, "disable_user", false), nil
+}
+
+func (h *userHandler) EnableUser(ctx context.Context, req *eveyv1.EnableUserRequest) (*eveyv1.User, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.user.EnableUser")
+	defer span.End()
+	if err := h.userSvc.EnableUser(ctx, req.Id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		if errors.Is(err, shared.ErrNotFound) {
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
+		}
+		return nil, internalError(ctx, "enable user", err)
+	}
+	return h.afterEnableToggle(ctx, req.Id, "enable_user", true), nil
+}
+
+// afterEnableToggle audits the change and returns the reloaded user.
+func (h *userHandler) afterEnableToggle(ctx context.Context, id, op string, enabled bool) *eveyv1.User {
+	callerID := id
+	if claims := interceptors.ClaimsFromContext(ctx); claims != nil {
 		callerID = claims.UserID
 	}
-	h.audit(ctx, callerID, op, "user", &req.Id, map[string]any{"target_user_id": req.Id})
-	u, err := h.query.GetUserByID(ctx, req.Id)
+	h.audit(ctx, callerID, op, "user", &id, map[string]any{"target_user_id": id})
+	u, err := h.query.GetUserByID(ctx, id)
 	if err != nil {
-		slog.WarnContext(ctx, op+": could not reload user", slog.String("user_id", req.Id), slog.Any("err", err))
-		return &eveyv1.User{Id: req.Id, Enabled: !req.Disabled}, nil
+		slog.WarnContext(ctx, op+": could not reload user", slog.String("user_id", id), slog.Any("err", err))
+		return &eveyv1.User{Id: id, Enabled: enabled}
 	}
-	return userToProto(u), nil
+	return userToProto(u)
 }
 
 func (h *userHandler) ListUsers(ctx context.Context, _ *eveyv1.ListUsersRequest) (*eveyv1.ListUsersResponse, error) {

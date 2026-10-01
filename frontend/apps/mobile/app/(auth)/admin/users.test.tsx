@@ -134,6 +134,7 @@ const eveyFetchMock = vi.fn(async (opts: { url: string; method: string }) => {
 let mockUsers: any[] = [];
 const deleteMutate = vi.fn();
 const disableMutate = vi.fn();
+const enableMutate = vi.fn();
 const impersonateMutate = vi.fn();
 let mockProfiles: any[] = [];
 
@@ -150,6 +151,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   }),
   useUserServiceDeleteUser: () => ({ mutate: deleteMutate, isPending: false }),
   useUserServiceDisableUser: () => ({ mutate: disableMutate, isPending: false }),
+  useUserServiceEnableUser: () => ({ mutate: enableMutate, isPending: false }),
   useUserServiceImpersonateUser: () => ({ mutate: impersonateMutate, isPending: false }),
   useUserServiceListAllProfiles: () => ({ data: { profiles: mockProfiles }, isLoading: false }),
   getUserServiceListUsersQueryKey: () => ["users"],
@@ -308,7 +310,7 @@ describe("AdminUsersScreen - user row action sheet", () => {
     expect(screen.queryByText("Connect as")).toBeNull();
     expect(screen.getByText("Enable")).toBeTruthy();
     fireEvent.click(screen.getByText("Enable"));
-    expect(disableMutate).toHaveBeenCalledWith({ id: "u3", params: { disabled: false } });
+    expect(enableMutate).toHaveBeenCalledWith({ id: "u3" });
   });
 
   it("filters the list from the search box once 8+ users exist", () => {

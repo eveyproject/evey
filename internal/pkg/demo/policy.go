@@ -122,6 +122,7 @@ var LockedAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC names with 
 	"/evey.v1.UserService/CreateUser":       "identity",
 	"/evey.v1.UserService/DeleteUser":       "identity",
 	"/evey.v1.UserService/DisableUser":      "identity: locks the shared account out for everyone",
+	"/evey.v1.UserService/EnableUser":       "identity: the counterpart of DisableUser",
 	"/evey.v1.UserService/RevokeAPIKey":     "the keys belong to the shared account: a visitor would revoke another visitor's",
 	// Locked 2026-10-01 (the API needs no try-out on the demo): a minted key
 	// outlived the visitor and the reset, and revoking it is locked above. The

@@ -725,6 +725,22 @@ func TestDisableUser_Success(t *testing.T) {
 	}
 }
 
+// A call without the flag, or with disabled=false, still disables: the
+// "disable" route used to re-enable the account.
+func TestDisableUser_NeverEnables(t *testing.T) {
+	env := setupUserHandler()
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+	for _, req := range []*eveyv1.DisableUserRequest{{Id: "usr-1"}, {Id: "usr-1", Disabled: false}} {
+		resp, err := env.handler.DisableUser(adminCtx(), req)
+		if err != nil {
+			t.Fatalf("DisableUser: %v", err)
+		}
+		if resp.Enabled {
+			t.Fatal("the disable route must never enable the account")
+		}
+	}
+}
+
 func TestDisableUser_EnableToggle(t *testing.T) {
 	env := setupUserHandler()
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
@@ -734,8 +750,8 @@ func TestDisableUser_EnableToggle(t *testing.T) {
 	if _, err := env.handler.DisableUser(ctx, &eveyv1.DisableUserRequest{Id: "usr-1", Disabled: true}); err != nil {
 		t.Fatalf("Disable: %v", err)
 	}
-	// Re-enable via the same RPC with Disabled=false.
-	resp, err := env.handler.DisableUser(ctx, &eveyv1.DisableUserRequest{Id: "usr-1", Disabled: false})
+	// Re-enable through EnableUser: DisableUser always disables.
+	resp, err := env.handler.EnableUser(ctx, &eveyv1.EnableUserRequest{Id: "usr-1"})
 	if err != nil {
 		t.Fatalf("Enable: %v", err)
 	}

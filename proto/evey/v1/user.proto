@@ -61,6 +61,12 @@ service UserService {
     };
   }
 
+  rpc EnableUser(EnableUserRequest) returns (User) {
+    option (google.api.http) = {
+      post: "/api/v1/users/{id}/enable"
+    };
+  }
+
   rpc ListUsers(ListUsersRequest) returns (ListUsersResponse) {
     option (google.api.http) = {
       get: "/api/v1/users"
@@ -348,7 +354,12 @@ message DeleteUserResponse {}
 
 message DisableUserRequest {
   string id = 1;
+  // Ignored: this route always disables. Re-enable with EnableUser.
   bool disabled = 2;
+}
+
+message EnableUserRequest {
+  string id = 1;
 }
 
 message ListUsersRequest {}

@@ -12,6 +12,7 @@ import {
   useUserServiceCreateUser,
   useUserServiceDeleteUser,
   useUserServiceDisableUser,
+  useUserServiceEnableUser,
   useUserServiceImpersonateUser,
   getUserServiceListUsersQueryKey,
   useLibraryServiceListLibraries,
@@ -692,14 +693,17 @@ export default function AdminUsersScreen() {
     },
   });
 
-  const disableUser = useUserServiceDisableUser({
+  const toggleOpts = {
     mutation: {
       onSuccess: async () => {
         toast.success(t("admin.users.userUpdated"));
         await qc.invalidateQueries({ queryKey: getUserServiceListUsersQueryKey() });
       },
     },
-  });
+  };
+  // Two routes: /disable always disables, /enable re-enables.
+  const disableUser = useUserServiceDisableUser(toggleOpts);
+  const enableUser = useUserServiceEnableUser(toggleOpts);
 
   const handleCreate = useCallback(async () => {
     if (!newUsername.trim() || !newPassword.trim()) return;
@@ -728,8 +732,9 @@ export default function AdminUsersScreen() {
 
   const handleToggleDisable = useCallback((user: V1User) => {
     if (!user.id) return;
-    disableUser.mutate({ id: user.id, params: { disabled: user.enabled !== false } });
-  }, [disableUser]);
+    if (user.enabled !== false) disableUser.mutate({ id: user.id, params: { disabled: true } });
+    else enableUser.mutate({ id: user.id });
+  }, [disableUser, enableUser]);
 
   // profileId empty = the target's default profile, which is all the user-level
   // button could ever do. Passing one is what lets an admin land on the profile
