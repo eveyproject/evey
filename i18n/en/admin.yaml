@@ -743,7 +743,7 @@ serverConfig:
   saveSmtp: Save SMTP Settings
   smtpSaved: SMTP settings saved
   failedSmtp: "Failed to save {{key}}"
-  smtpEnvHint: "Values saved here override the server's EVEY_SMTP_* environment variables; a field left empty uses the environment value. Changes apply without a restart."
+  smtpEnvHint: "Once a host is entered here, every field comes from this card and the server's EVEY_SMTP_* environment variables are ignored; with no host here, the environment is used. Changes apply without a restart."
   sendTestEmail: "Send test email"
   testEmailHint: "Sends a short message to your account's email address using the saved settings. Save your changes first."
   testEmailSent: "Test email sent to {{to}}"

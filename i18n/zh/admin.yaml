@@ -790,7 +790,7 @@ serverConfig:
   saveSmtp: "保存 SMTP 设置"
   smtpSaved: "SMTP 设置已保存"
   failedSmtp: "保存 {{key}} 失败"
-  smtpEnvHint: "此处保存的值会覆盖服务器的 EVEY_SMTP_* 环境变量；留空的字段使用环境变量中的值。更改无需重启即可生效。"
+  smtpEnvHint: "一旦在此填写了主机，所有字段都取自此卡片，服务器的 EVEY_SMTP_* 环境变量将被忽略；此处未填写主机时，使用环境变量。更改无需重启即可生效。"
   sendTestEmail: "发送测试邮件"
   testEmailHint: "使用已保存的设置向您账户的邮箱地址发送一封简短的邮件。请先保存您的更改。"
   testEmailSent: "测试邮件已发送至 {{to}}"

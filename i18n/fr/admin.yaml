@@ -742,7 +742,7 @@ serverConfig:
   saveSmtp: "Enregistrer les paramètres SMTP"
   smtpSaved: "Paramètres SMTP enregistrés"
   failedSmtp: "Échec de l'enregistrement de {{key}}"
-  smtpEnvHint: "Les valeurs enregistrées ici remplacent les variables d'environnement EVEY_SMTP_* du serveur ; un champ vide reprend la valeur de l'environnement. Les changements s'appliquent sans redémarrage."
+  smtpEnvHint: "Dès qu'un hôte est saisi ici, tous les champs viennent de cette carte et les variables d'environnement EVEY_SMTP_* du serveur sont ignorées ; sans hôte ici, l'environnement est utilisé. Les changements s'appliquent sans redémarrage."
   sendTestEmail: "Envoyer un e-mail de test"
   testEmailHint: "Envoie un court message à l'adresse e-mail de votre compte avec les paramètres enregistrés. Enregistrez vos modifications d'abord."
   testEmailSent: "E-mail de test envoyé à {{to}}"

@@ -790,7 +790,7 @@ serverConfig:
   saveSmtp: "Guardar ajustes SMTP"
   smtpSaved: "Ajustes SMTP guardados"
   failedSmtp: "Error al guardar {{key}}"
-  smtpEnvHint: "Los valores guardados aquí sustituyen a las variables de entorno EVEY_SMTP_* del servidor; un campo vacío usa el valor del entorno. Los cambios se aplican sin reiniciar."
+  smtpEnvHint: "En cuanto se introduce aquí un servidor, todos los campos salen de esta tarjeta y se ignoran las variables de entorno EVEY_SMTP_* del servidor; sin servidor aquí, se usa el entorno. Los cambios se aplican sin reiniciar."
   sendTestEmail: "Enviar correo de prueba"
   testEmailHint: "Envía un mensaje breve a la dirección de correo de tu cuenta con los ajustes guardados. Guarda primero tus cambios."
   testEmailSent: "Correo de prueba enviado a {{to}}"

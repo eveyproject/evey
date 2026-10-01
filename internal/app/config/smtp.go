@@ -42,22 +42,28 @@ func (s SMTPSettings) Configured() bool { return strings.TrimSpace(s.Host) != ""
 // IsSMTPKey reports whether a config key feeds the SMTP settings.
 func IsSMTPKey(key string) bool { return strings.HasPrefix(key, "smtp.") }
 
-// ResolveSMTPSettings overlays the stored values on env, field by field: a
-// non-empty stored value wins, an empty or unparseable one keeps env's.
+// ResolveSMTPSettings picks one source as a whole: the panel when it names a
+// host, env otherwise. Mixing them would hand env credentials to a host typed
+// in the panel. An empty or unparseable stored port or TLS mode gets the
+// usual defaults (587, starttls).
 func ResolveSMTPSettings(values map[string]string, env SMTPSettings) SMTPSettings {
-	out := env
-	pick := func(key string, dst *string) {
-		if v := strings.TrimSpace(values[key]); v != "" {
-			*dst = v
-		}
+	host := strings.TrimSpace(values[KeySMTPHost])
+	if host == "" {
+		out := env
+		out.TLS = strings.ToLower(out.TLS)
+		return out
 	}
-	pick(KeySMTPHost, &out.Host)
-	pick(KeySMTPUsername, &out.Username)
-	pick(KeySMTPFrom, &out.From)
-	pick(KeySMTPTLS, &out.TLS)
-	// Not trimmed: a password may legitimately carry spaces.
-	if v := values[KeySMTPPassword]; v != "" {
-		out.Password = v
+	out := SMTPSettings{
+		Host:     host,
+		Port:     defaultSMTPPort,
+		Username: strings.TrimSpace(values[KeySMTPUsername]),
+		// Not trimmed: a password may legitimately carry spaces.
+		Password: values[KeySMTPPassword],
+		From:     strings.TrimSpace(values[KeySMTPFrom]),
+		TLS:      strings.ToLower(strings.TrimSpace(values[KeySMTPTLS])),
+	}
+	if out.TLS == "" {
+		out.TLS = defaultSMTPTLS
 	}
 	if v := strings.TrimSpace(values[KeySMTPPort]); v != "" {
 		if p, err := strconv.Atoi(v); err == nil && p > 0 && p < 65536 {
@@ -66,9 +72,13 @@ func ResolveSMTPSettings(values map[string]string, env SMTPSettings) SMTPSetting
 			slog.Warn("smtp: ignoring stored port", slog.String("value", v))
 		}
 	}
-	out.TLS = strings.ToLower(out.TLS)
 	return out
 }
+
+const (
+	defaultSMTPPort = 587
+	defaultSMTPTLS  = "starttls"
+)
 
 // LiveSMTP holds the SMTP settings in force now. It is loaded at boot and
 // re-read from the store on every smtp.* change, so the panel applies without

@@ -13,7 +13,7 @@ import (
 
 var smtpEnv = SMTPSettings{Host: "env.example", Port: 587, Username: "envuser", Password: "envpass", From: "env@example", TLS: "starttls"}
 
-func TestResolveSMTPSettings_StoreWinsPerFieldEnvFillsTheRest(t *testing.T) {
+func TestResolveSMTPSettings_PanelHostTakesEveryFieldFromThePanel(t *testing.T) {
 	t.Parallel()
 	got := ResolveSMTPSettings(map[string]string{
 		KeySMTPHost: "panel.example",
@@ -21,13 +21,24 @@ func TestResolveSMTPSettings_StoreWinsPerFieldEnvFillsTheRest(t *testing.T) {
 		KeySMTPTLS:  "SSL",
 		KeySMTPFrom: "  ",
 	}, smtpEnv)
-	assert.Equal(t, SMTPSettings{Host: "panel.example", Port: 465, Username: "envuser", Password: "envpass", From: "env@example", TLS: "ssl"}, got)
+	// The env credentials must never reach a host typed in the panel.
+	assert.Equal(t, SMTPSettings{Host: "panel.example", Port: 465, TLS: "ssl"}, got)
 }
 
-func TestResolveSMTPSettings_BadPortKeepsEnv(t *testing.T) {
+func TestResolveSMTPSettings_NoPanelHostUsesEnvWhole(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, 587, ResolveSMTPSettings(map[string]string{KeySMTPPort: "abc"}, smtpEnv).Port)
-	assert.Equal(t, 587, ResolveSMTPSettings(map[string]string{KeySMTPPort: "70000"}, smtpEnv).Port)
+	got := ResolveSMTPSettings(map[string]string{KeySMTPUsername: "panel-user", KeySMTPPort: "2525"}, smtpEnv)
+	assert.Equal(t, smtpEnv.Host, got.Host)
+	assert.Equal(t, smtpEnv.Username, got.Username)
+	assert.Equal(t, smtpEnv.Port, got.Port)
+}
+
+func TestResolveSMTPSettings_PanelDefaults(t *testing.T) {
+	t.Parallel()
+	got := ResolveSMTPSettings(map[string]string{KeySMTPHost: "panel.example", KeySMTPPort: "abc"}, smtpEnv)
+	assert.Equal(t, 587, got.Port)
+	assert.Equal(t, "starttls", got.TLS)
+	assert.Equal(t, 587, ResolveSMTPSettings(map[string]string{KeySMTPHost: "h", KeySMTPPort: "70000"}, smtpEnv).Port)
 }
 
 func TestResolveSMTPSettings_EmptyEverywhereIsNotConfigured(t *testing.T) {
@@ -63,7 +74,7 @@ func TestLiveSMTP_StoreAtBootWinsOverEnv(t *testing.T) {
 	require.NoError(t, repo.Set(ctx, KeySMTPHost, "panel.example"))
 	live := NewLiveSMTP(ctx, repo, smtpEnv, false)
 	assert.Equal(t, "panel.example", live.Current().Host)
-	assert.Equal(t, "envuser", live.Current().Username)
+	assert.Empty(t, live.Current().Username, "a panel host never borrows env credentials")
 }
 
 func TestLiveSMTP_DisabledNeverConfigured(t *testing.T) {
