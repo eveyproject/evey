@@ -12,7 +12,7 @@ User-facing endpoints available to all authenticated users.
 | [collection.swagger.json](collection.swagger.json) | Smart and manual collections |
 | [favorite.swagger.json](favorite.swagger.json) | Favorite items |
 | [feed.swagger.json](feed.swagger.json) | Home feed sections (continue watching, recently added, etc.) |
-| [playlist.swagger.json](playlist.swagger.json) | Playlists (create, reorder, share) |
+| [playlist.swagger.json](playlist.swagger.json) | Playlists, made by hand or by rules |
 | [rating.swagger.json](rating.swagger.json) | User ratings |
 | [share.swagger.json](share.swagger.json) | Public share links |
 | [syncplay.swagger.json](syncplay.swagger.json) | Synchronized playback rooms |

@@ -1,5 +1,5 @@
 ---
-source_sha: e1e56c5e8b4af228a44f567d290622a0165ed4a03deb071e09411371605750d5
+source_sha: 58e220cb177619c27f3d55f0ae3d1c6a3b4df50ab6ace660df93aa8ccf6e6df9
 reviewed: false
 ---
 # 公开 API
@@ -16,7 +16,7 @@ reviewed: false
 | [collection.swagger.json](collection.swagger.json) | 智能合集和手动合集 |
 | [favorite.swagger.json](favorite.swagger.json) | 收藏 |
 | [feed.swagger.json](feed.swagger.json) | 首页区块（继续观看、最近添加等） |
-| [playlist.swagger.json](playlist.swagger.json) | 播放列表（创建、重新排序、分享） |
+| [playlist.swagger.json](playlist.swagger.json) | 播放列表，手动创建或按规则生成 |
 | [rating.swagger.json](rating.swagger.json) | 用户评分 |
 | [share.swagger.json](share.swagger.json) | 公开分享链接 |
 | [syncplay.swagger.json](syncplay.swagger.json) | 同步播放房间 |
