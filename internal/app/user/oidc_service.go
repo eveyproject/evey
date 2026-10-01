@@ -728,11 +728,11 @@ func (s *OIDCService) insertUser(ctx context.Context, cfg OIDCConfig, username, 
 	// user with NO default profile, and a missing grant would leave it seeing
 	// every library. nil uow = sequential, for tests building the struct.
 	create := func(ctx context.Context) error {
-		if err := s.userRepo.Create(ctx, newUser); err != nil {
-			return fmt.Errorf("create oidc user: %w", err)
+		if uErr := s.userRepo.Create(ctx, newUser); uErr != nil {
+			return fmt.Errorf("create oidc user: %w", uErr)
 		}
-		if err := s.profiles.Create(ctx, p); err != nil {
-			return fmt.Errorf("create default profile: %w", err)
+		if pErr := s.profiles.Create(ctx, p); pErr != nil {
+			return fmt.Errorf("create default profile: %w", pErr)
 		}
 		if len(libs) == 0 {
 			return nil
