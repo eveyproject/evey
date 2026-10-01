@@ -366,7 +366,7 @@ users:
   maxProfiles: Max profiles
   maxProfilesHelp: "Maximum profiles this user can create. 0 = unlimited."
   maxDevicesPerProfile: Max devices per profile
-  maxDevicesPerProfileHelp: "Maximum devices a profile can register. 0 = unlimited."
+  maxDevicesPerProfileHelp: "How many playbacks each profile may run at the same time, across its devices. 0 = unlimited."
   profilesTitle: Profiles
   noProfiles: This user has no profiles yet.
 

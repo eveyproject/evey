@@ -75,9 +75,13 @@ function PushNotificationSection() {
   }, [supported]);
 
   if (!supported) {
+    // Browsers expose push only in a secure context (HTTPS or localhost): say
+    // so instead of blaming the server.
     return (
       <p className="text-xs text-[var(--text-muted)]">
-        {t("auth.notificationSettings.pushNotConfigured")}
+        {window.isSecureContext
+          ? t("auth.notificationSettings.pushUnsupported")
+          : t("auth.notificationSettings.pushNeedsHttps")}
       </p>
     );
   }

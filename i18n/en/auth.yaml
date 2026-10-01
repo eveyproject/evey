@@ -289,7 +289,8 @@ notificationSettings:
   pushEnabled: Push notifications enabled
   pushDisabled: Push notifications disabled
   pushError: Failed to toggle push notifications
-  pushNotConfigured: Push notifications not configured on this server.
+  pushNeedsHttps: "Push notifications need an HTTPS address: open this server over HTTPS to turn them on."
+  pushUnsupported: "This browser does not support push notifications."
   permissionDenied: Notification permission denied by browser.
   movies: Movies
   series: Series
