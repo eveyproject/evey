@@ -1,5 +1,5 @@
 ---
-source_sha: 1ba4c65cfb14b1f65376a6dcc31dd7a325cfffb9e3f20082f430ba214a292009
+source_sha: 88ef0be48e8114ca12ceadc61b0194ba4760d654ae7cc58afdf1a52a3405c78f
 reviewed: false
 ---
 # Cómo elige Evey el modo de reproducción
@@ -69,8 +69,9 @@ estado del servidor.
 ## Restricciones que aplica el propio servidor
 
 Algunos límites no los indican hoy los reproductores y el servidor los aplica
-como regla de compatibilidad prudente, igual para todos: el vídeo H.264 de 10
-bits, 4:2:2 y de 12 bits se recodifica, mientras que HEVC, VP9 y AV1 hasta 10
+como regla de compatibilidad prudente, igual para todos: el H.264 de 10 bits, y
+cualquier vídeo en 4:2:2, 4:4:4 o de 12 bits, se recodifican, mientras que HEVC,
+VP9 y AV1 hasta 10
 bits 4:2:0 quedan a cargo del soporte de códecs del reproductor. Dolby Vision
 solo se conserva en una forma que el reproductor pueda mostrar correctamente:
 consulta [HDR y Dolby Vision](hdr.md).

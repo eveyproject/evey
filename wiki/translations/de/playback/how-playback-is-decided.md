@@ -1,5 +1,5 @@
 ---
-source_sha: 1ba4c65cfb14b1f65376a6dcc31dd7a325cfffb9e3f20082f430ba214a292009
+source_sha: 88ef0be48e8114ca12ceadc61b0194ba4760d654ae7cc58afdf1a52a3405c78f
 reviewed: false
 ---
 # Wie Evey die Wiedergabeart wählt
@@ -69,8 +69,9 @@ und der Zustand des Servers schon.
 ## Einschränkungen, die der Server selbst anwendet
 
 Einige Grenzen melden die Player heute nicht, und der Server wendet sie als
-vorsichtige Kompatibilitätsregel an, gleich für jeden Player: H.264 mit 10 Bit,
-4:2:2- und 12-Bit-Video werden neu kodiert, während HEVC, VP9 und AV1 bis
+vorsichtige Kompatibilitätsregel an, gleich für jeden Player: H.264 mit 10 Bit
+sowie jedes Video in 4:2:2, 4:4:4 oder 12 Bit werden neu kodiert, während HEVC,
+VP9 und AV1 bis
 10 Bit 4:2:0 der Codec-Unterstützung des Players überlassen bleiben. Dolby
 Vision wird nur in einer Form beibehalten, die der Player korrekt darstellen
 kann: siehe [HDR und Dolby Vision](hdr.md).

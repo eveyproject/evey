@@ -62,7 +62,7 @@ did.
 
 A few limits are not reported by players today and are applied by the server
 as a conservative compatibility rule, the same for every player: 10-bit H.264,
-4:2:2 and 12-bit video are re-encoded, while HEVC, VP9 and AV1 up to 10-bit
+and any video in 4:2:2, 4:4:4 or 12-bit, are re-encoded, while HEVC, VP9 and AV1 up to 10-bit
 4:2:0 are left to the player's codec support. Dolby Vision is kept only in a
 form the player can display correctly: see [HDR and Dolby Vision](hdr.md).
 
