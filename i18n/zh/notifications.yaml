@@ -35,4 +35,7 @@ push:
     title: "插件错误"
   plugin_error_id:
     title: "插件错误：{plugin}"
+email:
+  open: "打开 {server}：{url}"
+  sent_by: "由 {server} 发送。"
 

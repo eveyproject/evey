@@ -356,6 +356,7 @@ func (s *CommandService) emitNotifications(mediaType libevent.MediaItemType, tit
 		}
 	}
 
+	fanoutID := uuid.New().String()
 	for _, p := range profiles {
 		cfg := allSettings[p.ID]
 		if cfg == nil {
@@ -391,7 +392,7 @@ func (s *CommandService) emitNotifications(mediaType libevent.MediaItemType, tit
 			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
 			continue
 		}
-		s.persistAndDispatch(ctx, n, push.resolveTitle(s.translator, p.Locale))
+		s.persistAndDispatch(ctx, n, push, p.Locale, fanoutID)
 	}
 }
 
@@ -452,7 +453,8 @@ func (s *CommandService) shouldSkipEpisodeNotif(ctx context.Context, profileID s
 		slog.WarnContext(ctx, "notification: update grouped episode failed", slog.Any("err", updateErr))
 		return false // fail open
 	}
-	// Re-send push for the updated notification.
+	// Re-send push for the updated notification. No notification.created here:
+	// the e-mail went out with the first row, a season drop is not N e-mails.
 	s.sendPush(ctx, profileID, newPush.resolveTitle(s.translator, locale), existing.Message)
 	return true
 }

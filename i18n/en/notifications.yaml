@@ -35,4 +35,7 @@ push:
     title: "Plugin error"
   plugin_error_id:
     title: "Plugin error: {plugin}"
+email:
+  open: "Open {server}: {url}"
+  sent_by: "Sent by {server}."
 

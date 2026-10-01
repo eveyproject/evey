@@ -2898,6 +2898,8 @@
   "mobile.settings.uiScale": "Interface size",
   "mobile.settings.uiScaleHint": "The app restarts to apply a new size.",
   "mobile.settings.uiScaleOptionA11y": "Interface size {{percent}} %",
+  "notifications.email.open": "Open {server}: {url}",
+  "notifications.email.sent_by": "Sent by {server}.",
   "notifications.push.album_with_tracks.title": "New Album: {album} ({tracks} tracks)",
   "notifications.push.backup_failed.title": "Scheduled Backup Failed",
   "notifications.push.episodes_batched.title": "New Episodes: {series} ({count} episodes)",
