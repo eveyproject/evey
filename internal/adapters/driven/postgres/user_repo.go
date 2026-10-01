@@ -194,6 +194,35 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	return nil
 }
 
+// LinkOIDCIdentity writes the two identity columns only, and only while they
+// are empty: a targeted write, unlike Update, cannot replay a stale row.
+func (r *UserRepository) LinkOIDCIdentity(ctx context.Context, id shared.UserID, issuer, subject string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.user.LinkOIDCIdentity")
+	defer span.End()
+	span.SetAttributes(attribute.String("user.id", string(id)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE users SET oidc_issuer = $2, oidc_subject = $3, updated_at = NOW()
+		 WHERE id = $1 AND oidc_subject IS NULL`, string(id), issuer, subject)
+	if err != nil {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+			err = fmt.Errorf("%w: %s", shared.ErrConflict, pqErr.Message)
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("UserRepo.LinkOIDCIdentity: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if _, getErr := r.GetByID(ctx, id); getErr != nil {
+			return getErr
+		}
+		return fmt.Errorf("UserRepo.LinkOIDCIdentity: %w: account already linked", shared.ErrConflict)
+	}
+	return nil
+}
+
 func (r *UserRepository) Delete(ctx context.Context, id shared.UserID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.user.Delete")
 	defer span.End()

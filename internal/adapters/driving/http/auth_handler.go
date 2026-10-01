@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -37,36 +39,109 @@ func registerOIDCRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsO
 	registerOIDCRoutesFn(mux, oidcSvc, fixedBool(httpsOnly), oidcLoginRL...)
 }
 
+// oidcErrorReason is the code the login screens turn into a sentence. Only
+// these values ever reach a redirect: nothing from the IdP is echoed.
+func oidcErrorReason(err error) string {
+	switch {
+	case errors.Is(err, appuser.ErrEmailDomainNotAllowed):
+		return "domain_not_allowed"
+	case errors.Is(err, appuser.ErrOIDCSignupDisabled):
+		return "signup_disabled"
+	case errors.Is(err, appuser.ErrUserDisabled):
+		return "account_disabled"
+	case errors.Is(err, appuser.ErrOIDCAccountExists):
+		return "account_exists"
+	case errors.Is(err, appuser.ErrOIDCUnavailable), errors.Is(err, appuser.ErrOIDCDisabled):
+		return "unavailable"
+	case errors.Is(err, appuser.ErrStateExpired):
+		return "expired"
+	}
+	return "failed"
+}
+
+// oidcEndSessionURL builds the provider logout URL with id_token_hint and the
+// registered post-logout URI (fallback when the settings give none).
+func oidcEndSessionURL(endpoint, postLogout, fallback, idToken string) string {
+	if postLogout == "" {
+		postLogout = fallback
+	}
+	q := url.Values{}
+	q.Set("post_logout_redirect_uri", postLogout)
+	q.Set("id_token_hint", idToken)
+	sep := "?"
+	if strings.Contains(endpoint, "?") {
+		sep = "&"
+	}
+	return endpoint + sep + q.Encode()
+}
+
 func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsOnly func() bool, oidcLoginRL ...*ratelimit.Limiter) {
+	var loginRL *ratelimit.Limiter
+	if len(oidcLoginRL) > 0 {
+		loginRL = oidcLoginRL[0]
+	}
+	limited := func(h http.HandlerFunc) http.HandlerFunc {
+		if loginRL == nil {
+			return h
+		}
+		return ratelimit.MiddlewareFunc(loginRL, h)
+	}
+	flows := newOIDCAppFlows()
+
+	// fail sends the browser back to whoever started the login: the app's
+	// deep link for an app flow, the web login page otherwise.
+	fail := func(w http.ResponseWriter, r *http.Request, nonce, reason string) {
+		if nonce != "" && flows.fail(nonce) {
+			http.Redirect(w, r, oidcAppRedirect+"?oidc_error="+url.QueryEscape(reason), http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, "/login?oidc_error="+url.QueryEscape(reason), http.StatusFound)
+	}
+
 	mux.HandleFunc("GET /api/v1/auth/oidc/config", func(w http.ResponseWriter, r *http.Request) {
-		_, span := tracing.StartSpan(r.Context(), "http.auth.oidc.GetConfig")
+		ctx, span := tracing.StartSpan(r.Context(), "http.auth.oidc.GetConfig")
 		defer span.End()
+		// Enabled only once the provider answered discovery: a dead IdP hides
+		// the button instead of sending people to an error page.
+		ok, label := oidcSvc.Available(ctx)
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(map[string]any{"enabled": true}); err != nil {
+		if err := json.NewEncoder(w).Encode(map[string]any{"enabled": ok, "buttonLabel": label}); err != nil {
 			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	})
 
-	oidcLoginHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, span := tracing.StartSpan(r.Context(), "http.auth.oidc.Login")
+	mux.HandleFunc("GET /api/v1/auth/oidc/login", limited(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.StartSpan(r.Context(), "http.auth.oidc.Login")
 		defer span.End()
-		var nonceBuf [16]byte
-		if _, err := rand.Read(nonceBuf[:]); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "rand read failed")
-			logInternal(r.Context(), "oidc login: nonce", err)
-			http.Error(w, "internal error", http.StatusInternalServerError)
+		// An app flow reuses its id as the nonce, so the callback knows where
+		// to send the result. An unknown id is refused, never minted here.
+		nonce := r.URL.Query().Get("flow")
+		if nonce != "" && !flows.pending(nonce) {
+			span.SetStatus(codes.Error, "unknown app flow")
+			fail(w, r, "", "expired")
 			return
 		}
-		nonce := hex.EncodeToString(nonceBuf[:])
-		authURL := oidcSvc.AuthURL(nonce)
+		if nonce == "" {
+			var nonceBuf [16]byte
+			if _, err := rand.Read(nonceBuf[:]); err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "rand read failed")
+				logInternal(ctx, "oidc login: nonce", err)
+				http.Error(w, "internal error", http.StatusInternalServerError)
+				return
+			}
+			nonce = hex.EncodeToString(nonceBuf[:])
+		}
+		authURL, err := oidcSvc.AuthURL(ctx, nonce)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "provider unavailable")
+			slog.WarnContext(ctx, "oidc login: provider unavailable", slog.Any("err", err))
+			fail(w, r, nonce, oidcErrorReason(err))
+			return
+		}
 		http.Redirect(w, r, authURL, http.StatusFound)
-	})
-	if len(oidcLoginRL) > 0 && oidcLoginRL[0] != nil {
-		mux.HandleFunc("GET /api/v1/auth/oidc/login", ratelimit.MiddlewareFunc(oidcLoginRL[0], oidcLoginHandler))
-	} else {
-		mux.HandleFunc("GET /api/v1/auth/oidc/login", oidcLoginHandler)
-	}
+	}))
 
 	mux.HandleFunc("GET /api/v1/auth/oidc/callback", func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.auth.oidc.Callback")
@@ -75,6 +150,23 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 		q := r.URL.Query()
 		code := q.Get("code")
 		state := q.Get("state")
+
+		// The IdP reports a refusal or a cancel as ?error=...; the state, when
+		// valid, still says which client to send the person back to.
+		if idpErr := q.Get("error"); idpErr != "" {
+			nonce, stateErr := oidcSvc.ValidateState(state)
+			if stateErr != nil {
+				nonce = "" // unknown origin: the web login page
+			}
+			reason := "failed"
+			if idpErr == "access_denied" {
+				reason = "cancelled"
+			}
+			span.SetStatus(codes.Error, "idp error")
+			slog.WarnContext(ctx, "oidc callback: provider returned an error", slog.String("error", idpErr))
+			fail(w, r, nonce, reason)
+			return
+		}
 
 		if code == "" || state == "" {
 			span.SetStatus(codes.Error, "missing code or state")
@@ -87,6 +179,10 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "invalid state")
 			slog.WarnContext(ctx, "oidc callback: invalid state", slog.Any("err", err))
+			if errors.Is(err, appuser.ErrStateExpired) {
+				fail(w, r, "", "expired")
+				return
+			}
 			http.Error(w, "invalid state", http.StatusBadRequest)
 			return
 		}
@@ -94,14 +190,21 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 		accessToken, refreshToken, rawIDToken, err := oidcSvc.HandleCallback(r.Context(), code, nonce)
 		if err != nil {
 			span.RecordError(err)
-			if errors.Is(err, appuser.ErrEmailDomainNotAllowed) {
-				span.SetStatus(codes.Error, "email domain not allowed")
-				http.Error(w, "access denied: email domain not allowed", http.StatusForbidden)
-				return
-			}
 			span.SetStatus(codes.Error, "handle callback failed")
-			slog.ErrorContext(ctx, "oidc callback: handle failed", slog.Any("err", err))
-			http.Redirect(w, r, "/login?oidc_error=1", http.StatusFound)
+			reason := oidcErrorReason(err)
+			if reason == "failed" {
+				slog.ErrorContext(ctx, "oidc callback: handle failed", slog.Any("err", err))
+			} else {
+				slog.WarnContext(ctx, "oidc callback: sign-in refused", slog.String("reason", reason), slog.Any("err", err))
+			}
+			fail(w, r, nonce, reason)
+			return
+		}
+
+		// App flow: the tokens wait server-side for the app, which redeems them
+		// with the one-time code below AND the poll secret only it holds.
+		if oneTime, ok := flows.complete(nonce, accessToken, refreshToken); ok {
+			http.Redirect(w, r, oidcAppRedirect+"?code="+url.QueryEscape(oneTime), http.StatusFound)
 			return
 		}
 
@@ -164,6 +267,8 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	})
+
+	registerOIDCAppRoutes(mux, oidcSvc, flows, limited)
 }
 
 type parentalHandler struct {

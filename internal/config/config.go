@@ -495,6 +495,9 @@ type OIDCConfig struct {
 	ClientSecret        string
 	RedirectURL         string
 	AllowedEmailDomains []string // EVEY_OIDC_ALLOWED_EMAIL_DOMAINS - comma-separated; empty = allow all
+	// AllowSignup is EVEY_OIDC_ALLOW_SIGNUP raw ("true"/"false"); empty keeps
+	// the default (on only behind a domain allowlist). The admin panel wins.
+	AllowSignup string
 }
 
 type MetricsConfig struct {
@@ -960,6 +963,7 @@ func Load() (*Config, error) {
 			ClientSecret:        envStr("EVEY_OIDC_CLIENT_SECRET", ""),
 			RedirectURL:         envStr("EVEY_OIDC_REDIRECT_URL", ""),
 			AllowedEmailDomains: envStrSlice("EVEY_OIDC_ALLOWED_EMAIL_DOMAINS", nil),
+			AllowSignup:         envStr("EVEY_OIDC_ALLOW_SIGNUP", ""),
 		},
 		Metrics: MetricsConfig{
 			RetentionDays:     envInt("EVEY_METRICS_RETENTION_DAYS", 90),

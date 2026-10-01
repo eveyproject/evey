@@ -75,6 +75,8 @@ var publicRoutes = map[string]string{
 	"GET /api/v1/auth/oidc/login":                  "starts the SSO redirect, pre-auth",
 	"GET /api/v1/auth/oidc/callback":               "IdP redirect target, pre-auth",
 	"GET /api/v1/auth/oidc/session":                "exchanges the post-callback one-shot for tokens",
+	"POST /api/v1/auth/oidc/app/start":             "opens a mobile-app SSO flow, pre-auth; returns only a poll secret",
+	"POST /api/v1/auth/oidc/app/token":             "redeems a finished app flow; the deep-link code AND the poll secret are the credential",
 	"POST /api/v1/syncplay/join-code":              "the room code is the credential (guest join)",
 	"/":                                            "SPA files and the grpc-gateway mux; the gateway enforces its own RBAC interceptor",
 }
@@ -95,11 +97,10 @@ var gatedInHandler = map[string]string{
 }
 
 // Registering the same pattern twice PANICS http.ServeMux at boot - a server
-// that does not come up, not a 4xx. These three are exclusive if/else branches.
+// that does not come up, not a 4xx. These two are exclusive if/else branches.
 var allowedDuplicateRoutes = map[string]string{
 	"/":                            "spaHandler vs the bare gateway handler, `if webDirOK {} else {}` in RegisterRoutes",
 	"GET /api/v1/auth/oidc/config": "registerOIDCRoutes vs the {\"enabled\":false} stub, `if s.OIDCSvc != nil {} else {}`",
-	"GET /api/v1/auth/oidc/login":  "rate-limited vs bare, `if len(oidcLoginRL) > 0 && oidcLoginRL[0] != nil {} else {}`",
 }
 
 // Floors that guard the parser itself: if a refactor changes how routes are

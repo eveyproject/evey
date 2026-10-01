@@ -53,7 +53,7 @@ func newTestOIDCSvc(t *testing.T) *appuser.OIDCService {
 		RedirectURL:  "http://localhost/callback",
 	}
 	svc, err := appuser.NewOIDCService(
-		context.Background(), oidcCfg,
+		func(context.Context) (appuser.OIDCConfig, error) { return oidcCfg, nil },
 		userfakes.NewFakeUserRepository(),
 		userfakes.NewFakeProfileRepository(),
 		userfakes.NewFakeRefreshTokenRepository(),
@@ -145,7 +145,10 @@ func TestOIDCCallback_ValidState_TokenExchangeFails_RedirectsToError(t *testing.
 	registerOIDCRoutes(mux, svc, false)
 
 	// Generate valid signed state via AuthURL.
-	authURL := svc.AuthURL("testnonce")
+	authURL, err := svc.AuthURL(context.Background(), "testnonce")
+	if err != nil {
+		t.Fatalf("AuthURL: %v", err)
+	}
 	// Extract state param from the redirect URL.
 	parsed, err := url.Parse(authURL)
 	if err != nil {

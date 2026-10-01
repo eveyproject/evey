@@ -23,6 +23,10 @@ type UserRepository interface {
 	GetByUsername(ctx context.Context, username string) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByOIDCSubject(ctx context.Context, issuer, subject string) (*User, error)
+	// LinkOIDCIdentity attaches (issuer, subject) to an account that has no SSO
+	// identity yet. ErrConflict when the account already carries one or the
+	// identity belongs to another account; ErrNotFound when the user is gone.
+	LinkOIDCIdentity(ctx context.Context, id shared.UserID, issuer, subject string) error
 	List(ctx context.Context) ([]*User, error)
 	Update(ctx context.Context, u *User) error
 	// TouchLastLogin stamps the user's last_login_at. Best-effort on the login

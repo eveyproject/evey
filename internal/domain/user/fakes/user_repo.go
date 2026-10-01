@@ -221,6 +221,31 @@ func (r *FakeUserRepository) GetByOIDCSubject(_ context.Context, issuer, subject
 	return nil, ErrNotFound
 }
 
+// LinkOIDCIdentity mirrors the SQL contract: only an account without an SSO
+// identity is linked, and an identity already held elsewhere is a conflict.
+func (r *FakeUserRepository) LinkOIDCIdentity(_ context.Context, id shared.UserID, issuer, subject string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	u, ok := r.items[string(id)]
+	if !ok {
+		return ErrNotFound
+	}
+	if u.OIDCSubject != nil {
+		return shared.ErrConflict
+	}
+	for _, other := range r.items {
+		if other.OIDCIssuer != nil && *other.OIDCIssuer == issuer && other.OIDCSubject != nil && *other.OIDCSubject == subject {
+			return shared.ErrConflict
+		}
+	}
+	iss, sub := issuer, subject
+	u.OIDCIssuer, u.OIDCSubject = &iss, &sub
+	return nil
+}
+
 func (r *FakeUserRepository) CountAdmins(_ context.Context) (int, error) {
 	if r.Err != nil {
 		return 0, r.Err

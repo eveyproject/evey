@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
@@ -27,19 +29,34 @@ var ErrOIDCDisabled = errors.New("OIDC not enabled")
 var ErrEmailDomainNotAllowed = errors.New("email domain not allowed")
 var ErrStateExpired = errors.New("OIDC state expired")
 
+// ErrOIDCUnavailable: SSO is switched on but the provider cannot be used
+// (incomplete settings, discovery failing). Local login is unaffected.
+var ErrOIDCUnavailable = errors.New("OIDC provider unavailable")
+
+// ErrOIDCSignupDisabled: the identity is unknown and the policy forbids
+// creating accounts for new SSO users.
+var ErrOIDCSignupDisabled = errors.New("OIDC sign-up disabled")
+
+// ErrOIDCAccountExists: a local account already uses the e-mail and cannot be
+// linked (unverified e-mail, linking off, or already tied to another identity).
+var ErrOIDCAccountExists = errors.New("an account already uses this e-mail")
+
 const oidcStateTTL = 10 * time.Minute
 
 // oidcHTTPTimeout bounds every outbound call to the IdP (discovery, token
 // exchange, JWKS fetch). Without it those calls ride http.DefaultClient
-// (Timeout=0, no ResponseHeaderTimeout): a hung issuer used to block server
-// BOOT indefinitely (discovery runs at startup - on a NAS that auto-restarts,
-// that's a boot-loop while the IdP is down) and stall login-callback handler
-// goroutines. A plain timeout, NOT the ssrf.SafeHTTPClient: the issuer is
-// ADMIN-configured (trusted operator input), and self-hosted IdPs on private
+// (Timeout=0, no ResponseHeaderTimeout) and a hung issuer stalls login-callback
+// handler goroutines. A plain timeout, NOT the ssrf.SafeHTTPClient: the issuer
+// is ADMIN-configured (trusted operator input), and self-hosted IdPs on private
 // LAN addresses are a first-class deployment for a self-hosted media server -
 // the SSRF dialer would block exactly those.
 const oidcHTTPTimeout = 15 * time.Second
 
+// oidcRetryBackoff spaces discovery attempts after a failure, so a provider
+// that is down costs one outbound call per window, not one per page load.
+const oidcRetryBackoff = 30 * time.Second
+
+// OIDCConfig is the resolved SSO configuration: connection plus policy.
 type OIDCConfig struct {
 	Enabled             bool
 	Issuer              string
@@ -47,32 +64,100 @@ type OIDCConfig struct {
 	ClientSecret        string
 	RedirectURL         string
 	AllowedEmailDomains []string
+	ButtonLabel         string
+	// LinkByEmail attaches a first SSO login to the local account holding the
+	// same e-mail, only when the provider asserts email_verified.
+	LinkByEmail bool
+	// AllowSignup creates accounts for unknown identities; AllowSignupDefault
+	// is its value when nobody chose (on only behind a domain allowlist).
+	AllowSignup        bool
+	AllowSignupDefault bool
+	// DefaultLibraryIDs restricts new SSO accounts; empty = every library.
+	DefaultLibraryIDs     []shared.LibraryID
+	PostLogoutRedirectURL string
+	FromPanel             bool
 }
 
-type OIDCService struct {
+// MissingField names the first connection setting left empty, or "".
+func (c OIDCConfig) MissingField() string {
+	switch {
+	case c.Issuer == "":
+		return "issuer"
+	case c.ClientID == "":
+		return "client_id"
+	case c.ClientSecret == "":
+		return "client_secret"
+	case c.RedirectURL == "":
+		return "redirect_url"
+	}
+	return ""
+}
+
+// connectionKey fingerprints what discovery and the OAuth client depend on;
+// policy changes keep the discovered provider.
+func (c OIDCConfig) connectionKey() string {
+	h := sha256.Sum256([]byte(c.Issuer + "\x00" + c.ClientID + "\x00" + c.ClientSecret + "\x00" + c.RedirectURL))
+	return hex.EncodeToString(h[:])
+}
+
+// oidcClient is one discovered provider and the OAuth client built on it.
+type oidcClient struct {
+	cfg       OIDCConfig
 	provider  *gooidc.Provider
 	oauth2Cfg oauth2.Config
 	verifier  *gooidc.IDTokenVerifier
+}
+
+// OIDCStatus is what the admin panel reports about the provider.
+type OIDCStatus struct {
+	// State: "disabled", "incomplete", "ok" or "error".
+	State              string
+	Error              string
+	CheckedAt          time.Time
+	EndSessionEndpoint string
+}
+
+type OIDCService struct {
 	// httpClient carries the bounded-timeout client every IdP call must use
 	// (see oidcHTTPTimeout). nil (hand-built test instances) falls back to the
 	// caller's ctx client / http.DefaultClient.
-	httpClient          *http.Client
-	userRepo            domainuser.UserRepository
-	profiles            domainuser.ProfileRepository
-	refreshTkns         domainuser.RefreshTokenRepository
-	userRoles           domainuser.UserRoleRepository
-	tokens              domainuser.TokenGenerator
-	events              shared.EventBus
-	uow                 shared.TransactionalUnit
-	stateSecret         []byte
-	issuer              string
-	allowedEmailDomains []string
-	refreshTokenTTL     time.Duration
+	httpClient      *http.Client
+	userRepo        domainuser.UserRepository
+	profiles        domainuser.ProfileRepository
+	refreshTkns     domainuser.RefreshTokenRepository
+	userRoles       domainuser.UserRoleRepository
+	libraryAccess   domainuser.LibraryAccessRepository
+	tokens          domainuser.TokenGenerator
+	events          shared.EventBus
+	uow             shared.TransactionalUnit
+	stateSecret     []byte
+	refreshTokenTTL time.Duration
+
+	// settings resolves the live configuration (panel, then env). nil = the
+	// client in cur is fixed (hand-built test instances).
+	settings func(ctx context.Context) (OIDCConfig, error)
+
+	discoverMu sync.Mutex // one discovery at a time
+	mu         sync.Mutex // guards the fields below
+	cur        *oidcClient
+	curKey     string
+	failKey    string
+	failErr    error
+	checkedAt  time.Time
 }
 
+// OIDCOption configures optional dependencies.
+type OIDCOption func(*OIDCService)
+
+// WithOIDCLibraryAccess enables the default library access of new accounts.
+func WithOIDCLibraryAccess(la domainuser.LibraryAccessRepository) OIDCOption {
+	return func(s *OIDCService) { s.libraryAccess = la }
+}
+
+// NewOIDCService never contacts the provider: discovery is lazy and retried,
+// so an unreachable IdP disables the SSO button instead of the server.
 func NewOIDCService(
-	ctx context.Context,
-	cfg OIDCConfig,
+	settings func(ctx context.Context) (OIDCConfig, error),
 	userRepo domainuser.UserRepository,
 	profiles domainuser.ProfileRepository,
 	refreshTkns domainuser.RefreshTokenRepository,
@@ -81,59 +166,220 @@ func NewOIDCService(
 	events shared.EventBus,
 	uow shared.TransactionalUnit,
 	refreshTokenTTL time.Duration,
+	opts ...OIDCOption,
 ) (*OIDCService, error) {
+	// The state is signed with a per-process key: independent of the client
+	// secret (which the panel can now change) and never stored anywhere.
+	secret := make([]byte, 32)
+	if _, err := rand.Read(secret); err != nil {
+		return nil, fmt.Errorf("oidc state secret: %w", err)
+	}
+	s := &OIDCService{
+		httpClient:      &http.Client{Timeout: oidcHTTPTimeout},
+		userRepo:        userRepo,
+		profiles:        profiles,
+		refreshTkns:     refreshTkns,
+		userRoles:       userRoles,
+		tokens:          tokens,
+		events:          events,
+		uow:             uow,
+		stateSecret:     secret,
+		refreshTokenTTL: refreshTokenTTL,
+		settings:        settings,
+	}
+	for _, o := range opts {
+		o(s)
+	}
+	return s, nil
+}
+
+// Config returns the configuration in force now.
+func (s *OIDCService) Config(ctx context.Context) (OIDCConfig, error) {
+	if s.settings == nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.cur == nil {
+			return OIDCConfig{}, nil
+		}
+		return s.cur.cfg, nil
+	}
+	return s.settings(ctx)
+}
+
+// client returns a usable provider for the current settings, discovering it
+// on first use and after a failure once the backoff has elapsed.
+func (s *OIDCService) client(ctx context.Context) (*oidcClient, error) {
+	cfg, err := s.Config(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrOIDCUnavailable, err)
+	}
+	return s.clientFor(ctx, cfg, false)
+}
+
+func (s *OIDCService) clientFor(ctx context.Context, cfg OIDCConfig, force bool) (*oidcClient, error) {
 	if !cfg.Enabled {
 		return nil, ErrOIDCDisabled
 	}
-	if cfg.ClientSecret == "" {
-		return nil, errors.New("OIDC: client secret must not be empty")
+	if s.settings == nil { // fixed client (tests)
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		if s.cur == nil {
+			return nil, ErrOIDCUnavailable
+		}
+		return s.cur, nil
 	}
-	// Discovery runs at BOOT (wire.go) on a root ctx with no deadline - the
-	// bounded client is what keeps a hung issuer from blocking startup.
-	httpClient := &http.Client{Timeout: oidcHTTPTimeout}
-	provider, err := gooidc.NewProvider(gooidc.ClientContext(ctx, httpClient), cfg.Issuer)
+	if f := cfg.MissingField(); f != "" {
+		return nil, fmt.Errorf("%w: %s is not set", ErrOIDCUnavailable, f)
+	}
+	key := cfg.connectionKey()
+	if c, ok, err := s.cached(cfg, key, force); ok {
+		return c, err
+	}
+	s.discoverMu.Lock()
+	defer s.discoverMu.Unlock()
+	// Another caller may have finished the same discovery while we waited.
+	if !force {
+		if c, ok, err := s.cached(cfg, key, false); ok {
+			return c, err
+		}
+	}
+	// Detached: the result is shared, so one caller hanging up must not record
+	// a failure for everybody (httpClient still bounds the call).
+	built, err := s.discover(context.WithoutCancel(ctx), cfg)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.checkedAt = time.Now()
 	if err != nil {
-		return nil, fmt.Errorf("oidc provider discovery: %w", err)
+		s.failKey, s.failErr = key, err
+		slog.WarnContext(ctx, "oidc: provider discovery failed", slog.String("issuer", cfg.Issuer), slog.Any("err", err))
+		return nil, fmt.Errorf("%w: %w", ErrOIDCUnavailable, err)
 	}
+	s.cur, s.curKey, s.failKey, s.failErr = built, key, "", nil
+	return built, nil
+}
 
-	oauth2Cfg := oauth2.Config{
-		ClientID:     cfg.ClientID,
-		ClientSecret: cfg.ClientSecret,
-		RedirectURL:  cfg.RedirectURL,
-		Endpoint:     provider.Endpoint(),
-		Scopes:       []string{gooidc.ScopeOpenID, "profile", "email"},
+// cached answers from the last discovery when it is for the same connection
+// settings; ok=false means a discovery must run.
+func (s *OIDCService) cached(cfg OIDCConfig, key string, force bool) (*oidcClient, bool, error) {
+	if force {
+		return nil, false, nil
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cur != nil && s.curKey == key {
+		c := *s.cur
+		c.cfg = cfg // policy fields are read live
+		return &c, true, nil
+	}
+	if s.failKey == key && s.failErr != nil && time.Since(s.checkedAt) < oidcRetryBackoff {
+		return nil, true, fmt.Errorf("%w: %w", ErrOIDCUnavailable, s.failErr)
+	}
+	return nil, false, nil
+}
 
-	verifier := provider.Verifier(&gooidc.Config{ClientID: cfg.ClientID})
-
-	// derive state signing secret from client secret
-	h := sha256.Sum256([]byte(cfg.ClientSecret + "oidc-state"))
-
-	return &OIDCService{
-		provider:            provider,
-		oauth2Cfg:           oauth2Cfg,
-		verifier:            verifier,
-		httpClient:          httpClient,
-		userRepo:            userRepo,
-		profiles:            profiles,
-		refreshTkns:         refreshTkns,
-		userRoles:           userRoles,
-		tokens:              tokens,
-		events:              events,
-		uow:                 uow,
-		stateSecret:         h[:],
-		issuer:              cfg.Issuer,
-		allowedEmailDomains: cfg.AllowedEmailDomains,
-		refreshTokenTTL:     refreshTokenTTL,
+func (s *OIDCService) discover(ctx context.Context, cfg OIDCConfig) (*oidcClient, error) {
+	provider, err := gooidc.NewProvider(gooidc.ClientContext(ctx, s.httpClient), cfg.Issuer)
+	if err != nil {
+		return nil, fmt.Errorf("provider discovery: %w", err)
+	}
+	return &oidcClient{
+		cfg:      cfg,
+		provider: provider,
+		oauth2Cfg: oauth2.Config{
+			ClientID:     cfg.ClientID,
+			ClientSecret: cfg.ClientSecret,
+			RedirectURL:  cfg.RedirectURL,
+			Endpoint:     provider.Endpoint(),
+			Scopes:       []string{gooidc.ScopeOpenID, "profile", "email"},
+		},
+		verifier: provider.Verifier(&gooidc.Config{ClientID: cfg.ClientID}),
 	}, nil
 }
 
+// Invalidate drops the discovered provider and the failure backoff, so the
+// next use re-reads the settings and discovers again.
+func (s *OIDCService) Invalidate() {
+	if s.settings == nil {
+		return
+	}
+	s.mu.Lock()
+	s.cur, s.curKey, s.failKey, s.failErr = nil, "", "", nil
+	s.mu.Unlock()
+}
+
+// Status reports the configuration and the provider state, discovering when
+// needed (or always, with refresh).
+func (s *OIDCService) Status(ctx context.Context, refresh bool) (OIDCConfig, OIDCStatus) {
+	cfg, err := s.Config(ctx)
+	if err != nil {
+		return cfg, OIDCStatus{State: "error", Error: err.Error(), CheckedAt: time.Now()}
+	}
+	if !cfg.Enabled {
+		return cfg, OIDCStatus{State: "disabled"}
+	}
+	if f := cfg.MissingField(); f != "" && s.settings != nil {
+		return cfg, OIDCStatus{State: "incomplete", Error: f + " is not set"}
+	}
+	c, err := s.clientFor(ctx, cfg, refresh)
+	s.mu.Lock()
+	checked := s.checkedAt
+	s.mu.Unlock()
+	if err != nil {
+		return cfg, OIDCStatus{State: "error", Error: strings.TrimPrefix(err.Error(), ErrOIDCUnavailable.Error()+": "), CheckedAt: checked}
+	}
+	return cfg, OIDCStatus{State: "ok", CheckedAt: checked, EndSessionEndpoint: endSessionOf(c.provider)}
+}
+
+// Probe runs discovery against issuer without touching the cache, for the
+// panel's "Test connection" on values not saved yet.
+func (s *OIDCService) Probe(ctx context.Context, issuer string) (string, error) {
+	issuer = strings.TrimSpace(issuer)
+	if issuer == "" {
+		return "", errors.New("issuer is not set")
+	}
+	client := s.httpClient
+	if client == nil {
+		client = &http.Client{Timeout: oidcHTTPTimeout}
+	}
+	provider, err := gooidc.NewProvider(gooidc.ClientContext(ctx, client), issuer)
+	if err != nil {
+		return "", err
+	}
+	return endSessionOf(provider), nil
+}
+
+// Available reports whether the login page should offer SSO, and its label.
+func (s *OIDCService) Available(ctx context.Context) (bool, string) {
+	c, err := s.client(ctx)
+	if err != nil {
+		return false, ""
+	}
+	return true, c.cfg.ButtonLabel
+}
+
 // EndSessionEndpoint returns the OIDC end_session_endpoint from provider discovery, or "".
-func (s *OIDCService) EndSessionEndpoint() string {
+func (s *OIDCService) EndSessionEndpoint(ctx context.Context) string {
+	c, err := s.client(ctx)
+	if err != nil {
+		return ""
+	}
+	return endSessionOf(c.provider)
+}
+
+// PostLogoutRedirectURL is the post_logout_redirect_uri registered at the provider.
+func (s *OIDCService) PostLogoutRedirectURL(ctx context.Context) string {
+	cfg, err := s.Config(ctx)
+	if err != nil {
+		return ""
+	}
+	return cfg.PostLogoutRedirectURL
+}
+
+func endSessionOf(p *gooidc.Provider) string {
 	var claims struct {
 		EndSessionEndpoint string `json:"end_session_endpoint"`
 	}
-	if err := s.provider.Claims(&claims); err != nil {
+	if p == nil || p.Claims(&claims) != nil {
 		return ""
 	}
 	return claims.EndSessionEndpoint
@@ -141,7 +387,11 @@ func (s *OIDCService) EndSessionEndpoint() string {
 
 // AuthURL returns the authorization URL. state is a random nonce from the caller.
 // The state encodes a unix timestamp for TTL enforcement: "ts|nonce.sig"
-func (s *OIDCService) AuthURL(state string) string {
+func (s *OIDCService) AuthURL(ctx context.Context, state string) (string, error) {
+	c, err := s.client(ctx)
+	if err != nil {
+		return "", err
+	}
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
 	payload := ts + "|" + state
 	sig := s.signState(payload)
@@ -149,7 +399,7 @@ func (s *OIDCService) AuthURL(state string) string {
 	// id_token's nonce claim, which HandleCallback verifies - defence-in-depth on
 	// top of the signed/TTL'd state that binds the id_token to this exact login
 	// and blocks id_token replay/injection.
-	return s.oauth2Cfg.AuthCodeURL(payload+"."+sig, oauth2.SetAuthURLParam("nonce", state))
+	return c.oauth2Cfg.AuthCodeURL(payload+"."+sig, oauth2.SetAuthURLParam("nonce", state)), nil
 }
 
 // ValidateState checks the signed state from the callback.
@@ -185,11 +435,24 @@ func (s *OIDCService) signState(nonce string) string {
 	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
+// oidcIdentity is what the id_token asserts about the person signing in.
+type oidcIdentity struct {
+	Sub               string `json:"sub"`
+	Email             string `json:"email"`
+	EmailVerified     bool   `json:"email_verified"`
+	PreferredUsername string `json:"preferred_username"`
+	Name              string `json:"name"`
+}
+
 // HandleCallback exchanges the code, verifies the ID token, finds/creates the user,
 // and returns Evey access + refresh tokens plus the raw OIDC id_token for RP-Initiated Logout.
 func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce string) (accessToken, refreshToken, rawOIDCIDToken string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.HandleCallback")
 	defer span.End()
+	c, err := s.client(ctx)
+	if err != nil {
+		return "", "", "", err
+	}
 	// Bound the token exchange and the verifier's JWKS fetch: without the
 	// injected client both ride http.DefaultClient (no timeout) on a request
 	// ctx the server never deadlines (no ReadTimeout/TimeoutHandler), so a
@@ -199,7 +462,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 		ctx = gooidc.ClientContext(ctx, s.httpClient)                 // JWKS (verifier.Verify)
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, s.httpClient) // token exchange
 	}
-	oauth2Token, err := s.oauth2Cfg.Exchange(ctx, code)
+	oauth2Token, err := c.oauth2Cfg.Exchange(ctx, code)
 	if err != nil {
 		return "", "", "", fmt.Errorf("token exchange: %w", err)
 	}
@@ -209,7 +472,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 		return "", "", "", errors.New("missing id_token in response")
 	}
 
-	idToken, err := s.verifier.Verify(ctx, rawIDToken)
+	idToken, err := c.verifier.Verify(ctx, rawIDToken)
 	if err != nil {
 		return "", "", "", fmt.Errorf("id_token verification: %w", err)
 	}
@@ -220,18 +483,12 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 		return "", "", "", errors.New("id_token nonce mismatch")
 	}
 
-	var claims struct {
-		Sub               string `json:"sub"`
-		Email             string `json:"email"`
-		EmailVerified     bool   `json:"email_verified"`
-		PreferredUsername string `json:"preferred_username"`
-		Name              string `json:"name"`
-	}
+	var claims oidcIdentity
 	if claimsErr := idToken.Claims(&claims); claimsErr != nil {
 		return "", "", "", fmt.Errorf("parse id_token claims: %w", claimsErr)
 	}
 
-	u, err := s.findOrCreateUser(ctx, claims.Sub, claims.Email, claims.PreferredUsername, claims.EmailVerified)
+	u, err := s.findOrCreateUser(ctx, c.cfg, claims)
 	if err != nil {
 		return "", "", "", fmt.Errorf("OIDCService.HandleCallback: %w", err)
 	}
@@ -305,8 +562,11 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 	return accessToken, refreshToken, rawIDToken, nil
 }
 
-func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferredUsername string, emailVerified bool) (*domainuser.User, error) {
-	u, err := s.userRepo.GetByOIDCSubject(ctx, s.issuer, sub)
+// findOrCreateUser resolves the identity in this order: an account already
+// linked to (issuer, sub); else a local account linked by verified e-mail;
+// else a new account when the sign-up policy allows it.
+func (s *OIDCService) findOrCreateUser(ctx context.Context, cfg OIDCConfig, ident oidcIdentity) (*domainuser.User, error) {
+	u, err := s.userRepo.GetByOIDCSubject(ctx, cfg.Issuer, ident.Sub)
 	if err == nil {
 		if !u.Enabled {
 			return nil, ErrUserDisabled
@@ -319,39 +579,128 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		// column) already records the login.
 		return u, nil
 	}
+	if !errors.Is(err, shared.ErrNotFound) {
+		return nil, fmt.Errorf("lookup oidc identity: %w", err)
+	}
 
-	// first OIDC login - enforce the email domain allowlist before creating a
-	// user. When an allowlist is configured the email is a trust boundary, so
-	// require the IdP to have verified it: a lax provider could otherwise assert
-	// an arbitrary address in an allowed domain to slip past the allowlist.
-	if len(s.allowedEmailDomains) > 0 && !emailVerified {
+	email := strings.TrimSpace(ident.Email)
+	// When an allowlist is configured the email is a trust boundary, so require
+	// the IdP to have verified it: a lax provider could otherwise assert an
+	// arbitrary address in an allowed domain to slip past the allowlist.
+	if len(cfg.AllowedEmailDomains) > 0 && !ident.EmailVerified {
 		slog.WarnContext(ctx, "oidc: unverified email rejected under domain allowlist", slog.String("email", email))
 		return nil, ErrEmailDomainNotAllowed
 	}
-	if !IsEmailAllowed(email, s.allowedEmailDomains) {
+	if !IsEmailAllowed(email, cfg.AllowedEmailDomains) {
 		slog.WarnContext(ctx, "oidc: email domain not allowed", slog.String("email", email))
 		return nil, ErrEmailDomainNotAllowed
 	}
-
 	// An IdP claim that is not an address must not lock the user out of SSO:
 	// the account is created without an email rather than not at all.
 	if email != "" && !domainuser.IsPlainAddress(email) {
 		slog.WarnContext(ctx, "oidc: ignoring malformed email claim", slog.String("email", email))
 		email = ""
 	}
-	username := preferredUsername
-	if username == "" && email != "" {
-		at := strings.Index(email, "@")
-		if at > 0 {
-			username = email[:at]
+
+	if email != "" {
+		existing, lookupErr := s.userRepo.GetByEmail(ctx, email)
+		switch {
+		case lookupErr == nil:
+			return s.linkExisting(ctx, cfg, ident, existing)
+		case !errors.Is(lookupErr, shared.ErrNotFound):
+			return nil, fmt.Errorf("lookup account by email: %w", lookupErr)
 		}
 	}
-	if username == "" {
-		username = "oidc-" + hex.EncodeToString([]byte(sub))[:8]
-	}
 
-	now := time.Now()
-	issuer := s.issuer
+	if !cfg.AllowSignup {
+		slog.InfoContext(ctx, "oidc: unknown identity refused, sign-up disabled", slog.String("email", email))
+		return nil, ErrOIDCSignupDisabled
+	}
+	return s.createUser(ctx, cfg, ident, email)
+}
+
+// linkExisting ties a first SSO login to the local account with the same
+// e-mail. Only on a provider-verified e-mail: otherwise anybody able to type
+// an address at the provider would take over the account holding it.
+func (s *OIDCService) linkExisting(ctx context.Context, cfg OIDCConfig, ident oidcIdentity, u *domainuser.User) (*domainuser.User, error) {
+	if !cfg.LinkByEmail || !ident.EmailVerified {
+		slog.WarnContext(ctx, "oidc: e-mail matches a local account, not linked",
+			slog.String("user_id", string(u.ID)), slog.Bool("email_verified", ident.EmailVerified), slog.Bool("link_enabled", cfg.LinkByEmail))
+		return nil, ErrOIDCAccountExists
+	}
+	if !u.Enabled {
+		return nil, ErrUserDisabled
+	}
+	if u.OIDCSubject != nil {
+		slog.WarnContext(ctx, "oidc: e-mail matches an account linked to another identity", slog.String("user_id", string(u.ID)))
+		return nil, ErrOIDCAccountExists
+	}
+	if err := s.userRepo.LinkOIDCIdentity(ctx, u.ID, cfg.Issuer, ident.Sub); err != nil {
+		if errors.Is(err, shared.ErrConflict) {
+			return nil, ErrOIDCAccountExists
+		}
+		return nil, fmt.Errorf("link oidc identity: %w", err)
+	}
+	slog.InfoContext(ctx, "oidc: identity linked to existing account by verified e-mail",
+		slog.String("user_id", string(u.ID)), slog.String("issuer", cfg.Issuer))
+	iss, sub := cfg.Issuer, ident.Sub
+	u.OIDCIssuer, u.OIDCSubject = &iss, &sub
+	return u, nil
+}
+
+// oidcUsernameCandidates derives the usernames to try, in order: the claim,
+// then suffixes taken from a hash of the identity, so the same person always
+// gets the same fallback name.
+func oidcUsernameCandidates(issuer, sub, preferred, email string) []string {
+	base := strings.TrimSpace(preferred)
+	if base == "" && email != "" {
+		if at := strings.Index(email, "@"); at > 0 {
+			base = email[:at]
+		}
+	}
+	if base == "" {
+		base = "oidc-" + hex.EncodeToString([]byte(sub))[:8]
+	}
+	h := sha256.Sum256([]byte(issuer + "\x00" + sub))
+	tag := hex.EncodeToString(h[:])
+	return []string{base, base + "-" + tag[:4], base + "-" + tag[:8], "oidc-" + tag[:12]}
+}
+
+func (s *OIDCService) createUser(ctx context.Context, cfg OIDCConfig, ident oidcIdentity, email string) (*domainuser.User, error) {
+	sub := ident.Sub
+	issuer := cfg.Issuer
+	var lastErr error
+	for _, username := range oidcUsernameCandidates(issuer, sub, ident.PreferredUsername, email) {
+		if _, err := s.userRepo.GetByUsername(ctx, username); err == nil {
+			continue // taken: try the next deterministic candidate
+		}
+		u, err := s.insertUser(ctx, cfg, username, email, sub)
+		if err == nil {
+			return u, nil
+		}
+		lastErr = err
+		if !errors.Is(err, shared.ErrConflict) {
+			return nil, err
+		}
+		// A concurrent first-login for the same (issuer, subject) can win the
+		// race: the partial unique index idx_users_oidc_identity (migration
+		// 000113) rejects our INSERT as a conflict. Recover by returning the row
+		// the winner created rather than failing an otherwise-valid login.
+		if existing, getErr := s.userRepo.GetByOIDCSubject(ctx, issuer, sub); getErr == nil {
+			if !existing.Enabled {
+				return nil, ErrUserDisabled
+			}
+			return existing, nil
+		}
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("%w: no free username", shared.ErrConflict)
+	}
+	return nil, fmt.Errorf("OIDCService.findOrCreateUser: %w", lastErr)
+}
+
+func (s *OIDCService) insertUser(ctx context.Context, cfg OIDCConfig, username, email, sub string) (*domainuser.User, error) {
+	issuer := cfg.Issuer
 	newUser, err := domainuser.NewUser(username, email, "")
 	if err != nil {
 		return nil, fmt.Errorf("create oidc user: %w", err)
@@ -364,12 +713,14 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 	if err != nil {
 		return nil, fmt.Errorf("build default oidc profile: %w", err)
 	}
-	// The user row and its default profile must commit together: a profile
-	// failure after the user commits would leave the OIDC user with NO default
-	// profile, and the next login takes the GetByOIDCSubject fast-path that
-	// never heals it → access tokens minted with an empty ProfileID forever.
-	// Wrap both in one tx (nil uow → sequential, for tests that build the
-	// struct literal directly). Propagate the failure instead of swallowing it.
+	libs := cfg.DefaultLibraryIDs
+	if len(libs) > 0 && s.libraryAccess == nil {
+		return nil, errors.New("create oidc user: library restriction configured but no access store")
+	}
+	// The user row, its default profile and its library grants commit
+	// together: a profile failure after the user commits would leave the OIDC
+	// user with NO default profile, and a missing grant would leave it seeing
+	// every library. nil uow = sequential, for tests building the struct.
 	create := func(ctx context.Context) error {
 		if err := s.userRepo.Create(ctx, newUser); err != nil {
 			return fmt.Errorf("create oidc user: %w", err)
@@ -377,35 +728,35 @@ func (s *OIDCService) findOrCreateUser(ctx context.Context, sub, email, preferre
 		if err := s.profiles.Create(ctx, p); err != nil {
 			return fmt.Errorf("create default profile: %w", err)
 		}
+		if len(libs) == 0 {
+			return nil
+		}
+		if gErr := s.libraryAccess.GrantMany(ctx, newUser.ID, libs); gErr != nil {
+			return fmt.Errorf("grant default libraries: %w", gErr)
+		}
+		// GrantMany skips deleted libraries; zero grants means "everything",
+		// so a selection that no longer exists must refuse, not widen.
+		granted, rErr := s.libraryAccess.GetByUserID(ctx, newUser.ID)
+		if rErr != nil {
+			return fmt.Errorf("read default libraries: %w", rErr)
+		}
+		if len(granted) == 0 {
+			return errors.New("create oidc user: none of the default libraries exists any more")
+		}
 		return nil
 	}
-	var createErr error
 	if s.uow != nil {
-		createErr = s.uow.Do(ctx, create)
+		err = s.uow.Do(ctx, create)
 	} else {
-		createErr = create(ctx)
+		err = create(ctx)
 	}
-	if createErr != nil {
-		// A concurrent first-login for the same (issuer, subject) can win the
-		// race: the partial unique index idx_users_oidc_identity (migration
-		// 000113) rejects our INSERT as a conflict. Recover by returning the row
-		// the winner created rather than failing an otherwise-valid login.
-		if errors.Is(createErr, shared.ErrConflict) {
-			if existing, getErr := s.userRepo.GetByOIDCSubject(ctx, s.issuer, sub); getErr == nil {
-				if !existing.Enabled {
-					return nil, ErrUserDisabled
-				}
-				return existing, nil
-			}
-		}
-		return nil, fmt.Errorf("OIDCService.findOrCreateUser: %w", createErr)
+	if err != nil {
+		return nil, err
 	}
-
-	evt := domainuser.UserCreated{UserID: newUser.ID, Username: newUser.Username, OccurredAt: now}
+	evt := domainuser.UserCreated{UserID: newUser.ID, Username: newUser.Username, OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.WarnContext(ctx, "oidc: publish user.created", slog.Any("err", err))
 	}
-
 	return newUser, nil
 }
 
