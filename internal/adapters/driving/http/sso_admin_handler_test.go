@@ -76,6 +76,7 @@ func (f *ssoFixture) do(t *testing.T, method, path, tok string, body any) (*http
 		rd = bytes.NewReader(nil)
 	}
 	req := httptest.NewRequest(method, path, rd)
+	req.Host = "evey.example" // the server is reached on its configured base URL
 	if tok != "" {
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}

@@ -91,6 +91,26 @@ func oidcLoginCookiePath(ctx context.Context, oidcSvc *appuser.OIDCService) stri
 	return appuser.OIDCCallbackPath
 }
 
+// oidcCanonicalLoginURL is where a login started on another host (LAN IP vs
+// public domain) must restart: the binding cookie is host-only and the IdP
+// returns to the redirect URL's host. One marked hop, never a loop.
+func oidcCanonicalLoginURL(ctx context.Context, oidcSvc *appuser.OIDCService, r *http.Request) string {
+	if r.URL.Query().Get("canonical") == "1" {
+		return ""
+	}
+	cfg, err := oidcSvc.Config(ctx)
+	if err != nil {
+		return ""
+	}
+	u, err := url.Parse(cfg.RedirectURL)
+	if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || strings.EqualFold(u.Host, r.Host) {
+		return ""
+	}
+	q := r.URL.Query()
+	q.Set("canonical", "1")
+	return (&url.URL{Scheme: u.Scheme, Host: u.Host, Path: r.URL.Path, RawQuery: q.Encode()}).String()
+}
+
 func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, httpsOnly func() bool, oidcLoginRL ...*ratelimit.Limiter) {
 	var loginRL *ratelimit.Limiter
 	if len(oidcLoginRL) > 0 {
@@ -129,6 +149,10 @@ func registerOIDCRoutesFn(mux *http.ServeMux, oidcSvc *appuser.OIDCService, http
 	mux.HandleFunc("GET /api/v1/auth/oidc/login", limited(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracing.StartSpan(r.Context(), "http.auth.oidc.Login")
 		defer span.End()
+		if hop := oidcCanonicalLoginURL(ctx, oidcSvc, r); hop != "" {
+			http.Redirect(w, r, hop, http.StatusFound)
+			return
+		}
 		// An app flow reuses its id as the nonce, so the callback knows where
 		// to send the result. An unknown id is refused, never minted here.
 		nonce := r.URL.Query().Get("flow")
