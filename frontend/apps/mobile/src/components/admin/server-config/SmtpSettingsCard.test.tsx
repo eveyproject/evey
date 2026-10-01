@@ -34,11 +34,15 @@ vi.mock("@evey/store", () => ({
   toast: { success: (...a: unknown[]) => toastSuccess(...a), error: (...a: unknown[]) => toastError(...a) },
 }));
 
+const fetchMock = vi.fn();
+vi.mock("@evey/api", () => ({ eveyFetch: (...a: unknown[]) => fetchMock(...a) }));
+
 import { SmtpSettingsCard } from "./SmtpSettingsCard";
 
 beforeEach(() => {
   toastSuccess.mockClear();
   toastError.mockClear();
+  fetchMock.mockReset();
 });
 
 describe("SmtpSettingsCard", () => {
@@ -79,5 +83,22 @@ describe("SmtpSettingsCard", () => {
   it("disables the save button while saving", () => {
     render(<SmtpSettingsCard entries={[]} saveEntry={vi.fn()} saving />);
     expect(screen.getByTestId("loading")).toBeTruthy();
+  });
+});
+
+describe("SmtpSettingsCard test e-mail", () => {
+  it("posts to the test route and reports the recipient", async () => {
+    fetchMock.mockResolvedValue({ to: "admin@example.com" });
+    render(<SmtpSettingsCard entries={[]} saveEntry={vi.fn()} saving={false} />);
+    fireEvent.click(screen.getByText("Send test email"));
+    await vi.waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("admin.serverConfig.testEmailSent"));
+    expect(fetchMock).toHaveBeenCalledWith({ url: "/api/v1/admin/smtp/test", method: "POST", data: {} });
+  });
+
+  it("names the missing configuration instead of a generic error", async () => {
+    fetchMock.mockRejectedValue({ errorCode: "not_configured" });
+    render(<SmtpSettingsCard entries={[]} saveEntry={vi.fn()} saving={false} />);
+    fireEvent.click(screen.getByText("Send test email"));
+    await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith("admin.serverConfig.testEmailNotConfigured"));
   });
 });
