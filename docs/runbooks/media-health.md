@@ -70,7 +70,7 @@ clip on the server: pick a moment, a track and an offset to try, then watch it,
 slowed down if needed. Comparing tracks says whether they agree, never which one
 follows the picture; only watching settles it.
 
-**Apply** moves that track by the chosen offset. The change is recorded as your
+**Apply N s to this track** moves that track by the chosen offset. The change is recorded as your
 judgement, not as a measurement, and **History** can undo it.
 
 ## Marking as seen

@@ -1,5 +1,5 @@
 ---
-source_sha: 6793435ce29d5b03c7d7504757f1dc297b95ed73f6f61930a65ecd174182af6a
+source_sha: 20c15f25fe69f68ab885ee03c012f737103bebcc94ce6da6d3efd20c3bbaff60
 reviewed: false
 ---
 # Salud de medios
@@ -80,7 +80,7 @@ archivo, genera un clip corto en el servidor: elige un momento, una pista y un
 desfase que probar, y míralo, ralentizado si hace falta. Comparar pistas dice si
 coinciden, nunca cuál sigue a la imagen; solo mirarlo lo decide.
 
-**Aplicar** desplaza esa pista en el desfase elegido. El cambio se guarda como tu
+**Aplicar N s a esta pista** desplaza esa pista en el desfase elegido. El cambio se guarda como tu
 juicio, no como una medición, y el **Historial** puede deshacerlo.
 
 ## Marcar como visto

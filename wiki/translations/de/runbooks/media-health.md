@@ -1,5 +1,5 @@
 ---
-source_sha: 6793435ce29d5b03c7d7504757f1dc297b95ed73f6f61930a65ecd174182af6a
+source_sha: 20c15f25fe69f68ab885ee03c012f737103bebcc94ce6da6d3efd20c3bbaff60
 reviewed: false
 ---
 # Medienzustand
@@ -84,7 +84,7 @@ und einen zu testenden Versatz, und schauen Sie ihn an, bei Bedarf verlangsamt.
 Der Vergleich von Spuren sagt, ob sie übereinstimmen, nie, welche dem Bild folgt;
 nur das Anschauen entscheidet.
 
-**Anwenden** verschiebt diese Spur um den gewählten Versatz. Die Änderung wird
+**N s auf diese Spur anwenden** verschiebt diese Spur um den gewählten Versatz. Die Änderung wird
 als Ihr Urteil gespeichert, nicht als Messung, und der **Verlauf** kann sie
 rückgängig machen.
 
