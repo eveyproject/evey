@@ -299,6 +299,22 @@ func TestWarnValidate_ProdDefaultDBPasswordRejected(t *testing.T) {
 	assert.Contains(t, err.Error(), "EVEY_DB_PASSWORD")
 }
 
+// The placeholder .env.example ships is named at boot, but not refused: an
+// install that copied it would otherwise stop on its next upgrade.
+func TestWarnValidate_PlaceholderDBPasswordWarned(t *testing.T) {
+	var logs bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	cfg := &Config{
+		DB:          DBConfig{Password: "changeme", SSLMode: "disable", Host: "postgres"},
+		Meilisearch: MeilisearchConfig{APIKey: "strong-key-abcdefghij"},
+		Plugins:     PluginsConfig{SandboxMode: "basic", CosignPolicy: "off"},
+	}
+	require.NoError(t, cfg.WarnValidate())
+	assert.Contains(t, logs.String(), "EVEY_DB_PASSWORD is the .env.example placeholder")
+}
+
 func TestWarnValidate_DevModeDowngradesToWarnings(t *testing.T) {
 	cfg := &Config{
 		Log:         LogConfig{DevMode: true},

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	domain "github.com/evey-project/evey/internal/domain/metadata"
@@ -284,4 +285,23 @@ func filterPeople(people []domain.PersonResult, role string) []domain.PersonResu
 		}
 	}
 	return out
+}
+
+// OMDb takes its key in the query string, and a transport error (*url.Error)
+// quotes the whole URL: the key must not ride along into errors and logs.
+func TestOMDb_TransportErrorDoesNotCarryTheKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	srv.Close() // a refused connection is the transport error we want
+	p := NewOMDbProvider("s3cr3t-omdb-key", nil)
+	p.baseURL = srv.URL
+	_, err := p.Search(context.Background(), "Alien", nil, "movie")
+	if err == nil {
+		t.Fatal("expected a transport error")
+	}
+	if strings.Contains(err.Error(), "s3cr3t-omdb-key") {
+		t.Fatalf("API key leaked into the error: %v", err)
+	}
+	if _, err := p.GetByProviderID(context.Background(), "tt0078748", "movie"); err == nil || strings.Contains(err.Error(), "s3cr3t-omdb-key") {
+		t.Fatalf("detail error: %v", err)
+	}
 }
