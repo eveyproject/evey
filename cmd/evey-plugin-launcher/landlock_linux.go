@@ -56,9 +56,13 @@ func readExecAccess(abi int) uint64 {
 }
 
 // readWriteAccess is what we grant on the plugin's own directory and its socket
-// directory: the full supported set (read, write, create, remove, mksock...).
+// directory: the supported set minus symlink/FIFO/device-node creation, which stay
+// handled and thus denied (a symlink under web_root would be served by the server).
 func readWriteAccess(abi int) uint64 {
-	return supportedFSAccess(abi)
+	return supportedFSAccess(abi) &^ uint64(unix.LANDLOCK_ACCESS_FS_MAKE_SYM|
+		unix.LANDLOCK_ACCESS_FS_MAKE_FIFO|
+		unix.LANDLOCK_ACCESS_FS_MAKE_CHAR|
+		unix.LANDLOCK_ACCESS_FS_MAKE_BLOCK)
 }
 
 // deviceAccess is what we grant on an individual allowed device node (/dev/null,
