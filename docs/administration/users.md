@@ -61,6 +61,36 @@ it. Administrators are not subject to profile limits.
 A film downloaded to a phone stays subject to the limit offline: a kids profile
 cannot open a download made by another profile above its age limit.
 
+## Opening hours
+
+A kids profile can be limited to **opening hours**: the clock icon next to it in
+the profile list (**Settings → Profiles**, or the user's page in **Admin →
+Users**) opens the editor. Nothing is set until you turn it on; the editor then
+suggests weekdays 18:00 to 22:00, and Saturday and Sunday 9:00 to 12:00 and
+14:00 to 21:00.
+
+The hours are a list of time ranges, edited two ways: **Weekdays / weekend**
+(one block for Monday to Friday, one for the weekend) or **Day by day**. A day
+can have several ranges, a range can run past midnight (20:00 to 0:30), and a
+day with no range is closed. Switching back to the week view is refused when
+the days of a block differ, so nothing is lost silently.
+
+The server enforces the hours, in its own time zone (**Admin → Server Config →
+Language & Region → Server time zone**; without it, the `TZ` variable, then
+Europe/Paris). Changing the clock of a tablet changes nothing. Outside the
+hours the profile is refused everywhere - browsing, every segment of a film in
+progress, music, downloads - and every app shows a lock screen saying when it
+opens again. Ten minutes before closing, the player shows a warning; at the
+time, playback stops.
+
+On the lock screen, the **PIN of an adult profile** of the same account opens
+the kids profile until its next opening; the child's own PIN, if it has one,
+does not. **Switch profile** leads to the profile picker. A schedule that the
+server cannot read keeps the profile closed rather than open.
+
+A film downloaded to a phone and played without a connection does not reach the
+server, so the hours do not apply to it.
+
 ## Requests
 
 Users can search for a film, a series or an artist that is missing from the
@@ -117,4 +147,5 @@ kids and pin: i18n auth.profile.fields.isKidsHelp, auth.settings.parental.*, err
 server-side limit, fail closed, admins exempt: internal/adapters/driving/http/parental.go - BlockedByParental ; internal/adapters/driving/grpcapi/library_handler_parental.go
 downloads: internal/adapters/driving/http/compat_download_handler.go (checkParental) ; frontend/apps/mobile/src/lib/offlineAccess.ts
 requests: i18n admin.mediaRequests.*
+opening hours: internal/domain/user/schedule.go - AccessSchedule, DefaultKidsSchedule, Window, AccessAt, OverrideUntil ; internal/app/user/profile_schedule.go - Unlock (adult PIN only) ; internal/adapters/driving/http/profile_closed.go (httpAuthMiddleware, httpStreamAuthMiddleware) ; grpcapi/interceptors/profile_hours.go ; grpcapi/playback_closing_soon.go (closingWarnLead 10 min) ; internal/app/config/timezone.go - KeyServerTimezone ; postgres profile_repo.go - scheduleFromJSON (unreadable = closed) ; i18n auth.profile.schedule.*, auth.profile.locked.*, admin.serverConfig.timezone
 -->

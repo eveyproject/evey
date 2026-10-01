@@ -44,7 +44,8 @@ var handlerFieldExceptions = map[string]map[string]string{
 		// The HTTP pipeline owns the resolver; main binds it with
 		// SetPlaybackDecider once buildHTTPHandler returns, before Start
 		// (TestMainBindsThePlaybackDeciderBeforeServing keeps that order).
-		"decider": "late-bound; nil decides on the unwired resolver, the pre-binding behavior",
+		"decider":      "late-bound; nil decides on the unwired resolver, the pre-binding behavior",
+		"closingWarns": "internal state: a zero-value map of warned sessions",
 	},
 }
 

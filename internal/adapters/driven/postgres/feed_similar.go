@@ -43,22 +43,39 @@ func expandGenreFamilies(genres []string) []string {
 	return out
 }
 
-// keepMostRelevant cuts a score-ordered Similar list to the titles at the
-// best level of match available, capped at two shared genres: a large library
-// keeps everything sharing two genres, a small one no longer pads the row with
-// titles that share one genre out of three (a war romance "similar" to Big
-// Buck Bunny, 2026-09-30). When the best match is a single genre, those stay:
-// a thin row beats a page ending on nothing.
+// broadGenres are the catch-alls nearly every title carries. Sharing one of
+// them says nothing: Bonanza (Western, Action & Adventure, Drama, Family) was
+// "similar" to Metropolis on Drama and to Caminandes on Family (demo,
+// 2026-10-01). They still count in the ranking, never as the only link.
+var broadGenres = map[string]bool{
+	"Drama": true, "Comedy": true, "Family": true,
+	"Drame": true, "Comédie": true, "Familial": true,
+}
+
+// linkingGenres are the genres a candidate must share at least one of: the
+// target's specific ones, or all of them when it only has catch-alls.
+func linkingGenres(genres []string) []string {
+	out := make([]string, 0, len(genres))
+	for _, g := range genres {
+		if !broadGenres[g] {
+			out = append(out, g)
+		}
+	}
+	if len(out) == 0 {
+		return genres
+	}
+	return out
+}
+
+// keepMostRelevant keeps the titles sharing at least two genres with the
+// target (all of them when it has fewer): a war romance is not "similar" to
+// Big Buck Bunny (2026-09-30). When nothing reaches that, the row is empty -
+// no Similar row beats one that lies (user, 2026-10-01).
 func keepMostRelevant(items []*feed.FeedItem, targetGenres int) []*feed.FeedItem {
 	if len(items) == 0 {
 		return items
 	}
-	floor := min(2, targetGenres)
-	best := 0
-	for _, it := range items {
-		best = max(best, it.Score)
-	}
-	cut := min(floor, best)
+	cut := min(2, targetGenres)
 	kept := items[:0]
 	for _, it := range items {
 		if it.Score >= cut {

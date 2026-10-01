@@ -63,7 +63,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
-import { resolveStartPositionMs, servedVariant, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -859,6 +859,13 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     const timer = setInterval(sync, 1000);
     return () => { cancelled = true; clearInterval(timer); };
   }, [showControls, applyPlayerTrim]);
+
+  // A kids profile reaching the end of its opening hours: the lock screen
+  // covers the player, and the film stops instead of playing its buffer out.
+  const profileLock = useProfileLock();
+  useEffect(() => {
+    if (profileLock.closed && player?.playing) player.pause();
+  }, [profileLock.closed, player]);
 
   const togglePlayPause = useCallback(() => {
     if (!player) return;

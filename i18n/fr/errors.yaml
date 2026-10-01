@@ -136,3 +136,10 @@ plugin:
 
 demo:
   locked: "Indisponible sur le serveur de démonstration"
+
+profile:
+  closed: "Ce profil est verrouillé en dehors de ses horaires."
+  schedule_invalid: "Ces horaires ne sont pas valides."
+  schedule_kids_only: "Les horaires ne s'appliquent qu'aux profils enfants."
+  wrong_parent_pin: "Code PIN parent incorrect."
+  no_parent_pin: "Aucun code PIN parent n'existe sur ce compte : définissez-en un sur un profil adulte."

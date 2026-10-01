@@ -761,7 +761,7 @@ func registerParentalRoutes(
 	userRepo domainuser.UserRepository,
 	hasher domainuser.PasswordHasher,
 	tokenGen domainuser.TokenGenerator,
-) {
+) *parentalHandler {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &parentalHandler{
 		profileRepo: profileRepo,
@@ -776,6 +776,7 @@ func registerParentalRoutes(
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
 	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))
 	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/verify-pin", authMw(h.verifyPIN))
+	return h
 }
 
 // recordParentalPINThrottle emits the ops signals for a throttled parental-PIN

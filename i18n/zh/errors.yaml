@@ -136,3 +136,10 @@ plugin:
 
 demo:
   locked: "演示服务器上不可用"
+
+profile:
+  closed: "此个人资料在开放时间以外已锁定。"
+  schedule_invalid: "这些开放时间无效。"
+  schedule_kids_only: "开放时间仅适用于儿童个人资料。"
+  wrong_parent_pin: "家长 PIN 错误。"
+  no_parent_pin: "此账户未设置家长 PIN：请先在成人个人资料上设置。"

@@ -9,6 +9,7 @@ import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { KeyboardShortcutsHelp } from "@/components/ui/KeyboardShortcutsHelp";
 import { GlobalAudioPlayer } from "@/features/music/GlobalAudioPlayer";
 import { useMusicPlayerStore } from "@evey/store";
+import { ProfileLockOverlay } from "@/features/profile/ProfileLockOverlay";
 
 interface AuthLayoutProps {
   children: ReactNode;
@@ -46,7 +47,9 @@ export function AuthLayout({ children }: AuthLayoutProps) {
     return () => anim.cancel();
   }, [location.pathname]);
 
-  if (isPlayer) return <>{children}</>;
+  // The player skips the chrome but not the lock: a closed profile is
+  // stopped mid-film too.
+  if (isPlayer) return <>{children}<ProfileLockOverlay /></>;
 
   return (
     <div className="flex h-dvh overflow-hidden">
@@ -111,6 +114,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
 
       <KeyboardShortcutsHelp open={showHelp} onClose={() => setShowHelp(false)} />
       <GlobalAudioPlayer />
+      <ProfileLockOverlay />
     </div>
   );
 }

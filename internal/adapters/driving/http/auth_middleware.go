@@ -81,6 +81,10 @@ func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Hand
 				http.Error(w, `{"message":"unauthorized"}`, http.StatusUnauthorized)
 				return
 			}
+			w, r, refused := gateProfile(w, r, claims)
+			if refused {
+				return
+			}
 			ctx := context.WithValue(r.Context(), httpClaimsCtxKey{}, claims)
 			next(w, r.WithContext(ctx))
 		}
@@ -108,8 +112,12 @@ func httpStreamAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) htt
 					return
 				}
 				claims := &domainuser.Claims{UserID: string(st.UserID), ProfileID: string(st.ProfileID)}
-				ctx := context.WithValue(r.Context(), httpClaimsCtxKey{}, claims)
-				next(w, r.WithContext(ctx))
+				gw, gr, refused := gateProfile(w, r, claims)
+				if refused {
+					return
+				}
+				ctx := context.WithValue(gr.Context(), httpClaimsCtxKey{}, claims)
+				next(gw, gr.WithContext(ctx))
 				return
 			}
 			jwtPath(w, r)

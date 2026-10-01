@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { parseHlsMasterHeights } from "@evey/api";
+import { parseHlsMasterResolutions, type RungSize } from "@evey/api";
 
 // The quality rungs this transcode actually offers.
 //
@@ -13,8 +13,9 @@ import { parseHlsMasterHeights } from "@evey/api";
 // no ffmpeg behind it - unlike /transcode, which spawns one process per GET.
 // Direct play has no manifest and no rungs to choose from, so nothing is
 // fetched at all.
-export function useHlsRungs(streamUrl: string | null, streamToken?: string | null): number[] {
-  const [heights, setHeights] = useState<number[]>([]);
+// Each rung keeps its width: the menu names it like the title page names the file.
+export function useHlsRungs(streamUrl: string | null, streamToken?: string | null): RungSize[] {
+  const [heights, setHeights] = useState<RungSize[]>([]);
 
   useEffect(() => {
     if (!streamUrl || !streamUrl.includes("master.m3u8")) {
@@ -31,7 +32,7 @@ export function useHlsRungs(streamUrl: string | null, streamToken?: string | nul
         });
         if (!res.ok) return;
         const text = await res.text();
-        if (alive) setHeights(parseHlsMasterHeights(text));
+        if (alive) setHeights(parseHlsMasterResolutions(text));
       } catch {
         // Offline, aborted, a shed 503: the menu keeps its static ladder,
         // which is exactly what it had before. A quality list is not worth

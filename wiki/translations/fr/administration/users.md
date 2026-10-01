@@ -1,5 +1,5 @@
 ---
-source_sha: b1fc2bfe45abb81b5dc0b290edaeb3facc88f54b61c09c01bec7dd2a1d5b9a55
+source_sha: 48600ed7a36a37b21c681886fa318a33aa2d590da6c4a0d48886d3f38a674663
 reviewed: true
 ---
 # Utilisateurs, profils et contrôle parental
@@ -71,6 +71,39 @@ des profils.
 Un film téléchargé sur un téléphone reste soumis à la limite hors connexion :
 un profil enfant ne peut pas ouvrir un téléchargement fait par un autre profil
 au-dessus de son âge maximum.
+
+## Horaires d'ouverture
+
+Un profil enfant peut être limité à des **horaires d'ouverture** : l'icône
+d'horloge à côté de lui dans la liste des profils (**Paramètres → Profils**,
+ou la fiche de l'utilisateur dans **Admin → Utilisateurs**) ouvre l'éditeur.
+Rien n'est actif tant que vous ne l'activez pas ; l'éditeur propose alors du
+lundi au vendredi de 18:00 à 22:00, et le samedi et le dimanche de 9:00 à
+12:00 et de 14:00 à 21:00.
+
+Les horaires sont une liste de plages, modifiables de deux façons : **Semaine /
+week-end** (un bloc pour le lundi au vendredi, un pour le week-end) ou **Jour
+par jour**. Un jour peut avoir plusieurs plages, une plage peut passer minuit
+(20:00 à 0:30), et un jour sans plage est fermé. Le retour à la vue semaine
+est refusé quand les jours d'un bloc diffèrent : rien n'est perdu sans le dire.
+
+Le serveur applique les horaires, dans son propre fuseau (**Admin →
+Configuration du serveur → Langue et région → Fuseau horaire du serveur** ;
+à défaut, la variable `TZ`, puis Europe/Paris). Changer l'heure d'une tablette
+ne change rien. En dehors des horaires, le profil est refusé partout -
+navigation, chaque segment d'un film en cours, musique, téléchargements - et
+chaque application affiche un écran de verrouillage qui indique quand il
+rouvre. Dix minutes avant la fermeture, le lecteur affiche un avertissement ;
+à l'heure, la lecture s'arrête.
+
+Sur l'écran de verrouillage, le **code PIN d'un profil adulte** du même compte
+ouvre le profil enfant jusqu'à sa prochaine plage ; le code de l'enfant, s'il
+en a un, ne suffit pas. **Changer de profil** mène au choix des profils. Des
+horaires que le serveur ne parvient pas à lire gardent le profil fermé plutôt
+qu'ouvert.
+
+Un film téléchargé sur un téléphone et lu sans connexion ne passe pas par le
+serveur : les horaires ne s'y appliquent pas.
 
 ## Demandes
 

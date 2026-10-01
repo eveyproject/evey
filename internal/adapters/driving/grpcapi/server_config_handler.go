@@ -10,6 +10,7 @@ import (
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type serverConfigHandler struct {
@@ -59,6 +60,9 @@ func (h *serverConfigHandler) SetServerConfigEntry(ctx context.Context, req *eve
 		return &eveyv1.SetServerConfigEntryResponse{}, nil
 	}
 	if err := h.svc.Set(ctx, req.Key, req.Value); err != nil {
+		if errors.Is(err, appconfig.ErrInvalidValue) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
 		return nil, internalError(ctx, "set config", err)
 	}
 	return &eveyv1.SetServerConfigEntryResponse{}, nil

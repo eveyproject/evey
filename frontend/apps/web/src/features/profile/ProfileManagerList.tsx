@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2, Star } from "lucide-react";
+import { Pencil, Trash2, Star, Clock } from "lucide-react";
 import {
   useUserServiceDeleteProfile,
   useUserServiceSetDefaultProfile,
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { EditProfileDialog } from "./EditProfileDialog";
+import { ProfileScheduleDialog } from "./ProfileScheduleDialog";
 import { useDemoLock } from "@/hooks/useDemoMode";
 
 interface ProfileManagerListProps {
@@ -33,6 +34,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
   const qc = useQueryClient();
   const [editing, setEditing] = useState<V1Profile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<V1Profile | null>(null);
+  const [scheduling, setScheduling] = useState<V1Profile | null>(null);
 
   const hasKids = profiles.some((p) => p.isKids === true);
 
@@ -100,6 +102,16 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
                   <Star size={16} aria-hidden="true" />
                 </Button>
               )}
+              {p.isKids && (
+                <Button
+                  variant="ghost"
+                  aria-label={t("auth.profile.schedule.title", "Opening hours")}
+                  title={t("auth.profile.schedule.title", "Opening hours")}
+                  onClick={() => setScheduling(p)}
+                >
+                  <Clock size={16} aria-hidden="true" />
+                </Button>
+              )}
               <Button
                 {...lock}
                 variant="ghost"
@@ -140,6 +152,15 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
           hasKidsProfile={hasKids}
           userId={userId}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {scheduling?.id && (
+        <ProfileScheduleDialog
+          open
+          profileId={scheduling.id}
+          profileName={scheduling.name ?? ""}
+          onClose={() => setScheduling(null)}
         />
       )}
 

@@ -21,8 +21,9 @@ import (
 )
 
 // ssoSettingsStore persists the panel's SSO keys (appconfig.Service).
+// ssoSettingsStore saves the SSO settings as one change (all or nothing).
 type ssoSettingsStore interface {
-	Set(ctx context.Context, key, value string) error
+	SetMany(ctx context.Context, entries map[string]string) error
 }
 
 // ssoLibraryLookup validates the default library selection.
@@ -215,13 +216,13 @@ func registerSSOAdminRoutes(mux *http.ServeMux, oidcSvc *appuser.OIDCService, st
 			http.Error(w, `{"message":"settings store unavailable"}`, http.StatusServiceUnavailable)
 			return
 		}
-		for key, value := range writes {
-			if err := store.Set(ctx, key, value); err != nil {
-				span.RecordError(err)
-				logInternal(ctx, "sso settings: persist "+key, err)
-				http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
-				return
-			}
+		// One transaction: sign-ups never go live without the restrictions
+		// saved with them, and a failure leaves the previous settings whole.
+		if err := store.SetMany(ctx, writes); err != nil {
+			span.RecordError(err)
+			logInternal(ctx, "sso settings: persist", err)
+			http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
+			return
 		}
 		// Applies now: the next login re-reads the settings and rediscovers.
 		oidcSvc.Invalidate()

@@ -136,3 +136,10 @@ plugin:
 
 demo:
   locked: "Auf dem Demo-Server nicht verfügbar"
+
+profile:
+  closed: "Dieses Profil ist außerhalb seiner Nutzungszeiten gesperrt."
+  schedule_invalid: "Diese Nutzungszeiten sind ungültig."
+  schedule_kids_only: "Nutzungszeiten gelten nur für Kinderprofile."
+  wrong_parent_pin: "Falsche Eltern-PIN."
+  no_parent_pin: "Für dieses Konto ist keine Eltern-PIN festgelegt: Lege zuerst eine in einem Erwachsenenprofil fest."

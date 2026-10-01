@@ -67,6 +67,11 @@ type ProfileRepository interface {
 	// overwrite a concurrently-changed avatar_path (or any other column)
 	// sourced from a stale in-memory snapshot.
 	UpdateParentalSettings(ctx context.Context, id shared.ProfileID, settings *ParentalSettings) error
+	// UpdateSchedule writes ONLY the opening hours (nil clears them).
+	UpdateSchedule(ctx context.Context, id shared.ProfileID, s *AccessSchedule) error
+	// SetScheduleOverride writes ONLY how long a parent's PIN keeps a closed
+	// profile open (nil clears it).
+	SetScheduleOverride(ctx context.Context, id shared.ProfileID, until *time.Time) error
 	Delete(ctx context.Context, id shared.ProfileID) error
 	// SetDefault atomically clears is_default on every other profile owned
 	// by userID and sets it on profileID. Returns ErrNotFound if profileID

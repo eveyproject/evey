@@ -725,7 +725,13 @@ serverConfig:
   serverLanguage: "Server language"
   serverRegion: "Server region"
   metadataLanguage: Metadata language
+  timezone: "Server time zone"
+  timezoneHint: "Kids profiles' opening hours are read in this zone, whatever the device's clock says."
+  timezoneNow: "Server time: {{time}}"
+  timezoneUpdated: "Time zone updated"
+  timezoneInvalid: "Unknown time zone"
   envDefault: "- env default -"
+  defaultValue: "Default: {{value}}"
   languageUpdated: "Language updated"
   configUpdated: Config updated
   failedUpdate: Failed to update config

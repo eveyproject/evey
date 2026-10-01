@@ -126,22 +126,15 @@ function PosterShelf({ title, items }: { title: string; items: { id: string; tit
   );
 }
 
-// "More like this": the recommendation feed, else a same-genre listing, so
-// the page never ends on an empty shelf.
+// "More like this": the server's list or no shelf. A same-genre fallback
+// filled it with titles sharing one catch-all genre (2026-10-01).
 function SimilarShelf({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const { data: similar } = useFeedServiceSimilarItems(item.id ?? "");
-  const hasSimilar = (similar?.items?.length ?? 0) > 0;
-  const firstGenre = item.genres?.[0];
-  const { data: byGenre } = useLibraryServiceListMediaItems(
-    { genre: firstGenre, type: item.type as never },
-    { query: { enabled: !hasSimilar && !!firstGenre } } as never,
+  const cards = useMemo(
+    () => (similar?.items ?? []).filter((s) => !!s.mediaItemId).map((s) => ({ id: s.mediaItemId as string, title: s.title })),
+    [similar],
   );
-  const cards = useMemo(() => {
-    const fromFeed = (similar?.items ?? []).filter((s) => !!s.mediaItemId).map((s) => ({ id: s.mediaItemId as string, title: s.title }));
-    if (fromFeed.length > 0) return fromFeed;
-    return (byGenre?.items ?? []).filter((m) => m.id && m.id !== item.id).map((m) => ({ id: m.id as string, title: m.title }));
-  }, [similar, byGenre, item.id]);
   return <PosterShelf title={t("media.detail.similarTitles")} items={cards} />;
 }
 

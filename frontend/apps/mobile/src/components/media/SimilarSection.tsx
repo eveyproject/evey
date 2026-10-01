@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo } from "react";
 import { View, Text, FlatList, Dimensions } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useFeedServiceSimilarItems, useLibraryServiceListMediaItems, type V1MediaItem } from "@evey/api";
+import { useFeedServiceSimilarItems, type V1MediaItem } from "@evey/api";
 import { useTheme } from "../../providers/ThemeProvider";
 import { MediaCard } from "../MediaCard";
 
@@ -11,24 +11,15 @@ export const SimilarSection = memo(function SimilarSection({ item }: { item: V1M
   const theme = useTheme();
   const screenW = Dimensions.get("window").width;
   const { data: similarData } = useFeedServiceSimilarItems(item.id ?? "");
-  const firstGenre = item.genres?.[0];
-  const hasSimilar = (similarData?.items?.length ?? 0) > 0;
-  const { data: byGenreData } = useLibraryServiceListMediaItems(
-    { genre: firstGenre, type: item.type as never },
-    { query: { enabled: !hasSimilar && !!firstGenre } } as never,
+  // The server's list or nothing: a same-genre fallback filled the row with
+  // titles sharing one catch-all genre, which is not "similar" (2026-10-01).
+  const cards: V1MediaItem[] = useMemo(
+    () =>
+      (similarData?.items ?? [])
+        .filter((fi) => !!fi.mediaItemId)
+        .map((fi) => ({ id: fi.mediaItemId!, title: fi.title })) as V1MediaItem[],
+    [similarData?.items],
   );
-
-  const cards: V1MediaItem[] = useMemo(() => {
-    const fromFeed = (similarData?.items ?? [])
-      .filter((fi: any) => !!fi.mediaItemId)
-      .map((fi: any) => ({ id: fi.mediaItemId!, title: fi.title }));
-
-    const fromGenre = (byGenreData?.items ?? [])
-      .filter((m) => m.id && m.id !== item.id)
-      .map((m) => ({ id: m.id!, title: m.title, year: m.year, type: m.type }));
-
-    return (fromFeed.length ? fromFeed : fromGenre) as V1MediaItem[];
-  }, [similarData?.items, byGenreData?.items, item.id]);
 
   const renderCard = useCallback(
     ({ item: c }: { item: V1MediaItem }) => (

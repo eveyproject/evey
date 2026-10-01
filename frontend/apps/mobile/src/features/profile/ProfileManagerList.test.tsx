@@ -26,6 +26,7 @@ vi.mock("../../providers/ThemeProvider", () => ({
   }),
 }));
 vi.mock("../../hooks/useServerUrl", () => ({ useServerUrl: () => "http://evey.local" }));
+vi.mock("./ProfileScheduleSheet", () => ({ ProfileScheduleSheet: ({ profileId }: any) => React.createElement("div", null, `hours:${profileId}`) }));
 vi.mock("./EditProfileDialog", () => ({ EditProfileDialog: ({ open, profile }: any) => (open ? React.createElement("div", null, `editing:${profile?.id}`) : null) }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@evey/store", () => ({ toast, useAuthStore: (sel: (s: { accessToken: string }) => unknown) => sel({ accessToken: "tok" }) }));
@@ -92,5 +93,14 @@ describe("ProfileManagerList", () => {
     expect(toast.success).toHaveBeenCalledWith("Default profile updated");
     fireEvent.click(screen.getAllByLabelText("Edit")[0]);
     expect(screen.getByText("editing:p1")).toBeTruthy();
+  });
+
+  // Opening hours belong to kids profiles: only theirs offer the clock.
+  it("offers opening hours on kids profiles only", () => {
+    render(<ProfileManagerList userId="u1" profiles={profiles} />);
+    const clocks = screen.getAllByLabelText("Opening hours");
+    expect(clocks).toHaveLength(1);
+    fireEvent.click(clocks[0]);
+    expect(screen.getByText("hours:p2")).toBeTruthy();
   });
 });

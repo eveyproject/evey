@@ -85,6 +85,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// detection size their fan-out on it, the trickplay its decoder threads.
 	cpuBudget := cpubudget.New(sysinfo.CPUCapacity())
 	appconfig.ApplyCPUBudget(ctx, r.ServerCfg, bus, cpuBudget)
+	// Kids opening hours are read in the server's zone, swapped live when an
+	// admin changes it.
+	serverClock := appconfig.NewServerClock(nil)
+	appconfig.ApplyServerTimezone(ctx, r.ServerCfg, bus, serverClock)
+	profileHours := appuser.NewProfileSchedules(r.Profile, infra.hasher, serverClock)
 	procfork.SetCPUBudget(cpuBudget)
 	slog.Info("cpu budget: background tasks bounded",
 		slog.Float64("capacity_cores", cpuBudget.Capacity()),
@@ -402,7 +407,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	subtitleSvc := buildSubtitleService(ctx, infra, libQuerySvc, rootLog)
 
-	serverCfgSvc := appconfig.NewService(r.ServerCfg, appconfig.WithEventBus(bus))
+	serverCfgSvc := appconfig.NewService(r.ServerCfg, appconfig.WithEventBus(bus), appconfig.WithUnitOfWork(postgres.NewTxUnit(db)))
 
 	backupSvc, backupScheduler := buildBackupServices(cfg, infra, rootLog)
 
@@ -1130,6 +1135,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			tokenGen:     infra.tokenGen,
 			userTokenGen: guardedTokens,
 			hasher:       infra.hasher,
+			profileHours: profileHours,
 		},
 		repos: repoDeps{
 			artworkRepo:       r.Artwork,

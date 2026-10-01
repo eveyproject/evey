@@ -12,7 +12,7 @@ import {
   SUBTITLE_TEXT_COLORS,
   type SubtitleStyle,
 } from "../../lib/subtitleStyle";
-import { formatAudioTrackLabel, qualityRungsFromHeights, trackDisplayName } from "@evey/api";
+import { formatAudioTrackLabel, qualityRungsFromHeights, trackDisplayName, type QualityLevel } from "@evey/api";
 
 // The track shapes every player lists: one definition in @evey/api.
 export type { PlayerAudioStream as AudioStream, PlayerSubtitleStream as SubtitleStream } from "@evey/api";
@@ -63,7 +63,7 @@ interface PlayerSettingsPanelProps {
   onSelectExternalSubtitle?: () => void;
   // Heights declared by the manifest, tallest-first order irrelevant. Empty
   // (direct play, or not read yet) keeps the static ladder.
-  availableQualities?: readonly number[];
+  availableQualities?: readonly QualityLevel[];
   style?: StyleProp<ViewStyle>;
   // Per-profile "auto-play next episode" toggle: optional, same convention
   // as onSubtitleStyleChange - a caller that doesn't pass
@@ -146,7 +146,7 @@ export const QUALITY_HEIGHTS = [0, 1080, 720, 480, 360] as const;
 // 🔻 Still missing next to web: an "Auto (720p)" label naming the rung that is
 // actually playing. expo-video does not expose the level it picked, so that
 // half needs native support - it is not a plumbing job like this one.
-function useQualityOptions(availableQualities: readonly number[]) {
+function useQualityOptions(availableQualities: readonly QualityLevel[]) {
   const { t } = useTranslation();
   const rungs = qualityRungsFromHeights(availableQualities);
   if (rungs.length === 0) {

@@ -2,7 +2,9 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/shared"
@@ -23,6 +25,7 @@ const (
 type Service struct {
 	repo   shared.ServerConfigRepository
 	events shared.EventBus
+	tx     shared.TransactionalUnit
 }
 
 func NewService(repo shared.ServerConfigRepository, opts ...Option) *Service {
@@ -44,6 +47,11 @@ func WithEventBus(bus shared.EventBus) Option {
 	return func(s *Service) { s.events = bus }
 }
 
+// WithUnitOfWork makes SetMany all-or-nothing.
+func WithUnitOfWork(tx shared.TransactionalUnit) Option {
+	return func(s *Service) { s.tx = tx }
+}
+
 func (s *Service) Get(ctx context.Context, key string) (*shared.ServerConfigEntry, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.config.Get")
 	defer span.End()
@@ -59,10 +67,52 @@ func (s *Service) List(ctx context.Context) ([]*shared.ServerConfigEntry, error)
 func (s *Service) Set(ctx context.Context, key, value string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.config.Set")
 	defer span.End()
+	if err := ValidateEntry(key, value); err != nil {
+		return err
+	}
 	if err := s.repo.Set(ctx, key, value); err != nil {
 		return err
 	}
 	s.publishChange(ctx, key, value, false)
+	return nil
+}
+
+// SetMany stores several settings as one change: every value is validated
+// first, the writes share one transaction (when a unit of work is wired), and
+// change events go out only once all of them are stored. Settings written one
+// by one could stop halfway - SSO sign-ups switched on while the domain and
+// library restrictions meant to go with them failed to save.
+func (s *Service) SetMany(ctx context.Context, entries map[string]string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.config.SetMany")
+	defer span.End()
+	keys := make([]string, 0, len(entries))
+	for k := range entries {
+		if err := ValidateEntry(k, entries[k]); err != nil {
+			return err
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	write := func(ctx context.Context) error {
+		for _, k := range keys {
+			if err := s.repo.Set(ctx, k, entries[k]); err != nil {
+				return fmt.Errorf("set %s: %w", k, err)
+			}
+		}
+		return nil
+	}
+	var err error
+	if s.tx != nil {
+		err = s.tx.Do(ctx, write)
+	} else {
+		err = write(ctx)
+	}
+	if err != nil {
+		return err
+	}
+	for _, k := range keys {
+		s.publishChange(ctx, k, entries[k], false)
+	}
 	return nil
 }
 

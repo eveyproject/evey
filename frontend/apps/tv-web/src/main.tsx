@@ -15,6 +15,7 @@ import { HomeScreen } from "./screens/Home";
 import { LibraryScreen } from "./screens/Library";
 import { MediaDetailScreen } from "./screens/MediaDetail";
 import { DemoBanner } from "./components/DemoBanner";
+import { ProfileLockScreen } from "./components/ProfileLockScreen";
 import { PlayerScreen } from "./screens/Player";
 import { SettingsScreen } from "./screens/Settings";
 import { SearchScreen } from "./screens/Search";
@@ -218,6 +219,7 @@ function App() {
       {tab ? <TabShell current={effective.name}>{guarded}</TabShell> : deep ? <div className="deep-screen">{guarded}</div> : guarded}
       {deep ? <HomeShortcut raised={musicOn} /> : null}
       {signedIn && effective.name !== "player" && effective.name !== "slideshow" ? <MusicBar /> : null}
+      {signedIn && effective.name !== "profiles" ? <ProfileLockScreen /> : null}
     </>
   );
 }

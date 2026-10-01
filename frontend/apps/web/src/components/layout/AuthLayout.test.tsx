@@ -5,6 +5,9 @@ import { AuthLayout } from "./AuthLayout";
 
 let mockPathname = "/home";
 
+// The lock has its own tests; here it would need a router and a query client.
+vi.mock("@/features/profile/ProfileLockOverlay", () => ({ ProfileLockOverlay: () => null }));
+
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, ...rest }: { children: React.ReactNode; to: string; [k: string]: unknown }) => (
     <a href={to} {...rest}>{children}</a>

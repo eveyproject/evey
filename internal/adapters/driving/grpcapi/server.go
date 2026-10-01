@@ -142,6 +142,8 @@ type GRPCServerDeps struct {
 	// negotiate the copy rung instead of waiting on the paced background
 	// backfill. Optional: nil skips the attempt.
 	KeyframeOnDemand *apptranscoding.KeyframeOnDemand
+	// ProfileHours warns a kids profile's player before its opening ends.
+	ProfileHours ProfileHoursReader
 	// Presence is the in-memory real-time online-users registry. Optional: nil
 	// disables the heartbeat + online-users admin panel.
 	Presence *apppresence.Tracker
@@ -196,7 +198,7 @@ func (s *GRPCServer) RegisterServices() {
 	playbackRemoteAccess := remoteAccessFromConfig(d.Cfg)
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, scheduler: d.Scheduler, translator: d.Translator})
 	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg})
-	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteAccess: playbackRemoteAccess}
+	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteAccess: playbackRemoteAccess, hours: d.ProfileHours}
 	eveyv1.RegisterPlaybackServiceServer(s.server, s.playback)
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv, libQuery: d.LibQuery, userAccess: d.UserAccess})

@@ -160,6 +160,9 @@ type authDeps struct {
 	// enforced within the cache TTL instead of the token expiry.
 	userTokenGen domainuser.TokenGenerator
 	hasher       auth.BcryptHasher
+	// profileHours closes kids profiles outside their opening hours, on every
+	// HTTP route and gRPC call.
+	profileHours *appuser.ProfileSchedules
 }
 
 // repoDeps groups repository interfaces used directly by HTTP/gRPC layers.

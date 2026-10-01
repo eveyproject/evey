@@ -4,6 +4,7 @@ import type { SubtitleStream } from "./SubtitleSelector";
 import type { Chapter } from "@/hooks/useChapters";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 import type { EpisodeNavItem, SeasonNavItem } from "./PlayerEpisodesPanel";
+import type { QualityLevel } from "@evey/api";
 import { useMediaSession } from "./hooks/useMediaSession";
 import { useVolumeBoost } from "./hooks/useVolumeBoost";
 import { getVolumeBoost, setVolumeBoost } from "@/hooks/usePlaybackPrefs";
@@ -52,7 +53,7 @@ export interface PlayerState {
   playbackSpeed: number;
   autoQuality: boolean;
   autoQualityLabel?: string;
-  availableQualities?: number[];
+  availableQualities?: readonly QualityLevel[];
 
   chapters: Chapter[];
   mediaId?: string;
@@ -126,7 +127,7 @@ export interface PlayerProviderProps {
   playbackSpeed?: number;
   autoQuality?: boolean;
   autoQualityLabel?: string;
-  availableQualities?: number[];
+  availableQualities?: readonly QualityLevel[];
   chapters?: Chapter[];
   mediaId?: string;
   mediaType?: string;

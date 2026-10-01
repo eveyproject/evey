@@ -168,6 +168,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		UserSvc:                deps.user.userSvc,
 		UserAccess:             deps.user.accessSvc,
 		UserQuery:              deps.user.querySvc,
+		ProfileHours:           deps.auth.profileHours,
 		PlaybackCmd:            deps.media.playbackSvc.CommandService(),
 		PlaybackQuery:          deps.media.playbackSvc.QueryService(),
 		Transcoding:            deps.media.transcodingSvc,
@@ -236,6 +237,9 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		grpcDeps.PushRegisterRL = ratelimit.New(10)
 	}
 
+	// Right after auth: a kids profile outside its opening hours reaches
+	// nothing but the calls it needs to switch profile or sign out.
+	profileHoursInterceptor := interceptors.NewProfileHoursInterceptor(deps.auth.profileHours, deps.translator)
 	unary := []grpc.UnaryServerInterceptor{
 		// Request id FIRST: recovery/sanitizer/ratelimit log too, and
 		// before this they did so without a request_id (the id was only
@@ -249,6 +253,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		interceptors.LoggingUnary(grpcLog),
 		pluginTokenInterceptor.Unary(),
 		authInterceptor.Unary(),
+		profileHoursInterceptor.Unary(),
 	}
 	stream := []grpc.StreamServerInterceptor{
 		interceptors.RequestIDStream(),
@@ -260,6 +265,7 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		interceptors.LoggingStream(grpcLog),
 		pluginTokenInterceptor.Stream(),
 		authInterceptor.Stream(),
+		profileHoursInterceptor.Stream(),
 	}
 	if cfg.Server.Demo {
 		// Last, so an anonymous caller is still told Unauthenticated first.

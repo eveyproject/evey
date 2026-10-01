@@ -10,9 +10,12 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	// The runtime image ships no zoneinfo guarantee; kids opening hours read
+	// "18:00 in Europe/Paris", so the zone database is embedded.
 	"sync/atomic"
 	"syscall"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"

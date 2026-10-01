@@ -772,7 +772,13 @@ serverConfig:
   serverLanguage: "Serversprache"
   serverRegion: "Serverregion"
   metadataLanguage: Metadatensprache
+  timezone: "Zeitzone des Servers"
+  timezoneHint: "Die Nutzungszeiten der Kinderprofile gelten in dieser Zeitzone, unabhängig von der Uhr des Geräts."
+  timezoneNow: "Serverzeit: {{time}}"
+  timezoneUpdated: "Zeitzone aktualisiert"
+  timezoneInvalid: "Unbekannte Zeitzone"
   envDefault: "- Umgebungsstandard -"
+  defaultValue: "Standard: {{value}}"
   languageUpdated: "Sprache aktualisiert - Server neu starten, um auf Metadaten anzuwenden"
   configUpdated: Konfiguration aktualisiert
   failedUpdate: Konfiguration konnte nicht aktualisiert werden

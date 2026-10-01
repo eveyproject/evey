@@ -15,6 +15,7 @@ import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { EditProfileDialog } from "./EditProfileDialog";
+import { ProfileScheduleSheet } from "./ProfileScheduleSheet";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 
 interface Props {
@@ -36,6 +37,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
   const serverUrl = useServerUrl();
   const [editing, setEditing] = useState<V1Profile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<V1Profile | null>(null);
+  const [scheduling, setScheduling] = useState<V1Profile | null>(null);
 
   const hasKids = profiles.some((p) => p.isKids === true);
 
@@ -127,6 +129,17 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
                 </Pressable>
               )}
 
+              {p.isKids && (
+                <Pressable
+                  onPress={() => setScheduling(p)}
+                  style={s.iconBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel={t("auth.profile.schedule.title", "Opening hours")}
+                >
+                  <Ionicons name="time-outline" size={ICON_SIZE.lg} color={theme.colors.textMuted} />
+                </Pressable>
+              )}
+
               <Pressable
                 onPress={() => setEditing(p)}
                 style={s.iconBtn}
@@ -158,6 +171,10 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
           userId={userId}
           onClose={() => setEditing(null)}
         />
+      )}
+
+      {scheduling?.id && (
+        <ProfileScheduleSheet profileId={scheduling.id} profileName={scheduling.name ?? ""} onClose={() => setScheduling(null)} />
       )}
 
       <Modal

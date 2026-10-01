@@ -136,3 +136,10 @@ plugin:
 
 demo:
   locked: "Not available on the demo server"
+
+profile:
+  closed: "This profile is locked outside its opening hours."
+  schedule_invalid: "These opening hours are not valid."
+  schedule_kids_only: "Opening hours apply to kids profiles only."
+  wrong_parent_pin: "Wrong parent PIN."
+  no_parent_pin: "No parent PIN is set on this account: set one on an adult profile first."

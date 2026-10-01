@@ -1,4 +1,4 @@
-import { formatChannelLayout, type V1MediaStream } from "@evey/api";
+import { formatChannelLayout, resolutionTier, type V1MediaStream } from "@evey/api";
 
 // The factual labels of a title's streams (resolution, HDR flavour, channels),
 // read straight off the probe - no prediction of what playback will cost.
@@ -34,18 +34,9 @@ export function isHdrStream(stream?: V1MediaStream): boolean {
   return hdrLabel(stream) !== null;
 }
 
-// The standard tier a frame belongs to (2160, 1440, 1080, 720), or 0 below
-// 720p. The width counts as much as the height: a scope film cropped to
-// 1920x818 is a 1080p file, and a label read off its height said "818p" on
-// one screen and "720p" on another. Slack on the width absorbs encodes that
-// shave a few columns (1916x798).
-export function resolutionTier(width?: number, height?: number): number {
-  const w = width ?? 0;
-  const h = height ?? 0;
-  const byHeight = h >= 2160 ? 2160 : h >= 1440 ? 1440 : h >= 1080 ? 1080 : h >= 720 ? 720 : 0;
-  const byWidth = w >= 3800 ? 2160 : w >= 2500 ? 1440 : w >= 1880 ? 1080 : w >= 1240 ? 720 : 0;
-  return Math.max(byHeight, byWidth);
-}
+// The tier rule lives next to the player's rung labels (@evey/api) so the
+// title page and the quality menu name a frame the same way.
+export { resolutionTier };
 
 // The ONE resolution label every surface prints: "4K", "1440p", "1080p",
 // "720p", and below that the height ("576p").

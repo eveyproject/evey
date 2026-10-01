@@ -33,6 +33,8 @@ import * as roomCode from "./roomCode";
 import * as rateLimitMessage from "./rateLimitMessage";
 import * as remoteAccessError from "./remoteAccessError";
 import * as longRunning from "./longRunning";
+import * as profileSchedule from "./profileSchedule";
+import * as configDefaults from "./configDefaults";
 
 // Static guard: a test that mocks @evey/api wholesale must not hide the shared
 // helpers the file under test imports from it.
@@ -95,6 +97,8 @@ const SHARED_MODULES = {
   rateLimitMessage,
   remoteAccessError,
   longRunning,
+  profileSchedule,
+  configDefaults,
 };
 
 const SHARED_NAMES = new Set(Object.values(SHARED_MODULES).flatMap((m) => Object.keys(m)));

@@ -235,6 +235,8 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		ProfileRepo:       deps.repos.profileRepo,
 		UserRepo:          deps.repos.userRepo,
 		Hasher:            deps.auth.hasher,
+		ProfileHours:      deps.auth.profileHours,
+		ServerCfgSvc:      deps.serverCfgSvc,
 
 		PluginRepo:                 deps.repos.pluginRepo,
 		PluginSvc:                  deps.engagement.pluginInstallerSvc,

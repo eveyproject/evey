@@ -21,6 +21,11 @@ interface ParentalPINModalProps {
   // The client cannot know which profile actually holds the PIN, so the
   // same digits are tried against both - mirrors web/mobile PinPromptDialog.
   fallbackProfileId?: string;
+  /** Overrides for another use of the keypad (the kids opening-hours lock). */
+  title?: string;
+  description?: string;
+  /** Checks the PIN itself: resolves to an error to show, or null on success. */
+  submitPin?: (pin: string) => Promise<string | null>;
 }
 
 // Exported for unit testing: a failed check against the primary profile is
@@ -41,7 +46,7 @@ const KEYPAD_ROWS: (string | null)[][] = [
   [null, "0", "del"],
 ];
 
-export function ParentalPINModal({ visible, onClose, onVerified, profileId, fallbackProfileId }: ParentalPINModalProps) {
+export function ParentalPINModal({ visible, onClose, onVerified, profileId, fallbackProfileId, title, description, submitPin }: ParentalPINModalProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   const [pin, setPin] = useState("");
@@ -74,6 +79,16 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId, fall
     if (candidate.length < PIN_LENGTH || loading) return;
     setLoading(true);
     setError(null);
+    if (submitPin) {
+      const err = await submitPin(candidate);
+      setLoading(false);
+      if (err === null) onVerified();
+      else {
+        setError(err);
+        setPin("");
+      }
+      return;
+    }
     try {
       // The order and the network rule live in @evey/client: the profile
       // being left is asked first, and a dead network is not a wrong PIN.
@@ -118,10 +133,10 @@ export function ParentalPINModal({ visible, onClose, onVerified, profileId, fall
       <View style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}>
         <View style={[styles.dialog, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.lg }]}>
           <Text style={[styles.title, { color: theme.colors.text }]}>
-            {t("common.parental.restrictedContent", "Restricted Content")}
+            {title ?? t("common.parental.restrictedContent", "Restricted Content")}
           </Text>
           <Text style={[styles.desc, { color: theme.colors.textMuted }]}>
-            {t("common.parental.pinRequired", "Enter your parental PIN to continue")}
+            {description ?? t("common.parental.pinRequired", "Enter your parental PIN to continue")}
           </Text>
 
           <View
