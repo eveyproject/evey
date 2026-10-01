@@ -43,6 +43,9 @@ var ErrOIDCAccountExists = errors.New("an account already uses this e-mail")
 
 const oidcStateTTL = 10 * time.Minute
 
+// OIDCStateTTL is how long a login may take; the login cookie lives as long.
+const OIDCStateTTL = oidcStateTTL
+
 // oidcHTTPTimeout bounds every outbound call to the IdP (discovery, token
 // exchange, JWKS fetch). Without it those calls ride http.DefaultClient
 // (Timeout=0, no ResponseHeaderTimeout) and a hung issuer stalls login-callback
@@ -385,48 +388,85 @@ func endSessionOf(p *gooidc.Provider) string {
 	return claims.EndSessionEndpoint
 }
 
-// AuthURL returns the authorization URL. state is a random nonce from the caller.
-// The state encodes a unix timestamp for TTL enforcement: "ts|nonce.sig"
-func (s *OIDCService) AuthURL(ctx context.Context, state string) (string, error) {
+// ErrStateUnbound: the callback's state was not issued to this browser (its
+// PKCE verifier cookie is missing or belongs to another login).
+var ErrStateUnbound = errors.New("OIDC state not bound to this browser")
+
+// pkceChallenge is the S256 code_challenge of a PKCE verifier.
+func pkceChallenge(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
+
+// AuthURL returns the authorization URL for a login whose PKCE verifier the
+// caller keeps on the browser (never in the URL). The signed state is
+// "ts|nonce|challenge.sig": TTL, the caller's nonce and the browser binding.
+func (s *OIDCService) AuthURL(ctx context.Context, nonce, verifier string) (string, error) {
+	if verifier == "" || strings.Contains(nonce, "|") {
+		return "", errors.New("oidc: auth url needs a verifier and a nonce without '|'")
+	}
 	c, err := s.client(ctx)
 	if err != nil {
 		return "", err
 	}
 	ts := strconv.FormatInt(time.Now().Unix(), 10)
-	payload := ts + "|" + state
+	payload := ts + "|" + nonce + "|" + pkceChallenge(verifier)
 	sig := s.signState(payload)
-	// Also send `state` as the OpenID Connect nonce. The IdP must echo it in the
-	// id_token's nonce claim, which HandleCallback verifies - defence-in-depth on
-	// top of the signed/TTL'd state that binds the id_token to this exact login
-	// and blocks id_token replay/injection.
-	return c.oauth2Cfg.AuthCodeURL(payload+"."+sig, oauth2.SetAuthURLParam("nonce", state)), nil
+	// `nonce` also goes out as the OpenID Connect nonce, checked in the id_token
+	// by HandleCallback. A provider without PKCE ignores the challenge.
+	return c.oauth2Cfg.AuthCodeURL(payload+"."+sig,
+		oauth2.SetAuthURLParam("nonce", nonce), oauth2.S256ChallengeOption(verifier)), nil
 }
 
-// ValidateState checks the signed state from the callback.
-// Expected format: "ts|nonce.sig". Rejects states older than oidcStateTTL.
+// ValidateState checks signature and TTL and returns the nonce. It does NOT
+// prove the callback comes from the browser that logged in: only use it to
+// route an error; a sign-in goes through ValidateBoundState.
 func (s *OIDCService) ValidateState(rawState string) (string, error) {
+	nonce, _, err := s.parseState(rawState)
+	return nonce, err
+}
+
+// ValidateBoundState is ValidateState plus the browser binding: verifier (from
+// the login cookie) must hash to the challenge signed into the state.
+func (s *OIDCService) ValidateBoundState(rawState, verifier string) (string, error) {
+	nonce, challenge, err := s.parseState(rawState)
+	if err != nil {
+		return "", err
+	}
+	if verifier == "" || challenge == "" || !hmac.Equal([]byte(pkceChallenge(verifier)), []byte(challenge)) {
+		return nonce, ErrStateUnbound
+	}
+	return nonce, nil
+}
+
+// parseState accepts "ts|nonce[|challenge].sig", rejecting states older than
+// oidcStateTTL.
+func (s *OIDCService) parseState(rawState string) (nonce, challenge string, err error) {
 	parts := strings.SplitN(rawState, ".", 2)
 	if len(parts) != 2 {
-		return "", errors.New("invalid state")
+		return "", "", errors.New("invalid state")
 	}
 	payload, sig := parts[0], parts[1]
 	expected := s.signState(payload)
 	if !hmac.Equal([]byte(sig), []byte(expected)) {
-		return "", errors.New("state signature mismatch")
+		return "", "", errors.New("state signature mismatch")
 	}
 
-	tsParts := strings.SplitN(payload, "|", 2)
-	if len(tsParts) != 2 {
-		return "", errors.New("invalid state")
+	tsParts := strings.SplitN(payload, "|", 3)
+	if len(tsParts) < 2 {
+		return "", "", errors.New("invalid state")
 	}
 	tsUnix, err := strconv.ParseInt(tsParts[0], 10, 64)
 	if err != nil {
-		return "", errors.New("invalid state")
+		return "", "", errors.New("invalid state")
 	}
 	if time.Since(time.Unix(tsUnix, 0)) > oidcStateTTL {
-		return "", ErrStateExpired
+		return "", "", ErrStateExpired
 	}
-	return tsParts[1], nil
+	if len(tsParts) == 3 {
+		challenge = tsParts[2]
+	}
+	return tsParts[1], challenge, nil
 }
 
 func (s *OIDCService) signState(nonce string) string {
@@ -444,11 +484,15 @@ type oidcIdentity struct {
 	Name              string `json:"name"`
 }
 
-// HandleCallback exchanges the code, verifies the ID token, finds/creates the user,
-// and returns Evey access + refresh tokens plus the raw OIDC id_token for RP-Initiated Logout.
-func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce string) (accessToken, refreshToken, rawOIDCIDToken string, err error) {
+// HandleCallback exchanges the code with the login's PKCE verifier, verifies
+// the ID token, finds/creates the user, and returns Evey access + refresh
+// tokens plus the raw OIDC id_token for RP-Initiated Logout.
+func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce, verifier string) (accessToken, refreshToken, rawOIDCIDToken string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.HandleCallback")
 	defer span.End()
+	if verifier == "" {
+		return "", "", "", errors.New("oidc callback: missing PKCE verifier")
+	}
 	c, err := s.client(ctx)
 	if err != nil {
 		return "", "", "", err
@@ -462,7 +506,7 @@ func (s *OIDCService) HandleCallback(ctx context.Context, code, expectedNonce st
 		ctx = gooidc.ClientContext(ctx, s.httpClient)                 // JWKS (verifier.Verify)
 		ctx = context.WithValue(ctx, oauth2.HTTPClient, s.httpClient) // token exchange
 	}
-	oauth2Token, err := c.oauth2Cfg.Exchange(ctx, code)
+	oauth2Token, err := c.oauth2Cfg.Exchange(ctx, code, oauth2.VerifierOption(verifier))
 	if err != nil {
 		return "", "", "", fmt.Errorf("token exchange: %w", err)
 	}

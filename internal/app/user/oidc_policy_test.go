@@ -355,7 +355,7 @@ func TestOIDCService_ProviderDownNeverBlocksAndRecovers(t *testing.T) {
 	if _, st := svc.Status(ctx, false); st.State != "error" || st.Error == "" {
 		t.Fatalf("status = %+v, want error with a reason", st)
 	}
-	if _, err := svc.AuthURL(ctx, "n"); !errors.Is(err, ErrOIDCUnavailable) {
+	if _, err := svc.AuthURL(ctx, "n", "v"); !errors.Is(err, ErrOIDCUnavailable) {
 		t.Fatalf("AuthURL err = %v, want ErrOIDCUnavailable", err)
 	}
 	if n := hits.Load(); n != 1 {
