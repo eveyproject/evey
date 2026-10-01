@@ -1,5 +1,5 @@
 ---
-source_sha: 17e801d5dcfd1734785fe9a87bd5e83debfda31960d03d20b4c3c1e4b9c66b8c
+source_sha: 0f3c964e32d232266d53c9ebfe192d6a3f21996e2437d7ec2cc38945c049774c
 reviewed: false
 ---
 # Benachrichtigungen
@@ -18,8 +18,10 @@ gestellt hat, hört zurück, sobald sie beantwortet ist.
   unter **Einstellungen → Benachrichtigungen** ein, einmal pro Browser. Der
   Server erzeugt seine Push-Schlüssel beim ersten Start; siehe
   [E-Mail und Benachrichtigungen](environment/notifications.md#browser-push),
-  um eigene mitzubringen. Die Android- und TV-Apps erhalten keine
-  Push-Benachrichtigungen.
+  um eigene mitzubringen. Browser erlauben Push nur unter einer HTTPS-Adresse
+  (oder `localhost`); anderswo zeigt die Einstellung **Push-Benachrichtigungen
+  sind auf diesem Server nicht konfiguriert.** Die Android- und TV-Apps erhalten
+  keine Push-Benachrichtigungen.
 - **E-Mail**: Sobald SMTP eingerichtet ist, geht jede Benachrichtigung auch an
   die Adresse des Kontos. Es gibt keine Abmeldung pro Benutzer, und ein Konto
   mit mehreren Profilen erhält eine E-Mail pro Profil.

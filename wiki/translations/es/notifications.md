@@ -1,5 +1,5 @@
 ---
-source_sha: 17e801d5dcfd1734785fe9a87bd5e83debfda31960d03d20b4c3c1e4b9c66b8c
+source_sha: 0f3c964e32d232266d53c9ebfe192d6a3f21996e2437d7ec2cc38945c049774c
 reviewed: false
 ---
 # Notificaciones
@@ -19,8 +19,10 @@ contenido, y quien hizo una solicitud recibe aviso cuando se responde.
   en **Ajustes → Notificaciones**, una vez por navegador. El servidor crea sus
   claves de push en el primer arranque; consulta
   [Correo y notificaciones](environment/notifications.md#browser-push) para
-  usar las tuyas. Las aplicaciones de Android y TV no reciben notificaciones
-  push.
+  usar las tuyas. Los navegadores solo permiten push en una dirección HTTPS (o
+  `localhost`); en otro caso el ajuste muestra **Las notificaciones push no
+  están configuradas en este servidor.** Las aplicaciones de Android y TV no
+  reciben notificaciones push.
 - **Correo**: una vez configurado el SMTP, cada notificación se envía también a
   la dirección de la cuenta. No hay baja por usuario, y una cuenta con varios
   perfiles recibe un correo por perfil.
