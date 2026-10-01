@@ -68,7 +68,7 @@ Evey 是一个自托管的媒体服务器。后端是 Go（六边形 / DDD），
 
 `internal/domain` 下没有任何包导入另一个上下文的领域包，这条规则由 `internal/contractguard/domain_imports_test.go` 强制执行（见[架构守卫](#architecture-guards)）。应用层不受此约束：目前有 15 个应用包导入了相邻上下文的领域包。
 
-## 典型数据流："用户播放一个媒体"
+## 典型数据流：“用户播放一个媒体”
 
 1. 移动端或网页客户端调用 `POST /api/v1/playback/start`（grpc-gateway 路由）。
 2. `internal/adapters/driving/http` 运行它的认证中间件（`auth_middleware.go`，`httpAuthMiddleware`），提取会话。
@@ -99,7 +99,7 @@ Evey 是一个自托管的媒体服务器。后端是 Go（六边形 / DDD），
 - `TestEveryAllowedSlotIsMountedOnWebAndMobile` 和 `TestPluginBridgeParityWebMobile`：各客户端之间插件界面插槽的一致性。
 - `TestImageSubtitleCodecsAgreeAcrossServerAndClients`：服务器和播放器使用同一份图像字幕编码列表。
 - `TestHandWrittenClientTypesMatchTheEndpointTheyCall`：手写的移动端/电视响应类型与它们调用的端点相符。
-- `TestRestartExitCodeAgreesWithTheEntrypoint`：Go 的退出码与 `docker/entrypoint.sh` 对"重启"的含义一致。
+- `TestRestartExitCodeAgreesWithTheEntrypoint`：Go 的退出码与 `docker/entrypoint.sh` 对“重启”的含义一致。
 - i18n 守卫：服务器发出的键存在于目录中，占位符在各语言之间一致。
 
 ## 延伸阅读
@@ -341,4 +341,4 @@ flowchart LR
     trick --> ffstore[(evey-cache<br/>trickplay sprites)]
 ```
 
-请结合上面的"典型数据流"一节阅读：播放路径是对称的读取路径；扫描流水线是写入路径，为读取路径所依赖的媒体索引准备数据。
+请结合上面的“典型数据流”一节阅读：播放路径是对称的读取路径；扫描流水线是写入路径，为读取路径所依赖的媒体索引准备数据。

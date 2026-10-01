@@ -20,10 +20,10 @@ reviewed: false
 | 变量 | 默认值 | 作用 |
 | --- | --- | --- |
 | `EVEY_OIDC_ENABLED` | `false` | 开启单点登录。修改后需重启。 |
-| `EVEY_OIDC_ISSUER` | 空 | 提供商的 issuer URL，例如 `https://auth.example.com/realms/main`。 |
-| `EVEY_OIDC_CLIENT_ID` | 空 | 在提供商处为 Evey 注册的客户端。 |
+| `EVEY_OIDC_ISSUER` | 空 | 提供方的 issuer URL，例如 `https://auth.example.com/realms/main`。 |
+| `EVEY_OIDC_CLIENT_ID` | 空 | 在提供方处为 Evey 注册的客户端。 |
 | `EVEY_OIDC_CLIENT_SECRET` | 空 | 它的密钥。 |
-| `EVEY_OIDC_REDIRECT_URL` | 空 | 发送给提供商的回调地址：`https://<你的地址>/api/v1/auth/oidc/callback`。为空：不发送，提供商使用为该客户端注册的地址。 |
+| `EVEY_OIDC_REDIRECT_URL` | 空 | 发送给提供方的回调地址：`https://<你的地址>/api/v1/auth/oidc/callback`。为空：不发送，提供方使用为该客户端注册的地址。 |
 | `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | 空（全部） | 允许在首次登录时创建账户的电子邮件域名，逗号分隔。提供方必须已验证该地址。 |
 
-设置提供商：[单点登录 (OIDC)](../oidc.md)。
+设置提供方：[单点登录（OIDC）](../oidc.md)。

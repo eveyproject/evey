@@ -190,13 +190,13 @@ evey.theme.log("info", "Aurora theme loaded.");
 
 | 模式 | 捕获的内容 |
 |---|---|
-| `\b(fetch\|eval\|atob\|btoa\|Function\|setTimeout\|setInterval)\s*\(` | 直接调用被禁止的全局对象 |
+| `\b(fetch\|eval\|atob\|btoa\|Function\|setTimeout\|setInterval)\s*\(` | 直接调用被禁止的全局函数 |
 | `\bimport\s*\(` | 动态导入 |
 | `(?:window\|self\|globalThis\|top\|parent\|document\|navigator\|location)\s*\[` | 对宿主全局对象的方括号访问（可捕获 `window["fetch"]`） |
 | `\.cookie\b` | 任何 `.cookie` 访问，无论通过属性描述符还是计算属性 |
 | `\.constructor\s*\.\s*constructor` | `[].constructor.constructor` 逃逸 |
 | `new\s+Function\b` | 用 `new Function(...)` 构造代码 |
-| `(?:window\|self\|top\|parent\|globalThis)\s*\.\s*(?:Function\|eval\|fetch\|atob\|btoa\|XMLHttpRequest\|WebSocket\|EventSource)\b` | 读取被禁止的全局对象的属性 |
+| `(?:window\|self\|top\|parent\|globalThis)\s*\.\s*(?:Function\|eval\|fetch\|atob\|btoa\|XMLHttpRequest\|WebSocket\|EventSource)\b` | 通过属性读取被禁止的全局对象 |
 | `(?:window\|top\|parent\|document\|location\|globalThis\|self)\s*\.\s*[A-Za-z_$][\w$]*\s*=[^=]` | 给宿主全局对象的属性赋值 |
 | `Object\s*\.\s*prototype` | 原型污染 |
 | `\.register\s*\(\s*['"]\S+\.js` | 注册 service worker |
