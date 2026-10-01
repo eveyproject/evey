@@ -22,7 +22,7 @@ reviewed: false
 | `EVEY_OIDC_ENABLED` | `false` | सिंगल साइन-ऑन चालू करता है। बदलने के बाद रीस्टार्ट करें। |
 | `EVEY_OIDC_ISSUER` | ख़ाली | प्रदाता का issuer URL, उदाहरण के लिए `https://auth.example.com/realms/main`। |
 | `EVEY_OIDC_CLIENT_ID` | ख़ाली | प्रदाता पर Evey के लिए पंजीकृत क्लाइंट। |
-| `EVEY_OIDC_CLIENT_SECRET` | ख़ाली | उसका रहस्य। |
+| `EVEY_OIDC_CLIENT_SECRET` | ख़ाली | उस क्लाइंट का सीक्रेट। |
 | `EVEY_OIDC_REDIRECT_URL` | ख़ाली | प्रदाता को भेजा गया कॉलबैक पता: `https://<आपका पता>/api/v1/auth/oidc/callback`। ख़ाली: कुछ नहीं भेजा जाता, और प्रदाता क्लाइंट के लिए पंजीकृत पता इस्तेमाल करता है। |
 | `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | ख़ाली (सभी) | पहले साइन-इन पर खाता बनाने की अनुमति वाले ई-मेल डोमेन, अल्पविराम से अलग। प्रदाता ने पता सत्यापित किया होना चाहिए। |
 
