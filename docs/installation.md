@@ -18,7 +18,7 @@ CPU setting.
 - Docker with Compose v2 (`docker compose`, not the older `docker-compose`).
 - A persistent disk for Evey's data (the compose file below keeps it in
   `./evey-data`, next to the file).
-- An x86-64 host, or ARM64 with a stable release tag: see
+- An x86-64 host, or ARM64 with a release tag: see
   [ARM hosts](operations/advanced-deployments.md#arm-hosts).
 
 Evey serves plain HTTP. To reach it from outside your home over HTTPS, put a

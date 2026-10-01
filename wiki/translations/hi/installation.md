@@ -1,5 +1,5 @@
 ---
-source_sha: 70f1b2800b49143b1d28815dd9f5debd717d59cd95f6f436325fc029a8969897
+source_sha: 1e142f5db633e6ce71b5b8f23cc10423cca89071a75c05bb222572fb579f2645
 reviewed: false
 ---
 # इंस्टॉल करें
@@ -14,7 +14,7 @@ Evey एक कंटेनर के रूप में चलता है।
 
 - Compose v2 के साथ Docker (`docker compose`, पुराना `docker-compose` नहीं)।
 - Evey के डेटा के लिए एक स्थायी डिस्क (नीचे की compose फ़ाइल इसे फ़ाइल के बगल में `./evey-data` में रखती है)।
-- एक x86-64 होस्ट, या स्थिर रिलीज़ टैग के साथ ARM64: देखें [ARM होस्ट](operations/advanced-deployments.md#arm-hosts)।
+- एक x86-64 होस्ट, या रिलीज़ टैग के साथ ARM64: देखें [ARM होस्ट](operations/advanced-deployments.md#arm-hosts)।
 
 Evey बिना एन्क्रिप्शन वाला HTTP देता है। घर के बाहर से HTTPS पर पहुँचने के लिए, बाद में इसके आगे एक रिवर्स प्रॉक्सी लगाएँ: देखें [रिमोट एक्सेस और HTTPS](administration/remote-access.md)।
 

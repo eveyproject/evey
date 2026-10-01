@@ -1,5 +1,5 @@
 ---
-source_sha: 8aff69db523d14863f90a67e1d006815586528d8e04ea12732fa6de3856fee4a
+source_sha: c89d50a53938f9f7a84056f270adf0482f2fbed4e8bd8d475e943e7ea09cc583
 reviewed: false
 ---
 # Despliegues avanzados
@@ -161,9 +161,10 @@ para que el siguiente arranque lo reintente.
 
 ## Equipos ARM
 
-Las versiones estables publican una imagen multiarquitectura (`linux/amd64` y
-`linux/arm64`); Docker elige la correcta. Las etiquetas de versiones previas y de
-ramas son solo amd64: fija una versión estable en un equipo ARM.
+Las imágenes construidas desde una etiqueta de versión (`0.2.0`, incluidas las
+versiones previas como `0.2.0-beta.1`) son multiarquitectura (`linux/amd64` y
+`linux/arm64`); Docker elige la correcta. Las etiquetas de rama como
+`beta-0.0.1` son solo amd64: fija una etiqueta de versión en un equipo ARM.
 
 - **La transcodificación por hardware en ARM** se limita a los SoC Rockchip
   (clase RK3588, RK3576, RK3568) mediante RKMPP. Pasa `/dev/mpp_service`,

@@ -1,5 +1,5 @@
 ---
-source_sha: 70f1b2800b49143b1d28815dd9f5debd717d59cd95f6f436325fc029a8969897
+source_sha: 1e142f5db633e6ce71b5b8f23cc10423cca89071a75c05bb222572fb579f2645
 reviewed: true
 ---
 # Installation
@@ -23,7 +23,7 @@ mémoire ou de CPU.
 - Docker avec Compose v2 (`docker compose`, et non l'ancien `docker-compose`).
 - Un disque persistant pour les données d'Evey (le fichier compose ci-dessous
   les place dans `./evey-data`, à côté du fichier).
-- Une machine x86-64, ou ARM64 avec un tag de version stable : voir
+- Une machine x86-64, ou ARM64 avec un tag de version : voir
   [Machines ARM](operations/advanced-deployments.md#arm-hosts).
 
 Evey sert du HTTP simple. Pour y accéder depuis l'extérieur en HTTPS, vous

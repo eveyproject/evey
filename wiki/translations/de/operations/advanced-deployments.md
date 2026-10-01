@@ -1,5 +1,5 @@
 ---
-source_sha: 8aff69db523d14863f90a67e1d006815586528d8e04ea12732fa6de3856fee4a
+source_sha: c89d50a53938f9f7a84056f270adf0482f2fbed4e8bd8d475e943e7ea09cc583
 reviewed: false
 ---
 # Erweiterte Bereitstellungen
@@ -161,9 +161,10 @@ verwirft den neuen Cluster, damit der nächste Start es erneut versucht.
 
 ## ARM-Hosts
 
-Stabile Versionen veröffentlichen ein Multi-Architektur-Image (`linux/amd64` und
-`linux/arm64`); Docker wählt das passende. Vorabversionen und Branch-Tags gibt
-es nur für amd64: Legen Sie auf einem ARM-Host eine stabile Version fest.
+Images aus einem Release-Tag (`0.2.0`, Vorabversionen wie `0.2.0-beta.1`
+eingeschlossen) sind Multi-Architektur-Images (`linux/amd64` und
+`linux/arm64`); Docker wählt das passende. Branch-Tags wie `beta-0.0.1` gibt es
+nur für amd64: Legen Sie auf einem ARM-Host ein Release-Tag fest.
 
 - **Hardware-Transkodierung auf ARM** ist auf Rockchip-SoCs (Klasse RK3588,
   RK3576, RK3568) über RKMPP beschränkt. Reichen Sie `/dev/mpp_service`,

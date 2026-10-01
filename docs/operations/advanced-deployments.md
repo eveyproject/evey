@@ -155,9 +155,10 @@ that the next start retries.
 
 ## ARM hosts
 
-Stable releases publish a multi-architecture image (`linux/amd64` and
-`linux/arm64`); Docker picks the right one. Pre-release and branch tags are
-amd64 only: pin a stable release on an ARM host.
+Images built from a release tag (`0.2.0`, pre-releases such as `0.2.0-beta.1`
+included) are multi-architecture (`linux/amd64` and `linux/arm64`); Docker
+picks the right one. Branch tags such as `beta-0.0.1` are amd64 only: pin a
+release tag on an ARM host.
 
 - **Hardware transcoding on ARM** is limited to Rockchip SoCs (RK3588, RK3576,
   RK3568 class) through RKMPP. Map `/dev/mpp_service`, `/dev/dri` and, where
