@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   useUserServiceDeleteUser,
   useUserServiceDisableUser,
+  useUserServiceEnableUser,
   useUserServiceImpersonateUser,
   apiErrorMessage,
 } from "@evey/api";
@@ -62,15 +63,18 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
     },
   });
 
-  const disableUser = useUserServiceDisableUser({
+  const toggleMutation = (doneKey: string) => ({
     mutation: {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: USERS_QUERY_KEY });
-        toast.success(user.enabled !== false ? t("admin.users.userDisabled") : t("admin.users.userEnabled"));
+        toast.success(t(doneKey));
       },
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.users.failedUpdateUser"))),
     },
   });
+  // Two routes: /disable always disables, /enable re-enables.
+  const disableUser = useUserServiceDisableUser(toggleMutation("admin.users.userDisabled"));
+  const enableUser = useUserServiceEnableUser(toggleMutation("admin.users.userEnabled"));
 
   return (
     <>
@@ -149,9 +153,11 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
           </Button>
           <Button
             variant="secondary"
-            loading={disableUser.isPending}
+            loading={disableUser.isPending || enableUser.isPending}
             onClick={() =>
-              disableUser.mutate({ id: user.id!, params: { disabled: user.enabled !== false } })
+              user.enabled !== false
+                ? disableUser.mutate({ id: user.id!, params: { disabled: true } })
+                : enableUser.mutate({ id: user.id! })
             }
             {...lock}
           >

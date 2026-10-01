@@ -109,6 +109,7 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.UserService/ImpersonateUser":                          RoleAdmin,
 			"/evey.v1.UserService/DeleteUser":                               RoleAdmin,
 			"/evey.v1.UserService/DisableUser":                              RoleAdmin,
+			"/evey.v1.UserService/EnableUser":                               RoleAdmin,
 			"/evey.v1.UserService/ListUsers":                                RoleAdmin,
 			"/evey.v1.UserService/ListAllProfiles":                          RoleAdmin,
 			"/evey.v1.UserService/SetDefaultProfile":                        RoleAdmin,

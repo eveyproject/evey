@@ -19,6 +19,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceCreateUser: (...args: unknown[]) => mockCreateUser(...args),
   useUserServiceDeleteUser: (...args: unknown[]) => mockDeleteUser(...args),
   useUserServiceDisableUser: (...args: unknown[]) => mockDisableUser(...args),
+  useUserServiceEnableUser: (...args: unknown[]) => mockDisableUser(...args),
   useUserServiceImpersonateUser: () => ({ mutate: vi.fn(), isPending: false }),
   useUserServiceUpdateUser: (...args: unknown[]) => mockUpdateUser(...args),
   useUserServiceListInviteLinks: (...args: unknown[]) => mockListInviteLinks(...args),
