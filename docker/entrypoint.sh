@@ -449,11 +449,12 @@ if [ "$EVEY_EMBEDDED_MEILI" = "true" ]; then
     # with "Permission denied (os error 13)" on the mkdir before it ever
     # reached the healthcheck. Colocating it under MEILI_DATA_DIR is both
     # writable and gets backed up together with the index.
-    /usr/local/bin/meilisearch \
+    # The master key goes through the environment, never argv: any process
+    # can read /proc/<pid>/cmdline, environ is guarded like ptrace.
+    MEILI_MASTER_KEY="$meili_key" /usr/local/bin/meilisearch \
         --db-path "$MEILI_DATA_DIR" \
         --dump-dir "$MEILI_DATA_DIR/dumps" \
         --http-addr "127.0.0.1:7700" \
-        --master-key "$meili_key" \
         --env production \
         --no-analytics &
     MEILI_PID=$!
