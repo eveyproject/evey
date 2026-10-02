@@ -122,6 +122,9 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
   const [height, setHeight] = useState(suggestedHeight ?? 100);
   const [error, setError] = useState(false);
   const [bundleCode, setBundleCode] = useState<string | null>(null);
+  // Read by the message handler: the frame page can say it is ready before the
+  // listener holding the fresh state is registered again.
+  const bundleRef = useRef<string | null>(null);
   const [pluginConfig, setPluginConfig] = useState<Record<string, unknown>>({});
   const { t, i18n } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -173,7 +176,10 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
           throw new Error(`plugin bundle fetch failed: ${res.status}`);
         }
         const code = await res.text();
-        if (!cancelled) setBundleCode(code);
+        if (!cancelled) {
+          bundleRef.current = code;
+          setBundleCode(code);
+        }
       } catch (e) {
         console.warn("plugin bundle fetch failed", e);
         if (!cancelled) setError(true);
@@ -214,9 +220,10 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
 
       // The frame page is ready: hand it the bridge and the bundle, in order.
       if (isFrameShellMessage(e.data)) {
-        if (bundleCode == null || !isValidPluginId(pluginId)) return;
+        const bundle = bundleRef.current;
+        if (bundle == null || !isValidPluginId(pluginId)) return;
         const base = `${window.location.origin}/api/v1/plugins/${pluginId}/assets/`;
-        iframe.contentWindow?.postMessage(frameLoadMessage([BRIDGE_SCRIPT, bundleCode], frameCss(), base), "*");
+        iframe.contentWindow?.postMessage(frameLoadMessage([BRIDGE_SCRIPT, bundle], frameCss(), base), "*");
         return;
       }
 
@@ -261,7 +268,7 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
         }
       }
     },
-    [pluginConfig, i18n.language, onNavigate, rpc, limitedToast, suggestedHeight, surface, bundleCode, pluginId],
+    [pluginConfig, i18n.language, onNavigate, rpc, limitedToast, suggestedHeight, surface, pluginId],
   );
 
   useEffect(() => {
