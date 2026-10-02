@@ -52,14 +52,17 @@ func (r *fakeShareLinkRepo) ListAll(_ context.Context) ([]*shared.ShareLink, err
 	return r.links, nil
 }
 
-func (r *fakeShareLinkRepo) IncrementViewCount(_ context.Context, token string) error {
+func (r *fakeShareLinkRepo) ConsumeView(_ context.Context, token string) (*shared.ShareLink, error) {
 	for _, l := range r.links {
 		if l.Token == token {
+			if l.IsExpired() || l.IsViewLimitReached() {
+				return nil, shared.ErrNotFound
+			}
 			l.ViewCount++
-			return nil
+			return l, nil
 		}
 	}
-	return nil
+	return nil, shared.ErrNotFound
 }
 
 func (r *fakeShareLinkRepo) Delete(_ context.Context, id string) error {
@@ -167,32 +170,27 @@ func TestShareService_Validate_ViewLimit(t *testing.T) {
 	assert.Contains(t, err.Error(), "view limit")
 }
 
-// Simulates two concurrent callers that both pass the pre-increment
-// limit check, both succeed the increment, then the re-check must
-// reject the loser so ViewCount never effectively exceeds MaxViews
-// from the client's perspective.
-func TestShareService_Validate_RaceAfterIncrement_RejectsLoser(t *testing.T) {
+// A refused download spends nothing: the counter stays at the limit instead
+// of creeping past it with every rejected attempt.
+func TestShareService_Validate_RefusalDoesNotSpendView(t *testing.T) {
 	repo := &fakeShareLinkRepo{}
 	svc := media.NewShareService(repo)
 	ctx := context.Background()
 
-	maxViews := 2
+	maxViews := 1
 	link, err := svc.Create(ctx, "media-1", "admin-1", 24*time.Hour, &maxViews)
 	require.NoError(t, err)
 
-	// First two validates succeed (1 of 2, 2 of 2).
 	_, err = svc.Validate(ctx, link.Token)
 	require.NoError(t, err)
-	_, err = svc.Validate(ctx, link.Token)
+	for range 3 {
+		_, err = svc.Validate(ctx, link.Token)
+		require.ErrorIs(t, err, media.ErrShareViewLimit)
+	}
+
+	got, err := repo.GetByToken(ctx, link.Token)
 	require.NoError(t, err)
-
-	// Simulate the race: raw-increment the repo past the limit (as if
-	// a concurrent caller won the increment race). The next Validate
-	// re-checks post-increment and must surface ErrShareViewLimit.
-	require.NoError(t, repo.IncrementViewCount(ctx, link.Token))
-
-	_, err = svc.Validate(ctx, link.Token)
-	require.ErrorIs(t, err, media.ErrShareViewLimit)
+	assert.Equal(t, 1, got.ViewCount)
 }
 
 // Deterministic timestamp via injected clock - proves the share's

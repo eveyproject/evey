@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -126,19 +127,29 @@ func (r *ShareLinkRepo) ListAll(ctx context.Context) ([]*shared.ShareLink, error
 	return links, nil
 }
 
-func (r *ShareLinkRepo) IncrementViewCount(ctx context.Context, token string) error {
-	ctx, span := tracing.StartSpan(ctx, "postgres.share_link.IncrementViewCount")
+func (r *ShareLinkRepo) ConsumeView(ctx context.Context, token string) (*shared.ShareLink, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.share_link.ConsumeView")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE share_links SET view_count = view_count + 1 WHERE token = $1`, token)
+	// The limit lives in the WHERE: concurrent spends serialize on the row
+	// lock and the loser re-evaluates against the winner's count, so the
+	// counter can never pass max_views.
+	row := txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`UPDATE share_links SET view_count = view_count + 1
+		 WHERE token = $1 AND expires_at > NOW()
+		   AND (max_views IS NULL OR view_count < max_views)
+		 RETURNING id, token, media_item_id, created_by, expires_at, max_views, view_count, created_at`, token)
+	link, err := scanShareLink(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, shared.ErrNotFound
+	}
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return fmt.Errorf("increment view count: %w", err)
+		return nil, fmt.Errorf("consume share view: %w", err)
 	}
-	return nil
+	return link, nil
 }
 
 func (r *ShareLinkRepo) Delete(ctx context.Context, id string) error {
