@@ -31,6 +31,9 @@ type musicHandler struct {
 	libLister    MediaArchiveSource           // may be nil; used for path confinement (fail-open)
 	imgConverter ImageConverter               // may be nil; ?w= resize is skipped when unset
 	nowPlaying   *appmusic.NowPlayingRegistry // may be nil; "En cours de lecture" heartbeat
+	// commandWait bounds one long poll of nowPlayingWaitCommand; zero means
+	// nowPlayingCommandWait (tests shorten it).
+	commandWait time.Duration
 	// trackArtDir holds the cover bytes embedded in audio files once they have
 	// been served with ?w=, so the resizer has a source PATH to work from
 	// (album art resizes next to the folder cover; a track's art has no file
@@ -58,7 +61,7 @@ var trackArtIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen domainuser.TokenGenerator, libChecker LibraryAccessChecker, _ libraryPathsGetter, rl *ratelimit.Limiter, libLister MediaArchiveSource, imgConverter ImageConverter, nowPlaying *appmusic.NowPlayingRegistry, opts ...musicRouteOption) {
 	authMw := httpAuthMiddleware(tokenGen)
 	adminMw := httpAdminMiddleware(tokenGen)
-	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister, imgConverter: imgConverter, nowPlaying: nowPlaying, trackArtDir: ""}
+	h := &musicHandler{svc: svc, libChecker: libChecker, libLister: libLister, imgConverter: imgConverter, nowPlaying: nowPlaying, commandWait: nowPlayingCommandWait, trackArtDir: ""}
 	for _, o := range opts {
 		o(h)
 	}
@@ -70,6 +73,7 @@ func registerMusicRoutes(mux *http.ServeMux, svc *appmusic.Service, tokenGen dom
 	mux.HandleFunc("GET /api/v1/music/tracks/{id}/download", streamAuthMw(ratelimit.MiddlewareFunc(rl, h.downloadTrack)))
 	mux.HandleFunc("POST /api/v1/music/tracks/{id}/played", authMw(h.recordPlay))
 	mux.HandleFunc("POST /api/v1/music/nowplaying", authMw(h.nowPlayingHeartbeat))
+	mux.HandleFunc("GET /api/v1/music/nowplaying/{sessionId}/command", authMw(h.nowPlayingWaitCommand))
 	mux.HandleFunc("GET /api/v1/music/albums/download", streamAuthMw(ratelimit.MiddlewareFunc(rl, h.downloadAlbum)))
 	mux.HandleFunc("GET /api/v1/music/album-art/{hash}", authMw(h.serveAlbumArt))
 	mux.HandleFunc("POST /api/v1/admin/music/fetch-missing-art", adminMw(h.fetchMissingArt))
@@ -464,6 +468,37 @@ func (h *musicHandler) nowPlayingHeartbeat(w http.ResponseWriter, r *http.Reques
 	}
 	cmd := h.nowPlaying.Heartbeat(body.SessionID, claims.ProfileID, claims.Username, body.TrackID, body.DeviceName, body.PositionMs, body.IsPaused)
 	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"remoteCommand": cmd})
+}
+
+// nowPlayingCommandWait is how long a player's command poll stays open. Under
+// the 30s session TTL and well under any proxy's idle cutoff; the player
+// re-polls as soon as it returns.
+const nowPlayingCommandWait = 25 * time.Second
+
+// nowPlayingWaitCommand is the player's long poll for an admin remote command:
+// it answers the moment one is queued instead of waiting for the next ~10s
+// heartbeat. 404 = no live session of the caller's under that id (not beaten
+// yet, expired, someone else's): the player backs off and heartbeats first.
+func (h *musicHandler) nowPlayingWaitCommand(w http.ResponseWriter, r *http.Request) {
+	claims := HTTPClaimsFromContext(r.Context())
+	if h.nowPlaying == nil || claims == nil || claims.ProfileID == "" {
+		http.NotFound(w, r)
+		return
+	}
+	wait := h.commandWait
+	if wait <= 0 {
+		wait = nowPlayingCommandWait
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), wait)
+	defer cancel()
+	cmd, ok := h.nowPlaying.WaitCommand(ctx, r.PathValue("sessionId"), claims.ProfileID)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
 	_ = json.NewEncoder(w).Encode(map[string]string{"remoteCommand": cmd})
 }
 

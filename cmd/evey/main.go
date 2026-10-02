@@ -257,6 +257,9 @@ func run() error {
 			ReadHeaderTimeout: 10 * time.Second,
 			IdleTimeout:       120 * time.Second,
 		}
+		// Release the music players' command long polls, or Shutdown waits
+		// out their 25s window.
+		httpSrv.RegisterOnShutdown(deps.media.musicNowPlaying.Close)
 	}
 
 	deps.engagement.notifCmdSvc.Start(ctx)

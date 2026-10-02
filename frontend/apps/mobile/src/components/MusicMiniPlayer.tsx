@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
 import { eveyFetch, formatTime, getFreshAccessToken } from "@evey/api";
 import { toast } from "@evey/store";
+import { pollMusicRemoteCommands } from "@evey/client";
 import { useMusicQueueStore } from "../stores/musicQueue";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
@@ -191,16 +192,30 @@ function MusicMiniPlayerImpl() {
   }, [clear, player]);
 
   // Report this playback to the admin "En cours de lecture" panel every ~10s,
-  // mirroring the web GlobalAudioPlayer, and apply any remoteCommand it
-  // queues back (play/pause/stop). Foreground-only: the audio session
-  // survives backgrounding, but beating from the background would keep
-  // spending battery/data on a session the admin can't meaningfully act on
-  // anymore, so heartbeating stops there and resumes when the app returns.
+  // mirroring the web GlobalAudioPlayer, and again on every play/pause. Remote
+  // commands (play/pause/stop) arrive on a long poll the moment the admin
+  // sends them; the heartbeat still carries one back as a fallback.
+  // Foreground-only: the audio session survives backgrounding, but beating
+  // and polling from the background would keep spending battery/data on a
+  // session the admin can't meaningfully act on anymore, so both stop there
+  // and resume when the app returns.
+  const beatRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     if (!track) return;
     const trackId = track.id;
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let poll: AbortController | null = null;
+
+    function applyCommand(cmd: string) {
+      if (cmd === "pause") {
+        if (isPlayingRef.current) togglePlay();
+      } else if (cmd === "play") {
+        if (!isPlayingRef.current) togglePlay();
+      } else if (cmd === "stop") {
+        onClose();
+      }
+    }
 
     async function beat() {
       try {
@@ -216,28 +231,28 @@ function MusicMiniPlayerImpl() {
           },
         });
         if (cancelled) return;
-        const cmd = data?.remoteCommand;
-        if (!cmd) return;
-        if (cmd === "pause") {
-          if (isPlayingRef.current) togglePlay();
-        } else if (cmd === "play") {
-          if (!isPlayingRef.current) togglePlay();
-        } else if (cmd === "stop") {
-          onClose();
-        }
+        if (data?.remoteCommand) applyCommand(data.remoteCommand);
       } catch { /* best-effort telemetry, never disrupt playback */ }
     }
 
     function start() {
       if (intervalId != null) return;
-      void beat();
+      const ctrl = new AbortController();
+      poll = ctrl;
+      // The poll starts once the first beat has registered the session, so
+      // its first request is not a 404 back-off.
+      void beat().then(() => pollMusicRemoteCommands(nowPlayingSessionId, ctrl.signal, applyCommand));
       intervalId = setInterval(() => void beat(), 10_000);
+      beatRef.current = () => void beat();
     }
     function stop() {
       if (intervalId != null) {
         clearInterval(intervalId);
         intervalId = null;
       }
+      poll?.abort();
+      poll = null;
+      beatRef.current = null;
     }
 
     if (AppState.currentState === "active") start();
@@ -256,6 +271,12 @@ function MusicMiniPlayerImpl() {
     // actions, read here via closure rather than restarting the interval.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track?.id]);
+
+  // A play/pause (local or remote) is reported at once rather than on the next
+  // tick, so the admin card flips within its own refresh.
+  useEffect(() => {
+    beatRef.current?.();
+  }, [status.playing]);
 
   // Carry WHICH source, not just "the music tab": landing on an unfiltered
   // library is not going back to the album you were listening to. The music

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	appmusic "github.com/evey-project/evey/internal/app/music"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
@@ -84,6 +85,70 @@ func TestNowPlayingHeartbeat(t *testing.T) {
 	h.nowPlayingHeartbeat(w, heartbeatReq(`{"sessionId":"s1","stopped":true}`, claims))
 	if w.Code != http.StatusNoContent || len(reg.List()) != 0 {
 		t.Errorf("stop: %d, %d sessions left", w.Code, len(reg.List()))
+	}
+}
+
+func waitCommandReq(sessionID string, claims *domainuser.Claims) *http.Request {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/music/nowplaying/"+sessionID+"/command", nil)
+	r.SetPathValue("sessionId", sessionID)
+	if claims != nil {
+		r = withHTTPClaims(r, claims)
+	}
+	return r
+}
+
+// The command poll answers the moment the admin queues a command, and only to
+// the profile that owns the session.
+func TestNowPlayingWaitCommand(t *testing.T) {
+	reg := appmusic.NewNowPlayingRegistry()
+	h := &musicHandler{nowPlaying: reg, commandWait: 2 * time.Second}
+	owner := &domainuser.Claims{UserID: "u1", Username: "alice", ProfileID: "p1"}
+	reg.Heartbeat("s1", "p1", "alice", "t1", "Kitchen", 0, false)
+
+	for name, claims := range map[string]*domainuser.Claims{
+		"other profile": {UserID: "u2", Username: "bob", ProfileID: "p2"},
+		"no profile":    {UserID: "u1"},
+	} {
+		w := httptest.NewRecorder()
+		h.nowPlayingWaitCommand(w, waitCommandReq("s1", claims))
+		if w.Code != http.StatusNotFound {
+			t.Errorf("%s: %d, want 404", name, w.Code)
+		}
+	}
+	w := httptest.NewRecorder()
+	h.nowPlayingWaitCommand(w, waitCommandReq("unknown", owner))
+	if w.Code != http.StatusNotFound {
+		t.Errorf("unknown session: %d, want 404", w.Code)
+	}
+
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		rec := httptest.NewRecorder()
+		h.nowPlayingWaitCommand(rec, waitCommandReq("s1", owner))
+		done <- rec
+	}()
+	select {
+	case <-done:
+		t.Fatal("the poll answered before any command was queued")
+	case <-time.After(50 * time.Millisecond):
+	}
+	start := time.Now()
+	reg.SetCommand("s1", "pause")
+	rec := <-done
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("command took %v to come back", elapsed)
+	}
+	var resp map[string]string
+	if rec.Code != http.StatusOK || json.Unmarshal(rec.Body.Bytes(), &resp) != nil || resp["remoteCommand"] != "pause" {
+		t.Fatalf("poll: %d %s", rec.Code, rec.Body.String())
+	}
+
+	// Nothing queued: the poll ends empty at its deadline so the player re-polls.
+	h.commandWait = 30 * time.Millisecond
+	w = httptest.NewRecorder()
+	h.nowPlayingWaitCommand(w, waitCommandReq("s1", owner))
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"remoteCommand":""`) {
+		t.Errorf("empty poll: %d %s", w.Code, w.Body.String())
 	}
 }
 

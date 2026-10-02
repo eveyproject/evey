@@ -84,11 +84,14 @@ vi.mock("../stores/musicQueue", () => ({
 }));
 
 // --- @evey/api ----------------------------------------------------------------------------
-// formatTime is real (pure, no network) - only eveyFetch is stubbed.
+// formatTime is real (pure, no network) - only the fetchers are stubbed. The
+// remote-command poll is held open by default, as the server holds it.
 const freshToken = vi.hoisted(() => ({ fn: vi.fn(async () => "renewed") }));
+const commandPoll = vi.hoisted(() => ({ fn: vi.fn((_req: { url: string }) => new Promise<Response>(() => {})) }));
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: vi.fn().mockResolvedValue({}),
+  eveyFetchRaw: commandPoll.fn,
   getFreshAccessToken: freshToken.fn,
 }));
 
@@ -155,5 +158,18 @@ describe("MusicMiniPlayer - queue cleared from outside", () => {
     queueState = { ...queueState, queue: [], currentIndex: -1, isPlaying: false };
     rerender(<MusicMiniPlayer key="cleared" />);
     expect(audioPlayer.pause).toHaveBeenCalled();
+  });
+});
+
+// The admin's pause reaches the phone on the command long poll, not on the
+// next 10s heartbeat.
+describe("MusicMiniPlayer - admin remote command", () => {
+  it("pauses on a command delivered by the poll", async () => {
+    commandPoll.fn.mockImplementationOnce(async (req) => {
+      expect(req.url).toMatch(/^\/api\/v1\/music\/nowplaying\/music-mobile-.+\/command$/);
+      return new Response(JSON.stringify({ remoteCommand: "pause" }), { status: 200 });
+    });
+    render(<MusicMiniPlayer />);
+    await waitFor(() => expect(queueState.togglePlay).toHaveBeenCalledTimes(1));
   });
 });

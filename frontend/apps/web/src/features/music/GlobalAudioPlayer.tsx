@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { eveyFetchRaw, formatTime, getFreshAccessToken } from "@evey/api";
+import { pollMusicRemoteCommands } from "@evey/client";
 import { toast, useAuthStore, useMusicPlayerStore, type MusicTrack, type MusicSource } from "@evey/store";
 import { Music, Play, Pause, SkipBack, SkipForward, X, Volume2, VolumeX, Shuffle, ListMusic } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
@@ -283,15 +284,27 @@ export function GlobalAudioPlayer() {
   }, [externallyPaused, playing?.ID]);
 
   // Report this playback to the admin "En cours de lecture" panel every ~10s
-  // while a track is loaded, and apply any remote command it queues back
-  // (play/pause/stop) - the same channel the video ProgressReporter uses. When
-  // playback stops the client stops beating and the server's TTL evicts the
-  // session, so no explicit teardown call is needed.
+  // while a track is loaded, and again on every play/pause so the admin card
+  // follows within its own refresh. Remote commands (play/pause/stop) arrive
+  // on a long poll the moment the admin sends them; the heartbeat still
+  // carries one back as a fallback. When playback stops the client stops
+  // beating and the server's TTL evicts the session.
   const nowPlayingIdRef = useRef<string | undefined>(playing?.ID);
   nowPlayingIdRef.current = playing?.ID;
   useEffect(() => {
     if (!playing?.ID) return;
-    let cancelled = false;
+    const ctrl = new AbortController();
+    function applyCommand(cmd: string) {
+      const el = audioRef.current;
+      if (cmd === "pause") {
+        el?.pause();
+        setIsPlaying(false);
+      } else if (cmd === "play") {
+        void el?.play().catch(() => { /* autoplay may be blocked */ });
+      } else if (cmd === "stop") {
+        close();
+      }
+    }
     async function beat() {
       const audio = audioRef.current;
       try {
@@ -307,26 +320,24 @@ export function GlobalAudioPlayer() {
             isPaused: audio ? audio.paused : true,
           }),
         });
-        if (cancelled) return;
+        if (ctrl.signal.aborted) return;
         const data = (await res.json().catch(() => null)) as { remoteCommand?: string } | null;
-        const cmd = data?.remoteCommand;
-        if (!cmd) return;
-        const el = audioRef.current;
-        if (cmd === "pause") {
-          el?.pause();
-          setIsPlaying(false);
-        } else if (cmd === "play") {
-          void el?.play().catch(() => { /* autoplay may be blocked */ });
-        } else if (cmd === "stop") {
-          close();
-        }
+        if (data?.remoteCommand) applyCommand(data.remoteCommand);
       } catch { /* best-effort telemetry, never disrupt playback */ }
     }
-    void beat();
+    // The poll starts once the first beat has registered the session, so its
+    // first request is not a 404 back-off.
+    void beat().then(() => pollMusicRemoteCommands(nowPlayingSessionId, ctrl.signal, applyCommand));
     const iv = setInterval(() => void beat(), 10_000);
+    const audio = audioRef.current;
+    const onPlayState = () => void beat();
+    audio?.addEventListener("play", onPlayState);
+    audio?.addEventListener("pause", onPlayState);
     return () => {
-      cancelled = true;
+      ctrl.abort();
       clearInterval(iv);
+      audio?.removeEventListener("play", onPlayState);
+      audio?.removeEventListener("pause", onPlayState);
     };
   }, [playing?.ID, close]);
 
