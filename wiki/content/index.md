@@ -4,13 +4,31 @@ hide:
   - toc
 ---
 
-# Evey documentation
+# Evey
 
-Evey is a self-hosted server for films, series, music and photos. For every
-playback it compares the file, the player and the server, keeps the original
-whenever the player can use it, and re-encodes only what it must. Most
-installations need nothing beyond libraries and users: hardware, capacity and
-playback routes are detected and measured by the server itself.
+Evey is a self-hosted server for films, series, music and photos. It aims to
+behave like an appliance: you give it your media and the people who watch,
+and it works out the rest from the machine it runs on.
+
+[Install Evey](installation.md){ .md-button .md-button--primary }
+[Try the demo](https://demo.eveyproject.org){ .md-button }
+
+## Run your media server, not its infrastructure
+
+A normal installation is one container and one compose file, with no `.env`
+to write. What a media server needs around it comes inside:
+
+- **Database and search engine included.** Postgres and Meilisearch run in the
+  same container, listen only inside it, and get passwords generated on the
+  first start, kept owner-only in the data folder.
+- **File ownership worked out.** When it can, the container adopts the owner of
+  your media folder, so that repairs can write. The server itself never runs as
+  root.
+- **Nothing to size by hand.** The graphics card, the transcoding capacity and
+  the way each device plays are detected and measured, not configured.
+
+Bringing your own database or search cluster stays possible:
+[Advanced deployments](operations/advanced-deployments.md).
 
 <div class="evey-showcase" markdown>
 
@@ -36,70 +54,86 @@ playback routes are detected and measured by the server itself.
 
 </div>
 
+## How it works
+
 <div class="evey-points" markdown>
 
 <div markdown>
 
-**The cheapest route first**
+**Do less work, whenever possible**
 
-The file as it is, then repackaged without an encoder, then only the tracks
-that need it re-encoded. A viewer in Direct Play or Remux costs the server
-little more than a file read, so a modest machine serves many at once.
+The file as it is first; then the same tracks repackaged, without an encoder;
+re-encoding only for the tracks that need it. Repackaging is done inside
+the server when it can, without starting FFmpeg, so a viewer in Direct Play or
+Remux costs little more than a file read.
 [How playback is decided](playback/how-playback-is-decided.md)
 
 </div>
 
 <div markdown>
 
-**A server that measures itself**
+**Know what the machine can actually do**
 
-It times real 4K encodes on the processor and each graphics card, and uses
-a card only for what it proved. No capacity to estimate.
+An accelerator counts only once a real encode on it succeeds. At its first
+quiet moment the server times real 4K encodes on the processor and each card,
+then sends every stream to the cheapest route that proved it can serve it.
+When the capacity is used up, a new transcode is refused with a clear message
+instead of every stream slowing down.
 [Transcoding and server capacity](playback/transcoding.md)
 
 </div>
 
 <div markdown>
 
-**Full means refused, not slower**
+**Third-party code is contained, not trusted**
 
-No more encodes than measured; when full, the player is told the server is
-busy instead of every stream degrading. Background work pauses during playback.
-[Background work and server load](operations/background-work.md)
-
-</div>
-
-<div markdown>
-
-**One plugin, three screens**
-
-The same plugin bundle runs on the web, on Android and on Android TV, and
-knows which screen it landed on.
-[Plugin API reference](plugins/api-reference.md#on-a-television)
+A plugin is analysed before install, gets only the permissions it declares,
+and runs as its own process, with no direct network access and capped memory,
+processes and disk. In Docker on a recent kernel it sees only its own
+directory and dangerous system calls are refused; an older host gets a weaker
+sandbox, and the admin panel says which one is active.
+[Security model and plugin sandbox](SECURITY.md#sandbox-modes)
 
 </div>
 
 <div markdown>
 
-**Plugins are contained, not trusted**
+**Find broken media before playback does**
 
-Code analysed before install, its own directory only, dangerous system calls
-refused, no direct network, a token denied by default.
-[Security model and plugin sandbox](SECURITY.md)
-
-</div>
-
-<div markdown>
-
-**What Stream info says is what runs**
-
-One decision per playback, and Stream info reads it from the plan the encoder
-runs, with the reason the file was not played as it is.
-[How playback is decided](playback/how-playback-is-decided.md#reading-stream-info)
+**Media Health** reads your MKV and WebM files and explains what it finds.
+What it can repair (a missing seek index, an MP4 named `.mkv`, tracks stored
+in blocks) is repaired on request, checked before it replaces the file, with
+the original kept by default and every change journaled. The rest is reported,
+never rewritten behind your back.
+[Media health](runbooks/media-health.md)
 
 </div>
 
 </div>
+
+## See what Evey decided, and why
+
+The dashboard above lists every playback: who, on which device, in **Direct
+Play**, **Remux** or **Transcode**, whether video and audio are copied or
+encoded and by what, the bitrate and the progress. In the player, **Stream
+info** reads the same plan the encoder runs, and says why the file was not
+played as it is.
+
+<figure class="evey-shot evey-shot--narrow" markdown="span">
+  ![Stream info in the web player](images/player-stream-info.webp){ loading=lazy }
+  <figcaption>Stream info for a film in Remux: video and audio copied, and the reason it was not played directly.</figcaption>
+</figure>
+
+[Reading Stream info](playback/how-playback-is-decided.md#reading-stream-info)
+
+## Apps and extensions
+
+A web app served by the server itself, apps for Android and Android TV
+(signed in from a phone or a computer with Quick Connect), and casting to a Chromecast.
+Plugins and themes extend the interface, and the same plugin runs on the web,
+on Android and on the TV.
+[Apps and devices](getting-started/apps.md) ·
+[Plugins](plugins.md)
 
 ## Find your way
 
@@ -142,10 +176,14 @@ Security reports: security@eveyproject.org
 </p>
 
 <!-- sources
-cheapest route: docs/design-principles.md (3) ; docs/playback-serving.md (mkvgo, no process) ; internal/app/transcoding/decision.go - wasmAudioApplies ; internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT)
-measures itself: internal/app/transcoding/calibration_service.go ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md
-full means refused: internal/app/transcoding/admission_shaper.go ; internal/app/transcoding/video_session_limiter.go ; i18n errors max_concurrent_reached
-one plugin, three screens: frontend/packages/client/src/native/PluginWebView.tsx ; frontend/apps/mobile/src/features/plugins/PluginSlot.tsx ; frontend/apps/tv/src/features/plugins/PluginSlot.tsx
-contained plugins: docs/SECURITY.md ; docs/adr/0012-plugin-token-deny-by-default.md ; docs/adr/0014-landlock-plugin-sandbox.md
-one decision: docs/adr/0030-one-plan-one-decision.md ; internal/app/transcoding/route_tonemap_report_test.go
+one container, no .env: docs/installation.md ; docs/adr/0028-install-is-one-compose-file.md
+embedded db/search, loopback, generated secrets: docker/entrypoint.sh - ensure_secret, pg_start 127.0.0.1, meilisearch --http-addr 127.0.0.1:7700
+media owner adopted, never root: docker/entrypoint.sh - PUID/PGID auto-detection, setpriv
+do less work: internal/app/transcoding/decision.go ; docs/playback-serving.md (mkvgo, no process)
+accelerators proved, quiet moment: internal/app/transcoding/calibration_service.go - idleProbes ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md
+full means refused: internal/app/transcoding/service.go - ErrMaxConcurrent ; i18n errors max_concurrent_reached
+contained plugins: docs/SECURITY.md ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; internal/adapters/driven/pluginrunner/runner_resmon.go
+media health: internal/app/maintenance/seek_index.go - Verdict ; internal/app/maintenance/seek_index_reindex.go - DeepVerify ; internal/app/maintenance/repair_journal.go - Reversible
+stream info, one plan: docs/adr/0030-one-plan-one-decision.md ; internal/app/transcoding/route_tonemap_report_test.go
+one plugin, three screens: frontend/packages/client/src/native/PluginWebView.tsx ; frontend/apps/tv/src/features/plugins/PluginSlot.tsx
 -->
