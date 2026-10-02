@@ -4,14 +4,23 @@ import { renderHook } from "@testing-library/react";
 const eveyFetchMock = vi.fn();
 const reportOnce = vi.fn();
 vi.mock("@evey/api", () => ({ eveyFetch: (...args: unknown[]) => eveyFetchMock(...args) }));
-vi.mock("@evey/media-caps", () => ({
-  getAudioProbe: vi.fn(),
-  reportAudioProbeOnce: (...args: unknown[]) => reportOnce(...args),
-}));
+vi.mock("@evey/media-caps", async () => {
+  const guard = await vi.importActual<typeof import("../../../media-caps/src/decoderGuard")>(
+    "../../../media-caps/src/decoderGuard",
+  );
+  return {
+    formatAbnormalExit: guard.formatAbnormalExit,
+    formatDecoderCheck: guard.formatDecoderCheck,
+    getAudioProbe: vi.fn(),
+    reportAudioProbeOnce: (...args: unknown[]) => reportOnce(...args),
+  };
+});
+vi.mock("./deviceCodecs", () => ({ getDecoderCheck: () => Promise.resolve(null) }));
 
-import { useAudioCapsBeacon } from "./useAudioCapsBeacon";
+import { reportDecoderCheckOnce, resetDecoderCheckLatch, useAudioCapsBeacon } from "./useAudioCapsBeacon";
 
 beforeEach(() => {
+  resetDecoderCheckLatch();
   eveyFetchMock.mockReset().mockResolvedValue(undefined);
   reportOnce.mockReset().mockResolvedValue("sent");
 });
@@ -35,5 +44,39 @@ describe("useAudioCapsBeacon", () => {
   it("does nothing without a media id", () => {
     renderHook(() => useAudioCapsBeacon(""));
     expect(reportOnce).not.toHaveBeenCalled();
+  });
+});
+
+// The one trace a crash on a television out of reach leaves: the next launch
+// reports it, once, ahead of the decoder verdict.
+describe("reportDecoderCheckOnce", () => {
+  it("reports a death during decoding, then the check, once per launch", async () => {
+    const post = vi.fn().mockResolvedValue(undefined);
+    const check = Promise.resolve({
+      decoders: [],
+      blockedBy: "suspect:exit:crash_native",
+      bench: { rtf: 0.21, rtfCold: 0.3, rtfMax: 0.25, maxChannels: 2, wallMs: 900, slow: false },
+      abnormalExit: { kind: "playback", reason: "crash_native", status: 6, suspect: true, since: 0, version: "0.1.12" },
+    });
+    await reportDecoderCheckOnce(check, post);
+    await reportDecoderCheckOnce(check, post);
+    expect(post.mock.calls.map((c) => c[0])).toEqual([
+      {
+        type: "ac3go_abnormal_exit",
+        details: "kind=playback reason=crash_native status=6 suspect=true since=1970-01-01T00:00:00.000Z version=0.1.12",
+        fatal: true,
+      },
+      {
+        type: "ac3go_check",
+        details: "declared=none blocked=suspect:exit:crash_native rtf=0.210 cold=0.300 max=0.250 ch=2 wall=900ms",
+        fatal: false,
+      },
+    ]);
+  });
+
+  it("sends nothing on a build without the check", async () => {
+    const post = vi.fn();
+    await reportDecoderCheckOnce(Promise.resolve(null), post);
+    expect(post).not.toHaveBeenCalled();
   });
 });

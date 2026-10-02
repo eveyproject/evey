@@ -39,9 +39,33 @@ class EveyOfflineAudioModule : Module() {
 
     Events("progress")
 
+    OnCreate { appContext.reactContext?.let { Ac3goGuard.init(it) } }
+
     // Codecs the player decodes itself through Ac3goAudioRenderer, declared
-    // to the server whatever the device's own decoders or audio output say.
-    Function("playbackDecoders") { listOf("ac3", "eac3") }
+    // to the server whatever the device's own decoders or audio output say -
+    // unless Ac3goGuard has a reason to doubt ac3go on this device.
+    Function("playbackDecoders") { Ac3goGuard.playbackDecoders() }
+
+    // The launch check: the benchmark (once per process), the verdict, and a
+    // previous run that died while ac3go was decoding.
+    AsyncFunction("checkPlaybackDecoder") {
+      val context = appContext.reactContext ?: throw IllegalStateException("no react context")
+      val bench = Ac3goGuard.benchOnce(context)
+      mapOf(
+        "decoders" to Ac3goGuard.playbackDecoders(),
+        "blockedBy" to (Ac3goGuard.blockedBy() ?: ""),
+        "bench" to bench,
+        "abnormalExit" to Ac3goGuard.abnormalExit(),
+      )
+    }
+
+    // The player's watchdog saw ac3go fall behind: not declared any more.
+    Function("disablePlaybackDecoder") { reason: String -> Ac3goGuard.disable(reason) }
+
+    // The app left the screen: a kill from now on is not ac3go's doing.
+    Function("markPlaybackDecoderIdle") { Ac3goGuard.markStopped() }
+
+    Function("setPlaybackDecoderMedia") { mediaId: String -> Ac3goGuard.setMedia(mediaId) }
 
     // What Ac3goAudioRenderer's decoder has handed the sink in this playback
     // (or the last one), null when ac3go never took a track.

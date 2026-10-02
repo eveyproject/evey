@@ -15,6 +15,7 @@ vi.mock("@evey/media-caps", () => ({
   getAudioProbe: vi.fn().mockResolvedValue(null),
   declarableAudioCodecs: (decoders: string[]) => decoders,
   getPlayerAudioDecoders: async () => [],
+  checkPlaybackDecoder: async () => null,
 }));
 
 describe("getFmp4AudioPassthrough (android)", () => {

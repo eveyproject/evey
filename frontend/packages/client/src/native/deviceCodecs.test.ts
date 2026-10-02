@@ -12,6 +12,8 @@ const caps = vi.hoisted(() => ({
   // the module to the legacy old-bridge fallback below.
   getDisplayHdrTypes: vi.fn<() => Promise<string[] | null>>(),
   getPlayerAudioDecoders: vi.fn<() => Promise<string[]>>(),
+  // The launch check of ac3go; null is a build without it.
+  checkPlaybackDecoder: vi.fn<() => Promise<unknown>>(),
 }));
 
 vi.mock("react-native", () => ({ Platform: rn.Platform, NativeModules: rn.NativeModules }));
@@ -25,6 +27,7 @@ vi.mock("@evey/media-caps", async () => {
     getAudioProbe: caps.getAudioProbe,
     getDisplayHdrTypes: caps.getDisplayHdrTypes,
     getPlayerAudioDecoders: caps.getPlayerAudioDecoders,
+    checkPlaybackDecoder: caps.checkPlaybackDecoder,
   };
 });
 
@@ -45,6 +48,7 @@ beforeEach(() => {
   caps.getAudioProbe.mockReset().mockResolvedValue(null);
   caps.getDisplayHdrTypes.mockReset().mockResolvedValue(null);
   caps.getPlayerAudioDecoders.mockReset().mockResolvedValue([]);
+  caps.checkPlaybackDecoder.mockReset().mockResolvedValue(null);
 });
 
 describe("deviceCodecs", () => {
@@ -74,6 +78,31 @@ describe("deviceCodecs", () => {
     caps.getAudioProbe.mockResolvedValue({ directPlayback: {}, directProfiles: [] });
     caps.getPlayerAudioDecoders.mockResolvedValue(["ac3", "eac3"]);
     expect((await load()).getDeviceAudioCodecs()).toEqual(["aac", "opus", "ac3", "eac3"]);
+  });
+
+  // 2026-10-01, a Chromecast HD: too slow for ac3go, the app stopped mid-episode.
+  // The launch check's verdict wins over the module's plain list.
+  it("does not declare ac3go when the launch check blocks it, and reports the check", async () => {
+    rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "opus"] };
+    caps.getAudioProbe.mockResolvedValue({ directPlayback: {}, directProfiles: [] });
+    caps.getPlayerAudioDecoders.mockResolvedValue(["ac3", "eac3"]);
+    const check = { decoders: [], blockedBy: "bench", bench: { rtf: 0.6, slow: true }, abnormalExit: null };
+    caps.checkPlaybackDecoder.mockResolvedValue(check);
+    const m = await load();
+    expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus"]);
+    expect(m.getPlayerAudioCodecs()).toEqual([]);
+    expect(await m.getDecoderCheck()).toBe(check);
+  });
+
+  it("drops ac3go from the declaration when the player's watchdog gives up on it", async () => {
+    rn.NativeModules.MediaCaps = { getSupportedAudioCodecs: async () => ["aac", "opus"] };
+    caps.getAudioProbe.mockResolvedValue({ directPlayback: {}, directProfiles: [] });
+    caps.checkPlaybackDecoder.mockResolvedValue({ decoders: ["ac3", "eac3"], blockedBy: "", bench: null, abnormalExit: null });
+    const m = await load();
+    expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus", "ac3", "eac3"]);
+    m.dropPlayerAudioCodecs();
+    expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus"]);
+    expect(m.getPlayerAudioCodecs()).toEqual([]);
   });
 
   // The shared probe is the one the TV reads too; the legacy old-bridge module

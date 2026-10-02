@@ -488,9 +488,6 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // audio-offset debounce below so it can snapshot the playhead without
   // re-firing that effect on every timeUpdate tick (currentTime changes ~2x/s).
   const currentTimeRef = useRef(0);
-  // What ac3go handed the speakers, reported: a track decoded to silence is
-  // otherwise invisible (the picture plays, progress ticks).
-  useDecoderTelemetry(mediaId, reportPlayerEvent, () => currentTimeRef.current);
   // Set right before an audio-offset restart to the pre-restart playhead, so
   // the next player instance's setup callback resumes there instead of at the
   // stale server-reported watch progress (see the `player` useVideoPlayer call).
@@ -552,6 +549,18 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // offline (isError), shed, or a stream that never arrives, where silent
   // video beats no playback at all.
   const useLocalSource = !!localFilePath && (localAudioOk || isError || !!shedReason || localFallbackDue);
+
+  // What ac3go handed the speakers, reported: a track decoded to silence is
+  // otherwise invisible (the picture plays, progress ticks). A phone too slow
+  // for ac3go gets the same title, same spot, with the audio transcoded by
+  // the server; a file on disk has no such fallback, it keeps playing.
+  useDecoderTelemetry(mediaId, reportPlayerEvent, () => currentTimeRef.current, {
+    onTooSlow: () => {
+      if (useLocalSource) return;
+      resumeAfterRestartRef.current = player?.playing ?? true;
+      restartWithTracksRef.current?.();
+    },
+  });
 
   const videoSource = useMemo(() => {
     // Downloaded copy on disk takes priority over the network stream - no
