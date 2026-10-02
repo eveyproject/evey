@@ -561,3 +561,37 @@ func TestSetSessionServing_RecordsThePathOnTheActiveSession(t *testing.T) {
 	// No active session for that media: a quiet no-op.
 	require.NoError(t, svc.SetSessionServing(context.Background(), "prof-1", "media-OTHER", p))
 }
+
+// Prod, 2026-10-02: the audio_mode beacon rewrote the whole serving path from
+// a read that carried no engines, so 58 sessions lost video_engine. The beacon
+// owns the AUDIO leg only: whatever the master recorded for the video (engine,
+// backend, decision) must survive every audio flip, on every path shape.
+func TestSetCastAudioPath_KeepsTheVideoLegTheMasterRecorded(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		video playback.ServingPath
+	}{
+		{"mkvgo copy beside ffmpeg audio (hybrid)", playback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "transcode", AudioEngine: "ffmpeg"}},
+		{"mkvgo copy beside client wasm audio", playback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "wasm", AudioEngine: "client"}},
+		{"ffmpeg gpu transcode", playback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: "vaapi", AudioDecision: "transcode", AudioEngine: "ffmpeg"}},
+		{"ffmpeg software transcode beside wasm audio", playback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: "software", AudioDecision: "wasm", AudioEngine: "client"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			svc, sessions := newTouchSvc(t)
+			require.NoError(t, sessions.Create(context.Background(), activeSession("s-1", "prof-1", "media-1", "")))
+			require.NoError(t, svc.SetSessionServing(context.Background(), "prof-1", "media-1", tc.video))
+
+			for _, mode := range []string{"aac", "wasm", "aac-latched", "wasm"} {
+				require.NoError(t, svc.SetCastAudioPath(context.Background(), "prof-1", "media-1", mode))
+				got, err := sessions.GetByID(context.Background(), "s-1")
+				require.NoError(t, err)
+				assert.Equal(t, tc.video.VideoEngine, got.Serving.VideoEngine, "mode %s", mode)
+				assert.Equal(t, tc.video.VideoBackend, got.Serving.VideoBackend, "mode %s", mode)
+				assert.Equal(t, tc.video.VideoDecision, got.VideoDecision, "mode %s", mode)
+			}
+		})
+	}
+}

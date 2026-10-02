@@ -227,6 +227,23 @@ func (r *FakePlaySessionRepository) SetSessionServing(_ context.Context, session
 	return true, nil
 }
 
+func (r *FakePlaySessionRepository) SetSessionAudioPath(_ context.Context, sessionID, decision, engine, audioCodec string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return false, r.Err
+	}
+	s, ok := r.items[sessionID]
+	if !ok || s.EndedAt != nil {
+		return false, nil
+	}
+	s.AudioDecision, s.Serving.AudioDecision, s.Serving.AudioEngine = decision, decision, engine
+	if audioCodec != "" {
+		s.AudioCodec = audioCodec
+	}
+	return true, nil
+}
+
 func (r *FakePlaySessionRepository) SetRemoteCommand(_ context.Context, sessionID, command string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

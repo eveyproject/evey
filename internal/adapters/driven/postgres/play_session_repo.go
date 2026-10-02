@@ -113,6 +113,29 @@ func (r *PlaySessionRepository) SetSessionServing(ctx context.Context, sessionID
 	return n > 0, nil
 }
 
+// SetSessionAudioPath rewrites the audio leg of an ACTIVE session and nothing
+// else: no video column appears in the statement, so no interleaving with a
+// master render can erase what that render recorded. audio_codec follows the
+// same keep-unless-given rule as SetSessionServing.
+func (r *PlaySessionRepository) SetSessionAudioPath(ctx context.Context, sessionID, decision, engine, audioCodec string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.SetSessionAudioPath")
+	defer span.End()
+	span.SetAttributes(attribute.String("session.id", sessionID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE play_sessions SET audio_decision = $2, audio_engine = $3,
+		        audio_codec = COALESCE(NULLIF($4, ''), audio_codec)
+		 WHERE id = $1 AND ended_at IS NULL`,
+		sessionID, decision, engine, audioCodec)
+	if err != nil {
+		span.RecordError(err)
+		return false, fmt.Errorf("PlaySessionRepo.SetSessionAudioPath: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 // AcquireUserStreamLock takes a tx-scoped Postgres advisory lock keyed by
 // hashtext(userID). Serializes the MaxStreams quota check+Create pair so
 // concurrent StartStream calls can't race past the cap. Outside a tx the
@@ -195,11 +218,13 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	var durationMs *int64
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name
+		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name,
+		 video_engine, video_backend, audio_engine
 		 FROM play_sessions WHERE id = $1`, id,
 	).Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
 		&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
-		&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused, &s.CastDeviceName)
+		&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused, &s.CastDeviceName,
+		&s.Serving.VideoEngine, &s.Serving.VideoBackend, &s.Serving.AudioEngine)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -207,6 +232,7 @@ func (r *PlaySessionRepository) GetByID(ctx context.Context, id string) (*playba
 	}
 	s.Duration = scanDurationMs(s.ID, durationMs)
 	s.Position = scanPositionMs(s.ID, positionMs)
+	s.Serving.VideoDecision, s.Serving.AudioDecision = s.VideoDecision, s.AudioDecision
 	return s, nil
 }
 
@@ -286,7 +312,8 @@ func (r *PlaySessionRepository) GetActiveByProfile(ctx context.Context, profileI
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT id, profile_id, media_item_id, device_name, device_type, client_ip, play_method,
-		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name
+		 video_codec, audio_codec, resolution, video_decision, audio_decision, bandwidth_bps, started_at, ended_at, duration_ms, position_ms, is_paused, cast_device_name,
+		 video_engine, video_backend, audio_engine
 		 FROM play_sessions WHERE profile_id = $1 AND ended_at IS NULL
 		 ORDER BY started_at DESC`, profileID)
 	if err != nil {
@@ -428,11 +455,13 @@ func (r *PlaySessionRepository) scanPlaySessionRows(rows *sql.Rows) ([]*playback
 		var durationMs *int64
 		if err := rows.Scan(&s.ID, &s.ProfileID, &s.MediaItemID, &s.DeviceName, &s.DeviceType, &s.ClientIP, &s.PlayMethod,
 			&s.VideoCodec, &s.AudioCodec, &s.Resolution, &s.VideoDecision, &s.AudioDecision, &s.BandwidthBps,
-			&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused, &s.CastDeviceName); err != nil {
+			&s.StartedAt, &s.EndedAt, &durationMs, &positionMs, &s.IsPaused, &s.CastDeviceName,
+			&s.Serving.VideoEngine, &s.Serving.VideoBackend, &s.Serving.AudioEngine); err != nil {
 			return nil, fmt.Errorf("PlaySessionRepo.scanRows: %w", err)
 		}
 		s.Duration = scanDurationMs(s.ID, durationMs)
 		s.Position = scanPositionMs(s.ID, positionMs)
+		s.Serving.VideoDecision, s.Serving.AudioDecision = s.VideoDecision, s.AudioDecision
 		result = append(result, s)
 	}
 	if err := rows.Err(); err != nil {

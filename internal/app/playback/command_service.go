@@ -699,10 +699,9 @@ func (s *CommandService) SetCastAudioPath(ctx context.Context, profileID, mediaI
 	if err != nil || sess == nil {
 		return err
 	}
-	p := sess.Serving
-	p.VideoDecision, p.AudioDecision, p.AudioEngine = sess.VideoDecision, decision, engine
-	p.AudioCodec = relayAudioCodecLabel(sess.AudioCodec, decision)
-	_, err = s.sessions.SetSessionServing(ctx, sess.ID, p)
+	// The audio leg only: the video columns are the master render's, and a
+	// read-modify-write of the whole path let this beacon blank video_engine.
+	_, err = s.sessions.SetSessionAudioPath(ctx, sess.ID, decision, engine, relayAudioCodecLabel(sess.AudioCodec, decision))
 	return err
 }
 
