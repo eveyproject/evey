@@ -64,7 +64,10 @@ type PlaySession struct {
 	// so a finished cast clears it.
 	CastDeviceName string
 	// Serving is what the server actually serves, recorded at master render;
-	// zero until then (direct play, or a session older than the column).
+	// the engines are empty until then (direct play, or a session older than the
+	// column). Every read of a session fills it, because a writer that rewrites
+	// the whole path (SetCastAudioPath) starts from it: a read that dropped the
+	// engines made the next beacon blank video_engine (prod, 2026-10-02).
 	Serving ServingPath
 }
 

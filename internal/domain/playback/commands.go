@@ -47,6 +47,13 @@ type SessionCommandRepo interface {
 	// SetSessionServing records what the server serves (per-track decision,
 	// engine, backend) on an ACTIVE session; same ended_at guard.
 	SetSessionServing(ctx context.Context, sessionID string, p ServingPath) (bool, error)
+	// SetSessionAudioPath rewrites ONLY the audio leg (decision, engine and, when
+	// audioCodec is non-empty, the codec label) of an ACTIVE session, in one
+	// statement. The audio_mode beacon owns that leg alone; going through
+	// SetSessionServing instead meant reading the whole path, swapping the audio
+	// and writing it all back, so a master recorded in between (or a read that
+	// missed a column) blanked video_engine. The video columns are never named.
+	SetSessionAudioPath(ctx context.Context, sessionID, decision, engine, audioCodec string) (bool, error)
 	CloseStale(ctx context.Context, olderThan time.Duration) (int, error)
 	// CloseAllActive ends every session still open, regardless of age. Called
 	// once as the server drains: the process is going away and every encode
