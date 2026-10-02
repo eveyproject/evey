@@ -69,3 +69,32 @@ func TestReindexResyncIntegration(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, has, "the repaired file carries a Cues index")
 }
+
+// A real damaged file (CELLAR test7: an element running past the end of the
+// file mid-stream) repaired the way the admin's Repair button does: the output
+// decodes without a single ffmpeg error, because video resumes at a keyframe
+// instead of keeping the frames whose references the damage took.
+//
+//	EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/mkvgo/ -run TestReindexResyncRealDamage -v
+func TestReindexResyncRealDamageDecodesClean(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not in PATH")
+	}
+	ctx := t.Context()
+	src := suiteFile(t, "test7.mkv")
+	path := filepath.Join(t.TempDir(), "test7.mkv")
+	data, err := os.ReadFile(src)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, data, 0o644))
+
+	res, err := New().ReindexInPlace(ctx, path, mkv.ReindexOptions{Resync: true})
+	require.NoError(t, err)
+	require.NotEmpty(t, res.DamagedRanges, "the damaged span is reported")
+
+	out, err := exec.CommandContext(ctx, "ffmpeg", "-v", "error", "-i", path, "-f", "null", "-").CombinedOutput()
+	require.NoError(t, err)
+	assert.Empty(t, string(out), "the repaired file must decode without an error")
+}
