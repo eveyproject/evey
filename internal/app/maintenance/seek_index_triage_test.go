@@ -29,18 +29,21 @@ func TestSeekStatus_Verdict(t *testing.T) {
 		"damaged, index fine":          {appmaintenance.SeekStatus{HasIndex: true, DamagedBytes: 512}, appmaintenance.VerdictRepairable},
 		"wrong container":              {appmaintenance.SeekStatus{HasIndex: true, WrongContainer: true}, appmaintenance.VerdictRepairable},
 		"truncated wins over no index": {appmaintenance.SeekStatus{HasIndex: false, Truncated: true}, appmaintenance.VerdictInformational},
-		"rebuilt and still coarse":     {appmaintenance.SeekStatus{HasIndex: false, IndexSparse: true, ReindexAttempted: true}, appmaintenance.VerdictInformational},
-		"sparse, never rebuilt":        {appmaintenance.SeekStatus{HasIndex: false, IndexSparse: true}, appmaintenance.VerdictRepairable},
-		"audio short":                  {appmaintenance.SeekStatus{HasIndex: true, AudioShortfallSec: 40}, appmaintenance.VerdictInformational},
-		"trailing junk":                {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true}, appmaintenance.VerdictInformational},
-		"audio delayed":                {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 0.5}, appmaintenance.VerdictInformational},
-		"junk plus audio delay":        {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true, AudioDelaySec: 0.5}, appmaintenance.VerdictInformational},
-		"audio tracks disagree":        {appmaintenance.SeekStatus{HasIndex: true, AudioTracksLagSec: 11.9, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
-		"offset proven coherent":       {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 12, AudioTracksLagSec: 0, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
-		"retime fingerprint":           {appmaintenance.SeekStatus{HasIndex: true, AudioTrackZeroed: true}, appmaintenance.VerdictInformational},
-		"chunked interleave":           {appmaintenance.SeekStatus{HasIndex: true, InterleaveBackstepSec: 366}, appmaintenance.VerdictRepairable},
-		"sound off the picture":        {appmaintenance.SeekStatus{HasIndex: true, AudioPictureChecked: true, AudioPictureLagSec: 0.9}, appmaintenance.VerdictInformational},
-		"sound on the picture":         {appmaintenance.SeekStatus{HasIndex: true, AudioPictureChecked: true, AudioPictureLagSec: -0.04}, appmaintenance.VerdictHealthy},
+		// mkvgo v0.36 reports a cut AND holed file as both (real "9 1 1"
+		// episodes): it stays a re-acquire remark, never a repair offer.
+		"truncated wins over damaged": {appmaintenance.SeekStatus{HasIndex: false, Truncated: true, DamagedBytes: 6_291_456}, appmaintenance.VerdictInformational},
+		"rebuilt and still coarse":    {appmaintenance.SeekStatus{HasIndex: false, IndexSparse: true, ReindexAttempted: true}, appmaintenance.VerdictInformational},
+		"sparse, never rebuilt":       {appmaintenance.SeekStatus{HasIndex: false, IndexSparse: true}, appmaintenance.VerdictRepairable},
+		"audio short":                 {appmaintenance.SeekStatus{HasIndex: true, AudioShortfallSec: 40}, appmaintenance.VerdictInformational},
+		"trailing junk":               {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true}, appmaintenance.VerdictInformational},
+		"audio delayed":               {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 0.5}, appmaintenance.VerdictInformational},
+		"junk plus audio delay":       {appmaintenance.SeekStatus{HasIndex: true, TrailingJunk: true, AudioDelaySec: 0.5}, appmaintenance.VerdictInformational},
+		"audio tracks disagree":       {appmaintenance.SeekStatus{HasIndex: true, AudioTracksLagSec: 11.9, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
+		"offset proven coherent":      {appmaintenance.SeekStatus{HasIndex: true, AudioDelaySec: 12, AudioTracksLagSec: 0, AudioTracksChecked: true}, appmaintenance.VerdictInformational},
+		"retime fingerprint":          {appmaintenance.SeekStatus{HasIndex: true, AudioTrackZeroed: true}, appmaintenance.VerdictInformational},
+		"chunked interleave":          {appmaintenance.SeekStatus{HasIndex: true, InterleaveBackstepSec: 366}, appmaintenance.VerdictRepairable},
+		"sound off the picture":       {appmaintenance.SeekStatus{HasIndex: true, AudioPictureChecked: true, AudioPictureLagSec: 0.9}, appmaintenance.VerdictInformational},
+		"sound on the picture":        {appmaintenance.SeekStatus{HasIndex: true, AudioPictureChecked: true, AudioPictureLagSec: -0.04}, appmaintenance.VerdictHealthy},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

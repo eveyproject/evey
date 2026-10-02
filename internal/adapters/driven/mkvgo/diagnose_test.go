@@ -140,3 +140,23 @@ func TestMapDiagnosis_RelaysTrackEndsAndMissingTail(t *testing.T) {
 		t.Fatalf("junk must not read as a cut: truncated=%v missing=%d", junky.Truncated, junky.MissingTailBytes)
 	}
 }
+
+// Since mkvgo v0.36 a file cut at the end AND holed in the middle (four real
+// "9 1 1" episodes) carries both findings. It is relayed as both - the holes
+// stay measured - and the maintenance routes it as an incomplete download
+// (SeekStatus.Verdict ranks Truncated first), which is what mkvgo advises too.
+func TestMapDiagnosis_TruncatedAndDamaged(t *testing.T) {
+	d := mapDiagnosis(&extmatroska.Diagnosis{
+		Findings: []extmatroska.Finding{
+			{Kind: "no-index", Detail: "no Cues"},
+			{Kind: "truncated", Detail: "the source ends early"},
+			{Kind: "damaged", Detail: "2 damaged range(s)", Remedy: "re-download the source (mkvgo reindex --resync keeps what the file still holds meanwhile)"},
+		},
+		MissingTailBytes: 4096,
+		Damage:           &extmatroska.SalvageReport{TruncatedTail: true, BytesSkipped: 6_291_456},
+	})
+	assert.True(t, d.Truncated)
+	assert.True(t, d.Damaged())
+	assert.EqualValues(t, 4096, d.MissingTailBytes)
+	assert.EqualValues(t, 6_291_456, d.DamagedBytes)
+}

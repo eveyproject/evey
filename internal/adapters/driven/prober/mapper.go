@@ -42,13 +42,12 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			return nil, false // unknown/attachment/button track - let ffprobe classify it
 		}
 
-		// Codec must land in ffprobe vocabulary. mkvgo stores a short name for a
-		// known CodecID, else the raw CodecID (e.g. "V_REAL/..."). FFprobeCodecName
-		// normalizes the known ones (srt->subrip, pgs->hdmv_pgs_subtitle, ...) and
-		// passes unknowns through unchanged; a passed-through raw CodecID still
-		// contains "/", which we treat as unmapped -> fall back.
-		codec := extmkv.FFprobeCodecName(t.Codec)
-		if codec == "" || strings.Contains(codec, "/") {
+		// Codec must land in ffprobe vocabulary. The track resolves what its
+		// CodecID alone cannot (a VfW FourCC, PCM by bit depth, "/" ids such as
+		// A_MPEG/L3) and hands back the raw CodecID when it cannot: never a
+		// guess. A raw id is unmapped -> ffprobe decides (WMV3/WVC1/HEVC in VfW).
+		codec := t.FFprobeCodecName()
+		if codec == "" || strings.Contains(codec, "/") || isRawCodecID(codec) {
 			return nil, false
 		}
 
@@ -332,4 +331,11 @@ func isVP9FeatureMetadata(cp []byte) bool {
 		}
 	}
 	return true
+}
+
+// isRawCodecID reports a Matroska CodecID left unresolved (V_MS/VFW/FOURCC,
+// A_QUICKTIME, S_TEXT/WEBVTT...): an uppercase family letter, then "_". ffprobe
+// names are lowercase, so no real codec name looks like this.
+func isRawCodecID(codec string) bool {
+	return len(codec) > 2 && codec[1] == '_' && strings.ContainsRune("VASBD", rune(codec[0]))
 }
