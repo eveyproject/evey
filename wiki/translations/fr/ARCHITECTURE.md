@@ -1,5 +1,5 @@
 ---
-source_sha: 173b490b2a261ecfdad76b667acd070ca89ef5c932f0b30034bbf6d22a7bb01a
+source_sha: a9348401cb39bdf4449984a5e4adb69cbf97ead5e2f97e2d96954d6d042f40be
 reviewed: true
 ---
 # Architecture
@@ -60,7 +60,7 @@ aussi directement le paquet de domaine d'un contexte voisin (voir
 | `playback` | flux, progression, contrôle à distance, lectures en cours |
 | `transcoding` | tâches ffmpeg, segments HLS |
 | `subtitle` | sous-titres intégrés, externes et OpenSubtitles |
-| `mkv` | opérations sur le conteneur MKV (via `mkvgo`) |
+| `mkv` | opérations sur le conteneur MKV (via [mkvgo](playback/mkvgo.md)) |
 | `music` | lecture et étiquetage propres à l'audio |
 | `photo` | bibliothèques de photos |
 | `favorite` (application seulement) | favoris par profil ; le modèle et `FavoriteRepository` vivent dans `domain/library` |

@@ -28,7 +28,7 @@ Thirty-two context packages live under `internal/domain/` and `internal/app/`: 1
 | `playback` | streams, progress, remote control, now-playing |
 | `transcoding` | ffmpeg jobs, HLS segments |
 | `subtitle` | embedded + external + opensubtitles |
-| `mkv` | MKV container ops (via `mkvgo`) |
+| `mkv` | MKV container ops (via [mkvgo](playback/mkvgo.md)) |
 | `music` | audio-specific playback + tagging |
 | `photo` | photo libraries |
 | `favorite` (app only) | per-profile favorites; the model and `FavoriteRepository` live in `domain/library` |

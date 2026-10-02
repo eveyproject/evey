@@ -1,5 +1,5 @@
 ---
-source_sha: 519ca471ac509567eb54bbd0ba3bd684995c10632c38c0b067d3b6546b0d6b29
+source_sha: 6d3d845e43ec99ebe6971ed4c96805b04111dc036e142999b679638fbc6e47cf
 reviewed: true
 hide:
   - navigation
@@ -68,12 +68,15 @@ reste possible : [Déploiements avancés](operations/advanced-deployments.md).
 
 **En faire le moins possible**
 
-D'abord le fichier tel quel ; sinon les mêmes pistes réempaquetées, sans
-encodeur ; un réencodage seulement pour les pistes qui l'exigent. Le
-réempaquetage se fait dans le serveur quand c'est possible, sans lancer
-FFmpeg : un spectateur en lecture directe ou en remux ne coûte guère plus
-qu'une lecture de fichier.
-[Comment Evey choisit le mode de lecture](playback/how-playback-is-decided.md)
+- **Lecture directe** : le fichier tel quel ; le serveur se contente de le lire.
+- **[MKVGo](playback/mkvgo.md)** : quand seul le conteneur doit changer, la couche multimédia
+  intégrée au serveur réempaquette les pistes : aucun réencodage, aucun
+  processus média lancé par flux, aucun segment écrit sur le disque. FFmpeg
+  les copie là où elle ne peut pas.
+- **FFmpeg** : pour les vraies transformations, et en repli quand MKVGo ne
+  peut pas assurer le travail structurel.
+
+[MKVGo dans Evey](playback/mkvgo.md)
 
 </div>
 
@@ -129,12 +132,12 @@ votre dos.
 Le tableau de bord ci-dessus liste chaque lecture : qui, sur quel appareil, en
 **Lecture directe**, **Remux** ou **Transcodage**, si la vidéo et l'audio sont
 copiés ou encodés et par quoi, le débit et la progression. Dans le lecteur, les
-**Infos du flux** lisent le plan même qu'exécute l'encodeur, et disent pourquoi
+**Infos du flux** reflètent le plan réellement servi, et disent pourquoi
 le fichier n'a pas été lu tel quel.
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
   ![Les Infos du flux dans le lecteur web](images/player-stream-info.webp){ loading=lazy }
-  <figcaption>Les Infos du flux d'un film en remux : vidéo et audio copiés, et la raison pour laquelle il n'est pas lu directement.</figcaption>
+  <figcaption>Remux : l'emballage change, sans réencoder la vidéo ni l'audio. « Copié » décrit les pistes, pas le mode de lecture.</figcaption>
 </figure>
 
 [Lire les Infos du flux](playback/how-playback-is-decided.md#reading-stream-info)

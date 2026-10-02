@@ -1,0 +1,61 @@
+---
+source_sha: 931ccdf48782522f87ac5ffc1eb85806d1b3dd286c9e538a2f22817148b969a4
+reviewed: true
+---
+
+# MKVGo dans Evey
+
+MKVGo est la bibliothèque multimédia qu'Evey exécute dans son propre processus
+pour lire et réempaqueter les fichiers MKV/WebM et MP4/MOV. Elle travaille sur
+la structure d'un fichier : ses en-têtes, son index, ses pistes et leurs
+paquets. Elle ne décode ni n'encode jamais une image ou un son ; tout ce qui
+demande un décodage côté serveur passe par FFmpeg.
+
+MKVGo est développée comme une bibliothèque Go à part :
+[github.com/gravity-zero/mkvgo](https://github.com/gravity-zero/mkvgo).
+
+## Trois niveaux de travail
+
+| Niveau | Ce qui se passe | Ce que cela coûte au serveur |
+| --- | --- | --- |
+| **Lecture directe** | Le fichier est servi tel quel. | Une lecture de fichier. |
+| **MKVGo** | Le travail structurel : lire un fichier, réempaqueter ses pistes pour la diffusion, reconstruire son index, déplacer une piste sur la ligne de temps. | Du code dans le processus du serveur : aucun FFmpeg ni ffprobe lancé par flux, et aucun segment écrit sur le disque pour l'empaquetage à la demande. |
+| **FFmpeg** | Les vraies transformations : réencodage, tone mapping, décodage d'une image. Et le repli chaque fois que MKVGo ne sait pas traiter un fichier. | Un processus par tâche. |
+
+Une copie FFmpeg (`-c copy`) ne réencode rien non plus et reste peu coûteuse ;
+ce que MKVGo économise en plus, c'est le processus lancé pour chaque session et
+les segments écrits dans le cache de transcodage. Le réencodage est le cas
+coûteux, et un réencodage vidéo est le seul travail qui occupe un emplacement
+de transcodage : voir [Transcodage et capacité du serveur](transcoding.md).
+
+Avec des clients capables, environ 80 % des chemins de lecture vidéo peuvent
+se passer entièrement de FFmpeg : ce que le lecteur sait décoder décide de la fréquence à
+laquelle le fichier peut être servi tel quel ou seulement réempaqueté.
+
+## Ce que fait MKVGo
+
+| Travail | Où on le voit | Quand MKVGo ne peut pas |
+| --- | --- | --- |
+| **Lecture des fichiers** | Pendant l'analyse d'une bibliothèque, codecs, résolution, HDR, débit et durée sont lus dans l'en-tête du fichier. | ffprobe le lit. Il prend aussi le relais au moindre doute : erreur d'analyse, Dolby Vision profil 5, informations de couleur illisibles. |
+| **Index des images clés** | Les positions d'où la lecture peut partir, lues dans l'index du fichier ; elles permettent au remux et à la copie vidéo de couper les segments sur des images clés. | ffprobe. |
+| **Diffusion sans réencodage** | Remux : segments HLS en MP4 fragmenté (CMAF), construits à la demande à partir d'un plan gardé par fichier. Un manifeste DASH est produit sur les mêmes segments ; les applications utilisent HLS. | FFmpeg copie les pistes, toujours sans réencoder. |
+| **MP4 pour le navigateur** | Un fichier Matroska qu'un navigateur ne sait pas ouvrir est réécrit une fois en MP4 à démarrage rapide, gardé en cache. | - |
+| **Sous-titres** | Les pistes de sous-titres intégrées à un MKV sont extraites en SRT ou en ASS. | - |
+| **Images d'aperçu** | L'image clé la plus proche de la position demandée est trouvée grâce à l'index, et FFmpeg ne décode que cette image. Utilisé quand cette image clé est à environ deux secondes ou moins de la demande. | FFmpeg se positionne et décode jusqu'à la position exacte. |
+| **Épisodes enchaînés** | Le serveur peut empaqueter plusieurs épisodes en un seul flux continu (`?gapless=1` dans l'adresse du flux). Aucune application ne propose encore l'option. | Chaque épisode est lu séparément. |
+| **Santé des médias** | Le diagnostic (index de lecture, début de l'audio, pistes rangées par blocs), l'index reconstruit, la resynchronisation après une zone abîmée, et le décalage d'une piste audio. Voir [Santé des médias](../runbooks/media-health.md). | Le remux des pistes rangées par blocs est fait par FFmpeg. |
+
+## Ce qui reste à FFmpeg
+
+- Tout réencodage, tone mapping HDR compris.
+- Le décodage d'images : les miniatures de navigation, l'image d'un aperçu.
+- Les analyses qui demandent des données décodées : détection de
+  l'entrelacement, empreintes audio pour la détection des génériques, Dolby
+  Vision profil 5.
+- Les conteneurs autres que MKV/WebM et MP4/MOV, comme l'AVI ou le MPEG-TS.
+
+## Voir quel moteur sert un flux
+
+**Admin → Tableau de bord** et **Admin → En cours de lecture** indiquent le
+moteur de chaque piste : `mkvgo` ou `ffmpeg`. Un remux peut afficher les deux,
+par exemple la vidéo empaquetée par MKVGo et l'audio copié par FFmpeg.
