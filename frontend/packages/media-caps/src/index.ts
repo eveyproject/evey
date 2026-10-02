@@ -13,6 +13,9 @@ export type { AskReceiverCapsOptions, CapsAnswer, CapsTransport } from "./castCa
 export type { ProbePoster, ReportOutcome } from "./reportProbe";
 export { formatDecoderStats, framesToSec, getPlaybackDecoderStats, isSilentRunAlarming, parseDecoderStats, resetPlaybackDecoderStats, SILENT_RUN_ALARM_SEC } from "./decoderStats";
 export type { DecoderStats } from "./decoderStats";
+export { decodeRtf } from "./decoderStats";
+export { checkPlaybackDecoder, createDecoderWatchdog, disablePlaybackDecoder, formatAbnormalExit, formatDecoderCheck, markPlaybackDecoderIdle, parseDecoderCheck, setPlaybackDecoderMedia, WATCHDOG } from "./decoderGuard";
+export type { DecoderCheck } from "./decoderGuard";
 
 interface EveyMediaCapsNative {
   getAudioProbe(): Promise<AudioProbe>;

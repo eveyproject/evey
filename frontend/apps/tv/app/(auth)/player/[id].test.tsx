@@ -178,6 +178,15 @@ vi.mock("../../../src/hooks/usePlaySession", () => ({
 }));
 
 // --- misc hook mocks ---------------------------------------------------------------
+// The decoder telemetry's own behaviour is tested in @evey/client; here only
+// what the screen hands it matters (the restart when ac3go is too slow).
+let decoderTelemetryOptions: { onTooSlow?: (reason: string) => void } | null = null;
+vi.mock("../../../src/hooks/useDecoderTelemetry", () => ({
+  useDecoderTelemetry: (_id: string, _r: unknown, _p: unknown, opts: { onTooSlow?: (reason: string) => void }) => {
+    decoderTelemetryOptions = opts;
+  },
+}));
+vi.mock("../../../src/hooks/useAudioCapsBeacon", () => ({ useAudioCapsBeacon: () => {} }));
 const progressGetters: { getPositionMs?: () => number } = {};
 vi.mock("../../../src/hooks/useProgressReporter", () => ({
   useProgressReporter: (_sessionId: unknown, getPositionMs: () => number) => {
@@ -1358,6 +1367,24 @@ describe("le sous-titre ne fuit plus dans le flux (TV)", () => {
     restartWithTracksMock.mockClear();
     act(() => { lastSubtitlePickerProps?.onSelect(null); });
     expect(restartWithTracksMock).toHaveBeenCalledWith(0, undefined, undefined);
+  });
+});
+
+// 2026-10-01, a Chromecast HD: too slow for ac3go, the picture crawled and the
+// app stopped. The watchdog hands over; the screen restarts the same tracks,
+// where the viewer is, now negotiated with the audio transcoded.
+describe("ac3go too slow (TV)", () => {
+  it("restarts the stream on the current tracks and keeps playing", () => {
+    sessionState.mediaStreams = [
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1, language: "fre", codec: "eac3" },
+      { type: "MEDIA_STREAM_TYPE_AUDIO", index: 2, language: "eng", codec: "eac3" },
+    ];
+    playerMock.playing = true;
+    render(<PlayerScreen />);
+    act(() => { lastAudioPickerProps?.onSelect(2); });
+    restartWithTracksMock.mockClear();
+    act(() => { decoderTelemetryOptions?.onTooSlow?.("rtf=0.80/ur=0,rtf=0.80/ur=0"); });
+    expect(restartWithTracksMock).toHaveBeenCalledWith(2, undefined, undefined);
   });
 });
 

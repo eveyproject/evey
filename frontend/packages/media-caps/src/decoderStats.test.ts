@@ -11,6 +11,9 @@ const base: DecoderStats = {
   badFrames: 0,
   silentFrames: 0,
   silentRunFrames: 0,
+  decodeMs: 0,
+  maxDecodeMs: 0,
+  underruns: 0,
   decoder: "err=0/0/0/0/0/0/0 skip=0 lay=0 mix=1924 last=L,C,R,Ls,Rs,LFE",
 };
 
@@ -38,11 +41,15 @@ describe("decoder stats", () => {
   });
 
   it("formats one short line for the beacon", () => {
-    const line = formatDecoderStats({ ...base, silentFrames: 1924, silentRunFrames: 1924 });
+    // 1924 frames = 61.57 s of audio; 3078 ms inside ac3go is a 5% share.
+    const line = formatDecoderStats({ ...base, silentFrames: 1924, silentRunFrames: 1924, decodeMs: 3078, maxDecodeMs: 4.25, underruns: 2 });
     expect(line).toBe(
-      "codec=eac3 src=6ch out=2ch max=2ch rate=48000 frames=1924 bad=0 silent=1924 run=1924 " +
+      "codec=eac3 src=6ch out=2ch max=2ch rate=48000 frames=1924 bad=0 silent=1924 run=1924 rtf=0.050 dmax=4.3ms ur=2 " +
         "err=0/0/0/0/0/0/0 skip=0 lay=0 mix=1924 last=L,C,R,Ls,Rs,LFE",
     );
+    // Two hours in, the counters are wide: still under the server's clamp.
+    const long = formatDecoderStats({ ...base, frames: 337500, silentFrames: 12345, badFrames: 12, decodeMs: 999999, maxDecodeMs: 123.4, underruns: 1234 });
+    expect(long.length).toBeLessThan(200);
     expect(formatDecoderStats({ ...base, decoder: "" })).not.toContain("err=");
     expect(line.length).toBeLessThan(200);
   });

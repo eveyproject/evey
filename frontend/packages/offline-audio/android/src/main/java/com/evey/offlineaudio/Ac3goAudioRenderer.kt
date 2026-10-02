@@ -1,8 +1,6 @@
 package com.evey.offlineaudio
 
 import android.content.Context
-import android.content.IntentFilter
-import android.media.AudioManager
 import android.os.Handler
 import android.util.Log
 import androidx.media3.common.C
@@ -15,6 +13,8 @@ import androidx.media3.decoder.DecoderException
 import androidx.media3.decoder.DecoderInputBuffer
 import androidx.media3.decoder.SimpleDecoder
 import androidx.media3.decoder.SimpleDecoderOutputBuffer
+import androidx.media3.exoplayer.DecoderCounters
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.audio.AudioRendererEventListener
 import androidx.media3.exoplayer.audio.AudioSink
 import androidx.media3.exoplayer.audio.DecoderAudioRenderer
@@ -34,7 +34,11 @@ class Ac3goAudioRenderer(
   handler: Handler?,
   listener: AudioRendererEventListener?,
   sink: AudioSink,
-) : DecoderAudioRenderer<Ac3goDecoder>(handler, listener, sink) {
+) : DecoderAudioRenderer<Ac3goDecoder>(handler, UnderrunCounter(listener), sink) {
+
+  init {
+    Ac3goGuard.init(context)
+  }
 
   override fun getName() = "Ac3goAudioRenderer"
 
@@ -54,7 +58,7 @@ class Ac3goAudioRenderer(
 
   override fun createDecoder(format: Format, cryptoConfig: CryptoConfig?): Ac3goDecoder {
     val inputSize = if (format.maxInputSize != Format.NO_VALUE) format.maxInputSize else DEFAULT_INPUT_SIZE
-    val maxChannels = outputMaxChannels()
+    val maxChannels = Ac3goGuard.outputMaxChannels(context)
     Log.i(TAG, "ac3go decoding ${format.sampleMimeType} ${format.channelCount}ch ${format.sampleRate}Hz, output up to ${maxChannels}ch")
     val codec = if (format.sampleMimeType == MimeTypes.AUDIO_AC3) "ac3" else "eac3"
     return Ac3goDecoder(BUFFERS, BUFFERS, inputSize, maxChannels, codec, format.channelCount)
@@ -62,16 +66,6 @@ class Ac3goAudioRenderer(
 
   override fun getOutputFormat(decoder: Ac3goDecoder): Format =
     Util.getPcmFormat(C.ENCODING_PCM_16BIT, decoder.channels, decoder.sampleRate)
-
-  // A plugged HDMI sink states its channel count (the same evidence the audio
-  // probe reports); any other output, or none stated, gets ac3go's stereo.
-  private fun outputMaxChannels(): Int {
-    val hdmi = runCatching {
-      context.registerReceiver(null, IntentFilter(AudioManager.ACTION_HDMI_AUDIO_PLUG))
-    }.getOrNull() ?: return 2
-    if (hdmi.getIntExtra(AudioManager.EXTRA_AUDIO_PLUG_STATE, 0) != 1) return 2
-    return hdmi.getIntExtra(AudioManager.EXTRA_MAX_CHANNEL_COUNT, 2).coerceIn(2, 8)
-  }
 
   companion object {
     private const val TAG = "EveyAc3go"
@@ -85,6 +79,36 @@ class Ac3goAudioRenderer(
 class Ac3goDecoderException(message: String, cause: Throwable?) : DecoderException(message, cause)
 
 /**
+ * Counts the audio sink's underruns for the telemetry (ac3go not handing PCM
+ * in time is the sound of a CPU too slow for it) and forwards every event.
+ * Written out: Kotlin's `by` does not forward Java default methods, and the
+ * player reads its audio format and counters from these.
+ */
+@UnstableApi
+private class UnderrunCounter(private val next: AudioRendererEventListener?) : AudioRendererEventListener {
+  override fun onAudioUnderrun(bufferSize: Int, bufferSizeMs: Long, elapsedSinceLastFeedMs: Long) {
+    Ac3goPlaybackStats.underrun()
+    next?.onAudioUnderrun(bufferSize, bufferSizeMs, elapsedSinceLastFeedMs)
+  }
+  override fun onAudioEnabled(counters: DecoderCounters) { next?.onAudioEnabled(counters) }
+  override fun onAudioDecoderInitialized(decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+    next?.onAudioDecoderInitialized(decoderName, initializedTimestampMs, initializationDurationMs)
+  }
+  override fun onAudioInputFormatChanged(format: Format, decoderReuseEvaluation: DecoderReuseEvaluation?) {
+    next?.onAudioInputFormatChanged(format, decoderReuseEvaluation)
+  }
+  override fun onAudioPositionAdvancing(playoutStartSystemTimeMs: Long) { next?.onAudioPositionAdvancing(playoutStartSystemTimeMs) }
+  override fun onAudioDecoderReleased(decoderName: String) { next?.onAudioDecoderReleased(decoderName) }
+  override fun onAudioDisabled(counters: DecoderCounters) { next?.onAudioDisabled(counters) }
+  override fun onSkipSilenceEnabledChanged(skipSilenceEnabled: Boolean) { next?.onSkipSilenceEnabledChanged(skipSilenceEnabled) }
+  override fun onAudioCodecError(audioCodecError: Exception) { next?.onAudioCodecError(audioCodecError) }
+  override fun onAudioSinkError(audioSinkError: Exception) { next?.onAudioSinkError(audioSinkError) }
+  override fun onAudioTrackInitialized(audioTrackConfig: AudioSink.AudioTrackConfig) { next?.onAudioTrackInitialized(audioTrackConfig) }
+  override fun onAudioTrackReleased(audioTrackConfig: AudioSink.AudioTrackConfig) { next?.onAudioTrackReleased(audioTrackConfig) }
+  override fun onAudioSessionIdChanged(audioSessionId: Int) { next?.onAudioSessionIdChanged(audioSessionId) }
+}
+
+/**
  * The decoder of the current playback, for the JS telemetry poll. The last
  * snapshot outlives the decoder so a report sent as the player closes still
  * has the whole run.
@@ -93,6 +117,11 @@ class Ac3goDecoderException(message: String, cause: Throwable?) : DecoderExcepti
 object Ac3goPlaybackStats {
   @Volatile private var current: Ac3goDecoder? = null
   @Volatile private var last: Map<String, Any>? = null
+  @Volatile private var underruns = 0L
+
+  fun underrun() {
+    underruns++
+  }
 
   fun attach(decoder: Ac3goDecoder) {
     current = decoder
@@ -105,7 +134,7 @@ object Ac3goPlaybackStats {
     current = null
   }
 
-  fun snapshot(): Map<String, Any>? = current?.snapshot() ?: last
+  fun snapshot(): Map<String, Any>? = (current?.snapshot() ?: last)?.plus("underruns" to underruns)
 
   /**
    * A new playback starts: forget the previous one, including a decoder not
@@ -115,6 +144,7 @@ object Ac3goPlaybackStats {
   fun reset() {
     current = null
     last = null
+    underruns = 0
   }
 }
 
@@ -149,6 +179,10 @@ class Ac3goDecoder(
   @Volatile private var badFrames = 0L
   @Volatile private var silentFrames = 0L
   @Volatile private var silentRunFrames = 0L
+  // Time spent inside ac3go: per second of audio, how close this CPU is to
+  // not keeping up.
+  @Volatile private var decodeNanos = 0L
+  @Volatile private var maxDecodeNanos = 0L
   // ac3go's own counters as one line, refreshed every SUMMARY_EVERY frames:
   // a string per access unit would be garbage at 31 units a second.
   @Volatile private var summary = ""
@@ -170,6 +204,8 @@ class Ac3goDecoder(
     "badFrames" to badFrames,
     "silentFrames" to silentFrames,
     "silentRunFrames" to silentRunFrames,
+    "decodeMs" to decodeNanos / 1e6,
+    "maxDecodeMs" to maxDecodeNanos / 1e6,
     "decoder" to summary,
   )
 
@@ -178,6 +214,7 @@ class Ac3goDecoder(
     summary = go.decoderSummary()
     Log.i("EveyAc3go", "ac3go released ${snapshot()}")
     Ac3goPlaybackStats.detach(this)
+    Ac3goGuard.markStopped()
   }
 
   override fun getName() = "ac3go"
@@ -196,13 +233,18 @@ class Ac3goDecoder(
   ): Ac3goDecoderException? {
     if (reset) go.reset()
     val data = inputBuffer.data ?: return null
+    Ac3goGuard.markRunning("playback")
     val au = ByteArray(data.remaining())
     data.get(au)
+    val t0 = System.nanoTime()
     val pcm = try {
       go.decode(au)
     } catch (e: Exception) {
       return Ac3goDecoderException("ac3go decode failed", e)
     }
+    val took = System.nanoTime() - t0
+    decodeNanos += took
+    if (took > maxDecodeNanos) maxDecodeNanos = took
     frames = go.frames()
     badFrames = go.badFrames()
     silentFrames = go.silentFrames()

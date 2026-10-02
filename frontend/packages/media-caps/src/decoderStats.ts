@@ -21,6 +21,12 @@ export interface DecoderStats {
   silentFrames: number;
   /** Consecutive silent frames ending at the last one. */
   silentRunFrames: number;
+  /** Milliseconds spent inside ac3go for those frames: the CPU's share of the run. */
+  decodeMs: number;
+  /** The slowest single access unit, in milliseconds. */
+  maxDecodeMs: number;
+  /** Times the audio output ran dry during this playback. */
+  underruns: number;
   /**
    * ac3go's own account, one line: failures by cause, dependent substreams
    * skipped, layout changes, frames downmixed, last coded layout. "" on a
@@ -48,6 +54,15 @@ export function isSilentRunAlarming(stats: DecoderStats): boolean {
   return framesToSec(stats.silentRunFrames, stats.sampleRate) >= SILENT_RUN_ALARM_SEC;
 }
 
+/**
+ * Decode time per second of audio over the whole run: 0.1 leaves the CPU 90%
+ * idle, 1 is a decoder exactly as slow as the sound it must deliver.
+ */
+export function decodeRtf(stats: Pick<DecoderStats, "frames" | "sampleRate" | "decodeMs">): number {
+  const sec = framesToSec(stats.frames, stats.sampleRate);
+  return sec > 0 ? stats.decodeMs / 1000 / sec : 0;
+}
+
 /** One line for the beacon's details, well under the server's 200-char clamp. */
 export function formatDecoderStats(stats: DecoderStats): string {
   return [
@@ -60,6 +75,9 @@ export function formatDecoderStats(stats: DecoderStats): string {
     `bad=${stats.badFrames}`,
     `silent=${stats.silentFrames}`,
     `run=${stats.silentRunFrames}`,
+    `rtf=${decodeRtf(stats).toFixed(3)}`,
+    `dmax=${stats.maxDecodeMs.toFixed(1)}ms`,
+    `ur=${stats.underruns}`,
     ...(stats.decoder ? [stats.decoder] : []),
   ].join(" ");
 }
@@ -79,6 +97,9 @@ function toStats(raw: unknown): DecoderStats | null {
     badFrames: num("badFrames"),
     silentFrames: num("silentFrames"),
     silentRunFrames: num("silentRunFrames"),
+    decodeMs: num("decodeMs"),
+    maxDecodeMs: num("maxDecodeMs"),
+    underruns: num("underruns"),
     decoder: typeof r.decoder === "string" ? r.decoder : "",
   };
 }

@@ -210,9 +210,6 @@ export default function PlayerScreen() {
   // faster than this screen re-renders on the television, and a closure over
   // the state would add to a playhead that is already stale.
   const currentTimeRef = useRef(0);
-  // What ac3go handed the speakers, reported: a track decoded to silence is
-  // otherwise invisible (the picture plays, progress ticks).
-  useDecoderTelemetry(mediaId, reportPlayerEvent, () => currentTimeRef.current);
   const durationRef = useRef(0);
   // A fatal native failure (decoder error, 401 on a segment, broken manifest)
   // surfaces ONLY through the player's statusChange event - isError from
@@ -668,6 +665,16 @@ export default function PlayerScreen() {
     },
     [player, restartWithTracks, selectedAudioIndex, selectedQuality, subtitleStreams, selectedSubtitleIndex, setSelectedSubtitleIndex, userPickedSubtitleRef],
   );
+
+  // What ac3go handed the speakers, reported: a track decoded to silence is
+  // otherwise invisible (the picture plays, progress ticks). A box too slow
+  // for ac3go gets the same title, same spot, with the audio transcoded.
+  useDecoderTelemetry(mediaId, reportPlayerEvent, () => currentTimeRef.current, {
+    onTooSlow: () => {
+      resumeAfterRestartRef.current = player?.playing ?? true;
+      restartWithTracks(selectedAudioIndex, burnInSubtitleIndex, selectedQuality || undefined);
+    },
+  });
 
   const handleSkipIntro = useCallback(
     (toSec: number) => {

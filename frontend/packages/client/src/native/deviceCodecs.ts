@@ -1,5 +1,5 @@
 import { NativeModules, Platform } from "react-native";
-import { declarableAudioCodecs, displaySupportsHdr, getAudioProbe, getDisplayHdrTypes, getMaxH264Level, getPlayerAudioDecoders, type AudioProbe } from "@evey/media-caps";
+import { checkPlaybackDecoder, declarableAudioCodecs, displaySupportsHdr, getAudioProbe, getDisplayHdrTypes, getMaxH264Level, getPlayerAudioDecoders, type AudioProbe, type DecoderCheck } from "@evey/media-caps";
 import { clientLogger } from "../log";
 
 const log = clientLogger("deviceCodecs");
@@ -43,6 +43,30 @@ const native: MediaCapsNative | undefined =
 
 let current: string[] = BASELINE;
 let playerCodecs: string[] = [];
+// What the declaration was resolved from, kept to resolve it again without
+// the player's decoders.
+let resolvedFrom: { outcome: AudioProbeOutcome; sink: AudioProbe | null } | null = null;
+let resolveCheck: (c: DecoderCheck | null) => void = () => {};
+const decoderCheck = new Promise<DecoderCheck | null>((r) => (resolveCheck = r));
+
+/**
+ * The launch check of the app's own decoder (benchmark, verdict, a previous
+ * run that died decoding), null on a build without it. Settles with the probe.
+ */
+export function getDecoderCheck(): Promise<DecoderCheck | null> {
+  return decoderCheck;
+}
+
+/**
+ * The player's decoder fell behind: stop declaring it, so the next session
+ * gets the server's audio transcode. The native side remembers it too.
+ */
+export function dropPlayerAudioCodecs(): void {
+  if (playerCodecs.length === 0) return;
+  playerCodecs = [];
+  if (resolvedFrom) current = resolveAudioCodecs(BASELINE, resolvedFrom.outcome, resolvedFrom.sink, []);
+  log.warn(`player decoder dropped, declared=${current.join(",")}`);
+}
 
 /**
  * The audio codecs this device actually decodes (or passes through over
@@ -170,12 +194,18 @@ async function probe(): Promise<void> {
   }
   // Never throws, null when the Expo module isn't in this build.
   const sink = Platform.OS === "android" ? await getAudioProbe() : null;
-  const player = Platform.OS === "android" ? await getPlayerAudioDecoders() : [];
+  // The launch check benchmarks ac3go first: on a CPU too slow for it, or
+  // after a run that died while it decoded, it is not declared. A build
+  // without the check declares what the module lists.
+  const check = Platform.OS === "android" ? await checkPlaybackDecoder() : null;
+  resolveCheck(check);
+  const player = check ? check.decoders : Platform.OS === "android" ? await getPlayerAudioDecoders() : [];
   playerCodecs = player;
+  resolvedFrom = { outcome, sink };
   current = resolveAudioCodecs(BASELINE, outcome, sink, player);
   // Single log line so a "silent audio" report can be diagnosed from device
   // logs without guessing what this device actually detected and declared.
-  log.info(`audio probe=${outcome.status} sink=${sink ? "ok" : "none"} player=${player.join(",") || "none"} declared=${current.join(",")}`);
+  log.info(`audio probe=${outcome.status} sink=${sink ? "ok" : "none"} player=${player.join(",") || "none"}${check?.blockedBy ? ` blocked=${check.blockedBy}` : ""} declared=${current.join(",")}`);
 
   // The shared Expo probe first, the legacy old-bridge module as a fallback:
   // the rule for what a display list means (HDR10 family yes, Dolby Vision
