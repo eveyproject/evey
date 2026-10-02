@@ -24,8 +24,9 @@ to write. What a media server needs around it comes inside:
 - **File ownership worked out.** When it can, the container adopts the owner of
   your media folder, so that repairs can write. The server itself never runs as
   root.
-- **Nothing to size by hand.** The graphics card, the transcoding capacity and
-  the way each device plays are detected and measured, not configured.
+- **Less to size by hand.** The graphics card is detected, the transcoding
+  capacity is measured, and the route for each playback follows what the
+  device says it can play.
 
 Bringing your own database or search cluster stays possible:
 [Advanced deployments](operations/advanced-deployments.md).
@@ -75,10 +76,11 @@ Remux costs little more than a file read.
 **Know what the machine can actually do**
 
 An accelerator counts only once a real encode on it succeeds. At its first
-quiet moment the server times real 4K encodes on the processor and each card,
-then sends every stream to the cheapest route that proved it can serve it.
-When the capacity is used up, a new transcode is refused with a clear message
-instead of every stream slowing down.
+quiet moment the server times real encodes from a 4K clip, up to 1440p on the
+processor and up to 2160p on each accelerator, then sends every stream to the
+cheapest route that proved it can serve it. When room runs short, a new
+stream gets a lower quality, or moves from a full graphics card to the
+processor; it is refused, with a clear message, only when no capacity is left.
 [Transcoding and server capacity](playback/transcoding.md)
 
 </div>
@@ -87,11 +89,12 @@ instead of every stream slowing down.
 
 **Third-party code is contained, not trusted**
 
-A plugin is analysed before install, gets only the permissions it declares,
-and runs as its own process, with no direct network access and capped memory,
-processes and disk. In Docker on a recent kernel it sees only its own
-directory and dangerous system calls are refused; an older host gets a weaker
-sandbox, and the admin panel says which one is active.
+A plugin is analysed before install, gets only the permissions declared and
+accepted by the administrator, and runs as its own process, with no direct
+network access and capped memory, processes and disk. In Docker on a recent
+kernel it sees only its own directory, and a seccomp denylist blocks system
+calls known to be dangerous; an older host gets a weaker sandbox, and the
+admin panel says which one is active.
 [Security model and plugin sandbox](SECURITY.md#sandbox-modes)
 
 </div>
@@ -180,9 +183,11 @@ one container, no .env: docs/installation.md ; docs/adr/0028-install-is-one-comp
 embedded db/search, loopback, generated secrets: docker/entrypoint.sh - ensure_secret, pg_start 127.0.0.1, meilisearch --http-addr 127.0.0.1:7700
 media owner adopted, never root: docker/entrypoint.sh - PUID/PGID auto-detection, setpriv
 do less work: internal/app/transcoding/decision.go ; docs/playback-serving.md (mkvgo, no process)
+less to size: internal/adapters/driven/ffmpeg/hw_readiness.go ; internal/app/transcoding/calibration_service.go ; docs/playback/how-playback-is-decided.md
 accelerators proved, quiet moment: internal/app/transcoding/calibration_service.go - idleProbes ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md
-full means refused: internal/app/transcoding/service.go - ErrMaxConcurrent ; i18n errors max_concurrent_reached
-contained plugins: docs/SECURITY.md ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; internal/adapters/driven/pluginrunner/runner_resmon.go
+1440p software, 2160p hardware: internal/adapters/driven/ffmpeg/benchmark.go - swBenchLadder, hwBenchLadder
+lower rung, gpu to software, then refused: internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper.GrantRoute ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter, ErrVideoCapacityExhausted
+contained plugins: docs/SECURITY.md (Administrator preview, System calls: denylist) ; internal/app/plugin/install.go ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; internal/adapters/driven/pluginrunner/runner_resmon.go
 media health: internal/app/maintenance/seek_index.go - Verdict ; internal/app/maintenance/seek_index_reindex.go - DeepVerify ; internal/app/maintenance/repair_journal.go - Reversible
 stream info, one plan: docs/adr/0030-one-plan-one-decision.md ; internal/app/transcoding/route_tonemap_report_test.go
 one plugin, three screens: frontend/packages/client/src/native/PluginWebView.tsx ; frontend/apps/tv/src/features/plugins/PluginSlot.tsx
