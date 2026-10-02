@@ -236,6 +236,11 @@ vi.mock("../components/player/SubtitleOverlay", () => ({ SubtitleOverlay: () => 
 vi.mock("../components/player/PlayerSettingsPanel", () => ({ PlayerSettingsPanel: () => null }));
 vi.mock("../features/plugins/PluginSlot", () => ({ PluginSlot: () => null }));
 vi.mock("../lib/audioBoost", () => ({ setAudioBoost: vi.fn(), releaseAudioBoost: vi.fn(() => Promise.resolve()), hasAudioBoost: () => true }));
+vi.mock("../lib/playerBrightness", () => ({
+  openingPlayerBrightness: vi.fn(() => Promise.resolve(0.5)),
+  setPlayerBrightness: vi.fn(() => Promise.resolve()),
+  releasePlayerBrightness: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("../lib/deviceVolume", () => ({
   hasDeviceVolumeControl: () => false,
   noteObservedDeviceVolume: vi.fn(),
@@ -301,25 +306,15 @@ function snapshot(): Snapshot {
 }
 
 describe("player fullscreen layout", () => {
-  let warnSpy: ReturnType<typeof vi.spyOn> | undefined;
   beforeEach(() => {
     dimsStore.set(PORTRAIT);
     insetsStore.set(PORTRAIT_INSETS);
     vi.useFakeTimers();
-    // The screen reads the system brightness through a bare `require`, which
-    // vi.mock cannot intercept and node cannot load here: the player's own
-    // "not available" warning is the expected outcome, not a layout finding.
-    const realWarn = console.warn.bind(console);
-    warnSpy = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
-      if (args[0] === "expo-brightness not available") return;
-      realWarn(...args);
-    });
   });
   afterEach(() => {
     cleanup();
     vi.runOnlyPendingTimers();
     vi.useRealTimers();
-    warnSpy?.mockRestore();
   });
 
   // Mounting settles a couple of promises (download lookup, subtitle style),
