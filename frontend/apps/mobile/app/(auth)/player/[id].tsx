@@ -15,6 +15,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
 import { setAudioBoost, releaseAudioBoost, hasAudioBoost } from "../../../src/lib/audioBoost";
+import { openingPlayerBrightness, releasePlayerBrightness, setPlayerBrightness } from "../../../src/lib/playerBrightness";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { resumeNudger } from "../../../src/lib/resumeNudge";
 import { playerTrim, resolveVolume } from "../../../src/lib/volumePolicy";
@@ -986,25 +987,22 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const handleBrightnessChange = useCallback(
     async (value: number) => {
       try {
-        const Brightness = require("expo-brightness");
-        await Brightness.setBrightnessAsync(value);
+        await setPlayerBrightness(value);
         brightnessBaseRef.current = value;
         setBrightness(value);
-      } catch (err) { console.warn("expo-brightness not available", err); }
+      } catch (err) { console.warn("brightness change failed", err); }
     },
     [],
   );
-  // The settings panel's slider must start from the real system brightness,
-  // not an arbitrary 100%.
+  // Swipe and slider start from the level picked earlier in the app's life, else
+  // from the system one (see openingPlayerBrightness for adaptive brightness).
   useEffect(() => {
-    try {
-      const Brightness = require("expo-brightness");
-      Brightness.getBrightnessAsync().then((v: number) => {
-        if (!mountedRef.current) return;
-        brightnessBaseRef.current = v;
-        setBrightness(v);
-      });
-    } catch (err) { console.warn("expo-brightness not available", err); }
+    openingPlayerBrightness().then((v) => {
+      if (!mountedRef.current) return;
+      brightnessBaseRef.current = v;
+      setBrightness(v);
+    }).catch((err) => console.warn("brightness read failed", err));
+    return () => { void releasePlayerBrightness().catch(() => {}); };
   }, []);
 
   const getGestureVolume = useCallback(() => volumeBaseRef.current, []);
