@@ -1,5 +1,5 @@
 ---
-source_sha: fbe5c63d26023c75b078bb43d1151792e32f425b107270e73ddeebd67c742e4a
+source_sha: 84df7850e473c494737875d0c2ac27283e279de6e52d00f02d8589b4379e6ec9
 reviewed: true
 ---
 # Servir une vidéo : le chemin de lecture HLS
@@ -20,7 +20,7 @@ Servir une vidéo revient à répondre à trois questions, puis à empaqueter la
 réponse, le tout adressé par un seul hachage :
 
 - **Q1 : puis-je lire le fichier à peu de frais ?** L'aiguillage de l'analyse,
-  selon **l'extension du fichier** : `.mkv/.webm` et `.mp4/.mov` vont à **mkvgo**
+  selon **l'extension du fichier** : `.mkv/.webm` et `.mp4/.mov` vont à **[mkvgo](playback/mkvgo.md)**
   (lecture de l'en-tête seulement, sans processus) ; tout le reste, et tout échec
   de ce chemin rapide, va à **ffprobe** (qui fait autorité).
 - **Q2 : le client peut-il le lire tel quel ?** La **décision** de lecture, prise

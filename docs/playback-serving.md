@@ -15,7 +15,7 @@ Serving a video reduces to answering three questions, then packaging the answer,
 with everything addressed by one hash:
 
 - **Q1 - Can I read the file cheaply?** Probe dispatch, by **file extension**:
-  `.mkv/.webm` and `.mp4/.mov` go to **mkvgo** (head-only, no process); everything
+  `.mkv/.webm` and `.mp4/.mov` go to **[mkvgo](playback/mkvgo.md)** (head-only, no process); everything
   else, and any fast-path failure, goes to **ffprobe** (the authority).
 - **Q2 - Can the client play it as-is?** The playback **decision**, taken *per
   track*: video `copy` vs `transcode`, audio `copy` vs `transcode` vs the wasm

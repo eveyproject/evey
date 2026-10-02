@@ -128,6 +128,7 @@ plugins:
             Playback: Lecture
             How playback is decided: Comment Evey choisit le mode de lecture
             Transcoding and server capacity: Transcodage et capacité du serveur
+            MKVGo in Evey: MKVGo dans Evey
             HDR and Dolby Vision: HDR et Dolby Vision
             Audio: Audio
             Subtitles: Sous-titres
@@ -506,6 +507,7 @@ nav:
   - Playback:
       - How playback is decided: playback/how-playback-is-decided.md
       - Transcoding and server capacity: playback/transcoding.md
+      - MKVGo in Evey: playback/mkvgo.md
       - HDR and Dolby Vision: playback/hdr.md
       - Audio: playback/audio.md
       - Subtitles: playback/subtitles.md

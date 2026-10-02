@@ -63,11 +63,14 @@ Bringing your own database or search cluster stays possible:
 
 **Do less work, whenever possible**
 
-The file as it is first; then the same tracks repackaged, without an encoder;
-re-encoding only for the tracks that need it. Repackaging is done inside
-the server when it can, without starting FFmpeg, so a viewer in Direct Play or
-Remux costs little more than a file read.
-[How playback is decided](playback/how-playback-is-decided.md)
+- **Direct Play**: the file as it is; the server only reads it.
+- **[MKVGo](playback/mkvgo.md)**: when only the container has to change, Evey's in-process media
+  layer repackages the tracks: no re-encoding, no media process started per
+  stream, no segments written to disk. FFmpeg copies them where it cannot.
+- **FFmpeg**: for real transformations, and as a fallback when MKVGo cannot
+  handle the structural work.
+
+[MKVGo in Evey](playback/mkvgo.md)
 
 </div>
 
@@ -119,12 +122,12 @@ never rewritten behind your back.
 The dashboard above lists every playback: who, on which device, in **Direct
 Play**, **Remux** or **Transcode**, whether video and audio are copied or
 encoded and by what, the bitrate and the progress. In the player, **Stream
-info** reads the same plan the encoder runs, and says why the file was not
+info** reflects the plan actually served, and says why the file was not
 played as it is.
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
   ![Stream info in the web player](images/player-stream-info.webp){ loading=lazy }
-  <figcaption>Stream info for a film in Remux: video and audio copied, and the reason it was not played directly.</figcaption>
+  <figcaption>Remux: the packaging changes, without re-encoding the video or the audio. "Copied" describes the tracks, not the playback method.</figcaption>
 </figure>
 
 [Reading Stream info](playback/how-playback-is-decided.md#reading-stream-info)
@@ -182,7 +185,7 @@ Security reports: security@eveyproject.org
 one container, no .env: docs/installation.md ; docs/adr/0028-install-is-one-compose-file.md
 embedded db/search, loopback, generated secrets: docker/entrypoint.sh - ensure_secret, pg_start 127.0.0.1, meilisearch --http-addr 127.0.0.1:7700
 media owner adopted, never root: docker/entrypoint.sh - PUID/PGID auto-detection, setpriv
-do less work: internal/app/transcoding/decision.go ; docs/playback-serving.md (mkvgo, no process)
+do less work: docs/playback/mkvgo.md ; internal/app/transcoding/decision.go ; internal/adapters/driven/mkvgo/ondemand.go - OnDemandPackager (no ffmpeg, no session state, no on-disk segments) ; docs/playback-serving.md (copy rung: mkvgo, else ffmpeg -c copy)
 less to size: internal/adapters/driven/ffmpeg/hw_readiness.go ; internal/app/transcoding/calibration_service.go ; docs/playback/how-playback-is-decided.md
 accelerators proved, quiet moment: internal/app/transcoding/calibration_service.go - idleProbes ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md
 1440p software, 2160p hardware: internal/adapters/driven/ffmpeg/benchmark.go - swBenchLadder, hwBenchLadder
