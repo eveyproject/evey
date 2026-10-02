@@ -1,5 +1,5 @@
 ---
-source_sha: 2075cc46a3b68aa2bd59fd2cc08b2362e9b98f6b6c495bccc9a2f243911040ae
+source_sha: 519ca471ac509567eb54bbd0ba3bd684995c10632c38c0b067d3b6546b0d6b29
 reviewed: true
 hide:
   - navigation
@@ -29,9 +29,9 @@ fourni à l'intérieur :
 - **Propriétaire des fichiers déduit.** Quand c'est possible, le conteneur
   adopte le propriétaire de votre dossier de médias, pour que les réparations
   puissent écrire. Le serveur lui-même ne tourne jamais en root.
-- **Rien à dimensionner à la main.** La carte graphique, la capacité de
-  transcodage et la façon dont chaque appareil lit sont détectées et mesurées,
-  pas configurées.
+- **Moins à dimensionner à la main.** La carte graphique est détectée, la
+  capacité de transcodage est mesurée, et la voie de chaque lecture suit ce que
+  l'appareil dit savoir lire.
 
 Utiliser votre propre base de données ou votre propre moteur de recherche
 reste possible : [Déploiements avancés](operations/advanced-deployments.md).
@@ -82,11 +82,13 @@ qu'une lecture de fichier.
 **Savoir ce dont la machine est vraiment capable**
 
 Un accélérateur ne compte qu'une fois qu'un vrai encodage y a réussi. À son
-premier moment calme, le serveur chronomètre de vrais encodages 4K sur le
-processeur et chaque carte, puis envoie chaque flux vers la voie la moins
-coûteuse qui a prouvé pouvoir le servir. Une fois la capacité épuisée, un
-nouveau transcodage est refusé avec un message clair, au lieu de ralentir tous
-les flux.
+premier moment calme, le serveur chronomètre de vrais encodages à partir d'un
+extrait 4K, jusqu'en 1440p sur le processeur et jusqu'en 2160p sur chaque
+accélérateur, puis envoie chaque flux vers la voie la moins coûteuse qui a
+prouvé pouvoir le servir. Quand la place manque, un nouveau flux reçoit une
+qualité plus basse, ou passe d'une carte graphique pleine au processeur ; il
+n'est refusé, avec un message clair, que lorsqu'il ne reste plus aucune
+capacité.
 [Transcodage et capacité du serveur](playback/transcoding.md)
 
 </div>
@@ -96,10 +98,11 @@ les flux.
 **Du code tiers confiné, pas cru sur parole**
 
 Un plugin est analysé avant l'installation, ne reçoit que les permissions
-qu'il déclare, et tourne dans son propre processus, sans accès direct au
-réseau, avec mémoire, processus et disque plafonnés. Sous Docker avec un noyau
-récent, il ne voit que son propre dossier et les appels système dangereux sont
-refusés ; un hôte plus ancien a une sandbox plus faible, et le panneau
+déclarées et acceptées par l'administrateur, et tourne dans son propre
+processus, sans accès direct au réseau, avec mémoire, processus et disque
+plafonnés. Sous Docker avec un noyau récent, il ne voit que son propre dossier,
+et une liste de refus seccomp bloque les appels système connus pour être
+dangereux ; un hôte plus ancien a une sandbox plus faible, et le panneau
 d'administration indique laquelle est active.
 [Sandbox des plugins et modèle de menace](SECURITY.md#sandbox-modes)
 
