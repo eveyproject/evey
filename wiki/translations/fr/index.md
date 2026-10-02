@@ -1,19 +1,40 @@
 ---
-source_sha: 5cde466e14206b2a29398343ce7b115ae0b096216b8e6d056f834cf4b7763057
+source_sha: 2075cc46a3b68aa2bd59fd2cc08b2362e9b98f6b6c495bccc9a2f243911040ae
 reviewed: true
 hide:
   - navigation
   - toc
 ---
 
-# Documentation d'Evey
+# Evey
 
-Evey est un serveur auto-hébergé pour vos films, séries, musique et photos. À
-chaque lecture, il confronte le fichier, le lecteur et le serveur, garde
-l'original dès que le lecteur sait l'exploiter, et ne réencode que ce qui doit
-l'être. La plupart des installations n'ont besoin que de bibliothèques et
-d'utilisateurs : le matériel, la capacité et les routes de lecture sont
-détectés et mesurés par le serveur lui-même.
+Evey est un serveur auto-hébergé pour vos films, séries, musique et photos. Il
+se veut un appareil plutôt qu'un système à administrer : vous lui donnez vos
+médias et les personnes qui regardent, il déduit le reste de la machine sur
+laquelle il tourne.
+
+[Installer Evey](installation.md){ .md-button .md-button--primary }
+[Essayer la démo](https://demo.eveyproject.org){ .md-button }
+
+## Faire tourner un serveur multimédia, pas son infrastructure
+
+Une installation normale, c'est un conteneur et un fichier compose, sans
+`.env` à écrire. Ce dont un serveur multimédia a besoin autour de lui est
+fourni à l'intérieur :
+
+- **Base de données et moteur de recherche inclus.** Postgres et Meilisearch
+  tournent dans le même conteneur, n'écoutent qu'à l'intérieur de celui-ci, et
+  reçoivent au premier démarrage des mots de passe générés, rangés dans le
+  dossier de données et lisibles par leur seul propriétaire.
+- **Propriétaire des fichiers déduit.** Quand c'est possible, le conteneur
+  adopte le propriétaire de votre dossier de médias, pour que les réparations
+  puissent écrire. Le serveur lui-même ne tourne jamais en root.
+- **Rien à dimensionner à la main.** La carte graphique, la capacité de
+  transcodage et la façon dont chaque appareil lit sont détectées et mesurées,
+  pas configurées.
+
+Utiliser votre propre base de données ou votre propre moteur de recherche
+reste possible : [Déploiements avancés](operations/advanced-deployments.md).
 
 <div class="evey-showcase" markdown>
 
@@ -39,73 +60,91 @@ détectés et mesurés par le serveur lui-même.
 
 </div>
 
+## Comment il fonctionne
+
 <div class="evey-points" markdown>
 
 <div markdown>
 
-**La voie la moins coûteuse d'abord**
+**En faire le moins possible**
 
-Le fichier tel quel, sinon réempaqueté sans encodeur, sinon seules les pistes
-qui l'exigent sont réencodées. Un spectateur en lecture directe ou en remux ne
-coûte guère plus qu'une lecture de fichier : une machine modeste sert beaucoup
-de monde à la fois.
+D'abord le fichier tel quel ; sinon les mêmes pistes réempaquetées, sans
+encodeur ; un réencodage seulement pour les pistes qui l'exigent. Le
+réempaquetage se fait dans le serveur quand c'est possible, sans lancer
+FFmpeg : un spectateur en lecture directe ou en remux ne coûte guère plus
+qu'une lecture de fichier.
 [Comment Evey choisit le mode de lecture](playback/how-playback-is-decided.md)
 
 </div>
 
 <div markdown>
 
-**Un serveur qui se mesure lui-même**
+**Savoir ce dont la machine est vraiment capable**
 
-Il chronomètre de vrais encodages 4K sur le processeur et chaque carte
-graphique, et n'utilise une carte que pour ce qu'elle a prouvé. Aucune
-capacité à estimer.
+Un accélérateur ne compte qu'une fois qu'un vrai encodage y a réussi. À son
+premier moment calme, le serveur chronomètre de vrais encodages 4K sur le
+processeur et chaque carte, puis envoie chaque flux vers la voie la moins
+coûteuse qui a prouvé pouvoir le servir. Une fois la capacité épuisée, un
+nouveau transcodage est refusé avec un message clair, au lieu de ralentir tous
+les flux.
 [Transcodage et capacité du serveur](playback/transcoding.md)
 
 </div>
 
 <div markdown>
 
-**Plein veut dire refusé, pas ralenti**
+**Du code tiers confiné, pas cru sur parole**
 
-Pas plus d'encodages que mesuré ; une fois plein, le lecteur est prévenu que le
-serveur est occupé, au lieu de dégrader tous les flux. Les tâches de fond se
-mettent en pause pendant la lecture.
-[Tâches de fond et charge du serveur](operations/background-work.md)
-
-</div>
-
-<div markdown>
-
-**Un plugin, trois écrans**
-
-Le même paquet tourne sur le web, sur Android et sur Android TV, et sait sur
-quel écran il s'affiche.
-[Référence de l'API des plugins](plugins/api-reference.md#on-a-television)
+Un plugin est analysé avant l'installation, ne reçoit que les permissions
+qu'il déclare, et tourne dans son propre processus, sans accès direct au
+réseau, avec mémoire, processus et disque plafonnés. Sous Docker avec un noyau
+récent, il ne voit que son propre dossier et les appels système dangereux sont
+refusés ; un hôte plus ancien a une sandbox plus faible, et le panneau
+d'administration indique laquelle est active.
+[Sandbox des plugins et modèle de menace](SECURITY.md#sandbox-modes)
 
 </div>
 
 <div markdown>
 
-**Des plugins confinés, pas crus sur parole**
+**Trouver les médias abîmés avant la lecture**
 
-Code analysé avant l'installation, son seul dossier visible, appels système
-dangereux refusés, aucun accès direct au réseau, jeton refusé par défaut.
-[Sandbox des plugins et modèle de menace](SECURITY.md)
-
-</div>
-
-<div markdown>
-
-**Les Infos du flux disent ce qui tourne vraiment**
-
-Une seule décision par lecture, et les Infos du flux la lisent dans le plan
-qu'exécute l'encodeur, avec la raison pour laquelle le fichier n'est pas lu tel quel.
-[Comment Evey choisit le mode de lecture](playback/how-playback-is-decided.md#reading-stream-info)
+La **Santé des médias** lit vos fichiers MKV et WebM et explique ce qu'elle
+trouve. Ce qu'elle sait réparer (un index de lecture manquant, un MP4 nommé
+`.mkv`, des pistes rangées par blocs) est réparé à la demande, vérifié avant
+de remplacer le fichier, avec l'original gardé par défaut et chaque
+modification consignée au journal. Le reste est signalé, jamais réécrit dans
+votre dos.
+[Santé des médias](runbooks/media-health.md)
 
 </div>
 
 </div>
+
+## Voir ce qu'Evey a décidé, et pourquoi
+
+Le tableau de bord ci-dessus liste chaque lecture : qui, sur quel appareil, en
+**Lecture directe**, **Remux** ou **Transcodage**, si la vidéo et l'audio sont
+copiés ou encodés et par quoi, le débit et la progression. Dans le lecteur, les
+**Infos du flux** lisent le plan même qu'exécute l'encodeur, et disent pourquoi
+le fichier n'a pas été lu tel quel.
+
+<figure class="evey-shot evey-shot--narrow" markdown="span">
+  ![Les Infos du flux dans le lecteur web](images/player-stream-info.webp){ loading=lazy }
+  <figcaption>Les Infos du flux d'un film en remux : vidéo et audio copiés, et la raison pour laquelle il n'est pas lu directement.</figcaption>
+</figure>
+
+[Lire les Infos du flux](playback/how-playback-is-decided.md#reading-stream-info)
+
+## Applications et extensions
+
+Une application web servie par le serveur lui-même, des applications Android
+et Android TV (connectée depuis un téléphone ou un ordinateur grâce à la
+**Connexion rapide**), et la diffusion vers un Chromecast. Plugins et thèmes
+étendent l'interface, et le même plugin tourne sur le web, sur Android et sur
+la TV.
+[Applications et appareils](getting-started/apps.md) ·
+[Plugins](plugins.md)
 
 ## Par où commencer
 
