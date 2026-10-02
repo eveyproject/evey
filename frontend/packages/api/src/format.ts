@@ -45,6 +45,22 @@ export function formatDurationMs(ms: number | string | null | undefined): string
   return humanMinutes(Math.floor(value / 60000));
 }
 
+// A watch-time TOTAL (stats, analytics, activity) from milliseconds: unlike a
+// runtime, zero is a real answer ("0min"), and a few seconds watched read
+// "< 1min" - not "0min" for time that did happen.
+export function formatWatchTotalMs(ms: number | string | null | undefined): string {
+  const value = typeof ms === "string" ? Number(ms) : (ms ?? 0);
+  if (!Number.isFinite(value) || value <= 0) return "0min";
+  if (value < 60000) return "< 1min";
+  return humanMinutes(Math.floor(value / 60000));
+}
+
+/** Same total from seconds (the analytics rows). */
+export function formatWatchTotalSec(seconds: number | string | null | undefined): string {
+  const value = typeof seconds === "string" ? Number(seconds) : (seconds ?? 0);
+  return formatWatchTotalMs(Number.isFinite(value) ? value * 1000 : 0);
+}
+
 // Same rendering from seconds (analytics totals). Callers that need a value
 // for zero append `|| "0min"`.
 export function formatDurationSec(seconds: number | string | null | undefined): string {

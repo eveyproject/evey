@@ -4,7 +4,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { LoadFailed } from "../../../src/components/LoadFailed";
-import { useActivityServiceGetAnalytics, formatDurationSec } from "@evey/api";
+import { useActivityServiceGetAnalytics, formatWatchTotalSec } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 interface TopMedia {
@@ -65,7 +65,7 @@ function TopMediaList({ items, theme }: { items: TopMedia[]; theme: ReturnType<t
                   <View style={[styles.barFill, { backgroundColor: theme.colors.accent, width: `${Math.round((duration / maxDuration) * 100)}%` }]} />
                 </View>
                 <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-                  {formatDurationSec(item.totalDurationSeconds) || "0min"}
+                  {formatWatchTotalSec(item.totalDurationSeconds)}
                 </Text>
               </View>
             </View>

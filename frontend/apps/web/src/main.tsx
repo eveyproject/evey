@@ -1,4 +1,5 @@
 import { StrictMode } from "react";
+import { NotFoundPage } from "@/components/ui/NotFoundPage";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -238,6 +239,7 @@ const router = routerRef = createRouter({
   routeTree,
   context: { queryClient },
   defaultErrorComponent: RouterErrorFallback,
+  defaultNotFoundComponent: NotFoundPage,
 });
 
 declare module "@tanstack/react-router" {

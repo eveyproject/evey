@@ -17,6 +17,8 @@ function formatWatchTime(ms: string | undefined): string {
   const total = parseInt(ms ?? "0");
   const h = Math.floor(total / MS_PER_HOUR);
   const m = Math.floor((total % MS_PER_HOUR) / MS_PER_MINUTE);
+  // Seconds watched are time that happened, not "0m".
+  if (total > 0 && total < MS_PER_MINUTE) return "< 1m";
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }

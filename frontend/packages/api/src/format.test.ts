@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatBytes, formatTime, formatTimeMs, formatDurationMs, formatDurationSec } from "./format";
+import { formatBytes, formatTime, formatTimeMs, formatDurationMs, formatDurationSec, formatWatchTotalMs, formatWatchTotalSec } from "./format";
 
 describe("formatBytes", () => {
   it("renders 0 B for empty or invalid input", () => {
@@ -99,5 +99,21 @@ describe("formatDurationSec", () => {
     expect(formatDurationSec(2700)).toBe("45min");
     expect(formatDurationSec("5520")).toBe("1h 32min");
     expect(formatDurationSec(7200)).toBe("2h");
+  });
+});
+
+// A watch-time total: zero is an answer, and seconds watched are not "0min"
+// (an admin read "Total Watch Time: 0min" on titles that had been played).
+describe("formatWatchTotal", () => {
+  it("says 0min for nothing, < 1min for seconds, minutes and hours beyond", () => {
+    expect(formatWatchTotalMs(0)).toBe("0min");
+    expect(formatWatchTotalMs(undefined)).toBe("0min");
+    expect(formatWatchTotalMs("abc")).toBe("0min");
+    expect(formatWatchTotalMs(42_000)).toBe("< 1min");
+    expect(formatWatchTotalMs("90000")).toBe("1min");
+    expect(formatWatchTotalMs(5_520_000)).toBe("1h 32min");
+    expect(formatWatchTotalSec(42)).toBe("< 1min");
+    expect(formatWatchTotalSec("3600")).toBe("1h");
+    expect(formatWatchTotalSec(0)).toBe("0min");
   });
 });

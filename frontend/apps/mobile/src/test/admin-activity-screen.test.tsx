@@ -66,10 +66,11 @@ const playHistoryMock = vi.fn();
 vi.mock("@evey/api", async () => {
   // The screen renders through the real formatters - stubbing them here would
   // hide exactly the drift the shared module exists to prevent.
-  const { formatBytes, formatDurationMs } = await vi.importActual<typeof import("@evey/api")>("@evey/api");
+  const { formatBytes, formatDurationMs, formatWatchTotalMs } = await vi.importActual<typeof import("@evey/api")>("@evey/api");
   return {
     formatBytes,
     formatDurationMs,
+    formatWatchTotalMs,
     useActivityServiceGetPlayHistory: (...a: unknown[]) => playHistoryMock(...a),
     useActivityServiceGetServerStats: () => ({ data: undefined, isLoading: false, refetch: vi.fn() }),
     useAdminSessionServiceGetAuditLog: () => ({ data: undefined, isLoading: false, isError: false, refetch: vi.fn() }),

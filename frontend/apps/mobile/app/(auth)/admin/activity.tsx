@@ -51,7 +51,7 @@ interface AuditEntry {
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { WatcherChips, type Watcher } from "../../../src/features/admin/WatcherChips";
-import { formatBytes, formatDurationMs } from "@evey/api";
+import { formatBytes, formatWatchTotalMs } from "@evey/api";
 
 type Tab = "play" | "audit" | "stats";
 
@@ -135,7 +135,7 @@ function PlayHistoryTab({ watcher }: { watcher: Watcher }) {
               <View style={[styles.progressFill, { width: `${pct}%`, backgroundColor: theme.colors.accent }]} />
             </View>
             <Text style={{ color: theme.colors.textMuted, fontSize: 11, width: 32, textAlign: "right" }}>{pct}%</Text>
-            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{formatDurationMs(item.durationMs) || "0min"}</Text>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{formatWatchTotalMs(item.durationMs)}</Text>
           </View>
         </View>
         {link ? <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} /> : null}
@@ -353,7 +353,7 @@ function StatsTab() {
 
   const cards: Array<{ label: string; value: string | number; icon: string }> = [
     { label: t("admin.activity.stats.totalPlays", "Total Plays"), value: data?.totalPlays ?? 0, icon: "play-outline" },
-    { label: t("admin.activity.stats.totalPlayTime", "Play Time"), value: formatDurationMs(data?.totalPlayTimeMs) || "0min", icon: "time-outline" },
+    { label: t("admin.activity.stats.totalPlayTime", "Play Time"), value: formatWatchTotalMs(data?.totalPlayTimeMs), icon: "time-outline" },
     { label: t("admin.activity.stats.totalUsers", "Users"), value: data?.totalUsers ?? 0, icon: "people-outline" },
     { label: t("admin.activity.stats.totalMedia", "Media Items"), value: data?.totalMediaItems ?? 0, icon: "film-outline" },
     { label: t("admin.activity.stats.bandwidth", "Bandwidth"), value: formatBytes(data?.totalBandwidthBytes), icon: "cloud-download-outline" },
@@ -406,7 +406,7 @@ function StatsTab() {
                 <View key={u.userId} style={[styles.listRow, { borderBottomColor: theme.colors.border }]}>
                   <Text style={{ color: theme.colors.text, fontSize: 13, flex: 1 }} numberOfLines={1}>{u.username}</Text>
                   <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-                    {u.playCount} · {formatDurationMs(u.totalWatchTimeMs) || "0min"}
+                    {u.playCount} · {formatWatchTotalMs(u.totalWatchTimeMs)}
                   </Text>
                 </View>
               ))}

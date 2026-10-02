@@ -1,6 +1,6 @@
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useActivityServiceGetAnalytics, formatDurationSec } from "@evey/api";
+import { useActivityServiceGetAnalytics, formatWatchTotalSec } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -125,7 +125,7 @@ function TopMediaTable({ items }: { items: TopMediaItem[] }) {
                     />
                   </div>
                   <span className="text-xs w-16 text-right text-[var(--text-muted)] tabular-nums">
-                    {formatDurationSec(item.total_duration_seconds) || "0min"}
+                    {formatWatchTotalSec(item.total_duration_seconds)}
                   </span>
                 </div>
               </td>

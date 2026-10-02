@@ -63,7 +63,7 @@ describe("tv statistics screen", () => {
     // Favourite genre card + the bar row both name the top genre.
     expect(screen.getAllByText("Action")).toHaveLength(2);
 
-    const rows = ["Action, 1h 0m", "Drama, 30m", "Tiny, 0m"].map((l) => screen.getByLabelText(l));
+    const rows = ["Action, 1h 0m", "Drama, 30m", "Tiny, < 1m"].map((l) => screen.getByLabelText(l));
     const widths = rows.map((r) => (r.querySelector("[data-width]") as HTMLElement).getAttribute("data-width"));
     expect(widths).toEqual(["100%", "50%", "2%"]);
 
