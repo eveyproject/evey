@@ -1,6 +1,7 @@
 package music
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -31,19 +32,34 @@ type NowPlayingSession struct {
 }
 
 // NowPlayingRegistry tracks live music sessions in memory and carries a pending
-// remote command per session (play/pause/stop), delivered back to the player on
-// its next heartbeat - the same channel the video ProgressReporter uses. Safe
-// for concurrent use.
+// remote command per session (play/pause/stop). A player parked in WaitCommand
+// gets it at once; otherwise it rides back on the next heartbeat, the only
+// channel older clients know. Safe for concurrent use.
 type NowPlayingRegistry struct {
 	mu       sync.Mutex
 	ttl      time.Duration
 	now      func() time.Time
 	sessions map[string]*nowPlayingEntry
+	closed   bool
 }
 
 type nowPlayingEntry struct {
 	sess    NowPlayingSession
-	pending string // queued remote command, consumed on the next heartbeat
+	pending string // queued remote command, consumed by whichever reader comes first
+	// wake is closed and replaced whenever a command is queued or the session
+	// ends, releasing every WaitCommand parked on it.
+	wake chan struct{}
+}
+
+func (e *nowPlayingEntry) signal() {
+	close(e.wake)
+	e.wake = make(chan struct{})
+}
+
+func (e *nowPlayingEntry) take() string {
+	cmd := e.pending
+	e.pending = ""
+	return cmd
 }
 
 // NewNowPlayingRegistry builds an empty registry.
@@ -66,7 +82,7 @@ func (r *NowPlayingRegistry) Heartbeat(sessionID, profileID, username, trackID, 
 	now := r.now()
 	e, ok := r.sessions[sessionID]
 	if !ok {
-		e = &nowPlayingEntry{sess: NowPlayingSession{SessionID: sessionID, StartedAt: now}}
+		e = &nowPlayingEntry{sess: NowPlayingSession{SessionID: sessionID, StartedAt: now}, wake: make(chan struct{})}
 		r.sessions[sessionID] = e
 	}
 	e.sess.ProfileID = profileID
@@ -76,9 +92,7 @@ func (r *NowPlayingRegistry) Heartbeat(sessionID, profileID, username, trackID, 
 	e.sess.PositionMs = positionMs
 	e.sess.IsPaused = isPaused
 	e.sess.LastSeen = now
-	cmd := e.pending
-	e.pending = ""
-	return cmd
+	return e.take()
 }
 
 // SetCommand queues a remote command for a live session. Reports whether the
@@ -90,11 +104,54 @@ func (r *NowPlayingRegistry) SetCommand(sessionID, command string) bool {
 	if !ok || r.expiredLocked(e, r.now()) {
 		return false
 	}
-	// A stop ends the session client-side; drop it now so it leaves the panel
-	// immediately rather than lingering until the TTL, but still deliver the
-	// command on the pending channel first.
 	e.pending = command
+	e.signal()
 	return true
+}
+
+// WaitCommand parks until a command is queued for the session, the session
+// ends, the registry closes or ctx is done, and returns the command ("" when
+// woken without one). ok=false means the caller has no live session under that
+// id - unknown, expired or another profile's - so there is nothing to wait on.
+func (r *NowPlayingRegistry) WaitCommand(ctx context.Context, sessionID, profileID string) (cmd string, ok bool) {
+	r.mu.Lock()
+	e, found := r.sessions[sessionID]
+	if r.closed || !found || e.sess.ProfileID != profileID || r.expiredLocked(e, r.now()) {
+		r.mu.Unlock()
+		return "", false
+	}
+	if cmd := e.take(); cmd != "" {
+		r.mu.Unlock()
+		return cmd, true
+	}
+	wake := e.wake
+	r.mu.Unlock()
+
+	select {
+	case <-wake:
+	case <-ctx.Done():
+		return "", true
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if cur, live := r.sessions[sessionID]; live && cur == e {
+		return e.take(), true
+	}
+	return "", true
+}
+
+// Close releases every parked WaitCommand and refuses new ones, so a server
+// shutdown is not held open by long polls.
+func (r *NowPlayingRegistry) Close() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.closed {
+		return
+	}
+	r.closed = true
+	for _, e := range r.sessions {
+		e.signal()
+	}
 }
 
 // Remove drops a session outright (explicit stop / track ended with nothing
@@ -102,7 +159,10 @@ func (r *NowPlayingRegistry) SetCommand(sessionID, command string) bool {
 func (r *NowPlayingRegistry) Remove(sessionID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	delete(r.sessions, sessionID)
+	if e, ok := r.sessions[sessionID]; ok {
+		e.signal()
+		delete(r.sessions, sessionID)
+	}
 }
 
 // List returns the live (non-expired) sessions, evicting stale ones as it goes.
@@ -113,6 +173,7 @@ func (r *NowPlayingRegistry) List() []NowPlayingSession {
 	out := make([]NowPlayingSession, 0, len(r.sessions))
 	for id, e := range r.sessions {
 		if r.expiredLocked(e, now) {
+			e.signal()
 			delete(r.sessions, id)
 			continue
 		}

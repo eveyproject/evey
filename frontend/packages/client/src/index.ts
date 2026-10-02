@@ -42,6 +42,7 @@ export * from "./lib/fetcherSetup";
 export * from "./lib/errorClassification";
 export * from "./lib/shed";
 export * from "./lib/servedVariant";
+export * from "./lib/musicRemoteCommands";
 export * from "./lib/mutationErrorMessage";
 export * from "./lib/mutationErrorNet";
 export * from "./lib/certifications";

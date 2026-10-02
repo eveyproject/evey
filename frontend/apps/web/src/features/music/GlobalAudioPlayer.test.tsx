@@ -249,6 +249,38 @@ describe("GlobalAudioPlayer", () => {
     expect(playedCalls).toHaveLength(1);
   });
 
+  // The admin's pause rides the command long poll, not the 10s heartbeat, and
+  // the player reports the new state right away so the admin card follows.
+  it("applies a remote pause from the command poll and beats the new state at once", async () => {
+    const fetchRaw = eveyFetchRaw as ReturnType<typeof vi.fn>;
+    fetchRaw.mockClear();
+    let delivered = false;
+    fetchRaw.mockImplementation((req: { url: string }) => {
+      if (req.url.endsWith("/command") && !delivered) {
+        delivered = true;
+        return Promise.resolve(new Response(JSON.stringify({ remoteCommand: "pause" }), { status: 200 }));
+      }
+      if (req.url.endsWith("/command")) return new Promise(() => {}); // held open
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    useAuthStore.setState({ accessToken: makeJwt(9999999999) });
+    useMusicPlayerStore.setState({
+      playing: makeTrack("track-1", "Song A"),
+      queue: [], shuffle: false, externallyPaused: false, source: null,
+    });
+
+    await renderPlayer();
+    await act(async () => {});
+    expect(window.HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+
+    const beatsBefore = fetchRaw.mock.calls.filter((c) => (c[0] as { url: string }).url === "/api/v1/music/nowplaying").length;
+    fireEvent.pause(document.querySelector("audio")!);
+    await act(async () => {});
+    const beatsAfter = fetchRaw.mock.calls.filter((c) => (c[0] as { url: string }).url === "/api/v1/music/nowplaying").length;
+    expect(beatsAfter).toBe(beatsBefore + 1);
+    fetchRaw.mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+  });
+
   describe("queue panel", () => {
     beforeEach(() => {
       useAuthStore.setState({ accessToken: makeJwt(9999999999) });
