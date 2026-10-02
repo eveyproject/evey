@@ -197,9 +197,17 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 				ch := int(*t.Channels)
 				ms.Channels = &ch
 			}
-			// EffectiveSampleRate = decoder OUTPUT rate (HE-AAC SBR doubles the core).
-			if esr := t.EffectiveSampleRate(); esr > 0 {
-				sr := int(math.Round(esr))
+			// The rate ffprobe and ffmpeg's decoder report: the SBR-doubled
+			// output only when the AudioSpecificConfig signals SBR (the same
+			// test that names the profile HE-AAC). A Matroska
+			// OutputSamplingFrequency over an LC config is implicit SBR, which
+			// ffmpeg decodes at the core rate (test5: 22050, not 44100).
+			rate := t.EffectiveSampleRate()
+			if codec == "aac" && !strings.HasPrefix(ms.Profile, "HE-AAC") && t.SampleRate != nil && *t.SampleRate > 0 {
+				rate = *t.SampleRate
+			}
+			if rate > 0 {
+				sr := int(math.Round(rate))
 				ms.SampleRate = &sr
 			}
 			if cl := t.ChannelLayout(); cl != "" {
