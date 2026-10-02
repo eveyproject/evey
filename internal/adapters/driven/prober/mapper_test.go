@@ -203,7 +203,13 @@ func TestMapContainer_FallbackGates(t *testing.T) {
 		{"unknown track type", &extmkv.Container{Tracks: []extmkv.Track{
 			{Type: extmkv.TrackType("button"), Codec: "x"}}}},
 		{"unmapped/exotic codec", &extmkv.Container{Tracks: []extmkv.Track{
-			{Type: extmkv.VideoTrack, Codec: "V_REAL/RV40", Width: new(uint32(640)), Height: new(uint32(480))}}}},
+			{Type: extmkv.VideoTrack, Codec: "V_FAKE/NOPE", Width: new(uint32(640)), Height: new(uint32(480))}}}},
+		// The track names what it can resolve and hands back the raw CodecID
+		// otherwise - with or without a "/" - which must still reach ffprobe.
+		{"unresolved VfW FourCC", &extmkv.Container{Tracks: []extmkv.Track{
+			{Type: extmkv.VideoTrack, Codec: "V_MS/VFW/FOURCC", Width: new(uint32(640)), Height: new(uint32(480))}}}},
+		{"unresolved raw id without a slash", &extmkv.Container{Tracks: []extmkv.Track{
+			{Type: extmkv.AudioTrack, Codec: "A_QUICKTIME", Channels: new(uint8(2)), SampleRate: new(48000.0)}}}},
 		{"video missing height", &extmkv.Container{Tracks: []extmkv.Track{
 			{Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920))}}}},
 		{"hevc no colour (possible-HDR -> ffprobe)", &extmkv.Container{Tracks: []extmkv.Track{

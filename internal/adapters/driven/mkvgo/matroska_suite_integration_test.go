@@ -184,3 +184,20 @@ func TestMatroskaSuiteIntegration_DamagedFilesStillPackage(t *testing.T) {
 		})
 	}
 }
+
+// test4 is a live capture: no Duration, no Cues, unknown-size Clusters, and a
+// timeline that starts at 12.345 s. Its length is what ffmpeg plays, 68.41 s -
+// not the 80.77 s its last block ends at, nor the 0 that once made the master
+// playlist refuse it ("duration missing").
+func TestMatroskaSuiteIntegration_LiveCaptureLength(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	ms, err := TrackEndMs(t.Context(), suiteFile(t, "test4.mkv"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ms < 68300 || ms > 68500 {
+		t.Errorf("test4 length %d ms, want about 68410 (ffmpeg's 68.41 s)", ms)
+	}
+}
