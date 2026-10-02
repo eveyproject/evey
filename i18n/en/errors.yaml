@@ -92,6 +92,7 @@ user:
   last_admin_remove: "Cannot remove the last admin"
   last_admin_disable: "Cannot disable the last admin"
   impersonation_api_key: "Impersonation is not allowed for API-key callers"
+  impersonation_forbidden: "Not allowed while connected as another user"
   limit_negative: "{field} must be 0 or more"
   id_required: "A user id is required"
   profile_id_required: "A profile id is required"

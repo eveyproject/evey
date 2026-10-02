@@ -92,6 +92,7 @@ user:
   last_admin_remove: "Impossible de supprimer le dernier administrateur"
   last_admin_disable: "Impossible de désactiver le dernier administrateur"
   impersonation_api_key: "L'usurpation d'identité n'est pas autorisée depuis une clé API"
+  impersonation_forbidden: "Interdit pendant une connexion en tant qu'un autre utilisateur"
   limit_negative: "{field} doit être supérieur ou égal à 0"
   id_required: "Un identifiant d'utilisateur est requis"
   profile_id_required: "Un identifiant de profil est requis"

@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   buildConnectSrc,
+  frameLoadMessage,
+  isFrameShellMessage,
+  pluginFrameUrl,
   buildInitPayload,
   clampSlotHeight,
   createToastLimiter,
@@ -152,5 +155,24 @@ describe("pluginRequestFor", () => {
   it("guards asset paths against traversal and odd characters", () => {
     expect(isValidAssetPath("a/b.png")).toBe(true);
     for (const p of ["", "/etc", "a/../b", "a\\b", "a b", "a".repeat(257)]) expect(isValidAssetPath(p), p).toBe(false);
+  });
+});
+
+// The frame page is Evey's own, the hosts ride as a hint the server validates,
+// and nothing secret is ever part of the URL.
+describe("plugin frame page", () => {
+  it("builds the frame URL from the manifest's hosts", () => {
+    expect(pluginFrameUrl([])).toBe("/plugin-frame.html");
+    expect(pluginFrameUrl([" api.open-meteo.com ", "", "http://localhost:8080"])).toBe(
+      "/plugin-frame.html?connect=" + encodeURIComponent("api.open-meteo.com,http://localhost:8080"),
+    );
+  });
+
+  it("recognises the handshake and shapes the load message", () => {
+    expect(isFrameShellMessage({ type: "evey-frame-shell" })).toBe(true);
+    expect(isFrameShellMessage({ type: "ready" })).toBe(false);
+    expect(isFrameShellMessage(null)).toBe(false);
+    expect(frameLoadMessage(["a", "b"])).toEqual({ type: "evey-frame-load", scripts: ["a", "b"] });
+    expect(frameLoadMessage(["a"], ":root{}", "https://h/x/")).toEqual({ type: "evey-frame-load", scripts: ["a"], css: ":root{}", base: "https://h/x/" });
   });
 });

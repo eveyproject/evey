@@ -3,6 +3,7 @@ package activity
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"time"
 
 	"github.com/evey-project/evey/internal/domain/activity"
@@ -79,6 +80,14 @@ func (s *CommandService) CreateAuditEntry(ctx context.Context, entry *activity.A
 		entry.ID = uuid.New().String()
 	}
 	entry.CreatedAt = time.Now()
+	// Under "connect as" the entry's user is the impersonated one: name the
+	// admin who actually acted, or the trail blames the wrong person.
+	if admin := activity.ImpersonatorFrom(ctx); admin != "" {
+		details := make(map[string]any, len(entry.Details)+1)
+		maps.Copy(details, entry.Details)
+		details["impersonated_by"] = admin
+		entry.Details = details
+	}
 	return s.auditLog.Create(ctx, entry)
 }
 

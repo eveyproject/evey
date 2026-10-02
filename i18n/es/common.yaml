@@ -75,6 +75,9 @@ errorBoundary:
   description: "Ocurrió un error inesperado. Intenta recargar la página. Si el problema persiste, vuelve a la página de inicio."
   tryAgain: Reintentar
   goHome: Ir al inicio
+notFound:
+  title: "Página no encontrada"
+  description: "Esta dirección no lleva a ninguna parte en Evey. Puede que haya cambiado o que el enlace sea incorrecto."
 routeError:
   title: Algo salió mal
   description: "Ocurrió un error al cargar esta página. Puedes reintentar o volver al inicio."

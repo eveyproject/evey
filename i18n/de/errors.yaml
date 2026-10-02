@@ -92,6 +92,7 @@ user:
   last_admin_remove: "Der letzte Administrator kann nicht entfernt werden"
   last_admin_disable: "Der letzte Administrator kann nicht deaktiviert werden"
   impersonation_api_key: "Identitätsübernahme ist über einen API-Schlüssel nicht erlaubt"
+  impersonation_forbidden: "Nicht erlaubt, solange Sie als anderer Benutzer angemeldet sind"
   limit_negative: "{field} muss 0 oder größer sein"
   id_required: "Eine Benutzer-ID ist erforderlich"
   profile_id_required: "Eine Profil-ID ist erforderlich"

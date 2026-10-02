@@ -92,6 +92,7 @@ user:
   last_admin_remove: "无法删除最后一位管理员"
   last_admin_disable: "无法停用最后一位管理员"
   impersonation_api_key: "不允许通过 API 密钥模拟其他用户"
+  impersonation_forbidden: "以其他用户身份登录时不允许此操作"
   limit_negative: "{field} 必须大于或等于 0"
   id_required: "需要用户 ID"
   profile_id_required: "需要个人资料 ID"

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/domain/user/fakes"
@@ -822,4 +823,18 @@ func TestAuthInterceptor_PluginTokenDenyByDefault(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotNil(t, resp)
 	})
+}
+
+// An impersonation token marks its requests, so their audit entries name the
+// admin; an ordinary token does not.
+func TestAuthInterceptor_MarksImpersonation(t *testing.T) {
+	ai, tokenGen := setupInterceptor()
+	info := &grpc.UnaryServerInfo{FullMethod: "/evey.v1.LibraryService/ListLibraries"}
+	for _, impBy := range []string{"admin-1", ""} {
+		token, err := tokenGen.GenerateAccessToken(user.Claims{UserID: "target", ImpersonatedBy: impBy})
+		require.NoError(t, err)
+		resp, err := ai.Unary()(ctxWithToken(token), nil, info, nopHandler)
+		require.NoError(t, err)
+		assert.Equal(t, impBy, activity.ImpersonatorFrom(resp.(context.Context)))
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/metrics"
@@ -85,7 +86,7 @@ func httpAuthMiddleware(verifier TokenVerifier) func(http.HandlerFunc) http.Hand
 			if refused {
 				return
 			}
-			ctx := context.WithValue(r.Context(), httpClaimsCtxKey{}, claims)
+			ctx := context.WithValue(activity.WithImpersonator(r.Context(), claims.ImpersonatedBy), httpClaimsCtxKey{}, claims)
 			next(w, r.WithContext(ctx))
 		}
 	}

@@ -45,6 +45,27 @@ export function buildConnectSrc(externalFetch: string[]): string {
 }
 
 /**
+ * The page a plugin UI or a theme script runs in, served by Evey with its own
+ * CSP (sandboxed, network limited to these hosts). The app only frames it and
+ * posts the code in: no token in the URL, and the app's policy needs no
+ * 'unsafe-inline'.
+ */
+export function pluginFrameUrl(externalFetch: string[]): string {
+  const hosts = externalFetch.map((h) => h.trim()).filter(Boolean);
+  return hosts.length > 0 ? `/plugin-frame.html?connect=${encodeURIComponent(hosts.join(","))}` : "/plugin-frame.html";
+}
+
+/** The page's handshake: it is ready to receive the scripts it runs. */
+export function isFrameShellMessage(data: unknown): boolean {
+  return !!data && typeof data === "object" && (data as { type?: unknown }).type === "evey-frame-shell";
+}
+
+/** What the app posts back: the stylesheet, the base for relative URLs, the scripts in order. */
+export function frameLoadMessage(scripts: string[], css?: string, base?: string) {
+  return { type: "evey-frame-load" as const, scripts, ...(css != null ? { css } : {}), ...(base != null ? { base } : {}) };
+}
+
+/**
  * Defuses any literal `</script>` in a bundle so the HTML parser does not end
  * the inline script early. HTML-only: the JS tokenizer reads `<\/script>` as
  * the same string.

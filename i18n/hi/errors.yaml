@@ -92,6 +92,7 @@ user:
   last_admin_remove: "अंतिम व्यवस्थापक को हटाया नहीं जा सकता"
   last_admin_disable: "अंतिम व्यवस्थापक को अक्षम नहीं किया जा सकता"
   impersonation_api_key: "API कुंजी से किसी अन्य उपयोगकर्ता के रूप में लॉगिन की अनुमति नहीं है"
+  impersonation_forbidden: "किसी अन्य उपयोगकर्ता के रूप में लॉगिन रहते हुए इसकी अनुमति नहीं है"
   limit_negative: "{field} 0 या उससे अधिक होना चाहिए"
   id_required: "उपयोगकर्ता आईडी आवश्यक है"
   profile_id_required: "प्रोफ़ाइल आईडी आवश्यक है"

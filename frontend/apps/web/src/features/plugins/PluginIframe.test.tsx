@@ -89,86 +89,46 @@ describe("PluginIframe", () => {
 
   // The redteam-exfil fixture (tests/plugins/redteam-exfil) attempts eight
   // browser-side exfiltration vectors and expects every one to render BLOCKED.
-  // This is the in-gate proof that its expectation is real: the containment it
-  // relies on - a strict CSP and a locked-down sandbox attribute - is actually
-  // emitted. If any of these assertions breaks, that fixture would start
-  // showing BYPASSED in the browser.
-  it("denies the browser exfiltration vectors at the sandbox boundary", async () => {
-    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
-    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
-
-    // default-src none is the floor: nothing is allowed unless re-granted.
-    expect(srcdoc).toContain("default-src 'none'");
-    // No external_fetch here, so connect-src is none: fetch/sendBeacon/WebSocket
-    // to an attacker sink cannot leave the iframe (vectors 1, 2, 4).
-    expect(srcdoc).toContain("connect-src 'none'");
-    // img-src never includes an arbitrary host, so the pixel beacon dies (3).
-    expect(srcdoc).toMatch(/img-src [^;]*data: blob:/);
-    expect(srcdoc).not.toContain("img-src *");
-
-    // The sandbox attribute is allow-scripts and nothing else: no
-    // allow-same-origin (opaque origin -> no parent DOM read, vector 5), no
-    // allow-top-navigation (URL exfil via top.location, vector 7), no
-    // allow-popups. This is what keeps the iframe from reaching the host page.
-    const sandbox = iframe.getAttribute("sandbox") ?? "";
-    expect(sandbox).toBe("allow-scripts");
-  });
-
-  it("inlines the plugin bundle into the iframe srcdoc (no <script src>)", async () => {
-    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
-    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
-    expect(srcdoc).toContain(PLUGIN_BUNDLE);
-    expect(srcdoc).not.toMatch(/<script\s+src=/i);
-    // No token of any kind should appear in the rendered HTML.
-    expect(srcdoc).not.toContain("USER-ACCESS-TOKEN");
-    expect(srcdoc).not.toContain("token=");
-  });
-
-  it("escapes literal </script> in the bundle so HTML parsing is safe", async () => {
-    eveyFetchRawMock.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => "var s = '</script><script>evil()</script>';",
-    });
-    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
-    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
-    // Defused form keeps the original JS string semantics but prevents the
-    // HTML parser from terminating the inline <script> early.
-    expect(srcdoc).toContain("<\\/script");
-    expect(srcdoc).not.toContain("</script><script>evil");
-  });
-
-  it("injects <base href> pointing at the assets root (absolute URL)", async () => {
-    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
-    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
-    expect(srcdoc).toMatch(/<base href="https?:\/\/[^/]+\/api\/v1\/plugins\/plg-test1\/assets\/">/);
-  });
-
-  it("injects meta CSP with default-src none and script-src host origin", async () => {
-    render(<PluginIframe pluginId="plg-test1" src="index.js" />);
-    const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
-    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
-    expect(srcdoc).toContain('http-equiv="Content-Security-Policy"');
-    expect(srcdoc).toContain("default-src 'none'");
-    expect(srcdoc).toMatch(/script-src https?:\/\/[^ ]+ 'unsafe-inline'/);
-  });
-
-  it("CSP connect-src reflects the externalFetch list when provided", async () => {
+  // The containment is the sandbox attribute set here plus the policy the
+  // server sends with /plugin-frame.html (default-src 'none', connect-src
+  // from the manifest only, sandbox even top-level - plugin_frame_handler_test.go).
+  // The plugin no longer runs in a srcdoc, so the APP's policy needs no
+  // 'unsafe-inline' (audit 2026-10-02).
+  it("frames the served page, sandboxed, with the manifest's hosts and no token", async () => {
     render(<PluginIframe pluginId="plg-test1" src="index.js" externalFetch={["api.example.com", "cdn.example.org"]} />);
     const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
-    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
-    expect(srcdoc).toContain("connect-src https://api.example.com https://cdn.example.org");
+    expect(iframe.getAttribute("srcdoc")).toBeNull();
+    expect(iframe.getAttribute("src")).toBe("/plugin-frame.html?connect=" + encodeURIComponent("api.example.com,cdn.example.org"));
+    // allow-scripts and nothing else: no allow-same-origin (opaque origin, no
+    // parent DOM read), no allow-top-navigation, no allow-popups.
+    expect(iframe.getAttribute("sandbox")).toBe("allow-scripts");
   });
 
-  it("CSP connect-src is 'none' when externalFetch is empty", async () => {
+  it("asks for no network when the manifest allows none", async () => {
     render(<PluginIframe pluginId="plg-test1" src="index.js" />);
     const iframe = (await screen.findByTitle(/plg-test1/)) as HTMLIFrameElement;
-    const srcdoc = iframe.getAttribute("srcdoc") ?? "";
-    expect(srcdoc).toContain("connect-src 'none'");
+    expect(iframe.getAttribute("src")).toBe("/plugin-frame.html");
+  });
+
+  it("posts the bridge then the bundle when the frame page is ready, never a token", async () => {
+    const iframe = await mountIframe();
+    const post = vi.spyOn(iframe.contentWindow!, "postMessage");
+    dispatchPluginMessage(iframe, { type: "evey-frame-shell" });
+    expect(post).toHaveBeenCalledTimes(1);
+    const msg = post.mock.calls[0][0] as { type: string; scripts: string[]; base: string; css: string };
+    expect(msg.type).toBe("evey-frame-load");
+    expect(msg.scripts).toHaveLength(2);
+    expect(msg.scripts[1]).toBe(PLUGIN_BUNDLE);
+    expect(msg.base).toMatch(/^https?:\/\/[^/]+\/api\/v1\/plugins\/plg-test1\/assets\/$/);
+    expect(msg.css).toContain(":root");
+    expect(JSON.stringify(msg)).not.toContain("USER-ACCESS-TOKEN");
+  });
+
+  it("hands the bundle to its own frame only", async () => {
+    const iframe = await mountIframe();
+    const post = vi.spyOn(iframe.contentWindow!, "postMessage");
+    dispatchPluginMessage(iframe, { type: "evey-frame-shell" }, { source: window });
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("uses sandbox=allow-scripts", async () => {

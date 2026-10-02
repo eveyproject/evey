@@ -92,6 +92,9 @@ errorBoundary:
   description: An unexpected error occurred. Please try reloading the page. If the problem persists, go back to the home page.
   tryAgain: Try Again
   goHome: Go Home
+notFound:
+  title: "Page not found"
+  description: "This address leads nowhere in Evey. It may have moved, or the link is wrong."
 routeError:
   title: Something went wrong
   description: An error occurred while loading this page. You can retry or go back to the home page.

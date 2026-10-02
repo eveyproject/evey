@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useThemeStore } from "@evey/store";
 import { useAuthStore } from "@evey/store";
 import { eveyFetchRaw } from "@evey/api";
+import { frameLoadMessage, isFrameShellMessage, pluginFrameUrl } from "@evey/client";
 import { THEME_BRIDGE_SCRIPT } from "./theme-bridge";
 import { applyThemeCSSPolicy } from "./theme-css-policy";
 
@@ -26,38 +27,6 @@ function injectThemeCSS(pluginId: string) {
   document.head.appendChild(link);
 }
 
-function buildThemeIframeSrcdoc(pluginId: string): string {
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const jsURL = `${origin}/api/v1/themes/${encodeURIComponent(pluginId)}/theme.js`;
-  // CSP meta inside the srcdoc: script-src restricted to this origin + unsafe-inline
-  // for the bridge IIFE. connect-src 'none' prevents theme JS from making outbound
-  // network requests. sandbox="allow-scripts" (set on the iframe element) prevents
-  // same-origin access to parent DOM, but postMessage still works from opaque origin.
-  const csp = [
-    "default-src 'none'",
-    `script-src ${origin} 'unsafe-inline'`,
-    "style-src 'unsafe-inline'",
-    "img-src data: blob:",
-    "connect-src 'none'",
-    "font-src data:",
-  ].join("; ");
-
-  // Defuse any literal </script> in the bridge script to prevent early parser termination.
-  const safeBridge = THEME_BRIDGE_SCRIPT.replace(/<\/script/gi, "<\\/script");
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy" content="${csp}">
-  <script>${safeBridge}<\/script>
-</head>
-<body>
-  <script src="${jsURL}"><\/script>
-</body>
-</html>`;
-}
-
 // ThemeLoader mounts at the top of the app (inside ThemeProvider) and handles:
 //   1. Injecting theme.css <link> into <head>
 //   2. Spawning a hidden sandbox iframe to execute theme.js when present
@@ -75,6 +44,9 @@ export function ThemeLoader() {
   // unchanged and does NOT re-init the assets (no CSS flash).
   const isAuthed = useAuthStore((s) => !!s.accessToken);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  // theme.js as fetched with the user's token, posted into the frame page
+  // when it says it is ready (no token in any URL, no inline script).
+  const themeCodeRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!pluginId) {
@@ -108,6 +80,9 @@ export function ThemeLoader() {
         });
 
         if (cancelled || !res) return;
+        const code = await res.text();
+        if (cancelled) return;
+        themeCodeRef.current = code;
 
         // theme.js exists - create a hidden sandbox iframe.
         const iframeId = THEME_IFRAME_ID_PREFIX + pluginId;
@@ -121,7 +96,8 @@ export function ThemeLoader() {
         iframe.style.position = "absolute";
         iframe.style.width = "0";
         iframe.style.height = "0";
-        iframe.srcdoc = buildThemeIframeSrcdoc(pluginId);
+        // Theme code reaches no network: the frame page's connect-src is 'none'.
+        iframe.src = pluginFrameUrl([]);
         document.body.appendChild(iframe);
         iframeRef.current = iframe;
       } catch {
@@ -145,6 +121,12 @@ export function ThemeLoader() {
       // sandbox="allow-scripts" iframes have an opaque "null" origin - we can't
       // use e.origin for same-origin checks, so we compare e.source instead.
       if (!iframe || e.source !== iframe.contentWindow) return;
+
+      if (isFrameShellMessage(e.data)) {
+        const code = themeCodeRef.current;
+        if (code != null) iframe.contentWindow?.postMessage(frameLoadMessage([THEME_BRIDGE_SCRIPT, code]), "*");
+        return;
+      }
 
       const data = e.data as Record<string, unknown>;
       if (!data || typeof data.type !== "string") return;

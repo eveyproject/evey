@@ -1,5 +1,5 @@
 ---
-source_sha: 3f509ca8086807c1f4d1c33d492ae026a83e372b7e31aba45a835fc6bbbd56d9
+source_sha: 159ec0fe1ebc74e3d0f2cf81603fc3b4476f15903cfdfbfb246a851b112343df
 reviewed: true
 ---
 # Reverse proxy
@@ -69,7 +69,7 @@ cessent de marcher sans le moindre message :
 
 | Élément | Directive | Ce qui casse sans lui |
 | --- | --- | --- |
-| `'unsafe-inline'` | `script-src` | L'interface de chaque plugin (iframe vide). Le paquet d'un plugin est récupéré avec le jeton de l'utilisateur et injecté dans une iframe `srcdoc`, et un document srcdoc hérite de la politique de la page qui l'intègre. C'est l'attribut `sandbox="allow-scripts"` de l'iframe (origine opaque, aucun accès au DOM ni aux cookies du parent) qui borne alors le plugin. |
+| `'self'` | `frame-src` | L'interface de chaque plugin et le script de chaque thème (iframe vide). Ils tournent dans `/plugin-frame.html`, une page d'Evey intégrée par l'application (voir plus bas). |
 | `'wasm-unsafe-eval'` | `script-src` | La lecture AC-3/E-AC-3 dans le navigateur (le décodeur WebAssembly ac3go ne peut pas être compilé, le film est lu sans le son). Cet élément n'autorise que la compilation Wasm, PAS `eval()` en général. |
 | `https://www.gstatic.com` | `script-src` (+ `frame-src`) | Le SDK d'envoi Google Cast ne se charge jamais : plus de bouton de diffusion pour personne. C'est le seul moyen pour un navigateur de découvrir les Chromecast du réseau local de l'utilisateur. |
 | `blob:` | `media-src` | La lecture MSE (hls.js rattache le flux par une URL blob). |
@@ -81,14 +81,28 @@ Une politique éprouvée pour un proxy qui pose la sienne :
 default-src 'self'; base-uri 'self'; object-src 'none';
 img-src 'self' https: data: blob:; media-src 'self' blob:;
 style-src 'self' 'unsafe-inline';
-script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com;
+script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com;
 connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:;
-frame-src https://www.gstatic.com
+frame-src 'self' https://www.gstatic.com
 ```
 
 `base-uri` et `object-src` ne retombent pas sur `default-src` : une politique
 qui les omet laisse libres l'injection de `<base href>` et l'intégration par
 `<object>`/`<embed>`. Gardez-les si vous posez votre propre politique.
+
+`script-src` ne contient pas `'unsafe-inline'` : un script injecté dans la page
+ne s'exécute pas. Ne le rajoutez pas, rien dans l'application n'en a besoin.
+
+Deux pages portent leur propre politique, envoyée par l'application ; laissez
+l'en-tête de l'application sur ces deux chemins :
+
+- `/plugin-frame.html`, la page dans laquelle tournent les interfaces des
+  plugins et les scripts des thèmes. Sa politique l'isole (même ouverte hors
+  d'une iframe), limite son réseau aux hôtes déclarés dans le manifeste du
+  plugin et ne laisse que l'application l'intégrer ; elle envoie donc aussi
+  `X-Frame-Options: SAMEORIGIN` : ne le remplacez pas par `DENY` sur ce chemin,
+  sinon toutes les interfaces de plugins restent vides.
+- `/cast-receiver.html`, décrite ci-dessous.
 
 Une page a besoin d'une politique plus large : `/cast-receiver.html`, la page
 que charge un Chromecast quand il lit depuis Evey. Le lecteur Cast y injecte
@@ -114,9 +128,9 @@ Quelques règles simples :
   classique : la jonction avale les caractères de part et d'autre
   (`...gstatic.com; connect-src` est ainsi devenu `...gstaticonnect-src`, ce qui
   a désactivé le SDK Cast et fusionné deux directives).
-- `'unsafe-inline'` dans `script-src` a un vrai coût, et il est aujourd'hui
-  indispensable (interfaces des plugins, voir le tableau). Le retirer n'est sans
-  risque que sur une installation qui n'utilise aucune interface de plugin.
+- **Vérifiez que la page des plugins garde sa propre politique :**
+  `curl -sI https://votre.domaine/plugin-frame.html | grep -i -e content-security -e x-frame`
+  doit afficher `sandbox allow-scripts` et `SAMEORIGIN`.
 
 Chaque exemple fourni lit le domaine à **un seul endroit** : `EVEY_DOMAIN` dans
 votre `.env`. Renseignez-le une fois ; Caddy, Nginx et Traefik le reprennent

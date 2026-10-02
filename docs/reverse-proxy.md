@@ -59,7 +59,7 @@ tokens or features break silently:
 
 | Token | Directive | Breaks without it |
 | --- | --- | --- |
-| `'unsafe-inline'` | `script-src` | Every plugin UI (blank iframe). A plugin bundle is fetched with the user's token and inlined into a `srcdoc` iframe, and a srcdoc document inherits the embedder's policy. The iframe's `sandbox="allow-scripts"` (opaque origin, no parent DOM/cookie access) is what bounds the plugin meanwhile. |
+| `'self'` | `frame-src` | Every plugin UI and theme script (blank iframe). They run in `/plugin-frame.html`, a page of Evey framed by the app (see below). |
 | `'wasm-unsafe-eval'` | `script-src` | Browser AC-3/E-AC-3 playback (the ac3go WebAssembly decoder can't compile → the film plays muted). This is the narrow token that permits Wasm compilation only - NOT general `eval()`. |
 | `https://www.gstatic.com` | `script-src` (+ `frame-src`) | The Google Cast sender SDK never loads → no cast button for anyone. It is the only way a browser can discover Chromecasts on the user's own LAN. |
 | `blob:` | `media-src` | MSE playback (hls.js attaches the stream via a blob URL). |
@@ -71,14 +71,27 @@ A known-good policy for a curating proxy:
 default-src 'self'; base-uri 'self'; object-src 'none';
 img-src 'self' https: data: blob:; media-src 'self' blob:;
 style-src 'self' 'unsafe-inline';
-script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com;
+script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com;
 connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:;
-frame-src https://www.gstatic.com
+frame-src 'self' https://www.gstatic.com
 ```
 
 `base-uri` and `object-src` have no fallback to `default-src`, so a policy that
 omits them leaves `<base href>` injection and `<object>`/`<embed>` embedding
 unrestricted. Keep them if you curate your own policy.
+
+`script-src` has no `'unsafe-inline'`: a script injected into the page does
+not run. Do not add it back - nothing in the app needs it.
+
+Two pages carry their own policy, sent by the app; leave the app's header on
+those two paths:
+
+- `/plugin-frame.html`, the page plugin UIs and theme scripts run in. Its
+  policy sandboxes it (even opened outside an iframe), limits its network to
+  the hosts the plugin's manifest declares, and lets only the app frame it,
+  so it also sends `X-Frame-Options: SAMEORIGIN`: do not overwrite that with
+  `DENY` on this path, or every plugin UI stays blank.
+- `/cast-receiver.html`, described below.
 
 One page needs a wider policy: `/cast-receiver.html`, the page a Chromecast
 loads when it plays from Evey. The Cast player injects styles, fonts and
@@ -101,9 +114,9 @@ Rules of thumb:
   is a classic silent corruption: the join swallows the characters at the seam
   (`...gstatic.com; connect-src` became `...gstaticonnect-src` once, which
   disabled the Cast SDK and merged two directives).
-- `'unsafe-inline'` in `script-src` is a real cost, and it is currently
-  load-bearing (plugin UIs, see the table). Dropping it is only safe on a
-  deployment that runs no plugin frontends.
+- **Check the plugin frame keeps its own policy:**
+  `curl -sI https://your.domain/plugin-frame.html | grep -i -e content-security -e x-frame`
+  must show `sandbox allow-scripts` and `SAMEORIGIN`.
 
 Every bundled example reads the domain from **one place**: `EVEY_DOMAIN` in
 your `.env`. Set it once; Caddy, Nginx and Traefik all pick it up.
