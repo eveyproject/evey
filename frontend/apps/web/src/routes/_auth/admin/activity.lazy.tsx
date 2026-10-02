@@ -4,7 +4,7 @@ import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
-import { activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog, formatBytes, formatDurationMs, collectAllPages, EXPORT_PAGE_SIZE, EXPORT_MAX_ROWS } from "@evey/api";
+import { activityServiceGetPlayHistory, activityServiceGetServerStats, adminSessionServiceGetAuditLog, formatBytes, formatWatchTotalMs, collectAllPages, EXPORT_PAGE_SIZE, EXPORT_MAX_ROWS } from "@evey/api";
 import { useActivityServiceGetServerStats } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Card } from "@/components/ui/Card";
@@ -118,7 +118,7 @@ function PlayHistoryTab({ watcher }: { watcher: Watcher }) {
                       {e.deviceName ?? e.clientName ?? "-"}
                     </td>
                     <td data-label={t("admin.activity.playHeaders.duration")} className="px-4 py-3 text-[var(--text-muted)]">
-                      {formatDurationMs(e.durationMs) || "0min"}
+                      {formatWatchTotalMs(e.durationMs)}
                     </td>
                     <td data-label={t("admin.activity.playHeaders.progress")} className="px-4 py-3 min-w-[100px]">
                       <div className="flex items-center gap-2">
@@ -228,7 +228,7 @@ function StatsTab() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {[
           [t("admin.activity.stats.totalPlays"), stats?.totalPlays ?? 0],
-          [t("admin.activity.stats.totalPlayTime"), formatDurationMs(stats?.totalPlayTimeMs) || "0min"],
+          [t("admin.activity.stats.totalPlayTime"), formatWatchTotalMs(stats?.totalPlayTimeMs)],
           [t("admin.activity.stats.totalUsers"), stats?.totalUsers ?? 0],
           [t("admin.activity.stats.totalMedia"), stats?.totalMediaItems ?? 0],
           [t("admin.activity.stats.bandwidth"), formatBytes(stats?.totalBandwidthBytes)],
@@ -281,7 +281,7 @@ function StatsTab() {
                 <span className="text-[var(--text)]">{u.username}</span>
                 <div className="flex gap-4 text-xs text-[var(--text-muted)]">
                   <span>{t("admin.activity.plays", { count: u.playCount })}</span>
-                  <span>{formatDurationMs(u.totalWatchTimeMs) || "0min"}</span>
+                  <span>{formatWatchTotalMs(u.totalWatchTimeMs)}</span>
                 </div>
               </div>
             ))}

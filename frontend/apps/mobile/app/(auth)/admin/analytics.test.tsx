@@ -20,12 +20,12 @@ vi.mock("@expo/vector-icons/Ionicons", () => ({ default: ({ name }: any) => Reac
 vi.mock("expo-router", () => ({ Stack: { Screen: () => null } }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 const q = vi.hoisted(() => ({ data: undefined as unknown, isLoading: false, refetch: vi.fn(), opts: null as any }));
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useActivityServiceGetAnalytics: (o: any) => {
     q.opts = o.query;
     return q;
   },
-  formatDurationSec: (s?: string) => (s && s !== "0" ? `${Math.round(Number(s) / 60)}min` : ""),
 }));
 vi.mock("../../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", surface: "#111", text: "#fff", textMuted: "#888", accent: "#f00", border: "#333" }, radii: { md: 8 } }),
@@ -60,7 +60,9 @@ describe("admin analytics screen (mobile)", () => {
 
     const widths = Array.from(document.querySelectorAll("[data-width]")).map((el) => el.getAttribute("data-width")).filter((w) => w && w.endsWith("%"));
     expect(widths).toEqual(["100%", "25%", "0%"]);
-    expect(screen.getByText("120min")).toBeTruthy();
+    // The real formatter: hours past an hour, "0min" for a title nobody watched.
+    expect(screen.getByText("2h")).toBeTruthy();
+    expect(screen.getByText("30min")).toBeTruthy();
     expect(screen.getByText("0min")).toBeTruthy();
     expect(screen.getByText("9")).toBeTruthy();
     expect(screen.getByText("alice")).toBeTruthy();
