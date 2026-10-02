@@ -75,6 +75,9 @@ errorBoundary:
   description: "Une erreur inattendue s'est produite. Veuillez recharger la page. Si le problème persiste, retournez à l'accueil."
   tryAgain: Réessayer
   goHome: "Retour à l'accueil"
+notFound:
+  title: "Page introuvable"
+  description: "Cette adresse ne mène nulle part dans Evey. Elle a peut-être changé, ou le lien est erroné."
 routeError:
   title: "Une erreur est survenue"
   description: "Une erreur est survenue lors du chargement de cette page. Vous pouvez réessayer ou retourner à l'accueil."

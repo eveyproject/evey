@@ -865,6 +865,9 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		registerSubtitleRoutes(mux, s.SubtitleSvc, s.TokenGen, s.LibQuerySvc, s.LibraryAccessRepo, s.SubtitleProviderRL, parentalChk)
 	}
 
+	// The page plugin UIs and theme scripts run in (its own CSP, see the handler).
+	mux.HandleFunc("GET "+pluginFramePath, pluginFrameHandler)
+
 	if s.PluginRepo != nil && s.PluginDir != "" {
 		registerPluginAssetRoutes(mux, s.TokenGen, s.PluginTokenGen, s.PluginRepo, s.PluginDir, s.CSSSanitizer, s.PluginWakener)
 		registerThemeAssetRoutes(mux, s.TokenGen, s.PluginRepo, s.PluginDir)

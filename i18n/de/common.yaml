@@ -92,6 +92,9 @@ errorBoundary:
   description: Ein unerwarteter Fehler ist aufgetreten. Bitte laden Sie die Seite neu. Wenn das Problem weiterhin besteht, kehren Sie zur Startseite zurück.
   tryAgain: Erneut versuchen
   goHome: Zur Startseite
+notFound:
+  title: "Seite nicht gefunden"
+  description: "Diese Adresse führt in Evey nirgendwohin. Sie wurde vielleicht verschoben, oder der Link ist falsch."
 routeError:
   title: Etwas ist schiefgelaufen
   description: Beim Laden dieser Seite ist ein Fehler aufgetreten. Sie können es erneut versuchen oder zur Startseite zurückkehren.

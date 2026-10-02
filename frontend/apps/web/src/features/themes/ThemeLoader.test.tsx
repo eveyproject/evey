@@ -129,60 +129,38 @@ describe("ThemeLoader", () => {
     });
   });
 
-  it("iframe srcdoc contains CSP meta tag", async () => {
+  // theme.js runs in the served frame page (its own CSP, connect-src 'none'
+  // for a theme), handed over after the handshake: the app's policy needs no
+  // 'unsafe-inline' and no token rides in a URL. Before, a <script src> in a
+  // srcdoc loaded theme.js from an opaque origin, without the token the route
+  // requires.
+  it("frames the served page with no network and hands it the bridge then theme.js", async () => {
     mockPluginId.value = "dark";
     mockAccessToken.value = "TOKEN";
     eveyFetchRawMock.mockImplementation(makeOkResponse);
 
     render(<ThemeLoader />);
 
+    let iframe: HTMLIFrameElement | null = null;
     await waitFor(() => {
-      const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
+      iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
       expect(iframe).not.toBeNull();
-      expect(iframe!.srcdoc).toContain("Content-Security-Policy");
     });
-  });
+    expect(iframe!.getAttribute("srcdoc")).toBeNull();
+    expect(iframe!.getAttribute("src")).toBe("/plugin-frame.html");
 
-  it("iframe srcdoc contains connect-src 'none'", async () => {
-    mockPluginId.value = "dark";
-    mockAccessToken.value = "TOKEN";
-    eveyFetchRawMock.mockImplementation(makeOkResponse);
-
-    render(<ThemeLoader />);
-
-    await waitFor(() => {
-      const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
-      expect(iframe).not.toBeNull();
-      expect(iframe!.srcdoc).toContain("connect-src 'none'");
+    const post = vi.spyOn(iframe!.contentWindow!, "postMessage");
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: { type: "evey-frame-shell" }, source: iframe!.contentWindow as Window }));
     });
-  });
+    expect(post).toHaveBeenCalledWith({ type: "evey-frame-load", scripts: ["/* bridge */", "// theme js"] }, "*");
 
-  it("iframe srcdoc contains bridge script", async () => {
-    mockPluginId.value = "dark";
-    mockAccessToken.value = "TOKEN";
-    eveyFetchRawMock.mockImplementation(makeOkResponse);
-
-    render(<ThemeLoader />);
-
-    await waitFor(() => {
-      const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
-      expect(iframe).not.toBeNull();
-      expect(iframe!.srcdoc).toContain("bridge");
+    // A handshake from any other window gets nothing.
+    post.mockClear();
+    act(() => {
+      window.dispatchEvent(new MessageEvent("message", { data: { type: "evey-frame-shell" }, source: window }));
     });
-  });
-
-  it("iframe srcdoc references theme.js URL", async () => {
-    mockPluginId.value = "dark";
-    mockAccessToken.value = "TOKEN";
-    eveyFetchRawMock.mockImplementation(makeOkResponse);
-
-    render(<ThemeLoader />);
-
-    await waitFor(() => {
-      const iframe = document.getElementById("evey-theme-iframe-dark") as HTMLIFrameElement | null;
-      expect(iframe).not.toBeNull();
-      expect(iframe!.srcdoc).toContain("/api/v1/themes/dark/theme.js");
-    });
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("does not inject iframe when no access token", async () => {

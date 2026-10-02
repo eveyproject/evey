@@ -8,6 +8,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
+	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/metrics"
@@ -336,5 +337,22 @@ func TestHTTPAdminMiddleware_AdminPasses(t *testing.T) {
 	}
 	if got := testutil.ToFloat64(metrics.AuthzDeniedTotal.WithLabelValues("http", "admin_required")) - before; got != 0 {
 		t.Errorf("a successful admin call must not count as a denial (delta %v)", got)
+	}
+}
+
+// An impersonation JWT marks the request, so the audit entries it writes name
+// the admin behind it.
+func TestHTTPAuthMiddleware_MarksImpersonation(t *testing.T) {
+	claims := testClaims(true)
+	claims.ImpersonatedBy = "admin-1"
+	var seen string
+	h := httpAuthMiddleware(&fakeTokenVerifier{claims: claims})(func(w http.ResponseWriter, r *http.Request) {
+		seen = activity.ImpersonatorFrom(r.Context())
+	})
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/profiles", nil)
+	req.Header.Set("Authorization", "Bearer jwt.with.dots")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if seen != "admin-1" {
+		t.Errorf("impersonator in context = %q, want admin-1", seen)
 	}
 }

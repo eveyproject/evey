@@ -191,6 +191,25 @@ func TestCreateAuditEntry_PreservesExistingID(t *testing.T) {
 	assert.Equal(t, "fixed-id", entry.ID)
 }
 
+// Under "connect as" the entry belongs to the impersonated user; the admin
+// who acted is named too, and the caller's own details are left untouched.
+func TestCreateAuditEntry_NamesTheImpersonatingAdmin(t *testing.T) {
+	t.Parallel()
+	cmdSvc, _, _, _, _, _, _ := newTestServices()
+
+	details := map[string]any{"reason": "cleanup"}
+	ctx := activity.WithImpersonator(context.Background(), "admin-1")
+	entry := &activity.AuditLogEntry{UserID: "u1", Action: "delete_playlist", Details: details}
+	require.NoError(t, cmdSvc.CreateAuditEntry(ctx, entry))
+	assert.Equal(t, "admin-1", entry.Details["impersonated_by"])
+	assert.Equal(t, "cleanup", entry.Details["reason"])
+	assert.NotContains(t, details, "impersonated_by")
+
+	plain := &activity.AuditLogEntry{UserID: "u1", Action: "login"}
+	require.NoError(t, cmdSvc.CreateAuditEntry(context.Background(), plain))
+	assert.Nil(t, plain.Details)
+}
+
 func TestGetAuditLog_FilterByUserID(t *testing.T) {
 	t.Parallel()
 	cmdSvc, querySvc, _, _, _, _, _ := newTestServices()

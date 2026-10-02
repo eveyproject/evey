@@ -82,20 +82,21 @@ func TestSecurityHeadersMiddleware_CSPAllowsWasmAndCastSDK(t *testing.T) {
 	if !strings.Contains(scriptSrc, "https://www.gstatic.com") {
 		t.Errorf("script-src must allow https://www.gstatic.com (Cast sender SDK), got %q", scriptSrc)
 	}
-	// Plugin frontends are inlined into a srcdoc iframe, which inherits THIS
-	// policy - without the token every plugin UI silently renders blank.
-	if !strings.Contains(scriptSrc, "'unsafe-inline'") {
-		t.Errorf("script-src must keep 'unsafe-inline' (plugin srcdoc bundles), got %q", scriptSrc)
+	// An injected inline script must not run (audit 2026-10-02): plugin UIs
+	// moved to /plugin-frame.html, which the app frames from 'self'.
+	if strings.Contains(scriptSrc, "'unsafe-inline'") {
+		t.Errorf("script-src must not allow 'unsafe-inline', got %q", scriptSrc)
+	}
+	if !strings.Contains(csp, "frame-src 'self'") {
+		t.Errorf("frame-src must allow 'self' (plugin frame), got %q", csp)
 	}
 }
 
 // base-uri and object-src have no fallback to default-src, so a policy that
 // omits them leaves <base href> injection and <object>/<embed> plugin embedding
 // unrestricted (flagged by the ZAP passive/active scan, 2026-09-06). Both the
-// app and the cast-receiver page must carry the locked-down values. NOTE: we do
-// NOT add frame-ancestors here - plugin frontends render in srcdoc iframes that
-// inherit this policy, and 'none' would blank them (see the unsafe-inline note
-// above); framing is covered by X-Frame-Options: DENY on the top-level response.
+// app and the cast-receiver page must carry the locked-down values. Framing is
+// covered by X-Frame-Options: DENY; the plugin frame sets its own.
 func TestSecurityHeadersMiddleware_CSPBaseAndObjectLockedDown(t *testing.T) {
 	for _, path := range []string{"/", "/cast-receiver.html"} {
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})

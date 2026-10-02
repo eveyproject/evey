@@ -365,15 +365,10 @@ func securityHeadersMiddlewareFn(httpsOnly func() bool, next http.Handler) http.
 		// cast_framework.js): the ONLY way a browser can discover Chromecasts on
 		// the USER's own LAN (JS can't do mDNS). Dropping it silently kills the
 		// cast button for every user.
-		// 'unsafe-inline' in script-src is REQUIRED by the plugin frontends:
-		// PluginIframe fetches a plugin's bundle with the user's token and
-		// inlines it into a srcdoc iframe, and a srcdoc document inherits the
-		// embedder's CSP - so an inline <script> there is judged by THIS policy.
-		// Removing the token drops every plugin UI (silently: the iframe just
-		// stays blank). It goes away when plugin bundles are loaded from a URL
-		// instead of inlined; until then the iframe's sandbox="allow-scripts"
-		// (no allow-same-origin) is what bounds the plugin: opaque origin, no
-		// access to the parent DOM, storage or cookies.
+		// No 'unsafe-inline' in script-src: an injected inline script does not
+		// run. Plugin UIs and theme scripts used to need it (a srcdoc iframe
+		// inherits this policy); they now run in /plugin-frame.html, a page
+		// with its own policy (plugin_frame_handler.go), framed from 'self'.
 		// media-src and worker-src must both allow blob:. hls.js attaches the
 		// MediaSource through a blob: URL and demuxes in a blob: worker, and
 		// both directives fall back to default-src 'self' when absent - which
@@ -394,7 +389,7 @@ func securityHeadersMiddlewareFn(httpsOnly func() bool, next http.Handler) http.
 		if r.URL.Path == "/cast-receiver.html" {
 			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: https:; worker-src 'self' blob:; font-src 'self' data: https://www.gstatic.com; connect-src 'self' https: wss:; frame-src https://www.gstatic.com; base-uri 'self'; object-src 'none'")
 		} else {
-			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; media-src 'self' blob:; worker-src 'self' blob:; font-src 'self' data:; connect-src 'self' https: wss:; frame-src https://www.gstatic.com; base-uri 'self'; object-src 'none'")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; media-src 'self' blob:; worker-src 'self' blob:; font-src 'self' data:; connect-src 'self' https: wss:; frame-src 'self' https://www.gstatic.com; base-uri 'self'; object-src 'none'")
 		}
 		if httpsOnly() || r.TLS != nil {
 			w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")

@@ -1,4 +1,4 @@
-// ThemeBridge API injected into the theme iframe's srcdoc.
+// ThemeBridge API run in the theme's frame page (/plugin-frame.html) before theme.js.
 // Only evey.theme.css(rules) and evey.theme.log(level, msg) are functional in V1.
 // registerComponent / observe / transition are acknowledged but not implemented
 // (parent replies with an error message so authors know the boundary).
@@ -10,7 +10,7 @@ export interface ThemeBridge {
   observe(stateKey: string, cb: (value: unknown) => void): void;
 }
 
-// THEME_BRIDGE_SCRIPT is inlined into the theme iframe srcdoc before theme.js
+// THEME_BRIDGE_SCRIPT runs in the theme's frame page right before theme.js
 // loads. It defines window.evey.theme, then signals readiness to the parent.
 // The script intentionally does NOT reference any globals (document, fetch,
 // localStorage) - those are unavailable in a sandbox="allow-scripts" iframe

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/user"
 	authpkg "github.com/evey-project/evey/internal/pkg/auth"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
@@ -223,6 +224,7 @@ func (i *AuthInterceptor) authenticate(ctx context.Context) (context.Context, er
 		}
 		return nil, i.translatedErr(ctx, codes.Unauthenticated, "errors.auth.invalid_token")
 	}
+	ctx = activity.WithImpersonator(ctx, claims.ImpersonatedBy)
 	return context.WithValue(ctx, claimsKey{}, claims), nil
 }
 
