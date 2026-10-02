@@ -204,6 +204,11 @@ func (a *Adapter) reindexResync(ctx context.Context, path string) (mkv.ReindexRe
 	err = ops.ReindexReplace(ctx, path, extmkv.Options{
 		Resync:     true,
 		KeepBackup: true, // this repair drops bytes - a rollback copy is mandatory
+		// Video resumes at the next keyframe after a gap: the frames before it
+		// reference frames the damage took and decode as garbage (test7 kept
+		// 23 of them, each one an ffmpeg error). A little more video is cut,
+		// none of it was watchable.
+		CleanCut: true,
 		OnSkip: func(d extmkv.DamagedRange) {
 			ranges = append(ranges, mkv.DamagedRange{
 				StartOffset: d.StartOffset, EndOffset: d.EndOffset,

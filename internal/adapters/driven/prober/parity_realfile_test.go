@@ -194,6 +194,12 @@ func fieldOrderEquiv(ff, mk, codec string) bool {
 	if codec == "vp8" || codec == "vp9" || codec == "av1" {
 		return library.ScanTypeOf(ff) != library.ScanInterlaced && library.ScanTypeOf(mk) != library.ScanInterlaced
 	}
+	// HEVC in Matroska: ffprobe leaves the field order unknown, mkvgo reads the
+	// hvcC's progressive-source flag. Measured on the 2160p library (Avatar,
+	// trace_headers: general_progressive_source_flag=1), mkvgo is the one right.
+	if codec == "hevc" && ff == "" {
+		return library.ScanTypeOf(mk) == library.ScanProgressive
+	}
 	return false
 }
 
