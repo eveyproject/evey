@@ -82,19 +82,22 @@ func (r *FakeShareLinkRepo) ListAll(_ context.Context) ([]*shared.ShareLink, err
 	return r.links, nil
 }
 
-func (r *FakeShareLinkRepo) IncrementViewCount(_ context.Context, token string) error {
+func (r *FakeShareLinkRepo) ConsumeView(_ context.Context, token string) (*shared.ShareLink, error) {
 	if r.Err != nil {
-		return r.Err
+		return nil, r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, l := range r.links {
 		if l.Token == token {
+			if l.IsExpired() || l.IsViewLimitReached() {
+				return nil, shared.ErrNotFound
+			}
 			l.ViewCount++
-			return nil
+			return l, nil
 		}
 	}
-	return nil
+	return nil, shared.ErrNotFound
 }
 
 func (r *FakeShareLinkRepo) Delete(_ context.Context, id string) error {

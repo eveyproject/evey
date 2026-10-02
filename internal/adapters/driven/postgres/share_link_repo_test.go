@@ -112,7 +112,7 @@ func TestShareLinkRepo_ListAll(t *testing.T) {
 	assert.GreaterOrEqual(t, len(list), 1)
 }
 
-func TestShareLinkRepo_IncrementViewCount(t *testing.T) {
+func TestShareLinkRepo_ConsumeView(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
@@ -138,11 +138,52 @@ func TestShareLinkRepo_IncrementViewCount(t *testing.T) {
 		CreatedAt:   time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, repo.Create(ctx, link))
-	require.NoError(t, repo.IncrementViewCount(ctx, "sl4-tok"))
+	spent, err := repo.ConsumeView(ctx, "sl4-tok")
+	require.NoError(t, err)
+	assert.Equal(t, 1, spent.ViewCount)
 
 	got, err := repo.GetByToken(ctx, "sl4-tok")
 	require.NoError(t, err)
 	assert.Equal(t, 1, got.ViewCount)
+
+	_, err = repo.ConsumeView(ctx, "unknown-tok")
+	require.ErrorIs(t, err, shared.ErrNotFound)
+}
+
+// An expired or exhausted link refuses the spend and keeps its counter.
+func TestShareLinkRepo_ConsumeView_RefusesWithoutSpending(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	repo := postgres.NewShareLinkRepo(db)
+	ctx := context.Background()
+
+	u := newTestUser("sl-u4b")
+	require.NoError(t, userRepo.Create(ctx, u))
+	lib := newTestLibrary("sl-lib4b")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("sl-mi4b", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	one := 1
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	exhausted := &shared.ShareLink{ID: "sl4b", Token: "sl4b-tok", MediaItemID: item.ID, CreatedBy: u.ID,
+		ExpiresAt: now.Add(time.Hour), MaxViews: &one, ViewCount: 1, CreatedAt: now}
+	expired := &shared.ShareLink{ID: "sl4c", Token: "sl4c-tok", MediaItemID: item.ID, CreatedBy: u.ID,
+		ExpiresAt: now.Add(-time.Minute), CreatedAt: now.Add(-time.Hour)}
+	require.NoError(t, repo.Create(ctx, exhausted))
+	require.NoError(t, repo.Create(ctx, expired))
+
+	for _, l := range []*shared.ShareLink{exhausted, expired} {
+		_, err := repo.ConsumeView(ctx, l.Token)
+		require.ErrorIs(t, err, shared.ErrNotFound)
+		got, err := repo.GetByToken(ctx, l.Token)
+		require.NoError(t, err)
+		assert.Equal(t, l.ViewCount, got.ViewCount, l.Token)
+	}
 }
 
 func TestShareLinkRepo_Delete(t *testing.T) {

@@ -99,34 +99,24 @@ func (s *ShareService) Peek(ctx context.Context, token string) (*shared.ShareLin
 func (s *ShareService) Validate(ctx context.Context, token string) (*shared.ShareLink, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.share.Validate")
 	defer span.End()
-	link, err := s.repo.GetByToken(ctx, token)
+	// The repo spends the view and enforces expiry + limit in one statement;
+	// a read-check-increment here let two concurrent downloads both pass.
+	link, err := s.repo.ConsumeView(ctx, token)
+	if err == nil {
+		return link, nil
+	}
+	if !errors.Is(err, shared.ErrNotFound) {
+		return nil, err
+	}
+	// Nothing was spent: read the row only to name the refusal.
+	link, err = s.repo.GetByToken(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("share link not found: %w", err)
 	}
 	if link.IsExpired() {
 		return nil, ErrShareExpired
 	}
-	if link.IsViewLimitReached() {
-		return nil, ErrShareViewLimit
-	}
-	if err := s.repo.IncrementViewCount(ctx, token); err != nil {
-		return nil, err
-	}
-	// Re-check after the increment: two concurrent callers could both pass
-	// the IsViewLimitReached() check above on the same pre-increment row,
-	// then both increment and both get served - silently exceeding maxViews
-	// by one. Refetch and reject the loser.
-	updated, err := s.repo.GetByToken(ctx, token)
-	if err != nil {
-		return nil, fmt.Errorf("share link not found after increment: %w", err)
-	}
-	if updated.IsExpired() {
-		return nil, ErrShareExpired
-	}
-	if updated.MaxViews != nil && updated.ViewCount > *updated.MaxViews {
-		return nil, ErrShareViewLimit
-	}
-	return updated, nil
+	return nil, ErrShareViewLimit
 }
 
 func (s *ShareService) List(ctx context.Context, userID string) ([]*shared.ShareLink, error) {
