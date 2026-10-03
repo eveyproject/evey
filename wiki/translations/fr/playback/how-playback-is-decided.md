@@ -1,5 +1,5 @@
 ---
-source_sha: 88ef0be48e8114ca12ceadc61b0194ba4760d654ae7cc58afdf1a52a3405c78f
+source_sha: 9f7080bc4043f1c842b77bf946e0f6b31769ab3ddde23345ef268ed665833a85
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture
@@ -102,7 +102,7 @@ raisons.
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
   ![Les Infos du flux dans le lecteur web, pour un remux](../images/player-stream-info.webp){ loading=lazy }
-  <figcaption>Un remux : vidéo et audio copiés, et la seule raison pour laquelle le fichier n'est pas lu tel quel (interface en anglais).</figcaption>
+  <figcaption>Remux : l'emballage change, les pistes vidéo et audio restent intactes, et la seule raison pour laquelle le fichier n'est pas lu tel quel. « Copié » décrit les pistes, pas le mode de lecture (interface en anglais).</figcaption>
 </figure>
 
 Les raisons se répartissent en quatre catégories :

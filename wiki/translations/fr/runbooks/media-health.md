@@ -1,5 +1,5 @@
 ---
-source_sha: 974b056c376498e40c4211ccbde7fd2d3f94c52f343c81353f4cc6f083b62a40
+source_sha: 2dcb9083e6c812b05a9ddfff7acdd81f745f1367b15c876fbc137c91dc3b02c1
 reviewed: true
 ---
 # Santé des médias
@@ -10,8 +10,8 @@ sait réparer, il le répare ; le reste est signalé une fois et peut être marq
 comme vu.
 
 <figure class="evey-shot" markdown="span">
-  ![Admin → Santé des médias après une analyse des bibliothèques de démo](../images/admin-media-health.webp){ loading=lazy }
-  <figcaption>Une analyse sans rien à faire : tous les fichiers sont sains (interface en anglais).</figcaption>
+  ![Admin → Santé des médias après une analyse : un fichier à réparer, une remarque](../images/admin-media-health.webp){ loading=lazy }
+  <figcaption>Une analyse avec un fichier qu'Evey sait réparer (son index de lecture manque) et une remarque (des octets en trop après la fin du fichier, sans conséquence) (interface en anglais).</figcaption>
 </figure>
 
 ## Trois verdicts
@@ -135,6 +135,11 @@ copie :
 | Renommé en `.mp4` | Lui rend son nom d'origine. |
 | Index reconstruit | Rien à annuler : l'image et le son sont intacts. |
 | Zone corrompue sautée | Seule la sauvegarde rend les octets perdus, c'est pourquoi cette réparation en garde toujours une. |
+
+<figure class="evey-shot" markdown="span">
+  ![Admin → Santé des médias après Tout réparer, journal des réparations ouvert](../images/admin-media-health-repaired.webp){ loading=lazy }
+  <figcaption>Après <strong>Tout réparer</strong> : l'index est reconstruit, le journal le consigne, et le fichier sort de la file ; la remarque reste. Cet index a été inscrit dans le fichier sur place, ce qui ne garde aucune copie : seul un fichier qui doit être réécrit garde une sauvegarde (interface en anglais).</figcaption>
+</figure>
 
 Les réparations écrivent dans vos dossiers de médias. Ils doivent être montés en
 lecture-écriture dans le conteneur (pas de `:ro` sur le volume) ; après une passe

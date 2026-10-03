@@ -1,0 +1,15 @@
+{#
+  The Edit button points at the file a reader would actually change.
+
+  mkdocs builds from wiki/build/, which mixes docs/, wiki/content/ and the
+  translations, so its edit_uri sent Home to docs/index.md and every translated
+  page to a docs/<page>.fr.md that does not exist. assemble.py records the real
+  source as edit_source; a page without it shows no Edit button rather than a
+  dead link.
+#}
+{% if page.meta and page.meta.edit_source and "content.action.edit" in features %}
+  <a href="{{ config.repo_url }}/edit/master/{{ page.meta.edit_source }}" title="{{ lang.t('action.edit') }}" class="md-content__button md-icon" rel="edit">
+    {% set icon = config.theme.icon.edit or "material/file-edit-outline" %}
+    {% include ".icons/" ~ icon ~ ".svg" %}
+  </a>
+{% endif %}

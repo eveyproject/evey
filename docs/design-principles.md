@@ -56,7 +56,7 @@ See [Casting](playback/casting.md), [Hardware acceleration](administration/hardw
 A playback is decided once, when it starts, and every manifest and segment of
 the session is served from that decision. The player never receives segments
 from two encodings, and what Stream info reports is derived from the same
-plan the encoder runs, checked by tests in both directions.
+serving plan the playback pipeline uses, checked by tests in both directions.
 
 See [ADR-0030](adr/0030-one-plan-one-decision.md),
 [ADR-0024](adr/0024-playback-plan-resolver.md).

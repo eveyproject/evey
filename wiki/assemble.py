@@ -291,6 +291,17 @@ def split_front_matter(text: str) -> tuple[dict, str]:
     return (meta if isinstance(meta, dict) else {}), text[match.end():]
 
 
+def with_edit_source(text: str, repo_path: str) -> str:
+    """Records the file a reader should edit. The build tree flattens docs/,
+    wiki/content/ and the translations into one docs_dir, so mkdocs' own
+    edit_uri points Home at docs/index.md and every translation at a .fr.md
+    that does not exist; overrides/partials/actions.html reads this instead."""
+    meta, body = split_front_matter(text)
+    meta["edit_source"] = repo_path
+    header = yaml.safe_dump(meta, allow_unicode=True, sort_keys=False).strip()
+    return f"---\n{header}\n---\n{body}"
+
+
 # ── Sources ───────────────────────────────────────────────────────────────────
 # A page may end with an HTML comment listing what its behavioural claims rest
 # on (a file and a symbol, a test, an ADR, an i18n key). It is invisible on the
@@ -426,6 +437,7 @@ def main() -> int:
         english, dangling = rewrite_offsite_links(rel, english, published)
         unresolved.extend(dangling)
 
+        english = with_edit_source(english, str(src.relative_to(REPO)))
         dest = staging / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(english, encoding="utf-8")
@@ -460,6 +472,7 @@ def main() -> int:
             # Page settings (hide: navigation...) ride in the same front matter
             # as source_sha and reviewed; they go back on top, above any banner.
             page_meta = {k: v for k, v in meta.items() if k not in ("source_sha", "reviewed")}
+            page_meta["edit_source"] = str(tr.relative_to(REPO))
             if page_meta:
                 header = yaml.safe_dump(page_meta, allow_unicode=True, sort_keys=False).strip()
                 body = f"---\n{header}\n---\n\n" + body

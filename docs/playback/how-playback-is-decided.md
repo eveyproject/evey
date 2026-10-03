@@ -89,7 +89,7 @@ itself), and under **Why not direct play** the reasons.
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
   ![Stream info in the web player, for a Remux](../images/player-stream-info.webp){ loading=lazy }
-  <figcaption>A Remux: video and audio copied, and the one reason the file is not played as it is.</figcaption>
+  <figcaption>Remux: the packaging changes, the video and audio tracks are left intact, and the one reason the file is not played as it is. "Copied" describes the tracks, not the playback method.</figcaption>
 </figure>
 
 The reasons fall into four groups:
