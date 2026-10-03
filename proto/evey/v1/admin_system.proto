@@ -314,6 +314,11 @@ message SetupStatusResponse {
   // clients show a banner and grey out what the server reports locked. The
   // server refuses the locked operations whether or not a client honours it.
   bool demo_mode = 6;
+  // demo_extended says this is a private, extended demo (EVEY_DEMO=extended):
+  // demo_mode is FALSE there, since the clients' read-only locks and shared-
+  // account behaviour must not apply, and the login screen publishes no
+  // credentials. The clients use it only to keep their hands off the network settings.
+  bool demo_extended = 7;
 }
 
 message GetServerConfigRequest {}

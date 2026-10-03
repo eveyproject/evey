@@ -81,7 +81,14 @@ func (s *CommandService) publishLoginFailed(ctx context.Context, username, reaso
 	}
 }
 
+func (s *CommandService) loginLockExempt(username string) bool {
+	return s.lockExempt != "" && strings.EqualFold(strings.TrimSpace(username), s.lockExempt)
+}
+
 func (s *CommandService) loginLocked(ctx context.Context, username string, keys ...string) bool {
+	if s.loginLockExempt(username) {
+		return false
+	}
 	for _, k := range keys {
 		locked, err := s.loginAttempts.IsLocked(ctx, k)
 		if err != nil {
@@ -95,6 +102,9 @@ func (s *CommandService) loginLocked(ctx context.Context, username string, keys 
 }
 
 func (s *CommandService) recordLoginFailure(ctx context.Context, username, pairKey, userKey string) {
+	if s.loginLockExempt(username) {
+		return
+	}
 	if err := s.loginAttempts.Record(ctx, pairKey, s.loginMaxFails, s.loginWindow); err != nil {
 		slog.WarnContext(ctx, "login attempt Record", slog.String("username", username), slog.Any("err", err))
 	}

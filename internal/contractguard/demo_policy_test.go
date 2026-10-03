@@ -30,14 +30,14 @@ import (
 //   - every HTTP route that is admin-gated, state-changing, or method-less
 //     appears in exactly one of the policy's route lists;
 //   - no entry names an RPC or a route that no longer exists;
-//   - every entry carries a reason a reviewer can weigh.
+//   - every entry carries a reason a guest can weigh.
 //
 // Same posture as the RBAC guard (TestAllRegisteredMethodsAreClassified) and
 // the route-auth guard next door, and it reuses the latter's route parser, so
 // the two see the same 145 routes.
 //
 // Honest limit: this proves each operation was classified, not that it was
-// classified correctly - the reason next to each entry is what a reviewer
+// classified correctly - the reason next to each entry is what a guest
 // reads for that.
 
 // adminMiddlewareCtors are the wrappers that make a route admin-only. A route
@@ -322,4 +322,86 @@ func registeredRPCNames(t *testing.T) map[string]bool {
 		t.Fatal("no evey.v1 RPC discovered - proto descriptors not registered?")
 	}
 	return out
+}
+
+// Extended level: it opens what the public demo locks, so its only decisions
+// are the exceptions. The guard keeps those exceptions honest: each one must
+// be something the public demo locks (otherwise extended would be locking what
+// public leaves open), must carry a reason, and must name a real operation.
+func TestExtendedStaysLockedEntriesAreHonest(t *testing.T) {
+	rpcs := registeredRPCNames(t)
+	for method, reason := range demo.ExtendedStaysLockedRPCs {
+		_, a := demo.LockedAdminRPCs[method]
+		_, u := demo.LockedUserRPCs[method]
+		if !a && !u {
+			t.Errorf("demo.ExtendedStaysLockedRPCs[%q] is not locked on the public demo - extended only closes what public closes", method)
+		}
+		if !rpcs[method] {
+			t.Errorf("demo.ExtendedStaysLockedRPCs lists %s, which is not a registered RPC", method)
+		}
+		if len(strings.TrimSpace(reason)) < 8 {
+			t.Errorf("demo.ExtendedStaysLockedRPCs[%q] has no usable reason (%q)", method, reason)
+		}
+	}
+	registered := map[string]bool{}
+	for _, r := range collectDemoRoutes(t) {
+		registered[r.pattern] = true
+	}
+	for pattern, reason := range demo.ExtendedStaysLockedRoutes {
+		if _, ok := demo.LockedRoutes[pattern]; !ok {
+			t.Errorf("demo.ExtendedStaysLockedRoutes[%q] is not locked on the public demo", pattern)
+		}
+		if !registered[pattern] {
+			t.Errorf("demo.ExtendedStaysLockedRoutes lists %q, which is not a registered route", pattern)
+		}
+		if len(strings.TrimSpace(reason)) < 8 {
+			t.Errorf("demo.ExtendedStaysLockedRoutes[%q] has no usable reason (%q)", pattern, reason)
+		}
+	}
+	for method, reason := range demo.ExtendedProtectedUserRPCs {
+		if !rpcs[method] {
+			t.Errorf("demo.ExtendedProtectedUserRPCs lists %s, which is not a registered RPC", method)
+		}
+		if _, stays := demo.ExtendedStaysLockedRPCs[method]; stays {
+			t.Errorf("%s is protected per account AND locked outright on extended - pick one", method)
+		}
+		if len(strings.TrimSpace(reason)) < 8 {
+			t.Errorf("demo.ExtendedProtectedUserRPCs[%q] has no usable reason (%q)", method, reason)
+		}
+	}
+}
+
+// Extended is a strict relaxation of Public, minus the named exceptions: no
+// operation public leaves open becomes locked, and the unclassified default
+// still denies the admin surface.
+func TestExtendedLevelRelaxesOnlyWhatPublicLocks(t *testing.T) {
+	isAdmin := map[string]bool{}
+	for method, role := range interceptors.DefaultRBACConfig().MethodRoles {
+		isAdmin[method] = role == interceptors.RoleAdmin
+	}
+	for method := range registeredRPCNames(t) {
+		pub := demo.RPCLockedAt(demo.Public, method, isAdmin[method])
+		ext := demo.RPCLockedAt(demo.Extended, method, isAdmin[method])
+		_, stays := demo.ExtendedStaysLockedRPCs[method]
+		switch {
+		case !pub && ext:
+			t.Errorf("%s is open on the public demo and locked on extended", method)
+		case pub && !ext && stays:
+			t.Errorf("%s is listed as staying locked but extended opens it", method)
+		case pub && ext && !stays:
+			t.Errorf("%s is locked on extended without being in ExtendedStaysLockedRPCs (a default deny leaked in)", method)
+		}
+	}
+	if !demo.RPCLockedAt(demo.Extended, "/evey.v1.AdminSystemService/BrandNew", true) {
+		t.Error("an unclassified admin RPC must be locked on extended too")
+	}
+	if !demo.RouteLockedAt(demo.Extended, "GET", "GET /api/v1/admin/brand-new-thing") {
+		t.Error("an unclassified admin route must be locked on extended too")
+	}
+	for pattern := range demo.LockedRoutes {
+		_, stays := demo.ExtendedStaysLockedRoutes[pattern]
+		if got := demo.RouteLockedAt(demo.Extended, "POST", pattern); got != stays {
+			t.Errorf("route %q: locked on extended = %v, want %v", pattern, got, stays)
+		}
+	}
 }

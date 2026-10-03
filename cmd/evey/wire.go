@@ -195,11 +195,14 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appuser.WithLoginAttemptRepository(r.LoginAttempt),
 		appuser.CommandWithTokenRevoker(securityRevoker),
 	}
-	if cfg.Server.Demo {
+	if cfg.Server.Demo && !cfg.Server.DemoExtended {
 		// The published demo password is shorter than the production floor;
 		// the floor is a parameter of the service, chosen here, not a mode it
 		// knows about.
 		userAuthOpts = append(userAuthOpts, appuser.WithMinPasswordLength(demo.MinPasswordLength))
+	}
+	if cfg.Server.DemoExtended {
+		userAuthOpts = append(userAuthOpts, appuser.CommandWithLoginLockExempt(cfg.Server.DemoUser))
 	}
 	userAuthSvc := appuser.NewCommandService(
 		r.User, r.Profile, r.RefreshToken,
@@ -219,7 +222,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		return cfg.Metadata.Language
 	}
 	userSvcOpts := []appuser.UserServiceOption{appuser.WithDefaultLocale(serverLocaleFn), appuser.WithTokenRevoker(securityRevoker)}
-	if cfg.Server.Demo {
+	if cfg.Server.Demo && !cfg.Server.DemoExtended {
 		// Same floor as the setup path: the bootstrap creates the published
 		// `demo` administrator through CreateUser when an administrator exists.
 		userSvcOpts = append(userSvcOpts, appuser.UserWithMinPasswordLength(demo.MinPasswordLength))
@@ -1214,6 +1217,7 @@ func startDemoLifecycle(ctx context.Context, cfg *config.Config, infra *infraDep
 		WithHistory(r.MediaItemQuery, r.WatchProgress, deps.media.playbackSvc.CommandService()).
 		WithReset(deps.engagement.activityQuerySvc, r.WatchProgress).
 		WithCredentialPurge(demoCredentials{keys: r.APIKey, invites: r.InviteLink}).
+		WithAdminAccountIf(cfg.Server.DemoExtended, cfg.Server.DemoUser, cfg.Server.DemoPassword).
 		WithAssembler(demoAssembler).
 		WithActivity(func() bool {
 			if hls := deps.media.hlsVODRemover; hls != nil && hls.ActivePlaybackCount() > 0 {
@@ -1250,6 +1254,11 @@ func startDemoLifecycle(ctx context.Context, cfg *config.Config, infra *infraDep
 			}
 			// Hourly when nobody is watching, daily regardless: the demo keeps
 			// itself at its seed, no host cron needed.
+			if cfg.Server.DemoExtended {
+				// A normal server with the network piloted: nothing is reset,
+				// the operator restores the VM snapshot when he wants it clean.
+				return
+			}
 			boot.RunResets(ctx, time.Hour, 24*time.Hour)
 			return
 		}

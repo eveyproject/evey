@@ -4,11 +4,12 @@ import React from "react";
 import { DemoBanner } from "./DemoBanner";
 
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
-const demo = vi.hoisted(() => ({ on: false }));
-vi.mock("@/hooks/useDemoMode", () => ({ useDemoMode: () => demo.on }));
+const demo = vi.hoisted(() => ({ on: false, extended: false }));
+vi.mock("@/hooks/useDemoMode", () => ({ useDemoMode: () => demo.on, useExtendedDemo: () => demo.extended }));
 
 beforeEach(() => {
   demo.on = false;
+  demo.extended = false;
 });
 
 // The banner exists only when the server says this is the demo, and then it
@@ -23,5 +24,12 @@ describe("DemoBanner", () => {
     demo.on = true;
     render(<DemoBanner />);
     expect(screen.getByTestId("demo-banner")).toHaveTextContent("common.demo.banner");
+  });
+
+  // The extended demo reports demoMode false and shows no strip at all.
+  it("renders nothing on the extended demo", () => {
+    demo.extended = true;
+    const { container } = render(<DemoBanner />);
+    expect(container.firstChild).toBeNull();
   });
 });

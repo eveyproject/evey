@@ -3,11 +3,14 @@ package interceptors
 import (
 	"context"
 	"log/slog"
+	"path/filepath"
+	"strings"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	"github.com/evey-project/evey/internal/pkg/demo"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
 	"github.com/evey-project/evey/internal/pkg/metrics"
@@ -24,15 +27,32 @@ import (
 type DemoInterceptor struct {
 	rbac       RBACConfig
 	translator *eveyi18n.Translator
+	level      demo.Level
+	// protectedUser returns the id of the guest's own account on the
+	// extended demo ("" when unknown); libraryRoot is the only tree a library
+	// may point at there. Both are unused at the Public level.
+	protectedUser func(context.Context) string
+	libraryRoot   string
 }
 
 func NewDemoInterceptor(rbac RBACConfig, translator *eveyi18n.Translator) *DemoInterceptor {
 	return &DemoInterceptor{rbac: rbac, translator: translator}
 }
 
+// Extended switches the interceptor to the extended level: the policy opens
+// what the public demo locks, the guest's own account cannot be changed,
+// disabled or deleted, and a library cannot leave libraryRoot.
+func (d *DemoInterceptor) Extended(protectedUser func(context.Context) string, libraryRoot string) *DemoInterceptor {
+	d.level, d.protectedUser, d.libraryRoot = demo.Extended, protectedUser, libraryRoot
+	return d
+}
+
 func (d *DemoInterceptor) Unary() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		if err := d.check(ctx, info.FullMethod); err != nil {
+			return nil, err
+		}
+		if err := d.checkExtendedRequest(ctx, info.FullMethod, req); err != nil {
 			return nil, err
 		}
 		return handler(ctx, req)
@@ -50,9 +70,52 @@ func (d *DemoInterceptor) Stream() grpc.StreamServerInterceptor {
 
 func (d *DemoInterceptor) check(ctx context.Context, method string) error {
 	role, classified := d.rbac.MethodRoles[method]
-	if !demo.RPCLocked(method, classified && role == RoleAdmin) {
+	if !demo.RPCLockedAt(d.level, method, classified && role == RoleAdmin) {
 		return nil
 	}
+	return d.refuse(ctx, method)
+}
+
+// checkExtendedRequest is the part of the extended policy that needs the
+// message: whose account an RPC targets, and where a library points.
+func (d *DemoInterceptor) checkExtendedRequest(ctx context.Context, method string, req any) error {
+	if d.level != demo.Extended {
+		return nil
+	}
+	if _, guarded := demo.ExtendedProtectedUserRPCs[method]; guarded && d.protectedUser != nil {
+		type withID interface{ GetId() string }
+		if r, ok := req.(withID); ok {
+			if own := d.protectedUser(ctx); own != "" && r.GetId() == own {
+				return d.refuse(ctx, method)
+			}
+		}
+	}
+	var paths []string
+	switch r := req.(type) {
+	case *eveyv1.CreateLibraryRequest:
+		paths = r.GetPaths()
+	case *eveyv1.UpdateLibraryRequest:
+		paths = r.GetPaths()
+	}
+	for _, p := range paths {
+		if !underRoot(d.libraryRoot, p) {
+			return d.refuse(ctx, method)
+		}
+	}
+	return nil
+}
+
+// underRoot reports whether p is root or strictly inside it, anchored on a
+// path separator so "/data/demo-media-evil" does not pass for "/data/demo-media".
+func underRoot(root, p string) bool {
+	if root == "" || !filepath.IsAbs(p) {
+		return false
+	}
+	root, p = filepath.Clean(root), filepath.Clean(p)
+	return p == root || strings.HasPrefix(p, root+string(filepath.Separator))
+}
+
+func (d *DemoInterceptor) refuse(ctx context.Context, method string) error {
 	metrics.AuthzDeniedTotal.WithLabelValues("grpc", "demo_locked").Inc()
 	slog.InfoContext(ctx, "demo: operation locked", slog.String("method", method))
 	if d.translator != nil {

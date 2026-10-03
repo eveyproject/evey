@@ -1,6 +1,7 @@
 package user
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -48,10 +49,14 @@ type CommandService struct {
 	loginMaxFails     int
 	loginUserMaxFails int
 	loginWindow       time.Duration
-	setupMu           sync.Mutex
-	setupDone         bool
-	uow               shared.TransactionalUnit
-	tokenRevoker      TokenRevoker // optional: bumps token_epoch on security events
+	// lockExempt is a username the failed-login counters never lock (the
+	// extended demo's guest account: a mistyped password on a TV
+	// remote must not close the only door). Empty: nobody is exempt.
+	lockExempt   string
+	setupMu      sync.Mutex
+	setupDone    bool
+	uow          shared.TransactionalUnit
+	tokenRevoker TokenRevoker // optional: bumps token_epoch on security events
 	// minPasswordLength is the floor Setup and ResetPassword enforce.
 	minPasswordLength int
 }
@@ -138,6 +143,12 @@ func WithLoginAttemptRepository(repo user.LoginAttemptRepository) CommandService
 
 // CommandWithTokenRevoker wires access-token revocation (token_epoch bump)
 // into the security-event paths owned by CommandService (password reset).
+// CommandWithLoginLockExempt makes username immune to the failed-login lock.
+// Its password is long and random, which is what stands in for the lock.
+func CommandWithLoginLockExempt(username string) CommandServiceOption {
+	return func(s *CommandService) { s.lockExempt = strings.TrimSpace(username) }
+}
+
 func CommandWithTokenRevoker(rev TokenRevoker) CommandServiceOption {
 	return func(s *CommandService) { s.tokenRevoker = rev }
 }

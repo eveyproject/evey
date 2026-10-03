@@ -96,7 +96,8 @@ func adminDemoSeed(args []string) error {
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	boot := appdemo.NewBootstrapper(users, profiles, setup, accounts, libRepo, repoLibraries{libRepo}, hasher, cfg.Server.DemoMediaDir, log).
 		WithLibraryAccess(postgres.NewLibraryAccessRepository(db)).
-		WithMarker(postgres.NewServerConfigRepository(db))
+		WithMarker(postgres.NewServerConfigRepository(db)).
+		WithAdminAccountIf(cfg.Server.DemoExtended, cfg.Server.DemoUser, cfg.Server.DemoPassword)
 
 	if aerr := boot.EnsureAdmin(ctx); aerr != nil {
 		return aerr

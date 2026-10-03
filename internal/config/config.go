@@ -255,6 +255,18 @@ type ServerConfig struct {
 	// never shown by the panel - a switch a visitor could flip is not a switch.
 	// The one deliberate exception to "operator settings live in the panel".
 	Demo bool
+	// DemoExtended is the second level of the demo (EVEY_DEMO=extended): the
+	// same sinks, seed and redaction as Demo, but a private instance for a
+	// outside evaluator, so almost every write is open (internal/pkg/demo,
+	// ExtendedStaysLocked names what stays shut). Always implies Demo.
+	DemoExtended bool
+	// DemoUser and DemoPassword are the one administrator of the extended
+	// demo, set by the operator (EVEY_DEMO_USER, EVEY_DEMO_PASSWORD) and given
+	// to the outside evaluator out of band. Validated at boot: letters and digits
+	// only (a guest types them, special characters get mangled), at least
+	// 20 long. Empty on the public demo, which publishes demo / demo.
+	DemoUser     string
+	DemoPassword string
 	// DemoMediaDir is where the demo bootstrap downloads the freely licensed
 	// media and points its libraries. Read once with Demo.
 	DemoMediaDir string
@@ -854,6 +866,10 @@ func (c *Config) WarnValidate() error {
 		errs = append(errs, fmt.Sprintf("cfg.Plugins.DiskMaxMB: value %d must be >= 0 (0 = disabled)", d))
 	}
 
+	if c.Server.DemoExtended {
+		errs = append(errs, validateExtendedDemoAccount(c.Server.DemoUser, c.Server.DemoPassword)...)
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed: %s", strings.Join(errs, "; "))
 	}
@@ -906,7 +922,10 @@ func Load() (*Config, error) {
 			LoginRateLimitMax:  envInt("EVEY_RATELIMIT_LOGIN_MAX", 10),
 			GlobalRateLimitMax: envInt("EVEY_RATELIMIT_GLOBAL_MAX", 300),
 			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", true),
-			Demo:               envBool("EVEY_DEMO", false),
+			Demo:               demoLevel().on,
+			DemoExtended:       demoLevel().extended,
+			DemoUser:           envStr("EVEY_DEMO_USER", ""),
+			DemoPassword:       envStr("EVEY_DEMO_PASSWORD", ""),
 			DemoMediaDir:       envStr("EVEY_DEMO_MEDIA_DIR", "/data/demo-media"),
 			DemoPluginDir:      envStr("EVEY_DEMO_PLUGIN_DIR", "/data/demo-plugins"),
 		},
@@ -1149,6 +1168,37 @@ func envInt(key string, fallback int) int {
 // cannot express it: envBool("X", false) returns false both ways.
 func envSet(key string) bool {
 	return strings.TrimSpace(os.Getenv(key)) != ""
+}
+
+// validateExtendedDemoAccount refuses an extended demo that would boot with a
+// guessable or untypeable administrator: it is reachable from the internet.
+func validateExtendedDemoAccount(user, password string) []string {
+	var errs []string
+	alnum := func(v string) bool {
+		for _, r := range v {
+			if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') {
+				return false
+			}
+		}
+		return v != ""
+	}
+	if !alnum(user) {
+		errs = append(errs, "cfg.Server.DemoUser: EVEY_DEMO_USER is required with EVEY_DEMO=extended, letters and digits only")
+	}
+	if len(password) < 20 || !alnum(password) {
+		errs = append(errs, "cfg.Server.DemoPassword: EVEY_DEMO_PASSWORD is required with EVEY_DEMO=extended, at least 20 letters and digits")
+	}
+	return errs
+}
+
+type demoSetting struct{ on, extended bool }
+
+// demoLevel reads EVEY_DEMO: a boolean (the public demo) or "extended".
+func demoLevel() demoSetting {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("EVEY_DEMO")), "extended") {
+		return demoSetting{on: true, extended: true}
+	}
+	return demoSetting{on: envBool("EVEY_DEMO", false)}
 }
 
 func envBool(key string, fallback bool) bool {

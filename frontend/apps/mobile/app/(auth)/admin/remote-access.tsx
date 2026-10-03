@@ -41,7 +41,7 @@ export default function AdminRemoteAccessScreen() {
 
   // The host's interfaces are not shown on the demo (the server refuses it):
   // not asked for there, as on the web.
-  const demo = useDemoStore((s) => s.demoMode);
+  const demo = useDemoStore((s) => s.demoMode || s.extendedDemo);
   const { data: netInfo } = useQuery<{ interfaces: NetworkInterface[] }>({
     enabled: !demo,
     queryKey: NETWORK_KEY,

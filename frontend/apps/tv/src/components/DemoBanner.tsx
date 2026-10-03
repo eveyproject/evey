@@ -18,7 +18,10 @@ export function DemoBanner() {
   // The shared stores (locale, theme) read the flag: on the demo they keep
   // this television's choice instead of following the shared profile.
   useEffect(() => {
-    if (setupStatus.data) useDemoStore.getState().setDemoMode(demo);
+    if (setupStatus.data) {
+      useDemoStore.getState().setDemoMode(demo);
+      useDemoStore.getState().setExtendedDemo(setupStatus.data.demoExtended === true);
+    }
   }, [demo, setupStatus.data]);
   if (!demo) return null;
   return (

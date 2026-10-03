@@ -375,7 +375,7 @@ func registerServerSettingsRoutes(
 					Default:         s.defaultVal,
 					Source:          source(s.cfgKey),
 					RequiresRestart: s.requiresRestart,
-					Locked:          cfg.Server.Demo,
+					Locked:          settingLocked(cfg, s.jsonKey),
 				}
 			}
 		})
@@ -452,6 +452,17 @@ func registerServerSettingsRoutes(
 			span.SetStatus(otelcodes.Error, "bad request")
 			http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 			return
+		}
+
+		// The panel greys the network settings on the extended demo; a hand-written
+		// request is refused the same way (the route itself is open there).
+		if cfg.Server.DemoExtended {
+			for key := range networkSettingKeys {
+				if _, present := rawFields[key]; present {
+					refuseDemoLocked(w, r, nil, "PUT /api/v1/admin/server-settings")
+					return
+				}
+			}
 		}
 
 		updates := []settingDef{
@@ -885,4 +896,22 @@ func registerServerSettingsRoutes(
 			slog.WarnContext(r.Context(), "json encode failed", slog.Any("err", err))
 		}
 	})))
+}
+
+// networkSettingKeys are the settings of the panel that a wrong value turns
+// into a lock-out for everyone: the rate limits (the login one closes the door
+// on the next sign-in).
+var networkSettingKeys = map[string]bool{"loginRateLimit": true, "globalRateLimit": true}
+
+// settingLocked says whether the panel greys a setting. The public demo locks
+// all of them (the account is shared); the extended demo is a normal server
+// with the network settings locked and the rest open.
+func settingLocked(cfg *config.Config, jsonKey string) bool {
+	if !cfg.Server.Demo {
+		return false
+	}
+	if cfg.Server.DemoExtended {
+		return networkSettingKeys[jsonKey]
+	}
+	return true
 }

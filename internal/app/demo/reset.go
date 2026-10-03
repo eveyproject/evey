@@ -8,7 +8,6 @@ import (
 	"github.com/evey-project/evey/internal/domain/activity"
 	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/demo"
 )
 
 // ActiveStreams reads how many playbacks are running: the reset never runs
@@ -42,8 +41,8 @@ func (b *Bootstrapper) WithCredentialPurge(c Credentials) *Bootstrapper {
 
 // demoUsernames is every account the demo owns: the shared administrator and
 // the seeded visitor accounts.
-func demoUsernames() []string {
-	names := []string{demo.Username}
+func (b *Bootstrapper) demoUsernames() []string {
+	names := []string{b.adminUser}
 	for _, a := range seedAccounts {
 		names = append(names, a.username)
 	}
@@ -55,7 +54,7 @@ func (b *Bootstrapper) PurgeCredentials(ctx context.Context) error {
 	if b.credentials == nil {
 		return nil
 	}
-	for _, name := range demoUsernames() {
+	for _, name := range b.demoUsernames() {
 		u, err := b.users.GetByUsername(ctx, name)
 		if err != nil || u == nil {
 			continue
@@ -162,7 +161,7 @@ func (b *Bootstrapper) ResetIfIdle(ctx context.Context, force bool) (bool, error
 // idempotent seed: administrator and its published password, libraries,
 // plugins and their config, home layout, watch history.
 func (b *Bootstrapper) Reset(ctx context.Context) error {
-	for _, name := range demoUsernames() {
+	for _, name := range b.demoUsernames() {
 		u, err := b.users.GetByUsername(ctx, name)
 		if err != nil || u == nil {
 			continue
