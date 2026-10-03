@@ -40,6 +40,22 @@ A plugin whose analysis finds a critical pattern is refused. An update of an
 installed plugin goes through the same preview; when it asks for new
 permissions, slots or hosts, you must accept the difference explicitly.
 
+!!! tip "Signed plugins"
+    A plugin author can sign the ZIP with [cosign](https://docs.sigstore.dev/cosign/installation/),
+    and you decide what an unsigned or badly signed plugin does. To verify
+    signatures, give the server the author's public key and pick a policy:
+
+    ```sh
+    EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
+    EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (default) | enforce
+    ```
+
+    Then pick the ZIP **and** its `.zip.sig` file in **Admin → Plugins**. With
+    `warn`, a failure is shown in the preview and the Security Dashboard; with
+    `enforce`, the install or update is refused. Nothing is verified without a
+    public key, and the server needs no `cosign` binary. Authors: see
+    [Sign your plugin](plugins/dev-setup.md#6-sign-your-plugin-optional-in-dev-recommended-for-distribution).
+
 Each plugin then has, on its card: enable or disable, update, logs, and its
 resource limits (memory, processes, disk, CPU priority). The **Host sandbox**
 line of the **Security Dashboard** shows the sandbox mode actually in

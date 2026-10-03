@@ -1,5 +1,5 @@
 ---
-source_sha: c9ccdddebbef17e96ff8f3da3475c803b0d09dc237cd4c140c897bdfdaf289c5
+source_sha: ac4eee9f506439ea9c92e082e310a4812d9bba43666dc155e80e166aa5a52cc6
 reviewed: true
 ---
 # Préparer son environnement de développement de plugins
@@ -244,40 +244,85 @@ Les journaux du processus du plugin arrivent :
 
 ## 6. Signer son plugin (facultatif en développement, recommandé pour le distribuer)
 
-Si vous comptez distribuer le plugin à d'autres instances d'Evey, signez-le.
-L'administrateur qui le reçoit peut alors régler
-`EVEY_PLUGINS_COSIGN_POLICY=warn` (ou `enforce`) pour faire ressortir les envois
-non signés.
+!!! info "Ce que prouve une signature"
+    Une signature atteste que le ZIP installé par l'administrateur est, octet
+    pour octet, celui que **vous** avez publié, et qu'il a été signé avec la clé
+    à laquelle il fait confiance. Elle ne dit rien de ce que fait le plugin :
+    les permissions, les hôtes et l'analyse de l'aperçu s'appliquent toujours.
+    Evey la vérifie **hors ligne et dans son propre processus** (ECDSA P-256 sur
+    le SHA-256 du ZIP, le format que produit `cosign sign-blob --key`) : pas de
+    binaire `cosign` sur le serveur, pas de réseau, pas de journal de
+    transparence.
+
+Il vous faut [cosign](https://docs.sigstore.dev/cosign/installation/) sur
+**votre** machine uniquement.
+
+**1. Une seule fois : générer une paire de clés.**
 
 ```sh
-# une seule fois : générer une paire de clés (gardez cosign.key en lieu sûr, ne la commitez jamais)
-cosign generate-key-pair
-
-# signer le ZIP
-cosign sign-blob \
-  --key cosign.key \
-  --output-signature my-first-plugin.zip.sig \
-  my-first-plugin.zip
-
-# à distribuer : my-first-plugin.zip + my-first-plugin.zip.sig + cosign.pub
+# choisissez une vraie phrase secrète ; cosign.key reste privée, ne la commitez jamais
+COSIGN_PASSWORD="your-passphrase" cosign generate-key-pair
+# -> cosign.key (privée) et cosign.pub (le fichier que vous distribuez)
 ```
 
-Sur l'instance d'Evey qui installe le plugin :
+**2. À chaque version : zipper, puis signer.** Le manifeste est à la racine du
+ZIP. Signez hors ligne, comme le serveur vérifie :
+
+```sh
+cd my-first-plugin && zip -r ../my-first-plugin.zip . && cd ..
+
+COSIGN_PASSWORD="your-passphrase" cosign sign-blob \
+  --key cosign.key --tlog-upload=false --yes \
+  --output-signature my-first-plugin.zip.sig \
+  my-first-plugin.zip
+```
+
+**3. Vérifier avant d'expédier**, avec la même vérification que le serveur :
+
+```sh
+cosign verify-blob --key cosign.pub --signature my-first-plugin.zip.sig \
+  --insecure-ignore-tlog my-first-plugin.zip      # -> Verified OK
+```
+
+**4. Publier trois fichiers ensemble** : `my-first-plugin.zip`,
+`my-first-plugin.zip.sig` et `cosign.pub`. Indiquez l'empreinte de la clé
+publique à un endroit où vos utilisateurs peuvent la comparer (README, notes de
+version), pour qu'ils sachent que `cosign.pub` n'a pas été remplacé.
+
+**Sur l'instance qui l'installe :**
 
 ```sh
 # placer la clé publique à un endroit lisible par le serveur
 sudo cp cosign.pub /etc/evey/cosign.pub
 
-# y faire pointer Evey et changer de politique
 export EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
-export EVEY_PLUGINS_COSIGN_POLICY=warn   # ou "enforce" pour refuser ce qui n'est pas signé
+export EVEY_PLUGINS_COSIGN_POLICY=warn   # ou "enforce" pour refuser ce qui ne se vérifie pas
 docker compose restart evey
 ```
 
-Evey vérifie la clé au démarrage (lecture du PEM) : un fichier de clé absent ou
-mal formé fait échouer le démarrage plutôt que la première installation. Les
-références KMS (`gcpkms://...`, `awskms://...`, `k8s://...`) sont acceptées
-telles quelles.
+Ensuite, dans **Admin → Plugins**, choisissez le ZIP puis, dans le champ
+**Fichier signature**, son `.zip.sig`. Par l'API, la signature est le champ
+facultatif `sig` de l'envoi (section 4). L'aperçu affiche **Signé** ou une
+signature invalide, et la carte du plugin dans le tableau de bord de sécurité
+conserve le résultat.
+
+Les pièges habituels :
+
+- **Toute modification du ZIP casse la signature**, même un simple re-zip des
+  mêmes fichiers. Signez exactement le fichier que vous distribuez, et
+  resignez à chaque version.
+- **Seules les clés ECDSA P-256 sont acceptées**, ce que produit `cosign
+  generate-key-pair`. La signature sans clé (identités Sigstore) et les
+  références KMS ne sont pas vérifiées.
+- La clé est lue dans un fichier PEM au démarrage : un fichier absent ou mal
+  formé arrête le démarrage au lieu de faire échouer la première installation.
+  Avec `enforce` et sans clé, le serveur refuse de démarrer.
+- Avec `warn` (la valeur par défaut) et sans clé publique configurée, **rien
+  n'est vérifié** ; le serveur se contente de journaliser un avertissement au
+  démarrage.
+- Une mauvaise clé, un ZIP altéré et un `.sig` absent se lisent tous comme une
+  signature en échec : avec `enforce`, l'installation ou la mise à jour est
+  refusée.
 
 ## 7. Limites de ressources et sandbox
 
@@ -328,7 +373,7 @@ signifie :
 | `forbidden pattern "fetch(" found in theme JS` | L'analyse du JS de thème a repéré une API interdite. | Un thème ne doit appeler que `evey.theme.*`. Voyez `internal/pkg/themejs/scan.go` pour la liste de ce qui est bloqué. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | Tous les jokers sont refusés à l'installation, sans exception. | Utilisez `api.tmdb.org` (et listez chaque sous-domaine nécessaire), pas `*.tmdb.org` ni `cdn.*.tmdb.org`. |
 | `manifest: frontend slot "admin.section" not allowed` | Les interfaces de plugins sont interdites dans les zones privilégiées. | Choisissez un emplacement non critique dans la liste, ou repensez le plugin. |
-| `cosign verify-blob: failed signature` | La clé publique du serveur ne correspond pas à la clé privée qui a signé. | Resignez avec la bonne clé, ou mettez à jour `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
+| `signature does not match the plugin or the configured key` | Le `.sig` a été fait avec une autre clé, ou le ZIP a changé après la signature. | Resignez exactement ce ZIP avec la bonne clé, ou mettez à jour `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
 | `plugin already installed at version 1.0.0, new version must be higher` | Le ZIP porte la version déjà installée. | Augmentez `version` dans `plugin.yaml`, ou désinstallez d'abord le plugin. |
 | Le plugin s'arrête, le journal indique `memory quota exceeded (… MB > … MB)` | Le moniteur de ressources l'a tué au-delà de sa limite de mémoire (code 137). | Réduisez sa consommation, ou relevez sa limite de mémoire sur sa carte dans **Admin → Plugins** (`EVEY_PLUGINS_MEMORY_MB` fixe la valeur par défaut). |
 | Module d'interface invisible | Plugin non activé, emplacement erroné, ou mauvais préfixe `web_root` dans `frontend.src`. | Regardez la page Plugins de l'administration (badge d'état), vérifiez que la chaîne de l'emplacement correspond à un vrai `<PluginSlot name=...>`, et cherchez les appels `/api/v1/plugins/{id}/assets/...` dans l'onglet réseau. |
