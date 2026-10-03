@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/gravity-zero/ac3go v0.0.0-20260927100319-707bc52f64c0
-	github.com/gravity-zero/mkvgo v0.36.0
+	github.com/gravity-zero/mkvgo v0.37.0
 )
 
 require (
