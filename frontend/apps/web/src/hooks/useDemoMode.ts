@@ -15,9 +15,12 @@ import { useDemoStore } from "@evey/store";
 // it - a component rendered on its own, in a test or a storybook, behaves
 // exactly as before.
 const DemoModeContext = createContext(false);
+// The extended demo (a private instance for an outside evaluator) reports demoMode
+// FALSE - nothing is locked client-side there - and only asks for a banner.
+const ExtendedDemoContext = createContext(false);
 
 export function DemoModeProvider({ children }: { children: ReactNode }) {
-  const { data } = useQuery<{ demoMode?: boolean }>({
+  const { data } = useQuery<{ demoMode?: boolean; demoExtended?: boolean }>({
     queryKey: ["setup-status"],
     queryFn: () => adminSystemServiceGetSetupStatus(),
     staleTime: 60_000,
@@ -27,12 +30,21 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
   // keep this browser's choice instead of following the shared profile.
   useEffect(() => {
     useDemoStore.getState().setDemoMode(demo);
-  }, [demo]);
-  return createElement(DemoModeContext.Provider, { value: demo }, children);
+    useDemoStore.getState().setExtendedDemo(data?.demoExtended === true);
+  }, [demo, data?.demoExtended]);
+  return createElement(
+    DemoModeContext.Provider,
+    { value: demo },
+    createElement(ExtendedDemoContext.Provider, { value: data?.demoExtended === true }, children),
+  );
 }
 
 export function useDemoMode(): boolean {
   return useContext(DemoModeContext);
+}
+
+export function useExtendedDemo(): boolean {
+  return useContext(ExtendedDemoContext);
 }
 
 // useDemoLock is the one-token way to grey a write control on the demo:
@@ -42,4 +54,16 @@ export function useDemoLock(): { demo: boolean; lock: { disabled?: true; title?:
   const demo = useDemoMode();
   const { t } = useTranslation();
   return { demo, lock: demo ? { disabled: true, title: t("common.demo.locked") } : {} };
+}
+
+// useNetworkLock greys the network settings (remote access, proxies, HTTPS) on
+// both demos: on the extended demo a guest can use everything else, but a wrong
+// value there closes the door on every later visitor, itself included. The
+// server refuses the save either way; this only greys the control.
+export function useNetworkLock(): { locked: boolean; lock: { disabled?: true; title?: string } } {
+  const demo = useDemoMode();
+  const extended = useExtendedDemo();
+  const { t } = useTranslation();
+  const locked = demo || extended;
+  return { locked, lock: locked ? { disabled: true, title: t("common.demo.locked") } : {} };
 }

@@ -12,11 +12,17 @@ import { create } from "zustand";
 interface DemoState {
   demoMode: boolean;
   setDemoMode: (on: boolean) => void;
+  // The extended demo reports demoMode false (nothing is locked client-side);
+  // this only tells the few network screens to stay hands-off.
+  extendedDemo: boolean;
+  setExtendedDemo: (on: boolean) => void;
 }
 
 export const useDemoStore = create<DemoState>()((set) => ({
   demoMode: false,
   setDemoMode: (demoMode) => set({ demoMode }),
+  extendedDemo: false,
+  setExtendedDemo: (extendedDemo) => set({ extendedDemo }),
 }));
 
 export function isDemoMode(): boolean {

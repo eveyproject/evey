@@ -97,8 +97,11 @@ type Bootstrapper struct {
 	hasher   user.PasswordHasher
 	marker   shared.ServerConfigRepository // optional
 	mediaDir string
-	client   *http.Client
-	log      *slog.Logger
+	// adminUser / adminPassword: the published demo / demo by default, the
+	// operator-set account on the extended demo (WithAdminAccount).
+	adminUser, adminPassword string
+	client                   *http.Client
+	log                      *slog.Logger
 
 	// Optional plugin step (WithPlugins): nil leaves the demo without plugins.
 	plugins   plugin.PluginRepository
@@ -130,11 +133,28 @@ func NewBootstrapper(users user.UserRepository, profiles user.ProfileRepository,
 	return &Bootstrapper{
 		users: users, profiles: profiles, setup: setup, accounts: accounts,
 		libs: libs, libSvc: libSvc, hasher: hasher, mediaDir: mediaDir,
+		adminUser: demo.Username, adminPassword: demo.Password,
 		// One film is over a gigabyte on a slow mirror: the per-request
 		// deadline is generous, the caller's context bounds the whole run.
 		client: &http.Client{Timeout: 2 * time.Hour},
 		log:    log,
 	}
+}
+
+// WithAdminAccount replaces the published demo / demo administrator with the
+// operator's own account (the extended demo).
+func (b *Bootstrapper) WithAdminAccount(username, password string) *Bootstrapper {
+	b.adminUser, b.adminPassword = username, password
+	return b
+}
+
+// WithAdminAccountIf is WithAdminAccount when on is true and a no-op otherwise,
+// so the wiring reads as one chain.
+func (b *Bootstrapper) WithAdminAccountIf(on bool, username, password string) *Bootstrapper {
+	if on {
+		return b.WithAdminAccount(username, password)
+	}
+	return b
 }
 
 // WithLibraryAccess confines the seeded accounts to the demo libraries.
@@ -284,10 +304,10 @@ func (b *Bootstrapper) Teardown(ctx context.Context) error {
 		}
 		b.log.Info("demo: account removed", "username", a.username)
 	}
-	if u, err := b.users.GetByUsername(ctx, demo.Username); err == nil && u != nil {
+	if u, err := b.users.GetByUsername(ctx, b.adminUser); err == nil && u != nil {
 		switch err := b.accounts.DeleteUser(ctx, string(u.ID)); {
 		case err == nil:
-			b.log.Info("demo: administrator removed", "username", demo.Username)
+			b.log.Info("demo: administrator removed", "username", b.adminUser)
 		case errors.Is(err, appuser.ErrLastAdmin):
 			pw, perr := randomPassword()
 			if perr != nil {
@@ -304,9 +324,9 @@ func (b *Bootstrapper) Teardown(ctx context.Context) error {
 			}
 			b.log.Warn("demo: `demo` is the only administrator, kept with a NEW RANDOM password - "+
 				"recover with `evey admin reset-password --user demo@demo.invalid`, or create your own administrator and delete it",
-				"username", demo.Username)
+				"username", b.adminUser)
 		default:
-			return fmt.Errorf("demo teardown: delete %s: %w", demo.Username, err)
+			return fmt.Errorf("demo teardown: delete %s: %w", b.adminUser, err)
 		}
 	}
 
@@ -357,8 +377,8 @@ func (b *Bootstrapper) Teardown(ctx context.Context) error {
 // `demo` with a random one, and re-enabling it without the password left the
 // demo locking every visitor out.
 func (b *Bootstrapper) EnsureAdmin(ctx context.Context) error {
-	if existing, err := b.users.GetByUsername(ctx, demo.Username); err == nil && existing != nil {
-		pwOK, verr := b.hasher.Verify(demo.Password, existing.PasswordHash)
+	if existing, err := b.users.GetByUsername(ctx, b.adminUser); err == nil && existing != nil {
+		pwOK, verr := b.hasher.Verify(b.adminPassword, existing.PasswordHash)
 		if verr != nil {
 			pwOK = false
 		}
@@ -366,7 +386,7 @@ func (b *Bootstrapper) EnsureAdmin(ctx context.Context) error {
 			return nil
 		}
 		if !pwOK {
-			hash, herr := b.hasher.Hash(demo.Password)
+			hash, herr := b.hasher.Hash(b.adminPassword)
 			if herr != nil {
 				return fmt.Errorf("demo admin: hash published password: %w", herr)
 			}
@@ -378,7 +398,7 @@ func (b *Bootstrapper) EnsureAdmin(ctx context.Context) error {
 		if err := b.users.Update(ctx, existing); err != nil {
 			return fmt.Errorf("demo admin: restore: %w", err)
 		}
-		b.log.Info("demo: administrator restored", "username", demo.Username)
+		b.log.Info("demo: administrator restored", "username", b.adminUser)
 		return nil
 	}
 	admins, err := b.users.CountAdmins(ctx)
@@ -386,21 +406,21 @@ func (b *Bootstrapper) EnsureAdmin(ctx context.Context) error {
 		return fmt.Errorf("demo admin: count admins: %w", err)
 	}
 	if admins == 0 {
-		if _, serr := b.setup.Setup(ctx, demo.Username, demo.Password, "demo@demo.invalid", appuser.WithSetupLocale("en")); serr != nil {
+		if _, serr := b.setup.Setup(ctx, b.adminUser, b.adminPassword, "demo@demo.invalid", appuser.WithSetupLocale("en")); serr != nil {
 			return fmt.Errorf("demo admin: setup: %w", serr)
 		}
-		b.log.Info("demo: administrator created through setup", "username", demo.Username)
+		b.log.Info("demo: administrator created through setup", "username", b.adminUser)
 		return nil
 	}
-	u, err := user.NewUser(demo.Username, "demo@demo.invalid", "pending")
+	u, err := user.NewUser(b.adminUser, "demo@demo.invalid", "pending")
 	if err != nil {
 		return err
 	}
 	u.IsAdmin = true
-	if err := b.accounts.CreateUser(ctx, true, u, demo.Password); err != nil {
+	if err := b.accounts.CreateUser(ctx, true, u, b.adminPassword); err != nil {
 		return fmt.Errorf("demo admin: create: %w", err)
 	}
-	b.log.Info("demo: administrator created", "username", demo.Username)
+	b.log.Info("demo: administrator created", "username", b.adminUser)
 	return nil
 }
 
@@ -783,13 +803,13 @@ func (b *Bootstrapper) SeedHistory(ctx context.Context, libs map[string]shared.L
 	if b.media == nil || b.progress == nil || b.history == nil {
 		return nil
 	}
-	admin, err := b.users.GetByUsername(ctx, demo.Username)
+	admin, err := b.users.GetByUsername(ctx, b.adminUser)
 	if err != nil || admin == nil {
 		return fmt.Errorf("demo: seed history: demo account: %w", err)
 	}
 	profiles, err := b.profiles.GetByUserID(ctx, admin.ID)
 	if err != nil || len(profiles) == 0 {
-		return fmt.Errorf("demo: seed history: profiles of %s: %w", demo.Username, err)
+		return fmt.Errorf("demo: seed history: profiles of %s: %w", b.adminUser, err)
 	}
 	profileID := string(profiles[0].ID)
 	for _, p := range profiles {

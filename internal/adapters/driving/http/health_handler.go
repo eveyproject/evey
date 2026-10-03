@@ -37,6 +37,10 @@ type healthResponse struct {
 	// Demo says this is the public demo instance: mobile and TV read it from
 	// the same discovery answer and show the banner before login.
 	Demo bool `json:"demo,omitempty"`
+	// DemoExtended says this is the private extended demo. Demo is false
+	// there: the clients' read-only locks and credentials hint belong to the
+	// public demo only; this flag only tells the clients to keep their hands off the network settings.
+	DemoExtended bool `json:"demo_extended,omitempty"`
 }
 
 type healthClients struct {
@@ -96,7 +100,8 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.Cfg != nil {
 		resp.Name = s.Cfg.EffectiveServerName()
-		resp.Demo = s.Cfg.Server.Demo
+		resp.Demo = s.Cfg.Server.Demo && !s.Cfg.Server.DemoExtended
+		resp.DemoExtended = s.Cfg.Server.DemoExtended
 	}
 	if s.TVRelease.VersionCode > 0 {
 		tv := s.TVRelease

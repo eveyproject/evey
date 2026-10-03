@@ -80,3 +80,24 @@ func TestLoginAttemptKeys_Unambiguous(t *testing.T) {
 		t.Fatalf("no-IP pair key = %q", pair)
 	}
 }
+
+// The extended demo's guest account is never locked, by address or by
+// account: a mistyped password on a TV remote must not close the only door.
+// Everyone else keeps the lock.
+func TestLogin_LockExemptAccountIsNeverLocked(t *testing.T) {
+	d := newAuthTestDeps()
+	CommandWithLoginLockExempt("Guest1")(d.svc)
+	seedAuthUser(t, d, "u1", "guest1", "correct", true, true)
+	seedAuthUser(t, d, "u2", "alice", "correct", false, true)
+
+	for range loginUserMaxAttempts + 10 {
+		_, _, _ = d.svc.Login(fromIP("198.51.100.1"), "guest1", "wrong")
+		_, _, _ = d.svc.Login(fromIP("198.51.100.1"), "alice", "wrong")
+	}
+	if _, _, err := d.svc.Login(fromIP("198.51.100.1"), "guest1", "correct"); err != nil {
+		t.Fatalf("exempt account must still sign in after a failure run: %v", err)
+	}
+	if _, _, err := d.svc.Login(fromIP("198.51.100.1"), "alice", "correct"); !errors.Is(err, ErrAccountLocked) {
+		t.Fatalf("a non-exempt account must stay lockable, got %v", err)
+	}
+}

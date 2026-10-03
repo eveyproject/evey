@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Switch } from "@/components/ui/Switch";
-import { useDemoLock } from "@/hooks/useDemoMode";
+import { useNetworkLock } from "@/hooks/useDemoMode";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/remote-access")({
@@ -29,7 +29,7 @@ const CONFIG_KEY = getRemoteAccessServiceGetRemoteAccessQueryKey();
 
 function RemoteAccessPage() {
   const { t } = useTranslation();
-  const { lock, demo } = useDemoLock();
+  const { lock, locked: demo } = useNetworkLock();
   // `published`/`lockoutRisk` are part of the proto contract now, so no local
   // type extension and no cast: the generated client carries them.
   const { data, isLoading } = useRemoteAccessServiceGetRemoteAccess();

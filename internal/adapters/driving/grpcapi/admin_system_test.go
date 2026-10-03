@@ -723,3 +723,30 @@ func TestAdminGetDashboard_WithLibLister(t *testing.T) {
 		t.Log("no storage info for /tmp (may be expected in CI)")
 	}
 }
+
+// The clients' read-only locks and the credentials hint follow demo_mode, the
+// network-settings lock follows demo_extended. The extended demo is a
+// private instance with its own account: it must report demo_mode FALSE, or
+// every client would grey out the very features the guest has to open.
+func TestAdminGetSetupStatus_DemoLevels(t *testing.T) {
+	for _, c := range []struct {
+		name              string
+		demo, extended    bool
+		wantMode, wantExt bool
+	}{
+		{"production", false, false, false, false},
+		{"public demo", true, false, true, false},
+		{"extended demo", true, true, false, true},
+	} {
+		d := newTestSystemHandler()
+		d.cfg = &config.Config{}
+		d.cfg.Server.Demo, d.cfg.Server.DemoExtended = c.demo, c.extended
+		resp, err := d.GetSetupStatus(context.Background(), &eveyv1.GetSetupStatusRequest{})
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if resp.DemoMode != c.wantMode || resp.DemoExtended != c.wantExt {
+			t.Errorf("%s: demo_mode=%v demo_extended=%v, want %v %v", c.name, resp.DemoMode, resp.DemoExtended, c.wantMode, c.wantExt)
+		}
+	}
+}

@@ -274,6 +274,15 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 	if cfg.Server.Demo {
 		// Last, so an anonymous caller is still told Unauthenticated first.
 		demoInterceptor := interceptors.NewDemoInterceptor(interceptors.DefaultRBACConfig(), deps.translator)
+		if cfg.Server.DemoExtended {
+			demoInterceptor.Extended(func(ctx context.Context) string {
+				u, err := deps.repos.userRepo.GetByUsername(ctx, cfg.Server.DemoUser)
+				if err != nil || u == nil {
+					return ""
+				}
+				return string(u.ID)
+			}, cfg.Server.DemoMediaDir)
+		}
 		// Every visitor is an administrator: what the open reads say about
 		// the other visitors (addresses, browsers) is blanked on the way out.
 		redact := interceptors.NewRedactInterceptor(demo.RedactedFields...)

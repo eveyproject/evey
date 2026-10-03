@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/evey-project/evey/internal/pkg/demo"
 
 	domainplayback "github.com/evey-project/evey/internal/domain/playback"
 
@@ -399,7 +400,11 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 	// resolves, after every network/CSRF/auth-agnostic layer has had its say.
 	var root http.Handler = mux
 	if cfg.Server.Demo {
-		root = httpapi.DemoLockMiddleware(mux, deps.translator, mux)
+		level := demo.Public
+		if cfg.Server.DemoExtended {
+			level = demo.Extended
+		}
+		root = httpapi.DemoLockMiddlewareAt(level, mux, deps.translator, mux)
 	}
 
 	return httpapi.RequestIDMiddleware(httpapi.TokenRedactMiddlewareLive(srv.StreamTokenStore, cfg.EffectiveHTTPS, eveymetrics.InstrumentHandler(httpapi.SecurityHeadersMiddlewareLive(cfg.EffectiveHTTPS, httpapi.CORSMiddlewareLive(cfg.EffectiveBaseURL, httpapi.CSRFMiddlewareLive(cfg.EffectiveHTTPS, proxyTrust.Middleware(httpapi.BodyReadTimeoutMiddleware(netMw(root))))))))), srv.PlaybackDecider(), nil

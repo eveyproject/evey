@@ -99,6 +99,27 @@ func TestHealthzHandler_AdvertisesDemo(t *testing.T) {
 	}
 }
 
+// The extended demo advertises itself apart from the public one: demo stays
+// absent (the clients would lock their UI and print credentials), demo_extended
+// carries the flag that keeps the clients off the network settings.
+func TestHealthzHandler_AdvertisesTheExtendedDemoApartFromThePublicOne(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Server.Demo, cfg.Server.DemoExtended = true, true
+	srv := &HTTPServer{Cfg: cfg, StartTime: time.Now(), DB: &fakeDBPinger{}}
+	w := httptest.NewRecorder()
+	srv.healthzHandler(w, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	var body map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if _, present := body["demo"]; present {
+		t.Errorf("extended demo must not advertise demo, got %v", body["demo"])
+	}
+	if body["demo_extended"] != true {
+		t.Errorf("demo_extended = %v, want true", body["demo_extended"])
+	}
+}
+
 // The TV app compares its own versionCode to the one released with the
 // server: the Play Store auto-update rarely runs on a television (27-09, a TV
 // stuck a week on 0.1.4). Unstamped, the field is absent rather than zero.

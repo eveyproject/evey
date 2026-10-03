@@ -253,6 +253,44 @@ Note that this password is published, and `?token=` is accepted on every route
 (`http/helpers.go:208-226`): every lock has to hold against a hand-written
 request, not merely against a disabled button.
 
+## The extended demo
+
+`EVEY_DEMO=extended` is a second level of the same flag, for a private instance
+an outside party has to be able to use end to end (an outside
+evaluator has to reach every screen the apps show, administration included). It keeps what the
+public demo has - the seeded free media, the mail, webhook and push sinks, the
+redaction of addresses - and changes who the visitor is: one administrator the
+operator named, on an instance nobody else shares, so the shared-account locks
+of the public demo have nothing left to protect.
+
+- **The policy opens, it does not decide again.** The public demo is unchanged. Everything `LockedAdminRPCs`,
+  `LockedUserRPCs` and `LockedRoutes` refuse on the public demo is open, except
+  the short, reasoned `ExtendedStaysLockedRPCs` and `ExtendedStaysLockedRoutes`:
+  anything that makes the host fetch a caller-supplied URL, run caller-supplied
+  code or write at a caller-supplied path, the restart and the load test, the
+  restore of a backup, the host logs and network details. An operation in
+  neither list stays locked by default, as before. The contractguard test
+  refuses an exception that the public demo does not lock, that names nothing
+  real, or that has no reason, and a mutation of the policy turns it red.
+- **Two checks need the message, so the interceptor makes them.** The account the
+  operator named cannot be changed, disabled or deleted (it would lock the
+  guest out), and a library can only point inside the demo media directory.
+- **The account is the operator's.** `EVEY_DEMO_USER` and `EVEY_DEMO_PASSWORD`
+  are required, letters and digits only and at least 20 long (a person types
+  them, and special characters get mangled), or the server refuses to boot. The
+  four-character floor of the public demo does not apply. That account is
+  exempt from the failed-login lock: its password stands in for the lock, and a
+  mistyped password on a television remote must not close the only door.
+- **Nothing is reset, the network is piloted.** The extended demo is a normal
+  server with the network settings locked, and it keeps what its guest does:
+  the operator restores a snapshot of the machine when it should be clean. The
+  panel greys the rate limits and the remote-access page, the route behind them
+  refuses a hand-written request the same way, and the public demo's hourly and
+  daily resets do not run.
+- **The clients are told apart.** `demo_mode` is false there, so no client greys
+  a control, prints credentials or shows a banner; `demo_extended` is true and
+  only tells them to keep their hands off the network settings.
+
 ## Consequences
 
 - The demo cannot drift from the product, because it is the product. The

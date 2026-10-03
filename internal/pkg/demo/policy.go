@@ -174,7 +174,7 @@ var LockedAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC names with 
 	"/evey.v1.AdminMediaService/RemuxAudioLibrary":        "rewrites every media file",
 
 	"/evey.v1.WebhookService/CreateWebhook": "points the server at a caller-supplied URL",
-	"/evey.v1.WebhookService/UpdateWebhook": "same",
+	"/evey.v1.WebhookService/UpdateWebhook": "re-points a webhook at a caller-supplied URL, same relay",
 	"/evey.v1.WebhookService/DeleteWebhook": "removes the seeded example for everyone",
 
 	"/evey.v1.LibraryService/CreateLibrary":    "storage: names a host path",
@@ -369,8 +369,8 @@ var OpenRoutes = map[string]string{
 var LockedRoutes = map[string]string{ //nolint:gosec // G101: RPC and route names with their reasons, no credential ("reset-password" is a path)
 	"GET /api/v1/admin/fs/browse":               "browses the host filesystem",
 	"GET /api/v1/admin/logs":                    "host logs carry other visitors' addresses even after redaction",
-	"GET /api/v1/admin/logs/search":             "same",
-	"GET /api/v1/admin/logs/stream":             "same, live",
+	"GET /api/v1/admin/logs/search":             "host logs carry the addresses of other guests",
+	"GET /api/v1/admin/logs/stream":             "host logs, live, with the addresses of other guests",
 	"GET /api/v1/admin/backups/{id}":            "downloads the database dump - every hash and every setting",
 	"GET /api/v1/admin/network-info":            "discloses the host's interfaces and addresses",
 	"GET /api/v1/admin/media/{id}/sync-preview": "transcodes on every call",
@@ -452,4 +452,112 @@ func RouteLocked(method, pattern string) bool {
 		return false
 	}
 	return true
+}
+
+// Level is how much of the demo a request is judged against. Public is the
+// shared, read-only demo (EVEY_DEMO=1). Extended is a private instance an
+// outside guest gets an administrator on: it opens everything Public locks
+// except what ExtendedStaysLocked and ExtendedLockedRoutes name.
+type Level int
+
+const (
+	Public Level = iota
+	Extended
+)
+
+// ExtendedStaysLockedRPCs are the RPCs that stay refused on the extended demo,
+// each with the reason. Every key must also be in LockedAdminRPCs or
+// LockedUserRPCs (the contractguard test refuses a stale entry): extended can
+// only open what Public locks, it never locks what Public leaves open.
+var ExtendedStaysLockedRPCs = map[string]string{ //nolint:gosec // G101: RPC names with their reasons, no credential
+	"/evey.v1.AdminSystemService/StartLoadTest":  "burns the host's CPU for nothing a guest needs to see",
+	"/evey.v1.AdminSystemService/CancelLoadTest": "symmetric with the start",
+	"/evey.v1.AdminSystemService/RestartServer":  "takes the instance down until somebody restarts it",
+
+	"/evey.v1.AdminPluginService/InstallPlugin":       "fetches and runs code from a caller-supplied source",
+	"/evey.v1.AdminPluginService/PreviewPluginUpdate": "downloads a caller-supplied URL (SSRF)",
+	"/evey.v1.AdminPluginService/ApplyPluginUpdate":   "installs code from a caller-supplied URL",
+	"/evey.v1.AdminPluginService/AddPluginRuntime":    "installs a language runtime on the host",
+	"/evey.v1.AdminPluginService/RemovePluginRuntime": "removes one",
+
+	"/evey.v1.WebhookService/CreateWebhook": "points the server at a caller-supplied URL: the host would relay requests",
+	"/evey.v1.WebhookService/UpdateWebhook": "re-points a webhook at a caller-supplied URL, same relay",
+
+	"/evey.v1.RemoteAccessService/UpdateRemoteAccess": "network: can lock every off-LAN caller out, the guest included",
+	"/evey.v1.RemoteAccessService/GetNetworkInfo":     "discloses the host's interfaces and addresses",
+
+	"/evey.v1.AdminSessionService/GetAuditLog": "carries the addresses and user agents of other guests",
+
+	// The MKV service takes a host path and writes beside it: the library
+	// editors reach the same engine through the media-health RPCs, which stay
+	// open and are bound to the library.
+	"/evey.v1.MKVService/GetContainerInfo":  "takes a host path",
+	"/evey.v1.MKVService/ListTracks":        "takes a host path",
+	"/evey.v1.MKVService/ExtractTrack":      "writes a file at a caller-supplied path",
+	"/evey.v1.MKVService/MuxContainer":      "writes a file at a caller-supplied path",
+	"/evey.v1.MKVService/DemuxContainer":    "writes files at a caller-supplied path",
+	"/evey.v1.MKVService/AddTrack":          "rewrites a file at a caller-supplied path",
+	"/evey.v1.MKVService/RemoveTrack":       "rewrites a file at a caller-supplied path",
+	"/evey.v1.MKVService/ListAttachments":   "reads arbitrary filesystem paths",
+	"/evey.v1.MKVService/ExtractAttachment": "arbitrary file write",
+
+	"/evey.v1.MusicService/ScanMusicDirectory": "scans an arbitrary absolute path",
+	"/evey.v1.PhotoService/ScanPhotoDirectory": "scans an arbitrary absolute path",
+}
+
+// ExtendedStaysLockedRoutes is ExtendedStaysLockedRPCs for HTTP patterns.
+var ExtendedStaysLockedRoutes = map[string]string{ //nolint:gosec // G101: route names with their reasons, no credential
+	"GET /api/v1/admin/logs":         "host logs carry the addresses of other guests",
+	"GET /api/v1/admin/logs/search":  "host logs carry the addresses of other guests",
+	"GET /api/v1/admin/logs/stream":  "host logs, live, with the addresses of other guests",
+	"GET /api/v1/admin/network-info": "discloses the host's interfaces and addresses",
+	"GET /metrics":                   "process and host telemetry",
+
+	"POST /api/v1/admin/backups/restore":     "replaces the database: bricks the instance until the nightly reset",
+	"POST /api/v1/admin/plugins/preview":     "analyses a caller-supplied bundle",
+	"POST /api/v1/admin/plugins/upload":      "installs code from a stranger",
+	"POST /api/v1/admin/webhooks/{id}/test":  "outbound HTTP to a stored URL (SSRF)",
+	"POST /api/v1/admin/sso/test":            "outbound HTTP to a caller-supplied issuer URL",
+	"PUT /api/v1/admin/sso":                  "identity provider: can lock the guest out or open sign-up to the internet",
+	"POST /api/v1/admin/update-status/check": "outbound call to the release feed on demand",
+	"PUT /api/v1/admin/remote-access":        "network: can lock everyone out",
+}
+
+// ExtendedProtectedUserRPCs are the RPCs that act on the user named by their
+// `id` field and that are refused when that user is the guest's own
+// account: changing its password, e-mail or role, disabling it or deleting it
+// would lock the outside evaluator out. The check needs the message, so the
+// interceptor makes it, not RPCLockedAt.
+var ExtendedProtectedUserRPCs = map[string]string{
+	"/evey.v1.UserService/UpdateUser":  "password, e-mail, username or role of the guest's account",
+	"/evey.v1.UserService/DisableUser": "locks the guest out",
+	"/evey.v1.UserService/DeleteUser":  "removes the guest's account",
+}
+
+// RPCLockedAt is RPCLocked at a given level.
+func RPCLockedAt(level Level, method string, isAdminMethod bool) bool {
+	if level == Extended {
+		if _, stays := ExtendedStaysLockedRPCs[method]; stays {
+			return true
+		}
+		_, userLocked := LockedUserRPCs[method]
+		_, adminLocked := LockedAdminRPCs[method]
+		if userLocked || adminLocked {
+			return false
+		}
+	}
+	return RPCLocked(method, isAdminMethod)
+}
+
+// RouteLockedAt is RouteLocked at a given level.
+func RouteLockedAt(level Level, method, pattern string) bool {
+	if level == Extended {
+		if _, stays := ExtendedStaysLockedRoutes[pattern]; stays {
+			return true
+		}
+		if _, locked := LockedRoutes[pattern]; locked {
+			return false
+		}
+	}
+	return RouteLocked(method, pattern)
 }
