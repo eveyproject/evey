@@ -8,7 +8,6 @@ import {
   TextInput,
   ScrollView,
   ActivityIndicator,
-  Dimensions,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
@@ -66,11 +65,11 @@ import {
   selectableMediaIds,
 } from "../../../src/components/library/libraryFilterUtils";
 import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState } from "@evey/client";
+import { POSTER_GRID } from "../../../src/lib/posterGrid";
 
-const NUM_COLUMNS = 3;
+const NUM_COLUMNS = POSTER_GRID.columns;
 const SPACING = 8;
-const screenWidth = Dimensions.get("window").width;
-const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
+const ITEM_WIDTH = POSTER_GRID.itemWidth;
 // MediaCard puts a marginRight of SPACING on its own outer box, so the poster it
 // draws is NARROWER than the cell by exactly that much. POSTER_HEIGHT used to be
 // derived from ITEM_WIDTH and therefore described a poster nobody drew: ~12px

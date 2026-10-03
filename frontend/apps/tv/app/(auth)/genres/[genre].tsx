@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
-import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -9,6 +8,7 @@ import type { V1MediaItem, LibraryServiceSearchMediaSortField, LibraryServiceSea
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { PosterImage } from "../../../src/components/PosterImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { genreTranslationKey } from "../../../src/lib/genres";
@@ -71,16 +71,7 @@ export default function GenreDetailScreen() {
         >
           <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
             {posterUri ? (
-              <Image
-                cachePolicy="memory-disk"
-                source={{ uri: posterUri, headers: authHeaders }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                transition={200}
-                recyclingKey={item.id}
-                placeholder={blurhash ? { blurhash } : undefined}
-                placeholderContentFit="cover"
-              />
+              <PosterImage uri={posterUri} headers={authHeaders} style={StyleSheet.absoluteFill} blurhash={blurhash} recyclingKey={item.id} />
             ) : (
               <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
             )}

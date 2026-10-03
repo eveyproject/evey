@@ -9,7 +9,7 @@ vi.mock("react-native", () => ({
   Dimensions: { get: () => ({ width: 400, height: 800 }) },
 }));
 vi.mock("expo-image", () => ({
-  Image: ({ source, placeholder }: any) => React.createElement("img", { alt: "", src: source?.uri, "data-blurhash": placeholder?.blurhash }),
+  Image: ({ source, placeholder, onError }: any) => React.createElement("img", { alt: "", onError, src: source?.uri, "data-blurhash": placeholder?.blurhash }),
 }));
 vi.mock("@expo/vector-icons/Ionicons", () => ({ default: ({ name }: any) => React.createElement("i", { "data-icon": name }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
@@ -20,7 +20,7 @@ vi.mock("../providers/ThemeProvider", () => ({
 vi.mock("../hooks/useServerUrl", () => ({ useServerUrl: () => "http://evey.local" }));
 vi.mock("../hooks/useAuthenticatedImage", () => ({ useAuthenticatedImage: (uri?: string) => (uri ? { uri, headers: { Authorization: "Bearer tok" } } : null) }));
 vi.mock("./ProgressBar", () => ({ ProgressBar: ({ percent }: any) => React.createElement("div", { "data-testid": "progress", "data-pct": percent }) }));
-vi.mock("@evey/theme", () => ({ FONT_SIZE: { xs: 10 }, ICON_SIZE: { sm: 16 } }));
+vi.mock("@evey/theme", () => ({ FONT_SIZE: { xs: 10 }, ICON_SIZE: { sm: 16, "3xl": 40 } }));
 
 import { MediaCard } from "./MediaCard";
 
@@ -53,5 +53,13 @@ describe("MediaCard", () => {
     expect(document.querySelector("img")!.getAttribute("data-blurhash")).toBe("bd");
     expect(screen.queryByTestId("progress")).toBeNull();
     expect(screen.getAllByText("Film")).toHaveLength(1);
+  });
+
+  it("swaps the empty rectangle for a film glyph when the poster fails to load", () => {
+    render(<MediaCard item={{ id: "m9", title: "No poster" } as any} />);
+    expect(document.querySelector("[data-icon='film-outline']")).toBeNull();
+    fireEvent.error(document.querySelector("img")!);
+    expect(document.querySelector("[data-icon='film-outline']")).toBeTruthy();
+    expect(document.querySelector("img")).toBeNull();
   });
 });

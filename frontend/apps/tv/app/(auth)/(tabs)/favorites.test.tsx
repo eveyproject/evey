@@ -17,7 +17,12 @@ vi.mock("react-native", () => ({
         ? ListEmptyComponent
         : (data as any[]).map((item, index) => React.createElement(React.Fragment, { key: keyExtractor(item) }, renderItem({ item, index }))),
     ),
-  StyleSheet: { create: (s: any) => s },
+  StyleSheet: { create: (s: any) => s, absoluteFill: {} },
+}));
+vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrl: () => "http://srv.test" }));
+vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({ useAuthHeaders: () => ({ Authorization: "Bearer T" }) }));
+vi.mock("../../../src/components/PosterImage", () => ({
+  PosterImage: ({ uri }: any) => React.createElement("img", { alt: "", src: uri }),
 }));
 const push = vi.fn();
 vi.mock("expo-router", () => ({ useRouter: () => ({ push }) }));
@@ -38,6 +43,7 @@ const favs = { data: undefined as unknown, isLoading: false, isError: false, ref
 vi.mock("../../../src/hooks/useFavorite", () => ({ useFavoritesList: () => favs }));
 
 import FavoritesScreen from "./favorites";
+import { CARD_WIDTH_GRID } from "../../../src/lib/tvLayout";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -57,6 +63,8 @@ describe("tv favourites screen", () => {
     expect(cards[0].getAttribute("aria-label")).toBe("Some Movie");
     expect(cards[1].getAttribute("aria-label")).toBe("Untitled");
     expect(screen.getByText("1995")).toBeTruthy();
+    // The poster comes from the item's own id, not a hard-coded placeholder.
+    expect(cards[0].querySelector("img")?.getAttribute("src")).toBe("http://srv.test/api/v1/media/m1/artwork/poster?w=" + String(CARD_WIDTH_GRID * 2));
     fireEvent.click(cards[1]);
     expect(push).toHaveBeenCalledWith("/media/m2");
   });

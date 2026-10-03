@@ -45,6 +45,13 @@ vi.mock("react-native", () => ({
 }));
 
 // --- expo-image -------------------------------------------------------------------------
+vi.mock("react-native-svg", () => ({
+  default: () => null,
+  Defs: () => null,
+  LinearGradient: () => null,
+  Rect: () => null,
+  Stop: () => null,
+}));
 vi.mock("expo-image", () => ({
   Image: (props: Record<string, unknown>) => React.createElement("img", { ...props, alt: "" }),
 }));

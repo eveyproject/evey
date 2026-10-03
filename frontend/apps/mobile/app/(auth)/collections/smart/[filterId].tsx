@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   Pressable,
-  Dimensions,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
@@ -21,11 +20,11 @@ import { useServerUrl } from "../../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../../src/hooks/useAuthenticatedImage";
 import { useCollection, useUpdateCollection, type CollectionItem } from "../../../../src/api/collections";
 import { artworkUrl } from "../../../../src/lib/artwork";
+import { POSTER_GRID } from "../../../../src/lib/posterGrid";
 
-const NUM_COLUMNS = 3;
+const NUM_COLUMNS = POSTER_GRID.columns;
 const SPACING = 8;
-const screenWidth = Dimensions.get("window").width;
-const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
+const ITEM_WIDTH = POSTER_GRID.itemWidth;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 
 const OP_LABELS: Record<string, string> = {
