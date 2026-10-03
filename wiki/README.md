@@ -1,4 +1,4 @@
-# wiki.eveyproject.org
+# eveyproject.org
 
 The public documentation site, built from `docs/` with MkDocs Material.
 

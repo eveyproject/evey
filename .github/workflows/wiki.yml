@@ -1,4 +1,4 @@
-# Publishes wiki.eveyproject.org from docs/.
+# Publishes eveyproject.org from docs/.
 #
 # Two triggers, deliberately different:
 #
@@ -11,9 +11,10 @@
 #   not silently rewrite the public documentation.
 #
 # The site is NOT this repository's GitHub Pages target. It is pushed to
-# Evey-project/wiki, which is public, so the wiki can go live while this
-# repository is still private. When this repository opens, point Pages here and
-# drop the deploy job - the build job is unchanged either way.
+# Evey-project/evey-project.github.io, which is public and already holds the
+# eveyproject.org domain, so the wiki can go live while this repository is still
+# private. When this repository opens, point Pages here and drop the deploy job -
+# the build job is unchanged either way.
 
 name: Wiki
 
@@ -71,7 +72,7 @@ jobs:
           retention-days: 7
 
   deploy:
-    name: Publish to wiki.eveyproject.org
+    name: Publish to eveyproject.org
     needs: build
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -86,16 +87,17 @@ jobs:
       # repository would be wiped by the first publish that forgets it.
       - name: Pin the domain
         run: |
-          echo 'wiki.eveyproject.org' > site/CNAME
+          echo 'eveyproject.org' > site/CNAME
           touch site/.nojekyll
 
-      # WIKI_DEPLOY_KEY: a deploy key with write access on Evey-project/wiki,
-      # and on nothing else. A PAT would carry the whole account.
+      # WIKI_DEPLOY_KEY: a deploy key with write access on
+      # Evey-project/evey-project.github.io, and on nothing else. A PAT would
+      # carry the whole account. Pages serves that repository's main branch.
       - name: Deploy
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
         with:
           deploy_key: ${{ secrets.WIKI_DEPLOY_KEY }}
-          external_repository: Evey-project/wiki
-          publish_branch: gh-pages
+          external_repository: Evey-project/evey-project.github.io
+          publish_branch: main
           publish_dir: site
           commit_message: 'docs: publish ${{ github.sha }}'
