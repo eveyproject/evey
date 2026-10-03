@@ -1,3 +1,4 @@
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { View, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -14,13 +15,10 @@ interface MediaHeroBackdropProps {
   leftInset: number;
 }
 
-// See heroGradientBands.ts for why this is a stack of flat-opacity layers
-// rather than a real gradient, and why it spans the FULL hero height (the
-// previous version stopped at 60%, which is what produced the reported
-// "visible band, brutal cut" - nothing darkened the top 40% at all, then a
-// coarse 4-step jump below it).
-const GRADIENT_STEPS = 24;
-const GRADIENT_BANDS = heroGradientBands(GRADIENT_STEPS);
+// One real vertical gradient over the full hero height: transparent at the top,
+// the page background at the bottom, on the same eased (quadratic) curve as
+// heroGradientBands, so there are no flat steps to read as bands.
+const GRADIENT_STOPS = heroGradientBands(24);
 
 export function MediaHeroBackdrop({ uri, headers, height, onBack, topInset, leftInset }: MediaHeroBackdropProps) {
   const { t } = useTranslation();
@@ -38,11 +36,16 @@ export function MediaHeroBackdrop({ uri, headers, height, onBack, topInset, left
       ) : (
         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: theme.colors.surface }]} />
       )}
-      <View style={[StyleSheet.absoluteFillObject, { flexDirection: "column" }]}>
-        {GRADIENT_BANDS.map((opacity, i) => (
-          <View key={i} style={{ flex: 1, backgroundColor: theme.colors.bg, opacity }} />
-        ))}
-      </View>
+      <Svg style={StyleSheet.absoluteFillObject} width="100%" height="100%" pointerEvents="none">
+        <Defs>
+          <LinearGradient id="heroFade" x1="0" y1="0" x2="0" y2="1">
+            {GRADIENT_STOPS.map((opacity, i) => (
+              <Stop key={i} offset={(i + 1) / GRADIENT_STOPS.length} stopColor={theme.colors.bg} stopOpacity={opacity} />
+            ))}
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width="100%" height="100%" fill="url(#heroFade)" />
+      </Svg>
       <Pressable
         onPress={onBack}
         hitSlop={12}

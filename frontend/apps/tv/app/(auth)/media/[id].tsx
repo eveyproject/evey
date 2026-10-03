@@ -27,6 +27,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
@@ -165,10 +166,6 @@ function PosterShelf({
     </View>
   );
 }
-
-// Opacity of each band of the backdrop fade, top to bottom: the curve the
-// four original steps traced (0.1, 0.35, 0.7, 0.95), sampled finer.
-const FADE_STEPS = Array.from({ length: 16 }, (_, i) => Math.round((0.05 + 0.9 * ((i + 0.5) / 16) ** 1.4) * 1000) / 1000);
 
 // "More like this": the server's list or no shelf. A same-genre fallback
 // filled it with titles sharing one catch-all genre (2026-10-01).
@@ -431,14 +428,20 @@ export default function MediaDetailScreen() {
             placeholderContentFit="cover"
           />
         ) : null}
-        {/* Fade to bg so the poster/title stay legible over any backdrop. No
-            gradient module in this app, so it is steps of flat colour: four of
-            them read as hard stripes across a 1080p screen, sixteen blend. */}
-        <View style={[StyleSheet.absoluteFillObject, { justifyContent: "flex-end" }]}>
-          {FADE_STEPS.map((opacity) => (
-            <View key={opacity} style={{ flex: 1, backgroundColor: theme.colors.bg, opacity }} />
-          ))}
-        </View>
+        {/* Fade to bg so the poster/title stay legible over any backdrop; the
+            stops trace the curve the old 16 flat bands sampled (0.05 to 0.95). */}
+        <Svg style={StyleSheet.absoluteFillObject} width="100%" height="100%" pointerEvents="none">
+          <Defs>
+            <LinearGradient id="hero-fade" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor={theme.colors.bg} stopOpacity={0.05} />
+              <Stop offset="0.25" stopColor={theme.colors.bg} stopOpacity={0.18} />
+              <Stop offset="0.5" stopColor={theme.colors.bg} stopOpacity={0.39} />
+              <Stop offset="0.75" stopColor={theme.colors.bg} stopOpacity={0.65} />
+              <Stop offset="1" stopColor={theme.colors.bg} stopOpacity={0.95} />
+            </LinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#hero-fade)" />
+        </Svg>
       </View>
 
       {/* Poster + title row, overlapping the backdrop */}

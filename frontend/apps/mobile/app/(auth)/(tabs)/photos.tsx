@@ -23,6 +23,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { prevLightboxIndex, nextLightboxIndex, rotateClockwise, rotateCounterClockwise } from "../../../src/lib/lightboxNav";
+import { posterGrid } from "../../../src/lib/posterGrid";
 
 // How close to the end of the loaded photos the viewer may get before the next
 // page is requested. Same margin as the web lightbox.
@@ -66,16 +67,16 @@ interface PhotoDetail {
   album: string;
 }
 
-const NUM_PHOTO_COLS = 3;
 const SPACING = 2;
 const screenWidth = Dimensions.get("window").width;
-const PHOTO_SIZE = (screenWidth - SPACING * (NUM_PHOTO_COLS + 1)) / NUM_PHOTO_COLS;
+const { columns: NUM_PHOTO_COLS, itemWidth: PHOTO_SIZE } = posterGrid(screenWidth, SPACING);
 // A library with hundreds of albums used to mount every cover in a 2-column
 // grid that lived inside the outer list's header (scrollEnabled=false, never
 // windowed by RN), freezing the screen before first paint. Albums are now a
 // horizontal LegendList carousel - virtualized on its own axis, so only the
 // visible covers mount and there is no "show more" wall.
-const ALBUM_SIZE = (screenWidth - 32) / 2.4;
+// Capped so a tablet carousel does not show ~500 dp covers (phone is under the cap).
+const ALBUM_SIZE = Math.min((screenWidth - 32) / 2.4, 190);
 
 function photoKeyExtractor(item: Photo) {
   return item.id;

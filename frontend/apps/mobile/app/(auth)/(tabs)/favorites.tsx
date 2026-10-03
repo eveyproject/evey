@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Pressable,
   ScrollView,
-  Dimensions,
   StyleSheet,
 } from "react-native";
 import { Image } from "expo-image";
@@ -26,11 +25,11 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useFavoritesList, type FavoriteItem } from "../../../src/hooks/useFavorite";
 import { BulkAddToPlaylistSheet, BulkAddToCollectionSheet } from "../../../src/components/library/BulkAddSheets";
+import { POSTER_GRID } from "../../../src/lib/posterGrid";
 
-const NUM_COLUMNS = 3;
+const NUM_COLUMNS = POSTER_GRID.columns;
 const SPACING = 8;
-const screenWidth = Dimensions.get("window").width;
-const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
+const ITEM_WIDTH = POSTER_GRID.itemWidth;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING; // poster + text + margin
 

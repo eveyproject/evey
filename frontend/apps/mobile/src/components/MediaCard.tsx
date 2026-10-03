@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable } from "react-native";
 import { ROW_CARD_WIDTH } from "../lib/rowCardWidth";
 import { Image } from "expo-image";
@@ -58,6 +58,10 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
   const imageUri = serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 400, item) : undefined;
   const imageSource = useAuthenticatedImage(imageUri);
 
+  // A title without a poster answers 404: show a film glyph instead of an empty rectangle.
+  const [posterFailed, setPosterFailed] = useState(false);
+  useEffect(() => setPosterFailed(false), [imageUri]);
+
   // Primary blurhash drives the expo-image placeholder; the explicit prop
   // (passed by feed sliders carrying FeedItem.primaryBlurhash) wins. Falls
   // back to primary → backdrop on item.artwork for detail pages. Empty hash
@@ -80,11 +84,17 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
         backgroundColor: theme.colors.surface,
         overflow: "hidden",
       }}>
-        {imageSource && (
+        {posterFailed && (
+          <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, alignItems: "center", justifyContent: "center" }}>
+            <Ionicons name="film-outline" size={ICON_SIZE["3xl"]} color={theme.colors.textMuted} />
+          </View>
+        )}
+        {imageSource && !posterFailed && (
           <Image
             source={imageSource}
             style={{ width: cardWidth, height: cardHeight }}
             contentFit="cover"
+            onError={() => setPosterFailed(true)}
             transition={200}
             placeholder={blurhash ? { blurhash } : undefined}
             placeholderContentFit="cover"

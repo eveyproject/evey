@@ -40,6 +40,7 @@ import { trackListMusicSource, restoreMusicFilterFromParams } from "../../../src
 import { averageAlbumProgress } from "../../../src/components/music/albumDownloadProgress";
 import { buildShuffleQueryUrl, buildTrackQueryUrl } from "../../../src/components/music/musicTrackQuery";
 import { coverArtUri } from "../../../src/lib/coverArtUri";
+import { posterGrid } from "../../../src/lib/posterGrid";
 import { AlbumHeader } from "../../../src/components/music/AlbumHeader";
 
 interface LibraryItem {
@@ -68,9 +69,9 @@ interface MusicArtist {
 
 type Tab = "tracks" | "albums" | "artists" | "playlists";
 
-const NUM_ALBUM_COLS = 2;
-const screenWidth = Dimensions.get("window").width;
-const ALBUM_ART_SIZE = (screenWidth - 16 * 3) / NUM_ALBUM_COLS;
+// Phone keeps 2 covers per row; a tablet adds columns instead of stretching them.
+const ALBUM_GRID_GAP = 16;
+const { columns: NUM_ALBUM_COLS, itemWidth: ALBUM_ART_SIZE } = posterGrid(Dimensions.get("window").width, ALBUM_GRID_GAP, 2);
 
 function useMusicLibraries() {
   return useQuery({
@@ -936,8 +937,8 @@ export default function MusicScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderAlbum}
           numColumns={NUM_ALBUM_COLS}
-          contentContainerStyle={{ padding: 16, gap: 16 }}
-          columnWrapperStyle={{ gap: 16 }}
+          contentContainerStyle={{ padding: ALBUM_GRID_GAP, gap: ALBUM_GRID_GAP }}
+          columnWrapperStyle={{ gap: ALBUM_GRID_GAP }}
           ListEmptyComponent={
             <View style={[styles.center, { paddingTop: 60 }]}>
               <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{t("media.music.noAlbums")}</Text>
@@ -951,8 +952,8 @@ export default function MusicScreen() {
           keyExtractor={(item) => item.id}
           renderItem={renderArtist}
           numColumns={NUM_ALBUM_COLS}
-          contentContainerStyle={{ padding: 16, gap: 16 }}
-          columnWrapperStyle={{ gap: 16 }}
+          contentContainerStyle={{ padding: ALBUM_GRID_GAP, gap: ALBUM_GRID_GAP }}
+          columnWrapperStyle={{ gap: ALBUM_GRID_GAP }}
           ListEmptyComponent={
             <View style={[styles.center, { paddingTop: 60 }]}>
               <Text style={{ color: theme.colors.textMuted, fontSize: 15 }}>{t("media.music.noArtists")}</Text>

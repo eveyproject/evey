@@ -4,7 +4,11 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useFavoritesList, type FavoriteItem } from "../../../src/hooks/useFavorite";
+import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { PosterImage } from "../../../src/components/PosterImage";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
 
@@ -27,6 +31,8 @@ export default function FavoritesScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const serverUrl = useServerUrl();
+  const authHeaders = useAuthHeaders();
   const { data: favorites, isLoading, isError, refetch } = useFavoritesList();
 
   const renderItem = useCallback(
@@ -37,8 +43,13 @@ export default function FavoritesScreen() {
         style={styles.gridItem}
         accessibilityLabel={item.title ?? t("common.untitled", "Untitled")}
       >
-        <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }]}>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
+        <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
+          <PosterImage
+            uri={artworkUrl(serverUrl, item.mediaItemId, "poster", CARD_WIDTH * 2)}
+            headers={authHeaders}
+            style={StyleSheet.absoluteFill}
+            recyclingKey={item.mediaItemId}
+          />
         </View>
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={2}>
           {item.title ?? t("common.untitled", "Untitled")}
@@ -50,7 +61,7 @@ export default function FavoritesScreen() {
         )}
       </FocusableCard>
     ),
-    [theme, router, t],
+    [theme, router, t, serverUrl, authHeaders],
   );
 
   if (isLoading || isError) {

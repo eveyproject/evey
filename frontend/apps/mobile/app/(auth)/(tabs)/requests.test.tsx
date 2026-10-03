@@ -8,7 +8,7 @@ import React from "react";
 
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Text: ({ children, ...p }: any) => React.createElement("span", p, children),
+  Text: ({ children, style, ...p }: any) => React.createElement("span", { "data-style": JSON.stringify(style), ...p }, children),
   TextInput: (p: any) => React.createElement("input", p),
   FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent }: any) =>
     React.createElement(
@@ -85,5 +85,13 @@ describe("RequestsScreen - 'Mes demandes' tab, loading vs empty", () => {
     fireEvent.click(screen.getByText("requests.tabMine"));
 
     expect(screen.getByText("requests.noRequests")).toBeTruthy();
+  });
+});
+
+describe("RequestsScreen - header alignment", () => {
+  it("indents the subtitle like the title above it", () => {
+    render(<RequestsScreen />);
+    const style = JSON.parse(screen.getByText("requests.subtitle").getAttribute("data-style") ?? "{}");
+    expect(style.paddingHorizontal).toBe(16);
   });
 });

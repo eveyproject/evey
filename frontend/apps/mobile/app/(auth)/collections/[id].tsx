@@ -5,7 +5,6 @@ import {
   FlatList,
   TouchableOpacity,
   Pressable,
-  Dimensions,
   StyleSheet,
   Alert,
   Modal,
@@ -34,11 +33,11 @@ import {
 } from "../../../src/api/collections";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { moveItem } from "../../../src/utils/collectionReorder";
+import { POSTER_GRID } from "../../../src/lib/posterGrid";
 
-const NUM_COLUMNS = 3;
+const NUM_COLUMNS = POSTER_GRID.columns;
 const SPACING = 8;
-const screenWidth = Dimensions.get("window").width;
-const ITEM_WIDTH = (screenWidth - SPACING * (NUM_COLUMNS + 1)) / NUM_COLUMNS;
+const ITEM_WIDTH = POSTER_GRID.itemWidth;
 const POSTER_HEIGHT = ITEM_WIDTH * 1.5;
 const ROW_HEIGHT = POSTER_HEIGHT + 30 + SPACING;
 

@@ -11,10 +11,12 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { posterGrid } from "../../../src/lib/posterGrid";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const NUM_COLUMNS = 3;
+// 3 on a phone, more on a tablet (the cell would otherwise be ~426 dp at 1280 dp).
+const NUM_COLUMNS = posterGrid(SCREEN_WIDTH).columns;
 const GAP = 8;
 // Keyset page: 30 posters per fetch, streamed in as the grid scrolls. A
 // prolific actor used to mount up to 500 posters at once (the old fetch cap),

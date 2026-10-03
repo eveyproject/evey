@@ -211,7 +211,7 @@ export default function RequestsScreen() {
       <Text style={[styles.header, { color: theme.colors.text, marginTop: theme.spacing.xl }]}>
         {t("requests.title")}
       </Text>
-      <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: 2, marginBottom: 4 }}>
+      <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginTop: 2, marginBottom: 4, paddingHorizontal: 16 }}>
         {t("requests.subtitle")}
       </Text>
 

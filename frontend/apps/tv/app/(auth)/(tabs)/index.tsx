@@ -27,6 +27,7 @@ import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 import { musicAlbumHref } from "../../../src/lib/musicRoutes";
 import { progressPercent } from "../../../src/lib/progressPercent";
 import { artworkUrl } from "../../../src/lib/artwork";
+import { PosterImage } from "../../../src/components/PosterImage";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
 import { FocusableCard } from "../../../src/components/FocusableCard";
@@ -137,15 +138,12 @@ function MediaCardImpl({
           // The corners are the image's own, not a clipping wrapper's: a
           // rounded overflow-hidden View clips through a path, which the
           // television's GPU pays for on every visible card, every frame.
-          <Image
-            cachePolicy="memory-disk"
-            source={{ uri: posterUri, headers: authHeaders }}
+          <PosterImage
+            uri={posterUri}
+            headers={authHeaders}
             style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: theme.radii.sm }}
-            contentFit="cover"
-            transition={200}
+            blurhash={blurhash}
             recyclingKey={item.id}
-            placeholder={blurhash ? { blurhash } : undefined}
-            placeholderContentFit="cover"
           />
         ) : (
           <View style={[styles.posterPlaceholder, { backgroundColor: theme.colors.surface }]}>
