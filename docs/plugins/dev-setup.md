@@ -163,34 +163,81 @@ Logs from the plugin process land in:
 
 ## 6. Sign your plugin (optional in dev, recommended for distribution)
 
-If you plan to distribute the plugin to other Evey instances, sign it. The receiving admin can then run `EVEY_PLUGINS_COSIGN_POLICY=warn` (or `enforce`) to surface unsigned uploads.
+!!! info "What a signature proves"
+    A signature says the ZIP the admin is installing is byte for byte the one
+    **you** published, and that it was signed with the key they trust. It says
+    nothing about what the plugin does: the permissions, the hosts and the
+    analysis of the preview still apply. Evey checks it **offline and in
+    process** (ECDSA P-256 over the SHA-256 of the ZIP, the format
+    `cosign sign-blob --key` produces): no `cosign` binary on the server, no
+    network, no transparency log.
+
+You need [cosign](https://docs.sigstore.dev/cosign/installation/) on **your**
+machine only.
+
+**1. Once: generate a key pair.**
 
 ```sh
-# one-time: generate a keypair (keep cosign.key safe - never commit it)
-cosign generate-key-pair
-
-# sign the ZIP
-cosign sign-blob \
-  --key cosign.key \
-  --output-signature my-first-plugin.zip.sig \
-  my-first-plugin.zip
-
-# distribute: my-first-plugin.zip + my-first-plugin.zip.sig + cosign.pub
+# choose a real passphrase; cosign.key stays private, never commit it
+COSIGN_PASSWORD="your-passphrase" cosign generate-key-pair
+# -> cosign.key (private) and cosign.pub (the file you hand out)
 ```
 
-On the Evey instance that installs the plugin:
+**2. At each release: zip, then sign.** The manifest sits at the root of the
+ZIP. Sign offline, to match how the server verifies:
 
 ```sh
-# put the public key somewhere readable by the server
+cd my-first-plugin && zip -r ../my-first-plugin.zip . && cd ..
+
+COSIGN_PASSWORD="your-passphrase" cosign sign-blob \
+  --key cosign.key --tlog-upload=false --yes \
+  --output-signature my-first-plugin.zip.sig \
+  my-first-plugin.zip
+```
+
+**3. Check it before shipping**, with the same verification the server does:
+
+```sh
+cosign verify-blob --key cosign.pub --signature my-first-plugin.zip.sig \
+  --insecure-ignore-tlog my-first-plugin.zip      # -> Verified OK
+```
+
+**4. Publish three files together**: `my-first-plugin.zip`,
+`my-first-plugin.zip.sig` and `cosign.pub`. Put the public key's fingerprint
+somewhere your users can compare it (README, release notes), so they know
+`cosign.pub` was not swapped.
+
+**On the instance that installs it:**
+
+```sh
+# put the public key somewhere the server can read
 sudo cp cosign.pub /etc/evey/cosign.pub
 
-# point Evey at it and switch policy
 export EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
-export EVEY_PLUGINS_COSIGN_POLICY=warn   # or "enforce" to refuse unsigned
+export EVEY_PLUGINS_COSIGN_POLICY=warn   # or "enforce" to refuse what does not verify
 docker compose restart evey
 ```
 
-Evey validates the key at startup (PEM parse) - a missing or malformed key file fails the boot rather than the first install. KMS references (`gcpkms://...`, `awskms://...`, `k8s://...`) are accepted opaquely.
+Then, in **Admin → Plugins**, choose the ZIP and, in the **Signature file**
+field, its `.zip.sig`. Through the API, the signature is the optional `sig`
+field of the upload (section 4). The preview shows **Signed** or an invalid
+signature, and the plugin's card in the Security Dashboard keeps the result.
+
+Things that trip people up:
+
+- **Any change to the ZIP breaks the signature**, even re-zipping the same
+  files. Sign the exact file you distribute, and sign again for every
+  version.
+- **Only ECDSA P-256 keys are accepted**, which is what `cosign
+  generate-key-pair` makes. Keyless signing (Sigstore identities) and KMS
+  references are not verified.
+- The key is read from a PEM file at startup: a missing or malformed file
+  stops the boot instead of failing the first install. With `enforce` and no
+  key, the server refuses to start.
+- With the default `warn` and no public key configured, **nothing is
+  verified**; the server only logs a warning at startup.
+- A wrong key, a tampered ZIP and a missing `.sig` all read as a failed
+  signature: under `enforce`, the install or the update is refused.
 
 ## 7. Resource limits and sandbox
 
@@ -231,7 +278,7 @@ own site). What "distribution" means today:
 | `forbidden pattern "fetch(" found in theme JS` | Theme JS scanner caught a banned API. | Themes must only call `evey.theme.*`. Read `internal/pkg/themejs/scan.go` to see what's blocked. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | All wildcards are rejected at install, no exceptions. | Use `api.tmdb.org` (and list every explicit subdomain you need), not `*.tmdb.org` or `cdn.*.tmdb.org`. |
 | `manifest: frontend slot "admin.section" not allowed` | Plugin frontends are banned from privileged areas. | Pick a non-critical slot from the whitelist or rethink the plugin. |
-| `cosign verify-blob: failed signature` | Public key on the server doesn't match the private key used to sign. | Re-sign with the right key, or update `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
+| `signature does not match the plugin or the configured key` | The `.sig` was made with another key, or the ZIP changed after signing. | Re-sign the exact ZIP with the right key, or update `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
 | `plugin already installed at version 1.0.0, new version must be higher` | The ZIP carries the version already installed. | Bump `version` in `plugin.yaml`, or uninstall the plugin first. |
 | Plugin stops, the log says `memory quota exceeded (… MB > … MB)` | The resource monitor killed it past its memory limit (exit 137). | Lower memory usage, or raise the plugin's memory limit on its card in **Admin → Plugins** (`EVEY_PLUGINS_MEMORY_MB` sets the default). |
 | Frontend module not visible | Plugin not enabled, slot mismatch, or `web_root` prefix wrong in `frontend.src`. | Check the admin Plugins page (status badge), confirm the slot string matches a real `<PluginSlot name=...>` mount, look at the network panel for `/api/v1/plugins/{id}/assets/...` calls. |

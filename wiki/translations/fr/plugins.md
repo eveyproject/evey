@@ -1,5 +1,5 @@
 ---
-source_sha: d8e413ff58f8ce72144723face5dd368f60cfd95dca1f70e39fb86b40afa9886
+source_sha: c858e8f41098eaabb6b7314bfd6b7c7d98aa6406edd23720a3486c1de4f15976
 reviewed: true
 ---
 # Plugins
@@ -44,6 +44,24 @@ Un plugin dont l'analyse relève un motif critique est refusé. La mise à jour
 d'un plugin installé passe par le même aperçu ; quand elle demande de
 nouvelles permissions, de nouveaux emplacements ou de nouveaux hôtes, vous
 devez accepter explicitement la différence.
+
+!!! tip "Plugins signés"
+    L'auteur d'un plugin peut signer le ZIP avec [cosign](https://docs.sigstore.dev/cosign/installation/),
+    et c'est vous qui décidez de ce que devient un plugin non signé ou mal signé.
+    Pour vérifier les signatures, donnez au serveur la clé publique de l'auteur
+    et choisissez une politique :
+
+    ```sh
+    EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
+    EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (défaut) | enforce
+    ```
+
+    Choisissez ensuite le ZIP **et** son fichier `.zip.sig` dans **Admin →
+    Plugins**. Avec `warn`, un échec s'affiche dans l'aperçu et dans le tableau
+    de bord de sécurité ; avec `enforce`, l'installation ou la mise à jour est
+    refusée. Rien n'est vérifié sans clé publique, et le serveur n'a pas besoin
+    du binaire `cosign`. Auteurs : voir
+    [Signer son plugin](plugins/dev-setup.md#6-sign-your-plugin-optional-in-dev-recommended-for-distribution).
 
 Chaque plugin dispose ensuite, sur sa carte, de l'activation, de la mise à
 jour, des logs et de ses limites de ressources (mémoire, processus, disque,
