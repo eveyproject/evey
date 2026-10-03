@@ -10,7 +10,30 @@ const { withAndroidManifest } = require("expo/config-plugins");
 // peut ne pas avoir sont dites facultatives, comme la doc Android TV le
 // demande (touchscreen, faketouch, microphone, camera, location, sensors,
 // screen.portrait). leanback, lui, reste EXIGE (config-tv, androidTVRequired).
-const REMOVED_PERMISSIONS = ["android.permission.RECORD_AUDIO"];
+//
+// Les memes retraits pour ce que la TV ne fait JAMAIS (verifie dans le code et
+// dans le rapport de fusion du manifeste, 03-10) :
+//   SYSTEM_ALERT_WINDOW : posee par le manifeste genere du prebuild, aucun code
+//     ne dessine par-dessus une autre appli (« Overlay » dans le source = des
+//     composants React, pas une fenetre systeme) ; Play regarde cette
+//     permission de travers.
+//   READ/WRITE_EXTERNAL_STORAGE : posees par le prebuild, expo-image et
+//     expo-file-system ; la TV n'ecrit que dans cacheDirectory (cache des
+//     bundles de plugins, packages/client/src/native/pluginBundleCache.ts),
+//     jamais dans le stockage partage - les telechargements n'existent que sur
+//     le telephone (media-caps getPublicDownloadsDir, apps/mobile seulement).
+//   USE_BIOMETRIC / USE_FINGERPRINT : viennent d'androidx.biometric, tire par
+//     expo-secure-store ; la TV ne l'appelle jamais avec requireAuthentication.
+// FOREGROUND_SERVICE et WAKE_LOCK RESTENT (service media d'expo-video, voir
+// withoutOfflineAudioService.js).
+const REMOVED_PERMISSIONS = [
+  "android.permission.RECORD_AUDIO",
+  "android.permission.SYSTEM_ALERT_WINDOW",
+  "android.permission.READ_EXTERNAL_STORAGE",
+  "android.permission.WRITE_EXTERNAL_STORAGE",
+  "android.permission.USE_BIOMETRIC",
+  "android.permission.USE_FINGERPRINT",
+];
 const OPTIONAL_FEATURES = [
   "android.hardware.touchscreen",
   "android.hardware.faketouch",
