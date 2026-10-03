@@ -2,7 +2,7 @@
 // build. It never updates anything: a container cannot replace its own image,
 // and the pull, the recreate and the migrations that follow are the admin's
 // to run. It only compares what this binary is with what the registry
-// publishes, every few hours, and says so on the dashboard.
+// publishes, every hour, and says so on the dashboard.
 package updatecheck
 
 import (
@@ -26,7 +26,7 @@ const (
 )
 
 const (
-	checkInterval = 6 * time.Hour
+	checkInterval = time.Hour
 	firstCheck    = 2 * time.Minute
 	// A forced check may not hammer the registry: the anonymous pull quota is
 	// shared by every Evey behind the same address.
