@@ -732,7 +732,7 @@ mobile-go:
 	@echo "→ In the app, enter server URL: http://localhost:9091"
 
 # ── Wiki ──────────────────────────────────────────────────────────────────────
-# wiki.eveyproject.org, built from docs/. See wiki/README.md for how a page
+# eveyproject.org, built from docs/. See wiki/README.md for how a page
 # gets published and what the guards refuse.
 #
 # The build runs in a throwaway container rather than on the host: this machine

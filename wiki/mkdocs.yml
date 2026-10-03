@@ -1,4 +1,4 @@
-# wiki.eveyproject.org - the public documentation site.
+# eveyproject.org - the public documentation site.
 #
 # The `nav` below is the ONLY manifest of what gets published. `assemble.py`
 # reads it, resolves every entry against `wiki/content/` then `docs/`, and
@@ -14,7 +14,7 @@
 
 site_name: Evey
 site_description: Self-hosted media server - documentation
-site_url: https://wiki.eveyproject.org/
+site_url: https://eveyproject.org/
 repo_url: https://github.com/Evey-project/evey
 repo_name: Evey-project/evey
 edit_uri: edit/master/docs/
@@ -88,6 +88,10 @@ plugins:
       # surfaces German and Chinese pages. mkdocs-static-i18n rebuilds one
       # index per locale from this config when reconfigure_search is on.
       lang: en
+  # Downloads Google Fonts and any other external asset at build time and serves
+  # them from the site, so a visitor's browser contacts no third party. The
+  # privacy policy (docs/privacy.md) says so.
+  - privacy
   # Translations live beside their English source as `<page>.<lang>.md`, written
   # there by assemble.py from wiki/translations/<lang>/. A page with no
   # translation falls back to English rather than 404ing, which is what makes a
@@ -116,6 +120,7 @@ plugins:
             Install: Installation
             First setup: Première configuration
             Apps and devices: Applications et appareils
+            Privacy policy: Règles de confidentialité
             Administration: Administration
             Libraries and metadata: Bibliothèques et métadonnées
             Users, profiles and parental control: Utilisateurs, profils et contrôle parental
@@ -494,6 +499,7 @@ nav:
       - Install: installation.md
       - First setup: getting-started/first-setup.md
       - Apps and devices: getting-started/apps.md
+      - Privacy policy: privacy.md
   - Administration:
       - Libraries and metadata: administration/libraries.md
       - Users, profiles and parental control: administration/users.md
