@@ -37,12 +37,12 @@ describe("openStorePage", () => {
   it("opens the Play Store app on the TV", async () => {
     openURL.mockResolvedValue(undefined);
     await openStorePage();
-    expect(openURL).toHaveBeenCalledWith("market://details?id=com.evey.tv");
+    expect(openURL).toHaveBeenCalledWith("market://details?id=com.evey.app");
   });
 
   it("falls back to the web page when no store app answers", async () => {
     openURL.mockRejectedValueOnce(new Error("no activity")).mockResolvedValueOnce(undefined);
     await openStorePage();
-    expect(openURL).toHaveBeenLastCalledWith("https://play.google.com/store/apps/details?id=com.evey.tv");
+    expect(openURL).toHaveBeenLastCalledWith("https://play.google.com/store/apps/details?id=com.evey.app");
   });
 });

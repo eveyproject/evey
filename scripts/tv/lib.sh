@@ -35,7 +35,7 @@ TV_APP_DIR="$TV_ROOT/frontend/apps/tv"
 # time); the reverse tunnel is what points that at our own port.
 : "${TV_DEVICE_METRO_PORT:=8081}"
 : "${TV_API_PORT:=9091}"
-: "${TV_PKG:=com.evey.tv}"
+: "${TV_PKG:=com.evey.app}"
 : "${TV_ACTIVITY:=.MainActivity}"
 
 # Credentials for tv-login are NEVER stored in the repo. Put them in
