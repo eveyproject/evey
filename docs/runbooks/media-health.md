@@ -5,8 +5,8 @@ each one a single answer. The aim is a page that empties out: what Evey can fix,
 it fixes; the rest is mentioned once and can be marked as seen.
 
 <figure class="evey-shot" markdown="span">
-  ![Admin → Media Health after a scan of the demo libraries](../images/admin-media-health.webp){ loading=lazy }
-  <figcaption>A scan with nothing left to do: every file is healthy.</figcaption>
+  ![Admin → Media Health after a scan: one file to repair, one remark](../images/admin-media-health.webp){ loading=lazy }
+  <figcaption>A scan with one file Evey can repair (its seek index is missing) and one remark (surplus bytes after the end of the file, harmless).</figcaption>
 </figure>
 
 ## Three verdicts
@@ -118,6 +118,11 @@ undone from there without any copy:
 | Renamed to `.mp4` | Renames it back. |
 | Index rebuilt | Nothing to undo: picture and sound are untouched. |
 | Damaged stretch skipped | Only the backup brings the lost bytes back, which is why this repair always keeps one. |
+
+<figure class="evey-shot" markdown="span">
+  ![Admin → Media Health after Repair all, with the repair journal open](../images/admin-media-health-repaired.webp){ loading=lazy }
+  <figcaption>After <strong>Repair all</strong>: the index is rebuilt, the journal records it, and the file leaves the queue; the remark stays. This index was patched into the file in place, which keeps no copy: only a file that has to be rewritten keeps a backup.</figcaption>
+</figure>
 
 Repairs write into your media folders. They must be mounted read-write in the
 container (no `:ro` on the volume); after a run that met a read-only volume,

@@ -33,7 +33,7 @@ line.
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: gravityz/evey:latest # (1)!
+    image: gravityz/evey:beta-0.0.1 # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!
@@ -48,8 +48,10 @@ volumes:
   evey-cache:
 ```
 
-1. `latest` is the most recent stable release. Pin a tag once you run Evey for real,
-   so that two pulls a day apart run the same code: see
+1. Evey is in beta and has no numbered release yet, so there is no `latest`
+   tag: `beta-0.0.1` follows the development branch and moves with every
+   change. To run the same code from one pull to the next, put an immutable
+   `sha-<commit>` tag here instead: see
    [Backups and updates](backups.md#updating-evey).
 2. The API and the web interface, on one port, in plain HTTP.
 3. Everything Evey owns: database, signing key, generated passwords, search

@@ -1,5 +1,5 @@
 ---
-source_sha: cd66a9194ddc930c849aec83b5d0a19bb86c2f982c6fcf9e5f4211e0a00e0cde
+source_sha: f29992016990abfb7f2de5cc191167f6e3c95702d5dc83dee16f37d7ab8540c8
 reviewed: true
 ---
 # Sauvegardes et mises à jour
@@ -73,11 +73,12 @@ santé dès que le serveur répond. Evey vérifie toutes les 6 heures si une ima
 est publiée et le signale dans le panneau d'administration ; il ne se met
 jamais à jour tout seul.
 
-**Figez ce que vous exécutez.** `latest` suit la dernière version stable.
-Pour un serveur sur lequel vous comptez, mettez un tag de version (`0.2.0`)
-ou un tag immuable `sha-<commit>` sur la ligne `image:`, pour que deux `pull`
-à un jour d'écart exécutent le même code. Un tag de branche comme
-`beta-0.0.1` bouge à chaque modification.
+**Figez ce que vous exécutez.** Pendant la bêta, il n'y a ni version
+numérotée ni tag `latest` ; le tag de branche `beta-0.0.1` bouge à chaque
+modification. Pour un serveur sur lequel vous comptez, mettez un tag immuable
+`sha-<commit>` sur la ligne `image:`, pour que deux `pull` à un jour d'écart
+exécutent le même code. Quand des versions existeront, `latest` suivra la
+dernière version stable, et un tag de version (`0.2.0`) permettra de la figer.
 
 **Savoir quelle version tourne.** `docker exec evey-server evey version`
 affiche la version et le commit du binaire en cours d'exécution.

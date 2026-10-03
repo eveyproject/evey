@@ -63,10 +63,11 @@ the container reports healthy once it serves again. Evey checks every 6 hours
 whether a newer image is published and says so in the admin panel; it never
 updates itself.
 
-**Pin what you run.** `latest` follows the most recent stable release. For a server
-you rely on, put a release tag (`0.2.0`) or an immutable `sha-<commit>` tag on
-the `image:` line, so that two pulls a day apart run the same code. A branch
-tag such as `beta-0.0.1` moves with every change.
+**Pin what you run.** During the beta there is no numbered release and no
+`latest` tag; the branch tag `beta-0.0.1` moves with every change. For a server
+you rely on, put an immutable `sha-<commit>` tag on the `image:` line, so that
+two pulls a day apart run the same code. Once releases exist, `latest` will
+follow the most recent stable one, and a release tag (`0.2.0`) will pin it.
 
 **Which version is running.** `docker exec evey-server evey version` prints the
 version and the commit of the running binary.

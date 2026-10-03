@@ -1,5 +1,5 @@
 ---
-source_sha: a6c61f9f7b1e619f46c4d5eea7ca2c2b93356f93c04681e95963303bdf287723
+source_sha: 29c3c3bee4511329f7593cd5c80bd27346da9d87fb5b7cd07624462bd864257b
 reviewed: true
 ---
 # Installation
@@ -38,7 +38,7 @@ médias sur la dernière ligne de `volumes`.
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: gravityz/evey:latest # (1)!
+    image: gravityz/evey:beta-0.0.1 # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!
@@ -53,9 +53,11 @@ volumes:
   evey-cache:
 ```
 
-1. `latest` désigne la dernière version stable. Figez un tag dès que le
-   serveur est utilisé pour de bon, pour que deux `pull` à un jour d'écart exécutent
-   le même code : voir [Sauvegardes et mises à jour](backups.md#updating-evey).
+1. Evey est en bêta et n'a pas encore de version numérotée, donc pas de tag
+   `latest` : `beta-0.0.1` suit la branche de développement et bouge à chaque
+   modification. Pour exécuter le même code d'un `pull` à l'autre, mettez ici
+   un tag immuable `sha-<commit>` : voir
+   [Sauvegardes et mises à jour](backups.md#updating-evey).
 2. L'API et l'interface web, sur un seul port, en HTTP simple.
 3. Tout ce qui appartient à Evey : base de données, clé de signature, mots de
    passe générés, index de recherche, miniatures de navigation, visuels, logs,

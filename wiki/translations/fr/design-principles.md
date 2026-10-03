@@ -1,5 +1,5 @@
 ---
-source_sha: dffa9823329d7253d7991f9037012a372bdeeb2765f9c4c68f0d73f04efc4dbc
+source_sha: 052d898a070360c714ae40767f822a9be2ba4239c7619e40e5f0b41a5d8b6ac2
 reviewed: true
 ---
 # Principes de conception
@@ -64,8 +64,8 @@ Voir [Diffusion (Chromecast)](playback/casting.md),
 Une lecture est décidée une seule fois, au lancement, et tous les manifestes
 et segments de la session sont servis à partir de cette décision. Le lecteur
 ne reçoit jamais de segments issus de deux encodages, et ce qu'affichent les
-Infos du flux provient du même plan que celui qu'exécute l'encodeur, ce que des
-tests vérifient dans les deux sens.
+Infos du flux provient du même plan de service que celui qu'utilise la chaîne
+de lecture, ce que des tests vérifient dans les deux sens.
 
 Voir [ADR-0030](adr/0030-one-plan-one-decision.md),
 [ADR-0024](adr/0024-playback-plan-resolver.md).
