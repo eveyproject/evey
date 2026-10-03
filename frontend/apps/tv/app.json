@@ -29,6 +29,7 @@
     "plugins": [
       "./plugins/withCleartextTraffic",
       "./plugins/withReleaseSigning",
+      "./plugins/withR8Minify",
       [
         "./plugins/withUiScale",
         {
