@@ -12,7 +12,25 @@ type MediaFile struct {
 	// the files nobody publishes ready-made (a Matroska with several audio
 	// tracks, embedded subtitles and chapters) are made by the demo itself.
 	Build *Build
+	// Defect, when set, is a harmless flaw the demo gives the file so that
+	// Media health has something real to show: the file still plays.
+	Defect Defect
 }
+
+// Defect is a benign flaw applied to a demo file after it lands, again at
+// every boot until it holds (so an existing demo gets it too).
+type Defect int
+
+const (
+	DefectNone Defect = iota
+	// DefectNoSeekIndex turns the Matroska Cues into a Void element of the
+	// same length: no index, duration and payload untouched. Media health
+	// says "Repairable here"; playback falls back to the slower seek path.
+	DefectNoSeekIndex
+	// DefectTrailingBytes appends zeros past the declared end of the Segment.
+	// Media health says "Information"; every player ignores them.
+	DefectTrailingBytes
+)
 
 // Build is one file muxed by ffmpeg from Inputs, in order. Args go between
 // the inputs and the output (maps, per-track codecs and metadata); the video
@@ -164,7 +182,7 @@ var Manifest = []MediaFile{
 	{URL: "https://archive.org/download/caminandes-1-llama-drama/1_Caminandes1_Llama_Drama_720p_vp8.ogv", Path: "movies/Caminandes - Llama Drama (2013).ogv"},
 	{URL: "https://archive.org/download/Caminandes2GranDillama/02_gran_dillama_1080p.mp4", Path: "movies/Caminandes 2 - Gran Dillama (2013).mp4"},
 	{URL: "https://archive.org/download/CaminandesLlamigos/Caminandes_%20Llamigos-1080p.mp4", Path: "movies/Caminandes 3 - Llamigos (2016).mp4"},
-	{URL: "https://upload.wikimedia.org/wikipedia/commons/a/a5/Spring_-_Blender_Open_Movie.webm", Path: "movies/Spring (2019).webm"},
+	{URL: "https://upload.wikimedia.org/wikipedia/commons/a/a5/Spring_-_Blender_Open_Movie.webm", Path: "movies/Spring (2019).webm", Defect: DefectTrailingBytes},
 	{URL: "https://archive.org/download/sprite-fright-2021/Sprite%20Fright%20%282021%29.mkv", Path: "movies/Sprite Fright (2021).mkv"},
 	{URL: "https://archive.org/download/CosmosLaundromatFirstCycle/Cosmos%20Laundromat%20-%20First%20Cycle%20%281080p%29.mp4", Path: "movies/Cosmos Laundromat (2015).mp4"},
 	// Tears of Steel as a Matroska made at boot from the official files:
@@ -246,8 +264,9 @@ var Manifest = []MediaFile{
 	// tests, never in the demo. test4 (a live recording: Clusters of unknown
 	// size, no Duration) is held back: the packager cannot read it yet and the
 	// server has no duration to build its playlist from, so it would show a
-	// film that does not start.
-	{URL: "https://raw.githubusercontent.com/ietf-wg-cellar/matroska-test-files/master/test_files/test5.mkv", Path: "movies/Matroska Test 5 - Multiple Audio and Subtitles (2006).mkv"},
+	// film that does not start. test5 is served without its seek index: it
+	// still plays, and Media health has one file it can offer to repair.
+	{URL: "https://raw.githubusercontent.com/ietf-wg-cellar/matroska-test-files/master/test_files/test5.mkv", Path: "movies/Matroska Test 5 - Multiple Audio and Subtitles (2006).mkv", Defect: DefectNoSeekIndex},
 
 	// Films - public domain classics (archive.org, public-domain marked items)
 	{URL: "https://archive.org/download/his_girl_friday/his_girl_friday.mp4", Path: "movies/His Girl Friday (1940).mp4"},

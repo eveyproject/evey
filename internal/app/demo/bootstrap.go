@@ -508,6 +508,7 @@ func (b *Bootstrapper) DownloadManifest(ctx context.Context, manifest []demo.Med
 		}
 		dest := filepath.Join(b.mediaDir, filepath.FromSlash(f.Path))
 		if st, err := os.Stat(dest); err == nil && st.Size() > 0 {
+			b.defect(f, dest, folder, touched)
 			continue
 		}
 		if f.Build != nil {
@@ -517,6 +518,7 @@ func (b *Bootstrapper) DownloadManifest(ctx context.Context, manifest []demo.Med
 				continue
 			}
 			touched[folder] = true
+			b.defect(f, dest, folder, touched)
 			continue
 		}
 		b.log.Info("demo: downloading", "file", f.Path)
@@ -525,9 +527,28 @@ func (b *Bootstrapper) DownloadManifest(ctx context.Context, manifest []demo.Med
 			continue
 		}
 		touched[folder] = true
+		b.defect(f, dest, folder, touched)
 	}
 	flush()
 	return nil
+}
+
+// defect applies f's benign defect, if any; a file it changes gets its
+// library rescanned. A failure leaves the file healthy and is retried at the
+// next boot.
+func (b *Bootstrapper) defect(f demo.MediaFile, dest, folder string, touched map[string]bool) {
+	if f.Defect == demo.DefectNone {
+		return
+	}
+	changed, err := applyDefect(dest, f.Defect)
+	if err != nil {
+		b.log.Warn("demo: defect not applied", "file", f.Path, "err", err)
+		return
+	}
+	if changed {
+		b.log.Info("demo: defect applied for media health", "file", f.Path)
+		touched[folder] = true
+	}
 }
 
 func topFolder(rel string) string {
