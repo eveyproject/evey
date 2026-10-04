@@ -98,6 +98,23 @@ describe("LoadTestReportPanel", () => {
     expect(disks[0]).toHaveTextContent("wait=132");
   });
 
+  it("the Go runtime line says how much of the CPU the collector took, and is absent when unmeasured", () => {
+    const report = {
+      sustainedViewers: 29,
+      stopReason: "slo_breach",
+      resources: { goHeapLiveBytesAvg: 6000, goHeapLiveBytesMax: 8000, goMemLimitBytes: 9000, goGcCpuPercentAvg: 31.6, goGcCpuPercentPeak: 58.2 },
+    } as LoadTestReport;
+    const { unmount } = render(<LoadTestReportPanel report={report} predicted={undefined} />);
+    const line = screen.getByTestId("load-test-go-runtime");
+    expect(line).toHaveTextContent("heap=6000B");
+    expect(line).toHaveTextContent("limit=9000B");
+    expect(line).toHaveTextContent("gc=32");
+    expect(line).toHaveTextContent("peak=58");
+    unmount();
+    render(<LoadTestReportPanel report={{ sustainedViewers: 3, stopReason: "cpu_saturated" } as LoadTestReport} predicted={undefined} />);
+    expect(screen.queryByTestId("load-test-go-runtime")).toBeNull();
+  });
+
   it("a run on plain storage shows no pool block", () => {
     render(<LoadTestReportPanel report={{ sustainedViewers: 3, stopReason: "cpu_saturated" } as LoadTestReport} predicted={undefined} />);
     expect(screen.queryByTestId("load-test-pool")).toBeNull();

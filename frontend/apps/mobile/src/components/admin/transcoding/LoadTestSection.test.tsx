@@ -87,6 +87,21 @@ describe("LoadTestSection (mobile)", () => {
     expect(screen.getByText(/diskLine\(sdc,89,97,/)).toBeTruthy();
   });
 
+  it("shows the server's Go runtime line in the details when it was measured", async () => {
+    eveyFetchMock.mockResolvedValue({
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 29,
+        stopReason: "slo_breach",
+        resources: { goHeapLiveBytesAvg: 6000, goHeapLiveBytesMax: 8000, goMemLimitBytes: 9000, goGcCpuPercentAvg: 31.6, goGcCpuPercentPeak: 58.2 },
+      },
+    });
+    mount();
+    fireEvent.click(await screen.findByText(/admin\.loadtest\.detailsSummary|Détails de métrologie/));
+    expect(await screen.findByText(/goRuntimeLine\(6000B,8000B,9000B,32,58\)/)).toBeTruthy();
+  });
+
   it("names a start refused by live playback", async () => {
     eveyFetchMock.mockImplementation((opts?: { method?: string }) => {
       if (opts?.method === "GET") return Promise.resolve({ running: false });

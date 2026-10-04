@@ -428,6 +428,7 @@
   "admin.loadtest.disksTitle": "What each disk did",
   "admin.loadtest.errorActiveStreams": "Playback is currently active - the test refuses to run over real viewers.",
   "admin.loadtest.errorGeneric": "Could not start the load test.",
+  "admin.loadtest.goRuntimeLine": "Server Go runtime: heap {{heap}} on average (peak {{max}}, limit {{limit}}), garbage collector {{gc}}% of its CPU time (peak {{peak}}%). A high share with the heap near the limit slows everything down: that is the collector, not the disk.",
   "admin.loadtest.harnessCpuLine": "{{pct}}% of the measured CPU was the load generator itself: it has been subtracted from the figures above.",
   "admin.loadtest.heading": "Load test",
   "admin.loadtest.idleDescription": "Measure what this server can sustain with real simulated viewers.",

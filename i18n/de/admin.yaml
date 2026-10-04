@@ -1138,6 +1138,7 @@ loadtest:
   ttffLine: "Startzeit: {{p50}} ms typisch, {{p95}} ms im schlechtesten Fall."
   segmentLine: "Segmentabruf: {{p50}} ms typisch, {{p95}} ms im schlimmsten Fall."
   harnessCpuLine: "{{pct}} % der gemessenen CPU war der Lastgenerator selbst: er wurde von den obigen Zahlen abgezogen."
+  goRuntimeLine: "Go-Laufzeit des Servers: Heap {{heap}} im Mittel (Spitze {{max}}, Limit {{limit}}), Garbage Collector {{gc}} % seiner CPU-Zeit (Spitze {{peak}} %). Ein hoher Anteil bei einem Heap nahe am Limit bremst alles: Das ist der Collector, nicht die Platte."
   table:
     viewers: "Zuschauer"
     cpu: "CPU"

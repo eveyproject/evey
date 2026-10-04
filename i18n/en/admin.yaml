@@ -1107,6 +1107,7 @@ loadtest:
   ttffLine: "Startup time: {{p50}} ms typical, {{p95}} ms worst case."
   segmentLine: "Segment fetch: {{p50}} ms typical, {{p95}} ms worst."
   harnessCpuLine: "{{pct}}% of the measured CPU was the load generator itself: it has been subtracted from the figures above."
+  goRuntimeLine: "Server Go runtime: heap {{heap}} on average (peak {{max}}, limit {{limit}}), garbage collector {{gc}}% of its CPU time (peak {{peak}}%). A high share with the heap near the limit slows everything down: that is the collector, not the disk."
   table:
     viewers: "Viewers"
     cpu: "CPU"
