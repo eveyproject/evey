@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
@@ -72,11 +71,10 @@ function SkipForwardIcon({ seconds }: { seconds: number }) {
   );
 }
 
-// Transport row, copy of the web player's bar: previous episode/chapter,
-// -Ns, play/pause, +Ns, next chapter/episode, time, volume, then a "..."
-// button that reveals the floating secondary row (chapters, settings,
-// stream info, timer, PiP, fullscreen) - exactly the same grouping as
-// the web under the sm breakpoint.
+// Transport row: previous episode/chapter, -Ns, play/pause, +Ns, next
+// chapter/episode, time, volume, then chapters, settings, stream info, timer,
+// PiP and fullscreen, always in reach. On a narrow screen that second group
+// wraps onto its own line instead of hiding behind a "..." button.
 export function PlayerControlsRow({
   isPlaying,
   isBuffering,
@@ -112,15 +110,6 @@ export function PlayerControlsRow({
   onToggleFullscreen,
 }: PlayerControlsRowProps) {
   const { t } = useTranslation();
-  const [overflowOpen, setOverflowOpen] = useState(false);
-
-  // Like the web: the settings panel lives in the secondary row, so it
-  // stays open as long as the panel is; otherwise it closes when the
-  // controls hide (the parent unmounts this row).
-  useEffect(() => {
-    if (!settingsOpen) return;
-    setOverflowOpen(true);
-  }, [settingsOpen]);
 
   return (
     <View style={styles.controlsRow}>
@@ -229,88 +218,74 @@ export function PlayerControlsRow({
         />
       )}
 
-      <View style={{ flex: 1 }} />
-
-      <Pressable
-        onPress={() => setOverflowOpen((v) => !v)}
-        hitSlop={8}
-        style={styles.controlBtn}
-        accessible={true}
-        accessibilityLabel={t("player.controls.more")}
-        accessibilityRole="button"
-      >
-        <Ionicons name="ellipsis-horizontal" size={ICON_SIZE.lg} color="#fff" />
-      </Pressable>
-
-      {overflowOpen && (
-        <View style={styles.overflowRow}>
-          {hasChapters && (
-            <Pressable
-              onPress={onOpenChapters}
-              hitSlop={8}
-              style={styles.controlBtn}
-              accessible={true}
-              accessibilityLabel={t("player.controls.chapters")}
-              accessibilityValue={currentChapterTitle ? { text: currentChapterTitle } : undefined}
-              accessibilityRole="button"
-            >
-              <Ionicons name="book-outline" size={ICON_SIZE.lg} color="#fff" />
-            </Pressable>
-          )}
+      <View style={styles.secondaryRow}>
+        {hasChapters && (
           <Pressable
-            onPress={onToggleSettings}
+            onPress={onOpenChapters}
             hitSlop={8}
             style={styles.controlBtn}
             accessible={true}
-            accessibilityLabel={t("player.controls.settings")}
+            accessibilityLabel={t("player.controls.chapters")}
+            accessibilityValue={currentChapterTitle ? { text: currentChapterTitle } : undefined}
             accessibilityRole="button"
           >
-            <Ionicons name="settings-sharp" size={ICON_SIZE.lg} color="#fff" />
+            <Ionicons name="book-outline" size={ICON_SIZE.lg} color="#fff" />
           </Pressable>
+        )}
+        <Pressable
+          onPress={onToggleSettings}
+          hitSlop={8}
+          style={styles.controlBtn}
+          accessible={true}
+          accessibilityLabel={t("player.controls.settings")}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: settingsOpen }}
+        >
+          <Ionicons name="settings-sharp" size={ICON_SIZE.lg} color="#fff" />
+        </Pressable>
+        <Pressable
+          onPress={onOpenStreamInfo}
+          hitSlop={8}
+          style={styles.controlBtn}
+          accessible={true}
+          accessibilityLabel={t("player.streamInfo.title", "Stream Info")}
+          accessibilityRole="button"
+        >
+          <Ionicons name="information-circle-outline" size={ICON_SIZE.lg} color="#fff" />
+        </Pressable>
+        <Pressable
+          onPress={onOpenSleepTimer}
+          hitSlop={8}
+          style={styles.controlBtn}
+          accessible={true}
+          accessibilityLabel={t("player.settings.sleepTimer", "Sleep timer")}
+          accessibilityRole="button"
+        >
+          <Ionicons name={sleepTimerActive ? "moon" : "moon-outline"} size={ICON_SIZE.lg} color="#fff" />
+        </Pressable>
+        {pipSupported && (
           <Pressable
-            onPress={onOpenStreamInfo}
+            onPress={onPip}
             hitSlop={8}
             style={styles.controlBtn}
             accessible={true}
-            accessibilityLabel={t("player.streamInfo.title", "Stream Info")}
+            accessibilityLabel={t("player.controls.pip")}
             accessibilityRole="button"
           >
-            <Ionicons name="information-circle-outline" size={ICON_SIZE.lg} color="#fff" />
+            <Ionicons name="albums-outline" size={ICON_SIZE.lg} color="#fff" />
           </Pressable>
-          <Pressable
-            onPress={onOpenSleepTimer}
-            hitSlop={8}
-            style={styles.controlBtn}
-            accessible={true}
-            accessibilityLabel={t("player.settings.sleepTimer", "Sleep timer")}
-            accessibilityRole="button"
-          >
-            <Ionicons name={sleepTimerActive ? "moon" : "moon-outline"} size={ICON_SIZE.lg} color="#fff" />
-          </Pressable>
-          {pipSupported && (
-            <Pressable
-              onPress={onPip}
-              hitSlop={8}
-              style={styles.controlBtn}
-              accessible={true}
-              accessibilityLabel={t("player.controls.pip")}
-              accessibilityRole="button"
-            >
-              <Ionicons name="albums-outline" size={ICON_SIZE.lg} color="#fff" />
-            </Pressable>
-          )}
-          <Pressable
-            onPress={onToggleFullscreen}
-            hitSlop={8}
-            style={styles.controlBtn}
-            accessible={true}
-            accessibilityLabel={isFullscreen ? t("player.controls.exitFullscreen") : t("player.controls.fullscreen")}
-            accessibilityRole="button"
-          >
-            <Ionicons name={isFullscreen ? "contract-outline" : "expand-outline"} size={ICON_SIZE.lg} color="#fff" />
-          </Pressable>
-        </View>
-      )}
+        )}
+        <Pressable
+          onPress={onToggleFullscreen}
+          hitSlop={8}
+          style={styles.controlBtn}
+          accessible={true}
+          accessibilityLabel={isFullscreen ? t("player.controls.exitFullscreen") : t("player.controls.fullscreen")}
+          accessibilityRole="button"
+        >
+          <Ionicons name={isFullscreen ? "contract-outline" : "expand-outline"} size={ICON_SIZE.lg} color="#fff" />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -319,7 +294,9 @@ const styles = StyleSheet.create({
   controlsRow: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     columnGap: 10,
+    rowGap: 6,
     marginTop: 4,
   },
   controlBtn: {
@@ -331,19 +308,12 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
     textAlign: "center",
   },
-  // Floating secondary row above the bar, right-aligned - same placement
-  // as the web's "overflow" row under sm.
-  overflowRow: {
-    position: "absolute",
-    bottom: "100%",
-    right: 0,
-    marginBottom: 8,
+  // Pushed to the right edge, on the transport's line when it fits and on a
+  // line of its own when it does not.
+  secondaryRow: {
+    marginLeft: "auto",
     flexDirection: "row",
     alignItems: "center",
     columnGap: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.85)",
   },
 });

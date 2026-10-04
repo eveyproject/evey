@@ -84,20 +84,24 @@ describe("PlayerControlsRow accessibility", () => {
     expect(screen.queryByLabelText("player.buffering")).toBeNull();
   });
 
-  // The chapters button lives behind the "..." overflow, so open it first -
-  // that is also the only way a viewer reaches it.
-  const openOverflow = () => fireEvent.click(screen.getByLabelText("player.controls.more"));
+  // Settings, chapters and the rest sit in the bar itself: a "..." button in
+  // front of them cost a tap on every use (tablet, 2026-10-03).
+  it("offers the settings without opening anything first", () => {
+    const onToggleSettings = vi.fn();
+    render(<PlayerControlsRow {...base} onToggleSettings={onToggleSettings} />);
+    expect(screen.queryByLabelText("player.controls.more")).toBeNull();
+    fireEvent.click(screen.getByLabelText("player.controls.settings"));
+    expect(onToggleSettings).toHaveBeenCalledTimes(1);
+  });
 
   // The current chapter was stated in exactly one place, inside the picker.
   it("reads the current chapter off the chapters button", () => {
     render(<PlayerControlsRow {...base} currentChapterTitle="The heist" />);
-    openOverflow();
     expect(screen.getByLabelText("player.controls.chapters").getAttribute("data-value")).toBe("The heist");
   });
 
   it("leaves the chapters button bare when no chapter is current", () => {
     render(<PlayerControlsRow {...base} />);
-    openOverflow();
     expect(screen.getByLabelText("player.controls.chapters").getAttribute("data-value")).toBe("");
   });
 });
