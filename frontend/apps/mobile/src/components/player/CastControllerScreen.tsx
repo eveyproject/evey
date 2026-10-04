@@ -108,7 +108,7 @@ export function CastControllerScreen({
         ) : null}
 
         {/* Timeline - draggable (parity with web's cast seek bar) */}
-        <View style={{ width: "100%", marginTop: 32, paddingHorizontal: 8 }}>
+        <View style={{ alignSelf: "stretch", marginTop: 32, paddingHorizontal: 8 }}>
           <DragBar
             progress={Math.min(1, castProgress)}
             accentColor={theme.colors.accent}
