@@ -213,6 +213,9 @@ func (r *Runner) wasCancelRequested() bool {
 	return r.cancelRequested
 }
 
+// heapSitesLogged is how many allocation sites the final heap profile logs.
+const heapSitesLogged = 12
+
 func (r *Runner) finish(report Report) {
 	args := []any{
 		"scenario", report.Scenario,
@@ -303,6 +306,28 @@ func (r *Runner) finish(report Report) {
 			"read_mib_per_sec", d.ReadBytesPerSecAvg/(1<<20),
 			"await_ms", int(d.AwaitMsAvg),
 		)
+	}
+
+	// Who holds the memory the run ends with: the biggest allocation sites by
+	// bytes still reachable, from the process's own heap profile. A heap that
+	// grew while the audience shrank is retention, and this names it.
+	if sites, total := heapInUseTop(heapSitesLogged); len(sites) > 0 {
+		// Handlers still alive after every viewer left are responses held in
+		// memory: in-flight work, as opposed to a cache.
+		serving, goroutines := goroutinesThrough("hlsVODServe")
+		r.logger.Info("loadtest: heap in use", "total_mb", total/(1<<20), "sites", len(sites),
+			"goroutines", goroutines, "goroutines_serving_media", serving)
+		for i, h := range sites {
+			r.logger.Info("loadtest: heap site",
+				"rank", i+1,
+				"mb", h.Bytes/(1<<20),
+				"share_pct", int(float64(h.Bytes)*100/float64(max(total, 1))),
+				"func", h.Func,
+				"file", h.File,
+				"line", h.Line,
+				"via", h.Via,
+			)
+		}
 	}
 
 	// A single flat-attribute line is deliberate: an operator can drive and
