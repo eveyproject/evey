@@ -1,20 +1,14 @@
-# Publishes eveyproject.org from docs/.
+# Builds the eveyproject.org documentation site from docs/.
 #
-# Two triggers, deliberately different:
+# The build is the gate that catches a nav entry pointing at a file that moved,
+# a translation that drifted from its English source, and - the reason the
+# guard exists at all - a hostname or credential that reached docs/ and would
+# have gone public. A docs change that breaks the site fails here, not after it
+# is served.
 #
-# - Pull requests and non-publishing branches BUILD only. The build is the gate
-#   that catches a nav entry pointing at a file that moved, a translation that
-#   drifted from its English source, and - the reason the guard exists at all -
-#   a hostname or credential that reached docs/ and would have gone public. A
-#   docs change that breaks the site fails here, not after it is served.
-# - master PUBLISHES. Nothing else does: a beta branch that changes a page must
-#   not silently rewrite the public documentation.
-#
-# The site is NOT this repository's GitHub Pages target. It is pushed to
-# Evey-project/evey-project.github.io, which is public and already holds the
-# eveyproject.org domain, so the wiki can go live while this repository is still
-# private. When this repository opens, point Pages here and drop the deploy job -
-# the build job is unchanged either way.
+# Nothing here publishes. The site lives in Evey-project/evey-project.github.io
+# and is published by hand: `make wiki-publish` commits the build into the local
+# clone of that repository, and pushing it puts the site live.
 
 name: Wiki
 
@@ -70,34 +64,3 @@ jobs:
           name: wiki-site
           path: wiki/site
           retention-days: 7
-
-  deploy:
-    name: Publish to eveyproject.org
-    needs: build
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: wiki-site
-          path: site
-
-      # CNAME and .nojekyll are recreated on every deploy: the branch is fully
-      # replaced by the generated site, so a file that only lives in the target
-      # repository would be wiped by the first publish that forgets it.
-      - name: Pin the domain
-        run: |
-          echo 'eveyproject.org' > site/CNAME
-          touch site/.nojekyll
-
-      # WIKI_DEPLOY_KEY: a deploy key with write access on
-      # Evey-project/evey-project.github.io, and on nothing else. A PAT would
-      # carry the whole account. Pages serves that repository's main branch.
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
-        with:
-          deploy_key: ${{ secrets.WIKI_DEPLOY_KEY }}
-          external_repository: Evey-project/evey-project.github.io
-          publish_branch: main
-          publish_dir: site
-          commit_message: 'docs: publish ${{ github.sha }}'
