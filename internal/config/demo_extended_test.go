@@ -28,8 +28,11 @@ func TestExtendedDemoAccountMustBeStrongAndTypeable(t *testing.T) {
 		{"", good, false},
 		{"gu est", good, false},
 		{"guest", "short", false},
-		{"guest", good[:19], false},
-		{"guest", good + "!", false},
+		{"guest", good[:11], false},
+		{"guest", good[:12], true},
+		{"guest", good + "!-_$", true},
+		{"guest", "with a space in it", false},
+		{"guest", "tab\tinside12345", false},
 		{"guest", "demo", false},
 	} {
 		if errs := validateExtendedDemoAccount(c.user, c.pass); (len(errs) == 0) != c.ok {
