@@ -506,6 +506,33 @@ message LoadTestReport {
   // cannot see its reads, a cold-cache eviction stops at the mount and a pool
   // counts as one disk. The storage figures then describe the delivery path.
   bool storage_opaque = 41;
+  // pool_branches is where the audience's titles sit on a pooled mount, one
+  // entry per branch (disk), most viewers first. Empty when the library is not
+  // on a pool that can say. A pool is not a RAID: a file lives on ONE disk, so
+  // a skewed placement is a skewed load whatever the pool's total capacity.
+  repeated LoadTestPoolBranch pool_branches = 42;
+  // disks is what each physical drive did over the sustained tier, busiest
+  // first. Read from the host-wide block counters, so it also includes whatever
+  // else was reading those disks: it describes the drives, not only this run.
+  repeated LoadTestDiskActivity disks = 43;
+}
+
+// LoadTestPoolBranch is how many of the run's viewers were placed on one branch
+// (underlying disk) of a pooled mount.
+message LoadTestPoolBranch {
+  string branch = 1;
+  int32 viewers = 2;
+}
+
+// LoadTestDiskActivity is one physical drive's activity over the sustained
+// tier. util_percent is the share of time the drive had a request in flight
+// (iostat %util); await_ms is the mean time one read took, queueing included.
+message LoadTestDiskActivity {
+  string device = 1;
+  double util_percent_avg = 2;
+  double util_percent_peak = 3;
+  int64 read_bytes_per_sec_avg = 4;
+  double await_ms_avg = 5;
 }
 
 // LoadTestTierCost is what ONE audience size cost the server: one row of the

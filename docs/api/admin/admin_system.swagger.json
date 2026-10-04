@@ -418,6 +418,44 @@
         }
       }
     },
+    "v1LoadTestDiskActivity": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string"
+        },
+        "utilPercentAvg": {
+          "type": "number",
+          "format": "double"
+        },
+        "utilPercentPeak": {
+          "type": "number",
+          "format": "double"
+        },
+        "readBytesPerSecAvg": {
+          "type": "string",
+          "format": "int64"
+        },
+        "awaitMsAvg": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "description": "LoadTestDiskActivity is one physical drive's activity over the sustained\ntier. util_percent is the share of time the drive had a request in flight\n(iostat %util); await_ms is the mean time one read took, queueing included."
+    },
+    "v1LoadTestPoolBranch": {
+      "type": "object",
+      "properties": {
+        "branch": {
+          "type": "string"
+        },
+        "viewers": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "LoadTestPoolBranch is how many of the run's viewers were placed on one branch\n(underlying disk) of a pooled mount."
+    },
     "v1LoadTestReport": {
       "type": "object",
       "properties": {
@@ -611,6 +649,22 @@
         "storageOpaque": {
           "type": "boolean",
           "description": "storage_opaque is true when one of those mounts hides the disks from the\nserver's kernel (a FUSE pool, a network or VM share): the disk counter\ncannot see its reads, a cold-cache eviction stops at the mount and a pool\ncounts as one disk. The storage figures then describe the delivery path."
+        },
+        "poolBranches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestPoolBranch"
+          },
+          "description": "pool_branches is where the audience's titles sit on a pooled mount, one\nentry per branch (disk), most viewers first. Empty when the library is not\non a pool that can say. A pool is not a RAID: a file lives on ONE disk, so\na skewed placement is a skewed load whatever the pool's total capacity."
+        },
+        "disks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestDiskActivity"
+          },
+          "description": "disks is what each physical drive did over the sustained tier, busiest\nfirst. Read from the host-wide block counters, so it also includes whatever\nelse was reading those disks: it describes the drives, not only this run."
         }
       },
       "description": "LoadTestReport is what the box MEASURED, next to what the admission model\npredicted - the panel shows both so the operator sees promises kept."
