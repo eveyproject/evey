@@ -64,7 +64,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
-import { resolveStartPositionMs, servedVariant, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -1219,6 +1219,14 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     },
     [player, nativeAudioTracks, audioStreams, restartWithTracks, burnInSubtitleIndex, selectedQuality, userPickedAudioRef, setSelectedAudioIndex],
   );
+
+  // The file itself (direct play, downloaded copy) opens on its own default
+  // track: the selection is applied to the player (useFileAudioSelection).
+  useFileAudioSelection(player as unknown as AudioTrackPlayer | null, {
+    enabled: useLocalSource || streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY",
+    audioStreams,
+    selectedAudioIndex,
+  });
 
   // Restarts the transcode when entering/leaving a burn-in (PGS/VobSub)
   // subtitle - shared by native/server track selection and by switching to

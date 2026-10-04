@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pickNativeAudioTrack, pickPreferredStreamIndex } from "./audioTrackMatch";
+import { pickNativeAudioTrack, nativeTrackToApply, pickPreferredStreamIndex } from "./audioTrackMatch";
 
 describe("pickNativeAudioTrack", () => {
   const tracks = [
@@ -64,5 +64,31 @@ describe("pickPreferredStreamIndex", () => {
 
   it("returns null for an empty preference list", () => {
     expect(pickPreferredStreamIndex(streams, [])).toBeNull();
+  });
+});
+
+// A file played directly opens on ITS default track: the title page's pick
+// showed as selected in the menu while the other language played (tablet,
+// 2026-10-03).
+describe("nativeTrackToApply", () => {
+  const tracks = [
+    { id: "0", language: "fre", label: "VFF" },
+    { id: "1", language: "eng", label: "ENG" },
+  ];
+
+  it("switches to the picked stream when the player opened on another", () => {
+    expect(nativeTrackToApply(tracks, tracks[0], 1, "eng")?.label).toBe("ENG");
+  });
+
+  it("leaves the player alone when it already plays the picked stream", () => {
+    expect(nativeTrackToApply(tracks, tracks[1], 1, "eng")).toBeNull();
+  });
+
+  it("applies the pick when the player does not say what it plays", () => {
+    expect(nativeTrackToApply(tracks, null, 1, "eng")?.label).toBe("ENG");
+  });
+
+  it("waits for the native tracks", () => {
+    expect(nativeTrackToApply([], null, 1, "eng")).toBeNull();
   });
 });
