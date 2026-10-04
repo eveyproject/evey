@@ -942,3 +942,21 @@ func TestResourceState_CriticalMemoryStopsInsideWarmup(t *testing.T) {
 		t.Fatalf("92%% memory inside warm-up must not stop the run on its own, got %q", reason)
 	}
 }
+
+// A tier's Go-runtime figures are averages over its samples, with the peak and
+// the limit kept: that is what lets a report say "the collector took 40% of the
+// CPU while the heap sat at the limit".
+func TestResourceStats_AggregatesTheGoRuntime(t *testing.T) {
+	rs := newResourceState(0, time.Now())
+	rs.byTier[5] = []ResourceSample{
+		{GoHeapLiveBytes: 4 << 30, GoGCCPUPercent: 10, GoMemLimitBytes: 8 << 30},
+		{GoHeapLiveBytes: 8 << 30, GoGCCPUPercent: 50, GoMemLimitBytes: 8 << 30},
+	}
+	got := rs.stats(5)
+	if got.GoHeapLiveBytesAvg != 6<<30 || got.GoHeapLiveBytesMax != 8<<30 {
+		t.Fatalf("heap avg/max = %d/%d, want 6 GiB / 8 GiB", got.GoHeapLiveBytesAvg, got.GoHeapLiveBytesMax)
+	}
+	if got.GoGCCPUPercentAvg != 30 || got.GoGCCPUPercentPeak != 50 || got.GoMemLimitBytes != 8<<30 {
+		t.Fatalf("gc avg/peak = %.0f/%.0f limit %d, want 30 / 50 / 8 GiB", got.GoGCCPUPercentAvg, got.GoGCCPUPercentPeak, got.GoMemLimitBytes)
+	}
+}

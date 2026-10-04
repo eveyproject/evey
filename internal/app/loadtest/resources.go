@@ -76,6 +76,13 @@ type ResourceSample struct {
 	// Disks is the per-device view of the same interval (see pooldiag.go): empty
 	// when the counters are not available.
 	Disks []DiskSample
+	// GoHeapLiveBytes / GoGCCPUPercent / GoMemLimitBytes are the server's own Go
+	// runtime over the interval (see goruntime.go): the heap the last collection
+	// found reachable, the share of the runtime's CPU time spent collecting, and
+	// GOMEMLIMIT. Zero when the toolchain does not expose them.
+	GoHeapLiveBytes int64
+	GoGCCPUPercent  float64
+	GoMemLimitBytes int64
 }
 
 // ResourceStats is what a whole tier consumed: the average is what a viewer
@@ -91,6 +98,10 @@ type ResourceStats struct {
 	Samples                          int
 	// Disks is what each physical drive did over the tier, busiest first.
 	Disks []DiskStat
+	// The server's Go runtime over the tier (see goruntime.go).
+	GoHeapLiveBytesAvg, GoHeapLiveBytesMax int64
+	GoGCCPUPercentAvg, GoGCCPUPercentPeak  float64
+	GoMemLimitBytes                        int64
 }
 
 // counterSource is where the raw monotonic counters come from. The server's
@@ -138,6 +149,7 @@ type resourceSampler struct {
 	lastServed    int64
 	hasPrevSample bool
 	lastDisks     map[string]diskCounters
+	lastGo        goRuntime
 }
 
 func newResourceSampler(src counterSource) *resourceSampler {
@@ -158,6 +170,9 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	}
 	prevDisks := s.lastDisks
 	s.lastDisks = disks
+	goNow := readGoRuntime()
+	prevGo := s.lastGo
+	s.lastGo = goNow
 
 	prevAt, prevCPU, prevDisk, prevServed := s.lastAt, s.lastCPUUsec, s.lastDiskRead, s.lastServed
 	prevApp := s.lastAppRead
@@ -195,6 +210,9 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 		out.ServedBytesPerSec = int64(float64(servedTotal-prevServed) / elapsed)
 	}
 	out.Disks = diskDeltas(prevDisks, disks, elapsed)
+	out.GoHeapLiveBytes = goNow.heapLiveBytes
+	out.GoMemLimitBytes = goNow.memLimitBytes
+	out.GoGCCPUPercent = gcCPUPercent(prevGo, goNow)
 	return out, true
 }
 
@@ -562,6 +580,8 @@ func (rs *resourceState) tierCosts(serverShare float64) []TierCost {
 			CPUPercentPerViewer: cpu / float64(t),
 			MemBytesPerViewer:   s.MemUsedBytesAvg / int64(t),
 			Samples:             s.Samples,
+			GoHeapLiveBytes:     s.GoHeapLiveBytesAvg,
+			GoGCCPUPercent:      s.GoGCCPUPercentAvg,
 		})
 	}
 	return out
@@ -573,8 +593,13 @@ func (rs *resourceState) stats(tier int) ResourceStats {
 		return ResourceStats{}
 	}
 	var out ResourceStats
-	var cpuSum, memSum, cacheSum, diskSum, appSum, servedSum float64
+	var cpuSum, memSum, cacheSum, diskSum, appSum, servedSum, heapSum, gcSum float64
 	for _, s := range samples {
+		heapSum += float64(s.GoHeapLiveBytes)
+		gcSum += s.GoGCCPUPercent
+		out.GoHeapLiveBytesMax = max(out.GoHeapLiveBytesMax, s.GoHeapLiveBytes)
+		out.GoGCCPUPercentPeak = max(out.GoGCCPUPercentPeak, s.GoGCCPUPercent)
+		out.GoMemLimitBytes = max(out.GoMemLimitBytes, s.GoMemLimitBytes)
 		cpuSum += s.CPUPercent
 		memSum += float64(s.MemUsedBytes)
 		cacheSum += float64(s.MemCacheBytes)
@@ -594,6 +619,8 @@ func (rs *resourceState) stats(tier int) ResourceStats {
 	out.ServedBytesPerSecAvg = int64(servedSum / n)
 	out.Samples = len(samples)
 	out.Disks = aggregateDisks(samples)
+	out.GoHeapLiveBytesAvg = int64(heapSum / n)
+	out.GoGCCPUPercentAvg = gcSum / n
 	return out
 }
 

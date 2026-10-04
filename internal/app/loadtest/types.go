@@ -193,6 +193,10 @@ type TierCost struct {
 	CPUPercentPerViewer float64
 	MemBytesPerViewer   int64
 	Samples             int
+	// GoHeapLiveBytes / GoGCCPUPercent: the server's own Go runtime over this
+	// tier - how much heap was reachable and how much CPU the collector took.
+	GoHeapLiveBytes int64
+	GoGCCPUPercent  float64
 }
 
 func (c Config) fsRoot() string {

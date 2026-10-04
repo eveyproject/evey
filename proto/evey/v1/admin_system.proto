@@ -551,6 +551,10 @@ message LoadTestTierCost {
   double cpu_percent_per_viewer = 6;
   int64 mem_bytes_per_viewer = 7;
   int32 samples = 8;
+  // go_heap_live_bytes / go_gc_cpu_percent: the server's Go runtime over this
+  // tier (see LoadTestResources).
+  int64 go_heap_live_bytes = 9;
+  double go_gc_cpu_percent = 10;
 }
 
 // LoadTestResources is what the box was actually spending. The figures come
@@ -566,4 +570,14 @@ message LoadTestResources {
   int64 disk_read_bytes_per_sec = 6;
   int64 served_bytes_per_sec = 7;
   int32 samples = 8;
+  // go_heap_live_bytes_avg / _max: the heap the server's last garbage collections
+  // found reachable, over the tier. go_mem_limit_bytes is GOMEMLIMIT (0 = unset).
+  // go_gc_cpu_percent_avg / _peak: the share of the Go runtime's CPU time spent
+  // collecting. A latency verdict with a high GC share and a heap at its limit is
+  // the collector, not the disk.
+  int64 go_heap_live_bytes_avg = 9;
+  int64 go_heap_live_bytes_max = 10;
+  int64 go_mem_limit_bytes = 11;
+  double go_gc_cpu_percent_avg = 12;
+  double go_gc_cpu_percent_peak = 13;
 }

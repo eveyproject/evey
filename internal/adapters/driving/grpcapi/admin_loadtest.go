@@ -224,6 +224,11 @@ func loadTestResourcesToProto(s apploadtest.ResourceStats) *eveyv1.LoadTestResou
 		DiskReadBytesPerSec: s.DiskReadBytesPerSecAvg,
 		ServedBytesPerSec:   s.ServedBytesPerSecAvg,
 		Samples:             int32(s.Samples),
+		GoHeapLiveBytesAvg:  s.GoHeapLiveBytesAvg,
+		GoHeapLiveBytesMax:  s.GoHeapLiveBytesMax,
+		GoMemLimitBytes:     s.GoMemLimitBytes,
+		GoGcCpuPercentAvg:   s.GoGCCPUPercentAvg,
+		GoGcCpuPercentPeak:  s.GoGCCPUPercentPeak,
 	}
 }
 
@@ -270,6 +275,8 @@ func tierCosts(in []apploadtest.TierCost) []*eveyv1.LoadTestTierCost {
 			CpuPercentPerViewer: t.CPUPercentPerViewer,
 			MemBytesPerViewer:   t.MemBytesPerViewer,
 			Samples:             int32(t.Samples), //nolint:gosec // a sample count
+			GoHeapLiveBytes:     t.GoHeapLiveBytes,
+			GoGcCpuPercent:      t.GoGCCPUPercent,
 		})
 	}
 	return out
