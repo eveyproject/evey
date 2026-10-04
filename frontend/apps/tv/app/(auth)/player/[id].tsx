@@ -26,7 +26,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock } from "@evey/client";
+import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { QualityPicker } from "../../../src/components/QualityPicker";
@@ -637,6 +637,15 @@ export default function PlayerScreen() {
     },
     [player, restartWithTracks, selectedAudioIndex, burnInSubtitleIndex],
   );
+
+  // The file itself opens on its own default track and its URL never changes:
+  // the selection is applied to the player (useFileAudioSelection). A change
+  // still renegotiates below, the new track may not be one the box decodes.
+  useFileAudioSelection(player as unknown as AudioTrackPlayer | null, {
+    enabled: streamInfo?.playMethod === "PLAY_METHOD_DIRECT_PLAY",
+    audioStreams,
+    selectedAudioIndex,
+  });
 
   const handleAudioSelect = useCallback(
     (index: number) => {
