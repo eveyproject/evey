@@ -302,6 +302,17 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
           {report.harnessCpuMeasured && (
             <Text style={s.hint}>{t("admin.loadtest.harnessCpuLine", { pct: Math.round((report.harnessCpuFraction ?? 0) * 100) })}</Text>
           )}
+          {(report.resources?.goHeapLiveBytesAvg ?? 0) > 0 && (
+            <Text style={s.hint}>
+              {t("admin.loadtest.goRuntimeLine", {
+                heap: formatBytes(report.resources?.goHeapLiveBytesAvg ?? 0),
+                max: formatBytes(report.resources?.goHeapLiveBytesMax ?? 0),
+                limit: (report.resources?.goMemLimitBytes ?? 0) > 0 ? formatBytes(report.resources?.goMemLimitBytes ?? 0) : "-",
+                gc: Math.round(report.resources?.goGcCpuPercentAvg ?? 0),
+                peak: Math.round(report.resources?.goGcCpuPercentPeak ?? 0),
+              })}
+            </Text>
+          )}
         </View>
       )}
     </View>

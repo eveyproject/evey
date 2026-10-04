@@ -268,6 +268,20 @@ export function LoadTestReportPanel({
               })}
             </p>
           )}
+          {/* Whether a slow run was the disk or the garbage collector: GOMEMLIMIT
+              is soft, so a heap near it makes the collector run back to back and
+              slows the whole server in a way that looks like a storage ceiling. */}
+          {(report.resources?.goHeapLiveBytesAvg ?? 0) > 0 && (
+            <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-go-runtime">
+              {t("admin.loadtest.goRuntimeLine", {
+                heap: formatBytes(report.resources?.goHeapLiveBytesAvg ?? 0),
+                max: formatBytes(report.resources?.goHeapLiveBytesMax ?? 0),
+                limit: (report.resources?.goMemLimitBytes ?? 0) > 0 ? formatBytes(report.resources?.goMemLimitBytes ?? 0) : "-",
+                gc: Math.round(report.resources?.goGcCpuPercentAvg ?? 0),
+                peak: Math.round(report.resources?.goGcCpuPercentPeak ?? 0),
+              })}
+            </p>
+          )}
         </div>
       </details>
     </div>

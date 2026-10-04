@@ -1138,6 +1138,7 @@ loadtest:
   ttffLine: "启动时间：典型 {{p50}} ms，最坏情况 {{p95}} ms。"
   segmentLine: "分片获取：典型 {{p50}} 毫秒，最差 {{p95}} 毫秒。"
   harnessCpuLine: "所测 CPU 中有 {{pct}}% 来自负载生成器本身：以上数字已将其扣除。"
+  goRuntimeLine: "服务器的 Go 运行时：堆平均 {{heap}}（峰值 {{max}}，上限 {{limit}}），垃圾回收占其 CPU 时间的 {{gc}}%（峰值 {{peak}}%）。占比高且堆接近上限时会拖慢一切：这是回收器，不是磁盘。"
   table:
     viewers: "观众数"
     cpu: "CPU"

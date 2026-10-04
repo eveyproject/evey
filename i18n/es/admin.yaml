@@ -1138,6 +1138,7 @@ loadtest:
   ttffLine: "Tiempo de arranque: {{p50}} ms típico, {{p95}} ms en el peor caso."
   segmentLine: "Descarga de segmentos: {{p50}} ms típico, {{p95}} ms en el peor caso."
   harnessCpuLine: "El {{pct}} % de la CPU medida era el propio generador de carga: se ha descontado de las cifras anteriores."
+  goRuntimeLine: "Runtime de Go del servidor: heap {{heap}} de media (pico {{max}}, límite {{limit}}), recolector de basura {{gc}} % de su tiempo de CPU (pico {{peak}} %). Una cuota alta con el heap cerca del límite lo ralentiza todo: es el recolector, no el disco."
   table:
     viewers: "Espectadores"
     cpu: "CPU"

@@ -1106,6 +1106,7 @@ loadtest:
   ttffLine: "Démarrage de la lecture : {{p50}} ms typique, {{p95}} ms au pire."
   segmentLine: "Récupération des segments : {{p50}} ms typique, {{p95}} ms au pire."
   harnessCpuLine: "{{pct}} % du CPU mesuré était le simulateur de charge lui-même : il a été déduit des chiffres ci-dessus."
+  goRuntimeLine: "Runtime Go du serveur : tas {{heap}} en moyenne (pic {{max}}, limite {{limit}}), ramasse-miettes {{gc}} % de son temps CPU (pic {{peak}} %). Une part élevée avec un tas proche de la limite ralentit tout : c'est le ramasse-miettes, pas le disque."
   table:
     viewers: "Spectateurs"
     cpu: "CPU"

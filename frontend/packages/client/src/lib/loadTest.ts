@@ -44,6 +44,13 @@ export interface LoadTestResources {
   diskReadBytesPerSec?: number;
   servedBytesPerSec?: number;
   samples?: number;
+  // The server's own Go runtime over the tier: reachable heap, GOMEMLIMIT (0 =
+  // unset) and the share of its CPU time spent collecting garbage.
+  goHeapLiveBytesAvg?: number;
+  goHeapLiveBytesMax?: number;
+  goMemLimitBytes?: number;
+  goGcCpuPercentAvg?: number;
+  goGcCpuPercentPeak?: number;
 }
 
 export interface LoadTestReport {
