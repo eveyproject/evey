@@ -276,8 +276,8 @@ of the public demo have nothing left to protect.
   operator named cannot be changed, disabled or deleted (it would lock the
   guest out), and a library can only point inside the demo media directory.
 - **The account is the operator's.** `EVEY_DEMO_USER` and `EVEY_DEMO_PASSWORD`
-  are required, letters and digits only and at least 20 long (a person types
-  them, and special characters get mangled), or the server refuses to boot. The
+  are required, or the server refuses to boot: the user is letters and digits
+  only, the password at least 12 printable characters without a space. The
   four-character floor of the public demo does not apply. That account is
   exempt from the failed-login lock: its password stands in for the lock, and a
   mistyped password on a television remote must not close the only door.

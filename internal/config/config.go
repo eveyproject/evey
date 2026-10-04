@@ -262,9 +262,9 @@ type ServerConfig struct {
 	DemoExtended bool
 	// DemoUser and DemoPassword are the one administrator of the extended
 	// demo, set by the operator (EVEY_DEMO_USER, EVEY_DEMO_PASSWORD) and given
-	// to the outside evaluator out of band. Validated at boot: letters and digits
-	// only (a guest types them, special characters get mangled), at least
-	// 20 long. Empty on the public demo, which publishes demo / demo.
+	// to the outside evaluator out of band. Validated at boot: the user is
+	// letters and digits, the password at least 12 printable characters
+	// without a space. Empty on the public demo, which publishes demo / demo.
 	DemoUser     string
 	DemoPassword string
 	// DemoMediaDir is where the demo bootstrap downloads the freely licensed
@@ -1185,8 +1185,18 @@ func validateExtendedDemoAccount(user, password string) []string {
 	if !alnum(user) {
 		errs = append(errs, "cfg.Server.DemoUser: EVEY_DEMO_USER is required with EVEY_DEMO=extended, letters and digits only")
 	}
-	if len(password) < 20 || !alnum(password) {
-		errs = append(errs, "cfg.Server.DemoPassword: EVEY_DEMO_PASSWORD is required with EVEY_DEMO=extended, at least 20 letters and digits")
+	// Any printable ASCII: the operator picks the password, a space or a
+	// control character is the only thing a guest cannot be told to type.
+	typeable := func(v string) bool {
+		for _, r := range v {
+			if r <= ' ' || r > '~' {
+				return false
+			}
+		}
+		return true
+	}
+	if len(password) < 12 || !typeable(password) {
+		errs = append(errs, "cfg.Server.DemoPassword: EVEY_DEMO_PASSWORD is required with EVEY_DEMO=extended, at least 12 characters, no space")
 	}
 	return errs
 }
