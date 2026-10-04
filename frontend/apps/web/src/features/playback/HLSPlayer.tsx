@@ -15,7 +15,7 @@ import { nominalQualityTier } from "./playerUtils";
 import { ProgressReporter } from "./ProgressReporter";
 import { AutoMarkWatched } from "./AutoMarkWatched";
 import { ICON } from "@/constants/iconSizes";
-import { createRenderStallWatch, formatRenderWindow, bufferedAheadSec, decideRenderCap, type RenderCapState } from "./renderStall";
+import { createRenderStallWatch, formatRenderWindow, formatCadence, bufferedAheadSec, decideRenderCap, type RenderCapState } from "./renderStall";
 import { decideNetworkStep, formatNetworkStep, newNetworkCapState, recordStall, recordThroughput, shouldHandoffToTranscode, type NetworkCapState } from "./networkCap";
 import { registerRenderStats, playbackSnapshot } from "./playbackSnapshot";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
@@ -785,6 +785,9 @@ export function HLSPlayer({
   // which is what a blocked main thread looks like. In Auto it also steps the
   // pinned rung down when the page keeps under-painting a full buffer.
   const reportRenderEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
+  // Its own budget: a title that hitches all evening must not eat the
+  // slowdown and quality reports.
+  const reportCadenceEvent = useMemo(() => createPlayerEventReporter(mediaId), [mediaId]);
   onBufferStallRef.current = () => {
     const now = performance.now();
     recordStall(networkCapStateRef.current, now);
@@ -856,6 +859,17 @@ export function HLSPlayer({
           posSec: positionRef.current,
         });
       },
+      // The picture hitching at a full frame count: frames held too long or
+      // never shown. Nothing else in the logs can see it.
+      onCadence: (w, totals) => {
+        reportCadenceEvent({
+          type: "video_cadence",
+          details: `${formatCadence(w, totals)} foc=${document.hasFocus() ? 1 : 0}`,
+          fatal: false,
+          posSec: positionRef.current,
+          state: playbackSnapshot(video),
+        });
+      },
     });
     const unregister = registerRenderStats(video, () => {
       const w = watch.latest();
@@ -865,7 +879,7 @@ export function HLSPlayer({
       unregister();
       watch.stop();
     };
-  }, [reportRenderEvent, videoRef]);
+  }, [reportRenderEvent, reportCadenceEvent, videoRef]);
   useWasmAudioPlayback({
     videoRef,
     mediaId,

@@ -35,6 +35,20 @@ const MIN_BASELINE_FPS = 5;
 /** Never report more often than this. The beacon route is rate limited, and
  *  one report per episode is what a diagnosis needs. */
 const REPORT_COOLDOWN_MS = 30_000;
+/** A frame that stays on screen this many times the window's median interval
+ *  was held for an extra refresh or more: the eye reads it as a hitch even
+ *  though the frame count barely moves. 1.75 keeps a 24 fps title on a 60 Hz
+ *  panel (33/50 ms by design) out of it. */
+const LONG_INTERVAL_RATIO = 1.75;
+/** A media-time step this many frame durations long means a frame never
+ *  reached the screen. */
+const SKIP_STEP_RATIO = 1.6;
+/** Steps longer than this are a seek, not a skipped frame. */
+const SEEK_STEP_SEC = 1;
+/** Hitches in one window before the cadence is called broken. */
+const CADENCE_LONG_MIN = 3;
+const CADENCE_SKIP_MIN = 2;
+const CADENCE_COOLDOWN_MS = 60_000;
 
 export interface RenderWindow {
   /** Frames presented per second over the last window. */
@@ -47,6 +61,19 @@ export interface RenderWindow {
   lagMaxMs: number;
   playing: boolean;
   visible: boolean;
+  /** Presentation intervals over LONG_INTERVAL_RATIO times the median. */
+  longIntervals: number;
+  maxIntervalMs: number;
+  medianIntervalMs: number;
+  /** Media frames the screen never showed, read from the media-time steps. */
+  skippedFrames: number;
+}
+
+/** Session totals, counted over playing and visible windows only. */
+export interface CadenceTotals {
+  frames: number;
+  longIntervals: number;
+  skippedFrames: number;
 }
 
 /**
@@ -67,18 +94,49 @@ export function isRenderSlowdown(w: RenderWindow): boolean {
  * Kept terse for that reason: `fps=11.0/25.0 lag=340ms`.
  */
 export function formatRenderWindow(w: RenderWindow): string {
-  return `fps=${w.fps.toFixed(1)}/${w.baselineFps.toFixed(1)} lag=${Math.round(w.lagMaxMs)}ms`;
+  const base = `fps=${w.fps.toFixed(1)}/${w.baselineFps.toFixed(1)} lag=${Math.round(w.lagMaxMs)}ms`;
+  if (!w.longIntervals && !w.skippedFrames) return base;
+  return `${base} jit=${w.longIntervals}/${Math.round(w.maxIntervalMs)}ms sk=${w.skippedFrames}`;
+}
+
+/**
+ * The picture hitches at a normal frame count: frames held too long or never
+ * shown. A slowdown is not this, it has its own report.
+ */
+export function isCadenceBroken(w: RenderWindow): boolean {
+  if (!w.playing || !w.visible) return false;
+  if (w.baselineFps < MIN_BASELINE_FPS || isRenderSlowdown(w)) return false;
+  return w.longIntervals >= CADENCE_LONG_MIN || w.skippedFrames >= CADENCE_SKIP_MIN;
+}
+
+export function formatCadence(w: RenderWindow, t: CadenceTotals): string {
+  return (
+    `long=${w.longIntervals} max=${Math.round(w.maxIntervalMs)}ms med=${w.medianIntervalMs.toFixed(1)}ms ` +
+    `skip=${w.skippedFrames} fps=${w.fps.toFixed(1)}/${w.baselineFps.toFixed(1)} ` +
+    `tot=${t.longIntervals}/${t.skippedFrames}/${t.frames}`
+  );
+}
+
+function median(sorted: number[]): number {
+  return sorted.length ? sorted[sorted.length >> 1] : 0;
 }
 
 export interface RenderStallWatch {
   /** Latest window, for the shared playback snapshot. Null before the first
    *  window closes. */
   latest(): RenderWindow | null;
+  totals(): CadenceTotals;
   stop(): void;
+}
+
+interface FrameMeta {
+  mediaTime?: number;
+  expectedDisplayTime?: number;
 }
 
 interface WatchOpts {
   onSlowdown: (w: RenderWindow) => void;
+  onCadence?: (w: RenderWindow, totals: CadenceTotals) => void;
   /** Injectable for tests. */
   now?: () => number;
 }
@@ -94,7 +152,7 @@ interface WatchOpts {
 export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts): RenderStallWatch {
   const now = opts.now ?? (() => performance.now());
   const v = video as HTMLVideoElement & {
-    requestVideoFrameCallback?: (cb: () => void) => number;
+    requestVideoFrameCallback?: (cb: (now?: number, meta?: FrameMeta) => void) => number;
     cancelVideoFrameCallback?: (h: number) => void;
   };
 
@@ -104,14 +162,28 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
   let lagMax = 0;
   let baselineFps = 0;
   let lastReportAt = -Infinity;
+  let lastCadenceAt = -Infinity;
+  let intervals: number[] = [];
+  let mediaSteps: number[] = [];
+  let lastShownAt: number | null = null;
+  let lastMediaTime: number | null = null;
+  const totals: CadenceTotals = { frames: 0, longIntervals: 0, skippedFrames: 0 };
   let latest: RenderWindow | null = null;
   let rvfcHandle: number | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   if (typeof v.requestVideoFrameCallback === "function") {
-    const onFrame = () => {
+    const onFrame = (_now?: number, meta?: FrameMeta) => {
       if (stopped) return;
       frames++;
+      // When the frame reaches the screen, not when the callback ran.
+      const shownAt = meta?.expectedDisplayTime && meta.expectedDisplayTime > 0 ? meta.expectedDisplayTime : now();
+      if (lastShownAt != null) intervals.push(shownAt - lastShownAt);
+      lastShownAt = shownAt;
+      if (typeof meta?.mediaTime === "number") {
+        if (lastMediaTime != null) mediaSteps.push(meta.mediaTime - lastMediaTime);
+        lastMediaTime = meta.mediaTime;
+      }
       rvfcHandle = v.requestVideoFrameCallback!(onFrame);
     };
     rvfcHandle = v.requestVideoFrameCallback(onFrame);
@@ -128,12 +200,23 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
 
     const elapsed = t - windowStart;
     if (elapsed >= WINDOW_MS) {
+      const sortedIntervals = intervals.slice().sort((a, b) => a - b);
+      const medInterval = median(sortedIntervals);
+      const steps = mediaSteps.filter((s) => s > 0 && s < SEEK_STEP_SEC);
+      const medStep = median(steps.slice().sort((a, b) => a - b));
       const w: RenderWindow = {
         fps: (frames * 1000) / elapsed,
         baselineFps,
         lagMaxMs: lagMax,
         playing: !video.paused && !video.ended,
         visible: typeof document === "undefined" || document.visibilityState === "visible",
+        longIntervals: medInterval > 0 ? intervals.filter((i) => i > medInterval * LONG_INTERVAL_RATIO).length : 0,
+        maxIntervalMs: sortedIntervals.length ? sortedIntervals[sortedIntervals.length - 1] : 0,
+        medianIntervalMs: medInterval,
+        skippedFrames:
+          medStep > 0
+            ? steps.reduce((n, s) => (s > medStep * SKIP_STEP_RATIO ? n + Math.round(s / medStep) - 1 : n), 0)
+            : 0,
       };
       // The baseline is the best rate seen while playing: the content's own
       // cadence. Taken from the same measurement so a 24 fps film and a 60 fps
@@ -145,6 +228,17 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
         lastReportAt = t;
         opts.onSlowdown(w);
       }
+      if (w.playing && w.visible) {
+        totals.frames += frames;
+        totals.longIntervals += w.longIntervals;
+        totals.skippedFrames += w.skippedFrames;
+      }
+      if (opts.onCadence && isCadenceBroken(w) && t - lastCadenceAt >= CADENCE_COOLDOWN_MS) {
+        lastCadenceAt = t;
+        opts.onCadence(w, { ...totals });
+      }
+      intervals = [];
+      mediaSteps = [];
       frames = 0;
       windowStart = t;
       lagMax = 0;
@@ -156,6 +250,7 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
 
   return {
     latest: () => latest,
+    totals: () => ({ ...totals }),
     stop: () => {
       stopped = true;
       if (timer) clearTimeout(timer);
