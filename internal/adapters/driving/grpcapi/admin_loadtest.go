@@ -166,6 +166,21 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			Endpoint:                      r.Endpoint,
 			ViaProxy:                      r.ViaProxy,
 		}
+		for _, b := range r.PoolBranches {
+			out.LastReport.PoolBranches = append(out.LastReport.PoolBranches, &eveyv1.LoadTestPoolBranch{
+				Branch:  b.Branch,
+				Viewers: int32(b.Viewers), //nolint:gosec // a viewer count, bounded by the run's configured ceiling
+			})
+		}
+		for _, d := range r.Resources.Disks {
+			out.LastReport.Disks = append(out.LastReport.Disks, &eveyv1.LoadTestDiskActivity{
+				Device:             d.Device,
+				UtilPercentAvg:     d.UtilPctAvg,
+				UtilPercentPeak:    d.UtilPctPeak,
+				ReadBytesPerSecAvg: d.ReadBytesPerSecAvg,
+				AwaitMsAvg:         d.AwaitMsAvg,
+			})
+		}
 		if r.HasPerViewerCost {
 			out.LastReport.PerViewerCost = loadTestResourcesToProto(r.PerViewerCost)
 		}

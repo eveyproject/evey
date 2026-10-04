@@ -105,3 +105,35 @@ func TestLoadTestStatusToProto(t *testing.T) {
 		t.Errorf("baseline = %+v", b)
 	}
 }
+
+// A pooled mount's evidence crosses the wire intact: which branch carried how
+// many viewers, and what each physical drive did. Distinct values everywhere so
+// a swapped pair shows, and the order (busiest first) is the server's to decide.
+func TestLoadTestStatusToProto_CarriesPoolBranchesAndDisks(t *testing.T) {
+	rep := &apploadtest.Report{
+		Scenario: "mkvgo",
+		PoolBranches: []apploadtest.BranchShare{
+			{Branch: "/mnt/disk_2", Viewers: 41},
+			{Branch: "/mnt/disk_1", Viewers: 9},
+		},
+		Resources: apploadtest.ResourceStats{Disks: []apploadtest.DiskStat{
+			{Device: "sdc", UtilPctAvg: 88.5, UtilPctPeak: 97, ReadBytesPerSecAvg: 104 << 20, AwaitMsAvg: 132.5},
+			{Device: "sdb", UtilPctAvg: 31, UtilPctPeak: 55, ReadBytesPerSecAvg: 30 << 20, AwaitMsAvg: 18},
+		}},
+	}
+	got := loadTestStatusToProto(apploadtest.Status{LastReport: rep}).LastReport
+	if len(got.PoolBranches) != 2 || got.PoolBranches[0].Branch != "/mnt/disk_2" || got.PoolBranches[0].Viewers != 41 ||
+		got.PoolBranches[1].Branch != "/mnt/disk_1" || got.PoolBranches[1].Viewers != 9 {
+		t.Errorf("pool branches = %+v", got.PoolBranches)
+	}
+	if len(got.Disks) != 2 {
+		t.Fatalf("disks = %+v", got.Disks)
+	}
+	d := got.Disks[0]
+	if d.Device != "sdc" || d.UtilPercentAvg != 88.5 || d.UtilPercentPeak != 97 || d.ReadBytesPerSecAvg != 104<<20 || d.AwaitMsAvg != 132.5 {
+		t.Errorf("disk 0 = %+v", d)
+	}
+	if none := loadTestStatusToProto(apploadtest.Status{LastReport: &apploadtest.Report{}}).LastReport; len(none.PoolBranches) != 0 || len(none.Disks) != 0 {
+		t.Errorf("a run on plain storage must carry neither, got %+v / %+v", none.PoolBranches, none.Disks)
+	}
+}
