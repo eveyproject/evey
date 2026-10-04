@@ -3,6 +3,7 @@ package loadtest
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -97,5 +98,42 @@ func TestBranchTally_CountsPerBranchAndCachesLookups(t *testing.T) {
 	nilTally.record("/m/a.mkv")
 	if nilTally.shares() != nil {
 		t.Fatal("a nil tally (library not on a pool) must be a silent no-op")
+	}
+}
+
+// The Go runtime's own accounting is read from the live process: the heap is
+// never negative, the GC share is a percentage, and a first reading (no previous
+// one to diff) reports no GC share rather than a made-up one.
+func TestReadGoRuntime_IsSaneAndGCPercentNeedsTwoReadings(t *testing.T) {
+	// The runtime refreshes these at the end of a collection: force one, or a
+	// fresh test process reports zeros that prove nothing about the reader.
+	garbage := make([][]byte, 0, 64)
+	for range 64 {
+		garbage = append(garbage, make([]byte, 1<<20))
+	}
+	runtime.GC()
+	a := readGoRuntime()
+	runtime.KeepAlive(garbage)
+	if !a.ok {
+		t.Skip("this toolchain does not expose the runtime metrics the report needs")
+	}
+	if a.totalCPUSec <= 0 || a.heapLiveBytes <= 0 {
+		t.Fatalf("after a forced collection heap=%d total=%.3fs, want both positive: the reader reads nothing", a.heapLiveBytes, a.totalCPUSec)
+	}
+	if a.heapLiveBytes < 0 || a.memLimitBytes < 0 {
+		t.Fatalf("heap=%d limit=%d, want non-negative", a.heapLiveBytes, a.memLimitBytes)
+	}
+	if got := gcCPUPercent(goRuntime{}, a); got != 0 {
+		t.Fatalf("gc%% against an empty previous reading = %.1f, want 0", got)
+	}
+	// 2 s of runtime CPU of which 0.5 s collecting is 25%.
+	prev := goRuntime{ok: true, gcCPUSeconds: 1, totalCPUSec: 10}
+	cur := goRuntime{ok: true, gcCPUSeconds: 1.5, totalCPUSec: 12}
+	if got := gcCPUPercent(prev, cur); got < 24.9 || got > 25.1 {
+		t.Fatalf("gc%% = %.2f, want 25", got)
+	}
+	// A counter that went backwards (a restart) must not report a negative share.
+	if got := gcCPUPercent(cur, prev); got != 0 {
+		t.Fatalf("gc%% on a backwards counter = %.2f, want 0", got)
 	}
 }

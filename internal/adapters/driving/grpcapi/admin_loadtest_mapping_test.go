@@ -137,3 +137,26 @@ func TestLoadTestStatusToProto_CarriesPoolBranchesAndDisks(t *testing.T) {
 		t.Errorf("a run on plain storage must carry neither, got %+v / %+v", none.PoolBranches, none.Disks)
 	}
 }
+
+// The server's own Go runtime figures reach the wire on the sustained tier and
+// on every tier row, each with a distinct value so a swapped pair shows.
+func TestLoadTestStatusToProto_CarriesTheGoRuntime(t *testing.T) {
+	rep := &apploadtest.Report{
+		Scenario: "mkvgo",
+		Resources: apploadtest.ResourceStats{
+			Samples:            4,
+			GoHeapLiveBytesAvg: 6 << 30, GoHeapLiveBytesMax: 8 << 30, GoMemLimitBytes: 9 << 30,
+			GoGCCPUPercentAvg: 31.5, GoGCCPUPercentPeak: 58,
+		},
+		Tiers: []apploadtest.TierCost{{Viewers: 30, GoHeapLiveBytes: 7 << 30, GoGCCPUPercent: 44.5}},
+	}
+	got := loadTestStatusToProto(apploadtest.Status{LastReport: rep}).LastReport
+	r := got.Resources
+	if r.GoHeapLiveBytesAvg != 6<<30 || r.GoHeapLiveBytesMax != 8<<30 || r.GoMemLimitBytes != 9<<30 ||
+		r.GoGcCpuPercentAvg != 31.5 || r.GoGcCpuPercentPeak != 58 {
+		t.Errorf("resources = %+v", r)
+	}
+	if len(got.Tiers) != 1 || got.Tiers[0].GoHeapLiveBytes != 7<<30 || got.Tiers[0].GoGcCpuPercent != 44.5 {
+		t.Errorf("tiers = %+v", got.Tiers)
+	}
+}

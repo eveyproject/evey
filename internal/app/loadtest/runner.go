@@ -265,6 +265,14 @@ func (r *Runner) finish(report Report) {
 		"media_read_ceiling_mbps", report.DiskReadBytesPerSecCeiling * 8 / 1e6,
 		"slowest_disk_mbps", report.SlowestDiskBytesPerSec * 8 / 1e6,
 		"disks_probed", report.DisksProbed,
+		// The server's own Go runtime over the sustained tier: heap the collector
+		// found reachable, GOMEMLIMIT, and the share of CPU spent collecting. A
+		// latency verdict with a high gc_cpu figure is the collector, not the disk.
+		"go_heap_live_mb_avg", report.Resources.GoHeapLiveBytesAvg / (1 << 20),
+		"go_heap_live_mb_max", report.Resources.GoHeapLiveBytesMax / (1 << 20),
+		"go_memlimit_mb", report.Resources.GoMemLimitBytes / (1 << 20),
+		"go_gc_cpu_pct_avg", int(report.Resources.GoGCCPUPercentAvg),
+		"go_gc_cpu_pct_peak", int(report.Resources.GoGCCPUPercentPeak),
 		"served_mbps", report.Resources.ServedBytesPerSecAvg * 8 / 1e6,
 	}
 	if report.HasPerViewerCost {
@@ -315,6 +323,8 @@ func (r *Runner) finish(report Report) {
 			"mem_mb_per_viewer", t.MemBytesPerViewer/(1<<20),
 			"disk_read_mib_per_sec", t.DiskReadBytesPerSec/(1<<20),
 			"served_mbps", t.ServedBytesPerSec*8/1e6,
+			"go_heap_live_mb", t.GoHeapLiveBytes/(1<<20),
+			"go_gc_cpu_pct", int(t.GoGCCPUPercent),
 			"samples", t.Samples,
 		)
 	}
