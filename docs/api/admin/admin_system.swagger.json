@@ -834,6 +834,10 @@
         "demoMode": {
           "type": "boolean",
           "description": "demo_mode says this is the public demo instance (EVEY_DEMO=1): the\nclients show a banner and grey out what the server reports locked. The\nserver refuses the locked operations whether or not a client honours it."
+        },
+        "demoExtended": {
+          "type": "boolean",
+          "description": "demo_extended says this is a private, extended demo (EVEY_DEMO=extended):\ndemo_mode is FALSE there, since the clients' read-only locks and shared-\naccount behaviour must not apply, and the login screen publishes no\ncredentials. The clients use it only to keep their hands off the network settings."
         }
       }
     },
