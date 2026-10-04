@@ -478,6 +478,11 @@ type Report struct {
 	// pool counts as one disk. The report states it up front so the storage
 	// figures are read as "the delivery path", not "the disks".
 	StorageOpaque bool
+	// PoolBranches is where the audience's titles sit on a pooled mount, one
+	// entry per branch, most viewers first. Empty when the library is not on a
+	// pool that can say. A pool is not a RAID: a file lives on one disk, so a
+	// skewed placement is a skewed load whatever the pool's total capacity.
+	PoolBranches []BranchShare
 
 	// SkippedCandidates counts media items an mkvgo-typed viewer tried and
 	// abandoned because the server didn't actually serve them via mkvgo

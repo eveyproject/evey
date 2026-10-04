@@ -62,6 +62,9 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	if storageOpaque {
 		r.logger.Warn("loadtest: the library sits on a mount this kernel cannot account for - the disk counter will not see its reads, cache eviction stops at the mount, a pool counts as one disk",
 			"fs_types", storageFS)
+		// Ask the pool which branch each handed-out title lives on: the report
+		// then says how the audience was spread over the disks behind it.
+		pool.branches = newBranchTally(mergerfsBranchOf)
 	}
 
 	// Cold-cache mode: drop the library from the page cache before anything is
@@ -351,6 +354,9 @@ runLoop:
 				cl.tierBroke(StopThroughputSaturated, fmt.Sprintf("throughput flat at %d Mb/s with %d viewers: the server cannot read the media any faster", ceiling*8/1e6, ramp.tier))
 			}
 
+			if cl.broke != "" {
+				r.logger.Info("loadtest: tier broke", "phase", cl.phase.String(), "viewers", ramp.tier, "reason", string(cl.broke), "detail", cl.detail)
+			}
 			outcome, reason, detail := cl.next(cfg.MaxViewers, res.tierLoad(ramp.tier))
 			if outcome == climbDone {
 				// Endurance doesn't stop when it finds the ceiling - finding it
@@ -490,6 +496,7 @@ runLoop:
 		ColdCache:                  coldCache,
 		StorageFSType:              storageFS,
 		StorageOpaque:              storageOpaque,
+		PoolBranches:               pool.branches.shares(),
 		ReadAmplification:          readAmplification(sustainedRes),
 		AppReadAmplification:       appReadAmplification(sustainedRes),
 		Tiers:                      tiers,

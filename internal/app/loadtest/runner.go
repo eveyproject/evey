@@ -281,6 +281,22 @@ func (r *Runner) finish(report Report) {
 	for _, vt := range sortedKeys(report.SegmentMsP95ByType) {
 		args = append(args, "segment_ms_p95_"+vt, report.SegmentMsP95ByType[vt])
 	}
+	// Which disk each part of the audience sat on, and how busy every physical
+	// drive was while it did. Only a pooled mount fills these in: on it the
+	// kernel counts one disk where there are several.
+	for _, b := range report.PoolBranches {
+		r.logger.Info("loadtest: pool branch", "branch", b.Branch, "viewers", b.Viewers)
+	}
+	for _, d := range report.Resources.Disks {
+		r.logger.Info("loadtest: disk activity",
+			"device", d.Device,
+			"util_pct_avg", int(d.UtilPctAvg),
+			"util_pct_peak", int(d.UtilPctPeak),
+			"read_mib_per_sec", d.ReadBytesPerSecAvg/(1<<20),
+			"await_ms", int(d.AwaitMsAvg),
+		)
+	}
+
 	// A single flat-attribute line is deliberate: an operator can drive and
 	// read back a whole run with curl + `docker logs`, no admin panel
 	// required.

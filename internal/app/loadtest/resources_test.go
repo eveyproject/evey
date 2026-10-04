@@ -919,3 +919,26 @@ func TestCPUSplit_UnmeasuredChargesEverythingToTheServer(t *testing.T) {
 		t.Error("an empty profile is not a measurement")
 	}
 }
+
+// A join burst can fill the memory inside a tier's warm-up window, where every
+// normal verdict is still discarded. The critical threshold must fire there,
+// on one sample, or the OOM killer decides before the run does.
+func TestResourceState_CriticalMemoryStopsInsideWarmup(t *testing.T) {
+	start := time.Now()
+	rs := newResourceState(10*time.Second, start)
+	rs.observe(0, ResourceSample{}, start)
+	rs.startTier(100, start, false)
+
+	hot := ResourceSample{MemUsedBytes: 96 << 20, MemLimitBytes: 100 << 20}
+	if reason, _ := rs.observe(100, hot, start.Add(time.Second)); reason != StopMemorySaturated {
+		t.Fatalf("96%% memory inside warm-up: reason = %q, want %q", reason, StopMemorySaturated)
+	}
+
+	busy := ResourceSample{MemUsedBytes: 92 << 20, MemLimitBytes: 100 << 20}
+	rs2 := newResourceState(10*time.Second, start)
+	rs2.observe(0, ResourceSample{}, start)
+	rs2.startTier(100, start, false)
+	if reason, _ := rs2.observe(100, busy, start.Add(time.Second)); reason != "" {
+		t.Fatalf("92%% memory inside warm-up must not stop the run on its own, got %q", reason)
+	}
+}
