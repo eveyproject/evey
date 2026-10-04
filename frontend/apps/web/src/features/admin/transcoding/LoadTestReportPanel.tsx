@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@evey/api";
-import { BOTTLENECK_REASONS, SCENARIO_NOUN_KEYS, STOP_REASON_KEYS, formatMbps, mixParts } from "./loadTestHelpers";
+import { BOTTLENECK_REASONS, SCENARIO_NOUN_KEYS, STOP_REASON_KEYS, formatMbps, mixParts, poolShares } from "./loadTestHelpers";
 import type { LoadTestReport } from "./loadTestTypes";
 
 // LoadTestReportPanel renders the "answer" of a finished load test run: the
@@ -157,6 +157,44 @@ export function LoadTestReportPanel({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {/* A pooled mount (mergerfs) shows the kernel one disk where there are
+          several. Two things decide such a run and neither is visible from
+          inside the mount: where the audience's titles sit (a pool is not a
+          RAID, a file lives on ONE disk) and how busy each physical drive was.
+          Shown beside the table, not folded: it is the answer to "why this
+          number". */}
+      {((report.poolBranches?.length ?? 0) > 0 || (report.disks?.length ?? 0) > 0) && (
+        <div className="flex flex-col gap-1" data-testid="load-test-pool">
+          {(report.poolBranches?.length ?? 0) > 0 && (
+            <>
+              <p className="text-xs font-medium text-[var(--text)]">{t("admin.loadtest.poolTitle")}</p>
+              {poolShares(report.poolBranches ?? []).map((b) => (
+                <p key={b.branch} className="text-xs text-[var(--text-muted)]" data-testid="load-test-pool-branch">
+                  {t("admin.loadtest.poolBranchLine", { branch: b.branch, count: b.viewers, pct: b.pct })}
+                </p>
+              ))}
+              <p className="text-xs text-[var(--text-muted)]">{t("admin.loadtest.poolNote")}</p>
+            </>
+          )}
+          {(report.disks?.length ?? 0) > 0 && (
+            <>
+              <p className="pt-1 text-xs font-medium text-[var(--text)]">{t("admin.loadtest.disksTitle")}</p>
+              {(report.disks ?? []).map((d) => (
+                <p key={d.device} className="text-xs text-[var(--text-muted)]" data-testid="load-test-disk">
+                  {t("admin.loadtest.diskLine", {
+                    device: d.device ?? "",
+                    util: Math.round(d.utilPercentAvg ?? 0),
+                    peak: Math.round(d.utilPercentPeak ?? 0),
+                    rate: formatMbps(d.readBytesPerSecAvg ?? 0),
+                    wait: Math.round(d.awaitMsAvg ?? 0),
+                  })}
+                </p>
+              ))}
+              <p className="text-xs text-[var(--text-muted)]">{t("admin.loadtest.disksNote")}</p>
+            </>
+          )}
         </div>
       )}
       {/* Without this, every CPU figure in the table is a lie by a factor
