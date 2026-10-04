@@ -153,6 +153,14 @@ type climb struct {
 	// an unmeasured lo first routes through phaseSettle.
 	loMeasured bool
 
+	// retried records that the current tier already broke once under a full
+	// measurement window and is being measured a second time. A single window
+	// is a sample, not a verdict: its p95 rests on a few hundred segments, and
+	// a tier sitting near its budget flips on noise - or on the backlog of the
+	// audience that was just shed, still queued on the disk. Only a break that
+	// REPRODUCES condemns a tier (see next).
+	retried bool
+
 	// pendingReason/pendingDetail hold the verdict found while the answer still
 	// needed its own measurement; delivered once the settle pass holds.
 	pendingReason StopReason
@@ -275,6 +283,17 @@ func (c *climb) next(maxViewers int, load float64) (climbOutcome, StopReason, st
 	brokeReason, brokeDetail := c.broke, c.detail
 	held := brokeReason == ""
 	c.broke, c.detail = "", ""
+
+	// A break under a full window must reproduce before it counts. The tier is
+	// measured once more as it stands - same audience, a fresh window - so the
+	// backlog that a shed audience leaves on the disk has drained and one noisy
+	// sample cannot send the search down. FAST holds are exempt: they are cheap
+	// by design and already get a confirmation pass.
+	if !held && !c.retried && (c.phase == phaseBisect || c.phase == phaseSettle) {
+		c.retried = true
+		return climbContinue, "", ""
+	}
+	c.retried = false
 
 	switch c.phase {
 	case phaseFast:

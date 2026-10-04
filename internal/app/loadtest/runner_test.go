@@ -1774,8 +1774,16 @@ func TestRunner_EnduranceSLOBreachDuringHoldStillStops(t *testing.T) {
 
 	// Let the ramp reach its 2-viewer plateau cleanly, then start degrading
 	// segment latency so the breach happens DURING the held plateau, not the
-	// ramp-up.
-	time.Sleep(400 * time.Millisecond)
+	// ramp-up. The plateau is when the run says it is holding: a fixed sleep
+	// would land inside the answer's own measurement window, where a break is
+	// retried once before it counts, and test something else.
+	deadline := time.Now().Add(3 * time.Second)
+	for r.Status().Phase != "holding" {
+		if time.Now().After(deadline) {
+			t.Fatalf("the run never reached its endurance plateau (phase %q)", r.Status().Phase)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	breaching.Store(true)
 
 	report := waitForReport(t, r, 5*time.Second)

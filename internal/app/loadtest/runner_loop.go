@@ -355,7 +355,9 @@ runLoop:
 			}
 
 			if cl.broke != "" {
-				r.logger.Info("loadtest: tier broke", "phase", cl.phase.String(), "viewers", ramp.tier, "reason", string(cl.broke), "detail", cl.detail)
+				r.logger.Info("loadtest: tier broke", "phase", cl.phase.String(), "viewers", ramp.tier, "reason", string(cl.broke), "detail", cl.detail,
+					// false: the first window to break; true: the second, which makes it a verdict.
+					"second_window", cl.retried)
 			}
 			outcome, reason, detail := cl.next(cfg.MaxViewers, res.tierLoad(ramp.tier))
 			if outcome == climbDone {
