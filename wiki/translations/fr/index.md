@@ -1,5 +1,5 @@
 ---
-source_sha: 6d3d845e43ec99ebe6971ed4c96805b04111dc036e142999b679638fbc6e47cf
+source_sha: c2adfbf17677a38b130ae3027ed7811d41b5a424dee85626ca7f0532956b91f6
 reviewed: true
 hide:
   - navigation
@@ -8,33 +8,26 @@ hide:
 
 # Evey
 
-Evey est un serveur auto-hébergé pour vos films, séries, musique et photos. Il
-se veut un appareil plutôt qu'un système à administrer : vous lui donnez vos
-médias et les personnes qui regardent, il déduit le reste de la machine sur
-laquelle il tourne.
+Evey est un serveur auto-hébergé pour vos films, séries, musique et photos.
+Vous ajoutez vos médias et vos utilisateurs ; Evey adapte automatiquement la
+lecture à votre serveur et à vos appareils.
 
 [Installer Evey](installation.md){ .md-button .md-button--primary }
 [Essayer la démo](https://demo.eveyproject.org){ .md-button }
 
-## Faire tourner un serveur multimédia, pas son infrastructure
+<p class="evey-status">
+<span>Bêta, pas encore de version numérotée</span>
+<span>Logiciel libre, AGPL-3.0</span>
+<span>Démo : <code>demo</code> / <code>demo</code></span>
+</p>
 
-Une installation normale, c'est un conteneur et un fichier compose, sans
-`.env` à écrire. Ce dont un serveur multimédia a besoin autour de lui est
-fourni à l'intérieur :
-
-- **Base de données et moteur de recherche inclus.** Postgres et Meilisearch
-  tournent dans le même conteneur, n'écoutent qu'à l'intérieur de celui-ci, et
-  reçoivent au premier démarrage des mots de passe générés, rangés dans le
-  dossier de données et lisibles par leur seul propriétaire.
-- **Propriétaire des fichiers déduit.** Quand c'est possible, le conteneur
-  adopte le propriétaire de votre dossier de médias, pour que les réparations
-  puissent écrire. Le serveur lui-même ne tourne jamais en root.
-- **Moins à dimensionner à la main.** La carte graphique est détectée, la
-  capacité de transcodage est mesurée, et la voie de chaque lecture suit ce que
-  l'appareil dit savoir lire.
-
-Utiliser votre propre base de données ou votre propre moteur de recherche
-reste possible : [Déploiements avancés](operations/advanced-deployments.md).
+<p class="evey-platforms">
+<strong>Regarder</strong> dans n'importe quel navigateur web, sur un Chromecast,
+sur les téléphones et tablettes Android, et sur Android TV. Les applications
+Android et Android TV sont en test et ne sont pas encore sur Google Play.<br>
+<strong>Serveur :</strong> un conteneur Docker sur un ordinateur ou un NAS
+x86-64.
+</p>
 
 <div class="evey-showcase" markdown>
 
@@ -55,10 +48,27 @@ reste possible : [Déploiements avancés](operations/advanced-deployments.md).
 
 <figure class="evey-shot" markdown="span">
   ![Le tableau de bord d'administration pendant deux lectures](images/showcase-dashboard.webp){ loading=lazy data-gallery="showcase" }
-  <figcaption>Le tableau de bord pendant que deux personnes regardent : l'image que voit chacune, et la façon dont elle est servie.</figcaption>
+  <figcaption>Le tableau de bord pendant que deux personnes regardent : l'image que voit chacune, et la façon dont elle lui est envoyée.</figcaption>
 </figure>
 
 </div>
+
+## Gérer vos médias, pas l'infrastructure
+
+Un conteneur, un fichier compose, aucun `.env` à écrire.
+
+- **Base de données et moteur de recherche inclus.** Ils ne sont joignables
+  que depuis le conteneur, avec des mots de passe générés au premier
+  démarrage.
+- **Permissions des fichiers adaptées automatiquement**, quand c'est possible,
+  pour que les réparations puissent écrire. Le serveur lui-même ne tourne
+  jamais en root.
+- **Moins de réglages à faire à la main.** La carte graphique est détectée, la
+  capacité de transcodage est mesurée, et le mode de lecture dépend de ce que
+  chaque appareil sait lire.
+
+Vous pouvez toujours utiliser votre propre base de données ou votre propre
+moteur de recherche : [Déploiements avancés](operations/advanced-deployments.md).
 
 ## Comment il fonctionne
 
@@ -68,14 +78,11 @@ reste possible : [Déploiements avancés](operations/advanced-deployments.md).
 
 **En faire le moins possible**
 
-- **Lecture directe** : le fichier tel quel ; le serveur se contente de le lire.
-- **[MKVGo](playback/mkvgo.md)** : quand seul le conteneur doit changer, la couche multimédia
-  intégrée au serveur réempaquette les pistes : aucun réencodage, aucun
-  processus média lancé par flux, aucun segment écrit sur le disque. FFmpeg
-  les copie là où elle ne peut pas.
-- **FFmpeg** : pour les vraies transformations, et en repli quand MKVGo ne
-  peut pas assurer le travail structurel.
-
+La **Lecture directe** envoie le fichier tel quel. Quand l'appareil sait lire
+les pistes mais pas le conteneur du fichier, **MKVGo** change le conteneur sans
+réencoder les pistes audio et vidéo, et sans lancer un programme supplémentaire pour chaque lecture ; là où
+MKVGo ne peut pas, FFmpeg copie les pistes. **FFmpeg** se charge des vraies
+conversions.
 [MKVGo dans Evey](playback/mkvgo.md)
 
 </div>
@@ -84,14 +91,12 @@ reste possible : [Déploiements avancés](operations/advanced-deployments.md).
 
 **Savoir ce dont la machine est vraiment capable**
 
-Un accélérateur ne compte qu'une fois qu'un vrai encodage y a réussi. À son
-premier moment calme, le serveur chronomètre de vrais encodages à partir d'un
-extrait 4K, jusqu'en 1440p sur le processeur et jusqu'en 2160p sur chaque
-accélérateur, puis envoie chaque flux vers la voie la moins coûteuse qui a
-prouvé pouvoir le servir. Quand la place manque, un nouveau flux reçoit une
-qualité plus basse, ou passe d'une carte graphique pleine au processeur ; il
-n'est refusé, avec un message clair, que lorsqu'il ne reste plus aucune
-capacité.
+Un accélérateur ne compte qu'une fois qu'un vrai encodage y a réussi. Dans un
+moment calme, le serveur chronomètre des encodages d'essai, puis confie chaque
+flux au matériel le moins coûteux qui a prouvé qu'il pouvait le transcoder.
+Quand la capacité manque, un nouveau flux reçoit une qualité plus basse, ou
+passe d'une carte graphique saturée au processeur ; il n'est refusé, avec un
+message clair, que s'il ne reste plus aucune capacité.
 [Transcodage et capacité du serveur](playback/transcoding.md)
 
 </div>
@@ -101,26 +106,22 @@ capacité.
 **Du code tiers confiné, pas cru sur parole**
 
 Un plugin est analysé avant l'installation, ne reçoit que les permissions
-déclarées et acceptées par l'administrateur, et tourne dans son propre
-processus, sans accès direct au réseau, avec mémoire, processus et disque
-plafonnés. Sous Docker avec un noyau récent, il ne voit que son propre dossier,
-et une liste de refus seccomp bloque les appels système connus pour être
-dangereux ; un hôte plus ancien a une sandbox plus faible, et le panneau
-d'administration indique laquelle est active.
+acceptées par l'administrateur, et tourne dans son propre processus, sans
+accès direct au réseau et avec des ressources plafonnées. La rigueur de la
+sandbox dépend de l'hôte, et le panneau d'administration indique laquelle est
+active.
 [Sandbox des plugins et modèle de menace](SECURITY.md#sandbox-modes)
 
 </div>
 
 <div markdown>
 
-**Trouver les médias abîmés avant la lecture**
+**Repérer les médias abîmés avant la lecture**
 
-La **Santé des médias** lit vos fichiers MKV et WebM et explique ce qu'elle
-trouve. Ce qu'elle sait réparer (un index de lecture manquant, un MP4 nommé
-`.mkv`, des pistes rangées par blocs) est réparé à la demande, vérifié avant
-de remplacer le fichier, avec l'original gardé par défaut et chaque
-modification consignée au journal. Le reste est signalé, jamais réécrit dans
-votre dos.
+La **Santé des médias** analyse vos fichiers MKV et WebM et explique ce
+qu'elle trouve. Une réparation se lance à la demande, est vérifiée avant de
+remplacer le fichier, garde l'original par défaut et est consignée au journal.
+Le reste est signalé, jamais réécrit dans votre dos.
 [Santé des médias](runbooks/media-health.md)
 
 </div>
@@ -129,26 +130,24 @@ votre dos.
 
 ## Voir ce qu'Evey a décidé, et pourquoi
 
-Le tableau de bord ci-dessus liste chaque lecture : qui, sur quel appareil, en
-**Lecture directe**, **Remux** ou **Transcodage**, si la vidéo et l'audio sont
-copiés ou encodés et par quoi, le débit et la progression. Dans le lecteur, les
-**Infos du flux** reflètent le plan réellement servi, et disent pourquoi
-le fichier n'a pas été lu tel quel.
+Le tableau de bord liste chaque lecture : qui regarde, sur quel appareil, en
+**Lecture directe**, **Remux** ou **Transcodage**, et ce qui est copié ou
+réencodé. Dans le lecteur, les **Infos du flux** montrent ce qui est
+réellement envoyé, et pourquoi le fichier n'a pas été lu tel quel.
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
   ![Les Infos du flux dans le lecteur web](images/player-stream-info.webp){ loading=lazy }
-  <figcaption>Remux : l'emballage change, sans réencoder la vidéo ni l'audio. « Copié » décrit les pistes, pas le mode de lecture.</figcaption>
+  <figcaption>Remux : le conteneur change, sans réencoder la vidéo ni l'audio. « Copié » décrit les pistes, pas le mode de lecture.</figcaption>
 </figure>
 
 [Lire les Infos du flux](playback/how-playback-is-decided.md#reading-stream-info)
 
 ## Applications et extensions
 
-Une application web servie par le serveur lui-même, des applications Android
-et Android TV (connectée depuis un téléphone ou un ordinateur grâce à la
-**Connexion rapide**), et la diffusion vers un Chromecast. Plugins et thèmes
-étendent l'interface, et le même plugin tourne sur le web, sur Android et sur
-la TV.
+Une TV se connecte depuis un téléphone ou un ordinateur grâce à la
+**Connexion rapide**, sans saisir de mot de passe. Plugins et thèmes étendent
+l'interface, et un même plugin fonctionne sur le web, sur Android et sur la
+TV.
 [Applications et appareils](getting-started/apps.md) ·
 [Plugins](plugins.md)
 
@@ -186,10 +185,7 @@ la TV.
 </div>
 
 <p class="evey-meta">
-Evey est en bêta et n'a pas encore de version numérotée : cette documentation
-suit la branche de développement. ·
+Cette documentation suit la branche de développement. ·
 <a href="https://github.com/Evey-project/evey">Code source sur GitHub</a> ·
-<a href="https://demo.eveyproject.org">Démo publique</a> (identifiants demo / demo) ·
-AGPL-3.0-or-later ·
 Signalement de failles : security@eveyproject.org
 </p>
