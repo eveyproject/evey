@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { isRenderSlowdown, formatRenderWindow, createRenderStallWatch, decideRenderCap, nextLowerRung } from "./renderStall";
+import { isRenderSlowdown, isCadenceBroken, formatRenderWindow, formatCadence, createRenderStallWatch, decideRenderCap, nextLowerRung } from "./renderStall";
 
 function win(over: Partial<Parameters<typeof isRenderSlowdown>[0]> = {}) {
-  return { fps: 25, baselineFps: 25, lagMaxMs: 0, playing: true, visible: true, ...over };
+  return { fps: 25, baselineFps: 25, lagMaxMs: 0, playing: true, visible: true, longIntervals: 0, maxIntervalMs: 40, medianIntervalMs: 40, skippedFrames: 0, ...over };
 }
 
 describe("isRenderSlowdown", () => {
@@ -34,6 +34,34 @@ describe("formatRenderWindow", () => {
       "fps=11.0/25.0 lag=338ms",
     );
   });
+
+  it("adds the hitches only when there are some", () => {
+    expect(formatRenderWindow(win({ longIntervals: 3, maxIntervalMs: 83.4, skippedFrames: 1 }))).toBe(
+      "fps=25.0/25.0 lag=0ms jit=3/83ms sk=1",
+    );
+  });
+});
+
+describe("isCadenceBroken", () => {
+  it("fires on frames held too long or never shown, at a full frame count", () => {
+    expect(isCadenceBroken(win({ longIntervals: 3 }))).toBe(true);
+    expect(isCadenceBroken(win({ skippedFrames: 2 }))).toBe(true);
+    expect(isCadenceBroken(win({ longIntervals: 1, skippedFrames: 1 }))).toBe(false);
+  });
+
+  it("leaves a slowdown, a paused player and a hidden tab to their own rules", () => {
+    expect(isCadenceBroken(win({ fps: 8, longIntervals: 5 }))).toBe(false);
+    expect(isCadenceBroken(win({ playing: false, longIntervals: 5 }))).toBe(false);
+    expect(isCadenceBroken(win({ visible: false, longIntervals: 5 }))).toBe(false);
+  });
+});
+
+describe("formatCadence", () => {
+  it("carries the window and the session totals", () => {
+    expect(formatCadence(win({ fps: 24, longIntervals: 3, maxIntervalMs: 83.4, medianIntervalMs: 41.7, skippedFrames: 1 }), { frames: 25440, longIntervals: 57, skippedFrames: 3 })).toBe(
+      "long=3 max=83ms med=41.7ms skip=1 fps=24.0/25.0 tot=57/3/25440",
+    );
+  });
 });
 
 describe("createRenderStallWatch", () => {
@@ -41,19 +69,24 @@ describe("createRenderStallWatch", () => {
   const now = () => clock;
 
   function fakeVideo(withRvfc = true) {
-    let frameCb: (() => void) | null = null;
+    let frameCb: ((now?: number, meta?: { mediaTime?: number; expectedDisplayTime?: number }) => void) | null = null;
     const v = {
       paused: false,
       ended: false,
       requestVideoFrameCallback: withRvfc
-        ? (cb: () => void) => {
+        ? (cb: (now?: number, meta?: { mediaTime?: number; expectedDisplayTime?: number }) => void) => {
             frameCb = cb;
             return 1;
           }
         : undefined,
       cancelVideoFrameCallback: vi.fn(),
     } as unknown as HTMLVideoElement;
-    return { v, present: () => frameCb?.() };
+    return {
+      v,
+      present: () => frameCb?.(),
+      // One frame put on screen at shownAt (ms), showing media time mediaTime (s).
+      show: (shownAt: number, mediaTime: number) => frameCb?.(shownAt, { mediaTime, expectedDisplayTime: shownAt }),
+    };
   }
 
   // Advances the injected clock and lets the watchdog's chained setTimeout run.
@@ -129,6 +162,76 @@ describe("createRenderStallWatch", () => {
     await advance(4000);
     expect(onSlowdown).not.toHaveBeenCalled();
     expect(watch.latest()?.fps).toBe(0);
+    watch.stop();
+  });
+
+  // One second of a 24 fps title; holds[i] extra frame durations before frame
+  // i, skips[i] media frames jumped at frame i.
+  function playSecond(show: (at: number, mt: number) => void, startMs: number, startFrame: number, holds: Record<number, number> = {}, skips: Record<number, number> = {}) {
+    const dur = 1000 / 24;
+    let at = startMs;
+    let frame = startFrame;
+    for (let i = 0; i < 24; i++) {
+      at += dur * (1 + (holds[i] ?? 0));
+      frame += 1 + (skips[i] ?? 0);
+      show(at, frame / 24);
+    }
+    return { at, frame };
+  }
+
+  it("reports a picture that hitches at a full frame count", async () => {
+    const onSlowdown = vi.fn();
+    const onCadence = vi.fn();
+    const { v, show } = fakeVideo();
+    const watch = createRenderStallWatch(v, { onSlowdown, onCadence, now });
+
+    let p = playSecond(show, 0, 0);
+    await advance(1000);
+    expect(onCadence).not.toHaveBeenCalled();
+
+    // Three frames held for a second refresh, one media frame never shown.
+    p = playSecond(show, p.at, p.frame, { 4: 1, 11: 1, 19: 1 }, { 7: 1 });
+    await advance(1000);
+
+    expect(onSlowdown).not.toHaveBeenCalled();
+    expect(onCadence).toHaveBeenCalledTimes(1);
+    const [w, totals] = onCadence.mock.calls[0];
+    expect(w.longIntervals).toBe(3);
+    expect(w.skippedFrames).toBe(1);
+    expect(Math.round(w.maxIntervalMs)).toBe(83);
+    expect(totals).toEqual({ frames: 48, longIntervals: 3, skippedFrames: 1 });
+    expect(watch.totals()).toEqual(totals);
+    watch.stop();
+  });
+
+  // 24 fps on a 60 Hz panel alternates 33 and 50 ms by design.
+  it("says nothing about the pulldown of a 60 Hz panel", async () => {
+    const onCadence = vi.fn();
+    const { v, show } = fakeVideo();
+    const watch = createRenderStallWatch(v, { onSlowdown: vi.fn(), onCadence, now });
+    let at = 0;
+    for (let s = 0; s < 3; s++) {
+      for (let i = 0; i < 24; i++) {
+        at += i % 2 ? 50 : 33.3;
+        show(at, (s * 24 + i) / 24);
+      }
+      await advance(1000);
+    }
+    expect(onCadence).not.toHaveBeenCalled();
+    expect(watch.totals().longIntervals).toBe(0);
+    watch.stop();
+  });
+
+  it("does not take a seek for skipped frames", async () => {
+    const onCadence = vi.fn();
+    const { v, show } = fakeVideo();
+    const watch = createRenderStallWatch(v, { onSlowdown: vi.fn(), onCadence, now });
+    const p = playSecond(show, 0, 0);
+    await advance(1000);
+    playSecond(show, p.at, p.frame + 24 * 600);
+    await advance(1000);
+    expect(watch.totals().skippedFrames).toBe(0);
+    expect(onCadence).not.toHaveBeenCalled();
     watch.stop();
   });
 
