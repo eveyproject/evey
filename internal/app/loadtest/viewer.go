@@ -74,7 +74,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		return
 	}
 
-	status, header, body, _, err := r.fetchWithRetry(ctx, masterURL, cfg.Token)
+	status, header, body, _, err := r.fetchWithRetry(ctx, masterURL, cfg.Token, true)
 	switch classify(status, header, err) {
 	case outcomeTokenExpired:
 		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, slot: tierAtSpawn, detail: "401 on master playlist"})
@@ -106,7 +106,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	}
 	chosen := pickMedianVariant(master.variants)
 
-	status, header, body, _, err = r.fetchWithRetry(ctx, chosen.uri.String(), cfg.Token)
+	status, header, body, _, err = r.fetchWithRetry(ctx, chosen.uri.String(), cfg.Token, true)
 	switch classify(status, header, err) {
 	case outcomeTokenExpired:
 		sendEvent(ctx, events, viewerEvent{kind: evTokenExpired, vt: vt, slot: tierAtSpawn, detail: "401 on variant playlist"})
@@ -140,7 +140,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	// the run was measuring a client nobody runs.
 	var audioSegments []*url.URL
 	if a, ok := pickAudioRendition(master.audio); ok {
-		st, hdr, ab, _, aerr := r.fetchWithRetry(ctx, a.uri.String(), cfg.Token)
+		st, hdr, ab, _, aerr := r.fetchWithRetry(ctx, a.uri.String(), cfg.Token, true)
 		if classify(st, hdr, aerr) == outcomeOK {
 			if _, segs, perr := parseVariantPlaylist(ab, a.uri); perr == nil {
 				audioSegments = segs
@@ -177,7 +177,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 						audioDone <- -1
 					}
 				}()
-				st, _, _, ms, aerr := r.fetchWithRetry(ctx, audioURL.String(), cfg.Token)
+				st, _, _, ms, aerr := r.fetchWithRetry(ctx, audioURL.String(), cfg.Token, false)
 				if st == http.StatusOK && aerr == nil {
 					audioDone <- int64(ms)
 					return
@@ -187,7 +187,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		}
 		idx = (idx + 1) % len(segments)
 
-		status, header, _, elapsedMs, err := r.fetchWithRetry(ctx, segURL.String(), cfg.Token)
+		status, header, _, elapsedMs, err := r.fetchWithRetry(ctx, segURL.String(), cfg.Token, false)
 		if audioDone != nil {
 			// Wait for the audio too: a viewer is not "served" until it has both.
 			// Its bytes are already counted (fetchOnce tallies every response), so
@@ -360,8 +360,8 @@ func classify(status int, header http.Header, err error) fetchOutcome {
 // fetchWithRetry performs one GET, retrying exactly once (after the server's
 // Retry-After) when the response is a file_not_ready 503 - a transient
 // "still preparing the segment" signal, not a capacity or auth verdict.
-func (r *Runner) fetchWithRetry(ctx context.Context, rawURL, token string) (status int, header http.Header, body []byte, elapsedMs int, err error) {
-	status, header, body, elapsedMs, err = r.fetchOnce(ctx, rawURL, token)
+func (r *Runner) fetchWithRetry(ctx context.Context, rawURL, token string, keepBody bool) (status int, header http.Header, body []byte, elapsedMs int, err error) {
+	status, header, body, elapsedMs, err = r.fetchOnce(ctx, rawURL, token, keepBody)
 	if err == nil && status == http.StatusServiceUnavailable && header.Get(headerEveyError) == errCodeFileNotReady {
 		wait := retryAfter(header)
 		select {
@@ -369,7 +369,7 @@ func (r *Runner) fetchWithRetry(ctx context.Context, rawURL, token string) (stat
 		case <-ctx.Done():
 			return status, header, body, elapsedMs, ctx.Err()
 		}
-		status, header, body, elapsedMs, err = r.fetchOnce(ctx, rawURL, token)
+		status, header, body, elapsedMs, err = r.fetchOnce(ctx, rawURL, token, keepBody)
 	}
 	return status, header, body, elapsedMs, err
 }
@@ -387,7 +387,7 @@ func retryAfter(header http.Header) time.Duration {
 	return time.Duration(secs) * time.Second
 }
 
-func (r *Runner) fetchOnce(ctx context.Context, rawURL, token string) (status int, header http.Header, body []byte, elapsedMs int, err error) {
+func (r *Runner) fetchOnce(ctx context.Context, rawURL, token string, keepBody bool) (status int, header http.Header, body []byte, elapsedMs int, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return 0, nil, nil, 0, err
@@ -401,12 +401,23 @@ func (r *Runner) fetchOnce(ctx context.Context, rawURL, token string) (status in
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	b, readErr := io.ReadAll(resp.Body)
+	// A segment is only counted, never inspected: buffering it would make this
+	// harness hold every in-flight segment of every viewer inside the server
+	// process, and that memory is then reported as the server's own.
+	var b []byte
+	var n int64
+	var readErr error
+	if keepBody {
+		b, readErr = io.ReadAll(resp.Body)
+		n = int64(len(b))
+	} else {
+		n, readErr = io.Copy(io.Discard, resp.Body)
+	}
 	elapsedMs = int(time.Since(start).Milliseconds())
 	// Every byte read here is a byte the server had to produce and push, so
 	// this is where served throughput is tallied - playlists included, exactly
 	// like a real player's traffic.
-	r.servedBytes.Add(int64(len(b)))
+	r.servedBytes.Add(n)
 	if readErr != nil {
 		return resp.StatusCode, resp.Header, nil, elapsedMs, readErr
 	}

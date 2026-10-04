@@ -40,6 +40,12 @@ const (
 	// memSaturationPercent is the share of the memory limit past which the
 	// next allocation risks the OOM killer rather than a slowdown.
 	memSaturationPercent = 90.0
+	// memCriticalPercent is the share of the memory limit past which the run
+	// stops at once, on a single sample and inside a warm-up window. A join
+	// burst can fill the machine in the seconds a normal verdict spends
+	// warming up and confirming, and the OOM killer then takes the server.
+	// Above this there is nothing left to measure.
+	memCriticalPercent = 95.0
 	// saturationSamples is how many CONSECUTIVE samples must sit above a
 	// threshold before it counts as saturation. A single spike (an encoder
 	// starting, a GC pause) is not a capacity verdict.
@@ -67,6 +73,9 @@ type ResourceSample struct {
 	// kernel's readahead.
 	AppReadBytesPerSec int64
 	ServedBytesPerSec  int64
+	// Disks is the per-device view of the same interval (see pooldiag.go): empty
+	// when the counters are not available.
+	Disks []DiskSample
 }
 
 // ResourceStats is what a whole tier consumed: the average is what a viewer
@@ -80,6 +89,8 @@ type ResourceStats struct {
 	AppReadBytesPerSecAvg            int64
 	ServedBytesPerSecAvg             int64
 	Samples                          int
+	// Disks is what each physical drive did over the tier, busiest first.
+	Disks []DiskStat
 }
 
 // counterSource is where the raw monotonic counters come from. The server's
@@ -126,6 +137,7 @@ type resourceSampler struct {
 	lastAppRead   int64
 	lastServed    int64
 	hasPrevSample bool
+	lastDisks     map[string]diskCounters
 }
 
 func newResourceSampler(src counterSource) *resourceSampler {
@@ -140,6 +152,12 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	diskRead := s.src.diskReadBytes()
 	appRead := s.src.appReadBytes()
 	memUsed, memCache, memLimit := s.src.memory()
+	var disks map[string]diskCounters
+	if ds, ok := s.src.(diskActivitySource); ok {
+		disks = ds.diskCounters()
+	}
+	prevDisks := s.lastDisks
+	s.lastDisks = disks
 
 	prevAt, prevCPU, prevDisk, prevServed := s.lastAt, s.lastCPUUsec, s.lastDiskRead, s.lastServed
 	prevApp := s.lastAppRead
@@ -176,6 +194,7 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	if servedTotal >= prevServed {
 		out.ServedBytesPerSec = int64(float64(servedTotal-prevServed) / elapsed)
 	}
+	out.Disks = diskDeltas(prevDisks, disks, elapsed)
 	return out, true
 }
 
@@ -456,6 +475,9 @@ func (rs *resourceState) observe(tier int, s ResourceSample, now time.Time) (sat
 		rs.baseline = s
 		return "", ""
 	}
+	if s.MemLimitBytes > 0 && float64(s.MemUsedBytes)/float64(s.MemLimitBytes)*100 >= memCriticalPercent {
+		return StopMemorySaturated, formatMemDetail(s.MemUsedBytes, s.MemLimitBytes, tier)
+	}
 	if now.Sub(rs.tierStartedAt) < rs.warmup {
 		return "", ""
 	}
@@ -571,6 +593,7 @@ func (rs *resourceState) stats(tier int) ResourceStats {
 	out.AppReadBytesPerSecAvg = int64(appSum / n)
 	out.ServedBytesPerSecAvg = int64(servedSum / n)
 	out.Samples = len(samples)
+	out.Disks = aggregateDisks(samples)
 	return out
 }
 

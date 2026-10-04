@@ -56,6 +56,9 @@ type candidatePool struct {
 	// served counts what was actually handed out, per source class - the run's
 	// own record of what its verdict was measured on.
 	served map[SourceMixEntry]int
+	// branches records where each handed-out title lives on a pooled mount. Nil
+	// (a no-op) unless the library sits on one (see pooldiag.go).
+	branches *branchTally
 }
 
 // newCandidatePool lays out every assignment the run may hand out, breadth
@@ -94,6 +97,7 @@ func (p *candidatePool) take() (assignment, bool) {
 			continue
 		}
 		p.recordServed(asg.media)
+		p.branches.record(asg.media.Path)
 		return asg, true
 	}
 	return assignment{}, false
