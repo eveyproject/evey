@@ -147,6 +147,26 @@
   padding: 0.8rem 1rem;
 }
 
+/* Home page, under the buttons: status, licence and demo sign-in as small
+   tags that wrap on a phone, then the platforms in one short paragraph. */
+.md-typeset .evey-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0.2rem 0 0.8rem;
+  font-size: 0.72rem;
+}
+.md-typeset .evey-status span {
+  padding: 0.1rem 0.6rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 1rem;
+  color: var(--md-default-fg-color--light);
+}
+.md-typeset .evey-platforms {
+  font-size: 0.78rem;
+  color: var(--md-default-fg-color--light);
+}
+
 .md-typeset .evey-meta {
   margin-top: 2rem;
   font-size: 0.72rem;
