@@ -14,6 +14,7 @@ import {
   formatElapsed,
   formatMbps,
   mixParts,
+  poolShares,
   predictedStreams,
   type LoadTestReport,
   type LoadTestScenario,
@@ -237,6 +238,39 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
               </View>
             );
           })}
+        </View>
+      )}
+
+      {((report.poolBranches?.length ?? 0) > 0 || (report.disks?.length ?? 0) > 0) && (
+        <View style={{ gap: 2, marginTop: 6 }}>
+          {(report.poolBranches?.length ?? 0) > 0 && (
+            <>
+              <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }}>{t("admin.loadtest.poolTitle")}</Text>
+              {poolShares(report.poolBranches ?? []).map((b) => (
+                <Text key={b.branch} style={s.hint}>
+                  {t("admin.loadtest.poolBranchLine", { branch: b.branch, count: b.viewers, pct: b.pct })}
+                </Text>
+              ))}
+              <Text style={s.hint}>{t("admin.loadtest.poolNote")}</Text>
+            </>
+          )}
+          {(report.disks?.length ?? 0) > 0 && (
+            <>
+              <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600", marginTop: 4 }}>{t("admin.loadtest.disksTitle")}</Text>
+              {(report.disks ?? []).map((d) => (
+                <Text key={d.device} style={s.hint}>
+                  {t("admin.loadtest.diskLine", {
+                    device: d.device ?? "",
+                    util: Math.round(d.utilPercentAvg ?? 0),
+                    peak: Math.round(d.utilPercentPeak ?? 0),
+                    rate: formatMbps(d.readBytesPerSecAvg ?? 0),
+                    wait: Math.round(d.awaitMsAvg ?? 0),
+                  })}
+                </Text>
+              ))}
+              <Text style={s.hint}>{t("admin.loadtest.disksNote")}</Text>
+            </>
+          )}
         </View>
       )}
 

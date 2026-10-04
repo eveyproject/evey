@@ -91,6 +91,19 @@ export interface LoadTestReport {
   // mount, a pool counted as one disk. The panel says so before any figure.
   storageFsType?: string;
   storageOpaque?: boolean;
+  // poolBranches: where the audience's titles sit on a pooled mount, one entry
+  // per branch (disk), most viewers first. A pool is not a RAID - a file lives on
+  // ONE disk - so a skewed placement is a skewed load.
+  poolBranches?: { branch?: string; viewers?: number }[];
+  // disks: what each physical drive did over the sustained tier, busiest first.
+  // Read from the host-wide block counters, so it includes other readers too.
+  disks?: {
+    device?: string;
+    utilPercentAvg?: number;
+    utilPercentPeak?: number;
+    readBytesPerSecAvg?: number;
+    awaitMsAvg?: number;
+  }[];
   // diskReadCeilingBytesPerSec: how fast this box reads its media - every disk
   // the library spans, read at once. The kernel cannot report this when the
   // library sits on a network share or a 9p mount, so the run measures it itself
@@ -194,6 +207,18 @@ export const BOTTLENECK_REASONS: LoadTestStopReason[] = [
 // Throughput is quoted in bits per second, the way a network link is.
 export function formatMbps(bytesPerSec: number): string {
   return `${((bytesPerSec * 8) / 1e6).toFixed(1)} Mb/s`;
+}
+
+// poolShares turns the per-branch viewer counts into rows with their share of
+// the audience, rounded to a whole percent. The share is what makes a skew
+// readable: "41 viewers" means little until it is "82% of them".
+export function poolShares(branches: { branch?: string; viewers?: number }[]): { branch: string; viewers: number; pct: number }[] {
+  const total = branches.reduce((n, b) => n + (b.viewers ?? 0), 0);
+  return branches.map((b) => ({
+    branch: b.branch ?? "",
+    viewers: b.viewers ?? 0,
+    pct: total > 0 ? Math.round(((b.viewers ?? 0) / total) * 100) : 0,
+  }));
 }
 
 // Noun form of each scenario for the report headline ("...in {{scenario}}.").

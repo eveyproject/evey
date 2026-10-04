@@ -67,6 +67,42 @@ describe("LoadTestReportPanel", () => {
     expect(screen.queryByTestId("load-test-predicted")).toBeNull();
   });
 
+  it("a pooled run says where the audience sat and what each disk did, busiest first", () => {
+    const report = {
+      scenario: "mkvgo",
+      sustainedViewers: 46,
+      stopReason: "slo_breach",
+      storageOpaque: true,
+      storageFsType: "fuse.mergerfs",
+      poolBranches: [
+        { branch: "/mnt/disk_2", viewers: 41 },
+        { branch: "/mnt/disk_1", viewers: 9 },
+      ],
+      disks: [
+        { device: "sdc", utilPercentAvg: 88.6, utilPercentPeak: 97, readBytesPerSecAvg: 104 * 1048576, awaitMsAvg: 132.4 },
+        { device: "sdb", utilPercentAvg: 31, utilPercentPeak: 55, readBytesPerSecAvg: 30 * 1048576, awaitMsAvg: 18 },
+      ],
+    } as LoadTestReport;
+    render(<LoadTestReportPanel report={report} predicted={undefined} />);
+    const pool = screen.getByTestId("load-test-pool");
+    const branches = within(pool).getAllByTestId("load-test-pool-branch");
+    expect(branches).toHaveLength(2);
+    expect(branches[0]).toHaveTextContent("branch=/mnt/disk_2");
+    expect(branches[0]).toHaveTextContent("pct=82");
+    expect(branches[1]).toHaveTextContent("pct=18");
+    const disks = within(pool).getAllByTestId("load-test-disk");
+    expect(disks).toHaveLength(2);
+    expect(disks[0]).toHaveTextContent("device=sdc");
+    expect(disks[0]).toHaveTextContent("util=89");
+    expect(disks[0]).toHaveTextContent("peak=97");
+    expect(disks[0]).toHaveTextContent("wait=132");
+  });
+
+  it("a run on plain storage shows no pool block", () => {
+    render(<LoadTestReportPanel report={{ sustainedViewers: 3, stopReason: "cpu_saturated" } as LoadTestReport} predicted={undefined} />);
+    expect(screen.queryByTestId("load-test-pool")).toBeNull();
+  });
+
   it("an unknown stop reason falls back to the error verdict", () => {
     render(<LoadTestReportPanel report={{ sustainedViewers: 0 } as LoadTestReport} predicted={undefined} />);
     expect(screen.getByTestId("load-test-stop-reason")).toHaveTextContent("admin.loadtest.stopReason.error");

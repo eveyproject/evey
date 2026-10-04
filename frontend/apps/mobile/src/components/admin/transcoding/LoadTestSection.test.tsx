@@ -69,6 +69,24 @@ describe("LoadTestSection (mobile)", () => {
     expect(screen.getByText("Aucune ressource n'a cédé : le plafond est ailleurs.")).toBeTruthy();
   });
 
+  it("a pooled run shows where the audience sat and what each disk did", async () => {
+    eveyFetchMock.mockResolvedValue({
+      running: false,
+      lastReport: {
+        scenario: "mkvgo",
+        sustainedViewers: 46,
+        stopReason: "slo_breach",
+        poolBranches: [{ branch: "/mnt/disk_2", viewers: 41 }, { branch: "/mnt/disk_1", viewers: 9 }],
+        disks: [{ device: "sdc", utilPercentAvg: 88.6, utilPercentPeak: 97, readBytesPerSecAvg: 104 * 1048576, awaitMsAvg: 132.4 }],
+      },
+    });
+    mount();
+    await screen.findByText("admin.loadtest.poolTitle");
+    expect(screen.getByText(/poolBranchLine\(\/mnt\/disk_2,41,82\)/)).toBeTruthy();
+    expect(screen.getByText(/poolBranchLine\(\/mnt\/disk_1,9,18\)/)).toBeTruthy();
+    expect(screen.getByText(/diskLine\(sdc,89,97,/)).toBeTruthy();
+  });
+
   it("names a start refused by live playback", async () => {
     eveyFetchMock.mockImplementation((opts?: { method?: string }) => {
       if (opts?.method === "GET") return Promise.resolve({ running: false });
