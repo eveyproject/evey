@@ -7,7 +7,7 @@ let castClientInstance: { loadMedia: ReturnType<typeof vi.fn> } | null = null;
 let castDeviceModelName: string | null = null;
 let castDeviceFriendlyName: string | null = null;
 let sessionDeviceModelName: string | null = null;
-let castMediaStatus: { streamPosition?: number; playerState?: number; idleReason?: string | number | null } | null = null;
+let castMediaStatus: { streamPosition?: number; playerState?: string; idleReason?: string | number | null } | null = null;
 
 // The caps channel the connected receiver may answer on. A test scripts it:
 // null = no channel (no session, not our receiver); a fake channel records
@@ -637,6 +637,22 @@ it("puts the local player at the television's position when the cast ends", asyn
 
 // A receiver that stops answering must leave a trace from the SENDER's side:
 // the 2026-08-31 death left the phone spinning and the logs silent.
+describe("castIsPlaying", () => {
+  // react-native-google-cast serialises playerState as a string; comparing it
+  // to the Cast SDK's integer left the controller on "play" for a whole film.
+  it("follows the receiver's string player state", () => {
+    eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
+    castState = 4;
+    castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
+    castMediaStatus = { streamPosition: 10, playerState: "playing" };
+    const { result, rerender } = mount(fakePlayer());
+    expect(result.current.castIsPlaying).toBe(true);
+    castMediaStatus = { streamPosition: 10, playerState: "paused" };
+    rerender();
+    expect(result.current.castIsPlaying).toBe(false);
+  });
+});
+
 describe("cast_sender_stall beacon", () => {
   function stallBeacons() {
     return eveyFetchMock.mock.calls
@@ -651,7 +667,7 @@ describe("cast_sender_stall beacon", () => {
       eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
       castState = 4;
       castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
-      castMediaStatus = { streamPosition: 3266, playerState: 2 };
+      castMediaStatus = { streamPosition: 3266, playerState: "playing" };
       const player = fakePlayer();
       mount(player);
       act(() => { vi.advanceTimersByTime(15_000); });
@@ -670,7 +686,7 @@ describe("cast_sender_stall beacon", () => {
     eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
     castState = 4;
     castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
-    castMediaStatus = { streamPosition: 120, playerState: 1, idleReason: "ERROR" };
+    castMediaStatus = { streamPosition: 120, playerState: "idle", idleReason: "ERROR" };
     mount(fakePlayer());
     expect(stallBeacons()).toEqual(["state=idle reason=ERROR pos=120"]);
   });
@@ -681,10 +697,10 @@ describe("cast_sender_stall beacon", () => {
       eveyFetchMock.mockResolvedValue({ token: "cast-tok", mediaId: "m1" });
       castState = 4;
       castClientInstance = { loadMedia: vi.fn().mockResolvedValue(undefined) };
-      castMediaStatus = { streamPosition: 10, playerState: 2 };
+      castMediaStatus = { streamPosition: 10, playerState: "playing" };
       const { rerender } = mount(fakePlayer());
       for (let i = 1; i <= 10; i++) {
-        castMediaStatus = { streamPosition: 10 + i * 5, playerState: 2 };
+        castMediaStatus = { streamPosition: 10 + i * 5, playerState: "playing" };
         act(() => { vi.advanceTimersByTime(5_000); });
         rerender();
       }

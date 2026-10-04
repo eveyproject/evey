@@ -9,7 +9,7 @@ import { buildCastCustomData } from "@evey/media-caps/launch";
 import { ensureNotificationPermission } from "../lib/notificationPermission";
 import { describeCastTracks, shouldReportTracks } from "../lib/castTrackBeacon";
 import { resumePositionAfterCast } from "../lib/castPlaybackState";
-import { observeCastStall, initialCastStallTracker } from "../lib/castStallBeacon";
+import { observeCastStall, initialCastStallTracker, PLAYER_STATE_PLAYING } from "../lib/castStallBeacon";
 import {
   CastContext, useCastStateHook, useRemoteMediaClientHook,
   useMediaStatusHook, useCastDeviceHook, CastStateEnum,
@@ -80,7 +80,7 @@ export function useCastSession({
   const castConnected = castState === CastStateEnum.CONNECTED;
   const castCurrentTime = castMediaStatus?.streamPosition ?? 0;
   const castDuration = castMediaStatus?.mediaInfo?.streamDuration ?? fallbackDurationSec;
-  const castIsPlaying = castMediaStatus?.playerState === 2; // MediaPlayerState.PLAYING
+  const castIsPlaying = castMediaStatus?.playerState === PLAYER_STATE_PLAYING;
   // The receiver's own stream volume/mute. Needed because muteLocalPlayer parks
   // the local player at volume 0: without these the session was reported as
   // muted at 0% while the television played out loud (see castPlaybackState.ts).

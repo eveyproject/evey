@@ -33,7 +33,7 @@ describe("observeCastStall", () => {
   it("does not count a paused or buffering receiver as stalled", () => {
     let tr = initialCastStallTracker;
     ({ next: tr } = observeCastStall(tr, playing(10, t0)));
-    const paused = observeCastStall(tr, { connected: true, playerState: 3, posSec: 10, nowMs: t0 + 60_000 });
+    const paused = observeCastStall(tr, { connected: true, playerState: "paused", posSec: 10, nowMs: t0 + 60_000 });
     expect(paused.report).toBeNull();
     // resuming from the pause starts a fresh window
     const r = observeCastStall(paused.next, playing(10, t0 + 61_000));

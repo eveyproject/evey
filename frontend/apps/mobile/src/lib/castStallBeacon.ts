@@ -9,9 +9,10 @@
 // diagnosable. It decides nothing about playback: observability first, a
 // recovery gesture once the numbers say which state to recover from.
 
-/** MediaPlayerState of the Cast SDK (react-native-google-cast). */
-export const PLAYER_STATE_IDLE = 1;
-export const PLAYER_STATE_PLAYING = 2;
+// MediaPlayerState as react-native-google-cast hands it to JS: the native
+// side serialises it with putString, never as the Cast SDK's integer.
+export const PLAYER_STATE_IDLE = "idle";
+export const PLAYER_STATE_PLAYING = "playing";
 
 /** A PLAYING position that has not moved for this long is a stall. */
 export const CAST_STALL_SEC = 20;
@@ -19,7 +20,7 @@ export const CAST_STALL_SEC = 20;
 export interface CastStallSample {
   connected: boolean;
   /** MediaPlayerState, undefined when the SDK delivered no media status. */
-  playerState?: number;
+  playerState?: string;
   /** MediaPlayerIdleReason when playerState is IDLE (string or enum int by SDK version). */
   idleReason?: string | number | null;
   posSec: number;
