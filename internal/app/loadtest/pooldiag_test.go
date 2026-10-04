@@ -1,9 +1,11 @@
 package loadtest
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -135,5 +137,88 @@ func TestReadGoRuntime_IsSaneAndGCPercentNeedsTwoReadings(t *testing.T) {
 	// A counter that went backwards (a restart) must not report a negative share.
 	if got := gcCPUPercent(cur, prev); got != 0 {
 		t.Fatalf("gc%% on a backwards counter = %.2f, want 0", got)
+	}
+}
+
+// retainedForTest is the allocation the heap profile must find: a named
+// function of this module holding 64 MiB that stays reachable.
+//
+//go:noinline
+func retainedForTest() []byte {
+	// The allocation happens INSIDE the standard library: the leaf frame is
+	// bytes.Repeat, the module's own function is its caller - exactly the case
+	// (bufio, bytes, io) the attribution exists for.
+	return bytes.Repeat([]byte{1}, 64<<20)
+}
+
+var heldByTest []byte
+
+// The final heap profile must name the application function that holds the
+// memory, not the runtime frame that performed the allocation: "mallocgc"
+// helps nobody, "retainedForTest" is the culprit. (Allocations with no frame of
+// this module at all are charged to their leaf, so runtime sites may appear.)
+func TestHeapInUseTop_NamesTheApplicationFunctionHoldingTheBytes(t *testing.T) {
+	heldByTest = retainedForTest()
+	defer func() { heldByTest = nil }()
+
+	sites, total := heapInUseTop(10)
+	if total < 64<<20 {
+		t.Fatalf("total in use = %d, want at least the 64 MiB held", total)
+	}
+	var found *HeapSite
+	for i := range sites {
+		if strings.HasSuffix(sites[i].Func, "retainedForTest") {
+			found = &sites[i]
+		}
+	}
+	if found == nil {
+		t.Fatalf("retainedForTest not in the top sites: %+v", sites)
+	}
+	for _, s := range sites {
+		if s.Bytes >= found.Bytes && strings.HasPrefix(s.Func, "runtime.") && s.Func == "runtime.mallocgc" && s.Bytes > 60<<20 {
+			t.Fatalf("the 64 MiB was charged to %q instead of the module's own function", s.Func)
+		}
+	}
+	if !strings.HasPrefix(found.Via, "bytes.") {
+		t.Fatalf("via = %q, want the library that allocated on the function's behalf (bytes.Repeat)", found.Via)
+	}
+	if found.Bytes < 64<<20 || !strings.Contains(found.File, "internal/app/loadtest/") {
+		t.Fatalf("site = %+v, want >= 64 MiB charged to a file under internal/app/loadtest/", *found)
+	}
+	if sites[0].Bytes < found.Bytes {
+		t.Fatalf("sites not sorted by bytes: %+v", sites)
+	}
+}
+
+// parkedThroughMarker blocks until released; its name is what the goroutine
+// census looks for.
+//
+//go:noinline
+func parkedThroughMarker(ready chan<- struct{}, release <-chan struct{}) {
+	ready <- struct{}{}
+	<-release
+}
+
+// Requests still being served hold their response: the census must count the
+// goroutines parked inside a named function, and only those.
+func TestGoroutinesThrough_CountsTheGoroutinesInsideANamedFunction(t *testing.T) {
+	before, _ := goroutinesThrough("parkedThroughMarker")
+	ready, release := make(chan struct{}), make(chan struct{})
+	for range 3 {
+		go parkedThroughMarker(ready, release)
+	}
+	for range 3 {
+		<-ready
+	}
+	got, total := goroutinesThrough("parkedThroughMarker")
+	close(release)
+	if got-before != 3 {
+		t.Fatalf("goroutines through the marker = %d (was %d), want 3 more", got, before)
+	}
+	if total < got {
+		t.Fatalf("total %d < matching %d", total, got)
+	}
+	if n, _ := goroutinesThrough("noSuchFunctionAnywhere"); n != 0 {
+		t.Fatalf("an unknown marker matched %d goroutines", n)
 	}
 }
