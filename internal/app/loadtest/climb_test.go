@@ -315,3 +315,91 @@ func TestClimb_DoesNotReconfirmWhatTheBisectionAlreadyProved(t *testing.T) {
 		t.Fatalf("sustained = %d, want ~40", c.lo)
 	}
 }
+
+// driveNoisy is drive with a machine whose full-window measurements can lie:
+// falseBreak decides, for the n-th time a given target is judged in a given
+// phase, whether to report a break the machine does not actually have. The real
+// ceiling is `ceiling`; every break above it reproduces.
+func driveNoisy(t *testing.T, ceiling, maxViewers int, falseBreak func(phase climbPhase, target, n int) bool) (targets []int, sustained int, reason StopReason) {
+	t.Helper()
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	seen := map[[2]int]int{}
+
+	for range 300 {
+		targets = append(targets, c.target)
+		key := [2]int{int(c.phase), c.target}
+		n := seen[key]
+		seen[key]++
+		if c.target > ceiling || falseBreak(c.phase, c.target, n) {
+			c.tierBroke(StopSLOBreach, "p95")
+		}
+		load := float64(c.target) / float64(max(ceiling, 1))
+		outcome, r, _ := c.next(maxViewers, load)
+		if outcome == climbDone {
+			return targets, c.lo, r
+		}
+	}
+	t.Fatalf("climb did not converge; targets=%v", targets)
+	return nil, 0, ""
+}
+
+// The 2026-10-04 run: the machine held 63, but the settle window at 61 read
+// 5879 ms against a 5500 ms budget once. The answer was thrown away and the
+// bisection restarted from zero, landing on 29. A break that has not
+// reproduced in a second window is noise: the answer stands.
+func TestClimb_ASingleNoisyWindowDoesNotThrowTheAnswerAway(t *testing.T) {
+	targets, sustained, reason := driveNoisy(t, 62, 80, func(p climbPhase, target, n int) bool {
+		return p == phaseSettle && n == 0 // the first settle window lies, the second tells the truth
+	})
+	if reason != StopSLOBreach {
+		t.Fatalf("reason = %s, want %s", reason, StopSLOBreach)
+	}
+	closeEnough(t, sustained, 62, targets)
+	for i, tg := range targets {
+		if tg > 0 && tg < sustained-sustained*bisectTolerancePercent/100-1 && i > len(targets)/2 {
+			t.Fatalf("the search dropped to %d after the settle window: the noisy break was believed (targets=%v)", tg, targets)
+		}
+	}
+}
+
+// A noisy first window in the bisection must not push hi down either: the tier
+// is measured again, holds, and the search keeps climbing towards the truth.
+func TestClimb_ABisectionBreakThatDoesNotReproduceIsNotAVerdict(t *testing.T) {
+	fired := false
+	targets, sustained, _ := driveNoisy(t, 100, 0, func(p climbPhase, target, n int) bool {
+		// The first bisection tier the machine actually holds lies once.
+		if p == phaseBisect && target <= 100 && n == 0 && !fired {
+			fired = true
+			return true
+		}
+		return false
+	})
+	if !fired {
+		t.Fatalf("the scenario never reached a bisection tier below the ceiling (targets=%v): the test proves nothing", targets)
+	}
+	closeEnough(t, sustained, 100, targets)
+}
+
+// The retry must not be a loophole: a tier above the real ceiling breaks in
+// both windows and still condemns.
+func TestClimb_ABreakThatReproducesStillCondemnsTheTier(t *testing.T) {
+	targets, sustained, reason := driveNoisy(t, 47, 0, func(climbPhase, int, int) bool { return false })
+	closeEnough(t, sustained, 47, targets)
+	if reason != StopSLOBreach {
+		t.Fatalf("reason = %s, want %s", reason, StopSLOBreach)
+	}
+}
+
+// Each full-window tier that breaks is measured exactly twice before being
+// believed: never a third time (that would be an unbounded retry loop).
+func TestClimb_AFullWindowBreakIsRetriedExactlyOnce(t *testing.T) {
+	c := &climb{phase: phaseBisect, lo: 10, hi: 80, target: 45, batch: fastBatch}
+	c.tierBroke(StopSLOBreach, "p95")
+	if outcome, _, _ := c.next(0, 0.5); outcome != climbContinue || c.target != 45 || !c.retried || c.hi != 80 {
+		t.Fatalf("first break: outcome=%v target=%d retried=%v hi=%d, want the same tier measured again with hi untouched", outcome, c.target, c.retried, c.hi)
+	}
+	c.tierBroke(StopSLOBreach, "p95")
+	if _, _, _ = c.next(0, 0.5); c.hi != 45 || c.retried {
+		t.Fatalf("second break: hi=%d retried=%v, want hi=45 (a reproduced break counts) and the retry flag cleared", c.hi, c.retried)
+	}
+}
