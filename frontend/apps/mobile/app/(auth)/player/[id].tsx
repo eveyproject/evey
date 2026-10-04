@@ -1045,8 +1045,13 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
 
   useEffect(() => cleanup, [cleanup]);
 
+  // The navigation bar stays hidden for the whole player: brought back with
+  // the controls, a tablet's taskbar covered the bottom of the picture and
+  // the bar was laid out twice (Android 14 tablet, 2026-10-04). A swipe from
+  // the edge still reveals it; hiding again here covers that and a return
+  // from the background.
   useEffect(() => {
-    NavigationBar.setVisibilityAsync(showControls ? "visible" : "hidden");
+    if (!showControls) NavigationBar.setVisibilityAsync("hidden");
   }, [showControls]);
 
   useEffect(() => {
