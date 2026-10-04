@@ -6,7 +6,7 @@
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go \
 	mutation-test docker-image verify-deploy \
-	wiki wiki-check wiki-serve wiki-drafts
+	wiki wiki-check wiki-serve wiki-drafts wiki-publish
 
 BINARY=evey
 DC=docker compose --env-file .env.dev
@@ -760,6 +760,27 @@ wiki:
 	@$(WIKI_RUN) sh -c 'pip install -q --disable-pip-version-check -r requirements.txt && \
 	  python3 assemble.py --check && mkdocs build --strict -d site'
 	@echo "✅ wiki built - open wiki/site/index.html"
+
+# Publishes eveyproject.org: builds HEAD in a detached worktree (never the
+# shared working tree, other sessions edit it) and commits the site into the
+# local clone of Evey-project/evey-project.github.io. Pushing that clone stays
+# a manual step. The clone holds generated output only, hence the whole-tree add.
+WIKI_PAGES_DIR ?= $(abspath $(CURDIR)/../evey-project.github.io)
+wiki-publish:
+	@test -d "$(WIKI_PAGES_DIR)/.git" || { echo "❌ no clone at $(WIKI_PAGES_DIR)"; exit 1; }
+	@case "$$(git -C "$(WIKI_PAGES_DIR)" remote get-url origin)" in *Evey-project/evey-project.github.io*) ;; \
+	  *) echo "❌ $(WIKI_PAGES_DIR) is not a clone of Evey-project/evey-project.github.io"; exit 1;; esac
+	@test -z "$$(git -C "$(WIKI_PAGES_DIR)" status --porcelain)" || { echo "❌ $(WIKI_PAGES_DIR) has uncommitted changes"; exit 1; }
+	@set -e; sha=$$(git rev-parse --short HEAD); wt=$$(mktemp -d); \
+	  trap 'git worktree remove --force "$$wt" >/dev/null 2>&1 || true' EXIT; \
+	  git worktree add --detach "$$wt" HEAD >/dev/null; \
+	  $(MAKE) --no-print-directory -C "$$wt" wiki; \
+	  rsync -a --delete --exclude .git --exclude README.md "$$wt/wiki/site/" "$(WIKI_PAGES_DIR)/"; \
+	  echo 'eveyproject.org' > "$(WIKI_PAGES_DIR)/CNAME"; touch "$(WIKI_PAGES_DIR)/.nojekyll"; \
+	  git -C "$(WIKI_PAGES_DIR)" add --all -- .; \
+	  if git -C "$(WIKI_PAGES_DIR)" diff --cached --quiet; then echo "✅ site unchanged"; \
+	  else git -C "$(WIKI_PAGES_DIR)" commit -q -m "docs: publish evey $$sha" && \
+	    echo "✅ committed in $(WIKI_PAGES_DIR) - push it to put the site live"; fi
 
 # Live preview. mkdocs watches wiki/build/, which is generated, so a change to
 # a page under docs/ needs `make wiki-check` to be copied across before the
