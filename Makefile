@@ -89,7 +89,7 @@ verify-deploy:
 wasm-decoder:
 	docker run --rm -v $(PWD)/../ac3go:/src/ac3go -v $(PWD)/frontend/apps/web/public/wasm:/out -w /src/ac3go -e HOME=/tmp \
 	  golang:1.26.6 sh -c '\
-	  CGO_ENABLED=0 GOOS=js GOARCH=wasm go build -o /out/ac3go.wasm ./cmd/ac3go-wasm \
+	  CGO_ENABLED=0 GOOS=js GOARCH=wasm go build -buildvcs=false -o /out/ac3go.wasm ./cmd/ac3go-wasm \
 	  && cp "$$(go env GOROOT)/lib/wasm/wasm_exec.js" /out/wasm_exec.js'
 	@echo "✅ ac3go.wasm (standard go) + wasm_exec.js (go shim) rebuilt in frontend/apps/web/public/wasm/"
 
