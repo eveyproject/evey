@@ -497,3 +497,46 @@ func TestPlaySessionRepo_SetSessionServing_KeepsTheCodecLabelUnlessGiven(t *test
 	assert.Equal(t, "eac3→aac", got.AudioCodec)
 	assert.Equal(t, "transcode", got.AudioDecision)
 }
+
+// A session ended by the previous process's shutdown comes back on its
+// client's next tick, all the way to the now-playing list; one ended after
+// the current process started (a StopStream) does not.
+func TestPlaySessionRepo_ReopenEndedBefore(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	u := newTestUser("psu-ro")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("psp-ro", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("pslib-ro")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	item := newTestMediaItem("psmi-ro", lib.ID)
+	require.NoError(t, postgres.NewMediaItemRepository(db).Create(ctx, item))
+	repo := postgres.NewPlaySessionRepository(db)
+
+	require.NoError(t, repo.Create(ctx, newTestPlaySession("ps-ro", string(p.ID), string(item.ID))))
+	_, err := repo.CloseAllActive(ctx)
+	require.NoError(t, err)
+
+	// Before the shutdown: nothing to reopen.
+	reopened, err := repo.ReopenEndedBefore(ctx, "ps-ro", time.Now().Add(-time.Hour), 1000, false, "")
+	require.NoError(t, err)
+	assert.False(t, reopened)
+
+	restartedAt := time.Now().Add(time.Second)
+	reopened, err = repo.ReopenEndedBefore(ctx, "ps-ro", restartedAt, 2_100_000, true, "")
+	require.NoError(t, err)
+	assert.True(t, reopened)
+	active, err := repo.ListActiveSessions(ctx)
+	require.NoError(t, err)
+	require.Len(t, active, 1)
+	assert.Equal(t, "ps-ro", active[0].SessionID)
+	assert.True(t, active[0].IsPaused)
+	assert.EqualValues(t, 2_100_000, active[0].Position.Milliseconds())
+
+	// An open session is UpdateProgress's, never this statement's.
+	reopened, err = repo.ReopenEndedBefore(ctx, "ps-ro", restartedAt, 3000, false, "")
+	require.NoError(t, err)
+	assert.False(t, reopened)
+}

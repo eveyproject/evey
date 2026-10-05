@@ -352,6 +352,29 @@ func (r *PlaySessionRepository) CloseStale(ctx context.Context, olderThan time.D
 	return int(n), nil
 }
 
+func (r *PlaySessionRepository) ReopenEndedBefore(ctx context.Context, sessionID string, before time.Time, positionMs int64, isPaused bool, castDeviceName string) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playsession.ReopenEndedBefore")
+	defer span.End()
+	span.SetAttributes(attribute.String("play_session.id", sessionID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE play_sessions SET ended_at=NULL, position_ms=$3, is_paused=$4, cast_device_name=$5, updated_at=NOW()
+		 WHERE id=$1 AND ended_at IS NOT NULL AND ended_at < $2`,
+		sessionID, before, positionMs, isPaused, castDeviceName,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return false, fmt.Errorf("PlaySessionRepo.ReopenEndedBefore: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("PlaySessionRepo.ReopenEndedBefore: rows affected: %w", err)
+	}
+	return n > 0, nil
+}
+
 // CloseAllActive ends every open session. Same single statement as CloseStale
 // without the age predicate: a draining server has no session worth keeping,
 // and doing it in one UPDATE keeps it inside the shutdown budget however many

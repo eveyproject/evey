@@ -69,6 +69,25 @@ func (r *FakePlaySessionRepository) UpdateProgress(_ context.Context, sessionID 
 	return true, nil
 }
 
+func (r *FakePlaySessionRepository) ReopenEndedBefore(_ context.Context, sessionID string, before time.Time, positionMs int64, isPaused bool, castDeviceName string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.Err != nil {
+		return false, r.Err
+	}
+	s, ok := r.items[sessionID]
+	if !ok || s.EndedAt == nil || !s.EndedAt.Before(before) {
+		return false, nil
+	}
+	s.EndedAt = nil
+	if pos, err := shared.NewDurationMs(positionMs); err == nil {
+		s.Position = &pos
+	}
+	s.IsPaused = isPaused
+	s.CastDeviceName = castDeviceName
+	return true, nil
+}
+
 func (r *FakePlaySessionRepository) GetByID(_ context.Context, id string) (*playback.PlaySession, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
