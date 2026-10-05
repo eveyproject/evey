@@ -187,7 +187,7 @@ func (p *candidatePool) sourceMix() []SourceMixEntry {
 // up carrying its share of the titles - no need to know what the storage is
 // made of. The seed is logged with the run so a draw can be replayed.
 func shuffleCandidates(candidates []MediaCandidate, seed uint64) []MediaCandidate {
-	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))
+	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)) //nolint:gosec // a replayable draw of titles, not a secret
 	rng.Shuffle(len(candidates), func(i, j int) { candidates[i], candidates[j] = candidates[j], candidates[i] })
 	return candidates
 }
