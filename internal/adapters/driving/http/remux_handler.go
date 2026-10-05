@@ -30,7 +30,10 @@ import (
 // v2 (mkvgo 0.7.2): subtitle tracks now ride along - SRT/WebVTT as tx3g by
 // default, ASS/SSA flattened to tx3g - so a v1 file (no subs) must be
 // re-produced rather than served subtitle-less.
-const remuxCacheFormat = "remux-v2"
+// v3 (mkvgo 0.38.0): a video track whose first two blocks share a timecode
+// (interlaced fields stored one per sample) was timed on the audio lace grid
+// and came out four times too slow; a v2 file may carry that.
+const remuxCacheFormat = "remux-v3"
 
 // remuxCacheName derives a collision-free, traversal-proof cache filename from
 // the item identity, the cache-format version, and the SOURCE FINGERPRINT
