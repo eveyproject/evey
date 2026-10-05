@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..605c846
 --- /dev/null
 +++ b/android/src/main/java/expo/modules/video/EveyAudioPreamp.kt
-@@ -0,0 +1,168 @@
+@@ -0,0 +1,175 @@
 +package expo.modules.video
 +
 +import androidx.media3.common.C
@@ -62,6 +62,8 @@ index 0000000..605c846
 +    private var frameNo = 0L
 +    private var smoothedGain = 1f
 +    private var envelope = 1f
++    private var sampleRate = 0
++    private var carryOver = false
 +
 +    override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat =
 +      if (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT) inputAudioFormat else AudioProcessor.AudioFormat.NOT_SET
@@ -70,6 +72,7 @@ index 0000000..605c846
 +    // draining until then.
 +    private fun allocate(format: AudioProcessor.AudioFormat) {
 +      channels = format.channelCount
++      sampleRate = format.sampleRate
 +      val rate = format.sampleRate.toDouble()
 +      lookahead = max(1, (rate * LOOKAHEAD_S).roundToInt())
 +      glideCoef = (1.0 - exp(-1.0 / (rate * GAIN_GLIDE_S))).toFloat()
@@ -136,16 +139,19 @@ index 0000000..605c846
 +      delayPos = (delayPos + channels) % delay.size
 +    }
 +
++    // The sink ends the stream at every timestamp discontinuity while it may
++    // still be writing our last output, which replaceOutputBuffer would wipe:
++    // the delay line is kept instead and carried over the flush that follows.
 +    override fun onQueueEndOfStream() {
-+      // The last L-1 frames are still in the delay line.
-+      if (delay.isEmpty()) return
-+      val out = replaceOutputBuffer(delay.size * 2)
-+      for (k in delay.indices) out.putShort(toPcm(delay[(delayPos + k) % delay.size] * envelope))
-+      out.flip()
-+      clearState()
++      carryOver = true
 +    }
 +
 +    override fun onFlush() {
++      val same = inputAudioFormat.channelCount == channels && inputAudioFormat.sampleRate == sampleRate
++      if (carryOver && same) {
++        carryOver = false
++        return
++      }
 +      if (inputAudioFormat.encoding == C.ENCODING_PCM_16BIT) allocate(inputAudioFormat)
 +      clearState()
 +    }
@@ -167,6 +173,7 @@ index 0000000..605c846
 +      frameNo = 0L
 +      smoothedGain = gain
 +      envelope = 1f
++      carryOver = false
 +    }
 +
 +    private fun toPcm(v: Float): Short = min(CEILING, max(-32768f, v)).roundToInt().toShort()
