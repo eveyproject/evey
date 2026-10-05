@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -104,5 +105,39 @@ func TestShareDownloadHandler_ExpiredToken410(t *testing.T) {
 
 	if rec.Code != http.StatusGone {
 		t.Fatalf("code = %d, want 410", rec.Code)
+	}
+}
+
+// An admin shares a whole series or one season: the link serves the same ZIP
+// as an authenticated download (it answered 404, having no file of its own).
+func TestShareDownloadHandler_SeriesAndSeasonServeZIP(t *testing.T) {
+	dir := t.TempDir()
+	ep1 := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Pilot", IndexNumber: new(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e1.mkv", "one")}}
+	ep2 := &domainlibrary.MediaItem{ID: "ep2", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Finale", IndexNumber: new(2), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e2.mkv", "two")}}
+	s1 := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: new(1)}
+	s2 := &domainlibrary.MediaItem{ID: "s2", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 2", IndexNumber: new(2)}
+	series := &domainlibrary.MediaItem{ID: "sr1", LibraryID: "lib1", Type: domainlibrary.Series, Title: "My Show"}
+	children := map[string][]*domainlibrary.MediaItem{"sr1": {s1, s2}, "s1": {ep1}, "s2": {ep2}}
+
+	for _, tc := range []struct {
+		item *domainlibrary.MediaItem
+		want []string
+	}{
+		{series, []string{"Season 01/E01 - Pilot.mkv", "Season 02/E02 - Finale.mkv"}},
+		{s2, []string{"E02 - Finale.mkv"}},
+	} {
+		repo := sharedfakes.NewFakeShareLinkRepo()
+		repo.Seed(&shared.ShareLink{ID: "l1", Token: "tok", MediaItemID: tc.item.ID, ExpiresAt: time.Now().Add(time.Hour)})
+		h := shareDownloadHandler(appmedia.NewShareService(repo), &fakeMediaItemGetter{item: tc.item, children: children}, "http://x")
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/share/tok/download", nil)
+		req.SetPathValue("token", "tok")
+		rec := httptest.NewRecorder()
+		h(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: code = %d, want 200 (%s)", tc.item.Title, rec.Code, rec.Body.String())
+		}
+		if got := zipEntryNames(t, rec.Body.Bytes()); !reflect.DeepEqual(got, tc.want) {
+			t.Errorf("%s: zip entries = %v, want %v", tc.item.Title, got, tc.want)
+		}
 	}
 }
