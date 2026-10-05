@@ -73,6 +73,10 @@ class EveyOfflineAudioModule : Module() {
 
     Function("resetPlaybackDecoderStats") { Ac3goPlaybackStats.reset() }
 
+    Function("setNotificationTitle") { title: String ->
+      if (title.isNotBlank()) OfflineAudioService.title = title
+    }
+
     AsyncFunction("optimize") { inPath: String, outPath: String, label: String, promise: Promise ->
       if (!running.compareAndSet(false, true)) {
         promise.reject(CodedException("busy", "an optimization pass is already running", null))

@@ -32,3 +32,10 @@ reduced:
   errorJoin: भागों को एक फ़ाइल में नहीं जोड़ा जा सका
   errorUnsupportedDevice: यह डिवाइस घटी हुई गुणवत्ता का डाउनलोड नहीं जोड़ सकता
   errorGeneric: घटी हुई गुणवत्ता का डाउनलोड विफल रहा
+notification:
+  title: "डाउनलोड"
+  starting: "डाउनलोड शुरू हो रहा है..."
+  progress: "डाउनलोड हो रहा है... {{percent}}%"
+  paused: "रुका हुआ"
+  finished: "डाउनलोड पूरा हुआ"
+  audioTitle: "ऑडियो अनुकूलित हो रहा है"

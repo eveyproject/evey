@@ -84,6 +84,8 @@ interface NativeModuleShape {
   deleteSlices(dir: string, count: number): void;
   cancel(): void;
   isRunning(): boolean;
+  /** Absent on a native build older than the translated notification title. */
+  setNotificationTitle?(title: string): void;
   addListener(event: "progress", listener: (p: OptimizeProgress) => void): { remove(): void };
 }
 
@@ -137,11 +139,14 @@ export async function optimizeAudio(
   onProgress?: (p: OptimizeProgress) => void,
   /** Shown in the pass's foreground-service notification (the media title). */
   label?: string,
+  /** That notification's title, in the app's language. */
+  notificationTitle?: string,
 ): Promise<OptimizeSummary> {
   const native = await nativeModule();
   if (!native) {
     throw new OptimizeError("unavailable", "offline audio pass not available in this build");
   }
+  if (notificationTitle) native.setNotificationTitle?.(notificationTitle);
   const sub = onProgress ? native.addListener("progress", onProgress) : null;
   try {
     return await native.optimize(inPath, outPath, label ?? "");
@@ -187,11 +192,14 @@ export async function joinDownloadSlices(
   onProgress?: (p: OptimizeProgress) => void,
   /** Shown in the foreground-service notification (the media title). */
   label?: string,
+  /** That notification's title, in the app's language. */
+  notificationTitle?: string,
 ): Promise<void> {
   const native = await nativeModule();
   if (!native) {
     throw new OptimizeError("unavailable", "slice join not available in this build");
   }
+  if (notificationTitle) native.setNotificationTitle?.(notificationTitle);
   const sub = onProgress ? native.addListener("progress", onProgress) : null;
   try {
     await native.joinSlices(dir, count, outPath, durationMs, label ?? "");

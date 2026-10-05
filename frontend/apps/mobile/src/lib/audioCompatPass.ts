@@ -27,6 +27,7 @@ import {
   type OptimizeProgress,
 } from "@evey/offline-audio";
 import { getDeviceAudioCodecs } from "./deviceCodecs";
+import { audioPassNotificationTitle } from "./downloadNotificationTexts";
 import {
   getDownloadedMedia,
   needsAudioCompatPass,
@@ -157,6 +158,7 @@ async function runPassNow(mediaItemId: string): Promise<AudioPassResult> {
         setPassState(mediaItemId, { stage: p.stage, permille: combinedPermille(p) });
       },
       entry.title,
+      audioPassNotificationTitle(),
     );
 
     // Swap: the original disappears for the instant between the two calls -

@@ -20,6 +20,7 @@ import { eveyFetch } from "@evey/api";
 import { moveMediaFile } from "@evey/media-caps";
 import { joinDownloadSlices, deleteJoinedSlices, sliceFileName, OptimizeError } from "@evey/offline-audio";
 import { getServerUrl } from "./server-config";
+import { audioPassNotificationTitle } from "./downloadNotificationTexts";
 import { claimReducedJob, releaseReducedJob, type ReducedJob } from "./reducedDownloadState";
 import {
   clearDownloadInFlight,
@@ -148,7 +149,7 @@ export async function startReducedDownload(
     const joined = `${dir}/joined.mkv`;
     await joinDownloadSlices(dir, job.slices, joined, durationMs, (p) => {
       if (p.stage === "join") notifyDownloadProgress(mediaItemId, 0.9 + (p.permille / 1000) * 0.1);
-    }, title);
+    }, title, audioPassNotificationTitle());
 
     // Publish where the user (and VLC) can reach it, then let the staging dir
     // go. The move is the last irreversible step on purpose.

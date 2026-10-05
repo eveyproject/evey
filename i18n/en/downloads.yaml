@@ -32,3 +32,10 @@ reduced:
   errorJoin: The parts could not be assembled into one file
   errorUnsupportedDevice: This device cannot assemble a reduced-quality download
   errorGeneric: The reduced-quality download failed
+notification:
+  title: "Download"
+  starting: "Starting download..."
+  progress: "Downloading... {{percent}}%"
+  paused: "Paused"
+  finished: "Download complete"
+  audioTitle: "Optimizing audio"

@@ -32,3 +32,10 @@ reduced:
   errorJoin: Die Teile konnten nicht zu einer Datei zusammengesetzt werden
   errorUnsupportedDevice: Dieses Gerät kann keinen Download in reduzierter Qualität zusammensetzen
   errorGeneric: Der Download in reduzierter Qualität ist fehlgeschlagen
+notification:
+  title: "Download"
+  starting: "Download wird gestartet..."
+  progress: "Wird heruntergeladen... {{percent}}%"
+  paused: "Pausiert"
+  finished: "Download abgeschlossen"
+  audioTitle: "Ton wird optimiert"
