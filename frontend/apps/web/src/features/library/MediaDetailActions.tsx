@@ -231,11 +231,10 @@ export function MediaDetailActions({
             size="lg"
           />
         )}
-        {item.id && item.filePath && isAdmin && <ShareLinkButton mediaId={item.id} />}
-        {/* Segment editor. Unlike the share link just above, this is NOT
-            restricted to playable items: the mobile client gates it on
-            isAdmin && id alone, and a series/season page is a legitimate way
-            in. Keep the two conditions in sync with apps/mobile. */}
+        {/* A season or series link serves a ZIP. Same condition in apps/mobile. */}
+        {item.id && (item.filePath || isSeason || isSeries) && isAdmin && <ShareLinkButton mediaId={item.id} />}
+        {/* Segment editor: gated on isAdmin && id alone, like the mobile
+            client. Keep the two conditions in sync with apps/mobile. */}
         {item.id && isAdmin && (
           <Button
             variant="secondary"

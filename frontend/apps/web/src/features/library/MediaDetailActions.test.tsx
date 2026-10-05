@@ -357,4 +357,29 @@ describe("MediaDetailActions", () => {
       expect(screen.getByTestId("edit-segments-button")).toBeInTheDocument();
     });
   });
+
+  // The public link serves a season or a series as a ZIP: an admin shares a
+  // whole show, not only one file.
+  describe("share link", () => {
+    const series = { ...baseItem, type: "MEDIA_ITEM_TYPE_SERIES" as const, filePath: undefined };
+    const season = { ...baseItem, type: "MEDIA_ITEM_TYPE_SEASON" as const, filePath: undefined };
+
+    it("is offered to an admin on a series, a season and a file", () => {
+      mockIsAdmin = true;
+      const { unmount } = render(<MediaDetailActions {...defaultProps} item={series} isSeries />, { wrapper: Wrapper });
+      expect(screen.getByTestId("share-link-btn")).toBeInTheDocument();
+      unmount();
+      const second = render(<MediaDetailActions {...defaultProps} item={season} isSeason />, { wrapper: Wrapper });
+      expect(screen.getByTestId("share-link-btn")).toBeInTheDocument();
+      second.unmount();
+      render(<MediaDetailActions {...defaultProps} />, { wrapper: Wrapper });
+      expect(screen.getByTestId("share-link-btn")).toBeInTheDocument();
+    });
+
+    it("is never offered to a non-admin", () => {
+      mockIsAdmin = false;
+      render(<MediaDetailActions {...defaultProps} item={series} isSeries />, { wrapper: Wrapper });
+      expect(screen.queryByTestId("share-link-btn")).not.toBeInTheDocument();
+    });
+  });
 });
