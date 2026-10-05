@@ -8,8 +8,9 @@ import { cueForTime, useTrickplayCues as useSharedTrickplayCues, type TrickplayC
 
 export type { TrickplayCue };
 
-// Only films and episodes carry trickplay sprites.
-const TRICKPLAY_TYPES = new Set(["MEDIA_ITEM_TYPE_MOVIE", "MEDIA_ITEM_TYPE_EPISODE"]);
+// Only films and episodes carry trickplay sprites. The admin sessions API
+// spells them "movie" / "episode", the catalog the enum way.
+const TRICKPLAY_TYPES = new Set(["MEDIA_ITEM_TYPE_MOVIE", "MEDIA_ITEM_TYPE_EPISODE", "movie", "episode"]);
 
 export function useTrickplayCues(mediaId: string | undefined, mediaType?: string): TrickplayCue[] {
   return useSharedTrickplayCues(mediaId, !mediaType || TRICKPLAY_TYPES.has(mediaType));

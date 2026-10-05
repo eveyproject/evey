@@ -57,7 +57,9 @@ function TrickplayTile({ cue, fullWidth }: { cue: TrickplayCue; fullWidth?: bool
 // dashboard doesn't spawn an ffmpeg per thumbnail when a sprite already exists.
 export function AdminTrickplayThumbnail({ mediaId, positionMs, mediaType, fullWidth }: Props) {
   const token = useAuthStore((s) => s.accessToken);
-  const [error, setError] = useState(false);
+  // The URL that failed, not a flag: a flag hid the frame for good after one
+  // snapshot overran its budget, until a page reload.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const cues = useTrickplayCues(mediaId, mediaType);
 
   if (!mediaId) return null;
@@ -67,7 +69,6 @@ export function AdminTrickplayThumbnail({ mediaId, positionMs, mediaType, fullWi
   if (tile) return <TrickplayTile cue={tile} fullWidth={fullWidth} />;
 
   // Fallback: on-demand snapshot (only reached when there is no trickplay).
-  if (error) return null;
   const tokenParam = token ? `&token=${encodeURIComponent(token)}` : "";
   // Quantised, because this URL is a WORK ORDER, not a lookup: the snapshot
   // endpoint is an mkvgo keyframe seek plus a full ffmpeg decode. positionMs
@@ -80,6 +81,7 @@ export function AdminTrickplayThumbnail({ mediaId, positionMs, mediaType, fullWi
   const SNAPSHOT_QUANTUM_MS = 15_000;
   const snapshotAt = Math.floor(positionMs / SNAPSHOT_QUANTUM_MS) * SNAPSHOT_QUANTUM_MS;
   const src = `/api/v1/media/${mediaId}/snapshot?position_ms=${snapshotAt}${tokenParam}`;
+  if (failedSrc === src) return null;
 
   if (fullWidth) {
     return (
@@ -89,7 +91,7 @@ export function AdminTrickplayThumbnail({ mediaId, positionMs, mediaType, fullWi
         role="presentation"
         className="w-full object-cover"
         style={{ aspectRatio: "16/9", backgroundColor: "var(--surface-raised)" }}
-        onError={() => setError(true)}
+        onError={() => setFailedSrc(src)}
       />
     );
   }
@@ -101,7 +103,7 @@ export function AdminTrickplayThumbnail({ mediaId, positionMs, mediaType, fullWi
       role="presentation"
       className="rounded-[var(--radius)] shrink-0 object-cover"
       style={{ width: 160, aspectRatio: "16/9", backgroundColor: "var(--surface-raised)" }}
-      onError={() => setError(true)}
+      onError={() => setFailedSrc(src)}
     />
   );
 }
