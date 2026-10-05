@@ -40,6 +40,15 @@ describe("trickplay cues", () => {
     expect(eveyFetchRaw).toHaveBeenCalledTimes(1);
   });
 
+  // The admin sessions API spells the type "movie" / "episode": the dashboard
+  // never asked for the sprite and fell back to an ffmpeg snapshot every 15 s
+  // per card (prod 2026-10-05).
+  it("fetches for the short type names the sessions API sends", async () => {
+    const { result } = renderHook(() => useTrickplayCues("m-short", "movie"));
+    await waitFor(() => expect(result.current).toHaveLength(3));
+    expect(eveyFetchRaw).toHaveBeenCalledTimes(1);
+  });
+
   it("fetches nothing for a type that has no trickplay, or without a media id", () => {
     renderHook(() => useTrickplayCues("s1", "MEDIA_ITEM_TYPE_SERIES"));
     renderHook(() => useTrickplayCues(undefined));

@@ -41,6 +41,18 @@ describe("AdminTrickplayThumbnail", () => {
     expect(container.querySelector("img")).toBeNull();
   });
 
+  // One snapshot killed by its 10 s budget hid the frame until a page reload
+  // (prod 2026-10-05): the next quantum asks again.
+  it("asks again for the next quantum after a failed snapshot", () => {
+    const { container, rerender } = render(<AdminTrickplayThumbnail mediaId="m1" positionMs={690_000} mediaType="movie" />);
+    fireEvent.error(container.querySelector("img")!);
+    expect(container.querySelector("img")).toBeNull();
+    rerender(<AdminTrickplayThumbnail mediaId="m1" positionMs={700_000} mediaType="movie" />);
+    expect(container.querySelector("img")).toBeNull();
+    rerender(<AdminTrickplayThumbnail mediaId="m1" positionMs={705_000} mediaType="movie" />);
+    expect(container.querySelector("img")!.getAttribute("src")).toContain("position_ms=705000");
+  });
+
   it("renders nothing for a type that has no frames, or without a media", () => {
     expect(render(<AdminTrickplayThumbnail mediaId="m1" positionMs={0} mediaType="MEDIA_ITEM_TYPE_TRACK" />).container.innerHTML).toBe("");
     expect(render(<AdminTrickplayThumbnail mediaId="" positionMs={0} />).container.innerHTML).toBe("");
