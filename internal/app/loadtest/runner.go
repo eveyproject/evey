@@ -59,6 +59,9 @@ type Runner struct {
 	// reapSessions, when wired, asks the server to kill the run's OWN leftover
 	// streaming sessions (by media ID). See WithSessionReaper.
 	reapSessions func(mediaIDs []string)
+	// holdPlayback raises the server's "someone is watching" signal for the
+	// whole run and returns its release (see WithPlaybackSignal).
+	holdPlayback func() (release func())
 
 	// servedBytes is the running total of bytes every viewer has pulled this
 	// run - which is exactly what the server had to push. It is the honest
@@ -139,6 +142,17 @@ func New(httpClient *http.Client, media MediaLister, activeStreams func() int, l
 // Chainable; nil (the default) disables reaping.
 func (r *Runner) WithSessionReaper(reap func(mediaIDs []string)) *Runner {
 	r.reapSessions = reap
+	return r
+}
+
+// WithPlaybackSignal makes a run count as playback from the moment it starts,
+// exactly as a first real viewer does: background workers (analysis, trickplay,
+// backfills) yield for the whole run. The simulated viewers raise that signal
+// themselves, but only once they exist - the storage probe and the cache
+// eviction that precede them ran with every background job still competing for
+// the disk being measured.
+func (r *Runner) WithPlaybackSignal(hold func() (release func())) *Runner {
+	r.holdPlayback = hold
 	return r
 }
 
