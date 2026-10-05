@@ -116,8 +116,8 @@ func siteOf(s *pprofprofile.Sample) (siteKey, bool) {
 			if via == "" && !runtimeFrame(k.fn) {
 				via = k.fn
 			}
-			if strings.HasPrefix(k.fn, moduleMarker) {
-				k.fn = strings.TrimPrefix(k.fn, moduleMarker)
+			if fn, ours := strings.CutPrefix(k.fn, moduleMarker); ours {
+				k.fn = fn
 				k.file = trimToModule(k.file)
 				k.via = strings.TrimPrefix(via, moduleMarker)
 				return k, true
