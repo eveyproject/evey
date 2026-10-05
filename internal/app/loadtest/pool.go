@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"math/rand/v2"
 	"sort"
 	"time"
 )
@@ -64,9 +65,10 @@ type candidatePool struct {
 // newCandidatePool lays out every assignment the run may hand out, breadth
 // first: every title once at the start, THEN every (long enough) title again
 // half-way in, and so on. Titles are spread before they are stacked, so a run
-// only ever reuses a file once it has exhausted the library.
+// only ever reuses a file once it has exhausted the library. The order of the
+// titles is the caller's: the run shuffles them (see shuffleCandidates), the
+// way an audience picks films, rather than arranging them by disk.
 func newCandidatePool(candidates []MediaCandidate, runDuration time.Duration) *candidatePool {
-	candidates = spreadAcrossDisks(candidates)
 	p := &candidatePool{candidates: candidates}
 	for round := range startPositions {
 		for _, m := range candidates {
@@ -142,64 +144,6 @@ func usableFraction(durationSec int, runDuration time.Duration) float64 {
 	return usable
 }
 
-// spreadAcrossDisks interleaves the candidates so consecutive viewers land on
-// DIFFERENT drives.
-//
-// A library spread over several disks is not one big disk: each drive saturates
-// on its own. Handing out titles in the order the database returned them tends
-// to pile the whole audience onto whichever drive happens to come first - the
-// run then measures that one drive and reports it as the machine's ceiling,
-// while the others sit idle. Round-robin puts viewer 1 on disk A, viewer 2 on
-// disk B, and so on, which is both the fair way to load the array and the shape
-// a real audience produces (people pick films at random, and films are spread).
-//
-// Files whose disk cannot be determined keep their original order at the end:
-// they are still perfectly good candidates, they just can't be balanced.
-func spreadAcrossDisks(candidates []MediaCandidate) []MediaCandidate {
-	byDisk := make(map[uint64][]MediaCandidate)
-	var order []uint64
-	var unknown []MediaCandidate
-
-	for _, c := range candidates {
-		dev, ok := diskOf(c.Path)
-		if !ok {
-			unknown = append(unknown, c)
-			continue
-		}
-		if _, seen := byDisk[dev]; !seen {
-			order = append(order, dev)
-		}
-		byDisk[dev] = append(byDisk[dev], c)
-	}
-	if len(order) <= 1 {
-		return candidates // one disk (or none identifiable): nothing to balance
-	}
-
-	groups := make([][]MediaCandidate, 0, len(order))
-	for _, dev := range order {
-		groups = append(groups, byDisk[dev])
-	}
-	return append(interleaveByDisk(groups), unknown...)
-}
-
-// interleaveByDisk takes one list per drive and deals them out round-robin, so
-// consecutive viewers land on different drives.
-func interleaveByDisk(groups [][]MediaCandidate) []MediaCandidate {
-	total := 0
-	for _, g := range groups {
-		total += len(g)
-	}
-	out := make([]MediaCandidate, 0, total)
-	for round := 0; len(out) < total; round++ {
-		for _, g := range groups {
-			if round < len(g) {
-				out = append(out, g[round])
-			}
-		}
-	}
-	return out
-}
-
 // recordServed tallies one handout against its source class.
 func (p *candidatePool) recordServed(m MediaCandidate) {
 	if p.served == nil {
@@ -236,4 +180,14 @@ func (p *candidatePool) sourceMix() []SourceMixEntry {
 		return out[i].Height < out[j].Height
 	})
 	return out
+}
+
+// shuffleCandidates puts the titles in a random order, in place, and returns
+// them. A real audience picks films at random, so each disk of a library ends
+// up carrying its share of the titles - no need to know what the storage is
+// made of. The seed is logged with the run so a draw can be replayed.
+func shuffleCandidates(candidates []MediaCandidate, seed uint64) []MediaCandidate {
+	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15))
+	rng.Shuffle(len(candidates), func(i, j int) { candidates[i], candidates[j] = candidates[j], candidates[i] })
+	return candidates
 }

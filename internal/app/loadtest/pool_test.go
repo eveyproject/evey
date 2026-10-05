@@ -22,26 +22,44 @@ func TestPool_AnIneligibleTitleIsNeverOfferedAgain(t *testing.T) {
 	}
 }
 
-// A library spread over several disks must be handed out ROUND-ROBIN: viewer 1
-// on disk A, viewer 2 on disk B. Serving them in database order piles the whole
-// audience onto whichever drive comes first - the run then measures that single
-// drive and reports it as the machine's ceiling, while the rest of the array
-// sits idle.
-func TestPool_SpreadsViewersAcrossDisks(t *testing.T) {
-	// Two files on /tmp (one disk) is all a unit test can stage; the ordering
-	// logic itself is what matters, so drive it directly.
-	a := []MediaCandidate{{ID: "a1"}, {ID: "a2"}, {ID: "a3"}}
-	b := []MediaCandidate{{ID: "b1"}, {ID: "b2"}}
-	got := interleaveByDisk([][]MediaCandidate{a, b})
+// The run draws its titles the way an audience does: at random. The shuffle
+// keeps every title exactly once, moves them (a pool handed out in library
+// order loads whatever the listing happens to start with), and is reproducible
+// from its seed so a run can be replayed.
+func TestShuffleCandidates_IsAPermutationReproducibleFromItsSeed(t *testing.T) {
+	in := manyCandidates(50)
+	a := shuffleCandidates(append([]MediaCandidate(nil), in...), 42)
+	b := shuffleCandidates(append([]MediaCandidate(nil), in...), 42)
+	c := shuffleCandidates(append([]MediaCandidate(nil), in...), 43)
 
-	want := []string{"a1", "b1", "a2", "b2", "a3"}
-	if len(got) != len(want) {
-		t.Fatalf("got %d candidates, want %d", len(got), len(want))
+	seen := map[string]int{}
+	for _, m := range a {
+		seen[m.ID]++
 	}
-	for i, id := range want {
-		if got[i].ID != id {
-			t.Fatalf("position %d = %s, want %s (full: %v)", i, got[i].ID, id, ids(got))
+	if len(seen) != len(in) {
+		t.Fatalf("shuffle kept %d distinct titles of %d", len(seen), len(in))
+	}
+	for id, n := range seen {
+		if n != 1 {
+			t.Fatalf("title %s appears %d times after the shuffle", id, n)
 		}
+	}
+	same := func(x, y []MediaCandidate) bool {
+		for i := range x {
+			if x[i].ID != y[i].ID {
+				return false
+			}
+		}
+		return true
+	}
+	if !same(a, b) {
+		t.Fatalf("the same seed gave two orders: %v vs %v", ids(a)[:6], ids(b)[:6])
+	}
+	if same(a, c) {
+		t.Fatal("two seeds gave the same order")
+	}
+	if same(a, in) {
+		t.Fatal("the shuffle left 50 titles in library order")
 	}
 }
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -362,7 +363,12 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 			// runner wants a deep pool - it reuses a title at a fresh start
 			// position rather than ever stopping on "no more titles", so a
 			// generous list is what keeps the LIBRARY from being the verdict.
-			items, err := libQuerySvc.ListMediaItems(ctx, library.ListMediaItemsFilter{Limit: limit * 3})
+			//
+			// A RANDOM slice of the library, not its first rows: the default
+			// listing is in title order, and a pool made of whatever sorts first
+			// loads the disks those titles happen to sit on instead of the
+			// library as an audience would.
+			items, err := randomLibrarySlice(ctx, libQuerySvc.ListMediaItems, limit*3, randomItemID())
 			if err != nil {
 				return nil, err
 			}
@@ -526,4 +532,46 @@ func loadTestSourceClass(streams []*library.MediaStream) (string, int) {
 		return st.Codec, h
 	}
 	return "", 0
+}
+
+// randomItemID is a random point in the id space (media ids are random UUIDs).
+func randomItemID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "" // falls back to a walk from the first id
+	}
+	b[6] = b[6]&0x0f | 0x40
+	b[8] = b[8]&0x3f | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+// randomLibrarySlice returns up to want items starting just after a random id
+// and wrapping round to the lowest ids when the end of the table comes first.
+// Ids are random, so a run of consecutive ids is a random sample of the
+// library - by title, by age and by disk - for the price of one indexed query,
+// two at the wrap.
+func randomLibrarySlice(ctx context.Context, list func(context.Context, library.ListMediaItemsFilter) ([]*library.MediaItem, error), want int, start string) ([]*library.MediaItem, error) {
+	items, err := list(ctx, library.ListMediaItemsFilter{AfterID: start, KeysetByID: true, Limit: want})
+	if err != nil {
+		return nil, err
+	}
+	if len(items) >= want {
+		return items, nil
+	}
+	head, err := list(ctx, library.ListMediaItemsFilter{KeysetByID: true, Limit: want - len(items)})
+	if err != nil {
+		return items, nil //nolint:nilerr // the tail alone is still a usable pool
+	}
+	seen := make(map[shared.MediaItemID]bool, len(items))
+	for _, it := range items {
+		if it != nil {
+			seen[it.ID] = true
+		}
+	}
+	for _, it := range head {
+		if it != nil && !seen[it.ID] {
+			items = append(items, it)
+		}
+	}
+	return items, nil
 }
