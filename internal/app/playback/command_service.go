@@ -71,6 +71,10 @@ type CommandService struct {
 	// orphanCastCommands reaches a Chromecast that is still beating but whose
 	// session has ended - see cast_orphan_commands.go.
 	orphanCastCommands *castOrphanCommands
+	// startedAt splits ended sessions: one ended before it was closed by the
+	// previous process's shutdown, and a tick from its still-playing client
+	// reopens it (see ReportProgressBySession).
+	startedAt time.Time
 }
 
 type CommandServiceOption func(*CommandService)
@@ -124,6 +128,7 @@ func NewCommandService(
 		// Always built, never optional: a nil store would make the control
 		// silently do nothing, which is the failure it exists to end.
 		orphanCastCommands: newCastOrphanCommands(),
+		startedAt:          time.Now(),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -347,8 +352,21 @@ func (s *CommandService) ReportProgressBySession(ctx context.Context, sessionID 
 	// StopStream must not resurrect the stopped session (a full read-modify-
 	// write would rewrite ended_at back to NULL from this stale snapshot). A
 	// no-op here (session already ended) still records watch-progress below.
-	if _, err := s.sessions.UpdateProgress(ctx, sessionID, safePositionMs, isPaused, castDeviceName); err != nil {
+	updated, err := s.sessions.UpdateProgress(ctx, sessionID, safePositionMs, isPaused, castDeviceName)
+	if err != nil {
 		return fmt.Errorf("update session position: %w", err)
+	}
+	// A restart ends every open session, but a web player keeps streaming and
+	// ticking on the same id without ever starting a new one: it vanished from
+	// now-playing for the rest of the film (prod 2026-10-05).
+	if !updated {
+		reopened, err := s.sessions.ReopenEndedBefore(ctx, sessionID, s.startedAt, safePositionMs, isPaused, castDeviceName)
+		if err != nil {
+			return fmt.Errorf("reopen session: %w", err)
+		}
+		if reopened {
+			slog.InfoContext(ctx, "reopened play session ended by a restart", slog.String("sessionID", sessionID))
+		}
 	}
 	// Auto-completion: when a duration source is wired and the position
 	// crosses 90% of the media duration, flip Completed=true. The repo's
@@ -823,8 +841,8 @@ func (s *CommandService) SetCastReceiverCommand(ctx context.Context, profileID, 
 // reads as somebody watching. The stale sweep does eventually clear them, but
 // only 2 minutes after their last heartbeat - so a restart handed the operator
 // a now-playing list full of viewers who had been disconnected by the restart
-// itself. Clients re-negotiate a fresh session on their next request; there is
-// nothing here worth carrying across the exit.
+// itself. A client that keeps playing across the restart gets its session
+// back on its next progress tick (ReopenEndedBefore).
 func (s *CommandService) EndAllSessions(ctx context.Context) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.playback.EndAllSessions")
 	defer span.End()
