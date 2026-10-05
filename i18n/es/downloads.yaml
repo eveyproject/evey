@@ -32,3 +32,10 @@ reduced:
   errorJoin: No se pudieron unir las partes en un solo archivo
   errorUnsupportedDevice: Este dispositivo no puede montar una descarga de calidad reducida
   errorGeneric: La descarga de calidad reducida ha fallado
+notification:
+  title: "Descarga"
+  starting: "Iniciando la descarga..."
+  progress: "Descargando... {{percent}}%"
+  paused: "En pausa"
+  finished: "Descarga completada"
+  audioTitle: "Optimizando el audio"

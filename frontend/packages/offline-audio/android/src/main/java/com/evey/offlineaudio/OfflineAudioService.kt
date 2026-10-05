@@ -39,6 +39,11 @@ class OfflineAudioService : Service() {
     private const val CHANNEL_ID = "evey-offline-audio"
     private const val EXTRA_LABEL = "label"
 
+    // The app's language is the user's pick, not the system's, so JS sends
+    // the translated title (setNotificationTitle); English until it does.
+    @Volatile var title: String = "Optimizing audio"
+    @Volatile private var channelTitle: String? = null
+
     fun start(context: Context, label: String) {
       val intent = Intent(context, OfflineAudioService::class.java).putExtra(EXTRA_LABEL, label)
       // On Android 12+ this throws if the app is in a background state that
@@ -65,7 +70,7 @@ class OfflineAudioService : Service() {
         Notification.Builder(context)
       }
       return builder
-        .setContentTitle("Optimisation du son")
+        .setContentTitle(title)
         .setContentText(label)
         .setSmallIcon(android.R.drawable.stat_sys_download)
         .setOngoing(true)
@@ -77,9 +82,12 @@ class OfflineAudioService : Service() {
     private fun ensureChannel(context: Context) {
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
       val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-      if (manager.getNotificationChannel(CHANNEL_ID) != null) return
+      // Re-created when the title changes: that is how an existing channel is
+      // renamed after a language switch, and Android keeps the user's settings.
+      if (channelTitle == title) return
+      channelTitle = title
       manager.createNotificationChannel(
-        NotificationChannel(CHANNEL_ID, "Optimisation du son", NotificationManager.IMPORTANCE_LOW),
+        NotificationChannel(CHANNEL_ID, title, NotificationManager.IMPORTANCE_LOW),
       )
     }
   }

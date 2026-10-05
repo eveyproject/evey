@@ -23,6 +23,7 @@ import { getServerUrl } from "./server-config";
 import { getDeviceAudioCodecs } from "./deviceCodecs";
 import { canPlayOffline, OfflineAccessError, type OfflineProfileInfo } from "./offlineAccess";
 import { ensureNotificationPermission } from "./notificationPermission";
+import { downloadNotificationTexts } from "./downloadNotificationTexts";
 import { artworkUrl } from "./artwork";
 
 // Persistent download index: same path as before so existing offline files
@@ -757,15 +758,19 @@ async function prepareCompatDownload(mediaItemId: string, deviceAudio: string[])
   }
 }
 
-// Native-side logging of the download engine, on once per process. Field
-// diagnosis of a stalled download is impossible without it: the library is
-// silent by default and a device stuck at 0 bytes leaves no trace in logcat.
-let downloaderLogsEnabled = false;
-function enableDownloaderLogs() {
-  if (downloaderLogsEnabled) return;
-  downloaderLogsEnabled = true;
+// Native-side logging of the download engine: field diagnosis of a stalled
+// download is impossible without it, the library is silent by default and a
+// device stuck at 0 bytes leaves no trace in logcat. And its notification: by
+// default the library posts an EMPTY one (no title, no text, no progress),
+// which is what a download looked like from the shade on Android 14+. Set on
+// every start so a language switch reaches the next download.
+function configureDownloader() {
   try {
-    setConfig({ isLogsEnabled: true });
+    setConfig({
+      isLogsEnabled: true,
+      showNotificationsEnabled: true,
+      notificationsGrouping: { enabled: false, texts: downloadNotificationTexts() },
+    });
   } catch (err) {
     console.warn("downloader setConfig", err);
   }
@@ -777,7 +782,7 @@ export async function startDownload(
   onProgress?: (progress: number, bytes?: ProgressBytes) => void,
   opts?: StartDownloadOptions,
 ): Promise<string> {
-  enableDownloaderLogs();
+  configureDownloader();
   assertMediaId(mediaItemId);
   // The progress rides the foreground service's notification, which Android
   // 13+ suppresses until POST_NOTIFICATIONS is granted - and only the cast
@@ -1006,7 +1011,7 @@ export async function startDownload(
 // UI can track them again. Without this, an in-progress download finishes
 // silently and the index never gets updated.
 export async function rehydrateBackgroundDownloads(): Promise<void> {
-  enableDownloaderLogs();
+  configureDownloader();
   let tasks: Awaited<ReturnType<typeof getExistingDownloadTasks>>;
   try {
     tasks = await getExistingDownloadTasks();

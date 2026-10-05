@@ -32,3 +32,10 @@ reduced:
   errorJoin: Les parties n'ont pas pu être assemblées en un seul fichier
   errorUnsupportedDevice: Cet appareil ne peut pas assembler un téléchargement en qualité réduite
   errorGeneric: Le téléchargement en qualité réduite a échoué
+notification:
+  title: "Téléchargement"
+  starting: "Démarrage du téléchargement..."
+  progress: "Téléchargement... {{percent}}%"
+  paused: "En pause"
+  finished: "Téléchargement terminé"
+  audioTitle: "Optimisation du son"

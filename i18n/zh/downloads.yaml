@@ -32,3 +32,10 @@ reduced:
   errorJoin: 无法将各部分拼接成一个文件
   errorUnsupportedDevice: 此设备无法拼接降低画质的下载
   errorGeneric: 降低画质的下载失败
+notification:
+  title: "下载"
+  starting: "正在开始下载..."
+  progress: "下载中... {{percent}}%"
+  paused: "已暂停"
+  finished: "下载完成"
+  audioTitle: "正在优化音频"
