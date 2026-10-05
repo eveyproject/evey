@@ -270,7 +270,10 @@ func (s *Session) decodeNext() error {
 		// 5.1 core was already decoded and downmixed when this one shows up;
 		// skipping it trades the 7.1 merge for a pipeline with no buffering,
 		// which a stereo target can afford.
-		if hdr.Sync.Strmtyp == ac3.StrmtypDependent {
+		// A second independent programme (substream id above 0) is skipped the
+		// same way. The decoder refuses it anyway, but as a failure: a healthy
+		// two-programme stream then reported half its frames as damaged.
+		if !hdr.Sync.AdvancesTime() {
 			continue
 		}
 		if err := s.dec.DecodeFrame(frame); err != nil {

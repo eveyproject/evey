@@ -420,3 +420,85 @@ func TestCloseRemovesIntermediate(t *testing.T) {
 		t.Fatalf("intermediate MKA still there after Close (stat err: %v)", err)
 	}
 }
+
+// A stream carrying a SECOND independent programme (substream id 1) next to
+// the first comes out as the first programme alone, and with no frame counted
+// as damaged: the decoder refuses the second programme, so stepping over it
+// only on a decode failure reported half of a healthy stream as skipped.
+func TestReadPCMSkipsASecondIndependentProgramme(t *testing.T) {
+	frames := ac3Frames(t, filepath.Join("testdata", "tones_48k_5p1_384k.eac3"))
+	if len(frames) == 0 {
+		t.Fatal("no frames in testdata")
+	}
+	var audio []mkv.Block
+	for i, frame := range frames {
+		// The same frame again, relabelled as programme 1: strmtyp stays
+		// independent (00), substreamid (the next 3 bits of byte 2) becomes 1.
+		other := append([]byte(nil), frame...)
+		other[2] = other[2]&0b11000111 | 1<<3
+		resealEAC3(other)
+		var hdr ac3.Header
+		if err := ac3.ParseHeader(other, &hdr); err != nil || hdr.Sync.Substreamid != 1 || hdr.Sync.Strmtyp == ac3.StrmtypDependent {
+			t.Fatalf("fixture: the relabelled frame reads as strmtyp %d id %d (err %v), want an independent programme 1", hdr.Sync.Strmtyp, hdr.Sync.Substreamid, err)
+		}
+		audio = append(audio, mkv.Block{
+			TrackNumber: 1, Timecode: int64(i) * 32, Keyframe: true,
+			Data: append(append([]byte(nil), frame...), other...),
+		})
+	}
+	// The fixture must be what it claims: both programmes reach the reader.
+	fr := ac3.NewFrameReader(bytes.NewReader(audio[0].Data))
+	for n := range 2 {
+		if _, err := fr.Next(); err != nil {
+			t.Fatalf("fixture: the reader handed out %d frame(s) of the first block, want 2 (%v)", n, err)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "two-programmes.mkv")
+	writeFixtureMKV(t, path, int64(len(frames))*32,
+		fixtureTrack{track: audioTrack(1, "eac3", "fre", true, 6, 48000), blocks: audio},
+	)
+	s, err := Open(path, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	var got []byte
+	for {
+		chunk, err := s.ReadPCM()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(chunk) == 0 {
+			break
+		}
+		got = append(got, chunk...)
+	}
+	want := directStereoDecode(t, frames)
+	if len(got) != len(want) {
+		t.Fatalf("PCM is %d bytes, want %d", len(got), len(want))
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatal("PCM differs from the first programme decoded alone")
+	}
+	if n := s.SkippedFrames(); n != 0 {
+		t.Fatalf("%d frames counted as skipped on a healthy stream, want 0: the second programme is not damage", n)
+	}
+}
+
+// resealEAC3 recomputes an E-AC-3 syncframe's trailing CRC after an edit, so
+// the frame reader keeps treating it as a sound frame rather than as damage.
+// CRC-16, polynomial 0x8005, over everything after the syncword.
+func resealEAC3(frame []byte) {
+	var crc uint16
+	for _, b := range frame[2 : len(frame)-2] {
+		crc ^= uint16(b) << 8
+		for range 8 {
+			if crc&0x8000 != 0 {
+				crc = crc<<1 ^ 0x8005
+			} else {
+				crc <<= 1
+			}
+		}
+	}
+	frame[len(frame)-2], frame[len(frame)-1] = byte(crc>>8), byte(crc)
+}
