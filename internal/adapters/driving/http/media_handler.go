@@ -1,10 +1,8 @@
 package httpapi
 
 import (
-	"archive/zip"
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -467,32 +465,46 @@ func seasonFolderName(season *library.MediaItem) string {
 func serveMediaArchive(w http.ResponseWriter, r *http.Request, title string, entries []archiveEntry, baseURL string) {
 	_, span := tracing.StartSpan(r.Context(), "http.media.ServeArchive")
 	defer span.End()
-	if len(entries) == 0 {
+	layout, skipped := newZipLayout(dedupArchiveNames(entries))
+	for _, err := range skipped {
+		slog.WarnContext(r.Context(), "download archive: entry skipped", slog.Any("err", err))
+	}
+	if len(layout.files) == 0 {
 		span.SetStatus(codes.Error, "no downloadable files")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
 	zipName := sanitizeFilename(title) + ".zip"
+	slog.InfoContext(r.Context(), "download archive served",
+		slog.String("component", "download"),
+		slog.String("filename", zipName),
+		slog.Int("files", len(layout.files)),
+		slog.Int64("bytes", layout.size),
+		slog.String("range", r.Header.Get("Range")),
+		slog.String("client_ip", ratelimit.ClientIP(r)),
+	)
 	w.Header().Set("Content-Type", "application/zip")
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": zipName}))
+	w.Header().Set("ETag", layout.etag)
 	setCORSHeaders(w, r, baseURL)
 	// A large archive can take longer than the global write timeout to stream.
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
 		slog.WarnContext(r.Context(), "set write deadline", slog.Any("err", err))
 	}
-	zw := zip.NewWriter(w)
-	defer func() {
-		if err := zw.Close(); err != nil {
-			slog.WarnContext(r.Context(), "download archive: zip close", slog.Any("err", err))
-		}
-	}()
+	zs := newZipStream(layout)
+	defer zs.Close() //nolint:errcheck // read-only file handle
+	// ServeContent answers Content-Length, Range, If-Range and HEAD from the
+	// laid-out archive, as it would for a file on disk.
+	http.ServeContent(w, r, zipName, time.Time{}, zs)
+}
+
+// dedupArchiveNames renames colliding entries "X (2).ext", "X (3).ext"...
+// The loop registers every step, so an entry whose name literally equals a
+// renamed form (e.g. "X (2).ext") still lands on an unused one.
+func dedupArchiveNames(entries []archiveEntry) []archiveEntry {
+	out := make([]archiveEntry, 0, len(entries))
 	seen := make(map[string]int)
 	for _, e := range entries {
-		// Dedup with a while-loop: the previous one-shot bumped the ORIGINAL
-		// entry's counter but never registered the renamed file in `seen`, so
-		// an entry whose name literally equalled the renamed form (e.g.
-		// "X (2).ext") still collided. Loop until we land on an unused name,
-		// registering each step so subsequent identical entries keep stepping.
 		name := e.name
 		for {
 			n, ok := seen[name]
@@ -504,24 +516,9 @@ func serveMediaArchive(w http.ResponseWriter, r *http.Request, title string, ent
 			seen[name] = n + 1
 			name = fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(name, ext), n+1, ext)
 		}
-		if err := addFileToZip(zw, e.path, name); err != nil {
-			slog.WarnContext(r.Context(), "download archive: add file", slog.String("path", e.path), slog.Any("err", err))
-		}
+		out = append(out, archiveEntry{path: e.path, name: name})
 	}
-}
-
-func addFileToZip(zw *zip.Writer, path, name string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	zfw, err := zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(zfw, f)
-	return err
+	return out
 }
 
 // buildMediaArchiveEntries flattens a heterogeneous list of media items (as

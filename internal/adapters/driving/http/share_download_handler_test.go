@@ -141,3 +141,27 @@ func TestShareDownloadHandler_SeriesAndSeasonServeZIP(t *testing.T) {
 		}
 	}
 }
+
+// A view limit is a hard limit: a resumed (ranged) request spends a view like
+// any other, so "bytes=1-" cannot re-download a link whose views are gone.
+func TestShareDownloadHandler_RangeRequestSpendsAView(t *testing.T) {
+	dir := t.TempDir()
+	ep := &domainlibrary.MediaItem{ID: "ep1", LibraryID: "lib1", Type: domainlibrary.Episode, Title: "Pilot", IndexNumber: new(1), File: &domainlibrary.MediaFile{Path: archiveTempFile(t, dir, "e1.mkv", "one")}}
+	season := &domainlibrary.MediaItem{ID: "s1", LibraryID: "lib1", Type: domainlibrary.Season, Title: "Season 1", IndexNumber: new(1)}
+	repo := sharedfakes.NewFakeShareLinkRepo()
+	repo.Seed(&shared.ShareLink{ID: "l1", Token: "tok", MediaItemID: "s1", ExpiresAt: time.Now().Add(time.Hour), MaxViews: new(1)})
+	h := shareDownloadHandler(appmedia.NewShareService(repo), &fakeMediaItemGetter{item: season, children: map[string][]*domainlibrary.MediaItem{"s1": {ep}}}, "http://x")
+
+	codes := []int{}
+	for _, rng := range []string{"bytes=10-", "bytes=0-9"} {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/share/tok/download", nil)
+		req.SetPathValue("token", "tok")
+		req.Header.Set("Range", rng)
+		rec := httptest.NewRecorder()
+		h(rec, req)
+		codes = append(codes, rec.Code)
+	}
+	if !reflect.DeepEqual(codes, []int{http.StatusPartialContent, http.StatusGone}) {
+		t.Fatalf("codes = %v, want [206 410]: the resume must not outlive the view limit", codes)
+	}
+}
