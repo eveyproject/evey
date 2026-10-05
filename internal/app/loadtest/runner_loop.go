@@ -18,6 +18,9 @@ import (
 // so none of that state needs its own lock.
 func (r *Runner) run(runCtx context.Context, cfg Config) {
 	startedAt := time.Now()
+	if r.holdPlayback != nil {
+		defer r.holdPlayback()()
+	}
 
 	// Prefer the path real viewers take - through the reverse proxy - and fall
 	// back to the loopback when it isn't reachable from in here.

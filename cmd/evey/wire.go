@@ -851,6 +851,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// The gate reuses the same live-session counter as the calibration bench:
 	// it never runs over real viewers.
 	loadTestRunner, loadTestBaseURL, loadTestPublicURL := buildLoadTestRunner(cfg, libQuerySvc, hlsVODRemover)
+	// A run counts as playback from its first second, the way a first real
+	// viewer does, so background workers yield before the storage is measured.
+	loadTestRunner.WithPlaybackSignal(func() func() { return playbackActivity.Begin("loadtest") })
 
 	if resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") != "off" {
 		kfOpts := apptranscoding.KeyframeBackfillOpts{}

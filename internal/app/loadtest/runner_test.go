@@ -2038,3 +2038,36 @@ func TestRunner_FlashReapsRefusedViewersMidWindow(t *testing.T) {
 		t.Fatalf("no mid-window reap: refused flash viewers' sessions were left grinding until the end (reaps=%v)", reaps)
 	}
 }
+
+// A run raises the playback signal before anything else happens and lowers it
+// when it ends: background workers yield for the storage probe too, not only
+// once the first simulated viewer has made a request.
+func TestRunner_HoldsThePlaybackSignalForTheWholeRun(t *testing.T) {
+	st := newServerState()
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	var held, released atomic.Int32
+	var viewersWhenRaised atomic.Int32
+	viewersWhenRaised.Store(-1)
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
+	r.WithPlaybackSignal(func() func() {
+		held.Add(1)
+		viewersWhenRaised.Store(int32(r.Status().Viewers))
+		return func() { released.Add(1) }
+	})
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
+		MaxViewers: 2, RampEvery: 50 * time.Millisecond, FastHold: 100 * time.Millisecond, MeasureHold: 200 * time.Millisecond, MaxDuration: 10 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitForReport(t, r, 10*time.Second)
+	if held.Load() != 1 || released.Load() != 1 {
+		t.Fatalf("signal raised %d time(s), released %d: want exactly once each", held.Load(), released.Load())
+	}
+	if v := viewersWhenRaised.Load(); v != 0 {
+		t.Fatalf("signal raised with %d viewers already spawned, want 0: it must precede the first viewer", v)
+	}
+}
