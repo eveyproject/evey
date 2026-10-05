@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
+  libraryServiceListMediaItems,
   useLibraryServiceGetSeriesAggregate,
   usePlaybackServiceGetWatchProgress,
   usePlaybackServiceGetWatchHistory,
@@ -47,6 +48,7 @@ import { downloadStageLabel } from "../../../src/lib/downloadStageLabel";
 import { chooseDownloadQuality } from "../../../src/lib/downloadQualityGate";
 import { startReducedDownload, reducedDownloadMessage } from "../../../src/lib/reducedDownload";
 import { confirmDownloadOnMobileData } from "../../../src/lib/mobileDataGate";
+import { seriesDownloadTargets, type EpisodeTarget } from "../../../src/lib/seriesDownloadTargets";
 import { audioCodecsOf } from "../../../src/lib/playlistDownload";
 import { formatBytes, formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams, type TrackPick } from "@evey/api";
 import { TrackPickChips } from "../../../src/components/TrackPickChips";
@@ -374,7 +376,7 @@ export default function MediaDetailScreen() {
   }, [t]);
 
   const downloadEpisodeFile = useCallback(
-    async (ep: V1MediaItem, opts?: { silent?: boolean }) => {
+    async (ep: V1MediaItem, opts?: { silent?: boolean; seasonNumber?: number }) => {
       if (!ep.id) return;
       // Read the in-flight set through a ref, not the state value: depending on
       // episodeDownloads would give this callback a new identity on every
@@ -388,7 +390,8 @@ export default function MediaDetailScreen() {
         if (!opts?.silent) confirmDeleteDownload(ep.id, ep.title ?? ep.id);
         return;
       }
-      if (!(await confirmDownloadOnMobileData(t))) return;
+      // A bulk download asked once for the whole batch.
+      if (!opts?.silent && !(await confirmDownloadOnMobileData(t))) return;
       setEpisodeDownloads((s) => ({ ...s, [ep.id!]: NaN }));
       if (!opts?.silent) toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
       try {
@@ -405,7 +408,8 @@ export default function MediaDetailScreen() {
             // season carries the number.
             display: {
               seriesTitle: media?.title,
-              seasonNumber: children.find((c) => c.id === selectedSeason)?.indexNumber,
+              seasonNumber: opts?.seasonNumber
+                ?? (isSeason ? media?.indexNumber : children.find((c) => c.id === selectedSeason)?.indexNumber),
               episodeNumber: ep.indexNumber,
             },
             // An episode rarely carries its own classification - it inherits
@@ -432,7 +436,7 @@ export default function MediaDetailScreen() {
         });
       }
     },
-    [t, activeProfile, media, confirmDeleteDownload, children, selectedSeason],
+    [t, activeProfile, media, confirmDeleteDownload, children, selectedSeason, isSeason],
   );
 
   // Stable prop for EpisodeRow. Passing an inline arrow here made the memo()
@@ -449,9 +453,7 @@ export default function MediaDetailScreen() {
   // for both a season screen and a series screen). Sequenced one at a time -
   // not a Promise.all - so a 24-episode season doesn't fire 24 concurrent
   // background downloads at once.
-  const handleDownloadAllEpisodes = useCallback(async () => {
-    if (bulkDownload) return;
-    const targets = episodes.filter((ep) => ep.id && hasMediaFile(ep));
+  const runBulkDownload = useCallback(async (targets: EpisodeTarget[]) => {
     if (targets.length === 0) return;
     // Asked once for the whole batch, not once per episode: a season is the
     // heaviest thing this app downloads, and prompting per episode would be
@@ -460,18 +462,40 @@ export default function MediaDetailScreen() {
     setBulkDownload({ done: 0, total: targets.length });
     toast.info(t("media.detail.downloadStarted"), { onPress: () => router.push("/downloads") });
     let done = 0;
-    for (const ep of targets) {
+    for (const { episode, seasonNumber } of targets) {
       try {
-        await downloadEpisodeFile(ep, { silent: true });
+        await downloadEpisodeFile(episode, { silent: true, seasonNumber });
       } catch {
-        // One failed episode must not stop the rest of the season from queuing.
+        // One failed episode must not stop the rest of the batch from queuing.
       }
       done += 1;
       setBulkDownload({ done, total: targets.length });
     }
     setBulkDownload(null);
     toast.success(t("media.detail.downloadComplete"));
-  }, [episodes, downloadEpisodeFile, bulkDownload, t]);
+  }, [downloadEpisodeFile, t]);
+
+  const handleDownloadAllEpisodes = useCallback(async () => {
+    if (bulkDownload) return;
+    await runBulkDownload(episodes.filter((ep) => ep.id && hasMediaFile(ep)).map((episode) => ({ episode })));
+  }, [episodes, runBulkDownload, bulkDownload]);
+
+  // Every season of the series, not only the one on show.
+  const handleDownloadSeries = useCallback(async () => {
+    if (bulkDownload) return;
+    setBulkDownload({ done: 0, total: 0 });
+    let targets: EpisodeTarget[];
+    try {
+      targets = await seriesDownloadTargets(seasons, async (seasonId) =>
+        (await libraryServiceListMediaItems({ parentId: seasonId, "pagination.pageSize": 500 })).items ?? []);
+    } catch (err) {
+      setBulkDownload(null);
+      toast.error(t(downloadErrorMessageKey(err)));
+      return;
+    }
+    setBulkDownload(null);
+    await runBulkDownload(targets);
+  }, [seasons, runBulkDownload, bulkDownload, t]);
 
   const people = useMemo(() => media?.people ?? [], [media?.people]);
   const actors = useMemo(
@@ -1174,7 +1198,8 @@ export default function MediaDetailScreen() {
           )}
           {/* Share link, metadata editor and segment editor: locked on the demo,
               and none of the three has a read-only view on the phone. */}
-          {!demo && isAdmin && id && !isSeries && !isSeason && hasMediaFile(media) && (
+          {/* A season or series link serves a ZIP. Same condition on the web. */}
+          {!demo && isAdmin && id && (isSeries || isSeason || hasMediaFile(media)) && (
             <Pressable
               onPress={() => createShareLink.mutate({ mediaItemId: id, data: { durationHours: 48 } })}
               disabled={createShareLink.isPending}
@@ -1339,6 +1364,7 @@ export default function MediaDetailScreen() {
               <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "600" }}>
                 {t("media.detail.episodes")}
               </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: theme.spacing.md }}>
               {episodes.some((ep) => hasMediaFile(ep)) ? (
                 <Pressable
                   onPress={() => { void handleDownloadAllEpisodes(); }}
@@ -1360,6 +1386,21 @@ export default function MediaDetailScreen() {
                   </Text>
                 </Pressable>
               ) : null}
+              {isSeries && seasons.length > 1 && bulkDownload === null ? (
+                <Pressable
+                  onPress={() => { void handleDownloadSeries(); }}
+                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+                  accessible={true}
+                  accessibilityLabel={t("media.detail.downloadSeries", "Download series")}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="albums-outline" size={16} color={theme.colors.accent} />
+                  <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>
+                    {t("media.detail.downloadSeries", "Download series")}
+                  </Text>
+                </Pressable>
+              ) : null}
+              </View>
             </View>
             {episodes.slice(0, visibleEpisodeCount).map((ep) => (
               <EpisodeRow
