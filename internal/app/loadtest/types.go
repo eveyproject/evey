@@ -175,6 +175,9 @@ type Config struct {
 	ProfileHarnessCPU bool
 	// HarnessProfileFor is how long that profile runs. Zero means the default.
 	HarnessProfileFor time.Duration
+	// Seed orders the draw of titles. Zero (the default) takes a fresh one from
+	// the clock; the run logs whichever it used, so a draw can be replayed.
+	Seed uint64
 }
 
 // TierCost is what ONE audience size cost the server: one row of the report's

@@ -58,7 +58,14 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		})
 		return
 	}
-	pool := newCandidatePool(candidates, cfg.MaxDuration)
+	// Titles are drawn at random, like an audience's choices: each disk of the
+	// library then carries its share of them, whatever the storage is made of.
+	seed := cfg.Seed
+	if seed == 0 {
+		seed = uint64(time.Now().UnixNano()) //nolint:gosec // a shuffle seed, not a secret
+	}
+	r.logger.Info("loadtest: title draw", "seed", seed, "titles", len(candidates))
+	pool := newCandidatePool(shuffleCandidates(candidates, seed), cfg.MaxDuration)
 
 	// Where the library lives decides what the storage instruments can see.
 	storageFS, storageOpaque := libraryStorage(candidates, r.mountFSType)
