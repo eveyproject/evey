@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -1230,6 +1231,16 @@ func startDemoLifecycle(ctx context.Context, cfg *config.Config, infra *infraDep
 		r.Library, deps.library.cmdSvc, infra.hasher, cfg.Server.DemoMediaDir, eveylogger.NewWith(rootLog, "demo")).
 		WithLibraryAccess(r.LibraryAccess).
 		WithMarker(r.ServerCfg).
+		WithSafetyBackup(func(ctx context.Context) (string, error) {
+			if deps.backupSvc == nil {
+				return "", errors.New("no backup service")
+			}
+			m, err := deps.backupSvc.CreateBackup(ctx)
+			if err != nil {
+				return "", err
+			}
+			return m.ID, nil
+		}).
 		WithPlugins(r.Plugin, deps.engagement.pluginInstallerSvc, deps.engagement.pluginRuntimeSvc, cfg.Server.DemoPluginDir).
 		WithHomeLayout(deps.engagement.feedCmdSvc).
 		WithHistory(r.MediaItemQuery, r.WatchProgress, deps.media.playbackSvc.CommandService()).
