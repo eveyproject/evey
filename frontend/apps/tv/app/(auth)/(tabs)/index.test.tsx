@@ -10,6 +10,7 @@ vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
+  TVFocusGuideView: ({ children }: any) => React.createElement("div", null, children),
   // The header's Customize button reaches the home through this emitter.
   DeviceEventEmitter: {
     addListener: (name: string, cb: () => void) => {

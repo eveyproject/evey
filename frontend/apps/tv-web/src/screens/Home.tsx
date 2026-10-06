@@ -93,7 +93,9 @@ function MediaRow({ rowKey, title, items, watchPercents, focusFirst, onOpen }: {
   return (
     <FocusRoot className="home-row">
       <RowTitle rowKey={rowKey} title={title} onOpen={onOpen} />
-      <div className="home-row-list media">
+      {/* Its own focus scope: down from the title lands on the card last
+          left here, or the first - not the card under the title's centre. */}
+      <FocusRoot className="home-row-list media">
         {items.map((item, i) => {
           const typeKey = !item.year ? mediaTypeLabelKey(item.type) : null;
           return (
@@ -111,7 +113,7 @@ function MediaRow({ rowKey, title, items, watchPercents, focusFirst, onOpen }: {
             />
           );
         })}
-      </div>
+      </FocusRoot>
     </FocusRoot>
   );
 }
@@ -128,7 +130,7 @@ function TileRow({ rowKey, title, tiles, focusFirst, aspect = "square", onOpen }
   return (
     <FocusRoot className="home-row">
       <RowTitle rowKey={rowKey} title={title} onOpen={onOpen} />
-      <div className="home-row-list">
+      <FocusRoot className="home-row-list">
         {tiles.map((tile, i) => (
           <PosterCard
             key={tile.key}
@@ -142,7 +144,7 @@ function TileRow({ rowKey, title, tiles, focusFirst, aspect = "square", onOpen }
             onPress={tile.onPress}
           />
         ))}
-      </div>
+      </FocusRoot>
     </FocusRoot>
   );
 }
