@@ -26,6 +26,13 @@ const TABLET = probe({
   directPlayback: { dts: true, dts_hd: true, ac3: false, eac3: false },
   directProfiles: [2, 4, 21, 22, 9, 10, 11, 12, 7, 8, 106, 107, 108].map((encoding) => ({ encoding, channelMasks: [] })),
 });
+// 2026-10-05 prod beacon of the user's a phone brand P1: speaker and earpiece only.
+const PHONE = probe({
+  deviceModel: "a phone brand P1",
+  decoders: ["aac", "mp3", "opus", "flac", "vorbis"],
+  directPlayback: { dts: true, dts_hd: true, ac3: false, eac3: false },
+  outputDeviceTypes: [1, 2, 18],
+});
 const PHONE_NO_DOLBY = probe({
   deviceModel: "Phone P2",
   apiLevel: 35,
@@ -38,10 +45,23 @@ describe("declarableAudioCodecs", () => {
     const declared = declarableAudioCodecs(TABLET.decoders, TABLET);
     expect(declared).not.toContain("ac3");
     expect(declared).not.toContain("eac3");
-    // Its sink genuinely takes DTS bitstream (dp + profiles 7/8): passthrough
-    // works there even though no DTS decoder is listed.
-    expect(declared).toContain("dts");
     expect(declared).toEqual(expect.arrayContaining(["aac", "mp3", "opus", "flac", "vorbis"]));
+  });
+
+  // Its sink says yes to DTS (dp + profiles 7/8), but Media3 reads that answer
+  // on a TV only: on this tablet DTS is never passed through, no decoder takes
+  // it, and the DTS-only a DTS-only film played silent (2026-10-05).
+  it("does not declare dts on a tablet whose own speaker says yes", () => {
+    expect(declarableAudioCodecs(TABLET.decoders, TABLET)).not.toContain("dts");
+    expect(declarableAudioCodecs(PHONE.decoders, PHONE)).not.toContain("dts");
+  });
+
+  it("declares what a plugged-in HDMI sink advertises on a phone, and nothing once unplugged", () => {
+    const hdmi = { available: true, plugState: 1, encodings: [5, 7] };
+    const plugged = probe({ hdmi });
+    expect(declarableAudioCodecs(["aac"], plugged)).toEqual(["aac", "ac3", "dts"]);
+    const unplugged = probe({ hdmi: { ...hdmi, plugState: 0 } });
+    expect(declarableAudioCodecs(["aac"], unplugged)).toEqual(["aac"]);
   });
 
   it("declares only the software baseline on a phone with no direct playback at all", () => {
@@ -55,8 +75,8 @@ describe("declarableAudioCodecs", () => {
     expect(declared).toContain("eac3");
   });
 
-  it("accepts API 33 directProfiles as the sink's yes (E-AC3 as JOC included)", () => {
-    const p = probe({ directProfiles: [{ encoding: 18, channelMasks: [63] }] });
+  it("accepts API 33 directProfiles as a TV sink's yes (E-AC3 as JOC included)", () => {
+    const p = probe({ isTv: true, directProfiles: [{ encoding: 18, channelMasks: [63] }] });
     expect(sinkAcceptsCodec(p, "eac3")).toBe(true);
     expect(sinkAcceptsCodec(p, "ac3")).toBe(false);
   });

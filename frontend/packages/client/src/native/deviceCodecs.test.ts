@@ -60,12 +60,12 @@ describe("deviceCodecs", () => {
     expect(m.getFmp4AudioPassthrough()).toEqual(["mp3", "opus"]);
   });
 
-  it("android with the native module: the Dolby family needs the sink's yes, HDR follows hdr10/hlg", async () => {
+  it("android TV with the native module: the Dolby family needs the sink's yes, HDR follows hdr10/hlg", async () => {
     rn.NativeModules.MediaCaps = {
       getSupportedAudioCodecs: async () => ["aac", "ac3", "eac3", "opus"],
       getHdrTypes: async () => ["dolby-vision", "hlg"],
     };
-    caps.getAudioProbe.mockResolvedValue({ directPlayback: { eac3: true }, directProfiles: [] });
+    caps.getAudioProbe.mockResolvedValue({ isTv: true, directPlayback: { eac3: true }, directProfiles: [] });
     const m = await load();
     expect(m.getDeviceAudioCodecs()).toEqual(["aac", "opus", "eac3"]);
     expect(m.getDeviceHdrSupport()).toBe(true);
