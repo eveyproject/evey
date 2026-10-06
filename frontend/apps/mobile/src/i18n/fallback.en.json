@@ -417,6 +417,7 @@
   "admin.loadtest.cancelButton": "Cancel",
   "admin.loadtest.client.mobile": "Phone",
   "admin.loadtest.client.tv": "TV",
+  "admin.loadtest.client.tvBrowser": "TV browser",
   "admin.loadtest.client.webChrome": "Chrome / Firefox",
   "admin.loadtest.client.webSafari": "Safari",
   "admin.loadtest.clientShare": "{{label}} {{pct}}%",

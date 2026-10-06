@@ -1123,6 +1123,7 @@ loadtest:
   clientShare: "{{label}} {{pct}}%"
   clientWeightsLegend: "各客户端占比（相对权重）"
   client:
+    tvBrowser: "电视浏览器"
     tv: "电视"
     mobile: "手机"
     webChrome: "Chrome / Firefox"

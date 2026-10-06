@@ -1123,6 +1123,7 @@ loadtest:
   clientShare: "{{label}} {{pct}}%"
   clientWeightsLegend: "हर क्लाइंट का हिस्सा (सापेक्ष भार)"
   client:
+    tvBrowser: "टीवी ब्राउज़र"
     tv: "टीवी"
     mobile: "फ़ोन"
     webChrome: "Chrome / Firefox"

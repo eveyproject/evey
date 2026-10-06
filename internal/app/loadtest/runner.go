@@ -75,7 +75,7 @@ type Runner struct {
 	windowStats func() map[string]int64
 	// clientHistory counts the recent playbacks by recorded device type (see
 	// WithClientHistory).
-	clientHistory func(ctx context.Context) (map[string]int, error)
+	clientHistory func(ctx context.Context) (map[PlaybackDevice]int, error)
 
 	// servedBytes is the running total of bytes every viewer has pulled this
 	// run - which is exactly what the server had to push. It is the honest
@@ -182,9 +182,9 @@ func (r *Runner) WithWindowStats(read func() map[string]int64) *Runner {
 }
 
 // WithClientHistory lets a "clients:history" run read the server's own
-// playbacks of the last days, counted by recorded device type. Without it such
+// playbacks of the last days, counted by recorded device. Without it such
 // a run falls back to DefaultClientMix.
-func (r *Runner) WithClientHistory(read func(ctx context.Context) (map[string]int, error)) *Runner {
+func (r *Runner) WithClientHistory(read func(ctx context.Context) (map[PlaybackDevice]int, error)) *Runner {
 	r.clientHistory = read
 	return r
 }
@@ -199,7 +199,7 @@ func (r *Runner) resolveClientMix(ctx context.Context, cfg Config) (Config, erro
 	}
 	if spec == ClientMixHistory {
 		spec = DefaultClientMix
-		var counts map[string]int
+		var counts map[PlaybackDevice]int
 		var err error
 		if r.clientHistory != nil {
 			counts, err = r.clientHistory(ctx)

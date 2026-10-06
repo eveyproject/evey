@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -304,7 +305,7 @@ func TestPlaySessionStatsRepo_GetServerStats_ActiveStreamsAreNeverCached(t *test
 
 // The load test's client mix counts recent playbacks per recorded device type,
 // and nothing older than the window.
-func TestPlaySessionStatsRepo_CountByDeviceTypeSince(t *testing.T) {
+func TestPlaySessionStatsRepo_CountByDeviceSince(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 
@@ -330,15 +331,18 @@ func TestPlaySessionStatsRepo_CountByDeviceTypeSince(t *testing.T) {
 		device string
 		age    time.Duration
 	}{
-		{"Evey TV", time.Hour}, {"Evey TV", 2 * time.Hour}, {"Evey Web", time.Hour}, {"Evey Web", 40 * 24 * time.Hour},
+		{"Evey TV", time.Hour}, {"Evey TV|TV Browser", 2 * time.Hour}, {"Evey Web", time.Hour}, {"Evey Web", 40 * 24 * time.Hour},
 	} {
 		ps := newTestPlaySession(fmt.Sprintf("pss-dt-ps%d", i), string(p.ID), string(item.ID))
-		ps.DeviceType = s.device
+		ps.DeviceType, ps.DeviceName, _ = strings.Cut(s.device, "|")
+		if ps.DeviceName == "" {
+			ps.DeviceName = "TestDevice"
+		}
 		ps.StartedAt = now.Add(-s.age).Truncate(time.Millisecond)
 		require.NoError(t, sessionRepo.Create(ctx, ps))
 	}
 
-	got, err := statsRepo.CountByDeviceTypeSince(ctx, now.Add(-30*24*time.Hour))
+	got, err := statsRepo.CountByDeviceSince(ctx, now.Add(-30*24*time.Hour))
 	require.NoError(t, err)
-	assert.Equal(t, map[string]int{"Evey TV": 2, "Evey Web": 1}, got)
+	assert.Equal(t, map[postgres.DeviceKey]int{{Type: "Evey TV", Name: "TestDevice"}: 1, {Type: "Evey TV", Name: "TV Browser"}: 1, {Type: "Evey Web", Name: "TestDevice"}: 1}, got)
 }

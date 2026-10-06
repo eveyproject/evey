@@ -1092,6 +1092,7 @@ loadtest:
   clientShare: "{{label}} {{pct}}%"
   clientWeightsLegend: "Share of each client (relative weights)"
   client:
+    tvBrowser: "TV browser"
     tv: "TV"
     mobile: "Phone"
     webChrome: "Chrome / Firefox"

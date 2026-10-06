@@ -286,13 +286,13 @@ describe("TranscodingConfigPage capacity", () => {
 });
 
 describe("LoadTestCard", () => {
-  it("rests with a start button and launches the default (balanced mix) scenario", async () => {
+  it("rests with a start button and launches the default scenario: the audience's own clients", async () => {
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
 
     expect(screen.getByTestId("load-test-idle")).toBeTruthy();
     expect(screen.queryByTestId("load-test-running")).toBeNull();
-    expect((screen.getByTestId("load-test-scenario-select") as HTMLSelectElement).value).toBe("balanced");
+    expect((screen.getByTestId("load-test-scenario-select") as HTMLSelectElement).value).toBe("clients:history");
 
     fireEvent.click(screen.getByTestId("load-test-start-btn"));
 
@@ -300,20 +300,20 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "balanced", coldCache: false },
+        data: { scenario: "clients:history", coldCache: false },
       }),
     );
   });
 
-  it("offers all 6 scenarios grouped into usage profiles and pure scenarios", async () => {
+  it("offers the client mixes, the usage profiles and the pure scenarios, grouped", async () => {
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
 
     const select = screen.getByTestId("load-test-scenario-select");
     const values = Array.from(select.querySelectorAll("option")).map((o) => (o as HTMLOptionElement).value);
-    expect(values).toEqual(["light", "balanced", "heavy", "transcode", "mkvgo", "natural"]);
+    expect(values).toEqual(["clients:history", "clients:custom", "light", "balanced", "heavy", "transcode", "mkvgo", "natural"]);
     const groups = Array.from(select.querySelectorAll("optgroup")).map((g) => g.getAttribute("label"));
-    expect(groups).toEqual(["Usage profiles", "Pure scenarios"]);
+    expect(groups).toEqual(["Real clients", "Usage profiles", "Pure scenarios"]);
   });
 
   it("sends the picked usage-profile scenario in the POST payload", async () => {
@@ -359,7 +359,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "balanced", coldCache: true },
+        data: { scenario: "clients:history", coldCache: true },
       }),
     );
   });

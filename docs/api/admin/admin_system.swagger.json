@@ -962,7 +962,7 @@
       "properties": {
         "scenario": {
           "type": "string",
-          "description": "scenario is WHO the simulated viewers are: \"transcode\", \"natural\",\n\"mkvgo\", the ratio mixes \"light\"/\"balanced\"/\"heavy\", \"mkvgo+N\"\n(N pinned transcodes then pure direct-play), or a client mix:\n\"clients:history\" (the proportions of the last 30 days' playbacks) or\n\"clients:tv=40,mobile=40,web-chrome=20\" (profiles: tv, mobile,\nweb-chrome, web-safari), where each viewer declares what that player\ndeclares and the server picks its path."
+          "description": "scenario is WHO the simulated viewers are: \"transcode\", \"natural\",\n\"mkvgo\", the ratio mixes \"light\"/\"balanced\"/\"heavy\", \"mkvgo+N\"\n(N pinned transcodes then pure direct-play), or a client mix:\n\"clients:history\" (the proportions of the last 30 days' playbacks) or\n\"clients:tv=40,mobile=40,web-chrome=20\" (profiles: tv, tv-browser, mobile,\nweb-chrome, web-safari), where each viewer declares what that player\ndeclares and the server picks its path."
         },
         "maxViewers": {
           "type": "integer",

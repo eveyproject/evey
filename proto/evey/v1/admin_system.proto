@@ -348,7 +348,7 @@ message StartLoadTestRequest {
   // "mkvgo", the ratio mixes "light"/"balanced"/"heavy", "mkvgo+N"
   // (N pinned transcodes then pure direct-play), or a client mix:
   // "clients:history" (the proportions of the last 30 days' playbacks) or
-  // "clients:tv=40,mobile=40,web-chrome=20" (profiles: tv, mobile,
+  // "clients:tv=40,mobile=40,web-chrome=20" (profiles: tv, tv-browser, mobile,
   // web-chrome, web-safari), where each viewer declares what that player
   // declares and the server picks its path.
   string scenario = 1;

@@ -306,30 +306,36 @@ func (r *PlaySessionStatsReader) GetActiveSessionsBitrate(ctx context.Context) (
 	return bps, nil
 }
 
-// CountByDeviceTypeSince counts the playbacks started since `since`, by the
-// device type the client recorded ("Evey Web", "Evey TV"...): the load test's
-// client mix reads its proportions from it.
-func (r *PlaySessionStatsReader) CountByDeviceTypeSince(ctx context.Context, since time.Time) (map[string]int, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.play_session_stats.CountByDeviceTypeSince")
+// DeviceKey is a playback's recorded client: its device type ("Evey TV") and
+// device name ("TV Browser").
+type DeviceKey struct {
+	Type, Name string
+}
+
+// CountByDeviceSince counts the playbacks started since `since`, by the device
+// type and name the client recorded: the load test's client mix reads its
+// proportions from it.
+func (r *PlaySessionStatsReader) CountByDeviceSince(ctx context.Context, since time.Time) (map[DeviceKey]int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.play_session_stats.CountByDeviceSince")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT device_type, COUNT(*) FROM play_sessions WHERE started_at >= $1 GROUP BY device_type`, since)
+		`SELECT device_type, device_name, COUNT(*) FROM play_sessions WHERE started_at >= $1 GROUP BY device_type, device_name`, since)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer func() { _ = rows.Close() }()
-	out := map[string]int{}
+	out := map[DeviceKey]int{}
 	for rows.Next() {
-		var dt string
+		var k DeviceKey
 		var n int
-		if err := rows.Scan(&dt, &n); err != nil {
+		if err := rows.Scan(&k.Type, &k.Name, &n); err != nil {
 			return nil, err
 		}
-		out[dt] = n
+		out[k] = n
 	}
 	return out, rows.Err()
 }
