@@ -224,4 +224,27 @@ describe("SubtitleOverlay, piste bitmap", () => {
     await waitFor(() => expect(eveyFetchRawMock).toHaveBeenCalled());
     expect(screen.queryByTestId("subtitle-image")).toBeNull();
   });
+  // a beta tester in direct play, 2026-10-05: /subtitle read the whole 9.9 GB film
+  // before the first line showed; the packager serves the same track in 6 s
+  // segments, about a second each.
+  it("reads the packager's segments around the playhead, in the film's own time, and never /subtitle", async () => {
+    const base = "/api/v1/media/seg1/hls/";
+    const routes: Record<string, string> = {
+      [`${base}od_master.m3u8`]: '#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="fr",X-EVEY-TRACK="0",URI="od_sub1.m3u8?v=1"\n',
+      [`${base}od_sub1.m3u8?v=1`]: "#EXTM3U\n#EXTINF:6,\nod_sub1_1.vtt?v=1\n#EXTINF:6,\nod_sub1_2.vtt?v=1\n",
+      [`${base}od_sub1_1.vtt?v=1`]: "WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nPremier\n",
+      [`${base}od_sub1_2.vtt?v=1`]: "WEBVTT\n\n00:00:07.000 --> 00:00:09.000\nSecond\n",
+    };
+    eveyFetchRawMock.mockImplementation(async ({ url }: { url: string }) => {
+      const body = routes[url];
+      return body === undefined ? { ok: false, text: async () => "" } : { ok: true, text: async () => body };
+    });
+    // 2 s of resync: the cue at 7-9 s shows at 9-11 s on screen.
+    const { findByTestId } = render(
+      <SubtitleOverlay mediaId="seg1" subtitleIndex={0} currentTimeSec={10} offsetMs={2000} style={DEFAULT_SUBTITLE_STYLE} />,
+    );
+    expect((await findByTestId("subtitle-text")).textContent).toBe("Second");
+    const urls = eveyFetchRawMock.mock.calls.map(([req]) => (req as { url: string }).url);
+    expect(urls.some((u) => u.includes("/subtitle/"))).toBe(false);
+  });
 });

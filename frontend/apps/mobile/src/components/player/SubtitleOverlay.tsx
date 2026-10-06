@@ -1,23 +1,19 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
 import { View, Text, StyleSheet, Image, useWindowDimensions } from "react-native";
 import {
-  eveyFetchRaw,
   findActivePGSCue,
-  isPGSBlob,
-  parsePGSBlob,
-  pgsCueDataURI,
   findActiveCueIndex,
-  parseVttCues,
   shiftCues,
   type PGSTrack,
   type SubtitleCue,
 } from "@evey/api";
+import { useSubtitleTrack } from "@evey/client";
 
 import { subtitleBgRgba, subtitleCueFontSizePx, type SubtitleStyle } from "../../lib/subtitleStyle";
 
 interface SubtitleOverlayProps {
   mediaId: string;
-  // The absolute media-stream index of the subtitle to render client-side, or
+  // The subtitle-relative ordinal of the track to render client-side, or
   // null when none is selected. Both kinds land here now: a TEXT track arrives
   // as WebVTT, a BITMAP (PGS) track as the image blob the server decodes once
   // and caches - which is what lets a bitmap subtitle be shown without the
@@ -35,74 +31,13 @@ interface SubtitleOverlayProps {
   externalCues?: SubtitleCue[] | null;
 }
 
-// Cached per (mediaId, subtitleIndex): switching back to an already-loaded
-// track, or a next-episode remount that reuses a sibling's subtitle stream,
-// doesn't re-fetch. Mirrors TrickplayPreview's module-level memCache for the
-// same shape of problem (a VTT asset keyed by media/track).
-const cueCache = new Map<string, SubtitleCue[]>();
-// Bitmap tracks get their own cache for the same reason and with the same key
-// shape. Held separately because the two are different objects, not two shapes
-// of one - and a data URI per cue is built once here rather than per tick.
-const pgsCache = new Map<string, { track: PGSTrack; uris: string[] }>();
-
 function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs = 0, style, externalCues = null }: SubtitleOverlayProps) {
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
-  const [fetchedCues, setFetchedCues] = useState<SubtitleCue[]>([]);
-  const [pgs, setPgs] = useState<{ track: PGSTrack; uris: string[] } | null>(null);
-
-  useEffect(() => {
-    // An external (client-picked) file skips the fetch entirely - its cues
-    // are already parsed and passed in directly.
-    if (externalCues) return;
-    if (!mediaId || subtitleIndex === null) {
-      setFetchedCues([]);
-      return;
-    }
-    const key = `${mediaId}:${subtitleIndex}`;
-    const cachedPgs = pgsCache.get(key);
-    if (cachedPgs) {
-      setPgs(cachedPgs);
-      setFetchedCues([]);
-      return;
-    }
-    const cached = cueCache.get(key);
-    if (cached) {
-      setFetchedCues(cached);
-      setPgs(null);
-      return;
-    }
-    setFetchedCues([]);
-    setPgs(null);
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await eveyFetchRaw({
-          url: `/api/v1/media/${encodeURIComponent(mediaId)}/subtitle/${subtitleIndex}`,
-          method: "GET",
-        });
-        // The body is read as bytes, not text: the same route answers WebVTT
-        // for a text track and the binary blob for a bitmap one, and decoding a
-        // blob as UTF-8 would corrupt it before anything could tell them apart.
-        const buf = new Uint8Array(await res.arrayBuffer());
-        if (cancelled) return;
-        if (isPGSBlob(buf)) {
-          const track = parsePGSBlob(buf);
-          const entry = { track, uris: track.cues.map(pgsCueDataURI) };
-          pgsCache.set(key, entry);
-          setPgs(entry);
-          return;
-        }
-        const parsed = parseVttCues(new TextDecoder().decode(buf));
-        cueCache.set(key, parsed);
-        setFetchedCues(parsed);
-      } catch (err) {
-        console.warn("[subtitles] failed to load track for client-side rendering:", err);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mediaId, subtitleIndex, externalCues]);
+  // Shared with both televisions: the packager's segments around the playhead
+  // (in the film's own time, before the resync offset), /subtitle otherwise.
+  // An external (client-picked) file skips the fetch entirely.
+  const sourceTimeSec = Math.max(0, currentTimeSec - offsetMs / 1000);
+  const { cues: fetchedCues, pgs } = useSubtitleTrack(mediaId, externalCues ? null : subtitleIndex, sourceTimeSec);
 
   // A client-picked external file always wins, as before - it is an explicit
   // choice made after the track was selected.

@@ -49,6 +49,7 @@ export * from "./lib/mutationErrorNet";
 export * from "./lib/certifications";
 export * from "./lib/resumeNudge";
 export * from "./lib/playbackSpeeds";
+export * from "./lib/segmentedSubtitles";
 export * from "./lib/invalidateWatchedState";
 export * from "./lib/resumeProgressQuery";
 export * from "./lib/seekGesture";

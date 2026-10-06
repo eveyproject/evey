@@ -22,7 +22,7 @@ interface Props {
 function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: Props) {
   // The fetch and the text/bitmap sniff live in @evey/client, shared with the
   // Android television; only the painting below is the DOM's.
-  const { cues, pgs } = useSubtitleTrack(mediaId, subtitleIndex);
+  const { cues, pgs } = useSubtitleTrack(mediaId, subtitleIndex, currentTimeSec);
 
   if (pgs) {
     const { track, uris } = pgs;
