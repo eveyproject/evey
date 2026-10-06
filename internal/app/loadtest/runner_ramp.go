@@ -3,6 +3,7 @@ package loadtest
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 )
 
@@ -43,6 +44,11 @@ type rampState struct {
 	// time. Any successful viewer resets it.
 	consecutiveSkips int
 	viewerTypeBySlot map[int]viewerType
+	// pathBySlot is the path the server chose for each viewer that started, and
+	// pathsByType tallies them per viewer type over the whole run: what the
+	// server decided for each kind of client, whatever tier it happened at.
+	pathBySlot  map[int]string
+	pathsByType map[viewerType]map[string]int
 	// mediaBySlot is which TITLE each live viewer holds. The shrink-time reap
 	// kills sessions media-wide (RemoveSession), so it must know which media
 	// still have a live viewer on them and leave those alone.
@@ -99,7 +105,7 @@ func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, pool *candidat
 	// are actually watching, even after the bisection has shed some.
 	vt := scenarioViewerType(cfg.Scenario, ramp.tier+1)
 
-	asg, ok := pool.take()
+	asg, ok := pool.takeFor(vt)
 	if !ok {
 		return false, fmt.Sprintf("media pool exhausted (%d titles x %d start positions)", len(pool.candidates), len(startPositions))
 	}
@@ -191,6 +197,31 @@ func (r *Runner) spawnInitialViewers(isFlash bool, viewerCtx context.Context, cf
 		}
 	}
 	return true, ""
+}
+
+// recordPath notes the path the server chose for a viewer, once: a seek's
+// first fetch is a TTFF too, and must not count the viewer twice.
+func (ramp *rampState) recordPath(ev viewerEvent) {
+	if ev.servedBy == "" {
+		return
+	}
+	if _, seen := ramp.pathBySlot[ev.slot]; seen {
+		return
+	}
+	ramp.pathBySlot[ev.slot] = ev.servedBy
+	if ramp.pathsByType[ev.vt] == nil {
+		ramp.pathsByType[ev.vt] = map[string]int{}
+	}
+	ramp.pathsByType[ev.vt][ev.servedBy]++
+}
+
+// pathsReport is pathsByType keyed by type name, for the report.
+func (ramp *rampState) pathsReport() map[string]map[string]int {
+	out := make(map[string]map[string]int, len(ramp.pathsByType))
+	for vt, paths := range ramp.pathsByType {
+		out[string(vt)] = maps.Clone(paths)
+	}
+	return out
 }
 
 // replayedInAudience counts how many of the viewers currently watching were

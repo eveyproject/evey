@@ -665,6 +665,14 @@
             "$ref": "#/definitions/v1LoadTestDiskActivity"
           },
           "description": "disks is what each physical drive did over the sustained tier, busiest\nfirst. Read from the host-wide block counters, so it also includes whatever\nelse was reading those disks: it describes the drives, not only this run."
+        },
+        "servedPaths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestServedPath"
+          },
+          "description": "served_paths is what the server decided for each viewer type over the\nwhole run: how a client-mix verdict says what it was measured on."
         }
       },
       "description": "LoadTestReport is what the box MEASURED, next to what the admission model\npredicted - the panel shows both so the operator sees promises kept."
@@ -728,6 +736,24 @@
       },
       "description": "LoadTestResources is what the box was actually spending. The figures come\nfrom the server's own cgroup, so every ffmpeg it spawned is already counted;\nserved_bytes_per_sec is tallied by the viewers themselves (they reach the\nserver over loopback, where no NIC counter would see the traffic)."
     },
+    "v1LoadTestServedPath": {
+      "type": "object",
+      "properties": {
+        "viewerType": {
+          "type": "string",
+          "description": "viewer_type is \"mkvgo\", \"transcode\", \"natural\" or \"client:\u003cprofile\u003e\"."
+        },
+        "path": {
+          "type": "string",
+          "description": "path is the server's X-Evey-Served-By: \"mkvgo\" (packaged from the source,\nno encode), \"ffmpeg-copy\" (remuxed by ffmpeg, no encode), \"transcode\"."
+        },
+        "viewers": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "LoadTestServedPath is how many viewers of one type the server served by one\npath, counted once per viewer by the path its first segment came from."
+    },
     "v1LoadTestSourceMix": {
       "type": "object",
       "properties": {
@@ -741,6 +767,10 @@
         "count": {
           "type": "integer",
           "format": "int32"
+        },
+        "videoRange": {
+          "type": "string",
+          "description": "video_range is the class's dynamic range: \"sdr\", \"hdr10\", \"hlg\", \"dovi\",\n\"dovi5\" (Dolby Vision profile 5, encoded for every client), \"\" unprobed."
         }
       },
       "description": "LoadTestSourceMix is one source class and how many viewers were placed on it."
@@ -932,7 +962,7 @@
       "properties": {
         "scenario": {
           "type": "string",
-          "description": "scenario is WHO the simulated viewers are: \"transcode\", \"natural\",\n\"mkvgo\", the ratio mixes \"light\"/\"balanced\"/\"heavy\", or \"mkvgo+N\"\n(N pinned transcodes then pure direct-play)."
+          "description": "scenario is WHO the simulated viewers are: \"transcode\", \"natural\",\n\"mkvgo\", the ratio mixes \"light\"/\"balanced\"/\"heavy\", \"mkvgo+N\"\n(N pinned transcodes then pure direct-play), or a client mix:\n\"clients:history\" (the proportions of the last 30 days' playbacks) or\n\"clients:tv=40,mobile=40,web-chrome=20\" (profiles: tv, mobile,\nweb-chrome, web-safari), where each viewer declares what that player\ndeclares and the server picks its path."
         },
         "maxViewers": {
           "type": "integer",

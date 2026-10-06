@@ -216,7 +216,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		case outcomeOK:
 			consecutiveFail = 0
 			if isFirst {
-				sendEvent(ctx, events, viewerEvent{kind: evTTFF, vt: vt, slot: tierAtSpawn, ms: elapsedMs})
+				sendEvent(ctx, events, viewerEvent{kind: evTTFF, vt: vt, slot: tierAtSpawn, ms: elapsedMs, servedBy: header.Get(headerServedBy)})
 			} else {
 				sendEvent(ctx, events, viewerEvent{kind: evSegment, vt: vt, slot: tierAtSpawn, ms: elapsedMs, segMs: segMs})
 			}
@@ -325,6 +325,14 @@ func buildMasterURL(cfg Config, vt viewerType, media MediaCandidate, forked bool
 		q.Set("audioCodecs", "aac,ac3,eac3,dts,truehd,opus,flac,mp3")
 		q.Set("containers", "mp4,mkv,webm")
 		q.Set("hdr", "1")
+	default:
+		// A client viewer declares what its player declares, and the server
+		// decides its path on that, as it would for the real one.
+		if p, ok := clientProfileOf(vt); ok {
+			for k, v := range p.params {
+				q[k] = append([]string(nil), v...)
+			}
+		}
 	}
 	if forked {
 		q.Set("audioOffsetMs", strconv.Itoa(forkTag))

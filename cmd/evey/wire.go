@@ -856,6 +856,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	loadTestRunner.WithPlaybackSignal(func() func() { return playbackActivity.Begin("loadtest") })
 	// The run logs what it cost the packager in window reads, rebuilds apart.
 	loadTestRunner.WithWindowStats(infra.onDemandPackager.WindowStats)
+	// A "clients:history" run plays the mix of the last 30 days' playbacks.
+	loadTestRunner.WithClientHistory(func(ctx context.Context) (map[string]int, error) {
+		return r.PlaySessionStats.CountByDeviceTypeSince(ctx, time.Now().Add(-30*24*time.Hour))
+	})
 	// Subtitle segments read the blocks the stored index points at, when the
 	// /subtitle route or the prewarmer has already built one for the source.
 	infra.onDemandPackager.WithSubtitleIndex(httpapi.SubtitleIndexLookup("/data"))

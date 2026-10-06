@@ -99,11 +99,3 @@ func TestBitrateBands_UnknownIsItsOwnBand(t *testing.T) {
 		t.Fatalf("floors = %v, want none when no bitrate is known", floors)
 	}
 }
-
-func ids(cs []MediaCandidate) []string {
-	out := make([]string, len(cs))
-	for i, c := range cs {
-		out[i] = c.ID
-	}
-	return out
-}

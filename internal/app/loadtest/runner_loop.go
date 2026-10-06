@@ -68,6 +68,9 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	if seed == 0 {
 		seed = uint64(time.Now().UnixNano()) //nolint:gosec // a shuffle seed, not a secret
 	}
+	// Each viewer type draws on its own: a direct viewer by bitrate (what it
+	// pulls off the disk and the line), an encoded one by codec, height and
+	// dynamic range (what it costs the encoder).
 	drawn, mix, floors := representativeDraw(candidates, seed)
 	floorsMbps := make([]float64, len(floors))
 	for i, f := range floors {
@@ -75,7 +78,13 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	}
 	r.logger.Info("loadtest: title draw", "seed", seed, "titles", len(candidates),
 		"band_floors_mbps", floorsMbps, "q1", mix["q1"], "q2", mix["q2"], "q3", mix["q3"], "q4", mix["q4"], "unknown", mix["unknown"])
-	pool := newCandidatePool(drawn, cfg.MaxDuration)
+	encoded, costMix := costDraw(candidates, seed+1)
+	r.logger.Info("loadtest: title draw for encoded viewers", "seed", seed+1, "classes", costMix)
+	pool := newLanedPool(candidates, map[viewerType][]MediaCandidate{
+		viewerTypeMkvgo:     drawn,
+		viewerTypeNatural:   drawn,
+		viewerTypeTranscode: encoded,
+	}, cfg.MaxDuration)
 
 	// Where the library lives decides what the storage instruments can see.
 	storageFS, storageOpaque := libraryStorage(candidates, r.mountFSType)
@@ -165,6 +174,8 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 
 	ramp := rampState{
 		viewerTypeBySlot: map[int]viewerType{},
+		pathBySlot:       map[int]string{},
+		pathsByType:      map[viewerType]map[string]int{},
 		mediaBySlot:      map[int]string{},
 		cancelBySlot:     map[int]context.CancelFunc{},
 		roundBySlot:      map[int]int{},
@@ -547,6 +558,7 @@ runLoop:
 		PerViewerCost:                 perViewer,
 		HasPerViewerCost:              hasPerViewer,
 		ViewerMix:                     mix,
+		PathsByType:                   ramp.pathsReport(),
 		SourceMix:                     pool.sourceMix(),
 		SegmentMsP95ByType:            p95ByType,
 		StartedAt:                     startedAt,
@@ -629,6 +641,7 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 	case evTTFF:
 		// A viewer got its first segment: the library is not a dead end.
 		ramp.consecutiveSkips = 0
+		ramp.recordPath(ev)
 		if isFlash {
 			// The whole point of a flash slam is everyone starting at once: the
 			// herd IS the measurement there.
@@ -728,7 +741,7 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 		// viewer - the ramp keeps climbing. The title itself is retired: mkvgo
 		// eligibility is a property of the title, not the start position, and
 		// re-offering it at every rebuild would re-skip it forever.
-		pool.markIneligible(ev.mediaID)
+		pool.markIneligibleFor(ev.vt, ev.mediaID)
 		ramp.skippedCandidates++
 		ramp.consecutiveSkips++
 		if ramp.consecutiveSkips >= len(pool.candidates) {

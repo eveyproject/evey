@@ -87,4 +87,28 @@ describe("LoadTestCard", () => {
     fireEvent.click(screen.getByTestId("load-test-start-btn"));
     await waitFor(() => expect(screen.getByTestId("load-test-error")).toHaveTextContent("admin.loadtest.errorGeneric"));
   });
+
+  it("defaults to the audience's own clients and sends a stated mix as the server's scenario", async () => {
+    const sent: unknown[] = [];
+    eveyFetchMock.mockImplementation((opts?: { method?: string; data?: unknown }) => {
+      if (opts?.method === "GET") return Promise.resolve({ running: false });
+      sent.push(opts?.data);
+      return Promise.resolve({ running: false });
+    });
+    mount();
+    await screen.findByTestId("load-test-idle");
+    fireEvent.click(screen.getByTestId("load-test-start-btn"));
+    await waitFor(() => expect(sent).toEqual([{ scenario: "clients:history", coldCache: false }]));
+
+    fireEvent.change(screen.getByTestId("load-test-scenario-select"), { target: { value: "clients:custom" } });
+    fireEvent.change(screen.getByTestId("load-test-weight-tv"), { target: { value: "50" } });
+    fireEvent.change(screen.getByTestId("load-test-weight-web-chrome"), { target: { value: "0" } });
+    fireEvent.click(screen.getByTestId("load-test-start-btn"));
+    await waitFor(() => expect(sent[1]).toEqual({ scenario: "clients:tv=50,mobile=40", coldCache: false }));
+
+    // Nothing weighted: there is no audience to play, so no run to start.
+    fireEvent.change(screen.getByTestId("load-test-weight-tv"), { target: { value: "0" } });
+    fireEvent.change(screen.getByTestId("load-test-weight-mobile"), { target: { value: "0" } });
+    expect(screen.getByTestId("load-test-start-btn")).toBeDisabled();
+  });
 });

@@ -2,9 +2,11 @@ package loadtest
 
 import (
 	"fmt"
+	"maps"
 	"math/rand/v2"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -47,15 +49,14 @@ const minUsableRunway = 0.05
 // no longer a reason to stop the ramp, which is the whole point - the load test
 // must report what the SERVER ran out of, never what the library ran out of.
 type candidatePool struct {
-	candidates  []MediaCandidate
-	assignments []assignment
-	taken       int
-	// dead titles are never handed out again. Mkvgo eligibility is a property
-	// of the TITLE (how the server decides to serve it), not of the start
-	// position: a title skipped at one offset will be skipped at every other,
-	// and retrying it - above all when the climb rebuilds its audience - burns
-	// candidates and inflates the skip count for nothing.
-	dead map[string]bool
+	// candidates is every title any lane can hand out: the reap surface.
+	candidates []MediaCandidate
+	// lanes gives each viewer type its own draw, so each type watches the
+	// library's own mix whatever the scenario's pattern: a 50/50 pattern over
+	// one shared draw cycling four bitrate bands handed the transcodes bands 2
+	// and 4 only. def serves the types without a lane of their own.
+	lanes map[viewerType]*lane
+	def   *lane
 	// served counts what was actually handed out, per source class - the run's
 	// own record of what its verdict was measured on.
 	served map[SourceMixEntry]int
@@ -64,14 +65,25 @@ type candidatePool struct {
 	branches *branchTally
 }
 
-// newCandidatePool lays out every assignment the run may hand out, breadth
-// first: every title once at the start, THEN every (long enough) title again
-// half-way in, and so on. Titles are spread before they are stacked, so a run
-// only ever reuses a file once it has exhausted the library. The order of the
-// titles is the caller's: the run shuffles them (see shuffleCandidates), the
-// way an audience picks films, rather than arranging them by disk.
-func newCandidatePool(candidates []MediaCandidate, runDuration time.Duration) *candidatePool {
-	p := &candidatePool{candidates: candidates}
+// lane is one queue of assignments with its own position and retired titles.
+type lane struct {
+	assignments []assignment
+	taken       int
+	// dead titles are never handed out again by this lane. Mkvgo eligibility
+	// is a property of the TITLE (how the server decides to serve it), not of
+	// the start position: a title skipped at one offset will be skipped at
+	// every other, and retrying it - above all when the climb rebuilds its
+	// audience - burns candidates and inflates the skip count for nothing.
+	dead map[string]bool
+}
+
+// newLane lays out every assignment the run may hand out, breadth first: every
+// title once at the start, THEN every (long enough) title again half-way in,
+// and so on. Titles are spread before they are stacked, so a run only ever
+// reuses a file once it has exhausted the library. The order of the titles is
+// the caller's (see representativeDraw, costDraw).
+func newLane(candidates []MediaCandidate, runDuration time.Duration) *lane {
+	l := &lane{}
 	for round := range startPositions {
 		for _, m := range candidates {
 			if round > 0 && usableFraction(m.DurationSec, runDuration) <= minUsableRunway {
@@ -79,25 +91,69 @@ func newCandidatePool(candidates []MediaCandidate, runDuration time.Duration) *c
 				// the page cache is already holding.
 				continue
 			}
-			p.assignments = append(p.assignments, assignment{
+			l.assignments = append(l.assignments, assignment{
 				media:     m,
 				startFrac: startFracFor(m, round, runDuration),
 				round:     round,
 			})
 		}
 	}
+	return l
+}
+
+// newCandidatePool is a pool whose every viewer type shares one draw.
+func newCandidatePool(candidates []MediaCandidate, runDuration time.Duration) *candidatePool {
+	return &candidatePool{candidates: candidates, def: newLane(candidates, runDuration)}
+}
+
+// newLanedPool gives each viewer type in byType its own draw; candidates is
+// their union.
+func newLanedPool(candidates []MediaCandidate, byType map[viewerType][]MediaCandidate, runDuration time.Duration) *candidatePool {
+	p := &candidatePool{candidates: candidates, lanes: make(map[viewerType]*lane, len(byType))}
+	for vt, drawn := range byType {
+		p.lanes[vt] = newLane(drawn, runDuration)
+	}
 	return p
 }
 
-// capacity is how many viewers this pool can place in total.
-func (p *candidatePool) capacity() int { return len(p.assignments) }
+func (p *candidatePool) laneFor(vt viewerType) *lane {
+	if l, ok := p.lanes[vt]; ok {
+		return l
+	}
+	// A client viewer negotiates like a natural one: the server, not the
+	// harness, decides whether it is encoded, so it draws by bitrate.
+	if l, ok := p.lanes[viewerTypeNatural]; ok && strings.HasPrefix(string(vt), clientViewerPrefix) {
+		return l
+	}
+	return p.def
+}
 
-// take hands out the next assignment, skipping titles marked ineligible.
-func (p *candidatePool) take() (assignment, bool) {
-	for p.taken < len(p.assignments) {
-		asg := p.assignments[p.taken]
-		p.taken++
-		if p.dead[asg.media.ID] {
+// capacity is how many viewers this pool can place in total: its smallest
+// lane's, since any type may be the one that runs out.
+func (p *candidatePool) capacity() int {
+	n := -1
+	for _, l := range append(slices.Collect(maps.Values(p.lanes)), p.def) {
+		if l != nil && (n < 0 || len(l.assignments) < n) {
+			n = len(l.assignments)
+		}
+	}
+	return max(n, 0)
+}
+
+// take hands out the next assignment of the shared draw.
+func (p *candidatePool) take() (assignment, bool) { return p.takeFor("") }
+
+// takeFor hands out the next assignment of vt's lane, skipping titles that
+// lane retired.
+func (p *candidatePool) takeFor(vt viewerType) (assignment, bool) {
+	l := p.laneFor(vt)
+	if l == nil {
+		return assignment{}, false
+	}
+	for l.taken < len(l.assignments) {
+		asg := l.assignments[l.taken]
+		l.taken++
+		if l.dead[asg.media.ID] {
 			continue
 		}
 		p.recordServed(asg.media)
@@ -107,13 +163,21 @@ func (p *candidatePool) take() (assignment, bool) {
 	return assignment{}, false
 }
 
-// markIneligible retires a title from the pool for the rest of the run: the
-// server has shown it will not serve it the way this scenario measures.
-func (p *candidatePool) markIneligible(mediaID string) {
-	if p.dead == nil {
-		p.dead = map[string]bool{}
+// markIneligible retires a title from the shared draw.
+func (p *candidatePool) markIneligible(mediaID string) { p.markIneligibleFor("", mediaID) }
+
+// markIneligibleFor retires a title from vt's lane for the rest of the run:
+// the server has shown it will not serve it the way that type measures. The
+// other types keep it - a title mkvgo cannot package is still a fine encode.
+func (p *candidatePool) markIneligibleFor(vt viewerType, mediaID string) {
+	l := p.laneFor(vt)
+	if l == nil {
+		return
 	}
-	p.dead[mediaID] = true
+	if l.dead == nil {
+		l.dead = map[string]bool{}
+	}
+	l.dead[mediaID] = true
 }
 
 // startFracFor places round N of a title at startPositions[N], scaled down to
@@ -151,7 +215,7 @@ func (p *candidatePool) recordServed(m MediaCandidate) {
 	if p.served == nil {
 		p.served = map[SourceMixEntry]int{}
 	}
-	p.served[SourceMixEntry{Codec: m.VideoCodec, Height: m.VideoHeight}]++
+	p.served[SourceMixEntry{Codec: m.VideoCodec, Height: m.VideoHeight, Range: m.VideoRange}]++
 }
 
 // candidateIDs lists every media ID the pool can hand out - the reap surface:
@@ -230,11 +294,60 @@ func bitrateBands(candidates []MediaCandidate) (band []string, floors []int64) {
 // of the library. Each slot goes to the band furthest behind its share. It
 // returns the order, each band's count and the band floors in bit/s.
 func representativeDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandidate, map[string]int, []int64) {
-	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)) //nolint:gosec // a replayable draw of titles, not a secret
 	bands, floors := bitrateBands(candidates)
+	out, counts := stratifiedDraw(candidates, bands, seed)
+	return out, counts, floors
+}
+
+// costDraw is representativeDraw for viewers the server ENCODES: what such a
+// viewer costs is the source's codec, height and dynamic range (a 4K HDR10
+// title needs a tone map, a 1080p H.264 one barely a decode), not its bitrate.
+// Each class keeps its share of the library, drawn at random within it.
+func costDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandidate, map[string]int) {
+	classes := make([]string, len(candidates))
+	for i, c := range candidates {
+		classes[i] = costClass(c)
+	}
+	return stratifiedDraw(candidates, classes, seed)
+}
+
+// costClass names what a title costs to encode, e.g. "hevc 2160p hdr10".
+func costClass(c MediaCandidate) string {
+	if c.VideoCodec == "" || c.VideoHeight <= 0 {
+		return "unknown"
+	}
+	rng := c.VideoRange
+	if rng == "" {
+		rng = RangeSDR
+	}
+	return c.VideoCodec + " " + heightClass(c.VideoHeight) + " " + rng
+}
+
+// heightClass buckets a picture height into the rungs an encode is priced at.
+func heightClass(h int) string {
+	switch {
+	case h <= 576:
+		return "sd"
+	case h <= 720:
+		return "720p"
+	case h <= 1080:
+		return "1080p"
+	case h <= 1440:
+		return "1440p"
+	default:
+		return "2160p"
+	}
+}
+
+// stratifiedDraw orders the titles so that every prefix holds each class in
+// its share of the whole, titles shuffled at random within their class. Each
+// slot goes to the class furthest behind its share. It returns the order and
+// each class's count.
+func stratifiedDraw(candidates []MediaCandidate, classOf []string, seed uint64) ([]MediaCandidate, map[string]int) {
+	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)) //nolint:gosec // a replayable draw of titles, not a secret
 	byClass := map[string][]MediaCandidate{}
 	for i, c := range candidates {
-		byClass[bands[i]] = append(byClass[bands[i]], c)
+		byClass[classOf[i]] = append(byClass[classOf[i]], c)
 	}
 	classes := make([]string, 0, len(byClass))
 	for k := range byClass {
@@ -266,5 +379,5 @@ func representativeDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandid
 		out = append(out, byClass[best][taken[best]])
 		taken[best]++
 	}
-	return out, counts, floors
+	return out, counts
 }

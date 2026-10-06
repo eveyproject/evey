@@ -2,6 +2,8 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -66,6 +68,8 @@ func TestLoadTestStatusToProto(t *testing.T) {
 		PerViewerCost:      apploadtest.ResourceStats{Samples: 5, CPUPercentAvg: 2},
 		ViewerMix:          map[string]int{"mkvgo": 20, "transcode": 3},
 		SegmentMsP95ByType: map[string]int{"mkvgo": 300},
+		SourceMix:          []apploadtest.SourceMixEntry{{Codec: "hevc", Height: 2160, Range: "hdr10", Count: 4}},
+		PathsByType:        map[string]map[string]int{"client:web-chrome": {"transcode": 2, "mkvgo": 5}, "client:tv": {"mkvgo": 9}},
 	}
 	got := loadTestStatusToProto(apploadtest.Status{Running: true, Phase: "climb", Viewers: 23, Elapsed: 90 * time.Second, LastReport: rep})
 	if !got.Running || got.Viewers != 23 || got.ElapsedMs != 90_000 {
@@ -89,6 +93,17 @@ func TestLoadTestStatusToProto(t *testing.T) {
 	}
 	if r.ViewerMix["mkvgo"] != 20 || r.ViewerMix["transcode"] != 3 || r.SegmentMsP95ByType["mkvgo"] != 300 {
 		t.Errorf("mixes = %v / %v", r.ViewerMix, r.SegmentMsP95ByType)
+	}
+	if len(r.SourceMix) != 1 || r.SourceMix[0].VideoRange != "hdr10" {
+		t.Errorf("source mix = %v", r.SourceMix)
+	}
+	// Sorted by type then path, so the admin renders a stable table.
+	var paths []string
+	for _, p := range r.ServedPaths {
+		paths = append(paths, fmt.Sprintf("%s/%s=%d", p.ViewerType, p.Path, p.Viewers))
+	}
+	if want := []string{"client:tv/mkvgo=9", "client:web-chrome/mkvgo=5", "client:web-chrome/transcode=2"}; !slices.Equal(paths, want) {
+		t.Errorf("served paths = %v, want %v", paths, want)
 	}
 	if r.ResourceBaseline != nil {
 		t.Error("an empty baseline must be omitted, not sent as zeros")

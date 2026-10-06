@@ -118,6 +118,20 @@ message LoadTestSourceMix {
   string codec = 1;
   int32 height = 2;
   int32 count = 3;
+  // video_range is the class's dynamic range: "sdr", "hdr10", "hlg", "dovi",
+  // "dovi5" (Dolby Vision profile 5, encoded for every client), "" unprobed.
+  string video_range = 4;
+}
+
+// LoadTestServedPath is how many viewers of one type the server served by one
+// path, counted once per viewer by the path its first segment came from.
+message LoadTestServedPath {
+  // viewer_type is "mkvgo", "transcode", "natural" or "client:<profile>".
+  string viewer_type = 1;
+  // path is the server's X-Evey-Served-By: "mkvgo" (packaged from the source,
+  // no encode), "ffmpeg-copy" (remuxed by ffmpeg, no encode), "transcode".
+  string path = 2;
+  int32 viewers = 3;
 }
 
 // VideoSessionCapacity is the admin-facing view of the AUTO video-session cap
@@ -331,8 +345,12 @@ message GetDashboardRequest {}
 
 message StartLoadTestRequest {
   // scenario is WHO the simulated viewers are: "transcode", "natural",
-  // "mkvgo", the ratio mixes "light"/"balanced"/"heavy", or "mkvgo+N"
-  // (N pinned transcodes then pure direct-play).
+  // "mkvgo", the ratio mixes "light"/"balanced"/"heavy", "mkvgo+N"
+  // (N pinned transcodes then pure direct-play), or a client mix:
+  // "clients:history" (the proportions of the last 30 days' playbacks) or
+  // "clients:tv=40,mobile=40,web-chrome=20" (profiles: tv, mobile,
+  // web-chrome, web-safari), where each viewer declares what that player
+  // declares and the server picks its path.
   string scenario = 1;
   // max_viewers caps the ramp; 0 = server default (12, sized for a weak NAS).
   int32 max_viewers = 2;
@@ -521,6 +539,9 @@ message LoadTestReport {
   // first. Read from the host-wide block counters, so it also includes whatever
   // else was reading those disks: it describes the drives, not only this run.
   repeated LoadTestDiskActivity disks = 43;
+  // served_paths is what the server decided for each viewer type over the
+  // whole run: how a client-mix verdict says what it was measured on.
+  repeated LoadTestServedPath served_paths = 44;
 }
 
 // LoadTestPoolBranch is how many of the run's viewers were placed on one branch

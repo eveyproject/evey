@@ -306,6 +306,34 @@ func (r *PlaySessionStatsReader) GetActiveSessionsBitrate(ctx context.Context) (
 	return bps, nil
 }
 
+// CountByDeviceTypeSince counts the playbacks started since `since`, by the
+// device type the client recorded ("Evey Web", "Evey TV"...): the load test's
+// client mix reads its proportions from it.
+func (r *PlaySessionStatsReader) CountByDeviceTypeSince(ctx context.Context, since time.Time) (map[string]int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.play_session_stats.CountByDeviceTypeSince")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT device_type, COUNT(*) FROM play_sessions WHERE started_at >= $1 GROUP BY device_type`, since)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string]int{}
+	for rows.Next() {
+		var dt string
+		var n int
+		if err := rows.Scan(&dt, &n); err != nil {
+			return nil, err
+		}
+		out[dt] = n
+	}
+	return out, rows.Err()
+}
+
 // GetMostPopular returns the top-N most-played items in the last 90 days.
 // When profileID is non-empty, items the profile has fully watched are
 // filtered out (movies via wp.completed; series only when EVERY current

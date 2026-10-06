@@ -125,4 +125,21 @@ describe("LoadTestReportPanel", () => {
     expect(screen.getByTestId("load-test-stop-reason")).toHaveTextContent("admin.loadtest.stopReason.error");
     expect(screen.getByText(/count=0,scenario=/)).toBeInTheDocument();
   });
+
+  it("names a client mix in the headline and what the server did for each client", () => {
+    const report: LoadTestReport = {
+      scenario: "clients:tv=1,web-chrome=1",
+      sustainedViewers: 40,
+      stopReason: "throughput_saturated",
+      servedPaths: [
+        { viewerType: "client:tv", path: "mkvgo", viewers: 20 },
+        { viewerType: "client:web-chrome", path: "transcode", viewers: 4 },
+      ],
+    } as LoadTestReport;
+    render(<LoadTestReportPanel report={report} predicted={undefined} />);
+    expect(screen.getByText(/scenario=admin.loadtest.scenarioClientsNoun\(mix=admin.loadtest.clientShare\(pct=50,label=admin.loadtest.client.tv\)/)).toBeInTheDocument();
+    const paths = screen.getByTestId("load-test-served-paths");
+    expect(paths).toHaveTextContent("label=admin.loadtest.client.tv,parts=admin.loadtest.mixPart(count=20,label=admin.loadtest.path.mkvgo)");
+    expect(paths).toHaveTextContent("label=admin.loadtest.client.webChrome,parts=admin.loadtest.mixPart(count=4,label=admin.loadtest.path.transcode)");
+  });
 });

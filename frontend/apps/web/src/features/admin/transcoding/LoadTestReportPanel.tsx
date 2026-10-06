@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@evey/api";
-import { BOTTLENECK_REASONS, SCENARIO_NOUN_KEYS, STOP_REASON_KEYS, formatMbps, mixParts, poolShares } from "./loadTestHelpers";
+import { BOTTLENECK_REASONS, STOP_REASON_KEYS, formatMbps, mixParts, poolShares, scenarioNoun, servedPathLines } from "./loadTestHelpers";
 import type { LoadTestReport } from "./loadTestTypes";
 
 // LoadTestReportPanel renders the "answer" of a finished load test run: the
@@ -25,7 +25,7 @@ export function LoadTestReportPanel({
       <p className="text-xl font-bold text-[var(--text)]">
         {t("admin.loadtest.reportHeadline", {
           count: report.sustainedViewers ?? 0,
-          scenario: t(SCENARIO_NOUN_KEYS[report.scenario ?? "balanced"]),
+          scenario: scenarioNoun(t, report.scenario),
         })}
       </p>
       {/* The verdict. When a resource gave out, THAT is the answer the
@@ -228,6 +228,19 @@ export function LoadTestReportPanel({
                 parts: mixParts(t, report.viewerMix, "admin.loadtest.mixPart", "count"),
               })}
             </p>
+          )}
+          {/* What the server decided for each kind of viewer: the same
+              audience costs a different server depending on who could copy
+              what, so a client-mix verdict names it. */}
+          {servedPathLines(t, report.servedPaths).length > 0 && (
+            <div className="text-xs text-[var(--text-muted)]" data-testid="load-test-served-paths">
+              <p>{t("admin.loadtest.servedPathsHeading")}</p>
+              <ul className="list-disc pl-4">
+                {servedPathLines(t, report.servedPaths).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </div>
           )}
           {report.segmentMsP95ByType && Object.keys(report.segmentMsP95ByType).length > 0 && (
             <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-segment-by-type">
