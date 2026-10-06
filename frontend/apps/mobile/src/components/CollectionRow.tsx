@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import type { Collection } from "../api/collections";
+import { RowTitle } from "./RowTitle";
 
 const CARD_WIDTH = ROW_CARD_WIDTH;
 const CARD_HEIGHT = CARD_WIDTH * 1.5;
@@ -33,11 +34,10 @@ export const CollectionRow = React.memo(function CollectionRow({ title, collecti
 
   const titleStyle = useMemo(
     () => ({
-      color: theme.colors.text,
       marginBottom: theme.spacing.sm,
       paddingHorizontal: theme.spacing.md,
     }),
-    [theme.colors.text, theme.spacing.sm, theme.spacing.md],
+    [theme.spacing.sm, theme.spacing.md],
   );
 
   const contentStyle = useMemo(
@@ -111,7 +111,7 @@ export const CollectionRow = React.memo(function CollectionRow({ title, collecti
   return (
     <View style={{ marginBottom: theme.spacing.lg }}>
       <View style={styles.rowHeader}>
-        <Text style={[styles.rowTitle, titleStyle]}>{title}</Text>
+        <RowTitle title={title} href={seeAllHref} style={titleStyle} />
         {seeAllHref && (
           <Pressable onPress={() => router.push(seeAllHref as never)} style={{ paddingHorizontal: theme.spacing.md, marginBottom: theme.spacing.sm }} accessibilityRole="button" accessibilityLabel={t("common.seeAll", "See all")}>
             <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.xs }}>{t("common.seeAll", "See all")}</Text>
@@ -140,5 +140,4 @@ function keyExtractor(item: Collection) {
 
 const styles = StyleSheet.create({
   rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  rowTitle: { fontSize: FONT_SIZE.lg, fontWeight: "600" },
 });

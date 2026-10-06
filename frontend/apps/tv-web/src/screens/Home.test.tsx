@@ -53,6 +53,11 @@ vi.mock("@evey/client", async (importOriginal) => ({
 vi.mock("../plugins/PluginSlot", () => ({
   PluginSlot: ({ pluginId }: { pluginId?: string }) => <div data-testid={`plugin-${pluginId ?? "unplaced"}`} />,
 }));
+const navigate = vi.fn();
+vi.mock("../app/router", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../app/router")>()),
+  navigate: (...a: unknown[]) => navigate(...a),
+}));
 vi.mock("../components/FeedCustomizePanel", () => ({ FeedCustomizePanel: () => <div data-testid="customize" /> }));
 
 import { HomeScreen } from "./Home";
@@ -147,5 +152,24 @@ describe("the home follows the server's row plan", () => {
     recentlyAdded.mockReturnValue({ data: { items: [] }, isLoading: false });
     render(<HomeScreen />);
     expect(screen.getByText("media.home.emptyLibrary")).toBeTruthy();
+  });
+});
+
+describe("a row title opens the page the row is a preview of", () => {
+  it("a library row opens its library, collections open the collections, a transverse row is plain text", () => {
+    feedConfig.mockReturnValue({
+      data: {
+        configs: [
+          { feedType: "collections", enabled: true, displayOrder: 0 },
+          { feedType: "most_popular", enabled: true, displayOrder: 1 },
+        ],
+      },
+    });
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByRole("button", { name: "media.home.recentlyAddedInLibrary" }));
+    expect(navigate).toHaveBeenLastCalledWith({ name: "library", libraryId: "lib-films" });
+    fireEvent.click(screen.getByRole("button", { name: "media.home.collections" }));
+    expect(navigate).toHaveBeenLastCalledWith({ name: "collections" });
+    expect(screen.queryByRole("button", { name: "media.home.mostPopular" })).toBeNull();
   });
 });

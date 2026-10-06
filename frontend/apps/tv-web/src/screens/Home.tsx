@@ -32,6 +32,7 @@ import {
 } from "@evey/client";
 import { FocusRoot } from "../tv/focus";
 import { Pressable } from "../components/ui";
+import { Icon } from "../components/icons";
 import { PosterCard } from "../components/cards";
 import { navigate } from "../app/router";
 import { authedSrc, posterSrc, serverImageSrc } from "../lib/media";
@@ -65,9 +66,24 @@ function RowFailure({ title, onRetry }: { title: string; onRetry: () => void }) 
   );
 }
 
-function MediaRow({ rowKey, title, items, watchPercents, focusFirst }: {
+// A row whose content has a page of its own opens it from its title, like the
+// web home. The title is its own stop for the remote: up from the first card.
+function RowTitle({ rowKey, title, onOpen }: { rowKey: string; title: string; onOpen?: () => void }) {
+  if (!onOpen) return <h2 className="home-row-title">{title}</h2>;
+  return (
+    <h2 className="home-row-title">
+      <Pressable className="home-row-link" focusKey={`home:${rowKey}:title`} onPress={onOpen} label={title}>
+        {title}
+        <span className="home-row-chevron"><Icon name="chevron-forward" size={28} /></span>
+      </Pressable>
+    </h2>
+  );
+}
+
+function MediaRow({ rowKey, title, items, watchPercents, focusFirst, onOpen }: {
   rowKey: string;
   title: string;
+  onOpen?: () => void;
   items: V1MediaItem[];
   watchPercents?: Record<string, number>;
   focusFirst: boolean;
@@ -76,7 +92,7 @@ function MediaRow({ rowKey, title, items, watchPercents, focusFirst }: {
   if (items.length === 0) return null;
   return (
     <FocusRoot className="home-row">
-      <h2 className="home-row-title">{title}</h2>
+      <RowTitle rowKey={rowKey} title={title} onOpen={onOpen} />
       <div className="home-row-list media">
         {items.map((item, i) => {
           const typeKey = !item.year ? mediaTypeLabelKey(item.type) : null;
@@ -100,9 +116,10 @@ function MediaRow({ rowKey, title, items, watchPercents, focusFirst }: {
   );
 }
 
-function TileRow({ rowKey, title, tiles, focusFirst, aspect = "square" }: {
+function TileRow({ rowKey, title, tiles, focusFirst, aspect = "square", onOpen }: {
   rowKey: string;
   title: string;
+  onOpen?: () => void;
   tiles: Tile[];
   focusFirst: boolean;
   aspect?: "poster" | "square";
@@ -110,7 +127,7 @@ function TileRow({ rowKey, title, tiles, focusFirst, aspect = "square" }: {
   if (tiles.length === 0) return null;
   return (
     <FocusRoot className="home-row">
-      <h2 className="home-row-title">{title}</h2>
+      <RowTitle rowKey={rowKey} title={title} onOpen={onOpen} />
       <div className="home-row-list">
         {tiles.map((tile, i) => (
           <PosterCard
@@ -339,7 +356,10 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
     }
     if (section.kind === "library") {
       if (section.libraryType === "LIBRARY_TYPE_MUSIC" || section.libraryType === "LIBRARY_TYPE_PHOTOS") {
-        return <TileRow key={section.key} rowKey={section.key} title={section.name} tiles={libraryTiles(section)} focusFirst={focusFirst} />;
+        const onOpen = section.libraryType === "LIBRARY_TYPE_MUSIC"
+          ? () => navigate({ name: "music", libraryId: section.libraryId })
+          : () => navigate({ name: "photos", libraryId: section.libraryId });
+        return <TileRow key={section.key} rowKey={section.key} title={section.name} tiles={libraryTiles(section)} focusFirst={focusFirst} onOpen={onOpen} />;
       }
       return (
         <MediaRow
@@ -348,6 +368,7 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
           title={t("media.home.recentlyAddedInLibrary", { name: section.name })}
           items={libraryData(section)?.items ?? []}
           focusFirst={focusFirst}
+          onOpen={() => navigate({ name: "library", libraryId: section.libraryId })}
         />
       );
     }
@@ -375,6 +396,7 @@ export function HomeScreen({ customize }: { customize?: boolean }) {
             title={t("media.home.collections")}
             aspect="poster"
             focusFirst={focusFirst}
+            onOpen={() => navigate({ name: "collections" })}
             tiles={cols.map((c) => ({
               key: c.id,
               label: c.name,

@@ -290,6 +290,12 @@ describe("HomeScreen per-library rows", () => {
     expect(screen.getByText("media.home.recentlyAddedInLibrary:Movies")).toBeTruthy();
   });
 
+  it("opens the library from its row title", () => {
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByLabelText("media.home.recentlyAddedInLibrary:Movies"));
+    expect(pushMock).toHaveBeenCalledWith("/library/lib-1");
+  });
+
   it("renders no row (no orphaned title) for a library with no recent items", () => {
     render(<HomeScreen />);
     expect(screen.queryByText("media.home.recentlyAddedInLibrary:Empty Library")).toBeNull();
@@ -377,6 +383,13 @@ describe("HomeScreen feed-config driven rows", () => {
     render(<HomeScreen />);
     fireEvent.click(screen.getByLabelText("Marvel"));
     expect(pushMock).toHaveBeenCalledWith("/(auth)/collections/col-1");
+  });
+
+  it("opens every collection from the row title; a row with no page of its own keeps a plain title", () => {
+    render(<HomeScreen />);
+    fireEvent.click(screen.getByLabelText("media.home.collections"));
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/collections");
+    expect(screen.queryByLabelText("media.home.mostPopular")).toBeNull();
   });
 });
 

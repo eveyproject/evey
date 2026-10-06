@@ -1136,6 +1136,26 @@ body.music-on .deep-screen {
   margin: 0 0 0.2rem;
   padding: 0 3.2rem;
 }
+.home-row-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-left: -1.2rem;
+  padding: 0.2rem 1.2rem;
+  border: 0.3rem solid transparent;
+  border-radius: var(--r-md);
+  transition: border-color 120ms, color 120ms;
+}
+.home-row-chevron {
+  display: flex;
+  color: var(--text-muted);
+}
+.home-row-link.focused {
+  border-color: var(--accent);
+}
+.home-row-link.focused .home-row-chevron {
+  color: var(--accent);
+}
 .home-row-list {
   display: flex;
   gap: 1rem;
