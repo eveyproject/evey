@@ -21,6 +21,7 @@ vi.mock("./MediaCard", () => ({
     React.createElement("button", { "aria-label": item.title, onClick: onPress, "data-pct": watchPercent, "data-watched": String(!!watched) }),
 }));
 vi.mock("@evey/theme", () => ({ FONT_SIZE: { xs: 10, lg: 18 } }));
+vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
 
 import { MediaRow } from "./MediaRow";
 
@@ -41,6 +42,16 @@ describe("MediaRow", () => {
     expect(onItemPress).toHaveBeenCalledWith(items[1]);
     fireEvent.click(screen.getByLabelText("See all"));
     expect(router.push).toHaveBeenCalledWith("/recent");
+  });
+
+  it("opens the row's page from its title too, and a row without one keeps a plain title", () => {
+    const items = [{ id: "m1", title: "One" }] as any[];
+    render(<MediaRow title="Films" seeAllHref="/library/lib-1" items={items} />);
+    fireEvent.click(screen.getByLabelText("Films"));
+    expect(router.push).toHaveBeenCalledWith("/library/lib-1");
+    render(<MediaRow title="Popular" items={items} />);
+    expect(screen.queryByLabelText("Popular")).toBeNull();
+    expect(screen.getByText("Popular")).toBeTruthy();
   });
 
   it("hides when empty and shows no see-all without a target", () => {

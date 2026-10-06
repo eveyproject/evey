@@ -184,6 +184,21 @@ function MediaCardImpl({
  */
 const MediaCard = memo(MediaCardImpl);
 
+// A row whose content has a page of its own opens it from its title, like the
+// web home. Natural width on purpose: up from the first card lands on it and
+// down comes back to that card - a full-width target sent "down" to whichever
+// card sat under the middle of the screen.
+function RowTitle({ title, onOpen, onFocus }: { title: string; onOpen?: () => void; onFocus?: () => void }) {
+  const theme = useTheme();
+  if (!onOpen) return <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>;
+  return (
+    <FocusableCard onPress={onOpen} onFocus={onFocus} style={styles.rowTitleLink} accessibilityLabel={title}>
+      <Text style={[styles.rowTitleText, { color: theme.colors.text }]}>{title}</Text>
+      <Ionicons name="chevron-forward" size={22} color={theme.colors.textMuted} />
+    </FocusableCard>
+  );
+}
+
 function MediaRow({
   title,
   items,
@@ -194,8 +209,11 @@ function MediaRow({
   onCardFocus,
   isError,
   onRetry,
+  onOpen,
 }: {
   title: string;
+  /** The page this row previews; its title opens it. */
+  onOpen?: () => void;
   items: V1MediaItem[];
   serverUrl: string;
   authHeaders?: { Authorization: string };
@@ -209,7 +227,6 @@ function MediaRow({
   isError?: boolean;
   onRetry?: () => void;
 }) {
-  const theme = useTheme();
   // Stable, so the list does not rebuild every visible card whenever this
   // screen re-renders - which it does on each of its half-dozen queries.
   const renderCard = useCallback(
@@ -228,7 +245,7 @@ function MediaRow({
   if (isError) {
     return (
       <View style={styles.rowContainer}>
-        <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
+        <RowTitle title={title} onOpen={onOpen} onFocus={onCardFocus} />
         <RowFailure onRetry={onRetry} />
       </View>
     );
@@ -237,7 +254,7 @@ function MediaRow({
 
   return (
     <View style={styles.rowContainer}>
-      <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
+      <RowTitle title={title} onOpen={onOpen} onFocus={onCardFocus} />
       <FlatList
         horizontal
         data={items}
@@ -271,8 +288,11 @@ function TileRow({
   aspectRatio = "square",
   isError,
   onRetry,
+  onOpen,
 }: {
   title: string;
+  /** The page this row previews; its title opens it. */
+  onOpen?: () => void;
   tiles: {
     key: string;
     label: string;
@@ -297,7 +317,7 @@ function TileRow({
   if (isError) {
     return (
       <View style={styles.rowContainer}>
-        <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
+        <RowTitle title={title} onOpen={onOpen} onFocus={onCardFocus} />
         <RowFailure onRetry={onRetry} />
       </View>
     );
@@ -306,7 +326,7 @@ function TileRow({
   const tileHeight = aspectRatio === "poster" ? CARD_HEIGHT : CARD_WIDTH;
   return (
     <View style={styles.rowContainer}>
-      <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>
+      <RowTitle title={title} onOpen={onOpen} onFocus={onCardFocus} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: HOME_ROW_GUTTER, gap: GRID_GAP }}>
         {tiles.map((tile, i) => (
           <FocusableCard
@@ -629,6 +649,7 @@ export default function HomeScreen() {
             title={section.name}
             focusFirst={focusFirst}
             onCardFocus={onCardFocus}
+            onOpen={() => router.push("/(auth)/(tabs)/music")}
             tiles={albums.map((a) => ({
               key: String(a.id ?? a.title ?? ""),
               label: String(a.title ?? ""),
@@ -650,6 +671,7 @@ export default function HomeScreen() {
             title={section.name}
             focusFirst={focusFirst}
             onCardFocus={onCardFocus}
+            onOpen={() => router.push("/(auth)/photos")}
             tiles={albums.map((a) => ({
               key: String(a.name ?? ""),
               label: String(a.name ?? "").split("/").pop() ?? "",
@@ -667,6 +689,7 @@ export default function HomeScreen() {
         <MediaRow
           key={section.key}
           title={t("media.home.recentlyAddedInLibrary", { name: section.name })}
+          onOpen={() => router.push(`/library/${section.libraryId}`)}
           items={data?.items ?? []}
           serverUrl={serverUrl}
           authHeaders={authHeaders}
@@ -715,6 +738,7 @@ export default function HomeScreen() {
           <TileRow
             key={section.key}
             title={t("media.home.collections")}
+            onOpen={() => router.push("/(auth)/collections")}
             focusFirst={focusFirst}
             onCardFocus={onCardFocus}
             aspectRatio="poster"
@@ -886,6 +910,20 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     paddingHorizontal: HOME_ROW_GUTTER,
     marginBottom: 10,
+  },
+  // The text stays on the gutter: 3 of focus border + 12 of padding.
+  rowTitleLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginLeft: HOME_ROW_GUTTER - 15,
+    marginBottom: 7,
+    paddingHorizontal: 12,
+  },
+  rowTitleText: {
+    fontSize: 24,
+    fontWeight: "700",
   },
   rowFailure: {
     paddingHorizontal: 24,

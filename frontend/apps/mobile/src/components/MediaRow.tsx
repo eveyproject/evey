@@ -7,6 +7,7 @@ import type { V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { useWatchedMap } from "../hooks/useWatchedMap";
 import { MediaCard } from "./MediaCard";
+import { RowTitle } from "./RowTitle";
 import { FONT_SIZE } from "@evey/theme";
 
 const CARD_WIDTH = ROW_CARD_WIDTH;
@@ -31,10 +32,7 @@ export const MediaRow = memo(function MediaRow({ title, seeAllHref, items, onIte
   const { t } = useTranslation();
   const watchedMap = useWatchedMap();
 
-  const titleStyle = useMemo(() => ({
-    color: theme.colors.text,
-    paddingHorizontal: theme.spacing.md,
-  }), [theme.colors.text, theme.spacing.md]);
+  const titleStyle = useMemo(() => ({ paddingHorizontal: theme.spacing.md }), [theme.spacing.md]);
 
   const contentStyle = useMemo(
     () => ({ paddingHorizontal: theme.spacing.md }),
@@ -58,7 +56,7 @@ export const MediaRow = memo(function MediaRow({ title, seeAllHref, items, onIte
   return (
     <View style={{ marginBottom: theme.spacing.lg }}>
       <View style={[styles.rowHeader, { marginBottom: theme.spacing.sm }]}>
-        <Text style={[styles.rowTitle, titleStyle]}>{title}</Text>
+        <RowTitle title={title} href={seeAllHref} style={titleStyle} />
         {seeAllHref && (
           <Pressable onPress={() => router.push(seeAllHref as never)} style={{ paddingHorizontal: theme.spacing.md }} accessible={true} accessibilityLabel={t("common.seeAll", "See all")} accessibilityRole="button">
             <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.xs }}>{t("common.seeAll", "See all")}</Text>
@@ -87,5 +85,4 @@ function keyExtractor(item: V1MediaItem) {
 
 const styles = StyleSheet.create({
   rowHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  rowTitle: { fontSize: FONT_SIZE.lg, fontWeight: "600" },
 });
