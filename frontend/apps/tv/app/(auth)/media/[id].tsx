@@ -21,7 +21,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuthStore, useDemoStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { RESUME_PROGRESS_QUERY, invalidateWatchedState } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
@@ -317,9 +317,13 @@ export default function MediaDetailScreen() {
   );
   const seasons = useMemo(() => (isSeries ? sortByIndexNumber(children) : []), [isSeries, children]);
 
+  // A series plays where the profile is in it (the server's answer); the
+  // first episode stays the fallback until that answer is in.
+  const seriesTarget = useSeriesPlayTarget(isSeries ? id : undefined);
+  const seriesStarted = isSeries && seriesTarget.started;
   const playTarget = useMemo(
-    () => resolvePlayTarget({ id, isSeries, isSeason, episodeIds: episodes.map((e) => e.id) }),
-    [id, isSeries, isSeason, episodes],
+    () => (isSeries && seriesTarget.episode?.id) || resolvePlayTarget({ id, isSeries, isSeason, episodeIds: episodes.map((e) => e.id) }),
+    [id, isSeries, isSeason, episodes, seriesTarget.episode?.id],
   );
   const getPlayTarget = useCallback((): string | null => playTarget, [playTarget]);
 
@@ -518,7 +522,7 @@ export default function MediaDetailScreen() {
             accessibilityLabel={
               hasProgress
                 ? `${t("media.resume", "Resume")} ${formatTimeMs(Number(resumeMs))}`
-                : t("player.controls.play")
+                : seriesStarted ? t("media.resume", "Resume") : t("player.controls.play")
             }
             accessibilityRole="button"
             style={[
@@ -531,7 +535,7 @@ export default function MediaDetailScreen() {
             ]}
           >
             <Text style={[styles.playText, { color: theme.colors.onAccent }]}>
-              {hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(Number(resumeMs))}` : t("player.controls.play")}
+              {hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(Number(resumeMs))}` : seriesStarted ? t("media.resume", "Resume") : t("player.controls.play")}
             </Text>
           </Pressable>
 

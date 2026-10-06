@@ -30,6 +30,7 @@ describe("invalidateWatchedState", () => {
     expect(matches("/api/v1/feeds/recommended")).toBe(true);
     expect(matches("/api/v1/feeds/resume-playback")).toBe(true);
     expect(matches("/api/v1/popular")).toBe(true);
+    expect(matches("/api/v1/playback/series/show-1/play-target")).toBe(true);
     expect(matches("/api/v1/libraries")).toBe(false);
   });
 

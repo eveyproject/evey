@@ -355,6 +355,49 @@ func (r *WatchProgressRepository) GetNextUp(ctx context.Context, profileID strin
 	return progress, nil
 }
 
+// ListSeriesEpisodes returns every episode of a series in viewing order -
+// season, then episode, specials (season 0) last - with the profile's
+// progress on each; an episode never played has a zero LastPlayedAt.
+func (r *WatchProgressRepository) ListSeriesEpisodes(ctx context.Context, profileID, seriesID string) ([]playback.SeriesEpisode, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.watchprogress.ListSeriesEpisodes")
+	defer span.End()
+	span.SetAttributes(attribute.String("profile.id", profileID), attribute.String("series.id", seriesID))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT mi.id, COALESCE(wp.position_ms, 0), COALESCE(wp.completed, FALSE), wp.last_played_at
+		 FROM media_items sea
+		 INNER JOIN media_items mi ON mi.parent_id = sea.id AND mi.type = 'episode'
+		 LEFT JOIN watch_progress wp ON wp.profile_id = $1 AND wp.media_item_id = mi.id
+		 WHERE sea.parent_id = $2 AND sea.type = 'season'
+		 ORDER BY (sea.index_number = 0), sea.index_number NULLS LAST,
+		          mi.index_number NULLS LAST, mi.title, mi.id`, profileID, seriesID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, fmt.Errorf("WatchProgressRepo.ListSeriesEpisodes: %w", err)
+	}
+	defer rows.Close()
+	var episodes []playback.SeriesEpisode
+	for rows.Next() {
+		var e playback.SeriesEpisode
+		var positionMs int64
+		var played sql.NullTime
+		if err := rows.Scan(&e.MediaItemID, &positionMs, &e.Completed, &played); err != nil {
+			return nil, fmt.Errorf("WatchProgressRepo.ListSeriesEpisodes: %w", err)
+		}
+		e.Position = scanWatchProgressPosition(string(e.MediaItemID), positionMs)
+		if played.Valid {
+			e.LastPlayedAt = played.Time
+		}
+		episodes = append(episodes, e)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("WatchProgressRepo.ListSeriesEpisodes: %w", err)
+	}
+	return episodes, nil
+}
+
 func (r *WatchProgressRepository) scanWatchProgressRows(rows *sql.Rows) ([]*playback.WatchProgress, error) {
 	var result []*playback.WatchProgress
 	for rows.Next() {

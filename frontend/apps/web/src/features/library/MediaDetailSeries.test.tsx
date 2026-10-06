@@ -2,7 +2,8 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { SeriesSection, SeasonEpisodesSection } from "./MediaDetailSeries";
+import { fireEvent } from "@testing-library/react";
+import { SeriesSection, SeasonEpisodesSection, PlaySeriesButton } from "./MediaDetailSeries";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, params, ...rest }: { children: React.ReactNode; to: string; params?: Record<string, string>; [k: string]: unknown }) => {
@@ -18,6 +19,12 @@ vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListMediaItems: (...args: unknown[]) => mockListMediaItems(...args),
   useLibraryServiceGetMediaItem: (...args: unknown[]) => mockGetMediaItem(...args),
+}));
+
+const mockPlayTarget = vi.fn();
+vi.mock("@evey/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/client")>()),
+  useSeriesPlayTarget: (...args: unknown[]) => mockPlayTarget(...args),
 }));
 
 vi.mock("@/components/ui/Badge", () => ({
@@ -230,5 +237,36 @@ describe("season episode queries ask for the whole season", () => {
       params["pagination.pageSize"],
       "without an explicit page size the handler serves 50 rows in sort_title order",
     ).toBe(500);
+  });
+});
+
+// Play on a series resumes where the profile is in it; the first episode is
+// only the fallback while the server has not answered (or cannot).
+describe("PlaySeriesButton", () => {
+  beforeEach(() => {
+    mockListMediaItems.mockImplementation((params: { parentId: string }) =>
+      params.parentId === "show"
+        ? { data: { items: [{ id: "season-1", indexNumber: 1 }] } }
+        : { data: { items: [{ id: "s1e2", indexNumber: 2 }, { id: "s1e1", indexNumber: 1 }] } });
+  });
+
+  it("starts the server's episode and says Resume once the series is started", () => {
+    mockPlayTarget.mockReturnValue({ episode: { id: "s2e3", title: "Third" }, started: true, isLoading: false });
+    const onPlay = vi.fn();
+    render(<PlaySeriesButton seriesId="show" onPlay={onPlay} />, { wrapper: Wrapper });
+    const btn = screen.getByTestId("play-series-button");
+    expect(btn.textContent).toContain("Resume");
+    fireEvent.click(btn);
+    expect(onPlay).toHaveBeenCalledWith("s2e3");
+  });
+
+  it("falls back to the first episode, labelled Play, without an answer", () => {
+    mockPlayTarget.mockReturnValue({ episode: undefined, started: false, isLoading: false });
+    const onPlay = vi.fn();
+    render(<PlaySeriesButton seriesId="show" onPlay={onPlay} />, { wrapper: Wrapper });
+    const btn = screen.getByTestId("play-series-button");
+    expect(btn.textContent).toContain("Play");
+    fireEvent.click(btn);
+    expect(onPlay).toHaveBeenCalledWith("s1e1");
   });
 });

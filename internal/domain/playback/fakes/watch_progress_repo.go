@@ -15,6 +15,8 @@ type FakeWatchProgressRepository struct {
 	mu    sync.RWMutex
 	items map[string]*playback.WatchProgress
 	Err   error
+	// SeriesEpisodes answers ListSeriesEpisodes, by series id.
+	SeriesEpisodes map[string][]playback.SeriesEpisode
 }
 
 func NewFakeWatchProgressRepository() *FakeWatchProgressRepository {
@@ -209,4 +211,13 @@ func (r *FakeWatchProgressRepository) GetNextUp(_ context.Context, profileID str
 		result = result[:limit]
 	}
 	return result, nil
+}
+
+func (r *FakeWatchProgressRepository) ListSeriesEpisodes(_ context.Context, _, seriesID string) ([]playback.SeriesEpisode, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.SeriesEpisodes[seriesID], nil
 }

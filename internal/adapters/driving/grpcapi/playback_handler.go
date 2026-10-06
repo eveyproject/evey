@@ -1164,6 +1164,53 @@ func (h *playbackHandler) ClearWatchHistory(ctx context.Context, req *eveyv1.Cle
 	return &eveyv1.ClearWatchHistoryResponse{Deleted: int32(deleted)}, nil
 }
 
+// GetSeriesPlayTarget answers which episode Play on a series starts for the
+// profile. Gated like any single item: the series must be in a library the
+// user may read, and a kids profile never gets an episode its rating blocks.
+func (h *playbackHandler) GetSeriesPlayTarget(ctx context.Context, req *eveyv1.GetSeriesPlayTargetRequest) (*eveyv1.GetSeriesPlayTargetResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.playback.GetSeriesPlayTarget")
+	defer span.End()
+	claims, err := requireClaims(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("playbackHandler.GetSeriesPlayTarget: %w", err)
+	}
+	profileID, err := resolveProfileID(claims, req.ProfileId)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, fmt.Errorf("playbackHandler.GetSeriesPlayTarget: %w", err)
+	}
+	if err := h.requireMediaAccess(ctx, req.SeriesId); err != nil {
+		return nil, err
+	}
+	target, started, ok, err := h.query.GetSeriesPlayTarget(ctx, shared.ProfileID(profileID), shared.MediaItemID(req.SeriesId))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError(ctx, "get series play target", err)
+	}
+	resp := &eveyv1.GetSeriesPlayTargetResponse{Started: started}
+	if !ok {
+		return resp, nil
+	}
+	item, err := h.librarySvc.GetMediaItem(ctx, string(target.MediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError(ctx, "get series play target item", err)
+	}
+	if mediaItemBlockedByParental(resolveParentalFilterFromUserQuery(ctx, h.userQuery), item) {
+		return resp, nil
+	}
+	resp.Item = mediaItemToProto(item, ctxIsAdmin(ctx))
+	if !target.Completed {
+		resp.PositionMs = target.Position.Milliseconds()
+	}
+	return resp, nil
+}
+
 func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {

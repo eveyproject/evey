@@ -31,6 +31,7 @@ export * from "./hooks/useFileAudioSelection";
 export * from "./hooks/useRemoteSeek";
 export * from "./hooks/useAutoMarkWatched";
 export * from "./hooks/useNextEpisode";
+export * from "./hooks/useSeriesPlayTarget";
 export * from "./hooks/useUpNextCountdown";
 export * from "./hooks/useChapterSkippables";
 export * from "./hooks/useAuthenticatedImage";

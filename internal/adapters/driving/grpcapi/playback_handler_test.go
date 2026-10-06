@@ -1043,6 +1043,51 @@ func TestPlaybackHandler_GetNextUp_ParentalFiltersAdult(t *testing.T) {
 	assert.Contains(t, ids, "mi-pg", "kid-safe next-up item must remain")
 }
 
+// GetSeriesPlayTarget hands back the episode to start with where it was
+// left: the unfinished one, mid-way, and "started" so the client says Resume.
+func TestPlaybackHandler_GetSeriesPlayTarget(t *testing.T) {
+	h, _, progressRepo, mediaQuery, _, _ := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	mediaQuery.Seed(&library.MediaItem{ID: "show", Title: "Show", Type: "series"})
+	mediaQuery.Seed(&library.MediaItem{ID: "s2e3", Title: "Episode 3", Type: "episode"})
+	progressRepo.SeriesEpisodes = map[string][]playback.SeriesEpisode{"show": {
+		{MediaItemID: "s1e1", Completed: true, LastPlayedAt: time.Unix(10, 0)},
+		{MediaItemID: "s2e3", Position: mustPlaybackDurationMs(t, 42000), LastPlayedAt: time.Unix(20, 0)},
+	}}
+
+	resp, err := h.GetSeriesPlayTarget(ctx, &eveyv1.GetSeriesPlayTargetRequest{SeriesId: "show"})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Item)
+	assert.Equal(t, "s2e3", resp.Item.Id)
+	assert.Equal(t, int64(42000), resp.PositionMs)
+	assert.True(t, resp.Started)
+}
+
+func TestPlaybackHandler_GetSeriesPlayTarget_NoEpisodes(t *testing.T) {
+	h, _, _, mediaQuery, _, _ := newTestPlaybackHandler()
+	mediaQuery.Seed(&library.MediaItem{ID: "empty", Title: "Empty", Type: "series"})
+	resp, err := h.GetSeriesPlayTarget(pbAdminCtx(), &eveyv1.GetSeriesPlayTargetRequest{SeriesId: "empty"})
+	require.NoError(t, err)
+	assert.Nil(t, resp.Item)
+	assert.False(t, resp.Started)
+}
+
+func TestPlaybackHandler_GetSeriesPlayTarget_ParentalBlocksEpisode(t *testing.T) {
+	h, _, progressRepo, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
+	ctx := context.Background()
+	maxAge := 13
+	profileRepo.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
+	mediaQuery.Seed(&library.MediaItem{ID: "show", Title: "Show", Type: "series"})
+	mediaQuery.Seed(&library.MediaItem{ID: "ep-r", Title: "Adult episode", Type: "episode",
+		Classification: &library.MediaClassification{OfficialRating: "R"}})
+	progressRepo.SeriesEpisodes = map[string][]playback.SeriesEpisode{"show": {{MediaItemID: "ep-r"}}}
+
+	resp, err := h.GetSeriesPlayTarget(userCtx("user-2", "profile-2"), &eveyv1.GetSeriesPlayTargetRequest{SeriesId: "show"})
+	require.NoError(t, err)
+	assert.Nil(t, resp.Item, "an episode the kids profile may not watch must not be handed out")
+}
+
 func TestPlaybackHandler_GetResumeItems_ParentalFiltersAdult(t *testing.T) {
 	h, _, progressRepo, mediaQuery, profileRepo, _ := newTestPlaybackHandler()
 	ctx := context.Background()

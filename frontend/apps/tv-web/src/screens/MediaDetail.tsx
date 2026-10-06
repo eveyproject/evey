@@ -32,6 +32,7 @@ import {
   invalidateWatchedState,
   personTypeLabelKey,
   resolvePlayTarget,
+  useSeriesPlayTarget,
   sortByIndexNumber,
   sortTrailers,
   trailerUrl,
@@ -269,7 +270,11 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
     () => sortByIndexNumber(isSeason ? children : (firstSeasonEpisodes?.items ?? [])),
     [isSeason, children, firstSeasonEpisodes?.items],
   );
-  const playTarget = resolvePlayTarget({ id: mediaId, isSeries, isSeason, episodeIds: episodes.map((e) => e.id) });
+  // A series plays where the profile is in it (the server's answer); the
+  // first episode stays the fallback until that answer is in.
+  const seriesTarget = useSeriesPlayTarget(isSeries ? mediaId : undefined);
+  const seriesStarted = isSeries && seriesTarget.started;
+  const playTarget = (isSeries && seriesTarget.episode?.id) || resolvePlayTarget({ id: mediaId, isSeries, isSeason, episodeIds: episodes.map((e) => e.id) });
 
   // `restart` and the track pick survive the PIN detour. The pick belongs to
   // THIS page's streams: an episode started from a series keeps the player's.
@@ -353,10 +358,10 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
             <Pressable
               className={`tv-card play-btn ${hasProgress ? "left" : ""}`}
               autoFocus
-              label={hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(resumeMs)}` : t("player.controls.play")}
+              label={hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(resumeMs)}` : seriesStarted ? t("media.resume", "Resume") : t("player.controls.play")}
               onPress={() => play(false)}
             >
-              {hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(resumeMs)}` : t("player.controls.play")}
+              {hasProgress ? `${t("media.resume", "Resume")} ${formatTimeMs(resumeMs)}` : seriesStarted ? t("media.resume", "Resume") : t("player.controls.play")}
             </Pressable>
             {hasProgress ? (
               <Pressable className="tv-card play-restart" label={t("media.playFromStart", "Play from the beginning")} onPress={() => play(true)}>

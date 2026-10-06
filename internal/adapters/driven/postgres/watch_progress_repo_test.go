@@ -131,6 +131,73 @@ func TestWatchProgressRepo_GetNextUp_OrdersByRecency(t *testing.T) {
 	assert.Equal(t, shared.MediaItemID("nu-aaa-e2"), all[1].MediaItemID)
 }
 
+// TestWatchProgressRepo_ListSeriesEpisodes proves the episodes of a series
+// come in viewing order across seasons, specials last, each with this
+// profile's progress only.
+func TestWatchProgressRepo_ListSeriesEpisodes(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	wpRepo := postgres.NewWatchProgressRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("lseu1")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := newTestProfile("lsep1", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, p))
+	other := newTestProfile("lsep2", u.ID)
+	require.NoError(t, profileRepo.Create(ctx, other))
+	lib := newTestLibrary("lselib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	mk := func(id, parent string, typ library.MediaItemType, idx int) *library.MediaItem {
+		it := newTestMediaItem(id, lib.ID)
+		it.Type = typ
+		it.ParentID = parent
+		n := idx
+		it.IndexNumber = &n
+		return it
+	}
+	// Created out of order on purpose: the query, not insertion, orders them.
+	for _, it := range []*library.MediaItem{
+		mk("lse-show", "", library.Series, 0),
+		mk("lse-s2", "lse-show", library.Season, 2), mk("lse-s0", "lse-show", library.Season, 0), mk("lse-s1", "lse-show", library.Season, 1),
+		mk("lse-s2e1", "lse-s2", library.Episode, 1), mk("lse-s1e2", "lse-s1", library.Episode, 2),
+		mk("lse-s1e1", "lse-s1", library.Episode, 1), mk("lse-s0e1", "lse-s0", library.Episode, 1),
+	} {
+		require.NoError(t, itemRepo.Create(ctx, it))
+	}
+	played := time.Now().UTC().Add(-time.Hour).Truncate(time.Millisecond)
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+		ID: "lse-wp1", ProfileID: p.ID, MediaItemID: "lse-s1e2", Completed: true, LastPlayedAt: played, Position: mustWPDuration(t, 5000),
+	}))
+	require.NoError(t, wpRepo.Upsert(ctx, &playback.WatchProgress{
+		ID: "lse-wp2", ProfileID: other.ID, MediaItemID: "lse-s2e1", LastPlayedAt: played, Position: mustWPDuration(t, 7000),
+	}))
+
+	got, err := wpRepo.ListSeriesEpisodes(ctx, string(p.ID), "lse-show")
+	require.NoError(t, err)
+	ids := make([]string, len(got))
+	for i, e := range got {
+		ids[i] = string(e.MediaItemID)
+	}
+	assert.Equal(t, []string{"lse-s1e1", "lse-s1e2", "lse-s2e1", "lse-s0e1"}, ids)
+	assert.True(t, got[1].Completed)
+	assert.Equal(t, int64(5000), got[1].Position.Milliseconds())
+	assert.False(t, got[1].LastPlayedAt.IsZero())
+	// Another profile's progress does not leak in.
+	assert.True(t, got[2].LastPlayedAt.IsZero())
+	assert.False(t, got[2].Completed)
+
+	target, ok := playback.PickSeriesEpisode(got)
+	require.True(t, ok)
+	assert.Equal(t, shared.MediaItemID("lse-s2e1"), target.MediaItemID)
+}
+
 func TestWatchProgressRepo_DeleteByProfile(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

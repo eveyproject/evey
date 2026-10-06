@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { formatDurationMs, seasonLabel } from "@evey/api";
 import { artworkUrl } from "./artworkUrl";
 import { useAuthStore } from "@evey/store";
+import { useSeriesPlayTarget } from "@evey/client";
 import { DownloadButton } from "@/features/playback/DownloadButton";
 import { useStreamToken } from "@/hooks/useStreamToken";
 
@@ -181,8 +182,13 @@ function SeasonCard({ seasonId }: { seasonId: string }) {
   );
 }
 
+// Play on a series starts where the profile is in it (the server's answer:
+// the unfinished episode, else the next one across seasons). The first
+// episode stays the fallback while that answer is out, or from a server too
+// old to give one.
 export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPlay: (episodeId: string) => void }) {
   const { t } = useTranslation();
+  const target = useSeriesPlayTarget(seriesId);
   const { data: seasonsData } = useLibraryServiceListMediaItems({ parentId: seriesId, "pagination.pageSize": SEASONS_PAGE_SIZE });
   const seasons = sortByIndex(seasonsData?.items ?? []);
   const firstSeason = seasons[0];
@@ -192,14 +198,14 @@ export function PlaySeriesButton({ seriesId, onPlay }: { seriesId: string; onPla
     { query: { enabled: !!firstSeason?.id } } as never,
   );
   const episodes = sortByIndex(episodesData?.items ?? []);
-  const firstEpisode = episodes[0];
+  const episode = target.episode ?? episodes[0];
 
-  if (!firstEpisode?.id) return null;
+  if (!episode?.id) return null;
 
   return (
-    <Button variant="primary" size="lg" onClick={() => onPlay(firstEpisode.id!)}>
+    <Button variant="primary" size="lg" data-testid="play-series-button" title={episode.title} onClick={() => onPlay(episode.id!)}>
       <Play size={ICON.md} fill="currentColor" />
-      {t("media.detail.play")}
+      {target.started ? t("media.detail.resume") : t("media.detail.play")}
     </Button>
   );
 }

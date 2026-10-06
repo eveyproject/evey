@@ -210,6 +210,43 @@
         ]
       }
     },
+    "/api/v1/playback/series/{seriesId}/play-target": {
+      "get": {
+        "summary": "The episode Play on a series starts for the profile: the last one played\nif unfinished, else the next one across seasons, else the first.",
+        "operationId": "PlaybackService_GetSeriesPlayTarget",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetSeriesPlayTargetResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "seriesId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "profileId",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "PlaybackService"
+        ]
+      }
+    },
     "/api/v1/playback/start": {
       "post": {
         "operationId": "PlaybackService_StartStream",
@@ -646,6 +683,24 @@
             "type": "object",
             "$ref": "#/definitions/v1WatchProgress"
           }
+        }
+      }
+    },
+    "v1GetSeriesPlayTargetResponse": {
+      "type": "object",
+      "properties": {
+        "item": {
+          "$ref": "#/definitions/v1MediaItem",
+          "description": "Unset for a series without a playable episode."
+        },
+        "positionMs": {
+          "type": "string",
+          "format": "int64",
+          "description": "Where that episode was left; 0 to start it from the beginning."
+        },
+        "started": {
+          "type": "boolean",
+          "description": "The profile has played an episode of this series: \"Resume\", not \"Play\"."
         }
       }
     },

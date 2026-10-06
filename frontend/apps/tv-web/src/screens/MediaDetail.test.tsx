@@ -9,6 +9,7 @@ const markUnwatched = vi.fn();
 const toggleFavorite = vi.fn();
 
 const needsPin = vi.fn(() => false);
+const seriesTarget = vi.fn((): { episode?: { id: string }; started: boolean; isLoading: boolean } => ({ started: false, isLoading: false }));
 
 vi.mock("../tv/focus", () => ({
   useArrivalFocus: () => {},
@@ -52,6 +53,7 @@ vi.mock("@evey/client", async (importOriginal) => ({
   useAddToPlaylist: () => ({ mutate: vi.fn() }),
   useMediaItemCollections: () => ({ data: { collections: [] } }),
   useParentalGate: () => ({ needsPin, profileId: "prf-1", settingsLoading: false }),
+  useSeriesPlayTarget: () => seriesTarget(),
 }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
@@ -69,6 +71,7 @@ beforeEach(() => {
   getMediaItem.mockReturnValue({ data: MOVIE, isLoading: false, isError: false });
   listMediaItems.mockReturnValue({ data: { items: [] } });
   needsPin.mockReturnValue(false);
+  seriesTarget.mockReturnValue({ started: false, isLoading: false });
 });
 
 let watchProgressArgs: unknown[] = [];
@@ -105,6 +108,15 @@ describe("the title page", () => {
 
   // A series owns no file: streaming its own id can only fail, which is what
   // the televisions learned on a real device.
+  it("resumes a started series on the episode the server picked", () => {
+    getMediaItem.mockReturnValue({ data: SERIES, isLoading: false, isError: false });
+    listMediaItems.mockReturnValue({ data: { items: [{ id: "ep-1", indexNumber: 1 }] } });
+    seriesTarget.mockReturnValue({ episode: { id: "ep-42" }, started: true, isLoading: false });
+    render(<MediaDetailScreen mediaId="s-1" />);
+    fireEvent.click(screen.getByText("media.resume"));
+    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ name: "player", mediaId: "ep-42" }));
+  });
+
   it("plays the first episode of a series, in episode order", () => {
     getMediaItem.mockReturnValue({ data: SERIES, isLoading: false, isError: false });
     listMediaItems.mockImplementation((params: any) => {

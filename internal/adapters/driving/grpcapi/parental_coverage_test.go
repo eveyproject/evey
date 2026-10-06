@@ -97,10 +97,11 @@ var parentalGated = map[string]string{
 	"/evey.v1.ActivityService/GetPopularMedia": "per-item mediaItemBlockedByParental",
 
 	// Playback: the paths that actually hand over a stream.
-	"/evey.v1.PlaybackService/GetStreamInfo":  "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
-	"/evey.v1.PlaybackService/StartStream":    "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
-	"/evey.v1.PlaybackService/GetNextUp":      "per-item mediaItemBlockedByParental",
-	"/evey.v1.PlaybackService/GetResumeItems": "per-item mediaItemBlockedByParental",
+	"/evey.v1.PlaybackService/GetStreamInfo":       "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
+	"/evey.v1.PlaybackService/StartStream":         "isBlockedByParental -> shared resolver, answers NotFound to hide existence",
+	"/evey.v1.PlaybackService/GetNextUp":           "per-item mediaItemBlockedByParental",
+	"/evey.v1.PlaybackService/GetSeriesPlayTarget": "target episode mediaItemBlockedByParental",
+	"/evey.v1.PlaybackService/GetResumeItems":      "per-item mediaItemBlockedByParental",
 }
 
 // parentalExempt lists media-returning RPCs that legitimately need no gate,
