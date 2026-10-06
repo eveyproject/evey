@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -62,6 +63,9 @@ type Runner struct {
 	// holdPlayback raises the server's "someone is watching" signal for the
 	// whole run and returns its release (see WithPlaybackSignal).
 	holdPlayback func() (release func())
+	// windowStats reads the packager's cumulative window counters (see
+	// WithWindowStats).
+	windowStats func() map[string]int64
 
 	// servedBytes is the running total of bytes every viewer has pulled this
 	// run - which is exactly what the server had to push. It is the honest
@@ -156,6 +160,40 @@ func (r *Runner) WithPlaybackSignal(hold func() (release func())) *Runner {
 	return r
 }
 
+// WithWindowStats lets a run report what its viewers cost the on-demand
+// packager: how many times a window of a source was read, how many of those
+// read a window again, how many bytes were built and thrown away. The disks
+// read 2.4x to 6.4x what the server served in the 2026-10-05 runs while the
+// packager alone reads 1.1x: these counters say whether the difference is the
+// packager reading the same window twice.
+func (r *Runner) WithWindowStats(read func() map[string]int64) *Runner {
+	r.windowStats = read
+	return r
+}
+
+// logWindowStats logs what the run added to the packager's counters. A plan
+// the cache let go during the run takes its counts with it, so this is a
+// floor, and "plans" says how many plans were summed at the end.
+func (r *Runner) logWindowStats(before, after map[string]int64) {
+	keys := make([]string, 0, len(after))
+	for k := range after {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	args := make([]any, 0, 2*len(keys)+2)
+	for _, k := range keys {
+		v := after[k]
+		if k != "plans" {
+			v -= before[k]
+		}
+		args = append(args, k, v)
+	}
+	if b := after["window_builds"] - before["window_builds"]; b > 0 {
+		args = append(args, "rebuild_pct", (after["window_rebuilds"]-before["window_rebuilds"])*100/b)
+	}
+	r.logger.Info("loadtest: packager windows", args...)
+}
+
 // Start kicks off a run asynchronously. It refuses to start when a run is
 // already in progress (ErrAlreadyRunning) or when real viewers are currently
 // streaming (ErrStreamsActive): a load test must never compete with real
@@ -227,8 +265,44 @@ func (r *Runner) wasCancelRequested() bool {
 	return r.cancelRequested
 }
 
-// heapSitesLogged is how many allocation sites the final heap profile logs.
-const heapSitesLogged = 12
+// heapSitesLogged is how many allocation sites the final heap profile logs;
+// heapPeakSitesLogged how many each peak profile does; mediaWaitSitesLogged how
+// many places the leftover media requests are parked at.
+const (
+	heapSitesLogged      = 12
+	heapPeakSitesLogged  = 6
+	mediaWaitSitesLogged = 6
+)
+
+// logHeapSites logs the biggest allocation sites by bytes still reachable,
+// from the process's own heap profile. at says when ("peak" mid-run, "end"),
+// viewers the audience then. A heap that grew while the audience shrank is
+// retention; one that only peaks is in-flight work, and the peak profile is
+// the only one that sees it.
+func (r *Runner) logHeapSites(at string, viewers, n int) {
+	sites, total := heapInUseTop(n)
+	if len(sites) == 0 {
+		return
+	}
+	// Handlers still alive are responses held in memory: in-flight work, as
+	// opposed to a cache.
+	serving, goroutines := goroutinesThrough("hlsVODServe")
+	r.logger.Info("loadtest: heap in use", "at", at, "viewers", viewers, "total_mb", total/(1<<20),
+		"sites", len(sites), "goroutines", goroutines, "goroutines_serving_media", serving)
+	for i, h := range sites {
+		r.logger.Info("loadtest: heap site",
+			"at", at,
+			"rank", i+1,
+			"mb", h.Bytes/(1<<20),
+			"share_pct", int(float64(h.Bytes)*100/float64(max(total, 1))),
+			"func", h.Func,
+			"file", h.File,
+			"line", h.Line,
+			"via", h.Via,
+			"chain", h.Chain,
+		)
+	}
+}
 
 func (r *Runner) finish(report Report) {
 	args := []any{
@@ -322,26 +396,11 @@ func (r *Runner) finish(report Report) {
 		)
 	}
 
-	// Who holds the memory the run ends with: the biggest allocation sites by
-	// bytes still reachable, from the process's own heap profile. A heap that
-	// grew while the audience shrank is retention, and this names it.
-	if sites, total := heapInUseTop(heapSitesLogged); len(sites) > 0 {
-		// Handlers still alive after every viewer left are responses held in
-		// memory: in-flight work, as opposed to a cache.
-		serving, goroutines := goroutinesThrough("hlsVODServe")
-		r.logger.Info("loadtest: heap in use", "total_mb", total/(1<<20), "sites", len(sites),
-			"goroutines", goroutines, "goroutines_serving_media", serving)
-		for i, h := range sites {
-			r.logger.Info("loadtest: heap site",
-				"rank", i+1,
-				"mb", h.Bytes/(1<<20),
-				"share_pct", int(float64(h.Bytes)*100/float64(max(total, 1))),
-				"func", h.Func,
-				"file", h.File,
-				"line", h.Line,
-				"via", h.Via,
-			)
-		}
+	// Who holds the memory the run ends with, and where the requests still
+	// alive after every viewer left are parked.
+	r.logHeapSites("end", 0, heapSitesLogged)
+	for _, w := range waitSitesThrough("hlsVODServe", mediaWaitSitesLogged) {
+		r.logger.Info("loadtest: media request parked", "count", w.Count, "at", w.At)
 	}
 
 	// A single flat-attribute line is deliberate: an operator can drive and

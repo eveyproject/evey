@@ -21,6 +21,10 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	if r.holdPlayback != nil {
 		defer r.holdPlayback()()
 	}
+	if r.windowStats != nil {
+		before := r.windowStats()
+		defer func() { r.logWindowStats(before, r.windowStats()) }()
+	}
 
 	// Prefer the path real viewers take - through the reverse proxy - and fall
 	// back to the loopback when it isn't reachable from in here.
@@ -280,6 +284,9 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	// throughputCeiling is the byte rate the box could not exceed, once a tier
 	// proves it has stopped gaining any.
 	var throughputCeiling int64
+	// heapPeakGiB is the last whole gibibyte of live heap profiled: each new
+	// one gets a profile, so a transient peak is named while it is still there.
+	var heapPeakGiB int64
 
 runLoop:
 	for {
@@ -302,6 +309,10 @@ runLoop:
 			sample, ok := sampler.sample(r.servedBytes.Load(), now)
 			if !ok {
 				continue
+			}
+			if g := sample.GoHeapLiveBytes >> 30; g > heapPeakGiB {
+				heapPeakGiB = g
+				r.logHeapSites("peak", ramp.tier, heapPeakSitesLogged)
 			}
 			if reason, detail := res.observe(ramp.tier, sample, now); reason != "" {
 				// A saturated resource does not end the run: it ends this TIER.

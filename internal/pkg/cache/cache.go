@@ -124,6 +124,21 @@ func (c *TTLCache[T]) Delete(key string) {
 	}
 }
 
+// Values returns the live entries' values, newest first: a snapshot for a
+// caller that sums or inspects what the cache holds.
+func (c *TTLCache[T]) Values() []T {
+	now := time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]T, 0, c.lru.Len())
+	for el := c.lru.Front(); el != nil; el = el.Next() {
+		if e := el.Value.(*entry[T]); !now.After(e.expiresAt) {
+			out = append(out, e.val)
+		}
+	}
+	return out
+}
+
 func (c *TTLCache[T]) evict() {
 	now := time.Now()
 	c.mu.Lock()

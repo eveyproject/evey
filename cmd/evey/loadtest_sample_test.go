@@ -82,6 +82,36 @@ func TestRandomLibrarySlice_Errors(t *testing.T) {
 	}
 }
 
+// The pool holds films and episodes in equal parts even when the library holds
+// ten episodes per film, and one kind fills in when the other runs short.
+func TestFilmsAndEpisodes(t *testing.T) {
+	byKind := map[string][]string{
+		"movie":   {"f1", "f2"},
+		"episode": {"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8", "e9", "e10"},
+	}
+	list := func(_ context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+		if f.Type == nil {
+			t.Fatal("the draw must filter by kind")
+		}
+		var out []*library.MediaItem
+		for _, id := range byKind[*f.Type] {
+			if len(out) < f.Limit {
+				out = append(out, &library.MediaItem{ID: shared.MediaItemID(id)})
+			}
+		}
+		return out, nil
+	}
+	start := func() string { return "" }
+	got, err := filmsAndEpisodes(context.Background(), list, 4, start)
+	if err != nil || itemIDs(got) != "f1e1f2e2" {
+		t.Fatalf("got %q (err %v), want f1e1f2e2: two films and two episodes", itemIDs(got), err)
+	}
+	got, _ = filmsAndEpisodes(context.Background(), list, 6, start)
+	if itemIDs(got) != "f1e1f2e2e3e4" {
+		t.Fatalf("got %q, want the episodes to fill in once the films run out", itemIDs(got))
+	}
+}
+
 // The random starting point must be a well-formed version 4 UUID (the id
 // column's type) and must actually vary.
 func TestRandomItemID(t *testing.T) {

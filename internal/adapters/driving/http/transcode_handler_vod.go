@@ -574,7 +574,11 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// renditions segment by segment and would never open the cache this full
 	// read fills - a full read next to its own playback. The native apps and
 	// the cast receiver still fetch /subtitle, so they keep the head start.
-	if h.subtitlePrewarm != nil && item != nil && item.File != nil {
+	// Nor for a simulated viewer of the load test (X-Evey-Load-Test, set by
+	// internal/app/loadtest): a run queued 32 full reads that went on at full
+	// speed long after it ended (2026-10-05). The header only ever skips a
+	// convenience, so a client faking it costs itself, nobody else.
+	if h.subtitlePrewarm != nil && item != nil && item.File != nil && r.Header.Get("X-Evey-Load-Test") == "" {
 		packagerServes := browserUserAgent(r.UserAgent()) && len(h.planSubtitleRenditions(r, mediaID, item, streams, rp)) > 0
 		if !packagerServes {
 			h.subtitlePrewarm.Enqueue(mediaID, item.File.Path, streams, h.subtitlePrewarmLang(r.Context()))

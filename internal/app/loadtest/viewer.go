@@ -32,6 +32,12 @@ const (
 	servedByMkvgo  = "mkvgo"
 )
 
+// headerLoadTest marks every request of a simulated viewer, so the server
+// skips the work a real playback start buys for later (the subtitle prewarm:
+// a full read of the film nobody will watch). Mirrors
+// internal/adapters/driving/http/transcode_handler_vod.go.
+const headerLoadTest = "X-Evey-Load-Test"
+
 // maxConsecutiveViewerFailures is how many fetch failures in a row (outside
 // admission/auth signals, which are handled separately) turn a viewer into a
 // StopError verdict.
@@ -393,6 +399,7 @@ func (r *Runner) fetchOnce(ctx context.Context, rawURL, token string, keepBody b
 		return 0, nil, nil, 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set(headerLoadTest, "1")
 
 	start := time.Now()
 	resp, err := r.httpClient.Do(req)

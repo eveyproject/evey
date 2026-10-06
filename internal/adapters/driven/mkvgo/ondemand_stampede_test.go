@@ -1,14 +1,20 @@
 package mkvgo
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	extmatroska "github.com/gravity-zero/mkvgo/matroska"
+	"github.com/gravity-zero/mkvgo/mp4"
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 )
@@ -109,8 +115,10 @@ func TestOnDemandPlan_DistinctKeysBuildIndependently(t *testing.T) {
 }
 
 // A failed build is shared by the waiting callers (they all fall back to the
-// ffmpeg pipeline together) but must NOT be cached: the next request retries.
-func TestOnDemandPlan_ErrorSharedButNotCached(t *testing.T) {
+// ffmpeg pipeline together) and remembered: the next requests fall back at once
+// instead of paying the failing read again. A changed file is a new key and is
+// planned straight away.
+func TestOnDemandPlan_FailureRememberedUntilTheFileChanges(t *testing.T) {
 	p := NewOnDemandPackager()
 	defer p.Close()
 	src := stampedeSrc(t)
@@ -121,15 +129,79 @@ func TestOnDemandPlan_ErrorSharedButNotCached(t *testing.T) {
 		builds.Add(1)
 		return nil, boom
 	}
+	for range 3 {
+		if _, err := p.Plan(context.Background(), src, apptranscoding.OnDemandOptions{}); !errors.Is(err, boom) {
+			t.Fatalf("want the build error, got %v", err)
+		}
+	}
+	if got := builds.Load(); got != 1 {
+		t.Fatalf("a failed source was rebuilt: builds=%d, want 1", got)
+	}
+
+	if err := os.WriteFile(src, []byte("repaired"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := p.Plan(context.Background(), src, apptranscoding.OnDemandOptions{}); !errors.Is(err, boom) {
 		t.Fatalf("want the build error, got %v", err)
 	}
-	if _, err := p.Plan(context.Background(), src, apptranscoding.OnDemandOptions{}); !errors.Is(err, boom) {
-		t.Fatalf("want the build error on retry, got %v", err)
+	if got := builds.Load(); got != 2 {
+		t.Fatalf("a changed file must be planned again: builds=%d, want 2", got)
+	}
+}
+
+// A build cut short by a cancellation says nothing about the file: it is not
+// remembered as a failure.
+func TestOnDemandPlan_CancellationIsNotRemembered(t *testing.T) {
+	p := NewOnDemandPackager()
+	defer p.Close()
+	src := stampedeSrc(t)
+
+	var builds atomic.Int32
+	p.build = func(context.Context, string, apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
+		builds.Add(1)
+		return nil, context.Canceled
+	}
+	for range 2 {
+		_, _ = p.Plan(context.Background(), src, apptranscoding.OnDemandOptions{})
 	}
 	if got := builds.Load(); got != 2 {
-		t.Fatalf("errors must not be cached: builds=%d, want 2", got)
+		t.Fatalf("a cancelled build was remembered as a failure: builds=%d, want 2", got)
 	}
+}
+
+// However many sources an audience opens at once, at most onDemandMaxBuilds
+// plans are built at the same time.
+func TestOnDemandPlan_BuildsAreCapped(t *testing.T) {
+	p := NewOnDemandPackager()
+	defer p.Close()
+
+	var running, peak atomic.Int32
+	gate := make(chan struct{})
+	p.build = func(context.Context, string, apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
+		n := running.Add(1)
+		for {
+			m := peak.Load()
+			if n <= m || peak.CompareAndSwap(m, n) {
+				break
+			}
+		}
+		<-gate
+		running.Add(-1)
+		return &stubPlan{}, nil
+	}
+	var wg sync.WaitGroup
+	for range 3 * onDemandMaxBuilds {
+		src := stampedeSrc(t)
+		wg.Go(func() {
+			_, _ = p.Plan(context.Background(), src, apptranscoding.OnDemandOptions{})
+		})
+	}
+	time.Sleep(100 * time.Millisecond)
+	if got := peak.Load(); got != onDemandMaxBuilds {
+		t.Fatalf("%d builds ran at once, want the cap of %d", got, onDemandMaxBuilds)
+	}
+	close(gate)
+	wg.Wait()
 }
 
 // The flight's winner must build under a cancel-detached context: the first
@@ -194,5 +266,105 @@ func TestOnDemandPlan_ExpirySlidesWithUse(t *testing.T) {
 	}
 	if n := builds.Load(); n != 2 {
 		t.Fatalf("an idle plan must expire: %d builds", n)
+	}
+}
+
+// A build that outlasts slowAfter is named while it still runs and again when
+// it ends, with its file: the heap profile names the code holding a peak, only
+// this line names the source. A quick build says nothing.
+func TestOnDemandPlan_SlowBuildIsNamedWithItsFile(t *testing.T) {
+	p := NewOnDemandPackager()
+	defer p.Close()
+	var logs bytes.Buffer
+	p.logger = slog.New(slog.NewTextHandler(&logs, nil))
+	p.slowAfter = 20 * time.Millisecond
+
+	slow, quick := stampedeSrc(t), stampedeSrc(t)
+	p.build = func(_ context.Context, path string, _ apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
+		if path == slow {
+			time.Sleep(80 * time.Millisecond)
+		}
+		return &stubPlan{}, nil
+	}
+	if _, err := p.Plan(context.Background(), quick, apptranscoding.OnDemandOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if logs.Len() != 0 {
+		t.Fatalf("a quick build was logged: %s", logs.String())
+	}
+	if _, err := p.Plan(context.Background(), slow, apptranscoding.OnDemandOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	out := logs.String()
+	for _, want := range []string{"plan build still running", "slow plan build", "build_ms="} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("log lacks %q:\n%s", want, out)
+		}
+	}
+	if n := strings.Count(out, slow); n != 2 {
+		t.Fatalf("the slow file is named %d time(s), want 2 (while running, at the end):\n%s", n, out)
+	}
+}
+
+// statsPlan is a stub plan that reports fixed window counters.
+type statsPlan struct {
+	stubPlan
+	st mp4.HLSPlanStats
+}
+
+func (s *statsPlan) Stats() mp4.HLSPlanStats { return s.st }
+
+// WindowStats sums the counters of every plan the cache holds and says how
+// many it summed; a plan with no counters is left out.
+func TestOnDemandPackager_WindowStatsSumsTheCachedPlans(t *testing.T) {
+	p := NewOnDemandPackager()
+	defer p.Close()
+	plans := []apptranscoding.OnDemandPlan{
+		&statsPlan{st: mp4.HLSPlanStats{WindowBuilds: 10, WindowRebuilds: 2, Evictions: 1, ServedBytes: 100, DroppedBytes: 7}},
+		&statsPlan{st: mp4.HLSPlanStats{WindowBuilds: 5, WindowRebuilds: 3, ServedBytes: 50, SubtitleWalks: 1, SubtitleIndexedBlocks: 40}},
+		&stubPlan{},
+	}
+	i := 0
+	p.build = func(context.Context, string, apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
+		pl := plans[i]
+		i++
+		return pl, nil
+	}
+	for range plans {
+		if _, err := p.Plan(context.Background(), stampedeSrc(t), apptranscoding.OnDemandOptions{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := p.WindowStats()
+	want := map[string]int64{"plans": 2, "window_builds": 15, "window_rebuilds": 5, "evictions": 1, "served_bytes": 150, "dropped_bytes": 7, "subtitle_walks": 1, "subtitle_indexed_blocks": 40}
+	for k, v := range want {
+		if got[k] != v {
+			t.Fatalf("%s = %d, want %d (all: %v)", k, got[k], v, got)
+		}
+	}
+}
+
+// A Matroska source gets the subtitle index stored for it; a source with no
+// index, a non-Matroska source and a packager with no lookup get none.
+func TestOnDemandPackager_SubtitleIndexForAMatroskaSourceOnly(t *testing.T) {
+	p := NewOnDemandPackager()
+	defer p.Close()
+	if p.subtitleIndexFor("/m/film.mkv") != nil {
+		t.Fatal("no lookup wired, yet an index was found")
+	}
+	stored := &extmatroska.SubtitleIndex{}
+	var asked []string
+	p.WithSubtitleIndex(func(path string) (*extmatroska.SubtitleIndex, bool) {
+		asked = append(asked, path)
+		return stored, path == "/m/film.mkv"
+	})
+	if got := p.subtitleIndexFor("/m/film.mkv"); got != mp4.SubtitleBlockIndex(stored) {
+		t.Fatalf("a Matroska source with a stored index got %v", got)
+	}
+	if p.subtitleIndexFor("/m/other.mkv") != nil {
+		t.Fatal("a Matroska source with no stored index got one")
+	}
+	if p.subtitleIndexFor("/m/film.mp4") != nil || len(asked) != 2 {
+		t.Fatalf("an MP4 source was looked up or given an index (lookups: %v)", asked)
 	}
 }
