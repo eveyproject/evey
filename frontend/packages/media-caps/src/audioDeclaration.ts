@@ -11,9 +11,13 @@ import type { AudioProbe } from "./audioProbe";
 // formats. And a TV box can have NO decoder yet pass the bitstream untouched
 // to a receiver that renders it - ExoPlayer plays that fine.
 //
-// So for the Dolby/DTS family the SINK decides, not the decoder:
+// So for the Dolby/DTS family the SINK decides, not the decoder - but only the
+// sink answers Media3 itself reads (AudioCapabilities, 1.8.0): on a TV,
 //   - directPlayback[codec] (API 29+, AudioManager.isDirectPlaybackSupported)
-//   - or the codec's encoding among directProfiles (API 33+)
+//   - or the codec's encoding among directProfiles (API 33+);
+// anywhere else, only the encodings of a plugged-in HDMI sink. A phone or a
+// tablet answering yes on its own speaker (a phone brand, a tablet brand: dts) is never
+// passed through, and with no decoder the track plays silent (a tablet, 2026-10-05).
 // No evidence (probe missing, API < 29) means no declaration: the cost is a
 // server-side audio-only transcode (video stays copy), the alternative is
 // unwatchable sound. Everything outside the family (aac/mp3/opus/flac/...)
@@ -30,9 +34,16 @@ const FAMILY_ENCODINGS: Record<(typeof SINK_GATED_FAMILY)[number], number[]> = {
   truehd: [14], // ENCODING_DOLBY_TRUEHD
 };
 
+// AudioManager.EXTRA_AUDIO_PLUG_STATE: 1 = an HDMI sink is plugged in.
+const HDMI_PLUGGED = 1;
+
 export function sinkAcceptsCodec(probe: AudioProbe, codec: string): boolean {
-  if (probe.directPlayback[codec] === true) return true;
   const encodings = FAMILY_ENCODINGS[codec as (typeof SINK_GATED_FAMILY)[number]];
+  if (!probe.isTv) {
+    if (!encodings || probe.hdmi?.plugState !== HDMI_PLUGGED) return false;
+    return (probe.hdmi?.encodings ?? []).some((e) => encodings.includes(e));
+  }
+  if (probe.directPlayback[codec] === true) return true;
   if (!encodings) return false;
   return probe.directProfiles.some((p) => encodings.includes(p.encoding));
 }
