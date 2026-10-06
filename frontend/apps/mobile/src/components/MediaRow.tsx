@@ -18,6 +18,8 @@ interface MediaRowProps {
   seeAllHref?: string;
   items: V1MediaItem[];
   onItemPress?: (item: V1MediaItem) => void;
+  /** Long press on a card: its actions sheet. */
+  onItemLongPress?: (item: V1MediaItem) => void;
   watchPercents?: Record<string, number>;
 }
 
@@ -27,7 +29,7 @@ const getItemLayout = (_: unknown, index: number) => ({
   index,
 });
 
-export const MediaRow = memo(function MediaRow({ title, seeAllHref, items, onItemPress, watchPercents }: MediaRowProps) {
+export const MediaRow = memo(function MediaRow({ title, seeAllHref, items, onItemPress, onItemLongPress, watchPercents }: MediaRowProps) {
   const theme = useTheme();
   const { t } = useTranslation();
   const watchedMap = useWatchedMap();
@@ -44,11 +46,12 @@ export const MediaRow = memo(function MediaRow({ title, seeAllHref, items, onIte
       <MediaCard
         item={item}
         onPress={() => onItemPress?.(item)}
+        onLongPress={onItemLongPress ? () => onItemLongPress(item) : undefined}
         watchPercent={watchPercents?.[item.id ?? ""]}
         watched={item.id ? watchedMap.get(item.id) === true : false}
       />
     ),
-    [onItemPress, watchPercents, watchedMap],
+    [onItemPress, onItemLongPress, watchPercents, watchedMap],
   );
 
   if (!items.length) return null;

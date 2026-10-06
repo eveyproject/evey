@@ -76,6 +76,9 @@ vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn().mockResolvedValue({}),
 }));
 
+// The long-press sheet has its own test; the home only mounts it.
+vi.mock("../../../src/components/MediaActionsSheet", () => ({ MediaActionsSheet: () => null }));
+
 import HomeScreen from "./index";
 
 const FEED_LABEL_KEYS = new Set(["common.feeds.labels.resume_playback", "media.home.upNext", "media.home.collections", "media.home.recommendedForYou", "media.home.mostPopular"]);

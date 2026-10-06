@@ -16,6 +16,8 @@ import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
 interface MediaCardProps {
   item: V1MediaItem;
   onPress?: () => void;
+  /** Opens the card's actions (the web card's context menu). */
+  onLongPress?: () => void;
   width?: number;
   watchPercent?: number;
   /** When true, render the "watched" check badge in the bottom-right corner. */
@@ -46,7 +48,7 @@ export const CARD_TEXT_GAP = 4;
 export const CARD_CAPTION_HEIGHT = CARD_TEXT_GAP + CARD_LINE_HEIGHT * 2;
 const DEFAULT_WIDTH = ROW_CARD_WIDTH;
 
-export const MediaCard = React.memo(function MediaCard({ item, onPress, width, watchPercent, watched, posterBlurhash: posterBlurhashProp }: MediaCardProps) {
+export const MediaCard = React.memo(function MediaCard({ item, onPress, onLongPress, width, watchPercent, watched, posterBlurhash: posterBlurhashProp }: MediaCardProps) {
   const { t } = useTranslation();
   const theme = useTheme();
   const cardWidth = width ?? DEFAULT_WIDTH;
@@ -76,7 +78,7 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, width, w
   }, [item.artwork, posterBlurhashProp]);
 
   return (
-    <Pressable onPress={onPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={displayTitle(item, t)} accessibilityRole="button">
+    <Pressable onPress={onPress} onLongPress={onLongPress} style={{ width: cardWidth, marginRight: theme.spacing.sm }} accessible={true} accessibilityLabel={displayTitle(item, t)} accessibilityRole="button">
       <View style={{
         width: cardWidth,
         height: cardHeight,

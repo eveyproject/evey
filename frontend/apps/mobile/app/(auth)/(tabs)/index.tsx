@@ -34,6 +34,7 @@ import { useAuthStore, toast, useDemoStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { MediaRow } from "../../../src/components/MediaRow";
+import { MediaActionsSheet } from "../../../src/components/MediaActionsSheet";
 import { useWatchedMap } from "../../../src/hooks/useWatchedMap";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
@@ -169,16 +170,16 @@ function PhotoLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
 // return - a library whose type changes under a mounted row would otherwise
 // crash with "Rendered fewer hooks than expected" (the eslint-disable comments
 // that used to sit here hid exactly that from the lint gate).
-function LibraryFeedRow({ libraryId, name, libraryType, maxItems, onItemPress }: { libraryId: string; name: string; libraryType?: string; maxItems?: number; onItemPress: (item: V1MediaItem) => void }) {
+function LibraryFeedRow({ libraryId, name, libraryType, maxItems, onItemPress, onItemLongPress }: { libraryId: string; name: string; libraryType?: string; maxItems?: number; onItemPress: (item: V1MediaItem) => void; onItemLongPress?: (item: V1MediaItem) => void }) {
   // Music + photo libraries don't live in the media_items table - they have
   // their own tables hit via /music/albums and /photos/albums. Fall back to
   // /library/list otherwise (movies/shows).
   if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicLibraryRow libraryId={libraryId} name={name} maxItems={maxItems} />;
   if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoLibraryRow libraryId={libraryId} name={name} maxItems={maxItems} />;
-  return <MediaLibraryRow libraryId={libraryId} name={name} libraryType={libraryType} maxItems={maxItems} onItemPress={onItemPress} />;
+  return <MediaLibraryRow libraryId={libraryId} name={name} libraryType={libraryType} maxItems={maxItems} onItemPress={onItemPress} onItemLongPress={onItemLongPress} />;
 }
 
-function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress }: { libraryId: string; name: string; libraryType?: string; maxItems?: number; onItemPress: (item: V1MediaItem) => void }) {
+function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress, onItemLongPress }: { libraryId: string; name: string; libraryType?: string; maxItems?: number; onItemPress: (item: V1MediaItem) => void; onItemLongPress?: (item: V1MediaItem) => void }) {
   const typeFilter = libraryType === "LIBRARY_TYPE_SHOWS"
     ? "MEDIA_ITEM_TYPE_SERIES"
     : libraryType === "LIBRARY_TYPE_MOVIES"
@@ -212,7 +213,7 @@ function MediaLibraryRow({ libraryId, name, libraryType, maxItems, onItemPress }
 
   // "See all" jumps to the full library grid (web parity: per-library sliders
   // link to /library/<id>).
-  return <MediaRow title={name} seeAllHref={`/library/${libraryId}`} items={items} onItemPress={onItemPress} />;
+  return <MediaRow title={name} seeAllHref={`/library/${libraryId}`} items={items} onItemPress={onItemPress} onItemLongPress={onItemLongPress} />;
 }
 
 // "recently_added" is intentionally absent: it duplicated the per-library
@@ -597,6 +598,9 @@ export default function HomeScreen() {
   const handleItemPress = useCallback((item: V1MediaItem) => {
     router.push(`/media/${item.id}`);
   }, []);
+  // Long press on a card: the web card's context menu, as a sheet.
+  const [actionItem, setActionItem] = useState<V1MediaItem | null>(null);
+  const closeActions = useCallback(() => setActionItem(null), []);
 
   // A failed shelf renders LoadFailed IN PLACE of just that row rather than
   // hiding the whole home screen (renderSection is called per-section) - one
@@ -609,10 +613,10 @@ export default function HomeScreen() {
       case "resume_playback":
       case "continue_watching":
         if (resume.isError) return <LoadFailed key={feedType} inline onRetry={() => void resume.refetch()} />;
-        return <MediaRow key={feedType} title={t("common.feeds.labels.resume_playback")} items={resume.data?.items ?? []} onItemPress={handleItemPress} watchPercents={watchPercents} />;
+        return <MediaRow key={feedType} title={t("common.feeds.labels.resume_playback")} items={resume.data?.items ?? []} onItemPress={handleItemPress} onItemLongPress={setActionItem} watchPercents={watchPercents} />;
       case "next_episode":
         if (nextUp.isError) return <LoadFailed key={feedType} inline onRetry={() => void nextUp.refetch()} />;
-        return <MediaRow key={feedType} title={t("media.home.upNext")} items={nextUp.data?.items ?? []} onItemPress={handleItemPress} />;
+        return <MediaRow key={feedType} title={t("media.home.upNext")} items={nextUp.data?.items ?? []} onItemPress={handleItemPress} onItemLongPress={setActionItem} />;
       case "collections": {
         if (collections.isError) return <LoadFailed key={feedType} inline onRetry={() => void collections.refetch()} />;
         const allCollections = collections.data?.collections ?? [];
@@ -621,16 +625,16 @@ export default function HomeScreen() {
       }
       case "recommended":
         if (recommended.isError) return <LoadFailed key={feedType} inline onRetry={() => void recommended.refetch()} />;
-        return <MediaRow key={feedType} title={t("media.home.recommendedForYou")} items={recommendedItems} onItemPress={handleItemPress} />;
+        return <MediaRow key={feedType} title={t("media.home.recommendedForYou")} items={recommendedItems} onItemPress={handleItemPress} onItemLongPress={setActionItem} />;
       case "most_popular":
         if (popular.isError) return <LoadFailed key={feedType} inline onRetry={() => void popular.refetch()} />;
-        return <MediaRow key={feedType} title={t("media.home.mostPopular")} items={popularItems} onItemPress={handleItemPress} />;
+        return <MediaRow key={feedType} title={t("media.home.mostPopular")} items={popularItems} onItemPress={handleItemPress} onItemLongPress={setActionItem} />;
       default:
         if (feedType.startsWith("library:")) {
           const libId = feedType.replace("library:", "");
           const lib = (librariesData?.libraries ?? []).find((l) => l.id === libId);
           if (!lib) return null;
-          return <LibraryFeedRow key={feedType} libraryId={libId} name={lib.name ?? ""} libraryType={lib.type} maxItems={maxItems} onItemPress={handleItemPress} />;
+          return <LibraryFeedRow key={feedType} libraryId={libId} name={lib.name ?? ""} libraryType={lib.type} maxItems={maxItems} onItemPress={handleItemPress} onItemLongPress={setActionItem} />;
         }
         if (feedType.startsWith("plugin:")) {
           const pluginId = feedType.replace("plugin:", "");
@@ -731,7 +735,7 @@ export default function HomeScreen() {
           {(librariesData?.libraries ?? [])
             .filter((lib) => lib.id && !feedConfigs.some((c) => c.feedType === `library:${lib.id}`))
             .map((lib) => (
-              <LibraryFeedRow key={`library:${lib.id}`} libraryId={lib.id!} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} />
+              <LibraryFeedRow key={`library:${lib.id}`} libraryId={lib.id!} name={lib.name ?? ""} libraryType={lib.type} onItemPress={handleItemPress} onItemLongPress={setActionItem} />
             ))}
           {!homeHasContent && (
             <View style={{ alignItems: "center", paddingVertical: theme.spacing.xl * 2, paddingHorizontal: theme.spacing.xl }}>
@@ -762,6 +766,7 @@ export default function HomeScreen() {
         libraryNames={libraryNames}
         pluginNames={pluginNames}
       />
+      <MediaActionsSheet item={actionItem} onClose={closeActions} />
     </View>
   );
 }
