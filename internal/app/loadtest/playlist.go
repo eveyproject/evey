@@ -125,6 +125,33 @@ const segmentDefaultMs = 3000
 
 // parseVariantPlaylist reads an HLS media playlist, returning the declared
 // target duration (ms) and the resolved segment URLs in playback order.
+// segmentDurationsMs reads each segment's own #EXTINF duration, in playlist
+// order, so a fetch can be judged against the length of the segment it
+// fetched. A segment without an EXTINF gets 0 (unknown).
+func segmentDurationsMs(body []byte) []int {
+	var out []int
+	pending := 0
+	scanner := bufio.NewScanner(bytes.NewReader(body))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		switch {
+		case strings.HasPrefix(line, "#EXTINF:"):
+			raw := strings.TrimPrefix(line, "#EXTINF:")
+			if i := strings.IndexByte(raw, ','); i >= 0 {
+				raw = raw[:i]
+			}
+			if secs, err := strconv.ParseFloat(strings.TrimSpace(raw), 64); err == nil && secs > 0 {
+				pending = int(secs * 1000)
+			}
+		case line == "" || strings.HasPrefix(line, "#"):
+		default:
+			out = append(out, pending)
+			pending = 0
+		}
+	}
+	return out
+}
+
 func parseVariantPlaylist(body []byte, base *url.URL) (targetDurationMs int, segments []*url.URL, err error) {
 	targetDurationMs = segmentDefaultMs
 	scanner := bufio.NewScanner(bytes.NewReader(body))

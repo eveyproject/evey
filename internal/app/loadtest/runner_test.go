@@ -395,7 +395,9 @@ func (s *serverState) serveVariant(w http.ResponseWriter, r *http.Request) {
 	b.WriteString("#EXTM3U\n")
 	fmt.Fprintf(&b, "#EXT-X-TARGETDURATION:%s\n", targetDur)
 	for i := range segCount {
-		b.WriteString("#EXTINF:1.0,\n")
+		// Each segment lasts the target duration, as a real packager writes it:
+		// the SLO judges a fetch against its segment's own EXTINF.
+		fmt.Fprintf(&b, "#EXTINF:%s,\n", targetDur)
 		fmt.Fprintf(&b, "%s%s-seg%d.ts\n", dir, variant, i)
 	}
 	if s.servedBy(mediaID, "variant", -1) {
@@ -522,10 +524,11 @@ func TestRunner_SLOBreachStopsAtPriorTier(t *testing.T) {
 	if report.SustainedViewers != 3 {
 		t.Fatalf("sustained viewers = %d, want 3", report.SustainedViewers)
 	}
-	// The budget is HALF the segment's own duration (100ms segments -> 50ms):
-	// a player that only just keeps up never fills its buffer.
-	if report.SegmentSLOMs != 50 {
-		t.Fatalf("segment SLO ms = %d, want 50 (half the 100ms segment duration)", report.SegmentSLOMs)
+	// The budget is HALF a segment's own duration, stated for the reference
+	// segment (6 s -> 3000ms) that every fetch is scaled to: a player that only
+	// just keeps up never fills its buffer.
+	if report.SegmentSLOMs != 3000 {
+		t.Fatalf("segment SLO ms = %d, want 3000 (half the 6 s reference segment)", report.SegmentSLOMs)
 	}
 }
 
@@ -976,13 +979,13 @@ func TestRunner_SLOBudgetIsPerViewerType(t *testing.T) {
 	if !strings.Contains(report.StopDetail, string(viewerTypeTranscode)) {
 		t.Fatalf("stop detail = %q, want it to name the transcode viewers as the ones that stalled", report.StopDetail)
 	}
-	// Each path carries its own budget - half its OWN segment length, so a
-	// player has room to build a buffer rather than merely keep pace.
-	if got := report.SegmentSLOMsByType[string(viewerTypeTranscode)]; got != 25 {
-		t.Fatalf("transcode budget = %dms, want 25ms (half its 50ms segments)", got)
+	// Each path is judged against its OWN segment length (each fetch scaled to
+	// the 6 s reference), so both state the same bar: half the reference.
+	if got := report.SegmentSLOMsByType[string(viewerTypeTranscode)]; got != 3000 {
+		t.Fatalf("transcode budget = %dms, want 3000ms (half the 6 s reference)", got)
 	}
-	if got := report.SegmentSLOMsByType[string(viewerTypeMkvgo)]; got != 500 {
-		t.Fatalf("mkvgo budget = %dms, want 500ms (half its 1000ms segments)", got)
+	if got := report.SegmentSLOMsByType[string(viewerTypeMkvgo)]; got != 3000 {
+		t.Fatalf("mkvgo budget = %dms, want 3000ms (half the 6 s reference)", got)
 	}
 }
 
@@ -2103,5 +2106,36 @@ func TestRunner_LogsTheRunsShareOfTheWindowCounters(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Fatalf("log lacks %q: %s", want, out)
 		}
+	}
+}
+
+// Each segment's own EXTINF is read in playlist order; a segment without one
+// is unknown (0).
+func TestSegmentDurationsMs_ReadsEachSegmentsOwnLength(t *testing.T) {
+	body := []byte("#EXTM3U\n#EXT-X-TARGETDURATION:12\n#EXTINF:6.006,\nseg0.m4s\n#EXTINF:11.5,\nseg1.m4s\nseg2.m4s\n#EXT-X-ENDLIST\n")
+	got := segmentDurationsMs(body)
+	if len(got) != 3 || got[0] != 6006 || got[1] != 11500 || got[2] != 0 {
+		t.Fatalf("durations = %v, want [6006 11500 0]", got)
+	}
+}
+
+// The budget no longer depends on the first stream's target duration: every
+// fetch is scaled to the reference segment, so 4 s for a 12 s segment is the
+// same verdict as 2 s for a 6 s one, whichever title a run drew first.
+func TestSLOTracker_JudgesEachFetchAgainstItsOwnSegment(t *testing.T) {
+	a, b := newSLOTracker(0), newSLOTracker(0)
+	a.lockTarget(viewerTypeMkvgo, 17000)
+	b.lockTarget(viewerTypeMkvgo, 4000)
+	if a.budgets()[string(viewerTypeMkvgo)] != b.budgets()[string(viewerTypeMkvgo)] {
+		t.Fatalf("budgets differ by first target: %v vs %v", a.budgets(), b.budgets())
+	}
+	if got := a.scaled(4000, 12000); got != 2000 {
+		t.Fatalf("4 s for a 12 s segment scaled to %d ms, want 2000", got)
+	}
+	if got := a.scaled(4000, 0); got != 4000 {
+		t.Fatalf("a segment of unknown length must be taken as it is, got %d", got)
+	}
+	if got := newSLOTracker(5000).scaled(4000, 12000); got != 4000 {
+		t.Fatalf("a pinned budget is absolute, got %d", got)
 	}
 }

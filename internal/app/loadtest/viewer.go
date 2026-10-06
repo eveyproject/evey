@@ -134,6 +134,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		return
 	}
 	sendEvent(ctx, events, viewerEvent{kind: evTargetDuration, vt: vt, slot: tierAtSpawn, ms: targetMs})
+	segDurs := segmentDurationsMs(body)
 
 	// The AUDIO the player will actually listen to.
 	//
@@ -163,6 +164,10 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 	consecutiveFail := 0
 	fetchNext := func(isFirst bool) (stop bool) {
 		segURL := segments[idx]
+		segMs := 0
+		if idx < len(segDurs) {
+			segMs = segDurs[idx]
+		}
 		// The audio of the SAME moment, pulled alongside - which is what a player
 		// does, and what makes the server produce both renditions from one read of
 		// the window. hls.js issues the two requests in parallel, so this one goes
@@ -213,7 +218,7 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 			if isFirst {
 				sendEvent(ctx, events, viewerEvent{kind: evTTFF, vt: vt, slot: tierAtSpawn, ms: elapsedMs})
 			} else {
-				sendEvent(ctx, events, viewerEvent{kind: evSegment, vt: vt, slot: tierAtSpawn, ms: elapsedMs})
+				sendEvent(ctx, events, viewerEvent{kind: evSegment, vt: vt, slot: tierAtSpawn, ms: elapsedMs, segMs: segMs})
 			}
 			return false
 		case outcomeTokenExpired:

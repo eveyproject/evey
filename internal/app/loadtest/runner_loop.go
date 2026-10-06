@@ -665,7 +665,7 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 			samples.perTypeSegments[ev.vt] = map[int][]int{}
 		}
 		samples.perTypeSegments[ev.vt][ramp.tier] = append(samples.perTypeSegments[ev.vt][ramp.tier], ev.ms)
-		if breached, p95, sloMs := slo.observe(ev.vt, ev.ms); breached {
+		if breached, p95, sloMs := slo.observe(ev.vt, slo.scaled(ev.ms, ev.segMs)); breached {
 			if isFlash {
 				// A flash slam is designed to overload; a global latency
 				// blip doesn't end the measurement, it's one of the reasons
