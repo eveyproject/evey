@@ -399,11 +399,18 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 					continue
 				}
 				codec, height := loadTestSourceClass(streamsByItem[string(it.ID)])
+				// The probed bitrate, else the file's own average (size over
+				// duration): what a direct-play viewer of it pulls.
+				bitrate := it.File.Bitrate
+				if secs := int64(it.File.Duration.Seconds()); bitrate <= 0 && secs > 0 {
+					bitrate = it.File.Size * 8 / secs
+				}
 				out = append(out, apploadtest.MediaCandidate{
 					ID:          string(it.ID),
 					DurationSec: int(it.File.Duration.Seconds()),
 					VideoCodec:  codec,
 					VideoHeight: height,
+					BitrateBps:  bitrate,
 					// The path lets the run measure how fast this box READS its
 					// media - the ceiling that actually decides a direct-play
 					// server's capacity, and the one the kernel cannot report when
