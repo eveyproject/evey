@@ -1,7 +1,9 @@
 package loadtest
 
 import (
+	"fmt"
 	"math/rand/v2"
+	"slices"
 	"sort"
 	"time"
 )
@@ -182,38 +184,57 @@ func (p *candidatePool) sourceMix() []SourceMixEntry {
 	return out
 }
 
-// qualityClass buckets a title by the height of its picture: what decides how
-// heavy it is to stream. Wide films are short (3840x1606, 1920x800), so the
-// bounds sit below the nominal heights.
-func qualityClass(height int) string {
-	switch {
-	case height <= 0:
-		return "unknown"
-	case height >= 1500:
-		return "2160p"
-	case height >= 760:
-		return "1080p"
-	case height >= 500:
-		return "720p"
-	default:
-		return "sd"
+// bitrateBands buckets the titles by what they weigh to stream: four bands cut
+// at the quartiles of their own bitrates, so each band holds a quarter of the
+// library whatever its formats are (a 4K web release streams lighter than a
+// 1080p remux, so the picture height does not tell). A title of unknown
+// bitrate is a band of its own. It returns each title's band and the band
+// floors in bit/s, for the log.
+func bitrateBands(candidates []MediaCandidate) (band []string, floors []int64) {
+	var known []int64
+	for _, c := range candidates {
+		if c.BitrateBps > 0 {
+			known = append(known, c.BitrateBps)
+		}
 	}
+	slices.Sort(known)
+	if len(known) > 0 {
+		for q := range 4 {
+			floors = append(floors, known[q*len(known)/4])
+		}
+	}
+	band = make([]string, len(candidates))
+	for i, c := range candidates {
+		if c.BitrateBps <= 0 {
+			band[i] = "unknown"
+			continue
+		}
+		b := 0
+		for q := 1; q < len(floors); q++ {
+			if c.BitrateBps >= floors[q] {
+				b = q
+			}
+		}
+		band[i] = fmt.Sprintf("q%d", b+1)
+	}
+	return band, floors
 }
 
 // representativeDraw orders the titles so that ANY number of viewers watches
-// the library's own mix of qualities, chosen at random within each quality.
+// the library's own mix of bitrates, chosen at random within each band.
 // A plain shuffle let the first fifty viewers of one run draw mostly 4K
 // (11.7 Mb/s each) and those of the next mostly light files (4.8 Mb/s): the
-// same server then "held" 38 or 136 viewers. The shares are those of the
-// drawn candidates, themselves a random slice of the library, so a quality
-// the library does not have weighs nothing. Each slot goes to the quality
-// furthest behind its share. It returns the order and each quality's count.
-func representativeDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandidate, map[string]int) {
+// same server then "held" 38 or 136 viewers; grouping by picture height
+// still left 111 against 176 (a 4K title streams at 15 to 60 Mb/s). The bands
+// are the drawn candidates' own bitrate quartiles, themselves a random slice
+// of the library. Each slot goes to the band furthest behind its share. It
+// returns the order, each band's count and the band floors in bit/s.
+func representativeDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandidate, map[string]int, []int64) {
 	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)) //nolint:gosec // a replayable draw of titles, not a secret
+	bands, floors := bitrateBands(candidates)
 	byClass := map[string][]MediaCandidate{}
-	for _, c := range candidates {
-		k := qualityClass(c.VideoHeight)
-		byClass[k] = append(byClass[k], c)
+	for i, c := range candidates {
+		byClass[bands[i]] = append(byClass[bands[i]], c)
 	}
 	classes := make([]string, 0, len(byClass))
 	for k := range byClass {
@@ -245,5 +266,5 @@ func representativeDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandid
 		out = append(out, byClass[best][taken[best]])
 		taken[best]++
 	}
-	return out, counts
+	return out, counts, floors
 }

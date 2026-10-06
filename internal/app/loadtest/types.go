@@ -42,6 +42,9 @@ type MediaCandidate struct {
 	// on what was drawn. Empty/0 when the streams were never probed.
 	VideoCodec  string
 	VideoHeight int
+	// BitrateBps is the file's overall bitrate: what a direct-play viewer of
+	// this title pulls from the disk and the network. 0 when unknown.
+	BitrateBps int64
 	// Path is where the file actually lives, so the run can measure how fast
 	// this box reads its media (see diskbench.go). Empty is tolerated: the disk
 	// probe is simply skipped.

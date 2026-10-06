@@ -23,27 +23,21 @@ func TestPool_AnIneligibleTitleIsNeverOfferedAgain(t *testing.T) {
 	}
 }
 
-// A library-shaped set of titles: 10 SD, 30 720p, 50 1080p, 10 4K.
+// A library-shaped set of titles: 100 bitrates from 1 to 100 Mb/s.
 func mixedCandidates() []MediaCandidate {
-	var out []MediaCandidate
-	add := func(n, height int, tag string) {
-		for i := range n {
-			out = append(out, MediaCandidate{ID: fmt.Sprintf("%s-%d", tag, i), VideoHeight: height, DurationSec: 3600})
-		}
+	out := make([]MediaCandidate, 0, 100)
+	for i := range 100 {
+		out = append(out, MediaCandidate{ID: fmt.Sprintf("t%d", i), BitrateBps: int64(i+1) * 1_000_000, DurationSec: 3600})
 	}
-	add(10, 480, "sd")
-	add(30, 720, "hd")
-	add(50, 1080, "fhd")
-	add(10, 2160, "uhd")
 	return out
 }
 
 // The draw keeps every title exactly once and is reproducible from its seed,
 // so a run can be replayed; another seed draws another order.
 func TestRepresentativeDraw_IsAPermutationReproducibleFromItsSeed(t *testing.T) {
-	a, _ := representativeDraw(mixedCandidates(), 42)
-	b, _ := representativeDraw(mixedCandidates(), 42)
-	c, _ := representativeDraw(mixedCandidates(), 43)
+	a, _, _ := representativeDraw(mixedCandidates(), 42)
+	b, _, _ := representativeDraw(mixedCandidates(), 42)
+	c, _, _ := representativeDraw(mixedCandidates(), 43)
 	seen := map[string]int{}
 	for _, m := range a {
 		seen[m.ID]++
@@ -67,43 +61,42 @@ func TestRepresentativeDraw_IsAPermutationReproducibleFromItsSeed(t *testing.T) 
 	}
 }
 
-// Whatever number of viewers a run reaches, they watch the library's own mix:
-// every prefix of the draw holds each quality within one title of its share.
-// A plain shuffle could hand the first fifty viewers mostly 4K.
-func TestRepresentativeDraw_EveryPrefixKeepsTheLibrarysMix(t *testing.T) {
-	out, mix := representativeDraw(mixedCandidates(), 7)
-	if mix["sd"] != 10 || mix["720p"] != 30 || mix["1080p"] != 50 || mix["2160p"] != 10 {
-		t.Fatalf("mix = %v, want sd 10, 720p 30, 1080p 50, 2160p 10", mix)
+// Whatever number of viewers a run reaches, they pull the library's own mix of
+// bitrates: every prefix of the draw holds each quarter of the bitrates within
+// one title of its share. A plain shuffle could hand the first fifty viewers
+// mostly heavy files.
+func TestRepresentativeDraw_EveryPrefixKeepsTheLibrarysBitrates(t *testing.T) {
+	in := mixedCandidates()
+	out, mix, floors := representativeDraw(in, 7)
+	if len(floors) != 4 || floors[0] != 1_000_000 || floors[1] != 26_000_000 || floors[2] != 51_000_000 || floors[3] != 76_000_000 {
+		t.Fatalf("band floors = %v, want the quartiles 1/26/51/76 Mb/s", floors)
 	}
-	share := map[string]float64{"sd": 0.1, "720p": 0.3, "1080p": 0.5, "2160p": 0.1}
-	taken := map[string]int{}
+	for _, q := range []string{"q1", "q2", "q3", "q4"} {
+		if mix[q] != 25 {
+			t.Fatalf("mix = %v, want 25 titles per band", mix)
+		}
+	}
+	quarter := func(bps int64) int { return int((bps/1_000_000 - 1) / 25) }
+	taken := [4]int{}
 	for n, m := range out {
-		taken[qualityClass(m.VideoHeight)]++
-		for k, p := range share {
-			if d := float64(taken[k]) - p*float64(n+1); d > 1 || d < -1 {
-				t.Fatalf("after %d viewers, %s has %d titles, %.1f expected", n+1, k, taken[k], p*float64(n+1))
+		taken[quarter(m.BitrateBps)]++
+		for q := range 4 {
+			if d := float64(taken[q]) - 0.25*float64(n+1); d > 1 || d < -1 {
+				t.Fatalf("after %d viewers, band %d has %d titles, %.1f expected", n+1, q+1, taken[q], 0.25*float64(n+1))
 			}
 		}
 	}
 }
 
-// A quality the library does not have is never drawn, and a title whose
-// streams were never probed is a quality of its own, not counted as 4K.
-func TestRepresentativeDraw_OnlyTheQualitiesTheLibraryHas(t *testing.T) {
-	in := []MediaCandidate{{ID: "a", VideoHeight: 1080}, {ID: "b", VideoHeight: 1080}, {ID: "c"}}
-	_, mix := representativeDraw(in, 1)
-	if len(mix) != 2 || mix["1080p"] != 2 || mix["unknown"] != 1 {
-		t.Fatalf("mix = %v, want only 1080p 2 and unknown 1", mix)
+// A title of unknown bitrate is a band of its own, never counted as a heavy or
+// a light one; with no known bitrate at all there are no floors.
+func TestBitrateBands_UnknownIsItsOwnBand(t *testing.T) {
+	band, floors := bitrateBands([]MediaCandidate{{ID: "a", BitrateBps: 8_000_000}, {ID: "b"}})
+	if band[0] == "unknown" || band[1] != "unknown" || len(floors) != 4 {
+		t.Fatalf("bands = %v floors = %v, want a known band for a and unknown for b", band, floors)
 	}
-}
-
-// Heights of wide films sit below the nominal ones and still land in their
-// class.
-func TestQualityClass_WideFilms(t *testing.T) {
-	for h, want := range map[int]string{1606: "2160p", 2160: "2160p", 800: "1080p", 1080: "1080p", 536: "720p", 720: "720p", 404: "sd", 0: "unknown"} {
-		if got := qualityClass(h); got != want {
-			t.Fatalf("height %d = %s, want %s", h, got, want)
-		}
+	if _, floors := bitrateBands([]MediaCandidate{{ID: "c"}}); len(floors) != 0 {
+		t.Fatalf("floors = %v, want none when no bitrate is known", floors)
 	}
 }
 

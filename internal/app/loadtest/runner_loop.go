@@ -68,9 +68,13 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	if seed == 0 {
 		seed = uint64(time.Now().UnixNano()) //nolint:gosec // a shuffle seed, not a secret
 	}
-	drawn, mix := representativeDraw(candidates, seed)
+	drawn, mix, floors := representativeDraw(candidates, seed)
+	floorsMbps := make([]float64, len(floors))
+	for i, f := range floors {
+		floorsMbps[i] = float64(f/100_000) / 10
+	}
 	r.logger.Info("loadtest: title draw", "seed", seed, "titles", len(candidates),
-		"sd", mix["sd"], "720p", mix["720p"], "1080p", mix["1080p"], "2160p", mix["2160p"], "unknown", mix["unknown"])
+		"band_floors_mbps", floorsMbps, "q1", mix["q1"], "q2", mix["q2"], "q3", mix["q3"], "q4", mix["q4"], "unknown", mix["unknown"])
 	pool := newCandidatePool(drawn, cfg.MaxDuration)
 
 	// Where the library lives decides what the storage instruments can see.
