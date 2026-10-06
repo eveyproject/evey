@@ -43,8 +43,12 @@ const (
 	// onDemandMaxBuilds caps the plans built at once. A build is a bounded read
 	// of the head, but a cold disk makes it slow and an audience starting
 	// together stacks them up: the cap keeps their memory and their reads from
-	// growing with the audience while the ones queued wait their turn.
-	onDemandMaxBuilds = 4
+	// growing with the audience while the ones queued wait their turn. 4 was too
+	// few (2026-10-06 run, 91 viewers): three builds stuck 5-7 s behind a busy
+	// disk (each a hundred-odd seeks, 0.1-1 s alone) held other titles queued up
+	// to 7.8 s, past the 4 s start budget. A build allocates up to ~60 MB in
+	// passing, so 16 at once stays under 1 GB.
+	onDemandMaxBuilds = 16
 	// onDemandSlowBuild is when a build gets named in the log. A plan is a
 	// head read of milliseconds; one still running after this is reading far
 	// more than a head, and the line naming its file is the only way to know
