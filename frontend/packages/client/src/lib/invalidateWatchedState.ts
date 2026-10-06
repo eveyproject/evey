@@ -14,7 +14,9 @@ function isWatchedSensitiveFeed(key: unknown): boolean {
     key.startsWith("/api/v1/feeds/") ||
     key === "/api/v1/popular" ||
     key === "/api/v1/playback/next-up" ||
-    key === "/api/v1/playback/resume"
+    key === "/api/v1/playback/resume" ||
+    // A series' Play target moves on once an episode of it is marked.
+    key.startsWith("/api/v1/playback/series/")
   );
 }
 

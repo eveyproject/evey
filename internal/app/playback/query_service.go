@@ -59,3 +59,17 @@ func (s *QueryService) GetNextUp(ctx context.Context, profileID shared.ProfileID
 	defer span.End()
 	return s.progress.GetNextUp(ctx, string(profileID), limit)
 }
+
+// GetSeriesPlayTarget is the episode "Play" on a series starts for this
+// profile (playback.PickSeriesEpisode) and whether the profile has started
+// the series at all; ok is false for a series without episodes.
+func (s *QueryService) GetSeriesPlayTarget(ctx context.Context, profileID shared.ProfileID, seriesID shared.MediaItemID) (target playback.SeriesEpisode, started, ok bool, err error) {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.GetSeriesPlayTarget")
+	defer span.End()
+	episodes, err := s.progress.ListSeriesEpisodes(ctx, string(profileID), string(seriesID))
+	if err != nil {
+		return playback.SeriesEpisode{}, false, false, err
+	}
+	target, ok = playback.PickSeriesEpisode(episodes)
+	return target, playback.SeriesStarted(episodes), ok, nil
+}

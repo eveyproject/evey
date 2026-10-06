@@ -199,6 +199,8 @@ let progressById: Record<string, { played?: boolean; positionMs?: string; durati
 // pin the request pattern, not just the pixels.
 let historyItems: { mediaItemId: string; played?: boolean; percentComplete?: number }[] = [];
 const watchProgressCalls: string[] = [];
+// The server's answer to "which episode does Play start", by series id.
+const seriesTargets: Record<string, { item?: { id: string }; started?: boolean }> = {};
 const historyCalls = { n: 0 };
 
 vi.mock("@evey/api", async (importOriginal) => ({
@@ -210,6 +212,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   },
   useLibraryServiceListMediaItems: (params: { parentId?: string }) => {
     if (params.parentId === SEASON_ID) return { data: { items: allEpisodes } };
+    if (params.parentId === "series-1") return { data: { items: [{ ...seasonItem, parentId: "series-1" }] } };
     return { data: { items: [] } };
   },
   usePlaybackServiceGetWatchProgress: (itemId: string) => {
@@ -220,6 +223,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
     historyCalls.n++;
     return { data: { items: historyItems } };
   },
+  usePlaybackServiceGetSeriesPlayTarget: (seriesId: string) => ({ data: seriesTargets[seriesId], isLoading: false }),
   usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), isPending: false }),
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), isPending: false }),
   useFeedServiceSimilarItems: () => ({ data: { items: [] } }),
@@ -250,6 +254,7 @@ beforeEach(() => {
   watchProgressCalls.length = 0;
   historyCalls.n = 0;
   for (const k of Object.keys(extraItems)) delete extraItems[k];
+  for (const k of Object.keys(seriesTargets)) delete seriesTargets[k];
 });
 
 // EpisodeRow renders its title as two sibling text expressions ("1. " + title)
@@ -457,5 +462,27 @@ describe("MediaDetailScreen episode watched indicator", () => {
     expect(historyCalls.n).toBeGreaterThanOrEqual(1);
     const perEpisode = watchProgressCalls.filter((id) => id.startsWith("ep-"));
     expect(perEpisode).toEqual([]);
+  });
+});
+
+// Play on a series starts where the profile is in it, not on the first
+// episode of the first season.
+describe("MediaDetailScreen series Play", () => {
+  beforeEach(() => {
+    currentId = "series-1";
+    extraItems["series-1"] = { id: "series-1", title: "Show", type: "MEDIA_ITEM_TYPE_SERIES" };
+  });
+
+  it("plays the episode the server picked and says Resume once started", () => {
+    seriesTargets["series-1"] = { item: { id: "ep-42" }, started: true };
+    render(React.createElement(MediaDetailScreen), { wrapper: makeWrapper() });
+    fireEvent.click(document.querySelector('button[accessibilitylabel="media.detail.resume"]')!);
+    expect(router.push).toHaveBeenCalledWith("/(auth)/player/ep-42");
+  });
+
+  it("falls back to the first episode, labelled Play, before the server answers", () => {
+    render(React.createElement(MediaDetailScreen), { wrapper: makeWrapper() });
+    fireEvent.click(document.querySelector('button[accessibilitylabel="media.detail.play"]')!);
+    expect(router.push).toHaveBeenCalledWith("/(auth)/player/ep-1");
   });
 });

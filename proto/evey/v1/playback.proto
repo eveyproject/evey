@@ -60,6 +60,14 @@ service PlaybackService {
     };
   }
 
+  // The episode Play on a series starts for the profile: the last one played
+  // if unfinished, else the next one across seasons, else the first.
+  rpc GetSeriesPlayTarget(GetSeriesPlayTargetRequest) returns (GetSeriesPlayTargetResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/playback/series/{series_id}/play-target"
+    };
+  }
+
   rpc MarkAsWatched(MarkAsWatchedRequest) returns (MarkAsWatchedResponse) {
     option (google.api.http) = {
       post: "/api/v1/playback/{media_item_id}/watched"
@@ -293,6 +301,20 @@ message GetNextUpRequest {
 
 message GetNextUpResponse {
   repeated MediaItem items = 1;
+}
+
+message GetSeriesPlayTargetRequest {
+  string series_id = 1;
+  string profile_id = 2;
+}
+
+message GetSeriesPlayTargetResponse {
+  // Unset for a series without a playable episode.
+  MediaItem item = 1;
+  // Where that episode was left; 0 to start it from the beginning.
+  int64 position_ms = 2;
+  // The profile has played an episode of this series: "Resume", not "Play".
+  bool started = 3;
 }
 
 message MarkAsWatchedRequest {

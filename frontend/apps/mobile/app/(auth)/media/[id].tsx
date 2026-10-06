@@ -66,7 +66,7 @@ import { MetadataEditSheet } from "../../../src/components/media/MetadataEditShe
 import { PlayOnSheet } from "../../../src/components/media/PlayOnSheet";
 import { SagaSection } from "../../../src/components/media/SagaSection";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
-import { RESUME_PROGRESS_QUERY, invalidateWatchedState } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { StarIcons } from "../../../src/components/media/StarIcons";
 import { personKeyExtractor, renderCastItem } from "../../../src/components/media/CastCard";
@@ -510,12 +510,16 @@ export default function MediaDetailScreen() {
     [directors, writers, producers],
   );
 
+  // A series plays where the profile is in it (the server's answer); the
+  // first episode shown stays the fallback until that answer is in.
+  const seriesTarget = useSeriesPlayTarget(isSeries ? id : undefined);
   const getPlayTarget = useCallback((): string | null => {
     if (!id) return null;
+    if (isSeries && seriesTarget.episode?.id) return seriesTarget.episode.id;
     if (isSeries && episodes.length > 0) return episodes[0]!.id!;
     if (isSeason && episodes.length > 0) return episodes[0]!.id!;
     return id;
-  }, [id, isSeries, isSeason, episodes]);
+  }, [id, isSeries, isSeason, episodes, seriesTarget.episode?.id]);
 
   // A double-tap on a play control fires this callback twice before the
   // first push unmounts the screen, mounting two player screens stacked on
@@ -841,7 +845,7 @@ export default function MediaDetailScreen() {
             accessibilityLabel={
               hasProgress
                 ? `${t("media.detail.resume")} ${formatTimeMs(Number(resumeMs))}`
-                : t("media.detail.play")
+                : isSeries && seriesTarget.started ? t("media.detail.resume") : t("media.detail.play")
             }
             accessibilityRole="button"
           >
@@ -849,7 +853,7 @@ export default function MediaDetailScreen() {
             <Text style={{ color: theme.colors.onAccent, fontWeight: "700", fontSize: 16 }}>
               {hasProgress
                 ? `${t("media.detail.resume")} ${formatTimeMs(Number(resumeMs))}`
-                : t("media.detail.play")}
+                : isSeries && seriesTarget.started ? t("media.detail.resume") : t("media.detail.play")}
             </Text>
           </Pressable>
 

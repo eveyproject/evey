@@ -23,6 +23,9 @@ type ProgressQueryRepo interface {
 	GetByProfileCursor(ctx context.Context, profileID string, cursor *WatchHistoryCursor, limit int) ([]*WatchProgress, error)
 	GetResumeItems(ctx context.Context, profileID string, limit int) ([]*WatchProgress, error)
 	GetNextUp(ctx context.Context, profileID string, limit int) ([]*WatchProgress, error)
+	// ListSeriesEpisodes is every episode of a series in viewing order, with
+	// the profile's progress on each (see PickSeriesEpisode).
+	ListSeriesEpisodes(ctx context.Context, profileID, seriesID string) ([]SeriesEpisode, error)
 }
 
 type SessionQueryRepo interface {

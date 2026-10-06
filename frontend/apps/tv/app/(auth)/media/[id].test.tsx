@@ -113,6 +113,7 @@ const markUnwatchedMock = vi.fn();
 const similarItemsMock = vi.fn();
 const myThumbRatingMock = vi.fn();
 const putThumbRatingMock = vi.fn();
+const seriesTargetMock = vi.fn();
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetMediaItem: (...args: unknown[]) => getMediaItemMock(...args),
@@ -123,6 +124,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useFeedServiceSimilarItems: (...args: unknown[]) => similarItemsMock(...args),
   useRatingServiceGetMyThumbRating: (...args: unknown[]) => myThumbRatingMock(...args),
   ratingServicePutThumbRating: (...args: unknown[]) => putThumbRatingMock(...args),
+  usePlaybackServiceGetSeriesPlayTarget: (...args: unknown[]) => seriesTargetMock(...args),
 }));
 
 // --- local hook mocks ---------------------------------------------------------
@@ -202,6 +204,7 @@ beforeEach(() => {
   similarItemsMock.mockReturnValue({ data: { items: [] } });
   myThumbRatingMock.mockReturnValue({ data: 0 });
   putThumbRatingMock.mockResolvedValue({});
+  seriesTargetMock.mockReturnValue({ data: undefined, isLoading: false });
 });
 
 // #1 - watched/thumb-rating actions used to be hidden on a series/season with
@@ -317,5 +320,30 @@ describe("MediaDetailScreen (TV) load failure", () => {
 
     expect(screen.getByText("Something went wrong")).toBeTruthy();
     expect(screen.queryByText("media.detail.notFound")).toBeNull();
+  });
+});
+
+// Play on a series starts where the profile is in it; the first episode of
+// the first season is only the fallback before the server answers.
+describe("MediaDetailScreen (TV) series Play", () => {
+  beforeEach(() => {
+    getMediaItemMock.mockReturnValue({ data: SERIES, isLoading: false, error: null, refetch: vi.fn() });
+    listMediaItemsMock.mockImplementation((params: { parentId?: string }) =>
+      params.parentId === "media-1"
+        ? { data: { items: [{ id: "season-1", indexNumber: 1, type: "MEDIA_ITEM_TYPE_SEASON" }] } }
+        : { data: { items: [{ id: "ep-1", indexNumber: 1, type: "MEDIA_ITEM_TYPE_EPISODE" }] } });
+  });
+
+  it("plays the server's episode, labelled Resume", () => {
+    seriesTargetMock.mockReturnValue({ data: { item: { id: "ep-42" }, started: true }, isLoading: false });
+    renderScreen();
+    fireEvent.click(screen.getByLabelText("Resume"));
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/player/ep-42");
+  });
+
+  it("falls back to the first episode without an answer", () => {
+    renderScreen();
+    fireEvent.click(screen.getByLabelText("player.controls.play"));
+    expect(pushMock).toHaveBeenCalledWith("/(auth)/player/ep-1");
   });
 });
