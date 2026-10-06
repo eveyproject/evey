@@ -60,6 +60,15 @@ func (f *flashState) verdict(tier int) (sustained int, detail string) {
 // answered" and "people can watch".
 const segmentBudgetFactor = 0.5
 
+// sloReferenceSegmentMs is the segment length every fetch is scaled to before
+// it is judged: Evey's own on-demand segment duration. Segments are cut on
+// keyframes and run 4 to 17 s depending on the title, so a budget taken from
+// one stream's target duration and applied to all made a run's verdict depend
+// on whichever title it drew first (3 s in one run, 8.5 s in the next on the
+// same server, 2026-10-06). Scaled to one length, "a segment arrives within
+// half its own duration" is the same bar for every title and every run.
+const sloReferenceSegmentMs = 6000
+
 // startupBudgetMs is how long a viewer may wait for its FIRST segment before
 // the tier counts as broken. Time-to-first-frame is the most visible number in
 // the whole product: past a few seconds, a viewer thinks the app is broken and
@@ -109,15 +118,27 @@ func (s *sloTracker) forType(vt viewerType) *typeSLO {
 	return t
 }
 
-// lockTarget adopts a stream's own detected target duration - scaled down to
-// the share of it within which a segment must actually arrive - as the budget
-// for that viewer type, the first time a viewer of that type reports one.
-func (s *sloTracker) lockTarget(vt viewerType, targetDurationMs int) {
+// lockTarget sets that viewer type's budget the first time one of its viewers
+// starts: the share of the reference segment within which a segment must
+// arrive. The stream's own target duration no longer sets it (see
+// sloReferenceSegmentMs); each fetch is scaled to the reference instead.
+func (s *sloTracker) lockTarget(vt viewerType, _ int) {
 	t := s.forType(vt)
 	if !t.locked {
-		t.ms = int(float64(targetDurationMs) * segmentBudgetFactor)
+		t.ms = int(float64(sloReferenceSegmentMs) * segmentBudgetFactor)
 		t.locked = true
 	}
+}
+
+// scaled is a fetch time as if the segment had lasted the reference length:
+// 2 s for a 12 s segment counts as 1 s, the same share of its duration. An
+// operator-pinned budget is an absolute one, and a segment of unknown length
+// is taken as it is.
+func (s *sloTracker) scaled(ms, segMs int) int {
+	if s.pinned > 0 || segMs <= 0 {
+		return ms
+	}
+	return ms * sloReferenceSegmentMs / segMs
 }
 
 // observe records one more segment-fetch sample for its viewer type and

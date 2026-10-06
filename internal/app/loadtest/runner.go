@@ -39,6 +39,9 @@ type viewerEvent struct {
 	kind eventKind
 	vt   viewerType
 	ms   int
+	// segMs is the duration of the segment an evSegment fetched (its EXTINF),
+	// 0 when the playlist did not say.
+	segMs int
 	// slot is the 1-based ramp slot the sending viewer was assigned at
 	// spawn time. Only ModeFlash's verdict needs it (to bucket TTFF/shed
 	// outcomes per viewer, since flash has no meaningful "tier" ordering);
