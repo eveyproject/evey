@@ -854,6 +854,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// A run counts as playback from its first second, the way a first real
 	// viewer does, so background workers yield before the storage is measured.
 	loadTestRunner.WithPlaybackSignal(func() func() { return playbackActivity.Begin("loadtest") })
+	// The run logs what it cost the packager in window reads, rebuilds apart.
+	loadTestRunner.WithWindowStats(infra.onDemandPackager.WindowStats)
+	// Subtitle segments read the blocks the stored index points at, when the
+	// /subtitle route or the prewarmer has already built one for the source.
+	infra.onDemandPackager.WithSubtitleIndex(httpapi.SubtitleIndexLookup("/data"))
 
 	if resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") != "off" {
 		kfOpts := apptranscoding.KeyframeBackfillOpts{}

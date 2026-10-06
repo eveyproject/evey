@@ -2,9 +2,12 @@ package httpapi
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
 )
 
@@ -209,5 +212,43 @@ func TestPrewarmer_ASinglePanicDoesNotStopTheWorker(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatalf("worker died after the panic; ran %v", got)
 		}
+	}
+}
+
+// A simulated viewer of the load test starts no prewarm: a run queued full reads
+// of films nobody would watch, paid at full speed once it ended. A real
+// player's master request still queues one.
+func TestSubtitlePrewarm_SkippedForTheLoadTest(t *testing.T) {
+	h, _ := buildVODHandler(t,
+		&testFakeStreamsGetter{item: testMediaItemWith1Minute(), streams: []*domainlibrary.MediaStream{video(), audio(), sub("subrip", "fre", false)}},
+		allowAll(),
+		testFakeParentalChecker{},
+	)
+	h.videoAdmission = func(string, apptranscoding.DecisionFingerprint, int) bool { return true }
+	p := newSubtitlePrewarmer(newSubtitleCache(t.TempDir()), newSubtitleIndexCache(t.TempDir()))
+	h.subtitlePrewarm = p
+
+	master := func(loadTest bool) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/master.m3u8", nil)
+		req.SetPathValue("id", "m1")
+		req.SetPathValue("file", "master.m3u8")
+		if loadTest {
+			req.Header.Set("X-Evey-Load-Test", "1")
+		}
+		req = withHTTPClaims(req, testClaims(false))
+		w := httptest.NewRecorder()
+		h.serveHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("master = %d, want 200", w.Code)
+		}
+	}
+
+	master(true)
+	if got := len(p.jobs); got != 0 {
+		t.Fatalf("a load test master queued %d prewarm job(s), want none", got)
+	}
+	master(false)
+	if got := len(p.jobs); got != 1 {
+		t.Fatalf("a real master queued %d prewarm job(s), want 1", got)
 	}
 }

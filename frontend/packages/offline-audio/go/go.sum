@@ -8,6 +8,10 @@ github.com/gravity-zero/mkvgo v0.37.0 h1:GgH91as+pyMIlmpUyJBBCByOqz4aYqz4VsR/Z6j
 github.com/gravity-zero/mkvgo v0.37.0/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
 github.com/gravity-zero/mkvgo v0.38.0 h1:kZFSnzk9jJAdqcOr5bXBNI+5FkABfaJP638O54Yo0KQ=
 github.com/gravity-zero/mkvgo v0.38.0/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
+github.com/gravity-zero/mkvgo v0.39.0 h1:wGth3j3Mu28xDeSYoQFPhiQ1mq7OdjpAOZE+Q5YlLJM=
+github.com/gravity-zero/mkvgo v0.39.0/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
+github.com/gravity-zero/mkvgo v0.40.0 h1:tHW1t+oHZYKZFHVBGZj49aZAeP/Hd3brpY9CgjrgwxM=
+github.com/gravity-zero/mkvgo v0.40.0/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
 golang.org/x/mobile v0.0.0-20260730202154-c700fe717e6e h1:v5PGTbI7uer7FhpDeGryGytfbI8t7CDWkKukozvIsNU=
 golang.org/x/mobile v0.0.0-20260730202154-c700fe717e6e/go.mod h1:YX+n47s+53POxN3dx9cIGxG3hGUm/lD64hvrRJFbcSA=
 golang.org/x/mod v0.38.0 h1:MECBjubtXD7yj4HrhIUcywNaGeNVUdfVnxmPajOk4yk=

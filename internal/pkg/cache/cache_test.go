@@ -162,3 +162,15 @@ func TestNewWithMaxSize_DefaultOnZero(t *testing.T) {
 		t.Fatal("expected hit")
 	}
 }
+
+// Values lists the live entries only: an expired one is not reported.
+func TestTTLCache_ValuesSkipsExpired(t *testing.T) {
+	c, stop := cache.New[int](0)
+	defer stop()
+	c.Set("live", 1, time.Hour)
+	c.Set("gone", 2, -time.Second)
+	got := c.Values()
+	if len(got) != 1 || got[0] != 1 {
+		t.Fatalf("Values() = %v, want [1]", got)
+	}
+}

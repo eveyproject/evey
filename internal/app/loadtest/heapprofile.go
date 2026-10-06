@@ -30,7 +30,11 @@ type HeapSite struct {
 	// performed the allocation on Func's behalf (a packager, bufio, bytes). It
 	// is what tells two very different retentions apart when both enter through
 	// the same application function.
-	Via   string
+	Via string
+	// Chain is the path from Via up to Func, innermost first: two allocations
+	// entering through the same application function by different library
+	// paths are told apart only here.
+	Chain string
 	Bytes int64
 }
 
@@ -77,7 +81,7 @@ func topInUseSites(prof *pprofprofile.Profile, n int) ([]HeapSite, int64) {
 	}
 	out := make([]HeapSite, 0, len(agg))
 	for k, v := range agg {
-		out = append(out, HeapSite{Func: k.fn, File: k.file, Line: k.line, Via: k.via, Bytes: v})
+		out = append(out, HeapSite{Func: k.fn, File: k.file, Line: k.line, Via: k.via, Chain: k.chain, Bytes: v})
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Bytes != out[j].Bytes {
@@ -95,7 +99,12 @@ type siteKey = struct {
 	fn, file string
 	line     int
 	via      string
+	chain    string
 }
+
+// chainFrames caps the frames a chain names: enough to cross a library's
+// internals, short enough for one log line.
+const chainFrames = 8
 
 // siteOf picks the frames a sample is charged to: the innermost frame of this
 // module (else the leaf), and the innermost frame outside the Go runtime.
@@ -104,6 +113,7 @@ func siteOf(s *pprofprofile.Sample) (siteKey, bool) {
 	var leaf siteKey
 	haveLeaf := false
 	via := ""
+	var chain []string
 	for _, loc := range s.Location {
 		for _, ln := range loc.Line {
 			if ln.Function == nil {
@@ -120,11 +130,16 @@ func siteOf(s *pprofprofile.Sample) (siteKey, bool) {
 				k.fn = fn
 				k.file = trimToModule(k.file)
 				k.via = strings.TrimPrefix(via, moduleMarker)
+				k.chain = strings.Join(chain, " < ")
 				return k, true
+			}
+			if via != "" && len(chain) < chainFrames {
+				chain = append(chain, shortFunc(k.fn))
 			}
 		}
 	}
 	leaf.via = via
+	leaf.chain = strings.Join(chain, " < ")
 	return leaf, haveLeaf
 }
 
@@ -155,6 +170,68 @@ func goroutinesThrough(marker string) (matching, total int) {
 		}
 	}
 	return matching, total
+}
+
+// waitSitesThrough groups the goroutines whose stack passes through marker by
+// the innermost frame outside the Go runtime: where each one is parked (a disk
+// read, a lock, a channel). Biggest group first, at most n.
+func waitSitesThrough(marker string, n int) []WaitSite {
+	var buf bytes.Buffer
+	if err := pprof.Lookup("goroutine").WriteTo(&buf, 0); err != nil {
+		return nil
+	}
+	prof, err := pprofprofile.Parse(&buf)
+	if err != nil || len(prof.SampleType) == 0 {
+		return nil
+	}
+	return waitSites(prof, marker, n)
+}
+
+// WaitSite is one place goroutines are parked and how many are there.
+type WaitSite struct {
+	At    string
+	Count int
+}
+
+func waitSites(prof *pprofprofile.Profile, marker string, n int) []WaitSite {
+	counts := map[string]int{}
+	for _, s := range prof.Sample {
+		if !sampleThrough(s, marker) {
+			continue
+		}
+		var at []string
+		for _, loc := range s.Location {
+			for _, ln := range loc.Line {
+				if ln.Function != nil && !runtimeFrame(ln.Function.Name) && len(at) < 3 {
+					at = append(at, shortFunc(ln.Function.Name))
+				}
+			}
+		}
+		counts[strings.Join(at, " < ")] += int(s.Value[0])
+	}
+	out := make([]WaitSite, 0, len(counts))
+	for at, c := range counts {
+		out = append(out, WaitSite{At: at, Count: c})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count != out[j].Count {
+			return out[i].Count > out[j].Count
+		}
+		return out[i].At < out[j].At
+	})
+	if n > 0 && len(out) > n {
+		out = out[:n]
+	}
+	return out
+}
+
+// shortFunc drops the import path: "github.com/x/mkvgo/mp4.(*Plan).read"
+// becomes "mp4.(*Plan).read".
+func shortFunc(fn string) string {
+	if i := strings.LastIndex(fn, "/"); i >= 0 {
+		return fn[i+1:]
+	}
+	return fn
 }
 
 func sampleThrough(s *pprofprofile.Sample, marker string) bool {

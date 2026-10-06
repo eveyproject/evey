@@ -182,6 +182,9 @@ func TestHeapInUseTop_NamesTheApplicationFunctionHoldingTheBytes(t *testing.T) {
 	if !strings.HasPrefix(found.Via, "bytes.") {
 		t.Fatalf("via = %q, want the library that allocated on the function's behalf (bytes.Repeat)", found.Via)
 	}
+	if !strings.HasPrefix(found.Chain, "bytes.") || strings.Contains(found.Chain, "retainedForTest") {
+		t.Fatalf("chain = %q, want the library frames between the allocation and the function, the function excluded", found.Chain)
+	}
 	if found.Bytes < 64<<20 || !strings.Contains(found.File, "internal/app/loadtest/") {
 		t.Fatalf("site = %+v, want >= 64 MiB charged to a file under internal/app/loadtest/", *found)
 	}
@@ -220,5 +223,22 @@ func TestGoroutinesThrough_CountsTheGoroutinesInsideANamedFunction(t *testing.T)
 	}
 	if n, _ := goroutinesThrough("noSuchFunctionAnywhere"); n != 0 {
 		t.Fatalf("an unknown marker matched %d goroutines", n)
+	}
+}
+
+// The goroutines still serving are grouped by where they wait, so a run that
+// ends with requests in flight says whether they sit on the disk or on a lock.
+func TestWaitSitesThrough_GroupsTheParkedGoroutinesByWhereTheyWait(t *testing.T) {
+	ready, release := make(chan struct{}), make(chan struct{})
+	for range 3 {
+		go parkedThroughMarker(ready, release)
+	}
+	for range 3 {
+		<-ready
+	}
+	sites := waitSitesThrough("parkedThroughMarker", 5)
+	close(release)
+	if len(sites) != 1 || sites[0].Count != 3 || !strings.HasPrefix(sites[0].At, "loadtest.parkedThroughMarker") {
+		t.Fatalf("wait sites = %+v, want the 3 goroutines in one group at loadtest.parkedThroughMarker", sites)
 	}
 }

@@ -368,7 +368,7 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 			// listing is in title order, and a pool made of whatever sorts first
 			// loads the disks those titles happen to sit on instead of the
 			// library as an audience would.
-			items, err := randomLibrarySlice(ctx, libQuerySvc.ListMediaItems, limit*3, randomItemID())
+			items, err := filmsAndEpisodes(ctx, libQuerySvc.ListMediaItems, limit*3, randomItemID)
 			if err != nil {
 				return nil, err
 			}
@@ -532,6 +532,35 @@ func loadTestSourceClass(streams []*library.MediaStream) (string, int) {
 		return st.Codec, h
 	}
 	return "", 0
+}
+
+// filmsAndEpisodes draws films and episodes in equal parts, each a random slice
+// of its own kind. A draw over every item is mostly episodes (a season holds
+// ten of them, a film one), so the run loaded the disks the series sit on and
+// left the films' disks idle. When one kind runs short, the other fills in.
+func filmsAndEpisodes(ctx context.Context, list func(context.Context, library.ListMediaItemsFilter) ([]*library.MediaItem, error), want int, start func() string) ([]*library.MediaItem, error) {
+	var kinds [2][]*library.MediaItem
+	for i, typ := range []library.MediaItemType{library.MovieItem, library.Episode} {
+		t := string(typ)
+		ofKind := func(ctx context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+			f.Type = &t
+			return list(ctx, f)
+		}
+		items, err := randomLibrarySlice(ctx, ofKind, want, start())
+		if err != nil {
+			return nil, err
+		}
+		kinds[i] = items
+	}
+	out := make([]*library.MediaItem, 0, want)
+	for i := 0; len(out) < want && (i < len(kinds[0]) || i < len(kinds[1])); i++ {
+		for _, k := range kinds {
+			if i < len(k) && len(out) < want {
+				out = append(out, k[i])
+			}
+		}
+	}
+	return out, nil
 }
 
 // randomItemID is a random point in the id space (media ids are random UUIDs).

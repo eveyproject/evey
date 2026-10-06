@@ -58,6 +58,15 @@ func (c subtitleIndexCache) path(key string) string {
 	return filepath.Join(c.dir, key+".idx")
 }
 
+// SubtitleIndexLookup reads the subtitle index store under dataDir, the same
+// one the /subtitle route and the prewarmer fill. The on-demand packager takes
+// it so a segment of subtitles reads the subtitle blocks at their position
+// instead of walking the video around them (60-240 MiB per segment after a
+// seek, measured by mkvgo on 2.3-14 GB sources).
+func SubtitleIndexLookup(dataDir string) func(filePath string) (*matroska.SubtitleIndex, bool) {
+	return newSubtitleIndexCache(dataDir).get
+}
+
 // get loads the index for a file, or false. A blob that fails to decode is a
 // miss: the caller walks the file, which is slow but correct.
 func (c subtitleIndexCache) get(filePath string) (*matroska.SubtitleIndex, bool) {

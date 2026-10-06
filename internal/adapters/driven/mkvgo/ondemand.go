@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -31,12 +32,44 @@ const (
 	onDemandPlanTTL     = 30 * time.Minute
 	onDemandPlanMaxSize = 256
 	onDemandCleanup     = 5 * time.Minute
+	// onDemandFailureTTL is how long a source that could not be planned is
+	// refused without trying again. A failed build is not cheap: a file mkvgo
+	// cannot read may still cost a long read before saying so (a mislabelled
+	// MPEG-TS read 341 MiB and held up to 512 MiB per attempt, 2026-10-05), and
+	// every playlist and segment request of its viewers retried it. The key
+	// carries the file's size and mtime, so a repaired file is planned at once.
+	onDemandFailureTTL     = 5 * time.Minute
+	onDemandFailureMaxSize = 1024
+	// onDemandMaxBuilds caps the plans built at once. A build is a bounded read
+	// of the head, but a cold disk makes it slow and an audience starting
+	// together stacks them up: the cap keeps their memory and their reads from
+	// growing with the audience while the ones queued wait their turn.
+	onDemandMaxBuilds = 4
+	// onDemandSlowBuild is when a build gets named in the log. A plan is a
+	// head read of milliseconds; one still running after this is reading far
+	// more than a head, and the line naming its file is the only way to know
+	// which source a memory peak belongs to (the heap profile names the code,
+	// not the file).
+	onDemandSlowBuild = 5 * time.Second
 )
 
 // OnDemandPackager builds and caches mp4.PlanHLS plans. Safe for concurrent use.
 type OnDemandPackager struct {
 	plans   *pkgcache.TTLCache[apptranscoding.OnDemandPlan]
 	stopper func()
+	// failures remembers, per key, the error of a build that failed, for
+	// onDemandFailureTTL.
+	failures    *pkgcache.TTLCache[error]
+	stopFailure func()
+	// builds is the onDemandMaxBuilds semaphore.
+	builds chan struct{}
+	// subtitleIndex finds the stored subtitle block index of a source, if any
+	// (see WithSubtitleIndex).
+	subtitleIndex func(path string) (*extmatroska.SubtitleIndex, bool)
+	// slowAfter is onDemandSlowBuild, and logger where slow builds are named;
+	// fields so a test can shorten the one and read the other.
+	slowAfter time.Duration
+	logger    *slog.Logger
 	// audioDelays measures each Matroska audio track's start delay (native
 	// mkvgo, no ffprobe) so Plan can cancel it in presentation without
 	// touching the source. Injectable for tests; production passes
@@ -65,8 +98,12 @@ type OnDemandPackager struct {
 // Close to stop the cache's background janitor.
 func NewOnDemandPackager() *OnDemandPackager {
 	c, stop := pkgcache.NewWithMaxSize[apptranscoding.OnDemandPlan](onDemandCleanup, onDemandPlanMaxSize)
+	f, stopF := pkgcache.NewWithMaxSize[error](onDemandCleanup, onDemandFailureMaxSize)
 	p := &OnDemandPackager{
 		plans: c, stopper: stop, ttl: onDemandPlanTTL,
+		failures: f, stopFailure: stopF,
+		builds:    make(chan struct{}, onDemandMaxBuilds),
+		slowAfter: onDemandSlowBuild, logger: slog.Default(),
 		audioDelays: func(ctx context.Context, path string) (map[uint64]int64, error) {
 			return extmatroska.AudioStartDelays(ctx, path)
 		},
@@ -82,10 +119,36 @@ func NewOnDemandPackager() *OnDemandPackager {
 	return p
 }
 
+// WithSubtitleIndex hands each Matroska plan the subtitle block index already
+// stored for its source, so its subtitle segments read those blocks at their
+// position instead of walking the video around them. A source without an index
+// is planned as before; an index that no longer matches is set aside by mkvgo
+// itself and the walk serves. A plan built before its source's index existed
+// keeps walking until the plan cache lets it go.
+func (p *OnDemandPackager) WithSubtitleIndex(lookup func(path string) (*extmatroska.SubtitleIndex, bool)) *OnDemandPackager {
+	p.subtitleIndex = lookup
+	return p
+}
+
+// subtitleIndexFor is the stored subtitle index of a Matroska source, or nil
+// (no lookup wired, not Matroska, no index stored).
+func (p *OnDemandPackager) subtitleIndexFor(srcPath string) mp4.SubtitleBlockIndex {
+	if p.subtitleIndex == nil || !IsEBMLContainer(srcPath) {
+		return nil
+	}
+	if ix, ok := p.subtitleIndex(srcPath); ok && ix != nil {
+		return ix
+	}
+	return nil
+}
+
 // Close stops the plan cache janitor.
 func (p *OnDemandPackager) Close() {
 	if p != nil && p.stopper != nil {
 		p.stopper()
+	}
+	if p != nil && p.stopFailure != nil {
+		p.stopFailure()
 	}
 }
 
@@ -106,20 +169,31 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 		return pl, nil
 	}
 
+	if err, ok := p.failures.Get(key); ok {
+		span.RecordError(err)
+		return nil, err
+	}
+
 	// Concurrent misses for the same key share ONE build (see p.group). The
 	// winner builds under WithoutCancel so the first caller bailing (seek
 	// away, tab close) can't abort the plan every follower is waiting on -
 	// same contract as the remux singleflight. Errors are shared with the
-	// waiters (they all fall back to ffmpeg together) but never cached, so
-	// the next request retries.
+	// waiters (they all fall back to ffmpeg together) and remembered for
+	// onDemandFailureTTL, so the next requests fall back without rebuilding.
 	v, err, _ := p.group.Do(key, func() (any, error) {
 		// Re-check under the flight: a prior winner may have cached it while
 		// this caller queued.
 		if pl, ok := p.plans.Get(key); ok {
 			return pl, nil
 		}
-		pl, err := p.build(context.WithoutCancel(ctx), srcPath, opts)
+		if err, ok := p.failures.Get(key); ok {
+			return nil, err
+		}
+		pl, err := p.buildNamingTheSlowOnes(context.WithoutCancel(ctx), srcPath, opts)
 		if err != nil {
+			if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+				p.failures.Set(key, err, onDemandFailureTTL)
+			}
 			return nil, err
 		}
 		p.plans.Set(key, pl, p.ttl)
@@ -130,6 +204,64 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 		return nil, err
 	}
 	return v.(apptranscoding.OnDemandPlan), nil
+}
+
+// WindowStats sums the window counters of every plan the cache holds
+// (mkvgo HLSPlan.Stats: each window build is a read of the source, a rebuild
+// one that read the same window again), plus "plans", how many were summed.
+// The counters run from each plan's construction, and a plan the cache let go
+// takes its own with it: a caller wanting a run's share diffs two snapshots.
+func (p *OnDemandPackager) WindowStats() map[string]int64 {
+	out := map[string]int64{}
+	for _, v := range p.plans.Values() {
+		pl, ok := v.(interface{ Stats() mp4.HLSPlanStats })
+		if !ok {
+			continue
+		}
+		st := pl.Stats()
+		out["plans"]++
+		out["window_builds"] += st.WindowBuilds
+		out["window_rebuilds"] += st.WindowRebuilds
+		out["shared_renditions"] += st.SharedRenditions
+		out["waited_builds"] += st.WaitedBuilds
+		out["evictions"] += st.Evictions
+		out["built_bytes"] += st.BuiltBytes
+		out["served_bytes"] += st.ServedBytes
+		out["dropped_bytes"] += st.DroppedBytes
+		out["subtitle_walks"] += st.SubtitleWalks
+		out["subtitle_indexed_blocks"] += st.SubtitleIndexedBlocks
+	}
+	return out
+}
+
+// buildNamingTheSlowOnes runs one build under the onDemandMaxBuilds cap and
+// names any that outlasts slowAfter: once while it is still running, because a
+// build stuck behind a saturated disk only ends after the peak it caused, and
+// once at the end with what it cost.
+func (p *OnDemandPackager) buildNamingTheSlowOnes(ctx context.Context, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
+	queued := time.Now()
+	p.builds <- struct{}{}
+	defer func() { <-p.builds }()
+	started := time.Now()
+	stillRunning := time.AfterFunc(p.slowAfter, func() {
+		p.logger.WarnContext(ctx, "mkvgo on-demand: plan build still running",
+			slog.String("path", srcPath),
+			slog.Int64("running_ms", time.Since(started).Milliseconds()),
+			slog.Int("builds_running", len(p.builds)))
+	})
+	pl, err := p.build(ctx, srcPath, opts)
+	if !stillRunning.Stop() {
+		args := []any{
+			slog.String("path", srcPath),
+			slog.Int64("build_ms", time.Since(started).Milliseconds()),
+			slog.Int64("queued_ms", started.Sub(queued).Milliseconds()),
+		}
+		if err != nil {
+			args = append(args, slog.Any("err", err))
+		}
+		p.logger.WarnContext(ctx, "mkvgo on-demand: slow plan build", args...)
+	}
+	return pl, err
 }
 
 // buildPlan is the uncached construction Plan's singleflight runs: options
@@ -180,6 +312,9 @@ func (p *OnDemandPackager) buildPlan(ctx context.Context, srcPath string, opts a
 			slog.WarnContext(ctx, "mkvgo on-demand: track list failed, serving every track",
 				slog.String("path", srcPath), slog.Any("err", terr))
 		}
+	}
+	if ix := p.subtitleIndexFor(srcPath); ix != nil {
+		o.SubtitleIndex = ix
 	}
 	if opts.URLPrefix != "" {
 		prefix := opts.URLPrefix
@@ -326,3 +461,6 @@ func (p *ondemandPlan) Resources() []string { return p.plan.Resources() }
 func (p *ondemandPlan) NumSegments() int { return p.plan.NumSegments() }
 
 func (p *ondemandPlan) HasDASH() bool { return p.hasDASH }
+
+// Stats is the plan's window counters (see OnDemandPackager.WindowStats).
+func (p *ondemandPlan) Stats() mp4.HLSPlanStats { return p.plan.Stats() }

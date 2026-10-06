@@ -2071,3 +2071,37 @@ func TestRunner_HoldsThePlaybackSignalForTheWholeRun(t *testing.T) {
 		t.Fatalf("signal raised with %d viewers already spawned, want 0: it must precede the first viewer", v)
 	}
 }
+
+// Every request of a simulated viewer says it is one, so the server skips the
+// work a real playback start pays for later (the subtitle prewarm).
+func TestFetchOnce_MarksTheRequestAsTheLoadTest(t *testing.T) {
+	var got string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		got = req.Header.Get(headerLoadTest)
+	}))
+	defer srv.Close()
+	r := New(srv.Client(), fakeMediaLister{}, zeroActive, testLogger())
+	if _, _, _, _, err := r.fetchOnce(context.Background(), srv.URL, "tok", false); err != nil {
+		t.Fatal(err)
+	}
+	if got == "" {
+		t.Fatalf("the request carried no %s header", headerLoadTest)
+	}
+}
+
+// The run logs what it added to the packager's window counters, and the share
+// of window reads that read a window again.
+func TestRunner_LogsTheRunsShareOfTheWindowCounters(t *testing.T) {
+	var logs bytes.Buffer
+	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, slog.New(slog.NewTextHandler(&logs, nil)))
+	r.logWindowStats(
+		map[string]int64{"plans": 3, "window_builds": 100, "window_rebuilds": 10},
+		map[string]int64{"plans": 5, "window_builds": 300, "window_rebuilds": 60},
+	)
+	out := logs.String()
+	for _, want := range []string{"loadtest: packager windows", "window_builds=200", "window_rebuilds=50", "rebuild_pct=25", "plans=5"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("log lacks %q: %s", want, out)
+		}
+	}
+}
