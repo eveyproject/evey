@@ -1182,7 +1182,7 @@ func (h *playbackHandler) GetSeriesPlayTarget(ctx context.Context, req *eveyv1.G
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetSeriesPlayTarget: %w", err)
 	}
-	if err := h.requireMediaAccess(ctx, req.SeriesId); err != nil {
+	if err = h.requireMediaAccess(ctx, req.SeriesId); err != nil {
 		return nil, err
 	}
 	target, started, ok, err := h.query.GetSeriesPlayTarget(ctx, shared.ProfileID(profileID), shared.MediaItemID(req.SeriesId))

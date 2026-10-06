@@ -742,7 +742,7 @@ func (b *Bootstrapper) EnsurePlugins(ctx context.Context) (map[string]string, er
 				return nil, fmt.Errorf("demo: install plugin %s: %w", spec.Name, err)
 			}
 			b.log.Info("demo: plugin installed", "plugin", spec.Name, "version", p.Version)
-			if err := b.recordInstalledPlugin(ctx, spec.Name); err != nil {
+			if err = b.recordInstalledPlugin(ctx, spec.Name); err != nil {
 				return nil, err
 			}
 		}
@@ -870,7 +870,7 @@ func (b *Bootstrapper) installedPlugins(ctx context.Context) map[string]bool {
 	if err != nil || e == nil {
 		return out
 	}
-	for _, name := range strings.Split(e.Value, ",") {
+	for name := range strings.SplitSeq(e.Value, ",") {
 		if name = strings.TrimSpace(name); name != "" {
 			out[name] = true
 		}
