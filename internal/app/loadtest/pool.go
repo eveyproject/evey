@@ -182,12 +182,68 @@ func (p *candidatePool) sourceMix() []SourceMixEntry {
 	return out
 }
 
-// shuffleCandidates puts the titles in a random order, in place, and returns
-// them. A real audience picks films at random, so each disk of a library ends
-// up carrying its share of the titles - no need to know what the storage is
-// made of. The seed is logged with the run so a draw can be replayed.
-func shuffleCandidates(candidates []MediaCandidate, seed uint64) []MediaCandidate {
+// qualityClass buckets a title by the height of its picture: what decides how
+// heavy it is to stream. Wide films are short (3840x1606, 1920x800), so the
+// bounds sit below the nominal heights.
+func qualityClass(height int) string {
+	switch {
+	case height <= 0:
+		return "unknown"
+	case height >= 1500:
+		return "2160p"
+	case height >= 760:
+		return "1080p"
+	case height >= 500:
+		return "720p"
+	default:
+		return "sd"
+	}
+}
+
+// representativeDraw orders the titles so that ANY number of viewers watches
+// the library's own mix of qualities, chosen at random within each quality.
+// A plain shuffle let the first fifty viewers of one run draw mostly 4K
+// (11.7 Mb/s each) and those of the next mostly light files (4.8 Mb/s): the
+// same server then "held" 38 or 136 viewers. The shares are those of the
+// drawn candidates, themselves a random slice of the library, so a quality
+// the library does not have weighs nothing. Each slot goes to the quality
+// furthest behind its share. It returns the order and each quality's count.
+func representativeDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandidate, map[string]int) {
 	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)) //nolint:gosec // a replayable draw of titles, not a secret
-	rng.Shuffle(len(candidates), func(i, j int) { candidates[i], candidates[j] = candidates[j], candidates[i] })
-	return candidates
+	byClass := map[string][]MediaCandidate{}
+	for _, c := range candidates {
+		k := qualityClass(c.VideoHeight)
+		byClass[k] = append(byClass[k], c)
+	}
+	classes := make([]string, 0, len(byClass))
+	for k := range byClass {
+		classes = append(classes, k)
+	}
+	// Sorted before shuffling: the generator must be consumed in a fixed order
+	// for a seed to replay its draw (map order differs from run to run).
+	sort.Strings(classes)
+	counts := make(map[string]int, len(byClass))
+	for _, k := range classes {
+		list := byClass[k]
+		rng.Shuffle(len(list), func(i, j int) { list[i], list[j] = list[j], list[i] })
+		counts[k] = len(list)
+	}
+	total := len(candidates)
+	taken := make(map[string]int, len(classes))
+	out := make([]MediaCandidate, 0, total)
+	for slot := 1; slot <= total; slot++ {
+		best, bestDeficit := "", -1.0
+		for _, k := range classes {
+			if taken[k] >= counts[k] {
+				continue
+			}
+			deficit := float64(counts[k])*float64(slot)/float64(total) - float64(taken[k])
+			if deficit > bestDeficit {
+				best, bestDeficit = k, deficit
+			}
+		}
+		out = append(out, byClass[best][taken[best]])
+		taken[best]++
+	}
+	return out, counts
 }
