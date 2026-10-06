@@ -40,7 +40,7 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: 
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   // The fetch and the text/bitmap sniff live in @evey/client, shared with the
   // browser television; only the painting below is this platform's.
-  const { cues, pgs } = useSubtitleTrack(mediaId, subtitleIndex);
+  const { cues, pgs } = useSubtitleTrack(mediaId, subtitleIndex, currentTimeSec);
 
   if (pgs) {
     const { track, uris } = pgs;
