@@ -1116,6 +1116,23 @@ loadtest:
   scenarioTranscodeNoun: "ट्रांसकोडिंग"
   scenarioMkvgoNoun: "प्रत्यक्ष प्लेबैक (mkvgo)"
   scenarioNaturalNoun: "प्राकृतिक प्लेबैक"
+  scenarioGroupClients: "असली क्लाइंट"
+  scenarioClientsHistory: "मेरे दर्शक (पिछले 30 दिन)"
+  scenarioClientsCustom: "कस्टम क्लाइंट मिश्रण"
+  scenarioClientsNoun: "असली क्लाइंट मिश्रण ({{mix}})"
+  clientShare: "{{label}} {{pct}}%"
+  clientWeightsLegend: "हर क्लाइंट का हिस्सा (सापेक्ष भार)"
+  client:
+    tv: "टीवी"
+    mobile: "फ़ोन"
+    webChrome: "Chrome / Firefox"
+    webSafari: "Safari"
+  path:
+    mkvgo: "mkvgo कॉपी"
+    ffmpegCopy: "ffmpeg रीमक्स"
+    transcode: "ट्रांसकोड"
+  servedPathsHeading: "सर्वर ने हर क्लाइंट के लिए क्या किया:"
+  servedPathLine: "{{label}}: {{parts}}"
   mixType:
     mkvgo: "प्रत्यक्ष प्लेबैक (mkvgo)"
     transcode: "ट्रांसकोडिंग"

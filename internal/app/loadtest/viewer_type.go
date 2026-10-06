@@ -45,6 +45,13 @@ func scenarioViewerType(scenario string, slot int) viewerType {
 	case ScenarioHeavy:
 		return heavyPattern[(slot-1)%len(heavyPattern)]
 	default:
+		// Start has already resolved a history mix and rejected a bad one.
+		if spec, ok := strings.CutPrefix(scenario, ScenarioClients+":"); ok {
+			if mix, err := parseClientMix(spec); err == nil {
+				return clientViewerType(clientForSlot(mix, slot))
+			}
+			return viewerTypeNatural
+		}
 		if pinned, ok := parsePinnedScenario(scenario); ok {
 			if slot <= pinned {
 				return viewerTypeTranscode

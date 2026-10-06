@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, Switch, StyleSheet } from "react-native";
+import { View, Text, Pressable, ActivityIndicator, Switch, StyleSheet, TextInput } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch, formatBytes, type V1VideoPool } from "@evey/api";
@@ -7,15 +7,22 @@ import { useTheme } from "../../../providers/ThemeProvider";
 import {
   ACTIVE_STREAMS_STATUSES,
   BOTTLENECK_REASONS,
+  CLIENT_LABEL_KEYS,
+  CLIENT_PROFILES,
+  CLIENTS_HISTORY,
+  DEFAULT_CLIENT_WEIGHTS,
   LOAD_TEST_QUERY_KEY,
   LOAD_TEST_URL,
-  SCENARIO_NOUN_KEYS,
   STOP_REASON_KEYS,
+  clientMixScenario,
+  scenarioNoun,
+  servedPathLines,
   formatElapsed,
   formatMbps,
   mixParts,
   poolShares,
   predictedStreams,
+  type ClientProfile,
   type LoadTestReport,
   type LoadTestScenario,
   type LoadTestStatus,
@@ -26,9 +33,15 @@ import {
 // running -> report), with the calibration's prediction shown for a sanity
 // check. Same endpoint, same scenarios, same i18n keys as the web.
 
+// The chip for "a mix I state myself": the weights below it decide the
+// scenario actually sent.
+const CUSTOM_CLIENTS: LoadTestScenario = "clients:custom";
+const CLIENT_SCENARIOS: LoadTestScenario[] = [CLIENTS_HISTORY, CUSTOM_CLIENTS];
 const USAGE_SCENARIOS: LoadTestScenario[] = ["light", "balanced", "heavy"];
 const PURE_SCENARIOS: LoadTestScenario[] = ["transcode", "mkvgo", "natural"];
-const SCENARIO_LABEL_KEYS: Record<LoadTestScenario, string> = {
+const SCENARIO_LABEL_KEYS: Record<string, string> = {
+  [CLIENTS_HISTORY]: "admin.loadtest.scenarioClientsHistory",
+  [CUSTOM_CLIENTS]: "admin.loadtest.scenarioClientsCustom",
   light: "admin.loadtest.scenarioLight",
   balanced: "admin.loadtest.scenarioBalanced",
   heavy: "admin.loadtest.scenarioHeavy",
@@ -43,7 +56,11 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
   const qc = useQueryClient();
   const s = styles(theme);
 
-  const [scenario, setScenario] = useState<LoadTestScenario>("balanced");
+  // The audience's own clients are the default: the question an operator has
+  // is "how many of MY viewers", and the server decides each one's path.
+  const [scenario, setScenario] = useState<LoadTestScenario>(CLIENTS_HISTORY);
+  const [weights, setWeights] = useState<Record<ClientProfile, number>>(DEFAULT_CLIENT_WEIGHTS);
+  const sentScenario = scenario === CUSTOM_CLIENTS ? clientMixScenario(weights) : scenario;
   const [coldCache, setColdCache] = useState(false);
 
   const statusQuery = useQuery<LoadTestStatus>({
@@ -59,7 +76,7 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
     // No viewer ceiling is sent on purpose: the run climbs until a RESOURCE
     // gives out - a cap here would just cap the answer.
     mutationFn: () =>
-      eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "POST", data: { scenario, coldCache } }),
+      eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "POST", data: { scenario: sentScenario, coldCache } }),
     onSuccess: (data) => {
       qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
       void qc.invalidateQueries({ queryKey: LOAD_TEST_QUERY_KEY });
@@ -125,16 +142,41 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
             ) : null}
 
             <Text style={s.label}>{t("admin.loadtest.scenarioLabel", "Scénario")}</Text>
+            <Text style={s.groupLabel}>{t("admin.loadtest.scenarioGroupClients", "Clients réels")}</Text>
+            <View style={s.chipRow}>
+              {CLIENT_SCENARIOS.map((sc) => (
+                <ScenarioChip key={sc} theme={theme} label={t(SCENARIO_LABEL_KEYS[sc] ?? sc)} active={scenario === sc} disabled={start.isPending} onPress={() => setScenario(sc)} />
+              ))}
+            </View>
+            {scenario === CUSTOM_CLIENTS && (
+              <View style={{ gap: 4 }}>
+                <Text style={s.hint}>{t("admin.loadtest.clientWeightsLegend", "Part de chaque client (poids relatifs)")}</Text>
+                <View style={s.chipRow}>
+                  {CLIENT_PROFILES.map((p) => (
+                    <View key={p} style={{ gap: 2 }}>
+                      <Text style={s.hint}>{t(CLIENT_LABEL_KEYS[p] ?? p)}</Text>
+                      <TextInput
+                        value={String(weights[p])}
+                        keyboardType="number-pad"
+                        editable={!start.isPending}
+                        onChangeText={(v) => setWeights({ ...weights, [p]: Math.max(0, Number(v) || 0) })}
+                        style={{ width: 64, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, color: theme.colors.text }}
+                      />
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
             <Text style={s.groupLabel}>{t("admin.loadtest.scenarioGroupUsage", "Profil d'usage")}</Text>
             <View style={s.chipRow}>
               {USAGE_SCENARIOS.map((sc) => (
-                <ScenarioChip key={sc} theme={theme} label={t(SCENARIO_LABEL_KEYS[sc])} active={scenario === sc} disabled={start.isPending} onPress={() => setScenario(sc)} />
+                <ScenarioChip key={sc} theme={theme} label={t(SCENARIO_LABEL_KEYS[sc] ?? sc)} active={scenario === sc} disabled={start.isPending} onPress={() => setScenario(sc)} />
               ))}
             </View>
             <Text style={s.groupLabel}>{t("admin.loadtest.scenarioGroupPure", "Chemins purs")}</Text>
             <View style={s.chipRow}>
               {PURE_SCENARIOS.map((sc) => (
-                <ScenarioChip key={sc} theme={theme} label={t(SCENARIO_LABEL_KEYS[sc])} active={scenario === sc} disabled={start.isPending} onPress={() => setScenario(sc)} />
+                <ScenarioChip key={sc} theme={theme} label={t(SCENARIO_LABEL_KEYS[sc] ?? sc)} active={scenario === sc} disabled={start.isPending} onPress={() => setScenario(sc)} />
               ))}
             </View>
 
@@ -153,8 +195,8 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
 
             <Pressable
               onPress={() => start.mutate()}
-              disabled={start.isPending}
-              style={[s.primaryBtn, { opacity: start.isPending ? 0.5 : 1 }]}
+              disabled={start.isPending || !sentScenario}
+              style={[s.primaryBtn, { opacity: start.isPending || !sentScenario ? 0.5 : 1 }]}
             >
               {start.isPending ? (
                 <ActivityIndicator size="small" color={theme.colors.onAccent} />
@@ -184,7 +226,7 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
       <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "700" }}>
         {t("admin.loadtest.reportHeadline", {
           count: report.sustainedViewers ?? 0,
-          scenario: t(SCENARIO_NOUN_KEYS[report.scenario ?? "balanced"]),
+          scenario: scenarioNoun(t, report.scenario),
         })}
       </Text>
       <Text style={{ color: isBottleneck ? theme.colors.text : theme.colors.textMuted, fontSize: 14, fontWeight: isBottleneck ? "600" : "400" }}>
@@ -286,6 +328,14 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
           )}
           {report.viewerMix && Object.keys(report.viewerMix).length > 0 && (
             <Text style={s.hint}>{t("admin.loadtest.viewerMixLine", { parts: mixParts(t, report.viewerMix, "admin.loadtest.mixPart", "count") })}</Text>
+          )}
+          {servedPathLines(t, report.servedPaths).length > 0 && (
+            <View style={{ gap: 2 }}>
+              <Text style={s.hint}>{t("admin.loadtest.servedPathsHeading")}</Text>
+              {servedPathLines(t, report.servedPaths).map((line) => (
+                <Text key={line} style={s.hint}>{"- " + line}</Text>
+              ))}
+            </View>
           )}
           {report.segmentMsP95ByType && Object.keys(report.segmentMsP95ByType).length > 0 && (
             <Text style={s.hint}>{t("admin.loadtest.segmentByTypeLine", { parts: mixParts(t, report.segmentMsP95ByType, "admin.loadtest.segmentByTypePart", "ms") })}</Text>

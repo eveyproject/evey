@@ -30,6 +30,12 @@ var ErrStreamsActive = errors.New("loadtest: real streams are active")
 // silently falling back to ramp would misreport what was actually measured.
 var ErrUnknownMode = errors.New("loadtest: unknown mode")
 
+// ErrUnknownScenario is returned by Start for a client mix it cannot play (a
+// profile it does not know, a weight that is not a number). Unlike a mistyped
+// plain scenario, a mix is a list of claims the report would otherwise make
+// about clients that never played.
+var ErrUnknownScenario = errors.New("loadtest: invalid client mix")
+
 // MediaCandidate is one piece of media the runner may point simulated
 // viewers at.
 type MediaCandidate struct {
@@ -42,6 +48,10 @@ type MediaCandidate struct {
 	// on what was drawn. Empty/0 when the streams were never probed.
 	VideoCodec  string
 	VideoHeight int
+	// VideoRange is the source's dynamic range (RangeSDR, RangeHDR10, ...):
+	// a tone map or a Dolby Vision profile 5 costs an encode several times
+	// what an SDR source of the same height does. Empty when unprobed.
+	VideoRange string
 	// BitrateBps is the file's overall bitrate: what a direct-play viewer of
 	// this title pulls from the disk and the network. 0 when unknown.
 	BitrateBps int64
@@ -50,6 +60,17 @@ type MediaCandidate struct {
 	// probe is simply skipped.
 	Path string
 }
+
+// Dynamic ranges a candidate's video may carry (MediaCandidate.VideoRange).
+// Dolby Vision profile 5 is apart: its base layer is not displayable without
+// DoVi, so it is encoded for every client.
+const (
+	RangeSDR   = "sdr"
+	RangeHDR10 = "hdr10"
+	RangeHLG   = "hlg"
+	RangeDoVi  = "dovi"
+	RangeDoVi5 = "dovi5"
+)
 
 // MediaLister supplies the pool of media the load test can pick viewers'
 // streams from. The parent wires this to its media query service.
@@ -352,7 +373,9 @@ const (
 type SourceMixEntry struct {
 	Codec  string
 	Height int
-	Count  int
+	// Range is the class's dynamic range (RangeSDR, RangeHDR10, ...).
+	Range string
+	Count int
 }
 
 type Report struct {
@@ -540,6 +563,12 @@ type Report struct {
 	// {"mkvgo": 4, "transcode": 1}. Populated for every scenario (a pure
 	// scenario reports a single key).
 	ViewerMix map[string]int
+	// PathsByType is what the server decided for each viewer type over the
+	// whole run, counted once per viewer that started, by the path its first
+	// segment came from: e.g. {"client:web-chrome": {"mkvgo": 30, "transcode":
+	// 12}}. It is how a client-mix verdict says what it was measured on: the
+	// same audience costs a different server depending on who could copy what.
+	PathsByType map[string]map[string]int
 	// SegmentMsP95ByType is the per-type p95 segment-fetch latency at the
 	// sustained tier, so a slow viewer type can't hide behind a fast one in
 	// the blended SegmentMsP95.

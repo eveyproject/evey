@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { V1VideoPool } from "@evey/api";
-import { formatElapsed, formatMbps, mixParts, predictedStreams } from "./loadTestHelpers";
+import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, servedPathLines } from "./loadTestHelpers";
 
 // Pure formatting/reading helpers behind the load-test panel.
 describe("load test helpers", () => {
@@ -45,5 +45,42 @@ describe("load test helpers", () => {
     expect(predictedStreams(odd)).toBe(7);
     expect(predictedStreams([])).toBeUndefined();
     expect(predictedStreams([{ pool: "cpu", classes: [] }] as V1VideoPool[])).toBeUndefined();
+  });
+
+  it("turns client weights into the scenario the server parses, leaving zeros out", () => {
+    expect(clientMixScenario({ tv: 40, mobile: 40, "web-chrome": 20, "web-safari": 0 })).toBe("clients:tv=40,mobile=40,web-chrome=20");
+    expect(clientMixScenario({ tv: 0, mobile: 0, "web-chrome": 0, "web-safari": 0 })).toBeUndefined();
+  });
+
+  it("reads a resolved client mix back as whole-percent shares, and nothing else", () => {
+    expect(clientMixShares("clients:mobile=30,tv=12,web-chrome=8")).toEqual([
+      { profile: "mobile", pct: 60 },
+      { profile: "tv", pct: 24 },
+      { profile: "web-chrome", pct: 16 },
+    ]);
+    expect(clientMixShares("clients:history")).toBeUndefined();
+    expect(clientMixShares("balanced")).toBeUndefined();
+  });
+
+  it("names a client mix by its shares in the headline, and a fixed scenario by its noun", () => {
+    const t = (key: string, opts?: Record<string, unknown>) => (opts ? `${key}(${Object.values(opts).join("|")})` : key);
+    expect(scenarioNoun(t, "clients:tv=3,mobile=1")).toBe(
+      "admin.loadtest.scenarioClientsNoun(admin.loadtest.clientShare(75|admin.loadtest.client.tv), admin.loadtest.clientShare(25|admin.loadtest.client.mobile))",
+    );
+    expect(scenarioNoun(t, "heavy")).toBe("admin.loadtest.scenarioHeavyNoun");
+  });
+
+  it("renders one line per viewer type with the paths the server chose", () => {
+    const t = (key: string, opts?: Record<string, unknown>) => (opts ? `${key}(${Object.values(opts).join("|")})` : key);
+    const lines = servedPathLines(t, [
+      { viewerType: "client:tv", path: "mkvgo", viewers: 9 },
+      { viewerType: "client:web-chrome", path: "mkvgo", viewers: 5 },
+      { viewerType: "client:web-chrome", path: "transcode", viewers: 2 },
+      { viewerType: "client:web-chrome", path: "ffmpeg-copy", viewers: 0 },
+    ]);
+    expect(lines).toEqual([
+      "admin.loadtest.servedPathLine(admin.loadtest.client.tv|admin.loadtest.mixPart(9|admin.loadtest.path.mkvgo))",
+      "admin.loadtest.servedPathLine(admin.loadtest.client.webChrome|admin.loadtest.mixPart(5|admin.loadtest.path.mkvgo), admin.loadtest.mixPart(2|admin.loadtest.path.transcode))",
+    ]);
   });
 });

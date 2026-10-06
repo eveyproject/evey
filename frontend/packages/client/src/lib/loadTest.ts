@@ -17,7 +17,40 @@ import type { V1VideoPool } from "@evey/api";
 // The 3 "pure" scenarios exercise a single playback path; the 3 usage
 // profiles mix mkvgo direct-play and transcode viewers in a fixed ratio to
 // stand in for a real household's device mix ("how many different humans").
-export type LoadTestScenario = "transcode" | "natural" | "mkvgo" | "light" | "balanced" | "heavy";
+export type LoadTestScenario = "transcode" | "natural" | "mkvgo" | "light" | "balanced" | "heavy" | `clients:${string}`;
+
+// Client mixes: each simulated viewer declares what one family of real players
+// declares and the server picks its path (copy, remux, encode) as it would for
+// it. "clients:history" plays the proportions of the last 30 days' playbacks.
+export const CLIENT_PROFILES = ["tv", "mobile", "web-chrome", "web-safari"] as const;
+export type ClientProfile = (typeof CLIENT_PROFILES)[number];
+export const CLIENTS_HISTORY: LoadTestScenario = "clients:history";
+export const DEFAULT_CLIENT_WEIGHTS: Record<ClientProfile, number> = { tv: 40, mobile: 40, "web-chrome": 20, "web-safari": 0 };
+
+// clientMixScenario turns per-profile weights into the scenario string the
+// server parses ("clients:tv=40,mobile=40,web-chrome=20"); zero weights are
+// left out. undefined when nothing is weighted.
+export function clientMixScenario(weights: Record<ClientProfile, number>): LoadTestScenario | undefined {
+  const parts = CLIENT_PROFILES.filter((p) => (weights[p] ?? 0) > 0).map((p) => `${p}=${Math.round(weights[p])}`);
+  return parts.length > 0 ? `clients:${parts.join(",")}` : undefined;
+}
+
+// clientMixShares reads a resolved client scenario back into its profiles and
+// whole-percent shares, for the report. undefined for any other scenario.
+export function clientMixShares(scenario: string | undefined): { profile: string; pct: number }[] | undefined {
+  const spec = scenario?.startsWith("clients:") ? scenario.slice("clients:".length) : undefined;
+  if (!spec || spec === "history") return undefined;
+  const parts = spec.split(",").map((p) => p.split("=")).map(([profile, w]) => ({ profile: profile ?? "", w: Number(w) || 0 }));
+  const total = parts.reduce((n, p) => n + p.w, 0);
+  return total > 0 ? parts.map((p) => ({ profile: p.profile, pct: Math.round((p.w / total) * 100) })) : undefined;
+}
+
+export const CLIENT_LABEL_KEYS: Record<string, string> = {
+  tv: "admin.loadtest.client.tv",
+  mobile: "admin.loadtest.client.mobile",
+  "web-chrome": "admin.loadtest.client.webChrome",
+  "web-safari": "admin.loadtest.client.webSafari",
+};
 
 export type LoadTestStopReason =
   | "slo_breach"
@@ -159,6 +192,9 @@ export interface LoadTestReport {
   // readAmplification (what the DISK delivered), it says whether the code is
   // greedy or the kernel is reading ahead - two problems with different fixes.
   appReadAmplification?: number;
+  // servedPaths: what the server decided for each viewer type over the whole
+  // run, counted once per viewer by the path its first segment came from.
+  servedPaths?: { viewerType?: string; path?: string; viewers?: number }[];
   // endpoint: the origin the viewers actually hit (the reverse proxy when it was
   // reachable, the server's own loopback otherwise). Runs against different
   // endpoints are not comparable.
@@ -228,8 +264,50 @@ export function poolShares(branches: { branch?: string; viewers?: number }[]): {
   }));
 }
 
-// Noun form of each scenario for the report headline ("...in {{scenario}}.").
-export const SCENARIO_NOUN_KEYS: Record<LoadTestScenario, string> = {
+// scenarioNoun is the report headline's noun for a scenario ("...in
+// {{scenario}}."): a client mix names its proportions.
+export function scenarioNoun(t: (key: string, opts?: Record<string, unknown>) => string, scenario: LoadTestScenario | undefined): string {
+  const shares = clientMixShares(scenario);
+  if (shares) {
+    const mix = shares.map((s) => t("admin.loadtest.clientShare", { pct: s.pct, label: clientLabel(t, s.profile) })).join(", ");
+    return t("admin.loadtest.scenarioClientsNoun", { mix });
+  }
+  const key = SCENARIO_NOUN_KEYS[scenario as keyof typeof SCENARIO_NOUN_KEYS] ?? SCENARIO_NOUN_KEYS.balanced;
+  return t(key);
+}
+
+function clientLabel(t: (key: string, opts?: Record<string, unknown>) => string, profile: string): string {
+  const key = CLIENT_LABEL_KEYS[profile];
+  return key ? t(key) : profile;
+}
+
+// Path labels for servedPaths: what the server did with a viewer.
+const PATH_LABEL_KEYS: Record<string, string> = {
+  mkvgo: "admin.loadtest.path.mkvgo",
+  "mkvgo-concat": "admin.loadtest.path.mkvgo",
+  "ffmpeg-copy": "admin.loadtest.path.ffmpegCopy",
+  ffmpeg: "admin.loadtest.path.ffmpegCopy",
+  transcode: "admin.loadtest.path.transcode",
+};
+
+// servedPathLines renders one line per viewer type: "TV: 9 copied by mkvgo,
+// 2 transcoded". Types in the order the server sent them (sorted).
+export function servedPathLines(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  paths: LoadTestReport["servedPaths"],
+): string[] {
+  const byType = new Map<string, string[]>();
+  for (const p of paths ?? []) {
+    if (!p.viewerType || !p.path || !(p.viewers ?? 0)) continue;
+    const key = PATH_LABEL_KEYS[p.path];
+    const part = t("admin.loadtest.mixPart", { count: p.viewers, label: key ? t(key) : p.path });
+    byType.set(p.viewerType, [...(byType.get(p.viewerType) ?? []), part]);
+  }
+  return [...byType].map(([vt, parts]) => t("admin.loadtest.servedPathLine", { label: mixTypeLabel(t, vt), parts: parts.join(", ") }));
+}
+
+// Noun form of each fixed scenario for the report headline.
+export const SCENARIO_NOUN_KEYS: Record<"transcode" | "natural" | "mkvgo" | "light" | "balanced" | "heavy", string> = {
   transcode: "admin.loadtest.scenarioTranscodeNoun",
   natural: "admin.loadtest.scenarioNaturalNoun",
   mkvgo: "admin.loadtest.scenarioMkvgoNoun",
@@ -248,6 +326,7 @@ const MIX_TYPE_LABEL_KEYS: Record<string, string> = {
 };
 
 function mixTypeLabel(t: (key: string, opts?: Record<string, unknown>) => string, type: string): string {
+  if (type.startsWith("client:")) return clientLabel(t, type.slice("client:".length));
   const key = MIX_TYPE_LABEL_KEYS[type];
   return key ? t(key) : type;
 }

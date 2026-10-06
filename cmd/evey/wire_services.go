@@ -398,7 +398,7 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 				if it.File.Duration.Milliseconds() < loadTestMinTitleDuration.Milliseconds() {
 					continue
 				}
-				codec, height := loadTestSourceClass(streamsByItem[string(it.ID)])
+				codec, height, videoRange := loadTestSourceClass(streamsByItem[string(it.ID)])
 				// The probed bitrate, else the file's own average (size over
 				// duration): what a direct-play viewer of it pulls.
 				bitrate := it.File.Bitrate
@@ -410,6 +410,7 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 					DurationSec: int(it.File.Duration.Seconds()),
 					VideoCodec:  codec,
 					VideoHeight: height,
+					VideoRange:  videoRange,
 					BitrateBps:  bitrate,
 					// The path lets the run measure how fast this box READS its
 					// media - the ceiling that actually decides a direct-play
@@ -525,9 +526,10 @@ func buildPluginSubsystem(ctx context.Context, infra *infraDeps, rootLog *slog.L
 	return pluginInstallerSvc, pluginRuntimeSvc, pluginQuerySvc, pluginTokenSvc, pluginSecurityDashboardSvc, pluginIdleMgr, pluginHostSrv, memProfile
 }
 
-// loadTestSourceClass picks the first video stream's codec and height - what
-// the load test has to decode, and therefore what its verdict is about.
-func loadTestSourceClass(streams []*library.MediaStream) (string, int) {
+// loadTestSourceClass picks the first video stream's codec, height and dynamic
+// range - what the load test has to decode, and therefore what its verdict is
+// about.
+func loadTestSourceClass(streams []*library.MediaStream) (string, int, string) {
 	for _, st := range streams {
 		if st == nil || st.StreamType != library.StreamTypeVideo {
 			continue
@@ -536,9 +538,29 @@ func loadTestSourceClass(streams []*library.MediaStream) (string, int) {
 		if st.Height != nil {
 			h = *st.Height
 		}
-		return st.Codec, h
+		return st.Codec, h, loadTestVideoRange(st)
 	}
-	return "", 0
+	return "", 0, ""
+}
+
+// loadTestVideoRange reads a video stream's dynamic range off the same probe
+// fields the playback decision reads (ColorTransfer, DoViProfile).
+func loadTestVideoRange(st *library.MediaStream) string {
+	if st.DoViProfile != nil {
+		if *st.DoViProfile == 5 {
+			return apploadtest.RangeDoVi5
+		}
+		return apploadtest.RangeDoVi
+	}
+	if st.ColorTransfer != nil {
+		switch *st.ColorTransfer {
+		case "smpte2084":
+			return apploadtest.RangeHDR10
+		case "arib-std-b67":
+			return apploadtest.RangeHLG
+		}
+	}
+	return apploadtest.RangeSDR
 }
 
 // filmsAndEpisodes draws films and episodes in equal parts, each a random slice

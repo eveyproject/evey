@@ -1116,6 +1116,23 @@ loadtest:
   scenarioTranscodeNoun: "transcodificación"
   scenarioMkvgoNoun: "reproducción directa (mkvgo)"
   scenarioNaturalNoun: "reproducción natural"
+  scenarioGroupClients: "Clientes reales"
+  scenarioClientsHistory: "Mi público (últimos 30 días)"
+  scenarioClientsCustom: "Mezcla de clientes personalizada"
+  scenarioClientsNoun: "una mezcla de clientes reales ({{mix}})"
+  clientShare: "{{label}} {{pct}} %"
+  clientWeightsLegend: "Parte de cada cliente (pesos relativos)"
+  client:
+    tv: "TV"
+    mobile: "Teléfono"
+    webChrome: "Chrome / Firefox"
+    webSafari: "Safari"
+  path:
+    mkvgo: "copia mkvgo"
+    ffmpegCopy: "remux ffmpeg"
+    transcode: "transcodificación"
+  servedPathsHeading: "Lo que hizo el servidor para cada cliente:"
+  servedPathLine: "{{label}}: {{parts}}"
   mixType:
     mkvgo: "reproducción directa (mkvgo)"
     transcode: "transcodificación"

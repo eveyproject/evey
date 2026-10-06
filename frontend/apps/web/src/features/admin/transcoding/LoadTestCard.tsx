@@ -7,8 +7,23 @@ import { Button } from "@/components/ui/Button";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { LoadTestReportPanel } from "./LoadTestReportPanel";
-import { ACTIVE_STREAMS_STATUSES, LOAD_TEST_QUERY_KEY, LOAD_TEST_URL, formatElapsed, predictedStreams } from "./loadTestHelpers";
-import type { LoadTestScenario, LoadTestStatus } from "./loadTestTypes";
+import {
+  ACTIVE_STREAMS_STATUSES,
+  CLIENT_LABEL_KEYS,
+  CLIENT_PROFILES,
+  CLIENTS_HISTORY,
+  DEFAULT_CLIENT_WEIGHTS,
+  LOAD_TEST_QUERY_KEY,
+  LOAD_TEST_URL,
+  clientMixScenario,
+  formatElapsed,
+  predictedStreams,
+} from "./loadTestHelpers";
+import type { ClientProfile, LoadTestScenario, LoadTestStatus } from "./loadTestTypes";
+
+// The select's value for "a mix I state myself": the weights below it decide
+// the scenario actually sent.
+const CUSTOM_CLIENTS = "clients:custom";
 
 // LoadTestCard is the "constat, not a control panel" companion to
 // VideoSessionsCard: instead of trusting the calibration's prediction, it
@@ -20,10 +35,12 @@ export function LoadTestCard() {
   const qc = useQueryClient();
   const { data: sysData } = useAdminSystemServiceGetSystemInfo();
   const pools = sysData?.videoSessions?.pools ?? [];
-  // "balanced" (50/50 mkvgo/transcode) answers the question that actually
-  // matters to an operator - "how many different humans, with a realistic
-  // device mix, can this host hold" - so it's the default, not a pure lane.
-  const [scenario, setScenario] = useState<LoadTestScenario>("balanced");
+  // The audience's own clients answer the question that actually matters to an
+  // operator - "how many of MY viewers can this host hold" - so they are the
+  // default: the server decides each viewer's path as it does for real.
+  const [scenario, setScenario] = useState<LoadTestScenario>(CLIENTS_HISTORY);
+  const [weights, setWeights] = useState<Record<ClientProfile, number>>(DEFAULT_CLIENT_WEIGHTS);
+  const sentScenario = scenario === CUSTOM_CLIENTS ? clientMixScenario(weights) : scenario;
   // Cold cache: keep evicting the library from the page cache so the run
   // measures the storage, not the RAM. Off by default - the warm figure is
   // today's truth on this box; cold is the day the library outgrows memory.
@@ -46,7 +63,7 @@ export function LoadTestCard() {
       eveyFetch<LoadTestStatus>({
         url: LOAD_TEST_URL,
         method: "POST",
-        data: { scenario, coldCache },
+        data: { scenario: sentScenario, coldCache },
       }),
     onSuccess: (data) => {
       qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
@@ -135,6 +152,10 @@ export function LoadTestCard() {
                     data-testid="load-test-scenario-select"
                     className="w-full appearance-none px-3 py-2 pr-8 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
                   >
+                    <optgroup label={t("admin.loadtest.scenarioGroupClients")}>
+                      <option value={CLIENTS_HISTORY}>{t("admin.loadtest.scenarioClientsHistory")}</option>
+                      <option value={CUSTOM_CLIENTS}>{t("admin.loadtest.scenarioClientsCustom")}</option>
+                    </optgroup>
                     <optgroup label={t("admin.loadtest.scenarioGroupUsage")}>
                       <option value="light">{t("admin.loadtest.scenarioLight")}</option>
                       <option value="balanced">{t("admin.loadtest.scenarioBalanced")}</option>
@@ -154,12 +175,33 @@ export function LoadTestCard() {
               </div>
               <Button
                 loading={start.isPending}
+                disabled={!sentScenario}
                 onClick={() => start.mutate()}
                 data-testid="load-test-start-btn"
               >
                 {t("admin.loadtest.startButton")}
               </Button>
             </div>
+            {scenario === CUSTOM_CLIENTS && (
+              <fieldset className="flex flex-wrap gap-3" data-testid="load-test-client-weights">
+                <legend className="text-xs text-[var(--text-muted)] mb-1">{t("admin.loadtest.clientWeightsLegend")}</legend>
+                {CLIENT_PROFILES.map((p) => (
+                  <label key={p} className="flex flex-col gap-1 text-xs text-[var(--text-muted)]">
+                    {t(CLIENT_LABEL_KEYS[p] ?? p)}
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={weights[p]}
+                      disabled={start.isPending}
+                      onChange={(e) => setWeights({ ...weights, [p]: Math.max(0, Number(e.target.value) || 0) })}
+                      data-testid={`load-test-weight-${p}`}
+                      className="w-20 px-2 py-1 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-sm"
+                    />
+                  </label>
+                ))}
+              </fieldset>
+            )}
             {/* Cold cache: measure the storage instead of the RAM. On a box
                 whose library fits in memory, the default (warm) run overstates
                 the viewer count - its own report warns about it. */}

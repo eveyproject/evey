@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -166,6 +167,8 @@ func TestStartLoadTest_RunnerErrorsMapToStatusCodes(t *testing.T) {
 	}{
 		{"real viewers streaming", apploadtest.ErrStreamsActive, codes.FailedPrecondition},
 		{"already running", apploadtest.ErrAlreadyRunning, codes.AlreadyExists},
+		{"unknown mode", fmt.Errorf("%w: %q", apploadtest.ErrUnknownMode, "x"), codes.InvalidArgument},
+		{"invalid client mix", fmt.Errorf("%w: unknown profile", apploadtest.ErrUnknownScenario), codes.InvalidArgument},
 		{"anything else", errors.New("boom"), codes.Internal},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -3,6 +3,8 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -65,6 +67,8 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 			return nil, status.Error(codes.FailedPrecondition, "playback sessions are active; the load test never runs over real viewers")
 		case errors.Is(err, apploadtest.ErrAlreadyRunning):
 			return nil, status.Error(codes.AlreadyExists, "a load test is already running")
+		case errors.Is(err, apploadtest.ErrUnknownMode), errors.Is(err, apploadtest.ErrUnknownScenario):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
 		default:
 			return nil, internalError(ctx, "start load test", err)
 		}
@@ -196,8 +200,15 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 		}
 		for _, m := range r.SourceMix {
 			out.LastReport.SourceMix = append(out.LastReport.SourceMix, &eveyv1.LoadTestSourceMix{
-				Codec: m.Codec, Height: int32(m.Height), Count: int32(m.Count),
+				Codec: m.Codec, Height: int32(m.Height), Count: int32(m.Count), VideoRange: m.Range,
 			})
+		}
+		for _, vt := range slices.Sorted(maps.Keys(r.PathsByType)) {
+			for _, path := range slices.Sorted(maps.Keys(r.PathsByType[vt])) {
+				out.LastReport.ServedPaths = append(out.LastReport.ServedPaths, &eveyv1.LoadTestServedPath{
+					ViewerType: vt, Path: path, Viewers: int32(r.PathsByType[vt][path]),
+				})
+			}
 		}
 		if len(r.SegmentMsP95ByType) > 0 {
 			out.LastReport.SegmentMsP95ByType = make(map[string]int32, len(r.SegmentMsP95ByType))

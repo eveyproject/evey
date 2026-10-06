@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -47,6 +48,9 @@ type viewerEvent struct {
 	// outcomes per viewer, since flash has no meaningful "tier" ordering);
 	// every other mode ignores it.
 	slot int
+	// servedBy is the X-Evey-Served-By of an evTTFF's first segment: the path
+	// the server actually chose for this viewer (mkvgo, ffmpeg-copy, transcode).
+	servedBy string
 	// mediaID identifies the candidate an evCandidateSkipped event is about,
 	// so the pool can retire the title instead of re-offering it forever.
 	mediaID string
@@ -69,6 +73,9 @@ type Runner struct {
 	// windowStats reads the packager's cumulative window counters (see
 	// WithWindowStats).
 	windowStats func() map[string]int64
+	// clientHistory counts the recent playbacks by recorded device type (see
+	// WithClientHistory).
+	clientHistory func(ctx context.Context) (map[string]int, error)
 
 	// servedBytes is the running total of bytes every viewer has pulled this
 	// run - which is exactly what the server had to push. It is the honest
@@ -174,6 +181,43 @@ func (r *Runner) WithWindowStats(read func() map[string]int64) *Runner {
 	return r
 }
 
+// WithClientHistory lets a "clients:history" run read the server's own
+// playbacks of the last days, counted by recorded device type. Without it such
+// a run falls back to DefaultClientMix.
+func (r *Runner) WithClientHistory(read func(ctx context.Context) (map[string]int, error)) *Runner {
+	r.clientHistory = read
+	return r
+}
+
+// resolveClientMix turns "clients:history" into the stated mix it stands for,
+// so the run and its report name the proportions that were actually played,
+// and rejects a stated mix naming an unknown profile before anything starts.
+func (r *Runner) resolveClientMix(ctx context.Context, cfg Config) (Config, error) {
+	spec, ok := strings.CutPrefix(cfg.Scenario, ScenarioClients+":")
+	if !ok {
+		return cfg, nil
+	}
+	if spec == ClientMixHistory {
+		spec = DefaultClientMix
+		var counts map[string]int
+		var err error
+		if r.clientHistory != nil {
+			counts, err = r.clientHistory(ctx)
+		}
+		if mix, enough := clientMixFromHistory(counts); err == nil && enough {
+			spec = mix
+		} else {
+			r.logger.Info("loadtest: too few recent playbacks to read the audience's clients, using the default mix",
+				"mix", spec, "err", err)
+		}
+		cfg.Scenario = ScenarioClients + ":" + spec
+	}
+	if _, err := parseClientMix(spec); err != nil {
+		return cfg, fmt.Errorf("%w: %w", ErrUnknownScenario, err)
+	}
+	return cfg, nil
+}
+
 // logWindowStats logs what the run added to the packager's counters. A plan
 // the cache let go during the run takes its counts with it, so this is a
 // floor, and "plans" says how many plans were summed at the end.
@@ -207,6 +251,9 @@ func (r *Runner) Start(ctx context.Context, cfg Config) error {
 	}
 	cfg, err := cfg.withDefaults()
 	if err != nil {
+		return err
+	}
+	if cfg, err = r.resolveClientMix(ctx, cfg); err != nil {
 		return err
 	}
 

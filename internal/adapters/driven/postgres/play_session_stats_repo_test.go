@@ -2,6 +2,7 @@ package postgres_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -299,4 +300,45 @@ func TestPlaySessionStatsRepo_GetServerStats_ActiveStreamsAreNeverCached(t *test
 	second, err := statsRepo.GetServerStats(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 2, second.ActiveStreams, "a playback started after the cache was filled must be counted at once")
+}
+
+// The load test's client mix counts recent playbacks per recorded device type,
+// and nothing older than the window.
+func TestPlaySessionStatsRepo_CountByDeviceTypeSince(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	profileRepo := postgres.NewProfileRepository(db)
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	sessionRepo := postgres.NewPlaySessionRepository(db)
+	statsRepo := postgres.NewPlaySessionStatsReader(db)
+	ctx := context.Background()
+
+	u := newTestUser("pss-dt-u1")
+	require.NoError(t, userRepo.Create(ctx, u))
+	p := &user.Profile{ID: "pss-dt-p1", UserID: u.ID, Name: "Default", Preferences: map[string]string{}, IsDefault: true, CreatedAt: time.Now().UTC()}
+	require.NoError(t, profileRepo.Create(ctx, p))
+	lib := newTestLibrary("pss-dt-lib1")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("pss-dt-mi1", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+
+	now := time.Now().UTC()
+	for i, s := range []struct {
+		device string
+		age    time.Duration
+	}{
+		{"Evey TV", time.Hour}, {"Evey TV", 2 * time.Hour}, {"Evey Web", time.Hour}, {"Evey Web", 40 * 24 * time.Hour},
+	} {
+		ps := newTestPlaySession(fmt.Sprintf("pss-dt-ps%d", i), string(p.ID), string(item.ID))
+		ps.DeviceType = s.device
+		ps.StartedAt = now.Add(-s.age).Truncate(time.Millisecond)
+		require.NoError(t, sessionRepo.Create(ctx, ps))
+	}
+
+	got, err := statsRepo.CountByDeviceTypeSince(ctx, now.Add(-30*24*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int{"Evey TV": 2, "Evey Web": 1}, got)
 }
