@@ -1,6 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { formatAudioTrackLabel, type TrackPick, type V1MediaStream, trackDisplayName } from "@evey/api";
+import type { ReactNode } from "react";
+import { Captions, Volume2 } from "lucide-react";
 import { Select } from "@/components/ui/Select";
+import { ICON } from "@/constants/iconSizes";
 
 interface MediaDetailTracksProps {
   streams: V1MediaStream[];
@@ -10,6 +13,15 @@ interface MediaDetailTracksProps {
 
 const AUTO = "auto";
 const OFF = "off";
+
+function TrackLabel({ htmlFor, icon, text }: { htmlFor: string; icon: ReactNode; text: string }) {
+  return (
+    <label htmlFor={htmlFor} className="flex items-center gap-1.5 text-sm font-semibold text-[var(--text-secondary)]">
+      <span className="text-[var(--accent)]" aria-hidden="true">{icon}</span>
+      {text}
+    </label>
+  );
+}
 
 export function subtitleTrackLabel(s: V1MediaStream, fallback: string, forced: string, locale?: string): string {
   const name = trackDisplayName(s, fallback, locale);
@@ -39,12 +51,15 @@ export function MediaDetailTracks({ streams, pick, onChange }: MediaDetailTracks
     })),
   ];
 
+  // Own label with an icon: the bare grey Select label read as a form field
+  // under the action row, and users missed the picker entirely (2026-10-06).
   return (
     <div className="flex flex-wrap gap-4 lg:col-span-2" data-testid="media-tracks">
       {audio.length > 1 && (
-        <div className="min-w-[14rem]">
+        <div className="min-w-[14rem] flex flex-col gap-1">
+          <TrackLabel htmlFor="media-tracks-audio" icon={<Volume2 size={ICON.sm} />} text={t("media.streams.audio")} />
           <Select
-            label={t("media.streams.audio")}
+            id="media-tracks-audio"
             data-testid="media-tracks-audio"
             options={audioOptions}
             value={pick.audio === undefined ? AUTO : String(pick.audio)}
@@ -53,9 +68,10 @@ export function MediaDetailTracks({ streams, pick, onChange }: MediaDetailTracks
         </div>
       )}
       {subtitles.length > 0 && (
-        <div className="min-w-[14rem]">
+        <div className="min-w-[14rem] flex flex-col gap-1">
+          <TrackLabel htmlFor="media-tracks-subtitle" icon={<Captions size={ICON.sm} />} text={t("media.streams.subtitles")} />
           <Select
-            label={t("media.streams.subtitles")}
+            id="media-tracks-subtitle"
             data-testid="media-tracks-subtitle"
             options={subtitleOptions}
             value={pick.subtitle === undefined ? AUTO : String(pick.subtitle)}
