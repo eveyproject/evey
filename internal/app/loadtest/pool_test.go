@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -22,27 +23,33 @@ func TestPool_AnIneligibleTitleIsNeverOfferedAgain(t *testing.T) {
 	}
 }
 
-// The run draws its titles the way an audience does: at random. The shuffle
-// keeps every title exactly once, moves them (a pool handed out in library
-// order loads whatever the listing happens to start with), and is reproducible
-// from its seed so a run can be replayed.
-func TestShuffleCandidates_IsAPermutationReproducibleFromItsSeed(t *testing.T) {
-	in := manyCandidates(50)
-	a := shuffleCandidates(append([]MediaCandidate(nil), in...), 42)
-	b := shuffleCandidates(append([]MediaCandidate(nil), in...), 42)
-	c := shuffleCandidates(append([]MediaCandidate(nil), in...), 43)
+// A library-shaped set of titles: 10 SD, 30 720p, 50 1080p, 10 4K.
+func mixedCandidates() []MediaCandidate {
+	var out []MediaCandidate
+	add := func(n, height int, tag string) {
+		for i := range n {
+			out = append(out, MediaCandidate{ID: fmt.Sprintf("%s-%d", tag, i), VideoHeight: height, DurationSec: 3600})
+		}
+	}
+	add(10, 480, "sd")
+	add(30, 720, "hd")
+	add(50, 1080, "fhd")
+	add(10, 2160, "uhd")
+	return out
+}
 
+// The draw keeps every title exactly once and is reproducible from its seed,
+// so a run can be replayed; another seed draws another order.
+func TestRepresentativeDraw_IsAPermutationReproducibleFromItsSeed(t *testing.T) {
+	a, _ := representativeDraw(mixedCandidates(), 42)
+	b, _ := representativeDraw(mixedCandidates(), 42)
+	c, _ := representativeDraw(mixedCandidates(), 43)
 	seen := map[string]int{}
 	for _, m := range a {
 		seen[m.ID]++
 	}
-	if len(seen) != len(in) {
-		t.Fatalf("shuffle kept %d distinct titles of %d", len(seen), len(in))
-	}
-	for id, n := range seen {
-		if n != 1 {
-			t.Fatalf("title %s appears %d times after the shuffle", id, n)
-		}
+	if len(seen) != 100 || len(a) != 100 {
+		t.Fatalf("draw kept %d distinct titles in %d slots, want 100 in 100", len(seen), len(a))
 	}
 	same := func(x, y []MediaCandidate) bool {
 		for i := range x {
@@ -53,13 +60,50 @@ func TestShuffleCandidates_IsAPermutationReproducibleFromItsSeed(t *testing.T) {
 		return true
 	}
 	if !same(a, b) {
-		t.Fatalf("the same seed gave two orders: %v vs %v", ids(a)[:6], ids(b)[:6])
+		t.Fatal("the same seed must replay the same draw")
 	}
 	if same(a, c) {
-		t.Fatal("two seeds gave the same order")
+		t.Fatal("another seed must draw another order")
 	}
-	if same(a, in) {
-		t.Fatal("the shuffle left 50 titles in library order")
+}
+
+// Whatever number of viewers a run reaches, they watch the library's own mix:
+// every prefix of the draw holds each quality within one title of its share.
+// A plain shuffle could hand the first fifty viewers mostly 4K.
+func TestRepresentativeDraw_EveryPrefixKeepsTheLibrarysMix(t *testing.T) {
+	out, mix := representativeDraw(mixedCandidates(), 7)
+	if mix["sd"] != 10 || mix["720p"] != 30 || mix["1080p"] != 50 || mix["2160p"] != 10 {
+		t.Fatalf("mix = %v, want sd 10, 720p 30, 1080p 50, 2160p 10", mix)
+	}
+	share := map[string]float64{"sd": 0.1, "720p": 0.3, "1080p": 0.5, "2160p": 0.1}
+	taken := map[string]int{}
+	for n, m := range out {
+		taken[qualityClass(m.VideoHeight)]++
+		for k, p := range share {
+			if d := float64(taken[k]) - p*float64(n+1); d > 1 || d < -1 {
+				t.Fatalf("after %d viewers, %s has %d titles, %.1f expected", n+1, k, taken[k], p*float64(n+1))
+			}
+		}
+	}
+}
+
+// A quality the library does not have is never drawn, and a title whose
+// streams were never probed is a quality of its own, not counted as 4K.
+func TestRepresentativeDraw_OnlyTheQualitiesTheLibraryHas(t *testing.T) {
+	in := []MediaCandidate{{ID: "a", VideoHeight: 1080}, {ID: "b", VideoHeight: 1080}, {ID: "c"}}
+	_, mix := representativeDraw(in, 1)
+	if len(mix) != 2 || mix["1080p"] != 2 || mix["unknown"] != 1 {
+		t.Fatalf("mix = %v, want only 1080p 2 and unknown 1", mix)
+	}
+}
+
+// Heights of wide films sit below the nominal ones and still land in their
+// class.
+func TestQualityClass_WideFilms(t *testing.T) {
+	for h, want := range map[int]string{1606: "2160p", 2160: "2160p", 800: "1080p", 1080: "1080p", 536: "720p", 720: "720p", 404: "sd", 0: "unknown"} {
+		if got := qualityClass(h); got != want {
+			t.Fatalf("height %d = %s, want %s", h, got, want)
+		}
 	}
 }
 
