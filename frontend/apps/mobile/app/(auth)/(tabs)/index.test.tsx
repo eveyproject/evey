@@ -142,6 +142,9 @@ vi.mock("@evey/api", () => ({
 }));
 
 import { Alert } from "react-native";
+// The long-press sheet has its own test; the home only mounts it.
+vi.mock("../../../src/components/MediaActionsSheet", () => ({ MediaActionsSheet: () => null }));
+
 import HomeScreen from "./index";
 
 /** Fires the Alert button whose text matches, the way a tap would. */
