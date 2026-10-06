@@ -1,6 +1,6 @@
 import { memo, useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { displayTitle } from "@evey/api";
-import { View, Text, ScrollView, FlatList, StyleSheet, Animated, DeviceEventEmitter, useWindowDimensions } from "react-native";
+import { View, Text, ScrollView, FlatList, StyleSheet, Animated, DeviceEventEmitter, useWindowDimensions, TVFocusGuideView } from "react-native";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -185,17 +185,19 @@ function MediaCardImpl({
 const MediaCard = memo(MediaCardImpl);
 
 // A row whose content has a page of its own opens it from its title, like the
-// web home. Natural width on purpose: up from the first card lands on it and
-// down comes back to that card - a full-width target sent "down" to whichever
-// card sat under the middle of the screen.
+// web home. The guide spans the row, so up from ANY card lands on the title
+// (a bare title is only "above" the cards under it); the cards' own guide
+// sends down back to the card left there.
 function RowTitle({ title, onOpen, onFocus }: { title: string; onOpen?: () => void; onFocus?: () => void }) {
   const theme = useTheme();
   if (!onOpen) return <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>;
   return (
-    <FocusableCard onPress={onOpen} onFocus={onFocus} style={styles.rowTitleLink} accessibilityLabel={title}>
-      <Text style={[styles.rowTitleText, { color: theme.colors.text }]}>{title}</Text>
-      <Ionicons name="chevron-forward" size={22} color={theme.colors.textMuted} />
-    </FocusableCard>
+    <TVFocusGuideView autoFocus>
+      <FocusableCard onPress={onOpen} onFocus={onFocus} style={styles.rowTitleLink} accessibilityLabel={title}>
+        <Text style={[styles.rowTitleText, { color: theme.colors.text }]}>{title}</Text>
+        <Ionicons name="chevron-forward" size={22} color={theme.colors.textMuted} />
+      </FocusableCard>
+    </TVFocusGuideView>
   );
 }
 
@@ -255,6 +257,9 @@ function MediaRow({
   return (
     <View style={styles.rowContainer}>
       <RowTitle title={title} onOpen={onOpen} onFocus={onCardFocus} />
+      {/* autoFocus: down from the title lands on the card last left here, or
+          the first - not on whichever card sits under the title's centre. */}
+      <TVFocusGuideView autoFocus>
       <FlatList
         horizontal
         data={items}
@@ -271,6 +276,7 @@ function MediaRow({
         // eight rows holds a hundred and sixty otherwise.
         removeClippedSubviews
       />
+      </TVFocusGuideView>
     </View>
   );
 }
@@ -327,6 +333,7 @@ function TileRow({
   return (
     <View style={styles.rowContainer}>
       <RowTitle title={title} onOpen={onOpen} onFocus={onCardFocus} />
+      <TVFocusGuideView autoFocus>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: HOME_ROW_GUTTER, gap: GRID_GAP }}>
         {tiles.map((tile, i) => (
           <FocusableCard
@@ -366,6 +373,7 @@ function TileRow({
           </FocusableCard>
         ))}
       </ScrollView>
+      </TVFocusGuideView>
     </View>
   );
 }
