@@ -226,19 +226,30 @@ func TestGoroutinesThrough_CountsTheGoroutinesInsideANamedFunction(t *testing.T)
 	}
 }
 
+// parkedForWaitSites is parkedThroughMarker under a name of its own: the census
+// test above leaves goroutines that may still be exiting when this one runs,
+// and sharing their name let it count one of them (4 instead of 3, seen in a
+// clean-checkout run).
+//
+//go:noinline
+func parkedForWaitSites(ready chan<- struct{}, release <-chan struct{}) {
+	ready <- struct{}{}
+	<-release
+}
+
 // The goroutines still serving are grouped by where they wait, so a run that
 // ends with requests in flight says whether they sit on the disk or on a lock.
 func TestWaitSitesThrough_GroupsTheParkedGoroutinesByWhereTheyWait(t *testing.T) {
 	ready, release := make(chan struct{}), make(chan struct{})
 	for range 3 {
-		go parkedThroughMarker(ready, release)
+		go parkedForWaitSites(ready, release)
 	}
 	for range 3 {
 		<-ready
 	}
-	sites := waitSitesThrough("parkedThroughMarker", 5)
+	sites := waitSitesThrough("parkedForWaitSites", 5)
 	close(release)
-	if len(sites) != 1 || sites[0].Count != 3 || !strings.HasPrefix(sites[0].At, "loadtest.parkedThroughMarker") {
-		t.Fatalf("wait sites = %+v, want the 3 goroutines in one group at loadtest.parkedThroughMarker", sites)
+	if len(sites) != 1 || sites[0].Count != 3 || !strings.HasPrefix(sites[0].At, "loadtest.parkedForWaitSites") {
+		t.Fatalf("wait sites = %+v, want the 3 goroutines in one group at loadtest.parkedForWaitSites", sites)
 	}
 }
