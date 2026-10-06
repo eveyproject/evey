@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -86,6 +87,15 @@ type History interface {
 // An instance that never ran the demo has no marker and is never touched.
 const MarkerKey = "demo.bootstrapped"
 
+// adminEmail is the demo administrator's address; with the username it is
+// what marks the account as the demo's.
+const adminEmail = "demo@demo.invalid"
+
+// PluginsKey lists, comma-separated, the plugins the bootstrap installed
+// itself: the only ones a teardown removes. A plugin the operator installed
+// under the same name was found, not installed, and is not listed.
+const PluginsKey = "demo.plugins_installed"
+
 type Bootstrapper struct {
 	users    user.UserRepository
 	profiles user.ProfileRepository
@@ -96,7 +106,10 @@ type Bootstrapper struct {
 	libSvc   Libraries
 	hasher   user.PasswordHasher
 	marker   shared.ServerConfigRepository // optional
-	mediaDir string
+	// safetyBackup dumps the database before a teardown deletes anything;
+	// optional, but when set a failed dump cancels the teardown.
+	safetyBackup func(ctx context.Context) (string, error)
+	mediaDir     string
 	// adminUser / adminPassword: the published demo / demo by default, the
 	// operator-set account on the extended demo (WithAdminAccount).
 	adminUser, adminPassword string
@@ -167,6 +180,13 @@ func (b *Bootstrapper) WithLibraryAccess(access user.LibraryAccessRepository) *B
 // later non-demo boot tear the demo down.
 func (b *Bootstrapper) WithMarker(cfg shared.ServerConfigRepository) *Bootstrapper {
 	b.marker = cfg
+	return b
+}
+
+// WithSafetyBackup makes Teardown dump the database first and give up, deleting
+// nothing, when the dump fails: leaving demo mode must always have a way back.
+func (b *Bootstrapper) WithSafetyBackup(fn func(ctx context.Context) (string, error)) *Bootstrapper {
+	b.safetyBackup = fn
 	return b
 }
 
@@ -264,28 +284,32 @@ func (b *Bootstrapper) WasBootstrapped(ctx context.Context) bool {
 // Teardown undoes the bootstrap when the demo flag is gone: the demo
 // libraries (and their indexed items), the visitor accounts, the `demo`
 // administrator, the manifest's files on disk, then the marker. Only what the
-// bootstrap created is touched - libraries by their demo names, accounts by
-// their seed usernames, files by their manifest paths - so an operator's own
-// data next to it survives.
+// bootstrap created is touched - libraries by demo name AND demo folder,
+// accounts by seed username AND @demo.invalid address, plugins it recorded
+// installing, files by their manifest paths - so an operator's own data next
+// to it survives, and a database dump comes first (WithSafetyBackup).
 //
 // The one thing it will not do is leave the instance without an
 // administrator: when `demo` is the last one, its published password is
 // replaced by a random one and the log says how to recover, instead of
 // deleting the account and reopening the setup wizard on a live server.
 func (b *Bootstrapper) Teardown(ctx context.Context) error {
+	// Nothing is deleted without a way back: a database dump first, and no
+	// dump, no teardown. A name-only teardown took an operator's own library
+	// with it on 2026-10-07; a dump would have made that a restore.
+	if b.safetyBackup != nil {
+		where, err := b.safetyBackup(ctx)
+		if err != nil {
+			return fmt.Errorf("demo teardown: aborted, nothing deleted - the database could not be backed up first: %w", err)
+		}
+		b.log.Info("demo: database backed up before teardown", "backup", where)
+	}
 	existing, err := b.libs.List(ctx, library.ListLibrariesFilter{})
 	if err != nil {
 		return fmt.Errorf("demo teardown: list libraries: %w", err)
 	}
-	names := map[string]bool{}
-	for _, spec := range demo.Libraries {
-		names[spec.Name] = true
-		for _, former := range spec.FormerNames {
-			names[former] = true
-		}
-	}
 	for _, l := range existing {
-		if !names[l.Name] {
+		if !isDemoLibrary(l, b.mediaDir) {
 			continue
 		}
 		if err := b.libSvc.DeleteLibrary(ctx, string(l.ID)); err != nil {
@@ -294,9 +318,16 @@ func (b *Bootstrapper) Teardown(ctx context.Context) error {
 		b.log.Info("demo: library removed", "name", l.Name)
 	}
 
+	// An account is the demo's by its seed username AND its @demo.invalid
+	// address, which no real account can carry: "famille" or "invite" are
+	// ordinary usernames an operator may well have.
 	for _, a := range seedAccounts {
 		u, err := b.users.GetByUsername(ctx, a.username)
 		if err != nil || u == nil {
+			continue
+		}
+		if !strings.EqualFold(u.Email, a.email) {
+			b.log.Warn("demo: account kept, it has the seed username but not the seed address", "username", a.username)
 			continue
 		}
 		if err := b.accounts.DeleteUser(ctx, string(u.ID)); err != nil {
@@ -304,7 +335,7 @@ func (b *Bootstrapper) Teardown(ctx context.Context) error {
 		}
 		b.log.Info("demo: account removed", "username", a.username)
 	}
-	if u, err := b.users.GetByUsername(ctx, b.adminUser); err == nil && u != nil {
+	if u, err := b.users.GetByUsername(ctx, b.adminUser); err == nil && u != nil && strings.EqualFold(u.Email, adminEmail) {
 		switch err := b.accounts.DeleteUser(ctx, string(u.ID)); {
 		case err == nil:
 			b.log.Info("demo: administrator removed", "username", b.adminUser)
@@ -406,13 +437,13 @@ func (b *Bootstrapper) EnsureAdmin(ctx context.Context) error {
 		return fmt.Errorf("demo admin: count admins: %w", err)
 	}
 	if admins == 0 {
-		if _, serr := b.setup.Setup(ctx, b.adminUser, b.adminPassword, "demo@demo.invalid", appuser.WithSetupLocale("en")); serr != nil {
+		if _, serr := b.setup.Setup(ctx, b.adminUser, b.adminPassword, adminEmail, appuser.WithSetupLocale("en")); serr != nil {
 			return fmt.Errorf("demo admin: setup: %w", serr)
 		}
 		b.log.Info("demo: administrator created through setup", "username", b.adminUser)
 		return nil
 	}
-	u, err := user.NewUser(b.adminUser, "demo@demo.invalid", "pending")
+	u, err := user.NewUser(b.adminUser, adminEmail, "pending")
 	if err != nil {
 		return err
 	}
@@ -443,8 +474,12 @@ func (b *Bootstrapper) EnsureLibraries(ctx context.Context) (map[string]shared.L
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, nil, fmt.Errorf("demo libraries: mkdir %s: %w", dir, err)
 		}
-		if l, ok := byName[spec.Name]; ok {
-			out[spec.Folder] = l.ID
+		// Adopted only when it is the demo folder's: an operator's own library
+		// sharing the name is left alone, the demo gets one of its own.
+		if i := slices.IndexFunc(existing, func(l *library.Library) bool {
+			return l.Name == spec.Name && isDemoLibrary(l, b.mediaDir)
+		}); i >= 0 {
+			out[spec.Folder] = existing[i].ID
 			continue
 		}
 		if l := formerLibrary(byName, spec, dir); l != nil {
@@ -472,6 +507,25 @@ func (b *Bootstrapper) EnsureLibraries(ctx context.Context) (map[string]shared.L
 		created = append(created, spec.Folder)
 	}
 	return out, created, nil
+}
+
+// isDemoLibrary says whether teardown may delete l: a demo name (current or
+// former) AND the demo folder of that same library. The name alone took an
+// operator's own "Photos" library with it when a dev server left demo mode
+// (2026-10-07): the demo's names are ordinary ones.
+func isDemoLibrary(l *library.Library, mediaDir string) bool {
+	for _, spec := range demo.Libraries {
+		if l.Name != spec.Name && !slices.Contains(spec.FormerNames, l.Name) {
+			continue
+		}
+		dir := filepath.Clean(filepath.Join(mediaDir, spec.Folder))
+		for _, p := range l.Paths {
+			if filepath.Clean(p) == dir {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // formerLibrary finds the library a previous release created for spec: one of
@@ -688,6 +742,9 @@ func (b *Bootstrapper) EnsurePlugins(ctx context.Context) (map[string]string, er
 				return nil, fmt.Errorf("demo: install plugin %s: %w", spec.Name, err)
 			}
 			b.log.Info("demo: plugin installed", "plugin", spec.Name, "version", p.Version)
+			if err := b.recordInstalledPlugin(ctx, spec.Name); err != nil {
+				return nil, err
+			}
 		}
 		ids[spec.Name] = p.ID
 		if cfgErr := b.runtime.UpdatePluginConfig(ctx, p.ID, spec.Config); cfgErr != nil {
@@ -780,15 +837,62 @@ func (b *Bootstrapper) RemovePlugins(ctx context.Context) error {
 	if b.plugins == nil || b.installer == nil {
 		return nil
 	}
+	installed := b.installedPlugins(ctx)
 	for _, spec := range demo.Plugins {
 		p, err := b.plugins.GetByName(ctx, spec.Name)
 		if err != nil || p == nil {
+			continue
+		}
+		if !installed[spec.Name] {
+			b.log.Info("demo: plugin kept, the demo did not install it", "plugin", spec.Name)
 			continue
 		}
 		if err := b.installer.UninstallPlugin(ctx, p.ID); err != nil {
 			return fmt.Errorf("demo teardown: uninstall plugin %s: %w", spec.Name, err)
 		}
 		b.log.Info("demo: plugin removed", "plugin", spec.Name)
+	}
+	if b.marker != nil {
+		if err := b.marker.Delete(ctx, PluginsKey); err != nil {
+			return fmt.Errorf("demo teardown: clear installed plugins: %w", err)
+		}
+	}
+	return nil
+}
+
+// installedPlugins reads PluginsKey; none without a marker store.
+func (b *Bootstrapper) installedPlugins(ctx context.Context) map[string]bool {
+	out := map[string]bool{}
+	if b.marker == nil {
+		return out
+	}
+	e, err := b.marker.Get(ctx, PluginsKey)
+	if err != nil || e == nil {
+		return out
+	}
+	for _, name := range strings.Split(e.Value, ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			out[name] = true
+		}
+	}
+	return out
+}
+
+// recordInstalledPlugin adds name to PluginsKey, so the teardown knows the
+// demo installed it.
+func (b *Bootstrapper) recordInstalledPlugin(ctx context.Context, name string) error {
+	if b.marker == nil {
+		return nil
+	}
+	set := b.installedPlugins(ctx)
+	set[name] = true
+	names := make([]string, 0, len(set))
+	for n := range set {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	if err := b.marker.Set(ctx, PluginsKey, strings.Join(names, ",")); err != nil {
+		return fmt.Errorf("demo: record installed plugin %s: %w", name, err)
 	}
 	return nil
 }

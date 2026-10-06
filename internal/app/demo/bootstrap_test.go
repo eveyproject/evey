@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -387,6 +388,134 @@ func TestTeardown_RemovesWhatTheBootstrapCreatedAndNothingElse(t *testing.T) {
 	}
 	if h.boot.WasBootstrapped(ctx) {
 		t.Error("marker still present after teardown")
+	}
+}
+
+// The demo's library names are ordinary ones: an operator's own "Photos" is
+// neither adopted by the bootstrap nor deleted by the teardown - only the
+// library that points at the demo folder is the demo's (a dev server leaving
+// demo mode lost its real Photos library this way, 2026-10-07).
+func TestTeardown_SparesAnOperatorLibraryThatSharesADemoName(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	own, _ := library.NewLibrary("lib-own-photos", "Photos", library.LibraryType("photo"), library.WithLibraryPaths([]string{"/media/photos"}))
+	_ = h.libs.repo.Create(ctx, own)
+
+	libs, _, err := h.boot.EnsureLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if libs["photos"] == own.ID {
+		t.Fatal("the bootstrap adopted the operator's Photos library")
+	}
+	// A second boot finds its own Photos again instead of making another.
+	again, _, err := h.boot.EnsureLibraries(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again["photos"] != libs["photos"] {
+		t.Fatalf("second boot: photos library %s, want %s", again["photos"], libs["photos"])
+	}
+	all, _ := h.libs.repo.List(ctx, library.ListLibrariesFilter{})
+	if len(all) != len(demo.Libraries)+1 {
+		t.Fatalf("%d libraries after two boots, want the demo's %d and the operator's", len(all), len(demo.Libraries))
+	}
+
+	if err := h.boot.Teardown(ctx); err != nil {
+		t.Fatalf("Teardown: %v", err)
+	}
+	all, _ = h.libs.repo.List(ctx, library.ListLibrariesFilter{})
+	if len(all) != 1 || all[0].ID != own.ID {
+		t.Errorf("libraries after teardown = %v, want the operator's Photos only", all)
+	}
+}
+
+// Leaving demo mode deletes nothing without a database dump first: a dump
+// that fails cancels the whole teardown, a dump that works comes first.
+func TestTeardown_BacksUpFirstAndGivesUpWithoutABackup(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if _, _, err := h.boot.EnsureLibraries(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.boot.SeedAccounts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.boot.MarkBootstrapped(ctx); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := h.libs.repo.List(ctx, library.ListLibrariesFilter{})
+
+	h.boot.WithSafetyBackup(func(context.Context) (string, error) { return "", errors.New("disk full") })
+	if err := h.boot.Teardown(ctx); err == nil {
+		t.Fatal("Teardown went on without a backup")
+	}
+	after, _ := h.libs.repo.List(ctx, library.ListLibrariesFilter{})
+	if len(after) != len(before) {
+		t.Errorf("libraries %d -> %d: a failed backup must leave everything", len(before), len(after))
+	}
+	if u, _ := h.users.GetByUsername(ctx, "famille"); u == nil {
+		t.Error("an account was removed although the backup failed")
+	}
+	if !h.boot.WasBootstrapped(ctx) {
+		t.Error("the marker went although nothing was torn down")
+	}
+
+	var backedUpWith int
+	h.boot.WithSafetyBackup(func(ctx context.Context) (string, error) {
+		all, _ := h.libs.repo.List(ctx, library.ListLibrariesFilter{})
+		backedUpWith = len(all)
+		return "backup-1", nil
+	})
+	if err := h.boot.Teardown(ctx); err != nil {
+		t.Fatalf("Teardown: %v", err)
+	}
+	if backedUpWith != len(before) {
+		t.Errorf("backup saw %d libraries, want the %d from before any delete", backedUpWith, len(before))
+	}
+}
+
+// "famille" or "invite" are ordinary usernames: an account is the demo's only
+// with the seed username AND its @demo.invalid address.
+func TestTeardown_SparesAnOperatorAccountThatSharesASeedUsername(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	mine, _ := user.NewUser("invite", "cousin@example.com", "hashed:x")
+	_ = h.users.Create(ctx, mine)
+	if err := h.boot.SeedAccounts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.boot.MarkBootstrapped(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.boot.Teardown(ctx); err != nil {
+		t.Fatalf("Teardown: %v", err)
+	}
+	if u, _ := h.users.GetByUsername(ctx, "invite"); u == nil || u.ID != mine.ID {
+		t.Errorf("the operator's own \"invite\" account was removed")
+	}
+	if u, _ := h.users.GetByUsername(ctx, "famille"); u != nil {
+		t.Error("the demo's famille account survived the teardown")
+	}
+}
+
+// A plugin the operator installed under a demo plugin's name was found by the
+// bootstrap, not installed by it: the teardown leaves it.
+func TestTeardown_SparesAPluginTheDemoDidNotInstall(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	fp := newFakePlugins()
+	_ = fp.Create(ctx, &plugin.Plugin{ID: "mine", Name: "weather-v2"})
+	h.boot.WithPlugins(fp, fp, fp, t.TempDir())
+	if _, err := h.boot.EnsurePlugins(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.boot.RemovePlugins(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(fp.uninstalled) != 0 {
+		t.Errorf("uninstalled %v: the operator's weather-v2 must stay", fp.uninstalled)
 	}
 }
 
