@@ -351,6 +351,12 @@ message StartLoadTestRequest {
   // library dwarfs the RAM; warm (the default) measures today. Both are true,
   // and the report says which one was measured.
   bool cold_cache = 5;
+  // direct sends the viewers to the server's own loopback instead of the
+  // public address. The default goes through the reverse proxy, the way real
+  // viewers come; on a box whose proxy path tops out below the server (670
+  // Mb/s in front of a server that serves 15 Gb/s, measured 2026-10-06), that
+  // run measures the proxy. Direct measures what the server alone holds.
+  bool direct = 6;
 }
 
 message GetLoadTestStatusRequest {}

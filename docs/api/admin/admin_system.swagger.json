@@ -951,6 +951,10 @@
         "coldCache": {
           "type": "boolean",
           "description": "cold_cache keeps evicting the library's files from the OS page cache for\nthe whole run, so the server's reads hit the actual storage. A box whose\nlibrary fits in RAM otherwise measures its memory bus and overstates the\nviewer count, sometimes by a factor of several. Cold measures the day the\nlibrary dwarfs the RAM; warm (the default) measures today. Both are true,\nand the report says which one was measured."
+        },
+        "direct": {
+          "type": "boolean",
+          "description": "direct sends the viewers to the server's own loopback instead of the\npublic address. The default goes through the reverse proxy, the way real\nviewers come; on a box whose proxy path tops out below the server (670\nMb/s in front of a server that serves 15 Gb/s, measured 2026-10-06), that\nrun measures the proxy. Direct measures what the server alone holds."
         }
       }
     },

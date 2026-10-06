@@ -47,6 +47,10 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 	if secs := req.GetDurationSec(); secs > 0 {
 		cfg.MaxDuration = time.Duration(secs) * time.Second
 	}
+	// Direct: no public address to prefer, so the viewers use the loopback.
+	if req.GetDirect() {
+		cfg.PublicBaseURL = ""
+	}
 
 	token, err := d.loadTestCredential(ctx, cfg)
 	if err != nil {

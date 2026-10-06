@@ -193,3 +193,17 @@ func TestLoadTestStatusAndCancel(t *testing.T) {
 	assert.False(t, got.GetRunning())
 	assert.Equal(t, "cancelled", got.GetPhase())
 }
+
+// A direct run gets no public address, so its viewers use the server's own
+// loopback and measure the server rather than the reverse proxy in front of it.
+func TestStartLoadTest_DirectSkipsThePublicAddress(t *testing.T) {
+	runner := &fakeLoadTestRunner{}
+	d := newLoadTestHandler(runner, &fakeLoadTestMinter{})
+	d.calibrationSvc = fakeCalibrationSnapshot{}
+
+	_, err := d.StartLoadTest(ctxWithClaims("admin-7", "prof-1", true), &eveyv1.StartLoadTestRequest{Scenario: "mkvgo", Direct: true})
+	require.NoError(t, err)
+	require.Len(t, runner.started, 1)
+	assert.Empty(t, runner.started[0].PublicBaseURL, "a direct run must not prefer the public address")
+	assert.Equal(t, "http://127.0.0.1:8080", runner.started[0].BaseURL)
+}
