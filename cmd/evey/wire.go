@@ -27,6 +27,7 @@ import (
 	appdemo "github.com/evey-project/evey/internal/app/demo"
 	appfavorite "github.com/evey-project/evey/internal/app/favorite"
 	applibrary "github.com/evey-project/evey/internal/app/library"
+	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
 	appmetadata "github.com/evey-project/evey/internal/app/metadata"
 	appmkv "github.com/evey-project/evey/internal/app/mkv"
@@ -857,8 +858,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// The run logs what it cost the packager in window reads, rebuilds apart.
 	loadTestRunner.WithWindowStats(infra.onDemandPackager.WindowStats)
 	// A "clients:history" run plays the mix of the last 30 days' playbacks.
-	loadTestRunner.WithClientHistory(func(ctx context.Context) (map[string]int, error) {
-		return r.PlaySessionStats.CountByDeviceTypeSince(ctx, time.Now().Add(-30*24*time.Hour))
+	loadTestRunner.WithClientHistory(func(ctx context.Context) (map[apploadtest.PlaybackDevice]int, error) {
+		counts, err := r.PlaySessionStats.CountByDeviceSince(ctx, time.Now().Add(-30*24*time.Hour))
+		out := make(map[apploadtest.PlaybackDevice]int, len(counts))
+		for k, n := range counts {
+			out[apploadtest.PlaybackDevice{Type: k.Type, Name: k.Name}] = n
+		}
+		return out, err
 	})
 	// Subtitle segments read the blocks the stored index points at, when the
 	// /subtitle route or the prewarmer has already built one for the source.

@@ -54,6 +54,13 @@ var clientProfiles = map[string]clientProfile{
 	"mobile": {url.Values{
 		"videoCodecs": {"h264,hevc,vp9"}, "audioCodecs": {"aac,mp3,opus,flac,ac3,eac3"}, "containers": {"mp4,mkv,webm,hls"},
 	}},
+	// The web app in a smart TV's own browser (frontend/apps/tv-web, an LG
+	// NetCast/webOS Chrome 120 measured 2026-09-28): no HEVC through MSE, no
+	// HDR, a stereo output, no wasm audio decoder.
+	"tv-browser": {url.Values{
+		"videoCodecs": {"h264,vp9"}, "audioCodecs": {"aac,mp3,opus,flac"}, "containers": {"mp4,webm"},
+		"maxAudioChannels": {"2"},
+	}},
 	// The Android TV app (Google TV, Chromecast with Google TV): an HDR10
 	// panel and a 5.1 output.
 	"tv": {url.Values{
@@ -62,12 +69,33 @@ var clientProfiles = map[string]clientProfile{
 	}},
 }
 
+// PlaybackDevice is what a playback recorded about its client: the app's
+// device type ("Evey TV") and its device name ("TV Browser").
+type PlaybackDevice struct {
+	Type, Name string
+}
+
 // historyClientFamily maps a playback's recorded device type to the profile
 // that plays it.
 var historyClientFamily = map[string]string{
 	"Evey Web":    "web-chrome",
 	"Evey Mobile": "mobile",
 	"Evey TV":     "tv",
+}
+
+// historyClientByName overrides the type for a device name that plays very
+// differently from its type: the TV web app records itself as "Evey TV" but
+// plays like a browser, without HEVC or HDR.
+var historyClientByName = map[string]string{
+	"TV Browser": "tv-browser",
+}
+
+func historyProfile(d PlaybackDevice) (string, bool) {
+	if p, ok := historyClientByName[d.Name]; ok {
+		return p, true
+	}
+	p, ok := historyClientFamily[d.Type]
+	return p, ok
 }
 
 // clientViewerPrefix marks a viewerType that plays as a client profile.
@@ -117,14 +145,14 @@ func parseClientMix(spec string) ([]clientShare, error) {
 	return out, nil
 }
 
-// clientMixFromHistory turns playback counts by recorded device type into a
+// clientMixFromHistory turns playback counts by recorded device into a
 // mix spec. ok is false when the history is too thin to stand for an
 // audience (fewer than minHistorySessions playbacks the profiles can play).
-func clientMixFromHistory(byDeviceType map[string]int) (spec string, ok bool) {
+func clientMixFromHistory(byDevice map[PlaybackDevice]int) (spec string, ok bool) {
 	weights := map[string]int{}
 	total := 0
-	for dt, n := range byDeviceType {
-		if p, known := historyClientFamily[dt]; known && n > 0 {
+	for d, n := range byDevice {
+		if p, known := historyProfile(d); known && n > 0 {
 			weights[p] += n
 			total += n
 		}

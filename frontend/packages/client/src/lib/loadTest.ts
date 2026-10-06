@@ -22,10 +22,10 @@ export type LoadTestScenario = "transcode" | "natural" | "mkvgo" | "light" | "ba
 // Client mixes: each simulated viewer declares what one family of real players
 // declares and the server picks its path (copy, remux, encode) as it would for
 // it. "clients:history" plays the proportions of the last 30 days' playbacks.
-export const CLIENT_PROFILES = ["tv", "mobile", "web-chrome", "web-safari"] as const;
+export const CLIENT_PROFILES = ["tv", "tv-browser", "mobile", "web-chrome", "web-safari"] as const;
 export type ClientProfile = (typeof CLIENT_PROFILES)[number];
 export const CLIENTS_HISTORY: LoadTestScenario = "clients:history";
-export const DEFAULT_CLIENT_WEIGHTS: Record<ClientProfile, number> = { tv: 40, mobile: 40, "web-chrome": 20, "web-safari": 0 };
+export const DEFAULT_CLIENT_WEIGHTS: Record<ClientProfile, number> = { tv: 40, "tv-browser": 0, mobile: 40, "web-chrome": 20, "web-safari": 0 };
 
 // clientMixScenario turns per-profile weights into the scenario string the
 // server parses ("clients:tv=40,mobile=40,web-chrome=20"); zero weights are
@@ -47,6 +47,7 @@ export function clientMixShares(scenario: string | undefined): { profile: string
 
 export const CLIENT_LABEL_KEYS: Record<string, string> = {
   tv: "admin.loadtest.client.tv",
+  "tv-browser": "admin.loadtest.client.tvBrowser",
   mobile: "admin.loadtest.client.mobile",
   "web-chrome": "admin.loadtest.client.webChrome",
   "web-safari": "admin.loadtest.client.webSafari",

@@ -30,11 +30,14 @@ func TestParseClientMix(t *testing.T) {
 // ignores what no profile plays; a history thinner than minHistorySessions
 // stands for no audience.
 func TestClientMixFromHistory(t *testing.T) {
-	spec, ok := clientMixFromHistory(map[string]int{"Evey TV": 12, "Evey Mobile": 30, "Evey Web": 8, "restore": 50, "": 3})
-	if !ok || spec != "mobile=30,tv=12,web-chrome=8" {
-		t.Fatalf("spec = %q ok = %v, want mobile=30,tv=12,web-chrome=8", spec, ok)
+	spec, ok := clientMixFromHistory(map[PlaybackDevice]int{
+		{Type: "Evey TV", Name: "Evey TV"}: 12, {Type: "Evey TV", Name: "TV Browser"}: 5, {Type: "Evey Mobile", Name: "Pixel"}: 30,
+		{Type: "Evey Web", Name: "Firefox"}: 8, {Type: "restore"}: 50, {}: 3,
+	})
+	if !ok || spec != "mobile=30,tv=12,tv-browser=5,web-chrome=8" {
+		t.Fatalf("spec = %q ok = %v, want mobile=30,tv=12,tv-browser=5,web-chrome=8", spec, ok)
 	}
-	if _, ok := clientMixFromHistory(map[string]int{"Evey TV": minHistorySessions - 1, "restore": 500}); ok {
+	if _, ok := clientMixFromHistory(map[PlaybackDevice]int{{Type: "Evey TV"}: minHistorySessions - 1, {Type: "restore"}: 500}); ok {
 		t.Fatal("a history of fewer playbacks than minHistorySessions was taken for an audience")
 	}
 	if _, ok := clientMixFromHistory(nil); ok {
@@ -69,6 +72,9 @@ func TestBuildMasterURL_ClientDeclaresItsPlayersCapabilities(t *testing.T) {
 	if tv.Get("hdr") != "1" || tv.Get("maxAudioChannels") != "6" || !strings.Contains(tv.Get("videoCodecs"), "hevc") || tv.Get("vd") != "" {
 		t.Fatalf("tv query = %v", tv)
 	}
+	if b := q("tv-browser"); b.Get("hdr") != "" || strings.Contains(b.Get("videoCodecs"), "hevc") || b.Get("maxAudioChannels") != "2" || b.Get("wasmAudio") != "" {
+		t.Fatalf("tv-browser query = %v", b)
+	}
 	web := q("web-chrome")
 	if web.Get("hdr") != "" || web.Get("wasmAudio") != "1" || strings.Contains(web.Get("videoCodecs"), "hevc") || strings.Contains(web.Get("audioCodecs"), "ac3") {
 		t.Fatalf("web-chrome query = %v", web)
@@ -94,8 +100,8 @@ func TestRunner_HistoryMixPlaysAndReportsEachClientsPath(t *testing.T) {
 	defer srv.Close()
 
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
-	r.WithClientHistory(func(context.Context) (map[string]int, error) {
-		return map[string]int{"Evey TV": 20, "Evey Web": 20}, nil
+	r.WithClientHistory(func(context.Context) (map[PlaybackDevice]int, error) {
+		return map[PlaybackDevice]int{{Type: "Evey TV", Name: "Shield"}: 20, {Type: "Evey Web", Name: "Chrome"}: 20}, nil
 	})
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: "clients:history",
@@ -129,7 +135,9 @@ func TestRunner_HistoryMixPlaysAndReportsEachClientsPath(t *testing.T) {
 // Too thin a history falls back to the default mix rather than a mix of one.
 func TestRunner_ThinHistoryFallsBackToTheDefaultMix(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
-	r.WithClientHistory(func(context.Context) (map[string]int, error) { return map[string]int{"Evey TV": 3}, nil })
+	r.WithClientHistory(func(context.Context) (map[PlaybackDevice]int, error) {
+		return map[PlaybackDevice]int{{Type: "Evey TV"}: 3}, nil
+	})
 	cfg, err := r.resolveClientMix(context.Background(), Config{Scenario: "clients:history"})
 	if err != nil || cfg.Scenario != ScenarioClients+":"+DefaultClientMix {
 		t.Fatalf("scenario = %q err = %v, want the default mix", cfg.Scenario, err)

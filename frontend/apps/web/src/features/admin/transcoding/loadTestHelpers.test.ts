@@ -48,8 +48,8 @@ describe("load test helpers", () => {
   });
 
   it("turns client weights into the scenario the server parses, leaving zeros out", () => {
-    expect(clientMixScenario({ tv: 40, mobile: 40, "web-chrome": 20, "web-safari": 0 })).toBe("clients:tv=40,mobile=40,web-chrome=20");
-    expect(clientMixScenario({ tv: 0, mobile: 0, "web-chrome": 0, "web-safari": 0 })).toBeUndefined();
+    expect(clientMixScenario({ tv: 40, "tv-browser": 0, mobile: 40, "web-chrome": 20, "web-safari": 0 })).toBe("clients:tv=40,mobile=40,web-chrome=20");
+    expect(clientMixScenario({ tv: 0, "tv-browser": 0, mobile: 0, "web-chrome": 0, "web-safari": 0 })).toBeUndefined();
   });
 
   it("reads a resolved client mix back as whole-percent shares, and nothing else", () => {
