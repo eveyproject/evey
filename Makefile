@@ -1,6 +1,6 @@
 .PHONY: dash-harness directplay-harness dash-web dash-exoplayer proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
-	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene pre-push hooks \
+	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene ci-secrets pre-push hooks \
 	gate gate-status verify-commit \
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
@@ -395,8 +395,8 @@ perf:
 	@echo "→ web bundle budget"
 	@sh scripts/bundle-budget.sh frontend/apps/web/dist || echo "   (build the web app first: docker exec evey-web pnpm --filter web build)"
 
-pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-proto-breaking ci-clean-checkout repo-itest-gate transcode-itest-gate tv-audit
-	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + hygiene + proto compat + clean checkout + repo suite + transcode contract + audit TV)."
+pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout repo-itest-gate transcode-itest-gate tv-audit
+	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + repo suite + transcode contract + audit TV)."
 
 # ci-hygiene: the house rules a regex can decide - plain dashes, no AI attribution
 # trailer, no conflict marker, no elision placeholder, no .claude/ in
@@ -405,9 +405,16 @@ pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend c
 # Host-side, stdlib only, ~100ms. The selftest runs first: a guard whose rules
 # stopped firing would otherwise report a clean tree forever.
 ci-hygiene:
-	@echo "→ hygiene guard (dashes, attribution, conflict markers, elisions)"
+	@echo "→ hygiene guard (dashes, attribution, conflict markers, elisions, private names)"
 	@python3 scripts/hygiene-guard.py --selftest
 	@python3 scripts/hygiene-guard.py
+
+# ci-secrets: gitleaks over the outgoing commits (same BASE..HEAD as the hygiene
+# guard), default rules plus .gitleaks.toml. A pinned, checksum-verified binary
+# cached under ~/.cache; nothing to install. `scripts/secrets-scan.sh --all`
+# re-judges the whole history.
+ci-secrets:
+	@./scripts/secrets-scan.sh
 
 # gate / gate-status: "the gate is green" stops being something you remember and
 # becomes something you can re-check. `make gate` runs the real pre-push and

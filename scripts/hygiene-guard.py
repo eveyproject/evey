@@ -89,6 +89,42 @@ RULES: tuple[Rule, ...] = (
 )
 
 
+# Private names purged before the repository went public (people, hosts,
+# hardware, library titles, a leaked password). Kept as sha256 of the lowercase
+# token so the words themselves never re-enter the tree; see the file's header
+# to add one. Tokens are letters, digits, dots and dashes, so a hostname or a
+# model number is one token.
+DENYLIST_FILE = "scripts/hygiene-denylist.sha256"
+DENYLIST_RULE = "private-name"
+TOKEN = re.compile(r"[a-z0-9][a-z0-9.\-]*[a-z0-9]|[a-z0-9]")
+
+
+_DENYLIST: frozenset[str] | None = None
+
+
+def denylist() -> frozenset[str]:
+    """Loaded once, next to this script, so it works from any cwd and any worktree."""
+    global _DENYLIST
+    if _DENYLIST is None:
+        try:
+            lines = (Path(__file__).resolve().parent.parent / DENYLIST_FILE).read_text(encoding="utf-8").splitlines()
+        except OSError:
+            lines = []
+        _DENYLIST = frozenset(l.strip() for l in lines if l.strip() and not l.startswith("#"))
+    return _DENYLIST
+
+
+def private_name_hit(text: str) -> bool:
+    import hashlib
+
+    hashes = denylist()
+    for tok in TOKEN.findall(text.lower()):
+        for c in {tok, tok.strip(".-")}:
+            if c and hashlib.sha256(c.encode()).hexdigest() in hashes:
+                return True
+    return False
+
+
 @dataclass(frozen=True)
 class Finding:
     rule: str
@@ -139,6 +175,15 @@ def scan_line(path: str, lineno: int | str, text: str, *, commit_msg: bool = Fal
             continue
         if rule.pattern.search(text):
             out.append(Finding(rule.name, f"{path}:{lineno}", text.strip()[:160], rule.message))
+    if not path.endswith(DENYLIST_FILE) and private_name_hit(text):
+        out.append(
+            Finding(
+                DENYLIST_RULE,
+                f"{path}:{lineno}",
+                text.strip()[:160],
+                "a word on the private-name denylist (people, hosts, hardware, library titles purged before publication)",
+            )
+        )
     return out
 
 
@@ -210,7 +255,7 @@ def scan_files(paths: list[str]) -> list[Finding]:
 
 def report(findings: list[Finding], scope: str) -> int:
     if not findings:
-        print(f"→ hygiene guard: {scope} clean ({len(RULES)} rules).")
+        print(f"→ hygiene guard: {scope} clean ({len(RULES) + 1} rules).")
         return 0
     print(f"❌ hygiene guard: {len(findings)} violation(s) in {scope}.\n")
     for f in findings:
@@ -233,6 +278,9 @@ SELFTEST: tuple[tuple[str, str | None], ...] = (
     ("# rest of the file unchanged", None),
     ("    // ... rest of the function", "elision"),
     ("a <<<<<<< inside prose is not a marker", None),
+    ("the canary hygiene-selftest-token must fire", DENYLIST_RULE),
+    ("Hygiene-Selftest-Token, whatever the case", DENYLIST_RULE),
+    ("a plain sentence with ordinary words", None),
 )
 
 
@@ -246,7 +294,7 @@ def selftest() -> int:
         print(f"❌ hygiene guard selftest: {len(failures)} rule(s) misfire.")
         print("\n".join(failures))
         return 1
-    print(f"→ hygiene guard selftest: {len(SELFTEST)} cases, {len(RULES)} rules behaving.")
+    print(f"→ hygiene guard selftest: {len(SELFTEST)} cases, {len(RULES) + 1} rules behaving.")
     return 0
 
 
