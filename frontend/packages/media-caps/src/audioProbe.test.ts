@@ -5,7 +5,7 @@ function probe(overrides: Partial<AudioProbe> = {}): AudioProbe {
   return {
     apiLevel: 34,
     isTv: true,
-    deviceModel: "a tablet brand MiTV4",
+    deviceModel: "TV Model A",
     decoders: ["aac", "mp3", "flac"],
     directPlayback: { ac3: false, eac3: false, dts: false },
     directProfiles: [],

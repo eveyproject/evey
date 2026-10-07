@@ -17,18 +17,18 @@ function probe(overrides: Partial<AudioProbe> = {}): AudioProbe {
   };
 }
 
-// The two real beacons of 2026-08-31, verbatim. The a tablet brand is the tablet whose
+// The two real beacons of 2026-08-31, verbatim. The first is a tablet whose
 // direct-played AC-3 renders choppy by stretches: it DECODES ac3/eac3 but its
 // sink only takes dts - the decoder was answering the wrong question.
 const TABLET = probe({
-  deviceModel: "a tablet brand 23043RP34G",
+  deviceModel: "Tablet T1",
   decoders: ["aac", "mp3", "opus", "flac", "vorbis", "ac3", "eac3"],
   directPlayback: { dts: true, dts_hd: true, ac3: false, eac3: false },
   directProfiles: [2, 4, 21, 22, 9, 10, 11, 12, 7, 8, 106, 107, 108].map((encoding) => ({ encoding, channelMasks: [] })),
 });
-// 2026-10-05 prod beacon of the user's a phone brand P1: speaker and earpiece only.
+// 2026-10-05 prod beacon of a phone: speaker and earpiece only.
 const PHONE = probe({
-  deviceModel: "a phone brand P1",
+  deviceModel: "Phone P1",
   decoders: ["aac", "mp3", "opus", "flac", "vorbis"],
   directPlayback: { dts: true, dts_hd: true, ac3: false, eac3: false },
   outputDeviceTypes: [1, 2, 18],
@@ -41,7 +41,7 @@ const PHONE_NO_DOLBY = probe({
 });
 
 describe("declarableAudioCodecs", () => {
-  it("strips ac3/eac3 from the a tablet brand tablet whose sink refuses them - the reported stutter", () => {
+  it("strips ac3/eac3 from the tablet whose sink refuses them - the reported stutter", () => {
     const declared = declarableAudioCodecs(TABLET.decoders, TABLET);
     expect(declared).not.toContain("ac3");
     expect(declared).not.toContain("eac3");
@@ -85,7 +85,7 @@ describe("declarableAudioCodecs", () => {
     expect(declarableAudioCodecs(["aac", "ac3", "eac3", "truehd", "flac"], null)).toEqual(["aac", "flac"]);
   });
 
-  // The phone's own ac3go renderer decodes these: neither the a tablet brand's refusing
+  // The phone's own ac3go renderer decodes these: neither the tablet's refusing
   // sink nor a phone with no Dolby decoder at all holds them back.
   it("declares what the player decodes itself, whatever the decoders or the sink say", () => {
     for (const p of [TABLET, PHONE_NO_DOLBY]) {

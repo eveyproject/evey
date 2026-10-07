@@ -129,7 +129,7 @@ class EveyMediaCapsModule : Module() {
     // Same shape as the audio half of this module, and for the same reason:
     // this is a RESTITUTION capability, not a decode capability. A box whose
     // HEVC decoder eats Main10 all day long still needs the tonemap when the
-    // panel behind the HDMI cable is SDR - measured on a Android TV box driving a 2013
+    // panel behind the HDMI cable is SDR - measured on an Android TV box driving an
     // old SDR panel (supportedHdrTypes=[] on every mode).
     //
     // Read per call, never memoised: the display changes under a running app

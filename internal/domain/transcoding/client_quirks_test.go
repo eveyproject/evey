@@ -13,14 +13,14 @@ func TestWithoutBrokenPlayerCodecs(t *testing.T) {
 		want []string
 	}{
 		// The user agents seen in the prod logs of 2026-09-26/27.
-		{"EveyMobile/0.0.1-beta.69 (Android 16; Phone Pro)", withoutEAC3},
+		{"EveyMobile/0.0.1-beta.69 (Android 16; Phone)", withoutEAC3},
 		{"EveyMobile/0.0.1-beta.68 (Android 13; Phone)", withoutEAC3},
 		{"Evey/0.0.1-beta.69 (Linux;Android 14) AndroidXMedia3/1.8.0", withoutEAC3},
 		{"EveyTV/0.1.10 (Android TV 14; Chromecast HD)", withoutEAC3},
 		{"EveyTV/0.1.9 (Android TV 12; SHIELD)", withoutEAC3},
 		// Builds before the ac3go renderer and after its fix keep what they declare.
-		{"EveyMobile/0.0.1-beta.67 (Android 16; Phone Pro)", declared},
-		{"EveyMobile/0.0.1-beta.70 (Android 16; Phone Pro)", declared},
+		{"EveyMobile/0.0.1-beta.67 (Android 16; Phone)", declared},
+		{"EveyMobile/0.0.1-beta.70 (Android 16; Phone)", declared},
 		{"Evey/0.0.1-beta.690 (Linux;Android 14) AndroidXMedia3/1.8.0", declared},
 		{"EveyTV/0.1.8 (Android TV 14; Chromecast HD)", declared},
 		{"EveyTV/0.1.11 (Android TV 14; Chromecast HD)", declared},

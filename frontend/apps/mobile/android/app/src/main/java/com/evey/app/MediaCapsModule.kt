@@ -14,7 +14,7 @@ import com.facebook.react.bridge.ReactMethod
  * declares to the server only what the hardware can actually decode.
  *
  * The static codec list the app used to send included ac3/eac3, but plenty of
- * devices ship without Dolby decoders (this very a phone brand has none): the server
+ * devices ship without Dolby decoders (this very phone has none): the server
  * then DIRECT_PLAYs an eac3 track and the video plays silent. MediaCodecList is
  * the source of truth ExoPlayer itself consults, so declaring from it keeps
  * direct-play for everything the device honestly decodes and lets the server

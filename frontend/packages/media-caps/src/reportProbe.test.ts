@@ -5,7 +5,7 @@ import type { AudioProbe } from "./audioProbe";
 const aProbe: AudioProbe = {
   apiLevel: 34,
   isTv: true,
-  deviceModel: "a tablet brand MiTV4",
+  deviceModel: "TV Model A",
   decoders: ["aac"],
   directPlayback: { ac3: true, eac3: true },
   directProfiles: [],

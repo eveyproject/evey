@@ -227,7 +227,7 @@ func TestDevicesWS_NoRegisterFrame_LogsClientAndWait(t *testing.T) {
 	}
 	cfg.Header = http.Header{
 		"Authorization": {"Bearer " + fx.userTok},
-		"User-Agent":    {"EveyMobile/0.0.1-beta.71 (Android 16; Phone Pro)"},
+		"User-Agent":    {"EveyMobile/0.0.1-beta.71 (Android 16; Phone)"},
 	}
 	ws, err := websocket.DialConfig(cfg)
 	if err != nil {
@@ -257,7 +257,7 @@ func TestDevicesWS_NoRegisterFrame_LogsClientAndWait(t *testing.T) {
 	if line["user"] != "user-1" {
 		t.Errorf("user = %v, want user-1", line["user"])
 	}
-	if line["user_agent"] != "EveyMobile/0.0.1-beta.71 (Android 16; Phone Pro)" {
+	if line["user_agent"] != "EveyMobile/0.0.1-beta.71 (Android 16; Phone)" {
 		t.Errorf("user_agent = %v", line["user_agent"])
 	}
 	if ip, _ := line["client_ip"].(string); ip == "" {
