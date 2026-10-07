@@ -91,7 +91,7 @@ func (h *mediaRequestHandler) CreateRequest(ctx context.Context, req *eveyv1.Cre
 	}
 	// A malformed date is dropped rather than refused: it is decoration the
 	// client copied from a search result, not something the requester typed.
-	if d, err := time.Parse(dateOnly, req.ReleaseDate); err == nil {
+	if d, parseErr := time.Parse(dateOnly, req.ReleaseDate); parseErr == nil {
 		in.ReleaseDate = &d
 	}
 	if req.Rating > 0 {

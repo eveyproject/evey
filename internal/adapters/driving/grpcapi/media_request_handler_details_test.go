@@ -28,7 +28,7 @@ func TestMediaRequestHandler_DetailsRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Results, 1)
 	assert.Equal(t, "1999-03-31", resp.Results[0].ReleaseDate)
-	assert.Equal(t, 8.7, resp.Results[0].Rating)
+	assert.InDelta(t, 8.7, resp.Results[0].Rating, 1e-9)
 
 	created, err := h.CreateRequest(ctx, &eveyv1.CreateRequestRequest{
 		MediaType: "movie", Provider: "tmdb", ProviderId: "603", Title: "Some Movie",
@@ -37,7 +37,7 @@ func TestMediaRequestHandler_DetailsRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "plot", created.Overview)
 	assert.Equal(t, "1999-03-31", created.ReleaseDate)
-	assert.Equal(t, 8.7, created.Rating)
+	assert.InDelta(t, 8.7, created.Rating, 1e-9)
 
 	listed, err := h.ListMyRequests(ctx, &eveyv1.ListMyRequestsRequest{})
 	require.NoError(t, err)
@@ -48,6 +48,6 @@ func TestMediaRequestHandler_DetailsRoundTrip(t *testing.T) {
 		MediaType: "tv", Provider: "tmdb", ProviderId: "1399", Title: "Other", ReleaseDate: "31/03/1999",
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "", malformed.ReleaseDate, "a date the server cannot read is dropped, not stored")
-	assert.Equal(t, float64(0), malformed.Rating)
+	assert.Empty(t, malformed.ReleaseDate, "a date the server cannot read is dropped, not stored")
+	assert.InDelta(t, 0.0, malformed.Rating, 0)
 }
