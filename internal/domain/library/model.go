@@ -262,7 +262,14 @@ type MediaFile struct {
 	// and no sequential player gets past the first one: playback is refused
 	// until a re-mux. Measured at probe time and by the media-health scan.
 	InterleaveBackstepMs int64
+	// StreamProbeVersion is the StreamProbeVersion the file's streams were last
+	// probed at (0 = probed before versioning).
+	StreamProbeVersion int
 }
+
+// StreamProbeVersion is the current prober revision. Bump when the prober
+// learns a field the scanner must re-read on existing rows.
+const StreamProbeVersion = 1
 
 // InterleaveBackstepFlagMs is the floor above which a file NeedsRemux. Every
 // muxer keeps cluster timestamps monotonic (494 real files read 0); the 20
@@ -295,6 +302,9 @@ type MediaItemScanRow struct {
 	// StreamProbeAttempts mirrors media_files.stream_probe_attempts so the scan
 	// fast path can re-process a streamless file that is owed a bounded re-probe.
 	StreamProbeAttempts int
+	// StreamProbeVersion mirrors media_files.stream_probe_version; a row below
+	// the current StreamProbeVersion is owed a head-only re-probe.
+	StreamProbeVersion int
 }
 
 // MediaItemContainerRow is a lightweight projection for pruning empty containers.

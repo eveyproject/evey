@@ -278,7 +278,7 @@ func TestScanLibrary_ReturnsExactAddedUpdatedCounts(t *testing.T) {
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "existing-1", LibraryID: "lib-1",
-		File: &library.MediaFile{Path: "/movies/old.mkv", Size: 100},
+		File: &library.MediaFile{Path: "/movies/old.mkv", Size: 100, StreamProbeVersion: library.StreamProbeVersion},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -379,7 +379,7 @@ func TestUpsertMediaFile_ExistingByFingerprint_Unchanged_NoPathChange(t *testing
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1",
-		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "fp-123"},
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "fp-123", StreamProbeVersion: library.StreamProbeVersion},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -427,7 +427,7 @@ func TestUpsertMediaFile_ExistingByPath_NoFingerprint(t *testing.T) {
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1",
-		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000},
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000, StreamProbeVersion: library.StreamProbeVersion},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
@@ -724,7 +724,7 @@ func TestUpsertMediaFile_UnchangedSizeEmptyFingerprint_CountsAsUnchanged(t *test
 
 	h.mediaItems.Create(context.Background(), &library.MediaItem{
 		ID: "item-1", LibraryID: "lib-1",
-		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "existing-fp"},
+		File: &library.MediaFile{Path: "/movies/film.mkv", Size: 1000, Fingerprint: "existing-fp", StreamProbeVersion: library.StreamProbeVersion},
 	})
 
 	h.scanner.Results["/movies"] = []library.ScannedFile{
