@@ -1,8 +1,8 @@
 ---
-source_sha: fffc05516a2ca96d615a64bc159a1b837a7601876648b7e40b6167296b59f1d5
+source_sha: f38962e5997dda04d7f49dc1152d0d7cc0d06f4ec60e9606863a7d97d105773a
 reviewed: true
 ---
-# Déploiements avancés
+# Déploiements avancés { #advanced-deployments }
 
 L'[installation en un seul conteneur](../installation.md) convient à la
 plupart des serveurs. Cette page couvre les dispositions qu'un administrateur
@@ -11,7 +11,7 @@ services séparés, les machines ARM, les variantes de l'image, et la sandbox
 des plugins sur des machines particulières. Pour faire tourner Evey sans
 Docker, voir [Sans conteneur](../deployment-bare-metal.md).
 
-## La base de données intégrée
+## La base de données intégrée { #the-embedded-database }
 
 La base vit dans `./evey-data/postgres` (Postgres 17, créée au premier
 démarrage, propriété de l'utilisateur du serveur). Elle n'écoute que sur la
@@ -28,7 +28,7 @@ Pour ouvrir un shell SQL :
 docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-### Montée de version majeure de Postgres
+### Montée de version majeure de Postgres { #postgres-major-upgrade }
 
 L'image fige la version majeure de Postgres intégrée (17). Une image livrant
 une version majeure plus récente refuse d'ouvrir l'ancienne base, avec un
@@ -46,7 +46,7 @@ docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 docker compose restart evey
 ```
 
-## Postgres externe
+## Postgres externe { #external-postgres }
 
 Pour gérer vous-même le cycle de vie de la base (un Postgres managé, une
 version majeure figée, votre propre politique de dump), faites-la tourner en
@@ -88,7 +88,7 @@ service séparé et indiquez-la au serveur. **C'est la présence de
     EVEY_DB_PASSWORD=<mot-de-passe-robuste>   # le serveur refuse de démarrer avec la valeur par défaut 'evey'
     ```
 
-## Meilisearch externe
+## Meilisearch externe { #external-meilisearch }
 
 Même principe pour le moteur de recherche : désactivez celui qui est intégré,
 indiquez le vôtre au serveur et partagez la clé. Un `MEILI_MASTER_KEY`
@@ -130,7 +130,7 @@ explicite prime sur le fichier généré `./evey-data/keys/meili.key`.
 L'index se reconstruit depuis la base (`evey admin reindex-search`) :
 `meili-data` peut toujours être supprimé.
 
-## Passer à la base de données intégrée
+## Passer à la base de données intégrée { #moving-onto-the-embedded-database }
 
 Une installation où Postgres tourne en service séparé peut passer au conteneur
 unique. La base intégrée importe un dump trouvé dans
@@ -160,7 +160,7 @@ vérifié le serveur. Un dump laissé à côté d'une base existante est signal�
 ignoré, jamais fusionné ; un import raté supprime la nouvelle base pour que le
 démarrage suivant recommence.
 
-## Machines ARM
+## Machines ARM { #arm-hosts }
 
 Les images construites depuis un tag de version (`0.2.0`, préversions comme
 `0.2.0-beta.1` comprises) sont multi-architecture (`linux/amd64` et
@@ -179,7 +179,7 @@ ARM.
 - **Le tone mapping HDR** utilise sur ARM le même filtre SIMD `tonemapx`
   (NEON) que sur x86-64 (AVX2).
 
-## Tags d'image
+## Tags d'image { #image-tags }
 
 L'image est `eveyproject/evey`.
 
@@ -200,7 +200,7 @@ L'image est `eveyproject/evey`.
   besoin de variante : le NVIDIA Container Toolkit injecte le pilote de la
   machine hôte à l'exécution.
 
-## Sandbox des plugins
+## Sandbox des plugins { #plugin-sandbox }
 
 L'image contient tout le nécessaire pour confiner les plugins, sans mode
 privilégié. Le mode de sandbox par défaut (`auto`) choisit le mécanisme le
