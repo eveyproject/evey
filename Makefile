@@ -356,12 +356,18 @@ ci-fast-sec:
 	@# BASE est calculé sur l'hôte (la résolution origin/<branche> est fiable
 	@# depuis l'hôte) puis injecté dans l'exec. Fallback : origin/master,
 	@# sinon HEAD~1.
-	@BASE=$$(git merge-base "origin/master" HEAD 2>/dev/null || git rev-parse "origin/$$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || git rev-parse HEAD~1); \
+	@# `rev-parse --verify -q`: a plain rev-parse of a missing ref echoes the ref
+	@# name on stdout and the fallback appends its own line, so BASE became two
+	@# lines and the second ran as a command (exit 127) on a remote with no refs.
+	@BASE=$$(git merge-base "origin/master" HEAD 2>/dev/null || git rev-parse --verify -q "origin/$$(git rev-parse --abbrev-ref HEAD)" || git rev-parse HEAD~1); \
 	echo "→ golangci-lint -c .golangci.gosec.yml (new-from $$BASE)"; \
 	docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2) && golangci-lint run -c .golangci.gosec.yml --new-from-rev=$$BASE ./..."
 
 ci-local-lint:
-	@BASE=$$(git merge-base "origin/master" HEAD 2>/dev/null || git rev-parse "origin/$$(git rev-parse --abbrev-ref HEAD)" 2>/dev/null || git rev-parse HEAD~1); \
+	@# `rev-parse --verify -q`: a plain rev-parse of a missing ref echoes the ref
+	@# name on stdout and the fallback appends its own line, so BASE became two
+	@# lines and the second ran as a command (exit 127) on a remote with no refs.
+	@BASE=$$(git merge-base "origin/master" HEAD 2>/dev/null || git rev-parse --verify -q "origin/$$(git rev-parse --abbrev-ref HEAD)" || git rev-parse HEAD~1); \
 	echo "→ golangci-lint (general, new-from $$BASE)"; \
 	docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2) && golangci-lint run --new-from-rev=$$BASE ./..."
 
