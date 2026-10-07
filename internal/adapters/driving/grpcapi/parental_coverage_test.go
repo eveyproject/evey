@@ -102,6 +102,7 @@ var parentalGated = map[string]string{
 	"/evey.v1.PlaybackService/GetNextUp":           "per-item mediaItemBlockedByParental",
 	"/evey.v1.PlaybackService/GetSeriesPlayTarget": "target episode mediaItemBlockedByParental",
 	"/evey.v1.PlaybackService/GetResumeItems":      "per-item mediaItemBlockedByParental",
+	"/evey.v1.PlaybackService/GetWatchHistory":     "per-item mediaItemBlockedByParental",
 }
 
 // parentalExempt lists media-returning RPCs that legitimately need no gate,
@@ -147,7 +148,6 @@ var parentalExempt = map[string]string{
 // the owner on 2026-07-20 as low priority, and a consistency question rather
 // than a security one: ListFavorites does filter this case, these do not.
 var parentalKnownGap = map[string]string{
-	"/evey.v1.PlaybackService/GetWatchHistory":  "own history; enrichWatchHistory filters library access only, unlike GetNextUp/GetResumeItems in the same file",
 	"/evey.v1.ActivityService/GetPlayHistory":   "own history; titles unfiltered, unlike GetPopularMedia in the same file",
 	"/evey.v1.ActivityService/GetUserStats":     "own stats; MostPlayedItems titles unfiltered",
 	"/evey.v1.PlaylistService/GetPlaylistItems": "own playlists; library access only, unlike ListFavorites",

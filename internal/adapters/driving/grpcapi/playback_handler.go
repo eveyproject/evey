@@ -855,13 +855,24 @@ func (h *playbackHandler) enrichWatchHistory(ctx context.Context, items []*playb
 	seasonByID, seriesByID := h.episodeAncestors(ctx, byID)
 	h.overlayMaps(ctx, byID, seasonByID, seriesByID)
 
+	// Parental gate: a kids profile must not see adult titles it played before
+	// the profile was switched to kids. Mirrors GetNextUp/GetResumeItems.
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	gated := allowedIDs != nil || pf.enforced()
+
 	out := make([]*eveyv1.WatchProgress, 0, len(items))
 	for _, wp := range items {
 		mi := byID[string(wp.MediaItemID)]
-		if allowedIDs != nil {
-			// Restricted user: skip items outside an allowed library, and skip
+		if gated {
+			// Gated profile: skip items outside an allowed library, and skip
 			// unresolved (deleted) media since access can't be verified.
-			if mi == nil || !slices.Contains(allowedIDs, string(mi.LibraryID)) {
+			if mi == nil {
+				continue
+			}
+			if allowedIDs != nil && !slices.Contains(allowedIDs, string(mi.LibraryID)) {
+				continue
+			}
+			if mediaItemBlockedByParental(pf, mi) {
 				continue
 			}
 		}
