@@ -42,6 +42,7 @@ import { CollectionRow } from "../../../src/components/CollectionRow";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { FEED_TYPES, resolveMaxItems } from "@evey/client";
+import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { ROW_CARD_WIDTH } from "../../../src/lib/rowCardWidth";
 
 
@@ -501,6 +502,13 @@ export default function HomeScreen() {
 
   const resume = usePlaybackServiceGetResumeItems({ limit: resolveMaxItems(maxItemsByType.resume_playback, 20) });
   const nextUp = usePlaybackServiceGetNextUp({ limit: resolveMaxItems(maxItemsByType.next_episode, 20) });
+  // The home tab is never unmounted and the player only invalidates these rows
+  // when a title is marked watched: after a PARTIAL viewing the resume point
+  // and the next episode on screen were the ones from before the film.
+  useRefetchOnReturn(() => {
+    void resume.refetch();
+    void nextUp.refetch();
+  });
   const recommended = useFeedServiceRecommended({ limit: resolveMaxItems(maxItemsByType.recommended, 20) });
   const popular = useMostPopular(resolveMaxItems(maxItemsByType.most_popular, 20));
   const collections = useCollections();
