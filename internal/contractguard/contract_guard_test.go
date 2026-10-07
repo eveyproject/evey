@@ -51,26 +51,27 @@ var allowlist = map[string]string{
 // cannot see (set through an untyped path); triage in the backlog, then
 // delete the line. Never grow this list to silence a new regression.
 var neverWrittenByMessage = map[string]string{
-	"ContainerInfo.date":                  "never written: tracked in backlog",
-	"ContainerInfo.file_size":             "never written: tracked in backlog",
-	"ExtractDataChunk.total_size":         "never written: tracked in backlog",
-	"LoadTestReport.cold_cache":           "never written: tracked in backlog",
-	"LoadTestReport.disk_read_starved":    "never written: tracked in backlog",
-	"LoadTestReport.harness_cpu_fraction": "never written: tracked in backlog",
-	"LoadTestReport.harness_cpu_measured": "never written: tracked in backlog",
-	"LoadTestReport.storage_fs_type":      "never written: tracked in backlog",
-	"LoadTestReport.storage_opaque":       "never written: tracked in backlog",
-	"LoadTestReport.tiers":                "never written: tracked in backlog",
-	"MetadataResult.backdrop_url":         "never written: tracked in backlog",
-	"MetadataResult.poster_url":           "never written: tracked in backlog",
-	"MetadataResult.provider_id":          "never written: tracked in backlog",
-	"MkvTrack.bit_depth":                  "never written: tracked in backlog",
-	"MkvTrack.frame_rate":                 "never written: tracked in backlog",
-	"MkvTrack.is_forced":                  "never written: tracked in backlog",
-	"ScheduledTask.last_error":            "never written: tracked in backlog",
-	"SystemInfo.server_id":                "never written: tracked in backlog (previously masked by a namesake)",
-	"TranscodeJob.container":              "never written: tracked in backlog",
-	"WebPushKeys.p256dh":                  "never written: tracked in backlog",
+	"ContainerInfo.date":                      "never written: tracked in backlog",
+	"ContainerInfo.file_size":                 "never written: tracked in backlog",
+	"ExtractDataChunk.total_size":             "never written: tracked in backlog",
+	"LoadTestReport.cold_cache":               "never written: tracked in backlog",
+	"LoadTestReport.disk_read_starved":        "never written: tracked in backlog",
+	"LoadTestReport.harness_cpu_fraction":     "never written: tracked in backlog",
+	"LoadTestReport.harness_cpu_measured":     "never written: tracked in backlog",
+	"LoadTestReport.storage_fs_type":          "never written: tracked in backlog",
+	"LoadTestReport.storage_opaque":           "never written: tracked in backlog",
+	"LoadTestReport.tiers":                    "never written: tracked in backlog",
+	"MetadataResult.backdrop_url":             "never written: tracked in backlog",
+	"MetadataResult.poster_url":               "never written: tracked in backlog",
+	"MetadataResult.provider_id":              "never written: tracked in backlog",
+	"MkvTrack.bit_depth":                      "never written: tracked in backlog",
+	"MkvTrack.frame_rate":                     "never written: tracked in backlog",
+	"MkvTrack.is_forced":                      "never written: tracked in backlog",
+	"ScheduledTask.last_error":                "never written: tracked in backlog",
+	"SystemInfo.server_id":                    "never written: tracked in backlog (previously masked by a namesake)",
+	"RollbackMediaSeekIndexResponse.restored": "never written: read by the TV browser app, surfaced when tv-web joined the scan; tracked in backlog",
+	"TranscodeJob.container":                  "never written: tracked in backlog",
+	"WebPushKeys.p256dh":                      "never written: tracked in backlog",
 }
 
 type protoField struct {
@@ -303,6 +304,7 @@ func TestNoClientReadOfAFieldTheServerNeverWrites(t *testing.T) {
 		filepath.Join(repoRoot, "frontend/apps/mobile/src"),
 		filepath.Join(repoRoot, "frontend/apps/tv/app"),
 		filepath.Join(repoRoot, "frontend/apps/tv/src"),
+		filepath.Join(repoRoot, "frontend/apps/tv-web/src"),
 	}, isClientSource)
 	for _, f := range deadFields(fields, server, client) {
 		if _, ok := allowlist[f[strings.IndexByte(f, '.')+1:]]; ok {
