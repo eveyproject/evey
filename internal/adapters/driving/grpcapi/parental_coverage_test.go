@@ -76,6 +76,9 @@ var parentalGated = map[string]string{
 	"/evey.v1.SyncPlayService/JoinByCode":           "requireMediaAccess -> mediaItemBlockedByParental",
 	"/evey.v1.SyncPlayService/GetRoom":              "requireMediaAccess -> mediaItemBlockedByParental",
 	"/evey.v1.CollectionService/GetCollectionItems": "per-item mediaItemBlockedByParental with total recounted",
+	// The InLibrary / MediaItemId match is joined on provider ids with no
+	// access filter; the handler clears it for items the caller cannot see.
+	"/evey.v1.MediaRequestService/SearchTitles": "hideUnreachableMatches -> library grants + mediaItemBlockedByParental",
 
 	// Browse / detail: the SQL pre-filter plus a strict post-pagination check.
 	"/evey.v1.LibraryService/GetMediaItem":         "loadGatedMediaItem -> isBlockedByParental",
@@ -151,7 +154,6 @@ var parentalExempt = map[string]string{
 var parentalKnownGap = map[string]string{
 	"/evey.v1.ActivityService/GetUserStats":     "own stats; MostPlayedItems titles unfiltered",
 	"/evey.v1.PlaylistService/GetPlaylistItems": "own playlists; library access only, unlike ListFavorites",
-	"/evey.v1.MediaRequestService/SearchTitles": "searches the external provider, not the library; the InLibrary flag can reveal that a title is held. Gated on the request policy (CanRequest) since 2026-07-20",
 	"/evey.v1.ShareService/ValidateShareLink":   "describes a link the caller already holds the opaque token for; Peek only, no view spent. The link itself was minted by an admin (CreateShareLink is RoleAdmin), so a restricted profile cannot mint one - it can only describe a token someone handed it, which is the point of a share link",
 }
 
