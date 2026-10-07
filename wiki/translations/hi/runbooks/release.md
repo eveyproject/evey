@@ -11,7 +11,7 @@ Evey का कोई संस्करण एक branch से उस ची�
 
 `.github/workflows/ci.yml` हर push पर और हर `v*.*.*` टैग पर इमेज बनाता और प्रकाशित
 करता है, एक्सटेंशन रनटाइम के तीन रूपों में (`` (lean), `-nodejs`, `-full`),
-`docker.io/gravityz/evey` और `ghcr.io/evey-project/evey` पर:
+`docker.io/eveyproject/evey` और `ghcr.io/evey-project/evey` पर:
 
 | आप push करते हैं | प्रकाशित इमेज टैग (हर एक `-nodejs` / `-full` भी) |
 |---|---|
@@ -55,7 +55,7 @@ commit बाइनरी में (`evey version`, `/healthz`) और इम�
    पर `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply` - रिलीज़ टैग पिन करना
    `sha-` वाले पिन की जगह ले लेता है।
 6. **टैग की घोषणा करें**, उसके changelog खंड के साथ। संचालक अपनी `image:` पंक्ति में
-   `gravityz/evey:0.2.0-beta.1` (या `-full`) पिन करते हैं।
+   `eveyproject/evey:0.2.0-beta.1` (या `-full`) पिन करते हैं।
 
 प्री-रिलीज़ टैग सस्ते हैं: ज़रूरत के हिसाब से `-beta.2`, `-beta.3`। पर वे वापस नहीं
 लिए जा सकते - प्रकाशित टैग प्रकाशित ही रहता है। किसी ख़राब कट को पलटने के लिए अगला

@@ -7,7 +7,7 @@
 
 Each plugin runs as a child process and needs per-plugin caps on memory, process/thread count, disk footprint, and CPU. The obvious mechanism is cgroups v2.
 
-It does not work in our deployment. Evey ships as a prebuilt image (`gravityz/evey`) that self-hosters run with `docker compose` on machines like a NAS - **non-privileged containers**. cgroup v2 control requires either `--privileged` or explicit cgroup delegation to the container, and we can rely on neither on an arbitrary user's box. Earlier attempts went the wrong way:
+It does not work in our deployment. Evey ships as a prebuilt image (`eveyproject/evey`) that self-hosters run with `docker compose` on machines like a NAS - **non-privileged containers**. cgroup v2 control requires either `--privileged` or explicit cgroup delegation to the container, and we can rely on neither on an arbitrary user's box. Earlier attempts went the wrong way:
 
 - A `su-exec` root-drop entrypoint to manage cgroups - forced the server to start as root.
 - `mem_limit` / `cpus` in the default compose - caps the *whole container*, not individual plugins, and is a deployment knob, not a per-plugin policy.

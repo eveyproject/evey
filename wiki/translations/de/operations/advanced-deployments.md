@@ -179,7 +179,7 @@ nur für amd64: Legen Sie auf einem ARM-Host ein Release-Tag fest.
 
 ## Image-Tags
 
-Das Image ist `gravityz/evey`.
+Das Image ist `eveyproject/evey`.
 
 - Release-Tags `vX.Y.Z` veröffentlichen `X.Y.Z`, `X.Y`, `X` und `latest`.
   `latest` ist immer die neueste stabile Version: Eine Vorabversion

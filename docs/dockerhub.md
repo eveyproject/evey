@@ -12,7 +12,7 @@ Save this as `docker-compose.yml` with your media path, then `docker compose up 
 ```yaml
 services:
   evey:
-    image: gravityz/evey:latest
+    image: eveyproject/evey:latest
     container_name: evey-server
     ports:
       - "9091:9091"

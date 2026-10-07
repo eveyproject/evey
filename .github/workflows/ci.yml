@@ -6,7 +6,7 @@ on:
       - main
       - master
       # Beta/alpha test branches publish their own image tag (named after
-      # the branch, e.g. gravityz/evey:beta-0.0.1). `latest` stays gated on
+      # the branch, e.g. eveyproject/evey:beta-0.0.1). `latest` stays gated on
       # semver tags below - beta builds never touch it.
       - 'beta-*'
       - 'alpha-*'
@@ -298,7 +298,7 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: |
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+            docker.io/eveyproject/evey
             ghcr.io/${{ steps.owner.outputs.name }}/evey
           tags: |
             type=ref,event=branch
@@ -319,7 +319,7 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: |
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+            docker.io/eveyproject/evey
             ghcr.io/${{ steps.owner.outputs.name }}/evey
           tags: |
             type=ref,event=branch
@@ -340,7 +340,7 @@ jobs:
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: |
-            docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+            docker.io/eveyproject/evey
             ghcr.io/${{ steps.owner.outputs.name }}/evey
           tags: |
             type=ref,event=branch
@@ -440,7 +440,7 @@ jobs:
             RUNTIMES=full
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+            IMAGE_REPO=docker.io/eveyproject/evey
           cache-from: type=gha,scope=docker
           cache-to: type=gha,mode=max,scope=docker,ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
@@ -459,7 +459,7 @@ jobs:
             RUNTIMES=full
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+            IMAGE_REPO=docker.io/eveyproject/evey
           cache-from: type=gha,scope=docker
           cache-to: type=gha,mode=max,scope=docker,ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
@@ -478,7 +478,7 @@ jobs:
             RUNTIMES=lean
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+            IMAGE_REPO=docker.io/eveyproject/evey
           cache-from: type=gha,scope=docker
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
@@ -496,7 +496,7 @@ jobs:
             RUNTIMES=nodejs
             COMMIT=${{ github.sha }}
             BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/evey
+            IMAGE_REPO=docker.io/eveyproject/evey
           cache-from: type=gha,scope=docker
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
@@ -509,7 +509,7 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ secrets.DOCKERHUB_USERNAME }}/evey
+          repository: eveyproject/evey
           short-description: "Self-hosted media server. One container, hardware transcoding included, sandboxed plugins."
           readme-filepath: ./docs/dockerhub.md
           enable-url-completion: false

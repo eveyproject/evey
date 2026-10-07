@@ -16,7 +16,7 @@ One container, one file, no secret to invent. Save this as
 ```yaml
 services:
   evey:
-    image: gravityz/evey:latest        # pin a tag here (e.g. 0.2.0-beta.1, sha-1a2b3c4)
+    image: eveyproject/evey:latest        # pin a tag here (e.g. 0.2.0-beta.1, sha-1a2b3c4)
     container_name: evey-server
     ports:
       - "9091:9091"

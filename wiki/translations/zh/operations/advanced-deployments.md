@@ -141,7 +141,7 @@ docker exec evey-server evey admin reindex-search
 
 ## 镜像标签
 
-镜像为 `gravityz/evey`。
+镜像为 `eveyproject/evey`。
 
 - 版本标签 `vX.Y.Z` 会发布 `X.Y.Z`、`X.Y`、`X` 和 `latest`。`latest` 总是最新的稳定版本：预发布版本（`vX.Y.Z-beta.N`）只发布它自己的标签，从不移动 `latest`。
 - 分支构建会发布分支名称（例如 `beta-0.0.1`）和 `sha-<commit>`。

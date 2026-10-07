@@ -11,7 +11,7 @@ procedimiento en lugar de inventarlo.
 
 `.github/workflows/ci.yml` construye y publica imágenes en cada push y en cada
 etiqueta `v*.*.*`, en tres variantes de entornos de extensiones (`` (lean),
-`-nodejs`, `-full`), en `docker.io/gravityz/evey` y `ghcr.io/evey-project/evey`:
+`-nodejs`, `-full`), en `docker.io/eveyproject/evey` y `ghcr.io/evey-project/evey`:
 
 | Usted hace push de | Etiquetas de imagen publicadas (cada una también `-nodejs` / `-full`) |
 |---|---|
@@ -59,7 +59,7 @@ código es este?» siempre tiene respuesta sin fiarse de una etiqueta.
    despliegue de referencia, `scripts/evey-update.sh --tag 0.2.0-beta.1
    --apply` - fijar la etiqueta de versión sustituye la fijación `sha-`.
 6. **Anuncie la etiqueta** con su sección del changelog. Los operadores fijan
-   `gravityz/evey:0.2.0-beta.1` (o `-full`) en su línea `image:`.
+   `eveyproject/evey:0.2.0-beta.1` (o `-full`) en su línea `image:`.
 
 Las etiquetas de versión previa son baratas: `-beta.2`, `-beta.3` según haga
 falta. Lo que no son es retirables - una etiqueta publicada sigue publicada.

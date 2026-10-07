@@ -179,7 +179,7 @@ versiones previas como `0.2.0-beta.1`) son multiarquitectura (`linux/amd64` y
 
 ## Etiquetas de imagen
 
-La imagen es `gravityz/evey`.
+La imagen es `eveyproject/evey`.
 
 - Las etiquetas de versión `vX.Y.Z` publican `X.Y.Z`, `X.Y`, `X` y `latest`.
   `latest` es siempre la versión estable más reciente: una versión previa

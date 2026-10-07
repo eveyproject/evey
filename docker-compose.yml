@@ -2,7 +2,7 @@ services:
 
   evey:
     container_name: evey-server
-    image: gravityz/evey:${EVEY_VERSION:-latest}
+    image: eveyproject/evey:${EVEY_VERSION:-latest}
     # No CPU or memory limit by default: the server gets the whole machine, the
     # way Docker behaves out of the box. A hard 4g/4-core cap used to be the
     # default here, which silently throttled Evey on any host bigger than a

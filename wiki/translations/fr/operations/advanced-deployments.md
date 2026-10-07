@@ -181,7 +181,7 @@ ARM.
 
 ## Tags d'image
 
-L'image est `gravityz/evey`.
+L'image est `eveyproject/evey`.
 
 - Les tags de version `vX.Y.Z` publient `X.Y.Z`, `X.Y`, `X` et `latest`.
   `latest` désigne toujours la dernière version stable : une préversion

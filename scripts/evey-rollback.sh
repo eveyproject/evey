@@ -8,7 +8,7 @@
 # restoring the pre-migration DB first.
 #
 # The tag is handed to compose through EVEY_VERSION, which is the variable
-# docker-compose.yml interpolates (`image: gravityz/evey:${EVEY_VERSION:-latest}`).
+# docker-compose.yml interpolates (`image: eveyproject/evey:${EVEY_VERSION:-latest}`).
 # It used to export EVEY_IMAGE_TAG, which compose reads nowhere: `--apply` tore
 # the stack down and brought it straight back up on the version being rolled
 # back FROM, while printing "Done.". internal/contractguard now fails the build
@@ -26,17 +26,17 @@
 #
 # Usage:
 #   scripts/evey-rollback.sh                          # show what it would do
-#   scripts/evey-rollback.sh --tag 0.0.0 --apply      # roll back to gravityz/evey:0.0.0
+#   scripts/evey-rollback.sh --tag 0.0.0 --apply      # roll back to eveyproject/evey:0.0.0
 #   scripts/evey-rollback.sh --tag 0.0.0 --restore /data/backups/pre-migration-132-....sql.gz --apply
 #
 # Overridable via env (defaults suit a standard docker compose setup):
-#   EVEY_IMAGE_REPO=gravityz/evey   image repository to match (docker images '<repo>*')
+#   EVEY_IMAGE_REPO=eveyproject/evey   image repository to match (docker images '<repo>*')
 #   EVEY_SERVICE=evey               compose service name
 #   COMPOSE="docker compose"        compose command
 #
 set -euo pipefail
 
-IMAGE_REPO="${EVEY_IMAGE_REPO:-gravityz/evey}"
+IMAGE_REPO="${EVEY_IMAGE_REPO:-eveyproject/evey}"
 SERVICE="${EVEY_SERVICE:-evey}"
 COMPOSE="${COMPOSE:-docker compose}"
 
