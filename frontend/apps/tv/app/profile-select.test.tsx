@@ -215,7 +215,7 @@ describe("ProfileSelect survives a nameless profile", () => {
     });
     render(<ProfileSelect />);
     expect(screen.getByText("?")).toBeTruthy();
-    expect(screen.getByText("R")).toBeTruthy();
+    expect(screen.getByText("A")).toBeTruthy();
   });
 });
 

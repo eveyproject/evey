@@ -2,7 +2,7 @@ package ffmpeg
 
 // Audio start-delay cancellation INTEGRATION test: BuildFFmpegArgs against the
 // real bundled ffmpeg, on a source whose audio track starts 0.9s after the
-// video (the repack mux defect measured in prod: "a dubbed title", constant
+// video (the repack mux defect measured in prod: a dubbed title, constant
 // A/V desync). Args-level unit tests prove the -itsoffset second input is
 // EMITTED; only decoding the served segments proves the audio CONTENT lands on
 // the scene the video shows - the seek/trim/zero-point interactions live

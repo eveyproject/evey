@@ -631,7 +631,7 @@ func (s *SeekIndexService) noteReindexed(ctx context.Context, path string, hasBa
 // on the real library - on the theory that the offset was the thing to
 // explain. That theory was backwards. A track that has been pulled back onto
 // the picture declares NO offset any more: that is precisely what the repair
-// did to it. a prod title declared 0.000 s and another 0.02 s after the
+// did to it. one prod title declared 0.000 s and another 0.02 s after the
 // 2026-07-13 batch, and both were classed healthy; none of the 98 rewritten
 // files would ever have been looked at. The cost is about two seconds per
 // multi-track file (the video is not demuxed), which the gentle scan pace

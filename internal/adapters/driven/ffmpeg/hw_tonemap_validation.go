@@ -286,7 +286,7 @@ func tonemapImplsToGate(backend string, nativeOK, openclOK, vulkanOK bool) []str
 // hardware while these bounds were set (CUDA on the RTX 4070 Ti) and for the
 // new Vulkan/libplacebo route, which ships with no other proof; the OpenCL and
 // VPP curves that production already validated by eye run in shadow until a
-// host has logged their numbers - refusing the route prod-host serves HDR with,
+// host has logged their numbers - refusing the route the prod host serves HDR with,
 // on a threshold it never measured, is the one regression this gate must not
 // cause. Flip an entry to true once its numbers are on record.
 var tonemapGateEnforced = map[string]bool{

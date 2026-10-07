@@ -85,10 +85,11 @@ services:
       - evey-cache:/cache
       # WSL2 d3d12 VAAPI runtime libs (host GPU userspace); ignored off-WSL.
       - /usr/lib/wsl:/usr/lib/wsl:ro
-      - /path/to/movies:/media
-      - /path/to/series:/media2
-      - /path/to/photos:/media3
-      - /path/to/music:/media4
+      # Your own libraries, set in .env.dev (MEDIA_DIR, MEDIA_DIR_2..4).
+      - ${MEDIA_DIR:-./media}:/media
+      - ${MEDIA_DIR_2:-./media}:/media2
+      - ${MEDIA_DIR_3:-./media}:/media3
+      - ${MEDIA_DIR_4:-./media}:/media4
     # NVENC: reserve the NVIDIA GPU (Container Toolkit injects the driver).
     deploy:
       resources:

@@ -203,7 +203,7 @@ func RunRouteBench(ctx context.Context, opts RouteBenchOptions) ([]RouteBenchRow
 	if opts.Capability != nil {
 		cap = *opts.Capability
 		// A pinned backend re-targets a persisted capability of another one (a
-		// prod-host calibrated on VAAPI measured on QSV): same host facts, the
+		// the prod host calibrated on VAAPI measured on QSV): same host facts, the
 		// encoder family swapped, its render node, the tuning features that
 		// carry over (low-power), the ones that do not dropped.
 		if hwOn && opts.Backend != "" && opts.Backend != cap.HWBackend {

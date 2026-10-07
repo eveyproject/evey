@@ -1209,7 +1209,7 @@ func (r *BenchmarkRunner) probeBackendCap(ctx context.Context, c hwCandidate) tr
 	hw10 := probeHW10BitTranscode(ctx, r.ffmpegPath, c.backend, c.device)
 	// Native VPP (tonemap_vaapi / vpp_qsv) and VAAPI/OpenCL are INDEPENDENT
 	// tone-map implementations - one can pass while the other fails. Probe both
-	// unconditionally: on prod-host OpenCL is validated (3.26x) while the
+	// unconditionally: on the prod host OpenCL is validated (3.26x) while the
 	// fixed-function VPP can abort, so gating OpenCL behind the native probe
 	// (as this once did) silently dropped the whole GPU tone-map route.
 	tonemapNative := probeHWTonemap(ctx, r.ffmpegPath, c.backend, c.device)

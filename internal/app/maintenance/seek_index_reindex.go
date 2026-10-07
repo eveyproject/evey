@@ -481,7 +481,7 @@ func (s *SeekIndexService) StartRepairLibrary(_ context.Context, libraryID strin
 		// all" used to retime every file whose audio started more than
 		// AudioDelayFlagSec after the picture. That threshold has no upper
 		// bound, so a DELIBERATE alignment was treated like a 150 ms mux slip:
-		// on a prod title (prod 2026-07-13) it erased a 12.000 s dub offset,
+		// on a prod title (2026-07-13) it erased a 12.000 s dub offset,
 		// the French track then played 12 s early in every player, and no
 		// backup was kept. A start offset is not evidence of a defect - the
 		// container is usually right and every player honours it. The audio
