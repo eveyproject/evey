@@ -293,6 +293,13 @@ export default function MediaDetailScreen() {
 
   const children = useMemo(() => childrenData?.items ?? [], [childrenData?.items]);
 
+  // The screen is reused from one title to the next (a series opened from the
+  // row of another): the first season belongs to the id on screen, never to
+  // the one before it.
+  useEffect(() => {
+    setFirstSeasonId(null);
+  }, [id]);
+
   useEffect(() => {
     if (isSeries && children.length > 0 && !firstSeasonId) {
       setFirstSeasonId(children[0]?.id ?? null);
