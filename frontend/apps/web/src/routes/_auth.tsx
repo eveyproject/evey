@@ -5,7 +5,7 @@ import { ImpersonationBanner } from "@/components/layout/ImpersonationBanner";
 import { DemoBanner } from "@/components/layout/DemoBanner";
 import { PresenceHeartbeat } from "@/components/PresenceHeartbeat";
 import { RouteErrorComponent } from "@/components/ui/RouteErrorComponent";
-import { isTokenExpired, refreshTokenUnderLock } from "@/lib/authRefresh";
+import { isTokenExpired, refreshTokenWithOutcome } from "@/lib/authRefresh";
 import { ProfileCacheSync } from "@/components/ProfileCacheSync";
 
 // "Who is watching", asked once per DOCUMENT LOAD - the browser's equivalent of
@@ -26,11 +26,16 @@ export const Route = createFileRoute("/_auth")({
       await maybePickProfile(location.pathname);
       return;
     }
-    if (await refreshTokenUnderLock()) {
+    const outcome = await refreshTokenWithOutcome();
+    if (outcome === "ok") {
       await maybePickProfile(location.pathname);
       return;
     }
-    // Refresh failed: the session is dead. Clear the stale token before
+    // The server could not be asked (offline, 5xx): the session is not known
+    // to be dead, so keep it. The screen renders, its requests fail visibly and
+    // retry, and the fetcher's own 401 path signs out if the server says so.
+    if (outcome === "transient") return;
+    // Refresh denied: the session is dead. Clear the stale token before
     // redirecting - otherwise index/login still see a truthy accessToken and
     // bounce the user through extra redirects before a 401 finally logs out.
     useAuthStore.getState().logout();

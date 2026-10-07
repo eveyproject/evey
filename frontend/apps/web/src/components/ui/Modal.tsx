@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useFocusTrap } from "@/hooks/useFocusTrap";
 
@@ -16,6 +16,23 @@ const sizeClasses: Record<ModalSize, string> = {
   "4xl": "max-w-4xl",
 };
 
+// Open modals, module-level so modals rendered by unrelated components still
+// agree on which one is on top. "On top" is the deepest one in the React tree
+// (a modal rendered inside another's children), then the most recently opened:
+// registration order alone would not do, since React runs a child's effects
+// before its parent's and would crown the parent.
+const openModals: { token: symbol; depth: number; seq: number }[] = [];
+let modalSeq = 0;
+const ModalDepthContext = createContext(0);
+
+function isTopmost(token: symbol): boolean {
+  let top: (typeof openModals)[number] | undefined;
+  for (const m of openModals) {
+    if (!top || m.depth > top.depth || (m.depth === top.depth && m.seq > top.seq)) top = m;
+  }
+  return top?.token === token;
+}
+
 interface ModalProps {
   open: boolean;
   onClose: () => void;
@@ -30,17 +47,27 @@ export function Modal({ open, onClose, title, size = "md", children }: ModalProp
   const bodyId = `${id}-modal-body`;
   const backdropRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const depth = useContext(ModalDepthContext);
 
   useFocusTrap(dialogRef, open);
 
   useEffect(() => {
     if (!open) return;
+    // Only the topmost open modal answers Escape: a modal opened from another
+    // (Identify inside the edit form) used to close both at once, taking the
+    // unsaved edit with it.
+    const token = Symbol("modal");
+    openModals.push({ token, depth, seq: ++modalSeq });
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && isTopmost(token)) onClose();
     };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      const at = openModals.findIndex((m) => m.token === token);
+      if (at >= 0) openModals.splice(at, 1);
+    };
+  }, [open, onClose, depth]);
 
   if (!open) return null;
 
@@ -66,7 +93,9 @@ export function Modal({ open, onClose, title, size = "md", children }: ModalProp
             {title}
           </h2>
         )}
-        <div id={bodyId}>{children}</div>
+        <div id={bodyId}>
+          <ModalDepthContext.Provider value={depth + 1}>{children}</ModalDepthContext.Provider>
+        </div>
       </div>
     </div>,
     document.body,
