@@ -422,7 +422,7 @@ func resolveVAPIDPublicKey(cfgRepo shared.ServerConfigRepository, cfg *config.Co
 
 // defaultImageRepo is the public image the documentation installs; the image
 // build stamps EVEY_IMAGE_REPO with the repository it was actually pushed to.
-const defaultImageRepo = "docker.io/gravityz/evey"
+const defaultImageRepo = "docker.io/eveyproject/evey"
 
 // startUpdateCheck starts the periodic "newer image published?" check. It only
 // reads the registry: pulling and recreating the container stays the admin's.

@@ -9,7 +9,7 @@ Evey 的一个版本如何从一个分支变成运维者可以固定使用的东
 ## CI 拿到标签会做什么（打标签前先读）
 
 `.github/workflows/ci.yml` 在每次 push 和每个 `v*.*.*` 标签时构建并发布镜像，分三种扩展
-运行时变体（`` (lean)、`-nodejs`、`-full`），发布到 `docker.io/gravityz/evey` 和
+运行时变体（`` (lean)、`-nodejs`、`-full`），发布到 `docker.io/eveyproject/evey` 和
 `ghcr.io/evey-project/evey`：
 
 | 你推送的是 | 发布的镜像标签（每个还有 `-nodejs` / `-full`） |
@@ -47,7 +47,7 @@ Evey 的一个版本如何从一个分支变成运维者可以固定使用的东
 5. **盯着 CI** 发布 `0.2.0-beta.1`（及各变体）。然后在参考部署上运行
    `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply` - 固定版本标签会取代 `sha-` 固定。
 6. **发布标签公告**，附上对应的 changelog 段落。运维者在 `image:` 行里固定
-   `gravityz/evey:0.2.0-beta.1`（或 `-full`）。
+   `eveyproject/evey:0.2.0-beta.1`（或 `-full`）。
 
 预发布标签很便宜：需要时就 `-beta.2`、`-beta.3`。但它们无法撤回 - 已发布的标签会一直存在。
 要撤销一次糟糕的发布，就发下一个；永远不要把标签改指到别处。

@@ -172,7 +172,7 @@ release tag on an ARM host.
 
 ## Image tags
 
-The image is `gravityz/evey`.
+The image is `eveyproject/evey`.
 
 - Release tags `vX.Y.Z` publish `X.Y.Z`, `X.Y`, `X` and `latest`. `latest` is
   always the most recent stable release: a pre-release (`vX.Y.Z-beta.N`)

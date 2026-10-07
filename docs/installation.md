@@ -33,7 +33,7 @@ line.
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: gravityz/evey:beta-0.0.1 # (1)!
+    image: eveyproject/evey:beta-0.0.1 # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!

@@ -25,7 +25,7 @@ Evey बिना एन्क्रिप्शन वाला HTTP देत�
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: gravityz/evey:latest # (1)!
+    image: eveyproject/evey:latest # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!

@@ -20,7 +20,7 @@
 #      a rotated EVEY_DB_PASSWORD is realigned
 #
 # Usage: scripts/entrypoint-sim-test.sh   (needs docker)
-#        EVEY_PG_IMG=gravityz/evey:beta-0.0.1 scripts/entrypoint-sim-test.sh
+#        EVEY_PG_IMG=eveyproject/evey:beta-0.0.1 scripts/entrypoint-sim-test.sh
 set -eu
 
 cd "$(dirname "$0")/.."

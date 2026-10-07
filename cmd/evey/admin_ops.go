@@ -103,7 +103,7 @@ func adminRollback(args []string) error {
 	fmt.Println("Run these ON THE HOST, choosing the previous image tag:")
 	fmt.Println()
 	fmt.Println("  # 1. list the Evey images cached locally, newest first")
-	fmt.Println("  docker images 'gravityz/evey*' --format '{{.Repository}}:{{.Tag}}\\t{{.CreatedSince}}'")
+	fmt.Println("  docker images 'eveyproject/evey*' --format '{{.Repository}}:{{.Tag}}\\t{{.CreatedSince}}'")
 	fmt.Println()
 	if backup == "" {
 		// EVEY_VERSION is the variable docker-compose.yml interpolates. `up -d`

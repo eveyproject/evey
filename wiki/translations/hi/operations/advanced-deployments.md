@@ -141,7 +141,7 @@ docker exec evey-server evey admin reindex-search
 
 ## इमेज टैग
 
-इमेज `gravityz/evey` है।
+इमेज `eveyproject/evey` है।
 
 - रिलीज़ टैग `vX.Y.Z` `X.Y.Z`, `X.Y`, `X` और `latest` प्रकाशित करते हैं। `latest` हमेशा सबसे नया स्थिर रिलीज़ है: प्री-रिलीज़ (`vX.Y.Z-beta.N`) केवल अपना टैग प्रकाशित करता है और `latest` को कभी नहीं खिसकाता।
 - ब्रांच बिल्ड ब्रांच का नाम (उदाहरण के लिए `beta-0.0.1`) और `sha-<commit>` प्रकाशित करते हैं।

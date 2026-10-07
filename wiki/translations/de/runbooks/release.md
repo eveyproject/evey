@@ -11,7 +11,7 @@ die erste einem Verfahren folgt, statt eines zu erfinden.
 
 `.github/workflows/ci.yml` baut und veröffentlicht Images bei jedem Push und bei
 jedem `v*.*.*`-Tag, in drei Varianten der Erweiterungs-Laufzeiten (`` (lean),
-`-nodejs`, `-full`), nach `docker.io/gravityz/evey` und `ghcr.io/evey-project/evey`:
+`-nodejs`, `-full`), nach `docker.io/eveyproject/evey` und `ghcr.io/evey-project/evey`:
 
 | Sie pushen | Veröffentlichte Image-Tags (jeweils auch `-nodejs` / `-full`) |
 |---|---|
@@ -60,7 +60,7 @@ das?“ immer beantworten lässt, ohne einem Tag zu vertrauen.
    Dann auf der Referenzinstallation `scripts/evey-update.sh --tag 0.2.0-beta.1
    --apply` - der feste Release-Tag ersetzt die `sha-`-Festlegung.
 6. **Den Tag ankündigen**, mit seinem Abschnitt aus dem Changelog. Betreiber
-   stellen `gravityz/evey:0.2.0-beta.1` (oder `-full`) in ihrer `image:`-Zeile
+   stellen `eveyproject/evey:0.2.0-beta.1` (oder `-full`) in ihrer `image:`-Zeile
    fest ein.
 
 Tags für Vorabversionen sind billig: `-beta.2`, `-beta.3` nach Bedarf.

@@ -8,7 +8,7 @@ instead of inventing it.
 
 `.github/workflows/ci.yml` builds and publishes images on every push and on
 every `v*.*.*` tag, in three plugin-runtime variants (`` (lean), `-nodejs`,
-`-full`), to `docker.io/gravityz/evey` and `ghcr.io/evey-project/evey`:
+`-full`), to `docker.io/eveyproject/evey` and `ghcr.io/evey-project/evey`:
 
 | You push | Image tags published (each also `-nodejs` / `-full`) |
 |---|---|
@@ -55,7 +55,7 @@ this?" is always answerable without trusting a tag.
    deployment, `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply` - pinning
    the release tag replaces the `sha-` pin.
 6. **Announce the tag** with its changelog section. Operators pin
-   `gravityz/evey:0.2.0-beta.1` (or `-full`) on their `image:` line.
+   `eveyproject/evey:0.2.0-beta.1` (or `-full`) on their `image:` line.
 
 Pre-release tags are cheap: `-beta.2`, `-beta.3` as needed. What they are not
 is retractable - a published tag stays published. To undo a bad cut, cut the
