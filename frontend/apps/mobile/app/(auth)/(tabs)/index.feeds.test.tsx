@@ -22,6 +22,7 @@ vi.mock("react-native", () => ({
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
   Modal: ({ children, visible }: any) => (visible ? React.createElement("div", { "data-testid": "modal" }, children) : null),
   Switch: () => null,
+  AppState: { addEventListener: () => ({ remove: () => {} }) },
   StyleSheet: { create: (s: any) => s },
   Dimensions: { get: () => ({ width: 390, height: 844 }) },
   Alert: { alert: vi.fn() },
