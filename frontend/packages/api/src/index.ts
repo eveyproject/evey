@@ -121,3 +121,4 @@ export type { V1CollectionProto, V1CollectionItemProto } from "./generated/colle
 export * from "./trackPick";
 export * from "./profileSchedule";
 export * from "./configDefaults";
+export * from "./sessionTrackLines";
