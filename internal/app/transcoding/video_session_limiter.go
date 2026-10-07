@@ -280,7 +280,7 @@ func representativeRoute(m *RouteCostModel, class LadderClass) (transcoding.Rout
 	switch class {
 	case LadderClassHW:
 		want = func(k transcoding.RouteCostKey) bool {
-			return k.Backend != "" && k.Route == transcoding.RouteCostSDR && k.Encoder == transcoding.RouteEncoderName("h264", string(k.Backend))
+			return k.Backend != "" && k.Route == transcoding.RouteCostSDR && k.Encoder == transcoding.RouteEncoderName("h264", k.Backend)
 		}
 	case LadderClassSoftwareHDR:
 		want = func(k transcoding.RouteCostKey) bool {
