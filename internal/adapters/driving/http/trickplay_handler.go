@@ -151,7 +151,7 @@ func trickplayManifestHandler(libSvc TrickplayGetter, baseURL string, libraryAcc
 
 		w.Header().Set("Content-Type", "text/vtt")
 		setCORSHeaders(w, r, baseURL)
-		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Header().Set("Cache-Control", "private, max-age=86400")
 		fmt.Fprint(w, "WEBVTT\n\n")
 		// Cue bounds use midpoints between successive frames so a hover at
 		// time T resolves to the frame whose actual timestamp is closest to T,
@@ -287,7 +287,7 @@ func trickplayImageHandler(libSvc TrickplayGetter, baseURL string, libraryAccess
 			imagePath = alt
 		}
 		setCORSHeaders(w, r, baseURL)
-		serveFileWithCache(w, r, imagePath)
+		serveFileWithCache(w, r, imagePath, false)
 	}
 }
 

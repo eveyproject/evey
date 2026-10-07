@@ -117,7 +117,7 @@ func (h *musicHandler) serveAlbumArt(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	w.Header().Set("Cache-Control", "public, max-age=2592000")
+	w.Header().Set("Cache-Control", "private, max-age=2592000")
 	// ?w= is optional: a client that omits it (or an unparseable/out-of-bounds
 	// value, snapped to 0 by parseRequestedWidth) keeps getting the original
 	// full-res JPEG, same as before this endpoint supported resizing.
@@ -226,13 +226,13 @@ func (h *musicHandler) getTrackArt(w http.ResponseWriter, r *http.Request) {
 	if width := parseRequestedWidth(r); width > 0 {
 		if variant := h.trackArtVariant(r.Context(), id, mimeType, data, width); variant != "" {
 			w.Header().Set("Content-Type", "image/webp")
-			w.Header().Set("Cache-Control", "public, max-age=86400")
+			w.Header().Set("Cache-Control", "private, max-age=86400")
 			http.ServeFile(w, r, variant)
 			return
 		}
 	}
 	w.Header().Set("Content-Type", mimeType)
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", "private, max-age=86400")
 	if _, err := w.Write(data); err != nil {
 		slog.ErrorContext(r.Context(), "music art write", slog.Any("err", err))
 	}

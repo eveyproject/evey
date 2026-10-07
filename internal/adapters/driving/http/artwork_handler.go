@@ -263,17 +263,17 @@ func (h *mediaServe) handleArtwork(w http.ResponseWriter, r *http.Request) {
 						}
 						if variantPath != "" {
 							w.Header().Set("Content-Type", "image/webp")
-							serveFileWithCache(w, r, variantPath)
+							serveFileWithCache(w, r, variantPath, true)
 							return
 						}
 					}
 					if webp := h.resolveWebP(r.Context(), rec); webp != "" {
 						w.Header().Set("Content-Type", "image/webp")
-						serveFileWithCache(w, r, webp)
+						serveFileWithCache(w, r, webp, true)
 						return
 					}
 				}
-				serveFileWithCache(w, r, *rec.LocalPath)
+				serveFileWithCache(w, r, *rec.LocalPath, true)
 				return
 			}
 		}

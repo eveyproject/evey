@@ -182,7 +182,8 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 	stats := &activity.ServerStatsResult{}
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT
-			(SELECT COUNT(*) FROM play_sessions WHERE ended_at IS NULL),
+			(SELECT COUNT(*) FROM play_sessions
+			   WHERE ended_at IS NULL AND updated_at > NOW() - INTERVAL '45 seconds'),
 			(SELECT COUNT(*) FROM transcode_sessions WHERE status IN ('queued', 'running')),
 			(SELECT COUNT(*) FROM users),
 			(SELECT COUNT(*) FROM media_items),
@@ -217,11 +218,16 @@ func (r *PlaySessionStatsReader) GetServerStats(ctx context.Context) (*activity.
 }
 
 // liveCounters re-reads the running playbacks and transcodes, the two figures
-// of the server stats that must never be served from the rollup cache.
+// of the server stats that must never be served from the rollup cache. A
+// playback counts only while it heartbeats, the same 45 s window as the
+// "now playing" panel (ListActiveSessions): a session whose stop never
+// landed used to inflate this tile for as long as its row kept ended_at NULL.
+// Live music sessions are held in memory and are not in this figure.
 func (r *PlaySessionStatsReader) liveCounters(ctx context.Context, stats *activity.ServerStatsResult) error {
 	return txFromCtx(ctx, r.db).QueryRowContext(ctx,
 		`SELECT
-			(SELECT COUNT(*) FROM play_sessions WHERE ended_at IS NULL),
+			(SELECT COUNT(*) FROM play_sessions
+			   WHERE ended_at IS NULL AND updated_at > NOW() - INTERVAL '45 seconds'),
 			(SELECT COUNT(*) FROM transcode_sessions WHERE status IN ('queued', 'running'))`,
 	).Scan(&stats.ActiveStreams, &stats.ActiveTranscodes)
 }
