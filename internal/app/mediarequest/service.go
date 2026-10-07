@@ -64,6 +64,11 @@ type CreateInput struct {
 	Overview    string
 	ReleaseDate *time.Time
 	Rating      *float64
+	// HeldVisible says whether the caller may see the library item a held
+	// title resolves to; nil means every held title counts. Without it a
+	// profile that cannot see a title (library not granted, parental rating)
+	// learned it exists from the "already held" refusal.
+	HeldVisible func(ctx context.Context, mediaItemID string) bool
 }
 
 // maxOverviewRunes bounds the synopsis a client may attach: TMDB's longest
@@ -209,17 +214,17 @@ func toCandidate(providerName string, r metadata.MetadataResult) Candidate {
 // heldInLibrary reports whether the server already holds this provider id.
 // Fails OPEN on a lookup error: refusing a legitimate request because a
 // database hiccup is worse than accepting a duplicate the admin can reject.
-func (s *Service) heldInLibrary(ctx context.Context, mt mediarequest.MediaType, provider, providerID string) bool {
+func (s *Service) heldInLibrary(ctx context.Context, mt mediarequest.MediaType, provider, providerID string) (string, bool) {
 	if s.library == nil || mt == mediarequest.MediaTypeMusic {
-		return false
+		return "", false
 	}
 	held, err := s.library.FindByProviderIDs(ctx, string(mt), []string{ProviderKey(provider, providerID)})
 	if err != nil {
 		slog.WarnContext(ctx, "media request: library lookup failed on create, allowing", slog.Any("err", err))
-		return false
+		return "", false
 	}
-	_, ok := held[ProviderKey(provider, providerID)]
-	return ok
+	id, ok := held[ProviderKey(provider, providerID)]
+	return id, ok
 }
 
 // CreateRequest submits a request for the given profile/user. Fails closed with
@@ -248,7 +253,10 @@ func (s *Service) CreateRequest(ctx context.Context, profileID shared.ProfileID,
 		// Re-resolved server-side: the UI hides the button for a held title, but
 		// a crafted call must not slip a request for something already on the
 		// server past it.
-		if s.heldInLibrary(ctx, in.MediaType, in.Provider, in.ProviderID) {
+		// A title the caller may not see is, to them, not on the server: the
+		// request goes through and the admin sees the duplicate, instead of
+		// the refusal telling the caller what the library holds.
+		if id, ok := s.heldInLibrary(ctx, in.MediaType, in.Provider, in.ProviderID); ok && (in.HeldVisible == nil || in.HeldVisible(ctx, id)) {
 			return nil, mediarequest.ErrAlreadyHeld
 		}
 	}
