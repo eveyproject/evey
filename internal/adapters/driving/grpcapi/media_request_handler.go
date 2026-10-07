@@ -3,11 +3,14 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	applibrary "github.com/evey-project/evey/internal/app/library"
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
 	appuser "github.com/evey-project/evey/internal/app/user"
+	"github.com/evey-project/evey/internal/domain/library"
 	"github.com/evey-project/evey/internal/domain/mediarequest"
 	"github.com/evey-project/evey/internal/domain/shared"
 	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
@@ -22,7 +25,50 @@ import (
 type mediaRequestHandler struct {
 	eveyv1.UnimplementedMediaRequestServiceServer
 	svc        *appmediarequest.Service
+	libQuery   *applibrary.QueryService
+	userAccess *appuser.AccessService
+	userQuery  *appuser.QueryService
 	translator *eveyi18n.Translator
+}
+
+// hideUnreachableMatches clears InLibrary / MediaItemID on candidates whose
+// matched library item the caller cannot see. The repo join matches provider
+// ids with no library or parental filter, so left alone it tells a restricted
+// user that a title exists and hands them its id. A gated profile (library
+// grants or an enforced parental filter) keeps the flag only for items that
+// resolve, sit in an allowed library and pass the parental rating; an
+// ungated caller gets the candidates unchanged.
+func (h *mediaRequestHandler) hideUnreachableMatches(ctx context.Context, cands []appmediarequest.Candidate) {
+	allowedIDs, _ := (&playbackHandler{userAccess: h.userAccess}).getAllowedLibraryIDs(ctx)
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	if allowedIDs == nil && !pf.enforced() {
+		return
+	}
+	ids := make([]string, 0, len(cands))
+	for _, c := range cands {
+		if c.InLibrary && c.MediaItemID != "" {
+			ids = append(ids, c.MediaItemID)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	byID := map[string]*library.MediaItem{}
+	if h.libQuery != nil {
+		byID = fetchItemMap(ctx, h.libQuery.GetMediaItemsByIDs, ids)
+	}
+	for i := range cands {
+		if !cands[i].InLibrary {
+			continue
+		}
+		mi := byID[cands[i].MediaItemID]
+		if mi == nil ||
+			(allowedIDs != nil && !slices.Contains(allowedIDs, string(mi.LibraryID))) ||
+			mediaItemBlockedByParental(pf, mi) {
+			cands[i].InLibrary = false
+			cands[i].MediaItemID = ""
+		}
+	}
 }
 
 func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.SearchTitlesRequest) (*eveyv1.SearchTitlesResponse, error) {
@@ -45,6 +91,7 @@ func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.Sear
 	if err != nil {
 		return nil, mapMediaRequestError(ctx, h.translator, "search titles", err)
 	}
+	h.hideUnreachableMatches(ctx, candidates)
 	resp := &eveyv1.SearchTitlesResponse{}
 	for _, c := range candidates {
 		tc := &eveyv1.TitleCandidate{
