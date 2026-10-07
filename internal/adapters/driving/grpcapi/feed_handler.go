@@ -381,12 +381,23 @@ func (h *feedHandler) BatchUpdateAdminFeedConfigs(ctx context.Context, req *evey
 	return &eveyv1.BatchUpdateAdminFeedConfigsResponse{}, nil
 }
 
+// feedItemTypeName is the MediaItemType enum name ("MEDIA_ITEM_TYPE_MOVIE") the
+// clients read a media type as everywhere else; the feed used to send the
+// domain's bare "movie", which no client label or badge recognised. A type the
+// enum does not know is passed through as is.
+func feedItemTypeName(domainType string) string {
+	if t, ok := mediaItemTypeToProto[domainType]; ok {
+		return t.String()
+	}
+	return domainType
+}
+
 func feedItemToProto(item *feed.FeedItem) *eveyv1.FeedItem {
 	pb := &eveyv1.FeedItem{
 		MediaItemId:   string(item.MediaItemID),
 		ParentId:      item.ParentID,
 		Title:         item.Title,
-		Type:          item.Type,
+		Type:          feedItemTypeName(item.Type),
 		PositionMs:    item.Position.Milliseconds(),
 		AddedAt:       item.AddedAt,
 		Score:         int32(item.Score),
