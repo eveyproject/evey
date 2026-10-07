@@ -1,48 +1,12 @@
 import type React from "react";
 import { useTranslation } from "react-i18next";
 import { Film, Volume2 } from "lucide-react";
-import type { V1ActiveSession } from "@evey/api";
+import { sessionTrackLines, type V1ActiveSession } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 
-// What actually serves each track. The server records videoEngine /
-// videoBackend / audioEngine when it renders the master; a session that
-// predates that (or a direct play) falls back to the old guess: copy is the
-// packager, transcode is ffmpeg.
-export interface TrackLine {
-  id: "video" | "audio";
-  decision: string; // copy | transcode | wasm
-  engine: string; // mkvgo | ffmpeg | client
-  backend: string; // transcode only: software | qsv | vaapi | nvenc
-  codec?: string;
-  res?: string;
-}
-
-export function sessionTrackLines(session: V1ActiveSession): TrackLine[] {
-  const vDec = (session.videoDecision ?? "").trim();
-  const aDec = (session.audioDecision ?? "").trim();
-  const guess = (decision: string) => (decision === "transcode" ? "ffmpeg" : "mkvgo");
-  const lines: TrackLine[] = [];
-  if (vDec) {
-    lines.push({
-      id: "video",
-      decision: vDec,
-      engine: session.videoEngine || guess(vDec),
-      backend: vDec === "transcode" ? session.videoBackend ?? "" : "",
-      codec: session.videoCodec,
-      res: session.resolution,
-    });
-  }
-  if (aDec) {
-    lines.push({
-      id: "audio",
-      decision: aDec,
-      engine: session.audioEngine || (aDec === "wasm" ? "client" : guess(aDec)),
-      backend: "",
-      codec: session.audioCodec,
-    });
-  }
-  return lines;
-}
+// The per-track lines live in @evey/api (sessionTrackLines), shared with the
+// phone's session card so the two never disagree on what serves a track.
+export { sessionTrackLines };
 
 const ENGINE_KEYS: Record<string, string> = {
   mkvgo: "admin.sessions.track.engine.mkvgo",

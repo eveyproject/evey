@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { formatTimeMs, type V1ActiveSession } from "@evey/api";
+import { formatTimeMs, sessionTrackLines, type V1ActiveSession } from "@evey/api";
 import { router } from "expo-router";
 import { useTheme } from "../../providers/ThemeProvider";
 import { TrickplayPreview } from "../TrickplayPreview";
@@ -30,12 +30,6 @@ export function formatElapsed(startedAt: string): string {
   return formatTimeMs(diff);
 }
 
-// trackEngine derives the serving tool per track: the copy rung is served by
-// mkvgo's on-demand packager (default), any re-encode by ffmpeg.
-function trackEngine(decision: string): string {
-  return decision === "transcode" ? "ffmpeg" : "mkvgo";
-}
-
 export function playMethodLabel(method: string, t: (k: string) => string): string {
   switch (method) {
     case "direct_play": return t("admin.sessions.directPlay");
@@ -46,44 +40,40 @@ export function playMethodLabel(method: string, t: (k: string) => string): strin
 }
 
 // TrackBadges renders the per-track serving detail (copy vs transcode, served
-// codec, engine) so an operator can tell a copy rung from a real transcode.
+// codec, engine and backend) so an operator can tell a copy rung from a real
+// transcode. The lines come from @evey/api's sessionTrackLines, the same
+// helper the web card uses: the phone used to guess the engine from the
+// decision alone and could name mkvgo for a track ffmpeg was serving.
 function TrackBadges({ session, theme, t }: { session: V1ActiveSession; theme: ReturnType<typeof useTheme>; t: Tr }) {
-  const vDec = session.videoDecision ?? "";
-  const aDec = session.audioDecision ?? "";
-  if (!vDec && !aDec) return null;
-
-  const rows: Array<{ id: string; icon: "film-outline" | "volume-high-outline"; kind: string; decision: string; detail: string }> = [];
-  if (vDec) rows.push({
-    id: "video",
-    icon: "film-outline",
-    kind: t("admin.sessions.track.video"),
-    decision: vDec,
-    detail: [session.videoCodec, session.resolution].filter(Boolean).join(", "),
-  });
-  if (aDec) rows.push({
-    id: "audio",
-    icon: "volume-high-outline",
-    kind: t("admin.sessions.track.audio"),
-    decision: aDec,
-    detail: session.audioCodec ?? "",
-  });
+  const lines = sessionTrackLines(session);
+  if (lines.length === 0) return null;
+  // A key the catalogue does not carry shows the raw server word, never the key.
+  const named = (key: string, raw: string) => {
+    const label = t(key);
+    return label === key ? raw : label;
+  };
 
   return (
     <View style={{ gap: 2, marginTop: 2 }}>
-      {rows.map((r) => {
-        const isTranscode = r.decision === "transcode";
-        const decLabel = t(`admin.sessions.track.${r.id}${isTranscode ? "Transcoded" : "Copied"}`);
+      {lines.map((line) => {
+        const isTranscode = line.decision === "transcode";
+        const decLabel = t(`admin.sessions.track.${line.id}${isTranscode ? "Transcoded" : "Copied"}`);
+        const detail = [line.codec, line.res].filter(Boolean).join(", ");
+        const engine = named(`admin.sessions.track.engine.${line.engine}`, line.engine);
+        const backend = line.backend ? named(`admin.sessions.track.backend.${line.backend}`, line.backend) : "";
         return (
-          <View key={r.id} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
-            <Ionicons name={r.icon} size={11} color={theme.colors.textMuted} />
-            <Text style={{ color: theme.colors.text, fontSize: 10 }}>{r.kind}:</Text>
+          <View key={line.id} style={{ flexDirection: "row", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+            <Ionicons name={line.id === "video" ? "film-outline" : "volume-high-outline"} size={11} color={theme.colors.textMuted} />
+            <Text style={{ color: theme.colors.text, fontSize: 10 }}>{t(`admin.sessions.track.${line.id}`)}:</Text>
             <View style={[styles.badge, { backgroundColor: isTranscode ? `${theme.colors.warning}20` : `${theme.colors.success}20` }]}>
               <Text style={{ fontSize: 9, fontWeight: "600", color: isTranscode ? theme.colors.warning : theme.colors.success }}>
                 {decLabel}
               </Text>
             </View>
-            {r.detail ? <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>({r.detail})</Text> : null}
-            <Text style={{ color: theme.colors.textMuted, fontSize: 10, opacity: 0.7 }}>· {trackEngine(r.decision)}</Text>
+            {detail ? <Text style={{ color: theme.colors.textMuted, fontSize: 10 }}>({detail})</Text> : null}
+            <Text style={{ color: theme.colors.textMuted, fontSize: 10, opacity: 0.7 }}>
+              · {engine}{backend ? ` (${backend})` : ""}
+            </Text>
           </View>
         );
       })}
