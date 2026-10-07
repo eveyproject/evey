@@ -39,7 +39,7 @@ type mediaRequestHandler struct {
 // resolve, sit in an allowed library and pass the parental rating; an
 // ungated caller gets the candidates unchanged.
 func (h *mediaRequestHandler) hideUnreachableMatches(ctx context.Context, cands []appmediarequest.Candidate) {
-	allowedIDs, _ := (&playbackHandler{userAccess: h.userAccess}).getAllowedLibraryIDs(ctx)
+	allowedIDs := allowedLibraryIDsFor(ctx, h.userAccess)
 	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	if allowedIDs == nil && !pf.enforced() {
 		return
@@ -75,7 +75,7 @@ func (h *mediaRequestHandler) hideUnreachableMatches(ctx context.Context, cands 
 // the caller's libraries and parental rating let them see this item. An
 // ungated caller sees everything; a gated one sees nothing it cannot resolve.
 func (h *mediaRequestHandler) mediaItemVisible(ctx context.Context, mediaItemID string) bool {
-	allowedIDs, _ := (&playbackHandler{userAccess: h.userAccess}).getAllowedLibraryIDs(ctx)
+	allowedIDs := allowedLibraryIDsFor(ctx, h.userAccess)
 	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	if allowedIDs == nil && !pf.enforced() {
 		return true

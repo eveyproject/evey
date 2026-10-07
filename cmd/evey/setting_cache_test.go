@@ -54,7 +54,8 @@ func TestCachedBoolSetting_DoesNotCacheAnError(t *testing.T) {
 	defer stop()
 	ctx := context.Background()
 
-	if get(ctx) || get(ctx) {
+	first, second := get(ctx), get(ctx)
+	if first || second {
 		t.Fatal("an unreadable knob reads as off")
 	}
 	if repo.calls != 2 {

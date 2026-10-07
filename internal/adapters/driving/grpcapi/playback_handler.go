@@ -1281,6 +1281,18 @@ func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID st
 	return nil
 }
 
+// allowedLibraryIDsFor is getAllowedLibraryIDs for the handlers that share the
+// playback handler's access port without being one: a lookup error denies
+// (no libraries), it never widens to "unrestricted".
+func allowedLibraryIDsFor(ctx context.Context, userAccess *appuser.AccessService) []string {
+	ids, err := (&playbackHandler{userAccess: userAccess}).getAllowedLibraryIDs(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "library access lookup failed, denying", slog.Any("err", err))
+		return []string{}
+	}
+	return ids
+}
+
 func (h *playbackHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, error) {
 	// Admin bypass is a claims check, independent of whether userAccess is
 	// wired, so it is resolved before the wiring check below - an unwired
