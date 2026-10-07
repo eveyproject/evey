@@ -54,7 +54,9 @@ function ProfileSelectPage() {
       const resp = await userServiceRefreshToken({ profileId: target.id, pinToken });
       if (resp.accessToken) useAuthStore.getState().setTokens(resp.accessToken);
       try { localStorage.setItem(LAST_PROFILE_KEY, target.id); } catch { /* ignore */ }
-      await qc.invalidateQueries();
+      // Clear, not invalidate: the previous profile's rows must not be shown
+      // to the next one (a kids profile after an adult one) while they refetch.
+      qc.clear();
       return "ok";
     } catch (err) {
       // 403 = the server wants a parental PIN proof (gated source or

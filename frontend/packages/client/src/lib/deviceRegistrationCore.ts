@@ -74,6 +74,10 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
     async function connect() {
       if (cancelled) return;
       deviceId = deviceId || (await stateRef.current.getDeviceId());
+      // The effect may have been torn down while the id was being read
+      // (StrictMode's double mount, a sign-out): opening a socket now would
+      // leave a zombie nothing closes.
+      if (cancelled) return;
       const { accessToken: tok, serverUrl: url } = stateRef.current;
       if (!tok || !url) return;
       // wss:// when the server is https, ws:// otherwise. The backend
