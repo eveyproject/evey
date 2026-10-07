@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"fmt"
+	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -49,7 +50,13 @@ func logDownloadRefusal(r *http.Request, mediaID, reason string, claims *domainu
 // --- mediaHandler: stream + download ---
 
 type mediaServe struct {
-	libSvc        MediaItemGetter
+	libSvc MediaItemGetter
+	// itemLookup is the short-TTL cache of the direct-play hot path: a
+	// browser or a television fetches a film as a run of Range requests, and
+	// each used to re-read the item (six index walks) before serving bytes.
+	// Same 10 s staleness as the HLS media lookup; the access and parental
+	// checks below always run live.
+	itemLookup    *pkgcache.TTLCache[*library.MediaItem]
 	artworkRepo   ArtworkReader
 	artworkWriter ArtworkWebPWriter
 	imgConverter  ImageConverter
@@ -111,6 +118,7 @@ func withCastProgress(obs CastFetchObserver) mediaServeOption {
 
 func mediaHandler(libSvc MediaItemGetter, artworkRepo ArtworkReader, baseURL string, libraryAccess LibraryAccessChecker, opts ...mediaServeOption) http.HandlerFunc {
 	h := &mediaServe{libSvc: libSvc, artworkRepo: artworkRepo, baseURL: baseURL, libraryAccess: libraryAccess}
+	h.itemLookup, _ = pkgcache.NewWithMaxSize[*library.MediaItem](0, mediaLookupMax)
 	for _, o := range opts {
 		o(h)
 	}
@@ -122,6 +130,24 @@ func mediaHandler(libSvc MediaItemGetter, artworkRepo ArtworkReader, baseURL str
 			h.handleStream(w, r)
 		}
 	}
+}
+
+// lookupItem reads the item through itemLookup; a miss or an error asks the
+// service, and only a found item is cached.
+func (h *mediaServe) lookupItem(ctx context.Context, mediaID string) (*library.MediaItem, error) {
+	if h.itemLookup != nil {
+		if item, ok := h.itemLookup.Get(mediaID); ok {
+			return item, nil
+		}
+	}
+	item, err := h.libSvc.GetMediaItem(ctx, mediaID)
+	if err != nil {
+		return nil, err
+	}
+	if h.itemLookup != nil {
+		h.itemLookup.Set(mediaID, item, mediaLookupTTL)
+	}
+	return item, nil
 }
 
 func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +165,7 @@ func (h *mediaServe) handleStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
+	item, err := h.lookupItem(r.Context(), mediaID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "media item lookup failed")
