@@ -22,7 +22,7 @@ func (s *CommandService) persistAndDispatch(ctx context.Context, n *notification
 		slog.WarnContext(ctx, "create notification failed", slog.String("profileID", string(n.ProfileID)), slog.Any("err", createErr))
 		return
 	}
-	s.sendPush(ctx, n.ProfileID, push.resolveTitle(s.translator, locale), n.Message)
+	s.sendPush(ctx, n.ProfileID, push.resolveTitle(s.translator, locale), push.resolveBody(s.translator, locale, n.Message))
 	evt := notification.NotificationCreated{
 		NotificationID: n.ID,
 		ProfileID:      n.ProfileID,

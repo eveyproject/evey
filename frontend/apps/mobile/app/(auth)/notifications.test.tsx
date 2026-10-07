@@ -35,6 +35,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("@evey/api", () => ({
   notificationLabel: (_t: unknown, n: { title?: string }) => `label:${n.title}`,
+  notificationMessage: (_t: unknown, n: { message?: string }) => n.message ?? "",
   useNotificationServiceListNotifications: () => api.list,
   useNotificationServiceMarkRead: (o: any) => { api.markReadOpts = o.mutation; return { mutate: api.markRead }; },
   useNotificationServiceMarkAllRead: (o: any) => { api.markAllOpts = o.mutation; return { mutate: api.markAll }; },

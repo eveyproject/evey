@@ -22,7 +22,24 @@ const TITLE_KEYS: Record<string, string> = {
   new_series: "common.notifications.newSeries",
   new_album: "common.notifications.newAlbum",
   backup_failed: "common.notifications.backupFailed",
+  media_request: "common.notifications.mediaRequest",
+  request_answered: "common.notifications.requestAnswered",
 };
+
+// The English labels the server stored for media request notifications before
+// it sent a subject. Rows written then still exist in every queue; stripping
+// the known prefix recovers the title they are about, so they translate too.
+const LEGACY_PREFIXES: Record<string, string> = {
+  media_request: "New media request: ",
+  request_answered: "Your media request was updated: ",
+};
+
+function legacySubject(n: NotificationLabelInput): string | undefined {
+  const prefix = LEGACY_PREFIXES[n.type ?? ""];
+  if (!prefix || !n.title?.startsWith(prefix)) return undefined;
+  const rest = n.title.slice(prefix.length).trim();
+  return rest || undefined;
+}
 
 export interface NotificationLabelInput {
   type?: string;
@@ -45,12 +62,15 @@ function fromStoredTitle(t: Translate, raw: string | undefined): string {
 }
 
 export function notificationLabel(t: Translate, n: NotificationLabelInput): string {
-  const subject = n.subject?.trim();
+  const subject = n.subject?.trim() || legacySubject(n);
   if (!subject) return fromStoredTitle(t, n.title);
 
-  // The type prefix still comes from the stored title: it is what the server
-  // decided this notification IS, and it is already a stable machine value.
-  const rawType = n.title?.includes(":") ? n.title.slice(0, n.title.indexOf(":")) : n.type;
+  // The type prefix comes from the stored title where the server wrote one
+  // ("new_series:..."): it is what the server decided this notification IS,
+  // and it is already a stable machine value. Media request titles carry an
+  // English sentence instead, so their type field is what names them.
+  const titleType = n.title?.includes(":") ? n.title.slice(0, n.title.indexOf(":")) : undefined;
+  const rawType = titleType && TITLE_KEYS[titleType] ? titleType : n.type;
   const i18nKey = TITLE_KEYS[rawType ?? ""];
   if (!i18nKey) return fromStoredTitle(t, n.title);
 
@@ -63,4 +83,43 @@ export function notificationLabel(t: Translate, n: NotificationLabelInput): stri
     counts.push(t("common.notifications.episodeCount", { count: n.episodeCount }));
   }
   return counts.length > 0 ? `${head} (${counts.join(", ")})` : head;
+}
+
+// The media type a request is about, as the server stores it in Message.
+const MEDIA_TYPE_KEYS: Record<string, string> = {
+  movie: "requests.typeMovie",
+  tv: "requests.typeSeries",
+  music: "requests.typeMusic",
+};
+
+const STATUS_KEYS: Record<string, string> = {
+  approved: "requests.statusApproved",
+  rejected: "requests.statusRejected",
+  later: "requests.statusLater",
+};
+
+// "Status: approved - note": the shape the server writes for an answered
+// request. The status word is ours to translate; the note is the operator's,
+// kept verbatim (it may itself contain " - ").
+const ANSWERED_MESSAGE = /^Status:\s*(approved|rejected|later)(?:\s+-\s*([\s\S]*))?$/;
+
+/**
+ * The notification's second line, worded in the viewer's language where the
+ * server stored a machine value: the media type of a new request ("movie"), or
+ * the status of an answered one ("Status: approved - note"). Anything else is
+ * returned as stored.
+ */
+export function notificationMessage(t: Translate, n: { type?: string; message?: string }): string {
+  const message = n.message ?? "";
+  if (n.type === "media_request") {
+    const key = MEDIA_TYPE_KEYS[message.trim()];
+    return key ? t(key) : message;
+  }
+  if (n.type === "request_answered") {
+    const m = ANSWERED_MESSAGE.exec(message.trim());
+    if (!m) return message;
+    const status = t(STATUS_KEYS[m[1]]);
+    return m[2] ? `${status} - ${m[2]}` : status;
+  }
+  return message;
 }

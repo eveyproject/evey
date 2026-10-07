@@ -152,17 +152,23 @@ func (s *CommandService) handleMediaRequestCreated(parentCtx context.Context, ev
 		slog.WarnContext(ctx, "notification: list admin profiles for media.request.created", slog.Any("err", err))
 		return
 	}
+	// Title stays the English label for clients that predate Subject; a client
+	// that reads Subject words the sentence itself. Message is the media type
+	// as a machine value ("movie"), which the client translates too - the push
+	// body is the only copy rendered server-side, hence its own key.
 	title := "New media request: " + e.Title
 	push := pushSpec{
 		key:      "notifications.push.media_request.title",
 		params:   map[string]string{"title": e.Title},
 		fallback: title,
+		bodyKey:  "notifications.push.media_type." + string(e.MediaType),
 	}
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	fanoutID := uuid.New().String()
 	for _, p := range profiles {
 		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypeMediaRequest, title,
 			notification.WithNotificationMessage(string(e.MediaType)),
+			notification.WithLabelParts(e.Title, 0, 0),
 			notification.WithNotificationLevel(notification.LevelAll),
 			notification.WithNotificationExpiresAt(&expires),
 		)
@@ -199,11 +205,20 @@ func (s *CommandService) handleRequestAnswered(parentCtx context.Context, ev sha
 			}
 		}
 	}
+	// Same split as the created event: Title/Message keep the English form
+	// older clients render, Subject lets a current client word the title, and
+	// "Status: <status> - <note>" is a stable shape the client parses to
+	// translate the status word while keeping the operator's note verbatim.
 	title := "Your media request was updated: " + e.Title
 	push := pushSpec{
-		key:      "notifications.push.request_answered.title",
-		params:   map[string]string{"title": e.Title, "status": string(e.Status)},
-		fallback: title,
+		key:        "notifications.push.request_answered.title",
+		params:     map[string]string{"title": e.Title, "status": string(e.Status)},
+		fallback:   title,
+		bodyKey:    "notifications.push.request_status." + string(e.Status),
+		bodyParams: map[string]string{"note": e.Note},
+	}
+	if e.Note != "" {
+		push.bodyKey += "_note"
 	}
 	msg := "Status: " + string(e.Status)
 	if e.Note != "" {
@@ -212,6 +227,7 @@ func (s *CommandService) handleRequestAnswered(parentCtx context.Context, ev sha
 	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
 	n, err := notification.NewNotification(uuid.New().String(), e.ProfileID, notification.TypeRequestAnswered, title,
 		notification.WithNotificationMessage(msg),
+		notification.WithLabelParts(e.Title, 0, 0),
 		notification.WithNotificationLevel(notification.LevelAll),
 		notification.WithNotificationExpiresAt(&expires),
 	)

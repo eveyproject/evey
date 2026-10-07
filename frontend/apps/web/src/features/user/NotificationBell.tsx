@@ -9,7 +9,7 @@ import {
   useNotificationServiceMarkAllRead,
 } from "@evey/api";
 import { toast } from "@evey/store";
-import { translateNotificationTitle, useRelativeTime, notificationUrl } from "./notificationUtils";
+import { translateNotificationTitle, translateNotificationMessage, useRelativeTime, notificationUrl } from "./notificationUtils";
 
 interface Notification {
   id?: string;
@@ -144,7 +144,7 @@ export function NotificationBell() {
                     } ${n.readAt ? "opacity-50" : ""}`}
                   >
                     <p className="text-sm font-medium text-[var(--text)] truncate">{translateNotificationTitle(t, n)}</p>
-                    <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-0.5">{n.message}</p>
+                    <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-0.5">{translateNotificationMessage(t, n)}</p>
                     <p className="text-xs text-[var(--text-muted)] mt-1">{relativeTime(n.createdAt)}</p>
                   </button>
                 );
