@@ -142,7 +142,7 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 func (h *activityHandler) filterPlayHistoryByAccess(ctx context.Context, entries []*activity.PlayHistoryEntry) []*activity.PlayHistoryEntry {
 	// Reuse the playback handler's grant lookup (admin bypass, deny when the
 	// access port is unwired, deny on lookup error) instead of a second copy.
-	allowedIDs, _ := (&playbackHandler{userAccess: h.userAccess}).getAllowedLibraryIDs(ctx)
+	allowedIDs := allowedLibraryIDsFor(ctx, h.userAccess)
 	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
 	if allowedIDs == nil && !pf.enforced() {
 		return entries
