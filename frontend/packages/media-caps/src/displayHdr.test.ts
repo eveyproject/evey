@@ -16,7 +16,7 @@ describe("displaySupportsHdr", () => {
     expect(displaySupportsHdr(["dovi"])).toBe(false);
   });
 
-  // The Android TV box of the living room, driving a old SDR panel: supportedHdrTypes=[]
+  // The Android TV box of the living room, driving an old SDR panel: supportedHdrTypes=[]
   // on every mode. The tone-map must stay.
   it("treats an SDR panel and a missing probe the same way", () => {
     expect(displaySupportsHdr([])).toBe(false);

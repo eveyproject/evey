@@ -5,7 +5,7 @@ import type { AudioProbe } from "./audioProbe";
 // The declaration used to come from MediaCodecList alone: "do I have a
 // DECODER". That is the wrong question twice over. A tablet can carry an
 // AC-3/E-AC-3 decoder whose decode-and-downmix path is unusable - measured
-// live (2026-07-30 and again 2026-08-31, a tablet brand 23043RP34G): direct-played
+// live (2026-07-30 and again 2026-08-31, a tablet): direct-played
 // AC-3 renders choppy by stretches, while the sink's own answer
 // (isDirectPlaybackSupported) says plainly that it does NOT take those
 // formats. And a TV box can have NO decoder yet pass the bitstream untouched
@@ -16,7 +16,7 @@ import type { AudioProbe } from "./audioProbe";
 //   - directPlayback[codec] (API 29+, AudioManager.isDirectPlaybackSupported)
 //   - or the codec's encoding among directProfiles (API 33+);
 // anywhere else, only the encodings of a plugged-in HDMI sink. A phone or a
-// tablet answering yes on its own speaker (a phone brand, a tablet brand: dts) is never
+// tablet answering yes on its own speaker (several phones and tablets: dts) is never
 // passed through, and with no decoder the track plays silent (a tablet, 2026-10-05).
 // No evidence (probe missing, API < 29) means no declaration: the cost is a
 // server-side audio-only transcode (video stays copy), the alternative is
@@ -51,7 +51,7 @@ export function sinkAcceptsCodec(probe: AudioProbe, codec: string): boolean {
 /**
  * The audio codecs to declare, given the decoder list (MediaCodecList side)
  * and the raw output probe. Family codecs need the sink's yes - a decoder is
- * neither sufficient (a tablet brand decode-and-stutter) nor necessary (passthrough
+ * neither sufficient (tablet decode-and-stutter) nor necessary (passthrough
  * box). A null probe (module absent, probe failed) declares none of the
  * family: better one audio transcode too many than a choppy film.
  *

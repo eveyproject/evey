@@ -126,7 +126,7 @@ describe("maxAudioChannels reaches the stream URL", () => {
     expect(getStreamInfoMock).toHaveBeenLastCalledWith("m1", expect.objectContaining({ supportsHdr: true }));
   });
 
-  // His living room: a Android TV box on a old SDR panel, supportedHdrTypes=[] on every
+  // His living room: an Android TV box on an old SDR panel, supportedHdrTypes=[] on every
   // mode. The tone-map must stay, and the URL must not grow a param.
   it("stays SDR for an SDR panel and for a box that cannot answer", async () => {
     getAudioProbeMock.mockResolvedValue(null);

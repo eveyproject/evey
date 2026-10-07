@@ -142,10 +142,10 @@ func TestVideoKeyframesMissing(t *testing.T) {
 func TestClientProfileFromRequest_DropsEAC3ForTheSilentBuilds(t *testing.T) {
 	req := &eveyv1.GetStreamInfoRequest{SupportedAudioCodecs: []string{"aac", "ac3", "eac3"}}
 
-	got := clientProfileFromRequest(req, "EveyMobile/0.0.1-beta.69 (Android 16; Phone Pro)")
+	got := clientProfileFromRequest(req, "EveyMobile/0.0.1-beta.69 (Android 16; Phone)")
 	assert.Equal(t, []string{"aac", "ac3"}, got.AudioCodecs)
 
-	got = clientProfileFromRequest(req, "EveyMobile/0.0.1-beta.70 (Android 16; Phone Pro)")
+	got = clientProfileFromRequest(req, "EveyMobile/0.0.1-beta.70 (Android 16; Phone)")
 	assert.Equal(t, []string{"aac", "ac3", "eac3"}, got.AudioCodecs)
 
 	// A declaration left empty by the correction falls back to the default.

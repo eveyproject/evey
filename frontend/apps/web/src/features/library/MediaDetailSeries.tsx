@@ -158,7 +158,7 @@ function SeasonCard({ seasonId }: { seasonId: string }) {
           // pointer-events-none until it is actually revealed. `opacity-0` still
           // receives taps, and a phone never hovers - so this invisible overlay
           // was swallowing the tap on the poster and starting the first episode
-          // instead of opening the season. Verified on a Phone emulation.
+          // instead of opening the season. Verified on a phone emulation.
           className="absolute inset-x-0 top-0 aspect-[2/3] flex items-center justify-center bg-black/40 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto transition-opacity-fast rounded-[var(--radius-md)]"
         >
           <Play size={ICON["2xl"]} fill="currentColor" className="text-white" />
