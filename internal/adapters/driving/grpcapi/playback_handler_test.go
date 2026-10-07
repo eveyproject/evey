@@ -1560,9 +1560,28 @@ func TestServedAudioBitrateBps(t *testing.T) {
 				Bitrate:    tc.srcBitrate,
 			}}
 			d := tc.decision
-			assert.Equal(t, tc.want, servedAudioBitrateBps(&d, streams))
+			assert.Equal(t, tc.want, servedAudioBitrateBps(&d, streams, 0))
 		})
 	}
+}
+
+// The panel quotes the track the viewer picked, not the file's first one: a
+// 5.1 first track and a stereo commentary chosen must read as stereo.
+func TestServedAudioBitrate_UsesTheChosenTrack(t *testing.T) {
+	six, two := 6, 2
+	first, second := int64(640_000), int64(128_000)
+	streams := []*library.MediaStream{
+		{StreamType: library.Audio, Channels: &six, Bitrate: &first},
+		{StreamType: library.Audio, Channels: &two, Bitrate: &second},
+	}
+	copied := transcoding.PlaybackDecision{AudioDecision: "copy", VideoDecision: "copy"}
+	assert.Equal(t, second, servedAudioBitrateBps(&copied, streams, 1))
+	assert.Equal(t, first, servedAudioBitrateBps(&copied, streams, 0))
+	assert.Equal(t, first, servedAudioBitrateBps(&copied, streams, 7), "an ordinal past the last track falls back to the first")
+
+	transcoded := transcoding.PlaybackDecision{AudioDecision: "transcode", VideoDecision: "transcode", AudioBitrate: 128}
+	assert.Equal(t, 2, servedAudioChannels(&transcoded, streams, 1))
+	assert.Equal(t, 6, servedAudioChannels(&transcoded, streams, 0))
 }
 
 // During a cast the TV consumes admin commands itself (its alive beacon polls
