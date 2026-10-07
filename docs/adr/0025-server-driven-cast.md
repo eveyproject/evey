@@ -1,7 +1,6 @@
 # ADR 0025 - Server-driven cast with a custom Web Receiver
 
-Date: 2026-07-25
-Status: Accepted, amended 2026-09-30 (see Amendment)
+Status: Accepted, amended (see Amendment)
 
 ## Context
 
@@ -42,14 +41,13 @@ decisions per device audio-capability profile.
   at least one TV model) can still cause a stuck cast session; this is tracked
   and fixed per-device profile, not by this ADR.
 
-## Amendment - 2026-09-30
+## Amendment
 
 Two points of the decision no longer describe the product:
 
 - **The wasm AC-3 path on the receiver is off by default.** A low-end
-  operator box was killed twice mid-film with that path in play
-  (2026-07-30), and its decoder measured 3.13x real time, so the path bought
-  nothing: the AAC rendition plays the same film with sound. The receiver
+  box was killed twice mid-film with that path in play, and its decoder
+  measured over three times real time, so the path bought nothing: the AAC rendition plays the same film with sound. The receiver
   keeps the code, and `EVEY_CAST_WASM_AUDIO_ENABLED=true` turns it back on;
   without it a cast gets transcoded AAC, or AC-3/E-AC-3 passthrough when the
   receiver reports native Dolby support (`CastWasmAudioEnabled`,

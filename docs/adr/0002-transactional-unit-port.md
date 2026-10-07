@@ -1,11 +1,10 @@
 # ADR-0002: Transactional unit port
 
 - Status: Accepted
-- Date: 2026-04-13
 
 ## Context
 
-Audit on 2026-04-13 found `UserService.CreateUser` was non-atomic: it wrote to `users`, then `user_preferences`, then `favorites` through three separate repository calls. A failure between the second and third write left orphan rows. Several other app services had the same pattern.
+An audit found `UserService.CreateUser` was non-atomic: it wrote to `users`, then `user_preferences`, then `favorites` through three separate repository calls. A failure between the second and third write left orphan rows. Several other app services had the same pattern.
 
 We need a way for the application layer to compose multi-aggregate writes inside a single transaction without leaking `*sql.Tx` into the domain.
 

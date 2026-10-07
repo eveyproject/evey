@@ -1,7 +1,6 @@
 # ADR-0018: CMCD-based QoE telemetry with a non-blocking drop-on-full sink
 
 - Status: Accepted
-- Date: 2026-06-14
 
 ## Context
 

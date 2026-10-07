@@ -1,6 +1,5 @@
 # ADR 0024 - App-layer PlaybackPlan resolver (one resolution per request)
 
-Date: 2026-07-18
 Status: Accepted
 
 ## Context

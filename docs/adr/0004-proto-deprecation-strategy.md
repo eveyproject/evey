@@ -1,7 +1,6 @@
 # ADR-0004: Proto deprecation strategy
 
 - Status: Accepted
-- Date: 2026-04-16
 
 ## Context
 

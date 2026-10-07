@@ -1,7 +1,6 @@
 # ADR-0011: External intro providers before the heuristic pipeline
 
 - Status: Accepted
-- Date: 2026-05-04
 
 ## Context
 

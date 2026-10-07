@@ -1,7 +1,6 @@
 # ADR-0020: HLS-native audio rendition (EXT-X-MEDIA) for multi-language switching
 
 - Status: Accepted
-- Date: 2026-06-14
 
 ## Context
 
@@ -31,7 +30,7 @@ Audio is served as an HLS-native **rendition group** using `EXT-X-MEDIA`, with a
 - **Cost:** a second segment-production path to maintain alongside the muxed one; the manifest generator carries both shapes. Contributors adding audio-codec support (passthrough, TrueHD/Atmos → E-AC-3 JOC) need to understand the rendition-group model, hence this ADR. The flag-off default means the path only exercises in installs that enable it - keep the muxed path as the safe fallback.
 - Web clients without native HLS audio-group switching fall back to the muxed behaviour; the feature targets Safari/AVPlayer/tvOS/cast first.
 
-## Amendment - 2026-07-23: the flag now defaults ON
+## Amendment: the flag now defaults ON
 
 The decision above was written when the rendition path was new and states it is
 "behind a flag that defaults **off**". That is no longer true, and had not been

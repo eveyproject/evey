@@ -1,8 +1,7 @@
 # ADR 0023 - Refresh-token rotation grace window (sibling sessions for race losers)
 
-Date: 2026-07-18
 Status: Accepted
-Supersedes: the 2026-04 "strict single-use rotation" stance
+Supersedes: the earlier "strict single-use rotation" stance
 
 ## Context
 
@@ -17,9 +16,9 @@ originally purged the user's *entire* session set, and every purge observed in
 staging was a false positive (a race loser or an interrupted rotation), so the
 purge was dropped. But the loser itself was still rejected with 401 - which
 kills that tab outright: every API call fails (profile, notifications, images)
-until a manual reload. Observed live on 2026-07-18 breaking the media-requests
-page. An earlier decision (2026-04) had accepted this as a dev-only annoyance;
-it proved to hit real usage.
+until a manual reload. Observed live on the media-requests page; an earlier
+decision had accepted this as a dev-only annoyance, and it proved to hit real
+usage.
 
 ## Decision
 

@@ -1,7 +1,6 @@
 # ADR-0014: Landlock plugin sandbox, applied by a launcher shim
 
 - Status: Accepted
-- Date: 2026-05-24
 
 ## Context
 

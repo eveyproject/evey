@@ -1,7 +1,6 @@
 # ADR-0010: In-process event bus with typed domain events
 
 - Status: Accepted
-- Date: 2026-04-20
 
 ## Context
 
@@ -36,7 +35,7 @@ emits it.
   call from the scan service, because the index must be consistent with the row
   that was just written rather than eventually consistent with it.
 
-## Amendment (2026-09-23): every published event is a webhook contract
+## Amendment: every published event is a webhook contract
 
 The webhook service subscribes to `*` and serialises the event struct as the
 payload, so an event with no in-process subscriber is still delivered to any
@@ -44,14 +43,14 @@ webhook configured for `*` or for its name. "No consumer" is therefore never
 enough to delete an event: removing or renaming one, or changing its fields, is
 an observable change for webhook receivers.
 
-An audit on this date found all 46 declared events published. Three are
+An audit found all 46 declared events published. Three are
 redundant on the music side and were kept deliberately, for that reason:
 `music.track.scanned` and `music.track.added` are published together, as are
 `music.track.deleted` and `music.track.removed`, and `music.album.created` is
 published for every scanned track that has an album, not when an album first
 appears. Collapsing them is a breaking change to schedule as such, not a cleanup.
 
-## Amendment (2026-09-26): the form offers what is published
+## Second amendment: the form offers what is published
 
 The web and phone webhook forms offered three names nothing published
 (`media.item.updated`, `user.login.failed`, `backup.created`) and hid most of
@@ -62,4 +61,4 @@ typed username and a reason (never the password), `backup.created` for manual
 and scheduled backups alike (`backup.failed` too) - and both forms read one
 list, `frontend/packages/client/src/lib/webhookEvents.ts`, which
 `contractguard/webhook_events_test.go` holds equal to the `EventName()`
-declarations of `internal/domain` (50 events on this date).
+declarations of `internal/domain` (50 events at the time of writing).

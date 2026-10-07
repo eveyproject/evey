@@ -1,7 +1,6 @@
 # ADR-0031: The demo is the production binary behind one boot flag
 
 - Status: Accepted
-- Date: 2026-09-28
 - Scope: the public demo instance (`EVEY_DEMO=1`). Design history in
   [docs/design/demo-mode.md](../design/demo-mode.md).
 

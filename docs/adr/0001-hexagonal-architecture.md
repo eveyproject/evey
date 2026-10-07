@@ -1,7 +1,6 @@
 # ADR-0001: Hexagonal architecture (ports & adapters)
 
 - Status: Accepted
-- Date: 2026-01-15
 
 ## Context
 

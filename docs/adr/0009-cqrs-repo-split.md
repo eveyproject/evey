@@ -1,7 +1,6 @@
 # ADR-0009: CQRS repository split
 
 - Status: Accepted
-- Date: 2026-04-20
 
 ## Context
 
@@ -46,7 +45,7 @@ The union interface embeds both so it drifts automatically when either CQRS half
 
 ## Applied scope
 
-- `library.LibraryRepository` - union of `LibraryCommandRepo` + `LibraryQueryRepo`. Watcher migrated 2026-04-20 to `LibraryQueryRepo`. Only remaining caller is the postgres type assertion - harmless.
+- `library.LibraryRepository` - union of `LibraryCommandRepo` + `LibraryQueryRepo`. Watcher migrated to `LibraryQueryRepo`. Only remaining caller is the postgres type assertion - harmless.
 - `library.MediaItemRepository` → `MediaItemCommandRepo` + `MediaItemQueryRepo` split partial. `watcher.go` migrated; `library_repo.go:114` still uses the unified port. Further migration remains in the backlog (large blast radius, needs a dedicated pass).
 
 ## Consequences
@@ -61,13 +60,12 @@ The union interface embeds both so it drifts automatically when either CQRS half
 - `internal/domain/library/queries.go` - `LibraryQueryRepo`
 - `internal/domain/library/commands.go` - `LibraryCommandRepo`
 - `internal/app/library/watcher.go` - first narrow-port caller (read-only)
-- Commit 2026-04-20: `refactor(library): LibraryRepository is now an embed of Command+Query repos`
 
-## Amendment (2026-05-23)
+## Amendment
 
 For `library`, migration is **complete**: the transitional `LibraryRepository` union interface has been removed from `ports.go` (the postgres adapter and `FakeLibraryRepository` satisfy `LibraryCommandRepo` + `LibraryQueryRepo` directly). The "Applied scope" notes above describe the mid-migration state; the union no longer exists. `MediaItemRepository` is still a god-interface (its split remains in the backlog) - that part stands.
 
-## Amendment (2026-09-23)
+## Second amendment
 
 `MediaItemRepository` is gone. It was never an embed of the two halves but a
 handwritten ten-method interface, so it did not drift *with* them, it drifted

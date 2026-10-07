@@ -1,6 +1,5 @@
 # ADR 0021 - Plugins on TV: WebView portage now, native SDUI renderer later
 
-Date: 2026-07-09
 Status: Accepted
 Scope: phase 1 implemented, phase 2 planned
 

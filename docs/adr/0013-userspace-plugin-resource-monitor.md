@@ -1,7 +1,6 @@
 # ADR-0013: Userspace plugin resource monitor (cgroups abandoned)
 
 - Status: Accepted
-- Date: 2026-05-23
 
 ## Context
 

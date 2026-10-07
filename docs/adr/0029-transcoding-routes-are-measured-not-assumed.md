@@ -1,12 +1,10 @@
 # ADR-0029: Transcoding routes are measured, not assumed
 
 - Status: Accepted
-- Date: 2026-09-13 (decisions taken 2026-09-12/13, recorded 2026-09-17; the
-  no-evidence rule and the calibration matrix aligned with the code 2026-09-17)
 
 ## Context
 
-Until September 2026 the transcoding stack reasoned about the host, not about
+Before this decision the transcoding stack reasoned about the host, not about
 the route a session actually runs. Admission priced every hardware session
 from one cumulative "HW rung" benchmarked with bare presets the runtime never
 emits; the accelerator was a per-host choice (VAAPI first when present); a
@@ -14,7 +12,7 @@ failed GPU session demoted the whole host on the word of one ffmpeg exit; and
 the bitrate ladder was assembled from rules smeared across the plan resolver,
 the producers and the ffmpeg builders.
 
-Measured on 2026-09-12/13 against real sessions, that model was wrong in both
+Measured against real sessions, that model was wrong in both
 directions: the cumulative rung over-priced a 4K GPU session by x1.65 and
 mis-classed the CPU tone-map bridge as a pure GPU cost, so the limiter refused
 viewers a box could serve and admitted sessions it could not. A box with two
@@ -98,7 +96,7 @@ confirms).
   to a measured route (the H.264 variant on the same GPU, else software) and
   the calibration matrix is derived from the resolver's own shapes so that
   refusal only ever meets a route the host does not serve. A new accelerator
-  (RKMPP, arm64, 2026-09) enters by being certified and measured through the
+  (RKMPP on arm64) enters by being certified and measured through the
   same probes, not by a table entry; a new route class or codec enters by
   extending `RuntimeRouteShapes` and its measuring strategy together.
 - The price is the session's STEADY-STATE consumption, a budget of averages,

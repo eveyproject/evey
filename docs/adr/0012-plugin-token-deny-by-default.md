@@ -1,7 +1,6 @@
 # ADR-0012: Deny-by-default authorization for plugin tokens
 
 - Status: Accepted
-- Date: 2026-05-23
 - Extends: [ADR-0003](0003-plugin-scoped-tokens.md) - refines [ADR-0005](0005-two-layer-authorization.md)
 
 ## Context
