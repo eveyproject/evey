@@ -26,3 +26,6 @@ disabledDesc: El administrador ha desactivado las solicitudes de contenido para 
 year: "({{year}})"
 inLibrary: "Ya disponible"
 watchNow: "Ver ahora"
+openOn: "Abrir en {{site}}"
+ratingLabel: "Valoración {{rating}} sobre 10"
+releaseDateLabel: "Fecha de estreno: {{date}}"

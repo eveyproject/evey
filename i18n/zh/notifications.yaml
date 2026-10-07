@@ -35,6 +35,19 @@ push:
     title: "插件错误"
   plugin_error_id:
     title: "插件错误：{plugin}"
+  # Push bodies for the media request events: the stored Message is a
+  # machine value the clients translate; the push is rendered here.
+  media_type:
+    movie: "电影"
+    tv: "剧集"
+    music: "音乐"
+  request_status:
+    approved: "已批准"
+    rejected: "已拒绝"
+    later: "稍后处理"
+    approved_note: "已批准 - {note}"
+    rejected_note: "已拒绝 - {note}"
+    later_note: "稍后处理 - {note}"
 email:
   open: "打开 {server}：{url}"
   sent_by: "由 {server} 发送。"

@@ -127,6 +127,8 @@ notifications:
   episodeCount_one: "{{count}} épisode"
   episodeCount_other: "{{count}} épisodes"
   backupFailed: "Échec de la sauvegarde planifiée"
+  mediaRequest: "Nouvelle demande de média : {{name}}"
+  requestAnswered: "Votre demande de média a été mise à jour : {{name}}"
   clearConfirm: Supprimer toutes les notifications ?
   clearTitle: Effacer les notifications
   clearFailed: "Échec de la suppression"

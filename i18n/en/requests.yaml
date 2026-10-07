@@ -26,3 +26,6 @@ disabledDesc: The administrator has disabled media requests for your account.
 year: "({{year}})"
 inLibrary: "Already available"
 watchNow: "Watch now"
+openOn: "Open on {{site}}"
+ratingLabel: "Rating {{rating}} out of 10"
+releaseDateLabel: "Release date: {{date}}"

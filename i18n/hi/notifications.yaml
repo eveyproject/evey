@@ -35,6 +35,19 @@ push:
     title: "प्लगइन त्रुटि"
   plugin_error_id:
     title: "प्लगइन त्रुटि: {plugin}"
+  # Push bodies for the media request events: the stored Message is a
+  # machine value the clients translate; the push is rendered here.
+  media_type:
+    movie: "फ़िल्म"
+    tv: "सीरीज़"
+    music: "संगीत"
+  request_status:
+    approved: "स्वीकृत"
+    rejected: "अस्वीकृत"
+    later: "बाद में"
+    approved_note: "स्वीकृत - {note}"
+    rejected_note: "अस्वीकृत - {note}"
+    later_note: "बाद में - {note}"
 email:
   open: "{server} खोलें: {url}"
   sent_by: "{server} द्वारा भेजा गया।"

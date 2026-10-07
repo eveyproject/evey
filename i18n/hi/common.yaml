@@ -127,6 +127,8 @@ notifications:
   episodeCount_one: "{{count}} एपिसोड"
   episodeCount_other: "{{count}} एपिसोड"
   backupFailed: "निर्धारित बैकअप विफल"
+  mediaRequest: "नया मीडिया अनुरोध: {{name}}"
+  requestAnswered: "आपका मीडिया अनुरोध अपडेट किया गया: {{name}}"
   clearConfirm: सभी सूचनाएं हटाएं?
   clearTitle: सूचनाएं साफ़ करें
   clearFailed: सूचनाएं साफ़ करने में विफल

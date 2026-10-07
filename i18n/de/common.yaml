@@ -125,6 +125,8 @@ notifications:
   episodeCount_one: "{{count}} Folge"
   episodeCount_other: "{{count}} Folgen"
   backupFailed: "Geplante Sicherung fehlgeschlagen"
+  mediaRequest: "Neue Medienanfrage: {{name}}"
+  requestAnswered: "Deine Medienanfrage wurde aktualisiert: {{name}}"
   clearConfirm: Alle Benachrichtigungen löschen?
   clearTitle: Benachrichtigungen löschen
   clearFailed: Benachrichtigungen konnten nicht gelöscht werden

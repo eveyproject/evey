@@ -35,6 +35,19 @@ push:
     title: "Plugin error"
   plugin_error_id:
     title: "Plugin error: {plugin}"
+  # Push bodies for the media request events: the stored Message is a
+  # machine value the clients translate; the push is rendered here.
+  media_type:
+    movie: "Movie"
+    tv: "Series"
+    music: "Music"
+  request_status:
+    approved: "Approved"
+    rejected: "Rejected"
+    later: "Later"
+    approved_note: "Approved - {note}"
+    rejected_note: "Rejected - {note}"
+    later_note: "Later - {note}"
 email:
   open: "Open {server}: {url}"
   sent_by: "Sent by {server}."
