@@ -61,10 +61,14 @@ function SearchPage() {
   const { recents, push: pushRecent, remove: removeRecent, clear: clearRecents } = useRecentSearches();
 
   useEffect(() => {
-    if (q !== undefined && q !== inputValue) {
+    // The URL follows the DEBOUNCED input, so a q that equals it is this
+    // page's own echo of what was typed: syncing it back erased the letters
+    // typed after the debounce fired (and the trailing space before trim).
+    // Only an outside change (back/forward, a link) reaches the field.
+    if (q !== undefined && q !== inputValue && q !== debouncedQuery) {
       setInputValue(q);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- inputValue excluded to avoid loop: q → setInputValue → inputValue changes → re-run
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- inputValue/debouncedQuery excluded to avoid loop: q → setInputValue → inputValue changes → re-run
   }, [q]);
 
   // Keep the scope in sync when the URL kind changes (e.g. arriving from the
