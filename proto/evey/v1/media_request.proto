@@ -104,6 +104,13 @@ message MediaRequestProto {
   google.protobuf.Timestamp answered_at = 15;
   // requester_name is populated on the admin moderation view for display.
   string requester_name = 16;
+  // What the requester saw when picking the title, kept so the operator can
+  // judge the request without opening a browser: the synopsis, the release
+  // date (YYYY-MM-DD, empty when the provider had none) and the community
+  // rating on a 0-10 scale (0 = unrated).
+  string overview = 17;
+  string release_date = 18;
+  double rating = 19;
 }
 
 message TitleCandidate {
@@ -123,6 +130,10 @@ message TitleCandidate {
   // than guess from the album title.
   bool in_library = 7;
   string media_item_id = 8;
+  // release_date is the provider's premiere date as YYYY-MM-DD (empty when
+  // unknown); rating is the community score on a 0-10 scale (0 = unrated).
+  string release_date = 9;
+  double rating = 10;
 }
 
 message SearchTitlesRequest {
@@ -142,6 +153,10 @@ message CreateRequestRequest {
   string title = 4;
   int32 year = 5;
   string poster_url = 6;
+  // Copied from the TitleCandidate the requester picked (see MediaRequestProto).
+  string overview = 7;
+  string release_date = 8;
+  double rating = 9;
 }
 
 message ListMyRequestsRequest {

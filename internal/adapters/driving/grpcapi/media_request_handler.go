@@ -3,6 +3,7 @@ package grpcapi
 import (
 	"context"
 	"errors"
+	"time"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
@@ -58,6 +59,12 @@ func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.Sear
 		if c.Year != nil {
 			tc.Year = int32(*c.Year)
 		}
+		if c.ReleaseDate != nil {
+			tc.ReleaseDate = c.ReleaseDate.Format(dateOnly)
+		}
+		if c.Rating != nil {
+			tc.Rating = *c.Rating
+		}
 		resp.Results = append(resp.Results, tc)
 	}
 	return resp, nil
@@ -76,10 +83,20 @@ func (h *mediaRequestHandler) CreateRequest(ctx context.Context, req *eveyv1.Cre
 		ProviderID: req.ProviderId,
 		Title:      req.Title,
 		PosterURL:  req.PosterUrl,
+		Overview:   req.Overview,
 	}
 	if req.Year > 0 {
 		y := int(req.Year)
 		in.Year = &y
+	}
+	// A malformed date is dropped rather than refused: it is decoration the
+	// client copied from a search result, not something the requester typed.
+	if d, err := time.Parse(dateOnly, req.ReleaseDate); err == nil {
+		in.ReleaseDate = &d
+	}
+	if req.Rating > 0 {
+		r := req.Rating
+		in.Rating = &r
 	}
 	created, err := h.svc.CreateRequest(ctx, shared.ProfileID(claims.ProfileID), claims.UserID, in)
 	if err != nil {
@@ -260,12 +277,23 @@ func toMediaRequestProto(r *mediarequest.Request, requesterName string) *eveyv1.
 		UpdatedAt:     toTimestamppb(r.UpdatedAt),
 		AnsweredAt:    toTimestamppbPtr(r.AnsweredAt),
 		RequesterName: requesterName,
+		Overview:      r.Overview,
 	}
 	if r.Year != nil {
 		p.Year = int32(*r.Year)
 	}
+	if r.ReleaseDate != nil {
+		p.ReleaseDate = r.ReleaseDate.Format(dateOnly)
+	}
+	if r.Rating != nil {
+		p.Rating = *r.Rating
+	}
 	return p
 }
+
+// dateOnly is the wire form of a release date: the provider's own format,
+// unambiguous and sortable, without inventing a time of day.
+const dateOnly = "2006-01-02"
 
 // mapMediaRequestError translates domain errors to gRPC status codes.
 func mapMediaRequestError(ctx context.Context, tr *eveyi18n.Translator, op string, err error) error {
