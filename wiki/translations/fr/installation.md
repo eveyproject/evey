@@ -1,8 +1,8 @@
 ---
-source_sha: 29c3c3bee4511329f7593cd5c80bd27346da9d87fb5b7cd07624462bd864257b
+source_sha: 4b14a032f225f707829e1d00b578f2e81bee81627ef8b5932214d7b1d79efab7
 reviewed: true
 ---
-# Installation
+# Installation { #install }
 
 Evey tient dans un seul conteneur. L'image sert l'API et l'interface web sur
 un même port, et fait tourner sa propre base de données (Postgres) et son
@@ -18,7 +18,7 @@ mémoire ou de CPU.
     obligatoire). Utilisez le fichier de cette page. L'autre disposition est
     décrite dans [Déploiements avancés](operations/advanced-deployments.md).
 
-## Prérequis
+## Prérequis { #requirements }
 
 - Docker avec Compose v2 (`docker compose`, et non l'ancien `docker-compose`).
 - Un disque persistant pour les données d'Evey (le fichier compose ci-dessous
@@ -30,7 +30,7 @@ Evey sert du HTTP simple. Pour y accéder depuis l'extérieur en HTTPS, vous
 placerez plus tard un reverse proxy devant : voir
 [Accès distant et HTTPS](administration/remote-access.md).
 
-## Le fichier compose
+## Le fichier compose { #the-compose-file }
 
 Enregistrez ce contenu sous `docker-compose.yml` et remplacez le chemin de vos
 médias sur la dernière ligne de `volumes`.
@@ -73,7 +73,7 @@ volumes:
    `docker stop`. Les 10 secondes par défaut de Docker sont courtes pour un
    gros catalogue.
 
-## Premier démarrage
+## Premier démarrage { #first-launch }
 
 ```bash
 docker compose up -d
@@ -88,7 +88,7 @@ Ouvrez ensuite `http://<adresse-du-serveur>:9091`. Un serveur sans
 administrateur s'ouvre sur l'assistant de configuration : poursuivez avec la
 [Première configuration](getting-started/first-setup.md).
 
-## Où sont les données
+## Où sont les données { #where-the-data-lives }
 
 | Emplacement | Contenu | Peut-on le supprimer ? |
 | --- | --- | --- |
@@ -96,7 +96,7 @@ administrateur s'ouvre sur l'assistant de configuration : poursuivez avec la
 | Volume `evey-cache` | Segments transcodés, photos et pochettes redimensionnées | Oui. Tout se régénère à la demande. |
 | Vos dossiers de médias | Vos fichiers | Evey ne les supprime pas : retirer un titre dans Evey le retire de la bibliothèque, pas du disque. Il y écrit dans trois cas : une réparation lancée depuis la Santé des médias (l'original est gardé en copie de secours), les sous-titres téléchargés depuis OpenSubtitles (un dossier `.subtitles` à côté du film), et un fichier de test de quelques secondes qui vérifie que la surveillance du dossier reçoit toujours les événements. |
 
-## Variantes courantes
+## Variantes courantes { #common-variations }
 
 Chacune tient en quelques lignes ajoutées au même fichier.
 
@@ -129,7 +129,7 @@ conteneur : voir [Accélération matérielle](administration/hardware-accelerati
       `group_add:` décrites dans
       [Accélération matérielle](administration/hardware-acceleration.md).
 
-## Ce que vous n'avez pas à configurer
+## Ce que vous n'avez pas à configurer { #what-you-do-not-need-to-configure }
 
 La capacité de transcodage, la carte graphique, le mode de lecture adapté à
 chaque appareil et l'accès distant sont décidés par le serveur : il mesure la
