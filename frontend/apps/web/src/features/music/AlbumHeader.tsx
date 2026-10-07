@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Music, Play, Shuffle } from "lucide-react";
-import { useAuthStore } from "@evey/store";
+import { useImageToken } from "@/lib/imageToken";
 import { formatDurationSec } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { ICON } from "@/constants/iconSizes";
@@ -20,7 +20,7 @@ export function AlbumHeader({
   onShuffle: () => void;
 }) {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const accessToken = useImageToken();
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   const cover = coverArtSrc(album.CoverArtURL, tokenParam, 400);
   const facts = [

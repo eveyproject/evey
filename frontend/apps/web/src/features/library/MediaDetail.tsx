@@ -5,7 +5,7 @@ import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceGetSeriesAggregate,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useImageToken } from "@/lib/imageToken";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useStreamToken } from "@/hooks/useStreamToken";
 import { formatDurationMs } from "@evey/api";
@@ -50,7 +50,7 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
     { query: { enabled: !!item.parentId && (item.type === "MEDIA_ITEM_TYPE_SEASON" || isEpisode) } } as never,
   );
 
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const accessToken = useImageToken();
 
   // Always route through backend endpoint - see MediaCard for the ORB rationale.
   // The raw item.artwork[].url is the external provider URL (Amazon CDN for

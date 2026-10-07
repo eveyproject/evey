@@ -1,5 +1,6 @@
+import { useImageToken } from "@/lib/imageToken";
 import { useTranslation } from "react-i18next";
-import { useAuthStore, toast } from "@evey/store";
+import { toast } from "@evey/store";
 import { Music, Download } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { MediaGrid } from "@/features/library/MediaGrid";
@@ -26,7 +27,7 @@ export function AlbumsTab({
   onAlbumClick: (a: Album) => void;
 }) {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const accessToken = useImageToken();
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   // A failed album fetch must not collapse into "no albums found" - that reads
   // as an empty library when the server actually errored.
