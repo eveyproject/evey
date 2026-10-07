@@ -105,6 +105,9 @@ func TestFeedHandler_ContinueWatching_Success(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	assert.Equal(t, "m1", resp.Items[0].MediaItemId)
 	assert.Equal(t, int64(5000), resp.Items[0].PositionMs)
+	// The enum name, as MediaItem.type reads everywhere else - the clients'
+	// type labels and badges key on it, and the bare "movie" matched nothing.
+	assert.Equal(t, "MEDIA_ITEM_TYPE_MOVIE", resp.Items[0].Type)
 }
 
 func TestFeedHandler_RecentlyAdded_Success(t *testing.T) {
