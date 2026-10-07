@@ -271,6 +271,12 @@ type MediaFile struct {
 // learns a field the scanner must re-read on existing rows.
 const StreamProbeVersion = 1
 
+// LevelProbeVersion is the current revision of the video level backfill's
+// probe. media_streams.level_probe_version records the revision at which a
+// probe came back, so a stream the prober never fills (no level, no colour
+// transfer) stops being a candidate. Bump to re-open every settled row.
+const LevelProbeVersion = 1
+
 // InterleaveBackstepFlagMs is the floor above which a file NeedsRemux. Every
 // muxer keeps cluster timestamps monotonic (494 real files read 0); the 20
 // prod victims of the 2026-07-12 two-input remux read 17 s to 2259 s.

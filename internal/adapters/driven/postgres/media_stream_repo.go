@@ -384,6 +384,29 @@ func (r *MediaStreamRepository) SetVideoLevels(ctx context.Context, mediaItemID 
 	return updated, nil
 }
 
+// MarkVideoLevelProbed stamps the item's video streams with the level probe
+// version at which a probe of the file succeeded, whether or not it resolved
+// anything, so a stream the prober never fills stops being a candidate (see
+// levelPendingSQL). Returns rows updated.
+func (r *MediaStreamRepository) MarkVideoLevelProbed(ctx context.Context, mediaItemID shared.MediaItemID, probeVersion int) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.MarkVideoLevelProbed")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)), attribute.Int("probe_version", probeVersion))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE media_streams SET level_probe_version = $1
+		 WHERE media_item_id = $2 AND stream_type = 'video' AND level_probe_version < $1`,
+		probeVersion, string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
 // SetIdetTelecine stores the idet telecine verdict on the item's video stream.
 func (r *MediaStreamRepository) SetIdetTelecine(ctx context.Context, mediaItemID shared.MediaItemID, telecine bool) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.SetIdetTelecine")
