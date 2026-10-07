@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -119,7 +120,11 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 		return nil, internalError(ctx, "count play history", err)
 	}
 	resp := &eveyv1.GetPlayHistoryResponse{Pagination: &eveyv1.PaginationResponse{TotalItems: int32(total)}} //nolint:gosec // count fits int32
-	for _, e := range entries {
+	// The cursor above is taken from the unfiltered page, so a gated profile
+	// may get a shorter page; total_items stays the unfiltered count, like the
+	// neighbouring history RPCs.
+	visible := h.filterPlayHistoryByAccess(ctx, entries)
+	for _, e := range visible {
 		resp.Entries = append(resp.Entries, playHistoryEntryToProto(e))
 	}
 	if len(entries) > 0 && filter.Limit > 0 && len(entries) >= filter.Limit {
@@ -127,6 +132,44 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 		resp.Pagination.NextCursor = encodeTimeCursor(last.StartedAt, last.ID)
 	}
 	return resp, nil
+}
+
+// filterPlayHistoryByAccess applies the same gate as GetWatchHistory: a gated
+// profile (library grants or an enforced parental filter) only sees entries
+// whose media resolves, sits in an allowed library and is not blocked by the
+// parental rating. An unresolved (deleted) item stays hidden since access
+// cannot be verified. An ungated caller gets the entries unchanged.
+func (h *activityHandler) filterPlayHistoryByAccess(ctx context.Context, entries []*activity.PlayHistoryEntry) []*activity.PlayHistoryEntry {
+	// Reuse the playback handler's grant lookup (admin bypass, deny when the
+	// access port is unwired, deny on lookup error) instead of a second copy.
+	allowedIDs, _ := (&playbackHandler{userAccess: h.userAccess}).getAllowedLibraryIDs(ctx)
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	if allowedIDs == nil && !pf.enforced() {
+		return entries
+	}
+	byID := map[string]*library.MediaItem{}
+	if h.libQuery != nil {
+		ids := make([]string, 0, len(entries))
+		for _, e := range entries {
+			ids = append(ids, string(e.MediaItemID))
+		}
+		byID = fetchItemMap(ctx, h.libQuery.GetMediaItemsByIDs, ids)
+	}
+	out := make([]*activity.PlayHistoryEntry, 0, len(entries))
+	for _, e := range entries {
+		mi := byID[string(e.MediaItemID)]
+		if mi == nil {
+			continue
+		}
+		if allowedIDs != nil && !slices.Contains(allowedIDs, string(mi.LibraryID)) {
+			continue
+		}
+		if mediaItemBlockedByParental(pf, mi) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }
 
 func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserStatsRequest) (*eveyv1.UserStats, error) {

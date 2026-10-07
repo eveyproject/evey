@@ -9,7 +9,10 @@ import (
 	appactivity "github.com/evey-project/evey/internal/app/activity"
 	"github.com/evey-project/evey/internal/domain/activity"
 	actfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
+	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/user"
+	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -31,6 +34,7 @@ func newActivityHandler() (*activityHandler, *actfakes.FakeLoginHistoryRepositor
 
 func TestActivityHandler_GetPlayHistory_Success(t *testing.T) {
 	h, _, _, playHistory, _ := newActivityHandler()
+	wireActivityAccess(h, libfakes.NewFakeMediaItemQueryRepo(), userfakes.NewFakeProfileRepository())
 
 	now := time.Now()
 	// ph1 is newer than ph2 so it sorts first under the DESC timestamp
@@ -74,6 +78,7 @@ func TestActivityHandler_GetPlayHistory_Unauthenticated(t *testing.T) {
 
 func TestActivityHandler_GetPlayHistory_WithPagination(t *testing.T) {
 	h, _, _, playHistory, _ := newActivityHandler()
+	wireActivityAccess(h, libfakes.NewFakeMediaItemQueryRepo(), userfakes.NewFakeProfileRepository())
 
 	now := time.Now()
 	for i := range 5 {
@@ -257,6 +262,9 @@ func TestActivityHandler_GetPlayHistory_NonAdminCannotReadAnotherProfile(t *test
 // account's other profiles - it stays pinned to its own profile.
 func TestActivityHandler_GetPlayHistory_NonAdminUserIDIgnored(t *testing.T) {
 	h, _, _, playHistory, _ := newActivityHandler()
+	profiles := userfakes.NewFakeProfileRepository()
+	require.NoError(t, profiles.Create(context.Background(), &user.Profile{ID: "profile-alice", UserID: "user-1", Name: "Alice"}))
+	wireActivityAccess(h, libfakes.NewFakeMediaItemQueryRepo(), profiles)
 	seedTwoHouseholds(playHistory, time.Now())
 
 	ctx := ctxWithClaims("user-1", "profile-alice", false)
