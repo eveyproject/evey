@@ -26,9 +26,6 @@ const (
 	// Level backfill: the video codecs it probes, and what each still lacks.
 	levelEligibleSQL = `stream_type = 'video'
 	   AND lower(codec) IN ('h264', 'hevc', 'av1', 'vp9', 'mpeg2video', 'mpeg4', 'msmpeg4v3')`
-	levelPendingSQL = `((lower(codec) = 'h264' AND level IS NULL)
-	     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND (level IS NULL OR color_transfer IS NULL))
-	     OR (lower(codec) IN ('mpeg2video', 'mpeg4', 'msmpeg4v3') AND idet_interlaced IS NULL))`
 
 	// Keyframe backfill: streams the video-copy rung can serve.
 	keyframesEligibleSQL = `stream_type = 'video'
@@ -44,6 +41,18 @@ const (
 	// Intro detection: episodes filed under a season.
 	introEligibleSQL = `mi.type = 'episode' AND mi.parent_id <> ''`
 )
+
+// levelPendingSQL is the level backfill's remainder. A probe that came back
+// with nothing to fill stamps level_probe_version, so the h264 and
+// hevc/av1/vp9 branches stop being candidates; the idet branch converges on
+// its own verdict column (a failed idet probe must stay retryable). The
+// version is an integer constant inlined as a literal: no injection surface.
+var levelPendingSQL = fmt.Sprintf(`((lower(codec) = 'h264' AND level IS NULL
+	      AND level_probe_version < %[1]d)
+	     OR (lower(codec) IN ('hevc', 'av1', 'vp9') AND (level IS NULL OR color_transfer IS NULL)
+	      AND level_probe_version < %[1]d)
+	     OR (lower(codec) IN ('mpeg2video', 'mpeg4', 'msmpeg4v3') AND idet_interlaced IS NULL))`,
+	library.LevelProbeVersion)
 
 // keyframesPendingSQL is the keyframe backfill's remainder, the probe
 // version bound to the placeholder the caller numbers.

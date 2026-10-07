@@ -28,6 +28,8 @@ type fakeLevelStore struct {
 	listCalls []fakeListCall
 	setCalls  []string
 
+	stampCalls []fakeStampCall
+
 	idetReturn int
 	idetErr    error
 	idetCalls  []fakeIdetCall
@@ -74,6 +76,24 @@ func (s *fakeLevelStore) SetVideoLevels(_ context.Context, id shared.MediaItemID
 	defer s.mu.Unlock()
 	s.setCalls = append(s.setCalls, string(id))
 	return s.setReturn, s.setErr
+}
+
+func (s *fakeLevelStore) MarkVideoLevelProbed(_ context.Context, id shared.MediaItemID, version int) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stampCalls = append(s.stampCalls, fakeStampCall{id: string(id), version: version})
+	return 1, nil
+}
+
+func (s *fakeLevelStore) stamps() []fakeStampCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]fakeStampCall(nil), s.stampCalls...)
+}
+
+type fakeStampCall struct {
+	id      string
+	version int
 }
 
 func (s *fakeLevelStore) SetIdetTelecine(_ context.Context, _ shared.MediaItemID, _ bool) (int, error) {
@@ -210,6 +230,24 @@ func TestLevelBackfill_NoLevelResolvedMarks(t *testing.T) {
 	w.processBatch(context.Background())
 	assert.Equal(t, []string{"m1"}, store.setTargets(), "it still attempts the update")
 	assert.True(t, w.attemptedHas("m1"), "no level resolved ⇒ marked to break the re-probe loop")
+}
+
+// A stream the prober never fills must be settled by the probe that found
+// nothing, or it is re-probed at every boot (stuck "40/41").
+func TestLevelBackfill_SuccessfulProbeWithNothingResolvedStampsVersion(t *testing.T) {
+	store := &fakeLevelStore{queue: [][]string{{"m1"}}, setReturn: 0}
+	w := newLevelWorker(store, oneItemReader("m1", "/media/m1.mp4"), &fakeLevelProber{result: videoProbe(40)})
+
+	w.processBatch(context.Background())
+	assert.Equal(t, []fakeStampCall{{id: "m1", version: domainlibrary.LevelProbeVersion}}, store.stamps())
+}
+
+func TestLevelBackfill_FailedProbeDoesNotStampVersion(t *testing.T) {
+	store := &fakeLevelStore{queue: [][]string{{"m1"}}, setReturn: 1}
+	w := newLevelWorker(store, oneItemReader("m1", "/media/m1.mp4"), &fakeLevelProber{err: errors.New("ffprobe exited 1")})
+
+	w.processBatch(context.Background())
+	assert.Empty(t, store.stamps(), "a failed probe settles nothing: the stream stays a candidate")
 }
 
 func TestLevelBackfill_MissingFileSkips(t *testing.T) {

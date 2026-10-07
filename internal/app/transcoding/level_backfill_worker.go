@@ -32,6 +32,10 @@ type LevelBackfillStore interface {
 	// overwrites an existing verdict. Returns rows updated.
 	SetIdetInterlaced(ctx context.Context, mediaItemID shared.MediaItemID, interlaced bool) (int, error)
 	SetIdetTelecine(ctx context.Context, mediaItemID shared.MediaItemID, telecine bool) (int, error)
+	// MarkVideoLevelProbed stamps the item's video streams with the probe
+	// version of a probe that succeeded (resolved or not), so a stream the
+	// prober never fills stops being a candidate at the next boot.
+	MarkVideoLevelProbed(ctx context.Context, mediaItemID shared.MediaItemID, probeVersion int) (int, error)
 }
 
 // IdetSummaryDetector is the richer probe: interlace AND telecine in one pass.
@@ -295,6 +299,13 @@ func (w *LevelBackfillWorker) backfillOne(ctx context.Context, mediaItemID strin
 		w.logger.Warn("level backfill: persist failed",
 			slog.String("media_id", mediaItemID), slog.Any("err", err))
 		return false
+	}
+
+	// The probe itself succeeded: settle the verdict, whatever it resolved.
+	// A failed probe returned above and stamps nothing, so it stays a candidate.
+	if _, err := w.store.MarkVideoLevelProbed(ctx, shared.MediaItemID(mediaItemID), library.LevelProbeVersion); err != nil {
+		w.logger.Warn("level backfill: probe stamp failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
 	}
 
 	// idet phase: legacy-codec sources whose flags don't already say

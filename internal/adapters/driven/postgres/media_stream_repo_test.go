@@ -385,6 +385,41 @@ func TestMediaStreamRepo_SetVideoLevels_FillsHDRTruth(t *testing.T) {
 	assert.Equal(t, 8, *got2[0].DoViProfile)
 }
 
+// A vp9 stream ffprobe never fills (no level, no colour transfer) is settled
+// by a successful probe: it stops being a candidate and the coverage converges.
+func TestMediaStreamRepo_MarkVideoLevelProbed_SettlesUnfillableStream(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	streamRepo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("lvlprobed")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("vp9bare", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, streamRepo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "vp9-v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "vp9"},
+	}))
+
+	ids, err := streamRepo.ListVideoLevelMissing(ctx, 10, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{string(item.ID)}, ids)
+
+	n, err := streamRepo.MarkVideoLevelProbed(ctx, item.ID, library.LevelProbeVersion)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	ids, err = streamRepo.ListVideoLevelMissing(ctx, 10, nil)
+	require.NoError(t, err)
+	assert.Empty(t, ids, "a stream probed once with nothing to fill is no longer a candidate")
+	cov, err := streamRepo.LevelCoverage(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, cov.TotalItems, cov.DoneItems, "the coverage counter converges")
+}
+
 func TestMediaStreamRepo_KeyframesScopeFillRoundtrip(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
