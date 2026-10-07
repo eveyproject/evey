@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useAuthStore } from "@evey/store";
+import { useImageToken } from "@/lib/imageToken";
 import { Music } from "lucide-react";
 import { ICON } from "@/constants/iconSizes";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
@@ -30,7 +30,7 @@ export function ArtistsTab({
   onArtistClick: (a: Artist) => void;
 }) {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const accessToken = useImageToken();
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   const parentRef = useRef<HTMLDivElement>(null);
   // Mirror the scroll-parent pattern from MediaGrid so the virtualizer's

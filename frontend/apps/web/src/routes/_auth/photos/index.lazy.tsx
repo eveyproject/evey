@@ -9,7 +9,7 @@ import {
   usePhotoServiceGetPhoto,
   hasMoreFromCursor,
 } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { useImageToken } from "@/lib/imageToken";
 import { useTranslation } from "react-i18next";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
@@ -177,7 +177,7 @@ interface LightboxProps {
 function Lightbox({ photos, index, onClose, onPrev, onNext }: LightboxProps) {
   const { t } = useTranslation();
   const photo = photos[index];
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const accessToken = useImageToken();
   const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   const [rotation, setRotation] = useState(0);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -362,7 +362,7 @@ function findScrollParent(el: HTMLElement | null): HTMLElement {
 
 function PhotoGrid({ photos, onPhotoClick, isError, error, onRetry, onEndReached }: PhotoGridProps) {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const accessToken = useImageToken();
   const thumbParam = `?${accessToken ? `token=${encodeURIComponent(accessToken)}&` : ""}w=400&fmt=webp`;
   const parentRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(800);
@@ -465,7 +465,7 @@ interface AlbumGridProps {
 
 function AlbumGrid({ albums, onAlbumClick, isError, error, onRetry }: AlbumGridProps) {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const accessToken = useImageToken();
   const thumbParam = `?${accessToken ? `token=${encodeURIComponent(accessToken)}&` : ""}w=400&fmt=webp`;
   // A failed album fetch must not collapse into "no albums" - that reads as an
   // empty library when the server actually errored.
