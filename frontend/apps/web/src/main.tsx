@@ -53,6 +53,13 @@ window.addEventListener("evey:unauthorized", () => {
 let queryClientRef: QueryClient | null = null;
 let routerRef: ReturnType<typeof createRouter> | null = null;
 
+// Every sign-out empties the query cache, whichever path emptied the store:
+// the route guard's logout() did not, so the next account signing in on the
+// same tab was served the previous account's cached queries.
+useAuthStore.subscribe((state, prev) => {
+  if (prev.accessToken && !state.accessToken) queryClientRef?.clear();
+});
+
 // Proactive token refresh - refresh a bit before expiry to avoid 401 retries.
 // Jitter + Web Locks serialize refreshes across tabs so two timers firing at
 // the same instant don't both hit /auth/refresh with the same (in-flight-

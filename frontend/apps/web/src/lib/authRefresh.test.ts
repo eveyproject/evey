@@ -11,7 +11,7 @@ vi.mock("@evey/store", () => ({
   useAuthStore: { getState: () => ({ accessToken: currentToken, setTokens: setTokensMock }) },
 }));
 
-import { refreshTokenUnderLock, isTokenExpired } from "./authRefresh";
+import { refreshTokenUnderLock, refreshTokenWithOutcome, isTokenExpired } from "./authRefresh";
 
 function jwt(expOffsetSec: number): string {
   const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + expOffsetSec }));
@@ -29,6 +29,31 @@ describe("isTokenExpired", () => {
     expect(isTokenExpired(jwt(-10))).toBe(true);
     expect(isTokenExpired("not-a-jwt")).toBe(true);
     expect(isTokenExpired(jwt(300))).toBe(false);
+  });
+});
+
+describe("refreshTokenWithOutcome", () => {
+  it("is denied when the server answers 401 or 403 - the session is dead", async () => {
+    currentToken = jwt(-10);
+    refreshMock.mockRejectedValue(Object.assign(new Error("refresh failed"), { httpStatus: 401 }));
+    expect(await refreshTokenWithOutcome()).toBe("denied");
+    refreshMock.mockRejectedValue(Object.assign(new Error("refresh failed"), { httpStatus: 403 }));
+    expect(await refreshTokenWithOutcome()).toBe("denied");
+  });
+
+  it("is transient on a 5xx or a network error - the session is not known to be dead", async () => {
+    currentToken = jwt(-10);
+    refreshMock.mockRejectedValue(Object.assign(new Error("refresh failed"), { httpStatus: 503 }));
+    expect(await refreshTokenWithOutcome()).toBe("transient");
+    refreshMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    expect(await refreshTokenWithOutcome()).toBe("transient");
+    expect(setTokensMock).not.toHaveBeenCalled();
+  });
+
+  it("is denied when the server answers without a token", async () => {
+    currentToken = jwt(-10);
+    refreshMock.mockResolvedValue({});
+    expect(await refreshTokenWithOutcome()).toBe("denied");
   });
 });
 

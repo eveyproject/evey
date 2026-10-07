@@ -34,6 +34,44 @@ describe("Modal", () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 
+  it("Escape closes only the topmost of two nested modals", async () => {
+    const user = userEvent.setup();
+    const onCloseParent = vi.fn();
+    const onCloseChild = vi.fn();
+    render(
+      <Modal open onClose={onCloseParent} title="Parent">
+        <p>Edit form</p>
+        <Modal open onClose={onCloseChild} title="Child">
+          <p>Identify</p>
+        </Modal>
+      </Modal>,
+    );
+    await user.keyboard("{Escape}");
+    expect(onCloseChild).toHaveBeenCalledOnce();
+    expect(onCloseParent).not.toHaveBeenCalled();
+  });
+
+  it("Escape reaches the parent again once the child is gone", async () => {
+    const user = userEvent.setup();
+    const onCloseParent = vi.fn();
+    const { rerender } = render(
+      <Modal open onClose={onCloseParent} title="Parent">
+        <Modal open onClose={vi.fn()} title="Child">
+          <p>Identify</p>
+        </Modal>
+      </Modal>,
+    );
+    rerender(
+      <Modal open onClose={onCloseParent} title="Parent">
+        <Modal open={false} onClose={vi.fn()} title="Child">
+          <p>Identify</p>
+        </Modal>
+      </Modal>,
+    );
+    await user.keyboard("{Escape}");
+    expect(onCloseParent).toHaveBeenCalledOnce();
+  });
+
   it("calls onClose on backdrop click", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();

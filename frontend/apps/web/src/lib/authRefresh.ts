@@ -38,19 +38,30 @@ async function underRefreshLock<T>(fn: () => Promise<T>): Promise<T> {
 // while we waited on the lock, its fresh token is reused instead of POSTing
 // again. Returns true when a usable (non-expired) token is held afterwards.
 export async function refreshTokenUnderLock(): Promise<boolean> {
+  return (await refreshTokenWithOutcome()) === "ok";
+}
+
+// "denied" is the server's word (401/403: the session is dead) and the only
+// outcome that justifies signing the user out. "transient" is the network or
+// the server being unavailable: the session may well be alive, and the route
+// guard used to log out on it all the same - a flaky link cost the session.
+export type RefreshOutcome = "ok" | "denied" | "transient";
+
+export async function refreshTokenWithOutcome(): Promise<RefreshOutcome> {
   return underRefreshLock(async () => {
     const current = useAuthStore.getState().accessToken;
-    if (current && !isTokenExpired(current)) return true;
+    if (current && !isTokenExpired(current)) return "ok";
     try {
       const data = await userServiceRefreshToken({});
       if (data?.accessToken) {
         useAuthStore.getState().setTokens(data.accessToken);
-        return true;
+        return "ok";
       }
-      return false;
+      return "denied";
     } catch (err) {
       console.warn("token refresh failed", err);
-      return false;
+      const status = (err as { httpStatus?: number }).httpStatus;
+      return status === 401 || status === 403 ? "denied" : "transient";
     }
   });
 }
