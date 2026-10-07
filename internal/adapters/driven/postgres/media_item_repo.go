@@ -35,7 +35,7 @@ const DefaultListLimit = 500
 const mediaItemColumns = `mi.id, mi.library_id, mi.parent_id, mi.type, mi.title, mi.scan_title,
 	 mi.sort_title, mi.original_title, mi.overview, mi.tagline, mi.index_number,
 	 mi.added_at, mi.updated_at, mi.latest_child_added_at,
-	 mf.file_path, mf.file_size, mf.file_fingerprint, mf.mod_time, mf.duration_ms, mf.bitrate, mf.container_format, mf.stream_probe_attempts, mf.interleave_backstep_ms,
+	 mf.file_path, mf.file_size, mf.file_fingerprint, mf.mod_time, mf.duration_ms, mf.bitrate, mf.container_format, mf.stream_probe_attempts, mf.interleave_backstep_ms, mf.stream_probe_version,
 	 mc.premiere_date, mc.year, mc.provider_ids, mc.genres, mc.studios, mc.tags,
 	 mcl.community_rating, mcl.official_rating, mcl.certifications_by_country, mcl.provider_ratings,
 	 COALESCE((SELECT jsonb_agg(jsonb_build_object('Site', mt.site, 'Key', mt.key,

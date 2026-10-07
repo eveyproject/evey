@@ -486,7 +486,11 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 			Hash:    row.FileFingerprint,
 			// A streamless file still inside its bounded re-probe budget must be
 			// reprocessed even when unchanged, so updateMediaFile re-probes it.
-			NeedsReprobe: row.StreamProbeAttempts > 0 && row.StreamProbeAttempts < maxStreamProbeAttempts,
+			// A row probed by an older prober revision is owed a head-only
+			// re-probe so fields the prober has since learned get stored (no
+			// prober wired = nothing to refresh).
+			NeedsReprobe: (row.StreamProbeAttempts > 0 && row.StreamProbeAttempts < maxStreamProbeAttempts) ||
+				(s.prober != nil && row.StreamProbeVersion < library.StreamProbeVersion),
 		}
 	}
 	return scanindex.New(entries), nil
@@ -861,6 +865,8 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 		// file). Record the first failed attempt so a later scan re-probes
 		// (bounded) instead of leaving the item streamless forever.
 		item.File.StreamProbeAttempts = 1
+	} else {
+		item.File.StreamProbeVersion = library.StreamProbeVersion
 	}
 	if !dur.IsZero() {
 		item.File.Duration = dur
@@ -879,7 +885,7 @@ func (s *ScanService) createMediaFile(ctx context.Context, libraryID, parentID s
 	// unchanged-file fast path never revisits it. The column then stays empty
 	// forever, and an empty container reads as "incompatible" in the playback
 	// decision, forcing a remux that the source never needed.
-	if !dur.IsZero() || container != "" || !probedOK {
+	if !dur.IsZero() || container != "" || !probedOK || item.File.StreamProbeVersion != 0 {
 		if err := s.mediaItems.Update(ctx, item); err != nil {
 			slog.WarnContext(ctx, "update media item after probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 		}
@@ -939,6 +945,8 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		// self-heals, without re-probing a durably-unprobeable file every scan.
 		if existing.File.StreamProbeAttempts > 0 && existing.File.StreamProbeAttempts < maxStreamProbeAttempts {
 			s.reprobeStreamlessFile(ctx, existing, f.Path)
+		} else if existing.File.StreamProbeVersion < library.StreamProbeVersion {
+			s.reprobeStaleVersion(ctx, existing, f.Path)
 		}
 		return
 	}
@@ -963,6 +971,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 	// New content → a fresh bounded re-probe budget: 0 on success, 1 on failure.
 	if probedOK {
 		existing.File.StreamProbeAttempts = 0
+		existing.File.StreamProbeVersion = library.StreamProbeVersion
 	} else {
 		existing.File.StreamProbeAttempts = 1
 	}
@@ -1015,6 +1024,7 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 	dur, container, probedOK := s.ProbeAndStoreStreams(ctx, string(item.ID), path)
 	if probedOK {
 		item.File.StreamProbeAttempts = 0
+		item.File.StreamProbeVersion = library.StreamProbeVersion
 		if !dur.IsZero() {
 			item.File.Duration = dur
 		}
@@ -1034,6 +1044,29 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 	item.UpdatedAt = time.Now()
 	if err := s.mediaItems.Update(ctx, item); err != nil {
 		slog.WarnContext(ctx, "update media item after re-probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+	}
+}
+
+// reprobeStaleVersion refreshes the streams of an unchanged file last probed by
+// an older prober revision and stamps the current StreamProbeVersion. A failed
+// probe leaves the row untouched (ProbeAndStoreStreams keeps the old streams),
+// so the next scan retries and StreamProbeAttempts keeps its own semantics.
+func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.MediaItem, path string) {
+	dur, container, probedOK := s.ProbeAndStoreStreams(ctx, string(item.ID), path)
+	if !probedOK {
+		return
+	}
+	item.File.StreamProbeVersion = library.StreamProbeVersion
+	if !dur.IsZero() {
+		item.File.Duration = dur
+	}
+	item.File.Bitrate = item.File.BitrateBps()
+	if container != "" {
+		item.File.ContainerFormat = container
+	}
+	item.UpdatedAt = time.Now()
+	if err := s.mediaItems.Update(ctx, item); err != nil {
+		slog.WarnContext(ctx, "update media item after version re-probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 	}
 }
 
