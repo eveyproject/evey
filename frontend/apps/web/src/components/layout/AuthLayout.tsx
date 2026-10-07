@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { useRouterState } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -21,6 +22,16 @@ export function AuthLayout({ children }: AuthLayoutProps) {
   const isHome = location.pathname === "/home";
   const isPlayer = location.pathname.startsWith("/player/");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // The phone-width drawer is a dialog in all but name: Escape closes it and
+  // Tab stays inside it while it is open, as the modals already do.
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(drawerRef, sidebarOpen);
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSidebarOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [sidebarOpen]);
   const { showHelp, setShowHelp } = useKeyboardShortcuts(!isPlayer);
   // The audio player is a fixed bottom bar; when a track is loaded it would
   // overlap the bottom of the scrollable content. Reserve its height so the
@@ -78,7 +89,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSidebarOpen(false); }}
             data-testid="close-sidebar-overlay"
           />
-          <div className="relative z-overlay h-full w-56">
+          <div ref={drawerRef} className="relative z-overlay h-full w-56">
             <Sidebar onNavigate={() => setSidebarOpen(false)} />
           </div>
         </div>
