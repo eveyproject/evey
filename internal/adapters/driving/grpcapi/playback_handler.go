@@ -362,7 +362,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	// so the source bitrate is what's served. A transcode that only copies video
 	// (VideoBitrate == 0) also falls back to source - video dominates the total.
 	resp.Bitrate = servedBitrateBps(decision.PlayMethod, decision.VideoBitrate, decision.AudioBitrate, sourceBitrateBps(item))
-	resp.AudioBitrate = servedAudioBitrateBps(decision, streams)
+	resp.AudioBitrate = servedAudioBitrateBps(decision, streams, prefs.AudioTrack)
 
 	return resp, nil
 }
@@ -414,9 +414,9 @@ func servedBitrateBps(playMethod string, videoKbps, audioKbps, sourceBps int64) 
 // base; video transcoded -> the ladder rung's. Both scaled by the same domain rule,
 // so the panel quotes what the encoder is handed. A copied track keeps the source's
 // rate; 0 = unknown, and the row hides.
-func servedAudioBitrateBps(d *transcoding.PlaybackDecision, streams []*library.MediaStream) int64 {
+func servedAudioBitrateBps(d *transcoding.PlaybackDecision, streams []*library.MediaStream, audioTrack int) int64 {
 	if d.AudioDecision != "transcode" {
-		return sourceAudioBitrateBps(streams)
+		return sourceAudioBitrateBps(streams, audioTrack)
 	}
 
 	base := d.AudioBitrate
@@ -424,21 +424,39 @@ func servedAudioBitrateBps(d *transcoding.PlaybackDecision, streams []*library.M
 		base = transcoding.AudioRenditionBaseKbps
 	}
 	if base <= 0 {
-		return sourceAudioBitrateBps(streams)
+		return sourceAudioBitrateBps(streams, audioTrack)
 	}
-	return transcoding.ServedAudioBitrateKbps(base, servedAudioChannels(d, streams)) * 1000
+	return transcoding.ServedAudioBitrateKbps(base, servedAudioChannels(d, streams, audioTrack)) * 1000
+}
+
+// chosenAudioStream is the audio stream the request plays: the type-relative
+// ordinal the decision prefs carry (ffmpeg's 0:a:N), the first audio stream
+// when it names none. The panel used to quote the first track's channels and
+// rate whatever track the viewer had picked.
+func chosenAudioStream(streams []*library.MediaStream, audioTrack int) *library.MediaStream {
+	var first *library.MediaStream
+	rel := 0
+	for _, s := range streams {
+		if s == nil || s.StreamType != library.Audio {
+			continue
+		}
+		if first == nil {
+			first = s
+		}
+		if rel == audioTrack {
+			return s
+		}
+		rel++
+	}
+	return first
 }
 
 // servedAudioChannels is the channel count the encoder will actually target: the
 // source's own, capped by what the client accepts (a 7.1 source served as 5.1).
-func servedAudioChannels(d *transcoding.PlaybackDecision, streams []*library.MediaStream) int {
+func servedAudioChannels(d *transcoding.PlaybackDecision, streams []*library.MediaStream, audioTrack int) int {
 	ch := 0
-	for _, s := range streams {
-		if s == nil || s.StreamType != library.Audio || s.Channels == nil {
-			continue
-		}
+	if s := chosenAudioStream(streams, audioTrack); s != nil && s.Channels != nil {
 		ch = *s.Channels
-		break
 	}
 	if d.MaxAudioChannels > 0 && (ch == 0 || ch > d.MaxAudioChannels) {
 		return d.MaxAudioChannels
@@ -446,14 +464,9 @@ func servedAudioChannels(d *transcoding.PlaybackDecision, streams []*library.Med
 	return ch
 }
 
-func sourceAudioBitrateBps(streams []*library.MediaStream) int64 {
-	for _, s := range streams {
-		if s == nil || s.StreamType != library.Audio {
-			continue
-		}
-		if s.Bitrate != nil && *s.Bitrate > 0 {
-			return *s.Bitrate
-		}
+func sourceAudioBitrateBps(streams []*library.MediaStream, audioTrack int) int64 {
+	if s := chosenAudioStream(streams, audioTrack); s != nil && s.Bitrate != nil && *s.Bitrate > 0 {
+		return *s.Bitrate
 	}
 	return 0
 }
