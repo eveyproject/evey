@@ -1,13 +1,12 @@
 # ADR-0028: The install is one compose file
 
 - Status: Accepted
-- Date: 2026-08-29
 
 ## Context
 
 Installing Evey used to require inventing two secrets by hand and running
-Postgres as a second container. A product audit put install and operations at
-7.6 out of 10 and named the reason: the person who wants to drop one container
+Postgres as a second container. A product audit scored install and operations
+lowest and named the reason: the person who wants to drop one container
 and open a browser was not served.
 
 ## Decision

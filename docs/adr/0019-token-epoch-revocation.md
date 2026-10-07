@@ -1,7 +1,6 @@
 # ADR-0019: Token-epoch revocation for stateless JWTs (revoke without a blocklist)
 
 - Status: Accepted
-- Date: 2026-06-14
 
 ## Context
 

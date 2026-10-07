@@ -1,11 +1,10 @@
 # ADR-0017: Software HDR→SDR tone-map at delivery resolution, not source
 
 - Status: Accepted
-- Date: 2026-06-04
 
 ## Context
 
-On a weak NAS (a old iGPU-era box: no HEVC hardware decoder, no 10-bit VAAPI
+On a weak NAS (an old-iGPU box: no HEVC hardware decoder, no 10-bit VAAPI
 VPP - `scale_vaapi` aborts `-22` on a `p010` surface, so hardware acceleration
 is off for this content), playing a 4K HEVC 10-bit HDR title collapsed the ABR
 ladder to 360p. A reference open-source server, configured **with hardware acceleration disabled**
@@ -14,7 +13,7 @@ colours and only minor buffering. So the box is capable; our software pipeline
 was simply far less efficient.
 
 Two costs dominated, measured with a micro-benchmark on a synthetic 4K HEVC
-Main 10 HDR10 sample (`ffmpeg` 7.1.4, the production container):
+Main 10 HDR10 sample (the production container's `ffmpeg`):
 
 1. **Tone-map ran at the source resolution.** The HDR→SDR chain
    (`zscale` linearize → `gbrpf32le` float → `tonemap` → bt709) ran on the full
@@ -97,7 +96,7 @@ quality than scaling in the encoded domain.
 - **Per-title content-class ladders.** Orthogonal and deferred (a separate
   bandwidth optimisation), not a fix for the tone-map cost.
 
-## Update (2026-07-12)
+## Update
 
 The `SingleVariant` default was **reversed** after field experience. Contrary to
 the Consequences note above, `SingleVariant` now defaults to **false**

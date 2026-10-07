@@ -1,6 +1,5 @@
 # ADR 0026 - Remote access inferred from a published URL, unless the operator chose
 
-Date: 2026-07-30
 Status: Accepted
 
 ## Context
@@ -15,8 +14,8 @@ system could tell apart: *the operator wants a LAN-only instance*, and *nobody
 ever touched this setting*. On a server published behind a reverse proxy the
 second reading is almost always the true one.
 
-That ambiguity took a household offline for two days on 2026-07-29. The gate had
-been dormant since March because the proxy did not forward the real client
+That ambiguity took a household offline for two days. The gate had been
+dormant because the proxy did not forward the real client
 address, so every request looked private and was allowed. Adding
 `trusted_proxies static private_ranges` to the Caddy configuration made client
 addresses truthful - and every remote client immediately started getting `403`

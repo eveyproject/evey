@@ -1,7 +1,6 @@
 # ADR-0015: One image for every GPU, drivers injected at runtime
 
 - Status: Accepted
-- Date: 2026-06-01
 
 ## Context
 

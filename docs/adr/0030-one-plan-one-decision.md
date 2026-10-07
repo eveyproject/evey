@@ -1,9 +1,7 @@
 # ADR-0030: One plan, one decision
 
-- Status: Accepted - implemented and closed 2026-09-18 (the expressibility
-  shadow left, the boundary guarded, the alert counter at zero in production
-  after a deployment exercising every GPU topology of the host)
-- Date: 2026-09-17
+- Status: Accepted - implemented (the expressibility shadow left, the boundary
+  guarded, the alert counter at zero in production)
 
 ## Context
 
@@ -26,7 +24,7 @@ calibration proofs `HWRoute*`. Coherence rested on equivalence tests
 ("X agrees with Y") and some sixty "mirrors / must agree / keep in sync"
 comments. Every new route or codec had to be declared in six places; the
 calibration matrix and the resolver drifted apart until the matrix was
-derived from the resolver's shapes (ADR-0029, 2026-09-17).
+derived from the resolver's shapes (ADR-0029).
 
 ## Decision
 
@@ -120,7 +118,7 @@ ADR-0029's steady-state pricing).
 
 ## Migration
 
-Additive first, code moves last. Landed 2026-09-17, one commit each, the
+Additive first, code moves last. Landed one commit each, the
 goldens byte-identical throughout: the route golden corpus; this ADR;
 `Topology` with `EncodeRoute.Topology()` and the calibration matrix rebuilt on
 it; `SourceSnapshot`; `ResolvedRoute` on the plan with the old derivations
@@ -145,9 +143,9 @@ answer, never its input), and the hardware policy is read once per `Resolve`
 (`PlaybackRequest.Policy`, threaded through the route derivation like the
 source snapshot; only the legacy wrappers still read the toggles themselves).
 
-**Expressibility out of shadow (2026-09-18).** The exit criterion was
+**Expressibility out of shadow.** The exit criterion was
 coverage, not time: every `{backend, topology, needs}` cell the live resolver
-can reach on the production host (six on the QSV + VAAPI box: the QSV
+can reach on the reference host (six on a QSV + VAAPI box: the QSV
 zero-copy, decoupled, passthrough and burn-in+overlay, the VAAPI GPU
 tone-map and the VAAPI zero-copy an interlaced source takes) checked at both
 sites - one recalibration plus a corpus of real titles resolved per topology -
@@ -165,7 +163,7 @@ violation counted on `evey_hlsvod_route_not_expressible_total`, which must
 stay at zero; the per-cell coverage table was the exit device and goes with
 the shadow.
 
-**Boundary locked (2026-09-18).** The producer is a projection of the
+**Boundary locked.** The producer is a projection of the
 resolved plan only (`ProducerSelector` lost its gate predicate, the master
 playlist no longer re-derives the codec); the resolver's sub-derivation
 entry points (`EffectiveVideoCodec`, `ResolveHW`, `HWRouteUsable`,
@@ -177,7 +175,7 @@ else. `internal/contractguard/playback_plan_guard_test.go` pins that surface
 and refuses any production caller outside the package that names a
 sub-derivation.
 
-**The route is not frozen on the admission pin (decided 2026-09-18).** The
+**The route is not frozen on the admission pin.** The
 pin freezes the class, the ceiling and the ladder; the fingerprint sealed in
 every URL already refuses (410, `stale_rendition`) a segment whose route
 moved since the master, and the player rebuilds. Freezing the route too would
@@ -186,7 +184,7 @@ pin does instead is DETECT the move: `VideoAdmissionShaper.NoteRoute` counts
 `evey_hlsvod_route_drift_total` once per move of a live stream's route
 identity (codec/backend/topology), logs it, and adopts the new route.
 
-**Probe generations out of the planner (2026-09-18).** A capability row is
+**Probe generations out of the planner.** A capability row is
 published in one vocabulary: `EncodeCapability.Normalized`, applied once by
 the calibration service on every store (persisted, benched, demoted),
 upgrades a pre-class row (`ProbeVersion` < 5, where "hevc" covered Main10) to
@@ -195,7 +193,7 @@ the decode-class list; the decode gate (`HWCanDecodeSource`,
 `ProbeVersion` is read by the calibration lifecycle only. The goldens are
 byte-identical (the test fixtures name their Main10 class explicitly).
 
-**Last pass (2026-09-18), the immediately solvable debt settled:**
+**Last pass, the immediately solvable debt settled:**
 `HostCapabilitySnapshot` is the planner's capability type, produced only by
 `EncodeCapability.Snapshot` (the calibration's publish), while the
 repository speaks the persisted role (`PersistedEncodeCapability`); every
@@ -209,7 +207,7 @@ also refuses any snapshot made outside the calibration's publish.
 
 Still to do, each gated on something outside the code, in this order:
 
-1. ~~**Demotion by exact route**~~ - done (2026-09-24): every proof runs on
+1. ~~**Demotion by exact route**~~ - done: every proof runs on
    the backend named by `HWFailureReport.Route`, a demotion edits that
    backend's `Backends` entry (the one the resolver reads), and when the
    encoder re-proves fine `DemoteRoute` re-runs the failed topology's route
@@ -223,7 +221,7 @@ Still to do, each gated on something outside the code, in this order:
    picture of "which engine serves which request" is a separate clarification,
    deliberately kept out of this ADR.
 
-**Four faults found by the follow-up review (2026-09-26), fixed:**
+**Four faults found by the follow-up review, fixed:**
 
 - A backend that proved NO route came back from persistence as "every route
   trusted": `HWBackendCap.Routes` was omitted from the row's JSON when empty
@@ -268,7 +266,7 @@ on the pin (a behaviour change to decide on its own).
 - `ErrRouteNotExpressible` in production is a planner bug, visible as a
   counter, not a silent CPU encode under a GPU bill.
 
-## Addendum (2026-09-26): one picture outside a session
+## Addendum: one picture outside a session
 
 Three producers draw a browser-playable SDR picture without being a player
 session: the sync-preview clip an operator judges lip-sync on, the reduced

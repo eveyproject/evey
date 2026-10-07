@@ -2,7 +2,6 @@
 
 - Status: Accepted
 - Amended by: [ADR-0012](0012-plugin-token-deny-by-default.md) - mint-time scope filtering proved insufficient; enforcement is now deny-by-default at the interceptor
-- Date: 2026-04-20
 
 ## Context
 

@@ -1,9 +1,8 @@
 # ADR-0016: In-process mkvgo fast-path for the MKV scan prober (ffprobe stays the authority)
 
 - Status: Accepted
-- Date: 2026-06-03
 
-> **Update 2026-06-23.** The fast-path is now **always on** for both EBML
+> **Update.** The fast-path is now **always on** for both EBML
 > (`.mkv`/`.webm`) and ISO-BMFF (`.mp4`/`.m4v`/`.m4a`) containers - including the
 > music scan prober (`.m4a` AAC; `.flac`/`.mp3`/ALAC fall through to ffprobe); the
 > `EVEY_MKV_FASTPATH` env flag is removed (field-equivalence validated on a real
@@ -24,7 +23,7 @@ per-file fork + read dominates the prober phase.
 `ReadMeta`/`OpenMeta` (v0.5.0) read **only** the file head - `Info` + `Tracks`,
 early-stopping via `SeekHead` before the `Cues`/`Clusters` - at roughly **2 ms
 and ~900 bytes per file**, versus ~50 ms and ~1.2 MB for `ffprobe` (measured on
-16 real 4K files; see the bench note in the repo memory). v0.6.0 added
+a set of real 4K files). v0.6.0 added
 colour/HDR derivation from the codec SPS VUI (`hvcC`/`avcC`/`av1C`) when the
 container has no `Colour` element, which is what unblocked HEVC/AV1 HDR
 coverage - without it those files had to fall back to `ffprobe`.
@@ -67,7 +66,7 @@ scanned by `ffprobe` (ISO 639-2 `chi`) or by the mkvgo path (BCP-47 `cmn`).
 - **Equivalence is verified, not assumed.** `parity_realfile_test.go`
   (PATH-gated on `EVEY_PARITY_DIR`, no real-file paths committed) maps every
   `.mkv` in a directory through both probers and asserts the decision-affecting
-  fields agree. On the reference set: 16/16 fast-path, all fields equal.
+  fields agree. On the reference set every file took the fast-path with all fields equal.
 - **Per-stream video bitrate stays `nil`** on the fast-path - but `ffprobe`
   itself reports no video bitrate for MKV, so this is equivalent, not a
   regression. (Audio bitrate can differ in rare edge cases; another reason music

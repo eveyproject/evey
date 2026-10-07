@@ -1,8 +1,6 @@
 # ADR 0022 - HLS decision pinning and A/V resync
 
-Date: 2026-07-09 (amended 2026-07-19: fp seal / 410 refusal, decision moved to the app-layer PlanResolver)
-Status: Accepted
-Scope: implemented incrementally over 2026-07-07..09
+Status: Accepted (amended: fp seal / 410 refusal, decision moved to the app-layer PlanResolver)
 
 ## Context
 
@@ -15,20 +13,18 @@ It is computed once per request by the app-layer resolver
 the http adapter only marshals the request) and its cache identity is the
 `DecisionFingerprint` (`internal/app/transcoding/segment_cache.go`).
 
-Three distinct production incidents shaped this subsystem, and the invariants
-below exist specifically to prevent each from recurring:
+Three production failure classes shaped this subsystem, and the invariants
+below exist to prevent each from recurring:
 
-1. **Green frames on Chromecast (2026-07-07).** A live EVENT
-   playlist is polled repeatedly. Background keyframe enrichment landed
-   *mid-viewing*, so between two polls the *same* playlist URL flipped from
-   transcode to the copy rung. The source-h264 segments were then served under
-   an init produced for the re-encode, and the Chromecast's hardware decoder
-   rendered garbage.
-2. **Constant A/V desync on repacks (2026-07-08).** Some muxes carry an audio
-   track whose first timestamp sits ~0.9 s after the video (a container
-   defect). The pipeline preserves source PTS, so the viewer hears a fixed lag.
-3. **User-driven resync (2026-07-09).** Users need to nudge audio or subtitles
-   when a source is slightly off, live, without re-opening the file.
+1. **Green frames on a cast receiver.** Background keyframe enrichment landed
+   mid-viewing, the same live playlist URL flipped from transcode to the copy
+   rung between two polls, and source segments were served under an init made
+   for the re-encode.
+2. **Constant A/V desync on some muxes.** An audio track whose first timestamp
+   sits well after the video (a container defect) plays with a fixed lag when
+   source PTS are preserved.
+3. **User-driven resync.** Users need to nudge audio or subtitles live, without
+   re-opening the file.
 
 ## Decision
 
@@ -50,7 +46,7 @@ so different bytes get a different cache key, and (b) ride `querySuffix` so the
 whole session stays coherent across polls. Miss (a) and two byte-streams alias
 in the cache; miss (b) and the decision flips under the player.
 
-**1b. The decision hash is SEALED into every URI, and a stale seal is refused (amendment, 2026-07-15 incident).** Pins protect the *decision*; they do not protect the *ladder shape*. `stream_N`
+**1b. The decision hash is SEALED into every URI, and a stale seal is refused (amendment).** Pins protect the *decision*; they do not protect the *ladder shape*. `stream_N`
 is a ladder INDEX: when the shaped ladder changed mid-play (capability flap,
 admission pin gone cold), the same URL silently mapped to a *different*
 rendition and the player decoded a stranger's bytes - on-screen, a full-frame
@@ -76,8 +72,8 @@ being transcoded, the builder feeds audio from a SECOND ffmpeg input shifted by
 
 Only TRANSCODED audio is eligible. Copied audio packets cannot be trimmed at the
 seek edge, and a second input there was measured to hijack the `make_zero`
-zero-point of copy-on-seek sessions - the video landed +0.87 s off plan and the
-copy-timeline tripwire fired.
+zero-point of copy-on-seek sessions and land the video off plan, which the
+copy-timeline tripwire caught.
 
 **3. User resync composes into the same net input shift.** - **Subtitles** shift entirely client-side: the player re-anchors each loaded
   cue to `sourceTime + offset` (`useSubtitleManager.applySubtitleOffset`,
