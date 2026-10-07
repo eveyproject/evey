@@ -89,6 +89,12 @@ type Request struct {
 	Title     string
 	Year      *int
 	PosterURL string
+	// Overview, ReleaseDate and Rating are what the requester saw when picking
+	// the title, kept so the operator can judge the request without opening a
+	// browser. Rating is on a 0-10 scale; all three are optional.
+	Overview    string
+	ReleaseDate *time.Time
+	Rating      *float64
 
 	Status    Status
 	AdminNote string // operator's handwritten note, surfaced to the requester
@@ -134,6 +140,21 @@ func WithYear(year int) Option {
 // WithPosterURL sets the poster URL the requester saw when picking the title.
 func WithPosterURL(url string) Option {
 	return func(r *Request) { r.PosterURL = url }
+}
+
+// WithOverview sets the synopsis the requester saw.
+func WithOverview(overview string) Option {
+	return func(r *Request) { r.Overview = overview }
+}
+
+// WithReleaseDate sets the provider's premiere date.
+func WithReleaseDate(d time.Time) Option {
+	return func(r *Request) { r.ReleaseDate = &d }
+}
+
+// WithRating sets the community rating (0-10).
+func WithRating(rating float64) Option {
+	return func(r *Request) { r.Rating = &rating }
 }
 
 // WithProvider records the metadata source and its id for the picked title.

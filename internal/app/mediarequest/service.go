@@ -10,6 +10,8 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"github.com/evey-project/evey/internal/domain/mediarequest"
 	"github.com/evey-project/evey/internal/domain/metadata"
@@ -26,6 +28,10 @@ type Candidate struct {
 	Year       *int
 	PosterURL  string
 	Overview   string
+	// ReleaseDate is the provider's premiere date; Rating its community score
+	// on a 0-10 scale. Either is nil when the provider had none.
+	ReleaseDate *time.Time
+	Rating      *float64
 	// InLibrary is set when this exact title is already on the server, matched
 	// by provider id. MediaItemID then points at it so the client can send the
 	// user to the media instead of offering a pointless request.
@@ -53,7 +59,17 @@ type CreateInput struct {
 	Title      string
 	Year       *int
 	PosterURL  string
+	// Copied by the client from the Candidate it picked; sanitised on create
+	// (the client is not trusted to keep them short or in range).
+	Overview    string
+	ReleaseDate *time.Time
+	Rating      *float64
 }
+
+// maxOverviewRunes bounds the synopsis a client may attach: TMDB's longest
+// overviews sit around 1000 characters, so this is generous without letting a
+// crafted request park a novel in the operator's queue.
+const maxOverviewRunes = 2000
 
 // Service orchestrates media requests.
 type Service struct {
@@ -163,10 +179,12 @@ func (s *Service) markInLibrary(ctx context.Context, mediaType mediarequest.Medi
 // provider id that matches the source and the first artwork as the poster.
 func toCandidate(providerName string, r metadata.MetadataResult) Candidate {
 	c := Candidate{
-		Provider: providerName,
-		Title:    r.Title,
-		Year:     r.Year,
-		Overview: r.Overview,
+		Provider:    providerName,
+		Title:       r.Title,
+		Year:        r.Year,
+		Overview:    r.Overview,
+		ReleaseDate: r.PremiereDate,
+		Rating:      r.CommunityRating,
 	}
 	// Prefer the id keyed by the provider's own name, else any known id.
 	if r.ProviderIDs != nil {
@@ -244,6 +262,18 @@ func (s *Service) CreateRequest(ctx context.Context, profileID shared.ProfileID,
 	}
 	if in.Provider != "" || in.ProviderID != "" {
 		opts = append(opts, mediarequest.WithProvider(in.Provider, in.ProviderID))
+	}
+	if o := truncateRunes(strings.TrimSpace(in.Overview), maxOverviewRunes); o != "" {
+		opts = append(opts, mediarequest.WithOverview(o))
+	}
+	if in.ReleaseDate != nil && !in.ReleaseDate.IsZero() {
+		opts = append(opts, mediarequest.WithReleaseDate(*in.ReleaseDate))
+	}
+	// A rating outside the 0-10 scale is a client bug, not data: dropped, not
+	// clamped, so the operator never sees a confident number that was never
+	// given. Zero means "unrated" on every provider we read, so it is not kept.
+	if in.Rating != nil && *in.Rating > 0 && *in.Rating <= 10 {
+		opts = append(opts, mediarequest.WithRating(*in.Rating))
 	}
 
 	req, err := mediarequest.NewRequest(id.New("req-"), profileID, userID, in.MediaType, strings.TrimSpace(in.Title), opts...)
@@ -385,6 +415,21 @@ var trustedPosterHosts = map[string]struct{}{
 	"coverartarchive.org": {},
 	"m.media-amazon.com":  {},
 	"ia.media-imdb.com":   {},
+}
+
+// truncateRunes cuts s to at most n runes, never splitting a character.
+func truncateRunes(s string, n int) string {
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	i := 0
+	for pos := range s {
+		if i == n {
+			return s[:pos]
+		}
+		i++
+	}
+	return s
 }
 
 func sanitizePosterURL(raw string) string {

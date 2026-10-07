@@ -41,11 +41,11 @@ func (r *MediaRequestRepository) Create(ctx context.Context, req *mediarequest.R
 
 	answeredBy := sql.NullString{String: string(req.AnsweredBy), Valid: req.AnsweredBy != ""}
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO media_requests (id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
+		`INSERT INTO media_requests (id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at, overview, release_date, rating)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
 		req.ID, req.ProfileID, req.UserID, string(req.MediaType), req.Provider, req.ProviderID,
 		req.Title, req.Year, req.PosterURL, string(req.Status), req.AdminNote, answeredBy,
-		req.CreatedAt, req.UpdatedAt, req.AnsweredAt,
+		req.CreatedAt, req.UpdatedAt, req.AnsweredAt, req.Overview, req.ReleaseDate, req.Rating,
 	)
 	if err != nil {
 		// The service checks for an existing open request before calling here,
@@ -73,7 +73,7 @@ func (r *MediaRequestRepository) GetByID(ctx context.Context, id string) (*media
 	defer cancel()
 
 	req, err := scanMediaRequestRow(txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at
+		`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at, overview, release_date, rating
 		 FROM media_requests WHERE id = $1`, id,
 	))
 	if err != nil {
@@ -97,10 +97,12 @@ func (r *MediaRequestRepository) Update(ctx context.Context, req *mediarequest.R
 	answeredBy := sql.NullString{String: string(req.AnsweredBy), Valid: req.AnsweredBy != ""}
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE media_requests SET media_type=$1, provider=$2, provider_id=$3, title=$4, year=$5, poster_url=$6,
-		 status=$7, admin_note=$8, answered_by=$9, updated_at=$10, answered_at=$11
-		 WHERE id=$12`,
+		 status=$7, admin_note=$8, answered_by=$9, updated_at=$10, answered_at=$11,
+		 overview=$12, release_date=$13, rating=$14
+		 WHERE id=$15`,
 		string(req.MediaType), req.Provider, req.ProviderID, req.Title, req.Year, req.PosterURL,
-		string(req.Status), req.AdminNote, answeredBy, req.UpdatedAt, req.AnsweredAt, req.ID,
+		string(req.Status), req.AdminNote, answeredBy, req.UpdatedAt, req.AnsweredAt,
+		req.Overview, req.ReleaseDate, req.Rating, req.ID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -144,7 +146,7 @@ func (r *MediaRequestRepository) ListByProfile(ctx context.Context, profileID st
 	defer cancel()
 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at
+		`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at, overview, release_date, rating
 		 FROM media_requests WHERE profile_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
 		profileID, limit, offset,
 	)
@@ -173,7 +175,7 @@ func (r *MediaRequestRepository) ListAll(ctx context.Context, statuses []mediare
 	var err error
 	if len(statuses) == 0 {
 		rows, err = txFromCtx(ctx, r.db).QueryContext(ctx,
-			`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at
+			`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at, overview, release_date, rating
 			 FROM media_requests ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2`,
 			limit, offset,
 		)
@@ -183,7 +185,7 @@ func (r *MediaRequestRepository) ListAll(ctx context.Context, statuses []mediare
 			statusStrs[i] = string(s)
 		}
 		rows, err = txFromCtx(ctx, r.db).QueryContext(ctx,
-			`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at
+			`SELECT id, profile_id, user_id, media_type, provider, provider_id, title, year, poster_url, status, admin_note, answered_by, created_at, updated_at, answered_at, overview, release_date, rating
 			 FROM media_requests WHERE status = ANY($1) ORDER BY created_at DESC, id DESC LIMIT $2 OFFSET $3`,
 			pq.Array(statusStrs), limit, offset,
 		)
@@ -230,7 +232,7 @@ func scanMediaRequestRow(row *sql.Row) (*mediarequest.Request, error) {
 	if err := row.Scan(
 		&req.ID, &req.ProfileID, &req.UserID, &mediaType, &req.Provider, &req.ProviderID,
 		&req.Title, &req.Year, &req.PosterURL, &status, &req.AdminNote, &answeredBy,
-		&req.CreatedAt, &req.UpdatedAt, &req.AnsweredAt,
+		&req.CreatedAt, &req.UpdatedAt, &req.AnsweredAt, &req.Overview, &req.ReleaseDate, &req.Rating,
 	); err != nil {
 		return nil, err
 	}
@@ -251,7 +253,7 @@ func scanMediaRequestRows(rows *sql.Rows) ([]*mediarequest.Request, error) {
 		if err := rows.Scan(
 			&req.ID, &req.ProfileID, &req.UserID, &mediaType, &req.Provider, &req.ProviderID,
 			&req.Title, &req.Year, &req.PosterURL, &status, &req.AdminNote, &answeredBy,
-			&req.CreatedAt, &req.UpdatedAt, &req.AnsweredAt,
+			&req.CreatedAt, &req.UpdatedAt, &req.AnsweredAt, &req.Overview, &req.ReleaseDate, &req.Rating,
 		); err != nil {
 			return nil, err
 		}
