@@ -20,7 +20,6 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
 	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/evey-project/evey/internal/pkg/tracing"
@@ -166,11 +165,10 @@ func (h *compatServe) resolve(w http.ResponseWriter, r *http.Request) (mediaID, 
 	mediaID = r.PathValue("id")
 	claims := HTTPClaimsFromContext(r.Context())
 
-	if st, tok := StreamTokenFromContext(r.Context()); tok {
-		if st.MediaItemID != shared.MediaItemID(mediaID) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return "", "", "", 0, false
-		}
+	// Same binding as the raw download: the token must be this media's, and a
+	// syncplay guest may stream but never download.
+	if !requireDownloadTokenBinding(w, r, mediaID) {
+		return "", "", "", 0, false
 	}
 	item, err := h.libSvc.GetMediaItem(r.Context(), mediaID)
 	if err != nil {
