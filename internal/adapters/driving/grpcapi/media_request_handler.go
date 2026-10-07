@@ -71,6 +71,24 @@ func (h *mediaRequestHandler) hideUnreachableMatches(ctx context.Context, cands 
 	}
 }
 
+// mediaItemVisible is the single-item form of hideUnreachableMatches: whether
+// the caller's libraries and parental rating let them see this item. An
+// ungated caller sees everything; a gated one sees nothing it cannot resolve.
+func (h *mediaRequestHandler) mediaItemVisible(ctx context.Context, mediaItemID string) bool {
+	allowedIDs, _ := (&playbackHandler{userAccess: h.userAccess}).getAllowedLibraryIDs(ctx)
+	pf := resolveParentalFilterFromUserQuery(ctx, h.userQuery)
+	if allowedIDs == nil && !pf.enforced() {
+		return true
+	}
+	if h.libQuery == nil {
+		return false
+	}
+	mi := fetchItemMap(ctx, h.libQuery.GetMediaItemsByIDs, []string{mediaItemID})[mediaItemID]
+	return mi != nil &&
+		(allowedIDs == nil || slices.Contains(allowedIDs, string(mi.LibraryID))) &&
+		!mediaItemBlockedByParental(pf, mi)
+}
+
 func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.SearchTitlesRequest) (*eveyv1.SearchTitlesResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.mediarequest.SearchTitles")
 	defer span.End()
@@ -145,6 +163,7 @@ func (h *mediaRequestHandler) CreateRequest(ctx context.Context, req *eveyv1.Cre
 		r := req.Rating
 		in.Rating = &r
 	}
+	in.HeldVisible = h.mediaItemVisible
 	created, err := h.svc.CreateRequest(ctx, shared.ProfileID(claims.ProfileID), claims.UserID, in)
 	if err != nil {
 		return nil, mapMediaRequestError(ctx, h.translator, "create request", err)

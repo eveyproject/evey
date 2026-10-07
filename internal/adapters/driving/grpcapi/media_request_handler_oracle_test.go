@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
 	applibrary "github.com/evey-project/evey/internal/app/library"
@@ -76,6 +78,30 @@ func TestMediaRequestHandler_SearchTitles_NoLibraryAccessHidesMatch(t *testing.T
 	got := searchOne(userCtx("user-1", "profile-1"), t, h)
 	assert.False(t, got.InLibrary, "a user without access to the library must not learn the title is held")
 	assert.Empty(t, got.MediaItemId)
+}
+
+// The other half of the oracle: creating a request for a held title used to
+// answer "already held" to everyone. To a profile that cannot see the title it
+// is not on the server, so the request goes through; to one that can, it is
+// still refused.
+func TestMediaRequestHandler_CreateRequest_HeldTitleInvisibleToKidsIsRequestable(t *testing.T) {
+	h, grants, profiles := oracleFixture(t, &library.MediaItem{ID: "mi-r", LibraryID: "lib-1", Title: "Adult Movie", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "R"}})
+	ctx := context.Background()
+	maxAge := 13
+	_ = profiles.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
+	_ = profiles.Create(ctx, &user.Profile{ID: "profile-1", UserID: "user-1", Name: "Plain"})
+	require.NoError(t, grants.Grant(ctx, "user-1", "lib-1"))
+	req := &eveyv1.CreateRequestRequest{MediaType: "movie", Provider: "tmdb", ProviderId: "603", Title: "Some Movie"}
+
+	created, err := h.CreateRequest(userCtx("user-2", "profile-2"), req)
+	require.NoError(t, err, "a title the kids profile cannot see is not 'already held' to it")
+	assert.NotEmpty(t, created.Id)
+
+	_, err = h.CreateRequest(userCtx("user-1", "profile-1"), req)
+	require.Error(t, err, "a caller who may see the title is still told it is held")
+	assert.Equal(t, codes.AlreadyExists, status.Code(err))
 }
 
 func TestMediaRequestHandler_SearchTitles_KidsProfileHidesAdultMatch(t *testing.T) {
