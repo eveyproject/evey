@@ -100,6 +100,9 @@ export function useProgressReporter(
 
   useEffect(() => {
     if (!sessionId) return;
+    // A new session starts from zero: the previous title's last tick must not
+    // be what the first final report of this one falls back to.
+    lastPositionRef.current = 0;
 
     intervalRef.current = setInterval(async () => {
       if (pendingRef.current) return;
