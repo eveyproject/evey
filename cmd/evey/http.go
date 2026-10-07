@@ -111,10 +111,12 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 		subtitleProviderRL.Stop()
 	}()
 
-	audioNormalizeGetter := func(ctx context.Context) bool {
-		entry, err := deps.repos.serverCfgRepo.Get(ctx, "transcode.audio_normalize")
-		return err == nil && entry.Value == "true"
-	}
+	// Read two to three times per segment (fingerprint, delivery, on-demand
+	// resource), so a 5 s cache turns ~30 SELECTs per ten segments into one
+	// and still follows an admin toggle within the time a player takes to
+	// notice; a read error is not cached.
+	audioNormalizeGetter, stopNormalizeCache := cachedBoolSetting(deps.repos.serverCfgRepo, "transcode.audio_normalize", 5*time.Second)
+	context.AfterFunc(ctx, stopNormalizeCache)
 
 	// Compat download (server-prepared variant with phone-renderable AAC
 	// audio): ON by default with an operator opt-out, the house posture for
