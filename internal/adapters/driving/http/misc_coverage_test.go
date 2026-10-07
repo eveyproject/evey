@@ -127,7 +127,7 @@ func TestSetCORSHeaders_NoOrigin(t *testing.T) {
 func TestServeFileWithCache_NotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	serveFileWithCache(w, req, "/nonexistent_file_xyz")
+	serveFileWithCache(w, req, "/nonexistent_file_xyz", true)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Code)
 	}

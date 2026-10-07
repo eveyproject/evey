@@ -98,7 +98,11 @@ func setCORSHeaders(w http.ResponseWriter, r *http.Request, baseURL string) {
 	}
 }
 
-func serveFileWithCache(w http.ResponseWriter, r *http.Request, filePath string) {
+// serveFileWithCache serves an immutable file with a year-long cache. shared
+// says whether a proxy or CDN may keep a copy: true for a public route
+// (artwork), false for one that authenticated through ?token= (trickplay
+// sprites), whose response belongs to that viewer's browser cache only.
+func serveFileWithCache(w http.ResponseWriter, r *http.Request, filePath string, shared bool) {
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		http.NotFound(w, r)
@@ -106,7 +110,11 @@ func serveFileWithCache(w http.ResponseWriter, r *http.Request, filePath string)
 	}
 	etag := fmt.Sprintf(`"%x-%x"`, fi.ModTime().Unix(), fi.Size())
 	w.Header().Set("ETag", etag)
-	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	scope := "private"
+	if shared {
+		scope = "public"
+	}
+	w.Header().Set("Cache-Control", scope+", max-age=31536000, immutable")
 	if r.Header.Get("If-None-Match") == etag {
 		w.WriteHeader(http.StatusNotModified)
 		return

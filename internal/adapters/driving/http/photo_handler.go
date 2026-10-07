@@ -124,7 +124,7 @@ func (h *photoHandler) servePhoto(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", p.MimeType)
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", "private, max-age=86400")
 	if p.MimeType != "image/jpeg" {
 		f, openErr := os.Open(p.FilePath)
 		if openErr != nil {
@@ -203,7 +203,7 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 
 	if fi, err := os.Stat(dstPath); err == nil && fi.Size() > 0 {
 		w.Header().Set("Content-Type", contentType)
-		w.Header().Set("Cache-Control", "public, max-age=86400")
+		w.Header().Set("Cache-Control", "private, max-age=86400")
 		http.ServeFile(w, r, dstPath)
 		return true
 	}
@@ -248,7 +248,7 @@ func (h *photoHandler) serveTranscoded(w http.ResponseWriter, r *http.Request, p
 		return false
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("Cache-Control", "private, max-age=86400")
 	http.ServeFile(w, r, dstPath)
 	return true
 }
