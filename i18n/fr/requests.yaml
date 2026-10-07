@@ -26,3 +26,6 @@ disabledDesc: "L'administrateur a désactivé les demandes de média pour votre 
 year: "({{year}})"
 inLibrary: "Déjà disponible"
 watchNow: "Regarder"
+openOn: "Ouvrir sur {{site}}"
+ratingLabel: "Note {{rating}} sur 10"
+releaseDateLabel: "Date de sortie : {{date}}"

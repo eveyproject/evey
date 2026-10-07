@@ -26,3 +26,6 @@ disabledDesc: Der Administrator hat Medienanfragen für dein Konto deaktiviert.
 year: "({{year}})"
 inLibrary: "Bereits verfügbar"
 watchNow: "Jetzt ansehen"
+openOn: "Auf {{site}} öffnen"
+ratingLabel: "Bewertung {{rating}} von 10"
+releaseDateLabel: "Erscheinungsdatum: {{date}}"

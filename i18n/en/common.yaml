@@ -125,6 +125,8 @@ notifications:
   episodeCount_one: "{{count}} episode"
   episodeCount_other: "{{count}} episodes"
   backupFailed: "Scheduled Backup Failed"
+  mediaRequest: "New media request: {{name}}"
+  requestAnswered: "Your media request was updated: {{name}}"
   clearConfirm: Delete all notifications?
   clearTitle: Clear notifications
   clearFailed: Failed to clear notifications

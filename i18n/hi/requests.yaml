@@ -26,3 +26,6 @@ disabledDesc: "एडमिन ने आपके खाते के लिए
 year: "({{year}})"
 inLibrary: "पहले से उपलब्ध"
 watchNow: "अभी देखें"
+openOn: "{{site}} पर खोलें"
+ratingLabel: "रेटिंग 10 में से {{rating}}"
+releaseDateLabel: "रिलीज़ तिथि: {{date}}"
