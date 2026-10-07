@@ -47,7 +47,6 @@ import (
 
 	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
 	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
 	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
 	domainuser "github.com/evey-project/evey/internal/domain/user"
 	"github.com/evey-project/evey/internal/pkg/bgtasks"
@@ -177,11 +176,10 @@ func (h *reducedServe) resolve(w http.ResponseWriter, r *http.Request) (reducedT
 	t.mediaID = r.PathValue("id")
 	claims := HTTPClaimsFromContext(r.Context())
 
-	if st, tok := StreamTokenFromContext(r.Context()); tok {
-		if st.MediaItemID != shared.MediaItemID(t.mediaID) {
-			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return t, false
-		}
+	// Same binding as the raw download: the token must be this media's, and a
+	// syncplay guest may stream but never download.
+	if !requireDownloadTokenBinding(w, r, t.mediaID) {
+		return t, false
 	}
 	item, err := h.libSvc.GetMediaItem(r.Context(), t.mediaID)
 	if err != nil {
