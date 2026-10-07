@@ -59,7 +59,9 @@ export function ListenTogetherRoom({
     ? `${serverUrl}/api/v1/music/tracks/${trackId}/stream?token=${encodeURIComponent(pinned.token)}`
     : null;
 
-  const player = useAudioPlayer(streamUri ?? undefined, { updateInterval: 500 });
+  // No source on the hook: every track goes through replace() below, so one
+  // native player serves the whole room instead of one per track.
+  const player = useAudioPlayer(undefined, { updateInterval: 500 });
   const status = useAudioPlayerStatus(player);
   useEffect(() => {
     playerRef.current = player;

@@ -35,8 +35,15 @@ let audioStatus: { currentTime?: number; duration?: number; playing?: boolean; d
   isLoaded: true,
 };
 const audioPlayer = { replace: vi.fn(), play: vi.fn(), pause: vi.fn(), seekTo: vi.fn() };
+// Every source the hook was asked for: a track URL here means expo-audio
+// would build a second native player for it instead of replace() feeding
+// the one player (the double GET per track the audit measured).
+const hookSources: unknown[] = [];
 vi.mock("expo-audio", () => ({
-  useAudioPlayer: () => audioPlayer,
+  useAudioPlayer: (source?: unknown) => {
+    hookSources.push(source);
+    return audioPlayer;
+  },
   useAudioPlayerStatus: () => audioStatus,
 }));
 
@@ -140,6 +147,10 @@ describe("MusicMiniPlayer - stream credential", () => {
   it("pins a fresh token per track instead of the store's stale one", async () => {
     render(<MusicMiniPlayer />);
     await waitFor(() => expect(audioPlayer.replace).toHaveBeenCalledWith("http://test-server/api/v1/music/tracks/trk-1/stream?token=renewed"));
+    // One native player, fed by replace(): the hook never receives the track
+    // as its source (that built a second player and fetched the stream twice).
+    expect(hookSources.length).toBeGreaterThan(0);
+    expect(hookSources.every((s) => s === undefined)).toBe(true);
     expect(document.querySelector("img")?.getAttribute("src")).toContain("/art?token=renewed");
     expect(freshToken.fn).toHaveBeenCalledTimes(1);
   });
