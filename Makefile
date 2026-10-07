@@ -469,9 +469,17 @@ ci-clean-checkout:
 PROTO_BRANCH ?= $(shell git rev-parse --abbrev-ref HEAD)
 ci-proto-breaking:
 	@echo "→ buf breaking (proto wire compat vs origin/$(PROTO_BRANCH))"
-	@git rev-parse --verify --quiet "origin/$(PROTO_BRANCH)" >/dev/null || { \
-	  echo "❌ origin/$(PROTO_BRANCH) is unknown locally - run 'git fetch origin' so this gate has something to compare against"; \
-	  exit 1; }
+	@# A remote that has no such branch yet (first push to a fresh repository)
+	@# publishes no wire contract to break: nothing to compare against, skip. A
+	@# branch the remote has but this clone never fetched is still an error.
+	@if ! git rev-parse --verify --quiet "origin/$(PROTO_BRANCH)" >/dev/null; then \
+	  if git ls-remote --exit-code --heads origin "$(PROTO_BRANCH)" >/dev/null 2>&1; then \
+	    echo "❌ origin/$(PROTO_BRANCH) is unknown locally - run 'git fetch origin' so this gate has something to compare against"; \
+	    exit 1; \
+	  fi; \
+	  echo "  (origin has no $(PROTO_BRANCH) yet - nothing published to break, skipped)"; \
+	  exit 0; \
+	fi
 	@docker exec -w /app evey-server sh -c '\
 	  git config --global --add safe.directory /app >/dev/null 2>&1; \
 	  git config --global --add safe.directory /app/.git >/dev/null 2>&1; \
