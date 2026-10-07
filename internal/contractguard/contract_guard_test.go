@@ -11,8 +11,9 @@
 // in pre-push (ci-arch) instead of surprising a human on a phone screen.
 //
 // Honest limits, so nobody over-trusts a green run:
-//   - a field written for ONE message masks its never-written namesake on
-//     another message (names are matched tree-wide, not per-message);
+//   - the server side is matched per message, but two name-level fallbacks
+//     remain (assignments on a receiver the scan cannot type, JSON-name string
+//     literals) and can still mask a namesake; the client side is by name;
 //   - a field written on one RPC path but left empty on another (the
 //     streams-on-list case) is invisible here - that class is covered per path
 //     in grpcapi (TestLibraryHandler_{Get,List,Filter}MediaItem(s)_HydratesStreams);
@@ -41,6 +42,35 @@ var allowlist = map[string]string{
 	"settings":  "client reads are i18n keys and local nav objects, not the metadata provider settings map",
 	"track_id":  "client read is the music player's local scrobble state, not the mkv diagnose proto field",
 	"platform":  "PushService.ListDevices returns an empty list BY DESIGN (FCM era removed, see push_handler.go:102) - the field cannot be live",
+}
+
+// neverWrittenByMessage is the per-message ticket list: fields a client reads
+// that no server code sets on THAT message, revealed once the guard stopped
+// letting a same-named field of another message mask them. Each entry is
+// either a real gap (wire it or drop the client read) or a write the scan
+// cannot see (set through an untyped path); triage in the backlog, then
+// delete the line. Never grow this list to silence a new regression.
+var neverWrittenByMessage = map[string]string{
+	"ContainerInfo.date":                  "never written: tracked in backlog",
+	"ContainerInfo.file_size":             "never written: tracked in backlog",
+	"ExtractDataChunk.total_size":         "never written: tracked in backlog",
+	"LoadTestReport.cold_cache":           "never written: tracked in backlog",
+	"LoadTestReport.disk_read_starved":    "never written: tracked in backlog",
+	"LoadTestReport.harness_cpu_fraction": "never written: tracked in backlog",
+	"LoadTestReport.harness_cpu_measured": "never written: tracked in backlog",
+	"LoadTestReport.storage_fs_type":      "never written: tracked in backlog",
+	"LoadTestReport.storage_opaque":       "never written: tracked in backlog",
+	"LoadTestReport.tiers":                "never written: tracked in backlog",
+	"MetadataResult.backdrop_url":         "never written: tracked in backlog",
+	"MetadataResult.poster_url":           "never written: tracked in backlog",
+	"MetadataResult.provider_id":          "never written: tracked in backlog",
+	"MkvTrack.bit_depth":                  "never written: tracked in backlog",
+	"MkvTrack.frame_rate":                 "never written: tracked in backlog",
+	"MkvTrack.is_forced":                  "never written: tracked in backlog",
+	"ScheduledTask.last_error":            "never written: tracked in backlog",
+	"SystemInfo.server_id":                "never written: tracked in backlog (previously masked by a namesake)",
+	"TranscodeJob.container":              "never written: tracked in backlog",
+	"WebPushKeys.p256dh":                  "never written: tracked in backlog",
 }
 
 type protoField struct {
@@ -193,11 +223,19 @@ func isClientSource(path string) bool {
 	return strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx")
 }
 
-// deadFields is the verdict: fields whose JSON name a client reads while no
-// server code ever assigns their Go name. The corpora are tokenized ONCE into
-// sets (composite-literal keys, assignment targets, string literals, property
-// accesses) so the per-field check is a lookup - a thousand fields times a
-// regex over megabytes was 14 s of gate, this is under a second.
+// deadFields is the verdict: "Message.snake_field" entries whose JSON name a
+// client reads while no server code ever writes that field of THAT message.
+// The corpora are tokenized ONCE into sets so the per-field check is a lookup
+// (a thousand fields times a regex over megabytes was 14 s of gate).
+//
+// Server side, per message: a field is written when it is a key of a
+// `pkg.Message{...}` literal (depth 1 of that literal only), or the target of
+// `x.Field = ...` where x is typed to Message in the enclosing function. Two
+// name-level fallbacks remain, because the guard has no type information
+// there: an assignment whose receiver it cannot type (`a.b.Field = ...`,
+// range variables, call results) and a JSON name appearing as a string literal
+// (the manual-JSON HTTP handlers: struct tags, map keys). Both can still mask
+// a never-written namesake. Client side stays by name: JSON carries no type.
 func deadFields(fields []protoField, serverCorpus, clientCorpus string) []string {
 	tokenize := func(corpus string, re *regexp.Regexp) map[string]bool {
 		set := map[string]bool{}
@@ -206,29 +244,29 @@ func deadFields(fields []protoField, serverCorpus, clientCorpus string) []string
 		}
 		return set
 	}
-	// A field counts as written when server code assigns its Go name (literal
-	// key or assignment), or when its JSON name appears as a string literal -
-	// that is how the manual-JSON HTTP handlers produce it (struct tags like
-	// `json:"hasPin"`, map keys like out["pinToken"]).
-	literalKeys := tokenize(serverCorpus, regexp.MustCompile(`\b(\w+)\s*:`))
-	assignments := tokenize(serverCorpus, regexp.MustCompile(`\.(\w+)\s*=`))
+	messages := map[string]bool{}
+	for _, f := range fields {
+		messages[msgKey(f.Message)] = true
+	}
+	typed, untyped := indexServerWrites(serverCorpus, messages)
 	stringLits := tokenize(serverCorpus, regexp.MustCompile(`"(\w+)"`))
 	clientProps := tokenize(clientCorpus, regexp.MustCompile(`\.(\w+)\b`))
 
 	seen := map[string]bool{}
 	var out []string
 	for _, f := range fields {
-		if seen[f.Snake] {
+		id := f.Message + "." + f.Snake
+		if seen[id] {
 			continue
 		}
-		seen[f.Snake] = true
+		seen[id] = true
 		g := goName(f.Snake)
 		j := jsonName(f.Snake)
-		if literalKeys[g] || assignments[g] || stringLits[j] {
+		if typed[msgKey(f.Message)+"|"+g] || untyped[g] || stringLits[j] {
 			continue
 		}
 		if clientProps[j] {
-			out = append(out, f.Snake)
+			out = append(out, id)
 		}
 	}
 	sort.Strings(out)
@@ -248,8 +286,8 @@ func TestGuardDetectsAFixtureDeadField(t *testing.T) {
 	server := collectCorpus(t, []string{"testdata/server"}, isServerSource)
 	client := collectCorpus(t, []string{"testdata/client"}, isClientSource)
 	got := deadFields(fields, server, client)
-	if len(got) != 1 || got[0] != "dead_field" {
-		t.Fatalf("guard verdict = %v, want exactly [dead_field]", got)
+	if len(got) != 1 || got[0] != "ThingResponse.dead_field" {
+		t.Fatalf("guard verdict = %v, want exactly [ThingResponse.dead_field]", got)
 	}
 }
 
@@ -267,10 +305,13 @@ func TestNoClientReadOfAFieldTheServerNeverWrites(t *testing.T) {
 		filepath.Join(repoRoot, "frontend/apps/tv/src"),
 	}, isClientSource)
 	for _, f := range deadFields(fields, server, client) {
-		if _, ok := allowlist[f]; ok {
+		if _, ok := allowlist[f[strings.IndexByte(f, '.')+1:]]; ok {
+			continue
+		}
+		if _, ok := neverWrittenByMessage[f]; ok {
 			continue
 		}
 		t.Errorf("proto field %q is read by a client but written by no server code - "+
-			"either wire it up (see applyMediaDuration for the last one) or allowlist it with a reason", f)
+			"either wire it up (see applyMediaDuration for the last one) or add it to neverWrittenByMessage with a reason", f)
 	}
 }
