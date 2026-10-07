@@ -353,7 +353,7 @@ describe("SettingsScreen (TV) language change", () => {
     fireEvent.click(screen.getByLabelText("Français"));
     expect(changeLanguageMock).toHaveBeenCalledWith("fr");
     // The auth store mock's profileId is "prof-2" (Chloé), not the default
-    // "prof-1" (Romain) - see handleLanguageChange's comment in settings.tsx:
+    // "prof-1" (Alice) - see handleLanguageChange's comment in settings.tsx:
     // writing the locale onto the default profile instead of the active one
     // was the bug this screen fixed.
     expect(updateProfileMutateAsyncMock).toHaveBeenCalledWith({ id: "prof-2", data: { locale: "fr" } });

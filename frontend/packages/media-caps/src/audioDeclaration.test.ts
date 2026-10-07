@@ -50,7 +50,7 @@ describe("declarableAudioCodecs", () => {
 
   // Its sink says yes to DTS (dp + profiles 7/8), but Media3 reads that answer
   // on a TV only: on this tablet DTS is never passed through, no decoder takes
-  // it, and the DTS-only a DTS-only film played silent (2026-10-05).
+  // it, and a DTS-only film played silent (2026-10-05).
   it("does not declare dts on a tablet whose own speaker says yes", () => {
     expect(declarableAudioCodecs(TABLET.decoders, TABLET)).not.toContain("dts");
     expect(declarableAudioCodecs(PHONE.decoders, PHONE)).not.toContain("dts");

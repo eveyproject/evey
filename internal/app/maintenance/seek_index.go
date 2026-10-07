@@ -527,7 +527,7 @@ func (st SeekStatus) Verdict() Verdict {
 	// It is how a dub gets aligned to a cut, every player honours it, and Evey's
 	// own pipeline already cancels a spurious one at playback (-itsoffset, since
 	// 2026-07-08). Rewriting the file to zero it destroyed a DELIBERATE 12.000 s
-	// alignment on a real title (a prod title, prod 2026-07-13): the dub then
+	// alignment on a real title (prod 2026-07-13): the dub then
 	// played 12 s early in every player, and no backup existed. Measured
 	// disagreement between the file's own tracks (AudioTracksLagSec) is worth
 	// SAYING, because it is the one case where the offset is probably wrong -

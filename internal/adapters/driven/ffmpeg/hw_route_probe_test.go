@@ -158,7 +158,7 @@ func TestRouteProbesFor_ExoticDecodeClassesGetARoute(t *testing.T) {
 // resolveTonemapCaps treats the native VPP and VAAPI/OpenCL probes as
 // INDEPENDENT: OpenCL alone certifies HWTonemap and adds its feature (the fix
 // for the gating bug that dropped VAAPI's OpenCL tone-map whenever the
-// fixed-function VPP aborted, as it did on prod-host). Native alone still counts.
+// fixed-function VPP aborted, as it did on the prod host). Native alone still counts.
 func TestResolveTonemapCaps_NativeAndOpenCLIndependent(t *testing.T) {
 	cases := []struct {
 		name           string
@@ -166,7 +166,7 @@ func TestResolveTonemapCaps_NativeAndOpenCLIndependent(t *testing.T) {
 		wantTonemap    bool
 		wantOpenCL     bool
 	}{
-		{"opencl only", false, true, true, true}, // prod-host: VPP aborts, OpenCL validated 3.26x
+		{"opencl only", false, true, true, true}, // prod host: VPP aborts, OpenCL validated 3.26x
 		{"native only", true, false, true, false},
 		{"both", true, true, true, true},
 		{"neither", false, false, false, false},

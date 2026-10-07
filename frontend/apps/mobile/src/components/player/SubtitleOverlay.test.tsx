@@ -224,7 +224,7 @@ describe("SubtitleOverlay, piste bitmap", () => {
     await waitFor(() => expect(eveyFetchRawMock).toHaveBeenCalled());
     expect(screen.queryByTestId("subtitle-image")).toBeNull();
   });
-  // a beta tester in direct play, 2026-10-05: /subtitle read the whole 9.9 GB film
+  // A beta tester in direct play, 2026-10-05: /subtitle read the whole 9.9 GB film
   // before the first line showed; the packager serves the same track in 6 s
   // segments, about a second each.
   it("reads the packager's segments around the playhead, in the film's own time, and never /subtitle", async () => {

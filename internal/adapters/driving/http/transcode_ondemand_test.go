@@ -1132,7 +1132,7 @@ func qsvHEVCCapability() domaintranscoding.EncodeCapability {
 	}
 }
 
-// a series episode, mobile, 2026-09-15: the hybrid master's fallback rung read
+// A series episode, mobile, 2026-09-15: the hybrid master's fallback rung read
 // CODECS="avc1…" while ffmpeg ran hevc_qsv under the very hash the master
 // sealed - the HEVC-capable phone dropped from an H.264 copy onto an HEVC
 // transcode and froze. The rung must (a) keep the copy rung's codec family and

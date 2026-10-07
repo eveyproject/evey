@@ -430,7 +430,7 @@ func TestHLSVOD_Master_AdmittedByRealLimiterWithRouteEvidence(t *testing.T) {
 		allowAll(),
 		testFakeParentalChecker{},
 	)
-	// prod-host's evidence shape: the software route this test's plan resolves to
+	// The prod host's evidence shape: the software route this test's plan resolves to
 	// (libx264 sdr) plus a GPU route that must not matter here.
 	samples := []domaintranscoding.RouteSample{
 		{Key: domaintranscoding.RouteCostKey{Encoder: "libx264", Route: domaintranscoding.RouteCostSDR}, Height: 1080, FPS: 120.8, CPUCores: 5.06, SourceFPS: 24},

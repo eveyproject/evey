@@ -1,4 +1,4 @@
-// a film on a LG television, 2026-10-05: the player fetched /subtitle,
+// A film on a LG television, 2026-10-05: the player fetched /subtitle,
 // a read of the whole film paced behind its own playback, three times over;
 // the packager served the same tracks segment by segment in 0.3 s each and
 // was never asked. These tests pin that a player passing its position reads

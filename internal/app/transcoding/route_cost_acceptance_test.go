@@ -70,16 +70,16 @@ func TestAcceptance_ProdHost_VAAPI(t *testing.T) {
 	hevc := rk("vaapi", "hevc_vaapi", transcoding.RouteCostSDR)
 	// h264 4K 24p: 0.395 -> 2 fit.
 	if n := admitN(t, s, 7, h264, 2160, 24); n != 2 {
-		t.Errorf("prod-host h264 4K 24p: admitted %d, want 2", n)
+		t.Errorf("prod host h264 4K 24p: admitted %d, want 2", n)
 	}
 	// hevc 4K 24p: 0.96 -> exactly 1 (priced on h264's 0.559, a 2nd would have slipped in).
 	if n := admitN(t, s, 7, hevc, 2160, 24); n != 1 {
-		t.Errorf("prod-host hevc_vaapi 4K 24p: admitted %d, 0.96 fits 1", n)
+		t.Errorf("prod host hevc_vaapi 4K 24p: admitted %d, 0.96 fits 1", n)
 	}
 	// hevc 4K 60p: 2.36 > 1 -> REFUSED even for one session (0.51x realtime).
 	// The old model priced it 0.559 and would have admitted it.
 	if n := admitN(t, s, 7, hevc, 2160, 60); n != 0 {
-		t.Errorf("prod-host hevc_vaapi 4K 60p: admitted %d, it runs at 0.51x realtime and must be refused", n)
+		t.Errorf("prod host hevc_vaapi 4K 60p: admitted %d, it runs at 0.51x realtime and must be refused", n)
 	}
 	// Decoupled 1080: 5.6 cores were burnt RACING at 128 fps; paced to realtime
 	// it is 5.6 x 28.8/128 = 1.26 cores = 0.18 of 7, and accel 28.8/128 = 0.225.
@@ -89,10 +89,10 @@ func TestAcceptance_ProdHost_VAAPI(t *testing.T) {
 	m := NewRouteCostModel(s, 7)
 	dc, _ := m.Cost(dec, 1080, 24)
 	if !approx(dc.CPU, 5.6*28.8/128/7) {
-		t.Errorf("prod-host decoupled cpu=%.3f want ~0.18 (paced)", dc.CPU)
+		t.Errorf("prod host decoupled cpu=%.3f want ~0.18 (paced)", dc.CPU)
 	}
 	if n := admitN(t, s, 7, dec, 1080, 24); n != 4 {
-		t.Errorf("prod-host decoupled 1080: admitted %d, GPU-bound at 0.225 => 4 (CPU 0.18 holds 5)", n)
+		t.Errorf("prod host decoupled 1080: admitted %d, GPU-bound at 0.225 => 4 (CPU 0.18 holds 5)", n)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestAcceptance_ProdHost_x264(t *testing.T) {
 		t.Fatalf("x264 cpu=%.3f want ~0.235", c.CPU)
 	}
 	if n := admitN(t, s, 7, k, 1080, 24); n != 4 {
-		t.Errorf("prod-host x264 1080: admitted %d, ~0.235 each fits 4 on 7 cores", n)
+		t.Errorf("prod host x264 1080: admitted %d, ~0.235 each fits 4 on 7 cores", n)
 	}
 }
 

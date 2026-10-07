@@ -34,7 +34,7 @@ RUN sed -i 's/Components: main/Components: main contrib non-free non-free-firmwa
 # installed - same as the prod runtime; libav* still ship via libchromaprint-tools).
 # Same install as the prod Dockerfile. Without it, local transcode/HLS validation
 # runs on a DIFFERENT binary than prod (Debian zscale, no tonemapx, different muxer).
-# CAVEAT: this is BINARY parity, NOT silicon parity. The reference box is an old iGPU
+# CAVEAT: this is BINARY parity, NOT silicon parity. The reference box is an
 # old iGPU (VAAPI encode only, NO HEVC HW decode); this dev host is not. So
 # SOFTWARE/muxer/remux results validated here transfer to prod, but HW-accel
 # (NVENC/VAAPI/QSV) results do NOT - those need the actual prod GPU. What ships
