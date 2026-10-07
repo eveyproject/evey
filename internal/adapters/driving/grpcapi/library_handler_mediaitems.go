@@ -219,51 +219,17 @@ func (h *libraryHandler) applyMediaItemsPagination(ctx context.Context, span tra
 // already uses. Best-effort: base values stay when no translation exists; a
 // fetch error is logged, not fatal.
 func (h *libraryHandler) overlayMediaItemsLocale(ctx context.Context, ids []string, items []*library.MediaItem) {
-	locale := eveyi18n.LocaleFromCtx(ctx)
-	if locale == "" || len(ids) == 0 {
-		return
-	}
-	trans, tErr := h.query.GetMediaItemTranslations(ctx, ids, locale)
-	if tErr != nil {
-		slog.WarnContext(ctx, "list media items: localize titles", slog.Any("err", tErr))
-		return
-	}
-	for _, item := range items {
-		if t := trans[string(item.ID)]; t != nil {
-			if t.Title != "" {
-				item.Title = t.Title
-			}
-			if t.Overview != "" {
-				item.Overview = t.Overview
-			}
-			if t.Tagline != "" {
-				item.Tagline = t.Tagline
-			}
-		}
-	}
+	overlayItemsLocale(ctx, h.query, ids, items)
 }
 
 // overlayMediaItemsOverrides applies manual metadata overrides in place. These
 // win over the auto-translation too (same precedence as the detail view) so a
 // corrected title shows in the grid/season list.
 func (h *libraryHandler) overlayMediaItemsOverrides(ctx context.Context, ids []string, items []*library.MediaItem) {
-	if h.metadataSvc == nil || len(ids) == 0 {
+	if h.metadataSvc == nil {
 		return
 	}
-	ovMap, oErr := h.metadataSvc.BatchListOverrides(ctx, ids)
-	if oErr != nil {
-		// Best-effort like fetchMediaItemsArtwork next door, but say so: the
-		// grid then shows provider titles where an admin corrected them, and a
-		// silent return leaves no way to tell that from "nothing was ever
-		// corrected".
-		slog.WarnContext(ctx, "overlay media item overrides", slog.Int("ids", len(ids)), slog.Any("err", oErr))
-		return
-	}
-	for _, item := range items {
-		if ovs := ovMap[string(item.ID)]; len(ovs) > 0 {
-			applyOverridesToItem(item, ovs)
-		}
-	}
+	overlayItemsOverrides(ctx, h.metadataSvc, ids, items)
 }
 
 // fetchMediaItemsArtwork batch-loads artwork for ids, best-effort (a fetch

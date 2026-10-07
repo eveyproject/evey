@@ -853,6 +853,7 @@ func (h *playbackHandler) enrichWatchHistory(ctx context.Context, items []*playb
 	}
 	byID := h.mediaItemMap(ctx, ids)
 	seasonByID, seriesByID := h.episodeAncestors(ctx, byID)
+	h.overlayMaps(ctx, byID, seasonByID, seriesByID)
 
 	out := make([]*eveyv1.WatchProgress, 0, len(items))
 	for _, wp := range items {
@@ -967,6 +968,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 	}
 	miByID := h.mediaItemMap(ctx, ids)
 	seasonByID, seriesByID := h.episodeAncestors(ctx, miByID)
+	h.overlayMaps(ctx, miByID, seasonByID, seriesByID)
 	for _, wp := range items {
 		mi := miByID[string(wp.MediaItemID)]
 		if allowedIDs != nil || parentalActive {
@@ -1053,15 +1055,28 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 		}
 		byID[string(mi.ID)] = mi
 	}
+	h.overlayMaps(ctx, byID)
 	resp := &eveyv1.GetNextUpResponse{}
 	for _, wp := range progresses {
 		if item, ok := byID[string(wp.MediaItemID)]; ok {
 			resp.Items = append(resp.Items, mediaItemToProto(item, ctxIsAdmin(ctx)))
 		}
 	}
-	fillAncestorTitles(ctx, h.librarySvc.GetMediaItemsByIDs, resp.Items)
+	fillAncestorTitles(ctx, h.overlaidItemsFetch, resp.Items)
 	fillPrimaryBlurhashes(ctx, h.metadataSvc, resp.Items)
 	return resp, nil
+}
+
+// overlaidItemsFetch is GetMediaItemsByIDs with the viewer's locale and the
+// admin overrides applied, for ancestor titles resolved after the proto
+// conversion.
+func (h *playbackHandler) overlaidItemsFetch(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
+	items, err := h.librarySvc.GetMediaItemsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	overlayItems(ctx, h.librarySvc, h.playbackOverrideSource(), items)
+	return items, nil
 }
 
 func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsWatchedRequest) (*eveyv1.MarkAsWatchedResponse, error) {
