@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"errors"
+	"math"
 	"slices"
 	"sync"
 
@@ -235,25 +236,111 @@ func (l *VideoSessionLimiter) UsedFor(pool ResourcePool) float64 {
 	return l.usedFor(pool)
 }
 
-// Rungs proxies the wired cost model's Rungs() (the software ladder) - every
-// calibrated software rung's cost + derived max-concurrent-streams, for the
-// admin capacity panel. Empty (never nil) when no cost model is wired.
+// Rungs is RungsFor(LadderClassSoftware), for the admin capacity panel.
 func (l *VideoSessionLimiter) Rungs() []RungFit {
-	l.mu.Lock()
-	m := l.costModel
-	l.mu.Unlock()
-	return m.Rungs()
+	return l.RungsFor(LadderClassSoftware)
 }
 
-// RungsFor proxies the wired cost model's RungsFor(class) - class's
-// calibrated rungs, for the admin panel's per-pool breakdown (see
-// VideoCostModel.RungsFor). Empty (never nil) when no cost model is wired or
-// class has no table.
+// RungsFor is class's calibrated rungs for the admin panel's per-pool
+// breakdown. The rung heights come from the cost model's table, but on a host
+// WITH route evidence the cost and the stream counts come from chargesFor on
+// the class's representative route - the very pricing admission applies - so
+// the panel can never promise streams admission will refuse (the table said ~25
+// where admission fit ~4). A rung the route evidence does not cover is omitted:
+// admission refuses it. Empty (never nil) when no cost model is wired or class
+// has no table.
 func (l *VideoSessionLimiter) RungsFor(class LadderClass) []RungFit {
 	l.mu.Lock()
-	m := l.costModel
-	l.mu.Unlock()
-	return m.RungsFor(class)
+	defer l.mu.Unlock()
+	rungs := l.costModel.RungsFor(class)
+	if l.routeModel == nil {
+		return rungs
+	}
+	route, ok := representativeRoute(l.routeModel, class)
+	out := make([]RungFit, 0, len(rungs))
+	if !ok {
+		return out
+	}
+	for _, r := range rungs {
+		fit, ok := l.routeRungFit(class, route, r)
+		if !ok {
+			continue
+		}
+		out = append(out, fit)
+	}
+	return out
+}
+
+// representativeRoute is the measured route a session of class most commonly
+// takes: the plain-SDR H.264 encode (the hardware backend's, for the hw class;
+// libx264 / its HDR tone-map / libsvtav1 for the software classes). ok=false
+// when the evidence holds no such route.
+func representativeRoute(m *RouteCostModel, class LadderClass) (transcoding.RouteCostKey, bool) {
+	var want func(k transcoding.RouteCostKey) bool
+	switch class {
+	case LadderClassHW:
+		want = func(k transcoding.RouteCostKey) bool {
+			return k.Backend != "" && k.Route == transcoding.RouteCostSDR && k.Encoder == transcoding.RouteEncoderName("h264", string(k.Backend))
+		}
+	case LadderClassSoftwareHDR:
+		want = func(k transcoding.RouteCostKey) bool {
+			return k.Backend == "" && k.Route == transcoding.RouteCostSoftwareHDR
+		}
+	case LadderClassSoftwareAV1:
+		want = func(k transcoding.RouteCostKey) bool { return k.Backend == "" && k.Encoder == "libsvtav1" }
+	default:
+		want = func(k transcoding.RouteCostKey) bool {
+			return k.Backend == "" && k.Route == transcoding.RouteCostSDR && k.Encoder == "libx264"
+		}
+	}
+	for _, k := range m.Keys() {
+		if want(k) {
+			return k, true
+		}
+	}
+	return transcoding.RouteCostKey{}, false
+}
+
+// routeRungFit re-prices one table rung on route through chargesFor. Held.
+func (l *VideoSessionLimiter) routeRungFit(class LadderClass, route transcoding.RouteCostKey, r RungFit) (RungFit, bool) {
+	charges, ok := l.chargesFor(class, r.Height, transcoding.SourceClass{}, route, 0)
+	if !ok {
+		return RungFit{}, false
+	}
+	fit := RungFit{Height: r.Height, Cost: maxChargeCost(charges), MaxStreams: l.streamsFitting(charges)}
+	// Route evidence carries no decode-source dimension: every source class is
+	// the same session, priced the same.
+	for _, s := range r.BySource {
+		fit.BySource = append(fit.BySource, SourceFit{Source: s.Source, Cost: fit.Cost, MaxStreams: fit.MaxStreams})
+	}
+	return fit, true
+}
+
+// streamsFitting is how many sessions priced as charges fit the pools' whole
+// budgets from idle: the tighter pool decides, never their sum. Held.
+func (l *VideoSessionLimiter) streamsFitting(charges []poolCharge) int {
+	n := -1
+	for _, c := range charges {
+		if c.cost <= 0 {
+			continue
+		}
+		k := int(math.Floor((l.budgetFor(c.pool) + budgetEpsilon) / c.cost))
+		if n < 0 || k < n {
+			n = k
+		}
+	}
+	if n < 0 {
+		return 1
+	}
+	return n
+}
+
+func maxChargeCost(charges []poolCharge) float64 {
+	var m float64
+	for _, c := range charges {
+		m = max(m, c.cost)
+	}
+	return m
 }
 
 // Classes proxies the wired cost model's Classes() - which ladder classes
@@ -503,22 +590,43 @@ func sourceFitCosts(fits []SourceFit) []float64 {
 	return out
 }
 
-// AutoCountCap is the count cap this host's own calibration derives: the sum
-// across pools of AutoCountCapFor. 0 means "no evidence to derive one from".
+// AutoCountCap is the count cap this host's own calibration derives; 0 means
+// "no evidence to derive one from".
 //
-// The sum, not the max, precisely BECAUSE the counter gate is global across
-// classes: a host legitimately runs its CPU pool full of software streams AND
-// its GPU pool full of hardware ones, and a max would refuse that mix. Loose
-// for an all-software load on a GPU box, but the per-pool budget refuses those
-// first - this is the belt, not the braces.
+// With route evidence it is the MINIMUM over the pools of the most common
+// route (representativeRoute) - never a sum: a GPU session draws on the
+// accelerator AND the CPU pool at once, so the tighter pool is the ceiling and
+// adding the other pool's headroom would count streams that cannot exist.
+// Without route evidence a table-priced session charges ONE pool, so the pools
+// are independent and the cap is their sum (a host may fill its CPU pool with
+// software streams and its GPU pool with hardware ones; the per-pool budget
+// stays the gate, this is the belt).
 //
 // It lives HERE, on the limiter that owns both the cost model and the budgets,
-// because it used to be computed inline at the wiring site while the admin API
-// derived a DIFFERENT number from the tallest bench rung. The panel then showed
-// an "effective limit" that was not the one being enforced.
+// because the admin API once derived a DIFFERENT number from the tallest bench
+// rung, so the panel showed an "effective limit" that was not the one enforced.
 func (l *VideoSessionLimiter) AutoCountCap() int {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.routeModel != nil {
+		route, ok := representativeRoute(l.routeModel, LadderClassHW)
+		if !ok {
+			route, ok = representativeRoute(l.routeModel, LadderClassSoftware)
+		}
+		if !ok {
+			return 0
+		}
+		// h=0 selects the route's lowest measured rung, its cheapest session.
+		class := LadderClassSoftware
+		if route.Backend != "" {
+			class = LadderClassHW
+		}
+		charges, ok := l.chargesFor(class, 0, transcoding.SourceClass{}, route, 0)
+		if !ok {
+			return 0
+		}
+		return l.streamsFitting(charges)
+	}
 	return l.autoCountCapFor(PoolCPU) + l.autoCountCapFor(PoolGPU)
 }
 
