@@ -501,7 +501,8 @@ func (q *FeedQuerier) fillPrimaryBlurhashes(ctx context.Context, items []*feed.F
 	defer cancel()
 	rows, err := txFromCtx(ctx, q.db).QueryContext(ctx,
 		`SELECT media_item_id, blurhash FROM artwork
-		 WHERE media_item_id = ANY($1) AND type = 'poster' AND blurhash IS NOT NULL`,
+		 WHERE media_item_id = ANY($1) AND type = 'poster' AND blurhash IS NOT NULL
+		 ORDER BY media_item_id, sort_order`,
 		pq.Array(ids))
 	if err != nil {
 		slog.Debug("feed: fetch blurhashes failed", slog.Any("err", err))
