@@ -4,6 +4,8 @@ export * from "./watchHistoryLabel";
 export * from "./audioChannelLayout";
 export * from "./playMethod";
 export * from "./notificationLabel";
+export * from "./externalTitleUrl";
+export * from "./requestFacts";
 export * from "./format";
 export * from "./seekIndexHelpers";
 export * from "./playerEventReporter";

@@ -18,6 +18,7 @@ import { toast, useDemoStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { RequestFacts, RequestOverview } from "../../../src/components/requests/RequestDetails";
 
 type MediaType = "movie" | "tv" | "music";
 // The search scopes offered to the user: movies and series are ONE scope
@@ -215,6 +216,10 @@ export default function RequestsScreen() {
         title: candidate.title,
         year: candidate.year,
         posterUrl: candidate.posterUrl,
+        // What the requester saw, kept with the request for the operator.
+        overview: candidate.overview,
+        releaseDate: candidate.releaseDate,
+        rating: candidate.rating,
       },
     });
   }, [createRequest]);
@@ -252,11 +257,13 @@ export default function RequestsScreen() {
               </Text>
             </View>
           )}
+          <RequestFacts releaseDate={item.releaseDate} rating={item.rating} />
           {inLibrary && (
             <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 4 }}>
               {t("requests.inLibrary")}
             </Text>
           )}
+          <RequestOverview overview={item.overview} lines={2} />
         </View>
         {inLibrary && item.mediaItemId ? (
           <FocusableCard
@@ -306,9 +313,11 @@ export default function RequestsScreen() {
         <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "600" }} numberOfLines={2}>
           {item.title}{item.year != null && item.year > 0 ? ` (${item.year})` : ""}
         </Text>
+        <RequestFacts releaseDate={item.releaseDate} rating={item.rating} />
         <Text style={{ color: statusColor(theme, item.status), fontSize: 17, marginTop: 4, fontWeight: "600" }}>
           {t(`requests.status${capitalize(item.status)}`)}
         </Text>
+        <RequestOverview overview={item.overview} lines={2} />
         {item.adminNote ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginTop: 4 }}>
             {t("requests.adminNote", { note: item.adminNote })}
@@ -476,7 +485,9 @@ const styles = StyleSheet.create({
   },
   hint: { textAlign: "center", fontSize: 18 },
   resultRow: { flexDirection: "row", alignItems: "center", paddingVertical: 9 },
-  thumb: { width: 80, height: 120, justifyContent: "center", alignItems: "center" },
+  // Same ratio as web/mobile; a size that still reads from the couch now that
+  // the row carries the date, the rating and the synopsis (2026-10-07).
+  thumb: { width: 96, height: 144, justifyContent: "center", alignItems: "center" },
   inLibraryBadge: {
     position: "absolute",
     bottom: 4,

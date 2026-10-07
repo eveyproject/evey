@@ -101,7 +101,10 @@ let requestsQueryState = {
   isError: false,
   refetch: vi.fn(),
 };
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  // The link, date and rating formatters are pure: keep the real ones so the
+  // row renders what the operator sees.
+  ...(await importOriginal<typeof import("@evey/api")>()),
   adminMediaRequestServiceListRequests: vi.fn(),
   useAdminMediaRequestServiceAnswerRequest: () => ({ mutate: vi.fn(), isPending: false }),
   useAdminMediaRequestServiceGetAccessSettings: () => ({ data: { overrides: [] }, isLoading: false, isError: false, refetch: vi.fn() }),
