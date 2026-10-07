@@ -5,6 +5,7 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   StyleSheet,
   ActivityIndicator,
@@ -27,6 +28,7 @@ import { toast, useDemoStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { LoadFailed } from "../../../src/components/LoadFailed";
+import { RequestFacts, RequestOverview, RequestTitleLink, useExternalTitleLink } from "../../../src/components/requests/RequestDetails";
 
 type MediaType = "movie" | "tv" | "music";
 // The search scopes offered to the user: movies and series are ONE scope
@@ -44,21 +46,35 @@ const SCOPES: { key: SearchScope; labelKey: string; icon: keyof typeof Ionicons.
 // submitted as - needed once movies and series share one result list.
 type TaggedCandidate = V1TitleCandidate & { requestType: MediaType };
 
+// Poster size: the 48x72 thumbnail that shipped first was too small to tell
+// two editions apart (user, 2026-10-07); same ratio, half again as large.
+export const POSTER_W = 72;
+export const POSTER_H = 108;
+
 // Poster with a title + media-type fallback (web parity: RequestPoster). A bare
 // surface rectangle for a poster-less title left the row looking broken; the
-// icon + title says what it is at a glance.
-function RequestPoster({ posterUrl, title, mediaType }: { posterUrl?: string; title?: string; mediaType?: string }) {
+// icon + title says what it is at a glance. Pressing it opens the provider's
+// page when the title has one.
+function RequestPoster({ posterUrl, title, mediaType, link }: { posterUrl?: string; title?: string; mediaType?: string; link: { provider?: string; providerId?: string; mediaType?: string } }) {
   const theme = useTheme();
-  if (posterUrl) {
-    return <Image cachePolicy="memory-disk" source={{ uri: posterUrl }} style={{ width: 48, height: 72, borderRadius: theme.radii.sm }} contentFit="cover" />;
-  }
-  const icon: keyof typeof Ionicons.glyphMap =
-    mediaType === "music" ? "musical-notes-outline" : mediaType === "tv" ? "tv-outline" : "film-outline";
-  return (
-    <View style={{ width: 48, height: 72, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 }}>
-      <Ionicons name={icon} size={18} color={theme.colors.textMuted} />
-      <Text numberOfLines={2} style={{ color: theme.colors.textMuted, fontSize: 8, textAlign: "center", marginTop: 2 }}>{title}</Text>
+  const ext = useExternalTitleLink(link);
+  const body = posterUrl ? (
+    <Image cachePolicy="memory-disk" source={{ uri: posterUrl }} style={{ width: POSTER_W, height: POSTER_H, borderRadius: theme.radii.sm }} contentFit="cover" />
+  ) : (
+    <View style={{ width: POSTER_W, height: POSTER_H, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surfaceRaised, alignItems: "center", justifyContent: "center", paddingHorizontal: 4 }}>
+      <Ionicons
+        name={mediaType === "music" ? "musical-notes-outline" : mediaType === "tv" ? "tv-outline" : "film-outline"}
+        size={22}
+        color={theme.colors.textMuted}
+      />
+      <Text numberOfLines={3} style={{ color: theme.colors.textMuted, fontSize: 9, textAlign: "center", marginTop: 3 }}>{title}</Text>
     </View>
+  );
+  if (!ext.url) return body;
+  return (
+    <Pressable onPress={ext.open} accessibilityRole="link" accessibilityLabel={ext.label}>
+      {body}
+    </Pressable>
   );
 }
 
@@ -173,6 +189,10 @@ export default function RequestsScreen() {
         title: candidate.title,
         year: candidate.year,
         posterUrl: candidate.posterUrl,
+        // What the requester saw, kept with the request for the operator.
+        overview: candidate.overview,
+        releaseDate: candidate.releaseDate,
+        rating: candidate.rating,
       },
     });
   }
@@ -275,7 +295,7 @@ export default function RequestsScreen() {
             <View style={{ paddingTop: 8 }}>
               {Array.from({ length: 4 }).map((_, i) => (
                 <View key={i} style={styles.resultRow}>
-                  <Skeleton width={48} height={72} borderRadius={theme.radii.sm} />
+                  <Skeleton width={POSTER_W} height={POSTER_H} borderRadius={theme.radii.sm} />
                 </View>
               ))}
             </View>
@@ -295,8 +315,8 @@ export default function RequestsScreen() {
                 const inLibrary = item.inLibrary === true;
                 return (
                   <View style={styles.resultRow}>
-                    <View style={{ width: 48, height: 72 }}>
-                      <RequestPoster posterUrl={item.posterUrl} title={item.title} mediaType={item.requestType} />
+                    <View style={{ width: POSTER_W, height: POSTER_H }}>
+                      <RequestPoster posterUrl={item.posterUrl} title={item.title} mediaType={item.requestType} link={{ provider: item.provider, providerId: item.providerId, mediaType: item.requestType }} />
                       {inLibrary && (
                         <View style={[styles.inLibraryBadge, { backgroundColor: theme.colors.overlay }]}>
                           <Ionicons name="checkmark-circle" size={10} color={theme.colors.text} />
@@ -304,9 +324,8 @@ export default function RequestsScreen() {
                       )}
                     </View>
                     <View style={{ flex: 1, marginLeft: 10 }}>
-                      <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={2}>
-                        {item.title}{item.year != null && item.year > 0 ? ` (${item.year})` : ""}
-                      </Text>
+                      <RequestTitleLink title={{ provider: item.provider, providerId: item.providerId, mediaType: item.requestType }} text={item.title} year={item.year} />
+                      <RequestFacts releaseDate={item.releaseDate} rating={item.rating} />
                       {scope === "video" && (
                         <View
                           style={[
@@ -329,6 +348,7 @@ export default function RequestsScreen() {
                           {t("requests.inLibrary")}
                         </Text>
                       )}
+                      <RequestOverview overview={item.overview} lines={3} />
                     </View>
                     {inLibrary && item.mediaItemId ? (
                       <TouchableOpacity
@@ -365,7 +385,7 @@ export default function RequestsScreen() {
         <View style={{ paddingTop: 8 }}>
           {Array.from({ length: 4 }).map((_, i) => (
             <View key={i} style={styles.resultRow}>
-              <Skeleton width={48} height={72} borderRadius={theme.radii.sm} />
+              <Skeleton width={POSTER_W} height={POSTER_H} borderRadius={theme.radii.sm} />
             </View>
           ))}
         </View>
@@ -379,11 +399,10 @@ export default function RequestsScreen() {
           refreshing={mineLoading}
           renderItem={({ item }) => (
             <View style={styles.resultRow}>
-              <RequestPoster posterUrl={item.posterUrl} title={item.title} mediaType={item.mediaType} />
+              <RequestPoster posterUrl={item.posterUrl} title={item.title} mediaType={item.mediaType} link={item} />
               <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }} numberOfLines={2}>
-                  {item.title}{item.year != null && item.year > 0 ? ` (${item.year})` : ""}
-                </Text>
+                <RequestTitleLink title={item} text={item.title} year={item.year} />
+                <RequestFacts releaseDate={item.releaseDate} rating={item.rating} />
                 <Text style={{ color: statusColor(theme, item.status), fontSize: 12, marginTop: 2, fontWeight: "600" }}>
                   {t(`requests.status${capitalize(item.status)}`)}
                   {/* answeredAt has been served since media requests shipped and
@@ -394,6 +413,7 @@ export default function RequestsScreen() {
                     ? ` · ${new Date(item.answeredAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}`
                     : ""}
                 </Text>
+                <RequestOverview overview={item.overview} lines={3} />
                 {item.adminNote ? (
                   <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 2 }}>
                     {t("requests.adminNote", { note: item.adminNote })}
@@ -425,7 +445,7 @@ const styles = StyleSheet.create({
   chip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginRight: 8 },
   searchInput: { marginHorizontal: 16, marginTop: 10, paddingHorizontal: 12, paddingVertical: 8, fontSize: 14 },
   hint: { textAlign: "center", fontSize: 13, marginTop: 24, paddingHorizontal: 16 },
-  resultRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 8 },
+  resultRow: { flexDirection: "row", alignItems: "flex-start", paddingHorizontal: 16, paddingVertical: 8 },
   typeBadge: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", paddingHorizontal: 6, paddingVertical: 2, marginTop: 4 },
   requestBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
   inLibraryBadge: {

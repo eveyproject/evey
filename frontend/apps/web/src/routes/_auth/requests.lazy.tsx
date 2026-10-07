@@ -22,6 +22,7 @@ import { ICON } from "@/constants/iconSizes";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { RequestPoster } from "@/features/requests/RequestPoster";
+import { ExternalTitleLink, RequestFacts, RequestOverview } from "@/features/requests/RequestDetails";
 import { useInfiniteSentinel } from "@/hooks/useInfiniteSentinel";
 import { useDemoLock } from "@/hooks/useDemoMode";
 
@@ -136,6 +137,10 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
         title: candidate.title,
         year: candidate.year,
         posterUrl: candidate.posterUrl,
+        // What the requester saw, kept with the request for the operator.
+        overview: candidate.overview,
+        releaseDate: candidate.releaseDate,
+        rating: candidate.rating,
       },
     });
   }
@@ -204,7 +209,9 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
                   className="relative aspect-[2/3] rounded-[var(--radius-md)] overflow-hidden flex items-center justify-center text-xs text-[var(--text-muted)]"
                   style={{ backgroundColor: "var(--surface-raised)" }}
                 >
-                  <RequestPoster posterUrl={r.posterUrl} title={r.title} mediaType={r.requestType} />
+                  <ExternalTitleLink title={{ provider: r.provider, providerId: r.providerId, mediaType: r.requestType }} className="block w-full h-full">
+                    <RequestPoster posterUrl={r.posterUrl} title={r.title} mediaType={r.requestType} />
+                  </ExternalTitleLink>
                   {r.inLibrary && (
                     <span
                       className="absolute bottom-1.5 left-1.5 right-1.5 flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-[var(--radius-sm)] text-xs font-medium"
@@ -227,11 +234,15 @@ function SearchTab({ myRequests }: { myRequests: V1MediaRequestProto[] }) {
                 </div>
                 <div className="flex flex-col gap-1">
                   <p className="text-sm font-medium text-[var(--text)] line-clamp-2">
-                    {r.title}
-                    {r.year != null && r.year > 0 && (
-                      <span className="text-[var(--text-muted)]"> {t("requests.year", { year: r.year })}</span>
-                    )}
+                    <ExternalTitleLink title={{ provider: r.provider, providerId: r.providerId, mediaType: r.requestType }}>
+                      {r.title}
+                      {r.year != null && r.year > 0 && (
+                        <span className="text-[var(--text-muted)]"> {t("requests.year", { year: r.year })}</span>
+                      )}
+                    </ExternalTitleLink>
                   </p>
+                  <RequestFacts releaseDate={r.releaseDate} rating={r.rating} />
+                  <RequestOverview overview={r.overview} lines={3} />
                   {r.inLibrary && r.mediaItemId ? (
                     // Already on the server: requesting it is refused server-side
                     // anyway, so offer the only useful action - go watch it.
@@ -308,16 +319,22 @@ function MineTab({
   return (
     <ul className="flex flex-col gap-2">
       {requests.map((r) => (
-        <Card key={r.id} className="flex gap-3 items-start">
-          <div className="w-12 h-18 rounded-[var(--radius-sm)] overflow-hidden flex-shrink-0">
-            <RequestPoster posterUrl={r.posterUrl} title={r.title} mediaType={r.mediaType} />
+        <Card key={r.id} className="flex gap-4 items-start">
+          {/* A poster the viewer can actually read: the 48px thumbnail that
+              shipped first was too small to tell two editions apart. */}
+          <div className="w-24 aspect-[2/3] rounded-[var(--radius-sm)] overflow-hidden flex-shrink-0">
+            <ExternalTitleLink title={r} className="block w-full h-full">
+              <RequestPoster posterUrl={r.posterUrl} title={r.title} mediaType={r.mediaType} />
+            </ExternalTitleLink>
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 flex flex-col gap-1">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-[var(--text)]">{r.title}</span>
-              {r.year != null && r.year > 0 && (
-                <span className="text-xs text-[var(--text-muted)]">{t("requests.year", { year: r.year })}</span>
-              )}
+              <ExternalTitleLink title={r} className="font-medium text-[var(--text)]">
+                {r.title}
+                {r.year != null && r.year > 0 && (
+                  <span className="text-xs text-[var(--text-muted)] ml-1">{t("requests.year", { year: r.year })}</span>
+                )}
+              </ExternalTitleLink>
               <Badge variant={statusVariant[r.status ?? "pending"] ?? "default"}>
                 {t(`requests.status${capitalize(r.status)}`)}
               </Badge>
@@ -332,6 +349,8 @@ function MineTab({
                 </span>
               )}
             </div>
+            <RequestFacts releaseDate={r.releaseDate} rating={r.rating} />
+            <RequestOverview overview={r.overview} lines={3} />
             {r.adminNote && (
               <p className="text-xs text-[var(--text-muted)] mt-1">{t("requests.adminNote", { note: r.adminNote })}</p>
             )}

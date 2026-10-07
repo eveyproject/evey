@@ -112,7 +112,9 @@ const myRequestsMock = vi.fn();
 const searchTitlesMock = vi.fn();
 const createRequestMock = vi.fn();
 const mutateMock = vi.fn();
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  // The date and rating formatters are pure: keep the real ones.
+  ...(await importOriginal<typeof import("@evey/api")>()),
   useMediaRequestServiceGetRequestPolicy: (...args: unknown[]) => policyMock(...args),
   useMediaRequestServiceListMyRequests: (...args: unknown[]) => myRequestsMock(...args),
   useMediaRequestServiceSearchTitles: (...args: unknown[]) => searchTitlesMock(...args),

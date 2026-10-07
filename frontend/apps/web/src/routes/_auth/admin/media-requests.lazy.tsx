@@ -26,6 +26,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { RequestPoster } from "@/features/requests/RequestPoster";
+import { ExternalTitleLink, RequestFacts, RequestOverview } from "@/features/requests/RequestDetails";
 import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/media-requests")({
@@ -73,20 +74,29 @@ function RequestRow({ request }: { request: V1MediaRequestProto }) {
   const isPending = request.status === "pending";
 
   return (
-    <Card className="flex gap-3 items-start">
-      <div className="w-12 h-18 rounded-[var(--radius-sm)] overflow-hidden flex-shrink-0">
-        <RequestPoster posterUrl={request.posterUrl} title={request.title} mediaType={request.mediaType} />
+    <Card className="flex gap-4 items-start">
+      {/* The operator judges from this card: a poster large enough to read,
+          a link to the provider's page in their language, the date, the
+          rating and the synopsis the requester saw. */}
+      <div className="w-28 aspect-[2/3] rounded-[var(--radius-sm)] overflow-hidden flex-shrink-0">
+        <ExternalTitleLink title={request} className="block w-full h-full">
+          <RequestPoster posterUrl={request.posterUrl} title={request.title} mediaType={request.mediaType} />
+        </ExternalTitleLink>
       </div>
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-medium text-[var(--text)]">{request.title}</span>
-          {request.year != null && request.year > 0 && (
-            <span className="text-xs text-[var(--text-muted)]">({request.year})</span>
-          )}
+          <ExternalTitleLink title={request} className="font-medium text-[var(--text)]">
+            {request.title}
+            {request.year != null && request.year > 0 && (
+              <span className="text-xs text-[var(--text-muted)] ml-1">({request.year})</span>
+            )}
+          </ExternalTitleLink>
           <Badge variant={statusVariant[request.status ?? "pending"] ?? "default"}>
             {t(`requests.status${capitalize(request.status)}`)}
           </Badge>
         </div>
+        <RequestFacts releaseDate={request.releaseDate} rating={request.rating} />
+        <RequestOverview overview={request.overview} lines={4} />
         {request.requesterName && (
           <p className="text-xs text-[var(--text-muted)]">
             {t("admin.mediaRequests.requestedBy", { name: request.requesterName })}

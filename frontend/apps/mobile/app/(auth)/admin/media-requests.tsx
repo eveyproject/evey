@@ -21,6 +21,7 @@ import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { capitalizeStatus, requestStatusI18nKey, STATUS_FILTERS, type StatusFilter } from "../../../src/components/admin/mediaRequestsHelpers";
+import { RequestFacts, RequestOverview, RequestTitleLink, useExternalTitleLink } from "../../../src/components/requests/RequestDetails";
 
 type Tab = "queue" | "access";
 
@@ -47,31 +48,35 @@ function statusColor(theme: ReturnType<typeof useTheme>, status?: string): strin
 // not our server - no serverUrl prefix or auth token needed, and it can 404
 // (e.g. a MusicBrainz release-group with no cover art), so fall back to a
 // type icon on error. Mirrors web's RequestPoster.
-function RequestPosterThumb({ posterUrl, mediaType, theme }: { posterUrl?: string; mediaType?: string; theme: ReturnType<typeof useTheme> }) {
+function RequestPosterThumb({ request, theme }: { request: V1MediaRequestProto; theme: ReturnType<typeof useTheme> }) {
   const [failed, setFailed] = useState(false);
+  const ext = useExternalTitleLink(request);
+  const mediaType = request.mediaType;
   const iconName = mediaType === "music" ? "musical-notes" : mediaType === "tv" ? "tv-outline" : "film-outline";
 
-  if (!posterUrl || failed) {
-    return (
-      <View
-        style={[
-          styles.posterThumb,
-          { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm, alignItems: "center", justifyContent: "center" },
-        ]}
-        testID="request-poster-fallback"
-      >
-        <Ionicons name={iconName} size={20} color={theme.colors.textMuted} />
-      </View>
-    );
-  }
-
-  return (
+  const body = !request.posterUrl || failed ? (
+    <View
+      style={[
+        styles.posterThumb,
+        { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm, alignItems: "center", justifyContent: "center" },
+      ]}
+      testID="request-poster-fallback"
+    >
+      <Ionicons name={iconName} size={24} color={theme.colors.textMuted} />
+    </View>
+  ) : (
     <Image
-      source={{ uri: posterUrl }}
+      source={{ uri: request.posterUrl }}
       style={[styles.posterThumb, { borderRadius: theme.radii.sm }]}
       contentFit="cover"
       onError={() => setFailed(true)}
     />
+  );
+  if (!ext.url) return body;
+  return (
+    <Pressable onPress={ext.open} accessibilityRole="link" accessibilityLabel={ext.label}>
+      {body}
+    </Pressable>
   );
 }
 
@@ -101,19 +106,18 @@ function RequestRow({ request, theme }: { request: V1MediaRequestProto; theme: R
 
   return (
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, flexDirection: "row", gap: 12 }]}>
-      <RequestPosterThumb posterUrl={request.posterUrl} mediaType={request.mediaType} theme={theme} />
+      <RequestPosterThumb request={request} theme={theme} />
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <Text style={{ color: theme.colors.text, fontSize: 15, fontWeight: "600" }}>{request.title}</Text>
-          {request.year != null && request.year > 0 && (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>({request.year})</Text>
-          )}
+          <RequestTitleLink title={request} text={request.title} year={request.year} size={15} />
           <View style={[styles.badge, { backgroundColor: statusColor(theme, request.status) + "22" }]}>
             <Text style={{ color: statusColor(theme, request.status), fontSize: 11, fontWeight: "600" }}>
               {statusLabel(t, request.status)}
             </Text>
           </View>
         </View>
+        <RequestFacts releaseDate={request.releaseDate} rating={request.rating} />
+        <RequestOverview overview={request.overview} lines={4} />
         {request.requesterName ? (
           <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
             {t("admin.mediaRequests.requestedBy", { name: request.requesterName })}
@@ -535,7 +539,8 @@ const styles = StyleSheet.create({
   tabBar: { flexDirection: "row", padding: 8, gap: 4, borderBottomWidth: StyleSheet.hairlineWidth },
   tabBtn: { flex: 1, paddingVertical: 8, alignItems: "center" },
   card: { padding: 14 },
-  posterThumb: { width: 48, height: 72, flexShrink: 0 },
+  // 48x72 was too small for the operator to tell editions apart (2026-10-07).
+  posterThumb: { width: 84, height: 126, flexShrink: 0 },
   badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
   filterChip: { paddingHorizontal: 12, paddingVertical: 8 },
   noteInput: { paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, minHeight: 40, textAlignVertical: "top" },
