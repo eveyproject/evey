@@ -18,6 +18,8 @@ import * as fileNiceName from "./fileNiceName";
 import * as genreColor from "./genreColor";
 import * as hlsRungs from "./hlsRungs";
 import * as imageSubtitles from "./imageSubtitles";
+import * as externalTitleUrl from "./externalTitleUrl";
+import * as requestFacts from "./requestFacts";
 import * as defaultSubtitle from "./defaultSubtitle";
 import * as pgsCues from "./pgsCues";
 import * as subtitleCues from "./subtitleCues";
@@ -78,6 +80,7 @@ const SHARED_MODULES = {
   personDepartment,
   pagination,
   exportPaging,
+  externalTitleUrl,
   fileNiceName,
   genreColor,
   hlsRungs,
@@ -91,6 +94,7 @@ const SHARED_MODULES = {
   trackPick,
   langCodes,
   regionDefaults,
+  requestFacts,
   libraryRules,
   playerEventReporter,
   roomCode,
