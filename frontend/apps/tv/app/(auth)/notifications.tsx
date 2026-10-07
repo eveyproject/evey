@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { View, Text, FlatList, StyleSheet } from "react-native";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { notificationLabel, type NotificationLabelInput } from "@evey/api";
+import { notificationLabel, notificationMessage, type NotificationLabelInput } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useNotificationServiceListNotifications,
@@ -202,7 +202,7 @@ function NotificationItem({
         </Text>
         {item.message && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 15 }} numberOfLines={1}>
-            {item.message}
+            {notificationMessage(t, item)}
           </Text>
         )}
         <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>

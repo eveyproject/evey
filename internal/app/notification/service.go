@@ -33,6 +33,23 @@ type pushSpec struct {
 	key      string
 	params   map[string]string
 	fallback string
+	// bodyKey, when set, localises the push BODY too; the stored Message is
+	// then the fallback. Left empty, the body is the Message as stored.
+	bodyKey    string
+	bodyParams map[string]string
+}
+
+// resolveBody returns the localised push body, or stored when the spec has no
+// body key, no translator is wired, or the key is unknown to the catalogue.
+func (p pushSpec) resolveBody(t *eveyi18n.Translator, locale, stored string) string {
+	if p.bodyKey == "" || t == nil {
+		return stored
+	}
+	msg := t.T(locale, p.bodyKey, p.bodyParams)
+	if msg == p.bodyKey {
+		return stored
+	}
+	return msg
 }
 
 func (p pushSpec) resolveTitle(t *eveyi18n.Translator, locale string) string {

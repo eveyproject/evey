@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { Modal } from "@/components/ui/Modal";
-import { translateNotificationTitle, useRelativeTime, notificationUrl } from "@/features/user/notificationUtils";
+import { translateNotificationTitle, translateNotificationMessage, useRelativeTime, notificationUrl } from "@/features/user/notificationUtils";
 import { useInfiniteSentinel } from "@/hooks/useInfiniteSentinel";
 import { Spinner } from "@/components/ui/Spinner";
 import { useDemoLock } from "@/hooks/useDemoMode";
@@ -97,7 +97,7 @@ function NotificationRow({ notif }: { notif: Notification }) {
             <span className="w-2 h-2 rounded-full bg-[var(--accent)] shrink-0" />
           )}
         </div>
-        <p className="text-sm text-[var(--text-muted)] line-clamp-2">{notif.message}</p>
+        <p className="text-sm text-[var(--text-muted)] line-clamp-2">{translateNotificationMessage(t, notif)}</p>
         <p className="text-xs text-[var(--text-muted)] mt-1">{relativeTime(notif.createdAt)}</p>
       </div>
       {!isRead && notif.id && (

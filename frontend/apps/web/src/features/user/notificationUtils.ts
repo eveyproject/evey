@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { notificationLabel, type NotificationLabelInput } from "@evey/api";
+import { notificationLabel, notificationMessage, type NotificationLabelInput } from "@evey/api";
 
 // Kept as this module's entry point; the wording lives in @evey/api so the
 // three apps share one implementation. Pass the whole notification: the
@@ -10,6 +10,16 @@ export function translateNotificationTitle(
   n: NotificationLabelInput | string | undefined,
 ): string {
   return notificationLabel(t, typeof n === "string" ? { title: n } : (n ?? {}));
+}
+
+// The second line. Media request notifications store a machine value there
+// ("movie", "Status: approved - note"); it is worded here, in the viewer's
+// language, like the title above it.
+export function translateNotificationMessage(
+  t: (k: string, opts?: Record<string, unknown>) => string,
+  n: { type?: string; message?: string },
+): string {
+  return notificationMessage(t, n);
 }
 
 export function useRelativeTime() {
@@ -34,6 +44,9 @@ export function useRelativeTime() {
 // anything about a title opens it.
 export function notificationUrl(n: { type?: string; mediaItemId?: string }): string | undefined {
   if (n.type === "media_request") return "/admin/media-requests";
+  // The answer to a request leads to the requester's own list, where the
+  // operator's full note and the request's details are.
+  if (n.type === "request_answered") return "/requests";
   if (n.mediaItemId) return `/media/${n.mediaItemId}`;
   return undefined;
 }

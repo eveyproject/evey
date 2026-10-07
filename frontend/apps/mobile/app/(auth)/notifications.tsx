@@ -3,7 +3,7 @@ import { View, Text, FlatList, Pressable, Alert, RefreshControl, StyleSheet } fr
 import { router, Stack } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
-import { notificationLabel, type NotificationLabelInput } from "@evey/api";
+import { notificationLabel, notificationMessage, type NotificationLabelInput } from "@evey/api";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useNotificationServiceListNotifications,
@@ -107,7 +107,7 @@ function NotificationItem({ item, onPress, onMarkRead }: { item: V1Notification;
         </Text>
         {item.message && (
           <Text style={{ color: theme.colors.textMuted, fontSize: 12 }} numberOfLines={2}>
-            {item.message}
+            {notificationMessage(t, item)}
           </Text>
         )}
         <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>

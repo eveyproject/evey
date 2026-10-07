@@ -20,6 +20,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   // notificationLabel is a pure formatter - keep the REAL one so these tests
   // still assert the wording that reaches the screen.
   notificationLabel: (await importOriginal<typeof import("@evey/api")>()).notificationLabel,
+  notificationMessage: (await importOriginal<typeof import("@evey/api")>()).notificationMessage,
   notificationServiceListNotifications: (...args: unknown[]) => mockList(...args),
   useNotificationServiceMarkRead: vi.fn(() => ({ mutate: mockMarkRead, isPending: false })),
   useNotificationServiceMarkAllRead: vi.fn(() => ({ mutate: mockMarkAllRead, isPending: false })),

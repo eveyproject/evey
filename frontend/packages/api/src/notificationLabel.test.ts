@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { notificationLabel } from "./notificationLabel";
+import { notificationLabel, notificationMessage } from "./notificationLabel";
 
 // A translator that renders the shape i18next would, so the assertions read
 // like what a viewer sees. Plurals resolve on `count`, as i18next does with
@@ -104,5 +104,86 @@ describe("notificationLabel: rows written before the structured payload", () => 
   it("falls back to the stored title when the type is unknown but a subject exists", () => {
     expect(notificationLabel(t, { title: "new_documentary:Some Movie", subject: "Some Movie", type: "new_documentary" }))
       .toBe("new_documentary:Some Movie");
+  });
+});
+
+// Media request notifications. Seen on 2026-10-07 in a French UI: the bell
+// read "New media request: Some Movie" over "movie", and the requester's
+// answer read "Status: approved - ...". The server now sends the subject; the
+// type word and the status word are translated here, the operator's note is
+// kept as written.
+describe("notificationLabel: media requests", () => {
+  const tr = (key: string, opts?: Record<string, unknown>): string => {
+    switch (key) {
+      case "common.notifications.mediaRequest":
+        return `Nouvelle demande de média : ${opts?.name}`;
+      case "common.notifications.requestAnswered":
+        return `Votre demande de média a été mise à jour : ${opts?.name}`;
+      case "requests.typeMovie":
+        return "Film";
+      case "requests.typeSeries":
+        return "Série";
+      case "requests.statusApproved":
+        return "Acceptée";
+      case "requests.statusRejected":
+        return "Refusée";
+      default:
+        return key;
+    }
+  };
+
+  it("words a new request from its subject", () => {
+    expect(
+      notificationLabel(tr, { type: "media_request", title: "New media request: Some Movie", subject: "Some Movie" }),
+    ).toBe("Nouvelle demande de média : Some Movie");
+    expect(
+      notificationLabel(tr, { type: "request_answered", title: "Your media request was updated: Some Movie", subject: "Some Movie" }),
+    ).toBe("Votre demande de média a été mise à jour : Some Movie");
+  });
+
+  it("recovers the subject of a row stored before the server sent one", () => {
+    expect(notificationLabel(tr, { type: "media_request", title: "New media request: Some Movie" })).toBe(
+      "Nouvelle demande de média : Some Movie",
+    );
+    expect(notificationLabel(tr, { type: "request_answered", title: "Your media request was updated: Some Movie" })).toBe(
+      "Votre demande de média a été mise à jour : Some Movie",
+    );
+  });
+
+  it("leaves a title it does not recognise as stored", () => {
+    expect(notificationLabel(tr, { type: "media_request", title: "Something else: X" })).toBe("Something else: X");
+  });
+});
+
+describe("notificationMessage", () => {
+  const tr = (key: string): string =>
+    ({
+      "requests.typeMovie": "Film",
+      "requests.typeSeries": "Série",
+      "requests.typeMusic": "Musique",
+      "requests.statusApproved": "Acceptée",
+      "requests.statusRejected": "Refusée",
+      "requests.statusLater": "Plus tard",
+    })[key] ?? key;
+
+  it("translates the media type of a new request", () => {
+    expect(notificationMessage(tr, { type: "media_request", message: "movie" })).toBe("Film");
+    expect(notificationMessage(tr, { type: "media_request", message: "tv" })).toBe("Série");
+    expect(notificationMessage(tr, { type: "media_request", message: "music" })).toBe("Musique");
+  });
+
+  it("translates the status of an answer and keeps the operator's note verbatim", () => {
+    expect(notificationMessage(tr, { type: "request_answered", message: "Status: approved" })).toBe("Acceptée");
+    expect(notificationMessage(tr, { type: "request_answered", message: "Status: rejected - already have it - twice" })).toBe(
+      "Refusée - already have it - twice",
+    );
+    expect(notificationMessage(tr, { type: "request_answered", message: "Status: later - " })).toBe("Plus tard");
+  });
+
+  it("returns any other message as stored", () => {
+    expect(notificationMessage(tr, { type: "request_answered", message: "free text" })).toBe("free text");
+    expect(notificationMessage(tr, { type: "media_request", message: "unknown" })).toBe("unknown");
+    expect(notificationMessage(tr, { type: "new_movie", message: "Some Movie was added" })).toBe("Some Movie was added");
+    expect(notificationMessage(tr, { type: "new_movie" })).toBe("");
   });
 });

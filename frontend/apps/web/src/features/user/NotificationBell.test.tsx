@@ -25,6 +25,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   // notificationLabel is a pure formatter - keep the REAL one so these tests
   // still assert the wording that reaches the screen.
   notificationLabel: (await importOriginal<typeof import("@evey/api")>()).notificationLabel,
+  notificationMessage: (await importOriginal<typeof import("@evey/api")>()).notificationMessage,
   useNotificationServiceGetUnreadCount: () => ({ data: { count: 3 } }),
   useNotificationServiceListNotifications: () => ({
     data: { notifications: notificationsRef.current },
