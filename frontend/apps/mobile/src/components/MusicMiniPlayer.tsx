@@ -82,8 +82,11 @@ function MusicMiniPlayerImpl() {
 
   // Single AudioPlayer for the entire queue lifetime. We swap its source via
   // .replace() on track change; creating a new player per track would
-  // tear down the audio session and clobber the iOS now-playing card.
-  const player = useAudioPlayer(streamUri ?? undefined, { updateInterval: 500 });
+  // tear down the audio session and clobber the iOS now-playing card. The
+  // hook takes no source on purpose: a source that changes per track made
+  // expo-audio build a second native player and fetch the stream twice, the
+  // way the television's player already avoids.
+  const player = useAudioPlayer(undefined, { updateInterval: 500 });
   const status = useAudioPlayerStatus(player);
 
   // Track which URL is currently loaded so we don't redundantly call replace.
