@@ -118,10 +118,18 @@ func TestNowPlayingRegistry_WaitCommand_ReleasedByContextRemoveAndClose(t *testi
 	assert.True(t, ok)
 	assert.Empty(t, cmd)
 
-	for name, release := range map[string]func(){
-		"remove": func() { r.Remove("s1") },
-		"close":  r.Close,
-	} {
+	// Ordered on purpose: once the registry is closed, a fresh WaitCommand is
+	// refused at once (asserted below), so "close" must be the last release -
+	// a map here ran the two in random order and failed one run in eight.
+	releases := []struct {
+		name    string
+		release func()
+	}{
+		{"remove", func() { r.Remove("s1") }},
+		{"close", r.Close},
+	}
+	for _, step := range releases {
+		name, release := step.name, step.release
 		r.Heartbeat("s1", "prf-1", "Alice", "trk-1", "TV", 0, false)
 		done := make(chan struct{})
 		go func() {
