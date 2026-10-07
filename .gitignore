@@ -116,6 +116,8 @@ scripts/*
 !scripts/bundle-budget.sh
 !scripts/clean-checkout-guard.py
 !scripts/hygiene-guard.py
+!scripts/hygiene-denylist.sha256
+!scripts/secrets-scan.sh
 !scripts/gate-receipt.py
 !scripts/verify-commit.sh
 !scripts/tv-release-ldflags.sh

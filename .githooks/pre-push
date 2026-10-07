@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Pre-push hook - runs the CI "Backend - quality & security" job locally
-# (`make pre-push`: vet + govulncheck + build + gosec ratchet + lint) before
+# (`make pre-push`: vet + govulncheck + build + gosec ratchet + lint + hygiene +
+# secrets scan) before
 # letting `git push` proceed, so a regression never reaches GitHub Actions and
 # tanks the pipeline.
 #

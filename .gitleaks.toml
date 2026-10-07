@@ -1,0 +1,38 @@
+# gitleaks configuration for scripts/secrets-scan.sh (the pre-push secrets gate).
+# Default rules, plus what this repository legitimately contains and must not
+# be flagged on every push: test fixtures that look like credentials, and the
+# TMDB read token the image ships for first-boot metadata (migration 000154).
+
+title = "evey"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fixtures and the built-in TMDB token"
+regexTarget = "match"
+paths = [
+  '''tests/e2e/fixtures/plugin-zips/cosign-test\.key$''',
+  '''tests/plugins/cosign/''',
+  '''frontend/\.pnpm-store/''',
+  '''pnpm-lock\.yaml$''',
+]
+regexes = [
+  # The built-in TMDB read token (public by design, see wire_helpers.go).
+  '''eyJhbGciOiJIUzI1NiJ9\.eyJhdWQiOiI0OTdmMDk2NTBlOTlkNGJjZmM0NDE1NjNiYWVmY2NlYiIs''',
+  # Test fixtures: obviously fake keys, tokens and PEM stubs.
+  '''x9abc123def45678''',
+  '''tok_(abc123xyz789|def456uvw012)''',
+  '''evey_(abcdef1234|xyz9876543)''',
+  '''abcdef0123456789xyz''',
+  '''test-vapid-key-123''',
+  '''tmdb_key", "abcdef123456"''',
+  '''q-secret", "eyJhbGciOiJSUzI1NiJ9"''',
+  '''header\.eyJzdWIiOiJ1c2VyLTEifQ\.sig''',
+  '''h\.eyJleHAiOjk5OTk5OTk5OTl9\.s''',
+  '''eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9\.''',
+  '''MIIBVQIBADANBgkq''',
+  '''-----BEGIN RSA PRIVATE KEY-----\\nfake''',
+  # A prose line the generic rule misreads as a key assignment.
+  '''VAAPI ?-> ?Vulkan/libplacebo''',
+]
