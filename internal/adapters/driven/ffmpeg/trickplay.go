@@ -31,6 +31,16 @@ var keyframeInputFormat = map[string]string{
 type TrickplayGenerator struct {
 	binary      string
 	probeBinary string
+	// busy suspends the sprite ffmpeg (SIGSTOP) while a playback is live; nil
+	// runs it straight through.
+	busy func() bool
+}
+
+// WithBusyChecker wires the predicate that pauses the sprite-generation ffmpeg
+// while real work runs, resuming it afterwards (see runPausableCmd).
+func (g *TrickplayGenerator) WithBusyChecker(busy func() bool) *TrickplayGenerator {
+	g.busy = busy
+	return g
 }
 
 func NewTrickplayGenerator(binary, probeBinary string) *TrickplayGenerator {
@@ -149,7 +159,11 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	if err != nil {
 		return nil, err
 	}
-	out, runErr := cmd.CombinedOutput()
+	var combined bytes.Buffer
+	cmd.Stdout = &combined
+	cmd.Stderr = &combined
+	runErr := runPausableCmd(cmd, g.busy)
+	out := combined.Bytes()
 	if runErr = finish(runErr, out); runErr != nil {
 		return nil, fmt.Errorf("ffmpeg trickplay single-pass: %w\n%s", runErr, string(out))
 	}

@@ -725,6 +725,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		infra.introDetector.WithBusyChecker(isBusy)
 	}
 	complexityClassifier.WithBusyChecker(isBusy)
+	infra.trickplayGen.WithBusyChecker(isBusy)
 	// Boot never benchmarks (a bench here blocked the whole server for 2-5 min
 	// and measured the migrations/scans booting alongside it): this publishes
 	// what is persisted and flags a pending bench, run by the opportune-moment

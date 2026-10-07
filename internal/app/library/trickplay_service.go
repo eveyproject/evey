@@ -46,6 +46,10 @@ type ActiveStreamChecker interface {
 	ActivePlaybackCount() int
 }
 
+// trickplayIdlePoll is how often a pending item re-checks for a live playback
+// before it starts. A var so tests need not wait it out.
+var trickplayIdlePoll = 30 * time.Second
+
 type TrickplayService struct {
 	trickplayRepo     library.TrickplayRepository
 	trickplayGen      library.TrickplayGenerator
@@ -120,7 +124,7 @@ func (s *TrickplayService) waitForIdleStreams(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(30 * time.Second):
+		case <-time.After(trickplayIdlePoll):
 		}
 	}
 }

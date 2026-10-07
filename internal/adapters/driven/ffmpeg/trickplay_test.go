@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -71,6 +73,40 @@ func TestTrickplayGenerator_Generate_Success(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, outputDir, result.ImageDir)
 	assert.Equal(t, 1, result.ImageCount)
+}
+
+// While a playback is live the sprite ffmpeg is SIGSTOP-suspended; Generate
+// only completes once the busy flag clears.
+func TestTrickplayGenerator_Generate_SuspendedWhileBusy(t *testing.T) {
+	old := detectionPausePoll
+	detectionPausePoll = 10 * time.Millisecond
+	defer func() { detectionPausePoll = old }()
+
+	script := filepath.Join(t.TempDir(), "slow-ffmpeg.sh")
+	body := strings.Replace("#!/bin/sh\nsleep 0.2\nexec REAL \"$@\"\n", "REAL", makeFakeFfmpegScript(t), 1)
+	require.NoError(t, os.WriteFile(script, []byte(body), 0o755))
+
+	var busy atomic.Bool
+	busy.Store(true)
+	g := NewTrickplayGenerator(script, makeFakeProbeScript(t, 25)).WithBusyChecker(busy.Load)
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := g.Generate(context.Background(), "/fake/video.mkv", t.TempDir(), 10, 160, 5, 5, 1, 0)
+		done <- err
+	}()
+	select {
+	case <-done:
+		t.Fatal("trickplay ffmpeg finished while a playback was live")
+	case <-time.After(500 * time.Millisecond):
+	}
+	busy.Store(false)
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("trickplay ffmpeg did not resume after the playback ended")
+	}
 }
 
 func TestTrickplayGenerator_Generate_InvalidBinary(t *testing.T) {
