@@ -68,9 +68,13 @@ export default function QuickConnectScreen() {
   useEffect(() => {
     if (!code) return;
     let cancelled = false;
+    // One check at a time: a slow answer must not let the next tick fire a
+    // second one, which could sign in twice or race the navigation.
+    let inFlight = false;
 
     async function tick() {
-      if (cancelled || !code) return;
+      if (cancelled || !code || inFlight) return;
+      inFlight = true;
       try {
         const resp = await userServiceCheckQuickConnect(code);
         if (cancelled) return;
@@ -87,6 +91,8 @@ export default function QuickConnectScreen() {
         }
       } catch {
         // Network blip - keep polling, the next tick retries.
+      } finally {
+        inFlight = false;
       }
     }
 

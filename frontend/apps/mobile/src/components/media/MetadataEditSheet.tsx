@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { View, Text, TextInput, Pressable, ActivityIndicator, Linking, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -52,6 +52,9 @@ export function MetadataEditSheet({ visible, onClose, item, onSaved }: MetadataE
   const { t } = useTranslation();
   const theme = useTheme();
   const qc = useQueryClient();
+  // The post-refresh close timer must not fire on an unmounted sheet.
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (closeTimer.current) clearTimeout(closeTimer.current); }, []);
 
   const initialForm = useMemo(() => buildInitialMetadataForm(item), [item]);
   const [form, setForm] = useState<MetadataFormValues>(initialForm);
@@ -158,7 +161,7 @@ export function MetadataEditSheet({ visible, onClose, item, onSaved }: MetadataE
       await refresh.mutateAsync({ mediaItemId: item.id });
       setRefreshStatus("done");
       void qc.invalidateQueries({ queryKey: getLibraryServiceGetMediaItemQueryKey(item.id) });
-      setTimeout(() => { setRefreshStatus("idle"); onSaved?.(); onClose(); }, 1200);
+      closeTimer.current = setTimeout(() => { setRefreshStatus("idle"); onSaved?.(); onClose(); }, 1200);
     } catch (err) {
       setRefreshStatus("error");
       const msg = err instanceof Error ? err.message : String(err);
