@@ -1,16 +1,23 @@
 ---
-source_sha: f29992016990abfb7f2de5cc191167f6e3c95702d5dc83dee16f37d7ab8540c8
+source_sha: 3ee6e7f82a59d31cc6c0817c862d4210e04cb97fa0e4e783598fd4ce420cea74
 reviewed: true
 ---
 # Sauvegardes et mises à jour
 
+Une sauvegarde planifiée de la base de données, conservée aussi longtemps que
+vous le décidez, et une mise à jour qui tient en un `docker compose pull`.
+Cette page s'adresse à l'administrateur : ce qu'une sauvegarde contient et ce
+qu'elle ne contient pas, comment en restaurer une, et comment mettre à jour ou
+revenir en arrière sans perdre de données.
+
 ## Ce que contient une sauvegarde
 
 Une sauvegarde est une copie de la **base de données** : comptes, profils,
-bibliothèques et leurs métadonnées, historique de lecture et points de
-reprise, collections et playlists, réglages, enregistrements des plugins,
-webhooks et journaux d'audit. C'est une archive `.tar.gz` qui contient le
-dump SQL et un manifeste avec son empreinte SHA256.
+bibliothèques et leur catalogue, historique de lecture et points de reprise,
+collections, playlists et favoris, réglages, enregistrements des plugins,
+webhooks, clés API, notifications et journaux d'audit. C'est une archive
+`.tar.gz` qui contient le dump SQL et un manifeste avec l'empreinte SHA256 du
+dump et la version du schéma.
 
 Elle ne contient **pas** :
 
@@ -22,17 +29,17 @@ Elle ne contient **pas** :
 - les fichiers des plugins installés.
 
 Une sauvegarde de la base restaure donc l'état d'Evey sur la même
-installation. Pour pouvoir reconstruire une machine, gardez aussi une copie
-de tout le dossier `./evey-data` : les sauvegardes de la base s'y trouvent,
-dans `./evey-data/backups`.
+installation. Pour pouvoir reconstruire une machine, gardez aussi une copie de
+tout le dossier `./evey-data` : les sauvegardes de la base s'y trouvent, dans
+`./evey-data/backups`.
 
-## Sauvegardes planifiées
+## Planifier les sauvegardes
 
-**Admin → Sauvegarde BDD et restauration → Planification** : une expression
-cron (par exemple `0 3 * * *`, tous les jours à 3 h) et une durée de
-conservation en jours. Les sauvegardes plus anciennes sont supprimées après
-chaque exécution planifiée. **Lancer maintenant** en crée une
-immédiatement.
+**Admin → Sauvegarde BDD et restauration → Planification** : une **Expression
+cron** (par exemple `0 3 * * *`, tous les jours à 3 h) et une **Rétention
+(jours)**. Les sauvegardes plus anciennes que la rétention sont supprimées
+après chaque exécution planifiée. **Lancer maintenant** en crée une
+immédiatement, tout comme **Créer une sauvegarde** en haut de la page.
 
 <figure class="evey-shot" markdown="span">
   ![Admin → Sauvegarde BDD et restauration avec une planification quotidienne](images/admin-backup.webp){ loading=lazy }
@@ -40,19 +47,20 @@ immédiatement.
 </figure>
 
 Indépendamment de la planification, le serveur sauvegarde aussi la base avant
-d'appliquer une migration lors d'une mise à jour (voir plus bas).
+d'appliquer une migration lors d'une mise à jour (voir
+[Mettre à jour Evey](#updating-evey)).
 
-## Restaurer
+## Restaurer une sauvegarde
 
 **Admin → Sauvegarde BDD et restauration** liste les sauvegardes et en
-restaure une, ou restaure un fichier que vous téléversez. La restauration
-remplace la base actuelle.
+restaure une, ou restaure un fichier que vous téléversez (**Restaurer depuis
+un fichier**). La restauration remplace la base actuelle.
 
-Une sauvegarde ne se restaure que sur un serveur dont le schéma de base est
-identique : le serveur vérifie d'abord l'empreinte et la version du schéma,
-et refuse une sauvegarde prise par une version dont le schéma diffère plutôt
-que de la charger. Pour revenir à une version plus ancienne avec ses données,
-voir [Revenir en arrière](#going-back).
+!!! warning "Même schéma uniquement"
+    Le serveur vérifie d'abord l'empreinte et la version du schéma, et refuse
+    une sauvegarde prise par une version dont le schéma diffère plutôt que de
+    la charger. Pour revenir à une version plus ancienne avec ses données,
+    voir [Revenir en arrière](#going-back).
 
 Quand le serveur ne démarre plus, la ligne de commande restaure les dumps pris
 avant une migration (`pre-migration-*.sql.gz`), pas les sauvegardes `.tar.gz`
@@ -66,12 +74,13 @@ docker compose logs -f evey
 ```
 
 C'est toute la mise à jour. Quand la nouvelle version doit modifier la base,
-elle écrit d'abord un dump dans `./evey-data/backups/pre-migration-*`, puis
-applique les migrations au démarrage ; sur un gros catalogue, cela peut
-prendre quelques minutes, et le conteneur est de nouveau signalé en bonne
-santé dès que le serveur répond. Evey vérifie toutes les 6 heures si une image plus récente
-est publiée et le signale dans le panneau d'administration ; il ne se met
-jamais à jour tout seul.
+elle écrit d'abord un dump dans `./evey-data/backups/pre-migration-*.sql.gz`
+(les trois plus récents sont conservés), puis applique les migrations au
+démarrage ; sur un gros catalogue, cela peut prendre quelques minutes, et le
+conteneur est de nouveau signalé en bonne santé dès que le serveur répond.
+Evey demande toutes les heures au registre si une image plus récente est
+publiée et le signale dans le panneau d'administration ; il ne se met jamais à
+jour tout seul.
 
 **Figez ce que vous exécutez.** Pendant la bêta, il n'y a ni version
 numérotée ni tag `latest` ; le tag de branche `beta-0.0.1` bouge à chaque
@@ -92,4 +101,13 @@ restaurez d'abord son dump d'avant migration :
 le chemin du dump.
 
 Les tags d'image, les variantes de runtime et les familles de GPU sont
-décrits dans [Déploiements avancés](operations/advanced-deployments.md#image-tags).
+décrits dans [Déploiements avancés](operations/advanced-deployments.md#image-tags-and-variants).
+
+<!-- sources
+contents: internal/app/backup/service.go - BackupTables, CreateBackup (sha256 + schema version in manifest), RestoreBackup (checksum + schema guard), CleanupOldBackups ; internal/adapters/driven/filesystem/backup_store.go
+schedule: i18n admin.backup.schedule.* (cronLabel, retentionLabel, runNow) ; admin.backup.createBackup, restoreFromFile ; cmd/evey/main.go (DB cron scheduler, env fallback)
+keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
+pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
+update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
+rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (beta-0.0.1 + sha-<short>, latest gated on vX.Y.Z)
+-->

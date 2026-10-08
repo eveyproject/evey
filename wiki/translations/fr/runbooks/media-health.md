@@ -1,32 +1,36 @@
 ---
-source_sha: 2dcb9083e6c812b05a9ddfff7acdd81f745f1367b15c876fbc137c91dc3b02c1
+source_sha: 5dbf80c7cfab5adb1eeb033bff154974a751780f86ca9c44f991546921de8f3f
 reviewed: true
 ---
 # Santé des médias
 
-**Admin → Santé des médias** lit chaque fichier MKV/WebM de vos bibliothèques et
-donne à chacun une seule réponse. Le but est une page qui se vide : ce qu'Evey
-sait réparer, il le répare ; le reste est signalé une fois et peut être marqué
-comme vu.
+Un titre se déplace lentement, cale toujours au même endroit, ou son son
+dérive : **Admin → Santé des médias** lit chaque fichier MKV/WebM de vos
+bibliothèques et donne à chacun une seule réponse. Le but est une page qui se
+vide : ce qu'Evey sait réparer, il le répare (**Tout réparer**) ; le reste est
+signalé une fois et peut être marqué comme vu.
 
 <figure class="evey-shot" markdown="span">
   ![Admin → Santé des médias après une analyse : un fichier à réparer, une remarque](../images/admin-media-health.webp){ loading=lazy }
   <figcaption>Une analyse avec un fichier qu'Evey sait réparer (son index de lecture manque) et une remarque (des octets en trop après la fin du fichier, sans conséquence) (interface en anglais).</figcaption>
 </figure>
 
-## Trois verdicts
+## Deux verdicts
+
+Un fichier qui n'est pas **Sain** (index, conteneur, tailles et calage de
+l'audio corrects) reçoit l'une de deux réponses, et volontairement deux
+seulement :
 
 | Verdict | Ce qu'il signifie | Ce que fait Evey |
 | --- | --- | --- |
-| **Sain** | Index, conteneur, tailles et calage de l'audio sont corrects. | Rien. |
-| **Réparable ici** | Un défaut qu'Evey répare sur ce serveur. | **Tout réparer** s'en charge en arrière-plan. |
-| **Information** | Une mesure faite sur le fichier, qu'Evey ne réécrit pas de lui-même. | Rien. Marquez-la comme vue. |
+| **Réparable** | Un défaut qu'Evey répare sur ce serveur. | **Tout réparer** s'en charge en arrière-plan ; son compteur est exactement leur nombre. |
+| **Info** | Une mesure faite sur le fichier, qu'Evey ne réécrit pas de lui-même. | Rien. Marquez-la comme vue. |
 
-Aucun ne vous confie une corvée. Une mesure sur
-laquelle Evey ne peut pas agir reste une remarque, et une mesure peut se tromper :
-si le fichier se lit bien, il va bien.
+Aucune des deux ne vous confie une corvée. Une mesure sur laquelle Evey ne
+peut pas agir reste une remarque, et une mesure peut se tromper : si le
+fichier se lit bien, il va bien.
 
-### Réparable ici
+### Réparable
 
 - **Sans index de lecture**, ou avec un index inutilisable. Le symptôme : un déplacement
   dans la lecture ou une reprise lents. L'index est reconstruit dans une copie
@@ -46,7 +50,7 @@ si le fichier se lit bien, il va bien.
   **Ré-entrelacer les pistes** les réécrit côte à côte sans réencodage et vérifie
   que chaque paquet a été conservé avant de remplacer le fichier.
 
-### Information
+### Info
 
 - **Téléchargement incomplet** : la fin du fichier n'est jamais arrivée. Il se
   lit jusqu'à la coupure. Aucun outil ne récupère la partie manquante ; seule la
@@ -87,7 +91,7 @@ l'annuler.
 ## Marquer comme vu
 
 **Vu, ne plus signaler** (un fichier) et **Tout marquer comme vu** (un groupe)
-retirent une remarque Information de la vue **En attente**. Seules les remarques
+retirent une remarque Info de la vue **En attente**. Seules les remarques
 peuvent être marquées : un défaut réparable se répare. La marque vaut pour le
 fichier tel qu'il est : si sa taille ou sa date change, l'analyse suivante le
 diagnostique à nouveau. **Re-signaler** annule la marque.
@@ -148,7 +152,8 @@ fonctionne dans les deux cas.
 
 ## En ligne de commande
 
-Le même moteur est disponible dans la CLI d'exploitation (voir `cli.md`) :
+Le même moteur est disponible dans la CLI d'exploitation, voir
+[Ligne de commande](cli.md#media-maintenance) :
 
 - `evey admin reindex-no-cue --root <dossier> [--apply] [--resync]` reconstruit
   les index manquants, à blanc sauf avec `--apply` ;

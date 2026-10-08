@@ -2,35 +2,37 @@
 
 Transcoding is the expensive outcome of [the playback decision](how-playback-is-decided.md):
 Direct Play and Remux cost the server almost nothing and never take a
-transcoding slot. This page explains how the server knows what it can encode,
-how it shares that capacity between viewers, and what happens when it is full.
+transcoding slot. This page is for the administrator who wants to know how
+many viewers the server can serve at once: how it measures what it can
+encode, how it shares that capacity, and what a viewer sees when it is full.
 
 ## The server measures itself
 
 The capacity is not a setting you estimate. The server measures it:
 
 - **When.** Not at startup: the server starts on what it knew before (or on a
-  conservative 720p software default the first time), and runs the measurement
-  at its first quiet moment, when nobody is watching and the processor is
-  mostly idle. It takes a few minutes. A measurement taken under load is marked
-  provisional and redone when the machine is idle.
+  conservative 720p software default the first time), and runs the
+  measurement at its first quiet moment, when nobody is watching and the
+  processor is mostly idle. It takes a few minutes. A measurement taken under
+  load is marked provisional and redone when the machine is idle.
 - **What.** Real encodes of a 4K clip, in SDR and in HDR, on the processor and
   on each accelerator the server detected, in the same shape as a real
   playback. The result is the highest resolution each one sustains in real
   time, and the cost of each kind of stream.
 - **Again.** After the hardware changes, or on **Recalibrate** in **Admin →
-  Transcoding → Encode calibration**.
+  Transcoding → Encode calibration**. The button waits until nobody is
+  watching.
 
 While the measurement runs, a playback that needs a transcode shows **The
 server is calibrating itself** and is asked to try again shortly. Direct Play
-is not affected.
+and Remux are not affected.
 
 On a processor that sustains none of the resolutions, the server still offers
 720p (SDR) and 480p (HDR), one stream at a time.
 
 The measurement uses, in this order, a clip you provide, a reference clip
-downloaded once and checked by its SHA256, or a synthetic clip generated on the
-spot. A real clip measures more honestly than the synthetic one, which
+downloaded once and checked by its SHA256, or a synthetic clip generated on
+the spot. A real clip measures more honestly than the synthetic one, which
 overstates the cost and can cap a machine lower than it deserves:
 
 ```yaml title="docker-compose.yml"
@@ -53,12 +55,26 @@ simultaneous video streams** can lower it, never raise it.
 - Only the quality a viewer actually watches is encoded, not the whole ladder
   of qualities.
 
-Each stream goes to the cheapest route that can serve it: an accelerator that
-has proved what the stream needs (for example HDR tone mapping, or HEVC
-output), or the processor. The processor and the accelerators are two separate
-pools. When the accelerators are full, a new stream can move to the processor
-if it has room; when neither has room, the player shows **The server is busy
-transcoding other streams** and can retry.
+Each stream goes to the cheapest route that has proved it can serve it: an
+accelerator measured on what the stream needs (for example HDR tone mapping,
+or HEVC output), or the processor. The processor and the accelerators are two
+separate pools, and a stream on the graphics card still spends a little
+processor for its audio and packaging.
+
+When room runs short, the server answers in this order:
+
+1. **A lower quality.** A new stream whose tallest quality does not fit is
+   admitted at the tallest one that does, and that ceiling holds for the
+   whole stream.
+2. **The processor.** When the accelerators are full, a new stream moves to
+   the processor if it has room.
+3. **A refusal.** When neither has room, the player shows **The server is
+   busy transcoding other streams** and can retry.
+
+A graphics card encode that fails on one title sends that title to the
+processor for a while, for every viewer. The card itself is set aside only
+after a test encode independent of the media fails on it too, and is tried
+again later: see [Hardware acceleration](../administration/hardware-acceleration.md).
 
 While someone watches, the server's own background work (thumbnails, intro
 detection, media analysis) pauses, so that playback keeps the machine: see
@@ -72,9 +88,9 @@ lowers its maximum quality for a while, then lifts the limit on its own. See
 
 | | Default |
 | --- | --- |
-| Video codec | H.264. HEVC when the player decodes it and the graphics card encodes it; AV1 when enabled (**AV1 output**, hardware only) and the player decodes it. |
+| Video codec | H.264. HEVC when the player decodes it and a graphics card encodes it, or when the profile's **Preferred Video Codec** asks for it; AV1 when enabled (**AV1 output**, hardware only) and the player decodes it. |
 | Resolution | The source's, unless a limit applies: the player's maximum, the bitrate limit, or what the server can encode in real time. |
-| Bitrate | Follows the source, scaled to the resolution. **Video bitrate ceiling** caps it. |
+| Bitrate | Follows the source, scaled to the resolution. **Video bitrate ceiling** caps it; **Video bitrate ceiling, remote viewers** caps it lower outside the local networks. |
 | Audio | AAC. See [Audio](audio.md). |
 | Delivery | HLS, in fragmented MP4 segments. |
 
@@ -89,9 +105,12 @@ Encoded segments are kept on disk in the `evey-cache` volume and reused when
 another viewer, or the same one later, plays the same title with the same
 decision. **Admin → Transcode Cache** shows its size and clears it; the
 **Transcode cache budget** (**Admin → Server Config → Server Settings**) caps
-it. Clear it
-after an update that changes how videos are encoded, so that nobody is served
-segments from the previous version.
+it.
+
+!!! tip
+    Clear the cache after an update that changes how videos are encoded, so
+    that nobody is served segments from the previous version. Clearing it
+    while someone watches makes their stream rebuffer once, then resume.
 
 ## Checking what happens
 
@@ -101,14 +120,15 @@ segments from the previous version.
   accelerators in use.
 - **Admin → Streaming Quality**: how playback went for real viewers.
 - **Load test** (**Admin → Transcoding**): simulates viewers to measure what
-  the server sustains. Run it only when nobody is watching.
+  the server sustains. It refuses to run while anyone is watching.
 
 <!-- sources
-calibration: internal/app/transcoding/calibration_service.go ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating
-capacity: i18n admin.transcoding.maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go ; internal/app/transcoding/video_session_limiter.go
+calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - softwareLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
+capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability
 busy: i18n errors max_concurrent_reached
-software floors: internal/domain/transcoding/capability.go
-output codec: internal/app/transcoding/resolver_route.go - outputCodecFor ; i18n admin.calibration.av1Label, av1Hint
-single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT)
-cache budget, automatic limits: i18n admin.serverSettings.transcodeCacheMaxGB, admin.qoe.overrides.*
+output codec: internal/app/transcoding/resolver_route.go - outputCodecFor, codecWithPassthrough ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
+single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT, default on)
+bench samples: internal/config/config.go (EVEY_BENCH_{SDR,HDR}_SAMPLE{,_URL,_SHA256})
+cache budget, clear while live: i18n admin.serverSettings.transcodeCacheMaxGB, admin.transcodeCache.clearConfirmLiveSessions ; automatic limits: admin.qoe.overrides.*
+load test: i18n admin.loadtest.idleWarning, errorActiveStreams
 -->

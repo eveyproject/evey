@@ -1,12 +1,11 @@
 ---
-source_sha: f1907adff4cc0c2d70169aaefdc143b3040b23f0c75f5fc0813c852b00f5c66f
+source_sha: cc4cecd7aee5e32086fae7de125434b98b804bf28bed8ea336efed0bb38c02bb
 reviewed: true
 ---
 # API d'administration
 
-Les points d'accès réservés aux utilisateurs ayant les droits d'administrateur.
-
-## Spécifications
+Les points d'accès réservés aux administrateurs : ce qu'appelle **Admin**
+dans l'application web. Un fichier par service, groupés par domaine.
 
 ### Système
 | Spécification | Contenu |
@@ -40,6 +39,13 @@ Les points d'accès réservés aux utilisateurs ayant les droits d'administrateu
 
 ## Authentification
 
-Chaque point d'accès exige un administrateur : le jeton de session d'un compte
-administrateur, ou une clé d'API, qui appartient toujours à l'un d'eux (ses
-scopes peuvent la restreindre).
+Chaque point d'accès exige un administrateur : le jeton de session d'un
+compte administrateur, ou une clé d'API, qui appartient toujours à l'un d'eux
+et doit porter la permission que la méthode demande (une clé sans permission
+n'atteint aucune méthode d'administration). Un jeton de plugin est refusé
+ici quelles que soient ses portées
+([API du serveur](../README.md#authentication)).
+
+<!-- sources
+admin methods: internal/adapters/driving/grpcapi/interceptors/rbac.go - MethodRoles ; api key scope on admin methods: interceptors/auth.go - authorize ; plugin token floor: auth.go - authorizePluginToken
+-->

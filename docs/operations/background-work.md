@@ -1,17 +1,20 @@
 # Background work and server load
 
-Besides playback, the server runs work of its own: scanning libraries,
-fetching artwork, generating the thumbnails of the seek bar, detecting intros
-and credits, analysing files (keyframes, codec levels, media health). This
-page explains how that work shares the machine with the people watching.
+Why the server is busy when nobody watches, and why the thumbnails of a new
+library take hours: besides playback, the server runs work of its own
+(scanning libraries, fetching artwork, generating seek bar thumbnails,
+detecting intros and credits, analysing files). This page says how that work
+shares the machine with the people watching, and where to set its share.
 
 ## Playback comes first
 
-Background tasks draw from a share of the processor, **25 %** by default
-(**Admin → Server Config → Processing power**). **50 %** speeds them up, for
-when nobody uses the server; a heavy task (media analysis, thumbnails, intro
-detection, classification) can be given a share of its own. A change applies
-to the next item processed.
+Background tasks draw from a share of the processor, the **Global share**
+of **Admin → Server Config → Processing power**: **25 %** by default, **50 %**
+to speed them up when nobody uses the server. Under **Heavy tasks**, one of
+them (new media analysis, trickplay thumbnails, intro detection, complexity
+classification) can be given a share of its own, which replaces the global one
+for that task; shares never stack. A change applies to the next item
+processed, no restart needed.
 
 Whatever the share, a background task pauses while someone is watching, and
 resumes afterwards. On a new library, thumbnails and intro markers therefore
@@ -23,15 +26,15 @@ arrive over hours rather than minutes if the server is in use.
 | --- | --- | --- |
 | Library scan | New, changed and removed files | On file changes, on schedule, at startup if enabled. See [Libraries and metadata](../administration/libraries.md). |
 | Artwork download | Posters and backdrops kept on the server, in WebP | During the scan; missing ones are retried hourly. Off: images are loaded from the internet by the browser, which some browsers block. |
-| Seek bar thumbnails | The previews shown while dragging the seek bar (one image every 7 seconds) | When a title is added, and at startup for those without. Can be turned off in **Server Config**. |
+| Seek bar thumbnails | The previews shown while dragging the seek bar (one image every 7 seconds) | When a title is added, and at startup for those without. **Enable trickplay thumbnails** in **Server Config** turns them off. |
 | Intro and credits detection | The **Skip** buttons | Continuously, for titles community databases do not cover |
 | Keyframe index and codec levels | Direct Play and copy without re-encoding, correct colours | Continuously, on files scanned before the information was collected |
 
 ## Memory
 
 **Memory profile** (**Admin → Server Config**): **Low** suspends plugins that
-are idle to save memory, and wakes them on demand. **Auto** picks Low on
-machines with less than 3 GB of memory.
+are idle to save memory, and wakes them on demand. **Auto (recommended)**
+picks Low on machines with less than 3 GB of memory.
 
 ## Settings read at startup
 
@@ -42,7 +45,8 @@ passes), the **Intro Skip Providers** switch, and the **Advanced limits** of
 transcoding.
 
 <!-- sources
-processing power, pause during playback: i18n admin.serverConfig.cpuBudget.* ; admin.activity.bgTaskHelp.*
+processing power, heavy tasks, pause during playback: i18n admin.serverConfig.cpuBudget.* (globalLabel, tasksTitle, tasksDesc, applyHint) ; admin.activity.bgTaskHelp.*
+thumbnails switch: i18n admin.serverConfig.trickplayEnabled
 artwork: i18n admin.serverConfig.artworkInfo, artworkRetryDesc
 thumbnails: i18n admin.activity.bgTaskHelp.trickplay_generation
 memory: i18n admin.serverConfig.memoryProfileDesc

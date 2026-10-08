@@ -1,21 +1,21 @@
 ---
-source_sha: 58e220cb177619c27f3d55f0ae3d1c6a3b4df50ab6ace660df93aa8ccf6e6df9
+source_sha: d5c0534aa9aa7e7c333f76023148a199fc8b6bf2f16cee4f6c80face79daf6b2
 reviewed: true
 ---
 # API publique
 
-Les points d'accès ouverts à tous les utilisateurs authentifiés.
-
-## Spécifications
+Les points d'accès que tout utilisateur connecté peut appeler : ceux que les
+applications utilisent pour parcourir une bibliothèque, lire un titre, tenir
+des favoris et des playlists, et demander un média. Un fichier par service.
 
 | Spécification | Contenu |
 |------|-------------|
-| [library.swagger.json](library.swagger.json) | Bibliothèques, médias, recherche, personnes |
+| [library.swagger.json](library.swagger.json) | Bibliothèques, médias, recherche, personnes ; la projection `public` que l'interface d'un plugin peut lire |
 | [playback.swagger.json](playback.swagger.json) | Streaming, suivi de progression, historique de lecture, reprise |
 | [user.swagger.json](user.swagger.json) | Authentification, profils, clés API, Quick Connect |
 | [collection.swagger.json](collection.swagger.json) | Collections intelligentes et manuelles |
 | [favorite.swagger.json](favorite.swagger.json) | Favoris |
-| [feed.swagger.json](feed.swagger.json) | Sections de l'accueil (reprendre la lecture, ajouts récents, etc.) |
+| [feed.swagger.json](feed.swagger.json) | Sections de l'accueil (reprendre la lecture, ajouts récents...) |
 | [playlist.swagger.json](playlist.swagger.json) | Playlists, faites à la main ou par règles |
 | [rating.swagger.json](rating.swagger.json) | Notes des utilisateurs |
 | [share.swagger.json](share.swagger.json) | Liens de partage publics |
@@ -29,8 +29,13 @@ Les points d'accès ouverts à tous les utilisateurs authentifiés.
 ## Authentification
 
 Les points d'accès prennent `Authorization: Bearer <jeton>` : un jeton de
-session obtenu à la connexion, ou une clé d'API (voir
-[Webhooks et clés d'API](../../webhooks-api-keys.md)). Accessibles sans : la
-connexion et le renouvellement de session, l'inscription par invitation, Quick
-Connect, la réinitialisation du mot de passe, l'assistant d'installation et son
-état, et les liens de téléchargement publics.
+session obtenu à la connexion, ou une clé d'API dans la limite de ses
+permissions ([API du serveur](../README.md#authentication)). Accessibles
+sans : la connexion et le renouvellement de session, l'inscription par
+invitation, Quick Connect, la réinitialisation du mot de passe, l'assistant
+d'installation et son état, et les liens de téléchargement publics.
+
+<!-- sources
+auth: internal/adapters/driving/grpcapi/interceptors/auth.go ; public methods: internal/adapters/driving/grpcapi/interceptors/rbac.go
+public projection: proto/evey/v1/library.proto - GetPublicMediaItem, ListPublicMediaItems
+-->

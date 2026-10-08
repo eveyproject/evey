@@ -1,272 +1,177 @@
 ---
-source_sha: 6095a8b2b48d1c8ec2613e48fa7ace4603ea6bf231dc4c39b598eb130cb452bc
+source_sha: 53779971ebd8b5f41b11b97d89f9f1102e0d283c08d999b9cc028f3b92f630ca
 reviewed: true
 ---
 # Thèmes
 
-Un thème change l'apparence de l'interface d'Evey. C'est un paquet de
-`kind: theme` **sans processus côté serveur**, qui contient :
+Un thème change l'apparence de l'interface d'Evey : un paquet de
+`kind: theme` sans processus côté serveur, fait d'une feuille de style et, en
+option, d'un script confiné dans un cadre caché. Cette page s'adresse aux
+auteurs de thèmes ; elle dit ce que les deux fichiers peuvent contenir et ce
+que l'installateur réécrit ou refuse. Les thèmes s'installent comme les
+plugins, depuis **Admin → Plugins**, et chaque utilisateur choisit le sien
+dans **Paramètres → Apparence → Thème**.
 
-- `theme.css`, une feuille de style injectée dans chaque page après
-  assainissement ;
-- en option, `theme.js`, un script exécuté dans un cadre isolé avec une petite
-  API `evey.theme`.
+## Manifeste
 
-Un thème ne peut pas déclarer `language`, `entrypoint` ni `permissions` :
-l'installation est refusée s'il le fait. Les deux fichiers sont vérifiés à
-l'installation. Les thèmes s'installent comme les plugins, depuis
-**Admin → Plugins**.
-
-## Schéma du manifeste
-
-```yaml
+```yaml title="plugin.yaml"
 name: aurora               # obligatoire ; nom lisible
 version: 1.0.0             # obligatoire ; semver
-kind: theme                # obligatoire ; doit valoir "theme"
+kind: theme                # obligatoire
 
 description: "..."         # facultatif
 author: "..."              # facultatif
-min_evey_version: "1.0.0"  # facultatif
 
-# PAS de language, entrypoint ni permissions : ils sont invalides pour un thème
+# ni language, ni entrypoint, ni permissions, ni capabilities : l'installation est refusée
 ```
 
-Le ZIP doit contenir `theme.css` et/ou `theme.js` à sa racine. Un paquet qui
-n'a ni l'un ni l'autre est accepté, mais le thème n'a aucun effet visible.
+Le ZIP contient `theme.css` et/ou `theme.js` à sa racine, à côté du
+manifeste. Un paquet qui n'a ni l'un ni l'autre est accepté et n'a aucun
+effet visible. `examples/plugins/theme-dark-blue` (un court `theme.css` qui
+redéfinit les variables de couleur) et `examples/plugins/open-workshop` (une
+refonte complète) passent tous deux l'assainisseur et sont de bons points de
+départ.
 
 ## theme.css
 
-Servi à `/api/v1/themes/<id>/theme.css`. Le fichier passe par l'assainisseur CSS
-à l'installation.
+La feuille de style est injectée comme `<link rel="stylesheet">` dans
+l'en-tête de chaque page et s'applique à tout le document : propriétés
+personnalisées, `@keyframes`, `@media`, `@font-face` avec des sources
+`data:`, `@layer` et requêtes de conteneur fonctionnent. Elle est servie à
+`/api/v1/themes/<id>/theme.css` sans authentification, de sorte qu'un thème
+dont le navigateur se souvient s'applique aussi avant la connexion.
 
-La feuille de style est injectée par un `<link rel="stylesheet">` dans le
-`<head>`. Elle s'applique à tout le document hôte. Le CSS standard fonctionne :
-propriétés personnalisées, `@keyframes`, `@media`, `@font-face` (avec des sources
-`data:`), `@layer`, requêtes de conteneur.
+### Partir des propriétés personnalisées
 
-L'assainisseur réécrit ou retire ce qu'un thème n'a pas le droit de faire et
-enregistre un avertissement pour chaque modification ; il ne refuse pas le
-fichier. Ce qui est stocké et servi est le résultat assaini, qui peut donc
-différer de ce que vous avez écrit.
+L'interface tire ses surfaces, son texte, son accent, ses bordures et ses
+rayons d'un jeu de propriétés personnalisées sur `:root` ;
+`examples/plugins/theme-dark-blue/theme.css` les liste avec un commentaire
+chacune. Les redéfinir restyle tous les écrans d'un coup :
 
-### Ce que l'assainisseur retire
-
-**`@import`** : retiré entièrement.
-
-Toute directive `@import` est supprimée. Raison : un thème doit être autonome ;
-importer une feuille de style externe est un moyen de faire fuir des
-informations sur le réseau.
-
-**`url()` externe** : remplacé par `none`.
-
-Les valeurs `url()` qui pointent vers des adresses `http://`, `https://` ou
-relatives au protocole `//` sont remplacées. Les URI `data:` (`data:image/*`,
-`data:font/*`) sont autorisées et passent telles quelles.
-
-**`javascript:` dans `url()`** : remplacé par `none`.
-
-**`expression()`** (héritage d'Internet Explorer) : remplacé par `none`.
-
-**`-moz-binding` et `behavior`** : retirés.
-
-D'anciens moyens d'exécution XBL/HTC, retirés entièrement.
-
-**Règles sur des sélecteurs sensibles** : le bloc de règles entier est retiré.
-
-Les blocs dont le sélecteur correspond à l'un des cas suivants sont supprimés en
-entier :
-
-- `[type="password"]`, `[type='password']` ou `[type=password]`
-- `[type="hidden"]`
-- `.admin-<n'importe quoi>`
-- `.token-<n'importe quoi>`
-- `.secret-<n'importe quoi>`
-
-Raison : un thème ne doit pas pouvoir styliser les champs de mot de passe ni les
-éléments d'interface privilégiés d'une façon qui servirait à maquiller
-l'interface pour tromper l'utilisateur.
-
-**Règles de superposition plein écran** : le bloc de règles entier est retiré.
-
-Un bloc est retiré quand il associe `position: fixed` ou `position: sticky` à
-une boîte qui couvre l'écran : `inset: 0`, les quatre bords à `0`, ou au moins
-deux de `top: 0`, `right: 0`, `bottom: 0`, `left: 0`, `width: 100vw`,
-`height: 100vh` dont l'une des deux tailles de l'écran. Un en-tête fixé par
-`top: 0; left: 0` et dimensionné par son contenu est conservé. Les déclarations
-d'un même sélecteur s'additionnent d'une règle à l'autre : répartir la forme sur
-plusieurs blocs ne permet pas d'y échapper. C'est la forme type d'une
-superposition CSS d'hameçonnage.
-
-**`pointer-events: none` sur des éléments interactifs** : la déclaration est
-retirée du bloc.
-
-Quand le sélecteur d'une règle vise `button`, `[role="button"]`,
-`a[href*=logout]` ou `[data-critical]`, toute déclaration `pointer-events: none`
-de cette règle est retirée. Le reste de la règle est conservé. Raison : rendre
-inactifs les boutons de déconnexion ou d'actions critiques est une attaque par
-maquillage de l'interface.
-
-**z-index au-dessus de 999** : ramené à 999.
-
-Toute valeur de `z-index` supérieure à 999 est réécrite en 999, avec un
-avertissement. Un thème ne peut pas se placer au-dessus de la couche de fenêtres
-et de superpositions de l'application.
-
-### Ce qu'un thème peut faire en CSS
-
-- Personnaliser toute la mise en page de l'accueil, la zone de mise en avant, la
-  grille de cartes, la barre latérale
-- Restyler les contrôles du lecteur vidéo, la barre de progression, les
-  superpositions
-- Des polices personnalisées (via `data:` ou un `@font-face` en ligne avec
-  `src: url(data:...)`)
-- Des animations et transitions (`@keyframes`, `transition`, `animation`)
-- Des propriétés personnalisées (`--ma-couleur: #...`), des surcharges de
-  `:root`
-- Des requêtes média, des requêtes de conteneur
-- Tout sélecteur qui ne vise pas les champs de mot de passe, `.admin-*`,
-  `.token-*`, `.secret-*`
-
-### Points d'accroche stables (contrat de sélecteurs)
-
-Evey marque un petit ensemble d'éléments cosmétiques et non sensibles avec des
-**classes stables**, que vous pouvez viser sans dépendre des classes
-utilitaires (qui, elles, changent). C'est un contrat : elles ne seront pas
-renommées au fil des refontes.
-
-| Sélecteur | Élément | Ce qu'on peut restyler sans risque |
-|---|---|---|
-| `.evey-app-header` | la barre du haut | couleurs, hauteur, espacements, flou ; **jamais** masquer ni déplacer les contrôles qu'elle contient |
-| `.evey-media-grid` | les grilles de cartes de médias (bibliothèque, rangées) | colonnes, `gap`, alignement |
-| `.evey-media-card` | une carte de média (affiche et informations) | largeur, espacements, survol |
-| `.evey-poster` | l'affiche ou le visuel (aussi sur la page de détail) | `aspect-ratio`, `border-radius`, ombre, cadrage |
-| `.evey-media-detail` | la racine de la page de détail d'un média | la mise en page du corps de la page |
-
-Tout ce que l'assainisseur interdit s'applique toujours (pas de `@import`, pas
-de superposition plein écran, pas de `pointer-events:none` sur des contrôles,
-pas de `[type=password]` / `.admin-*` / `.token-*` / `.secret-*`, `z-index`
-plafonné). Un thème peut restyler ces points d'accroche librement ; il ne peut
-**pas** détourner la barre du haut pour masquer ou imiter les contrôles de
-confiance (déconnexion, profil, vraies notifications).
-
-### Exemple : affiches plus grandes, grille plus dense, coins plus nets
-
-```css
-/* Des affiches plus grandes sur une grille plus serrée */
-.evey-media-card { width: 12rem; }
-.evey-poster     { border-radius: 2px; }
-.evey-media-grid { gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
-
-.evey-media-card:hover { transform: scale(1.03); transition: transform 120ms ease; }
-```
-
-### Exemple : une autre couleur d'accent
-
-L'interface tire ses boutons, ses liens, ses états actifs et la barre de
-progression du lecteur de quelques propriétés personnalisées ;
-`examples/plugins/theme-dark-blue/theme.css` les énumère. Les redéfinir
-restyle tous les écrans d'un coup :
-
-```css
+```css title="theme.css"
 :root {
-  --accent: #e8a33d;
-  --accent-hover: #f0b95c;
+  --bg: #0b1120;
+  --surface: #162032;
+  --text: #e2e8f0;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --radius: 8px;
 }
 ```
 
+### Points d'accroche stables
+
+Quelques éléments cosmétiques portent des classes stables que vous pouvez
+cibler sans dépendre des classes utilitaires, qui changent d'une version à
+l'autre. C'est un contrat : elles ne seront pas renommées.
+
+| Sélecteur | Élément | Ce qu'on peut restyler |
+|---|---|---|
+| `.evey-app-header` | la barre du haut | couleurs, hauteur, espacement, flou ; jamais masquer ni déplacer les contrôles qu'elle contient |
+| `.evey-media-grid` | les grilles de cartes média (bibliothèque, rangées) | colonnes, `gap`, alignement |
+| `.evey-media-card` | une carte média (affiche et informations) | largeur, espacement, survol |
+| `.evey-poster` | le visuel d'affiche ou d'illustration (aussi sur la fiche) | `aspect-ratio`, `border-radius`, ombre, ajustement |
+| `.evey-media-detail` | la racine de la fiche média | mise en page du corps de la fiche |
+
+```css title="theme.css - affiches plus grandes, grille plus dense, coins plus nets"
+.evey-media-card { width: 12rem; }
+.evey-poster     { border-radius: 2px; }
+.evey-media-grid { gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.evey-media-card:hover { transform: scale(1.03); transition: transform 120ms ease; }
+```
+
+### Ce que l'assainisseur réécrit
+
+À l'installation, `theme.css` passe par un assainisseur qui réécrit ou
+retire ce qu'un thème n'a pas le droit de faire, consigne un avertissement
+pour chaque changement, et réécrit le résultat : ce qui est servi est le
+fichier assaini, qui peut différer de ce que vous avez écrit. Il ne refuse
+jamais le paquet.
+
+| Ce que vous avez écrit | Ce qui arrive | Pourquoi |
+|---|---|---|
+| `@import ...` | Retiré | Un thème se suffit à lui-même ; un import est une fuite réseau. |
+| `url(http://...)`, `url(https://...)`, `url(//...)`, un candidat externe dans `image-set()`, une propriété personnalisée qui contient une telle URL | Remplacé par `none` ou neutralisé | Même raison. Les URI `data:` passent inchangées. |
+| `url(javascript:...)`, `expression(...)`, `-moz-binding`, `behavior` | Retirés | Vecteurs d'exécution hérités. |
+| Une règle dont le sélecteur correspond à `[type=password]`, `[type=hidden]`, `.admin-*`, `.token-*` ou `.secret-*` | Tout le bloc retiré | Un thème ne doit pas restyler les champs de mot de passe ni les éléments privilégiés. |
+| Une règle avec `position: fixed` ou `sticky` qui couvre l'écran : `inset: 0`, les quatre côtés à `0`, ou au moins deux parmi `top`/`right`/`bottom`/`left: 0`, `width: 100vw`, `height: 100vh` dont une taille de fenêtre | Tout le bloc retiré | La surcouche d'hameçonnage classique. Un en-tête fixé par `top: 0; left: 0` et dimensionné par son contenu est conservé. Les déclarations d'un même sélecteur s'additionnent d'une règle à l'autre. |
+| `pointer-events: none` dans une règle qui vise `button`, `[role=button]`, `a[href*=logout]` ou `[data-critical]` | Cette déclaration retirée, le reste conservé | Masquer la cliquabilité d'un contrôle critique est un détournement d'interface. |
+| `z-index` au-dessus de 999 | Ramené à 999 | Un thème reste sous la couche modale de l'application. |
+
+Les caractères échappés sont décodés avant ces vérifications : une séquence
+d'échappement ne les contourne pas.
+
 ## theme.js
 
-Servi à `/api/v1/themes/<id>/theme.js` (authentification requise). Chargé dans
-une iframe avec `sandbox="allow-scripts"` et une Content Security Policy
-verrouillée : le script n'a aucun accès à la page hôte, ne peut faire aucune
-requête réseau et ne peut rien lire du stockage.
+Le script est facultatif. Il est servi à `/api/v1/themes/<id>/theme.js` aux
+utilisateurs connectés et s'exécute dans un `<iframe sandbox="allow-scripts">`
+caché dont la politique fixe `connect-src 'none'` : aucun accès à la page
+hôte, à son stockage ni au réseau, même pour un script qui a passé l'analyse
+à l'installation. La seule surface est `window.evey.theme`, injectée avant
+l'exécution du script.
 
-La seule surface disponible est `window.evey.theme`, injectée par le pont de
-l'hôte avant l'exécution de `theme.js`.
+### `evey.theme.css(declarations)`
 
-Même un script passé à travers l'analyse d'installation ne peut atteindre ni la
-page hôte, ni son stockage, ni le réseau : le cadre n'a aucun accès de même
-origine et sa politique fixe `connect-src 'none'`.
+Envoie des déclarations de propriétés personnalisées à la page hôte, qui les
+applique sur `:root`. C'est la seule forme acceptée : une liste de
+`--nom: valeur`, jusqu'à 200 déclarations, chaque valeur de 500 caractères au
+plus, sans `url()`, `image-set`, `expression()`, `@import`, `javascript:`,
+`data:`, `http(s):`, `//`, commentaire ni accolade. Tout le reste est
+abandonné et signalé dans la console. Une propriété n'agit que là où la
+feuille de style assainie y fait référence.
 
-### `evey.theme.css(rules)`
-
-Injecte une chaîne CSS dans la surface de style de l'hôte, pendant l'exécution.
-À utiliser pour un style dynamique qui dépend de valeurs calculées ou d'une
-interaction dans le thème.
-
-```js
-evey.theme.css(`
-  .hero-banner {
-    background-image: url(data:image/svg+xml,...);
-  }
-`);
+```js title="theme.js"
+evey.theme.css("--accent: #e8a33d; --accent-hover: #f0b95c");
 ```
 
-### `evey.theme.log(level, msg)`
+### `evey.theme.log(level, message)`
 
-Écrit un message dans la console du navigateur, préfixé par `[evey-theme]`. Il
-n'est pas montré aux utilisateurs.
+Transmet une ligne à la console du navigateur. `level` vaut `"debug"`,
+`"info"`, `"warn"` ou `"error"` ; le message est coupé à 500 caractères.
+Rien n'est montré à l'utilisateur.
 
-- `level` : `"debug"` | `"info"` | `"warn"` | `"error"`
-- `msg` : une chaîne de texte brut
+`evey.theme.registerComponent` et `evey.theme.observe` existent sur l'objet
+mais ne sont pas implémentés : l'hôte leur répond par une erreur.
 
-```js
-evey.theme.log("info", "Aurora theme loaded.");
-```
+### Ce que le scanner refuse
 
-### Ce que l'analyse refuse
+À l'installation, `theme.js` est analysé comme du texte, et une seule
+correspondance refuse le paquet, avec la raison. Le scanner est
+volontairement conservateur : un thème n'a aucune raison légitime de
+mentionner ces noms, même dans un commentaire.
 
-Une seule correspondance refuse l'installation, avec la raison. L'analyse est
-volontairement prudente : un thème n'a aucune raison légitime d'utiliser ces
-API.
+L'une de ces sous-chaînes, n'importe où dans la source :
 
-#### Chaînes littérales
+`document.cookie`, `localStorage`, `sessionStorage`, `indexedDB`,
+`XMLHttpRequest`, `navigator.sendBeacon`, `navigator.serviceWorker`,
+`WebSocket`, `EventSource`, `importScripts`, `document.write`,
+`Element.prototype`, `Object.defineProperty`, `globalThis`, `window.parent`,
+`window.top`, `window.opener`, `Reflect.get`, `Reflect.apply`,
+`Reflect.construct`, `window.frames`, `frameElement`, `postMessage`.
 
-Si l'une des sous-chaînes suivantes apparaît n'importe où dans le code,
-l'installation est refusée :
+L'un de ces motifs :
 
-- `document.cookie`
-- `localStorage`
-- `sessionStorage`
-- `indexedDB`
-- `XMLHttpRequest`
-- `navigator.sendBeacon`
-- `navigator.serviceWorker`
-- `WebSocket`
-- `EventSource`
-- `importScripts`
-- `document.write`
-- `Element.prototype`
-- `Object.defineProperty`
-- `globalThis`
-- `window.parent`
-- `window.top`
-- `window.opener`
-- `Reflect.get`
-- `Reflect.apply`
-- `Reflect.construct`
-- `window.frames`
-- `frameElement`
-- `postMessage`
-
-#### Motifs
-
-| Motif | Ce qu'il repère |
+| Motif | Ce qu'il attrape |
 |---|---|
-| `\b(fetch\|eval\|atob\|btoa\|Function\|setTimeout\|setInterval)\s*\(` | Les appels directs à des globales interdites |
-| `\bimport\s*\(` | L'import dynamique |
-| `(?:window\|self\|globalThis\|top\|parent\|document\|navigator\|location)\s*\[` | L'accès par crochets aux globales de l'hôte (repère `window["fetch"]`) |
-| `\.cookie\b` | Tout accès à `.cookie`, par descripteur de propriété ou calculé |
-| `\.constructor\s*\.\s*constructor` | L'évasion par `[].constructor.constructor` |
-| `new\s+Function\b` | La construction de code par `new Function(...)` |
-| `(?:window\|self\|top\|parent\|globalThis)\s*\.\s*(?:Function\|eval\|fetch\|atob\|btoa\|XMLHttpRequest\|WebSocket\|EventSource)\b` | La lecture de propriétés qui sont des globales interdites |
-| `(?:window\|top\|parent\|document\|location\|globalThis\|self)\s*\.\s*[A-Za-z_$][\w$]*\s*=[^=]` | L'affectation de propriétés sur les globales de l'hôte |
-| `Object\s*\.\s*prototype` | La pollution de prototype |
-| `\.register\s*\(\s*['"]\S+\.js` | L'enregistrement d'un service worker |
+| `\b(fetch\|eval\|atob\|btoa\|Function\|setTimeout\|setInterval)\s*\(` | Appels directs de globales interdites |
+| `\bimport\s*\(` | Import dynamique |
+| `(?:window\|self\|globalThis\|top\|parent\|document\|navigator\|location)\s*\[` | Accès par crochets aux globales de l'hôte, comme `window["fetch"]` |
+| `\.cookie\b` | Tout accès `.cookie` |
+| `\.constructor\s*\.\s*constructor` | L'évasion `[].constructor.constructor` |
+| `new\s+Function\b` | Construction de code |
+| `(?:window\|self\|top\|parent\|globalThis)\s*\.\s*(?:Function\|eval\|fetch\|atob\|btoa\|XMLHttpRequest\|WebSocket\|EventSource)\b` | Lecture d'une globale interdite par propriété |
+| `(?:window\|top\|parent\|document\|location\|globalThis\|self)\s*\.\s*[A-Za-z_$][\w$]*\s*=[^=]` | Affectation sur une globale de l'hôte |
+| `Object\s*\.\s*prototype` | Pollution de prototype |
+| `\.register\s*\(\s*['"]\S+\.js` | Enregistrement d'un service worker |
 
-## Exemples
-
-Deux thèmes sont livrés avec les exemples de plugins :
-`examples/plugins/theme-dark-blue` (un court `theme.css` qui ne redéfinit que
-des variables de couleur) et `examples/plugins/open-workshop` (une refonte
-complète). Partez de l'un ou de l'autre : tous deux passent déjà l'assainisseur.
+<!-- sources
+manifest rules: internal/adapters/driven/pluginrunner/manifest.go - validateManifest (KindTheme)
+theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n common.appearance, common.theme ; GET /api/v1/plugins/themes
+routes, auth: internal/adapters/driving/http/theme_asset_handler.go (theme.css open, theme.js authMw)
+link injection, hidden iframe, connect-src none: frontend/apps/web/src/features/themes/ThemeLoader.tsx
+sanitizer: internal/adapters/driven/pluginrunner/css_sanitizer.go - SanitizeCSS, reImport, reURLExternal, reURLExternalUnterminated, reImageSetCandidateExternal, reCustomPropExternalURL, reURLJavascript, reExpression, reMozBinding, reBehavior, reSensitiveSelector, overlaySignals.isOverlay, stripPointerEventsOnInteractive, reZIndex ; written back at install: internal/app/plugin/install.go - validateStagedPlugin
+custom properties: examples/plugins/theme-dark-blue/theme.css
+stable hooks: frontend/apps/web/src (evey-app-header, evey-media-grid, evey-media-card, evey-poster, evey-media-detail)
+theme.js bridge: frontend/apps/web/src/features/themes/theme-bridge.ts - THEME_BRIDGE_SCRIPT ; policy: theme-css-policy.ts - applyThemeCSSPolicy, MAX_DECLARATIONS, MAX_VALUE_LENGTH, FORBIDDEN_IN_VALUE
+scanner: internal/pkg/themejs/scan.go - blockedLiterals, blockedRegex, Scan
+-->

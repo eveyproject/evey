@@ -1,26 +1,61 @@
 ---
-source_sha: 9f7080bc4043f1c842b77bf946e0f6b31769ab3ddde23345ef268ed665833a85
+source_sha: 15b64141cd700d7cdeab1ff4fff37cbd34d9a927813ebbac03526360f4a4f8d9
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture
 
-Evey ne vous demande jamais de choisir une qualité avant de lancer un film. À
-chaque lecture, le serveur détermine lui-même comment livrer le titre, en
-croisant trois éléments : le contenu du fichier, ce que le lecteur sait
-décoder, et ce que le serveur peut encoder à cet instant. Un même film peut
-ainsi partir intact vers un appareil et être réencodé pour un autre, ou être lu
-différemment sur le même appareil selon la charge du serveur.
+Pourquoi ce film est-il lu tel quel sur la TV et réencodé sur le téléphone ?
+Cette page répond à quiconque appuie sur lecture : les trois modes et la
+lecture des **Infos du flux** viennent d'abord ; les règles exactes que le
+serveur applique suivent, pour qui veut comprendre ou les ajuster.
+
+Evey ne vous demande jamais de choisir une qualité avant de lancer un titre.
+Chaque lancement est une négociation entre trois parties : le contenu du
+fichier, ce que ce lecteur sait décoder, et ce que ce serveur peut encoder à
+cet instant. Un même film peut donc partir intact vers un appareil et être
+réencodé pour un autre, ou être lu différemment sur le même appareil quand le
+serveur est chargé.
 
 ## Les trois modes de lecture
 
-| Dans les Infos du flux | Ce que reçoit le lecteur |
-| --- | --- |
-| **Lecture directe** | Le fichier d'origine, tel quel. |
-| **Remux** | La vidéo et l'audio d'origine, placés dans un autre conteneur. Rien n'est réencodé. |
-| **Transcodage** | Au moins une piste réencodée. Souvent l'audio seul, la vidéo restant celle d'origine. |
+| Dans les Infos du flux | Ce que reçoit le lecteur | Ce que cela coûte au serveur |
+| --- | --- | --- |
+| **Lecture directe** | Le fichier d'origine, tel quel. | Une lecture de fichier. |
+| **Remux** | La vidéo et l'audio d'origine, placés dans un autre conteneur. Rien n'est réencodé. | Un réempaquetage, fait par [MKVGo](mkvgo.md) dans le serveur quand c'est possible, par une copie FFmpeg sinon. |
+| **Transcodage** | Au moins une piste réencodée. Souvent l'audio seul, la vidéo restant celle d'origine. | Un encodage. Seul un réencodage vidéo occupe un [créneau de transcodage](transcoding.md#sharing-the-capacity). |
 
-Le serveur privilégie ces modes dans cet ordre et, quand il transcode, ne
-réencode que les pistes qui l'exigent.
+Le serveur les essaie dans cet ordre et, quand il transcode, ne réencode que
+les pistes qui l'exigent.
+
+## Lire les Infos du flux
+
+Les **Infos du flux** (le bouton d'information, (i), des contrôles du
+lecteur ; sur la TV, dans le menu d'options du lecteur) affichent la
+**Méthode**, puis chaque piste avec sa décision (*copié*, *transcodé*, ou
+*décodé client* pour un audio que le lecteur web décode lui-même) et, sous
+**Pourquoi pas de lecture directe**, les raisons.
+
+<figure class="evey-shot evey-shot--narrow" markdown="span">
+  ![Les Infos du flux dans le lecteur web, pour un remux](../images/player-stream-info.webp){ loading=lazy }
+  <figcaption>Remux : l'emballage change, les pistes vidéo et audio restent intactes, et la seule raison pour laquelle le fichier n'est pas lu tel quel. « Copié » décrit les pistes, pas le mode de lecture (interface en anglais).</figcaption>
+</figure>
+
+Les raisons se répartissent en quatre catégories :
+
+| Origine | Exemples, tels qu'affichés |
+| --- | --- |
+| Le lecteur ne peut pas exploiter la piste telle quelle | Codec vidéo non lisible par ce lecteur · Codec audio non lisible par ce lecteur · Résolution au-dessus de la limite du lecteur · Trop de canaux audio pour ce lecteur · Format de pixels que le lecteur ne décode pas (H.264 10 bits, 4:2:2) · Conteneur non lisible en l'état (remis en HLS) |
+| Une limite propre à la session | Débit au-dessus de la limite autorisée · Le débit mesuré par le client ne peut pas porter la copie |
+| Une conséquence sur l'image ou le son | HDR converti en SDR (tone-mapping) · Sous-titres incrustés dans l'image · Resynchronisation audio demandée |
+| Un réglage, ou une décision déjà prise | Lecture directe désactivée dans le profil · Remux désactivé dans le profil · Codec vidéo préféré (réglage du profil) · Choix figé pour cette session |
+
+Seule la piste audio écoutée est prise en compte : un fichier dont la piste de
+commentaire, non sélectionnée, est en DTS ne sera pas transcodé pour autant.
+
+Les Infos du flux sont calculées au lancement de la lecture. Un seul cas leur
+échappe : une carte graphique saturée au moment précis où le flux démarre. Le
+flux bascule alors sur le processeur, et **Admin → En cours de lecture**
+indique le backend réellement utilisé.
 
 ## Ce qui entre dans la décision
 
@@ -30,12 +65,12 @@ pistes audio et sous-titres, relevés au moment du scan.
 **Le lecteur.** Au lancement, l'application indique ce que son appareil sait
 décoder : les familles de codecs prises en charge, les conteneurs qu'il sait
 ouvrir, sa résolution maximale, si son écran affiche le HDR, le nombre de
-canaux audio qu'il restitue et, pour certains appareils, un plafond plus bas en
-H.264. L'application web interroge le navigateur ; les applications Android et
-Android TV interrogent les décodeurs et l'écran de l'appareil. Evey ne tient
-aucune liste d'appareils compatibles : il s'appuie sur ce que le lecteur
-déclare. En diffusion, c'est le récepteur qui se décrit lui-même quand il le
-peut, et un profil prudent est utilisé sinon : voir
+canaux audio qu'il restitue et, pour certains appareils, un plafond ou un
+niveau plus bas en H.264. L'application web interroge le navigateur ; les
+applications Android et Android TV interrogent les décodeurs et l'écran de
+l'appareil. Evey ne tient aucune liste d'appareils compatibles : il s'appuie
+sur ce que le lecteur déclare. En diffusion, c'est le récepteur qui se décrit
+lui-même quand il le peut, et un profil prudent est utilisé sinon : voir
 [Diffusion (Chromecast)](casting.md).
 
 **La session.** Les préférences du profil (débit maximal, nombre maximal de
@@ -63,20 +98,11 @@ HDR :
   carte en sont capables.
 - **Même limite, mais carte graphique saturée ou indisponible pour ce titre.**
   Le processeur prend le relais. Il encode en H.264, qui ne transporte pas de
-  HDR ici : l'image est convertie en SDR par tone mapping.
+  HDR ici : l'image est convertie en SDR par tone mapping, à la qualité que le
+  processeur tient.
 
 Ni le fichier ni la TV n'ont changé : seules la limite de la session et l'état
 du serveur ont varié.
-
-## Les contraintes que le serveur applique lui-même
-
-Certaines limites ne sont pas encore déclarées par les lecteurs. Le serveur les
-applique alors comme une règle de compatibilité prudente, identique pour tous :
-le H.264 en 10 bits, et toute vidéo en 4:2:2, en 4:4:4 ou en 12 bits, sont
-réencodés, alors que le
-HEVC, le VP9 et l'AV1 jusqu'à 10 bits en 4:2:0 dépendent de la prise en charge
-du codec par le lecteur. Le Dolby Vision n'est conservé que sous une forme que
-le lecteur affiche correctement : voir [HDR et Dolby Vision](hdr.md).
 
 ## Les limites de la session
 
@@ -87,40 +113,24 @@ ces limites est transcodé pour s'y conformer :
 - le **Débit maximal** du compte, fixé par un administrateur ;
 - le **Débit maximum en streaming** du profil, et son **Débit maximum en
   mobile** quand un téléphone est sur le réseau cellulaire ;
-- le **Débit distant maximal** (**Admin → Accès distant**) et le plafond des
-  spectateurs distants de **Admin → Transcodage**, le plus bas des deux, quand
-  l'adresse du spectateur est publique et hors des **Réseaux LAN**. Une adresse
-  privée n'est jamais plafonnée.
+- le **Débit distant maximal** (**Admin → Accès distant**) et le **Plafond de
+  débit vidéo, spectateurs distants** (**Admin → Configuration transcodage**),
+  le plus bas des deux, quand l'adresse du spectateur est publique et hors des
+  **Réseaux LAN**. Une adresse privée n'est jamais plafonnée.
 
-## Lire les Infos du flux
+La piste audio écoutée est réencodée quand elle compte plus de canaux que le
+lecteur n'en déclare ou que les **Canaux audio maximum** du profil. Une piste
+réencodée garde au plus 5.1 canaux, jamais davantage : voir [Audio](audio.md).
 
-Les **Infos du flux** (le bouton d'information, (i), des contrôles du lecteur ; sur la TV, dans
-le menu d'options du lecteur) affichent la **Méthode**, puis chaque piste avec
-sa décision (*copié*, *transcodé*, ou *décodé client* pour un audio que le
-lecteur web décode lui-même) et, sous **Pourquoi pas de lecture directe**, les
-raisons.
+## Les contraintes que le serveur applique lui-même
 
-<figure class="evey-shot evey-shot--narrow" markdown="span">
-  ![Les Infos du flux dans le lecteur web, pour un remux](../images/player-stream-info.webp){ loading=lazy }
-  <figcaption>Remux : l'emballage change, les pistes vidéo et audio restent intactes, et la seule raison pour laquelle le fichier n'est pas lu tel quel. « Copié » décrit les pistes, pas le mode de lecture (interface en anglais).</figcaption>
-</figure>
-
-Les raisons se répartissent en quatre catégories :
-
-| Origine | Exemples, tels qu'affichés |
-| --- | --- |
-| Le lecteur ne peut pas exploiter la piste telle quelle | Codec vidéo non lisible par ce lecteur · Codec audio non lisible par ce lecteur · Résolution au-dessus de la limite du lecteur · Trop de canaux audio pour ce lecteur · Conteneur non lisible en l'état (remis en HLS) |
-| Une limite propre à la session | Débit au-dessus de la limite autorisée · Le débit mesuré par le client ne peut pas porter la copie |
-| Une conséquence sur l'image ou le son | HDR converti en SDR (tone-mapping) · Sous-titres incrustés dans l'image · Resynchronisation audio demandée |
-| Un réglage, ou une décision déjà prise | Lecture directe désactivée dans le profil · Remux désactivé dans le profil · Codec vidéo préféré (réglage du profil) · Choix figé pour cette session |
-
-Seule la piste audio écoutée est prise en compte : un fichier dont la piste de
-commentaire, non sélectionnée, est en DTS ne sera pas transcodé pour autant.
-
-Les Infos du flux sont calculées au lancement de la lecture. Un seul cas leur
-échappe : une carte graphique saturée au moment précis où le flux démarre. Le
-flux bascule alors sur le processeur, et **Admin → En cours de lecture**
-indique le backend réellement utilisé.
+Certaines limites ne sont pas encore déclarées par les lecteurs. Le serveur
+les applique alors comme une règle de compatibilité prudente, identique pour
+tous : le H.264 en 10 bits, et toute vidéo en 4:2:2, en 4:4:4 ou en 12 bits,
+sont réencodés, alors que le HEVC, le VP9 et l'AV1 jusqu'à 10 bits en 4:2:0
+dépendent de la prise en charge du codec par le lecteur. Le Dolby Vision n'est
+conservé que sous une forme que le lecteur affiche correctement : voir
+[HDR et Dolby Vision](hdr.md).
 
 ## Pourquoi le mode change rarement en cours de film
 
@@ -134,8 +144,11 @@ audio ou de sous-titres d'une façon qui l'exige, ou si vous relancez le titre.
 **Paramètres → Lecture** propose, pour chaque profil, **Autoriser la lecture
 directe**, **Autoriser le remux** et **Autoriser le transcodage**. Désactiver
 l'une de ces options interdit ce mode au serveur, et les Infos du flux
-indiquent pourquoi. C'est un outil de diagnostic, pas un réglage de qualité :
-un transcodage imposé n'est jamais meilleur que l'original.
+indiquent pourquoi.
+
+!!! note
+    C'est un outil de diagnostic, pas un réglage de qualité : un transcodage
+    imposé n'est jamais meilleur que l'original.
 
 La **Qualité**, dans les réglages du lecteur, joue un autre rôle : elle choisit
 parmi les qualités d'un flux transcodé. **Auto** s'adapte à la connexion ; une
@@ -148,4 +161,5 @@ de résolution que le lecteur demanderait sinon.
   [Sous-titres](subtitles.md) · [Diffusion (Chromecast)](casting.md)
 - La répartition de la capacité du serveur :
   [Transcodage et capacité du serveur](transcoding.md)
+- Ce qui tourne dans le serveur sans FFmpeg : [MKVGo dans Evey](mkvgo.md)
 - L'implémentation : [Chaîne de lecture](../playback-serving.md)

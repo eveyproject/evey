@@ -1,8 +1,9 @@
 # Monitoring and logs
 
-Where to see what the server is doing, from the most immediate to the most
-aggregated. For a symptom to investigate, start with
-[Troubleshooting](troubleshooting.md).
+Where to see what the server is doing, for the administrator who wants to
+check on it rather than fix something: from what plays right now to the
+statistics of the month, with the logs in between. For a symptom to
+investigate, start with [Troubleshooting](troubleshooting.md).
 
 ## What is playing now
 
@@ -27,10 +28,16 @@ and how much of the transcoding capacity is in use.
 
 ## Logs
 
-**Admin → Logs & Debug** searches the server's logs and follows them live,
-filtered by area (playback, transcoding, scan, subtitles...). It is the first
-place to look when a user reports a problem. The same logs are available with
-`docker compose logs evey`.
+**Admin → Logs & Debug** searches the server's log and follows it live
+(**Live**), narrowed with **Where** to one area (player and transcode, seek
+index, subtitles, intro detection, Chromecast, auth, infrastructure...). It is
+the first place to look when a user reports a problem.
+
+The same log is on disk, one JSON file per day in `./evey-data/logs/`
+(`/data/logs/evey-YYYY-MM-DD.log` in the container), kept 90 days by default.
+`docker compose logs evey` shows only what the container prints while it
+starts, which is what to read when the server does not come up. See
+[Troubleshooting](troubleshooting.md#the-logs).
 
 ## How playback actually went
 
@@ -63,6 +70,7 @@ diagnostic commands are listed in [Command line](../runbooks/cli.md).
 
 <!-- sources
 who's online: frontend/apps/web/src/features/admin/DashboardOnline.tsx (presence heartbeat, profile names, idle, SendCastReceiverCommand) ; i18n admin.online.*
-labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.*, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
+logs: internal/pkg/logger/logger.go - New (file only outside DevMode), rotatingWriter ; config EVEY_LOG_RETENTION_DAYS ; docker-compose.yml ./evey-data:/data
+labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.where.*, admin.logs.live, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
 automatic limits: i18n admin.qoe.overrides.* ; docs/adr/0018-cmcd-qoe-pipeline.md
 -->

@@ -1,20 +1,36 @@
 ---
-source_sha: 5c15d0f69d445cc33f1a7038b71f5435492c5280093f9b5d8ce87e76a2707d53
+source_sha: bba642beddfecc61a337da0207c83db6966aeb16853b74d87cd7189f7eb3850f
 reviewed: true
 ---
 # HDR et Dolby Vision
 
-Une image HDR peut arriver à l'écran de trois façons : l'original, intact ; un
-réencodage qui conserve le HDR ; ou un réencodage converti en SDR par tone
-mapping. Laquelle s'applique dépend de l'écran du lecteur, du format HDR, et
-de ce que le matériel du serveur a prouvé savoir faire.
+À quoi ressemble un titre HDR ou Dolby Vision sur votre écran, et pourquoi :
+l'image d'origine, un réencodage qui conserve le HDR, ou une conversion en
+SDR. Pour les spectateurs qui se demandent pourquoi un film n'a pas le même
+rendu d'un appareil à l'autre, et pour les admins qui dimensionnent un
+serveur. Les règles générales de lecture sont dans
+[Comment Evey choisit le mode de lecture](how-playback-is-decided.md).
+
+## Ce que vous verrez, selon l'appareil
+
+| Votre écran | Ce qui arrive |
+| --- | --- |
+| Un écran HDR sur Android TV ou sur un téléphone Android, avec un décodeur HEVC | L'original HDR10 ou HLG, intact, sauf si autre chose (débit, résolution, sous-titre incrusté) impose un réencodage. |
+| Un navigateur | Une conversion en SDR, toujours : le lecteur web ne déclare pas d'écran HDR, le serveur convertit donc pour lui. |
+| Un récepteur de diffusion | Ce que le récepteur a déclaré sur son propre écran : voir [Diffusion](casting.md). |
+| Un écran SDR, où que ce soit | Une conversion en SDR. |
+
+Afficher du HDR sur un écran SDR sans conversion donne des couleurs ternes et
+grisâtres : le serveur ne l'envoie donc jamais tel quel. Les applications
+Android sondent l'écran à chaque début de lecture, pas une fois pour toutes à
+l'installation : brancher un téléviseur HDR sur un boîtier prend effet au
+titre suivant, au changement de piste ou de qualité.
 
 ## Quand l'original est conservé
 
 La vidéo HDR10 ou HLG est envoyée telle quelle quand le lecteur déclare un
 écran HDR et décode le codec, et qu'aucune autre raison (débit, résolution,
-conteneur) n'impose un réencodage. Les règles générales sont décrites dans
-[Comment Evey choisit le mode de lecture](how-playback-is-decided.md).
+conteneur) n'impose un réencodage.
 
 ## Quand la vidéo doit de toute façon être réencodée
 
@@ -27,17 +43,16 @@ toutes ces conditions sont réunies :
   qu'elle encode du HEVC 10 bits avec HDR ;
 - cette carte est disponible pour ce flux.
 
-Le résultat est du HEVC 10 bits avec les informations HDR10 statiques
-(espace colorimétrique, fonction de transfert, affichage de mastering)
-reportées. Les métadonnées dynamiques HDR10+ ne le sont pas : un titre HDR10+
-est lu en HDR10 par cette voie.
+Le résultat est du HEVC 10 bits avec la signalisation HDR de la source
+(couleurs BT.2020, transfert PQ ou HLG) reportée. Les métadonnées dynamiques
+HDR10+ ne le sont pas : un titre HDR10+ est lu en HDR10 par cette voie.
 
 Si l'une des conditions manque, le processeur ou la carte convertit l'image
 en SDR avant de l'encoder. Les Infos du flux affichent alors **HDR converti
 en SDR (tone-mapping)**.
 
 Si l'original aurait pu être envoyé mais que le serveur ne peut pas encore le
-servir en copie (son index de navigation est en cours de construction, par
+servir en copie (son index de lecture est en cours de construction, par
 exemple), la vidéo est réencodée en conservant le HDR sur une telle carte, et
 les Infos du flux affichent **Copie indisponible, HDR conservé au
 réencodage**.
@@ -45,16 +60,17 @@ réencodage**.
 ## Quand l'écran est SDR
 
 Un lecteur qui ne déclare pas d'écran HDR reçoit une image convertie en SDR.
-Afficher du HDR sur un écran SDR sans conversion donne des couleurs ternes et
-grisâtres : le serveur ne l'envoie donc jamais tel quel.
-
 Le tone mapping s'exécute sur la carte graphique quand elle a prouvé qu'elle
-en était capable (VAAPI avec OpenCL, par exemple), sinon sur le processeur
-avec un filtre optimisé SIMD (AVX2 sur x86-64, NEON sur ARM). Sur le
-processeur, c'est le transcodage le plus coûteux qui soit : le serveur mesure
-un plafond de résolution distinct pour le HDR, généralement plus bas, si bien
-qu'un titre HDR peut être converti dans une résolution inférieure à celle d'un
-titre SDR sur la même machine.
+en était capable (VAAPI avec OpenCL, par exemple), sinon sur le processeur :
+avec un filtre optimisé SIMD (AVX2) quand la version de ffmpeg le fournit,
+avec une chaîne de filtres portable sinon.
+
+!!! note
+    Sur le processeur, le tone mapping est le transcodage le plus coûteux qui
+    soit. Le serveur mesure un plafond de résolution distinct pour le HDR,
+    généralement plus bas, si bien qu'un titre HDR peut être converti dans une
+    résolution inférieure à celle d'un titre SDR sur la même machine. Voir
+    [Transcodage](transcoding.md#the-server-measures-itself).
 
 ## Dolby Vision
 

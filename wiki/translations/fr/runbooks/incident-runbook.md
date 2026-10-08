@@ -1,164 +1,173 @@
 ---
-source_sha: 183e65df2f01ed4e879613548dd30f3675ca6c82fa34bb3521c12c68938b83be
+source_sha: 95bca5df52c2505d699a3857e7d305e19067387a32df91af30da948dfa493ae0
 reviewed: true
 ---
 # Réponse aux incidents
 
-Les premiers gestes face aux pannes courantes d'Evey. Chaque section suit le même
-fil : **symptôme → diagnostic → correction**.
+Les premiers gestes face aux pannes courantes d'Evey, pour l'opérateur
+d'astreinte. Trouvez la section qui correspond au symptôme, lancez ses
+vérifications, appliquez la correction qui correspond à ce que vous avez
+trouvé. Chaque section a la même forme : **Symptôme**, **Diagnostic**,
+**Correction**.
 
-Les commandes visent l'installation standard : un seul conteneur, `evey-server`,
-dans lequel tournent PostgreSQL et Meilisearch ; leurs journaux sont les lignes
-`postgres:` et Meilisearch de `docker logs evey-server`. La disposition du
-`docker-compose.yml` du dépôt ajoute des conteneurs `evey-postgres` et
-`evey-caddy` ([Déploiements avancés](../operations/advanced-deployments.md)).
+## Avant de commencer
 
-Pour lancer du SQL sur la base intégrée :
+Les commandes visent l'installation standard : un seul conteneur,
+`evey-server`, dans lequel tournent Postgres et Meilisearch. Leurs lignes
+apparaissent dans le même journal que celles du serveur (préfixe `postgres:`
+pour la base). Le `docker-compose.yml` du dépôt ajoute les conteneurs
+`evey-postgres` et `evey-caddy` ; voir
+[Déploiements avancés](../operations/advanced-deployments.md).
+
+**Ports.** L'API HTTP écoute sur `EVEY_SERVER_PORT` + 1, soit `9091` par
+défaut ; `/healthz` y répond. C'est la ligne `ports:` du compose qui le
+publie.
+
+**Shell SQL** sur la base embarquée :
 
 ```sh
-docker exec evey-server sh -c \
+docker exec -it evey-server sh -c \
   'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-Port HTTP par défaut : `9091` (`EVEY_HTTP_PORT`). Point de santé : `/healthz`.
+**Journaux.** Le même flux existe en deux exemplaires : le fichier quotidien
+`./evey-data/logs/evey-AAAA-MM-JJ.log` (`EVEY_LOG_DIR`, `/data/logs` dans
+l'image) et `docker logs evey-server`. Le fichier fait foi : le pilote
+json-file de Docker fait tourner `docker logs`, et après une rotation la
+commande peut s'arrêter des heures avant le conteneur. Quand les deux
+divergent, lisez le fichier. La page **Logs & Debug** du panneau d'admin
+cherche dans le même flux (`GET /api/v1/admin/logs/search?q=<terme>&limit=200`) ;
+les bearers, JWT et valeurs `token=` / `password=` y apparaissent en
+`[redacted]`, donc cherchez un identifiant de média, jamais un jeton.
 
-**Journaux.** Deux copies du même flux : le fichier quotidien
-`evey-data/logs/evey-AAAA-MM-JJ.log` (`EVEY_LOG_DIR`, `/data/logs` dans l'image)
-et `docker logs evey-server`. Le fichier fait foi : le pilote json-file fait
-tourner `docker logs`, et après une rotation la commande peut s'arrêter des
-heures avant le conteneur ; le `stop_detail` d'un test de charge ou le verdict
-d'une calibration semble alors manquer alors qu'il a seulement été écarté par la
-rotation. Quand les deux divergent, lisez le fichier, ou, en root, les fichiers
-bruts `/var/lib/docker/containers/<id>/*-json.log*`. Les commandes
-`docker logs` ci-dessous supposent une fenêtre récente, sans rotation.
-
-## 1. Le serveur ne répond pas
+## Le serveur ne répond pas
 
 **Symptôme** : les clients n'arrivent pas à se connecter ;
-`curl http://localhost:9091/healthz` expire ou renvoie « connection refused ».
+`curl http://localhost:9091/healthz` expire ou est refusé.
 
 **Diagnostic** :
+
 ```sh
 docker ps --filter name=evey-server
-docker logs --tail=200 evey-server
 docker inspect --format='{{.State.Health.Status}}' evey-server
-ss -ltnp | grep 9091                # le port écoute-t-il vraiment ?
+docker logs --tail=200 evey-server
+ss -ltnp | grep 9091                # le port écoute-t-il seulement ?
 curl -v http://localhost:9091/healthz
 ```
 
-**Causes fréquentes et correction** :
+**Correction** :
 
-- Conteneur arrêté → `docker logs evey-server` pour la panique, corriger,
-  `docker compose up -d evey`.
-- Contrôle de santé en échec parce que la base ou Meili est tombé → voir les
-  sections 4 et 5.
-- Conflit de port sur la machine hôte → changer `EVEY_HTTP_PORT` ou libérer le
-  port.
-- Caddy devant ne route pas → `docker logs evey-caddy`, vérifier `EVEY_DOMAIN`
-  et que le contrôle de santé d'`evey` est au vert (Caddy en dépend).
+- Conteneur sorti : le panic est à la fin de `docker logs evey-server`.
+  Corrigez la cause, puis `docker compose up -d evey`.
+- Healthcheck rouge parce que la base ou le moteur de recherche est tombé :
+  voir [Erreurs de base de données](#database-errors) et
+  [La recherche est dégradée](#search-is-degraded).
+- Conflit de port sur l'hôte : changez le côté hôte de la ligne `ports:` du
+  compose, ou libérez le port.
+- Caddy en frontal qui ne route pas (disposition du dépôt) :
+  `docker logs evey-caddy`, vérifiez `EVEY_DOMAIN` et que le healthcheck de
+  `evey` est vert, puisque Caddy l'attend.
 
-## 2. Toutes les connexions renvoient 401
+## Toutes les connexions renvoient 401
 
-**Symptôme** : chaque utilisateur, y compris les administrateurs connectés la
-veille, reçoit un 401 de `/api/v1/auth/*`.
+**Symptôme** : chaque utilisateur, administrateurs compris, reçoit 401 sur
+`/api/v1/auth/*`.
 
 **Diagnostic** :
+
 ```sh
 docker logs --since 10m evey-server | grep -iE 'epoch|jwt|auth|signing|private key'
 docker exec evey-server ls -l /data/jwt.key
 ```
 
-**Cherchez d'abord la ligne sur l'epoch.** Chaque requête authentifiée revérifie
-l'epoch du jeton de l'utilisateur auprès de la base (ADR-0019), et ce contrôle
-échoue FERMÉ. Une base lente, verrouillée ou injoignable fait donc renvoyer à
-chaque requête le même 401 qu'un jeton expiré : cela ressemble exactement à un
-problème de JWT, et ce n'en est pas un. Le serveur le dit explicitement :
+Cherchez d'abord la ligne « epoch ». Chaque requête authentifiée revérifie
+l'époque de jeton de l'utilisateur dans la base, et cette vérification
+échoue fermé : une base lente, verrouillée ou injoignable fait renvoyer à
+chaque requête le même 401 qu'un jeton expiré, ce qui ressemble à un problème
+de JWT et n'en est pas un. Le serveur le dit :
 
 ```
-auth rejected: the token epoch could not be read, so every authenticated
-request is failing - check the database, not the JWT key
+auth rejected: the token epoch could not be read, so every authenticated request is failing - check the database, not the JWT key
 ```
 
-Si cette ligne est présente, arrêtez-vous là dans cette section et passez au §4
-(base de données). `/healthz` peut rester au vert : il ne fait qu'un ping de la
-connexion, sans lancer la requête d'epoch. Le compteur Prometheus correspondant
-est `evey_auth_failures_total{reason="epoch_lookup_failed"}`.
+Si cette ligne est présente, passez à
+[Erreurs de base de données](#database-errors). `/healthz` peut rester vert
+pendant ce temps : il teste la connexion, il n'exécute pas la requête
+d'époque. Le compteur Prometheus est
+`evey_auth_failures_total{reason="epoch_lookup_failed"}`.
 
-**Causes fréquentes et correction** :
+**Correction** :
 
-- **Clé JWT absente ou changée** : rarement la cause. Un
-  `EVEY_JWT_PRIVATE_KEY_PATH` (par défaut `/data/jwt.key`) illisible ou
-  corrompu empêche le serveur de démarrer ; une clé absente est régénérée. Les
-  jetons d'accès signés par l'ancienne clé sont alors refusés, mais les
-  applications les renouvellent avec leur jeton de rafraîchissement, vérifié en
-  base et non avec la clé : les utilisateurs restent connectés. Vérifiez que le
-  volume `evey-data` est monté sur `/data` : sans lui, la base manque aussi.
-- **La limite de débit se déclenche à chaque requête** : vérifiez
-  `EVEY_RATELIMIT_LOGIN_MAX` (par défaut `10` par IP et par minute) et
-  `EVEY_RATELIMIT_GLOBAL_MAX` (par défaut `300`). Un reverse proxy qui fait
-  passer tout le trafic sous une seule IP la déclenche vite : ajoutez le proxy
-  dans **Proxys de confiance**, dans Admin → Accès distant (appliqué sans
-  redémarrage ; `EVEY_TRUSTED_PROXIES` fonctionne aussi). La surcouche de
-  développement règle déjà `1000` / `10000`.
-- Décalage d'horloge entre le serveur et les clients → `date -u` sur la machine
-  hôte.
+- **Une clé JWT absente ou changée est rarement la cause.** Un fichier de
+  clé illisible (`EVEY_JWT_PRIVATE_KEY_PATH`, `/data/jwt.key`) empêche le
+  serveur de démarrer ; un fichier absent est régénéré. Les jetons d'accès
+  signés par l'ancienne clé sont alors refusés, mais les applications les
+  renouvellent avec leur jeton de rafraîchissement, vérifié dans la base et
+  non contre la clé : les utilisateurs restent connectés. Vérifiez que le
+  volume `./evey-data` est monté sur `/data` ; sans lui la base manque aussi.
+- **Le limiteur de débit se déclenche à chaque requête** :
+  `EVEY_RATELIMIT_LOGIN_MAX` (`10` par IP et par minute) et
+  `EVEY_RATELIMIT_GLOBAL_MAX` (`300`). Un proxy inverse qui transmet tout
+  sous une seule adresse le déclenche vite : ajoutez le proxy dans **Proxys
+  de confiance** dans **Admin -> Accès distant** (appliqué sans redémarrage ;
+  `EVEY_TRUSTED_PROXIES` est le repli). Le `docker-compose.override.yml` du
+  dépôt monte les deux à `1000` / `10000` pour le développement.
+- **Dérive d'horloge** entre le serveur et les clients : `date -u` sur
+  l'hôte.
 
-## 3. Le transcodage échoue, ou les vidéos ne se lisent pas en transcodage
+## La lecture transcodée échoue
 
-**Symptôme** : la lecture fonctionne en lecture directe, échoue dès qu'un
-transcodage est nécessaire. Erreurs dans le lecteur, codes de sortie ffmpeg dans
-les journaux du serveur.
+**Symptôme** : la lecture directe fonctionne, la lecture qui demande un
+transcodage échoue ; le lecteur affiche une erreur et le journal du serveur
+montre des codes de sortie ffmpeg.
 
 **Diagnostic** :
+
 ```sh
 docker exec evey-server which ffmpeg ffprobe
 docker exec evey-server ffmpeg -version | head -1
 docker logs --since 10m evey-server | grep -iE 'ffmpeg|transcode|hls'
 docker exec evey-server ls -ld /cache/transcode /data/trickplay
 docker exec evey-server df -h /cache
+docker exec evey-server touch /cache/transcode/.write-test && \
+  docker exec evey-server rm /cache/transcode/.write-test
 ```
 
-**Causes fréquentes et correction** :
+**Correction** :
 
-- **Binaire ffmpeg absent** (image personnalisée sans lui) : reconstruire depuis
-  le `Dockerfile` officiel.
-- **Dossier de cache non inscriptible** : `EVEY_TRANSCODING_CACHE_DIR` vaut
-  `/data/transcode` par défaut dans le code, mais le compose le place sur
-  `/cache/transcode` via le volume nommé `evey-cache`.
-  `EVEY_TRICKPLAY_CACHE_DIR` vaut `/data/trickplay` dans l'image (`/cache/trickplay`
-  est la valeur par défaut hors de l'image). Vérifiez qu'on
-  peut y écrire :
-  ```sh
-  docker exec evey-server touch /cache/transcode/.write-test && \
-    docker exec evey-server rm /cache/transcode/.write-test
-  ```
-- **Cache plein** → voir la section 6.
-- **L'accélération matérielle se comporte mal** : réglez **Accélération
-  matérielle** sur **Désactivée (processeur uniquement)** dans **Admin →
-  Configuration transcodage → Calibrage de l'encodage** (appliqué à chaud, avec
-  une nouvelle mesure) pour garder tous les transcodages sur le processeur, et
-  confirmez que le problème vient du matériel avant de revenir à **Auto**.
-- **« Le serveur est occupé par d'autres transcodages »** : la capacité en
-  direct est mesurée, pas réglée ; voir [Transcodage et capacité du serveur](../playback/transcoding.md#sharing-the-capacity).
-  `EVEY_TRANSCODING_MAX_CONCURRENT` (**Maximum simultané** dans **Admin → Cache
-  de transcodage**) ne couvre que les tâches de transcodage hors lecture en
-  direct.
+- **ffmpeg absent** (image personnalisée) : reconstruisez depuis le
+  `Dockerfile` officiel.
+- **Dossier de cache non inscriptible** : l'image fixe
+  `EVEY_TRANSCODING_CACHE_DIR=/cache/transcode` (le volume `evey-cache`) et
+  `EVEY_TRICKPLAY_CACHE_DIR=/data/trickplay` ; une entrée `environment:` du
+  compose les remplace. Hors de l'image, les valeurs par défaut du code sont
+  `/data/transcode` et `/cache/trickplay`.
+- **Cache plein** : voir [Le disque de cache est plein](#the-cache-disk-is-full).
+- **Accélération matérielle capricieuse** : passez **Accélération
+  matérielle** sur **Désactivée (processeur uniquement)** dans **Admin ->
+  Configuration transcodage -> Calibrage de l'encodage** (appliqué à chaud,
+  avec recalibrage) pour que chaque transcodage tourne sur le processeur ;
+  repassez sur **Auto (meilleur disponible)** une fois le matériel réparé.
+- **« The server is busy transcoding other streams »** : la capacité à chaud
+  est mesurée, pas réglée ; voir
+  [Partager la capacité](../playback/transcoding.md#sharing-the-capacity).
+  `EVEY_TRANSCODING_MAX_CONCURRENT` (**Maximum simultané** dans **Admin ->
+  Cache de transcodage**) ne couvre que les tâches de transcodage hors
+  lecture en direct.
 
-### 3c. « Ça charge en boucle » ou « ça a coupé », et les journaux ne disent pas pourquoi
+### Ça met en mémoire tampon ou ça coupe, et le journal ne dit pas pourquoi
 
-**Symptôme** : un spectateur signale des blocages ou des coupures sur un titre
-transcodé, et les journaux du serveur montrent `hls-vod: segment timeout` avec
-`err:"context canceled"`, ce qui signifie que c'est le CLIENT qui a raccroché,
-pas le serveur qui a expiré.
+**Symptôme** : un spectateur signale des blocages sur un titre transcodé ; le
+journal montre `hls-vod: segment timeout` avec `err:"context canceled"`, ce
+qui signifie que le client a raccroché, pas que le serveur a expiré.
 
-**Diagnostic** : le serveur enregistre déjà chaque décision qu'il a prise.
-Commencez par là, cela ne coûte rien :
+**Diagnostic** : commencez par ce que le serveur a déjà enregistré, c'est
+gratuit :
 
 ```sh
-# Pourquoi une requête de segment a réutilisé un encodeur ou en a lancé un, et ce
-# que cela a coûté au lecteur. Journalisé seulement quand cela coûte quelque chose :
-# une attente de plus d'un segment, ou un lancement. `over_client_patience: true`
-# est la preuve formelle.
+# Pourquoi une requête de segment a réutilisé un encodeur ou en a lancé un,
+# et ce que cela a coûté au lecteur. Journalisé seulement quand cela coûte
+# quelque chose. `over_client_patience: true` est la preuve flagrante.
 docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F).log | tail -40
 
 # Les encodeurs eux-mêmes : lancements, arrêts et leur raison.
@@ -166,85 +175,82 @@ docker exec evey-server grep -E '"software: session (started|killed)"|per-hash c
   /data/logs/evey-$(date +%F).log | tail -40
 ```
 
-Ces lignes disent ce que le serveur a *décidé*. Quand il vous faut ce que ffmpeg
-a réellement *accompli* seconde après seconde (la position réelle de la
-frontière d'encodage au fil du temps), activez l'enregistrement de progression
-par encodeur :
+Ces lignes disent ce que le serveur a décidé. Pour voir ce que ffmpeg a
+réellement produit seconde par seconde, activez le journal de progression par
+encodeur (`$TOKEN` est un JWT d'administrateur) :
 
 ```sh
-# ACTIVER. S'applique au PROCHAIN encodeur ; pas de redémarrage. $TOKEN est un JWT d'administrateur.
+# ON. S'applique au prochain encodeur, sans redémarrage.
 curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpeg_progress_log \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"value":"true"}'
 
-# Reproduisez le problème, puis lisez une session : out_time = contenu produit
-# jusqu'ici, speed = avance de l'encodeur sur le temps réel.
+# Reproduisez, puis lisez une session : out_time = contenu produit jusqu'ici,
+# speed = l'avance de l'encodeur sur le temps réel.
 docker exec evey-server ls -t /data/logs/ffmpeg | head
-docker exec evey-server tail -20 /data/logs/ffmpeg/<file>.log
+docker exec evey-server tail -20 /data/logs/ffmpeg/<fichier>.log
 
-# DÉSACTIVER une fois terminé.
+# OFF une fois terminé.
 curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpeg_progress_log \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"value":"false"}'
 ```
 
-**Laissez-le désactivé hors enquête.** C'est un fichier par encodeur, quelques
-Mo par session, écrit pour chaque lecture sur la machine : du vrai disque et de
-vraies écritures sur un NAS modeste. Le nom du fichier porte le hachage de la
-décision, le barreau (`-vN-`) et le segment de départ (`-sN-`), ce qui permet de
-le rapprocher du journal JSON ci-dessus ; un nouveau lancement à la même position
-a son propre fichier au lieu d'écraser le précédent, et c'est ce qui rend visible
-le renouvellement incessant des encodeurs.
+!!! note
+    Laissez le journal de progression éteint hors investigation : un fichier
+    par encodeur, quelques Mo par session, pour chaque lecture sur la machine.
+    Le nom du fichier porte le hachage de décision, le palier (`-vN-`) et le
+    segment de départ (`-sN-`), donc il s'aligne avec le journal JSON ; un
+    relancement à la même position a son propre fichier, ce qui rend visible
+    le va-et-vient des encodeurs.
 
-**Causes fréquentes et correction** :
+**Correction** :
 
-- **Des déplacements courts et répétés vers l'avant** : chacun peut lancer un
-  nouvel encodeur, et le plafond par hachage (`MaxSessionsPerHash`, 2 par
-  défaut) évince le moins récemment utilisé. Attendez-vous à
-  `session killed reason:lru_cap` dans le journal. Normal avec modération.
-- **Le client est moins patient que le serveur** : `clientSegmentPatience`
-  (6 s) sert à dimensionner la fenêtre d'atteinte après un déplacement ;
-  AndroidX Media3 abandonne un segment vers 8 s alors que le `WaitBudgetDur` du
-  serveur est de 60 s. Une ligne `reach decision` avec
-  `over_client_patience: true` signifie que le serveur s'apprêtait à demander
-  une attente qu'aucun lecteur ne supporterait.
+- **Sauts avant courts et répétés** : chacun peut lancer un nouvel encodeur,
+  et le plafond par hachage (`MaxSessionsPerHash`, 2 par défaut, 1 sous le
+  profil basse mémoire) évince le moins récemment utilisé : `session killed
+  reason:lru_cap` dans le journal. Normal avec modération.
+- **Le client est moins patient que le serveur** : la fenêtre d'atteinte
+  après un saut est dimensionnée sur `clientSegmentPatience` (6 s) alors que
+  le budget d'attente propre du serveur (`WaitBudgetDur`) est de 60 s. Une
+  ligne `reach decision` avec `over_client_patience: true` signifie que le
+  serveur allait demander une attente qu'aucun lecteur ne supporte.
 
-### 3b. Des 410 `stale_rendition`, ou un lecteur qui recharge son master en pleine lecture
+### Des 410 `stale_rendition`, le lecteur recharge son master en pleine lecture
 
-**Symptôme** : le lecteur se bloque brièvement puis repart ; les journaux
-montrent `hls-vod: stale rendition URL refused (the ladder moved under a live player)`
-et des requêtes répondues `410 Gone` avec `X-Evey-Error: stale_rendition`.
+**Symptôme** : le lecteur se bloque brièvement puis reprend ; le journal
+montre `hls-vod: stale rendition URL refused (the ladder moved under a live
+player)` et des requêtes répondues `410 Gone` avec
+`X-Evey-Error: stale_rendition`.
 
-**Ce que cela signifie** : c'est une *protection qui se déclenche*, pas la panne
-elle-même. Chaque URI de manifeste porte le hachage de la décision sous laquelle
-il a été construit (`fp=`). Un 410 signifie qu'un lecteur a présenté l'URL d'une
-session dont l'échelle ABR a été remaniée depuis : la servir donnerait au
-décodeur des octets d'une autre variante (la classe d'incidents de « l'écran
-arc-en-ciel », ADR 0022 §1b). Le refus force à la place un rechargement propre
-du master.
+C'est une protection qui se déclenche, pas la panne elle-même. Chaque URI de
+manifeste porte le hachage de décision sous lequel elle a été construite
+(`fp=`). Un 410 signifie qu'un lecteur a présenté une URL d'une session dont
+l'échelle ABR a été remodelée depuis ; la servir donnerait au décodeur des
+octets d'un autre rendu. Le refus force un rechargement propre du master.
 
-**Diagnostic** : l'avertissement porte `sealed_fp` et `current_fp`, ainsi que
-l'identifiant du média.
+**Diagnostic** : le WARN porte `sealed_fp`, `current_fp` et l'identifiant du
+média.
 
-- Une **rafale juste après un déploiement, un redémarrage ou une recalibration
-  par l'administrateur** est attendue : des sessions en cours ont survécu à un
-  changement de capacité. Rien à faire ; les lecteurs se resynchronisent en une
-  interrogation.
-- Un **goutte-à-goutte régulier en fonctionnement normal** signifie que quelque
-  chose remanie sans cesse les échelles sous des flux en cours : cherchez une
-  capacité qui oscille (`docker logs evey-server | grep -iE 'calibrat|capability'`),
-  un régulateur d'admission qui s'agite sous la charge, ou un plafond CMCD qui
-  oscille.
-- Des lecteurs qui **tournent en boucle sur des 410 sans se rétablir** gardent
-  un master en cache (ancienne version de l'application, proxy qui met les
-  `.m3u8` en cache de façon agressive). Vérifiez que le proxy ne met pas les
-  manifestes en cache (`Cache-Control: no-cache` doit passer).
+- Une **rafale juste après un déploiement, un redémarrage ou un recalibrage**
+  est attendue : des sessions en cours ont survécu à un changement de
+  capacité. Les lecteurs se resynchronisent en un cycle.
+- Un **goutte-à-goutte régulier en fonctionnement normal** signifie que
+  quelque chose remodèle sans cesse les échelles sous des flux en cours :
+  cherchez une capacité qui oscille (`docker logs evey-server | grep -iE
+  'calibrat|capability'`), un régulateur d'admission qui s'agite sous charge,
+  ou un plafond CMCD qui oscille.
+- Des lecteurs qui **bouclent sur 410** gardent un master en cache (une
+  vieille version d'application, un proxy qui met les `.m3u8` en cache). Le
+  proxy doit laisser passer `Cache-Control: no-cache`.
 
-## 4. Connexion à la base refusée, ou erreurs
+## Erreurs de base de données
 
-**Symptôme** : les journaux du serveur contiennent `dial tcp ... connect: connection refused`, `pq: ...`, ou des requêtes qui expirent.
+**Symptôme** : le journal contient `dial tcp ... connect: connection
+refused`, `pq: ...`, ou des requêtes expirent.
 
 **Diagnostic** :
+
 ```sh
 docker logs --tail=300 evey-server | grep -iE 'postgres|database'
 docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey -c "
@@ -255,206 +261,214 @@ docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) ps
 df -h ./evey-data
 ```
 
-**Causes courantes et correctifs** :
-- **Disque plein** sous `./evey-data` (la base vit dans `./evey-data/postgres`) → libérez de la place, puis `docker compose restart evey`.
-- **Pool de connexions épuisé** (`too many connections` ou longues attentes) → `EVEY_DB_MAX_OPEN_CONNS` (`25` par défaut). Coupez les sessions bloquées :
+**Correction** :
+
+- **Disque plein** sous `./evey-data` (le cluster vit dans
+  `./evey-data/postgres`) : libérez de l'espace, puis
+  `docker compose restart evey`.
+- **Pool épuisé** (`too many connections`, longues attentes) :
+  `EVEY_DB_MAX_OPEN_CONNS` (`25` par défaut). Tuez les sessions bloquées :
   ```sql
   SELECT pg_terminate_backend(pid)
     FROM pg_stat_activity
    WHERE state = 'idle in transaction'
      AND now() - state_change > interval '5 minutes';
   ```
-- **Conteneur PostgreSQL séparé** (disposition du dépôt) : `docker ps --filter name=evey-postgres`, `docker logs --tail=200 evey-postgres` ; les `EVEY_DB_USER` / `EVEY_DB_PASSWORD` / `EVEY_DB_NAME` du serveur doivent correspondre au service `postgres`.
+- **Conteneur Postgres séparé** (disposition du dépôt) : `docker ps --filter
+  name=evey-postgres`, `docker logs --tail=200 evey-postgres` ; les
+  `EVEY_DB_USER` / `EVEY_DB_PASSWORD` / `EVEY_DB_NAME` du serveur doivent
+  correspondre au service `postgres`.
 
-## 5. Meilisearch en panne
+## La recherche est dégradée
 
-**Symptôme** : la recherche renvoie des résultats dégradés, les journaux affichent `meilisearch unavailable, using SQL search fallback`.
+**Symptôme** : la recherche renvoie des résultats moins bons ; le journal
+montre `meilisearch unavailable, using SQL search fallback`.
 
-**Comportement** : la recherche continue de fonctionner par SQL (`cmd/evey/wire.go` câble un adaptateur de recherche résilient qui journalise cette ligne quand Meilisearch est injoignable). Aucune action n'est nécessaire pour rester en ligne ; seule la qualité du classement baisse.
+La recherche continue de fonctionner par SQL tant que Meilisearch est
+injoignable ; seule la qualité du classement baisse, personne n'est hors
+ligne. Meilisearch tourne dans `evey-server` (`EVEY_EMBEDDED_MEILI`, actif
+par défaut) sur la boucle locale du conteneur, port 7700.
 
-Meilisearch tourne dans `evey-server` (`EVEY_EMBEDDED_MEILI`, actif par défaut) et n'écoute que sur `127.0.0.1:7700`, à l'intérieur du conteneur.
+**Diagnostic** :
 
-**Diagnostic et correctif** :
 ```sh
 docker exec evey-server curl -sf http://127.0.0.1:7700/health
 docker logs --tail=300 evey-server | grep -i meili
 ```
-- En mauvaise santé → `docker compose restart evey`.
-- Index corrompu → arrêtez le conteneur, mettez `./evey-data/meili` de côté, redémarrez, puis reconstruisez l'index depuis la base : `docker exec evey-server evey admin reindex-search`.
 
-## 6. Disque du cache de transcodage plein
+**Correction** :
+
+- En mauvaise santé : `docker compose restart evey`.
+- Index corrompu : arrêtez le conteneur, mettez `./evey-data/meili` de côté,
+  redémarrez, puis reconstruisez l'index depuis la base :
+  ```sh
+  docker exec evey-server evey admin reindex-search
+  ```
+  La reconstruction est une commande, pas une action du panneau.
+
+## Le disque de cache est plein
 
 **Symptôme** : les transcodages échouent avec `no space left on device` ; le
-contrôle de santé du conteneur clignote.
+healthcheck oscille.
 
 **Diagnostic** :
+
 ```sh
 docker exec evey-server df -h /cache
 docker exec evey-server du -sh /cache/transcode /data/trickplay 2>/dev/null
-docker volume inspect evey_evey-cache   # le nom donné par compose peut varier
+docker volume inspect evey_evey-cache   # le préfixe du compose peut différer
 ```
 
 **Correction** :
 
-- Purge sans risque, le cache se régénère :
+- Purgez le cache de transcodage, il se régénère :
   ```sh
   docker exec evey-server sh -c 'rm -rf /cache/transcode/*'
   ```
-  Cela supprime aussi `photos/` (les variantes redimensionnées des photos) et
-  `track-art/` (la pochette intégrée aux tags d'un titre, extraite une fois puis
-  redimensionnée) qui s'y trouvent : les deux sont reconstruits à la requête
-  suivante. **Tout vider**, dans Admin → Cache de transcodage, fait la même
-  purge.
-- Les miniatures de navigation coûtent plus cher à régénérer ; ne les purgez
-  qu'en cas de besoin :
+  Cela supprime aussi `photos/` (variantes redimensionnées des photos) et
+  `track-art/` (pochettes extraites des tags audio) qu'il contient ; les deux
+  sont reconstruits à la prochaine requête. **Tout vider** dans **Admin ->
+  Cache de transcodage** vide le même cache depuis le panneau.
+- Le trickplay coûte plus cher à régénérer ; ne le purgez que si nécessaire :
   ```sh
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
-- Baissez le **Budget du cache de transcodage** (**Admin → Configuration du
-  serveur → Paramètres du serveur**, 10 Go par défaut) si le volume de la machine est juste ; quel que soit le budget, le
-  nettoyeur garde 2 Gio libres sur le volume du cache.
+- Baissez le **Budget du cache de transcodage (Go)** dans **Admin ->
+  Configuration du serveur -> Paramètres du serveur** (`10` par défaut) si
+  le volume de l'hôte est juste. Quel que soit le budget, le balayeur garde
+  2 Gio libres sur le volume de cache.
 
-## 7. Un plugin a planté
+## Un plugin a planté
 
-**Symptôme** : un plugin ne répond plus ; les journaux du serveur montrent des
-paniques venant du lanceur de plugins.
+**Symptôme** : un plugin ne répond plus ; le journal montre des panics du
+lanceur de plugins.
 
 **Diagnostic** :
+
 ```sh
 docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
-# Cherchez : "panic in plugin runner", "plugin process crashed", "remove plugin sock on crash"
+# cherchez : "panic in plugin runner", "plugin process crashed", "remove plugin sock on crash"
 ```
 
 **Correction** :
 
-- Essayez d'abord un redémarrage ciblé, sans arrêter le conteneur :
-  `POST /api/v1/admin/plugins/<id>/enable`. Cela fonctionne même quand le plugin
-  est déjà `enabled` mais bloqué en état `Error` : la garde de `StartPlugin` le
-  relance dès que son état n'est pas `Running`. Préférez-le à un redémarrage de
-  tout le serveur, surtout quand l'accès SSH à la machine n'est pas sous la main.
-- Si ce redémarrage ciblé ne suffit pas, désactivez le plugin fautif depuis le
-  panneau d'administration.
-- Si le serveur lui-même est instable, redémarrez : `docker compose restart evey`.
-- Inspectez les fichiers des plugins dans `./evey-data/plugins/` (machine hôte)
-  == `/data/plugins` (conteneur). Retirez le zip ou le dossier du plugin cassé,
-  redémarrez.
-- Envoyez la trace de la panique et l'identifiant du plugin à son auteur.
+1. Relancez le plugin sans toucher au serveur : **Activer** à nouveau dans
+   **Admin -> Plugins**, ou `POST /api/v1/admin/plugins/<id>/enable`. Cela
+   marche quand le plugin est activé mais coincé en `Error` : le démarrage ne
+   refuse qu'un plugin déjà `Running` ou `Initializing`.
+2. Si cela ne suffit pas, **Désactiver** le plugin depuis le panneau.
+3. Si le serveur lui-même est instable : `docker compose restart evey`.
+4. Les fichiers des plugins vivent dans `./evey-data/plugins/` sur l'hôte
+   (`/data/plugins` dans le conteneur). Supprimez le dossier du plugin cassé,
+   redémarrez.
+5. Envoyez la trace du panic et l'identifiant du plugin à son auteur.
 
-## 8. Une diffusion s'est figée, est devenue muette, ou le téléphone tourne en boucle
+## Un cast a gelé, s'est tu, ou le téléphone tourne dans le vide
 
-Tout ce qui suit se lit depuis la page **Logs & Debug** de l'administration (ou
-`GET /api/v1/admin/logs/search?q=<terme>&limit=200`) : aucun shell sur la
+Tout ce qui suit se lit depuis **Admin -> Logs & Debug** ; aucun shell sur la
 machine n'est nécessaire. Les heures sont en UTC. Chaque balise est une ligne
-`player-client: playback event reported` avec un `type=` et une chaîne
-`details=`. Les identifiants n'apparaissent jamais dans ce que renvoient ces
-routes (jetons bearer, JWT et valeurs `token=`/`password=` s'affichent
-`[redacted]`) : le jeton d'une URL de diffusion ne se retrouve donc pas par une
-recherche dans les journaux. Cherchez l'identifiant du média, pas le jeton.
+`player-client: playback event reported` avec `type=` et une chaîne
+`details=`.
 
 1. **Le récepteur était-il vivant, et jusqu'à quand ?** Cherchez
-   `cast_receiver_alive`. Le récepteur en envoie un toutes les 30 s pendant la
-   lecture ; `details` porte `buf=<derrière>/<devant>/<plages>` (secondes en
-   mémoire derrière et devant la tête de lecture) et `pos_sec`. Une lecture saine
-   montre un `devant` de plusieurs dizaines de secondes. **L'heure de la dernière
-   balise est celle où le récepteur est mort ou a été tué** : rien après elle
-   signifie que le téléviseur ne fait plus tourner le récepteur, quoi qu'affiche
-   le téléphone.
+   `cast_receiver_alive`. Le récepteur en envoie une toutes les 30 s pendant
+   la lecture ; `details` porte `buf=<arrière>/<avant>/<plages>` (secondes en
+   tampon autour de la tête de lecture) et `pos_sec`. Une lecture saine
+   montre `ahead` à plusieurs dizaines de secondes. L'heure de la dernière
+   balise est le moment où le récepteur est mort ou a été tué : rien après
+   signifie que le téléviseur n'exécute plus le récepteur, quoi qu'affiche le
+   téléphone.
 2. **Pourquoi s'est-il arrêté ?** Cherchez `cast_receiver_finished` :
-   `reason=INTERRUPTED` est un nouveau LOAD qui remplace celui en cours (cherchez
-   un `StartStream` quelques secondes avant), `reason=ERROR` porte l'erreur du
-   lecteur. Aucun `finished` après le dernier `alive` = le processus du récepteur
-   a disparu (le plus souvent un Chromecast HD tué faute de mémoire sur un master
-   en copie à plus de 20 Mb/s).
-3. **Qu'a vu le téléphone ?** Cherchez `cast_sender_stall` : l'émetteur envoie
-   `state=playing frozen=<n>s pos=<p>` quand le SDK Cast dit encore PLAYING mais
-   que la position n'a pas bougé depuis 20 s, et `state=idle reason=<r>` quand le
-   récepteur a signalé un motif d'inactivité. Ces lignes sont journalisées en
-   WARN : le filtre des avertissements de la page Logs & Debug les fait ressortir.
-   C'est la vue de l'émetteur sur la même minute : comparez son `pos` au dernier
-   `pos_sec` du récepteur.
-4. **La session s'est-elle emballée ?** Cherchez `refresh rejected` : un jeton de
-   rafraîchissement « not found » déconnecte puis reconnecte l'application
-   (identifiants enregistrés), ce qui réémet le flux ; la ligne indique désormais
-   le `jti`, la date d'émission (`issued`) et l'âge (`age`) du jeton, ce qui
-   distingue une copie périmée d'un faux. Cherchez `StartStream` pour voir les
-   réémissions ; l'émetteur ne recharge plus le récepteur sur une URL réémise
-   pour le même titre.
-5. **Le flux était-il trop lourd pour l'appareil ?** Cherchez
-   `advertises a fallback rung` (le débit de crête du master en copie) et
-   `plan fitted to the client's line` (la mesure `maxKbps` du récepteur ou son
-   secours `abr=floor`, devenus une entrée du plan : le master transcodé qui suit
-   porte la raison `client_line_exceeded` ou `abr_floor_requested`) : une session
-   partie sur un master en copie à plus de 20 Mb/s et retombée sur un barreau
-   1080p ajusté au bout de quelques secondes, c'est le secours qui fait son
-   travail ; un nouveau LOAD qui repart sur le master en copie est le schéma qui
-   tue un Chromecast HD.
-6. **Famine côté serveur ?** Cherchez `on-demand resource refused` : une rafale de
-   refus `context canceled` sur des segments consécutifs est un balayage de la
-   barre de progression (chaque requête annulée par la suivante), pas une faute du
-   serveur ; des lignes `served` aux durées longues, si.
+   `reason=INTERRUPTED` est un nouveau LOAD qui remplace celui en cours
+   (cherchez un `StartStream` quelques secondes avant), `reason=ERROR` porte
+   l'erreur du lecteur. Aucun `finished` après le dernier `alive` signifie
+   que le processus du récepteur a disparu, le plus souvent un Chromecast HD
+   tué pour sa mémoire sur un master copie à 20 Mbps ou plus.
+3. **Qu'a vu le téléphone ?** Cherchez `cast_sender_stall` : l'émetteur
+   envoie `state=playing frozen=<n>s pos=<p>` quand le SDK Cast dit encore
+   PLAYING mais que la position n'a pas bougé depuis 20 s, et `state=idle
+   reason=<r>` quand le récepteur a signalé une raison d'inactivité. Ce sont
+   des lignes WARN, que le filtre d'avertissements de la page fait remonter.
+   Comparez son `pos` au dernier `pos_sec` du récepteur.
+4. **La session a-t-elle cascadé ?** Cherchez `refresh rejected` : un jeton
+   de rafraîchissement `not found` déconnecte puis reconnecte l'application
+   (identifiants enregistrés), ce qui réémet le flux ; la ligne porte le
+   `jti`, `issued` et `age` du jeton, ce qui distingue une copie périmée d'un
+   faux. Cherchez `StartStream` pour voir les réémissions.
+5. **Le flux était-il trop gros pour l'appareil ?** Cherchez `advertises a
+   fallback rung` (le débit de pointe du master copie) et `plan fitted to the
+   client's line` (la mesure `maxKbps` du récepteur ou son sauvetage
+   `abr=floor` ; le master transcodé qui suit porte la raison
+   `client_line_exceeded` ou `abr_floor_requested`). Une session partie sur un
+   master copie à 20 Mbps ou plus et retombée sur un palier 1080p ajusté
+   après quelques secondes est le sauvetage qui fait son travail ; un re-LOAD
+   qui repart sur le master copie est le motif qui tue un Chromecast HD.
+6. **Famine côté serveur ?** Cherchez `on-demand resource refused` : une
+   rafale de refus `context canceled` sur des segments consécutifs est un
+   défilement (chaque requête annulée par la suivante), pas une faute du
+   serveur ; des lignes `served` aux longues durées en sont une.
 
-Si les étapes 1 à 3 montrent un récepteur vivant et un émetteur muet, le problème
-est dans la session Cast du téléphone (le SDK, le réseau vers la télévision) ; si
-les balises du récepteur s'arrêtent d'abord, c'est du côté du téléviseur qu'il
-faut chercher (mémoire, codec, débit du flux).
+Si les étapes 1 à 3 montrent le récepteur vivant et l'émetteur silencieux, le
+problème est dans la session Cast du téléphone (le SDK, le réseau vers le
+téléviseur). Si les balises du récepteur s'arrêtent en premier, regardez le
+téléviseur : mémoire, codec, débit du flux.
 
-## Couper une session ou un appareil compromis
+## Arrêter une session ou un appareil compromis
 
-Symptôme : l'administrateur voit un appareil inattendu dans **En cours de
-lecture** (panneau d'administration), ou un utilisateur signale un appareil
-inconnu dans sa liste de sessions.
+**Symptôme** : un appareil inattendu dans **Admin -> En cours de lecture**,
+ou un utilisateur signale un appareil inconnu dans sa liste de sessions.
 
-1. Identifiez le `session_id` :
+1. Identifiez la session :
    ```sh
    docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey -c "
      SELECT id, profile_id, device_name, client_ip, started_at
-     FROM play_sessions
-     WHERE ended_at IS NULL
-     ORDER BY started_at DESC LIMIT 20;"'
+       FROM play_sessions
+      WHERE ended_at IS NULL
+      ORDER BY started_at DESC LIMIT 20;"'
    ```
-2. Coupez-la depuis l'interface d'administration : **Admin → En cours de
-   lecture**, l'icône d'arrêt de la session (**Arrêter la session**), puis
-   **Arrêter** pour confirmer ; ou via gRPC
-   `AdminSessionService/KillSession` avec le `session_id`. La session prend fin
-   5 s plus tard, pour que le lecteur reçoive l'ordre d'arrêt.
-3. Si le flux continue malgré tout, redémarrez le conteneur : tous les
-   encodeurs s'arrêtent avec lui.
+2. Arrêtez-la depuis **Admin -> En cours de lecture** : l'icône d'arrêt sur
+   la session (**Arrêter la session**), puis **Arrêter** pour confirmer ; ou
+   `AdminSessionService/KillSession` en gRPC avec l'identifiant de session.
+   Le lecteur reçoit d'abord une commande d'arrêt et le flux est terminé
+   5 secondes plus tard. Cela ne termine que la lecture ; l'utilisateur reste
+   connecté.
+3. Si le flux continue malgré tout, redémarrez le conteneur : chaque encodeur
+   s'arrête avec lui.
    ```sh
    docker compose restart evey
    ```
-4. Si le compte lui-même est compromis, **Admin → Utilisateurs → Désactiver**
-   sur ce compte : cela supprime ses jetons de rafraîchissement et invalide
-   aussitôt ses jetons d'accès, si bien que chaque appareil est déconnecté.
-   Posez un nouveau mot de passe (`evey admin reset-password --user <e-mail>`,
-   qui met aussi fin aux sessions du compte), puis **Activer** de nouveau le
-   compte.
+4. Si le compte lui-même est compromis, **Admin -> Utilisateurs ->
+   Désactiver** : les jetons de rafraîchissement sont supprimés et les jetons
+   d'accès révoqués d'un coup, donc chaque appareil est déconnecté. Donnez un
+   nouveau mot de passe (`evey admin reset-password --user <email>`, voir
+   [Récupération](recovery.md#give-a-user-a-new-password)), puis **Activer**
+   le compte à nouveau.
 
-## Débloquer un scan de bibliothèque figé
+## Un scan de bibliothèque est bloqué
 
-Symptôme : un scan de bibliothèque est « en cours » depuis des heures, sans
-progression des fichiers dans les journaux.
+**Symptôme** : un scan s'affiche en cours depuis des heures sans progression
+de fichier dans le journal.
 
-1. Vérifiez si le scan journalise encore quelque chose : si le processus est
-   bloqué, le processeur est au repos et les journaux récents ne montrent aucune
-   ligne `scan:` :
+1. Vérifiez si le scan journalise encore quelque chose ; un scan figé montre
+   un processeur au repos et aucune ligne `scan:` récente :
    ```sh
    docker logs --tail=500 evey-server | grep 'scan:'
    ```
-2. Le verrou d'un scan est **en mémoire** (aucune ligne en base) : un
-   redémarrage du serveur l'efface :
+2. Le verrou de scan est en mémoire, donc un redémarrage l'efface :
    ```sh
    docker compose restart evey
    ```
-3. Si un fichier précis provoque des paniques répétées (voir les traces),
-   mettez-le en quarantaine en le sortant du chemin de la bibliothèque, puis
-   relancez le scan.
-4. Si les surveillances inotify sont épuisées (limite du noyau), augmentez-la :
+3. Si un fichier provoque des panics répétés (les traces le nomment),
+   sortez-le du chemin de la bibliothèque, puis relancez le scan.
+4. Si le surveillant de fichiers journalise `watcher: inotify failed for
+   path, will use periodic scan`, la limite de surveillances du noyau est
+   épuisée :
    ```sh
    echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
    sudo sysctl -p
    ```
 
-## Aide-mémoire de diagnostic
+## Aide-mémoire
 
 ```sh
 # État de tout
@@ -464,13 +478,33 @@ curl -sf http://localhost:9091/healthz && echo healthy
 # Suivre tous les conteneurs
 docker compose logs --tail=100 -f
 
-# Configuration du serveur
+# Configuration effective
 docker exec evey-server env | grep ^EVEY_ | sort
 
 # Taille de la base
 docker exec evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey -c "
   SELECT pg_size_pretty(pg_database_size(current_database()));"'
 
-# Disque de la machine hôte
+# Disque de l'hôte
 df -h ./evey-data
 ```
+
+<!-- sources
+ports: internal/config/config.go (EVEY_SERVER_PORT, EVEY_GRPC_BIND) ; cmd/evey/main.go - httpPort = Port+1 ; Dockerfile - HEALTHCHECK
+logs: Dockerfile ENV EVEY_LOG_DIR ; internal/adapters/driving/http/admin_handler.go (GET /api/v1/admin/logs/search)
+epoch fail-closed: internal/adapters/driving/http/auth_middleware.go, internal/adapters/driving/grpcapi/interceptors/auth.go ; internal/pkg/metrics/metrics.go - AuthFailuresTotal
+rate limits: internal/config/config.go (EVEY_RATELIMIT_LOGIN_MAX, EVEY_RATELIMIT_GLOBAL_MAX, EVEY_TRUSTED_PROXIES) ; docker-compose.override.yml
+cache dirs: Dockerfile ENV EVEY_TRANSCODING_CACHE_DIR / EVEY_TRICKPLAY_CACHE_DIR ; docker-compose.yml ; internal/config/config.go defaults
+hardware mode and calibration labels: i18n/fr/admin.yaml - transcodeCalibration.hwModeLabel, hwModeOff, hwModeAuto, cardTitle
+software producer: internal/app/transcoding/software_producer.go - clientSegmentPatience, WaitBudgetDur, MaxSessionsPerHash, "software: reach decision", over_client_patience ; internal/app/transcoding/software_producer_lifecycle.go - "software: session killed" ; cmd/evey/wire.go - low-memory profile, transcode.ffmpeg_progress_log, logs/ffmpeg
+server-config route: proto/evey/v1/server_config.proto - SetServerConfigEntry (PUT /api/v1/admin/server-config/{key})
+stale rendition: internal/adapters/driving/http/transcode_handler_vod.go - stale_rendition, sealed_fp
+db pool: internal/config/config.go (EVEY_DB_MAX_OPEN_CONNS)
+search fallback: cmd/evey/wire_infra.go ; cmd/evey/admin.go - adminReindexSearch ; docker/entrypoint.sh (EVEY_EMBEDDED_MEILI, MEILI_DATA_DIR)
+cache budget: internal/config/config.go (EVEY_TRANSCODING_CACHE_MAX_GB) ; internal/app/transcoding/segment_cache_evict.go - DefaultMinFreeBytes ; internal/adapters/driving/http/server.go - track-art under PhotoCacheDir ; cmd/evey/http.go - PhotoCacheDir
+plugins: internal/adapters/driven/pluginrunner/runner_start.go (panic/crash lines) ; internal/app/plugin/runtime_service.go - StartPlugin ; proto/evey/v1/admin_plugin.proto - EnablePlugin
+cast beacons: internal/adapters/driving/http/player_event_handler.go ; internal/app/user/auth.go - "refresh rejected" ; internal/adapters/driving/http/transcode_ondemand.go ; internal/app/transcoding/resolver_line.go
+sessions: internal/adapters/driven/postgres/migrations/000001_init.up.sql - play_sessions ; internal/adapters/driving/grpcapi/admin_audit.go - KillSession (5 s) ; internal/app/user/user_service.go - DisableUser
+scan: internal/app/library/scan_service.go - scanning map ; internal/app/library/watcher.go - inotify warning
+labels: i18n/fr/admin.yaml - sidebar (logs, nowPlaying, remoteAccess, serverConfig, transcodeCache, users, plugins), nowPlaying.stopSession, transcodeCache.clearAll, transcodeCache.maxConcurrent, remoteAccess.trustedProxies, serverSettings.transcodeCacheMaxGB ; i18n/fr/common.yaml - enable, disable
+-->

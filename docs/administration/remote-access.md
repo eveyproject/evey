@@ -1,20 +1,36 @@
 # Remote access and HTTPS
 
-Reaching the server from outside the home involves two separate things: a
-public HTTPS address in front of Evey, and Evey's own remote-access setting,
-which decides whether clients outside your network are served.
+Publish the server at an `https://` address and the people in your household
+can use it from anywhere. This page is for the administrator: it covers the
+public address, the remote-access switch the server sets on its own, and what
+Evey needs to know about the reverse proxy in front of it.
+
+## Publish the server in three steps
+
+1. Put a reverse proxy in front of Evey that terminates HTTPS and forwards
+   everything to port `9091`: the bundled Caddy, or a proxy you already run.
+   Ready-made configurations are in
+   [Reverse proxy configurations](../reverse-proxy.md).
+2. In **Admin → Remote Access**, set **External URL** to the `https://` address
+   and, when the proxy runs in another container, its network in **Trusted
+   proxies** (`172.16.0.0/12` for Docker's default networks).
+3. Nothing else: a server given a public address opens remote access on its
+   own. `evey admin doctor` confirms the proxy list in force and warns when a
+   published server is refusing remote clients.
 
 ## Remote access is decided from the public address
 
 Evey decides remote access at startup unless you have chosen it yourself:
 
-- if the server was given a public address (`EVEY_SERVER_BASE_URL` or
-  `EVEY_REMOTE_ACCESS_EXTERNAL_URL`), remote access is **on**;
+- if the server was given a public address (**External URL**,
+  `EVEY_SERVER_BASE_URL` or `EVEY_REMOTE_ACCESS_EXTERNAL_URL`), remote access
+  is **on**;
 - otherwise it is **off**, and only clients on your local networks are served.
 
-Once you change the setting in **Admin → Remote Access**, your choice is kept
-and the server no longer infers it: a published server can stay LAN-only if
-that is what you want.
+Once you change **Enable Remote Access** yourself, your choice is kept and the
+server no longer infers it: a published server can stay LAN-only if that is
+what you want. Remote access is a choice about who may reach the server, not
+a protection: every page still requires signing in.
 
 When remote access is off, a client outside the local networks receives a
 `403` on every page, and the apps show a message saying remote access is
@@ -22,9 +38,6 @@ disabled rather than a generic error. If the server is reachable from the
 internet while remote access is off, the admin page shows **Every remote user
 is locked out**, the server logs it at startup and logs each refusal with the
 client address, and `evey admin doctor` reports it as a failure.
-
-Remote access is a choice about who may reach the server, not a protection:
-every page still requires signing in.
 
 ## Settings
 
@@ -44,25 +57,23 @@ network ones to the next request, the bitrate to the next playback.
 | **LAN Networks** | The address ranges treated as home. Private ranges are listed by default. Add a VPN range (Tailscale, WireGuard) here if its clients should count as home. |
 | **Max Remote Bitrate** | A bitrate ceiling for clients outside the local networks, in kbit/s (0 = none). A private address is never capped. When **Admin → Transcoding** also sets a ceiling for remote viewers, the lower of the two applies. See [How playback is decided](../playback/how-playback-is-decided.md#limits-on-the-session). |
 
-## HTTPS: a reverse proxy in front of Evey
+## What Evey needs to know about the proxy
 
 Evey serves plain HTTP on port 9091, API and web interface together. HTTPS is
-the job of a reverse proxy, which forwards everything to `evey-server:9091`.
-Evey needs to know two things about it, both in **Admin → Remote Access**:
+the job of the reverse proxy, and Evey needs two things about it, both in
+**Admin → Remote Access**:
 
 - **External URL** in `https://`. This is what tells Evey a proxy terminates
   TLS: cookies get the `Secure` flag, HSTS is sent and the `X-Forwarded-Proto`
   header of a trusted proxy is believed.
 - **Trusted proxies**, when the proxy is not on the same machine as Evey. A
   proxy in another container needs its network here, for example
-  `172.16.0.0/12` for Docker's default networks. A range covering every
-  address (`0.0.0.0/0`, `::/0`) is refused: any client could then choose the
-  address it is seen with.
+  `172.16.0.0/12` for Docker's default networks.
 
-With no proxy yet, Evey's repository provides a Caddy service that obtains a
-Let's Encrypt certificate on its own. Ready-made configurations for Caddy,
-Nginx, Traefik and Nginx Proxy Manager, and what a proxy's defaults do to
-streaming: [Reverse proxy configurations](../reverse-proxy.md).
+!!! warning "A range covering every address is refused"
+    `0.0.0.0/0` or `::/0` in **Trusted proxies** would let any client choose
+    the address it is seen with. The panel and `evey admin doctor` both refuse
+    it: list the proxy's own address or network.
 
 ### Setting it in the environment instead
 
@@ -72,35 +83,34 @@ server that must be reachable over HTTPS from its very first start. The panel
 wins when both are set: an `https://` External URL enables HTTPS mode even if
 the base URL is plain HTTP, and a saved proxy list replaces the variable.
 Emptying the field hands the answer back to the variable. See
-[Server and network](../environment/server.md).
-
-## The two network steps
-
-Trusted proxies and LAN networks are two successive steps, not two ways of
-saying the same thing. The trusted proxies decide whose forwarded address is
-believed, and so which address each client gets; the LAN networks then
-classify that address as local or remote.
+[Server and network](../environment/server.md#remote-access).
 
 ## The real client address
 
 Remote access and **Max Remote Bitrate** both depend on Evey seeing each
-client's real address. A proxy that does not forward it, or that Evey does not
-trust, makes every request look like it comes from the proxy's private
-address: everyone counts as home, the remote-access setting has no effect and
-no remote cap applies.
+client's real address, in two successive steps: the trusted proxies decide
+whose forwarded address is believed, and so which address each client gets;
+the LAN networks then classify that address as local or remote.
 
-Fixing the proxy therefore changes who counts as remote. If remote access was
-off, remote clients are refused from that moment. Check
-`evey admin doctor` after changing proxy settings: it names the list in force
-and where it comes from, warns about a public range and fails on a range
-covering every address.
+A proxy that does not forward the address, or that Evey does not trust, makes
+every request look like it comes from the proxy's private address: everyone
+counts as home, the remote-access setting has no effect and no remote cap
+applies.
+
+!!! note "Fixing the proxy changes who counts as remote"
+    If remote access was off, remote clients are refused from the moment the
+    proxy forwards their real address. Check `evey admin doctor` after
+    changing proxy settings: it names the list in force and where it comes
+    from, warns about a public range and fails on a range covering every
+    address.
 
 <!-- sources
-inference and explicit choice: docs/adr/0026-remote-access-inferred-from-a-published-url.md ; internal/config/remote_access_resolve.go
+inference and explicit choice: docs/adr/0026-remote-access-inferred-from-a-published-url.md ; internal/config/remote_access_resolve.go - ResolveRemoteAccess, IsPubliclyReachableURL
 gate, live switch and LAN list: cmd/evey/gateway.go - networkMiddleware ; cmd/evey/network_middleware_test.go - TestNetworkMiddleware_LANListChangeAppliesWithoutRestart
 remote cap live: internal/adapters/driving/grpcapi/playback_remote_bitrate_test.go
-labels: i18n admin.remoteAccess.*
+labels: i18n admin.remoteAccess.* (enableRemoteAccess, externalUrl, trustedProxies, lanNetworks, maxRemoteBitrate, lockoutRiskTitle)
 proxy settings: docs/reverse-proxy.md
 https mode and trusted proxies live: internal/config/network_live.go - EffectiveHTTPS, EffectiveTrustedProxies ; internal/adapters/driving/http/access_handler_live_test.go
+catch-all range refused: internal/config/trusted_proxies.go - IsCatchAllProxyRange ; internal/config/network_live.go
 doctor check: cmd/evey/admin_ops.go - checkTrustedProxies
 -->

@@ -1,15 +1,22 @@
 ---
-source_sha: 3fced19f436765baa59845968676caa83737f9a681cd41288d6e854fcde880ae
+source_sha: 03f8a2ec1721f109a072f8ecbb96e6a41ae358c2b550d1000f1987bf6e0a6f8a
 reviewed: true
 ---
 # Sous-titres
 
-Le sort d'un sous-titre dépend de son format : du texte, ou des images.
+Comment un sous-titre s'affiche sur votre appareil, et si le choisir change
+la façon dont la vidéo est livrée. Pour les spectateurs ; le seul réglage qui
+compte est l'**Incrustation des sous-titres** du profil, dans **Paramètres →
+Lecture**. En bref : les sous-titres texte et Blu-ray ne touchent jamais à la
+vidéo, les sous-titres DVD et de diffusion sont incrustés et imposent un
+réencodage.
+
+## Ce que chaque format fait à la vidéo
 
 | Format | Exemples | Affichage | Effet sur la vidéo |
 | --- | --- | --- | --- |
-| Texte | SRT, ASS/SSA, WebVTT, sous-titres intégrés au fichier | Envoyé à côté de la vidéo et dessiné par le lecteur | Aucun |
-| PGS (Blu-ray) | `hdmv_pgs_subtitle` | Décodé en images une fois par le serveur, mis en cache, puis dessiné par le lecteur | Aucun |
+| Texte | SRT, ASS/SSA, WebVTT, sous-titres intégrés au fichier | Envoyé à côté de la vidéo et dessiné par le lecteur, avec votre **Style des sous-titres** | Aucun |
+| PGS (Blu-ray) | `hdmv_pgs_subtitle` | Décodé en images une fois par le serveur, mis en cache, puis dessiné tel quel par le lecteur | Aucun |
 | Autres formats image | VobSub (DVD), DVB, XSUB | Incrusté dans l'image par le serveur | La vidéo est réencodée |
 
 Tous les lecteurs (web, Android, Android TV) dessinent eux-mêmes les
@@ -28,22 +35,24 @@ sa lecture directe.
 Le réglage de profil **Incrustation des sous-titres** (**Paramètres →
 Lecture**) s'applique aux formats de la dernière ligne :
 
-- **Auto** et **Toujours incruster** : une piste VobSub, DVB ou XSUB
-  sélectionnée est incrustée. Le texte n'est jamais incrusté, quel que soit
-  le réglage.
-- **Jamais incruster** : la vidéo n'est jamais réencodée pour un sous-titre.
-  Une piste VobSub, DVB ou XSUB ne peut alors pas s'afficher.
+| Réglage | Une piste VobSub, DVB ou XSUB sélectionnée | Texte et PGS |
+| --- | --- | --- |
+| **Auto** | Incrustée, la vidéo est réencodée. | Dessinés par le lecteur. |
+| **Toujours incruster** | Comme Auto. | Dessinés par le lecteur : le texte n'est jamais incrusté, quel que soit le réglage. |
+| **Jamais incruster** | Ne peut pas s'afficher : la vidéo n'est jamais réencodée pour un sous-titre. | Dessinés par le lecteur. |
 
 ## Choisir et ajuster
 
 - Les lecteurs sélectionnent le sous-titre de la **Langue des sous-titres par
   défaut** du profil, puis la piste que le fichier marque par défaut (une
-  piste forcée, par exemple).
+  piste forcée, par exemple). Une piste choisie à la main n'est jamais
+  remplacée, et un nouveau titre repart de zéro.
 - **Synchro sous-titres**, dans le lecteur, décale les sous-titres du titre
   en cours (une valeur positive les affiche plus tard). L'effet est
   immédiat.
-- **Style des sous-titres** règle la taille, la couleur, le fond, la police
-  et la position des sous-titres texte.
+- **Style des sous-titres** règle la taille, la couleur du texte, le fond, la
+  police, l'ombre et la position des sous-titres texte. Les images PGS sont
+  dessinées telles quelles.
 - **Téléverser un sous-titre…** ajoute un fichier au titre.
 - Avec une clé OpenSubtitles (voir
   [Bibliothèques et métadonnées](../administration/libraries.md#metadata-keys)),
@@ -51,4 +60,4 @@ Lecture**) s'applique aux formats de la dernière ligne :
   fichier (`GET /api/v1/media/{id}/subtitles/search`, puis
   `POST /api/v1/media/{id}/subtitles/download`). Le fichier est enregistré
   dans un dossier `.subtitles` à côté du film. Les applications ne proposent
-  pas encore cette recherche.
+  pas cette recherche.

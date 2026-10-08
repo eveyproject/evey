@@ -1,8 +1,20 @@
 # Design principles
 
-The principles below explain why Evey behaves as it does. Each is a
-constraint the code follows, with the pages and decision records where it
-shows. When two of them conflict, the earlier one in this list wins.
+Seven constraints the code follows, each with the pages and decision records
+where it shows. Read this page to understand why Evey behaves as it does
+before reading how it is built ([Architecture](ARCHITECTURE.md)) or why a
+structural choice was made ([decision records](adr/README.md)). When two
+principles conflict, the earlier one in this list wins.
+
+| Principle | Where it shows | Decided by |
+| --- | --- | --- |
+| 1. Access is refused when it cannot be checked | parental control, plugin install, remote access | [ADR-0026](adr/0026-remote-access-inferred-from-a-published-url.md) |
+| 2. Third-party code is contained, not trusted | plugin sandbox | [ADR-0012](adr/0012-plugin-token-deny-by-default.md), [ADR-0014](adr/0014-landlock-plugin-sandbox.md) |
+| 3. The original is delivered whenever it can be | playback decision | [ADR-0030](adr/0030-one-plan-one-decision.md) |
+| 4. Decisions rest on what was proved, not on names | casting, hardware acceleration | [ADR-0029](adr/0029-transcoding-routes-are-measured-not-assumed.md) |
+| 5. One playback, one decision | playback plan, Stream info | [ADR-0030](adr/0030-one-plan-one-decision.md), [ADR-0024](adr/0024-playback-plan-resolver.md) |
+| 6. The server sizes itself to the machine | calibration, background work | - |
+| 7. Few settings, each in one place | install, admin panel | [ADR-0028](adr/0028-install-is-one-compose-file.md) |
 
 ## 1. Access is refused when it cannot be checked
 
@@ -24,7 +36,7 @@ analysed before installation, runs in a sandbox with no direct network access,
 and holds a token that is denied by default. What the sandbox still cannot
 prevent is written down rather than implied.
 
-See [Security model and plugin sandbox](SECURITY.md),
+See [Plugin sandbox and threat model](SECURITY.md),
 [ADR-0012](adr/0012-plugin-token-deny-by-default.md),
 [ADR-0014](adr/0014-landlock-plugin-sandbox.md).
 
@@ -58,7 +70,8 @@ the session is served from that decision. The player never receives segments
 from two encodings, and what Stream info reports is derived from the same
 serving plan the playback pipeline uses, checked by tests in both directions.
 
-See [ADR-0030](adr/0030-one-plan-one-decision.md),
+See [Playback pipeline](playback-serving.md),
+[ADR-0030](adr/0030-one-plan-one-decision.md),
 [ADR-0024](adr/0024-playback-plan-resolver.md).
 
 ## 6. The server sizes itself to the machine

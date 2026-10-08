@@ -1,20 +1,66 @@
 ---
-source_sha: 4346505ac20853c385d4b6641af12c128cdd868479ccef57a064e5b9e0901fce
+source_sha: fc6dc6008146f2970b260b3c75a326e8cda72d352a8582783f9ee1b68923c74a
 reviewed: true
 ---
 # Référence de configuration
 
-Deux endroits, une règle. **Ce qui doit exister avant le démarrage du
-serveur** (secrets, stockage, adresse publique, informations sur le reverse
-proxy) va dans le fichier compose. **Ce qu'un administrateur ajuste ensuite**
-(langues, limites de transcodage, accélération matérielle, planifications,
-limites des plugins) se trouve dans le panneau d'administration, est stocké en
-base, survit à la mise à jour du conteneur et s'applique le plus souvent sans
-redémarrage. Pour un réglage qui existe aux deux endroits, la variable
-d'environnement ne sert qu'au premier démarrage : la valeur enregistrée dans le
-panneau l'emporte.
+Où vit chaque réglage d'un serveur Evey, quelle valeur l'emporte quand un
+réglage existe à la fois dans le panneau d'administration et dans
+l'environnement, et ce qui demande un redémarrage. Les variables elles-mêmes
+sont listées par thème dans les dix pages liées plus bas ; cette page
+s'adresse à l'administrateur qui édite le fichier compose ou se demande
+pourquoi une variable semble ignorée.
 
-Les variables, par thème :
+## Deux endroits, une règle
+
+**Ce qui doit exister avant le démarrage du serveur** - secrets, chemins de
+stockage, adresse publique, informations sur le reverse proxy - va dans le
+fichier compose, sous forme de variables d'environnement. **Ce qu'un
+administrateur ajuste ensuite** - langues, limites de transcodage,
+accélération matérielle, planifications, limites des plugins - se trouve
+dans le panneau d'administration, est stocké en base, survit à la mise à
+jour du conteneur et s'applique le plus souvent sans redémarrage.
+
+Pour un réglage qui existe aux deux endroits, la priorité est toujours la
+même :
+
+1. **La valeur enregistrée dans le panneau l'emporte.** À chaque démarrage,
+   le serveur lit d'abord l'environnement, puis remplace chaque champ par la
+   valeur stockée en base quand il y en a une. Une variable ne remplace
+   jamais une valeur enregistrée.
+2. **La variable s'applique tant que rien n'est enregistré.** Le panneau
+   l'affiche comme valeur par défaut courante ; **Réinitialiser** supprime
+   la valeur enregistrée, et la variable s'applique de nouveau à partir du
+   démarrage suivant.
+3. **La valeur par défaut intégrée** s'applique quand ni l'un ni l'autre
+   n'est défini.
+
+Les secrets font exception : le panneau n'affiche jamais un mot de passe ou
+une clé qu'il a stockés, et une variable comme `EVEY_TMDB_API_KEY` est
+copiée en base à la première utilisation, pour que le panneau puisse
+indiquer qu'une clé personnalisée est en service.
+
+## Ce qui demande un redémarrage
+
+- Une modification d'une **variable d'environnement** demande toujours de
+  recréer le conteneur (`docker compose up -d`) : le processus lit son
+  environnement une seule fois.
+- Une modification dans le **panneau** s'applique immédiatement pour la
+  plupart des réglages (nom du serveur, niveau de journalisation, limites de
+  requêtes, accélération matérielle, SMTP, authentification unique, accès
+  distant, limites des plugins, durées de conservation au prochain nettoyage
+  quotidien).
+- Le panneau signale par *appliqué au redémarrage* les réglages **lus au
+  démarrage** : la surveillance des fichiers et l'intervalle d'analyse, le
+  budget du cache de transcodage, la carte **Limites avancées** du
+  transcodage, les sources de détection des intros, et chaque ligne des
+  **Entrées de configuration**. Enregistrer conserve le choix, redémarrer
+  l'applique.
+
+Chaque tableau des pages par thème a une colonne **Panneau** : le chemin du
+champ (à partir de **Admin**) et s'il s'applique immédiatement ou au
+redémarrage, ou `aucun` quand la variable n'a pas d'équivalent dans le
+panneau.
 
 | Page | Contenu |
 | --- | --- |
@@ -29,6 +75,19 @@ Les variables, par thème :
 | [E-mail et notifications](environment/notifications.md) | SMTP, clés de notification push |
 | [Sauvegardes, logs et supervision](environment/logs-monitoring.md) | Sauvegardes, log, durée de conservation des historiques, métriques et traces |
 
+## Comment les valeurs sont lues
+
+- Les booléens acceptent `1`, `t`, `true`, `0`, `f`, `false`. Les durées
+  exigent une unité : `30s`, `5m`, `2h` (un `30` nu est ignoré). Les listes
+  sont séparées par des virgules.
+- Une valeur que le serveur ne sait pas lire est **ignorée avec un
+  avertissement** dans le log (`environment variable ignored, value could
+  not be parsed`) et la valeur par défaut s'applique. Relisez les premières
+  lignes du log après avoir modifié le fichier compose.
+- `EVEY_DB_PASSWORD` et `MEILI_MASTER_KEY` peuvent aussi venir d'un fichier
+  nommé par la même variable suffixée `_FILE` ; une valeur explicite prime
+  sur le fichier.
+
 ## Secrets
 
 Le Postgres et le Meilisearch intégrés génèrent leurs secrets au premier
@@ -37,11 +96,10 @@ démarrage, dans `./evey-data/keys` (`postgres.password`, `meili.key`, mode
 `MEILI_MASTER_KEY_FILE`, définies dans l'image ; c'est aussi pourquoi les
 commandes `evey admin` n'ont pas besoin de mot de passe. Ne renseignez
 `EVEY_DB_PASSWORD` ou `MEILI_MASTER_KEY` que pour une base ou un moteur de
-recherche externe ; une valeur explicite prime sur le fichier.
+recherche externe.
 
-Une clé TMDB est intégrée. `EVEY_TMDB_API_KEY` fournit la vôtre au premier
-démarrage ; la clé saisie dans **Admin → Configuration du serveur → Clés API**
-l'emporte.
+Une clé TMDB est intégrée. `EVEY_TMDB_API_KEY` fournit la vôtre ; la clé
+saisie dans **Admin → Configuration du serveur → Clés API** l'emporte.
 
 ## Variables inutiles
 
@@ -62,7 +120,7 @@ changent rien :
 **Par défaut : automatique.** Quand `PUID`/`PGID` ne sont pas définis,
 l'entrypoint regarde au démarrage le propriétaire de vos montages `/media*` et
 lance le serveur sous cet utilisateur, pour que les fonctions qui *écrivent*
-dans votre bibliothèque (la réparation de l'index de navigation reconstruit
+dans votre bibliothèque (la réparation de l'index de lecture reconstruit
 les fichiers sur place) fonctionnent d'emblée, sans `chown` ni configuration.
 Le log de démarrage indique le choix fait :
 
@@ -101,14 +159,13 @@ compose. L'entrypoint détecte le démarrage sans root et saute le remappage (y
 compris la détection du propriétaire des médias) : c'est alors à vous de
 garder `./evey-data` modifiable par cet uid.
 
-Remarques :
-
-- `PUID=1001` est refusé : c'est l'utilisateur interne `evey-plugin`, séparé
-  pour que les plugins ne partagent jamais l'identité du serveur.
-- Les médias sont montés en lecture-écriture par défaut pour que les
-  réparations fonctionnent ; ajoutez `:ro` au volume si vous préférez une
-  bibliothèque en lecture seule (les réparations échoueront alors avec une
-  erreur explicite).
+!!! note
+    `PUID=1001` est refusé : c'est l'utilisateur interne `evey-plugin`,
+    séparé pour que les plugins ne partagent jamais l'identité du serveur.
+    Les médias sont montés en lecture-écriture par défaut pour que les
+    réparations fonctionnent ; ajoutez `:ro` au volume si vous préférez une
+    bibliothèque en lecture seule (les réparations échouent alors avec une
+    erreur explicite).
 
 ## Variables que le serveur ne lit pas
 
@@ -127,3 +184,5 @@ serveur :
 - `EVEY_SUPERVISED`, `EVEY_COMPANION_PIDS`, `EVEY_RESTART_EXIT_CODE`,
   `EVEY_LAUNCHER_BIN`, `EVEY_PLUGIN_LAUNCHER` : définies par l'entrypoint et le
   lanceur de plugins pour leur propre usage.
+- `EVEY_BANNER=off` masque seulement la bannière de démarrage dans le log ;
+  `NO_COLOR` en retire les couleurs.

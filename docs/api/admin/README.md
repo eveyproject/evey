@@ -1,8 +1,7 @@
 # Admin API
 
-Administrative endpoints restricted to users with admin privileges.
-
-## Specs
+The endpoints reserved to administrators: what **Admin** in the web app
+calls. One file per service, grouped by area.
 
 ### System
 | Spec | Description |
@@ -17,7 +16,7 @@ Administrative endpoints restricted to users with admin privileges.
 | [admin_task.swagger.json](admin_task.swagger.json) | Scheduled background tasks |
 | [presence.swagger.json](presence.swagger.json) | Who is connected right now (the apps' heartbeat and the admin list) |
 
-### Media & Transcoding
+### Media and transcoding
 | Spec | Description |
 |------|-------------|
 | [admin_media.swagger.json](admin_media.swagger.json) | Media health (scans, repairs, history and undo), delete media items, refresh metadata, generate trickplay |
@@ -27,7 +26,7 @@ Administrative endpoints restricted to users with admin privileges.
 | [mkv.swagger.json](mkv.swagger.json) | MKV container tools (tracks, chapters, mux/demux) |
 | [admin_intro.swagger.json](admin_intro.swagger.json) | Intro timing cache: invalidate one episode, backfill |
 
-### Users & Policies
+### Users and policies
 | Spec | Description |
 |------|-------------|
 | [library_access.swagger.json](library_access.swagger.json) | Per-user library access control |
@@ -37,4 +36,10 @@ Administrative endpoints restricted to users with admin privileges.
 ## Authentication
 
 Every endpoint needs an administrator: the session token of an administrator
-account, or an API key, which always belongs to one (its scopes can narrow it).
+account, or an API key, which always belongs to one and must carry the scope
+the method asks for (a key without scopes reaches no admin method). A plugin token is
+refused here whatever its scopes ([Server API](../README.md#authentication)).
+
+<!-- sources
+admin methods: internal/adapters/driving/grpcapi/interceptors/rbac.go - MethodRoles ; api key scope on admin methods: interceptors/auth.go - authorize ; plugin token floor: auth.go - authorizePluginToken
+-->

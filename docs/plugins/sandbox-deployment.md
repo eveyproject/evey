@@ -1,185 +1,158 @@
-# Plugin sandboxing - which setup for your server
+# Plugin sandbox setup
 
-Evey runs third-party plugins inside a sandbox. **For almost everyone the answer
-is: leave the defaults.** The server detects your machine and picks the strongest
-isolation it can, automatically. Read on only if you run an **old NAS**, run
-Evey **without Docker**, or want to **tighten things further**.
+Which sandbox setup fits your server, in plain words. For almost everyone
+the answer is: leave the defaults. The server detects the machine and picks
+the strongest isolation it can. Read on only if you run an old NAS, run Evey
+without Docker, or want to tighten things further. The full technical model
+is in [Security model and plugin sandbox](../SECURITY.md).
 
-For the full technical model see [SECURITY.md](../SECURITY.md). This page is the
-plain-language decision guide.
+## What protects you
 
----
+A plugin you install is boxed in. Depending on the machine, the box:
 
-## What protects you (in plain words)
+- **limits which files it can touch**: its own folder and the system
+  libraries it needs, nothing else (not your media, not your secrets, not
+  other plugins);
+- **blocks dangerous system actions** at the kernel: debugging other
+  processes, loading modules, changing the clock, mounting disks;
+- **cuts off direct network access**, always: a plugin that asked for the
+  network, and that you approved, reaches only the hosts it declared, through
+  the server;
+- **caps CPU, memory, disk and process count**, so a runaway plugin cannot
+  take the server down;
+- **keeps your secrets unreadable**: the login-signing key and the backups.
 
-A plugin you install is boxed in. The box, depending on your machine:
+On top of that, plugins are admin-only to install, scanned for suspicious
+code, and you approve their permissions before they run.
 
-- **Limits which files it can touch** - it sees its own folder and the system
-  libraries it needs to run, nothing else (not your media, not your secrets, not
-  other plugins).
-- **Blocks dangerous system actions** - debugging other processes, loading kernel
-  modules, changing the clock, mounting disks, etc. are refused at the kernel.
-- **Cuts off direct network access**, always. A plugin that asked for the
-  network (and you approved it) reaches only the hosts it declared, through the
-  server.
-- **Caps CPU, memory, disk and process count**, so a runaway plugin can't take
-  the server down.
-- **Keeps your secrets unreadable** - the login-signing key and backups.
-
-On top of that: plugins are **admin-only to install**, they're **scanned** for
-suspicious code, and you **approve their permissions** before they run.
-
-**Check what's actually in force:** Admin → Plugins → Security Dashboard shows
-the *host sandbox* - the mode `auto` resolved to (`landlock`, `bubblewrap` or
-`basic`) with the individual probe results. If it shows **basic**, your host
-offers no per-path filesystem isolation (plugins run with UID-drop + seccomp
-only); the probes tell you why, and the sections below tell you how to fix it.
-
----
+**Check what is in force:** **Admin -> Plugins -> Security Dashboard** shows
+the host sandbox, the mode `auto` resolved to (`landlock`, `bubblewrap` or
+`basic`) with the probe results (**Landlock kernel**, **Sandbox launcher**,
+**Bubblewrap**). `basic` means the host offers no per-path file isolation:
+plugins run with a uid drop and seccomp only, the probes say why, and the
+sections below say what to change.
 
 ## Pick your situation
 
 | Your server | What you get out of the box | Anything to do? |
 |---|---|---|
-| **Modern Linux in Docker** (kernel ≥ 5.13 - basically anything from ~2021 on) - *the normal case* | **Strongest isolation** (Landlock), automatically. | **Nothing.** Leave defaults. |
-| **Old NAS in Docker** (e.g. older Synology, kernel < 5.13) | Good isolation, **minus the per-folder file walls**. Secrets, network and system actions are still locked down. | **Nothing.** uid separation (below) turns itself on in this case. |
-| **Any Linux, no Docker** (bare-metal) | **Strongest isolation**, automatically (Landlock on a modern kernel, otherwise bubblewrap namespaces). | Follow the [bare-metal guide](../deployment-bare-metal.md). |
-
-How to know which one you got: open **Admin → Plugins** - the Security panel's
-badge shows the sandbox mode actually in force: `landlock` or `bubblewrap` means
-strong, `basic` means the "old NAS" case.
-
----
+| **Modern Linux in Docker** (kernel 5.13 or newer, roughly anything from 2021 on), the normal case | the strongest isolation (Landlock), automatically | nothing |
+| **Old NAS in Docker** (kernel older than 5.13) | good isolation minus the per-folder file walls; secrets, network and system actions stay locked down | nothing: uid separation (below) turns itself on |
+| **Any Linux, no Docker** | the strongest isolation available: Landlock on a modern kernel, otherwise bubblewrap namespaces | follow [Without a container](../deployment-bare-metal.md) |
 
 ## The one knob you might touch: uid separation
 
-**What it does, plainly:** makes a plugin run under a **different user account**
-than Evey itself, so it physically cannot read Evey's secret files - even if
-nothing else stopped it.
+Uid separation makes a plugin run under a different user account than the
+server, so it physically cannot read the server's secret files even if
+nothing else stopped it. It only matters on a machine without the
+per-folder file walls (the `basic` case); on a modern machine the walls
+already keep secrets out of reach, and the separation is a redundant extra
+layer.
 
-**When it matters:** only on an **old machine without the per-folder file walls**
-(i.e. the `basic` case). On modern machines the file walls already keep secrets
-out of reach, so uid separation there is just a redundant extra layer.
-
-**The setting** - `EVEY_PLUGINS_UID_SEPARATION`:
+`EVEY_PLUGINS_UID_SEPARATION`:
 
 | Value | Meaning | Use it when |
 |---|---|---|
-| `auto` *(default)* | Turns itself **on only when it's actually needed** (the `basic` case). Off where it's redundant. | **Leave this** - it does the right thing per machine. |
-| `on` | **Always on**, even on modern machines - a second, independent secret wall on top of the file walls. | You want maximum belt-and-braces and accept the small cost below. |
-| `off` | **Never.** | A specific plugin misbehaves when run under it (rare). |
+| `auto` (default) | on only when it is needed (the `basic` case), off where it is redundant | always, unless one of the two cases below applies |
+| `on` | always on, a second independent wall on top of the file walls | you want belt and braces and accept the small cost below |
+| `off` | never | a specific plugin misbehaves when run under it (rare) |
 
-**The gotcha:** uid separation is **incompatible with the `no-new-privileges`
-Docker hardening option** - pick one. If your setup can't grant it on an old
-machine (`basic`), Evey **refuses to start the plugin** rather than run it next to
-your secrets; on a modern machine it logs a warning and runs the plugin normally
-(you just don't get the extra wall). The official image already ships everything needed; you only set
-this variable.
+!!! warning
+    Uid separation is incompatible with the `no-new-privileges` Docker
+    option: pick one. When the drop cannot be granted on an old machine
+    (`basic`), the server refuses to start the plugin rather than run it
+    next to your secrets; on a modern machine it logs a warning and runs the
+    plugin without the extra wall. The image ships everything needed, you
+    only set the variable.
 
-**Small cost of `on`:** the plugin runs as a separate account, so a plugin that
-writes scratch files *inside its own folder* could trip up. If one does, set
-`off`. (This is why the default is `auto` - it only takes that risk where there's
-a real benefit.)
+The small cost of `on`: the plugin runs as a separate account, so a plugin
+that writes scratch files inside its own folder can trip up. If one does,
+set `off`. That is why the default is `auto`: it only takes that risk where
+there is a real benefit.
 
----
+## What a malicious plugin could do
 
-## The risks, in plain words
-
-What a **malicious** plugin could and couldn't do - by scenario:
-
-**Modern Linux (Docker or bare-metal):**
-A bad plugin is fully boxed in. It **cannot** read your secrets, **cannot** see
-or touch other plugins' files, **cannot** make arbitrary network calls, and
-**cannot** tamper with the system. The only realistic way out is a serious Linux
-**kernel** bug - true of *any* sandbox that isn't a full virtual machine.
+**Modern Linux (Docker or bare metal):** a bad plugin is fully boxed in. It
+cannot read your secrets, cannot see or touch other plugins' files, cannot
+make arbitrary network calls and cannot tamper with the system. The only
+realistic way out is a serious kernel bug, true of any sandbox that is not a
+full virtual machine.
 
 **Old NAS in Docker, no per-folder walls (`basic`):**
-- ✅ Your **secrets stay protected** (login key, backups) by the separate user
-  account, which `auto` turns on here.
-- ✅ The plugin has **no direct network**; a permitted one reaches only the
-  hosts it declared.
-- ✅ **Dangerous system actions are still blocked** at the kernel.
-- ⚠️ But with no per-folder walls, a bad plugin **could read ordinary, non-secret
-  files**, **list running processes**, and - because plugins share one account -
-  potentially **read or disturb another plugin's files**.
-- **Bottom line:** only install plugins you trust on such a host, or move to a
-  modern kernel for the full file walls.
 
----
+- your secrets stay protected (login key, backups) by the separate user
+  account, which `auto` turns on here;
+- the plugin has no direct network; a permitted one reaches only the hosts it
+  declared;
+- dangerous system actions are still blocked at the kernel;
+- but with no per-folder walls, a bad plugin could read ordinary, non-secret
+  files, list running processes and, because plugins share one account,
+  read or disturb another plugin's files.
 
-## Config examples (copy/paste)
+Only install plugins you trust on such a host, or move to a modern kernel
+for the full file walls.
 
-These go in your `.env` (Docker compose) or as `EVEY_*` environment variables.
+## Configuration examples
 
-**1. Normal modern server - recommended (do nothing):**
-```bash
-# Defaults are correct. Optionally make it explicit:
-EVEY_PLUGINS_SANDBOX_MODE=auto          # picks the strongest available
+These go in your `.env` (compose) or as `EVEY_*` environment variables.
+
+```bash title="1. Modern server, recommended (nothing to do)"
+EVEY_PLUGINS_SANDBOX_MODE=auto          # picks the strongest available (default)
 # EVEY_PLUGINS_UID_SEPARATION=auto      # (default) on only where needed
 ```
 
-**2. Old NAS:** nothing to set, `auto` already runs plugins under the separate
-account there. Keep `no-new-privileges` out of your compose `security_opt`,
-which would stop it:
-```bash
+```bash title="2. Old NAS (nothing to set, shown for clarity)"
+# keep no-new-privileges out of the compose security_opt, it would block the drop
 EVEY_PLUGINS_SANDBOX_MODE=auto
 EVEY_PLUGINS_UID_SEPARATION=auto        # (default) on in the basic case
 ```
 
-**3. Maximum belt-and-braces on a modern server (stack both walls):**
-```bash
-EVEY_PLUGINS_SANDBOX_MODE=auto          # → landlock
+```bash title="3. Belt and braces on a modern server"
+EVEY_PLUGINS_SANDBOX_MODE=auto          # resolves to landlock
 EVEY_PLUGINS_UID_SEPARATION=on          # add the independent uid wall on top
 ```
 
-**4. Pin a specific mode (advanced):**
-```bash
-EVEY_PLUGINS_SANDBOX_MODE=landlock      # refuse to start plugins if Landlock is unavailable (fail-closed)
+```bash title="4. Pin a mode (advanced)"
+EVEY_PLUGINS_SANDBOX_MODE=landlock      # refuse to start plugins if Landlock is unavailable
 ```
 
-**5. A plugin breaks under uid separation:**
-```bash
+```bash title="5. A plugin breaks under uid separation"
 EVEY_PLUGINS_UID_SEPARATION=off
 ```
 
-**6. Resource caps (all admin-editable later from Admin → Plugins):**
-```bash
+```bash title="6. Resource caps (editable later from Admin -> Plugins -> Resource limits)"
 EVEY_PLUGINS_MEMORY_MB=256              # max RAM per plugin
-EVEY_PLUGINS_PIDS_MAX=64                # max processes/threads
+EVEY_PLUGINS_PIDS_MAX=64                # max processes and threads
 EVEY_PLUGINS_DISK_MAX_MB=100            # max install-dir size (0 = off)
 EVEY_PLUGINS_CPU_NICE=10                # scheduling priority 0-19 (higher = nicer)
 ```
 
----
+## Change the sandbox mode while running
 
-## Changing the sandbox mode while running
+Change **Sandbox mode** in the **Resource limits** card of **Admin ->
+Plugins**. Running plugins are restarted automatically so the new mode takes
+effect at once, and the **Security Dashboard** shows the mode in force. A
+plugin that cannot run under the new mode (for example `bubblewrap` inside
+an unprivileged container) shows up as errored: switch back.
 
-You can change the mode from the **Resource limits** card on **Admin → Plugins**.
-Running plugins are **restarted automatically** so the new mode takes effect immediately
-(no manual disable/enable). The Security badge shows the mode actually in force.
-If a plugin can't run under the new mode (e.g. you picked `bubblewrap` on Docker,
-where it needs privileges), it shows up as **errored** in the dashboard - just
-switch back.
-
----
-
-## Verify it's working
+## Verify it is working
 
 ```bash
-# the launcher carries the capability used for uid separation:
-docker exec evey-server getcap /evey-plugin-launcher        # → cap_setuid=ep
+# the launcher carries the capability used for uid separation
+docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
-# which user a running plugin runs as (evey = shared with server, evey-plugin = separated):
-docker exec evey-server ps -o user,pid,args | grep -v grep | grep -iE "node|python"
-
-# the sandbox mode actually in force: the Security badge on the Admin → Plugins page.
+# which user a running plugin runs as (evey = shared with the server,
+# evey-plugin = separated); the image has no ps, so ask Docker
+docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 
----
+The sandbox mode in force is the badge of **Admin -> Plugins -> Security
+Dashboard**.
 
-## See also
-
-- [SECURITY.md](../SECURITY.md) - the full plugin security model (every layer, the
-  per-mode table, known limits).
-- [deployment-bare-metal.md](../deployment-bare-metal.md) - running without Docker.
-- [installation.md](../installation.md) - the Docker self-host walkthrough.
+<!-- sources
+auto resolution and probes: internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; runner_sandbox.go - effectiveMode, SandboxStatus, uidSepApplies, WithUIDSeparation, applyBasicSandbox
+defaults: internal/config/config.go (EVEY_PLUGINS_SANDBOX_MODE, EVEY_PLUGINS_UID_SEPARATION, EVEY_PLUGINS_MEMORY_MB, _PIDS_MAX, _DISK_MAX_MB, _CPU_NICE)
+restart on mode change: internal/app/plugin/runtime_service.go - RestartRunningPlugins
+image: Dockerfile (setcap cap_setuid+ep /evey-plugin-launcher, no procps) ; docker-compose.yml (no security_opt)
+labels: i18n/en/admin.yaml - plugins.security.title, probeLandlock, probeLauncher, probeBubblewrap, plugins.resourceLimits.title, resourceLimits.sandboxMode
+-->

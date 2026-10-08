@@ -1,11 +1,13 @@
 ---
-source_sha: 379364a92d0108cdaeaf5ac5c24f9bf18ca1e30aa45e876c7e38da2ea3d133ca
+source_sha: 9dffa88aee59a1f9171c9adaa3eaa02d7042e01851ef74ecfe25d22ad95cd0fe
 reviewed: true
 ---
 # Supervision et logs
 
-Où voir ce que fait le serveur, du plus immédiat au plus agrégé. Pour un
-symptôme précis, commencez par le [Dépannage](troubleshooting.md).
+Où voir ce que fait le serveur, pour l'administrateur qui veut garder un œil
+dessus plutôt que réparer quelque chose : de ce qui est lu en ce moment aux
+statistiques du mois, avec les logs entre les deux. Pour un symptôme précis,
+commencez par le [Dépannage](troubleshooting.md).
 
 ## Ce qui est lu en ce moment
 
@@ -30,11 +32,17 @@ passante, le stockage, et la part de la capacité de transcodage utilisée.
 
 ## Logs
 
-**Admin → Logs & Debug** permet de chercher dans les logs du serveur et de les
-suivre en direct, filtrés par domaine (lecture, transcodage, scan,
-sous-titres...). C'est le premier endroit où regarder quand un utilisateur
-signale un problème. Les mêmes logs sont disponibles avec
-`docker compose logs evey`.
+**Admin → Logs & Debug** permet de chercher dans le journal du serveur et de
+le suivre en **Direct**, restreint avec **Zone** à un seul domaine (lecteur et
+transcodage, index de lecture, sous-titres, détection d'intro, Chromecast,
+authentification, infrastructure...). C'est le premier endroit où regarder
+quand un utilisateur signale un problème.
+
+Le même journal est sur le disque, un fichier JSON par jour dans
+`./evey-data/logs/` (`/data/logs/evey-AAAA-MM-JJ.log` dans le conteneur),
+conservé 90 jours par défaut. `docker compose logs evey` ne montre que ce que
+le conteneur affiche pendant qu'il démarre, ce qu'il faut lire quand le
+serveur ne se lance pas. Voir [Dépannage](troubleshooting.md#the-logs).
 
 ## Comment les lectures se sont vraiment passées
 
