@@ -162,3 +162,25 @@ describe("settingsLoading (gate readiness)", () => {
     expect(result.current.settingsLoading).toBe(false);
   });
 });
+
+// The table is the server's (rendered by its test), not a 12-country subset:
+// a certificate the old copy did not know played without the PIN prompt.
+describe("isAgeExceeded reads the server's full table", () => {
+  it("gates on the countries the hand-kept copy lacked", async () => {
+    const { isAgeExceeded } = await import("./useParentalGate");
+    expect(isAgeExceeded("CA", "14A", 12)).toBe(true);
+    expect(isAgeExceeded("PT", "M/12", 10)).toBe(true);
+    expect(isAgeExceeded("KR", "15", 15)).toBe(false);
+    expect(isAgeExceeded("mx", " b-15 ", 13)).toBe(true);
+  });
+
+  it("still defers to the server on what it cannot resolve", async () => {
+    const { isAgeExceeded } = await import("./useParentalGate");
+    // "Not rated" is -1 in the table: unknown, never an age to compare.
+    expect(isAgeExceeded("US", "NR", 0)).toBe(false);
+    expect(isAgeExceeded("ZZ", "18", 0)).toBe(false);
+    expect(isAgeExceeded("FR", undefined, 0)).toBe(false);
+    // The US fallback the server also applies.
+    expect(isAgeExceeded("FR", "PG-13", 12)).toBe(true);
+  });
+});
