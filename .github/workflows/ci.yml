@@ -320,7 +320,6 @@ jobs:
         with:
           images: |
             docker.io/eveyproject/evey
-            ghcr.io/${{ steps.owner.outputs.name }}/evey
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -341,7 +340,6 @@ jobs:
         with:
           images: |
             docker.io/eveyproject/evey
-            ghcr.io/${{ steps.owner.outputs.name }}/evey
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -362,7 +360,6 @@ jobs:
         with:
           images: |
             docker.io/eveyproject/evey
-            ghcr.io/${{ steps.owner.outputs.name }}/evey
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}
@@ -520,6 +517,29 @@ jobs:
             IMAGE_REPO=docker.io/eveyproject/evey
           cache-from: type=gha,scope=docker
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+
+      # GHCR is a mirror, not the deliverable: the builds above push Docker Hub
+      # only, then every tag they produced is copied here by manifest (no
+      # rebuild, multi-platform kept). A refused GHCR (the org package lost its
+      # repository link once and answered permission_denied for a day) shows up
+      # as a warning on this step and never fails a run whose image already
+      # shipped to Docker Hub.
+      - name: Mirror tags to GHCR (best effort)
+        if: steps.build-full.outcome == 'success' || steps.build-full-retry.outcome == 'success'
+        continue-on-error: true
+        env:
+          GHCR_IMAGE: ghcr.io/${{ steps.owner.outputs.name }}/evey
+          TAGS_FULL: ${{ steps.meta-full.outputs.tags }}
+          TAGS_LEAN: ${{ steps.build-lean.outcome == 'success' && steps.meta-lean.outputs.tags || '' }}
+          TAGS_NODEJS: ${{ steps.build-nodejs.outcome == 'success' && steps.meta-nodejs.outputs.tags || '' }}
+        run: |
+          set -eu
+          printf '%s\n%s\n%s\n' "$TAGS_FULL" "$TAGS_LEAN" "$TAGS_NODEJS" | while read -r src; do
+            [ -z "$src" ] && continue
+            dst="${GHCR_IMAGE}:${src##*:}"
+            echo "mirror $src -> $dst"
+            docker buildx imagetools create -t "$dst" "$src"
+          done
 
       # Docker Hub page: short blurb + docs/dockerhub.md as the full description.
       # Once per run, and best-effort: the image is the deliverable, the page
