@@ -163,5 +163,8 @@ works, how to add a language, and the a11y gaps that remain), see
 same license, including over a network. For a commercial license under
 different terms, contact the author.
 
-Contributing means accepting [CLA.md](CLA.md) once - the dual license needs the
-right to relicense. You keep the copyright on your work.
+Contributing means accepting [CLA.md](CLA.md) once - keeping the commercial
+option needs the right to relicense. You keep the copyright on your work.
+
+The Evey name and logo are not covered by the AGPL: a fork is welcome to the
+code, not to the name.

@@ -38,7 +38,7 @@ start before proposing to change one of those choices.
 2. Add tests for new behaviour and for every bug fix.
 3. For an external contribution, accept the
    [contributor licence agreement](../CLA.md) once: Evey is AGPL-3.0-or-later
-   and is also offered under a commercial licence. You keep the copyright on
+   and may also be offered under a commercial licence. You keep the copyright on
    your work.
 
 !!! warning "The gate does not build the Docker image or the Android apps"

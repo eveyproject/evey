@@ -1,5 +1,5 @@
 ---
-source_sha: 6da699a191571156f6c459828ca57f752309874f1694e191971ce9d2ba7d6c95
+source_sha: a0eb85f44612fd3d234753208bf63c8a9fec91fc8d1020bfdb8109e199c59b19
 reviewed: true
 ---
 # Contribuer
@@ -46,7 +46,7 @@ changer l'un de ces choix.
    correction de bug.
 3. Pour une contribution externe, acceptez une fois
    l'[accord de licence de contribution](../CLA.md) : Evey est sous
-   AGPL-3.0-or-later et est aussi proposé sous licence commerciale. Vous
+   AGPL-3.0-or-later et peut aussi être proposé sous licence commerciale. Vous
    gardez le droit d'auteur sur votre travail.
 
 !!! warning "La barrière ne construit ni l'image Docker ni les applications Android"

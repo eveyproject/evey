@@ -39,8 +39,8 @@ For proto changes: `make proto-gen`.
 
 ## Contributor License Agreement
 
-Evey is AGPLv3 and is also offered under a commercial license. Merging a
-contribution into both requires the right to relicense it, so every external
+Evey is AGPLv3 and may also be offered under a commercial license. Keeping
+that option requires the right to relicense every contribution, so every external
 pull request needs a one-time acceptance of [CLA.md](CLA.md) - paste this in the
 PR description:
 
