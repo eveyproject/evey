@@ -1,10 +1,10 @@
 # Evey Individual Contributor License Agreement
 
-Evey is released under the [GNU AGPLv3](LICENSE.md), and the author also offers
-it under a separate commercial license. Offering both requires holding the
-rights to every line, so a contribution can only be merged once its author has
-granted those rights. That is what this agreement does, and it is the only
-reason it exists.
+Evey is released under the [GNU AGPLv3](LICENSE.md), and the author may also
+offer it under a separate commercial license. Keeping that option requires
+holding the rights to every line, so a contribution can only be merged once its
+author has granted those rights. That is what this agreement does, and it is
+the only reason it exists.
 
 You keep the copyright on everything you write. This grants a license; it does
 not transfer ownership, and it does not stop you from using your own
