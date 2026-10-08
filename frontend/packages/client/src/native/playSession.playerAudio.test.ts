@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { V1StreamInfo } from "@evey/api";
-import { playerDecodesCopiedAudio } from "./playSession";
+import { ceilingChangesVerdict, playerDecodesCopiedAudio } from "./playSession";
 
 const AC3GO = ["ac3", "eac3"];
 
@@ -39,5 +39,28 @@ describe("playerDecodesCopiedAudio", () => {
   it("falls back to the first audio track when none is flagged default", () => {
     const streams = info().mediaStreams!.map((s) => ({ ...s, isDefault: false }));
     expect(playerDecodesCopiedAudio(info({ mediaStreams: streams }), undefined, AC3GO)).toBe(true);
+  });
+});
+
+// The first verdict is asked without the output ceiling; the session asks
+// again with it exactly when the master will carry it AND it folds the
+// track (channels above the ceiling) - the case where the panel used to
+// announce a 6ch copy of segments re-encoded to stereo.
+describe("ceilingChangesVerdict", () => {
+  it("holds for a 5.1 track on a stereo output", () => {
+    expect(ceilingChangesVerdict(info(), undefined, 2)).toBe(true);
+    expect(ceilingChangesVerdict(info(), 2, 2)).toBe(true);
+  });
+
+  it("does not hold when the track fits the ceiling, or the ceiling is unknown", () => {
+    expect(ceilingChangesVerdict(info(), undefined, 6)).toBe(false);
+    expect(ceilingChangesVerdict(info(), undefined, 8)).toBe(false);
+    expect(ceilingChangesVerdict(info(), undefined, undefined)).toBe(false);
+    expect(ceilingChangesVerdict(info(), undefined, 0)).toBe(false);
+  });
+
+  it("does not hold for a track of unknown layout - the server keeps its default", () => {
+    const streams = info().mediaStreams!.map((s) => ({ ...s, channels: undefined }));
+    expect(ceilingChangesVerdict(info({ mediaStreams: streams }), undefined, 2)).toBe(false);
   });
 });
