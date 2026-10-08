@@ -1,149 +1,192 @@
 ---
-source_sha: b5db9ddecc482effde77439df0be753f33fe76e853d0afa1c058a21e0593880d
+source_sha: b361df7a7250404a1736d66ebfec67805f2e8fb0f0391be268f51271fe0b7876
 reviewed: true
 ---
-# La CLI d'Evey : `evey admin`
+# Ligne de commande
 
-Le binaire du serveur Evey sert aussi de CLI d'exploitation. Lancé sans
-argument, `evey` démarre le serveur HTTP/gRPC ; avec `admin` en premier argument,
-il passe en mode outil d'exploitation, exécute une commande et s'arrête.
+Le binaire du serveur sert aussi de ligne de commande d'exploitation :
+`evey admin <sous-commande>` lance un outil de maintenance ou de restauration
+avec la même configuration et la même base de données que le serveur, puis
+s'arrête. Cette page liste les commandes et la façon de les lancer dans le
+conteneur ; les procédures du quotidien (mot de passe perdu, rotation de clé,
+restauration) sont dans [Restauration](recovery.md).
 
-Toutes les commandes lisent leur configuration dans les mêmes variables `EVEY_*`
-que le serveur (`EVEY_DB_USER`, `EVEY_DB_PASSWORD`, `EVEY_DB_HOST`,
-`EVEY_DB_PORT`, `EVEY_DB_NAME`, `EVEY_DB_SSLMODE`, `EVEY_BACKUP_DIR`, ...).
+## Lancer une commande
 
-```
-evey                          Start the server.
-evey admin <subcommand>       One-shot operator tool (below). `evey admin` alone lists them,
-                              `evey admin <subcommand> --help` details one.
-evey version                  Version, commit, build date - needs no config or database.
-evey help                     Command summary.
-evey man [--text]             The manual: roff for `man`, plain text with --text.
-evey completion bash          The bash completion script.
-```
-
-Tout autre premier argument est refusé (code de sortie 1) plutôt que de démarrer
-le serveur en silence. Le tableau Go de `cmd/evey/admin_commands.go` est la
-description unique de chaque sous-commande : la liste d'usage, `--help`, le
-manuel, le script de complétion et le shell du conteneur sont vérifiés par
-rapport à lui dans `cmd/evey/admin_cli_test.go`.
-
-Les textes d'aide ci-dessous sont ceux que le binaire affiche, en anglais.
-
-## Référence rapide
-
-```
-evey admin reset-password --user <email>     Generate a new password, print it once.
-evey admin rotate-jwt-key                    Regenerate JWT signing key and end every session.
-evey admin restore-backup <path>             Restore the database from a .sql.gz dump (the suffix is required; not the panel's .tar.gz backups).
-evey admin reindex-search [--library <id>] [--purge]   Rebuild the Meilisearch index from Postgres (--purge clears orphan docs first; if Meili is down, reports the Postgres fallback and does nothing).
-evey admin migrate up [--no-backup]          Apply pending migrations.
-evey admin migrate down [--no-backup]        Roll back one migration step.
-evey admin migrate version                   Print current schema version (exit 1 if dirty).
-evey admin list-users                        Print user emails, one per line (feeds `--user` completion).
-evey admin list-libraries                    Print the library root paths, one per line (feeds `--root` completion).
-```
-
-### Maintenance des médias
-
-```
-evey admin reindex-no-cue --root <dir> [--apply] [--limit N] [--resync] [--keep-backup=false]
-                                             Rebuild the seek index (Cues) of MKV/WebM files that
-                                             lack one - the fix for slow seek and slow resume.
-                                             DRY-RUN BY DEFAULT: pass --apply to rewrite. Each
-                                             rewrite is validated, cross-checked, and keeps a
-                                             .mkvgobak backup. --limit N for a cautious first run.
-                                             --resync also repairs files with a corrupted region the
-                                             strict pass refuses (skips the damage, keeps the rest,
-                                             reports the lost bytes).
-                                             LONG: rewrites each file in full, hours on a large
-                                             library. Shows a progress bar while applying.
-evey admin validate-streaming --root <dir> [--errors-only]
-                                             Read-only report of each file's streaming readiness
-                                             (Cues index, keyframe cues, DefaultDuration) - what the
-                                             on-demand HLS rung and seeking rely on.
-evey admin artwork-gc [--root <dir>] [--apply]
-                                             Delete artwork files on disk that no DB row references.
-                                             Dry-run by default. --root defaults to /data/artworks.
-evey admin reclassify <media-id>             Force-recompute the encoding complexity class.
-evey admin reclassify --all                  Wipe and re-queue every classified item.
-```
-
-### Diagnostic et capacité
-
-```
-evey admin doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch (plus
-                                             index drift), media mounts (owned by the server UID?),
-                                             cache dirs, ffmpeg/mkvgo and disk. --repair applies only
-                                             the safe fixes (create + chown missing writable dirs).
-evey admin rollback                          Read-only advisor: prints the running version, schema,
-                                             newest pre-migration backup and the exact HOST commands
-                                             to roll back. The container has no Docker access, by
-                                             design, so it advises rather than acts.
-evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S] [--cold-cache]
-                                             Needs a LIVE server (it is an HTTP client of the local
-                                             gateway). Ramps simulated viewers until the box hits its
-                                             ceiling, then reports the sustained count with TTFF and
-                                             segment latencies. Scenarios: transcode, natural, mkvgo,
-                                             light (80/20), balanced (50/50, default), heavy (20/80),
-                                             mkvgo+N. --max-viewers caps the ramp (0 = server default
-                                             12). Short sanity run:
-                                             `load-test --scenario balanced --max-viewers 4`.
-                                             `admission_full` is the ceiling verdict (exit 0), not an
-                                             error.
-evey admin route-bench [--backend nvenc|vaapi|qsv|none] [--heights ...] [--fps ...] [--out rows.csv] [--json run.json] [<file>...]
-                                             Measure what a session of each transcode route costs on
-                                             this host against the calibration and the admission cost
-                                             model. Minutes of full load; never while serving.
-evey admin ladder-bench [--scenes 3] [--window 8] [--heights ...] [--crf ...] [--out rows.csv] <file>...
-                                             Ladder complexity features on a few scenes per title,
-                                             encoded at fixed CRFs and scored. Never while serving.
-evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
-                                             Per-title probe timing and early-stop rate on the files.
-```
-
-### Instance de démonstration
-
-```
-evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the demo administrator,
-                                             the visitor accounts, the four libraries, and with
-                                             --media the freely licensed media (gigabytes). Refuses
-                                             unless EVEY_DEMO=1. Dry-run by default.
-```
-
-> La liste complète et toujours à jour est `evey admin` sans sous-commande : il
-> affiche toutes les sous-commandes que contient le binaire.
-
-## Comment l'appeler
-
-### Dans le conteneur (installation standard)
+Dans l'installation standard, les commandes se lancent dans le conteneur, qui
+porte déjà le mot de passe de la base et la configuration `EVEY_*` :
 
 ```sh
 docker exec evey-server evey admin doctor
 docker exec -it evey-server bash      # un shell d'administration : evey admin ..., man evey
 ```
 
-L'image fixe le fichier du mot de passe de la base, si bien que les commandes
-joignent la base intégrée sans aucune variable de plus.
+Sur une installation sans Docker, le binaire s'appelle directement
+(`evey admin reset-password --user alice@example.com`) ; il lit les mêmes
+variables `EVEY_*` que le serveur (`EVEY_DB_HOST`, `EVEY_DB_USER`,
+`EVEY_DB_PASSWORD`, `EVEY_DB_NAME`, `EVEY_BACKUP_DIR`...). La plupart des
+commandes ont besoin de la base ; aucune ne démarre le serveur, et la plupart
+peuvent tourner pendant qu'il est arrêté.
 
-### Sur une installation sans Docker
+| Invocation | Ce qu'elle fait |
+| --- | --- |
+| `evey` | Démarre le serveur. |
+| `evey admin <sous-commande>` | Lance un outil d'exploitation et s'arrête. `evey admin` seul affiche la liste et sort avec le code 1 ; `evey admin <sous-commande> --help` détaille l'une d'elles. |
+| `evey version` | Version, commit, date de construction. N'a besoin ni de configuration ni de base, et répond donc depuis un conteneur qui ne démarre pas. |
+| `evey help` | Le résumé des commandes. |
+| `evey man [--text]` | Le manuel : au format roff pour `man`, en texte brut avec `--text`. |
+| `evey completion bash` | Le script de complétion bash. |
 
-```sh
-evey admin reset-password --user alice@example.com
-evey admin migrate version
+Tout autre premier argument est refusé (code de sortie 1) plutôt que de
+démarrer le serveur en silence.
+
+## Les commandes
+
+La liste ci-dessous reprend le texte `--help` du binaire lui-même, en anglais,
+groupé comme `evey admin` l'affiche. `evey admin` sans sous-commande est
+toujours la liste à jour.
+
+### Restauration
+
+```
+evey admin reset-password --user <email>     Generate a new password for the user, print it once.
+                                             Every session of that user is ended at the same time.
+evey admin rotate-jwt-key                    Regenerate the JWT signing key. Invalidates ALL active
+                                             sessions: the key is moved aside (kept as
+                                             <key>.rotated-<timestamp>), the next server boot
+                                             generates a new one, and every session is ended in the
+                                             database at once.
+evey admin restore-backup <path-to-dump.sql.gz>
+                                             Restore the database from a pg_dump.gz file, in a single
+                                             transaction. Existing rows are OVERWRITTEN; waits 5 s for
+                                             a Ctrl-C before it starts. The .sql.gz suffix is required
+                                             (not the panel's .tar.gz backups).
+evey admin reindex-search [--library <id>] [--purge]
+                                             Rebuild the Meilisearch index from the database (no
+                                             metadata fetch). --purge clears the index first, which
+                                             drops orphan documents. If Meilisearch is down, search
+                                             is served by the Postgres fallback: the command reports
+                                             that and does nothing.
+evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the demo administrator,
+                                             the visitor accounts, the four libraries, and with
+                                             --media the freely licensed media (gigabytes). Refuses
+                                             unless EVEY_DEMO=1. Dry-run by default.
 ```
 
-Le binaire installé contient déjà toutes les sous-commandes.
+`reset-password` et `rotate-jwt-key` mettent tous deux fin à des sessions :
+celles de l'utilisateur pour le premier, celles de tout le monde pour le
+second. Les applications ouvertes s'en aperçoivent en 30 secondes environ et
+redemandent une connexion. Les procédures complètes sont dans
+[Restauration](recovery.md).
 
-### Sur la pile de développement
+### Schéma
 
-Le Makefile enveloppe les commandes de migration, qui s'exécutent depuis les
-sources dans le conteneur de développement `evey-server` :
+```
+evey admin migrate up [--no-backup]          Apply every pending migration.
+evey admin migrate down [--no-backup]        Roll back exactly one migration step.
+evey admin migrate version                   Print the current schema version; exit 1 when a
+                                             previous migration failed halfway (dirty state).
+```
 
-```sh
-make migrate-version
-make migrate-up
-make migrate-down
+Un `pg_dump` d'avant migration est pris pour `up` et `down` quand
+`EVEY_BACKUP_DIR` est défini (`/data/backups` dans l'image Docker) ;
+`--no-backup` le saute, pour les machines sans `pg_dump`. Un échec en cours de
+`up` laisse `schema_migrations.dirty = true` : voir les
+[Procédures de migration](migration-runbook.md). Sur la pile de
+développement, le Makefile enveloppe ces trois commandes en `make migrate-up`,
+`make migrate-down` et `make migrate-version`, exécutées dans le conteneur de
+développement `evey-server`.
+
+### Maintenance des médias
+
+```
+evey admin reindex-no-cue --root <dir> [--apply] [--limit N] [--mode auto|inplace|rewrite] [--deep-verify] [--resync] [--keep-backup=false]
+                                             Rebuild the seek index (Cues) of MKV/WebM files that
+                                             lack one, fixing slow resume. DRY-RUN BY DEFAULT: pass
+                                             --apply to rewrite. Each rewrite is validated and
+                                             cross-checked and keeps a .mkvgobak backup; --limit N for
+                                             a cautious first run; --keep-backup=false drops the
+                                             backups and enforces --deep-verify instead. --mode auto
+                                             takes the surgical in-place patch when the file layout
+                                             allows it and rewrites otherwise; inplace patches only
+                                             (no backup); rewrite always rebuilds and swaps.
+                                             --resync repairs files with a CORRUPTED region the strict
+                                             pass refuses: it skips the damage, keeps the rest and
+                                             reports the lost bytes. LONG: rewrites each file in full
+                                             (hours on a large library); shows a progress bar.
+evey admin validate-streaming --root <dir> [--errors-only]
+                                             Read-only report of each file's streaming readiness: a
+                                             missing Cues index, cue points on a non-video track, cue
+                                             times matching no keyframe, video tracks without a
+                                             DefaultDuration. A file with errors falls back to the
+                                             ffmpeg pipeline. --errors-only skips the warnings.
+evey admin artwork-gc [--root <dir>] [--apply]
+                                             Delete artwork files on disk that no DB row references.
+                                             Dry-run by default. --root defaults to /data/artworks.
+```
+
+Le même moteur travaille derrière **Admin → Santé des médias**, qui est la
+façon la plus simple de réparer une bibliothèque : voir
+[Santé des médias](media-health.md).
+
+### Encodage par titre
+
+```
+evey admin reclassify <media-id>             Force-recompute the complexity class of one media item.
+evey admin reclassify --all                  Wipe every classified row; the background worker then
+                                             re-classifies the whole library at its background pace.
+```
+
+### Diagnostic
+
+```
+evey admin doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch (plus
+                                             index drift), media mounts (can the server write each
+                                             library root?), cache dirs, ffmpeg/mkvgo, trusted
+                                             proxies, remote access and disk. One line per check
+                                             (ok / WARN / FAIL) with a remediation hint; exits 1 when
+                                             a check fails. --repair applies only the safe fixes
+                                             (create and chown the missing writable dirs).
+evey admin rollback                          Read-only advisor: running version, schema, newest
+                                             pre-migration backup and the exact HOST commands to roll
+                                             back. The container has no Docker access, by design, so
+                                             it advises rather than acts.
+evey admin route-bench [--backend nvenc|vaapi|qsv|none] [--heights 1080,2160] [--fps 24,30,50,60] [--out rows.csv] [--json run.json] [<file>...]
+                                             Measure what a session of each transcode route costs on
+                                             this host against the calibration and the cost model.
+                                             Minutes of full load; never while serving.
+evey admin ladder-bench [--scenes 3] [--window 8] [--heights 1080,720] [--crf 18,23,28] [--out rows.csv] [--efficiency --mode full|fast|incremental] <file>...
+                                             Encode a few scenes of each title at fixed CRFs and
+                                             score encode cost against the ladder's complexity
+                                             features. Runs ffmpeg for minutes; never while serving.
+evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
+                                             Run the per-title probe on the given files: probe time,
+                                             early-stop rate and points. Reads and encodes only.
+```
+
+### Capacité
+
+```
+evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S] [--cold-cache]
+                                             Needs a LIVE server: it is an HTTP client of the local
+                                             gateway. Ramps simulated viewers until the box hits its
+                                             ceiling, then reports the sustained count and latencies.
+                                             Scenarios: transcode, natural, mkvgo, light (80/20),
+                                             balanced (50/50, default), heavy (20/80), mkvgo+N.
+                                             Modes: ramp (default), flash, seek, endurance. Presets:
+                                             minimal (4 viewers), standard (12), max (32); an explicit
+                                             --max-viewers wins. --cold-cache keeps evicting the
+                                             library from the page cache so the run measures the
+                                             storage, not the RAM. admission_full is the ceiling
+                                             verdict (exit 0), not an error. Short sanity run:
+                                             load-test --scenario balanced --max-viewers 4
+```
+
+### Sources de complétion
+
+```
+evey admin list-users                        Print user emails, one per line (drives --user completion).
+evey admin list-libraries                    Print every library root path, one per line (drives --root completion).
 ```
 
 ## Complétion et manuel
@@ -157,60 +200,32 @@ evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null && sudo mandb -q
 ```
 
 Sous zsh : lancez d'abord `autoload -U +X bashcompinit && bashcompinit`, puis
-chargez le même script. La complétion couvre les sous-commandes, leurs options et
-les valeurs de ces options (`--mode`, `--backend`, `--scenario`), les adresses
-e-mail des utilisateurs après `--user`, les racines de bibliothèques que connaît
-le serveur après `--root` (plus tout dossier), uniquement des fichiers de médias
-pour les arguments de fichier de `ladder-bench`, `ladder-probe` et `route-bench`,
-et des dumps `.sql.gz` pour `restore-backup`.
+chargez le même script. La complétion couvre les sous-commandes, leurs options
+et les valeurs de ces options (`--mode`, `--backend`, `--scenario`), les
+adresses e-mail des utilisateurs après `--user`, les racines de bibliothèques
+que connaît le serveur après `--root` (plus tout dossier), uniquement des
+fichiers de médias pour les arguments de fichier de `ladder-bench`,
+`ladder-probe` et `route-bench`, et des dumps `.sql.gz` pour `restore-backup`.
 
 L'image Docker installe la complétion à la construction, et son shell
 d'administration (`docker exec -it evey-server bash`) répond à `man evey` en
 affichant `evey man --text` page par page, puisque l'image ne contient pas de
 binaire `man`.
 
-## Détail des sous-commandes
+## Ce qui n'est pas dans `evey admin`
 
-### `migrate`
+Trois programmes autonomes vivent à côté du serveur dans les sources. Ce sont
+des outils de développement et de QA, pas des commandes d'exploitation, et
+l'image Docker ne les contient pas :
 
-- `up` applique dans l'ordre chaque migration en attente. Un `pg_dump` d'avant
-  migration est pris automatiquement quand `EVEY_BACKUP_DIR` est défini (par
-  défaut dans l'image Docker : `/data/backups`). Un échec en cours de route
-  laisse `schema_migrations.dirty = true` ; voir `migration-runbook.md`.
-- `down` revient exactement d'une migration. Chirurgical, pas « tout
-  démolir » : il n'y a pas de `down --all`. Prend aussi un `pg_dump` avant le
-  retour en arrière.
-- `version` affiche la version actuelle du schéma. Renvoie le code de sortie 1
-  avec un avertissement `DIRTY` quand une migration précédente a échoué à
-  mi-chemin (certaines instructions `Up` ont tourné, pas toutes).
-- `--no-backup` saute le pg_dump dans les deux sens. Utile sur les machines sans
-  `postgres-client` (typiquement le développement sous WSL, où le Makefile passe
-  déjà l'option).
-
-### `reset-password`, `rotate-jwt-key`, `restore-backup`, `reindex-search`
-
-Voir `docs/runbooks/recovery.md` pour la procédure complète, les prérequis et
-l'état obtenu ensuite.
-
-## Ce qui n'est *pas* dans `evey admin`
-
-Trois binaires autonomes vivent à côté de `cmd/evey`, parce que ce ne sont pas
-des commandes d'exploitation au sens de la récupération ou du schéma :
-
-| Binaire | Rôle | Pourquoi à part |
-|---|---|---|
-| `cmd/intro-backfill` | Relancer la détection des génériques sur une partie du catalogue après un changement du pipeline | **Client de l'API** : il appelle `/api/v1/admin/media/{id}/detect-segments` avec un jeton, pas dans le processus du serveur. |
-| `cmd/intro-diag` | Comprendre pourquoi la détection de générique par pHash a trouvé (ou non) une correspondance sur une série | Outil de **débogage pour développeurs** : il lit les planches de miniatures de navigation sur le disque et affiche, image par image, la carte des distances de Hamming. Passe facultative de corrélation croisée de l'audio. |
-| `cmd/trickplay-verify` | Vérifier que chaque vignette de miniature de navigation montre bien l'image de l'horodatage enregistré | Outil de **QA/CI** : il réextrait les images de la source avec ffmpeg et les compare à la vignette par aHash. |
-
-Ils sont livrés en binaires séparés parce qu'aucun n'a besoin de toute la
-configuration du serveur : ce sont des outils ciblés, à usage ponctuel, qui ne
-font pas partie de la surface de récupération.
+| Programme | Rôle |
+| --- | --- |
+| `cmd/intro-backfill` | Relancer la détection des intros sur une partie du catalogue après un changement du pipeline. Un client de l'API avec un jeton, pas dans le processus du serveur. |
+| `cmd/intro-diag` | Expliquer pourquoi la détection d'intro a trouvé, ou non, une correspondance sur une série, à partir des planches de miniatures sur le disque. |
+| `cmd/trickplay-verify` | Vérifier que chaque vignette de miniature montre bien l'image de l'horodatage enregistré, en réextrayant l'image source avec ffmpeg. |
 
 ## Runbooks liés
 
-- `migration-runbook.md` : déploiement du schéma, retour en arrière,
-  récupération d'un état « dirty ».
-- `recovery.md` : réinitialisation de mot de passe, rotation de la clé JWT,
-  restauration d'une sauvegarde, réindexation de la recherche.
-- `incident-runbook.md` : les premiers gestes quand le serveur se comporte mal.
+- [Restauration](recovery.md) : réinitialisation de mot de passe, rotation de la clé JWT, restauration d'une sauvegarde.
+- [Procédures de migration](migration-runbook.md) : déploiement du schéma, retour en arrière, récupération d'un état « dirty ».
+- [Procédures d'incident](incident-runbook.md) : les premiers gestes quand le serveur se comporte mal.

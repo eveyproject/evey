@@ -1,15 +1,16 @@
 ---
-source_sha: 4b14a032f225f707829e1d00b578f2e81bee81627ef8b5932214d7b1d79efab7
+source_sha: 73af16ce19614270ba8c82666eb36b50f1823fd8f8aae8b613e6bc6661fbf8bd
 reviewed: true
 ---
-# Installation { #install }
+# Installation
 
-Evey tient dans un seul conteneur. L'image sert l'API et l'interface web sur
+Evey tient dans un seul conteneur : l'image sert l'API et l'interface web sur
 un même port, et fait tourner sa propre base de données (Postgres) et son
-moteur de recherche (Meilisearch), dont les mots de passe sont générés au
-premier démarrage. Le fichier compose ci-dessous constitue toute
-l'installation : pas de `.env`, pas de mode privilégié, aucun réglage de
-mémoire ou de CPU.
+moteur de recherche (Meilisearch). Cette page s'adresse à la personne qui
+fait tourner Docker chez elle ou sur un NAS : copiez le fichier compose,
+démarrez-le, ouvrez **`http://<adresse-du-serveur>:9091`** dans un
+navigateur, puis suivez l'assistant de configuration. Pas de `.env`, pas de
+mode privilégié, aucun réglage de mémoire ou de CPU.
 
 !!! warning "Pas le docker-compose.yml du dépôt"
 
@@ -18,7 +19,7 @@ mémoire ou de CPU.
     obligatoire). Utilisez le fichier de cette page. L'autre disposition est
     décrite dans [Déploiements avancés](operations/advanced-deployments.md).
 
-## Prérequis { #requirements }
+## Prérequis
 
 - Docker avec Compose v2 (`docker compose`, et non l'ancien `docker-compose`).
 - Un disque persistant pour les données d'Evey (le fichier compose ci-dessous
@@ -30,7 +31,7 @@ Evey sert du HTTP simple. Pour y accéder depuis l'extérieur en HTTPS, vous
 placerez plus tard un reverse proxy devant : voir
 [Accès distant et HTTPS](administration/remote-access.md).
 
-## Le fichier compose { #the-compose-file }
+## Le fichier compose
 
 Enregistrez ce contenu sous `docker-compose.yml` et remplacez le chemin de vos
 médias sur la dernière ligne de `volumes`.
@@ -58,7 +59,9 @@ volumes:
    modification. Pour exécuter le même code d'un `pull` à l'autre, mettez ici
    un tag immuable `sha-<commit>` : voir
    [Sauvegardes et mises à jour](backups.md#updating-evey).
-2. L'API et l'interface web, sur un seul port, en HTTP simple.
+2. L'API et l'interface web, sur un seul port, en HTTP simple. Le nombre de
+   gauche est le port que vous taperez dans le navigateur et dans les
+   applications ; gardez `9091` sauf s'il est déjà pris sur la machine.
 3. Tout ce qui appartient à Evey : base de données, clé de signature, mots de
    passe générés, index de recherche, miniatures de navigation, visuels, logs,
    sauvegardes, plugins. C'est le dossier à sauvegarder.
@@ -73,7 +76,7 @@ volumes:
    `docker stop`. Les 10 secondes par défaut de Docker sont courtes pour un
    gros catalogue.
 
-## Premier démarrage { #first-launch }
+## Premier démarrage
 
 ```bash
 docker compose up -d
@@ -84,11 +87,36 @@ Au premier démarrage, le serveur génère sa clé de signature et ses mots de
 passe dans `./evey-data`, crée la base de données et applique ses migrations.
 Rien n'est à préparer à la main.
 
-Ouvrez ensuite `http://<adresse-du-serveur>:9091`. Un serveur sans
-administrateur s'ouvre sur l'assistant de configuration : poursuivez avec la
-[Première configuration](getting-started/first-setup.md).
+## L'adresse à ouvrir ensuite
 
-## Où sont les données { #where-the-data-lives }
+Ouvrez **`http://<adresse-du-serveur>:9091`** dans un navigateur sur le même
+réseau :
+
+| Où se trouve le navigateur | Adresse à taper |
+| --- | --- |
+| Sur la machine qui fait tourner Docker | `http://localhost:9091` |
+| Un autre ordinateur ou un téléphone de la maison | `http://` + l'IP de la machine Docker sur votre réseau domestique + `:9091`, par exemple `http://192.168.1.20:9091` |
+| Hors de chez vous | Pas encore : il faut du HTTPS et une adresse publique, voir [Accès distant et HTTPS](administration/remote-access.md) |
+
+L'IP de la machine Docker se lit dans la liste des appareils de votre box ou
+routeur, ou sur la machine elle-même (`ip a` sous Linux, `ipconfig` sous
+Windows, `ifconfig` sous macOS). Le port est le nombre de gauche de la ligne
+`ports:` du fichier compose.
+
+Un serveur sans administrateur s'ouvre sur l'assistant de configuration :
+poursuivez avec la
+[Première configuration](getting-started/first-setup.md#1-the-setup-wizard).
+Une fois l'administrateur créé, la même adresse s'ouvre sur la page de
+connexion.
+
+!!! tip "Les applications demandent la même adresse"
+
+    Les applications Android et Android TV demandent l'adresse du serveur sur
+    leur premier écran. C'est exactement cette adresse, avec `http://` et le
+    port :
+    [L'adresse du serveur à saisir](getting-started/apps.md#the-server-address-to-enter).
+
+## Où sont les données
 
 | Emplacement | Contenu | Peut-on le supprimer ? |
 | --- | --- | --- |
@@ -96,12 +124,16 @@ administrateur s'ouvre sur l'assistant de configuration : poursuivez avec la
 | Volume `evey-cache` | Segments transcodés, photos et pochettes redimensionnées | Oui. Tout se régénère à la demande. |
 | Vos dossiers de médias | Vos fichiers | Evey ne les supprime pas : retirer un titre dans Evey le retire de la bibliothèque, pas du disque. Il y écrit dans trois cas : une réparation lancée depuis la Santé des médias (l'original est gardé en copie de secours), les sous-titres téléchargés depuis OpenSubtitles (un dossier `.subtitles` à côté du film), et un fichier de test de quelques secondes qui vérifie que la surveillance du dossier reçoit toujours les événements. |
 
-## Variantes courantes { #common-variations }
+## Variantes courantes
 
 Chacune tient en quelques lignes ajoutées au même fichier.
 
 **Un second dossier de médias.** Ajoutez `- /autre/chemin:/media2` sous
 `volumes:`.
+
+**Un autre port sur la machine.** Changez uniquement le nombre de gauche, par
+exemple `"8080:9091"`, et tapez `:8080` dans le navigateur et les
+applications.
 
 **Propriétaire des fichiers.** Par défaut, le conteneur adopte le
 propriétaire de votre montage `/media`, pour que les réparations puissent
@@ -129,7 +161,7 @@ conteneur : voir [Accélération matérielle](administration/hardware-accelerati
       `group_add:` décrites dans
       [Accélération matérielle](administration/hardware-acceleration.md).
 
-## Ce que vous n'avez pas à configurer { #what-you-do-not-need-to-configure }
+## Ce que vous n'avez pas à configurer
 
 La capacité de transcodage, la carte graphique, le mode de lecture adapté à
 chaque appareil et l'accès distant sont décidés par le serveur : il mesure la

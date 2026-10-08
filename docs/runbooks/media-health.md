@@ -1,27 +1,29 @@
 # Media health
 
-**Admin → Media Health** reads every MKV/WebM file of your libraries and gives
-each one a single answer. The aim is a page that empties out: what Evey can fix,
-it fixes; the rest is mentioned once and can be marked as seen.
+A title seeks slowly, stalls at one point, or its sound drifts: **Admin →
+Media Health** reads every MKV/WebM file of your libraries and gives each one a
+single answer. The aim is a page that empties out: what Evey can fix, it fixes
+(**Repair all**); the rest is mentioned once and can be marked as seen.
 
 <figure class="evey-shot" markdown="span">
   ![Admin → Media Health after a scan: one file to repair, one remark](../images/admin-media-health.webp){ loading=lazy }
   <figcaption>A scan with one file Evey can repair (its seek index is missing) and one remark (surplus bytes after the end of the file, harmless).</figcaption>
 </figure>
 
-## Three verdicts
+## Two verdicts
+
+A file that is not **Healthy** (index, container, sizes and audio timing
+check out) gets one of two answers, and deliberately only two:
 
 | Verdict | What it means | What Evey does |
 | --- | --- | --- |
-| **Healthy** | Index, container, sizes and audio timing check out. | Nothing. |
-| **Repairable here** | A defect Evey repairs on this server. | **Repair all** handles them in the background. |
-| **Information** | Something measured about the file that Evey does not rewrite on its own. | Nothing. Mark it as seen. |
+| **Repairable** | A defect Evey repairs on this server. | **Repair all** handles them in the background; its count is exactly their count. |
+| **Info** | Something measured about the file that Evey does not rewrite on its own. | Nothing. Mark it as seen. |
 
-None of them hands you a chore. A measurement Evey cannot act on is a
-remark, and a measurement can be wrong: if the file plays fine, it is
-fine.
+Neither hands you a chore. A measurement Evey cannot act on is a remark, and
+a measurement can be wrong: if the file plays fine, it is fine.
 
-### Repairable here
+### Repairable
 
 - **Missing seek index**, or one that cannot be used. The symptom is a slow
   seek or a slow resume. The index is rebuilt in a temporary copy, the copy is
@@ -39,7 +41,7 @@ fine.
   rewrites them side by side without re-encoding and checks that every packet
   made it before replacing the file.
 
-### Information
+### Info
 
 - **Incomplete download**: the end of the file never arrived. It plays up to
   the cut. No tool recovers the missing part; only the source does.
@@ -76,7 +78,7 @@ judgement, not as a measurement, and **History** can undo it.
 ## Marking as seen
 
 **Seen, stop flagging** (one file) and **Mark all as seen** (a group) take an
-Information remark out of the **Awaiting** view. Only remarks can be marked:
+Info remark out of the **Awaiting** view. Only remarks can be marked:
 a repairable defect gets repaired. The mark belongs to the file as it is: if its
 size or date changes, the next scan diagnoses it again. **Flag again** undoes
 the mark.
@@ -130,7 +132,8 @@ the page says so. Scanning works either way.
 
 ## From the command line
 
-The same engine is available from the operator CLI (see `cli.md`):
+The same engine is available from the operator CLI, see
+[Command line](cli.md#media-maintenance):
 
 - `evey admin reindex-no-cue --root <dir> [--apply] [--resync]` rebuilds the
   missing indexes, as a dry run unless `--apply` is given;
@@ -138,7 +141,7 @@ The same engine is available from the operator CLI (see `cli.md`):
   readiness report.
 
 <!-- sources
-verdicts and the dropped third verdict: internal/app/maintenance/seek_index.go - SeekStatus.Verdict, Ackable
+verdicts (two non-healthy answers, the dropped third one): internal/app/maintenance/seek_index.go - Verdict, SeekStatus.Verdict, Ackable ; labels: i18n admin.seekIndex.verdictHealthy/verdictRepairable/verdictInformational
 labels and hints: i18n admin.seekIndex.*, admin.repairJournal.*, admin.repairHistory.*, admin.syncPreview.*
 what can be undone without a copy: internal/app/maintenance/repair_journal.go - RepairRecord.Reversible
 apply an audio offset: internal/adapters/driving/grpcapi/admin_media.go - ApplyAudioShift

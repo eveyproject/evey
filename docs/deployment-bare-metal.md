@@ -1,30 +1,23 @@
-# Bare-Metal Deployment (no Docker)
+# Without a container
 
-Running Evey directly on a host (systemd, an init script, or by hand) instead of
-the [Docker image](installation.md). The Docker image is the recommended path -
-it ships the plugin sandbox, hardening, and runtimes pre-wired. Going bare metal
-means **you** reproduce that posture: the right binaries side by side, a
-dedicated non-root user, the sandbox backend your kernel supports, and
-owner-only secret directories. This page is the step-by-step for that.
+How to run Evey directly on a host (systemd, an init script, or by hand)
+instead of the [Docker image](installation.md). The image is the
+recommended path: it ships the plugin sandbox, the hardening and the plugin
+runtimes already wired. Going bare metal means reproducing that posture
+yourself: the right binaries side by side, a dedicated non-root user, the
+sandbox backend your kernel supports, and owner-only secret directories.
+This page walks through it in order.
 
-If you only want the easy install, stop here and use
-[installation.md](installation.md).
+## Build and install the binaries
 
-## 1. Prerequisites
-
-### Binaries (build from source)
-
-Build both Go binaries and **place them in the same directory**. The plugin
-runner locates the launcher by checking `$EVEY_PLUGIN_LAUNCHER` first, then
-next to its own executable (`os.Executable()`), then `$PATH` - so keeping them
-adjacent is the simplest correct layout.
+Build the two Go binaries and install them in the same directory: the
+plugin runner looks for the launcher in `$EVEY_PLUGIN_LAUNCHER` first, then
+next to its own executable, then on `$PATH`.
 
 ```bash
-# from the repo root
+# from the repository root
 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(git describe --tags --always) -X main.commit=$(git rev-parse HEAD)" -o evey ./cmd/evey
-CGO_ENABLED=0 go build -ldflags="-s -w"                                        -o evey-plugin-launcher ./cmd/evey-plugin-launcher
-
-# install side by side, e.g.:
+CGO_ENABLED=0 go build -ldflags="-s -w" -o evey-plugin-launcher ./cmd/evey-plugin-launcher
 sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
 
 # optional: shell completion and the manual page, both printed by the binary
@@ -32,54 +25,47 @@ sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
 /opt/evey/evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null
 ```
 
-Lookup order in `launcherPath()` (`internal/adapters/driven/pluginrunner/runner_landlock.go`):
+`evey version` prints the version, commit and build date without any
+configuration.
 
-1. `$EVEY_PLUGIN_LAUNCHER` (must be an executable file) - explicit override.
-2. `evey-plugin-launcher` in the **same directory** as the running `evey` binary.
-3. `evey-plugin-launcher` somewhere on `$PATH`.
+### The seccomp shim
 
-### The LD_PRELOAD seccomp shim
-
-Build the `libevey-sandbox.so` shim (a small C file; needs a C compiler):
+Build `libevey-sandbox.so` (one C file, needs a C compiler) and install it
+at the path the runner expects, `/app/libevey-sandbox.so`:
 
 ```bash
 gcc -shared -fPIC -nostartfiles -o libevey-sandbox.so sandbox/sandbox.c
-sudo install -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
+sudo install -D -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
 ```
 
-The runner looks for it at the **hardcoded path `/app/libevey-sandbox.so`**
-(`sandboxLibPath` in `runner.go`). If it is absent, plugins **refuse to start**
-(fail-closed) - unless you run in dev mode. This shim adds a seccomp denylist for
-dynamically-linked plugins and is layered on top of Landlock/bubblewrap.
+The path is fixed in the runner. Without the file, plugins refuse to start
+(fail closed) unless the server runs in dev mode. The shim adds a seccomp
+denylist for dynamically linked plugins, on top of Landlock or bubblewrap.
+The image keeps it under `/app` with the SDK; a symlink works too.
 
-> The Docker image keeps the open-source binaries, SDK, and this shim under
-> `/app` (no secrets there). On bare metal you can either mirror that path
-> (`/app/libevey-sandbox.so`) or symlink it.
-
-### Runtimes
+### Runtimes and services
 
 Install whatever your plugins' `entrypoint:` invokes. The runner recognises
-these interpreters (`knownInterpreters` in `runner_start.go`): `python3`, `python`,
-`node`, `php`, `ruby`, `perl`, `lua`, `bash`, `sh`. At minimum:
+`python3`, `python`, `node`, `php`, `ruby`, `perl`, `lua`, `bash` and `sh`;
+`python3` covers most community plugins. Then the services the server talks
+to:
 
-- **`python3`** - the majority of community plugins.
-- **`node`**, **`php`**, **`ruby`**, **`lua`** - only if your plugins use them.
+| Dependency | Why |
+|---|---|
+| **ffmpeg** and **ffprobe** | transcoding, probing; the image also bundles VAAPI drivers and `fpcalc` (chromaprint) for intro detection |
+| **PostgreSQL** (server plus a database) and **`pg_dump`** | the database; `pg_dump` writes the automatic pre-migration dump |
+| **Meilisearch** | the search index; without it search falls back to SQL |
+| **`bwrap`** (bubblewrap) | only for the bubblewrap sandbox backend |
+| **`setcap`** (libcap) | to grant the launcher its file capability |
 
-Plus the core runtime dependencies:
+The embedded database and search engine are a feature of the image's
+entrypoint, not of the binary: on bare metal you run both yourself and point
+`EVEY_DB_HOST` and `EVEY_MEILI_URL` at them.
 
-- **ffmpeg** (transcoding; the image also bundles VAAPI drivers + `chromaprint`
-  for intro detection).
-- **PostgreSQL** (server + a database).
-- **Meilisearch** (search index; or run it embedded via the official binary).
-- **`bwrap`** (bubblewrap) - only if you intend to use the bubblewrap sandbox
-  backend (see below).
-- **`libcap`** (`setcap`) - to grant the file capability described in §4.
+## Run as a dedicated non-root user
 
-## 2. Run as a dedicated non-root user
-
-**Never run the server as root.** Create a group and two unprivileged users,
-as the Docker image does; plugins are dropped to UID 1001 (`pluginUID` in
-`pluginhost/host_server.go`):
+Never run the server as root. Create a group and two unprivileged users, as
+the image does:
 
 ```bash
 sudo groupadd --gid 1000 evey
@@ -87,82 +73,75 @@ sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
 sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugin
 ```
 
-The group's id matters: the launcher drops a plugin to UID 1001 and to the
-server's own group, and refuses any id below 1000. A group created by
-`useradd --system` alone gets a system id below 1000, and plugins in `basic`
-mode are then refused.
-
 - `evey` (UID 1000) runs the server.
-- `evey-plugin` (UID 1001) is the UID plugins are dropped to (by the launcher
-  when uid separation is active), so a compromised plugin lands as a different,
-  unprivileged user that cannot read the server's secrets by plain filesystem
-  permissions. See §4.
+- `evey-plugin` (UID 1001) is the user plugins are dropped to when uid
+  separation is active, so a compromised plugin lands as a different
+  unprivileged user that cannot read the server's secrets by plain file
+  permissions.
 
-The server marks itself **non-dumpable** at startup (`PR_SET_DUMPABLE=0`,
-`cmd/evey/hardening_linux.go`) so a co-resident plugin can't scrape
-`/proc/<server-pid>/{mem,environ}`.
+!!! warning
+    The group id matters: the launcher drops a plugin to UID 1001 and to the
+    server's own group, and refuses any uid or gid below 1000. A group
+    created by `useradd --system` alone gets a system id below 1000, and
+    plugins in `basic` mode are then refused.
 
-## 3. Pick the sandbox backend for your kernel
+The server marks itself non-dumpable at startup (`PR_SET_DUMPABLE=0`), so a
+co-resident plugin cannot read `/proc/<server-pid>/{mem,environ}`.
 
-Set `EVEY_PLUGINS_SANDBOX_MODE`. `auto` (the default) resolves
-**landlock → bubblewrap → basic** and picks the strongest your host supports
-(`resolveAutoMode()` in `runner_landlock.go`). Choose explicitly if you want
-fail-closed behaviour.
+## Pick the sandbox backend for your kernel
+
+Set `EVEY_PLUGINS_SANDBOX_MODE`. `auto` (the default) resolves in the order
+landlock, bubblewrap, basic and picks the strongest the host supports. Set
+a mode explicitly when you want fail-closed behaviour.
 
 ### Landlock (recommended)
 
-A per-path filesystem allowlist (plugins see only their own dir + socket dir,
-never your data/secrets) plus a Landlock v4 TCP-egress filter. Needs **no
-privilege, no mount, no namespaces** - the launcher applies it to itself, then
-`execve`s the plugin.
+A per-path filesystem allowlist (a plugin sees its own directory and the
+socket directory, never your data or secrets) plus a Landlock v4 TCP egress
+filter. It needs no privilege, no mount and no namespace: the launcher
+applies it to itself, then executes the plugin.
 
-**Kernel requirement** - Landlock must be both compiled in *and* in the active
-LSM list. The runner's `landlockAvailable()` (`landlock_probe_linux.go`) probes
-`landlock_create_ruleset(VERSION)`; it returns an errno when the syscall is
-absent (kernel `<5.13`) or when Landlock is not in the active LSM list. Verify:
+Landlock must be compiled in and in the active LSM list. The runner probes
+`landlock_create_ruleset`; the probe fails when the syscall is absent
+(kernel older than 5.13) or when Landlock is not in the active list. Check:
 
 ```bash
-uname -r                              # want >= 5.13
+uname -r                              # want 5.13 or newer
 cat /sys/kernel/security/lsm          # must include "landlock"
 ```
 
-If `landlock` is missing from that list, enable it on the kernel command line
-and reboot (the exact list varies per distro - keep the existing entries and
-append `landlock`):
+If `landlock` is missing from that list, add it on the kernel command line
+and reboot (keep the existing entries, the list varies per distribution):
 
 ```
 # e.g. in GRUB_CMDLINE_LINUX:
 lsm=lockdown,capability,yama,apparmor,bpf,landlock
 ```
 
-Then:
+Then either keep `auto` or pin it:
 
 ```bash
-EVEY_PLUGINS_SANDBOX_MODE=landlock    # explicit + fail-closed (refuses a plugin if Landlock can't be enforced)
-# or leave it on the default:
-EVEY_PLUGINS_SANDBOX_MODE=auto        # resolves to landlock when available
+EVEY_PLUGINS_SANDBOX_MODE=landlock    # fail closed: a plugin is refused when Landlock cannot be enforced
 ```
 
-`landlock` mode passes `-require-landlock` to the launcher, which exits non-zero
-rather than running a plugin unconfined if Landlock isn't enforced.
+`landlock` passes `-require-landlock` to the launcher, which exits non-zero
+rather than run a plugin unconfined.
 
 ### bubblewrap
 
-If you can't get Landlock, install the `bwrap` binary. bubblewrap puts each
-plugin in user/pid/uts/ipc/(net) namespaces with a mount whitelist. It needs
-**unprivileged user namespaces enabled** and the **`mount` syscall available** -
-true on most bare-metal Linux, but blocked inside a non-privileged Docker
-container (which is exactly why Landlock is the container default). `auto` only
-selects bubblewrap when Landlock is **absent** and a throwaway bwrap probe
-actually succeeds (`ProbeSandbox` / `sandbox_probe.go`).
+When Landlock is not available, install `bwrap`. It puts each plugin in
+user, pid, uts, ipc and network namespaces with a mount allowlist. It needs
+unprivileged user namespaces and the `mount` syscall, true on most bare-metal
+Linux but blocked inside an unprivileged container, which is why Landlock is
+the container default. `auto` only selects bubblewrap when Landlock is
+absent and a throwaway `bwrap` probe succeeds.
 
 ```bash
-EVEY_PLUGINS_SANDBOX_MODE=bubblewrap  # bwrap namespaces
-# or:
-EVEY_PLUGINS_SANDBOX_MODE=strict      # bubblewrap + the LD_PRELOAD seccomp shim
+EVEY_PLUGINS_SANDBOX_MODE=bubblewrap  # namespaces
+EVEY_PLUGINS_SANDBOX_MODE=strict      # namespaces plus the seccomp shim
 ```
 
-Sanity-check that the host actually permits the namespace+mount setup:
+Check that the host permits the namespace and mount setup:
 
 ```bash
 bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
@@ -170,140 +149,152 @@ bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 
 ### basic (last resort)
 
-`EVEY_PLUGINS_SANDBOX_MODE=basic` - UID drop + the LD_PRELOAD seccomp shim, and
-the launcher still installs the kernel seccomp denylist and best-effort Landlock
-if present. There is **no per-path filesystem confinement**: a plugin runs at
-UID 1001 with seccomp only. Use this only on old/locked-down kernels where
-neither Landlock nor bubblewrap is available, and lean on the UID separation in
-§4 to protect secrets.
+`EVEY_PLUGINS_SANDBOX_MODE=basic` is a uid drop plus the seccomp shim; the
+launcher, when present, still installs its kernel seccomp denylist and
+best-effort Landlock. There is no per-path filesystem confinement: a plugin
+runs at UID 1001 with seccomp only. Use it on old or locked-down kernels
+where neither Landlock nor bubblewrap works, and rely on the uid separation
+below to protect the secrets.
 
-> **A plugin granted the `subprocess` permission requires the launcher**, even in
-> basic mode. The LD_PRELOAD shim does not survive an `exec` of a child process,
-> so it cannot confine a plugin allowed to spawn subprocesses - only the
-> launcher's kernel seccomp (installed right before `exec` and inherited across
-> it) does. If `evey-plugin-launcher` is missing (see §1), such a plugin
-> **refuses to start** in production (fail-closed) rather than running
-> unconfined. Plugins without that permission fall back to the LD_PRELOAD shim as
-> documented above.
+A plugin granted the `subprocess` permission requires the launcher even in
+`basic` mode: the shim does not survive an `exec` of a child process, only
+the launcher's kernel seccomp does. Without the launcher such a plugin
+refuses to start rather than run unconfined.
 
-## 4. UID separation (protect secrets without root)
+## Keep secrets out of a plugin's reach
 
-UID separation runs each plugin under a separate user (UID 1001, `evey-plugin`),
-distinct from the server (UID 1000), so a plugin can't read the server's
-`jwt.key`, backups or logs by plain filesystem permissions (DAC). It matters most
-in **`basic`** mode (no Landlock path confinement); under Landlock or bubblewrap
-the filesystem is already walled off, so it's redundant there.
+Uid separation runs each plugin under `evey-plugin` (UID 1001), distinct
+from the server (UID 1000), so a plugin cannot read `jwt.key`, the backups
+or the logs by plain file permissions. It matters in `basic` mode; under
+Landlock or bubblewrap the filesystem is already walled off, so it is
+redundant there.
 
-Controlled by `EVEY_PLUGINS_UID_SEPARATION` (`auto` | `on` | `off`, default
-`auto`):
+`EVEY_PLUGINS_UID_SEPARATION`:
 
-- `auto` - enable only when the sandbox resolves to `basic`. On a modern
-  bare-metal kernel (Landlock) it stays off, by design.
-- `on` - always, even under Landlock/bubblewrap (an extra independent layer).
-- `off` - never.
+| Value | Behaviour |
+|---|---|
+| `auto` (default) | on only when the sandbox resolves to `basic` |
+| `on` | always, as an extra independent layer |
+| `off` | never |
 
-**The drop is done by the launcher, not the server.** The server stays non-root
-with **no** capabilities; the small `evey-plugin-launcher` binary carries a single
-file capability and `setuid`s itself to 1001 just before exec'ing the plugin:
+The drop is done by the launcher, not the server. The server stays non-root
+with no capability; the launcher carries one file capability and switches to
+UID 1001 just before executing the plugin:
 
 ```bash
 sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 ```
 
-This keeps the server fully unprivileged - a server RCE can't `setuid(0)` because
-the server holds no caps; only the tiny, no-input launcher does (and it refuses
-any target UID below 1000). If the launcher can't drop (capability missing, or
-`no_new_privs` set), a plugin in `basic` mode is **refused** - the UID is its only
-secret wall there; under Landlock it logs a warning and runs at the server's UID.
+The launcher refuses any target uid or gid below 1000. When it cannot drop
+(capability missing, `no_new_privs` set), a plugin in `basic` mode is
+refused, since the uid is its only wall there; under Landlock it logs a
+warning and runs at the server's uid.
 
-> **Incompatible with `no_new_privs`.** If you launch the server with
-> `no-new-privileges` (or systemd `NoNewPrivileges=yes`), the file capability is
-> ignored on exec: plugins are refused in `basic` mode, and under Landlock uid
-> separation degrades to same-UID (with a warning). Pick one.
+!!! warning
+    Uid separation is incompatible with `no_new_privs`. If the server runs
+    under systemd `NoNewPrivileges=yes`, the file capability is ignored on
+    exec: plugins are refused in `basic` mode, and under Landlock uid
+    separation degrades to same-uid. Pick one.
 
-If the server runs **as root** instead (not recommended), it drops plugins to
-1001 directly and the launcher capability isn't needed.
+If the server runs as root instead (not recommended), it drops plugins to
+1001 directly and the capability is not needed. The plain-language picture
+per scenario is in [Plugin sandbox setup](plugins/sandbox-deployment.md).
 
-See the plain-language guide for the per-scenario picture:
-[plugins/sandbox-deployment.md](plugins/sandbox-deployment.md).
+## Secret file permissions
 
-## 5. Secret file permissions
-
-Mirror what the Docker image does (`Dockerfile`): keep the secret-bearing
-directories **owner-only** so a plugin dropped to UID 1001 can't read them via
-plain DAC, even without Landlock.
+Mirror the image: secret-bearing directories are owner-only, so a plugin
+dropped to UID 1001 cannot read them even without Landlock.
 
 ```bash
 sudo chown -R evey:evey /var/lib/evey
-# The SERVER owns plugins/ (it extracts installs there); group evey - which
-# evey-plugin belongs to - only reads/execs the installed files:
+# the server owns plugins/ (it extracts installs there); group evey,
+# which evey-plugin belongs to, only reads and executes the installed files:
 sudo chmod 750 /var/lib/evey/plugins
-# owner-only (no group/other) on the secret dirs:
+# owner-only on the secret directories:
 sudo chmod 700 /var/lib/evey/keys /var/lib/evey/logs /var/lib/evey/backups
-# the JWT signing key itself:
-sudo chmod 600 /var/lib/evey/jwt.key      # (auto-generated 0600 on first boot)
+# the JWT signing key itself (generated 0600 on first boot):
+sudo chmod 600 /var/lib/evey/jwt.key
 ```
 
-(Adjust paths to wherever you point `EVEY_*_DIR` / `EVEY_JWT_PRIVATE_KEY_PATH`.)
+Adjust the paths to wherever you point the `EVEY_*_DIR` variables and
+`EVEY_JWT_PRIVATE_KEY_PATH`.
 
-## 6. Environment & config
+## Configure the environment
 
-All runtime config is via `EVEY_*` environment variables. Set the database,
-search, storage paths, JWT key path, and reverse-proxy vars the same way the
-Docker deployment does - see [configuration.md](configuration.md) for the full
-table and [installation.md](installation.md) for the database/search/reverse-proxy
-walkthrough. Don't duplicate the table here. Notes specific to bare metal:
+All configuration is `EVEY_*` environment variables; [Configuration](configuration.md)
+has the full table. Points specific to a bare-metal run:
 
-- Point `EVEY_DB_HOST` / `EVEY_MEILI_URL` at your local PostgreSQL / Meilisearch.
-- The server still serves **plain HTTP** - put a reverse proxy in front for TLS
-  (an `https://` External URL and the proxy in Trusted proxies, in
-  **Admin → Remote Access**, or `EVEY_SERVER_BASE_URL` and
-  `EVEY_TRUSTED_PROXIES`). See [reverse-proxy.md](reverse-proxy.md).
-- **The server opens TWO ports, and only one of them may be exposed.**
-  `EVEY_SERVER_PORT` (default `9090`) is the native gRPC listener; the HTTP API
-  your clients and reverse proxy talk to is **that port plus one** (`9091`).
-  Point your reverse proxy and your firewall at the HTTP port only. The gRPC
-  port is an internal transport: the remote-access network gate, which decides
-  whether clients outside your LAN may connect at all, is wired into the HTTP
-  chain and **does not cover the gRPC listener**. Because of that, the gRPC
-  listener binds to **loopback only** by default (`EVEY_GRPC_BIND=127.0.0.1`),
-  so a bare-metal run cannot expose it by accident. If you have a reason to
-  publish it - a native gRPC client on another host - set
+- Point `EVEY_DB_HOST` and `EVEY_MEILI_URL` at your PostgreSQL and
+  Meilisearch. `EVEY_DB_PASSWORD` must not be the default `evey`.
+- The Go defaults for paths were chosen for the container: set
+  `EVEY_LOG_DIR` (defaults to the relative `logs`), `EVEY_BACKUP_DIR`
+  (`/data/backups`), `EVEY_TRANSCODING_CACHE_DIR` (`/data/transcode`),
+  `EVEY_TRICKPLAY_CACHE_DIR` (`/cache/trickplay`) and
+  `EVEY_JWT_PRIVATE_KEY_PATH` (`/data/jwt.key`) to your own directories.
+- The server serves plain HTTP: put a reverse proxy in front for TLS, with an
+  `https://` **External URL** and the proxy in **Trusted proxies** (**Admin
+  -> Remote Access**; `EVEY_SERVER_BASE_URL` and `EVEY_TRUSTED_PROXIES` are
+  the fallbacks). See [Reverse proxy](reverse-proxy.md).
+- **The server opens two ports, and only one may be exposed.**
+  `EVEY_SERVER_PORT` (default `9090`) is the native gRPC listener; the HTTP
+  API your clients and reverse proxy talk to is that port plus one (`9091`).
+  The remote-access gate, which decides whether clients outside your LAN may
+  connect, is wired into the HTTP chain and does not cover the gRPC
+  listener, which therefore binds to loopback only by default
+  (`EVEY_GRPC_BIND=127.0.0.1`). If you have a reason to publish it, set
   `EVEY_GRPC_BIND=0.0.0.0`; the server warns at boot that the gate does not
   apply to it, and firewalling it is then on you.
-- Migrations run automatically at startup; no separate migrate step.
+- Migrations run at startup; there is no separate migrate step.
 - The plugin resource caps (`EVEY_PLUGINS_MEMORY_MB`, `_PIDS_MAX`,
-  `_DISK_MAX_MB`, `_CPU_NICE`) and the sandbox mode are admin-editable at runtime
-  from Admin → Plugins; the env values are just the initial defaults.
+  `_DISK_MAX_MB`, `_CPU_NICE`) and the sandbox mode are editable at runtime
+  from **Admin -> Plugins -> Resource limits**; the environment values are
+  the initial defaults.
+- The admin panel's server restart relies on the image's supervisor and
+  reports itself unavailable in a bare run: restart the service yourself.
 
-## 7. Verify your sandbox
+## Verify the sandbox
 
-The server logs the resolved sandbox backend. After the first plugin starts,
-check the server log:
+The server logs the backend it resolved. After the first plugin starts, look
+for:
 
-- **auto resolution** (logged once):
-  `plugin sandbox auto-detection complete  selected_mode=landlock`
-  (or `bubblewrap` / `basic`).
-- **per-plugin** (every plugin start):
-  `plugin sandbox applied  sandbox_mode=landlock plugin_id=...`
-- **fell back to basic** (a warning you do *not* want to see if you expected
-  Landlock): `plugin sandbox auto-detection fell back to basic mode: no per-path filesystem isolation available …` - means neither Landlock nor a working bwrap
-  was found. Re-check §3.
+- once, for `auto`: `plugin sandbox auto-detection complete
+  selected_mode=landlock` (or `bubblewrap`, `basic`);
+- at every plugin start: `plugin sandbox applied sandbox_mode=landlock
+  plugin_id=...`;
+- the warning you do not want when you expected Landlock: `plugin sandbox
+  auto-detection fell back to basic mode: no per-path filesystem isolation
+  available ...`, meaning neither Landlock nor a working `bwrap` was found.
+  Re-check the backend section above.
 
-Confirm the kernel pieces independently:
+Confirm the kernel side independently:
 
 ```bash
-cat /sys/kernel/security/lsm          # Landlock active? (should list "landlock")
-grep Seccomp: /proc/<plugin-pid>/status   # 2 = filter mode active on a running plugin
+cat /sys/kernel/security/lsm              # lists "landlock"
+grep Seccomp: /proc/<plugin-pid>/status   # 2 = a seccomp filter is active on the plugin
 ```
 
-A `Seccomp: 2` line on a live plugin process confirms the kernel seccomp filter
-is installed. If you pinned `EVEY_PLUGINS_SANDBOX_MODE=landlock` and Landlock
-isn't enforced, the plugin **refuses to start** - that's the fail-closed
-contract working as intended.
+A `Seccomp: 2` line on a live plugin process confirms the kernel filter is
+installed. With `EVEY_PLUGINS_SANDBOX_MODE=landlock` and Landlock not
+enforced, the plugin refuses to start: that is the fail-closed contract
+working.
 
----
+For backups, updates and the recovery commands, the container pages apply
+as they are: [Backups and updates](backups.md), [Recovery](runbooks/recovery.md)
+and the [command line](runbooks/cli.md) describe the same `evey admin`
+binary.
 
-For everything else (backups, updates, recovery CLI, troubleshooting) the
-Docker-oriented sections of [installation.md](installation.md) apply equally -
-the `evey admin` subcommands and backup mechanics are the same binary.
+<!-- sources
+launcher lookup: internal/adapters/driven/pluginrunner/runner_landlock.go - launcherPath, launcherBinaryName, resolveAutoMode
+shim path and modes: internal/adapters/driven/pluginrunner/runner.go - sandboxLibPath, sandboxModeStrict, pluginUID ; sandbox/sandbox.c ; Dockerfile (gcc line, /app/libevey-sandbox.so)
+interpreters: internal/adapters/driven/pluginrunner/runner_start.go - knownInterpreters
+basic sandbox, subprocess refusal, uid separation policy: internal/adapters/driven/pluginrunner/runner_sandbox.go - applyBasicSandbox, pluginDropArgs, uidSepApplies, WithUIDSeparation, effectiveMode ("auto-detection complete")
+landlock probe: internal/adapters/driven/pluginrunner/landlock_probe_linux.go - landlockAvailable ; bwrap probe: sandbox_probe.go - ProbeSandbox
+launcher: cmd/evey-plugin-launcher/main.go (-require-landlock, -uid, -uid-besteffort) ; cmd/evey-plugin-launcher/droppriv_linux.go (uid/gid >= 1000)
+hardening: cmd/evey/hardening_linux.go - PR_SET_DUMPABLE
+cli: cmd/evey/cli.go (version, completion bash, man)
+ports and defaults: internal/config/config.go (EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_LOG_DIR, EVEY_BACKUP_DIR, EVEY_TRANSCODING_CACHE_DIR, EVEY_TRICKPLAY_CACHE_DIR, EVEY_JWT_PRIVATE_KEY_PATH, EVEY_PLUGINS_*, hardFail on password "evey") ; cmd/evey/main.go - httpPort = Port+1
+pre-migration dump needs pg_dump: internal/adapters/driven/postgres/migrate_backup.go - dumpDatabase
+restart RPC needs the supervisor: docker/entrypoint.sh (EVEY_SUPERVISED)
+image permissions: Dockerfile (chmod 750 /data/plugins, chmod 700 keys/logs/backups, setcap)
+labels: i18n/en/admin.yaml - remoteAccess.externalUrl, remoteAccess.trustedProxies, plugins.resourceLimits.title
+-->

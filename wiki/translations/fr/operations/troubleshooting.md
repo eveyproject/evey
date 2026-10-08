@@ -1,65 +1,99 @@
 ---
-source_sha: 72036ccee3c5c78a01f2265ae6836c1984ad16370069c11122a98353b3190d1c
+source_sha: ed13563653be483d334cc49fb3d45495285f85e20184464926eaece895deae91
 reviewed: true
 ---
 # Dépannage
 
-Partez du symptôme. Chaque entrée indique quoi vérifier d'abord et où se
-trouve la procédure détaillée. Les procédures d'incident vers lesquelles
-renvoie cette page sont pour l'instant en anglais.
+Quelque chose ne va pas et vous voulez savoir où regarder en premier.
+Trouvez votre symptôme dans le tableau, ouvrez la page ou la section du
+panneau qu'il indique, et revenez ici pour les logs et les procédures de
+restauration quand cela ne suffit pas.
 
-## Premières vérifications
+## Où regarder, selon le symptôme
 
-Deux commandes répondent à la plupart des questions sur un serveur qui se
-comporte mal :
+| Symptôme | Regarder d'abord | Ensuite |
+| --- | --- | --- |
+| Rien ne répond, même à la maison | `docker compose ps`, puis `docker compose logs --tail=200 evey` | [Le serveur ne démarre pas](#the-server-does-not-start) ci-dessous ; [Server not reachable](../runbooks/incident-runbook.md#the-server-does-not-answer) |
+| L'application dit **Impossible de joindre le serveur** ou **Connexion échouée** | L'adresse saisie dans l'application : [Applications et appareils](../getting-started/apps.md#the-server-address-to-enter) | Hors de chez vous seulement : [Accès distant et HTTPS](../administration/remote-access.md) |
+| Tout le monde est déconnecté, plus aucune connexion ne passe | **Admin → Accès distant → Proxys de confiance**, et la base de données dans les logs | [Personne ne peut se connecter](#nobody-can-sign-in) ci-dessous |
+| Pas d'image, la lecture ne démarre pas, ou elle s'arrête | **Infos du flux** dans le lecteur, puis **Admin → Santé des médias** pour ce titre | [Problèmes de lecture](#playback-problems) ci-dessous |
+| Ça saccade ou ça charge sans arrêt | **Admin → Qualité streaming** (quels titres et appareils attendent) et **Admin → Santé du système** (le serveur est-il à sa capacité) | [Transcodage et capacité du serveur](../playback/transcoding.md) |
+| Mauvaise affiche, mauvais titre, un film non reconnu | **Modifier les métadonnées** ou **Réidentifier** sur le titre | [Corriger un titre faux ou manquant](../administration/libraries.md#fix-a-wrong-or-missing-title) |
+| Des affiches manquent ou sont cassées | **Admin → Cache artworks** | [Bibliothèque et affiches](#library-and-posters) ci-dessous |
+| Un plugin échoue | Ses **Logs** sur sa carte dans **Admin → Plugins** | [Plugin crashed](../runbooks/incident-runbook.md#a-plugin-crashed) |
+| Une diffusion s'est figée ou est devenue muette | **Admin → En cours de lecture** (la session est-elle encore là) | [A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
+| Le disque se remplit | **Admin → Cache de transcodage** | [Transcode cache disk full](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
+
+## Les logs
+
+Le serveur écrit son journal dans `/data/logs/evey-AAAA-MM-JJ.log` à
+l'intérieur du conteneur, c'est-à-dire `./evey-data/logs/` à côté de votre
+fichier compose. Un fichier par jour, en JSON, conservé 90 jours par défaut
+(`EVEY_LOG_RETENTION_DAYS`).
+
+**Admin → Logs & Debug** lit ces mêmes fichiers : recherche plein texte, suivi
+en **Direct**, et un filtre **Zone** qui restreint à un domaine (lecteur et
+transcodage, index de lecture, sous-titres, détection d'intro, Chromecast,
+authentification, infrastructure...). Quand un spectateur signale un problème,
+c'est le premier endroit où regarder.
+
+`docker compose logs evey` montre ce que le conteneur affiche pendant qu'il
+démarre : les lignes `evey:` du script de démarrage, la base de données
+intégrée et la bannière. C'est là qu'il faut lire quand le serveur ne se lance
+pas ; une fois qu'il tourne, le journal applicatif est dans le fichier et dans
+le panneau.
+
+## `evey admin doctor`
+
+Une seule commande vérifie tout le serveur et affiche une ligne par
+contrôle, `ok`, `WARN` ou `FAIL`, avec un remède :
 
 ```bash
-docker compose logs --tail=200 evey
 docker exec evey-server evey admin doctor
 ```
 
-`evey admin doctor` vérifie la base de données et son schéma, la clé de
-signature, l'index de recherche, les montages de médias (y compris la
-possibilité pour le serveur d'écrire dans chaque bibliothèque), les dossiers
-de cache, ffmpeg, l'accès distant et l'espace disque libre. Il affiche une
-ligne par vérification avec un remède, et se termine en erreur quand l'une
-d'elles échoue.
-
-Dans le panneau d'administration, **Logs & Debug** affiche les mêmes logs,
-avec recherche et filtre par domaine (lecture, transcodage, scan...).
+Elle couvre la base de données et son schéma, la clé de signature, l'index de
+recherche et son écart avec la base, les montages de médias (y compris la
+possibilité pour le serveur d'écrire dans chaque bibliothèque), les dossiers de
+cache et de logs, `ffmpeg` et `mkvgo`, les proxys de confiance, l'accès distant
+et l'espace disque libre. `--repair` n'applique que les corrections sûres
+(créer et réattribuer les dossiers d'écriture manquants). Elle se termine en
+erreur quand un contrôle échoue. Les autres commandes sont dans
+[Ligne de commande](../runbooks/cli.md).
 
 ## Le serveur ne démarre pas
 
-| Ce que disent les logs | Ce que cela signifie |
+| Ce que dit `docker compose logs evey` | Ce que cela signifie |
 | --- | --- |
 | Un message de validation de la configuration | Avec une base externe, le serveur refuse le mot de passe par défaut `evey` ; avec un Meilisearch externe, une clé vide ou factice. Corrigez la valeur nommée dans le message. |
-| Des lignes commençant par `evey:` à propos de Postgres | La base intégrée a refusé de démarrer : une base d'une autre version majeure de Postgres ([montée de version majeure](advanced-deployments.md#postgres-major-upgrade)), un dossier de données qui n'est pas une base Postgres, un disque plein, ou `./evey-data/postgres` sur un partage réseau. |
+| Des lignes commençant par `evey:` à propos de Postgres | La base intégrée a refusé de démarrer : une base d'une autre version majeure de Postgres ([montée de version majeure](advanced-deployments.md#move-to-a-newer-postgres-major)), un dossier de données qui n'est pas une base Postgres, un disque plein, ou `./evey-data/postgres` sur un partage réseau. |
 | `permission denied` sur `/cache/...`, en boucle de redémarrage | Le volume `evey-cache` appartient à un autre utilisateur que celui sous lequel tourne le serveur. Mettez l'image à jour ; sur une image antérieure au 17/09/2026, lancez une fois `docker run --rm -v <projet>_evey-cache:/c alpine chown -R <PUID>:<PGID> /c`. |
 
 Mot de passe administrateur perdu, clé de signature compromise ou base
 endommagée : [Restauration](../runbooks/recovery.md).
 
-## Le serveur est injoignable depuis l'extérieur
+## Personne ne peut se connecter
 
-Le serveur répond à la maison mais pas ailleurs, ou les applications
-affichent un message indiquant que l'accès distant est désactivé : voir
+Chaque requête vérifie le compte auprès de la base de données et est refusée
+quand elle ne répond pas ; le journal le dit. L'autre cause habituelle est un
+reverse proxy absent de **Admin → Accès distant → Proxys de confiance** : tous
+les visiteurs partagent alors l'adresse du proxy et une seule limite de
+tentatives de connexion. La procédure est
+[All logins return 401](../runbooks/incident-runbook.md#every-login-returns-401).
+
+!!! note
+    Une clé de signature perdue ou remplacée ne déconnecte personne à elle
+    seule : les applications renouvellent leurs jetons. Pour mettre fin à
+    toutes les sessions volontairement, c'est `evey admin rotate-jwt-key`,
+    voir [Restauration](../runbooks/recovery.md#rotate-the-key-that-signs-access-tokens).
+
+Le serveur répond à la maison mais pas ailleurs, ou les applications disent
+que l'accès distant est désactivé :
 [Accès distant et HTTPS](../administration/remote-access.md). La page
-d'administration **Accès distant** signale en rouge un serveur joignable depuis
-Internet alors que l'accès distant est désactivé.
+**Admin → Accès distant** signale en rouge un serveur joignable depuis Internet
+alors que l'accès distant est désactivé.
 
-Rien ne répond, même à la maison :
-[Server not reachable](../runbooks/incident-runbook.md#1-server-not-reachable).
-
-## Tout le monde est déconnecté, ou plus aucune connexion ne fonctionne
-
-[All logins return 401](../runbooks/incident-runbook.md#2-all-logins-return-401).
-Les causes habituelles sont la base de données (chaque requête vérifie le compte
-auprès d'elle et est refusée quand elle ne répond pas ; le journal le dit) et un
-reverse proxy absent des **Proxys de confiance**, qui place tout le monde sous
-une seule limite de connexions. Une clé de signature perdue ou remplacée ne
-déconnecte personne à elle seule : les applications renouvellent leurs jetons.
-
-## La connexion SSO échoue
+### La connexion SSO échoue
 
 La page de connexion en donne la raison :
 
@@ -72,8 +106,8 @@ La page de connexion en donne la raison :
 - **le compte existe mais n'a pas pu être relié** : le fournisseur n'a pas
   confirmé l'e-mail, la liaison est désactivée, ou le compte est relié à une
   autre identité ;
-- **indisponible** : le fournisseur est injoignable ; l'**État** de la carte et
-  **Tester la connexion** montrent l'erreur.
+- **indisponible** : le fournisseur est injoignable ; le **Statut** de la carte
+  et **Tester la connexion** montrent l'erreur.
 
 Une page d'erreur affichée par le fournisseur lui-même signifie le plus souvent
 que l'URI de redirection déclarée chez lui n'est pas celle qu'affiche la carte.
@@ -89,44 +123,36 @@ habituelle. Un hôte enregistré dans la carte remplace toutes les variables
 `EVEY_SMTP_*`. Les envois de notifications qui échouent sont journalisés comme
 `email: send notification`. Voir [Notifications](../notifications.md).
 
-## Un titre est transcodé alors que vous attendiez une lecture directe
+## Problèmes de lecture
 
-Ouvrez les **Infos du flux** dans le lecteur : elles indiquent le mode de
-lecture et ses raisons. Pour les lire, voir
+Les **Infos du flux** dans le lecteur nomment le mode de lecture (envoyé tel
+quel, copié ou réencodé, piste par piste) et ses raisons. Un titre transcodé
+alors que vous attendiez une lecture directe s'explique là : voir
 [Comment Evey choisit le mode de lecture](../playback/how-playback-is-decided.md).
 
-## La lecture s'arrête, met en mémoire tampon ou ne démarre pas
-
-- Un seul titre concerné : ouvrez **Admin → Santé des médias**. Un fichier
-  sans index de navigation, un passage endommagé ou des pistes rangées par
-  blocs expliquent les coupures et les déplacements lents dans le film, et la
-  plupart se réparent sur place. Voir [Santé des médias](../runbooks/media-health.md).
+- Un seul titre s'arrête, charge ou se déplace lentement : ouvrez **Admin →
+  Santé des médias**. Un fichier sans index de lecture, une zone endommagée ou
+  des pistes rangées par blocs l'expliquent, et la plupart se réparent sur
+  place. Voir [Santé des médias](../runbooks/media-health.md).
 - Plusieurs titres, quand plusieurs personnes regardent : le serveur est
-  peut-être au bout de sa capacité de transcodage. Voir
+  peut-être au bout de sa capacité de transcodage. **Admin → Santé du système**
+  montre la part utilisée. Voir
   [Transcodage et capacité du serveur](../playback/transcoding.md).
 - La lecture transcodée échoue franchement :
-  [Transcoding fails](../runbooks/incident-runbook.md#3-transcoding-fails--videos-wont-play-transcoded).
-- Ça coupe et les logs ne disent pas pourquoi :
-  [la procédure de diagnostic](../runbooks/incident-runbook.md#3c-it-buffers--it-cut-out-and-the-logs-do-not-say-why).
-- **Admin → Qualité streaming** montre, pour les vrais spectateurs sur le
-  dernier jour ou la dernière semaine, à quelle fréquence la lecture a
-  attendu, et quels titres et appareils sont concernés.
-
-## Pas de son, ou son désynchronisé
-
-- Dans un navigateur uniquement, avec une piste Dolby Digital (AC-3/E-AC-3) :
-  un reverse proxy qui impose sa propre Content-Security-Policy peut bloquer
-  le décodeur utilisé par le lecteur web. Voir
+  [Transcoding fails](../runbooks/incident-runbook.md#transcoded-playback-fails).
+- Ça charge et les logs ne disent pas pourquoi :
+  [la procédure de diagnostic](../runbooks/incident-runbook.md#it-buffers-or-cuts-out-and-the-log-does-not-say-why).
+- Pas de son dans un navigateur uniquement, avec une piste Dolby Digital
+  (AC-3/E-AC-3) : un reverse proxy qui impose sa propre Content-Security-Policy
+  peut bloquer le décodeur utilisé par le lecteur web. Voir
   [Audio](../playback/audio.md#dolby-digital-in-a-browser).
-- Désynchronisé sur un titre : **Admin → Santé des médias** détecte un audio
-  qui démarre après l'image et des pistes en désaccord entre elles.
+- Son désynchronisé sur un titre : **Admin → Santé des médias** détecte un
+  audio qui démarre après l'image et des pistes en désaccord entre elles.
+- Les sous-titres ne s'affichent pas : [Sous-titres](../playback/subtitles.md)
+  dit quels formats les lecteurs dessinent et lesquels le serveur doit
+  incruster dans l'image.
 
-## Les sous-titres ne s'affichent pas
-
-Voir [Sous-titres](../playback/subtitles.md) : quels formats les lecteurs
-dessinent, et lesquels le serveur doit incruster dans l'image.
-
-## Des affiches manquent ou sont cassées
+## Bibliothèque et affiches
 
 Les affiches et les fonds sont copiés sur le serveur pendant les scans, dans
 `./evey-data/artworks`, et les manquants sont retentés toutes les heures.
@@ -135,23 +161,10 @@ Les affiches et les fonds sont copiés sur le serveur pendant les scans, dans
 les variantes corrompues** supprime les affiches redimensionnées laissées vides
 par un redimensionnement raté, qui sont alors reconstruites à la demande.
 
-## La recherche ne renvoie rien
+Une affiche ou un titre qui appartient à un autre film relève de
+l'identification des métadonnées, pas des affiches :
+[Corriger un titre faux ou manquant](../administration/libraries.md#fix-a-wrong-or-missing-title).
 
-Reconstruisez l'index depuis la base :
+La recherche ne renvoie rien : reconstruisez l'index depuis la base avec
 `docker exec evey-server evey admin reindex-search`. L'index peut toujours être
 reconstruit, rien n'est perdu.
-
-## Une diffusion s'est figée ou est devenue muette
-
-[A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#8-a-cast-froze-went-silent-or-the-phone-keeps-spinning).
-
-## Un plugin ne fonctionne plus
-
-[Plugin crashed](../runbooks/incident-runbook.md#7-plugin-crashed). Ses
-propres logs se trouvent sur sa carte dans **Admin → Plugins**.
-
-## Le disque se remplit
-
-Le cache de transcodage en est la cause habituelle :
-[Transcode cache disk full](../runbooks/incident-runbook.md#6-transcode-cache-disk-full).
-Il peut être vidé à tout moment depuis **Admin → Cache de transcodage**.

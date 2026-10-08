@@ -1,10 +1,11 @@
 # Install
 
-Evey runs as one container. The image serves the API and the web interface on
+Evey runs as one container: the image serves the API and the web interface on
 one port, and runs its own database (Postgres) and search engine (Meilisearch)
-inside it, with their passwords generated on the first start. The compose file
-below is the whole installation: no `.env`, no privileged mode, no memory or
-CPU setting.
+inside it. This page is for the person who runs Docker at home or on a NAS:
+copy the compose file, start it, open **`http://<server-address>:9091`** in a
+browser, and continue with the setup wizard. No `.env`, no privileged mode,
+no memory or CPU setting.
 
 !!! warning "Not the repository's docker-compose.yml"
 
@@ -53,9 +54,12 @@ volumes:
    change. To run the same code from one pull to the next, put an immutable
    `sha-<commit>` tag here instead: see
    [Backups and updates](backups.md#updating-evey).
-2. The API and the web interface, on one port, in plain HTTP.
+2. The API and the web interface, on one port, in plain HTTP. The number on
+   the left is the port you will type in the browser and in the apps; keep
+   `9091` unless it is already taken on the host.
 3. Everything Evey owns: database, signing key, generated passwords, search
-   index, timeline thumbnails, artwork, logs, backups, plugins. This is the folder to back up.
+   index, timeline thumbnails, artwork, logs, backups, plugins. This is the
+   folder to back up.
 4. Transcoding cache: segments, resized photos and covers. It can be deleted
    at any time and refills on demand.
 5. Your media. Mounted read-write on purpose: the repairs of
@@ -76,8 +80,29 @@ On the first start the server generates its signing key and passwords in
 `./evey-data`, creates the database and applies its migrations. Nothing has to
 be prepared by hand.
 
-Then open `http://<server-address>:9091`. A server with no administrator opens
-on the setup wizard: continue with [First setup](getting-started/first-setup.md).
+## The address to open next
+
+Open **`http://<server-address>:9091`** in a browser on the same network:
+
+| Where the browser is | Address to type |
+| --- | --- |
+| On the machine running Docker | `http://localhost:9091` |
+| Another computer or a phone at home | `http://` + the IP of the Docker host on your home network + `:9091`, for example `http://192.168.1.20:9091` |
+| Outside your home | Not yet: this needs HTTPS and a public address, see [Remote access and HTTPS](administration/remote-access.md) |
+
+The IP of the Docker host is in your router's list of devices, or on the host
+itself (`ip a` on Linux, `ipconfig` on Windows, `ifconfig` on macOS). The
+port is the left-hand number of the `ports:` line in the compose file.
+
+A server with no administrator opens on the setup wizard: continue with
+[First setup](getting-started/first-setup.md#1-the-setup-wizard). Once the
+administrator exists, the same address opens on the sign-in page.
+
+!!! tip "The apps ask for the same address"
+
+    The Android and Android TV apps ask for the server address on their first
+    screen. It is exactly this address, with `http://` and the port:
+    [The server address to enter](getting-started/apps.md#the-server-address-to-enter).
 
 ## Where the data lives
 
@@ -92,6 +117,9 @@ on the setup wizard: continue with [First setup](getting-started/first-setup.md)
 Each of these is a few lines added to the same file.
 
 **A second media folder.** Add `- /other/path:/media2` under `volumes:`.
+
+**Another port on the host.** Change the left-hand number only, for example
+`"8080:9091"`, and type `:8080` in the browser and the apps instead.
 
 **File ownership.** By default the container adopts the owner of your `/media`
 mount, so that repairs can write. To choose it yourself, set `PUID` and `PGID`
@@ -126,8 +154,12 @@ file. The environment variables that do exist are listed in the
 [Configuration reference](configuration.md).
 
 <!-- sources
+image name and tags: .github/workflows/ci.yml (docker.io/eveyproject/evey, latest gated on semver tags)
+http port = grpc port + 1: cmd/evey/main.go - httpPort ; internal/config/config.go - EVEY_SERVER_PORT default 9090
+repository compose is another layout: docker-compose.yml (EVEY_DB_HOST postgres, env_file .env, caddy service)
 first boot: docker/entrypoint.sh ; internal/config/config.go
-wizard: frontend/apps/web/src/routes/setup.tsx
+wizard or sign-in on the root address: frontend/apps/web/src/routes/index.tsx ; frontend/apps/web/src/routes/setup.tsx
+apps ask for the same address: frontend/apps/mobile/app/server-connect.tsx ; frontend/apps/tv/app/server-connect.tsx
 volumes: docs/backups.md ; cmd/evey (evey admin reindex-search)
 writes into media folders: internal/app/subtitle/service.go (.subtitles) ; internal/app/library/watcher_probe.go - probeOnce ; runbooks/media-health.md
 delete = library only: internal/app/library/command_service.go - DeleteMediaItem ; internal/app/music/command_service.go - DeleteTrack

@@ -1,14 +1,16 @@
 ---
-source_sha: a6742845a66194948de961b0490bc70821d9e1a06b1c6ff4aaed96f02c9910ba
+source_sha: c71d26ad4217c6fabc0068b559c21f4a78531ce50e7ff7f66989a1bebc1fd517
 reviewed: true
 ---
 # Regarder ensemble
 
-**Regarder ensemble** garde plusieurs personnes sur le même titre, au même
-instant, chacune sur son propre appareil : une salle tient la position, et
-chaque lecteur la suit. Le flux de chacun reste décidé pour son propre
-appareil, comme dans [Comment Evey choisit le mode de lecture](how-playback-is-decided.md) :
-une personne peut être en lecture directe pendant qu'une autre est transcodée.
+Comment regarder le même titre au même instant que d'autres personnes,
+chacune sur son propre appareil, et ce que chacun peut s'attendre à contrôler.
+Pour les spectateurs ; rien à configurer sur le serveur. **Regarder
+ensemble** ouvre une salle qui tient la position, et chaque lecteur la suit.
+Le flux de chacun reste décidé pour son propre appareil, comme dans
+[Comment Evey choisit le mode de lecture](how-playback-is-decided.md) : une
+personne peut être en lecture directe pendant qu'une autre est transcodée.
 
 ## Créer et rejoindre une salle
 
@@ -28,6 +30,29 @@ Rejoindre avec un compte suit les règles habituelles : la bibliothèque doit
 le titre. Un profil restreint ne peut pas non plus créer de salle sur un titre
 qu'il n'a pas le droit de regarder.
 
+## Ce que chaque membre contrôle
+
+| | Hôte | Autres membres |
+| --- | --- | --- |
+| Android | Lecture, pause et déplacement entraînent toute la salle. | Lecture, pause et déplacement restent sur votre écran. |
+| Android TV | Lecture et pause entraînent toute la salle ; un déplacement reste sur la TV. | Comme sur Android. |
+| Web | Lecture, pause et déplacement restent sur votre écran, hôte compris. | Pareil. |
+
+Dans le lecteur web, des boutons explicites remplacent le contrôle de l'hôte.
+**Tout le monde me rejoint** amène toute la salle à votre position et relance
+la lecture ; n'importe quel membre peut s'en servir, pas seulement l'hôte.
+**Me resynchroniser** vous ramène là où en est la salle, sans déplacer
+personne ; il est proposé sur la page invité (rejointe avec un code, sans
+compte), pas dans le lecteur d'un compte connecté.
+
+Une personne qui arrive en cours de route démarre là où en est la salle
+maintenant, pas là où elle en était lors de la dernière commande.
+
+Si l'hôte s'en va, le membre présent depuis le plus longtemps devient l'hôte.
+Quand le dernier membre part, la salle se ferme, et l'accès invité que son
+code avait ouvert est retiré. Une salle où personne n'est jamais entré est
+supprimée au bout d'une heure.
+
 ## Invités sans compte
 
 Un invité qui saisit un code sur la page de connexion regarde ce seul titre,
@@ -38,27 +63,11 @@ et rien d'autre :
 - l'accès dure tant qu'il sert, expire après trois heures sans lecture et
   après 24 heures dans tous les cas, et prend fin dès que la salle se ferme.
 
-Le code est la seule protection d'une salle : ne le donnez qu'aux personnes
-que vous voulez y voir. Les codes erronés sont limités par adresse et sur
-l'ensemble du serveur, ce qui met leur devinette hors de portée.
-
-## Ce qui reste synchronisé
-
-- **Sur Android et Android TV**, la lecture, la pause et les déplacements de
-  l'hôte entraînent toute la salle. Les commandes des autres membres
-  n'affectent personne d'autre.
-- **Dans le lecteur web**, la pause et les déplacements restent sur votre
-  écran. **Me resynchroniser** vous ramène là où en est la salle, sans déplacer
-  personne. **Tout le monde me rejoint** amène toute la salle à votre position ;
-  n'importe quel membre peut s'en servir, pas seulement l'hôte.
-
-Une personne qui arrive en cours de route démarre là où en est la salle
-maintenant, pas là où elle en était lors de la dernière commande.
-
-Si l'hôte s'en va, le membre présent depuis le plus longtemps devient l'hôte.
-Quand le dernier membre part, la salle se ferme, et l'accès invité que son
-code avait ouvert est retiré. Une salle où personne n'est jamais entré est
-supprimée au bout d'une heure.
+!!! warning
+    Le code est la seule protection d'une salle : ne le donnez qu'aux
+    personnes que vous voulez y voir. Les codes erronés sont limités par
+    adresse et sur l'ensemble du serveur, ce qui met leur devinette hors de
+    portée.
 
 ## Écouter ensemble
 

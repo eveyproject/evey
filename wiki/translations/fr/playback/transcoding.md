@@ -1,5 +1,5 @@
 ---
-source_sha: c8d03e544227da6967bbbab98675cdb62fcd32e683e410544a6fffc79d40c1d5
+source_sha: edbe45f621f02ac3cb364db76e1a1fc2d51a605a655d2810b4aaa8075b0052ab
 reviewed: true
 ---
 # Transcodage et capacité du serveur
@@ -7,9 +7,10 @@ reviewed: true
 Le transcodage est l'issue coûteuse de
 [la décision de lecture](how-playback-is-decided.md) : la lecture directe et
 le remux ne coûtent presque rien au serveur et n'occupent jamais de créneau
-de transcodage. Cette page explique comment le serveur sait ce qu'il peut
-encoder, comment il répartit cette capacité entre les spectateurs, et ce qui
-se passe quand elle est épuisée.
+de transcodage. Cette page s'adresse à l'administrateur qui veut savoir
+combien de spectateurs le serveur peut servir à la fois : comment il mesure
+ce qu'il sait encoder, comment il répartit cette capacité, et ce que voit un
+spectateur quand elle est épuisée.
 
 ## Le serveur se mesure lui-même
 
@@ -26,11 +27,12 @@ La capacité n'est pas un réglage à estimer. Le serveur la mesure :
   vraie lecture. Le résultat est la résolution la plus haute que chacun tient
   en temps réel, et le coût de chaque type de flux.
 - **De nouveau.** Après un changement de matériel, ou avec **Recalibrer**
-  dans **Admin → Configuration transcodage → Calibrage de l'encodage**.
+  dans **Admin → Configuration transcodage → Calibrage de l'encodage**. Le
+  bouton attend que plus personne ne regarde.
 
 Pendant la mesure, une lecture qui a besoin d'un transcodage affiche **Le
 serveur se calibre** et demande de réessayer un peu plus tard. La lecture
-directe n'est pas concernée.
+directe et le remux ne sont pas concernés.
 
 Sur un processeur qui ne tient aucune des résolutions, le serveur propose
 malgré tout du 720p (SDR) et du 480p (HDR), un flux à la fois.
@@ -62,13 +64,28 @@ flux vidéo simultanés** permet de l'abaisser, jamais de la relever.
 - Seule la qualité effectivement regardée est encodée, pas toute l'échelle
   des qualités.
 
-Chaque flux part vers la route la moins coûteuse capable de le servir : un
-accélérateur qui a prouvé ce dont ce flux a besoin (du tone mapping HDR ou
-une sortie HEVC, par exemple), ou le processeur. Le processeur et les
-accélérateurs forment deux réserves distinctes. Quand les accélérateurs sont
-saturés, un nouveau flux peut passer sur le processeur s'il a de la place ;
-quand aucun n'en a, le lecteur affiche **Le serveur est occupé par d'autres
-transcodages** et peut réessayer.
+Chaque flux part vers la route la moins coûteuse qui a prouvé qu'elle peut le
+servir : un accélérateur mesuré sur ce dont ce flux a besoin (du tone mapping
+HDR ou une sortie HEVC, par exemple), ou le processeur. Le processeur et les
+accélérateurs forment deux réserves distinctes, et un flux sur la carte
+graphique consomme encore un peu de processeur pour son audio et son
+empaquetage.
+
+Quand la place vient à manquer, le serveur répond dans cet ordre :
+
+1. **Une qualité plus basse.** Un nouveau flux dont la qualité la plus haute
+   ne tient pas est admis à la plus haute qui tient, et ce plafond vaut pour
+   toute la durée du flux.
+2. **Le processeur.** Quand les accélérateurs sont saturés, un nouveau flux
+   passe sur le processeur s'il a de la place.
+3. **Un refus.** Quand aucun n'en a, le lecteur affiche **Le serveur est
+   occupé par d'autres transcodages** et peut réessayer.
+
+Un encodage sur carte graphique qui échoue sur un titre envoie ce titre sur
+le processeur pendant un moment, pour tous les spectateurs. La carte
+elle-même n'est écartée qu'après l'échec d'un encodage de test indépendant du
+média, et elle est réessayée plus tard : voir
+[Accélération matérielle](../administration/hardware-acceleration.md).
 
 Pendant qu'une personne regarde, les tâches de fond du serveur (miniatures,
 détection des intros, analyse des médias) se mettent en pause pour laisser la
@@ -84,15 +101,15 @@ cette limite de lui-même. Voir
 
 | | Par défaut |
 | --- | --- |
-| Codec vidéo | H.264. HEVC quand le lecteur le décode et que la carte graphique l'encode ; AV1 quand il est activé (**Sortie AV1**, matériel uniquement) et que le lecteur le décode. |
+| Codec vidéo | H.264. HEVC quand le lecteur le décode et qu'une carte graphique l'encode, ou quand le **Codec vidéo préféré** du profil le demande ; AV1 quand il est activé (**Sortie AV1**, matériel uniquement) et que le lecteur le décode. |
 | Résolution | Celle de la source, sauf limite : le maximum du lecteur, la limite de débit, ou ce que le serveur peut encoder en temps réel. |
-| Débit | Suit la source, proportionnellement à la résolution. **Plafond de débit vidéo** le limite. |
+| Débit | Suit la source, proportionnellement à la résolution. **Plafond de débit vidéo** le limite ; **Plafond de débit vidéo, spectateurs distants** le limite plus bas hors des réseaux locaux. |
 | Audio | AAC. Voir [Audio](audio.md). |
 | Livraison | HLS, en segments MP4 fragmentés. |
 
 <figure class="evey-shot" markdown="span">
-  ![Les deux plafonds de débit vidéo dans Admin → Transcodage](../images/admin-transcoding-bitrate.webp){ loading=lazy }
-  <figcaption>Les deux plafonds de <strong>Admin → Transcodage</strong> : pour tous les spectateurs, et pour ceux hors des réseaux locaux.</figcaption>
+  ![Les deux plafonds de débit vidéo dans Admin → Configuration transcodage](../images/admin-transcoding-bitrate.webp){ loading=lazy }
+  <figcaption>Les deux plafonds de <strong>Admin → Configuration transcodage</strong> : pour tous les spectateurs, et pour ceux hors des réseaux locaux.</figcaption>
 </figure>
 
 ## Le cache de transcodage
@@ -101,18 +118,22 @@ Les segments encodés sont gardés sur disque dans le volume `evey-cache` et
 réutilisés quand un autre spectateur, ou le même plus tard, lit le même titre
 avec la même décision. **Admin → Cache de transcodage** affiche sa taille et
 permet de le vider ; le **Budget du cache de transcodage** (**Admin →
-Configuration du serveur → Paramètres du serveur**) le plafonne. Videz-le après une mise à jour qui modifie la façon dont
-les vidéos sont encodées, pour que personne ne reçoive de segments de la
-version précédente.
+Configuration du serveur → Paramètres du serveur**) le plafonne.
+
+!!! tip
+    Videz le cache après une mise à jour qui modifie la façon dont les vidéos
+    sont encodées, pour que personne ne reçoive de segments de la version
+    précédente. Le vider pendant qu'une personne regarde fait remettre son
+    flux en mémoire tampon une fois, puis la lecture reprend.
 
 ## Vérifier ce qui se passe
 
-- **Admin → En cours de lecture** : chaque flux, son mode de lecture piste par piste,
-  et le backend qui l'encode.
+- **Admin → En cours de lecture** : chaque flux, son mode de lecture piste par
+  piste, et le backend qui l'encode.
 - **Admin → Configuration transcodage → Calibrage de l'encodage** : les
   plafonds mesurés et les accélérateurs utilisés.
 - **Admin → Qualité streaming** : le déroulement des lectures pour les vrais
   spectateurs.
 - **Test de charge** (**Admin → Configuration transcodage**) : simule des
-  spectateurs pour mesurer ce que le serveur tient. À lancer uniquement quand
-  personne ne regarde.
+  spectateurs pour mesurer ce que le serveur tient. Il refuse de démarrer tant
+  que quelqu'un regarde.

@@ -1,26 +1,107 @@
 ---
-source_sha: dd11b7fe28f14e3c25cf6db836b2a6f0752722f82e49a8db9ce447b959d38822
+source_sha: 19bffc1519f386d29f20a6eb3c6173e995d7e804399a716aebfd88d5ec51f57d
 reviewed: true
 ---
 # Première configuration
 
-Le serveur tourne et vous avez ouvert `http://<adresse-du-serveur>:9091`.
+Le serveur tourne et vous avez ouvert `http://<adresse-du-serveur>:9091` dans
+un navigateur (quelle adresse :
+[L'adresse à ouvrir ensuite](../installation.md#the-address-to-open-next)).
 Il reste quatre étapes avant de pouvoir regarder quoi que ce soit :
 l'assistant de configuration, les bibliothèques, les utilisateurs et les
 applications.
 
 ## 1. L'assistant de configuration
 
-Un serveur sans administrateur s'ouvre sur un assistant en quatre étapes :
+Tant que le serveur n'a pas d'administrateur, toute adresse sur ce serveur
+s'ouvre sur l'assistant : une seule carte avec le logo Evey, une ligne
+**Étape 1 sur 4 - Langue** et quatre points qui se remplissent au fil des
+étapes. Il ne pose que quatre questions et prend une minute.
 
-1. **Langue** : la langue par défaut des nouveaux profils et des
-   métadonnées (titres, résumés, genres).
-2. **Bienvenue**.
-3. **Compte administrateur** : un nom d'utilisateur d'au moins 3 caractères
-   et un mot de passe d'au moins 8. Le nom du serveur, facultatif, apparaît
-   sur la page de connexion et dans la liste des serveurs des applications.
-4. **Première bibliothèque** : un nom et un type. Vous pouvez passer cette
-   étape et ajouter les bibliothèques ensuite.
+### Étape 1 sur 4 - Langue
+
+La carte est titrée **Choisissez la langue du serveur**. Deux listes
+déroulantes :
+
+- **Langue** : devient la langue par défaut des nouveaux profils et des
+  métadonnées que le serveur récupère (titres, résumés, genres). L'assistant
+  lui-même passe aussitôt dans cette langue.
+- **Région** : pré-remplie d'après la langue ; elle sert aux classifications
+  de contenu et aux préférences régionales. **Automatique** est proposé.
+
+Les deux se modifient ensuite dans le panneau d'administration. Appuyez sur
+**Continuer**.
+
+### Étape 2 sur 4 - Bienvenue
+
+**Bienvenue sur Evey** et une phrase. Appuyez sur **Commencer** (ou
+**Retour**).
+
+<div class="evey-shot-pair" markdown>
+
+<figure class="evey-shot" markdown="span">
+  ![Étape 1 de l'assistant : langue et région](../images/setup-wizard-1-language.webp){ loading=lazy data-gallery="setup" }
+  <figcaption>Étape 1 : la langue du serveur, et la région utilisée pour les classifications d'âge (interface en anglais).</figcaption>
+</figure>
+
+<figure class="evey-shot" markdown="span">
+  ![Étape 2 de l'assistant : bienvenue](../images/setup-wizard-2-welcome.webp){ loading=lazy data-gallery="setup" }
+  <figcaption>Étape 2 : rien à remplir.</figcaption>
+</figure>
+
+</div>
+
+### Étape 3 sur 4 - Compte administrateur
+
+La carte est titrée **Créer un compte administrateur** :
+
+| Champ | Règle |
+| --- | --- |
+| **Nom d'utilisateur** | Au moins 3 caractères. |
+| **Mot de passe** | Au moins 8 caractères. |
+| **Confirmer le mot de passe** | Doit être identique. |
+| **Nom du serveur** | Facultatif. Affiché sur la page de connexion, dans l'onglet du navigateur, dans la liste des serveurs des applications et dans les e-mails, par exemple « Salon ». Modifiable ensuite dans **Admin → Configuration du serveur → Nom du serveur**. |
+
+Appuyez sur **Continuer**. Le compte est créé et vous êtes connecté : à
+partir de là, le serveur a un administrateur et l'assistant ne sera plus
+proposé.
+
+### Étape 4 sur 4 - Première bibliothèque
+
+La carte est titrée **Ajoutez votre première bibliothèque** :
+
+- **Nom de la bibliothèque**, par exemple « Films ».
+- **Type de bibliothèque** : **Films**, **Séries**, **Musique** ou
+  **Photos**.
+- **Chemins** : une liste déroulante des dossiers montés dans le conteneur en
+  `/media`, `/media2`... ; choisissez-en un, ou **Entrer un chemin
+  personnalisé...** pour taper un chemin tel que `/media/movies`. Quand aucun
+  dossier `/media` n'est monté, la liste est remplacée par un champ texte.
+
+Appuyez sur **Créer** pour lancer le premier scan, ou sur **Passer** : les
+deux mènent à la page d'accueil. Les bibliothèques s'ajoutent à tout moment
+depuis le panneau d'administration (section suivante).
+
+<div class="evey-shot-pair" markdown>
+
+<figure class="evey-shot" markdown="span">
+  ![Étape 3 de l'assistant : le compte administrateur](../images/setup-wizard-3-admin.webp){ loading=lazy data-gallery="setup" }
+  <figcaption>Étape 3 : le compte administrateur ; le nom du serveur est facultatif.</figcaption>
+</figure>
+
+<figure class="evey-shot" markdown="span">
+  ![Étape 4 de l'assistant : la première bibliothèque](../images/setup-wizard-4-library.webp){ loading=lazy data-gallery="setup" }
+  <figcaption>Étape 4 : un nom, un type, et un dossier vu depuis l'intérieur du conteneur.</figcaption>
+</figure>
+
+</div>
+
+??? note "Ouvrir l'adresse une fois l'administrateur créé"
+
+    La même adresse s'ouvre sur la page de connexion, et `/setup` vous y
+    renvoie aussi. Si deux personnes arrivent sur l'assistant en même temps,
+    le compte de la seconde est refusé et son navigateur passe à la page de
+    connexion.
 
 <figure class="evey-shot" markdown="span">
   ![Le tableau de bord d'administration du serveur de démo](../images/admin-dashboard.webp){ loading=lazy }
@@ -57,9 +138,15 @@ des profils et du contrôle parental :
 ## 4. Connecter les applications
 
 L'application web est l'adresse que vous avez déjà ouverte. Les applications
-Android et Android TV demandent l'adresse du serveur, puis une connexion ;
-une TV peut se connecter avec un code validé depuis un téléphone. Voir
-[Applications et appareils](apps.md).
+Android et Android TV s'ouvrent sur un écran qui demande l'adresse du
+serveur : tapez la **même adresse que dans le navigateur**, avec `http://` et
+le port, par exemple `http://192.168.1.20:9091`, puis connectez-vous. Une TV
+peut se connecter avec un code validé depuis un téléphone plutôt qu'avec un
+mot de passe.
+
+Comment trouver l'adresse, ce que fait le scan automatique, et ce que
+signifie chaque message d'erreur :
+[L'adresse du serveur à saisir](apps.md#the-server-address-to-enter).
 
 ## Ce que le serveur fait tout seul
 

@@ -1,22 +1,54 @@
 # Architecture
 
-Evey is a self-hosted media server. Backend is Go (hexagonal / DDD), frontend is a TypeScript/React monorepo, mobile is React Native / Expo. See [DEV.md](../DEV.md) for setup and deeper internals.
+How the server is put together: the hexagonal layering under `internal/`,
+the bounded contexts, the events that connect them, and the static guards
+that keep the code on those rails. The code lives in `internal/domain`,
+`internal/app`, `internal/adapters/{driving,driven}` and is wired in
+`cmd/evey/wire*.go`; the layout is decided by [ADR-0001](adr/0001-hexagonal-architecture.md),
+the repository split by [ADR-0009](adr/0009-cqrs-repo-split.md) and the event
+bus by [ADR-0010](adr/0010-event-bus.md). For building and running, read
+[DEV.md](../DEV.md); for which files to touch for a given change, read the
+[Codebase map](CODEBASE_MAP.md).
+
+Backend is Go; the web, mobile and TV clients are a TypeScript/React monorepo
+under `frontend/` (React Native / Expo for mobile and TV).
 
 ## Layering
 
-Strict ports-and-adapters layout under `internal/`:
+```mermaid
+flowchart LR
+    driving[Driving adapters<br/>internal/adapters/driving<br/>grpcapi, http, pluginhost]
+    app[Application services<br/>internal/app/context]
+    domain[Domain<br/>internal/domain/context<br/>models, value objects, ports]
+    driven[Driven adapters<br/>internal/adapters/driven<br/>postgres, ffmpeg, mkvgo, ...]
+    driving --> app --> domain
+    driven -. implement the ports .-> domain
+```
 
-- `internal/domain/<context>/` - pure domain: models, value objects, **ports** (interfaces). No framework imports.
-- `internal/app/<context>/` - application services. Orchestrate ports. IO normally goes through a port; two contexts are deliberate exceptions and reach the network directly: `dlna` (SSDP / UPnP AVTransport) and `loadtest` (its own HTTP client).
-- `internal/adapters/driven/` - outbound adapters implementing domain ports: `postgres`, `meilisearch`, `ffmpeg`, `mkvgo`, `filesystem`, `prober`, `opensubtitles`, `email`, `webpush`, `webhooksender`, `pluginrunner`, `metadata`, `introproviders`, `search`. Two more live here but satisfy an app-layer interface rather than a domain port: `itunes` and `musicbrainz`, both `app/music.AlbumArtFetcher`.
-- `internal/adapters/driving/` - inbound adapters: `grpcapi` (+ grpc-gateway HTTP), `http` (static, auth middleware, SSE, HLS, plugin iframe assets), `pluginhost` (gRPC server on a Unix socket, authenticated by peer credentials - the host API that sandboxed plugin subprocesses call back into).
-- `internal/pkg/` - shared technical kernel reused across contexts (auth, logger, eventbus, i18n, metrics, tracing, ratelimit, procfork, ssrf, cache, ...). Server configuration lives in `internal/config/`; generated proto code lives in `gen/`.
+| Directory | Holds | Rule |
+| --- | --- | --- |
+| `internal/domain/<context>/` | models, value objects and the **ports** (interfaces) | no framework import, no import of another context |
+| `internal/app/<context>/` | application services that orchestrate the ports | IO goes through a port; `dlna` (SSDP / UPnP AVTransport) and `loadtest` (its own HTTP client) are the two deliberate exceptions that reach the network directly |
+| `internal/adapters/driven/` | outbound adapters implementing the ports: `postgres`, `meilisearch`, `ffmpeg`, `mkvgo`, `filesystem`, `prober`, `opensubtitles`, `email`, `webpush`, `webhooksender`, `pluginrunner`, `metadata`, `introproviders`, `search` | three more satisfy an app-layer interface rather than a domain port: `itunes` and `musicbrainz` (`app/music.AlbumArtFetcher`), `ociregistry` (`app/updatecheck`) |
+| `internal/adapters/driving/` | inbound adapters: `grpcapi` (+ grpc-gateway HTTP), `http` (static, auth middleware, SSE, HLS, plugin iframe assets), `pluginhost` (gRPC server on a Unix socket, authenticated by peer credentials, the host API sandboxed plugins call back into) | |
+| `internal/pkg/` | the shared technical kernel: auth, logger, eventbus, i18n, metrics, tracing, ratelimit, procfork, ssrf, cache, ... | |
+| `internal/config/` | server configuration | |
+| `gen/` | generated proto code | |
 
-Dependency rule: `adapters -> app -> domain`. Domain never imports app or adapters. Composition happens in `cmd/evey/wire*.go` - hand-written wiring, not google/wire: `wire.go`, `wire_infra.go`, `wire_services.go`, `wire_adapters.go`, `wire_events.go`, `wire_helpers.go`.
+Dependency rule: `adapters -> app -> domain`. The domain never imports the
+app or the adapters. Composition is hand-written (not google/wire) in
+`cmd/evey/wire.go` and its siblings `wire_infra.go`, `wire_services.go`,
+`wire_adapters.go`, `wire_events.go`, `wire_helpers.go`. Tests bypass the
+adapters by injecting fakes that implement the same domain ports: 20 of the
+21 domain packages ship a `fakes/` subpackage.
 
 ## Bounded contexts
 
-Thirty-two context packages live under `internal/domain/` and `internal/app/`: 19 exist in both layers, 2 are domain-only (`ratings`, `shared`), 11 are app-only. Collaboration happens partly via domain events published through a shared bus; the app layer also reads a neighbouring context's domain package directly (see [Relations](#relations)).
+Thirty-two context packages live under `internal/domain/` and `internal/app/`:
+19 exist in both layers, 2 are domain-only (`ratings`, `shared`), 11 are
+app-only. They collaborate partly through domain events on a shared bus; the
+app layer also reads a neighbouring context's domain package directly (see
+[Relations](#relations)).
 
 | Context | Responsibility |
 | --- | --- |
@@ -55,60 +87,77 @@ Thirty-two context packages live under `internal/domain/` and `internal/app/`: 1
 
 ### Relations
 
-- `library` → emits `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated`. `media.item.added` is consumed by `notification`, `metadata` (auto-enrich), `library` itself (trickplay worker + intro detection) and `feed` (genre-cache invalidation).
-- Search indexing is **not** event-driven: `library.ScanService` calls the `library.SearchIndex` port directly.
-- `playback` → emits `PlaybackStarted` / `PlaybackStopped`. Neither has a dedicated subscriber today; only `webhook`'s `"*"` catch-all receives them.
-- `user` → emits `UserCreated`, which has no subscriber, and `user.password.reset_requested`, consumed by the `email` driven adapter.
-- `plugin` → `pluginrunner` publishes `plugin.error` / `plugin.started`, and `app/plugin` consumes them for its security dashboard. There is no bridge feeding domain events into plugins: plugins reach the API with scoped JWTs (see ADR-0003). The bus itself is ADR-0010.
-- `shared.TransactionalUnit` wraps multi-aggregate writes (see ADR-0002).
+| Emitter | Events | Consumed by |
+| --- | --- | --- |
+| `library` | `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` | `media.item.added`: `notification`, `metadata` (auto-enrich), `library` itself (trickplay worker + intro detection), `feed` (genre-cache invalidation) |
+| `playback` | `PlaybackStarted` / `PlaybackStopped` | no dedicated subscriber today; only `webhook`'s `"*"` catch-all receives them |
+| `user` | `UserCreated`, `user.password.reset_requested` | the first has no subscriber; the second is consumed by the `email` driven adapter |
+| `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` for its security dashboard, `notification` for the administrator |
+| `shared` | `ServerConfigChanged` | the services that apply a setting saved in the admin panel without a restart (SMTP, timezone, CPU budget, ...) |
 
-No package under `internal/domain` imports another context's domain package - a rule enforced by `internal/contractguard/domain_imports_test.go` (see [Architecture guards](#architecture-guards)). The app layer is not bound by it: 15 app packages import a neighbouring context's domain package today.
+- Search indexing is **not** event-driven: `library.ScanService` calls the
+  `library.SearchIndex` port directly.
+- There is no bridge feeding domain events into plugins: plugins reach the API
+  with scoped JWTs ([ADR-0003](adr/0003-plugin-scoped-tokens.md)). The bus
+  itself is [ADR-0010](adr/0010-event-bus.md).
+- `shared.TransactionalUnit` wraps multi-aggregate writes ([ADR-0002](adr/0002-transactional-unit-port.md)).
+
+No package under `internal/domain` imports another context's domain package,
+a rule enforced by `internal/contractguard/domain_imports_test.go` (see
+[Architecture guards](#architecture-guards)). The app layer is not bound by
+it: 15 app packages import a neighbouring context's domain package today.
 
 ## Typical data flow - "user plays a media"
 
 1. Mobile/web client calls `POST /api/v1/playback/start` (grpc-gateway route).
 2. `internal/adapters/driving/http` runs its auth middleware (`auth_middleware.go`, `httpAuthMiddleware`), extracts session.
-3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) validates proto, calls `app/playback.CommandService.StartStream` (command/query split, see ADR-0009).
+3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) validates proto, calls `app/playback.CommandService.StartStream` (command/query split, see [ADR-0009](adr/0009-cqrs-repo-split.md)).
 4. `app/playback.CommandService` calls domain ports: `user.UserRepository`, `playback.SessionQueryRepo` (idempotency + device cap), `playback.SessionCommandRepo`, then `shared.EventBus.Publish(PlaybackStarted)`.
 5. Driven adapters execute: `postgres` persists the session inside a `shared.TransactionalUnit.Do` scope; the in-process bus (`internal/pkg/eventbus`) dispatches asynchronously.
 6. `PlaybackStarted` has no dedicated subscriber today: only the `webhook` `"*"` catch-all receives it.
 7. Response streams back through grpc-gateway as JSON; progress updates flow over SSE / gRPC streams.
 
-## Composition root
-
-Wire graphs live in `cmd/evey/wire.go` and its siblings (`wire_infra.go`, `wire_services.go`, `wire_adapters.go`, `wire_events.go`, `wire_helpers.go`). Tests bypass adapters by injecting fakes that implement the same domain ports - 20 of the 21 domain packages ship a `fakes/` subpackage. See [ADR-0001](adr/0001-hexagonal-architecture.md).
+What happens once the player asks for the manifest and the segments is the
+subject of [Playback pipeline](playback-serving.md).
 
 ## Architecture guards
 
-The rules above are not documentation-only. `internal/contractguard/` holds 54 static tests across 29 files that fail the build when the codebase drifts from them.
+The rules above are not documentation-only. `internal/contractguard/` holds
+58 static tests across 30 files that fail the build when the codebase drifts
+from them.
 
-The hexagonal rule itself is `TestDomainContextsDoNotImportEachOther` (ADR-0001), in `domain_imports_test.go`. It walks `internal/domain` and enforces exactly this: a context may import `internal/domain/shared` and its own package tree, nothing else from `internal/domain`, and never `internal/app` or `internal/adapters`. Its scope stops at `internal/domain` - it says nothing about the app layer.
+The hexagonal rule itself is `TestDomainContextsDoNotImportEachOther`
+(ADR-0001), in `domain_imports_test.go`. It walks `internal/domain` and
+enforces exactly this: a context may import `internal/domain/shared` and its
+own package tree, nothing else from `internal/domain`, and never
+`internal/app` or `internal/adapters`. Its scope stops at `internal/domain`:
+it says nothing about the app layer.
 
 The rest guard contracts that cross a language or a process boundary, among them:
 
-- `TestNoClientReadOfAFieldTheServerNeverWrites` - every proto response field a client reads must be written somewhere on the server.
-- `TestRegisteredHandlersGetEveryPortTheyDeclare` and `TestBootInstallsItsSilentWirings` - wiring that would otherwise fail silently.
-- `TestPostgresRepositoriesBoundTheirQueries` - every Postgres repository bounds its queries with a timeout.
-- `TestProcfork_EveryForkGoesThroughCommand` - every subprocess fork goes through `internal/pkg/procfork`.
-- `TestEverySortFieldTheAPIAcceptsHasASQLColumn` and `...CanBuildACursorValue` - sort fields exist both in the SQL column map and in the cursor encoder.
-- `TestEveryWebSurfaceReachingAnAdminRPCIsClassified`, plus its native counterpart for mobile and TV - any UI surface calling an admin-only RPC decides who sees it.
-- `TestEveryAllowedSlotIsMountedOnWebAndMobile` and `TestPluginBridgeParityWebMobile` - plugin UI slot parity across clients.
-- `TestImageSubtitleCodecsAgreeAcrossServerAndClients` - one list of bitmap subtitle codecs, server and players.
-- `TestHandWrittenClientTypesMatchTheEndpointTheyCall` - the hand-written mobile/TV response types match the endpoint they call.
-- `TestRestartExitCodeAgreesWithTheEntrypoint` - the Go exit code and `docker/entrypoint.sh` agree on what a restart means.
-- i18n guards - server-emitted keys exist in the catalogue, placeholders agree across locales.
-
-## Further reading
-
-- [DEV.md](../DEV.md) - build, run, migrations, proto generation
-- [docs/CODEBASE_MAP.md](CODEBASE_MAP.md) - which files to touch for common changes
-- [docs/playback-serving.md](playback-serving.md) - the HLS video-serving read path, in depth (decision, ladder, fingerprint, CMAF/HLS/DASH, mkvgo vs ffmpeg)
-- [docs/api/](api/) - generated API reference
-- [docs/adr/](adr/) - architectural decision records
+| Guard | What it refuses |
+| --- | --- |
+| `TestNoClientReadOfAFieldTheServerNeverWrites` | a proto response field a client reads that no server code writes |
+| `TestRegisteredHandlersGetEveryPortTheyDeclare`, `TestBootInstallsItsSilentWirings` | wiring that would otherwise fail silently |
+| `TestPostgresRepositoriesBoundTheirQueries` | a Postgres repository query without a timeout |
+| `TestProcfork_EveryForkGoesThroughCommand` | a subprocess fork that bypasses `internal/pkg/procfork` |
+| `TestEverySortFieldTheAPIAcceptsHasASQLColumn`, `...CanBuildACursorValue` | a sort field missing from the SQL column map or the cursor encoder |
+| `TestEveryWebSurfaceReachingAnAdminRPCIsClassified`, plus its native counterpart for mobile and TV | a UI surface calling an admin-only RPC without deciding who sees it |
+| `TestEveryAllowedSlotIsMountedOnWebAndMobile`, `TestPluginBridgeParityWebMobile` | a plugin UI slot or bridge message present on one client only |
+| `TestImageSubtitleCodecsAgreeAcrossServerAndClients` | a second list of bitmap subtitle codecs on a player |
+| `TestHandWrittenClientTypesMatchTheEndpointTheyCall` | a hand-written mobile/TV response type that drifts from its endpoint |
+| `TestOnlyThePlanDecidesPlayback`, `TestNoCallerDerivesDownstreamOfThePlaybackPlan` | a playback decision taken outside the plan resolver ([ADR-0030](adr/0030-one-plan-one-decision.md)) |
+| `TestRestartExitCodeAgreesWithTheEntrypoint` | a Go exit code and `docker/entrypoint.sh` disagreeing on what a restart means |
+| `TestServerEmittedI18nKeysExistInCatalogue`, `TestI18nPlaceholdersAgreeAcrossLocales` | a server-emitted key missing from the catalogue, placeholders that differ between locales |
 
 ## C4 diagrams
 
-These four diagrams document Evey at decreasing zoom levels following the [C4 model](https://c4model.com/). All diagrams render with Mermaid; no binary assets. Node names are the actual Go package names under `internal/`. Container names come from `docker-compose.yml` for `evey-server`, `evey-postgres` and `evey-caddy`; `evey-web`, `evey-meilisearch`, `evey-mobile` and `evey-mailcatcher` are declared in `docker-compose.override.yml` and exist in the dev topology only.
+Four diagrams document Evey at decreasing zoom levels following the
+[C4 model](https://c4model.com/). Node names are the actual Go package names
+under `internal/`. Container names come from `docker-compose.yml` for
+`evey-server`, `evey-postgres` and `evey-caddy`; `evey-web`,
+`evey-meilisearch`, `evey-mobile` and `evey-mailcatcher` are declared in
+`docker-compose.override.yml` and exist in the dev topology only.
 
 ### Level 1 - System Context
 
@@ -126,6 +175,7 @@ flowchart LR
     introdb[IntroDB / TIDB<br/>intro + credits timestamps]
     opensubs[OpenSubtitles<br/>subtitle search]
     webpush[Web Push gateway<br/>FCM / APNs / VAPID]
+    registry[OCI registry<br/>published image tags]
 
     subgraph evey[Evey Media Server]
         core((Self-hosted media platform<br/>library, playback, transcoding,<br/>music, photo, plugins))
@@ -141,11 +191,13 @@ flowchart LR
     evey -.->|HTTPS intro lookup| introdb
     evey -.->|HTTPS subtitle fetch| opensubs
     evey -.->|HTTPS push delivery| webpush
+    evey -.->|HTTPS update check| registry
 ```
 
 ### Level 2 - Container
 
-The deployable units brought up by `docker compose --env-file .env.dev up`. Solid arrows are runtime traffic; dashed arrows are outbound to third parties.
+The deployable units brought up by `docker compose --env-file .env.dev up`.
+Solid arrows are runtime traffic; dashed arrows are outbound to third parties.
 
 ```mermaid
 flowchart TB
@@ -183,21 +235,25 @@ flowchart TB
     server -->|read/write FS| data
 ```
 
-> **Production differs from this dev topology.** The install compose declares
-> one service, `evey`. There is no separate `evey-web` container (nor the
-> dev-only mailcatcher and Metro bundler): the binary serves the built web UI
-> from `/srv`, so a reverse proxy forwards *everything* - UI and API - to it on
-> `:9091`. Postgres and Meilisearch run inside the same container, supervised
-> by `docker/entrypoint.sh`: PostgreSQL 17 with its data under `/data/postgres`,
-> and the Meilisearch binary (`Dockerfile`, `meili-download` stage, pinned to
-> 1.12.8) with its index under `/data/meili`. The repository's own
-> `docker-compose.yml` keeps separate `postgres` and `caddy` services, described
-> in [Advanced deployments](operations/advanced-deployments.md). See
-> [Install](installation.md) and [Reverse proxy](reverse-proxy.md).
+!!! note "Production differs from this dev topology"
+    The install compose declares one service, `evey`. There is no separate
+    `evey-web` container (nor the dev-only mailcatcher and Metro bundler):
+    the binary serves the built web UI from `/srv`, so a reverse proxy
+    forwards *everything*, UI and API, to it on `:9091`. Postgres and
+    Meilisearch run inside the same container, supervised by
+    `docker/entrypoint.sh`: PostgreSQL 17 with its data under
+    `/data/postgres`, and the Meilisearch binary (`Dockerfile`,
+    `meili-download` stage, pinned to 1.12.8) with its index under
+    `/data/meili`. The repository's own `docker-compose.yml` keeps separate
+    `postgres` and `caddy` services, described in
+    [Advanced deployments](operations/advanced-deployments.md). See
+    [Install](installation.md) and [Reverse proxy](reverse-proxy.md).
 
 ### Level 3 - Component (zoom on `evey-server`)
 
-Hexagonal layering inside the Go binary. Driving adapters call application services through their interfaces; application services depend only on domain ports; driven adapters implement those ports.
+Hexagonal layering inside the Go binary. Driving adapters call application
+services through their interfaces; application services depend only on domain
+ports; driven adapters implement those ports.
 
 ```mermaid
 flowchart LR
@@ -220,7 +276,8 @@ flowchart LR
         a_music[music]
         a_photo[photo]
         a_user[user]
-        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo, updatecheck]
+        a_upd[updatecheck]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo]
     end
 
     subgraph domain[Domain core - internal/domain]
@@ -238,6 +295,7 @@ flowchart LR
         introad[introproviders<br/>IntroDB + TIDB chain]
         itunad[itunes<br/>album artwork]
         mbad[musicbrainz<br/>album artwork]
+        ociad[ociregistry<br/>published tags]
         probead[prober<br/>mkvgo fast path,<br/>ffprobe fallback]
         searchad[search<br/>resilient facade over meili]
         osad[opensubtitles]
@@ -264,6 +322,7 @@ flowchart LR
     d_ports -.implements.- probead
     a_music -.app-layer iface.- itunad
     a_music -.app-layer iface.- mbad
+    a_upd -.app-layer iface.- ociad
     d_ports -.implements.- searchad
     d_ports -.implements.- osad
     d_ports -.implements.- emad
@@ -279,18 +338,22 @@ flowchart LR
     introad -.-> ext3[[IntroDB / TIDB]]
     itunad -.-> ext4[[iTunes Search / MusicBrainz]]
     mbad -.-> ext4
+    ociad -.-> ext5[[OCI registry]]
 ```
 
 Goroutine notes:
+
 - gRPC server (`grpc.Server.Serve`) and HTTP server (gateway + static) each run in their own goroutines off the main wire-up in `cmd/evey`.
 - `app/library` scan jobs run on a worker pool (one goroutine per active library scan, see `library.ScanService`).
 - ffmpeg jobs are forked through `internal/pkg/procfork` by the driven `ffmpeg` adapter (`ffmpeg.Transcoder.Start`), one supervising goroutine per job draining the process stderr.
-- `shared.EventBus` dispatches subscribers asynchronously: each subscriber runs in its own goroutine so a slow consumer never blocks publishers. The bus opens no transaction of its own - that is the handler's job.
+- `shared.EventBus` dispatches subscribers asynchronously: each subscriber runs in its own goroutine so a slow consumer never blocks publishers. The bus opens no transaction of its own; that is the handler's job.
 - `pluginrunner` spawns one subprocess per plugin; iframe plugins live inside the user browser and talk back via signed tokens issued by `app/plugin`.
 
 ### Level 3 (bonus) - Component zoom on the scan pipeline
 
-The hot path that turns files on disk into searchable, enriched media. Solid arrows are direct calls; dashed arrows are domain events on the bus. Note that search indexing is a direct port call from `ScanService`, not an event.
+The hot path that turns files on disk into searchable, enriched media. Solid
+arrows are direct calls; dashed arrows are domain events on the bus. Search
+indexing is a direct port call from `ScanService`, not an event.
 
 ```mermaid
 flowchart LR
@@ -347,4 +410,23 @@ flowchart LR
     trick --> ffstore[(evey-cache<br/>trickplay sprites)]
 ```
 
-Read this with the "Typical data flow" section above: the playback path is the symmetric read path; the scan pipeline is the write path that primes the media index the read path serves from.
+Read this with the "Typical data flow" section above: the playback path is the
+symmetric read path; the scan pipeline is the write path that primes the media
+index the read path serves from.
+
+## Further reading
+
+- [DEV.md](../DEV.md) - build, run, migrations, proto generation
+- [Codebase map](CODEBASE_MAP.md) - which files to touch for common changes
+- [Playback pipeline](playback-serving.md) - the HLS video-serving read path, in depth
+- [API reference](api/) - generated API reference
+- [Decision records](adr/) - architectural decision records
+
+<!-- sources
+layering: internal/domain ; internal/app ; internal/adapters/driven ; internal/adapters/driving ; internal/pkg ; internal/config ; gen ; cmd/evey/wire.go, wire_infra.go, wire_services.go, wire_adapters.go, wire_events.go, wire_helpers.go
+app-layer interfaces: internal/app/music/album_art_chain.go - AlbumArtFetcher ; internal/adapters/driven/ociregistry (app/updatecheck)
+network exceptions: internal/app/dlna/service.go ; internal/app/loadtest/runner.go
+events and subscribers: internal/app/notification/command_service.go ; internal/app/metadata/command_service_enrich.go ; internal/app/library/trickplay_service.go ; internal/app/library/intro_detection_service.go ; internal/app/feed/genre_cache.go ; internal/app/webhook/service.go ; internal/adapters/driven/email/password_reset_emailer.go ; internal/app/plugin/security_dashboard_service.go ; internal/app/config/smtp.go, timezone.go, cpu_budget.go
+guards: internal/contractguard/*_test.go - TestDomainContextsDoNotImportEachOther, TestOnlyThePlanDecidesPlayback, TestNoCallerDerivesDownstreamOfThePlaybackPlan, TestServerEmittedI18nKeysExistInCatalogue, TestI18nPlaceholdersAgreeAcrossLocales
+topology: docker-compose.yml ; docker-compose.override.yml ; Dockerfile - MEILI_VERSION, postgresql-17 ; docker/entrypoint.sh - PG_MAJOR
+-->

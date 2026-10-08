@@ -1,13 +1,14 @@
 ---
-source_sha: f4ecae392bc0b50e2c1ef8c70f50db7121732b5c6e7c194891cf416bffb92680
+source_sha: 9f40858672d5badb8f1ffd97cf815109f93c3034126c5d4e6841092d5caf818a
 reviewed: true
 ---
 # Permissions et emplacements
 
-Cette page s'adresse aux auteurs de plugins : ce qu'un manifeste peut déclarer,
-ce qui est vérifié à l'installation d'un plugin, et les règles qui s'appliquent
-à lui pendant son exécution. La façon dont le serveur confine un plugin, et ce
-que ce confinement ne peut pas empêcher, est décrite dans
+Pour les auteurs de plugins : ce qu'un manifeste peut déclarer, ce que
+l'installateur vérifie, et les règles qui s'appliquent à un plugin pendant
+son exécution. Le catalogue ci-dessous est la liste dans laquelle choisir ;
+la façon dont le serveur confine un plugin, et ce que ce confinement ne peut
+pas empêcher, est décrite dans
 [Sandbox des plugins et modèle de menace](../SECURITY.md).
 
 ## Ce qui est vérifié à l'installation
@@ -15,75 +16,80 @@ que ce confinement ne peut pas empêcher, est décrite dans
 Un plugin est refusé à l'installation quand :
 
 - `kind` manque, ou ne vaut ni `plugin` ni `theme` ;
-- un `kind: plugin` n'a pas de `language` ou d'`entrypoint`, ou un `kind: theme`
-  les déclare, ou déclare des `permissions` ;
+- un `kind: plugin` n'a pas de `language` ou d'`entrypoint`, ou un
+  `kind: theme` les déclare, ou déclare des `permissions` ou des
+  `capabilities` ;
 - une permission ou une capacité est inconnue ;
 - un module d'interface vise un emplacement hors de la
   [liste des emplacements](#slot-whitelist) ;
 - une entrée de `external_fetch` enfreint les
-  [règles d'accès externe](#external-fetch-rules) ;
-- le ZIP enfreint les limites d'extraction : plus de 5 000 fichiers, un fichier
-  de plus de 100 Mo, plus de 500 Mo une fois décompressé, un taux de compression
-  supérieur à 100:1, un chemin qui sort de l'archive, ou un lien symbolique ;
-- l'analyse statique trouve un motif critique (exécution de shell, obfuscation,
-  import dynamique, évasion de sandbox, changement de privilèges, minage...). Les
-  binaires compilés et les archives embarquées sont refusés, sauf si le manifeste
-  déclare `native-binary`.
+  [règles d'accès externe](#external-fetch-rules), ou `network` est déclaré
+  sans aucune entrée ;
+- le ZIP enfreint les [limites d'extraction](../SECURITY.md#zip-extraction) ;
+- l'analyse statique trouve un motif critique, ou un avertissement que
+  l'installateur traite comme tel (désérialisation non sûre, obfuscation).
+  Les binaires compilés, les archives embarquées et le code natif sont
+  refusés sauf si le manifeste déclare `native-binary`.
 
 L'analyse lit aussi les commentaires : une ligne `# pip install foo` dans un
-commentaire est signalée comme du vrai code. Retirez ce genre de ligne avant de
-publier. La liste complète des catégories est dans
+commentaire est signalée comme du vrai code. Retirez ce genre de ligne avant
+de publier. Les catégories sont listées dans
 [Sandbox des plugins et modèle de menace](../SECURITY.md#static-analysis).
 
-Avant l'installation, l'administrateur voit les permissions, les emplacements et
-les hôtes déclarés, et ce que l'analyse a trouvé.
+Avant l'installation, l'administrateur voit les permissions, les emplacements
+et les hôtes déclarés, et ce que l'analyse a trouvé. Rien de ce qu'un plugin
+déclare n'est accordé en silence.
 
 ## Dans quelles conditions le plugin s'exécute
 
 Quoi que déclare le manifeste :
 
 - le plugin voit son propre dossier, pas les données du serveur ;
-- il n'a aucun accès direct au réseau : un plugin qui a la permission `network`
-  atteint les hôtes de sa liste `external_fetch` par l'appel `Fetch` de l'hôte ;
+- il n'a aucun accès direct au réseau : un plugin qui a la permission
+  `network` atteint les hôtes de sa liste `external_fetch` par l'appel
+  `Fetch` de l'hôte, et rien d'autre ;
 - sans `subprocess`, il ne peut pas lancer de processus enfants (les threads
   fonctionnent) ;
-- il tourne sous des limites de ressources que l'administrateur peut ajuster :
-  256 Mio de mémoire, 64 processus et threads, 100 Mio de disque pour son dossier,
-  et une priorité processeur abaissée, par défaut.
+- il tourne sous des limites de ressources que l'administrateur peut
+  ajuster : 256 Mio de mémoire, 64 processus et threads, 100 Mio de disque
+  pour son dossier, et une priorité processeur abaissée, par défaut.
 
-La signature est facultative pendant le développement. Comment signer un plugin,
-et la politique de signature qu'un serveur peut imposer :
-[Écrire un plugin](dev-setup.md).
+La signature est facultative pendant le développement. Comment signer un
+plugin, et la politique de signature qu'un serveur peut imposer :
+[Écrire un plugin](dev-setup.md#7-sign-your-plugin).
 
 ## Catalogue des permissions
 
-Une permission se déclare sous `permissions` ; toute autre valeur fait refuser l'installation. Recevoir des webhooks (`webhook.receiver`) et fournir des métadonnées (`metadata.provider`) sont des capacités, déclarées sous `capabilities` : voir [Référence de l'API des plugins](api-reference.md#capabilities).
+Une permission se déclare sous `permissions` ; toute autre valeur fait refuser
+l'installation. Recevoir des webhooks (`webhook.receiver`) et fournir des
+métadonnées (`metadata.provider`) sont des capacités, déclarées sous
+`capabilities` : voir
+[Référence de l'API des plugins](api-reference.md#capabilities).
 
 | Permission | Ce qu'elle accorde |
 |---|---|
-| `network` | Le plugin peut ouvrir des connexions réseau sortantes. Elle **doit** aller avec une liste `external_fetch` non vide : sans elle, l'installation est refusée. |
-| `subprocess` | Le plugin peut lancer des processus enfants. Sans elle, deux couches s'appliquent : la cale seccomp chargée par LD_PRELOAD bloque `execve`/`execveat` pour les plugins interprétés, et l'option `-deny-fork` du lanceur bloque la création même de processus (`fork`/`vfork`/`clone` sans `CLONE_THREAD`) dans le noyau. Les threads fonctionnent dans les deux cas. (Le seccomp noyau du lanceur n'interdit pas `execve`, puisqu'il doit exécuter le plugin, mais tout enfant hérite du filtre noyau et du domaine Landlock.) |
-| `native-binary` | Le plugin peut livrer des `.so`/`.dll`/`.exe`/`.wasm`/`.jar` ou des archives embarquées. L'administrateur voit ce code opaque dans l'aperçu d'installation et doit l'accepter. |
-| `filesystem` | Déclare l'intention d'accéder au système de fichiers au-delà du dossier du plugin. Enregistrée et montrée à l'administrateur ; la sandbox n'accorde aucun accès aux fichiers hors du dossier du plugin, quelle que soit la déclaration. |
-| `media.read` | Le plugin peut appeler les RPC `MediaRead` : lire les métadonnées des fichiers et accéder aux flux. |
-| `media.write` | Le plugin peut appeler les RPC `MediaWrite` : créer et modifier des fiches de médias. |
-| `api.library` | Le plugin peut appeler les RPC de gestion des bibliothèques : lister et chercher des bibliothèques, lancer des scans. |
-| `api.user` | Le plugin peut appeler les RPC propres à l'utilisateur (lire son profil, ses préférences). |
-| `api.metadata` | Le plugin peut appeler les RPC de métadonnées : chercher et écrire des données d'enrichissement. |
-| `notification.sender` | Le plugin peut publier des événements de notification (push web, e-mail, webhook). |
-| `public` | L'interface du plugin peut lire une projection sans risque des médias (identifiant, titre, type, année, résumé, affiche), jamais les chemins ni les flux. Voir [Référence de l'API des plugins](api-reference.md#public). |
-| `prefs` | L'interface du plugin peut lire et écrire les préférences de l'utilisateur courant dans l'espace de noms du plugin. Voir [Référence de l'API des plugins](api-reference.md#prefs). |
-| `hardware.gpu` | **La permission la plus risquée : réservée à l'administrateur, pour les plugins officiels du projet.** Accorde le nœud de rendu DRM de l'hôte (`-render-dev`, le vrai `renderD1xx`, jamais un nœud de carte, jamais `/dev/dxg`/`/dev/nvidia*`/`/dev/kfd`) : une surface d'attaque sur le pilote noyau, et une frontière de mémoire GPU PARTAGÉE avec le transcodeur (fuite de mémoire entre processus possible sur les GPU AMD, Apple et Qualcomm ; un GPU bloqué peut figer le transcodage). Sans cette permission, les nœuds de périphérique GPU sont entièrement exclus de la liste de périphériques autorisés par Landlock (refusés quels que soient les droits DAC). Avec elle, le lanceur ajoute une règle Landlock `IOCTL_DEV` explicite, limitée à ce seul fichier (ABI v5 et plus) ; sur les ABI Landlock plus anciennes, les ioctl ne sont pas du tout gouvernés par Landlock, si bien que l'accès en lecture et écriture suffit déjà à soumettre des commandes au GPU. L'installeur affiche un avertissement CRITIQUE bien visible dans l'aperçu ; ne l'accordez qu'à des plugins officiels, de confiance. |
+| `network` | Le backend peut appeler `Fetch`. Doit être combinée avec une liste `external_fetch` non vide ; refusée à l'installation sans elle. Le processus lui-même n'a toujours aucun socket. |
+| `subprocess` | Le backend peut créer des processus enfants. Sans elle, le filtre noyau du lanceur refuse `fork`, `vfork` et `clone` sans `CLONE_THREAD`, et la couche seccomp refuse `execve` pour les plugins interprétés. Les threads fonctionnent dans les deux cas. L'administrateur voit un avertissement dédié. |
+| `native-binary` | Le paquet peut livrer des `.so`, `.dll`, `.exe`, `.wasm`, `.jar`, des archives embarquées ou du code natif que l'analyse ne sait pas lire. L'administrateur voit et doit accepter du code opaque. Obligatoire pour un plugin `go`. |
+| `filesystem` | Intention déclarée de toucher au système de fichiers au-delà du dossier du plugin. Enregistrée et montrée à l'administrateur ; la sandbox n'accorde aucun accès hors du dossier du plugin, quoi qu'il soit déclaré. |
+| `media.read` | `GetMediaItem` et `ListMediaItems` sur l'hôte : la fiche média complète. |
+| `media.write` | Réservée aux appels d'écriture de métadonnées, non servis aujourd'hui. |
+| `api.library` | Les mêmes appels de lecture des médias que `media.read`. |
+| `api.user` | Réservée à `GetUserPreferences`, non servi aujourd'hui. |
+| `api.metadata` | Réservée à `UpdateMetadata`, non servi aujourd'hui. |
+| `notification.sender` | Réservée à `SendNotification`, non servi aujourd'hui. |
+| `public` | L'interface peut lire une projection sûre des médias (identifiant, titre, type, année, résumé, affiche), jamais les chemins ni les flux. Voir [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
+| `prefs` | L'interface peut lire et écrire les préférences de l'utilisateur courant dans l'espace propre du plugin. Voir [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |
+| `hardware.gpu` | Le processus reçoit le noeud de rendu DRM de l'hôte (le vrai `renderD1xx`, jamais un noeud carte). Une surface d'attaque sur le pilote noyau et une frontière de mémoire GPU partagée avec le transcodeur : un GPU bloqué peut figer le transcodage. Sans elle, les noeuds GPU sont entièrement exclus de la liste Landlock ; avec elle, le lanceur ajoute une règle `IOCTL_DEV` limitée à ce seul fichier (Landlock ABI 5 ou plus ; sur un noyau plus ancien, l'accès en lecture et écriture suffit déjà à soumettre des commandes). L'aperçu affiche un avertissement critique. Ne l'accordez qu'à un plugin que vous feriez tourner hors sandbox. |
 
 ## Règles d'accès externe
 
-Déclarées dans `external_fetch: [...]` dans le manifeste et vérifiées à
-l'installation par `validateExternalFetch`
-(`internal/adapters/driven/pluginrunner/manifest.go`). Tout ou rien : une seule
-entrée invalide refuse toute l'installation.
+Déclarées dans `external_fetch: [...]` et vérifiées à l'installation
+(`validateExternalFetch`). Tout ou rien : une seule entrée invalide refuse
+toute l'installation.
 
-Une entrée est un **nom d'hôte seul**. Un préfixe de schéma est toléré puis
-retiré : seul le nom d'hôte est gardé.
+Une entrée est un **nom d'hôte nu**. Un préfixe de schéma est toléré et
+retiré ; seul le nom d'hôte est conservé.
 
 | Entrée | Valide | Raison |
 |---|---|---|
@@ -91,63 +97,80 @@ retiré : seul le nom d'hôte est gardé.
 | `https://api.tmdb.org` | Oui | Schéma lu puis retiré, nom d'hôte conservé |
 | `*.tmdb.org` | Non | Les jokers sont refusés : listez chaque sous-domaine nécessaire |
 | `*` | Non | Même règle |
-| `192.168.1.1`, `::1` | Non | Les adresses IP littérales sont refusées, dans les deux familles |
+| `192.168.1.1`, `::1` | Non | Les adresses IP sont refusées, dans les deux familles |
 
-À l'exécution, l'intermédiaire de l'hôte ajoute ses propres limites, que le
+À l'exécution, le courtier de l'hôte ajoute ses propres limites, que le
 manifeste ne peut pas élargir : `http` et `https` seulement, `GET` et `HEAD`
-seulement, l'hôte visé comparé sans tenir compte de la casse à votre liste, et
-les adresses privées ou réservées refusées après résolution DNS ; les
-redirections sont revérifiées selon ces deux règles.
+seulement, l'hôte cible comparé à votre liste sans tenir compte de la casse
+(un suffixe `:port` dans une entrée est ignoré), les adresses privées ou
+réservées refusées après résolution DNS, un corps plafonné à 8 Mio et une
+requête à 20 secondes. Les redirections sont revérifiées contre la liste et
+contre la règle d'adresse.
 
-> L'intermédiaire sait aussi comprendre une forme `*.example.com`, mais
-> l'installeur refuse une telle entrée, qui ne peut donc jamais lui parvenir.
-> Écrivez des noms d'hôte explicites.
+La même liste d'hôtes est le `connect-src` du cadre du plugin, préfixée de
+`https://` : un widget peut appeler ces hôtes directement, en `https`
+seulement.
 
 ## Liste des emplacements
 
-Un plugin ne peut injecter de l'interface que dans des emplacements explicitement
-autorisés. Les parcours critiques en sont volontairement absents.
+Les plugins ne peuvent injecter de l'interface que dans des emplacements
+explicitement autorisés. Les chemins critiques en sont volontairement
+absents.
 
-| Emplacement | Authentification requise | Remarques |
+| Emplacement | Authentification requise | Notes |
 |---|---|---|
 | `home.section` | Oui | Zone de contenu de la page d'accueil |
-| `home.hero` | Oui | Zone de mise en avant |
-| `library.sidebar` | Oui | Barre latérale de la vue d'une bibliothèque |
-| `media.detail.sidebar` | Oui | Barre latérale de la page d'un média |
-| `player.overlay` | Oui | Interface superposée au lecteur |
-| `settings.user.appearance` | Oui | Section Apparence des réglages de l'utilisateur |
-| `sidebar.bottom` | Oui | Bas du panneau de navigation |
-| `admin.nav` | Oui | Une entrée de navigation dans le panneau d'administration, qui ouvre la page du plugin dans son propre cadre isolé ; n'injecte rien dans les écrans d'administration existants |
+| `home.hero` | Oui | Zone de bannière |
+| `library.sidebar` | Oui | Barre latérale des vues de bibliothèque |
+| `media.detail.sidebar` | Oui | Barre latérale d'une fiche média |
+| `player.overlay` | Oui | Surcouche du lecteur |
+| `settings.user.appearance` | Oui | Section apparence des paramètres utilisateur |
+| `sidebar.bottom` | Oui | Bas de la barre de navigation |
+| `admin.nav` | Oui | Une entrée de menu dans le panneau d'administration qui ouvre la page isolée du plugin ; n'injecte rien dans les écrans d'administration existants |
 
 **Jamais autorisés :** `admin.*` (sauf `admin.nav`), `login.*`, `setup.*`,
-`profile.security.*` : ces parcours sont critiques pour l'authentification ou les
-privilèges, et y injecter un plugin serait un moyen d'élévation de privilèges ou
-d'hameçonnage.
+`profile.security.*`. Ces chemins sont critiques pour l'authentification ou
+les privilèges, et une injection à cet endroit est un vecteur d'élévation de
+privilèges ou d'hameçonnage.
 
-Le contenu de `admin.nav` reste isolé comme celui de tout autre emplacement : il
-s'affiche dans une `<iframe sandbox="allow-scripts">` (sans `allow-same-origin`)
-avec la CSP `default-src 'none'`. C'est donc un contenu tiers affiché dans la
-zone d'administration, pas un pouvoir d'administration accordé au plugin.
+Le contenu de `admin.nav` est isolé comme tout autre emplacement : il
+s'affiche dans un `<iframe sandbox="allow-scripts">` sans
+`allow-same-origin`, dans une page dont la politique est
+`default-src 'none'`. C'est du contenu tiers affiché dans la zone
+d'administration, pas une capacité d'administration accordée au plugin.
 
-Source : `internal/domain/plugin/slots.go`.
+Le pont limite ce qu'un cadre peut demander à la page : `evey.toast` au plus
+3 messages par seconde, 200 caractères, sans HTML ; `evey.navigate` seulement
+`/home`, `/library`, `/media`, `/player`, `/settings` et `/search` ;
+`evey.resize` borné à 50-800 px. Le cadre ne détient aucun jeton : l'hôte
+émet un jeton de cinq minutes limité à (plugin, utilisateur) pour les appels
+`public` et `prefs`, et le serveur refuse par défaut toute méthode que ce
+jeton ne nomme pas.
 
-Les modules d'interface tournent dans une `<iframe>` isolée, sans accès à la page
-hôte. Le pont limite ce qu'ils peuvent faire : `evey.toast`, au plus 3 messages par
-seconde, 200 caractères, sans HTML ; `evey.navigate` n'accepte que `/home`,
-`/library`, `/media`, `/player`, `/settings` et `/search` ; `evey.resize` est borné entre 50
-et 800 px.
+## Déroulement d'une mise à jour
 
-## Mise à jour d'un plugin
+1. L'administrateur envoie un nouveau ZIP. `PreviewPluginUpdate` lance
+   l'analyse statique et la vérification de signature, et renvoie la
+   différence de permissions, de capacités, d'emplacements et
+   d'`external_fetch` par rapport à la version installée.
+2. Si la différence n'est pas vide, l'administrateur doit la reconnaître
+   avant que la mise à jour soit appliquée (`requires_ack = true` ; par la
+   route d'envoi, `accept_permission_changes=true`).
+3. L'empreinte du paquet est relevée à l'aperçu et vérifiée à l'application :
+   le ZIP analysé est le ZIP installé.
+4. Sous `EVEY_PLUGINS_COSIGN_POLICY=enforce`, un échec de signature à
+   l'application bloque la mise à jour même si l'aperçu est passé.
 
-1. L'administrateur envoie un nouveau ZIP → `PreviewPluginUpdate` lance l'analyse
-   statique et la vérification cosign, et renvoie les différences de
-   permissions, d'emplacements et d'`external_fetch` par rapport à la version
-   installée.
-2. S'il y a des différences (nouvelles permissions, nouveaux emplacements, hôtes
-   externes modifiés), l'administrateur doit les accepter explicitement avant que
-   la mise à jour ne s'applique (`requires_ack = true`).
-3. L'empreinte de la source est relevée à l'aperçu et vérifiée à l'application
-   (protection contre la course entre vérification et utilisation : le ZIP
-   analysé est bien celui qui est installé).
-4. Si la politique cosign est `enforce`, une signature qui ne correspond pas à
-   l'étape d'application bloque la mise à jour, même si l'aperçu était passé.
+<!-- sources
+manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
+escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
+analysis reads comments: docs/SECURITY.md (Static analysis)
+subprocess, deny-fork, deny-inet, render-dev: cmd/evey-plugin-launcher/main.go ; i18n admin.plugins.subprocessWarning
+resource defaults: internal/config/config.go - Plugins
+permission per RPC: internal/adapters/driving/grpcapi/plugin_interceptor.go ; served or not: internal/adapters/driving/pluginhost/host_server.go
+broker: internal/adapters/driving/pluginhost/fetch.go - Fetch, hostAllowed, maxFetchBytes, fetchTimeout
+frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc ; internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy
+slots: internal/domain/plugin/slots.go - AllowedSlots
+bridge limits: frontend/packages/client/src/plugins/hostProtocol.ts ; token: internal/app/plugin/token_service.go - PluginTokenTTL ; docs/adr/0012-plugin-token-deny-by-default.md
+update workflow: internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/install.go - resolveExistingPlugin ; proto/evey/v1/admin_plugin.proto - PreviewPluginUpdate, ApplyPluginUpdate
+-->

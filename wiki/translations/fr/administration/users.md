@@ -1,64 +1,79 @@
 ---
-source_sha: 48600ed7a36a37b21c681886fa318a33aa2d590da6c4a0d48886d3f38a674663
+source_sha: 6e4dfec863689cacafb646acf12485ba6886feb6906c692504a7a25560c2b5de
 reviewed: true
 ---
 # Utilisateurs, profils et contrôle parental
 
+Un **compte** se connecte ; un **profil** regarde. Cette page s'adresse à
+l'administrateur qui installe le foyer : créer les comptes, laisser chacun
+créer ses profils, marquer ceux des enfants comme profils enfant et leur
+donner une limite d'âge. Ce qu'un compte peut se voir restreindre, les
+horaires d'ouverture, les demandes, les liens de téléchargement publics et la
+page d'accueil viennent ensuite.
+
 ## Comptes et profils
 
-Un **compte** sert à se connecter : il a un nom d'utilisateur et un mot de
-passe (ou une identité d'authentification unique, voir [OIDC](../oidc.md)),
-et il est administrateur ou non. Un **profil** sert à regarder : chaque
-compte contient un ou plusieurs profils, chacun avec son historique, ses
-points de reprise, ses favoris, ses langues et sa page d'accueil. Un foyer
-partage en général un compte, avec un profil par personne.
+Un compte a un nom d'utilisateur et un mot de passe (ou une identité
+d'authentification unique, voir [OIDC](../oidc.md)), et il est administrateur
+ou non. Chaque compte contient un ou plusieurs profils, chacun avec son
+historique, ses points de reprise, ses favoris, ses langues et sa page
+d'accueil. Un foyer partage en général un compte, avec un profil par
+personne.
 
-## Créer des comptes
-
-**Admin → Utilisateurs** propose deux façons de faire :
+## Créer un compte
 
 <figure class="evey-shot" markdown="span">
   ![Admin → Utilisateurs sur le serveur de démo](../images/admin-users.webp){ loading=lazy }
   <figcaption><strong>Admin → Utilisateurs</strong> : chaque compte avec ses profils, son rôle et son état.</figcaption>
 </figure>
 
-- **Créer un utilisateur** : vous choisissez le nom d'utilisateur et le mot
-  de passe.
-- **Créer un lien d'invitation** : la personne choisit les siens. Un lien peut
-  avoir une date d'expiration et un nombre maximal d'utilisations, limiter les
-  bibliothèques visibles par le nouveau compte, plafonner le nombre de profils
-  qu'il pourra créer, et créer un administrateur. **Liens d'invitation** les
-  liste ; un lien peut être révoqué.
+**Admin → Utilisateurs** propose deux façons de faire :
 
-## Ce qu'un administrateur peut restreindre par compte
+- **Créer un utilisateur** : vous choisissez le **Nom d'utilisateur** et le
+  **Mot de passe**, cochez **Administrateur** pour un administrateur, et
+  pouvez fixer dès ce moment les bibliothèques, le nombre de profils et le
+  nombre d'appareils (voir plus bas).
+- **Créer un lien d'invitation** : la personne choisit les siens. Un lien
+  peut avoir une **Date d'expiration** et un **Nombre max d'utilisations**,
+  limiter les bibliothèques visibles par le nouveau compte (**Bibliothèques
+  accessibles**), plafonner le nombre de profils qu'il pourra créer, et
+  **Créer un administrateur**. **Liens d'invitation** les liste ; **Copier le
+  lien** en copie un, **Révoquer** y met fin.
 
-| Réglage | Effet |
-| --- | --- |
-| **Accès aux bibliothèques** | Les bibliothèques visibles par le compte. Le reste n'apparaît ni dans ses recherches, ni sur sa page d'accueil, ni dans les réponses de l'API. |
-| **Débit maximal** | Un plafond sur le débit reçu par les lecteurs du compte (0 = illimité). Un titre au-dessus est transcodé pour s'y conformer. |
-| **Profils max** | Le nombre de profils que le compte peut créer (0 = illimité). |
-| **Appareils max par profil** | Le nombre de lectures que chaque profil peut avoir en cours en même temps, tous appareils confondus (0 = illimité). Une lecture de plus est refusée à son démarrage. |
+**Désactiver**, sur la ligne d'un compte, refuse ses connexions sans rien
+supprimer ; **Activer** les rétablit. **Supprimer** retire le compte et ses
+profils.
 
-**Se connecter en tant que** ouvre le serveur tel que cet utilisateur le
-voit, pour vérifier une restriction ou reproduire un problème. Un bandeau
-reste visible, et **Quitter** vous ramène à votre propre compte.
+## Profils, profils enfant et code PIN
 
-## Profils enfant et code PIN
+Chaque compte crée ses profils dans **Paramètres → Profils → Créer un
+profil** ; un administrateur peut aussi en ajouter un depuis **Modifier
+l'utilisateur → Nouveau profil**. Un profil a un **Nom**, une **Langue** et
+une **Région**, et deux réglages qui comptent pour les enfants :
 
-Un profil marqué **Profil enfant** s'ouvre sans code. Quitter ce profil pour
-un profil qui n'est pas un profil enfant demande le **code PIN à 4
-chiffres**, défini dans **Paramètres → Contrôle parental**. La première
-définition du code demande le mot de passe du compte, et tant qu'un profil
-enfant existe, le compte doit avoir un code PIN.
+- **Profil enfant** marque le profil comme celui d'un enfant. Il s'ouvre sans
+  code, et le quitter pour un autre profil demande le **Code PIN (4
+  chiffres)** de ce profil. Tant qu'un profil enfant existe, tous les autres
+  profils du compte doivent avoir un code PIN : le serveur refuse
+  d'enregistrer un profil qui n'en a pas. La première définition d'un code
+  demande le mot de passe du compte ; le changer demande le code actuel.
+  **Paramètres → Contrôle parental** définit le code du profil en cours.
+- **Âge maximum** n'apparaît que sur un profil enfant : les titres classés
+  au-dessus ne lui sont jamais envoyés. Laissé sur **Par défaut (12+)**, la
+  limite est 12 ans.
 
 La gestion des profils et du contrôle parental n'est possible que depuis un
-profil qui n'est pas un profil enfant.
+profil qui n'est pas un profil enfant. Le compte d'un administrateur ne peut
+pas avoir de profil enfant : la limite verrouillerait la propre bibliothèque
+de l'administrateur.
 
 ## Limites d'âge
 
-Chaque profil peut avoir un **Âge maximum** (**Paramètres → Profils →
-Modifier**). Le système de classification est celui du pays défini dans
-**Admin → Configuration du serveur → Langue et région**.
+L'âge est lu dans le système de classification de la **Région** du profil
+(**Paramètres → Profils → Modifier** ; **Automatique** la déduit de la langue
+du profil, et se rabat sur le système britannique). Un titre dont ce système
+ne sait pas situer la classification est masqué au profil enfant plutôt que
+montré.
 
 La limite est appliquée par le serveur, pas par les applications : un titre
 au-dessus n'est pas masqué dans l'interface, il n'est jamais envoyé. Cela vaut
@@ -72,14 +87,29 @@ Un film téléchargé sur un téléphone reste soumis à la limite hors connexio
 un profil enfant ne peut pas ouvrir un téléchargement fait par un autre profil
 au-dessus de son âge maximum.
 
+## Ce qu'un administrateur peut restreindre par compte
+
+Ces réglages se trouvent dans **Créer un utilisateur** et **Modifier
+l'utilisateur**, et sur la ligne du compte dans **Admin → Utilisateurs**.
+
+| Réglage | Effet |
+| --- | --- |
+| **Accès aux bibliothèques** (bouton **Bibliothèques** de la ligne) | Les bibliothèques visibles par le compte. Le reste n'apparaît ni dans ses recherches, ni sur sa page d'accueil, ni dans les réponses de l'API. Un administrateur voit toujours tout. |
+| **Débit maximal** (bouton **Débit**) | Un plafond, de 1 à 40 Mbps, sur le débit reçu par les lecteurs du compte (0 = illimité). Un titre au-dessus est transcodé pour s'y conformer. |
+| **Profils max** | Le nombre de profils que le compte peut créer (0 = illimité). |
+| **Appareils max par profil** | Le nombre de lectures que chaque profil peut avoir en cours en même temps, tous appareils confondus (0 = illimité). Une lecture de plus est refusée à son démarrage. |
+
+**Se connecter en tant que** ouvre le serveur tel que cet utilisateur le
+voit, pour vérifier une restriction ou reproduire un problème. Un bandeau
+reste visible, et **Quitter** vous ramène à votre propre compte.
+
 ## Horaires d'ouverture
 
 Un profil enfant peut être limité à des **horaires d'ouverture** : l'icône
-d'horloge à côté de lui dans la liste des profils (**Paramètres → Profils**,
-ou la fiche de l'utilisateur dans **Admin → Utilisateurs**) ouvre l'éditeur.
-Rien n'est actif tant que vous ne l'activez pas ; l'éditeur propose alors du
-lundi au vendredi de 18:00 à 22:00, et le samedi et le dimanche de 9:00 à
-12:00 et de 14:00 à 21:00.
+d'horloge à côté de lui dans **Paramètres → Profils** ouvre l'éditeur. Rien
+n'est actif tant que vous n'activez pas **Limiter aux horaires
+d'ouverture** ; l'éditeur propose alors du lundi au vendredi de 18:00 à
+22:00, et le samedi et le dimanche de 9:00 à 12:00 et de 14:00 à 21:00.
 
 Les horaires sont une liste de plages, modifiables de deux façons : **Semaine /
 week-end** (un bloc pour le lundi au vendredi, un pour le week-end) ou **Jour
@@ -96,11 +126,11 @@ chaque application affiche un écran de verrouillage qui indique quand il
 rouvre. Dix minutes avant la fermeture, le lecteur affiche un avertissement ;
 à l'heure, la lecture s'arrête.
 
-Sur l'écran de verrouillage, le **code PIN d'un profil adulte** du même compte
-ouvre le profil enfant jusqu'à sa prochaine plage ; le code de l'enfant, s'il
-en a un, ne suffit pas. **Changer de profil** mène au choix des profils. Des
-horaires que le serveur ne parvient pas à lire gardent le profil fermé plutôt
-qu'ouvert.
+Sur l'écran de verrouillage, le **Code PIN parent** (le code d'un profil du
+même compte qui n'est pas un profil enfant) ouvre le profil enfant jusqu'à sa
+prochaine plage ; le code de l'enfant, s'il en a un, ne suffit pas. **Changer
+de profil** mène au choix des profils. Des horaires que le serveur ne parvient
+pas à lire gardent le profil fermé plutôt qu'ouvert.
 
 Un film téléchargé sur un téléphone et lu sans connexion ne passe pas par le
 serveur : les horaires ne s'y appliquent pas.
@@ -109,9 +139,10 @@ serveur : les horaires ne s'y appliquent pas.
 
 Les utilisateurs peuvent chercher un film, une série ou un artiste absent des
 bibliothèques et en faire la demande. Les demandes arrivent dans **Admin →
-Demandes de média**, où un administrateur les accepte, les refuse ou les
-reporte, avec une note. C'est là aussi qu'on règle qui peut faire une
-demande : tout le monde par défaut, avec des exceptions par utilisateur.
+Demandes de média**, où un administrateur choisit **Accepter**, **Refuser** ou
+**Plus tard**, avec une note. L'onglet **Accès** règle qui peut faire une
+demande : **Autoriser les demandes par défaut pour tous les utilisateurs**,
+avec des **Dérogations par utilisateur**.
 
 ## Liens de téléchargement publics
 

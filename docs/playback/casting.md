@@ -1,12 +1,14 @@
 # Casting
 
-The **Cast** button, in the web player in Chrome and in the Android app, sends
-the film to a Chromecast or a TV with Chromecast built in. The phone or the
+What the television plays when you cast, and why it can differ from what your
+phone or browser was playing. For viewers using the **Cast** button of the web
+player in Chrome or of the Android app, towards a Chromecast or a TV with
+Chromecast built in; the Android TV app has no Cast button. The phone or the
 browser only starts the session: the TV plays the stream from the server
 directly, through Evey's own receiver application, and the server decides what
 to send for the TV, not for the device that cast.
 
-## What the server knows about the receiver
+## What the TV plays
 
 The stream is decoded by the TV, so the playback decision uses the receiver's
 capabilities, from the most reliable source available:
@@ -21,16 +23,17 @@ capabilities, from the most reliable source available:
    capabilities of that family.
 3. **Otherwise, a conservative profile.** An unknown device, a receiver that
    did not answer in time, or a device found without a model name gets the
-   capabilities of the oldest Chromecast.
+   capabilities of the oldest Chromecast: H.264 up to 1080p, SDR, no Dolby.
 
 The order follows the cost of a mistake: assuming a capability the device does
 not have gives a black screen, while assuming too little only costs a
-transcode.
+transcode. In practice: HDR reaches the TV only when its receiver reported an
+HDR screen; Dolby Digital (AC-3, E-AC-3) is sent as it is only to a receiver
+that reported passing it through natively, otherwise it is re-encoded to AAC.
+A receiver that claimed surround and then failed to load the stream reloads
+once with a stereo ceiling.
 
-Dolby Digital (AC-3, E-AC-3) is sent as it is only to a receiver that reported
-passing it through natively; otherwise it is re-encoded to AAC.
-
-## The TV's connection
+## When the TV's connection is slow
 
 Before asking for a stream, the receiver measures its own throughput and sends
 it with the request. The server keeps the original video when that throughput
@@ -64,18 +67,23 @@ the first device it finds at each step:
    to **Play on** to choose;
 4. the browser's own device picker.
 
+!!! note
+    Steps 1 and 2 pick the first device found, not one you choose. With
+    several Chromecasts at home, cast from Chrome on a computer or from the
+    Android app, which both show a picker.
+
 ## When a cast does not work
 
-[A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#8-a-cast-froze-went-silent-or-the-phone-keeps-spinning).
+[A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning).
 
 <!-- sources
-receiver profile order: frontend/packages/media-caps/src/castUrl.ts - castProfileFor, profileFromReceiverCaps, pickCastProfile, FLOOR_PROFILE
-receiver probe: frontend/apps/web/src/cast-receiver/receiverLogic.ts - probeReceiverCaps
+receiver profile order: frontend/packages/media-caps/src/castUrl.ts - castProfileFor, profileFromReceiverCaps, pickCastProfile, PROFILES, FLOOR_PROFILE
+receiver probe, stereo reload: frontend/apps/web/src/cast-receiver/receiverLogic.ts - probeReceiverCaps, rewriteCastMasterUrl (hdr=1, maxAudioChannels), stereoFallbackUrl
 no wasm on the receiver: frontend/apps/web/src/cast-receiver/main.ts - CAST_WASM_ENABLED
-line and floor: internal/app/transcoding/resolver_line.go
+line and floor: internal/app/transcoding/resolver_line.go - resolveLineConstrained, lineCarries
 senders: frontend/apps/web, frontend/apps/mobile (useCastSession) ; not frontend/apps/tv
 server-driven receiver: docs/adr/0025-server-driven-cast.md
-web button and fallbacks: frontend/apps/web/src/features/playback/HLSPlayer.tsx - castAvailable, handleMobileCast ; hooks/hlsPlayerUtils.ts - pickCastTapPath, planRendererLoad, pickPlayOnFallback ; hooks/useCasting.ts - startCast (castDevices[0], renderers[0])
+web button and fallbacks: frontend/apps/web/src/features/playback/HLSPlayer.tsx - castAvailable, handleMobileCast ; hooks/hlsPlayerUtils.ts - pickCastTapPath, planRendererLoad, pickPlayOnFallback ; frontend/apps/web/src/hooks/useCasting.ts - startCast (castDevices[0], renderers[0])
 DLNA: internal/app/dlna/service.go (SSDP AVTransport) ; not in frontend/apps/mobile
-labels: i18n player.streamInfo.reason.client_line_exceeded, abr_floor_requested
+labels: i18n player.cast ; player.playOn.title ; player.streamInfo.reason.client_line_exceeded, abr_floor_requested
 -->

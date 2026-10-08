@@ -1,12 +1,28 @@
 ---
-source_sha: 671aed4ea8f4b0ef01dac83a6cadd4f8e569eb5206951057955cbf29a9e7b727
+source_sha: e25235d99b58b97d354dd1fbf4fffcdec186364db070996d8707ea1dd581d643
 reviewed: true
 ---
 # Audio
 
-La piste audio est évaluée indépendamment de la vidéo. Dans la plupart des
-transcodages, c'est la seule chose réencodée : la vidéo est copiée et le son
-converti dans un format que le lecteur sait lire.
+Quelle piste vous entendrez, si elle arrive telle quelle ou réencodée sur
+votre appareil, et avec combien de canaux. Pour les spectateurs ; les réglages
+de profil cités ici se trouvent dans **Paramètres → Lecture**. La piste audio
+est évaluée indépendamment de la vidéo : dans la plupart des transcodages,
+c'est la seule chose réencodée, la vidéo est copiée et le son converti dans un
+format que le lecteur sait lire.
+
+## Ce que vous entendrez, selon l'appareil
+
+| Votre appareil | Ce qui arrive |
+| --- | --- |
+| Un navigateur | La piste telle quelle quand le navigateur la décode ; l'AC-3 et l'E-AC-3 décodés dans la page (ci-dessous) ; sinon de l'AAC. Une piste AAC surround est ramenée sur votre sortie par le navigateur. |
+| Un téléphone Android sur son haut-parleur, un casque ou le Bluetooth | De la stéréo. L'application déclare une sortie stéréo, donc une piste surround est réencodée en stéréo par le serveur, avec un mélange normalisé. Le Dolby Digital que l'application décode elle-même est envoyé tel quel et ramené en stéréo par l'application. |
+| Un téléphone Android ou une Android TV en HDMI | Autant de canaux que la sortie HDMI déclare en accepter : une piste 5.1 reste en 5.1 sur un ampli 5.1. |
+| Un récepteur de diffusion | Ce que le récepteur a déclaré sur sa sortie : voir [Diffusion](casting.md). |
+
+Les applications Android sondent la sortie à chaque début de lecture :
+brancher un casque prend effet au titre suivant, au changement de piste ou de
+qualité, pas au milieu d'une scène.
 
 ## Quelle piste est jouée
 
@@ -21,11 +37,12 @@ provoque jamais de transcodage.
 
 ## Copiée ou réencodée
 
-La piste est copiée quand le lecteur décode son codec et restitue assez de
-canaux, dans la limite des **Canaux audio maximum** du profil (Stéréo, 5.1 ou
-7.1). Sinon, elle est réencodée en AAC :
+La piste est copiée quand le lecteur décode son codec et que sa sortie
+restitue assez de canaux, dans la limite des **Canaux audio maximum** du
+profil (**Stéréo (2.0)**, **Surround (5.1)** ou **Surround (7.1)**). Sinon,
+elle est réencodée en AAC :
 
-- avec autant de canaux que la source, le lecteur et le profil le
+- avec autant de canaux que la source, l'appareil et le profil le
   permettent, jusqu'à 5.1 (une source 7.1 est ramenée en 5.1, que tous les
   lecteurs décodent ; une source stéréo reste en stéréo) ;
 - quelle que soit la fréquence d'échantillonnage, qui n'est jamais à elle
@@ -34,9 +51,10 @@ canaux, dans la limite des **Canaux audio maximum** du profil (Stéréo, 5.1 ou
 Une piste copiée à l'intérieur d'un flux transcodé ou remuxé doit aussi être
 dans un format que le lecteur accepte au sein des segments du flux. L'AAC,
 l'AC-3 et l'E-AC-3 le sont toujours ; les autres codecs seulement si le
-lecteur l'indique. Sinon, la piste est réencodée et les Infos du flux le
-signalent : un lecteur peut décoder du MP3 dans un fichier et le refuser
-malgré tout dans un flux.
+lecteur l'indique. Sinon, la piste est réencodée et les Infos du flux
+affichent **Piste audio non transmissible telle quelle dans le flux** : un
+lecteur peut décoder du MP3 dans un fichier et le refuser malgré tout dans un
+flux.
 
 ## Dolby Digital dans un navigateur
 
@@ -46,18 +64,26 @@ avec un décodeur qui s'exécute dans la page : la piste est envoyée telle
 quelle et les Infos du flux l'indiquent comme *décodé client*. Les
 navigateurs qui décodent nativement le Dolby Digital, comme Safari, la
 reçoivent comme une piste ordinaire ; le choix se fait en testant le
-navigateur, pas en le reconnaissant.
+navigateur, pas en le reconnaissant. Une piste surround n'est décodée dans la
+page que si les **Canaux audio maximum** du profil l'autorisent : un profil
+réglé en stéréo reçoit le réencodage AAC à la place, qui sait ramener les
+canaux.
 
-Un reverse proxy qui impose sa propre Content-Security-Policy doit autoriser
-`'wasm-unsafe-eval'` dans `script-src`, faute de quoi le décodeur ne peut pas
-démarrer et le film se lit sans le son. Voir
-[Configurations de reverse proxy](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own).
+!!! warning
+    Un reverse proxy qui impose sa propre Content-Security-Policy doit
+    autoriser `'wasm-unsafe-eval'` dans `script-src`, faute de quoi le
+    décodeur ne peut pas démarrer et le film se lit sans le son. Voir
+    [Configurations de reverse proxy](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own).
 
 ## Son désynchronisé
 
-**Synchro audio**, dans le lecteur, décale le son du titre en cours. Une piste
-copiée ne peut pas être décalée : le serveur la réencode, et les Infos du
-flux affichent **Resynchronisation audio demandée**.
+**Synchro audio**, dans le lecteur, décale le son du titre en cours (une
+valeur positive le joue plus tard). Le réglage est proposé quand le flux vient
+du serveur en remux ou en transcodage ; en lecture directe, il affiche
+**Disponible uniquement en lecture transcodée**. Appliquer un décalage
+redémarre le flux à la position courante. Une piste copiée ne peut pas être
+décalée : le serveur la réencode, et les Infos du flux affichent
+**Resynchronisation audio demandée**.
 
 Quand le décalage vient du fichier lui-même (une piste audio qui démarre
 après l'image, ou des pistes en désaccord entre elles), **Admin → Santé des
@@ -65,4 +91,4 @@ médias** le signale mais ne le réécrit jamais de lui-même : une piste qui
 démarre en retard est le plus souvent un doublage calé volontairement.
 **Vérifier la synchro**, sur la ligne du fichier, permet d'en juger à l'œil et
 d'appliquer un décalage, que son historique peut annuler. Voir
-[Santé des médias](../runbooks/media-health.md).
+[Santé des médias](../runbooks/media-health.md#checking-the-sync-by-eye).

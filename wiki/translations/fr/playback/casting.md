@@ -1,17 +1,19 @@
 ---
-source_sha: 415152806ac79bbe7326d23d95c89da3cae024a96f949905210f201684b7f10b
+source_sha: eb0bf4bc0439ca7578ac20f7489cba0718e37fee252faa25b0bdd1888c7bbbb5
 reviewed: true
 ---
 # Diffusion (Chromecast)
 
-Le bouton **Caster**, dans le lecteur web sous Chrome et dans l'application
-Android, envoie le film vers un Chromecast ou une TV équipée de Chromecast.
-Le téléphone ou le navigateur ne fait que lancer la session : la TV lit le
-flux directement depuis le serveur, via l'application récepteur d'Evey, et le
-serveur décide de ce qu'il envoie en fonction de la TV, pas de l'appareil qui
-a lancé la diffusion.
+Ce que le téléviseur lit quand vous diffusez, et pourquoi cela peut différer
+de ce que lisait votre téléphone ou votre navigateur. Pour les spectateurs qui
+utilisent le bouton **Caster** du lecteur web sous Chrome ou de l'application
+Android, vers un Chromecast ou une TV équipée de Chromecast ; l'application
+Android TV n'a pas de bouton Caster. Le téléphone ou le navigateur ne fait que
+lancer la session : la TV lit le flux directement depuis le serveur, via
+l'application récepteur d'Evey, et le serveur décide de ce qu'il envoie en
+fonction de la TV, pas de l'appareil qui a lancé la diffusion.
 
-## Ce que le serveur sait du récepteur
+## Ce que la TV lit
 
 C'est la TV qui décode le flux : la décision de lecture repose donc sur les
 capacités du récepteur, tirées de la source la plus fiable disponible :
@@ -26,16 +28,18 @@ capacités du récepteur, tirées de la source la plus fiable disponible :
    capacités documentées de cette famille.
 3. **Sinon, un profil prudent.** Un appareil inconnu, un récepteur qui n'a
    pas répondu à temps ou un appareil trouvé sans nom de modèle reçoit les
-   capacités du plus ancien Chromecast.
+   capacités du plus ancien Chromecast : H.264 jusqu'en 1080p, SDR, pas de
+   Dolby.
 
 Cet ordre suit le coût d'une erreur : prêter à l'appareil une capacité qu'il
 n'a pas donne un écran noir, alors qu'en supposer trop peu ne coûte qu'un
-transcodage.
+transcodage. Concrètement : le HDR n'arrive à la TV que si son récepteur a
+déclaré un écran HDR ; le Dolby Digital (AC-3, E-AC-3) n'est envoyé tel quel
+qu'à un récepteur qui a déclaré le transmettre nativement, sinon il est
+réencodé en AAC. Un récepteur qui s'est dit capable de surround puis n'a pas
+réussi à charger le flux recharge une fois avec un plafond stéréo.
 
-Le Dolby Digital (AC-3, E-AC-3) n'est envoyé tel quel qu'à un récepteur qui a
-déclaré le transmettre nativement ; sinon il est réencodé en AAC.
-
-## La connexion de la TV
+## Quand la connexion de la TV est lente
 
 Avant de demander un flux, le récepteur mesure son propre débit et le joint à
 la demande. Le serveur conserve la vidéo d'origine quand ce débit la porte
@@ -69,7 +73,12 @@ et prend le premier appareil trouvé à chaque étape :
    lecteur renvoie vers **Lire sur** pour choisir ;
 4. le sélecteur d'appareils du navigateur lui-même.
 
+!!! note
+    Les étapes 1 et 2 prennent le premier appareil trouvé, pas celui que vous
+    choisissez. Avec plusieurs Chromecast à la maison, diffusez depuis Chrome
+    sur ordinateur ou depuis l'application Android, qui affichent tous deux
+    un sélecteur.
+
 ## Quand une diffusion ne fonctionne pas
 
-[A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#8-a-cast-froze-went-silent-or-the-phone-keeps-spinning)
-(procédure en anglais).
+[Une diffusion s'est figée, est devenue muette, ou le téléphone tourne en boucle](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning).

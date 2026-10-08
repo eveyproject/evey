@@ -1,15 +1,27 @@
 # Hardware acceleration
 
 A graphics card or an integrated GPU lets the server transcode more streams at
-once, and higher resolutions, than the processor alone. There is one image for
-every case: no driver is baked in for a specific card, and the same container
-runs in software only, with an Intel or AMD GPU, or with an NVIDIA card,
-depending on the devices you give it.
+once, and at higher resolutions, than the processor alone. This page is for
+the administrator: give the device to the container, leave the panel on
+**Auto**, and the server proves on its own what the card can do before it
+sends a single playback to it.
 
-Two steps: expose the device to the container, then leave **Hardware
-acceleration** on **Auto** in **Admin → Transcoding → Encode calibration**.
+## Turn it on
 
-## Expose the device
+1. Open **Admin → Transcoding → Encode calibration**. **Hardware
+   acceleration** is on **Auto (best available)** by default, and the
+   **Detected:** line names the accelerators the host advertises.
+2. If it says **No GPU accelerator detected**, give the device to the
+   container (next section) and recreate it.
+3. Click **Recalibrate**, or wait: the server measures itself at its first
+   quiet moment. The card then shows the backend in use and the resolutions
+   certified for the GPU and for the processor.
+
+There is one image for every case: no driver is baked in for a specific card,
+and the same container runs in software only, with an Intel or AMD GPU, or
+with an NVIDIA card, depending on the devices you give it.
+
+## Give the device to the container
 
 === "Intel / AMD (VAAPI, Quick Sync)"
 
@@ -53,18 +65,20 @@ acceleration** on **Auto** in **Admin → Transcoding → Encode calibration**.
 
 Both an NVIDIA reservation and `/dev/dri` can be mapped at once.
 
-## What Auto does
+## What "proved by a real encode" means
 
 With **Auto**, the server works only from measurements, never from the name of
 the card:
 
 1. **Detect.** Each render node is probed for VAAPI and, on Intel, Quick Sync;
-   each NVIDIA GPU and the Rockchip encoder likewise. An encoder counts only if
-   a real encode succeeds.
+   each NVIDIA GPU and the Rockchip encoder likewise. An encoder counts only
+   if a short real encode through it succeeds.
 2. **Certify.** Each accelerator encodes the resolution ladder (720p to 2160p)
-   in the same pipeline shape as real playback, keeps the highest rung it
-   sustains at 1.2 times real time, and passes a visual check. An accelerator
-   that cannot sustain 720p is not used.
+   in the same pipeline shape as real playback and keeps the highest rung it
+   sustains at 1.2 times real time. A few frames of each probe are decoded
+   back and compared with the source, because a faulty driver can exit
+   cleanly while producing green or garbled frames. An accelerator that
+   cannot sustain 720p is not used.
 3. **Measure the routes.** For each capability the accelerator proved (SDR,
    HEVC, AV1, tone mapping on the GPU, HDR kept), the cost of a real session
    is measured.
@@ -72,14 +86,24 @@ the card:
    has proved what that stream needs, or to the processor. See
    [Transcoding and server capacity](../playback/transcoding.md).
 
-The measurement runs at the server's first quiet moment and again after the
+The measurement waits for a quiet moment: no active stream and the host's CPU
+under 20 % for five samples in a row, four seconds apart, so that a busy boot
+or a library scan does not pin the ceilings too low. It runs again when the
 hardware changes. **Recalibrate** runs it immediately: use it after adding a
 card or moving the container to another machine.
 
-**Off** keeps every transcode on the processor, which is the escape hatch for a
-faulty driver. Choosing a **Backend** by hand (NVENC, VAAPI, QSV, RKMPP)
-forces that one; if it turns out unusable, the server falls back to the
-processor and the card shows the backend actually in use.
+!!! note "A cold boot is not a verdict"
+    A GPU that fails to initialise in the first seconds after the container
+    starts is probed again on a short schedule before anything is recorded.
+    Only a failure that stays, or one of a deterministic kind (missing
+    encoder, unsupported format), marks the accelerator as unusable.
+
+## Forcing a backend or turning it off
+
+**Off (software only)** keeps every transcode on the processor, which is the
+escape hatch for a faulty driver. Choosing a **Backend** by hand (NVENC,
+VAAPI, QSV, RKMPP) forces that one; if it turns out unusable, the server falls
+back to the processor and the card shows the backend actually in use.
 
 On a machine with several accelerators, Auto has no fixed preference: each is
 certified and measured, and every stream goes to the backend that proved the
@@ -91,15 +115,21 @@ HDR tone mapping on one card and an HEVC encode on another.
 
 **Admin → Transcoding → Encode calibration** shows the accelerators detected,
 the backend in use, the resolutions certified for the GPU and for the
-processor, and any fallback to the processor. During playback, **Admin → Now
-Playing** names the backend each stream is encoded with.
+processor, and under **Hardware fallbacks** the recent encodes that fell back
+to the processor with their cause. During playback, **Admin → Now Playing**
+names the backend each stream is encoded with.
 
 Under WSL2, NVENC works; VAAPI and Quick Sync do not (the WSL graphics driver
-fails on these encodes), and the admin panel greys them out.
+fails on these encodes), and the panel marks them **not supported on WSL**.
 
 <!-- sources
-auto, certify, routes, recalibrate:  docs/adr/0015-hardware-acceleration.md ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md
-render group: docker-compose.gpu.yml
-nvidia: docker-compose.gpu-nvidia.yml
-labels: i18n admin.calibration.hwModeLabel, hwModeAuto, hwModeOff, hwBackendLabel, recalibrate ; admin.sessions.track.backend.*
+auto, certify, routes, recalibrate: docs/adr/0015-hardware-acceleration.md ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md
+detection by real encode: internal/adapters/driven/ffmpeg/hwdetect.go - probeHWEncode
+ladder, 1.2x realtime margin, 720p floor: internal/adapters/driven/ffmpeg/benchmark.go - hwBenchLadder, Margin
+visual check: internal/adapters/driven/ffmpeg/hw_output_validation.go
+cold-boot init retry: internal/adapters/driven/ffmpeg/hw_readiness.go - runHWReadinessProbe, hwReadinessRetryDelays
+quiet moment: internal/app/transcoding/calibration_service.go - idleProbes, idleProbeEvery, idleCPUPercent
+render group: docker-compose.gpu.yml ; nvidia: docker-compose.gpu-nvidia.yml
+panel: frontend/apps/web/src/features/admin/EncodeCalibrationCard.tsx (hw_mode, detected_backends, is_wsl)
+labels: i18n admin.calibration.cardTitle, hwModeLabel, hwModeAuto, hwModeOff, hwBackendLabel, detected, detectedNone, recalibrate, hwFallbacks, wslUnsupported ; admin.nav.transcodingConfig, nowPlaying
 -->

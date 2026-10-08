@@ -1,8 +1,8 @@
 # Contributing
 
-Evey is developed in the open, and the documents written for the people who
-work on its code live with the code, on GitHub, rather than on this site. This
-page points at them.
+Where to start when you want to work on Evey's code, and what a pull request
+is expected to pass. The documents written for contributors live with the
+code, on GitHub, rather than on this site; this page points at them.
 
 ## Where to start
 
@@ -28,15 +28,28 @@ start before proposing to change one of those choices.
 
 ## Before you open a pull request
 
-- `make pre-push` is the gate: it runs the CI's checks locally (vet,
-  vulnerability scan, build, unit tests with `-race`, frontend, lint,
-  architecture guards). It does not build the Docker image or the Android
-  apps: after touching the `Dockerfile` or Kotlin code, build them yourself.
-- Tests are expected for new behaviour and for every bug fix.
-- External contributions need a one-time acceptance of the
-  [contributor licence agreement](../CLA.md): Evey is AGPL-3.0-or-later and
-  is also offered under a commercial licence. You keep the copyright on your
-  work.
+1. Run `make pre-push`: it is the gate, and runs the CI's checks locally in
+   this order: vet, vulnerability scan, build, unit tests with `-race`,
+   frontend (typecheck, lint, unit tests), security scan, lint,
+   [architecture guards](ARCHITECTURE.md#architecture-guards), commit
+   hygiene, secret scan, proto breaking-change check, a build from a clean
+   checkout, the repository and transcoding integration gates, and the TV
+   audit.
+2. Add tests for new behaviour and for every bug fix.
+3. For an external contribution, accept the
+   [contributor licence agreement](../CLA.md) once: Evey is AGPL-3.0-or-later
+   and is also offered under a commercial licence. You keep the copyright on
+   your work.
+
+!!! warning "The gate does not build the Docker image or the Android apps"
+    After touching the `Dockerfile` or Kotlin code, build them yourself
+    (`docker build --target runtime`, the Gradle release task) before
+    pushing.
 
 Security issues are not reported in public: write to
 `security@eveyproject.org` (see [SECURITY.md](../SECURITY.md)).
+
+<!-- sources
+gate: Makefile - pre-push, ci-fast-vet, ci-fast-vuln, ci-fast-build, ci-fast-unit, ci-fast-frontend, ci-fast-sec, ci-local-lint, ci-arch, ci-hygiene, ci-secrets, ci-proto-breaking, ci-clean-checkout, repo-itest-gate, transcode-itest-gate, tv-audit
+documents: DEV.md ; CONTRIBUTING.md ; CLA.md ; SECURITY.md ; docs/CODEBASE_MAP.md ; docs/code-conventions.md ; docs/frontend-design-system.md ; docs/adr/README.md ; docs/runbooks/release.md
+-->

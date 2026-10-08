@@ -1,102 +1,127 @@
 ---
-source_sha: 64f12b2cc77ed7069bf33f581c2d91e3b13b6ff04cc4a3bc62db72c3607b46fe
+source_sha: 571dd707d8c33cf978fa932960bd67dcdf04a821b8c609c1622fc5767b36c52f
 reviewed: true
 ---
 # Récupération
 
-Les procédures en ligne de commande pour les cas où l'on ne peut plus se
-connecter, où la clé JWT est peut-être compromise, ou quand la base de données
-doit revenir à une sauvegarde d'avant migration.
+Ouvrez cette page quand plus personne ne peut se connecter, quand la clé qui
+signe les jetons d'accès a pu fuiter, ou quand la base doit revenir à un dump
+pris avant une migration. Chaque procédure tient en une commande `evey admin`
+lancée dans le conteneur ; la page [Ligne de commande](cli.md) liste les
+autres sous-commandes.
 
-Toutes les commandes s'exécutent sous la forme `evey admin <sous-commande>` et
-lisent leur configuration dans les mêmes variables `EVEY_*` que le serveur. Elles
-ne démarrent **pas** le serveur, et la plupart peuvent tourner sans risque
-pendant qu'il est arrêté.
+## Avant de commencer
 
-## reset-password
-
-Génère un nouveau mot de passe pour un utilisateur existant. Il est affiché une
-seule fois sur la sortie standard : notez-le immédiatement.
+Les commandes lisent la même configuration `EVEY_*` que le serveur : les
+lancer dans le conteneur du serveur ne demande rien de plus.
 
 ```sh
-evey admin reset-password --user admin@example.com
+docker exec evey-server evey admin <sous-commande>        # serveur en marche
+docker compose run --rm evey admin <sous-commande>        # conteneur arrêté
 ```
 
-Sortie :
+La seconde forme démarre d'abord la base embarquée, exécute la commande et
+sort. Aucune de ces commandes ne démarre le serveur.
+
+## Donner un nouveau mot de passe à un utilisateur
+
+À utiliser quand un utilisateur est bloqué dehors, ou juste après une
+compromission supposée de son compte. Le nouveau mot de passe est affiché une
+seule fois et jamais journalisé : copiez-le avant de fermer le terminal.
+
+```sh
+docker exec evey-server evey admin reset-password --user admin@example.com
+```
+
+Un bon résultat ressemble à ceci :
+
 ```
 user:     admin@example.com
 user_id:  usr-xxxxxxxx
-password: <random 24-byte base64url>
+password: <24 octets aléatoires en base64url>
+
+Save this - it is the only time the new password is shown.
+Every session of this user has been ended.
 ```
 
-Remarques :
+Toutes les sessions de cet utilisateur se terminent immédiatement : ses
+jetons de rafraîchissement sont supprimés et ses jetons d'accès révoqués. Une
+application ouverte s'en aperçoit sous une trentaine de secondes et redemande
+une connexion. Si vous perdez la sortie, relancez la commande.
 
-- Toutes les sessions de l'utilisateur prennent fin : ses jetons de
-  rafraîchissement sont supprimés et ses jetons d'accès révoqués. Une
-  application ouverte s'en aperçoit en 30 secondes environ et redemande la
-  connexion.
-- Le mot de passe en clair n'est jamais journalisé. Si vous perdez la sortie, il
-  faut relancer la commande.
+## Renouveler la clé qui signe les jetons d'accès
 
-## rotate-jwt-key
-
-Remplace la clé RSA qui signe les jetons d'accès.
+À utiliser quand le fichier de clé a pu fuiter, ou pour déconnecter tout le
+monde d'un coup. Pour un seul compte, **Admin -> Utilisateurs -> Désactiver**
+ou la réinitialisation de mot de passe ci-dessus suffit.
 
 ```sh
-evey admin rotate-jwt-key
+docker exec evey-server evey admin rotate-jwt-key
 ```
 
-Comportement :
+Ce qui se passe :
 
-- Le fichier de clé actuel (chemin : `EVEY_JWT_PRIVATE_KEY_PATH`, par défaut
-  `/data/jwt.key`) est renommé en `<chemin>.rotated-<horodatage UTC>`.
-- Au démarrage suivant du serveur, `LoadOrGenerateRSAKey` génère une nouvelle
-  clé RSA de 2048 bits.
-- Toutes les sessions prennent fin immédiatement, sans attendre le
-  redémarrage : la commande supprime tous les jetons de rafraîchissement et
-  révoque tous les jetons d'accès en base. Les applications ouvertes s'en
-  aperçoivent en 30 secondes environ et tout le monde se reconnecte.
-- Si la base est injoignable, la clé est quand même mise de côté et la
-  commande le signale : relancez-la quand la base répond.
+1. Le fichier de clé (`EVEY_JWT_PRIVATE_KEY_PATH`, `/data/jwt.key` par défaut)
+   est renommé en `<chemin>.rotated-<horodatage UTC>`.
+2. Tous les jetons de rafraîchissement sont supprimés et tous les jetons
+   d'accès révoqués, en une seule transaction. Les applications ouvertes s'en
+   aperçoivent sous une trentaine de secondes ; tout le monde se reconnecte.
+3. Au démarrage suivant, le serveur génère une nouvelle clé RSA de 2048 bits.
 
-Quand l'utiliser :
+Redémarrez ensuite le conteneur (`docker compose restart evey`) pour que la
+nouvelle clé serve. Si la base n'a pas pu être jointe, la clé est quand même
+mise de côté et la commande l'annonce : `key rotated, but sessions could not
+be ended (restart the server, then run this again)`. Faites exactement cela.
 
-- Fuite de clé soupçonnée : plus personne ne peut fabriquer de jeton d'accès
-  valide avec l'ancienne clé.
-- Coupure de toutes les sessions. Pour un seul compte, le désactiver dans
-  **Admin → Utilisateurs**, ou `reset-password`, suffit.
+## Restaurer un dump pris avant une migration
 
-## restore-backup
+À utiliser quand une mise à jour doit être annulée et que les données écrites
+depuis peuvent être perdues. La commande passe un dump `.sql.gz` par
+`gunzip | psql` dans la base configurée.
 
-Applique un `pg_dump.gz` produit par la sauvegarde d'avant migration (ou par
-toute autre source) sur la base de données configurée. **Écrase les données
-existantes.** Le fichier doit se terminer par `.sql.gz` : les sauvegardes
-`.tar.gz` de **Admin → Sauvegarde BDD et restauration** se restaurent depuis le panneau,
-pas par cette commande.
+!!! warning
+    La restauration écrase les lignes actuelles. Prenez d'abord une
+    sauvegarde de l'état courant (**Admin -> Sauvegarde BDD et restauration ->
+    Lancer maintenant**) s'il y a la moindre chance d'en avoir besoin.
 
 ```sh
-evey admin restore-backup /data/backups/pre-migration-15-20260418T220130Z.sql.gz
+docker compose stop evey
+docker compose run --rm evey admin restore-backup /data/backups/pre-migration-152-20260418T220130Z.sql.gz
+docker compose up -d
 ```
 
-Déroulement :
+Ce qui se passe :
 
-1. La commande attend 5 secondes avant de faire quoi que ce soit : Ctrl+C
-   l'interrompt.
-2. Le fichier passe par `gunzip | psql` vers la base configurée, avec
-   `--single-transaction` et `ON_ERROR_STOP=1`.
-3. À la moindre erreur, psql annule la transaction : la base reste dans son état
-   précédent.
+1. La commande attend 5 secondes avant de toucher à quoi que ce soit :
+   Ctrl+C annule.
+2. `psql` applique le dump avec `--single-transaction` et `ON_ERROR_STOP=1`.
+   À la moindre erreur la transaction est annulée et la base reste telle
+   qu'elle était.
+3. En cas de succès, la dernière ligne est `[admin] restored backup <chemin>`.
 
 Prérequis :
 
-- `psql` et `gunzip` doivent être dans le PATH (tous deux sont livrés dans
-  l'image de production, avec `pg_dump`).
-- La base cible doit exister ; le dump ne contient que les DROP/CREATE des
-  tables, pas la base elle-même.
-- L'utilisateur `EVEY_DB_USER` configuré doit être propriétaire de la base
-  cible.
+- Le nom du fichier doit finir par `.sql.gz`. Les archives `.tar.gz` de
+  **Admin -> Sauvegarde BDD et restauration** se restaurent depuis le
+  panneau, pas avec cette commande.
+- La base cible doit exister ; le dump supprime et recrée les tables, pas la
+  base.
+- `psql` et `gunzip` doivent être dans le PATH, ce que l'image garantit.
 
-Les sauvegardes d'avant migration sont produites automatiquement avant chaque
-`migrate.Up()` et rangées dans `EVEY_BACKUP_DIR` (par défaut `/data/backups`).
-Le dump le plus récent de chacune des 3 dernières versions du schéma est
-conservé ; les autres sont supprimés.
+Les dumps de pré-migration sont écrits automatiquement avant chaque
+changement de schéma, sous `EVEY_BACKUP_DIR` (`/data/backups`, donc
+`./evey-data/backups` sur l'hôte), nommés
+`pre-migration-<version du schéma>-<horodatage UTC>.sql.gz`. Le dump le plus
+récent de chacune des 3 dernières versions du schéma est conservé, les autres
+sont élagués. [Migrations de la base](migration-runbook.md) explique quand
+restaurer un dump plutôt que revenir d'un cran sur le schéma.
+
+<!-- sources
+reset-password / rotate-jwt-key: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL: internal/app/user/token_epoch.go - epochCacheTTL
+restore-backup: cmd/evey/admin.go - adminRestoreBackup (5 s pause, --single-transaction, ON_ERROR_STOP=1, .sql.gz suffix)
+admin commands boot the embedded database: docker/entrypoint.sh
+refresh validation by stored hash: internal/app/user/auth.go - validateRefreshToken
+disable signs out: internal/app/user/user_service.go - DisableUser
+dump naming and retention: internal/adapters/driven/postgres/migrate_backup.go - dumpDatabase, backupFilePrefix, pruneOldBackups, defaultBackupRetention
+defaults: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH, EVEY_BACKUP_DIR)
+-->

@@ -1,39 +1,51 @@
 ---
-source_sha: f3462cd1e79cf16db4a38f3ecb82da3588ca9b03301e7d32db33118bb80ea428
+source_sha: 5d7cd5222fd548a70f680b24ee25dad0875f225e344cc2d8e24651b5259720a7
 reviewed: true
 ---
 # Bibliothèques et métadonnées
 
-Une bibliothèque, c'est un type et un ensemble de dossiers. Evey parcourt ces
+Une bibliothèque, c'est un type et un ensemble de dossiers : Evey parcourt ces
 dossiers, reconnaît chaque fichier d'après son nom et récupère ses
-métadonnées : titres, résumés, affiches, distribution, notes. Les
-bibliothèques se gèrent dans **Admin → Bibliothèques**.
+informations (titres, résumés, affiches, distribution, notes). Cette page
+s'adresse à l'administrateur qui en ajoute une : les trois gestes du début
+(ajouter une bibliothèque, nommer les fichiers, corriger une mauvaise
+identification) viennent en premier ; le déroulement des scans, les
+particularités de la musique et des photos, les collections et les sources de
+métadonnées suivent.
 
 <figure class="evey-shot" markdown="span">
   ![Admin → Bibliothèques sur le serveur de démo](../images/admin-libraries.webp){ loading=lazy }
   <figcaption><strong>Admin → Bibliothèques</strong> : une ligne par bibliothèque, avec ses dossiers, son nombre d'éléments et son dernier scan.</figcaption>
 </figure>
 
-## Types
+## Ajouter une bibliothèque
+
+1. **Admin → Bibliothèques → Ajouter une bibliothèque**.
+2. Donnez-lui un **Nom** et un **Type**. Gardez films et séries dans des
+   bibliothèques distinctes : le type indique au scanner ce qu'il doit
+   chercher.
+3. Sous **Chemins**, choisissez un dossier dans la liste, ou **Entrer un
+   chemin personnalisé...** pour le saisir ; **+ Ajouter un chemin** ajoute
+   un second dossier à la même bibliothèque.
+4. **Créer une bibliothèque**. Le premier parcours des dossiers suit dans les
+   deux minutes ; **Scanner** sur la ligne le lance tout de suite. Affiches et
+   résumés arrivent en tâche de fond : une grande bibliothèque se remplit en
+   quelques minutes.
 
 | Type | Reconnu comme | Métadonnées issues de |
 | --- | --- | --- |
 | **Films** | Un film par fichier (ou par dossier) | TMDB, complété par OMDb si une clé est renseignée |
-| **Séries** | Séries, saisons, épisodes | TMDB |
+| **Séries TV** | Séries, saisons, épisodes | TMDB |
 | **Musique** | Artistes, albums, titres | Les tags des fichiers ; pochettes depuis les fichiers, le dossier de l'album, Cover Art Archive (MusicBrainz), puis iTunes |
 | **Photos** | Albums, photos avec leurs informations de prise de vue | Les fichiers |
 
-Gardez films et séries dans des bibliothèques distinctes : le type indique au
-scanner ce qu'il doit chercher.
+!!! note "Les chemins sont ceux du conteneur"
+    Le sélecteur de dossiers affiche ce que voit le conteneur. Avec le fichier
+    compose de l'installation, votre dossier de médias est `/media` : un
+    dossier `/srv/media/films` sur la machine devient `/media/films` pour
+    Evey. Un second dossier monté (`/media2`) s'ajoute de la même façon.
 
-## Les dossiers sont des chemins du conteneur
-
-Le sélecteur de dossiers affiche ce que voit le conteneur. Avec le fichier
-compose de l'installation, votre dossier de médias est `/media` : un dossier
-`/srv/media/films` sur la machine devient `/media/films` pour Evey. Un second
-dossier monté (`/media2`) s'ajoute de la même façon.
-
-## Nommer les fichiers
+## Nommer les fichiers pour qu'ils soient reconnus
 
 Le scanner reconnaît des noms comme ceux-ci :
 
@@ -47,9 +59,72 @@ Le scanner reconnaît des noms comme ceux-ci :
 Pour un film, c'est l'année qui compte le plus. Pour un épisode, `S01E05` ou
 `1x05`. Les étiquettes de release (résolution, source, codec, audio, mentions
 de langue comme `VOSTFR` ou `MULTI`, éditions comme « Director's Cut ») sont
-retirées avant la recherche. Si vos fichiers portent une étiquette que
-l'analyseur ne connaît pas, ajoutez-la dans **Admin → Configuration du
-serveur → Jetons d'analyse** ; elle s'applique dès le scan suivant.
+retirées avant la recherche.
+
+Si vos fichiers portent une étiquette que l'analyseur ne connaît pas,
+ajoutez-la dans **Admin → Configuration du serveur → Jetons d'analyse** :
+**Jetons de qualité supplémentaires** pour un mot seul (`HDRIP`), **Suffixes
+d'édition supplémentaires** pour une expression. Elle s'applique dès le scan
+suivant.
+
+## Corriger un titre faux ou manquant
+
+Pour un seul titre, ouvrez-le et choisissez **Modifier les métadonnées** :
+
+- **Identifier sur TMDB** cherche le titre sur TMDB ; **Choisir ce résultat**
+  l'applique. C'est la correction la plus rapide pour un film confondu avec
+  un homonyme.
+- Les champs modifient les informations à la main. Une valeur modifiée est
+  conservée : les actualisations suivantes ne l'écrasent pas. Changer l'**ID
+  TMDB** ou l'**ID IMDB** récupère les informations de cet identifiant à
+  l'enregistrement.
+- **Actualiser les métadonnées** récupère à nouveau les informations de
+  l'identification en cours. **Réinitialiser les métadonnées** et
+  **Réidentifier** repartent du nom de fichier, en abandonnant vos
+  modifications ; la réinitialisation efface aussi les images et la
+  distribution, ainsi que les saisons et les épisodes d'une série.
+
+Pour toute une bibliothèque, sa ligne dans **Admin → Bibliothèques** propose :
+
+- **Identifier les orphelins** relance la recherche pour les fichiers jamais
+  reconnus. C'est rapide.
+- **Tout réidentifier avec TMDB** refait la recherche pour tous les titres.
+  C'est lent, et corrige les anciennes erreurs après un gros renommage.
+- **Réparer les sagas** rattache à leur saga les films qui n'appartiennent à
+  aucune collection, quand les autres films de la saga sont déjà dans la
+  bibliothèque.
+
+## Prise en compte des nouveaux fichiers
+
+Le serveur parcourt chaque bibliothèque à chaque démarrage, puis toutes les
+2 minutes (**Admin → Configuration du serveur → Paramètres du serveur →
+Intervalle d'analyse périodique**, appliqué au redémarrage). Pendant une
+lecture, les parcours sont espacés à 15 minutes pour ne pas disputer le
+disque au lecteur. Un fichier ajouté, renommé ou supprimé est donc vu en
+quelques minutes, sans aucun réglage.
+
+Deux autres façons de scanner, sur la ligne de la bibliothèque :
+
+| Action | Effet |
+| --- | --- |
+| **Scanner** | Un parcours immédiat. La ligne affiche **Scan en cours...** puis le résultat ; un dossier illisible est nommé. |
+| **Planifier** | Un scan complet **Toutes les 6 heures**, **Toutes les 12 heures**, **Quotidien (3h du matin)**, **Hebdomadaire (dimanche 3h du matin)**, ou selon une **Expression cron**. |
+
+Le serveur surveille aussi les dossiers par les événements du système de
+fichiers (**Admin → Configuration du serveur → Paramètres du serveur →
+Surveillance des fichiers de la bibliothèque**), sur les bibliothèques dont
+la surveillance en temps réel est active. Il vérifie que cette surveillance
+répond toujours en écrivant pendant quelques secondes un fichier de test dans
+le dossier ; une bibliothèque dont la surveillance est prouvée vivante n'est
+parcourue qu'une fois par heure au lieu de toutes les 2 minutes, les autres
+gardent le parcours périodique. Les bibliothèques créées depuis le panneau ne
+sont pas surveillées : c'est le parcours périodique qui prend leurs fichiers
+en compte.
+
+!!! note "Partages réseau"
+    Sur un partage NFS ou SMB, un fichier écrit par une autre machine ne
+    déclenche aucun événement sur le serveur. C'est le parcours périodique
+    qui le trouve.
 
 ## Bibliothèques de musique
 
@@ -80,37 +155,6 @@ d'appareil viennent des données EXIF des fichiers JPEG ; les autres formats
 sont listés sans. Les miniatures sont redimensionnées sur le serveur et gardées
 dans le cache de transcodage.
 
-## Prise en compte des nouveaux fichiers
-
-Chaque bibliothèque a trois options :
-
-| Option | Effet |
-| --- | --- |
-| **Surveillance en temps réel** | Les fichiers ajoutés, renommés ou supprimés sont pris en compte dès leur apparition. Une vérification périodique (toutes les 2 minutes par défaut) rattrape ce que le système de fichiers n'a pas signalé, ce qui arrive sur les partages réseau. |
-| **Scanner au démarrage** | Un scan à chaque démarrage du serveur. |
-| **Planification** | Un scan complet toutes les 6 ou 12 heures, chaque jour, chaque semaine, ou selon une expression cron. |
-
-Le serveur vérifie aussi que la surveillance des dossiers reçoit toujours les
-événements, en écrivant pendant quelques secondes un fichier de test dans le
-dossier de la bibliothèque. Une bibliothèque dont les événements n'arrivent
-plus est parcourue plus souvent, jusqu'à ce que la surveillance reprenne.
-
-## Quand un titre est faux ou manquant
-
-- **Identifier les orphelins** (par bibliothèque) relance la recherche pour
-  les fichiers jamais reconnus. C'est rapide.
-- **Tout réidentifier avec TMDB** refait la recherche pour tous les titres de
-  la bibliothèque. C'est lent, et corrige les anciennes erreurs après un gros
-  renommage.
-- **Modifier les métadonnées**, sur un titre, change ses informations à la
-  main ou permet de coller le bon identifiant TMDB ou IMDb. Une valeur
-  modifiée est conservée : les actualisations suivantes ne l'écrasent pas.
-  **Réidentifier**, sur le titre, abandonne vos modifications et relance la
-  recherche à partir du nom de fichier.
-- **Réparer les sagas** rattache à leur saga les films qui n'appartiennent à
-  aucune collection, quand les autres films de la saga sont déjà dans la
-  bibliothèque.
-
 ## Collections
 
 **Collections** regroupe des titres sous un même nom, pour tous les comptes. Il
@@ -137,7 +181,8 @@ ce que masquent l'accès aux bibliothèques ou la limite d'âge du compte.
 Evey embarque une clé TMDB : les métadonnées fonctionnent sans aucune
 configuration. Les autres sources sont facultatives ; leurs clés se
 renseignent dans **Admin → Configuration du serveur → Clés API**, et une clé
-saisie là prime sur la même clé fournie par l'environnement.
+saisie là prime sur la même clé fournie par l'environnement (voir
+[Environnement : bibliothèques et métadonnées](../environment/libraries.md)).
 
 | Clé | Apporte |
 | --- | --- |
@@ -156,7 +201,6 @@ Un administrateur peut ajuster à la main les segments d'un titre, ou relancer
 la détection.
 
 Les lecteurs affichent par défaut les boutons **Passer l'intro**, **Passer le
-résumé** et **Passer le générique**. **Saut automatique
-des intros** (**Admin → Configuration du serveur → Paramètres du serveur**,
-désactivé par défaut) fait passer les intros automatiquement dans tous les
-lecteurs.
+résumé** et **Passer le générique**. **Saut automatique des intros**
+(**Admin → Configuration du serveur → Paramètres du serveur**, désactivé par
+défaut) fait passer les intros automatiquement dans tous les lecteurs.
