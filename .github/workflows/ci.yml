@@ -12,8 +12,19 @@ on:
       - 'alpha-*'
     # Release tags also trigger publish (vX.Y.Z → latest alias + semver tags).
     tags: ['v*.*.*']
+    # A docs/wiki-only push changes nothing the jobs below test or ship (the
+    # wiki has its own workflow); it used to cost a full backend+frontend run
+    # and an image build.
+    paths-ignore:
+      - 'docs/**'
+      - 'wiki/**'
+      - '**/*.md'
   pull_request:
     branches: [main, master]
+    paths-ignore:
+      - 'docs/**'
+      - 'wiki/**'
+      - '**/*.md'
   # Manual re-run, mainly to force the arm64 half of the image without pushing
   # a tag. Branch pushes build amd64 only - see "Resolve build platforms".
   workflow_dispatch:
@@ -22,6 +33,12 @@ on:
         description: 'Image platforms to build (buildx list)'
         required: false
         default: 'linux/amd64,linux/arm64'
+
+# Two pushes minutes apart ran side by side, each building its own image: only
+# the newest push of a branch is worth finishing. Tag builds are never cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 # Least privilege by default; the docker job widens it for ghcr only.
 # pull-requests: read lets golangci-lint compute only-new-issues on a PR.

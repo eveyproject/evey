@@ -45,5 +45,20 @@ if ! docker inspect --format '{{.State.Status}}' evey-server >/dev/null 2>&1; th
     exit 1
 fi
 
-echo "pre-push: running make pre-push (~1-2 min) - bypass with 'git push --no-verify'"
+# A `make gate` receipt that is green for exactly this HEAD and this tree is the
+# same run already done: re-running it here only costs the ~5 minutes it takes.
+# The receipt is bound to HEAD, so it only stands in when what is pushed IS HEAD
+# (git hands the refs on stdin); any other ref gets the full run.
+pushed_is_head=1
+head_sha=$(git rev-parse HEAD)
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    [ -z "$local_sha" ] && continue
+    [ "$local_sha" = "$head_sha" ] || pushed_is_head=0
+done
+if [ "$pushed_is_head" = 1 ] && python3 scripts/gate-receipt.py --label pre-push status >/dev/null 2>&1; then
+    echo "pre-push: gate receipt is green for this exact HEAD and tree - not re-running it (make gate-status to see it)"
+    exit 0
+fi
+
+echo "pre-push: running make pre-push (~5 min) - bypass with 'git push --no-verify'"
 exec make pre-push
