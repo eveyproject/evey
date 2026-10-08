@@ -165,3 +165,7 @@ wiki/.build-*
 wiki/__pycache__/
 # Fonts and scripts downloaded by the Material privacy plugin
 wiki/.cache/
+
+# operations harness output
+tests/ops/test-results/
+tests/ops/test-results-upgrade/
