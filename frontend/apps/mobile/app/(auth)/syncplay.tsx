@@ -140,7 +140,7 @@ export default function SyncPlayScreen() {
         <Text style={s.description}>
           {t(
             "media.syncplay.joinDescription",
-            "Got a code from a friend? Enter it below to join their room. To start a new room, open a movie or song and tap the SyncPlay button.",
+            "Got a code from a friend? Enter it below to join their room, video or music. To watch a movie together, open it and tap Watch Together in the player. To listen together, pick an album, a track or a playlist below.",
           )}
         </Text>
       </View>
