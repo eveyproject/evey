@@ -10,6 +10,7 @@ import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { getBrowserCapabilities, canWasmDecodeAC3 } from "./codec";
 import { appendCodecParams, prefersNativeHLS, getFmp4AudioPassthrough } from "./hlsCodecParams";
+import { getMaxOutputChannels } from "./outputChannels";
 import { useStreamToken } from "../hooks/useStreamToken";
 
 // postStopStream tears down the server-side play session with a raw keepalive
@@ -121,6 +122,11 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
     // Sending one and not the other is how the panel came to claim a copy the
     // packager was re-encoding (2026-09-06).
     fmp4AudioPassthrough: getFmp4AudioPassthrough(),
+    // The output's channel ceiling, same reading as the master URL's
+    // ?maxAudioChannels: declared to one and not the other, the panel said
+    // "copy 6ch" of a track the segments carried as AAC stereo. Omitted
+    // (undefined) when the browser cannot probe its output, like the URL.
+    maxAudioChannels: getMaxOutputChannels(),
   }), [caps, device.wasmAudio]);
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {

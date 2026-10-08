@@ -211,6 +211,10 @@ export function castStreamInfoParams(profile: CastProfile) {
     supportsHdr: profile.hdr,
     maxHeight: profile.maxHeight,
     maxH264Height: profile.h264MaxHeight,
+    // The receiver's output ceiling rides the master URL (buildCastStreamUrl);
+    // the verdict must be asked with it too, or it describes a 6ch copy of a
+    // track the receiver's segments carry folded to stereo.
+    ...(profile.maxAudioChannels ? { maxAudioChannels: profile.maxAudioChannels } : {}),
   };
 }
 

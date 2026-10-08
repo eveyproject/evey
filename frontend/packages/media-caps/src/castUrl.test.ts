@@ -66,6 +66,19 @@ describe("castStreamInfoParams", () => {
       supportedCodecs: ["h264"], supportsHdr: false, maxHeight: 1080, maxH264Height: 1080,
     });
   });
+
+  // A receiver that answered its output ceiling has it on the master URL
+  // (buildCastStreamUrl); the verdict is asked with the same ceiling, so the
+  // two never disagree on the channels the segments carry.
+  it("declares the receiver's output ceiling exactly when the URL carries it", () => {
+    const stereo = { ...pickCastProfile("Chromecast Ultra"), maxAudioChannels: 2 };
+    expect(castStreamInfoParams(stereo)).toMatchObject({ maxAudioChannels: 2 });
+    expect(new URL(buildCastStreamUrl(SRV, "m1", null, "tok", stereo)).searchParams.get("maxAudioChannels")).toBe("2");
+
+    const unknown = pickCastProfile("Chromecast Ultra");
+    expect(castStreamInfoParams(unknown)).not.toHaveProperty("maxAudioChannels");
+    expect(new URL(buildCastStreamUrl(SRV, "m1", null, "tok", unknown)).searchParams.has("maxAudioChannels")).toBe(false);
+  });
 });
 
 describe("buildCastStreamUrl", () => {

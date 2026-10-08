@@ -19,6 +19,9 @@ vi.mock("./codec", () => ({
 vi.mock("./hlsCodecParams", () => ({
   appendCodecParams: (p: URLSearchParams) => p.set("videoCodecs", "h264"),
 }));
+// The browser's output ceiling (a stereo TV here) - the same reading the
+// master URL carries through appendCodecParams.
+vi.mock("./outputChannels", () => ({ getMaxOutputChannels: () => 2 }));
 
 import { useTvPlaySession, buildTvStreamUrl } from "./useTvPlaySession";
 
@@ -52,6 +55,9 @@ describe("useTvPlaySession", () => {
     expect(result.current.streamUrl).toContain("/api/v1/media/m1/hls/master.m3u8?token=tok-1");
     expect(result.current.sessionId).toBe("sess-1");
     expect(getStreamInfo).toHaveBeenCalledTimes(1);
+    // The verdict is asked with the output's channel ceiling, so the panel
+    // describes the stereo the segments will carry, not a 6ch copy.
+    expect(getStreamInfo).toHaveBeenCalledWith("m1", expect.objectContaining({ maxAudioChannels: 2 }));
     expect(startStream).toHaveBeenCalledWith(expect.objectContaining({ deviceId: "tv-browser", playMethod: "PLAY_METHOD_TRANSCODE" }));
   });
 

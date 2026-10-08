@@ -153,6 +153,12 @@ func clientProfileFromRequest(req *eveyv1.GetStreamInfoRequest, userAgent string
 	if req.MaxH264Level > 0 {
 		client.MaxH264Level = int(req.MaxH264Level)
 	}
+	// Same output ceiling the master reads from ?maxAudioChannels=, clamped to
+	// the same 1..8 range: a value the master would ignore is ignored here too,
+	// or the verdict would announce a stereo transcode the segments never get.
+	if n := int(req.MaxAudioChannels); n >= 1 && n <= 8 {
+		client.MaxAudioChannels = n
+	}
 	return client
 }
 

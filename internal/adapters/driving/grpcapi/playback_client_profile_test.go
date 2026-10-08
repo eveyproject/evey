@@ -68,6 +68,23 @@ func TestClientProfileFromRequest_H264LevelCeiling(t *testing.T) {
 	assert.Equal(t, 0, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxH264Level: -3}, "").MaxH264Level)
 }
 
+// The output channel ceiling follows the master's reading of ?maxAudioChannels=
+// exactly (1..8, anything else is "not declared"): the stream-info verdict and
+// the segments must be judged on the same ceiling, or the panel describes a
+// 6ch copy of a track the packager folds to stereo.
+func TestClientProfileFromRequest_MaxAudioChannelsMirrorsTheMasterQuery(t *testing.T) {
+	assert.Equal(t, transcoding.DefaultWebProfile.MaxAudioChannels,
+		clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{}, "").MaxAudioChannels,
+		"an older client that declares nothing keeps the profile default")
+	assert.Equal(t, 2, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxAudioChannels: 2}, "").MaxAudioChannels)
+	assert.Equal(t, 8, clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxAudioChannels: 8}, "").MaxAudioChannels)
+	for _, bad := range []int32{-1, 0, 9, 32} {
+		assert.Equal(t, transcoding.DefaultWebProfile.MaxAudioChannels,
+			clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{MaxAudioChannels: bad}, "").MaxAudioChannels,
+			"%d is outside the master's 1..8 and must not become a ceiling", bad)
+	}
+}
+
 // The dimension caps are "> 0 means set". A zero (the proto default for an
 // absent field) must leave the default standing rather than cap the client at
 // zero pixels, and a negative must not slip through as a cap either.
