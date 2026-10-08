@@ -81,8 +81,14 @@ describe("EditProfileDialog (mobile)", () => {
     const first = open({ isKids: true, maxAge: 12 });
     fireEvent.change(screen.getByLabelText("PIN (4 digits)"), { target: { value: "4321" } });
     fireEvent.click(screen.getByLabelText("Default (12+)"));
+    // A first PIN is proven by the account password; without it nothing is sent.
     save();
-    expect(mutateMock).toHaveBeenCalledWith({ id: "p1", data: { pin: "4321", maxAge: -1 } });
+    // The hint under the password field and the refusal carry the same words.
+    expect(screen.getAllByText("Password required to set a PIN for the first time")).toHaveLength(2);
+    expect(mutateMock).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Account password"), { target: { value: "hunter2" } });
+    save();
+    expect(mutateMock).toHaveBeenCalledWith({ id: "p1", data: { pin: "4321", currentPassword: "hunter2", maxAge: -1 } });
     first.unmount();
 
     mutateMock.mockClear();
@@ -90,6 +96,21 @@ describe("EditProfileDialog (mobile)", () => {
     fireEvent.click(screen.getByLabelText("16+"));
     save();
     expect(mutateMock).toHaveBeenCalledWith({ id: "p1", data: { maxAge: 16 } });
+  });
+
+  // Same proof as the parental page: a profile that already has a PIN changes
+  // it with the current one, never on the session alone.
+  it("asks the current PIN when the profile already has one and sends it", () => {
+    open({ hasPin: true });
+    expect(screen.queryByLabelText("Current PIN")).toBeNull();
+    fireEvent.change(screen.getByLabelText("PIN (4 digits)"), { target: { value: "4321" } });
+    expect(screen.queryByLabelText("Account password")).toBeNull();
+    save();
+    expect(screen.getByText("Enter your current PIN")).toBeTruthy();
+    expect(mutateMock).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Current PIN"), { target: { value: "1111" } });
+    save();
+    expect(mutateMock).toHaveBeenCalledWith({ id: "p1", data: { pin: "4321", currentPin: "1111" } });
   });
 
   it("explains why a PIN is required when another profile is a kids profile", () => {

@@ -18,6 +18,10 @@ type UpdateProfileData = {
   region?: string;
   isKids?: boolean;
   pin?: string;
+  // Proof the server demands with a new PIN: the current PIN when one is set,
+  // the account password for a first one (same rule as the parental route).
+  currentPin?: string;
+  currentPassword?: string;
   // -1 clears any persisted MaxAge, 0+ sets it. Only honored when isKids=true
   // server-side.
   maxAge?: number;
@@ -83,6 +87,8 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
   const [name, setName] = useState(profile.name ?? "");
   const [isKids, setIsKids] = useState(!!profile.isKids);
   const [pin, setPin] = useState("");
+  const [currentPin, setCurrentPin] = useState("");
+  const [password, setPassword] = useState("");
   const [locale, setLocale] = useState(profile.locale ?? "");
   const [region, setRegion] = useState(profile.region ?? "");
   const [maxAge, setMaxAge] = useState(profile.maxAge != null ? String(profile.maxAge) : "");
@@ -93,6 +99,8 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
       setName(profile.name ?? "");
       setIsKids(!!profile.isKids);
       setPin("");
+      setCurrentPin("");
+      setPassword("");
       setLocale(profile.locale ?? "");
       setRegion(profile.region ?? "");
       setMaxAge(profile.maxAge != null ? String(profile.maxAge) : "");
@@ -102,6 +110,10 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
 
   const otherProfileHasKids = hasKidsProfile && !profile.isKids;
   const pinRequiredBecauseOfKids = otherProfileHasKids && !isKids;
+  // A new PIN is proven like on the parental settings page: by the current
+  // PIN when the profile has one, by the account password for a first one.
+  const needsCurrentPin = pin.length === 4 && !!profile.hasPin;
+  const needsPassword = pin.length === 4 && !profile.hasPin;
 
   const regionOpts = useMemo(
     () => [{ value: "", label: t("common.region.auto", "Auto") }, ...regionOptions(i18n.language)],
@@ -131,13 +143,25 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
       setError(t("auth.profile.select.pinInvalid", "PIN must be 4 digits"));
       return;
     }
+    if (needsCurrentPin && currentPin.length !== 4) {
+      setError(t("auth.settings.parental.pin.currentPinRequired", "Enter your current PIN"));
+      return;
+    }
+    if (needsPassword && !password) {
+      setError(t("auth.settings.parental.pin.passwordRequired", "Password required to set a PIN for the first time"));
+      return;
+    }
     if (!profile.id) return;
     const data: UpdateProfileData = {};
     if (name.trim() !== (profile.name ?? "")) data.name = name.trim();
     if (isKids !== !!profile.isKids) data.isKids = isKids;
     if (locale !== (profile.locale ?? "")) data.locale = locale;
     if (region !== (profile.region ?? "")) data.region = region;
-    if (pin.length === 4) data.pin = pin;
+    if (pin.length === 4) {
+      data.pin = pin;
+      if (needsCurrentPin) data.currentPin = currentPin;
+      else data.currentPassword = password;
+    }
     // Send maxAge only when the field is shown (kids profile). The backend
     // ignores it on non-kids anyway, but keeping it tied to the UI prevents
     // stale stored values from leaking back when the user toggles isKids.
@@ -208,6 +232,33 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
               : t("auth.profile.fields.pinKeep", "Leave blank to keep current PIN.")}
           </p>
         </div>
+        {needsCurrentPin && (
+          <Input
+            label={t("auth.settings.parental.pin.currentPin", "Current PIN")}
+            type="password"
+            inputMode="numeric"
+            maxLength={4}
+            pattern="\d{4}"
+            placeholder="••••"
+            value={currentPin}
+            onChange={(e) => setCurrentPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            autoComplete="off"
+          />
+        )}
+        {needsPassword && (
+          <div className="flex flex-col gap-1">
+            <Input
+              label={t("auth.settings.parental.pin.passwordReauth", "Account password")}
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+            <p className="text-xs text-[var(--text-muted)]">
+              {t("auth.settings.parental.pin.passwordRequired", "Password required to set a PIN for the first time")}
+            </p>
+          </div>
+        )}
         <Select
           label={t("auth.profile.fields.locale", "Language")}
           options={LOCALE_OPTIONS}

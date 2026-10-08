@@ -129,16 +129,45 @@ describe("EditProfileDialog", () => {
     expect(pinInput.value).toBe("1234");
   });
 
-  it("includes PIN in payload when exactly 4 digits", async () => {
+  it("includes PIN in payload when exactly 4 digits, proven by the account password for a first PIN", async () => {
     renderDialog();
     const nameInput = screen.getByLabelText(/name/i);
     fireEvent.change(nameInput, { target: { value: "Alice" } });
-    const pinInput = screen.getByLabelText(/pin/i);
+    const pinInput = screen.getByLabelText(/pin \(4 digits\)/i);
     fireEvent.change(pinInput, { target: { value: "5678" } });
+    // No PIN yet: the server wants the account password, not a current PIN.
+    expect(screen.queryByLabelText(/current pin/i)).toBeNull();
+    fireEvent.submit(nameInput.closest("form")!);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert").textContent).toMatch(/password required/i);
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/account password/i), { target: { value: "hunter2" } });
     fireEvent.submit(nameInput.closest("form")!);
     await waitFor(() => expect(mockMutate).toHaveBeenCalled());
     expect(mockMutate).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "p-1", data: expect.objectContaining({ pin: "5678" }) }),
+      expect.objectContaining({ id: "p-1", data: expect.objectContaining({ pin: "5678", currentPassword: "hunter2" }) }),
+    );
+  });
+
+  // The gRPC route now demands the same proof as the parental page: a profile
+  // that already has a PIN changes it with the current one, never on the
+  // session alone.
+  it("asks the current PIN when the profile already has one and sends it", async () => {
+    renderDialog({ ...BASE_PROFILE, hasPin: true });
+    const nameInput = screen.getByLabelText(/name/i);
+    fireEvent.change(screen.getByLabelText(/pin \(4 digits\)/i), { target: { value: "5678" } });
+    expect(screen.queryByLabelText(/account password/i)).toBeNull();
+    fireEvent.submit(nameInput.closest("form")!);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    expect(screen.getByRole("alert").textContent).toMatch(/enter your current pin/i);
+    expect(mockMutate).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/current pin/i), { target: { value: "1111" } });
+    fireEvent.submit(nameInput.closest("form")!);
+    await waitFor(() => expect(mockMutate).toHaveBeenCalled());
+    expect(mockMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "p-1", data: { pin: "5678", currentPin: "1111" } }),
     );
   });
 

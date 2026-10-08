@@ -256,6 +256,10 @@ message Profile {
   // When an access token was last minted for this profile (login or refresh).
   // Absent = never. Admin impersonation does not count.
   google.protobuf.Timestamp last_active_at = 15;
+  // Whether a parental PIN is set: tells an edit dialog which proof to ask
+  // for before changing it (the current PIN, or the account password for a
+  // first one). The hash itself never leaves the server.
+  bool has_pin = 16;
 }
 
 message AuthResponse {
@@ -400,6 +404,13 @@ message UpdateProfileRequest {
   // Parental age cap. Only honored when the profile is_kids=true; ignored
   // otherwise. Sentinel: -1 clears any stored value, 0+ sets it.
   optional int32 max_age = 11;
+  // Proof required when `pin` is set, the same rule as the parental HTTP
+  // route: a profile that already has a PIN needs its CURRENT PIN to change
+  // or clear it (current_pin); a first PIN needs the caller's account
+  // password (current_password). An admin editing another user's profile
+  // proves their own password in both cases.
+  optional string current_pin = 12;
+  optional string current_password = 13;
 }
 
 message DeleteProfileRequest {

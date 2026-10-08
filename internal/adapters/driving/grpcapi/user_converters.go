@@ -57,6 +57,7 @@ func profileToProto(p *user.Profile) *eveyv1.Profile {
 		IsKids:      p.IsKids,
 		Locale:      p.Locale,
 		CreatedAt:   toTimestamppb(p.CreatedAt),
+		HasPin:      p.Parental != nil && p.Parental.PINHash != "",
 	}
 	if p.AvatarPath != nil {
 		pb.AvatarPath = *p.AvatarPath

@@ -16,6 +16,7 @@ import (
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/evey-project/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -73,6 +74,7 @@ func setupUserHandler() *testUserEnv {
 		query:       query,
 		activitySvc: actSvc,
 		cfg:         &config.Config{JWT: config.JWTConfig{RefreshTokenLongTTL: 180 * 24 * time.Hour}},
+		pinRL:       ratelimit.NewWithBurst(15, 3.0),
 	}
 
 	return &testUserEnv{
@@ -1391,9 +1393,9 @@ func TestUpdateProfile_FieldSemantics(t *testing.T) {
 		return p
 	}
 
-	empty, pin, negAge := "", "4321", int32(-1)
+	empty, pin, negAge, currentPIN := "", "4321", int32(-1), "1111"
 	_, err := env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{
-		Id: "prf-1", Region: &empty, Pin: &pin, MaxAge: &negAge,
+		Id: "prf-1", Region: &empty, Pin: &pin, CurrentPin: &currentPIN, MaxAge: &negAge,
 		Preferences: map[string]string{"theme": "dark", "max_bitrate_kbps": "8000"},
 	})
 	require.NoError(t, err)
@@ -1414,15 +1416,15 @@ func TestUpdateProfile_FieldSemantics(t *testing.T) {
 	bad := "avatars/../secret"
 	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", AvatarPath: &bad})
 	assertCode(t, err, codes.InvalidArgument)
-	badPIN := "12ab"
-	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", Pin: &badPIN})
+	badPIN, rotated := "12ab", "4321"
+	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", Pin: &badPIN, CurrentPin: &rotated})
 	assertCode(t, err, codes.InvalidArgument)
 	assert.Nil(t, get().AvatarPath, "refused patches write nothing")
 
 	// A kids sibling appears: the guardian must keep a PIN.
 	require.NoError(t, env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-kid", UserID: "usr-1", Name: "Kid", IsKids: true}))
 	noPIN := ""
-	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", Pin: &noPIN})
+	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", Pin: &noPIN, CurrentPin: &rotated})
 	assertCode(t, err, codes.FailedPrecondition)
 	assert.NotEmpty(t, get().Parental.PINHash, "the refused write left the PIN in place")
 }
