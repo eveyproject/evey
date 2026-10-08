@@ -12,7 +12,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/buckket/go-blurhash"
+	"github.com/bbrks/go-blurhash"
 )
 
 // blurhashComponents is the (x, y) tuple the encoder uses to generate the

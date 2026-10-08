@@ -13,7 +13,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/buckket/go-blurhash"
+	"github.com/bbrks/go-blurhash"
 )
 
 // blurhashComponentsX / blurhashComponentsY size the encoder's frequency
