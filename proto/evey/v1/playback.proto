@@ -206,6 +206,14 @@ message GetStreamInfoRequest {
   // but 1080p H.264). Same meaning as ?maxH264Height= on the HLS master. 0
   // (older clients, most devices) = no separate limit.
   int32 max_h264_height = 16;
+  // max_audio_channels: the channel ceiling of the device's OUTPUT chain (a
+  // stereo TV, a 2.0 cast target), not of its decoder. Same meaning as
+  // ?maxAudioChannels= on the HLS master, so the stream-info verdict describes
+  // the audio the segments will carry: without it the panel announced a 6ch
+  // copy while the master, asked with the ceiling, re-encoded to stereo.
+  // 0 (older clients, or a browser that cannot probe its output) keeps the
+  // profile default.
+  int32 max_audio_channels = 17;
 }
 
 message StartStreamRequest {

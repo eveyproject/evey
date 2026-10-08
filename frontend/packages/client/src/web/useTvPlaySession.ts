@@ -10,6 +10,7 @@ import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { firstStartMs } from "../lib/resumePosition";
 import { getBrowserCapabilities } from "./codec";
 import { appendCodecParams } from "./hlsCodecParams";
+import { getMaxOutputChannels } from "./outputChannels";
 import type { PlaySessionDevice } from "./usePlaySession";
 import { isShedCode, type ShedReason } from "../lib/shed";
 
@@ -132,6 +133,9 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
           supportsHdr: caps.hdr,
           wasmAudio: device.wasmAudio ?? false,
           maxHeight: maxHeight && maxHeight > 0 ? maxHeight : undefined,
+          // The same output ceiling appendCodecParams puts on the master URL,
+          // so the verdict describes the audio the segments will carry.
+          maxAudioChannels: getMaxOutputChannels(),
           audioStreamIndex,
           subtitleStreamIndex,
         }),

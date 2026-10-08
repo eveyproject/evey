@@ -4,17 +4,21 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const startStreamFn = vi.fn(() => Promise.resolve({ id: "session-123" }));
 const fetchStreamTokenFn = vi.fn(() => Promise.resolve("stream-tok-abc"));
+const getStreamInfoFn = vi.fn((_mediaId: string, _params: unknown) => ({
+  data: { directPlayUrl: "/original-url", videoCodec: "h264" },
+}));
 
 vi.mock("@evey/api", () => ({
   // The web app: same origin, so the stop beacon goes to a relative path.
   getBaseURL: () => "",
   getCredentialsMode: () => "include",
   usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
-  usePlaybackServiceGetStreamInfo: () => ({
-    data: { directPlayUrl: "/original-url", videoCodec: "h264" },
-  }),
+  usePlaybackServiceGetStreamInfo: (...a: [string, unknown]) => getStreamInfoFn(...a),
   playbackServiceStartStream: startStreamFn,
 }));
+// The browser's output ceiling (stereo speakers here) - the same reading
+// appendCodecParams puts on the master URL.
+vi.mock("./outputChannels", () => ({ getMaxOutputChannels: () => 2 }));
 
 vi.mock("../hooks/useStreamToken", () => ({
   useStreamToken: () => ({
@@ -128,6 +132,17 @@ describe("usePlaySession", () => {
       result = hook.result;
     });
     expect(result!.current.streamInfo?.directPlayUrl).toContain("token=stream-tok-abc");
+  });
+
+  // The verdict is asked with the output's channel ceiling: declared to the
+  // master URL and not to GetStreamInfo, the panel said "copy 6ch" of a track
+  // the segments carried folded to stereo.
+  it("asks the stream-info verdict with the output's channel ceiling", async () => {
+    const usePlaySession = await loadHook("");
+    await act(async () => {
+      renderHook(() => usePlaySession("media-4"));
+    });
+    expect(getStreamInfoFn).toHaveBeenCalledWith("media-4", expect.objectContaining({ maxAudioChannels: 2 }));
   });
 
   it("exposes streamToken and fetchStreamToken", async () => {
