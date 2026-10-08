@@ -97,12 +97,12 @@ describe("SyncPlayScreen", () => {
   it("renders title, description and code input", () => {
     render(<SyncPlayScreen />);
 
-    // Title from translation key fallback
-    expect(screen.getByText("Watch Together")).toBeTruthy();
-    // Description text (partial)
+    // The hub is named like its menu entry (listening rooms are created here),
+    // and its intro tells a video room from a listening room.
+    expect(screen.getByText("Listen Together")).toBeTruthy();
     expect(
       screen.getByText(
-        "Got a code from a friend? Enter it below to join their room. To start a new room, open a movie or song and tap the SyncPlay button.",
+        "Got a code from a friend? Enter it below to join their room, video or music. To watch a movie together, open it and tap Watch Together in the player. To listen together, pick an album, a track or a playlist below.",
       ),
     ).toBeTruthy();
     // Input with placeholder
