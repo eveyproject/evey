@@ -67,7 +67,7 @@ type Payload struct {
 // callers must not treat that as an error (most legacy clients send nothing).
 func FromRequest(r *http.Request) (Payload, bool) {
 	if q := r.URL.Query().Get("CMCD"); q != "" {
-		return parse(q), true
+		return Parse(q), true
 	}
 	parts := make([]string, 0, 4)
 	for _, name := range []string{"CMCD-Request", "CMCD-Object", "CMCD-Session", "CMCD-Status"} {
@@ -78,7 +78,7 @@ func FromRequest(r *http.Request) (Payload, bool) {
 	if len(parts) == 0 {
 		return Payload{}, false
 	}
-	return parse(strings.Join(parts, ",")), true
+	return Parse(strings.Join(parts, ",")), true
 }
 
 // parse decodes a comma-separated CMCD payload. Values can be:
@@ -104,7 +104,11 @@ const maxRawKeys = 50
 // what was never meaningful.
 const maxValueLen = 256
 
-func parse(s string) Payload {
+// Parse decodes one comma-separated CMCD payload. Exported for the native
+// apps' QoE beacon: ExoPlayer and AVPlayer never attach CMCD to their own
+// segment fetches, so the app posts the same key=value string on the
+// player-event route instead, and the handler parses it like a header.
+func Parse(s string) Payload {
 	p := Payload{Raw: make(map[string]string, 12)}
 
 	// Split honouring quoted strings: CTA-5004 allows commas inside quotes

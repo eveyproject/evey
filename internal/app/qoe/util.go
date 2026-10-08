@@ -28,17 +28,23 @@ func DeviceClass(userAgent string) string {
 	switch {
 	case ua == "":
 		return "unknown"
+	// "crkey" is what a Chromecast puts in its UA, and it also says "Chrome":
+	// checked first, or every cast session is a desktop browser. Its own
+	// class, not "tv": the cast receiver (CAF + Shaka, apps/web/src/cast-receiver)
+	// is a third player next to the native TV app and a TV browser, and the
+	// table is there to tell which one stalls.
+	case strings.Contains(ua, "crkey"):
+		return "cast"
 	// Checked before the generic platform sniffing: the TV app's UA also says
 	// "Android TV", so an android-first order would file every TV as a phone.
-	// "crkey" is what a Chromecast puts in its UA, and it also says "Chrome":
-	// without this it landed in web-chromium, i.e. every cast session was
-	// counted as a desktop browser. tizen/webos are the two smart-TV browsers
-	// that reach the same endpoint. The web panel's own detector already knew
-	// about all three (frontend/apps/web/src/features/admin/onlineDevice.ts);
-	// this side had never been brought in line.
+	// tizen/webos are the two smart-TV browsers that reach the same endpoint
+	// (a /tv page there says so with X-Evey-Client, see DeviceClassOf). The
+	// web panel's own detector already knew about all of them
+	// (frontend/apps/web/src/features/admin/onlineDevice.ts); this side had
+	// never been brought in line.
 	case strings.Contains(ua, "eveytv"), strings.Contains(ua, "androidtv"),
 		strings.Contains(ua, "android tv"), strings.Contains(ua, "apple tv"),
-		strings.Contains(ua, "crkey"), strings.Contains(ua, "tizen"),
+		strings.Contains(ua, "tizen"),
 		// LG ships both spellings depending on firmware: "webOS" and "Web0S"
 		// with a digit zero. Matching only the first misses part of the fleet.
 		strings.Contains(ua, "webos"), strings.Contains(ua, "web0s"):
@@ -62,6 +68,45 @@ func DeviceClass(userAgent string) string {
 		return "web-firefox"
 	default:
 		return "web-other"
+	}
+}
+
+// ClientHeader is the request header a web surface sets to say which app it
+// is when its User-Agent cannot: /tv in a browser is the same Chrome as a
+// desktop tab, and on a webOS or Tizen set it is the same UA as any page.
+const ClientHeader = "X-Evey-Client"
+
+// ClientTVWeb is the ClientHeader value of frontend/apps/tv-web (/tv).
+const ClientTVWeb = "tv-web"
+
+// DeviceClassOf is DeviceClass with the client's own word on top: a /tv
+// browser files under "web-tv-<platform>" (web-tv-webos, web-tv-tizen,
+// web-tv-chromium on a PC) instead of "tv" (the native app) or "web-chromium".
+// Any other or absent header leaves the UA sniffing alone.
+func DeviceClassOf(userAgent, client string) string {
+	if strings.EqualFold(strings.TrimSpace(client), ClientTVWeb) {
+		return "web-tv-" + tvBrowserPlatform(strings.ToLower(userAgent))
+	}
+	return DeviceClass(userAgent)
+}
+
+// tvBrowserPlatform names the browser /tv runs in: the TV platform when the
+// UA says so, the browser family otherwise. Same product tokens as
+// DeviceClass, same order (Chrome also says Safari).
+func tvBrowserPlatform(ua string) string {
+	switch {
+	case strings.Contains(ua, "tizen"):
+		return "tizen"
+	case strings.Contains(ua, "webos"), strings.Contains(ua, "web0s"):
+		return "webos"
+	case strings.Contains(ua, "firefox"):
+		return "firefox"
+	case strings.Contains(ua, "chrome"), strings.Contains(ua, "chromium"), strings.Contains(ua, "edg/"):
+		return "chromium"
+	case strings.Contains(ua, "safari"):
+		return "safari"
+	default:
+		return "other"
 	}
 }
 

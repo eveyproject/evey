@@ -1118,6 +1118,13 @@ if (CAST_USE_SHAKA_FOR_HLS) {
       bufferBehind: SHAKA_BUFFER_BEHIND_SEC,
       bufferingGoal: SHAKA_BUFFERING_GOAL_SEC,
     },
+    // CMCD (CTA-5004) on every segment request, like hls.js on the web and
+    // /tv: buffer ahead, stall, startup, rung. The server files it in
+    // /admin/qoe under "cast" (its CrKey User-Agent) - without it a cast
+    // that stalled on every segment never appeared there. Query mode (the
+    // default) adds ?CMCD= next to the stream token: no header, no
+    // preflight. Shaka draws a session id per load(), i.e. per title.
+    cmcd: { enabled: true, useHeaders: false },
   };
 }
 

@@ -288,9 +288,18 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
         xhrSetup: (xhr) => {
           const tok = useAuthStore.getState().accessToken;
           if (tok) xhr.setRequestHeader("Authorization", `Bearer ${tok}`);
+          // Which app this is: the QoE table files these requests under
+          // web-tv-<platform>, where the User-Agent alone would say "tv"
+          // (the native app, on a webOS set) or a desktop Chrome. Rides the
+          // same preflight as the Authorization header above.
+          xhr.setRequestHeader("X-Evey-Client", "tv-web");
         },
         maxBufferLength: 30,
         backBufferLength: 30,
+        // CMCD on every segment request, like the web player: without it a
+        // television browser never appeared in /admin/qoe's device table.
+        // Its User-Agent (Tizen, webOS) files the rows under "tv".
+        cmcd: {},
       });
       hlsRef.current = hls;
       // Recovery is bounded per stream (see decideHlsFatal).

@@ -53,6 +53,7 @@ import {
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
+import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
@@ -640,6 +641,15 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
 
   // The variant ExoPlayer/AVPlayer decodes now, for the stream info panel.
   const playingTrack = usePlayingVideoTrack(player);
+  // The QoE samples of /admin/qoe's device table: ExoPlayer/AVPlayer send no
+  // CMCD, the app does. Only a transcode (HLS) has segments to report on.
+  useQoEBeacon(player, {
+    mediaId: sessionMediaId,
+    sessionId,
+    format: !useLocalSource && !!streamUrl && streamUrl.includes("m3u8") ? "h" : null,
+    playing: playingTrack.playing,
+    ladderBitrates: playingTrack.ladderBitrates,
+  });
 
   useEffect(() => {
     if (!player) return;
