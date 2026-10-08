@@ -290,7 +290,7 @@ function SyncPlayPage() {
   if (inRoom) {
     return (
       <div className="max-w-3xl mx-auto py-8 px-4 flex flex-col gap-6">
-        <h1 className="text-2xl font-bold text-[var(--text)]">{t("media.syncplay.title")}</h1>
+        <h1 className="text-2xl font-bold text-[var(--text)]">{t("media.syncplay.hubTitle")}</h1>
         <Card className="p-6 flex flex-col gap-4">
           <div className="flex items-center gap-4">
             {artUrl ? (
@@ -412,7 +412,7 @@ function SyncPlayPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4 flex flex-col gap-6">
-      <h1 className="text-2xl font-bold text-[var(--text)]">{t("media.syncplay.title")}</h1>
+      <h1 className="text-2xl font-bold text-[var(--text)]">{t("media.syncplay.hubTitle")}</h1>
       {error && (
         <div className="text-sm text-[var(--color-danger)]">{error}</div>
       )}

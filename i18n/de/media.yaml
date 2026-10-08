@@ -420,7 +420,7 @@ updated: Aktualisiert
 downloadComplete: Download abgeschlossen
 downloadFailed: Download fehlgeschlagen
 syncplay:
-  joinDescription: "Code von einer Freundin oder einem Freund? Gib ihn unten ein, um dem Raum beizutreten. Für einen neuen Raum öffne einen Film oder Song und tippe auf Gemeinsam ansehen."
+  joinDescription: "Code von einer Freundin oder einem Freund? Gib ihn unten ein, um dem Raum beizutreten, Video oder Musik. Um einen Film gemeinsam anzusehen, öffne ihn und tippe im Player auf Gemeinsam ansehen. Um gemeinsam zu hören, wähle unten ein Album, einen Titel oder eine Playlist."
   connected: Verbunden
   connecting: "Verbinden..."
   leave: Verlassen
@@ -434,6 +434,7 @@ syncplay:
   watchingWith: "Schauen mit: {{names}}"
   watchingWithMore: "Schauen mit: {{names}} +{{count}} weitere"
   title: "Zusammen schauen"
+  hubTitle: "Gemeinsam hören"
   create: Raum erstellen
   createRoom: Erstellen
   tabAlbums: Alben

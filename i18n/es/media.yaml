@@ -420,7 +420,7 @@ updated: Actualizado
 downloadComplete: Descarga completada
 downloadFailed: Error en la descarga
 syncplay:
-  joinDescription: "¿Tienes el código de un amigo? Introdúcelo abajo para unirte a su sala. Para crear una sala, abre una película o canción y pulsa el botón Ver juntos."
+  joinDescription: "¿Tienes el código de un amigo? Introdúcelo abajo para unirte a su sala, de vídeo o de música. Para ver una película juntos, ábrela y pulsa Ver juntos en el reproductor. Para escuchar juntos, elige abajo un álbum, una canción o una playlist."
   connected: Conectado
   connecting: "Conectando..."
   leave: Salir
@@ -434,6 +434,7 @@ syncplay:
   watchingWith: "Viendo con: {{names}}"
   watchingWithMore: "Viendo con: {{names}} +{{count}} más"
   title: "Ver juntos"
+  hubTitle: "Escuchar juntos"
   create: Crear una sala
   createRoom: Crear
   tabAlbums: Álbumes
