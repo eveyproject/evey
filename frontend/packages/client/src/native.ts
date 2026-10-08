@@ -11,6 +11,7 @@ export * from "./native/outputChannels";
 export * from "./native/audio-session";
 export * from "./native/useAudioCapsBeacon";
 export * from "./native/useDecoderTelemetry";
+export * from "./native/useQoEBeacon";
 
 export * from "./native/refresh-token";
 export * from "./native/sign-out";

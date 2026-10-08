@@ -12,6 +12,12 @@ package httpapi
 //
 // It is a telemetry door, so it trusts nothing: auth'd, rate-limited at the
 // route, body capped, type whitelisted to [a-z0-9_], free text clamped.
+//
+// It also carries the native apps' QoE samples (type qoe_sample): the phone
+// and the television play through ExoPlayer/AVPlayer, which attach no CMCD to
+// their segment fetches, so the /admin/qoe table only ever saw browsers. The
+// app posts the CMCD string it computed itself and the sample lands in the
+// same sink as a browser's segment request.
 
 import (
 	"context"
@@ -22,6 +28,9 @@ import (
 	"strings"
 
 	"github.com/evey-project/evey/internal/app/presence"
+	appqoe "github.com/evey-project/evey/internal/app/qoe"
+	"github.com/evey-project/evey/internal/pkg/cmcd"
+	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
 	"github.com/evey-project/evey/internal/pkg/network"
 )
 
@@ -31,6 +40,10 @@ const (
 	playerEventMaxBody = 2 << 10
 	// playerEventMaxDetail clamps free-text fields going into the logs.
 	playerEventMaxDetail = 200
+	// playerEventQoESample is the native apps' QoE beacon: Details carries a
+	// CMCD string (bl=..., bs, su, sid="...") and the sample goes to the QoE
+	// sink, not to the logs.
+	playerEventQoESample = "qoe_sample"
 )
 
 type playerEventBody struct {
@@ -84,6 +97,10 @@ type playerEventDeps struct {
 	castSessionEnd  CastSessionEnd
 	castCommand     CastCommandConsumer
 	castAudioMode   CastAudioModeTouch
+
+	// qoe receives the native apps' qoe_sample beacons. Nil: the samples are
+	// accepted and dropped, like a browser's CMCD when QoE is not wired.
+	qoe appqoe.EventSink
 }
 
 // CastAudioModeTouch mirrors the receiver's audio_mode beacon ("aac", "wasm",
@@ -169,6 +186,12 @@ func WithPlayerEventCastCommand(consume CastCommandConsumer) PlayerEventOption {
 	return func(d *playerEventDeps) { d.castCommand = consume }
 }
 
+// WithPlayerEventQoESink routes the qoe_sample beacons of the native players
+// into the QoE sink, next to the browsers' CMCD segment requests.
+func WithPlayerEventQoESink(sink appqoe.EventSink) PlayerEventOption {
+	return func(d *playerEventDeps) { d.qoe = sink }
+}
+
 // WithPlayerEventLibraryGuard closes the "any JWT can push events onto an
 // arbitrary media_id" gap: a JWT-authenticated caller must have library
 // access to (and not be parental-blocked from) the media_id it reports on,
@@ -241,6 +264,13 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 		if claims := HTTPClaimsFromContext(r.Context()); claims != nil {
 			userID = claims.UserID
 		}
+		// A QoE sample is a metric, not an incident: one every ten seconds
+		// per native player would bury the admin log view it was made for.
+		if body.Type == playerEventQoESample {
+			recordQoESample(r, &deps, mediaID, userID, body)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		notifyCastLiveness(r, &deps, mediaID, body.Type, body.PosSec, body.Paused)
 		notifyCastAudioMode(r, &deps, mediaID, body.Type, body.Details)
 
@@ -289,6 +319,29 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// recordQoESample turns a native player's qoe_sample beacon into the same QoE
+// event a browser's CMCD segment request produces (transcode_vod_cmcd.go's
+// ingestCMCD): Details is the CMCD string the app computed from its player
+// (buffer ahead, stall since the last sample, startup, playing rung), Variant
+// the rung's index on the ladder. The device class comes from the app's own
+// User-Agent (EveyMobile, EveyTV), so the sample files under android/ios/tv.
+func recordQoESample(r *http.Request, deps *playerEventDeps, mediaID, userID string, body playerEventBody) {
+	if deps.qoe == nil {
+		return
+	}
+	payload := cmcd.Parse(body.Details)
+	eveymetrics.QoEIngestEvents.Inc()
+	deps.qoe.Record(appqoe.Event{
+		UserID:      userID,
+		MediaItemID: mediaID,
+		VariantIdx:  body.Variant,
+		SegmentIdx:  body.Segment,
+		DeviceClass: appqoe.DeviceClassOf(r.UserAgent(), r.Header.Get(appqoe.ClientHeader)),
+		RemoteIP:    appqoe.RemoteIP(r.RemoteAddr),
+		Payload:     payload,
+	})
 }
 
 // castEndOfLifeEvents are the beacons the receiver sends as it dies. It stops

@@ -17,6 +17,7 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
+import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
 import { useNextEpisode } from "../../../src/hooks/useNextEpisode";
@@ -396,6 +397,15 @@ export default function PlayerScreen() {
 
   // The variant ExoPlayer decodes now, for the stream info panel.
   const playingTrack = usePlayingVideoTrack(player);
+  // The QoE samples of /admin/qoe's device table: ExoPlayer sends no CMCD,
+  // the app does. Only a transcode (HLS, or the DASH trial) has segments.
+  useQoEBeacon(player, {
+    mediaId,
+    sessionId,
+    format: dashSource?.state === "on" ? "d" : streamUrl?.includes("m3u8") ? "h" : null,
+    playing: playingTrack.playing,
+    ladderBitrates: playingTrack.ladderBitrates,
+  });
 
   useEffect(() => {
     if (!player) return;

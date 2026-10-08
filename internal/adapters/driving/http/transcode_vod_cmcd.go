@@ -59,7 +59,7 @@ func (h *hlsVODServe) ingestCMCD(r *http.Request, mediaID string, variantIdx, se
 		IsInit:      isInit,
 		IsManifest:  isManifest,
 		IsVariantPL: isVariantPL,
-		DeviceClass: appqoe.DeviceClass(r.UserAgent()),
+		DeviceClass: appqoe.DeviceClassOf(r.UserAgent(), r.Header.Get(appqoe.ClientHeader)),
 		RemoteIP:    appqoe.RemoteIP(r.RemoteAddr),
 		Payload:     payload,
 	})

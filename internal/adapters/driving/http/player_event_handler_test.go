@@ -597,3 +597,61 @@ func TestPlayerEvent_CastBeaconCarriesThePausedFlag(t *testing.T) {
 		})
 	}
 }
+
+// The native players (ExoPlayer, AVPlayer) attach no CMCD to their segment
+// fetches, so until 2026-10-08 the /admin/qoe device table only ever listed
+// browsers. A qoe_sample beacon carries the CMCD string the app computed and
+// lands in the QoE sink under the app's own device class - and never in the
+// logs, where one sample every ten seconds would bury the incidents.
+func TestPlayerEvent_QoESampleFeedsTheSinkUnderTheAppsDeviceClass(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	sink := &recordingQoESink{}
+
+	body := `{"type":"qoe_sample","details":"bl=12400,br=4500,tb=8000,sf=h,st=v,ot=v,v=1,sid=\"sess-1\",bs,su","variant":2,"segment":0,"posSec":61.5}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/media/media-1/player-event", strings.NewReader(body))
+	req.SetPathValue("id", "media-1")
+	req.Header.Set("User-Agent", "EveyTV (Android TV 12; MiTV-AESP0)")
+	req.RemoteAddr = "192.168.1.40:51234"
+	req = withHTTPClaims(req, &domainuser.Claims{UserID: "u1"})
+	rec := httptest.NewRecorder()
+	playerEventHandler(logger, WithPlayerEventQoESink(sink))(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204 (body=%s)", rec.Code, rec.Body.String())
+	}
+	if len(sink.events) != 1 {
+		t.Fatalf("sink got %d events, want 1", len(sink.events))
+	}
+	evt := sink.events[0]
+	if evt.UserID != "u1" || evt.MediaItemID != "media-1" || evt.VariantIdx != 2 {
+		t.Fatalf("event identity = %+v", evt)
+	}
+	if evt.DeviceClass != "tv" || evt.RemoteIP != "192.168.1.40" {
+		t.Fatalf("device_class=%q remote_ip=%q, want tv / 192.168.1.40", evt.DeviceClass, evt.RemoteIP)
+	}
+	p := evt.Payload
+	if p.BufferLengthMs != 12400 || p.EncodedKbps != 4500 || p.TopBitrateKbps != 8000 || !p.BufferStarved || !p.Startup {
+		t.Fatalf("payload = %+v", p)
+	}
+	if p.SessionID != "sess-1" || p.StreamingFormat != "h" || p.StreamType != "v" || p.ObjectType != "v" {
+		t.Fatalf("session scope = %+v", p)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("a QoE sample must not reach the logs, got: %s", buf.String())
+	}
+}
+
+// Without a sink (QoE not wired) the sample is accepted and dropped, like a
+// browser's CMCD on the segment path.
+func TestPlayerEvent_QoESampleWithoutSinkIsDropped(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	rec := postPlayerEvent(t, logger, `{"type":"qoe_sample","details":"bl=1000,sf=h"}`)
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", rec.Code)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("a QoE sample must not reach the logs, got: %s", buf.String())
+	}
+}

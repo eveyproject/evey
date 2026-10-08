@@ -187,6 +187,7 @@ vi.mock("../../../src/hooks/useDecoderTelemetry", () => ({
   },
 }));
 vi.mock("../../../src/hooks/useAudioCapsBeacon", () => ({ useAudioCapsBeacon: () => {} }));
+vi.mock("../../../src/hooks/useQoEBeacon", () => ({ useQoEBeacon: () => {} }));
 const progressGetters: { getPositionMs?: () => number } = {};
 vi.mock("../../../src/hooks/useProgressReporter", () => ({
   useProgressReporter: (_sessionId: unknown, getPositionMs: () => number) => {

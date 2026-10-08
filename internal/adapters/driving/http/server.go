@@ -538,7 +538,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 			WithPlayerEventCastSession(s.CastSessionKeepalive),
 			WithPlayerEventCastSessionEnd(s.CastSessionTerminate),
 			WithPlayerEventCastAudioMode(s.CastAudioModeTouch),
-			WithPlayerEventCastCommand(s.CastCommandConsume)))))
+			WithPlayerEventCastCommand(s.CastCommandConsume),
+			// And as the native players' QoE feed: ExoPlayer/AVPlayer send no
+			// CMCD of their own, the app posts qoe_sample beacons instead.
+			WithPlayerEventQoESink(s.QoESink)))))
 	}
 	mux.HandleFunc("POST /api/v1/media/{id}/artwork/{artworkId}/select", auth(selectArtworkHandler(s.ArtworkRepo, s.LibQuerySvc, s.LibraryAccessRepo, s.UserQuerySvc)))
 	mux.HandleFunc("GET /api/v1/media/{id}/download", streamAuth(ratelimit.MiddlewareFunc(s.GlobalRL, s.StreamMeter.Middleware(downloadHandler(s.LibQuerySvc, s.BaseURL(), s.LibraryAccessRepo, parentalChk)))))

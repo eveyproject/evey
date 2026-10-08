@@ -4,7 +4,7 @@ import "testing"
 
 // CMCD arrives in a header or query string the player controls, and it is
 // parsed on every segment request - the hottest untrusted-input path in the
-// server. parse() does its own comma splitting, quote tracking and key/value
+// server. Parse() does its own comma splitting, quote tracking and key/value
 // slicing by index, which is the shape of code that walks off the end of a
 // string when a quote is left open or a separator lands in the wrong place.
 //
@@ -27,6 +27,6 @@ func FuzzParse(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, s string) {
 		// Returning at all is the assertion.
-		_ = parse(s)
+		_ = Parse(s)
 	})
 }

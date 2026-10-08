@@ -27,8 +27,9 @@ func TestDeviceClass(t *testing.T) {
 		{"apple tv", "AppleCoreMedia/1.0 (Apple TV)", "tv"},
 		// A Chromecast asks for segments with a UA that says both CrKey and
 		// Chrome. Chrome must not win, or every cast session is filed as a
-		// desktop browser.
-		{"chromecast", "Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 CrKey/1.56.500000", "tv"},
+		// desktop browser. Its own class since 2026-10-08: it used to share
+		// "tv" with the native app, and the table could not say which stalled.
+		{"chromecast", "Mozilla/5.0 (X11; Linux armv7l) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36 CrKey/1.56.500000", "cast"},
 		{"samsung tizen tv", "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 Chrome/76.0 Safari/537.36", "tv"},
 		// LG writes it "Web0S" with a zero on some firmwares and "webOS" on
 		// others; both are in the field, so both are pinned here.
@@ -52,6 +53,35 @@ func TestDeviceClass(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			assert.Equal(t, c.want, DeviceClass(c.ua))
+		})
+	}
+}
+
+// /tv in a browser used to be indistinguishable from the native TV app (on a
+// webOS or Tizen set) or from a desktop tab (on a PC): the UA is the same.
+// The app's own X-Evey-Client header is what tells them apart.
+func TestDeviceClassOf(t *testing.T) {
+	const webos = "Mozilla/5.0 (Web0S; Linux/SmartTV) AppleWebKit/537.36 Chrome/87.0 Safari/537.36"
+	const tizen = "Mozilla/5.0 (SMART-TV; Linux; Tizen 6.0) AppleWebKit/537.36 Chrome/76.0 Safari/537.36"
+	const chrome = "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+	cases := []struct {
+		name, ua, client, want string
+	}{
+		{"/tv on an LG set", webos, "tv-web", "web-tv-webos"},
+		{"/tv on a Samsung set", tizen, "tv-web", "web-tv-tizen"},
+		{"/tv in a desktop chrome", chrome, "tv-web", "web-tv-chromium"},
+		{"/tv in firefox", "Mozilla/5.0 (X11; rv:120.0) Gecko/20100101 Firefox/120.0", "tv-web", "web-tv-firefox"},
+		{"/tv in safari", "Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15", "tv-web", "web-tv-safari"},
+		{"/tv, unknown browser", "curl/8.0", "tv-web", "web-tv-other"},
+		{"header is case-insensitive and trimmed", webos, " TV-Web ", "web-tv-webos"},
+		{"no header: an LG set is a tv", webos, "", "tv"},
+		{"no header: a desktop chrome is a browser", chrome, "", "web-chromium"},
+		{"unknown client value: UA alone decides", chrome, "something-else", "web-chromium"},
+		{"native tv app never sets it", "EveyTV (Android TV 12; MiTV-AESP0)", "", "tv"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			assert.Equal(t, c.want, DeviceClassOf(c.ua, c.client))
 		})
 	}
 }
