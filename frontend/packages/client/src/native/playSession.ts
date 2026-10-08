@@ -194,12 +194,35 @@ export function playerDecodesCopiedAudio(
   playerCodecs: string[],
 ): boolean {
   if (playerCodecs.length === 0 || info.audioDecision !== "copy") return false;
-  const audio = (info.mediaStreams ?? []).filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
-  const picked =
-    audioStreamIndex != null && audioStreamIndex > 0
-      ? audio.find((s) => s.index === audioStreamIndex)
-      : (audio.find((s) => s.isDefault) ?? audio[0]);
+  const picked = pickedAudioStream(info, audioStreamIndex);
   return picked?.codec != null && playerCodecs.includes(picked.codec);
+}
+
+// The audio track the master will serve: the picked one, else the
+// default-flagged one, else the first.
+function pickedAudioStream(info: V1StreamInfo, audioStreamIndex: number | undefined) {
+  const audio = (info.mediaStreams ?? []).filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
+  return audioStreamIndex != null && audioStreamIndex > 0
+    ? audio.find((s) => s.index === audioStreamIndex)
+    : (audio.find((s) => s.isDefault) ?? audio[0]);
+}
+
+/**
+ * Whether declaring the output ceiling would change the server's audio
+ * verdict: it folds a track only when the track has MORE channels than the
+ * ceiling (audio_channels_exceeded). A verdict asked without the ceiling is
+ * then wrong for the master that carries it - the panel said "copy 6ch" of
+ * a track the segments held as AAC stereo - so the session asks again with
+ * it. A track within the ceiling, or of unknown layout, keeps the first answer.
+ */
+export function ceilingChangesVerdict(
+  info: V1StreamInfo,
+  audioStreamIndex: number | undefined,
+  ceiling: number | undefined,
+): boolean {
+  if (ceiling == null || ceiling <= 0) return false;
+  const picked = pickedAudioStream(info, audioStreamIndex);
+  return picked?.channels != null && picked.channels > ceiling;
 }
 
 // What one native app brings. The probes are passed in rather than imported so
@@ -315,21 +338,22 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           dev.networkType?.(),
         ]);
 
-        const [info, wp] = await Promise.all([
-          playbackServiceGetStreamInfo(mediaId, {
-            supportedCodecs: VIDEO_CODECS,
-            supportedAudioCodecs: getDeviceAudioCodecs(),
-            supportedContainers: CONTAINERS,
-            // Same declaration the HLS master URL carries, so the stream-info
-            // panel describes the bytes the segments will actually hold.
-            fmp4AudioPassthrough: getFmp4AudioPassthrough(),
-            supportsHdr,
-            maxH264Level: getDeviceMaxH264Level(),
-            maxHeight: explicitMaxHeight,
-            audioStreamIndex,
-            subtitleStreamIndex,
-            ...(networkType ? { networkType } : {}),
-          }),
+        const verdictParams = {
+          supportedCodecs: VIDEO_CODECS,
+          supportedAudioCodecs: getDeviceAudioCodecs(),
+          supportedContainers: CONTAINERS,
+          // Same declaration the HLS master URL carries, so the stream-info
+          // panel describes the bytes the segments will actually hold.
+          fmp4AudioPassthrough: getFmp4AudioPassthrough(),
+          supportsHdr,
+          maxH264Level: getDeviceMaxH264Level(),
+          maxHeight: explicitMaxHeight,
+          audioStreamIndex,
+          subtitleStreamIndex,
+          ...(networkType ? { networkType } : {}),
+        };
+        const [firstVerdict, wp] = await Promise.all([
+          playbackServiceGetStreamInfo(mediaId, verdictParams),
           eveyFetch<V1WatchProgress>({
             url: `/api/v1/playback/${encodeURIComponent(mediaId)}/progress`,
             method: "GET",
@@ -337,6 +361,21 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         ]);
 
         if (wp) setProgress(wp);
+
+        // The output ceiling reaches the master only when the player does not
+        // decode the copied track itself (it folds that one from the stream's
+        // own mix levels). The first verdict is asked without it, because
+        // whether the player decodes the track depends on that verdict; when
+        // the master WILL carry the ceiling and the track exceeds it, the
+        // verdict is asked again with it, so the panel describes the stereo
+        // the segments hold and not a 6ch copy.
+        let info = firstVerdict;
+        const ceiling = playerDecodesCopiedAudio(info, audioStreamIndex, getPlayerAudioCodecs())
+          ? undefined
+          : maxAudioChannels;
+        if (ceilingChangesVerdict(info, audioStreamIndex, ceiling)) {
+          info = await playbackServiceGetStreamInfo(mediaId, { ...verdictParams, maxAudioChannels: ceiling });
+        }
 
         let token = tokenRef.current;
         if (!token) {
@@ -354,9 +393,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         const url = buildStreamUrl(serverUrl, mediaId, info, token, {
           audioTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex),
           subtitleTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex),
-          maxAudioChannels: playerDecodesCopiedAudio(info, audioStreamIndex, getPlayerAudioCodecs())
-            ? undefined
-            : maxAudioChannels,
+          maxAudioChannels: ceiling,
           startSec: resumeSec,
           maxHeight: explicitMaxHeight,
           screenHeight: dev.screenHeight?.(),
