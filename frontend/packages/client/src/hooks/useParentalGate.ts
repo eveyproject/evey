@@ -1,23 +1,13 @@
 import { useParentalServiceGetParentalSettings, useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { useAuthStore } from "@evey/store";
+import { RATINGS_BY_COUNTRY } from "./ratingsTable";
 
-// Minimal per-country rating → min-age table. Mirrors the backend
-// internal/pkg/ratings byCountry map for the handful of systems TMDB returns
-// most often for movies/series.
-const BY_COUNTRY: Record<string, Record<string, number>> = {
-  FR: { TP: 0, U: 0, "-10": 10, "10": 10, "-12": 12, "12": 12, "-16": 16, "16": 16, "-18": 18, "18": 18, X: 18 },
-  US: { G: 0, "TV-Y": 0, "TV-G": 0, "TV-Y7": 7, PG: 10, "TV-PG": 10, "PG-13": 13, "TV-14": 14, R: 17, "TV-MA": 17, "NC-17": 17 },
-  GB: { U: 0, UC: 0, PG: 8, "12": 12, "12A": 12, "15": 15, "18": 18, R18: 18 },
-  DE: { "0": 0, "6": 6, "12": 12, "16": 16, "18": 18 },
-  ES: { APTA: 0, TP: 0, "7": 7, "12": 12, "13": 13, "16": 16, "18": 18 },
-  AU: { G: 0, PG: 8, M: 15, "MA 15+": 15, "MA15+": 15, "R 18+": 18, "R18+": 18 },
-  BR: { L: 0, LIVRE: 0, "10": 10, "12": 12, "14": 14, "16": 16, "18": 18 },
-  NL: { AL: 0, "6": 6, "9": 9, "12": 12, "14": 14, "16": 16, "18": 18 },
-  RU: { "0+": 0, "6+": 6, "12+": 12, "14+": 14, "16+": 16, "18+": 18 },
-  IT: { T: 0, "6+": 6, "12": 12, "14": 14, "18": 18 },
-  JP: { G: 0, PG12: 12, "R15+": 15, "R18+": 18 },
-  IN: { U: 0, "U/A": 12, "U/A 7+": 7, "U/A 13+": 13, "U/A 16+": 16, A: 18 },
-};
+// Per-country rating -> min-age table: the server's byCountry (internal/
+// domain/ratings), rendered into ratingsTable.ts by a server test that fails
+// when the two drift. It used to be a hand-kept 12-country subset, so a title
+// the server gated on a Canadian or Portuguese certificate played here
+// without the PIN prompt.
+const BY_COUNTRY: Record<string, Record<string, number>> = RATINGS_BY_COUNTRY;
 
 function minAgeFor(country: string, rating: string): number {
   if (!country || !rating) return -1;
@@ -34,9 +24,10 @@ function minAgeFor(country: string, rating: string): number {
 // be resolved. Anything this client can see has therefore been vetted for the
 // active profile.
 //
-// So this gate must never be STRICTER than the server: it holds a 12-country
-// table where the server holds 26, and it only sees officialRating (often
-// empty on titles that carry per-country certifications). Failing closed here
+// So this gate must never be STRICTER than the server: it holds the server's
+// table but only sees officialRating (often empty on titles that carry
+// per-country certifications), and it does not strip agency prefixes
+// ("ACB MA 15+") the way the server does. Failing closed here
 // would demand a parental PIN for legitimate, all-ages content - verified on a
 // real title rated TP in France whose officialRating is empty. Unresolvable
 // rating -> defer to the server, which already decided.
