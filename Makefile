@@ -5,7 +5,7 @@
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
 	mobile-build mobile-install mobile mobile-go \
-	mutation-test docker-image verify-deploy \
+	mutation-test docker-image verify-deploy ops-image ops ops-upgrade \
 	wiki wiki-check wiki-serve wiki-drafts wiki-publish
 
 BINARY=evey
@@ -69,6 +69,32 @@ docker-image:
 	  --build-arg BUILD_DATE=$(BUILD_DATE) \
 	  --build-arg RUNTIMES=$(or $(RUNTIMES),lean) \
 	  -t evey:$(VERSION) .
+
+# ── Operations harness ────────────────────────────────────────────
+# Boots the image as an operator would and walks the scenarios an installation
+# meets: fresh install, scan, playback, parallel clients, cache disk full, library
+# root gone, SIGKILL. The gate never runs the image; this does. ~10 s warm.
+OPS_IMG ?= eveyproject/evey:ops-local
+OPS_FROM ?= eveyproject/evey:beta-0.0.1-full
+
+## ops-image: build the runtime image under test (full variant) as $(OPS_IMG)
+ops-image:
+	docker build --target runtime \
+	  --build-arg VERSION=ops-local \
+	  --build-arg COMMIT=$(GIT_COMMIT) \
+	  --build-arg BUILD_DATE=$(BUILD_DATE) \
+	  --build-arg RUNTIMES=full \
+	  -t $(OPS_IMG) .
+
+## ops: operations harness on a throwaway container. OPS_IMG=<image> to test another image
+ops:
+	@docker image inspect $(OPS_IMG) >/dev/null 2>&1 || $(MAKE) ops-image
+	IMG=$(OPS_IMG) tests/ops/run.sh
+
+## ops-upgrade: update from OPS_FROM to OPS_IMG with scripts/evey-update.sh, then roll back with a restore (2-3 min)
+ops-upgrade:
+	@docker image inspect $(OPS_IMG) >/dev/null 2>&1 || $(MAKE) ops-image
+	FROM=$(OPS_FROM) IMG=$(OPS_IMG) tests/ops/upgrade.sh
 
 # verify-deploy: ask a running server which commit it is on and compare it to
 # this checkout's HEAD. Exits non-zero on a mismatch AND on "cannot tell".
