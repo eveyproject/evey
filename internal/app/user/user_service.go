@@ -128,6 +128,12 @@ func (s *UserService) HashPIN(plain string) (string, error) {
 	return s.hasher.Hash(plain)
 }
 
+// VerifyPIN reports whether plain matches a profile's stored PIN hash. The
+// caller rate-limits the attempts; this only answers the question.
+func (s *UserService) VerifyPIN(plain, hash string) (bool, error) {
+	return s.hasher.Verify(plain, hash)
+}
+
 func (s *UserService) resolveDefaultLocale() string {
 	if s.defaultLocale == nil {
 		return ""

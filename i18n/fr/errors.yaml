@@ -15,6 +15,7 @@ auth:
   parental_needs_non_kids: "Basculez sur un profil non-enfant pour modifier le contrôle parental"
   pin_must_be_4_digits: "Le code PIN doit contenir 4 chiffres"
   invalid_pin: "Code PIN incorrect"
+  current_pin_required: "Saisissez votre code PIN actuel pour le changer ou le retirer"
   invalid_password: "Mot de passe incorrect"
   pin_required_for_non_kids: "Un profil non-enfant doit avoir un code PIN tant qu'un profil enfant existe"
   profiles_need_non_kids: "Passez sur un profil non-enfant pour gérer les profils"

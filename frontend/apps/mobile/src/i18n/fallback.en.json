@@ -2272,6 +2272,7 @@
   "errors.admin.service_not_configured": "Service not configured",
   "errors.admin.setup_already_completed": "Setup already completed",
   "errors.auth.admin_access_required": "Admin access required",
+  "errors.auth.current_pin_required": "Enter your current PIN to change or remove it",
   "errors.auth.insufficient_permissions": "Insufficient permissions",
   "errors.auth.internal_method": "This method is for internal use only",
   "errors.auth.invalid_credentials": "Invalid username or password",

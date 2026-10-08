@@ -188,6 +188,47 @@ func (h *userHandler) enforceParentalUpdateGate(ctx context.Context, span trace.
 	return nil
 }
 
+// enforceProfilePINProof is the gRPC twin of the parental route's
+// authorizeParentalChange for the PIN itself: a request that sets, rotates or
+// clears the PIN proves something first. A profile that already has a PIN
+// needs its current PIN (rate-limited per profile, a 4-digit PIN is 10 000
+// guesses); a first PIN needs the caller's account password, so a stolen
+// access token cannot lock the owner out behind a PIN of the thief's choosing.
+// An admin on another user's profile proves their own password in both cases:
+// they do not know the user's PIN, and their token alone must not be enough.
+// Until now the gRPC route accepted the new PIN on the token alone.
+func (h *userHandler) enforceProfilePINProof(ctx context.Context, span trace.Span, req *eveyv1.UpdateProfileRequest, claims *user.Claims, p *user.Profile) error {
+	if req.Pin == nil {
+		return nil
+	}
+	hasPIN := p.Parental != nil && p.Parental.PINHash != ""
+	if !hasPIN && *req.Pin == "" {
+		return nil // nothing to clear, nothing to prove
+	}
+	if !hasPIN || string(p.UserID) != claims.UserID {
+		return h.reauthenticate(ctx, span, claims.UserID, req.GetCurrentPassword())
+	}
+	if strings.TrimSpace(req.GetCurrentPin()) == "" {
+		span.SetStatus(otelcodes.Error, "current PIN required")
+		return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.current_pin_required")
+	}
+	if h.pinRL != nil && !h.pinRL.Allow(string(p.ID)) {
+		span.SetStatus(otelcodes.Error, "PIN attempts rate limited")
+		return h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.auth.too_many_attempts")
+	}
+	ok, err := h.userSvc.VerifyPIN(req.GetCurrentPin(), p.Parental.PINHash)
+	if err != nil {
+		span.RecordError(err)
+		return internalError(ctx, "verify current PIN", err)
+	}
+	if !ok {
+		span.SetStatus(otelcodes.Error, "invalid current PIN")
+		// PermissionDenied, not Unauthenticated: clients sign out on a 401.
+		return h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.invalid_pin")
+	}
+	return nil
+}
+
 // applyProfileUpdateFields patches every non-nil field of req onto p. Fields
 // left unset in the request leave the existing column untouched, so p must
 // be freshly loaded from storage (see loadProfileForUpdate) before this call.
@@ -290,6 +331,9 @@ func (h *userHandler) UpdateProfile(ctx context.Context, req *eveyv1.UpdateProfi
 		return nil, err
 	}
 	if err := h.enforceParentalUpdateGate(ctx, span, req, claims, p); err != nil {
+		return nil, err
+	}
+	if err := h.enforceProfilePINProof(ctx, span, req, claims, p); err != nil {
 		return nil, err
 	}
 	if err := h.applyProfileUpdateFields(ctx, span, req, p); err != nil {

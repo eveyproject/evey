@@ -15,6 +15,7 @@ auth:
   parental_needs_non_kids: "Switch to a non-kids profile to change parental settings"
   pin_must_be_4_digits: "PIN must be 4 digits"
   invalid_pin: "Incorrect PIN"
+  current_pin_required: "Enter your current PIN to change or remove it"
   invalid_password: "Incorrect password"
   pin_required_for_non_kids: "A non-kids profile must have a PIN while a kids profile exists"
   profiles_need_non_kids: "Switch to a non-kids profile to manage profiles"

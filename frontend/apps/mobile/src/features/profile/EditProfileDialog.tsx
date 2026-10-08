@@ -27,6 +27,10 @@ type UpdateProfileData = {
   name?: string;
   isKids?: boolean;
   pin?: string;
+  // Proof the server demands with a new PIN: the current PIN when one is set,
+  // the account password for a first one (same rule as the parental route).
+  currentPin?: string;
+  currentPassword?: string;
   locale?: string;
   region?: string;
   // -1 clears any persisted MaxAge, 0+ sets it. Only honored when isKids=true server-side.
@@ -42,6 +46,8 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
   const [name, setName] = useState(profile.name ?? "");
   const [isKids, setIsKids] = useState(!!profile.isKids);
   const [pin, setPin] = useState("");
+  const [currentPin, setCurrentPin] = useState("");
+  const [password, setPassword] = useState("");
   const [locale, setLocale] = useState(profile.locale ?? "");
   const [region, setRegion] = useState(profile.region ?? "");
   const [maxAge, setMaxAge] = useState(profile.maxAge != null ? String(profile.maxAge) : "");
@@ -55,6 +61,8 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
       setName(profile.name ?? "");
       setIsKids(!!profile.isKids);
       setPin("");
+      setCurrentPin("");
+      setPassword("");
       setLocale(profile.locale ?? "");
       setRegion(profile.region ?? "");
       setMaxAge(profile.maxAge != null ? String(profile.maxAge) : "");
@@ -65,6 +73,10 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
 
   const otherProfileHasKids = hasKidsProfile && !profile.isKids;
   const pinRequiredBecauseOfKids = otherProfileHasKids && !isKids;
+  // A new PIN is proven like on the parental settings page: by the current
+  // PIN when the profile has one, by the account password for a first one.
+  const needsCurrentPin = pin.length === 4 && !!profile.hasPin;
+  const needsPassword = pin.length === 4 && !profile.hasPin;
 
   const localeOptions = useMemo(
     () => [
@@ -118,13 +130,25 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
       setError(t("auth.profile.select.pinInvalid", "PIN must be 4 digits"));
       return;
     }
+    if (needsCurrentPin && currentPin.length !== 4) {
+      setError(t("auth.settings.parental.pin.currentPinRequired", "Enter your current PIN"));
+      return;
+    }
+    if (needsPassword && !password) {
+      setError(t("auth.settings.parental.pin.passwordRequired", "Password required to set a PIN for the first time"));
+      return;
+    }
     if (!profile.id) return;
     const data: UpdateProfileData = {};
     if (name.trim() !== (profile.name ?? "")) data.name = name.trim();
     if (isKids !== !!profile.isKids) data.isKids = isKids;
     if (locale !== (profile.locale ?? "")) data.locale = locale;
     if (region !== (profile.region ?? "")) data.region = region;
-    if (pin.length === 4) data.pin = pin;
+    if (pin.length === 4) {
+      data.pin = pin;
+      if (needsCurrentPin) data.currentPin = currentPin;
+      else data.currentPassword = password;
+    }
     if (isKids) {
       const currentMaxAge = profile.maxAge != null ? String(profile.maxAge) : "";
       if (maxAge !== currentMaxAge) {
@@ -243,6 +267,45 @@ export function EditProfileDialog({ open, onClose, profile, userId, hasKidsProfi
                     : t("auth.profile.fields.pinKeep", "Leave blank to keep current PIN.")}
                 </Text>
               </View>
+
+              {needsCurrentPin && (
+                <View>
+                  <Text style={[s.label, { color: theme.colors.textMuted }]}>
+                    {t("auth.settings.parental.pin.currentPin", "Current PIN")}
+                  </Text>
+                  <TextInput
+                    value={currentPin}
+                    onChangeText={(v) => setCurrentPin(v.replace(/\D/g, "").slice(0, 4))}
+                    placeholder="••••"
+                    placeholderTextColor={theme.colors.textMuted}
+                    secureTextEntry
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    accessibilityLabel={t("auth.settings.parental.pin.currentPin", "Current PIN")}
+                    style={[s.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderColor: theme.colors.border, borderRadius: theme.radii.md }]}
+                  />
+                </View>
+              )}
+
+              {needsPassword && (
+                <View>
+                  <Text style={[s.label, { color: theme.colors.textMuted }]}>
+                    {t("auth.settings.parental.pin.passwordReauth", "Account password")}
+                  </Text>
+                  <TextInput
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholderTextColor={theme.colors.textMuted}
+                    secureTextEntry
+                    autoCapitalize="none"
+                    accessibilityLabel={t("auth.settings.parental.pin.passwordReauth", "Account password")}
+                    style={[s.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderColor: theme.colors.border, borderRadius: theme.radii.md }]}
+                  />
+                  <Text style={[s.rowHelp, { color: theme.colors.textMuted, marginTop: 4 }]}>
+                    {t("auth.settings.parental.pin.passwordRequired", "Password required to set a PIN for the first time")}
+                  </Text>
+                </View>
+              )}
 
               <View>
                 <Text style={[s.label, { color: theme.colors.textMuted }]}>

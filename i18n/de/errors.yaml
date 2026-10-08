@@ -15,6 +15,7 @@ auth:
   parental_needs_non_kids: "Wechseln Sie zu einem Nicht-Kinderprofil, um die Kindersicherung zu ändern"
   pin_must_be_4_digits: "Die PIN muss 4 Ziffern enthalten"
   invalid_pin: "Falsche PIN"
+  current_pin_required: "Geben Sie Ihre aktuelle PIN ein, um sie zu ändern oder zu entfernen"
   invalid_password: "Falsches Passwort"
   pin_required_for_non_kids: "Ein Nicht-Kinderprofil braucht eine PIN, solange ein Kinderprofil existiert"
   profiles_need_non_kids: "Wechseln Sie zu einem Nicht-Kinderprofil, um Profile zu verwalten"
