@@ -420,7 +420,7 @@ updated: Mis à jour
 downloadComplete: Téléchargement terminé
 downloadFailed: Échec du téléchargement
 syncplay:
-  joinDescription: "Un ami vous a donné un code ? Saisissez-le ci-dessous pour rejoindre son salon. Pour créer un salon, ouvrez un film ou un morceau et appuyez sur le bouton Regarder ensemble."
+  joinDescription: "Un ami vous a donné un code ? Saisissez-le ci-dessous pour rejoindre sa salle, vidéo ou musique. Pour regarder un film ensemble, ouvrez-le et appuyez sur Regarder ensemble dans le lecteur. Pour écouter ensemble, choisissez un album, un titre ou une playlist ci-dessous."
   connected: Connecté
   connecting: "Connexion..."
   leave: Quitter
@@ -434,6 +434,7 @@ syncplay:
   watchingWith: "Avec : {{names}}"
   watchingWithMore: "Avec : {{names}} +{{count}} de plus"
   title: "Regarder ensemble"
+  hubTitle: "Écoute partagée"
   create: Créer une salle
   createRoom: Créer
   tabAlbums: Albums

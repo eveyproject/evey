@@ -420,7 +420,7 @@ updated: 已更新
 downloadComplete: "下载完成"
 downloadFailed: "下载失败"
 syncplay:
-  joinDescription: "拿到朋友的房间码了吗？在下方输入即可加入。若要新建房间，请打开影片或歌曲后点按「一起看」。"
+  joinDescription: "拿到朋友的房间码了吗？在下方输入即可加入他的房间，影片或音乐均可。要一起看电影，请打开影片并在播放器中点按「一起看」；要一起听音乐，请在下方选择专辑、曲目或播放列表。"
   connected: 已连接
   connecting: "连接中..."
   leave: 离开
@@ -434,6 +434,7 @@ syncplay:
   watchingWith: "正在与 {{names}} 一起观看"
   watchingWithMore: "正在与 {{names}} +{{count}} 人一起观看"
   title: "一起看"
+  hubTitle: "一起听"
   create: 创建房间
   createRoom: 创建
   tabAlbums: 专辑

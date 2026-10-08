@@ -420,7 +420,7 @@ updated: Updated
 downloadComplete: Download complete
 downloadFailed: Download failed
 syncplay:
-  joinDescription: "Got a code from a friend? Enter it below to join their room. To start a new room, open a movie or song and tap the SyncPlay button."
+  joinDescription: "Got a code from a friend? Enter it below to join their room, video or music. To watch a movie together, open it and tap Watch Together in the player. To listen together, pick an album, a track or a playlist below."
   connected: Connected
   connecting: "Connecting..."
   leave: Leave
@@ -434,6 +434,7 @@ syncplay:
   watchingWith: "Watching with: {{names}}"
   watchingWithMore: "Watching with: {{names}} +{{count}} more"
   title: "Watch Together"
+  hubTitle: "Listen Together"
   create: Create a room
   createRoom: Create room
   tabAlbums: Albums

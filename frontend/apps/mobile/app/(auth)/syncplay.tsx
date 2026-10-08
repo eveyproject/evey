@@ -61,7 +61,7 @@ export default function SyncPlayScreen() {
       await sync.createRoomFromQueue(items.map((it) => it.id));
       setMusicRoom(true);
     } catch {
-      Alert.alert(t("media.syncplay.title", "Watch Together"), t("media.syncplay.createFailed", "Failed to create room"));
+      Alert.alert(t("media.syncplay.hubTitle", "Listen Together"), t("media.syncplay.createFailed", "Failed to create room"));
     } finally {
       setCreating(false);
     }
@@ -88,12 +88,12 @@ export default function SyncPlayScreen() {
         return;
       }
       if (!mediaId) {
-        Alert.alert(t("media.syncplay.title", "Watch Together"), t("media.syncplay.joinFailed", "Could not join the room."));
+        Alert.alert(t("media.syncplay.hubTitle", "Listen Together"), t("media.syncplay.joinFailed", "Could not join the room."));
         return;
       }
       router.replace(`/player/${mediaId}` as never);
     } catch {
-      Alert.alert(t("media.syncplay.title", "Watch Together"), t("media.syncplay.joinFailed", "Could not join the room."));
+      Alert.alert(t("media.syncplay.hubTitle", "Listen Together"), t("media.syncplay.joinFailed", "Could not join the room."));
     } finally {
       setJoining(false);
     }
@@ -136,7 +136,7 @@ export default function SyncPlayScreen() {
 
       <View style={s.hero}>
         <Ionicons name="people-outline" size={40} color={theme.colors.accent} />
-        <Text style={s.title}>{t("media.syncplay.title", "Watch Together")}</Text>
+        <Text style={s.title}>{t("media.syncplay.hubTitle", "Listen Together")}</Text>
         <Text style={s.description}>
           {t(
             "media.syncplay.joinDescription",
