@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
-	github.com/buckket/go-blurhash v1.1.0
+	github.com/bbrks/go-blurhash v1.2.0
 	github.com/coreos/go-oidc/v3 v3.20.0
 	github.com/dhowden/tag v0.0.0-20240417053706-3d75831295e8
 	github.com/fsnotify/fsnotify v1.10.1
