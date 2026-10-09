@@ -602,8 +602,20 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// on EVERY tick whatever the fill level, so it must be able to back off
 	// while someone is watching. On a weak NAS the cache shares a spindle with
 	// the media being read.
+	// Free-space floor shared by the background sweeper (EvictionPolicy) and the
+	// on-demand AdmitWrite guard on the serve path, so both agree on "full".
+	// EVEY_TRANSCODE_CACHE_MIN_FREE_MB overrides the 2 GiB default (a small box
+	// or the ops harness sets it low); 0 disables the floor and the guard.
+	cacheMinFree := int64(apptranscoding.DefaultMinFreeBytes)
+	if v := os.Getenv("EVEY_TRANSCODE_CACHE_MIN_FREE_MB"); v != "" {
+		if mb, err := strconv.Atoi(v); err == nil && mb >= 0 {
+			cacheMinFree = int64(mb) << 20
+		}
+	}
+	hlsVODCache.SetWriteFloor(cacheMinFree)
 	_ = apptranscoding.NewCacheBudget(hlsVODCache, remuxJanitor, compatJanitor).Start(apptranscoding.EvictionPolicy{
 		MaxBytes:       int64(cfg.Transcoding.CacheMaxGB) * 1024 * 1024 * 1024,
+		MinFreeBytes:   cacheMinFree,
 		ActivePlayback: hlsVODRemover.ActivePlaybackCount,
 	}, slog.Default())
 
