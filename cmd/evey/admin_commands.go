@@ -28,6 +28,7 @@ type adminCommand struct {
 var adminRunners = map[string]func([]string) error{
 	"reset-password":     adminResetPassword,
 	"rotate-jwt-key":     adminRotateJWTKey,
+	"backup":             adminBackup,
 	"restore-backup":     adminRestoreBackup,
 	"reindex-search":     adminReindexSearch,
 	"migrate":            adminMigrate,
@@ -80,6 +81,12 @@ var adminCommands = []adminCommand{
 		short: "Regenerate the JWT signing key. Invalidates ALL active sessions.",
 		long: "Moves the RSA signing key aside (kept as <key>.rotated-<timestamp>); the next server boot generates a new one. " +
 			"Every session is ended in the database at once (refresh tokens deleted, access tokens revoked), so every user must sign in again.",
+	},
+	{
+		name: "backup", args: "[--include-telemetry]", group: groupRecovery,
+		short: "Create a database backup (same artifact as the panel and the scheduler).",
+		long: "Writes a backup to the configured backup directory. Telemetry tables are excluded by default to keep it lean; " +
+			"pass --include-telemetry to dump them too, or leave it off to follow the saved panel setting.",
 	},
 	{
 		name: "restore-backup", args: "<path-to-dump.sql.gz>", group: groupRecovery, noFlags: true,

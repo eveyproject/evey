@@ -27,7 +27,7 @@ _evey() {
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-    local subs="reset-password rotate-jwt-key restore-backup reindex-search migrate \
+    local subs="reset-password rotate-jwt-key backup restore-backup reindex-search migrate \
 reclassify reindex-no-cue validate-streaming artwork-gc load-test doctor rollback \
 ladder-bench ladder-probe route-bench list-users list-libraries demo-seed help"
 
@@ -91,6 +91,7 @@ ladder-bench ladder-probe route-bench list-users list-libraries demo-seed help"
         ladder-bench)       opts="--scenes --window --heights --crf --preset --out --ref-height --ref-crf --efficiency --mode --cache --encoders --device" ;;
         ladder-probe)       opts="--window --cache --out" ;;
         route-bench)        opts="--backend --device --heights --fps --routes --classes --duration --workdir --capability --out --json" ;;
+        backup)            opts="--include-telemetry" ;;
         restore-backup)
             COMPREPLY=( $(compgen -d -- "$cur") $(compgen -f -X '!*.sql.gz' -- "$cur") ); return 0 ;;
         *)                  opts="" ;;

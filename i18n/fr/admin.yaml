@@ -1280,6 +1280,8 @@ serverSettings:
   introAutoSkip: "Saut automatique des intros"
   passwordRecovery: "Récupération du mot de passe"
   passwordRecoveryHint: "Affiche un lien « Mot de passe oublié ? » sur la page de connexion, qui envoie un lien de réinitialisation par e-mail. Nécessite que l'e-mail (SMTP) soit configuré. S'applique immédiatement."
+  backupTelemetry: "Inclure la télémétrie dans les sauvegardes"
+  backupTelemetryHint: "Les sauvegardes ignorent par défaut les tables de télémétrie volumineuses (métriques de lecture et de serveur) pour rester légères. Activez cette option pour les inclure. S'applique aux sauvegardes manuelles, planifiées et en ligne de commande ; une restauration vide toujours ces tables."
   auditRetentionDays: "Rétention du journal d'audit (jours, 0 = conserver toujours)"
   metricsRetentionDays: "Rétention des métriques serveur (jours)"
   qoeRetentionDays: "Rétention qualité de lecture (QoE) (jours)"

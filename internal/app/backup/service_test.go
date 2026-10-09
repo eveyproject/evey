@@ -551,7 +551,7 @@ type closeTrackingDumper struct {
 	closed *bool
 }
 
-func (d closeTrackingDumper) DumpTables(_ context.Context, _ []string) (io.ReadCloser, error) {
+func (d closeTrackingDumper) DumpAll(_ context.Context, _ bool) (io.ReadCloser, error) {
 	return &trackedRC{Reader: strings.NewReader(d.data), closed: d.closed}, nil
 }
 func (d closeTrackingDumper) RestoreTables(_ context.Context, _ io.Reader) error { return nil }
@@ -876,4 +876,31 @@ func TestCleanupOldBackups_ListError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error from store.List")
 	}
+}
+
+func TestCreateBackup_ForwardsIncludeTelemetry(t *testing.T) {
+	t.Run("default excludes telemetry", func(t *testing.T) {
+		store := fakes.NewFakeBackupStore()
+		dumper := fakes.NewFakeDatabaseDumper()
+		dumper.DumpData = []byte("-- PostgreSQL database dump\n")
+		svc := NewService(store, dumper, "1.0.0")
+		if _, err := svc.CreateBackup(context.Background()); err != nil {
+			t.Fatalf("CreateBackup: %v", err)
+		}
+		if dumper.LastIncludeTelemetry {
+			t.Error("default backup must exclude telemetry")
+		}
+	})
+	t.Run("opt-in includes telemetry", func(t *testing.T) {
+		store := fakes.NewFakeBackupStore()
+		dumper := fakes.NewFakeDatabaseDumper()
+		dumper.DumpData = []byte("-- PostgreSQL database dump\n")
+		svc := NewService(store, dumper, "1.0.0", WithIncludeTelemetry(func() bool { return true }))
+		if _, err := svc.CreateBackup(context.Background()); err != nil {
+			t.Fatalf("CreateBackup: %v", err)
+		}
+		if !dumper.LastIncludeTelemetry {
+			t.Error("WithIncludeTelemetry(true) must forward to the dumper")
+		}
+	})
 }

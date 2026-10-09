@@ -163,7 +163,8 @@ func buildBackupServices(cfg *config.Config, infra *infraDeps, rootLog *slog.Log
 	bus := infra.bus
 	backupSvc := appbackup.NewService(filesystem.NewBackupStore(cfg.Backup.Dir),
 		postgres.NewDatabaseDumper(cfg.DB.Host, cfg.DB.Port, cfg.DB.User, cfg.DB.Password, cfg.DB.DBName, cfg.DB.SSLMode),
-		buildID().Version, appbackup.WithEventBus(bus))
+		buildID().Version, appbackup.WithEventBus(bus),
+		appbackup.WithIncludeTelemetry(cfg.EffectiveBackupIncludeTelemetry))
 	backupSchedulerLog := eveylogger.NewWith(rootLog, "backup-scheduler")
 	backupScheduler := appbackup.NewScheduler(r.BackupSchedule, backupSvc, backupSchedulerLog)
 	return backupSvc, backupScheduler

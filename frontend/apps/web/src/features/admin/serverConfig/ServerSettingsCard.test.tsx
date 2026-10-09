@@ -71,6 +71,7 @@ describe("ServerSettingsCard", () => {
       introAutoSkipEnabled: false,
       passwordRecoveryEnabled: false,
       transcodeCacheMaxGB: 120,
+      backupIncludeTelemetry: false,
     });
     expect(put.data).not.toHaveProperty("auditRetentionDays");
     await waitFor(() => expect(screen.getByTestId("server-config-save-btn")).toBeDisabled());

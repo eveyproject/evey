@@ -23,7 +23,13 @@ import (
 
 var pgDumpHeader = []byte("-- PostgreSQL database dump")
 
-// Backups are produced by DumpTables as a whole-database `pg_dump --data-only
+// telemetryTables are the high-volume, regenerable observability tables excluded
+// from a backup unless the operator opts in. They are still TRUNCATEd on restore
+// (the TRUNCATE lists every table) but not reloaded, so a restore empties them -
+// acceptable for metrics, and it keeps routine backups small.
+var telemetryTables = []string{"playback_qoe_events", "server_metrics"}
+
+// Backups are produced by DumpAll as a whole-database `pg_dump --data-only
 // --no-owner --no-privileges --disable-triggers`, prefixed with one TRUNCATE of
 // every table so a restore replaces the data on a populated base. That output
 // has a small, fixed grammar,
@@ -117,26 +123,28 @@ func (d *DatabaseDumper) pgEnv() []string {
 	)
 }
 
-// DumpTables streams a whole-database, data-only dump prefixed with a single
-// TRUNCATE of every table it covers, so a restore REPLACES the data on a
-// populated database instead of colliding on primary keys. The tables argument
-// is ignored: a static list silently drops any table a later migration adds,
-// losing it on restore (and leaving dangling references), so the dump is taken
-// over every base table discovered in the schema except schema_migrations
-// (owned by the migrator). The TRUNCATE lists all those tables in ONE statement
-// - no CASCADE needed, since every referencing table is in the set - and
-// --disable-triggers lets the COPYs reload rows through the circular FK on
-// media_items. Still data-only: the restore validator's SQL allowlist holds.
-func (d *DatabaseDumper) DumpTables(ctx context.Context, _ []string) (io.ReadCloser, error) {
-	ctx, span := tracing.StartSpan(ctx, "postgres.backup.DumpTables")
+// DumpAll streams a whole-database, data-only dump prefixed with a single
+// TRUNCATE of every table, so a restore REPLACES the data on a populated
+// database instead of colliding on primary keys. The dump covers every base
+// table discovered in the schema except schema_migrations (owned by the
+// migrator) - a static list would silently drop any table a later migration
+// adds, losing it on restore. The TRUNCATE lists all tables in ONE statement
+// (no CASCADE needed, since every referencing table is in the set) and
+// --disable-triggers lets the COPYs reload through the circular FK on
+// media_items. When includeTelemetry is false the telemetry tables are still
+// TRUNCATEd but their data is not dumped (--exclude-table), so a restore leaves
+// them empty and routine backups stay lean. Still data-only: the restore
+// validator's SQL allowlist holds.
+func (d *DatabaseDumper) DumpAll(ctx context.Context, includeTelemetry bool) (io.ReadCloser, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.backup.DumpAll")
 	defer span.End()
 
 	tables, err := d.allTables(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("DumpTables: list tables: %w", err)
+		return nil, fmt.Errorf("DumpAll: list tables: %w", err)
 	}
 	if len(tables) == 0 {
-		return nil, fmt.Errorf("DumpTables: no tables to back up")
+		return nil, fmt.Errorf("DumpAll: no tables to back up")
 	}
 	quoted := make([]string, len(tables))
 	for i, t := range tables {
@@ -151,6 +159,11 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, _ []string) (io.ReadClo
 		"-d", d.dbName,
 		"--data-only", "--no-owner", "--no-privileges", "--disable-triggers",
 		"--exclude-table", "schema_migrations",
+	}
+	if !includeTelemetry {
+		for _, t := range telemetryTables {
+			args = append(args, "--exclude-table-data", t)
+		}
 	}
 
 	cmd := exec.CommandContext(ctx, "pg_dump", args...)

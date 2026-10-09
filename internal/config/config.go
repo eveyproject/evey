@@ -186,6 +186,11 @@ type BackupConfig struct {
 	Dir           string
 	IntervalHours int // 0 = disabled
 	RetentionDays int // 0 = keep forever
+	// IncludeTelemetry opts routine backups into dumping the high-volume
+	// telemetry tables. Off by default: they are regenerable and bloat every
+	// backup, so a lean snapshot excludes their data (the rows are still cleared
+	// on restore, never reloaded).
+	IncludeTelemetry bool
 }
 
 type RemoteAccessConfig struct {
@@ -593,6 +598,14 @@ func (c *Config) EffectiveHWAccelEnabled() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.Transcoding.HWAccelEnabled
+}
+
+// EffectiveBackupIncludeTelemetry reports whether backups should dump the
+// telemetry tables (read live so a panel/CLI change applies to the next backup).
+func (c *Config) EffectiveBackupIncludeTelemetry() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.Backup.IncludeTelemetry
 }
 func (c *Config) EffectiveAV1Enabled() bool {
 	c.mu.RLock()
