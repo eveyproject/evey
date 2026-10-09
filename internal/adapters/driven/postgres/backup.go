@@ -56,11 +56,11 @@ var (
 	// dump. The sequence name is a quoted (optionally schema-qualified) identifier
 	// with no quote/backslash/semicolon, the value a number, the is_called flag an
 	// optional bool - no room to smuggle SQL.
-	reDumpSetval      = regexp.MustCompile(`(?i)^SELECT\s+pg_catalog\.setval\('[^'\\;]+',\s*-?[0-9]+(?:,\s*(?:true|false))?\s*\);$`)
-	reDumpAlterTrig   = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+(?:ONLY\s+)?` + dumpQName + `\s+(?:DISABLE|ENABLE)\s+TRIGGER\s+ALL;$`)
-	reDumpTruncate    = regexp.MustCompile(`(?i)^TRUNCATE\s+(?:TABLE\s+)?(?:ONLY\s+)?` + dumpQName + `(?:\s*,\s*` + dumpQName + `)*;$`)
-	reDumpCopyStdin   = regexp.MustCompile(`(?i)^COPY\s+` + dumpQName + `(?:\s*\(\s*` + dumpIdent + `(?:\s*,\s*` + dumpIdent + `)*\s*\))?\s+FROM\s+stdin;$`)
-	reDumpRestrict    = regexp.MustCompile(`^\\(restrict|unrestrict)\s+\S+$`)
+	reDumpSetval    = regexp.MustCompile(`(?i)^SELECT\s+pg_catalog\.setval\('[^'\\;]+',\s*-?[0-9]+(?:,\s*(?:true|false))?\s*\);$`)
+	reDumpAlterTrig = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+(?:ONLY\s+)?` + dumpQName + `\s+(?:DISABLE|ENABLE)\s+TRIGGER\s+ALL;$`)
+	reDumpTruncate  = regexp.MustCompile(`(?i)^TRUNCATE\s+(?:TABLE\s+)?(?:ONLY\s+)?` + dumpQName + `(?:\s*,\s*` + dumpQName + `)*;$`)
+	reDumpCopyStdin = regexp.MustCompile(`(?i)^COPY\s+` + dumpQName + `(?:\s*\(\s*` + dumpIdent + `(?:\s*,\s*` + dumpIdent + `)*\s*\))?\s+FROM\s+stdin;$`)
+	reDumpRestrict  = regexp.MustCompile(`^\\(restrict|unrestrict)\s+\S+$`)
 )
 
 // isIdentitySetting names the GUCs that switch the session identity: `SET role
