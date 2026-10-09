@@ -624,6 +624,14 @@ type SegmentCache struct {
 	// Guarded by mu. Entries are dropped in CleanupHash so the map tracks the
 	// live cache, not history.
 	accessTimes map[string]time.Time
+
+	// writeFloor is the free-space floor AdmitWrite enforces before a new segment
+	// is produced (0 disables it). freeBytesFn overrides the statfs source in
+	// tests. evictMu + lastOnDemandEvict rate-limit the on-demand eviction walk.
+	writeFloor        int64
+	freeBytesFn       func() (int64, error)
+	evictMu           sync.Mutex
+	lastOnDemandEvict time.Time
 }
 
 // NewSegmentCache returns a cache rooted at baseDir/segments. The directory is

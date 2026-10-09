@@ -28,7 +28,7 @@ leaves it up. Logs land in `tests/ops/test-results/` (gitignored):
 | `direct_play` | master playlist and first segment serve |
 | `parallel8` | eight clients on the master, no 5xx |
 | `transcode` | a forced 240p segment comes out of ffmpeg (`X-Evey-Served-By: transcode`) |
-| `disk_full` | a 1 MiB cache filled: the server survives (see XFAIL below) |
+| `disk_full` | cache filled below its floor: a missing segment is shed (503 cache_full) with no ffmpeg respawn, a cached segment still serves, production resumes once freed |
 | `unreachable` | a library root chmod 000 prunes nothing |
 | `kill9` | SIGKILL mid-playback, reboot on the same `/data`, login and catalogue intact |
 
@@ -38,9 +38,7 @@ leaves it up. Logs land in `tests/ops/test-results/` (gitignored):
 - `XFAIL` is a scenario pinned to a known defect, referenced inline. It does not
   fail the run. `XPASS` does - the defect is gone and the mark must be removed.
 
-Known defects currently marked:
-- `disk_full` - a full transcode cache restarts ffmpeg on every segment request
-  (503 forever) instead of refusing once.
+No scenario is currently marked `XFAIL`.
 
 `ops-upgrade` checks `restore_backup`: the pre-update dump is taken with
 `--clean --if-exists` and restore-backup verifies the dump is whole before it

@@ -53,7 +53,7 @@ make_clip "$R/media" "$IMG" 2>"$OUT/ffmpeg.err" \
 # Boot 1: empty /data, /cache on a 1 MiB tmpfs so the disk-full scenario can fill it.
 t=$(now_ms)
 docker run -d --name "$NAME" -p "127.0.0.1:$PORT:9091" -v "$R/data:/data" -v "$R/media:/media" \
-    --tmpfs "/cache:size=1m,uid=$(id -u),gid=$(id -g)" --stop-timeout 60 -e EVEY_TITLE_PROBE=off "$IMG" >/dev/null
+    --tmpfs "/cache:size=16m,uid=$(id -u),gid=$(id -g)" --stop-timeout 60 -e EVEY_TITLE_PROBE=off -e EVEY_TRANSCODE_CACHE_MIN_FREE_MB=8 "$IMG" >/dev/null
 wait_healthy "$B"
 COMMIT=$(commit_of "$B" | cut -c1-9)
 SCHEMA=$(docker exec "$NAME" evey admin migrate version 2>/dev/null | tail -1)
@@ -85,24 +85,35 @@ read -r code tries <<<"$(first_segment "$M" "$ST" "&maxHeight=240&videoCodecs=h2
 served=$(curl -s -D - -o /dev/null "$M/$(grep -v '^#' "$R/variant.m3u8" | head -1)" | tr -d '\r' | sed -n 's/^X-Evey-Served-By: //p')
 [ "$code" = "200" ] && [ "$served" = "transcode" ] && report PASS transcode "$t" "tries=$tries served-by=$served" || report FAIL transcode "$t" "http=$code served-by=${served:-none}"
 
-# Cache disk full: pull every transcoded segment through the 1 MiB cache. Expected:
-# the server stays up and a full cache yields ONE refusal, not a fresh ffmpeg per
-# request. Known defect (2026-10-08): ffmpeg is restarted on every request while the
-# cache is full, 503 forever. XFAIL until fixed.
-t=$(now_ms); codes=""; reqs=0
-starts0=$(grep -c '"hls: ffmpeg start"' <(docker exec "$NAME" sh -c 'cat /data/logs/*.log' 2>/dev/null) || true)
-for s in $(grep -v '^#' "$R/variant.m3u8"); do
-    c=503; k=0
-    while [ "$c" = "503" ] && [ $k -lt 10 ]; do c=$(curl -s -o /dev/null -w '%{http_code}' "$M/$s"); k=$((k+1)); [ "$c" = "503" ] && sleep 0.2; done
-    codes="$codes$c "; reqs=$((reqs+1))
-done
-starts1=$(grep -c '"hls: ffmpeg start"' <(docker exec "$NAME" sh -c 'cat /data/logs/*.log' 2>/dev/null) || true)
+# Cache disk full: the guard must keep playback alive. A segment already on disk
+# still serves; a MISSING transcode segment is shed cleanly (503 cache_full,
+# Retry-After) with NO ffmpeg respawn - before 2026-10-09 this restarted ffmpeg
+# on every request (the storm). After space is freed, production resumes.
+# Needs the server booted with a low free-space floor (EVEY_TRANSCODE_CACHE_MIN_FREE_MB).
+t=$(now_ms)
+curl -s -o "$R/m240.m3u8" "$M/master.m3u8?token=$ST&maxHeight=240&videoCodecs=h264"
+PL=$(grep -v '^#' "$R/m240.m3u8" | grep m3u8 | head -1); curl -s -o "$R/pl240.m3u8" "$M/$PL"
+SEG0=$(grep -v '^#' "$R/pl240.m3u8" | head -1); SEGL=$(grep -v '^#' "$R/pl240.m3u8" | tail -1)
+# Produce seg0 so it is on disk, then fill the cache below the floor.
+c=503; k=0; while [ "$c" = "503" ] && [ $k -lt 30 ]; do c=$(curl -s -o /dev/null -w '%{http_code}' "$M/$SEG0"); k=$((k+1)); [ "$c" = "503" ] && sleep 0.2; done
+starts0=$(docker exec "$NAME" sh -c 'cat /data/logs/*.log' 2>/dev/null | grep -c '"hls: ffmpeg start"')
+docker exec "$NAME" sh -c 'dd if=/dev/zero of=/cache/ops-filler bs=1M count=11 2>/dev/null || true'
+cached=$(curl -s -o /dev/null -w '%{http_code}' "$M/$SEG0")                 # on disk: must still serve
+missing=$(curl -s -D - -o /dev/null "$M/$SEGL" | tr -d '\r')               # missing: must shed cleanly
+mcode=$(printf '%s' "$missing" | sed -n 's#^HTTP/[0-9.]* \([0-9]*\).*#\1#p' | head -1)
+merr=$(printf '%s' "$missing" | sed -n 's/^[Xx]-[Ee]vey-[Ee]rror: //p' | tr -d '\n')
+starts1=$(docker exec "$NAME" sh -c 'cat /data/logs/*.log' 2>/dev/null | grep -c '"hls: ffmpeg start"')
 restarts=$(( ${starts1:-0} - ${starts0:-0} ))
 alive=$(curl -sf -o /dev/null "$B/healthz" && echo yes || echo no)
-usage=$(docker exec "$NAME" sh -c "df -k /cache | tail -1 | awk '{print \$5}'")
-if [ "$alive" != "yes" ]; then report FAIL disk_full "$t" "server down; codes=[$codes]"
-elif [ "$restarts" -le 3 ]; then report XPASS disk_full "$t" "ffmpeg starts=$restarts cache=$usage - remove the XFAIL mark"
-else report XFAIL disk_full "$t" "ffmpeg starts=$restarts for $reqs requests, cache=$usage, codes=[$codes]"; fi
+# Free the space and confirm production resumes.
+docker exec "$NAME" sh -c 'rm -f /cache/ops-filler'
+c=503; k=0; while [ "$c" = "503" ] && [ $k -lt 30 ]; do c=$(curl -s -o /dev/null -w '%{http_code}' "$M/$SEGL"); k=$((k+1)); [ "$c" = "503" ] && sleep 0.2; done
+detail="cached=$cached missing=$mcode/$merr ffmpeg=$restarts alive=$alive recover=$c"
+if [ "$alive" = "yes" ] && [ "$cached" = "200" ] && [ "$mcode" = "503" ] && [ "$merr" = "cache_full" ] && [ "$restarts" -le 1 ] && [ "$c" = "200" ]; then
+    report PASS disk_full "$t" "$detail"
+else
+    report FAIL disk_full "$t" "$detail"
+fi
 
 # Library root unreadable: a scan must not prune what it cannot see.
 t=$(now_ms)

@@ -1082,6 +1082,25 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		}
 		ensureSeg = h.prewarmSegment(mediaID, durSec, time.Now())
 	}
+	key := apptranscoding.SegmentKey{
+		DecisionHash: rp.FPHash,
+		VariantIdx:   variantIdx,
+		SegmentIdx:   segmentIdx,
+		IsInit:       isInit,
+	}
+	// Disk guard (belt and braces): before spawning ffmpeg for a segment that is
+	// not already on disk, confirm the cache filesystem can hold it. A full cache
+	// otherwise spawns an encoder that dies on ENOSPC and the next request spawns
+	// another - the respawn storm of 2026-10-08. AdmitWrite fails open, gates only
+	// a NON-copy, MISSING segment, and a cached segment is served below regardless.
+	if !rp.IsCopy && !h.cache.IsReady(key, fp.UseFMP4) {
+		if err := h.cache.AdmitWrite(); errors.Is(err, apptranscoding.ErrCacheFull) {
+			slog.WarnContext(r.Context(), "hls-vod: transcode cache full, shedding segment",
+				slog.String("media_id", mediaID), slog.Int("variant", variantIdx), slog.Int("seg", segmentIdx))
+			writeShed(w, ErrCodeCacheFull, cacheFullRetryAfterSec, "transcode cache filesystem is full; make room or raise the cache budget")
+			return
+		}
+	}
 	if err := producer.EnsureSegmentRange(r.Context(), fp, variantIdx, ensureSeg); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "ensure segment range")
@@ -1141,13 +1160,6 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 			slog.Any("err", err))
 		http.Error(w, `{"message":"transcode unavailable"}`, http.StatusServiceUnavailable)
 		return
-	}
-
-	key := apptranscoding.SegmentKey{
-		DecisionHash: rp.FPHash,
-		VariantIdx:   variantIdx,
-		SegmentIdx:   segmentIdx,
-		IsInit:       isInit,
 	}
 
 	// The wait budget is producer-specific: the hardware orchestrator bursts

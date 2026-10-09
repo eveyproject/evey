@@ -58,6 +58,16 @@ func checkPlayable(w http.ResponseWriter, item *domainlibrary.MediaItem) bool {
 	return false
 }
 
+// ErrCodeCacheFull is the reason a segment is shed because the transcode cache
+// filesystem has no room and eviction could not recover any: producing another
+// segment would fail on ENOSPC. Retryable once the sweeper or an operator frees
+// space. Distinct from too_many_streams: nobody else is in this viewer's way.
+const ErrCodeCacheFull = "cache_full"
+
+// cacheFullRetryAfterSec paces a client off a full cache long enough for the
+// on-demand eviction and the background sweeper to make room.
+const cacheFullRetryAfterSec = 10
+
 // calibratingRetryAfterSec is the Retry-After of a calibrating shed: the bench
 // lasts ~2-3 min on a small host; a retry sooner just meets it again.
 const calibratingRetryAfterSec = 120
