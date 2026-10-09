@@ -86,6 +86,21 @@ check_after update "$t" "$CAND_COMMIT"
 BACKUP=$(ls -t "$R"/data/backups/pre-update-*.sql.gz 2>/dev/null | head -1)
 [ -n "$BACKUP" ] && report PASS pre_update_dump "$t" "$(basename "$BACKUP") $(stat -c %s "$BACKUP") bytes" || report FAIL pre_update_dump "$t" "no pre-update dump in data/backups"
 
+# Restore the pre-update dump with restore-backup, run by the candidate binary
+# (server stopped during the restore, as evey-rollback.sh --restore does). The
+# dump now carries --clean --if-exists, so the schema is dropped and rebuilt in
+# one transaction; restore-backup verifies the dump is whole before dropping.
+if [ -n "$BACKUP" ]; then
+    t=$(now_ms)
+    (cd "$R" && timeout 120 "$ROOT/scripts/evey-rollback.sh" --tag "$CAND_TAG" --restore "/data/backups/$(basename "$BACKUP")" --apply > "$OUT/restore.log" 2>&1); rc=$?
+    wait_healthy "$B" 180 || true
+    if [ $rc -eq 0 ] && [ "$(items "$B" "$(login "$B")" | cut -d' ' -f1)" = "1" ]; then
+        report PASS restore_backup "$t" "clean restore over a live schema, items kept ($OUT/restore.log)"
+    else
+        report FAIL restore_backup "$t" "rc=$rc ($OUT/restore.log)"
+    fi
+fi
+
 # Rollback, image only: the common case when nothing migrated. The previous
 # binary comes back up on the same /data and keeps serving.
 t=$(now_ms)
@@ -94,22 +109,6 @@ if [ $rc -ne 0 ]; then report FAIL rollback_image "$t" "evey-rollback.sh exit=$r
 wait_healthy "$B" 300 || { report FAIL rollback_image "$t" "healthz never answered after rollback"; exit 1; }
 check_after rollback_image "$t" "$FROM_COMMIT"
 
-# Rollback with --restore of the pre-update dump. KNOWN DEFECT (2026-10-08):
-# restore-backup replays a plain dump (no DROP/--clean) with ON_ERROR_STOP into a
-# database whose tables already exist, so it aborts on the first CREATE TABLE and
-# then hangs instead of failing. XFAIL, capped by timeout, until restore-backup
-# recreates the schema (or the dump carries --clean). See ops_harness memory.
-if [ -n "$BACKUP" ]; then
-    t=$(now_ms)
-    (cd "$R" && timeout 30 "$ROOT/scripts/evey-rollback.sh" --tag "$FROM_TAG" --restore "/data/backups/$(basename "$BACKUP")" --apply > "$OUT/restore.log" 2>&1); rc=$?
-    wait_healthy "$B" 120 || true
-    if [ $rc -eq 0 ] && [ "$(items "$B" "$(login "$B")" | cut -d' ' -f1)" = "1" ]; then
-        report XPASS rollback_restore "$t" "restore now succeeds - remove the XFAIL mark ($OUT/restore.log)"
-    else
-        report XFAIL rollback_restore "$t" "restore-backup aborts/hangs over an existing schema (rc=$rc, $OUT/restore.log)"
-        (cd "$R" && docker compose up -d >/dev/null 2>&1); wait_healthy "$B" 60 || true  # bring the stack back for cleanup
-    fi
-fi
 
 echo "total $(fmt "$(since "$START")") s  from=$FROM candidate=$IMG  failed=$FAILED  logs=$OUT" | tee -a "$OUT/run.log"
 exit $FAILED

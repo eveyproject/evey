@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -191,6 +194,14 @@ func adminRestoreBackup(args []string) error {
 		return fmt.Errorf("expected a .sql.gz file (got %s)", filepath.Base(path))
 	}
 
+	// Verify the dump is whole BEFORE anything is dropped: a backup produced
+	// with --clean replaces the schema, so a truncated or corrupt file would
+	// drop the live tables and then fail to recreate them. verifyDumpComplete
+	// refuses up front, leaving the database untouched.
+	if err := verifyDumpComplete(path); err != nil {
+		return fmt.Errorf("refusing to restore: %w", err)
+	}
+
 	psql, err := exec.LookPath("psql")
 	if err != nil {
 		return fmt.Errorf("psql not in PATH: %w", err)
@@ -236,14 +247,58 @@ func adminRestoreBackup(args []string) error {
 		_ = gzCmd.Process.Kill()
 		return fmt.Errorf("start psql: %w", err)
 	}
-	if err := gzCmd.Wait(); err != nil {
-		_ = psqlCmd.Process.Kill()
-		return fmt.Errorf("gunzip exit: %w", err)
+	// Wait on psql first. If it aborts (ON_ERROR_STOP) it stops reading, so
+	// gunzip must be killed or it blocks forever writing to a dead pipe - the
+	// 11-minute hang seen on 2026-10-08. On success psql has drained stdin, so
+	// gunzip has already exited and the kill is a no-op.
+	psqlErr := psqlCmd.Wait()
+	_ = gzCmd.Process.Kill()
+	gzErr := gzCmd.Wait()
+	if psqlErr != nil {
+		return fmt.Errorf("psql exit: %w", psqlErr)
 	}
-	if err := psqlCmd.Wait(); err != nil {
-		return fmt.Errorf("psql exit: %w", err)
+	if gzErr != nil {
+		return fmt.Errorf("gunzip exit: %w", gzErr)
 	}
 	fmt.Fprintf(os.Stderr, "[admin] restored backup %s\n", path)
+	return nil
+}
+
+// verifyDumpComplete decompresses the whole dump (catching a truncated or
+// corrupt gzip) and checks for pg_dump's completion marker, which is written
+// only at the end of a finished dump. Its absence means the file was cut short.
+func verifyDumpComplete(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("open dump: %w", err)
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return fmt.Errorf("not valid gzip (corrupt?): %w", err)
+	}
+	defer gz.Close()
+	marker := []byte("-- PostgreSQL database dump complete")
+	tail := make([]byte, 0, 8192)
+	buf := make([]byte, 32*1024)
+	for {
+		n, rerr := gz.Read(buf)
+		if n > 0 {
+			tail = append(tail, buf[:n]...)
+			if len(tail) > 4096 {
+				tail = tail[len(tail)-4096:]
+			}
+		}
+		if rerr == io.EOF {
+			break
+		}
+		if rerr != nil {
+			return fmt.Errorf("unreadable, likely truncated: %w", rerr)
+		}
+	}
+	if !bytes.Contains(tail, marker) {
+		return errors.New("no pg_dump completion marker: truncated or not a pg_dump")
+	}
 	return nil
 }
 

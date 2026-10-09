@@ -41,5 +41,9 @@ leaves it up. Logs land in `tests/ops/test-results/` (gitignored):
 Known defects currently marked:
 - `disk_full` - a full transcode cache restarts ffmpeg on every segment request
   (503 forever) instead of refusing once.
-- `rollback_restore` (ops-upgrade) - `evey admin restore-backup` replays a plain
-  dump over an existing schema, aborts on the first `CREATE TABLE`, then hangs.
+
+`ops-upgrade` checks `restore_backup`: the pre-update dump is taken with
+`--clean --if-exists` and restore-backup verifies the dump is whole before it
+drops anything, so a rollback-with-restore rebuilds the schema in one
+transaction. (Before 2026-10-09 this replayed a plain dump over the live schema,
+aborted on the first `CREATE TABLE`, and hung.)
