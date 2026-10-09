@@ -117,7 +117,7 @@ if [ "$SKIP_BACKUP" -eq 0 ] && [ -n "$CID" ]; then
     BACKUP="/data/backups/pre-update-${STAMP}.sql.gz"
     echo "# pre-update database dump -> $BACKUP (inside ./evey-data/backups)"
     # shellcheck disable=SC2016  # expanded inside the container on purpose
-    DUMP_CMD='PGPASSWORD="${EVEY_DB_PASSWORD:-$(cat "${EVEY_DB_PASSWORD_FILE:-/data/keys/postgres.password}" 2>/dev/null)}" pg_dump --host "${EVEY_DB_HOST:-127.0.0.1}" --port "${EVEY_DB_PORT:-5432}" --username "${EVEY_DB_USER:-evey}" --dbname "${EVEY_DB_NAME:-evey}" --no-password --format=plain --no-owner --no-privileges | gzip > "$1" && gunzip -t "$1" && chmod 600 "$1" && chown --reference=/data/backups "$1" && ls -l "$1"'
+    DUMP_CMD='PGPASSWORD="${EVEY_DB_PASSWORD:-$(cat "${EVEY_DB_PASSWORD_FILE:-/data/keys/postgres.password}" 2>/dev/null)}" pg_dump --host "${EVEY_DB_HOST:-127.0.0.1}" --port "${EVEY_DB_PORT:-5432}" --username "${EVEY_DB_USER:-evey}" --dbname "${EVEY_DB_NAME:-evey}" --no-password --format=plain --clean --if-exists --no-owner --no-privileges | gzip > "$1" && gunzip -t "$1" && chmod 600 "$1" && chown --reference=/data/backups "$1" && ls -l "$1"'
     echo "  \$ $COMPOSE exec -T $SERVICE sh -c '<pg_dump | gzip> $BACKUP'"
     if [ "$APPLY" -eq 1 ]; then
         if ! $COMPOSE exec -T "$SERVICE" sh -c "$DUMP_CMD" _ "$BACKUP" | sed 's/^/  /'; then
