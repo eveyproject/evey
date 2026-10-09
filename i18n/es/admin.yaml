@@ -1043,6 +1043,8 @@ serverSettings:
   introAutoSkip: "Saltar intros automáticamente"
   passwordRecovery: "Recuperación de contraseña"
   passwordRecoveryHint: "Muestra un enlace «¿Olvidaste tu contraseña?» en la página de inicio de sesión, que envía un enlace de restablecimiento por correo. Requiere que el correo (SMTP) esté configurado. Se aplica de inmediato."
+  backupTelemetry: "Incluir telemetría en las copias de seguridad"
+  backupTelemetryHint: "Las copias de seguridad omiten de forma predeterminada las tablas de telemetría voluminosas (métricas de reproducción y de servidor) para mantenerse pequeñas. Actívalo para incluirlas. Se aplica a las copias manuales, programadas y por CLI; restaurar una copia siempre vacía estas tablas."
   auditRetentionDays: "Retención del registro de auditoría (días, 0 = conservar siempre)"
   metricsRetentionDays: "Retención de métricas del servidor (días)"
   qoeRetentionDays: "Retención de calidad de reproducción (QoE) (días)"

@@ -1043,6 +1043,8 @@ serverSettings:
   introAutoSkip: "Intros automatisch überspringen"
   passwordRecovery: "Passwort-Wiederherstellung"
   passwordRecoveryHint: "Zeigt auf der Anmeldeseite einen Link „Passwort vergessen?\", der einen Link zum Zurücksetzen per E-Mail sendet. Erfordert eine konfigurierte E-Mail (SMTP). Gilt sofort."
+  backupTelemetry: "Telemetrie in Sicherungen einschließen"
+  backupTelemetryHint: "Sicherungen lassen die umfangreichen Telemetrietabellen (Wiedergabe- und Servermetriken) standardmäßig weg, um klein zu bleiben. Aktivieren Sie dies, um sie einzuschließen. Gilt für manuelle, geplante und CLI-Sicherungen; beim Wiederherstellen werden diese Tabellen immer geleert."
   auditRetentionDays: "Aufbewahrung des Audit-Logs (Tage, 0 = unbegrenzt)"
   metricsRetentionDays: "Aufbewahrung der Servermetriken (Tage)"
   qoeRetentionDays: "Aufbewahrung der Wiedergabequalität (QoE) (Tage)"
