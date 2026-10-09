@@ -255,7 +255,7 @@ func (s *blockingFileScanner) Scan(_ context.Context, _ string) ([]library.Scann
 func (s *blockingFileScanner) ParseTitle(_ string) string { return "" }
 func (s *blockingFileScanner) FileExists(_ string) bool   { return false }
 
-func TestScanLibrary_ScannerError_Propagates(t *testing.T) {
+func TestScanLibrary_UnreadableRoot_DegradesToFailedPath(t *testing.T) {
 	t.Parallel()
 	h := newHarness()
 	lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
@@ -263,10 +263,12 @@ func TestScanLibrary_ScannerError_Propagates(t *testing.T) {
 	h.libCmd.Seed(lib)
 	h.scanner.Err = errors.New("permission denied")
 
-	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "scan path")
-	assert.Contains(t, err.Error(), "permission denied")
+	// An unreadable root is reported, not turned into an opaque internal error:
+	// the scan succeeds and names the root it could not read (like music/photo).
+	report, err := h.svc.ScanLibraryReport(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/movies"}, report.FailedPaths)
+	assert.Equal(t, 0, report.Added)
 }
 
 func TestScanLibrary_ReturnsExactAddedUpdatedCounts(t *testing.T) {
