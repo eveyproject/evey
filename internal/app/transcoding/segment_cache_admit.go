@@ -48,14 +48,14 @@ func (c *SegmentCache) AdmitWrite() error {
 	}
 	free, err := c.freeBytes()
 	if err != nil {
-		return nil // fail open: our own guard must never break playback
+		return nil //nolint:nilerr // fail open: our own guard must never break playback
 	}
 	if free >= floor {
 		return nil
 	}
 	if c.tryOnDemandEvict(floor) {
 		if free, err = c.freeBytes(); err != nil {
-			return nil
+			return nil //nolint:nilerr // fail open: a statfs error after eviction must not block playback
 		}
 	}
 	if free >= floor {
@@ -85,7 +85,7 @@ func (c *SegmentCache) tryOnDemandEvict(floor int64) bool {
 		if free, ferr := c.freeBytes(); ferr == nil && free >= floor {
 			break
 		}
-		_, _ = c.cleanupHashIfIdle(h.Hash) // no-op on a hash a live session serves
+		_, _ = c.cleanupHashIfIdle(h.Hash) //nolint:errcheck // best-effort eviction; a hash a live session serves is skipped inside
 	}
 	return true
 }
