@@ -277,7 +277,7 @@ func verifyDumpComplete(path string) error {
 	if err != nil {
 		return fmt.Errorf("not valid gzip (corrupt?): %w", err)
 	}
-	defer gz.Close()
+	defer gz.Close() //nolint:errcheck // read-only decompression reader; a close error is irrelevant
 	marker := []byte("-- PostgreSQL database dump complete")
 	tail := make([]byte, 0, 8192)
 	buf := make([]byte, 32*1024)
@@ -289,7 +289,7 @@ func verifyDumpComplete(path string) error {
 				tail = tail[len(tail)-4096:]
 			}
 		}
-		if rerr == io.EOF {
+		if errors.Is(rerr, io.EOF) {
 			break
 		}
 		if rerr != nil {
