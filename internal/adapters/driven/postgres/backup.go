@@ -15,14 +15,18 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/lib/pq"
+
 	"github.com/evey-project/evey/internal/domain/backup"
 	"github.com/evey-project/evey/internal/pkg/tracing"
 )
 
 var pgDumpHeader = []byte("-- PostgreSQL database dump")
 
-// Backups are produced by DumpTables as `pg_dump --data-only --no-owner
-// --no-privileges --disable-triggers`. That output has a small, fixed grammar,
+// Backups are produced by DumpTables as a whole-database `pg_dump --data-only
+// --no-owner --no-privileges --disable-triggers`, prefixed with one TRUNCATE of
+// every table so a restore replaces the data on a populated base. That output
+// has a small, fixed grammar,
 // so the restore validator is an ALLOWLIST (every non-data line must match one
 // of these forms) rather than a blocklist - a blocklist was provably evadable
 // (CREATE EXTENSION, escaped tokens, multi-line) and, crucially, missed psql
@@ -42,6 +46,11 @@ var (
 	reDumpSet         = regexp.MustCompile(`(?i)^SET\s+([a-z_]+)\s*(?:=|TO)\s*` + dumpValue + `(?:\s*,\s*` + dumpValue + `)*;$`)
 	reDumpSessionAuth = regexp.MustCompile(`(?i)^SET\s+SESSION\s+AUTHORIZATION\s+DEFAULT;$`)
 	reDumpSetConfig   = regexp.MustCompile(`(?i)^SELECT\s+pg_catalog\.set_config\('[a-z_]+',\s*'[^'\\;]*',\s*(?:true|false)\);$`)
+	// pg_dump restores sequence counters with setval in a whole-database data-only
+	// dump. The sequence name is a quoted (optionally schema-qualified) identifier
+	// with no quote/backslash/semicolon, the value a number, the is_called flag an
+	// optional bool - no room to smuggle SQL.
+	reDumpSetval      = regexp.MustCompile(`(?i)^SELECT\s+pg_catalog\.setval\('[^'\\;]+',\s*-?[0-9]+(?:,\s*(?:true|false))?\s*\);$`)
 	reDumpAlterTrig   = regexp.MustCompile(`(?i)^ALTER\s+TABLE\s+(?:ONLY\s+)?` + dumpQName + `\s+(?:DISABLE|ENABLE)\s+TRIGGER\s+ALL;$`)
 	reDumpTruncate    = regexp.MustCompile(`(?i)^TRUNCATE\s+(?:TABLE\s+)?(?:ONLY\s+)?` + dumpQName + `(?:\s*,\s*` + dumpQName + `)*;$`)
 	reDumpCopyStdin   = regexp.MustCompile(`(?i)^COPY\s+` + dumpQName + `(?:\s*\(\s*` + dumpIdent + `(?:\s*,\s*` + dumpIdent + `)*\s*\))?\s+FROM\s+stdin;$`)
@@ -67,6 +76,8 @@ func allowedDumpLine(line string) bool {
 	case reDumpSessionAuth.MatchString(t):
 		return true
 	case reDumpSetConfig.MatchString(t):
+		return true
+	case reDumpSetval.MatchString(t):
 		return true
 	case reDumpSet.MatchString(t):
 		return !isIdentitySetting(reDumpSet.FindStringSubmatch(t)[1])
@@ -106,18 +117,40 @@ func (d *DatabaseDumper) pgEnv() []string {
 	)
 }
 
-func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.ReadCloser, error) {
+// DumpTables streams a whole-database, data-only dump prefixed with a single
+// TRUNCATE of every table it covers, so a restore REPLACES the data on a
+// populated database instead of colliding on primary keys. The tables argument
+// is ignored: a static list silently drops any table a later migration adds,
+// losing it on restore (and leaving dangling references), so the dump is taken
+// over every base table discovered in the schema except schema_migrations
+// (owned by the migrator). The TRUNCATE lists all those tables in ONE statement
+// - no CASCADE needed, since every referencing table is in the set - and
+// --disable-triggers lets the COPYs reload rows through the circular FK on
+// media_items. Still data-only: the restore validator's SQL allowlist holds.
+func (d *DatabaseDumper) DumpTables(ctx context.Context, _ []string) (io.ReadCloser, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.backup.DumpTables")
 	defer span.End()
+
+	tables, err := d.allTables(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("DumpTables: list tables: %w", err)
+	}
+	if len(tables) == 0 {
+		return nil, fmt.Errorf("DumpTables: no tables to back up")
+	}
+	quoted := make([]string, len(tables))
+	for i, t := range tables {
+		quoted[i] = `public.` + pq.QuoteIdentifier(t)
+	}
+	truncate := "TRUNCATE " + strings.Join(quoted, ", ") + ";\n"
+
 	args := []string{
 		"-h", d.host,
 		"-p", strconv.Itoa(d.port),
 		"-U", d.user,
 		"-d", d.dbName,
 		"--data-only", "--no-owner", "--no-privileges", "--disable-triggers",
-	}
-	for _, t := range tables {
-		args = append(args, "--table", t)
+		"--exclude-table", "schema_migrations",
 	}
 
 	cmd := exec.CommandContext(ctx, "pg_dump", args...)
@@ -136,15 +169,20 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Re
 
 	pr, pw := io.Pipe()
 	go func() {
-		// Recover from any panic in io.Copy and surface it on the pipe so a
-		// reader blocked on pr.Read() wakes up with an error instead of
-		// deadlocking forever when the goroutine dies.
 		defer func() {
 			if r := recover(); r != nil {
 				slog.ErrorContext(ctx, "panic in pg_dump copy goroutine", slog.Any("recover", r))
 				pw.CloseWithError(fmt.Errorf("pg_dump copy panic: %v", r))
 			}
 		}()
+		// The TRUNCATE goes first so the restore clears the tables before the
+		// COPYs refill them.
+		if _, werr := io.WriteString(pw, truncate); werr != nil {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+			pw.CloseWithError(werr)
+			return
+		}
 		_, copyErr := io.Copy(pw, stdout)
 		waitErr := cmd.Wait()
 		switch {
@@ -158,6 +196,36 @@ func (d *DatabaseDumper) DumpTables(ctx context.Context, tables []string) (io.Re
 	}()
 
 	return pr, nil
+}
+
+// allTables lists every base table in the public schema except schema_migrations
+// (the migrator owns it; restoring it from a data-only dump would desync the
+// migration bookkeeping). Opens its own short-lived connection, like the other
+// dumper queries.
+func (d *DatabaseDumper) allTables(ctx context.Context) ([]string, error) {
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		d.host, d.port, d.user, d.password, d.dbName, d.sslMode)
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("allTables: open db: %w", err)
+	}
+	defer db.Close()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := db.QueryContext(ctx, `SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'schema_migrations' ORDER BY tablename`)
+	if err != nil {
+		return nil, fmt.Errorf("allTables: query: %w", err)
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var t string
+		if err := rows.Scan(&t); err != nil {
+			return nil, fmt.Errorf("allTables: scan: %w", err)
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
 }
 
 func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) error {

