@@ -518,6 +518,23 @@ jobs:
           cache-from: type=gha,scope=docker
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
+      # Boot the image we just built and walk the real install / scan / playback
+      # / disk-full / SIGKILL scenarios (tests/ops). The gate never runs the
+      # image, so this is the check that catches one that builds green but does
+      # not start - the 2026-09-26 Dockerfile regression shipped a non-booting
+      # image because nothing launched it. Pulls the full tag just pushed and
+      # runs the harness; a failure here fails the job (and so the ci-pass gate).
+      - name: Operations harness (boot the built image)
+        if: steps.build-full.outcome == 'success' || steps.build-full-retry.outcome == 'success'
+        env:
+          TAGS_FULL: ${{ steps.meta-full.outputs.tags }}
+        run: |
+          set -eu
+          IMG=$(printf '%s\n' "$TAGS_FULL" | head -1)
+          echo "ops harness against $IMG"
+          docker pull "$IMG"
+          make ops OPS_IMG="$IMG"
+
       # GHCR is a mirror, not the deliverable: the builds above push Docker Hub
       # only, then every tag they produced is copied here by manifest (no
       # rebuild, multi-platform kept). A refused GHCR (the org package lost its
