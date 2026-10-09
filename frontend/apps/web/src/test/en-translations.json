@@ -1240,6 +1240,8 @@
   "admin.serverConfig.videoSessionsSubtitle": "Limit how many video streams may be transcoded at once.",
   "admin.serverConfig.videoSessionsTitle": "Video Transcode Capacity",
   "admin.serverSettings.auditRetentionDays": "Audit log retention (days, 0 = keep forever)",
+  "admin.serverSettings.backupTelemetry": "Include telemetry in backups",
+  "admin.serverSettings.backupTelemetryHint": "Backups skip the high-volume telemetry tables (playback and server metrics) by default to stay small. Turn this on to include them. Applies to manual, scheduled and CLI backups; restoring a backup always clears these tables.",
   "admin.serverSettings.globalRateLimit": "Global Rate Limit (req/min)",
   "admin.serverSettings.hwAccelEnabled": "Hardware Acceleration",
   "admin.serverSettings.hwMovedHint": "Hardware acceleration is configured in the Encode calibration card below.",

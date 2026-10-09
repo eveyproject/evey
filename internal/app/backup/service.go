@@ -80,13 +80,22 @@ var BackupTables = []string{
 }
 
 type Service struct {
-	store   backup.BackupStore
-	dumper  backup.DatabaseDumper
-	version string
-	events  shared.EventBus
+	store            backup.BackupStore
+	dumper           backup.DatabaseDumper
+	version          string
+	events           shared.EventBus
+	includeTelemetry func() bool
 }
 
 type Option func(*Service)
+
+// WithIncludeTelemetry injects a live reader for the "include telemetry in
+// backups" setting (default: exclude, keeping routine backups lean). Read per
+// run by both manual and scheduled backups, so a panel or CLI change applies to
+// the next backup.
+func WithIncludeTelemetry(f func() bool) Option {
+	return func(s *Service) { s.includeTelemetry = f }
+}
 
 func WithEventBus(bus shared.EventBus) Option {
 	return func(s *Service) { s.events = bus }
@@ -128,7 +137,11 @@ func (s *Service) createBackup(ctx context.Context) (*backup.BackupManifest, err
 		return nil, fmt.Errorf("Service.CreateBackup: check schema version: %w", err)
 	}
 
-	data, err := s.dumper.DumpTables(ctx, BackupTables)
+	includeTelemetry := false
+	if s.includeTelemetry != nil {
+		includeTelemetry = s.includeTelemetry()
+	}
+	data, err := s.dumper.DumpAll(ctx, includeTelemetry)
 	if err != nil {
 		return nil, fmt.Errorf("Service.CreateBackup: %w", err)
 	}

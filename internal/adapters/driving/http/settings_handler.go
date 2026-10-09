@@ -34,6 +34,7 @@ const (
 	cfgKeyScanInterval     = "library.periodic_scan_interval"
 	cfgKeySkipPreview      = "intro_providers.skip_preview_enabled"
 	cfgKeyIntroAutoSkip    = "intro_providers.auto_skip_enabled"
+	cfgKeyBackupInclTelem  = "backups.include_telemetry"
 	// Read by the password-reset flow on every request (and only with SMTP).
 	cfgKeyPasswordRecovery  = appuser.PasswordRecoveryConfigKey
 	cfgKeyTranscodeSWAV1    = "transcoding.software_av1_max_height"
@@ -70,6 +71,10 @@ const (
 	cfgKeyTranscodeSWMaxHeight   = "transcoding.software_max_height"
 	cfgKeyTranscodeSWHDRMaxHt    = "transcoding.software_hdr_max_height"
 )
+
+// BackupIncludeTelemetryKey is the server-config key behind the "include
+// telemetry in backups" toggle, read live by the backup service.
+const BackupIncludeTelemetryKey = "backups.include_telemetry"
 
 // validAV1MaxHeights are the AV1 output height caps the panel offers. 0 = no cap
 // (up to the source/GPU ceiling). AV1 is hardware-only so the ladder can reach
@@ -257,6 +262,11 @@ func registerServerSettingsRoutes(
 		{jsonKey: "introAutoSkipEnabled", cfgKey: cfgKeyIntroAutoSkip, defaultVal: false,
 			getter: func() any { return cfg.Metadata.IntroAutoSkipEnabled },
 			reset:  func() { cfg.Metadata.IntroAutoSkipEnabled = false }},
+		// Telemetry in backups: off by default (lean snapshots). Read live by the
+		// backup service, so manual and scheduled backups both honour it.
+		{jsonKey: "backupIncludeTelemetry", cfgKey: cfgKeyBackupInclTelem, defaultVal: false,
+			getter: func() any { return cfg.Backup.IncludeTelemetry },
+			reset:  func() { cfg.Backup.IncludeTelemetry = false }},
 		// Password recovery used to be reachable only through the raw config
 		// API. The reset flow reads the stored key live, so no restart.
 		{jsonKey: "passwordRecoveryEnabled", cfgKey: cfgKeyPasswordRecovery, defaultVal: false,
@@ -409,6 +419,7 @@ func registerServerSettingsRoutes(
 			LibraryWatcherEnabled   *bool   `json:"libraryWatcherEnabled"`
 			PeriodicScanInterval    *string `json:"periodicScanInterval"`
 			SkipPreviewEnabled      *bool   `json:"skipPreviewEnabled"`
+			BackupIncludeTelemetry  *bool   `json:"backupIncludeTelemetry"`
 			IntroAutoSkip           *bool   `json:"introAutoSkipEnabled"`
 			PasswordRecovery        *bool   `json:"passwordRecoveryEnabled"`
 			SoftwareAV1MaxHeight    *int    `json:"softwareAV1MaxHeight"`
@@ -621,6 +632,14 @@ func registerServerSettingsRoutes(
 					}
 					cfg.Metadata.SkipPreviewEnabled = *body.SkipPreviewEnabled
 					return strconv.FormatBool(*body.SkipPreviewEnabled)
+				}},
+			{cfgKey: cfgKeyBackupInclTelem,
+				apply: func() string {
+					if body.BackupIncludeTelemetry == nil {
+						return ""
+					}
+					cfg.Backup.IncludeTelemetry = *body.BackupIncludeTelemetry
+					return strconv.FormatBool(*body.BackupIncludeTelemetry)
 				}},
 			{cfgKey: cfgKeyIntroAutoSkip,
 				apply: func() string {

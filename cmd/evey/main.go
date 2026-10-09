@@ -175,6 +175,7 @@ func run() error {
 	loadOverride(ctx, cfgStore, "log.level", parseStr, &cfg.Log.Level)
 	loadOverride(ctx, cfgStore, "intro_providers.skip_preview_enabled", parseBool, &cfg.Metadata.SkipPreviewEnabled)
 	loadOverride(ctx, cfgStore, "intro_providers.auto_skip_enabled", parseBool, &cfg.Metadata.IntroAutoSkipEnabled)
+	loadOverride(ctx, cfgStore, "backups.include_telemetry", parseBool, &cfg.Backup.IncludeTelemetry)
 	loadOverride(ctx, cfgStore, appuser.PasswordRecoveryConfigKey, parseBool, &cfg.Server.PasswordRecoveryEnabled)
 	// Retention windows + transcode cache budget: panel-managed since 2026-07-23
 	// (operator settings never live in env-only per the project rule). The

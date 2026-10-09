@@ -27,6 +27,7 @@ interface ServerSettings {
   qoeRetentionDays: SettingValue<number>;
   playSessionRetentionDays: SettingValue<number>;
   transcodeCacheMaxGB: SettingValue<number>;
+  backupIncludeTelemetry?: SettingValue<boolean>;
 }
 const SETTINGS_KEY = ["/api/v1/admin/server-settings"];
 const LOG_LEVELS = ["debug", "info", "warn", "error"];
@@ -52,6 +53,7 @@ export function ServerSettingsCard() {
   const [qoeDays, setQoeDays] = useState("");
   const [sessionDays, setSessionDays] = useState("");
   const [cacheGB, setCacheGB] = useState("");
+  const [backupTelemetry, setBackupTelemetry] = useState(false);
   const [dirty, setDirty] = useState(false);
 
   useEffect(() => {
@@ -70,6 +72,7 @@ export function ServerSettingsCard() {
       setQoeDays(data.qoeRetentionDays?.source === "override" ? String(data.qoeRetentionDays.value) : "");
       setSessionDays(data.playSessionRetentionDays?.source === "override" ? String(data.playSessionRetentionDays.value) : "");
       setCacheGB(data.transcodeCacheMaxGB?.source === "override" ? String(data.transcodeCacheMaxGB.value) : "");
+      setBackupTelemetry(data.backupIncludeTelemetry?.value ?? false);
     }
   }, [data]);
 
@@ -103,6 +106,7 @@ export function ServerSettingsCard() {
     if (qoeDays) body.qoeRetentionDays = parseInt(qoeDays, 10);
     if (sessionDays) body.playSessionRetentionDays = parseInt(sessionDays, 10);
     if (cacheGB) body.transcodeCacheMaxGB = parseInt(cacheGB, 10);
+    body.backupIncludeTelemetry = backupTelemetry;
     saveMutation.mutate(body);
   }
 
@@ -218,6 +222,21 @@ export function ServerSettingsCard() {
           <div className="flex flex-col gap-1">
             <Input label={`${t("admin.serverSettings.transcodeCacheMaxGB")} ${t("admin.serverSettings.restartHint")}`} type="number" min={1} placeholder={String(data.transcodeCacheMaxGB?.default ?? 50)} value={cacheGB} onChange={(e) => { setCacheGB(e.target.value); setDirty(true); }} data-testid="cache-budget-input" />
             {data.transcodeCacheMaxGB && <ResetBtn setting={data.transcodeCacheMaxGB} field="transcodeCacheMaxGB" />}
+          </div>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-[var(--text)]">{t("admin.serverSettings.backupTelemetry")}</label>
+              <InfoTooltip label={t("admin.serverSettings.backupTelemetry")}>
+                {t("admin.serverSettings.backupTelemetryHint")}
+              </InfoTooltip>
+              <Switch
+                checked={backupTelemetry}
+                onChange={() => { setBackupTelemetry(!backupTelemetry); setDirty(true); }}
+                label={t("admin.serverSettings.backupTelemetry")}
+                data-testid="backup-telemetry-toggle"
+              />
+            </div>
+            {data.backupIncludeTelemetry && <ResetBtn setting={data.backupIncludeTelemetry} field="backupIncludeTelemetry" />}
           </div>
           <div className="flex justify-end pt-2">
             <Button onClick={handleSave} loading={saveMutation.isPending} disabled={!dirty} data-testid="server-config-save-btn">{t("common.save")}</Button>

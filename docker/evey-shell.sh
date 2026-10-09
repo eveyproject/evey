@@ -20,7 +20,7 @@
 #    all of it -- no branding, no launcher, no verbs. e.g.
 #      docker exec -it -e EVEY_SHELL=plain evey-server bash
 
-_EVEY_VERBS='reset-password rotate-jwt-key restore-backup reindex-search migrate reclassify reindex-no-cue validate-streaming artwork-gc load-test doctor rollback ladder-bench ladder-probe route-bench list-users list-libraries demo-seed'
+_EVEY_VERBS='reset-password rotate-jwt-key backup restore-backup reindex-search migrate reclassify reindex-no-cue validate-streaming artwork-gc load-test doctor rollback ladder-bench ladder-probe route-bench list-users list-libraries demo-seed'
 
 # ---------------------------------------------------------------------------
 # Look & feel

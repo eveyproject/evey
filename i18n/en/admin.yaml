@@ -1281,6 +1281,8 @@ serverSettings:
   introAutoSkip: "Auto-skip intros"
   passwordRecovery: "Password recovery"
   passwordRecoveryHint: "Shows a \"Forgot your password?\" link on the sign-in page, which e-mails a reset link. Needs e-mail (SMTP) to be configured. Applies immediately."
+  backupTelemetry: "Include telemetry in backups"
+  backupTelemetryHint: "Backups skip the high-volume telemetry tables (playback and server metrics) by default to stay small. Turn this on to include them. Applies to manual, scheduled and CLI backups; restoring a backup always clears these tables."
   auditRetentionDays: "Audit log retention (days, 0 = keep forever)"
   metricsRetentionDays: "Server metrics retention (days)"
   qoeRetentionDays: "Playback quality (QoE) retention (days)"

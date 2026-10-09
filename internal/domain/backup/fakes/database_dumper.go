@@ -14,18 +14,22 @@ type FakeDatabaseDumper struct {
 	Err              error
 	SchemaVersion    string
 	SchemaVersionErr error
+	// LastIncludeTelemetry records the last value DumpAll was called with, so a
+	// test can assert the service forwarded the setting.
+	LastIncludeTelemetry bool
 }
 
 func NewFakeDatabaseDumper() *FakeDatabaseDumper {
 	return &FakeDatabaseDumper{DumpData: []byte("-- fake dump\n")}
 }
 
-func (d *FakeDatabaseDumper) DumpTables(_ context.Context, _ []string) (io.ReadCloser, error) {
+func (d *FakeDatabaseDumper) DumpAll(_ context.Context, includeTelemetry bool) (io.ReadCloser, error) {
 	if d.Err != nil {
 		return nil, d.Err
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.LastIncludeTelemetry = includeTelemetry
 	if d.Err != nil {
 		return nil, d.Err
 	}
