@@ -360,10 +360,11 @@ func (s *ScanService) ScanLibraryReport(ctx context.Context, libraryID string) (
 		return report, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
 
-	seenPaths, emptyRoots, toProcess, tvAdded, tvUpdated, err := s.scanDirectories(ctx, lib, idx)
+	seenPaths, emptyRoots, failedPaths, toProcess, tvAdded, tvUpdated, err := s.scanDirectories(ctx, lib, idx)
 	if err != nil {
 		return report, fmt.Errorf("ScanService.ScanLibrary: %w", err)
 	}
+	report.FailedPaths = append(report.FailedPaths, failedPaths...)
 	added += tvAdded
 	updated += tvUpdated
 
@@ -389,7 +390,7 @@ func (s *ScanService) ScanLibraryReport(ctx context.Context, libraryID string) (
 	healedTitles := s.healOrphanTitles(ctx, libraryID)
 	updated += healedTitles
 
-	s.finalizeScan(ctx, lib, libraryID, added, updated, removed, nil)
+	s.finalizeScan(ctx, lib, libraryID, added, updated, removed, report.FailedPaths)
 	return report, nil
 }
 
@@ -496,7 +497,7 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 	return scanindex.New(entries), nil
 }
 
-func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, emptyRoots []string, toProcess []scanWork, added, updated int, err error) {
+func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library, idx *scanindex.Index) (seenPaths map[string]struct{}, emptyRoots, failedPaths []string, toProcess []scanWork, added, updated int, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.scan.scanDirectories")
 	defer span.End()
 	seenPaths = make(map[string]struct{})
@@ -512,7 +513,17 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 	for _, path := range lib.Paths {
 		all, scanErr := s.scanner.Scan(ctx, path)
 		if scanErr != nil {
-			return nil, nil, nil, 0, 0, fmt.Errorf("scan path %s: %w", path, scanErr)
+			// An unreadable root (permission denied, a dropped NFS/SMB mount) must
+			// not abort the whole scan, nor let the pruner drop the items under it.
+			// Treat it like a degraded mount, exactly as the music and photo scans
+			// already do: report it as a failed path and protect it from pruning
+			// (emptyRoots feeds OrphanPruner's degraded-mount guard). The scan
+			// carries on with the other roots and reports what it could not read,
+			// instead of surfacing an opaque internal error to the operator.
+			slog.WarnContext(ctx, "scan path failed", slog.String("path", path), slog.Any("err", scanErr))
+			failedPaths = append(failedPaths, path)
+			emptyRoots = append(emptyRoots, path)
+			continue
 		}
 		// A file still being copied counts as present (the pruner must not
 		// drop the item it may be replacing) but is not analysed yet.
@@ -532,7 +543,7 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		if lib.Type == "tvshow" {
 			a, u, e := s.scanTVShowFiles(ctx, string(lib.ID), files)
 			if e != nil {
-				return nil, nil, nil, 0, 0, e
+				return nil, nil, nil, nil, 0, 0, e
 			}
 			added += a
 			updated += u
@@ -543,7 +554,7 @@ func (s *ScanService) scanDirectories(ctx context.Context, lib *library.Library,
 		toProcess = append(toProcess, work...)
 		updated += u
 	}
-	return seenPaths, emptyRoots, toProcess, added, updated, nil
+	return seenPaths, emptyRoots, failedPaths, toProcess, added, updated, nil
 }
 
 func (s *ScanService) detectChanges(ctx context.Context, files []library.ScannedFile, idx *scanindex.Index) (toProcess []scanWork, moved int) {

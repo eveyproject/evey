@@ -274,15 +274,17 @@ func TestScanService_MusicLibrary_DoesNotInvokePhotoScanner(t *testing.T) {
 
 // --- scanner.Scan returns error (movie library) → ScanLibrary propagates error ---
 
-func TestScanService_ScannerError_PropagatesError(t *testing.T) {
+func TestScanService_UnreadableRoot_Reported(t *testing.T) {
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.scanner.Err = errors.New("io error")
 
-	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "scan path")
+	// A root the scanner cannot read is reported as a failed path, not raised as
+	// an opaque internal error - the scan completes over whatever it could read.
+	report, err := h.svc.ScanLibraryReport(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/m"}, report.FailedPaths)
 }
 
 // --- mediaItems.Create error is logged via worker upsert warn; scan continues ---
