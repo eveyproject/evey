@@ -1,6 +1,7 @@
 serverConnect:
   serverUnreachable: "Tu servidor no respondió. Puede estar en reposo o fuera de la red."
-  hint: "Introduzca la URL de su instancia Evey autoalojada"
+  hint: "Evey funciona en un servidor que alguien configuró para ti. Escribe su dirección web, la misma que abrirías en un navegador."
+  whereToFind: "¿Dónde encuentro la dirección de mi servidor?"
   scanLocalNetwork: "Escanear la red local"
   serversFound_one: "{{count}} servidor encontrado"
   serversFound_other: "{{count}} servidores encontrados"

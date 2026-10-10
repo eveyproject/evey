@@ -1,6 +1,7 @@
 serverConnect:
   serverUnreachable: "Ihr Server hat nicht geantwortet. Vielleicht schläft er oder ist nicht im Netzwerk."
-  hint: "Geben Sie die URL Ihrer selbst gehosteten Evey-Instanz ein"
+  hint: "Evey läuft auf einem Server, den jemand für Sie eingerichtet hat. Geben Sie dessen Webadresse ein, dieselbe, die Sie im Browser öffnen."
+  whereToFind: "Wo finde ich die Adresse meines Servers?"
   scanLocalNetwork: "Lokales Netzwerk scannen"
   serversFound_one: "{{count}} Server gefunden"
   serversFound_other: "{{count}} Server gefunden"

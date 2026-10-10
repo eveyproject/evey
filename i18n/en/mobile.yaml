@@ -1,6 +1,7 @@
 serverConnect:
   serverUnreachable: "Your server did not answer. It may be asleep or off the network."
-  hint: "Enter the URL of your self-hosted Evey instance"
+  hint: "Evey runs on a server someone set up for you. Enter its web address - the same one you open in a browser."
+  whereToFind: "Where do I find my server's address?"
   scanLocalNetwork: "Scan local network"
   serversFound_one: "{{count}} server found"
   serversFound_other: "{{count}} servers found"

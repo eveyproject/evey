@@ -7,7 +7,7 @@
     "mobile.serverConnect.connect": "Verbinden",
     "mobile.serverConnect.connectAnyway": "Trotzdem verbinden",
     "mobile.serverConnect.connectionFailed": "Verbindung fehlgeschlagen",
-    "mobile.serverConnect.hint": "Geben Sie die URL Ihrer selbst gehosteten Evey-Instanz ein",
+    "mobile.serverConnect.hint": "Evey läuft auf einem Server, den jemand für Sie eingerichtet hat. Geben Sie dessen Webadresse ein, dieselbe, die Sie im Browser öffnen.",
     "mobile.serverConnect.insecureBody": "{{url}} liegt außerhalb Ihres Heimnetzwerks und nutzt http://. Ihr Passwort und alles, was Sie ansehen, würden unverschlüsselt übertragen. Nutzen Sie https://, wenn Ihr Server das unterstützt.",
     "mobile.serverConnect.insecureTitle": "Diese Verbindung ist nicht verschlüsselt",
     "mobile.serverConnect.missingScheme": "Beginnen Sie die Adresse mit http:// oder https://.",
@@ -22,6 +22,7 @@
     "mobile.serverConnect.unreachableSaved": "{{url}} hat nicht geantwortet. Prüfen Sie die Adresse oder Ihre Verbindung.",
     "mobile.serverConnect.urlLabel": "Server-URL",
     "mobile.serverConnect.useDiscovered": "Erkannten Server {{url}} verwenden",
+    "mobile.serverConnect.whereToFind": "Wo finde ich die Adresse meines Servers?",
     "mobile.servers.title": "Server"
   },
   "en": {
@@ -32,7 +33,7 @@
     "mobile.serverConnect.connect": "Connect",
     "mobile.serverConnect.connectAnyway": "Connect anyway",
     "mobile.serverConnect.connectionFailed": "Connection failed",
-    "mobile.serverConnect.hint": "Enter the URL of your self-hosted Evey instance",
+    "mobile.serverConnect.hint": "Evey runs on a server someone set up for you. Enter its web address - the same one you open in a browser.",
     "mobile.serverConnect.insecureBody": "{{url}} is outside your home network and uses http://. Your password and everything you watch would travel unencrypted. Use https:// if your server supports it.",
     "mobile.serverConnect.insecureTitle": "This connection is not encrypted",
     "mobile.serverConnect.missingScheme": "Start the address with http:// or https://.",
@@ -47,6 +48,7 @@
     "mobile.serverConnect.unreachableSaved": "{{url}} did not answer. Check the address or your connection.",
     "mobile.serverConnect.urlLabel": "Server URL",
     "mobile.serverConnect.useDiscovered": "Use discovered server {{url}}",
+    "mobile.serverConnect.whereToFind": "Where do I find my server's address?",
     "mobile.servers.title": "Servers"
   },
   "es": {
@@ -57,7 +59,7 @@
     "mobile.serverConnect.connect": "Conectar",
     "mobile.serverConnect.connectAnyway": "Conectar de todos modos",
     "mobile.serverConnect.connectionFailed": "Conexión fallida",
-    "mobile.serverConnect.hint": "Introduzca la URL de su instancia Evey autoalojada",
+    "mobile.serverConnect.hint": "Evey funciona en un servidor que alguien configuró para ti. Escribe su dirección web, la misma que abrirías en un navegador.",
     "mobile.serverConnect.insecureBody": "{{url}} está fuera de su red local y usa http://. Su contraseña y todo lo que vea viajarían sin cifrar. Use https:// si su servidor lo permite.",
     "mobile.serverConnect.insecureTitle": "Esta conexión no está cifrada",
     "mobile.serverConnect.missingScheme": "Empiece la dirección con http:// o https://.",
@@ -72,6 +74,7 @@
     "mobile.serverConnect.unreachableSaved": "{{url}} no respondió. Comprueba la dirección o tu conexión.",
     "mobile.serverConnect.urlLabel": "URL del servidor",
     "mobile.serverConnect.useDiscovered": "Usar servidor detectado {{url}}",
+    "mobile.serverConnect.whereToFind": "¿Dónde encuentro la dirección de mi servidor?",
     "mobile.servers.title": "Servidores"
   },
   "fr": {
@@ -82,7 +85,7 @@
     "mobile.serverConnect.connect": "Connexion",
     "mobile.serverConnect.connectAnyway": "Se connecter quand même",
     "mobile.serverConnect.connectionFailed": "Connexion echouee",
-    "mobile.serverConnect.hint": "Saisissez l'URL de votre instance Evey auto-hébergée",
+    "mobile.serverConnect.hint": "Evey tourne sur un serveur que quelqu'un a installé pour vous. Entrez son adresse web, celle que vous ouvririez dans un navigateur.",
     "mobile.serverConnect.insecureBody": "{{url}} est hors de votre réseau local et utilise http://. Votre mot de passe et tout ce que vous regardez circuleraient en clair. Utilisez https:// si votre serveur le permet.",
     "mobile.serverConnect.insecureTitle": "Cette connexion n'est pas chiffrée",
     "mobile.serverConnect.missingScheme": "Commencez l'adresse par http:// ou https://.",
@@ -97,6 +100,7 @@
     "mobile.serverConnect.unreachableSaved": "{{url}} ne répond pas. Vérifiez l'adresse ou votre connexion.",
     "mobile.serverConnect.urlLabel": "URL du serveur",
     "mobile.serverConnect.useDiscovered": "Utiliser le serveur découvert {{url}}",
+    "mobile.serverConnect.whereToFind": "Où trouver l'adresse de mon serveur ?",
     "mobile.servers.title": "Serveurs"
   },
   "hi": {
@@ -107,7 +111,7 @@
     "mobile.serverConnect.connect": "कनेक्ट",
     "mobile.serverConnect.connectAnyway": "फिर भी कनेक्ट करें",
     "mobile.serverConnect.connectionFailed": "कनेक्शन विफल",
-    "mobile.serverConnect.hint": "अपने सेल्फ-होस्टेड Evey इंस्टेंस का URL दर्ज करें",
+    "mobile.serverConnect.hint": "Evey एक सर्वर पर चलता है जिसे किसी ने आपके लिए सेट किया है। उसका वेब पता दर्ज करें, वही जो आप ब्राउज़र में खोलते हैं।",
     "mobile.serverConnect.insecureBody": "{{url}} आपके होम नेटवर्क के बाहर है और http:// का उपयोग करता है। आपका पासवर्ड और आप जो कुछ भी देखते हैं वह बिना एन्क्रिप्शन के जाएगा। यदि आपका सर्वर समर्थन करता है तो https:// का उपयोग करें।",
     "mobile.serverConnect.insecureTitle": "यह कनेक्शन एन्क्रिप्टेड नहीं है",
     "mobile.serverConnect.missingScheme": "पता http:// या https:// से शुरू करें।",
@@ -122,6 +126,7 @@
     "mobile.serverConnect.unreachableSaved": "{{url}} ने उत्तर नहीं दिया। पता या अपना कनेक्शन जांचें।",
     "mobile.serverConnect.urlLabel": "सर्वर URL",
     "mobile.serverConnect.useDiscovered": "खोजा गया सर्वर {{url}} उपयोग करें",
+    "mobile.serverConnect.whereToFind": "मेरे सर्वर का पता कहाँ मिलेगा?",
     "mobile.servers.title": "सर्वर"
   },
   "zh": {
@@ -132,7 +137,7 @@
     "mobile.serverConnect.connect": "连接",
     "mobile.serverConnect.connectAnyway": "仍然连接",
     "mobile.serverConnect.connectionFailed": "连接失败",
-    "mobile.serverConnect.hint": "输入您自托管 Evey 实例的 URL",
+    "mobile.serverConnect.hint": "Evey 运行在别人为你搭建的服务器上。请输入它的网址，也就是你在浏览器中打开的那个地址。",
     "mobile.serverConnect.insecureBody": "{{url}} 不在您的家庭网络内，且使用 http://。您的密码以及观看的所有内容都将以明文传输。如果服务器支持，请使用 https://。",
     "mobile.serverConnect.insecureTitle": "此连接未加密",
     "mobile.serverConnect.missingScheme": "地址请以 http:// 或 https:// 开头。",
@@ -147,6 +152,7 @@
     "mobile.serverConnect.unreachableSaved": "{{url}} 无响应。请检查地址或网络连接。",
     "mobile.serverConnect.urlLabel": "服务器 URL",
     "mobile.serverConnect.useDiscovered": "使用已发现的服务器 {{url}}",
+    "mobile.serverConnect.whereToFind": "在哪里找到我的服务器地址？",
     "mobile.servers.title": "服务器"
   }
 }

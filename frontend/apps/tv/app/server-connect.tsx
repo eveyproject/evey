@@ -12,9 +12,18 @@ import { onResultPicked, onScanStarted, rowClaimsFocus, scanFocusIdle } from "..
 import { interpolateFallback } from "../src/i18n/interpolateFallback";
 import { useTheme } from "../src/providers/ThemeProvider";
 
+// Wiki help for novices, in the viewer's language when it is published there
+// (only non-default locales need listing; everything else is the English root).
+const WIKI_LOCALES = new Set(["fr"]);
+function serverHelpUrl(lang: string): string {
+  const code = (lang || "en").split("-")[0];
+  const prefix = WIKI_LOCALES.has(code) ? `/${code}` : "";
+  return `https://eveyproject.org${prefix}/getting-started/apps/`;
+}
+
 export default function ServerConnect() {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { unreachable } = useLocalSearchParams<{ unreachable?: string }>();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -201,6 +210,17 @@ export default function ServerConnect() {
           ? t("mobile.servers.addAnother", "Add another server")
           : t("mobile.serverConnect.title", "Connect to your server")}
       </Text>
+
+      {!hasServers && (
+        <>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 18, lineHeight: 26, marginBottom: 12 }}>
+            {t("mobile.serverConnect.hint", "Evey runs on a server someone set up for you. Enter its web address - the same one you open in a browser.")}
+          </Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 15, marginBottom: 20 }}>
+            {t("mobile.serverConnect.whereToFind", "Where do I find my server's address?")} {serverHelpUrl(i18n.language)}
+          </Text>
+        </>
+      )}
 
       <TextInput
         ref={urlInputRef}
