@@ -52,6 +52,7 @@ export default function ServerConnect() {
   const addServer = useServerListStore((s) => s.addServer);
   const setActiveServer = useServerListStore((s) => s.setActiveServer);
   const setServerName = useServerListStore((s) => s.setServerName);
+  const removeServer = useServerListStore((s) => s.removeServer);
 
   const serverList = useMemo(
     () => Object.values(servers).sort((a, b) => b.lastUsedAt - a.lastUsedAt),
@@ -135,6 +136,28 @@ export default function ServerConnect() {
       router.replace("/login");
     }
   }, [servers, setActiveServer, setServerName, t]);
+
+  // Delete a saved server from the connect screen, so a stale address (the
+  // server moved, or the URL was a typo) can be removed without signing in
+  // first. Mirrors Manage Servers: confirm, and never strand the user by
+  // deleting the only server they are currently on.
+  const handleDeleteServer = useCallback((id: string) => {
+    const server = servers[id];
+    if (!server) return;
+    if (serverList.length === 1 && activeServerId === id) {
+      Alert.alert(t("mobile.servers.cantDeleteOnlyServer", "Can't delete the only saved server"));
+      return;
+    }
+    const name = serverDisplayName(server);
+    Alert.alert(
+      t("mobile.servers.deleteConfirmTitle", "Delete server?"),
+      t("mobile.servers.deleteConfirmMessage", "{{name}} will be removed from your saved servers. Sign-in tokens for this server will also be cleared.", { name }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        { text: t("mobile.servers.delete", "Delete"), style: "destructive", onPress: () => removeServer(id) },
+      ],
+    );
+  }, [servers, serverList.length, activeServerId, removeServer, t]);
 
   // Submit a new server URL.
   async function handleConnect() {
@@ -231,38 +254,49 @@ export default function ServerConnect() {
         <View style={s.listSection}>
           {serverList.map((server) => {
             const isActive = server.id === activeServerId;
+            const canDelete = !(serverList.length === 1 && isActive);
             return (
-              <Pressable
-                key={server.id}
-                onPress={() => handleSelectServer(server.id)}
-                style={[s.serverRow, { backgroundColor: theme.colors.surface }]}
-                accessible={true}
-                accessibilityLabel={serverDisplayName(server)}
-                accessibilityRole="button"
-              >
-                <Ionicons
-                  name="server-outline"
-                  size={20}
-                  color={isActive ? theme.colors.accent : theme.colors.textMuted}
-                  style={{ marginRight: theme.spacing.sm }}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.serverLabel, { color: theme.colors.text }]} numberOfLines={1}>
-                    {serverDisplayName(server)}
-                  </Text>
-                  {serverDisplayName(server) !== server.url && (
-                    <Text style={[s.serverSub, { color: theme.colors.textMuted }]} numberOfLines={1}>
-                      {server.url}
+              <View key={server.id} style={[s.serverRow, { backgroundColor: theme.colors.surface }]}>
+                <Pressable
+                  onPress={() => handleSelectServer(server.id)}
+                  style={s.serverMain}
+                  accessible={true}
+                  accessibilityLabel={serverDisplayName(server)}
+                  accessibilityRole="button"
+                >
+                  <Ionicons
+                    name="server-outline"
+                    size={20}
+                    color={isActive ? theme.colors.accent : theme.colors.textMuted}
+                    style={{ marginRight: theme.spacing.sm }}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.serverLabel, { color: theme.colors.text }]} numberOfLines={1}>
+                      {serverDisplayName(server)}
                     </Text>
-                  )}
-                </View>
-                {isActive && (
-                  <View style={[s.badge, { backgroundColor: theme.colors.accent }]}>
-                    <Text style={s.badgeText}>{t("mobile.servers.current", "Current")}</Text>
+                    {serverDisplayName(server) !== server.url && (
+                      <Text style={[s.serverSub, { color: theme.colors.textMuted }]} numberOfLines={1}>
+                        {server.url}
+                      </Text>
+                    )}
                   </View>
-                )}
-                <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} style={{ marginLeft: 4 }} />
-              </Pressable>
+                  {isActive && (
+                    <View style={[s.badge, { backgroundColor: theme.colors.accent }]}>
+                      <Text style={s.badgeText}>{t("mobile.servers.current", "Current")}</Text>
+                    </View>
+                  )}
+                </Pressable>
+                <Pressable
+                  onPress={() => handleDeleteServer(server.id)}
+                  hitSlop={8}
+                  style={s.deleteBtn}
+                  accessible={true}
+                  accessibilityLabel={t("mobile.servers.delete", "Delete")}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="trash-outline" size={18} color={canDelete ? theme.colors.error : theme.colors.border} />
+                </Pressable>
+              </View>
             );
           })}
         </View>
@@ -400,9 +434,17 @@ const scStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
   serverRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: theme.spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.border,
+  },
+  serverMain: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    padding: theme.spacing.md,
+  },
+  deleteBtn: {
+    padding: theme.spacing.md,
   },
   serverLabel: { fontSize: 15, fontWeight: "600" },
   serverSub: { fontSize: 12, marginTop: 2 },
