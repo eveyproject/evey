@@ -16,6 +16,7 @@ func TestEventNames(t *testing.T) {
 		{transcoding.TranscodeStarted{}, "transcode.started"},
 		{transcoding.TranscodeFailed{}, "transcode.failed"},
 		{transcoding.TranscodeCancelled{}, "transcode.cancelled"},
+		{transcoding.DerivedCacheFull{}, "transcoding.derived_cache_full"},
 	}
 
 	for _, c := range cases {

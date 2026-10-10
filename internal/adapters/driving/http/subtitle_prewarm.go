@@ -234,6 +234,9 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 		if _, ok := p.cache.get(key); ok {
 			continue // already paid for
 		}
+		if _, failed := p.cache.getFailure(key); failed {
+			continue // this mkvgo cannot decode it; a full read would only say so again
+		}
 		started := time.Now()
 		// Same singleflight as the on-demand path: a viewer who asks for this
 		// exact track while we are extracting it waits for THIS run instead of
@@ -254,6 +257,10 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 				data, perr = extractSubtitleVTT(ctx, job.filePath, t.index, t.codec, t.language)
 			}
 			if perr != nil {
+				if ferr := p.cache.putFailure(key, perr); ferr != nil {
+					slog.WarnContext(ctx, "subtitle prewarm: failure memo store failed",
+						slog.String("media_id", job.mediaID), slog.Any("err", ferr))
+				}
 				return nil, perr
 			}
 			return data, p.cache.put(key, data)

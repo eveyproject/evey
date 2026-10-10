@@ -2,6 +2,7 @@ package notification
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/notification"
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/domain/user"
 	"github.com/google/uuid"
 )
@@ -237,4 +239,48 @@ func (s *CommandService) handleRequestAnswered(parentCtx context.Context, ev sha
 	}
 	s.persistAndDispatch(ctx, n, push, locale, uuid.New().String())
 	slog.InfoContext(ctx, "media request answer notified", slog.String("request_id", e.RequestID), slog.String("status", string(e.Status)))
+}
+
+// handleDerivedCacheFull pages the admins when a derived store (the extracted
+// subtitles under /data) stopped keeping what it produces because the disk is
+// at the free-space floor. Nothing is broken for the viewer - the bytes are
+// still served - but every subtitle will now be extracted again on each
+// request, minutes of reading per track on a large film, until space is made.
+// The publisher rate-limits it to one per store per hour.
+func (s *CommandService) handleDerivedCacheFull(parentCtx context.Context, ev shared.Event) {
+	defer func() {
+		if rv := recover(); rv != nil {
+			slog.ErrorContext(parentCtx, "handleDerivedCacheFull panic recovered", slog.Any("panic", rv))
+		}
+	}()
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+	e, ok := ev.(transcoding.DerivedCacheFull)
+	if !ok {
+		return
+	}
+	profiles, err := s.listAdminTargetProfiles(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "notification: list admin profiles for derived_cache_full", slog.Any("err", err))
+		return
+	}
+	title := "Subtitle cache full"
+	push := pushSpec{key: "notifications.push.cache_full.title", fallback: title}
+	msg := fmt.Sprintf("%s: %d MB free on %s, floor %d MB. Subtitles are still served but no longer kept; each request extracts them again.",
+		e.Store, e.FreeBytes>>20, e.Dir, e.FloorBytes>>20)
+	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	fanoutID := uuid.New().String()
+	for _, p := range profiles {
+		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypeCacheFull, title,
+			notification.WithNotificationMessage(msg),
+			notification.WithNotificationLevel(notification.LevelAll),
+			notification.WithNotificationExpiresAt(&expires),
+		)
+		if err != nil {
+			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			continue
+		}
+		s.persistAndDispatch(ctx, n, push, p.Locale, fanoutID)
+	}
+	slog.InfoContext(ctx, "derived cache full notified", slog.String("store", e.Store), slog.Int("admins", len(profiles)))
 }
