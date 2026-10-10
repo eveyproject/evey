@@ -49,8 +49,37 @@ line - earlier history lives in git.
 - Gapless multi-episode playback sessions (opt-in).
 - Media requests: users can request missing titles, admins triage them.
 - Built-in capacity load test (admin), synthetic viewers against the real stack.
+- Picking a subtitle track that still has to be produced (a bitmap track, or a
+  text track of a large MKV without a block index) no longer leaves the
+  request hanging for minutes: the server answers "being prepared" with a
+  retry delay computed from the extraction's real progress, and the web, TV
+  and mobile players show "Subtitles are being prepared" and poll until the
+  track is ready. A track this build of the packager cannot decode is
+  memorised and refused at once instead of re-read on every click.
+- Subtitle extraction reads the track's blocks where the file's own Cues
+  point (text and bitmap tracks, on demand and in the prewarmer) whenever the
+  Cues are verified complete for the track, so a large remux answers in
+  seconds instead of a full read; mkvgo 0.42.0 also decodes bitmap tracks
+  whose blocks were zlib-compressed without saying so (five such films in the
+  dev library used to be refused).
+- Admin: a notification when the subtitle cache stops writing because the
+  disk is below the free-space floor shared with the transcode cache; the
+  admin cache wipe now also empties the subtitle cache.
+- Operators: `evey_mkvgo_walks_in_flight` and `evey_mkvgo_plan_stats{stat}`
+  on /metrics expose the packager's windows being read, queued walks,
+  streamed segments and fallbacks, and the subtitle tracks served from the
+  Cues.
 
 ### Changed
+- Packager upgraded to mkvgo 0.42.0: media segments of an MKV are written
+  from the source as they go out instead of being assembled whole in memory,
+  so the server's memory no longer grows with slow viewers (a 4-film run
+  settles around 200 MiB); the windows read at once are capped at one per
+  CPU within a quarter of the heap limit, the rest queue. Segment timing no
+  longer overlaps a frame at open-GOP boundaries and laced AAC/AC-3 without a
+  DefaultDuration keeps its real frame size to the end of a film, so the
+  remux cache is re-produced (format v4) and players fetch fresh segments
+  (the packager version is part of every segment URL).
 - Seek-index diagnosis moves to mkvgo 0.27: an index is judged against the
   picture's real end (sound outlasting picture is no longer a hole), holes are
   probed to say whether a rebuild, a re-encode or the source is the remedy,
