@@ -22,6 +22,7 @@ const TITLE_KEYS: Record<string, string> = {
   new_series: "common.notifications.newSeries",
   new_album: "common.notifications.newAlbum",
   backup_failed: "common.notifications.backupFailed",
+  cache_full: "common.notifications.cacheFull",
   media_request: "common.notifications.mediaRequest",
   request_answered: "common.notifications.requestAnswered",
 };

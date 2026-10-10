@@ -904,7 +904,7 @@ export function HLSPlayer({
     return () => clearTimeout(id);
   }, [audioOffsetMs, appliedAudioOffsetMs, setTranscodeStartTime, wasmAudioActive]);
 
-  useSubtitleManager({
+  const { subtitlePreparing } = useSubtitleManager({
     videoRef, hlsRef, currentSubtitle, externalSubUrl, mediaId, streamToken,
     selectedBurnInTrack, transcodeStartTime, currentTrackIndex, subtitleStyle,
     subtitleOffsetMs,
@@ -1333,6 +1333,16 @@ export function HLSPlayer({
         videoRef={videoRef}
         offsetMs={subtitleOffsetMs}
       />
+      {/* A text track the server is still extracting (202): said where the
+          cues would be, instead of a subtitle menu entry that shows nothing
+          for minutes. The bitmap overlay above says the same for its tracks. */}
+      {subtitlePreparing && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-[8%] flex justify-center">
+          <span className="rounded bg-black/70 px-3 py-1 text-sm text-white/90" data-testid="subtitle-preparing">
+            {t("player.subtitlesPreparing")}
+          </span>
+        </div>
+      )}
 
       {/* Dedicated cast surface for Chrome Android's Remote Playback API. Kept
           in the DOM (some UAs mishandle prompt() on a never-rendered element)

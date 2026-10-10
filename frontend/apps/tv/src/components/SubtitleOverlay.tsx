@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { View, Text, StyleSheet, Image, useWindowDimensions } from "react-native";
 import {
   findActivePGSCue,
@@ -40,7 +41,18 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: 
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   // The fetch and the text/bitmap sniff live in @evey/client, shared with the
   // browser television; only the painting below is this platform's.
-  const { cues, pgs } = useSubtitleTrack(mediaId, subtitleIndex, currentTimeSec);
+  const { cues, pgs, preparing } = useSubtitleTrack(mediaId, subtitleIndex, currentTimeSec);
+  const { t } = useTranslation();
+
+  // The server is still producing the track (202 + Retry-After): said in the
+  // subtitle's place rather than a menu entry that shows nothing for minutes.
+  if (preparing && !pgs && cues.length === 0) {
+    return (
+      <View pointerEvents="none" style={styles.textContainer}>
+        <Text style={styles.text}>{t("player.subtitlesPreparing")}</Text>
+      </View>
+    );
+  }
 
   if (pgs) {
     const { track, uris } = pgs;

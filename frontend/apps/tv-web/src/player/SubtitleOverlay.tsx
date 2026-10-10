@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { useTranslation } from "react-i18next";
 import { findActiveCueIndex, findActivePGSCue } from "@evey/api";
 import {
   DEFAULT_SUBTITLE_STYLE,
@@ -22,7 +23,14 @@ interface Props {
 function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: Props) {
   // The fetch and the text/bitmap sniff live in @evey/client, shared with the
   // Android television; only the painting below is the DOM's.
-  const { cues, pgs } = useSubtitleTrack(mediaId, subtitleIndex, currentTimeSec);
+  const { cues, pgs, preparing } = useSubtitleTrack(mediaId, subtitleIndex, currentTimeSec);
+  const { t } = useTranslation();
+
+  // The server is still producing the track (202 + Retry-After): said in the
+  // subtitle's place rather than a menu entry that shows nothing for minutes.
+  if (preparing && !pgs && cues.length === 0) {
+    return <div className="subs-text">{t("player.subtitlesPreparing")}</div>;
+  }
 
   if (pgs) {
     const { track, uris } = pgs;

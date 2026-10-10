@@ -5,7 +5,10 @@ import React from "react";
 // The real parser is exercised by its own tests; here the blob is a stand-in
 // and the magic check decides text-vs-bitmap.
 const pgs = vi.hoisted(() => ({ isPGS: true, onlyFirstCue: false }));
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  // fetchSubtitleTrack is the real one: the 202 test below drives it through
+  // the fetch mock.
+  ...(await importOriginal<typeof import("@evey/api")>()),
   isPGSBlob: () => pgs.isPGS,
   parsePGSBlob: () => ({
     screenW: 1920,
@@ -154,5 +157,38 @@ describe("PGSSubtitleOverlay", () => {
     await waitFor(() => expect(back.container.querySelector("img")).toBeTruthy());
     expect(fetchMock).toHaveBeenCalledTimes(5);
     expect(back.container.querySelector("img")?.getAttribute("src")).not.toBe(firstPair[0]);
+  });
+
+  // 202 + Retry-After: the server is still decoding the track (a read of the
+  // whole film without a block index). The overlay says so where the subtitle
+  // would be, polls at the delay it was given, and draws the cue once the 200
+  // lands - instead of a menu entry that shows nothing for minutes.
+  it("says the track is being prepared on a 202 and draws it once ready", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let calls = 0;
+      fetchMock.mockImplementation(async () => {
+        calls++;
+        if (calls < 3) {
+          return new Response(JSON.stringify({ state: "preparing", retryAfterSec: 2 }), {
+            status: 202,
+            headers: { "Retry-After": "2" },
+          });
+        }
+        return { ok: true, status: 200, arrayBuffer: async () => new ArrayBuffer(8) };
+      });
+      const { video, container, getByTestId } = mount({ mediaId: "m-202" });
+      await waitFor(() => expect(getByTestId("subtitle-preparing")).toBeTruthy());
+      expect(container.querySelector("img")).toBeNull();
+
+      await vi.advanceTimersByTimeAsync(2100);
+      await vi.advanceTimersByTimeAsync(2100);
+      await waitFor(() => expect(container.querySelector("[data-testid=subtitle-preparing]")).toBeNull());
+      seekTo(video, 1.5);
+      await waitFor(() => expect(container.querySelector("img")).toBeTruthy());
+      expect(calls).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
