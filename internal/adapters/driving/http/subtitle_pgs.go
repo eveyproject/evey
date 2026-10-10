@@ -244,6 +244,16 @@ func pgsServable(codec string) bool {
 // size and mtime, one extraction at a time per track, best-effort store - for
 // the same reason: producing this costs a full read of the container, so a
 // player retrying what it believes is a hung request must not start a second.
+//
+// A track this mkvgo could not decode is remembered (subtitleCache.putFailure)
+// and answered 422 at once: eleven PGS tracks of one library fail under the
+// current decoder, and each request used to pay the whole walk again before
+// failing again.
+//
+// An extraction expected to outlast subtitlePreparingThreshold is started
+// detached and answered 202 + Retry-After (see subtitle_preparing.go) rather
+// than held open: a held request is a 504 behind a proxy with a read timeout,
+// and a blank subtitle menu entry on every client.
 func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span, cache subtitleCache, filePath string, trackIndex int, mediaID string) {
 	ctx := r.Context()
 	cacheKey := cache.keyForKind(filePath, trackIndex, subtitleKindPGS)
@@ -251,31 +261,54 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 		writePGSBlob(w, r, data)
 		return
 	}
+	if reason, failed := cache.getFailure(cacheKey); failed {
+		span.SetStatus(otelcodes.Error, "pgs extraction known to fail")
+		writeSubtitleFailed(w, r, "", reason)
+		return
+	}
 
-	data, err := runSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), filePath, func(ctx context.Context) ([]byte, error) {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	if !isMkvgoSubtitleFastPath(ext) || isMkvgoMP4Ext(ext) {
+		// No PGS transport exists in MP4, and .avi never reaches mkvgo. There
+		// is no fallback to fall back to: ffmpeg would only hand back the
+		// undecoded stream.
+		span.SetStatus(otelcodes.Error, "bitmap subtitle outside matroska")
+		writeSubtitleFailed(w, r, "", fmt.Sprintf("bitmap subtitles are only served from Matroska (got %q)", ext))
+		return
+	}
+	// Resolving the track is a head-only read of the container, milliseconds;
+	// doing it before the flight is what lets the estimate below count the
+	// track's indexed blocks.
+	ids, idErr := mkvgoImageSubtitleTrackIDs(ctx, ext, filePath)
+	if idErr != nil {
+		span.RecordError(idErr)
+		span.SetStatus(otelcodes.Error, "pgs track resolution failed")
+		slog.WarnContext(ctx, "subtitle: pgs track resolution failed",
+			slog.String("media_id", mediaID), slog.Int("track", trackIndex), slog.Any("err", idErr))
+		writeSubtitleFailed(w, r, "", idErr.Error())
+		return
+	}
+	trackID, ok := ids[trackIndex]
+	if !ok {
+		writeSubtitleFailed(w, r, "", fmt.Sprintf("no bitmap subtitle at ordinal %d", trackIndex))
+		return
+	}
+
+	// A stored index turns the walk into a handful of seeks (6 s measured
+	// against 4 min 42 s on an 85 GB remux); a missing one means the walk.
+	ix, indexed := subtitleIndexes.get(filePath)
+	estimate := estimateSubtitleExtraction(filePath, ix.Blocks(trackID), indexed)
+
+	work := func(ctx context.Context) ([]byte, error) {
 		if data, ok := cache.get(cacheKey); ok {
 			return data, nil
 		}
-		ext := strings.ToLower(filepath.Ext(filePath))
-		if !isMkvgoSubtitleFastPath(ext) || isMkvgoMP4Ext(ext) {
-			// No PGS transport exists in MP4, and .avi never reaches mkvgo. There
-			// is no fallback to fall back to: ffmpeg would only hand back the
-			// undecoded stream.
-			return nil, fmt.Errorf("bitmap subtitles are only served from Matroska (got %q)", ext)
-		}
-		ids, idErr := mkvgoImageSubtitleTrackIDs(ctx, ext, filePath)
-		if idErr != nil {
-			return nil, idErr
-		}
-		trackID, ok := ids[trackIndex]
-		if !ok {
-			return nil, fmt.Errorf("no bitmap subtitle at ordinal %d", trackIndex)
-		}
-		// nil index: this is one track on demand, and building an index is a
-		// full pass that would save nothing here. The prewarmer, which extracts
-		// several tracks of the same file, passes one.
-		data, exErr := extractPGSBlob(ctx, filePath, trackID, nil)
+		data, exErr := extractPGSBlob(ctx, filePath, trackID, ix)
 		if exErr != nil {
+			if fErr := cache.putFailure(cacheKey, exErr); fErr != nil {
+				slog.WarnContext(ctx, "subtitle: pgs failure memo store failed",
+					slog.String("media_id", mediaID), slog.Any("err", fErr))
+			}
 			return nil, exErr
 		}
 		if cErr := cache.put(cacheKey, data); cErr != nil {
@@ -283,13 +316,29 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 				slog.String("media_id", mediaID), slog.Any("err", cErr))
 		}
 		return data, nil
-	})
+	}
+
+	if fl, running := subtitleFlightStarted(subtitleFlightKey(cacheKey, filePath)); running {
+		// A poll, or a second viewer: the one extraction is under way.
+		writeSubtitlePreparing(w, r, "", subtitleRetryAfter(estimate, fl), fl)
+		return
+	}
+	if estimate > subtitlePreparingThreshold {
+		launchSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), filePath, work)
+		slog.InfoContext(ctx, "subtitle: pgs extraction started detached",
+			slog.String("media_id", mediaID), slog.Int("track", trackIndex),
+			slog.Bool("indexed", indexed), slog.Duration("estimate", estimate))
+		writeSubtitlePreparing(w, r, "", subtitleRetryAfter(estimate, nil), nil)
+		return
+	}
+
+	data, err := runSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), filePath, work)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "pgs extraction failed")
 		slog.WarnContext(ctx, "subtitle: pgs extraction failed",
 			slog.String("media_id", mediaID), slog.Int("track", trackIndex), slog.Any("err", err))
-		http.Error(w, `{"message":"subtitle not available"}`, http.StatusUnprocessableEntity)
+		writeSubtitleFailed(w, r, "", err.Error())
 		return
 	}
 	writePGSBlob(w, r, data)
