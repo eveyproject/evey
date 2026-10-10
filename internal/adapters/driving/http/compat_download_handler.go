@@ -197,7 +197,10 @@ func (h *compatServe) resolve(w http.ResponseWriter, r *http.Request) (mediaID, 
 
 	fingerprint := item.File.Fingerprint
 	if fingerprint == "" {
-		if fi, statErr := os.Stat(item.File.Path); statErr == nil {
+		// The path is the library record's, never the request's: gosec's G703
+		// taint started naming this line once a Range header reached a
+		// streamed segment writer elsewhere in the package (2026-10-10).
+		if fi, statErr := os.Stat(item.File.Path); statErr == nil { //nolint:gosec // library path, see above
 			fingerprint = fmt.Sprintf("%d-%d", fi.Size(), fi.ModTime().UnixNano())
 		}
 	}
@@ -205,7 +208,7 @@ func (h *compatServe) resolve(w http.ResponseWriter, r *http.Request) (mediaID, 
 }
 
 func (h *compatServe) status(outPath string) (string, string, int) {
-	if fi, err := os.Stat(outPath); err == nil && fi.Size() > 0 {
+	if fi, err := os.Stat(outPath); err == nil && fi.Size() > 0 { //nolint:gosec // a hashed name under our cache dir, see compatCacheName
 		return "ready", "", 1000
 	}
 	h.mu.Lock()
