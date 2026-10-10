@@ -25,7 +25,7 @@ func spaHandler(dir string) http.Handler {
 		// Try to serve the file directly using the cleaned path
 		cleaned := filepath.Clean(r.URL.Path)
 		fullPath := filepath.Join(dir, cleaned)
-		if info, err := os.Stat(fullPath); err == nil {
+		if info, err := os.Stat(fullPath); err == nil { //nolint:gosec // G703 false positive: r.URL.Path is absolute, filepath.Clean collapses any .. to root and Join keeps the result under dir
 			// Clean drops the trailing slash of a directory (/tv/ -> /tv), and
 			// FileServer answers a slashless directory with a RELATIVE redirect
 			// to "tv/" - from /tv/ that lands on /tv/tv/. Keep the slash the
@@ -105,7 +105,7 @@ func clientIndex(dir, cleanedPath string) string {
 	if first == "" || first == "/" {
 		return ""
 	}
-	if _, err := os.Stat(filepath.Join(dir, filepath.Clean(first), "index.html")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, filepath.Clean(first), "index.html")); err != nil { //nolint:gosec // G703 false positive: first derives from the already-cleaned path and Join stays under dir
 		return ""
 	}
 	return first
