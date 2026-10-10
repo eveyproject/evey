@@ -7,6 +7,7 @@ package httpapi
 
 import (
 	"context"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -81,31 +82,63 @@ func (p *mediaReadPacer) options(ctx context.Context) []matroska.Options {
 	if p == nil {
 		return nil
 	}
+	return readOptions(ctx, p)
+}
+
+// subtitleReadOptions: paced while a stream plays (nil pacer = unpaced), and
+// reporting its offsets to the running flight when the context carries one,
+// so a poll's Retry-After follows the walk's real pace. No pacer and no
+// flight means mkvgo opens the file itself.
+func subtitleReadOptions(ctx context.Context) []matroska.Options {
+	if subtitleReadPacer == nil && subtitleFlightFromContext(ctx) == nil {
+		return nil
+	}
+	return readOptions(ctx, subtitleReadPacer)
+}
+
+func readOptions(ctx context.Context, p *mediaReadPacer) []matroska.Options {
+	fl := subtitleFlightFromContext(ctx)
 	return []matroska.Options{{FS: &extmkv.FS{
 		Open: func(path string) (extmkv.ReadSeekCloser, error) {
 			f, err := os.Open(path) //nolint:gosec // the path is the library file mkvgo was asked to read
 			if err != nil {
 				return nil, err
 			}
-			return &pacedReader{ReadSeekCloser: f, pacer: p, ctx: ctx}, nil
+			return &pacedReader{ReadSeekCloser: f, pacer: p, ctx: ctx, flight: fl, handle: fl.open()}, nil
 		},
 	}}}
 }
 
-func subtitleReadOptions(ctx context.Context) []matroska.Options {
-	return subtitleReadPacer.options(ctx)
-}
-
+// pacedReader throttles the reads (nil pacer: never) and tells the flight how
+// far into the file the reader is, after every read and seek.
 type pacedReader struct {
 	extmkv.ReadSeekCloser
-	pacer *mediaReadPacer
-	ctx   context.Context
+	pacer  *mediaReadPacer
+	ctx    context.Context
+	flight *subtitleFlight
+	handle int64
+	pos    int64
 }
 
 func (r *pacedReader) Read(b []byte) (int, error) {
 	n, err := r.ReadSeekCloser.Read(b)
 	if n > 0 {
+		r.pos += int64(n)
+		r.flight.advance(r.handle, r.pos)
 		r.pacer.throttle(r.ctx, n)
 	}
 	return n, err
+}
+
+func (r *pacedReader) Seek(off int64, whence int) (int64, error) {
+	p, err := r.ReadSeekCloser.Seek(off, whence)
+	if err == nil {
+		r.pos = p
+		// A probe to the end (io.SeekEnd) is not progress; only SeekStart
+		// targets are where the walk really lands.
+		if whence == io.SeekStart {
+			r.flight.advance(r.handle, p)
+		}
+	}
+	return p, err
 }

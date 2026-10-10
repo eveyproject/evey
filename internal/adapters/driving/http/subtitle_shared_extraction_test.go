@@ -121,25 +121,28 @@ func TestSubtitleFlightKey_EveryCallSiteGoesThroughIt(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	require.NoError(t, err)
 
-	// The flight is entered through exactly these two.
-	callers := regexp.MustCompile(`(?:subtitleExtractions\.Do(?:Chan)?|runSharedSubtitleExtraction)\(`)
+	// The flight is entered through exactly these, and asked about through
+	// subtitleFlightStarted: a poll keyed differently would never see the
+	// extraction it is polling for.
+	callers := regexp.MustCompile(`(?:subtitleExtractions\.Do(?:Chan)?|runSharedSubtitleExtraction|launchSharedSubtitleExtraction|subtitleFlightStarted)\(`)
 	checked := 0
 	for _, e := range entries {
 		name := e.Name()
 		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		// subtitle_cache.go DEFINES both the key builder and the shared runner;
-		// the runner necessarily enters the flight with a key it was handed.
-		// Every OTHER file is a call site and must build the key properly.
-		if name == "subtitle_cache.go" {
+		// subtitle_cache.go DEFINES both the key builder and the shared runner,
+		// subtitle_preparing.go the detached launcher; they necessarily enter
+		// the flight with a key they were handed. Every OTHER file is a call
+		// site and must build the key properly.
+		if name == "subtitle_cache.go" || name == "subtitle_preparing.go" {
 			continue
 		}
 		src, rerr := os.ReadFile(name)
 		require.NoError(t, rerr)
 		for line := range strings.SplitSeq(string(src), "\n") {
-			if !callers.MatchString(line) {
-				continue
+			if !callers.MatchString(line) || strings.HasPrefix(strings.TrimSpace(line), "func ") {
+				continue // a definition is not a call site
 			}
 			checked++
 			assert.Contains(t, line, "subtitleFlightKey(",

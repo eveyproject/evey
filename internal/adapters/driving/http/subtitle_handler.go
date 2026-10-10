@@ -156,11 +156,18 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 			writeSubtitleVTT(w, r, baseURL, data)
 			return
 		}
+		// A track this build already failed on is answered at once; the memo
+		// carries the mkvgo version, so an upgrade replays it.
+		if reason, failed := cache.getFailure(cacheKey); failed {
+			span.SetStatus(otelcodes.Error, "extraction known to fail")
+			writeSubtitleFailed(w, r, baseURL, reason)
+			return
+		}
 
 		// One extraction at a time per track. A player that retries what it
 		// believes is a hung request - which a 71-second wait invites - would
 		// otherwise start a second full read of the same film.
-		produced, err := runSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), filePath, func(ctx context.Context) ([]byte, error) {
+		work := func(ctx context.Context) ([]byte, error) {
 			// Re-check under the flight: the request we queued behind may have
 			// just filled the cache.
 			if data, ok := cache.get(cacheKey); ok {
@@ -168,6 +175,10 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 			}
 			data, perr := extractSubtitleVTT(ctx, filePath, trackIndex, matchedCodec, matchedLanguage)
 			if perr != nil {
+				if ferr := cache.putFailure(cacheKey, perr); ferr != nil {
+					slog.WarnContext(ctx, "subtitle: failure memo store failed",
+						slog.String("media_id", mediaID), slog.Any("err", ferr))
+				}
 				return nil, perr
 			}
 			if cerr := cache.put(cacheKey, data); cerr != nil {
@@ -178,7 +189,25 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 					slog.String("media_id", mediaID), slog.Any("err", cerr))
 			}
 			return data, nil
-		})
+		}
+
+		// An extraction that would outlast the threshold is not held open: it
+		// runs detached and the request is answered 202 + Retry-After (see
+		// subtitle_preparing.go). A poll while it runs gets the same answer.
+		estimate := estimateTextSubtitleExtraction(ctx, filePath, trackIndex)
+		if fl, running := subtitleFlightStarted(subtitleFlightKey(cacheKey, filePath)); running {
+			writeSubtitlePreparing(w, r, baseURL, subtitleRetryAfter(estimate, fl), fl)
+			return
+		}
+		if estimate > subtitlePreparingThreshold {
+			launchSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), filePath, work)
+			slog.InfoContext(ctx, "subtitle: extraction started detached",
+				slog.String("media_id", mediaID), slog.Int("track", trackIndex), slog.Duration("estimate", estimate))
+			writeSubtitlePreparing(w, r, baseURL, subtitleRetryAfter(estimate, nil), nil)
+			return
+		}
+
+		produced, err := runSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), filePath, work)
 		if err == nil && len(produced) > 0 {
 			writeSubtitleVTT(w, r, baseURL, produced)
 			return
@@ -187,6 +216,25 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 			slog.String("media_id", mediaID), slog.Int("track", trackIndex), slog.Any("err", err))
 		http.Error(w, `{"message":"could not extract this subtitle"}`, http.StatusInternalServerError)
 	}
+}
+
+// estimateTextSubtitleExtraction sizes a text track's extraction: per indexed
+// block when the file has a stored index covering the track, else the walk of
+// the whole file. MP4 needs neither - its sample table is the index - and is
+// always "fast".
+func estimateTextSubtitleExtraction(ctx context.Context, filePath string, trackIndex int) time.Duration {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	if isMkvgoMP4Ext(ext) {
+		return 0
+	}
+	if ix, ok := subtitleIndexes.get(filePath); ok {
+		if ids, err := mkvgoTextSubtitleTrackIDs(ctx, ext, filePath); err == nil {
+			if id, found := ids[trackIndex]; found && ix.Blocks(id) > 0 {
+				return estimateSubtitleExtraction(filePath, ix.Blocks(id), true)
+			}
+		}
+	}
+	return estimateSubtitleExtraction(filePath, 0, false)
 }
 
 // writeSubtitleVTT sends an already-produced WebVTT body.
