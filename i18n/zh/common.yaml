@@ -127,6 +127,7 @@ notifications:
   episodeCount_one: "{{count}} 集"
   episodeCount_other: "{{count}} 集"
   backupFailed: "计划备份失败"
+  cacheFull: "字幕缓存已满"
   mediaRequest: "新的媒体请求：{{name}}"
   requestAnswered: "您的媒体请求已更新：{{name}}"
   clearConfirm: 删除所有通知？

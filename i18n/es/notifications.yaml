@@ -31,6 +31,8 @@ push:
     title: "Nuevo álbum: {album} ({tracks} pistas)"
   backup_failed:
     title: "Copia de seguridad programada fallida"
+  cache_full:
+    title: "Caché de subtítulos llena"
   plugin_error:
     title: "Error del plugin"
   plugin_error_id:

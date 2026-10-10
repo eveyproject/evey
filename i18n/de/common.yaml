@@ -125,6 +125,7 @@ notifications:
   episodeCount_one: "{{count}} Folge"
   episodeCount_other: "{{count}} Folgen"
   backupFailed: "Geplante Sicherung fehlgeschlagen"
+  cacheFull: "Untertitel-Cache voll"
   mediaRequest: "Neue Medienanfrage: {{name}}"
   requestAnswered: "Deine Medienanfrage wurde aktualisiert: {{name}}"
   clearConfirm: Alle Benachrichtigungen löschen?
