@@ -112,20 +112,20 @@ func TestPacedReader_ReportsProgressToTheFlight(t *testing.T) {
 	}
 	defer f.Close()
 	buf := make([]byte, 100)
-	if _, err := f.Read(buf); err != nil {
-		t.Fatal(err)
+	if _, rerr := f.Read(buf); rerr != nil {
+		t.Fatal(rerr)
 	}
 	if fl.progress() != 0.1 {
 		t.Errorf("after reading 100 of 1000 bytes progress = %v, want 0.1", fl.progress())
 	}
-	if _, err := f.Seek(0, io.SeekEnd); err != nil {
-		t.Fatal(err)
+	if _, serr := f.Seek(0, io.SeekEnd); serr != nil {
+		t.Fatal(serr)
 	}
 	if fl.progress() != 0.1 {
 		t.Errorf("a SeekEnd probe is not progress, got %v", fl.progress())
 	}
-	if _, err := f.Seek(500, io.SeekStart); err != nil {
-		t.Fatal(err)
+	if _, serr := f.Seek(500, io.SeekStart); serr != nil {
+		t.Fatal(serr)
 	}
 	if fl.progress() != 0.5 {
 		t.Errorf("a seek forward is progress, got %v", fl.progress())
@@ -133,25 +133,25 @@ func TestPacedReader_ReportsProgressToTheFlight(t *testing.T) {
 	// A second handle (the walk, opened after the metadata read) supersedes
 	// the first: the metadata reader's trip to the Cues at the end of the file
 	// must not count as the walk's progress.
-	g, err := opts[0].FS.DoOpen(path)
-	if err != nil {
-		t.Fatal(err)
+	g, gerr := opts[0].FS.DoOpen(path)
+	if gerr != nil {
+		t.Fatal(gerr)
 	}
 	defer g.Close()
-	if _, err := f.Seek(990, io.SeekStart); err != nil {
-		t.Fatal(err)
+	if _, serr := f.Seek(990, io.SeekStart); serr != nil {
+		t.Fatal(serr)
 	}
 	if fl.progress() != 0 {
 		t.Errorf("a new handle starts the count over and a superseded one must not report, got %v", fl.progress())
 	}
-	if _, err := g.Read(buf[:50]); err != nil {
-		t.Fatal(err)
+	if _, rerr := g.Read(buf[:50]); rerr != nil {
+		t.Fatal(rerr)
 	}
 	if fl.progress() != 0.05 {
 		t.Errorf("the new handle read 50 of 1000: progress 0.05, got %v", fl.progress())
 	}
-	if _, err := g.Seek(700, io.SeekStart); err != nil {
-		t.Fatal(err)
+	if _, serr := g.Seek(700, io.SeekStart); serr != nil {
+		t.Fatal(serr)
 	}
 	if fl.progress() != 0.7 {
 		t.Errorf("the new handle's seek is progress, got %v", fl.progress())

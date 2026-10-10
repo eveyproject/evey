@@ -267,7 +267,7 @@ func TestSubtitleCache_FloorHitWarnsOncePerHour(t *testing.T) {
 			t.Errorf("listener told free=%d floor=%d", free, floor)
 		}
 	})
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		if err := c.put(c.keyFor(src, i), []byte("WEBVTT\n")); !errors.Is(err, errSubtitleCacheFull) {
 			t.Fatalf("store %d must be refused, got %v", i, err)
 		}
