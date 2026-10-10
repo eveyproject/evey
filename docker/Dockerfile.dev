@@ -1,4 +1,4 @@
-FROM golang:1.27.0-trixie
+FROM golang:1.27.2-trixie
 
 # Full HW transcode parity with prod (one-image model): the SAME
 # NVENC/VAAPI/QSV ffmpeg + VA/oneVPL driver set as the runtime image, so the dev
