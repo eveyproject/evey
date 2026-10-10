@@ -101,6 +101,10 @@ github.com/gravity-zero/mkvgo v0.40.0 h1:tHW1t+oHZYKZFHVBGZj49aZAeP/Hd3brpY9Cgjr
 github.com/gravity-zero/mkvgo v0.40.0/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
 github.com/gravity-zero/mkvgo v0.41.1-0.20261010124016-2cf50b8128d3 h1:AFXwA4YEWwWYjuHM8DWPTeNh10GG5HWo69D5i0oBzJ8=
 github.com/gravity-zero/mkvgo v0.41.1-0.20261010124016-2cf50b8128d3/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
+github.com/gravity-zero/mkvgo v0.41.1-0.20261010155434-03c5638a22a1 h1:hYOlkNbpkR1PogCUOCQZPvbTQos6uheakXdqp1CoJF4=
+github.com/gravity-zero/mkvgo v0.41.1-0.20261010155434-03c5638a22a1/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
+github.com/gravity-zero/mkvgo v0.42.0 h1:qqhK7itetOE2b+tn9NceJjiRYpNEANtSd+axx9poYIk=
+github.com/gravity-zero/mkvgo v0.42.0/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 h1:/Tnpcb2E0Pz/tN9s3bfEY2Q8ePCEX9iuS+cneUwncnw=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0/go.mod h1:zOBXOsUaBSjKgmH4OGzV1esUpR3oUSCPYVd2cUBjKYY=
 github.com/h2non/filetype v1.1.3 h1:FKkx9QbD7HR/zjK1Ia5XiBsq9zdLi5Kf3zGyFTAFkGg=
