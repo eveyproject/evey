@@ -333,6 +333,24 @@ var (
 		Help: "ffmpeg SIGCONTs triggered by CMCD bs=1 starvation signal.",
 	})
 
+	// MkvgoWalksInFlight is how many source windows the on-demand packager is
+	// reading right now, process-wide - the gauge behind the walk cap
+	// (mkvgo 0.42, mp4.SetMaxConcurrentWalks). Sitting at the cap while
+	// evey_mkvgo_plan_stats{stat="slot_waits"} climbs means viewers queue.
+	MkvgoWalksInFlight = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "evey_mkvgo_walks_in_flight",
+		Help: "Source windows the on-demand packager is reading right now.",
+	})
+	// MkvgoPlanStats sums each counter of mkvgo's plan statistics over the plans
+	// the packager holds (window_builds, slot_waits, streamed_segments,
+	// stream_fallbacks, subtitle_cue_indexed, subtitle_cue_unverified,
+	// undeclared_zlib_blocks, ...). A gauge, not a counter: a plan the cache
+	// lets go takes its counts with it, so the sum can fall.
+	MkvgoPlanStats = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "evey_mkvgo_plan_stats",
+		Help: "mkvgo on-demand plan counters summed over the cached plans, by stat.",
+	}, []string{"stat"})
+
 	// QoEIngestEvents counts every CMCD event received. QoEIngestDrops counts
 	// the ones the sink dropped because its buffer was full - sustained > 0
 	// means we need a bigger buffer or a faster DB.
@@ -407,6 +425,7 @@ func init() {
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
 		QoEIngestEvents, QoEIngestDrops,
+		MkvgoWalksInFlight, MkvgoPlanStats,
 		RateLimitRejected,
 		PluginUp, PluginErrorsTotal,
 	)
