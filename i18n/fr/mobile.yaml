@@ -51,6 +51,7 @@ profileSelect:
   title: Qui regarde ?
 servers:
   title: Serveurs
+  yourServers: Vos serveurs
   manageTitle: Gerer les serveurs
   manageSubtitle: "{{count}} enregistre(s)"
   addAnother: Ajouter un autre serveur

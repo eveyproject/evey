@@ -251,7 +251,11 @@ export default function ServerConnect() {
 
       {/* Saved servers list */}
       {hasServers && (
-        <View style={s.listSection}>
+        <>
+          <Text style={[s.sectionLabel, { color: theme.colors.textMuted }]}>
+            {t("mobile.servers.yourServers", "Your servers")}
+          </Text>
+          <View style={s.listSection}>
           {serverList.map((server) => {
             const isActive = server.id === activeServerId;
             const canDelete = !(serverList.length === 1 && isActive);
@@ -299,7 +303,8 @@ export default function ServerConnect() {
               </View>
             );
           })}
-        </View>
+          </View>
+        </>
       )}
 
       {/* Add new server section */}

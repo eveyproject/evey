@@ -51,6 +51,7 @@ profileSelect:
   title: कौन देख रहा है?
 servers:
   title: सर्वर
+  yourServers: आपके सर्वर
   manageTitle: सर्वर प्रबंधित करें
   manageSubtitle: "{{count}} सहेजा गया"
   addAnother: दूसरा सर्वर जोड़ें
