@@ -27,6 +27,7 @@
     },
     "android": {
       "package": "com.evey.app",
+      "versionCode": 85,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",

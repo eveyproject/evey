@@ -23,8 +23,8 @@ BUILD_DATE := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 # `/` is legal in a branch name and illegal in a docker tag - substitute it.
 VERSION    := $(subst /,-,$(or $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null),dev))
 GO_LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(GIT_COMMIT) -X main.buildDate=$(BUILD_DATE)
-# The TV app build released with this server, advertised on /healthz.
-GO_LDFLAGS += $(shell sh scripts/tv-release-ldflags.sh)
+# The TV and mobile app builds released with this server, advertised on /healthz.
+GO_LDFLAGS += $(shell sh scripts/client-release-ldflags.sh)
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 

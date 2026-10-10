@@ -16,6 +16,7 @@ import { MusicMiniPlayer } from "../../src/components/MusicMiniPlayer";
 import { OfflineBanner } from "../../src/components/OfflineBanner";
 import { ImpersonationBanner } from "../../src/components/ImpersonationBanner";
 import { DemoBanner } from "../../src/components/DemoBanner";
+import { UpdateBanner } from "../../src/components/UpdateBanner";
 import { ProfileLockScreen } from "../../src/components/ProfileLockScreen";
 
 function isTokenExpired(token: string): boolean {
@@ -102,6 +103,7 @@ export default function AuthLayout() {
       <OfflineBanner />
       <ImpersonationBanner />
       <DemoBanner />
+      <UpdateBanner />
       <ProfileLockScreen />
     </DrawerProvider>
   );

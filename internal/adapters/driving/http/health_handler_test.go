@@ -140,6 +140,22 @@ func TestHealthzHandler_AdvertisesTVRelease(t *testing.T) {
 	if tv["version"] != "0.1.11" || tv["version_code"] != float64(56) {
 		t.Fatalf("clients.tv = %v, want version 0.1.11 and version_code 56", body["clients"])
 	}
+	if _, ok := clients["mobile"]; ok {
+		t.Fatalf("TV-only stamp: clients.mobile = %v, want absent", clients["mobile"])
+	}
+
+	// The phone has the same problem (10-10: a month on beta.74 while beta.79
+	// was out), so the same answer names its build, independently of the TV's.
+	body = decode(&HTTPServer{StartTime: time.Now(), DB: &fakeDBPinger{},
+		TVRelease: ClientRelease{Version: "0.1.21", VersionCode: 86}, MobileRelease: ClientRelease{Version: "0.0.1-beta.79", VersionCode: 85}})
+	clients, _ = body["clients"].(map[string]any)
+	mobile, _ := clients["mobile"].(map[string]any)
+	if mobile["version"] != "0.0.1-beta.79" || mobile["version_code"] != float64(85) {
+		t.Fatalf("clients.mobile = %v, want version 0.0.1-beta.79 and version_code 85", body["clients"])
+	}
+	if tv, _ := clients["tv"].(map[string]any); tv["version_code"] != float64(86) {
+		t.Fatalf("clients.tv = %v, want version_code 86 next to mobile", clients["tv"])
+	}
 
 	if body := decode(&HTTPServer{StartTime: time.Now(), DB: &fakeDBPinger{}}); body["clients"] != nil {
 		t.Fatalf("unstamped build: clients = %v, want absent", body["clients"])

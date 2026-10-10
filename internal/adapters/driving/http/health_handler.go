@@ -44,7 +44,8 @@ type healthResponse struct {
 }
 
 type healthClients struct {
-	TV *ClientRelease `json:"tv,omitempty"`
+	TV     *ClientRelease `json:"tv,omitempty"`
+	Mobile *ClientRelease `json:"mobile,omitempty"`
 }
 
 // ClientRelease is a client app build, read from the app's app.json when the
@@ -103,9 +104,14 @@ func (s *HTTPServer) healthzHandler(w http.ResponseWriter, r *http.Request) {
 		resp.Demo = s.Cfg.Server.Demo && !s.Cfg.Server.DemoExtended
 		resp.DemoExtended = s.Cfg.Server.DemoExtended
 	}
-	if s.TVRelease.VersionCode > 0 {
-		tv := s.TVRelease
-		resp.Clients = &healthClients{TV: &tv}
+	if s.TVRelease.VersionCode > 0 || s.MobileRelease.VersionCode > 0 {
+		resp.Clients = &healthClients{}
+		if tv := s.TVRelease; tv.VersionCode > 0 {
+			resp.Clients.TV = &tv
+		}
+		if mobile := s.MobileRelease; mobile.VersionCode > 0 {
+			resp.Clients.Mobile = &mobile
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

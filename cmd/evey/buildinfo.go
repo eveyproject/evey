@@ -29,24 +29,30 @@ var (
 	buildDate = unknownStamp
 )
 
-// The TV app build released with this server, stamped from
-// frontend/apps/tv/app.json (expo.version, expo.android.versionCode):
+// The TV and mobile app builds released with this server, stamped from
+// frontend/apps/{tv,mobile}/app.json (expo.version, expo.android.versionCode)
+// by scripts/client-release-ldflags.sh:
 //
-//	-ldflags "-X main.tvVersion=0.1.11 -X main.tvVersionCode=56"
+//	-ldflags "-X main.tvVersion=0.1.11 -X main.tvVersionCode=56 -X main.mobileVersion=0.0.1-beta.79 -X main.mobileVersionCode=85"
 var (
-	tvVersion     = ""
-	tvVersionCode = ""
+	tvVersion         = ""
+	tvVersionCode     = ""
+	mobileVersion     = ""
+	mobileVersionCode = ""
 )
 
-// tvRelease reads those stamps. An unstamped or malformed versionCode yields
-// 0, which /healthz treats as "no TV release known" rather than a version.
-func tvRelease() (string, int) {
-	code, err := strconv.Atoi(strings.TrimSpace(tvVersionCode))
+// clientRelease reads one app's stamps. An unstamped or malformed versionCode
+// yields 0, which /healthz treats as "no release known" rather than a version.
+func clientRelease(version, versionCode string) (string, int) {
+	code, err := strconv.Atoi(strings.TrimSpace(versionCode))
 	if err != nil || code <= 0 {
 		return "", 0
 	}
-	return strings.TrimSpace(tvVersion), code
+	return strings.TrimSpace(version), code
 }
+
+func tvRelease() (string, int)     { return clientRelease(tvVersion, tvVersionCode) }
+func mobileRelease() (string, int) { return clientRelease(mobileVersion, mobileVersionCode) }
 
 // buildIdentity is the single answer to "what is this binary?", resolved once
 // so /healthz, the admin API and the boot banner cannot disagree.

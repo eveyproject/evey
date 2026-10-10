@@ -17,6 +17,7 @@ import React from "react";
 // The demo strip fetches the public setup status through react-query; this
 // layout test renders without a QueryClient and is not about the demo.
 vi.mock("../components/DemoBanner", () => ({ DemoBanner: () => null }));
+vi.mock("../components/UpdateBanner", () => ({ UpdateBanner: () => null }));
 vi.mock("../components/ProfileLockScreen", () => ({ ProfileLockScreen: () => null }));
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),

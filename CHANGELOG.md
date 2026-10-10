@@ -8,6 +8,11 @@ line - earlier history lives in git.
 ## [Unreleased]
 
 ### Added
+- Mobile: a banner offers the Play Store page when the server was released
+  with a newer phone build (checked on start and every 6 hours against
+  `/healthz`, which now names the mobile build next to the TV's). The store's
+  own auto-update waits for an idle device on Wi-Fi and left a phone a month
+  behind on a build with a known playback bug.
 - Subtitles on MKV/MP4 playback come from the packager as segmented WebVTT
   renditions in the HLS master (copy, hybrid, wasm-audio and transcode
   masters alike), served window by window next to the video segments - the

@@ -63,13 +63,14 @@ type HTTPServer struct {
 	// verified over plain HTTP, with no shell on the host.
 	Commit    string
 	BuildDate string
-	// TVRelease is the TV app build released with this server, advertised on
-	// /healthz; zero when the build was not stamped.
-	TVRelease ClientRelease
-	StartTime time.Time
-	LogDir    string
-	DataDir   string
-	HTTPSOnly bool
+	// TVRelease and MobileRelease are the app builds released with this
+	// server, advertised on /healthz; zero when the build was not stamped.
+	TVRelease     ClientRelease
+	MobileRelease ClientRelease
+	StartTime     time.Time
+	LogDir        string
+	DataDir       string
+	HTTPSOnly     bool
 	// HTTPSMode, when set, is read on every request instead of HTTPSOnly, so
 	// an https External URL saved in the panel applies without a restart.
 	HTTPSMode func() bool

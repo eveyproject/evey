@@ -68,11 +68,28 @@ func TestBuildTimeAge(t *testing.T) {
 	}
 }
 
-// A malformed or missing versionCode stamp must not advertise a TV release:
-// an app comparing against 0 or garbage would nag or never notice.
-func TestTVRelease(t *testing.T) {
-	origV, origC := tvVersion, tvVersionCode
-	t.Cleanup(func() { tvVersion, tvVersionCode = origV, origC })
+// A malformed or missing versionCode stamp must not advertise a client
+// release: an app comparing against 0 or garbage would nag or never notice.
+// The TV and mobile stamps are read apart: one may be set without the other.
+func TestClientRelease(t *testing.T) {
+	origTV, origTVC := tvVersion, tvVersionCode
+	origM, origMC := mobileVersion, mobileVersionCode
+	t.Cleanup(func() {
+		tvVersion, tvVersionCode = origTV, origTVC
+		mobileVersion, mobileVersionCode = origM, origMC
+	})
+	tvVersion, tvVersionCode = "0.1.21", "86"
+	mobileVersion, mobileVersionCode = "", ""
+	if v, code := tvRelease(); v != "0.1.21" || code != 86 {
+		t.Fatalf("tvRelease = (%q, %d), want (0.1.21, 86)", v, code)
+	}
+	if v, code := mobileRelease(); v != "" || code != 0 {
+		t.Fatalf("unstamped mobileRelease = (%q, %d), want none", v, code)
+	}
+	mobileVersion, mobileVersionCode = "0.0.1-beta.79", "85"
+	if v, code := mobileRelease(); v != "0.0.1-beta.79" || code != 85 {
+		t.Fatalf("mobileRelease = (%q, %d), want (0.0.1-beta.79, 85)", v, code)
+	}
 	for _, tc := range []struct {
 		v, code  string
 		wantV    string
