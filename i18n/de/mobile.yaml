@@ -51,6 +51,7 @@ profileSelect:
   title: Wer schaut?
 servers:
   title: Server
+  yourServers: Ihre Server
   manageTitle: Server verwalten
   manageSubtitle: "{{count}} gespeichert"
   addAnother: Weiteren Server hinzufugen

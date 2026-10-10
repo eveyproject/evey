@@ -171,7 +171,9 @@ export default function ServerConnect() {
 
       {/* Saved servers list */}
       {hasServers && (
-        <View style={s.listSection}>
+        <>
+          <Text style={s.sectionLabel}>{t("mobile.servers.yourServers", "Your servers")}</Text>
+          <View style={s.listSection}>
           {serverList.map((server, index) => {
             const isActive = server.id === activeServerId;
             return (
@@ -189,7 +191,8 @@ export default function ServerConnect() {
               />
             );
           })}
-        </View>
+          </View>
+        </>
       )}
 
       {/* Add new server section */}

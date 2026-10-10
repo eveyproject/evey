@@ -51,6 +51,7 @@ profileSelect:
   title: Who's watching?
 servers:
   title: Servers
+  yourServers: Your servers
   manageTitle: Manage Servers
   manageSubtitle: "{{count}} saved"
   addAnother: Add another server

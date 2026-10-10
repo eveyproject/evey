@@ -51,6 +51,7 @@ profileSelect:
   title: ¿Quién está viendo?
 servers:
   title: Servidores
+  yourServers: Tus servidores
   manageTitle: Administrar servidores
   manageSubtitle: "{{count}} guardado(s)"
   addAnother: Agregar otro servidor

@@ -51,6 +51,7 @@ profileSelect:
   title: 谁在观看？
 servers:
   title: 服务器
+  yourServers: 您的服务器
   manageTitle: 管理服务器
   manageSubtitle: "已保存 {{count}} 个"
   addAnother: 添加其他服务器

@@ -3020,6 +3020,7 @@
   "mobile.servers.renamePlaceholder": "Server name",
   "mobile.servers.switchedTo": "Switched to {{name}}",
   "mobile.servers.title": "Servers",
+  "mobile.servers.yourServers": "Your servers",
   "mobile.settings.about": "About",
   "mobile.settings.appVersion": "App version",
   "mobile.settings.biometricLogin": "Biometric login",
