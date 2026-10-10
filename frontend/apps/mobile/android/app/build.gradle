@@ -105,8 +105,8 @@ android {
         applicationId 'com.evey.app'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 83
-        versionName "0.0.1-beta.78"
+        versionCode 85
+        versionName "0.0.1-beta.79"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
