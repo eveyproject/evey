@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
@@ -112,6 +114,14 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	introDetector := ffmpeg.NewIntroDetector("ffmpeg", "ffprobe")
 	imageConverter := ffmpeg.NewImageConverter("ffmpeg")
 	mkvAdapter := mkvgoadapter.New()
+	// One source window read per CPU at a time, fewer when the heap limit
+	// (applyMemoryLimit, from the container budget) cannot hold them; the rest
+	// of an audience starting together queues instead of growing the RSS.
+	budget := mkvgoadapter.BudgetFor(runtime.GOMAXPROCS(0), debug.SetMemoryLimit(-1))
+	mkvgoadapter.ApplyProcessBudget(budget)
+	rootLog.InfoContext(ctx, "mkvgo on-demand budget",
+		slog.Int("max_walks", budget.MaxWalks),
+		slog.Int64("table_cache_mb", budget.TableCacheBytes>>20))
 	onDemandPackager := mkvgoadapter.NewOnDemandPackager()
 	onDemandConcatPackager := mkvgoadapter.NewConcatPackager()
 	bus := eventbus.New()

@@ -234,9 +234,24 @@ func (p *OnDemandPackager) WindowStats() map[string]int64 {
 		out["dropped_bytes"] += st.DroppedBytes
 		out["subtitle_walks"] += st.SubtitleWalks
 		out["subtitle_indexed_blocks"] += st.SubtitleIndexedBlocks
+		// mkvgo 0.42: the walk cap, the streaming path and the Cues-derived
+		// subtitle index each say how often they engaged.
+		out["slot_waits"] += st.SlotWaits
+		out["streamed_segments"] += st.StreamedSegments
+		out["stream_fallbacks"] += st.StreamFallbacks
+		out["table_builds"] += st.TableBuilds
+		out["table_evictions"] += st.TableEvictions
+		out["undeclared_zlib_blocks"] += st.UndeclaredZlibBlocks
+		out["subtitle_cue_indexed"] += st.SubtitleCueIndexed
+		out["subtitle_cue_unverified"] += st.SubtitleCueUnverified
+		out["spread_laced_tracks"] += st.SpreadLacedTracks
 	}
 	return out
 }
+
+// WalksInFlight is how many source windows the process is reading right now,
+// across every plan (mp4.WalksInFlight). The gauge behind the walk cap.
+func WalksInFlight() int64 { return mp4.WalksInFlight() }
 
 // buildNamingTheSlowOnes runs one build under the onDemandMaxBuilds cap and
 // names any that outlasts slowAfter: once while it is still running, because a
@@ -458,6 +473,18 @@ type ondemandPlan struct {
 
 func (p *ondemandPlan) Resource(ctx context.Context, name string) ([]byte, string, error) {
 	return p.plan.Resource(ctx, name)
+}
+
+// Open is apptranscoding.OnDemandOpener: a media segment of a local Matroska
+// source streams from the file as it is written (mkvgo 0.42); everything else
+// - playlists, inits, subtitles, an encrypted or converted segment - comes back
+// whole, as Resource would return it (Stats().StreamFallbacks counts those).
+func (p *ondemandPlan) Open(ctx context.Context, name string) (apptranscoding.OnDemandResource, error) {
+	h, err := p.plan.Open(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	return h, nil
 }
 
 func (p *ondemandPlan) Resources() []string { return p.plan.Resources() }

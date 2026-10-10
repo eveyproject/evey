@@ -613,7 +613,29 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	// aborts mid-segment is still a client that is watching.
 	h.playbackActivity.Touch(mediaID)
 
-	data, contentType, err := plan.Resource(r.Context(), name)
+	var (
+		data        []byte
+		contentType string
+		err         error
+		streamed    apptranscoding.OnDemandResource
+	)
+	// A plan that can stream hands a media segment over as a handle read from
+	// the source while it is written (transcode_ondemand_stream.go); anything
+	// it returns whole - playlists, inits, subtitles, a segment it had to
+	// assemble - goes down the buffered path as before.
+	if opener, ok := plan.(apptranscoding.OnDemandOpener); ok && !isPlanPlaylist(name) {
+		var res apptranscoding.OnDemandResource
+		if res, err = opener.Open(r.Context(), name); err == nil {
+			if res.Bytes() == nil {
+				streamed = res
+			} else {
+				data, contentType = res.Bytes(), res.ContentType()
+				closePlanResource(r.Context(), name, res)
+			}
+		}
+	} else {
+		data, contentType, err = plan.Resource(r.Context(), name)
+	}
 	// The mkvgo path serves every byte of a copy playback and used to log none
 	// of them: when a cast died at load, the server's side of it was a blank.
 	// Kept deliberately sparse - see shouldLogPlanResource.
@@ -629,17 +651,26 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 				slog.Bool("cast", cast),
 				slog.Any("err", err))
 		} else {
+			size := int64(len(data))
+			if streamed != nil {
+				size = streamed.Size()
+			}
 			slog.InfoContext(r.Context(), "hls-vod: on-demand resource served",
 				slog.String("media_id", mediaID),
 				slog.String("resource", name),
 				slog.Bool("cast", cast),
-				slog.Int("bytes", len(data)))
+				slog.Bool("streamed", streamed != nil),
+				slog.Int64("bytes", size))
 		}
 	}
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "on-demand resource")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	if streamed != nil {
+		servePlanResourceStreamed(w, r, name, streamed, span)
 		return
 	}
 	setCORSHeaders(w, r, "")

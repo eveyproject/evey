@@ -1,6 +1,9 @@
 package transcoding
 
-import "context"
+import (
+	"context"
+	"io"
+)
 
 // ondemand.go - the port for zero-storage HLS/DASH packaging: the copy rung
 // served straight from mkvgo's mp4.PlanHLS. A plan does a few bounded reads up
@@ -20,6 +23,34 @@ type OnDemandPlan interface {
 	NumSegments() int
 	// HasDASH reports whether a manifest.mpd is available (false when AES-128 encrypted).
 	HasDASH() bool
+}
+
+// OnDemandOpener is the streaming side of a plan: a media segment is written
+// from the source as it goes out, through one small buffer, instead of being
+// assembled whole in memory first. A plan that can stream implements it
+// alongside OnDemandPlan; the HTTP adapter uses it for segments when present
+// (measured by mkvgo: 16 slow clients on a UHD remux, RSS 940 MiB → 28 MiB).
+type OnDemandOpener interface {
+	// Open opens a resource by its canonical name. The handle's bytes equal
+	// Resource's exactly; whether they are in hand or streamed is Bytes().
+	Open(ctx context.Context, name string) (OnDemandResource, error)
+}
+
+// OnDemandResource is one opened resource: its type and exact size up front,
+// its bytes on demand.
+type OnDemandResource interface {
+	ContentType() string
+	Size() int64
+	// ETag is strong when the bytes are in hand, weak when they stream.
+	ETag() string
+	// Bytes is the whole resource when the handle holds it, nil when it
+	// streams from the source (then WriteRange is the only way to the bytes).
+	Bytes() []byte
+	// WriteRange writes bytes [off, off+n). A streamed segment read from the
+	// source can fail midway and leave the output short: the caller must turn
+	// that into a broken connection, never a clean end.
+	WriteRange(ctx context.Context, w io.Writer, off, n int64) (int64, error)
+	Close() error
 }
 
 // OnDemandOptions configures a plan. The zero value packages a plain HLS/DASH
