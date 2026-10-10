@@ -18,6 +18,7 @@ import (
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
 	"github.com/evey-project/evey/internal/adapters/driven/introproviders"
 	metadataadapter "github.com/evey-project/evey/internal/adapters/driven/metadata"
+	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	"github.com/evey-project/evey/internal/adapters/driven/postgres"
 	proberpkg "github.com/evey-project/evey/internal/adapters/driven/prober"
 	"github.com/evey-project/evey/internal/adapters/driven/webhooksender"
@@ -896,6 +897,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Subtitle segments read the blocks the stored index points at, when the
 	// /subtitle route or the prewarmer has already built one for the source.
 	infra.onDemandPackager.WithSubtitleIndex(httpapi.SubtitleIndexLookup("/data"))
+	// Walks in flight and the per-plan counters (slot waits, streamed segments,
+	// Cues-indexed subtitle tracks...) on /metrics.
+	startMkvgoMetrics(ctx, infra.onDemandPackager.WindowStats, mkvgoadapter.WalksInFlight)
 
 	if resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") != "off" {
 		kfOpts := apptranscoding.KeyframeBackfillOpts{}
