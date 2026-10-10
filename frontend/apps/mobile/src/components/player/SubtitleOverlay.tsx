@@ -1,4 +1,5 @@
 import { memo, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { View, Text, StyleSheet, Image, useWindowDimensions } from "react-native";
 import {
   findActivePGSCue,
@@ -37,7 +38,8 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs 
   // (in the film's own time, before the resync offset), /subtitle otherwise.
   // An external (client-picked) file skips the fetch entirely.
   const sourceTimeSec = Math.max(0, currentTimeSec - offsetMs / 1000);
-  const { cues: fetchedCues, pgs } = useSubtitleTrack(mediaId, externalCues ? null : subtitleIndex, sourceTimeSec);
+  const { cues: fetchedCues, pgs, preparing } = useSubtitleTrack(mediaId, externalCues ? null : subtitleIndex, sourceTimeSec);
+  const { t } = useTranslation();
 
   // A client-picked external file always wins, as before - it is an explicit
   // choice made after the track was selected.
@@ -45,6 +47,18 @@ function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, offsetMs 
   const cues = externalCues ?? fetchedCues;
   const shifted = useMemo(() => shiftCues(cues, offsetMs), [cues, offsetMs]);
   const activeIdx = useMemo(() => findActiveCueIndex(shifted, currentTimeSec), [shifted, currentTimeSec]);
+
+  // The server is still producing the track (202 + Retry-After): said in the
+  // subtitle's place rather than a menu entry that shows nothing for minutes.
+  if (preparing && !externalCues && !pgsTrack && cues.length === 0) {
+    return (
+      <View pointerEvents="none" style={[styles.container, style.position === "top" ? styles.top : styles.bottom]}>
+        <Text style={[styles.text, { color: style.color, backgroundColor: subtitleBgRgba(style.bgColor, style.bgOpacity) }]}>
+          {t("player.subtitlesPreparing")}
+        </Text>
+      </View>
+    );
+  }
 
   if (pgsTrack) {
     return (

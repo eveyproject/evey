@@ -126,3 +126,57 @@ describe("useSubtitleTrack", () => {
     expect(result.current.cues.every((c) => c.text.startsWith("fr "))).toBe(true);
   });
 });
+
+// The server answers 202 + Retry-After while it produces a track that has no
+// block index (a read of the whole film). The hook says "preparing", polls at
+// the delay it was given, and delivers the cues when the 200 lands - instead
+// of showing nothing for minutes, or forever behind a proxy that times out.
+describe("useSubtitleTrack preparing (202)", () => {
+  it("reports preparing while the server works, then the cues", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let polls = 0;
+      const mod = await import("@evey/api");
+      const fetchRaw = mod.eveyFetchRaw as unknown as ReturnType<typeof vi.fn>;
+      const routed = fetchRaw.getMockImplementation();
+      fetchRaw.mockImplementation(async ({ url }: { url: string }) => {
+        requested.push(url);
+        if (url === "/api/v1/media/m7/subtitle/0") {
+          polls++;
+          if (polls < 3) {
+            return new Response(JSON.stringify({ state: "preparing", retryAfterSec: 2 }), {
+              status: 202,
+              headers: { "Retry-After": "2" },
+            });
+          }
+          return new Response("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nready\n", { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      });
+
+      const { result } = renderHook(() => useSubtitleTrack("m7", 0));
+      await waitFor(() => expect(result.current.preparing).toBe(true));
+      expect(result.current.cues).toEqual([]);
+
+      await vi.advanceTimersByTimeAsync(2100);
+      await vi.advanceTimersByTimeAsync(2100);
+      await waitFor(() => expect(result.current.cues.map((c) => c.text)).toEqual(["ready"]));
+      expect(result.current.preparing).toBe(false);
+      expect(polls).toBe(3);
+      fetchRaw.mockImplementation(routed);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps at most a few tracks per kind, the least recently used dropped", async () => {
+    const { SUBTITLE_TRACK_CACHE_CAP, subtitleTrackCacheSizes } = await import("./useSubtitleTrack");
+    for (let i = 0; i < SUBTITLE_TRACK_CACHE_CAP + 2; i++) {
+      routes[`/api/v1/media/cap${i}/subtitle/0`] = `WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nt${i}\n`;
+      const { result, unmount } = renderHook(() => useSubtitleTrack(`cap${i}`, 0));
+      await waitFor(() => expect(result.current.cues.map((c) => c.text)).toEqual([`t${i}`]));
+      unmount();
+    }
+    expect(subtitleTrackCacheSizes().text).toBeLessThanOrEqual(SUBTITLE_TRACK_CACHE_CAP);
+  });
+});

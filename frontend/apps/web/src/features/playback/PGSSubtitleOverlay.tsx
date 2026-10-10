@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { findActivePGSCue, isPGSBlob, parsePGSBlob, type PGSTrack } from "@evey/api";
+import { useTranslation } from "react-i18next";
+import { fetchSubtitleTrack, findActivePGSCue, isPGSBlob, parsePGSBlob, type PGSTrack } from "@evey/api";
 
 /**
  * Drawing a BITMAP subtitle over the video instead of having the server burn it in.
@@ -68,9 +69,14 @@ function remember(key: string, track: PGSTrack, built: string[]): string[] {
 }
 
 export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef, offsetMs = 0 }: Props) {
+  const { t } = useTranslation();
   const [track, setTrack] = useState<PGSTrack | null>(null);
   const [urls, setUrls] = useState<string[]>([]);
   const [active, setActive] = useState(-1);
+  // The server is still producing the track (202 + Retry-After). Shown as a
+  // line where the subtitle would be, because the alternative - a menu entry
+  // that draws nothing for minutes - reads as broken.
+  const [preparing, setPreparing] = useState(false);
   const hintRef = useRef(0);
 
   useEffect(() => {
@@ -80,6 +86,7 @@ export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef,
     setTrack(null);
     setUrls([]);
     setActive(-1);
+    setPreparing(false);
     hintRef.current = 0;
     if (trackIndex === null || !mediaId || !streamToken) return;
     const key = `${mediaId}:${trackIndex}`;
@@ -89,15 +96,22 @@ export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef,
       setUrls(cached.urls);
       return;
     }
-    let cancelled = false;
+    const aborter = new AbortController();
     (async () => {
       try {
-        const res = await fetch(
-          `/api/v1/media/${encodeURIComponent(mediaId)}/subtitle/${trackIndex}?token=${encodeURIComponent(streamToken)}`,
-        );
-        if (!res.ok) return;
-        const buf = new Uint8Array(await res.arrayBuffer());
-        if (cancelled) return;
+        // Follows the server's 202s until the blob exists - a track without a
+        // block index is a read of the whole film.
+        const result = await fetchSubtitleTrack({
+          doFetch: () => fetch(
+            `/api/v1/media/${encodeURIComponent(mediaId)}/subtitle/${trackIndex}?token=${encodeURIComponent(streamToken)}`,
+          ),
+          onPreparing: () => setPreparing(true),
+          signal: aborter.signal,
+        });
+        if (aborter.signal.aborted) return;
+        setPreparing(false);
+        const buf = result.bytes;
+        if (result.state !== "ready" || !buf) return;
         // The same route answers WebVTT for a text track. Reading the magic is
         // what keeps this component from trying to draw one.
         if (!isPGSBlob(buf)) return;
@@ -111,10 +125,11 @@ export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef,
         setUrls(remember(key, parsed, built));
       } catch {
         // A subtitle that fails to load must never take playback with it.
+        setPreparing(false);
       }
     })();
     return () => {
-      cancelled = true;
+      aborter.abort();
     };
   }, [mediaId, trackIndex, streamToken]);
 
@@ -138,6 +153,15 @@ export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef,
     };
   }, [videoRef, track, offsetMs]);
 
+  if (preparing && !track) {
+    return (
+      <div className="pointer-events-none absolute inset-x-0 bottom-[8%] flex justify-center">
+        <span className="rounded bg-black/70 px-3 py-1 text-sm text-white/90" data-testid="subtitle-preparing">
+          {t("player.subtitlesPreparing")}
+        </span>
+      </div>
+    );
+  }
   if (!track || active < 0 || track.screenW <= 0 || track.screenH <= 0) return null;
   const cue = track.cues[active];
   if (!cue) return null;

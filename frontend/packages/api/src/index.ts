@@ -16,6 +16,7 @@ export * from "./imageSubtitles";
 export * from "./langCodes";
 export * from "./defaultSubtitle";
 export * from "./pgsCues";
+export * from "./subtitleFetch";
 export * from "./subtitleCues";
 export * from "./clientSubtitleTrack";
 export * from "./playerStreams";

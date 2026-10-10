@@ -9,7 +9,8 @@ const eveyFetchRawMock = vi.fn();
 // le corromprait avant qu'on puisse les distinguer.
 function vttResponse(vtt: string) {
   const bytes = new TextEncoder().encode(vtt);
-  return { arrayBuffer: () => Promise.resolve(bytes.buffer) };
+  // A Response shape: the hook now reads ok/status (a 202 means "preparing").
+  return { ok: true, status: 200, arrayBuffer: () => Promise.resolve(bytes.buffer) };
 }
 
 vi.mock("@evey/api", async (importOriginal) => ({
@@ -105,7 +106,7 @@ describe("SubtitleOverlay (TV), piste bitmap", () => {
     new DataView(out.buffer).setUint32(MAGIC.length, hj.length, false);
     out.set(hj, MAGIC.length + 4);
     out.set(png, MAGIC.length + 4 + hj.length);
-    return { arrayBuffer: () => Promise.resolve(out.buffer) };
+    return { ok: true, status: 200, arrayBuffer: () => Promise.resolve(out.buffer) };
   }
 
   it("dessine la cue image à sa place, sans incrustation serveur", async () => {

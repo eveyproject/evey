@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
+import { fetchSubtitleTrack } from "@evey/api";
 import type { SubtitleStyle } from "@/hooks/usePlaybackPrefs";
 
 interface UseSubtitleManagerArgs {
@@ -136,6 +137,12 @@ export function useSubtitleManager({
   subtitleOffsetMs = 0,
 }: UseSubtitleManagerArgs) {
   const externalSubUrlRef = useRef<string | null>(null);
+  // The server is still producing the selected track (202 + Retry-After, a
+  // read of the whole film when no block index exists). The player shows it
+  // where the cues would be; the <track> gets the bytes when they exist.
+  const [subtitlePreparing, setSubtitlePreparing] = useState(false);
+  // Blob URL of a track fetched by hand after a 202; revoked on the next run.
+  const preparedBlobRef = useRef<string | null>(null);
   // Source timings of the cues currently loaded - lets every offset change
   // apply the ABSOLUTE value (exactly reversible across the zero clamp). A
   // fresh track load brings fresh cue objects, so stale entries just fall out
@@ -197,6 +204,14 @@ export function useSubtitleManager({
 
     const existing = video.querySelector("track[data-dynamic]");
     if (existing) existing.remove();
+    setSubtitlePreparing(false);
+    if (preparedBlobRef.current) {
+      URL.revokeObjectURL(preparedBlobRef.current);
+      preparedBlobRef.current = null;
+    }
+    // Ends the 202 polling of a track the viewer moved away from; the server
+    // keeps producing it for the cache.
+    const aborter = new AbortController();
 
     if (externalSubUrlRef.current && externalSubUrlRef.current !== externalSubUrl?.url) {
       URL.revokeObjectURL(externalSubUrlRef.current);
@@ -247,6 +262,30 @@ export function useSubtitleManager({
         applySubtitleOffset(video, offsetRef.current / 1000, cueBaseTimesRef.current);
       }
     });
+    if (!externalSubUrl) {
+      // A <track> cannot read a 202: the "preparing" JSON is not WebVTT, so
+      // the element reports an error. The fast path (200) stays the browser's
+      // own load; only on error do we ask ourselves, follow the 202s, and feed
+      // the bytes back through a blob URL. A real failure ends the same way it
+      // did before - a track with nothing in it.
+      track.addEventListener("error", () => {
+        if (aborter.signal.aborted) return;
+        void fetchSubtitleTrack({
+          doFetch: () => fetch(src),
+          onPreparing: () => setSubtitlePreparing(true),
+          signal: aborter.signal,
+        }).then((result) => {
+          if (aborter.signal.aborted) return;
+          setSubtitlePreparing(false);
+          if (result.state !== "ready" || !result.bytes) return;
+          // slice(): a standalone ArrayBuffer, which Blob wants.
+          const url = URL.createObjectURL(new Blob([result.bytes.slice()], { type: "text/vtt" }));
+          preparedBlobRef.current = url;
+          track.src = url;
+          if (track.track) track.track.mode = "showing";
+        });
+      }, { once: true });
+    }
     video.appendChild(track);
 
     // Force browser to load the track (Firefox compat: mode="showing")
@@ -257,6 +296,7 @@ export function useSubtitleManager({
         video.textTracks[i].mode = "hidden";
       }
     }
+    return () => { aborter.abort(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSubtitle, externalSubUrl, mediaId, streamToken, transcodeStartTime, currentTrackIndex, hlsSubsVersion]);
 
@@ -313,6 +353,9 @@ export function useSubtitleManager({
   useEffect(() => {
     return () => {
       if (externalSubUrlRef.current) URL.revokeObjectURL(externalSubUrlRef.current);
+      if (preparedBlobRef.current) URL.revokeObjectURL(preparedBlobRef.current);
     };
   }, []);
+
+  return { subtitlePreparing };
 }

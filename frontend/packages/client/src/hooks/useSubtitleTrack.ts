@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   eveyFetchRaw,
+  fetchSubtitleTrack,
   isPGSBlob,
   parsePGSBlob,
   parseVttCues,
@@ -28,15 +29,46 @@ import {
 export interface SubtitleTrackData {
   cues: SubtitleCue[];
   pgs: { track: PGSTrack; uris: string[] } | null;
+  /**
+   * The server is still producing the track (202 + Retry-After: a read of the
+   * whole film when no block index exists). The hook keeps polling; the
+   * overlay says so instead of showing nothing.
+   */
+  preparing: boolean;
 }
 
 // Cached per (media, track): re-selecting a track already loaded, or a remount
 // onto the next episode, must not re-fetch megabytes.
+//
+// Bounded, like the web overlay's cache: a decoded bitmap track is 15-17 MB of
+// PNG (measured), held here as data URIs, and a binge is many tracks. Past the
+// cap the least recently used goes; the one on screen is always the freshest.
+const MAX_CACHED_TRACKS = 3;
 const textCache = new Map<string, SubtitleCue[]>();
 const pgsCache = new Map<string, { track: PGSTrack; uris: string[] }>();
 // null = the packager has no rendition for this track: /subtitle it is.
 const renditionCache = new Map<string, SubtitleSegment[] | null>();
 const segmentCueCache = new Map<string, SubtitleCue[]>();
+
+// Map iteration is insertion-ordered: re-inserting on every touch makes the
+// first key the least recently used.
+function lruGet<V>(cache: Map<string, V>, key: string): V | undefined {
+  const v = cache.get(key);
+  if (v === undefined) return undefined;
+  cache.delete(key);
+  cache.set(key, v);
+  return v;
+}
+
+function lruSet<V>(cache: Map<string, V>, key: string, value: V): void {
+  cache.delete(key);
+  while (cache.size >= MAX_CACHED_TRACKS) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+  cache.set(key, value);
+}
 
 // Segments loaded ahead of the playhead, and how often the window moves.
 const AHEAD_SEC = 60;
@@ -82,6 +114,7 @@ async function resolveSegments(mediaId: string, subtitleIndex: number): Promise<
 export function useSubtitleTrack(mediaId: string | undefined, subtitleIndex: number | null, positionSec?: number): SubtitleTrackData {
   const [cues, setCues] = useState<SubtitleCue[]>([]);
   const [pgs, setPgs] = useState<{ track: PGSTrack; uris: string[] } | null>(null);
+  const [preparing, setPreparing] = useState(false);
   // Tagged with the track they belong to: a window effect still running for
   // the previous track must not pour its cues into the new one.
   const [rendition, setRendition] = useState<{ key: string; segments: SubtitleSegment[] } | null>(null);
@@ -90,19 +123,20 @@ export function useSubtitleTrack(mediaId: string | undefined, subtitleIndex: num
 
   useEffect(() => {
     setRendition(null);
+    setPreparing(false);
     if (!mediaId || subtitleIndex === null) {
       setCues([]);
       setPgs(null);
       return;
     }
     const key = `${mediaId}:${subtitleIndex}`;
-    const cachedPgs = pgsCache.get(key);
+    const cachedPgs = lruGet(pgsCache, key);
     if (cachedPgs) {
       setPgs(cachedPgs);
       setCues([]);
       return;
     }
-    const cachedText = textCache.get(key);
+    const cachedText = lruGet(textCache, key);
     if (cachedText) {
       setCues(cachedText);
       setPgs(null);
@@ -110,40 +144,48 @@ export function useSubtitleTrack(mediaId: string | undefined, subtitleIndex: num
     }
     setCues([]);
     setPgs(null);
-    let cancelled = false;
+    const aborter = new AbortController();
     void (async () => {
       try {
         if (segmented) {
           const segments = await resolveSegments(mediaId, subtitleIndex);
-          if (cancelled) return;
+          if (aborter.signal.aborted) return;
           if (segments) {
             setRendition({ key, segments });
             return;
           }
         }
-        const res = await eveyFetchRaw({
-          url: `/api/v1/media/${encodeURIComponent(mediaId)}/subtitle/${subtitleIndex}`,
-          method: "GET",
-        });
         // Read as bytes: decoding an image blob as UTF-8 would corrupt it
-        // before anything could tell the two kinds apart.
-        const buf = new Uint8Array(await res.arrayBuffer());
-        if (cancelled) return;
+        // before anything could tell the two kinds apart. A 202 is followed
+        // until the server has the track; the overlay shows "preparing".
+        const result = await fetchSubtitleTrack({
+          doFetch: () => eveyFetchRaw({
+            url: `/api/v1/media/${encodeURIComponent(mediaId)}/subtitle/${subtitleIndex}`,
+            method: "GET",
+          }),
+          onPreparing: () => setPreparing(true),
+          signal: aborter.signal,
+        });
+        if (aborter.signal.aborted) return;
+        setPreparing(false);
+        const buf = result.bytes;
+        if (result.state !== "ready" || !buf) return;
         if (isPGSBlob(buf)) {
           const track = parsePGSBlob(buf);
           const entry = { track, uris: track.cues.map(pgsCueDataURI) };
-          pgsCache.set(key, entry);
+          lruSet(pgsCache, key, entry);
           setPgs(entry);
           return;
         }
         const parsed = parseVttCues(new TextDecoder().decode(buf));
-        textCache.set(key, parsed);
+        lruSet(textCache, key, parsed);
         setCues(parsed);
       } catch {
         // A subtitle that fails to load must never take playback with it.
+        setPreparing(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => { aborter.abort(); };
   }, [mediaId, subtitleIndex, segmented]);
 
   // The window follows the playhead in steps, not on every time update.
@@ -173,5 +215,12 @@ export function useSubtitleTrack(mediaId: string | undefined, subtitleIndex: num
     return () => { cancelled = true; };
   }, [mediaId, rendition, trackKey, windowStep]);
 
-  return { cues, pgs };
+  return { cues, pgs, preparing };
+}
+
+/** Test seam: the number of tracks kept per kind. */
+export const SUBTITLE_TRACK_CACHE_CAP = MAX_CACHED_TRACKS;
+/** Test seam: how many tracks are cached right now, per kind. */
+export function subtitleTrackCacheSizes(): { text: number; pgs: number } {
+  return { text: textCache.size, pgs: pgsCache.size };
 }
