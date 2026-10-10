@@ -104,6 +104,11 @@ line - earlier history lives in git.
   searchable from the admin panel.
 
 ### Fixed
+- Server: a phone or tablet app older than 0.0.1-beta.76 no longer gets a
+  DTS or TrueHD track in direct play - those builds declared the codecs on a
+  signal Android honours on a TV only, so a DTS-only film played silent or
+  stopped on a decoder error; the server now transcodes the track for them
+  until the Play Store updates the app.
 - Players (web, mobile, TV): resuming after a pause of a few seconds or more
   showed a frozen picture with the sound running for about three seconds
   before the video jumped ahead (the decoder had been parked and the clock
