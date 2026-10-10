@@ -33,7 +33,11 @@ import (
 // v3 (mkvgo 0.38.0): a video track whose first two blocks share a timecode
 // (interlaced fields stored one per sample) was timed on the audio lace grid
 // and came out four times too slow; a v2 file may carry that.
-const remuxCacheFormat = "remux-v3"
+// v4 (mkvgo 0.42): segment timing no longer overlaps a frame at open-GOP
+// boundaries, a laced AAC/AC-3 track without DefaultDuration takes its frame
+// size from the stream (+11.3 s drift by the end of a film before), and
+// compressed tracks are written decoded; a v3 file may carry any of those.
+const remuxCacheFormat = "remux-v4"
 
 // remuxCacheName derives a collision-free, traversal-proof cache filename from
 // the item identity, the cache-format version, and the SOURCE FINGERPRINT

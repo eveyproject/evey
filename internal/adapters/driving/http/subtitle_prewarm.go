@@ -214,9 +214,9 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 	// the extraction that follows would have read the file anyway. Measured on
 	// this library (1503 files): 918 carry two text tracks or more and gain,
 	// 227 carry exactly one and were paying an extra pass for nothing.
-	if indexWorthBuilding(job) {
-		p.ensureIndex(ctx, job)
-	}
+	// Unless the file's own Cues already hold it: that index is a metadata
+	// read plus a small read per cued cluster, worth it from the first track.
+	p.ensureIndex(ctx, job, indexWorthBuilding(job))
 
 	for _, t := range job.tracks {
 		if ctx.Err() != nil {
@@ -305,10 +305,12 @@ func indexWorthBuilding(job prewarmJob) bool {
 	return len(job.tracks) >= 2
 }
 
-// ensureIndex builds and stores the file's subtitle index if it is missing.
-// Best-effort: a failure leaves every extraction on the slow path, which is what
-// happened before the index existed.
-func (p *subtitlePrewarmer) ensureIndex(ctx context.Context, job prewarmJob) {
+// ensureIndex stores the file's subtitle index if it is missing: from the Cues
+// when they are verified complete for every track the job extracts (no walk),
+// else by the walk - only when walk says the walk is worth it. Best-effort: a
+// failure leaves every extraction on the slow path, which is what happened
+// before the index existed.
+func (p *subtitlePrewarmer) ensureIndex(ctx context.Context, job prewarmJob, walk bool) {
 	if p.indexes.dir == "" {
 		return
 	}
@@ -350,6 +352,24 @@ func (p *subtitlePrewarmer) ensureIndex(ctx context.Context, job prewarmJob) {
 		return
 	}
 	started := time.Now()
+	if cix, verified, cErr := p.indexes.fromCues(ctx, job.filePath); cErr == nil && cix != nil && coversAll(verified, trackIDs) {
+		if _, rErr := p.indexes.resolveAndStore(ctx, job.filePath, cix); rErr == nil {
+			slog.InfoContext(ctx, "subtitle prewarm: index ready from the cues",
+				slog.String("media_id", job.mediaID),
+				slog.Int("tracks", len(trackIDs)),
+				slog.Duration("took", time.Since(started)))
+			return
+		} else {
+			slog.WarnContext(ctx, "subtitle prewarm: cues index resolve failed",
+				slog.String("media_id", job.mediaID), slog.Any("err", rErr))
+		}
+	} else if cErr != nil {
+		slog.WarnContext(ctx, "subtitle prewarm: cues index unavailable",
+			slog.String("media_id", job.mediaID), slog.Any("err", cErr))
+	}
+	if !walk {
+		return
+	}
 	if _, err := p.indexes.buildAndStore(ctx, job.filePath, trackIDs); err != nil {
 		slog.WarnContext(ctx, "subtitle prewarm: index build failed",
 			slog.String("media_id", job.mediaID), slog.Any("err", err))
@@ -384,4 +404,14 @@ func (p *subtitlePrewarmer) extractBitmap(ctx context.Context, job prewarmJob, t
 	// a single-track job deliberately does, since the walk would save nothing.
 	ix, _ := p.indexes.get(job.filePath)
 	return extractPGSBlob(ctx, job.filePath, trackID, ix)
+}
+
+// coversAll reports whether every id is verified.
+func coversAll(verified map[uint64]bool, ids []uint64) bool {
+	for _, id := range ids {
+		if !verified[id] {
+			return false
+		}
+	}
+	return true
 }
