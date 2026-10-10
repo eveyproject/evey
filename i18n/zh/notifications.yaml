@@ -31,6 +31,8 @@ push:
     title: "新专辑：{album}（{tracks}首）"
   backup_failed:
     title: "计划备份失败"
+  cache_full:
+    title: "字幕缓存已满"
   plugin_error:
     title: "插件错误"
   plugin_error_id:

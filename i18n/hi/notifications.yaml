@@ -31,6 +31,8 @@ push:
     title: "नया एल्बम: {album} ({tracks} ट्रैक)"
   backup_failed:
     title: "निर्धारित बैकअप विफल"
+  cache_full:
+    title: "उपशीर्षक कैश भर गया"
   plugin_error:
     title: "प्लगइन त्रुटि"
   plugin_error_id:

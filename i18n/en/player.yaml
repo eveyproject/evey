@@ -95,6 +95,7 @@ introSkipped: "Intro skipped"
 download: Download
 watchTogether: Watch Together
 buffering: "Buffering…"
+subtitlesPreparing: "Subtitles are being prepared…"
 playbackFailed: Playback failed
 unableToPlayAnyQuality: Unable to play at any quality level
 failedToStart: Failed to start playback
