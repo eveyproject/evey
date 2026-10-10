@@ -387,7 +387,7 @@ ci-fast-sec:
 	@# lines and the second ran as a command (exit 127) on a remote with no refs.
 	@BASE=$$(git merge-base "origin/master" HEAD 2>/dev/null || git rev-parse --verify -q "origin/$$(git rev-parse --abbrev-ref HEAD)" || git rev-parse HEAD~1); \
 	echo "→ golangci-lint -c .golangci.gosec.yml (new-from $$BASE)"; \
-	docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2) && golangci-lint run -c .golangci.gosec.yml --new-from-rev=$$BASE ./..."
+	docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0) && golangci-lint run -c .golangci.gosec.yml --new-from-rev=$$BASE ./..."
 
 ci-local-lint:
 	@# `rev-parse --verify -q`: a plain rev-parse of a missing ref echoes the ref
@@ -395,7 +395,7 @@ ci-local-lint:
 	@# lines and the second ran as a command (exit 127) on a remote with no refs.
 	@BASE=$$(git merge-base "origin/master" HEAD 2>/dev/null || git rev-parse --verify -q "origin/$$(git rev-parse --abbrev-ref HEAD)" || git rev-parse HEAD~1); \
 	echo "→ golangci-lint (general, new-from $$BASE)"; \
-	docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2) && golangci-lint run --new-from-rev=$$BASE ./..."
+	docker exec -w /app -e GOTOOLCHAIN=auto evey-server sh -c "(command -v golangci-lint >/dev/null || go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0) && golangci-lint run --new-from-rev=$$BASE ./..."
 
 ci-local: ci-fast ci-local-lint ci-local-test ci-local-frontend
 	@echo "✅ ci-local OK - mirror CI complet vert (vet + vuln + build + sec + lint + race + frontend typecheck)."
