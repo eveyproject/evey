@@ -159,6 +159,10 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 			v, code := tvRelease()
 			return httpapi.ClientRelease{Version: v, VersionCode: code}
 		}(),
+		MobileRelease: func() httpapi.ClientRelease {
+			v, code := mobileRelease()
+			return httpapi.ClientRelease{Version: v, VersionCode: code}
+		}(),
 		StartTime: startTime,
 		LogDir:    logDir,
 		HTTPSOnly: cfg.Server.ForwardedProto,
