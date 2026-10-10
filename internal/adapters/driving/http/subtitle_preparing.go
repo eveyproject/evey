@@ -211,10 +211,7 @@ func subtitleRetryAfter(estimate time.Duration, fl *subtitleFlight) time.Duratio
 // the header (a <track> element cannot; a fetch can), and the progress when a
 // flight is under way.
 func writeSubtitlePreparing(w http.ResponseWriter, r *http.Request, baseURL string, retryAfter time.Duration, fl *subtitleFlight) {
-	secs := int(retryAfter.Round(time.Second) / time.Second)
-	if secs < 1 {
-		secs = 1
-	}
+	secs := max(int(retryAfter.Round(time.Second)/time.Second), 1)
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Retry-After", strconv.Itoa(secs))

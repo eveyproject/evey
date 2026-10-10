@@ -621,7 +621,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// served, but every subtitle is now extracted again on each request.
 	httpapi.SetSubtitleCacheWriteFloor(cacheMinFree)
 	httpapi.OnSubtitleCacheFloorHit(func(dir string, free, floor int64) {
-		bus.Publish(ctx, domaintranscoding.DerivedCacheFull{Store: "subtitles", Dir: dir, FreeBytes: free, FloorBytes: floor, OccurredAt: time.Now()})
+		ev := domaintranscoding.DerivedCacheFull{Store: "subtitles", Dir: dir, FreeBytes: free, FloorBytes: floor, OccurredAt: time.Now()}
+		if err := bus.Publish(ctx, ev); err != nil {
+			slog.Warn("subtitle cache floor: publish failed", slog.Any("err", err))
+		}
 	})
 	_ = apptranscoding.NewCacheBudget(hlsVODCache, remuxJanitor, compatJanitor).Start(apptranscoding.EvictionPolicy{
 		MaxBytes:       int64(cfg.Transcoding.CacheMaxGB) * 1024 * 1024 * 1024,
