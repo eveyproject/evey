@@ -214,14 +214,18 @@ const startWatch = createStartWatch(() => {
 // exploited by the worker's instantiateStreaming) the decoder during the
 // splash - on a TV's CPU, Go-wasm compilation is the dominant cost of
 // time-to-sound. Fully best-effort: a failure here changes nothing,
-// the real load will pay for it again.
-for (const asset of ["/wasm/ac3Worker.js", "/wasm/wasm_exec.js"]) {
-  void fetch(asset).catch(() => {});
-}
-try {
-  void WebAssembly.compileStreaming(fetch("/wasm/ac3go.wasm")).catch(() => {});
-} catch {
-  /* runtime without compileStreaming: the worker's bytes fallback handles it */
+// the real load will pay for it again. Gated on the kill-switch: with it off
+// the warmup cost ~900 KB and a compile per cast for a decoder never started,
+// and the published receiver no longer ships wasm/ at all (2026-10-10).
+if (CAST_WASM_ENABLED) {
+  for (const asset of ["/wasm/ac3Worker.js", "/wasm/wasm_exec.js"]) {
+    void fetch(asset).catch(() => {});
+  }
+  try {
+    void WebAssembly.compileStreaming(fetch("/wasm/ac3go.wasm")).catch(() => {});
+  } catch {
+    /* runtime without compileStreaming: the worker's bytes fallback handles it */
+  }
 }
 
 function destroyEngine(): void {
