@@ -295,13 +295,42 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 	}
 
 	// A stored index turns the walk into a handful of seeks (6 s measured
-	// against 4 min 42 s on an 85 GB remux); a missing one means the walk.
+	// against 4 min 42 s on an 85 GB remux). Without one, the file's own Cues
+	// give the same index for a track they are verified complete on, at the
+	// cost of one small read per cued cluster; only a track the Cues do not
+	// vouch for means the walk.
 	ix, indexed := subtitleIndexes.get(filePath)
+	cued := false
+	if !indexed {
+		cix, verified, cErr := subtitleIndexes.fromCues(ctx, filePath)
+		switch {
+		case cErr != nil:
+			slog.WarnContext(ctx, "subtitle: pgs cues index unavailable, walking",
+				slog.String("media_id", mediaID), slog.Any("err", cErr))
+		case cix != nil && verified[trackID]:
+			ix, cued = cix, true
+		}
+	}
 	estimate := estimateSubtitleExtraction(filePath, ix.Blocks(trackID), indexed)
+	if cued {
+		estimate = estimateCuedSubtitleExtraction(ix, trackID)
+	}
 
 	work := func(ctx context.Context) ([]byte, error) {
 		if data, ok := cache.get(cacheKey); ok {
 			return data, nil
+		}
+		ix := ix
+		if cued {
+			resolved, rErr := subtitleIndexes.resolveAndStore(ctx, filePath, ix)
+			if rErr != nil {
+				// The Cues let us down after all: the walk is still correct.
+				slog.WarnContext(ctx, "subtitle: pgs cues index resolve failed, walking",
+					slog.String("media_id", mediaID), slog.Any("err", rErr))
+				ix = nil
+			} else {
+				ix = resolved
+			}
 		}
 		data, exErr := extractPGSBlob(ctx, filePath, trackID, ix)
 		if exErr != nil {
@@ -327,7 +356,7 @@ func serveBitmapSubtitle(w http.ResponseWriter, r *http.Request, span trace.Span
 		launchSharedSubtitleExtraction(ctx, subtitleFlightKey(cacheKey, filePath), filePath, work)
 		slog.InfoContext(ctx, "subtitle: pgs extraction started detached",
 			slog.String("media_id", mediaID), slog.Int("track", trackIndex),
-			slog.Bool("indexed", indexed), slog.Duration("estimate", estimate))
+			slog.Bool("indexed", indexed), slog.Bool("cued", cued), slog.Duration("estimate", estimate))
 		writeSubtitlePreparing(w, r, "", subtitleRetryAfter(estimate, nil), nil)
 		return
 	}

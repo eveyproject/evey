@@ -27,6 +27,10 @@ import (
 	"path/filepath"
 
 	"github.com/gravity-zero/mkvgo/matroska"
+	extmkv "github.com/gravity-zero/mkvgo/mkv"
+	"github.com/gravity-zero/mkvgo/mkv/ops"
+	"github.com/gravity-zero/mkvgo/mkv/reader"
+	"golang.org/x/sync/singleflight"
 )
 
 // subtitleIndexes is the process-wide store, set once at wiring time next to
@@ -139,4 +143,77 @@ func (c subtitleIndexCache) buildAndStore(ctx context.Context, filePath string, 
 		return nil, fmt.Errorf("subtitle index: build: %w", err)
 	}
 	return ix, c.put(filePath, ix)
+}
+
+// fromCues derives the index from the file's own Cues (mkvgo 0.42): a read of
+// the metadata, no walk. Muxers cue every block of a subtitle track, so for a
+// track whose cue count matches a trusted NUMBER_OF_FRAMES statistic the index
+// names the same blocks a walk finds (identical block for block on the 85 GB
+// remux, measured by mkvgo). Only those tracks are kept: a track cued in part
+// would lose its other cues silently, where the walk finds them all - so a
+// track absent from the result is one the caller walks for, or waits on.
+//
+// The index comes back UNRESOLVED (positions relative to their cluster) and
+// must go through resolveAndStore before it serves; verified says which of the
+// file's subtitle tracks it covers. nil, nil, nil when no track is verified.
+func (c subtitleIndexCache) fromCues(ctx context.Context, filePath string) (ix *matroska.SubtitleIndex, verified map[uint64]bool, err error) {
+	fs := extmkv.FSFrom(subtitleReadOptions(ctx))
+	cont, err := reader.OpenMetaWithFS(ctx, filePath, fs, reader.WithCues(), reader.WithTags())
+	if err != nil {
+		return nil, nil, fmt.Errorf("subtitle index from cues: %w", err)
+	}
+	st, err := fs.DoStat(filePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("subtitle index from cues: %w", err)
+	}
+	all, verified, err := ops.SubtitleIndexFromCues(cont, st.Size(), nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("subtitle index from cues: %w", err)
+	}
+	var keep []uint64
+	for _, id := range all.Tracks() {
+		if verified[id] {
+			keep = append(keep, id)
+		}
+	}
+	if len(keep) == 0 {
+		return nil, verified, nil
+	}
+	if len(keep) == len(all.Tracks()) {
+		return all, verified, nil
+	}
+	ix, _, err = ops.SubtitleIndexFromCues(cont, st.Size(), keep)
+	if err != nil {
+		return nil, nil, fmt.Errorf("subtitle index from cues: %w", err)
+	}
+	return ix, verified, nil
+}
+
+// subtitleIndexResolves collapses concurrent resolutions of the same file into
+// one: a text and a bitmap track asked for together would otherwise each read
+// every cued cluster's header.
+var subtitleIndexResolves singleflight.Group
+
+// resolveAndStore settles a Cues-derived index - one small read per cued
+// cluster (41 s for 5 876 clusters over 9p, measured; a seek per cluster on a
+// local disk) - and stores it like a built one. Returns the index to use: the
+// caller's once resolved, or the one a concurrent caller resolved first. Paced
+// and reported to the flight like every other subtitle read.
+func (c subtitleIndexCache) resolveAndStore(ctx context.Context, filePath string, ix *matroska.SubtitleIndex) (*matroska.SubtitleIndex, error) {
+	if ix == nil {
+		return nil, fmt.Errorf("subtitle index from cues: nothing to resolve")
+	}
+	v, err, _ := subtitleIndexResolves.Do(filePath, func() (any, error) {
+		if stored, ok := c.get(filePath); ok {
+			return stored, nil
+		}
+		if rerr := ix.Resolve(ctx, filePath, subtitleReadOptions(ctx)...); rerr != nil {
+			return nil, fmt.Errorf("subtitle index from cues: resolve: %w", rerr)
+		}
+		return ix, c.put(filePath, ix)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.(*matroska.SubtitleIndex), nil
 }

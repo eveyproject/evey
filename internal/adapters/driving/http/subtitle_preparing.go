@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gravity-zero/mkvgo/matroska"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -77,6 +78,22 @@ func estimateSubtitleExtraction(filePath string, indexedBlocks int, indexed bool
 		rate = float64(subtitleReadRateWhilePlaying)
 	}
 	return time.Duration(float64(st.Size()) / rate * float64(time.Second))
+}
+
+// estimateCuedSubtitleExtraction is how long serving trackID from a
+// Cues-derived index is expected to take: resolving it first (one small read
+// per cued cluster, at most one per indexed block of any track it covers),
+// then the track's own blocks. An upper bound - several blocks share a
+// cluster - which errs toward answering 202, the harmless side.
+func estimateCuedSubtitleExtraction(ix *matroska.SubtitleIndex, trackID uint64) time.Duration {
+	if ix == nil {
+		return 0
+	}
+	clusters := 0
+	for _, id := range ix.Tracks() {
+		clusters += ix.Blocks(id)
+	}
+	return time.Duration(clusters+ix.Blocks(trackID)) * subtitleIndexedBlockCost
 }
 
 // subtitleFlight is one running extraction as the polls see it: when it

@@ -227,12 +227,21 @@ func estimateTextSubtitleExtraction(ctx context.Context, filePath string, trackI
 	if isMkvgoMP4Ext(ext) {
 		return 0
 	}
-	if ix, ok := subtitleIndexes.get(filePath); ok {
-		if ids, err := mkvgoTextSubtitleTrackIDs(ctx, ext, filePath); err == nil {
-			if id, found := ids[trackIndex]; found && ix.Blocks(id) > 0 {
-				return estimateSubtitleExtraction(filePath, ix.Blocks(id), true)
-			}
-		}
+	ids, err := mkvgoTextSubtitleTrackIDs(ctx, ext, filePath)
+	if err != nil {
+		return estimateSubtitleExtraction(filePath, 0, false)
+	}
+	id, found := ids[trackIndex]
+	if !found {
+		return estimateSubtitleExtraction(filePath, 0, false)
+	}
+	if ix, ok := subtitleIndexes.get(filePath); ok && ix.Blocks(id) > 0 {
+		return estimateSubtitleExtraction(filePath, ix.Blocks(id), true)
+	}
+	// No stored index: the Cues, when verified for the track, cost their
+	// resolution plus the track's blocks (extractMkvgoSubtitleWebVTT).
+	if cix, verified, cErr := subtitleIndexes.fromCues(ctx, filePath); cErr == nil && cix != nil && verified[id] {
+		return estimateCuedSubtitleExtraction(cix, id)
 	}
 	return estimateSubtitleExtraction(filePath, 0, false)
 }
@@ -345,6 +354,17 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 	if ix, ok := subtitleIndexes.get(filePath); ok {
 		if err := matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, ix, w, opts...); err == nil {
 			return nil
+		}
+	} else if cix, verified, cErr := subtitleIndexes.fromCues(ctx, filePath); cErr == nil && cix != nil && verified[trackID] {
+		// No stored index yet: the Cues vouch for this track, so resolve them
+		// once (stored for the plan and every later request) and read the
+		// track's blocks where they point. Any failure falls back to the walk.
+		if resolved, rErr := subtitleIndexes.resolveAndStore(ctx, filePath, cix); rErr == nil {
+			if err := matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, resolved, w, opts...); err == nil {
+				return nil
+			}
+		} else {
+			slog.WarnContext(ctx, "subtitle: cues index resolve failed, walking", slog.Any("err", rErr))
 		}
 	}
 	return matroska.ExtractSubtitleWebVTT(ctx, filePath, trackID, w, opts...)
