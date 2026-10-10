@@ -40,6 +40,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "transcode.cancelled",
   "transcode.failed",
   "transcode.started",
+  "transcoding.derived_cache_full",
   "trickplay.generated",
   "user.apikey.created",
   "user.apikey.revoked",
