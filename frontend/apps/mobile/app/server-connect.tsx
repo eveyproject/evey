@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet, ScrollView } from "react-native";
+import { View, Text, TextInput, Pressable, ActivityIndicator, Alert, StyleSheet, ScrollView, Linking } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -38,9 +38,20 @@ function describeConnectError(e: unknown, target: string): string {
   return `${raw}\n\n(${target})`;
 }
 
+// Where novices learn what a server address is and where to find theirs. Points
+// at the wiki in the viewer's language when that language is published there
+// (only the non-default locales need listing; everything else is the English
+// root), so the help reads in the same language as the app.
+const WIKI_LOCALES = new Set(["fr"]);
+function serverHelpUrl(lang: string): string {
+  const code = (lang || "en").split("-")[0];
+  const prefix = WIKI_LOCALES.has(code) ? `/${code}` : "";
+  return `https://eveyproject.org${prefix}/getting-started/apps/`;
+}
+
 export default function ServerConnect() {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -314,9 +325,22 @@ export default function ServerConnect() {
           : t("mobile.serverConnect.title", "Connect to your server")}
       </Text>
       {!hasServers && (
-        <Text style={[s.hint, { color: theme.colors.textMuted }]}>
-          {t("mobile.serverConnect.hint", "Enter the URL of your self-hosted Evey instance")}
-        </Text>
+        <>
+          <Text style={[s.hint, { color: theme.colors.textMuted }]}>
+            {t("mobile.serverConnect.hint", "Evey runs on a server someone set up for you. Enter its web address - the same one you open in a browser.")}
+          </Text>
+          <Pressable
+            onPress={() => { Linking.openURL(serverHelpUrl(i18n.language)).catch(() => {}); }}
+            hitSlop={8}
+            accessible={true}
+            accessibilityRole="link"
+            accessibilityLabel={t("mobile.serverConnect.whereToFind", "Where do I find my server's address?")}
+          >
+            <Text style={[s.helpLink, { color: theme.colors.accent }]}>
+              {t("mobile.serverConnect.whereToFind", "Where do I find my server's address?")}
+            </Text>
+          </Pressable>
+        </>
       )}
       <TextInput
         placeholder="https://your-server.com"
@@ -461,6 +485,7 @@ const scStyles = (theme: ReturnType<typeof useTheme>) => StyleSheet.create({
   },
   badgeText: { color: theme.colors.onAccent, fontSize: 10, fontWeight: "700" },
   sectionLabel: { fontSize: 13, fontWeight: "600", textTransform: "uppercase", marginBottom: theme.spacing.sm },
+  helpLink: { fontSize: 14, fontWeight: "600", marginBottom: theme.spacing.md, textDecorationLine: "underline" },
   connectBtn: { padding: theme.spacing.md, alignItems: "center" },
   connectBtnText: { color: theme.colors.onAccent, fontWeight: "600", fontSize: 16 },
   scanBtn: { marginTop: theme.spacing.md, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 },

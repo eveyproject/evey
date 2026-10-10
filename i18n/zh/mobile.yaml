@@ -1,6 +1,7 @@
 serverConnect:
   serverUnreachable: "服务器没有响应，可能已休眠或不在网络上。"
-  hint: "输入您自托管 Evey 实例的 URL"
+  hint: "Evey 运行在别人为你搭建的服务器上。请输入它的网址，也就是你在浏览器中打开的那个地址。"
+  whereToFind: "在哪里找到我的服务器地址？"
   scanLocalNetwork: "扫描本地网络"
   serversFound_other: "找到 {{count}} 个服务器"
   noServersFound: "在此网络上未找到服务器 - 请在下方输入地址"
