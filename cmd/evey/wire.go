@@ -294,6 +294,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		infra.transcoder, infra.hwDetector, r.TranscodeJob, r.TranscodeProfile,
 		bus, cfg.Transcoding.MaxConcurrent,
 		apptranscoding.WithCacheStore(filesystem.NewCacheStore(cfg.Transcoding.CacheDir)),
+		// The subtitle store under /data goes with the cache wipe: it was the one
+		// derived store the button left behind.
+		apptranscoding.WithDerivedCachePurge(httpapi.SubtitleCachePurger("/data")),
 	)
 	// The cap the service will actually enforce. Logged because it is taken by
 	// VALUE here: main.go must have hydrated cfg from the DB overrides BEFORE
@@ -613,6 +616,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		}
 	}
 	hlsVODCache.SetWriteFloor(cacheMinFree)
+	// Same floor for the subtitle store under /data: nothing else bounds it.
+	// A refused store pages the admins (once an hour): the bytes are still
+	// served, but every subtitle is now extracted again on each request.
+	httpapi.SetSubtitleCacheWriteFloor(cacheMinFree)
+	httpapi.OnSubtitleCacheFloorHit(func(dir string, free, floor int64) {
+		bus.Publish(ctx, domaintranscoding.DerivedCacheFull{Store: "subtitles", Dir: dir, FreeBytes: free, FloorBytes: floor, OccurredAt: time.Now()})
+	})
 	_ = apptranscoding.NewCacheBudget(hlsVODCache, remuxJanitor, compatJanitor).Start(apptranscoding.EvictionPolicy{
 		MaxBytes:       int64(cfg.Transcoding.CacheMaxGB) * 1024 * 1024 * 1024,
 		MinFreeBytes:   cacheMinFree,

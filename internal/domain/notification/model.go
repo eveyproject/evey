@@ -34,7 +34,10 @@ const (
 	TypeLibraryScanned Type = "library_scanned"
 	TypeBackupFailed   Type = "backup_failed"
 	TypePluginError    Type = "plugin_error"
-	TypeCustom         Type = "custom"
+	// TypeCacheFull: a derived store (extracted subtitles) hit the free-space
+	// floor and stopped keeping what it produces. Operational, admin-only.
+	TypeCacheFull Type = "cache_full"
+	TypeCustom    Type = "custom"
 	// TypeMediaRequest pages operators that a user submitted a media request
 	// (admin-only, like plugin_error). TypeRequestAnswered notifies the
 	// requester of the operator's decision (a personal notification).
@@ -45,7 +48,7 @@ const (
 func (t Type) IsValid() bool {
 	switch t {
 	case TypeNewMovie, TypeNewEpisode, TypeNewSeason, TypeNewSeries, TypeNewAlbum,
-		TypeLibraryScanned, TypeBackupFailed, TypePluginError, TypeCustom,
+		TypeLibraryScanned, TypeBackupFailed, TypePluginError, TypeCacheFull, TypeCustom,
 		TypeMediaRequest, TypeRequestAnswered:
 		return true
 	}
@@ -64,7 +67,7 @@ func (t Type) IsValid() bool {
 // filters (the web bell hides plugin_error, which has its own dashboard).
 func (t Type) IsAdminOnly() bool {
 	switch t {
-	case TypeBackupFailed, TypePluginError, TypeMediaRequest:
+	case TypeBackupFailed, TypePluginError, TypeCacheFull, TypeMediaRequest:
 		return true
 	}
 	return false

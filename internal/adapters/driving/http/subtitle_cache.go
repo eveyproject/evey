@@ -29,9 +29,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/singleflight"
+
+	"github.com/evey-project/evey/internal/pkg/sysinfo"
 )
 
 // subtitleCacheMaxBytes bounds what is stored. A dialogue track is a few KB; an
@@ -40,6 +43,71 @@ import (
 // the cap has to clear that or every PGS track would be extracted again on every
 // request. Anything past it is not a subtitle any player will render.
 const subtitleCacheMaxBytes = 32 << 20
+
+// subtitleCacheWriteFloor is the free space the cache filesystem must keep
+// after a store, in bytes. The directory lives under /data - the same disk as
+// the keys, the logs, the backups and, on a compose install, Postgres - and
+// nothing else bounds it: there is no total cap and no eviction yet (measured
+// 2026-10-10: one decoded PGS track is 15-17 MB; a library's worth is 4-12 GB).
+// Shared with the transcode cache's MinFreeBytes so both agree on "full"; the
+// wiring sets it, and 0 disables the check.
+var subtitleCacheWriteFloor atomic.Int64
+
+func init() { subtitleCacheWriteFloor.Store(2 << 30) }
+
+// SetSubtitleCacheWriteFloor sets the free-space floor for the subtitle
+// cache. Called by the wiring with the same value the transcode cache uses
+// (EVEY_TRANSCODE_CACHE_MIN_FREE_MB); 0 disables the floor.
+func SetSubtitleCacheWriteFloor(bytes int64) {
+	if bytes < 0 {
+		bytes = 0
+	}
+	subtitleCacheWriteFloor.Store(bytes)
+}
+
+// subtitleCacheFreeBytes reports the free space of the filesystem holding dir.
+// A variable so tests can stand in for statfs.
+var subtitleCacheFreeBytes = func(dir string) (int64, error) {
+	stats := sysinfo.GetStorageStats([]string{dir})
+	if len(stats) == 0 {
+		return 0, fmt.Errorf("statfs %q failed", dir)
+	}
+	return stats[0].FreeBytes, nil
+}
+
+// errSubtitleCacheFull is returned by put when the store would take the
+// filesystem under the floor. Callers log it and serve the bytes anyway.
+var errSubtitleCacheFull = errors.New("subtitle cache: free space below the floor")
+
+// subtitleCacheFloorHit is told, at most once an hour, that a store was
+// refused for lack of space - the wiring turns it into an admin notification
+// (transcoding.DerivedCacheFull). nil = nobody listens.
+var (
+	subtitleCacheFloorHit     func(dir string, free, floor int64)
+	subtitleCacheFloorWarnedA atomic.Int64 // unix seconds of the last warning
+)
+
+const subtitleCacheFloorWarnEvery = time.Hour
+
+// OnSubtitleCacheFloorHit registers the listener for refused stores.
+func OnSubtitleCacheFloorHit(fn func(dir string, free, floor int64)) { subtitleCacheFloorHit = fn }
+
+// warnFloorHit calls the listener unless one was called within the hour: a
+// full disk refuses every store, and one page per refused track would be
+// hundreds of notifications for one fact.
+func warnFloorHit(dir string, free, floor int64) {
+	if subtitleCacheFloorHit == nil {
+		return
+	}
+	now := time.Now().Unix()
+	last := subtitleCacheFloorWarnedA.Load()
+	if now-last < int64(subtitleCacheFloorWarnEvery/time.Second) {
+		return
+	}
+	if subtitleCacheFloorWarnedA.CompareAndSwap(last, now) {
+		subtitleCacheFloorHit(dir, free, floor)
+	}
+}
 
 // subtitleKind separates the two things this cache holds under one (file, track)
 // pair: the WebVTT of a text track, and the decoded-image blob of a bitmap one.
@@ -154,6 +222,16 @@ func (c subtitleCache) put(key string, data []byte) error {
 	if err := os.MkdirAll(c.dir, 0o755); err != nil {
 		return fmt.Errorf("subtitle cache: create dir: %w", err)
 	}
+	// The floor is checked against the space left AFTER this entry: a 17 MB
+	// blob on a disk 10 MB above the floor would otherwise be the one that
+	// crosses it. A statfs failure does not block the store - the floor is a
+	// guard, not a dependency.
+	if floor := subtitleCacheWriteFloor.Load(); floor > 0 {
+		if free, ferr := subtitleCacheFreeBytes(c.dir); ferr == nil && free-int64(len(data)) < floor {
+			warnFloorHit(c.dir, free, floor)
+			return fmt.Errorf("%w: %d free, %d needed, floor %d", errSubtitleCacheFull, free, len(data), floor)
+		}
+	}
 	tmp, err := os.CreateTemp(c.dir, key+".*.part")
 	if err != nil {
 		return fmt.Errorf("subtitle cache: temp file: %w", err)
@@ -175,8 +253,69 @@ func (c subtitleCache) put(key string, data []byte) error {
 	return nil
 }
 
-// purge removes every stored subtitle. Wired to the admin cache wipe so one
-// button clears everything the server has derived from the library.
+// failureKey names the memo of a failed extraction. The mkvgo version is part
+// of it on purpose: a track that one release cannot decode (2026-10-10: eleven
+// PGS tracks of the library, zlib-compressed without the ContentEncodings that
+// declares it) may decode under the next, so an upgrade must replay the
+// failure rather than inherit it. Without the memo every request for such a
+// track paid the full walk again before failing again.
+func (c subtitleCache) failureKey(key string) string {
+	return "fail-" + packagerVersion() + "-" + key
+}
+
+func (c subtitleCache) failurePath(key string) string {
+	return filepath.Join(c.dir, c.failureKey(key)+".fail")
+}
+
+// getFailure returns the recorded reason an extraction failed under THIS mkvgo
+// version, or false. The reason is what the viewer-facing error names.
+func (c subtitleCache) getFailure(key string) (string, bool) {
+	if c.dir == "" || key == "" {
+		return "", false
+	}
+	data, err := os.ReadFile(c.failurePath(key)) //nolint:gosec // path is a hex digest under our own data dir
+	if err != nil {
+		return "", false
+	}
+	return string(data), true
+}
+
+// putFailure memorises a failed extraction. A cancelled or timed-out
+// extraction is not a failure of the track and is never recorded. Best-effort
+// like put: a lost memo costs a walk, not a playback.
+func (c subtitleCache) putFailure(key string, cause error) error {
+	if c.dir == "" || key == "" || cause == nil {
+		return nil
+	}
+	if errors.Is(cause, context.Canceled) || errors.Is(cause, context.DeadlineExceeded) {
+		return nil
+	}
+	if err := os.MkdirAll(c.dir, 0o755); err != nil {
+		return fmt.Errorf("subtitle cache: create dir: %w", err)
+	}
+	msg := cause.Error()
+	if len(msg) > 4096 {
+		msg = msg[:4096]
+	}
+	if err := os.WriteFile(c.failurePath(key), []byte(msg), 0o644); err != nil { //nolint:gosec // our own data dir
+		return fmt.Errorf("subtitle cache: write failure memo: %w", err)
+	}
+	return nil
+}
+
+// SubtitleCachePurger returns the purge of the subtitle store under dataDir,
+// for the admin cache wipe (transcoding.Service.ClearCache). Extracted tracks,
+// decoded bitmap blobs and failure memos go; the block indexes next door stay,
+// because they cost a pass of the film each and never go stale on their own
+// (keyed on size and mtime, verified block by block by mkvgo).
+func SubtitleCachePurger(dataDir string) func(context.Context) (int, error) {
+	c := newSubtitleCache(dataDir)
+	return func(context.Context) (int, error) { return c.purge() }
+}
+
+// purge removes every stored subtitle, blob and failure memo. Reached from
+// the admin cache wipe through SubtitleCachePurger - it was not, for a while:
+// this comment promised the wiring and nothing called it.
 func (c subtitleCache) purge() (int, error) {
 	if c.dir == "" {
 		return 0, nil

@@ -31,6 +31,9 @@ type Service struct {
 	profiles   transcoding.TranscodeProfileRepository
 	events     shared.EventBus
 	cache      transcoding.CacheStore
+	// derivedPurges empty the stores ClearCache also wipes (see
+	// WithDerivedCachePurge).
+	derivedPurges []func(context.Context) (int, error)
 
 	// maxConcurrent is flipped live by the admin PUT while request goroutines
 	// read it in StartTranscode - guard it, and go through MaxConcurrent().
@@ -63,6 +66,19 @@ type Option func(*Service)
 
 func WithCacheStore(cs transcoding.CacheStore) Option {
 	return func(s *Service) { s.cache = cs }
+}
+
+// WithDerivedCachePurge adds a store the admin cache wipe empties alongside
+// the transcode cache - the extracted subtitles, which live under /data and
+// not under the cache dir. One button clears everything the server derived
+// from the library; before this the subtitle store was never purged at all.
+// The purge returns how many entries it removed.
+func WithDerivedCachePurge(purge func(context.Context) (int, error)) Option {
+	return func(s *Service) {
+		if purge != nil {
+			s.derivedPurges = append(s.derivedPurges, purge)
+		}
+	}
 }
 
 // WithHWDetectTTL overrides how long a hardware-detection result is served
@@ -516,6 +532,18 @@ func (s *Service) ClearCache(ctx context.Context) error {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return err
+	}
+	// The derived stores after the main one, and a failure there is logged,
+	// not returned: the transcode cache IS cleared at this point, and telling
+	// the operator otherwise would be false.
+	for _, purge := range s.derivedPurges {
+		n, perr := purge(ctx)
+		if perr != nil {
+			span.RecordError(perr)
+			slog.WarnContext(ctx, "clear cache: derived store purge failed", slog.Any("err", perr))
+			continue
+		}
+		slog.InfoContext(ctx, "clear cache: derived store purged", slog.Int("entries", n))
 	}
 	return nil
 }

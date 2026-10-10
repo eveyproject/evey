@@ -98,3 +98,25 @@ func TestClearCache_NoGaugeWired(t *testing.T) {
 
 	assert.Zero(t, fileCount(t, store))
 }
+
+// The wipe also empties the derived stores handed in - the extracted
+// subtitles under /data, which no button reached before - and a failure there
+// is logged, not returned: the transcode cache IS cleared at that point.
+func TestClearCache_PurgesDerivedStoresAndLogsTheirFailures(t *testing.T) {
+	logs := captureLogs(t)
+	store := tcfakes.NewFakeCacheStore()
+	store.AddFile(domtc.CacheFileInfo{Name: "seg.m4s", Size: 42})
+	purged := 0
+	svc := NewService(tcfakes.NewFakeTranscoder(), tcfakes.NewFakeHWDetector(),
+		tcfakes.NewFakeTranscodeJobRepository(), tcfakes.NewFakeTranscodeProfileRepository(),
+		sharedfakes.NewFakeEventBus(), 0, WithCacheStore(store),
+		WithDerivedCachePurge(func(context.Context) (int, error) { purged++; return 3, nil }),
+		WithDerivedCachePurge(func(context.Context) (int, error) { return 0, assert.AnError }),
+		WithDerivedCachePurge(nil),
+	)
+	require.NoError(t, svc.ClearCache(context.Background()))
+	assert.Equal(t, 1, purged, "the derived purge runs once per wipe")
+	assert.Equal(t, 0, fileCount(t, store), "the transcode cache is cleared first")
+	assert.Contains(t, logs.String(), "derived store purged")
+	assert.Contains(t, logs.String(), "derived store purge failed")
+}

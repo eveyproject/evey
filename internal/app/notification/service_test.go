@@ -16,6 +16,7 @@ import (
 	"github.com/evey-project/evey/internal/domain/plugin"
 	"github.com/evey-project/evey/internal/domain/shared"
 	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/evey-project/evey/internal/domain/transcoding"
 	"github.com/evey-project/evey/internal/domain/user"
 	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
@@ -1674,4 +1675,40 @@ func TestEpisodeNotificationCreatedAfter24hWindow(t *testing.T) {
 	notifs, err := repo.ListByProfile(ctx, "p1", false, 0, 0)
 	require.NoError(t, err)
 	assert.Len(t, notifs, 2, "after 24h window a new separate notification should be created")
+}
+
+// A derived store (the extracted subtitles) at the free-space floor pages the
+// admins only: the viewer is not affected, the operator is.
+func TestNotificationService_DerivedCacheFull_RoutesAdminOnly(t *testing.T) {
+	t.Parallel()
+	repo := notiffakes.NewFakeNotificationRepository()
+	settings := notiffakes.NewFakeSettingsRepository()
+	analyzer := notiffakes.NewFakeWatchHistoryAnalyzer()
+	profileRepo := userfakes.NewFakeProfileRepository()
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	adminProfile := &user.Profile{ID: "p-admin", UserID: "u-admin", Name: "Root"}
+	userProfile := &user.Profile{ID: "p-user", UserID: "u-user", Name: "Bob"}
+	_ = profileRepo.Create(ctx, adminProfile)
+	_ = profileRepo.Create(ctx, userProfile)
+
+	svc := appnotification.NewCommandService(repo, settings, analyzer, profileRepo, bus,
+		appnotification.WithAdminLister(&fakeAdminLister{profiles: []*user.Profile{adminProfile}}))
+	svc.Register()
+
+	bus.Publish(ctx, transcoding.DerivedCacheFull{
+		Store: "subtitles", Dir: "/data/subtitles", FreeBytes: 1 << 30, FloorBytes: 2 << 30, OccurredAt: time.Now(),
+	})
+
+	adminNotifs, err := repo.ListByProfile(ctx, "p-admin", false, 0, 0)
+	require.NoError(t, err)
+	require.Len(t, adminNotifs, 1)
+	assert.Equal(t, notifdom.TypeCacheFull, adminNotifs[0].Type)
+	assert.True(t, adminNotifs[0].Type.IsAdminOnly())
+	assert.Contains(t, adminNotifs[0].Message, "subtitles")
+	assert.Contains(t, adminNotifs[0].Message, "/data/subtitles")
+	userNotifs, err := repo.ListByProfile(ctx, "p-user", false, 0, 0)
+	require.NoError(t, err)
+	assert.Empty(t, userNotifs, "a full cache is the operator's problem, not the viewer's")
 }
