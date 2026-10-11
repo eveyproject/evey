@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"errors"
 	"io"
 )
 
@@ -23,7 +24,14 @@ type OnDemandPlan interface {
 	NumSegments() int
 	// HasDASH reports whether a manifest.mpd is available (false when AES-128 encrypted).
 	HasDASH() bool
+	// SourceID names the source file and packaging the plan was built on; it
+	// changes when the file is replaced. Empty when the plan could not stamp it.
+	SourceID() string
 }
+
+// ErrSourceChanged is a plan's refusal to serve a segment once its source file
+// is no longer the one it was built on: drop the plan and build a new one.
+var ErrSourceChanged = errors.New("on-demand: the source changed since the plan was built")
 
 // OnDemandOpener is the streaming side of a plan: a media segment is written
 // from the source as it goes out, through one small buffer, instead of being
@@ -89,4 +97,7 @@ type OnDemandAESKey struct {
 // the ffmpeg pipeline. Implementations cache plans.
 type OnDemandPackager interface {
 	Plan(ctx context.Context, srcPath string, opts OnDemandOptions) (OnDemandPlan, error)
+	// Replan drops stale, a plan refused with ErrSourceChanged, from the cache
+	// and returns the plan of the file now at its path.
+	Replan(ctx context.Context, stale OnDemandPlan) (OnDemandPlan, error)
 }

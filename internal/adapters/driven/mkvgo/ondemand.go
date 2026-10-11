@@ -200,6 +200,9 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 			}
 			return nil, err
 		}
+		if op, ok := pl.(*ondemandPlan); ok {
+			op.pkg, op.key, op.srcPath, op.opts = p, key, srcPath, opts
+		}
 		p.plans.Set(key, pl, p.ttl)
 		return pl, nil
 	})
@@ -208,6 +211,22 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 		return nil, err
 	}
 	return v.(apptranscoding.OnDemandPlan), nil
+}
+
+// Replan is apptranscoding.OnDemandPackager.Replan. The drop is skipped when
+// the cache already holds another plan under that key: a concurrent request
+// rebuilt it first.
+func (p *OnDemandPackager) Replan(ctx context.Context, stale apptranscoding.OnDemandPlan) (apptranscoding.OnDemandPlan, error) {
+	sp, ok := stale.(*ondemandPlan)
+	if !ok || sp.pkg != p {
+		return nil, fmt.Errorf("mkvgo on-demand: replan of a plan this packager did not build (%T)", stale)
+	}
+	if cur, ok := p.plans.Get(sp.key); ok && cur == stale {
+		p.plans.Delete(sp.key)
+	}
+	p.logger.InfoContext(ctx, "mkvgo on-demand: source changed under its plan, rebuilding",
+		slog.String("path", sp.srcPath))
+	return p.Plan(ctx, sp.srcPath, sp.opts)
 }
 
 // WindowStats sums the window counters of every plan the cache holds
@@ -466,13 +485,21 @@ func audioPresentationShift(delays map[uint64]int64) map[uint64]int64 {
 }
 
 // ondemandPlan wraps *mp4.HLSPlan to satisfy apptranscoding.OnDemandPlan.
+// pkg, key, srcPath and opts are set by the packager that cached it, for
+// Replan.
 type ondemandPlan struct {
 	plan    *mp4.HLSPlan
 	hasDASH bool
+
+	pkg     *OnDemandPackager
+	key     string
+	srcPath string
+	opts    apptranscoding.OnDemandOptions
 }
 
 func (p *ondemandPlan) Resource(ctx context.Context, name string) ([]byte, string, error) {
-	return p.plan.Resource(ctx, name)
+	data, ct, err := p.plan.Resource(ctx, name)
+	return data, ct, sourceChangedErr(err)
 }
 
 // Open is apptranscoding.OnDemandOpener: a media segment of a local Matroska
@@ -482,9 +509,20 @@ func (p *ondemandPlan) Resource(ctx context.Context, name string) ([]byte, strin
 func (p *ondemandPlan) Open(ctx context.Context, name string) (apptranscoding.OnDemandResource, error) {
 	h, err := p.plan.Open(ctx, name)
 	if err != nil {
-		return nil, err
+		return nil, sourceChangedErr(err)
 	}
 	return h, nil
+}
+
+func (p *ondemandPlan) SourceID() string { return p.plan.SourceID() }
+
+// sourceChangedErr makes mkvgo's refusal of a replaced source the port's
+// apptranscoding.ErrSourceChanged, keeping mkvgo's error in the chain.
+func sourceChangedErr(err error) error {
+	if err != nil && errors.Is(err, mp4.ErrSourceChanged) {
+		return fmt.Errorf("%w: %w", apptranscoding.ErrSourceChanged, err)
+	}
+	return err
 }
 
 func (p *ondemandPlan) Resources() []string { return p.plan.Resources() }

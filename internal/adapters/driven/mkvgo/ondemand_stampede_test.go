@@ -29,6 +29,7 @@ func (s *stubPlan) Resource(context.Context, string) ([]byte, string, error) {
 func (s *stubPlan) Resources() []string { return nil }
 func (s *stubPlan) NumSegments() int    { return 0 }
 func (s *stubPlan) HasDASH() bool       { return false }
+func (s *stubPlan) SourceID() string    { return "" }
 
 func stampedeSrc(t *testing.T) string {
 	t.Helper()
