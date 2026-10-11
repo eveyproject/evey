@@ -105,8 +105,12 @@ vi.mock("expo-navigation-bar", () => ({ setVisibilityAsync: vi.fn(() => Promise.
 // ONE player instance for the whole screen, like the real useVideoPlayer: a
 // fresh object per render would hand the track listener a new array identity on
 // every pass and loop the screen forever.
+const playerListeners = new Map<string, (payload?: { currentTime: number }) => void>();
 const fakePlayer = {
-  addListener: () => ({ remove: () => undefined }),
+  addListener: (name: string, cb: (payload?: { currentTime: number }) => void) => {
+    playerListeners.set(name, cb);
+    return { remove: () => undefined };
+  },
   playing: false,
   duration: 3600,
   currentTime: 0,
@@ -193,7 +197,16 @@ vi.mock("../hooks/useAudioCapsBeacon", () => ({ useAudioCapsBeacon: () => undefi
 vi.mock("../hooks/useProgressReporter", () => ({ useProgressReporter: () => undefined }));
 vi.mock("../hooks/usePlaybackSettings", () => ({ usePlaybackSettings: () => ({ data: { skipForwardSeconds: 30, skipBackwardSeconds: 30 } }) }));
 vi.mock("../hooks/useChapters", () => ({ useChapters: () => ({ data: [] }) }));
-vi.mock("../hooks/useNextEpisode", () => ({ useNextEpisode: () => ({ visible: false, nextEpisode: null, ended: false, cancel: vi.fn() }) }));
+const nextEpHarness = {
+  nextEpisode: null as { id: string } | null,
+  args: null as { currentTime: number; duration: number } | null,
+};
+vi.mock("../hooks/useNextEpisode", () => ({
+  useNextEpisode: (args: { currentTime: number; duration: number }) => {
+    nextEpHarness.args = args;
+    return { visible: false, nextEpisode: nextEpHarness.nextEpisode, ended: false, cancel: vi.fn() };
+  },
+}));
 vi.mock("../hooks/useSleepTimer", () => ({ useSleepTimer: () => ({ state: null, setMinutes: vi.fn(), setEndOfEpisode: vi.fn(), cancel: vi.fn() }) }));
 vi.mock("../hooks/usePlayerGestures", () => ({
   usePlayerGestures: () => ({
@@ -261,6 +274,7 @@ vi.mock("../lib/subtitleStyle", () => ({
 }));
 vi.mock("../lib/externalSubtitle", () => ({ pickExternalSubtitle: vi.fn() }));
 
+import { router } from "expo-router";
 import PlayerScreen from "../../app/(auth)/player/[id]";
 
 // The bottom bar is the block the viewer watches jump: absolutely pinned to the
@@ -405,5 +419,36 @@ describe("player resume position", () => {
     resumeHarness.progress = { positionMs: "600000", durationMs: "3600000" };
     await act(async () => { render(React.createElement(PlayerScreen)); });
     expect(fakePlayer.currentTime).toBe(600);
+  });
+});
+
+// The end of a film held its last frame: the viewer had to go back by hand.
+describe("player at the end of a film", () => {
+  beforeEach(() => {
+    dimsStore.set(PORTRAIT);
+    insetsStore.set(PORTRAIT_INSETS);
+  });
+  afterEach(() => {
+    cleanup();
+    vi.mocked(router.back).mockClear();
+  });
+
+  it("leaves the player once the film has played to its end", async () => {
+    await act(async () => { render(React.createElement(PlayerScreen)); });
+    expect(router.back).not.toHaveBeenCalled();
+    act(() => { playerListeners.get("playToEnd")?.(); });
+    expect(router.back).toHaveBeenCalled();
+  });
+
+  it("hands over to the up-next countdown when another episode follows", async () => {
+    nextEpHarness.nextEpisode = { id: "ep-2" };
+    await act(async () => { render(React.createElement(PlayerScreen)); });
+    act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 3599.2 }); });
+    act(() => { playerListeners.get("playToEnd")?.(); });
+    expect(router.back).not.toHaveBeenCalled();
+    // The last tick stopped short: the clock is pinned on the end, which is
+    // what starts the countdown.
+    expect(nextEpHarness.args?.currentTime).toBe(3600);
+    nextEpHarness.nextEpisode = null;
   });
 });

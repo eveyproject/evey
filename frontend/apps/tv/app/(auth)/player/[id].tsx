@@ -407,8 +407,15 @@ export default function PlayerScreen() {
     ladderBitrates: playingTrack.ladderBitrates,
   });
 
+  // Filled once nextEp and handleBack exist (below); read by the playToEnd
+  // listener, which only subscribes once per player.
+  const playedToEndRef = useRef<() => void>(() => {});
+
   useEffect(() => {
     if (!player) return;
+    // The real end of the stream: currentTime can stop short of the catalogue
+    // duration, so nextEp.ended alone may never turn true at the end of a film.
+    const endSub = player.addListener("playToEnd", () => playedToEndRef.current());
     const timeSub = player.addListener("timeUpdate", (ev) => {
       currentTimeRef.current = ev.currentTime;
       // Twice a second, this screen re-rendered whole - controls, overlays and
@@ -468,6 +475,7 @@ export default function PlayerScreen() {
       });
     });
     return () => {
+      endSub.remove();
       timeSub.remove();
       statusSub.remove();
       playSub.remove();
@@ -865,6 +873,20 @@ export default function PlayerScreen() {
   // stable, so effects depend on those instead of the whole object.
   const { cancel: cancelSleepTimer } = sleepTimer;
   const { cancel: cancelNextEp } = nextEp;
+
+  // A film, or an episode with nothing after it: leave for its page once it has
+  // played to the end, as the web and browser TV players do, instead of holding
+  // the last frame. With a next episode, pin the clock on the end so the up-next
+  // countdown starts even when the last tick stopped short of the duration.
+  playedToEndRef.current = () => {
+    if (!nextEp.nextEpisode) {
+      handleBack();
+      return;
+    }
+    currentTimeRef.current = duration;
+    committedTimeRef.current = duration;
+    setCurrentTime(duration);
+  };
 
   // "End of episode" sleep mode has no countdown of its own - it rides the same
   // "ended" signal the next-episode auto-advance uses. Cancelling the

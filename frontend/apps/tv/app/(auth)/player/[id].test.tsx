@@ -215,10 +215,12 @@ vi.mock("../../../src/hooks/useSleepTimer", () => ({
 // up so tests can simulate both the auto-advance countdown and the "play
 // now" button firing, the two paths that must be PIN-gated. -------------------
 let capturedOnNavigate: ((episodeId: string) => void) | null = null;
+let capturedNextEpArgs: { currentTime: number; duration: number } | null = null;
 const nextEpisodeStateMock = vi.fn();
 vi.mock("../../../src/hooks/useNextEpisode", () => ({
-  useNextEpisode: (args: { onNavigate: (episodeId: string) => void }) => {
+  useNextEpisode: (args: { onNavigate: (episodeId: string) => void; currentTime: number; duration: number }) => {
     capturedOnNavigate = args.onNavigate;
+    capturedNextEpArgs = args;
     return nextEpisodeStateMock();
   },
 }));
@@ -1068,6 +1070,36 @@ describe("next-episode card does not steal the D-pad early (TV)", () => {
     act(() => { vi.advanceTimersByTime(700); });
     expect(playerMock.currentTime).toBe(30);
     vi.useRealTimers();
+  });
+});
+
+// The end of a film held its last frame: only a key press left the player.
+describe("the end of the stream (TV)", () => {
+  const endState = (nextEpisode: { id: string } | null) => ({
+    visible: false, ended: false, countdown: 5, nextEpisode, previousEpisode: null,
+    playNow: vi.fn(), playPrevious: vi.fn(), cancel: vi.fn(),
+  });
+
+  it("leaves the player once a film has played to its end", () => {
+    nextEpisodeStateMock.mockReturnValue(endState(null));
+    render(<PlayerScreen />);
+    act(() => { playerListeners.get("playToEnd")?.(); });
+    expect(stopSessionMock).toHaveBeenCalled();
+    expect(backMock).toHaveBeenCalled();
+  });
+
+  it("hands over to the up-next countdown when another episode follows", () => {
+    nextEpisodeStateMock.mockReturnValue(endState({ id: "ep-2" }));
+    render(<PlayerScreen />);
+    playerMock.duration = 2700;
+    act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 2699.2 }); });
+    act(() => { playerListeners.get("playToEnd")?.(); });
+    expect(backMock).not.toHaveBeenCalled();
+    expect(replaceMock).not.toHaveBeenCalled();
+    // The last tick stopped short: the clock is pinned on the end, which is
+    // what starts the up-next countdown.
+    expect(capturedNextEpArgs?.currentTime).toBe(2700);
+    playerMock.duration = 0;
   });
 });
 
