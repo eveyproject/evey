@@ -211,3 +211,9 @@ a11y:
 # The television client: the hint on its bar for the one key into the options.
 osd:
   downHint: "▼ सेटिंग्स"
+# The television client: the offer to carry on a film the system killed mid-way.
+interruptedResume:
+  heading: "प्लेबैक बाधित हुआ"
+  resume: "फिर से चलाएँ"
+  resumeAt: "{{time}} से फिर से चलाएँ"
+  dismiss: "अभी नहीं"
