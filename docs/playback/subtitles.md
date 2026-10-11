@@ -34,6 +34,25 @@ formats of the last row:
 | **Always burn in** | Same as Auto. | Drawn by the player: text is never burned in, whatever the setting. |
 | **Never burn in** | Cannot be shown: the video is never re-encoded for a subtitle. | Drawn by the player. |
 
+## The first time a subtitle is shown
+
+A subtitle carried inside the file (text or PGS) is extracted by the server the
+first time someone selects it, then kept: every later viewing, by anyone, gets
+it at once. When the file's own index covers the track, the server reads only
+the subtitle's blocks and it takes seconds. Without that index it reads the
+whole file: several minutes for a large film (about five for an 85 GB UHD
+remux on a local disk, longer while the same server is streaming).
+
+Meanwhile the player shows **Subtitles are being prepared…** where the
+subtitles appear, checks back on its own and shows them as soon as they are
+ready; the video keeps playing. Choosing another track does not stop the work:
+the server finishes it for the next time.
+
+A track the server cannot extract stays empty. The failure is remembered, so
+selecting it again does not start another full read; an update of MKVGo, the
+library that extracts it, tries again. See
+[MKVGo in Evey](mkvgo.md#what-mkvgo-does) for what is read and when.
+
 ## Choosing and adjusting
 
 - The players select the subtitle of the profile's **Default Subtitle
@@ -57,5 +76,6 @@ client-drawn pgs, burn-in formats: frontend/packages/api/src/imageSubtitles.ts -
 only when selected: frontend/packages/api/src/clientSubtitleTrack.ts - burnInSubtitleIndex ; frontend/packages/client/src/hooks/usePlayerTrackSelection.ts (profile languages, then the file's default; hand pick never overridden)
 players: frontend/apps/mobile/src/components/player/SubtitleOverlay.tsx ; frontend/apps/tv/src/components/SubtitleOverlay.tsx ; frontend/apps/web/src/features/playback/PGSSubtitleOverlay.tsx
 opensubtitles: internal/app/subtitle/service.go (.subtitles folder) ; internal/adapters/driving/http/subtitle_handler.go - registerSubtitleRoutes (no client calls search/download)
+first extraction, preparing, failure memo: internal/adapters/driving/http/subtitle_preparing.go (202 + Retry-After past 20 s, detached extraction) ; subtitle_cache.go - getFailure, putFailure (keyed by the mkvgo version) ; frontend/packages/api/src/subtitleFetch.ts ; frontend/packages/client/src/hooks/useSubtitleTrack.ts ; i18n player.subtitlesPreparing
 labels: i18n auth.settings.playback.subtitleBurnIn, subtitleBurnAuto, subtitleBurnAlways, subtitleBurnNever, subtitleLanguage ; player.settings.subtitleSync, subtitleStyle, uploadSubtitle ; player.subtitleStyle.* ; player.streamInfo.reason.subtitle_burn_in
 -->

@@ -26,7 +26,7 @@ form offers every event the server publishes; among them:
 | Playback | `playback.started`, `playback.stopped`, `media.marked.watched`, `transcode.started`, `transcode.failed` |
 | Accounts | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created`, `user.apikey.created` |
 | Requests | `media.request.created`, `media.request.answered` |
-| Server | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed` |
+| Server | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed`, `transcoding.derived_cache_full` (subtitle store below its free-space margin) |
 
 A plugin that calls `EmitEvent` publishes `plugin.event.<type>`, which a
 webhook on **All events** receives too.

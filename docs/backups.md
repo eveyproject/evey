@@ -22,6 +22,12 @@ It does **not** contain:
   `keys` folder (database password, search key);
 - the installed plugin files.
 
+Playback and server metrics (the telemetry behind the quality and load
+charts) are left out by default: they grow fastest and say nothing about your
+catalogue. **Admin → Server Config → Include telemetry in backups** puts them
+back in; the switch applies to manual, scheduled and command-line backups.
+Restoring a backup always empties those tables.
+
 A database backup therefore restores Evey's state on the same installation.
 To be able to rebuild a machine, keep a copy of the whole `./evey-data` folder
 as well: the database backups are inside it, in `./evey-data/backups`.
@@ -31,7 +37,15 @@ as well: the database backups are inside it, in `./evey-data/backups`.
 **Admin → Database Backup → Schedule**: a **Cron expression** (for example
 `0 3 * * *`, every day at 3 AM) and a **Retention (days)**. Backups older than
 the retention are deleted after each scheduled run. **Run now** makes one
-immediately, as does **Create Backup** at the top of the page.
+immediately, as does **Create Backup** at the top of the page. From a script
+or a cron job on the host, the command line makes the same backup:
+
+```bash
+docker exec evey-server evey admin backup
+```
+
+It follows the telemetry switch of the panel; `--include-telemetry` includes
+the telemetry for that run only.
 
 <figure class="evey-shot" markdown="span">
   ![Admin → Database Backup with a daily schedule](images/admin-backup.webp){ loading=lazy }
@@ -93,6 +107,8 @@ Image tags, runtime variants and GPU flavours are described in
 <!-- sources
 contents: internal/app/backup/service.go - BackupTables, CreateBackup (sha256 + schema version in manifest), RestoreBackup (checksum + schema guard), CleanupOldBackups ; internal/adapters/driven/filesystem/backup_store.go
 schedule: i18n admin.backup.schedule.* (cronLabel, retentionLabel, runNow) ; admin.backup.createBackup, restoreFromFile ; cmd/evey/main.go (DB cron scheduler, env fallback)
+telemetry left out by default, emptied on restore: internal/adapters/driven/postgres/backup.go - DumpAll, telemetryTables ; internal/app/backup/service.go - WithIncludeTelemetry ; internal/adapters/driving/http/settings_handler.go - BackupIncludeTelemetryKey ; i18n admin.serverSettings.backupTelemetry, backupTelemetryHint
+command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry, else the panel setting)
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck

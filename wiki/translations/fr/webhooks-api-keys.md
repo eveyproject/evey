@@ -1,5 +1,5 @@
 ---
-source_sha: 17d5dbd8d08cc826b79f97bf0cb1e4e16fac5f44525c760e13385f9b3b326cdd
+source_sha: 09be615f048b42a5c91430ee4558b2bc906d1e19a1f0c51eb2577ffa9d579533
 reviewed: true
 ---
 # Webhooks et clés d'API
@@ -32,7 +32,7 @@ parmi eux :
 | Lecture | `playback.started`, `playback.stopped`, `media.marked.watched`, `transcode.started`, `transcode.failed` |
 | Comptes | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created`, `user.apikey.created` |
 | Demandes | `media.request.created`, `media.request.answered` |
-| Serveur | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed` |
+| Serveur | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed`, `transcoding.derived_cache_full` (stockage des sous-titres sous sa marge d'espace libre) |
 
 Un plugin qui appelle `EmitEvent` publie `plugin.event.<type>`, qu'un
 webhook abonné à **Tous les événements** reçoit aussi.

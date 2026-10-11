@@ -20,8 +20,16 @@ The administration panel is part of the web app, for administrator accounts.
 The Android and Android TV apps open on a screen titled **Connect to Server**
 (**Connect to your server** on the TV):
 one field (**Server URL**, placeholder `https://your-server.com`), a
-**Connect** button and a **Scan local network** link. Type the **same address
-you open in a browser on the same network**, with the scheme and the port:
+**Connect** button and a **Scan local network** link. As long as no server is
+saved, a line above the field explains what is asked: **Evey runs on a server
+someone set up for you. Enter its web address - the same one you open in a
+browser.**, followed by **Where do I find my server's address?**, which leads
+to this page (in French when the phone or TV is in French, in English
+otherwise). The phone opens it in the browser; the TV writes its address on
+screen, to open on another device.
+
+Type the **same address you open in a browser on the same network**, with the
+scheme and the port:
 
 ```text
 http://192.168.1.20:9091
@@ -113,13 +121,17 @@ again once it is up.
 ### Changing or adding a server later
 
 Both apps keep a list of servers. The connect screen shows it above the field,
-with the one in use marked **Current** (Android) or **Active** (Android TV),
-and **Add another server** underneath. Each server keeps its own sign-in.
+under **Your servers**, with the one in use marked **Current** (Android) or
+**Active** (Android TV), and **Add another server** underneath. Tapping a
+saved server reconnects to it without typing the address again. Each server
+keeps its own sign-in.
 
-- **Android.** The sign-in screen has **Change server**. Once signed in,
-  **Settings → Servers** opens **Manage Servers**: tap a server to switch to
-  it, **Rename** it, or **Delete** it (its sign-in is cleared; the only saved
-  server cannot be deleted).
+- **Android.** Each saved server on the connect screen has a delete button, so
+  an address that no longer works can be removed before signing in; a
+  confirmation follows, and its sign-in is cleared. The sign-in screen has
+  **Change server**. Once signed in, **Settings → Servers** opens **Manage
+  Servers**: tap a server to switch to it, **Rename** it, or **Delete** it.
+  In both places the only saved server cannot be deleted.
 - **Android TV.** **Settings → Change server** signs the television out and
   returns to the connect screen; the sign-in screen has the same button. On
   the connect screen, **Manage Servers** renames or deletes a saved server.
@@ -163,6 +175,19 @@ way, for a phone you would rather not type a password on.
 another Evey app signed in to the same account and currently open, and
 playback continues there.
 
+## Keeping the apps up to date
+
+Each server release names the Android and Android TV builds released with it.
+When the installed app is older, the Android app shows **Update available:**
+followed by the version at the top of the screen (never over the player), and
+the TV shows it in its top bar. Pressing it opens the app's Play Store page.
+
+The Play Store updates an app on its own only when the device is idle and on
+Wi-Fi, and can be turned off per app: a phone or a television can stay several
+versions behind without anyone noticing, which is what this notice is for. A
+server that predates it, or an app that is current, shows nothing. The web app
+needs no update: it is served by the server itself.
+
 ## Which device plays what
 
 Each app reports what its device can decode, and the server decides for each
@@ -183,5 +208,8 @@ port: docs/installation.md compose ports line ; cmd/evey/main.go - httpPort
 quick connect: frontend/apps/tv/app/quick-connect.tsx (displayCode last 6 chars, qrValue /quickconnect?code=, polling) ; frontend/apps/tv/app/login.tsx (recommendedForTV) ; frontend/apps/web/src/routes/_auth/quickconnect.lazy.tsx ; frontend/apps/web/src/routes/_auth/profile/settings.lazy.tsx (quick-connect tab) ; frontend/apps/mobile/app/(auth)/(tabs)/settings.tsx (scanQr, authorize) ; frontend/apps/mobile/app/(auth)/qr-scan.tsx ; frontend/apps/mobile/app/quick-connect.tsx ; i18n auth.settings.quickConnect.*
 offline window and profile check: frontend/apps/mobile/src/lib/offlineAccess.ts - OFFLINE_DOWNLOAD_TTL_MS
 reduced copy (off by default): cmd/evey/http.go (downloads.quality_choice) ; i18n downloads.reduced.*
+connect hint and help link, shown with no saved server: frontend/apps/mobile/app/server-connect.tsx - serverHelpUrl, WIKI_LOCALES ; frontend/apps/tv/app/server-connect.tsx - serverHelpUrl ; i18n mobile.serverConnect.hint, mobile.serverConnect.whereToFind, mobile.servers.yourServers
+delete from the connect screen (Android): frontend/apps/mobile/app/server-connect.tsx - handleDeleteServer ; i18n mobile.servers.deleteConfirmTitle, mobile.servers.cantDeleteOnlyServer
+update notice: internal/adapters/driving/http/health_handler.go (clients) ; scripts/client-release-ldflags.sh ; frontend/packages/client/src/native/appUpdate.ts - newerClientRelease ; frontend/apps/mobile/src/components/UpdateBanner.tsx (not on /player) ; frontend/apps/tv/src/components/TopHeader.tsx ; i18n mobile.appUpdate.available
 play on: i18n player.playOn.* (used by frontend/apps/web and frontend/apps/mobile, not frontend/apps/tv)
 -->

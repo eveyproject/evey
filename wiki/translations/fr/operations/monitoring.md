@@ -1,5 +1,5 @@
 ---
-source_sha: 9dffa88aee59a1f9171c9adaa3eaa02d7042e01851ef74ecfe25d22ad95cd0fe
+source_sha: d6335afa014ad627b79829f653197424d1a5c4572cdf3b9832ed19a3f7a079ac
 reviewed: true
 ---
 # Supervision et logs
@@ -69,6 +69,25 @@ La durée de conservation de chaque historique se règle dans **Admin →
 Configuration du serveur → Paramètres du serveur** (sessions de lecture,
 journal d'audit, métriques du serveur, qualité de streaming). Un changement
 s'applique au nettoyage quotidien suivant.
+
+## Métriques Prometheus
+
+`GET /metrics` sert les compteurs du serveur au format texte de Prometheus,
+tous nommés `evey_...`. Il répond à une session administrateur, ou à un jeton
+fixe défini dans `EVEY_METRICS_SCRAPE_TOKEN` et envoyé en
+`Authorization: Bearer <jeton>`, pour que Prometheus ou Grafana puissent
+collecter sans se reconnecter
+([Sauvegardes, logs et supervision](../environment/logs-monitoring.md)).
+Les familles qui méritent un premier graphique :
+
+| Métrique | Ce qu'elle dit |
+| --- | --- |
+| `evey_transcodes_active`, `evey_transcode_queue_depth` | Tâches de transcodage en arrière-plan (hors lecture en direct) en cours, et en attente d'une place. |
+| `evey_hlsvod_sessions_active`, `evey_hlsvod_sessions_rejected_total` | Processus FFmpeg qui produisent des segments de lecture, et démarrages refusés parce que le serveur était à sa limite. |
+| `evey_hlsvod_cache_size_bytes`, `evey_hlsvod_cache_evicted_bytes_total` | Taille du cache de segments sur le disque, et ce que le balayage a libéré. |
+| `evey_mkvgo_walks_in_flight`, `evey_mkvgo_plan_stats` | L'empaqueteur intégré : fenêtres en cours de lecture, lectures en attente (`stat="slot_waits"`), voir [MKVGo dans Evey](../playback/mkvgo.md#load-replaced-files-and-updates). |
+| `evey_http_requests_total`, `evey_http_request_duration_seconds` | Requêtes et latence par méthode et par chemin. |
+| `evey_watcher_alive`, `evey_scan_queue_depth` | Si la surveillance des dossiers de chaque bibliothèque a répondu à sa dernière vérification (1 ou 0), et fichiers en attente d'analyse. |
 
 ## Ligne de commande
 

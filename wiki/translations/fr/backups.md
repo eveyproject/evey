@@ -1,5 +1,5 @@
 ---
-source_sha: 3ee6e7f82a59d31cc6c0817c862d4210e04cb97fa0e4e783598fd4ce420cea74
+source_sha: bc6d759cd6c3e604c5638d77b66eb6e90417021b881f7a301c6c3ea992d41c82
 reviewed: true
 ---
 # Sauvegardes et mises à jour
@@ -28,6 +28,14 @@ Elle ne contient **pas** :
   le dossier `keys` (mot de passe de la base, clé de recherche) ;
 - les fichiers des plugins installés.
 
+Les métriques de lecture et de serveur (la télémétrie derrière les graphiques
+de qualité et de charge) sont laissées de côté par défaut : ce sont elles qui
+grossissent le plus vite, et elles ne disent rien de votre catalogue.
+**Admin → Configuration du serveur → Inclure la télémétrie dans les
+sauvegardes** les réintègre ; ce réglage vaut pour les sauvegardes manuelles,
+planifiées et en ligne de commande. Restaurer une sauvegarde vide toujours ces
+tables.
+
 Une sauvegarde de la base restaure donc l'état d'Evey sur la même
 installation. Pour pouvoir reconstruire une machine, gardez aussi une copie de
 tout le dossier `./evey-data` : les sauvegardes de la base s'y trouvent, dans
@@ -40,6 +48,15 @@ cron** (par exemple `0 3 * * *`, tous les jours à 3 h) et une **Rétention
 (jours)**. Les sauvegardes plus anciennes que la rétention sont supprimées
 après chaque exécution planifiée. **Lancer maintenant** en crée une
 immédiatement, tout comme **Créer une sauvegarde** en haut de la page.
+Depuis un script ou une tâche cron de l'hôte, la ligne de commande fait la
+même sauvegarde :
+
+```bash
+docker exec evey-server evey admin backup
+```
+
+Elle suit le réglage de télémétrie du panneau ; `--include-telemetry` inclut
+la télémétrie pour cette exécution seulement.
 
 <figure class="evey-shot" markdown="span">
   ![Admin → Sauvegarde BDD et restauration avec une planification quotidienne](images/admin-backup.webp){ loading=lazy }
@@ -106,6 +123,8 @@ décrits dans [Déploiements avancés](operations/advanced-deployments.md#image-
 <!-- sources
 contents: internal/app/backup/service.go - BackupTables, CreateBackup (sha256 + schema version in manifest), RestoreBackup (checksum + schema guard), CleanupOldBackups ; internal/adapters/driven/filesystem/backup_store.go
 schedule: i18n admin.backup.schedule.* (cronLabel, retentionLabel, runNow) ; admin.backup.createBackup, restoreFromFile ; cmd/evey/main.go (DB cron scheduler, env fallback)
+telemetry left out by default, emptied on restore: internal/adapters/driven/postgres/backup.go - DumpAll, telemetryTables ; internal/app/backup/service.go - WithIncludeTelemetry ; internal/adapters/driving/http/settings_handler.go - BackupIncludeTelemetryKey ; i18n admin.serverSettings.backupTelemetry, backupTelemetryHint
+command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry, else the panel setting)
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck

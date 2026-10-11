@@ -50,11 +50,18 @@ evey admin rotate-jwt-key                    Regenerate the JWT signing key. Inv
                                              <key>.rotated-<timestamp>), the next server boot
                                              generates a new one, and every session is ended in the
                                              database at once.
+evey admin backup [--include-telemetry]
+                                             Create a database backup in the backup directory, the
+                                             same .tar.gz as the panel and the scheduler. Telemetry
+                                             follows the panel switch (off by default);
+                                             --include-telemetry includes it for this run.
 evey admin restore-backup <path-to-dump.sql.gz>
                                              Restore the database from a pg_dump.gz file, in a single
-                                             transaction. Existing rows are OVERWRITTEN; waits 5 s for
-                                             a Ctrl-C before it starts. The .sql.gz suffix is required
-                                             (not the panel's .tar.gz backups).
+                                             transaction. The whole file is checked first: a truncated
+                                             or corrupt dump is refused before anything is dropped.
+                                             Existing rows are OVERWRITTEN; waits 5 s for a Ctrl-C
+                                             before it starts. The .sql.gz suffix is required (not the
+                                             panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]
                                              Rebuild the Meilisearch index from the database (no
                                              metadata fetch). --purge clears the index first, which
@@ -221,6 +228,7 @@ not ship them:
 dispatch and top-level commands: cmd/evey/cli.go - runCLI (version, help, completion, man, unknown command refused), cmd/evey/main.go
 subcommand table, groups, --help text: cmd/evey/admin_commands.go - adminCommands, adminGroups, printAdminUsage, adminUsage (exit 1 without subcommand) ; drift test cmd/evey/admin_cli_test.go
 sessions ended: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL internal/app/user/token_epoch.go
+backup and restore: cmd/evey/admin_backup.go - adminBackup ; cmd/evey/admin.go - adminRestoreBackup, verifyDumpComplete
 container: Dockerfile (EVEY_DB_PASSWORD_FILE, EVEY_BACKUP_DIR=/data/backups, completion at build time) ; docker/evey-shell.sh - man()
 makefile: Makefile migrate-up / migrate-down / migrate-version
 standalone programs: cmd/intro-backfill, cmd/intro-diag, cmd/trickplay-verify

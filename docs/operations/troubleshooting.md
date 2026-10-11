@@ -134,6 +134,13 @@ you expected Direct Play is explained there: see
 - Subtitles do not appear: [Subtitles](../playback/subtitles.md) says which
   formats the players draw and which ones the server has to burn into the
   picture.
+- **Subtitles are being prepared…** stays for minutes: the file has no index
+  for that track and the server reads it through, once. See
+  [The first time a subtitle is shown](../playback/subtitles.md#the-first-time-a-subtitle-is-shown).
+- Transcoded titles refuse to start or stall while titles already played
+  keep working, or administrators receive **Subtitle cache full**: the disk
+  is below its free-space margin. See
+  [The transcoding cache](../playback/transcoding.md#the-transcoding-cache).
 
 ## Library and posters
 
@@ -146,9 +153,38 @@ posters a failed resize left empty, which are then rebuilt on demand.
 A poster or a title that belongs to another film is a metadata match, not an
 artwork problem: [Fix a wrong or missing title](../administration/libraries.md#fix-a-wrong-or-missing-title).
 
+A scan ends with **Partial scan - these folders could not be read:**
+followed by paths: Evey cannot read those folders (permissions, a network
+share that dropped). The rest of the library is scanned, and the titles under
+an unreadable folder are kept rather than removed. Check the mount and the
+owner (`PUID`/`PGID`, see [Install](../installation.md#common-variations)),
+then scan again.
+
 Search returns nothing: rebuild the index from the database with
 `docker exec evey-server evey admin reindex-search`. The index can always be
 rebuilt; nothing is lost.
+
+## Reporting a problem
+
+Write to **contact@eveyproject.org**. A report that can be acted on says:
+
+- what you did, what you expected, and what happened instead;
+- when it happened, to the minute: the logs are searched by time;
+- the device, and the app: **Settings → About → App version** in the Android
+  app, the browser and its version for the web app;
+- the version of the server: `docker exec evey-server evey version`;
+- for a playback problem, the title and a screenshot of **Stream info**
+  (see [Reading Stream info](../playback/how-playback-is-decided.md#reading-stream-info)):
+  it names the method chosen and its reasons, which is most of the diagnosis.
+
+An administrator can add the log lines around that moment (**Admin → Logs &
+Debug**, see [The logs](#the-logs)) and the report of
+[`evey admin doctor`](#evey-admin-doctor). Logs name accounts and network
+addresses: read them before sending.
+
+A security flaw is not reported in a public place: write to
+**security@eveyproject.org**, and give it time to be fixed before talking
+about it.
 
 <!-- sources
 symptom table: i18n mobile.serverConnect.unreachable / connectionFailed ; i18n media.rematchMetadata, admin.library.refreshMetadataTooltip
@@ -156,8 +192,10 @@ logs: internal/pkg/logger/logger.go - New (file handler only outside DevMode), r
 docker compose logs: docker/entrypoint.sh (evey: lines), cmd/evey/banner.go
 doctor: cmd/evey/admin_commands.go - doctor ; cmd/evey/admin_ops.go - checkResult names (database, schema, jwt.key, meilisearch, search index, media <root>, trusted proxies, remote access, disk), checkTool ffmpeg/mkvgo
 sso: internal/adapters/driving/http/auth_handler.go /login?oidc_error=<reason>, i18n auth.login.ssoError.* ; smtp: internal/adapters/driving/http/smtp_test_handler.go (test send), internal/adapters/driven/email/notification_emailer.go (log)
+partial scan: internal/app/library/scan_service.go - scanDirectories (unreadable root = failed path, protected from pruning) ; i18n admin.libraries.scanPartial
 posters: internal/app/metadata/command_service_artwork.go (hourly retry) ; i18n admin.artworks.* (/data/artworks, purge variants)
 rotate-jwt-key ends sessions: cmd/evey/admin.go - endAllSessions
 startup failures: docker/entrypoint.sh ; cache ownership: docker/entrypoint.sh (re-own /cache)
 remote access warning: docs/adr/0026-remote-access-inferred-from-a-published-url.md
+reporting: docs/privacy.md (contact@eveyproject.org) ; docs/SECURITY.md (security@eveyproject.org) ; app version: frontend/apps/mobile/app/(auth)/(tabs)/settings.tsx, i18n mobile.settings.appVersion ; server version: cmd/evey/cli.go
 -->

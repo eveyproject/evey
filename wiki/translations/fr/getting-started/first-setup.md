@@ -1,5 +1,5 @@
 ---
-source_sha: 19bffc1519f386d29f20a6eb3c6173e995d7e804399a716aebfd88d5ec51f57d
+source_sha: 86d75370f23016908bec56fe4be6926159cb164b39e15dfd088310fdafc75c5d
 reviewed: true
 ---
 # Première configuration
@@ -134,6 +134,8 @@ enfant compris.
 Ce qu'un administrateur peut restreindre par compte, et le fonctionnement
 des profils et du contrôle parental :
 [Utilisateurs, profils et contrôle parental](../administration/users.md).
+La page à envoyer aux personnes que vous invitez, écrite pour elles :
+[Regarder avec Evey](watching.md).
 
 ## 4. Connecter les applications
 

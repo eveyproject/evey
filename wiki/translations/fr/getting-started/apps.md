@@ -1,5 +1,5 @@
 ---
-source_sha: 4bbb5b2b126fd27307dd60e874f57aa039a16e85a7a3a20c0d88b6caa7b7e9e3
+source_sha: 8596400054bc5784256222632f8b0b2125ca7a2b8d0fb1cb21fe8fa25398c6f0
 reviewed: true
 ---
 # Applications et appareils
@@ -26,8 +26,16 @@ comptes administrateurs.
 Les applications Android et Android TV s'ouvrent sur un écran titré
 **Connexion au serveur** : un champ (**URL du serveur**, exemple grisé
 `https://your-server.com`), un bouton **Connexion** et un lien **Scanner le
-réseau local**. Tapez la **même adresse que celle que vous ouvrez dans un
-navigateur sur le même réseau**, avec le préfixe et le port :
+réseau local**. Tant qu'aucun serveur n'est enregistré, une ligne au-dessus
+du champ explique ce qui est demandé : **Evey tourne sur un serveur que
+quelqu'un a installé pour vous. Entrez son adresse web, celle que vous
+ouvririez dans un navigateur.**, suivie de **Où trouver l'adresse de mon
+serveur ?**, qui mène à cette page (en français quand le téléphone ou la TV
+est en français, en anglais sinon). Le téléphone l'ouvre dans le navigateur ;
+la TV écrit son adresse à l'écran, à ouvrir sur un autre appareil.
+
+Tapez la **même adresse que celle que vous ouvrez dans un navigateur sur le
+même réseau**, avec le préfixe et le port :
 
 ```text
 http://192.168.1.20:9091
@@ -126,15 +134,18 @@ est démarré.
 ### Changer de serveur ou en ajouter un plus tard
 
 Les deux applications gardent une liste de serveurs. L'écran de connexion au
-serveur l'affiche au-dessus du champ, avec celui en cours marqué **Actuel**
-(Android) ou **Actif** (Android TV), et **Ajouter un autre serveur**
-en dessous. Chaque serveur garde sa propre session.
+serveur l'affiche au-dessus du champ, sous **Vos serveurs**, avec celui en
+cours marqué **Actuel** (Android) ou **Actif** (Android TV), et **Ajouter un
+autre serveur** en dessous. Toucher un serveur enregistré permet de s'y
+reconnecter sans retaper l'adresse. Chaque serveur garde sa propre session.
 
-- **Android.** L'écran de connexion propose **Changer de serveur**. Une fois
-  connecté, **Paramètres → Serveurs** ouvre **Gerer les serveurs** : touchez
-  un serveur pour basculer dessus, ou utilisez **Renommer** et **Supprimer**
-  (supprimer efface sa session ; le seul serveur enregistré ne peut pas être
-  supprimé).
+- **Android.** Chaque serveur enregistré a un bouton de suppression sur
+  l'écran de connexion au serveur : une adresse qui ne répond plus peut être
+  retirée avant même de vous connecter, après confirmation, et sa session est effacée.
+  L'écran de connexion propose **Changer de serveur**. Une fois connecté,
+  **Paramètres → Serveurs** ouvre **Gerer les serveurs** : touchez un serveur
+  pour basculer dessus, ou utilisez **Renommer** et **Supprimer**. Aux deux
+  endroits, le seul serveur enregistré ne peut pas être supprimé.
 - **Android TV.** **Paramètres → Changer de serveur** déconnecte la
   télévision et revient à l'écran de connexion au serveur ; l'écran de
   connexion a le même bouton. Sur l'écran de connexion au serveur, **Gerer
@@ -181,6 +192,23 @@ préférez ne pas taper de mot de passe.
 **Lire sur**, dans les lecteurs web et Android, envoie ce que vous regardez
 vers une autre application Evey ouverte sur le même compte, et la lecture se
 poursuit là-bas.
+
+## Garder les applications à jour
+
+Chaque version du serveur indique les versions des applications Android et
+Android TV publiées avec elle. Quand l'application installée est plus
+ancienne, l'application Android affiche **Mise à jour disponible :** suivi du
+numéro de version en haut de l'écran (jamais par-dessus le lecteur), et la TV
+l'affiche dans sa barre du haut. Appuyer dessus ouvre la page de l'application
+sur le Play Store.
+
+Le Play Store ne met une application à jour tout seul que lorsque l'appareil
+est inactif et en Wi-Fi, et cette mise à jour automatique peut être coupée
+application par application : un téléphone ou une télévision peut rester
+plusieurs versions en arrière sans que personne ne s'en aperçoive, et c'est à
+cela que sert cet avis. Un serveur plus ancien que cette fonction, ou une
+application déjà à jour, n'affiche rien. L'application web n'a pas besoin de
+mise à jour : c'est le serveur qui la sert.
 
 ## Quel appareil lit quoi
 

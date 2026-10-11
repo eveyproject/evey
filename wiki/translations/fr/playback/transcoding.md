@@ -1,5 +1,5 @@
 ---
-source_sha: edbe45f621f02ac3cb364db76e1a1fc2d51a605a655d2810b4aaa8075b0052ab
+source_sha: e32e8517676eabffe84ba900193c0d8972c65ff67df198c24a47fc61b94a9139
 reviewed: true
 ---
 # Transcodage et capacité du serveur
@@ -118,7 +118,22 @@ Les segments encodés sont gardés sur disque dans le volume `evey-cache` et
 réutilisés quand un autre spectateur, ou le même plus tard, lit le même titre
 avec la même décision. **Admin → Cache de transcodage** affiche sa taille et
 permet de le vider ; le **Budget du cache de transcodage** (**Admin →
-Configuration du serveur → Paramètres du serveur**) le plafonne.
+Configuration du serveur → Paramètres du serveur**) le plafonne. **Tout
+vider** supprime aussi les sous-titres extraits de vos fichiers, gardés dans
+`./evey-data/subtitles` : ils sont extraits de nouveau à la demande.
+
+**Quand le disque se remplit.** Le serveur garde une marge d'espace libre sur
+le disque qui contient le cache : 2 Gio par défaut, réglable avec
+`EVEY_TRANSCODE_CACHE_MIN_FREE_MB` (`0` désactive la marge). En dessous, les
+segments les plus anciens que personne ne regarde sont évincés d'abord. Si cela
+ne libère pas assez, un segment qui n'existe pas encore est refusé avec un
+délai au bout duquel le lecteur peut redemander, plutôt que de lancer un
+encodeur qui échouerait faute de place ; les segments déjà sur le disque
+restent servis. Les sous-titres extraits dans `./evey-data` suivent la même
+marge : en dessous, les nouveaux ne sont plus conservés, chaque demande les
+extrait de nouveau, et les administrateurs reçoivent **Cache des sous-titres
+plein** (au plus une fois par heure, envoyé aussi aux webhooks sous
+`transcoding.derived_cache_full`).
 
 !!! tip
     Videz le cache après une mise à jour qui modifie la façon dont les vidéos

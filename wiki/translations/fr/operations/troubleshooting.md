@@ -1,5 +1,5 @@
 ---
-source_sha: ed13563653be483d334cc49fb3d45495285f85e20184464926eaece895deae91
+source_sha: 03e396675cd3de69ac6a467253bd4e526fd42614bb5aedfc7904f1acc60be5e2
 reviewed: true
 ---
 # Dépannage
@@ -151,6 +151,13 @@ alors que vous attendiez une lecture directe s'explique là : voir
 - Les sous-titres ne s'affichent pas : [Sous-titres](../playback/subtitles.md)
   dit quels formats les lecteurs dessinent et lesquels le serveur doit
   incruster dans l'image.
+- **Sous-titres en préparation…** reste affiché plusieurs minutes : le fichier
+  n'a pas d'index pour cette piste et le serveur le lit en entier, une fois.
+  Voir [La première fois qu'un sous-titre s'affiche](../playback/subtitles.md#the-first-time-a-subtitle-is-shown).
+- Des titres transcodés refusent de démarrer ou se bloquent alors que les
+  titres déjà lus fonctionnent, ou les administrateurs reçoivent **Cache des
+  sous-titres plein** : le disque est passé sous sa marge d'espace libre. Voir
+  [Le cache de transcodage](../playback/transcoding.md#the-transcoding-cache).
 
 ## Bibliothèque et affiches
 
@@ -165,6 +172,39 @@ Une affiche ou un titre qui appartient à un autre film relève de
 l'identification des métadonnées, pas des affiches :
 [Corriger un titre faux ou manquant](../administration/libraries.md#fix-a-wrong-or-missing-title).
 
+Un scan se termine par **Scan partiel - ces dossiers n'ont pas pu être lus :**
+suivi de chemins : Evey ne peut pas lire ces dossiers (droits, partage réseau
+déconnecté). Le reste de la bibliothèque est analysé, et les titres d'un
+dossier illisible sont conservés plutôt que retirés. Vérifiez le montage et le
+propriétaire (`PUID`/`PGID`, voir [Installation](../installation.md#common-variations)),
+puis relancez le scan.
+
 La recherche ne renvoie rien : reconstruisez l'index depuis la base avec
 `docker exec evey-server evey admin reindex-search`. L'index peut toujours être
 reconstruit, rien n'est perdu.
+
+## Signaler un problème
+
+Écrivez à **contact@eveyproject.org**. Un signalement exploitable indique :
+
+- ce que vous avez fait, ce que vous attendiez, et ce qui s'est passé à la
+  place ;
+- quand c'est arrivé, à la minute près : c'est par l'heure qu'on retrouve les
+  lignes dans les logs ;
+- l'appareil et l'application : **Paramètres → À propos → Version de l'app**
+  dans l'application Android, le navigateur et sa version pour l'application
+  web ;
+- la version du serveur : `docker exec evey-server evey version` ;
+- pour un problème de lecture, le titre et une capture des **Infos du flux**
+  (voir [Lire les Infos du flux](../playback/how-playback-is-decided.md#reading-stream-info)) :
+  elles nomment le mode de lecture choisi et ses raisons, soit l'essentiel du
+  diagnostic.
+
+Un administrateur peut y ajouter les lignes de log autour de ce moment
+(**Admin → Logs & Debug**, voir [Les logs](#the-logs)) et le rapport de
+[`evey admin doctor`](#evey-admin-doctor). Les logs nomment des comptes et
+des adresses réseau : relisez-les avant de les envoyer.
+
+Une faille de sécurité ne se signale pas dans un endroit public : écrivez à
+**security@eveyproject.org**, et laissez le temps de la corriger avant d'en
+parler.
