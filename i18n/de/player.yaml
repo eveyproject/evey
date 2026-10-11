@@ -211,3 +211,9 @@ a11y:
 # The television client: the hint on its bar for the one key into the options.
 osd:
   downHint: "▼ Einstellungen"
+# The television client: the offer to carry on a film the system killed mid-way.
+interruptedResume:
+  heading: "Die Wiedergabe wurde unterbrochen"
+  resume: "Fortsetzen"
+  resumeAt: "Bei {{time}} fortsetzen"
+  dismiss: "Später"

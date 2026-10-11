@@ -211,3 +211,9 @@ a11y:
 # The television client: the hint on its bar for the one key into the options.
 osd:
   downHint: "▼ 设置"
+# The television client: the offer to carry on a film the system killed mid-way.
+interruptedResume:
+  heading: "播放已中断"
+  resume: "继续播放"
+  resumeAt: "从 {{time}} 继续播放"
+  dismiss: "以后再说"

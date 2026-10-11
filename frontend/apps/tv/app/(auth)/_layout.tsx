@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Redirect, Stack, router, usePathname } from "expo-router";
 import { useAuthStore, useServerListStore } from "@evey/store";
@@ -12,6 +12,8 @@ import { isDeepScreenPath, HOME_PATH } from "../../src/lib/homeShortcut";
 import { ErrorBoundary } from "../../src/components/ErrorBoundary";
 import { DemoBanner } from "../../src/components/DemoBanner";
 import { ProfileLockScreen } from "../../src/components/ProfileLockScreen";
+import { InterruptedPlaybackPrompt } from "../../src/components/InterruptedPlaybackPrompt";
+import { takeInterrupted, resumeRoute, type InterruptedPlayback } from "../../src/lib/interruptedPlayback";
 import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
 import { resolveServerUrl } from "../../src/lib/server-config";
 import { initI18n } from "../../src/i18n";
@@ -53,6 +55,19 @@ export default function AuthLayout() {
       if (url) await initI18n(url);
     })();
   }, []);
+  // A film the system killed mid-way (lib/interruptedPlayback.ts) is offered
+  // back once per launch; a player opened meanwhile (a cast) takes precedence.
+  const [interrupted, setInterrupted] = useState<InterruptedPlayback | null>(null);
+  const interruptedCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!profileId || interruptedCheckedRef.current) return;
+    interruptedCheckedRef.current = true;
+    void takeInterrupted(profileId).then(setInterrupted);
+  }, [profileId]);
+  const onPlayer = pathname.startsWith("/player");
+  useEffect(() => {
+    if (onPlayer) setInterrupted(null);
+  }, [onPlayer]);
   // Foreground presence beats for the admin "online" panel - enabled only
   // once fully authenticated (hooks can't sit after the guards below).
   usePresenceHeartbeat(!!accessToken && !isTokenExpired(accessToken) && !!profileId);
@@ -115,6 +130,15 @@ export default function AuthLayout() {
         <HomeShortcutButton onPress={() => router.replace(HOME_PATH as never)} bottomOffset={musicBarInset} />
       )}
       <TVMusicPlayer />
+      <InterruptedPlaybackPrompt
+        mark={onPlayer ? null : interrupted}
+        onResume={() => {
+          if (!interrupted) return;
+          setInterrupted(null);
+          router.push(resumeRoute(interrupted) as never);
+        }}
+        onDismiss={() => setInterrupted(null)}
+      />
       <ProfileLockScreen />
     </View>
   );

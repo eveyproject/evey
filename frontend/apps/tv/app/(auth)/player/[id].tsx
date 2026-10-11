@@ -30,6 +30,8 @@ import { playerExit } from "../../../src/hooks/playerExit";
 import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
+import { useInterruptedPlaybackMarker } from "../../../src/hooks/useInterruptedPlaybackMarker";
+import { useAuthStore } from "@evey/store";
 import { QualityPicker } from "../../../src/components/QualityPicker";
 import { AudioTrackPicker, type AudioStream } from "../../../src/components/AudioTrackPicker";
 import { SubtitlePicker, type SubtitleStream } from "../../../src/components/SubtitlePicker";
@@ -522,6 +524,22 @@ export default function PlayerScreen() {
 
   // Past 90% the title is watched: the rule every player shares.
   useAutoMarkWatched(mediaId, currentTime, duration);
+
+  // A mark the next launch reads if the system kills this player mid-film
+  // (lib/interruptedPlayback.ts): the home then offers to carry on.
+  const profileId = useAuthStore((s) => s.profileId);
+  useInterruptedPlaybackMarker({
+    enabled: !roomId,
+    mediaId,
+    profileId,
+    title: playerTitle(media, series?.title ?? (season ? itemLabel(season, t) : undefined)),
+    isPlaying,
+    getPositionMs: () => currentTimeRef.current * 1000,
+    getPick: () => ({
+      ...(userPickedAudioRef.current ? { audio: selectedAudioIndex } : {}),
+      ...(userPickedSubtitleRef.current ? { subtitle: selectedSubtitleIndex ?? "off" } : {}),
+    }),
+  });
 
   // Controls go away when the room goes quiet - ALWAYS. They used to stay put
   // for as long as the row held the focus, which since BACK became the only
