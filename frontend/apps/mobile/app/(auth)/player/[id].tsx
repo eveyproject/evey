@@ -651,8 +651,15 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     ladderBitrates: playingTrack.ladderBitrates,
   });
 
+  // Filled once nextEp and handleBack exist (below); read by the playToEnd
+  // listener, which only subscribes once per player.
+  const playedToEndRef = useRef<() => void>(() => {});
+
   useEffect(() => {
     if (!player) return;
+    // The real end of the stream: currentTime can stop short of the catalogue
+    // duration, so nextEp.ended alone may never turn true at the end of a film.
+    const endSub = player.addListener("playToEnd", () => playedToEndRef.current());
     const timeSub = player.addListener("timeUpdate", (ev) => {
       if (!mountedRef.current) return;
       if (seekingRef.current) return; // frozen while scrubbing - see seekingRef
@@ -720,6 +727,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     readAudioTracks();
     const audioTracksSub = player.addListener("availableAudioTracksChange", readAudioTracks);
     return () => {
+      endSub.remove();
       timeSub.remove();
       statusSub.remove();
       playSub.remove();
@@ -1084,6 +1092,19 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     onNavigate: handleNavigateEpisode,
     autoAdvance: autoplayNext,
   });
+
+  // A film, or an episode with nothing after it: leave for its page once it has
+  // played to the end, as the web and browser TV players do, instead of holding
+  // the last frame. With a next episode, pin the clock on the end so the up-next
+  // countdown starts even when the last tick stopped short of the duration.
+  playedToEndRef.current = () => {
+    if (!nextEp.nextEpisode) {
+      handleBack();
+      return;
+    }
+    currentTimeRef.current = effectiveDuration;
+    setCurrentTime(effectiveDuration);
+  };
 
   // End-of-episode sleep timer: when the user picked "stop after this episode",
   // intercept videoEnded BEFORE useNextEpisode auto-navigates. Pause the player
