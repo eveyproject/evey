@@ -5,6 +5,7 @@ package httpapi
 
 import (
 	"html"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -69,4 +70,42 @@ func rebakeDASHManifestURIs(manifest, suffix string) string {
 		sub := dashURIAttrRE.FindStringSubmatch(m)
 		return sub[1] + `="` + sub[2] + esc + `"`
 	})
+}
+
+// stampPlanSourceURIs adds the plan's SourceID to every packager URI (od_*) of
+// an HLS master Evey composed itself (hybrid, wasm audio), whose od_ playlists
+// the packager's rebake never sees. Other URIs are left alone.
+func stampPlanSourceURIs(manifest, sourceID string) string {
+	if sourceID == "" {
+		return manifest
+	}
+	param := planSourceParam + "=" + url.QueryEscape(sourceID)
+	stamp := func(uri string) string {
+		if !strings.HasPrefix(uri, onDemandPrefix) {
+			return uri
+		}
+		if strings.Contains(uri, "?") {
+			return uri + "&" + param
+		}
+		return uri + "?" + param
+	}
+	lines := strings.Split(manifest, "\n")
+	for i, ln := range lines {
+		if !strings.HasPrefix(ln, "#") {
+			lines[i] = stamp(ln)
+			continue
+		}
+		const marker = "URI=\""
+		start := strings.Index(ln, marker)
+		if start < 0 {
+			continue
+		}
+		start += len(marker)
+		end := strings.IndexByte(ln[start:], '"')
+		if end < 0 {
+			continue
+		}
+		lines[i] = ln[:start] + stamp(ln[start:start+end]) + ln[start+end:]
+	}
+	return strings.Join(lines, "\n")
 }

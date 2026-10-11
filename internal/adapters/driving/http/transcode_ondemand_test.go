@@ -36,9 +36,16 @@ import (
 type fakeOnDemandPlan struct {
 	resources map[string][]byte
 	dash      bool
+	sourceID  string
+	// refuse makes every Resource fail with ErrSourceChanged, as a plan whose
+	// file was replaced under it.
+	refuse bool
 }
 
 func (p *fakeOnDemandPlan) Resource(_ context.Context, name string) ([]byte, string, error) {
+	if p.refuse {
+		return nil, "", fmt.Errorf("fake: %w", apptranscoding.ErrSourceChanged)
+	}
 	if d, ok := p.resources[name]; ok {
 		return d, "application/vnd.apple.mpegurl", nil
 	}
@@ -47,12 +54,25 @@ func (p *fakeOnDemandPlan) Resource(_ context.Context, name string) ([]byte, str
 func (p *fakeOnDemandPlan) Resources() []string { return []string{"master.m3u8"} }
 func (p *fakeOnDemandPlan) NumSegments() int    { return 1 }
 func (p *fakeOnDemandPlan) HasDASH() bool       { return p.dash }
+func (p *fakeOnDemandPlan) SourceID() string    { return p.sourceID }
 
 type fakeOnDemandPackager struct {
 	plan     *fakeOnDemandPlan
 	err      error
 	calls    int
 	lastOpts apptranscoding.OnDemandOptions
+	// replanned is what Replan returns (the plan of the replaced file).
+	replanned *fakeOnDemandPlan
+	replans   int
+}
+
+func (p *fakeOnDemandPackager) Replan(_ context.Context, _ apptranscoding.OnDemandPlan) (apptranscoding.OnDemandPlan, error) {
+	p.replans++
+	if p.replanned == nil {
+		return nil, fmt.Errorf("fake: no replanned plan")
+	}
+	p.plan = p.replanned
+	return p.replanned, nil
 }
 
 func (p *fakeOnDemandPackager) Plan(_ context.Context, _ string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {

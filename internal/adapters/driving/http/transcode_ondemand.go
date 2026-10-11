@@ -1,8 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -98,6 +100,7 @@ func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return false, fallbackHybridMasterFailed
 	}
+	master = stampPlanSourceURIs(master, plan.SourceID())
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -433,6 +436,9 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return false, fallbackWasmMasterFailed
 	}
+	if planErr == nil {
+		master = stampPlanSourceURIs(master, plan.SourceID())
+	}
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -619,22 +625,28 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		err         error
 		streamed    apptranscoding.OnDemandResource
 	)
-	// A plan that can stream hands a media segment over as a handle read from
-	// the source while it is written (transcode_ondemand_stream.go); anything
-	// it returns whole - playlists, inits, subtitles, a segment it had to
-	// assemble - goes down the buffered path as before.
-	if opener, ok := plan.(apptranscoding.OnDemandOpener); ok && !isPlanPlaylist(name) {
-		var res apptranscoding.OnDemandResource
-		if res, err = opener.Open(r.Context(), name); err == nil {
-			if res.Bytes() == nil {
-				streamed = res
-			} else {
-				data, contentType = res.Bytes(), res.ContentType()
-				closePlanResource(r.Context(), name, res)
-			}
+	// A URL that names another source than the plan's is from a playlist of a
+	// file since replaced: 410, the player reloads the master. A plan refused
+	// mid-way (the file replaced under it) is rebuilt and the request replayed
+	// once, through the same check.
+	// A URL without src (a master served before the stamp) is still served;
+	// temporary, to be refused in a later release.
+	want := r.URL.Query().Get(planSourceParam)
+	for replayed := false; ; replayed = true {
+		if want != "" && want != plan.SourceID() {
+			servePlanSourceGone(w, r, mediaID, name, span)
+			return
 		}
-	} else {
-		data, contentType, err = plan.Resource(r.Context(), name)
+		data, contentType, streamed, err = fetchPlanResource(r.Context(), plan, name)
+		if err == nil || replayed || h.onDemand == nil || !errors.Is(err, apptranscoding.ErrSourceChanged) {
+			break
+		}
+		fresh, rerr := h.onDemand.Replan(r.Context(), plan)
+		if rerr != nil {
+			err = rerr
+			break
+		}
+		plan = fresh
 	}
 	// The mkvgo path serves every byte of a copy playback and used to log none
 	// of them: when a cast died at load, the server's side of it was a blank.
@@ -691,7 +703,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		//
 		// The query token, when the request carried one: a cookie-less Chromecast
 		// has nothing else to authenticate sub-resources with.
-		suffix := planManifestSuffix(r)
+		suffix := planManifestSuffix(r, plan.SourceID())
 		if strings.HasSuffix(name, ".mpd") {
 			data = []byte(rebakeDASHManifestURIs(string(data), suffix))
 		} else {
@@ -708,6 +720,40 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	_, _ = w.Write(data)
+}
+
+// fetchPlanResource gets one resource off the plan. A plan that can stream
+// hands a media segment over as a handle read from the source while it is
+// written (transcode_ondemand_stream.go); anything it returns whole -
+// playlists, inits, subtitles, a segment it had to assemble - comes back as
+// bytes.
+func fetchPlanResource(ctx context.Context, plan apptranscoding.OnDemandPlan, name string) ([]byte, string, apptranscoding.OnDemandResource, error) {
+	opener, ok := plan.(apptranscoding.OnDemandOpener)
+	if !ok || isPlanPlaylist(name) {
+		data, ct, err := plan.Resource(ctx, name)
+		return data, ct, nil, err
+	}
+	res, err := opener.Open(ctx, name)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	if res.Bytes() == nil {
+		return nil, "", res, nil
+	}
+	data, ct := res.Bytes(), res.ContentType()
+	closePlanResource(ctx, name, res)
+	return data, ct, nil, nil
+}
+
+// servePlanSourceGone answers a sub-resource URL stamped with a source the
+// plan no longer serves.
+func servePlanSourceGone(w http.ResponseWriter, r *http.Request, mediaID, name string, span trace.Span) {
+	slog.InfoContext(r.Context(), "hls-vod: on-demand resource of a replaced source",
+		slog.String("media_id", mediaID), slog.String("resource", name))
+	span.SetStatus(codes.Error, "on-demand source replaced")
+	setCORSHeaders(w, r, "")
+	w.Header().Set("Cache-Control", "no-store")
+	http.Error(w, `{"message":"the media file was replaced, reload the playlist"}`, http.StatusGone)
 }
 
 // planSubtitleRenditionsOf maps an already-built plan's subtitle renditions
@@ -860,11 +906,18 @@ func (h *hlsVODServe) planOf(r *http.Request, mediaID string, item *domainlibrar
 	return rp
 }
 
+// planSourceParam is the query parameter that carries the plan's SourceID on
+// every sub-resource URI, checked by servePlanResourceData.
+const planSourceParam = "src"
+
 // planManifestSuffix is the query the packager's bare sub-resource URIs get:
-// the packager version, always, and the request's token (with its query)
-// when it came in the URL - see servePlanResourceData.
-func planManifestSuffix(r *http.Request) string {
+// the packager version and the plan's source, always, and the request's token
+// (with its query) when it came in the URL - see servePlanResourceData.
+func planManifestSuffix(r *http.Request, sourceID string) string {
 	suffix := "?v=" + url.QueryEscape(packagerVersion())
+	if sourceID != "" {
+		suffix += "&" + planSourceParam + "=" + url.QueryEscape(sourceID)
+	}
 	if tok := RawTokenFromContext(r.Context()); tok != "" && TokenFromQuery(r.Context()) {
 		suffix += "&token=" + url.QueryEscape(tok)
 		if rq := r.URL.RawQuery; rq != "" {
@@ -903,7 +956,7 @@ func (h *hlsVODServe) serveHybridMPD(w http.ResponseWriter, r *http.Request, med
 	}
 	// The renditions' fallback bitrate, as the hybrid master declares it.
 	in.Profiles = []domaintranscoding.HLSProfile{{Name: "od-copy", AudioBitrate: domaintranscoding.AudioRenditionBaseKbps, Copy: true}}
-	mpd, err := h.manifestGen.HybridMPD(in, rebakeDASHManifestURIs(string(video), planManifestSuffix(r)))
+	mpd, err := h.manifestGen.HybridMPD(in, rebakeDASHManifestURIs(string(video), planManifestSuffix(r, plan.SourceID())))
 	if err != nil {
 		notOffered("compose", err)
 		return
