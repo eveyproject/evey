@@ -1,5 +1,5 @@
 ---
-source_sha: a7cfdea50c0375a3b2a41b316c17367c5b3af66b6373e901b7d2babbda6edbb9
+source_sha: af8c6f06737bb877d02dbe562e2082f8b62c725fa10bcf0c4a668855a5f42c87
 reviewed: true
 ---
 # Servir une vidéo : le chemin de lecture HLS
@@ -50,14 +50,20 @@ flowchart LR
     mkv[mkvgo<br/>barreau copy, sans processus]
     ff[ffmpeg<br/>transcodage, tonemap]
     pack[Manifestes<br/>master.m3u8, stream_N.m3u8,<br/>manifest.mpd]
+    wire[segment sur le fil<br/>envoyé en flux depuis le fichier source,<br/>rien sur disque]
     seg[(cache/transcode/segments/hash)]
     req --> h --> plan
     plan -->|copy| mkv
     plan -->|transcode| ff
     plan --> pack
-    mkv --> seg
+    mkv --> wire
     ff --> seg
 ```
+
+Les deux moteurs quittent le serveur différemment : un segment mkvgo est
+construit à la demande et écrit sur la connexion au fil de l'envoi, la voie
+copy ne touche donc jamais le cache de segments ; un segment ffmpeg est un
+fichier sous le répertoire de l'empreinte, écrit une fois et servi depuis là.
 
 ## Ordre de lecture : suivre une requête dans le code
 

@@ -43,14 +43,20 @@ flowchart LR
     mkv[mkvgo<br/>copy rung, no process]
     ff[ffmpeg<br/>transcode, tonemap]
     pack[Manifests<br/>master.m3u8, stream_N.m3u8,<br/>manifest.mpd]
+    wire[segment on the wire<br/>streamed from the source file,<br/>nothing on disk]
     seg[(cache/transcode/segments/hash)]
     req --> h --> plan
     plan -->|copy| mkv
     plan -->|transcode| ff
     plan --> pack
-    mkv --> seg
+    mkv --> wire
     ff --> seg
 ```
+
+The two engines leave the server differently: a mkvgo segment is built on
+request and written to the connection as it goes, so the copy path never
+touches the segment cache; an ffmpeg segment is a file under the fingerprint's
+directory, written once and served from there.
 
 ## Reading order - follow one request through the code
 

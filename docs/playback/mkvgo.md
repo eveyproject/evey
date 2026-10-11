@@ -24,9 +24,10 @@ written to the transcoding cache. A re-encode is the expensive case, and a
 video re-encode is the only work that takes a transcoding slot: see
 [Transcoding and server capacity](transcoding.md).
 
-On capable clients, around 80% of video playback paths can avoid FFmpeg
-entirely: what the player decodes decides how often the file can be served as
-it is or only repackaged. How that is decided: [How playback is decided](how-playback-is-decided.md).
+Start and seek do not wait for a process or for a first segment on disk: the
+segment is built on request from the file's index. Whether a file takes this
+path depends on what the player decodes:
+[How playback is decided](how-playback-is-decided.md).
 
 ## What MKVGo does
 
@@ -34,9 +35,9 @@ it is or only repackaged. How that is decided: [How playback is decided](how-pla
 | --- | --- | --- |
 | **Reading files** | During a library scan, codecs, resolution, HDR, bitrate and duration are read from the head of the file. | ffprobe reads it. It also takes over on any doubt: a parse error, or colour information MKVGo could not read on an HDR-capable codec. |
 | **Keyframe index** | The positions playback can start from, read from the file's index; they let Remux and video copy cut segments on keyframes. | ffprobe. |
-| **Streaming without re-encoding** | Remux: HLS segments in fragmented MP4 (CMAF), built on request from a plan kept per file. A DASH manifest is produced over the same segments; the apps use HLS. | FFmpeg copies the tracks, still without re-encoding. |
+| **Streaming without re-encoding** | Remux: HLS segments in fragmented MP4 (CMAF), built on request from a plan kept per file. A segment is written to the connection straight from the source file as it goes out: nothing is assembled in memory first, nothing is written to the transcoding cache. A DASH manifest is produced over the same segments; the apps use HLS. | FFmpeg copies the tracks, still without re-encoding, into segments written to the cache. |
 | **MP4 for the browser** | A Matroska file a browser cannot open is rewritten once as a fast-start MP4, kept in a cache. | - |
-| **Subtitles** | Subtitle tracks embedded in an MKV are extracted to SRT or ASS. | - |
+| **Subtitles** | Subtitle tracks embedded in an MKV are extracted on request, text tracks to WebVTT and bitmap tracks (PGS) to images. Where the file's own index (Cues) covers a track completely, the server reads only the blocks it points to instead of the whole file, and keeps that block index under its data directory (`subtitle-index/`) for the next request. A track that still needs a full read is answered "being prepared" with a retry delay, and the players poll until it is ready. | ffmpeg extracts the track, reading the file through. |
 | **Preview images** | The keyframe nearest the requested position is found through the index, and FFmpeg decodes only that frame. Used when that keyframe is within about two seconds of the request. | FFmpeg seeks and decodes up to the exact position. |
 | **Episode chains** | The server can package several episodes as one continuous stream (`?gapless=1` on the stream address). No app offers the switch yet. | Each episode plays on its own. |
 | **Media Health** | The diagnosis (seek index, audio start, tracks stored in blocks), the rebuilt index, the resync past a damaged stretch, and moving an audio track by an offset. See [Media health](../runbooks/media-health.md). | Re-muxing tracks stored in blocks is done by FFmpeg. |
@@ -60,8 +61,9 @@ in-process, no ffmpeg, no session state, no on-disk segments: internal/adapters/
 probe + fallback reasons: internal/adapters/driven/prober/dispatcher.go (container gate, ReadMeta error, panic) ; internal/adapters/driven/prober/mapper.go (ColourDetermined, VP9 feature metadata) ; docs/adr/0016-mkv-fastpath-prober.md
 keyframe index: internal/adapters/driven/prober/keyframe_dispatcher.go
 DASH, CMAF, HLS default: docs/playback-serving.md (Delivery) ; OnDemandPlan.HasDASH
+streamed segments: internal/app/transcoding/ondemand.go - OnDemandResource (Bytes nil, WriteRange) ; internal/adapters/driving/http/transcode_ondemand_stream.go - servePlanResourceStreamed
 progressive MP4: internal/adapters/driving/http/remux_handler.go - RemuxToMP4, remuxCacheName
-subtitles: internal/adapters/driven/mkvgo/subtitle_extractor.go - ExtractSubtitle
+subtitles: internal/adapters/driving/http/subtitle_handler.go - extractSubtitleVTT ; subtitle_pgs.go ; subtitle_index_cache.go - fromCues, resolveAndStore, newSubtitleIndexCache ; subtitle_preparing.go (202 + Retry-After) ; subtitle_prewarm.go - ensureIndex
 preview images: internal/adapters/driving/http/frame_extractor_fastpath.go - maxSnapshotDriftMs ; cmd/evey/wire_helpers.go (transcoding.snapshot_fastpath)
 episode chains: internal/adapters/driving/http/transcode_concat.go ; internal/adapters/driven/mkvgo/concat.go - ConcatPackager ; frontend/apps/web/src/hooks/usePlaybackPrefs.ts - SeriesTrackPrefs.gapless (read by HLSPlayer, no UI sets it)
 media health: internal/adapters/driven/mkvgo/diagnose.go ; internal/adapters/driven/mkvgo/reindex.go ; internal/adapters/driven/mkvgo/track_retimer.go ; internal/app/maintenance/seek_index_reinterleave.go (Reinterleaver, ffmpeg adapter)

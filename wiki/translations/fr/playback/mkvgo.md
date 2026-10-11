@@ -1,5 +1,5 @@
 ---
-source_sha: e78304f82dd5ea81162c41fb42b91430292e76f395825032f81c87da355f4578
+source_sha: 4cdfa494f35c5303fc54aa4a56be09d5d041c6b1060894e7473c91b0781af55a
 reviewed: true
 ---
 # MKVGo dans Evey
@@ -29,10 +29,10 @@ les segments écrits dans le cache de transcodage. Le réencodage est le cas
 coûteux, et un réencodage vidéo est le seul travail qui occupe un créneau de
 transcodage : voir [Transcodage et capacité du serveur](transcoding.md).
 
-Avec des clients capables, environ 80 % des chemins de lecture vidéo peuvent
-se passer entièrement de FFmpeg : ce que le lecteur sait décoder décide de la
-fréquence à laquelle le fichier peut être servi tel quel ou seulement
-réempaqueté. Comment cela se décide :
+Le démarrage et le déplacement n'attendent ni un processus ni un premier
+segment sur le disque : le segment est construit à la demande à partir de
+l'index du fichier. Qu'un fichier emprunte cette voie dépend de ce que le
+lecteur sait décoder :
 [Comment Evey choisit le mode de lecture](how-playback-is-decided.md).
 
 ## Ce que fait MKVGo
@@ -41,9 +41,9 @@ réempaqueté. Comment cela se décide :
 | --- | --- | --- |
 | **Lecture des fichiers** | Pendant l'analyse d'une bibliothèque, codecs, résolution, HDR, débit et durée sont lus dans l'en-tête du fichier. | ffprobe le lit. Il prend aussi le relais au moindre doute : une erreur d'analyse, ou des informations de couleur que MKVGo n'a pas pu lire sur un codec capable de HDR. |
 | **Index des images clés** | Les positions d'où la lecture peut partir, lues dans l'index du fichier ; elles permettent au remux et à la copie vidéo de couper les segments sur des images clés. | ffprobe. |
-| **Diffusion sans réencodage** | Remux : segments HLS en MP4 fragmenté (CMAF), construits à la demande à partir d'un plan gardé par fichier. Un manifeste DASH est produit sur les mêmes segments ; les applications utilisent HLS. | FFmpeg copie les pistes, toujours sans réencoder. |
+| **Diffusion sans réencodage** | Remux : segments HLS en MP4 fragmenté (CMAF), construits à la demande à partir d'un plan gardé par fichier. Un segment est écrit sur la connexion directement depuis le fichier source, au fil de l'envoi : rien n'est assemblé en mémoire au préalable, rien n'est écrit dans le cache de transcodage. Un manifeste DASH est produit sur les mêmes segments ; les applications utilisent HLS. | FFmpeg copie les pistes, toujours sans réencoder, dans des segments écrits dans le cache. |
 | **MP4 pour le navigateur** | Un fichier Matroska qu'un navigateur ne sait pas ouvrir est réécrit une fois en MP4 à démarrage rapide, gardé en cache. | - |
-| **Sous-titres** | Les pistes de sous-titres intégrées à un MKV sont extraites en SRT ou en ASS. | - |
+| **Sous-titres** | Les pistes de sous-titres intégrées à un MKV sont extraites à la demande, les pistes texte en WebVTT et les pistes image (PGS) en images. Quand l'index propre du fichier (les Cues) couvre entièrement une piste, le serveur ne lit que les blocs qu'il désigne au lieu du fichier entier, et garde cet index des blocs sous son répertoire de données (`subtitle-index/`) pour la demande suivante. Une piste qui demande encore une lecture complète reçoit une réponse « en préparation » avec un délai de nouvel essai, et les lecteurs réinterrogent jusqu'à ce qu'elle soit prête. | ffmpeg extrait la piste en lisant le fichier de bout en bout. |
 | **Images d'aperçu** | L'image clé la plus proche de la position demandée est trouvée grâce à l'index, et FFmpeg ne décode que cette image. Utilisé quand cette image clé est à environ deux secondes ou moins de la demande. | FFmpeg se positionne et décode jusqu'à la position exacte. |
 | **Épisodes enchaînés** | Le serveur peut empaqueter plusieurs épisodes en un seul flux continu (`?gapless=1` dans l'adresse du flux). Aucune application ne propose encore l'option. | Chaque épisode est lu séparément. |
 | **Santé des médias** | Le diagnostic (index de lecture, début de l'audio, pistes rangées par blocs), l'index reconstruit, la resynchronisation après une zone abîmée, et le décalage d'une piste audio. Voir [Santé des médias](../runbooks/media-health.md). | Le remux des pistes rangées par blocs est fait par FFmpeg. |
