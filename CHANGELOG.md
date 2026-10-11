@@ -85,10 +85,13 @@ line - earlier history lives in git.
   DefaultDuration keeps its real frame size to the end of a film, so the
   remux cache is re-produced (format v4) and players fetch fresh segments
   (the packager version is part of every segment URL).
-- Packager upgraded to mkvgo 0.43.0: a streamed segment's large spans go to
+- Packager upgraded to mkvgo 0.43.1: a streamed segment's large spans go to
   the connection through the kernel (`sendfile`) and its small ones in packed
   writes, and the remux's first pass writes each track through a buffer; less
-  server CPU per segment served, same bytes.
+  server CPU per segment served, same bytes. A segment write the connection
+  takes only in part now cuts the connection instead of ending a short body
+  as if complete, and a remux that fails on a full disk no longer leaves temp
+  files behind.
 - Seek-index diagnosis moves to mkvgo 0.27: an index is judged against the
   picture's real end (sound outlasting picture is no longer a hole), holes are
   probed to say whether a rebuild, a re-encode or the source is the remedy,
