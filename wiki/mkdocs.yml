@@ -120,6 +120,7 @@ plugins:
             Install: Installation
             First setup: Première configuration
             Apps and devices: Applications et appareils
+            Watching with Evey: Regarder avec Evey
             Privacy policy: Règles de confidentialité
             Administration: Administration
             Libraries and metadata: Bibliothèques et métadonnées
@@ -499,6 +500,7 @@ nav:
       - Install: installation.md
       - First setup: getting-started/first-setup.md
       - Apps and devices: getting-started/apps.md
+      - Watching with Evey: getting-started/watching.md
       - Privacy policy: privacy.md
   - Administration:
       - Libraries and metadata: administration/libraries.md

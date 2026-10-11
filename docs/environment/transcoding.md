@@ -42,6 +42,7 @@ variable: they are set in **Admin → Transcoding** only.
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
 | `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | The size of the whole transcoding cache (segments, remuxes, prepared downloads), least recently used removed first. | Server Config → Server Settings → **Transcode cache budget**, restart |
+| `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | Free space kept on the disk of the cache. Below it, idle segments are evicted, then new segments are refused rather than written; extracted subtitles stop being stored and administrators are notified. `0` turns the margin off. See [The transcoding cache](../playback/transcoding.md#the-transcoding-cache). | none |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Where it lives. Set by the image. | none |
 | `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Where the seek bar thumbnails live. Set by the image: they are expensive to regenerate, so they stay in `/data`. | none |
 
@@ -59,7 +60,7 @@ equivalent.
 | `EVEY_BENCH_HDR_SAMPLE_SHA256`, `EVEY_BENCH_SDR_SAMPLE_SHA256` | empty | The SHA256 of that download; required with a URL. | none |
 
 <!-- sources
-internal/config/config.go - EVEY_TRANSCODING_*, EVEY_BENCH_*, EVEY_TRICKPLAY_CACHE_DIR ; struct comments HWBackend, HWDevice, MaxSessions, SingleVariant, SoftwareMaxHeightOverride, SoftwareAV1MaxHeightOverride (panel-only), AV1Enabled, AV1MaxHeight, HWLowPowerEnabled
+cmd/evey/wire.go - EVEY_TRANSCODE_CACHE_MIN_FREE_MB (read at boot, not in config.go) ; internal/config/config.go - EVEY_TRANSCODING_*, EVEY_BENCH_*, EVEY_TRICKPLAY_CACHE_DIR ; struct comments HWBackend, HWDevice, MaxSessions, SingleVariant, SoftwareMaxHeightOverride, SoftwareAV1MaxHeightOverride (panel-only), AV1Enabled, AV1MaxHeight, HWLowPowerEnabled
 panel overrides: cmd/evey/main.go - loadOverride (transcoding.*) ; cmd/evey/wire.go (transcoding.hw_mode read directly) ; internal/adapters/driving/http/settings_handler.go
 hw tonemap: internal/adapters/driving/http/transcode_vod_wire.go (EVEY_TRANSCODING_HW_TONEMAP)
 threads: internal/adapters/driven/ffmpeg/software_threads.go - parseSoftwareThreads

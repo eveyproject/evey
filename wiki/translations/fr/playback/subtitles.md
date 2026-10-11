@@ -1,5 +1,5 @@
 ---
-source_sha: 03f8a2ec1721f109a072f8ecbb96e6a41ae358c2b550d1000f1987bf6e0a6f8a
+source_sha: 1fa2aa8b1aeedf6d8bb34160a2e73f730328fc1dc61351026633c7005e056976
 reviewed: true
 ---
 # Sous-titres
@@ -40,6 +40,26 @@ Lecture**) s'applique aux formats de la dernière ligne :
 | **Auto** | Incrustée, la vidéo est réencodée. | Dessinés par le lecteur. |
 | **Toujours incruster** | Comme Auto. | Dessinés par le lecteur : le texte n'est jamais incrusté, quel que soit le réglage. |
 | **Jamais incruster** | Ne peut pas s'afficher : la vidéo n'est jamais réencodée pour un sous-titre. | Dessinés par le lecteur. |
+
+## La première fois qu'un sous-titre s'affiche
+
+Un sous-titre contenu dans le fichier (texte ou PGS) est extrait par le
+serveur la première fois que quelqu'un le choisit, puis conservé : tous les
+visionnages suivants, par n'importe qui, l'obtiennent aussitôt. Quand l'index
+du fichier couvre la piste, le serveur ne lit que les blocs du sous-titre et
+cela prend quelques secondes. Sans cet index, il lit tout le fichier :
+plusieurs minutes pour un gros film (environ cinq pour un remux UHD de 85 Go
+sur un disque local, davantage quand le même serveur diffuse en parallèle).
+
+Pendant ce temps, le lecteur affiche **Sous-titres en préparation…** à
+l'endroit des sous-titres, revérifie de lui-même et les affiche dès qu'ils sont
+prêts ; la vidéo continue. Choisir une autre piste n'arrête pas le travail : le
+serveur le termine pour la fois suivante.
+
+Une piste que le serveur ne parvient pas à extraire reste vide. L'échec est
+mémorisé : la choisir de nouveau ne relance pas une lecture complète ; une
+mise à jour de MKVGo, la bibliothèque qui l'extrait, retente. Voir
+[MKVGo dans Evey](mkvgo.md#what-mkvgo-does) pour ce qui est lu et quand.
 
 ## Choisir et ajuster
 

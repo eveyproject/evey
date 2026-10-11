@@ -63,6 +63,24 @@ How long each kind of history is kept is set in **Admin → Server Config →
 Server Settings** (play sessions, audit log, server metrics, streaming
 quality). A change applies at the next daily cleanup.
 
+## Prometheus metrics
+
+`GET /metrics` serves the server's counters in the Prometheus text format, all
+named `evey_...`. It answers an administrator session, or a fixed token set in
+`EVEY_METRICS_SCRAPE_TOKEN` and sent as `Authorization: Bearer <token>`, so
+that Prometheus or Grafana can scrape without signing in again
+([Backups, logs and monitoring](../environment/logs-monitoring.md)). The
+families worth a first chart:
+
+| Metric | What it tells |
+| --- | --- |
+| `evey_transcodes_active`, `evey_transcode_queue_depth` | Background transcode jobs (outside live playback) running, and waiting for a slot. |
+| `evey_hlsvod_sessions_active`, `evey_hlsvod_sessions_rejected_total` | FFmpeg processes producing playback segments, and starts refused because the server was at its limit. |
+| `evey_hlsvod_cache_size_bytes`, `evey_hlsvod_cache_evicted_bytes_total` | Size of the segment cache on disk, and what the sweeper freed. |
+| `evey_mkvgo_walks_in_flight`, `evey_mkvgo_plan_stats` | The in-process packager: windows being read, queued reads (`stat="slot_waits"`), see [MKVGo in Evey](../playback/mkvgo.md#load-replaced-files-and-updates). |
+| `evey_http_requests_total`, `evey_http_request_duration_seconds` | Requests and latency by method and path. |
+| `evey_watcher_alive`, `evey_scan_queue_depth` | Whether each library's folder watcher answered its last check (1 or 0), and files waiting to be scanned. |
+
 ## Command line
 
 `evey admin doctor` checks the whole server in one report; the other
@@ -72,5 +90,6 @@ diagnostic commands are listed in [Command line](../runbooks/cli.md).
 who's online: frontend/apps/web/src/features/admin/DashboardOnline.tsx (presence heartbeat, profile names, idle, SendCastReceiverCommand) ; i18n admin.online.*
 logs: internal/pkg/logger/logger.go - New (file only outside DevMode), rotatingWriter ; config EVEY_LOG_RETENTION_DAYS ; docker-compose.yml ./evey-data:/data
 labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.where.*, admin.logs.live, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
-automatic limits: i18n admin.qoe.overrides.* ; docs/adr/0018-cmcd-qoe-pipeline.md
+automatic limits: i18n admin.qoe.overrides.*
+metrics: internal/pkg/metrics/metrics.go (names) ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
 -->

@@ -1,5 +1,5 @@
 ---
-source_sha: 4cdfa494f35c5303fc54aa4a56be09d5d041c6b1060894e7473c91b0781af55a
+source_sha: 54a26c796379301c31f200b4414df7b931526d8fb5a083da29c563084d94aef4
 reviewed: true
 ---
 # MKVGo dans Evey
@@ -55,6 +55,42 @@ lecteur sait décoder :
 - Les analyses qui demandent des données décodées : détection de
   l'entrelacement, empreintes audio pour la détection des génériques.
 - Les conteneurs autres que MKV/WebM et MP4/MOV, comme l'AVI ou le MPEG-TS.
+
+## Charge, fichiers remplacés et mises à jour
+
+**Ce qu'il lit à la fois.** Construire un segment lit une fenêtre de la
+source, vidéo et audio ensemble : 6 à 10 Mio pour un fichier 1080p, environ
+15 Mio pour un remux UHD. Le serveur lit autant de fenêtres à la fois qu'il a
+de processeurs, et moins sur une machine qui a peu de mémoire : toutes les
+fenêtres en cours doivent tenir dans un quart de la mémoire que le serveur
+s'accorde (la moitié de la limite du conteneur, ou de la mémoire de l'hôte).
+Les demandes au-delà attendent une place libre, si bien que la mémoire
+utilisée ne grandit pas avec l'audience ; sur une petite machine, une foule
+qui démarre au même moment voit ses premiers segments arriver les uns après
+les autres plutôt que de voir le serveur manquer de mémoire.
+
+**Un fichier remplacé pendant la lecture.** Chaque adresse de segment nomme le
+fichier à partir duquel il a été planifié. Quand un fichier est remplacé sur
+le disque (une meilleure copie, une réparation), un segment demandé à ce
+moment est reconstruit une fois à partir du nouveau fichier, et les adresses
+de la liste de lecture de l'ancien fichier répondent `410 Gone` plutôt que de
+mélanger les deux fichiers ; rouvrir le titre lit le nouveau.
+
+**Après une mise à jour.** Les adresses des segments portent la version de
+MKVGo : un navigateur ou un cache de proxy ne sert jamais un segment construit
+par une version plus ancienne, et aucun segment de cette voie n'est gardé sur
+le disque, il n'y a donc rien à vider. Les copies MP4 faites pour les
+navigateurs portent la version de leur format dans leur nom : quand elle
+change, chacune est reconstruite la prochaine fois qu'on la demande.
+
+**Le surveiller.** Sur `GET /metrics` (voir
+[Supervision et logs](../operations/monitoring.md#prometheus-metrics)),
+`evey_mkvgo_walks_in_flight` donne le nombre de fenêtres en cours de lecture,
+et `evey_mkvgo_plan_stats` additionne les compteurs de l'empaqueteur par `stat`.
+Un `walks_in_flight` bloqué à son plafond pendant que `stat="slot_waits"`
+grimpe signifie que des spectateurs font la queue pour le processeur ;
+`stream_fallbacks` compte les segments qui ont dû être assemblés en mémoire
+au lieu d'être diffusés directement.
 
 ## Voir quel moteur sert un flux
 

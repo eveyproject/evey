@@ -120,6 +120,8 @@ its profiles: one per person in the household, kids profiles included.
 
 What an administrator can restrict per account, and how profiles and parental
 control work: [Users, profiles and parental control](../administration/users.md).
+The page to send to the people you invite, written for them:
+[Watching with Evey](watching.md).
 
 ## 4. Connect the apps
 

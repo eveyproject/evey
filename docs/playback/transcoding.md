@@ -105,7 +105,20 @@ Encoded segments are kept on disk in the `evey-cache` volume and reused when
 another viewer, or the same one later, plays the same title with the same
 decision. **Admin → Transcode Cache** shows its size and clears it; the
 **Transcode cache budget** (**Admin → Server Config → Server Settings**) caps
-it.
+it. **Clear All** also removes the subtitles extracted from your files,
+kept in `./evey-data/subtitles`: they are extracted again on request.
+
+**When the disk fills up.** The server keeps a margin of free space on the
+disk that holds the cache: 2 GiB by default, set with
+`EVEY_TRANSCODE_CACHE_MIN_FREE_MB` (`0` turns the margin off). Below it, the
+oldest segments no one is watching are evicted first. If that does not free
+enough, a segment that does not exist yet is refused with a delay after which
+the player may ask again, instead of starting an encoder that would fail for lack
+of space; segments already on disk are still served. The extracted subtitles
+in `./evey-data` follow the same margin: below it, new ones are no longer
+kept, each request extracts them again, and the administrators receive
+**Subtitle cache full** (at most once an hour, also sent to webhooks as
+`transcoding.derived_cache_full`).
 
 !!! tip
     Clear the cache after an update that changes how videos are encoded, so
@@ -123,6 +136,8 @@ it.
   the server sustains. It refuses to run while anyone is watching.
 
 <!-- sources
+disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After) ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full
+clear all empties extracted subtitles: internal/app/transcoding/service.go - WithDerivedCachePurge ; internal/adapters/driving/http/subtitle_cache.go - SubtitleCachePurger (/data/subtitles)
 calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - softwareLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
 capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability
 busy: i18n errors max_concurrent_reached

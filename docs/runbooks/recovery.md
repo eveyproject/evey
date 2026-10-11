@@ -87,11 +87,14 @@ docker compose up -d
 
 What happens:
 
-1. The command waits 5 seconds before touching anything: Ctrl+C aborts.
-2. `psql` applies the dump with `--single-transaction` and `ON_ERROR_STOP=1`.
+1. The command first reads the whole file: it must decompress cleanly and end
+   with `pg_dump`'s completion line. A truncated or corrupt dump is refused
+   (`refusing to restore: ...`) before anything is dropped.
+2. It then waits 5 seconds before touching anything: Ctrl+C aborts.
+3. `psql` applies the dump with `--single-transaction` and `ON_ERROR_STOP=1`.
    On any error the transaction is rolled back and the database is left as
    it was.
-3. On success the last line is `[admin] restored backup <path>`.
+4. On success the last line is `[admin] restored backup <path>`.
 
 Requirements:
 
@@ -110,7 +113,7 @@ restore one rather than step the schema back.
 
 <!-- sources
 reset-password / rotate-jwt-key: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL: internal/app/user/token_epoch.go - epochCacheTTL
-restore-backup: cmd/evey/admin.go - adminRestoreBackup (5 s pause, --single-transaction, ON_ERROR_STOP=1, .sql.gz suffix)
+restore-backup: cmd/evey/admin.go - adminRestoreBackup, verifyDumpComplete (whole gzip + completion marker before anything runs), 5 s pause, --single-transaction, ON_ERROR_STOP=1, .sql.gz suffix)
 admin commands boot the embedded database: docker/entrypoint.sh
 refresh validation by stored hash: internal/app/user/auth.go - validateRefreshToken
 disable signs out: internal/app/user/user_service.go - DisableUser

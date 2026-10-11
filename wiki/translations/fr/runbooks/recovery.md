@@ -1,5 +1,5 @@
 ---
-source_sha: 571dd707d8c33cf978fa932960bd67dcdf04a821b8c609c1622fc5767b36c52f
+source_sha: 15f4243e2aa41d1a370efb30c5607eb485799cf11a0be191ea0b7489684f4485
 reviewed: true
 ---
 # Récupération
@@ -92,12 +92,16 @@ docker compose up -d
 
 Ce qui se passe :
 
-1. La commande attend 5 secondes avant de toucher à quoi que ce soit :
+1. La commande lit d'abord tout le fichier : il doit se décompresser sans
+   erreur et se terminer par la ligne de fin de `pg_dump`. Un dump tronqué ou
+   corrompu est refusé (`refusing to restore: ...`) avant que quoi que ce soit
+   ne soit supprimé.
+2. Elle attend ensuite 5 secondes avant de toucher à quoi que ce soit :
    Ctrl+C annule.
-2. `psql` applique le dump avec `--single-transaction` et `ON_ERROR_STOP=1`.
+3. `psql` applique le dump avec `--single-transaction` et `ON_ERROR_STOP=1`.
    À la moindre erreur la transaction est annulée et la base reste telle
    qu'elle était.
-3. En cas de succès, la dernière ligne est `[admin] restored backup <chemin>`.
+4. En cas de succès, la dernière ligne est `[admin] restored backup <chemin>`.
 
 Prérequis :
 
@@ -118,7 +122,7 @@ restaurer un dump plutôt que revenir d'un cran sur le schéma.
 
 <!-- sources
 reset-password / rotate-jwt-key: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL: internal/app/user/token_epoch.go - epochCacheTTL
-restore-backup: cmd/evey/admin.go - adminRestoreBackup (5 s pause, --single-transaction, ON_ERROR_STOP=1, .sql.gz suffix)
+restore-backup: cmd/evey/admin.go - adminRestoreBackup, verifyDumpComplete (whole gzip + completion marker before anything runs), 5 s pause, --single-transaction, ON_ERROR_STOP=1, .sql.gz suffix)
 admin commands boot the embedded database: docker/entrypoint.sh
 refresh validation by stored hash: internal/app/user/auth.go - validateRefreshToken
 disable signs out: internal/app/user/user_service.go - DisableUser

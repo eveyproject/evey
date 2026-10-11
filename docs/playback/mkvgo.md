@@ -50,6 +50,38 @@ path depends on what the player decodes:
   for intro detection.
 - Containers other than MKV/WebM and MP4/MOV, such as AVI or MPEG-TS.
 
+## Load, replaced files and updates
+
+**How much it reads at once.** Building a segment reads one window of the
+source, video and audio together: 6 to 10 MiB for a 1080p file, about 15 MiB for
+a UHD remux. The server reads as many windows at once as it has processors,
+and fewer on a machine with little memory: all the windows in flight must fit
+in a quarter of the memory the server allows itself (half of the container's
+limit, or of the host's memory). Requests beyond that wait for a free slot,
+so the memory used does not grow with the audience; on a small host, a crowd
+starting at the same moment sees its first segments arrive one after the
+other rather than the server running out of memory.
+
+**A file replaced during playback.** Every segment address names the file it
+was planned from. When a file is replaced on disk (a better copy, a repair),
+a segment requested at that moment is rebuilt once from the new file, and the
+addresses of the old file's playlist answer `410 Gone` instead of mixing the
+two files; opening the title again plays the new one.
+
+**After an update.** Segment addresses carry the MKVGo version, so a browser
+or a proxy cache never serves a segment built by an older version, and no
+segment of this path is kept on disk to clear. The MP4 copies made for
+browsers are named after the version of their format: when it changes, each
+one is rebuilt the next time it is asked for.
+
+**Watching it.** On `GET /metrics` (see
+[Monitoring and logs](../operations/monitoring.md#prometheus-metrics)),
+`evey_mkvgo_walks_in_flight` is the number of windows being read right now,
+and `evey_mkvgo_plan_stats` sums the packager's counters by `stat`. A
+`walks_in_flight` sitting at its ceiling while `stat="slot_waits"` climbs means
+viewers are queuing for the processor; `stream_fallbacks` counts segments that
+had to be assembled in memory instead of streamed.
+
 ## Seeing which engine served a stream
 
 **Admin → Dashboard** and **Admin → Now Playing** name the engine of each
@@ -69,4 +101,8 @@ episode chains: internal/adapters/driving/http/transcode_concat.go ; internal/ad
 media health: internal/adapters/driven/mkvgo/diagnose.go ; internal/adapters/driven/mkvgo/reindex.go ; internal/adapters/driven/mkvgo/track_retimer.go ; internal/app/maintenance/seek_index_reinterleave.go (Reinterleaver, ffmpeg adapter)
 ffmpeg only: docs/playback-serving.md (mkvgo vs ffmpeg table) ; internal/app/library/trickplay_service.go
 engine per track: i18n admin.sessions.track.engine (dashboard, now playing)
+reads at once: internal/adapters/driven/mkvgo/budget.go - BudgetFor (one walk per CPU, walks within memLimit/4 at 15 MiB each) ; cmd/evey/wire_infra.go (applied after the memory limit) ; cmd/evey/memlimit.go - applyMemoryLimit (half the cgroup or host budget)
+replaced file: internal/adapters/driving/http/transcode_ondemand.go - planSourceParam, servePlanSourceGone (410), replay once on a rebuilt plan ; internal/adapters/driving/http/transcode_vod_manifest_rebake.go - stampPlanSourceURIs
+after an update: packager version in segment URLs (?v=) ; internal/adapters/driving/http/remux_handler.go - remuxCacheFormat, remuxCacheName
+metrics: internal/pkg/metrics/metrics.go - MkvgoWalksInFlight, MkvgoPlanStats ; cmd/evey/wire.go - startMkvgoMetrics
 -->

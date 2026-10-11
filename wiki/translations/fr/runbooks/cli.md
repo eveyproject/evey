@@ -1,5 +1,5 @@
 ---
-source_sha: b361df7a7250404a1736d66ebfec67805f2e8fb0f0391be268f51271fe0b7876
+source_sha: 4da6d87a4495603598041edc6216fa889229d188f8579a3799818f7ddbf73246
 reviewed: true
 ---
 # Ligne de commande
@@ -56,11 +56,18 @@ evey admin rotate-jwt-key                    Regenerate the JWT signing key. Inv
                                              <key>.rotated-<timestamp>), the next server boot
                                              generates a new one, and every session is ended in the
                                              database at once.
+evey admin backup [--include-telemetry]
+                                             Create a database backup in the backup directory, the
+                                             same .tar.gz as the panel and the scheduler. Telemetry
+                                             follows the panel switch (off by default);
+                                             --include-telemetry includes it for this run.
 evey admin restore-backup <path-to-dump.sql.gz>
                                              Restore the database from a pg_dump.gz file, in a single
-                                             transaction. Existing rows are OVERWRITTEN; waits 5 s for
-                                             a Ctrl-C before it starts. The .sql.gz suffix is required
-                                             (not the panel's .tar.gz backups).
+                                             transaction. The whole file is checked first: a truncated
+                                             or corrupt dump is refused before anything is dropped.
+                                             Existing rows are OVERWRITTEN; waits 5 s for a Ctrl-C
+                                             before it starts. The .sql.gz suffix is required (not the
+                                             panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]
                                              Rebuild the Meilisearch index from the database (no
                                              metadata fetch). --purge clears the index first, which
