@@ -12,15 +12,15 @@ serverConnect:
   connectAnyway: "Se connecter quand même"
   title: Connexion au serveur
   connect: Connexion
-  connectionFailed: Connexion echouee
+  connectionFailed: Connexion échouée
   unreachableSaved: "{{url}} ne répond pas. Vérifiez l'adresse ou votre connexion."
   notEvey: "{{url}} a répondu, mais ce n'est pas un serveur Evey. Vérifiez l'adresse (un portail Wi-Fi ou votre FAI peut répondre à la place)."
   unreachable: Impossible de joindre le serveur
   urlLabel: "URL du serveur"
   useDiscovered: "Utiliser le serveur découvert {{url}}"
 settings:
-  themeDark: Dark
-  themeLight: Light
+  themeDark: Sombre
+  themeLight: Clair
   themeAmoled: AMOLED
   themeOptionA11y: "Thème {{name}}"
   server: Serveur
@@ -35,12 +35,12 @@ settings:
   uiScale: "Taille de l'interface"
   uiScaleOptionA11y: "Taille de l'interface {{percent}} %"
   uiScaleHint: "L'application redémarre pour appliquer une nouvelle taille."
-  biometricLogin: Connexion biometrique
+  biometricLogin: Connexion biométrique
   themeLightBlue: Bleu clair
   themeDarkRed: Rouge sombre
 auth:
-  biometricPrompt: Deverrouiller Evey
-  unlockBiometric: Deverrouiller avec la biometrie
+  biometricPrompt: Déverrouiller Evey
+  unlockBiometric: Déverrouiller avec la biométrie
   enableBiometric: Activer la connexion biométrique ?
   enableBiometricDesc: Utilisez la biométrie pour déverrouiller l'app la prochaine fois.
   haveInvite: Vous avez une invitation ? Inscrivez-vous
@@ -53,21 +53,21 @@ profileSelect:
 servers:
   title: Serveurs
   yourServers: Vos serveurs
-  manageTitle: Gerer les serveurs
-  manageSubtitle: "{{count}} enregistre(s)"
+  manageTitle: Gérer les serveurs
+  manageSubtitle: "{{count}} enregistré(s)"
   addAnother: Ajouter un autre serveur
-  noServers: Aucun serveur enregistre
+  noServers: Aucun serveur enregistré
   current: Actuel
   active: Actif
   rename: Renommer
   renamePlaceholder: Nom du serveur
   delete: Supprimer
   deleteConfirmTitle: Supprimer le serveur ?
-  deleteConfirmMessage: "{{name}} sera retire de vos serveurs enregistres. Les jetons de connexion pour ce serveur seront aussi supprimes."
-  cantDeleteOnlyServer: Impossible de supprimer le seul serveur enregistre
-  switchedTo: "Passe sur {{name}}"
+  deleteConfirmMessage: "{{name}} sera retiré de vos serveurs enregistrés. Les jetons de connexion pour ce serveur seront aussi supprimés."
+  cantDeleteOnlyServer: Impossible de supprimer le seul serveur enregistré
+  switchedTo: "Passé sur {{name}}"
 music:
-  previousTrack: Piste precedente
+  previousTrack: Piste précédente
   nextTrack: Piste suivante
   closePlayer: Fermer le lecteur
 appUpdate:

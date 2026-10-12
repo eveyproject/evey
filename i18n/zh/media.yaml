@@ -273,7 +273,7 @@ detail:
   refreshMetadata: 刷新元数据
   resetMetadata: 重置元数据
   rematchMetadata: 重新匹配元数据
-  rematchConfirm: 这将移除所有覆盖和提供商 ID,并根据原始文件名重新搜索元数据。是否继续?
+  rematchConfirm: 这将移除所有覆盖和提供商 ID，并根据原始文件名重新搜索元数据。是否继续？
   rematchSuccess: "已重新匹配:{{title}}"
   rematchSuccessFallback: 重新搜索完成
   rematchFailed: 重新匹配元数据失败
@@ -282,7 +282,7 @@ detail:
   failedToSave: 保存失败
   failedToSaveDot: 保存失败。
   refreshFailed: 刷新元数据失败
-  noProfileSelected: 未选择配置文件
+  noProfileSelected: 未选择个人资料
   alreadyDownloaded: 已下载
   downloadStarted: 开始下载
   playDownloadedCopy: 播放已下载的副本

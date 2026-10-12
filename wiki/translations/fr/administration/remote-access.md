@@ -55,7 +55,7 @@ une protection à lui seul : chaque page demande toujours de se connecter.
 
 **Quand l'accès distant est désactivé**, quelqu'un hors de chez vous est
 refusé sur toutes les pages (une erreur `403`). Les applications affichent
-**Acces distant desactive** au lieu d'une erreur vague. Si le serveur peut
+**Accès distant désactivé** au lieu d'une erreur vague. Si le serveur peut
 être joint depuis Internet alors que l'accès distant est désactivé, Evey vous
 prévient à plusieurs endroits :
 

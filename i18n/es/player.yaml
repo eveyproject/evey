@@ -192,9 +192,9 @@ jumpToChapter: "Ir al capítulo: {{chapter}}"
 cast:
   noDevices: No se encontraron dispositivos de cast en la red del servidor.
   loadFailed: "No se pudo iniciar la reproducción en el dispositivo de cast."
-  pickerRefused: "El navegador rechazó abrir el selector de dispositivos (el contenido aún no está listo). Espere unos segundos y vuelva a intentarlo."
-  usePlayOn: "Varios de sus dispositivos Evey están en línea - use el botón «Reproducir en» de la barra del reproductor para elegir uno."
-  mobileWebHint: "Este navegador no puede enviar a un Chromecast. Use la aplicación móvil de Evey o active «Versión para ordenador» en Chrome y vuelva a intentarlo."
+  pickerRefused: "El navegador rechazó abrir el selector de dispositivos (el contenido aún no está listo). Espera unos segundos y vuelve a intentarlo."
+  usePlayOn: "Varios de tus dispositivos Evey están en línea - usa el botón «Reproducir en» de la barra del reproductor para elegir uno."
+  mobileWebHint: "Este navegador no puede enviar a un Chromecast. Usa la aplicación móvil de Evey o activa «Versión para ordenador» en Chrome y vuelve a intentarlo."
   connectFailed: "No se pudo conectar con el dispositivo de emisión. Respondió, pero la sesión falló: comprueba que no esté emitiendo ya e inténtalo de nuevo."
   notFound: "No se encontró ningún Chromecast. Asegúrate de que esté encendido y conectado al mismo Wi-Fi que este dispositivo."
 playOn:

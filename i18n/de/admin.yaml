@@ -509,7 +509,7 @@ sessions:
   audio: "Audio: {{codec}}"
   servedBitrate: "Geliefert: {{rate}}"
   directPlay: Direktwiedergabe
-  directStream: Direkter Stream
+  directStream: Remux
   transcode: Transkodierung
   track:
     video: Video
@@ -786,7 +786,7 @@ serverConfig:
   deleteEntryConfirm: "Konfigurationseintrag \"{{key}}\" löschen? Dies kann nicht rückgängig gemacht werden."
   failedDeleteEntry: Eintrag konnte nicht gelöscht werden
   emailSmtp: E-Mail / SMTP
-  emailSmtpDesc: Ausgehende E-Mails für Benachrichtigungen und Einladungen konfigurieren.
+  emailSmtpDesc: Ausgehende E-Mails für Benachrichtigungen und das Zurücksetzen von Passwörtern konfigurieren.
   smtpHost: SMTP-Host
   port: Port
   smtpUsername: Benutzername

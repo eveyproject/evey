@@ -1,6 +1,6 @@
 serverConnect:
   serverUnreachable: "服务器没有响应，可能已休眠或不在网络上。"
-  hint: "Evey 运行在别人为你搭建的服务器上。请输入它的网址，也就是你在浏览器中打开的那个地址。"
+  hint: "Evey 运行在别人为您搭建的服务器上。请输入它的网址，也就是您在浏览器中打开的那个地址。"
   whereToFind: "在哪里找到我的服务器地址？"
   scanLocalNetwork: "扫描本地网络"
   serversFound_other: "找到 {{count}} 个服务器"
@@ -19,8 +19,8 @@ serverConnect:
   urlLabel: "服务器 URL"
   useDiscovered: "使用已发现的服务器 {{url}}"
 settings:
-  themeDark: Dark
-  themeLight: Light
+  themeDark: 深色
+  themeLight: 浅色
   themeAmoled: AMOLED
   themeOptionA11y: "{{name}} 主题"
   server: 服务器
@@ -31,7 +31,7 @@ settings:
   about: 关于
   appVersion: 应用版本
   serverVersion: 服务器版本
-  switchProfile: "切换配置文件"
+  switchProfile: "切换个人资料"
   uiScale: "界面大小"
   uiScaleOptionA11y: "界面大小 {{percent}} %"
   uiScaleHint: "应用会重新启动以应用新的大小。"
@@ -45,7 +45,7 @@ auth:
   enableBiometricDesc: 下次使用生物识别解锁应用。
   haveInvite: 有邀请？注册
   rememberMe: 记住我
-  rememberFailed: 此设备无法记住你的登录信息
+  rememberFailed: 此设备无法记住您的登录信息
   hidePassword: 隐藏密码
   showPassword: 显示密码
 profileSelect:
@@ -62,7 +62,7 @@ servers:
   rename: 重命名
   renamePlaceholder: 服务器名称
   delete: 删除
-  deleteConfirmTitle: 删除服务器?
+  deleteConfirmTitle: 删除服务器？
   deleteConfirmMessage: "{{name}} 将从您保存的服务器中删除。此服务器的登录令牌也将被清除。"
   cantDeleteOnlyServer: 无法删除唯一保存的服务器
   switchedTo: "已切换到 {{name}}"

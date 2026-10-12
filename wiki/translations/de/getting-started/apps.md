@@ -142,7 +142,7 @@ wählen Sie ihn erneut.
 Beide Apps können sich mehrere Server merken. Der Verbindungsbildschirm
 listet sie unter **Ihre Server** auf, der aktuell genutzte ist mit
 **Aktuell** (Android) oder **Aktiv** (Android TV) markiert, und darunter
-steht **Weiteren Server hinzufugen**. Tippen Sie auf einen gespeicherten
+steht **Weiteren Server hinzufügen**. Tippen Sie auf einen gespeicherten
 Server, um sich wieder zu verbinden, ohne die Adresse neu einzutippen. Jeder
 Server behält seine eigene Anmeldung.
 
@@ -151,7 +151,7 @@ Server behält seine eigene Anmeldung.
   gelöscht). Der Anmeldebildschirm hat **Server wechseln**. Nach der
   Anmeldung öffnet **Einstellungen → Server** den Bereich **Server
   verwalten**: Tippen Sie auf einen Server, um zu ihm zu wechseln, oder
-  nutzen Sie **Umbenennen** oder **Loschen**. Den einzigen gespeicherten
+  nutzen Sie **Umbenennen** oder **Löschen**. Den einzigen gespeicherten
   Server können Sie nicht löschen.
 - **Android TV.** **Einstellungen → Server wechseln** meldet den Fernseher ab
   und kehrt zum Verbindungsbildschirm zurück; der Anmeldebildschirm hat

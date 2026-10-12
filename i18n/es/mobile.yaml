@@ -6,9 +6,9 @@ serverConnect:
   serversFound_one: "{{count}} servidor encontrado"
   serversFound_other: "{{count}} servidores encontrados"
   noServersFound: "No se encontró ningún servidor en esta red - introduce la dirección abajo"
-  missingScheme: "Empiece la dirección con http:// o https://."
+  missingScheme: "Empieza la dirección con http:// o https://."
   insecureTitle: "Esta conexión no está cifrada"
-  insecureBody: "{{url}} está fuera de su red local y usa http://. Su contraseña y todo lo que vea viajarían sin cifrar. Use https:// si su servidor lo permite."
+  insecureBody: "{{url}} está fuera de tu red local y usa http://. Tu contraseña y todo lo que veas viajarían sin cifrar. Usa https:// si tu servidor lo permite."
   connectAnyway: "Conectar de todos modos"
   title: Conectar al servidor
   connect: Conectar
@@ -19,8 +19,8 @@ serverConnect:
   urlLabel: "URL del servidor"
   useDiscovered: "Usar servidor detectado {{url}}"
 settings:
-  themeDark: Dark
-  themeLight: Light
+  themeDark: Oscuro
+  themeLight: Claro
   themeAmoled: AMOLED
   themeOptionA11y: "Tema {{name}}"
   server: Servidor
@@ -55,7 +55,7 @@ servers:
   yourServers: Tus servidores
   manageTitle: Administrar servidores
   manageSubtitle: "{{count}} guardado(s)"
-  addAnother: Agregar otro servidor
+  addAnother: Añadir otro servidor
   noServers: No hay servidores guardados
   current: Actual
   active: Activo

@@ -557,7 +557,7 @@ export default function AdminServerConfigScreen() {
             <View style={{ height: 1, backgroundColor: theme.colors.border, marginVertical: 24 }} />
             <Text style={s.sectionTitle}>{t("admin.serverConfig.emailSmtp", "Email / SMTP")}</Text>
             <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>
-              {t("admin.serverConfig.emailSmtpDesc", "Configure outgoing email for notifications and invitations.")}
+              {t("admin.serverConfig.emailSmtpDesc", "Configure outgoing email for notifications and password resets.")}
             </Text>
             <SmtpSettingsCard
               entries={configEntries}

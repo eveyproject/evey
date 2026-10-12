@@ -377,5 +377,5 @@ rateLimit:
   seconds: "{{count}} s"
   minutes: "{{count}} min"
 remoteAccess:
-  title: "Acces distant desactive"
-  body: "Acces distant desactive sur ce serveur. L'administrateur doit l'activer dans Admin > Acces distant pour permettre les connexions hors du reseau local."
+  title: "Accès distant désactivé"
+  body: "Accès distant désactivé sur ce serveur. L'administrateur doit l'activer dans Administration > Accès distant pour permettre les connexions hors du réseau local."

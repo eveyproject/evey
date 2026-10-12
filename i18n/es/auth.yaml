@@ -240,7 +240,7 @@ settings:
     autoplayNextDesc: "Iniciar el siguiente episodio por sí solo cuando termine este. El botón Siguiente episodio sigue disponible de todos modos."
   quickConnect:
     title: "Conexión rápida"
-    description: "Ingrese el código que se muestra en el dispositivo que desea conectar."
+    description: "Introduce el código que se muestra en el dispositivo que quieres conectar."
     codeLabel: "Código del dispositivo"
     authorize: "Autorizar dispositivo"
     authorized: "Dispositivo autorizado correctamente"

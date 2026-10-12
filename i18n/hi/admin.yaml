@@ -509,7 +509,7 @@ sessions:
   audio: "ऑडियो: {{codec}}"
   servedBitrate: "परोसा गया: {{rate}}"
   directPlay: "डायरेक्ट प्ले"
-  directStream: "डायरेक्ट स्ट्रीम"
+  directStream: "रीमक्स"
   transcode: "ट्रांसकोड"
   track:
     video: "वीडियो"
@@ -786,7 +786,7 @@ serverConfig:
   deleteEntryConfirm: "कॉन्फ़िग प्रविष्टि \"{{key}}\" हटाएं? इसे पूर्ववत नहीं किया जा सकता।"
   failedDeleteEntry: "प्रविष्टि मिटाने में विफल"
   emailSmtp: "ईमेल / SMTP"
-  emailSmtpDesc: "सूचनाओं और आमंत्रणों के लिए आउटगोइंग ईमेल कॉन्फ़िगर करें।"
+  emailSmtpDesc: "सूचनाओं और पासवर्ड रीसेट के लिए आउटगोइंग ईमेल कॉन्फ़िगर करें।"
   smtpHost: "SMTP होस्ट"
   port: "पोर्ट"
   smtpUsername: "उपयोगकर्ता नाम"

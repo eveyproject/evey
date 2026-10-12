@@ -214,6 +214,6 @@ osd:
 # The television client: the offer to carry on a film the system killed mid-way.
 interruptedResume:
   heading: "प्लेबैक बाधित हुआ"
-  resume: "फिर से चलाएँ"
-  resumeAt: "{{time}} से फिर से चलाएँ"
+  resume: "जारी रखें"
+  resumeAt: "{{time}} से जारी रखें"
   dismiss: "अभी नहीं"

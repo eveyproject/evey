@@ -6,7 +6,7 @@ setup:
   description: "让我们来设置您的媒体服务器。只需一分钟。"
   getStarted: "开始设置"
   languageTitle: "选择服务器语言"
-  languageHint: "这将成为新配置文件和元数据查询的默认语言。可在管理面板中更改。"
+  languageHint: "这将成为新个人资料和元数据查询的默认语言。可在管理面板中更改。"
   stepOf: "第 {{current}} 步，共 {{total}} 步 - {{name}}"
   steps:
     language: "语言"
@@ -101,7 +101,7 @@ register:
   signIn: "登录"
   inviteInvalidTitle: "邀请已失效"
   inviteInvalidMessage: "此邀请链接已被禁用、已过期或已被使用。请向服务器所有者索取新链接。"
-  inviteChecking: "正在验证你的邀请…"
+  inviteChecking: "正在验证您的邀请…"
   backToLogin: "返回登录"
 profile:
   title: 个人资料
@@ -181,9 +181,9 @@ profile:
     defaultProfileBadge: "默认"
     kidsBadge: "儿童"
     cannotDeleteDefault: "无法删除默认个人资料。"
-    defaultUpdated: "默认配置文件已更新"
+    defaultUpdated: "默认个人资料已更新"
     setDefault: "设为默认"
-    newProfile: "新建配置文件"
+    newProfile: "新建个人资料"
   fields:
     name: "名称"
     nameRequired: "名称为必填项"
@@ -368,7 +368,7 @@ watchHistory:
   openMedia: 打开媒体详情
 apiDocs:
   title: "API 文档"
-  subtitle: "可使用 API 密钥调用的端点，按各自所需的权限范围分组。使用 Authorize 以你的密钥进行试用。"
+  subtitle: "可使用 API 密钥调用的端点，按各自所需的权限范围分组。使用 Authorize 以您的密钥进行试用。"
   link: "查看 API 文档"
   loadError: "加载 API 规范失败。"
 rateLimit:

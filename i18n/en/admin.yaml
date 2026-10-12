@@ -739,7 +739,7 @@ serverConfig:
   deleteEntryConfirm: "Delete config entry \"{{key}}\"? This cannot be undone."
   failedDeleteEntry: Failed to delete entry
   emailSmtp: Email / SMTP
-  emailSmtpDesc: Configure outgoing email for notifications and invitations.
+  emailSmtpDesc: Configure outgoing email for notifications and password resets.
   smtpHost: SMTP Host
   port: Port
   smtpUsername: Username

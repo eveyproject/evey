@@ -19,8 +19,8 @@ serverConnect:
   urlLabel: "Server-URL"
   useDiscovered: "Erkannten Server {{url}} verwenden"
 settings:
-  themeDark: Dark
-  themeLight: Light
+  themeDark: Dunkel
+  themeLight: Hell
   themeAmoled: AMOLED
   themeOptionA11y: "Design {{name}}"
   server: Server
@@ -55,21 +55,21 @@ servers:
   yourServers: Ihre Server
   manageTitle: Server verwalten
   manageSubtitle: "{{count}} gespeichert"
-  addAnother: Weiteren Server hinzufugen
+  addAnother: Weiteren Server hinzufügen
   noServers: Noch keine gespeicherten Server
   current: Aktuell
   active: Aktiv
   rename: Umbenennen
   renamePlaceholder: Servername
-  delete: Loschen
-  deleteConfirmTitle: Server loschen?
-  deleteConfirmMessage: "{{name}} wird aus Ihren gespeicherten Servern entfernt. Anmelde-Tokens fur diesen Server werden ebenfalls geloscht."
-  cantDeleteOnlyServer: Der einzige gespeicherte Server kann nicht geloscht werden
+  delete: Löschen
+  deleteConfirmTitle: Server löschen?
+  deleteConfirmMessage: "{{name}} wird aus Ihren gespeicherten Servern entfernt. Anmelde-Tokens für diesen Server werden ebenfalls gelöscht."
+  cantDeleteOnlyServer: Der einzige gespeicherte Server kann nicht gelöscht werden
   switchedTo: "Zu {{name}} gewechselt"
 music:
   previousTrack: "Vorheriger Titel"
-  nextTrack: "Nachster Titel"
-  closePlayer: "Player schliessen"
+  nextTrack: "Nächster Titel"
+  closePlayer: "Player schließen"
 appUpdate:
   available: "Update verfügbar: {{version}}"
   openStore: "Evey im Play Store auf {{version}} aktualisieren"
