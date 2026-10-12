@@ -99,3 +99,44 @@ func TestBitrateBands_UnknownIsItsOwnBand(t *testing.T) {
 		t.Fatalf("floors = %v, want none when no bitrate is known", floors)
 	}
 }
+
+// Every prefix of the draw keeps each disk to its share of each bitrate band:
+// the heavy titles of a two-disk pool go to both disks from the first viewers
+// on, instead of piling on whichever disk the shuffle favoured.
+func TestRepresentativeDrawOnDisks_KeepsEachDiskToItsShare(t *testing.T) {
+	in := mixedCandidates() // bitrates 1..100 Mb/s: q4 = the 25 heaviest
+	disks := make([]string, len(in))
+	diskOf := map[string]string{}
+	for i, c := range in {
+		disks[i] = "/mnt/disk_1"
+		if i%2 == 1 {
+			disks[i] = "/mnt/disk_2"
+		}
+		diskOf[c.ID] = disks[i]
+	}
+	for _, seed := range []uint64{1, 2, 3, 42} {
+		out, mix, _ := representativeDrawOnDisks(in, disks, seed)
+		if len(out) != len(in) || mix["q4"] != 25 {
+			t.Fatalf("seed %d: %d titles, q4=%d; want %d and 25", seed, len(out), mix["q4"], len(in))
+		}
+		for _, n := range []int{8, 20, 40} {
+			heavy := map[string]int{}
+			for _, c := range out[:n] {
+				if c.BitrateBps >= 76_000_000 {
+					heavy[diskOf[c.ID]]++
+				}
+			}
+			if d := heavy["/mnt/disk_1"] - heavy["/mnt/disk_2"]; d > 1 || d < -1 {
+				t.Errorf("seed %d, first %d viewers: heavy titles per disk %v", seed, n, heavy)
+			}
+		}
+	}
+	// No disk known: the plain bitrate draw, unchanged.
+	a, _, _ := representativeDrawOnDisks(in, nil, 9)
+	b, _, _ := representativeDraw(in, 9)
+	for i := range a {
+		if a[i].ID != b[i].ID {
+			t.Fatalf("without disks the draw changed at %d: %s vs %s", i, a[i].ID, b[i].ID)
+		}
+	}
+}
