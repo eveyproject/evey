@@ -4,12 +4,12 @@ reviewed: true
 ---
 # Transcodage et matériel
 
-Les variables derrière la capacité, la carte graphique, les limites de
+Les variables qui règlent la capacité, la carte graphique, les limites de
 qualité et le cache de transcodage. La plupart des installations n'en
 définissent aucune : le serveur mesure la machine et choisit lui-même le
 matériel, comme l'explique
 [Transcodage et capacité du serveur](../playback/transcoding.md). Quand un
-réglage existe dans **Admin → Configuration transcodage**, la valeur
+réglage existe dans **Administration → Configuration transcodage**, la valeur
 enregistrée l'emporte.
 
 ## Accélération matérielle
@@ -28,21 +28,21 @@ Donner le GPU au conteneur :
 | `EVEY_TRANSCODING_HW_PER_VARIANT` | `false` | Un ffmpeg par qualité sur la voie GPU au lieu d'un seul processus pour toutes : isole les échecs, et évite le graphe à sorties multiples qui fait planter certains pilotes VA fragiles. | Configuration transcodage → Limites avancées → **Un processus d'encodage matériel par palier**, redémarrage |
 
 L'encodeur Intel basse consommation et la sortie AV1 (interrupteur et
-plafond) n'ont pas de variable : ils se règlent uniquement dans **Admin →
+plafond) n'ont pas de variable : ils se règlent uniquement dans **Administration →
 Configuration transcodage**.
 
 ## Capacité et limites
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_MAX_SESSIONS` | `0` (nombre de CPU) | Nombre total de sessions de transcodage simultanées. Sur une machine qui tient à peine un transcodage 4K HDR logiciel, mettez `1` ou `2`. | Configuration transcodage → Limites avancées → **Sessions HLS simultanées maximum**, redémarrage |
+| `EVEY_TRANSCODING_MAX_SESSIONS` | `0` (nombre de CPU) | Nombre total de sessions de transcodage simultanées. Sur une machine qui suffit à peine pour un transcodage 4K HDR logiciel, mettez `1` ou `2`. | Configuration transcodage → Limites avancées → **Sessions HLS simultanées maximum**, redémarrage |
 | `EVEY_TRANSCODING_MAX_CONCURRENT` | `2` | Les tâches de transcodage hors lecture en direct. | Cache de transcodage → **Maximum simultané**, immédiat |
 | `EVEY_TRANSCODING_SINGLE_VARIANT` | `true` | N'encode que la qualité regardée. `false` partage un seul décodage entre toutes les qualités mais encode celles que personne ne regarde ; seulement pour une machine sans décodage matériel et des sources lourdes. | Configuration transcodage → Limites avancées → **Encoder un seul palier à la fois**, redémarrage |
 | `EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT` | `0` (mesuré) | Impose le plafond de résolution du processeur à la place de celui qui est mesuré. | Configuration transcodage → Limites avancées → **Plafond de hauteur en transcodage logiciel**, redémarrage |
 | `EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT` | `0` (mesuré) | Idem, pour les sources HDR converties par le processeur. | Configuration transcodage → Limites avancées → **Plafond de hauteur HDR en logiciel**, redémarrage |
 | `EVEY_TRANSCODING_SOFTWARE_THREADS` | sans plafond | Threads par encodeur logiciel (1 à 64 ; toute autre valeur = sans plafond). Les encodeurs matériels l'ignorent. | aucun |
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS` | `0` (suit la source) | Un plafond sur le débit de la vidéo transcodée. | Configuration transcodage → **Plafond de débit vidéo**, immédiat |
-| `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS` | `0` (aucun) | Le même plafond pour les clients hors du réseau de la maison. | Configuration transcodage → **Plafond de débit vidéo, spectateurs distants**, immédiat |
+| `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS` | `0` (aucun) | Le même plafond pour les clients hors du réseau domestique. | Configuration transcodage → **Plafond de débit vidéo, spectateurs distants**, immédiat |
 
 ## Cache
 

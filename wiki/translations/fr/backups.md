@@ -4,12 +4,12 @@ reviewed: true
 ---
 # Sauvegardes et mises à jour
 
-Deux habitudes gardent votre serveur à l'abri :
+Deux habitudes protègent votre serveur :
 
 - **Sauvegarder.** Activez une sauvegarde quotidienne de la base de données,
   et gardez une copie du dossier `evey-data` ailleurs.
 - **Mettre à jour.** Une commande va chercher la nouvelle version. Evey
-  sauvegarde d'abord la base de données, tout seul, chaque fois qu'une mise
+  sauvegarde d'abord la base de données, automatiquement, chaque fois qu'une mise
   à jour la modifie.
 
 Cette page montre les deux, puis ce que contient une sauvegarde, comment en
@@ -19,10 +19,10 @@ restaurer une, et comment revenir à une version plus ancienne.
 
 1. Allez dans **Administration → Sauvegarde BDD et restauration**, carte
    **Planification**.
-2. Dans **Expression cron**, dites quand la lancer. `0 3 * * *` veut dire
+2. Dans **Expression cron**, indiquez quand la lancer. `0 3 * * *` veut dire
    tous les jours à 3 h du matin. (Le format est : minute, heure, jour, mois,
    jour de la semaine.)
-3. Dans **Rétention (jours)**, dites combien de temps garder chaque
+3. Dans **Rétention (jours)**, indiquez combien de temps garder chaque
    sauvegarde, par exemple `30`. Les sauvegardes plus anciennes sont
    supprimées après chaque sauvegarde planifiée.
 4. Cochez **Activé**, puis appuyez sur **Enregistrer**.
@@ -51,7 +51,7 @@ du dossier que vous devriez de toute façon copier sur un autre disque (voir
     Elle suit le réglage de télémétrie du panneau (plus bas) ;
     `--include-telemetry` ajoute la télémétrie pour cette fois seulement.
 
-Le serveur sauvegarde aussi la base de données tout seul avant qu'une mise à
+Le serveur sauvegarde aussi automatiquement la base de données avant qu'une mise à
 jour la modifie, quelle que soit la planification (voir
 [Mettre à jour Evey](#updating-evey)).
 
@@ -65,7 +65,7 @@ plugins, webhooks, clés API, notifications et journaux d'audit.
 Elle ne contient **pas** :
 
 - vos fichiers de médias ;
-- le cache vidéo (il se remplit de nouveau tout seul) ;
+- le cache vidéo (il se reconstitue automatiquement) ;
 - l'index de recherche (reconstruit à partir de la base de données) ;
 - les clés gardées dans `./evey-data` : `jwt.key`, qui protège toutes les
   connexions, et le dossier `keys` (mot de passe de la base de données, clé
@@ -79,11 +79,11 @@ dossier.
 
 ??? info "La télémétrie, et le format du fichier"
 
-    Les mesures de lecture et du serveur (derrière les graphiques de qualité
-    et de charge) sont laissées de côté par défaut : ce sont elles qui
-    grossissent le plus vite, et elles ne disent rien de votre catalogue.
+    Les mesures de lecture et du serveur (qui alimentent les graphiques de
+    qualité et de charge) sont laissées de côté par défaut : ce sont elles qui
+    grossissent le plus vite, et elles n'apportent aucune information sur votre catalogue.
     **Inclure la télémétrie dans les sauvegardes** (**Administration →
-    Configuration du serveur**) les remet dedans, pour les sauvegardes
+    Configuration du serveur**) les inclut, pour les sauvegardes
     manuelles, planifiées et en ligne de commande. Restaurer une sauvegarde
     vide toujours ces tables.
 
@@ -128,7 +128,7 @@ C'est toute la mise à jour.
   est de nouveau signalé en bonne santé dès qu'il répond.
 - **Evey vous dit quand une mise à jour existe.** Il vérifie toutes les
   heures si une image plus récente est publiée, et le signale dans le
-  panneau d'administration. Il ne se met jamais à jour tout seul.
+  panneau d'administration. Il ne se met jamais à jour de lui-même.
 - **Quelle version tourne :** `docker exec evey-server evey version` affiche
   la version et le commit.
 

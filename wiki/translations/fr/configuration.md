@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Référence de configuration
 
-Où vit chaque réglage d'un serveur Evey, quelle valeur l'emporte quand un
+Où se trouve chaque réglage d'un serveur Evey, quelle valeur l'emporte quand un
 réglage existe à la fois dans le panneau d'administration et dans
 l'environnement, et ce qui demande un redémarrage. Les variables elles-mêmes
 sont listées par thème dans les dix pages liées plus bas ; cette page
@@ -18,8 +18,8 @@ stockage, adresse publique, informations sur le reverse proxy - va dans le
 fichier compose, sous forme de variables d'environnement. **Ce qu'un
 administrateur ajuste ensuite** - langues, limites de transcodage,
 accélération matérielle, planifications, limites des plugins - se trouve
-dans le panneau d'administration, est stocké en base, survit à la mise à
-jour du conteneur et s'applique le plus souvent sans redémarrage.
+dans le panneau d'administration, est stocké en base, est conservé lors de la
+mise à jour du conteneur et s'applique le plus souvent sans redémarrage.
 
 Pour un réglage qui existe aux deux endroits, la priorité est toujours la
 même :
@@ -99,7 +99,7 @@ commandes `evey admin` n'ont pas besoin de mot de passe. Ne renseignez
 recherche externe.
 
 Une clé TMDB est intégrée. `EVEY_TMDB_API_KEY` fournit la vôtre ; la clé
-saisie dans **Admin → Configuration du serveur → Clés API** l'emporte.
+saisie dans **Administration → Configuration du serveur → Clés API** l'emporte.
 
 ## Variables inutiles
 
@@ -112,7 +112,7 @@ changent rien :
 | `EVEY_FORWARDED_PROTO` | Obsolète : déduite du schéma de `EVEY_SERVER_BASE_URL`. La définir ne fait qu'afficher un avertissement. |
 | `EVEY_KEYFRAME_BACKFILL=on` | Toute valeur autre que `off` l'active, y compris l'absence de valeur. |
 | `LIBVA_DRIVER_NAME` | libva choisit le pilote d'après l'identifiant PCI du GPU. Ne l'imposez que si votre carte a besoin d'un pilote que libva ne choisit pas (vérifiez avec `docker exec evey-server vainfo`). |
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` choisit le confinement le plus robuste que permet la machine. Ne la définissez explicitement que pour une garantie stricte : `landlock` refuse de lancer un plugin qu'il ne peut pas confiner, là où `auto` se dégrade avec un avertissement. |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` choisit le confinement le plus robuste que permet la machine. Ne la définissez explicitement que pour une garantie stricte : `landlock` refuse de lancer un plugin qu'il ne peut pas confiner, là où `auto` passe à un mode moins strict avec un avertissement. |
 | un `group_add` pour `/dev/dri/card0` | Evey n'ouvre que `renderD128`. Vérifiez avec `ls -ln /dev/dri` et n'ajoutez que ce groupe. |
 
 ## Propriétaire des fichiers (PUID et PGID)
@@ -134,7 +134,7 @@ mieux : le serveur adopte l'utilisateur propriétaire du plus grand nombre de
 montages et rejoint les groupes des autres en groupes secondaires, de sorte
 que les réparations y fonctionnent si leurs fichiers sont modifiables par le
 groupe (l'avertissement de démarrage liste les montages qui pourraient encore
-refuser l'écriture). La détection ne s'efface complètement (repli sur
+refuser l'écriture). La détection automatique n'est abandonnée (repli sur
 `1000:1000` avec un avertissement) que si tous les montages appartiennent à
 root ou à l'uid réservé `1001` : attribuez vos médias à un utilisateur
 ordinaire, ou définissez `PUID`/`PGID` explicitement :

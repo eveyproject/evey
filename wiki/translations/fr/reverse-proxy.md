@@ -8,19 +8,19 @@ Evey sert l'API et l'interface web ensemble sur le port **9091**, en HTTP
 simple ; un reverse proxy n'a qu'à terminer le TLS et tout renvoyer vers
 `evey:9091`. Choisissez votre proxy ci-dessous (Caddy fourni, Nginx, Traefik,
 Nginx Proxy Manager, ou celui que vous avez déjà), puis lisez les deux
-sections de la fin si vous ajustez le streaming ou posez vos propres en-têtes
+sections de la fin si vous ajustez le streaming ou définissez vos propres en-têtes
 de sécurité.
 
 ## Indiquer le proxy à Evey
 
 Quel que soit le proxy, Evey a besoin de son adresse publique et du proxy
-auquel faire confiance. L'endroit pour les deux est **Admin → Accès
+auquel faire confiance. L'endroit pour les deux est **Administration → Accès
 distant** : une **URL externe** en `https://` et, quand le proxy est un
 conteneur, son réseau dans **Proxys de confiance**. Les deux s'appliquent
 sans redémarrage. C'est une adresse en `https://` qui indique à Evey qu'un
 proxy assure le TLS devant lui : les cookies reçoivent l'attribut `Secure`,
 l'en-tête HSTS est envoyé et l'en-tête `X-Forwarded-Proto` d'un proxy de
-confiance est cru. L'interrupteur d'accès distant et l'adresse réelle du
+confiance est pris en compte. L'interrupteur d'accès distant et l'adresse réelle du
 client sont expliqués dans
 [Accès distant et HTTPS](administration/remote-access.md).
 
@@ -57,15 +57,15 @@ du [`docker-compose.yml`](../docker-compose.yml) du dépôt.
 1. Renseignez `EVEY_DOMAIN` dans `.env` et assurez-vous que les ports 80 et
    443 de la machine arrivent au conteneur Caddy.
 2. Ajoutez le service `caddy` du fichier compose du dépôt au vôtre et lancez
-   `docker compose up -d`. Caddy obtient seul un certificat Let's Encrypt pour
+   `docker compose up -d`. Caddy obtient automatiquement un certificat Let's Encrypt pour
    `EVEY_DOMAIN`.
-3. Dans **Admin → Accès distant**, renseignez l'**URL externe** en `https://`
+3. Dans **Administration → Accès distant**, renseignez l'**URL externe** en `https://`
    et `172.16.0.0/12` dans **Proxys de confiance**.
 
 ### Ce qu'il gère déjà
 
 Il renvoie tout vers `evey:9091`, les chemins de streaming étant servis sans
-tampon ni délai. Il pose les en-têtes de sécurité et la CSP de référence de la
+tampon ni délai. Il ajoute les en-têtes de sécurité et la CSP de référence de la
 [section sécurité](#security-headers--csp---read-this-if-your-proxy-sets-its-own)
 et retire la CSP de l'application pour qu'une seule arrive au navigateur ; les
 deux pages qui portent leur propre politique la conservent.
@@ -87,7 +87,7 @@ et un compose complémentaire prêt à l'emploi,
    `/etc/ssl/private/<domaine>.key` dans le volume `nginx-certs`) : le compose
    complémentaire n'obtient pas de certificat à votre place.
 3. `docker compose -f docker-compose.yml -f examples/nginx/docker-compose.nginx.yml up -d`.
-4. Dans **Admin → Accès distant**, renseignez l'**URL externe** en `https://`
+4. Dans **Administration → Accès distant**, renseignez l'**URL externe** en `https://`
    et `172.16.0.0/12` dans **Proxys de confiance**.
 
 ### Ce qu'il gère déjà
@@ -115,7 +115,7 @@ sécurité et la CSP de l'application.
     docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d
     ```
 
-3. Dans **Admin → Accès distant**, renseignez l'**URL externe** en `https://`
+3. Dans **Administration → Accès distant**, renseignez l'**URL externe** en `https://`
    et la plage du réseau `proxy` dans **Proxys de confiance** (`172.16.0.0/12`
    couvre les réseaux Docker par défaut).
 
@@ -147,7 +147,7 @@ Dans **Edit Proxy Host** :
    l'envoi d'un plugin répond un jour 403 sans raison).
 2. **SSL** : votre certificat, Force SSL, HTTP/2. HSTS est facultatif ici :
    l'application l'envoie déjà.
-3. Dans **Admin → Accès distant**, renseignez l'**URL externe** en `https://`
+3. Dans **Administration → Accès distant**, renseignez l'**URL externe** en `https://`
    et la plage du réseau de NPM dans **Proxys de confiance**.
 
 ### Ce qu'il gère déjà
@@ -196,7 +196,7 @@ location ~ ^/api/v1/libraries/.+/scan {
 
 Tous les autres chemins (l'interface web, le reste de l'API, le WebSocket de
 SyncPlay) passent par le bloc de proxy de NPM, que configure l'onglet Details.
-Sans cet extrait, rien ne casse : il change seulement l'endroit où les gros
+Sans cet extrait, tout fonctionne : il change seulement l'endroit où les gros
 fichiers sont mis en tampon.
 
 ## Un proxy que vous avez déjà (TLS terminé en amont)
@@ -209,7 +209,7 @@ face au client. Un second proxy derrière lui n'ajoute rien.
 
 ### Mise en place
 
-Placez le service evey sur le réseau de ce proxy et visez `evey-server:9091`
+Placez le service evey sur le réseau de ce proxy et indiquez-lui la cible `evey-server:9091`
 (le nom du conteneur ; le nom du service, `evey`, fonctionne aussi) :
 
 ```yaml title="docker-compose.yml"
@@ -269,25 +269,25 @@ délai) sur ces chemins. L'exemple Traefik et un proxy piloté par une interface
 comme Nginx Proxy Manager gardent leurs réglages par défaut, qui conviennent ;
 l'extrait NPM ci-dessus est facultatif.
 
-## En-têtes de sécurité et CSP : à lire si votre proxy pose les siens
+## En-têtes de sécurité et CSP : à lire si votre proxy définit les siens
 
 Evey émet une Content-Security-Policy complète. Si votre proxy la laisse
 passer, il n'y a rien d'autre à faire.
 
 Beaucoup d'installations la retirent au contraire (`header_down
--Content-Security-Policy` dans Caddy) et posent la leur. C'est possible, mais
+-Content-Security-Policy` dans Caddy) et définissent la leur. C'est possible, mais
 **votre** politique doit alors garder ces éléments, sans quoi des fonctions
-cessent de marcher sans le moindre message :
+cessent de fonctionner sans le moindre message :
 
-| Élément | Directive | Ce qui casse sans lui |
+| Élément | Directive | Ce qui ne fonctionne plus sans lui |
 | --- | --- | --- |
 | `'self'` | `frame-src` | L'interface de chaque plugin et le script de chaque thème (iframe vide). Ils tournent dans `/plugin-frame.html`, une page d'Evey intégrée par l'application (voir plus bas). |
 | `'wasm-unsafe-eval'` | `script-src` | La lecture AC-3/E-AC-3 dans le navigateur (le décodeur WebAssembly ac3go ne peut pas être compilé, le film est lu sans le son). Cet élément n'autorise que la compilation Wasm, pas `eval()` en général. |
-| `https://www.gstatic.com` | `script-src` (+ `frame-src`) | Le SDK d'envoi Google Cast ne se charge jamais, plus personne n'a de bouton de diffusion. C'est le seul moyen pour un navigateur de découvrir les Chromecast du réseau local de l'utilisateur. |
+| `https://www.gstatic.com` | `script-src` (+ `frame-src`) | Le SDK d'envoi Google Cast ne se charge jamais, et le bouton de diffusion n'apparaît plus pour personne. C'est le seul moyen pour un navigateur de découvrir les Chromecast du réseau local de l'utilisateur. |
 | `blob:` | `media-src` | La lecture MSE (hls.js rattache le flux par une URL blob). |
-| `blob:` | `worker-src` | hls.js se rabat sans le dire sur un démultiplexage dans le thread principal (plus saccadé sur mobile). |
+| `blob:` | `worker-src` | hls.js se rabat silencieusement sur un démultiplexage dans le thread principal (plus saccadé sur mobile). |
 
-Une politique éprouvée pour un proxy qui pose la sienne, celle qu'envoie le
+Une politique éprouvée pour un proxy qui définit la sienne, celle qu'envoie le
 Caddy fourni :
 
 ```
@@ -301,7 +301,7 @@ frame-src 'self' https://www.gstatic.com
 
 `base-uri` et `object-src` ne retombent pas sur `default-src` : une politique
 qui les omet laisse libres l'injection de `<base href>` et l'intégration par
-`<object>`/`<embed>`. Gardez-les si vous posez votre propre politique.
+`<object>`/`<embed>`. Gardez-les si vous définissez votre propre politique.
 `script-src` ne contient pas `'unsafe-inline'` : un script injecté dans la
 page ne s'exécute pas. Ne le rajoutez pas, rien dans l'application n'en a
 besoin.
@@ -336,7 +336,7 @@ Deux vérifications de plus après tout changement :
 
 - **Gardez la politique sur une seule ligne.** Une CSP coupée sur plusieurs
   lignes dans la configuration d'un proxy est une corruption silencieuse
-  classique : la jonction avale les caractères de part et d'autre
+  classique : la jonction des lignes supprime les caractères de part et d'autre
   (`...gstatic.com; connect-src` est ainsi devenu `...gstaticonnect-src`, ce
   qui a désactivé le SDK Cast et fusionné deux directives).
 - **La page des plugins garde sa propre politique :**
@@ -346,7 +346,7 @@ Deux vérifications de plus après tout changement :
 ## Adresse réelle des clients et contrôle de l'accès distant
 
 Dès que le proxy transmet l'adresse réelle du client, Evey sait distinguer un
-spectateur à la maison d'un spectateur sur Internet : c'est sur cette
+spectateur sur le réseau domestique d'un spectateur sur Internet : c'est sur cette
 distinction que s'appuient le **Débit distant maximal** et l'interrupteur
 d'accès distant. Deux règles :
 

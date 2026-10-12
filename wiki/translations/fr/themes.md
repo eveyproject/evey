@@ -7,9 +7,9 @@ reviewed: true
 Un thème change l'apparence de l'interface d'Evey : un paquet de
 `kind: theme` sans processus côté serveur, fait d'une feuille de style et, en
 option, d'un script confiné dans un cadre caché. Cette page s'adresse aux
-auteurs de thèmes ; elle dit ce que les deux fichiers peuvent contenir et ce
+auteurs de thèmes ; elle décrit ce que les deux fichiers peuvent contenir et ce
 que l'installateur réécrit ou refuse. Les thèmes s'installent comme les
-plugins, depuis **Admin → Plugins**, et chaque utilisateur choisit le sien
+plugins, depuis **Administration → Plugins**, et chaque utilisateur choisit le sien
 dans **Paramètres → Apparence → Thème**.
 
 ## Manifeste
@@ -95,7 +95,7 @@ jamais le paquet.
 | `url(javascript:...)`, `expression(...)`, `-moz-binding`, `behavior` | Retirés | Vecteurs d'exécution hérités. |
 | Une règle dont le sélecteur correspond à `[type=password]`, `[type=hidden]`, `.admin-*`, `.token-*` ou `.secret-*` | Tout le bloc retiré | Un thème ne doit pas restyler les champs de mot de passe ni les éléments privilégiés. |
 | Une règle avec `position: fixed` ou `sticky` qui couvre l'écran : `inset: 0`, les quatre côtés à `0`, ou au moins deux parmi `top`/`right`/`bottom`/`left: 0`, `width: 100vw`, `height: 100vh` dont une taille de fenêtre | Tout le bloc retiré | La surcouche d'hameçonnage classique. Un en-tête fixé par `top: 0; left: 0` et dimensionné par son contenu est conservé. Les déclarations d'un même sélecteur s'additionnent d'une règle à l'autre. |
-| `pointer-events: none` dans une règle qui vise `button`, `[role=button]`, `a[href*=logout]` ou `[data-critical]` | Cette déclaration retirée, le reste conservé | Masquer la cliquabilité d'un contrôle critique est un détournement d'interface. |
+| `pointer-events: none` dans une règle qui vise `button`, `[role=button]`, `a[href*=logout]` ou `[data-critical]` | Cette déclaration retirée, le reste conservé | Rendre un contrôle critique non cliquable est un détournement d'interface. |
 | `z-index` au-dessus de 999 | Ramené à 999 | Un thème reste sous la couche modale de l'application. |
 
 Les caractères échappés sont décodés avant ces vérifications : une séquence
@@ -117,7 +117,7 @@ applique sur `:root`. C'est la seule forme acceptée : une liste de
 `--nom: valeur`, jusqu'à 200 déclarations, chaque valeur de 500 caractères au
 plus, sans `url()`, `image-set`, `expression()`, `@import`, `javascript:`,
 `data:`, `http(s):`, `//`, commentaire ni accolade. Tout le reste est
-abandonné et signalé dans la console. Une propriété n'agit que là où la
+ignoré et signalé dans la console. Une propriété n'agit que là où la
 feuille de style assainie y fait référence.
 
 ```js title="theme.js"
@@ -151,13 +151,13 @@ L'une de ces sous-chaînes, n'importe où dans la source :
 
 L'un de ces motifs :
 
-| Motif | Ce qu'il attrape |
+| Motif | Ce qu'il détecte |
 |---|---|
 | `\b(fetch\|eval\|atob\|btoa\|Function\|setTimeout\|setInterval)\s*\(` | Appels directs de globales interdites |
 | `\bimport\s*\(` | Import dynamique |
 | `(?:window\|self\|globalThis\|top\|parent\|document\|navigator\|location)\s*\[` | Accès par crochets aux globales de l'hôte, comme `window["fetch"]` |
 | `\.cookie\b` | Tout accès `.cookie` |
-| `\.constructor\s*\.\s*constructor` | L'évasion `[].constructor.constructor` |
+| `\.constructor\s*\.\s*constructor` | Le contournement `[].constructor.constructor` |
 | `new\s+Function\b` | Construction de code |
 | `(?:window\|self\|top\|parent\|globalThis)\s*\.\s*(?:Function\|eval\|fetch\|atob\|btoa\|XMLHttpRequest\|WebSocket\|EventSource)\b` | Lecture d'une globale interdite par propriété |
 | `(?:window\|top\|parent\|document\|location\|globalThis\|self)\s*\.\s*[A-Za-z_$][\w$]*\s*=[^=]` | Affectation sur une globale de l'hôte |

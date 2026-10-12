@@ -27,7 +27,7 @@ sont dans **Paramètres → Lecture**.
 
 | Votre appareil | Ce qui arrive |
 | --- | --- |
-| Un navigateur | La piste telle quelle quand le navigateur la décode ; l'AC-3 et l'E-AC-3 décodés dans la page (ci-dessous) ; sinon de l'AAC. Une piste AAC surround est ramenée sur votre sortie par le navigateur. |
+| Un navigateur | La piste telle quelle quand le navigateur la décode ; l'AC-3 et l'E-AC-3 décodés dans la page (ci-dessous) ; sinon de l'AAC. Une piste AAC surround est réduite par le navigateur aux canaux de votre sortie. |
 | Un téléphone Android sur son haut-parleur, un casque ou le Bluetooth | De la stéréo. L'application déclare une sortie stéréo, donc une piste surround est réencodée en stéréo par le serveur, avec un mélange normalisé. Le Dolby Digital que l'application décode elle-même est envoyé tel quel et ramené en stéréo par l'application. |
 | Un téléphone Android ou une Android TV en HDMI | Autant de canaux que la sortie HDMI déclare en accepter : une piste 5.1 reste en 5.1 sur un ampli 5.1. |
 | Un récepteur de diffusion | Ce que le récepteur a déclaré sur sa sortie : voir [Diffusion](casting.md). |
@@ -78,8 +78,8 @@ navigateurs qui décodent nativement le Dolby Digital, comme Safari, la
 reçoivent comme une piste ordinaire ; le choix se fait en testant le
 navigateur, pas en le reconnaissant. Une piste surround n'est décodée dans la
 page que si les **Canaux audio maximum** du profil l'autorisent : un profil
-réglé en stéréo reçoit le réencodage AAC à la place, qui sait ramener les
-canaux.
+réglé en stéréo reçoit le réencodage AAC à la place, qui peut réduire le nombre
+de canaux.
 
 !!! warning
     Un reverse proxy qui impose sa propre Content-Security-Policy doit

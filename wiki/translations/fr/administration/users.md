@@ -12,7 +12,7 @@ Deux mots comptent sur cette page :
   historique, ses points de reprise, ses favoris, ses langues et sa page
   d'accueil.
 
-Un compte peut contenir plusieurs profils. La plupart des maisons partagent
+Un compte peut contenir plusieurs profils. La plupart des foyers partagent
 un seul compte, avec un profil par personne. Vous pouvez aussi donner à
 chaque adulte son propre compte.
 
@@ -47,7 +47,7 @@ passe :
    qui gérera le serveur avec vous.
 3. Sous **Liens d'invitation**, appuyez sur **Copier le lien** et envoyez-le.
 
-Le lien est fabriqué à partir de l'adresse de votre navigateur. Ouvrez le
+Le lien est construit à partir de l'adresse de votre navigateur. Ouvrez le
 panneau d'administration depuis l'adresse que les autres utiliseront (par
 exemple `http://192.168.1.20:9091`), pas depuis `localhost`. **Révoquer**
 empêche un lien de fonctionner.
@@ -61,8 +61,8 @@ nombre d'appareils (voir
 
 Sur la ligne d'un compte :
 
-- **Désactiver** bloque ses connexions sans rien supprimer. **Activer** le
-  laisse revenir.
+- **Désactiver** bloque ses connexions sans rien supprimer. **Activer** rétablit
+  ses connexions.
 - **Supprimer** retire le compte et ses profils.
 
 ## Profils, profils enfant et code PIN
@@ -112,7 +112,7 @@ lecture et les téléchargements.
   et le système britannique sert quand cela ne suffit pas.
 - **Un titre sans classification utilisable** est caché au profil enfant
   plutôt que montré.
-- **Dans le doute, c'est non.** Si le serveur n'arrive pas à lire les réglages
+- **En cas de doute, l'accès est refusé.** Si le serveur ne parvient pas à lire les réglages
   d'un profil (une erreur de base de données, par exemple), il refuse le
   contenu au lieu de l'autoriser.
 - **Les téléchargements aussi.** Un film téléchargé sur un téléphone garde sa
@@ -159,13 +159,13 @@ Ce qui se passe :
 
 - **En dehors des horaires**, le profil est fermé partout : navigation,
   films, musique, téléchargements. Chaque application affiche un écran
-  verrouillé qui dit quand il rouvre.
+  verrouillé qui indique quand il redevient accessible.
 - **Dix minutes avant la fermeture**, le lecteur affiche un avertissement. À
   l'heure de fermeture, la lecture s'arrête.
-- **Pour laisser l'enfant entrer quand même**, tapez le **Code PIN parent**
+- **Pour laisser l'enfant entrer quand même**, saisissez le **Code PIN parent**
   sur l'écran verrouillé : le code PIN d'un profil du même compte qui n'est
   pas un profil enfant. Il ouvre le profil enfant jusqu'à sa prochaine plage
-  d'ouverture. Le code PIN de l'enfant ne marche pas ici. **Changer de
+  d'ouverture. Le code PIN de l'enfant ne fonctionne pas ici. **Changer de
   profil** revient à la liste des profils.
 
 ??? info "Fuseau horaire et cas particuliers"
@@ -177,14 +177,14 @@ Ce qui se passe :
     - Revenir de **Jour par jour** à **Semaine / week-end** est refusé quand
       les jours d'un bloc sont différents : ainsi, rien n'est perdu par
       erreur.
-    - Des horaires que le serveur n'arrive pas à lire gardent le profil
+    - Des horaires que le serveur ne parvient pas à lire gardent le profil
       fermé.
     - Un film téléchargé et lu sans connexion ne passe jamais par le
       serveur : les horaires ne s'y appliquent donc pas.
 
 ## Demandes
 
-Les gens peuvent demander un film, une série ou un artiste que vous n'avez
+Les utilisateurs peuvent demander un film, une série ou un artiste que vous n'avez
 pas encore. Leurs demandes arrivent dans **Administration → Demandes de
 média**. Pour chacune, choisissez **Accepter**, **Refuser** ou **Plus tard**,
 et ajoutez une note si vous voulez. La personne est prévenue de votre
@@ -196,7 +196,7 @@ utilisateur** pour les exceptions.
 
 ## La page d'accueil
 
-La page d'accueil est une pile de rangées. Une rangée qui n'a rien à montrer
+La page d'accueil est une suite de rangées. Une rangée qui n'a rien à montrer
 est cachée.
 
 | Rangée | Ce qu'elle montre |
@@ -222,7 +222,7 @@ le profil a déjà terminé. Une série compte comme terminée une fois tous ses
   **Personnaliser** (sur la page d'accueil des applications web et
   téléphone, dans la barre du haut de l'application TV) : afficher ou cacher
   une rangée, la déplacer, ou **Réinitialiser**. C'est enregistré sur le
-  serveur et suit le profil sur tous ses appareils.
+  serveur et s'applique au profil sur tous ses appareils.
 - Un profil peut afficher une rangée que vous avez cachée, sauf la rangée
   d'un plugin : là, votre choix est définitif.
 
@@ -233,9 +233,9 @@ Sur la page d'un film ou d'un épisode, un administrateur peut créer un
 personne qui a le lien peut télécharger le fichier d'origine, sans compte.
 Le lien est copié pour que vous puissiez le coller.
 
-- Il cesse de marcher au bout de 48 heures.
-- Quand l'accès distant est coupé, il ne marche que depuis le réseau de la
-  maison.
+- Il cesse de fonctionner au bout de 48 heures.
+- Quand l'accès distant est désactivé, il ne fonctionne que depuis le réseau
+  domestique.
 - Qui a le lien peut télécharger le fichier jusqu'à ce qu'il expire :
   partagez-le avec autant de soin que le fichier lui-même.
 

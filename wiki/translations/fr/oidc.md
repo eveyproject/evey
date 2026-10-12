@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Authentification unique (OIDC)
 
-Laissez les gens se connecter avec le fournisseur d'identité que vous avez
+Permettez aux utilisateurs de se connecter avec le fournisseur d'identité que vous avez
 déjà (Keycloak, Authentik, Authelia, Google ou tout autre fournisseur OpenID
 Connect) : la page de connexion des applications web et Android affiche alors
 **Se connecter avec SSO** à côté du formulaire de mot de passe. Deux étapes
@@ -23,13 +23,13 @@ affiche sous **Adresses à déclarer chez votre fournisseur** :
 | **URI de redirection** | `https://<votre adresse>/api/v1/auth/oidc/callback` |
 | **URI de redirection après déconnexion** | `https://<votre adresse>/login` |
 
-Les deux sont construites à partir de l'adresse publique du serveur (**Admin →
+Les deux sont construites à partir de l'adresse publique du serveur (**Administration →
 Accès distant**) : réglez-la d'abord si l'on accède à Evey par une autre
 adresse.
 
 ## 2. Configurer Evey
 
-**Admin → Configuration du serveur → Authentification unique (SSO)** :
+**Administration → Configuration du serveur → Authentification unique (SSO)** :
 
 | Champ | Effet |
 | --- | --- |
@@ -48,8 +48,8 @@ si le fournisseur est joignable, avec la dernière erreur s'il ne l'est pas.
 
 Les variables `EVEY_OIDC_*` de
 [Comptes et connexion](environment/accounts.md#single-sign-on-oidc) servent de
-repli : la carte signale quand ses valeurs en viennent, et l'enregistrer prend
-le relais.
+repli : la carte signale quand ses valeurs en viennent, et l'enregistrer les
+remplace.
 
 !!! note "Le fournisseur n'est jamais sur le chemin critique du serveur"
     Le serveur démarre même quand le fournisseur est arrêté, le bouton SSO

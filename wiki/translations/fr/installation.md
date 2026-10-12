@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Installation
 
-Cette page s'adresse à la personne qui va faire tourner Evey pour la maison.
+Cette page s'adresse à la personne qui va faire tourner Evey pour son foyer.
 Il vous faut un ordinateur ou un NAS qui reste allumé, avec Docker installé.
 Cela se fait en trois étapes :
 
@@ -39,7 +39,7 @@ recherche sont dedans : il n'y a rien d'autre à installer, pas de fichier
   images, index de recherche). Le fichier compose ci-dessous les range dans
   un dossier nommé `evey-data`, à côté du fichier.
 
-Evey répond en HTTP simple sur le réseau de la maison. Pour regarder depuis
+Evey répond en HTTP simple sur le réseau domestique. Pour regarder depuis
 l'extérieur, il faut du HTTPS, que vous pourrez ajouter plus tard :
 [Accès distant et HTTPS](administration/remote-access.md).
 
@@ -73,15 +73,15 @@ volumes:
    chaque mise à jour. Pour garder exactement le même code, utilisez plutôt
    un tag `sha-<commit>` : voir
    [Sauvegardes et mises à jour](backups.md#updating-evey).
-2. Le port. Le nombre de gauche est celui que vous taperez dans le navigateur
+2. Le port. Le nombre de gauche est celui que vous saisirez dans le navigateur
    et dans les applications. Gardez `9091`, sauf si un autre programme
    l'utilise déjà.
 3. Les données d'Evey : base de données, clés, mots de passe créés, index de
    recherche, images, journaux, sauvegardes, plugins. **C'est le dossier à
    sauvegarder.**
 4. Un cache de vidéo convertie, de photos et de pochettes redimensionnées.
-   Vous pouvez le supprimer quand vous voulez : il se remplit de nouveau tout
-   seul.
+   Vous pouvez le supprimer quand vous voulez : il se reconstitue
+   automatiquement.
 5. Vos médias. Remplacez `/path/to/your/media` par le vrai dossier. Dans
    Evey, ce dossier s'appelle `/media`. Evey peut y écrire, et c'est voulu :
    ainsi, la [Santé des médias](runbooks/media-health.md) peut réparer un
@@ -112,10 +112,10 @@ Au premier démarrage, Evey crée ses mots de passe et sa base de données dans
 L'adresse, c'est `http://`, puis l'adresse de la machine qui fait tourner
 Docker, puis `:9091` :
 
-| Où est votre navigateur | Adresse à taper |
+| Où est votre navigateur | Adresse à saisir |
 | --- | --- |
 | Sur la machine qui fait tourner Docker | `http://localhost:9091` |
-| Sur un autre ordinateur ou un téléphone de la maison | `http://` + l'adresse IP de la machine qui fait tourner Docker + `:9091`, par exemple `http://192.168.1.20:9091` |
+| Sur un autre ordinateur ou un téléphone du réseau domestique | `http://` + l'adresse IP de la machine qui fait tourner Docker + `:9091`, par exemple `http://192.168.1.20:9091` |
 | Hors de chez vous | Pas encore. Il faut du HTTPS et une adresse publique : voir [Accès distant et HTTPS](administration/remote-access.md). |
 
 Pour trouver l'adresse IP de la machine qui fait tourner Docker, regardez la
@@ -130,7 +130,7 @@ Une fois l'assistant terminé, la même adresse ouvre la page de connexion.
 
 !!! tip "Notez cette adresse"
 
-    Tout le monde à la maison en aura besoin. Les applications Android et
+    Chaque personne de votre foyer en aura besoin. Les applications Android et
     Android TV demandent exactement cette adresse sur leur premier écran,
     avec `http://` et le port :
     [Connecter les applications](getting-started/apps.md#the-server-address-to-enter).
@@ -140,7 +140,7 @@ Une fois l'assistant terminé, la même adresse ouvre la page de connexion.
 | Emplacement | Ce qu'il contient | Pouvez-vous le supprimer ? |
 | --- | --- | --- |
 | `./evey-data` | Base de données, clés, mots de passe créés, index de recherche, miniatures de la barre de lecture, images, journaux, sauvegardes, plugins | **Non.** Le perdre, c'est perdre tous les comptes, l'historique de visionnage et les réglages. Seule exception : `meili/` à l'intérieur, l'index de recherche. La commande `evey admin reindex-search` le reconstruit à partir de la base de données. |
-| Volume `evey-cache` | Vidéo convertie, photos et pochettes redimensionnées | Oui. Il se remplit de nouveau tout seul. |
+| Volume `evey-cache` | Vidéo convertie, photos et pochettes redimensionnées | Oui. Il se reconstitue automatiquement. |
 | Vos dossiers de médias | Vos fichiers | Evey ne les supprime jamais. Retirer un titre dans Evey le retire de la bibliothèque, pas du disque. |
 
 Evey écrit dans vos dossiers de médias dans trois cas seulement :
@@ -160,7 +160,7 @@ Chacun tient en quelques lignes dans le même fichier.
 `volumes:`. Un troisième devient `/media3`, et ainsi de suite.
 
 **Un autre port.** Changez seulement le nombre de gauche, par exemple
-`"8080:9091"`. Tapez ensuite `:8080` dans le navigateur et dans les
+`"8080:9091"`. Saisissez ensuite `:8080` dans le navigateur et dans les
 applications.
 
 **À qui appartiennent les fichiers.** Par défaut, Evey prend le propriétaire
@@ -188,7 +188,7 @@ vos services) : voir [Accès distant et HTTPS](administration/remote-access.md).
       `group_add:` décrites dans
       [Accélération matérielle](administration/hardware-acceleration.md).
 
-## Ce qu'Evey règle tout seul
+## Ce qu'Evey règle de lui-même
 
 Vous n'avez pas à configurer :
 

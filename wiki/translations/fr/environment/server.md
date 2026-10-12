@@ -4,9 +4,9 @@ reviewed: true
 ---
 # Serveur et réseau
 
-Les variables qui disent où le serveur est publié, quels proxys il croit, qui
+Les variables qui indiquent où le serveur est publié, à quels proxys il fait confiance, qui
 peut le joindre de l'extérieur et combien de requêtes il accepte. La plupart
-se définissent une fois dans le fichier compose ; ce que **Admin → Accès
+se définissent une fois dans le fichier compose ; ce que **Administration → Accès
 distant** enregistre ensuite l'emporte sur elles, comme l'explique la
 [Référence de configuration](../configuration.md).
 
@@ -23,7 +23,7 @@ distant** enregistre ensuite l'emporte sur elles, comme l'explique la
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
-| `EVEY_TRUSTED_PROXIES` | boucle locale seulement | Les réseaux dont l'adresse client transmise est crue, séparés par des virgules (pour un proxy en conteneur : `172.16.0.0/12`, à resserrer une fois connu). S'ajoutent à la boucle locale, sans jamais la remplacer ; une entrée mal formée empêche le démarrage. | Accès distant → **Proxys de confiance** remplace cette liste, immédiat ; vider le champ rétablit la variable |
+| `EVEY_TRUSTED_PROXIES` | boucle locale seulement | Les réseaux dont l'adresse client transmise est considérée comme fiable, séparés par des virgules (pour un proxy en conteneur : `172.16.0.0/12`, à resserrer une fois connu). S'ajoutent à la boucle locale, sans jamais la remplacer ; une entrée mal formée empêche le démarrage. | Accès distant → **Proxys de confiance** remplace cette liste, immédiat ; vider le champ rétablit la variable |
 | `EVEY_REAL_IP_HEADER` | `X-Forwarded-For` | L'en-tête dans lequel un proxy de confiance place l'adresse du client. | aucun |
 | `EVEY_FORWARDED_PROTO` | déduite | Obsolète : le HTTPS se déduit du schéma de `EVEY_SERVER_BASE_URL`. Encore acceptée pour forcer la valeur, avec un avertissement. | aucun |
 
@@ -31,7 +31,7 @@ Les réglages du proxy qui comptent pour la diffusion : [Configurations de rever
 
 ## Accès distant
 
-Ces variables servent au premier démarrage ; **Admin → Accès distant**
+Ces variables servent au premier démarrage ; **Administration → Accès distant**
 enregistre ensuite ses propres valeurs et les applique sans redémarrage. La
 façon dont le contrôle décide :
 [Accès distant et HTTPS](../administration/remote-access.md).
@@ -40,8 +40,8 @@ façon dont le contrôle décide :
 | --- | --- | --- | --- |
 | `EVEY_REMOTE_ACCESS_ENABLED` | non définie | Non définie : déduite au démarrage, activée quand `EVEY_SERVER_BASE_URL` ou `EVEY_REMOTE_ACCESS_EXTERNAL_URL` est publique. `true` ou `false` : votre choix explicite, jamais remplacé. | Accès distant → **Activer l'accès distant**, immédiat |
 | `EVEY_REMOTE_ACCESS_EXTERNAL_URL` | vide | L'adresse publique, quand elle diffère de `EVEY_SERVER_BASE_URL`. Une adresse en `https://` active le mode HTTPS, comme l'URL de base. | Accès distant → **URL externe**, immédiat |
-| `EVEY_REMOTE_ACCESS_LAN_NETWORKS` | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` | Les réseaux considérés comme la maison. Ajoutez une plage de VPN ou de CGNAT (`100.64.0.0/10`) dont les clients doivent compter comme locaux. | Accès distant → **Réseaux LAN**, immédiat |
-| `EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS` | `0` | Un plafond de débit pour les clients hors de la maison, en kbit/s ; `0` = aucun. Une adresse privée n'est jamais plafonnée. | Accès distant → **Débit distant maximal**, immédiat |
+| `EVEY_REMOTE_ACCESS_LAN_NETWORKS` | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` | Les réseaux considérés comme le réseau domestique. Ajoutez une plage de VPN ou de CGNAT (`100.64.0.0/10`) dont les clients doivent compter comme locaux. | Accès distant → **Réseaux LAN**, immédiat |
+| `EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS` | `0` | Un plafond de débit pour les clients hors du réseau domestique, en kbit/s ; `0` = aucun. Une adresse privée n'est jamais plafonnée. | Accès distant → **Débit distant maximal**, immédiat |
 
 ## Limites de requêtes
 

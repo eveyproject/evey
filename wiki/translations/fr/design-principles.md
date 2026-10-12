@@ -14,7 +14,7 @@ entrent en conflit, le premier de la liste l'emporte.
 | Principe | Où il apparaît | Décidé par |
 | --- | --- | --- |
 | 1. Un accès qui ne peut pas être vérifié est refusé | contrôle parental, installation des plugins, accès distant | [ADR-0026](adr/0026-remote-access-inferred-from-a-published-url.md) |
-| 2. Le code tiers est contenu, pas digne de confiance | sandbox des plugins | [ADR-0012](adr/0012-plugin-token-deny-by-default.md), [ADR-0014](adr/0014-landlock-plugin-sandbox.md) |
+| 2. Le code tiers est confiné, pas considéré comme fiable | sandbox des plugins | [ADR-0012](adr/0012-plugin-token-deny-by-default.md), [ADR-0014](adr/0014-landlock-plugin-sandbox.md) |
 | 3. L'original est servi chaque fois que c'est possible | décision de lecture | [ADR-0030](adr/0030-one-plan-one-decision.md) |
 | 4. Les décisions reposent sur ce qui a été prouvé, pas sur des noms | cast, accélération matérielle | [ADR-0029](adr/0029-transcoding-routes-are-measured-not-assumed.md) |
 | 5. Une lecture, une décision | plan de lecture, Infos du flux | [ADR-0030](adr/0030-one-plan-one-decision.md), [ADR-0024](adr/0024-playback-plan-resolver.md) |
@@ -27,7 +27,7 @@ Quand une décision ouvre un accès, une erreur aboutit à la réponse la plus
 restrictive. Un profil dont les réglages parentaux ne peuvent pas être lus ne
 reçoit aucun contenu ; un plugin dont le code ne peut pas être analysé n'est
 pas installé ; l'accès distant suit un choix explicite une fois qu'il a été
-fait, et le dit clairement quand il refuse tout le monde. Accès distant et
+fait, et l'indique clairement quand il refuse tout le monde. Accès distant et
 authentification sont deux choses distinctes : le premier est un choix de
 déploiement, la seconde est ce qui protège la bibliothèque.
 
@@ -35,12 +35,12 @@ Voir [Utilisateurs, profils et contrôle parental](administration/users.md),
 [Accès distant et HTTPS](administration/remote-access.md),
 [ADR-0026](adr/0026-remote-access-inferred-from-a-published-url.md).
 
-## 2. Le code tiers est contenu, pas digne de confiance
+## 2. Le code tiers est confiné, pas considéré comme fiable
 
 Un plugin obtient les permissions que son manifeste déclare et rien d'autre,
 est analysé avant l'installation, s'exécute dans une sandbox sans accès
 réseau direct, et détient un jeton refusé par défaut. Ce que la sandbox ne
-peut toujours pas empêcher est écrit noir sur blanc plutôt que sous-entendu.
+peut toujours pas empêcher est écrit explicitement plutôt que sous-entendu.
 
 Voir [Sandbox des plugins et modèle de menace](SECURITY.md),
 [ADR-0012](adr/0012-plugin-token-deny-by-default.md),

@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Comptes et connexion
 
-Les variables derrière les sessions et l'authentification unique : la durée
+Les variables qui règlent les sessions et l'authentification unique : la durée
 d'une connexion, l'emplacement de la clé de signature et le fournisseur
 OIDC. L'authentification unique se configure normalement dans le panneau,
 comme décrit dans [Authentification unique (OIDC)](../oidc.md) ; les
@@ -22,7 +22,7 @@ variables de cette page en sont le repli.
 ## Authentification unique (OIDC)
 
 Chaque champ enregistré dans la carte **Authentification unique (SSO)** de
-**Admin → Configuration du serveur** remplace sa variable, sans redémarrage.
+**Administration → Configuration du serveur** remplace sa variable, sans redémarrage.
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
@@ -30,6 +30,6 @@ Chaque champ enregistré dans la carte **Authentification unique (SSO)** de
 | `EVEY_OIDC_ISSUER` | vide | L'URL de l'émetteur du fournisseur, par exemple `https://auth.example.com/realms/main`. | même carte, immédiat |
 | `EVEY_OIDC_CLIENT_ID` | vide | Le client enregistré pour Evey chez le fournisseur. | même carte, immédiat |
 | `EVEY_OIDC_CLIENT_SECRET` | vide | Son secret. Activée sans lui, le serveur avertit au démarrage. | même carte, immédiat |
-| `EVEY_OIDC_REDIRECT_URL` | vide | L'adresse de retour envoyée au fournisseur : `https://<votre adresse>/api/v1/auth/oidc/callback`. Vide : construite à partir de l'adresse publique du serveur (**Admin → Accès distant**). | aucun |
+| `EVEY_OIDC_REDIRECT_URL` | vide | L'adresse de retour envoyée au fournisseur : `https://<votre adresse>/api/v1/auth/oidc/callback`. Vide : construite à partir de l'adresse publique du serveur (**Administration → Accès distant**). | aucun |
 | `EVEY_OIDC_ALLOWED_EMAIL_DOMAINS` | vide (tous) | Les domaines d'e-mail autorisés à se connecter, séparés par des virgules. Le fournisseur doit avoir vérifié l'adresse. | même carte, immédiat |
 | `EVEY_OIDC_ALLOW_SIGNUP` | vide | `true` ou `false` : créer un compte pour les nouveaux utilisateurs SSO. Vide : activé seulement si des domaines e-mail sont renseignés. | même carte, immédiat |

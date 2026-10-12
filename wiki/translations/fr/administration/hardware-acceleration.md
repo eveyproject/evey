@@ -17,7 +17,7 @@ reviewed: true
   qu'Evey puisse utiliser la carte, puis laissez le réglage sur **Auto
   (meilleur disponible)**.
 - Evey teste la carte avec une vraie conversion avant de lui envoyer la
-  moindre lecture. Une carte qui rate le test n'est pas utilisée.
+  moindre lecture. Une carte qui échoue au test n'est pas utilisée.
 
 Les étapes suivent, puis la façon dont le serveur prouve ce que la carte sait
 faire.
@@ -35,7 +35,7 @@ faire.
    résolutions certifiées pour le GPU et pour le processeur.
 
 Il n'y a qu'une image pour tous les cas : aucun pilote propre à une carte n'y
-est figé, et le même conteneur fonctionne sur le processeur seul, avec un GPU
+est intégré, et le même conteneur fonctionne sur le processeur seul, avec un GPU
 Intel ou AMD, ou avec une carte NVIDIA, selon les périphériques que vous lui
 donnez.
 
@@ -54,7 +54,7 @@ donnez.
 
     Le groupe doit être le groupe `render` de la machine hôte
     (`getent group render`, ou `stat -c %g /dev/dri/renderD128`). Une valeur
-    fausse ne casse rien : le GPU est simplement inaccessible et le serveur
+    fausse n'endommage rien : le GPU est simplement inaccessible et le serveur
     reste sur le processeur.
 
 === "NVIDIA (NVENC)"
@@ -94,10 +94,10 @@ la carte :
    ne compte que si un court encodage réel réussit en passant par lui.
 2. **Certification.** Chaque accélérateur encode l'échelle des résolutions
    (de 720p à 2160p) selon le même schéma que la lecture réelle et garde la
-   résolution la plus haute qu'il tient à 1,2 fois le temps réel. Quelques
+   résolution la plus haute qu'il soutient à 1,2 fois le temps réel. Quelques
    images de chaque essai sont redécodées et comparées à la source, parce
    qu'un pilote défaillant peut se terminer proprement tout en produisant des
-   images vertes ou brouillées. Un accélérateur incapable de tenir le 720p
+   images vertes ou brouillées. Un accélérateur incapable de soutenir le 720p
    n'est pas utilisé.
 3. **Mesure des routes.** Pour chaque capacité que l'accélérateur a prouvée
    (SDR, HEVC, AV1, tone mapping sur le GPU, HDR conservé), le coût d'une
@@ -113,17 +113,17 @@ plafonds trop bas. Elle se relance quand le matériel change. **Recalibrer** la
 lance immédiatement : à utiliser après l'ajout d'une carte ou le déplacement
 du conteneur sur une autre machine.
 
-!!! note "Un démarrage à froid n'est pas un verdict"
+!!! note "Un échec au démarrage n'est pas définitif"
     Un GPU qui échoue à s'initialiser dans les premières secondes après le
     démarrage du conteneur est retesté à intervalles courts avant que quoi
-    que ce soit soit enregistré. Seul un échec qui persiste, ou d'un type
+    que ce soit ne soit enregistré. Seul un échec qui persiste, ou d'un type
     déterministe (encodeur absent, format non pris en charge), marque
     l'accélérateur comme inutilisable.
 
 ## Imposer un backend ou tout désactiver
 
 **Désactivée (processeur uniquement)** garde tous les transcodages sur le
-processeur : c'est la porte de sortie en cas de pilote défaillant. Choisir un
+processeur : c'est la solution de repli en cas de pilote défaillant. Choisir un
 **Backend** à la main (NVENC, VAAPI, QSV, RKMPP) l'impose ; s'il s'avère
 inutilisable, le serveur se replie sur le processeur et la carte affiche le
 backend réellement utilisé.

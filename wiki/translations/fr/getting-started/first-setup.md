@@ -8,12 +8,12 @@ Evey tourne, et vous avez ouvert son adresse dans un navigateur, par exemple
 `http://192.168.1.20:9091` (vous ne savez pas quelle adresse :
 [étape 3 de l'installation](../installation.md#the-address-to-open-next)).
 
-Il reste quatre étapes avant que la maison puisse regarder :
+Il reste quatre étapes avant que votre foyer puisse regarder :
 
 1. [L'assistant de configuration](#1-the-setup-wizard) : environ une minute.
 2. [Ajouter vos bibliothèques](#2-add-your-libraries) : dire à Evey où sont
    vos médias.
-3. [Inviter la maison](#3-invite-your-household) : un compte par personne, ou
+3. [Inviter votre foyer](#3-invite-your-household) : un compte par personne, ou
    un seul compte partagé avec un profil par personne.
 4. [Connecter les applications](#4-connect-the-apps) : téléphones, tablettes
    et TV.
@@ -60,7 +60,7 @@ Rien à remplir. Appuyez sur **Commencer**.
 La carte affiche **Créer un compte administrateur**. C'est votre propre
 compte, celui qui gère le serveur.
 
-| Champ | Ce qu'il faut taper |
+| Champ | Ce qu'il faut saisir |
 | --- | --- |
 | **Nom d'utilisateur** | Au moins 3 caractères. |
 | **Mot de passe** | Au moins 8 caractères. |
@@ -68,7 +68,7 @@ compte, celui qui gère le serveur.
 | **Nom du serveur** | Facultatif. Un nom comme « Salon ». On le voit sur la page de connexion, dans l'onglet du navigateur, dans la liste des serveurs des applications et dans les e-mails. Vous pourrez le changer plus tard dans **Administration → Configuration du serveur → Nom du serveur**. |
 
 Appuyez sur **Continuer**. Evey crée le compte et vous connecte. L'assistant
-ne reviendra plus.
+ne s'affichera plus.
 
 ### Étape 4 sur 4 - Première bibliothèque
 
@@ -79,7 +79,7 @@ c'est un type de média rangé dans un ou plusieurs dossiers, par exemple
 - **Nom de la bibliothèque** : par exemple « Films ».
 - **Type de bibliothèque** : **Films**, **Séries**, **Musique** ou **Photos**.
 - **Chemins** : choisissez un dossier dans la liste. Elle montre les dossiers
-  qu'Evey peut voir, en commençant par `/media`. Pour taper un chemin comme
+  qu'Evey peut voir, en commençant par `/media`. Pour saisir un chemin comme
   `/media/movies`, choisissez **Entrer un chemin personnalisé...**.
 
 Appuyez sur **Créer** : Evey commence à lire le dossier. Vous pouvez aussi
@@ -109,7 +109,7 @@ cas, vous arrivez sur la page d'accueil.
 
 <figure class="evey-shot" markdown="span">
   ![Le tableau de bord d'administration du serveur de démo](../images/admin-dashboard.webp){ loading=lazy }
-  <figcaption>Le panneau d'administration une fois connecté : le tableau de bord, et toutes les sections dans le menu de côté (interface en anglais).</figcaption>
+  <figcaption>Le panneau d'administration une fois connecté : le tableau de bord, et toutes les sections dans le menu latéral (interface en anglais).</figcaption>
 </figure>
 
 ## 2. Ajouter vos bibliothèques
@@ -124,7 +124,7 @@ l'[installation](../installation.md#the-compose-file), votre dossier de médias
 s'appelle `/media`. Un dossier `/srv/media/films` sur votre ordinateur devient
 donc `/media/films` dans Evey.
 
-Evey commence à lire le dossier tout seul. Les affiches, les résumés et la
+Evey commence automatiquement à lire le dossier. Les affiches, les résumés et la
 distribution arrivent en arrière-plan : une grosse bibliothèque se remplit en
 quelques minutes. Les nouveaux fichiers que vous ajoutez plus tard
 apparaissent d'eux-mêmes.
@@ -133,7 +133,7 @@ Vos titres n'apparaissent pas, ou ont la mauvaise affiche ? Voir
 [Bibliothèques et métadonnées](../administration/libraries.md) : comment
 nommer les fichiers, et comment corriger un titre mal reconnu.
 
-## 3. Inviter la maison
+## 3. Inviter votre foyer
 
 Il y a deux façons de donner un compte à quelqu'un, toutes les deux dans
 **Administration → Utilisateurs**.
@@ -142,7 +142,7 @@ Il y a deux façons de donner un compte à quelqu'un, toutes les deux dans
 
 1. Ouvrez le panneau d'administration depuis l'adresse que les autres
    utiliseront, par exemple `http://192.168.1.20:9091`, et non
-   `http://localhost:9091`. Le lien est fabriqué à partir de l'adresse de
+   `http://localhost:9091`. Le lien est construit à partir de l'adresse de
    votre navigateur.
 2. Appuyez sur **Créer un lien d'invitation**. Vous pouvez limiter sa durée
    (**Date d'expiration (optionnel)**), le nombre de fois où il peut servir
@@ -158,8 +158,8 @@ Il y a deux façons de donner un compte à quelqu'un, toutes les deux dans
 choisissez le **Nom d'utilisateur** et le **Mot de passe**, puis donnez-les à
 la personne.
 
-Chaque compte commence avec un profil, qui porte le nom d'utilisateur. Une
-maison peut partager un seul compte, avec un profil par personne : ajoutez-les
+Chaque compte commence avec un profil, qui porte le nom d'utilisateur. Un
+foyer peut partager un seul compte, avec un profil par personne : ajoutez-les
 depuis **Paramètres → Profils → Créer un profil**. Pour un enfant, cochez
 **Profil enfant** et choisissez un **Âge maximum**. Tous les autres profils de
 ce compte demandent alors un **Code PIN (4 chiffres)**, pour que l'enfant ne
@@ -178,21 +178,21 @@ d'âge) :
 - **Dans un navigateur**, il n'y a rien à installer : c'est l'adresse que
   vous avez déjà ouverte.
 - **Sur un téléphone, une tablette ou une TV Android**, l'application demande
-  d'abord l'adresse du serveur. Tapez la **même adresse que dans le
+  d'abord l'adresse du serveur. Saisissez la **même adresse que dans le
   navigateur**, avec `http://` et le port, par exemple
   `http://192.168.1.20:9091`. Connectez-vous ensuite.
 - **Sur une TV**, vous pouvez vous connecter avec un code que vous acceptez
-  depuis votre téléphone, au lieu de taper un mot de passe avec la
+  depuis votre téléphone, au lieu de saisir un mot de passe avec la
   télécommande.
 
 Pas à pas, et ce que veut dire chaque message d'erreur :
 [Connecter les applications](apps.md#the-server-address-to-enter).
 
-## Ce que le serveur fait tout seul
+## Ce que le serveur fait de lui-même
 
 Vous n'avez rien de tout cela à régler :
 
-- **Comment chaque appareil lit un fichier.** Chaque appareil dit au serveur
+- **Comment chaque appareil lit un fichier.** Chaque appareil indique au serveur
   ce qu'il sait lire. Pour chaque titre, le serveur envoie alors le fichier
   tel quel, le remet dans un autre format de fichier, ou convertit seulement
   ce que l'appareil ne sait pas lire. Voir
@@ -201,7 +201,7 @@ Vous n'avez rien de tout cela à régler :
   serveur mesure combien de vidéos il peut convertir en même temps, avec le
   processeur et la carte graphique s'il y en a une, et n'en accepte jamais
   plus. Cela prend quelques minutes. Pendant ce temps, une lecture qui a
-  besoin d'une conversion est priée d'attendre. Voir
+  besoin d'une conversion doit attendre. Voir
   [Transcodage et capacité du serveur](../playback/transcoding.md).
 - **L'accès depuis l'extérieur de chez vous.** Fermé tant que vous ne donnez
   pas d'adresse publique au serveur. Voir
@@ -212,8 +212,8 @@ Vous n'avez rien de tout cela à régler :
 
 ## Avant de partager l'adresse hors de chez vous
 
-1. Placez le serveur derrière du HTTPS. Evey lui-même ne parle que le HTTP
-   simple : ça va à la maison, pas sur Internet.
+1. Placez le serveur derrière du HTTPS. Evey lui-même ne fournit que du HTTP
+   simple : cela convient sur le réseau domestique, pas sur Internet.
    [Accès distant et HTTPS](../administration/remote-access.md).
 2. Programmez des sauvegardes, et gardez une copie du dossier `evey-data`. Il
    contient la base de données et la clé qui protège toutes les connexions.

@@ -8,7 +8,7 @@ reviewed: true
 
 - Le **HDR** est une image avec des zones claires plus lumineuses et des
   couleurs plus riches que l'image habituelle (appelée **SDR**). Dolby Vision
-  est une sorte de HDR. Le HDR demande un écran capable de l'afficher.
+  est un type de HDR. Le HDR demande un écran capable de l'afficher.
 - Sur un écran HDR avec l'application Android ou Android TV (et un appareil
   qui décode le HEVC), vous avez l'image HDR d'origine, tant que rien d'autre
   n'oblige à convertir.
@@ -102,7 +102,7 @@ de base qui s'affiche correctement sans aucun décodage Dolby Vision :
 ## Vérifier ce qui s'est passé
 
 Les **Infos du flux** montrent la décision vidéo et, parmi les raisons, le
-tone mapping ou le HDR conservé. Toutes les routes qui font du tone mapping
+tone mapping ou le HDR conservé. Toutes les voies qui font du tone mapping
 l'y signalent, à une exception près : quand la carte graphique est saturée au
 moment où un flux démarre, le flux passe sur le processeur après le calcul
 des Infos du flux. **Administration → En cours de lecture** indique le backend

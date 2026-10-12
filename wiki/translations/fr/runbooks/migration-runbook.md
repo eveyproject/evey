@@ -5,7 +5,7 @@ reviewed: true
 # Migrations de la base
 
 Comment Evey fait évoluer le schéma de sa base lors d'une mise à jour, quoi
-vérifier avant et après, et la sortie de secours quand une migration s'arrête
+vérifier avant et après, et la procédure de secours quand une migration s'arrête
 à mi-chemin. Pour les opérateurs de l'installation standard, où la base tourne
 dans le conteneur `evey-server` ; les contributeurs qui écrivent une migration
 trouveront les règles en fin de page.
@@ -13,7 +13,7 @@ trouveront les règles en fin de page.
 ## Comment les migrations s'exécutent
 
 Les migrations sont embarquées dans le binaire et appliquées par
-`golang-migrate` au démarrage du serveur. L'état tient dans la table
+`golang-migrate` au démarrage du serveur. L'état est stocké dans la table
 `schema_migrations`, une ligne `{version, dirty}`. Avant d'appliquer quoi que
 ce soit, le serveur écrit un dump complet dans `EVEY_BACKUP_DIR`
 (`/data/backups`, donc `./evey-data/backups` sur l'hôte), nommé
@@ -28,7 +28,7 @@ docker exec evey-server evey admin migrate up        # applique toutes les migra
 docker exec evey-server evey admin migrate down      # revient exactement d'un cran
 ```
 
-`up` et `down` prennent d'abord un dump ; `--no-backup` le saute. Pour
+`up` et `down` prennent d'abord un dump ; `--no-backup` l'omet. Pour
 ouvrir un shell SQL sur la base embarquée :
 
 ```sh
@@ -38,7 +38,7 @@ docker exec -it evey-server sh -c \
 
 ## Mettre à jour sans risque
 
-1. **Prenez une sauvegarde** dans **Admin -> Sauvegarde BDD et restauration**
+1. **Prenez une sauvegarde** dans **Administration → Sauvegarde BDD et restauration**
    (**Lancer maintenant**), ou depuis un script :
    ```sh
    curl -X POST -H "Authorization: Bearer <jeton-admin>" \
@@ -70,7 +70,7 @@ docker exec -it evey-server sh -c \
    docker compose pull && docker compose up -d
    docker logs -f evey-server
    ```
-   Un bon résultat : une ligne `migrations: pre-migration backup written`
+   Une exécution réussie affiche une ligne `migrations: pre-migration backup written`
    quand il y avait quelque chose à appliquer, puis la bannière du serveur,
    puis `curl -sf http://localhost:9091/healthz` répond.
 
@@ -79,7 +79,7 @@ docker exec -it evey-server sh -c \
    docker exec evey-server evey admin migrate version
    docker logs --since 10m evey-server 2>&1 | grep -iE 'migrat|error'
    ```
-   Videz le cache de transcodage (**Admin -> Cache de transcodage -> Tout
+   Videz le cache de transcodage (**Administration → Cache de transcodage → Tout
    vider**) si la version change la façon dont les vidéos sont encodées.
 
 ## Revenir à la version précédente
@@ -93,7 +93,7 @@ Le retour habituel est l'image précédente plus le dump pris avant la mise à
 jour : voir [Revenir en arrière](../backups.md#going-back). Restaurez le dump
 plutôt que de migrer vers le bas quand la mise à jour a supprimé des données
 (une colonne retirée, un changement de type). `evey admin migrate down`
-revient d'une migration à la fois, quand le `.down.sql` de ce cran suffit.
+revient d'une migration à la fois, quand le `.down.sql` de cette migration suffit.
 
 !!! warning
     Ne modifiez pas `schema_migrations` à la main, sauf pour effacer un état
@@ -102,8 +102,8 @@ revient d'une migration à la fois, quand le `.down.sql` de ce cran suffit.
 ## Une migration arrêtée à mi-chemin
 
 Quand le journal montre `Dirty database version N. Fix and force version.`,
-une migration a planté en cours de route et `golang-migrate` refuse de
-continuer. Amenez le schéma dans l'état voulu, puis effacez le drapeau :
+une migration a échoué en cours d'exécution et `golang-migrate` refuse de
+continuer. Amenez le schéma dans l'état voulu, puis effacez l'indicateur :
 
 ```sql
 SELECT version, dirty FROM schema_migrations;
@@ -115,18 +115,18 @@ UPDATE schema_migrations SET version = <N>, dirty = false;
 
 Redémarrez le conteneur ; les migrations reprennent de là. Restaurer le dump
 de pré-migration ([Récupération](recovery.md#restore-a-pre-migration-dump))
-est l'autre issue.
+est l'autre solution.
 
 ## Écrire une migration
 
-Pour les contributeurs. Les fichiers vivent dans
+Pour les contributeurs. Les fichiers se trouvent dans
 `internal/adapters/driven/postgres/migrations/NNNNNN_<nom>.{up,down}.sql`.
 Exemples déjà livrés :
 
 - **`000066_cascade_and_email_unique.up.sql`** - `ALTER TABLE ... DROP
   CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`. Prend `ACCESS EXCLUSIVE` sur
-  les deux tables pendant tout le ADD. Bon marché sur de petites tables,
-  pénible sur `media_items` / `watch_progress`.
+  les deux tables pendant tout le ADD. Peu coûteux sur de petites tables,
+  lourd sur `media_items` / `watch_progress`.
 - **`000067_sort_title_index.up.sql`**,
   **`000068_watch_progress_composite_index.up.sql`**,
   **`000069_quick_connect_shortcode_index.up.sql`** - de simples `CREATE
@@ -149,11 +149,12 @@ Règles :
   prend que `SHARE UPDATE EXCLUSIVE`).
 - **UPDATE par lots / remplissage** : jamais dans une seule migration sur une
   grosse table. Livrez une migration de schéma vide plus une tâche de fond.
-- **Remplacement de colonne (étendre, migrer, contracter)** : ne repliez pas
+- **Remplacement de colonne (étendre, migrer, contracter)** : ne regroupez pas
   `ADD COLUMN` + remplissage + `SET NOT NULL` + `DROP COLUMN` dans un seul
-  fichier. Cette forme ne marche que parce qu'Evey tourne en instance unique,
+  fichier. Cette forme ne fonctionne que parce qu'Evey tourne en instance unique,
   avec des migrations appliquées de façon synchrone au démarrage ; un
-  déploiement progressif servirait des erreurs depuis la moitié en retard.
+  déploiement progressif renverrait des erreurs depuis les instances restées
+  sur l'ancienne version.
   `000077` et `000098_playlists_profile_id.up.sql` ont été écrites ainsi et
   restent telles quelles parce qu'elles sont livrées. Pour une nouvelle,
   découpez sur trois versions :

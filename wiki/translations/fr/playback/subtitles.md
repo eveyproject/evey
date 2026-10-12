@@ -11,10 +11,10 @@ réglez **Paramètres → Lecture → Langue des sous-titres par défaut**.
 La plupart des sous-titres s'affichent tout de suite. Deux cas sont
 différents :
 
-- **La première fois que quelqu'un choisit un sous-titre rangé dans le
-  fichier**, Evey doit le sortir du fichier. Le lecteur affiche
+- **La première fois que quelqu'un choisit un sous-titre contenu dans le
+  fichier**, Evey doit l'extraire du fichier. Le lecteur affiche
   **Sous-titres en préparation…**, la vidéo continue, et les sous-titres
-  apparaissent tout seuls. Sur un très gros film, cela peut prendre quelques
+  apparaissent d'eux-mêmes. Sur un très gros film, cela peut prendre quelques
   minutes, une seule fois : ensuite, ils s'affichent tout de suite pour tout
   le monde. Voir
   [La première fois qu'un sous-titre s'affiche](#the-first-time-a-subtitle-is-shown).

@@ -4,8 +4,8 @@ reviewed: true
 ---
 # Santé des médias
 
-Un titre se déplace lentement, cale toujours au même endroit, ou son son
-dérive : **Admin → Santé des médias** lit chaque fichier MKV/WebM de vos
+Un titre se déplace lentement, cale toujours au même endroit, ou son audio
+se décale peu à peu : **Administration → Santé des médias** lit chaque fichier MKV/WebM de vos
 bibliothèques et donne à chacun une seule réponse. Le but est une page qui se
 vide : ce qu'Evey sait réparer, il le répare (**Tout réparer**) ; le reste est
 signalé une fois et peut être marqué comme vu.
@@ -26,9 +26,9 @@ seulement :
 | **Réparable** | Un défaut qu'Evey répare sur ce serveur. | **Tout réparer** s'en charge en arrière-plan ; son compteur est exactement leur nombre. |
 | **Info** | Une mesure faite sur le fichier, qu'Evey ne réécrit pas de lui-même. | Rien. Marquez-la comme vue. |
 
-Aucune des deux ne vous confie une corvée. Une mesure sur laquelle Evey ne
+Aucune des deux ne vous laisse de tâche manuelle. Une mesure sur laquelle Evey ne
 peut pas agir reste une remarque, et une mesure peut se tromper : si le
-fichier se lit bien, il va bien.
+fichier se lit correctement, il n'y a rien à faire.
 
 ### Réparable
 
@@ -39,7 +39,7 @@ fichier se lit bien, il va bien.
 - **Mauvais conteneur** : le `.mkv` est en réalité un fichier MP4 ou MOV. Il est
   renommé en `.mp4` et la bibliothèque suit ; rien n'est réécrit.
 - **Zone endommagée** : une région corrompue au milieu du fichier. La réparation
-  la saute et resynchronise la suite, et ces octets sont perdus pour de bon. La
+  la saute et resynchronise la suite, et ces octets sont définitivement perdus. La
   fenêtre de réparation le demande explicitement (**Resynchroniser aussi N
   fichiers endommagés**) ; case décochée, les fichiers endommagés ne sont pas
   touchés. Il en va de même pour un fichier dont la corruption n'apparaît qu'à la
@@ -56,7 +56,7 @@ fichier se lit bien, il va bien.
   lit jusqu'à la coupure. Aucun outil ne récupère la partie manquante ; seule la
   source le peut.
 - **Recherche imprécise** : l'index reconstruit a encore un trou, le plus souvent
-  le générique de fin. Un déplacement dans ce trou arrive à son bord ; partout
+  le générique de fin. Un déplacement dans ce trou aboutit à sa limite ; partout
   ailleurs, la recherche est exacte.
 - **Audio à +N s** : une piste audio commence après l'image. C'est ainsi qu'un
   doublage est calé sur un montage, et tous les lecteurs le respectent. Evey ne le
@@ -113,7 +113,7 @@ le rythme :
   rapide sur une bibliothèque répartie sur plusieurs disques, mais la lecture
   peut saccader pendant ce temps.
 
-Deux choses font tout rediagnostiquer à une analyse : un fichier qui a changé, et
+Deux cas obligent une analyse à tout rediagnostiquer : un fichier qui a changé, et
 une nouvelle version d'Evey dont les contrôles ont changé. La première analyse
 après une telle mise à jour est donc longue sur une grande bibliothèque ; les
 suivantes redeviennent rapides.
@@ -123,10 +123,10 @@ suivantes redeviennent rapides.
 **Conserver les sauvegardes** est activé par défaut : chaque fichier réécrit garde
 son original en `.mkvgobak` à côté de lui. **Restaurer** remet un fichier, **Tout
 restaurer** la sélection en cours, et **Supprimer les sauvegardes** les efface
-pour de bon. Désactivé, seules les dernières copies existent pendant une passe, et
+définitivement. Désactivé, seules les quelques dernières copies existent pendant une passe, et
 elles sont supprimées à la fin ; chaque réparation est alors vérifiée plus à fond
 avant de remplacer le fichier. Quand garder une copie de chaque fichier
-remplirait le volume, la page le dit avant la passe.
+remplirait le volume, la page l'indique avant la passe.
 
 Le **Journal des réparations** liste chaque modification qu'une réparation a
 apportée aux octets d'un fichier, sur toute la bibliothèque ; **Historique** le
@@ -156,6 +156,6 @@ Le même moteur est disponible dans la CLI d'exploitation, voir
 [Ligne de commande](cli.md#media-maintenance) :
 
 - `evey admin reindex-no-cue --root <dossier> [--apply] [--resync]` reconstruit
-  les index manquants, à blanc sauf avec `--apply` ;
+  les index manquants, en simulation sauf avec `--apply` ;
 - `evey admin validate-streaming --root <dossier>` affiche le rapport de
   préparation au streaming, en lecture seule.

@@ -5,13 +5,13 @@ reviewed: true
 # Plugins
 
 Cette page s'adresse à l'administrateur : comment installer un plugin ou un
-thème, ce que vous acceptez en le faisant, et ce que le serveur le laisse
-toucher sur votre machine. Tout se passe dans **Admin → Plugins** ; les pages
+thème, ce que vous acceptez en le faisant, et ce que le serveur lui permet
+de faire sur votre machine. Tout se passe dans **Administration → Plugins** ; les pages
 destinées aux auteurs de plugins sont listées [à la fin](#writing-a-plugin).
 
 Un plugin ajoute à Evey ce qu'il ne fait pas lui-même : une section sur la
 page d'accueil, une surcouche dans le lecteur, une source de métadonnées, un
-thème. Chaque plugin est un processus à part, qui dialogue avec le serveur par
+thème. Chaque plugin est un processus à part, qui communique avec le serveur par
 un socket local, confiné par une sandbox et limité aux permissions que déclare
 son manifeste. Son interface, quand il en a une, s'exécute dans un cadre isolé
 de la page.
@@ -25,14 +25,14 @@ de la page.
 
 <figure class="evey-shot" markdown="span">
   ![L'accueil avec le plugin météo](images/home.webp){ loading=lazy }
-  <figcaption>Avec le plugin météo d'exemple : une section en haut, dessinée dans son propre cadre.</figcaption>
+  <figcaption>Avec le plugin météo d'exemple : une section en haut, affichée dans son propre cadre.</figcaption>
 </figure>
 
 </div>
 
 ## Installer un plugin
 
-1. Dans **Admin → Plugins**, ouvrez **Installer un plugin** et choisissez le
+1. Dans **Administration → Plugins**, ouvrez **Installer un plugin** et choisissez le
    **Fichier plugin (.zip)**. Si l'auteur fournit une signature, ajoutez-la
    dans **Fichier signature (.zip.sig, optionnel)**. L'onglet **Depuis une
    URL** installe à partir d'un lien ; ajoutez `#sha256:<empreinte>` à l'URL
@@ -120,12 +120,12 @@ machine : s'il affiche `basic`, l'hôte n'offre aucune isolation du système de
 fichiers par chemin, et [Mise en place de la sandbox des
 plugins](plugins/sandbox-deployment.md) explique quoi changer.
 
-Les plugins sont activés par défaut. `EVEY_PLUGINS_ENABLED=false` éteint tout
+Les plugins sont activés par défaut. `EVEY_PLUGINS_ENABLED=false` désactive tout
 le sous-système.
 
 ## Ce qu'un plugin peut faire sur votre machine
 
-Quoi que dise son manifeste, un plugin :
+Quoi que déclare son manifeste, un plugin :
 
 - voit son propre dossier, pas les données du serveur ni les fichiers média ;
 - n'a aucun accès direct au réseau : un plugin qui a la permission `network`
@@ -140,7 +140,7 @@ section ou la zone de bannière de l'accueil, un panneau latéral dans une
 bibliothèque ou sur une fiche, une surcouche du lecteur, les réglages
 d'apparence, le bas de la barre de navigation, ou une entrée du menu
 d'administration qui ouvre la page du plugin lui-même. Un plugin ne peut
-jamais dessiner dans les écrans de connexion, d'installation, de sécurité ni
+jamais rien afficher dans les écrans de connexion, d'installation, de sécurité ni
 dans les écrans d'administration existants. Dans son cadre, il n'a accès ni à
 la page, ni à vos cookies, ni à votre session : ce qu'il lit sur le serveur
 passe par un jeton de courte durée limité aux deux permissions qu'il peut
@@ -152,7 +152,7 @@ Les permissions qu'un plugin peut demander sont listées dans
 de la sandbox, et ce qu'elle ne peut toujours pas empêcher, sont décrits dans
 [Sandbox des plugins et modèle de menace](SECURITY.md).
 
-!!! warning "Le serveur contrôle à qui parle un plugin, pas ce qu'il dit"
+!!! warning "Le serveur contrôle les hôtes que contacte un plugin, pas ce qu'il leur envoie"
     Une fois qu'un hôte figure dans la liste d'un plugin, le serveur ne peut
     pas inspecter ce que le plugin lui envoie. Examinez un plugin tiers avant
     de l'installer, comme n'importe quel logiciel, et considérez sa liste
@@ -163,7 +163,7 @@ de la sandbox, et ce qu'elle ne peut toujours pas empêcher, sont décrits dans
 
 Un thème est un paquet de `kind: theme` sans processus : une feuille de style
 et, en option, un script confiné dans un cadre caché. Il s'installe depuis la
-même boîte **Installer un plugin** ; la feuille de style est assainie à
+même fenêtre **Installer un plugin** ; la feuille de style est assainie à
 l'installation. Chaque utilisateur le choisit ensuite dans **Paramètres →
 Apparence → Thème**. Ce qu'un thème peut contenir est décrit dans
 [Thèmes](themes.md).

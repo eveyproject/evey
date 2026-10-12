@@ -31,9 +31,9 @@ propre appareil, comme expliqué dans
 | --- | --- | --- | --- |
 | Créer une salle | **Regarder ensemble** dans le lecteur | **Regarder ensemble** dans le lecteur | - |
 | Rejoindre avec un compte | Le lien de la salle, ou le code dans **Écoute partagée** → **Rejoindre une salle** | Le code dans **Écoute partagée** | Le code dans **Paramètres** → **Regarder ensemble** |
-| Rejoindre sans compte | **Regarder ensemble** sur la page de connexion, avec le code | Pareil | - |
+| Rejoindre sans compte | **Regarder ensemble** sur la page de connexion, avec le code | Idem | - |
 
-Le code est facile à taper : majuscules ou non, espaces, `O` à la place de
+Le code est facile à saisir : majuscules ou non, espaces, `O` à la place de
 `0`, `I` ou `L` à la place de `1`, tout est accepté.
 
 Rejoindre avec un compte suit les règles habituelles : la bibliothèque doit
@@ -47,7 +47,7 @@ qu'il n'a pas le droit de regarder.
 | --- | --- | --- |
 | Android | Lecture, pause et déplacement entraînent toute la salle. | Lecture, pause et déplacement restent sur votre écran. |
 | Android TV | Lecture et pause entraînent toute la salle ; un déplacement reste sur la TV. | Comme sur Android. |
-| Web | Lecture, pause et déplacement restent sur votre écran, hôte compris. | Pareil. |
+| Web | Lecture, pause et déplacement restent sur votre écran, hôte compris. | Idem. |
 
 Dans le lecteur web, des boutons explicites remplacent le contrôle de l'hôte.
 **Tout le monde me rejoint** amène toute la salle à votre position et relance
@@ -77,8 +77,8 @@ et rien d'autre :
 !!! warning
     Le code est la seule protection d'une salle : ne le donnez qu'aux
     personnes que vous voulez y voir. Les codes erronés sont limités par
-    adresse et sur l'ensemble du serveur, ce qui met leur devinette hors de
-    portée.
+    adresse et sur l'ensemble du serveur, ce qui empêche de le trouver par essais
+    successifs.
 
 ## Écouter ensemble
 

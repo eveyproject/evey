@@ -39,7 +39,7 @@ La capacité n'est pas un réglage à estimer. Le serveur la mesure :
   au repos.
 - **Quoi.** De vrais encodages d'un extrait 4K, en SDR et en HDR, sur le
   processeur et sur chaque accélérateur détecté, selon le même schéma qu'une
-  vraie lecture. Le résultat est la résolution la plus haute que chacun tient
+  vraie lecture. Le résultat est la résolution la plus haute que chacun soutient
   en temps réel, et le coût de chaque type de flux.
 - **De nouveau.** Après un changement de matériel, ou avec **Recalibrer**
   dans **Administration → Configuration transcodage → Calibrage de l'encodage**. Le
@@ -49,14 +49,14 @@ Pendant la mesure, une lecture qui a besoin d'un transcodage affiche **Le
 serveur se calibre** et demande de réessayer un peu plus tard. La lecture
 directe et le remux ne sont pas concernés.
 
-Sur un processeur qui ne tient aucune des résolutions, le serveur propose
+Sur un processeur qui ne soutient aucune des résolutions, le serveur propose
 malgré tout du 720p (SDR) et du 480p (HDR), un flux à la fois.
 
 La mesure utilise, dans cet ordre, un extrait que vous fournissez, un extrait
 de référence téléchargé une fois et vérifié par son empreinte SHA256, ou un
 extrait synthétique généré sur place. Un extrait réel mesure plus fidèlement
-que l'extrait synthétique, qui surestime le coût et peut plafonner une
-machine plus bas qu'elle ne le mérite :
+que l'extrait synthétique, qui surestime le coût et peut fixer pour une
+machine un plafond plus bas que nécessaire :
 
 ```yaml title="docker-compose.yml"
 services:
@@ -89,7 +89,7 @@ empaquetage.
 Quand la place vient à manquer, le serveur répond dans cet ordre :
 
 1. **Une qualité plus basse.** Un nouveau flux dont la qualité la plus haute
-   ne tient pas est admis à la plus haute qui tient, et ce plafond vaut pour
+   ne peut pas être assurée est admis à la plus haute possible, et ce plafond vaut pour
    toute la durée du flux.
 2. **Le processeur.** Quand les accélérateurs sont saturés, un nouveau flux
    passe sur le processeur s'il a de la place.
@@ -165,5 +165,5 @@ plein** (au plus une fois par heure, envoyé aussi aux webhooks sous
 - **Administration → Qualité streaming** : le déroulement des lectures pour les vrais
   spectateurs.
 - **Test de charge** (**Administration → Configuration transcodage**) : simule des
-  spectateurs pour mesurer ce que le serveur tient. Il refuse de démarrer tant
+  spectateurs pour mesurer ce que le serveur supporte. Il refuse de démarrer tant
   que quelqu'un regarde.

@@ -27,7 +27,7 @@ des routes d'administrateur.
 La gestion des plugins et les webhooks exigent un administrateur, comme
 l'[API d'administration](../admin/README.md). `plugin_prefs` est le seul
 service conçu pour un jeton de plugin : la page hôte l'émet pour un plugin et
-un utilisateur, et le service ne répond que les lignes de ce couple
+un utilisateur, et le service ne renvoie que les lignes de ce couple
 ([API du serveur](../README.md#authentication)).
 
 <!-- sources

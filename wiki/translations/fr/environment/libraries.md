@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Bibliothèques et métadonnées
 
-Les variables derrière le scan, les sources de métadonnées et la détection
+Les variables qui règlent le scan, les sources de métadonnées et la détection
 des intros. La plupart ont un champ dans le panneau d'administration, qui
 l'emporte dès qu'une valeur y est enregistrée ; le côté panneau est décrit
 dans [Bibliothèques et métadonnées](../administration/libraries.md).
@@ -15,7 +15,7 @@ dans [Bibliothèques et métadonnées](../administration/libraries.md).
 | --- | --- | --- | --- |
 | `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | La surveillance des fichiers en temps réel. | Configuration du serveur → Paramètres du serveur → **Surveillance des fichiers de la bibliothèque**, redémarrage |
 | `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | La fréquence à laquelle les dossiers sont revérifiés pour rattraper ce que la surveillance a manqué (partages réseau). | Configuration du serveur → Paramètres du serveur → **Intervalle d'analyse périodique**, redémarrage |
-| `EVEY_LIBRARY_SCAN_WORKERS` | selon la part CPU | Fichiers analysés en parallèle pendant un scan. Définie à la main, elle court-circuite la **Puissance allouée** pour les scans. | aucun |
+| `EVEY_LIBRARY_SCAN_WORKERS` | selon la part CPU | Fichiers analysés en parallèle pendant un scan. Définie à la main, elle remplace la **Puissance allouée** pour les scans. | aucun |
 | `EVEY_SEEKINDEX_STATE_DIR` | `/data/seek-index` | L'emplacement où l'analyse de Santé des médias garde ses résultats et sa tâche en cours d'un redémarrage à l'autre. Vide : rien n'est conservé. | aucun |
 
 ## Métadonnées
@@ -36,5 +36,5 @@ dans [Bibliothèques et métadonnées](../administration/libraries.md).
 | `EVEY_INTRO_TIDB_API_KEY` | vide | Une clé TheIntroDB : 500 requêtes par jour au lieu de 100. | Configuration du serveur → Clés API → **Clé API TheIntroDB**, redémarrage |
 | `EVEY_INTRO_AUTO_SKIP_ENABLED` | `false` | Tous les lecteurs passent d'eux-mêmes les intros détectées. | Configuration du serveur → Paramètres du serveur → **Saut automatique des intros**, immédiat |
 | `EVEY_INTRO_SKIP_PREVIEW_ENABLED` | `false` | Propose aussi de passer l'aperçu de l'épisode suivant. | Configuration du serveur → Paramètres du serveur → **Passer les segments d'aperçu**, immédiat |
-| `EVEY_INTRO_DETECTION_MAX_PARALLEL` | selon la part CPU | Titres analysés en même temps. Définie à la main, elle court-circuite la **Puissance allouée** pour cette tâche. | aucun |
+| `EVEY_INTRO_DETECTION_MAX_PARALLEL` | selon la part CPU | Titres analysés en même temps. Définie à la main, elle remplace la **Puissance allouée** pour cette tâche. | aucun |
 | `EVEY_INTRO_FFMPEG_THREADS` | `1` | Threads par processus ffmpeg pendant la détection (1 à 16). | aucun |

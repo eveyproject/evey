@@ -14,7 +14,7 @@ restauration) sont dans [Restauration](recovery.md).
 ## Lancer une commande
 
 Dans l'installation standard, les commandes se lancent dans le conteneur, qui
-porte déjà le mot de passe de la base et la configuration `EVEY_*` :
+contient déjà le mot de passe de la base et la configuration `EVEY_*` :
 
 ```sh
 docker exec evey-server evey admin doctor
@@ -97,10 +97,10 @@ evey admin migrate version                   Print the current schema version; e
 
 Un `pg_dump` d'avant migration est pris pour `up` et `down` quand
 `EVEY_BACKUP_DIR` est défini (`/data/backups` dans l'image Docker) ;
-`--no-backup` le saute, pour les machines sans `pg_dump`. Un échec en cours de
+`--no-backup` l'omet, pour les machines sans `pg_dump`. Un échec en cours de
 `up` laisse `schema_migrations.dirty = true` : voir les
 [Procédures de migration](migration-runbook.md). Sur la pile de
-développement, le Makefile enveloppe ces trois commandes en `make migrate-up`,
+développement, le Makefile fournit ces trois commandes sous la forme `make migrate-up`,
 `make migrate-down` et `make migrate-version`, exécutées dans le conteneur de
 développement `evey-server`.
 
@@ -132,7 +132,7 @@ evey admin artwork-gc [--root <dir>] [--apply]
                                              Dry-run by default. --root defaults to /data/artworks.
 ```
 
-Le même moteur travaille derrière **Admin → Santé des médias**, qui est la
+Le même moteur est utilisé par **Administration → Santé des médias**, qui est la
 façon la plus simple de réparer une bibliothèque : voir
 [Santé des médias](media-health.md).
 
@@ -221,7 +221,7 @@ binaire `man`.
 
 ## Ce qui n'est pas dans `evey admin`
 
-Trois programmes autonomes vivent à côté du serveur dans les sources. Ce sont
+Trois programmes autonomes se trouvent à côté du serveur dans les sources. Ce sont
 des outils de développement et de QA, pas des commandes d'exploitation, et
 l'image Docker ne les contient pas :
 
@@ -235,4 +235,4 @@ l'image Docker ne les contient pas :
 
 - [Restauration](recovery.md) : réinitialisation de mot de passe, rotation de la clé JWT, restauration d'une sauvegarde.
 - [Procédures de migration](migration-runbook.md) : déploiement du schéma, retour en arrière, récupération d'un état « dirty ».
-- [Procédures d'incident](incident-runbook.md) : les premiers gestes quand le serveur se comporte mal.
+- [Procédures d'incident](incident-runbook.md) : les premiers gestes quand le serveur présente un problème.

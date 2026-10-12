@@ -4,31 +4,31 @@ reviewed: true
 ---
 # Dépannage
 
-Quelque chose ne marche pas ? Cherchez ce que vous voyez dans le tableau
-ci-dessous. La colonne du milieu dit où regarder en premier ; la dernière
+Quelque chose ne fonctionne pas ? Cherchez ce que vous voyez dans le tableau
+ci-dessous. La colonne du milieu indique où regarder en premier ; la dernière
 mène à la solution. Si cela ne suffit pas, les logs et `evey admin doctor`
-(plus bas) en disent plus.
+(plus bas) donnent plus de détails.
 
 ## Où regarder, selon ce que vous voyez
 
 | Ce que vous voyez | Regarder d'abord | Ensuite |
 | --- | --- | --- |
-| Rien ne répond, même à la maison | Evey tourne-t-il ? `docker compose ps`, puis les dernières lignes qu'il affiche : `docker compose logs --tail=200 evey` | [Le serveur ne démarre pas](#the-server-does-not-start) ci-dessous ; [The server does not answer](../runbooks/incident-runbook.md#the-server-does-not-answer) |
-| L'application affiche **Impossible de joindre le serveur** ou **Connexion échouée** | L'adresse tapée dans l'application | [Connecter les applications](../getting-started/apps.md#the-server-address-to-enter) ; hors de chez vous seulement : [Accès distant et HTTPS](../administration/remote-access.md) |
+| Rien ne répond, même sur le réseau domestique | Evey tourne-t-il ? `docker compose ps`, puis les dernières lignes qu'il affiche : `docker compose logs --tail=200 evey` | [Le serveur ne démarre pas](#the-server-does-not-start) ci-dessous ; [Le serveur ne répond pas](../runbooks/incident-runbook.md#the-server-does-not-answer) |
+| L'application affiche **Impossible de joindre le serveur** ou **Connexion échouée** | L'adresse saisie dans l'application | [Connecter les applications](../getting-started/apps.md#the-server-address-to-enter) ; hors de chez vous seulement : [Accès distant et HTTPS](../administration/remote-access.md) |
 | Tout le monde est déconnecté, ou personne ne peut se connecter | **Administration → Accès distant**, les proxys de confiance ; puis les logs | [Personne ne peut se connecter](#nobody-can-sign-in) ci-dessous |
 | Un film n'a pas d'image, ne démarre pas, ou s'arrête | **Infos du flux** dans le lecteur, puis **Administration → Santé des médias** pour ce titre | [Problèmes de lecture](#playback-problems) ci-dessous |
-| Ça saccade ou ça charge sans arrêt | **Administration → Qualité streaming** (quels titres et appareils attendent) et **Administration → Santé du système** (le serveur est-il trop occupé) | [Transcodage et capacité du serveur](../playback/transcoding.md) |
+| La lecture saccade ou charge sans arrêt | **Administration → Qualité streaming** (quels titres et appareils attendent) et **Administration → Santé du système** (le serveur est-il trop occupé) | [Transcodage et capacité du serveur](../playback/transcoding.md) |
 | Mauvaise affiche, mauvais titre, ou un film n'est pas reconnu | **Modifier les métadonnées** sur le titre | [Corriger un titre faux ou manquant](../administration/libraries.md#fix-a-wrong-or-missing-title) |
 | Des affiches manquent ou sont cassées | **Administration → Cache artworks** | [Bibliothèque et affiches](#library-and-posters) ci-dessous |
 | Les nouveaux fichiers n'apparaissent pas | Le résultat du scan sur la ligne de la bibliothèque, dans **Administration → Bibliothèques** | [Bibliothèque et affiches](#library-and-posters) ci-dessous |
 | Les e-mails n'arrivent pas | **Envoyer un e-mail de test** dans **Administration → Configuration du serveur → E-mail / SMTP** | [Les e-mails n'arrivent pas](#e-mails-do-not-arrive) ci-dessous |
-| Un plugin échoue | Ses **Logs**, sur sa carte dans **Administration → Plugins** | [A plugin crashed](../runbooks/incident-runbook.md#a-plugin-crashed) |
-| Une diffusion s'est figée ou est devenue muette | **Administration → En cours de lecture** : la lecture est-elle encore dans la liste ? | [A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
-| Le disque se remplit | **Administration → Cache de transcodage** | [The cache disk is full](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
+| Un plugin échoue | Ses **Logs**, sur sa carte dans **Administration → Plugins** | [Un plugin a planté](../runbooks/incident-runbook.md#a-plugin-crashed) |
+| Une diffusion s'est figée ou est devenue muette | **Administration → En cours de lecture** : la lecture est-elle encore dans la liste ? | [Une diffusion s'est figée, est devenue muette, ou le téléphone reste en chargement](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
+| Le disque se remplit | **Administration → Cache de transcodage** | [Le disque de cache est plein](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
 
 ## Les logs
 
-Les logs sont le journal de bord d'Evey : chaque erreur y est notée, avec
+Les logs sont le journal d'Evey : chaque erreur y est notée, avec
 l'heure.
 
 **Le plus simple : Administration → Logs & Debug.** Vous y voyez les logs
@@ -87,13 +87,13 @@ endommagée : [Restauration](../runbooks/recovery.md).
 Deux causes habituelles :
 
 - **La base de données ne répond pas.** Evey vérifie chaque connexion
-  auprès d'elle, et refuse quand il ne peut pas. Les logs le disent.
+  auprès d'elle, et refuse quand il ne peut pas. Les logs l'indiquent.
 - **Un reverse proxy manque dans les proxys de confiance** (**Administration
   → Accès distant**). Tous les visiteurs semblent alors venir de l'adresse du
   proxy, et ils partagent tous une seule limite de tentatives de connexion.
 
 La procédure pas à pas :
-[Every login returns 401](../runbooks/incident-runbook.md#every-login-returns-401).
+[Toutes les connexions renvoient 401](../runbooks/incident-runbook.md#every-login-returns-401).
 
 !!! note
     Une clé de signature perdue ou remplacée ne déconnecte personne à elle
@@ -101,8 +101,8 @@ La procédure pas à pas :
     toutes les sessions volontairement, c'est `evey admin rotate-jwt-key`,
     voir [Restauration](../runbooks/recovery.md#rotate-the-key-that-signs-access-tokens).
 
-Le serveur répond à la maison mais pas ailleurs, ou les applications disent
-que l'accès distant est désactivé :
+Le serveur répond sur le réseau domestique mais pas ailleurs, ou les
+applications indiquent que l'accès distant est désactivé :
 [Accès distant et HTTPS](../administration/remote-access.md). La page
 **Administration → Accès distant** signale en rouge un serveur joignable depuis Internet
 alors que l'accès distant est désactivé.
@@ -139,7 +139,7 @@ habituelle. Un hôte enregistré dans la carte remplace toutes les variables
 
 ## Problèmes de lecture
 
-Commencez par les **Infos du flux** dans le lecteur. Elles disent comment le
+Commencez par les **Infos du flux** dans le lecteur. Elles indiquent comment le
 film est envoyé (tel quel, recopié dans un autre format, ou converti), piste
 par piste, et pourquoi. Un titre converti alors que vous attendiez qu'il soit
 lu tel quel : voir
@@ -154,9 +154,9 @@ lu tel quel : voir
   peut-être au maximum de ce qu'il peut convertir. **Administration → Santé
   du système** montre à quel point il est occupé. Voir
   [Transcodage et capacité du serveur](../playback/transcoding.md).
-- La lecture transcodée échoue franchement :
-  [Transcoding fails](../runbooks/incident-runbook.md#transcoded-playback-fails).
-- Ça charge et les logs ne disent pas pourquoi :
+- La lecture transcodée échoue complètement :
+  [La lecture transcodée échoue](../runbooks/incident-runbook.md#transcoded-playback-fails).
+- La lecture se met en mémoire tampon et les logs n'indiquent pas pourquoi :
   [la procédure de diagnostic](../runbooks/incident-runbook.md#it-buffers-or-cuts-out-and-the-log-does-not-say-why).
 - Pas de son dans un navigateur uniquement, avec une piste Dolby Digital
   (AC-3/E-AC-3) : un reverse proxy qui impose sa propre Content-Security-Policy
@@ -165,7 +165,7 @@ lu tel quel : voir
 - Son désynchronisé sur un titre : **Administration → Santé des médias** détecte un
   audio qui démarre après l'image et des pistes en désaccord entre elles.
 - Les sous-titres ne s'affichent pas : [Sous-titres](../playback/subtitles.md)
-  dit quels formats les lecteurs dessinent et lesquels le serveur doit
+  indique quels formats les lecteurs affichent eux-mêmes et lesquels le serveur doit
   incruster dans l'image.
 - **Sous-titres en préparation…** reste affiché plusieurs minutes : le fichier
   n'a pas d'index pour cette piste et le serveur le lit en entier, une fois.
@@ -182,7 +182,7 @@ Les affiches et les fonds sont copiés sur le serveur pendant les scans, dans
 **Administration → Cache artworks** indique combien n'ont pas encore de copie locale ;
 **Télécharger les artworks manquants** les récupère tout de suite, et **Purger
 les variantes corrompues** supprime les affiches redimensionnées laissées vides
-par un redimensionnement raté, qui sont alors reconstruites à la demande.
+par un redimensionnement échoué, qui sont alors reconstruites à la demande.
 
 Une affiche ou un titre qui appartient à un autre film relève de
 l'identification des métadonnées, pas des affiches :

@@ -29,7 +29,7 @@ e-mail, une fois que vous avez réglé un serveur de messagerie (plus bas).
 - **Par e-mail** : une fois l'e-mail réglé, chaque notification est aussi
   envoyée à l'adresse e-mail du compte, dans la langue du profil, avec un
   lien vers le serveur. Un compte avec plusieurs profils reçoit un seul
-  e-mail par événement. Personne ne peut couper les e-mails pour lui-même.
+  e-mail par événement. Personne ne peut désactiver les e-mails pour lui-même.
 
 ??? info "Clés de push"
 
@@ -46,7 +46,7 @@ de votre fournisseur donnent les valeurs ci-dessous.
 1. Allez dans **Administration → Configuration du serveur → E-mail / SMTP**.
 2. Remplissez les champs :
 
-    | Champ | Ce qu'il faut taper |
+    | Champ | Ce qu'il faut saisir |
     | --- | --- |
     | **Hôte SMTP**, **Port** | Le serveur de messagerie et son port. Les paires habituelles sont `587` avec `starttls`, ou `465` avec `ssl`. |
     | **Nom d'utilisateur**, **Mot de passe** | Le compte avec lequel Evey se connecte. |
@@ -80,7 +80,7 @@ Les invitations sont des liens que vous envoyez vous-même.
 
     Dès qu'un hôte est enregistré dans la carte, tous les champs viennent de
     la carte et les variables sont ignorées. Ainsi, le serveur n'envoie
-    jamais le mot de passe des variables à un serveur de messagerie tapé
+    jamais le mot de passe des variables à un serveur de messagerie saisi
     dans le panneau. Videz l'hôte pour revenir aux variables.
 
 ## Choisir ce qu'un profil reçoit
