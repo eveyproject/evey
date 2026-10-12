@@ -1,208 +1,271 @@
 ---
-source_sha: 173b490b2a261ecfdad76b667acd070ca89ef5c932f0b30034bbf6d22a7bb01a
-reviewed: false
+source_sha: 2aa3f137eb7403f9ad58369e4f8f4eb6ea411a331f295395267794f1472f7153
+reviewed: true
 ---
 # आर्किटेक्चर
 
-Evey एक सेल्फ़-होस्टेड मीडिया सर्वर है। बैकएंड Go है (हेक्सागोनल / DDD), फ़्रंटएंड एक TypeScript/React मोनोरेपो है, मोबाइल React Native / Expo है। सेटअप और गहरी आंतरिक जानकारी के लिए [DEV.md](../DEV.md) देखें।
+सर्वर कैसे जुड़ा है: `internal/` के नीचे hexagonal परतें, bounded context, उन्हें
+जोड़ने वाले event, और वे static पहरेदार जो कोड को इन पटरियों पर रखते हैं। कोड
+`internal/domain`, `internal/app`, `internal/adapters/{driving,driven}` में रहता है
+और `cmd/evey/wire*.go` में जोड़ा जाता है; बनावट [ADR-0001](adr/0001-hexagonal-architecture.md)
+तय करता है, repository का बँटवारा [ADR-0009](adr/0009-cqrs-repo-split.md) और event
+bus [ADR-0010](adr/0010-event-bus.md)। build करने और चलाने के लिए [DEV.md](../DEV.md)
+पढ़ें; किसी बदलाव के लिए कौन सी फ़ाइलें छूनी हैं, यह जानने के लिए
+[कोड का नक्शा](CODEBASE_MAP.md) पढ़ें।
+
+बैकएंड Go में है; वेब, मोबाइल और टीवी क्लाइंट `frontend/` के नीचे एक TypeScript/React
+monorepo हैं (मोबाइल और टीवी के लिए React Native / Expo)।
 
 ## परतें
 
-`internal/` के नीचे सख़्त पोर्ट-और-एडैप्टर लेआउट:
+```mermaid
+flowchart LR
+    driving[Driving adapter<br/>internal/adapters/driving<br/>grpcapi, http, pluginhost]
+    app[ऐप्लिकेशन सर्विस<br/>internal/app/context]
+    domain[Domain<br/>internal/domain/context<br/>model, value object, port]
+    driven[Driven adapter<br/>internal/adapters/driven<br/>postgres, ffmpeg, mkvgo, ...]
+    driving --> app --> domain
+    driven -. port लागू करते हैं .-> domain
+```
 
-- `internal/domain/<context>/`: शुद्ध डोमेन: मॉडल, मान ऑब्जेक्ट, **पोर्ट** (इंटरफ़ेस)। कोई फ़्रेमवर्क इम्पोर्ट नहीं।
-- `internal/app/<context>/`: एप्लिकेशन सर्विस। पोर्ट को व्यवस्थित करती हैं। IO सामान्यतः किसी पोर्ट से जाता है; दो संदर्भ जान-बूझकर अपवाद हैं और सीधे नेटवर्क तक पहुँचते हैं: `dlna` (SSDP / UPnP AVTransport) और `loadtest` (उसका अपना HTTP क्लाइंट)।
-- `internal/adapters/driven/`: डोमेन पोर्ट लागू करने वाले बाहर जाने वाले एडैप्टर: `postgres`, `meilisearch`, `ffmpeg`, `mkvgo`, `filesystem`, `prober`, `opensubtitles`, `email`, `webpush`, `webhooksender`, `pluginrunner`, `metadata`, `introproviders`, `search`। दो और यहाँ रहते हैं पर डोमेन पोर्ट की बजाय ऐप-परत का इंटरफ़ेस पूरा करते हैं: `itunes` और `musicbrainz`, दोनों `app/music.AlbumArtFetcher`।
-- `internal/adapters/driving/`: अंदर आने वाले एडैप्टर: `grpcapi` (+ grpc-gateway HTTP), `http` (स्थैतिक, ऑथ मिडलवेयर, SSE, HLS, प्लगइन iframe संसाधन), `pluginhost` (Unix सॉकेट पर gRPC सर्वर, पीयर क्रेडेंशियल से प्रमाणित: वह होस्ट API जिसे सैंडबॉक्स किए गए प्लगइन सबप्रोसेस वापस बुलाते हैं)।
-- `internal/pkg/`: संदर्भों में दोबारा इस्तेमाल होने वाला साझा तकनीकी कर्नेल (auth, logger, eventbus, i18n, metrics, tracing, ratelimit, procfork, ssrf, cache, ...)। सर्वर कॉन्फ़िगरेशन `internal/config/` में रहता है; बना हुआ proto कोड `gen/` में रहता है।
+| फ़ोल्डर | क्या रखता है | नियम |
+| --- | --- | --- |
+| `internal/domain/<context>/` | model, value object और **port** (interface) | किसी framework का import नहीं, किसी दूसरे context का import नहीं |
+| `internal/app/<context>/` | ऐप्लिकेशन सर्विस जो port को चलाती हैं | IO एक port से होकर जाता है; `dlna` (SSDP / UPnP AVTransport) और `loadtest` (उसका अपना HTTP client) दो जानबूझकर रखे गए अपवाद हैं जो सीधे नेटवर्क तक जाते हैं |
+| `internal/adapters/driven/` | बाहर जाने वाले adapter जो port लागू करते हैं: `postgres`, `meilisearch`, `ffmpeg`, `mkvgo`, `filesystem`, `prober`, `opensubtitles`, `email`, `webpush`, `webhooksender`, `pluginrunner`, `metadata`, `introproviders`, `search` | तीन और domain port की जगह app परत के किसी interface को पूरा करते हैं: `itunes` और `musicbrainz` (`app/music.AlbumArtFetcher`), `ociregistry` (`app/updatecheck`) |
+| `internal/adapters/driving/` | अंदर आने वाले adapter: `grpcapi` (+ grpc-gateway HTTP), `http` (static, auth middleware, SSE, HLS, प्लगइन iframe की फ़ाइलें), `pluginhost` (Unix socket पर gRPC सर्वर, peer credentials से पहचान, वह होस्ट API जिसे सैंडबॉक्स वाले प्लगइन वापस कॉल करते हैं) | |
+| `internal/pkg/` | साझा तकनीकी केंद्र: auth, logger, eventbus, i18n, metrics, tracing, ratelimit, procfork, ssrf, cache, ... | |
+| `internal/config/` | सर्वर का कॉन्फ़िगरेशन | |
+| `gen/` | बनाया गया proto कोड | |
 
-निर्भरता नियम: `adapters -> app -> domain`। डोमेन कभी app या adapters इम्पोर्ट नहीं करता। जोड़ना `cmd/evey/wire*.go` में होता है, हाथ से लिखा जोड़, google/wire नहीं: `wire.go`, `wire_infra.go`, `wire_services.go`, `wire_adapters.go`, `wire_events.go`, `wire_helpers.go`।
+निर्भरता का नियम: `adapters -> app -> domain`। domain कभी app या adapter को import
+नहीं करता। जोड़ने का काम हाथ से लिखा गया है (google/wire नहीं), `cmd/evey/wire.go`
+में और उसकी बहनों `wire_infra.go`, `wire_services.go`, `wire_adapters.go`,
+`wire_events.go`, `wire_helpers.go` में। टेस्ट adapter को छोड़कर नकली चीज़ें डालते
+हैं जो वही domain port लागू करती हैं: 21 में से 20 domain package के साथ एक `fakes/`
+sub-package आता है।
 
-## सीमित संदर्भ
+## Bounded context
 
-`internal/domain/` और `internal/app/` के नीचे बत्तीस संदर्भ पैकेज रहते हैं: 19 दोनों परतों में मौजूद हैं, 2 केवल डोमेन में (`ratings`, `shared`), 11 केवल ऐप में। सहयोग आंशिक रूप से एक साझा बस पर प्रकाशित डोमेन इवेंट से होता है; ऐप परत किसी पड़ोसी संदर्भ का डोमेन पैकेज सीधे भी पढ़ती है (देखें [संबंध](#relations))।
+बत्तीस context package `internal/domain/` और `internal/app/` के नीचे रहते हैं: 19
+दोनों परतों में हैं, 2 सिर्फ़ domain में (`ratings`, `shared`), 11 सिर्फ़ app में। ये
+कुछ हद तक एक साझा bus पर domain event के ज़रिए साथ काम करते हैं; app परत पड़ोसी
+context का domain package सीधे भी पढ़ती है (देखें [रिश्ते](#relations))।
 
-| संदर्भ | ज़िम्मेदारी |
+| Context | ज़िम्मेदारी |
 | --- | --- |
-| `user` | खाते, प्रमाणीकरण, सेशन, पसंदें |
-| `library` | लाइब्रेरी, फ़ोल्डर, स्कैन काम, मीडिया इंडेक्स, लोग, कलेक्शन, प्रोफ़ाइल के पसंदीदा और थम्स-अप/डाउन रेटिंग (इन रेटिंग की कोई ऐप सर्विस नहीं: रेटिंग RPC `UserRatingRepository` को सीधे सहेजता और पढ़ता है), trickplay, इंट्रो/क्रेडिट पहचान |
-| `media` (केवल ऐप) | साझा लिंक और स्ट्रीम टोकन |
-| `mediarequest` | उपयोगकर्ताओं द्वारा भेजे गए मीडिया अनुरोध |
-| `metadata` | TMDB / OMDb समृद्धि, आर्टवर्क |
-| `playback` | स्ट्रीम, प्रगति, रिमोट कंट्रोल, अभी चल रहा है |
-| `transcoding` | ffmpeg काम, HLS सेगमेंट |
-| `subtitle` | जड़े हुए + बाहरी + opensubtitles |
-| `mkv` | MKV कंटेनर काम (`mkvgo` के ज़रिए) |
-| `music` | ऑडियो-विशेष प्लेबैक + टैगिंग |
+| `user` | खाते, पहचान, सेशन, पसंद |
+| `library` | लाइब्रेरी, फ़ोल्डर, स्कैन के काम, मीडिया इंडेक्स, लोग, संग्रह, किसी प्रोफ़ाइल के पसंदीदा और thumbs (thumbs की कोई app सर्विस नहीं: रेटिंग वाला RPC `UserRatingRepository` को जैसा है वैसा सहेजता और पढ़ता है), trickplay, इंट्रो/क्रेडिट की पहचान |
+| `media` (सिर्फ़ app) | शेयर लिंक और stream token |
+| `mediarequest` | उपयोगकर्ताओं के भेजे मीडिया अनुरोध |
+| `metadata` | TMDB / OMDb से जानकारी जोड़ना, artwork |
+| `playback` | stream, प्रगति, रिमोट कंट्रोल, अभी क्या चल रहा है |
+| `transcoding` | ffmpeg के काम, HLS segment |
+| `subtitle` | अंदर के + बाहरी + opensubtitles |
+| `mkv` | MKV container के काम ([mkvgo](playback/mkvgo.md) के ज़रिए) |
+| `music` | ऑडियो के लिए ख़ास प्लेबैक + tagging |
 | `photo` | फ़ोटो लाइब्रेरी |
-| `favorite` (केवल ऐप) | हर प्रोफ़ाइल के पसंदीदा; मॉडल और `FavoriteRepository` `domain/library` में रहते हैं |
-| `playlist` | उपयोगकर्ता प्लेलिस्ट, स्मार्ट प्लेलिस्ट |
-| `collection` (केवल ऐप) | एडमिन द्वारा चुने गए कलेक्शन; इसके पोर्ट `domain/library` में रहते हैं |
-| `ratings` (केवल डोमेन) | देशों के वर्गीकरण (CSA, FSK, MPAA, BBFC, ACB) को एक न्यूनतम-आयु अक्ष पर मैप करता है |
-| `feed` | गतिविधि फ़ीड / खोजें |
-| `activity` | उपयोगकर्ता गतिविधि समयरेखा |
-| `chromecast` | कास्ट सेशन का जीवनचक्र |
-| `syncplay` | कई डिवाइस वाले तालमेल सेशन |
-| `plugin` | प्लगइन रजिस्ट्री, सैंडबॉक्स टोकन, जीवनचक्र |
-| `notification` | ऐप में + webpush सूचनाएँ |
+| `favorite` (सिर्फ़ app) | हर प्रोफ़ाइल के पसंदीदा; model और `FavoriteRepository` `domain/library` में रहते हैं |
+| `playlist` | उपयोगकर्ता की प्लेलिस्ट, स्मार्ट प्लेलिस्ट |
+| `collection` (सिर्फ़ app) | एडमिन के चुने संग्रह; इसके port `domain/library` में रहते हैं |
+| `ratings` (सिर्फ़ domain) | देशों के वर्गीकरण (CSA, FSK, MPAA, BBFC, ACB) को न्यूनतम उम्र की एक धुरी पर लाता है |
+| `feed` | गतिविधि feed / खोजें |
+| `activity` | उपयोगकर्ता की गतिविधि की समय-रेखा |
+| `chromecast` | कास्ट सेशन का जीवन-चक्र |
+| `syncplay` | कई डिवाइस वाले sync सेशन |
+| `plugin` | प्लगइन रजिस्टर, सैंडबॉक्स token, जीवन-चक्र |
+| `notification` | ऐप के अंदर + webpush सूचनाएँ |
 | `webhook` | बाहर जाने वाले वेबहुक |
-| `backup` | DB + कॉन्फ़िग बैकअप/पुनर्स्थापना |
-| `config` (केवल ऐप) | सहेजी गई सर्वर सेटिंग्स, REST और gRPC दोनों प्रवेश बिंदुओं से लिखी गईं |
-| `dlna` (केवल ऐप) | SSDP खोज और UPnP AVTransport नियंत्रण |
-| `loadtest` (केवल ऐप) | सर्वर के अपने HTTP स्टैक के विरुद्ध HLS दर्शकों का अनुकरण करता है |
-| `maintenance` (केवल ऐप) | एडमिन द्वारा शुरू किया गया मीडिया रखरखाव: सीक-इंडेक्स फिर से बनाना, मरम्मत जर्नल, पूर्ववत, ऑडियो अखंडता |
-| `presence` (केवल ऐप) | अभी कौन जुड़ा है इसकी मेमोरी में, न सहेजी जाने वाली रजिस्ट्री |
-| `qoe` (केवल ऐप) | CMCD (CTA-5004) प्लेबैक टेलीमेट्री का संग्रह और एकत्रीकरण |
-| `demo` (केवल ऐप) | सार्वजनिक डेमो इंस्टेंस (`EVEY_DEMO=1`): उत्पाद की अपनी सेवाओं के ज़रिए अपने खाते, लाइब्रेरी और मुक्त लाइसेंस वाला मीडिया बनाता है, और ख़ुद को रीसेट करता है |
-| `updatecheck` (केवल ऐप) | चल रहे बिल्ड की तुलना रजिस्ट्री द्वारा प्रकाशित से करता है और एडमिन को बताता है; यह कभी कुछ अपडेट नहीं करता |
-| `shared` (केवल डोमेन) | क्रॉस-कटिंग पोर्ट (`EventBus`, `TransactionalUnit`, `ServerConfigRepository`, `ShareLinkRepository`), टाइप किए गए id, कर्सर, स्ट्रीम टोकन |
+| `backup` | DB + कॉन्फ़िगरेशन का बैकअप/रीस्टोर |
+| `config` (सिर्फ़ app) | सहेजी गई सर्वर सेटिंग्स, जिन्हें REST और gRPC दोनों रास्ते लिखते हैं |
+| `dlna` (सिर्फ़ app) | SSDP से खोज और UPnP AVTransport नियंत्रण |
+| `loadtest` (सिर्फ़ app) | सर्वर के अपने HTTP स्टैक पर दर्शकों की नकल करता है: HLS, या कच्ची फ़ाइल, जब क्लाइंट का फ़ैसला direct play हो |
+| `maintenance` (सिर्फ़ app) | एडमिन के शुरू किए मीडिया रखरखाव: सीक इंडेक्स फिर से बनाना, मरम्मत का जर्नल, वापस लेना, ऑडियो की अखंडता |
+| `presence` (सिर्फ़ app) | मेमोरी में रहने वाला, न सहेजा जाने वाला रजिस्टर कि अभी कौन जुड़ा है |
+| `qoe` (सिर्फ़ app) | CMCD (CTA-5004) प्लेबैक telemetry लेना और जोड़ना |
+| `demo` (सिर्फ़ app) | सार्वजनिक डेमो सर्वर (`EVEY_DEMO=1`): अपने खाते, लाइब्रेरी और मुफ़्त लाइसेंस वाला मीडिया प्रोडक्ट की अपनी सर्विस से भरता है, और खुद को रीसेट करता है |
+| `updatecheck` (सिर्फ़ app) | चल रहे build की तुलना उससे करता है जो registry प्रकाशित करती है, और एडमिन को बताता है; यह कभी कुछ अपडेट नहीं करता |
+| `shared` (सिर्फ़ domain) | सब पर लागू port (`EventBus`, `TransactionalUnit`, `ServerConfigRepository`, `ShareLinkRepository`), typed id, cursor, stream token |
 
-### संबंध
+### रिश्ते
 
-- `library` → `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` भेजता है। `media.item.added` को `notification`, `metadata` (स्वतः समृद्धि), `library` ख़ुद (trickplay वर्कर + इंट्रो पहचान) और `feed` (शैली-कैश अमान्यता) इस्तेमाल करते हैं।
-- सर्च इंडेक्सिंग इवेंट-चालित **नहीं** है: `library.ScanService` सीधे `library.SearchIndex` पोर्ट बुलाता है।
-- `playback` → `PlaybackStarted` / `PlaybackStopped` भेजता है। आज किसी का कोई समर्पित सब्सक्राइबर नहीं; केवल `webhook` का `"*"` कैच-ऑल उन्हें पाता है।
-- `user` → `UserCreated` भेजता है, जिसका कोई सब्सक्राइबर नहीं, और `user.password.reset_requested`, जिसे `email` ड्रिवन एडैप्टर इस्तेमाल करता है।
-- `plugin` → `pluginrunner` `plugin.error` / `plugin.started` प्रकाशित करता है, और `app/plugin` उन्हें अपने सुरक्षा डैशबोर्ड के लिए इस्तेमाल करता है। डोमेन इवेंट को प्लगइन में भेजने वाला कोई पुल नहीं: प्लगइन दायरे वाले JWT से API तक पहुँचते हैं (देखें ADR-0003)। बस ख़ुद ADR-0010 है।
-- `shared.TransactionalUnit` कई एग्रीगेट वाले लेखन को लपेटता है (देखें ADR-0002)।
+| भेजने वाला | Event | कौन लेता है |
+| --- | --- | --- |
+| `library` | `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` | `media.item.added`: `notification`, `metadata` (अपने-आप जानकारी जोड़ना), `library` खुद (trickplay worker + इंट्रो की पहचान), `feed` (genre cache हटाना) |
+| `playback` | `PlaybackStarted` / `PlaybackStopped` | आज कोई अलग सुनने वाला नहीं; सिर्फ़ `webhook` का `"*"` सब-कुछ-लेने वाला इन्हें पाता है |
+| `user` | `UserCreated`, `user.password.reset_requested` | पहले का कोई सुनने वाला नहीं; दूसरे को `email` driven adapter लेता है |
+| `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` अपने सुरक्षा डैशबोर्ड के लिए, `notification` एडमिन के लिए |
+| `shared` | `ServerConfigChanged` | वे सर्विस जो एडमिन पैनल में सहेजी गई सेटिंग बिना restart के लागू करती हैं (SMTP, समय-क्षेत्र, CPU बजट, ...) |
 
-`internal/domain` के नीचे कोई पैकेज किसी दूसरे संदर्भ का डोमेन पैकेज इम्पोर्ट नहीं करता, यह नियम `internal/contractguard/domain_imports_test.go` लागू करता है (देखें [आर्किटेक्चर गार्ड](#architecture-guards))। ऐप परत इससे बँधी नहीं: आज 15 ऐप पैकेज किसी पड़ोसी संदर्भ का डोमेन पैकेज इम्पोर्ट करते हैं।
+- खोज का इंडेक्स बनाना event से **नहीं** चलता: `library.ScanService` सीधे
+  `library.SearchIndex` port को कॉल करता है।
+- domain event को प्लगइन तक ले जाने वाला कोई पुल नहीं है: प्लगइन सीमित दायरे वाले JWT
+  से API तक पहुँचते हैं ([ADR-0003](adr/0003-plugin-scoped-tokens.md))। bus खुद
+  [ADR-0010](adr/0010-event-bus.md) है।
+- `shared.TransactionalUnit` कई aggregate वाले लेखन को लपेटता है
+  ([ADR-0002](adr/0002-transactional-unit-port.md))।
 
-## सामान्य डेटा प्रवाह: "उपयोगकर्ता एक मीडिया चलाता है"
+`internal/domain` के नीचे का कोई package किसी दूसरे context का domain package import
+नहीं करता; यह नियम `internal/contractguard/domain_imports_test.go` लागू करता है
+(देखें [आर्किटेक्चर के पहरेदार](#architecture-guards))। app परत इससे बँधी नहीं है: आज
+15 app package किसी पड़ोसी context का domain package import करते हैं।
 
-1. मोबाइल/वेब क्लाइंट `POST /api/v1/playback/start` (grpc-gateway रूट) बुलाता है।
-2. `internal/adapters/driving/http` अपना ऑथ मिडलवेयर चलाता है (`auth_middleware.go`, `httpAuthMiddleware`), सेशन निकालता है।
-3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) proto सत्यापित करता है, `app/playback.CommandService.StartStream` बुलाता है (कमांड/क्वेरी बँटवारा, देखें ADR-0009)।
-4. `app/playback.CommandService` डोमेन पोर्ट बुलाता है: `user.UserRepository`, `playback.SessionQueryRepo` (idempotency + डिवाइस सीमा), `playback.SessionCommandRepo`, फिर `shared.EventBus.Publish(PlaybackStarted)`।
-5. ड्रिवन एडैप्टर चलते हैं: `postgres` एक `shared.TransactionalUnit.Do` दायरे में सेशन सहेजता है; प्रोसेस के अंदर की बस (`internal/pkg/eventbus`) असिंक्रोनस रूप से बाँटती है।
-6. `PlaybackStarted` का आज कोई समर्पित सब्सक्राइबर नहीं: केवल `webhook` का `"*"` कैच-ऑल इसे पाता है।
-7. जवाब grpc-gateway से JSON के रूप में लौटता है; प्रगति अपडेट SSE / gRPC स्ट्रीम पर बहते हैं।
+## आम डेटा का रास्ता - "उपयोगकर्ता एक मीडिया चलाता है"
 
-## कंपोज़िशन रूट
+1. मोबाइल/वेब क्लाइंट `POST /api/v1/playback/start` कॉल करता है (grpc-gateway route)।
+2. `internal/adapters/driving/http` अपना auth middleware चलाता है (`auth_middleware.go`, `httpAuthMiddleware`), सेशन निकालता है।
+3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) proto जाँचता है, `app/playback.CommandService.StartStream` कॉल करता है (command/query का बँटवारा, देखें [ADR-0009](adr/0009-cqrs-repo-split.md))।
+4. `app/playback.CommandService` domain port कॉल करता है: `user.UserRepository`, `playback.SessionQueryRepo` (idempotency + डिवाइस की सीमा), `playback.SessionCommandRepo`, फिर `shared.EventBus.Publish(PlaybackStarted)`।
+5. driven adapter काम करते हैं: `postgres` सेशन को एक `shared.TransactionalUnit.Do` दायरे के अंदर सहेजता है; प्रोसेस के अंदर का bus (`internal/pkg/eventbus`) asynchronous रूप से आगे भेजता है।
+6. `PlaybackStarted` का आज कोई अलग सुनने वाला नहीं: सिर्फ़ `webhook` का `"*"` सब-कुछ-लेने वाला इसे पाता है।
+7. जवाब grpc-gateway से JSON के रूप में वापस जाता है; प्रगति के अपडेट SSE / gRPC stream पर आते हैं।
 
-जोड़ने वाले ग्राफ़ `cmd/evey/wire.go` और उसके साथ वाली फ़ाइलों (`wire_infra.go`, `wire_services.go`, `wire_adapters.go`, `wire_events.go`, `wire_helpers.go`) में रहते हैं। परीक्षण वही डोमेन पोर्ट लागू करने वाले नक़ली ऑब्जेक्ट डालकर एडैप्टर को बायपास करते हैं: 21 में से 20 डोमेन पैकेज में एक `fakes/` उप-पैकेज है। देखें [ADR-0001](adr/0001-hexagonal-architecture.md)।
+प्लेयर के manifest और segment माँगने के बाद क्या होता है, यह
+[एक वीडियो परोसना - HLS प्लेबैक का रास्ता](playback-serving.md) का विषय है।
 
-## आर्किटेक्चर गार्ड
+## आर्किटेक्चर के पहरेदार
 
-ऊपर के नियम केवल दस्तावेज़ नहीं हैं। `internal/contractguard/` में 29 फ़ाइलों में 54 स्थैतिक परीक्षण हैं जो कोड के इनसे भटकने पर बिल्ड विफल करते हैं।
+ऊपर के नियम सिर्फ़ दस्तावेज़ में नहीं हैं। `internal/contractguard/` में 30 फ़ाइलों में
+58 static टेस्ट हैं, जो कोड के इनसे भटकने पर build फ़ेल कर देते हैं।
 
-हेक्सागोनल नियम ख़ुद `domain_imports_test.go` में `TestDomainContextsDoNotImportEachOther` (ADR-0001) है। यह `internal/domain` से गुज़रता है और ठीक यही लागू करता है: कोई संदर्भ `internal/domain/shared` और अपना पैकेज पेड़ इम्पोर्ट कर सकता है, `internal/domain` से और कुछ नहीं, और कभी `internal/app` या `internal/adapters` नहीं। इसका दायरा `internal/domain` पर रुकता है: यह ऐप परत के बारे में कुछ नहीं कहता।
+hexagonal नियम खुद `TestDomainContextsDoNotImportEachOther` (ADR-0001) है,
+`domain_imports_test.go` में। यह `internal/domain` में घूमता है और ठीक यही लागू करता
+है: एक context `internal/domain/shared` और अपना package tree import कर सकता है,
+`internal/domain` से और कुछ नहीं, और `internal/app` या `internal/adapters` कभी नहीं।
+इसका दायरा `internal/domain` पर रुक जाता है: यह app परत के बारे में कुछ नहीं कहता।
 
-बाक़ी उन अनुबंधों की रक्षा करते हैं जो किसी भाषा या प्रोसेस की सीमा पार करते हैं, उनमें से:
+बाकी पहरेदार उन अनुबंधों की रक्षा करते हैं जो किसी भाषा या प्रोसेस की सीमा पार करते
+हैं, उनमें से कुछ:
 
-- `TestNoClientReadOfAFieldTheServerNeverWrites`: क्लाइंट जो भी proto जवाब फ़ील्ड पढ़ता है उसे सर्वर पर कहीं लिखा जाना चाहिए।
-- `TestRegisteredHandlersGetEveryPortTheyDeclare` और `TestBootInstallsItsSilentWirings`: ऐसा जोड़ जो वरना चुपचाप विफल होता।
-- `TestPostgresRepositoriesBoundTheirQueries`: हर Postgres रिपॉज़िटरी अपनी क्वेरी को एक टाइमआउट से सीमित करती है।
-- `TestProcfork_EveryForkGoesThroughCommand`: हर सबप्रोसेस fork `internal/pkg/procfork` से जाता है।
-- `TestEverySortFieldTheAPIAcceptsHasASQLColumn` और `...CanBuildACursorValue`: सॉर्ट फ़ील्ड SQL कॉलम मैप और कर्सर एनकोडर दोनों में मौजूद हैं।
-- `TestEveryWebSurfaceReachingAnAdminRPCIsClassified`, और मोबाइल व टीवी के लिए इसका नेटिव समकक्ष: केवल-एडमिन RPC बुलाने वाली कोई भी UI सतह तय करती है कि उसे कौन देखता है।
-- `TestEveryAllowedSlotIsMountedOnWebAndMobile` और `TestPluginBridgeParityWebMobile`: क्लाइंट के बीच प्लगइन UI स्लॉट की बराबरी।
-- `TestImageSubtitleCodecsAgreeAcrossServerAndClients`: बिटमैप सबटाइटल कोडेक की एक सूची, सर्वर और प्लेयर।
-- `TestHandWrittenClientTypesMatchTheEndpointTheyCall`: हाथ से लिखे मोबाइल/टीवी जवाब प्रकार उस एंडपॉइंट से मेल खाते हैं जिसे वे बुलाते हैं।
-- `TestRestartExitCodeAgreesWithTheEntrypoint`: Go exit कोड और `docker/entrypoint.sh` रीस्टार्ट के अर्थ पर सहमत हैं।
-- i18n गार्ड: सर्वर द्वारा भेजी गई कुंजियाँ कैटलॉग में मौजूद हैं, प्लेसहोल्डर भाषाओं में मेल खाते हैं।
-
-## आगे पढ़ें
-
-- [DEV.md](../DEV.md): बिल्ड, रन, माइग्रेशन, proto बनाना
-- [docs/CODEBASE_MAP.md](CODEBASE_MAP.md): आम बदलावों के लिए कौन-सी फ़ाइलें छूनी हैं
-- [docs/playback-serving.md](playback-serving.md): HLS वीडियो परोसने का पढ़ने वाला रास्ता, गहराई से (निर्णय, सीढ़ी, फ़िंगरप्रिंट, CMAF/HLS/DASH, mkvgo बनाम ffmpeg)
-- [docs/api/](api/): बना हुआ API संदर्भ
-- [docs/adr/](adr/): आर्किटेक्चर निर्णय रिकॉर्ड
+| पहरेदार | यह क्या मना करता है |
+| --- | --- |
+| `TestNoClientReadOfAFieldTheServerNeverWrites` | proto जवाब का ऐसा फ़ील्ड जिसे कोई क्लाइंट पढ़ता है पर कोई सर्वर कोड नहीं लिखता |
+| `TestRegisteredHandlersGetEveryPortTheyDeclare`, `TestBootInstallsItsSilentWirings` | ऐसी जोड़ जो वरना चुपचाप फ़ेल हो जाती |
+| `TestPostgresRepositoriesBoundTheirQueries` | timeout के बिना Postgres repository की query |
+| `TestProcfork_EveryForkGoesThroughCommand` | ऐसा subprocess fork जो `internal/pkg/procfork` को छोड़कर जाता है |
+| `TestEverySortFieldTheAPIAcceptsHasASQLColumn`, `...CanBuildACursorValue` | ऐसा sort फ़ील्ड जो SQL कॉलम map या cursor encoder में नहीं है |
+| `TestEveryWebSurfaceReachingAnAdminRPCIsClassified`, और मोबाइल और टीवी के लिए उसका native जोड़ीदार | इंटरफ़ेस का ऐसा हिस्सा जो सिर्फ़-एडमिन RPC कॉल करता है, बिना तय किए कि उसे कौन देखता है |
+| `TestEveryAllowedSlotIsMountedOnWebAndMobile`, `TestPluginBridgeParityWebMobile` | प्लगइन का ऐसा स्लॉट या पुल संदेश जो सिर्फ़ एक क्लाइंट पर है |
+| `TestImageSubtitleCodecsAgreeAcrossServerAndClients` | किसी प्लेयर पर bitmap सबटाइटल codec की एक दूसरी सूची |
+| `TestHandWrittenClientTypesMatchTheEndpointTheyCall` | मोबाइल/टीवी का हाथ से लिखा जवाब टाइप जो अपने endpoint से अलग हो जाए |
+| `TestOnlyThePlanDecidesPlayback`, `TestNoCallerDerivesDownstreamOfThePlaybackPlan` | योजना तय करने वाले के बाहर लिया गया प्लेबैक का फ़ैसला ([ADR-0030](adr/0030-one-plan-one-decision.md)) |
+| `TestRestartExitCodeAgreesWithTheEntrypoint` | Go का exit code और `docker/entrypoint.sh` restart के मतलब पर असहमत हों |
+| `TestServerEmittedI18nKeysExistInCatalogue`, `TestI18nPlaceholdersAgreeAcrossLocales` | सर्वर से निकली ऐसी कुंजी जो अनुवाद सूची में नहीं, भाषाओं के बीच अलग placeholder |
 
 ## C4 आरेख
 
-ये चार आरेख [C4 मॉडल](https://c4model.com/) का पालन करते हुए घटते ज़ूम स्तरों पर Evey का दस्तावेज़ करते हैं। सभी आरेख Mermaid से बनते हैं; कोई बाइनरी संसाधन नहीं। नोड के नाम `internal/` के नीचे के असली Go पैकेज नाम हैं। कंटेनर के नाम `evey-server`, `evey-postgres` और `evey-caddy` के लिए `docker-compose.yml` से आते हैं; `evey-web`, `evey-meilisearch`, `evey-mobile` और `evey-mailcatcher` `docker-compose.override.yml` में घोषित हैं और केवल डेवलपमेंट टोपोलॉजी में मौजूद हैं।
+चार आरेख Evey को घटते zoom स्तरों पर दिखाते हैं, [C4 model](https://c4model.com/) के
+हिसाब से। node के नाम `internal/` के नीचे के असली Go package नाम हैं। container के
+नाम `evey-server`, `evey-postgres` और `evey-caddy` के लिए `docker-compose.yml` से आते
+हैं; `evey-web`, `evey-meilisearch`, `evey-mobile` और `evey-mailcatcher`
+`docker-compose.override.yml` में बताए गए हैं और सिर्फ़ डेवलपमेंट वाली बनावट में होते
+हैं।
 
-### स्तर 1 - सिस्टम संदर्भ
+### स्तर 1 - सिस्टम का संदर्भ
 
 Evey से कौन बात करता है, और Evey किन तीसरे पक्षों तक पहुँचता है।
 
 ```mermaid
 flowchart LR
-    user[User<br/>web / mobile / TV client]
-    admin[Administrator<br/>web /admin UI]
-    oidc[OIDC Identity Provider<br/>optional SSO]
-    tmdb[TMDB API<br/>movie/series metadata]
-    omdb[OMDb API<br/>fallback metadata + ratings]
-    imdb[IMDbAPI / TVmaze<br/>fallback series metadata]
-    art[MusicBrainz / iTunes Search<br/>album artwork]
-    introdb[IntroDB / TIDB<br/>intro + credits timestamps]
-    opensubs[OpenSubtitles<br/>subtitle search]
+    user[उपयोगकर्ता<br/>वेब / मोबाइल / टीवी क्लाइंट]
+    admin[एडमिन<br/>वेब /admin इंटरफ़ेस]
+    oidc[OIDC पहचान provider<br/>वैकल्पिक SSO]
+    tmdb[TMDB API<br/>फ़िल्म/सीरीज़ मेटाडेटा]
+    omdb[OMDb API<br/>बैकअप मेटाडेटा + रेटिंग]
+    imdb[IMDbAPI / TVmaze<br/>बैकअप सीरीज़ मेटाडेटा]
+    art[MusicBrainz / iTunes Search<br/>एल्बम artwork]
+    introdb[IntroDB / TIDB<br/>इंट्रो + क्रेडिट के समय]
+    opensubs[OpenSubtitles<br/>सबटाइटल खोज]
     webpush[Web Push gateway<br/>FCM / APNs / VAPID]
+    registry[OCI registry<br/>प्रकाशित इमेज tag]
 
-    subgraph evey[Evey Media Server]
-        core((Self-hosted media platform<br/>library, playback, transcoding,<br/>music, photo, plugins))
+    subgraph evey[Evey मीडिया सर्वर]
+        core((self-hosted मीडिया प्लेटफ़ॉर्म<br/>लाइब्रेरी, प्लेबैक, ट्रांसकोडिंग,<br/>संगीत, फ़ोटो, प्लगइन))
     end
 
     user -->|HTTPS<br/>HLS / SSE / gRPC-Web| evey
     admin -->|HTTPS<br/>/admin| evey
     evey -.->|OIDC code flow| oidc
-    evey -.->|HTTPS metadata fetch| tmdb
-    evey -.->|HTTPS metadata fetch| omdb
-    evey -.->|HTTPS metadata fetch| imdb
-    evey -.->|HTTPS artwork fetch| art
-    evey -.->|HTTPS intro lookup| introdb
-    evey -.->|HTTPS subtitle fetch| opensubs
-    evey -.->|HTTPS push delivery| webpush
+    evey -.->|HTTPS मेटाडेटा लाना| tmdb
+    evey -.->|HTTPS मेटाडेटा लाना| omdb
+    evey -.->|HTTPS मेटाडेटा लाना| imdb
+    evey -.->|HTTPS artwork लाना| art
+    evey -.->|HTTPS इंट्रो खोजना| introdb
+    evey -.->|HTTPS सबटाइटल लाना| opensubs
+    evey -.->|HTTPS push भेजना| webpush
+    evey -.->|HTTPS अपडेट की जाँच| registry
 ```
 
-### स्तर 2 - कंटेनर
+### स्तर 2 - Container
 
-`docker compose --env-file .env.dev up` द्वारा उठाई गई डिप्लॉय योग्य इकाइयाँ। ठोस तीर रनटाइम ट्रैफ़िक हैं; टूटी हुई रेखा वाले तीर तीसरे पक्षों की ओर बाहर जाते हैं।
+`docker compose --env-file .env.dev up` से चालू होने वाली डिप्लॉय की जा सकने वाली
+इकाइयाँ। ठोस तीर चलते समय का ट्रैफ़िक हैं; बिंदीदार तीर तीसरे पक्षों की ओर बाहर जाते
+हैं।
 
 ```mermaid
 flowchart TB
-    user([User browser / mobile])
-    admin([Admin browser])
+    user([उपयोगकर्ता का ब्राउज़र / मोबाइल])
+    admin([एडमिन का ब्राउज़र])
 
-    subgraph compose[Docker Compose network]
-        caddy[evey-caddy<br/>Caddy 2.9<br/>:80 / :443<br/>TLS, reverse proxy]
+    subgraph compose[Docker Compose नेटवर्क]
+        caddy[evey-caddy<br/>Caddy 2.9<br/>:80 / :443<br/>TLS, रिवर्स प्रॉक्सी]
         web[evey-web<br/>Vite dev / nginx prod<br/>:5173 dev<br/>React SPA + RN web]
-        server[evey-server<br/>Go binary<br/>:9091 HTTP+gRPC-gateway<br/>internal :9090 gRPC]
+        server[evey-server<br/>Go binary<br/>:9091 HTTP+gRPC-gateway<br/>अंदरूनी :9090 gRPC]
         pg[(evey-postgres<br/>PostgreSQL 16<br/>:5432)]
         meili[(evey-meilisearch<br/>Meilisearch 1.12<br/>:7700)]
-        mobile[evey-mobile<br/>dev only<br/>:8081 Expo / Metro bundler]
-        mail[evey-mailcatcher<br/>dev only<br/>:1025 SMTP / :1080 UI]
+        mobile[evey-mobile<br/>सिर्फ़ dev<br/>:8081 Expo / Metro bundler]
+        mail[evey-mailcatcher<br/>सिर्फ़ dev<br/>:1025 SMTP / :1080 UI]
     end
 
     tmdb[[TMDB / OMDb / OpenSubtitles]]
-    fs[(/media volumes<br/>read-only bind mounts)]
+    fs[(/media volume<br/>सिर्फ़-पढ़ने वाले bind mount)]
     cache[(evey-cache volume<br/>transcode + trickplay)]
-    data[(evey-data volume<br/>keys, logs, backups,<br/>plugins, avatars)]
+    data[(evey-data volume<br/>कुंजियाँ, लॉग, बैकअप,<br/>प्लगइन, avatar)]
 
     user -->|HTTPS| caddy
     admin -->|HTTPS /admin| caddy
     caddy -->|HTTP /| web
     caddy -->|HTTP /v1, /api, SSE, HLS| server
-    web -->|gRPC-Web via /v1| server
+    web -->|/v1 से gRPC-Web| server
     user -.->|Metro dev bundle| mobile
 
     server -->|SQL/TCP 5432| pg
-    server -->|HTTP 7700<br/>indexing + search| meili
+    server -->|HTTP 7700<br/>इंडेक्स + खोज| meili
     server -.->|SMTP 1025 dev| mail
     server -.->|HTTPS| tmdb
-    server -->|read FS| fs
-    server -->|read/write FS| cache
-    server -->|read/write FS| data
+    server -->|FS पढ़ना| fs
+    server -->|FS पढ़ना/लिखना| cache
+    server -->|FS पढ़ना/लिखना| data
 ```
 
-> **प्रोडक्शन इस डेवलपमेंट टोपोलॉजी से अलग है।** इंस्टॉल compose एक सर्विस घोषित करता है, `evey`। कोई अलग `evey-web` कंटेनर नहीं (न केवल-डेवलपमेंट mailcatcher और Metro बंडलर): बाइनरी `/srv` से बना हुआ वेब UI परोसता है, इसलिए रिवर्स प्रॉक्सी *सब कुछ* (UI और API) उसे `:9091` पर भेजता है। Postgres और Meilisearch उसी कंटेनर के अंदर चलते हैं, `docker/entrypoint.sh` की निगरानी में: PostgreSQL 17 अपने डेटा के साथ `/data/postgres` के नीचे, और Meilisearch बाइनरी (`Dockerfile`, `meili-download` चरण, 1.12.8 पर तय) अपने इंडेक्स के साथ `/data/meili` के नीचे। रिपॉज़िटरी का अपना `docker-compose.yml` अलग `postgres` और `caddy` सर्विस रखता है, जो [उन्नत डिप्लॉयमेंट](operations/advanced-deployments.md) में बताई गई हैं। देखें [इंस्टॉल करें](installation.md) और [रिवर्स प्रॉक्सी](reverse-proxy.md)।
+!!! note "प्रोडक्शन इस डेवलपमेंट बनावट से अलग है"
+    इंस्टॉल वाली compose फ़ाइल एक ही सर्विस बताती है, `evey`। कोई अलग `evey-web`
+    container नहीं है (न ही सिर्फ़-dev वाले mailcatcher और Metro bundler): binary बना
+    हुआ वेब इंटरफ़ेस `/srv` से देता है, इसलिए रिवर्स प्रॉक्सी *सब कुछ*, इंटरफ़ेस और
+    API, उसे `:9091` पर भेजता है। Postgres और Meilisearch उसी container के अंदर चलते
+    हैं, `docker/entrypoint.sh` की निगरानी में: PostgreSQL 17, जिसका डेटा
+    `/data/postgres` में है, और Meilisearch binary (`Dockerfile`, `meili-download`
+    stage, 1.12.8 पर तय), जिसका इंडेक्स `/data/meili` में है। repository की अपनी
+    `docker-compose.yml` अलग `postgres` और `caddy` सर्विस रखती है, जो
+    [एडवांस्ड डिप्लॉयमेंट](operations/advanced-deployments.md) में बताई गई हैं। देखें
+    [इंस्टॉल](installation.md) और [रिवर्स प्रॉक्सी कॉन्फ़िगरेशन](reverse-proxy.md)।
 
-### स्तर 3 - घटक (`evey-server` पर ज़ूम)
+### स्तर 3 - Component (`evey-server` पर zoom)
 
-Go बाइनरी के अंदर हेक्सागोनल परतें। ड्राइविंग एडैप्टर एप्लिकेशन सर्विस को उनके इंटरफ़ेस से बुलाते हैं; एप्लिकेशन सर्विस केवल डोमेन पोर्ट पर निर्भर करती हैं; ड्रिवन एडैप्टर उन पोर्ट को लागू करते हैं।
+Go binary के अंदर hexagonal परतें। driving adapter ऐप्लिकेशन सर्विस को उनके
+interface से कॉल करते हैं; ऐप्लिकेशन सर्विस सिर्फ़ domain port पर निर्भर हैं; driven
+adapter उन port को लागू करते हैं।
 
 ```mermaid
 flowchart LR
-    subgraph driving[Driving adapters - inbound]
-        grpc[grpcapi<br/>internal/adapters/driving/grpcapi<br/>handlers per context]
-        gw[grpc-gateway<br/>JSON/HTTP <-> gRPC<br/>proto-generated]
+    subgraph driving[Driving adapter - अंदर आने वाले]
+        grpc[grpcapi<br/>internal/adapters/driving/grpcapi<br/>हर context के handler]
+        gw[grpc-gateway<br/>JSON/HTTP <-> gRPC<br/>proto से बना]
         http[http<br/>internal/adapters/driving/http<br/>static, SSE, HLS,<br/>auth_middleware.go]
-        plug[pluginhost<br/>internal/adapters/driving/pluginhost<br/>gRPC over Unix socket<br/>peer-credential auth]
+        plug[pluginhost<br/>internal/adapters/driving/pluginhost<br/>Unix socket पर gRPC<br/>peer-credential से पहचान]
     end
 
-    subgraph app[Application layer - internal/app]
+    subgraph app[ऐप्लिकेशन परत - internal/app]
         direction TB
         a_lib[library]
         a_med[media]
@@ -214,26 +277,28 @@ flowchart LR
         a_music[music]
         a_photo[photo]
         a_user[user]
-        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo, updatecheck]
+        a_upd[updatecheck]
+        a_misc[favorite, playlist, collection,<br/>feed, activity,<br/>chromecast, syncplay,<br/>plugin, notification, webhook,<br/>backup, dlna, config, mediarequest,<br/>maintenance, presence, qoe, loadtest,<br/>demo]
     end
 
-    subgraph domain[Domain core - internal/domain]
-        d_models[Aggregates + Value Objects<br/>per bounded context]
-        d_ports[Outbound Ports<br/>Repos - command/query split,<br/>EventBus, TransactionalUnit,<br/>ServerConfigRepository]
+    subgraph domain[Domain केंद्र - internal/domain]
+        d_models[Aggregate + Value Object<br/>हर bounded context के]
+        d_ports[बाहर जाने वाले port<br/>Repo - command/query बँटे हुए,<br/>EventBus, TransactionalUnit,<br/>ServerConfigRepository]
     end
 
-    subgraph driven[Driven adapters - outbound]
-        pgad[postgres<br/>repos + migrations<br/>shared.TransactionalUnit]
-        meiad[meilisearch<br/>search index]
+    subgraph driven[Driven adapter - बाहर जाने वाले]
+        pgad[postgres<br/>repo + migration<br/>shared.TransactionalUnit]
+        meiad[meilisearch<br/>खोज इंडेक्स]
         fsad[filesystem<br/>scanner, parser, watcher]
         ffad[ffmpeg<br/>transcoder, trickplay]
-        mkvad[mkvgo<br/>MKV ops]
-        metaad[metadata<br/>TMDB, OMDb, IMDbAPI,<br/>TVmaze clients]
-        introad[introproviders<br/>IntroDB + TIDB chain]
-        itunad[itunes<br/>album artwork]
-        mbad[musicbrainz<br/>album artwork]
-        probead[prober<br/>mkvgo fast path,<br/>ffprobe fallback]
-        searchad[search<br/>resilient facade over meili]
+        mkvad[mkvgo<br/>MKV के काम]
+        metaad[metadata<br/>TMDB, OMDb, IMDbAPI,<br/>TVmaze client]
+        introad[introproviders<br/>IntroDB + TIDB की कड़ी]
+        itunad[itunes<br/>एल्बम artwork]
+        mbad[musicbrainz<br/>एल्बम artwork]
+        ociad[ociregistry<br/>प्रकाशित tag]
+        probead[prober<br/>mkvgo तेज़ रास्ता,<br/>ffprobe fallback]
+        searchad[search<br/>meili के ऊपर मज़बूत परत]
         osad[opensubtitles]
         emad[email]
         wpad[webpush]
@@ -248,78 +313,83 @@ flowchart LR
 
     app --> d_ports
     app --> d_models
-    d_ports -.implements.- pgad
-    d_ports -.implements.- meiad
-    d_ports -.implements.- fsad
-    d_ports -.implements.- ffad
-    d_ports -.implements.- mkvad
-    d_ports -.implements.- metaad
-    d_ports -.implements.- introad
-    d_ports -.implements.- probead
-    a_music -.app-layer iface.- itunad
-    a_music -.app-layer iface.- mbad
-    d_ports -.implements.- searchad
-    d_ports -.implements.- osad
-    d_ports -.implements.- emad
-    d_ports -.implements.- wpad
-    d_ports -.implements.- whad
-    d_ports -.implements.- prad
+    d_ports -. लागू करता है .- pgad
+    d_ports -. लागू करता है .- meiad
+    d_ports -. लागू करता है .- fsad
+    d_ports -. लागू करता है .- ffad
+    d_ports -. लागू करता है .- mkvad
+    d_ports -. लागू करता है .- metaad
+    d_ports -. लागू करता है .- introad
+    d_ports -. लागू करता है .- probead
+    a_music -. app परत का interface .- itunad
+    a_music -. app परत का interface .- mbad
+    a_upd -. app परत का interface .- ociad
+    d_ports -. लागू करता है .- searchad
+    d_ports -. लागू करता है .- osad
+    d_ports -. लागू करता है .- emad
+    d_ports -. लागू करता है .- wpad
+    d_ports -. लागू करता है .- whad
+    d_ports -. लागू करता है .- prad
 
     pgad --> pg2[(PostgreSQL)]
     meiad --> me2[(Meilisearch)]
-    fsad --> fs2[(/media bind mounts)]
+    fsad --> fs2[(/media bind mount)]
     ffad --> cc2[(evey-cache + ffmpeg binary)]
     metaad -.-> ext2[[TMDB / OMDb / IMDbAPI / TVmaze]]
     introad -.-> ext3[[IntroDB / TIDB]]
     itunad -.-> ext4[[iTunes Search / MusicBrainz]]
     mbad -.-> ext4
+    ociad -.-> ext5[[OCI registry]]
 ```
 
-goroutine पर टिप्पणियाँ:
-- gRPC सर्वर (`grpc.Server.Serve`) और HTTP सर्वर (gateway + स्थैतिक) हर एक `cmd/evey` के मुख्य जोड़ से अलग अपनी goroutine में चलते हैं।
-- `app/library` के स्कैन काम एक वर्कर पूल पर चलते हैं (हर सक्रिय लाइब्रेरी स्कैन के लिए एक goroutine, देखें `library.ScanService`)।
-- ffmpeg काम ड्रिवन `ffmpeg` एडैप्टर (`ffmpeg.Transcoder.Start`) `internal/pkg/procfork` के ज़रिए शुरू करता है, हर काम के लिए एक निगरानी goroutine जो प्रोसेस का stderr ख़ाली करती है।
-- `shared.EventBus` सब्सक्राइबर को असिंक्रोनस रूप से बाँटता है: हर सब्सक्राइबर अपनी goroutine में चलता है ताकि धीमा उपभोक्ता कभी प्रकाशकों को न रोके। बस अपना कोई ट्रांज़ैक्शन नहीं खोलती: वह हैंडलर का काम है।
-- `pluginrunner` हर प्लगइन के लिए एक सबप्रोसेस शुरू करता है; iframe प्लगइन उपयोगकर्ता के ब्राउज़र में रहते हैं और `app/plugin` द्वारा जारी हस्ताक्षरित टोकन से वापस बात करते हैं।
+Goroutine के बारे में:
 
-### स्तर 3 (अतिरिक्त) - स्कैन पाइपलाइन पर घटक ज़ूम
+- gRPC सर्वर (`grpc.Server.Serve`) और HTTP सर्वर (gateway + static), दोनों `cmd/evey` की मुख्य जोड़ से अलग अपनी-अपनी goroutine में चलते हैं।
+- `app/library` के स्कैन काम एक worker pool पर चलते हैं (हर सक्रिय लाइब्रेरी स्कैन के लिए एक goroutine, देखें `library.ScanService`)।
+- ffmpeg के काम driven `ffmpeg` adapter (`ffmpeg.Transcoder.Start`) `internal/pkg/procfork` के ज़रिए fork करता है, हर काम के लिए एक निगरानी वाली goroutine जो प्रोसेस का stderr खाली करती रहती है।
+- `shared.EventBus` सुनने वालों को asynchronous रूप से भेजता है: हर सुनने वाला अपनी goroutine में चलता है, ताकि धीमा लेने वाला कभी भेजने वालों को न रोके। bus अपना कोई transaction नहीं खोलता; यह handler का काम है।
+- `pluginrunner` हर प्लगइन के लिए एक subprocess शुरू करता है; iframe प्लगइन उपयोगकर्ता के ब्राउज़र के अंदर रहते हैं और `app/plugin` के दिए साइन किए गए token से वापस बात करते हैं।
 
-वह सबसे व्यस्त रास्ता (hot path) जो डिस्क पर की फ़ाइलों को खोजने योग्य, समृद्ध मीडिया में बदलता है। ठोस तीर सीधे कॉल हैं; टूटी हुई रेखा वाले तीर बस पर डोमेन इवेंट हैं। ध्यान दें कि सर्च इंडेक्सिंग `ScanService` से सीधा पोर्ट कॉल है, कोई इवेंट नहीं।
+### स्तर 3 (अतिरिक्त) - स्कैन pipeline पर component zoom
+
+वह गर्म रास्ता जो डिस्क की फ़ाइलों को खोजने लायक, जानकारी से भरे मीडिया में बदलता है।
+ठोस तीर सीधी कॉल हैं; बिंदीदार तीर bus पर domain event हैं। खोज का इंडेक्स बनाना
+`ScanService` से एक सीधी port कॉल है, event नहीं।
 
 ```mermaid
 flowchart LR
-    user([Admin triggers<br/>POST /api/v1/libraries/:id/scan])
+    user([एडमिन शुरू करता है<br/>POST /api/v1/libraries/:id/scan])
 
     subgraph driving2[driving]
         h[grpcapi<br/>library_handler.go]
     end
 
     subgraph appLayer[internal/app/library]
-        svc[ScanService<br/>worker pool,<br/>1 goroutine per library]
+        svc[ScanService<br/>worker pool,<br/>हर लाइब्रेरी के लिए 1 goroutine]
     end
 
     subgraph drivenScan[driven]
         scanner[filesystem.Scanner<br/>walk + parser]
-        watcher[filesystem.FSWatcher<br/>fsnotify, incremental]
+        watcher[filesystem.FSWatcher<br/>fsnotify, थोड़ा-थोड़ा]
     end
 
     subgraph domainScan[domain/library]
-        repo[(MediaItemCommandRepo + MediaItemQueryRepo ports)]
+        repo[(MediaItemCommandRepo + MediaItemQueryRepo port)]
         bus[(EventBus port)]
     end
 
-    subgraph persist[driven persistence]
-        pgrepo[postgres.MediaItemRepository<br/>inside TransactionalUnit]
-        searchidx[meilisearch.SearchAdapter<br/>implements library.SearchIndex]
+    subgraph persist[driven सहेजना]
+        pgrepo[postgres.MediaItemRepository<br/>TransactionalUnit के अंदर]
+        searchidx[meilisearch.SearchAdapter<br/>library.SearchIndex लागू करता है]
     end
 
-    subgraph consumers[Event consumers - each in its own goroutine]
-        meta[app/metadata<br/>TMDB/OMDb enrichment]
+    subgraph consumers[Event लेने वाले - हर एक अपनी goroutine में]
+        meta[app/metadata<br/>TMDB/OMDb से जानकारी]
         trick[app/library<br/>trickplay worker]
-        intro[app/library<br/>intro detection]
-        feed[app/feed<br/>genre cache invalidation]
-        notif[app/notification<br/>new media alerts]
-        wh[app/webhook<br/>catch-all, outbound POST]
+        intro[app/library<br/>इंट्रो की पहचान]
+        feed[app/feed<br/>genre cache हटाना]
+        notif[app/notification<br/>नए मीडिया की सूचना]
+        wh[app/webhook<br/>सब-कुछ-लेने वाला, बाहर POST]
     end
 
     user --> h --> svc
@@ -338,7 +408,26 @@ flowchart LR
     bus -. MediaItemAdded .-> wh
     trick -. TrickplayGenerated .-> intro
     meta --> repo
-    trick --> ffstore[(evey-cache<br/>trickplay sprites)]
+    trick --> ffstore[(evey-cache<br/>trickplay sprite)]
 ```
 
-इसे ऊपर के "सामान्य डेटा प्रवाह" सेक्शन के साथ पढ़ें: प्लेबैक रास्ता समरूप पढ़ने का रास्ता है; स्कैन पाइपलाइन लिखने का रास्ता है जो वह मीडिया इंडेक्स तैयार करता है जिससे पढ़ने का रास्ता परोसता है।
+इसे ऊपर के "आम डेटा का रास्ता" वाले हिस्से के साथ पढ़ें: प्लेबैक का रास्ता उसका
+जोड़ीदार पढ़ने वाला रास्ता है; स्कैन pipeline लिखने वाला रास्ता है, जो वह मीडिया
+इंडेक्स तैयार करता है जिससे पढ़ने वाला रास्ता परोसता है।
+
+## आगे पढ़ें
+
+- [DEV.md](../DEV.md) - build, चलाना, migration, proto बनाना
+- [कोड का नक्शा](CODEBASE_MAP.md) - आम बदलावों के लिए कौन सी फ़ाइलें छूनी हैं
+- [एक वीडियो परोसना - HLS प्लेबैक का रास्ता](playback-serving.md) - HLS वीडियो परोसने का पढ़ने वाला रास्ता, गहराई से
+- [सर्वर API](api/) - बनाया गया API रेफ़रेंस
+- [फ़ैसलों के रिकॉर्ड](adr/) - आर्किटेक्चर के फ़ैसलों के रिकॉर्ड
+
+<!-- sources
+layering: internal/domain ; internal/app ; internal/adapters/driven ; internal/adapters/driving ; internal/pkg ; internal/config ; gen ; cmd/evey/wire.go, wire_infra.go, wire_services.go, wire_adapters.go, wire_events.go, wire_helpers.go
+app-layer interfaces: internal/app/music/album_art_chain.go - AlbumArtFetcher ; internal/adapters/driven/ociregistry (app/updatecheck)
+network exceptions: internal/app/dlna/service.go ; internal/app/loadtest/runner.go
+events and subscribers: internal/app/notification/command_service.go ; internal/app/metadata/command_service_enrich.go ; internal/app/library/trickplay_service.go ; internal/app/library/intro_detection_service.go ; internal/app/feed/genre_cache.go ; internal/app/webhook/service.go ; internal/adapters/driven/email/password_reset_emailer.go ; internal/app/plugin/security_dashboard_service.go ; internal/app/config/smtp.go, timezone.go, cpu_budget.go
+guards: internal/contractguard/*_test.go - TestDomainContextsDoNotImportEachOther, TestOnlyThePlanDecidesPlayback, TestNoCallerDerivesDownstreamOfThePlaybackPlan, TestServerEmittedI18nKeysExistInCatalogue, TestI18nPlaceholdersAgreeAcrossLocales
+topology: docker-compose.yml ; docker-compose.override.yml ; Dockerfile - MEILI_VERSION, postgresql-17 ; docker/entrypoint.sh - PG_MAJOR
+-->
