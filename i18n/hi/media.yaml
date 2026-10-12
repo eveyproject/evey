@@ -308,7 +308,7 @@ detail:
     queryPlaceholder: "शीर्षक, वर्ष…"
     search: "खोजें"
     noResults: "कोई परिणाम नहीं मिला"
-    useThis: "इसे उपयोग करें"
+    useThis: "यह मेल उपयोग करें"
     appliedTo: "मेटाडेटा लागू: {{title}}"
     applyFailed: "मेटाडेटा लागू करने में विफल"
     searchFailed: "खोज विफल"
@@ -381,8 +381,8 @@ music:
   trackCount_other: "{{count}} ट्रैक"
   albumCount_one: "{{count}} एल्बम"
   albumCount_other: "{{count}} एल्बम"
-  genre: Genre
-  year: Year
+  genre: "शैली"
+  year: "वर्ष"
   shuffle: शफ़ल
   mute: म्यूट करें
   unmute: अनम्यूट करें

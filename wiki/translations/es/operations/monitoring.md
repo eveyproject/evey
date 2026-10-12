@@ -36,7 +36,7 @@ transcodificación está en uso.
 
 ## Registros
 
-**Administración → Logs y depuración** busca en el registro del servidor y
+**Administración → Registros y depuración** busca en el registro del servidor y
 lo sigue en directo (**En vivo**), filtrado con **Zona** a una sola parte
 (reproductor y transcodificación, índice de posicionamiento, subtítulos,
 detección de intros, Chromecast, autenticación, infraestructura...). Es el
@@ -72,7 +72,7 @@ después quita el límite por sí solo. Los límites activos aparecen en
   acciones de administración, y el trabajo en segundo plano en curso.
 
 El tiempo que se guarda cada tipo de historial se fija en **Administración
-→ Configuración del servidor → Configuración del servidor** (sesiones de
+→ Configuración del servidor → Ajustes del servidor** (sesiones de
 reproducción, registro de auditoría, métricas del servidor, calidad de
 streaming). Un cambio se aplica en la siguiente limpieza diaria.
 

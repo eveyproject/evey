@@ -79,7 +79,7 @@ forma más rápida de arreglarlo:
 
 1. Abre el título y elige **Editar metadatos**.
 2. Pulsa **Identificar en TMDB** y busca el título correcto.
-3. Pulsa **Usar este**.
+3. Pulsa **Usar esta coincidencia**.
 
 Otras opciones de **Editar metadatos**:
 

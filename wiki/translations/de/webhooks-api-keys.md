@@ -86,7 +86,7 @@ API-Schlüssel** an. Sie gehören diesem Administrator.
 | `admin:read` | Aktivität und Statistiken der Verwaltung lesen |
 | `admin:write` | Einstellungen der Verwaltung ändern |
 
-Ein Schlüssel ohne jeden Bereich (**Alle (Legacy)**) hat vollen Zugriff auf
+Ein Schlüssel ohne jeden Bereich (**Alle (veraltet)**) hat vollen Zugriff auf
 die Methoden außerhalb der Verwaltung, wie sein Besitzer. Verwaltungsmethoden
 verlangen aber immer ihren Bereich: Ein Legacy-Schlüssel erreicht sie nicht.
 Wählen Sie die Bereiche, die ein Skript braucht.

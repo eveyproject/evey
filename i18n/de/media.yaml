@@ -14,7 +14,7 @@ home:
   collections: Sammlungen
   customize: Anpassen
   customizeFeed: Feed anpassen
-  customizeHintTv: Mit OK auf einer Zeile blendest du sie ein oder aus
+  customizeHintTv: Mit OK auf einer Zeile blenden Sie sie ein oder aus
   emptyLibrary: Ihre Bibliothek ist leer
   emptyLibraryDesc: "Gehen Sie zu Verwaltung → Bibliotheken, um einen Medienordner hinzuzufügen."
   goToLibraries: Zu den Bibliotheken
@@ -286,7 +286,7 @@ detail:
   alreadyDownloaded: Bereits heruntergeladen
   downloadStarted: Download gestartet
   playDownloadedCopy: Heruntergeladene Kopie abspielen
-  mobileDataTitle: Du bist im Mobilfunknetz
+  mobileDataTitle: Sie sind im Mobilfunknetz
   mobileDataBody: Dieser Download kann mehrere Gigabyte verbrauchen. WLAN wird empfohlen.
   turnOnWifi: WLAN einschalten
   downloadAnyway: Trotzdem herunterladen
@@ -308,7 +308,7 @@ detail:
     queryPlaceholder: Titel, Jahr…
     search: Suchen
     noResults: Keine Ergebnisse gefunden
-    useThis: Dieses verwenden
+    useThis: "Diese Zuordnung verwenden"
     appliedTo: "Metadaten übernommen: {{title}}"
     applyFailed: Metadaten konnten nicht übernommen werden
     searchFailed: Suche fehlgeschlagen
@@ -381,7 +381,7 @@ music:
   albumCount_one: "{{count}} Album"
   albumCount_other: "{{count}} Alben"
   genre: Genre
-  year: Year
+  year: "Jahr"
   shuffle: Zufall
   playRandom: Zufällige Wiedergabe
   mute: Stummschalten
@@ -420,7 +420,7 @@ updated: Aktualisiert
 downloadComplete: Download abgeschlossen
 downloadFailed: Download fehlgeschlagen
 syncplay:
-  joinDescription: "Code von einer Freundin oder einem Freund? Gib ihn unten ein, um dem Raum beizutreten, Video oder Musik. Um einen Film gemeinsam anzusehen, öffne ihn und tippe im Player auf Zusammen schauen. Um gemeinsam zu hören, wähle unten ein Album, einen Titel oder eine Playlist."
+  joinDescription: "Code von einer Freundin oder einem Freund? Geben Sie ihn unten ein, um dem Raum beizutreten, Video oder Musik. Um einen Film gemeinsam anzusehen, öffnen Sie ihn und tippen Sie im Player auf Zusammen schauen. Um gemeinsam zu hören, wählen Sie unten ein Album, einen Titel oder eine Playlist."
   connected: Verbunden
   connecting: "Verbinden..."
   leave: Verlassen
@@ -456,7 +456,7 @@ syncplay:
   joinRoom: Beitreten
   codeLabel: Code
   codeInput: Raumcode
-  invalidCode: Gib den 6-stelligen Raumcode ein.
+  invalidCode: Geben Sie den 6-stelligen Raumcode ein.
   members: Mitglieder
   sharedTrack: Geteilter Titel
   followingHost: "Sie sind mit dem Host synchronisiert."

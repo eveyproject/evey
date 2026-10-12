@@ -195,7 +195,7 @@ feeds:
   section: अनुभाग
   maxItems: अधिकतम आइटम
   saved: "कॉन्फ़िग सहेजा गया"
-  customize: अनुकूलित करें
+  customize: "कस्टमाइज़"
   customizeTitle: "होम पेज अनुकूलित करें"
   resetDefaults: "डिफ़ॉल्ट रीसेट करें"
   resetConfirm: "फ़ीड अनुकूलन को डिफ़ॉल्ट पर रीसेट करें?"
@@ -203,7 +203,7 @@ feeds:
   moveDown: "अनुभाग नीचे ले जाएं"
   labels:
     resume_playback: "प्लेबैक फिर से शुरू करें"
-    next_up: "आगे देखें"
+    next_up: "आगे आ रहा है"
     recommended: "अनुशंसित"
     most_popular: "सबसे लोकप्रिय"
     collections: "संग्रह"
@@ -238,7 +238,7 @@ selectedCount: '{{count}} चयनित'
 somethingWentWrong: कुछ गलत हो गया
 tryAgain: पुनः प्रयास करें
 unknownError: अज्ञात त्रुटि
-restartRequired: "यह बार-बार हो रहा है। कृपया ऐप को पुनरारंभ करें।"
+restartRequired: "यह बार-बार हो रहा है। कृपया ऐप को रीस्टार्ट करें।"
 shufflePlay: शफ़ल चलाएँ
 shuffleEmpty: यहाँ चलाने के लिए कुछ नहीं
 shuffleFailed: चलाने के लिए कुछ चुना नहीं जा सका

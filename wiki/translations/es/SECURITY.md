@@ -475,7 +475,7 @@ Consulta [Acceso remoto y HTTPS](administration/remote-access.md) y
 
 ## Lo que pueden contener los registros
 
-El registro del servidor alimenta **Logs y depuración**, los informes de
+El registro del servidor alimenta **Registros y depuración**, los informes de
 errores y las copias de seguridad, así que las credenciales se borran al
 escribir cada línea (`internal/pkg/logger/redact.go`): un atributo cuya clave
 nombra un secreto (`authorization`, `token`, `api_key`, `password`, `pin`,

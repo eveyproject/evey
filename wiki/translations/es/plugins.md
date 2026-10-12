@@ -32,7 +32,7 @@ página.
 
 ## Instalar un plugin
 
-1. En **Administración → Plugins**, abre **Instalar Plugin** y elige el
+1. En **Administración → Plugins**, abre **Instalar plugin** y elige el
    **Archivo de plugin (.zip)**. Si el autor proporciona una firma, añádela en
    **Archivo de firma (.zip.sig, opcional)**. La pestaña **Desde URL** instala
    a partir de un enlace; añade `#sha256:<hash>` a la URL para que se
@@ -93,8 +93,8 @@ ofrece:
 | Acción | Qué hace |
 | --- | --- |
 | **Activado** / **Desactivado** | Arranca o detiene el proceso del plugin. Un plugin desactivado conserva sus archivos y su configuración. |
-| **Config** | Los ajustes que declara el plugin (una clave de API, una ciudad, una unidad...). Los campos secretos se muestran ocultos y nunca se devuelven al navegador. |
-| **Logs** | Las últimas líneas que el plugin escribió a través del servidor. |
+| **Configuración** | Los ajustes que declara el plugin (una clave de API, una ciudad, una unidad...). Los campos secretos se muestran ocultos y nunca se devuelven al navegador. |
+| **Registros** | Las últimas líneas que el plugin escribió a través del servidor. |
 | **Desinstalar** | Elimina el proceso, los archivos y los datos guardados del plugin. |
 
 **Límites de recursos**, arriba de la página, pone un tope a cada proceso de
@@ -107,7 +107,7 @@ entorno los define mientras el panel no se haya guardado nunca.
 | **Procesos máx.** | 64 | `EVEY_PLUGINS_PIDS_MAX` |
 | **Disco máx. (MiB)** | 100 | `EVEY_PLUGINS_DISK_MAX_MB` |
 | **Nice de CPU (0-19)** | 10 | `EVEY_PLUGINS_CPU_NICE` |
-| **Modo aislado** | `auto` | `EVEY_PLUGINS_SANDBOX_MODE` |
+| **Modo de sandbox** | `auto` | `EVEY_PLUGINS_SANDBOX_MODE` |
 
 La memoria, los procesos y el disco se aplican en la siguiente revisión del
 monitor, que detiene un plugin que los supere; la prioridad de CPU y el modo
@@ -165,7 +165,7 @@ que todavía no puede impedir, está en
 
 Un tema es un paquete de tipo `kind: theme` sin proceso: una hoja de estilos
 y, opcionalmente, un script encerrado en un marco oculto. Se instala desde el
-mismo cuadro **Instalar Plugin**; la hoja de estilos se depura al instalarla.
+mismo cuadro **Instalar plugin**; la hoja de estilos se depura al instalarla.
 Después, cada usuario lo elige en **Ajustes → Apariencia → Tema**. Lo que
 puede contener un tema se describe en [Temas](themes.md).
 

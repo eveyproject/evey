@@ -106,7 +106,7 @@ serie o la temporada se acaba de anunciar.
 
 1. Configura el correo (más arriba).
 2. Activa **Recuperación de contraseña** en **Administración →
-   Configuración del servidor → Configuración del servidor**. Se aplica en
+   Configuración del servidor → Ajustes del servidor**. Se aplica en
    el momento.
 3. La página de inicio de sesión muestra ahora **¿Olvidaste tu
    contraseña?**. Envía por correo un enlace para elegir una contraseña

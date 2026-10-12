@@ -163,7 +163,7 @@ library:
   typeLabel: 类型
   genreText: "类型（文本）"
   genrePlaceholder: "如 动作"
-  genreLabel: 类型
+  genreLabel: "流派"
   resolution: 分辨率
   videoCodec: 视频编码
   audioLanguage: 音频语言
@@ -308,7 +308,7 @@ detail:
     queryPlaceholder: "标题、年份…"
     search: "搜索"
     noResults: "未找到结果"
-    useThis: "使用此项"
+    useThis: "使用此匹配"
     appliedTo: "已应用元数据：{{title}}"
     applyFailed: "应用元数据失败"
     searchFailed: "搜索失败"
@@ -381,8 +381,8 @@ music:
   trackCount_other: "{{count}} 首曲目"
   albumCount_one: "{{count}} 张专辑"
   albumCount_other: "{{count}} 张专辑"
-  genre: Genre
-  year: Year
+  genre: "流派"
+  year: "年份"
   shuffle: 随机播放
   mute: 静音
   unmute: 取消静音
@@ -468,7 +468,7 @@ syncplay:
   createFailed: "创建房间失败"
   joinFailed: "加入房间失败"
 playlist:
-  fieldGenre: "类型"
+  fieldGenre: "流派"
   fieldYear: "年份"
   fieldType: "媒体类型"
   fieldLibrary: "媒体库"
@@ -581,7 +581,7 @@ search:
   filterByType: 按类型筛选
   filters: 筛选
   clearFilters: 清除筛选
-  genre: 类型
+  genre: "流派"
   allGenres: 所有类型
   year: 年份
   fromYear: 从

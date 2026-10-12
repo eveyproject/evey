@@ -68,7 +68,7 @@ Un tema (`kind: theme`) no debe declarar `language`, `entrypoint`,
 
 **Secretos.** Un campo de `type: password`, o con `secret: true`, se guarda y
 se entrega al backend como cualquier otro, pero vuelve enmascarado en todas
-las rutas de lectura, incluido el panel **Config** de administración. Guardar
+las rutas de lectura, incluido el panel **Configuración** de administración. Guardar
 el panel con la máscara sin tocar conserva el valor guardado, así que editar
 otro campo nunca borra un secreto.
 
@@ -109,8 +109,8 @@ enumeran para que un stub no te confunda.
 
 | Método | Permiso | Notas |
 |---|---|---|
-| `Log(level, message, fields)` | ninguno | Se escribe en el registro del plugin, que se ve en **Logs** en su tarjeta. |
-| `GetConfig(key)` / `SetConfig(key, value)` | ninguno | La configuración del plugin: los valores del panel **Config**, más las claves que el plugin escribe por su cuenta. Como mucho 256 claves, claves de 256 bytes, valores de 16 KiB. |
+| `Log(level, message, fields)` | ninguno | Se escribe en el registro del plugin, que se ve en **Registros** en su tarjeta. |
+| `GetConfig(key)` / `SetConfig(key, value)` | ninguno | La configuración del plugin: los valores del panel **Configuración**, más las claves que el plugin escribe por su cuenta. Como mucho 256 claves, claves de 256 bytes, valores de 16 KiB. |
 | `GetData`, `SetData`, `DeleteData`, `ListDataKeys` | ninguno | El [almacén de datos](#data-store) de abajo. |
 | `EmitEvent(event_type, payload)` | ninguno | Se publica en el bus de eventos del servidor como `plugin.event.<event_type>`, al que se pueden suscribir los webhooks. |
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` o `media.read` | La ficha completa del medio, con `file_path`, `provider_ids` y `genres`. |

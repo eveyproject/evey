@@ -35,19 +35,19 @@ tienen variable: se ajustan solo en **Administración → Transcodificación**.
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
 | `EVEY_TRANSCODING_MAX_SESSIONS` | `0` (número de CPU) | Total de sesiones de transcodificación simultáneas. En una máquina que apenas aguanta una transcodificación 4K HDR por software, pon `1` o `2`. | Transcodificación → Límites avanzados → **Sesiones HLS simultáneas máximas (vacío = sin límite)**, al reiniciar |
-| `EVEY_TRANSCODING_MAX_CONCURRENT` | `2` | Tareas de transcodificación fuera de la reproducción en directo. | Caché de transcodificación → **Máximo concurrente**, inmediato |
+| `EVEY_TRANSCODING_MAX_CONCURRENT` | `2` | Tareas de transcodificación fuera de la reproducción en directo. | Caché de transcodificación → **Máximo simultáneo**, inmediato |
 | `EVEY_TRANSCODING_SINGLE_VARIANT` | `true` | Codifica solo la calidad que está viendo un espectador. `false` comparte una sola decodificación entre todas las calidades, pero codifica las que nadie ve; solo para un equipo sin decodificación por hardware y con fuentes pesadas. | Transcodificación → Límites avanzados → **Codificar un peldaño a la vez**, al reiniciar |
 | `EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT` | `0` (medido) | Impone el tope de resolución del procesador en lugar del medido. | Transcodificación → Límites avanzados → **Tope de altura en transcodificación por software (vacío = sin tope)**, al reiniciar |
 | `EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT` | `0` (medido) | Lo mismo, para las fuentes HDR cuyo mapeo de tonos hace el procesador. | Transcodificación → Límites avanzados → **Tope de altura HDR por software (vacío = sin tope)**, al reiniciar |
 | `EVEY_TRANSCODING_SOFTWARE_THREADS` | sin tope | Hilos por codificador por software (de 1 a 64; cualquier otro valor significa sin tope). Los codificadores por hardware la ignoran. | ninguno |
-| `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS` | `0` (sigue a la fuente) | Un tope para el bitrate del vídeo transcodificado. | Transcodificación → **Tope de bitrate de vídeo**, inmediato |
+| `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS` | `0` (sigue a la fuente) | Un tope para el bitrate del vídeo transcodificado. | Transcodificación → **Techo de bitrate de vídeo**, inmediato |
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS` | `0` (ninguno) | El mismo tope para los clientes de fuera de la red de casa. | Transcodificación → **Techo de bitrate de vídeo, espectadores remotos**, inmediato |
 
 ## Caché
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | El tamaño de toda la caché de transcodificación (segmentos, remux, descargas preparadas); lo usado hace más tiempo se borra primero. | Configuración del servidor → Configuración del servidor → **Presupuesto de caché de transcodificación (GB)**, al reiniciar |
+| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | El tamaño de toda la caché de transcodificación (segmentos, remux, descargas preparadas); lo usado hace más tiempo se borra primero. | Configuración del servidor → Ajustes del servidor → **Presupuesto de caché de transcodificación (GB)**, al reiniciar |
 | `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | Espacio libre que se reserva en el disco de la caché. Por debajo, se expulsan los segmentos inactivos y después se rechazan los segmentos nuevos en lugar de escribirlos; los subtítulos extraídos dejan de guardarse y se avisa a los administradores. `0` desactiva este margen. Consulta [La caché de transcodificación](../playback/transcoding.md#the-transcoding-cache). | ninguno |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Dónde vive. La define la imagen. | ninguno |
 | `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Dónde viven las miniaturas de la barra de progreso. La define la imagen: cuesta mucho regenerarlas, así que se quedan en `/data`. | ninguno |

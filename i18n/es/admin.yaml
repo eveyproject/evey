@@ -23,7 +23,7 @@ nav:
   monitoring: Monitoreo
   analytics: Analítica
   activity: Actividad
-  logs: Logs y depuración
+  logs: Registros y depuración
   maintenance: Mantenimiento
   backupRestore: Copia de seguridad y restauración
 
@@ -42,7 +42,7 @@ online:
 
 logs:
   liveOn: "Seguimiento en vivo activo - las líneas nuevas se actualizan solas"
-  title: Logs y depuración
+  title: Registros y depuración
   subtitle: "Busca y sigue en vivo los logs del servidor (ffmpeg, mkvgo, reproducción...) para diagnosticar problemas reportados por los usuarios."
   searchPlaceholder: "Buscar en los logs (texto, ruta, id, error...)"
   live: En vivo
@@ -134,9 +134,9 @@ plugin:
   copySourceHash: "Copiar el hash de origen"
   enabled: Activado
   disabled: Desactivado
-  config: Config
+  config: "Configuración"
   hideConfig: Ocultar config
-  logs: Logs
+  logs: "Registros"
   noLogs: No hay logs disponibles.
   hideLogs: Ocultar logs
   uninstall: Desinstalar
@@ -196,12 +196,12 @@ plugins:
     pidsMax: "Procesos máx."
     diskMaxMb: "Disco máx. (MiB)"
     cpuNice: "Nice de CPU (0-19)"
-    sandboxMode: "Modo aislado"
+    sandboxMode: "Modo de sandbox"
     save: "Guardar límites"
     saved: "Límites de recursos actualizados"
     saveFailed: "No se pudieron actualizar los límites de recursos"
   title: "Plugins"
-  installPlugin: "Instalar Plugin"
+  installPlugin: "Instalar plugin"
   uploadFile: "Subir archivo"
   fromUrl: "Desde URL"
   installFromUrl: Instalar desde URL
@@ -230,7 +230,7 @@ plugins:
   failedUninstall: "Error al desinstalar el plugin"
   toggleFailed: Error al cambiar el estado del plugin
   uninstallFailed: Error al desinstalar el plugin
-  uninstallTitle: "Desinstalar Plugin"
+  uninstallTitle: "Desinstalar plugin"
   uninstallConfirm: "¿Desinstalar el plugin \"{{name}}\"? Esta acción no se puede deshacer."
   selectFileFirst: "Selecciona un archivo de plugin primero"
   fileMissing: "Archivo no encontrado - selecciona de nuevo"
@@ -258,7 +258,7 @@ plugins:
     sandboxBasicWarning: "Los plugins se ejecutan solo con UID-drop + seccomp - este host no ofrece aislamiento del sistema de archivos por ruta."
     sandboxBasicHint: "Un kernel ≥ 5.13 con Landlock en la lista LSM activa permite un aislamiento fuerte sin más cambios en el host."
     probeLandlock: "Kernel Landlock"
-    probeLauncher: "Lanzador sandbox"
+    probeLauncher: "Lanzador del sandbox"
     probeBubblewrap: "Bubblewrap"
 
 dashboard:
@@ -363,9 +363,9 @@ users:
   editUser: "Editar usuario"
   failedCreateInvite: "Error al crear el enlace de invitación"
   leaveBlank: "Dejar en blanco para conservar"
-  maxProfiles: "Perfiles máx"
+  maxProfiles: "Máximo de perfiles"
   maxProfilesHelp: "Número máximo de perfiles que este usuario puede crear. 0 = ilimitado."
-  maxDevicesPerProfile: "Dispositivos máx por perfil"
+  maxDevicesPerProfile: "Máximo de dispositivos por perfil"
   maxDevicesPerProfileHelp: "Cuántas reproducciones puede tener cada perfil a la vez, sumando sus dispositivos. 0 = ilimitado."
   profilesTitle: "Perfiles"
   noProfiles: "Este usuario aún no tiene perfiles."
@@ -570,7 +570,7 @@ backup:
     cronInvalid: Expresión cron inválida
     retentionLabel: Retención (días)
     retentionHelp: Las copias más antiguas se eliminan automáticamente después de cada ejecución programada.
-    enabledLabel: Habilitado
+    enabledLabel: "Activado"
     save: Guardar
     saved: Programación guardada
     saveFailed: Error al guardar la programación
@@ -588,7 +588,7 @@ backup:
 
 webhooks:
   title: Webhooks
-  createWebhook: "Crear Webhook"
+  createWebhook: "Crear webhook"
   editWebhook: "Editar Webhook"
   webhookCreated: "Webhook creado"
   webhookUpdated: "Webhook actualizado"
@@ -614,7 +614,7 @@ webhooks:
     events: "Eventos"
     allEvents: "Todos los eventos"
     enabled: "Activado"
-    createWebhook: "Crear Webhook"
+    createWebhook: "Crear webhook"
 
 analytics:
   title: "Analítica"
@@ -810,7 +810,7 @@ serverConfig:
   memoryProfileTitle: "Perfil de memoria"
   memoryProfileSubtitle: "Controla cuán agresivamente se suspenden los procesos de plugins inactivos para ahorrar RAM."
   memoryProfileLabel: "Perfil de memoria"
-  memoryProfileAuto: "Auto (recomendado)"
+  memoryProfileAuto: "Automático (recomendado)"
   memoryProfileNormal: "Normal"
   memoryProfileLow: "Bajo"
   memoryProfileDesc: "Bajo suspende los procesos de plugins inactivos para ahorrar RAM (se reanudan bajo demanda); Auto elige Bajo en máquinas con menos de 3 GB."
@@ -954,7 +954,7 @@ systemHealth:
 
 transcodeCache:
   title: "Caché de transcodificación"
-  clearAll: "Limpiar todo"
+  clearAll: "Borrar todo"
   totalSize: "Tamaño total"
   files: "Archivos"
   cacheEmpty: "La caché está vacía"
@@ -969,14 +969,14 @@ transcodeCache:
     file: "Archivo"
     size: "Tamaño"
     modified: "Modificado"
-  maxConcurrent: "Máximo concurrente"
+  maxConcurrent: "Máximo simultáneo"
   settingsSaved: "Ajustes guardados"
   settingsSaveFailed: "Error al guardar los ajustes"
   throttle: "Limitar transcodificaciones cuando el búfer del cliente está lleno"
   transcodingSettings: "Ajustes de transcodificación"
   hwAccelNote: "La aceleración de hardware se configura en Transcodificación → Calibración de codificación."
   hwAccelNoteLink: "Ir a Transcodificación"
-  hwDevices: Aceleración de hardware
+  hwDevices: "Aceleración por hardware"
 
 dashboardStats:
   movies: "Películas"
@@ -1027,7 +1027,7 @@ dashboardStats:
 
 serverSettings:
   transcodeMovedHint: "La transcodificación (aceleración por hardware, calibración de codificación, AV1 y concurrencia) se configura en Configuración de transcodificación."
-  title: "Configuración del servidor"
+  title: "Ajustes del servidor"
   serverName: "Nombre del servidor"
   maxConcurrentTranscodes: "Transcodificaciones simultáneas máx."
   hwAccelEnabled: "Aceleración por hardware"
@@ -1090,7 +1090,7 @@ transcoding:
   videoSourceStreams_other: "~{{count}} flujos"
   videoBenchSource: "Calibrado con {{codec}} {{height}}p"
   videoDecodeRate: "descodificación {{codec}}: {{fps}} fps"
-  maxVideoSessionsLabel: "Limitar las emisiones de vídeo simultáneas"
+  maxVideoSessionsLabel: "Limitar los flujos de vídeo simultáneos"
   maxVideoSessionsAuto: "Automático (recomendado)"
   maxVideoSessionsDesc: "Solo puede reducir la capacidad medida, nunca aumentarla. Una transcodificación de solo audio (vídeo copiado) no ocupa ninguna plaza, y un mismo espectador que cambia de calidad ocupa solo una."
   videoSessionsSaved: "Capacidad de transcodificación de vídeo actualizada"
@@ -1222,7 +1222,7 @@ calibration:
   lowPowerLabel: "Codificador de bajo consumo"
   lowPowerHint: "Codificador de función fija de Intel (VDEnc): menos carga de GPU y consumo, pero sin B-frames en iGPU antiguas y un control de tasa más simple, por lo que la calidad es algo menor a igual bitrate. Déjelo desactivado salvo que la GPU esté saturada."
   lowPowerApplied: "Ajuste de bajo consumo aplicado"
-  maxBitrateLabel: "Tope de bitrate de vídeo"
+  maxBitrateLabel: "Techo de bitrate de vídeo"
   maxBitrateSource: "Seguir la fuente"
   maxBitrateHint: "Cada peldaño se codifica al bitrate de la fuente escalado a su resolución, nunca por debajo del mínimo de la escalera. Ponga un tope si los espectadores remotos sufren buffering."
   maxBitrateApplied: "Tope de bitrate aplicado"
@@ -1390,7 +1390,7 @@ segments:
   propagateError: "Error al propagar"
 
 seekIndex:
-  title: "Salud de los medios"
+  title: "Salud de medios"
   description: "Un análisis de solo lectura da un veredicto a cada archivo MKV/WebM, y solo hay dos."
   introRepairable: "índice de posicionamiento ausente, tramo corrupto, .mkv que en realidad es un MP4. «Reparar todo» los resuelve en una pasada."
   introInformational: "lo que hemos observado y no podemos arreglar aquí. Márcalas como vistas y la página se va vaciando."
@@ -1463,13 +1463,13 @@ seekIndex:
   trailingJunkBadge: "Bytes sobrantes"
   trailingJunkHint: "Hay bytes sobrantes DESPUÉS del final declarado del Segment - el medio está completo y se reproduce bien. Nada que hacer: una reescritura por otra reparación los elimina de paso."
   statsAudioShort: "El audio termina antes"
-  audioShortBadge: "Audio -{{sec}}s"
+  audioShortBadge: "Audio -{{sec}} s"
   audioShortHint: "Una pista de audio se detiene {{sec}}s antes que el vídeo (créditos en silencio en esa pista). El archivo está sano por lo demás y la reproducción rellena el final que falta con silencio. Se mide contra el final real de la imagen, no contra la duración declarada del contenedor, así que una duración exagerada nunca se le achaca al audio. No hay reparación posible: ese audio simplemente no está en el archivo; vuelve a obtener la fuente para una corrección real."
   statsSeekCoarse: "Búsqueda imprecisa"
   seekCoarseBadge: "Búsqueda imprecisa"
   seekCoarseHint: "El índice se reconstruyó y queda un hueco: {{detail}}. Una búsqueda DENTRO de ese hueco cae en su borde; en el resto es exacta. Medido en real, el hueco suele ser los créditos finales (ningún fotograma clave tras el último), que ningún índice puede llenar y que no molesta a nadie. Un hueco en mitad de la película son los fotogramas clave de la codificación misma - solo una mejor fuente lo remedia."
   repair: "Reparar"
-  repairResync: "Reparar de todos modos"
+  repairResync: "Reparar resincronizando"
   repairResyncHint: "Reconstruye el índice omitiendo la región corrupta: recupera todo lo anterior y posterior, solo pierde el tramo dañado (una fracción de segundo). Conserva una copia."
   resyncRequiredBadge: "Corrupción hallada durante la reparación"
   resyncRequiredHint: "La reparación normal recorrió este archivo y su flujo no se analiza: un tramo corrupto que el análisis, que solo lee la cabecera, no podía ver. Solo una resincronización lo supera: salta el tramo y pierde esos bytes para siempre, conservando siempre el original como copia. Cuánto se pierde no se sabe de antemano aquí."

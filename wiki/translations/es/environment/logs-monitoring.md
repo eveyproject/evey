@@ -22,7 +22,7 @@ en [Copias de seguridad y actualizaciones](../backups.md) y en
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_LOG_LEVEL` | `info` | `debug`, `info`, `warn` o `error`. | Configuración del servidor → Configuración del servidor → **Nivel de registro**, inmediato |
+| `EVEY_LOG_LEVEL` | `info` | `debug`, `info`, `warn` o `error`. | Configuración del servidor → Ajustes del servidor → **Nivel de registro**, inmediato |
 | `EVEY_LOG_DIR` | `/data/logs` | Dónde se escribe el archivo de registro diario `evey-YYYY-MM-DD.log`. La define la imagen. Este archivo es la referencia: `docker logs` muestra el mismo flujo, pero Docker lo rota. | ninguno |
 | `EVEY_LOG_MAX_SIZE_MB` | `50` | Tamaño de un archivo de registro antes de rotarlo. | ninguno |
 | `EVEY_LOG_RETENTION_DAYS` | `90` | Días que se conservan los archivos de registro. | ninguno |

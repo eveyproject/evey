@@ -17,7 +17,7 @@ la [Referencia de configuración](../configuration.md).
 | `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | La dirección pública. Una dirección `https://` activa las cookies `Secure`, HSTS y la confianza en `X-Forwarded-Proto`. Los enlaces de los correos, las redirecciones del inicio de sesión único y las URL de envío a Chromecast se construyen a partir de ella. | Acceso remoto → **URL externa** gana si está definida, inmediato; una URL externa en `https://` también activa HTTPS |
 | `EVEY_SERVER_PORT` | `9090` | El puerto gRPC interno. La API HTTP y la interfaz web escuchan en este puerto más uno (`9091`). | ninguno |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | La dirección en la que escucha el puerto gRPC. El control de acceso remoto no cubre gRPC, así que abrirlo más (`0.0.0.0`) escribe un aviso en el registro y te deja a ti la tarea de protegerlo con un cortafuegos. | ninguno |
-| `EVEY_SERVER_NAME` | `Evey` | El nombre que aparece en la página de inicio de sesión, en la lista de servidores de las aplicaciones y en los correos. | Configuración del servidor → Configuración del servidor → **Nombre del servidor**, inmediato |
+| `EVEY_SERVER_NAME` | `Evey` | El nombre que aparece en la página de inicio de sesión, en la lista de servidores de las aplicaciones y en los correos. | Configuración del servidor → Ajustes del servidor → **Nombre del servidor**, inmediato |
 
 ## Proxy inverso
 
@@ -48,8 +48,8 @@ sin reiniciar. Cómo decide el control de acceso:
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Intentos de inicio de sesión por dirección y por minuto. | Configuración del servidor → Configuración del servidor → **Límite de inicio de sesión (sol./min)**, inmediato |
-| `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Peticiones a la API por dirección y por minuto. | Configuración del servidor → Configuración del servidor → **Límite global (sol./min)**, inmediato |
+| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Intentos de inicio de sesión por dirección y por minuto. | Configuración del servidor → Ajustes del servidor → **Límite de inicio de sesión (sol./min)**, inmediato |
+| `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Peticiones a la API por dirección y por minuto. | Configuración del servidor → Ajustes del servidor → **Límite global (sol./min)**, inmediato |
 
 ## Usuario del contenedor
 

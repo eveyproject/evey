@@ -21,7 +21,7 @@ los registros y `evey admin doctor` (más abajo) dan más información.
 | Faltan pósteres o están rotos | **Administración → Caché de artworks** | [Biblioteca y pósteres](#library-and-posters) más abajo |
 | Los archivos nuevos no aparecen | El resultado del escaneo en la fila de la biblioteca, en **Administración → Bibliotecas** | [Biblioteca y pósteres](#library-and-posters) más abajo |
 | Los correos no llegan | **Enviar correo de prueba** en **Administración → Configuración del servidor → Correo / SMTP** | [Los correos no llegan](#e-mails-do-not-arrive) más abajo |
-| Un plugin falla | Sus **Logs**, en su tarjeta de **Administración → Plugins** | [Un plugin se ha bloqueado](../runbooks/incident-runbook.md#a-plugin-crashed) |
+| Un plugin falla | Sus **Registros**, en su tarjeta de **Administración → Plugins** | [Un plugin se ha bloqueado](../runbooks/incident-runbook.md#a-plugin-crashed) |
 | Un envío a la tele (cast) se ha congelado o se ha quedado sin sonido | **Administración → Reproduciendo ahora**: ¿sigue apareciendo la reproducción? | [Un envío se ha congelado, se ha quedado sin sonido, o el teléfono no deja de cargar](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
 | El disco se llena | **Administración → Caché de transcodificación** | [El disco de la caché está lleno](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
 
@@ -30,7 +30,7 @@ los registros y `evey admin doctor` (más abajo) dan más información.
 El registro (log) es el diario de Evey: cada error se anota ahí, con la
 hora.
 
-**La forma fácil: Administración → Logs y depuración.** Muestra el registro
+**La forma fácil: Administración → Registros y depuración.** Muestra el registro
 con un buscador, una vista **En vivo** que sigue las líneas nuevas, y un
 filtro **Zona** para una sola parte (reproductor y conversión, subtítulos,
 detección de intros, Chromecast, inicio de sesión...). Cuando alguien te
@@ -221,7 +221,7 @@ Escribe a **contact@eveyproject.org**. Un informe útil dice:
   diagnóstico.
 
 Un administrador puede añadir las líneas del registro de ese momento
-(**Administración → Logs y depuración**, ver [Los registros](#the-logs)) y
+(**Administración → Registros y depuración**, ver [Los registros](#the-logs)) y
 el informe de [`evey admin doctor`](#evey-admin-doctor). Los registros
 contienen nombres de cuentas y direcciones de red: léelos antes de
 enviarlos.

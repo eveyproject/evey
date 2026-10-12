@@ -105,7 +105,7 @@ register:
   backToLogin: "लॉगिन पर वापस"
 profile:
   title: प्रोफ़ाइल
-  logoutIncomplete: "इस डिवाइस पर साइन-आउट अधूरा हो सकता है। सत्र पूरी तरह साफ़ करने के लिए ऐप पुनरारंभ करें।"
+  logoutIncomplete: "इस डिवाइस पर साइन-आउट अधूरा हो सकता है। सत्र पूरी तरह साफ़ करने के लिए ऐप रीस्टार्ट करें।"
   edit: "संपादित करें"
   username: "उपयोगकर्ता नाम"
   email: "ईमेल"
@@ -199,7 +199,7 @@ profile:
 settings:
   title: "सेटिंग्स"
   tabs:
-    appearance: "दिखावट"
+    appearance: "रूप-रंग"
     playback: "प्लेबैक"
     profiles: "प्रोफ़ाइल"
     notifications: "सूचनाएं"
@@ -290,7 +290,7 @@ settings:
       updatePin: "PIN अपडेट करें"
 apiKeys:
   neverUsed: "कभी उपयोग नहीं हुई"
-  title: "API कुंजियां"
+  title: "API कुंजियाँ"
   description: "बाहरी इंटीग्रेशन के लिए API कुंजियां बनाएं।"
   newKeyTitle: "नई API कुंजी"
   name: "नाम"

@@ -9,7 +9,7 @@ home:
   upNext: A continuación
   recentlyAdded: Añadido recientemente
   recentlyAddedInLibrary: "Añadido recientemente en {{name}}"
-  mostPopular: Más popular
+  mostPopular: "Más populares"
   recommendedForYou: Recomendado para ti
   collections: Colecciones
   customize: Personalizar
@@ -308,7 +308,7 @@ detail:
     queryPlaceholder: "Título, año…"
     search: "Buscar"
     noResults: "Sin resultados"
-    useThis: "Usar este"
+    useThis: "Usar esta coincidencia"
     appliedTo: "Metadatos aplicados: {{title}}"
     applyFailed: "Error al aplicar los metadatos"
     searchFailed: "Error en la búsqueda"
@@ -380,8 +380,8 @@ music:
   trackCount_other: "{{count}} pistas"
   albumCount_one: "{{count}} álbum"
   albumCount_other: "{{count}} álbumes"
-  genre: Genre
-  year: Year
+  genre: "Género"
+  year: "Año"
   shuffle: Aleatorio
   playRandom: Reproducción aleatoria
   mute: Silenciar

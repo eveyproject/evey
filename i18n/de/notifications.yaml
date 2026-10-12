@@ -12,7 +12,7 @@ push:
   media_request:
     title: "Neue Medienanfrage: {title}"
   request_answered:
-    title: "Deine Medienanfrage wurde aktualisiert: {title}"
+    title: "Ihre Medienanfrage wurde aktualisiert: {title}"
   new_album:
     title: "Neues Album: {label}"
   series_with_seasons_and_episodes:

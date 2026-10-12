@@ -55,7 +55,7 @@ subtitleLanguage: "首选字幕语言"
 subtitleLanguageDesc: "默认字幕轨道（当有匹配的轨道可用时显示）"
 noPreference: "无偏好"
 region:
-  title: "区域"
+  title: "地区"
   desc: "用于内容分级和区域偏好。"
   auto: "自动"
   updateFailed: "更新区域失败"
@@ -153,7 +153,7 @@ userStats:
 nav:
   home: "首页"
   libraries: "媒体库"
-  genres: "类型"
+  genres: "流派"
   photos: "照片"
   favorites: "收藏"
   requests: "请求"
@@ -186,7 +186,7 @@ shortcuts:
 parental:
   restrictedContent: "受限内容"
   pinRequired: "此内容需要家长PIN验证。"
-  pinLabel: "PIN（4位数字）"
+  pinLabel: "PIN 码（4 位数字）"
   pinIncorrect: "PIN不正确"
   delete: "删除"
   validate: "验证"
@@ -203,7 +203,7 @@ feeds:
   moveDown: "板块下移"
   labels:
     resume_playback: "继续播放"
-    next_up: "接下来"
+    next_up: "即将播放"
     recommended: "推荐"
     most_popular: "最受欢迎"
     collections: "合集"

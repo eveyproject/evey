@@ -18,8 +18,8 @@ Wie Sie die GPU für den Container freigeben:
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_HW_MODE` | leer | `auto`, `off`, `nvenc`, `vaapi`, `qsv` oder `rkmpp`. Leer: wird aus den beiden Variablen darunter abgeleitet. | Transkodierung → **Hardware-Beschleunigung**, sofort (misst neu) |
-| `EVEY_TRANSCODING_HW_ACCEL_ENABLED` | `false` | Der ältere Ein/Aus-Schalter. | Transkodierung → **Hardware-Beschleunigung**, sofort |
+| `EVEY_TRANSCODING_HW_MODE` | leer | `auto`, `off`, `nvenc`, `vaapi`, `qsv` oder `rkmpp`. Leer: wird aus den beiden Variablen darunter abgeleitet. | Transkodierung → **Hardwarebeschleunigung**, sofort (misst neu) |
+| `EVEY_TRANSCODING_HW_ACCEL_ENABLED` | `false` | Der ältere Ein/Aus-Schalter. | Transkodierung → **Hardwarebeschleunigung**, sofort |
 | `EVEY_TRANSCODING_HW_BACKEND` | leer (Erkennung) | Legt ein Backend fest (`nvenc`, `vaapi`, `qsv`): Nur dieses wird gemessen. So kann jeder von mehreren Evey-Containern auf einem Host einen anderen GPU-Weg nutzen. | keine |
 | `EVEY_TRANSCODING_HW_DEVICE` | leer (alle) | Legt ein Gerät fest: einen Render-Knoten (`/dev/dri/renderD129`) oder einen CUDA-Index (`1`). Zusammen mit `EVEY_TRANSCODING_HW_BACKEND` bindet es einen Container auf einem Host mit mehreren GPUs an eine GPU. | keine |
 | `EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT` | `10s` | Eine Hardware-Sitzung, die in dieser Zeit ihr erstes Segment nicht geliefert hat, gilt als hängende GPU und wird auf den Prozessor verlegt. | keine |
@@ -36,7 +36,7 @@ eingestellt.
 | --- | --- | --- | --- |
 | `EVEY_TRANSCODING_MAX_SESSIONS` | `0` (Zahl der CPUs) | Gleichzeitige Transkodierungssitzungen insgesamt. Auf einer Maschine, die gerade so eine 4K-HDR-Transkodierung in Software schafft, setzen Sie `1` oder `2`. | Transkodierung → Erweiterte Grenzwerte → **Maximale gleichzeitige HLS-Sitzungen**, Neustart |
 | `EVEY_TRANSCODING_MAX_CONCURRENT` | `2` | Transkodierungsaufträge außerhalb der laufenden Wiedergabe. | Transkodierungs-Cache → **Max. gleichzeitig**, sofort |
-| `EVEY_TRANSCODING_SINGLE_VARIANT` | `true` | Kodiert nur die Qualität, die ein Zuschauer gerade schaut. `false` teilt ein Dekodieren zwischen allen Qualitäten, kodiert aber auch die, die niemand schaut; nur für einen Host ohne Hardware-Dekodierung mit schweren Quellen. | Transkodierung → Erweiterte Grenzwerte → **Nur eine Ladder-Stufe gleichzeitig kodieren**, Neustart |
+| `EVEY_TRANSCODING_SINGLE_VARIANT` | `true` | Kodiert nur die Qualität, die ein Zuschauer gerade schaut. `false` teilt ein Dekodieren zwischen allen Qualitäten, kodiert aber auch die, die niemand schaut; nur für einen Host ohne Hardware-Dekodierung mit schweren Quellen. | Transkodierung → Erweiterte Grenzwerte → **Nur eine Qualitätsstufe gleichzeitig kodieren**, Neustart |
 | `EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT` | `0` (gemessen) | Erzwingt die Auflösungsobergrenze des Prozessors statt der gemessenen. | Transkodierung → Erweiterte Grenzwerte → **Höhengrenze für Software-Transcoding**, Neustart |
 | `EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT` | `0` (gemessen) | Dasselbe für HDR-Quellen, deren Tone-Mapping der Prozessor übernimmt. | Transkodierung → Erweiterte Grenzwerte → **HDR-Höhengrenze für Software**, Neustart |
 | `EVEY_TRANSCODING_SOFTWARE_THREADS` | keine Grenze | Threads pro Software-Encoder (1 bis 64; jeder andere Wert bedeutet keine Grenze). Hardware-Encoder ignorieren sie. | keine |

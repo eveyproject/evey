@@ -15,14 +15,14 @@ requesting: "Wird gesendet…"
 requested: Angefragt
 requestSubmitted: Anfrage gesendet.
 requestFailed: Anfrage konnte nicht gesendet werden.
-noRequests: Du hast noch nichts angefragt.
+noRequests: Sie haben noch nichts angefragt.
 statusPending: Ausstehend
 statusApproved: Genehmigt
 statusRejected: Abgelehnt
 statusLater: Später
 adminNote: "Hinweis: {{note}}"
 disabledTitle: Anfragen sind deaktiviert
-disabledDesc: Der Administrator hat Medienanfragen für dein Konto deaktiviert.
+disabledDesc: Der Administrator hat Medienanfragen für Ihr Konto deaktiviert.
 year: "({{year}})"
 inLibrary: "Bereits verfügbar"
 watchNow: "Jetzt ansehen"

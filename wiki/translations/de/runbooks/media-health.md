@@ -56,7 +56,7 @@ sein: Läuft die Datei gut, ist sie in Ordnung.
 - **Unvollständiger Download**: Das Ende der Datei ist nie angekommen. Sie
   läuft bis zu der Stelle, an der sie abbricht. Kein Werkzeug holt den
   fehlenden Teil zurück; das kann nur die Quelle.
-- **Grobe Suche**: Der neu aufgebaute Index hat noch eine Lücke, meist im
+- **Grobes Springen**: Der neu aufgebaute Index hat noch eine Lücke, meist im
   Abspann. Ein Sprung in die Lücke landet an ihrem Rand; überall sonst sind
   Sprünge genau.
 - **Ton bei +N s**: Eine Tonspur beginnt nach dem Bild. So wird eine

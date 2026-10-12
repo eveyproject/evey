@@ -148,7 +148,7 @@ docker exec evey-server touch /cache/transcode/.write-test && \
   sind die Go-Standardwerte `/data/transcode` und `/cache/trickplay`.
 - **Cache voll**: siehe [Die Cache-Festplatte ist voll](#the-cache-disk-is-full).
 - **Hardware-Beschleunigung macht Probleme**: Stellen Sie
-  **Hardware-Beschleunigung** unter **Verwaltung -> Transkodierung ->
+  **Hardwarebeschleunigung** unter **Verwaltung -> Transkodierung ->
   Encode-Kalibrierung** auf **Aus (nur Software)** (gilt sofort und
   kalibriert neu), damit jede Transkodierung auf dem Prozessor läuft.
   Stellen Sie wieder auf **Auto (bestmöglich)**, sobald die Hardware
@@ -344,7 +344,7 @@ docker volume inspect evey_evey-cache   # das Compose-Präfix kann abweichen
   ```sh
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
-- Senken Sie **Budget des Transcode-Caches (GB)** unter **Verwaltung ->
+- Senken Sie **Budget des Transkodierungs-Caches (GB)** unter **Verwaltung ->
   Serverkonfiguration -> Servereinstellungen** (Standard `10`), wenn das
   Volume auf dem Rechner knapp ist. Unabhängig vom Budget hält die
   Aufräumfunktion 2 GiB auf dem Cache-Volume frei.

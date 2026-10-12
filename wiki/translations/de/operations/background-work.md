@@ -41,7 +41,7 @@ wenn der Server benutzt wird.
 
 **Speicherprofil** (**Verwaltung → Serverkonfiguration**): **Niedrig** legt
 Plugins, die nichts tun, schlafen, um Arbeitsspeicher zu sparen, und weckt sie
-bei Bedarf. **Auto (empfohlen)** wählt Niedrig auf Rechnern mit weniger als
+bei Bedarf. **Automatisch (empfohlen)** wählt Niedrig auf Rechnern mit weniger als
 3 GB Arbeitsspeicher.
 
 ## Einstellungen, die beim Start gelesen werden

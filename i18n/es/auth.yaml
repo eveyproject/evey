@@ -208,7 +208,7 @@ settings:
     devices: "Dispositivos"
     security: "Seguridad"
     quickConnect: "Conexión rápida"
-    plugins: "Complementos"
+    plugins: "Plugins"
   playback:
     bitrateTitle: "Bitrate máximo de streaming"
     bitrateDesc: "Limitar el bitrate máximo durante el streaming. Valores más bajos usan menos ancho de banda."
@@ -300,10 +300,10 @@ apiKeys:
   newKeyTitle: "Nueva clave API"
   name: "Nombre"
   namePlaceholder: "Mi integración"
-  nameRequired: "El nombre es requerido"
+  nameRequired: "El nombre es obligatorio"
   key: "Clave"
-  scopes: "Permisos"
-  scopesAll: "Todos (legado)"
+  scopes: "Alcances"
+  scopesAll: "Todos (heredado)"
   scopesHint: "Dejar vacío para acceso completo (legado). Selecciona permisos específicos para restringir."
   scopeLabels:
     "media:read": "Leer metadatos multimedia"
