@@ -173,7 +173,7 @@ außerdem nach, ob es eine neuere Version gibt, was Sie abschalten können. Die
 Datenbank wird vor jedem Update gesichert, das sie verändert.
 [Datenschutzerklärung](privacy.md) · [Sicherungen und Updates](backups.md)
 
-## Plugins werden an der kurzen Leine gehalten
+## Plugins laufen isoliert und kontrolliert
 
 Plugins fügen Quellen für Titelinformationen, Benachrichtigungskanäle,
 Bereiche auf der Startseite und Einblendungen im Player hinzu. Themes ändern

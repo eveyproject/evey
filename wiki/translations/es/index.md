@@ -169,7 +169,7 @@ también pregunta si hay una versión más nueva, algo que puedes desactivar. La
 base de datos se guarda antes de cada actualización que la modifica.
 [Política de privacidad](privacy.md) · [Copias de seguridad y actualizaciones](backups.md)
 
-## Los plugins, atados en corto
+## Los plugins, aislados y bajo control
 
 Los plugins añaden fuentes de información sobre los títulos, canales de
 notificación, secciones en la página de inicio y elementos encima del
