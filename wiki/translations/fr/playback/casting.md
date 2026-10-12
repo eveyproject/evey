@@ -14,7 +14,7 @@ la TV.
 
 Le film passe alors sur la TV. L'application Android TV n'a pas de bouton
 **Caster** : elle est déjà sur la TV. Firefox n'affiche pas non plus de bouton
-**Caster**. Avec Safari, ou Chrome sur un téléphone Android, le bouton marche
+**Caster**. Avec Safari, ou Chrome sur un téléphone Android, le bouton fonctionne
 autrement : voir
 [Navigateurs sans session Cast propre](#browsers-without-a-cast-session-of-their-own).
 
@@ -53,7 +53,7 @@ réussi à charger le flux recharge une fois avec un plafond stéréo.
 ## Quand la connexion de la TV est lente
 
 Avant de demander un flux, le récepteur mesure son propre débit et le joint à
-la demande. Le serveur conserve la vidéo d'origine quand ce débit la porte
+la demande. Le serveur conserve la vidéo d'origine quand ce débit lui suffit
 avec une marge de 20 %. Sinon, il choisit la qualité la plus haute que la
 connexion supporte. Si la lecture cale malgré tout, le récepteur recharge une
 fois sur la qualité la plus basse, à condition qu'elle divise le débit par
@@ -86,10 +86,10 @@ et prend le premier appareil trouvé à chaque étape :
 
 !!! note
     Les étapes 1 et 2 prennent le premier appareil trouvé, pas celui que vous
-    choisissez. Avec plusieurs Chromecast à la maison, diffusez depuis Chrome
+    choisissez. Avec plusieurs Chromecast chez vous, diffusez depuis Chrome
     sur ordinateur ou depuis l'application Android, qui affichent tous deux
     un sélecteur.
 
 ## Quand une diffusion ne fonctionne pas
 
-[Une diffusion s'est figée, est devenue muette, ou le téléphone tourne en boucle](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning).
+[Une diffusion s'est figée, est devenue muette, ou le téléphone reste en chargement](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning).

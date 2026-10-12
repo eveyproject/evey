@@ -6,7 +6,7 @@ reviewed: true
 
 Par où commencer quand vous voulez travailler sur le code d'Evey, et ce
 qu'une pull request doit passer. Les documents écrits pour les contributeurs
-vivent avec le code, sur GitHub, plutôt que sur ce site ; cette page y
+sont conservés avec le code, sur GitHub, plutôt que sur ce site ; cette page y
 renvoie. Ils sont en anglais.
 
 ## Par où commencer
@@ -34,13 +34,13 @@ changer l'un de ces choix.
 
 ## Avant d'ouvrir une pull request
 
-1. Lancez `make pre-push` : c'est la barrière, et elle exécute en local les
+1. Lancez `make pre-push` : c'est le contrôle à passer, et il exécute en local les
    vérifications de la CI dans cet ordre : vet, recherche de vulnérabilités,
    build, tests unitaires avec `-race`, frontend (typage, lint, tests
    unitaires), analyse de sécurité, lint,
    [gardes d'architecture](ARCHITECTURE.md#architecture-guards), hygiène des
    commits, recherche de secrets, détection de rupture des proto, build
-   depuis un checkout propre, les barrières d'intégration du dépôt et du
+   depuis un checkout propre, les contrôles d'intégration du dépôt et du
    transcodage, et l'audit TV.
 2. Ajoutez des tests pour tout nouveau comportement et pour chaque
    correction de bug.
@@ -49,7 +49,7 @@ changer l'un de ces choix.
    AGPL-3.0-or-later et peut aussi être proposé sous licence commerciale. Vous
    gardez le droit d'auteur sur votre travail.
 
-!!! warning "La barrière ne construit ni l'image Docker ni les applications Android"
+!!! warning "Le contrôle ne construit ni l'image Docker ni les applications Android"
     Après avoir touché le `Dockerfile` ou du code Kotlin, construisez-les
     vous-même (`docker build --target runtime`, la tâche Gradle de release)
     avant de pousser.

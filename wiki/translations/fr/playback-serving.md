@@ -15,7 +15,7 @@ plan, une décision), [ADR-0024](adr/0024-playback-plan-resolver.md) (le
 résolveur de plan) et
 [ADR-0029](adr/0029-transcoding-routes-are-measured-not-assumed.md) (des
 capacités mesurées). C'est le pendant du pipeline de scan décrit dans
-[Architecture](ARCHITECTURE.md) et l'explication détaillée derrière le
+[Architecture](ARCHITECTURE.md) et l'explication détaillée du
 « Golden path 4 » de la [Carte du code](CODEBASE_MAP.md). Pour la vue côté
 utilisateur de la même négociation, lisez
 [Comment la lecture est décidée](playback/how-playback-is-decided.md).
@@ -31,9 +31,9 @@ réponse, le tout adressé par un seul hachage.
 | **Q2 : le client peut-il le lire tel quel ?** | la **décision** de lecture, prise par piste : vidéo `copy` ou `transcode`, audio `copy`, `transcode` ou la voie wasm AC-3 ; vidéo et audio sont décidés indépendamment, et le cas courant est « copier la vidéo, ré-encoder l'audio en AAC » | `app/transcoding/decision.go` |
 | **Q3 : combien cet hôte peut-il encoder ?** | la **capacité** calibrée (mesurée au premier moment calme) plus l'**admission** (quel barreau de l'échelle convient, reste-t-il une place) | `app/transcoding/calibration_service.go`, `admission_shaper.go` |
 
-Deux moteurs traversent tout cela :
+Deux moteurs interviennent dans tout cela :
 
-- **mkvgo** lit et ré-empaquette (remux, à la demande) sans lancer de processus. Gratuit.
+- **mkvgo** lit et ré-empaquette (remux, à la demande) sans lancer de processus. Coût négligeable.
 - **ffmpeg / ffprobe** décodent, ré-encodent et sondent en lançant un processus. Coûteux.
 
 Une clé : tout (dossier de cache, session ffmpeg, URL des segments) est
@@ -60,7 +60,7 @@ flowchart LR
     ff --> seg
 ```
 
-Les deux moteurs quittent le serveur différemment : un segment mkvgo est
+Les deux moteurs envoient leurs segments différemment : un segment mkvgo est
 construit à la demande et écrit sur la connexion au fil de l'envoi, la voie
 copy ne touche donc jamais le cache de segments ; un segment ffmpeg est un
 fichier sous le répertoire de l'empreinte, écrit une fois et servi depuis là.
@@ -82,15 +82,15 @@ Ouvrez ces fichiers dans l'ordre pour suivre une requête de lecture de bout en 
    manifestes, sonde de délestage, scellé anti-URL périmée, choix du
    producteur et clé de segment lisent tous cette résolution unique, si bien
    qu'à l'intérieur d'une requête l'invariant du hachage de cache tient par
-   construction (le chemin chaud des segments est passé d'environ 5 lectures
+   construction (le chemin critique des segments est passé d'environ 5 lectures
    des préférences de profil à 1). Les assistants de faits sur la source
-   (codec, HDR, SAR, dix bits...) vivent à côté dans `source_facts.go`.
+   (codec, HDR, SAR, dix bits...) se trouvent à côté, dans `source_facts.go`.
    `makeDecision` et `buildFingerprint` dans
    `http/transcode_vod_fingerprint.go` sont de fines enveloppes pour les
    appelants sans plan (préchauffage, master à la demande).
 3. **Q2 : décision** : `internal/app/transcoding/decision.go` :
-   `MakePlaybackDecisionWithPrefs` (pure) est le cerveau copy/transcode par
-   piste. Le résolveur y superpose les épingles de la requête (`vd=` /
+   `MakePlaybackDecisionWithPrefs` (pure) prend la décision copy/transcode
+   par piste. Le résolveur y superpose les valeurs imposées par la requête (`vd=` /
    `ad=`), la surcharge de resynchronisation audio, etc.
 4. **Q3 : capacité** : `internal/app/transcoding/calibration_service.go` :
    `Current()` renvoie `domain/transcoding.Derive(report, policy)`
@@ -98,11 +98,11 @@ Ouvrez ces fichiers dans l'ordre pour suivre une requête de lecture de bout en 
 5. **Échelle et admission** : le résolveur met l'échelle en forme (classe de
    complexité, profils de producteur, plafonds de la source et de la
    capacité, plafonds CMCD/AV1, route et plafond d'admission), puis la
-   **fige** sur l'épingle d'admission (`admission_shaper.go`,
+   **fige** sur la valeur d'admission enregistrée (`admission_shaper.go`,
    `FreezeLadder`), relue telle quelle à chaque appel suivant : l'invariant
    du hachage de cache rendu structurel. `video_session_limiter.go` tient la
-   place de capacité ; la route déborde du matériel vers le logiciel quand
-   c'est plein.
+   place de capacité ; la route passe du matériel au logiciel quand il n'y
+   a plus de place.
 6. **Empreinte** : une `DecisionFingerprint` (type et `Hash()` dans
    `app/transcoding/segment_cache.go`), assemblée par le résolveur. Le
    hachage est la clé du cache.
@@ -110,7 +110,7 @@ Ouvrez ces fichiers dans l'ordre pour suivre une requête de lecture de bout en 
    `app/transcoding/ondemand.go` (port) et
    `adapters/driven/mkvgo/ondemand.go` ; transcodage : **ffmpeg**,
    `adapters/driven/ffmpeg/hls_transcoder.go` (`BuildFFmpegArgs` est pure ;
-   les segments atterrissent dans `/cache/transcode/segments/<hash>/`).
+   les segments sont écrits dans `/cache/transcode/segments/<hash>/`).
 8. **Empaquetage** : `app/transcoding/manifest_generator.go` écrit
    `master.m3u8` / `stream_N.m3u8` ; `manifest_generator_dash.go` écrit
    `manifest.mpd`.
@@ -118,7 +118,7 @@ Ouvrez ces fichiers dans l'ordre pour suivre une requête de lecture de bout en 
 !!! warning "D'une requête à l'autre, l'invariant repose sur les URL"
     Chaque entrée de la décision doit être inscrite dans les URL enfants
     (`querySuffix` dans `manifest_generator.go`), sinon une relecture du
-    manifeste en cours de lecture peut faire basculer le plan sous le
+    manifeste en cours de lecture peut changer le plan à l'insu du
     lecteur. Les URL par session sont réécrites
     (`transcode_vod_manifest_rebake.go`) pour porter le jeton de flux, en
     HLS comme en DASH, y compris pour le Chromecast sans cookie.
@@ -130,10 +130,10 @@ chaîne de responsabilité indexée sur l'extension : il essaie mkvgo et se
 replie sur ffprobe au moindre doute (erreur d'analyse, panique, résultat
 inexploitable, piste média MP4 abandonnée, DoVi profil 5, couleur illisible).
 Les deux voies rapides sont toujours actives (portes à nil dans `wire.go`) ;
-ffprobe est le filet de sécurité, jamais contourné. Un second répartiteur
+ffprobe est le repli de sécurité, jamais contourné. Un second répartiteur
 identique (`keyframe_dispatcher.go`) gère l'index de lecture.
 
-| Opération | mkvgo (gratuit) | ffprobe / ffmpeg (coûteux) |
+| Opération | mkvgo (coût négligeable) | ffprobe / ffmpeg (coûteux) |
 |---|---|---|
 | Sonde de métadonnées (codec, dimensions, HDR, débit, durée) | `.mkv/.webm/.mp4/.mov` en-tête seulement | tout le reste, ou repli |
 | Mode de cadence (cfr/vfr) | `AnalyzeFrameRateMode` | - |
@@ -169,7 +169,7 @@ nativement, et Safari déclare qu'il le peut.
 ## Empaquetage : CMAF, HLS, DASH
 
 Le conteneur est toujours **CMAF** (fMP4) : un `init.mp4` par variante plus
-des segments `.m4s` (la branche MPEG-TS de `hls_transcoder.go` est morte :
+des segments `.m4s` (la branche MPEG-TS de `hls_transcoder.go` est du code mort :
 `needsFMP4Segments` renvoie toujours vrai). Sur les *mêmes* segments :
 
 - **HLS** (`master.m3u8`, `stream_N.m3u8`, init `EXT-X-MAP` + `.m4s`), les deux moteurs.
@@ -180,7 +180,7 @@ des segments `.m4s` (la branche MPEG-TS de `hls_transcoder.go` est morte :
   les listes HLS (`ManifestGenerator.MPD`), écrit avant qu'aucun fragment
   n'existe.
 
-Ce qui rend le manifeste DASH honnête, c'est la **grille de segments**
+Ce qui rend le manifeste DASH exact, c'est la **grille de segments**
 (`domain/transcoding.SegmentGrid`) : chaque barreau transcodé est découpé
 sur le même nombre entier d'images, `arrondi(3 s x fps)` (72 à 23,976 fps,
 75 à 25, 90 à 29,97), donc un segment est exact dans les ticks de la piste
@@ -197,13 +197,13 @@ barreaux, audio séparé à une trame AAC près).
 
 | Motif | Où |
 | --- | --- |
-| Ports et adaptateurs (hexagonal) | la couche applicative parle à `StreamProber`, `BenchmarkRunner`, `OnDemandPackager`, `StreamProducer` ; ffmpeg et mkvgo les implémentent, et un nouveau moteur est un nouvel adaptateur |
+| Ports et adaptateurs (hexagonal) | la couche applicative utilise `StreamProber`, `BenchmarkRunner`, `OnDemandPackager`, `StreamProducer` ; ffmpeg et mkvgo les implémentent, et un nouveau moteur est un nouvel adaptateur |
 | Stratégie | `StreamProducer` (logiciel / matériel / copie), choisi par un `ProducerSelector` |
 | Chaîne de responsabilité avec repli | les répartiteurs de sondes et d'images clés (mkvgo, puis ffprobe comme autorité) |
 | Cache adressé par contenu | le hachage de la `DecisionFingerprint` indexe le cache et la session ffmpeg |
 | Cœur pur, coquille impérative | `Derive`, `MakePlaybackDecision` et le modèle de coût sont purs, testés unitairement sans ffmpeg ni base de données |
 | Objet-valeur immuable | `StreamPlan`, la décision d'admission, émise une fois et jamais modifiée, pour que l'invariant URL-octets tienne par construction |
-| Dégradation gracieuse | un repli sûr à chaque étape : capacité 720p par défaut, débordement du matériel vers le logiciel, de la copie vers le transcodage, de mkvgo vers ffprobe |
+| Dégradation gracieuse | un repli sûr à chaque étape : capacité 720p par défaut, passage du matériel au logiciel, de la copie vers le transcodage, de mkvgo vers ffprobe |
 
 <!-- sources
 entry and plan: internal/adapters/driving/http/transcode_handler_vod.go - serveHTTP ; internal/adapters/driving/http/transcode_vod_plan.go ; internal/adapters/driving/http/transcode_vod_fingerprint.go - makeDecision, buildFingerprint ; internal/adapters/driving/http/transcode_vod_manifest_rebake.go

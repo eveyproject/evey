@@ -23,7 +23,7 @@ d'équivalent dans le panneau.
 | `EVEY_DB_PORT` | `5432` | Le port de la base. | aucun |
 | `EVEY_DB_USER` | `evey` | Le compte de connexion à la base. Quand c'est un superutilisateur (base intégrée et compose fourni), le serveur ne le garde que pour la restauration et tourne sous `EVEY_DB_APP_USER`. | aucun |
 | `EVEY_DB_APP_USER` | `evey_app` | Le rôle sans privilège sous lequel tournent le serveur et ses migrations quand `EVEY_DB_USER` est un superutilisateur. Créé au démarrage, il reçoit la base et ses objets, et un nouveau mot de passe aléatoire à chaque démarrage (jamais écrit nulle part). Une injection SQL ne peut alors ni lancer de programme ni lire de fichier sur l'hôte. | aucun |
-| `EVEY_DB_PRIVILEGE_SPLIT` | `true` | `false` fait tout tourner sous `EVEY_DB_USER`, superutilisateur compris. Une porte de sortie si une base refuse la séparation ; sinon le démarrage s'arrête en nommant cette variable. | aucun |
+| `EVEY_DB_PRIVILEGE_SPLIT` | `true` | `false` fait tout tourner sous `EVEY_DB_USER`, superutilisateur compris. Un recours si une base refuse la séparation ; sinon le démarrage s'arrête en nommant cette variable. | aucun |
 | `EVEY_DB_NAME` | `evey` | Le nom de la base. | aucun |
 | `EVEY_DB_PASSWORD` | générée | Le mot de passe. Avec une base externe, le serveur refuse de démarrer sur la valeur `evey`, et avertit sur `changeme`. | aucun |
 | `EVEY_DB_PASSWORD_FILE` | `/data/keys/postgres.password` | Un fichier contenant le mot de passe, lu quand `EVEY_DB_PASSWORD` n'est pas définie. Définie par l'image. | aucun |

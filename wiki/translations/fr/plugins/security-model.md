@@ -113,7 +113,7 @@ seulement.
 
 ## Liste des emplacements
 
-Les plugins ne peuvent injecter de l'interface que dans des emplacements
+Les plugins ne peuvent injecter des éléments d'interface que dans des emplacements
 explicitement autorisés. Les chemins critiques en sont volontairement
 absents.
 
@@ -153,13 +153,13 @@ jeton ne nomme pas.
    l'analyse statique et la vérification de signature, et renvoie la
    différence de permissions, de capacités, d'emplacements et
    d'`external_fetch` par rapport à la version installée.
-2. Si la différence n'est pas vide, l'administrateur doit la reconnaître
-   avant que la mise à jour soit appliquée (`requires_ack = true` ; par la
+2. Si la différence n'est pas vide, l'administrateur doit l'accepter
+   avant que la mise à jour ne soit appliquée (`requires_ack = true` ; par la
    route d'envoi, `accept_permission_changes=true`).
 3. L'empreinte du paquet est relevée à l'aperçu et vérifiée à l'application :
    le ZIP analysé est le ZIP installé.
 4. Sous `EVEY_PLUGINS_COSIGN_POLICY=enforce`, un échec de signature à
-   l'application bloque la mise à jour même si l'aperçu est passé.
+   l'application bloque la mise à jour même si l'aperçu a réussi.
 
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities

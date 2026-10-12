@@ -7,7 +7,7 @@ reviewed: true
 Où en est Evey sur l'internationalisation (i18n) et l'accessibilité (a11y) :
 ce qui est traduit et comment le catalogue atteint chaque client, puis ce
 qui est en place pour les technologies d'assistance et ce qui ne l'est pas.
-Le catalogue vit dans `i18n/<locale>/*.yaml` à la racine du dépôt, servi
+Le catalogue se trouve dans `i18n/<locale>/*.yaml` à la racine du dépôt, servi
 par `internal/pkg/i18n` et chargé par le module i18n de chaque application.
 C'est un projet auto-hébergé maintenu par une seule personne : considérez
 l'accessibilité en particulier comme faite au mieux, pas certifiée.
@@ -18,7 +18,7 @@ l'accessibilité en particulier comme faite au mieux, pas certifiée.
 
 | Traduit par Evey | Non traduit par Evey |
 | --- | --- |
-| l'habillage de l'interface : boutons, menus, réglages, messages d'erreur, texte des notifications push, e-mails de notification (dans la langue du destinataire) | les métadonnées des médias (titres, résumés, genres), qui viennent du fournisseur de métadonnées dans la **Langue des métadonnées** choisie dans l'assistant de configuration ou dans **Admin → Configuration du serveur → Langue et région** (`EVEY_METADATA_LANGUAGE` n'est que la valeur par défaut) |
+| les textes de l'interface : boutons, menus, réglages, messages d'erreur, texte des notifications push, e-mails de notification (dans la langue du destinataire) | les métadonnées des médias (titres, résumés, genres), qui viennent du fournisseur de métadonnées dans la **Langue des métadonnées** choisie dans l'assistant de configuration ou dans **Administration → Configuration du serveur → Langue et région** (`EVEY_METADATA_LANGUAGE` n'est que la valeur par défaut) |
 | | vos propres bibliothèques, les noms de fichiers et tout ce que vous saisissez, stockés tels quels |
 
 Les e-mails de réinitialisation de mot de passe sont envoyés en anglais. La
@@ -48,11 +48,11 @@ l'anglais plutôt que d'afficher un blanc ou une clé.
   phase avec la langue active pour que les technologies d'assistance
   annoncent la bonne langue. Les **applications mobile et TV** chargent
   depuis le même point d'accès via le module i18n natif partagé et
-  embarquent un socle anglais (`fallback.en.json`, `offlineStrings.ts`) pour
+  embarquent des textes de base en anglais (`fallback.en.json`, `offlineStrings.ts`) pour
   les écrans affichés avant qu'un serveur ne réponde.
 - La langue est choisie d'après la préférence du compte, puis la langue du
   navigateur ou de l'appareil (`Accept-Language` est analysé, région
-  retirée : `fr-FR` devient `fr`), puis la **Langue du serveur** de **Admin →
+  retirée : `fr-FR` devient `fr`), puis la **Langue du serveur** de **Administration →
   Configuration du serveur → Langue et région** (qui fixe aussi la langue des
   nouveaux comptes), puis l'anglais.
 - L'interpolation et le pluriel passent par i18next (`{{count}}`, etc.).
@@ -62,17 +62,17 @@ l'anglais plutôt que d'afficher un blanc ou une clé.
 - **La complétude varie.** L'anglais fait référence et est toujours complet ;
   les cinq autres langues sont maintenues à parité à la main, avec un test
   (`internal/pkg/i18n/parity_test.go`) qui échoue quand un jeu de clés
-  dérive, mais une toute nouvelle fonctionnalité peut arriver d'abord en
+  diverge des autres, mais une toute nouvelle fonctionnalité peut arriver d'abord en
   anglais et se replier dessus jusqu'à sa traduction.
 - **Pas de langue de droite à gauche.** Il n'y a ni arabe, ni hébreu, ni
   persan, et la mise en page n'a été ni conçue ni testée pour le RTL : en
   ajouter une est un vrai travail (propriétés CSS logiques, gestion de
   `dir`), pas seulement un fichier de traduction.
 - **Les traductions ne sont pas relues par des professionnels.** Elles sont
-  de qualité mainteneur. Les corrections sont bienvenues.
+  faites par le mainteneur. Les corrections sont bienvenues.
 - **Le formatage selon la locale est partiel.** Les dates et les nombres
   reposent sur `Intl` de la plateforme ou la locale du navigateur et ne sont
-  pas câblés uniformément sur chaque écran.
+  pas appliqués uniformément sur chaque écran.
 
 ### Ajouter ou corriger une langue
 
@@ -95,7 +95,7 @@ sont délibérés. Mais il n'a **pas** été formellement audité au regard des
 WCAG, il n'y a **aucun test d'accessibilité automatisé** dans la suite, et il
 n'a **pas** été testé systématiquement avec des lecteurs d'écran. Des parties
 sont probablement utilisables avec une technologie d'assistance ; d'autres
-probablement pas. Si vous en dépendez, attendez-vous à des aspérités et
+probablement pas. Si vous en dépendez, attendez-vous à des défauts et
 signalez des cas précis.
 
 ### Ce qui est en place
@@ -111,7 +111,7 @@ signalez des cas précis.
 
 ### Ce qui n'est pas encore fait
 
-- **Aucune passe au lecteur d'écran.** Les parcours NVDA/VoiceOver/TalkBack
+- **Aucune vérification au lecteur d'écran.** Les parcours NVDA/VoiceOver/TalkBack
   ne sont pas vérifiés ; certains composants personnalisés (menus, boîtes de
   dialogue, barre de progression, sélecteurs de pistes) peuvent ne pas
   annoncer correctement leur état ou leur rôle.
@@ -120,8 +120,8 @@ signalez des cas précis.
   incohérents par endroits.
 - **Le contraste n'est mesuré que pour les thèmes intégrés.** Un test
   unitaire (`frontend/packages/theme/src/contrast.test.ts`) impose à chaque
-  thème livré le niveau WCAG AA 4,5:1 pour l'accent, les trois gammes de
-  texte et le jeu de danger contre le fond et les deux surfaces ; l'application
+  thème livré le niveau WCAG AA 4,5:1 pour l'accent, les trois niveaux de
+  couleur du texte et les couleurs de danger contre le fond et les deux surfaces ; l'application
   TV revérifie ses jetons dérivés (`ThemeProvider.contrast.test.ts`). Les
   plugins de thème et les couleurs qu'un plugin injecte à l'exécution ne sont
   pas vérifiés : un thème personnalisé peut encore échouer par endroits. Le

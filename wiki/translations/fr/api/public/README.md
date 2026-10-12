@@ -5,7 +5,7 @@ reviewed: true
 # API publique
 
 Les points d'accès que tout utilisateur connecté peut appeler : ceux que les
-applications utilisent pour parcourir une bibliothèque, lire un titre, tenir
+applications utilisent pour parcourir une bibliothèque, lire un titre, gérer
 des favoris et des playlists, et demander un média. Un fichier par service.
 
 | Spécification | Contenu |

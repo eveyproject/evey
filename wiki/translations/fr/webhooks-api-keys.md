@@ -6,14 +6,14 @@ reviewed: true
 
 Deux façons de relier Evey à d'autres outils sans écrire de plugin : un
 webhook envoie les événements du serveur vers une URL qui vous appartient,
-une clé d'API permet à un script d'appeler le serveur en votre nom. Les deux
-se créent par un administrateur dans le panneau d'administration ; cette
+une clé d'API permet à un script d'appeler le serveur en votre nom. Un
+administrateur crée l'un et l'autre dans le panneau d'administration ; cette
 page s'adresse à la personne qui les met en place et à celle qui écrit le
 récepteur ou le script.
 
 ## Envoyer les événements vers une URL
 
-**Admin → Webhooks → Créer un webhook** : un **Nom**, une **URL**, les
+**Administration → Webhooks → Créer un webhook** : un **Nom**, une **URL**, les
 **Événements** à envoyer, et un **Secret** facultatif pour la signature.
 **Tester** envoie un ping et affiche la réponse.
 
@@ -63,7 +63,7 @@ l'[API des plugins](api/plugins/README.md)), pas dans le panneau.
 ## Appeler le serveur depuis un script
 
 Une clé d'API permet à un script d'appeler l'API du serveur sans mot de
-passe. Les clés se créent dans **Admin → Clés API → Nouvelle clé API**, par
+passe. Les clés se créent dans **Administration → Clés API → Nouvelle clé API**, par
 un administrateur, et lui appartiennent.
 
 - **La clé n'est affichée qu'une fois**, à sa création. Conservez-la à ce

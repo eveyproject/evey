@@ -15,7 +15,7 @@ sa part.
 ## La lecture passe en premier
 
 Les tâches de fond puisent dans une part du processeur, la **Part globale**
-de **Admin → Configuration du serveur → Puissance allouée** : **25 %** par
+de **Administration → Configuration du serveur → Puissance allouée** : **25 %** par
 défaut, **50 %** pour les accélérer quand personne n'utilise le serveur. Sous
 **Tâches lourdes**, l'une d'elles (analyse des nouveaux médias, miniatures de
 navigation, détection d'intro, classification de complexité) peut recevoir sa
@@ -40,7 +40,7 @@ qu'en quelques minutes si le serveur est utilisé.
 
 ## Mémoire
 
-**Profil mémoire** (**Admin → Configuration du serveur**) : **Faible** met en
+**Profil mémoire** (**Administration → Configuration du serveur**) : **Faible** met en
 veille les plugins inactifs pour économiser la mémoire, et les réveille à la
 demande. **Auto (recommandé)** choisit Faible sur les machines de moins de
 3 Go de mémoire.

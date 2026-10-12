@@ -10,7 +10,7 @@ Ces règles concernent les applications Evey pour Android et Android TV.
 
 En bref : le projet Evey ne fait tourner aucun service qui reçoit vos données.
 Pas de compte chez nous, pas de statistiques d'usage, pas de publicité, pas de
-rapports de plantage envoyés chez nous. Les applications parlent au serveur
+rapports de plantage envoyés chez nous. Les applications communiquent avec le serveur
 Evey que vous, ou la personne qui vous a invité, avez installé et faites
 tourner.
 
@@ -20,8 +20,8 @@ tourner.
 envoient ce dont un lecteur de médias a besoin pour fonctionner :
 
 - votre nom d'utilisateur et votre mot de passe quand vous vous connectez (ou
-  le code de Connexion rapide), puis un jeton de session, une clé qui vous
-  garde connecté ;
+  le code de Connexion rapide), puis un jeton de session, une clé qui
+  maintient votre connexion ;
 - ce que vous parcourez, cherchez, lisez, notez, mettez en favori ou
   demandez, et l'endroit où vous en êtes dans la lecture, pour reprendre sur
   un autre appareil ;
@@ -49,7 +49,7 @@ projet Evey n'y a pas accès.
   des services Google Play de votre téléphone. Le Chromecast charge la page de
   réception Evey depuis `cast.eveyproject.org`, hébergée par GitHub Pages. Le
   film ou la musique, lui, arrive directement de votre serveur.
-- **Recherche vocale sur Android TV.** Le bouton micro passe la main à la
+- **Recherche vocale sur Android TV.** Le bouton micro fait appel à la
   reconnaissance vocale de la TV (en général celle de Google). L'application
   reçoit le texte reconnu, jamais l'enregistrement.
 - **Liens que vous ouvrez.** Une bande-annonce, une page The Movie Database
@@ -71,7 +71,7 @@ l'activez, est géré par Android : l'application sait seulement s'il a réussi.
 
 | Autorisation | Pourquoi |
 | --- | --- |
-| Internet, état du Wi-Fi | Joindre votre serveur, savoir si vous êtes sur le réseau de la maison ou dehors. |
+| Internet, état du Wi-Fi | Joindre votre serveur, savoir si vous êtes sur le réseau domestique ou à l'extérieur. |
 | Appareil photo | Scanner le QR code de la Connexion rapide. Rien n'est enregistré ni envoyé. |
 | Notifications, service au premier plan | Montrer où en sont la lecture et les téléchargements, continuer la lecture écran éteint. |
 | Biométrie | Verrouillage facultatif de l'application. |
@@ -82,7 +82,7 @@ L'application pour téléphone n'a pas l'autorisation d'utiliser le micro.
 
 `eveyproject.org` est hébergé par GitHub Pages, qui voit l'adresse IP du
 visiteur. Le site fournit lui-même ses polices et ses scripts : le navigateur
-ne contacte aucun autre service. Il ne dépose aucun cookie à lui et ne fait
+ne contacte aucun autre service. Il ne dépose aucun cookie propre et ne fait
 pas de statistiques de visite.
 
 ## Enfants

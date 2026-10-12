@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Plugins et sandbox
 
-Les variables derrière le confinement et les limites des plugins. Les
+Les variables qui règlent le confinement et les limites des plugins. Les
 valeurs par défaut conviennent à une machine Docker standard ; quelle
 configuration pour quelle machine est expliqué dans
 [Sandbox des plugins : quel réglage pour votre serveur](../plugins/sandbox-deployment.md),
@@ -21,7 +21,7 @@ et le fonctionnement des couches de protection dans
 
 ## Limites de ressources
 
-Ce sont les valeurs de départ ; celles enregistrées dans **Admin → Plugins →
+Ce sont les valeurs de départ ; celles enregistrées dans **Administration → Plugins →
 Limites de ressources** s'appliquent à tous les plugins et l'emportent.
 
 | Variable | Défaut | Effet | Panneau |

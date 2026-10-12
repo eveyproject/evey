@@ -29,9 +29,9 @@ flowchart LR
 Un plugin est un ZIP avec un `plugin.yaml` à sa racine et un processus
 backend que le serveur démarre dans une sandbox. Le processus sert un petit
 service gRPC sur un socket Unix et rappelle le serveur sur un autre. Il peut
-aussi embarquer un module d'interface, dessiné dans un cadre isolé de la page,
-et ne parle au monde extérieur que par le serveur, vers les hôtes qu'il a
-déclarés.
+aussi embarquer un module d'interface, affiché dans un cadre isolé de la page,
+et ne communique avec l'extérieur que par l'intermédiaire du serveur, vers
+les hôtes qu'il a déclarés.
 
 ## 1. Prérequis
 
@@ -110,7 +110,7 @@ et l'installons.
       - api.library             # laisse le backend lire les médias
     ```
 
-    `language` dit au serveur quel environnement vérifier et quels stubs
+    `language` indique au serveur quel environnement vérifier et quels stubs
     copier ; `entrypoint` est ce qu'il lance, dans le dossier du plugin, avec
     l'environnement de l'étape suivante.
 
@@ -136,7 +136,7 @@ et l'installons.
     zip -r ../hello-plugin.zip . -x ".*" "node_modules/*"
     ```
 
-5. **Installez-le.** Dans **Admin → Plugins**, **Installer un plugin**,
+5. **Installez-le.** Dans **Administration → Plugins**, **Installer un plugin**,
    choisissez le ZIP puis **Aperçu et installation** : l'aperçu liste
    `api.library` et le résultat de l'analyse statique. Par l'API, le même
    envoi s'écrit :
@@ -148,7 +148,7 @@ et l'installons.
     ```
 
 6. **Lisez le journal.** Sur la carte du plugin, **Logs** montre la ligne
-   écrite par `Initialize`. `docker compose logs evey` porte le côté serveur du
+   écrite par `Initialize`. `docker compose logs evey` montre le côté serveur du
    même démarrage, sous l'identifiant du plugin.
 
 7. **Itérez.** Modifiez le code, incrémentez `version`, compressez de nouveau
@@ -157,9 +157,9 @@ et l'installons.
    permission dans le manifeste déclenche l'étape de consentement que
    l'administrateur doit approuver.
 
-Vous avez là tout le contrat backend. À partir d'ici, un plugin grandit dans
-trois directions : appeler le serveur (`HostService`, section 4), dessiner une
-interface (section 5), et atteindre le monde extérieur (section 6).
+Vous avez là tout le contrat backend. À partir d'ici, un plugin peut être
+étendu de trois façons : appeler le serveur (`HostService`, section 4),
+afficher une interface (section 5), et accéder à l'extérieur (section 6).
 
 ## 4. Appeler le serveur depuis le backend
 
@@ -195,7 +195,7 @@ frontend:
 
 Le module reçoit un pont `window.evey` : `evey.onInit` lui remet la
 configuration du plugin, la langue, le thème et la surface sur laquelle il
-atterrit ; `evey.resize`, `evey.toast` et `evey.navigate` agissent sur la
+s'affiche ; `evey.resize`, `evey.toast` et `evey.navigate` agissent sur la
 page dans des limites fixes ; et, quand le manifeste déclare `prefs` ou
 `public`, `evey.prefs.*` et `evey.media.*` atteignent le serveur par un jeton
 de courte durée que l'hôte détient pour le cadre.
@@ -204,10 +204,10 @@ de courte durée que l'hôte détient pour le cadre.
 `admin.nav`. Le pont et les emplacements sont décrits dans la
 [référence de l'API](api-reference.md#frontend-api).
 
-## 6. Atteindre le monde extérieur
+## 6. Accéder à l'extérieur
 
 Un processus de plugin ne peut ouvrir aucun socket vers Internet, quel que
-soit le mode de sandbox. La seule sortie est l'appel `Fetch` de
+soit le mode de sandbox. Le seul accès possible est l'appel `Fetch` de
 `HostService` : le serveur vérifie la cible contre le manifeste, puis fait la
 requête lui-même.
 
@@ -229,14 +229,14 @@ Les règles sont dans
 !!! note "Les hôtes sont un contrat avec l'administrateur"
     L'administrateur voit la liste des hôtes à l'installation et doit
     approuver tout ajout à la mise à jour. Limitez-la à ce dont le plugin a
-    besoin, et dites dans votre README ce que chaque hôte reçoit.
+    besoin, et indiquez dans votre README ce que chaque hôte reçoit.
 
 ## 7. Signer son plugin
 
 !!! info "Ce que prouve une signature"
-    Une signature dit que le ZIP que l'administrateur installe est, octet
+    Une signature atteste que le ZIP que l'administrateur installe est, octet
     pour octet, celui que **vous** avez publié, signé avec la clé en
-    laquelle il a confiance. Elle ne dit rien de ce que fait le plugin : les
+    laquelle il a confiance. Elle n'indique rien de ce que fait le plugin : les
     permissions, les hôtes et l'analyse de l'aperçu s'appliquent toujours.
     Evey la vérifie hors ligne et dans son propre processus (ECDSA P-256 sur
     le SHA-256 du ZIP, le format que produit `cosign sign-blob --key`) : pas
@@ -288,14 +288,14 @@ EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
 EVEY_PLUGINS_COSIGN_POLICY=warn   # ou "enforce" pour refuser ce qui ne se vérifie pas
 ```
 
-Puis, dans **Admin → Plugins**, il choisit le ZIP et, dans **Fichier
+Puis, dans **Administration → Plugins**, il choisit le ZIP et, dans **Fichier
 signature (.zip.sig, optionnel)**, son `.zip.sig` ; par l'API, la signature
 est le champ `sig` de l'envoi. L'aperçu affiche **Signé** ou une signature
 invalide, et le Tableau de bord sécurité conserve le résultat.
 
-Ce qui piège souvent :
+Erreurs fréquentes :
 
-- **Tout changement du ZIP casse la signature**, même recompresser les mêmes
+- **Tout changement du ZIP invalide la signature**, même recompresser les mêmes
   fichiers. Signez le fichier que vous distribuez, et signez de nouveau à
   chaque version.
 - **Seules les clés ECDSA P-256 sont acceptées**, ce que produit `cosign
@@ -306,14 +306,14 @@ Ce qui piège souvent :
   Avec `enforce` et sans clé, le serveur refuse de démarrer.
 - Avec le `warn` par défaut et sans clé publique configurée, **rien n'est
   vérifié** ; le serveur se contente d'un avertissement au démarrage.
-- Une mauvaise clé, un ZIP altéré et un `.sig` manquant se lisent tous comme
+- Une mauvaise clé, un ZIP altéré et un `.sig` manquant sont tous traités comme
   une signature en échec : sous `enforce`, l'installation ou la mise à jour
   est refusée.
 
 ## 8. Ce que vérifie l'installateur, dans l'ordre
 
 Chaque étape peut refuser le paquet ; l'administrateur voit la raison, et le
-journal du serveur porte le détail.
+journal du serveur contient le détail.
 
 1. **Manifeste.** `plugin.yaml` est lu directement dans le ZIP : champs
    obligatoires, semver, permissions et capacités connues, emplacements dans
@@ -354,15 +354,15 @@ Le serveur démarre le processus avec une priorité processeur abaissée, un
 plafond de mémoire, une limite de processus et de threads, et une taille
 maximale pour son dossier ; un moniteur arrête un plugin qui les dépasse. Les
 défauts sont 256 Mio, 64 processus et 100 Mio, ajustables par
-l'administrateur dans **Admin → Plugins → Limites de ressources**. Sans la
+l'administrateur dans **Administration → Plugins → Limites de ressources**. Sans la
 permission `subprocess`, le processus ne peut pas créer d'enfants, quel que
 soit le langage ; les threads fonctionnent.
 
-La sandbox confine le système de fichiers au dossier du plugin et coupe tout
+La sandbox confine le système de fichiers au dossier du plugin et bloque tout
 socket réseau, sans condition. Le mode en vigueur dépend de l'hôte, pas du
 plugin : [Sandbox des plugins et modèle de menace](../SECURITY.md#sandbox-modes)
 les décrit, et [Mise en place de la sandbox des plugins](sandbox-deployment.md)
-dit à un administrateur lequel choisir.
+indique à un administrateur lequel choisir.
 
 ## 10. Distribuer un plugin
 
@@ -381,7 +381,7 @@ l'endroit où vous le publiez (une release sur une forge, votre propre site).
 
 ## 11. Dépannage
 
-| Symptôme | Cause | Remède |
+| Symptôme | Cause | Solution |
 |---|---|---|
 | `plugin requires "nodejs" runtime which is not installed in this image` | La variante d'image n'a pas l'interpréteur. | Utilisez l'image `-nodejs` ou `-full`, ou écrivez le plugin en Python. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | Les jokers sont refusés à l'installation, sans exception. | Listez chaque nom d'hôte nécessaire (`api.tmdb.org`, `image.tmdb.org`). |

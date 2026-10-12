@@ -9,7 +9,7 @@ reviewed: true
 - MKVGo est une partie d'Evey qui lit les fichiers vidéo (MKV, WebM, MP4,
   MOV) et les remet dans un autre format de fichier, sans convertir l'image
   ni le son.
-- Quand c'est possible, c'est elle qui sert les lectures en **Remux**, sort
+- Quand c'est possible, c'est elle qui sert les lectures en **Remux**, extrait
   les sous-titres des fichiers, et lit vos fichiers pendant un scan. Tout ce
   qui demande une vraie conversion passe par FFmpeg, un outil vidéo à part.
 - Vous n'avez rien à régler. **Administration → En cours de lecture** montre,
@@ -75,9 +75,9 @@ de processeurs, et moins sur une machine qui a peu de mémoire : toutes les
 fenêtres en cours doivent tenir dans un quart de la mémoire que le serveur
 s'accorde (la moitié de la limite du conteneur, ou de la mémoire de l'hôte).
 Les demandes au-delà attendent une place libre, si bien que la mémoire
-utilisée ne grandit pas avec l'audience ; sur une petite machine, une foule
-qui démarre au même moment voit ses premiers segments arriver les uns après
-les autres plutôt que de voir le serveur manquer de mémoire.
+utilisée ne grandit pas avec l'audience ; sur une petite machine, de nombreux
+spectateurs qui démarrent au même moment reçoivent leurs premiers segments
+les uns après les autres, et le serveur ne manque pas de mémoire.
 
 **Un fichier remplacé pendant la lecture.** Chaque adresse de segment nomme le
 fichier à partir duquel il a été planifié. Quand un fichier est remplacé sur
@@ -98,7 +98,7 @@ change, chacune est reconstruite la prochaine fois qu'on la demande.
 `evey_mkvgo_walks_in_flight` donne le nombre de fenêtres en cours de lecture,
 et `evey_mkvgo_plan_stats` additionne les compteurs de l'empaqueteur par `stat`.
 Un `walks_in_flight` bloqué à son plafond pendant que `stat="slot_waits"`
-grimpe signifie que des spectateurs font la queue pour le processeur ;
+augmente signifie que des spectateurs attendent une place sur le processeur ;
 `stream_fallbacks` compte les segments qui ont dû être assemblés en mémoire
 au lieu d'être diffusés directement.
 

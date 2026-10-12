@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Sauvegardes, logs et supervision
 
-Les variables derrière les sauvegardes de la base, le log du serveur, la
+Les variables qui règlent les sauvegardes de la base, le log du serveur, la
 durée de conservation des historiques et les points d'accès pour une
 supervision externe. Le quotidien est décrit dans
 [Sauvegardes et mises à jour](../backups.md) et
@@ -30,7 +30,7 @@ supervision externe. Le quotidien est décrit dans
 ## Conservation des historiques
 
 Les durées de conservation sont relues à chaque nettoyage quotidien : une
-valeur enregistrée dans **Admin → Configuration du serveur → Paramètres du
+valeur enregistrée dans **Administration → Configuration du serveur → Paramètres du
 serveur** s'applique au balayage suivant.
 
 | Variable | Défaut | Effet | Panneau |

@@ -9,7 +9,7 @@ hide:
 # Evey { #evey }
 
 Evey est un serveur de médias que vous installez chez vous. Il garde vos
-films, séries, musique et photos, et chaque personne de la maison les regarde
+films, séries, musique et photos, et chaque personne de votre foyer les regarde
 sur ses propres appareils. Vous ne choisissez jamais une qualité : vous
 appuyez sur lecture, Evey s'occupe du reste.
 
@@ -41,7 +41,7 @@ Android et Android TV sont en test et pas encore sur Google Play.
 
 -   **On vous a donné une adresse**
 
-    Quelqu'un chez vous fait déjà tourner Evey, et vous voulez juste regarder.
+    Quelqu'un chez vous fait déjà tourner Evey, et vous voulez simplement regarder.
     [Lire Regarder avec Evey](getting-started/watching.md)
 
 </div>
@@ -70,10 +70,10 @@ Android et Android TV sont en test et pas encore sur Google Play.
 
 </div>
 
-## Pour toute la maison { #for-everyone-at-home }
+## Pour tout le foyer { #for-everyone-at-home }
 
 - **Un profil par personne.** Chaque profil garde son historique, ses points
-  de reprise, ses favoris et ses langues. En général, une maison partage un
+  de reprise, ses favoris et ses langues. En général, un foyer partage un
   seul compte, avec un profil par personne.
 - **Des profils enfant.** Un profil enfant s'ouvre sans code. Pour en sortir
   vers un profil adulte, il faut un code PIN à quatre chiffres. Un profil
@@ -85,11 +85,11 @@ Android et Android TV sont en test et pas encore sur Google Play.
   regarder sans connexion, pendant 30 jours.
 - **Sur la TV.** Vous connectez une Android TV avec la **Connexion rapide** :
   la TV affiche un code, et vous l'acceptez depuis votre téléphone ou votre
-  ordinateur. Aucun mot de passe à taper avec la télécommande.
+  ordinateur. Aucun mot de passe à saisir avec la télécommande.
 - **Ensemble.** Plusieurs personnes peuvent regarder le même titre au même
   moment, chacune sur son appareil.
 
-La musique et les photos marchent comme les films et les séries, sur le web,
+La musique et les photos fonctionnent comme les films et les séries, sur le web,
 sur Android et sur la TV.
 [Connecter les applications](getting-started/apps.md) ·
 [Utilisateurs, profils et contrôle parental](administration/users.md)
@@ -104,7 +104,7 @@ façon la plus légère qui fonctionne :
 - **Lecture directe** : le fichier est envoyé tel quel.
 - **Remux** : l'image et le son sont recopiés, sans changement, dans un
   format de fichier que l'appareil accepte. Cela ne coûte presque rien au
-  serveur. Evey a son propre outil pour ça, **MKVGo**, et passe par FFmpeg
+  serveur. Evey a son propre outil pour cela, **MKVGo**, et passe par FFmpeg
   quand MKVGo ne peut pas.
 - **Transcodage** : le serveur convertit seulement ce que l'appareil ne sait
   pas lire, souvent juste le son. C'est le seul cas qui fait travailler le
@@ -117,7 +117,7 @@ la même chose pour toutes les personnes qui regardent.
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
   ![Les Infos du flux dans le lecteur web](images/player-stream-info.webp){ loading=lazy }
-  <figcaption>La première lecture du tableau de bord ci-dessus, vue depuis le lecteur. Remux : le format de fichier change, l'image et le son sont recopiés, et la dernière ligne dit pourquoi le fichier n'a pas pu être envoyé tel quel (interface en anglais).</figcaption>
+  <figcaption>La première lecture du tableau de bord ci-dessus, vue depuis le lecteur. Remux : le format de fichier change, l'image et le son sont recopiés, et la dernière ligne indique pourquoi le fichier n'a pas pu être envoyé tel quel (interface en anglais).</figcaption>
 </figure>
 
 [Comment Evey choisit le mode de lecture](playback/how-playback-is-decided.md) ·
@@ -131,15 +131,15 @@ pas de réglage de mémoire ou de processeur.
 - **Tout est dedans.** La base de données et le moteur de recherche tournent
   dans le conteneur. Leurs mots de passe sont créés au premier démarrage.
 - **Le serveur ne tourne jamais en root.** Il tourne sous le propriétaire de
-  votre dossier de médias quand il arrive à le trouver, pour que les
+  votre dossier de médias quand il parvient à le déterminer, pour que les
   réparations puissent écrire.
 - **Le serveur se mesure lui-même.** Dans un moment calme, il chronomètre de
   vraies conversions sur le processeur et sur la carte graphique que vous lui
   avez donnée, s'il y en a une. Il sait alors combien de personnes il peut
   servir en même temps. Quand la place manque, une nouvelle lecture reçoit une
   qualité plus basse, ou passe d'une carte graphique occupée au processeur. Si
-  une lecture ne peut pas démarrer, le message dit pourquoi : le serveur est
-  plein, il est encore en train de se mesurer, ou le fichier n'est pas prêt.
+  une lecture ne peut pas démarrer, le message indique pourquoi : le serveur est
+  saturé, il est encore en train de se mesurer, ou le fichier n'est pas prêt.
 - **L'accès depuis l'extérieur de chez vous est fermé** tant que vous ne
   donnez pas d'adresse publique au serveur.
 
@@ -153,7 +153,7 @@ moteur de recherche :
 **Vos fichiers.** Retirer un titre ou une bibliothèque le retire d'Evey,
 jamais du disque. Evey n'écrit dans vos dossiers de médias que dans trois
 cas : une réparation que vous avez demandée, un sous-titre récupéré par l'API,
-et un petit fichier de test qui vérifie qu'Evey voit toujours arriver les
+et un petit fichier de test qui vérifie qu'Evey détecte toujours les
 nouveaux fichiers. Montez vos médias en lecture seule et rien de tout cela
 n'arrive. **Santé des médias** vérifie vos fichiers MKV et WebM et liste les
 problèmes trouvés. Elle ne répare un fichier que si vous le demandez. Elle
@@ -164,11 +164,11 @@ garde l'original par défaut, et note chaque changement. Ce qui ne peut pas
 
 **Vos données.** Le projet ne fait tourner aucun service qui les reçoit : pas
 de compte chez nous, pas de statistiques d'usage, pas de rapports de
-plantage. Les applications parlent à votre serveur, et à rien d'autre que
-nous gérons. Ce qui sort de votre réseau : le serveur va chercher les images
+plantage. Les applications communiquent avec votre serveur, et avec aucun
+service que nous gérons. Ce qui sort de votre réseau : le serveur va chercher les images
 et les descriptions sur des services extérieurs (The Movie Database, et des
 sources de pochettes pour la musique). De temps en temps, il demande aussi
-s'il existe une version plus récente, ce que vous pouvez couper. La base de
+s'il existe une version plus récente, ce que vous pouvez désactiver. La base de
 données est sauvegardée avant chaque mise à jour qui la modifie.
 [Règles de confidentialité](privacy.md) · [Sauvegardes et mises à jour](backups.md)
 
@@ -181,8 +181,8 @@ l'administrateur voit ce que l'analyse du plugin a trouvé et les permissions
 qu'il demande. Une nouvelle permission doit être acceptée clairement. Un plugin
 tourne dans son propre processus, sous un utilisateur à part, sans accès
 direct au réseau. Il est arrêté s'il dépasse sa limite de mémoire, de
-processus ou de disque. Le niveau de verrouillage de ses fichiers dépend de
-la machine, et le **Tableau de bord sécurité** montre le mode utilisé. Le
+processus ou de disque. Le niveau de restriction d'accès à ses fichiers
+dépend de la machine, et le **Tableau de bord sécurité** montre le mode utilisé. Le
 widget d'un plugin s'affiche sur le web, sur Android et sur la TV. Sur la
 TV, vous pouvez le voir mais pas vous en servir.
 [Plugins](plugins.md) ·
@@ -204,8 +204,8 @@ TV, vous pouvez le voir mais pas vous en servir.
 
 -   **[Connecter les applications](getting-started/apps.md)**
 
-    L'adresse à taper sur un téléphone ou une TV, la connexion, et ce que
-    veut dire chaque erreur.
+    L'adresse à saisir sur un téléphone ou une TV, la connexion, et ce que
+    signifie chaque erreur.
 
 -   **[Regarder avec Evey](getting-started/watching.md)**
 

@@ -57,9 +57,9 @@ curl -v http://localhost:9091/healthz
 
 **Correction** :
 
-- Conteneur sorti : le panic est à la fin de `docker logs evey-server`.
+- Conteneur arrêté : le panic est à la fin de `docker logs evey-server`.
   Corrigez la cause, puis `docker compose up -d evey`.
-- Healthcheck rouge parce que la base ou le moteur de recherche est tombé :
+- Healthcheck rouge parce que la base ou le moteur de recherche est arrêté :
   voir [Erreurs de base de données](#database-errors) et
   [La recherche est dégradée](#search-is-degraded).
 - Conflit de port sur l'hôte : changez le côté hôte de la ligne `ports:` du
@@ -82,9 +82,9 @@ docker exec evey-server ls -l /data/jwt.key
 
 Cherchez d'abord la ligne « epoch ». Chaque requête authentifiée revérifie
 l'époque de jeton de l'utilisateur dans la base, et cette vérification
-échoue fermé : une base lente, verrouillée ou injoignable fait renvoyer à
+refuse l'accès quand elle échoue : une base lente, verrouillée ou injoignable fait renvoyer à
 chaque requête le même 401 qu'un jeton expiré, ce qui ressemble à un problème
-de JWT et n'en est pas un. Le serveur le dit :
+de JWT et n'en est pas un. Le serveur l'indique :
 
 ```
 auth rejected: the token epoch could not be read, so every authenticated request is failing - check the database, not the JWT key
@@ -109,7 +109,7 @@ d'époque. Le compteur Prometheus est
   `EVEY_RATELIMIT_LOGIN_MAX` (`10` par IP et par minute) et
   `EVEY_RATELIMIT_GLOBAL_MAX` (`300`). Un proxy inverse qui transmet tout
   sous une seule adresse le déclenche vite : ajoutez le proxy dans **Proxys
-  de confiance** dans **Admin -> Accès distant** (appliqué sans redémarrage ;
+  de confiance** dans **Administration → Accès distant** (appliqué sans redémarrage ;
   `EVEY_TRUSTED_PROXIES` est le repli). Le `docker-compose.override.yml` du
   dépôt monte les deux à `1000` / `10000` pour le développement.
 - **Dérive d'horloge** entre le serveur et les clients : `date -u` sur
@@ -143,26 +143,26 @@ docker exec evey-server touch /cache/transcode/.write-test && \
   compose les remplace. Hors de l'image, les valeurs par défaut du code sont
   `/data/transcode` et `/cache/trickplay`.
 - **Cache plein** : voir [Le disque de cache est plein](#the-cache-disk-is-full).
-- **Accélération matérielle capricieuse** : passez **Accélération
-  matérielle** sur **Désactivée (processeur uniquement)** dans **Admin ->
-  Configuration transcodage -> Calibrage de l'encodage** (appliqué à chaud,
+- **Accélération matérielle instable** : passez **Accélération
+  matérielle** sur **Désactivée (processeur uniquement)** dans **Administration →
+  Configuration transcodage → Calibrage de l'encodage** (appliqué à chaud,
   avec recalibrage) pour que chaque transcodage tourne sur le processeur ;
   repassez sur **Auto (meilleur disponible)** une fois le matériel réparé.
-- **« The server is busy transcoding other streams »** : la capacité à chaud
-  est mesurée, pas réglée ; voir
+- **« The server is busy transcoding other streams »** : la capacité de lecture
+  en direct est mesurée, pas réglée ; voir
   [Partager la capacité](../playback/transcoding.md#sharing-the-capacity).
-  `EVEY_TRANSCODING_MAX_CONCURRENT` (**Maximum simultané** dans **Admin ->
+  `EVEY_TRANSCODING_MAX_CONCURRENT` (**Maximum simultané** dans **Administration →
   Cache de transcodage**) ne couvre que les tâches de transcodage hors
   lecture en direct.
 
-### Ça met en mémoire tampon ou ça coupe, et le journal ne dit pas pourquoi
+### La lecture se met en mémoire tampon ou se coupe, et le journal n'indique pas pourquoi
 
 **Symptôme** : un spectateur signale des blocages sur un titre transcodé ; le
 journal montre `hls-vod: segment timeout` avec `err:"context canceled"`, ce
-qui signifie que le client a raccroché, pas que le serveur a expiré.
+qui signifie que le client a fermé la connexion, pas que le délai du serveur a expiré.
 
-**Diagnostic** : commencez par ce que le serveur a déjà enregistré, c'est
-gratuit :
+**Diagnostic** : commencez par ce que le serveur a déjà enregistré, cela
+ne coûte rien :
 
 ```sh
 # Pourquoi une requête de segment a réutilisé un encodeur ou en a lancé un,
@@ -175,7 +175,7 @@ docker exec evey-server grep -E '"software: session (started|killed)"|per-hash c
   /data/logs/evey-$(date +%F).log | tail -40
 ```
 
-Ces lignes disent ce que le serveur a décidé. Pour voir ce que ffmpeg a
+Ces lignes indiquent ce que le serveur a décidé. Pour voir ce que ffmpeg a
 réellement produit seconde par seconde, activez le journal de progression par
 encodeur (`$TOKEN` est un JWT d'administrateur) :
 
@@ -197,19 +197,19 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
 ```
 
 !!! note
-    Laissez le journal de progression éteint hors investigation : un fichier
+    Laissez le journal de progression désactivé hors investigation : un fichier
     par encodeur, quelques Mo par session, pour chaque lecture sur la machine.
     Le nom du fichier porte le hachage de décision, le palier (`-vN-`) et le
     segment de départ (`-sN-`), donc il s'aligne avec le journal JSON ; un
-    relancement à la même position a son propre fichier, ce qui rend visible
-    le va-et-vient des encodeurs.
+    relancement à la même position a son propre fichier, ce qui rend visibles
+    les relances successives des encodeurs.
 
 **Correction** :
 
 - **Sauts avant courts et répétés** : chacun peut lancer un nouvel encodeur,
   et le plafond par hachage (`MaxSessionsPerHash`, 2 par défaut, 1 sous le
   profil basse mémoire) évince le moins récemment utilisé : `session killed
-  reason:lru_cap` dans le journal. Normal avec modération.
+  reason:lru_cap` dans le journal. Normal tant que cela reste occasionnel.
 - **Le client est moins patient que le serveur** : la fenêtre d'atteinte
   après un saut est dimensionnée sur `clientSegmentPatience` (6 s) alors que
   le budget d'attente propre du serveur (`WaitBudgetDur`) est de 60 s. Une
@@ -226,21 +226,21 @@ player)` et des requêtes répondues `410 Gone` avec
 C'est une protection qui se déclenche, pas la panne elle-même. Chaque URI de
 manifeste porte le hachage de décision sous lequel elle a été construite
 (`fp=`). Un 410 signifie qu'un lecteur a présenté une URL d'une session dont
-l'échelle ABR a été remodelée depuis ; la servir donnerait au décodeur des
+l'échelle ABR a été modifiée depuis ; la servir donnerait au décodeur des
 octets d'un autre rendu. Le refus force un rechargement propre du master.
 
 **Diagnostic** : le WARN porte `sealed_fp`, `current_fp` et l'identifiant du
 média.
 
 - Une **rafale juste après un déploiement, un redémarrage ou un recalibrage**
-  est attendue : des sessions en cours ont survécu à un changement de
+  est attendue : des sessions étaient en cours pendant un changement de
   capacité. Les lecteurs se resynchronisent en un cycle.
-- Un **goutte-à-goutte régulier en fonctionnement normal** signifie que
-  quelque chose remodèle sans cesse les échelles sous des flux en cours :
+- Des **410 peu nombreux mais réguliers en fonctionnement normal** signifient
+  que quelque chose modifie sans cesse les échelles de flux en cours :
   cherchez une capacité qui oscille (`docker logs evey-server | grep -iE
-  'calibrat|capability'`), un régulateur d'admission qui s'agite sous charge,
+  'calibrat|capability'`), un régulateur d'admission qui change souvent d'état sous charge,
   ou un plafond CMCD qui oscille.
-- Des lecteurs qui **bouclent sur 410** gardent un master en cache (une
+- Des lecteurs qui **reçoivent des 410 en boucle** gardent un master en cache (une
   vieille version d'application, un proxy qui met les `.m3u8` en cache). Le
   proxy doit laisser passer `Cache-Control: no-cache`.
 
@@ -263,11 +263,11 @@ df -h ./evey-data
 
 **Correction** :
 
-- **Disque plein** sous `./evey-data` (le cluster vit dans
+- **Disque plein** sous `./evey-data` (le cluster se trouve dans
   `./evey-data/postgres`) : libérez de l'espace, puis
   `docker compose restart evey`.
 - **Pool épuisé** (`too many connections`, longues attentes) :
-  `EVEY_DB_MAX_OPEN_CONNS` (`25` par défaut). Tuez les sessions bloquées :
+  `EVEY_DB_MAX_OPEN_CONNS` (`25` par défaut). Terminez les sessions bloquées :
   ```sql
   SELECT pg_terminate_backend(pid)
     FROM pg_stat_activity
@@ -298,7 +298,7 @@ docker logs --tail=300 evey-server | grep -i meili
 
 **Correction** :
 
-- En mauvaise santé : `docker compose restart evey`.
+- Healthcheck en échec : `docker compose restart evey`.
 - Index corrompu : arrêtez le conteneur, mettez `./evey-data/meili` de côté,
   redémarrez, puis reconstruisez l'index depuis la base :
   ```sh
@@ -327,15 +327,15 @@ docker volume inspect evey_evey-cache   # le préfixe du compose peut différer
   ```
   Cela supprime aussi `photos/` (variantes redimensionnées des photos) et
   `track-art/` (pochettes extraites des tags audio) qu'il contient ; les deux
-  sont reconstruits à la prochaine requête. **Tout vider** dans **Admin ->
+  sont reconstruits à la prochaine requête. **Tout vider** dans **Administration →
   Cache de transcodage** vide le même cache depuis le panneau.
 - Le trickplay coûte plus cher à régénérer ; ne le purgez que si nécessaire :
   ```sh
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
-- Baissez le **Budget du cache de transcodage (Go)** dans **Admin ->
-  Configuration du serveur -> Paramètres du serveur** (`10` par défaut) si
-  le volume de l'hôte est juste. Quel que soit le budget, le balayeur garde
+- Baissez le **Budget du cache de transcodage (Go)** dans **Administration →
+  Configuration du serveur → Paramètres du serveur** (`10` par défaut) si
+  le volume de l'hôte manque de place. Quel que soit le budget, le balayeur garde
   2 Gio libres sur le volume de cache.
 
 ## Un plugin a planté
@@ -353,29 +353,29 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 **Correction** :
 
 1. Relancez le plugin sans toucher au serveur : **Activer** à nouveau dans
-   **Admin -> Plugins**, ou `POST /api/v1/admin/plugins/<id>/enable`. Cela
-   marche quand le plugin est activé mais coincé en `Error` : le démarrage ne
+   **Administration → Plugins**, ou `POST /api/v1/admin/plugins/<id>/enable`. Cela
+   fonctionne quand le plugin est activé mais bloqué en `Error` : le démarrage ne
    refuse qu'un plugin déjà `Running` ou `Initializing`.
 2. Si cela ne suffit pas, **Désactiver** le plugin depuis le panneau.
 3. Si le serveur lui-même est instable : `docker compose restart evey`.
-4. Les fichiers des plugins vivent dans `./evey-data/plugins/` sur l'hôte
-   (`/data/plugins` dans le conteneur). Supprimez le dossier du plugin cassé,
+4. Les fichiers des plugins se trouvent dans `./evey-data/plugins/` sur l'hôte
+   (`/data/plugins` dans le conteneur). Supprimez le dossier du plugin défaillant,
    redémarrez.
 5. Envoyez la trace du panic et l'identifiant du plugin à son auteur.
 
-## Un cast a gelé, s'est tu, ou le téléphone tourne dans le vide
+## Une diffusion s'est figée, est devenue muette, ou le téléphone reste en chargement
 
-Tout ce qui suit se lit depuis **Admin -> Logs & Debug** ; aucun shell sur la
+Tout ce qui suit se lit depuis **Administration → Logs & Debug** ; aucun shell sur la
 machine n'est nécessaire. Les heures sont en UTC. Chaque balise est une ligne
 `player-client: playback event reported` avec `type=` et une chaîne
 `details=`.
 
-1. **Le récepteur était-il vivant, et jusqu'à quand ?** Cherchez
+1. **Le récepteur était-il actif, et jusqu'à quand ?** Cherchez
    `cast_receiver_alive`. Le récepteur en envoie une toutes les 30 s pendant
    la lecture ; `details` porte `buf=<arrière>/<avant>/<plages>` (secondes en
    tampon autour de la tête de lecture) et `pos_sec`. Une lecture saine
    montre `ahead` à plusieurs dizaines de secondes. L'heure de la dernière
-   balise est le moment où le récepteur est mort ou a été tué : rien après
+   balise est le moment où le récepteur s'est arrêté ou a été arrêté de force : rien après
    signifie que le téléviseur n'exécute plus le récepteur, quoi qu'affiche le
    téléphone.
 2. **Pourquoi s'est-il arrêté ?** Cherchez `cast_receiver_finished` :
@@ -383,39 +383,39 @@ machine n'est nécessaire. Les heures sont en UTC. Chaque balise est une ligne
    (cherchez un `StartStream` quelques secondes avant), `reason=ERROR` porte
    l'erreur du lecteur. Aucun `finished` après le dernier `alive` signifie
    que le processus du récepteur a disparu, le plus souvent un Chromecast HD
-   tué pour sa mémoire sur un master copie à 20 Mbps ou plus.
+   arrêté faute de mémoire sur un master copie à 20 Mbps ou plus.
 3. **Qu'a vu le téléphone ?** Cherchez `cast_sender_stall` : l'émetteur
-   envoie `state=playing frozen=<n>s pos=<p>` quand le SDK Cast dit encore
+   envoie `state=playing frozen=<n>s pos=<p>` quand le SDK Cast indique encore
    PLAYING mais que la position n'a pas bougé depuis 20 s, et `state=idle
    reason=<r>` quand le récepteur a signalé une raison d'inactivité. Ce sont
    des lignes WARN, que le filtre d'avertissements de la page fait remonter.
    Comparez son `pos` au dernier `pos_sec` du récepteur.
-4. **La session a-t-elle cascadé ?** Cherchez `refresh rejected` : un jeton
+4. **La session a-t-elle provoqué des reconnexions en série ?** Cherchez `refresh rejected` : un jeton
    de rafraîchissement `not found` déconnecte puis reconnecte l'application
    (identifiants enregistrés), ce qui réémet le flux ; la ligne porte le
    `jti`, `issued` et `age` du jeton, ce qui distingue une copie périmée d'un
    faux. Cherchez `StartStream` pour voir les réémissions.
 5. **Le flux était-il trop gros pour l'appareil ?** Cherchez `advertises a
    fallback rung` (le débit de pointe du master copie) et `plan fitted to the
-   client's line` (la mesure `maxKbps` du récepteur ou son sauvetage
+   client's line` (la mesure `maxKbps` du récepteur ou son repli
    `abr=floor` ; le master transcodé qui suit porte la raison
    `client_line_exceeded` ou `abr_floor_requested`). Une session partie sur un
    master copie à 20 Mbps ou plus et retombée sur un palier 1080p ajusté
-   après quelques secondes est le sauvetage qui fait son travail ; un re-LOAD
-   qui repart sur le master copie est le motif qui tue un Chromecast HD.
-6. **Famine côté serveur ?** Cherchez `on-demand resource refused` : une
+   après quelques secondes est le repli qui fonctionne comme prévu ; un re-LOAD
+   qui repart sur le master copie est le scénario qui fait planter un Chromecast HD.
+6. **Manque de ressources côté serveur ?** Cherchez `on-demand resource refused` : une
    rafale de refus `context canceled` sur des segments consécutifs est un
-   défilement (chaque requête annulée par la suivante), pas une faute du
+   défilement (chaque requête annulée par la suivante), pas une erreur du
    serveur ; des lignes `served` aux longues durées en sont une.
 
-Si les étapes 1 à 3 montrent le récepteur vivant et l'émetteur silencieux, le
+Si les étapes 1 à 3 montrent le récepteur actif et l'émetteur silencieux, le
 problème est dans la session Cast du téléphone (le SDK, le réseau vers le
 téléviseur). Si les balises du récepteur s'arrêtent en premier, regardez le
 téléviseur : mémoire, codec, débit du flux.
 
 ## Arrêter une session ou un appareil compromis
 
-**Symptôme** : un appareil inattendu dans **Admin -> En cours de lecture**,
+**Symptôme** : un appareil inattendu dans **Administration → En cours de lecture**,
 ou un utilisateur signale un appareil inconnu dans sa liste de sessions.
 
 1. Identifiez la session :
@@ -426,7 +426,7 @@ ou un utilisateur signale un appareil inconnu dans sa liste de sessions.
       WHERE ended_at IS NULL
       ORDER BY started_at DESC LIMIT 20;"'
    ```
-2. Arrêtez-la depuis **Admin -> En cours de lecture** : l'icône d'arrêt sur
+2. Arrêtez-la depuis **Administration → En cours de lecture** : l'icône d'arrêt sur
    la session (**Arrêter la session**), puis **Arrêter** pour confirmer ; ou
    `AdminSessionService/KillSession` en gRPC avec l'identifiant de session.
    Le lecteur reçoit d'abord une commande d'arrêt et le flux est terminé
@@ -437,7 +437,7 @@ ou un utilisateur signale un appareil inconnu dans sa liste de sessions.
    ```sh
    docker compose restart evey
    ```
-4. Si le compte lui-même est compromis, **Admin -> Utilisateurs ->
+4. Si le compte lui-même est compromis, **Administration → Utilisateurs →
    Désactiver** : les jetons de rafraîchissement sont supprimés et les jetons
    d'accès révoqués d'un coup, donc chaque appareil est déconnecté. Donnez un
    nouveau mot de passe (`evey admin reset-password --user <email>`, voir

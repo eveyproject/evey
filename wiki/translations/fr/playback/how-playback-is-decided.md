@@ -46,7 +46,7 @@ lecteur ; sur la TV, dans le menu d'options du lecteur) affichent la
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
   ![Les Infos du flux dans le lecteur web, pour un remux](../images/player-stream-info.webp){ loading=lazy }
-  <figcaption>Remux : l'emballage change, les pistes vidéo et audio restent intactes, et la seule raison pour laquelle le fichier n'est pas lu tel quel. « Copié » décrit les pistes, pas le mode de lecture (interface en anglais).</figcaption>
+  <figcaption>Remux : le conteneur change, les pistes vidéo et audio restent intactes, et l'unique raison pour laquelle le fichier n'est pas lu tel quel est indiquée. « Copié » décrit les pistes, pas le mode de lecture (interface en anglais).</figcaption>
 </figure>
 
 Les raisons se répartissent en quatre catégories :
@@ -108,7 +108,7 @@ HDR :
 - **Même limite, mais carte graphique saturée ou indisponible pour ce titre.**
   Le processeur prend le relais. Il encode en H.264, qui ne transporte pas de
   HDR ici : l'image est convertie en SDR par tone mapping, à la qualité que le
-  processeur tient.
+  processeur peut soutenir.
 
 Ni le fichier ni la TV n'ont changé : seules la limite de la session et l'état
 du serveur ont varié.

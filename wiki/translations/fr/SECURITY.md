@@ -4,9 +4,9 @@ reviewed: true
 ---
 # Sandbox des plugins et modèle de menace
 
-Ce que fait le serveur pour contenir un plugin : les vérifications à
+Ce que fait le serveur pour confiner un plugin : les vérifications à
 l'installation, les couches à l'exécution, les modes de sandbox, et ce que
-chacun ne peut toujours pas empêcher. Le code vit dans
+chacun ne peut toujours pas empêcher. Le code se trouve dans
 `internal/adapters/driven/pluginrunner` (analyse à l'installation, sandbox),
 `cmd/evey-plugin-launcher` (Landlock et le filtre seccomp du noyau),
 `sandbox/sandbox.c` (le filtre `LD_PRELOAD`) et
@@ -22,7 +22,7 @@ votre machine obtient, lisez
 
 ## Modèle de menace
 
-Les plugins tournent dans des processus séparés qui dialoguent avec le
+Les plugins tournent dans des processus séparés qui communiquent avec le
 serveur en gRPC sur des sockets Unix. Par défaut, le serveur ne fait
 confiance à aucun code de plugin. Les risques contre lesquels il se protège,
 du plus grave au moins grave :
@@ -155,7 +155,7 @@ Evey montre la surface, l'administrateur accepte ou refuse.
 
 ## À l'exécution
 
-Six couches tiennent dans tous les [modes de sandbox](#sandbox-modes) ;
+Six couches s'appliquent dans tous les [modes de sandbox](#sandbox-modes) ;
 la façon dont les deux premières sont appliquées dépend du mode.
 
 ### Fichiers
@@ -191,7 +191,7 @@ courtier contrôle *où* va un appel, pas *ce qu'il* transporte. Voir
 
 !!! tip "Recommandé aux opérateurs"
     Le courtier déplace la surface SSRF vers l'hôte. Une règle de sortie sur
-    le conteneur `evey-server`, indépendante du code, ajoute un second mur :
+    le conteneur `evey-server`, indépendante du code, ajoute une seconde protection :
     bloquer `169.254.0.0/16` et restreindre le réseau interne aux points
     d'accès de la base de données et de la recherche.
 
@@ -204,7 +204,7 @@ Deux filtres seccomp refusent les mêmes appels système dangereux :
    démarre le plugin ([`seccomp_linux.go`](../cmd/evey-plugin-launcher/seccomp_linux.go)).
    Il est hérité par le plugin et ses enfants et **couvre aussi les binaires
    compilés statiques**. Une architecture incohérente dans un appel système
-   tue le processus. Appliqué en `landlock` et `basic`.
+   met fin au processus. Appliqué en `landlock` et `basic`.
 2. **Le filtre `LD_PRELOAD`**, [`sandbox/sandbox.c`](../sandbox/sandbox.c),
    chargé dans les plugins interprétés qui ne déclarent pas `subprocess`. Il
    refuse aussi `execve`/`execveat`, et marque le plugin non vidable
@@ -217,7 +217,7 @@ Appels système refusés :
 | Catégorie | Appels système |
 |---|---|
 | Débogage | `ptrace`, `process_vm_readv`, `process_vm_writev` |
-| Signaux | `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo` vers tout processus autre que le plugin lui-même (les deux filtres) ; `kill` de même dans le filtre du noyau, vers toute cible dans le filtre `LD_PRELOAD` ; `tkill` dans le filtre du noyau (le filtre `LD_PRELOAD` l'autorise vers le plugin lui-même) ; `pidfd_send_signal`, `pidfd_getfd` (vole un descripteur de fichier). Un runtime qui se renvoie un signal ou préempte ses propres threads continue de fonctionner. Sur Landlock ABI 6+, un plugin ne peut pas non plus signaler un processus hors de sa sandbox |
+| Signaux | `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo` vers tout processus autre que le plugin lui-même (les deux filtres) ; `kill` de même dans le filtre du noyau, vers toute cible dans le filtre `LD_PRELOAD` ; `tkill` dans le filtre du noyau (le filtre `LD_PRELOAD` l'autorise vers le plugin lui-même) ; `pidfd_send_signal`, `pidfd_getfd` (récupère un descripteur de fichier d'un autre processus). Un runtime qui se renvoie un signal ou préempte ses propres threads continue de fonctionner. Sur Landlock ABI 6+, un plugin ne peut pas non plus signaler un processus hors de sa sandbox |
 | Montages | `mount`, `umount2`, `pivot_root`, `chroot` |
 | Espaces de noms | `unshare`, `setns`, et `clone` portant un drapeau `CLONE_NEW*` (un unshare sous un autre nom), pour tous les plugins |
 | Modules du noyau | `init_module`, `finit_module`, `delete_module` |
@@ -238,7 +238,7 @@ continuent de fonctionner.
 C'est une **liste de refus** : `open`, `read`, `write`, `mmap`, `socket` et
 `connect` Unix restent autorisés. Les chemins sont confinés par la couche
 fichiers, pas par seccomp. En `bubblewrap` le lanceur n'est pas utilisé : un
-binaire statique n'y reçoit aucun filtre seccomp, et il est contenu par les
+binaire statique n'y reçoit aucun filtre seccomp, et il est confiné par les
 espaces de noms et la liste blanche de montages.
 
 ### Un utilisateur séparé
@@ -250,20 +250,20 @@ contrôle :
 
 | Valeur | Quand le changement a lieu |
 |---|---|
-| `auto` (défaut) | seulement quand la sandbox se résout en `basic`, le seul cas où les permissions de fichiers sont l'unique mur autour des secrets |
+| `auto` (défaut) | seulement quand la sandbox se résout en `basic`, le seul cas où les permissions de fichiers sont la seule protection des secrets |
 | `on` | toujours, comme couche supplémentaire |
 | `off` | jamais |
 
 Le changement est fait par le lanceur, qui détient `cap_setuid` ; le serveur
 lui-même tourne sans privilège ni capacité. Le lanceur refuse toute cible
 inférieure à 1000. S'il ne peut pas changer d'utilisateur, un plugin en
-`basic` est refusé (l'utilisateur est le seul mur dans ce mode), tandis qu'en
+`basic` est refusé (l'utilisateur est la seule protection dans ce mode), tandis qu'en
 `landlock` il tourne sous l'utilisateur du serveur avec un avertissement. En
 `bubblewrap` et `strict`, l'espace de noms utilisateur joue ce rôle.
 
 Quand elle est active, la clé de signature (`0600`) et les sauvegardes
 (dossier `0700`, fichiers `0600`) n'appartiennent qu'à leur propriétaire à
-l'exécution, ce qui tient même sur un `/data` monté depuis l'hôte. Tous les
+l'exécution, ce qui reste vrai même sur un `/data` monté depuis l'hôte. Tous les
 plugins partagent l'utilisateur 1001 : ils sont isolés les uns des autres par
 la couche fichiers, pas par l'utilisateur.
 
@@ -295,7 +295,7 @@ un plugin qui dépasse une limite
 Le même passage signale un plugin qui maintient un CPU au-dessus de 90 %
 pendant environ 30 s, et arrête un plugin doté de `hardware.gpu` qui sature
 un moteur graphique de la même façon. Les limites se règlent par plugin dans
-**Admin → Plugins → Limites de ressources** ; les variables d'environnement
+**Administration → Plugins → Limites de ressources** ; les variables d'environnement
 `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`
 et `EVEY_PLUGINS_CPU_NICE` fixent les valeurs par défaut au démarrage.
 
@@ -332,7 +332,7 @@ canaux configurés, et le **Tableau de bord sécurité** l'enregistre.
 
 Le mode choisit comment les fichiers et le réseau sont confinés.
 `EVEY_PLUGINS_SANDBOX_MODE` fixe la valeur initiale (défaut `auto`) ; elle se
-change dans **Admin → Plugins → Limites de ressources → Mode sandbox**. Le
+change dans **Administration → Plugins → Limites de ressources → Mode sandbox**. Le
 runner l'applique dans
 [`applySandbox`](../internal/adapters/driven/pluginrunner/runner_sandbox.go).
 Dans tous les modes : aucune sortie IP directe, le moniteur de ressources, et
@@ -359,12 +359,12 @@ ce qui en pratique signifie une machine nue ou un conteneur privilégié ;
 sinon **basic**. Landlock vient en premier parce qu'il n'exige aucun
 privilège et fonctionne sous le profil de sécurité par défaut de Docker. Le
 mode résolu est consigné dans le journal, et affiché sur la ligne **Sandbox
-de l'hôte** de **Admin → Plugins → Tableau de bord sécurité**.
+de l'hôte** de **Administration → Plugins → Tableau de bord sécurité**.
 
 | Déploiement | Ce que donne `auto` |
 |---|---|
 | Docker sur un noyau récent | `landlock` : confinement par chemin, aucune sortie directe, appels système dangereux refusés y compris pour les binaires statiques. Le cas normal. |
-| Docker sur un vieux noyau sans Landlock, par exemple un vieux NAS | `basic` : secrets protégés et réseau coupé, mais fichiers lisibles par tous visibles. Voir [Mise en place de la sandbox](plugins/sandbox-deployment.md). |
+| Docker sur un vieux noyau sans Landlock, par exemple un vieux NAS | `basic` : secrets protégés et réseau bloqué, mais fichiers lisibles par tous visibles. Voir [Mise en place de la sandbox](plugins/sandbox-deployment.md). |
 | Machine nue | `bubblewrap` : l'isolation de fichiers et de processus la plus forte, sans filtre seccomp pour les binaires statiques. |
 
 ### `landlock`
@@ -403,11 +403,11 @@ de l'hôte** de **Admin → Plugins → Tableau de bord sécurité**.
   `/data`, `/var`, `/home`, `/root`, `/run` et les dossiers des autres
   plugins n'existent pas à l'intérieur. Un plugin canari
   (`tests/fixtures/plugins/canary-sandbox-runtime/`) vérifie cette
-  disposition contre une pile en marche.
+  disposition sur une pile en cours d'exécution.
 - **Réseau :** l'espace de noms réseau, pour tous les plugins.
 - **Appels système :** aucun filtre seccomp ; les espaces de noms assurent l'isolation.
 - **Prérequis :** le binaire `bwrap` et les appels système `mount`/`unshare`.
-  Sous Docker, cela demande un profil de sécurité assoupli, si bien que c'est
+  Sous Docker, cela demande un profil de sécurité moins restrictif, si bien que c'est
   en pratique un mode pour machine nue.
 
 ### `strict`
@@ -421,14 +421,14 @@ filtre `LD_PRELOAD`, `-deny-inet`, et Landlock si le noyau l'a. Sur un noyau
 sans Landlock, il n'y a aucun confinement par chemin : un plugin peut lire
 les fichiers non sensibles lisibles par tous et voir la liste des processus.
 Les secrets du serveur restent protégés par l'utilisateur séparé et
-`PR_SET_DUMPABLE`, le réseau est coupé, et les appels système dangereux sont
+`PR_SET_DUMPABLE`, le réseau est bloqué, et les appels système dangereux sont
 refusés, binaires compilés inclus.
 
 ## Configuration
 
 | Variable | Défaut | Effet |
 |---|---|---|
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` ou `basic`. Modifiable aussi dans **Admin → Plugins**. |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` ou `basic`. Modifiable aussi dans **Administration → Plugins**. |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` ou `off`. Incompatible avec `no_new_privs` sur le conteneur. |
 | `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` ou `enforce`. |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | aucune | La clé contre laquelle les signatures sont vérifiées. |
@@ -442,7 +442,7 @@ quelle machine, en termes simples :
 
 ## Limites connues
 
-| Limite | Impact | Ce qui la contient aujourd'hui |
+| Limite | Impact | Ce qui la limite aujourd'hui |
 |---|---|---|
 | Aucun confinement par chemin en `basic` sur un noyau sans Landlock | Un plugin peut lire les fichiers non sensibles lisibles par tous et les dossiers des autres plugins | Secrets protégés par l'utilisateur séparé et `PR_SET_DUMPABLE` ; `auto` préfère Landlock ou bubblewrap |
 | Tous les plugins partagent l'utilisateur 1001 | Un plugin peut signaler ses voisins (signaler le serveur est refusé) | `PR_SET_DUMPABLE` empêche de lire les autres processus via `/proc` ; Landlock et bubblewrap isolent les dossiers des plugins |
@@ -460,10 +460,10 @@ Deux invariants décident qui peut atteindre le serveur :
   (`EVEY_SERVER_PORT`, 9090 par défaut) est un transport interne dont le seul
   client est la passerelle HTTP du même processus ; l'API HTTP est ce port
   plus un. gRPC écoute sur la boucle locale par défaut
-  (`EVEY_GRPC_BIND=127.0.0.1`) parce que la barrière d'accès distant est un
+  (`EVEY_GRPC_BIND=127.0.0.1`) parce que le contrôle d'accès distant est un
   middleware HTTP et ne le couvre pas. Élargir l'écoute consigne un
-  avertissement ; le pare-feu est alors l'affaire de l'opérateur.
-- **La barrière d'accès distant décide à partir de l'unique adresse client
+  avertissement ; le pare-feu relève alors de l'opérateur.
+- **Le contrôle d'accès distant décide à partir de l'unique adresse client
   validée à la frontière du proxy de confiance**, jamais à partir d'un
   en-tête de requête. Un client ne peut pas se prétendre `127.0.0.1` via
   `X-Forwarded-For`, et une requête qui n'a jamais franchi cette frontière
@@ -490,7 +490,7 @@ ne soit jamais consigné.
 
 Signalez en privé, jamais dans un ticket public : `security@eveyproject.org`,
 l'adresse de la [politique de sécurité](../SECURITY.md) du dépôt. Elle couvre
-l'authentification des plugins, les permissions et les évasions de sandbox
+l'authentification des plugins, les permissions et les contournements de la sandbox
 comme tout le reste. Ne testez pas sur des instances Evey qui ne sont pas les
 vôtres.
 

@@ -4,7 +4,7 @@ reviewed: true
 ---
 # E-mail et notifications
 
-Les variables derrière le courrier sortant (notifications, réinitialisations
+Les variables qui règlent le courrier sortant (notifications, réinitialisations
 de mot de passe) et les notifications push du navigateur. L'e-mail se
 configure normalement dans le panneau, comme décrit dans
 [E-mail et notifications](../notifications.md) ; les variables en sont le repli.
@@ -12,7 +12,7 @@ configure normalement dans le panneau, comme décrit dans
 ## E-mail (SMTP)
 
 Les variables sont lues au démarrage et utilisées tant que la carte
-**E-mail / SMTP** de **Admin → Configuration du serveur** n'a pas d'hôte. Dès
+**E-mail / SMTP** de **Administration → Configuration du serveur** n'a pas d'hôte. Dès
 qu'un hôte y est enregistré, la carte fournit tous les champs et s'applique
 sans redémarrage.
 

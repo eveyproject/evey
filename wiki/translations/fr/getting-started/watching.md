@@ -5,8 +5,8 @@ reviewed: true
 # Regarder avec Evey
 
 Cette page est pour les personnes qui regardent : la famille, les amis.
-Quelqu'un d'autre fait tourner le serveur Evey ; vous, vous voulez juste vous
-installer et appuyer sur lecture.
+Quelqu'un d'autre fait tourner le serveur Evey ; vous, vous voulez simplement vous
+installer et lancer la lecture.
 
 ## Se connecter
 
@@ -22,9 +22,9 @@ Ensuite :
 - **Sur un ordinateur**, ouvrez l'adresse dans votre navigateur et
   connectez-vous.
 - **Sur un téléphone, une tablette ou une TV Android**, ouvrez l'application
-  Evey. Tapez l'adresse sur le premier écran, puis connectez-vous. Pas à pas :
+  Evey. Saisissez l'adresse sur le premier écran, puis connectez-vous. Pas à pas :
   [Connecter les applications](apps.md#the-server-address-to-enter).
-- **Sur une TV**, choisissez **Connexion rapide** pour ne pas taper votre mot
+- **Sur une TV**, choisissez **Connexion rapide** pour ne pas saisir votre mot
   de passe avec la télécommande. La TV affiche un code ; vous l'acceptez
   depuis votre téléphone ou votre ordinateur :
   [Connexion rapide](apps.md#quick-connect-signing-in-a-tv-without-typing-a-password).
@@ -62,13 +62,13 @@ chiffres de cet autre profil. Pour en savoir plus :
   par défaut** et **Langue des sous-titres par défaut**.
 - Certains sous-titres prennent un moment la première fois que quelqu'un les
   choisit. Le lecteur affiche alors **Sous-titres en préparation…** ; la
-  vidéo continue, et les sous-titres apparaissent tout seuls quand ils sont
+  vidéo continue, et les sous-titres apparaissent d'eux-mêmes quand ils sont
   prêts. Plus de détails : [Sous-titres](../playback/subtitles.md).
 - Dans une série, **Passer l'intro** apparaît pendant le générique de début
   quand Evey l'a trouvé, et **À suivre** propose l'épisode suivant à la fin.
 
-Vous ne choisissez jamais de qualité : Evey adapte la vidéo à votre appareil
-tout seul.
+Vous ne choisissez jamais de qualité : Evey adapte de lui-même la vidéo à votre
+appareil.
 
 ## Demander un titre
 
@@ -82,7 +82,7 @@ Il manque quelque chose ? Allez dans **Demandes** :
 
 Un titre déjà sur le serveur est marqué **Déjà disponible**, avec
 **Regarder**. Si l'écran affiche **Les demandes sont désactivées**,
-l'administrateur a coupé les demandes pour votre compte.
+l'administrateur a désactivé les demandes pour votre compte.
 
 ## Sur le téléphone, la TV et le Chromecast
 
@@ -98,7 +98,7 @@ l'administrateur a coupé les demandes pour votre compte.
   moment, chacune sur son écran. Des amis sans compte peuvent vous rejoindre
   avec un code : [Regarder ensemble](../playback/watching-together.md).
 
-## Quand quelque chose ne marche pas
+## Quand quelque chose ne fonctionne pas
 
 Notez trois choses : l'heure, le titre et l'appareil. Puis prévenez la
 personne qui fait tourner Evey.

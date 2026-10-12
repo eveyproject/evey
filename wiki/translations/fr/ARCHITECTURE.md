@@ -6,8 +6,9 @@ reviewed: true
 
 Comment le serveur est assemblé : les couches hexagonales sous `internal/`,
 les contextes bornés, les événements qui les relient, et les gardes statiques
-qui maintiennent le code sur ces rails. Le code vit dans `internal/domain`,
-`internal/app`, `internal/adapters/{driving,driven}` et est câblé dans
+qui obligent le code à respecter cette structure. Le code se trouve dans
+`internal/domain`, `internal/app`, `internal/adapters/{driving,driven}` et est
+assemblé dans
 `cmd/evey/wire*.go` ; la disposition est décidée par
 [ADR-0001](adr/0001-hexagonal-architecture.md), la séparation des dépôts par
 [ADR-0009](adr/0009-cqrs-repo-split.md) et le bus d'événements par
@@ -50,7 +51,7 @@ livrent un sous-paquet `fakes/`.
 
 ## Contextes bornés
 
-Trente-deux paquets de contexte vivent sous `internal/domain/` et
+Trente-deux paquets de contexte se trouvent sous `internal/domain/` et
 `internal/app/` : 19 existent dans les deux couches, 2 n'existent que dans le
 domaine (`ratings`, `shared`), 11 n'existent que dans la couche applicative.
 Ils collaborent en partie par des événements de domaine sur un bus partagé ;
@@ -60,7 +61,7 @@ contexte voisin (voir [Relations](#relations)).
 | Contexte | Responsabilité |
 | --- | --- |
 | `user` | comptes, authentification, sessions, préférences |
-| `library` | bibliothèques, dossiers, tâches de scan, index des médias, personnes, collections, favoris et pouces d'un profil (les pouces n'ont pas de service applicatif : le RPC de notation stocke et lit `UserRatingRepository` tel quel), trickplay, détection des intros et génériques |
+| `library` | bibliothèques, dossiers, tâches de scan, index des médias, personnes, collections, favoris et votes pouce levé / baissé d'un profil (ces votes n'ont pas de service applicatif : le RPC de notation stocke et lit `UserRatingRepository` tel quel), trickplay, détection des intros et génériques |
 | `media` (app seulement) | liens de partage et jetons de flux |
 | `mediarequest` | demandes de médias soumises par les utilisateurs |
 | `metadata` | enrichissement TMDB / OMDb, illustrations |
@@ -70,9 +71,9 @@ contexte voisin (voir [Relations](#relations)).
 | `mkv` | opérations sur le conteneur MKV (via [mkvgo](playback/mkvgo.md)) |
 | `music` | lecture et étiquetage propres à l'audio |
 | `photo` | bibliothèques de photos |
-| `favorite` (app seulement) | favoris par profil ; le modèle et `FavoriteRepository` vivent dans `domain/library` |
+| `favorite` (app seulement) | favoris par profil ; le modèle et `FavoriteRepository` se trouvent dans `domain/library` |
 | `playlist` | listes de lecture des utilisateurs, listes intelligentes |
-| `collection` (app seulement) | collections constituées par l'administrateur ; ses ports vivent dans `domain/library` |
+| `collection` (app seulement) | collections constituées par l'administrateur ; ses ports se trouvent dans `domain/library` |
 | `ratings` (domaine seulement) | projette les classifications nationales (CSA, FSK, MPAA, BBFC, ACB) sur un seul axe d'âge minimum |
 | `feed` | fil d'activité / découverte |
 | `activity` | chronologie d'activité des utilisateurs |
@@ -97,7 +98,7 @@ contexte voisin (voir [Relations](#relations)).
 | Émetteur | Événements | Consommés par |
 | --- | --- | --- |
 | `library` | `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` | `media.item.added` : `notification`, `metadata` (enrichissement automatique), `library` lui-même (worker trickplay + détection des intros), `feed` (invalidation du cache des genres) |
-| `playback` | `PlaybackStarted` / `PlaybackStopped` | aucun abonné dédié aujourd'hui ; seul le fourre-tout `"*"` de `webhook` les reçoit |
+| `playback` | `PlaybackStarted` / `PlaybackStopped` | aucun abonné dédié aujourd'hui ; seul l'abonnement générique `"*"` de `webhook` les reçoit |
 | `user` | `UserCreated`, `user.password.reset_requested` | le premier n'a pas d'abonné ; le second est consommé par l'adaptateur sortant `email` |
 | `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` pour son tableau de bord sécurité, `notification` pour l'administrateur |
 | `shared` | `ServerConfigChanged` | les services qui appliquent sans redémarrage un réglage enregistré dans le panneau d'administration (SMTP, fuseau horaire, budget CPU, ...) |
@@ -124,7 +125,7 @@ domaine d'un contexte voisin.
 3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) valide le proto et appelle `app/playback.CommandService.StartStream` (séparation commande/requête, voir [ADR-0009](adr/0009-cqrs-repo-split.md)).
 4. `app/playback.CommandService` appelle les ports du domaine : `user.UserRepository`, `playback.SessionQueryRepo` (idempotence + plafond d'appareils), `playback.SessionCommandRepo`, puis `shared.EventBus.Publish(PlaybackStarted)`.
 5. Les adaptateurs sortants s'exécutent : `postgres` persiste la session dans une portée `shared.TransactionalUnit.Do` ; le bus en mémoire (`internal/pkg/eventbus`) distribue de façon asynchrone.
-6. `PlaybackStarted` n'a pas d'abonné dédié aujourd'hui : seul le fourre-tout `"*"` de `webhook` le reçoit.
+6. `PlaybackStarted` n'a pas d'abonné dédié aujourd'hui : seul l'abonnement générique `"*"` de `webhook` le reçoit.
 7. La réponse revient en JSON via grpc-gateway ; les mises à jour de progression passent par SSE / flux gRPC.
 
 Ce qui se passe ensuite, quand le lecteur demande le manifeste et les
@@ -141,9 +142,9 @@ La règle hexagonale elle-même est `TestDomainContextsDoNotImportEachOther`
 impose exactement ceci : un contexte peut importer `internal/domain/shared` et
 sa propre arborescence, rien d'autre dans `internal/domain`, et jamais
 `internal/app` ni `internal/adapters`. Sa portée s'arrête à
-`internal/domain` : elle ne dit rien de la couche applicative.
+`internal/domain` : elle ne s'applique pas à la couche applicative.
 
-Les autres gardent des contrats qui franchissent une frontière de langage ou
+Les autres protègent des contrats qui franchissent une frontière de langage ou
 de processus, parmi lesquels :
 
 | Garde | Ce qu'elle refuse |
@@ -173,7 +174,7 @@ topologie de développement.
 
 ### Niveau 1 : contexte du système
 
-Qui parle à Evey, et quels tiers Evey contacte.
+Qui communique avec Evey, et quels tiers Evey contacte.
 
 ```mermaid
 flowchart LR
@@ -360,12 +361,12 @@ Notes sur les goroutines :
 - Le serveur gRPC (`grpc.Server.Serve`) et le serveur HTTP (gateway + statique) tournent chacun dans leur propre goroutine, lancée depuis le câblage principal de `cmd/evey`.
 - Les tâches de scan de `app/library` tournent sur un pool de workers (une goroutine par scan de bibliothèque actif, voir `library.ScanService`).
 - Les tâches ffmpeg sont lancées via `internal/pkg/procfork` par l'adaptateur sortant `ffmpeg` (`ffmpeg.Transcoder.Start`), avec une goroutine de supervision par tâche qui vide la sortie d'erreur du processus.
-- `shared.EventBus` distribue aux abonnés de façon asynchrone : chaque abonné tourne dans sa propre goroutine, pour qu'un consommateur lent ne bloque jamais les émetteurs. Le bus n'ouvre aucune transaction de son propre chef ; c'est le travail du handler.
-- `pluginrunner` lance un sous-processus par plugin ; les plugins en iframe vivent dans le navigateur de l'utilisateur et répondent via des jetons signés émis par `app/plugin`.
+- `shared.EventBus` distribue aux abonnés de façon asynchrone : chaque abonné tourne dans sa propre goroutine, pour qu'un consommateur lent ne bloque jamais les émetteurs. Le bus n'ouvre aucune transaction lui-même ; c'est le travail du handler.
+- `pluginrunner` lance un sous-processus par plugin ; les plugins en iframe s'exécutent dans le navigateur de l'utilisateur et répondent via des jetons signés émis par `app/plugin`.
 
 ### Niveau 3 (bonus) : zoom sur le pipeline de scan
 
-Le chemin chaud qui transforme des fichiers sur disque en médias enrichis et
+Le chemin critique qui transforme des fichiers sur disque en médias enrichis et
 cherchables. Les flèches pleines sont des appels directs ; les flèches
 pointillées sont des événements de domaine sur le bus. L'indexation de
 recherche est un appel direct de port depuis `ScanService`, pas un événement.
@@ -425,9 +426,9 @@ flowchart LR
     trick --> ffstore[(evey-cache<br/>sprites de trickplay)]
 ```
 
-À lire avec la section « Flux de données typique » ci-dessus : le chemin de
-lecture est le chemin de lecture symétrique ; le pipeline de scan est le
-chemin d'écriture qui prépare l'index des médias que le chemin de lecture
+À lire avec la section « Flux de données typique » ci-dessus : la lecture
+d'un média est le côté lecture des données ; le pipeline de scan est le côté
+écriture, qui remplit l'index des médias où la lecture va chercher ce qu'elle
 sert.
 
 ## Pour aller plus loin

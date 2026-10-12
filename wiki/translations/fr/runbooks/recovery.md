@@ -25,7 +25,7 @@ sort. Aucune de ces commandes ne démarre le serveur.
 
 ## Donner un nouveau mot de passe à un utilisateur
 
-À utiliser quand un utilisateur est bloqué dehors, ou juste après une
+À utiliser quand un utilisateur ne peut plus se connecter, ou juste après une
 compromission supposée de son compte. Le nouveau mot de passe est affiché une
 seule fois et jamais journalisé : copiez-le avant de fermer le terminal.
 
@@ -33,7 +33,7 @@ seule fois et jamais journalisé : copiez-le avant de fermer le terminal.
 docker exec evey-server evey admin reset-password --user admin@example.com
 ```
 
-Un bon résultat ressemble à ceci :
+Une exécution réussie affiche ceci :
 
 ```
 user:     admin@example.com
@@ -52,7 +52,7 @@ une connexion. Si vous perdez la sortie, relancez la commande.
 ## Renouveler la clé qui signe les jetons d'accès
 
 À utiliser quand le fichier de clé a pu fuiter, ou pour déconnecter tout le
-monde d'un coup. Pour un seul compte, **Admin -> Utilisateurs -> Désactiver**
+monde d'un coup. Pour un seul compte, **Administration → Utilisateurs → Désactiver**
 ou la réinitialisation de mot de passe ci-dessus suffit.
 
 ```sh
@@ -69,7 +69,7 @@ Ce qui se passe :
 3. Au démarrage suivant, le serveur génère une nouvelle clé RSA de 2048 bits.
 
 Redémarrez ensuite le conteneur (`docker compose restart evey`) pour que la
-nouvelle clé serve. Si la base n'a pas pu être jointe, la clé est quand même
+nouvelle clé soit utilisée. Si la base n'a pas pu être jointe, la clé est quand même
 mise de côté et la commande l'annonce : `key rotated, but sessions could not
 be ended (restart the server, then run this again)`. Faites exactement cela.
 
@@ -81,7 +81,7 @@ depuis peuvent être perdues. La commande passe un dump `.sql.gz` par
 
 !!! warning
     La restauration écrase les lignes actuelles. Prenez d'abord une
-    sauvegarde de l'état courant (**Admin -> Sauvegarde BDD et restauration ->
+    sauvegarde de l'état courant (**Administration → Sauvegarde BDD et restauration →
     Lancer maintenant**) s'il y a la moindre chance d'en avoir besoin.
 
 ```sh
@@ -106,7 +106,7 @@ Ce qui se passe :
 Prérequis :
 
 - Le nom du fichier doit finir par `.sql.gz`. Les archives `.tar.gz` de
-  **Admin -> Sauvegarde BDD et restauration** se restaurent depuis le
+  **Administration → Sauvegarde BDD et restauration** se restaurent depuis le
   panneau, pas avec cette commande.
 - La base cible doit exister ; le dump supprime et recrée les tables, pas la
   base.
@@ -117,8 +117,8 @@ changement de schéma, sous `EVEY_BACKUP_DIR` (`/data/backups`, donc
 `./evey-data/backups` sur l'hôte), nommés
 `pre-migration-<version du schéma>-<horodatage UTC>.sql.gz`. Le dump le plus
 récent de chacune des 3 dernières versions du schéma est conservé, les autres
-sont élagués. [Migrations de la base](migration-runbook.md) explique quand
-restaurer un dump plutôt que revenir d'un cran sur le schéma.
+sont supprimés. [Migrations de la base](migration-runbook.md) explique quand
+restaurer un dump plutôt que ramener le schéma à la version précédente.
 
 <!-- sources
 reset-password / rotate-jwt-key: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL: internal/app/user/token_epoch.go - epochCacheTTL

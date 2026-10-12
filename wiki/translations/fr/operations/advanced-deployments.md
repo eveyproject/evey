@@ -13,7 +13,7 @@ que `landlock`. Pour faire tourner Evey sans Docker du tout, voir
 
 ## La base embarquée
 
-Le cluster vit dans `./evey-data/postgres` (Postgres 17, créé au premier
+Le cluster se trouve dans `./evey-data/postgres` (Postgres 17, créé au premier
 démarrage, propriété de l'utilisateur du serveur). Il n'écoute que sur la
 boucle locale du conteneur et exige le mot de passe généré, donc un plugin
 tournant sous un autre utilisateur ne peut pas l'ouvrir. `docker stop`
@@ -49,8 +49,8 @@ docker compose restart evey
 
 Pour gérer vous-même le cycle de vie de la base (un Postgres managé, une
 majeure figée, votre propre politique de dumps), lancez-la comme service à
-part et pointez le serveur dessus. C'est le fait de définir `EVEY_DB_HOST`
-qui coupe la base embarquée. Le serveur refuse de démarrer avec le mot de
+part et configurez le serveur pour l'utiliser. C'est le fait de définir
+`EVEY_DB_HOST` qui désactive la base embarquée. Le serveur refuse de démarrer avec le mot de
 passe par défaut `evey`.
 
 === "docker-compose.yml"
@@ -90,8 +90,8 @@ passe par défaut `evey`.
 
 ## Faire tourner Meilisearch en service séparé
 
-Même principe pour le moteur de recherche : coupez celui qui est embarqué,
-pointez le serveur sur le vôtre et partagez la clé. Un `MEILI_MASTER_KEY`
+Même principe pour le moteur de recherche : désactivez celui qui est embarqué,
+configurez le serveur pour utiliser le vôtre et partagez la clé. Un `MEILI_MASTER_KEY`
 explicite l'emporte sur le `./evey-data/keys/meili.key` généré.
 
 === "docker-compose.yml"
@@ -128,9 +128,9 @@ explicite l'emporte sur le `./evey-data/keys/meili.key` généré.
     ```
 
 L'index se reconstruit depuis la base avec `docker exec evey-server evey
-admin reindex-search`, donc `meili-data` peut toujours être jeté.
+admin reindex-search`, donc `meili-data` peut toujours être supprimé.
 
-## Revenir sur la base embarquée
+## Revenir à la base embarquée
 
 Une installation qui fait tourner Postgres en service séparé peut passer au
 conteneur unique. La base embarquée importe une fois un dump trouvé dans
@@ -157,7 +157,7 @@ docker exec evey-server evey admin reindex-search
 `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY` et les réglages `EVEY_DB_HOST` /
 `EVEY_MEILI_URL` ne sont plus nécessaires. Gardez `./postgres-data` jusqu'à
 avoir vérifié le serveur. Un dump laissé à côté d'un cluster existant est
-signalé et ignoré, jamais fusionné ; un import raté jette le nouveau cluster
+signalé et ignoré, jamais fusionné ; un import échoué supprime le nouveau cluster
 pour que le démarrage suivant réessaie depuis le dump.
 
 ## Hôtes ARM
@@ -165,7 +165,7 @@ pour que le démarrage suivant réessaie depuis le dump.
 Les images construites depuis un tag de version (`0.2.0`, préversions comme
 `0.2.0-beta.1` comprises) sont multi-architectures (`linux/amd64` et
 `linux/arm64`) ; Docker choisit la bonne. Les tags de branche comme
-`beta-0.0.1` sont amd64 uniquement : sur un hôte ARM, figez un tag de
+`beta-0.0.1` sont amd64 uniquement : sur un hôte ARM, utilisez un tag de
 version.
 
 - **Le transcodage matériel sur ARM** se limite aux SoC Rockchip (classe
@@ -207,10 +207,10 @@ besoin de variante : le NVIDIA Container Toolkit injecte le pilote de l'hôte
 L'image contient tout ce qu'il faut pour confiner les plugins, sans mode
 privilégié. Le mode de sandbox par défaut (`auto`) choisit le moteur le plus
 fort que l'hôte autorise : Landlock sur tout noyau moderne. Vérifiez le mode
-en vigueur dans le **Tableau de bord sécurité** de **Admin -> Plugins**. Un
+en vigueur dans le **Tableau de bord sécurité** de **Administration → Plugins**. Un
 hôte qui affiche `basic` ne sait pas isoler l'accès des plugins aux
-fichiers : [Sandbox des plugins](../plugins/sandbox-deployment.md) dit ce
-que cela signifie et quoi changer. Les couches elles-mêmes sont décrites dans
+fichiers : [Sandbox des plugins](../plugins/sandbox-deployment.md) explique
+ce que cela signifie et quoi changer. Les couches elles-mêmes sont décrites dans
 [Modèle de sécurité et sandbox des plugins](../SECURITY.md).
 
 <!-- sources

@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Tâches de fond
 
-Les variables derrière les passes que le serveur mène de lui-même et la
+Les variables qui règlent les passes que le serveur mène de lui-même et la
 façon dont elles partagent le processeur. Ce que fait chaque passe et
 comment la lecture en est protégée :
 [Tâches de fond et charge du serveur](../operations/background-work.md).
@@ -12,9 +12,9 @@ comment la lecture en est protégée :
 ## Part du processeur
 
 La part du processeur que peuvent utiliser les tâches de fond se règle dans
-**Admin → Configuration du serveur → Puissance allouée**, immédiatement, sans
+**Administration → Configuration du serveur → Puissance allouée**, immédiatement, sans
 redémarrage ; elle n'a pas de variable d'environnement. Les deux variables
-ci-dessous dimensionnent un pool à la main et court-circuitent cette part
+ci-dessous dimensionnent un pool à la main et remplacent cette part
 pour lui.
 
 | Variable | Défaut | Effet | Panneau |
@@ -24,7 +24,7 @@ pour lui.
 
 ## Passes
 
-Chaque variable a une clé, acceptée aussi comme ligne dans **Admin →
+Chaque variable a une clé, acceptée aussi comme ligne dans **Administration →
 Configuration du serveur → Entrées de configuration**, qui propose ces
 clés ; la ligne l'emporte sur l'environnement. La carte **Travaux en
 arrière-plan** du même écran règle les principales. Toutes sont lues au

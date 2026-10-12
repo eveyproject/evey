@@ -25,10 +25,10 @@ collections et les sources de métadonnées viennent ensuite.
 
 1. **Administration → Bibliothèques → Ajouter une bibliothèque**.
 2. Donnez-lui un **Nom** et un **Type**. Gardez les films et les séries dans
-   des bibliothèques séparées : le type dit au scanner ce qu'il doit
+   des bibliothèques séparées : le type indique au scanner ce qu'il doit
    chercher.
 3. Sous **Chemins**, choisissez un dossier dans la liste, ou **Entrer un
-   chemin personnalisé...** pour en taper un ; **+ Ajouter un chemin** ajoute
+   chemin personnalisé...** pour en saisir un ; **+ Ajouter un chemin** ajoute
    un deuxième dossier à la même bibliothèque.
 4. Appuyez sur **Créer une bibliothèque**. Evey lit les dossiers dans les
    deux minutes qui suivent ; appuyez sur **Scanner** sur la ligne de la
@@ -48,7 +48,7 @@ collections et les sources de métadonnées viennent ensuite.
     Avec le fichier compose de l'[installation](../installation.md), votre
     dossier de médias s'appelle `/media`. Un dossier `/srv/media/films` sur
     votre ordinateur devient donc `/media/films` dans Evey. Un deuxième
-    dossier de médias (`/media2`) marche de la même façon.
+    dossier de médias (`/media2`) fonctionne de la même façon.
 
 ## Nommer les fichiers pour qu'ils soient reconnus
 
@@ -76,7 +76,7 @@ suivant.
 
 ## Corriger un titre faux ou manquant
 
-Un film affiche l'affiche d'un autre film du même nom ? La correction la plus
+Un film montre l'affiche d'un autre film du même nom ? La correction la plus
 rapide :
 
 1. Ouvrez le titre et choisissez **Modifier les métadonnées**.
@@ -131,9 +131,9 @@ la ligne de la bibliothèque :
       (**Administration → Configuration du serveur → Paramètres du serveur →
       Surveillance des fichiers de la bibliothèque**), pour les
       bibliothèques dont la surveillance en temps réel est activée. Pour
-      vérifier que cela marche toujours, il écrit un petit fichier de test
+      vérifier que cela fonctionne toujours, il écrit un petit fichier de test
       dans le dossier pendant quelques secondes. Une bibliothèque où cela
-      marche bien n'est lue qu'une fois par heure au lieu de toutes les
+      fonctionne n'est lue qu'une fois par heure au lieu de toutes les
       2 minutes.
     - Les bibliothèques créées depuis le panneau n'utilisent pas cette
       surveillance : la lecture toutes les 2 minutes trouve leurs fichiers.
@@ -156,7 +156,7 @@ Evey regroupe les morceaux selon le dossier où ils sont, pas selon leur tag
 d'album. Deux dossiers avec le même tag d'album font donc deux albums, et un
 album coupé en sous-dossiers `CD1` et `CD2` s'affiche en deux. Dans un album,
 les morceaux sont classés par numéro de disque, puis par numéro de piste, et
-l'album prend le nom que porte la plupart de ses morceaux.
+l'album prend le nom que portent la plupart de ses morceaux.
 
 La pochette est l'image intégrée aux fichiers, sinon une image du dossier de
 l'album (`cover.jpg`, `folder.jpg` ou `front.jpg`), sinon Cover Art Archive
@@ -177,9 +177,9 @@ redimensionnées sur le serveur et gardées dans le cache de transcodage.
 **Collections** regroupe des titres sous un même nom, pour tous les comptes.
 Il y en a trois sortes :
 
-- **Collections TMDB** : les sagas, remplies toutes seules quand TMDB range
-  un film dans l'une d'elles. **Réparer les sagas** (plus haut) rattrape les
-  films qui ont raté la leur.
+- **Collections TMDB** : les sagas, remplies automatiquement quand TMDB range
+  un film dans l'une d'elles. **Réparer les sagas** (plus haut) rattache les
+  films qui n'ont pas été ajoutés à la leur.
 - **Nouvelle collection** : une liste qu'un administrateur remplit à la main,
   avec **Ajouter à la collection** sur un titre ou sur une sélection, et qu'il
   met dans l'ordre.
@@ -190,12 +190,12 @@ Il y en a trois sortes :
 
 Seuls les administrateurs créent et modifient les collections. Tout le monde
 peut les parcourir, et **Télécharger la collection** sur le web récupère les
-fichiers d'origine dans un seul ZIP (jusqu'à 1000 titres), sans ce que
-l'accès aux bibliothèques ou la limite d'âge du compte cache.
+fichiers d'origine dans un seul ZIP (jusqu'à 1000 titres), sauf ce que
+l'accès aux bibliothèques ou la limite d'âge du compte masquent.
 
 ## Clés de métadonnées
 
-Evey est livré avec une clé TMDB : les métadonnées marchent sans rien
+Evey est livré avec une clé TMDB : les métadonnées fonctionnent sans rien
 régler. Les autres sources sont facultatives. Pour les utiliser, vous
 demandez une clé (une sorte de mot de passe) à ce service et vous la collez
 dans **Administration → Configuration du serveur → Clés API**. Une clé
@@ -221,5 +221,5 @@ relancer la détection.
 Par défaut, les lecteurs affichent les boutons **Passer l'intro**, **Passer
 le résumé** et **Passer le générique**. **Saut automatique des intros**
 (**Administration → Configuration du serveur → Paramètres du serveur**,
-désactivé par défaut) fait passer les intros tout seul dans tous les
-lecteurs.
+désactivé par défaut) fait passer automatiquement les intros dans tous
+les lecteurs.

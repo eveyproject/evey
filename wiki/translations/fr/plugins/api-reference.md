@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Référence de l'API des plugins
 
-Le contrat contre lequel un plugin s'écrit : les champs de `plugin.yaml`, les
+Le contrat que doit respecter un plugin : les champs de `plugin.yaml`, les
 deux services gRPC que le backend et le serveur échangent, et le pont
 `window.evey` qu'un module d'interface reçoit dans son cadre. Le parcours qui
 les met en oeuvre est [Écrire un plugin](dev-setup.md) ; ce que chaque
@@ -74,7 +74,7 @@ champ n'efface jamais un secret.
 
 ## Backend : les deux services
 
-Le processus backend et le serveur parlent gRPC sur deux sockets Unix dont les
+Le processus backend et le serveur communiquent en gRPC sur deux sockets Unix dont les
 chemins arrivent dans l'environnement :
 
 ```
@@ -94,7 +94,7 @@ d'entrée au démarrage du plugin ([prérequis](dev-setup.md#1-prerequisites)).
 | Méthode | Quand |
 |---|---|
 | `Initialize(plugin_id, config, host_version)` | Une fois que le processus a ouvert son socket. `config` porte les valeurs de `config_schema` saisies par l'administrateur. Répondez `success: false` avec un `error` pour refuser de démarrer. |
-| `HealthCheck()` | Périodiquement, pour distinguer un processus vivant d'un processus bloqué. Répondez `healthy: true` tant que vous pouvez servir. |
+| `HealthCheck()` | Périodiquement, pour distinguer un processus actif d'un processus bloqué. Répondez `healthy: true` tant que vous pouvez servir. |
 | `Shutdown(reason)` | Quand le plugin est désactivé, mis à jour, désinstallé, ou que le serveur s'arrête. Quittez peu après avoir répondu. |
 | `OnEvent(event_type, payload, source)` | Défini dans le contrat, mais le serveur ne livre aucun événement aux plugins aujourd'hui : implémentez-le pour répondre `handled: true`, et n'attendez aucun appel. |
 | `GetCapabilities()` | Défini dans le contrat ; le serveur ne l'appelle pas aujourd'hui. |
@@ -113,7 +113,7 @@ sont listées pour qu'un stub ne vous induise pas en erreur.
 | `GetData`, `SetData`, `DeleteData`, `ListDataKeys` | aucune | Le [stockage de données](#data-store) ci-dessous. |
 | `EmitEvent(event_type, payload)` | aucune | Publié sur le bus d'événements du serveur sous `plugin.event.<event_type>`, où les webhooks peuvent s'y abonner. |
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` ou `media.read` | La fiche média complète, `file_path`, `provider_ids` et `genres` compris. |
-| `Fetch(url, method, headers)` | `network` | La seule sortie de la sandbox : `http` ou `https`, `GET` ou `HEAD`, un hôte de `external_fetch`, adresses privées refusées après résolution et à travers les redirections. Le corps est plafonné à 8 Mio (`truncated` le signale) et la requête entière à 20 secondes. Le serveur n'ajoute aucun identifiant qui lui appartienne. |
+| `Fetch(url, method, headers)` | `network` | Le seul accès au réseau depuis la sandbox : `http` ou `https`, `GET` ou `HEAD`, un hôte de `external_fetch`, adresses privées refusées après résolution et à travers les redirections. Le corps est plafonné à 8 Mio (`truncated` le signale) et la requête entière à 20 secondes. Le serveur n'ajoute aucun identifiant qui lui appartienne. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` ou `media.read` | *Non servie.* |
 | `UpdateMetadata` | `api.metadata` ou `media.write` | *Non servie.* |
 | `GetUserPreferences` | `api.user` | *Non servie.* |
@@ -136,7 +136,7 @@ le stockage est supprimé avec le plugin.
 | `ListDataKeys()` | Les clés du plugin. |
 
 Ce stockage est global au plugin. Les données **par utilisateur** (une
-préférence de la personne qui regarde le widget) vivent côté interface, par
+préférence de la personne qui regarde le widget) sont gérées côté interface, par
 la permission `prefs` ci-dessous.
 
 ## API de l'interface
@@ -184,8 +184,8 @@ Demande une hauteur d'emplacement de `height` pixels, bornée entre 50 et
 800. `0` replie l'emplacement : un widget qui n'a rien à montrer ne prend
 aucune place. Un widget `home.section` s'ouvre à `data.suggestedHeight` sans
 rien faire : l'hôte connaît la surface où il vous a placé et recommande la
-hauteur qu'un widget d'accueil y a, pour que tous les widgets arrivent à la
-même taille. Ne redimensionnez que si vous savez mieux.
+hauteur qu'un widget d'accueil y a, pour que tous les widgets aient la
+même taille. Ne redimensionnez que si vous avez une raison précise de le faire.
 
 ### `evey.prefs.*` (permission `prefs`)
 
@@ -226,9 +226,9 @@ plugin sont accessibles.
 ### Sur une télévision
 
 L'application télévision exécute le module dans une WebView, et quelques
-évidences du navigateur n'y tiennent plus :
+comportements habituels du navigateur n'y sont plus valables :
 
-- **Ne vous dimensionnez pas d'après votre propre fenêtre.** Dans la WebView,
+- **Ne dimensionnez pas le widget d'après sa propre fenêtre.** Dans la WebView,
   `window.innerHeight` est l'emplacement que l'hôte vient de vous accorder.
   Partez de `data.viewportHeight` ou de `data.suggestedHeight`.
 - **Ni focus, ni pointeur.** Le widget ne reçoit jamais le focus de la
@@ -267,7 +267,7 @@ Une capacité déclare le rôle que le plugin dit remplir : `metadata.provider`,
 `media.read`, `media.write`, `webhook.receiver` ou `notification.sender`.
 L'installateur vérifie le nom, l'administrateur voit la liste dans l'aperçu
 et tout ajout à la mise à jour, et le Tableau de bord sécurité l'enregistre.
-Le serveur n'aiguille rien sur une capacité aujourd'hui : un
+Le serveur n'oriente aujourd'hui aucun appel en fonction d'une capacité : un
 `metadata.provider` ne reçoit aucun appel d'enrichissement, un
 `webhook.receiver` ne reçoit aucune requête entrante. Ce qu'un plugin peut
 réellement faire est décidé par ses **permissions**.
@@ -275,7 +275,7 @@ réellement faire est décidé par ses **permissions**.
 ## Permissions de l'interface
 
 `public` et `prefs` se déclarent sous `permissions` comme les autres. Elles
-n'accordent rien au processus backend ; elles débloquent `evey.media.*` et
+n'accordent rien au processus backend ; elles donnent accès à `evey.media.*` et
 `evey.prefs.*` dans le cadre. Le cadre ne détient jamais de jeton : l'hôte
 émet un jeton de cinq minutes limité à (plugin, utilisateur) et relaie les
 appels, et le serveur refuse par défaut toute méthode que les portées du
@@ -284,7 +284,7 @@ jeton ne nomment pas
 
 !!! note "Ce qu'un plugin ne peut jamais demander"
     `admin.*`, `auth.*`, `system.*`, `user.write` et `library.write` sont
-    verrouillés : un manifeste qui les nomme est refusé, un jeton ne peut
+    interdits : un manifeste qui les nomme est refusé, un jeton ne peut
     jamais les porter, et les méthodes d'administration refusent un jeton de
     plugin quelles que soient ses portées.
 
@@ -295,7 +295,7 @@ courant : des bases en Node.js et en Python (`nodejs-example`,
 `python-example`), un fournisseur de métadonnées (`metadata-example`), un
 récepteur de webhooks (`webhook-receiver`), un widget d'accueil avec une
 étape de build (`weather`), le stockage de données avec les permissions
-`public` et `prefs` et l'emplacement `admin.nav` (`data-demo`), un tour de
+`public` et `prefs` et l'emplacement `admin.nav` (`data-demo`), un exemple de
 chaque type de champ de `config_schema` (`config-demo`), et deux thèmes
 (`theme-dark-blue`, `open-workshop`). `make plugin-zips` les empaquette
 tous.
