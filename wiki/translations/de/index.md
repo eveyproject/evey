@@ -1,12 +1,12 @@
 ---
-source_sha: 7054417ac65e819ee642ffbf7da5dbd0563a120f80044a01e2f2a3ed12770dc0
+source_sha: a20ccaa391b89b92446e57eeaeeb717cf000938ddc861683cedff5803f6715fd
 reviewed: true
 hide:
-  - navigation
-  - toc
+- navigation
+- toc
 ---
 
-# Evey
+# Evey { #evey }
 
 Evey ist ein Medienserver, den Sie zu Hause betreiben. Er bewahrt Ihre Filme,
 Serien, Musik und Fotos auf, und alle im Haushalt schauen sie auf ihren
@@ -71,7 +71,7 @@ sind in der Testphase und noch nicht bei Google Play.
 
 </div>
 
-## Für alle im Haushalt
+## Für alle im Haushalt { #for-everyone-at-home }
 
 - **Ein Profil pro Person.** Jedes Profil hat seinen eigenen Verlauf, seine
   Fortsetzungspunkte, Favoriten und Sprachen. Meist teilt sich ein Haushalt
@@ -96,7 +96,7 @@ auf dem Fernseher.
 [Apps verbinden](getting-started/apps.md) ·
 [Benutzer, Profile und Kindersicherung](administration/users.md)
 
-## Nichts zu wählen, bevor Sie auf Abspielen drücken
+## Nichts zu wählen, bevor Sie auf Abspielen drücken { #nothing-to-choose-before-pressing-play }
 
 Manche Dateien laufen überall. Andere sind zu schwer für ein altes Handy,
 oder sie haben ein Tonformat, das ein Fernseher nicht lesen kann. Jedes Mal,
@@ -125,7 +125,7 @@ dasselbe für alle, die gerade schauen.
 [Wie Evey die Wiedergabeart wählt](playback/how-playback-is-decided.md) ·
 [MKVGo in Evey](playback/mkvgo.md)
 
-## Ein Container, nichts einzustellen
+## Ein Container, nichts einzustellen { #one-container-nothing-to-tune }
 
 Die ganze Installation ist eine Compose-Datei. Es gibt keine `.env` zu
 schreiben und keine Einstellung für Arbeitsspeicher oder Prozessor.
@@ -149,7 +149,7 @@ Sie können auch Ihre eigene Datenbank oder Suchmaschine verwenden:
 [Erweiterte Bereitstellungen](operations/advanced-deployments.md).
 [Transkodierung und Serverkapazität](playback/transcoding.md)
 
-## Was Evey mit Ihren Dateien und Ihren Daten macht
+## Was Evey mit Ihren Dateien und Ihren Daten macht { #what-evey-does-with-your-files-and-your-data }
 
 **Ihre Dateien.** Wenn Sie einen Titel oder eine Bibliothek entfernen,
 verschwindet er aus Evey, nie von der Festplatte. Evey schreibt nur in drei
@@ -173,7 +173,7 @@ außerdem nach, ob es eine neuere Version gibt, was Sie abschalten können. Die
 Datenbank wird vor jedem Update gesichert, das sie verändert.
 [Datenschutzerklärung](privacy.md) · [Sicherungen und Updates](backups.md)
 
-## Plugins laufen isoliert und kontrolliert
+## Plugins laufen isoliert und kontrolliert { #plugins-run-isolated-and-controlled }
 
 Plugins fügen Quellen für Titelinformationen, Benachrichtigungskanäle,
 Bereiche auf der Startseite und Einblendungen im Player hinzu. Themes ändern
@@ -190,7 +190,7 @@ nicht bedienen.
 [Plugins](plugins.md) ·
 [Sicherheitsmodell und Plugin-Sandbox](SECURITY.md#sandbox-modes)
 
-## Hier geht es weiter
+## Hier geht es weiter { #find-your-way }
 
 <div class="grid cards" markdown>
 

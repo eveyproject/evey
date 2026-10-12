@@ -1,12 +1,12 @@
 ---
-source_sha: 7054417ac65e819ee642ffbf7da5dbd0563a120f80044a01e2f2a3ed12770dc0
+source_sha: a20ccaa391b89b92446e57eeaeeb717cf000938ddc861683cedff5803f6715fd
 reviewed: true
 hide:
-  - navigation
-  - toc
+- navigation
+- toc
 ---
 
-# Evey
+# Evey { #evey }
 
 Evey est un serveur de médias que vous installez chez vous. Il garde vos
 films, séries, musique et photos, et chaque personne de la maison les regarde
@@ -70,7 +70,7 @@ Android et Android TV sont en test et pas encore sur Google Play.
 
 </div>
 
-## Pour toute la maison
+## Pour toute la maison { #for-everyone-at-home }
 
 - **Un profil par personne.** Chaque profil garde son historique, ses points
   de reprise, ses favoris et ses langues. En général, une maison partage un
@@ -94,7 +94,7 @@ sur Android et sur la TV.
 [Connecter les applications](getting-started/apps.md) ·
 [Utilisateurs, profils et contrôle parental](administration/users.md)
 
-## Rien à choisir avant d'appuyer sur lecture
+## Rien à choisir avant d'appuyer sur lecture { #nothing-to-choose-before-pressing-play }
 
 Certains fichiers se lisent partout. D'autres sont trop lourds pour un vieux
 téléphone, ou ont un son qu'une TV ne sait pas lire. À chaque lecture, le
@@ -123,7 +123,7 @@ la même chose pour toutes les personnes qui regardent.
 [Comment Evey choisit le mode de lecture](playback/how-playback-is-decided.md) ·
 [MKVGo dans Evey](playback/mkvgo.md)
 
-## Un seul conteneur, rien à régler
+## Un seul conteneur, rien à régler { #one-container-nothing-to-tune }
 
 Toute l'installation tient dans un fichier compose. Pas de `.env` à écrire,
 pas de réglage de mémoire ou de processeur.
@@ -148,7 +148,7 @@ moteur de recherche :
 [Déploiements avancés](operations/advanced-deployments.md).
 [Transcodage et capacité du serveur](playback/transcoding.md)
 
-## Ce qu'Evey fait de vos fichiers et de vos données
+## Ce qu'Evey fait de vos fichiers et de vos données { #what-evey-does-with-your-files-and-your-data }
 
 **Vos fichiers.** Retirer un titre ou une bibliothèque le retire d'Evey,
 jamais du disque. Evey n'écrit dans vos dossiers de médias que dans trois
@@ -172,7 +172,7 @@ s'il existe une version plus récente, ce que vous pouvez couper. La base de
 données est sauvegardée avant chaque mise à jour qui la modifie.
 [Règles de confidentialité](privacy.md) · [Sauvegardes et mises à jour](backups.md)
 
-## Les plugins sont isolés et encadrés
+## Les plugins sont isolés et encadrés { #plugins-run-isolated-and-controlled }
 
 Les plugins ajoutent des sources d'informations sur les titres, des canaux de
 notification, des sections sur l'accueil et des éléments par-dessus le
@@ -188,7 +188,7 @@ TV, vous pouvez le voir mais pas vous en servir.
 [Plugins](plugins.md) ·
 [Modèle de sécurité et sandbox des plugins](SECURITY.md#sandbox-modes)
 
-## Par où commencer
+## Par où commencer { #find-your-way }
 
 <div class="grid cards" markdown>
 
