@@ -491,7 +491,7 @@ func (s *ScanService) loadScanIndex(ctx context.Context, libraryID string) (*sca
 			// re-probe so fields the prober has since learned get stored (no
 			// prober wired = nothing to refresh).
 			NeedsReprobe: (row.StreamProbeAttempts > 0 && row.StreamProbeAttempts < maxStreamProbeAttempts) ||
-				(s.prober != nil && row.StreamProbeVersion < library.StreamProbeVersion),
+				(s.prober != nil && row.StreamProbeAttempts == 0 && row.StreamProbeVersion < library.StreamProbeVersion),
 		}
 	}
 	return scanindex.New(entries), nil
@@ -821,10 +821,10 @@ func (s *ScanService) findExistingMediaFile(ctx context.Context, libraryID strin
 
 // maxStreamProbeAttempts bounds how many times the scanner re-probes a file
 // that was indexed without streams before giving up. The create attempt counts
-// as 1, so this allows a few transient-failure retries on later scans, then
+// as 1, so this allows one retry on a later scan for a transient failure, then
 // stops so a durably-unprobeable file isn't re-probed forever. An admin
 // reindex/repair resets the counter (a fresh probe success sets it to 0).
-const maxStreamProbeAttempts = 4
+const maxStreamProbeAttempts = 2
 
 // createMediaFile materializes a new MediaItem + child enrichment
 // (probe streams, chapters, meili index) and publishes MediaItemAdded.
@@ -956,7 +956,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		// self-heals, without re-probing a durably-unprobeable file every scan.
 		if existing.File.StreamProbeAttempts > 0 && existing.File.StreamProbeAttempts < maxStreamProbeAttempts {
 			s.reprobeStreamlessFile(ctx, existing, f.Path)
-		} else if existing.File.StreamProbeVersion < library.StreamProbeVersion {
+		} else if existing.File.StreamProbeAttempts == 0 && existing.File.StreamProbeVersion < library.StreamProbeVersion {
 			s.reprobeStaleVersion(ctx, existing, f.Path)
 		}
 		return
@@ -1060,11 +1060,16 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 
 // reprobeStaleVersion refreshes the streams of an unchanged file last probed by
 // an older prober revision and stamps the current StreamProbeVersion. A failed
-// probe leaves the row untouched (ProbeAndStoreStreams keeps the old streams),
-// so the next scan retries and StreamProbeAttempts keeps its own semantics.
+// probe keeps the old streams (ProbeAndStoreStreams leaves them) and still
+// stamps the version: this prober failed on this unchanged file, so retrying it
+// every scan only reruns ffprobe; a change to the file probes it again.
 func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.MediaItem, path string) {
 	dur, container, probedOK := s.ProbeAndStoreStreams(ctx, string(item.ID), path)
 	if !probedOK {
+		item.File.StreamProbeVersion = library.StreamProbeVersion
+		if err := s.mediaItems.Update(ctx, item); err != nil {
+			slog.WarnContext(ctx, "update media item after failed re-probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+		}
 		return
 	}
 	item.File.StreamProbeVersion = library.StreamProbeVersion

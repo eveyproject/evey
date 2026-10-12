@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/evey-project/evey/internal/domain/library"
 )
@@ -9,6 +10,7 @@ import (
 type FakeStreamProber struct {
 	Results map[string]*library.ProbeResult
 	Err     error
+	Calls   atomic.Int64
 }
 
 func NewFakeStreamProber() *FakeStreamProber {
@@ -16,6 +18,7 @@ func NewFakeStreamProber() *FakeStreamProber {
 }
 
 func (p *FakeStreamProber) ProbeStreams(_ context.Context, filePath string) (*library.ProbeResult, error) {
+	p.Calls.Add(1)
 	if p.Err != nil {
 		return nil, p.Err
 	}

@@ -1169,7 +1169,7 @@ func TestScanService_StreamlessFile_ReprobesAndHeals(t *testing.T) {
 // A durably-unprobeable file's re-probe is bounded: the counter climbs to
 // maxStreamProbeAttempts and then stops (no re-probe on every subsequent scan).
 func TestScanService_StreamlessFile_GivesUpAfterMax(t *testing.T) {
-	const maxAttempts = 4 // mirrors scan_service.go maxStreamProbeAttempts
+	const maxAttempts = 2 // mirrors scan_service.go maxStreamProbeAttempts
 	h := newScanHarness()
 	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
 	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
