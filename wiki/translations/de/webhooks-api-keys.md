@@ -1,83 +1,97 @@
 ---
-source_sha: f8b9121424daaf442c366f75a6973b21de77d280d45f2cb7e7dadab38b7328be
-reviewed: false
+source_sha: 09be615f048b42a5c91430ee4558b2bc906d1e19a1f0c51eb2577ffa9d579533
+reviewed: true
 ---
 # Webhooks und API-Schlüssel
 
-Zwei Wege, Evey mit anderen Werkzeugen zu verbinden, ohne ein Plugin zu schreiben:
-Webhooks senden die Ereignisse von Evey an eine URL von Ihnen, API-Schlüssel
-lassen Ihre Skripte Evey aufrufen.
+Zwei Wege, Evey mit anderen Werkzeugen zu verbinden, ohne ein Plugin zu
+schreiben: Ein Webhook schickt die Ereignisse des Servers an eine Adresse
+Ihrer Wahl. Ein API-Schlüssel lässt ein Skript den Server in Ihrem Namen
+aufrufen. Beides legt ein Administrator im Verwaltungsbereich an. Diese Seite
+richtet sich an die Person, die sie einrichtet, und an die Person, die den
+Empfänger oder das Skript schreibt.
 
-## Webhooks
+## Ereignisse an eine URL schicken
 
-**Admin → Webhooks → Webhook erstellen**: ein Name, eine URL, die zu sendenden
-Ereignisse und ein optionales Geheimnis. **Testen** sendet einen Ping und meldet
-die Antwort.
+**Verwaltung → Webhooks → Webhook erstellen**: ein **Name**, eine **URL**,
+die **Ereignisse**, die gesendet werden, und optional ein **Secret** zum
+Signieren. **Testen** schickt einen Ping und zeigt die Antwort.
 
 <figure class="evey-shot" markdown="span">
-  ![Ein Webhook unter Admin → Webhooks](images/admin-webhooks.webp){ loading=lazy }
+  ![Ein Webhook unter Verwaltung → Webhooks](images/admin-webhooks.webp){ loading=lazy }
   <figcaption>Ein Webhook, der Beginn und Ende jeder Wiedergabe sendet (Oberfläche auf Englisch).</figcaption>
 </figure>
 
-**Ereignisse.** Ein Webhook abonniert alle Ereignisse oder eine gewählte Liste.
-Es sind die Ereignisse des Servers selbst, zum Beispiel:
+**Ereignisse.** Ein Webhook abonniert **Alle Ereignisse** oder eine
+ausgewählte Liste. Das Formular bietet jedes Ereignis an, das der Server
+veröffentlicht, unter anderem:
 
 | Bereich | Ereignisse |
 | --- | --- |
-| Bibliothek | `library.scan.started`, `library.scan.completed`, `media.item.added`, `media.item.updated`, `media.item.removed` |
+| Bibliothek | `library.scan.started`, `library.scan.completed`, `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
 | Wiedergabe | `playback.started`, `playback.stopped`, `media.marked.watched`, `transcode.started`, `transcode.failed` |
-| Konten | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created` |
+| Konten | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created`, `user.apikey.created` |
 | Anfragen | `media.request.created`, `media.request.answered` |
-| Server | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed` |
+| Server | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed`, `transcoding.derived_cache_full` (der Untertitelspeicher unterschreitet seinen Spielraum an freiem Platz) |
 
-**Zustellung.** Jedes Ereignis ist ein JSON-`POST`. Zwei Header kommen mit:
+Ein Plugin, das `EmitEvent` aufruft, veröffentlicht `plugin.event.<type>`.
+Ein Webhook auf **Alle Ereignisse** empfängt auch das.
 
-- `X-Evey-Delivery`: eine Kennung, die über die Wiederholungen einer Zustellung
-  gleich bleibt, sodass Ihr Empfänger ein Duplikat ignorieren kann;
-- `X-Evey-Signature`: `sha256=`, gefolgt vom HMAC-SHA256 des Inhalts, berechnet
-  mit dem Geheimnis des Webhooks. Prüfen Sie ihn mit demselben Geheimnis, um zu
-  wissen, dass die Anfrage von Ihrem Server kommt. Ohne Geheimnis beweist die
-  Signatur nichts.
+**Zustellung.** Jedes Ereignis ist ein JSON-`POST` mit zwei Headern:
 
-Eine fehlgeschlagene Zustellung wird nach 1, 5 und 30 Sekunden wiederholt. Jeder
-Versuch wird im Zustellungsprotokoll des Webhooks festgehalten.
+- `X-Evey-Delivery`: eine Kennung, die über alle Wiederholungen einer
+  Zustellung gleich bleibt. So kann Ihr Empfänger ein Duplikat ignorieren.
+- `X-Evey-Signature`: `sha256=`, gefolgt vom HMAC-SHA256 des Inhalts,
+  berechnet mit dem Secret des Webhooks. Prüfen Sie ihn mit demselben Secret,
+  dann wissen Sie, dass die Anfrage von Ihrem Server kommt. Ohne Secret
+  beweist die Signatur nichts.
 
-**Nur öffentliche Adressen.** Eine Webhook-URL muss `http` oder `https` sein und
-auf eine öffentliche Adresse zeigen. Private und lokale Adressen (`192.168.x.x`,
-`10.x.x.x`, `localhost`, ein Containername, der zu einer solchen aufgelöst wird)
-werden abgelehnt, beim Speichern des Webhooks und erneut, wenn der Server sich
-verbindet. Das schützt den Server davor, genutzt zu werden, um Ihr internes
-Netzwerk zu erreichen; ein Empfänger in Ihrem lokalen Netzwerk braucht eine
-öffentliche Adresse oder ein Relais.
+Jeder Versuch wartet bis zu 30 Sekunden auf eine Antwort. Eine
+fehlgeschlagene Zustellung wird nach 1, 5 und 30 Sekunden wiederholt. Jeder
+Versuch wird festgehalten. Den Verlauf lesen Sie über die API
+(`ListWebhookDeliveries` in der [Plugin-API](api/plugins/README.md)), nicht im
+Verwaltungsbereich.
 
-## API-Schlüssel
+!!! warning "Nur öffentliche Adressen"
+    Eine Webhook-URL muss `http` oder `https` sein und auf eine öffentliche
+    Adresse zeigen. `localhost`, private und link-lokale Adressen
+    (`192.168.x.x`, `10.x.x.x`, `172.16.x.x`...) und ein Name, der zu einer
+    solchen Adresse aufgelöst wird, werden abgelehnt: beim Speichern des
+    Webhooks und noch einmal, wenn der Server sich verbindet. So kann
+    niemand den Server benutzen, um Ihr internes Netz zu erreichen. Ein
+    Empfänger in Ihrem lokalen Netz braucht eine öffentliche Adresse oder
+    einen Vermittler.
 
-Ein API-Schlüssel lässt ein Skript die Server-API ohne Passwort aufrufen.
-Schlüssel werden unter **Admin → API-Schlüssel** von einem Administrator
-angelegt und gehören diesem Administrator.
+## Den Server aus einem Skript aufrufen
 
-- **Der Schlüssel wird einmal gezeigt**, bei der Erstellung. Speichern Sie ihn
-  dann; er kann nicht erneut angezeigt, nur widerrufen werden.
-- **Er handelt als sein Besitzer**, mit Administratorrechten, im Rahmen seiner
-  Berechtigungen.
-- **Berechtigungen** (Scopes) begrenzen, was der Schlüssel tun kann:
+Mit einem API-Schlüssel ruft ein Skript die Server-API ohne Passwort auf.
+Schlüssel legt ein Administrator unter **Verwaltung → API-Schlüssel → Neuer
+API-Schlüssel** an. Sie gehören diesem Administrator.
 
-| Berechtigung | Erlaubt |
+- **Der Schlüssel wird einmal angezeigt**, beim Erstellen. Speichern Sie ihn
+  dann. Er lässt sich nicht noch einmal anzeigen, nur mit **Widerrufen**
+  sperren.
+- **Er handelt als sein Besitzer**, mit Administratorrechten, im Rahmen
+  seiner Bereiche.
+- **Bereiche** (Scopes) begrenzen, was der Schlüssel tun darf:
+
+| Bereich | Erlaubt |
 | --- | --- |
 | `media:read` | Metadaten der Medien lesen |
 | `media:write` | Medien ändern und Scans starten |
-| `playback:read` | Wiedergabezustand und Verlauf lesen |
+| `playback:read` | Wiedergabestand und Verlauf lesen |
 | `playback:write` | Wiedergabe und Fortschritt steuern |
 | `users:read` | Benutzer lesen |
 | `users:write` | Benutzer ändern |
 | `admin:read` | Aktivität und Statistiken der Verwaltung lesen |
 | `admin:write` | Einstellungen der Verwaltung ändern |
 
-**Ein ohne Berechtigung erstellter Schlüssel hat vollen Zugriff**, wie sein Besitzer:
-Das ist das alte Verhalten, für bestehende Schlüssel beibehalten. Wählen Sie die
-Berechtigungen, die ein Skript braucht.
+Ein Schlüssel ohne jeden Bereich (**Alle (Legacy)**) hat vollen Zugriff auf
+die Methoden außerhalb der Verwaltung, wie sein Besitzer. Verwaltungsmethoden
+verlangen aber immer ihren Bereich: Ein Legacy-Schlüssel erreicht sie nicht.
+Wählen Sie die Bereiche, die ein Skript braucht.
 
-Der Schlüssel gehört in den Header `Authorization`, mit oder ohne `Bearer`:
+Der Schlüssel kommt in den Header `Authorization`, mit oder ohne `Bearer`:
 
 ```bash
 curl -H "Authorization: Bearer evey_..." https://media.example.com/api/v1/...
@@ -85,4 +99,13 @@ curl -H "Authorization: Bearer evey_..." https://media.example.com/api/v1/...
 
 Ein Schlüssel funktioniert sofort nicht mehr, wenn er widerrufen oder sein
 Besitzer deaktiviert wird. Die Endpunkte selbst stehen in der
-[Server-API](api/README.md).
+[Server-API](api/README.md), zusammen mit den anderen Wegen, sich
+auszuweisen.
+
+<!-- sources
+form labels: i18n admin.webhooks.form.* (name, url, secret, events, allEvents), admin.webhooks.createWebhook, common.test, admin.webhooks.testPingSent
+event list: frontend/packages/client/src/lib/webhookEvents.ts - WEBHOOK_EVENT_TYPES ; EventName() in internal/domain ; plugin events: internal/adapters/driving/pluginhost/host_server.go - pluginEmittedEvent.EventName
+delivery, headers, timeout, retries, signature: internal/app/webhook/service.go - handleAny, attemptDeliver, sign, defaultRetryDelays, deliveryTimeout ; internal/domain/webhook/model.go - MatchesEvent ; history: proto/evey/v1/webhook.proto - ListWebhookDeliveries
+public addresses only: internal/pkg/urlvalidator/validator.go - ValidateWebhookURL, isPrivateIP ; internal/pkg/ssrf/dialer.go
+api keys: internal/adapters/driving/grpcapi/interceptors/auth.go - authenticateAPIKey (Bearer optional, evey_ prefix), authorize (admin methods always enforce the scope) ; internal/pkg/auth/rbac.go (scopes) ; rbac.go - CreateAPIKey RoleAdmin ; i18n auth.apiKeys.* (newKeyTitle, scopesAll, saveWarning, revoke)
+-->

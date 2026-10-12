@@ -1,270 +1,323 @@
 ---
-source_sha: bb7b744c4f03cee0ce9a6cdfdd4b96cd6e99f6d71eee21c50f601fc4595ae619
-reviewed: false
+source_sha: 4f36e08eb2ed47e2b70b77f7f85f7caa2a9229e3bb755c85c2d54804d13c4031
+reviewed: true
 ---
 # Plugin-API-Referenz
 
-Dieses Dokument richtet sich an externe Entwickler, die ein Plugin für Evey schreiben. Für die Sicherheitsvorgaben, die für Plugins gelten, siehe [`security-model.md`](security-model.md).
+Der Vertrag, gegen den ein Plugin geschrieben wird: die Felder von
+`plugin.yaml`, die zwei gRPC-Dienste, die Backend und Server austauschen,
+und die Brücke `window.evey`, die ein Oberflächenmodul in seinem Frame
+bekommt. Die Schritt-für-Schritt-Anleitung, die sie benutzt, ist
+[Ein Plugin schreiben](dev-setup.md). Was jede Berechtigung erlaubt und was
+der Installer ablehnt, steht in [Berechtigungen und Slots](security-model.md).
 
-## Manifest-Schema
+## Manifest
 
-Jedes Plugin-ZIP muss in seinem Wurzelverzeichnis eine `plugin.yaml` enthalten.
+Jedes ZIP enthält auf oberster Ebene eine `plugin.yaml` (oder `plugin.yml`),
+höchstens 1 MB groß.
 
-```yaml
-name: my-plugin              # erforderlich; lesbarer Name
-version: 1.2.3               # erforderlich; semver
-kind: plugin                 # erforderlich; muss "plugin" sein ("theme" für reine CSS/JS-Themes)
-language: nodejs             # erforderlich für Plugins; nodejs | python | go | php | ruby | lua | bash | sh
-entrypoint: node index.js    # erforderlich für Plugins; die vollständige Befehlszeile, die der Interpreter ausführt -
-                              # das erste Token ist der Interpreter, im PATH gesucht; die
-                              # übrigen Tokens sind Skript/Argumente, auf das ZIP beschränkt.
-                              # "language" dient nur dazu, die Verfügbarkeit der Laufzeit zu prüfen und
-                              # SDK-Stubs zu kopieren - es startet den entrypoint NICHT.
+```yaml title="plugin.yaml"
+name: my-plugin              # Pflicht; eindeutig, kebab-case
+version: 1.2.3               # Pflicht; semver, X.Y.Z oder X.Y.Z-label
+kind: plugin                 # Pflicht; "plugin" oder "theme"
+language: nodejs             # Pflicht für ein Plugin; eine Laufzeit des Images
+entrypoint: node index.js    # Pflicht für ein Plugin; die Befehlszeile, die der Server startet
 
 description: "..."           # optional
 author: "..."                # optional
-min_evey_version: "1.0.0"   # optional; semver-Mindestversion des Hosts
+min_evey_version: "1.0.0"    # optional; wird festgehalten, heute nicht durchgesetzt
 
-permissions:
-  - network                  # siehe Abschnitt Berechtigungen
+permissions:                 # was Backend und Oberfläche aufrufen dürfen
+  - network
   - media.read
+external_fetch:              # Pflicht mit "network"; nur reine Hostnamen
+  - api.themoviedb.org
+capabilities:                # die Rollen, die das Plugin zu erfüllen angibt
+  - metadata.provider
 
-external_fetch:              # erforderlich, wenn die Berechtigung "network" angegeben ist
-  - api.themoviedb.org       # siehe Regeln für externe Abrufe in security-model.md
-  - api.example.com          # nur reiner Hostname - kein Schema, kein Platzhalter, keine IP
-
-capabilities:
-  - metadata.provider        # siehe Abschnitt Capabilities
-
-# Optional: ein Unterverzeichnis, dessen Inhalt als statische Dateien ausgeliefert wird.
-# Erforderlich, wenn Frontend-Module angegeben sind.
-web_root: public/
-
-# Optional: Frontend-Module, die in die Host-Oberfläche eingefügt werden.
+web_root: public/            # Pflicht, wenn frontend angegeben ist; als statische Dateien ausgeliefert
 frontend:
-  - slot: home.section       # siehe Slot-Liste in security-model.md
-    src: public/front.js     # Pfad relativ zur ZIP-Wurzel; muss unter web_root liegen
+  - slot: home.section       # einer der erlaubten Slots
+    src: public/front.js     # muss unter web_root liegen
 
-config_schema:               # optional; JSON-Schema-Objekt, das die Konfigurationsschlüssel beschreibt
+config_schema:               # die Felder des Bereichs Konfiguration auf der Karte des Plugins
   api_key:
+    type: password           # wird nie an einen Client zurückgeschickt
+    label: API key
+    required: true
+  city:
     type: string
-    secret: true             # oder `type: password`: nie an einen Client zurückgesendet, Admin eingeschlossen
-    description: "TMDB API key"
+    default: Paris
+    description: Resolved through geocoding
 ```
 
-Ein mit `secret: true` markiertes Feld (oder eines vom `type: password`) wird
-gespeichert und dem Plugin wie üblich übergeben, aber jede Leseroute - die
-öffentliche und das Konfigurationspanel des Admin-Bereichs - liefert es maskiert.
-Der Admin-Bereich behält den gespeicherten Wert, wenn die Maske unverändert
-zurückgeschickt wird, sodass das Speichern der anderen Felder nie ein Geheimnis
-löscht.
+| Feld | Regel |
+|---|---|
+| `name`, `version`, `kind` | Pflicht. `version` muss `X.Y.Z` oder `X.Y.Z-label` entsprechen; ein Update muss eine höhere Version tragen als die installierte. |
+| `language` | Pflicht für `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` oder `go`. Es bestimmt die Prüfung der Laufzeit und die Stubs, die neben den Einstiegspunkt kopiert werden; es startet selbst nichts. |
+| `entrypoint` | Pflicht für `kind: plugin`. Das erste Wort ist der Interpreter (oder die Binärdatei, mit `native-binary`), der Rest sind seine Argumente; der Prozess läuft im Verzeichnis des Plugins. |
+| `permissions` | Jeder Wert muss im [Katalog der Berechtigungen](security-model.md#permissions-catalog) stehen. `network` verlangt ein nicht leeres `external_fetch`. |
+| `external_fetch` | Reine Hostnamen. Ein Schema wird geduldet und entfernt; ein Platzhalter oder eine IP-Adresse lässt die Installation scheitern ([Regeln](security-model.md#external-fetch-rules)). |
+| `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` oder `notification.sender`; alles andere wird abgelehnt. Ein Theme darf keine angeben. |
+| `web_root` | Pflicht, wenn `frontend` nicht leer ist; relativ, kein `..`, kein Backslash. `.` liefert das ganze Plugin-Verzeichnis aus und schreibt nur eine Warnung ins Protokoll. |
+| `frontend[]` | `slot` muss in der [Liste der Slots](#slots) stehen; `src` muss unter `web_root` liegen. |
+| `config_schema` | Eine Zuordnung von Feldname zu `{type, label, description, required, default, min, max, options}`. Typen: `string`, `text`, `password`, `boolean`, `integer`, `number`, `select` (mit `options: [{value, label}]`). |
 
-**Bei der Installation geprüfte Regeln:**
+Ein Theme (`kind: theme`) darf `language`, `entrypoint`, `permissions` oder
+`capabilities` nicht angeben. Sein Format steht unter [Themes](../themes.md).
 
-- `kind: plugin` verlangt `language` und `entrypoint`.
-- `kind: theme` darf `language`, `entrypoint` oder `permissions` NICHT angeben.
-- `web_root` ist erforderlich, wenn `frontend` nicht leer ist.
-- `frontend[].src` muss unter `web_root` liegen.
-- `frontend[].slot` muss in der serverseitigen Slot-Liste stehen.
-- Die Berechtigung `network` verlangt eine nicht leere Liste `external_fetch`.
-- Alle Einträge in `external_fetch` müssen den Host-Validator bestehen.
-- Alle Capabilities und Berechtigungen müssen dem Server bekannt sein.
+**Geheimnisse.** Ein Feld mit `type: password` oder mit `secret: true` wird
+wie üblich gespeichert und an das Backend übergeben, kommt aber aus jeder
+Leseroute maskiert zurück, auch im Bereich **Konfiguration** der Verwaltung.
+Wer den Bereich mit unveränderter Maske speichert, behält den gespeicherten
+Wert. Das Ändern eines anderen Feldes löscht also nie ein Geheimnis.
 
-## Kommunikation mit dem Server
+## Backend: die zwei Dienste
 
-Der Plugin-Prozess und der Evey-Host sprechen gRPC über zwei Unix-Domain-Sockets,
-deren Pfade beim Start in der Umgebung übergeben werden:
+Der Backend-Prozess und der Server sprechen gRPC über zwei Unix-Sockets,
+deren Pfade in der Umgebung ankommen:
 
 ```
-EVEY_PLUGIN_ID=<plugin_id>
-EVEY_PLUGIN_SOCK=/tmp/evey/plugins/<plugin_id>/plugin.sock   # Ihr Prozess lauscht hier und stellt PluginService bereit
-EVEY_HOST_SOCK=/tmp/evey/plugins/<plugin_id>/host.sock       # Ihr Prozess verbindet sich hier, um HostService aufzurufen
+EVEY_PLUGIN_ID=<plugin id>
+EVEY_PLUGIN_SOCK=<path>   # Ihr Prozess lauscht hier und bedient PluginService
+EVEY_HOST_SOCK=<path>     # Ihr Prozess verbindet sich hierhin, um HostService aufzurufen
 ```
 
-Der Host authentifiziert den Plugin-Prozess an seinem Socket über die PID, die
-der Kernel meldet (`SO_PEERCRED`) - dem Prozess selbst wird kein Token ausgestellt.
+Der Server erkennt den Prozess an seinem Socket über die PID, die der Kernel
+meldet (`SO_PEERCRED`); der Prozess bekommt keinen Token. Die Aufrufe sind
+auf 600 pro Minute und Plugin begrenzt. `proto/plugin/v1/plugin_api.proto`
+ist der Vertrag. Stubs für die mitgelieferten Sprachen werden beim Start des
+Plugins neben den Einstiegspunkt kopiert
+([Voraussetzungen](dev-setup.md#1-prerequisites)).
 
-Ein separates, kurzlebiges JWT (5 Minuten, auf `plugin_id` + `user_id` beschränkt) wird bei Bedarf über den RPC `IssuePluginToken` ausgestellt - der *Frontend-iframe* des Plugins holt eines, um seine eigenen Aufrufe mit den Bereichen `public`/`prefs` zu authentifizieren. Es hat nichts mit dem Backend-Socket oben zu tun und wird dem Plugin-Prozess nie beim Start übergeben.
+### PluginService: was der Server aufruft
 
-Die gRPC-Dienstdefinitionen stehen in `proto/plugin/v1/plugin_api.proto`. Sprachspezifische SDK-Stubs werden aus dieser Proto-Datei erzeugt und können ins Plugin-ZIP aufgenommen oder daneben mitgeliefert werden. Für mehrere Sprachen werden Stubs vorgeneriert mitgeliefert (`sdk/<lang>/`); für eine nicht mitgelieferte siehe [dev-setup.md → Stubs für eine andere Sprache erzeugen](dev-setup.md#generating-stubs-for-another-language).
+| Methode | Wann |
+|---|---|
+| `Initialize(plugin_id, config, host_version)` | Sobald der Prozess seinen Socket gebunden hat. `config` enthält die Werte aus `config_schema`, die der Administrator gesetzt hat. Antworten Sie `success: false` mit einem `error`, um den Start abzulehnen. |
+| `HealthCheck()` | Regelmäßig, um einen lebenden Prozess von einem hängenden zu unterscheiden. Antworten Sie `healthy: true`, solange Sie arbeiten können. |
+| `Shutdown(reason)` | Wenn das Plugin deaktiviert, aktualisiert oder deinstalliert wird oder der Server stoppt. Beenden Sie sich kurz nach der Antwort. |
+| `OnEvent(event_type, payload, source)` | Im Vertrag definiert, aber der Server liefert Plugins heute keine Ereignisse: Setzen Sie es so um, dass es `handled: true` antwortet, und rechnen Sie mit keinem Aufruf. |
+| `GetCapabilities()` | Im Vertrag definiert; der Server ruft es heute nicht auf. |
 
-Der Host setzt Berechtigungen auf RPC-Ebene durch - ein RPC aufzurufen, den Ihr Manifest nicht angegeben hat, ergibt `PermissionDenied`.
+### HostService: was das Plugin aufrufen kann
+
+Ein Aufruf, dessen Berechtigung das Manifest nicht angibt, wird mit
+`PermissionDenied` abgelehnt. Methoden mit dem Vermerk *nicht bedient*
+antworten `Unimplemented`. Sie gehören zum Vertrag für eine spätere Version
+und stehen hier, damit ein Stub Sie nicht in die Irre führt.
+
+| Methode | Berechtigung | Hinweise |
+|---|---|---|
+| `Log(level, message, fields)` | keine | Ins Protokoll des Plugins geschrieben, sichtbar unter **Protokolle** auf seiner Karte. |
+| `GetConfig(key)` / `SetConfig(key, value)` | keine | Die Konfiguration des Plugins: die Werte aus dem Bereich **Konfiguration** plus Schlüssel, die das Plugin selbst schreibt. Höchstens 256 Schlüssel, Schlüssel bis 256 Byte, Werte bis 16 KiB. |
+| `GetData`, `SetData`, `DeleteData`, `ListDataKeys` | keine | Der [Datenspeicher](#data-store) unten. |
+| `EmitEvent(event_type, payload)` | keine | Auf dem Ereignisbus des Servers als `plugin.event.<event_type>` veröffentlicht, wo Webhooks es abonnieren können. |
+| `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` oder `media.read` | Der vollständige Datensatz des Mediums, mit `file_path`, `provider_ids` und `genres`. |
+| `Fetch(url, method, headers)` | `network` | Der einzige Weg aus der Sandbox hinaus: `http` oder `https`, `GET` oder `HEAD`, ein Host aus `external_fetch`, private Adressen nach der Auflösung und bei Weiterleitungen abgelehnt. Der Inhalt ist auf 8 MiB begrenzt (`truncated` zeigt es an), die ganze Anfrage auf 20 Sekunden. Der Server hängt keine eigenen Zugangsdaten an. |
+| `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` oder `media.read` | *Nicht bedient.* |
+| `UpdateMetadata` | `api.metadata` oder `media.write` | *Nicht bedient.* |
+| `GetUserPreferences` | `api.user` | *Nicht bedient.* |
+| `SendNotification` | `notification.sender` | *Nicht bedient.* |
 
 ### Datenspeicher
 
-Jedes Plugin erhält einen eigenen dauerhaften Schlüssel-Wert-Speicher im Namensraum
-des Plugins - **keine Berechtigung nötig, ein Plugin besitzt seine eigenen
-Daten**. Nutzen Sie ihn für Cursor, Caches, Zeitpunkte der letzten
-Synchronisation, alles, was sich das Plugin über Neustarts hinweg merken muss.
-Werte sind undurchsichtige Zeichenketten (kodieren Sie JSON selbst, wenn Sie
-Struktur brauchen).
+Jedes Plugin hat einen dauerhaften Schlüssel-Wert-Speicher, ohne dass es eine
+Berechtigung angeben muss: Cursor, Caches, der Zeitpunkt der letzten
+Synchronisierung, alles, was einen Neustart überdauern soll. Werte sind
+undurchsichtige Zeichenketten; JSON kodieren Sie selbst. Die ID des Plugins
+kommt vom authentifizierten Socket. Ein Plugin liest und schreibt also nur
+seinen eigenen Namensraum, und der ganze Speicher wird mit dem Plugin
+gelöscht.
 
-| RPC `HostService` | Zweck |
+| Methode | Zweck |
 |---|---|
 | `SetData(key, value)` | Einen Wert anlegen oder ersetzen. |
-| `GetData(key) → {value, found}` | Einen Wert lesen. |
+| `GetData(key)` | Liefert `value` und `found`. |
 | `DeleteData(key)` | Einen Schlüssel entfernen. |
-| `ListDataKeys() → {keys}` | Die Schlüssel des Plugins auflisten. |
+| `ListDataKeys()` | Die Schlüssel des Plugins. |
 
-Die Plugin-ID stammt aus dem authentifizierten Socket - ein Plugin kann nur
-seinen **eigenen** Namensraum lesen und schreiben, nie den eines anderen Plugins.
-Bei der Deinstallation wird sein ganzer Speicher automatisch gelöscht
-(`ON DELETE CASCADE`), sodass keine veralteten Daten die Entfernung überdauern.
-
-Dieser Speicher gilt für das ganze Plugin. Um Daten **pro Benutzer** zu speichern
-(z. B. eine Vorliebe des gerade schauenden Benutzers), siehe die Berechtigung
-`prefs` unten - diese Schnittstelle wird aus dem iframe des Plugins erreicht, wo
-ein Benutzerkontext existiert.
+Dieser Speicher gilt für das ganze Plugin. Daten **pro Benutzer** (eine
+Einstellung der Person, die das Widget ansieht) liegen auf der Seite der
+Oberfläche, über die Berechtigung `prefs` unten.
 
 ## Frontend-API
 
-Gibt ein Plugin ein Modul `frontend` an, enthält das HTML des iframe-`srcdoc` ein Brückenskript, das dem JavaScript des Moduls `window.evey` bereitstellt.
-
-Das Frontend-Modul läuft in einem abgeschotteten Rahmen mit opakem Ursprung: Es hat keinen Zugriff auf DOM, Cookies oder Speicher der Host-Seite und erreicht Evey nur über `window.evey`. Sein eigener Netzwerkzugang ist durch das `connect-src` des Rahmens auf die Hosts seiner Liste `external_fetch` beschränkt, über `https://`; ein Plugin ohne diese Liste kann gar keine Verbindung öffnen.
-
-### `evey.navigate(path)`
-
-Lässt die Host-Anwendung zu `path` navigieren. Der Pfad muss mit `/home`, `/library`, `/media`, `/player`, `/settings` oder `/search` beginnen; alles andere (der Admin-Bereich, die Anmeldung, die Einrichtung, eine absolute oder protokollrelative URL) wird stillschweigend verworfen.
-
-```js
-evey.navigate("/library/movies");
-evey.navigate("/media/abc123");
-```
-
-### `evey.toast(level, message)`
-
-Zeigt eine Toast-Benachrichtigung in der Host-Oberfläche.
-
-- `level`: `"success"` | `"error"` | `"info"`
-- `message`: reiner Text, höchstens 200 Zeichen, HTML wird entfernt
-- Begrenzt auf 3 Toasts pro Sekunde
-
-```js
-evey.toast("success", "Metadata enriched.");
-evey.toast("error", "API key missing.");
-```
-
-### `evey.resize(height)`
-
-Bittet den Host, den iframe-Slot auf `height` Pixel zu verändern. Begrenzt auf 50-800. `0` klappt den Slot zusammen: Ein Plugin, das nichts zu zeigen hat, nimmt auf der Seite keinen Platz ein.
-
-```js
-evey.resize(300);
-evey.resize(0); // nichts zu sagen: der Slot verschwindet
-```
+Ein Oberflächenmodul läuft in einem Frame mit undurchsichtigem Ursprung,
+unter der Richtlinie `default-src 'none'`: kein Zugriff auf die Hostseite,
+ihre Cookies oder ihren Speicher, kein Formular, kein Popup, und ein
+`connect-src`, das auf die Hosts aus `external_fetch` über `https` begrenzt
+ist. Alles andere läuft über `window.evey`, das vor dem Modul eingefügt
+wird. Dasselbe Modul läuft unverändert in der Web-App und in den Apps für
+Handy und Fernseher.
 
 ### `evey.onInit(callback)`
 
-Registriert einen Callback, der ausgelöst wird, sobald der Host dem Plugin seinen Initialisierungskontext sendet. Hat der Host `init` schon vor dem Aufruf von `onInit` gesendet, wird der Callback sofort mit den zwischengespeicherten Daten aufgerufen.
+Wird einmal mit dem Kontext aufgerufen, den der Host schickt. Ein Callback,
+der nach dem Eintreffen des Kontexts registriert wird, wird sofort
+aufgerufen.
 
 ```js
-evey.onInit(function(data) {
-  // data.context         - Konfigurationswerte des Plugins (aus config_schema)
-  // data.locale          - aktive Sprache, z. B. "en-US"
-  // data.theme           - ID des aktiven Themes
-  // data.surface         - "web", "mobile" oder "tv": wo das Widget gelandet ist
-  // data.suggestedHeight - nur home.section: die Höhe (px), die der Host dort empfiehlt
-  // data.viewportHeight  - nur tv: die Höhe des Panels in dp
+evey.onInit(function (data) {
+  // data.context         - die Konfigurationswerte des Plugins (config_schema)
+  // data.locale          - die aktive Sprache, z. B. "en-US"
+  // data.theme           - die ID des aktiven Designs
+  // data.surface         - "web", "mobile" oder "tv"
+  // data.suggestedHeight - nur home.section: die Höhe (px), die der Host empfiehlt
+  // data.viewportHeight  - nur tv: die Höhe des Bereichs in dp
 });
 ```
 
-Der Host wartet bis zu 5 Sekunden darauf, dass das Plugin `ready` signalisiert (erledigt das Brückenskript automatisch). Wird die Zeit überschritten, wird der iframe entfernt und ein Fehler gemeldet.
+### `evey.navigate(path)`
 
-#### Höhe
+Führt die Host-Anwendung zu `path`. Nur die Präfixe `/home`, `/library`,
+`/media`, `/player`, `/settings` und `/search` werden befolgt. Alles andere
+(der Verwaltungsbereich, die Anmeldung, eine absolute URL) wird
+stillschweigend verworfen.
 
-Ein Widget `home.section` öffnet sich ohne Zutun mit `data.suggestedHeight`: Der Host kennt die Fläche, auf die er Sie gesetzt hat - eine Desktop-Seite, ein Telefon, ein Fernsehpanel - und empfiehlt die Höhe, die ein Widget der Startseite dort hat, sodass jedes Widget einer Startseite gleich groß ankommt. Rufen Sie `evey.resize()` nur auf, wenn Sie es besser wissen; der Host verändert oder skaliert Ihren Inhalt nie hinter Ihrem Rücken.
+### `evey.toast(level, message)`
 
-#### Auf einem Fernseher
+Zeigt eine kurze Meldung (Toast) in der Oberfläche des Hosts. `level` ist
+`"success"`, `"error"` oder `"info"`; `message` ist reiner Text, nach 200
+Zeichen abgeschnitten; höchstens 3 Meldungen pro Sekunde werden angezeigt.
 
-Die Fernseh-App führt Ihr Widget in einer WebView aus, und einige Dinge, die im Browser stimmen, stimmen dort nicht mehr:
+### `evey.resize(height)`
 
-- **Nicht aus dem eigenen Viewport bemessen.** In der WebView ist `window.innerHeight` der Slot, den der Host Ihnen gerade gewährt hat - ein Zirkelschluss. Wenn Sie Ihre Größe selbst ändern, bemessen Sie sie aus `data.viewportHeight` (das Panel) oder `data.suggestedHeight`, nie aus `innerHeight`.
-- **Kein Fokus, kein Zeiger.** Das Widget erhält nie den D-Pad-Fokus, und es gibt kein Hover. Alles Interaktive gehört auf die Flächen Web und Mobil.
-- **Text von den Rändern fernhalten.** Fernseher haben Overscan: Lassen Sie auf jeder Seite etwa 5 % von Breite und Höhe frei.
-- **WebGL auf einer echten Box testen, vergrößert.** Ein Shader läuft auf der GPU der Box und ihrem Treiber, nicht auf der Ihres Desktops. Ein Gitter-Hash, der seine Eingabe vor `fract()` mit einigen Hundert multiplizierte, zeichnete auf einer Mali-GPU flache Polygone statt Wolken, während er im Browser gut aussah; halten Sie Rauschkoordinaten begrenzt (`mod()`) und hashen Sie begrenzte Werte. `tests/plugins/weather-v2` ist das Referenz-Widget für all das.
+Verlangt, dass der Slot `height` Pixel hoch ist, begrenzt auf 50 bis 800.
+`0` klappt den Slot zu: Ein Widget, das nichts zu zeigen hat, nimmt keinen
+Platz ein. Ein Widget in `home.section` öffnet sich ohne Zutun mit
+`data.suggestedHeight`: Der Host kennt die Oberfläche, auf die er Sie
+gesetzt hat, und empfiehlt die Höhe, die ein Startseiten-Widget dort hat.
+So landet jedes Widget in derselben Größe. Ändern Sie die Größe nur, wenn
+Sie es besser wissen.
+
+### `evey.prefs.*` (Berechtigung `prefs`)
+
+Die Einstellungen des aktuellen Benutzers im eigenen Namensraum des
+Plugins, an (dieses Plugin, diesen Benutzer) gebunden durch den Token, den
+der Host für den Frame hält. Jeder Aufruf gibt ein Promise zurück; fehlt die
+Berechtigung, wird es abgelehnt.
+
+```js
+await evey.prefs.set("units", "celsius");
+const { value, found } = await evey.prefs.get("units");
+const all = await evey.prefs.list();        // [{ key, value }]
+await evey.prefs.delete("units");
+```
+
+### `evey.media.*` (Berechtigung `public`)
+
+Eine sichere Projektion der Medien: ID, Titel, Typ, Jahr, Inhaltsangabe,
+URL des Posters. Nie ein Dateipfad, eine Größe, eine Anbieter-ID oder ein
+Stream.
+
+```js
+const item  = await evey.media.get(id);
+const page  = await evey.media.list({ libraryId });
+const data  = await evey.media.poster(id);  // das Poster als data:-URL
+```
+
+`poster` liefert eine `data:`-URL, weil die Richtlinie des Frames verbietet,
+ein Bild direkt vom Server zu laden. Nutzen Sie sie als Quelle eines `<img>`
+oder als Textur.
+
+### `evey.assets.read(path)`
+
+Liest eine der eigenen Dateien des Plugins aus `web_root`, über den
+relativen Pfad, als `data:`-URL: Eine Datei, die das Backend zur Laufzeit
+geschrieben hat, wird im Frame nutzbar, ohne Probleme mit fremden Ursprüngen.
+Nur die eigenen Dateien des Plugins sind erreichbar.
+
+### Auf einem Fernseher
+
+Die TV-App führt das Modul in einer WebView aus, und einiges, das im Browser
+gilt, gilt dort nicht mehr:
+
+- **Richten Sie die Größe nicht nach Ihrem eigenen Viewport.** In der
+  WebView ist `window.innerHeight` der Slot, den der Host Ihnen gerade
+  zugeteilt hat. Richten Sie sich nach `data.viewportHeight` oder
+  `data.suggestedHeight`.
+- **Kein Fokus, kein Zeiger.** Das Widget bekommt nie den Fokus des
+  Steuerkreuzes, und es gibt kein Hover. Alles Interaktive gehört auf die
+  Web- und Handy-Oberflächen.
+- **Halten Sie Text von den Rändern fern.** Fernseher schneiden den Rand ab
+  (Overscan): Lassen Sie an jeder Seite etwa 5 % der Breite und Höhe frei.
+- **Testen Sie WebGL auf einer echten Box.** Ein Shader läuft auf der GPU
+  und dem Treiber der Box, nicht auf denen Ihres Rechners; halten Sie
+  Rauschkoordinaten begrenzt. `tests/plugins/weather-v2` ist das
+  Referenz-Widget für all das.
 
 ## Slots
 
 | Slot | Wo er erscheint |
 |---|---|
-| `home.section` | Inhaltsabschnitt auf der Startseite |
-| `home.hero` | Bannerbereich auf der Startseite |
-| `library.sidebar` | Seitenpanel in Bibliotheksansichten |
-| `media.detail.sidebar` | Seitenpanel auf Detailseiten von Medien |
-| `player.overlay` | Überlagerungsebene im Videoplayer |
-| `settings.user.appearance` | Unterabschnitt Darstellung in den Benutzereinstellungen |
-| `sidebar.bottom` | Unterer Bereich der Hauptnavigation |
-| `admin.nav` | Ein Navigationseintrag im Admin-Bereich, der die eigene abgeschottete Seite des Plugins öffnet |
+| `home.section` | Ein Inhaltsbereich auf der Startseite |
+| `home.hero` | Der Bereich des großen Banners auf der Startseite |
+| `library.sidebar` | Ein Seitenleistenbereich in den Bibliotheksansichten |
+| `media.detail.sidebar` | Ein Seitenleistenbereich auf der Detailseite eines Mediums |
+| `player.overlay` | Eine Ebene über dem Videoplayer |
+| `settings.user.appearance` | Der Bereich Darstellung in den Benutzereinstellungen |
+| `sidebar.bottom` | Der untere Teil der Hauptnavigation |
+| `admin.nav` | Ein Eintrag im Verwaltungsmenü, der die eigene Seite des Plugins öffnet |
 
-`admin.nav` ist der **einzige** Slot im Admin-Bereich. Er schleust keine Oberfläche
-in bestehende Admin-Bildschirme ein - er fügt einen einzigen Menüeintrag hinzu, der
-die eigene Seite Ihres Plugins in einem abgeschotteten iframe auf einer eigenen
-Admin-Route öffnet. Ihn zu verlangen, erscheint in der Zustimmungsübersicht der
-Installation.
-
-Alle anderen Slots unter `admin.*`, `login.*`, `setup.*`, `profile.security.*`
-werden bei der Installation abgelehnt.
+`admin.nav` ist der einzige Slot im Verwaltungsbereich. Er fügt nichts in
+bestehende Verwaltungsbildschirme ein: Er ergänzt einen Menüeintrag, der die
+Seite des Plugins im selben Sandbox-Frame öffnet, auf einer Route nur für
+Administratoren. Wer ihn verlangt, erscheint damit in der Übersicht der
+Änderungen, die bestätigt werden müssen. Jeder andere Slot `admin.*`,
+`login.*`, `setup.*` und `profile.security.*` wird bei der Installation
+abgelehnt.
 
 ## Capabilities
 
-Capabilities geben an, welche serverseitige Rolle das Plugin erfüllt. Sie bestimmen, welche RPCs der Host an das Plugin weiterleitet und wie er das Plugin in seinem Dienstverzeichnis registriert.
+Eine Capability gibt die Rolle an, die das Plugin zu erfüllen sagt:
+`metadata.provider`, `media.read`, `media.write`, `webhook.receiver` oder
+`notification.sender`. Der Installer prüft den Namen, der Administrator
+sieht die Liste in der Vorschau und jede Ergänzung beim Update, und das
+Sicherheits-Dashboard hält sie fest. Der Server leitet heute nichts anhand
+einer Capability weiter: Ein `metadata.provider` bekommt keinen Aufruf zur
+Anreicherung, ein `webhook.receiver` keine eingehende Anfrage. Was ein
+Plugin wirklich tun kann, entscheiden seine **Berechtigungen**.
 
-### `metadata.provider`
+## Berechtigungen der Oberfläche
 
-Das Plugin kann angereicherte Metadaten für Medien liefern. Es gibt keinen eigenen RPC für die Anreicherung - der `PluginService`, den der Host aufruft, bietet nur `Initialize` / `Shutdown` / `OnEvent` / `HealthCheck` / `GetCapabilities` (`proto/plugin/v1/plugin_api.proto`). Ein Plugin `metadata.provider` erhält die passenden Ereignisse über `OnEvent` und meldet seine Capability über `GetCapabilities`; es implementiert keine eigene Anreicherungsmethode.
+`public` und `prefs` werden wie die anderen unter `permissions` angegeben.
+Sie gewähren dem Backend-Prozess nichts; sie schalten `evey.media.*` und
+`evey.prefs.*` im Frame frei. Der Frame hält nie einen Token: Der Host stellt
+einen Token für fünf Minuten aus, begrenzt auf (Plugin, Benutzer), und
+leitet die Aufrufe weiter. Der Server lehnt standardmäßig jede Methode ab,
+die die Bereiche des Tokens nicht nennen
+([ADR-0012](../adr/0012-plugin-token-deny-by-default.md)).
 
-Erforderliche Berechtigung: `api.metadata`.
-
-### `media.read`
-
-Das Plugin darf Medieneinträge und Streams lesen. Entspricht der Berechtigung `media.read` im Manifest.
-
-### `media.write`
-
-Das Plugin darf Medieneinträge anlegen oder ändern. Entspricht der Berechtigung `media.write`.
-
-### `notification.sender`
-
-Das Plugin darf Benachrichtigungen veröffentlichen. Der Host leitet ausgehende Benachrichtigungsereignisse durch das Plugin. Entspricht der Berechtigung `notification.sender`.
-
-### `webhook.receiver`
-
-Das Plugin registriert sich als Webhook-Endpunkt. Der Host leitet passende eingehende HTTP-POST-Anfragen per gRPC an das Plugin weiter. Außer der Angabe der Capability ist keine weitere Berechtigung nötig.
-
-## Berechtigungen
-
-`public` und `prefs` sind **Berechtigungen**, keine Capabilities - sie ändern
-nicht, welche serverseitige Rolle das Plugin erfüllt, sie gewähren dem iframe
-des Plugins zusätzliche Lese- und Schreibbereiche. Geben Sie sie unter
-`permissions` im Manifest an.
-
-### `public`
-
-Gewährt dem iframe des Plugins Lesezugriff auf nicht sensible Serverdaten:
-`GetPublicMediaItem` / `ListPublicMediaItems`, die eine **sichere Projektion**
-liefern (ID, Titel, Typ, Jahr, Zusammenfassung, Poster-URL) - nie Dateipfade,
-Größen, Anbieter-IDs oder Streams. Das Branding des Servers (Name) ist bereits
-öffentlich und braucht keine Berechtigung. Geben Sie `public` in `permissions`
-an, um es zu verlangen.
-
-### `prefs`
-
-Gewährt dem iframe des Plugins Lese- und Schreibzugriff auf die Vorlieben des
-**aktuellen Benutzers** im eigenen Namensraum des Plugins, über
-`PluginUserDataService` (`GetPref` / `SetPref` / `DeletePref` / `ListPrefs`).
-Plugin und Benutzer sind durch das iframe-Token gebunden, sodass ein Plugin nur
-Daten (eigenes Plugin, aktueller Benutzer) anfassen kann - nie die eines anderen
-Plugins, nie die eines anderen Benutzers, nie Identitäts- oder Sicherheitsfelder.
-Die Zeilen werden mit dem Plugin oder dem Benutzer kaskadierend gelöscht. Geben
-Sie `prefs` in `permissions` an.
-
-> **Was Sie nie verlangen können.** `admin.*`, `auth.*` (Anmeldung/Abmeldung/Sitzung),
-> `system.*` und allgemeines `user.write` / `library.write` sind fest gesperrt: Sie
-> werden aus jedem Token entfernt und an der API-Grenze abgelehnt, selbst wenn ein
-> Manifest sie anzugeben versucht. Ein Plugin-Token mit Bereichen ist auf der
-> Server-API **standardmäßig verweigert** - es erreicht nur die Methoden, die die
-> gewährten Berechtigungen oben ausdrücklich freischalten.
+!!! note "Was ein Plugin nie verlangen kann"
+    `admin.*`, `auth.*`, `system.*`, `user.write` und `library.write` sind
+    fest gesperrt: Ein Manifest, das sie nennt, wird abgelehnt, ein Token
+    kann sie nie tragen, und Verwaltungsmethoden lehnen einen Plugin-Token
+    ab, egal welche Bereiche er hat.
 
 ## Beispiele
 
-`examples/plugins/` enthält funktionierende Plugins im aktuellen Manifest-Format: Vorlagen in Node.js und Python (`nodejs-example`, `python-example`), ein Metadatenanbieter (`metadata-example`), ein Webhook-Empfänger (`webhook-receiver`), ein Widget für die Startseite (`weather`), Plugin-Konfiguration und Geheimnisse (`config-demo`), der Datenspeicher mit den Berechtigungen `public` / `prefs` und dem Slot `admin.nav` (`data-demo`) sowie zwei Themes. [dev-setup.md](dev-setup.md#3-scaffold-your-first-plugin) führt durch das Kopieren eines davon.
+`examples/plugins/` enthält funktionierende Plugins im aktuellen
+Manifestformat: Vorlagen in Node.js und Python (`nodejs-example`,
+`python-example`), einen Metadatenanbieter (`metadata-example`), einen
+Webhook-Empfänger (`webhook-receiver`), ein Startseiten-Widget mit
+Build-Schritt (`weather`), den Datenspeicher mit den Berechtigungen `public`
+und `prefs` und dem Slot `admin.nav` (`data-demo`), einen Rundgang durch
+alle Feldtypen von `config_schema` (`config-demo`) und zwei Themes
+(`theme-dark-blue`, `open-workshop`). `make plugin-zips` packt sie alle.
+
+<!-- sources
+manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
+secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
+env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)
+peer auth, rate limit: internal/adapters/driving/pluginhost/host_server.go - makePluginAuthInterceptor, pluginRPCRatePerMin ; peer_creds.go
+host RPCs and permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; pluginhost/host_server.go - Log, GetConfig, SetConfig (maxConfigKeys, maxConfigKeyLen, maxConfigValueLen), EmitEvent (pluginEmittedEvent.EventName), GetMediaItem, ListMediaItems, mediaItemToProto, UpdateMetadata, GetUserPreferences (Unimplemented), UnimplementedHostServiceServer ; fetch.go - Fetch, maxFetchBytes, fetchTimeout
+proto: proto/plugin/v1/plugin_api.proto - PluginService, HostService, InitRequest, FetchRequest, FetchResponse, MediaItem
+frame policy: internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy ; frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc, ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, clampSlotHeight, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; web/PluginIframe.tsx - MIN_SLOT_HEIGHT, suggestedSlotHeight ; native/PluginWebView.tsx (surface)
+bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge ; pluginRpc.ts - pluginRequestFor
+slots: internal/domain/plugin/slots.go - AllowedSlots
+token, deny by default: internal/app/plugin/token_service.go - PluginTokenTTL ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes, forbiddenPrefix ; docs/adr/0003-plugin-scoped-tokens.md ; docs/adr/0012-plugin-token-deny-by-default.md
+examples: examples/plugins/* ; Makefile - plugin-zips
+-->

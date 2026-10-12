@@ -1,254 +1,425 @@
 ---
-source_sha: c9ccdddebbef17e96ff8f3da3475c803b0d09dc237cd4c140c897bdfdaf289c5
-reviewed: false
+source_sha: cd6782421b9f6afc3bb0fb42bd4f3bedff9feecbd2d8e4dfde59f3032637c55d
+reviewed: true
 ---
-# Einrichtung für Plugin-Entwickler
+# Ein Plugin schreiben
 
-Durchgehende Anleitung für alle, die Evey gerade geklont haben und ein Plugin oder Theme schreiben, testen und ausliefern wollen. Wählen Sie die Laufzeit, die zur Sprache Ihres Plugins passt; der Rest ist gemeinsam.
+Diese Seite führt einen Entwickler von einem Klon von Evey zu einem Plugin,
+das auf einem lokalen Server läuft, und dann zu einem signierten Paket, das
+andere Administratoren installieren können. Die Anleitung in
+[Abschnitt 3](#3-your-first-plugin-step-by-step) ist der direkte Weg; der
+Rest ist Nachschlagestoff, zu dem Sie zurückkehren werden. Die Aufrufe und
+Felder selbst stehen in der [Plugin-API-Referenz](api-reference.md).
+
+```mermaid
+flowchart LR
+  subgraph server["Evey-Server"]
+    host["HostService<br/>prüft jeden Aufruf gegen<br/>die angegebenen Berechtigungen"]
+    ui["Weboberfläche<br/>Plugin-Slots"]
+  end
+  subgraph plugin["Plugin, in seiner Sandbox"]
+    backend["PluginService<br/>Ihr Backend-Prozess"]
+    front["Frontend-Modul<br/>isolierter iframe"]
+  end
+  backend <-->|"gRPC über einen Unix-Socket"| host
+  front <-->|"postMessage-Brücke"| ui
+  host -->|"Fetch: nur angegebene Hosts"| net(("Internet"))
+```
+
+Ein Plugin ist ein ZIP mit einer `plugin.yaml` auf oberster Ebene und einem
+Backend-Prozess, den der Server in einer Sandbox startet. Der Prozess bietet
+einen kleinen gRPC-Dienst auf einem Unix-Socket an und ruft den Server über
+einen anderen zurück. Es kann auch ein Oberflächenmodul mitbringen, das in
+einem abgeschotteten Frame der Seite gezeichnet wird. Mit der Außenwelt
+spricht es nur über den Server, und nur mit den Hosts, die es angegeben hat.
 
 ## 1. Voraussetzungen
 
-Evey führt den Host-Prozess aus (Go) und liefert Plugins als ZIP-Dateien aus. Die Laufzeit des Plugins hängt davon ab, was Ihr Code aufruft.
+| Werkzeug | Wozu |
+|---|---|
+| Go 1.27, Node.js 22 mit pnpm, Docker mit Compose | Die Entwicklungsumgebung (`make dev`) baut den Server und die Web-App. |
+| `bubblewrap` (`bwrap`) | Nur für die Sandbox-Modi `bubblewrap` und `strict`. Der Standardmodus `auto` nutzt Landlock und braucht ab Kernel 5.13 nichts weiter. |
+| [cosign](https://docs.sigstore.dev/cosign/installation/) | Um Ihr Paket vor der Verteilung zu signieren ([Abschnitt 7](#7-sign-your-plugin)). Zum Entwickeln nicht nötig. |
 
-### Immer erforderlich
+Wählen Sie die Sprache Ihres Plugins unter den Laufzeiten, die der Server
+starten kann: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` und `sh`
+brauchen ihren Interpreter im Image; `go` bringt eine kompilierte
+Binärdatei mit und braucht die Berechtigung `native-binary`. Das
+Standard-Image enthält nur Python. Das Image `-nodejs` ergänzt Node.js, das
+Image `-full` ergänzt PHP, Ruby und Lua. Ein Manifest, das eine Laufzeit
+nennt, die dem Image fehlt, wird bei der Installation abgelehnt, mit der
+Liste der verfügbaren Laufzeiten.
 
-| Werkzeug | Wozu | Installation |
-|---|---|---|
-| Go ≥ 1.27 | Den Evey-Host bauen | `https://go.dev/dl/` |
-| Docker + Docker Compose | Standard-Entwicklungsstack (Postgres, Meilisearch, Server, Web) | https://docs.docker.com/engine/install/ |
-| `bubblewrap` (`bwrap`) | Sandbox für Plugin-Prozesse - erforderlich für die Modi `bubblewrap` und `strict` | `apt install bubblewrap` (Debian/Ubuntu), `dnf install bubblewrap` (Fedora), `pacman -S bubblewrap` (Arch). macOS: Linux in einer VM installieren, bwrap gibt es nur unter Linux. |
-
-Der Sandbox-Modus `basic` läuft ohne bwrap, sollte aber nie außerhalb von lokalen Wegwerfexperimenten genutzt werden - verlassen Sie ihn, sobald Sie können.
-
-### Pro Sprache
-
-Wählen Sie, was Ihr Plugin tatsächlich nutzt; Sie brauchen nicht alles.
-
-| Plugin-Sprache | Werkzeuge | Hinweise |
-|---|---|---|
-| Python 3 | `python3`, `pip` | `pip install --user` nutzen, um den Host sauber zu halten. Die SDK-Stubs liegen in `sdk/python/`. |
-| Node.js | Node 20+, `npm` oder `pnpm` | Das SDK lädt `plugin_api.proto` zur Laufzeit über `@grpc/proto-loader`. |
-| Go | Go ≥ 1.21 | Keine mitgelieferten Stubs - mit `protoc-gen-go` + `protoc-gen-go-grpc` erzeugen; ein kompiliertes Go-Programm braucht außerdem die Berechtigung `native-binary`. |
-| Dart / Java / PHP / Ruby / Swift | Werkzeugkette der Sprache | Die Stubs liegen vorgeneriert in `sdk/<lang>/`. |
-| Nur-CSS-Theme | Nichts weiter | Ein Theme ist ein ZIP mit `kind: theme` + einer `theme.css`. |
-| Theme-JS | Nichts weiter (der Host führt Ihr JS in einem abgeschotteten `iframe` mit `sandbox="allow-scripts"` und einer verriegelten CSP aus) | Der statische Scanner verweigert Cookies, Speicher, Netzwerkaufrufe und den Zugriff auf die Host-Seite (`document.cookie`, `localStorage`, `fetch(`, `window.parent`...) - siehe [Themes](../themes.md#what-the-scanner-refuses). |
-
-### Stubs für eine andere Sprache erzeugen
-
-Für die Sprachen oben werden Stubs vorgeneriert mitgeliefert, aber der gRPC-Vertrag
-der Plugins ist nur eine Proto-Datei - Sie können **jede Sprache, die `protoc`
-unterstützt**, ansteuern (Rust, C#, Kotlin, Elixir, …). Die einzige Quelle der
-Wahrheit ist:
-
-```
-proto/plugin/v1/plugin_api.proto
-```
-
-Erzeugen Sie mit `protoc` (oder `buf`) und richten Sie das gRPC-Plugin Ihrer Sprache darauf aus:
+Der gRPC-Vertrag ist eine einzige Datei, `proto/plugin/v1/plugin_api.proto`.
+Stubs werden für Python, Node.js, PHP, Ruby, Dart, Java und Swift unter
+`sdk/<language>/` erzeugt. Der Server kopiert die Stubs Ihrer Sprache beim
+Start des Plugins neben Ihren Einstiegspunkt. Ein Plugin in Node.js oder
+Python muss also nichts mitliefern: Das Image stellt Node.js-Plugins
+`@grpc/grpc-js` und `@grpc/proto-loader` bereit und Python-Plugins `grpcio`.
+Für eine andere Sprache erzeugen Sie die Stubs mit `protoc` und legen sie ins
+ZIP:
 
 ```bash
-# allgemeine Form - die genauen --*_out-Optionen hängen von Sprache/Plugin ab
 protoc --proto_path=proto \
        --<lang>_out=OUT_DIR --grpc_<lang>_out=OUT_DIR \
        proto/plugin/v1/plugin_api.proto
 ```
 
-Ausgearbeitete Rezepte für die mitgelieferten Sprachen (welches gRPC-Plugin jede
-braucht: `grpc_php_plugin`, `protoc-gen-grpc-java`, `protoc-gen-grpc-swift`, …)
-stehen im Ziel `plugin-sdk` des `Makefile` im Wurzelverzeichnis und in jeder
-`sdk/<lang>/README.md` (z. B. `sdk/php/README.md`). `make plugin-sdk` erzeugt die
-mitgelieferten Stubs neu.
-
-Legen Sie die erzeugten Stubs in Ihr Plugin-ZIP - der Host kopiert Stubs nur für
-die Sprachen, die er mitliefert, automatisch (`sdk/<lang>/`).
-
-### Optional, aber empfohlen
-
-| Werkzeug | Wozu |
-|---|---|
-| `cosign` (Sigstore) | Ihr Plugin-ZIP signieren. `EVEY_PLUGINS_COSIGN_POLICY` ist standardmäßig `warn` (nicht `off`) - mit `warn` und ohne konfigurierten öffentlichen Schlüssel tut die Prüfung nichts (eine Warnung wird protokolliert, nichts wird blockiert); setzen Sie `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`, um Signaturen wirklich zu prüfen, und die Richtlinie auf `enforce`, um unsignierte Uploads abzulehnen (`enforce` ohne öffentlichen Schlüssel hält den Server beim Start an, statt jedes Plugin ungeprüft anzunehmen). https://docs.sigstore.dev/cosign/installation/ |
-| `pre-commit` | Offensichtliche Probleme abfangen, bevor Sie ein Plugin einreichen. |
-| `golangci-lint` | Erforderlich, wenn Ihr Plugin in Go ist und Sie dieselbe Lint-Prüfung wie der Host wollen. |
+`make plugin-sdk` erzeugt die mitgelieferten Stubs neu. Jede
+`sdk/<lang>/README.md` nennt das gRPC-Plugin, das ihre Sprache braucht.
 
 ## 2. Evey lokal starten
 
 ```sh
 git clone git@github.com:Evey-project/evey.git
 cd evey
-cp .env.dev.example .env.dev   # erzeugt eine vernünftige lokale Konfiguration
-make dev                        # docker compose up: postgres, meilisearch, Server (Air), Web (Vite)
+cp .env.dev.example .env.dev   # dann MEDIA_DIR, EVEY_DB_PASSWORD, MEILI_MASTER_KEY setzen
+make setup                      # einmalig: trägt evey.test in /etc/hosts ein
+make dev                        # postgres, meilisearch, der Server (Air), die Web-App (Vite)
 ```
 
-Ist der Server gesund, öffnen Sie https://evey.test (von Caddy ausgeliefert). Der Einrichtungsassistent legt beim ersten Start das Administratorkonto an, wie unter [Ersteinrichtung](../getting-started/first-setup.md) beschrieben.
+Öffnen Sie `https://evey.test`. Der Einrichtungsassistent legt beim ersten
+Start das Administratorkonto an, wie in
+[Ersteinrichtung](../getting-started/first-setup.md) beschrieben.
+Plugin-Dateien landen in `./evey-data/plugins/<plugin-id>/`, im Container
+als `/data/plugins` eingehängt.
 
-Wenn `make dev` an `bwrap` scheitert:
-- Prüfen Sie, dass `which bwrap` auf dem Host einen Pfad liefert
-- In Docker bringt der Entwicklungscontainer das Programm bwrap mit; haben Sie den Compose-Stack angepasst, binden Sie es ein oder setzen Sie `EVEY_PLUGINS_SANDBOX_MODE=basic` *nur für den Entwicklungscontainer*
+## 3. Ihr erstes Plugin, Schritt für Schritt
 
-## 3. Ihr erstes Plugin anlegen
+Das Beispiel `examples/plugins/nodejs-example` ist das kleinste vollständige
+Plugin: Es bedient `PluginService`, verbindet sich mit `HostService` und
+schreibt eine Zeile in sein Protokoll, wenn der Server es startet. Wir
+kopieren es, ändern eine Sache und installieren es.
 
-Beispiele liegen in `examples/plugins/`: Vorlagen in Node.js und Python (`nodejs-example`, `python-example`), ein Metadatenanbieter (`metadata-example`), ein Webhook-Empfänger (`webhook-receiver`), ein Widget für die Startseite (`weather`), Plugin-Konfiguration (`config-demo`) und zwei Themes (`theme-dark-blue`, `open-workshop`). Wählen Sie das Ihrem Anwendungsfall nächste und kopieren Sie es in ein Arbeitsverzeichnis. Für Persistenz und Berechtigungen siehe **`examples/plugins/data-demo`** - es nutzt den Datenspeicher pro Plugin und verlangt die Berechtigungen `public` / `prefs` sowie den Slot `admin.nav`.
+1. **Kopieren Sie das Beispiel.**
 
-```sh
-cp -r examples/plugins/nodejs-example ~/my-first-plugin
-cd ~/my-first-plugin
-```
+    ```sh
+    cp -r examples/plugins/nodejs-example ~/hello-plugin
+    cd ~/hello-plugin
+    ```
 
-Bearbeiten Sie `plugin.yaml`:
+2. **Geben Sie ihm einen Namen.** Bearbeiten Sie `plugin.yaml`:
 
-- `name`: kebab-case, eindeutig
-- `version`: semver - bei jeder Veröffentlichung erhöhen
-- `kind`: `plugin` (Backend erforderlich) oder `theme` (nur Frontend)
-- `language`: `python` | `nodejs` | `go` | `php` | `ruby` | `lua` | `bash` | `sh` (Kennung im Manifest - nicht der Name des Interpreters; `python3`/`node` sind keine gültigen Werte für `language`, siehe `entrypoint` unten).
-- `entrypoint`: die Befehlszeile, die die Laufzeit ausführt
-- `permissions`: jede aufgerufene Host-API angeben. Der Installer lehnt nicht angegebene Aufrufe ab. Die vollständige Liste steht im [Berechtigungskatalog](security-model.md#permissions-catalog).
-- `external_fetch`: wenn Sie mit der API eines Dritten sprechen müssen. Einträge sind reine Hostnamen (`api.example.com`) - kein Schema nötig oder genutzt (ein Präfix `https://` wird geparst und nur der Hostname behalten), keine Platzhalter (`*.example.com` wird bei der Installation abgelehnt: `external_fetch entry %q is a wildcard - use explicit hostnames`), keine IP-Literale (alle, nicht nur RFC1918). Der Validator liegt in `internal/adapters/driven/pluginrunner/manifest.go` (`validateExternalFetch`); seine Tests stehen in `internal/adapters/driven/pluginrunner/manifest_test.go` - führen Sie `go test ./internal/adapters/driven/pluginrunner/...` aus, um Ihren Wert zu prüfen.
+    ```yaml title="plugin.yaml"
+    name: hello-plugin          # eindeutig, kebab-case
+    kind: plugin
+    version: 1.0.0              # semver: bei jedem Hochladen erhöhen
+    description: Says hello in its log
+    author: you
+    language: nodejs            # die Laufzeit, die der Server haben muss
+    entrypoint: node main.js    # die Befehlszeile, die der Server startet
+    permissions:
+      - api.library             # erlaubt dem Backend, Medien zu lesen
+    ```
 
-Frontend-Modul (optional bei `kind: plugin`, verboten bei `kind: theme`):
+    `language` sagt dem Server, welche Laufzeit er prüfen und welche Stubs
+    er kopieren soll. `entrypoint` ist das, was er startet, im Verzeichnis
+    des Plugins, mit der Umgebung aus dem nächsten Schritt.
+
+3. **Lesen Sie `main.js`.** Der Server übergibt dem Prozess drei Variablen:
+   `EVEY_PLUGIN_ID`, `EVEY_PLUGIN_SOCK` (der Socket, auf dem *Ihr* Prozess
+   lauschen und `PluginService` bedienen muss) und `EVEY_HOST_SOCK` (der
+   Socket, mit dem Sie sich verbinden, um `HostService` aufzurufen). Das
+   Beispiel lädt `plugin_api.proto` aus seinem eigenen Verzeichnis, wohin der
+   Server die Datei kopiert hat, und setzt die fünf Methoden von
+   `PluginService` um. Ändern Sie die Nachricht in `Initialize`:
+
+    ```js title="main.js (excerpt)"
+    Initialize(call, callback) {
+      hostLog("LOG_LEVEL_INFO", `hello from ${process.env.EVEY_PLUGIN_ID}`);
+      callback(null, { success: true });
+    },
+    ```
+
+4. **Packen Sie es als ZIP.** Das Manifest muss auf oberster Ebene des
+   Archivs liegen, nicht in einem Unterverzeichnis:
+
+    ```sh
+    zip -r ../hello-plugin.zip . -x ".*" "node_modules/*"
+    ```
+
+5. **Installieren Sie es.** Unter **Verwaltung → Plugins** wählen Sie
+   **Plugin installieren**, dann das ZIP und **Vorschau & Installieren**: Die
+   Vorschau listet `api.library` und das Ergebnis der statischen Analyse.
+   Über die API sieht dasselbe Hochladen so aus:
+
+    ```sh
+    curl -F "plugin=@hello-plugin.zip" \
+         -H "Authorization: Bearer $EVEY_TOKEN" \
+         https://evey.test/api/v1/admin/plugins/upload
+    ```
+
+6. **Lesen Sie das Protokoll.** Auf der Karte des Plugins zeigt
+   **Protokolle** die Zeile, die `Initialize` geschrieben hat.
+   `docker compose logs evey` enthält die Serverseite desselben Starts, unter
+   der ID des Plugins.
+
+7. **Arbeiten Sie weiter.** Ändern Sie den Code, erhöhen Sie `version`,
+   packen Sie neu und nutzen Sie **Aus Quelle aktualisieren …** auf der
+   Karte. Ein Hochladen mit derselben oder einer niedrigeren Version wird
+   abgelehnt. Eine neue Berechtigung im Manifest löst den
+   Zustimmungsschritt aus, den der Administrator bestätigen muss.
+
+Was Sie jetzt haben, ist der ganze Backend-Vertrag. Von hier wächst ein
+Plugin in drei Richtungen: den Server aufrufen (`HostService`, Abschnitt 4),
+eine Oberfläche zeichnen (Abschnitt 5) und die Außenwelt erreichen
+(Abschnitt 6).
+
+## 4. Den Server aus dem Backend aufrufen
+
+Jeder Aufruf an `HostService` trägt die Identität des Plugins: Der Server
+prüft den Prozess am Socket über seine PID, und ein Interceptor lehnt jeden
+Aufruf ab, dessen Berechtigung das Manifest nicht angibt. Drei Gruppen
+brauchen gar keine Berechtigung:
+
+- `Log` schreibt ins Protokoll des Plugins, das auf seiner Karte erscheint;
+- `GetConfig` liest die Werte, die der Administrator unter **Konfiguration**
+  gesetzt hat (angegeben in `config_schema`); mit `SetConfig` legt das Plugin
+  dort eigene Schlüssel ab;
+- `GetData` / `SetData` / `DeleteData` / `ListDataKeys` ist der private
+  Schlüssel-Wert-Speicher des Plugins, der bei der Deinstallation gelöscht
+  wird.
+
+`GetMediaItem` und `ListMediaItems` brauchen `api.library` oder
+`media.read`; `Fetch` braucht `network`. Die vollständige Tabelle, mit den
+Methoden, die im Vertrag stehen, aber noch nicht bedient werden, steht in
+der [Plugin-API-Referenz](api-reference.md#hostservice-what-the-plugin-can-call).
+
+## 5. Eine Oberfläche hinzufügen
+
+Eine Oberfläche ist ein JavaScript-Modul, das die Seite in einem
+abgeschotteten Frame lädt, in einem der Slots, die der Server erlaubt. Geben
+Sie an, wo die Dateien liegen und wohin das Modul kommt:
 
 ```yaml title="plugin.yaml"
+web_root: dist               # das Verzeichnis, das als statische Dateien ausgeliefert wird
 frontend:
-  - slot: home.section
-    src: dist/index.js
+  - slot: home.section       # siehe die Liste der Slots
+    src: dist/index.js       # muss unter web_root liegen
 ```
 
-Der Slot muss in `internal/domain/plugin/slots.go` existieren (`home.section`, `home.hero`, `library.sidebar`, `media.detail.sidebar`, `player.overlay`, `sidebar.bottom`, `settings.user.appearance` und `admin.nav` - der eine kontrollierte Slot im Admin-Bereich, ein Menüeintrag, der die eigene abgeschottete Seite Ihres Plugins öffnet). Alles andere (Einschleusen in `admin.*`, `login.*`, `setup.*`, `profile.security.*`) wird bei der Installation abgelehnt.
+Das Modul bekommt eine Brücke `window.evey`: `evey.onInit` übergibt ihm die
+Konfiguration des Plugins, die Sprache, das Design und die Oberfläche, auf
+der es gelandet ist. `evey.resize`, `evey.toast` und `evey.navigate` wirken
+innerhalb fester Grenzen auf die Seite. Und wenn das Manifest `prefs` oder
+`public` angibt, erreichen `evey.prefs.*` und `evey.media.*` den Server über
+einen kurzlebigen Token, den der Host für den Frame hält.
+`examples/plugins/weather` ist ein vollständiges Widget mit Build-Schritt;
+`examples/plugins/data-demo` zeigt `prefs`, `public` und den Slot
+`admin.nav`. Die Brücke und die Slots sind in der
+[Plugin-API-Referenz](api-reference.md#frontend-api) beschrieben.
 
-**Daten speichern.** Ihr Backend erhält über den Host-Socket einen privaten
-Schlüssel-Wert-Speicher (`SetData`/`GetData`/`DeleteData`/`ListDataKeys`) - ohne
-Berechtigung, bei der Deinstallation automatisch gelöscht. Für Vorlieben pro
-Benutzer aus Ihrem iframe verlangen Sie die Berechtigung `prefs`; für
-Lesezugriff auf nicht sensible Medien (Titel/Poster) verlangen Sie `public`.
-Siehe die [API-Referenz](api-reference.md#permissions). Admin-, Auth-, System-
-und allgemeine Schreibbereiche können nie verlangt werden.
+## 6. Die Außenwelt erreichen
 
-## 4. Die Installationsschleife
+Ein Plugin-Prozess kann keinen Socket ins Internet öffnen, in keinem
+Sandbox-Modus. Der einzige Weg hinaus ist der Aufruf `Fetch` von
+`HostService`: Der Server prüft das Ziel gegen das Manifest und führt die
+Anfrage dann selbst aus.
+
+```yaml title="plugin.yaml"
+permissions:
+  - network
+external_fetch:
+  - api.open-meteo.com       # reine Hostnamen: kein Schema, kein Platzhalter, keine IP
+```
+
+`network` ohne `external_fetch` wird bei der Installation abgelehnt. Zur
+Laufzeit nimmt der Vermittler `http` und `https`, `GET` und `HEAD` an,
+liefert Antworten bis 8 MiB innerhalb von 20 Sekunden und lehnt private oder
+reservierte Adressen ab, auch über eine Weiterleitung. Der Frame der
+Oberfläche bekommt dieselbe Hostliste als `connect-src`. Ein Widget darf
+diese Hosts also direkt über `https` aufrufen. Die Regeln stehen in
+[Berechtigungen und Slots](security-model.md#external-fetch-rules).
+
+!!! note "Hosts sind ein Vertrag mit dem Administrator"
+    Der Administrator sieht die Hostliste bei der Installation und muss
+    jede Ergänzung beim Update bestätigen. Beschränken Sie sie auf das, was
+    das Plugin braucht, und schreiben Sie in Ihre README, was jeder Host
+    bekommt.
+
+## 7. Ihr Plugin signieren
+
+!!! info "Was eine Signatur beweist"
+    Eine Signatur sagt, dass das ZIP, das der Administrator installiert,
+    Byte für Byte das ist, das **Sie** veröffentlicht haben, signiert mit dem
+    Schlüssel, dem er vertraut. Sie sagt nichts darüber, was das Plugin tut:
+    Berechtigungen, Hosts und die Analyse in der Vorschau gelten weiter.
+    Evey prüft sie offline und im eigenen Prozess (ECDSA P-256 über den
+    SHA-256 des ZIP, das Format, das `cosign sign-blob --key` erzeugt): kein
+    `cosign`-Programm auf dem Server, kein Netz, kein Transparenzprotokoll.
+
+Sie brauchen [cosign](https://docs.sigstore.dev/cosign/installation/) nur
+auf Ihrem eigenen Rechner.
+
+1. **Einmalig: ein Schlüsselpaar erzeugen.**
+
+    ```sh
+    # eine echte Passphrase wählen; cosign.key bleibt privat, nie committen
+    COSIGN_PASSWORD="your-passphrase" cosign generate-key-pair
+    # -> cosign.key (privat) und cosign.pub (die Datei, die Sie weitergeben)
+    ```
+
+2. **Bei jeder Veröffentlichung: packen, dann signieren**, und zwar genau die
+   Datei, die Sie verteilen.
+
+    ```sh
+    cd hello-plugin && zip -r ../hello-plugin.zip . && cd ..
+
+    COSIGN_PASSWORD="your-passphrase" cosign sign-blob \
+      --key cosign.key --tlog-upload=false --yes \
+      --output-signature hello-plugin.zip.sig \
+      hello-plugin.zip
+    ```
+
+3. **Vor der Auslieferung prüfen**, mit derselben Prüfung, die der Server
+   macht:
+
+    ```sh
+    cosign verify-blob --key cosign.pub --signature hello-plugin.zip.sig \
+      --insecure-ignore-tlog hello-plugin.zip      # -> Verified OK
+    ```
+
+4. **Drei Dateien zusammen veröffentlichen**: `hello-plugin.zip`,
+   `hello-plugin.zip.sig` und `cosign.pub`. Stellen Sie den Fingerabdruck
+   des öffentlichen Schlüssels an einen Ort, an dem Ihre Benutzer ihn
+   vergleichen können (README, Versionshinweise). So wissen sie, dass
+   `cosign.pub` nicht ausgetauscht wurde.
+
+Auf der Instanz, die das Plugin installiert, setzt der Administrator den
+Schlüssel und eine Regel und startet den Server neu:
 
 ```sh
-# Ihr Plugin zippen
-cd ~/my-first-plugin
-zip -r my-first-plugin.zip . -x ".*" "node_modules/*" "*.pyc"
-
-# über den Admin-Bereich hochladen
-open https://evey.test/admin/plugins
-# oder über die API
-curl -F "plugin=@my-first-plugin.zip" \
-     -H "Authorization: Bearer $EVEY_TOKEN" \
-     https://evey.test/api/v1/admin/plugins/upload
-# eine Signatur kommt in ein zweites Feld: -F "sig=@my-first-plugin.zip.sig"
-# ein Update, das neue Berechtigungen verlangt: -F "accept_permission_changes=true"
+EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
+EVEY_PLUGINS_COSIGN_POLICY=warn   # oder "enforce", um abzulehnen, was die Prüfung nicht besteht
 ```
 
-Der Installer läuft in dieser Reihenfolge - jeder Schritt kann die Installation ablehnen:
+Dann wählt er unter **Verwaltung → Plugins** das ZIP und unter
+**Signaturdatei (.zip.sig, optional)** dessen `.zip.sig`. Über die API ist
+die Signatur das Feld `sig` beim Hochladen. Die Vorschau zeigt **Signiert**
+oder eine ungültige Signatur, und das Sicherheits-Dashboard behält das
+Ergebnis.
 
-1. **Manifest-Prüfung** - `plugin.yaml` direkt aus dem ZIP geparst (vor allen ZIP-Prüfungen unten), gegen das Schema geprüft. Liste der erlaubten Slots. Liste der erlaubten Berechtigungen/Capabilities. Parser für `external_fetch` (lehnt Platzhalter und jedes IP-Literal ab; ein Schemapräfix wie `http://` wird akzeptiert, aber ignoriert - nur der Hostname bleibt). Die angegebene Laufzeit `language` muss im Image verfügbar sein.
-2. **Erweiterung der Berechtigungen** (nur bei Updates) - der Installer vergleicht das neue Manifest mit der vorherigen Version. Jede neu verlangte Berechtigung/Capability/jeder neue Slot/Host in `external_fetch` blockiert die Installation mit einem Fehler, den der Aufrufer ausdrücklich übergehen muss (`accept_permission_changes: true` aus dem Frontend). Neuinstallationen überspringen diesen Schritt - es gibt nichts zu vergleichen.
-3. **Cosign-Signatur** - geprüft, wenn ein Signaturprüfer konfiguriert ist; ein Fehlschlag blockiert die Installation nur bei `EVEY_PLUGINS_COSIGN_POLICY=enforce`. Siehe Abschnitt 6.
-4. **ZIP-Entpacken** - Dateiendung, Gesamtgröße ≤ 500 MB, Größe pro Eintrag ≤ 100 MB, Kompressionsverhältnis ≤ 100:1, keine symbolischen Links, keine Einträge mit Pfad-Traversal; die Dateien landen in einem Staging-Verzeichnis (Updates berühren die laufende Version nie, bis jeder spätere Schritt bestanden ist).
-5. **CSS-Bereiniger** (nur Themes) - entfernt `@import`, blockiert `url()` außer `data:`, blockiert Vollbild-Überlagerungen, blockiert Selektoren auf `[type=password]` und `.admin-*`, begrenzt `z-index` auf ≤ 999.
-6. **Theme-JS-Scanner** (nur Themes) - verweigert jede Nennung von `document.cookie`, `localStorage`, `fetch`, `eval`, `globalThis`, Eigenschaftszugriffe in Klammernotation auf Host-Globale, `constructor.constructor` usw. Themes dürfen nur die API `evey.theme.*` nutzen.
-7. **Statische Analyse** - durchsucht jede Textdatei nach Shell-Ausführung, Reverse-Shell, eval, base64-Dekodieren-dann-Ausführen, Verschleierungsmustern, Installationsbefehlen zur Laufzeit, Rechteausweitung. Kritische Funde = Installation abgelehnt. Warnungsfunde (Deserialisierung, Verschleierung, native_code) werden zu einer Ablehnung, außer die passende Berechtigung ist angegeben.
-8. **Speichern** - tauscht das Staging-Verzeichnis ein, schreibt die Zeile in Postgres, startet optional die Laufzeit.
+Typische Stolpersteine:
 
-Scheitert ein Schritt, zeigt der Admin-Bereich den genauen Grund. Die Server-Logs (`docker compose logs evey`) enthalten den vollständigen Stack.
+- **Jede Änderung am ZIP macht die Signatur ungültig**, sogar dieselben
+  Dateien neu zu packen. Signieren Sie die Datei, die Sie verteilen, und
+  signieren Sie jede Version neu.
+- **Nur ECDSA-P-256-Schlüssel werden angenommen**, und genau die erzeugt
+  `cosign generate-key-pair`. Schlüsselloses Signieren und Verweise auf ein
+  KMS werden nicht geprüft.
+- Der Schlüssel wird beim Start aus einer PEM-Datei gelesen: Eine fehlende
+  oder fehlerhafte Datei hält den Server an, statt erst bei der ersten
+  Installation zu scheitern. Mit `enforce` und ohne Schlüssel startet der
+  Server nicht.
+- Mit dem Standard `warn` und ohne konfigurierten öffentlichen Schlüssel
+  **wird nichts geprüft**; der Server schreibt beim Start nur eine Warnung
+  ins Protokoll.
+- Ein falscher Schlüssel, ein manipuliertes ZIP und eine fehlende `.sig`
+  gelten alle als fehlgeschlagene Signatur: Unter `enforce` wird die
+  Installation oder das Update abgelehnt.
 
-## 5. Iterieren
+## 8. Was der Installer prüft, der Reihe nach
 
-Ihr Plugin während der Entwicklung neu laden:
+Jeder Schritt kann das Paket ablehnen. Der Administrator sieht den Grund,
+das Serverprotokoll enthält die Einzelheiten.
 
-```sh
-# Code bearbeiten → neu zippen → über die Oberfläche neu hochladen (Schaltfläche Update)
-# oder, schneller: die Datei direkt in das Plugin-Verzeichnis im Container legen
-docker compose exec evey ls /data/plugins/<plugin-id>/
-```
+1. **Manifest.** `plugin.yaml` wird direkt aus dem ZIP gelesen:
+   Pflichtfelder, semver, bekannte Berechtigungen und Capabilities, Slots aus
+   der erlaubten Liste, Einträge in `external_fetch`, die reine Hostnamen
+   sind, `web_root` vorhanden, wenn `frontend` angegeben ist. Die angegebene
+   `language` muss eine Laufzeit des Images sein.
+2. **Version und Ausweitung.** Bei einem schon installierten Plugin muss die
+   neue Version höher sein, und jede neue Berechtigung, Capability, jeder
+   neue Slot oder Host hält die Installation hier an, bis der Administrator
+   den Unterschied bestätigt (`accept_permission_changes=true` auf der
+   Upload-Route).
+3. **Signatur und Hash.** Die Signatur wird geprüft, wenn ein öffentlicher
+   Schlüssel konfiguriert ist; ein Fehler blockiert nur unter `enforce`. Der
+   Hash des ZIP wird festgehalten und erneut geprüft, wenn ein zuvor in der
+   Vorschau gezeigtes Update angewendet wird.
+4. **Entpacken** in ein Zwischenverzeichnis: höchstens 5.000 Einträge,
+   100 MB pro Datei, 500 MB insgesamt, ein Kompressionsverhältnis von 100:1,
+   kein symbolischer Link, kein Pfad, der das Archiv verlässt. Ein Update
+   rührt die laufende Version erst an, wenn alle folgenden Schritte
+   bestanden sind.
+5. **Nur Themes:** Das Stylesheet wird bereinigt und zurückgeschrieben, und
+   eine `theme.js`, die ein verbotenes Muster trifft, lässt das Paket
+   scheitern.
+6. **Statische Analyse** jeder Textdatei: Ein kritischer Fund lehnt das
+   Paket ab. Die Warnungen `deserialization` und `obfuscation` lehnen es
+   ebenfalls ab, und `native_code`, kompilierte Binärdateien und eingebettete
+   Archive lehnen es ab, außer das Manifest gibt `native-binary` an.
+7. **Speichern und starten.** Das Zwischenverzeichnis wird an seinen Platz
+   getauscht, der Datensatz geschrieben und der Prozess gestartet.
 
-Ein Upload wird nur dann als Update angenommen, wenn seine `version` höher als die installierte ist: Erhöhen Sie sie bei jeder Iteration (eine gleiche oder niedrigere Version wird abgelehnt), oder deinstallieren Sie zuerst. Fügen Sie eine neue Berechtigung hinzu, landen Sie im Ablauf zur Erweiterung der Berechtigungen - das ist gewollt, kein Fehler.
+Wonach die Analyse sucht, steht in
+[Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md#static-analysis). Sie
+liest auch Kommentare: Eine Zeile `# pip install foo` in einem Kommentar wird
+wie Code gemeldet.
 
-Die Logs des Plugin-Prozesses landen in:
-- `/admin/plugins/<id>` - die letzten N Zeilen über die Oberfläche
-- `docker compose logs evey | grep <plugin-id>` - der vollständige Strom
+## 9. Unter welchen Bedingungen Ihr Prozess läuft
 
-## 6. Ihr Plugin signieren (optional in der Entwicklung, empfohlen für die Verteilung)
+Der Server startet den Prozess mit niedrigerer CPU-Priorität, einer
+Obergrenze für den Arbeitsspeicher, einem Limit für Prozesse und Threads und
+einer Größengrenze für sein Verzeichnis. Ein Wächter hält ein Plugin an, das
+sie überschreitet. Die Standardwerte sind 256 MiB, 64 Prozesse und 100 MiB.
+Der Administrator kann sie unter **Verwaltung → Plugins → Ressourcenlimits**
+anpassen. Ohne die Berechtigung `subprocess` kann der Prozess keine
+Kindprozesse starten, egal in welcher Sprache; Threads funktionieren.
 
-Wenn Sie das Plugin an andere Evey-Instanzen verteilen wollen, signieren Sie es. Der empfangende Administrator kann dann `EVEY_PLUGINS_COSIGN_POLICY=warn` (oder `enforce`) setzen, um unsignierte Uploads sichtbar zu machen.
+Die Sandbox beschränkt das Dateisystem auf das Verzeichnis des Plugins und
+kappt jeden Netzwerk-Socket, ohne Ausnahme. Welcher Modus gilt, hängt vom
+Host ab, nicht vom Plugin:
+[Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md#sandbox-modes)
+beschreibt die Modi, und [Plugin-Sandbox einrichten](sandbox-deployment.md)
+sagt einem Administrator, welchen er wählen soll.
 
-```sh
-# einmalig: ein Schlüsselpaar erzeugen (cosign.key sicher aufbewahren - nie committen)
-cosign generate-key-pair
+## 10. Ein Plugin verteilen
 
-# das ZIP signieren
-cosign sign-blob \
-  --key cosign.key \
-  --output-signature my-first-plugin.zip.sig \
-  my-first-plugin.zip
+Es gibt keinen Katalog: Ein Administrator installiert ein Plugin, indem er
+sein ZIP hochlädt oder seine URL im Verwaltungsbereich einfügt, egal wo Sie
+es veröffentlichen (ein Release auf einer Code-Plattform, Ihre eigene
+Website).
 
-# verteilen: my-first-plugin.zip + my-first-plugin.zip.sig + cosign.pub
-```
-
-Auf der Evey-Instanz, die das Plugin installiert:
-
-```sh
-# den öffentlichen Schlüssel an einen für den Server lesbaren Ort legen
-sudo cp cosign.pub /etc/evey/cosign.pub
-
-# Evey darauf verweisen und die Richtlinie umstellen
-export EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
-export EVEY_PLUGINS_COSIGN_POLICY=warn   # oder "enforce", um Unsigniertes abzulehnen
-docker compose restart evey
-```
-
-Evey prüft den Schlüssel beim Start (PEM-Parse) - eine fehlende oder fehlerhafte Schlüsseldatei lässt den Start scheitern statt der ersten Installation. KMS-Verweise (`gcpkms://...`, `awskms://...`, `k8s://...`) werden unverändert akzeptiert.
-
-## 7. Ressourcengrenzen und Sandbox
-
-Standards für jeden Plugin-Prozess:
-
-| Umgebungsvariable | Standard | Wirkung |
-|---|---|---|
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto` = wählt das beste verfügbare (normalerweise `landlock`). `landlock` = Landlock-LSM-Erlaubnisliste + bedingungslose Sperre von ausgehendem TCP (`-restrict-net` + seccomp `-deny-inet`, keine Ausnahme für die Berechtigung `network`) + LD_PRELOAD-seccomp. `basic` = LD_PRELOAD-seccomp + nur UID-Herabstufung (Debug). `bubblewrap` = vollständige Namespaces + Wurzel schreibgeschützt eingebunden + `--unshare-net` (ebenfalls bedingungslos, für jedes Plugin, unabhängig von der Berechtigung `network`). `strict` = bubblewrap + der LD_PRELOAD-seccomp-Shim. |
-| `EVEY_PLUGINS_MEMORY_MB` | 256 | Maximaler RSS. Der Ressourcenmonitor fragt `/proc` ab und stoppt das Plugin darüber. `0` schaltet es ab. |
-| `EVEY_PLUGINS_CPU_NICE` | 10 | `nice`-Wert (0-19) beim Start, damit ein Plugin den Server nie um CPU bringen kann. |
-| `EVEY_PLUGINS_PIDS_MAX` | 64 | Maximale Zahl von Threads/Prozessen. Verhindert Fork-Bomben. `0` schaltet es ab. |
-| `EVEY_PLUGINS_DISK_MAX_MB` | 100 | Maximale Größe des Installationsverzeichnisses; der Monitor misst sie etwa alle 30 s und stoppt ein Plugin darüber. `0` schaltet es ab. |
-
-Ein Plugin, das mit dem Netzwerk spricht, braucht sowohl `permissions: [network]` als auch `external_fetch: [<host>...]`. Der direkte ausgehende Netzwerkverkehr wird in der Sandbox für jedes Plugin bedingungslos gekappt, unabhängig von seinen Berechtigungen (siehe die Sandbox-Modi oben) - der Plugin-Prozess selbst kann nie einen Socket ins Internet öffnen. Der einzige Weg hinaus ist der Broker `Fetch` des Hosts: Das Plugin ruft ihn über den Unix-Socket `EVEY_PLUGIN_SOCK` auf, der Host prüft den Zielhost gegen `external_fetch` und verbindet dann über einen SSRF-sicheren Client (private/reservierte IPs beim Verbinden abgelehnt, Weiterleitungen gegen die aufgelöste IP und den erlaubten Host erneut geprüft). Siehe `internal/adapters/driving/pluginhost/fetch.go`.
-
-## 8. Ein Plugin verteilen
-
-Es gibt noch keinen offiziellen Katalog: Ein Administrator installiert ein Plugin,
-indem er sein ZIP im Admin-Bereich hochlädt, von wo auch immer Sie es
-veröffentlichen (ein GitHub-Release, Ihre eigene Website). Was „Verteilen" heute
-bedeutet:
-
-- Liefern Sie das ZIP, seine `.sig` und Ihren `cosign.pub` zusammen aus
-  (Abschnitt 6), damit der empfangende Administrator den Upload mit
-  `EVEY_PLUGINS_COSIGN_POLICY=warn` oder `enforce` prüfen kann.
-- Nennen Sie die Berechtigungen und die Hosts in `external_fetch` in Ihrer
-  README - der Administrator sieht sie bei der Installation und muss sie
-  genehmigen; eine Überraschung dort ist der erste Grund, warum eine
+- Liefern Sie das ZIP, seine `.sig` und Ihre `cosign.pub` zusammen aus
+  (Abschnitt 7).
+- Nennen Sie die Berechtigungen und die Hosts aus `external_fetch` in Ihrer
+  README: Der Administrator sieht sie bei der Installation und muss sie
+  bestätigen. Eine Überraschung dort ist der häufigste Grund, warum eine
   Installation abgelehnt wird.
-- Damit Ihr Plugin bei den mitgelieferten Beispielen aufgeführt wird, öffnen Sie
-  einen PR gegen `examples/plugins/` mit dem Quellcode und einer README.
-  Beispiele werden geprüft und aus dem Quellcode gebaut; ein PR ist keine
-  Empfehlung und trägt keine Signatur des Projekts.
+- Damit Ihr Plugin bei den mitgelieferten Beispielen erscheint, öffnen Sie
+  einen Pull Request gegen `examples/plugins/` mit dem Quellcode und einer
+  README. Beispiele werden geprüft und aus dem Quellcode gebaut; ein Eintrag
+  ist keine Empfehlung und trägt keine Signatur des Projekts.
 
-## 9. Fehlerbehebung
+## 11. Fehlerbehebung
 
-| Symptom | Ursache | Behebung |
+| Symptom | Ursache | Lösung |
 |---|---|---|
-| `bwrap: ... permission denied` | Modus `bubblewrap` in Docker: Die Standardprofile von seccomp und AppArmor blockieren die Aufrufe `unshare` und `mount`, die er braucht. | Behalten Sie den Standardmodus `auto`, der im Container Landlock nutzt. Sonst wenden Sie das mitgelieferte Profil `docker/seccomp-evey.json` an (auch im Image unter `/etc/evey/seccomp.json`), eine bewusste Absenkung der Sicherheit: siehe [Plugin-Sandbox einrichten](sandbox-deployment.md). |
-| `forbidden pattern "fetch(" found in theme JS` | Der Theme-JS-Scanner hat eine verbotene API gefunden. | Themes dürfen nur `evey.theme.*` aufrufen. Lesen Sie `internal/pkg/themejs/scan.go`, um zu sehen, was blockiert wird. |
-| `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | Alle Platzhalter werden bei der Installation abgelehnt, ohne Ausnahme. | Nutzen Sie `api.tmdb.org` (und listen Sie jede benötigte Subdomain ausdrücklich), nicht `*.tmdb.org` oder `cdn.*.tmdb.org`. |
-| `manifest: frontend slot "admin.section" not allowed` | Plugin-Frontends sind in privilegierten Bereichen verboten. | Wählen Sie einen nicht kritischen Slot aus der Liste oder überdenken Sie das Plugin. |
-| `cosign verify-blob: failed signature` | Der öffentliche Schlüssel auf dem Server passt nicht zum privaten Schlüssel, mit dem signiert wurde. | Mit dem richtigen Schlüssel neu signieren oder `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` aktualisieren. |
-| `plugin already installed at version 1.0.0, new version must be higher` | Das ZIP trägt die bereits installierte Version. | `version` in `plugin.yaml` erhöhen oder das Plugin zuerst deinstallieren. |
-| Das Plugin stoppt, das Log sagt `memory quota exceeded (… MB > … MB)` | Der Ressourcenmonitor hat es über seiner Speichergrenze beendet (Exit 137). | Den Speicherverbrauch senken oder die Speichergrenze des Plugins auf seiner Karte unter **Admin → Plugins** erhöhen (`EVEY_PLUGINS_MEMORY_MB` setzt den Standard). |
-| Frontend-Modul nicht sichtbar | Plugin nicht aktiviert, Slot passt nicht oder falsches Präfix `web_root` in `frontend.src`. | Prüfen Sie die Plugins-Seite des Admin-Bereichs (Statusabzeichen), dass die Slot-Zeichenkette zu einer echten Einbindung `<PluginSlot name=...>` passt, und sehen Sie im Netzwerkbereich nach Aufrufen von `/api/v1/plugins/{id}/assets/...`. |
+| `plugin requires "nodejs" runtime which is not installed in this image` | Der Image-Variante fehlt der Interpreter. | Nutzen Sie das Image `-nodejs` oder `-full`, oder schreiben Sie das Plugin in Python. |
+| `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | Platzhalter werden bei der Installation abgelehnt, ohne Ausnahme. | Listen Sie jeden Hostnamen auf, den Sie brauchen (`api.tmdb.org`, `image.tmdb.org`). |
+| `manifest: frontend slot "admin.section" not allowed` | Der Slot steht nicht in der erlaubten Liste. | Wählen Sie einen Slot aus der [Liste der Slots](api-reference.md#slots); `admin.nav` ist der einzige Slot im Verwaltungsbereich. |
+| `manifest: network permission requires non-empty external_fetch` | `network` ohne Hosts angegeben. | Ergänzen Sie die Hosts oder streichen Sie die Berechtigung. |
+| `plugin already installed at version 1.0.0, new version must be higher` | Das ZIP trägt die installierte Version. | Erhöhen Sie `version` oder deinstallieren Sie zuerst. |
+| `signature does not match the plugin or the configured key` | Die `.sig` wurde mit einem anderen Schlüssel erstellt, oder das ZIP hat sich nach dem Signieren geändert. | Signieren Sie genau dieses ZIP neu mit dem richtigen Schlüssel, oder korrigieren Sie `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`. |
+| `plugin blocked: theme.js contains forbidden pattern` | Der Scanner für Theme-Skripte hat eine verbotene API gefunden. | Ein Theme darf nur `evey.theme.*` aufrufen: siehe [Themes](../themes.md#what-the-scanner-refuses). |
+| Das Protokoll endet mit `memory quota exceeded (... MB > ... MB)` | Der Wächter hat das Plugin über seinem Speicherlimit angehalten. | Senken Sie den Speicherverbrauch oder erhöhen Sie **Max. Arbeitsspeicher (MiB)** unter **Ressourcenlimits**. |
+| `bwrap: ... permission denied` | Modus `bubblewrap` in Docker, blockiert vom seccomp- oder AppArmor-Profil des Containers. | Behalten Sie den Standardmodus `auto`. Sonst siehe [Plugin-Sandbox einrichten](sandbox-deployment.md). |
+| Das Oberflächenmodul erscheint nicht | Das Plugin ist deaktiviert, der Slot falsch geschrieben, oder `src` liegt nicht unter `web_root`. | Prüfen Sie den Zustand der Karte, den Namen des Slots und die Anfragen an `/api/v1/plugins/<id>/assets/...` im Netzwerkbereich des Browsers. |
 
-## 10. Weiterführend
-
-- Sicherheitsmodell von A bis Z: [security-model.md](security-model.md)
-- Die API des Hosts: [api-reference.md](api-reference.md)
-- Verfügbare Slots: [api-reference.md](api-reference.md#slots)
-- SDK-Code pro Sprache: `sdk/`
-- Referenz-Plugins und -Themes: `examples/plugins/`
+<!-- sources
+runtimes, image variants: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries, compiledLanguages ; internal/app/plugin/install.go - parseAndValidateManifest ; Dockerfile (RUNTIMES lean/nodejs/full)
+stubs copied at start, NODE_PATH: internal/adapters/driven/filesystem/plugin_fs.go - CopySDKStubs ; internal/adapters/driven/pluginrunner/runner_start.go ; sdk/python/README.md ; examples/plugins/nodejs-example/package.json
+dev stack: DEV.md (Quick Start) ; Makefile - setup, dev ; docker-compose.yml (evey-data/plugins:/data/plugins)
+example: examples/plugins/nodejs-example/main.js, plugin.yaml
+env vars: internal/adapters/driven/pluginrunner/runner_start.go (EVEY_PLUGIN_ID, EVEY_PLUGIN_SOCK, EVEY_HOST_SOCK)
+upload route, fields: internal/adapters/driving/http/plugin_asset_handler.go (plugin, sig, accept_permission_changes)
+host RPC permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; peer auth: internal/adapters/driving/pluginhost/peer_creds.go
+host RPCs: internal/adapters/driving/pluginhost/host_server.go - Log, GetConfig, SetConfig, GetData ; fetch.go - Fetch (GET/HEAD, maxFetchBytes, fetchTimeout)
+frame connect-src: frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc ; internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy
+bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge
+cosign: internal/adapters/driven/pluginrunner/cosign.go - loadP256PublicKey ; internal/config/config.go - CosignPolicy validation
+install order: internal/app/plugin/install.go - installLocalZip, parseAndValidateManifest, resolveExistingPlugin, verifyPluginIntegrity, extractPluginToStaging, validateStagedPlugin, checkEscalatedWarnings, swapAndPersistPlugin ; update.go - ApplyUpdate ; zip limits: docs/SECURITY.md (ZIP extraction)
+resource limits: internal/config/config.go - Plugins ; internal/adapters/driven/pluginrunner/runner_resmon.go ; i18n admin.plugins.resourceLimits.*
+error texts: internal/adapters/driven/pluginrunner/manifest.go ; internal/domain/plugin/model.go ; internal/app/plugin/install.go ; cosign.go ; runner_resmon.go
+-->
