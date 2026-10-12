@@ -1,5 +1,5 @@
 ---
-source_sha: 2e3ff20895f1c270b8850bb90fe01d2ae9e29cd86d2af35333b1b7912ab888a7
+source_sha: 8b5109c0af499483f4c9038e9c785a28ed41a147962487df2de2848bd91fe88b
 reviewed: true
 hide:
 - navigation
@@ -27,7 +27,8 @@ appuyez sur lecture, Evey s'occupe du reste.
 Docker, et un dossier avec vos médias. L'installation tient en un fichier et
 une commande.<br>
 <strong>Regardez</strong> dans un navigateur web, sur les téléphones et
-tablettes Android, sur Android TV et sur un Chromecast. Les applications
+tablettes Android, sur Android TV, dans le navigateur web d'une télévision et sur un
+Chromecast. Les applications
 Android et Android TV sont en test et pas encore sur Google Play.
 </p>
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 6f3e4c0be097222fac2048b142e37293374416b753471a96fc1f3936ac437109
+source_sha: bb93a3bd66810178b6d8d2bee10c74900b625b44325eb2d0aeec62adbafc790c
 reviewed: true
 ---
 # Connecter les applications
@@ -17,6 +17,9 @@ vos appareils.
   panneau d'administration est là aussi, pour les administrateurs.
 - **Android** (téléphone, tablette) et **Android TV** : les applications
   Evey. Elles sont en test et pas encore sur Google Play pour tout le monde.
+- **Le navigateur web d'une télévision** (LG, Samsung et d'autres) : rien à
+  installer. Ouvrez l'adresse du serveur suivie de `/tv` : voir
+  [Sur le navigateur web d'une télévision](#on-a-televisions-web-browser).
 - **Chromecast** : pas d'application. Vous castez depuis le lecteur web dans
   Chrome, ou depuis l'application Android.
 
@@ -157,6 +160,37 @@ sans ressaisir l'adresse. Chaque serveur garde sa propre connexion.
   avec son mot de passe a le même bouton. Sur l'écran de connexion au
   serveur, **Gérer les serveurs** renomme ou supprime un serveur enregistré.
 
+## Sur le navigateur web d'une télévision
+
+Une télévision sans Android TV peut quand même lire Evey dans son propre
+navigateur web. Le serveur propose une page faite pour elle, qui se pilote à
+la télécommande : ouvrez l'adresse du serveur suivie de `/tv`, par exemple :
+
+```text
+http://192.168.1.20:9091/tv
+```
+
+- **Aucune adresse de serveur à saisir.** La page appartient au serveur
+  depuis lequel elle a été ouverte. Connectez-vous, avec la
+  [Connexion rapide](#quick-connect-signing-in-a-tv-without-typing-a-password)
+  ou votre mot de passe, puis choisissez votre profil.
+- **Interface télévision.** Si la page pose cette question, choisissez
+  **Rester ici**. **Ouvrir la version web** est pour un ordinateur, et le
+  navigateur retient la réponse. Si elle a été choisie par erreur, ouvrez
+  l'adresse avec `?client=tv` à la fin (`http://192.168.1.20:9091/tv?client=tv`) et gardez
+  celle-ci en favori.
+- **Plein écran.** Quand le navigateur de la TV propose d'ajouter la page à
+  l'écran d'accueil, elle s'ouvre ensuite en plein écran, comme une
+  application.
+- **La télécommande.** Les flèches déplacent la sélection, **OK** choisit,
+  **Retour** revient en arrière. Dans le lecteur, **OK** affiche la barre et
+  met en pause, gauche et droite reculent et avancent (chaque appui allonge
+  le saut, maintenir la touche fait défiler avec une image), bas ouvre les
+  réglages (audio, sous-titres, qualité, vitesse, chapitres), et **Retour**
+  quitte le lecteur. Les touches lecture, pause, retour rapide et avance
+  rapide fonctionnent quand la TV les transmet au navigateur.
+- **Texte trop petit ou trop grand.** **Paramètres → Taille de l'interface**.
+
 ## Connexion rapide : connecter une TV sans saisir de mot de passe
 
 Saisir un mot de passe avec une télécommande est long. La Connexion rapide
@@ -201,6 +235,9 @@ passe.
       [Diffusion de la lecture et téléchargements](../environment/playback-delivery.md)).
     - **Caster** vers un Chromecast.
 - **Android TV.** Un écran pensé pour la télécommande.
+- **Navigateur de la télévision (`/tv`).** Le même genre d'écran pensé pour
+  la télécommande, dans le navigateur de la TV, sans bouton pour caster vers
+  un Chromecast.
 
 **Lire sur**, dans les lecteurs web et Android, envoie ce que vous regardez
 vers une autre application Evey ouverte et connectée au même compte. La
@@ -220,7 +257,8 @@ Play Store ne met pas toujours les applications à jour automatiquement
 (seulement quand l'appareil ne sert pas et qu'il est en Wi-Fi, et cela peut
 être désactivé) : c'est pourquoi cet avis existe. Quand l'application est à jour, ou que le
 serveur est plus ancien que cette fonction, rien ne s'affiche. L'application
-web n'a jamais besoin de mise à jour : c'est le serveur qui la fournit.
+web et la page `/tv` n'ont jamais besoin de mise à jour : c'est le
+serveur qui les fournit.
 
 ## Quel appareil lit quoi
 

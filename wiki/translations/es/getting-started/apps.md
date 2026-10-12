@@ -1,5 +1,5 @@
 ---
-source_sha: 6f3e4c0be097222fac2048b142e37293374416b753471a96fc1f3936ac437109
+source_sha: bb93a3bd66810178b6d8d2bee10c74900b625b44325eb2d0aeec62adbafc790c
 reviewed: true
 ---
 # Conectar las aplicaciones
@@ -17,6 +17,9 @@ cualquiera de tus dispositivos.
   administradores.
 - **Android** (teléfono, tablet) y **Android TV**: las apps de Evey. Están en
   pruebas y todavía no están en Google Play para todo el mundo.
+- **El navegador web de un televisor** (LG, Samsung y otros): nada que
+  instalar. Abre la dirección del servidor seguida de `/tv`: consulta
+  [En el navegador web de un televisor](#on-a-televisions-web-browser).
 - **Chromecast**: sin app. Envías el vídeo desde el reproductor web en Chrome
   o desde la app de Android.
 
@@ -154,6 +157,37 @@ dirección. Cada servidor guarda su propio inicio de sesión.
   sesión tiene el mismo botón. En la pantalla de conexión, **Administrar
   servidores** cambia el nombre de un servidor guardado o lo borra.
 
+## En el navegador web de un televisor
+
+Un televisor sin Android TV también puede reproducir Evey en su propio
+navegador web. El servidor ofrece una página pensada para él, que se maneja
+con el mando: abre la dirección del servidor seguida de `/tv`, por ejemplo:
+
+```text
+http://192.168.1.20:9091/tv
+```
+
+- **Ninguna dirección de servidor que escribir.** La página pertenece al
+  servidor desde el que se abrió. Inicia sesión, con la
+  [Conexión rápida](#quick-connect-signing-in-a-tv-without-typing-a-password)
+  o con tu contraseña, y luego elige tu perfil.
+- **Interfaz de televisión.** Si la página hace esta pregunta, elige
+  **Quedarse aquí**. **Abrir la versión web** es para un ordenador, y el
+  navegador recuerda la respuesta. Si se eligió por error, abre la dirección
+  con `?client=tv` al final (`http://192.168.1.20:9091/tv?client=tv`) y guarda esa como
+  marcador.
+- **Pantalla completa.** Cuando el navegador del televisor ofrece añadir la
+  página a la pantalla de inicio, después se abre en pantalla completa, como
+  una app.
+- **El mando.** Las flechas mueven la selección, **OK** elige y **Atrás**
+  vuelve. En el reproductor, **OK** muestra la barra y pausa, izquierda y
+  derecha retroceden y avanzan (cada pulsación alarga el salto, mantener la
+  tecla desplaza con una imagen), abajo abre los ajustes (audio, subtítulos,
+  calidad, velocidad, capítulos) y **Atrás** sale del reproductor. Las teclas
+  de reproducir, pausa, retroceso rápido y avance rápido funcionan cuando el
+  televisor se las pasa al navegador.
+- **Texto demasiado pequeño o grande.** **Ajustes → Tamaño de la interfaz**.
+
 ## Conexión rápida: iniciar sesión en un televisor sin escribir la contraseña
 
 Escribir una contraseña con el mando es lento. Con la Conexión rápida, en su
@@ -196,6 +230,9 @@ contraseña.
       [Entrega de la reproducción y descargas](../environment/playback-delivery.md)).
     - **Enviar a un Chromecast.**
 - **Android TV.** Una pantalla pensada para el mando.
+- **Navegador del televisor (`/tv`).** El mismo tipo de pantalla pensada
+  para el mando, en el navegador del televisor, sin botón para enviar a un
+  Chromecast.
 
 **Reproducir en**, en los reproductores web y de Android, envía lo que estás
 viendo a otra app de Evey que esté abierta y con la sesión iniciada en la
@@ -214,7 +251,8 @@ Púlsalo para abrir la página de la app en Play Store. Play Store no siempre
 actualiza las apps solo (únicamente cuando el dispositivo está en reposo y
 con Wi-Fi, y se puede desactivar), y por eso existe este aviso. Cuando la app
 está al día, o cuando el servidor es más antiguo que esta función, no se
-muestra nada. La app web nunca necesita actualizarse: la sirve el servidor.
+muestra nada. La app web y la página `/tv` nunca necesitan
+actualizarse: las sirve el servidor.
 
 ## Qué reproduce cada dispositivo
 

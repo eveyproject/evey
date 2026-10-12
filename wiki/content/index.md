@@ -24,7 +24,7 @@ rest.
 <strong>What you need:</strong> an x86-64 computer or NAS with Docker, and a
 folder with your media. Installing is one file and one command.<br>
 <strong>Watch</strong> in a web browser, on Android phones and tablets, on
-Android TV, and on a Chromecast. The Android and Android TV apps are in
+Android TV, in a television's web browser, and on a Chromecast. The Android and Android TV apps are in
 testing and not on Google Play yet.
 </p>
 
