@@ -1,42 +1,64 @@
 ---
-source_sha: c8d03e544227da6967bbbab98675cdb62fcd32e683e410544a6fffc79d40c1d5
-reviewed: false
+source_sha: 3491f399b6609d0b4c4818444e5ea8b6d8e3caf38d396767aac9f943257919b8
+reviewed: true
 ---
 # Transcodificación y capacidad del servidor
 
-La transcodificación es el resultado caro de [la decisión de reproducción](how-playback-is-decided.md):
-la Reproducción directa y el Remux no le cuestan casi nada al servidor y nunca
-ocupan una plaza de transcodificación. Esta página explica cómo sabe el servidor
-lo que puede codificar, cómo reparte esa capacidad entre los espectadores y qué
-pasa cuando está lleno.
+**En resumen:**
+
+- **Transcodificar** es convertir un vídeo a una forma que el dispositivo
+  pueda reproducir. Es el único trabajo pesado que hace el servidor:
+  reproducir un archivo tal cual (Reproducción directa) o reempaquetarlo
+  (Remux) no cuesta casi nada. Consulta
+  [Cómo elige Evey el modo de reproducción](how-playback-is-decided.md).
+- No eres tú quien fija a cuántas personas puede atender el servidor. Se mide
+  a sí mismo en su primer momento tranquilo, en unos minutos, y nunca acepta
+  más.
+- Cuando le falta capacidad, una reproducción nueva recibe una calidad más
+  baja, o pasa de una tarjeta gráfica ocupada al procesador. Si ninguno de
+  los dos tiene sitio, el reproductor dice **El servidor está ocupado
+  transcodificando otros flujos**.
+- Lo que quizá quieras hacer: darle al servidor una tarjeta gráfica
+  ([Aceleración por hardware](../administration/hardware-acceleration.md)) y
+  dejar espacio libre en el disco que guarda la caché
+  ([La caché de transcodificación](#the-transcoding-cache)).
+
+El resto de esta página es para el administrador que quiere los detalles:
+cómo mide el servidor lo que puede codificar, cómo reparte esa capacidad y
+qué ve un espectador cuando está lleno.
 
 ## El servidor se mide a sí mismo
 
-La capacidad no es un ajuste que tengas que estimar. El servidor la mide:
+La capacidad no es un ajuste que tengas que calcular a ojo. El servidor la
+mide:
 
-- **Cuándo.** No al arrancar: el servidor arranca con lo que sabía antes (o con
-  un valor por defecto prudente de 720p por software la primera vez) y ejecuta la
-  medición en su primer momento tranquilo, cuando nadie está viendo nada y el
-  procesador está casi inactivo. Tarda unos minutos. Una medición hecha con carga
-  se marca como provisional y se repite cuando la máquina está inactiva.
-- **Qué.** Codificaciones reales de un clip 4K, en SDR y en HDR, en el procesador
-  y en cada acelerador que el servidor detectó, con la misma forma que una
-  reproducción real. El resultado es la resolución más alta que cada uno sostiene
-  en tiempo real y el coste de cada tipo de flujo.
-- **De nuevo.** Cuando cambia el hardware, o con **Recalibrar** en **Admin →
-  Transcodificación → Calibración de codificación**.
+- **Cuándo.** No al arrancar: el servidor arranca con lo que ya sabía (o, la
+  primera vez, con un valor prudente de 720p por software) y hace la medición
+  en su primer momento tranquilo, cuando nadie está viendo nada y el
+  procesador está casi parado. Tarda unos minutos. Una medición hecha con la
+  máquina cargada se marca como provisional y se repite cuando la máquina
+  está libre.
+- **Qué.** Codificaciones reales de un clip 4K, en SDR y en HDR, con el
+  procesador y con cada acelerador que el servidor ha detectado, de la misma
+  forma que una reproducción real. El resultado es la resolución más alta que
+  cada uno aguanta en tiempo real, y lo que cuesta cada tipo de flujo.
+- **Otra vez.** Cuando cambia el hardware, o con **Recalibrar** en
+  **Administración → Transcodificación → Calibración de codificación**. El
+  botón espera a que nadie esté viendo nada.
 
-Mientras se ejecuta la medición, una reproducción que necesita transcodificar
-muestra **El servidor se está calibrando** y se le pide que lo intente de nuevo
-en breve. La Reproducción directa no se ve afectada.
+Mientras dura la medición, una reproducción que necesita transcodificar
+muestra **El servidor se está calibrando** y se le pide que lo vuelva a
+intentar en un momento. La Reproducción directa y el Remux no se ven
+afectados.
 
-En un procesador que no sostiene ninguna de las resoluciones, el servidor sigue
-ofreciendo 720p (SDR) y 480p (HDR), un flujo a la vez.
+En un procesador que no aguanta ninguna de las resoluciones, el servidor
+sigue ofreciendo 720p (SDR) y 480p (HDR), un flujo cada vez.
 
-La medición usa, por este orden, un clip que proporciones tú, un clip de
-referencia descargado una vez y verificado por su SHA256, o un clip sintético
-generado en el momento. Un clip real mide con más honestidad que el sintético,
-que exagera el coste y puede limitar una máquina por debajo de lo que merece:
+La medición usa, por este orden, un clip que le des tú, un clip de referencia
+que se descarga una vez y se comprueba con su SHA256, o un clip sintético
+generado en el momento. Un clip real mide de forma más fiel que el
+sintético, que exagera el coste y puede poner a una máquina un límite más
+bajo del que merece:
 
 ```yaml title="docker-compose.yml"
 services:
@@ -48,66 +70,118 @@ services:
 
 ## Repartir la capacidad
 
-**Capacidad de reproducción en directo** (**Admin → Transcodificación**) es el
-número de flujos de vídeo que se pueden codificar a la vez. Se deduce de la
-medición y se ajusta sola cuando cambia el hardware. **Limitar las emisiones de
-vídeo simultáneas** puede bajarla, nunca subirla.
+**Capacidad de reproducción en directo** (**Administración →
+Transcodificación**) es el número de flujos de vídeo que se pueden codificar
+a la vez. Se deduce de la medición y se ajusta sola cuando cambia el
+hardware. **Limitar las emisiones de vídeo simultáneas** puede bajarla,
+nunca subirla.
 
-- Una transcodificación que solo recodifica el audio (vídeo copiado) no ocupa
-  ninguna plaza.
-- Un espectador que cambia de calidad conserva una sola plaza.
-- Solo se codifica la calidad que el espectador ve realmente, no toda la escala
-  de calidades.
+- Una transcodificación que solo vuelve a codificar el audio (con el vídeo
+  copiado) no ocupa ninguna plaza.
+- Un espectador que cambia de calidad sigue ocupando una sola plaza.
+- Solo se codifica la calidad que el espectador está viendo de verdad, no
+  toda la escala de calidades.
 
-Cada flujo va a la vía más barata que pueda servirlo: un acelerador que haya
-demostrado lo que el flujo necesita (por ejemplo el mapeo de tonos HDR, o una
-salida HEVC), o el procesador. El procesador y los aceleradores son dos reservas
-separadas. Cuando los aceleradores están llenos, un nuevo flujo puede pasar al
-procesador si tiene sitio; cuando ninguno tiene sitio, el reproductor muestra
-**El servidor está ocupado transcodificando otros flujos** y puede reintentarlo.
+Cada flujo va por la vía más barata que haya demostrado que puede servirlo:
+un acelerador medido en lo que necesita el flujo (por ejemplo, convertir HDR
+a SDR, o sacar HEVC), o el procesador. El procesador y los aceleradores son
+dos reservas separadas, y un flujo en la tarjeta gráfica sigue gastando un
+poco de procesador para su audio y su empaquetado.
 
-Mientras alguien ve algo, las tareas propias del servidor en segundo plano
-(miniaturas, detección de intros, análisis de medios) se pausan, para que la
-reproducción conserve la máquina: consulta
+Cuando falta sitio, el servidor responde en este orden:
+
+1. **Una calidad más baja.** Un flujo nuevo cuya calidad más alta no cabe se
+   acepta en la más alta que sí cabe, y ese techo se mantiene durante todo el
+   flujo.
+2. **El procesador.** Cuando los aceleradores están llenos, un flujo nuevo
+   pasa al procesador si este tiene sitio.
+3. **Un rechazo.** Cuando ninguno de los dos tiene sitio, el reproductor
+   muestra **El servidor está ocupado transcodificando otros flujos** y puede
+   volver a intentarlo.
+
+Si una codificación con la tarjeta gráfica falla en un título, ese título
+pasa al procesador durante un tiempo, para todos los espectadores. La
+tarjeta en sí solo se aparta si también falla en ella una codificación de
+prueba que no depende del contenido, y se vuelve a probar más tarde:
+consulta [Aceleración por hardware](../administration/hardware-acceleration.md).
+
+Mientras alguien ve algo, el trabajo de fondo del propio servidor
+(miniaturas, detección de intros, análisis de los medios) se pone en pausa,
+para que la reproducción tenga la máquina para ella: consulta
 [Tareas en segundo plano y carga del servidor](../operations/background-work.md).
 
-Cuando un tipo de fuente sigue haciendo esperar a los espectadores pese a todo
-esto, el servidor baja su calidad máxima durante un tiempo y luego levanta el
-límite por sí solo. Consulta
+Cuando un tipo de fuente sigue haciendo esperar a los espectadores a pesar
+de todo esto, el servidor baja su calidad máxima durante un tiempo, y luego
+quita el límite por sí solo. Consulta
 [Supervisión y registros](../operations/monitoring.md#how-playback-actually-went).
 
-## Qué se codifica
+## Lo que se codifica
 
 | | Por defecto |
 | --- | --- |
-| Códec de vídeo | H.264. HEVC cuando el reproductor lo descodifica y la tarjeta gráfica lo codifica; AV1 cuando está activado (**Salida AV1**, solo por hardware) y el reproductor lo descodifica. |
-| Resolución | La de la fuente, salvo que se aplique un límite: el máximo del reproductor, el límite de bitrate o lo que el servidor puede codificar en tiempo real. |
-| Bitrate | Sigue a la fuente, escalado a la resolución. **Tope de bitrate de vídeo** lo limita. |
+| Códec de vídeo | H.264. HEVC cuando el reproductor lo descodifica y una tarjeta gráfica lo codifica, o cuando lo pide el **Códec de vídeo preferido** del perfil; AV1 cuando está activado (**Salida AV1**, solo por hardware) y el reproductor lo descodifica. |
+| Resolución | La de la fuente, salvo que se aplique un límite: el máximo del reproductor, el límite de bitrate, o lo que el servidor puede codificar en tiempo real. |
+| Bitrate | Sigue al de la fuente, ajustado a la resolución. **Tope de bitrate de vídeo** lo limita; **Techo de bitrate de vídeo, espectadores remotos** lo limita aún más fuera de las redes locales. |
 | Audio | AAC. Consulta [Audio](audio.md). |
 | Entrega | HLS, en segmentos MP4 fragmentados. |
 
 <figure class="evey-shot" markdown="span">
-  ![Los dos topes de bitrate de vídeo en Admin → Transcodificación](../images/admin-transcoding-bitrate.webp){ loading=lazy }
-  <figcaption>Los dos topes de <strong>Admin → Transcodificación</strong>: para todos los espectadores y para los espectadores fuera de las redes locales (interfaz en inglés).</figcaption>
+  ![Los dos topes de bitrate de vídeo en Administración → Transcodificación](../images/admin-transcoding-bitrate.webp){ loading=lazy }
+  <figcaption>Los dos topes de <strong>Administración → Transcodificación</strong>: para todos los espectadores, y para los espectadores fuera de las redes locales (interfaz en inglés).</figcaption>
 </figure>
 
 ## La caché de transcodificación
 
-Los segmentos codificados se guardan en disco en el volumen `evey-cache` y se
-reutilizan cuando otro espectador, o el mismo más tarde, reproduce el mismo
-título con la misma decisión. **Admin → Caché de transcodificación** muestra su
-tamaño y la vacía; el **Presupuesto de caché de transcodificación** (**Admin →
-Configuración del servidor → Configuración del servidor**) la limita. Vacíala
-tras una actualización que cambie cómo se codifican los vídeos, para que a nadie
-se le sirvan segmentos de la versión anterior.
+Los segmentos codificados se guardan en disco, en el volumen `evey-cache`, y
+se reutilizan cuando otro espectador, o el mismo más tarde, reproduce el
+mismo título con la misma decisión. **Administración → Caché de
+transcodificación** muestra su tamaño y la vacía; el **Presupuesto de caché
+de transcodificación** (**Administración → Configuración del servidor →
+Configuración del servidor**) le pone un límite. **Limpiar todo** también
+borra los subtítulos extraídos de tus archivos, guardados en
+`./evey-data/subtitles`: se vuelven a extraer cuando se piden.
+
+**Cuando el disco se llena.** El servidor mantiene un margen de espacio libre
+en el disco que guarda la caché: 2 GiB por defecto, que se fija con
+`EVEY_TRANSCODE_CACHE_MIN_FREE_MB` (`0` quita el margen). Por debajo, se
+borran primero los segmentos más antiguos que nadie está viendo. Si eso no
+libera bastante, un segmento que todavía no existe se rechaza con un plazo
+tras el cual el reproductor puede volver a pedirlo, en lugar de arrancar un
+codificador que fallaría por falta de espacio; los segmentos que ya están en
+disco se siguen sirviendo. Los subtítulos extraídos en `./evey-data` siguen
+el mismo margen: por debajo, los nuevos ya no se guardan, cada petición los
+vuelve a extraer, y los administradores reciben **Caché de subtítulos
+llena** (como mucho una vez por hora, también enviado a los webhooks como
+`transcoding.derived_cache_full`).
+
+!!! tip
+    Vacía la caché después de una actualización que cambie la forma de
+    codificar los vídeos, para que nadie reciba segmentos de la versión
+    anterior. Si la vacías mientras alguien ve algo, su flujo vuelve a cargar
+    una vez y luego sigue.
 
 ## Comprobar lo que pasa
 
-- **Admin → Reproduciendo ahora**: cada flujo, su método pista por pista y el
-  backend que lo codifica.
-- **Admin → Transcodificación → Calibración de codificación**: los techos medidos
-  y los aceleradores en uso.
-- **Admin → Calidad de streaming**: cómo fue la reproducción para los
-  espectadores reales.
-- **Prueba de carga** (**Admin → Transcodificación**): simula espectadores para
-  medir lo que sostiene el servidor. Ejecútala solo cuando nadie esté viendo nada.
+- **Administración → Reproduciendo ahora**: cada flujo, su método pista por
+  pista, y el motor que lo codifica.
+- **Administración → Transcodificación → Calibración de codificación**: los
+  techos medidos y los aceleradores en uso.
+- **Administración → Calidad de streaming**: cómo ha ido la reproducción para
+  los espectadores reales.
+- **Prueba de carga** (**Administración → Transcodificación**): simula
+  espectadores para medir lo que aguanta el servidor. No se ejecuta mientras
+  alguien esté viendo algo.
+
+<!-- sources
+disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After) ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full
+clear all empties extracted subtitles: internal/app/transcoding/service.go - WithDerivedCachePurge ; internal/adapters/driving/http/subtitle_cache.go - SubtitleCachePurger (/data/subtitles)
+calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - softwareLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
+capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability
+busy: i18n errors max_concurrent_reached
+output codec: internal/app/transcoding/resolver_route.go - outputCodecFor, codecWithPassthrough ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
+single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT, default on)
+bench samples: internal/config/config.go (EVEY_BENCH_{SDR,HDR}_SAMPLE{,_URL,_SHA256})
+cache budget, clear while live: i18n admin.serverSettings.transcodeCacheMaxGB, admin.transcodeCache.clearConfirmLiveSessions ; automatic limits: admin.qoe.overrides.*
+load test: i18n admin.loadtest.idleWarning, errorActiveStreams
+plain opening, busy message: i18n errors max_concurrent_reached ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper.GrantRoute
+-->
