@@ -23,8 +23,10 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
@@ -55,12 +57,51 @@ func seekLandingReadInterval(startSec float64) string {
 // (VFR, a dropped frame) and the stored pts is kept as is.
 const seekLandingSnapToleranceUs = 600
 
+// seekLandingCacheMax bounds the landing cache; past it the cache starts over.
+const seekLandingCacheMax = 4096
+
+// seekLandingCache remembers each measured landing by file (path, size, mtime)
+// and target: a per-variant HW seek starts one session per rung, all at the
+// same instant, and a viewer seeking back lands on a target already measured.
+var seekLandingCache = struct {
+	sync.Mutex
+	m map[string]int64
+}{m: map[string]int64{}}
+
+// seekLandingProbe is the ffprobe measurement behind the cache (a test seam).
+var seekLandingProbe = probeTranscodeSeekLandingUs
+
 // transcodeSeekLandingUs returns the absolute presentation time, in
 // microseconds, of the first video frame a `-ss startSec` transcode session
 // emits: the source frame with the smallest pts >= startSec. On a constant
 // frame rate source the value is snapped to the exact frame grid (k × period),
 // which is where the cold rafale's CFR output puts the same frame.
 func transcodeSeekLandingUs(ctx context.Context, filePath string, startSec float64) (int64, error) {
+	fi, err := os.Stat(filePath)
+	if err != nil {
+		return seekLandingProbe(ctx, filePath, startSec)
+	}
+	key := fmt.Sprintf("%s|%d|%d|%.6f", filePath, fi.Size(), fi.ModTime().UnixNano(), startSec)
+	seekLandingCache.Lock()
+	us, ok := seekLandingCache.m[key]
+	seekLandingCache.Unlock()
+	if ok {
+		return us, nil
+	}
+	us, err = seekLandingProbe(ctx, filePath, startSec)
+	if err != nil {
+		return 0, err
+	}
+	seekLandingCache.Lock()
+	if len(seekLandingCache.m) >= seekLandingCacheMax {
+		clear(seekLandingCache.m)
+	}
+	seekLandingCache.m[key] = us
+	seekLandingCache.Unlock()
+	return us, nil
+}
+
+func probeTranscodeSeekLandingUs(ctx context.Context, filePath string, startSec float64) (int64, error) {
 	out, err := procfork.Output(ctx, procfork.Options{Class: procfork.Probe, Site: "hls.transcode_seek_landing"}, seekLandingProbeBinary,
 		"-v", "error",
 		"-select_streams", "v:0",
