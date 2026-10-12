@@ -1,84 +1,105 @@
 ---
-source_sha: c2a4be8940674cf2726d11beb92251a00699761b6ec0ce9ceb1c8eba368e9b0e
-reviewed: false
+source_sha: 5f2dd5bf7c21906e243c0cece2ecff83e306d69d5b99a193541b9e574db7a4c2
+reviewed: true
 ---
-# Configuración de OIDC / SSO
+# Inicio de sesión único (OIDC)
 
-Evey admite el inicio de sesión único mediante OpenID Connect: Keycloak,
-Authentik, Authelia, Google o cualquier otro proveedor OIDC. La página de inicio
-de sesión de las aplicaciones web y Android muestra entonces **Iniciar sesión
-con SSO** junto al formulario de contraseña.
+Permite que la gente inicie sesión con el proveedor de identidad que ya
+usas (Keycloak, Authentik, Authelia, Google o cualquier otro proveedor
+OpenID Connect): la página de inicio de sesión de la web y de las apps de
+Android muestra entonces **Iniciar sesión con SSO** junto al formulario de
+contraseña. El administrador tiene dos pasos: registrar Evey en el
+proveedor y después rellenar una tarjeta en el panel de administración.
 
 ## 1. Registrar Evey en el proveedor
 
-Crea en el proveedor un cliente (o aplicación) con el tipo de concesión
-Authorization Code, los scopes `openid email profile`, un secreto de cliente y
-las dos direcciones que la tarjeta **Inicio de sesión único (SSO)** muestra en
+Crea un cliente (o aplicación) en el proveedor con el flujo Authorization
+Code, los scopes `openid email profile`, un secreto de cliente y las dos
+direcciones que muestra la tarjeta **Inicio de sesión único (SSO)** en
 **Registra estas direcciones en tu proveedor**:
 
 | Campo | Valor |
-|-------|-------|
-| URI de redirección | `https://<tu dirección>/api/v1/auth/oidc/callback` |
-| URI de redirección tras cerrar sesión | `https://<tu dirección>/login` |
+| --- | --- |
+| **URI de redirección** | `https://<your address>/api/v1/auth/oidc/callback` |
+| **URI de redirección tras cerrar sesión** | `https://<your address>/login` |
 
-Ambas se construyen a partir de la dirección pública del servidor (**Admin →
-Acceso remoto**): configúrala primero si se accede a Evey por otra dirección.
+Las dos se construyen con la dirección pública del servidor
+(**Administración → Acceso remoto**): ponla primero si la gente llega a Evey
+por otra dirección.
 
 ## 2. Configurar Evey
 
-**Admin → Configuración del servidor → Inicio de sesión único (SSO)**:
+**Administración → Configuración del servidor → Inicio de sesión único
+(SSO)**:
 
 | Campo | Efecto |
 | --- | --- |
 | **Activar el inicio de sesión único** | Muestra el botón SSO en las pantallas de inicio de sesión. |
-| **URL del emisor (issuer)** | La dirección del proveedor, sin `/.well-known/openid-configuration`. |
-| **ID de cliente**, **Secreto de cliente** | El cliente registrado arriba. El secreto se guarda en el servidor y no vuelve a mostrarse; dejar los puntos lo conserva. |
-| **Dominios de correo permitidos** | Separados por comas. Si se indican, solo se aceptan esas direcciones, y el proveedor debe confirmar la dirección. |
-| **Texto del botón** | Opcional, sustituye a «Iniciar sesión con SSO». |
-| **Vincular con cuentas existentes por correo verificado** | Activado por defecto. Ver más abajo. |
-| **Crear cuentas para nuevos usuarios SSO** | Desactivado salvo que haya dominios de correo permitidos. Ver más abajo. |
+| **URL del emisor (issuer)** | La dirección del proveedor; Evey lee `/.well-known/openid-configuration` bajo ella. |
+| **ID de cliente**, **Secreto de cliente** | El cliente registrado más arriba. El secreto se guarda en el servidor y no se vuelve a mostrar nunca; si dejas los puntos, se conserva. |
+| **Dominios de correo permitidos** | Separados por comas. Si se rellena, solo se aceptan esas direcciones, y el proveedor tiene que confirmar la dirección. |
+| **Texto del botón** | Opcional, sustituye a "Iniciar sesión con SSO". |
+| **Vincular con cuentas existentes por correo verificado** | Activado por defecto. Ver [Quién puede iniciar sesión](#who-can-sign-in). |
+| **Crear cuentas para nuevos usuarios SSO** | Desactivado salvo que haya dominios de correo permitidos. Ver [Quién puede iniciar sesión](#who-can-sign-in). |
 | **Acceso a bibliotecas de las nuevas cuentas SSO** | **Todas las bibliotecas**, o **Solo las bibliotecas elegidas**. |
 
-**Probar la conexión** comprueba que el emisor responde. **Guardar ajustes SSO**
-se aplica al momento, sin reiniciar. La línea **Estado** indica si el proveedor
-responde, con el último error si no.
+**Probar la conexión** comprueba que el emisor responde. **Guardar ajustes
+SSO** se aplica en el momento, sin reiniciar. La línea **Estado** dice si se
+puede llegar al proveedor y, si no, muestra el último error.
 
-Las variables `EVEY_OIDC_*` de [Cuentas e inicio de sesión](environment/accounts.md)
-son el respaldo: la tarjeta indica cuándo sus valores vienen de ellas, y
-guardarla toma el relevo.
+Las variables `EVEY_OIDC_*` de
+[Cuentas e inicio de sesión](environment/accounts.md#single-sign-on-oidc)
+son la opción de reserva: la tarjeta indica cuándo sus valores vienen de
+ellas, y al guardar la tarjeta pasa a mandar ella.
 
-El servidor nunca espera al proveedor: arranca aunque el proveedor esté caído,
-el botón SSO sigue oculto mientras no se pueda contactar con el proveedor, y el
-inicio de sesión con contraseña sigue funcionando. El proveedor se vuelve a
-contactar en el siguiente intento de inicio de sesión, como mucho cada 30
-segundos.
+!!! note "El servidor nunca depende del proveedor para funcionar"
+    El servidor arranca aunque el proveedor no esté disponible, el botón SSO
+    se queda oculto mientras no se puede llegar al proveedor, y el inicio de
+    sesión con contraseña sigue funcionando. Se vuelve a contactar con el
+    proveedor en el siguiente intento de inicio de sesión, como mucho cada
+    30 segundos.
 
 ## Quién puede iniciar sesión
 
-1. Una cuenta que ya inició sesión con este proveedor vuelve a entrar, salvo que
-   esté desactivada.
-2. Si no, con **Vincular con cuentas existentes por correo verificado** activado,
-   una cuenta existente con el mismo correo se vincula al proveedor y entra,
-   pero solo si el proveedor confirma la dirección. La cuenta conserva su
-   contraseña. Las cuentas de administrador nunca se vinculan así.
-3. Si no, con **Crear cuentas para nuevos usuarios SSO** activado, se crea una
-   cuenta nueva, con un perfil y el acceso a bibliotecas elegido en la tarjeta.
-   Su nombre de usuario es el `preferred_username` del proveedor o, si falta, la
-   parte del correo anterior a `@`; un nombre ya ocupado recibe un sufijo corto.
+1. Una cuenta que ya inició sesión con este proveedor vuelve a iniciarla,
+   salvo que esté desactivada.
+2. Si no, con **Vincular con cuentas existentes por correo verificado**
+   activado, una cuenta existente con el mismo correo se vincula al
+   proveedor e inicia sesión, pero solo cuando el proveedor confirma la
+   dirección. La cuenta conserva su contraseña. Las cuentas de
+   administrador nunca se vinculan de esta forma.
+3. Si no, con **Crear cuentas para nuevos usuarios SSO** activado, se crea
+   una cuenta nueva, con un perfil y el acceso a bibliotecas elegido en la
+   tarjeta. Su nombre de usuario es el `preferred_username` del proveedor,
+   o si no, la parte del correo antes de `@`; si el nombre ya está cogido,
+   se le añade un sufijo corto.
 
-**Crear cuentas para nuevos usuarios SSO** está desactivado por defecto cuando no
-hay ningún dominio de correo permitido: con un proveedor público como Google,
-cualquiera que tenga una cuenta allí podría obtener una en tu servidor. Si está
-desactivado, solo las cuentas existentes pueden iniciar sesión con SSO.
+!!! warning "Por qué la creación de cuentas está desactivada por defecto"
+    Con un proveedor público como Google, cualquiera que tenga una cuenta
+    allí podría conseguir una en tu servidor. La creación solo está activada
+    por defecto cuando **Dominios de correo permitidos** limita quién puede
+    entrar. Cuando está desactivada, solo las cuentas existentes pueden
+    iniciar sesión con SSO.
 
-Cuando se rechaza un inicio de sesión, la página indica el motivo: el dominio
-del correo no está permitido, ninguna cuenta coincide y la creación está
-desactivada, la cuenta está desactivada, la cuenta existe pero no se pudo
-vincular, o el proveedor no está disponible.
+Cuando se rechaza un inicio de sesión, la página de inicio de sesión dice
+por qué: el dominio del correo no está permitido, ninguna cuenta coincide y
+el registro está desactivado, la cuenta está desactivada, la cuenta existe
+pero no se pudo vincular, o el proveedor no está disponible.
 
 ## Cerrar sesión
 
-Cuando el proveedor publica un punto de cierre de sesión, cerrar sesión en Evey
-tras un inicio de sesión SSO también cierra la sesión en el proveedor y luego
-vuelve a la página de inicio de sesión de Evey. La tarjeta indica si el
-proveedor lo admite.
+Cuando el proveedor publica una dirección de cierre de sesión, cerrar sesión
+en Evey después de haber entrado por SSO también cierra la sesión en el
+proveedor, y después vuelve a la página de inicio de sesión de Evey. La
+tarjeta indica si el proveedor lo admite.
+
+<!-- sources
+settings and precedence (panel keys oidc.* win over EVEY_OIDC_*): internal/app/user/oidc_settings.go - ResolveOIDCConfig, AllowSignup default from AllowedEmailDomains
+lazy discovery, 30 s backoff, never at boot: internal/app/user/oidc_service.go - oidcRetryBackoff ; cmd/evey/wire.go
+account resolution (identity, verified-email link, sign-up, suffix, default libraries, admin never linked): oidc_service.go findOrCreateUser ; tests oidc_policy_test.go
+admin routes GET/PUT /api/v1/admin/sso, POST /api/v1/admin/sso/test: internal/adapters/driving/http/sso_admin_handler.go
+login error reasons: internal/adapters/driving/http/auth_handler.go (oidc_error=<reason>) ; i18n auth.login.ssoError.*
+logout endSessionUrl: internal/adapters/driving/http/server.go
+mobile flow: internal/adapters/driving/http/oidc_app_flow.go ; frontend/apps/mobile/app/oidc-callback.tsx
+UI: frontend/apps/web/src/features/admin/serverConfig/SsoSettingsCard.tsx ; i18n admin.sso.* ; auth.login.signInWithSSO
+-->

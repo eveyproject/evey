@@ -1,90 +1,165 @@
 ---
-source_sha: cd66a9194ddc930c849aec83b5d0a19bb86c2f982c6fcf9e5f4211e0a00e0cde
-reviewed: false
+source_sha: 3529db45dbbd12f6980bca0989017583b6ccad6c3c5a3b54597887c6b09d6285
+reviewed: true
 ---
 # Copias de seguridad y actualizaciones
 
-## Qué contiene una copia de seguridad
+Dos costumbres mantienen tu servidor a salvo:
 
-Una copia de seguridad es una copia de la **base de datos**: cuentas, perfiles,
-bibliotecas y sus metadatos, historial y puntos de reanudación, colecciones y
-listas de reproducción, ajustes, registros de plugins, webhooks y registros de
-auditoría. Es un `.tar.gz` que contiene el volcado SQL y un manifiesto con el
-SHA256 del volcado.
+- **Hacer copias de seguridad.** Activa una copia diaria de la base de
+  datos, y guarda una copia de la carpeta `evey-data` en otro sitio.
+- **Actualizar.** Un solo comando descarga la versión nueva. Evey guarda
+  antes la base de datos, por su cuenta, cada vez que una actualización la
+  modifica.
 
-**No** contiene:
+Esta página explica las dos cosas, y después qué contiene una copia, cómo
+restaurarla y cómo volver a una versión anterior.
 
-- tus archivos multimedia;
-- la caché de transcodificación (se regenera bajo demanda);
-- el índice de búsqueda (se reconstruye a partir de la base de datos);
-- las claves guardadas en `./evey-data`: `jwt.key`, que firma las sesiones, y la
-  carpeta `keys` (contraseña de la base de datos, clave de búsqueda);
-- los archivos de los plugins instalados.
+## Programar las copias de seguridad
 
-Una copia de la base de datos restaura por tanto el estado de Evey en la misma
-instalación. Para poder reconstruir una máquina, guarda también una copia de toda
-la carpeta `./evey-data`: las copias de la base de datos están dentro, en
-`./evey-data/backups`.
+1. Ve a **Administración → Copia de seguridad y restauración**, tarjeta
+   **Programación**.
+2. En **Expresión cron**, indica cuándo se hace. `0 3 * * *` significa todos
+   los días a las 3 de la madrugada. (El formato es minuto, hora, día, mes,
+   día de la semana.)
+3. En **Retención (días)**, indica cuánto tiempo se guarda cada copia, por
+   ejemplo `30`. Las copias más antiguas se borran después de cada
+   ejecución programada.
+4. Marca **Habilitado** y pulsa **Guardar**.
 
-## Copias programadas
-
-**Admin → Copia de seguridad y restauración → Programación**: una expresión cron
-(por ejemplo `0 3 * * *`, todos los días a las 3 de la madrugada) y una retención en días. Las
-copias más antiguas que la retención se eliminan tras cada ejecución programada.
-**Ejecutar ahora** crea una de inmediato.
+**Ejecutar ahora** hace una copia en el momento, igual que **Crear copia de
+seguridad** en la parte de arriba de la página.
 
 <figure class="evey-shot" markdown="span">
-  ![Admin → Copia de seguridad y restauración con una programación diaria](images/admin-backup.webp){ loading=lazy }
+  ![Administración → Copia de seguridad y restauración con una programación diaria](images/admin-backup.webp){ loading=lazy }
   <figcaption>Una copia todos los días a las 3 de la madrugada, conservada 30 días (interfaz en inglés).</figcaption>
 </figure>
 
-El servidor también vuelca la base de datos por su cuenta antes de aplicar una
-migración durante una actualización, sea cual sea la programación (ver abajo).
+Las copias se guardan en `./evey-data/backups`. Está dentro de la carpeta
+que de todos modos deberías copiar a otro disco (ver
+[Qué contiene una copia](#what-a-backup-contains)).
 
-## Restaurar
+??? info "Desde la línea de comandos"
 
-**Admin → Copia de seguridad y restauración** lista las copias y restaura una, o
-restaura desde un archivo que subes. Restaurar sustituye la base de datos actual.
+    Un script o una tarea cron en la máquina pueden hacer la misma copia:
 
-Una copia solo se puede restaurar en un servidor con el mismo esquema de base de
-datos: el servidor comprueba primero la suma de control y la versión del esquema,
-y rechaza una copia hecha por una versión con otro esquema en lugar de cargarla.
-Para volver a una versión anterior con sus datos, consulta
-[Volver atrás](#going-back) más abajo.
+    ```bash
+    docker exec evey-server evey admin backup
+    ```
 
-Cuando el servidor ya no arranca, la línea de comandos restaura los volcados
-hechos antes de una migración (`pre-migration-*.sql.gz`), no las copias
-`.tar.gz` de este panel: consulta [Recuperación](runbooks/recovery.md).
+    Sigue el interruptor de telemetría del panel (más abajo);
+    `--include-telemetry` incluye la telemetría solo en esa ejecución.
+
+El servidor también guarda la base de datos por su cuenta antes de que una
+actualización la modifique, sea cual sea la programación (ver
+[Actualizar Evey](#updating-evey)).
+
+## Qué contiene una copia
+
+Una copia de seguridad es una copia de la **base de datos**: cuentas,
+perfiles, bibliotecas y su catálogo, historial de reproducción y puntos de
+reanudación, colecciones, listas de reproducción y favoritos, ajustes,
+registros de plugins, webhooks, claves API, notificaciones y registros de
+auditoría.
+
+**No** contiene:
+
+- tus archivos de vídeo, música y fotos;
+- la caché de vídeo (se vuelve a llenar sola);
+- el índice de búsqueda (se reconstruye a partir de la base de datos);
+- las claves guardadas en `./evey-data`: `jwt.key`, que protege todos los
+  inicios de sesión, y la carpeta `keys` (contraseña de la base de datos,
+  clave de búsqueda);
+- los archivos de los plugins instalados.
+
+**Así que guarda también una copia de toda la carpeta `./evey-data`.** Una
+copia de la base de datos restaura Evey en la misma instalación. Para
+reconstruir una máquina desde cero, necesitas la carpeta.
+
+??? info "La telemetría y el formato del archivo"
+
+    Las mediciones de reproducción y del servidor (las que hay detrás de los
+    gráficos de calidad y de carga) se dejan fuera por defecto: son lo que
+    más crece y no dicen nada de tu catálogo. **Incluir telemetría en las
+    copias de seguridad** (**Administración → Configuración del servidor**)
+    las vuelve a incluir, en las copias manuales, programadas y desde la
+    línea de comandos. Restaurar una copia siempre vacía esas tablas.
+
+    Una copia es un archivo `.tar.gz` que contiene el volcado de la base de
+    datos y una breve descripción con su suma de verificación (SHA256) y su
+    versión de esquema.
+
+## Restaurar una copia
+
+**Administración → Copia de seguridad y restauración** muestra la lista de
+copias. Restaura una desde la lista, o sube un archivo con **Restaurar desde
+archivo**. Restaurar sustituye la base de datos actual: se pierde todo lo
+que haya pasado desde esa copia.
+
+!!! warning "Solo una copia de una versión con la misma estructura de base de datos"
+    El servidor comprueba primero el archivo y la estructura de la base de
+    datos (la versión de esquema). Rechaza una copia hecha por una versión
+    con una estructura distinta, en lugar de cargarla. Para volver a una
+    versión anterior con sus datos, ver [Volver atrás](#going-back).
+
+Si el servidor ya no arranca, la línea de comandos puede restaurar las
+copias de seguridad hechas antes de una actualización
+(`pre-migration-*.sql.gz`), no las copias `.tar.gz` de este panel: ver
+[Recuperación](runbooks/recovery.md).
 
 ## Actualizar Evey
+
+En la carpeta que contiene tu archivo compose:
 
 ```bash
 docker compose pull && docker compose up -d
 docker compose logs -f evey
 ```
 
-Esa es toda la actualización. Cuando la nueva versión necesita cambiar la base de
-datos, primero escribe un volcado en `./evey-data/backups/pre-migration-*` y
-después aplica las migraciones al arrancar; un catálogo grande puede tardar unos
-minutos, y el contenedor se declara sano en cuanto vuelve a servir. Evey
-comprueba cada 6 horas si hay una imagen más reciente publicada y lo indica en el
-panel de administración; nunca se actualiza solo.
+Eso es toda la actualización.
 
-**Fija lo que ejecutas.** `latest` sigue la versión estable más reciente. Para un
-servidor del que dependes, pon una etiqueta de versión (`0.2.0`) o una etiqueta
-inmutable `sha-<commit>` en la línea `image:`, para que dos descargas con un día
-de diferencia ejecuten el mismo código. Una etiqueta de rama como `beta-0.0.1`
-se mueve con cada cambio.
+- **Primero se guardan tus datos.** Cuando la versión nueva necesita
+  modificar la base de datos, primero escribe una copia en
+  `./evey-data/backups/pre-migration-*.sql.gz` (se guardan las tres más
+  recientes), y después hace el cambio al arrancar.
+- **Puede tardar unos minutos** con un catálogo grande. El contenedor
+  aparece como sano (healthy) en cuanto vuelve a responder.
+- **Evey te avisa cuando hay una actualización.** Comprueba cada hora si se
+  ha publicado una imagen más nueva y lo indica en el panel de
+  administración. Nunca se actualiza solo.
+- **Qué versión está funcionando:** `docker exec evey-server evey version`
+  muestra la versión y el commit.
 
-**Qué versión se ejecuta.** `docker exec evey-server evey version` muestra la
-versión y el commit del binario en ejecución.
+??? info "Fijar la versión exacta que usas"
+
+    Durante la beta no hay versiones numeradas ni etiqueta `latest`. La
+    etiqueta `beta-0.0.1` cambia con cada actualización. Para un servidor
+    del que dependes, pon una etiqueta fija `sha-<commit>` en la línea
+    `image:`, para que dos descargas con un día de diferencia ejecuten el
+    mismo código. Cuando haya versiones publicadas, `latest` seguirá la
+    versión estable más reciente, y una etiqueta de versión (`0.2.0`) la
+    fijará.
 
 ### Volver atrás
 
-Pon la etiqueta anterior en la línea `image:` y ejecuta `docker compose up -d`.
-Si la versión más reciente había migrado la base de datos, restaura primero su
-volcado previo a la migración: `docker exec evey-server evey admin rollback`
-muestra los pasos exactos con la ruta del volcado.
+1. Pon la etiqueta anterior en la línea `image:` de tu archivo compose.
+2. Si la versión más nueva modificó la base de datos, restaura primero su
+   copia de antes de la actualización: `docker exec evey-server evey admin
+   rollback` muestra los pasos exactos, con la ruta del archivo.
+3. Ejecuta `docker compose up -d`.
 
-Las etiquetas de imagen, las variantes de ejecución y las variantes con GPU se
-describen en [Despliegues avanzados](operations/advanced-deployments.md#image-tags).
+Las etiquetas de imagen, las otras variantes y las versiones para tarjetas
+gráficas se describen en
+[Despliegues avanzados](operations/advanced-deployments.md#image-tags-and-variants).
+
+<!-- sources
+contents: internal/app/backup/service.go - BackupTables, CreateBackup (sha256 + schema version in manifest), RestoreBackup (checksum + schema guard), CleanupOldBackups ; internal/adapters/driven/filesystem/backup_store.go
+schedule: i18n admin.backup.schedule.* (cronLabel, retentionLabel, runNow) ; admin.backup.createBackup, restoreFromFile ; cmd/evey/main.go (DB cron scheduler, env fallback)
+telemetry left out by default, emptied on restore: internal/adapters/driven/postgres/backup.go - DumpAll, telemetryTables ; internal/app/backup/service.go - WithIncludeTelemetry ; internal/adapters/driving/http/settings_handler.go - BackupIncludeTelemetryKey ; i18n admin.serverSettings.backupTelemetry, backupTelemetryHint
+command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry, else the panel setting)
+keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
+pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
+update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
+rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (beta-0.0.1 + sha-<short>, latest gated on vX.Y.Z)
+schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
+-->
