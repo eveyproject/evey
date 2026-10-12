@@ -130,7 +130,7 @@ func sourceReplacedOverHTTP(t *testing.T, sameStamp bool) {
 			return
 		}
 		name := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, "/"), onDemandPrefix)
-		h.servePlanResourceData(w, r, "m1", plan, name, trace.SpanFromContext(r.Context()))
+		h.servePlanResourceData(w, r, "m1", plan, nil, name, trace.SpanFromContext(r.Context()))
 	}))
 	defer srv.Close()
 

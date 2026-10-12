@@ -85,7 +85,7 @@ func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request
 		// trimmed the audio to the SELECTED track, buildPlan packaged that one
 		// track, so what we serve holds exactly the tracks the packager carries.
 		h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}, "")
-		h.servePlanResourceData(w, r, mediaID, plan, "master.m3u8", span)
+		h.servePlanResourceData(w, r, mediaID, plan, planKeep(rp, streams), "master.m3u8", span)
 		return true, ""
 	}
 
@@ -100,7 +100,7 @@ func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request
 			slog.String("media_id", mediaID), slog.Any("err", err))
 		return false, fallbackHybridMasterFailed
 	}
-	master = stampPlanSourceURIs(master, plan.SourceID())
+	master = stampPlanSourceURIs(master, planStamp(plan.SourceID(), planKeep(rp, streams)))
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -437,7 +437,7 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 		return false, fallbackWasmMasterFailed
 	}
 	if planErr == nil {
-		master = stampPlanSourceURIs(master, plan.SourceID())
+		master = stampPlanSourceURIs(master, planStamp(plan.SourceID(), planKeep(rp, streams)))
 	}
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
@@ -580,9 +580,21 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	// The sub-resource carries the master's own query, so its plan trims the
-	// presentation exactly as the master's did: same tracks, same plan cache key.
-	plan, err := h.buildPlan(r, mediaID, item, streams, h.planOf(r, mediaID, item, streams))
+	// The sub-resource packages the tracks its master did: the stamp names
+	// them, so the plan is rebuilt as is, never decided again (a decision
+	// that drifted from the master's built another plan, whose SourceID then
+	// refused the URL with a 410). A URL stamped before the stamp named the
+	// tracks falls back to re-deciding from the request.
+	keep, stamped := stampedKeep(r)
+	if !stamped {
+		rp := h.planOf(r, mediaID, item, streams)
+		if rp == nil {
+			slog.WarnContext(r.Context(), "hls-vod: on-demand sub-resource plan unresolved, packaging every track",
+				slog.String("media_id", mediaID), slog.String("resource", name))
+		}
+		keep = planKeep(rp, streams)
+	}
+	plan, err := h.buildPlanWith(r, mediaID, item, keep)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "on-demand plan build")
@@ -594,7 +606,7 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 	if item != nil && item.File != nil {
 		observeCastFetch(r, h.castProgress, onDemandSegEndMs(name, plan.NumSegments(), item.File.Duration.Milliseconds()))
 	}
-	h.servePlanResourceData(w, r, mediaID, plan, name, span)
+	h.servePlanResourceData(w, r, mediaID, plan, keep, name, span)
 }
 
 // isIFramePlaylist reports a request for the I-frame playlist, which the
@@ -623,7 +635,7 @@ var packagerVersion = sync.OnceValue(func() string {
 // servePlanResourceData writes one plan resource (name is canonical). Playlists
 // are no-cache (a re-scan can change them); segments and inits are immutable for
 // a year, keyed by packager version.
-func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Request, mediaID string, plan apptranscoding.OnDemandPlan, name string, span trace.Span) {
+func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Request, mediaID string, plan apptranscoding.OnDemandPlan, keep *int, name string, span trace.Span) {
 	// Single chokepoint for everything mkvgo serves (master, playlists, inits,
 	// segments), so one touch here is the whole "is this media playing" signal
 	// for the on-demand path. Touch before the write, not after: a client that
@@ -644,7 +656,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	// temporary, to be refused in a later release.
 	want := r.URL.Query().Get(planSourceParam)
 	for replayed := false; ; replayed = true {
-		if want != "" && want != plan.SourceID() {
+		if want != "" && want != planStamp(plan.SourceID(), keep) && want != plan.SourceID() {
 			servePlanSourceGone(w, r, mediaID, name, span)
 			return
 		}
@@ -714,7 +726,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		//
 		// The query token, when the request carried one: a cookie-less Chromecast
 		// has nothing else to authenticate sub-resources with.
-		suffix := planManifestSuffix(r, plan.SourceID())
+		suffix := planManifestSuffix(r, planStamp(plan.SourceID(), keep))
 		if strings.HasSuffix(name, ".mpd") {
 			data = []byte(rebakeDASHManifestURIs(string(data), suffix))
 		} else {
@@ -786,6 +798,32 @@ func (h *hlsVODServe) planSubtitleRenditionsOf(r *http.Request, mediaID string, 
 // feature is on). Cheap on a cache hit. The AES key is deterministic per media,
 // so the plan cache stays coherent across the master and its sub-requests.
 func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) (apptranscoding.OnDemandPlan, error) {
+	if rp != nil && rp.Plan.Delivery.AudioTrimmed && len(streams) == 0 {
+		slog.WarnContext(r.Context(), "hls vod: on-demand track trim: no streams in hand, serving every track",
+			slog.String("media_id", mediaID))
+	}
+	return h.buildPlanWith(r, mediaID, item, planKeep(rp, streams))
+}
+
+// planKeep is the audio track a plan packages alone, nil for every track.
+// The plan decided whether the presentation is trimmed to the selected
+// audio track (plan.Delivery.AudioTrimmed: the operator's trim flag, or the
+// one track the packager can carry verbatim); the master and every
+// sub-resource build from the same choice, so they package the same tracks.
+// The plan's own track (resolved once with it, the same the ffmpeg pipeline
+// maps), so both backends agree on which track a request gets. Best-effort:
+// no streams in hand serves every audio track rather than failing the plan.
+func planKeep(rp *requestPlan, streams []*domainlibrary.MediaStream) *int {
+	if rp == nil || !rp.Plan.Delivery.AudioTrimmed || len(streams) == 0 {
+		return nil
+	}
+	idx := rp.AudioTrack
+	return &idx
+}
+
+// buildPlanWith builds the packager plan that keeps the audio track keep
+// alone (nil: every track).
+func (h *hlsVODServe) buildPlanWith(r *http.Request, mediaID string, item *domainlibrary.MediaItem, keep *int) (apptranscoding.OnDemandPlan, error) {
 	opts := apptranscoding.OnDemandOptions{
 		SegmentMs: onDemandSegmentMs,
 		URLPrefix: onDemandPrefix,
@@ -810,28 +848,7 @@ func (h *hlsVODServe) buildPlan(r *http.Request, mediaID string, item *domainlib
 			opts.AESKeyURI = "key" // relative to /hls/{id}/ - served by serveHLSKey; not URL-prefixed by mkvgo
 		}
 	}
-	// Trim either because the operator asked for a lighter master, or because
-	// trimming is what lets this request's track be carried verbatim instead of
-	// re-encoded (audioTrimUnlocksCopy). The second condition is recomputed from
-	// the request here rather than passed in, so the master and every one of its
-	// sub-resource fetches build the SAME plan.
-	// The plan decided whether the presentation is trimmed to the selected
-	// audio track (plan.Delivery.AudioTrimmed: the operator's trim flag, or the
-	// one track the packager can carry verbatim); the master and every
-	// sub-resource build from the same plan, so they package the same tracks.
-	// The plan's own track (resolved once with it, the same the ffmpeg
-	// pipeline maps), so both backends agree on which track a request gets.
-	// Best-effort: no streams in hand serves every audio track rather than
-	// failing the plan.
-	if rp != nil && rp.Plan.Delivery.AudioTrimmed {
-		if len(streams) > 0 {
-			idx := rp.AudioTrack
-			opts.KeepAudioTrack = &idx
-		} else {
-			slog.WarnContext(r.Context(), "hls vod: on-demand track trim: no streams in hand, serving every track",
-				slog.String("media_id", mediaID))
-		}
-	}
+	opts.KeepAudioTrack = keep
 	return h.onDemand.Plan(r.Context(), item.File.Path, opts)
 }
 
@@ -917,9 +934,41 @@ func (h *hlsVODServe) planOf(r *http.Request, mediaID string, item *domainlibrar
 	return rp
 }
 
-// planSourceParam is the query parameter that carries the plan's SourceID on
+// planSourceParam is the query parameter that carries the plan's stamp on
 // every sub-resource URI, checked by servePlanResourceData.
 const planSourceParam = "src"
+
+// planStamp is what a plan's URIs carry: its SourceID, then the audio track
+// it packages alone ("<id>.2") or "a" for every track ("<id>.a"), so a
+// sub-resource rebuilds the very plan its master served. "" for an unstamped
+// plan.
+func planStamp(sourceID string, keep *int) string {
+	if sourceID == "" {
+		return ""
+	}
+	if keep == nil {
+		return sourceID + ".a"
+	}
+	return sourceID + "." + strconv.Itoa(*keep)
+}
+
+// stampedKeep reads the packaged audio track off the request's stamp; ok is
+// false for a URI stamped with the SourceID alone (before the stamp named
+// the tracks) or not stamped at all.
+func stampedKeep(r *http.Request) (keep *int, ok bool) {
+	_, tracks, found := strings.Cut(r.URL.Query().Get(planSourceParam), ".")
+	if !found {
+		return nil, false
+	}
+	if tracks == "a" {
+		return nil, true
+	}
+	n, err := strconv.Atoi(tracks)
+	if err != nil || n < 0 {
+		return nil, false
+	}
+	return &n, true
+}
 
 // planManifestSuffix is the query the packager's bare sub-resource URIs get:
 // the packager version and the plan's source, always, and the request's token
@@ -967,7 +1016,7 @@ func (h *hlsVODServe) serveHybridMPD(w http.ResponseWriter, r *http.Request, med
 	}
 	// The renditions' fallback bitrate, as the hybrid master declares it.
 	in.Profiles = []domaintranscoding.HLSProfile{{Name: "od-copy", AudioBitrate: domaintranscoding.AudioRenditionBaseKbps, Copy: true}}
-	mpd, err := h.manifestGen.HybridMPD(in, rebakeDASHManifestURIs(string(video), planManifestSuffix(r, plan.SourceID())))
+	mpd, err := h.manifestGen.HybridMPD(in, rebakeDASHManifestURIs(string(video), planManifestSuffix(r, planStamp(plan.SourceID(), planKeep(rp, streams)))))
 	if err != nil {
 		notOffered("compose", err)
 		return

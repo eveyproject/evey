@@ -1425,3 +1425,69 @@ func TestServeMaster_BlockOrderedFileOnlyThroughThePackager(t *testing.T) {
 		assert.False(t, blockOrderedServable(f), f)
 	}
 }
+
+// A sub-resource rebuilds the plan its master stamped, whatever its own
+// request says: a client authenticating by header gets bare sub-resource URIs
+// (no ?audioTrack=), and re-deciding from them trimmed to another track,
+// built another plan and answered its SourceID with a 410.
+func TestServeOnDemandResource_StampedTracksRebuildTheMastersPlan(t *testing.T) {
+	w, hgt, lvl, ch := 1920, 1080, 40, 2
+	streams := []*domainlibrary.MediaStream{
+		{StreamType: domainlibrary.StreamTypeVideo, Codec: "h264", Profile: "High", Width: &w, Height: &hgt, Level: &lvl, Keyframes: []int64{0}},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Channels: &ch, IsDefault: true},
+		{StreamType: domainlibrary.StreamTypeAudio, Codec: "aac", Channels: &ch, Language: "fre"},
+	}
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{"playlist.m3u8": []byte("#EXTM3U\nseg1.m4s\n")}}}
+	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: true, libSvc: &testFakeStreamsGetter{streams: streams}}
+	sub := func(query string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/od_playlist.m3u8?"+query, nil)
+		req = req.WithContext(context.WithValue(req.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+		rec := httptest.NewRecorder()
+		h.serveOnDemandResource(rec, req, "m1", "od_playlist.m3u8", onDemandItem(), streams, noopSpan())
+		return rec
+	}
+
+	// The master, asked for the French track, packaged it alone and stamped it.
+	master := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/master.m3u8?audioTrack=1", nil)
+	master = master.WithContext(context.WithValue(master.Context(), httpClaimsCtxKey{}, &domainuser.Claims{UserID: "u1", ProfileID: "p1"}))
+	rp := h.planOf(master, "m1", onDemandItem(), streams)
+	stamp := planStamp("s1", planKeep(rp, streams))
+	require.Equal(t, "s1.1", stamp)
+
+	rec := sub("v=x&src=" + stamp)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
+	assert.Equal(t, 1, *pkg.lastOpts.KeepAudioTrack, "the stamped track, not the bare request's default")
+	assert.Contains(t, rec.Body.String(), "src=s1.1", "the playlist passes the stamp on to its segments")
+
+	// Every track, stamped as such.
+	rec = sub("v=x&src=s1.a")
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Nil(t, pkg.lastOpts.KeepAudioTrack)
+
+	// A URI stamped before the stamp named the tracks still re-decides.
+	rec = sub("v=x&src=s1")
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, pkg.lastOpts.KeepAudioTrack)
+	assert.Equal(t, 0, *pkg.lastOpts.KeepAudioTrack, "a bare request re-decides on its own default")
+}
+
+func TestPlanStamp_RoundTrip(t *testing.T) {
+	two := 2
+	for _, tc := range []struct {
+		keep *int
+		want string
+	}{{nil, "abc.a"}, {&two, "abc.2"}} {
+		s := planStamp("abc", tc.keep)
+		require.Equal(t, tc.want, s)
+		r := httptest.NewRequest(http.MethodGet, "/x?src="+s, nil)
+		keep, ok := stampedKeep(r)
+		require.True(t, ok)
+		assert.Equal(t, tc.keep, keep)
+	}
+	assert.Empty(t, planStamp("", nil), "an unstamped plan stamps nothing")
+	for _, q := range []string{"src=abc", "", "src=abc.-1", "src=abc.x"} {
+		_, ok := stampedKeep(httptest.NewRequest(http.MethodGet, "/x?"+q, nil))
+		assert.False(t, ok, q)
+	}
+}
