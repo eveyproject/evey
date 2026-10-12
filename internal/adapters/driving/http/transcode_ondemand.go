@@ -6,13 +6,17 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"regexp"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 
@@ -671,6 +675,20 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		}
 		plan = fresh
 	}
+	// A subtitle segment that cannot be read is read once more, then answered
+	// as an empty WebVTT window: a 404 there is a player-dependent risk (the
+	// rendition is loaded by hls.js, Shaka or Media3 themselves), a window
+	// without cues is not. no-store, so a passing error leaves no empty
+	// segment in a cache. A replaced source keeps its own answer above.
+	if err != nil && subtitleReadFailed(r.Context(), err) {
+		if track, idx, ok := planSubtitleSegment(name); ok {
+			data, contentType, streamed, err = fetchPlanResource(r.Context(), plan, name)
+			if err != nil {
+				h.serveEmptySubtitleWindow(w, r, mediaID, name, track, idx, err)
+				return
+			}
+		}
+	}
 	// The mkvgo path serves every byte of a copy playback and used to log none
 	// of them: when a cast died at load, the server's side of it was a blank.
 	// Kept deliberately sparse - see shouldLogPlanResource.
@@ -766,6 +784,65 @@ func fetchPlanResource(ctx context.Context, plan apptranscoding.OnDemandPlan, na
 	data, ct := res.Bytes(), res.ContentType()
 	closePlanResource(ctx, name, res)
 	return data, ct, nil, nil
+}
+
+// emptyWebVTT is a valid WebVTT document without a cue, what the packager
+// itself writes for a window with no subtitle.
+const emptyWebVTT = "WEBVTT\n\n"
+
+// planSubtitleSegmentRe matches the packager's subtitle segment names,
+// "sub<track>_<index>.vtt".
+var planSubtitleSegmentRe = regexp.MustCompile(`^sub(\d+)_(\d+)\.vtt$`)
+
+// planSubtitleSegment reads a subtitle segment's track and index off its name.
+func planSubtitleSegment(name string) (track, idx int, ok bool) {
+	m := planSubtitleSegmentRe.FindStringSubmatch(name)
+	if m == nil {
+		return 0, 0, false
+	}
+	track, _ = strconv.Atoi(m[1])
+	idx, _ = strconv.Atoi(m[2])
+	return track, idx, true
+}
+
+// subtitleReadFailed reports an error reading the source, the one a retry
+// and then an empty window answer: not a name the plan refuses (a track or a
+// segment out of range is a 404), not a replaced source (replanned above),
+// not a client that left (nothing to answer, nothing to warn about).
+func subtitleReadFailed(ctx context.Context, err error) bool {
+	if ctx.Err() != nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, apptranscoding.ErrSourceChanged) {
+		return false
+	}
+	var pathErr *fs.PathError
+	var errno syscall.Errno
+	return errors.As(err, &pathErr) || errors.As(err, &errno) ||
+		errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) ||
+		strings.Contains(err.Error(), "read subtitle sample")
+}
+
+// serveEmptySubtitleWindow answers a subtitle segment that could not be read
+// twice with an empty WebVTT window, and names the title, the track and the
+// window in the log.
+func (h *hlsVODServe) serveEmptySubtitleWindow(w http.ResponseWriter, r *http.Request, mediaID, name string, track, idx int, err error) {
+	title := ""
+	if h.libSvc != nil {
+		if item, gerr := h.libSvc.GetMediaItem(r.Context(), mediaID); gerr == nil && item != nil {
+			title = item.Title
+		}
+	}
+	slog.WarnContext(r.Context(), "hls-vod: subtitle segment unreadable after a retry, served without cues",
+		slog.String("media_id", mediaID),
+		slog.String("title", title),
+		slog.String("resource", name),
+		slog.Int("track", track),
+		slog.Int("segment", idx),
+		slog.Int64("window_start_ms_approx", int64(max(idx-1, 0))*onDemandSegmentMs), // names count from 1,
+		slog.Any("err", err))
+	setCORSHeaders(w, r, "")
+	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	_, _ = w.Write([]byte(emptyWebVTT))
 }
 
 // servePlanSourceGone answers a sub-resource URL stamped with a source the
