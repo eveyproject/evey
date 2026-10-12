@@ -155,27 +155,53 @@ func parseKB(line string) int64 {
 	return kb * 1024
 }
 
+// cpuPrev is the previous sampleCPU reading, guarded by collectMu: each sample
+// covers the whole time since the last one, so a 500 ms window cannot land on
+// a periodic burst (a library scan) and read its peak as the load.
+var cpuPrev struct {
+	host cpuSample
+	evey uint64
+	ok   bool
+}
+
 // sampleCPU returns the host's busy share and the part of it Evey accounts
-// for over the same window: this server's process tree plus its companions.
+// for (this server's process tree plus its companions), averaged since the
+// previous call; the first call measures a 500 ms window.
 func sampleCPU() (host, evey float64) {
 	roots := append([]int{os.Getpid()}, companionPIDs(os.Getenv("EVEY_COMPANION_PIDS"))...)
-	s1, ok := readCPUStat()
+	read := func() (cpuSample, uint64, bool) {
+		s, ok := readCPUStat()
+		return s, treeSum(treeTicksReaped(roots)), ok
+	}
+	if !cpuPrev.ok {
+		s, t, ok := read()
+		if !ok {
+			return 0, 0
+		}
+		cpuPrev.host, cpuPrev.evey, cpuPrev.ok = s, t, true
+		time.Sleep(500 * time.Millisecond)
+	}
+	s, t, ok := read()
 	if !ok {
 		return 0, 0
 	}
-	t1 := treeTicks(roots)
-	time.Sleep(500 * time.Millisecond)
-	s2, ok := readCPUStat()
-	if !ok {
+	host, evey = cpuShares(cpuPrev.host, s, cpuPrev.evey, t)
+	cpuPrev.host, cpuPrev.evey = s, t
+	return host, evey
+}
+
+// cpuShares turns two readings into the host's busy share and Evey's part of
+// it. A tree total that went down (a companion restarted, an orphan lost to
+// init) counts as no Evey load rather than a wrapped huge one.
+func cpuShares(h1, h2 cpuSample, e1, e2 uint64) (host, evey float64) {
+	if h2.total <= h1.total {
 		return 0, 0
 	}
-	t2 := treeTicks(roots)
-	dTotal := s2.total - s1.total
-	if dTotal == 0 {
-		return 0, 0
+	dTotal := h2.total - h1.total
+	host = float64(dTotal-min(h2.idle-h1.idle, dTotal)) / float64(dTotal) * 100
+	if e2 > e1 {
+		evey = min(host, float64(e2-e1)/float64(dTotal)*100)
 	}
-	host = float64(dTotal-(s2.idle-s1.idle)) / float64(dTotal) * 100
-	evey = min(host, float64(windowTicks(t1, t2))/float64(dTotal)*100)
 	return host, evey
 }
 
