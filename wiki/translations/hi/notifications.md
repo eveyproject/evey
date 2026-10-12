@@ -1,57 +1,128 @@
 ---
-source_sha: 437e3591ffafde2e124be29a142fc1cfa7ecb154ea3e77dfbcb32e462668f452
-reviewed: false
+source_sha: a8b7449b152c8718e3a2aef1de3cabe29af5dbe26aa1f77133448c996ce35d3c
+reviewed: true
 ---
-# सूचनाएँ
+# ई-मेल और सूचनाएँ
 
-जब नई फ़िल्में, सीरीज़, सीज़न, एपिसोड या एल्बम आते हैं, Evey हर प्रोफ़ाइल को बताता है। एडमिन को विफल बैकअप, प्लगइन त्रुटियों और नए मीडिया अनुरोधों की भी ख़बर मिलती है, और जिसने अनुरोध किया उसे जवाब मिलने पर सूचना मिलती है।
+जब नई फ़िल्में, सीरीज़, सीज़न, एपिसोड या एल्बम आते हैं, तो Evey हर प्रोफ़ाइल
+को बताता है। वह इन्हें भी बताता है:
+
+- **जिस व्यक्ति ने अनुरोध किया**, जब उसका जवाब दिया जाता है;
+- **एडमिन** को, नए अनुरोधों, फ़ेल हुए बैकअप, प्लगइन की गड़बड़ियों और भरे हुए
+  सबटाइटल कैश के बारे में।
+
+सूचनाएँ ऐप में बिना कुछ सेट किए दिखती हैं। ई-मेल से तब, जब आप एक मेल सर्वर
+सेट कर लें (नीचे देखें)।
 
 ## सूचनाएँ कहाँ दिखती हैं
 
-- **हर ऐप में**: घंटी, बिना पढ़ी सूचनाओं की संख्या के साथ। हमेशा चालू, कुछ सेट नहीं करना। एक सूचना 30 दिन रखी जाती है। सूची में केवल उन लाइब्रेरी के टाइटल दिखते हैं जिन्हें खाता खोल सकता है।
-- **ब्राउज़र पुश**: वेब पर हर प्रोफ़ाइल **सेटिंग्स → सूचनाएं** में **पुश सूचनाएं** चालू करती है, हर ब्राउज़र में एक बार। सर्वर पहली बार शुरू होने पर अपनी पुश कुंजियाँ बनाता है; अपनी कुंजियाँ इस्तेमाल करने के लिए देखें [ई-मेल और सूचनाएँ](environment/notifications.md#browser-push)। ब्राउज़र पुश केवल HTTPS पते (या `localhost`) पर देते हैं; अन्यथा सेटिंग **पुश सूचनाओं के लिए HTTPS पता चाहिए: इन्हें चालू करने के लिए यह सर्वर HTTPS पर खोलें।** दिखाती है। Android और TV ऐप पुश सूचनाएँ नहीं पाते।
-- **ई-मेल**: ई-मेल सेट होने के बाद हर सूचना खाते के पते पर भी भेजी जाती है, प्रोफ़ाइल की भाषा में और सर्वर के लिंक के साथ। कई प्रोफ़ाइल वाले खाते को हर घटना के लिए एक ही ई-मेल मिलता है। हर उपयोगकर्ता के लिए इसे बंद करने का विकल्प नहीं है।
+- **हर ऐप में**: घंटी, बिना पढ़ी सूचनाओं की गिनती के साथ। हमेशा चालू। एक
+  सूचना 30 दिन रखी जाती है। लोगों को सिर्फ़ उन लाइब्रेरी के टाइटल दिखते हैं
+  जिन्हें उनका खाता खोल सकता है।
+- **ब्राउज़र में (पुश)**: वेब पर हर प्रोफ़ाइल **सेटिंग्स → सूचनाएं** में **पुश
+  सूचनाएं** चालू करती है, हर ब्राउज़र में एक बार। ब्राउज़र इसकी अनुमति सिर्फ़
+  `https://` पते (या `localhost`) पर देते हैं। बाकी जगह सेटिंग में लिखा होता
+  है **पुश सूचनाओं के लिए HTTPS पता चाहिए: इन्हें चालू करने के लिए यह सर्वर
+  HTTPS पर खोलें।** Android और TV ऐप को पुश सूचनाएँ नहीं मिलतीं।
+- **ई-मेल से**: ई-मेल सेट होने के बाद हर सूचना खाते के ई-मेल पते पर भी भेजी
+  जाती है, प्रोफ़ाइल की भाषा में, सर्वर के लिंक के साथ। कई प्रोफ़ाइल वाले खाते
+  को हर घटना के लिए एक ई-मेल मिलता है। लोग अपने लिए ई-मेल खुद बंद नहीं कर
+  सकते।
 
-## ई-मेल सेट करना
+??? info "पुश कुंजियाँ"
 
-**Admin → सर्वर कॉन्फ़िग → ईमेल / SMTP**: मेल सर्वर, उसका पोर्ट, साइन-इन खाता, भेजने वाले का पता और TLS मोड। सहेजते ही लागू होता है, बिना रीस्टार्ट। **टेस्ट ईमेल भेजें** सहेजी गई सेटिंग्स से आपके अपने खाते के पते पर एक छोटा संदेश भेजता है, और विफल होने पर मेल सर्वर का जवाब दिखाता है।
+    ब्राउज़र पुश के लिए ज़रूरी कुंजियाँ सर्वर पहली बार शुरू होने पर खुद बनाता
+    है। अपनी कुंजियाँ लाने के लिए देखें
+    [ई-मेल और सूचनाएँ](environment/notifications.md#browser-push)।
 
-`starttls` सादे कनेक्शन को TLS में बदलता है (आम तौर पर पोर्ट 587), `ssl` शुरू से TLS इस्तेमाल करता है (आम तौर पर पोर्ट 465), `none` बिना एन्क्रिप्शन भेजता है।
+## ई-मेल सेट करें
 
-जब तक कार्ड में होस्ट नहीं है, `EVEY_SMTP_*` वेरिएबल विकल्प के रूप में इस्तेमाल होते हैं:
+Evey ऐसे मेल सर्वर से ई-मेल भेजता है जिस पर आपका पहले से खाता है: आपकी ई-मेल
+सेवा, या ई-मेल भेजने वाली कोई सेवा। नीचे वाले मान आपकी सेवा के सहायता पेज पर
+मिलते हैं।
 
-```env title=".env"
-EVEY_SMTP_HOST=smtp.example.com
-EVEY_SMTP_PORT=587
-EVEY_SMTP_USERNAME=notifications@example.com
-EVEY_SMTP_PASSWORD=your-smtp-password
-EVEY_SMTP_FROM=noreply@example.com
-EVEY_SMTP_TLS=starttls
-```
+1. **एडमिन → सर्वर कॉन्फ़िग → ईमेल / SMTP** पर जाएँ।
+2. फ़ील्ड भरें:
 
-कार्ड में होस्ट सहेजते ही सभी फ़ील्ड कार्ड से लिए जाते हैं और वेरिएबल अनदेखे किए जाते हैं: इसलिए सर्वर वेरिएबल के क्रेडेंशियल कभी पैनल में भरे गए मेल सर्वर को नहीं भेजता।
+    | फ़ील्ड | क्या टाइप करें |
+    | --- | --- |
+    | **SMTP होस्ट**, **पोर्ट** | मेल सर्वर और उसका पोर्ट। आम जोड़ियाँ हैं: `587` के साथ `starttls`, या `465` के साथ `ssl`। |
+    | **उपयोगकर्ता नाम**, **पासवर्ड** | वह खाता जिससे Evey साइन इन करता है। |
+    | **प्रेषक पता** | भेजने वाले का पता, जो हर संदेश पर दिखता है। |
+    | **TLS मोड** | `starttls` या `ssl`, पोर्ट के हिसाब से (ऊपर देखें)। `none` बिना एन्क्रिप्शन के भेजता है। |
 
-ई-मेल सूचनाओं और पासवर्ड रीसेट के लिए है; आमंत्रण ऐसे लिंक हैं जिन्हें आप ख़ुद साझा करते हैं।
+3. **SMTP सेटिंग्स सहेजें** दबाएँ। यह तुरंत लागू होता है, बिना रीस्टार्ट के।
+4. **टेस्ट ईमेल भेजें** दबाएँ। Evey आपके अपने खाते के पते पर एक छोटा संदेश
+   भेजता है। अगर यह फ़ेल हो, तो मेल सर्वर का जवाब दिखाता है।
 
-## हर प्रोफ़ाइल को क्या मिलता है
+सबसे आम गलती है ऐसा TLS मोड जो पोर्ट से मेल नहीं खाता।
 
-**सेटिंग्स → सूचनाएं** में हर प्रोफ़ाइल **फ़िल्में**, **सीरीज़** और **संगीत** के लिए एक स्तर चुनती है:
+ई-मेल का इस्तेमाल सूचनाओं और पासवर्ड रीसेट के लिए होता है। न्योते वे लिंक
+हैं जो आप खुद भेजते हैं।
 
-| स्तर | किन नए टाइटल की सूचना |
+??? info "इसकी जगह environment में ई-मेल सेट करना"
+
+    `EVEY_SMTP_*` वेरिएबल सिर्फ़ तब इस्तेमाल होते हैं जब कार्ड में कोई होस्ट
+    नहीं है:
+
+    ```env title=".env"
+    EVEY_SMTP_HOST=smtp.example.com
+    EVEY_SMTP_PORT=587
+    EVEY_SMTP_USERNAME=notifications@example.com
+    EVEY_SMTP_PASSWORD=your-smtp-password
+    EVEY_SMTP_FROM=noreply@example.com
+    EVEY_SMTP_TLS=starttls
+    ```
+
+    जैसे ही कार्ड में कोई होस्ट सेव होता है, हर फ़ील्ड कार्ड से आती है और
+    वेरिएबल अनदेखे कर दिए जाते हैं। इसलिए सर्वर वेरिएबल वाला पासवर्ड कभी पैनल
+    में टाइप किए गए मेल सर्वर को नहीं भेजता। वेरिएबल पर लौटने के लिए होस्ट
+    खाली करें।
+
+## चुनें कि प्रोफ़ाइल को क्या मिले
+
+**सेटिंग्स → सूचनाएं** में हर प्रोफ़ाइल **फ़िल्में**, **सीरीज़** और
+**संगीत** के लिए एक स्तर चुनती है:
+
+| स्तर | किन नए टाइटल की सूचना मिलती है |
 | --- | --- |
-| **सभी** | हर एक की। डिफ़ॉल्ट। |
-| **प्रासंगिक** | केवल उनकी जो प्रोफ़ाइल की सामान्य शैलियों से कोई शैली साझा करते हैं। |
+| **सभी** | हर एक की। यही डिफ़ॉल्ट है। |
+| **प्रासंगिक** | सिर्फ़ उन टाइटल की जिनकी कोई शैली वही है जो प्रोफ़ाइल आम तौर पर देखती है। |
 | **केवल महत्वपूर्ण** | फ़िलहाल प्रासंगिक जैसा ही। |
 | **अक्षम** | किसी की नहीं। |
 
-कोई शैली सामान्य तब मानी जाती है जब वह प्रोफ़ाइल के पिछले 200 प्लेबैक में से कम से कम 3 में आती है। बिना शैली वाले टाइटल की सूचना प्रासंगिक और केवल महत्वपूर्ण स्तरों पर कभी नहीं मिलती।
+कोई शैली "आम तौर पर देखी जाने वाली" तब मानी जाती है जब वह प्रोफ़ाइल के आखिरी
+200 प्लेबैक में से कम से कम 3 में आई हो। जिस टाइटल की कोई शैली नहीं है, उसकी
+सूचना प्रासंगिक और केवल महत्वपूर्ण स्तर पर कभी नहीं आती।
 
-एक ही सीरीज़ के कई एपिसोड 24 घंटे के भीतर आएँ तो उन्हें गिनने वाली एक ही सूचना बनती है, और जब सीरीज़ या सीज़न की घोषणा अभी-अभी हुई हो तो कोई सूचना नहीं भेजी जाती।
+जब एक सीरीज़ के कई एपिसोड 24 घंटे के अंदर आते हैं, तो आपको एक ही सूचना मिलती
+है जो उन्हें गिनती है। अगर सीरीज़ या सीज़न की सूचना अभी-अभी दी गई हो, तो कोई
+सूचना नहीं भेजी जाती।
 
-## पासवर्ड पुनर्प्राप्ति
+## लोगों को अपना पासवर्ड रीसेट करने दें
 
 1. ई-मेल सेट करें (ऊपर देखें)।
-2. **Admin → सर्वर कॉन्फ़िग → सर्वर सेटिंग्स** में **पासवर्ड पुनर्प्राप्ति** चालू करें। यह तुरंत लागू होता है।
-3. साइन-इन पेज पर तब **पासवर्ड भूल गए?** दिखता है, जो रीसेट लिंक ई-मेल करता है।
+2. **एडमिन → सर्वर कॉन्फ़िग → सर्वर सेटिंग्स** में **पासवर्ड
+   पुनर्प्राप्ति** चालू करें। यह तुरंत लागू होता है।
+3. अब साइन-इन पेज पर **पासवर्ड भूल गए?** दिखता है। यह नया पासवर्ड चुनने का
+   लिंक ई-मेल से भेजता है।
 
-SMTP के बिना लिंक छिपा रहता है, विकल्प चालू होने पर भी।
+मेल सर्वर के बिना, विकल्प चालू होने पर भी यह लिंक छिपा रहता है।
+
+<!-- sources
+web push support: frontend/apps/web/src/lib/webpush.ts isPushSupported (serviceWorker + PushManager, secure context only) ; NotificationSettings.tsx shows pushNeedsHttps when unsupported
+types: internal/domain/notification/model.go (Type*, IsAdminOnly: backup_failed, plugin_error, media_request) ; emitted: internal/app/notification/event_handlers.go, batching.go
+retention 30 d: internal/app/notification/service.go defaultRetentionDays ; grouping 24 h: batching.go episodeGroupWindow + shouldSkipEpisodeNotif
+list filtered by library access: internal/adapters/driving/grpcapi/notification_handler.go allowedLibraryIDs
+bell on TV and mobile: frontend/apps/tv/src/components/TopHeader.tsx ; frontend/apps/mobile/app/(auth)/settings/notifications.tsx
+levels: batching.go shouldNotify (relevant == highly_relevant) + fetchFavoriteGenres (GetFavoriteGenresBatch minCount 3, window 200 sessions: watch_history_analyzer.go)
+defaults all: migrations/000005_notifications.up.sql (notification_settings_global) ; UI: frontend/apps/web/src/features/user/NotificationSettings.tsx ; i18n notificationSettings.level*
+email: internal/adapters/driven/email/notification_emailer.go (push title key, recipient locale, one per account per FanoutID, base URL link)
+SMTP live from the card, env fallback, panel host = panel only, defaults 587/starttls: internal/app/config/smtp.go (ResolveSMTPSettings, LiveSMTP) ; test send: internal/adapters/driving/http/smtp_test_handler.go
+labels: i18n admin.serverConfig emailSmtp, smtpHost, port, smtpUsername, smtpPassword, fromAddress, tlsMode, saveSmtp, sendTestEmail
+no native push in the mobile/TV apps (no push client) ; VAPID generated: cmd/evey/wire_helpers.go
+password recovery: admin.serverSettings.passwordRecovery ; gated on smtpConfigured (cmd/evey/wire.go) ; auth.login.forgotPassword
+admin-only types include the subtitle cache: internal/domain/notification/model.go - IsAdminOnly (TypeCacheFull) ; i18n notifications push.cache_full
+labels: i18n admin.serverConfig.port, smtpUsername, smtpPassword, smtpEnvHint ; auth.settings pushNotifications, pushNeedsHttps ; levelAll, levelRelevant, levelImportant, levelDisabled
+no invitation e-mail: internal/adapters/driven/email (no invite sender)
+-->
