@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -78,6 +79,84 @@ func TestBuildMasterURL_ClientDeclaresItsPlayersCapabilities(t *testing.T) {
 	web := q("web-chrome")
 	if web.Get("hdr") != "" || web.Get("wasmAudio") != "1" || strings.Contains(web.Get("videoCodecs"), "hevc") || strings.Contains(web.Get("audioCodecs"), "ac3") {
 		t.Fatalf("web-chrome query = %v", web)
+	}
+	// The Android apps take MP3 and Opus as is in fMP4 (deviceCodecs.ts).
+	for _, p := range []string{"tv", "mobile"} {
+		if got := q(p).Get("fmp4AudioPassthrough"); got != "mp3,opus" {
+			t.Errorf("%s fmp4AudioPassthrough = %q, want mp3,opus", p, got)
+		}
+	}
+}
+
+// stream-info is asked with the same client its master would declare, in
+// stream-info's own parameter names, lists repeated like the shipped clients.
+func TestStreamInfoURL_DeclaresTheSameClient(t *testing.T) {
+	u, err := url.Parse(streamInfoURL(Config{BaseURL: "http://x/"}, "m 1", clientProfiles["tv"]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Path != "/api/v1/playback/m 1/stream-info" {
+		t.Fatalf("path = %q", u.Path)
+	}
+	q := u.Query()
+	if got := q["supportedCodecs"]; strings.Join(got, ",") != "h264,hevc,vp9" {
+		t.Errorf("supportedCodecs = %v", got)
+	}
+	if got := q["supportedContainers"]; !slices.Contains(got, "mkv") {
+		t.Errorf("supportedContainers = %v", got)
+	}
+	if q.Get("supportsHdr") != "true" || q.Get("maxAudioChannels") != "6" || strings.Join(q["fmp4AudioPassthrough"], ",") != "mp3,opus" {
+		t.Errorf("query = %v", q)
+	}
+	if web, _ := url.Parse(streamInfoURL(Config{BaseURL: "http://x"}, "m", clientProfiles["web-chrome"])); web.Query().Get("wasmAudio") != "true" || web.Query().Get("supportsHdr") != "" {
+		t.Errorf("web-chrome query = %v", web.Query())
+	}
+}
+
+// On a direct-play verdict a client viewer reads the raw file by ranges, the
+// head first, as its player does, and never asks for a playlist; on any other
+// verdict it plays the HLS master as before. The report counts each on the
+// path it took.
+func TestRunner_DirectPlayClientReadsTheRawFile(t *testing.T) {
+	st := newServerState()
+	st.rawFileSize = 20 << 20
+	st.playMethodFn = func(_, rawQuery string) string {
+		if strings.Contains(rawQuery, "supportedContainers=mkv") {
+			return playMethodDirectPlay
+		}
+		return "PLAY_METHOD_TRANSCODE"
+	}
+	srv := httptest.NewServer(st.handler())
+	defer srv.Close()
+
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
+	cfg := Config{
+		BaseURL: srv.URL, Token: "tkn", Scenario: "clients:tv=1,web-chrome=1",
+		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 300 * time.Millisecond, MaxDuration: 20 * time.Second,
+	}
+	if err := r.Start(context.Background(), cfg); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	report := waitForReport(t, r, 20*time.Second)
+	if report.PathsByType["client:tv"][servedByDirect] == 0 || report.PathsByType["client:web-chrome"][servedByMkvgo] == 0 {
+		t.Fatalf("paths = %v, want tv on the raw file and web-chrome on the master", report.PathsByType)
+	}
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	heads, reads := 0, 0
+	for _, f := range st.fetches {
+		if strings.HasSuffix(f.path, "/master.m3u8") && strings.Contains(f.rawQuery, "hdr=1") {
+			t.Fatalf("a direct-play tv viewer asked for the master: %s?%s", f.path, f.rawQuery)
+		}
+		if strings.HasSuffix(f.path, "/stream") {
+			reads++
+			if strings.HasPrefix(f.byteRange, "bytes=0-") {
+				heads++
+			}
+		}
+	}
+	if heads == 0 || reads <= heads {
+		t.Fatalf("raw file reads = %d, head reads = %d: want the head then the film", reads, heads)
 	}
 }
 

@@ -77,7 +77,7 @@ app layer also reads a neighbouring context's domain package directly (see
 | `backup` | DB + config backup/restore |
 | `config` (app only) | persisted server settings, written by both the REST and the gRPC entry points |
 | `dlna` (app only) | SSDP discovery and UPnP AVTransport control |
-| `loadtest` (app only) | simulates HLS viewers against the server's own HTTP stack |
+| `loadtest` (app only) | simulates viewers against the server's own HTTP stack: HLS, or the raw file when a client's verdict is a direct play |
 | `maintenance` (app only) | admin-triggered media maintenance: seek-index rebuild, repair journal, undo, audio integrity |
 | `presence` (app only) | in-memory, non-persisted registry of who is connected right now |
 | `qoe` (app only) | CMCD (CTA-5004) playback telemetry ingest and aggregation |

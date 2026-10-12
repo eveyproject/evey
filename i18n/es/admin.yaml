@@ -1134,6 +1134,7 @@ loadtest:
     mkvgo: "copia mkvgo"
     ffmpegCopy: "remux ffmpeg"
     transcode: "transcodificación"
+    direct: "archivo original (reproducción directa)"
   servedPathsHeading: "Lo que hizo el servidor para cada cliente:"
   servedPathLine: "{{label}}: {{parts}}"
   mixType:
