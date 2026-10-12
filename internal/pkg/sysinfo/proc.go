@@ -51,36 +51,44 @@ func procStat(pid int) (ppid int, ticks uint64, err error) {
 // procStatStart is procStat plus the process start time (field 22, in ticks
 // since boot), which tells a reused pid from the process that held it before.
 func procStatStart(pid int) (ppid int, ticks, start uint64, err error) {
+	ppid, ticks, _, start, err = procStatReaped(pid)
+	return ppid, ticks, start, err
+}
+
+// procStatReaped is procStatStart plus cutime+cstime (fields 16-17): the CPU of
+// the children pid has waited for, which a sample taken after they exited
+// would otherwise never see.
+func procStatReaped(pid int) (ppid int, ticks, reaped, start uint64, err error) {
 	data, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/stat")
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
 	s := string(data)
 	rparen := strings.LastIndexByte(s, ')')
 	if rparen < 0 {
-		return 0, 0, 0, errors.New("malformed stat")
+		return 0, 0, 0, 0, errors.New("malformed stat")
 	}
-	fields := strings.Fields(s[rparen+1:]) // fields[0] = state (field 3); ppid = idx 1, utime = idx 11, stime = idx 12, starttime = idx 19
+	fields := strings.Fields(s[rparen+1:]) // fields[0] = state (field 3); ppid = idx 1, utime = idx 11, stime = idx 12, cutime = idx 13, cstime = idx 14, starttime = idx 19
 	if len(fields) < 20 {
-		return 0, 0, 0, errors.New("short stat")
+		return 0, 0, 0, 0, errors.New("short stat")
 	}
 	ppid, err = strconv.Atoi(fields[1])
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
-	utime, err := strconv.ParseUint(fields[11], 10, 64)
-	if err != nil {
-		return 0, 0, 0, err
-	}
-	stime, err := strconv.ParseUint(fields[12], 10, 64)
-	if err != nil {
-		return 0, 0, 0, err
+	var n [4]uint64
+	for i, idx := range [4]int{11, 12, 13, 14} {
+		v, perr := strconv.ParseInt(fields[idx], 10, 64) // cutime/cstime are signed in proc(5)
+		if perr != nil {
+			return 0, 0, 0, 0, perr
+		}
+		n[i] = uint64(max(v, 0))
 	}
 	start, err = strconv.ParseUint(fields[19], 10, 64)
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
-	return ppid, utime + stime, start, nil
+	return ppid, n[0] + n[1], n[2] + n[3], start, nil
 }
 
 // proc names one process across samples: a pid alone can be reused.
@@ -102,6 +110,16 @@ func treeCPUTicks(root int) uint64 {
 // CPU ticks: the server's own goroutines plus the ffmpeg/ffprobe and plugins
 // it forked, and the trees of any companion root.
 func treeTicks(roots []int) map[proc]uint64 {
+	return walkTree(roots, false)
+}
+
+// treeTicksReaped is treeTicks with each process's waited-for children added:
+// a child that exits between two samples is still counted, in its parent.
+func treeTicksReaped(roots []int) map[proc]uint64 {
+	return walkTree(roots, true)
+}
+
+func walkTree(roots []int, withReaped bool) map[proc]uint64 {
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
 		return nil
@@ -114,9 +132,12 @@ func treeTicks(roots []int) map[proc]uint64 {
 		if err != nil {
 			continue
 		}
-		pp, t, start, err := procStatStart(pid)
+		pp, t, reaped, start, err := procStatReaped(pid)
 		if err != nil {
 			continue
+		}
+		if withReaped {
+			t += reaped
 		}
 		parent[pid], ticks[pid], seen[pid] = pp, t, proc{pid, start}
 	}
@@ -139,19 +160,13 @@ func treeTicks(roots []int) map[proc]uint64 {
 	return out
 }
 
-// windowTicks is the CPU the processes spent between two treeTicks samples,
-// process by process. One born in between (a reused pid included, told apart
-// by its start time) counts from zero. One that exited is lost for the window:
-// comparing two sums instead took its whole life away, and a transcode ending
-// mid-sample read as Evey at 0 % (measured: 198 ticks, then 0).
-func windowTicks(before, after map[proc]uint64) uint64 {
+// treeSum totals a treeTicksReaped sample. Two totals apart give the tree's CPU
+// over any window: a child that exited in between is in its parent's reaped
+// time, so it is neither lost nor, unlike its own entry, counted from birth.
+func treeSum(t map[proc]uint64) uint64 {
 	var sum uint64
-	for p, t := range after {
-		if b, ok := before[p]; ok && t >= b {
-			sum += t - b
-		} else if !ok {
-			sum += t
-		}
+	for _, v := range t {
+		sum += v
 	}
 	return sum
 }

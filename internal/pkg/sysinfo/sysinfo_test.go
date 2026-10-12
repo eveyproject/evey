@@ -214,65 +214,48 @@ func TestFFmpegVersion_FailureIsNotCached(t *testing.T) {
 	}
 }
 
-// Process by process: a delta for one alive at both samples, its whole count
-// for one born in between (a reused pid is a new process: same pid, new start
-// time), nothing for one that exited - never its whole life taken away.
-func TestWindowTicks(t *testing.T) {
-	before := map[proc]uint64{
-		{10, 1}: 100, // keeps running
-		{11, 1}: 500, // exits in the window
-		{12, 1}: 900, // exits, and pid 12 is reused
-	}
-	after := map[proc]uint64{
-		{10, 1}: 130,
-		{12, 7}: 5,
-		{13, 8}: 20, // born in the window
-	}
-	if got := windowTicks(before, after); got != 30+5+20 {
-		t.Fatalf("window = %d ticks, want 55", got)
-	}
-}
-
-// Measured on the old sum: a busy child exiting between the two samples made
-// the second sum smaller than the first, and Evey read 0 % while another
-// child kept a core busy. The per-process window keeps the survivor's work.
-func TestWindowTicks_AChildExitingMidWindowDoesNotZeroTheOthers(t *testing.T) {
+// A child that runs and exits between two samples is still counted: its CPU
+// moves into its parent's reaped time. Sampling a long interval (the metrics
+// minute) with live processes only would lose every ffprobe that ran inside it.
+func TestTreeSum_AChildExitingBetweenSamplesIsCounted(t *testing.T) {
 	if _, err := os.Stat("/proc/self/stat"); err != nil {
 		t.Skip("no /proc")
 	}
-	start := func() *exec.Cmd {
-		cmd := exec.Command("sh", "-c", "while :; do :; done")
-		if err := cmd.Start(); err != nil {
-			t.Skip("no sh")
-		}
-		t.Cleanup(func() { _ = cmd.Process.Kill(); _ = cmd.Wait() })
-		return cmd
-	}
-	exiting := start()
-	time.Sleep(time.Second) // a long life the old sum would take away
-	survivor := start()
 	roots := []int{os.Getpid()}
-	t1 := treeTicks(roots)
-	_ = exiting.Process.Kill()
-	_ = exiting.Wait()
-	time.Sleep(300 * time.Millisecond)
-	// Frozen before the read, as in TestTreeCPUTicks_CountsTheForkedChildren.
-	if err := survivor.Process.Signal(syscall.SIGSTOP); err != nil {
-		t.Fatal(err)
+	before := treeSum(treeTicksReaped(roots))
+	cmd := exec.Command("sh", "-c", "while :; do :; done")
+	if err := cmd.Start(); err != nil {
+		t.Skip("no sh")
 	}
-	t2 := treeTicks(roots)
-	var sum1, sum2 uint64
-	for _, v := range t1 {
-		sum1 += v
+	time.Sleep(500 * time.Millisecond)
+	_, child, _ := procStat(cmd.Process.Pid)
+	_ = cmd.Process.Kill()
+	_ = cmd.Wait()
+	after := treeSum(treeTicksReaped(roots))
+	if child == 0 {
+		t.Skip("the child never got scheduled")
 	}
-	for _, v := range t2 {
-		sum2 += v
+	if after-before < child {
+		t.Fatalf("tree grew by %d ticks, the exited child alone ran %d", after-before, child)
 	}
-	if sum2 >= sum1 {
-		t.Skip("the exiting child had not outrun the survivor; nothing to show")
+}
+
+// A burst inside a long interval reads as its average, not its peak: 6 s of
+// one busy core in a 60 s minute on 4 cores is 2.5 %, where a 500 ms window
+// inside the burst read 25 %.
+func TestCPUShares_AveragesTheInterval(t *testing.T) {
+	const hz, cores = 100, 4
+	h1 := cpuSample{idle: 0, total: 0}
+	h2 := cpuSample{idle: 60*hz*cores - 6*hz, total: 60 * hz * cores}
+	host, evey := cpuShares(h1, h2, 1000, 1000+6*hz)
+	if host != 2.5 || evey != 2.5 {
+		t.Fatalf("host %.2f %%, evey %.2f %%, want 2.5 and 2.5", host, evey)
 	}
-	if got := windowTicks(t1, t2); got == 0 {
-		t.Fatalf("the survivor's work vanished (sums %d -> %d)", sum1, sum2)
+	if _, evey := cpuShares(h1, h2, 5000, 10); evey != 0 {
+		t.Fatalf("a tree total going down read %.2f %%, want 0", evey)
+	}
+	if host, _ := cpuShares(h2, h2, 0, 0); host != 0 {
+		t.Fatalf("an empty interval read %.2f %%", host)
 	}
 }
 
