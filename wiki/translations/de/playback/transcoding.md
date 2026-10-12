@@ -1,45 +1,62 @@
 ---
-source_sha: c8d03e544227da6967bbbab98675cdb62fcd32e683e410544a6fffc79d40c1d5
-reviewed: false
+source_sha: 3491f399b6609d0b4c4818444e5ea8b6d8e3caf38d396767aac9f943257919b8
+reviewed: true
 ---
 # Transkodierung und Serverkapazität
 
-Die Transkodierung ist das teure Ergebnis der
-[Wiedergabeentscheidung](how-playback-is-decided.md): Direktwiedergabe und
-Remux kosten den Server fast nichts und belegen nie einen
-Transkodierungsplatz. Diese Seite erklärt, woher der Server weiß, was er
-kodieren kann, wie er diese Kapazität unter den Zuschauern aufteilt und was
-passiert, wenn er voll ist.
+**Kurz gesagt:**
 
-## Der Server vermisst sich selbst
+- **Transkodieren** heißt, ein Video in eine Form umzuwandeln, die das Gerät
+  abspielen kann. Das ist die einzige schwere Arbeit des Servers: Eine Datei
+  so abzuspielen, wie sie ist (Direktwiedergabe), oder sie umzuverpacken
+  (Remux), kostet fast nichts. Siehe
+  [Wie Evey die Wiedergabeart wählt](how-playback-is-decided.md).
+- Sie legen nicht fest, wie viele Personen der Server bedienen kann. Er misst
+  sich selbst in seinem ersten ruhigen Moment, in wenigen Minuten, und nimmt
+  nie mehr an.
+- Wird es knapp, bekommt eine neue Wiedergabe eine niedrigere Qualität, oder
+  sie wechselt von einer ausgelasteten Grafikkarte auf den Prozessor. Hat
+  keiner von beiden Platz, zeigt der Player **Der Server transkodiert gerade
+  andere Streams**.
+- Was Sie tun können: dem Server eine Grafikkarte geben
+  ([Hardware-Beschleunigung](../administration/hardware-acceleration.md)) und
+  auf der Festplatte mit dem Cache Platz frei halten
+  ([Der Transkodierungs-Cache](#the-transcoding-cache)).
+
+Der Rest dieser Seite ist für Administratoren, die es genau wissen wollen: wie
+der Server misst, was er kodieren kann, wie er diese Kapazität aufteilt und
+was ein Zuschauer sieht, wenn sie erschöpft ist.
+
+## Der Server misst sich selbst
 
 Die Kapazität ist keine Einstellung, die Sie schätzen. Der Server misst sie:
 
-- **Wann.** Nicht beim Start: Der Server startet mit dem, was er vorher wusste
-  (oder beim ersten Mal mit einer vorsichtigen Standardvorgabe von 720p in
-  Software), und führt die Messung im ersten ruhigen Moment aus, wenn niemand
-  schaut und der Prozessor weitgehend frei ist. Sie dauert einige Minuten. Eine
-  unter Last durchgeführte Messung wird als vorläufig markiert und wiederholt,
-  sobald die Maschine frei ist.
+- **Wann.** Nicht beim Start. Der Server startet mit dem, was er vorher wusste
+  (beim ersten Mal mit einer vorsichtigen Vorgabe: 720p, nur Prozessor). Die
+  Messung führt er in seinem ersten ruhigen Moment aus, wenn niemand schaut und
+  der Prozessor fast nichts zu tun hat. Sie dauert einige Minuten. Eine
+  Messung unter Last gilt als vorläufig und wird wiederholt, sobald die
+  Maschine Ruhe hat.
 - **Was.** Echte Kodierungen eines 4K-Clips, in SDR und in HDR, auf dem
-  Prozessor und auf jedem erkannten Beschleuniger, in derselben Form wie eine
-  echte Wiedergabe. Das Ergebnis ist die höchste Auflösung, die jeder in
-  Echtzeit hält, und die Kosten jeder Art von Stream.
+  Prozessor und auf jedem Beschleuniger, den der Server erkannt hat. Sie laufen
+  genauso ab wie bei einer echten Wiedergabe. Das Ergebnis: die höchste
+  Auflösung, die jeder in Echtzeit schafft, und was jede Art von Stream kostet.
 - **Erneut.** Nachdem sich die Hardware geändert hat, oder mit **Neu
-  kalibrieren** unter **Admin → Transkodierung → Encode-Kalibrierung**.
+  kalibrieren** unter **Verwaltung → Transkodierung → Encode-Kalibrierung**.
+  Die Schaltfläche wartet, bis niemand mehr schaut.
 
 Während die Messung läuft, zeigt eine Wiedergabe, die eine Transkodierung
-braucht, **Der Server kalibriert sich** und wird gebeten, es kurz darauf erneut
-zu versuchen. Die Direktwiedergabe ist nicht betroffen.
+braucht, **Der Server kalibriert sich**. Der Player wird gebeten, es kurz
+darauf erneut zu versuchen. Direktwiedergabe und Remux sind nicht betroffen.
 
-Auf einem Prozessor, der keine der Auflösungen hält, bietet der Server trotzdem
-720p (SDR) und 480p (HDR) an, jeweils einen Stream.
+Schafft ein Prozessor keine der Auflösungen, bietet der Server trotzdem 720p
+(SDR) und 480p (HDR) an, jeweils einen Stream auf einmal.
 
-Die Messung verwendet, in dieser Reihenfolge, einen von Ihnen bereitgestellten
-Clip, einen einmal heruntergeladenen und per SHA256 geprüften Referenzclip oder
-einen vor Ort erzeugten synthetischen Clip. Ein echter Clip misst ehrlicher als
-der synthetische, der die Kosten überschätzt und eine Maschine niedriger
-begrenzen kann, als sie verdient:
+Für die Messung nimmt der Server, in dieser Reihenfolge: einen Clip, den Sie
+bereitstellen, einen Referenzclip, der einmal heruntergeladen und über seine
+SHA256 geprüft wird, oder einen künstlichen Clip, der vor Ort erzeugt wird.
+Ein echter Clip misst ehrlicher als der künstliche. Der künstliche überschätzt
+die Kosten und kann eine Maschine niedriger einstufen, als sie es verdient:
 
 ```yaml title="docker-compose.yml"
 services:
@@ -51,65 +68,117 @@ services:
 
 ## Die Kapazität teilen
 
-**Kapazität für laufende Wiedergabe** (**Admin → Transkodierung**) ist die Zahl
-der Videostreams, die gleichzeitig kodiert werden dürfen. Sie wird aus der
-Messung abgeleitet und passt sich von selbst an, wenn sich die Hardware ändert.
-**Gleichzeitige Videostreams begrenzen** kann sie senken, nie erhöhen.
+**Kapazität für laufende Wiedergabe** (**Verwaltung → Transkodierung**) ist
+die Zahl der Videostreams, die gleichzeitig kodiert werden dürfen. Sie ergibt
+sich aus der Messung und passt sich von selbst an, wenn sich die Hardware
+ändert. **Gleichzeitige Videostreams begrenzen** kann sie senken, nie erhöhen.
 
-- Eine Transkodierung, die nur das Audio neu kodiert (Video kopiert), belegt
+- Eine Transkodierung, die nur den Ton neu kodiert (Video kopiert), belegt
   keinen Platz.
 - Ein Zuschauer, der die Qualität wechselt, behält einen einzigen Platz.
-- Nur die Qualität, die ein Zuschauer tatsächlich schaut, wird kodiert, nicht
-  die ganze Qualitätsleiter.
+- Kodiert wird nur die Qualität, die ein Zuschauer wirklich schaut, nicht die
+  ganze Leiter der Qualitäten.
 
-Jeder Stream geht an den günstigsten Weg, der ihn bedienen kann: einen
-Beschleuniger, der bewiesen hat, was der Stream braucht (zum Beispiel HDR-Tone-
-Mapping oder HEVC-Ausgabe), oder den Prozessor. Prozessor und Beschleuniger
-sind zwei getrennte Pools. Sind die Beschleuniger voll, kann ein neuer Stream
-auf den Prozessor wechseln, wenn dieser Platz hat; hat keiner Platz, zeigt der
-Player **Der Server transkodiert gerade andere Streams** und kann es erneut
-versuchen.
+Jeder Stream nimmt den günstigsten Weg, der bewiesen hat, dass er ihn
+bedienen kann: einen Beschleuniger, der genau auf das gemessen wurde, was der
+Stream braucht (zum Beispiel HDR-Tone-Mapping oder Ausgabe in HEVC), oder den
+Prozessor. Prozessor und Beschleuniger sind zwei getrennte Pools. Ein Stream
+auf der Grafikkarte braucht trotzdem ein wenig Prozessor, für seinen Ton und
+seine Verpackung.
 
-Während jemand schaut, pausieren die eigenen Hintergrundaufgaben des Servers
-(Vorschaubilder, Intro-Erkennung, Medienanalyse), damit die Wiedergabe die
-Maschine behält: siehe [Hintergrundaufgaben und Serverlast](../operations/background-work.md).
+Wird der Platz knapp, reagiert der Server in dieser Reihenfolge:
 
-Wenn eine bestimmte Art von Quelle Zuschauer trotz allem immer wieder warten
-lässt, senkt der Server eine Zeit lang ihre Höchstqualität und hebt die Grenze
-dann von selbst wieder auf. Siehe
-[Überwachung und Logs](../operations/monitoring.md#how-playback-actually-went).
+1. **Eine niedrigere Qualität.** Passt die höchste Qualität eines neuen
+   Streams nicht, wird er mit der höchsten zugelassen, die passt. Diese
+   Obergrenze gilt dann für den ganzen Stream.
+2. **Der Prozessor.** Sind die Beschleuniger voll, wechselt ein neuer Stream
+   auf den Prozessor, wenn dieser Platz hat.
+3. **Eine Absage.** Hat keiner von beiden Platz, zeigt der Player **Der
+   Server transkodiert gerade andere Streams** und kann es erneut versuchen.
+
+Scheitert eine Kodierung auf der Grafikkarte bei einem Titel, geht dieser
+Titel eine Zeit lang an den Prozessor, für alle Zuschauer. Die Karte selbst
+wird erst beiseitegelegt, wenn auch eine Testkodierung scheitert, die nichts
+mit dem Medium zu tun hat. Später wird sie erneut versucht: siehe
+[Hardware-Beschleunigung](../administration/hardware-acceleration.md).
+
+Während jemand schaut, pausieren die eigenen Hintergrundarbeiten des Servers
+(Vorschaubilder, Intro-Erkennung, Medienanalyse). So behält die Wiedergabe die
+Maschine für sich: siehe
+[Hintergrundarbeiten und Serverlast](../operations/background-work.md).
+
+Lässt eine bestimmte Art von Quelle die Zuschauer trotz allem immer wieder
+warten, senkt der Server eine Zeit lang ihre höchste Qualität. Danach hebt er
+die Grenze von selbst wieder auf. Siehe
+[Überwachung und Protokolle](../operations/monitoring.md#how-playback-actually-went).
 
 ## Was kodiert wird
 
 | | Standard |
 | --- | --- |
-| Videocodec | H.264. HEVC, wenn der Player es dekodiert und die Grafikkarte es kodiert; AV1, wenn aktiviert (**AV1-Ausgabe**, nur Hardware) und der Player es dekodiert. |
-| Auflösung | Die der Quelle, sofern keine Grenze greift: das Maximum des Players, die Bitrate-Grenze oder das, was der Server in Echtzeit kodieren kann. |
-| Bitrate | Folgt der Quelle, skaliert auf die Auflösung. **Obergrenze Videobitrate** begrenzt sie. |
-| Audio | AAC. Siehe [Audio](audio.md). |
+| Videocodec | H.264. HEVC, wenn der Player es dekodiert und eine Grafikkarte es kodiert, oder wenn der **Bevorzugte Video-Codec** des Profils es verlangt; AV1, wenn eingeschaltet (**AV1-Ausgabe**, nur Hardware) und der Player es dekodiert. |
+| Auflösung | Die der Quelle, außer eine Grenze greift: das Maximum des Players, die Bitratengrenze oder das, was der Server in Echtzeit kodieren kann. |
+| Bitrate | Folgt der Quelle, angepasst an die Auflösung. **Obergrenze Videobitrate** begrenzt sie; **Video-Bitratenobergrenze, entfernte Zuschauer** begrenzt sie außerhalb der lokalen Netzwerke stärker. |
+| Ton | AAC. Siehe [Audio](audio.md). |
 | Auslieferung | HLS, in fragmentierten MP4-Segmenten. |
 
 <figure class="evey-shot" markdown="span">
-  ![Die zwei Videobitrate-Obergrenzen unter Admin → Transkodierung](../images/admin-transcoding-bitrate.webp){ loading=lazy }
-  <figcaption>Die zwei Obergrenzen unter <strong>Admin → Transkodierung</strong>: für jeden Zuschauer und für Zuschauer außerhalb der lokalen Netzwerke (Oberfläche auf Englisch).</figcaption>
+  ![Die zwei Obergrenzen der Videobitrate unter Verwaltung → Transkodierung](../images/admin-transcoding-bitrate.webp){ loading=lazy }
+  <figcaption>Die zwei Obergrenzen unter <strong>Verwaltung → Transkodierung</strong>: für jeden Zuschauer und für Zuschauer außerhalb der lokalen Netzwerke (Oberfläche auf Englisch).</figcaption>
 </figure>
 
 ## Der Transkodierungs-Cache
 
-Kodierte Segmente werden auf der Festplatte im Volume `evey-cache` aufbewahrt
-und wiederverwendet, wenn ein anderer Zuschauer, oder derselbe später, denselben
-Titel mit derselben Entscheidung abspielt. **Admin → Transkodierungs-Cache**
-zeigt seine Größe und leert ihn; das **Budget des Transcode-Caches** (**Admin →
-Serverkonfiguration → Servereinstellungen**) begrenzt ihn. Leeren Sie ihn nach
-einem Update, das ändert, wie Videos kodiert werden, damit niemand Segmente der
-vorherigen Version erhält.
+Kodierte Segmente werden auf der Festplatte im Volume `evey-cache`
+aufbewahrt. Sie werden wiederverwendet, wenn ein anderer Zuschauer, oder
+derselbe später, denselben Titel mit derselben Entscheidung abspielt.
+**Verwaltung → Transkodierungs-Cache** zeigt seine Größe und leert ihn; das
+**Budget des Transcode-Caches** (**Verwaltung → Serverkonfiguration →
+Servereinstellungen**) begrenzt ihn. **Alle leeren** entfernt auch die
+Untertitel, die aus Ihren Dateien herausgezogen wurden und in
+`./evey-data/subtitles` liegen: Sie werden bei Bedarf erneut herausgezogen.
+
+**Wenn die Festplatte voll wird.** Der Server hält auf der Festplatte mit dem
+Cache einen Rest an freiem Platz frei: standardmäßig 2 GiB, einstellbar mit
+`EVEY_TRANSCODE_CACHE_MIN_FREE_MB` (`0` schaltet diesen Rest ab). Wird er
+unterschritten, werden zuerst die ältesten Segmente gelöscht, die niemand
+schaut. Reicht das nicht, wird ein Segment, das es noch nicht gibt,
+abgelehnt, mit einer Wartezeit, nach der der Player erneut fragen darf. So
+startet kein Encoder, der mangels Platz scheitern würde. Segmente, die schon
+auf der Festplatte liegen, werden weiter ausgeliefert. Für die
+herausgezogenen Untertitel in `./evey-data` gilt derselbe Rest: Wird er
+unterschritten, werden neue nicht mehr aufbewahrt, jede Anfrage zieht sie neu
+heraus, und die Administratoren erhalten **Untertitel-Cache voll** (höchstens
+einmal pro Stunde, auch an Webhooks gesendet als
+`transcoding.derived_cache_full`).
+
+!!! tip "Tipp"
+    Leeren Sie den Cache nach einem Update, das ändert, wie Videos kodiert
+    werden. So bekommt niemand Segmente der vorherigen Version. Leeren Sie ihn,
+    während jemand schaut, puffert dessen Stream einmal neu und läuft dann
+    weiter.
 
 ## Prüfen, was passiert
 
-- **Admin → Aktuelle Wiedergabe**: jeder Stream, seine Methode Spur für Spur
-  und das Backend, das ihn kodiert.
-- **Admin → Transkodierung → Encode-Kalibrierung**: die gemessenen Obergrenzen
-  und die genutzten Beschleuniger.
-- **Admin → Streaming-Qualität**: wie die Wiedergabe für echte Zuschauer lief.
-- **Lasttest** (**Admin → Transkodierung**): simuliert Zuschauer, um zu messen,
-  was der Server hält. Nur ausführen, wenn niemand schaut.
+- **Verwaltung → Aktuelle Wiedergabe**: jeder Stream, seine Methode Spur für
+  Spur und womit er kodiert wird.
+- **Verwaltung → Transkodierung → Encode-Kalibrierung**: die gemessenen
+  Obergrenzen und die genutzten Beschleuniger.
+- **Verwaltung → Streaming-Qualität**: wie die Wiedergabe für echte Zuschauer
+  lief.
+- **Lasttest** (**Verwaltung → Transkodierung**): simuliert Zuschauer, um zu
+  messen, was der Server schafft. Er startet nicht, solange jemand schaut.
+
+<!-- sources
+disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After) ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full
+clear all empties extracted subtitles: internal/app/transcoding/service.go - WithDerivedCachePurge ; internal/adapters/driving/http/subtitle_cache.go - SubtitleCachePurger (/data/subtitles)
+calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - softwareLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
+capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability
+busy: i18n errors max_concurrent_reached
+output codec: internal/app/transcoding/resolver_route.go - outputCodecFor, codecWithPassthrough ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
+single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT, default on)
+bench samples: internal/config/config.go (EVEY_BENCH_{SDR,HDR}_SAMPLE{,_URL,_SHA256})
+cache budget, clear while live: i18n admin.serverSettings.transcodeCacheMaxGB, admin.transcodeCache.clearConfirmLiveSessions ; automatic limits: admin.qoe.overrides.*
+load test: i18n admin.loadtest.idleWarning, errorActiveStreams
+plain opening, busy message: i18n errors max_concurrent_reached ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper.GrantRoute
+-->

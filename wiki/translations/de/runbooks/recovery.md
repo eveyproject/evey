@@ -1,94 +1,136 @@
 ---
-source_sha: 64f12b2cc77ed7069bf33f581c2d91e3b13b6ff04cc4a3bc62db72c3607b46fe
-reviewed: false
+source_sha: 15f4243e2aa41d1a370efb30c5607eb485799cf11a0be191ea0b7489684f4485
+reviewed: true
 ---
 # Wiederherstellung
 
-Kommandozeilenverfahren für Fälle, in denen Sie sich nicht mehr anmelden können,
-der JWT-Schlüssel vermutlich kompromittiert ist oder die Datenbank auf eine
-Sicherung von vor einer Migration zurückgesetzt werden muss.
+Öffnen Sie diese Seite, wenn sich niemand mehr anmelden kann, wenn der
+Schlüssel, der die Zugangstoken signiert, nach außen gelangt sein könnte,
+oder wenn die Datenbank auf einen Dump von vor einer Migration zurück muss.
+Jeder Ablauf ist ein einziger `evey admin`-Befehl, der im Container läuft; die
+Seite [Kommandozeile](cli.md) listet die anderen Unterbefehle auf.
 
-Alle Befehle laufen als `evey admin <subcommand>` und lesen ihre Konfiguration
-aus denselben `EVEY_*`-Umgebungsvariablen wie der Server. Sie starten den
-Server **nicht** - die meisten lassen sich gefahrlos bei gestopptem Server
-ausführen.
+## Bevor Sie beginnen
 
-## reset-password
-
-Erzeugt ein neues Passwort für einen bestehenden Benutzer. Das neue Passwort
-wird einmal auf stdout ausgegeben - halten Sie es sofort fest.
+Die Befehle lesen dieselbe `EVEY_*`-Konfiguration wie der Server. Im
+Container des Servers brauchen sie daher nichts weiter:
 
 ```sh
-evey admin reset-password --user admin@example.com
+docker exec evey-server evey admin <subcommand>        # Server läuft
+docker compose run --rm evey admin <subcommand>        # Container gestoppt
 ```
 
-Ausgabe:
+Die zweite Form startet zuerst die eingebaute Datenbank, führt dann den Befehl
+aus und beendet sich. Keiner dieser Befehle startet den Server.
+
+## Einem Benutzer ein neues Passwort geben
+
+Nutzen Sie das, wenn ein Benutzer sich ausgesperrt hat, oder sofort, wenn Sie
+vermuten, dass ein Konto übernommen wurde. Das neue Passwort wird einmal
+angezeigt und nie protokolliert: Kopieren Sie es, bevor Sie das Terminal
+schließen.
+
+```sh
+docker exec evey-server evey admin reset-password --user admin@example.com
+```
+
+Ein gutes Ergebnis sieht so aus:
+
 ```
 user:     admin@example.com
 user_id:  usr-xxxxxxxx
 password: <random 24-byte base64url>
+
+Save this - it is the only time the new password is shown.
+Every session of this user has been ended.
 ```
 
-Hinweise:
-- Alle Sitzungen des Benutzers enden: Seine Refresh-Tokens werden gelöscht und
-  seine Zugriffstokens widerrufen. Eine geöffnete App bemerkt es in etwa 30
-  Sekunden und verlangt eine neue Anmeldung.
-- Das Klartextpasswort wird nie protokolliert. Geht die Ausgabe verloren, muss
-  der Befehl erneut ausgeführt werden.
+Alle Sitzungen dieses Benutzers enden sofort: Die Refresh-Token werden
+gelöscht und die Zugangstoken widerrufen. Eine offene App merkt das innerhalb
+von etwa 30 Sekunden und bittet um eine neue Anmeldung. Haben Sie die Ausgabe
+verloren, führen Sie den Befehl einfach noch einmal aus.
 
-## rotate-jwt-key
+## Den Schlüssel wechseln, der die Zugangstoken signiert
 
-Ersetzt den RSA-Schlüssel, der die Zugriffstokens signiert.
+Nutzen Sie das, wenn die Schlüsseldatei nach außen gelangt sein könnte, oder
+um alle Benutzer auf einmal abzumelden. Für ein einzelnes Konto genügt
+**Verwaltung -> Benutzer -> Deaktivieren** oder das Zurücksetzen des Passworts
+oben.
 
 ```sh
-evey admin rotate-jwt-key
+docker exec evey-server evey admin rotate-jwt-key
 ```
 
-Verhalten:
-- Die aktuelle Schlüsseldatei (Pfad = `EVEY_JWT_PRIVATE_KEY_PATH`, Standard
-  `/data/jwt.key`) wird in `<path>.rotated-<UTC-timestamp>` umbenannt.
-- Beim nächsten Serverstart erzeugt `LoadOrGenerateRSAKey` einen neuen
-  2048-Bit-RSA-Schlüssel.
-- Alle Sitzungen enden sofort, ohne den Neustart abzuwarten: Der Befehl löscht
-  jedes Refresh-Token und widerruft jedes Zugriffstoken in der Datenbank.
-  Geöffnete Apps bemerken es in etwa 30 Sekunden, und alle melden sich neu an.
-- Ist die Datenbank nicht erreichbar, wird der Schlüssel trotzdem beiseitegelegt
-  und der Befehl meldet es: Führen Sie ihn erneut aus, sobald die Datenbank
-  antwortet.
+Was passiert:
 
-Wann einsetzen:
-- Vermutetes Schlüsselleck: Niemand kann mit dem alten Schlüssel noch gültige
-  Zugriffstokens erzeugen.
-- Alle Sitzungen beenden. Für ein einzelnes Konto genügt es, es unter **Admin →
-  Benutzer** zu deaktivieren, oder `reset-password`.
+1. Die Schlüsseldatei (`EVEY_JWT_PRIVATE_KEY_PATH`, standardmäßig
+   `/data/jwt.key`) wird in `<path>.rotated-<UTC timestamp>` umbenannt.
+2. Jedes Refresh-Token wird gelöscht und jedes Zugangstoken widerrufen, in
+   einer einzigen Transaktion. Offene Apps merken das innerhalb von etwa 30
+   Sekunden; alle melden sich neu an.
+3. Beim nächsten Start erzeugt der Server einen neuen RSA-Schlüssel mit 2048
+   Bit.
 
-## restore-backup
+Starten Sie den Container danach neu (`docker compose restart evey`), damit
+der neue Schlüssel benutzt wird. War die Datenbank nicht erreichbar, wird der
+Schlüssel trotzdem beiseitegelegt, und der Befehl meldet `key rotated, but
+sessions could not be ended (restart the server, then run this again)`: Tun
+Sie genau das.
 
-Spielt einen `pg_dump.gz` aus der Sicherung vor einer Migration (oder aus einer
-anderen Quelle) in die konfigurierte Datenbank ein. **Überschreibt vorhandene
-Daten.** Die Datei muss auf `.sql.gz` enden: Die `.tar.gz`-Sicherungen von
-**Admin → Sicherung & Wiederherstellung** werden im Admin-Bereich
-wiederhergestellt, nicht mit diesem Befehl.
+## Einen Dump von vor einer Migration wiederherstellen
+
+Nutzen Sie das, wenn ein Update rückgängig gemacht werden muss und die Daten,
+die seitdem geschrieben wurden, verloren gehen dürfen. Der Befehl spielt einen
+`.sql.gz`-Dump über `gunzip | psql` in die konfigurierte Datenbank ein.
+
+!!! warning "Achtung"
+    Die Wiederherstellung überschreibt die aktuellen Zeilen. Legen Sie zuerst
+    eine Sicherung des aktuellen Stands an (**Verwaltung -> Sicherung &
+    Wiederherstellung -> Jetzt ausführen**), wenn Sie ihn vielleicht noch
+    einmal brauchen.
 
 ```sh
-evey admin restore-backup /data/backups/pre-migration-15-20260418T220130Z.sql.gz
+docker compose stop evey
+docker compose run --rm evey admin restore-backup /data/backups/pre-migration-152-20260418T220130Z.sql.gz
+docker compose up -d
 ```
 
-Ablauf:
-1. Der Befehl wartet 5 Sekunden, bevor er etwas tut - Strg+C bricht ab.
-2. Die Datei wird mit `--single-transaction` und `ON_ERROR_STOP=1` durch
-   `gunzip | psql` in die konfigurierte Datenbank gestreamt.
-3. Bei jedem Fehler rollt psql die Transaktion zurück - die Datenbank bleibt in
-   ihrem vorherigen Zustand.
+Was passiert:
+
+1. Der Befehl liest zuerst die ganze Datei: Sie muss sich fehlerfrei entpacken
+   lassen und mit der Abschlusszeile von `pg_dump` enden. Ein abgeschnittener
+   oder beschädigter Dump wird abgelehnt (`refusing to restore: ...`), bevor
+   irgendetwas gelöscht wird.
+2. Dann wartet er 5 Sekunden, bevor er etwas anfasst: Strg+C bricht ab.
+3. `psql` spielt den Dump mit `--single-transaction` und `ON_ERROR_STOP=1`
+   ein. Bei jedem Fehler wird die Transaktion zurückgerollt, und die
+   Datenbank bleibt, wie sie war.
+4. Bei Erfolg lautet die letzte Zeile `[admin] restored backup <path>`.
 
 Voraussetzungen:
-- `psql` und `gunzip` müssen im PATH liegen (beide sind im Produktions-Image
-  neben `pg_dump` enthalten).
-- Die Zieldatenbank muss existieren; der Dump enthält nur DROP/CREATE für
-  Tabellen, nicht für die Datenbank selbst.
-- Der konfigurierte `EVEY_DB_USER` muss Eigentümer der Zieldatenbank sein.
 
-Sicherungen vor einer Migration entstehen automatisch vor jedem
-`migrate.Up()` und liegen unter `EVEY_BACKUP_DIR` (Standard `/data/backups`).
-Der neueste Dump jeder der 3 jüngsten Schemaversionen wird behalten; die
-anderen werden entfernt.
+- Der Dateiname muss auf `.sql.gz` enden. Die `.tar.gz`-Archive aus
+  **Verwaltung -> Sicherung & Wiederherstellung** werden im Verwaltungsbereich
+  wiederhergestellt, nicht mit diesem Befehl.
+- Die Zieldatenbank muss existieren; der Dump löscht Tabellen und legt sie neu
+  an, nicht die Datenbank.
+- `psql` und `gunzip` müssen im PATH liegen. Das Image stellt das sicher.
+
+Dumps von vor einer Migration werden vor jeder Änderung des Schemas
+automatisch geschrieben, unter `EVEY_BACKUP_DIR` (`/data/backups`, also
+`./evey-data/backups` auf dem Rechner), mit dem Namen
+`pre-migration-<schema version>-<UTC timestamp>.sql.gz`. Aufbewahrt wird der
+neueste Dump jeder der 3 jüngsten Schemaversionen, die anderen werden
+gelöscht. [Datenbankmigrationen](migration-runbook.md) erklärt, wann Sie
+besser einen Dump wiederherstellen, statt das Schema einen Schritt
+zurückzusetzen.
+
+<!-- sources
+reset-password / rotate-jwt-key: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL: internal/app/user/token_epoch.go - epochCacheTTL
+restore-backup: cmd/evey/admin.go - adminRestoreBackup, verifyDumpComplete (whole gzip + completion marker before anything runs), 5 s pause, --single-transaction, ON_ERROR_STOP=1, .sql.gz suffix)
+admin commands boot the embedded database: docker/entrypoint.sh
+refresh validation by stored hash: internal/app/user/auth.go - validateRefreshToken
+disable signs out: internal/app/user/user_service.go - DisableUser
+dump naming and retention: internal/adapters/driven/postgres/migrate_backup.go - dumpDatabase, backupFilePrefix, pruneOldBackups, defaultBackupRetention
+defaults: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH, EVEY_BACKUP_DIR)
+-->
