@@ -1,44 +1,57 @@
 ---
-source_sha: 771f24a342b202edfea3fa8ec419ba1e7d488e2112cdd4a535c84b7cd1b586c4
-reviewed: false
+source_sha: fad8d9ff7aa0e8e4c14508e1eb2fe716e13c05c66eca9acb763084c56aec898f
+reviewed: true
 ---
 # डेटाबेस माइग्रेशन
 
-Evey अपडेट के दौरान अपना डेटाबेस स्कीमा कैसे बदलता है, और गड़बड़ होने पर क्या करें। कमांड मानक इंस्टॉलेशन के लिए हैं, जहाँ डेटाबेस `evey-server` कंटेनर के अंदर चलता है।
+अपडेट के दौरान Evey अपने डेटाबेस का स्कीमा कैसे बदलता है, पहले और बाद में क्या
+जाँचना है, और जब कोई माइग्रेशन आधे रास्ते में रुक जाए तो बाहर कैसे निकलें। यह
+आम इंस्टॉल चलाने वाले ऑपरेटरों के लिए है, जहाँ डेटाबेस `evey-server` कंटेनर के
+अंदर चलता है; माइग्रेशन लिखने वाले योगदानकर्ताओं के लिए नियम आखिर में हैं।
 
 ## माइग्रेशन कैसे चलते हैं
 
-माइग्रेशन बाइनरी में शामिल हैं (`go:embed`) और सर्वर शुरू होते समय `golang-migrate` उन्हें लागू करता है (`internal/adapters/driven/postgres/migrate.go`, फ़ाइलें `internal/adapters/driven/postgres/migrations/NNNNNN_<name>.{up,down}.sql`)। स्थिति `schema_migrations` तालिका है: `{version, dirty}`।
-
-कुछ भी लागू करने से पहले सर्वर `/data/backups/pre-migration-<version>-<time>.sql.gz` (`EVEY_BACKUP_DIR`) में एक पूरा डंप लिखता है। 3 सबसे हाल के स्कीमा संस्करणों में से हर एक का सबसे नया डंप रखा जाता है।
+माइग्रेशन प्रोग्राम के अंदर ही होते हैं और सर्वर शुरू होने पर `golang-migrate`
+उन्हें लागू करता है। हालत `schema_migrations` टेबल में रहती है, जिसमें एक पंक्ति
+`{version, dirty}` होती है। कुछ भी लागू करने से पहले, सर्वर `EVEY_BACKUP_DIR`
+(`/data/backups`, यानी होस्ट पर `./evey-data/backups`) में एक पूरा डंप लिखता है,
+जिसका नाम `pre-migration-<version>-<UTC timestamp>.sql.gz` होता है, और सबसे हाल
+के 3 स्कीमा वर्ज़न में से हर एक का सबसे नया डंप रखता है।
 
 यही काम हाथ से भी किए जा सकते हैं:
 
 ```sh
-docker exec evey-server evey admin migrate version   # स्कीमा dirty होने पर exit 1
-docker exec evey-server evey admin migrate up
-docker exec evey-server evey admin migrate down      # ठीक एक चरण
+docker exec evey-server evey admin migrate version   # स्कीमा dirty हो तो exit 1
+docker exec evey-server evey admin migrate up        # सारे बाकी माइग्रेशन लागू करें
+docker exec evey-server evey admin migrate down      # ठीक एक कदम पीछे जाएँ
 ```
 
-`up` और `down` भी पहले एक डंप लेते हैं; `--no-backup` उसे छोड़ देता है।
-
-बिल्ट-इन डेटाबेस पर SQL चलाने के लिए:
+`up` और `down` पहले एक डंप लेते हैं; `--no-backup` इसे छोड़ देता है। अंदर वाले
+डेटाबेस पर SQL शेल खोलने के लिए:
 
 ```sh
-docker exec evey-server sh -c \
+docker exec -it evey-server sh -c \
   'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-## अपडेट से पहले
+## सुरक्षित तरीके से अपडेट करना
 
-1. **एक बैकअप लें** **Admin → बैकअप और पुनर्स्थापना** में (**अभी चलाएं**), या किसी स्क्रिप्ट से:
+1. **बैकअप लें**, **एडमिन → बैकअप और पुनर्स्थापना** में (**अभी चलाएं**), या
+   किसी स्क्रिप्ट से:
    ```sh
    curl -X POST -H "Authorization: Bearer <admin-token>" \
      http://localhost:9091/api/v1/admin/backups
    ```
-   माइग्रेशन से पहले का स्वचालित डंप दूसरी प्रति है, विकल्प नहीं।
+   माइग्रेशन से पहले अपने-आप बनने वाला डंप एक दूसरी कॉपी है, इसकी जगह नहीं।
 
-2. **बड़े कैटलॉग के लिए**, सबसे बड़ी तालिकाओं का आकार देखें: उनमें से किसी को दोबारा लिखने वाला माइग्रेशन ज़्यादा समय लेता है।
+2. **मौजूदा वर्ज़न जाँचें**: `docker exec evey-server evey admin migrate
+   version` छापता है `schema version: N`। अगर यह `DIRTY` छापे, तो अपडेट करने से
+   पहले [आधे रास्ते में रुका माइग्रेशन](#a-migration-that-stopped-halfway)
+   देखें।
+
+3. **बड़े कैटलॉग पर**, सबसे बड़ी टेबल देखें: जो माइग्रेशन इनमें से किसी को दोबारा
+   लिखता है उसमें ज़्यादा समय लगता है, और कंटेनर का हेल्थचेक इसके लिए शुरू होने
+   में 300 सेकंड देता है।
    ```sql
    SELECT relname,
           pg_size_pretty(pg_total_relation_size(relid)) AS total,
@@ -48,76 +61,106 @@ docker exec evey-server sh -c \
     LIMIT 20;
    ```
 
-3. **मौजूदा संस्करण जाँचें**: `evey admin migrate version`। अगर यह dirty स्कीमा बताए, तो पहले [बीच में रुका माइग्रेशन](#a-migration-that-stopped-halfway) देखें।
+4. **नई इमेज शुरू करें** और लॉग तब तक देखते रहें जब तक माइग्रेशन लागू न हो जाएँ
+   और सर्वर जवाब न देने लगे:
+   ```sh
+   docker compose pull && docker compose up -d
+   docker logs -f evey-server
+   ```
+   सही नतीजा: जब कुछ लागू करना था तो `migrations: pre-migration backup written`
+   वाली लाइन, फिर सर्वर का बैनर, फिर `curl -sf http://localhost:9091/healthz`
+   जवाब देता है।
 
-## माइग्रेशन चलाना
+5. **इसके बाद**, वर्ज़न की पुष्टि करें और गड़बड़ियाँ खोजें:
+   ```sh
+   docker exec evey-server evey admin migrate version
+   docker logs --since 10m evey-server 2>&1 | grep -iE 'migrat|error'
+   ```
+   अगर इस रिलीज़ ने वीडियो एन्कोड होने का तरीका बदला है, तो ट्रांसकोडिंग कैश
+   खाली करें (**एडमिन → ट्रांसकोड कैश → सभी साफ़ करें**)।
 
-वे नई इमेज शुरू होने पर चलते हैं:
+## पिछले वर्ज़न पर वापस जाना
 
-```sh
-docker compose pull && docker compose up -d
-docker logs -f evey-server
-```
+`docker exec evey-server evey admin rollback` चल रहा वर्ज़न, स्कीमा वर्ज़न,
+माइग्रेशन से पहले का सबसे नया डंप, और होस्ट पर चलाने वाली सटीक कमांड छापता है। यह
+कुछ नहीं बदलता: कंटेनर के पास Docker तक पहुँच नहीं है।
 
-माइग्रेशन लागू होने और सर्वर के जवाब देने पर कंटेनर स्वस्थ बताया जाता है:
+वापस जाने का आम तरीका है पिछली इमेज और अपडेट से पहले लिया गया डंप: देखें
+[वापस लौटना](../backups.md#going-back)। जब अपडेट ने डेटा हटाया हो (कोई कॉलम हटाया
+गया, कोई टाइप बदला गया), तो माइग्रेशन को पीछे ले जाने के बजाय डंप वापस लाएँ।
+`evey admin migrate down` इसके बजाय एक बार में एक माइग्रेशन पीछे जाता है, जब उस
+कदम की `.down.sql` काफ़ी हो।
 
-```sh
-curl -sf http://localhost:9091/healthz && echo OK
-docker exec evey-server evey admin migrate version
-```
+!!! warning
+    `schema_migrations` को हाथ से न बदलें, सिवाय dirty हालत हटाने के (नीचे
+    देखें), और पहले एक डंप ले लें।
 
-## वापस जाना
+## आधे रास्ते में रुका माइग्रेशन
 
-`evey admin rollback` चल रहा संस्करण, स्कीमा संस्करण, माइग्रेशन से पहले का सबसे नया डंप और होस्ट पर चलाने के सटीक कमांड छापता है। यह कुछ नहीं बदलता: कंटेनर के पास Docker तक पहुँच नहीं है।
-
-वापस जाने का सामान्य तरीका है पिछली इमेज, अपडेट से पहले लिए गए डंप के साथ: बैकअप और अपडेट में [वापस जाना](../backups.md#going-back) देखें। इसकी बजाय `evey admin migrate down` एक बार में एक चरण वापस करता है, जब उस चरण का `.down.sql` काफ़ी हो।
-
-`schema_migrations` को हाथ से न बदलें, सिवाय dirty स्थिति हटाने के (नीचे), और पहले एक डंप लें।
-
-जब अपडेट ने डेटा हटाया हो (हटाया गया कॉलम, प्रकार बदलाव), तो `migrate down` से पीछे जाने की बजाय माइग्रेशन से पहले का डंप बहाल करें।
-
-## बीच में रुका माइग्रेशन
-
-अगर लॉग `Dirty database version N. Fix and force version.` दिखाता है, तो कोई माइग्रेशन बीच में क्रैश हुआ। स्कीमा को उस स्थिति में लाएँ जो आप चाहते हैं, फिर फ़्लैग हटाएँ:
+जब लॉग में `Dirty database version N. Fix and force version.` दिखे, तो इसका मतलब
+है कि कोई माइग्रेशन बीच में क्रैश हो गया और `golang-migrate` आगे बढ़ने से मना कर
+रहा है। स्कीमा को उस हालत में लाएँ जो आप चाहते हैं, फिर यह निशान हटाएँ:
 
 ```sql
 SELECT version, dirty FROM schema_migrations;
 
--- up.sql का बाक़ी हिस्सा हाथ से फिर से लागू करें, या down.sql से वापस करें,
--- फिर वह संस्करण दर्ज करें जहाँ आप वास्तव में पहुँचे:
+-- up.sql का बाकी हिस्सा हाथ से फिर से लागू करें, या down.sql से वापस लें,
+-- फिर वह वर्ज़न दर्ज करें जहाँ आप असल में पहुँचे:
 UPDATE schema_migrations SET version = <N>, dirty = false;
 ```
 
-कंटेनर रीस्टार्ट करें; माइग्रेशन वहीं से जारी रहते हैं। माइग्रेशन से पहले का डंप बहाल करना दूसरा रास्ता है।
+कंटेनर रीस्टार्ट करें; माइग्रेशन वहीं से आगे चलते हैं। माइग्रेशन से पहले का डंप
+वापस लाना ([रिकवरी](recovery.md#restore-a-pre-migration-dump)) बाहर निकलने का
+दूसरा रास्ता है।
 
 ## माइग्रेशन लिखना
 
-योगदानकर्ताओं के लिए। उदाहरण `internal/adapters/driven/postgres/migrations/` में:
+योगदानकर्ताओं के लिए। फ़ाइलें
+`internal/adapters/driven/postgres/migrations/NNNNNN_<name>.{up,down}.sql` में
+रहती हैं। पहले से जारी हो चुके उदाहरण:
 
-- **`000066_cascade_and_email_unique.up.sql`**: `ALTER TABLE ... DROP CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`। ADD की अवधि में दोनों तालिकाओं पर `ACCESS EXCLUSIVE` लेता है। छोटी तालिकाओं पर सस्ता, `media_items` / `watch_progress` पर तकलीफ़देह। बड़ी तालिकाओं का पैटर्न: `NOT VALID` के साथ जोड़ें, फिर दूसरे स्टेटमेंट में `VALIDATE CONSTRAINT` (validate केवल `SHARE UPDATE EXCLUSIVE` लेता है)।
-- **`000067_sort_title_index.up.sql`, `000068_watch_progress_composite_index.up.sql`, `000069_quick_connect_shortcode_index.up.sql`**: सादा `CREATE INDEX`। बड़ी तालिकाओं पर यह लिखना रोकता है। `CREATE INDEX CONCURRENTLY` migrate ट्रांज़ैक्शन के अंदर नहीं चल सकता।
-- **`000072_syncplay_queue.up.sql`**: `ALTER TABLE ... ADD COLUMN ... NOT NULL DEFAULT '[]'`। PG 11+ पर यह केवल मेटाडेटा है और तेज़ है। फिर भी थोड़ी देर `ACCESS EXCLUSIVE` रखता है।
+- **`000066_cascade_and_email_unique.up.sql`** - `ALTER TABLE ... DROP
+  CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`। ADD चलने तक दोनों टेबल पर
+  `ACCESS EXCLUSIVE` लेता है। छोटी टेबल पर सस्ता, `media_items` /
+  `watch_progress` पर तकलीफ़देह।
+- **`000067_sort_title_index.up.sql`**,
+  **`000068_watch_progress_composite_index.up.sql`**,
+  **`000069_quick_connect_shortcode_index.up.sql`** - सादा `CREATE INDEX`, जो
+  बड़ी टेबल पर लिखना रोक देता है। `CREATE INDEX CONCURRENTLY` माइग्रेशन के
+  ट्रांज़ैक्शन के अंदर नहीं चल सकता।
+- **`000072_syncplay_queue.up.sql`** - `ALTER TABLE ... ADD COLUMN ... NOT
+  NULL DEFAULT '[]'`। PG 11+ पर सिर्फ़ मेटाडेटा बदलता है, लेकिन फिर भी थोड़ी देर
+  के लिए `ACCESS EXCLUSIVE` रखता है।
 
 दिशानिर्देश:
 
-- तालिका को दोबारा लिखने वाला **लंबा ALTER** (प्रकार बदलाव, पुराने PG पर गैर-स्थिर डिफ़ॉल्ट जोड़ना) → बड़े कैटलॉग पर डाउनटाइम की उम्मीद करें।
-- **DROP COLUMN** → केवल मेटाडेटा, लेकिन बैकअप के बिना कॉलम वापस नहीं लाया जा सकता। उसी रिलीज़ में कभी न हटाएँ जिसमें कोड उसे पढ़ना बंद करता है: दो चरण बेहतर हैं, कॉलम पढ़ना बंद करें, डिप्लॉय करें, फिर अगली रिलीज़ में हटाएँ।
-- **बड़ी तालिकाओं पर FK** → `ADD CONSTRAINT ... NOT VALID` फिर अगले माइग्रेशन में `VALIDATE CONSTRAINT`। एक ही रोकने वाले `ADD CONSTRAINT ... FOREIGN KEY ...` से बचें।
-- **बैच UPDATE / बैकफ़िल** → बड़ी तालिका पर कभी एक ही माइग्रेशन में नहीं। एक ख़ाली स्कीमा माइग्रेशन + एक बैकग्राउंड काम भेजें।
-- **कॉलम बदलना (expand → migrate → contract)** → `ADD COLUMN` + बैकफ़िल + `SET NOT NULL` + पुराने का `DROP COLUMN` एक ही माइग्रेशन में न मिलाएँ। यह रूप केवल इसलिए काम करता है क्योंकि Evey आज एक ही इंस्टेंस पर चलता है, और माइग्रेशन शुरू होते समय सिंक्रोनस रूप से लागू होते हैं: इस बीच हटाया गया कॉलम पढ़ने वाला पुराना कोड और नया कॉलम पढ़ने वाला नया कोड साथ नहीं रह सकते, इसलिए रोलिंग या कई रेप्लिका वाला डिप्लॉय पीछे रह गए आधे हिस्से से त्रुटियाँ देगा।
-  इस तरह लिखे गए ज्ञात माइग्रेशन, जो पहले ही जारी हो चुके हैं इसलिए जैसे हैं वैसे रखे गए: `000077` और `000098_playlists_profile_id.up.sql` (`profile_id` जोड़ता है, बैकफ़िल करता है, `NOT NULL` सेट करता है, `user_id` हटाता है)।
-  नए के लिए, तीन रिलीज़ में बाँटें:
-  1. **expand**: नया कॉलम nullable जोड़ें, *दोनों* कॉलम में लिखें, पुराना पढ़ते रहें;
-  2. **migrate**: नया कॉलम बैकफ़िल करें (बैकग्राउंड काम, माइग्रेशन नहीं), फिर पढ़ना उस पर ले जाएँ;
-  3. **contract**: जब कोई डिप्लॉय किया गया कोड पुराने कॉलम को न छुए, तो `SET NOT NULL` करें और उसे हटाएँ।
-  हर चरण अलग से डिप्लॉय और वापस किया जा सकता है, जो एक फ़ाइल वाले संस्करण में संभव नहीं।
+- **लंबा ALTER** जो टेबल दोबारा लिखता है (टाइप बदलना, पुराने PG पर ऐसा डिफ़ॉल्ट जो
+  स्थिर नहीं है), बड़े कैटलॉग पर सर्वर बंद रहने का समय (downtime) लाता है।
+- **DROP COLUMN** सिर्फ़ मेटाडेटा बदलता है, लेकिन बैकअप के बिना कॉलम वापस नहीं आ
+  सकता। उसे उसी रिलीज़ में कभी न हटाएँ जो उसे पढ़ना बंद करती है: पढ़ना बंद करें,
+  डिप्लॉय करें, अगली रिलीज़ में हटाएँ।
+- **बड़ी टेबल पर FK**: `ADD CONSTRAINT ... NOT VALID`, फिर अगले माइग्रेशन में
+  `VALIDATE CONSTRAINT` (validate सिर्फ़ `SHARE UPDATE EXCLUSIVE` लेता है)।
+- **बैच में UPDATE / backfill**: बड़ी टेबल पर कभी एक ही माइग्रेशन में नहीं। स्कीमा
+  का ऐसा माइग्रेशन भेजें जो कुछ न करे, साथ में एक बैकग्राउंड काम।
+- **कॉलम बदलना (expand, migrate, contract)**: `ADD COLUMN` + backfill + `SET NOT
+  NULL` + `DROP COLUMN` को एक फ़ाइल में न जोड़ें। यह रूप सिर्फ़ इसलिए काम करता है
+  क्योंकि Evey एक ही इंस्टेंस में चलता है, और माइग्रेशन शुरू होते समय एक के बाद
+  एक लागू होते हैं; रोलिंग डिप्लॉय में जो आधा हिस्सा पीछे होता, उससे गड़बड़ियाँ
+  मिलतीं। `000077` और `000098_playlists_profile_id.up.sql` इसी तरह लिखे गए थे
+  और जैसे हैं वैसे ही रहेंगे, क्योंकि वे जारी हो चुके हैं। नए के लिए, इसे तीन
+  रिलीज़ में बाँटें:
+  1. **expand** - नया कॉलम nullable के रूप में जोड़ें, दोनों कॉलम में लिखें,
+     पुराने को ही पढ़ते रहें;
+  2. **migrate** - नए कॉलम को backfill करें (बैकग्राउंड काम से, माइग्रेशन से
+     नहीं), फिर पढ़ना उस पर ले जाएँ;
+  3. **contract** - जब कोई डिप्लॉय हुआ कोड पुराने कॉलम को न छुए, तो `SET NOT
+     NULL` लागू करें और उसे हटा दें।
 
-## अपडेट के बाद
-
-```sh
-curl -sf http://localhost:9091/healthz
-docker exec evey-server evey admin migrate version
-docker logs --since 10m evey-server 2>&1 | grep -iE 'migrat|error'
-```
-
-फिर अगर रिलीज़ ने वीडियो एनकोड करने का तरीका बदला हो तो ट्रांसकोडिंग कैश ख़ाली करें (**Admin → ट्रांसकोड कैश**)।
+<!-- sources
+migrations: internal/adapters/driven/postgres/migrate.go - RunMigrations, RollbackLastMigration, CurrentMigrationVersion ; internal/adapters/driven/postgres/migrate_backup.go - dumpDatabase, backupFilePrefix, pruneOldBackups, defaultBackupRetention
+cli: cmd/evey/admin.go - adminMigrate, adminMigrateUsage ; cmd/evey/admin_ops.go - adminRollback
+embedded database and healthcheck start period: docker/entrypoint.sh (postgres.password, EVEY_DB_PASSWORD_FILE) ; Dockerfile - HEALTHCHECK --start-period
+backup route: internal/adapters/driving/http/backup_handler.go (POST /api/v1/admin/backups)
+labels: i18n/en/admin.yaml - sidebar.backupRestore, backup.schedule.runNow, transcodeCache.clearAll
+-->
