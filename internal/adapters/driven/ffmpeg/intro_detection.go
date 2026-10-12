@@ -31,6 +31,10 @@ type IntroDetector struct {
 	// recalibration) is running and a detection decode must yield. nil = run flat
 	// out (the historic behaviour). See runPausable.
 	busy func() bool
+	// subtitleCues, when set, answers SubtitleCueStarts from the container's
+	// index (mkvgo, the file's head) before ffprobe reads every packet; ok=false
+	// means it cannot vouch for the track and ffprobe answers.
+	subtitleCues func(ctx context.Context, filePath string) (cues []int64, ok bool)
 }
 
 func NewIntroDetector(binary, probeBinary string) *IntroDetector {
@@ -42,6 +46,12 @@ func NewIntroDetector(binary, probeBinary string) *IntroDetector {
 // calibration service are built later). nil-safe.
 func (d *IntroDetector) WithBusyChecker(busy func() bool) *IntroDetector {
 	d.busy = busy
+	return d
+}
+
+// WithSubtitleCueIndex wires the index reader SubtitleCueStarts tries first.
+func (d *IntroDetector) WithSubtitleCueIndex(f func(ctx context.Context, filePath string) ([]int64, bool)) *IntroDetector {
+	d.subtitleCues = f
 	return d
 }
 
@@ -800,6 +810,12 @@ func (d *IntroDetector) SubtitleCueStarts(ctx context.Context, filePath string) 
 	defer span.End()
 	if filePath == "" {
 		return nil, nil
+	}
+	if d.subtitleCues != nil {
+		if cues, ok := d.subtitleCues(ctx, filePath); ok {
+			span.AddEvent("subtitle-cues-from-index")
+			return cues, nil
+		}
 	}
 	args := []string{
 		"-v", "error",

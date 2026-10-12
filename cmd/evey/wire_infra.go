@@ -111,7 +111,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		ffmpeg.WarnIfNoAV1Decoder(probeCtx, "ffmpeg", slog.Default())
 	}()
 	trickplayGen := ffmpeg.NewTrickplayGenerator("ffmpeg", "ffprobe")
-	introDetector := ffmpeg.NewIntroDetector("ffmpeg", "ffprobe")
+	introDetector := ffmpeg.NewIntroDetector("ffmpeg", "ffprobe").WithSubtitleCueIndex(mkvgoadapter.FirstSubtitleCueStartsMs)
 	imageConverter := ffmpeg.NewImageConverter("ffmpeg")
 	mkvAdapter := mkvgoadapter.New()
 	trickplayGen.WithKeyframeStreamer(trickplayKeyframes{mkvAdapter})
