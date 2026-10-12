@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/golang-migrate/migrate/v4"
 	mpostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"

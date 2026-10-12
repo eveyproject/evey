@@ -13,9 +13,9 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	apploadtest "github.com/eveyproject/evey/internal/app/loadtest"
 )
 
 // StartLoadTest launches the built-in load test: synthetic viewers against the

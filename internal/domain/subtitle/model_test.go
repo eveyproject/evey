@@ -3,7 +3,7 @@ package subtitle_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/subtitle"
+	"github.com/eveyproject/evey/internal/domain/subtitle"
 )
 
 func TestSubtitleDownload_Validate(t *testing.T) {

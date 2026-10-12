@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	appmetadata "github.com/evey-project/evey/internal/app/metadata"
-	"github.com/evey-project/evey/internal/domain/metadata"
-	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appmetadata "github.com/eveyproject/evey/internal/app/metadata"
+	"github.com/eveyproject/evey/internal/domain/metadata"
+	metafakes "github.com/eveyproject/evey/internal/domain/metadata/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 func newCmdSvcWithDataDir(t *testing.T, dataDir string, artworkRepo *metafakes.FakeArtworkRepository, downloader metadata.ArtworkDownloader) *appmetadata.CommandService {

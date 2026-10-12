@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // command_service_artwork_custom.go - an admin supplying their own poster or

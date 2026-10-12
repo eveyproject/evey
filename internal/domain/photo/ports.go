@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // CommandRepo is the write side of the photo store (ADR-0009). Reads the

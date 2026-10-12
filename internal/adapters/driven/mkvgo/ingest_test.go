@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	"github.com/evey-project/evey/internal/domain/library"
+	mkvgoadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 func TestPlan_NonExistentFile_Errors(t *testing.T) {

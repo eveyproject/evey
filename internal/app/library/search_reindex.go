@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // reindexBatchSize bounds how many media items are loaded from Postgres and

@@ -16,9 +16,9 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/singleflight"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // remuxCacheFormat versions the on-disk remux cache. Bump it whenever the

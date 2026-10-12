@@ -3,8 +3,8 @@ package httpapi
 import (
 	"testing"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/library"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // serveWasmAudioMaster hands the client the ORIGINAL Dolby track to decode

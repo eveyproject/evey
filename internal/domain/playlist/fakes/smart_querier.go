@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/playlist"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/playlist"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 type FakeSmartPlaylistQuerier struct {

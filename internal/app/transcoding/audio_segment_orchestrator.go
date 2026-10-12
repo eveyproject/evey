@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // ErrAudioPastEndOfStream reports that the requested segment lies at/after the

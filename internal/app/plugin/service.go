@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 const defaultPluginBaseDir = "/data/plugins"

@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 
-	"github.com/evey-project/evey/internal/pkg/langcode"
+	"github.com/eveyproject/evey/internal/pkg/langcode"
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 	mkvsubtitle "github.com/gravity-zero/mkvgo/mkv/subtitle"
@@ -25,13 +25,13 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appsubtitle "github.com/evey-project/evey/internal/app/subtitle"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appsubtitle "github.com/eveyproject/evey/internal/app/subtitle"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainsubtitle "github.com/eveyproject/evey/internal/domain/subtitle"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"github.com/gravity-zero/mkvgo/matroska"
 )
 

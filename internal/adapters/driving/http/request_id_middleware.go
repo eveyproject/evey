@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	eveylogger "github.com/eveyproject/evey/internal/pkg/logger"
 	"github.com/google/uuid"
 )
 

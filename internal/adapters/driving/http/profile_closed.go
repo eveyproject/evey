@@ -10,8 +10,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // ProfileAccessGate says whether a profile may be used now (kids opening

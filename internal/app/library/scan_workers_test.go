@@ -3,7 +3,7 @@ package library
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 func TestScanWorkerCount_DefaultCPUBudget(t *testing.T) {

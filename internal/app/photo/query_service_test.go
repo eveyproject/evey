@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"testing"
 
-	appphoto "github.com/evey-project/evey/internal/app/photo"
-	"github.com/evey-project/evey/internal/domain/photo"
-	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	appphoto "github.com/eveyproject/evey/internal/app/photo"
+	"github.com/eveyproject/evey/internal/domain/photo"
+	photofakes "github.com/eveyproject/evey/internal/domain/photo/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 func seedAlbum(repo *photofakes.FakeRepository, id, libraryID, album string) {

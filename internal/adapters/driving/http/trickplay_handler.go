@@ -19,10 +19,10 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	_ "golang.org/x/image/webp"
 
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // spriteCredential returns the ?token= suffix the manifest must put on each

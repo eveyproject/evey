@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
+	appuser "github.com/eveyproject/evey/internal/app/user"
 )
 
 func TestIsEmailAllowed(t *testing.T) {

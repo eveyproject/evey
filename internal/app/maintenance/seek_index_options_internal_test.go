@@ -3,7 +3,7 @@ package maintenance
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // The operator's deep-verify choice must reach the reindexer port: with the

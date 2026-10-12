@@ -10,9 +10,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appcast "github.com/evey-project/evey/internal/app/chromecast"
-	"github.com/evey-project/evey/internal/pkg/network"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appcast "github.com/eveyproject/evey/internal/app/chromecast"
+	"github.com/eveyproject/evey/internal/pkg/network"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 const castMaxBodySize = 4096

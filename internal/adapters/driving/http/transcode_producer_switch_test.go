@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // sentinelProducer is a StreamProducer that does nothing but be identifiable by

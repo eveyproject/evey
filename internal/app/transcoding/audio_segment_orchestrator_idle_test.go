@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // A rendition nobody asks for dies on the inactivity fuse (prod 2026-09-09:

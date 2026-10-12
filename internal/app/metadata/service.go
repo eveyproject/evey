@@ -3,8 +3,8 @@ package metadata
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 // ItemEnricher persists metadata results (artwork, people) for a media item.

@@ -1,7 +1,7 @@
 package ratelimit
 
 import (
-	"github.com/evey-project/evey/internal/pkg/bgloop"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	"log/slog"
 	"math"
 	"net"

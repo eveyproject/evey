@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -14,11 +14,11 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/singleflight"
 
-	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/shared"
-	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
-	"github.com/evey-project/evey/internal/pkg/tracing"
-	"github.com/evey-project/evey/internal/pkg/urlvalidator"
+	domainmeta "github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/urlvalidator"
 )
 
 // artworkResizeTimeout bounds the ffmpeg call for a single poster resize.

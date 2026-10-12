@@ -11,9 +11,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appbackup "github.com/evey-project/evey/internal/app/backup"
-	domainbackup "github.com/evey-project/evey/internal/domain/backup"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	domainbackup "github.com/eveyproject/evey/internal/domain/backup"
 )
 
 // fakeScheduleRepoForHandler is an in-memory ScheduleRepository for handler tests.

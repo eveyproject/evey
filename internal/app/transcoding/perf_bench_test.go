@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // Hot paths of every playback request: `make perf` reports them so a

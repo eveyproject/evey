@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	domainlib "github.com/evey-project/evey/internal/domain/library"
-	domain "github.com/evey-project/evey/internal/domain/metadata"
+	domainlib "github.com/eveyproject/evey/internal/domain/library"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 // recordingLinker records what the repair actually linked, and serves the

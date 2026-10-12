@@ -16,12 +16,12 @@ import (
 	"testing"
 	"time"
 
-	appbackup "github.com/evey-project/evey/internal/app/backup"
-	backupmodel "github.com/evey-project/evey/internal/domain/backup"
-	backupfakes "github.com/evey-project/evey/internal/domain/backup/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	backupmodel "github.com/eveyproject/evey/internal/domain/backup"
+	backupfakes "github.com/eveyproject/evey/internal/domain/backup/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 func newBackupTestMux(t *testing.T, isAdmin bool) (*http.ServeMux, string) {

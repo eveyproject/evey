@@ -1,6 +1,6 @@
 package transcoding
 
-import "github.com/evey-project/evey/internal/domain/transcoding"
+import "github.com/eveyproject/evey/internal/domain/transcoding"
 
 // IsImageSubtitle delegates to the domain's single source of truth (see
 // domain/transcoding.IsImageSubtitle). Kept as a re-export so the many

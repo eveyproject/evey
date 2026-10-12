@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	pluginv1 "github.com/evey-project/evey/gen/plugin/v1"
-	"github.com/evey-project/evey/internal/domain/library"
-	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
+	pluginv1 "github.com/eveyproject/evey/gen/plugin/v1"
+	"github.com/eveyproject/evey/internal/domain/library"
+	plugindomain "github.com/eveyproject/evey/internal/domain/plugin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

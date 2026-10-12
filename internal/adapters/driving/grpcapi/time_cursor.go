@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // timeCursor is the decoded form of an opaque cursor for a time-ordered

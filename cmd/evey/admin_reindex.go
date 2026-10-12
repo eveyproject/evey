@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	"github.com/evey-project/evey/internal/domain/mkv"
+	mkvgoadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // adminReindexNoCue walks a directory tree and rebuilds the seek index (Cues)

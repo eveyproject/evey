@@ -12,12 +12,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/photo"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/scanindex"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/photo"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/scanindex"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type CommandService struct {

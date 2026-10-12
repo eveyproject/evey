@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // MediaComplexityRepo persists per-title classification rows on the

@@ -10,8 +10,8 @@ package httpapi
 // can't silently remove or invert the gate.
 
 import (
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // hdrCapTestCapability returns a software-only EncodeCapability for a weak

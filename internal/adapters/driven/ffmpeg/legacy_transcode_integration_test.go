@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 func itestSkip(t *testing.T) (context.Context, context.CancelFunc) {

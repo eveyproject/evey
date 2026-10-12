@@ -7,16 +7,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainsubtitle "github.com/eveyproject/evey/internal/domain/subtitle"
 )
 
 type fakeSubtitleService struct {

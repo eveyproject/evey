@@ -22,16 +22,16 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 	"log/slog"
 	"net/http"
 	"strings"
 
-	"github.com/evey-project/evey/internal/app/presence"
-	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	"github.com/evey-project/evey/internal/pkg/cmcd"
-	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
-	"github.com/evey-project/evey/internal/pkg/network"
+	"github.com/eveyproject/evey/internal/app/presence"
+	appqoe "github.com/eveyproject/evey/internal/app/qoe"
+	"github.com/eveyproject/evey/internal/pkg/cmcd"
+	eveymetrics "github.com/eveyproject/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/network"
 )
 
 const (

@@ -13,7 +13,7 @@ import (
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // currentLogPath resolves the active log file produced by the rotating writer

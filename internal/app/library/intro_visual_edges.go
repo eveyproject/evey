@@ -8,7 +8,7 @@ import (
 	"math"
 	"sync"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // Visual widening of an audio-confirmed intro. A title sequence keeps its pictures from

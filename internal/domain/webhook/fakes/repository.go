@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/webhook"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/webhook"
 )
 
 var ErrNotFound = shared.ErrNotFound

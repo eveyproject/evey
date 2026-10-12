@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	"github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/domain/plugin/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 func TestGetSecurityDashboard_Empty(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	domainshared "github.com/evey-project/evey/internal/domain/shared"
+	domainshared "github.com/eveyproject/evey/internal/domain/shared"
 )
 
 type countingSettings struct {

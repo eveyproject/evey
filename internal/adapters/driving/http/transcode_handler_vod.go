@@ -14,21 +14,21 @@ import (
 	"strings"
 	"time"
 
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
-	"github.com/evey-project/evey/internal/pkg/metrics"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	appqoe "github.com/eveyproject/evey/internal/app/qoe"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type hlsVODServe struct {

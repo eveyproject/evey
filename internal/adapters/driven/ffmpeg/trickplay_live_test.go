@@ -20,7 +20,7 @@ import (
 	"github.com/gravity-zero/mkvgo/matroska"
 	"github.com/stretchr/testify/require"
 
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
+	mkvgoadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
 )
 
 type liveKeyframes struct {

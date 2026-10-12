@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	appactivity "github.com/evey-project/evey/internal/app/activity"
-	"github.com/evey-project/evey/internal/domain/activity"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appactivity "github.com/eveyproject/evey/internal/app/activity"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // The admin tables page with a total and a keyset cursor; each query service

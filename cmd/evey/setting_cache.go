@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	domainshared "github.com/evey-project/evey/internal/domain/shared"
-	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
+	domainshared "github.com/eveyproject/evey/internal/domain/shared"
+	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
 )
 
 // settingGetter is the one read the cache needs from the server-config store.

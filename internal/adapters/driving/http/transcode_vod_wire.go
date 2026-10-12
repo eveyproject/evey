@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
 )
 
 // MediaSourceResolver implements apptranscoding.SourceResolver on top of

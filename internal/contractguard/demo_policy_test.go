@@ -13,9 +13,9 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"
 
-	_ "github.com/evey-project/evey/gen/evey/v1" // register proto service descriptors
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	"github.com/evey-project/evey/internal/pkg/demo"
+	_ "github.com/eveyproject/evey/gen/evey/v1" // register proto service descriptors
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/eveyproject/evey/internal/pkg/demo"
 )
 
 // Demo-policy guard: on the public demo every visitor is an administrator, so

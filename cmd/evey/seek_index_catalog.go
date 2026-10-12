@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // seekIndexCatalog adapts the library QueryService to the maintenance

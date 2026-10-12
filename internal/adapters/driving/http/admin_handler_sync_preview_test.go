@@ -3,7 +3,7 @@ package httpapi
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // The sync preview is used in a loop - watch a clip, nudge the candidate

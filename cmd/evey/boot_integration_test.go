@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
-	"github.com/evey-project/evey/internal/config"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/eveyproject/evey/internal/config"
 )
 
 // TestBuildServices_Boot is the composition-root smoke test: it wires the FULL

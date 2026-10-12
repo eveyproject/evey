@@ -3,7 +3,7 @@ package transcoding_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 func TestHWAccelTypeConstants(t *testing.T) {

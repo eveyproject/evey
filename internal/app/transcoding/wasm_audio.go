@@ -3,7 +3,7 @@ package transcoding
 import (
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // The wasm-audio path serves the AC-3/E-AC-3 track untouched as an out-of-band

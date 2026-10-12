@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	appqoe "github.com/eveyproject/evey/internal/app/qoe"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 type recordingQoESink struct{ events []appqoe.Event }

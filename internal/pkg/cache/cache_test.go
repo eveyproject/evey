@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/pkg/cache"
 )
 
 func TestGetMiss(t *testing.T) {

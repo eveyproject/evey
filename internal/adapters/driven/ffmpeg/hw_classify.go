@@ -8,7 +8,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // ClassifyHWFailure maps an ffmpeg exit error + the tail of its stderr to a

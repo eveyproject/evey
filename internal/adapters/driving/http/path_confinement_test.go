@@ -12,13 +12,13 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 
-	appphoto "github.com/evey-project/evey/internal/app/photo"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/photo"
-	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	appphoto "github.com/eveyproject/evey/internal/app/photo"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/photo"
+	photofakes "github.com/eveyproject/evey/internal/domain/photo/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 // A row pointing outside every library root is refused before its file is

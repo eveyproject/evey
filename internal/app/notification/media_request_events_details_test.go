@@ -8,13 +8,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	appnotification "github.com/evey-project/evey/internal/app/notification"
-	"github.com/evey-project/evey/internal/domain/mediarequest"
-	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	"github.com/evey-project/evey/internal/domain/user"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	appnotification "github.com/eveyproject/evey/internal/app/notification"
+	"github.com/eveyproject/evey/internal/domain/mediarequest"
+	notiffakes "github.com/eveyproject/evey/internal/domain/notification/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/user"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 )
 
 // Seen on 2026-10-07 in a French UI: "New media request: Some Movie" over

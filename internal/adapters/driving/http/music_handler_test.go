@@ -13,15 +13,15 @@ import (
 	"testing"
 	"time"
 
-	appmusic "github.com/evey-project/evey/internal/app/music"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainmusic "github.com/evey-project/evey/internal/domain/music"
-	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appmusic "github.com/eveyproject/evey/internal/app/music"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainmusic "github.com/eveyproject/evey/internal/domain/music"
+	musicfakes "github.com/eveyproject/evey/internal/domain/music/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 func TestIsWithinDir_Inside(t *testing.T) {

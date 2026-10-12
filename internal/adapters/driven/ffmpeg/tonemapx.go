@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 var (

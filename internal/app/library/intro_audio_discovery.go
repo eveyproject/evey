@@ -6,7 +6,7 @@ import (
 	"math/bits"
 	"sort"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // Audio-primary intro DISCOVERY (as opposed to confirmation).

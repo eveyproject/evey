@@ -3,7 +3,7 @@ package titlematch_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/titlematch"
+	"github.com/eveyproject/evey/internal/pkg/titlematch"
 )
 
 func TestEquivalent(t *testing.T) {

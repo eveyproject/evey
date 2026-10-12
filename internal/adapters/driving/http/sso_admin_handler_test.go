@@ -14,14 +14,14 @@ import (
 	"testing"
 	"time"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 type fakeLibLookup struct{}

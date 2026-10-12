@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 // PermissionDiff holds the symmetric difference between two permission sets.

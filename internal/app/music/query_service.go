@@ -7,9 +7,9 @@ import (
 	"os"
 
 	"github.com/dhowden/tag"
-	"github.com/evey-project/evey/internal/domain/music"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type QueryService struct {

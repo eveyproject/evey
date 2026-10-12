@@ -12,8 +12,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
-	"github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type MetadataOverrideRepository struct {

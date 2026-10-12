@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"time"
 
-	domain "github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"golang.org/x/time/rate"
 )
 
@@ -19,7 +19,7 @@ const musicbrainzBaseURL = "https://musicbrainz.org/ws/2"
 
 // musicbrainzUserAgent identifies Evey to the API - MusicBrainz rejects
 // requests without an explicit User-Agent.
-const musicbrainzUserAgent = "Evey/1.0 (https://github.com/evey-project/evey)"
+const musicbrainzUserAgent = "Evey/1.0 (https://github.com/eveyproject/evey)"
 
 // MusicBrainzProvider looks up music release groups. It only handles
 // mediaType "music"; other types short-circuit to (nil, nil) so it can sit

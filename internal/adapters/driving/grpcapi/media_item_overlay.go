@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/domain/library"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 )
 
 // mediaItemTranslationSource is the slice of the library query service the

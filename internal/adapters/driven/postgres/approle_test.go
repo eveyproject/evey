@@ -11,8 +11,8 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
 )
 
 // superuserServer starts a throwaway Postgres whose configured login is the

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 type fakeRegistry struct {

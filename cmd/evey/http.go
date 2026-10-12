@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"github.com/evey-project/evey/internal/pkg/demo"
+	"github.com/eveyproject/evey/internal/pkg/demo"
 
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 
 	"log/slog"
 	"net/http"
@@ -13,23 +13,23 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/adapters/driven/ffmpeg"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 
-	"github.com/evey-project/evey/internal/adapters/driven/ociregistry"
-	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
-	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
-	appcast "github.com/evey-project/evey/internal/app/chromecast"
-	appdlna "github.com/evey-project/evey/internal/app/dlna"
-	appplayback "github.com/evey-project/evey/internal/app/playback"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/app/updatecheck"
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/domain/shared"
-	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
-	"github.com/evey-project/evey/internal/pkg/network"
-	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/adapters/driven/ociregistry"
+	"github.com/eveyproject/evey/internal/adapters/driven/pluginrunner"
+	httpapi "github.com/eveyproject/evey/internal/adapters/driving/http"
+	appcast "github.com/eveyproject/evey/internal/app/chromecast"
+	appdlna "github.com/eveyproject/evey/internal/app/dlna"
+	appplayback "github.com/eveyproject/evey/internal/app/playback"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/app/updatecheck"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	eveymetrics "github.com/eveyproject/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/network"
+	"github.com/eveyproject/evey/internal/pkg/quickconnecthub"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // quickConnectPollPerMinute bounds the Quick Connect status poll per client

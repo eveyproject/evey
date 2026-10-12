@@ -3,19 +3,19 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appactivity "github.com/evey-project/evey/internal/app/activity"
-	appmetadata "github.com/evey-project/evey/internal/app/metadata"
-	"github.com/evey-project/evey/internal/domain/activity"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/runtimedetect"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appactivity "github.com/eveyproject/evey/internal/app/activity"
+	appmetadata "github.com/eveyproject/evey/internal/app/metadata"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/runtimedetect"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type adminHandler struct {

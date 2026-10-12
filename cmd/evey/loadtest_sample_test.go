@@ -6,8 +6,8 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // fakeLibrary answers keyset pages over ids "a".."j" the way the repository

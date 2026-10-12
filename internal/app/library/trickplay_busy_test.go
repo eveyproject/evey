@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 type busyStreams struct{ n atomic.Int32 }

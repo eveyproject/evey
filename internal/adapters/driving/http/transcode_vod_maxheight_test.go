@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // ?maxHeight= is what the mobile/TV quality menu and the cast receiver's

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/domain/shared"
+	domainplugin "github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 const lastErrorCacheSize = 50

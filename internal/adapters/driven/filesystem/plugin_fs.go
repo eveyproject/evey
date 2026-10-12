@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/evey-project/evey/internal/pkg/safefs"
+	"github.com/eveyproject/evey/internal/pkg/safefs"
 )
 
 // Vars, not consts, so tests can point them at a temp SDK and their own uid.

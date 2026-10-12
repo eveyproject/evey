@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
 )
 
 // assertCoveragePending checks a system-health count against its worker's own

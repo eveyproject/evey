@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 )
 

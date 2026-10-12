@@ -10,10 +10,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/pkg/demo"
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/pkg/demo"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // DemoInterceptor refuses, on a demo instance, every RPC the demo policy

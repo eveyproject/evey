@@ -3,7 +3,7 @@ package playlist
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // SmartPlaylistQuerier resolves a smart playlist Spec to a sorted, limited

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // A sparse "film": the size drives the estimate, and the bytes are never read

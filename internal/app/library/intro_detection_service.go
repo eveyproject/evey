@@ -13,12 +13,12 @@ import (
 
 	"github.com/google/uuid"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
-	"github.com/evey-project/evey/internal/pkg/cpubudget"
-	"github.com/evey-project/evey/internal/pkg/procfork"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/cpubudget"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // IntroDetector is the port for the FFmpeg intro-detection adapter.

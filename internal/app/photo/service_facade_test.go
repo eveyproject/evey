@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	appphoto "github.com/evey-project/evey/internal/app/photo"
-	domainphoto "github.com/evey-project/evey/internal/domain/photo"
-	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appphoto "github.com/eveyproject/evey/internal/app/photo"
+	domainphoto "github.com/eveyproject/evey/internal/domain/photo"
+	photofakes "github.com/eveyproject/evey/internal/domain/photo/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

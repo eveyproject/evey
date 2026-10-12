@@ -40,7 +40,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	"github.com/gravity-zero/mkvgo/matroska"
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/subtitle"

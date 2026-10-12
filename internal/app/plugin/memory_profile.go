@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 // KeyMemoryProfile is the server_config row selecting the memory profile.

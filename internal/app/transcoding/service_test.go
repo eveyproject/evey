@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	apptranscode "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	tcfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
+	apptranscode "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	tcfakes "github.com/eveyproject/evey/internal/domain/transcoding/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

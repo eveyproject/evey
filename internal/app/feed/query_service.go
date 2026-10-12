@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/feed"
-	"github.com/evey-project/evey/internal/domain/notification"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/feed"
+	"github.com/eveyproject/evey/internal/domain/notification"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type QueryService struct {

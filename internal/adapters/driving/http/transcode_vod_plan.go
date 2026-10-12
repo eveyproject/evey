@@ -16,14 +16,14 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 	"log/slog"
 	"net/http"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/network"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/network"
 )
 
 // requestPlan is the resolved plan: the app-layer PlaybackPlan plus the

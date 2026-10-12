@@ -3,7 +3,7 @@ package user_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 func TestEventNames(t *testing.T) {

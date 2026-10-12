@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/activity"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 var ErrNotFound = shared.ErrNotFound

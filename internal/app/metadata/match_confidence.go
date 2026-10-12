@@ -3,7 +3,7 @@ package metadata
 import (
 	"strings"
 
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 // Guard against a provider result that names a different work than the file.

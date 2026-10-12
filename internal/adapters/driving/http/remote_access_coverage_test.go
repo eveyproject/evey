@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // --- shared helpers ---

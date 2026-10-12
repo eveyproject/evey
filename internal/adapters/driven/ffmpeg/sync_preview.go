@@ -29,10 +29,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // previewWidth keeps a clip a couple of megabytes: enough to read lips, cheap

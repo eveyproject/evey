@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/eveyproject/evey/internal/domain/feed"
 )
 
 func TestExpandGenreFamilies_SeriesAndFilmGenresMeet(t *testing.T) {

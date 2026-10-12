@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	appphoto "github.com/evey-project/evey/internal/app/photo"
-	"github.com/evey-project/evey/internal/domain/photo"
-	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appphoto "github.com/eveyproject/evey/internal/app/photo"
+	"github.com/eveyproject/evey/internal/domain/photo"
+	photofakes "github.com/eveyproject/evey/internal/domain/photo/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // TestPhoto_KillMutant_SearchLimitBoundary kills CONDITIONALS_BOUNDARY at

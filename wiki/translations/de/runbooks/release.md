@@ -1,5 +1,5 @@
 ---
-source_sha: 9799389e468bf0c2405a7ba1c26d00d34208a504484cbe7402b43359c20b1080
+source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 ---
 
 # Runbook für Veröffentlichungen
@@ -13,7 +13,7 @@ damit die erste einem festgelegten Ablauf folgt, statt ihn zu erfinden.
 `.github/workflows/ci.yml` baut und veröffentlicht Images bei jedem Push und bei
 jedem `v*.*.*`-Tag, in drei Varianten der Plugin-Laufzeiten (`` (schlank),
 `-nodejs`, `-full`), nach `docker.io/eveyproject/evey` und
-`ghcr.io/evey-project/evey`:
+`ghcr.io/eveyproject/evey`:
 
 | Sie pushen | Veröffentlichte Image-Tags (jeweils auch `-nodejs` / `-full`) |
 |---|---|

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
 )
 
 // The seek-index admin screens render a PROGNOSIS of what a repair will

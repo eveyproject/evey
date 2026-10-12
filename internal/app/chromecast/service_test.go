@@ -10,8 +10,8 @@ import (
 
 	"github.com/vishen/go-chromecast/dns"
 
-	domaincast "github.com/evey-project/evey/internal/domain/chromecast"
-	castfakes "github.com/evey-project/evey/internal/domain/chromecast/fakes"
+	domaincast "github.com/eveyproject/evey/internal/domain/chromecast"
+	castfakes "github.com/eveyproject/evey/internal/domain/chromecast/fakes"
 )
 
 func newTestSvc(devices ...domaincast.Device) (*Service, *castfakes.FakeDiscoverer, *castfakes.FakeSessionFactory) {

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/music"
-	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/music"
+	musicfakes "github.com/eveyproject/evey/internal/domain/music/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // The music index mirrors the media one: writes are best-effort on the

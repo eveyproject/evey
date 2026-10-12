@@ -14,11 +14,11 @@ import (
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // syncPreviewMaxBytes caps what this route will send. A 45 s clip at 854px

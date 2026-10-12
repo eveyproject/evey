@@ -15,10 +15,10 @@ import (
 	"syscall"
 	"time"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 

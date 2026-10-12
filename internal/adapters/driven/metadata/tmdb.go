@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"time"
 
-	domain "github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/pkg/cache"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type TMDBProvider struct {

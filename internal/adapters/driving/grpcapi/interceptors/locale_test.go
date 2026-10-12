@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	"github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

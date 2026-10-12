@@ -9,12 +9,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	appplaylist "github.com/evey-project/evey/internal/app/playlist"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/playlist"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appplaylist "github.com/eveyproject/evey/internal/app/playlist"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/playlist"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // --- stubs for generatePlaylist tests ---

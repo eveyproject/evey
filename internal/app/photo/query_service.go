@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/evey-project/evey/internal/domain/photo"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/photo"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type QueryService struct {

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/id"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/id"
 )
 
 type QuickConnectStatus string

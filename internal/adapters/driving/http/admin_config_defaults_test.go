@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 // The panel reads the real defaults (admins only): the configured language,

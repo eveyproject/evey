@@ -9,11 +9,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
-	"github.com/evey-project/evey/internal/domain/mediarequest"
-	"github.com/evey-project/evey/internal/domain/metadata"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appmediarequest "github.com/eveyproject/evey/internal/app/mediarequest"
+	"github.com/eveyproject/evey/internal/domain/mediarequest"
+	"github.com/eveyproject/evey/internal/domain/metadata"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // cannedProvider answers every search with the same results and records the

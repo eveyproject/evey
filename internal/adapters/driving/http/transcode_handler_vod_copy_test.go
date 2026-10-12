@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 // copyEligibleStreams is one H.264 High@L4.0 8-bit video stream - the source a

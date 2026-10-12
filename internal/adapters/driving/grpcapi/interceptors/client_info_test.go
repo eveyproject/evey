@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

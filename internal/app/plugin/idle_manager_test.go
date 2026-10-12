@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/domain/plugin/fakes"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

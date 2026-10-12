@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 // Child is one forked process still running, with what it costs right now.

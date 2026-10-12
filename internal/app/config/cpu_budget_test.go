@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/shared/fakes"
-	"github.com/evey-project/evey/internal/pkg/cpubudget"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/pkg/cpubudget"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

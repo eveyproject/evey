@@ -40,19 +40,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/sync/singleflight"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/reduceddl"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/reduceddl"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // reducedJobFormat versions the on-disk job layout. Bump it when the produced

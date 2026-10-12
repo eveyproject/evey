@@ -3,7 +3,7 @@ package music
 import (
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 type TrackScanned struct {

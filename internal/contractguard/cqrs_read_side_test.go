@@ -135,7 +135,7 @@ func TestQueryServicesDoNotWrite(t *testing.T) {
 // type of the same name is a concrete adapter, not this port.
 func TestMediaItemRepositoryStaysGone(t *testing.T) {
 	t.Parallel()
-	const libImport = "github.com/evey-project/evey/internal/domain/library"
+	const libImport = "github.com/eveyproject/evey/internal/domain/library"
 	fset := token.NewFileSet()
 	var violations []string
 	scanned := 0

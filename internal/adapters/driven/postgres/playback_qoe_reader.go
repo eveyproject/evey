@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // PlaybackQoEReader serves the admin dashboard. Reads are append-only on a

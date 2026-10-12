@@ -14,7 +14,7 @@ Evey is a self-hosted personal media server. Only the latest version receives se
 **Do not open a public issue for security vulnerabilities.**
 
 Report via:
-- **GitHub Private Advisory**: https://github.com/evey-project/evey/security/advisories/new
+- **GitHub Private Advisory**: https://github.com/eveyproject/evey/security/advisories/new
 - **Email**: security@eveyproject.org
 
 Include: description, reproduction steps, impact assessment, and any suggested fix.

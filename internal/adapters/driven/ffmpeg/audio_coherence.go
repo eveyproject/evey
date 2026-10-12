@@ -29,7 +29,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 const (

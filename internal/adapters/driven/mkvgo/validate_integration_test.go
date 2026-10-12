@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	"github.com/evey-project/evey/internal/domain/mkv"
+	mkvgoadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 func TestValidateStreamingIntegration(t *testing.T) {

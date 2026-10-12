@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
 )
 
 // A fork started under a task-tagged context shows up in Children with that

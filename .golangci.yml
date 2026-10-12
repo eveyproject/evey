@@ -86,7 +86,7 @@ linters:
       # (or an //exhaustruct:enforce directive) names it.
       explicit-mode: true
       enforce-patterns:
-        - 'github.com/evey-project/evey/internal/adapters/driving/http\..*Handler$'
+        - 'github.com/eveyproject/evey/internal/adapters/driving/http\..*Handler$'
     forbidigo:
       forbid:
         # A postgres repo calling its *sql.DB handle directly (r.db.ExecContext,
@@ -111,9 +111,9 @@ linters:
         - (*os.File).Close
         - (io.Closer).Close
         - (net.Conn).Close
-        - (*github.com/evey-project/evey/internal/adapters/driven/pluginrunner.pluginLogWriter).Close
+        - (*github.com/eveyproject/evey/internal/adapters/driven/pluginrunner.pluginLogWriter).Close
         # startup best-effort initialization
-        - (*github.com/evey-project/evey/internal/app/feed.CommandService).EnsureLibraryFeedConfig
+        - (*github.com/eveyproject/evey/internal/app/feed.CommandService).EnsureLibraryFeedConfig
         - (net/http.Response.Body).Close
         - (*database/sql.DB).Close
         - (*database/sql.Tx).Rollback

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/subtitle"
+	"github.com/eveyproject/evey/internal/domain/subtitle"
 )
 
 type FakeProvider struct {

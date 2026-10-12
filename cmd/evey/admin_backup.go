@@ -6,11 +6,11 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
-	appbackup "github.com/evey-project/evey/internal/app/backup"
-	"github.com/evey-project/evey/internal/config"
+	"github.com/eveyproject/evey/internal/adapters/driven/filesystem"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	httpapi "github.com/eveyproject/evey/internal/adapters/driving/http"
+	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	"github.com/eveyproject/evey/internal/config"
 )
 
 // adminBackup creates a database backup from the CLI - the same artifact the

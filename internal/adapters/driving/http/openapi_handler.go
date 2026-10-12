@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	authpkg "github.com/evey-project/evey/internal/pkg/auth"
+	authpkg "github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 // publicOpenAPIDirs are the candidate locations of the buf-generated OpenAPI v2

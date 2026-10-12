@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	appplayback "github.com/evey-project/evey/internal/app/playback"
-	"github.com/evey-project/evey/internal/domain/playback"
-	pbfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	appplayback "github.com/eveyproject/evey/internal/app/playback"
+	"github.com/eveyproject/evey/internal/domain/playback"
+	pbfakes "github.com/eveyproject/evey/internal/domain/playback/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

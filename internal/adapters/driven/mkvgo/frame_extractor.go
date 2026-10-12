@@ -5,7 +5,7 @@ import (
 
 	"github.com/gravity-zero/mkvgo/matroska"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // frame_extractor.go - the mkvgo keyframe fast path for thumbnails/snapshots.

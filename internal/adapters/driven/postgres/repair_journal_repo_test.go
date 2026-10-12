@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/domain/activity"
 )
 
 // The repair journal is the only way back after a rewrite: an entry must

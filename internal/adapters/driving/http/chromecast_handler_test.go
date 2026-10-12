@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	appcast "github.com/evey-project/evey/internal/app/chromecast"
+	appcast "github.com/eveyproject/evey/internal/app/chromecast"
 )
 
 // fakeCastClient is a test double for castClient.

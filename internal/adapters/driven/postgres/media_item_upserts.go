@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // RefreshFileState re-stamps ONLY the change-detection columns (file_size,

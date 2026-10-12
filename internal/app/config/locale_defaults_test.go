@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // The defaults shown in the panel are the ones the server applies: the

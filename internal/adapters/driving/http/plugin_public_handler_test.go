@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	pluginfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	domainplugin "github.com/eveyproject/evey/internal/domain/plugin"
+	pluginfakes "github.com/eveyproject/evey/internal/domain/plugin/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 // newPluginPublicTestMux sets up mux, admin token and user token for public plugin route tests.

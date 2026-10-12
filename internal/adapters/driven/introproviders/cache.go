@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // CacheRepo is the read/write port for the postgres-backed cache. The

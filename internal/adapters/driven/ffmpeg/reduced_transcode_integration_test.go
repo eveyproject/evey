@@ -29,8 +29,8 @@ import (
 
 	mkvops "github.com/gravity-zero/mkvgo/mkv/ops"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/reduceddl"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/reduceddl"
 )
 
 func TestReducedSlicesIntegration(t *testing.T) {

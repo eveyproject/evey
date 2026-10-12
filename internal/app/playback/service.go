@@ -1,9 +1,9 @@
 package playback
 
 import (
-	"github.com/evey-project/evey/internal/domain/playback"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/playback"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 // Service bundles the playback CommandService and QueryService so wiring stays

@@ -23,9 +23,9 @@ import (
 
 	"github.com/google/uuid"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/domain/activity"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // RepairAuditAction is the audit_log action every media rewrite carries. One

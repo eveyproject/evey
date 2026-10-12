@@ -3,7 +3,7 @@ package feed_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/eveyproject/evey/internal/domain/feed"
 )
 
 func TestFeedEventNames(t *testing.T) {

@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	appqoe "github.com/eveyproject/evey/internal/app/qoe"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 // fakeQoEDashboardSvc implements qoeDashboardProvider for tests.

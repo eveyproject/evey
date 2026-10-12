@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 func TestPasswordResetEmailer_Register(t *testing.T) {

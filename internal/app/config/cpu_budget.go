@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/cpubudget"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/cpubudget"
 )
 
 // The background CPU budget the admin sets under Server settings. The global

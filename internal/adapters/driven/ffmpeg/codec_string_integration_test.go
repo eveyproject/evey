@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // initCodecString is the RFC 6381 codecs value of the video sample entry in

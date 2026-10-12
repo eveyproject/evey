@@ -8,12 +8,12 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appactivity "github.com/evey-project/evey/internal/app/activity"
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/domain/activity"
-	activityfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appactivity "github.com/eveyproject/evey/internal/app/activity"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	activityfakes "github.com/eveyproject/evey/internal/domain/activity/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // Repairs rewrite media bytes and delete their only way back: the admin audit

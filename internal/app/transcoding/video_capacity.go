@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // MaxVideoSessionsConfigKey is the server_config key an admin uses to REDUCE

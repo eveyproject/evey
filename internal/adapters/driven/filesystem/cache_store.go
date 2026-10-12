@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // cacheInfoTTL bounds how stale the admin cache page may be. GetCacheInfo

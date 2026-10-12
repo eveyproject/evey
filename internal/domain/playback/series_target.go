@@ -3,7 +3,7 @@ package playback
 import (
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // SeriesEpisode is one episode of a series, in viewing order, with the

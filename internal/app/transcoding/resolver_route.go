@@ -12,9 +12,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // resolveRoute is the one derivation of the route: the effective codec and

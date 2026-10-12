@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // ErrDASHUnavailable is what MPD returns for a presentation whose timeline

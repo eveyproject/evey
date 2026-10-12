@@ -21,8 +21,8 @@ import (
 	"strconv"
 	"strings"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 const (

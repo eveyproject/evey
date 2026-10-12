@@ -1,5 +1,5 @@
 ---
-source_sha: a20ccaa391b89b92446e57eeaeeb717cf000938ddc861683cedff5803f6715fd
+source_sha: 2e3ff20895f1c270b8850bb90fe01d2ae9e29cd86d2af35333b1b7912ab888a7
 reviewed: true
 hide:
 - navigation
@@ -160,7 +160,7 @@ Evey 是一个在您家中运行的媒体服务器。它存放您的电影、剧
 
 <p class="evey-meta">
 本文档跟随开发分支更新。 ·
-<a href="https://github.com/Evey-project/evey">GitHub 上的源代码</a> ·
+<a href="https://github.com/eveyproject/evey">GitHub 上的源代码</a> ·
 安全问题报告：security@eveyproject.org ·
 <a href="privacy/">隐私政策</a>
 </p>

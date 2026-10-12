@@ -7,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	"github.com/evey-project/evey/internal/domain/mkv"
+	mkvgoadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // adminValidateStreaming walks a directory tree and reports each EBML file's

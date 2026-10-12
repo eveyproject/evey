@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/mkv"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	"github.com/eveyproject/evey/internal/domain/mkv"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // --- local fakes: IngestPlanner / mkv.Reindexer ---

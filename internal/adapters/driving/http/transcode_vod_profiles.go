@@ -6,9 +6,9 @@ package httpapi
 // transcode_vod_plan.go): the adapter derives none of them on its own.
 
 import (
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // audioRenditionsFor reports whether THIS request serves its audio as a separate

@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // mapContainer converts a mkvgo *Container into a library.ProbeResult that is

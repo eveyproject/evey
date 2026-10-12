@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/domain/playback"
-	"github.com/evey-project/evey/internal/domain/shared"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/domain/playback"
+	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

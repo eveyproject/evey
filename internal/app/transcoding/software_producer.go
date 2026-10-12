@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // SoftwareProducer is the software-transcode StreamProducer: per DecisionHash

@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // stubBitrateSetter records the arguments SetUserBitrateLimit was called with

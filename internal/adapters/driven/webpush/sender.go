@@ -9,8 +9,8 @@ import (
 	"time"
 
 	wp "github.com/SherClockHolmes/webpush-go"
-	"github.com/evey-project/evey/internal/domain/notification"
-	"github.com/evey-project/evey/internal/pkg/ssrf"
+	"github.com/eveyproject/evey/internal/domain/notification"
+	"github.com/eveyproject/evey/internal/pkg/ssrf"
 )
 
 type Sender struct {

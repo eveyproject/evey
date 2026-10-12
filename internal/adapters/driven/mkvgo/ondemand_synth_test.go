@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

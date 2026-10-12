@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	mkvgoadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 func TestPlayability_UnsupportedContainerIsEmpty(t *testing.T) {

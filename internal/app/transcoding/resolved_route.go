@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // resolved_route.go - the ONE derivation of the route (ADR-0030). Resolve

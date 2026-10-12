@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // A non-EBML file (wrong extension / not Matroska) must be reported as having

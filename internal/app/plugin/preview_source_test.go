@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
+	plugindomain "github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 // Installing from a URL used to skip the preview: the admin saw the manifest

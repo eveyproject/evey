@@ -3,7 +3,7 @@ package fakes
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // FakeCollectionRepository combines command and query behaviour for tests that need both.

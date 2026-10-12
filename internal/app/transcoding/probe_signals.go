@@ -3,7 +3,7 @@ package transcoding
 import (
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // probe_signals.go - the runtime signal the read path records for the P3 probe

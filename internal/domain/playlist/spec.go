@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // Candidate is the minimal projection of a media item needed to evaluate

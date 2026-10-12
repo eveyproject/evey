@@ -17,10 +17,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/hdr"
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/hdr"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 // ladder_bench.go - the ladder engine's measuring instrument (plan P1). For

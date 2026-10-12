@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	pluginv1 "github.com/evey-project/evey/gen/plugin/v1"
-	"github.com/evey-project/evey/internal/domain/library"
-	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/domain/shared"
+	pluginv1 "github.com/eveyproject/evey/gen/plugin/v1"
+	"github.com/eveyproject/evey/internal/domain/library"
+	plugindomain "github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/shared"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

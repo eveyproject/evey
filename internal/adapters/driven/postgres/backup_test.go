@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
 )
 
 // TestCurrentSchemaVersion_ConnectionRefused verifies that CurrentSchemaVersion

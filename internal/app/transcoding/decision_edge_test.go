@@ -3,9 +3,9 @@ package transcoding_test
 import (
 	"testing"
 
-	apptranscode "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	apptranscode "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
 )
 

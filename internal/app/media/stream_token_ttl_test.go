@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/app/media"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/app/media"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // Every mint path guards its TTL argument with `if ttl <= 0 { ttl = s.ttl }`.

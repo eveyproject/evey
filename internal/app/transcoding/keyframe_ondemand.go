@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // keyframeOnDemandBudget is how long the NEGOTIATION waits for the probe:

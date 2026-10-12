@@ -8,16 +8,16 @@ import (
 
 	"google.golang.org/grpc"
 
-	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
-	"github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/demo"
-	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
-	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/adapters/driven/ffmpeg"
+	"github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/pkg/demo"
+	eveylogger "github.com/eveyproject/evey/internal/pkg/logger"
+	"github.com/eveyproject/evey/internal/pkg/quickconnecthub"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // selfRestartFn returns a graceful-restart trigger, or nil when nothing would

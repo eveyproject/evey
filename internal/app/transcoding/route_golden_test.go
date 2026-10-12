@@ -11,9 +11,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/adapters/driven/ffmpeg"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // The route golden file pins EVERYTHING a resolution decides about the route

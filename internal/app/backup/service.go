@@ -14,10 +14,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/backup"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/id"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/id"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // ErrInvalidBackup is returned when the uploaded archive is malformed, tampered,

@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	eveylogger "github.com/eveyproject/evey/internal/pkg/logger"
 )
 
 func TestRequestIDMiddlewareGenerates(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // route_evidence.go - the calibration's per-route cost proof. For every route

@@ -14,9 +14,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
-	"github.com/evey-project/evey/internal/pkg/cpubudget"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/cpubudget"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 // ErrMemoryCapExceeded wraps the exit of a process that hit its RLIMIT_AS:

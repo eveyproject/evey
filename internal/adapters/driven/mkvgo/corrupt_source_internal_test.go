@@ -8,7 +8,7 @@ import (
 
 	extmatroska "github.com/gravity-zero/mkvgo/matroska"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // The operator reads a repair's refusal verbatim in the media-health panel, so

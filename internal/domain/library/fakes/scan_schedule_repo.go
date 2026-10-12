@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 type FakeScanScheduleRepository struct {

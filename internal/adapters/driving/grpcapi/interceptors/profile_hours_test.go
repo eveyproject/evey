@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 type stubGate struct {

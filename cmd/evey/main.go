@@ -17,15 +17,15 @@ import (
 	"time"
 	_ "time/tzdata"
 
-	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/config"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
-	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/adapters/driven/pluginrunner"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	httpapi "github.com/eveyproject/evey/internal/adapters/driving/http"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/config"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	eveylogger "github.com/eveyproject/evey/internal/pkg/logger"
+	"github.com/eveyproject/evey/internal/pkg/quickconnecthub"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 func main() {

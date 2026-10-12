@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // makeNoise returns n deterministic pseudo-random fingerprint frames.

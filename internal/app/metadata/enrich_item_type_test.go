@@ -3,7 +3,7 @@ package metadata
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // The single-item enrich subscriber must only queue items that live in

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	appmusic "github.com/evey-project/evey/internal/app/music"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	appmusic "github.com/eveyproject/evey/internal/app/music"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 func heartbeatReq(body string, claims *domainuser.Claims) *http.Request {

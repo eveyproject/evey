@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 // CalibrationService owns the boot-time benchmark + persistence and

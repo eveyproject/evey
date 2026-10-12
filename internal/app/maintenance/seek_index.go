@@ -22,8 +22,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // ErrJobRunning is returned by the Start* entry points when a seek-index job

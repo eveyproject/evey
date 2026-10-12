@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	appfeed "github.com/evey-project/evey/internal/app/feed"
-	"github.com/evey-project/evey/internal/domain/feed"
-	"github.com/evey-project/evey/internal/domain/feed/fakes"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/plugin"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appfeed "github.com/eveyproject/evey/internal/app/feed"
+	"github.com/eveyproject/evey/internal/domain/feed"
+	"github.com/eveyproject/evey/internal/domain/feed/fakes"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

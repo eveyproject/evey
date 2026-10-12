@@ -6,7 +6,7 @@ import (
 	"os"
 	"testing"
 
-	appmusic "github.com/evey-project/evey/internal/app/music"
+	appmusic "github.com/eveyproject/evey/internal/app/music"
 )
 
 type stubSource struct {

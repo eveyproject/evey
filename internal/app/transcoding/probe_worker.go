@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
 )
 
 // probe_worker.go - the P3 per-title probe worker: it decides WHICH titles earn

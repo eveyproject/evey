@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // The admin's zone is validated on write, served live after a change, and a

@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/notification"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/notification"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 type subEntry struct {

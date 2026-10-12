@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // hls_encoders.go groups the codec/encoder resolution helpers shared by the

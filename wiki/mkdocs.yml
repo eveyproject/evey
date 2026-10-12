@@ -15,8 +15,8 @@
 site_name: Evey
 site_description: Self-hosted media server - documentation
 site_url: https://eveyproject.org/
-repo_url: https://github.com/Evey-project/evey
-repo_name: Evey-project/evey
+repo_url: https://github.com/eveyproject/evey
+repo_name: eveyproject/evey
 edit_uri: edit/master/docs/
 copyright: AGPL-3.0-or-later
 
@@ -500,7 +500,7 @@ validation:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/Evey-project
+      link: https://github.com/eveyproject
 
 # ── The manifest ──────────────────────────────────────────────────────────────
 # Paths resolve against wiki/content/ first, then docs/. One tab per kind of

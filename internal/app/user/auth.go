@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/id"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/id"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // auth.go holds the authentication surface: password login, admin

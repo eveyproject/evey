@@ -8,7 +8,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // seek_index_reindex.go holds the Cues-rebuild + "repair all" paths: the

@@ -7,9 +7,9 @@ import (
 
 	ms "github.com/meilisearch/meilisearch-go"
 
-	"github.com/evey-project/evey/internal/domain/music"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 const musicIndexName = "music_tracks"

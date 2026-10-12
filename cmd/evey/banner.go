@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/evey-project/evey/internal/config"
+	"github.com/eveyproject/evey/internal/config"
 )
 
 // ANSI truecolor codes for the boot banner. Brand red is #DC2626 (the wordmark

@@ -15,8 +15,8 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	mkvgoadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 // TestOnDemandSourceReplacedIntegration plays a media through the real mkvgo

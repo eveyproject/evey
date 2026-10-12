@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 type FakeRoleRepository struct {

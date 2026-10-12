@@ -1,8 +1,8 @@
 package grpcapi
 
 import (
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 var hwAccelTypeToProto = map[string]eveyv1.HWAccelType{

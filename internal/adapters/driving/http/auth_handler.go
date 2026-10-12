@@ -17,13 +17,13 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
+	appuser "github.com/eveyproject/evey/internal/app/user"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/metrics"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 const (

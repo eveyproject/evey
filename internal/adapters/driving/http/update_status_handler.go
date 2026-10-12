@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/evey-project/evey/internal/app/updatecheck"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/app/updatecheck"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // UpdateChecker is what the update-status routes read: the last answer, and

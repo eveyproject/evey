@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // The packager declares one segmented-WebVTT rendition per TEXT subtitle

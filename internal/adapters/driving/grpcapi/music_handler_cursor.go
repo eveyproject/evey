@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/evey-project/evey/internal/domain/music"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // trackCursorSortValue is the payload packed into shared.Cursor.SortValue for

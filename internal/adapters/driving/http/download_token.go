@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/evey-project/evey/internal/pkg/metrics"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // The account JWT used to ride in ZIP-download URLs (collections, playlists,

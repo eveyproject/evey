@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/evey-project/evey/internal/domain/music"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // ResilientMusicSearch wraps the Meilisearch music index (primary) with a SQL

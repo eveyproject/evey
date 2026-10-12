@@ -5,8 +5,8 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/playback"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/playback"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 var ErrNotFound = shared.ErrNotFound

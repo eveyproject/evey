@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/evey-project/evey/internal/pkg/demo"
+	"github.com/eveyproject/evey/internal/pkg/demo"
 )
 
 // Assembler runs ffmpeg with args (everything after the binary name). The

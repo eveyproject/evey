@@ -1,5 +1,5 @@
 ---
-source_sha: a20ccaa391b89b92446e57eeaeeb717cf000938ddc861683cedff5803f6715fd
+source_sha: 2e3ff20895f1c270b8850bb90fe01d2ae9e29cd86d2af35333b1b7912ab888a7
 reviewed: true
 hide:
 - navigation
@@ -233,7 +233,7 @@ TV, vous pouvez le voir mais pas vous en servir.
 
 <p class="evey-meta">
 Cette documentation suit la branche de développement. ·
-<a href="https://github.com/Evey-project/evey">Code source sur GitHub</a> ·
+<a href="https://github.com/eveyproject/evey">Code source sur GitHub</a> ·
 Signalements de sécurité : security@eveyproject.org ·
 <a href="privacy/">Règles de confidentialité</a>
 </p>

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	libevent "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/notification"
-	"github.com/evey-project/evey/internal/domain/user"
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	libevent "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/notification"
+	"github.com/eveyproject/evey/internal/domain/user"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 )
 
 const dedupeWindow = 5 * time.Minute

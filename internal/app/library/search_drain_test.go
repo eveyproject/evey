@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // countingItemRepo wraps the fake query repo to record how many times

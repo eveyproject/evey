@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/i18n"
 )
 
 // A translated string interpolates named placeholders: "{{count}} entries".

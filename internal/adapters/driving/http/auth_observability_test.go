@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 // An unreadable token epoch fails EVERY authenticated request in the server at

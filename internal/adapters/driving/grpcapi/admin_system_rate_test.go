@@ -9,7 +9,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
+	appsyncplay "github.com/eveyproject/evey/internal/app/syncplay"
 )
 
 // The dashboard's streaming rate is a difference between two calls: the first

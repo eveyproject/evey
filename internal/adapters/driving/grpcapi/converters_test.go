@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/activity"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/playback"
-	"github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/playback"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/user"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

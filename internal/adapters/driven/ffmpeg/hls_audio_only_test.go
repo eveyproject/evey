@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // The encoder's priming sits before the first real sample. A video-timeline

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

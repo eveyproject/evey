@@ -3,7 +3,7 @@ package music_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/music"
 )
 
 func TestTrack_Validate(t *testing.T) {

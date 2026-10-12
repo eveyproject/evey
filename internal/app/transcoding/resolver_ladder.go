@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // pinKeyFor identifies a stream for the admission shaper. Coarser than the

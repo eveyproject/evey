@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
 
-	domain "github.com/evey-project/evey/internal/domain/metadata"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 func newMusicBrainzTestServer(handler http.HandlerFunc) (*httptest.Server, *MusicBrainzProvider) {

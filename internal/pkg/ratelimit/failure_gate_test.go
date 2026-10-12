@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 func TestFailureGate_ClosesOnThresholdAndReopensAfterCooldown(t *testing.T) {

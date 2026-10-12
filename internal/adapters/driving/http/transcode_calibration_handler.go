@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"go.opentelemetry.io/otel/codes"
 )
 

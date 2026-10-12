@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // SourceDims carries the source video's shape into the pure Profiles()

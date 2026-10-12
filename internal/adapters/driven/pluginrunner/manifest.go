@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
 	"gopkg.in/yaml.v3"
 )
 

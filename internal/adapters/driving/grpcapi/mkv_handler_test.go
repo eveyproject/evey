@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appmkv "github.com/evey-project/evey/internal/app/mkv"
-	"github.com/evey-project/evey/internal/domain/mkv"
-	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appmkv "github.com/eveyproject/evey/internal/app/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
+	mkvfakes "github.com/eveyproject/evey/internal/domain/mkv/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

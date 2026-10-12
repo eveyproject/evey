@@ -1,4 +1,4 @@
-module github.com/evey-project/evey
+module github.com/eveyproject/evey
 
 go 1.27.2
 

@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/evey-project/evey/internal/pkg/demo"
+	"github.com/eveyproject/evey/internal/pkg/demo"
 )
 
 // Matroska element IDs, as they appear in the file (length marker kept).

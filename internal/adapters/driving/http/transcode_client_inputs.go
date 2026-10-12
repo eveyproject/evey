@@ -3,8 +3,8 @@ package httpapi
 import (
 	"net/http"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // bakeClientInputs copies the client's declared capabilities from the request

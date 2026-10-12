@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/reduceddl"
+	"github.com/eveyproject/evey/internal/adapters/driven/ffmpeg"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/reduceddl"
 )
 
 // Every server-side path that folds a multichannel bed to stereo must carry

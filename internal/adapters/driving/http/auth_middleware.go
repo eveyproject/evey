@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/activity"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/metrics"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 type httpClaimsCtxKey struct{}

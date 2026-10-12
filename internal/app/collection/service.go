@@ -3,8 +3,8 @@ package collection
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // SmartQuerier evaluates collection rules against media_items.

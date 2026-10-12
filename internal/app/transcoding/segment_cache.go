@@ -16,8 +16,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 // SegmentKind tags a SegmentKey as belonging to the muxed/video pipeline

@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	backupmodel "github.com/evey-project/evey/internal/domain/backup"
-	"github.com/evey-project/evey/internal/domain/backup/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	backupmodel "github.com/eveyproject/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/domain/backup/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // deleteFailStore wraps FakeBackupStore to fail only on Delete

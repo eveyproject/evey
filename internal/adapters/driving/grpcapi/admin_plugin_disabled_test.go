@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

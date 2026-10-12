@@ -217,7 +217,7 @@ the TV; on the TV you can see it but not use it.
 
 <p class="evey-meta">
 This documentation follows the development branch. ·
-<a href="https://github.com/Evey-project/evey">Source on GitHub</a> ·
+<a href="https://github.com/eveyproject/evey">Source on GitHub</a> ·
 Security reports: security@eveyproject.org ·
 <a href="privacy/">Privacy policy</a>
 </p>

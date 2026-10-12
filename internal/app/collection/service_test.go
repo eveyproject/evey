@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	appcol "github.com/evey-project/evey/internal/app/collection"
-	"github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	appcol "github.com/eveyproject/evey/internal/app/collection"
+	"github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/evey-project/evey/internal/pkg/demo"
-	"github.com/evey-project/evey/internal/pkg/i18n"
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/demo"
+	"github.com/eveyproject/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // DemoLockMiddleware refuses, on a demo instance, every HTTP route the demo

@@ -7,11 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 )
 
 // Verifies: an admin caller must never be subject to a parental filter,

@@ -17,10 +17,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // hwProbeTimeout bounds the real-encode capability probe. A working HW encoder

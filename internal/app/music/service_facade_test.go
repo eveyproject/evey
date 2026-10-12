@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	appmusic "github.com/evey-project/evey/internal/app/music"
-	"github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/music"
-	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appmusic "github.com/eveyproject/evey/internal/app/music"
+	"github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	"github.com/eveyproject/evey/internal/domain/music"
+	musicfakes "github.com/eveyproject/evey/internal/domain/music/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

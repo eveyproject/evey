@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

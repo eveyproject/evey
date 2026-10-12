@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	appplayback "github.com/evey-project/evey/internal/app/playback"
-	playbackfakes "github.com/evey-project/evey/internal/domain/playback/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	appplayback "github.com/eveyproject/evey/internal/app/playback"
+	playbackfakes "github.com/eveyproject/evey/internal/domain/playback/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/domain/backup"
 )
 
 type BackupStore struct {

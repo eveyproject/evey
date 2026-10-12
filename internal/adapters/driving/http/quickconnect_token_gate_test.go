@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/config"
-	domainshared "github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	ufakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/config"
+	domainshared "github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	ufakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

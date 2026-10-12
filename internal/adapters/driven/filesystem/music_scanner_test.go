@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/music"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

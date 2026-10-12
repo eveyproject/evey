@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // fakeCalibrationSvc satisfies the calibrationSvc interface for tests.

@@ -4,7 +4,7 @@ package evey.v1;
 
 import "google/api/annotations.proto";
 
-option go_package = "github.com/evey-project/evey/gen/evey/v1;eveyv1";
+option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
 // PluginUserDataService is the iframe-facing surface for a plugin to read and
 // write the CURRENT user's preferences in the plugin's own namespace. The

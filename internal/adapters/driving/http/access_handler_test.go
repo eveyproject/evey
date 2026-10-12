@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 func setupRemoteAccessMux(t *testing.T) (*http.ServeMux, string, string) {

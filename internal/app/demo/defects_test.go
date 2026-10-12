@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/pkg/demo"
+	"github.com/eveyproject/evey/internal/pkg/demo"
 )
 
 // tinyMatroska is an EBML header and a Segment holding an Info, a Cues and a

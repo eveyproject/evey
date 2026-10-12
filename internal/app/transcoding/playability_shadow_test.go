@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // fakePlayabilityAnalyzer records every call and returns a queued report/err

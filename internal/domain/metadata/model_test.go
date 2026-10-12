@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 func TestArtworkTypeConstants(t *testing.T) {

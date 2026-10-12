@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/titlematch"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/titlematch"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"golang.org/x/time/rate"
 )
 
@@ -36,7 +36,7 @@ const (
 
 	// MusicBrainz demande explicitement un User-Agent identifiable et refuse les
 	// requêtes anonymes.
-	userAgent = "Evey/1.0 ( https://github.com/evey-project/evey )"
+	userAgent = "Evey/1.0 ( https://github.com/eveyproject/evey )"
 
 	defaultTimeout = 15 * time.Second
 

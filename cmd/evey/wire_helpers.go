@@ -10,18 +10,18 @@ import (
 
 	"github.com/gravity-zero/mkvgo/matroska"
 
-	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
-	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
-	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	"github.com/eveyproject/evey/internal/adapters/driven/ffmpeg"
+	"github.com/eveyproject/evey/internal/adapters/driven/filesystem"
+	mkvgoadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	webpushadapter "github.com/eveyproject/evey/internal/adapters/driven/webpush"
+	httpapi "github.com/eveyproject/evey/internal/adapters/driving/http"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	eveylogger "github.com/eveyproject/evey/internal/pkg/logger"
 )
 
 // wire_helpers.go holds wiring helpers: config/API-key/VAPID resolution (DB

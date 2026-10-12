@@ -6,8 +6,8 @@ import (
 
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // Playability implements apptranscoding.PlayabilityAnalyzer: mkvgo v0.17.0's

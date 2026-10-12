@@ -13,11 +13,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/evey-project/evey/internal/domain/mediarequest"
-	"github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/id"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/mediarequest"
+	"github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/id"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // Candidate is a title the requester can pick, resolved from a metadata provider.

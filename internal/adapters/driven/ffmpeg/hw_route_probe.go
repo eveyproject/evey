@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 // hw_route_probe.go - the route probes: every GPU shape the production builder

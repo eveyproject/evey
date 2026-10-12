@@ -20,11 +20,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/hdr"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/hdr"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 // BenchmarkRunner measures the host's realtime encode ceiling for both

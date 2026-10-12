@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // The QoE feedback caps: one row per source class, rewritten in place, an

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/stretchr/testify/require"
 )
 

@@ -17,7 +17,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/evey-project/evey/internal/pkg/cmcd"
+	"github.com/eveyproject/evey/internal/pkg/cmcd"
 )
 
 // EventSink is the boundary the HTTP handler talks to. Everything the handler

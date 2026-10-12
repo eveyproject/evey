@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // memServerConfigRepo is a state machine, not a mock: the test asserts what

@@ -31,7 +31,7 @@ import (
 	"testing"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 const matroskaSuiteURL = "https://raw.githubusercontent.com/ietf-wg-cellar/matroska-test-files/master/test_files/"

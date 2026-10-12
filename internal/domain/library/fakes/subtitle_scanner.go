@@ -1,6 +1,6 @@
 package fakes
 
-import "github.com/evey-project/evey/internal/domain/library"
+import "github.com/eveyproject/evey/internal/domain/library"
 
 type FakeSubtitleScanner struct {
 	Results map[string][]library.ExternalSubtitle

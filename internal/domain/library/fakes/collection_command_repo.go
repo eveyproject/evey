@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // ErrDuplicateKey mirrors what postgres raises when an upsert lands on an

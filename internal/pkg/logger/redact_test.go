@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/logger"
+	"github.com/eveyproject/evey/internal/pkg/logger"
 )
 
 // A credential that reaches a log call must not reach the file: the file is

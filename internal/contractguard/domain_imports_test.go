@@ -22,9 +22,9 @@ import (
 
 const (
 	domainRoot   = repoRoot + "/internal/domain"
-	domainImport = "github.com/evey-project/evey/internal/domain/"
-	appImport    = "github.com/evey-project/evey/internal/app/"
-	adapterImprt = "github.com/evey-project/evey/internal/adapters/"
+	domainImport = "github.com/eveyproject/evey/internal/domain/"
+	appImport    = "github.com/eveyproject/evey/internal/app/"
+	adapterImprt = "github.com/eveyproject/evey/internal/adapters/"
 )
 
 func TestDomainContextsDoNotImportEachOther(t *testing.T) {

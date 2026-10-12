@@ -3,7 +3,7 @@ package ffmpeg
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // Every HLS session's stderr feeds ClassifyHWFailure; the jellyfin-ffmpeg

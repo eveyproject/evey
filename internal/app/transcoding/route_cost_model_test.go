@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 func rk(backend, enc string, route transcoding.RouteCostClass) transcoding.RouteCostKey {

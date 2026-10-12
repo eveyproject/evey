@@ -6,8 +6,8 @@ import (
 
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // defaultIngestTarget matches ops.IngestOptions' own default ("mse-generic"

@@ -4,7 +4,7 @@ package evey.v1;
 
 import "google/api/annotations.proto";
 
-option go_package = "github.com/evey-project/evey/gen/evey/v1;eveyv1";
+option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
 service LibraryAccessService {
   rpc GetUserLibraryAccess(GetUserLibraryAccessRequest) returns (UserLibraryAccess) {

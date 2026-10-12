@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 type FakeShareLinkRepo struct {

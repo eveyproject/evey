@@ -3,7 +3,7 @@ package i18n_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/i18n"
 )
 
 // Why this exists: when the catalogue fails to load, NewEmpty() is installed

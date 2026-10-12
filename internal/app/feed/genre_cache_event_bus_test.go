@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	appfeed "github.com/evey-project/evey/internal/app/feed"
-	libevent "github.com/evey-project/evey/internal/domain/library"
-	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appfeed "github.com/eveyproject/evey/internal/app/feed"
+	libevent "github.com/eveyproject/evey/internal/domain/library"
+	notiffakes "github.com/eveyproject/evey/internal/domain/notification/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

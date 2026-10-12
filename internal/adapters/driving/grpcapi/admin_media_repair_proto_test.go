@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
 )
 
 // The repair journal entry crosses the wire field by field, every value

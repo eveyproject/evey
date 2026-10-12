@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	pluginv1 "github.com/evey-project/evey/gen/plugin/v1"
-	"github.com/evey-project/evey/internal/pkg/ssrf"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	pluginv1 "github.com/eveyproject/evey/gen/plugin/v1"
+	"github.com/eveyproject/evey/internal/pkg/ssrf"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

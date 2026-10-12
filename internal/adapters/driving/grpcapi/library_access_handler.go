@@ -4,10 +4,10 @@ import (
 	"context"
 	"log/slog"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type libraryAccessHandler struct {

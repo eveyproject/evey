@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/activity"
 )
 
 // The stats query groups by the genre string stored on the fiche, so a library

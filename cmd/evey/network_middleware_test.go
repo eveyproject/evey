@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/network"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/pkg/network"
 )
 
 // The 2026-07-29 lockout: a WAN client was refused on EVERY route, the refusal

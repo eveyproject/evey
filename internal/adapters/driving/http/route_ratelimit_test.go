@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // The subtitle route forks an ffmpeg process per request whenever mkvgo's fast

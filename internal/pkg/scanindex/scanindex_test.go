@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/scanindex"
+	"github.com/eveyproject/evey/internal/pkg/scanindex"
 )
 
 func TestSameMtime_ExactMatch(t *testing.T) {

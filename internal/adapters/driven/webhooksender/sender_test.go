@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/ssrf"
+	"github.com/eveyproject/evey/internal/pkg/ssrf"
 )
 
 // newTestSender returns a sender whose client is a plain http.Client, bypassing

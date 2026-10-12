@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/shared"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainmeta "github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // countingArtworkWriter counts UpdateWebPPath calls with an atomic counter

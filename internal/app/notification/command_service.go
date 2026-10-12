@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	libevent "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/notification"
-	"github.com/evey-project/evey/internal/domain/shared"
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	libevent "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/notification"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // command_service.go holds the notification service type, its wiring

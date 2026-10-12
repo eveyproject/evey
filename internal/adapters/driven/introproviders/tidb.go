@@ -13,14 +13,14 @@ import (
 	"strings"
 	"time"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // tidbUserAgent identifies Evey to the upstream so anonymous traffic is
 // attributable and not lumped in with generic bots - the convention the
 // service's existing clients follow.
-const tidbUserAgent = "Evey/intro-detection (+https://github.com/evey-project/evey)"
+const tidbUserAgent = "Evey/intro-detection (+https://github.com/eveyproject/evey)"
 
 // TIDBClient is an HTTP client for theintrodb.org's `/v3/media` endpoint.
 //

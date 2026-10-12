@@ -1,5 +1,5 @@
 ---
-source_sha: 9799389e468bf0c2405a7ba1c26d00d34208a504484cbe7402b43359c20b1080
+source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 ---
 
 # Guía de publicación de versiones
@@ -13,7 +13,7 @@ un procedimiento en lugar de inventarlo.
 `.github/workflows/ci.yml` construye y publica imágenes en cada push y en cada
 etiqueta `v*.*.*`, en tres variantes del entorno de ejecución de los plugins
 (`` (ligera), `-nodejs`, `-full`), en `docker.io/eveyproject/evey` y
-`ghcr.io/evey-project/evey`:
+`ghcr.io/eveyproject/evey`:
 
 | Lo que haces push | Etiquetas de imagen publicadas (cada una también `-nodejs` / `-full`) |
 |---|---|

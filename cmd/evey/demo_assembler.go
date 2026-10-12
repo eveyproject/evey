@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 // demoAssembler runs the demo's one-off muxes (manifest Build entries) as a

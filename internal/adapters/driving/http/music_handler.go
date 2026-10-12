@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"net/http"
@@ -18,11 +18,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appmusic "github.com/evey-project/evey/internal/app/music"
-	domainmusic "github.com/evey-project/evey/internal/domain/music"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appmusic "github.com/eveyproject/evey/internal/app/music"
+	domainmusic "github.com/eveyproject/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type musicHandler struct {

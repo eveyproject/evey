@@ -9,7 +9,7 @@ import (
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // TestApplyMetadataEdit_Title verifies that a Title mutation updates

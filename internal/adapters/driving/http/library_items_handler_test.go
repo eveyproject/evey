@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 func ptr[T any](v T) *T { return &v }

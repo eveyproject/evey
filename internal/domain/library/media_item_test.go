@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 func TestNewMediaItem_HappyPath(t *testing.T) {

@@ -3,13 +3,13 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 	"time"
 
-	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appqoe "github.com/eveyproject/evey/internal/app/qoe"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // qoeDashboardProvider is the minimal contract the QoE admin endpoint needs.

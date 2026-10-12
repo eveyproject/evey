@@ -12,11 +12,11 @@ import (
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // SMTPTestSender sends the admin's test message with the SMTP settings in force.

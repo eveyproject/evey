@@ -3,8 +3,8 @@ package transcoding_test
 import (
 	"testing"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/library"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // The wasm-audio path hands the browser/receiver the ORIGINAL Dolby track to

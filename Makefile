@@ -810,13 +810,13 @@ wiki:
 
 # Publishes eveyproject.org: builds HEAD in a detached worktree (never the
 # shared working tree, other sessions edit it) and commits the site into the
-# local clone of Evey-project/evey-project.github.io. Pushing that clone stays
+# local clone of eveyproject/eveyproject.github.io. Pushing that clone stays
 # a manual step. The clone holds generated output only, hence the whole-tree add.
-WIKI_PAGES_DIR ?= $(abspath $(CURDIR)/../evey-project.github.io)
+WIKI_PAGES_DIR ?= $(abspath $(CURDIR)/../eveyproject.github.io)
 wiki-publish:
 	@test -d "$(WIKI_PAGES_DIR)/.git" || { echo "❌ no clone at $(WIKI_PAGES_DIR)"; exit 1; }
-	@case "$$(git -C "$(WIKI_PAGES_DIR)" remote get-url origin)" in *Evey-project/evey-project.github.io*) ;; \
-	  *) echo "❌ $(WIKI_PAGES_DIR) is not a clone of Evey-project/evey-project.github.io"; exit 1;; esac
+	@case "$$(git -C "$(WIKI_PAGES_DIR)" remote get-url origin)" in *eveyproject/eveyproject.github.io*) ;; \
+	  *) echo "❌ $(WIKI_PAGES_DIR) is not a clone of eveyproject/eveyproject.github.io"; exit 1;; esac
 	@test -z "$$(git -C "$(WIKI_PAGES_DIR)" status --porcelain)" || { echo "❌ $(WIKI_PAGES_DIR) has uncommitted changes"; exit 1; }
 	@set -e; sha=$$(git rev-parse --short HEAD); wt=$$(mktemp -d); \
 	  trap 'git worktree remove --force "$$wt" >/dev/null 2>&1 || true' EXIT; \

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // The household rule this pins: once ANY kids profile exists, every non-kids

@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	"github.com/evey-project/evey/internal/app/presence"
-	"github.com/evey-project/evey/internal/domain/user"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/eveyproject/evey/internal/app/presence"
+	"github.com/eveyproject/evey/internal/domain/user"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

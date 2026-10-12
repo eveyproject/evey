@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/user"
-	authpkg "github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/domain/user"
+	authpkg "github.com/eveyproject/evey/internal/pkg/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

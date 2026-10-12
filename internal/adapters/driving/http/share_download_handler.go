@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	"github.com/evey-project/evey/internal/domain/library"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // shareDownloadHandler serves a media file, or a season/series ZIP, via a

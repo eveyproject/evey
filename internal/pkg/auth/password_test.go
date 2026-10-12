@@ -3,7 +3,7 @@ package auth_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -41,7 +41,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 // repoRoot resolves the module root from this test file's location

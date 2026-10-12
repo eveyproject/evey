@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	_ "github.com/evey-project/evey/gen/evey/v1" // register proto service descriptors
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	_ "github.com/eveyproject/evey/gen/evey/v1" // register proto service descriptors
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/reflect/protoregistry"

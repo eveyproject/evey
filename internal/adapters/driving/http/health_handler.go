@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // unknownBuildStamp mirrors cmd/evey's unknownStamp: the value reported when a

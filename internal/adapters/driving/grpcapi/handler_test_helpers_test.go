@@ -3,9 +3,9 @@ package grpcapi
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	"github.com/evey-project/evey/internal/domain/user"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/eveyproject/evey/internal/domain/user"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )

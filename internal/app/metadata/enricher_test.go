@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	domainlib "github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	domain "github.com/evey-project/evey/internal/domain/metadata"
-	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	domainlib "github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
+	metafakes "github.com/eveyproject/evey/internal/domain/metadata/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

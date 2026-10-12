@@ -1,5 +1,5 @@
 ---
-source_sha: a20ccaa391b89b92446e57eeaeeb717cf000938ddc861683cedff5803f6715fd
+source_sha: 2e3ff20895f1c270b8850bb90fe01d2ae9e29cd86d2af35333b1b7912ab888a7
 reviewed: true
 hide:
 - navigation
@@ -237,7 +237,7 @@ nicht bedienen.
 
 <p class="evey-meta">
 Diese Dokumentation folgt dem Entwicklungszweig. ·
-<a href="https://github.com/Evey-project/evey">Quellcode auf GitHub</a> ·
+<a href="https://github.com/eveyproject/evey">Quellcode auf GitHub</a> ·
 Sicherheitsmeldungen: security@eveyproject.org ·
 <a href="privacy/">Datenschutzerklärung</a>
 </p>

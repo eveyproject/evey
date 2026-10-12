@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/network"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/pkg/network"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // The two proxy facts used to be read once from the environment, so the

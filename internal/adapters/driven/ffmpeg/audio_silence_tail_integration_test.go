@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // genShortAudioSource writes an MKV with 30 s of video but only 18 s of audio -

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	domainnotif "github.com/evey-project/evey/internal/domain/notification"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainnotif "github.com/eveyproject/evey/internal/domain/notification"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 // --- interface compliance ---

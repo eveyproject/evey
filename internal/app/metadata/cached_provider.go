@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 // CachedProvider memoizes Search and GetByProviderID responses for a TTL.

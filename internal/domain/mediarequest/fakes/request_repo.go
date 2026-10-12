@@ -9,7 +9,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/mediarequest"
+	"github.com/eveyproject/evey/internal/domain/mediarequest"
 )
 
 // FakeRepository is an in-memory mediarequest.Repository.

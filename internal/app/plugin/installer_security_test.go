@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
+	"github.com/eveyproject/evey/internal/adapters/driven/pluginrunner"
 )
 
 // fixtureRoot returns the absolute path to tests/fixtures/plugins/malicious,

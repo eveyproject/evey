@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	domainlib "github.com/evey-project/evey/internal/domain/library"
+	domainlib "github.com/eveyproject/evey/internal/domain/library"
 )
 
 type fakePersonFetcher struct {

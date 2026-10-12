@@ -28,13 +28,13 @@ describe("DashboardUpdateBanner", () => {
       currentCommit: "cbcd835ec767",
       latestVersion: "beta-0.0.1-full",
       latestCommit: "e77dc0a31fff",
-      source: "https://github.com/Evey-project/evey",
+      source: "https://github.com/eveyproject/evey",
     });
     renderBanner();
     const banner = await screen.findByTestId("update-banner");
     expect(banner).toHaveTextContent("e77dc0a");
     expect(banner).toHaveTextContent("docker compose pull && docker compose up -d");
-    expect(screen.getByRole("link")).toHaveAttribute("href", "https://github.com/Evey-project/evey/compare/cbcd835ec767...e77dc0a31fff");
+    expect(screen.getByRole("link")).toHaveAttribute("href", "https://github.com/eveyproject/evey/compare/cbcd835ec767...e77dc0a31fff");
   });
 
   it("stays out of the way when up to date or unknown", async () => {

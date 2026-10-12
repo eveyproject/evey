@@ -2,16 +2,16 @@ package httpapi
 
 import (
 	"encoding/json"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 func streamTokenHandler(tokenGen domainuser.TokenGenerator, store *appmedia.StreamTokenStore, libAccess LibraryAccessChecker, mediaGetter mediaLibraryGetter, parental ParentalChecker) http.HandlerFunc {

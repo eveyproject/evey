@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/playlist"
+	"github.com/eveyproject/evey/internal/domain/playlist"
 )
 
 func TestPlaylistTypeConstants(t *testing.T) {

@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // Two-pass detection pipeline orchestration: pHash + audio confirmation fusion, chapter pass, refinement.

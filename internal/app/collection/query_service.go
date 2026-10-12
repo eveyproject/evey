@@ -3,8 +3,8 @@ package collection
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type QueryService struct {

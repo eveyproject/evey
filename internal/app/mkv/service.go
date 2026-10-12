@@ -3,8 +3,8 @@ package mkv
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // Service answers the player's chapter lookup. The rest of the MKV toolbox

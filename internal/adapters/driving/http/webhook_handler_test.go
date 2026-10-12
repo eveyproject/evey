@@ -13,13 +13,13 @@ import (
 	"testing"
 	"time"
 
-	appwebhook "github.com/evey-project/evey/internal/app/webhook"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	webhookdomain "github.com/evey-project/evey/internal/domain/webhook"
-	webhookfakes "github.com/evey-project/evey/internal/domain/webhook/fakes"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appwebhook "github.com/eveyproject/evey/internal/app/webhook"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	webhookdomain "github.com/eveyproject/evey/internal/domain/webhook"
+	webhookfakes "github.com/eveyproject/evey/internal/domain/webhook/fakes"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // fakeWebhookDeliveryRepo is a minimal in-memory DeliveryRepository - the

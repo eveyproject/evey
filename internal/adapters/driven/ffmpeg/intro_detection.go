@@ -15,12 +15,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 
 	"golang.org/x/image/webp"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // IntroDetector performs pHash-based intro detection and FFmpeg audio/black passes.

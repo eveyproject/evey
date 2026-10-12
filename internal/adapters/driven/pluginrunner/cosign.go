@@ -14,7 +14,7 @@ import (
 	"os"
 	"strings"
 
-	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
+	domainplugin "github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 // CosignVerifier checks cosign-compatible detached signatures in-process: the

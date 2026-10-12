@@ -17,9 +17,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
-	"github.com/evey-project/evey/internal/config"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	httpapi "github.com/eveyproject/evey/internal/adapters/driving/http"
+	"github.com/eveyproject/evey/internal/config"
 )
 
 // -------------------------------------------------------------------------

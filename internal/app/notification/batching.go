@@ -8,10 +8,10 @@ import (
 	"runtime/debug"
 	"time"
 
-	libevent "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/notification"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
+	libevent "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/notification"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
 	"github.com/google/uuid"
 )
 

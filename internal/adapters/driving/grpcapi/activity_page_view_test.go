@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appactivity "github.com/evey-project/evey/internal/app/activity"
-	"github.com/evey-project/evey/internal/domain/activity"
-	activityfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appactivity "github.com/eveyproject/evey/internal/app/activity"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	activityfakes "github.com/eveyproject/evey/internal/domain/activity/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // A page view is an audit row against the caller's own identity; junk paths

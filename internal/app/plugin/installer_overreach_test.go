@@ -15,7 +15,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
+	"github.com/eveyproject/evey/internal/adapters/driven/pluginrunner"
 )
 
 func overreachRoot() string {

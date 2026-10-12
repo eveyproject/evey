@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // An uploaded archive the installer refuses for what it IS (a broken

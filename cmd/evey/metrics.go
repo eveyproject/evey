@@ -7,9 +7,9 @@ import (
 	"runtime/debug"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	eveymetrics "github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 type mediaItemCounter interface {

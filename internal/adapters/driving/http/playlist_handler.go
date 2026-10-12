@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 	"path/filepath"
@@ -14,13 +14,13 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appplaylist "github.com/evey-project/evey/internal/app/playlist"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/music"
-	"github.com/evey-project/evey/internal/domain/playlist"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appplaylist "github.com/eveyproject/evey/internal/app/playlist"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/playlist"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // playlistArchiveSource reads a playlist and its items. Both calls take the

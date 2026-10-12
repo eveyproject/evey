@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
 )
 
 type fakeRetimer struct {

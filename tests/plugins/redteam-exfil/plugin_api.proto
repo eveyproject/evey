@@ -5,7 +5,7 @@ package plugin.v1;
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/evey-project/evey/gen/plugin/v1;pluginv1";
+option go_package = "github.com/eveyproject/evey/gen/plugin/v1;pluginv1";
 
 // Host -> Plugin communication
 service PluginService {

@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appwebhook "github.com/evey-project/evey/internal/app/webhook"
-	"github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	"github.com/evey-project/evey/internal/domain/webhook"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appwebhook "github.com/eveyproject/evey/internal/app/webhook"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/webhook"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // A key migration 000154 seeds as a default must not silence an operator's

@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/domain/metadata"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 // artworkBatchGetter is the slice of the metadata query service the poster

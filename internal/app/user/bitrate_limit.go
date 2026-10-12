@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 // setBitrateLimit is the fetch-mutate-save sequence shared by

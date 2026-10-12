@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driven/musicbrainz"
+	"github.com/eveyproject/evey/internal/adapters/driven/musicbrainz"
 )
 
 // jpegOfSize forge un JPEG réel des dimensions demandées : le fetcher lit

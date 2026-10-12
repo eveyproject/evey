@@ -24,7 +24,7 @@ import (
 	"testing"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 func TestOnDemandPackagerIntegration(t *testing.T) {

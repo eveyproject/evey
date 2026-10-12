@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 // startHintTTL: the variant fetch follows the master within a round-trip; a

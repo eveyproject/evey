@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 func ptr[T any](v T) *T { return &v }

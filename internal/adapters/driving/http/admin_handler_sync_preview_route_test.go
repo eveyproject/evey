@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 type stubSyncCatalog struct{ path string }

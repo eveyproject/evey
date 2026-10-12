@@ -4,7 +4,7 @@ import (
 	"math"
 	"slices"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // route_cost_model.go - RouteCostModel (ADR-0029) prices a session on the per-route,

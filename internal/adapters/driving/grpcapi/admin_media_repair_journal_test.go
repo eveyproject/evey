@@ -11,9 +11,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/domain/shared"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // recordingJournal answers history and list reads with canned records and

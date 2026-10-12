@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/domain/backup"
 )
 
 type FakeBackupStore struct {

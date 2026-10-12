@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	domain "github.com/evey-project/evey/internal/domain/metadata"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

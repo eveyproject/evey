@@ -3,8 +3,8 @@ package grpcapi
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/library"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 	"github.com/stretchr/testify/assert"
 )
 

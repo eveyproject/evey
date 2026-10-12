@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	domainshared "github.com/evey-project/evey/internal/domain/shared"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domainshared "github.com/eveyproject/evey/internal/domain/shared"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // fakeConfigStore is an in-memory ServerConfigRepository for tests.

@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // A file stored in one-track blocks is refused with the shed contract every

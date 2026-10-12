@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 func TestHandlerForbidsNonLoopback(t *testing.T) {

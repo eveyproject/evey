@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
-	authpkg "github.com/evey-project/evey/internal/pkg/auth"
+	authpkg "github.com/eveyproject/evey/internal/pkg/auth"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )

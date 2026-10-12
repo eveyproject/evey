@@ -11,8 +11,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/demo"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/demo"
 )
 
 // A Build entry: every input is downloaded, ffmpeg gets them in order with

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/syncplay"
+	"github.com/eveyproject/evey/internal/domain/syncplay"
 )
 
 // ErrDeviceNotConnected is returned by SendCommand when the target device

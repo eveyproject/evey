@@ -5,10 +5,10 @@ import (
 	"sync"
 	"testing"
 
-	apptranscode "github.com/evey-project/evey/internal/app/transcoding"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	tcfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
+	apptranscode "github.com/eveyproject/evey/internal/app/transcoding"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	tcfakes "github.com/eveyproject/evey/internal/domain/transcoding/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

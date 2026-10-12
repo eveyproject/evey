@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/domain/backup"
 )
 
 func TestBackupManifest_Fields(t *testing.T) {

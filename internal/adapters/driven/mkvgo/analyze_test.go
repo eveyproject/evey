@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
+	mkvgoadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
 )
 
 func TestAnalyzeFrameRateMode_NonEBMLContainerIsUnknown(t *testing.T) {

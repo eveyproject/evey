@@ -8,9 +8,9 @@ import (
 	"sync"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/shared"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainmeta "github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // mapMediaItemGetter answers GetMediaItem per-id from a fixed map, unlike

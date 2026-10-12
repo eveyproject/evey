@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/domain/library"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // fillAncestorTitles stamps series/season display titles onto converted media

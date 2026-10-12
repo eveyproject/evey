@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	domainlib "github.com/evey-project/evey/internal/domain/library"
-	domain "github.com/evey-project/evey/internal/domain/metadata"
+	domainlib "github.com/eveyproject/evey/internal/domain/library"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 // Prod 2026-09-10: every boot re-queried the provider for every episode and

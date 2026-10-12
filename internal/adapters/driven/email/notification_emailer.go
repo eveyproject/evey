@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	domainnotif "github.com/evey-project/evey/internal/domain/notification"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	domainnotif "github.com/eveyproject/evey/internal/domain/notification"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 )
 
 // ProfileGetter resolves a profile by ID.

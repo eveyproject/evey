@@ -10,13 +10,13 @@ import (
 	"testing"
 	"time"
 
-	appbackup "github.com/evey-project/evey/internal/app/backup"
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	backupfakes "github.com/evey-project/evey/internal/domain/backup/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	backupfakes "github.com/eveyproject/evey/internal/domain/backup/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // An account JWT that leaks through a proxy log or a browser history must not

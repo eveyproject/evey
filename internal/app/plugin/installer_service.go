@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/ssrf"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/ssrf"
 )
 
 // installer_service.go holds the InstallerService type, its wiring (options +

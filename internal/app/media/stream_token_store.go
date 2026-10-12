@@ -11,9 +11,9 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/evey-project/evey/internal/pkg/bgloop"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/google/uuid"
 )
 

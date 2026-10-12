@@ -8,7 +8,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // RemoveSession kills EVERY session producing for the given media ID - across

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/activity"
 	"github.com/google/uuid"
 )
 

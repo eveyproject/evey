@@ -3,8 +3,8 @@ package grpcapi
 import (
 	"fmt"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 func metadataResultToProto(r domainmetadata.MetadataResult) *eveyv1.MetadataResult {

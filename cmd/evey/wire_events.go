@@ -6,11 +6,11 @@ import (
 	"runtime/debug"
 	"time"
 
-	meili "github.com/evey-project/evey/internal/adapters/driven/meilisearch"
-	"github.com/evey-project/evey/internal/adapters/driven/search"
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/domain/shared"
+	meili "github.com/eveyproject/evey/internal/adapters/driven/meilisearch"
+	"github.com/eveyproject/evey/internal/adapters/driven/search"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // wire_events.go starts the background workers, the filesystem watcher and the

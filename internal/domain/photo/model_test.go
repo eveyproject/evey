@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/eveyproject/evey/internal/domain/photo"
 )
 
 func TestNewPhoto(t *testing.T) {
