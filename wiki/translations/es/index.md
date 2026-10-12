@@ -1,5 +1,5 @@
 ---
-source_sha: 2e3ff20895f1c270b8850bb90fe01d2ae9e29cd86d2af35333b1b7912ab888a7
+source_sha: 8b5109c0af499483f4c9038e9c785a28ed41a147962487df2de2848bd91fe88b
 reviewed: true
 hide:
 - navigation
@@ -26,7 +26,7 @@ del resto.
 <strong>Qué necesitas:</strong> un ordenador o un NAS x86-64 con Docker, y
 una carpeta con tus archivos. La instalación es un archivo y un comando.<br>
 <strong>Dónde ver:</strong> en un navegador web, en teléfonos y tablets Android, en
-Android TV y en un Chromecast. Las apps de Android y Android TV están en
+Android TV, en el navegador web de un televisor y en un Chromecast. Las apps de Android y Android TV están en
 pruebas y todavía no están en Google Play.
 </p>
 

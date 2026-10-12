@@ -1,5 +1,5 @@
 ---
-source_sha: 6f3e4c0be097222fac2048b142e37293374416b753471a96fc1f3936ac437109
+source_sha: bb93a3bd66810178b6d8d2bee10c74900b625b44325eb2d0aeec62adbafc790c
 reviewed: true
 ---
 # Apps verbinden
@@ -16,6 +16,9 @@ Server. Sie stehen Ihnen also auf jedem Ihrer Geräte zur Verfügung.
   Der Verwaltungsbereich ist auch dort, für Administratoren.
 - **Android** (Handy, Tablet) und **Android TV**: die Evey-Apps. Sie sind in
   der Testphase und noch nicht für alle bei Google Play.
+- **Der Webbrowser eines Fernsehers** (LG, Samsung und andere): nichts zu
+  installieren. Öffnen Sie die Adresse des Servers, gefolgt von `/tv`: siehe
+  [Im Webbrowser eines Fernsehers](#on-a-televisions-web-browser).
 - **Chromecast**: keine App. Sie streamen aus dem Web-Player in Chrome oder
   aus der Android-App.
 
@@ -158,6 +161,39 @@ Server behält seine eigene Anmeldung.
   dieselbe Schaltfläche. Auf dem Verbindungsbildschirm benennt **Server
   verwalten** einen gespeicherten Server um oder löscht ihn.
 
+## Im Webbrowser eines Fernsehers
+
+Ein Fernseher ohne Android TV kann Evey trotzdem in seinem eigenen
+Webbrowser abspielen. Der Server bietet dafür eine eigene Seite, die mit der
+Fernbedienung bedient wird: Öffnen Sie die Adresse des Servers, gefolgt von
+`/tv`, zum Beispiel:
+
+```text
+http://192.168.1.20:9091/tv
+```
+
+- **Keine Serveradresse einzugeben.** Die Seite gehört zu dem Server, von
+  dem aus sie geöffnet wurde. Melden Sie sich mit der
+  [Schnellverbindung](#quick-connect-signing-in-a-tv-without-typing-a-password)
+  oder Ihrem Passwort an und wählen Sie dann Ihr Profil.
+- **Fernsehoberfläche.** Wenn die Seite diese Frage stellt, wählen Sie
+  **Hier bleiben**. **Web-Version öffnen** ist für einen Computer gedacht,
+  und der Browser merkt sich die Antwort. Wurde sie versehentlich gewählt,
+  öffnen Sie die Adresse mit `?client=tv` am Ende (`http://192.168.1.20:9091/tv?client=tv`)
+  und speichern Sie diese als Lesezeichen.
+- **Vollbild.** Wenn der Browser des Fernsehers anbietet, die Seite zum
+  Startbildschirm hinzuzufügen, öffnet sie sich danach im Vollbild, wie eine
+  App.
+- **Die Fernbedienung.** Die Pfeiltasten bewegen die Auswahl, **OK** wählt
+  aus, **Zurück** geht zurück. Im Player zeigt **OK** die Leiste an und
+  pausiert, links und rechts springen zurück und vor (jeder Druck verlängert
+  den Sprung, Gedrückthalten spult mit Vorschaubild), unten öffnet die
+  Einstellungen (Audio, Untertitel, Qualität, Geschwindigkeit, Kapitel), und
+  **Zurück** verlässt den Player. Die Tasten für Wiedergabe, Pause,
+  Zurückspulen und Vorspulen funktionieren, wenn der Fernseher sie an den
+  Browser weitergibt.
+- **Text zu klein oder zu groß.** **Einstellungen → Größe der Oberfläche**.
+
 ## Schnellverbindung: einen Fernseher ohne Passwort anmelden
 
 Ein Passwort mit der Fernbedienung einzutippen ist mühsam. Mit der
@@ -200,6 +236,9 @@ für ein Handy, auf dem Sie Ihr Passwort lieber nicht eintippen.
       [Auslieferung und Downloads](../environment/playback-delivery.md)).
     - **Streamen** auf einen Chromecast.
 - **Android TV.** Ein Bildschirm, der für die Fernbedienung gemacht ist.
+- **Browser des Fernsehers (`/tv`).** Dieselbe Art Bildschirm für die
+  Fernbedienung, im Browser des Fernsehers, ohne Schaltfläche zum Streamen
+  auf einen Chromecast.
 
 **Abspielen auf**, im Web- und im Android-Player, schickt das, was Sie gerade
 schauen, an eine andere Evey-App, die geöffnet und mit demselben Konto
@@ -218,8 +257,8 @@ Tippen Sie darauf, um die Seite der App im Play Store zu öffnen. Der Play
 Store aktualisiert Apps nicht immer von selbst (nur wenn das Gerät nicht
 benutzt wird und im WLAN ist, und das lässt sich abschalten). Deshalb gibt es
 diesen Hinweis. Ist die App aktuell, oder ist der Server älter als diese
-Funktion, wird nichts angezeigt. Die Web-App braucht nie ein Update: Der
-Server liefert sie.
+Funktion, wird nichts angezeigt. Die Web-App und die Seite `/tv` brauchen nie
+ein Update: Der Server liefert sie.
 
 ## Welches Gerät was abspielt
 

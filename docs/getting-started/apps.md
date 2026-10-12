@@ -12,6 +12,9 @@ device to the next.
   panel is there too, for administrators.
 - **Android** (phone, tablet) and **Android TV**: the Evey apps. They are in
   testing and not on Google Play for everyone yet.
+- **A television's web browser** (LG, Samsung and others): nothing to
+  install. Open the server's address followed by `/tv`: see
+  [On a television's web browser](#on-a-televisions-web-browser).
 - **Chromecast**: no app. You cast from the web player in Chrome, or from the
   Android app.
 
@@ -144,6 +147,35 @@ sign-in.
   to the connect screen; the sign-in screen has the same button. On the
   connect screen, **Manage Servers** renames or deletes a saved server.
 
+## On a television's web browser
+
+A television without Android TV can still play Evey in its own web browser.
+The server has a page made for it, driven by the remote: open the server's
+address followed by `/tv`, for example:
+
+```text
+http://192.168.1.20:9091/tv
+```
+
+- **No server address to enter.** The page belongs to the server it was
+  opened from. Sign in, with
+  [Quick Connect](#quick-connect-signing-in-a-tv-without-typing-a-password)
+  or your password, then choose your profile.
+- **Television interface.** If the page asks this question, choose **Stay
+  here**. **Open the web version** is for a computer, and the browser
+  remembers the answer. If it was chosen by mistake, open the address with
+  `?client=tv` at the end (`http://192.168.1.20:9091/tv?client=tv`) and
+  keep that one as the bookmark.
+- **Full screen.** Where the TV's browser offers to add the page to the home
+  screen, it then opens full screen, like an app.
+- **The remote.** The arrows move, **OK** chooses, **Back** goes back. In
+  the player, **OK** shows the bar and pauses, left and right seek (each
+  press adds to the jump, holding the key scrubs with a picture), down opens
+  the settings (audio, subtitles, quality, speed, chapters), and **Back**
+  leaves. The play, pause, rewind and fast-forward keys work when the TV
+  passes them to the browser.
+- **Text too small or too large.** **Settings → Interface size**.
+
 ## Quick Connect: signing in a TV without typing a password
 
 Typing a password with a remote is slow. Quick Connect lets you approve the
@@ -183,6 +215,8 @@ you would rather not type your password.
       [Playback delivery and downloads](../environment/playback-delivery.md)).
     - **Casting** to a Chromecast.
 - **Android TV.** A screen made for the remote.
+- **Television browser (`/tv`).** The same kind of screen for the remote, in
+  the TV's browser, with no Cast button.
 
 **Play on**, in the web and Android players, sends what you are watching to
 another Evey app that is open and signed in to the same account. Playback
@@ -200,8 +234,8 @@ your server, it tells you:
 Press it to open the app's Play Store page. The Play Store does not always
 update apps by itself (only when the device is idle and on Wi-Fi, and it can
 be turned off), which is why this notice exists. When the app is up to date,
-or the server is older than this feature, nothing is shown. The web app never
-needs an update: the server provides it.
+or the server is older than this feature, nothing is shown. The web app and the
+`/tv` page never need an update: the server provides them.
 
 ## Which device plays what
 
@@ -227,5 +261,6 @@ connect hint and help link, shown with no saved server: frontend/apps/mobile/app
 delete from the connect screen (Android): frontend/apps/mobile/app/server-connect.tsx - handleDeleteServer ; i18n mobile.servers.deleteConfirmTitle, mobile.servers.cantDeleteOnlyServer
 update notice: internal/adapters/driving/http/health_handler.go (clients) ; scripts/client-release-ldflags.sh ; frontend/packages/client/src/native/appUpdate.ts - newerClientRelease ; frontend/apps/mobile/src/components/UpdateBanner.tsx (not on /player) ; frontend/apps/tv/src/components/TopHeader.tsx ; i18n mobile.appUpdate.available
 play on: i18n player.playOn.* (used by frontend/apps/web and frontend/apps/mobile, not frontend/apps/tv)
+television browser: frontend/apps/tv-web (served under /tv by internal/adapters/driving/http/spa.go - clientIndex ; Dockerfile /srv/tv) ; no address to type: frontend/apps/tv-web/src/lib/servedServer.ts - servingServer ; client question: frontend/apps/tv-web/src/lib/clientChoice.ts (choiceInAddress ?client=, readChoice) ; frontend/apps/tv-web/src/components/ClientChoice.tsx ; i18n common.clientChoice.* ; full screen: frontend/apps/tv-web/public/manifest.webmanifest (display fullscreen) ; remote: frontend/apps/tv-web/src/tv/keys.ts ; player keys: frontend/apps/tv-web/src/screens/Player.tsx (PlayerView comment) ; interface size: frontend/apps/tv-web/src/screens/Settings.tsx (mobile.settings.uiScale) ; quick connect: frontend/apps/tv-web/src/screens/QuickConnect.tsx ; no cast: no useCastSession in frontend/apps/tv-web
 connect screen title on both apps: i18n mobile.serverConnect.title ; frontend/apps/tv/src/i18n/offlineStrings.ts (seeded before any server answers) ; frontend/packages/client/src/native/i18n.ts - initI18n
 -->
