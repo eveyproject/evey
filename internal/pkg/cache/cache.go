@@ -27,6 +27,27 @@ type TTLCache[T any] struct {
 	// can never fail. Documented rather than ok-guarded to avoid dead branches.
 	lru     *list.List
 	maxSize int
+	// onEvict, when set, is told of every entry that leaves the cache (expired,
+	// pushed out by the size cap, or deleted). Called with the cache locked: it
+	// must not call back into the cache.
+	onEvict func(key string, val T)
+}
+
+// OnEvict sets the callback told of every entry that leaves the cache.
+func (c *TTLCache[T]) OnEvict(f func(key string, val T)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onEvict = f
+}
+
+// drop removes el and tells onEvict. The caller holds c.mu.
+func (c *TTLCache[T]) drop(el *list.Element) {
+	e := el.Value.(*entry[T])
+	c.lru.Remove(el)
+	delete(c.items, e.key)
+	if c.onEvict != nil {
+		c.onEvict(e.key, e.val)
+	}
 }
 
 // New returns a TTLCache that evicts expired entries every cleanupInterval.
@@ -82,8 +103,7 @@ func (c *TTLCache[T]) Get(key string) (T, bool) {
 	}
 	e := el.Value.(*entry[T])
 	if time.Now().After(e.expiresAt) {
-		c.lru.Remove(el)
-		delete(c.items, key)
+		c.drop(el)
 		var zero T
 		return zero, false
 	}
@@ -106,11 +126,8 @@ func (c *TTLCache[T]) Set(key string, val T, ttl time.Duration) {
 	el := c.lru.PushFront(e)
 	c.items[key] = el
 	if c.lru.Len() > c.maxSize {
-		back := c.lru.Back()
-		if back != nil {
-			oldest := back.Value.(*entry[T])
-			c.lru.Remove(back)
-			delete(c.items, oldest.key)
+		if back := c.lru.Back(); back != nil {
+			c.drop(back)
 		}
 	}
 }
@@ -119,8 +136,7 @@ func (c *TTLCache[T]) Delete(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if el, ok := c.items[key]; ok {
-		c.lru.Remove(el)
-		delete(c.items, key)
+		c.drop(el)
 	}
 }
 
@@ -139,16 +155,27 @@ func (c *TTLCache[T]) Values() []T {
 	return out
 }
 
+// Held returns every value the cache still holds, expired or not, newest
+// first: what a caller summing per-entry counters must count until onEvict
+// takes over.
+func (c *TTLCache[T]) Held() []T {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]T, 0, c.lru.Len())
+	for el := c.lru.Front(); el != nil; el = el.Next() {
+		out = append(out, el.Value.(*entry[T]).val)
+	}
+	return out
+}
+
 func (c *TTLCache[T]) evict() {
 	now := time.Now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for el := c.lru.Front(); el != nil; {
 		next := el.Next()
-		e := el.Value.(*entry[T])
-		if now.After(e.expiresAt) {
-			c.lru.Remove(el)
-			delete(c.items, e.key)
+		if now.After(el.Value.(*entry[T]).expiresAt) {
+			c.drop(el)
 		}
 		el = next
 	}

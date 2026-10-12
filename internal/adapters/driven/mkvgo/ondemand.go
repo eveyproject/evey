@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	extmatroska "github.com/gravity-zero/mkvgo/matroska"
@@ -59,8 +60,11 @@ const (
 
 // OnDemandPackager builds and caches mp4.PlanHLS plans. Safe for concurrent use.
 type OnDemandPackager struct {
-	plans   *pkgcache.TTLCache[apptranscoding.OnDemandPlan]
-	stopper func()
+	plans *pkgcache.TTLCache[apptranscoding.OnDemandPlan]
+	// retired holds the window counters of the plans the cache let go.
+	retiredMu sync.Mutex
+	retired   map[string]int64
+	stopper   func()
 	// failures remembers, per key, the error of a build that failed, for
 	// onDemandFailureTTL.
 	failures    *pkgcache.TTLCache[error]
@@ -120,7 +124,24 @@ func NewOnDemandPackager() *OnDemandPackager {
 		},
 	}
 	p.build = p.buildPlan
+	c.OnEvict(func(_ string, pl apptranscoding.OnDemandPlan) { p.retire(pl) })
 	return p
+}
+
+// retire adds a plan leaving the cache to the retired totals, so WindowStats
+// keeps counting what it did.
+func (p *OnDemandPackager) retire(pl apptranscoding.OnDemandPlan) {
+	st, ok := pl.(interface{ Stats() mp4.HLSPlanStats })
+	if !ok {
+		return
+	}
+	p.retiredMu.Lock()
+	defer p.retiredMu.Unlock()
+	if p.retired == nil {
+		p.retired = map[string]int64{}
+	}
+	addWindowStats(p.retired, st.Stats())
+	p.retired["retired_plans"]++
 }
 
 // WithSubtitleIndex hands each Matroska plan the subtitle block index already
@@ -231,41 +252,50 @@ func (p *OnDemandPackager) Replan(ctx context.Context, stale apptranscoding.OnDe
 
 // WindowStats sums the window counters of every plan the cache holds
 // (mkvgo HLSPlan.Stats: each window build is a read of the source, a rebuild
-// one that read the same window again), plus "plans", how many were summed.
-// The counters run from each plan's construction, and a plan the cache let go
-// takes its own with it: a caller wanting a run's share diffs two snapshots.
+// one that read the same window again), plus "plans", how many were summed,
+// and the counters of every plan the cache has let go since the process
+// started ("retired_plans" of them): each counter only grows, so a caller
+// wanting a run's share diffs two snapshots and never reads a negative.
 func (p *OnDemandPackager) WindowStats() map[string]int64 {
 	out := map[string]int64{}
-	for _, v := range p.plans.Values() {
+	p.retiredMu.Lock()
+	for k, v := range p.retired {
+		out[k] = v
+	}
+	p.retiredMu.Unlock()
+	for _, v := range p.plans.Held() {
 		pl, ok := v.(interface{ Stats() mp4.HLSPlanStats })
 		if !ok {
 			continue
 		}
-		st := pl.Stats()
 		out["plans"]++
-		out["window_builds"] += st.WindowBuilds
-		out["window_rebuilds"] += st.WindowRebuilds
-		out["shared_renditions"] += st.SharedRenditions
-		out["waited_builds"] += st.WaitedBuilds
-		out["evictions"] += st.Evictions
-		out["built_bytes"] += st.BuiltBytes
-		out["served_bytes"] += st.ServedBytes
-		out["dropped_bytes"] += st.DroppedBytes
-		out["subtitle_walks"] += st.SubtitleWalks
-		out["subtitle_indexed_blocks"] += st.SubtitleIndexedBlocks
-		// mkvgo 0.42: the walk cap, the streaming path and the Cues-derived
-		// subtitle index each say how often they engaged.
-		out["slot_waits"] += st.SlotWaits
-		out["streamed_segments"] += st.StreamedSegments
-		out["stream_fallbacks"] += st.StreamFallbacks
-		out["table_builds"] += st.TableBuilds
-		out["table_evictions"] += st.TableEvictions
-		out["undeclared_zlib_blocks"] += st.UndeclaredZlibBlocks
-		out["subtitle_cue_indexed"] += st.SubtitleCueIndexed
-		out["subtitle_cue_unverified"] += st.SubtitleCueUnverified
-		out["spread_laced_tracks"] += st.SpreadLacedTracks
+		addWindowStats(out, pl.Stats())
 	}
 	return out
+}
+
+func addWindowStats(out map[string]int64, st mp4.HLSPlanStats) {
+	out["window_builds"] += st.WindowBuilds
+	out["window_rebuilds"] += st.WindowRebuilds
+	out["shared_renditions"] += st.SharedRenditions
+	out["waited_builds"] += st.WaitedBuilds
+	out["evictions"] += st.Evictions
+	out["built_bytes"] += st.BuiltBytes
+	out["served_bytes"] += st.ServedBytes
+	out["dropped_bytes"] += st.DroppedBytes
+	out["subtitle_walks"] += st.SubtitleWalks
+	out["subtitle_indexed_blocks"] += st.SubtitleIndexedBlocks
+	// mkvgo 0.42: the walk cap, the streaming path and the Cues-derived
+	// subtitle index each say how often they engaged.
+	out["slot_waits"] += st.SlotWaits
+	out["streamed_segments"] += st.StreamedSegments
+	out["stream_fallbacks"] += st.StreamFallbacks
+	out["table_builds"] += st.TableBuilds
+	out["table_evictions"] += st.TableEvictions
+	out["undeclared_zlib_blocks"] += st.UndeclaredZlibBlocks
+	out["subtitle_cue_indexed"] += st.SubtitleCueIndexed
+	out["subtitle_cue_unverified"] += st.SubtitleCueUnverified
+	out["spread_laced_tracks"] += st.SpreadLacedTracks
 }
 
 // WalksInFlight is how many source windows the process is reading right now,
