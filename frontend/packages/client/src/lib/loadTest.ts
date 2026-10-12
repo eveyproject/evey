@@ -248,6 +248,66 @@ export const BOTTLENECK_REASONS: LoadTestStopReason[] = [
   "admission_full",
 ];
 
+// A stop cause: the i18n key and its values. whatKey, when set, names the
+// request the server failed on and is translated into the "what" value.
+export interface LoadTestCause {
+  key: string;
+  params: Record<string, string | number>;
+  whatKey?: string;
+}
+
+// The request a viewer was making when the server failed, read off the
+// harness's own detail string (internal/app/loadtest/viewer.go, direct.go).
+const FAILED_REQUEST_KEYS: [string, string][] = [
+  ["master playlist", "admin.loadtest.cause.request.master"],
+  ["variant playlist", "admin.loadtest.cause.request.variant"],
+  ["segment", "admin.loadtest.cause.request.segment"],
+  ["raw file", "admin.loadtest.cause.request.rawFile"],
+  ["stream-info", "admin.loadtest.cause.request.streamInfo"],
+];
+
+// A disk busy this share of the time is what held the audience back.
+const SATURATED_DISK_PERCENT = 80;
+// A CPU peak this high is the ceiling even when the stop reason was latency.
+const SATURATED_CPU_PERCENT = 85;
+
+// stopCause says WHY a run stopped, from what it measured: the server's own
+// error when it failed a request outright, else the resource that was
+// saturated, else that none was (the delay came from outside the box). null
+// when the stop reason already names it (CPU, memory, the operator's limit, a
+// cancel, a refusal by design).
+export function stopCause(report: LoadTestReport): LoadTestCause | null {
+  const reason = report.stopReason;
+  if (!reason || !["slo_breach", "startup_too_slow", "server_failing", "throughput_saturated"].includes(reason)) {
+    return null;
+  }
+  const detail = report.stopDetail ?? "";
+  const status = reason === "server_failing" ? /status=(\d+)/.exec(detail)?.[1] : undefined;
+  if (status && status !== "0") {
+    const whatKey = FAILED_REQUEST_KEYS.find(([p]) => detail.includes(p))?.[1] ?? "admin.loadtest.cause.request.other";
+    return { key: status === "410" ? "admin.loadtest.cause.http410" : "admin.loadtest.cause.httpStatus", params: { status }, whatKey };
+  }
+  const disks = [...(report.disks ?? [])].sort((a, b) => (b.utilPercentAvg ?? 0) - (a.utilPercentAvg ?? 0));
+  const top = disks[0];
+  if (top && (top.utilPercentAvg ?? 0) >= SATURATED_DISK_PERCENT) {
+    const params = {
+      device: top.device ?? "",
+      util: Math.round(top.utilPercentAvg ?? 0),
+      wait: Math.round(top.awaitMsAvg ?? 0),
+      others: Math.round(disks[1]?.utilPercentAvg ?? 0),
+    };
+    return { key: disks.length > 1 ? "admin.loadtest.cause.disk" : "admin.loadtest.cause.diskAlone", params };
+  }
+  const cpu = Math.round(report.resources?.cpuPercentPeak ?? 0);
+  if (cpu >= SATURATED_CPU_PERCENT) {
+    return { key: "admin.loadtest.cause.cpu", params: { peak: cpu } };
+  }
+  if (!top) {
+    return { key: "admin.loadtest.cause.nothingSaturatedNoDisks", params: { cpu } };
+  }
+  return { key: "admin.loadtest.cause.nothingSaturated", params: { cpu, disk: Math.round(top.utilPercentAvg ?? 0) } };
+}
+
 // Throughput is quoted in bits per second, the way a network link is.
 export function formatMbps(bytesPerSec: number): string {
   return `${((bytesPerSec * 8) / 1e6).toFixed(1)} Mb/s`;

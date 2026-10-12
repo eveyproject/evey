@@ -1178,6 +1178,21 @@ loadtest:
     cancelled: "Annulé."
     tokenExpired: "Session expirée - reconnectez-vous et relancez le test."
     error: "Une erreur a interrompu le test."
+  cause:
+    http410: "Cause : le serveur a répondu 410 (« fichier remplacé ») sur {{what}}. C'est une erreur du serveur, pas une limite de la machine."
+    httpStatus: "Cause : le serveur a répondu {{status}} sur {{what}}. C'est une erreur du serveur, pas une limite de la machine."
+    disk: "Cause : le disque {{device}} était occupé {{util}} % du temps ({{wait}} ms par lecture), les autres au plus {{others}} %. C'est lui qui limite."
+    diskAlone: "Cause : le disque {{device}} était occupé {{util}} % du temps ({{wait}} ms par lecture). C'est lui qui limite."
+    cpu: "Cause : le CPU a atteint {{peak}} %. C'est lui qui limite."
+    nothingSaturated: "Cause : aucune ressource de la machine n'était saturée (CPU au plus {{cpu}} %, disques au plus {{disk}} %). Le retard vient d'ailleurs : construction des plans de lecture, stockage partagé, réseau ou proxy."
+    nothingSaturatedNoDisks: "Cause : le CPU n'a pas dépassé {{cpu}} % et les disques ne sont pas visibles depuis le serveur. Le retard vient du stockage, du réseau ou du proxy."
+    request:
+      master: "la playlist principale"
+      variant: "la playlist de la vidéo"
+      segment: "les segments"
+      rawFile: "le fichier brut"
+      streamInfo: "la demande de mode de lecture"
+      other: "une requête"
 calibration:
   av1Label: "Sortie AV1"
   av1Hint: "Encoder en AV1 quand un client le supporte - meilleure compression. Matériel uniquement ; l'AV1 software n'est jamais utilisé pour le streaming."

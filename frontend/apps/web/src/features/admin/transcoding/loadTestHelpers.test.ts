@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { V1VideoPool } from "@evey/api";
-import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, servedPathLines } from "./loadTestHelpers";
+import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, servedPathLines, stopCause } from "./loadTestHelpers";
 
 // Pure formatting/reading helpers behind the load-test panel.
 describe("load test helpers", () => {
@@ -83,5 +83,53 @@ describe("load test helpers", () => {
       "admin.loadtest.servedPathLine(admin.loadtest.client.tv|admin.loadtest.mixPart(7|admin.loadtest.path.direct), admin.loadtest.mixPart(9|admin.loadtest.path.mkvgo))",
       "admin.loadtest.servedPathLine(admin.loadtest.client.webChrome|admin.loadtest.mixPart(5|admin.loadtest.path.mkvgo), admin.loadtest.mixPart(2|admin.loadtest.path.transcode))",
     ]);
+  });
+});
+
+// The three prod reports of 2026-10-12, as the operator saw them: a 410 on the
+// variant playlist, a pool with one disk saturated, an idle machine whose
+// segments still went slow.
+describe("stopCause", () => {
+  it("names the HTTP error and the request it hit", () => {
+    expect(
+      stopCause({ stopReason: "server_failing", stopDetail: "variant playlist fetch failed (status=410, err=<nil>)" }),
+    ).toEqual({ key: "admin.loadtest.cause.http410", params: { status: "410" }, whatKey: "admin.loadtest.cause.request.variant" });
+    expect(
+      stopCause({ stopReason: "server_failing", stopDetail: "master playlist fetch failed (status=502, err=<nil>)" }),
+    ).toMatchObject({ key: "admin.loadtest.cause.httpStatus", params: { status: "502" }, whatKey: "admin.loadtest.cause.request.master" });
+  });
+
+  it("names the saturated disk against the others", () => {
+    expect(
+      stopCause({
+        stopReason: "slo_breach",
+        resources: { cpuPercentPeak: 4.7 },
+        disks: [
+          { device: "sdc", utilPercentAvg: 11.6, awaitMsAvg: 7.5 },
+          { device: "sda", utilPercentAvg: 92.9, awaitMsAvg: 58.5 },
+          { device: "sdb", utilPercentAvg: 3.2, awaitMsAvg: 0.3 },
+        ],
+      }),
+    ).toEqual({ key: "admin.loadtest.cause.disk", params: { device: "sda", util: 93, wait: 59, others: 12 } });
+  });
+
+  it("says nothing was saturated when nothing was", () => {
+    expect(
+      stopCause({
+        stopReason: "slo_breach",
+        resources: { cpuPercentPeak: 4 },
+        disks: [{ device: "sda", utilPercentAvg: 15, awaitMsAvg: 4 }, { device: "sdc", utilPercentAvg: 2, awaitMsAvg: 4 }],
+      }),
+    ).toEqual({ key: "admin.loadtest.cause.nothingSaturated", params: { cpu: 4, disk: 15 } });
+    expect(stopCause({ stopReason: "slo_breach", resources: { cpuPercentPeak: 91 } })).toEqual({
+      key: "admin.loadtest.cause.cpu",
+      params: { peak: 91 },
+    });
+  });
+
+  it("adds nothing when the stop reason already says it", () => {
+    for (const stopReason of ["cpu_saturated", "max_viewers", "cancelled", "admission_full"] as const) {
+      expect(stopCause({ stopReason })).toBeNull();
+    }
   });
 });

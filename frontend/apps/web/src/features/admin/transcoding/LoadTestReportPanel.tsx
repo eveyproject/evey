@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@evey/api";
-import { BOTTLENECK_REASONS, STOP_REASON_KEYS, formatMbps, mixParts, poolShares, scenarioNoun, servedPathLines } from "./loadTestHelpers";
+import { BOTTLENECK_REASONS, STOP_REASON_KEYS, formatMbps, stopCause, mixParts, poolShares, scenarioNoun, servedPathLines } from "./loadTestHelpers";
 import type { LoadTestReport } from "./loadTestTypes";
 
 // LoadTestReportPanel renders the "answer" of a finished load test run: the
@@ -15,6 +15,7 @@ export function LoadTestReportPanel({
   predicted: number | undefined;
 }) {
   const { t } = useTranslation();
+  const cause = stopCause(report);
 
   return (
     <div className="flex flex-col gap-1.5" data-testid="load-test-report">
@@ -45,6 +46,14 @@ export function LoadTestReportPanel({
             "admin.loadtest.stopReason.error",
         )}
       </p>
+      {/* The cause, in plain words: what the server failed on, or which
+          resource gave out, or that none did - so the verdict answers
+          "why" without opening the logs. */}
+      {cause && (
+        <p className="text-sm font-medium text-[var(--text)]" data-testid="load-test-cause">
+          {t(cause.key, { ...cause.params, what: cause.whatKey ? t(cause.whatKey) : "" })}
+        </p>
+      )}
       {report.stopReason === "max_viewers" && (
         <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-no-bottleneck">
           {t("admin.loadtest.noBottleneckHint")}

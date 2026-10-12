@@ -1179,6 +1179,21 @@ loadtest:
     cancelled: "Cancelled."
     tokenExpired: "Session expired - log back in and try again."
     error: "An error stopped the test early."
+  cause:
+    http410: "Cause: the server answered 410 (\"file replaced\") on {{what}}. That is a server error, not a limit of the machine."
+    httpStatus: "Cause: the server answered {{status}} on {{what}}. That is a server error, not a limit of the machine."
+    disk: "Cause: disk {{device}} was busy {{util}} % of the time ({{wait}} ms per read), the others at most {{others}} %. That disk is the limit."
+    diskAlone: "Cause: disk {{device}} was busy {{util}} % of the time ({{wait}} ms per read). That disk is the limit."
+    cpu: "Cause: the CPU reached {{peak}} %. That is the limit."
+    nothingSaturated: "Cause: no resource of the machine was saturated (CPU at most {{cpu}} %, disks at most {{disk}} %). The delay comes from elsewhere: building playback plans, shared storage, the network or the proxy."
+    nothingSaturatedNoDisks: "Cause: the CPU stayed under {{cpu}} % and the disks are not visible from the server. The delay comes from the storage, the network or the proxy."
+    request:
+      master: "the main playlist"
+      variant: "the video playlist"
+      segment: "the segments"
+      rawFile: "the raw file"
+      streamInfo: "the playback mode request"
+      other: "a request"
 calibration:
   av1Label: "AV1 output"
   av1Hint: "Encode to AV1 when a client supports it - better compression. Hardware-only; software AV1 is never used for streaming."
