@@ -19,8 +19,8 @@ serverConnect:
   urlLabel: "सर्वर URL"
   useDiscovered: "खोजा गया सर्वर {{url}} उपयोग करें"
 settings:
-  themeDark: Dark
-  themeLight: Light
+  themeDark: गहरा
+  themeLight: हल्का
   themeAmoled: AMOLED
   themeOptionA11y: "{{name}} थीम"
   server: सर्वर

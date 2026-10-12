@@ -342,9 +342,9 @@ certBody:
   TW: MOC
 contextMenu:
   editMetadata: Editar metadatos
-  addToPlaylist: Agregar a lista de reproducción
-  addToCollection: Agregar a colección
-  addToFavorites: Agregar a favoritos
+  addToPlaylist: Añadir a lista de reproducción
+  addToCollection: Añadir a colección
+  addToFavorites: Añadir a favoritos
   removeFromFavorites: Quitar de favoritos
   markWatched: Marcar como visto
   markUnwatched: Marcar como no visto
@@ -503,13 +503,13 @@ playlist:
   createPlaylist: Crear lista de reproducción
   newPlaylist: "+ Nueva lista"
   noPlaylists: Aún no hay listas de reproducción.
-  addTitle: Agregar a lista de reproducción
+  addTitle: Añadir a lista de reproducción
   addSuccess: "Agregado a la lista de reproducción"
   addError: Error al agregar a la lista de reproducción
   createSuccess: Lista de reproducción creada
   createError: Error al crear la lista de reproducción
   rules: Reglas
-  addRule: Agregar regla
+  addRule: Añadir regla
   field: Campo
   op: Operador
   opGte: "Mayor o igual que"
@@ -551,7 +551,7 @@ playlist:
   smartRules: Reglas inteligentes
   typeManual: Manual
   typeSmart: Inteligente
-  addFieldRule: "Agregar regla {{field}}"
+  addFieldRule: "Añadir regla {{field}}"
 history:
   removeFailed: "Error al eliminar del historial"
 search:

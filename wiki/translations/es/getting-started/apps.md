@@ -115,7 +115,7 @@ en inglés):
 
 | Mensaje (Android) | Qué significa | Qué hacer |
 | --- | --- | --- |
-| **Empiece la dirección con http:// o https://.** | A la dirección le falta `http://`. | Escribe `http://` delante de la dirección. |
+| **Empieza la dirección con http:// o https://.** | A la dirección le falta `http://`. | Escribe `http://` delante de la dirección. |
 | **Esta conexión no está cifrada** | Has escrito `http://` para una dirección de fuera de casa. Tu contraseña y el vídeo irían por internet sin protección. | Pulsa **Cancelar** y usa la dirección pública con `https://`. **Conectar de todos modos** está ahí por si sabes lo que haces. |
 | **No response from ... within 8s.** | En esa dirección no responde nada. | Comprueba que el servidor está encendido, que la dirección y el puerto son correctos y que el teléfono está en la misma Wi-Fi. |
 | **Couldn't reach ...** | Dirección o puerto equivocados, `http` y `https` confundidos, u otra red. | Las mismas comprobaciones. En casa, prueba `http://` en lugar de `https://`; con una dirección pública, al revés. |
@@ -139,7 +139,7 @@ servidor vuelva a estar encendido, elígelo de nuevo.
 
 Las dos apps pueden recordar varios servidores. La pantalla de conexión los
 muestra en **Tus servidores**, con el que está en uso marcado como **Actual**
-(Android) o **Activo** (Android TV), y **Agregar otro servidor** debajo. Toca
+(Android) o **Activo** (Android TV), y **Añadir otro servidor** debajo. Toca
 un servidor guardado para volver a conectarte sin escribir otra vez la
 dirección. Cada servidor guarda su propio inicio de sesión.
 

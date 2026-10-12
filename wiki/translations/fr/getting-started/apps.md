@@ -111,7 +111,7 @@ sur un Wi-Fi invité, ou sur un autre réseau que le serveur.
 
 ### Quand la connexion échoue
 
-Chaque échec ouvre une fenêtre titrée **Connexion echouee**. Cherchez le
+Chaque échec ouvre une fenêtre titrée **Connexion échouée**. Cherchez le
 message dans ce tableau (certains messages de l'application Android
 s'affichent encore en anglais) :
 
@@ -124,7 +124,7 @@ s'affichent encore en anglais) :
 | **TLS/certificate problem reaching ...** | Le certificat HTTPS du serveur n'est pas accepté. | À la maison, utilisez `http://`. Pour une adresse publique, le serveur a besoin d'un vrai certificat. |
 | **... answered "HTTP 404 ..." instead of a healthy Evey server.** | Quelque chose répond, mais ce n'est pas Evey : il y a un chemin après le port, ou un autre programme utilise ce port. | Enlevez tout ce qui suit le port, et vérifiez le numéro du port. |
 | **... a répondu, mais ce n'est pas un serveur Evey.** | Une autre page a répondu : une page de connexion au Wi-Fi, la page de votre fournisseur d'accès, ou un autre programme. | Vérifiez l'adresse. Sur un Wi-Fi public, connectez-vous d'abord à sa page de connexion. |
-| **Acces distant desactive** | Vous êtes hors de chez vous, et le serveur n'accepte pas les connexions de l'extérieur. | Demandez à la personne qui fait tourner Evey. Elle l'active dans **Administration → Accès distant** : [Accès distant et HTTPS](../administration/remote-access.md). |
+| **Accès distant désactivé** | Vous êtes hors de chez vous, et le serveur n'accepte pas les connexions de l'extérieur. | Demandez à la personne qui fait tourner Evey. Elle l'active dans **Administration → Accès distant** : [Accès distant et HTTPS](../administration/remote-access.md). |
 
 Sur Android TV, les messages sont plus courts : **Server returned 404** quand
 autre chose qu'Evey répond, et l'erreur réseau brute quand rien ne répond.
@@ -149,13 +149,13 @@ sans retaper l'adresse. Chaque serveur garde sa propre connexion.
   a un bouton pour le supprimer (vous confirmez, et sa connexion est
   effacée). L'écran où l'on se connecte avec son mot de passe propose
   **Changer de serveur**. Une fois connecté, **Paramètres → Serveurs** ouvre
-  **Gerer les serveurs** : touchez un serveur pour passer dessus, ou
+  **Gérer les serveurs** : touchez un serveur pour passer dessus, ou
   utilisez **Renommer** ou **Supprimer**. Vous ne pouvez pas supprimer le
   seul serveur enregistré.
 - **Android TV.** **Paramètres → Changer de serveur** déconnecte la TV et
   revient à l'écran de connexion au serveur ; l'écran où l'on se connecte
   avec son mot de passe a le même bouton. Sur l'écran de connexion au
-  serveur, **Gerer les serveurs** renomme ou supprime un serveur enregistré.
+  serveur, **Gérer les serveurs** renomme ou supprime un serveur enregistré.
 
 ## Connexion rapide : connecter une TV sans taper de mot de passe
 

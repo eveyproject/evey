@@ -44,7 +44,7 @@ edad del niño. Para salir de él hacia otro perfil, hay que escribir el PIN de
   biblioteca. **Personalizar** elige qué filas ves.
 - **Bibliotecas** y **Géneros** te dejan recorrerlo todo.
 - **Buscar** encuentra una película, una serie o una canción por su nombre.
-- **Agregar a favoritos**, en un título, lo guarda en **Favoritos**.
+- **Añadir a favoritos**, en un título, lo guarda en **Favoritos**.
   **Historial de reproducción** muestra lo que has visto con este perfil.
 
 ## Reproducir

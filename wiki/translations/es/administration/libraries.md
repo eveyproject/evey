@@ -118,7 +118,7 @@ tres tipos:
   película en una de ellas. **Reparar sagas** (más arriba) recupera las
   películas que se quedaron fuera de la suya.
 - **Nueva colección**: una lista que un administrador llena a mano, con
-  **Agregar a colección** en un título o en una selección, y ordena.
+  **Añadir a colección** en un título o en una selección, y ordena.
 - **Nueva colección inteligente**: reglas sobre **Género**, **Año**, **Tipo**,
   **Valoración ≥** y **Biblioteca**, que un título debe cumplir todas. Su
   contenido se calcula cada vez que se abre, así que los títulos nuevos

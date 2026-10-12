@@ -15,8 +15,8 @@ cancelConfirm: 停止下载“{{title}}”？
 cancelAction: 停止
 badge:
   expired: 已过期 - 重新下载后即可继续离线观看
-  ageGated: 此配置文件不可用
-  moreRestricted: 由其他配置文件下载
+  ageGated: 此个人资料不可用
+  moreRestricted: 由其他个人资料下载
   unavailable: 离线不可用
 quality:
   title: 选择画质

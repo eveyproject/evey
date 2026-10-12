@@ -80,7 +80,7 @@ contenido guardado en una o varias carpetas, por ejemplo «Películas».
 - **Tipo de biblioteca**: **Películas**, **Series**, **Música** o **Fotos**.
 - **Rutas**: elige una carpeta de la lista. Muestra las carpetas que Evey
   puede ver, empezando por `/media`. Para escribir una ruta como
-  `/media/movies`, elige **Ingresar ruta personalizada...**.
+  `/media/movies`, elige **Introducir ruta personalizada...**.
 
 Pulsa **Crear**: Evey empieza a leer la carpeta. También puedes pulsar
 **Omitir** y añadir las bibliotecas más tarde. En los dos casos llegas a la

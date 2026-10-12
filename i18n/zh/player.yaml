@@ -118,7 +118,7 @@ goBack: "返回"
 shareDesc: "分享此链接给朋友一起观看："
 copyLink: "复制链接"
 copyCode: "复制代码"
-codeShareDesc: "分享此代码 - 任何人都可以输入它加入并与你一起观看。"
+codeShareDesc: "分享此代码 - 任何人都可以输入它加入并与您一起观看。"
 close: "关闭"
 shortcuts:
   title: "键盘快捷键"
@@ -148,7 +148,7 @@ streamInfo:
   resolution: 分辨率
   bitrate: 比特率
   framerate: 帧率
-  profile: 配置文件
+  profile: 编码档次
   pixelFormat: 像素格式
   decision: 决策
   audio: 音频
@@ -176,17 +176,17 @@ streamInfo:
     resolution_exceeded: 分辨率超出播放器上限
     bitrate_exceeded: 码率超出允许上限
     audio_channels_exceeded: 音频声道数超出此播放器支持范围
-    subtitle_burn_in: 字幕已烧录进画面
+    subtitle_burn_in: 字幕已内嵌到画面
     audio_resync_requested: 已请求音频重新同步
     decision_pinned: 本次会话已固定该选择
     client_line_exceeded: 客户端测得的线路无法承载直拷
     abr_floor_requested: 播放器请求的保底档位
     file_needs_remux: "文件按单轨道分块存储（需要修复）"
     audio_passthrough_unsupported: "音轨无法在流中原样传输"
-    preferred_video_codec: "首选视频编码（配置文件设置）"
-    preferred_audio_codec: "首选音频编码（配置文件设置）"
-    direct_play_disabled: "配置文件中已关闭直接播放"
-    direct_stream_disabled: "配置文件中已关闭重封装"
+    preferred_video_codec: "首选视频编码（个人资料设置）"
+    preferred_audio_codec: "首选音频编码（个人资料设置）"
+    direct_play_disabled: "个人资料中已关闭直接播放"
+    direct_stream_disabled: "个人资料中已关闭重封装"
     video_codec_pinned: "本次会话保持视频编码不变"
 jumpToChapter: "跳转到章节：{{chapter}}"
 cast:
@@ -202,9 +202,9 @@ playOn:
   title: 播放到
   sent: "已发送到 {{name}}"
   failed: 发送失败 - 设备可能已断开连接
-  empty: 没有已连接的设备。在你的电视或手机上打开 Evey 应用以使其在此处可用。
+  empty: 没有已连接的设备。在您的电视或手机上打开 Evey 应用以使其在此处可用。
 sessionExpired:
-  title: 你的会话已过期
+  title: 您的会话已过期
   body: 重新登录以继续观看。
 a11y:
   progress: "播放进度"

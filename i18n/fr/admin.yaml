@@ -112,7 +112,7 @@ artworks:
   downloadAgain: "Retélécharger"
   downloadComplete: "Téléchargement des artworks terminé"
   downloadJobFailed: "Échec du téléchargement des artworks"
-  downloadFailed: "Echec du lancement du téléchargement"
+  downloadFailed: "Échec du lancement du téléchargement"
   done: "Terminé"
   errorsPartial: "erreurs (téléchargement partiel)"
   backfillBlurhashesSection: "Recalculer les placeholders blurhash"
@@ -738,7 +738,7 @@ serverConfig:
   deleteEntryConfirm: "Supprimer l'entrée de configuration « {{key}} » ? Cette action est irréversible."
   failedDeleteEntry: "Échec de la suppression de l'entrée"
   emailSmtp: "E-mail / SMTP"
-  emailSmtpDesc: "Configurer l'envoi d'e-mails pour les notifications et invitations."
+  emailSmtpDesc: "Configurer l'envoi d'e-mails pour les notifications et la réinitialisation des mots de passe."
   smtpHost: "Hôte SMTP"
   port: "Port"
   smtpUsername: "Nom d'utilisateur"
@@ -1022,7 +1022,7 @@ dashboardStats:
   peakHours: "Heures de pointe (30 jours)"
   used: "Utilisé"
   free: "Libre"
-  loginFailed: "Echec de connexion"
+  loginFailed: "Échec de connexion"
 
 transcoding:
   title: "Configuration du transcodage"

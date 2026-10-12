@@ -14,7 +14,7 @@ mène à la solution. Si cela ne suffit pas, les logs et `evey admin doctor`
 | Ce que vous voyez | Regarder d'abord | Ensuite |
 | --- | --- | --- |
 | Rien ne répond, même à la maison | Evey tourne-t-il ? `docker compose ps`, puis les dernières lignes qu'il affiche : `docker compose logs --tail=200 evey` | [Le serveur ne démarre pas](#the-server-does-not-start) ci-dessous ; [The server does not answer](../runbooks/incident-runbook.md#the-server-does-not-answer) |
-| L'application affiche **Impossible de joindre le serveur** ou **Connexion echouee** | L'adresse tapée dans l'application | [Connecter les applications](../getting-started/apps.md#the-server-address-to-enter) ; hors de chez vous seulement : [Accès distant et HTTPS](../administration/remote-access.md) |
+| L'application affiche **Impossible de joindre le serveur** ou **Connexion échouée** | L'adresse tapée dans l'application | [Connecter les applications](../getting-started/apps.md#the-server-address-to-enter) ; hors de chez vous seulement : [Accès distant et HTTPS](../administration/remote-access.md) |
 | Tout le monde est déconnecté, ou personne ne peut se connecter | **Administration → Accès distant**, les proxys de confiance ; puis les logs | [Personne ne peut se connecter](#nobody-can-sign-in) ci-dessous |
 | Un film n'a pas d'image, ne démarre pas, ou s'arrête | **Infos du flux** dans le lecteur, puis **Administration → Santé des médias** pour ce titre | [Problèmes de lecture](#playback-problems) ci-dessous |
 | Ça saccade ou ça charge sans arrêt | **Administration → Qualité streaming** (quels titres et appareils attendent) et **Administration → Santé du système** (le serveur est-il trop occupé) | [Transcodage et capacité du serveur](../playback/transcoding.md) |

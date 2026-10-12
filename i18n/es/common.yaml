@@ -23,7 +23,7 @@ or: "o"
 previous: "Anterior"
 next: "Siguiente"
 edit: "Editar"
-add: "Agregar"
+add: "Añadir"
 remove: "Quitar"
 name: "Nombre"
 "no": "No"
@@ -218,7 +218,7 @@ collections: Colecciones
 loadError: Error al cargar
 mediaGone: "Este título ya no está en la biblioteca."
 activity: Actividad
-addToPlaylist: Agregar a playlist
+addToPlaylist: Añadir a lista de reproducción
 noManualPlaylists: No hay playlists manuales disponibles
 noPlaylists: Sin playlists
 serverVersion: Versión del servidor
@@ -254,7 +254,7 @@ switchToGridView: Cambiar a vista de cuadrícula
 slideNumber: "Diapositiva {{number}}"
 clearSelection: Borrar selección
 options: Opciones
-addNamedRule: "Agregar regla {{name}}"
+addNamedRule: "Añadir regla {{name}}"
 copy: "Copiar"
 watched: "Visto"
 clientChoice:

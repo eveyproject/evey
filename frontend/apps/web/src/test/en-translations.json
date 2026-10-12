@@ -1149,7 +1149,7 @@
   "admin.serverConfig.defaultValue": "Default: {{value}}",
   "admin.serverConfig.deleteEntryConfirm": "Delete config entry \"{{key}}\"? This cannot be undone.",
   "admin.serverConfig.emailSmtp": "Email / SMTP",
-  "admin.serverConfig.emailSmtpDesc": "Configure outgoing email for notifications and invitations.",
+  "admin.serverConfig.emailSmtpDesc": "Configure outgoing email for notifications and password resets.",
   "admin.serverConfig.entriesTitle": "Config entries",
   "admin.serverConfig.envDefault": "- env default -",
   "admin.serverConfig.failedDeleteEntry": "Failed to delete entry",
