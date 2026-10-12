@@ -23,7 +23,7 @@ von ihnen hat ein Gegenstück im Verwaltungsbereich.
 | `EVEY_DB_PORT` | `5432` | Der Datenbank-Port. | keine |
 | `EVEY_DB_USER` | `evey` | Der Datenbank-Login. Ist er ein Superuser (der eingebettete Cluster und die mitgelieferte Compose-Datei), behält der Server ihn nur für die Wiederherstellung und läuft als `EVEY_DB_APP_USER`. | keine |
 | `EVEY_DB_APP_USER` | `evey_app` | Die Rolle ohne Sonderrechte, unter der der Server und seine Migrationen laufen, wenn `EVEY_DB_USER` ein Superuser ist. Wird beim Start angelegt, bekommt die Datenbank und ihre Objekte übertragen und bei jedem Start ein neues Zufallspasswort (das nirgends gespeichert wird). Eine SQL-Injection kann dann keine Programme auf dem Host starten und keine Dateien dort lesen. | keine |
-| `EVEY_DB_PRIVILEGE_SPLIT` | `true` | `false` lässt alles als `EVEY_DB_USER` laufen, auch als Superuser. Ein Ausweg, falls eine Datenbank die Trennung ablehnt; sonst bricht der Start ab und nennt diese Variable. | keine |
+| `EVEY_DB_PRIVILEGE_SPLIT` | `true` | `false` lässt alles als `EVEY_DB_USER` laufen, auch als Superuser. Eine Ausweichlösung, falls eine Datenbank die Trennung ablehnt; sonst bricht der Start ab und nennt diese Variable. | keine |
 | `EVEY_DB_NAME` | `evey` | Der Name der Datenbank. | keine |
 | `EVEY_DB_PASSWORD` | erzeugt | Das Passwort. Bei einer externen Datenbank verweigert der Server den Start mit dem Wert `evey` und warnt bei `changeme`. | keine |
 | `EVEY_DB_PASSWORD_FILE` | `/data/keys/postgres.password` | Eine Datei mit dem Passwort, gelesen, wenn `EVEY_DB_PASSWORD` nicht gesetzt ist. Vom Image gesetzt. | keine |

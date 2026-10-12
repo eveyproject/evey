@@ -33,7 +33,7 @@ zuverlässigsten verfügbaren Quelle:
 1. **Was der Empfänger an sich selbst festgestellt hat.** Eveys Empfänger
    testet sein eigenes Gerät beim Start (welche Codecs und Auflösungen es
    anzeigen kann, ob es HDR anzeigt, ob es Dolby-Ton unverändert weitergibt,
-   wie viele Tonkanäle sein Ausgang trägt) und meldet das. Kommt diese
+   wie viele Tonkanäle sein Ausgang ausgeben kann) und meldet das. Kommt diese
    Meldung an, wird sie verwendet.
 2. **Sonst das Modell.** Der Name, den das Cast SDK meldet (Chromecast mit
    Google TV, Chromecast Ultra, Google TV Streamer...), entspricht den
@@ -43,9 +43,9 @@ zuverlässigsten verfügbaren Quelle:
    bekommt die Fähigkeiten des ältesten Chromecast: H.264 bis 1080p, SDR,
    kein Dolby.
 
-Die Reihenfolge folgt dem Preis eines Fehlers: Wer dem Gerät eine Fähigkeit
+Die Reihenfolge richtet sich nach den Folgen eines Fehlers: Wer dem Gerät eine Fähigkeit
 zutraut, die es nicht hat, bekommt einen schwarzen Bildschirm; wer zu wenig
-annimmt, verliert nur eine Transkodierung. In der Praxis: HDR kommt nur dann
+annimmt, verursacht nur eine Transkodierung. In der Praxis: HDR kommt nur dann
 beim Fernseher an, wenn sein Empfänger einen HDR-Bildschirm gemeldet hat;
 Dolby Digital (AC-3, E-AC-3) wird nur an einen Empfänger unverändert
 geschickt, der gemeldet hat, dass er es direkt weitergibt, sonst wird es in
@@ -56,8 +56,8 @@ nicht laden konnte, lädt ihn einmal neu, mit einer Obergrenze von Stereo.
 
 Bevor er einen Stream anfordert, misst der Empfänger seinen eigenen Durchsatz
 und schickt ihn mit der Anfrage. Der Server behält das Originalvideo, wenn
-dieser Durchsatz es mit 20 % Reserve trägt. Sonst wählt er die höchste
-Qualität, die die Verbindung trägt. Stockt die Wiedergabe trotzdem, lädt der
+dieser Durchsatz mit 20 % Reserve dafür ausreicht. Sonst wählt er die höchste
+Qualität, für die die Verbindung ausreicht. Stockt die Wiedergabe trotzdem, lädt der
 Empfänger einmal mit der niedrigsten Qualität neu, sofern das die Bitrate
 halbiert. Die Stream-Info zeigt dann **Die vom Client gemessene Leitung trägt
 die Kopie nicht** oder **Vom Player angeforderte Notfallstufe**.
@@ -73,7 +73,7 @@ streamen kann: Chrome auf einem Computer, das seine Google-Cast-Auswahl
 Safari oder Chrome auf Android. Firefox zeigt keine.
 
 Wo der Browser selbst keine Cast-Sitzung öffnen kann (Safari, Chrome auf
-Android), läuft ein Tippen über den Server. Er probiert in dieser Reihenfolge
+Android), wird ein Tippen auf die Schaltfläche über den Server abgewickelt. Er probiert in dieser Reihenfolge
 und nimmt bei jedem Schritt das erste Gerät, das er findet:
 
 1. einen Chromecast im Netz des Geräts, das Sie in der Hand halten, abgespielt
@@ -95,4 +95,4 @@ und nimmt bei jedem Schritt das erste Gerät, das er findet:
 
 ## Wenn das Streamen nicht funktioniert
 
-[A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning).
+[Ein Cast ist eingefroren, stumm geworden, oder das Handy lädt endlos](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning).

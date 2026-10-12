@@ -36,7 +36,7 @@ gespeicherter Wert gilt also ab dem nächsten Durchlauf.
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
 | `EVEY_PLAY_SESSION_RETENTION_DAYS` | `0` (für immer) | Beendete Wiedergabesitzungen im Verlauf. | Servereinstellungen → **Aufbewahrung des Sitzungsverlaufs**, nächster Durchlauf |
-| `EVEY_AUDIT_LOG_RETENTION_DAYS` | `0` (für immer) | Das Audit-Protokoll der Verwaltungsaktionen. | Servereinstellungen → **Aufbewahrung des Audit-Logs**, nächster Durchlauf |
+| `EVEY_AUDIT_LOG_RETENTION_DAYS` | `0` (für immer) | Das Audit-Protokoll der Verwaltungsaktionen. | Servereinstellungen → **Aufbewahrung des Audit-Protokolls**, nächster Durchlauf |
 | `EVEY_METRICS_RETENTION_DAYS` | `90` | Die Ressourcenmessungen des Servers (Prozessor, Arbeitsspeicher, Bandbreite). | Servereinstellungen → **Aufbewahrung der Servermetriken**, nächster Durchlauf |
 | `EVEY_QOE_RETENTION_DAYS` | `30` | Die Berichte der Player zur Streaming-Qualität. | Servereinstellungen → **Aufbewahrung der Wiedergabequalität (QoE)**, nächster Durchlauf |
 | `EVEY_METRICS_SAMPLE_INTERVAL_SEC` | `60` | Wie oft diese Ressourcenmessungen erfasst werden. | keine |

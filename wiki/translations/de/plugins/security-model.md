@@ -6,8 +6,8 @@ reviewed: true
 
 Für Plugin-Autoren: was ein Manifest angeben darf, was der Installer prüft
 und welche Regeln für ein Plugin zur Laufzeit gelten. Der Katalog unten ist
-die Liste, aus der Sie wählen. Wie der Server ein Plugin einsperrt und was
-diese Abschottung nicht verhindern kann, steht in
+die Liste, aus der Sie wählen. Wie der Server ein Plugin isoliert und was
+diese Isolierung nicht verhindern kann, steht in
 [Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md).
 
 ## Was bei der Installation geprüft wird
@@ -61,7 +61,7 @@ signieren und welche Signaturregel ein Server durchsetzen kann:
 ## Katalog der Berechtigungen
 
 Eine Berechtigung wird unter `permissions` angegeben. Jeder andere Wert
-lässt die Installation scheitern. Webhooks empfangen (`webhook.receiver`)
+führt zur Ablehnung der Installation. Webhooks empfangen (`webhook.receiver`)
 und Metadaten liefern (`metadata.provider`) sind Capabilities und werden
 unter `capabilities` angegeben: siehe
 [Plugin-API-Referenz](api-reference.md#capabilities).
@@ -70,7 +70,7 @@ unter `capabilities` angegeben: siehe
 |---|---|
 | `network` | Das Backend darf `Fetch` aufrufen. Nur zusammen mit einer nicht leeren Liste `external_fetch`; ohne sie wird die Installation abgelehnt. Der Prozess selbst hat weiterhin keinen Socket. |
 | `subprocess` | Das Backend darf Kindprozesse starten. Ohne diese Berechtigung lehnt der Kernel-Filter des Launchers `fork`, `vfork` und `clone` ohne `CLONE_THREAD` ab, und die seccomp-Zwischenschicht lehnt `execve` für interpretierte Plugins ab. Threads funktionieren in beiden Fällen. Der Administrator sieht eine eigene Warnung. |
-| `native-binary` | Das Paket darf `.so`, `.dll`, `.exe`, `.wasm`, `.jar`, eingebettete Archive oder nativen Code enthalten, den die Analyse nicht lesen kann. Der Administrator sieht undurchsichtigen Code und muss ihn akzeptieren. Pflicht für ein `go`-Plugin. |
+| `native-binary` | Das Paket darf `.so`, `.dll`, `.exe`, `.wasm`, `.jar`, eingebettete Archive oder nativen Code enthalten, den die Analyse nicht lesen kann. Der Administrator sieht Code, den die Analyse nicht prüfen kann, und muss ihn akzeptieren. Pflicht für ein `go`-Plugin. |
 | `filesystem` | Angekündigte Absicht, das Dateisystem über das Verzeichnis des Plugins hinaus zu nutzen. Wird festgehalten und dem Administrator angezeigt; die Sandbox gewährt keinen Dateizugriff außerhalb des Plugin-Verzeichnisses, egal was angegeben ist. |
 | `media.read` | `GetMediaItem` und `ListMediaItems` auf dem Host: der vollständige Datensatz des Mediums. |
 | `media.write` | Für die Aufrufe zum Schreiben von Metadaten reserviert, heute nicht bedient. |
@@ -114,7 +114,7 @@ Dieselbe Hostliste ist das `connect-src` des Frames des Plugins, jeweils mit
 ## Liste der erlaubten Slots
 
 Plugins dürfen Oberfläche nur in ausdrücklich erlaubte Slots einfügen.
-Kritische Wege fehlen absichtlich.
+Kritische Bereiche fehlen absichtlich.
 
 | Slot | Anmeldung nötig | Hinweise |
 |---|---|---|
@@ -128,10 +128,10 @@ Kritische Wege fehlen absichtlich.
 | `admin.nav` | Ja | Ein Navigationseintrag im Verwaltungsbereich, der die eigene Sandbox-Seite des Plugins öffnet; er fügt nichts in bestehende Verwaltungsbildschirme ein |
 
 **Nie erlaubt:** `admin.*` (außer `admin.nav`), `login.*`, `setup.*`,
-`profile.security.*`. Diese Wege sind für Anmeldung oder Rechte kritisch,
-und ein Einfügen dort wäre ein Weg zur Rechteausweitung oder zum Phishing.
+`profile.security.*`. Diese Bereiche sind für Anmeldung oder Rechte kritisch,
+und ein Einfügen dort würde eine Rechteausweitung oder Phishing ermöglichen.
 
-Inhalt in `admin.nav` ist eingesperrt wie in jedem anderen Slot: Er wird in
+Inhalt in `admin.nav` ist isoliert wie in jedem anderen Slot: Er wird in
 einem `<iframe sandbox="allow-scripts">` ohne `allow-same-origin`
 dargestellt, in einer Seite mit der Richtlinie `default-src 'none'`. Er ist
 also fremder Inhalt, der im Verwaltungsbereich angezeigt wird, keine
@@ -140,7 +140,7 @@ Verwaltungsfähigkeit, die dem Plugin gewährt wird.
 Die Brücke begrenzt, was ein Frame von der Seite verlangen darf:
 `evey.toast` höchstens 3 Nachrichten pro Sekunde, 200 Zeichen, kein HTML;
 `evey.navigate` nur `/home`, `/library`, `/media`, `/player`, `/settings`
-und `/search`; `evey.resize` auf 50 bis 800 px begrenzt. Der Frame hält
+und `/search`; `evey.resize` auf 50 bis 800 px begrenzt. Der Frame erhält
 keinen Token: Der Host stellt für die Aufrufe `public` und `prefs` einen
 Token für fünf Minuten aus, begrenzt auf (Plugin, Benutzer), und der Server
 lehnt standardmäßig jede Methode ab, die dieser Token nicht nennt.

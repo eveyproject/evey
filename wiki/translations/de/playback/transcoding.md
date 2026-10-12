@@ -7,7 +7,7 @@ reviewed: true
 **Kurz gesagt:**
 
 - **Transkodieren** heißt, ein Video in eine Form umzuwandeln, die das Gerät
-  abspielen kann. Das ist die einzige schwere Arbeit des Servers: Eine Datei
+  abspielen kann. Das ist die einzige aufwendige Arbeit des Servers: Eine Datei
   so abzuspielen, wie sie ist (Direktwiedergabe), oder sie umzuverpacken
   (Remux), kostet fast nichts. Siehe
   [Wie Evey die Wiedergabeart wählt](how-playback-is-decided.md).
@@ -36,7 +36,7 @@ Die Kapazität ist keine Einstellung, die Sie schätzen. Der Server misst sie:
   Messung führt er in seinem ersten ruhigen Moment aus, wenn niemand schaut und
   der Prozessor fast nichts zu tun hat. Sie dauert einige Minuten. Eine
   Messung unter Last gilt als vorläufig und wird wiederholt, sobald die
-  Maschine Ruhe hat.
+  Maschine nicht mehr ausgelastet ist.
 - **Was.** Echte Kodierungen eines 4K-Clips, in SDR und in HDR, auf dem
   Prozessor und auf jedem Beschleuniger, den der Server erkannt hat. Sie laufen
   genauso ab wie bei einer echten Wiedergabe. Das Ergebnis: die höchste
@@ -46,7 +46,7 @@ Die Kapazität ist keine Einstellung, die Sie schätzen. Der Server misst sie:
   Die Schaltfläche wartet, bis niemand mehr schaut.
 
 Während die Messung läuft, zeigt eine Wiedergabe, die eine Transkodierung
-braucht, **Der Server kalibriert sich**. Der Player wird gebeten, es kurz
+braucht, **Der Server kalibriert sich**. Der Player erhält die Anweisung, es kurz
 darauf erneut zu versuchen. Direktwiedergabe und Remux sind nicht betroffen.
 
 Schafft ein Prozessor keine der Auflösungen, bietet der Server trotzdem 720p
@@ -55,8 +55,9 @@ Schafft ein Prozessor keine der Auflösungen, bietet der Server trotzdem 720p
 Für die Messung nimmt der Server, in dieser Reihenfolge: einen Clip, den Sie
 bereitstellen, einen Referenzclip, der einmal heruntergeladen und über seine
 SHA256 geprüft wird, oder einen künstlichen Clip, der vor Ort erzeugt wird.
-Ein echter Clip misst ehrlicher als der künstliche. Der künstliche überschätzt
-die Kosten und kann eine Maschine niedriger einstufen, als sie es verdient:
+Ein echter Clip liefert genauere Messwerte als der künstliche. Der künstliche
+überschätzt die Kosten und kann eine Maschine niedriger einstufen, als es ihrer
+tatsächlichen Leistung entspricht:
 
 ```yaml title="docker-compose.yml"
 services:
@@ -76,10 +77,10 @@ sich aus der Messung und passt sich von selbst an, wenn sich die Hardware
 - Eine Transkodierung, die nur den Ton neu kodiert (Video kopiert), belegt
   keinen Platz.
 - Ein Zuschauer, der die Qualität wechselt, behält einen einzigen Platz.
-- Kodiert wird nur die Qualität, die ein Zuschauer wirklich schaut, nicht die
-  ganze Leiter der Qualitäten.
+- Kodiert wird nur die Qualität, die ein Zuschauer wirklich schaut, nicht alle
+  Qualitätsstufen.
 
-Jeder Stream nimmt den günstigsten Weg, der bewiesen hat, dass er ihn
+Jeder Stream nimmt den günstigsten Weg, der nachgewiesen hat, dass er ihn
 bedienen kann: einen Beschleuniger, der genau auf das gemessen wurde, was der
 Stream braucht (zum Beispiel HDR-Tone-Mapping oder Ausgabe in HEVC), oder den
 Prozessor. Prozessor und Beschleuniger sind zwei getrennte Pools. Ein Stream
@@ -93,18 +94,18 @@ Wird der Platz knapp, reagiert der Server in dieser Reihenfolge:
    Obergrenze gilt dann für den ganzen Stream.
 2. **Der Prozessor.** Sind die Beschleuniger voll, wechselt ein neuer Stream
    auf den Prozessor, wenn dieser Platz hat.
-3. **Eine Absage.** Hat keiner von beiden Platz, zeigt der Player **Der
+3. **Eine Ablehnung.** Hat keiner von beiden Platz, zeigt der Player **Der
    Server transkodiert gerade andere Streams** und kann es erneut versuchen.
 
 Scheitert eine Kodierung auf der Grafikkarte bei einem Titel, geht dieser
 Titel eine Zeit lang an den Prozessor, für alle Zuschauer. Die Karte selbst
-wird erst beiseitegelegt, wenn auch eine Testkodierung scheitert, die nichts
+wird erst dann nicht mehr verwendet, wenn auch eine Testkodierung scheitert, die nichts
 mit dem Medium zu tun hat. Später wird sie erneut versucht: siehe
 [Hardware-Beschleunigung](../administration/hardware-acceleration.md).
 
 Während jemand schaut, pausieren die eigenen Hintergrundarbeiten des Servers
-(Vorschaubilder, Intro-Erkennung, Medienanalyse). So behält die Wiedergabe die
-Maschine für sich: siehe
+(Vorschaubilder, Intro-Erkennung, Medienanalyse). So steht der Wiedergabe die
+gesamte Leistung der Maschine zur Verfügung: siehe
 [Hintergrundarbeiten und Serverlast](../operations/background-work.md).
 
 Lässt eine bestimmte Art von Quelle die Zuschauer trotz allem immer wieder
@@ -133,22 +134,22 @@ Kodierte Segmente werden auf der Festplatte im Volume `evey-cache`
 aufbewahrt. Sie werden wiederverwendet, wenn ein anderer Zuschauer, oder
 derselbe später, denselben Titel mit derselben Entscheidung abspielt.
 **Verwaltung → Transkodierungs-Cache** zeigt seine Größe und leert ihn; das
-**Budget des Transcode-Caches** (**Verwaltung → Serverkonfiguration →
+**Budget des Transkodierungs-Caches (GB)** (**Verwaltung → Serverkonfiguration →
 Servereinstellungen**) begrenzt ihn. **Alle leeren** entfernt auch die
-Untertitel, die aus Ihren Dateien herausgezogen wurden und in
-`./evey-data/subtitles` liegen: Sie werden bei Bedarf erneut herausgezogen.
+Untertitel, die aus Ihren Dateien extrahiert wurden und in
+`./evey-data/subtitles` liegen: Sie werden bei Bedarf erneut extrahiert.
 
 **Wenn die Festplatte voll wird.** Der Server hält auf der Festplatte mit dem
-Cache einen Rest an freiem Platz frei: standardmäßig 2 GiB, einstellbar mit
-`EVEY_TRANSCODE_CACHE_MIN_FREE_MB` (`0` schaltet diesen Rest ab). Wird er
+Cache eine Reserve an freiem Platz frei: standardmäßig 2 GiB, einstellbar mit
+`EVEY_TRANSCODE_CACHE_MIN_FREE_MB` (`0` schaltet diese Reserve ab). Wird sie
 unterschritten, werden zuerst die ältesten Segmente gelöscht, die niemand
 schaut. Reicht das nicht, wird ein Segment, das es noch nicht gibt,
 abgelehnt, mit einer Wartezeit, nach der der Player erneut fragen darf. So
 startet kein Encoder, der mangels Platz scheitern würde. Segmente, die schon
 auf der Festplatte liegen, werden weiter ausgeliefert. Für die
-herausgezogenen Untertitel in `./evey-data` gilt derselbe Rest: Wird er
-unterschritten, werden neue nicht mehr aufbewahrt, jede Anfrage zieht sie neu
-heraus, und die Administratoren erhalten **Untertitel-Cache voll** (höchstens
+extrahierten Untertitel in `./evey-data` gilt dieselbe Reserve: Wird sie
+unterschritten, werden neue nicht mehr aufbewahrt, bei jeder Anfrage werden sie
+neu extrahiert, und die Administratoren erhalten **Untertitel-Cache voll** (höchstens
 einmal pro Stunde, auch an Webhooks gesendet als
 `transcoding.derived_cache_full`).
 

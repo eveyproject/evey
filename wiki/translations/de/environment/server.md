@@ -5,16 +5,16 @@ reviewed: true
 # Server und Netzwerk
 
 Die Variablen, die festlegen, unter welcher Adresse der Server erreichbar ist,
-welchen Proxys er glaubt, wer ihn von außen erreichen darf und wie viele
+welchen Proxys er vertraut, wer ihn von außen erreichen darf und wie viele
 Anfragen er annimmt. Die meisten setzen Sie einmal in der Compose-Datei. Was
-**Verwaltung → Fernzugriff** danach speichert, gewinnt gegenüber ihnen, wie in
+**Verwaltung → Fernzugriff** danach speichert, hat Vorrang vor ihnen, wie in
 der [Konfigurationsreferenz](../configuration.md) erklärt.
 
 ## Adresse und Ports
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | Die öffentliche Adresse. Eine `https://`-Adresse schaltet `Secure`-Cookies, HSTS und das Vertrauen in `X-Forwarded-Proto` ein. Links in E-Mails, Weiterleitungen beim Single Sign-on und Cast-URLs werden daraus gebildet. | Fernzugriff → **Externe URL** gewinnt, wenn gesetzt, sofort; eine `https://`-Externe-URL schaltet auch HTTPS ein |
+| `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | Die öffentliche Adresse. Eine `https://`-Adresse schaltet `Secure`-Cookies, HSTS und das Vertrauen in `X-Forwarded-Proto` ein. Links in E-Mails, Weiterleitungen beim Single Sign-on und Cast-URLs werden daraus gebildet. | Fernzugriff → **Externe URL** hat Vorrang, wenn gesetzt, sofort; eine `https://`-Externe-URL schaltet auch HTTPS ein |
 | `EVEY_SERVER_PORT` | `9090` | Der interne gRPC-Port. Die HTTP-API und die Weboberfläche lauschen auf diesem Port plus eins (`9091`). | keine |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | Die Adresse, auf der der gRPC-Port lauscht. Die Sperre für den Fernzugriff gilt nicht für gRPC. Wer sie weiter öffnet (`0.0.0.0`), bekommt eine Warnung im Protokoll und muss den Port selbst per Firewall schützen. | keine |
 | `EVEY_SERVER_NAME` | `Evey` | Der Name auf der Anmeldeseite, in der Serverliste der Apps und in E-Mails. | Serverkonfiguration → Servereinstellungen → **Servername**, sofort |
@@ -23,7 +23,7 @@ der [Konfigurationsreferenz](../configuration.md) erklärt.
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_TRUSTED_PROXIES` | nur Loopback | Netzwerke, deren weitergereichter Client-Adresse geglaubt wird, durch Kommas getrennt (für einen Proxy in einem Container: `172.16.0.0/12`, eingeengt, sobald bekannt). Kommt zu Loopback hinzu, ersetzt es nie. Ein fehlerhafter Eintrag verhindert den Start. | Fernzugriff → **Vertrauenswürdige Proxys** ersetzt diese Liste, sofort; leert man das Feld, gilt wieder die Variable |
+| `EVEY_TRUSTED_PROXIES` | nur Loopback | Netzwerke, deren weitergegebene Client-Adresse übernommen wird, durch Kommas getrennt (für einen Proxy in einem Container: `172.16.0.0/12`, eingeengt, sobald bekannt). Kommt zu Loopback hinzu, ersetzt es nie. Ein fehlerhafter Eintrag verhindert den Start. | Fernzugriff → **Vertrauenswürdige Proxys** ersetzt diese Liste, sofort; leert man das Feld, gilt wieder die Variable |
 | `EVEY_REAL_IP_HEADER` | `X-Forwarded-For` | Der Header, in den ein vertrauenswürdiger Proxy die Client-Adresse schreibt. | keine |
 | `EVEY_FORWARDED_PROTO` | abgeleitet | Veraltet: HTTPS wird aus dem Schema von `EVEY_SERVER_BASE_URL` abgeleitet. Wird als Übersteuerung noch akzeptiert, mit einer Warnung. | keine |
 

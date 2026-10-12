@@ -1,5 +1,5 @@
 ---
-source_sha: 4aeebbe2feb50999e8470ea3f56b3e47af196ca12cf0100e22527f66ffe278e3
+source_sha: 0b2dda412b186b3b40f33ea4027ceb0d328e5f8f39f87d2312a8c7bdab2edbed
 reviewed: true
 ---
 # Ohne Container
@@ -55,7 +55,7 @@ legt sie mit dem SDK unter `/app` ab; ein symbolischer Link funktioniert auch.
 Installieren Sie, was der `entrypoint:` Ihrer Plugins aufruft. Der Runner
 erkennt `python3`, `python`, `node`, `php`, `ruby`, `perl`, `lua`, `bash` und
 `sh`; `python3` deckt die meisten Community-Plugins ab. Dann die Dienste, mit
-denen der Server spricht:
+denen der Server kommuniziert:
 
 | Abhängigkeit | Wozu |
 |---|---|
@@ -82,8 +82,8 @@ sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugi
 
 - `evey` (UID 1000) führt den Server aus.
 - `evey-plugin` (UID 1001) ist der Benutzer, zu dem Plugins wechseln, wenn die
-  UID-Trennung aktiv ist. Ein kompromittiertes Plugin landet so bei einem
-  anderen Benutzer ohne Sonderrechte, der die Geheimnisse des Servers schon
+  UID-Trennung aktiv ist. Ein kompromittiertes Plugin läuft so als ein
+  anderer Benutzer ohne Sonderrechte, der die Geheimnisse des Servers schon
   wegen der normalen Dateirechte nicht lesen kann.
 
 !!! warning
@@ -138,7 +138,7 @@ EVEY_PLUGINS_SANDBOX_MODE=landlock    # fail closed: ein Plugin wird abgelehnt, 
 ```
 
 `landlock` übergibt dem Launcher `-require-landlock`. Der Launcher beendet
-sich dann mit einem Fehlercode, statt ein Plugin ohne Abschottung zu starten.
+sich dann mit einem Fehlercode, statt ein Plugin ohne Isolierung zu starten.
 
 ### bubblewrap
 
@@ -148,7 +148,7 @@ Positivliste für Mounts. Es braucht User-Namespaces ohne Sonderrechte und den
 Systemaufruf `mount`. Das ist auf den meisten Linux-Systemen ohne Container
 gegeben, aber in einem Container ohne Sonderrechte gesperrt. Deshalb ist
 Landlock der Standard im Container. `auto` wählt bubblewrap nur, wenn Landlock
-fehlt und eine Probe mit einem Wegwerf-`bwrap` gelingt.
+fehlt und ein einmaliger Testlauf von `bwrap` gelingt.
 
 ```bash
 EVEY_PLUGINS_SANDBOX_MODE=bubblewrap  # Namespaces
@@ -161,21 +161,21 @@ Prüfen Sie, ob der Host die Einrichtung der Namespaces und Mounts erlaubt:
 bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 ```
 
-### basic (letzter Ausweg)
+### basic (letzte Möglichkeit)
 
 `EVEY_PLUGINS_SANDBOX_MODE=basic` ist ein Wechsel der UID plus die
 seccomp-Zwischenschicht. Ist der Launcher vorhanden, installiert er trotzdem
 seine seccomp-Sperrliste im Kernel und, so weit möglich, Landlock. Es gibt
-keine Abschottung des Dateisystems Pfad für Pfad: Ein Plugin läuft mit UID
+keine Beschränkung des Dateisystems pro Pfad: Ein Plugin läuft mit UID
 1001 und nur mit seccomp. Verwenden Sie diesen Modus auf alten oder
-abgeriegelten Kerneln, auf denen weder Landlock noch bubblewrap funktioniert,
+stark eingeschränkten Kerneln, auf denen weder Landlock noch bubblewrap funktioniert,
 und verlassen Sie sich auf die UID-Trennung unten, um die Geheimnisse zu
 schützen.
 
 Ein Plugin mit der Berechtigung `subprocess` braucht den Launcher auch im
 Modus `basic`: Die Zwischenschicht überlebt das `exec` eines Kindprozesses
 nicht, nur das seccomp des Launchers im Kernel tut das. Ohne den Launcher
-weigert sich ein solches Plugin zu starten, statt ohne Abschottung zu laufen.
+weigert sich ein solches Plugin zu starten, statt ohne Isolierung zu laufen.
 
 ## Geheimnisse außer Reichweite der Plugins halten
 
@@ -183,13 +183,13 @@ Die UID-Trennung startet jedes Plugin unter `evey-plugin` (UID 1001), getrennt
 vom Server (UID 1000). So kann ein Plugin `jwt.key`, die Sicherungen oder die
 Protokolle schon wegen der normalen Dateirechte nicht lesen. Das zählt im
 Modus `basic`. Unter Landlock oder bubblewrap ist das Dateisystem bereits
-abgeschottet, dort ist die Trennung also doppelt.
+beschränkt, dort ist die Trennung also redundant.
 
 `EVEY_PLUGINS_UID_SEPARATION`:
 
 | Wert | Verhalten |
 |---|---|
-| `auto` (Standard) | nur an, wenn die Sandbox auf `basic` hinausläuft |
+| `auto` (Standard) | nur an, wenn die Sandbox zu `basic` aufgelöst wird |
 | `on` | immer, als zusätzliche, unabhängige Schicht |
 | `off` | nie |
 
@@ -203,7 +203,7 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 
 Der Launcher lehnt jede Ziel-UID oder -GID unter 1000 ab. Kann er nicht
 wechseln (Capability fehlt, `no_new_privs` gesetzt), wird ein Plugin im Modus
-`basic` abgelehnt, weil die UID dort seine einzige Schutzmauer ist. Unter
+`basic` abgelehnt, weil die UID dort sein einziger Schutz ist. Unter
 Landlock schreibt er eine Warnung ins Protokoll und startet das Plugin mit der
 UID des Servers.
 
@@ -215,7 +215,7 @@ UID des Servers.
     zurück. Entscheiden Sie sich für eines von beiden.
 
 Läuft der Server stattdessen als root (nicht empfohlen), lässt er Plugins
-direkt zu 1001 wechseln, und die Capability wird nicht gebraucht. Das Bild in
+direkt zu 1001 wechseln, und die Capability wird nicht gebraucht. Die Übersicht in
 einfachen Worten, Fall für Fall, steht unter
 [Plugin-Sandbox einrichten](plugins/sandbox-deployment.md).
 
@@ -260,7 +260,7 @@ Punkte, die nur ohne Container gelten:
   nichts eingetragen ist). Siehe [Reverse Proxy](reverse-proxy.md).
 - **Der Server öffnet zwei Ports, und nur einer darf erreichbar sein.**
   `EVEY_SERVER_PORT` (Standard `9090`) ist der eigentliche gRPC-Listener. Die
-  HTTP-API, mit der Ihre Clients und Ihr Reverse Proxy sprechen, liegt auf
+  HTTP-API, mit der Ihre Clients und Ihr Reverse Proxy kommunizieren, liegt auf
   diesem Port plus eins (`9091`). Die Sperre für den Fernzugriff, die
   entscheidet, ob Clients außerhalb Ihres LAN sich verbinden dürfen, sitzt in
   der HTTP-Kette und gilt nicht für den gRPC-Listener. Deshalb lauscht dieser

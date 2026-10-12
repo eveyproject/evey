@@ -6,7 +6,7 @@ reviewed: true
 
 **Kurz gesagt:**
 
-- **HDR** ist ein Bild mit helleren Lichtern und satteren Farben als das
+- **HDR** ist ein Bild mit helleren Spitzlichtern und satteren Farben als das
   übliche Bild (genannt **SDR**). Dolby Vision ist eine Art von HDR. HDR
   braucht einen Bildschirm, der es anzeigen kann.
 - Auf einem HDR-Bildschirm mit der App für Android oder Android TV (und einem
@@ -15,7 +15,7 @@ reviewed: true
 - In einem Webbrowser und auf jedem Bildschirm ohne HDR wandelt der Server das
   Bild in SDR um. Das ist Absicht: HDR auf einem SDR-Bildschirm sieht grau und
   ausgewaschen aus.
-- HDR in SDR umzuwandeln ist die schwerste Arbeit, die der Prozessor leisten
+- HDR in SDR umzuwandeln ist die aufwendigste Arbeit, die der Prozessor leisten
   kann. Eine Grafikkarte hilft: siehe
   [Hardware-Beschleunigung](../administration/hardware-acceleration.md).
 
@@ -53,7 +53,7 @@ Bild eingebrannt werden soll, kann eine HDR-Quelle zur Neukodierung zwingen.
 Das HDR bleibt dann erhalten, wenn all dies zutrifft:
 
 - Der Player meldet einen HDR-Bildschirm und dekodiert HEVC;
-- der Server hat eine Grafikkarte, die bei seiner Messung bewiesen hat, dass
+- der Server hat eine Grafikkarte, die bei seiner Messung nachgewiesen hat, dass
   sie HEVC 10 Bit mit HDR kodiert;
 - diese Karte ist für diesen Stream frei.
 
@@ -76,7 +76,7 @@ Neukodieren erhalten**.
 
 Ein Player, der keinen HDR-Bildschirm meldet, erhält ein SDR-Bild, das per
 Tone-Mapping umgerechnet wurde. Das Tone-Mapping läuft auf der Grafikkarte,
-wenn sie bewiesen hat, dass sie es kann (zum Beispiel VAAPI mit OpenCL), sonst
+wenn sie nachgewiesen hat, dass sie es kann (zum Beispiel VAAPI mit OpenCL), sonst
 auf dem Prozessor: mit einem SIMD-optimierten Filter (AVX2), wenn der
 ffmpeg-Build ihn mitbringt, sonst mit einer portablen Kette von Filtern.
 

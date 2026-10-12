@@ -32,7 +32,7 @@ Gerät passt, wie in
 | Mit Konto beitreten | Der Link des Raums oder der Code unter **Gemeinsam hören** → **Raum beitreten** | Der Code unter **Gemeinsam hören** | Der Code unter **Einstellungen** → **Zusammen schauen** |
 | Ohne Konto beitreten | **Gemeinsam ansehen** auf der Anmeldeseite, mit dem Code | Genauso | - |
 
-Beim Eintippen des Codes ist Evey großzügig: Groß- oder Kleinschreibung,
+Beim Eintippen des Codes ist Evey tolerant: Groß- oder Kleinschreibung,
 Leerzeichen, `O` statt `0` oder `I` oder `L` statt `1` werden alle
 akzeptiert.
 
@@ -45,15 +45,15 @@ einen Titel eröffnen, den es nicht schauen darf.
 
 | | Gastgeber | Andere Mitglieder |
 | --- | --- | --- |
-| Android | Abspielen, Pause und Spulen bewegen den ganzen Raum. | Abspielen, Pause und Spulen bleiben auf Ihrem eigenen Bildschirm. |
-| Android TV | Abspielen und Pause bewegen den ganzen Raum; Spulen bleibt auf dem Fernseher. | Wie bei Android. |
+| Android | Abspielen, Pause und Spulen gelten für den ganzen Raum. | Abspielen, Pause und Spulen bleiben auf Ihrem eigenen Bildschirm. |
+| Android TV | Abspielen und Pause gelten für den ganzen Raum; Spulen bleibt auf dem Fernseher. | Wie bei Android. |
 | Web | Abspielen, Pause und Spulen bleiben auf Ihrem eigenen Bildschirm, auch beim Gastgeber. | Genauso. |
 
 Im Web-Player ersetzen eigene Schaltflächen die Steuerung durch den
-Gastgeber. **Alle synchronisieren** holt den ganzen Raum an Ihre Stelle und
+Gastgeber. **Alle synchronisieren** setzt alle im Raum auf Ihre Position und
 setzt die Wiedergabe fort; jedes Mitglied kann es benutzen, nicht nur der
 Gastgeber. **Aufholen** bringt Sie dorthin zurück, wo der Raum gerade ist,
-ohne jemand anderen zu bewegen; es wird auf der Gastseite angeboten (mit
+ohne die Position der anderen zu ändern; es wird auf der Gastseite angeboten (mit
 einem Code beigetreten, ohne Konto), nicht im Player eines angemeldeten
 Kontos.
 
@@ -72,7 +72,7 @@ einen Titel und sonst nichts:
 
 - nur Streaming, nie Herunterladen;
 - nur Video-Räume, keine Musik-Räume;
-- der Zugang hält, solange er genutzt wird, verfällt nach drei Stunden ohne
+- der Zugang gilt, solange er genutzt wird, verfällt nach drei Stunden ohne
   Wiedergabe und in jedem Fall nach 24 Stunden, und endet, sobald der Raum
   schließt.
 

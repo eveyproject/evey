@@ -62,7 +62,7 @@ Profile und die Zahl der Geräte festlegen (siehe
 In der Zeile eines Kontos:
 
 - **Deaktivieren** sperrt seine Anmeldungen, ohne etwas zu löschen.
-  **Aktivieren** lässt es wieder herein.
+  **Aktivieren** erlaubt wieder Anmeldungen.
 - **Löschen** entfernt das Konto und seine Profile.
 
 ## Profile, Kinderprofile und die PIN
@@ -184,7 +184,7 @@ Was passiert:
 ## Anfragen
 
 Man kann einen Film, eine Serie oder einen Künstler anfragen, den Sie noch
-nicht haben. Diese Anfragen landen unter **Verwaltung → Medienanfragen**.
+nicht haben. Diese Anfragen erscheinen unter **Verwaltung → Medienanfragen**.
 Wählen Sie bei jeder **Genehmigen**, **Ablehnen** oder **Später**, und fügen
 Sie auf Wunsch eine Notiz hinzu. Die Person wird über Ihre Antwort
 benachrichtigt.
@@ -195,7 +195,7 @@ pro Benutzer** für Ausnahmen.
 
 ## Die Startseite
 
-Die Startseite ist ein Stapel von Reihen. Eine Reihe, die nichts zu zeigen
+Die Startseite besteht aus Reihen, die untereinander stehen. Eine Reihe, die nichts zu zeigen
 hat, wird ausgeblendet.
 
 | Reihe | Was sie zeigt |
@@ -219,8 +219,8 @@ gesehen ist. Plugins können eigene Reihen hinzufügen.
 - Jedes Profil kann dann seine eigene Startseite mit **Anpassen** einrichten
   (auf der Startseite der Web- und Handy-Apps, in der oberen Leiste der
   TV-App): eine Reihe zeigen oder ausblenden, sie verschieben oder
-  **Zurücksetzen**. Das wird auf dem Server gespeichert und folgt dem Profil
-  auf jedes Gerät.
+  **Zurücksetzen**. Das wird auf dem Server gespeichert und gilt für das Profil
+  auf jedem Gerät.
 - Ein Profil kann eine Reihe zeigen, die Sie ausgeblendet haben, außer der
   Reihe eines Plugins: Dort gilt Ihre Entscheidung.
 

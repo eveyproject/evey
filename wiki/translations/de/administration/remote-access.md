@@ -79,7 +79,7 @@ Wiedergabe.
 | --- | --- |
 | **Fernzugriff aktivieren** | An: Leute außerhalb Ihres Heimnetzes können sich wie alle anderen verbinden. Aus: Sie werden abgewiesen (`403`). |
 | **Externe URL** | Ihre öffentliche Adresse. Links in E-Mails, Single Sign-on und das Streamen auf andere Geräte (Casting) nutzen sie. Eine `https://`-Adresse schaltet außerdem den HTTPS-Modus ein (siehe unten). |
-| **Vertrauenswürdige Proxys (IP oder CIDR, kommagetrennt)** | Die Reverse Proxys, denen Evey glaubt, wenn sie sagen, wer der echte Besucher ist. Der Rechner selbst (Loopback) ist immer vertrauenswürdig. Leer: Die Liste kommt aus `EVEY_TRUSTED_PROXIES`. |
+| **Vertrauenswürdige Proxys (IP oder CIDR, kommagetrennt)** | Die Reverse Proxys, deren Angabe zum tatsächlichen Besucher Evey übernimmt. Der Rechner selbst (Loopback) ist immer vertrauenswürdig. Leer: Die Liste kommt aus `EVEY_TRUSTED_PROXIES`. |
 | **LAN-Netzwerke (CIDR, kommagetrennt)** | Die Adressbereiche, die Evey als „zu Hause“ behandelt. Private Bereiche sind standardmäßig eingetragen. Nutzen Sie ein VPN (Tailscale, WireGuard) und sollen dessen Nutzer als zu Hause gelten, tragen Sie seinen Bereich hier ein. |
 | **Max. Remote-Bitrate (Kbps, 0 = unbegrenzt)** | Eine Qualitätsgrenze für Leute außerhalb Ihres Heimnetzes. Eine private Adresse wird nie begrenzt. Legt **Verwaltung → Transkodierung** ebenfalls eine Grenze für entfernte Zuschauer fest, gilt die niedrigere. Siehe [Wie über die Wiedergabe entschieden wird](../playback/how-playback-is-decided.md#limits-on-the-session). |
 
@@ -91,7 +91,7 @@ Fernzugriff**:
 
 - **Externe URL** mit `https://`. Daran erkennt Evey, dass ein Proxy HTTPS
   übernimmt. Evey schützt dann seine Anmelde-Cookies (Flag `Secure`), sagt
-  Browsern, immer HTTPS zu benutzen (HSTS), und glaubt dem Header
+  Browsern, immer HTTPS zu benutzen (HSTS), und übernimmt den Header
   `X-Forwarded-Proto` eines vertrauenswürdigen Proxys.
 - **Die vertrauenswürdigen Proxys**, wenn der Proxy nicht auf demselben
   Rechner wie Evey läuft. Für einen Proxy in einem anderen Container gehört
@@ -100,7 +100,7 @@ Fernzugriff**:
 
 !!! warning "Ein Bereich, der alle Adressen abdeckt, wird abgelehnt"
     `0.0.0.0/0` oder `::/0` als vertrauenswürdiger Proxy würde jedem Besucher
-    erlauben, so zu tun, als käme er von irgendwoher. Der Verwaltungsbereich
+    erlauben, eine beliebige Herkunftsadresse vorzutäuschen. Der Verwaltungsbereich
     und `evey admin doctor` lehnen das beide ab. Tragen Sie stattdessen die
     eigene Adresse oder das Netz des Proxys ein.
 
@@ -111,7 +111,7 @@ aus der Compose-Datei heraus. Das passt zu einer Einrichtung, die ganz in
 Dateien geschrieben ist, oder zu einem Server, der schon beim allerersten
 Start über HTTPS antworten muss.
 
-Ist beides gesetzt, gewinnt der Verwaltungsbereich. Eine `https://`-Adresse
+Ist beides gesetzt, hat der Verwaltungsbereich Vorrang. Eine `https://`-Adresse
 als **Externe URL** schaltet den HTTPS-Modus ein, auch wenn die Basis-URL
 einfaches HTTP ist, und eine gespeicherte Proxy-Liste ersetzt die Variable.
 Leeren Sie das Feld, um die Entscheidung wieder der Variable zu überlassen.
@@ -123,8 +123,8 @@ Damit der Fernzugriff und die Qualitätsgrenze für unterwegs funktionieren,
 muss Evey die echte Adresse jedes Besuchers sehen. Zwei Einstellungen arbeiten
 zusammen:
 
-1. Die vertrauenswürdigen Proxys legen fest, wem Evey die echte Adresse des
-   Besuchers glaubt.
+1. Die vertrauenswürdigen Proxys legen fest, von wem Evey die Angabe zur
+   echten Adresse des Besuchers übernimmt.
 2. Die LAN-Netzwerke entscheiden dann, ob diese Adresse „zu Hause“ oder
    „unterwegs“ ist.
 

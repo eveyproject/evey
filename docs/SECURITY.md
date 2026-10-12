@@ -176,7 +176,7 @@ This closes the paths direct egress left open (IP literals such as
 
 !!! tip "Recommended for operators"
     The broker moves the SSRF surface to the host. An egress rule on the
-    `evey-server` container, independent of the code, adds a second wall:
+    `evey-server` container, independent of the code, adds a second protection:
     drop `169.254.0.0/16` and restrict the internal network to the database
     and search endpoints.
 
@@ -232,14 +232,14 @@ alone. `EVEY_PLUGINS_UID_SEPARATION` controls it:
 
 | Value | When the switch happens |
 |---|---|
-| `auto` (default) | only when the sandbox resolves to `basic`, the one case where file permissions are the only wall around the secrets |
+| `auto` (default) | only when the sandbox resolves to `basic`, the one case where file permissions are the only protection of the secrets |
 | `on` | always, as an extra layer |
 | `off` | never |
 
 The switch is made by the launcher, which holds `cap_setuid`; the server
 itself runs without privileges or capabilities. The launcher refuses any
 target below 1000. If it cannot switch, a plugin in `basic` is refused (the
-user is the only wall there), while in `landlock` it runs as the server's
+user is the only protection there), while in `landlock` it runs as the server's
 user with a warning. In `bubblewrap` and `strict`, the user namespace plays
 this role.
 

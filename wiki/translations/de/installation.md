@@ -100,7 +100,7 @@ docker compose up -d
 ```
 
 Evey startet im Hintergrund. Um zu sehen, was es tut, führen Sie
-`docker compose logs -f evey` aus; mit `Ctrl+C` hören Sie auf zuzuschauen,
+`docker compose logs -f evey` aus; mit `Ctrl+C` beenden Sie die Anzeige,
 Evey läuft weiter.
 
 Beim ersten Start legt Evey seine Passwörter und seine Datenbank in

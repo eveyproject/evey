@@ -20,8 +20,9 @@ check out) gets one of two answers, and deliberately only two:
 | **Repairable** | A defect Evey repairs on this server. | **Repair all** handles them in the background; its count is exactly their count. |
 | **Info** | Something measured about the file that Evey does not rewrite on its own. | Nothing. Mark it as seen. |
 
-Neither hands you a chore. A measurement Evey cannot act on is a remark, and
-a measurement can be wrong: if the file plays fine, it is fine.
+Neither asks you for manual work. A measurement Evey cannot act on is only a
+remark, and a measurement can be wrong: if the file plays correctly, nothing
+needs doing.
 
 ### Repairable
 

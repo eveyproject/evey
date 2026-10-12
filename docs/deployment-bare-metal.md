@@ -166,7 +166,7 @@ refuses to start rather than run unconfined.
 Uid separation runs each plugin under `evey-plugin` (UID 1001), distinct
 from the server (UID 1000), so a plugin cannot read `jwt.key`, the backups
 or the logs by plain file permissions. It matters in `basic` mode; under
-Landlock or bubblewrap the filesystem is already walled off, so it is
+Landlock or bubblewrap the filesystem is already restricted, so it is
 redundant there.
 
 `EVEY_PLUGINS_UID_SEPARATION`:
@@ -187,7 +187,7 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 
 The launcher refuses any target uid or gid below 1000. When it cannot drop
 (capability missing, `no_new_privs` set), a plugin in `basic` mode is
-refused, since the uid is its only wall there; under Landlock it logs a
+refused, since the uid is its only protection there; under Landlock it logs a
 warning and runs at the server's uid.
 
 !!! warning

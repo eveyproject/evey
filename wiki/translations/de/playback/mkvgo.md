@@ -8,8 +8,8 @@ reviewed: true
 
 - MKVGo ist ein Teil von Evey, der Videodateien (MKV, WebM, MP4, MOV) liest
   und umverpackt, ohne Bild oder Ton umzuwandeln.
-- Wo es geht, liefert MKVGo die Wiedergaben als **Remux** aus, zieht
-  Untertitel heraus und liest Ihre Dateien beim Scan. Alles, was eine echte
+- Wo es geht, liefert MKVGo die Wiedergaben als **Remux** aus, extrahiert
+  Untertitel und liest Ihre Dateien beim Scan. Alles, was eine echte
   Umwandlung braucht, geht an FFmpeg, ein eigenes Videowerkzeug.
 - Sie müssen nichts einstellen. **Verwaltung → Aktuelle Wiedergabe** zeigt
   Spur für Spur, ob MKVGo oder FFmpeg eine Wiedergabe ausgeliefert hat.
@@ -52,7 +52,7 @@ dekodiert: [Wie Evey die Wiedergabeart wählt](how-playback-is-decided.md).
 | **Keyframe-Index** | Die Stellen, an denen die Wiedergabe beginnen kann, gelesen aus dem Index der Datei. Damit schneiden Remux und Videokopie die Segmente an Keyframes. | ffprobe. |
 | **Streaming ohne Neukodieren** | Remux: HLS-Segmente in fragmentiertem MP4 (CMAF), bei Anfrage gebaut nach einem Plan, der pro Datei aufbewahrt wird. Ein Segment wird beim Versand direkt aus der Quelldatei in die Verbindung geschrieben: Nichts wird vorher im Speicher zusammengesetzt, nichts in den Transkodierungs-Cache geschrieben. Über dieselben Segmente wird ein DASH-Manifest erzeugt; die Apps nutzen HLS. | FFmpeg kopiert die Spuren, ebenfalls ohne Neukodieren, in Segmente, die in den Cache geschrieben werden. |
 | **MP4 für den Browser** | Eine Matroska-Datei, die ein Browser nicht öffnen kann, wird einmal als MP4 mit Schnellstart neu geschrieben und in einem Cache aufbewahrt. | - |
-| **Untertitel** | In ein MKV eingebettete Untertitelspuren werden bei Anfrage herausgezogen: Textspuren als WebVTT, Bildspuren (PGS) als Bilder. Deckt der eigene Index der Datei (Cues) eine Spur vollständig ab, liest der Server nur die Blöcke, auf die er zeigt, statt der ganzen Datei. Diesen Blockindex bewahrt er für die nächste Anfrage in seinem Datenverzeichnis auf (`subtitle-index/`). Muss eine Spur doch ganz gelesen werden, lautet die Antwort „wird vorbereitet“, mit einer Wartezeit für den nächsten Versuch, und die Player fragen nach, bis sie fertig ist. | ffmpeg zieht die Spur heraus und liest dabei die ganze Datei. |
+| **Untertitel** | In ein MKV eingebettete Untertitelspuren werden bei Anfrage extrahiert: Textspuren als WebVTT, Bildspuren (PGS) als Bilder. Deckt der eigene Index der Datei (Cues) eine Spur vollständig ab, liest der Server nur die Blöcke, auf die er zeigt, statt der ganzen Datei. Diesen Blockindex bewahrt er für die nächste Anfrage in seinem Datenverzeichnis auf (`subtitle-index/`). Muss eine Spur doch ganz gelesen werden, lautet die Antwort „wird vorbereitet“, mit einer Wartezeit für den nächsten Versuch, und die Player fragen nach, bis sie fertig ist. | ffmpeg extrahiert die Spur und liest dabei die ganze Datei. |
 | **Vorschaubilder** | Der Keyframe, der der gewünschten Stelle am nächsten liegt, wird über den Index gefunden, und FFmpeg dekodiert nur dieses eine Bild. Das gilt, wenn dieser Keyframe höchstens etwa zwei Sekunden von der gewünschten Stelle entfernt ist. | FFmpeg springt und dekodiert bis zur genauen Stelle. |
 | **Folgen am Stück** | Der Server kann mehrere Folgen als einen durchgehenden Stream verpacken (`?gapless=1` an der Adresse des Streams). Noch bietet keine App diesen Schalter an. | Jede Folge läuft für sich. |
 | **Medienzustand** | Die Diagnose (Seek-Index, Tonstart, in Blöcken gespeicherte Spuren), der neu aufgebaute Index, das Neusynchronisieren hinter einer beschädigten Stelle und das Verschieben einer Tonspur um einen Versatz. Siehe [Medienzustand](../runbooks/media-health.md). | Das Neu-Muxen von Spuren, die in Blöcken gespeichert sind, erledigt FFmpeg. |

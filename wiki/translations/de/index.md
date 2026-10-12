@@ -98,10 +98,10 @@ auf dem Fernseher.
 
 ## Nichts zu wählen, bevor Sie auf Abspielen drücken { #nothing-to-choose-before-pressing-play }
 
-Manche Dateien laufen überall. Andere sind zu schwer für ein altes Handy,
+Manche Dateien laufen überall. Andere sind zu anspruchsvoll für ein altes Handy,
 oder sie haben ein Tonformat, das ein Fernseher nicht lesen kann. Jedes Mal,
-wenn Sie auf Abspielen drücken, schaut sich der Server die Datei, das Gerät
-und seine eigene Auslastung an. Dann wählt er den leichtesten Weg, der
+wenn Sie auf Abspielen drücken, prüft der Server die Datei, das Gerät
+und seine eigene Auslastung. Dann wählt er den leichtesten Weg, der
 funktioniert:
 
 - **Direktwiedergabe**: Die Datei wird so geschickt, wie sie ist.
@@ -109,8 +109,8 @@ funktioniert:
   das Gerät annimmt. Das kostet den Server fast nichts. Evey hat dafür ein
   eigenes Werkzeug, **MKVGo**, und nimmt FFmpeg, wenn MKVGo es nicht kann.
 - **Transkodierung**: Der Server wandelt nur um, was das Gerät nicht
-  abspielen kann, oft nur den Ton. Nur in diesem Fall hat der Prozessor
-  richtig zu tun.
+  abspielen kann, oft nur den Ton. Nur in diesem Fall wird der Prozessor
+  stark belastet.
 
 Derselbe Film kann also unverändert an einen Fernseher gehen und für ein
 älteres Handy umgewandelt werden. Im Player zeigt die **Stream-Info**, welchen
@@ -135,11 +135,11 @@ schreiben und keine Einstellung für Arbeitsspeicher oder Prozessor.
 - **Der Server läuft nie als root.** Er läuft als Besitzer Ihres
   Medienordners, wenn er ihn erkennen kann, damit Reparaturen schreiben
   können.
-- **Der Server misst sich selbst.** In einem ruhigen Moment stoppt er echte
+- **Der Server misst sich selbst.** In einem ruhigen Moment misst er die Dauer echter
   Umwandlungen auf dem Prozessor und auf einer Grafikkarte, falls Sie ihm eine
   gegeben haben. Danach weiß er, wie viele Personen er gleichzeitig bedienen
   kann. Wird es knapp, bekommt eine neue Wiedergabe eine niedrigere Qualität,
-  oder sie wandert von einer ausgelasteten Grafikkarte auf den Prozessor. Kann
+  oder sie wird von einer ausgelasteten Grafikkarte auf den Prozessor verlagert. Kann
   eine Wiedergabe nicht starten, sagt die Meldung, warum: Der Server ist voll,
   er misst sich noch, oder die Datei ist noch nicht bereit.
 - **Der Zugriff von außerhalb Ihres Zuhauses ist aus**, bis Sie dem Server
@@ -166,7 +166,7 @@ wird gemeldet und in Ruhe gelassen.
 
 **Ihre Daten.** Das Projekt betreibt keinen Dienst, der sie empfängt: kein
 Konto bei uns, keine Nutzungsstatistik, keine Absturzberichte. Die Apps
-sprechen mit Ihrem Server und mit nichts anderem, das wir betreiben. Was Ihr
+kommunizieren mit Ihrem Server und mit nichts anderem, das wir betreiben. Was Ihr
 Netzwerk verlässt: Der Server holt Bilder und Beschreibungen von externen
 Diensten (The Movie Database, und Quellen für Musik-Cover). Ab und zu fragt er
 außerdem nach, ob es eine neuere Version gibt, was Sie abschalten können. Die
@@ -182,8 +182,8 @@ die Prüfung des Plugins gefunden hat und welche Berechtigungen es verlangt.
 Eine neue Berechtigung muss ausdrücklich angenommen werden. Ein Plugin läuft
 als eigener Prozess, unter einem eigenen Benutzer, ohne direkten
 Netzwerkzugang. Es wird gestoppt, wenn es seine Grenze für Arbeitsspeicher,
-Prozesse oder Speicherplatz überschreitet. Wie streng seine Dateien
-abgeschottet sind, hängt vom Rechner ab, und das **Sicherheits-Dashboard**
+Prozesse oder Speicherplatz überschreitet. Wie streng sein Dateizugriff
+eingeschränkt ist, hängt vom Rechner ab, und das **Sicherheits-Dashboard**
 zeigt den verwendeten Modus. Das Widget eines Plugins erscheint im Web, auf
 Android und auf dem Fernseher. Auf dem Fernseher können Sie es sehen, aber
 nicht bedienen.

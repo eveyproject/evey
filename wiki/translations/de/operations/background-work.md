@@ -39,16 +39,16 @@ wenn der Server benutzt wird.
 
 ## Arbeitsspeicher
 
-**Speicherprofil** (**Verwaltung → Serverkonfiguration**): **Niedrig** legt
-Plugins, die nichts tun, schlafen, um Arbeitsspeicher zu sparen, und weckt sie
-bei Bedarf. **Automatisch (empfohlen)** wählt Niedrig auf Rechnern mit weniger als
+**Speicherprofil** (**Verwaltung → Serverkonfiguration**): **Niedrig** versetzt
+ungenutzte Plugins in den Ruhezustand, um Arbeitsspeicher zu sparen, und startet
+sie bei Bedarf wieder. **Automatisch (empfohlen)** wählt Niedrig auf Rechnern mit weniger als
 3 GB Arbeitsspeicher.
 
 ## Einstellungen, die beim Start gelesen werden
 
 Einige Einstellungen werden nur einmal gelesen, wenn der Server startet: Beim
 Speichern wird Ihre Wahl festgehalten, ein Neustart wendet sie an. Der
-Verwaltungsbereich sagt das neben ihnen. Es sind die Karte
+Verwaltungsbereich zeigt daneben einen Hinweis darauf. Es sind die Karte
 **Hintergrundarbeiten** (Pausieren und Tempo der Durchgänge für Keyframes und
 Codec-Level), der Schalter **Intro-Skip-Anbieter** und die **Erweiterte
 Grenzwerte** der Transkodierung.

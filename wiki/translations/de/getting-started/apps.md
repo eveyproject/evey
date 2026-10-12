@@ -5,12 +5,12 @@ reviewed: true
 # Apps verbinden
 
 Ihr Handy oder Ihr Fernseher fragt nach der Adresse Ihres Evey-Servers? Diese
-Seite sagt Ihnen, was Sie eintippen, und was Sie tun, wenn es nicht klappt.
+Seite sagt Ihnen, was Sie eintippen, und was Sie tun, wenn es nicht funktioniert.
 
 Jede App verbindet sich mit Ihrem eigenen Evey-Server bei Ihnen zu Hause. Sie
 tippen seine Adresse einmal ein, melden sich an und wählen Ihr Profil. Wo Sie
 aufgehört haben, was Sie geschaut haben und Ihre Favoriten liegen auf dem
-Server. Sie folgen Ihnen also von einem Gerät zum nächsten.
+Server. Sie stehen Ihnen also auf jedem Ihrer Geräte zur Verfügung.
 
 - **Webbrowser**: nichts zu installieren. Öffnen Sie die Adresse des Servers.
   Der Verwaltungsbereich ist auch dort, für Administratoren.
@@ -102,7 +102,7 @@ Gäste-WLAN ist oder in einem anderen Netz als der Server.
     Er probiert `http://` auf jeder Adresse von vier üblichen Heimnetzen aus
     (`192.168.1.x`, `192.168.0.x`, `10.0.0.x` und `172.16.0.x`, Hosts 1 bis
     254), auf den Ports `9091`, `8096` und `8920`, fünfzig auf einmal, mit
-    je 2 Sekunden Wartezeit. Er verpasst also auch einen Server in einem
+    je 2 Sekunden Wartezeit. Er findet also auch keinen Server in einem
     anderen Adressbereich (`192.168.2.x`, `10.1.x.x`...), auf einem anderen
     Port oder einen, der nur über HTTPS erreichbar ist. Die Apps nutzen weder
     mDNS noch Bonjour und lesen den Adressbereich des Handys nicht aus: Diese
@@ -126,8 +126,8 @@ erscheinen noch auf Englisch):
 | **Fernzugriff deaktiviert** | Sie sind unterwegs, und der Server nimmt keine Verbindungen von außen an. | Fragen Sie die Person, die Evey betreibt. Sie schaltet es unter **Verwaltung → Fernzugriff** ein: [Fernzugriff und HTTPS](../administration/remote-access.md). |
 
 Auf Android TV sind die Meldungen kürzer: **Server returned 404**, wenn etwas
-anderes als Evey antwortet, und der rohe Netzwerkfehler, wenn nichts
-antwortet. Ursachen und Prüfungen sind dieselben. Auch der Fernseher braucht
+anderes als Evey antwortet, und die unveränderte Fehlermeldung des Netzwerks,
+wenn nichts antwortet. Ursachen und Prüfungen sind dieselben. Auch der Fernseher braucht
 das `http://` (ein bloßes `192.168.1.20:9091` schlägt fehl), er warnt aber
 nicht vor `http://` bei einer öffentlichen Adresse.
 
@@ -223,7 +223,7 @@ Server liefert sie.
 
 ## Welches Gerät was abspielt
 
-Jede App sagt dem Server, was ihr Gerät abspielen kann. Für jeden Titel
+Jede App meldet dem Server, was ihr Gerät abspielen kann. Für jeden Titel
 entscheidet der Server dann, ob er die Datei so schickt, wie sie ist, oder
 sie anpasst. Derselbe Film kann also unverändert an einen Fernseher gehen und
 für ein älteres Handy umgewandelt werden. Das Feld **Stream-Info** im Player

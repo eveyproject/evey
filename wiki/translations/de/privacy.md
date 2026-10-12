@@ -10,7 +10,7 @@ Diese Erklärung gilt für die Evey-Apps für Android und Android TV.
 
 Kurz gesagt: Das Evey-Projekt betreibt keinen Dienst, der Ihre Daten
 empfängt. Es gibt kein Konto bei uns, keine Nutzungsstatistik, keine Werbung
-und keine Absturzberichte an uns. Die Apps sprechen mit dem Evey-Server, den
+und keine Absturzberichte an uns. Die Apps kommunizieren mit dem Evey-Server, den
 Sie oder die Person, die Sie eingeladen hat, installiert haben und betreiben.
 
 ## Was die Apps senden, und an wen
@@ -61,9 +61,9 @@ betreibt. Das Evey-Projekt hat keinen Zugriff darauf.
 
 Die Serveradresse, Ihr Sitzungstoken (im verschlüsselten Speicher von
 Android), Ihre Einstellungen und die Filme und die Musik, die Sie zum Schauen
-oder Hören ohne Internet herunterladen. Wenn Sie die App entfernen, ist all
-das weg. Das Entsperren per Fingerabdruck oder Gesicht, wenn Sie es
-einschalten, übernimmt Android: Die App erfährt nur, ob es geklappt hat.
+oder Hören ohne Internet herunterladen. Wenn Sie die App entfernen, wird all
+das gelöscht. Das Entsperren per Fingerabdruck oder Gesicht, wenn Sie es
+einschalten, übernimmt Android: Die App erfährt nur, ob es erfolgreich war.
 
 ## Berechtigungen
 

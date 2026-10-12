@@ -228,14 +228,14 @@ Docker-Image enthält sie nicht:
 | Programm | Zweck |
 | --- | --- |
 | `cmd/intro-backfill` | Die Intro-Erkennung für einen Teil des Katalogs auffrischen, nachdem sich die Verarbeitung geändert hat. Ein API-Client mit Bearer-Token, nicht im Prozess des Servers. |
-| `cmd/intro-diag` | Erklären, warum die Intro-Erkennung bei einer Serie getroffen hat oder nicht, anhand der Trickplay-Sprites auf der Festplatte. |
-| `cmd/trickplay-verify` | Prüfen, dass jede Trickplay-Kachel das Bild zum gespeicherten Zeitpunkt zeigt, indem das Bild der Quelle mit ffmpeg erneut herausgezogen wird. |
+| `cmd/intro-diag` | Erklären, warum die Intro-Erkennung bei einer Serie ein Intro gefunden hat oder nicht, anhand der Trickplay-Sprites auf der Festplatte. |
+| `cmd/trickplay-verify` | Prüfen, dass jede Trickplay-Kachel das Bild zum gespeicherten Zeitpunkt zeigt, indem das Bild der Quelle mit ffmpeg erneut extrahiert wird. |
 
 ## Verwandte Runbooks
 
 - [Wiederherstellung](recovery.md): Passwort zurücksetzen, JWT-Schlüssel wechseln, Sicherung wiederherstellen.
 - [Datenbankmigrationen](migration-runbook.md): Schema ausrollen, zurückrollen, einen „dirty“-Zustand beheben.
-- [Störungshandbuch](incident-runbook.md): die ersten Schritte, wenn der Server Probleme macht.
+- [Störungshandbuch](incident-runbook.md): die ersten Schritte, wenn beim Server Probleme auftreten.
 
 <!-- sources
 dispatch and top-level commands: cmd/evey/cli.go - runCLI (version, help, completion, man, unknown command refused), cmd/evey/main.go

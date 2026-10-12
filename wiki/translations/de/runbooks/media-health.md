@@ -1,11 +1,11 @@
 ---
-source_sha: 5dbf80c7cfab5adb1eeb033bff154974a751780f86ca9c44f991546921de8f3f
+source_sha: 181fd5fb4e9492dc7feeae765f9c469162e43e7a56a39a6399be584d8e660049
 reviewed: true
 ---
 # Medienzustand
 
-Ein Titel springt langsam, bleibt an einer Stelle hängen, oder sein Ton
-verschiebt sich: **Verwaltung → Medienzustand** liest jede MKV/WebM-Datei
+Bei einem Titel dauert das Springen lange, die Wiedergabe bleibt an einer
+Stelle hängen, oder der Ton verschiebt sich: **Verwaltung → Medienzustand** liest jede MKV/WebM-Datei
 Ihrer Bibliotheken und gibt jeder eine einzige Antwort. Ziel ist eine Seite,
 die sich leert: Was Evey beheben kann, behebt es (**Alle reparieren**); der
 Rest wird einmal erwähnt und kann als gesehen markiert werden.
@@ -25,9 +25,9 @@ des Tons stimmen), bekommt eine von zwei Antworten, und mit Absicht nur zwei:
 | **Reparierbar** | Ein Fehler, den Evey auf diesem Server repariert. | **Alle reparieren** erledigt sie im Hintergrund; die Zahl auf der Schaltfläche ist genau ihre Zahl. |
 | **Info** | Etwas, das an der Datei gemessen wurde und das Evey nicht von selbst umschreibt. | Nichts. Markieren Sie es als gesehen. |
 
-Keines der beiden Urteile schiebt Ihnen eine Aufgabe zu. Eine Messung, mit
-der Evey nichts anfangen kann, ist ein Hinweis, und eine Messung kann falsch
-sein: Läuft die Datei gut, ist sie in Ordnung.
+Keines der beiden Urteile verlangt manuelle Arbeit von Ihnen. Eine Messung,
+mit der Evey nichts anfangen kann, ist nur ein Hinweis, und eine Messung kann
+falsch sein: Läuft die Datei korrekt, ist nichts zu tun.
 
 ### Reparierbar
 
@@ -36,7 +36,7 @@ sein: Läuft die Datei gut, ist sie in Ordnung.
   vorläufigen Kopie neu aufgebaut. Die Kopie wird vollständig geprüft (Spuren,
   Dauer, Index) und ersetzt dann die Datei.
 - **Falscher Container**: Die `.mkv` ist in Wahrheit eine MP4- oder MOV-Datei.
-  Sie wird in `.mp4` umbenannt, und die Bibliothek zieht mit; nichts wird
+  Sie wird in `.mp4` umbenannt, und die Bibliothek übernimmt die Änderung; nichts wird
   umgeschrieben.
 - **Beschädigter Abschnitt**: eine beschädigte Stelle mitten in der Datei. Die
   Reparatur überspringt sie und synchronisiert, was folgt, neu. Diese Bytes
@@ -57,7 +57,7 @@ sein: Läuft die Datei gut, ist sie in Ordnung.
   läuft bis zu der Stelle, an der sie abbricht. Kein Werkzeug holt den
   fehlenden Teil zurück; das kann nur die Quelle.
 - **Grobes Springen**: Der neu aufgebaute Index hat noch eine Lücke, meist im
-  Abspann. Ein Sprung in die Lücke landet an ihrem Rand; überall sonst sind
+  Abspann. Ein Sprung in die Lücke endet an ihrem Rand; überall sonst sind
   Sprünge genau.
 - **Ton bei +N s**: Eine Tonspur beginnt nach dem Bild. So wird eine
   Synchronfassung an eine Schnittfassung angepasst, und jeder Player folgt

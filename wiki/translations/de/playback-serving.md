@@ -9,8 +9,8 @@ nach `master.m3u8` bis zu den Bytes eines Segments: der Leseweg. Der Code
 verteilt sich auf den treibenden Adapter `http`
 (`internal/adapters/driving/http/transcode_*`), die Dienste in
 `app/transcoding` und die getriebenen Adapter `ffmpeg` / `mkvgo` / `prober`.
-Keine einzelne Funktion führt den ganzen Ablauf aus, deshalb ist diese Seite
-die Karte. Entschieden wird er durch
+Keine einzelne Funktion führt den ganzen Ablauf aus, deshalb gibt diese Seite
+den Überblick. Entschieden wird er durch
 [ADR-0030](adr/0030-one-plan-one-decision.md) (ein Plan, eine
 Entscheidung), [ADR-0024](adr/0024-playback-plan-resolver.md) (der
 Plan-Resolver) und
@@ -32,7 +32,7 @@ dann zu verpacken, wobei alles über einen einzigen Hash adressiert wird.
 | **F2 - Kann der Client sie so abspielen, wie sie ist?** | die Wiedergabe-**Entscheidung**, pro Spur getroffen: Video `copy` oder `transcode`, Audio `copy`, `transcode` oder der wasm-Weg für AC-3; Video und Audio werden unabhängig entschieden, und der häufige Fall ist „Video kopieren, Audio neu nach AAC kodieren“ | `app/transcoding/decision.go` |
 | **F3 - Wie viel kann dieser Host kodieren?** | die kalibrierte **Fähigkeit** (gemessen im ersten ruhigen Moment) plus die **Zulassung** (welche Stufe der Leiter passt, gibt es einen freien Platz) | `app/transcoding/calibration_service.go`, `admission_shaper.go` |
 
-Zwei Engines ziehen sich durch alles:
+Zwei Engines werden überall eingesetzt:
 
 - **mkvgo** liest und verpackt neu (Remux, auf Abruf), ohne einen Prozess zu starten. Kostenlos.
 - **ffmpeg / ffprobe** dekodieren, kodieren neu und analysieren, indem sie einen Prozess starten. Teuer.
@@ -87,15 +87,15 @@ von Anfang bis Ende zu verfolgen:
    Abwerfen von Stufen, Versiegelung veralteter URLs, Wahl des Produzenten
    und Segmentschlüssel lesen alle diese eine Auflösung. Innerhalb einer
    Anfrage gilt die Invariante des Cache-Hashs also schon durch die
-   Bauweise (der heiße Pfad für Segmente ging von etwa 5 Abrufen der
+   Bauweise (der Hot Path für Segmente ging von etwa 5 Abrufen der
    Profileinstellungen auf 1 zurück). Die Hilfsfunktionen für Fakten der
    Quelle (Codec, HDR, SAR, 10 Bit...) liegen daneben in `source_facts.go`.
    `makeDecision` und `buildFingerprint` in
-   `http/transcode_vod_fingerprint.go` sind dünne Hüllen für die
+   `http/transcode_vod_fingerprint.go` sind dünne Wrapper für die
    Aufrufstellen ohne Plan (Vorwärmen, Master auf Abruf).
 3. **F2 - Entscheidung** - `internal/app/transcoding/decision.go`:
-   `MakePlaybackDecisionWithPrefs` (rein) ist das Gehirn, das pro Spur
-   zwischen Kopieren und Transkodieren entscheidet. Der Resolver legt die
+   `MakePlaybackDecisionWithPrefs` (rein) ist die zentrale Funktion, die pro
+   Spur zwischen Kopieren und Transkodieren entscheidet. Der Resolver legt die
    Festlegungen aus der Anfrage darüber (`vd=` / `ad=`), die Übersteuerung
    für die Audio-Neusynchronisierung usw.
 4. **F3 - Fähigkeit** - `internal/app/transcoding/calibration_service.go`:
@@ -122,11 +122,11 @@ von Anfang bis Ende zu verfolgen:
    `master.m3u8` / `stream_N.m3u8`; `manifest_generator_dash.go` schreibt
    `manifest.mpd`.
 
-!!! warning "Über Anfragen hinweg beruht die Invariante auf eingebackenen URLs"
-    Jede Eingabe der Entscheidung muss in die URLs der Unterdateien
-    eingebacken sein (`querySuffix` in `manifest_generator.go`), sonst kann
-    eine Abfrage mitten in der Wiedergabe den Plan unter dem Player kippen.
-    URLs pro Sitzung werden neu gebacken
+!!! warning "Über Anfragen hinweg beruht die Invariante auf den Werten in den URLs"
+    Jede Eingabe der Entscheidung muss fest in den URLs der Unterdateien
+    stehen (`querySuffix` in `manifest_generator.go`), sonst kann eine
+    Abfrage mitten in der Wiedergabe den Plan ändern, den der Player nutzt.
+    URLs pro Sitzung werden neu erzeugt
     (`transcode_vod_manifest_rebake.go`), damit sie den Stream-Token tragen,
     für HLS wie für DASH, auch für Chromecast ohne Cookies.
 
@@ -136,8 +136,8 @@ Der **Verteiler der Analyse** (`adapters/driven/prober/dispatcher.go`) ist
 eine Zuständigkeitskette nach Dateiendung: Er versucht mkvgo und fällt bei
 jedem Zweifel auf ffprobe zurück (Lesefehler, Panic, nicht abbildbares
 Ergebnis, eine verlorene Medienspur in einer MP4, DoVi-Profil 5, nicht
-lesbare Farbangaben). Beide schnellen Wege sind immer an (nil-Schranken in
-`wire.go`); ffprobe ist das Sicherheitsnetz und wird nie umgangen. Ein
+lesbare Farbangaben). Beide schnellen Wege sind immer an (nil-Prüfungen in
+`wire.go`); ffprobe ist die Rückfallebene und wird nie umgangen. Ein
 zweiter, gleich gebauter Verteiler (`keyframe_dispatcher.go`) kümmert sich
 um den Seek-Index (die Stellen, an denen gespult werden kann).
 
@@ -148,7 +148,7 @@ um den Seek-Index (die Stellen, an denen gespult werden kann).
 | Remux von MKV nach MP4 (ohne Neukodierung) | `RemuxToMP4` | - |
 | HLS/DASH auf Abruf (Kopierstufe) | `OnDemandPackager` | - |
 | Video neu kodieren / HDR-Tonemapping | - | `hls_transcoder.go` |
-| Zeilensprung erkennen (idet), Landepunkt beim Spulen, chromaprint, DoVi P5 | - (braucht Dekodierung / Zusatzdaten) | ffmpeg / ffprobe |
+| Zeilensprung erkennen (idet), Zielposition beim Spulen, chromaprint, DoVi P5 | - (braucht Dekodierung / Zusatzdaten) | ffmpeg / ffprobe |
 
 Drei ffprobe-Aufrufe laufen noch auf MKV/MP4-Quellen, deren Daten mkvgo
 schon bereitstellt, alle im getriebenen Adapter `ffmpeg`: die Dauer in
@@ -177,27 +177,27 @@ meldet, dass er es kann.
 ## Verpacken: CMAF, HLS, DASH
 
 Der Container ist immer **CMAF** (fMP4): ein `init.mp4` pro Variante plus
-`.m4s`-Segmente (der MPEG-TS-Zweig in `hls_transcoder.go` ist tot:
+`.m4s`-Segmente (der MPEG-TS-Zweig in `hls_transcoder.go` ist toter Code:
 `needsFMP4Segments` liefert immer true). Über *dieselben* Segmente:
 
 - **HLS** (`master.m3u8`, `stream_N.m3u8`, `EXT-X-MAP` init + `.m4s`), beide Engines.
 - **DASH** (`manifest.mpd`): auf dem mkvgo-Kopierweg das eigene Manifest
   des Packagers (`OnDemandPlan.HasDASH`, Byte für Byte identisch, kein
   Speicherplatz, unter AES-128 abgeschaltet); auf dem ffmpeg-Weg ein
-  Manifest, das **aus dem Plan erklärt** wird, über dieselben Fragmente, die
+  Manifest, das **aus dem Plan deklariert** wird, über dieselben Fragmente, die
   die HLS-Playlists ansprechen (`ManifestGenerator.MPD`), geschrieben bevor
   irgendein Fragment existiert.
 
-Was das DASH-Manifest ehrlich macht, ist das **Segmentraster**
+Was das DASH-Manifest korrekt macht, ist das **Segmentraster**
 (`domain/transcoding.SegmentGrid`): Jede transkodierte Stufe wird auf
 dieselbe ganze Zahl von Bildern geschnitten, `round(3 s x fps)` (72 bei
 23,976 fps, 75 bei 25, 90 bei 29,97). Ein Segment ist also exakt in den
 Ticks der Videospur und über die ganze Umschaltgruppe hinweg identisch; der
-Kopier-Rückfall erklärt seinen Keyframe-Plan. Eine Quelle mit unbekannter
+Kopier-Rückfall deklariert seinen Keyframe-Plan. Eine Quelle mit unbekannter
 oder variabler Bildrate bleibt beim alten 3-s-Takt, behält HLS und
 antwortet auf `manifest.mpd` mit 404. Kein Client wird auf DASH
 umgestellt: HLS bleibt überall der Standard. `DASHFromCMAF` von mkvgo über
-die erzeugten Fragmente ist das Orakel für die Übereinstimmung
+die erzeugten Fragmente dient als Test-Orakel für die Übereinstimmung
 (`internal/pkg/cmafparity`, `TestDASHGridIntegration` bei 23,976/25/29,97
 fps: kalt, Spulen, Umschaltgruppe mit zwei Stufen, getrenntes Audio
 innerhalb eines AAC-Frames).
@@ -206,7 +206,7 @@ innerhalb eines AAC-Frames).
 
 | Muster | Wo |
 | --- | --- |
-| Ports und Adapter (hexagonal) | die App-Schicht spricht mit `StreamProber`, `BenchmarkRunner`, `OnDemandPackager`, `StreamProducer`; ffmpeg und mkvgo setzen sie um, und eine neue Engine ist ein neuer Adapter |
+| Ports und Adapter (hexagonal) | die App-Schicht nutzt `StreamProber`, `BenchmarkRunner`, `OnDemandPackager`, `StreamProducer`; ffmpeg und mkvgo setzen sie um, und eine neue Engine ist ein neuer Adapter |
 | Strategie | `StreamProducer` (Software / Hardware / Kopie), gewählt von einem `ProducerSelector` |
 | Zuständigkeitskette mit Rückfall | die Verteiler für Analyse und Keyframes (mkvgo, dann ffprobe als maßgebliche Instanz) |
 | Inhaltsadressierter Cache | der Hash von `DecisionFingerprint` ist der Schlüssel für Cache und ffmpeg-Sitzung |

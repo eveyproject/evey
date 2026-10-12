@@ -4,8 +4,8 @@ reviewed: true
 ---
 # E-Mail und Benachrichtigungen
 
-Evey sagt jedem Profil Bescheid, wenn neue Filme, Serien, Staffeln, Folgen
-oder Alben ankommen. Außerdem benachrichtigt es:
+Evey benachrichtigt jedes Profil, wenn neue Filme, Serien, Staffeln, Folgen
+oder Alben hinzukommen. Außerdem benachrichtigt es:
 
 - **die Person, die eine Anfrage gestellt hat**, wenn sie beantwortet wird;
 - **Administratoren** über neue Anfragen, fehlgeschlagene Backups,
@@ -57,7 +57,7 @@ Anbieters nennen die Werte unten.
 3. Drücken Sie auf **SMTP-Einstellungen speichern**. Das gilt sofort, ohne
    Neustart.
 4. Drücken Sie auf **Test-E-Mail senden**. Evey schickt eine kurze Nachricht
-   an die Adresse Ihres eigenen Kontos. Klappt das nicht, zeigt es die Antwort
+   an die Adresse Ihres eigenen Kontos. Schlägt das fehl, zeigt es die Antwort
    des Mailservers.
 
 Der häufigste Fehler ist ein TLS-Modus, der nicht zum Port passt.
@@ -101,11 +101,11 @@ Ein Genre gilt als „normalerweise geschaut“, wenn es in mindestens 3 der
 letzten 200 Wiedergaben des Profils vorkommt. Über einen Titel ohne Genres
 wird auf den Stufen Relevant und Nur wichtige nie benachrichtigt.
 
-Kommen mehrere Folgen einer Serie innerhalb von 24 Stunden an, bekommen Sie
+Kommen mehrere Folgen einer Serie innerhalb von 24 Stunden hinzu, bekommen Sie
 eine einzige Benachrichtigung, die sie zählt. Keine wird verschickt, wenn die
 Serie oder die Staffel gerade erst angekündigt wurde.
 
-## Leute ihr Passwort zurücksetzen lassen
+## Benutzern das Zurücksetzen des Passworts erlauben
 
 1. Richten Sie E-Mail ein (siehe oben).
 2. Schalten Sie **Passwort-Wiederherstellung** unter **Verwaltung →

@@ -5,19 +5,19 @@ reviewed: true
 # Untertitel
 
 **Um Untertitel einzuschalten**, öffnen Sie im Player das Einstellungsmenü und
-wählen **Untertitel**. Damit sie jedes Mal in Ihrer Sprache kommen, stellen
+wählen **Untertitel**. Damit sie jedes Mal in Ihrer Sprache erscheinen, stellen
 Sie **Einstellungen → Wiedergabe → Standard-Untertitelsprache** ein.
 
 Die meisten Untertitel erscheinen sofort. Zwei Fälle sind anders:
 
 - **Wenn jemand zum ersten Mal einen Untertitel wählt, der in der Datei
-  steckt**, muss Evey ihn aus der Datei holen. Der Player zeigt **Untertitel
+  steckt**, muss Evey ihn aus der Datei extrahieren. Der Player zeigt **Untertitel
   werden vorbereitet…**, das Video läuft weiter, und die Untertitel erscheinen
   von selbst. Bei einem sehr großen Film kann das einige Minuten dauern,
   einmalig: Danach erscheinen sie für alle sofort. Siehe
   [Wenn ein Untertitel zum ersten Mal gezeigt wird](#the-first-time-a-subtitle-is-shown).
 - **Untertitel von DVDs und aus dem Fernsehen** sind Bilder, kein Text. Der
-  Server zeichnet sie direkt ins Video, was ihn viel mehr arbeiten lässt. Die
+  Server brennt sie direkt ins Video ein, was für ihn deutlich mehr Rechenaufwand bedeutet. Die
   Profileinstellung **Untertitel einbrennen** (**Einstellungen → Wiedergabe**)
   kann das ablehnen, aber dann können diese Untertitel nicht angezeigt
   werden. Siehe [Untertitel einbrennen](#subtitle-burn-in).
@@ -29,12 +29,12 @@ Server ändert.
 
 | Format | Beispiele | Wie es angezeigt wird | Wirkung auf das Video |
 | --- | --- | --- | --- |
-| Text | SRT, ASS/SSA, WebVTT, Untertitel in der Datei | Neben dem Video geschickt und vom Player gezeichnet, mit Ihrem **Untertitel-Stil** | Keine |
-| PGS (Blu-ray) | `hdmv_pgs_subtitle` | Einmal vom Server in Bilder umgewandelt, zwischengespeichert und vom Player unverändert gezeichnet | Keine |
+| Text | SRT, ASS/SSA, WebVTT, Untertitel in der Datei | Neben dem Video geschickt und vom Player dargestellt, mit Ihrem **Untertitel-Stil** | Keine |
+| PGS (Blu-ray) | `hdmv_pgs_subtitle` | Einmal vom Server in Bilder umgewandelt, zwischengespeichert und vom Player unverändert dargestellt | Keine |
 | Andere Bildformate | VobSub (DVD), DVB, XSUB | Vom Server ins Bild eingebrannt | Das Video wird neu kodiert |
 
-Jeder Player (Web, Android, Android TV) zeichnet Text- und PGS-Untertitel
-selbst. Einen davon zu wählen, ändert also nie, wie das Video geliefert wird.
+Jeder Player (Web, Android, Android TV) stellt Text- und PGS-Untertitel
+selbst dar. Einen davon zu wählen, ändert also nie, wie das Video geliefert wird.
 Nur die letzte Zeile tut das: Untertitel ins Bild einzubrennen heißt, das
 Video zu dekodieren und neu zu kodieren. Ein Titel, der direkt abgespielt
 wurde, wird so zu einer Transkodierung. Die Stream-Info zeigt dann
@@ -51,15 +51,15 @@ Wiedergabe**) gilt für die Formate der letzten Zeile:
 
 | Einstellung | Eine ausgewählte VobSub-, DVB- oder XSUB-Spur | Text und PGS |
 | --- | --- | --- |
-| **Auto** | Eingebrannt, das Video wird neu kodiert. | Vom Player gezeichnet. |
-| **Immer einbrennen** | Wie Auto. | Vom Player gezeichnet: Text wird nie eingebrannt, egal bei welcher Einstellung. |
-| **Nie einbrennen** | Kann nicht angezeigt werden: Das Video wird für einen Untertitel nie neu kodiert. | Vom Player gezeichnet. |
+| **Auto** | Eingebrannt, das Video wird neu kodiert. | Vom Player dargestellt. |
+| **Immer einbrennen** | Wie Auto. | Vom Player dargestellt: Text wird nie eingebrannt, egal bei welcher Einstellung. |
+| **Nie einbrennen** | Kann nicht angezeigt werden: Das Video wird für einen Untertitel nie neu kodiert. | Vom Player dargestellt. |
 
 ## Wenn ein Untertitel zum ersten Mal gezeigt wird
 
-Ein Untertitel in der Datei (Text oder PGS) wird vom Server herausgeholt, wenn
-ihn jemand zum ersten Mal wählt, und dann aufbewahrt: Jedes spätere Schauen,
-von wem auch immer, bekommt ihn sofort. Deckt der eigene Index der Datei die
+Ein Untertitel in der Datei (Text oder PGS) wird vom Server extrahiert, wenn
+ihn jemand zum ersten Mal wählt, und dann aufbewahrt: Bei jeder späteren
+Wiedergabe, egal durch wen, erscheint er sofort. Deckt der eigene Index der Datei die
 Spur ab, liest der Server nur die Blöcke des Untertitels, und das dauert
 Sekunden. Ohne diesen Index liest er die ganze Datei: einige Minuten bei
 einem großen Film (etwa fünf bei einem UHD-Remux von 85 GB auf einer lokalen
@@ -68,11 +68,11 @@ Festplatte, länger, wenn derselbe Server gleichzeitig streamt).
 Währenddessen zeigt der Player **Untertitel werden vorbereitet…** dort, wo
 die Untertitel erscheinen, prüft von selbst erneut und zeigt sie an, sobald
 sie bereit sind; das Video läuft weiter. Eine andere Spur zu wählen, stoppt
-die Arbeit nicht: Der Server macht sie für das nächste Mal fertig.
+die Arbeit nicht: Der Server schließt sie für das nächste Mal ab.
 
-Eine Spur, die der Server nicht herausholen kann, bleibt leer. Der Fehler
-wird gemerkt, sodass eine erneute Auswahl nicht noch einmal die ganze Datei
-liest; ein Update von MKVGo, der Bibliothek, die die Spur herausholt,
+Eine Spur, die der Server nicht extrahieren kann, bleibt leer. Der Fehler
+wird gespeichert, sodass eine erneute Auswahl nicht noch einmal die ganze Datei
+liest; ein Update von MKVGo, der Bibliothek, die die Spur extrahiert,
 versucht es erneut. Siehe [MKVGo in Evey](mkvgo.md#what-mkvgo-does), was
 wann gelesen wird.
 
@@ -86,7 +86,7 @@ wann gelesen wird.
   laufenden Titel (positive Werte zeigen sie später). Das wirkt sofort.
 - **Untertitel-Stil** stellt Größe, Textfarbe, Hintergrund, Schrift, Schatten
   und Position von Text-Untertiteln ein. PGS-Bilder werden unverändert
-  gezeichnet.
+  dargestellt.
 - **Untertitel hochladen…** fügt dem Titel eine Datei hinzu.
 - Mit einem OpenSubtitles-Schlüssel (siehe [Bibliotheken und Metadaten](../administration/libraries.md#metadata-keys))
   kann die Server-API nach einem Untertitel suchen, den die Datei nicht

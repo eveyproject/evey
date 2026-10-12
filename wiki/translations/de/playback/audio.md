@@ -8,7 +8,7 @@ reviewed: true
 
 - Sie hören die Sprache Ihres Profils, wenn der Film sie hat: Stellen Sie sie
   unter **Einstellungen → Wiedergabe → Standard-Audiosprache** ein. Eine Spur,
-  die Sie im Player von Hand wählen, gewinnt immer.
+  die Sie im Player von Hand wählen, hat immer Vorrang.
 - Der Ton wird so gesendet, wie er ist, wenn Ihr Gerät ihn abspielen kann.
   Sonst wandelt der Server ihn in ein gängiges Format um (AAC). Oft ist der
   Ton das Einzige, was umgewandelt wird, und das Bild bleibt unverändert.
@@ -40,7 +40,7 @@ einer Szene.
 ## Welche Spur läuft
 
 Eine Spur, die Sie von Hand wählen, auf der Titelseite oder im Player,
-gewinnt immer. Sonst folgen die Player der **Standard-Audiosprache** des
+hat immer Vorrang. Sonst folgen die Player der **Standard-Audiosprache** des
 Profils, dann der Spur, die die Datei als Standard markiert, dann der ersten.
 Hat die Datei eine Kommentarspur und eine normale Spur, wird die
 Kommentarspur übersprungen.

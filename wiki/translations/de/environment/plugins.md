@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Plugins und Sandbox
 
-Die Variablen dafür, wie Plugins abgeschottet und begrenzt werden. Die
+Die Variablen dafür, wie Plugins isoliert und begrenzt werden. Die
 Standardwerte passen zu einem normalen Docker-Host. Welche Einrichtung zu
 welchem Host passt, steht unter
 [Plugin-Sandbox einrichten](../plugins/sandbox-deployment.md), und wie die
@@ -16,14 +16,14 @@ Schichten funktionieren, unter
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
 | `EVEY_PLUGINS_ENABLED` | `true` | Das Plugin-System. `false` schaltet es ganz ab. | keine |
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` oder `basic`. `auto` wählt die stärkste Stufe, die der Host unterstützt; ein ausdrücklich gesetztes `landlock` lehnt ein Plugin ab, das es nicht abschotten kann. | Plugins → Ressourcenlimits → **Sandbox-Modus**, gilt für danach gestartete Plugins |
-| `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` oder `off`: startet Plugins unter einem eigenen Benutzer. `auto` tut das nur, wenn die Sandbox auf `basic` hinausläuft. Nicht vereinbar mit `no_new_privs` am Container. | keine |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` oder `basic`. `auto` wählt die stärkste Stufe, die der Host unterstützt; ein ausdrücklich gesetztes `landlock` lehnt ein Plugin ab, das es nicht isolieren kann. | Plugins → Ressourcenlimits → **Sandbox-Modus**, gilt für danach gestartete Plugins |
+| `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` oder `off`: startet Plugins unter einem eigenen Benutzer. `auto` tut das nur, wenn die Sandbox zu `basic` aufgelöst wird. Nicht vereinbar mit `no_new_privs` am Container. | keine |
 
 ## Ressourcenlimits
 
 Das sind die Startwerte. Die unter **Verwaltung → Plugins →
-Ressourcenlimits** gespeicherten Werte gelten für jedes Plugin und gewinnen
-gegenüber ihnen.
+Ressourcenlimits** gespeicherten Werte gelten für jedes Plugin und haben
+Vorrang vor ihnen.
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |

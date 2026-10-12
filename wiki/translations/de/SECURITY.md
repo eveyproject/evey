@@ -1,10 +1,10 @@
 ---
-source_sha: 8ccd966956a11a7a3ecb0c05f93391b743b2f875ce8eebf7c481ef523a5aa3cb
+source_sha: 75cf2b4a2c51b96a797f8a84d750a9f124cdfb957c1ca9a4cfa98cba23edbab8
 reviewed: true
 ---
 # Plugin-Sandbox und Bedrohungsmodell
 
-Was der Server tut, um ein Plugin einzusperren: die Prüfungen bei der
+Was der Server tut, um ein Plugin zu isolieren: die Prüfungen bei der
 Installation, die Schutzschichten zur Laufzeit, die Sandbox-Modi und was
 jede davon trotzdem nicht verhindern kann. Der Code liegt in
 `internal/adapters/driven/pluginrunner` (Analyse bei der Installation,
@@ -23,8 +23,8 @@ Welche Sandbox Ihre Maschine bekommt, steht in
 ## Bedrohungsmodell
 
 Plugins laufen als eigene Prozesse, die mit dem Server über gRPC auf
-Unix-Sockets sprechen. Der Server vertraut standardmäßig keinem Plugin-Code.
-Die Risiken, gegen die er sich wehrt, vom schwersten zum leichtesten:
+Unix-Sockets kommunizieren. Der Server vertraut standardmäßig keinem Plugin-Code.
+Die Risiken, gegen die er schützt, vom schwersten zum leichtesten:
 
 1. **Identitätsdiebstahl** - ein Plugin gibt sich als ein anderes aus, um dessen Berechtigungen zu nutzen.
 2. **Rechteausweitung** - ein Plugin bricht aus seiner Sandbox aus und führt Befehle als Server aus.
@@ -125,8 +125,8 @@ Manifest gibt `native-binary` an.
     die aus einer Datei gelesen und dekodiert wird). Sie schlägt auch in
     Kommentaren an: Ein Kommentar `# pip install foo` löst `runtime_install`
     aus. **Die Grenze, die wirklich durchgesetzt wird, ist die Sandbox zur
-    Laufzeit, nicht die Analyse**: Ein Plugin, das ein Muster an ihr
-    vorbeischmuggelt, kann trotzdem die Daten des Servers nicht lesen, keinen
+    Laufzeit, nicht die Analyse**: Ein Plugin, dessen Muster die Analyse
+    nicht erkennt, kann trotzdem die Daten des Servers nicht lesen, keinen
     gesperrten Systemaufruf machen, seine Ressourcenlimits nicht
     überschreiten und keine Host-Methode aufrufen, für die es keine
     Berechtigung hat.
@@ -188,7 +188,7 @@ Unix-Socket auf. Der Host, in
   ablehnt. DNS-Rebinding und Weiterleitungen werden also erneut geprüft
   (eine Weiterleitung zu einem Host außerhalb der Liste wird abgelehnt);
 - hängt keine Zugangsdaten des Servers an, begrenzt den Antwortinhalt auf
-  8 MiB und die Anfrage-Header auf 8 KiB und gibt nach 20 s auf.
+  8 MiB und die Anfrage-Header auf 8 KiB und bricht nach 20 s ab.
 
 Das schließt die Wege, die direkter Ausgang offen ließ (IP-Adressen wie
 `169.254.169.254`, ein eigener DNS-Resolver des Plugins). Was bleibt: Der
@@ -198,7 +198,7 @@ Vermittler bestimmt, *wohin* ein Aufruf geht, nicht *was* er mitnimmt. Siehe
 !!! tip "Empfehlung für Betreiber"
     Der Vermittler verlagert die SSRF-Angriffsfläche auf den Host. Eine
     Ausgangsregel auf dem Container `evey-server`, unabhängig vom Code,
-    fügt eine zweite Mauer hinzu: Verwerfen Sie `169.254.0.0/16` und
+    fügt einen zweiten Schutz hinzu: Verwerfen Sie `169.254.0.0/16` und
     beschränken Sie das interne Netz auf die Endpunkte von Datenbank und
     Suche.
 
@@ -246,7 +246,7 @@ Das ist eine **Sperrliste**: `open`, `read`, `write`, `mmap`, Unix-`socket`
 und `connect` bleiben erlaubt. Pfade beschränkt die Dateisystem-Schicht,
 nicht seccomp. In `bubblewrap` wird der Launcher nicht benutzt: Eine
 statische Binärdatei bekommt dort keinen seccomp-Filter und wird durch die
-Namespaces und die Liste erlaubter Mounts eingesperrt.
+Namespaces und die Liste erlaubter Mounts begrenzt.
 
 ### Ein eigener Benutzer
 
@@ -256,14 +256,14 @@ Dateirechte nicht lesen. `EVEY_PLUGINS_UID_SEPARATION` steuert das:
 
 | Wert | Wann der Wechsel passiert |
 |---|---|
-| `auto` (Standard) | nur wenn die Sandbox zu `basic` aufgelöst wird, der einzige Fall, in dem die Dateirechte die einzige Mauer um die Geheimnisse sind |
+| `auto` (Standard) | nur wenn die Sandbox zu `basic` aufgelöst wird, der einzige Fall, in dem die Dateirechte der einzige Schutz der Geheimnisse sind |
 | `on` | immer, als zusätzliche Schicht |
 | `off` | nie |
 
 Den Wechsel macht der Launcher, der `cap_setuid` hält; der Server selbst
 läuft ohne Rechte oder Capabilities. Der Launcher lehnt jedes Ziel unter
 1000 ab. Kann er nicht wechseln, wird ein Plugin in `basic` abgelehnt (der
-Benutzer ist dort die einzige Mauer), während es in `landlock` mit einer
+Benutzer ist dort der einzige Schutz), während es in `landlock` mit einer
 Warnung als Benutzer des Servers läuft. In `bubblewrap` und `strict`
 übernimmt der User-Namespace diese Rolle.
 
@@ -391,7 +391,7 @@ Modus wird protokolliert und in der Zeile **Host-Sandbox** unter
 - **Voraussetzung:** ein Kernel 5.13 oder neuer mit Landlock in der Liste
   der aktiven LSM, und der Launcher (beides trifft auf das offizielle Image
   mit einem aktuellen Host zu). Ein ausdrücklich gesetztes `landlock`
-  startet kein Plugin, das es nicht einsperren kann.
+  startet kein Plugin, das es nicht isolieren kann.
 
 ### `bubblewrap`
 
@@ -410,7 +410,7 @@ Modus wird protokolliert und in der Zeile **Host-Sandbox** unter
   | `/tmp` | ein leeres tmpfs |
 
   `/data`, `/var`, `/home`, `/root`, `/run` und die Verzeichnisse anderer
-  Plugins existieren darin nicht. Ein Kanarienvogel-Plugin
+  Plugins existieren darin nicht. Ein Canary-Plugin
   (`tests/fixtures/plugins/canary-sandbox-runtime/`) prüft diese Anordnung
   gegen einen laufenden Stack.
 - **Netz:** der Netzwerk-Namespace, für jedes Plugin.
@@ -426,7 +426,7 @@ Modus wird protokolliert und in der Zeile **Host-Sandbox** unter
 
 ### `basic`
 
-Der letzte Ausweg von `auto`: der eigene Benutzer, der Kernel-Filter, der
+Der letzte Rückfallmodus von `auto`: der eigene Benutzer, der Kernel-Filter, der
 `LD_PRELOAD`-Filter, `-deny-inet` und Landlock, wenn der Kernel es hat. Auf
 einem Kernel ohne Landlock gibt es keine Beschränkung pro Pfad: Ein Plugin
 kann nicht sensible, für alle lesbare Dateien lesen und die Prozessliste
@@ -455,7 +455,7 @@ Maschine passt, in einfachen Worten:
 | Grenze | Auswirkung | Was sie heute begrenzt |
 |---|---|---|
 | Keine Beschränkung pro Pfad in `basic` auf einem Kernel ohne Landlock | Ein Plugin kann nicht sensible, für alle lesbare Dateien und die Verzeichnisse anderer Plugins lesen | Geheimnisse geschützt durch den eigenen Benutzer und `PR_SET_DUMPABLE`; `auto` bevorzugt Landlock oder bubblewrap |
-| Alle Plugins teilen sich den Benutzer 1001 | Ein Plugin kann seinen Geschwistern Signale schicken (Signale an den Server werden abgelehnt) | `PR_SET_DUMPABLE` verhindert das Lesen anderer Prozesse über `/proc`; Landlock und bubblewrap trennen die Plugin-Verzeichnisse |
+| Alle Plugins teilen sich den Benutzer 1001 | Ein Plugin kann den anderen Plugins Signale schicken (Signale an den Server werden abgelehnt) | `PR_SET_DUMPABLE` verhindert das Lesen anderer Prozesse über `/proc`; Landlock und bubblewrap trennen die Plugin-Verzeichnisse |
 | Seccomp ist eine Sperrliste | Datei- und Unix-Socket-Aufrufe bleiben erlaubt | Pfade sind durch Landlock oder bubblewrap beschränkt; IP-Sockets werden abgelehnt |
 | Der Vermittler verlagert die SSRF-Angriffsfläche auf den Host | Ein Fehler in der Prüfung des Vermittlers könnte eine interne Adresse erreichen | Freigabeliste und SSRF-sicherer Client in Go; eine Ausgangsregel auf dem Container als unabhängige Schicht |
 | Der Vermittler bestimmt, wohin ein Aufruf geht, nicht was er mitnimmt | Daten können zu einem Host auf der Liste des Plugins abfließen | Erlauben Sie nur Hosts, denen Sie diese Daten anvertrauen |
@@ -472,7 +472,7 @@ Zwei feste Regeln bestimmen, wer den Server überhaupt erreichen kann:
   liegt auf diesem Port plus eins. gRPC bindet standardmäßig an Loopback
   (`EVEY_GRPC_BIND=127.0.0.1`), weil die Sperre für den Fernzugriff eine
   HTTP-Middleware ist und gRPC nicht abdeckt. Wer die Bindung erweitert,
-  bekommt eine Warnung im Protokoll; ihn per Firewall abzuschirmen ist dann
+  bekommt eine Warnung im Protokoll; ihn per Firewall zu schützen ist dann
   Aufgabe des Betreibers.
 - **Die Sperre für den Fernzugriff entscheidet anhand der einen
   Client-Adresse, die an der Grenze des vertrauenswürdigen Proxys geprüft

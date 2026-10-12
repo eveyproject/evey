@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Plugin-API-Referenz
 
-Der Vertrag, gegen den ein Plugin geschrieben wird: die Felder von
+Die Schnittstelle, für die ein Plugin geschrieben wird: die Felder von
 `plugin.yaml`, die zwei gRPC-Dienste, die Backend und Server austauschen,
 und die Brücke `window.evey`, die ein Oberflächenmodul in seinem Frame
 bekommt. Die Schritt-für-Schritt-Anleitung, die sie benutzt, ist
@@ -74,7 +74,7 @@ Wert. Das Ändern eines anderen Feldes löscht also nie ein Geheimnis.
 
 ## Backend: die zwei Dienste
 
-Der Backend-Prozess und der Server sprechen gRPC über zwei Unix-Sockets,
+Der Backend-Prozess und der Server kommunizieren per gRPC über zwei Unix-Sockets,
 deren Pfade in der Umgebung ankommen:
 
 ```
@@ -86,7 +86,7 @@ EVEY_HOST_SOCK=<path>     # Ihr Prozess verbindet sich hierhin, um HostService a
 Der Server erkennt den Prozess an seinem Socket über die PID, die der Kernel
 meldet (`SO_PEERCRED`); der Prozess bekommt keinen Token. Die Aufrufe sind
 auf 600 pro Minute und Plugin begrenzt. `proto/plugin/v1/plugin_api.proto`
-ist der Vertrag. Stubs für die mitgelieferten Sprachen werden beim Start des
+ist die Schnittstellendefinition. Stubs für die mitgelieferten Sprachen werden beim Start des
 Plugins neben den Einstiegspunkt kopiert
 ([Voraussetzungen](dev-setup.md#1-prerequisites)).
 
@@ -97,14 +97,14 @@ Plugins neben den Einstiegspunkt kopiert
 | `Initialize(plugin_id, config, host_version)` | Sobald der Prozess seinen Socket gebunden hat. `config` enthält die Werte aus `config_schema`, die der Administrator gesetzt hat. Antworten Sie `success: false` mit einem `error`, um den Start abzulehnen. |
 | `HealthCheck()` | Regelmäßig, um einen lebenden Prozess von einem hängenden zu unterscheiden. Antworten Sie `healthy: true`, solange Sie arbeiten können. |
 | `Shutdown(reason)` | Wenn das Plugin deaktiviert, aktualisiert oder deinstalliert wird oder der Server stoppt. Beenden Sie sich kurz nach der Antwort. |
-| `OnEvent(event_type, payload, source)` | Im Vertrag definiert, aber der Server liefert Plugins heute keine Ereignisse: Setzen Sie es so um, dass es `handled: true` antwortet, und rechnen Sie mit keinem Aufruf. |
-| `GetCapabilities()` | Im Vertrag definiert; der Server ruft es heute nicht auf. |
+| `OnEvent(event_type, payload, source)` | In der Schnittstelle definiert, aber der Server liefert Plugins heute keine Ereignisse: Setzen Sie es so um, dass es `handled: true` antwortet, und rechnen Sie mit keinem Aufruf. |
+| `GetCapabilities()` | In der Schnittstelle definiert; der Server ruft es heute nicht auf. |
 
 ### HostService: was das Plugin aufrufen kann
 
 Ein Aufruf, dessen Berechtigung das Manifest nicht angibt, wird mit
 `PermissionDenied` abgelehnt. Methoden mit dem Vermerk *nicht bedient*
-antworten `Unimplemented`. Sie gehören zum Vertrag für eine spätere Version
+antworten `Unimplemented`. Sie gehören zur Schnittstelle für eine spätere Version
 und stehen hier, damit ein Stub Sie nicht in die Irre führt.
 
 | Methode | Berechtigung | Hinweise |
@@ -114,7 +114,7 @@ und stehen hier, damit ein Stub Sie nicht in die Irre führt.
 | `GetData`, `SetData`, `DeleteData`, `ListDataKeys` | keine | Der [Datenspeicher](#data-store) unten. |
 | `EmitEvent(event_type, payload)` | keine | Auf dem Ereignisbus des Servers als `plugin.event.<event_type>` veröffentlicht, wo Webhooks es abonnieren können. |
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` oder `media.read` | Der vollständige Datensatz des Mediums, mit `file_path`, `provider_ids` und `genres`. |
-| `Fetch(url, method, headers)` | `network` | Der einzige Weg aus der Sandbox hinaus: `http` oder `https`, `GET` oder `HEAD`, ein Host aus `external_fetch`, private Adressen nach der Auflösung und bei Weiterleitungen abgelehnt. Der Inhalt ist auf 8 MiB begrenzt (`truncated` zeigt es an), die ganze Anfrage auf 20 Sekunden. Der Server hängt keine eigenen Zugangsdaten an. |
+| `Fetch(url, method, headers)` | `network` | Die einzige Verbindung aus der Sandbox nach außen: `http` oder `https`, `GET` oder `HEAD`, ein Host aus `external_fetch`, private Adressen nach der Auflösung und bei Weiterleitungen abgelehnt. Der Inhalt ist auf 8 MiB begrenzt (`truncated` zeigt es an), die ganze Anfrage auf 20 Sekunden. Der Server hängt keine eigenen Zugangsdaten an. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` oder `media.read` | *Nicht bedient.* |
 | `UpdateMetadata` | `api.metadata` oder `media.write` | *Nicht bedient.* |
 | `GetUserPreferences` | `api.user` | *Nicht bedient.* |
@@ -125,7 +125,7 @@ und stehen hier, damit ein Stub Sie nicht in die Irre führt.
 Jedes Plugin hat einen dauerhaften Schlüssel-Wert-Speicher, ohne dass es eine
 Berechtigung angeben muss: Cursor, Caches, der Zeitpunkt der letzten
 Synchronisierung, alles, was einen Neustart überdauern soll. Werte sind
-undurchsichtige Zeichenketten; JSON kodieren Sie selbst. Die ID des Plugins
+opake Zeichenketten; JSON kodieren Sie selbst. Die ID des Plugins
 kommt vom authentifizierten Socket. Ein Plugin liest und schreibt also nur
 seinen eigenen Namensraum, und der ganze Speicher wird mit dem Plugin
 gelöscht.
@@ -143,7 +143,7 @@ Oberfläche, über die Berechtigung `prefs` unten.
 
 ## Frontend-API
 
-Ein Oberflächenmodul läuft in einem Frame mit undurchsichtigem Ursprung,
+Ein Oberflächenmodul läuft in einem Frame mit opakem Ursprung (opaque origin),
 unter der Richtlinie `default-src 'none'`: kein Zugriff auf die Hostseite,
 ihre Cookies oder ihren Speicher, kein Formular, kein Popup, und ein
 `connect-src`, das auf die Hosts aus `external_fetch` über `https` begrenzt
@@ -186,16 +186,16 @@ Zeichen abgeschnitten; höchstens 3 Meldungen pro Sekunde werden angezeigt.
 Verlangt, dass der Slot `height` Pixel hoch ist, begrenzt auf 50 bis 800.
 `0` klappt den Slot zu: Ein Widget, das nichts zu zeigen hat, nimmt keinen
 Platz ein. Ein Widget in `home.section` öffnet sich ohne Zutun mit
-`data.suggestedHeight`: Der Host kennt die Oberfläche, auf die er Sie
-gesetzt hat, und empfiehlt die Höhe, die ein Startseiten-Widget dort hat.
-So landet jedes Widget in derselben Größe. Ändern Sie die Größe nur, wenn
-Sie es besser wissen.
+`data.suggestedHeight`: Der Host kennt die Oberfläche, in der Ihr Widget
+angezeigt wird, und empfiehlt die Höhe, die ein Startseiten-Widget dort hat.
+So erhalten alle Widgets dieselbe Größe. Ändern Sie die Größe nur, wenn
+Sie einen guten Grund dafür haben.
 
 ### `evey.prefs.*` (Berechtigung `prefs`)
 
 Die Einstellungen des aktuellen Benutzers im eigenen Namensraum des
 Plugins, an (dieses Plugin, diesen Benutzer) gebunden durch den Token, den
-der Host für den Frame hält. Jeder Aufruf gibt ein Promise zurück; fehlt die
+der Host für den Frame verwaltet. Jeder Aufruf gibt ein Promise zurück; fehlt die
 Berechtigung, wird es abgelehnt.
 
 ```js
@@ -270,7 +270,7 @@ abgelehnt.
 
 ## Capabilities
 
-Eine Capability gibt die Rolle an, die das Plugin zu erfüllen sagt:
+Eine Capability gibt die Rolle an, die das Plugin nach eigener Angabe erfüllt:
 `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` oder
 `notification.sender`. Der Installer prüft den Namen, der Administrator
 sieht die Liste in der Vorschau und jede Ergänzung beim Update, und das
@@ -283,7 +283,7 @@ Plugin wirklich tun kann, entscheiden seine **Berechtigungen**.
 
 `public` und `prefs` werden wie die anderen unter `permissions` angegeben.
 Sie gewähren dem Backend-Prozess nichts; sie schalten `evey.media.*` und
-`evey.prefs.*` im Frame frei. Der Frame hält nie einen Token: Der Host stellt
+`evey.prefs.*` im Frame frei. Der Frame erhält nie einen Token: Der Host stellt
 einen Token für fünf Minuten aus, begrenzt auf (Plugin, Benutzer), und
 leitet die Aufrufe weiter. Der Server lehnt standardmäßig jede Methode ab,
 die die Bereiche des Tokens nicht nennen
