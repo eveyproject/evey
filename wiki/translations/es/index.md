@@ -1,12 +1,12 @@
 ---
-source_sha: 7054417ac65e819ee642ffbf7da5dbd0563a120f80044a01e2f2a3ed12770dc0
+source_sha: a20ccaa391b89b92446e57eeaeeb717cf000938ddc861683cedff5803f6715fd
 reviewed: true
 hide:
-  - navigation
-  - toc
+- navigation
+- toc
 ---
 
-# Evey
+# Evey { #evey }
 
 Evey es un servidor multimedia que instalas en casa. Guarda tus películas,
 series, música y fotos, y cada persona de la casa las ve en sus propios
@@ -69,7 +69,7 @@ pruebas y todavía no están en Google Play.
 
 </div>
 
-## Para toda la casa
+## Para toda la casa { #for-everyone-at-home }
 
 - **Un perfil por persona.** Cada perfil guarda su historial, por dónde va en
   cada título, sus favoritos y sus idiomas. Normalmente una casa comparte una
@@ -93,7 +93,7 @@ web, en Android y en el televisor.
 [Conectar las aplicaciones](getting-started/apps.md) ·
 [Usuarios, perfiles y control parental](administration/users.md)
 
-## Nada que elegir antes de pulsar reproducir
+## Nada que elegir antes de pulsar reproducir { #nothing-to-choose-before-pressing-play }
 
 Algunos archivos se reproducen en cualquier sitio. Otros pesan demasiado para
 un teléfono antiguo, o llevan un sonido que un televisor no sabe leer. Cada vez
@@ -122,7 +122,7 @@ lo mismo para todas las personas que están viendo algo.
 [Cómo elige Evey el modo de reproducción](playback/how-playback-is-decided.md) ·
 [MKVGo en Evey](playback/mkvgo.md)
 
-## Un solo contenedor, nada que ajustar
+## Un solo contenedor, nada que ajustar { #one-container-nothing-to-tune }
 
 Toda la instalación es un archivo compose. No hay ningún `.env` que escribir
 ni ajustes de memoria o de procesador.
@@ -146,7 +146,7 @@ También puedes usar tu propia base de datos o tu propio motor de búsqueda:
 [Despliegues avanzados](operations/advanced-deployments.md).
 [Transcodificación y capacidad del servidor](playback/transcoding.md)
 
-## Qué hace Evey con tus archivos y tus datos
+## Qué hace Evey con tus archivos y tus datos { #what-evey-does-with-your-files-and-your-data }
 
 **Tus archivos.** Quitar un título o una biblioteca lo quita de Evey, nunca
 del disco. Evey solo escribe en tus carpetas de archivos en tres casos: una
@@ -169,7 +169,7 @@ también pregunta si hay una versión más nueva, algo que puedes desactivar. La
 base de datos se guarda antes de cada actualización que la modifica.
 [Política de privacidad](privacy.md) · [Copias de seguridad y actualizaciones](backups.md)
 
-## Los plugins, aislados y bajo control
+## Los plugins, aislados y bajo control { #plugins-run-isolated-and-controlled }
 
 Los plugins añaden fuentes de información sobre los títulos, canales de
 notificación, secciones en la página de inicio y elementos encima del
@@ -184,7 +184,7 @@ web, en Android y en el televisor. En el televisor puedes verlo, pero no usarlo.
 [Plugins](plugins.md) ·
 [Modelo de seguridad y sandbox de plugins](SECURITY.md#sandbox-modes)
 
-## Por dónde empezar
+## Por dónde empezar { #find-your-way }
 
 <div class="grid cards" markdown>
 

@@ -160,7 +160,7 @@ exists, which you can switch off. The database is saved before every update
 that changes it.
 [Privacy policy](privacy.md) · [Backups and updates](backups.md)
 
-## Plugins are kept on a leash
+## Plugins run isolated and controlled
 
 Plugins add metadata sources, notification channels, home sections and
 player overlays. Themes change the look. Before a plugin is installed, the
