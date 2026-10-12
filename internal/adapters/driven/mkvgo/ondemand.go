@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"sync"
 	"time"
@@ -259,9 +260,7 @@ func (p *OnDemandPackager) Replan(ctx context.Context, stale apptranscoding.OnDe
 func (p *OnDemandPackager) WindowStats() map[string]int64 {
 	out := map[string]int64{}
 	p.retiredMu.Lock()
-	for k, v := range p.retired {
-		out[k] = v
-	}
+	maps.Copy(out, p.retired)
 	p.retiredMu.Unlock()
 	for _, v := range p.plans.Held() {
 		pl, ok := v.(interface{ Stats() mp4.HLSPlanStats })
