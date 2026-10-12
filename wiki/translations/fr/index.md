@@ -172,7 +172,7 @@ s'il existe une version plus récente, ce que vous pouvez couper. La base de
 données est sauvegardée avant chaque mise à jour qui la modifie.
 [Règles de confidentialité](privacy.md) · [Sauvegardes et mises à jour](backups.md)
 
-## Les plugins sont tenus en laisse
+## Les plugins sont isolés et encadrés
 
 Les plugins ajoutent des sources d'informations sur les titres, des canaux de
 notification, des sections sur l'accueil et des éléments par-dessus le
