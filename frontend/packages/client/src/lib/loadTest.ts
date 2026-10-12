@@ -289,6 +289,7 @@ const PATH_LABEL_KEYS: Record<string, string> = {
   "ffmpeg-copy": "admin.loadtest.path.ffmpegCopy",
   ffmpeg: "admin.loadtest.path.ffmpegCopy",
   transcode: "admin.loadtest.path.transcode",
+  direct: "admin.loadtest.path.direct",
 };
 
 // servedPathLines renders one line per viewer type: "TV: 9 copied by mkvgo,

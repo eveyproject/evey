@@ -446,6 +446,7 @@
   "admin.loadtest.mixType.transcode": "transcoding",
   "admin.loadtest.noBottleneckHint": "No resource ran out: the box likely holds more. Raise the ceiling and run again.",
   "admin.loadtest.noCeilingLine": "The run climbs until a resource gives out - there is no viewer ceiling.",
+  "admin.loadtest.path.direct": "raw file (direct play)",
   "admin.loadtest.path.ffmpegCopy": "ffmpeg remux",
   "admin.loadtest.path.mkvgo": "mkvgo copy",
   "admin.loadtest.path.transcode": "transcode",

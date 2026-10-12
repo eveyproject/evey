@@ -73,6 +73,19 @@ func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt 
 		}
 	}()
 
+	// A client viewer asks stream-info first, like its player: on a direct
+	// play the player reads the raw file and never sees a playlist.
+	if p, ok := clientProfileOf(vt); ok {
+		direct, stop := r.askPlayMethod(ctx, cfg, vt, tierAtSpawn, asg.media, p, events)
+		if stop {
+			return
+		}
+		if direct {
+			r.playDirect(ctx, cfg, vt, tierAtSpawn, asg, events)
+			return
+		}
+	}
+
 	masterURL := buildMasterURL(cfg, vt, asg.media, forked, tierAtSpawn)
 	masterBase, parseErr := url.Parse(masterURL)
 	if parseErr != nil {
@@ -365,7 +378,7 @@ func classify(status int, header http.Header, err error) fetchOutcome {
 		return outcomeOtherFail
 	}
 	switch status {
-	case http.StatusOK:
+	case http.StatusOK, http.StatusPartialContent:
 		return outcomeOK
 	case http.StatusUnauthorized:
 		return outcomeTokenExpired
@@ -407,11 +420,24 @@ func retryAfter(header http.Header) time.Duration {
 }
 
 func (r *Runner) fetchOnce(ctx context.Context, rawURL, token string, keepBody bool) (status int, header http.Header, body []byte, elapsedMs int, err error) {
+	return r.fetch(ctx, rawURL, token, keepBody, "")
+}
+
+// fetchRange reads the n bytes at off of rawURL, counted and discarded.
+func (r *Runner) fetchRange(ctx context.Context, rawURL, token string, off, n int64) (status int, header http.Header, elapsedMs int, err error) {
+	status, header, _, elapsedMs, err = r.fetch(ctx, rawURL, token, false, fmt.Sprintf("bytes=%d-%d", off, off+n-1))
+	return status, header, elapsedMs, err
+}
+
+func (r *Runner) fetch(ctx context.Context, rawURL, token string, keepBody bool, byteRange string) (status int, header http.Header, body []byte, elapsedMs int, err error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return 0, nil, nil, 0, err
 	}
 	req.Header.Set("Authorization", "Bearer "+token)
+	if byteRange != "" {
+		req.Header.Set("Range", byteRange)
+	}
 	req.Header.Set(headerLoadTest, "1")
 
 	start := time.Now()

@@ -1134,6 +1134,7 @@ loadtest:
     mkvgo: "mkvgo कॉपी"
     ffmpegCopy: "ffmpeg रीमक्स"
     transcode: "ट्रांसकोड"
+    direct: "मूल फ़ाइल (डायरेक्ट प्ले)"
   servedPathsHeading: "सर्वर ने हर क्लाइंट के लिए क्या किया:"
   servedPathLine: "{{label}}: {{parts}}"
   mixType:

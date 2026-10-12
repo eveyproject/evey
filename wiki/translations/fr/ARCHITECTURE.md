@@ -1,5 +1,5 @@
 ---
-source_sha: 1c15327323556554dc765430a3b706807091b80f7631ef8f3a0793f8c32ebf19
+source_sha: 2aa3f137eb7403f9ad58369e4f8f4eb6ea411a331f295395267794f1472f7153
 reviewed: true
 ---
 # Architecture
@@ -84,7 +84,7 @@ contexte voisin (voir [Relations](#relations)).
 | `backup` | sauvegarde et restauration de la base et de la configuration |
 | `config` (app seulement) | réglages persistants du serveur, écrits par les points d'entrée REST et gRPC |
 | `dlna` (app seulement) | découverte SSDP et pilotage UPnP AVTransport |
-| `loadtest` (app seulement) | simule des spectateurs HLS contre la propre pile HTTP du serveur |
+| `loadtest` (app seulement) | simule des spectateurs contre la propre pile HTTP du serveur : en HLS, ou sur le fichier brut quand le verdict d'un client est une lecture directe |
 | `maintenance` (app seulement) | maintenance des médias déclenchée par l'administrateur : reconstruction de l'index de lecture, journal de réparation, annulation, intégrité audio |
 | `presence` (app seulement) | registre en mémoire, non persisté, de qui est connecté en ce moment |
 | `qoe` (app seulement) | ingestion et agrégation de la télémétrie de lecture CMCD (CTA-5004) |

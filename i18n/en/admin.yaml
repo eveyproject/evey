@@ -1101,6 +1101,7 @@ loadtest:
     mkvgo: "mkvgo copy"
     ffmpegCopy: "ffmpeg remux"
     transcode: "transcode"
+    direct: "raw file (direct play)"
   servedPathsHeading: "What the server did for each client:"
   servedPathLine: "{{label}}: {{parts}}"
   mixType:

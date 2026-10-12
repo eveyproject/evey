@@ -55,6 +55,7 @@ type fetchRecord struct {
 	path        string
 	audioOffset string
 	rawQuery    string
+	byteRange   string
 	at          time.Time
 }
 
@@ -90,6 +91,12 @@ type serverState struct {
 	// carries X-Evey-Served-By: mkvgo. nil means "always". resource is one
 	// of "master", "variant", "segment"; segIdx is -1 for master/variant.
 	servedByFn func(mediaID, resource string, segIdx int) bool
+
+	// playMethodFn is stream-info's verdict for a media and query; nil means
+	// "PLAY_METHOD_TRANSCODE" (the HLS master). rawFileSize is the size of the
+	// file /stream serves.
+	playMethodFn func(mediaID, rawQuery string) string
+	rawFileSize  int64
 
 	fetches []fetchRecord
 }
@@ -281,6 +288,7 @@ func (s *serverState) record(r *http.Request) {
 		path:        r.URL.Path,
 		audioOffset: r.URL.Query().Get("audioOffsetMs"),
 		rawQuery:    r.URL.RawQuery,
+		byteRange:   r.Header.Get("Range"),
 		at:          time.Now(),
 	})
 	s.mu.Unlock()
@@ -325,10 +333,42 @@ func (s *serverState) handler() http.HandlerFunc {
 			s.serveVariant(w, r)
 		case strings.HasSuffix(r.URL.Path, ".ts"):
 			s.serveSegment(w, r)
+		case strings.HasSuffix(r.URL.Path, "/stream-info"):
+			s.serveStreamInfo(w, r)
+		case strings.HasSuffix(r.URL.Path, "/stream"):
+			s.serveRawFile(w, r)
 		default:
 			http.NotFound(w, r)
 		}
 	}
+}
+
+func (s *serverState) serveStreamInfo(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	fn := s.playMethodFn
+	s.mu.Unlock()
+	method := "PLAY_METHOD_TRANSCODE"
+	if fn != nil {
+		method = fn(strings.Split(r.URL.Path, "/")[4], r.URL.RawQuery)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = fmt.Fprintf(w, `{"playMethod":%q}`, method)
+}
+
+// serveRawFile answers a Range read of a file of rawFileSize zero bytes.
+func (s *serverState) serveRawFile(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	size := s.rawFileSize
+	s.mu.Unlock()
+	var from, to int64
+	if _, err := fmt.Sscanf(r.Header.Get("Range"), "bytes=%d-%d", &from, &to); err != nil || from < 0 || from >= size {
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+	to = min(to, size-1)
+	w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", from, to, size))
+	w.WriteHeader(http.StatusPartialContent)
+	_, _ = w.Write(make([]byte, to-from+1))
 }
 
 func (s *serverState) serveMaster(w http.ResponseWriter, r *http.Request) {

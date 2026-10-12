@@ -73,13 +73,14 @@ describe("load test helpers", () => {
   it("renders one line per viewer type with the paths the server chose", () => {
     const t = (key: string, opts?: Record<string, unknown>) => (opts ? `${key}(${Object.values(opts).join("|")})` : key);
     const lines = servedPathLines(t, [
+      { viewerType: "client:tv", path: "direct", viewers: 7 },
       { viewerType: "client:tv", path: "mkvgo", viewers: 9 },
       { viewerType: "client:web-chrome", path: "mkvgo", viewers: 5 },
       { viewerType: "client:web-chrome", path: "transcode", viewers: 2 },
       { viewerType: "client:web-chrome", path: "ffmpeg-copy", viewers: 0 },
     ]);
     expect(lines).toEqual([
-      "admin.loadtest.servedPathLine(admin.loadtest.client.tv|admin.loadtest.mixPart(9|admin.loadtest.path.mkvgo))",
+      "admin.loadtest.servedPathLine(admin.loadtest.client.tv|admin.loadtest.mixPart(7|admin.loadtest.path.direct), admin.loadtest.mixPart(9|admin.loadtest.path.mkvgo))",
       "admin.loadtest.servedPathLine(admin.loadtest.client.webChrome|admin.loadtest.mixPart(5|admin.loadtest.path.mkvgo), admin.loadtest.mixPart(2|admin.loadtest.path.transcode))",
     ]);
   });

@@ -50,9 +50,11 @@ var clientProfiles = map[string]clientProfile{
 		"videoCodecs": {"h264,hevc"}, "audioCodecs": {"aac,mp3,ac3,eac3,flac"}, "containers": {"mp4"},
 	}},
 	// The Android app on a phone: Matroska demuxed natively, Dolby audio
-	// through ac3go, an SDR panel assumed.
+	// through ac3go, MP3 and Opus taken as is in fMP4 (media3), an SDR panel
+	// assumed.
 	"mobile": {url.Values{
 		"videoCodecs": {"h264,hevc,vp9"}, "audioCodecs": {"aac,mp3,opus,flac,ac3,eac3"}, "containers": {"mp4,mkv,webm,hls"},
+		"fmp4AudioPassthrough": {"mp3,opus"},
 	}},
 	// The web app in a smart TV's own browser (frontend/apps/tv-web, an LG
 	// NetCast/webOS Chrome 120 measured 2026-09-28): no HEVC through MSE, no
@@ -62,10 +64,10 @@ var clientProfiles = map[string]clientProfile{
 		"maxAudioChannels": {"2"},
 	}},
 	// The Android TV app (Google TV, Chromecast with Google TV): an HDR10
-	// panel and a 5.1 output.
+	// panel, a 5.1 output, MP3 and Opus taken as is in fMP4 like the phone.
 	"tv": {url.Values{
 		"videoCodecs": {"h264,hevc,vp9"}, "audioCodecs": {"aac,mp3,opus,flac,ac3,eac3"}, "containers": {"mp4,mkv,webm,hls"},
-		"hdr": {"1"}, "maxAudioChannels": {"6"},
+		"fmp4AudioPassthrough": {"mp3,opus"}, "hdr": {"1"}, "maxAudioChannels": {"6"},
 	}},
 }
 
