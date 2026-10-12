@@ -29,7 +29,7 @@ const directHeaderBytes = 256 << 10
 
 // streamInfoParams maps a client profile's master query onto stream-info's,
 // the question every shipped player asks before it picks a URL.
-var streamInfoParams = map[string]string{
+var streamInfoParams = map[string]string{ //nolint:gosec // G101: query parameter names, no credential ("Passthrough" is an audio mode)
 	"videoCodecs":          "supportedCodecs",
 	"audioCodecs":          "supportedAudioCodecs",
 	"containers":           "supportedContainers",
