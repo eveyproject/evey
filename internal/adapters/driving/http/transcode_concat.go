@@ -134,6 +134,10 @@ func (h *hlsVODServe) serveConcatResource(w http.ResponseWriter, r *http.Request
 		return
 	}
 	name := strings.TrimPrefix(file, concatPrefix)
+	if isIFramePlaylist(name) {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
 	chain := h.resolveEpisodeChain(r, item)
 	if len(chain) < 2 {
 		span.SetStatus(codes.Error, "concat chain no longer resolvable")

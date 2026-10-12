@@ -576,6 +576,10 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	name := strings.TrimPrefix(file, onDemandPrefix) // "od_seg1.m4s" → "seg1.m4s"; "manifest.mpd" unchanged
+	if isIFramePlaylist(name) {
+		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
 	// The sub-resource carries the master's own query, so its plan trims the
 	// presentation exactly as the master's did: same tracks, same plan cache key.
 	plan, err := h.buildPlan(r, mediaID, item, streams, h.planOf(r, mediaID, item, streams))
@@ -591,6 +595,13 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 		observeCastFetch(r, h.castProgress, onDemandSegEndMs(name, plan.NumSegments(), item.File.Duration.Milliseconds()))
 	}
 	h.servePlanResourceData(w, r, mediaID, plan, name, span)
+}
+
+// isIFramePlaylist reports a request for the I-frame playlist, which the
+// packagers never offer (Options.NoIFrames): 404 before any plan is built, so a
+// stray request reads nothing from the media.
+func isIFramePlaylist(name string) bool {
+	return name == "iframe.m3u8" || strings.HasSuffix(name, "/iframe.m3u8")
 }
 
 // packagerVersion is the mkvgo version that produced these bytes, read from the
