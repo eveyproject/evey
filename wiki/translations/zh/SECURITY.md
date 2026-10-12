@@ -1,56 +1,81 @@
 ---
-source_sha: 0ac15ab64c61bb43ae41b6ec652dda6261a8eed8431ec891b4f9ad3b33dd7d21
-reviewed: false
+source_sha: 8ccd966956a11a7a3ecb0c05f93391b743b2f875ce8eebf7c481ef523a5aa3cb
+reviewed: true
 ---
 # 插件沙箱与威胁模型
 
-本页说明服务器为限制插件所做的事情：安装时的检查、运行时的各层防护、沙箱模式，以及每一项仍然无法阻止什么。如果你在编写插件，想知道可以声明什么以及什么会被拒绝，请阅读[权限与插槽](plugins/security-model.md)。
+服务器为了把插件关住做了哪些事：安装时的检查、运行时的各层防护、各种沙箱模式，以及每一层仍然防不住的东西。
+代码位于 `internal/adapters/driven/pluginrunner`（安装分析、沙箱）、`cmd/evey-plugin-launcher`（Landlock 和内核 seccomp 过滤器）、
+`sandbox/sandbox.c`（`LD_PRELOAD` 过滤器）以及 `internal/adapters/driving/pluginhost`（插件调用的宿主 API）；
+设计依据 [ADR-0012](adr/0012-plugin-token-deny-by-default.md)、
+[ADR-0013](adr/0013-userspace-plugin-resource-monitor.md) 和
+[ADR-0014](adr/0014-landlock-plugin-sandbox.md)。如果您在编写插件，想知道可以声明什么、什么会被拒绝，请读
+[权限与插槽](plugins/security-model.md)；想知道您的机器会用上哪种沙箱，请读[插件沙箱设置](plugins/sandbox-deployment.md)。
 
 ## 威胁模型
 
-插件作为独立的进程运行，通过 Unix socket 上的 gRPC 与服务器通信。服务器默认不信任任何插件代码。它所防御的风险，从最严重到最轻：
+插件作为独立的进程运行，通过 Unix 套接字上的 gRPC 和服务器通信。服务器默认不信任任何插件代码。它要防范的风险，从最严重到最轻：
 
-1. **冒充**：一个插件假装成另一个插件来使用其权限。
-2. **权限提升**：插件逃出沙箱，以服务器的身份执行命令。
-3. **文件系统访问**：插件读写自己目录之外的内容，尤其是服务器的机密。
-4. **网络外泄**：插件把数据发送到它选择的主机。
-5. **资源滥用**：挖矿、fork 炸弹、耗尽内存或磁盘。
-6. **供应链**：分析无法读懂的混淆代码或编译后的代码。
+1. **冒充** - 插件假装成另一个插件，以使用对方的权限。
+2. **权限提升** - 插件逃出沙箱，以服务器的身份执行命令。
+3. **文件系统访问** - 插件读写自己目录之外的东西，尤其是服务器的机密。
+4. **网络外泄** - 插件把数据发送到它自己挑选的主机。
+5. **滥用资源** - 挖矿、fork 炸弹、耗尽内存或磁盘。
+6. **供应链** - 分析读不懂的混淆代码或编译代码。
+
+```mermaid
+flowchart LR
+    zip[插件包] --> ex[ZIP 解压<br/>限制、不允许符号链接、不允许 setuid]
+    ex --> man[清单<br/>权限]
+    man --> an[静态分析<br/>CRITICAL 直接拒绝]
+    an --> sig[签名<br/>cosign 策略]
+    sig --> prev[管理员预览<br/>接受或拒绝]
+    prev --> run[运行时]
+    subgraph run[运行时 - 所有模式]
+        fs[文件系统<br/>只限自己的目录]
+        net[网络<br/>没有 IP 套接字，经 Fetch 代理]
+        sys[系统调用<br/>seccomp 黑名单]
+        uid[独立的用户<br/>或用户命名空间]
+        sock[宿主套接字<br/>SO_PEERCRED 身份]
+        res[资源监控<br/>内存、PID、磁盘、nice]
+    end
+```
 
 ## 安装时
 
 ### ZIP 解压
 
-在写入任何文件之前：
+在写入任何文件之前（`pluginrunner/zip.go`）：
 
-- 最多 5,000 个条目、单个文件 100 MB、解压后总计 500 MB，以及在解压后超过 1 MB 时 100:1 的压缩比（解压炸弹）；
-- 路径超出压缩包（`..`）的条目会被拒绝；
+- 最多 5,000 个条目，单个文件最大 100 MB，解压后总共最多 500 MB；解压后超过 1 MB 时，压缩比不得超过 100:1（防止解压炸弹）；
+- 路径跑出压缩包范围（`..`）的条目会被拒绝；
 - 符号链接会被拒绝；
-- setuid、setgid 和 sticky 位会被去除。
+- setuid、setgid 和 sticky 位会被去掉。
 
-来源：`internal/adapters/driven/pluginrunner/zip.go`。
+### 清单和权限
 
-### 清单与权限
+清单声明插件申请的权限。未知的权限会导致安装被拒绝。之后这些权限会被强制执行：
 
-清单声明插件请求的权限。未知的权限会导致安装被拒绝。之后这些权限会被强制执行：
+- **`subprocess`** 允许创建子进程。没有它时，内核会拒绝创建进程（`-deny-fork`），对于解释型插件，`LD_PRELOAD` 过滤器还会拒绝 `execve`。
+- **`native-binary`** 允许包里带编译好的代码或压缩包，这些是分析读不懂的。
+- **API 权限**（`api.library`、`api.user`、`api.metadata`、`media.read`、`media.write`、`notification.sender`……）在每次调用宿主时都由
+  [`PluginPermissionInterceptor`](../internal/adapters/driving/grpcapi/plugin_interceptor.go) 检查。
 
-- **`subprocess`** 允许子进程。没有它时，内核会拒绝创建进程（`-deny-fork`），`LD_PRELOAD` 过滤器还会为解释型插件拒绝 `execve`。
-- **`native-binary`** 允许附带编译后的代码或压缩包，分析无法读懂它们。
-- **API 权限**（`api.library`、`api.user`、`api.metadata`、`media.read`、`media.write`、`notification.sender`……）在每次调用宿主时由 [`PluginPermissionInterceptor`](../internal/adapters/driving/grpcapi/plugin_interceptor.go) 检查。
-
-完整的权限列表见[权限与插槽](plugins/security-model.md#permissions-catalog)。
+完整列表见[权限与插槽](plugins/security-model.md#permissions-catalog)。
 
 ### 静态分析
 
-包中的每个文件都会由 [`pluginrunner.AnalyzePlugin`](../internal/adapters/driven/pluginrunner/analyzer.go) 扫描，扫描之前会先进行一次规范化处理，还原常见的混淆手法（别名、字符串拼接、f-string）：
+包里的每个文件都会由
+[`pluginrunner.AnalyzePlugin`](../internal/adapters/driven/pluginrunner/analyzer.go) 扫描，
+扫描之前先做一遍规范化，还原常见的混淆手法（别名、字符串拼接、f-string）：
 
 | 类别 | 严重程度 | 示例 |
 |---|---|---|
-| `shell_exec` | CRITICAL | `os.system`、`subprocess.run`、`child_process.exec`、PHP `system()`/`shell_exec()`/`proc_open()`、`preg_replace /e`、Ruby 反引号、`open('\|cmd')` |
+| `shell_exec` | CRITICAL | `os.system`、`subprocess.run`、`child_process.exec`、PHP 的 `system()`/`shell_exec()`/`proc_open()`、`preg_replace /e`、Ruby 的反引号、`open('\|cmd')` |
 | `network` | WARNING / CRITICAL | `requests.get`、`fetch`、反向 shell 和绑定 shell |
 | `filesystem` | WARNING / CRITICAL | `/etc/passwd`、`.ssh/`、`rm -rf`、符号链接操作 |
 | `obfuscation` | CRITICAL | `eval`、base64 解码、十六进制序列、`__builtins__`、`base64 -d \| bash` |
-| `privilege` | CRITICAL | `setuid`、`chmod 4777`、`sudo`、向 PID 1 发送信号 |
+| `privilege` | CRITICAL | `setuid`、`chmod 4777`、`sudo`、向 PID 1 发信号 |
 | `cryptomining` | CRITICAL | `stratum+tcp`、`xmrig`、`cryptonight` |
 | `runtime_install` | CRITICAL | `pip install`、`npm install`、`curl ... \| sh` |
 | `dynamic_import` | CRITICAL | `__import__()`、`importlib.import_module` |
@@ -59,213 +84,282 @@ reviewed: false
 | `native_code` | CRITICAL / WARNING | `ctypes.CDLL`、`ffi.Library`；WARNING：Go 的 `unsafe` |
 | `compiled_binary` | WARNING，然后 BLOCK | `.so`、`.dll`、`.exe`、`.wasm`、`.jar` |
 | `embedded_archive` | WARNING，然后 BLOCK | `.zip`、`.tar.gz` |
-| `mime_mismatch` | 按 CRITICAL 处理 | 扩展名声称是图片，内容却是别的东西 |
-| `suspicious_url` | WARNING | URL 字面量中的非 HTTP 协议 |
-| `unvendored_deps` | WARNING | 有 `requirements.txt` 或 `package.json` 却没有附带模块 |
+| `mime_mismatch` | 按 CRITICAL 处理 | 扩展名自称是图片，内容却是别的东西 |
+| `suspicious_url` | WARNING | URL 字面量里出现非 HTTP 的协议 |
+| `unvendored_deps` | WARNING | 有 `requirements.txt` 或 `package.json`，却没有随包附带依赖模块 |
 
-CRITICAL 发现或 `mime_mismatch` 会拒绝安装。`compiled_binary` 和 `embedded_archive` 会拒绝安装，除非清单声明了 `native-binary`。
+出现 CRITICAL 发现或 `mime_mismatch` 时，安装会被拒绝。`compiled_binary` 和 `embedded_archive` 也会导致拒绝，除非清单声明了 `native-binary`。
 
-**分析无法保证什么。** 它基于模式工作。它能识别已知的混淆类别（分多步把字符串拼接成可调用对象、按名称查找内置函数、`Function.constructor` 逃逸），每一类在 `tests/fixtures/plugins/malicious/` 中都有回归用例，但它无法追踪运行时完成的每一种变换（`strrev("metsys")`、解码从文件读取的载荷）。它也会匹配注释中的内容：注释 `# pip install foo` 会触发 `runtime_install`。**真正的防线是运行时沙箱，而不是分析**：一个让某种模式逃过分析的插件，仍然无法读取服务器的数据、发起被拒绝的系统调用、超出资源限制，或者调用它没有权限的宿主方法。
+!!! note "分析无法保证的事情"
+    它是按模式工作的。它能识破已知的几类混淆（分好几步把字符串拼接成可调用对象、按名称查找内置函数、`Function.constructor` 逃逸），
+    每一类在 `tests/fixtures/plugins/malicious/` 里都有一个回归测试样例；但它无法跟踪运行时进行的每一种变换
+    （`strrev("metsys")`、解码从文件里读出的载荷）。它也会匹配注释里的内容：一行 `# pip install foo` 注释会触发 `runtime_install`。
+    **真正起把关作用的是运行时的沙箱，而不是分析**：即使某个插件让一个模式从分析下溜了过去，它仍然读不到服务器的数据，
+    调用不了被拒绝的系统调用，突破不了资源限制，也调用不了它没有权限的宿主方法。
 
 ### 签名
 
-包可以用 cosign 签名。`EVEY_PLUGINS_COSIGN_POLICY` 决定验证失败时怎么做：
+插件包可以用 cosign 签名。`EVEY_PLUGINS_COSIGN_POLICY` 决定验证失败时怎么处理（`pluginrunner/cosign.go`）：
 
 | 策略 | 效果 |
 |---|---|
 | `off` | 不检查签名。 |
-| `warn`（默认） | 记录失败并显示给管理员，但不阻止。没有配置公钥时，不验证任何东西。 |
+| `warn`（默认） | 失败会被记录并展示给管理员，但不阻止安装。没有配置公钥时，什么都不验证。 |
 | `enforce` | 失败会拒绝安装或更新。 |
 
-公钥由 `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` 提供。来源：`internal/adapters/driven/pluginrunner/cosign.go`。
+公钥由 `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` 指定。
 
 ### 管理员预览
 
-`POST /api/v1/admin/plugins/preview` 只运行分析而不安装。管理员会看到请求的权限、每个发现及其文件、行号和类别、代码中发现的 URL，以及包的 SHA256；应用安装时会检查同一个哈希，所以被分析的包就是被安装的包。更新会显示权限、插槽和主机的差异，新权限需要明确确认。
+`POST /api/v1/admin/plugins/preview` 只运行分析，不安装。管理员会看到申请的权限、每一项发现及其文件、行号和类别、代码里找到的 URL，
+以及包的 SHA256；应用安装时会再核对同一个哈希，所以被分析的包就是被安装的包。更新会显示权限、插槽和主机方面的差异，
+新增的权限需要明确确认。
 
-管理员是高级权限的信任边界：Evey 展示攻击面，管理员接受或拒绝。
+对于较高的权限，管理员就是信任的边界：Evey 把暴露面展示出来，由管理员决定接受还是拒绝。
 
 ## 运行时
 
+在每一种[沙箱模式](#sandbox-modes)下，下面六层都会生效；前两层具体怎样实施，取决于模式。
+
 ### 文件系统
 
-插件只能看到自己的目录和它的 socket 目录，看不到服务器的数据。如何强制执行取决于[沙箱模式](#sandbox-modes)：Landlock 允许列表，或者 bubblewrap 挂载白名单。在没有 Landlock 的内核上的 `basic` 模式中，没有按路径的隔离：此时保护服务器机密的是单独的用户和文件权限（见下文）。
+插件只看得到自己的目录和自己的套接字目录，看不到服务器的数据：靠的是 Landlock 允许列表（`landlock`），或者 bubblewrap 的挂载白名单
+（`bubblewrap`、`strict`）。在不支持 Landlock 的内核上使用 `basic` 模式时，没有按路径的限制：这时保护服务器机密的，是独立的用户和文件权限。
 
 ### 网络
 
-无论声明什么，插件都**没有直接的网络访问**：任何 IP socket 都会被拒绝（`landlock` 和 `basic` 中为 `-deny-inet`，`bubblewrap` 和 `strict` 中为网络命名空间）。拥有 `network` 权限的插件通过其 Unix socket 调用宿主的 `Fetch` 方法。宿主在 `internal/adapters/driving/pluginhost/fetch.go` 中：
+无论声明了什么，插件都**没有直接的网络访问**：所有 IP 套接字都会被拒绝（`landlock` 和 `basic` 下用 `-deny-inet`，`bubblewrap` 和 `strict` 下用网络命名空间）。
+带 `network` 权限的插件通过自己的 Unix 套接字调用宿主的 `Fetch` 方法。宿主在 `internal/adapters/driving/pluginhost/fetch.go` 里：
 
-- 对照插件的 `external_fetch` 列表检查目标（精确主机，不区分大小写）；
+- 按插件的 `external_fetch` 列表检查目标（精确的主机名，不区分大小写）；
 - 只允许 `http` 和 `https`，只允许 `GET` 和 `HEAD`；
-- 通过一个防 SSRF 的客户端（`internal/pkg/ssrf`）连接，它在 DNS 解析后拒绝私有、保留和链路本地地址，所以 DNS 重绑定和重定向都会被再次检查；
-- 不附加任何服务器的凭据，并限制响应的大小。
+- 通过一个防 SSRF 的客户端（`internal/pkg/ssrf`）连接，它在 DNS 解析之后拒绝私有、保留和链路本地地址，
+  所以 DNS 重绑定和重定向都会被再次检查（重定向到列表之外的主机会被拒绝）；
+- 不附加服务器的任何凭据，响应体最大 8 MiB，请求头最大 8 KiB，20 秒后放弃。
 
-这堵住了直接出站留下的漏洞（`169.254.169.254` 之类的字面 IP、插件自己的解析器）。仍然存在的是：代理控制的是调用*去哪里*，而不是它*携带什么*。见[已知限制](#known-limits)。
+这堵住了直接外连留下的漏洞（像 `169.254.169.254` 这样的 IP 地址、插件自带的 DNS 解析器）。剩下的问题是：代理控制的是一次调用*去哪里*，
+而不是它*带了什么*。见[已知限制](#known-limits)。
 
-**给管理员的建议。** 代理把 SSRF 攻击面转移到了宿主上。在 `evey-server` 容器上加一条与代码无关的出站规则，可以增加第二道墙：丢弃 `169.254.0.0/16`，并把内部网络限制为数据库和搜索的端点。
+!!! tip "给运维人员的建议"
+    代理把 SSRF 的暴露面转移到了宿主上。在 `evey-server` 容器上加一条出站规则，不依赖代码，就多了第二道墙：
+    丢弃 `169.254.0.0/16`，并把内部网络限制为只能访问数据库和搜索服务的端点。
 
 ### 系统调用
 
-两个 seccomp 过滤器拒绝同样的危险系统调用：
+两个 seccomp 过滤器拒绝同样一批危险的系统调用：
 
-1. **内核过滤器**，由 [`evey-plugin-launcher`](../cmd/evey-plugin-launcher) 在启动插件之前安装（[`seccomp_linux.go`](../cmd/evey-plugin-launcher/seccomp_linux.go)）。插件及其子进程都会继承它，并且它**也覆盖编译后的静态二进制文件**。系统调用中架构不匹配会杀死进程。在 `landlock` 和 `basic` 中应用。
-2. **`LD_PRELOAD` 过滤器**，[`sandbox/sandbox.c`](../sandbox/sandbox.c)，加载到没有声明 `subprocess` 的解释型插件中。它还会拒绝 `execve`/`execveat`，并把插件标记为不可转储。在 `landlock`、`basic` 和 `strict` 中应用。如果缺少这个库，这样的插件会被拒绝启动（`plugin.error`）。
+1. **内核过滤器**，由 [`evey-plugin-launcher`](../cmd/evey-plugin-launcher) 在启动插件之前安装
+   （[`seccomp_linux.go`](../cmd/evey-plugin-launcher/seccomp_linux.go)）。
+   插件及其子进程都会继承它，它**也覆盖编译好的静态二进制文件**。系统调用的架构不匹配时，进程会被杀死。在 `landlock` 和 `basic` 下使用。
+2. **`LD_PRELOAD` 过滤器**，[`sandbox/sandbox.c`](../sandbox/sandbox.c)，加载到没有声明 `subprocess` 的解释型插件里。
+   它还会拒绝 `execve`/`execveat`，并把插件标记为不可转储。在 `landlock`、`basic` 和 `strict` 下使用。
+   如果这个库不存在，这类插件会被拒绝启动（`plugin.error`）。
 
 被拒绝的系统调用：
 
 | 类别 | 系统调用 |
 |---|---|
 | 调试 | `ptrace`、`process_vm_readv`、`process_vm_writev` |
-| 信号 | `kill`；内核过滤器还拒绝 `tgkill`，`LD_PRELOAD` 过滤器拒绝针对 PID 1 的 `tkill`/`tgkill` |
+| 信号 | `tgkill`、`rt_sigqueueinfo`、`rt_tgsigqueueinfo`，目标是插件自己以外的任何进程时（两个过滤器都拒绝）；`kill` 在内核过滤器里同样如此，在 `LD_PRELOAD` 过滤器里则无论目标是谁都拒绝；`tkill` 在内核过滤器里拒绝（`LD_PRELOAD` 过滤器允许它发给插件自己）；`pidfd_send_signal`、`pidfd_getfd`（窃取文件描述符）。运行时重新抛出信号、或抢占自己的线程，仍然可以正常工作。在 Landlock ABI 6 及以上，插件也无法向沙箱外的进程发信号 |
 | 挂载 | `mount`、`umount2`、`pivot_root`、`chroot` |
-| 命名空间 | `unshare`、`setns` |
+| 命名空间 | `unshare`、`setns`，以及带有 `CLONE_NEW*` 标志的 `clone`（换了个名字的 unshare），对所有插件都适用 |
 | 内核模块 | `init_module`、`finit_module`、`delete_module` |
 | BPF、perf | `bpf`、`perf_event_open` |
-| 硬件 I/O | `ioperm`、`iopl`（仅 x86-64，存在的地方） |
-| 交换区 | `swapon`、`swapoff` |
+| 硬件 I/O | `ioperm`、`iopl`（仅 x86-64，只有那里有这两个调用） |
+| 交换分区 | `swapon`、`swapoff` |
 | 系统控制 | `syslog`、`reboot`、`settimeofday`、`clock_settime`、`clock_adjtime`、`adjtimex` |
 | Kexec | `kexec_load`、`kexec_file_load` |
-| 内核漏洞利用原语 | `io_uring_setup`、`io_uring_enter`、`io_uring_register`、`userfaultfd` |
+| 内核漏洞利用的基本手段 | `io_uring_setup`、`io_uring_enter`、`io_uring_register`、`userfaultfd` |
 | 身份 | `setuid`、`setgid`、`setreuid`、`setregid`、`setresuid`、`setresgid`、`capset` |
 | 密钥环 | `add_key`、`request_key`、`keyctl` |
 
-对于没有 `subprocess` 的插件，内核还会拒绝创建进程（`fork`、`vfork`、不带 `CLONE_THREAD` 的 `clone`）；线程仍然可以工作。
+对于没有 `subprocess` 权限的插件，内核还会拒绝创建进程（`fork`、`vfork`、不带 `CLONE_THREAD` 的 `clone`；`clone3` 返回 `ENOSYS`，
+这样 C 库会退回使用 `clone`）；线程仍然可以正常工作。
 
-这是一个**拒绝列表**：`open`、`read`、`write`、`mmap`、Unix `socket` 和 `connect` 仍然允许。路径由文件系统层限制，而不是由 seccomp 限制。在 `bubblewrap` 中不使用启动器：静态二进制文件在那里没有 seccomp 过滤器，由命名空间和挂载白名单来限制。
+这是一份**黑名单**：`open`、`read`、`write`、`mmap`、Unix `socket` 和 `connect` 仍然允许。路径由文件系统那一层限制，而不是靠 seccomp。
+在 `bubblewrap` 下不使用启动器：静态二进制文件在那里没有 seccomp 过滤器，靠命名空间和挂载白名单关住。
 
-### 单独的用户
+### 独立的用户
 
-插件可以以用户 1001（`evey-plugin`）运行，与服务器（1000）不同，这样仅凭文件权限，服务器的机密对它来说就是不可读的。由 `EVEY_PLUGINS_UID_SEPARATION` 控制：
+插件可以以用户 1001（`evey-plugin`）运行，和服务器（1000）不同，这样光靠文件权限，它就读不到服务器的机密。
+由 `EVEY_PLUGINS_UID_SEPARATION` 控制：
 
-- `auto`（默认）：只在沙箱解析为 `basic` 时启用，这是文件权限成为机密周围唯一一道墙的唯一情况；
-- `on`：始终启用，作为额外的一层；
-- `off`：从不启用。
+| 值 | 什么时候切换用户 |
+|---|---|
+| `auto`（默认） | 只在沙箱最终落到 `basic` 时，这是文件权限成为机密周围唯一一道墙的唯一情况 |
+| `on` | 始终切换，作为额外的一层 |
+| `off` | 从不切换 |
 
-切换由持有 `cap_setuid` 的启动器完成；服务器本身在没有特权和能力的情况下运行。启动器拒绝任何低于 1000 的目标。如果它无法切换，`basic` 中的插件会被拒绝（在那里用户是唯一的墙），而在 `landlock` 中它会以服务器的用户运行并给出警告。在 `bubblewrap` 和 `strict` 中，用户命名空间承担这个角色。
+切换由启动器完成，它持有 `cap_setuid`；服务器本身不带任何特权或能力运行。启动器拒绝切换到 1000 以下的任何用户。
+如果无法切换，`basic` 下的插件会被拒绝（在那里，用户是唯一的一道墙），而在 `landlock` 下，插件会以服务器的用户身份运行，并记录一条警告。
+在 `bubblewrap` 和 `strict` 下，由用户命名空间承担这个角色。
 
-启用时，签名密钥（`0600`）和备份（目录 `0700`，文件 `0600`）在运行时只有所有者可以访问，即使 `/data` 是从主机绑定挂载的也是如此。所有插件共用用户 1001：它们之间由文件系统层隔离，而不是由用户隔离。
+启用时，签名密钥（`0600`）和备份（`0700` 目录、`0600` 文件）在运行时只有所有者能访问，即使 `/data` 是绑定挂载的也一样。
+所有插件共用用户 1001：它们之间靠文件系统那一层隔离，而不是靠用户。
 
-### 宿主 socket 认证
+### 宿主套接字的身份验证
 
-每个插件都有自己的 socket，`/tmp/evey/plugins/<plugin_id>/host.sock`，由它自己的 gRPC 服务器提供服务。每次调用时，服务器都从内核读取调用者的 PID（`SO_PEERCRED`，用户空间无法伪造），并与插件启动时记录的 PID 进行比较。插件的身份来自 socket，而从不来自请求头。因此，插件无法冒充另一个插件、调用另一个插件的 socket，或者通过子进程转发调用。
+每个插件都有自己的套接字 `/tmp/evey/plugins/<plugin_id>/host.sock`，由它自己的 gRPC 服务器提供服务。每次调用时，服务器从内核读取调用方的 PID
+（`SO_PEERCRED`，用户空间无法伪造），并和插件启动时记录的 PID 比较。插件的身份来自套接字，从不来自请求头。
+所以插件无法冒充另一个插件，无法调用另一个插件的套接字，也无法借子进程转发调用。PID 不匹配时会记录一条警告。
 
 ### 资源限制
 
-一个用户空间的监视器（在无特权的容器中无法使用 cgroups）大约每 2 秒读取一次 `/proc/<pid>`，并停止超出限制的插件：
+一个运行在用户空间的监控程序（在无特权的容器里用不了 cgroups）每 2 秒读取一次 `/proc/<pid>`，停掉超出限制的插件
+（[ADR-0013](adr/0013-userspace-plugin-resource-monitor.md)）：
 
-- 内存（RSS），默认 256 MiB；
-- 进程和线程，默认 64；
-- 其目录使用的磁盘，默认 100 MiB，每 30 秒检查一次；
-- CPU 优先级，默认 `nice` 10，在启动时应用。
+| 限制 | 默认值 | 检查频率 |
+|---|---|---|
+| 内存（RSS） | 256 MiB | 每轮检查 |
+| 进程和线程 | 64 | 每轮检查 |
+| 插件目录占用的磁盘 | 100 MiB | 每 15 轮一次，大约 30 秒 |
+| CPU 优先级 | `nice` 10，启动时设置 | - |
 
-限制在 **Admin → 插件** 中按插件设置。见 [ADR-0013](adr/0013-userspace-plugin-resource-monitor.md)。
+同一轮检查还会标记让 CPU 持续高于 90% 大约 30 秒的插件，并停掉以同样方式让图形引擎持续满载的、获得了 `hardware.gpu` 权限的插件。
+这些限制可以在**管理 → 插件 → 资源限制**里按插件设置；环境变量 `EVEY_PLUGINS_MEMORY_MB`、`EVEY_PLUGINS_PIDS_MAX`、`EVEY_PLUGINS_DISK_MAX_MB`
+和 `EVEY_PLUGINS_CPU_NICE` 设置启动时的默认值。
 
 ### 界面隔离
 
-插件的界面运行在一个 `<iframe sandbox="allow-scripts">` 中，没有同源访问、表单或弹出窗口，并受一个只允许连接到其 `external_fetch` 主机的 Content-Security-Policy 约束。桥接限制了它能向页面请求的内容：`toast` 每秒最多 3 条、200 个字符、不能包含 HTML；`navigate` 只接受 `/home`、`/library`、`/media`、`/player`、`/settings` 和 `/search`；`resize` 在 50 到 800 px 之间。插槽在安装时检查，渲染时会再次检查。
+插件的界面运行在一个 `<iframe sandbox="allow-scripts">` 里，没有同源访问，不能用表单，不能弹出窗口，
+其 Content-Security-Policy 只允许连接到它的 `external_fetch` 主机。桥接层（`frontend/packages/client/src/plugins/hostProtocol.ts`）
+限制它能向页面提出的请求：`toast` 每秒最多 3 条，每条 200 个字符，不能含 HTML；`navigate` 只接受 `/home`、`/library`、`/media`、`/player`、
+`/settings` 和 `/search`；`resize` 在 50 px（移动和电视端为 60）到 800 px 之间。插槽在安装时检查一次，渲染时再检查一次。
 
 ### 服务器加固
 
-服务器在启动时把自己标记为不可转储（`PR_SET_DUMPABLE=0`，[`hardening_linux.go`](../cmd/evey/hardening_linux.go)）：以同一用户运行的进程无法通过 `/proc` 读取它的内存或环境，这保护了内存中的签名密钥以及数据库和搜索的密码，即使在没有 Landlock 的内核上也是如此。
+服务器启动时把自己标记为不可转储（`PR_SET_DUMPABLE=0`，[`hardening_linux.go`](../cmd/evey/hardening_linux.go)）：
+以同一用户运行的进程无法通过 `/proc` 读取它的内存或环境变量，这样即使在没有 Landlock 的内核上，也能保护内存里的签名密钥以及数据库和搜索服务的密码。
 
 ### 崩溃通知
 
-当需要沙箱库的插件缺少该库，或者插件以错误退出时，运行器会发布一个 `plugin.error` 事件。通知服务会通过配置的渠道把它转发给管理员。宿主 socket 上的 PID 不匹配会被记录为警告。
+当需要沙箱库的插件缺少这个库，或者插件出错退出时，运行器会发布一个 `plugin.error` 事件。
+通知服务通过已配置的渠道把它转给管理员，**安全仪表板**也会记录下来。
 
 ## 沙箱模式
 
-模式决定文件系统和网络如何被限制。`EVEY_PLUGINS_SANDBOX_MODE` 设置初始值（默认 `auto`）；可以在 **Admin → 插件** 中更改。运行器在 [`applySandbox`](../internal/adapters/driven/pluginrunner/runner_sandbox.go) 中应用它。在所有模式下：没有直接的 IP 出站、有资源监视器，以及宿主 socket 认证。
+模式决定文件系统和网络怎样被限制。`EVEY_PLUGINS_SANDBOX_MODE` 设置初始值（默认 `auto`）；也可以在**管理 → 插件 → 资源限制 → 沙箱模式**里修改。
+运行器在 [`applySandbox`](../internal/adapters/driven/pluginrunner/runner_sandbox.go) 里应用它。
+在每一种模式下都有：没有直接的 IP 外连、资源监控，以及宿主套接字的身份验证。
+
+| 层 | landlock | basic | bubblewrap | strict |
+|---|---|---|---|---|
+| 文件系统 | Landlock 允许列表 | 没有 Landlock 时无（只有文件权限） | 挂载白名单 | 挂载白名单 |
+| 网络 | `-restrict-net` + `-deny-inet` | `-deny-inet` | 网络命名空间 | 网络命名空间 |
+| 内核 seccomp（也覆盖静态二进制） | 是 | 是 | 否 | 否 |
+| `LD_PRELOAD` seccomp（没有 `subprocess` 的解释型插件） | 是 | 是 | 否 | 是 |
+| 独立的用户 | 设为 `on` 时 | 是（`auto`） | 用户命名空间 | 用户命名空间 |
+| 资源限制 | 是 | 是 | 是 | 是 |
 
 ### `auto`（默认）
 
-在第一个插件启动时解析一次，得到主机支持的最强模式：先 **landlock**，再 **bubblewrap**，最后 **basic**。Landlock 排在第一位，因为它不需要特权，并且能在 Docker 的默认安全配置下运行。只有当 Landlock 不存在且一个测试沙箱确实能建立时，才会选择 bubblewrap（[`ProbeSandbox`](../internal/adapters/driven/pluginrunner/sandbox_probe.go)），这在实践中意味着裸机或特权容器。解析得到的模式会被记录，并显示在 **Admin → 插件 → 安全仪表板** 的 **主机沙箱** 一行中。
+在第一个插件启动时确定一次，选用宿主支持的最强模式：内核强制执行 Landlock，*并且*找得到 `evey-plugin-launcher` 二进制文件
+（在服务器二进制旁边、在 `$PATH` 里，或在 `EVEY_PLUGIN_LAUNCHER` 指定的位置）时，选 **landlock**；否则，如果测试沙箱真的能建起来
+（[`ProbeSandbox`](../internal/adapters/driven/pluginrunner/sandbox_probe.go)），选 **bubblewrap**，实际上这意味着裸机或特权容器；
+再否则，选 **basic**。Landlock 排在第一，是因为它不需要任何特权，而且能在 Docker 默认的安全配置下运行。
+最终选定的模式会记录在日志里，并显示在**管理 → 插件 → 安全仪表板**的**主机沙箱**一行。
+
+| 部署方式 | `auto` 得到什么 |
+|---|---|
+| 内核较新的 Docker | `landlock`：按路径限制，没有直接外连，危险的系统调用被拒绝，静态二进制也不例外。这是常见情况。 |
+| 内核较旧、没有 Landlock 的 Docker，例如旧款 NAS | `basic`：机密受到保护，网络被切断，但所有人可读的文件仍然看得见。见[插件沙箱设置](plugins/sandbox-deployment.md)。 |
+| 裸机 | `bubblewrap`：最强的文件系统和进程隔离，但没有针对静态二进制的 seccomp 过滤器。 |
 
 ### `landlock`
 
-- **文件系统：** 由启动器应用的 Landlock 允许列表。系统目录（`/usr`、`/lib`、`/lib64`、`/bin`、`/sbin`、`/etc`、`/app`）只读；`/dev` 中只有 `null`、`zero`、`full`、`random` 和 `urandom`，所以显卡节点和服务器的终端都无法触及；插件的目录和 socket 目录可读写；其他一切，包括 `/data` 和其他插件，都被拒绝。被授予 `hardware.gpu` 的插件会把它的渲染节点作为唯一的例外。
-- **网络：** `-restrict-net` 和 `-deny-inet`；只能通过 `Fetch` 出站。
+- **文件系统：** 由启动器应用的 Landlock 允许列表。系统目录（`/usr`、`/lib`、`/lib64`、`/bin`、`/sbin`、`/etc`、`/app`）只读；
+  `/dev` 里只有 `null`、`zero`、`full`、`random` 和 `urandom`，所以显卡节点和服务器的终端都碰不到；插件的目录和套接字目录可读写；
+  其他一切，包括 `/data` 和其他插件，一律拒绝。获得了 `hardware.gpu` 权限的插件，作为唯一的例外，可以访问它的渲染节点。
+- **网络：** `-restrict-net` 和 `-deny-inet`；只能通过 `Fetch` 外连。
 - **系统调用：** 内核过滤器和 `LD_PRELOAD` 过滤器。
-- **要求：** 5.13 或更新、且 Landlock 位于活动 LSM 列表中的内核，以及启动器（在较新的主机上使用官方镜像时两者都满足）。显式的 `landlock` 会拒绝启动它无法隔离的插件。
+- **要求：** 5.13 或更新的内核，且 Landlock 在已启用的 LSM 列表里，再加上启动器（在较新的宿主上使用官方镜像时，两者都满足）。
+  明确设为 `landlock` 时，无法限制的插件会被拒绝启动。
 
 ### `bubblewrap`
 
-- **文件系统和进程：** 六个独立的命名空间（`user`、`pid`、`uts`、`ipc`、`cgroup`、`net`）和一个挂载白名单；内部不存在其他任何东西。
+- **文件系统和进程：** 六个独立的命名空间（`user`、`pid`、`uts`、`ipc`、`cgroup`、`net`）和一份挂载白名单；里面没有别的东西
+  （`pluginrunner/runner_bwrap.go` 里的 `buildBwrapCmd`）。
 
-  | 路径 | 访问 |
+  | 路径 | 访问方式 |
   |---|---|
   | `/usr`、`/bin`、`/sbin`、`/lib`、`/lib64` | 只读 |
-  | `/etc/ssl`、`/etc/ca-certificates`、`/etc/resolv.conf`、`/etc/nsswitch.conf`、`/etc/{alpine,os}-release` | 只读（从不是整个 `/etc`：没有 `passwd`、`shadow`、`ssh`） |
-  | 插件的目录、它的 socket 目录 | 可读写 |
+  | `/etc/ssl`、`/etc/ca-certificates`、`/etc/resolv.conf`、`/etc/nsswitch.conf`、`/etc/{alpine,os}-release` | 只读（从不挂载整个 `/etc`：没有 `passwd`、`shadow`、`ssh`） |
+  | 插件的目录、它的套接字目录 | 读写 |
   | `/proc` | 它自己的挂载 |
   | `/dev` | 一组最小的合成设备（null、zero、random、urandom、tty、pts） |
   | `/tmp` | 一个空的 tmpfs |
 
-  `/data`、`/var`、`/home`、`/root`、`/run` 和其他插件的目录在内部都不存在。一个金丝雀插件（`tests/fixtures/plugins/canary-sandbox-runtime/`）会针对运行中的环境检查这一布局。来源：`internal/adapters/driven/pluginrunner/runner_bwrap.go` 中的 `buildBwrapCmd`。
-- **网络：** 网络命名空间，对所有插件。
-- **系统调用：** 没有 seccomp 过滤器；由命名空间提供隔离。
-- **要求：** `bwrap` 二进制文件以及 `mount`/`unshare` 系统调用。在 Docker 中这需要放宽的安全配置，所以它实际上是裸机模式。
+  `/data`、`/var`、`/home`、`/root`、`/run` 以及其他插件的目录在里面都不存在。一个金丝雀插件
+  （`tests/fixtures/plugins/canary-sandbox-runtime/`）会在运行中的环境里核对这个布局。
+- **网络：** 网络命名空间，对所有插件都适用。
+- **系统调用：** 没有 seccomp 过滤器；隔离由命名空间提供。
+- **要求：** `bwrap` 二进制文件，以及 `mount`/`unshare` 系统调用。在 Docker 里这需要放宽安全配置，所以实际上这是一种裸机模式。
 
 ### `strict`
 
-`bubblewrap` 加上 `LD_PRELOAD` 过滤器（仅限解释型插件）。
+`bubblewrap` 加上 `LD_PRELOAD` 过滤器（只对解释型插件）。
 
 ### `basic`
 
-`auto` 的最后手段：单独的用户、内核过滤器、`LD_PRELOAD` 过滤器、`-deny-inet`，以及内核支持时的 Landlock。在没有 Landlock 的内核上没有按路径的隔离：插件可以读取所有人可读的非敏感文件，并看到进程列表。服务器的机密仍然由单独的用户和 `PR_SET_DUMPABLE` 保护，网络被切断，危险的系统调用被拒绝，包括编译后的二进制文件。
-
-### 总结
-
-| 层 | landlock | basic | bubblewrap | strict |
-|---|---|---|---|---|
-| 文件系统 | Landlock 允许列表 | 没有 Landlock 时无（仅文件权限） | 挂载白名单 | 挂载白名单 |
-| 网络 | `-restrict-net` + `-deny-inet` | `-deny-inet` | 网络命名空间 | 网络命名空间 |
-| 内核 seccomp（也覆盖静态二进制文件） | 是 | 是 | 否 | 否 |
-| `LD_PRELOAD` seccomp（没有 `subprocess` 的解释型插件） | 是 | 是 | 否 | 是 |
-| 单独的用户 | 设为 `on` 时 | 是（`auto`） | 用户命名空间 | 用户命名空间 |
-| 资源限制 | 是 | 是 | 是 | 是 |
-
-| 部署方式 | 你得到的 |
-|---|---|
-| 较新内核上的 Docker（`auto` 得到 `landlock`） | 按路径的隔离、没有直接出站、危险系统调用被拒绝（包括静态二进制文件）。常见情况。 |
-| 没有 Landlock 的旧内核上的 Docker，例如老旧 NAS（`auto` 得到 `basic`） | 机密受保护、网络被切断，但所有人可读的文件是可见的。见[插件沙箱设置](plugins/sandbox-deployment.md)。 |
-| 裸机（`auto` 得到 `bubblewrap`） | 最强的文件系统和进程隔离，但没有针对静态二进制文件的 seccomp 过滤器。 |
+`auto` 的最后退路：独立的用户、内核过滤器、`LD_PRELOAD` 过滤器、`-deny-inet`，内核支持时还有 Landlock。
+在没有 Landlock 的内核上，没有按路径的限制：插件可以读取不敏感、所有人可读的文件，也能看到进程列表。
+服务器的机密仍然由独立的用户和 `PR_SET_DUMPABLE` 保护，网络被切断，危险的系统调用被拒绝，编译好的二进制也不例外。
 
 ## 配置
 
 | 变量 | 默认值 | 作用 |
 |---|---|---|
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`、`landlock`、`bubblewrap`、`strict` 或 `basic`。也可以在 **Admin → 插件** 中修改。 |
-| `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`、`on` 或 `off`。与容器上的 `no_new_privs` 不兼容。 |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`、`landlock`、`bubblewrap`、`strict` 或 `basic`。也可以在**管理 → 插件**里修改。 |
+| `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`、`on` 或 `off`。和容器上的 `no_new_privs` 不能同时使用。 |
 | `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`、`warn` 或 `enforce`。 |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | 无 | 用于检查签名的密钥。 |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | 无 | 用来核对签名的公钥。 |
+| `EVEY_PLUGINS_MEMORY_MB`、`EVEY_PLUGINS_PIDS_MAX`、`EVEY_PLUGINS_DISK_MAX_MB`、`EVEY_PLUGINS_CPU_NICE` | 256、64、100、10 | 资源限制在启动时的默认值；面板里可以按插件覆盖。 |
 
-官方镜像附带 `evey-plugin-launcher`（Landlock 和内核过滤器）以及 `bubblewrap`。bubblewrap 还需要主机上的无特权用户命名空间。哪种设置适合哪种机器，通俗的说明见：[插件沙箱设置](plugins/sandbox-deployment.md)。
+官方镜像自带 `evey-plugin-launcher`（Landlock 和内核过滤器）以及 `bubblewrap`。bubblewrap 还需要宿主支持无特权的用户命名空间。
+哪种设置适合哪种机器，用简单的话说明在这里：[插件沙箱设置](plugins/sandbox-deployment.md)。
 
 ## 已知限制
 
-| 限制 | 影响 | 目前的缓解措施 |
+| 限制 | 影响 | 目前靠什么缓解 |
 |---|---|---|
-| 在没有 Landlock 的内核上，`basic` 中没有按路径的隔离 | 插件可以读取所有人可读的非敏感文件以及其他插件的目录 | 机密由单独的用户和 `PR_SET_DUMPABLE` 保护；`auto` 优先选择 Landlock 或 bubblewrap |
-| 所有插件共用用户 1001 | 插件可以向同类插件发送信号（向服务器发送信号会被拒绝） | `PR_SET_DUMPABLE` 阻止通过 `/proc` 读取其他进程；Landlock 和 bubblewrap 隔离插件目录 |
-| Seccomp 是拒绝列表 | 文件和 Unix socket 调用仍然允许 | 路径由 Landlock 或 bubblewrap 限制；IP socket 被拒绝 |
-| 代理把 SSRF 攻击面转移到了宿主 | 代理验证中的缺陷可能访问到内部地址 | Go 实现的允许列表和防 SSRF 客户端；容器上的出站规则作为独立的一层 |
-| 代理控制调用去哪里，而不控制它携带什么 | 数据可以流向插件列表中的某个主机 | 只允许你愿意托付这些数据的主机 |
-| 分析基于模式 | 刻意的混淆可以隐藏代码 | 管理员预览；防线是沙箱，而不是分析 |
-| `LD_PRELOAD` 只覆盖动态的解释型插件 | 没有启动器的 `basic` 中的静态二进制文件可以绕过它 | 官方镜像总是附带启动器，其内核过滤器覆盖静态二进制文件 |
+| 在没有 Landlock 的内核上，`basic` 没有按路径的限制 | 插件可以读取不敏感、所有人可读的文件，以及其他插件的目录 | 机密由独立的用户和 `PR_SET_DUMPABLE` 保护；`auto` 优先选择 Landlock 或 bubblewrap |
+| 所有插件共用用户 1001 | 插件可以向同伴发信号（向服务器发信号会被拒绝） | `PR_SET_DUMPABLE` 阻止通过 `/proc` 读取其他进程；Landlock 和 bubblewrap 隔离各个插件的目录 |
+| seccomp 是黑名单 | 文件调用和 Unix 套接字调用仍然允许 | 路径由 Landlock 或 bubblewrap 限制；IP 套接字被拒绝 |
+| 代理把 SSRF 暴露面转移到了宿主上 | 代理的校验一旦有漏洞，就可能访问到内部地址 | Go 写的允许列表和防 SSRF 客户端；容器上的出站规则作为独立的一层 |
+| 代理控制调用去哪里，而不控制它带了什么 | 数据可以发往插件列表里的某个主机 | 只允许那些您放心交给它这些数据的主机 |
+| 分析是按模式工作的 | 有意的混淆可以藏住代码 | 管理员预览；起把关作用的是沙箱，而不是分析 |
+| `LD_PRELOAD` 只覆盖动态链接的解释型插件 | 在没有启动器的 `basic` 下，静态二进制可以躲开它 | 官方镜像始终带有启动器，它的内核过滤器覆盖静态二进制 |
 
-## 网络暴露（插件威胁模型之外）
+## 网络暴露（不属于插件威胁模型）
 
-两条不变量决定谁能连到服务器：
+有两条不变的规则决定谁能访问到服务器：
 
-- **只有 HTTP 端口应该被发布。** gRPC 端口（`EVEY_SERVER_PORT`，默认 9090）是一个内部传输通道，它唯一的客户端是同一进程中的 HTTP 网关；HTTP API 是该端口加一。gRPC 默认绑定到环回地址（`EVEY_GRPC_BIND=127.0.0.1`），因为远程访问限制是 HTTP 中间件，不覆盖它。放宽绑定会记录一条警告；此时用防火墙保护它就是管理员的责任了。
-- **远程访问限制依据在受信任代理边界上验证过的那一个客户端地址做出决定**，而从不依据请求头。客户端无法通过 `X-Forwarded-For` 声称自己是 `127.0.0.1`，而从未经过该边界的请求会被算作远程。这是一项部署控制，而不是身份验证。
+- **只有 HTTP 端口是打算对外公开的。** gRPC 端口（`EVEY_SERVER_PORT`，默认 9090）是内部传输通道，唯一的客户端是同一进程里的 HTTP 网关；
+  HTTP API 用的是这个端口加一。gRPC 默认只绑定在回环地址上（`EVEY_GRPC_BIND=127.0.0.1`），因为远程访问的关卡是 HTTP 中间件，管不到它。
+  扩大绑定范围会记录一条警告；之后用防火墙把它挡住，就是运维人员的事了。
+- **远程访问关卡依据的是在受信任代理边界上验证过的那一个客户端地址**，从不依据请求头。客户端无法通过 `X-Forwarded-For` 冒称 `127.0.0.1`，
+  而没有经过那道边界的请求，一律算作远程。这是部署层面的控制，不是身份验证。
 
-见[远程访问与 HTTPS](administration/remote-access.md)和[配置参考](environment/server.md#remote-access)。
+见[远程访问和 HTTPS](administration/remote-access.md)以及[服务器与网络](environment/server.md#remote-access)。
 
-## 日志中可能包含什么
+## 日志里可能有什么
 
-服务器日志会进入 **日志与调试**、缺陷报告和备份，所以凭据在写入日志行时就会被清除（`internal/pkg/logger/redact.go`）：键名表示机密的属性（`authorization`、`token`、`api_key`、`password`、`pin`、`secret`……）会被整体替换，任何带有 bearer 令牌、JWT 或 `secret=value` 对的字符串都会被清理。日志路由在输出旧的日志行时也应用同样的规则。对于代码：永远不要用表示机密的键名记录非机密的值（它会被掩盖），并且在记录任何新类型的凭据之前，先把它加入那份列表。
+服务器日志会进入**日志与调试**、缺陷报告和备份，所以在写入每一行时都会清除凭据（`internal/pkg/logger/redact.go`）：
+键名表示机密的属性（`authorization`、`token`、`api_key`、`password`、`pin`、`secret`……）会被整个替换，
+任何带有 bearer 令牌、JWT 或 `secret=value` 对的字符串都会被清除。日志路由在输出旧的日志行时也会套用同样的规则。
+写代码时：永远不要用表示机密的键名记录不是机密的值（它会被遮盖），新增一种凭据时，要在它第一次被写进日志之前就把它加进那份列表。
 
 ## 报告漏洞
 
-请私下报告，永远不要在公开的 issue 中报告：`security@eveyproject.org`，即仓库[安全策略](../SECURITY.md)中的地址。插件认证、权限和沙箱逃逸与其他问题一样都在其范围之内。不要在不属于你的 Evey 实例上进行测试。
+请私下报告，绝不要发在公开的 issue 里：`security@eveyproject.org`，也就是仓库[安全策略](../SECURITY.md)里的地址。
+插件的身份验证、权限和沙箱逃逸，和其他问题一样都在范围之内。请不要拿不属于您的 Evey 实例做测试。
+
+<!-- sources
+install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor
+runtime: internal/adapters/driven/pluginrunner/runner_sandbox.go - applySandbox ; internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode, launcherPath, systemReadOnlyDirs, safeDevNodes ; cmd/evey-plugin-launcher/seccomp_linux.go - deniedSyscalls, selfSignalSyscalls, cloneNamespaceFlags, appendDenyForkRules ; cmd/evey-plugin-launcher/droppriv_linux.go ; sandbox/sandbox.c ; internal/adapters/driven/pluginrunner/runner_bwrap.go - buildBwrapCmd ; internal/adapters/driven/pluginrunner/sandbox_probe.go - ProbeSandbox ; internal/adapters/driving/pluginhost/fetch.go - Fetch, maxFetchBytes, maxFetchHeaderBytes, fetchTimeout ; cmd/evey/hardening_linux.go
+resource monitor: internal/adapters/driven/pluginrunner/runner_resmon.go - defaultMemBytes, defaultPIDsMax, resMonInterval, resMonDiskEveryN, resMonCPUPegPct, resMonGPUPegPct ; internal/app/plugin/resource_config.go - ResolveResourceConfig
+bridge: frontend/packages/client/src/plugins/hostProtocol.ts - ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT ; frontend/packages/client/src/native/PluginWebView.tsx
+config: internal/config/config.go - EVEY_PLUGINS_SANDBOX_MODE, EVEY_PLUGINS_UID_SEPARATION, EVEY_PLUGINS_COSIGN_POLICY, EVEY_PLUGINS_COSIGN_PUBLIC_KEY, EVEY_PLUGINS_MEMORY_MB, EVEY_PLUGINS_PIDS_MAX, EVEY_PLUGINS_DISK_MAX_MB, EVEY_PLUGINS_CPU_NICE, EVEY_SERVER_PORT, EVEY_GRPC_BIND
+logs: internal/pkg/logger/redact.go
+i18n: admin.nav.plugins ; admin.plugins.resourceLimits.title, sandboxMode ; admin.plugins.security.title, sandboxHost ; admin.nav.logs
+-->

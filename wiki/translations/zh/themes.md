@@ -1,206 +1,148 @@
 ---
-source_sha: 6095a8b2b48d1c8ec2613e48fa7ace4603ea6bf231dc4c39b598eb130cb452bc
-reviewed: false
+source_sha: 53779971ebd8b5f41b11b97d89f9f1102e0d283c08d999b9cc028f3b92f630ca
+reviewed: true
 ---
 # 主题
 
-主题用于重新设计 Evey 界面的样式。它是一个 `kind: theme` 的包，**没有后端进程**，包含：
+主题用来改变 Evey 界面的外观：它是一个 `kind: theme` 的包，没有后端进程，由一个样式表组成，
+还可以带一个脚本，这个脚本被关在一个隐藏的框架里运行。本页写给主题作者，说明这两个文件里可以写什么，
+以及安装程序会改写或拒绝什么。主题和插件一样，从**管理 → 插件**安装；每位用户在**设置 → 外观 → 主题**里挑选自己的主题。
 
-- `theme.css`，一个经过清理后注入每个页面的样式表；
-- 可选的 `theme.js`，一个在隔离框架中运行、带有小型 `evey.theme` API 的脚本。
+## 清单
 
-主题不能声明 `language`、`entrypoint` 或 `permissions`：如果声明了，安装会被拒绝。两个文件都会在安装时检查。主题和插件一样，从 **Admin → 插件** 安装。
-
-## 清单架构
-
-```yaml
-name: aurora               # 必填；可读的名称
-version: 1.0.0             # 必填；semver
-kind: theme                # 必填；必须为 "theme"
+```yaml title="plugin.yaml"
+name: aurora               # 必填；给人看的名称
+version: 1.0.0             # 必填；semver 版本号
+kind: theme                # 必填
 
 description: "..."         # 可选
 author: "..."              # 可选
-min_evey_version: "1.0.0"  # 可选
 
-# 不要 language、entrypoint、permissions：它们对主题无效
+# 不要写 language、entrypoint、permissions 或 capabilities：写了安装就会被拒绝
 ```
 
-ZIP 的根目录必须包含 `theme.css` 和/或 `theme.js`。两者都没有的包会被接受，但主题没有任何可见效果。
+ZIP 包的根目录里，在清单旁边放 `theme.css` 和/或 `theme.js`。两个都没有的包也能安装，只是看不出任何效果。
+`examples/plugins/theme-dark-blue`（一个只覆盖颜色变量的简短 `theme.css`）和 `examples/plugins/open-workshop`（一套完整的外观重设计）
+都能通过清理器，是很好的起点。
 
 ## theme.css
 
-在 `/api/v1/themes/<id>/theme.css` 提供。文件在安装时经过 CSS 清理器处理。
+样式表以 `<link rel="stylesheet">` 的形式插入每个页面的 head 里，作用于整个文档：自定义属性、
+`@keyframes`、`@media`、使用 `data:` 来源的 `@font-face`、`@layer` 和容器查询都可以用。它在
+`/api/v1/themes/<id>/theme.css` 提供，不需要身份验证，所以浏览器记住的主题在登录之前就会生效。
 
-样式表以 `<head>` 中的 `<link rel="stylesheet">` 注入。它全局作用于宿主文档。适用标准 CSS：自定义属性、`@keyframes`、`@media`、`@font-face`（使用 `data:` 来源）、`@layer`、容器查询。
+### 从自定义属性入手
 
-清理器会改写或删除主题不允许做的事情，并为每次修改记录一条警告；它不会拒绝文件。保存并提供的是清理后的输出，所以它可能与你写的不同。
+界面的各种表面、文字、强调色、边框和圆角，都取自 `:root` 上的一组自定义属性；
+`examples/plugins/theme-dark-blue/theme.css` 列出了它们，每一个都有注释。覆盖这些属性，就能一次改变所有界面的外观：
 
-### 清理器删除的内容
-
-**`@import`**：完全删除。
-
-任何 `@import` 指令都会被去掉。理由：主题必须是自包含的；导入外部样式表是一种网络泄露途径。
-
-**外部 `url()`**：替换为 `none`。
-
-指向 `http://`、`https://` 或协议相对 `//` URL 的 `url()` 值会被替换。`data:` URI（`data:image/*`、`data:font/*`）是允许的，会原样通过。
-
-**`url()` 中的 `javascript:`**：替换为 `none`。
-
-**`expression()`**（IE 遗留）：替换为 `none`。
-
-**`-moz-binding` 和 `behavior`**：删除。
-
-遗留的 XBL/HTC 执行途径，完全删除。
-
-**敏感选择器规则**：删除整个规则块。
-
-选择器匹配以下任何一项的规则块会被完全去掉：
-
-- `[type="password"]`、`[type='password']` 或 `[type=password]`
-- `[type="hidden"]`
-- `.admin-<anything>`
-- `.token-<anything>`
-- `.secret-<anything>`
-
-理由：主题不能以可用于界面伪装的方式为密码输入框或特权界面元素设置样式。
-
-**全屏叠加规则**：删除整个规则块。
-
-当一个规则块把 `position: fixed` 或 `position: sticky` 与一个覆盖屏幕的盒子结合时，它会被删除：`inset: 0`、四边都为 `0`，或者 `top: 0`、`right: 0`、`bottom: 0`、`left: 0`、`width: 100vw`、`height: 100vh` 中至少两项且包含两个视口尺寸之一。用 `top: 0; left: 0` 固定、按内容确定大小的页眉会被保留。同一个选择器的声明会跨规则累加，所以把这个模式拆到多个块中也无法绕过。这种模式就是典型的 CSS 钓鱼叠加层。
-
-**交互元素上的 `pointer-events: none`**：从规则块中删除该声明。
-
-当规则的选择器指向 `button`、`[role="button"]`、`a[href*=logout]` 或 `[data-critical]` 时，该规则中的任何 `pointer-events: none` 声明都会被删除。规则的其余部分保留。理由：隐藏登出或关键操作按钮的可点击性是一种界面伪装攻击。
-
-**高于 999 的 z-index**：限制为 999。
-
-任何大于 999 的 `z-index` 值都会被改写为 999。会记录一条警告。主题不能把自己叠放在应用自身的模态框/叠加层之上。
-
-### 主题能用 CSS 做什么
-
-- 自定义整个首页布局、主视觉区域、卡片网格、侧边栏
-- 重新设计视频播放器控件、进度条、叠加层的样式
-- 自定义字体（通过 `data:` 或使用 `src: url(data:...)` 的内联 `@font-face`）
-- 动画和过渡（`@keyframes`、`transition`、`animation`）
-- 自定义属性（`--my-color: #...`）、`:root` 覆盖
-- 媒体查询、容器查询
-- 任何不指向密码字段、`.admin-*`、`.token-*`、`.secret-*` 的选择器
-
-### 稳定的样式挂钩（选择器约定）
-
-Evey 用**稳定的类名**标记了一小组装饰性、非敏感的元素，你可以直接指向它们，而不必依赖（易变的）工具类。这是一项约定：它们在重构中不会被重命名。
-
-| 选择器 | 元素 | 可以安全修改的样式 |
-|---|---|---|
-| `.evey-app-header` | 顶部栏 | 颜色、高度、间距、模糊；**永远不要**隐藏或移动其中的控件 |
-| `.evey-media-grid` | 媒体卡片网格（媒体库、行） | 列、`gap`、对齐 |
-| `.evey-media-card` | 一张媒体卡片（海报 + 信息） | 宽度、间距、悬停 |
-| `.evey-poster` | 海报/图片视觉元素（详情页上也有） | `aspect-ratio`、`border-radius`、阴影、适应方式 |
-| `.evey-media-detail` | 媒体详情页的根元素 | 详情主体的布局 |
-
-清理器禁止的一切仍然适用（不能 `@import`、不能全屏叠加、控件上不能 `pointer-events:none`、不能 `[type=password]` / `.admin-*` / `.token-*` / `.secret-*`、`z-index` 受限）。主题可以自由地重新设计这些挂钩的样式；但**不能**改变页眉的用途来隐藏或冒充受信任的控件（登出、个人资料、真实的通知）。
-
-### 示例：更大的海报、更密的网格、更锐利的边角
-
-```css
-/* 更紧凑的网格上更大的海报 */
-.evey-media-card { width: 12rem; }
-.evey-poster     { border-radius: 2px; }
-.evey-media-grid { gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
-
-.evey-media-card:hover { transform: scale(1.03); transition: transform 120ms ease; }
-```
-
-### 示例：不同的强调色
-
-界面的按钮、链接、激活状态和播放器的进度条都取自几个自定义属性；`examples/plugins/theme-dark-blue/theme.css` 列出了它们。覆盖它们会一次性改变所有界面的样式：
-
-```css
+```css title="theme.css"
 :root {
-  --accent: #e8a33d;
-  --accent-hover: #f0b95c;
+  --bg: #0b1120;
+  --surface: #162032;
+  --text: #e2e8f0;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+  --radius: 8px;
 }
 ```
 
+### 稳定的样式挂钩
+
+有几个纯装饰性的元素带有稳定的类名，您可以直接针对它们写样式，而不必依赖那些每个版本都会变化的工具类。
+这是一项约定：这些类名不会被改名。
+
+| 选择器 | 元素 | 可以放心修改的样式 |
+|---|---|---|
+| `.evey-app-header` | 顶部栏 | 颜色、高度、间距、模糊效果；绝不要隐藏或移动栏里的控件 |
+| `.evey-media-grid` | 媒体卡片网格（媒体库、各行） | 列数、`gap`、对齐方式 |
+| `.evey-media-card` | 一张媒体卡片（海报和信息） | 宽度、间距、悬停效果 |
+| `.evey-poster` | 海报或封面图（详情页上也有） | `aspect-ratio`、`border-radius`、阴影、填充方式 |
+| `.evey-media-detail` | 媒体详情页的根元素 | 详情主体的布局 |
+
+```css title="theme.css - 更大的海报、更紧凑的网格、更锐利的边角"
+.evey-media-card { width: 12rem; }
+.evey-poster     { border-radius: 2px; }
+.evey-media-grid { gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.evey-media-card:hover { transform: scale(1.03); transition: transform 120ms ease; }
+```
+
+### 清理器会改写什么
+
+安装时，`theme.css` 会经过一个清理器：主题不允许做的事情会被改写或删除，每处改动都记录一条警告，结果再写回文件。
+实际提供出去的是清理后的文件，可能和您写的不一样。清理器从不拒绝整个包。
+
+| 您写的 | 会发生什么 | 原因 |
+|---|---|---|
+| `@import ...` | 删除 | 主题必须自成一体；导入外部文件会造成网络泄露。 |
+| `url(http://...)`、`url(https://...)`、`url(//...)`、`image-set()` 里的外部候选图、保存着这类 URL 的自定义属性 | 替换为 `none`，或使其失效 | 同样的原因。`data:` URI 原样保留。 |
+| `url(javascript:...)`、`expression(...)`、`-moz-binding`、`behavior` | 删除 | 旧式的代码执行途径。 |
+| 选择器匹配 `[type=password]`、`[type=hidden]`、`.admin-*`、`.token-*` 或 `.secret-*` 的规则 | 删除整个规则块 | 主题不能改变密码输入框或特权元素的样式。 |
+| 用 `position: fixed` 或 `sticky` 盖住整个屏幕的规则：`inset: 0`、四条边都为 `0`，或者 `top`/`right`/`bottom`/`left: 0`、`width: 100vw`、`height: 100vh` 中至少两项且其中有一项是视口尺寸 | 删除整个规则块 | 这是典型的钓鱼遮罩层。用 `top: 0; left: 0` 固定、大小由内容决定的页眉会保留。同一个选择器在不同规则里的声明会合并起来计算。 |
+| 在针对 `button`、`[role=button]`、`a[href*=logout]` 或 `[data-critical]` 的规则里写 `pointer-events: none` | 删除这一条声明，其余保留 | 让关键控件点不动，是一种界面伪装攻击。 |
+| 大于 999 的 `z-index` | 压到 999 | 主题必须待在应用自己的对话框层之下。 |
+
+转义字符会在这些检查之前先解码，所以用转义序列绕不过去。
+
 ## theme.js
 
-在 `/api/v1/themes/<id>/theme.js` 提供（需要身份验证）。在一个带有 `sandbox="allow-scripts"` 和锁定的 Content Security Policy 的 iframe 中加载：脚本无法访问宿主页面，无法发起网络请求，也无法读取存储。
+脚本是可选的。它在 `/api/v1/themes/<id>/theme.js` 提供给已登录的用户，运行在一个隐藏的 `<iframe sandbox="allow-scripts">` 里，
+这个框架的策略设置了 `connect-src 'none'`：即使脚本通过了安装扫描，它也碰不到宿主页面、宿主的存储，也上不了网。
+它唯一能用的接口是 `window.evey.theme`，在脚本运行之前注入。
 
-唯一可用的接口是 `window.evey.theme`，由宿主桥接在 `theme.js` 运行之前注入。
+### `evey.theme.css(declarations)`
 
-即使是通过了安装扫描的脚本，也无法访问宿主页面、它的存储或网络：框架没有同源访问权限，其策略设置了 `connect-src 'none'`。
+把自定义属性的声明发给宿主页面，由宿主页面应用到 `:root` 上。只接受这一种形式：一串 `--name: value`，
+最多 200 条声明，每个值最多 500 个字符，不能含有 `url()`、`image-set`、`expression()`、`@import`、`javascript:`、`data:`、`http(s):`、
+`//`、注释或花括号。其他内容一律丢弃，并在控制台里报告。一个属性只有在清理后的样式表引用了它的地方才会起作用。
 
-### `evey.theme.css(rules)`
-
-在运行时向宿主的样式层注入一段 CSS 字符串。用于依赖计算值或主题内用户交互的动态样式。
-
-```js
-evey.theme.css(`
-  .hero-banner {
-    background-image: url(data:image/svg+xml,...);
-  }
-`);
+```js title="theme.js"
+evey.theme.css("--accent: #e8a33d; --accent-hover: #f0b95c");
 ```
 
-### `evey.theme.log(level, msg)`
+### `evey.theme.log(level, message)`
 
-向浏览器控制台输出一条日志消息，前缀为 `[evey-theme]`。不会显示给最终用户。
+把一行文字转发到浏览器控制台。`level` 取 `"debug"`、`"info"`、`"warn"` 或 `"error"`；消息超过 500 个字符的部分会被截掉。用户看不到任何内容。
 
-- `level`：`"debug"` | `"info"` | `"warn"` | `"error"`
-- `msg`：纯文本字符串
+`evey.theme.registerComponent` 和 `evey.theme.observe` 在对象上存在，但没有实现：宿主会对它们返回错误。
 
-```js
-evey.theme.log("info", "Aurora theme loaded.");
-```
+### 扫描器会拒绝什么
 
-### 扫描器拒绝的内容
+安装时，`theme.js` 会被当作文本扫描，只要匹配到一项，整个包就会被拒绝，并给出原因。
+扫描器有意从严：主题没有任何正当理由提到这些名称，哪怕是在注释里。
 
-只要匹配一项就会拒绝安装，并给出原因。扫描器有意保守：主题没有任何正当理由使用这些 API。
+源代码任何位置出现以下任一子字符串：
 
-#### 字面字符串
+`document.cookie`、`localStorage`、`sessionStorage`、`indexedDB`、
+`XMLHttpRequest`、`navigator.sendBeacon`、`navigator.serviceWorker`、
+`WebSocket`、`EventSource`、`importScripts`、`document.write`、
+`Element.prototype`、`Object.defineProperty`、`globalThis`、`window.parent`、
+`window.top`、`window.opener`、`Reflect.get`、`Reflect.apply`、
+`Reflect.construct`、`window.frames`、`frameElement`、`postMessage`。
 
-如果源代码中任何位置出现以下任何子字符串，安装都会被拒绝：
-
-- `document.cookie`
-- `localStorage`
-- `sessionStorage`
-- `indexedDB`
-- `XMLHttpRequest`
-- `navigator.sendBeacon`
-- `navigator.serviceWorker`
-- `WebSocket`
-- `EventSource`
-- `importScripts`
-- `document.write`
-- `Element.prototype`
-- `Object.defineProperty`
-- `globalThis`
-- `window.parent`
-- `window.top`
-- `window.opener`
-- `Reflect.get`
-- `Reflect.apply`
-- `Reflect.construct`
-- `window.frames`
-- `frameElement`
-- `postMessage`
-
-#### 模式
+以下任一模式：
 
 | 模式 | 捕获的内容 |
 |---|---|
 | `\b(fetch\|eval\|atob\|btoa\|Function\|setTimeout\|setInterval)\s*\(` | 直接调用被禁止的全局函数 |
 | `\bimport\s*\(` | 动态导入 |
-| `(?:window\|self\|globalThis\|top\|parent\|document\|navigator\|location)\s*\[` | 对宿主全局对象的方括号访问（可捕获 `window["fetch"]`） |
-| `\.cookie\b` | 任何 `.cookie` 访问，无论通过属性描述符还是计算属性 |
-| `\.constructor\s*\.\s*constructor` | `[].constructor.constructor` 逃逸 |
-| `new\s+Function\b` | 用 `new Function(...)` 构造代码 |
+| `(?:window\|self\|globalThis\|top\|parent\|document\|navigator\|location)\s*\[` | 用方括号访问宿主的全局对象，例如 `window["fetch"]` |
+| `\.cookie\b` | 任何对 `.cookie` 的访问 |
+| `\.constructor\s*\.\s*constructor` | `[].constructor.constructor` 逃逸手法 |
+| `new\s+Function\b` | 动态构造代码 |
 | `(?:window\|self\|top\|parent\|globalThis)\s*\.\s*(?:Function\|eval\|fetch\|atob\|btoa\|XMLHttpRequest\|WebSocket\|EventSource)\b` | 通过属性读取被禁止的全局对象 |
-| `(?:window\|top\|parent\|document\|location\|globalThis\|self)\s*\.\s*[A-Za-z_$][\w$]*\s*=[^=]` | 给宿主全局对象的属性赋值 |
+| `(?:window\|top\|parent\|document\|location\|globalThis\|self)\s*\.\s*[A-Za-z_$][\w$]*\s*=[^=]` | 给宿主的全局对象赋值 |
 | `Object\s*\.\s*prototype` | 原型污染 |
 | `\.register\s*\(\s*['"]\S+\.js` | 注册 service worker |
 
-## 示例
-
-插件示例中附带了两个主题：`examples/plugins/theme-dark-blue`（一个只覆盖颜色变量的简短 `theme.css`）和 `examples/plugins/open-workshop`（完整的样式重设计）。复制其中任何一个作为起点：两者都已经能通过清理器。
+<!-- sources
+manifest rules: internal/adapters/driven/pluginrunner/manifest.go - validateManifest (KindTheme)
+theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n common.appearance, common.theme ; GET /api/v1/plugins/themes
+routes, auth: internal/adapters/driving/http/theme_asset_handler.go (theme.css open, theme.js authMw)
+link injection, hidden iframe, connect-src none: frontend/apps/web/src/features/themes/ThemeLoader.tsx
+sanitizer: internal/adapters/driven/pluginrunner/css_sanitizer.go - SanitizeCSS, reImport, reURLExternal, reURLExternalUnterminated, reImageSetCandidateExternal, reCustomPropExternalURL, reURLJavascript, reExpression, reMozBinding, reBehavior, reSensitiveSelector, overlaySignals.isOverlay, stripPointerEventsOnInteractive, reZIndex ; written back at install: internal/app/plugin/install.go - validateStagedPlugin
+custom properties: examples/plugins/theme-dark-blue/theme.css
+stable hooks: frontend/apps/web/src (evey-app-header, evey-media-grid, evey-media-card, evey-poster, evey-media-detail)
+theme.js bridge: frontend/apps/web/src/features/themes/theme-bridge.ts - THEME_BRIDGE_SCRIPT ; policy: theme-css-policy.ts - applyThemeCSSPolicy, MAX_DECLARATIONS, MAX_VALUE_LENGTH, FORBIDDEN_IN_VALUE
+scanner: internal/pkg/themejs/scan.go - blockedLiterals, blockedRegex, Scan
+-->

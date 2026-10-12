@@ -1,227 +1,258 @@
 ---
-source_sha: bb7b744c4f03cee0ce9a6cdfdd4b96cd6e99f6d71eee21c50f601fc4595ae619
-reviewed: false
+source_sha: 4f36e08eb2ed47e2b70b77f7f85f7caa2a9229e3bb755c85c2d54804d13c4031
+reviewed: true
 ---
 # 插件 API 参考
 
-本文档面向编写 Evey 插件的外部开发者。关于施加在插件上的安全约束，见 [`security-model.md`](security-model.md)。
+编写插件时要遵守的约定：`plugin.yaml` 的各个字段、后端和服务器之间互相调用的两个 gRPC 服务，
+以及界面模块在自己的框架里拿到的 `window.evey` 桥接接口。一步步使用它们的教程见[编写插件](dev-setup.md)；
+每个权限允许做什么、安装程序会拒绝什么，见[权限与插槽](security-model.md)。
 
-## 清单架构
+## 清单
 
-每个插件 ZIP 的根目录都必须包含一个 `plugin.yaml`。
+每个 ZIP 包的根目录里都有一个 `plugin.yaml`（或 `plugin.yml`），最大 1 MB。
 
-```yaml
-name: my-plugin              # 必填；可读的名称
-version: 1.2.3               # 必填；semver
-kind: plugin                 # 必填；必须为 "plugin"（纯 CSS/JS 主题用 "theme"）
-language: nodejs             # 插件必填；nodejs | python | go | php | ruby | lua | bash | sh
-entrypoint: node index.js    # 插件必填；解释器运行的完整命令行：
-                              # 第一个词是解释器，在 PATH 中查找；
-                              # 其余的词是脚本及其参数，路径限制在 ZIP 内。
-                              # "language" 只用于检查运行时是否可用以及
-                              # 复制 SDK 存根：它不会启动 entrypoint。
+```yaml title="plugin.yaml"
+name: my-plugin              # 必填；唯一，kebab-case 格式
+version: 1.2.3               # 必填；semver，X.Y.Z 或 X.Y.Z-label
+kind: plugin                 # 必填；"plugin" 或 "theme"
+language: nodejs             # 插件必填；镜像里的一个运行时
+entrypoint: node index.js    # 插件必填；服务器执行的命令行
 
 description: "..."           # 可选
 author: "..."                # 可选
-min_evey_version: "1.0.0"   # 可选；semver 格式的最低宿主版本
+min_evey_version: "1.0.0"    # 可选；会被记录，目前不强制
 
-permissions:
-  - network                  # 见权限一节
+permissions:                 # 后端和界面可以调用什么
+  - network
   - media.read
+external_fetch:              # 有 "network" 时必填；只写单纯的主机名
+  - api.themoviedb.org
+capabilities:                # 插件声称自己承担的角色
+  - metadata.provider
 
-external_fetch:              # 声明了 "network" 权限时必填
-  - api.themoviedb.org       # 见 security-model.md 中的外部访问规则
-  - api.example.com          # 只能是纯主机名：不带协议、不用通配符、不用字面 IP
-
-capabilities:
-  - metadata.provider        # 见能力一节
-
-# 可选：声明一个子目录，其内容作为静态资源提供。
-# 声明了前端模块时必填。
-web_root: public/
-
-# 可选：注入宿主界面的前端模块。
+web_root: public/            # 声明了 frontend 时必填；作为静态资源提供
 frontend:
-  - slot: home.section       # 见 security-model.md 中的插槽列表
-    src: public/front.js     # 相对于 ZIP 根目录的路径；必须位于 web_root 之下
+  - slot: home.section       # 允许的插槽之一
+    src: public/front.js     # 必须位于 web_root 之下
 
-config_schema:               # 可选；描述插件配置键的 JSON Schema 对象
+config_schema:               # 插件卡片上“配置”面板里的字段
   api_key:
+    type: password           # 永远不会发回给任何客户端
+    label: API key
+    required: true
+  city:
     type: string
-    secret: true             # 或 `type: password`：永远不会发回给任何客户端，包括管理员
-    description: "TMDB API key"
+    default: Paris
+    description: Resolved through geocoding
 ```
 
-标记为 `secret: true`（或 `type: password`）的字段会照常保存并交给插件，但每条读取路由（公开的路由和管理配置面板）都会返回掩码后的值。当掩码原样提交回来时，管理面板会保留已保存的值，所以保存其他字段永远不会清除机密。
+| 字段 | 规则 |
+|---|---|
+| `name`、`version`、`kind` | 必填。`version` 必须符合 `X.Y.Z` 或 `X.Y.Z-label`；更新包的版本必须高于已安装的版本。 |
+| `language` | `kind: plugin` 必填：`python`、`nodejs`、`php`、`ruby`、`lua`、`bash`、`sh` 或 `go`。它决定检查哪个运行时、把哪些存根复制到入口旁边；它本身不启动任何东西。 |
+| `entrypoint` | `kind: plugin` 必填。第一个词是解释器（声明了 `native-binary` 时是二进制文件），其余是它的参数；进程在插件的目录里运行。 |
+| `permissions` | 每个值都必须在[权限目录](security-model.md#permissions-catalog)里。`network` 要求 `external_fetch` 不为空。 |
+| `external_fetch` | 单纯的主机名。带协议前缀可以，但前缀会被丢掉；通配符或 IP 地址会导致安装被拒绝（[规则](security-model.md#external-fetch-rules)）。 |
+| `capabilities` | `metadata.provider`、`media.read`、`media.write`、`webhook.receiver` 或 `notification.sender`；其他值都会被拒绝。主题不能声明任何能力。 |
+| `web_root` | `frontend` 不为空时必填；必须是相对路径，不能含 `..`，不能含反斜杠。写 `.` 会把整个插件目录都提供出去，只会记录一条警告。 |
+| `frontend[]` | `slot` 必须在[插槽列表](#slots)里；`src` 必须位于 `web_root` 之下。 |
+| `config_schema` | 字段名到 `{type, label, description, required, default, min, max, options}` 的映射。类型：`string`、`text`、`password`、`boolean`、`integer`、`number`、`select`（配合 `options: [{value, label}]`）。 |
 
-**安装时执行的验证规则：**
+主题（`kind: theme`）不能声明 `language`、`entrypoint`、`permissions` 或 `capabilities`；它的格式见[主题](../themes.md)。
 
-- `kind: plugin` 需要 `language` 和 `entrypoint`。
-- `kind: theme` 不得声明 `language`、`entrypoint` 或 `permissions`。
-- `frontend` 非空时必须有 `web_root`。
-- `frontend[].src` 必须位于 `web_root` 之下。
-- `frontend[].slot` 必须在服务器端的插槽白名单中。
-- `network` 权限需要一个非空的 `external_fetch` 列表。
-- 所有 `external_fetch` 条目都必须通过主机白名单验证器。
-- 所有能力和权限都必须是服务器已知的。
+**机密字段。** `type: password` 的字段，或者带有 `secret: true` 的字段，会照常保存并交给后端，
+但从任何读取路由返回时都是遮盖过的，管理面板里的**配置**面板也一样。保存面板时，如果遮盖值没有改动，
+就保留已保存的值，所以修改别的字段永远不会把机密清空。
 
-## 后端 IPC
+## 后端：两个服务
 
-插件进程和 Evey 宿主通过两个 Unix 域 socket 以 gRPC 通信，它们的路径在启动时通过环境变量传入：
+后端进程和服务器通过两个 Unix 套接字用 gRPC 通信，套接字的路径通过环境变量传入：
 
 ```
-EVEY_PLUGIN_ID=<plugin_id>
-EVEY_PLUGIN_SOCK=/tmp/evey/plugins/<plugin_id>/plugin.sock   # 你的进程在这里监听并提供 PluginService
-EVEY_HOST_SOCK=/tmp/evey/plugins/<plugin_id>/host.sock       # 你的进程连接这里以调用 HostService
+EVEY_PLUGIN_ID=<plugin id>
+EVEY_PLUGIN_SOCK=<path>   # 您的进程在这里监听，提供 PluginService
+EVEY_HOST_SOCK=<path>     # 您的进程连接这里，调用 HostService
 ```
 
-宿主根据内核报告的 PID（`SO_PEERCRED`）在 socket 上验证插件进程：不会为进程本身签发任何令牌。
+服务器根据内核报告的 PID（`SO_PEERCRED`）在套接字上验证进程的身份；不会交给进程任何令牌。
+每个插件每分钟最多调用 600 次。约定以 `proto/plugin/v1/plugin_api.proto` 为准；插件启动时，
+自带语言的存根会被复制到入口旁边（[准备工作](dev-setup.md#1-prerequisites)）。
 
-一个单独的、短期的 JWT（5 分钟，范围限定为 `plugin_id` + `user_id`）会按需通过 `IssuePluginToken` RPC 签发：插件的*前端 iframe* 获取一个，用于验证它自己的 `public`/`prefs` 范围的调用。它与上面的后端 socket 无关，也从不在启动时交给插件进程。
+### PluginService：服务器调用什么
 
-gRPC 服务定义位于 `proto/plugin/v1/plugin_api.proto`。各语言的 SDK 存根由该 proto 生成，可以包含在插件 ZIP 中，或者随插件一起分发。有几种语言的存根是预先生成的（`sdk/<lang>/`）；要面向未附带的语言，见 [dev-setup.md → 为其他语言生成存根](dev-setup.md#generating-stubs-for-another-language)。
+| 方法 | 何时调用 |
+|---|---|
+| `Initialize(plugin_id, config, host_version)` | 进程绑定好自己的套接字之后，调用一次。`config` 带着管理员设置的 `config_schema` 的值。回答 `success: false` 并附上 `error`，就表示拒绝启动。 |
+| `HealthCheck()` | 定期调用，用来区分活着的进程和卡住的进程。只要还能提供服务，就回答 `healthy: true`。 |
+| `Shutdown(reason)` | 插件被禁用、更新、卸载，或服务器停止时。回答之后请尽快退出。 |
+| `OnEvent(event_type, payload, source)` | 约定里有定义，但服务器目前不向插件投递任何事件：实现它并回答 `handled: true` 即可，不要指望会被调用。 |
+| `GetCapabilities()` | 约定里有定义；服务器目前不调用它。 |
 
-宿主在 RPC 层面执行权限：调用你的清单没有声明的 RPC 会得到 `PermissionDenied`。
+### HostService：插件能调用什么
+
+如果清单没有声明某个调用需要的权限，调用会被拒绝，返回 `PermissionDenied`。标为*未提供*的方法会返回 `Unimplemented`；
+它们属于为以后版本准备的约定，列在这里是为了不让存根误导您。
+
+| 方法 | 权限 | 说明 |
+|---|---|---|
+| `Log(level, message, fields)` | 无 | 写入插件的日志，显示在插件卡片的**日志**下。 |
+| `GetConfig(key)` / `SetConfig(key, value)` | 无 | 插件的配置：**配置**面板里的值，加上插件自己写入的键。最多 256 个键，键最长 256 字节，值最大 16 KiB。 |
+| `GetData`、`SetData`、`DeleteData`、`ListDataKeys` | 无 | 下面介绍的[数据存储](#data-store)。 |
+| `EmitEvent(event_type, payload)` | 无 | 以 `plugin.event.<event_type>` 的名字发布到服务器的事件总线上，Webhook 可以订阅它。 |
+| `GetMediaItem(id)`、`ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` 或 `media.read` | 完整的媒体记录，包括 `file_path`、`provider_ids` 和 `genres`。 |
+| `Fetch(url, method, headers)` | `network` | 走出沙箱的唯一途径：`http` 或 `https`，`GET` 或 `HEAD`，目标是 `external_fetch` 里的主机；私有地址在解析后和重定向时都会被拒绝。响应体最大 8 MiB（`truncated` 会注明是否被截断），整个请求最长 20 秒。服务器不会附加自己的任何凭据。 |
+| `SearchMedia`、`GetMediaStreams`、`GetChapters`、`GetSubtitles` | `api.library` 或 `media.read` | *未提供。* |
+| `UpdateMetadata` | `api.metadata` 或 `media.write` | *未提供。* |
+| `GetUserPreferences` | `api.user` | *未提供。* |
+| `SendNotification` | `notification.sender` | *未提供。* |
 
 ### 数据存储
 
-每个插件都有自己的持久化键值存储，命名空间属于该插件：**不需要任何权限，插件拥有自己的数据**。用它保存游标、缓存、上次同步的时间戳，以及插件需要在重启之间记住的任何东西。值是不透明的字符串（如果需要结构，请自己编码 JSON）。
+每个插件都有一个持久的键值存储，不需要声明任何权限：游标、缓存、上次同步的时间，任何需要在重启之后记住的东西都可以放进去。
+值是不透明的字符串；JSON 请自己编码。插件 id 取自经过验证的套接字，所以插件只能读写自己的命名空间；
+插件被删除时，整个存储也随之删除。
 
-| `HostService` RPC | 用途 |
+| 方法 | 用途 |
 |---|---|
-| `SetData(key, value)` | 写入或更新一个值。 |
-| `GetData(key) → {value, found}` | 读取一个值。 |
+| `SetData(key, value)` | 创建或替换一个值。 |
+| `GetData(key)` | 返回 `value` 和 `found`。 |
 | `DeleteData(key)` | 删除一个键。 |
-| `ListDataKeys() → {keys}` | 列出插件的键。 |
+| `ListDataKeys()` | 列出插件的所有键。 |
 
-插件 id 取自经过验证的 socket：插件只能读写它**自己的**命名空间，永远无法访问另一个插件的。卸载插件时，它的整个存储会被自动清除（`ON DELETE CASCADE`），所以删除后不会留下过时的数据。
-
-这个存储对插件是全局的。要**按用户**保存数据（例如当前观看用户的偏好），见下面的 `prefs` 权限：这个接口从插件的 iframe 访问，那里存在用户上下文。
+这个存储对整个插件是共用的。**每个用户各自**的数据（比如正在看小组件的那个人的偏好）放在界面这一侧，通过下面的 `prefs` 权限保存。
 
 ## 前端 API
 
-当插件声明了 `frontend` 模块时，iframe `srcdoc` 的 HTML 会包含一个桥接脚本，向模块的 JavaScript 暴露 `window.evey`。
-
-前端模块运行在一个具有不透明来源的沙箱化框架中：它无法访问宿主页面的 DOM、Cookie 或存储，只能通过 `window.evey` 访问 Evey。它自己的网络访问被框架的 `connect-src` 限制为其 `external_fetch` 列表中的主机，且只能通过 `https://`；没有这个列表的插件无法打开任何连接。
-
-### `evey.navigate(path)`
-
-把宿主应用导航到 `path`。路径必须以 `/home`、`/library`、`/media`、`/player`、`/settings` 或 `/search` 开头；其他任何路径（管理区、登录、设置向导、绝对 URL 或协议相对 URL）都会被悄悄丢弃。
-
-```js
-evey.navigate("/library/movies");
-evey.navigate("/media/abc123");
-```
-
-### `evey.toast(level, message)`
-
-在宿主界面中显示一条提示通知。
-
-- `level`：`"success"` | `"error"` | `"info"`
-- `message`：纯文本，最多 200 个字符，HTML 会被去掉
-- 速率限制为每秒 3 条
-
-```js
-evey.toast("success", "Metadata enriched.");
-evey.toast("error", "API key missing.");
-```
-
-### `evey.resize(height)`
-
-请求宿主把 iframe 插槽调整为 `height` 像素。限制在 50-800 之间。`0` 会折叠插槽：没有内容可显示的插件不会在页面上占用空间。
-
-```js
-evey.resize(300);
-evey.resize(0); // 没有内容可显示：插槽消失
-```
+界面模块运行在一个来源不透明的框架里，策略是 `default-src 'none'`：碰不到宿主页面、宿主的 cookie 和存储，
+不能用表单，不能弹出窗口，`connect-src` 也只限于 `external_fetch` 里的主机，且只能走 `https`。
+其他一切都通过 `window.evey` 进行，它在模块运行之前注入。同一个模块无需修改，就能在网页应用以及移动和电视应用里运行。
 
 ### `evey.onInit(callback)`
 
-注册一个回调，在宿主向插件发送初始化上下文时触发一次。如果在调用 `onInit` 之前宿主已经发送了 `init`，回调会立即使用缓存的数据被调用。
+用宿主发来的上下文调用一次；如果回调是在上下文到达之后才注册的，会立即被调用。
 
 ```js
-evey.onInit(function(data) {
-  // data.context         - 插件配置值（来自 config_schema）
-  // data.locale          - 当前语言字符串，例如 "en-US"
-  // data.theme           - 当前主题 id
-  // data.surface         - "web"、"mobile" 或 "tv"：小部件所在的位置
-  // data.suggestedHeight - 仅 home.section：宿主在那里推荐的高度（px）
-  // data.viewportHeight  - 仅 tv：面板高度，单位 dp
+evey.onInit(function (data) {
+  // data.context         - 插件的配置值（config_schema）
+  // data.locale          - 当前语言区域，例如 "en-US"
+  // data.theme           - 当前主题的 id
+  // data.surface         - "web"、"mobile" 或 "tv"
+  // data.suggestedHeight - 仅 home.section：宿主建议的高度（px）
+  // data.viewportHeight  - 仅 tv：面板的高度，单位 dp
 });
 ```
 
-宿主最多等待 5 秒，等插件发出 `ready` 信号（由桥接脚本自动完成）。如果超时，iframe 会被卸载并报告错误。
+### `evey.navigate(path)`
 
-#### 高度
+让宿主应用跳转到 `path`。只有 `/home`、`/library`、`/media`、`/player`、`/settings` 和 `/search` 开头的路径会被执行；
+其他路径（管理区域、登录页、绝对 URL）都会被悄悄丢弃。
 
-`home.section` 小部件无需做任何事就会以 `data.suggestedHeight` 打开：宿主知道它把你放在了什么界面上（桌面页面、手机、电视面板），并推荐首页小部件在那里应有的高度，这样同一个首页上的所有小部件大小一致。只有在你更清楚的时候才调用 `evey.resize()`；宿主永远不会在你不知情的情况下调整或缩放你的内容。
+### `evey.toast(level, message)`
 
-#### 在电视上
+在宿主界面里显示一条提示消息。`level` 取 `"success"`、`"error"` 或 `"info"`；`message` 是纯文本，超过 200 个字符的部分会被截掉；
+每秒最多显示 3 条。
 
-电视应用在一个 WebView 中运行你的小部件，一些在浏览器中成立的事情在那里不再成立：
+### `evey.resize(height)`
 
-- **不要根据你自己的视口确定大小。** 在 WebView 中，`window.innerHeight` 就是宿主刚刚分配给你的插槽：这是循环依赖。如果你要调整自己的大小，请依据 `data.viewportHeight`（面板）或 `data.suggestedHeight`，永远不要依据 `innerHeight`。
-- **没有焦点，没有指针。** 小部件永远不会获得方向键焦点，也没有悬停。任何交互内容都应该放在网页和移动端界面上。
-- **让文字远离边缘。** 电视会有过扫描：在每一边都留出大约 5% 的宽度和高度。
-- **在真实设备上放大测试 WebGL。** 着色器运行在设备的 GPU 和驱动上，而不是你电脑的。一个在 `fract()` 之前把输入乘以几百的格点哈希，在浏览器中看起来正常，在 Mali GPU 上却画出了平面多边形而不是云；请让噪声坐标保持有界（`mod()`），并对有界的值做哈希。`tests/plugins/weather-v2` 是上述所有要点的参考小部件。
+请求把插槽的高度设为 `height` 像素，限制在 50 到 800 之间。`0` 会把插槽收起来：没有内容可显示的小组件不占任何空间。
+`home.section` 小组件什么都不用做，打开时就是 `data.suggestedHeight` 的高度：宿主知道把您放在了哪个界面上，
+会推荐首页小组件在那里应有的高度，这样每个小组件的大小都一致。只有在您确实更清楚该多高时，才需要调整。
+
+### `evey.prefs.*`（权限 `prefs`）
+
+当前用户在插件自己命名空间里的偏好，通过宿主为框架持有的令牌，绑定到（这个插件，这个用户）。
+每个调用都返回一个 promise；缺少权限时 promise 会被拒绝。
+
+```js
+await evey.prefs.set("units", "celsius");
+const { value, found } = await evey.prefs.get("units");
+const all = await evey.prefs.list();        // [{ key, value }]
+await evey.prefs.delete("units");
+```
+
+### `evey.media.*`（权限 `public`）
+
+媒体条目的一个安全投影：id、标题、类型、年份、简介、海报 URL。永远不会有文件路径、文件大小、提供方 id 或流。
+
+```js
+const item  = await evey.media.get(id);
+const page  = await evey.media.list({ libraryId });
+const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
+```
+
+`poster` 返回 `data:` URL，是因为框架的策略禁止直接从服务器加载图片；可以把它用作 `<img>` 的来源，或者当作纹理。
+
+### `evey.assets.read(path)`
+
+按相对路径读取插件自己 `web_root` 里的一个文件，返回 `data:` URL：后端在运行时写出的文件，
+就能在框架里直接使用，不用操心跨域问题。只能读到插件自己的资源。
+
+### 在电视上
+
+电视应用在 WebView 里运行模块，一些在浏览器里成立的事情，在那里就不成立了：
+
+- **不要按自己的视口来定尺寸。** 在 WebView 里，`window.innerHeight` 就是宿主刚刚分给您的插槽高度。
+  请按 `data.viewportHeight` 或 `data.suggestedHeight` 来定尺寸。
+- **没有焦点，也没有指针。** 小组件永远拿不到方向键的焦点，也没有悬停效果；任何需要交互的东西都应放在网页和移动端。
+- **文字不要贴着边缘。** 电视会过扫描：每一边都留出大约 5% 的宽度和高度。
+- **在真实的电视盒上测试 WebGL。** 着色器运行在电视盒自己的 GPU 和驱动上，而不是您电脑上的；噪声坐标要保持在有限范围内。
+  `tests/plugins/weather-v2` 是以上所有要点的参考小组件。
 
 ## 插槽
 
-| 插槽 | 出现的位置 |
+| 插槽 | 出现在哪里 |
 |---|---|
-| `home.section` | 首页上的内容区块 |
-| `home.hero` | 首页上的主横幅区域 |
-| `library.sidebar` | 媒体库视图中的侧边栏面板 |
-| `media.detail.sidebar` | 媒体详情页上的侧边栏面板 |
-| `player.overlay` | 视频播放器上的叠加层 |
-| `settings.user.appearance` | 用户设置中的外观子区块 |
-| `sidebar.bottom` | 主导航侧边栏的底部区域 |
-| `admin.nav` | 管理面板中的一个导航项，打开插件自己的沙箱化页面 |
+| `home.section` | 首页上的一个内容区块 |
+| `home.hero` | 首页顶部的大横幅区 |
+| `library.sidebar` | 媒体库视图里的一个侧边栏面板 |
+| `media.detail.sidebar` | 媒体详情页上的一个侧边栏面板 |
+| `player.overlay` | 视频播放器上的一层浮层 |
+| `settings.user.appearance` | 用户设置里的外观部分 |
+| `sidebar.bottom` | 主导航侧边栏的底部 |
+| `admin.nav` | 管理菜单里的一个入口，打开插件自己的页面 |
 
-`admin.nav` 是**唯一**的管理区插槽。它不会向现有的管理界面注入任何东西：它添加一个菜单项，在一个专用的管理路由上用沙箱化的 iframe 打开你的插件自己的页面。请求它会出现在安装同意的差异中。
-
-`admin.*`、`login.*`、`setup.*`、`profile.security.*` 下的所有其他插槽在安装时都会被拒绝。
+`admin.nav` 是管理区域里唯一的插槽。它不会往已有的管理界面里注入任何东西：它只是添加一个菜单入口，
+在同样的沙箱框架里、在一条仅限管理员的路由上打开插件的页面。申请这个插槽会显示在需要管理员同意的差异里。
+其他所有 `admin.*`、`login.*`、`setup.*` 和 `profile.security.*` 插槽，安装时都会被拒绝。
 
 ## 能力
 
-能力声明插件承担什么服务器端角色。它们影响宿主把哪些 RPC 转给插件，以及如何在服务注册表中登记插件。
+能力声明的是插件自称承担的角色：`metadata.provider`、`media.read`、`media.write`、`webhook.receiver` 或 `notification.sender`。
+安装程序会检查名称，管理员会在预览里看到这份列表，以及更新时新增的项，**安全仪表板**也会记录它。
+服务器目前不会根据能力转发任何东西：`metadata.provider` 收不到任何补全元数据的调用，`webhook.receiver` 收不到任何传入的请求。
+插件实际能做什么，由它的**权限**决定。
 
-### `metadata.provider`
+## 界面的权限
 
-插件可以为媒体条目提供丰富的元数据。没有专门的元数据增强 RPC：宿主调用的 `PluginService` 只暴露 `Initialize` / `Shutdown` / `OnEvent` / `HealthCheck` / `GetCapabilities`（`proto/plugin/v1/plugin_api.proto`）。`metadata.provider` 插件通过 `OnEvent` 接收相关事件，并通过 `GetCapabilities` 报告其能力；它不实现单独的增强方法。
+`public` 和 `prefs` 和其他权限一样写在 `permissions` 下。它们不授予后端进程任何东西；它们解锁的是框架里的 `evey.media.*` 和 `evey.prefs.*`。
+框架本身从不持有令牌：宿主签发一个限定于（插件，用户）、有效期五分钟的令牌，并代为转发调用；
+服务器默认拒绝这个令牌的权限范围没有列出的所有方法
+（[ADR-0012](../adr/0012-plugin-token-deny-by-default.md)）。
 
-所需权限：`api.metadata`。
-
-### `media.read`
-
-插件可以读取媒体记录和流。对应清单中的 `media.read` 权限。
-
-### `media.write`
-
-插件可以创建或更新媒体记录。对应 `media.write` 权限。
-
-### `notification.sender`
-
-插件可以发布通知。宿主通过插件转发外发的通知事件。对应 `notification.sender` 权限。
-
-### `webhook.receiver`
-
-插件注册为一个 Webhook 端点。宿主通过 gRPC 把匹配的入站 HTTP POST 请求转发给插件。除了能力声明之外，不需要额外的权限。
-
-## 权限
-
-`public` 和 `prefs` 是**权限**，而不是能力：它们不改变插件承担的服务器端角色，而是授予插件的 iframe 额外的读写范围。在清单的 `permissions` 下声明它们。
-
-### `public`
-
-授予插件的 iframe 对非敏感服务器数据的只读访问：`GetPublicMediaItem` / `ListPublicMediaItems`，它们返回一个**安全投影**（id、标题、类型、年份、简介、海报 URL），永远不会包含文件路径、大小、提供商 id 或流。服务器标识（名称）本来就是公开的，不需要权限。在 `permissions` 中声明 `public` 来请求它。
-
-### `prefs`
-
-授予插件的 iframe 通过 `PluginUserDataService`（`GetPref` / `SetPref` / `DeletePref` / `ListPrefs`）读写**当前用户**在插件自己命名空间中的偏好。插件和用户由 iframe 令牌绑定，所以插件只能访问（它自己的插件、当前用户）的数据：永远无法访问另一个插件的、另一个用户的，或者身份/安全相关的字段。这些记录会随插件或用户一起级联删除。在 `permissions` 中声明 `prefs`。
-
-> **永远无法请求的东西。** `admin.*`、`auth.*`（登录/登出/会话）、`system.*`，以及通用的 `user.write` / `library.write` 都被硬性锁定：即使清单试图声明它们，它们也会从任何令牌中被去掉，并在 API 边界被拒绝。范围受限的插件令牌在服务器 API 上**默认拒绝**：它只能访问上面授予的权限明确解锁的方法。
+!!! note "插件永远不能申请的权限"
+    `admin.*`、`auth.*`、`system.*`、`user.write` 和 `library.write` 被彻底锁死：
+    写了它们的清单会被拒绝，令牌永远不可能带有它们，而且无论令牌带有什么权限范围，管理方法都会拒绝插件令牌。
 
 ## 示例
 
-`examples/plugins/` 包含采用当前清单格式的可用插件：Node.js 和 Python 的起步模板（`nodejs-example`、`python-example`）、一个元数据提供者（`metadata-example`）、一个 Webhook 接收器（`webhook-receiver`）、一个首页小部件（`weather`）、插件配置和机密（`config-demo`）、使用 `public` / `prefs` 权限和 `admin.nav` 插槽的数据存储（`data-demo`），以及两个主题。[dev-setup.md](dev-setup.md#3-scaffold-your-first-plugin) 介绍如何复制其中一个。
+`examples/plugins/` 里有按当前清单格式编写、可以直接运行的插件：Node.js 和 Python 的入门示例（`nodejs-example`、`python-example`）、
+一个元数据提供方（`metadata-example`）、一个 Webhook 接收端（`webhook-receiver`）、一个带构建步骤的首页小组件（`weather`）、
+一个演示数据存储、`public` 和 `prefs` 权限以及 `admin.nav` 插槽的示例（`data-demo`）、一个展示所有 `config_schema` 字段类型的示例（`config-demo`），
+以及两个主题（`theme-dark-blue`、`open-workshop`）。`make plugin-zips` 会把它们全部打包。
+
+<!-- sources
+manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, Validate, validateWebRoot, validateSrcUnderWebRoot, IsSecretConfigField ; internal/adapters/driven/pluginrunner/manifest.go - Parse, validateManifest, validateExternalFetch ; capabilities.go - KnownCapabilities, KnownPermissions
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
+config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
+secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
+env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)
+peer auth, rate limit: internal/adapters/driving/pluginhost/host_server.go - makePluginAuthInterceptor, pluginRPCRatePerMin ; peer_creds.go
+host RPCs and permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; pluginhost/host_server.go - Log, GetConfig, SetConfig (maxConfigKeys, maxConfigKeyLen, maxConfigValueLen), EmitEvent (pluginEmittedEvent.EventName), GetMediaItem, ListMediaItems, mediaItemToProto, UpdateMetadata, GetUserPreferences (Unimplemented), UnimplementedHostServiceServer ; fetch.go - Fetch, maxFetchBytes, fetchTimeout
+proto: proto/plugin/v1/plugin_api.proto - PluginService, HostService, InitRequest, FetchRequest, FetchResponse, MediaItem
+frame policy: internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy ; frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc, ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, clampSlotHeight, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; web/PluginIframe.tsx - MIN_SLOT_HEIGHT, suggestedSlotHeight ; native/PluginWebView.tsx (surface)
+bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge ; pluginRpc.ts - pluginRequestFor
+slots: internal/domain/plugin/slots.go - AllowedSlots
+token, deny by default: internal/app/plugin/token_service.go - PluginTokenTTL ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes, forbiddenPrefix ; docs/adr/0003-plugin-scoped-tokens.md ; docs/adr/0012-plugin-token-deny-by-default.md
+examples: examples/plugins/* ; Makefile - plugin-zips
+-->
