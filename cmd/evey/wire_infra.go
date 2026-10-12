@@ -114,6 +114,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	introDetector := ffmpeg.NewIntroDetector("ffmpeg", "ffprobe")
 	imageConverter := ffmpeg.NewImageConverter("ffmpeg")
 	mkvAdapter := mkvgoadapter.New()
+	trickplayGen.WithKeyframeStreamer(trickplayKeyframes{mkvAdapter})
 	// One source window read per CPU at a time, fewer when the heap limit
 	// (applyMemoryLimit, from the container budget) cannot hold them; the rest
 	// of an audience starting together queues instead of growing the RSS.

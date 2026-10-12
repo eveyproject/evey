@@ -2,11 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"os"
 
+	"github.com/gravity-zero/mkvgo/matroska"
+
 	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
 	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
+	mkvgoadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
 	webpushadapter "github.com/evey-project/evey/internal/adapters/driven/webpush"
 	httpapi "github.com/evey-project/evey/internal/adapters/driving/http"
 	applibrary "github.com/evey-project/evey/internal/app/library"
@@ -163,4 +169,26 @@ func (a titleProberFunc) Probe(ctx context.Context, sourcePath string, cost doma
 		return domaintranscoding.TitleProbe{}, apptranscoding.ProbeStats{}, err
 	}
 	return rep.Probe, apptranscoding.ProbeStats{Points: rep.Points, CacheHits: rep.CacheHits, Wall: rep.Wall}, nil
+}
+
+// trickplayKeyframes hands the trickplay generator mkvgo's keyframe-only
+// stream, translating mkvgo's stats into the generator's.
+type trickplayKeyframes struct{ a *mkvgoadapter.Adapter }
+
+func (k trickplayKeyframes) WriteKeyframeStream(ctx context.Context, filePath string, everyMs int64, w io.Writer) (ffmpeg.KeyframeStreamStats, error) {
+	s, err := k.a.WriteKeyframeStream(ctx, filePath, everyMs, w)
+	if errors.Is(err, matroska.ErrNoKeyframeIndex) || errors.Is(err, matroska.ErrNoVideo) || errors.Is(err, matroska.ErrUnsupportedCodec) {
+		err = fmt.Errorf("%w: %w", ffmpeg.ErrKeyframesUnavailable, err)
+	}
+	return ffmpeg.KeyframeStreamStats{
+		Samples:        s.Samples,
+		PtsMs:          s.PtsMs,
+		Skipped:        s.Skipped,
+		BytesRead:      s.BytesRead + s.MetaBytesRead,
+		MedianCueGapMs: s.MedianCueGapMs,
+	}, err
+}
+
+func (k trickplayKeyframes) CuesMissKeyframes(ctx context.Context, filePath string) (bool, error) {
+	return k.a.CuesMissKeyframes(ctx, filePath)
 }

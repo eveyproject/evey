@@ -6,11 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/evey-project/evey/internal/pkg/procfork"
 
@@ -34,6 +38,45 @@ type TrickplayGenerator struct {
 	// busy suspends the sprite ffmpeg (SIGSTOP) while a playback is live; nil
 	// runs it straight through.
 	busy func() bool
+	// keyframes cuts the keyframe-only stream the cheap path decodes; nil keeps
+	// every generation on the full scan.
+	keyframes KeyframeStreamer
+}
+
+// keyframeStreamExts are the containers the keyframe stream reads: Matroska
+// through its Cues, MP4 through its sync samples.
+var keyframeStreamExts = map[string]bool{".mkv": true, ".webm": true, ".mp4": true, ".m4v": true}
+
+// KeyframeStreamer writes a keyframe-only Matroska of filePath to w: the first
+// cued keyframe, then the first at least everyMs after the previous one, with
+// their source timestamps. Stats.PtsMs lists them in stream order.
+type KeyframeStreamer interface {
+	WriteKeyframeStream(ctx context.Context, filePath string, everyMs int64, w io.Writer) (KeyframeStreamStats, error)
+	// CuesMissKeyframes reports whether keyframes sit uncued in the holes of
+	// filePath's index, asked only when the Cues are sparser than the interval:
+	// sparse keyframes are the source's, uncued ones a scan would sample better.
+	CuesMissKeyframes(ctx context.Context, filePath string) (bool, error)
+}
+
+// ErrKeyframesUnavailable wraps the KeyframeStreamer errors that only say the
+// file cannot be cut (no Cues, no video, an unsupported codec): the full scan
+// is the expected path for it, not an anomaly.
+var ErrKeyframesUnavailable = errors.New("keyframe stream unavailable for this file")
+
+// KeyframeStreamStats is what the keyframe stream reports once written.
+type KeyframeStreamStats struct {
+	Samples        int
+	PtsMs          []int64
+	Skipped        int // cues that did not land on a decodable keyframe
+	BytesRead      int64
+	MedianCueGapMs int64
+}
+
+// WithKeyframeStreamer wires the keyframe stream the sprites are generated
+// from, the full scan remaining the fallback.
+func (g *TrickplayGenerator) WithKeyframeStreamer(k KeyframeStreamer) *TrickplayGenerator {
+	g.keyframes = k
+	return g
 }
 
 // WithBusyChecker wires the predicate that pauses the sprite-generation ffmpeg
@@ -118,8 +161,34 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	// The caller sizes the decode on the task's CPU share (cpubudget); the
 	// fork below reserves that many slots. Unsized decodes on one thread.
 	threads := max(maxWorkers, 1)
+	col := g.probeColour(ctx, filePath)
+	tail := spriteFilterTail(width, tileWidth, tileHeight, col)
 
-	outputPattern := filepath.Join(outputDir, "trickplay_%03d.webp")
+	if g.keyframes != nil && keyframeStreamExts[strings.ToLower(filepath.Ext(filePath))] {
+		res, err := g.generateFromKeyframes(ctx, filePath, outputDir, interval, tail, threads, col.StartMs)
+		if err == nil {
+			return res, nil
+		}
+		// Any failure lands on the full scan below, which is what every file got
+		// before: the keyframe path can only ever make a trickplay cheaper.
+		// A file without Cues or a codec mkvgo does not cut is expected; anything
+		// else (a frame ffmpeg did not render as sent) is worth a look.
+		level := slog.LevelWarn
+		if errors.Is(err, ErrKeyframesUnavailable) {
+			level = slog.LevelInfo
+		}
+		slog.Log(ctx, level, "trickplay: keyframe stream unusable, falling back to the full scan",
+			slog.String("path", filePath), slog.Any("err", err))
+	}
+	return g.generateFullScan(ctx, filePath, outputDir, interval, tail, threads)
+}
+
+// generateFullScan decodes every keyframe of the source in one ffmpeg pass and
+// keeps one per interval. It reads the whole file.
+func (g *TrickplayGenerator) generateFullScan(ctx context.Context, filePath, outputDir string, interval int, tail string, threads int) (*library.TrickplayResult, error) {
+	if err := clearSprites(outputDir); err != nil {
+		return nil, err
+	}
 	// -skip_frame nokey instructs the decoder to drop non-keyframe packets
 	// so HEVC/H.264 4K decode only processes I-frames (typically every
 	// 2-5 seconds). On a 1080p HEVC episode this turns ~9 min of full
@@ -140,10 +209,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	// Expression: pick the first frame, then any frame whose time is at
 	// least N seconds after the previously selected - yields one thumb
 	// per ~N seconds of source while honoring keyframe placement.
-	vf := trickplayFilter(fmt.Sprintf(
-		"select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,%d)',scale=%d:-1,showinfo,tile=%dx%d",
-		interval, width, tileWidth, tileHeight,
-	), g.probeColour(ctx, filePath))
+	vf := fmt.Sprintf("select='isnan(prev_selected_t)+gte(t-prev_selected_t\\,%d)',%s", interval, tail)
 	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "trickplay.sprites"}, g.binary,
 		"-nostdin",
 		"-threads", strconv.Itoa(threads),
@@ -154,7 +220,7 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 		"-vf", vf,
 		"-c:v", "libwebp",
 		"-quality", "75",
-		"-y", outputPattern,
+		"-y", filepath.Join(outputDir, "trickplay_%03d.webp"),
 	)
 	if err != nil {
 		return nil, err
@@ -172,7 +238,131 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	if len(timestampsMs) == 0 {
 		return nil, errors.New("trickplay: no timestamps captured from showinfo")
 	}
+	return spriteResult(outputDir, timestampsMs)
+}
 
+// generateFromKeyframes feeds ffmpeg a keyframe-only Matroska that mkvgo cuts
+// from the source through its Cues - one keyframe per interval, read where it
+// sits - so ffmpeg decodes only the thumbnails and the file is never scanned.
+// The result is refused unless ffmpeg showed exactly the frames mkvgo sent,
+// at the times mkvgo sent them. The times are the source's; startMs (the
+// container's start_time) brings them onto the player's timeline, as the scan
+// does without -copyts.
+func (g *TrickplayGenerator) generateFromKeyframes(ctx context.Context, filePath, outputDir string, interval int, tail string, threads int, startMs int64) (*library.TrickplayResult, error) {
+	if err := clearSprites(outputDir); err != nil {
+		return nil, err
+	}
+	pr, pw := io.Pipe()
+	type streamed struct {
+		stats KeyframeStreamStats
+		err   error
+	}
+	done := make(chan streamed, 1)
+	started := make(chan struct{})
+	go func() {
+		stats, err := g.keyframes.WriteKeyframeStream(ctx, filePath, int64(interval)*1000, &firstWriteSignal{w: pw, started: started})
+		pw.CloseWithError(err) // nil closes with EOF: ffmpeg sees the end of the stream
+		done <- streamed{stats, err}
+	}()
+	// A file mkvgo refuses (no Cues, no video) is refused before its first
+	// byte: ffmpeg is only started once there is a stream to decode.
+	select {
+	case <-started:
+	case s := <-done:
+		if s.err != nil {
+			return nil, fmt.Errorf("keyframe stream: %w", s.err)
+		}
+		return nil, errors.New("trickplay: keyframe stream sent nothing")
+	}
+	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "trickplay.keyframes"}, g.binary,
+		"-nostdin",
+		"-threads", strconv.Itoa(threads),
+		// -copyts keeps the source times: without it ffmpeg rebases them on the
+		// first keyframe and a file starting at 5 ms would be refused.
+		"-copyts",
+		"-f", "matroska",
+		"-i", "pipe:0",
+		"-an",
+		"-fps_mode", "passthrough",
+		"-vf", tail,
+		"-c:v", "libwebp",
+		"-quality", "75",
+		"-y", filepath.Join(outputDir, "trickplay_%03d.webp"),
+	)
+	if err != nil {
+		pr.CloseWithError(err)
+		<-done
+		return nil, err
+	}
+	var combined bytes.Buffer
+	cmd.Stdin = pr
+	cmd.Stdout = &combined
+	cmd.Stderr = &combined
+	runErr := runPausableCmd(cmd, g.busy)
+	// An ffmpeg that died early must not leave the writer blocked on the pipe.
+	pr.CloseWithError(errors.New("trickplay: ffmpeg exited"))
+	s := <-done
+	out := combined.Bytes()
+	if runErr = finish(runErr, out); runErr != nil {
+		return nil, fmt.Errorf("ffmpeg trickplay keyframes: %w\n%s", runErr, string(out))
+	}
+	if s.err != nil {
+		return nil, fmt.Errorf("keyframe stream: %w", s.err)
+	}
+	if err := checkKeyframeTimestamps(s.stats, parseShowinfoTimestamps(string(out))); err != nil {
+		return nil, err
+	}
+	if s.stats.MedianCueGapMs > int64(interval)*1000 {
+		missing, err := g.keyframes.CuesMissKeyframes(ctx, filePath)
+		if err != nil {
+			return nil, fmt.Errorf("trickplay: Cues sparser than the interval (median gap %dms), holes not probed: %w", s.stats.MedianCueGapMs, err)
+		}
+		if missing {
+			return nil, fmt.Errorf("trickplay: Cues sparser than the interval (median gap %dms) leave keyframes uncued", s.stats.MedianCueGapMs)
+		}
+	}
+	slog.DebugContext(ctx, "trickplay: generated from the keyframe stream",
+		slog.String("path", filePath), slog.Int("frames", s.stats.Samples),
+		slog.Int("skipped_cues", s.stats.Skipped), slog.Int64("bytes_read", s.stats.BytesRead))
+	timestampsMs := make([]int64, len(s.stats.PtsMs))
+	for i, ms := range s.stats.PtsMs {
+		timestampsMs[i] = ms - startMs
+	}
+	return spriteResult(outputDir, timestampsMs)
+}
+
+// firstWriteSignal closes started on the first write it is handed.
+type firstWriteSignal struct {
+	w       io.Writer
+	started chan struct{}
+	once    sync.Once
+}
+
+func (f *firstWriteSignal) Write(p []byte) (int, error) {
+	f.once.Do(func() { close(f.started) })
+	return f.w.Write(p)
+}
+
+// checkKeyframeTimestamps refuses a keyframe-stream result ffmpeg did not
+// render frame for frame.
+func checkKeyframeTimestamps(stats KeyframeStreamStats, shownMs []int64) error {
+	if stats.Samples == 0 || len(stats.PtsMs) != stats.Samples {
+		return fmt.Errorf("trickplay: keyframe stream sent %d samples, %d timestamps", stats.Samples, len(stats.PtsMs))
+	}
+	if len(shownMs) != stats.Samples {
+		return fmt.Errorf("trickplay: ffmpeg rendered %d frames of %d keyframes sent", len(shownMs), stats.Samples)
+	}
+	for i, ms := range stats.PtsMs {
+		if d := shownMs[i] - ms; d < -1 || d > 1 {
+			return fmt.Errorf("trickplay: frame %d shown at %dms, sent at %dms", i, shownMs[i], ms)
+		}
+	}
+	return nil
+}
+
+// spriteResult counts the sprites ffmpeg wrote and pairs them with the frame
+// timestamps.
+func spriteResult(outputDir string, timestampsMs []int64) (*library.TrickplayResult, error) {
 	imageCount := 0
 	for i := 1; ; i++ {
 		p := filepath.Join(outputDir, fmt.Sprintf("trickplay_%03d.webp", i))
@@ -192,6 +382,28 @@ func (g *TrickplayGenerator) Generate(ctx context.Context, filePath, outputDir s
 	}, nil
 }
 
+// clearSprites removes the sprites of an earlier attempt: the counter in
+// spriteResult stops at the first gap, so a stale higher-numbered sprite left
+// by a longer run (or a failed keyframe attempt) would be counted as ours.
+func clearSprites(outputDir string) error {
+	old, err := filepath.Glob(filepath.Join(outputDir, "trickplay_*.webp"))
+	if err != nil {
+		return err
+	}
+	for _, p := range old {
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("clear stale sprite: %w", err)
+		}
+	}
+	return nil
+}
+
+// spriteFilterTail is the part of the sprite graph both paths share: scale,
+// showinfo (the frame times), tile, and the tone-map when the source is HDR.
+func spriteFilterTail(width, tileWidth, tileHeight int, col trickplayColour) string {
+	return trickplayFilter(fmt.Sprintf("scale=%d:-1,showinfo,tile=%dx%d", width, tileWidth, tileHeight), col)
+}
+
 // reShowinfoPts matches the pts_time field in showinfo lines.
 // Example: "[Parsed_showinfo_2 @ 0x...] n: 1 pts: 7672500 pts_time:7.672 ..."
 var reShowinfoPts = regexp.MustCompile(`pts_time:(\d+(?:\.\d+)?)`)
@@ -209,7 +421,8 @@ func parseShowinfoTimestamps(stderr string) []int64 {
 		if err != nil {
 			continue
 		}
-		out = append(out, int64(v*1000))
+		// Rounded: pts_time:8.008 is 8007.999... as a float.
+		out = append(out, int64(math.Round(v*1000)))
 	}
 	return out
 }
@@ -277,6 +490,9 @@ func (g *TrickplayGenerator) DecodePacketToJPEG(ctx context.Context, packet []by
 type trickplayColour struct {
 	Transfer string // color_transfer as ffprobe reports it ("smpte2084", "arib-std-b67", ...)
 	DoVi     bool   // a DOVI configuration record is present
+	// StartMs is the container's start_time, read by the same probe: the
+	// player's timeline (-start_at_zero) and the scan's frame times start there.
+	StartMs int64
 }
 
 func (c trickplayColour) isHDR() bool {
@@ -335,7 +551,7 @@ func probeSourceColour(ctx context.Context, probeBinary, site, filePath string) 
 		"-v", "quiet",
 		"-select_streams", "v:0",
 		"-print_format", "json",
-		"-show_entries", "stream=color_transfer:stream_side_data=side_data_type",
+		"-show_entries", "stream=color_transfer:stream_side_data=side_data_type:format=start_time",
 		filePath,
 	)
 	if err != nil {
@@ -348,12 +564,18 @@ func probeSourceColour(ctx context.Context, probeBinary, site, filePath string) 
 				SideDataType string `json:"side_data_type"`
 			} `json:"side_data_list"`
 		} `json:"streams"`
+		Format struct {
+			StartTime string `json:"start_time"`
+		} `json:"format"`
 	}
 	if err := json.Unmarshal(out, &parsed); err != nil || len(parsed.Streams) == 0 {
 		return trickplayColour{}
 	}
 	s := parsed.Streams[0]
 	col := trickplayColour{Transfer: s.ColorTransfer}
+	if st, err := strconv.ParseFloat(parsed.Format.StartTime, 64); err == nil {
+		col.StartMs = int64(math.Round(st * 1000))
+	}
 	for _, sd := range s.SideDataList {
 		if strings.Contains(strings.ToLower(sd.SideDataType), "dovi") ||
 			strings.Contains(strings.ToLower(sd.SideDataType), "dolby vision") {
