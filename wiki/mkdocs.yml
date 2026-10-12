@@ -211,7 +211,7 @@ plugins:
             Watching together: Zusammen schauen
             Operations: Betrieb
             Troubleshooting: Fehlerbehebung
-            Monitoring and logs: Überwachung und Logs
+            Monitoring and logs: Überwachung und Protokolle
             Background work and server load: Hintergrundaufgaben und Serverlast
             Media health: Medienzustand
             Command line: Kommandozeile
@@ -230,7 +230,7 @@ plugins:
             Playback delivery and downloads: Auslieferung und Downloads
             Background work: Hintergrundaufgaben
             Plugins and sandbox: Plugins und Sandbox
-            Backups, logs and monitoring: Sicherungen, Logs und Überwachung
+            Backups, logs and monitoring: Sicherungen, Protokolle und Überwachung
             Plugins & API: Plugins und API
             Plugins: Plugins
             Writing a plugin: Ein Plugin schreiben

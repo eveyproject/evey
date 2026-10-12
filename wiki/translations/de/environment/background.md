@@ -1,40 +1,50 @@
 ---
-source_sha: 25e92baf53807987435c8781d87f2af02a8a02782951e049a23e404082ad7980
-reviewed: false
+source_sha: d0631abae137226c008a3954088887193957c49501d53f8c38282e9314512c14
+reviewed: true
 ---
 # Hintergrundaufgaben
 
-Die Durchläufe, die der Server von selbst ausführt, und wie sie sich den
-Prozessor teilen. Wie sie sich verhalten:
+Die Variablen hinter den Durchläufen, die der Server von selbst ausführt, und
+wie sie sich den Prozessor teilen. Was jeder Durchlauf tut und wie die
+Wiedergabe davor geschützt wird:
 [Hintergrundaufgaben und Serverlast](../operations/background-work.md).
 
 ## CPU-Anteil
 
-Der Anteil des Prozessors, den Hintergrundaufgaben nutzen dürfen, wird unter
-**Admin → Serverkonfiguration → Zugeteilte Rechenleistung** festgelegt, sofort
-und ohne Neustart. Dafür gibt es keine Umgebungsvariable. Die beiden folgenden
-bemessen einen Pool von Hand und umgehen diesen Anteil dafür:
+Den Anteil des Prozessors, den Hintergrundaufgaben nutzen dürfen, stellen Sie
+unter **Verwaltung → Serverkonfiguration → Zugeteilte Rechenleistung** ein,
+sofort wirksam, ohne Neustart. Dafür gibt es keine Umgebungsvariable. Die
+beiden Variablen unten legen die Größe eines Pools von Hand fest und umgehen
+dafür diesen Anteil.
 
-| Variable | Standard | Wirkung |
-| --- | --- | --- |
-| `EVEY_LIBRARY_SCAN_WORKERS` | aus dem Anteil | Während eines Scans parallel analysierte Dateien. |
-| `EVEY_INTRO_DETECTION_MAX_PARALLEL` | aus dem Anteil | Gleichzeitig auf Intros und Abspann analysierte Titel. |
+| Variable | Standard | Wirkung | Verwaltungsbereich |
+| --- | --- | --- | --- |
+| `EVEY_LIBRARY_SCAN_WORKERS` | aus dem Anteil | Dateien, die bei einem Scan gleichzeitig analysiert werden. | keine |
+| `EVEY_INTRO_DETECTION_MAX_PARALLEL` | aus dem Anteil | Titel, die gleichzeitig auf Intros und Abspann analysiert werden. | keine |
 
 ## Durchläufe
 
-Jede Variable hat einen Schlüssel, der auch als Zeile unter **Admin →
-Serverkonfiguration → Konfigurationseinträge** akzeptiert wird, die diese
-Schlüssel vorschlägt; die Zeile gewinnt. Alle werden beim Start gelesen, und
-**Hintergrundarbeiten** im selben Bildschirm setzt die wichtigsten.
+Jede Variable hat einen Schlüssel, der auch als Zeile unter **Verwaltung →
+Serverkonfiguration → Konfigurationseinträge** akzeptiert wird; dort werden
+diese Schlüssel vorgeschlagen. Die Zeile gewinnt gegenüber der Umgebung. Die
+Karte **Hintergrundarbeiten** auf demselben Bildschirm stellt die wichtigsten
+ein. Alle werden beim Start gelesen: Eine Änderung gilt also ab dem nächsten
+Neustart, egal auf welchem Weg sie gemacht wurde.
 
-| Variable | Schlüssel im Admin-Bereich | Standard | Wirkung |
+| Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_PAUSE_BG_ON_PLAYBACK` | `transcoding.pause_bg_on_playback` | an | Pausiert Hintergrundarbeit, während ein Stream läuft. `off` lässt sie weiterlaufen. |
-| `EVEY_KEYFRAME_BACKFILL` | `transcoding.keyframe_backfill` | an | Indexiert die Keyframes gescannter Dateien und klassifiziert ihre Bildrate. Direktwiedergabe und Kopie hängen davon ab. `off` schaltet es ab. |
-| `EVEY_KEYFRAME_BACKFILL_BATCH` | `transcoding.keyframe_backfill_batch` | Serverstandard | Dateien pro Durchlauf (> 0). |
-| `EVEY_KEYFRAME_BACKFILL_PAUSE_MS` | `transcoding.keyframe_backfill_pause_ms` | Serverstandard | Millisekunden zwischen Dateien (>= 0). |
-| `EVEY_KEYFRAME_BACKFILL_IDLE_SEC` | `transcoding.keyframe_backfill_idle_sec` | Serverstandard | Sekunden zwischen Durchläufen im Leerlauf (> 0). |
-| `EVEY_LEVEL_BACKFILL` | `transcoding.level_backfill` | an | Liest das H.264/HEVC-Level von Dateien, die gescannt wurden, bevor es erfasst wurde. `off` schaltet es ab. |
-| `EVEY_LEVEL_BACKFILL_BATCH`, `_PAUSE_MS`, `_IDLE_SEC` | `transcoding.level_backfill_batch`, `_pause_ms`, `_idle_sec` | Serverstandard | Dieselbe Taktung für diesen Durchlauf. |
-| `EVEY_SNAPSHOT_FASTPATH` | `transcoding.snapshot_fastpath` | an | Extrahiert Vorschaubilder mit dem schnellen Decoder im Prozess. `off` nutzt nur den exakten ffmpeg-Extraktor, um ihn auszuschließen, wenn ein Vorschaubild das falsche Bild zeigt. |
-| `EVEY_TITLE_PROBE` | `transcoding.title_probe` | an | Prüft Titel im Hintergrund mit niedriger Priorität, pausiert während der Wiedergabe. `off` schaltet es ab. |
+| `EVEY_TRANSCODING_PAUSE_BG_ON_PLAYBACK` | an | Pausiert die Hintergrundarbeit, solange ein Stream läuft. `off` lässt sie weiterlaufen. | Konfigurationseinträge `transcoding.pause_bg_on_playback`, Neustart |
+| `EVEY_KEYFRAME_BACKFILL` | an | Indexiert die Keyframes gescannter Dateien und ordnet ihre Bildrate ein. Direktwiedergabe und Kopieren hängen davon ab. `off` schaltet es ab. | Konfigurationseinträge `transcoding.keyframe_backfill`, Neustart |
+| `EVEY_KEYFRAME_BACKFILL_BATCH` | Serverstandard | Dateien pro Durchlauf (> 0). | Konfigurationseinträge `transcoding.keyframe_backfill_batch`, Neustart |
+| `EVEY_KEYFRAME_BACKFILL_PAUSE_MS` | Serverstandard | Millisekunden zwischen zwei Dateien (>= 0). | Konfigurationseinträge `transcoding.keyframe_backfill_pause_ms`, Neustart |
+| `EVEY_KEYFRAME_BACKFILL_IDLE_SEC` | Serverstandard | Sekunden zwischen zwei Durchläufen, wenn nichts zu tun ist (> 0). | Konfigurationseinträge `transcoding.keyframe_backfill_idle_sec`, Neustart |
+| `EVEY_LEVEL_BACKFILL` | an | Liest das H.264/HEVC-Level von Dateien, die gescannt wurden, bevor es erfasst wurde. `off` schaltet es ab. | Konfigurationseinträge `transcoding.level_backfill`, Neustart |
+| `EVEY_LEVEL_BACKFILL_BATCH`, `_PAUSE_MS`, `_IDLE_SEC` | Serverstandard | Dasselbe Tempo, für diesen Durchlauf. | Konfigurationseinträge `transcoding.level_backfill_batch`, `_pause_ms`, `_idle_sec`, Neustart |
+| `EVEY_SNAPSHOT_FASTPATH` | an | Zieht Vorschaubilder mit dem schnellen Decoder im Prozess heraus. `off` nutzt nur den exakten Extraktor von ffmpeg, um ihn als Ursache auszuschließen, wenn ein Vorschaubild das falsche Bild zeigt. | Konfigurationseinträge `transcoding.snapshot_fastpath`, Neustart |
+| `EVEY_TITLE_PROBE` | an | Untersucht Titel im Hintergrund mit niedriger Priorität, pausiert während der Wiedergabe. `off` schaltet es ab. | Konfigurationseinträge `transcoding.title_probe`, Neustart |
+
+<!-- sources
+cpu share: i18n admin.serverConfig.cpuBudget.* ; internal/app/library/scan_service.go - scanWorkersFromEnv ; cmd/evey/wire.go (EVEY_INTRO_DETECTION_MAX_PARALLEL)
+passes: cmd/evey/wire.go, cmd/evey/wire_services.go, cmd/evey/wire_helpers.go (resolveFlag) ; frontend/apps/web/src/features/admin/operatorFlags.ts
+background work card: i18n admin.serverConfig.backgroundJobs.*
+-->

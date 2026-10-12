@@ -1,15 +1,20 @@
 ---
-source_sha: d8e413ff58f8ce72144723face5dd368f60cfd95dca1f70e39fb86b40afa9886
-reviewed: false
+source_sha: 28799abda1b5a9531b81bdebfe211e4bbd56a063012a9faec636c9dc4128e730
+reviewed: true
 ---
 # Plugins
 
-Plugins ergänzen Evey um das, was es nicht von selbst tut: Metadatenquellen,
-Benachrichtigungskanäle, Webhook-Empfänger, Abschnitte der Startseite,
-Überlagerungen im Player und Themes. Jedes Plugin ist ein eigener Prozess, der
-über einen lokalen Socket mit dem Server spricht, von einer Sandbox eingesperrt
-und auf die Berechtigungen beschränkt, die sein Manifest angibt. Seine
-Oberfläche, falls es eine hat, läuft in einem isolierten Rahmen der Seite.
+Diese Seite richtet sich an Administratoren: wie Sie ein Plugin oder ein Theme
+installieren, was Sie dabei akzeptieren und was der Server ihm auf Ihrem Host
+erlaubt. Alles geschieht unter **Verwaltung → Plugins**. Die Seiten für
+Plugin-Autoren sind [am Ende](#writing-a-plugin) aufgeführt.
+
+Ein Plugin ergänzt Evey um etwas, das es selbst nicht kann: einen Abschnitt
+auf der Startseite, eine Einblendung im Player, eine Metadatenquelle, ein
+Theme. Jedes Plugin ist ein eigener Prozess, der über einen lokalen Socket mit
+dem Server spricht, von einer Sandbox eingesperrt und auf die Berechtigungen
+beschränkt, die sein Manifest angibt. Seine Oberfläche, falls es eine hat,
+läuft in einem abgeschotteten Rahmen der Seite.
 
 <div class="evey-shot-pair" markdown>
 
@@ -20,82 +25,176 @@ Oberfläche, falls es eine hat, läuft in einem isolierten Rahmen der Seite.
 
 <figure class="evey-shot" markdown="span">
   ![Die Startseite mit dem Wetter-Plugin](images/home.webp){ loading=lazy }
-  <figcaption>Mit dem Beispiel-Plugin für das Wetter: ein Abschnitt oben, in seinem eigenen Rahmen gezeichnet.</figcaption>
+  <figcaption>Mit dem Beispiel-Plugin für das Wetter: ein Abschnitt ganz oben, in seinem eigenen Rahmen gezeichnet.</figcaption>
 </figure>
 
 </div>
 
-## Plugins installieren und verwalten
+## Ein Plugin installieren
 
-**Admin → Plugins** installiert ein Plugin aus seiner ZIP-Datei. Bevor etwas
-installiert wird, zeigt die Vorschau:
+1. Öffnen Sie unter **Verwaltung → Plugins** den Punkt **Plugin
+   installieren** und wählen Sie die **Plugin-Datei (.zip)**. Liefert der
+   Autor eine Signatur mit, fügen Sie sie unter **Signaturdatei (.zip.sig,
+   optional)** hinzu. Der Reiter **Von URL** installiert stattdessen über
+   einen Link. Hängen Sie `#sha256:<hash>` an die URL an, damit der Download
+   geprüft wird.
+2. **Vorschau & Installieren** analysiert das Paket, ohne es zu installieren.
+   Die Vorschau zeigt die **Berechtigungen** und **Fähigkeiten**, die das
+   Plugin verlangt, die Stellen der Oberfläche (Slots), an denen es erscheinen
+   will, die Hosts, die es kontaktieren wird, das Ergebnis der **Statischen
+   Analyse** und, wenn der Server Signaturen prüft, ob das Paket
+   **Signiert** ist.
+3. Lesen Sie diese Liste als Vertrag: Das ist alles, was das Plugin tun
+   können wird. Bestätigen Sie, und das Plugin startet.
 
 <figure class="evey-shot" markdown="span">
-  ![Admin → Plugins auf dem Demo-Server](images/admin-plugins.webp){ loading=lazy }
-  <figcaption><strong>Admin → Plugins</strong>: die verfügbaren Laufzeiten, die Ressourcengrenzen und eine Karte pro Plugin (Oberfläche auf Englisch).</figcaption>
+  ![Verwaltung → Plugins auf dem Demo-Server](images/admin-plugins.webp){ loading=lazy }
+  <figcaption><strong>Verwaltung → Plugins</strong>: die verfügbaren Laufzeiten, die Ressourcenlimits und eine Karte pro Plugin (Oberfläche auf Englisch).</figcaption>
 </figure>
 
-- die Berechtigungen, die das Plugin angibt, die Slots der Oberfläche, in denen
-  es erscheinen möchte, und die Hosts, die es kontaktieren wird;
-- was die statische Analyse in seinem Code gefunden hat;
-- seine Signatur, wenn der Server Signaturen prüft.
+Ein Paket, in dem die Analyse ein kritisches Muster findet, wird abgelehnt,
+egal was Sie antworten. Warnungen werden angezeigt, die Entscheidung liegt bei
+Ihnen. Die Sprache des Plugins muss zu den **Verfügbaren Laufzeiten** des
+Servers gehören: Das Standard-Image bringt nur Python mit, das Image
+`-nodejs` fügt Node.js hinzu und das Image `-full` PHP, Ruby und Lua.
 
-Ein Plugin, bei dessen Analyse ein kritisches Muster gefunden wird, wird
-abgelehnt. Ein Update eines installierten Plugins durchläuft dieselbe Vorschau;
-verlangt es neue Berechtigungen, Slots oder Hosts, müssen Sie den Unterschied
-ausdrücklich annehmen.
+!!! tip "Signierte Plugins"
+    Ein Plugin-Autor kann das ZIP mit [cosign](https://docs.sigstore.dev/cosign/installation/)
+    signieren, und Sie entscheiden, was mit einem unsignierten oder falsch
+    signierten Plugin geschieht. Um Signaturen zu prüfen, geben Sie dem
+    Server den öffentlichen Schlüssel des Autors und wählen eine Richtlinie:
 
-Jedes Plugin hat dann auf seiner Karte: aktivieren oder deaktivieren,
-aktualisieren, Logs und seine Ressourcengrenzen (Speicher, Prozesse,
-Festplatte, CPU-Priorität). Die Zeile **Host-Sandbox** des
-**Sicherheits-Dashboards** zeigt den auf diesem Host tatsächlich geltenden
-Sandbox-Modus: siehe [Plugin-Sandbox einrichten](plugins/sandbox-deployment.md),
-wenn sie `basic` anzeigt.
+    ```sh
+    EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
+    EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (Standard) | enforce
+    ```
 
-Plugins sind standardmäßig aktiviert. `EVEY_PLUGINS_ENABLED=false` schaltet das
-Subsystem ganz ab.
+    Mit `warn` wird eine fehlgeschlagene Signatur in der Vorschau und im
+    **Sicherheits-Dashboard** angezeigt; mit `enforce` wird die Installation
+    oder das Update abgelehnt. Ohne öffentlichen Schlüssel wird nichts
+    geprüft, und der Server braucht kein `cosign`-Programm. Für Autoren: siehe
+    [Ihr Plugin signieren](plugins/dev-setup.md#7-sign-your-plugin).
 
-## Was ein Plugin kann und was nicht
+## Ein Plugin aktualisieren
 
-Ein Plugin sieht sein eigenes Verzeichnis und nicht die Daten des Servers, hat
-keinen direkten Netzwerkzugang (ein Plugin mit Netzwerkerlaubnis erreicht nur
-die Hosts, die es angegeben hat, über den Server) und kann keine Prozesse
-starten, außer es gibt die Berechtigung `subprocess` an. Die Berechtigungen, die
-ein Plugin verlangen kann, stehen unter
+Auf der Karte des Plugins nimmt **Aus Quelle aktualisieren …** das neue ZIP
+entgegen (einen Pfad oder eine URL) und zeigt dieselbe Vorschau. Ein Update
+muss eine höhere Version haben als die installierte. Verlangt es neue
+Berechtigungen, Fähigkeiten, Slots oder Hosts, zeigt die Vorschau **Diese
+Aktualisierung beantragt neue Berechtigungen** und listet den Unterschied
+auf: Nichts wird übernommen, bevor Sie **Genehmigen und installieren**
+wählen. Das analysierte Paket ist das installierte Paket: Sein Hashwert wird
+beim Übernehmen des Updates noch einmal geprüft.
+
+## Die installierten Plugins verwalten
+
+Jede Karte zeigt den Zustand des Plugins (**Aktiviert** oder
+**Deaktiviert**) und bietet:
+
+| Aktion | Was sie tut |
+| --- | --- |
+| **Aktiviert** / **Deaktiviert** | Startet oder stoppt den Prozess des Plugins. Ein deaktiviertes Plugin behält seine Dateien und seine Konfiguration. |
+| **Konfiguration** | Die Einstellungen, die das Plugin angibt (ein API-Schlüssel, eine Stadt, eine Einheit...). Geheime Felder werden maskiert angezeigt und nie an den Browser zurückgeschickt. |
+| **Protokolle** | Die letzten Zeilen, die das Plugin über den Host geschrieben hat. |
+| **Deinstallieren** | Entfernt den Prozess, die Dateien und die gespeicherten Daten des Plugins. |
+
+**Ressourcenlimits** oben auf der Seite begrenzt jeden Plugin-Prozess. Die
+Werte im Verwaltungsbereich sind die Standardwerte. Die Umgebungsvariable
+legt sie fest, solange im Verwaltungsbereich noch nie gespeichert wurde.
+
+| Feld | Standard | Umgebungsvariable |
+| --- | --- | --- |
+| **Max. Arbeitsspeicher (MiB)** | 256 | `EVEY_PLUGINS_MEMORY_MB` |
+| **Max. Prozesse** | 64 | `EVEY_PLUGINS_PIDS_MAX` |
+| **Max. Festplatte (MiB)** | 100 | `EVEY_PLUGINS_DISK_MAX_MB` |
+| **CPU-Nice (0-19)** | 10 | `EVEY_PLUGINS_CPU_NICE` |
+| **Sandbox-Modus** | `auto` | `EVEY_PLUGINS_SANDBOX_MODE` |
+
+Arbeitsspeicher, Prozesse und Festplatte gelten beim nächsten Durchlauf der
+Überwachung, die ein Plugin stoppt, das sie überschreitet. CPU-Priorität und
+Sandbox-Modus gelten für danach gestartete Plugins. `0` schaltet eine Grenze
+für Arbeitsspeicher, Prozesse oder Festplatte ab.
+
+Das **Sicherheits-Dashboard** hält pro Plugin die Befunde der Analyse, das
+Ergebnis der Signaturprüfung und den letzten Fehler fest. Seine Zeile
+**Host-Sandbox** zeigt den Sandbox-Modus, der auf dieser Maschine wirklich
+gilt: Steht dort `basic`, bietet der Host keine Abschottung des Dateisystems
+Pfad für Pfad, und [Plugin-Sandbox einrichten](plugins/sandbox-deployment.md)
+erklärt, was zu ändern ist.
+
+Plugins sind standardmäßig eingeschaltet. `EVEY_PLUGINS_ENABLED=false`
+schaltet das gesamte Plugin-System ab.
+
+## Was ein Plugin auf Ihrem Host tun kann
+
+Egal, was sein Manifest sagt, ein Plugin:
+
+- sieht sein eigenes Verzeichnis, weder die Daten des Servers noch die
+  Mediendateien;
+- hat keinen direkten Netzwerkzugang: Ein Plugin mit der Berechtigung
+  `network` erreicht nur die Hosts, die es angegeben hat, über den Server, mit
+  `GET` und `HEAD`;
+- kann keine Kindprozesse starten, es sei denn, es gibt `subprocess` an;
+- läuft unter den Ressourcenlimits oben und, wenn der Host es erlaubt, unter
+  einem eigenen Benutzer.
+
+Seine Oberfläche ist auf die Slots beschränkt, die das Manifest angibt: einen
+Abschnitt oder den großen Bereich oben auf der Startseite, eine Seitenleiste
+in einer Bibliothek oder auf einer Detailseite, eine Einblendung im Player,
+die Darstellungseinstellungen, den unteren Teil der Navigationsleiste oder
+einen Eintrag im Verwaltungsmenü, der die eigene Seite des Plugins öffnet.
+Ein Plugin kann nie in die Bildschirme für Anmeldung, Einrichtung und
+Sicherheit oder in die vorhandenen Verwaltungsbildschirme zeichnen. In seinem
+Rahmen hat es keinen Zugriff auf die Seite, Ihre Cookies oder Ihre Sitzung:
+Was es vom Server liest, läuft über ein kurzlebiges Token, das auf die zwei
+Berechtigungen beschränkt ist, die es verlangen darf (`public` für eine
+sichere Auswahl aus Medientiteln und Postern, `prefs` für die Einstellungen
+des aktuellen Benutzers in seinem eigenen Namensraum).
+
+Die Berechtigungen, die ein Plugin verlangen kann, stehen unter
 [Berechtigungen und Slots](plugins/security-model.md). Wie die Sandbox
-funktioniert und was sie noch nicht verhindern kann, beschreibt
-[Sicherheitsmodell und Plugin-Sandbox](SECURITY.md).
+funktioniert und was sie trotzdem nicht verhindern kann, steht unter
+[Plugin-Sandbox und Bedrohungsmodell](SECURITY.md).
 
-Prüfen Sie ein Plugin von Dritten vor der Installation, wie jede Software:
-Sobald ein Host auf der Liste eines Plugins steht, kann der Server nicht
-überprüfen, was das Plugin an ihn sendet.
+!!! warning "Der Server prüft, mit wem ein Plugin spricht, nicht was es sagt"
+    Steht ein Host einmal auf der Liste eines Plugins, kann der Server nicht
+    prüfen, was das Plugin an ihn schickt. Prüfen Sie ein Plugin eines
+    Drittanbieters vor der Installation, wie jede andere Software, und
+    betrachten Sie seine Host-Liste als Liste derer, die die Titel Ihrer
+    Bibliothek erhalten können.
+
+## Themes
+
+Ein Theme ist ein Paket mit `kind: theme` ohne Prozess: ein Stylesheet und
+optional ein Skript, das in einem versteckten Rahmen eingesperrt ist. Es wird
+über denselben Dialog **Plugin installieren** installiert; das Stylesheet wird
+bei der Installation bereinigt. Jeder Benutzer wählt es dann unter
+**Einstellungen → Darstellung → Design**. Was ein Theme enthalten darf, steht
+unter [Themes](themes.md).
 
 ## Ein Plugin schreiben
 
-```mermaid
-flowchart LR
-  subgraph server["Evey-Server"]
-    host["HostService<br/>prüft jeden Aufruf gegen<br/>die angegebenen Berechtigungen"]
-    ui["Weboberfläche<br/>Plugin-Slots"]
-  end
-  subgraph plugin["Plugin, in seiner Sandbox"]
-    backend["PluginService<br/>Ihr Backend-Prozess"]
-    front["Frontend-Modul<br/>isolierter iframe"]
-  end
-  backend <-->|"gRPC über einen Unix-Socket"| host
-  front <-->|"postMessage-Brücke"| ui
-  host -->|"Fetch: nur angegebene Hosts"| net(("Internet"))
-```
-
-Ein Plugin kann in jeder Sprache geschrieben werden, die sein `entrypoint`
-starten kann. Erzeugte gRPC-Stubs werden für Python, Node.js, PHP, Ruby, Dart,
-Java und Swift mitgeliefert; Go-Stubs werden mit `protoc-gen-go` erzeugt;
-kompilierte Programme brauchen die Berechtigung `native-binary`.
-
 | Seite | Inhalt |
 | --- | --- |
-| [Ein Plugin schreiben](plugins/dev-setup.md) | Voraussetzungen, erstes Plugin, die Installationsschleife, Signieren, Verteilen. Hier beginnen. |
-| [Plugin-API-Referenz](plugins/api-reference.md) | Das Manifest, die Backend-Aufrufe und der Datenspeicher, die Frontend-Brücke `evey.*`, die Capabilities. |
+| [Ein Plugin schreiben](plugins/dev-setup.md) | Ein erstes Plugin Schritt für Schritt, der Installationskreislauf, Signieren, Verteilung. Fangen Sie hier an. |
+| [Plugin-API-Referenz](plugins/api-reference.md) | Das Manifest, die Backend-Aufrufe und der Datenspeicher, die `evey.*`-Brücke der Oberfläche. |
 | [Berechtigungen und Slots](plugins/security-model.md) | Was ein Manifest angeben darf, was bei der Installation geprüft wird, die Regeln für externe Abrufe, die Slots. |
-| [Themes](themes.md) | Die Oberfläche mit CSS und einem abgeschotteten Skript neu gestalten. |
+| [Themes](themes.md) | Die Oberfläche mit CSS und einem Skript in einer Sandbox umgestalten. |
 | [Webhooks und API-Schlüssel](webhooks-api-keys.md) | Evey mit anderen Werkzeugen verbinden, ohne ein Plugin zu schreiben. |
+
+<!-- sources
+install dialog, from URL with #sha256: i18n admin.plugins.installPlugin, pluginFileZip, sigFileOptional, fromUrl, installFromUrlHint, previewInstall, staticAnalysis ; internal/app/plugin/install.go - downloadIfURL
+critical findings refuse, warnings: internal/app/plugin/install.go - validateStagedPlugin, checkEscalatedWarnings ; i18n admin.plugins.blockedByAnalysis, installAnyway
+runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries ; i18n admin.plugins.availableRuntimes
+cosign policy: internal/config/config.go - CosignPolicy, CosignPublicKey ; internal/adapters/driven/pluginrunner/cosign.go
+update, version higher, escalation, hash re-checked: internal/app/plugin/install.go - resolveExistingPlugin ; internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/permissions.go - DiffPermissions ; i18n admin.plugin.update, admin.plugins.permissionEscalation.*
+card actions: i18n admin.plugin.enabled, disabled, config, logs, uninstall ; secrets masked: internal/domain/plugin/model.go - IsSecretConfigField ; internal/adapters/driving/grpcapi/admin_plugin.go
+resource limits defaults and env: internal/config/config.go - Plugins (MemoryMB, PIDsMax, DiskMaxMB, CPUNice, SandboxMode) ; i18n admin.plugins.resourceLimits.*
+security dashboard, host sandbox: i18n admin.plugins.security.* ; internal/app/plugin/security_dashboard_service.go
+plugins enabled flag: internal/config/config.go - PluginsEnabled
+fetch broker GET/HEAD: internal/adapters/driving/pluginhost/fetch.go - Fetch
+subprocess: docs/plugins/security-model.md (Permissions catalog)
+slots: internal/domain/plugin/slots.go - AllowedSlots
+scoped token, public/prefs: docs/adr/0012-plugin-token-deny-by-default.md ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes
+theme selection: frontend/apps/web/src/features/user/ThemeSettings.tsx ; i18n common.appearance, common.theme
+-->
