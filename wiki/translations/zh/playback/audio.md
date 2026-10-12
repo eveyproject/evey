@@ -1,34 +1,66 @@
 ---
-source_sha: 671aed4ea8f4b0ef01dac83a6cadd4f8e569eb5206951057955cbf29a9e7b727
-reviewed: false
+source_sha: 87e08f341b329e7354b9d42ef5972fac5cb564784a1488786bff878e7d74ba8a
+reviewed: true
 ---
 # 音频
 
-音轨与视频分开评判。在大多数转码中，它是唯一被重新编码的部分：视频直接复制，声音被转换成播放器能读取的格式。
+**简单来说：**
+
+- 如果电影有您个人资料设定的语言，您听到的就是这种语言：在**设置 → 播放 → 默认音频语言**里设置。您在播放器里亲手选的音轨永远优先。
+- 如果您的设备能播放，声音会原样发送。否则，服务器会把它转换成一种通用格式（AAC）。很多时候只转换声音，画面保持原样。
+- 用手机扬声器、耳机或蓝牙时，Android 应用播放的是立体声。用 Android 或 Android TV 应用通过 HDMI 输出时，电视或功放能接收多少个声道，您就能得到多少个声道（例如 5.1）。
+- 声音和画面对不上？见[声音不同步](#sound-out-of-sync)。
+
+本页其余部分说明播放哪条音轨、什么时候直接复制、什么时候转换，以及有几个声道。这里提到的个人资料设置都在**设置 → 播放**里。
+
+## 不同设备上您会听到什么
+
+| 您的设备 | 收到的是什么 |
+| --- | --- |
+| 浏览器 | 浏览器能解码的音轨原样发送；AC-3 和 E-AC-3 在网页里解码（见下文）；其他的转成 AAC。环绕声的 AAC 音轨由浏览器按您的输出设备混缩。 |
+| 使用扬声器、耳机或蓝牙的 Android 手机 | 立体声。应用声明的输出是立体声，所以环绕声音轨会由服务器重新编码成立体声，并做音量均衡的混缩。应用自己能解码的杜比数字会原样发送，由应用来混缩。 |
+| 通过 HDMI 输出的 Android 手机或 Android TV | HDMI 接收设备报告能接收多少个声道，就给多少个：5.1 的音轨在 5.1 功放上仍是 5.1。 |
+| 投屏接收端 | 取决于接收端对自己输出的报告：见[投屏到 Chromecast](casting.md)。 |
+
+Android 应用会在每次开始播放时检测输出：插上耳机后，从下一部片子、下一次切换轨道或切换画质开始生效，不会在一场戏的中间切换。
 
 ## 播放哪条音轨
 
-在条目页面或播放器中手动选择的音轨总是优先。否则，播放器依次采用个人资料的 **默认音频语言**、文件标记为默认的音轨，最后是第一条音轨。当文件同时有标记为解说的音轨和普通音轨时，会跳过解说音轨而选择普通音轨。
+在片子页面或播放器里亲手选的音轨永远优先。否则，播放器先按个人资料的**默认音频语言**选，再选文件标记为默认的音轨，最后选第一条。如果文件里既有解说音轨也有普通音轨，标记为解说的音轨会被跳过，选用普通音轨。
 
-只评判正在播放的音轨：你没有在听的 DTS 音轨永远不会引起转码。
+只看正在播放的那条音轨：您没在听的 DTS 音轨，永远不会导致转码。
 
 ## 直接复制还是重新编码
 
-当播放器能解码其编码、并且在个人资料的 **最大音频声道**（立体声、5.1 或 7.1）范围内有足够的声道时，音轨会被直接复制。否则会重新编码为 AAC：
+如果播放器能解码这条音轨的编码，它的输出又有足够的声道，并且没有超出个人资料的**最大音频声道**（**立体声 (2.0)**、**环绕声 (5.1)** 或**环绕声 (7.1)**），这条音轨就直接复制。否则，它会被重新编码成 AAC：
 
-- 声道数取源、播放器和个人资料所允许的最大值，最多 5.1（7.1 源会被缩混为所有播放器都能解码的 5.1；立体声源保持立体声）；
-- 与采样率无关，采样率本身从不构成重新编码的理由。
+- 声道数尽量多，以片源、设备和个人资料允许的为准，最多 5.1（7.1 的片源会混缩成每个播放器都能解码的 5.1；立体声的片源保持立体声）；
+- 不管采样率是多少，采样率本身从来不是重新编码的理由。
 
-在转码或重封装的流中被直接复制的音轨，还必须是播放器在流的分段中接受的格式。AAC、AC-3 和 E-AC-3 总是可以；其他编码只有在播放器表示支持时才可以。不满足时，音轨会被重新编码，流信息也会说明：播放器可能能在文件中解码 MP3，却在流中拒绝它。
+在转码或重封装的视频流里，直接复制的音轨还必须是播放器在视频流片段中能接受的格式。AAC、AC-3 和 E-AC-3 总是可以；其他编码只有在播放器表示接受时才行。不满足时，这条音轨会被重新编码，流信息显示**音轨无法在流中原样传输**：播放器可能能解码文件里的 MP3，却不接受视频流里的 MP3。
 
-## 浏览器中的杜比数字
+## 浏览器里的杜比数字
 
-大多数浏览器无法解码 AC-3 或 E-AC-3。网页播放器不会在服务器上重新编码音轨，而是用一个在页面中运行的解码器自己解码：音轨原样发送，流信息将其显示为*客户端解码*。原生能解码杜比数字的浏览器（例如 Safari）会把它当作普通音轨接收；这个选择是通过测试浏览器做出的，而不是通过识别浏览器。
+大多数浏览器不能解码 AC-3 或 E-AC-3。网页播放器不让服务器重新编码这条音轨，而是用一个在网页里运行的解码器自己解码：音轨原样发送，流信息显示它为**客户端解码**。能原生解码杜比数字的浏览器（例如 Safari）会把它当作普通音轨接收；选择哪种方式，是通过测试浏览器来决定的，而不是靠认出是哪种浏览器。环绕声音轨只有在个人资料的**最大音频声道**允许时，才会在网页里解码：设为立体声的个人资料会改为收到重新编码的 AAC，它可以把声道混缩。
 
-设置了自己的 Content-Security-Policy 的反向代理必须在 `script-src` 中允许 `'wasm-unsafe-eval'`，否则解码器无法启动，电影会无声播放。见[反向代理配置](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own)。
+!!! warning
+    如果反向代理设置了自己的 Content-Security-Policy，就必须在 `script-src` 里允许 `'wasm-unsafe-eval'`，否则解码器无法启动，电影会没有声音。见[反向代理配置](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own)。
 
 ## 声音不同步
 
-播放器中的 **音频同步** 会为当前条目平移声音。直接复制的音轨无法平移，所以服务器会重新编码它；流信息显示 **已请求音频重新同步**。
+播放器里的**音频同步**可以为当前这部片子移动声音（正值让声音晚一点播放）。当视频流由服务器以重封装或转码的方式提供时，才有这个选项；在直接播放时，这个控件会显示**仅在转码播放时可用**。应用一个偏移量后，视频流会从当前位置重新开始。直接复制的音轨无法移动，所以服务器会重新编码它，流信息显示**已请求音频重新同步**。
 
-当偏移存在于文件本身时（音轨在画面之后才开始，或者各音轨之间互不一致），**Admin → 媒体健康** 会报告它，但从不自行改写：开始得晚的偏移通常是配音有意对齐的结果。文件所在行的 **检查同步** 让你用眼睛判断并应用一个平移，其历史记录可以撤销它。见[媒体健康](../runbooks/media-health.md)。
+如果偏移就在文件本身里（音轨比画面开始得晚，或者几条轨道之间互相对不上），**管理 → 媒体健康**会报告它，但从不自己改写文件：开始得晚的偏移，通常是配音特意对齐的结果。在这个文件那一行点击**检查同步**，您可以用眼睛判断并应用一个偏移量，这个改动可以在它的历史记录里撤销。见[媒体健康](../runbooks/media-health.md#checking-the-sync-by-eye)。
+
+<!-- sources
+track choice: internal/app/transcoding/decision.go - selectedAudioSpec ; frontend/packages/client/src/hooks/usePlayerTrackSelection.ts
+copy vs aac, channels: internal/app/transcoding/decision.go - evaluateAudio, applyAudioChannelTarget (aacMaxTargetChannels)
+device channel ceiling: frontend/packages/client/src/native/outputChannels.ts - resolveMaxOutputChannels (STEREO_ONLY_TYPES, hdmi.maxChannelCount) ; frontend/packages/client/src/native/playSession.ts - playerDecodesCopiedAudio ; internal/adapters/driving/http/client_capabilities.go - maxAudioChannelsQuery
+passthrough in segments: internal/app/transcoding/decision.go - applyPackagedAudioPassthrough ; internal/app/transcoding/source_facts.go - AudioCopyCodecAllowedFor ; internal/domain/transcoding/playback_decision.go - ClientProfile.FMP4AudioPassthrough
+wasm: internal/app/transcoding/wasm_audio.go - WasmAudioCodecSupported, WasmAudioChannelsOK ; internal/app/transcoding/decision.go - wasmAudioApplies ; frontend/packages/client/src/web/codec.ts
+sample rate: internal/app/transcoding/decision.go - evaluateAudio (no sample-rate check)
+resync: internal/app/transcoding/playback_plan_resolver.go - Decide (audio_resync_requested) ; frontend/apps/web/src/features/playback/HLSPlayer.tsx (audioOffsetAvailable=transcodeMode) ; frontend/apps/mobile/app/(auth)/player/[id].tsx (audioOffsetAvailable)
+media health: i18n admin.syncPreview.btn ; docs/runbooks/media-health.md
+labels: i18n auth.settings.playback.maxAudioChannels, channelsStereo, channels51, channels71, audioLanguage ; player.settings.audioSync, audioSyncHint, audioSyncUnavailable ; player.streamInfo.decisionWasm, reason.audio_passthrough_unsupported, reason.audio_resync_requested
+plain opening: frontend/packages/client/src/hooks/usePlayerTrackSelection.ts ; i18n auth.settings.playback.audioLanguage
+-->
