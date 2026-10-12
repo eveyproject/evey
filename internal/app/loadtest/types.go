@@ -527,6 +527,12 @@ type Report struct {
 	// to "what did those N viewers cost", and the evidence behind a
 	// StopCPUSaturated / StopMemorySaturated verdict.
 	Resources ResourceStats
+	// BreakViewers and BreakResources are the lowest audience that broke and
+	// what the server consumed under it: where the cause of a stop shows,
+	// since the sustained tier is by definition the one that held. Zero and
+	// empty when no tier broke (a flash run, the operator's limit).
+	BreakViewers   int
+	BreakResources ResourceStats
 	// ResourceBaseline is what the server consumed BEFORE the first viewer
 	// joined. An operator reads the per-viewer cost against this floor, not
 	// against zero.

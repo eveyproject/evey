@@ -87,6 +87,14 @@ export interface LoadTestResources {
   goGcCpuPercentPeak?: number;
 }
 
+export interface LoadTestDiskActivity {
+  device?: string;
+  utilPercentAvg?: number;
+  utilPercentPeak?: number;
+  readBytesPerSecAvg?: number;
+  awaitMsAvg?: number;
+}
+
 export interface LoadTestReport {
   scenario?: LoadTestScenario;
   sustainedViewers?: number;
@@ -138,13 +146,13 @@ export interface LoadTestReport {
   poolBranches?: { branch?: string; viewers?: number }[];
   // disks: what each physical drive did over the sustained tier, busiest first.
   // Read from the host-wide block counters, so it includes other readers too.
-  disks?: {
-    device?: string;
-    utilPercentAvg?: number;
-    utilPercentPeak?: number;
-    readBytesPerSecAvg?: number;
-    awaitMsAvg?: number;
-  }[];
+  disks?: LoadTestDiskActivity[];
+  // breakViewers / breakDisks / breakCpuPercentPeak: the lowest audience that
+  // broke and what the drives and the CPU did under it - where the cause of a
+  // stop shows. 0 and empty when no tier broke.
+  breakViewers?: number;
+  breakDisks?: LoadTestDiskActivity[];
+  breakCpuPercentPeak?: number;
   // diskReadCeilingBytesPerSec: how fast this box reads its media - every disk
   // the library spans, read at once. The kernel cannot report this when the
   // library sits on a network share or a 9p mount, so the run measures it itself
@@ -287,7 +295,12 @@ export function stopCause(report: LoadTestReport): LoadTestCause | null {
     const whatKey = FAILED_REQUEST_KEYS.find(([p]) => detail.includes(p))?.[1] ?? "admin.loadtest.cause.request.other";
     return { key: status === "410" ? "admin.loadtest.cause.http410" : "admin.loadtest.cause.httpStatus", params: { status }, whatKey };
   }
-  const disks = [...(report.disks ?? [])].sort((a, b) => (b.utilPercentAvg ?? 0) - (a.utilPercentAvg ?? 0));
+  // Read the tier that broke when the report has it: the sustained tier is by
+  // definition the one that held, so its figures can look idle (measured
+  // 2026-10-12: disks at 15 % on the 37 that held, the 38 that broke unseen).
+  const atBreak = (report.breakViewers ?? 0) > 0;
+  const source = atBreak ? (report.breakDisks ?? []) : (report.disks ?? []);
+  const disks = [...source].sort((a, b) => (b.utilPercentAvg ?? 0) - (a.utilPercentAvg ?? 0));
   const top = disks[0];
   if (top && (top.utilPercentAvg ?? 0) >= SATURATED_DISK_PERCENT) {
     const params = {
@@ -298,7 +311,7 @@ export function stopCause(report: LoadTestReport): LoadTestCause | null {
     };
     return { key: disks.length > 1 ? "admin.loadtest.cause.disk" : "admin.loadtest.cause.diskAlone", params };
   }
-  const cpu = Math.round(report.resources?.cpuPercentPeak ?? 0);
+  const cpu = Math.round((atBreak ? report.breakCpuPercentPeak : report.resources?.cpuPercentPeak) ?? 0);
   if (cpu >= SATURATED_CPU_PERCENT) {
     return { key: "admin.loadtest.cause.cpu", params: { peak: cpu } };
   }

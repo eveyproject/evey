@@ -673,6 +673,22 @@
             "$ref": "#/definitions/v1LoadTestServedPath"
           },
           "description": "served_paths is what the server decided for each viewer type over the\nwhole run: how a client-mix verdict says what it was measured on."
+        },
+        "breakViewers": {
+          "type": "integer",
+          "format": "int32",
+          "description": "break_viewers is the lowest audience that broke, and break_disks /\nbreak_cpu_percent_peak what the drives and the CPU did under it: where the\ncause of a stop shows (disks above describe the tier that held). 0 and\nempty when no tier broke."
+        },
+        "breakDisks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestDiskActivity"
+          }
+        },
+        "breakCpuPercentPeak": {
+          "type": "number",
+          "format": "double"
         }
       },
       "description": "LoadTestReport is what the box MEASURED, next to what the admission model\npredicted - the panel shows both so the operator sees promises kept."

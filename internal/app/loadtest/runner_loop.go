@@ -519,6 +519,14 @@ runLoop:
 	sustainedRes.CPUPercentPeak *= serverShare
 	perViewer.CPUPercentAvg *= serverShare
 	tiers := res.tierCosts(serverShare)
+	var breakViewers int
+	var breakRes ResourceStats
+	if !isFlash && cl != nil && cl.hi > sustained {
+		breakViewers = cl.hi
+		breakRes = res.stats(cl.hi)
+		breakRes.CPUPercentAvg *= serverShare
+		breakRes.CPUPercentPeak *= serverShare
+	}
 
 	r.finish(Report{
 		Scenario:                   cfg.Scenario,
@@ -558,6 +566,8 @@ runLoop:
 		ThroughputCeilingBytesPerSec:  throughputCeiling,
 		SkippedCandidates:             ramp.skippedCandidates,
 		Resources:                     sustainedRes,
+		BreakViewers:                  breakViewers,
+		BreakResources:                breakRes,
 		ResourceBaseline:              res.baseline,
 		PerViewerCost:                 perViewer,
 		HasPerViewerCost:              hasPerViewer,
