@@ -1,6 +1,12 @@
 package ffmpeg
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 // A 4K film, 24000/1001, Matroska millisecond timestamps around a
 // `-ss 279.000` seek: packets from the keyframe before the target, in decode
@@ -99,5 +105,53 @@ func TestSeekLandingReadInterval_AbsoluteEnd(t *testing.T) {
 	}
 	if got := seekLandingReadInterval(504); got != "504.000%505.000" {
 		t.Fatalf("interval = %q, want 504.000%%505.000", got)
+	}
+}
+
+// Every rung of a per-variant seek asks for the same landing: one probe answers
+// them all, a changed file is measured again, and a failure is not remembered.
+func TestTranscodeSeekLandingUs_ProbesOncePerFileAndTarget(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.mkv")
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	fail := false
+	orig := seekLandingProbe
+	t.Cleanup(func() { seekLandingProbe = orig })
+	seekLandingProbe = func(_ context.Context, _ string, startSec float64) (int64, error) {
+		calls++
+		if fail {
+			return 0, errors.New("probe failed")
+		}
+		return int64(startSec*1e6) + 7, nil
+	}
+
+	for range 4 {
+		us, err := transcodeSeekLandingUs(context.Background(), path, 36)
+		if err != nil || us != 36_000_007 {
+			t.Fatalf("landing = %d, %v", us, err)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("4 rungs at the same target probed %d times, want 1", calls)
+	}
+	if _, err := transcodeSeekLandingUs(context.Background(), path, 39); err != nil || calls != 2 {
+		t.Fatalf("another target: calls=%d err=%v, want a new probe", calls, err)
+	}
+	if err := os.WriteFile(path, []byte("changed"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := transcodeSeekLandingUs(context.Background(), path, 36); err != nil || calls != 3 {
+		t.Fatalf("changed file: calls=%d err=%v, want a new probe", calls, err)
+	}
+	fail = true
+	for range 2 {
+		if _, err := transcodeSeekLandingUs(context.Background(), path, 42); err == nil {
+			t.Fatal("a failed probe answered from the cache")
+		}
+	}
+	if calls != 5 {
+		t.Fatalf("failures probed %d times, want each one retried", calls-3)
 	}
 }
