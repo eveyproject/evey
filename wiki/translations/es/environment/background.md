@@ -1,40 +1,50 @@
 ---
-source_sha: 25e92baf53807987435c8781d87f2af02a8a02782951e049a23e404082ad7980
-reviewed: false
+source_sha: d0631abae137226c008a3954088887193957c49501d53f8c38282e9314512c14
+reviewed: true
 ---
-# Tareas en segundo plano
+# Trabajo en segundo plano
 
-Las pasadas que el servidor ejecuta por su cuenta y cómo se reparten el
-procesador. Cómo se comportan:
-[Tareas en segundo plano y carga del servidor](../operations/background-work.md).
+Las variables que hay detrás de las pasadas que el servidor hace por su
+cuenta y de cómo se reparten el procesador. Qué hace cada pasada y cómo se
+protege la reproducción de ellas:
+[Trabajo en segundo plano y carga del servidor](../operations/background-work.md).
 
 ## Parte de CPU
 
-La parte del procesador que pueden usar las tareas en segundo plano se fija en
-**Admin → Configuración del servidor → Potencia asignada**, en caliente, sin
-reiniciar. No tiene variable de entorno. Las dos siguientes dimensionan un pool a
-mano y se saltan esa parte para él:
+La parte del procesador que pueden usar las tareas en segundo plano se
+ajusta en **Administración → Configuración del servidor → Potencia
+asignada**, al momento y sin reiniciar; no tiene variable de entorno. Las dos
+variables siguientes dimensionan a mano un grupo de trabajo y, para él, se
+saltan esa parte.
 
-| Variable | Por defecto | Efecto |
-| --- | --- | --- |
-| `EVEY_LIBRARY_SCAN_WORKERS` | según la parte | Archivos analizados en paralelo durante un escaneo. |
-| `EVEY_INTRO_DETECTION_MAX_PARALLEL` | según la parte | Títulos analizados a la vez para intros y créditos. |
+| Variable | Por defecto | Qué hace | Panel |
+| --- | --- | --- | --- |
+| `EVEY_LIBRARY_SCAN_WORKERS` | según la parte | Archivos analizados en paralelo durante un escaneo. | ninguno |
+| `EVEY_INTRO_DETECTION_MAX_PARALLEL` | según la parte | Títulos analizados a la vez para las intros y los créditos. | ninguno |
 
 ## Pasadas
 
-Cada variable tiene una clave, aceptada también como fila en **Admin →
-Configuración del servidor → Entradas de configuración**, que sugiere estas
-claves; la fila prevalece. Todas se leen al arrancar, y **Trabajos en segundo
-plano**, en la misma pantalla, fija las principales.
+Cada variable tiene una clave, que también se acepta como fila en
+**Administración → Configuración del servidor → Entradas de configuración**,
+que sugiere estas claves; la fila gana al entorno. La tarjeta **Trabajos en
+segundo plano** de la misma pantalla ajusta las principales. Todas se leen al
+arrancar, así que un cambio se aplica en el siguiente reinicio, se haga como
+se haga.
 
-| Variable | Clave del panel | Por defecto | Efecto |
+| Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_PAUSE_BG_ON_PLAYBACK` | `transcoding.pause_bg_on_playback` | activado | Pausa las tareas en segundo plano mientras se reproduce un flujo. `off` las mantiene en marcha. |
-| `EVEY_KEYFRAME_BACKFILL` | `transcoding.keyframe_backfill` | activado | Indexa los fotogramas clave de los archivos escaneados y clasifica su frecuencia de imagen. La Reproducción directa y la copia dependen de ello. `off` lo desactiva. |
-| `EVEY_KEYFRAME_BACKFILL_BATCH` | `transcoding.keyframe_backfill_batch` | valor del servidor | Archivos por pasada (> 0). |
-| `EVEY_KEYFRAME_BACKFILL_PAUSE_MS` | `transcoding.keyframe_backfill_pause_ms` | valor del servidor | Milisegundos entre archivos (>= 0). |
-| `EVEY_KEYFRAME_BACKFILL_IDLE_SEC` | `transcoding.keyframe_backfill_idle_sec` | valor del servidor | Segundos entre pasadas en reposo (> 0). |
-| `EVEY_LEVEL_BACKFILL` | `transcoding.level_backfill` | activado | Lee el nivel H.264/HEVC de los archivos escaneados antes de que se recogiera. `off` lo desactiva. |
-| `EVEY_LEVEL_BACKFILL_BATCH`, `_PAUSE_MS`, `_IDLE_SEC` | `transcoding.level_backfill_batch`, `_pause_ms`, `_idle_sec` | valor del servidor | El mismo ritmo, para esta pasada. |
-| `EVEY_SNAPSHOT_FASTPATH` | `transcoding.snapshot_fastpath` | activado | Extrae las miniaturas con el descodificador rápido dentro del proceso. `off` usa solo el extractor exacto de ffmpeg, para descartarlo cuando una miniatura muestra el fotograma equivocado. |
-| `EVEY_TITLE_PROBE` | `transcoding.title_probe` | activado | Sondea los títulos en segundo plano con baja prioridad, en pausa durante la reproducción. `off` lo desactiva. |
+| `EVEY_TRANSCODING_PAUSE_BG_ON_PLAYBACK` | activado | Pone en pausa el trabajo en segundo plano mientras se reproduce un flujo. `off` lo deja en marcha. | Entradas de configuración `transcoding.pause_bg_on_playback`, al reiniciar |
+| `EVEY_KEYFRAME_BACKFILL` | activado | Indexa los fotogramas clave de los archivos escaneados y clasifica su frecuencia de fotogramas. La reproducción directa y la copia dependen de ello. `off` lo desactiva. | Entradas de configuración `transcoding.keyframe_backfill`, al reiniciar |
+| `EVEY_KEYFRAME_BACKFILL_BATCH` | valor por defecto del servidor | Archivos por pasada (> 0). | Entradas de configuración `transcoding.keyframe_backfill_batch`, al reiniciar |
+| `EVEY_KEYFRAME_BACKFILL_PAUSE_MS` | valor por defecto del servidor | Milisegundos entre archivos (>= 0). | Entradas de configuración `transcoding.keyframe_backfill_pause_ms`, al reiniciar |
+| `EVEY_KEYFRAME_BACKFILL_IDLE_SEC` | valor por defecto del servidor | Segundos entre pasadas cuando no hay nada que hacer (> 0). | Entradas de configuración `transcoding.keyframe_backfill_idle_sec`, al reiniciar |
+| `EVEY_LEVEL_BACKFILL` | activado | Lee el nivel H.264/HEVC de los archivos escaneados antes de que se empezara a recoger. `off` lo desactiva. | Entradas de configuración `transcoding.level_backfill`, al reiniciar |
+| `EVEY_LEVEL_BACKFILL_BATCH`, `_PAUSE_MS`, `_IDLE_SEC` | valor por defecto del servidor | El mismo ritmo, para esta pasada. | Entradas de configuración `transcoding.level_backfill_batch`, `_pause_ms`, `_idle_sec`, al reiniciar |
+| `EVEY_SNAPSHOT_FASTPATH` | activado | Extrae las miniaturas con el decodificador rápido integrado en el proceso. `off` usa solo el extractor exacto de ffmpeg, para descartarlo cuando una miniatura muestra el fotograma equivocado. | Entradas de configuración `transcoding.snapshot_fastpath`, al reiniciar |
+| `EVEY_TITLE_PROBE` | activado | Analiza los títulos en segundo plano con prioridad baja, en pausa durante la reproducción. `off` lo desactiva. | Entradas de configuración `transcoding.title_probe`, al reiniciar |
+
+<!-- sources
+cpu share: i18n admin.serverConfig.cpuBudget.* ; internal/app/library/scan_service.go - scanWorkersFromEnv ; cmd/evey/wire.go (EVEY_INTRO_DETECTION_MAX_PARALLEL)
+passes: cmd/evey/wire.go, cmd/evey/wire_services.go, cmd/evey/wire_helpers.go (resolveFlag) ; frontend/apps/web/src/features/admin/operatorFlags.ts
+background work card: i18n admin.serverConfig.backgroundJobs.*
+-->

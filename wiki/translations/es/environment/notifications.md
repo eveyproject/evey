@@ -1,30 +1,40 @@
 ---
-source_sha: 83ece8837b08f345398777a65fee01eeec37d776c49c29ad7d1b6f675ab96046
-reviewed: false
+source_sha: 7cc0fb43b6f9e14980a2332dd94e4c79bea3397ef66018840bb68f8b90a78ca2
+reviewed: true
 ---
 # Correo y notificaciones
 
-Correo saliente (notificaciones, restablecimiento de contraseñas) y push del
-navegador. Consulta [Correo y notificaciones](../notifications.md).
+Las variables que hay detrás del correo saliente (notificaciones,
+restablecimiento de contraseña) y de las notificaciones push del navegador.
+El correo se configura normalmente en el panel, como se describe en
+[Correo y notificaciones](../notifications.md); las variables son su valor de
+respaldo.
 
 ## Correo (SMTP)
 
-| Variable | Por defecto | Efecto |
-| --- | --- | --- |
-| `EVEY_SMTP_HOST` | vacía | El servidor de correo. Vacía: no se envía correo. |
-| `EVEY_SMTP_PORT` | `587` | Su puerto. |
-| `EVEY_SMTP_USERNAME` | vacía | La cuenta con la que iniciar sesión. |
-| `EVEY_SMTP_PASSWORD` | vacía | Su contraseña. |
-| `EVEY_SMTP_FROM` | vacía | La dirección del remitente, por ejemplo `noreply@example.com`. |
-| `EVEY_SMTP_TLS` | `starttls` | `starttls`, `ssl` o `none`. |
+Las variables se leen al arrancar y se usan mientras la tarjeta **Correo /
+SMTP** de **Administración → Configuración del servidor** no tenga servidor
+de correo. En cuanto se guarda uno ahí, la tarjeta aporta todos los campos y
+se aplica sin reiniciar.
 
-Se leen al arrancar el servidor y se usan mientras la tarjeta **Correo / SMTP**
-de **Admin → Configuración del servidor** no tenga servidor. En cuanto se guarda
-uno en ella, la tarjeta aporta todos los campos y se aplica sin reiniciar.
+| Variable | Por defecto | Qué hace | Panel |
+| --- | --- | --- | --- |
+| `EVEY_SMTP_HOST` | vacío | El servidor de correo. Vacío: no se envía ningún correo. | Configuración del servidor → Correo / SMTP → **Host SMTP**, inmediato |
+| `EVEY_SMTP_PORT` | `587` | Su puerto. | misma tarjeta → **Puerto**, inmediato |
+| `EVEY_SMTP_USERNAME` | vacío | La cuenta con la que se inicia sesión. | misma tarjeta → **Nombre de usuario**, inmediato |
+| `EVEY_SMTP_PASSWORD` | vacío | Su contraseña. | misma tarjeta, inmediato |
+| `EVEY_SMTP_FROM` | vacío | La dirección del remitente, por ejemplo `noreply@example.com`. | misma tarjeta, inmediato |
+| `EVEY_SMTP_TLS` | `starttls` | `starttls`, `ssl` o `none`. | misma tarjeta, inmediato |
 
-## Push del navegador
+## Notificaciones push del navegador
 
-| Variable | Por defecto | Efecto |
-| --- | --- | --- |
-| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | generadas | El par de claves que firma las notificaciones push. Si no están, el servidor genera uno en el primer arranque y lo guarda en la base de datos; defínelas solo para conservar un par que ya usas. |
-| `VAPID_SUBJECT` | `mailto:admin@localhost` | La dirección de contacto que ven los servicios de push. |
+| Variable | Por defecto | Qué hace | Panel |
+| --- | --- | --- | --- |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | generadas | El par de claves que firma las notificaciones push. Si no están, el servidor genera un par en el primer arranque y lo guarda en la base de datos; defínelas solo para conservar un par que ya usas, y siempre las dos: una sola desactiva las notificaciones push con un aviso. | ninguno |
+| `VAPID_SUBJECT` | `mailto:admin@localhost` | La dirección de contacto que ven los servicios de notificaciones push. | ninguno |
+
+<!-- sources
+internal/config/config.go - EVEY_SMTP_*, VAPID_* ; WarnValidate (one VAPID key alone)
+SMTP card wins, env fallback: internal/app/config/smtp.go ResolveSMTPSettings ; i18n admin.serverConfig.emailSmtp, smtpHost, port, smtpUsername
+vapid generation: cmd/evey/wire_helpers.go - resolveVAPIDKeys (vapid.public_key / vapid.private_key)
+-->
