@@ -1,63 +1,64 @@
 ---
-source_sha: fffc05516a2ca96d615a64bc159a1b837a7601876648b7e40b6167296b59f1d5
-reviewed: false
+source_sha: be2352babc32903dbb0a839c8c6754b1f9c0751d295a958a65e2ab12031c037e
+reviewed: true
 ---
 # Despliegues avanzados
 
-La [instalación en un solo contenedor](../installation.md) sirve para la mayoría
-de los servidores. Esta página cubre las disposiciones que puede preferir quien
-administra el servidor: la base de datos o el motor de búsqueda como servicios
-aparte, los equipos ARM, las variantes de la imagen y el sandbox de plugins en
-equipos poco habituales. Para ejecutar Evey sin Docker, consulta
+La [instalación en un solo contenedor](../installation.md) sirve para la
+mayoría de los servidores. Abre esta página si quieres la base de datos o el
+motor de búsqueda como servicios aparte, si el equipo es ARM, si necesitas
+una variante de la imagen, o si el sandbox de plugins indica algo distinto de
+`landlock`. Para usar Evey sin Docker, consulta
 [Sin contenedor](../deployment-bare-metal.md).
 
 ## La base de datos integrada
 
-El clúster de la base de datos vive en `./evey-data/postgres` (Postgres 17,
-creado en el primer arranque, propiedad del usuario del servidor). Solo escucha
-en el loopback del contenedor y exige la contraseña generada, así que un plugin
-que se ejecuta con otro usuario no puede abrirla. `docker stop` la apaga
-limpiamente después de que el servidor haya cerrado sus conexiones.
+El clúster vive en `./evey-data/postgres` (Postgres 17, creado en el primer
+arranque y propiedad del usuario del servidor). Solo escucha en la interfaz
+local del contenedor y exige la contraseña generada, así que un plugin que se
+ejecuta con otro usuario no puede abrirlo. `docker stop` lo apaga limpiamente
+después de que el servidor haya cerrado sus conexiones.
 
-El directorio de datos debe estar en un sistema de archivos local (ext4, btrfs,
-xfs...), no en un recurso compartido SMB/CIFS o NFS.
-
-Para abrir un shell SQL:
+La carpeta de datos tiene que estar en un sistema de archivos local (ext4,
+btrfs, xfs...), no en una carpeta compartida SMB/CIFS o NFS. Para abrir una
+consola SQL:
 
 ```bash
 docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-### Actualización mayor de Postgres
+### Pasar a una versión mayor más reciente de Postgres
 
-La imagen fija la versión mayor del Postgres integrado (17). Una imagen con una
-versión mayor más reciente se niega a abrir el clúster antiguo, con un mensaje
-que remite aquí, en lugar de ejecutar un directorio de datos que no puede leer.
-El camino es un volcado con la imagen antigua y una restauración con la nueva:
+La imagen fija la versión mayor de la base de datos integrada. Una imagen que
+trae una versión mayor más reciente se niega a abrir el clúster antiguo, con
+un mensaje que remite a esta sección, en lugar de usar una carpeta de datos
+que no sabe leer. El camino es un volcado con la imagen antigua y una
+restauración con la nueva:
 
 ```bash
 docker compose exec evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_dump -h 127.0.0.1 -U evey -Fc evey' > evey-before-upgrade.dump
 docker compose down
-mv evey-data/postgres evey-data/postgres.old      # consérvalo hasta verificar la restauración
+mv evey-data/postgres evey-data/postgres.old      # consérvalo hasta comprobar la restauración
 # pon la nueva etiqueta de imagen en el archivo compose y después:
 docker compose up -d                              # crea un clúster vacío con la nueva versión mayor
 docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_restore -h 127.0.0.1 -U evey -d evey --no-owner' < evey-before-upgrade.dump
 docker compose restart evey
 ```
 
-## Postgres externo
+## Usar Postgres como servicio aparte
 
-Para gestionar tú mismo el ciclo de vida de la base de datos (un Postgres
-gestionado, una versión mayor fijada, tu propia política de volcados), ejecútala
-como un servicio aparte y apunta el servidor a ella. **Definir `EVEY_DB_HOST` es
-lo que desactiva la base de datos integrada.**
+Para gestionar tú mismo la vida de la base de datos (un Postgres gestionado,
+una versión mayor fijada, tu propia política de volcados), ejecútala como un
+servicio aparte e indícale al servidor dónde está. Definir `EVEY_DB_HOST` es
+lo que desactiva la base de datos integrada. El servidor se niega a arrancar
+con la contraseña por defecto `evey`.
 
 === "docker-compose.yml"
 
     ```yaml
     services:
       evey:
-        # ... como en el archivo de contenedor único, más:
+        # ... como en el archivo de un solo contenedor, más:
         environment:
           EVEY_DB_HOST: postgres
           EVEY_DB_SSLMODE: disable          # red interna, sin TLS
@@ -84,14 +85,15 @@ lo que desactiva la base de datos integrada.**
 === ".env"
 
     ```env
-    EVEY_DB_PASSWORD=<strong-password>   # el servidor se niega a arrancar con el valor por defecto 'evey'
+    EVEY_DB_PASSWORD=<strong-password>
     ```
 
-## Meilisearch externo
+## Usar Meilisearch como servicio aparte
 
-El mismo principio para el motor de búsqueda: desactiva el integrado, apunta el
-servidor al tuyo y comparte la clave. Un `MEILI_MASTER_KEY` explícito prevalece
-sobre el `./evey-data/keys/meili.key` generado.
+El mismo principio sirve para el motor de búsqueda: desactiva el integrado,
+indícale al servidor dónde está el tuyo y comparte la clave. Un
+`MEILI_MASTER_KEY` explícito tiene prioridad sobre la clave generada
+`./evey-data/keys/meili.key`.
 
 === "docker-compose.yml"
 
@@ -126,16 +128,17 @@ sobre el `./evey-data/keys/meili.key` generado.
     MEILI_MASTER_KEY=<run: openssl rand -hex 16>
     ```
 
-El índice se reconstruye a partir de la base de datos (`evey admin reindex-search`),
-así que `meili-data` siempre se puede descartar.
+El índice de búsqueda se reconstruye a partir de la base de datos con
+`docker exec evey-server evey admin reindex-search`, así que siempre puedes
+borrar `meili-data`.
 
-## Pasar a la base de datos integrada
+## Volver a la base de datos integrada
 
-Una instalación que ejecuta Postgres como servicio aparte puede pasar al
-contenedor único. La base de datos integrada importa una vez un volcado que
-encuentra en `./evey-data/postgres-import.sql.gz`, en el clúster que crea en su
-primer arranque, antes de que arranque el servidor; las migraciones del servidor
-se aplican después encima.
+Una instalación que usa Postgres como servicio aparte puede pasar al
+contenedor único. La base de datos integrada importa una sola vez el volcado
+que encuentre en `./evey-data/postgres-import.sql.gz`, dentro del clúster que
+crea en su primer arranque y antes de que arranque el servidor. Después, las
+migraciones del servidor se aplican encima.
 
 ```bash
 # 1. vuelca la base de datos actual (SQL plano, comprimido con gzip)
@@ -143,10 +146,10 @@ docker compose exec -T postgres pg_dump -U evey --no-owner --no-privileges evey 
   | gzip > evey-data/postgres-import.sql.gz
 docker compose down
 
-# 2. sustituye el archivo compose por el de contenedor único, conservando tus
-#    carpetas de medios, los ajustes del proxy inverso y las líneas de hardware.
+# 2. sustituye el archivo compose por el de un solo contenedor, conservando
+#    tus carpetas de medios, los ajustes del proxy inverso y las líneas de hardware.
 
-# 3. primer arranque: crear el clúster, importar, migrar, arrancar el servidor
+# 3. primer arranque: crea el clúster, importa, migra y arranca el servidor
 docker compose up -d && docker compose logs -f evey     # "evey: import done"
 
 # 4. el índice de un Meilisearch externo no se traslada: reconstrúyelo
@@ -154,55 +157,70 @@ docker exec evey-server evey admin reindex-search
 ```
 
 `EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY` y los ajustes `EVEY_DB_HOST` /
-`EVEY_MEILI_URL` ya no son necesarios. Conserva `./postgres-data` hasta haber
-comprobado el servidor. Un volcado dejado junto a un clúster existente se indica
-y se ignora, nunca se fusiona; una importación fallida descarta el clúster nuevo
-para que el siguiente arranque lo reintente.
+`EVEY_MEILI_URL` ya no hacen falta. Conserva `./postgres-data` hasta haber
+comprobado el servidor. Un volcado dejado junto a un clúster que ya existe se
+señala y se ignora, nunca se mezcla. Si la importación falla, el clúster nuevo
+se descarta para que el siguiente arranque vuelva a intentarlo desde el
+volcado.
 
 ## Equipos ARM
 
-Las imágenes construidas desde una etiqueta de versión (`0.2.0`, incluidas las
-versiones previas como `0.2.0-beta.1`) son multiarquitectura (`linux/amd64` y
-`linux/arm64`); Docker elige la correcta. Las etiquetas de rama como
-`beta-0.0.1` son solo amd64: fija una etiqueta de versión en un equipo ARM.
+Las imágenes construidas a partir de una etiqueta de versión (`0.2.0`,
+incluidas las versiones previas como `0.2.0-beta.1`) son multiarquitectura
+(`linux/amd64` y `linux/arm64`): Docker elige la adecuada. Las etiquetas de rama
+como `beta-0.0.1` son solo amd64: en un equipo ARM, fija una etiqueta de
+versión.
 
-- **La transcodificación por hardware en ARM** se limita a los SoC Rockchip
-  (clase RK3588, RK3576, RK3568) mediante RKMPP. Pasa `/dev/mpp_service`,
-  `/dev/dri` y, cuando el kernel lo expone, `/dev/rga`; Evey sondea y mide el
-  codificador antes de usarlo. El proyecto aún no ha validado RKMPP en hardware
-  real. Una Raspberry Pi o un NAS ARM basado en Realtek no tiene ningún
-  codificador por hardware que Evey pueda usar: esos servidores se apoyan en la
-  Reproducción directa y en la transcodificación por software, dimensionadas por
-  la misma calibración que cualquier otro equipo.
-- **El mapeo de tonos HDR** usa en ARM (NEON) el mismo filtro SIMD `tonemapx` que
-  en x86-64 (AVX2).
+- **La transcodificación por hardware en ARM** se limita a los chips Rockchip
+  (de la clase RK3588, RK3576, RK3568) a través de RKMPP. Da acceso a
+  `/dev/mpp_service`, `/dev/dri` y, si el kernel lo expone, `/dev/rga`; el
+  servidor prueba y mide el codificador antes de usarlo. El proyecto todavía
+  no ha validado RKMPP en hardware real. Una Raspberry Pi o un NAS ARM con
+  chip Realtek no tiene ningún codificador por hardware que el servidor pueda
+  usar: esos equipos dependen de la reproducción directa y de la
+  transcodificación por software, dimensionadas con la misma calibración que
+  cualquier otro equipo.
+- **El mapeo de tonos HDR** usa el mismo filtro SIMD `tonemapx` en ARM (NEON)
+  que en x86-64 (AVX2).
 
-## Etiquetas de imagen
+## Etiquetas y variantes de la imagen
 
 La imagen es `eveyproject/evey`.
 
-- Las etiquetas de versión `vX.Y.Z` publican `X.Y.Z`, `X.Y`, `X` y `latest`.
-  `latest` es siempre la versión estable más reciente: una versión previa
-  (`vX.Y.Z-beta.N`) solo publica su propia etiqueta y nunca mueve `latest`.
-- Las compilaciones de rama publican el nombre de la rama (por ejemplo
-  `beta-0.0.1`) y `sha-<commit>`.
-- **Entornos de ejecución de plugins.** La imagen por defecto incluye Python 3
-  para los plugins. La variante `-nodejs` añade Node.js; `-full` añade PHP, Ruby
-  y Lua. Usa una variante solo si un plugin que instalas la necesita.
-- **Familias de GPU.** Las imágenes publicadas llevan los controladores de todas
-  las generaciones Intel y AMD compatibles. Una imagen compilada por ti puede
-  conservar solo una con `docker build --build-arg GPU=intel-legacy .` (Intel Gen9
-  a Gen11), `GPU=intel` (Gen12 y posteriores), `GPU=amd` o `GPU=none`. NVIDIA no
-  necesita variante: el NVIDIA Container Toolkit inyecta el controlador del
-  equipo al ejecutar.
+| Etiqueta | Publicada por | Notas |
+|---|---|---|
+| `X.Y.Z`, `X.Y`, `X`, `latest` | una etiqueta de versión `vX.Y.Z` | `latest` es siempre la versión estable más reciente |
+| `X.Y.Z-beta.N` | una etiqueta de versión previa | solo publica su propia etiqueta, nunca mueve `latest` |
+| `beta-0.0.1`, `sha-<commit>` | una compilación de rama | solo amd64 |
 
-## Sandbox de plugins
+Cada etiqueta existe en tres variantes: la variante por defecto incluye
+Python 3 para los plugins, `-nodejs` añade Node.js y `-full` añade PHP, Ruby y
+Lua (por ejemplo `latest-full`). Usa una variante solo si un plugin la
+necesita: el instalador rechaza un plugin cuyo lenguaje declarado falta en la
+imagen, con un mensaje que indica la variante correcta.
+
+Las imágenes publicadas llevan los controladores de todas las generaciones
+Intel y AMD compatibles. Una imagen que construyas tú puede quedarse con una
+sola familia con `docker build --build-arg GPU=intel-legacy .` (Intel de Gen9
+a Gen11), `GPU=intel` (Gen12 y posteriores), `GPU=amd` o `GPU=none`. NVIDIA no
+necesita variante: el NVIDIA Container Toolkit inyecta el controlador del
+equipo al ejecutar el contenedor.
+
+## El sandbox de plugins en un equipo poco habitual
 
 La imagen contiene todo lo necesario para confinar los plugins, sin modo
-privilegiado. El modo de sandbox por defecto (`auto`) elige el backend más fuerte
-que permite el equipo: Landlock en cualquier kernel moderno. Comprueba el modo
-realmente activo en el **Panel de seguridad** de **Admin → Plugins**. Un equipo
-que muestra `basic` no puede aislar el acceso de los plugins a los archivos:
-consulta [Configurar el sandbox de plugins](../plugins/sandbox-deployment.md)
-para saber qué significa y qué cambiar. Las capas en sí se describen en
-[Modelo de seguridad y sandbox de plugins](../SECURITY.md).
+privilegiado. El modo de sandbox por defecto (`auto`) elige el mecanismo más
+fuerte que permite el equipo: Landlock en cualquier kernel moderno. Comprueba
+el modo activo en el **Panel de seguridad** de **Administración -> Plugins**.
+Un equipo que muestra `basic` no puede aislar el acceso de los plugins a los
+archivos: [Configurar el sandbox de plugins](../plugins/sandbox-deployment.md)
+explica lo que eso significa y qué cambiar. Las capas en sí se describen en
+[Sandbox de plugins y modelo de amenazas](../SECURITY.md).
+
+<!-- sources
+embedded db, import, major upgrade, embedded meili: docker/entrypoint.sh (PG_MAJOR, PG_IMPORT, "evey: import done", EVEY_EMBEDDED_MEILI, MEILI_MASTER_KEY_FILE)
+external db switch and default password refusal: internal/config/config.go (EVEY_DB_HOST, hardFail on "evey")
+reindex: cmd/evey/admin.go - adminReindexSearch
+arm, variants, GPU families: Dockerfile (TARGETARCH, RUNTIMES, GPU) ; .github/workflows/ci.yml (tags, flavor suffix, platforms) ; internal/adapters/driven/ffmpeg/hwdetect.go - detectRKMPP
+sandbox auto: internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; i18n/en/admin.yaml - plugins.security.title
+-->
