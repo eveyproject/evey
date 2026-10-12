@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -294,9 +295,48 @@ func bitrateBands(candidates []MediaCandidate) (band []string, floors []int64) {
 // of the library. Each slot goes to the band furthest behind its share. It
 // returns the order, each band's count and the band floors in bit/s.
 func representativeDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandidate, map[string]int, []int64) {
+	return representativeDrawOnDisks(candidates, nil, seed)
+}
+
+// representativeDrawOnDisks is representativeDraw that also keeps each disk to
+// its share: disks[i] names the disk candidates[i] is read from ("" unknown),
+// and every prefix of viewers holds each (disk, bitrate band) pair in its
+// share of the library. A plain bitrate draw held the heavy files' share
+// overall but could stack them on one disk of a pool and saturate it while
+// the others idled (measured 2026-10-12: sda at 97 %, the others under 12 %).
+// A disk that holds most of the heavy files still carries most of them: the
+// draw follows the library, it cannot spread what the library does not.
+func representativeDrawOnDisks(candidates []MediaCandidate, disks []string, seed uint64) ([]MediaCandidate, map[string]int, []int64) {
 	bands, floors := bitrateBands(candidates)
-	out, counts := stratifiedDraw(candidates, bands, seed)
+	counts := make(map[string]int, 5)
+	classes := make([]string, len(candidates))
+	for i, b := range bands {
+		counts[b]++
+		classes[i] = b
+		if i < len(disks) && disks[i] != "" {
+			classes[i] = disks[i] + "|" + b
+		}
+	}
+	out, _ := stratifiedDraw(candidates, classes, seed)
 	return out, counts, floors
+}
+
+// diskKeys names the disk each candidate is read from: its branch on a
+// mergerfs pool (branchOf), else the device it sits on; "" when unknown.
+func diskKeys(candidates []MediaCandidate, branchOf func(string) string) []string {
+	keys := make([]string, len(candidates))
+	for i, c := range candidates {
+		if branchOf != nil {
+			if br := branchOf(c.Path); br != "" {
+				keys[i] = br
+				continue
+			}
+		}
+		if dev, ok := diskOf(c.Path); ok {
+			keys[i] = strconv.FormatUint(dev, 10)
+		}
+	}
+	return keys
 }
 
 // costDraw is representativeDraw for viewers the server ENCODES: what such a

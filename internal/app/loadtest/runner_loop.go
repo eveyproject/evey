@@ -71,7 +71,13 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	// Each viewer type draws on its own: a direct viewer by bitrate (what it
 	// pulls off the disk and the line), an encoded one by codec, height and
 	// dynamic range (what it costs the encoder).
-	drawn, mix, floors := representativeDraw(candidates, seed)
+	// Where the library lives decides what the storage instruments can see.
+	storageFS, storageOpaque := libraryStorage(candidates, r.mountFSType)
+	var branchOf func(string) string
+	if storageOpaque {
+		branchOf = mergerfsBranchOf
+	}
+	drawn, mix, floors := representativeDrawOnDisks(candidates, diskKeys(candidates, branchOf), seed)
 	floorsMbps := make([]float64, len(floors))
 	for i, f := range floors {
 		floorsMbps[i] = float64(f/100_000) / 10
@@ -86,8 +92,6 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		viewerTypeTranscode: encoded,
 	}, cfg.MaxDuration)
 
-	// Where the library lives decides what the storage instruments can see.
-	storageFS, storageOpaque := libraryStorage(candidates, r.mountFSType)
 	if storageOpaque {
 		r.logger.Warn("loadtest: the library sits on a mount this kernel cannot account for - the disk counter will not see its reads, cache eviction stops at the mount, a pool counts as one disk",
 			"fs_types", storageFS)
