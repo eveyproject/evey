@@ -218,9 +218,9 @@ func (r *Runner) resolveClientMix(ctx context.Context, cfg Config) (Config, erro
 	return cfg, nil
 }
 
-// logWindowStats logs what the run added to the packager's counters. A plan
-// the cache let go during the run takes its counts with it, so this is a
-// floor, and "plans" says how many plans were summed at the end.
+// logWindowStats logs what the run added to the packager's counters. The
+// packager keeps the counts of the plans its cache let go, so the difference
+// is the run's own; "plans" says how many plans the cache held at the end.
 func (r *Runner) logWindowStats(before, after map[string]int64) {
 	keys := make([]string, 0, len(after))
 	for k := range after {
