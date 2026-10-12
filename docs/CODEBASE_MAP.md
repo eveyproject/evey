@@ -29,6 +29,7 @@ cmd/evey/wire.go                 composition root: EVERYTHING is wired here
 
 Frontend mirror: `frontend/apps/web` (React 19 + TanStack Router + Tailwind
 tokens), `apps/mobile` (Expo/React Native), `apps/tv` (react-native-tvos),
+`apps/tv-web` (React + Vite, the TV browser client served under `/tv`),
 `packages/api` (orval-generated client from the gateway OpenAPI - regenerate
 with `pnpm generate` in that package, run inside the `evey-web` container).
 

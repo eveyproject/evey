@@ -49,7 +49,7 @@ Multi-arch (`amd64` + `arm64`) on release tags. Branch builds are `amd64` only.
 
 ## What is in the box
 
-- Web app, Android app, Android TV app, Chromecast receiver.
+- Web app, Android app, Android TV app, a TV browser client under `/tv`, Chromecast receiver.
 - Direct play, remux and transcode decided once per file, HLS with a cached, fingerprinted plan.
 - MKV media health: a verdict per file, in-place repair of broken seek indexes.
 - Profiles with a PIN-gated parental control enforced server-side.

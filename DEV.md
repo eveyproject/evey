@@ -45,6 +45,7 @@ frontend/
   apps/web/            React 19 + Vite + TanStack Router/Query + Tailwind v4
   apps/mobile/         Expo 55 + React Native (Android)
   apps/tv/             Expo 55 + React Native TVOS (Android TV)
+  apps/tv-web/         React 19 + Vite + hls.js, the TV browser client served under /tv
   packages/api/        Generated API client (orval)
   packages/client/     Hooks and logic shared by web, mobile and TV (platform-free)
   packages/theme/      Shared CSS variables
