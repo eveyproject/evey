@@ -1212,6 +1212,21 @@ loadtest:
     cancelled: "已取消。"
     tokenExpired: "会话已过期 - 请重新登录后再试。"
     error: "发生错误，测试提前中止。"
+  cause:
+    http410: "原因：服务器在{{what}}上返回 410（\"文件已被替换\"）。这是服务器错误，不是机器的极限。"
+    httpStatus: "原因：服务器在{{what}}上返回 {{status}}。这是服务器错误，不是机器的极限。"
+    disk: "原因：磁盘 {{device}} 有 {{util}} % 的时间处于繁忙状态（每次读取 {{wait}} ms），其他磁盘最多 {{others}} %。瓶颈就是这块磁盘。"
+    diskAlone: "原因：磁盘 {{device}} 有 {{util}} % 的时间处于繁忙状态（每次读取 {{wait}} ms）。瓶颈就是这块磁盘。"
+    cpu: "原因：CPU 达到 {{peak}} %。瓶颈就是它。"
+    nothingSaturated: "原因：机器没有任何资源饱和（CPU 最高 {{cpu}} %，磁盘最高 {{disk}} %）。延迟来自别处：播放计划的构建、共享存储、网络或代理。"
+    nothingSaturatedNoDisks: "原因：CPU 未超过 {{cpu}} %，且服务器看不到磁盘。延迟来自存储、网络或代理。"
+    request:
+      master: "主播放列表"
+      variant: "视频播放列表"
+      segment: "分段"
+      rawFile: "原始文件"
+      streamInfo: "播放模式请求"
+      other: "一个请求"
 calibration:
   av1Label: "AV1 输出"
   av1Hint: "在客户端支持时编码为 AV1 - 压缩率更高。仅硬件；软件 AV1 从不用于流式传输。"

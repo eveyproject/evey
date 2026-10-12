@@ -1212,6 +1212,21 @@ loadtest:
     cancelled: "Abgebrochen."
     tokenExpired: "Sitzung abgelaufen - erneut anmelden und Test wiederholen."
     error: "Ein Fehler hat den Test vorzeitig beendet."
+  cause:
+    http410: "Ursache: Der Server hat auf {{what}} mit 410 (\"Datei ersetzt\") geantwortet. Das ist ein Serverfehler, keine Grenze der Maschine."
+    httpStatus: "Ursache: Der Server hat auf {{what}} mit {{status}} geantwortet. Das ist ein Serverfehler, keine Grenze der Maschine."
+    disk: "Ursache: Die Festplatte {{device}} war {{util}} % der Zeit ausgelastet ({{wait}} ms pro Lesevorgang), die anderen höchstens {{others}} %. Sie ist die Grenze."
+    diskAlone: "Ursache: Die Festplatte {{device}} war {{util}} % der Zeit ausgelastet ({{wait}} ms pro Lesevorgang). Sie ist die Grenze."
+    cpu: "Ursache: Die CPU hat {{peak}} % erreicht. Sie ist die Grenze."
+    nothingSaturated: "Ursache: Keine Ressource der Maschine war ausgelastet (CPU höchstens {{cpu}} %, Festplatten höchstens {{disk}} %). Die Verzögerung kommt von anderswo: Aufbau der Wiedergabepläne, gemeinsamer Speicher, Netzwerk oder Proxy."
+    nothingSaturatedNoDisks: "Ursache: Die CPU blieb unter {{cpu}} % und die Festplatten sind vom Server aus nicht sichtbar. Die Verzögerung kommt vom Speicher, vom Netzwerk oder vom Proxy."
+    request:
+      master: "die Hauptplaylist"
+      variant: "die Videoplaylist"
+      segment: "die Segmente"
+      rawFile: "die Originaldatei"
+      streamInfo: "die Abfrage des Wiedergabemodus"
+      other: "eine Anfrage"
 calibration:
   av1Label: "AV1-Ausgabe"
   av1Hint: "In AV1 codieren, wenn ein Client es unterstützt - bessere Kompression. Nur Hardware; Software-AV1 wird nie für Streaming verwendet."

@@ -1212,6 +1212,21 @@ loadtest:
     cancelled: "Cancelado."
     tokenExpired: "Sesión expirada - vuelve a iniciar sesión e inténtalo de nuevo."
     error: "Un error detuvo la prueba antes de tiempo."
+  cause:
+    http410: "Causa: el servidor respondió 410 (\"archivo reemplazado\") en {{what}}. Es un error del servidor, no un límite de la máquina."
+    httpStatus: "Causa: el servidor respondió {{status}} en {{what}}. Es un error del servidor, no un límite de la máquina."
+    disk: "Causa: el disco {{device}} estuvo ocupado el {{util}} % del tiempo ({{wait}} ms por lectura), los demás como máximo el {{others}} %. Ese disco es el límite."
+    diskAlone: "Causa: el disco {{device}} estuvo ocupado el {{util}} % del tiempo ({{wait}} ms por lectura). Ese disco es el límite."
+    cpu: "Causa: la CPU llegó al {{peak}} %. Ese es el límite."
+    nothingSaturated: "Causa: ningún recurso de la máquina estaba saturado (CPU como máximo {{cpu}} %, discos como máximo {{disk}} %). El retraso viene de otra parte: construcción de los planes de reproducción, almacenamiento compartido, red o proxy."
+    nothingSaturatedNoDisks: "Causa: la CPU no superó el {{cpu}} % y los discos no son visibles desde el servidor. El retraso viene del almacenamiento, la red o el proxy."
+    request:
+      master: "la lista principal"
+      variant: "la lista del vídeo"
+      segment: "los segmentos"
+      rawFile: "el archivo original"
+      streamInfo: "la consulta del modo de reproducción"
+      other: "una petición"
 calibration:
   av1Label: "Salida AV1"
   av1Hint: "Codificar en AV1 cuando un cliente lo admite - mejor compresión. Solo hardware; el AV1 por software nunca se usa para streaming."

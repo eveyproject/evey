@@ -14,6 +14,7 @@ import {
   LOAD_TEST_QUERY_KEY,
   LOAD_TEST_URL,
   STOP_REASON_KEYS,
+  stopCause,
   clientMixScenario,
   scenarioNoun,
   servedPathLines,
@@ -220,6 +221,7 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
   const [showDetails, setShowDetails] = useState(false);
 
   const isBottleneck = report.stopReason ? BOTTLENECK_REASONS.includes(report.stopReason) : false;
+  const cause = stopCause(report);
 
   return (
     <View style={{ gap: 6, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }}>
@@ -232,6 +234,11 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
       <Text style={{ color: isBottleneck ? theme.colors.text : theme.colors.textMuted, fontSize: 14, fontWeight: isBottleneck ? "600" : "400" }}>
         {t((report.stopReason && STOP_REASON_KEYS[report.stopReason]) ?? "admin.loadtest.stopReason.error")}
       </Text>
+      {cause && (
+        <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>
+          {String(t(cause.key, { ...cause.params, what: cause.whatKey ? String(t(cause.whatKey)) : "" }))}
+        </Text>
+      )}
       {report.stopReason === "max_viewers" && (
         <Text style={s.hint}>{t("admin.loadtest.noBottleneckHint", "Aucune ressource n'a cédé : le plafond est ailleurs.")}</Text>
       )}
