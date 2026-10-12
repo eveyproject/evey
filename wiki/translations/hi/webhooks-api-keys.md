@@ -1,64 +1,100 @@
 ---
-source_sha: f8b9121424daaf442c366f75a6973b21de77d280d45f2cb7e7dadab38b7328be
-reviewed: false
+source_sha: 09be615f048b42a5c91430ee4558b2bc906d1e19a1f0c51eb2577ffa9d579533
+reviewed: true
 ---
 # वेबहुक और API कुंजियाँ
 
-प्लगइन लिखे बिना Evey को दूसरे उपकरणों से जोड़ने के दो तरीक़े: वेबहुक Evey के इवेंट आपके किसी URL पर भेजते हैं, API कुंजियाँ आपकी स्क्रिप्ट को Evey बुलाने देती हैं।
+प्लगइन लिखे बिना Evey को दूसरे टूल से जोड़ने के दो तरीके: वेबहुक सर्वर के event
+आपके किसी URL पर भेजता है, और API कुंजी किसी script को आपकी तरह सर्वर को कॉल करने
+देती है। दोनों एडमिन पैनल में एडमिन बनाता है; यह पेज उस व्यक्ति के लिए है जो इन्हें
+सेट करता है, और उसके लिए जो receiver या script लिखता है।
 
-## वेबहुक
+## event किसी URL पर भेजें
 
-**Admin → Webhooks → Webhook बनाएं**: एक नाम, एक URL, भेजने वाले इवेंट, और एक वैकल्पिक सीक्रेट। **परीक्षण** एक पिंग भेजता है और जवाब बताता है।
+**एडमिन → Webhooks → Webhook बनाएं**: एक **नाम**, एक **URL**, भेजे जाने वाले
+**इवेंट**, और सिग्नेचर के लिए एक वैकल्पिक **सीक्रेट**। **परीक्षण** एक ping भेजता है
+और जवाब बताता है।
 
 <figure class="evey-shot" markdown="span">
-  ![Admin → Webhooks में एक वेबहुक](images/admin-webhooks.webp){ loading=lazy }
-  <figcaption>हर प्लेबैक की शुरुआत और अंत भेजने वाला वेबहुक (इंटरफ़ेस अंग्रेज़ी में)।</figcaption>
+  ![एडमिन → Webhooks में एक वेबहुक](images/admin-webhooks.webp){ loading=lazy }
+  <figcaption>हर प्लेबैक की शुरुआत और अंत भेजने वाला एक वेबहुक (स्क्रीन अंग्रेज़ी में)।</figcaption>
 </figure>
 
-**इवेंट।** वेबहुक सभी इवेंट या एक चुनी गई सूची की सदस्यता लेता है। इवेंट सर्वर के अपने हैं, उदाहरण के लिए:
+**इवेंट।** वेबहुक **सभी इवेंट** सुन सकता है, या चुनी हुई एक सूची। फ़ॉर्म हर वह
+event दिखाता है जो सर्वर प्रकाशित करता है; उनमें से कुछ:
 
-| क्षेत्र | इवेंट |
+| हिस्सा | इवेंट |
 | --- | --- |
-| लाइब्रेरी | `library.scan.started`, `library.scan.completed`, `media.item.added`, `media.item.updated`, `media.item.removed` |
+| लाइब्रेरी | `library.scan.started`, `library.scan.completed`, `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
 | प्लेबैक | `playback.started`, `playback.stopped`, `media.marked.watched`, `transcode.started`, `transcode.failed` |
-| खाते | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created` |
+| खाते | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created`, `user.apikey.created` |
 | अनुरोध | `media.request.created`, `media.request.answered` |
-| सर्वर | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed` |
+| सर्वर | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed`, `transcoding.derived_cache_full` (सबटाइटल स्टोर अपनी खाली जगह की सीमा से नीचे) |
 
-**डिलीवरी।** हर इवेंट एक JSON `POST` है। इसके साथ दो हेडर आते हैं:
+जो प्लगइन `EmitEvent` कॉल करता है, वह `plugin.event.<type>` प्रकाशित करता है, जो
+**सभी इवेंट** वाले वेबहुक को भी मिलता है।
 
-- `X-Evey-Delivery`: एक पहचानकर्ता जो एक डिलीवरी की बार-बार कोशिशों में वही रहता है, ताकि आपका रिसीवर दोहराव को अनदेखा कर सके;
-- `X-Evey-Signature`: `sha256=` के बाद वेबहुक के सीक्रेट से गणना किया गया बॉडी का HMAC-SHA256। यह जानने के लिए कि अनुरोध आपके सर्वर से आया है, इसे उसी सीक्रेट से जाँचें। सीक्रेट के बिना हस्ताक्षर कुछ साबित नहीं करता।
+**भेजना।** हर event एक JSON `POST` है, दो header के साथ:
 
-विफल डिलीवरी 1, 5 और 30 सेकंड बाद फिर से आज़माई जाती है। हर कोशिश वेबहुक के डिलीवरी लॉग में दर्ज होती है।
+- `X-Evey-Delivery`: एक पहचान जो एक ही भेजने की सारी कोशिशों में एक जैसी रहती है,
+  ताकि आपका receiver दोहराव को अनदेखा कर सके;
+- `X-Evey-Signature`: `sha256=` और उसके बाद body का HMAC-SHA256, जो वेबहुक के
+  सीक्रेट से निकाला गया है। इसे उसी सीक्रेट से जाँचें, ताकि पता रहे कि request आपके
+  सर्वर से आया है। सीक्रेट के बिना सिग्नेचर कुछ साबित नहीं करता।
 
-**केवल सार्वजनिक पते।** वेबहुक URL `http` या `https` होना चाहिए और किसी सार्वजनिक पते की ओर इशारा करना चाहिए। निजी और स्थानीय पते (`192.168.x.x`, `10.x.x.x`, `localhost`, ऐसा कंटेनर नाम जो इनमें से किसी पर हल हो) मना होते हैं, वेबहुक सहेजते समय और फिर सर्वर के कनेक्ट करते समय। यह सर्वर को आपके आंतरिक नेटवर्क तक पहुँचने के लिए इस्तेमाल होने से बचाता है; आपके स्थानीय नेटवर्क पर रिसीवर को एक सार्वजनिक पता या रिले चाहिए।
+हर कोशिश जवाब के लिए 30 सेकंड तक रुकती है। फ़ेल होने पर 1, 5 और 30 सेकंड बाद फिर
+कोशिश होती है। हर कोशिश दर्ज होती है; इतिहास API से पढ़ा जाता है
+([प्लगइन API](api/plugins/README.md) में `ListWebhookDeliveries`), पैनल में नहीं।
 
-## API कुंजियाँ
+!!! warning "सिर्फ़ सार्वजनिक पते"
+    वेबहुक का URL `http` या `https` होना चाहिए और किसी सार्वजनिक पते की ओर होना
+    चाहिए। `localhost`, निजी और link-local पते (`192.168.x.x`, `10.x.x.x`,
+    `172.16.x.x`...), और ऐसा नाम जो इनमें से किसी पर पहुँचता हो, वेबहुक सहेजते समय
+    और फिर सर्वर के जुड़ते समय मना होते हैं। इससे सर्वर को आपके अंदरूनी नेटवर्क तक
+    पहुँचने के लिए इस्तेमाल नहीं किया जा सकता; आपके लोकल नेटवर्क पर receiver को
+    एक सार्वजनिक पता या एक relay चाहिए।
 
-API कुंजी किसी स्क्रिप्ट को बिना पासवर्ड के सर्वर API बुलाने देती है। कुंजियाँ **Admin → API कुंजियाँ** में एक एडमिन बनाता है, और वे उसी एडमिन की होती हैं।
+## script से सर्वर को कॉल करें
 
-- **कुंजी एक बार दिखाई जाती है**, बनाते समय। तभी इसे सहेजें; इसे फिर से नहीं दिखाया जा सकता, केवल रद्द किया जा सकता है।
-- **यह अपने मालिक की तरह काम करती है**, एडमिन अधिकारों के साथ, अपने दायरों के भीतर।
-- **दायरे** सीमित करते हैं कि कुंजी क्या कर सकती है:
+API कुंजी किसी script को बिना पासवर्ड के सर्वर API कॉल करने देती है। कुंजियाँ एडमिन
+**एडमिन → API कुंजियाँ → नई API कुंजी** में बनाता है, और वे उसी एडमिन की होती हैं।
 
-| दायरा | अनुमति देता है |
+- **कुंजी एक बार दिखती है**, जब बनाई जाती है। उसी समय उसे सहेज लें; वह फिर से नहीं
+  दिखाई जा सकती, सिर्फ़ **रद्द करें** से रद्द की जा सकती है।
+- **यह अपने मालिक की तरह काम करती है**, एडमिन के अधिकारों के साथ, अपने दायरे के
+  अंदर।
+- **दायरे (scope)** सीमित करते हैं कि कुंजी क्या कर सकती है:
+
+| दायरा | क्या करने देता है |
 | --- | --- |
-| `media:read` | मीडिया मेटाडेटा पढ़ना |
+| `media:read` | मीडिया का मेटाडेटा पढ़ना |
 | `media:write` | मीडिया बदलना और स्कैन शुरू करना |
 | `playback:read` | प्लेबैक की स्थिति और इतिहास पढ़ना |
-| `playback:write` | प्लेबैक और प्रगति नियंत्रित करना |
+| `playback:write` | प्लेबैक और प्रगति को नियंत्रित करना |
 | `users:read` | उपयोगकर्ता पढ़ना |
 | `users:write` | उपयोगकर्ता बदलना |
-| `admin:read` | प्रशासनिक गतिविधि और आँकड़े पढ़ना |
-| `admin:write` | प्रशासनिक सेटिंग्स बदलना |
+| `admin:read` | प्रशासन की गतिविधि और आँकड़े पढ़ना |
+| `admin:write` | प्रशासन की सेटिंग्स बदलना |
 
-**बिना किसी दायरे के बनी कुंजी के पास पूरी पहुँच होती है**, अपने मालिक की तरह: यह पुराना व्यवहार है, मौजूदा कुंजियों के लिए रखा गया। वे दायरे चुनें जिनकी स्क्रिप्ट को ज़रूरत है।
+बिना किसी दायरे के बनी कुंजी (**सभी (लेगेसी)**) के पास गैर-प्रशासनिक method पर
+पूरी पहुँच होती है, अपने मालिक की तरह, पर प्रशासन वाले method हमेशा अपना दायरा
+माँगते हैं: लेगेसी कुंजी उन तक नहीं पहुँच सकती। script को जिन दायरों की ज़रूरत है,
+वही चुनें।
 
-कुंजी `Authorization` हेडर में जाती है, `Bearer` के साथ या बिना:
+कुंजी `Authorization` header में जाती है, `Bearer` के साथ या उसके बिना:
 
 ```bash
 curl -H "Authorization: Bearer evey_..." https://media.example.com/api/v1/...
 ```
 
-कुंजी रद्द होते ही, या उसके मालिक के अक्षम होते ही, काम करना बंद कर देती है। एंडपॉइंट ख़ुद [सर्वर API](api/README.md) में सूचीबद्ध हैं।
+कुंजी रद्द होते ही, या उसका मालिक अक्षम होते ही, तुरंत काम करना बंद कर देती है।
+endpoint खुद [सर्वर API](api/README.md) में दिए गए हैं, पहचान के दूसरे तरीकों के
+साथ।
+
+<!-- sources
+form labels: i18n admin.webhooks.form.* (name, url, secret, events, allEvents), admin.webhooks.createWebhook, common.test, admin.webhooks.testPingSent
+event list: frontend/packages/client/src/lib/webhookEvents.ts - WEBHOOK_EVENT_TYPES ; EventName() in internal/domain ; plugin events: internal/adapters/driving/pluginhost/host_server.go - pluginEmittedEvent.EventName
+delivery, headers, timeout, retries, signature: internal/app/webhook/service.go - handleAny, attemptDeliver, sign, defaultRetryDelays, deliveryTimeout ; internal/domain/webhook/model.go - MatchesEvent ; history: proto/evey/v1/webhook.proto - ListWebhookDeliveries
+public addresses only: internal/pkg/urlvalidator/validator.go - ValidateWebhookURL, isPrivateIP ; internal/pkg/ssrf/dialer.go
+api keys: internal/adapters/driving/grpcapi/interceptors/auth.go - authenticateAPIKey (Bearer optional, evey_ prefix), authorize (admin methods always enforce the scope) ; internal/pkg/auth/rbac.go (scopes) ; rbac.go - CreateAPIKey RoleAdmin ; i18n auth.apiKeys.* (newKeyTitle, scopesAll, saveWarning, revoke)
+-->
