@@ -19,7 +19,7 @@ mehr.
 | Ein Film zeigt kein Bild, startet nicht oder bricht ab | **Stream-Info** im Player, dann **Verwaltung → Medienzustand** für diesen Titel | [Probleme bei der Wiedergabe](#playback-problems) unten |
 | Es ruckelt oder lädt ständig | **Verwaltung → Streaming-Qualität** (welche Titel und Geräte warten) und **Verwaltung → Systemzustand** (ist der Server zu ausgelastet) | [Transkodierung und Serverkapazität](../playback/transcoding.md) |
 | Falsches Poster, falscher Titel, oder ein Film wird nicht erkannt | **Metadaten bearbeiten** beim Titel | [Einen falschen oder fehlenden Titel korrigieren](../administration/libraries.md#fix-a-wrong-or-missing-title) |
-| Poster fehlen oder sind kaputt | **Verwaltung → Artwork-Cache** | [Bibliothek und Poster](#library-and-posters) unten |
+| Poster fehlen oder sind beschädigt | **Verwaltung → Artwork-Cache** | [Bibliothek und Poster](#library-and-posters) unten |
 | Neue Dateien erscheinen nicht | Das Scan-Ergebnis in der Zeile der Bibliothek unter **Verwaltung → Bibliotheken** | [Bibliothek und Poster](#library-and-posters) unten |
 | E-Mails kommen nicht an | **Test-E-Mail senden** unter **Verwaltung → Serverkonfiguration → E-Mail / SMTP** | [E-Mails kommen nicht an](#e-mails-do-not-arrive) unten |
 | Ein Plugin schlägt fehl | Seine **Protokolle**, auf seiner Karte unter **Verwaltung → Plugins** | [Ein Plugin ist abgestürzt](../runbooks/incident-runbook.md#a-plugin-crashed) |
@@ -28,8 +28,8 @@ mehr.
 
 ## Die Protokolle
 
-Das Protokoll ist Eveys Tagebuch: Jeder Fehler wird dort eingetragen, mit der
-Uhrzeit.
+Das Protokoll zeichnet auf, was Evey tut: Jeder Fehler wird dort eingetragen,
+mit der Uhrzeit.
 
 **Der einfache Weg: Verwaltung → Protokolle & Debug.** Dort sehen Sie das
 Protokoll mit einem Suchfeld, einer Ansicht **Live**, die neuen Zeilen folgt,
@@ -45,7 +45,7 @@ Ihnen nennt.
       JSON, standardmäßig 90 Tage aufbewahrt (`EVEY_LOG_RETENTION_DAYS`).
     - `docker compose logs evey` zeigt etwas anderes: was der Container beim
       Start ausgibt (die `evey:`-Zeilen des Startskripts, die Datenbank, das
-      Banner). Lesen Sie das, wenn der Server nicht hochkommt. Sobald er
+      Banner). Lesen Sie das, wenn der Server nicht startet. Sobald er
       läuft, steht das Protokoll in den Dateien und im Verwaltungsbereich.
 
 ## `evey admin doctor`
@@ -73,18 +73,18 @@ docker exec evey-server evey admin doctor
 | Was `docker compose logs evey` sagt | Was es bedeutet |
 | --- | --- |
 | Eine Meldung zur Prüfung der Konfiguration | Mit einer externen Datenbank lehnt der Server das Standardpasswort `evey` ab; mit einem externen Meilisearch einen leeren Schlüssel oder einen Platzhalter. Korrigieren Sie den Wert, den die Meldung nennt. |
-| Zeilen, die mit `evey:` beginnen und Postgres betreffen | Die eingebaute Datenbank wollte nicht starten: ein Cluster einer anderen Postgres-Hauptversion ([Wechsel der Postgres-Hauptversion](advanced-deployments.md#move-to-a-newer-postgres-major)), ein Datenverzeichnis, das kein Postgres-Cluster ist, eine volle Festplatte oder `./evey-data/postgres` auf einer Netzwerkfreigabe. |
+| Zeilen, die mit `evey:` beginnen und Postgres betreffen | Die eingebaute Datenbank ist nicht gestartet: ein Cluster einer anderen Postgres-Hauptversion ([Wechsel der Postgres-Hauptversion](advanced-deployments.md#move-to-a-newer-postgres-major)), ein Datenverzeichnis, das kein Postgres-Cluster ist, eine volle Festplatte oder `./evey-data/postgres` auf einer Netzwerkfreigabe. |
 | `permission denied` bei `/cache/...`, in einer Neustartschleife | Das Volume `evey-cache` gehört einem anderen Benutzer als dem, unter dem der Server läuft. Aktualisieren Sie das Image; bei einem Image von vor dem 17.09.2026 führen Sie einmal `docker run --rm -v <project>_evey-cache:/c alpine chown -R <PUID>:<PGID> /c` aus. |
 
 Ein verlorenes Administratorpasswort, ein kompromittierter Signaturschlüssel
-oder eine kaputte Datenbank: [Wiederherstellung](../runbooks/recovery.md).
+oder eine beschädigte Datenbank: [Wiederherstellung](../runbooks/recovery.md).
 
 ## Niemand kann sich anmelden
 
 Zwei übliche Ursachen:
 
 - **Die Datenbank antwortet nicht.** Evey prüft jede Anmeldung gegen sie und
-  lehnt ab, wenn das nicht geht. Das Protokoll sagt es.
+  lehnt ab, wenn das nicht geht. Das Protokoll zeigt das an.
 - **Ein Reverse Proxy fehlt bei den vertrauenswürdigen Proxys** (**Verwaltung
   → Fernzugriff**). Jeder Besucher scheint dann von der Adresse des Proxys zu
   kommen, und alle teilen sich eine einzige Grenze für Anmeldeversuche.
@@ -127,7 +127,7 @@ eingetragene Weiterleitungs-URI nicht die ist, die die Karte zeigt. Siehe
 
 **Test-E-Mail senden** unter **Verwaltung → Serverkonfiguration → E-Mail /
 SMTP** schickt mit den gespeicherten Einstellungen eine Nachricht an Ihre
-eigene Adresse und zeigt die Antwort des Mailservers, wenn es nicht klappt.
+eigene Adresse und zeigt die Antwort des Mailservers, wenn der Versand fehlschlägt.
 Ein TLS-Modus, der nicht zum Port passt (`starttls` mit 587, `ssl` mit 465),
 ist der übliche Fehler. Ein in der Karte gespeicherter Host ersetzt jede
 Variable `EVEY_SMTP_*`. Fehlgeschlagene Benachrichtigungs-E-Mails werden als
@@ -162,13 +162,13 @@ dass er unverändert läuft: siehe
 - Ton nicht synchron bei einem Titel: **Verwaltung → Medienzustand** erkennt
   Ton, der nach dem Bild beginnt, und Spuren, die nicht zueinander passen.
 - Untertitel erscheinen nicht: [Untertitel](../playback/subtitles.md) sagt,
-  welche Formate die Player selbst zeichnen und welche der Server ins Bild
+  welche Formate die Player selbst darstellen und welche der Server ins Bild
   einbrennen muss.
 - **Untertitel werden vorbereitet…** bleibt minutenlang stehen: Die Datei hat
   für diese Spur keinen Index, und der Server liest sie einmal ganz durch.
   Siehe
   [Wenn ein Untertitel zum ersten Mal angezeigt wird](../playback/subtitles.md#the-first-time-a-subtitle-is-shown).
-- Transkodierte Titel wollen nicht starten oder bleiben hängen, während schon
+- Transkodierte Titel starten nicht oder bleiben hängen, während schon
   gespielte Titel weiter funktionieren, oder Administratoren bekommen
   **Untertitel-Cache voll**: Die Festplatte liegt unter ihrer Reserve an
   freiem Speicher. Siehe
@@ -194,7 +194,7 @@ Bibliotheken** auf **Scannen** und lesen Sie das Ergebnis.
 
 Ein Scan endet mit **Unvollständiger Scan - diese Ordner konnten nicht gelesen
 werden:**, gefolgt von Pfaden: Evey kann diese Ordner nicht lesen
-(Berechtigungen, eine Netzwerkfreigabe, die weggefallen ist). Der Rest der
+(Berechtigungen, eine Netzwerkfreigabe, die nicht mehr verbunden ist). Der Rest der
 Bibliothek wird gescannt, und die Titel unter einem unlesbaren Ordner bleiben
 erhalten, statt entfernt zu werden. Prüfen Sie die Einbindung und den
 Besitzer (`PUID`/`PGID`, siehe

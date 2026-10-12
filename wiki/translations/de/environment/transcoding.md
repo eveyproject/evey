@@ -8,8 +8,8 @@ Die Variablen hinter der Kapazität, der Grafikkarte, den Qualitätsgrenzen und
 dem Transkodierungs-Cache. Die meisten Installationen setzen keine davon: Der
 Server misst die Maschine und wählt die Hardware selbst, wie unter
 [Transkodierung und Serverkapazität](../playback/transcoding.md) erklärt.
-Gibt es eine Einstellung unter **Verwaltung → Transkodierung**, gewinnt der
-dort gespeicherte Wert.
+Gibt es eine Einstellung unter **Verwaltung → Transkodierung**, hat der
+dort gespeicherte Wert Vorrang.
 
 ## Hardwarebeschleunigung
 
@@ -36,8 +36,8 @@ eingestellt.
 | --- | --- | --- | --- |
 | `EVEY_TRANSCODING_MAX_SESSIONS` | `0` (Zahl der CPUs) | Gleichzeitige Transkodierungssitzungen insgesamt. Auf einer Maschine, die gerade so eine 4K-HDR-Transkodierung in Software schafft, setzen Sie `1` oder `2`. | Transkodierung → Erweiterte Grenzwerte → **Maximale gleichzeitige HLS-Sitzungen**, Neustart |
 | `EVEY_TRANSCODING_MAX_CONCURRENT` | `2` | Transkodierungsaufträge außerhalb der laufenden Wiedergabe. | Transkodierungs-Cache → **Max. gleichzeitig**, sofort |
-| `EVEY_TRANSCODING_SINGLE_VARIANT` | `true` | Kodiert nur die Qualität, die ein Zuschauer gerade schaut. `false` teilt ein Dekodieren zwischen allen Qualitäten, kodiert aber auch die, die niemand schaut; nur für einen Host ohne Hardware-Dekodierung mit schweren Quellen. | Transkodierung → Erweiterte Grenzwerte → **Nur eine Qualitätsstufe gleichzeitig kodieren**, Neustart |
-| `EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT` | `0` (gemessen) | Erzwingt die Auflösungsobergrenze des Prozessors statt der gemessenen. | Transkodierung → Erweiterte Grenzwerte → **Höhengrenze für Software-Transcoding**, Neustart |
+| `EVEY_TRANSCODING_SINGLE_VARIANT` | `true` | Kodiert nur die Qualität, die ein Zuschauer gerade schaut. `false` teilt ein Dekodieren zwischen allen Qualitäten, kodiert aber auch die, die niemand schaut; nur für einen Host ohne Hardware-Dekodierung mit anspruchsvollen Quellen. | Transkodierung → Erweiterte Grenzwerte → **Nur eine Qualitätsstufe gleichzeitig kodieren**, Neustart |
+| `EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT` | `0` (gemessen) | Erzwingt die Auflösungsobergrenze des Prozessors statt der gemessenen. | Transkodierung → Erweiterte Grenzwerte → **Höhengrenze für Software-Transkodierung**, Neustart |
 | `EVEY_TRANSCODING_SOFTWARE_HDR_MAX_HEIGHT` | `0` (gemessen) | Dasselbe für HDR-Quellen, deren Tone-Mapping der Prozessor übernimmt. | Transkodierung → Erweiterte Grenzwerte → **HDR-Höhengrenze für Software**, Neustart |
 | `EVEY_TRANSCODING_SOFTWARE_THREADS` | keine Grenze | Threads pro Software-Encoder (1 bis 64; jeder andere Wert bedeutet keine Grenze). Hardware-Encoder ignorieren sie. | keine |
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS` | `0` (folgt der Quelle) | Eine Obergrenze für die Bitrate des transkodierten Videos. | Transkodierung → **Obergrenze Videobitrate**, sofort |
@@ -47,7 +47,7 @@ eingestellt.
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | Die Größe des gesamten Transkodierungs-Caches (Segmente, Remux-Dateien, vorbereitete Downloads). Was am längsten nicht benutzt wurde, wird zuerst entfernt. | Serverkonfiguration → Servereinstellungen → **Budget des Transcode-Caches**, Neustart |
+| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | Die Größe des gesamten Transkodierungs-Caches (Segmente, Remux-Dateien, vorbereitete Downloads). Was am längsten nicht benutzt wurde, wird zuerst entfernt. | Serverkonfiguration → Servereinstellungen → **Budget des Transkodierungs-Caches (GB)**, Neustart |
 | `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | Freier Platz, der auf dem Laufwerk des Caches frei bleibt. Darunter werden ungenutzte Segmente entfernt, dann werden neue Segmente abgelehnt statt geschrieben; extrahierte Untertitel werden nicht mehr gespeichert, und die Administratoren werden benachrichtigt. `0` schaltet diese Reserve ab. Siehe [Der Transkodierungs-Cache](../playback/transcoding.md#the-transcoding-cache). | keine |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Wo er liegt. Vom Image gesetzt. | keine |
 | `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Wo die Vorschaubilder der Zeitleiste liegen. Vom Image gesetzt: Sie neu zu erzeugen ist aufwendig, deshalb bleiben sie in `/data`. | keine |
@@ -56,7 +56,7 @@ eingestellt.
 
 Die Messung kodiert einen 4K-Clip. In dieser Reihenfolge: Ihre Datei, ein
 Clip, der einmal heruntergeladen und anhand seines Hashwerts geprüft wird,
-oder ein künstlich erzeugter Clip. Ein echter Clip misst ehrlicher als der
+oder ein künstlich erzeugter Clip. Ein echter Clip liefert genauere Messwerte als der
 künstliche. Keine dieser Variablen hat ein Gegenstück im Verwaltungsbereich.
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |

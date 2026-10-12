@@ -32,7 +32,7 @@ docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 Das Image legt die Hauptversion der eingebetteten Datenbank fest. Ein Image
 mit einer neueren Hauptversion weigert sich, den alten Cluster zu öffnen, und
 zeigt eine Meldung, die auf diese Seite verweist. Es betreibt also kein
-Datenverzeichnis, das es nicht lesen kann. Der Weg hinüber ist ein Dump mit
+Datenverzeichnis, das es nicht lesen kann. Der Wechsel erfolgt über einen Dump mit
 dem alten Image und eine Wiederherstellung mit dem neuen:
 
 ```bash
@@ -92,8 +92,8 @@ Standardpasswort `evey` verweigert der Server den Start.
 
 Dasselbe Prinzip für die Suchmaschine: Schalten Sie die eingebettete ab,
 richten Sie den Server auf Ihre eigene und verwenden Sie auf beiden Seiten
-denselben Schlüssel. Ein ausdrücklich gesetzter `MEILI_MASTER_KEY` gewinnt
-gegenüber dem erzeugten `./evey-data/keys/meili.key`.
+denselben Schlüssel. Ein ausdrücklich gesetzter `MEILI_MASTER_KEY` hat Vorrang
+vor dem erzeugten `./evey-data/keys/meili.key`.
 
 === "docker-compose.yml"
 
@@ -134,10 +134,10 @@ Datenbank neu aufgebaut. `meili-data` kann also jederzeit verworfen werden.
 ## Zurück zur eingebetteten Datenbank
 
 Eine Installation, die Postgres als eigenen Dienst betreibt, kann auf den
-einzelnen Container umziehen. Die eingebettete Datenbank importiert einmalig
+einzelnen Container wechseln. Die eingebettete Datenbank importiert einmalig
 einen Dump, den sie unter `./evey-data/postgres-import.sql.gz` findet, und
 zwar in den Cluster, den sie beim ersten Start anlegt, bevor der Server
-läuft. Danach laufen die Migrationen des Servers darüber.
+läuft. Danach wendet der Server seine Migrationen darauf an.
 
 ```bash
 # 1. die aktuelle Datenbank exportieren (reines SQL, mit gzip gepackt)
@@ -175,7 +175,7 @@ nur für amd64: Legen Sie auf einem ARM-Host ein Release-Tag fest.
   weiter. Der Server prüft den Encoder und misst ihn, bevor er ihn nutzt.
   RKMPP wurde vom Projekt noch nicht auf echter Hardware geprüft. Ein
   Raspberry Pi oder ein ARM-NAS mit Realtek-Chip hat keinen Hardware-Encoder,
-  den der Server nutzen kann: Diese Hosts setzen auf Direktwiedergabe und
+  den der Server nutzen kann: Diese Hosts nutzen Direktwiedergabe und
   Software-Transkodierung, bemessen durch dieselbe Kalibrierung wie jeder
   andere Host.
 - **HDR-Tone-Mapping** nutzt auf ARM (NEON) denselben SIMD-Filter `tonemapx`
@@ -207,7 +207,7 @@ Hosts zur Laufzeit in den Container.
 
 ## Die Plugin-Sandbox auf einem ungewöhnlichen Host
 
-Das Image enthält alles, was nötig ist, um Plugins abzuschotten, ohne
+Das Image enthält alles, was nötig ist, um Plugins zu isolieren, ohne
 privilegierten Modus. Der Standard-Sandbox-Modus (`auto`) wählt das stärkste
 Verfahren, das der Host erlaubt: Landlock auf jedem modernen Kernel. Den
 geltenden Modus sehen Sie im **Sicherheits-Dashboard** unter **Verwaltung →

@@ -6,8 +6,8 @@ reviewed: true
 
 Die Endpunkte rund um Plugins: sie installieren und verwalten
 (Administrator), Webhooks (Administrator) und die Einstellungen, die die
-Oberfläche eines Plugins pro Benutzer speichert. Ein Plugin zu schreiben ist
-ein anderer Vertrag, über gRPC auf einem lokalen Socket: siehe
+Oberfläche eines Plugins pro Benutzer speichert. Ein Plugin zu schreiben nutzt
+eine andere Schnittstelle, über gRPC auf einem lokalen Socket: siehe
 [Ein Plugin schreiben](../../plugins/dev-setup.md) und die
 [Plugin-API-Referenz](../../plugins/api-reference.md).
 
@@ -26,7 +26,7 @@ Routen für Administratoren.
 
 Plugin-Verwaltung und Webhooks verlangen einen Administrator, wie die
 [Admin-API](../admin/README.md). `plugin_prefs` ist der einzige Dienst, der
-für einen Plugin-Token gemacht ist: Die Hostseite stellt ihn für ein Plugin
+für einen Plugin-Token vorgesehen ist: Die Hostseite stellt ihn für ein Plugin
 und einen Benutzer aus, und der Dienst antwortet nur mit den Zeilen genau
 dieses Paares ([Server-API](../README.md#authentication)).
 

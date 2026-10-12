@@ -6,7 +6,7 @@ reviewed: true
 
 Ein Theme gestaltet die Oberfläche von Evey neu: ein Paket mit `kind: theme`
 ohne eigenen Serverprozess, bestehend aus einem Stylesheet und optional einem
-Skript, das in einem unsichtbaren Frame eingesperrt bleibt. Diese Seite
+Skript, das isoliert in einem unsichtbaren Frame läuft. Diese Seite
 richtet sich an Theme-Autoren. Sie sagt, was die beiden Dateien enthalten
 dürfen und was der Installer umschreibt oder ablehnt. Themes werden wie
 Plugins installiert, unter **Verwaltung → Plugins**. Jeder Benutzer wählt
@@ -63,7 +63,7 @@ Kommentar. Wer sie überschreibt, gestaltet jeden Bildschirm auf einmal um:
 
 Einige gestalterische Elemente tragen stabile Klassen. Sie können sie
 ansprechen, ohne von den Utility-Klassen abzuhängen, die sich von Version zu
-Version ändern. Diese Klassen sind ein Vertrag: Sie werden nicht umbenannt.
+Version ändern. Diese Klassen sind verbindlich: Sie werden nicht umbenannt.
 
 | Selektor | Element | Gefahrlos änderbar |
 |---|---|---|
@@ -90,7 +90,7 @@ lehnt er nie ab.
 
 | Was Sie geschrieben haben | Was passiert | Warum |
 |---|---|---|
-| `@import ...` | Entfernt | Ein Theme ist in sich geschlossen; ein Import ist ein Datenleck ins Netz. |
+| `@import ...` | Entfernt | Ein Theme ist in sich geschlossen; ein Import würde Daten über das Netz preisgeben. |
 | `url(http://...)`, `url(https://...)`, `url(//...)`, ein externer Kandidat in `image-set()`, eine Custom Property mit einer solchen URL | Durch `none` ersetzt oder unschädlich gemacht | Derselbe Grund. `data:`-URIs bleiben unverändert. |
 | `url(javascript:...)`, `expression(...)`, `-moz-binding`, `behavior` | Entfernt | Alte Wege, Code auszuführen. |
 | Eine Regel, deren Selektor `[type=password]`, `[type=hidden]`, `.admin-*`, `.token-*` oder `.secret-*` trifft | Der ganze Regelblock entfernt | Ein Theme darf Passwortfelder und privilegierte Elemente nicht umgestalten. |

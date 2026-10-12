@@ -19,13 +19,13 @@ Fernzugriff**: eine **Externe URL** mit `https://` und, wenn der Proxy ein
 Container ist, sein Netz unter **Vertrauenswürdige Proxys**. Beides gilt ohne
 Neustart. An einer `https://`-Adresse erkennt Evey, dass vor ihm ein Proxy TLS
 übernimmt: Cookies bekommen das Flag `Secure`, HSTS wird gesendet, und
-`X-Forwarded-Proto` von einem vertrauenswürdigen Proxy wird geglaubt. Den
+`X-Forwarded-Proto` von einem vertrauenswürdigen Proxy wird übernommen. Den
 Schalter für den Fernzugriff und die echte Adresse des Clients erklärt
 [Fernzugriff und HTTPS](administration/remote-access.md).
 
 Dieselben Angaben können auch aus der Umgebung kommen, für eine Installation,
-die ganz als Code beschrieben ist (sind beide gesetzt, gewinnt der
-Verwaltungsbereich):
+die ganz als Code beschrieben ist (sind beide gesetzt, hat der
+Verwaltungsbereich Vorrang):
 
 ```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
@@ -207,13 +207,13 @@ Details einstellt. Lassen Sie den Ausschnitt weg, geht nichts kaputt - er
 Auf einem NAS, das schon einen Reverse Proxy hat (den des Herstellers, Nginx
 Proxy Manager, ein Traefik in einem gemeinsamen Docker-Netz), wird kein Caddy
 gebraucht: Evey sendet eigene Sicherheits-Header und eine vollständige CSP,
-und die Streaming-Regeln kann ohnehin nur der Proxy durchsetzen, der mit dem
-Client spricht. Ein zweiter Proxy dahinter bringt nichts.
+und die Streaming-Regeln kann ohnehin nur der Proxy durchsetzen, mit dem der
+Client direkt verbunden ist. Ein zweiter Proxy dahinter bringt nichts.
 
 ### Einrichten
 
-Hängen Sie den Dienst `evey` in das Netz dieses Proxys und zielen Sie auf
-`evey-server:9091` (der Containername; der Dienstname `evey` funktioniert
+Verbinden Sie den Dienst `evey` mit dem Netz dieses Proxys und leiten Sie an
+`evey-server:9091` weiter (der Containername; der Dienstname `evey` funktioniert
 auch):
 
 ```yaml title="docker-compose.yml"
@@ -280,7 +280,7 @@ durch, sind Sie fertig.
 Viele Einrichtungen entfernen sie stattdessen
 (`header_down -Content-Security-Policy` in Caddy) und setzen eine eigene. Das
 ist in Ordnung, aber dann muss **Ihre** Richtlinie diese Einträge behalten,
-sonst fallen Funktionen still aus:
+sonst fallen Funktionen ohne Fehlermeldung aus:
 
 | Eintrag | Direktive | Fällt ohne ihn aus |
 | --- | --- | --- |
@@ -288,7 +288,7 @@ sonst fallen Funktionen still aus:
 | `'wasm-unsafe-eval'` | `script-src` | AC-3/E-AC-3-Wiedergabe im Browser (der WebAssembly-Decoder ac3go kann nicht kompiliert werden, der Film läuft also stumm). Das ist der enge Eintrag, der nur das Kompilieren von Wasm erlaubt, kein allgemeines `eval()`. |
 | `https://www.gstatic.com` | `script-src` (+ `frame-src`) | Das Google-Cast-Sender-SDK lädt nie, also bekommt niemand eine Cast-Schaltfläche. Nur so kann ein Browser Chromecasts im eigenen LAN des Nutzers finden. |
 | `blob:` | `media-src` | MSE-Wiedergabe (hls.js hängt den Stream über eine Blob-URL an). |
-| `blob:` | `worker-src` | hls.js weicht still auf Demuxing im Hauptthread aus (ruckeliger auf Handys). |
+| `blob:` | `worker-src` | hls.js weicht ohne Meldung auf Demuxing im Hauptthread aus (ruckeliger auf Handys). |
 
 Eine bewährte Richtlinie für einen Proxy, der seine eigene setzt, nämlich die,
 die das mitgelieferte Caddy sendet:
@@ -313,7 +313,7 @@ Zwei Seiten haben eine eigene Richtlinie, die die App sendet. Lassen Sie auf
 diesen beiden Pfaden den Header der App stehen:
 
 - `/plugin-frame.html`, die Seite, in der Plugin-Oberflächen und
-  Theme-Skripte laufen. Ihre Richtlinie sperrt sie in eine Sandbox (auch wenn
+  Theme-Skripte laufen. Ihre Richtlinie führt sie in einer Sandbox aus (auch wenn
   sie außerhalb eines iframes geöffnet wird), beschränkt ihren Netzzugriff auf
   die Hosts, die das Manifest des Plugins angibt, und lässt nur die App sie
   einbetten. Deshalb sendet sie auch `X-Frame-Options: SAMEORIGIN`:
@@ -331,7 +331,7 @@ default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:/
 !!! warning "Genau ein CSP-Header darf beim Browser ankommen"
     Bei zweien (dem der App und dem Ihres Proxys, oder dem von Caddy und dem
     „Advanced“-Ausschnitt von Nginx Proxy Manager) setzen Browser die
-    *Schnittmenge* durch: Die strengste gewinnt, und der Fehler bleibt still.
+    *Schnittmenge* durch: Die strengere Richtlinie gilt, und der Fehler wird nicht gemeldet.
     Prüfen Sie das mit
     `curl -sI https://your.domain | grep -ci content-security-policy`, das
     `1` ausgeben muss.
@@ -339,8 +339,8 @@ default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:/
 Zwei weitere Prüfungen nach jeder Änderung:
 
 - **Halten Sie die Richtlinie in einer Zeile.** Eine CSP, die in einer
-  Proxy-Konfiguration über mehrere Zeilen verteilt ist, wird gern still
-  beschädigt: Beim Zusammenfügen gehen Zeichen an der Nahtstelle verloren
+  Proxy-Konfiguration über mehrere Zeilen verteilt ist, wird häufig
+  unbemerkt beschädigt: Beim Zusammenfügen gehen Zeichen an der Verbindungsstelle verloren
   (`...gstatic.com; connect-src` wurde einmal zu `...gstaticonnect-src`, was
   das Cast-SDK abschaltete und zwei Direktiven verschmolz).
 - **Der Plugin-Frame behält seine eigene Richtlinie:**

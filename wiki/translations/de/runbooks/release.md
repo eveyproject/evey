@@ -10,7 +10,7 @@ die erste einem Verfahren folgt, statt eines zu erfinden.
 ## Was die CI mit einem Tag macht (vor dem Taggen lesen)
 
 `.github/workflows/ci.yml` baut und veröffentlicht Images bei jedem Push und bei
-jedem `v*.*.*`-Tag, in drei Varianten der Erweiterungs-Laufzeiten (`` (lean),
+jedem `v*.*.*`-Tag, in drei Varianten der Plugin-Laufzeiten (`` (lean),
 `-nodejs`, `-full`), nach `docker.io/eveyproject/evey` und `ghcr.io/evey-project/evey`:
 
 | Sie pushen | Veröffentlichte Image-Tags (jeweils auch `-nodejs` / `-full`) |
@@ -21,33 +21,33 @@ jedem `v*.*.*`-Tag, in drei Varianten der Erweiterungs-Laufzeiten (`` (lean),
 
 Drei Folgen:
 
-- **Ein Branch-Tag wandert.** `beta-0.0.1-full` zeigt auf das, was zuletzt
+- **Ein Branch-Tag ändert sich.** `beta-0.0.1-full` zeigt auf das, was zuletzt
   gepusht wurde; zwei `docker compose pull` im Abstand eines Tages können
   unterschiedlichen Code laufen lassen, und ein Rollback „auf
-  `beta-0.0.1-full`“ führt nirgendwohin. Betreiber müssen einen
+  `beta-0.0.1-full`“ funktioniert nicht. Betreiber müssen einen
   `sha-<short>`-Tag (oder einen Release-Tag) fest einstellen, nie einen
   Branchnamen - genau das gibt `scripts/evey-update.sh` am Ende aus, damit sie
   es in `.env` eintragen.
 - **Eine Vorabversion berührt `latest` nie.** `latest` bedeutet die neueste
-  stabile Version; ein Schnitt der geschlossenen Beta ist für alle unsichtbar,
+  stabile Version; eine Version der geschlossenen Beta ist für alle unsichtbar,
   die `latest` folgen. (Eine Vorabversion bekommt auch keine `X.Y`- / `X`-Tags:
   die gibt es nur für stabile Versionen.)
 - **Multi-Arch bei jedem Build** (amd64 + arm64), sodass ein ARM-Betreiber
   jeden dieser Tags fest einstellen kann.
 
 Der Commit wird ins Binary (`evey version`, `/healthz`) und in die Image-Labels
-(`org.opencontainers.image.revision`) gestempelt, sodass sich „welcher Code ist
+(`org.opencontainers.image.revision`) eingetragen, sodass sich „welcher Code ist
 das?“ immer beantworten lässt, ohne einem Tag zu vertrauen.
 
-## Eine Vorabversion schneiden (geschlossene Beta)
+## Eine Vorabversion erstellen (geschlossene Beta)
 
-1. **Prüfungen grün auf genau diesem Commit**: `make pre-push` lokal. Die CI
+1. **Alle Prüfungen auf genau diesem Commit bestanden**: `make pre-push` lokal. Die CI
    führt beim Push dasselbe aus.
-2. **Zuerst auf einer echten Installation bewiesen.** Der Commit muss schon auf
+2. **Zuerst auf einer echten Installation geprüft.** Der Commit muss schon auf
    der Referenzinstallation als `sha-<short>`-Tag gelaufen sein, aktualisiert mit
    `scripts/evey-update.sh --tag sha-<short> --apply` und geprüft mit
-   `--commit <sha>`. Ein Tag ist ein Versprechen an andere Betreiber; geben Sie
-   es nach dem Beweis, nicht davor.
+   `--commit <sha>`. Ein Tag ist eine Zusage an andere Betreiber; erstellen Sie
+   es erst nach dieser Prüfung, nicht davor.
 3. **`CHANGELOG.md`**: die Einträge unter `[Unreleased]` mit Datum unter die neue
    Version verschieben. Keep-a-Changelog-Format, nur Formulierungen für
    Benutzer.
@@ -63,12 +63,12 @@ das?“ immer beantworten lässt, ohne einem Tag zu vertrauen.
    stellen `eveyproject/evey:0.2.0-beta.1` (oder `-full`) in ihrer `image:`-Zeile
    fest ein.
 
-Tags für Vorabversionen sind billig: `-beta.2`, `-beta.3` nach Bedarf.
+Tags für Vorabversionen lassen sich ohne Aufwand anlegen: `-beta.2`, `-beta.3` nach Bedarf.
 Zurücknehmen lassen sie sich aber nicht - ein veröffentlichter Tag bleibt
-veröffentlicht. Um einen schlechten Schnitt rückgängig zu machen, schneiden Sie
-den nächsten; biegen Sie nie einen Tag um.
+veröffentlicht. Um eine fehlerhafte Version zu ersetzen, erstellen Sie
+die nächste; verschieben Sie nie einen Tag.
 
-## Eine stabile Version schneiden
+## Eine stabile Version erstellen
 
 Dieselben Schritte, Tag `vX.Y.Z` ohne Suffix. Eine Sache, die eine Vorabversion
 nicht braucht: Die Postgres-Hauptversion, die das Image mitbringt, muss im

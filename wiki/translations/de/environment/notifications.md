@@ -14,8 +14,8 @@ Variablen sind der Ersatz, wenn dort nichts eingetragen ist.
 
 Die Variablen werden beim Start gelesen und gelten, solange die Karte **E-Mail
 / SMTP** unter **Verwaltung → Serverkonfiguration** keinen Host hat. Sobald
-dort ein Host gespeichert ist, liefert die Karte jedes Feld und gilt ohne
-Neustart.
+dort ein Host gespeichert ist, kommen alle Felder aus der Karte und gelten
+ohne Neustart.
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |

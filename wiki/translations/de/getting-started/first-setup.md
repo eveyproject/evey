@@ -188,7 +188,7 @@ Schritt für Schritt, und was jede Fehlermeldung bedeutet:
 
 Nichts davon müssen Sie einstellen:
 
-- **Wie jedes Gerät eine Datei abspielt.** Jedes Gerät sagt dem Server, was
+- **Wie jedes Gerät eine Datei abspielt.** Jedes Gerät meldet dem Server, was
   es abspielen kann. Für jeden Titel schickt der Server die Datei dann so, wie
   sie ist, verpackt sie neu, oder wandelt nur das um, was das Gerät nicht
   abspielen kann. Siehe
@@ -196,19 +196,19 @@ Nichts davon müssen Sie einstellen:
 - **Wie viele Personen er bedienen kann.** In seinem ersten ruhigen Moment
   misst der Server, wie viel Video er gleichzeitig umwandeln kann, mit dem
   Prozessor und einer Grafikkarte, falls vorhanden, und nimmt nie mehr an.
-  Das dauert ein paar Minuten. In der Zwischenzeit wird eine Wiedergabe, die
-  eine Umwandlung braucht, gebeten zu warten. Siehe
+  Das dauert ein paar Minuten. In der Zwischenzeit muss eine Wiedergabe, die
+  eine Umwandlung braucht, warten. Siehe
   [Transkodierung und Serverkapazität](../playback/transcoding.md).
 - **Der Zugriff von außerhalb Ihres Zuhauses.** Aus, bis Sie dem Server eine
   öffentliche Adresse geben. Siehe
   [Fernzugriff und HTTPS](../administration/remote-access.md).
 - **Eine Sicherheitskopie der Datenbank** vor jedem Update, das sie verändert.
-  Regelmäßige Sicherungen sind nur eine Einstellung entfernt:
+  Regelmäßige Sicherungen richten Sie mit einer einzigen Einstellung ein:
   [Sicherungen und Updates](../backups.md).
 
 ## Bevor Sie die Adresse außerhalb Ihres Zuhauses weitergeben
 
-1. Stellen Sie den Server hinter HTTPS. Evey selbst spricht nur einfaches
+1. Stellen Sie den Server hinter HTTPS. Evey selbst verwendet nur einfaches
    HTTP, was zu Hause in Ordnung ist, im Internet aber nicht.
    [Fernzugriff und HTTPS](../administration/remote-access.md).
 2. Richten Sie einen Sicherungsplan ein und bewahren Sie eine Kopie des

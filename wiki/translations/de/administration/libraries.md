@@ -167,7 +167,7 @@ Cover Art Archive (gefunden über MusicBrainz), sonst von iTunes.
 Der Scanner liest JPEG-, PNG-, HEIC-, WebP-, GIF-, TIFF- und BMP-Dateien. Das
 Album eines Fotos ist sein Ordner, gesehen vom Ordner der Bibliothek aus. Ein
 Foto direkt im Bibliotheksordner hat kein Album. Wenn Sie eine Datei in einen
-anderen Ordner verschieben, landet sie beim nächsten Scan in diesem Album.
+anderen Ordner verschieben, erscheint sie beim nächsten Scan in diesem Album.
 Aufnahmedatum und Kameramodell kommen aus den EXIF-Daten von JPEG-Dateien; die
 anderen Formate werden ohne diese Angaben aufgeführt. Vorschaubilder werden auf
 dem Server verkleinert und im Transkodierungs-Cache aufbewahrt.
@@ -178,8 +178,8 @@ dem Server verkleinert und im Transkodierungs-Cache aufbewahrt.
 drei Arten:
 
 - **TMDB-Sammlungen**: die Filmreihen. Sie füllen sich von selbst, wenn TMDB
-  einen Film einer Reihe zuordnet. **Reihen reparieren** (siehe oben) holt
-  Filme nach, die ihre Reihe verpasst haben.
+  einen Film einer Reihe zuordnet. **Reihen reparieren** (siehe oben) ordnet
+  Filme nachträglich zu, die ihrer Reihe nicht zugeordnet wurden.
 - **Neue Sammlung**: eine Liste, die ein Administrator von Hand füllt, mit
   **Zu Sammlung hinzufügen** auf einem Titel oder einer Auswahl, und die er
   ordnet.
@@ -191,7 +191,7 @@ drei Arten:
 Nur Administratoren legen Sammlungen an und bearbeiten sie. Alle können sie
 durchsehen. **Sammlung herunterladen** im Web lädt die Originaldateien als eine
 ZIP-Datei herunter (bis zu 1000 Titel). Was der Bibliothekszugriff oder die
-Altersgrenze des Kontos verbirgt, bleibt außen vor.
+Altersgrenze des Kontos verbirgt, wird nicht aufgenommen.
 
 ## Metadaten-Schlüssel
 

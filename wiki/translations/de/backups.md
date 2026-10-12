@@ -78,8 +78,8 @@ her. Um einen Rechner von Grund auf neu aufzubauen, brauchen Sie den Ordner.
 ??? info "Telemetrie und das Dateiformat"
 
     Messwerte zu Wiedergabe und Server (hinter den Diagrammen zu Qualität und
-    Last) bleiben standardmäßig draußen: Sie wachsen am schnellsten und sagen
-    nichts über Ihren Katalog. **Telemetrie in Sicherungen einschließen**
+    Last) werden standardmäßig nicht aufgenommen: Sie wachsen am schnellsten und
+    enthalten keine Angaben über Ihren Katalog. **Telemetrie in Sicherungen einschließen**
     (**Verwaltung → Serverkonfiguration**) nimmt sie wieder auf, für manuelle,
     geplante und über die Kommandozeile erstellte Sicherungen. Beim
     Wiederherstellen einer Sicherung werden diese Tabellen immer geleert.
@@ -130,16 +130,16 @@ Das ist das ganze Update.
 
 ??? info "Die genaue Version festlegen, die Sie betreiben"
 
-    Während der Beta gibt es keine nummerierten Versionen und keinen Tag
-    `latest`. Der Tag `beta-0.0.1` ändert sich mit jedem Update. Für einen
-    Server, auf den Sie sich verlassen, tragen Sie in der Zeile `image:` einen
-    festen Tag `sha-<commit>` ein. So laufen zwei Pulls im Abstand eines Tages
+    Während der Beta gibt es keine nummerierten Versionen und kein Tag
+    `latest`. Das Tag `beta-0.0.1` ändert sich mit jedem Update. Für einen
+    Server, auf den Sie sich verlassen, tragen Sie in der Zeile `image:` ein
+    festes Tag `sha-<commit>` ein. So laufen zwei Pulls im Abstand eines Tages
     mit demselben Code. Sobald es Versionen gibt, folgt `latest` der neuesten
     stabilen Version, und ein Versions-Tag (`0.2.0`) legt sie fest.
 
 ### Zurückkehren
 
-1. Tragen Sie den vorherigen Tag in die Zeile `image:` Ihrer Compose-Datei
+1. Tragen Sie das vorherige Tag in die Zeile `image:` Ihrer Compose-Datei
    ein.
 2. Hat die neuere Version die Datenbank verändert, stellen Sie zuerst deren
    Kopie von vor dem Update wieder her:

@@ -6,7 +6,8 @@ reviewed: true
 
 Öffnen Sie diese Seite, wenn sich niemand mehr anmelden kann, wenn der
 Schlüssel, der die Zugangstoken signiert, nach außen gelangt sein könnte,
-oder wenn die Datenbank auf einen Dump von vor einer Migration zurück muss.
+oder wenn die Datenbank auf einen Dump von vor einer Migration zurückgesetzt
+werden muss.
 Jeder Ablauf ist ein einziger `evey admin`-Befehl, der im Container läuft; die
 Seite [Kommandozeile](cli.md) listet die anderen Unterbefehle auf.
 
@@ -25,7 +26,7 @@ aus und beendet sich. Keiner dieser Befehle startet den Server.
 
 ## Einem Benutzer ein neues Passwort geben
 
-Nutzen Sie das, wenn ein Benutzer sich ausgesperrt hat, oder sofort, wenn Sie
+Nutzen Sie das, wenn ein Benutzer sich nicht mehr anmelden kann, oder sofort, wenn Sie
 vermuten, dass ein Konto übernommen wurde. Das neue Passwort wird einmal
 angezeigt und nie protokolliert: Kopieren Sie es, bevor Sie das Terminal
 schließen.
@@ -34,7 +35,7 @@ schließen.
 docker exec evey-server evey admin reset-password --user admin@example.com
 ```
 
-Ein gutes Ergebnis sieht so aus:
+Eine erfolgreiche Ausgabe sieht so aus:
 
 ```
 user:     admin@example.com
@@ -54,7 +55,7 @@ verloren, führen Sie den Befehl einfach noch einmal aus.
 
 Nutzen Sie das, wenn die Schlüsseldatei nach außen gelangt sein könnte, oder
 um alle Benutzer auf einmal abzumelden. Für ein einzelnes Konto genügt
-**Verwaltung -> Benutzer -> Deaktivieren** oder das Zurücksetzen des Passworts
+**Verwaltung → Benutzer → Deaktivieren** oder das Zurücksetzen des Passworts
 oben.
 
 ```sh
@@ -73,7 +74,7 @@ Was passiert:
 
 Starten Sie den Container danach neu (`docker compose restart evey`), damit
 der neue Schlüssel benutzt wird. War die Datenbank nicht erreichbar, wird der
-Schlüssel trotzdem beiseitegelegt, und der Befehl meldet `key rotated, but
+Schlüssel trotzdem umbenannt, und der Befehl meldet `key rotated, but
 sessions could not be ended (restart the server, then run this again)`: Tun
 Sie genau das.
 
@@ -85,8 +86,8 @@ die seitdem geschrieben wurden, verloren gehen dürfen. Der Befehl spielt einen
 
 !!! warning "Achtung"
     Die Wiederherstellung überschreibt die aktuellen Zeilen. Legen Sie zuerst
-    eine Sicherung des aktuellen Stands an (**Verwaltung -> Sicherung &
-    Wiederherstellung -> Jetzt ausführen**), wenn Sie ihn vielleicht noch
+    eine Sicherung des aktuellen Stands an (**Verwaltung → Sicherung &
+    Wiederherstellung → Jetzt ausführen**), wenn Sie ihn vielleicht noch
     einmal brauchen.
 
 ```sh
@@ -101,7 +102,7 @@ Was passiert:
    lassen und mit der Abschlusszeile von `pg_dump` enden. Ein abgeschnittener
    oder beschädigter Dump wird abgelehnt (`refusing to restore: ...`), bevor
    irgendetwas gelöscht wird.
-2. Dann wartet er 5 Sekunden, bevor er etwas anfasst: Strg+C bricht ab.
+2. Dann wartet er 5 Sekunden, bevor er etwas ändert: Strg+C bricht ab.
 3. `psql` spielt den Dump mit `--single-transaction` und `ON_ERROR_STOP=1`
    ein. Bei jedem Fehler wird die Transaktion zurückgerollt, und die
    Datenbank bleibt, wie sie war.
@@ -110,7 +111,7 @@ Was passiert:
 Voraussetzungen:
 
 - Der Dateiname muss auf `.sql.gz` enden. Die `.tar.gz`-Archive aus
-  **Verwaltung -> Sicherung & Wiederherstellung** werden im Verwaltungsbereich
+  **Verwaltung → Sicherung & Wiederherstellung** werden im Verwaltungsbereich
   wiederhergestellt, nicht mit diesem Befehl.
 - Die Zieldatenbank muss existieren; der Dump löscht Tabellen und legt sie neu
   an, nicht die Datenbank.

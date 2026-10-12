@@ -1,21 +1,21 @@
 ---
-source_sha: 88e0bffcb0012a56a1138eec253a0e443e751536aff3d4d36eb018d38b7a86e9
+source_sha: 38effb73470754ed93d55d3b3cbf2f54bb84816288347233487a89e9c04593af
 reviewed: true
 ---
 # Plugin-Sandbox einrichten
 
 Welche Sandbox-Einrichtung zu Ihrem Server passt, in einfachen Worten. Für
 fast alle lautet die Antwort: Lassen Sie die Standardwerte. Der Server erkennt
-die Maschine und wählt die stärkste Abschottung, die er bekommen kann. Lesen
+die Maschine und wählt die stärkste Isolierung, die verfügbar ist. Lesen
 Sie nur weiter, wenn Sie ein altes NAS haben, Evey ohne Docker betreiben oder
-die Schrauben noch weiter anziehen wollen. Das vollständige technische Modell
+eine stärkere Isolierung wollen. Das vollständige technische Modell
 steht unter [Sicherheitsmodell und Plugin-Sandbox](../SECURITY.md).
 
 ## Was Sie schützt
 
-Ein Plugin, das Sie installieren, steckt in einer Box. Je nach Maschine:
+Ein Plugin, das Sie installieren, läuft isoliert. Je nach Maschine:
 
-- **begrenzt die Box, welche Dateien es anfassen kann**: seinen eigenen
+- **begrenzt die Isolierung, welche Dateien es anfassen kann**: seinen eigenen
   Ordner und die Systembibliotheken, die es braucht, sonst nichts (nicht Ihre
   Medien, nicht Ihre Geheimnisse, nicht andere Plugins);
 - **blockiert sie gefährliche Systemaktionen** im Kernel: andere Prozesse
@@ -24,7 +24,7 @@ Ein Plugin, das Sie installieren, steckt in einer Box. Je nach Maschine:
   verlangt hat und dem Sie es erlaubt haben, erreicht nur die Hosts, die es
   angegeben hat, und das über den Server;
 - **begrenzt sie CPU, Arbeitsspeicher, Festplatte und Zahl der Prozesse**,
-  damit ein außer Kontrolle geratenes Plugin den Server nicht lahmlegen kann;
+  damit ein Plugin, das zu viele Ressourcen verbraucht, den Server nicht lahmlegen kann;
 - **hält sie Ihre Geheimnisse unlesbar**: den Schlüssel, der Anmeldungen
   signiert, und die Sicherungen.
 
@@ -33,10 +33,10 @@ auf verdächtigen Code geprüft, und Sie genehmigen ihre Berechtigungen, bevor
 sie laufen.
 
 **Prüfen Sie, was gilt:** **Verwaltung → Plugins → Sicherheits-Dashboard**
-zeigt die Sandbox des Hosts, den Modus, auf den `auto` hinausgelaufen ist
+zeigt die Sandbox des Hosts, den Modus, den `auto` gewählt hat
 (`landlock`, `bubblewrap` oder `basic`), mit den Prüfergebnissen
 (**Landlock-Kernel**, **Sandbox-Launcher**, **Bubblewrap**). `basic` bedeutet,
-dass der Host keine Abschottung der Dateien Pfad für Pfad bietet: Plugins
+dass der Host keine Dateibeschränkung pro Pfad bietet: Plugins
 laufen nur mit einem Wechsel der UID und seccomp. Die Prüfungen sagen, warum,
 und die Abschnitte unten, was zu ändern ist.
 
@@ -44,25 +44,25 @@ und die Abschnitte unten, was zu ändern ist.
 
 | Ihr Server | Was Sie ohne Zutun bekommen | Etwas zu tun? |
 |---|---|---|
-| **Modernes Linux in Docker** (Kernel 5.13 oder neuer, ungefähr alles ab 2021), der Normalfall | die stärkste Abschottung (Landlock), automatisch | nichts |
-| **Altes NAS in Docker** (Kernel älter als 5.13) | gute Abschottung, nur ohne die Dateimauern pro Ordner; Geheimnisse, Netzwerk und Systemaktionen bleiben gesperrt | nichts: Die UID-Trennung (unten) schaltet sich selbst ein |
-| **Beliebiges Linux, ohne Docker** | die stärkste verfügbare Abschottung: Landlock auf einem modernen Kernel, sonst bubblewrap-Namespaces | folgen Sie [Ohne Container](../deployment-bare-metal.md) |
+| **Modernes Linux in Docker** (Kernel 5.13 oder neuer, ungefähr alles ab 2021), der Normalfall | die stärkste Isolierung (Landlock), automatisch | nichts |
+| **Altes NAS in Docker** (Kernel älter als 5.13) | gute Isolierung, aber ohne die Dateibeschränkung pro Ordner; Geheimnisse, Netzwerk und Systemaktionen bleiben gesperrt | nichts: Die UID-Trennung (unten) schaltet sich selbst ein |
+| **Beliebiges Linux, ohne Docker** | die stärkste verfügbare Isolierung: Landlock auf einem modernen Kernel, sonst bubblewrap-Namespaces | folgen Sie [Ohne Container](../deployment-bare-metal.md) |
 
-## Der einzige Regler, den Sie vielleicht anfassen: die UID-Trennung
+## Die einzige Einstellung, die Sie vielleicht ändern: die UID-Trennung
 
 Die UID-Trennung lässt ein Plugin unter einem anderen Benutzerkonto als den
-Server laufen. So kann es die geheimen Dateien des Servers gar nicht lesen,
-selbst wenn sonst nichts es aufhielte. Das zählt nur auf einer Maschine ohne
-die Dateimauern pro Ordner (der Fall `basic`). Auf einer modernen Maschine
-halten die Mauern die Geheimnisse schon fern, und die Trennung ist eine
-zusätzliche, doppelte Schicht.
+Server laufen. So kann es die geheimen Dateien des Servers nicht lesen,
+selbst wenn nichts anderes es verhindern würde. Das ist nur auf einer Maschine ohne
+die Dateibeschränkung pro Ordner relevant (der Fall `basic`). Auf einer modernen Maschine
+hält diese Beschränkung die Geheimnisse bereits unzugänglich, und die Trennung ist eine
+zusätzliche, redundante Schicht.
 
 `EVEY_PLUGINS_UID_SEPARATION`:
 
 | Wert | Bedeutung | Verwenden, wenn |
 |---|---|---|
-| `auto` (Standard) | nur an, wenn sie gebraucht wird (der Fall `basic`), aus, wo sie doppelt wäre | immer, außer einer der beiden Fälle unten trifft zu |
-| `on` | immer an, eine zweite, unabhängige Mauer zusätzlich zu den Dateimauern | Sie doppelt abgesichert sein wollen und die kleinen Kosten unten in Kauf nehmen |
+| `auto` (Standard) | nur an, wenn sie gebraucht wird (der Fall `basic`), aus, wo sie redundant wäre | immer, außer einer der beiden Fälle unten trifft zu |
+| `on` | immer an, ein zweiter, unabhängiger Schutz zusätzlich zur Dateibeschränkung | Sie beide Schutzmaßnahmen wollen und die kleinen Kosten unten in Kauf nehmen |
 | `off` | nie | ein bestimmtes Plugin sich damit falsch verhält (selten) |
 
 !!! warning
@@ -71,37 +71,37 @@ zusätzliche, doppelte Schicht.
     auf einer alten Maschine (`basic`) nicht gewährt werden, weigert sich der
     Server, das Plugin zu starten, statt es neben Ihren Geheimnissen laufen
     zu lassen. Auf einer modernen Maschine schreibt er eine Warnung ins
-    Protokoll und startet das Plugin ohne die zusätzliche Mauer. Das Image
+    Protokoll und startet das Plugin ohne den zusätzlichen Schutz. Das Image
     bringt alles Nötige mit, Sie setzen nur die Variable.
 
 Die kleinen Kosten von `on`: Das Plugin läuft unter einem eigenen Konto. Ein
 Plugin, das Hilfsdateien in seinen eigenen Ordner schreibt, kann dabei
-stolpern. Passiert das, setzen Sie `off`. Deshalb ist der Standard `auto`: Er
+fehlschlagen. Passiert das, setzen Sie `off`. Deshalb ist der Standard `auto`: Er
 geht dieses Risiko nur ein, wo es einen echten Nutzen gibt.
 
 ## Was ein bösartiges Plugin tun könnte
 
-**Modernes Linux (Docker oder ohne Container):** Ein schädliches Plugin ist
-vollständig eingesperrt. Es kann Ihre Geheimnisse nicht lesen, die Dateien
+**Modernes Linux (Docker oder ohne Container):** Ein bösartiges Plugin ist
+vollständig isoliert. Es kann Ihre Geheimnisse nicht lesen, die Dateien
 anderer Plugins weder sehen noch anfassen, keine beliebigen
-Netzwerkverbindungen aufbauen und nicht am System herumpfuschen. Der einzige
-realistische Ausweg ist ein schwerer Kernel-Fehler. Das gilt für jede Sandbox,
+Netzwerkverbindungen aufbauen und das System nicht manipulieren. Der einzige
+realistische Weg hinaus ist ein schwerer Kernel-Fehler. Das gilt für jede Sandbox,
 die keine vollständige virtuelle Maschine ist.
 
-**Altes NAS in Docker, ohne Mauern pro Ordner (`basic`):**
+**Altes NAS in Docker, ohne Dateibeschränkung pro Ordner (`basic`):**
 
 - Ihre Geheimnisse bleiben geschützt (Anmeldeschlüssel, Sicherungen), durch
   das eigene Benutzerkonto, das `auto` hier einschaltet;
 - das Plugin hat kein direktes Netzwerk; ein erlaubtes erreicht nur die
   Hosts, die es angegeben hat;
 - gefährliche Systemaktionen bleiben im Kernel blockiert;
-- aber ohne Mauern pro Ordner könnte ein schädliches Plugin gewöhnliche, nicht
+- aber ohne Dateibeschränkung pro Ordner könnte ein bösartiges Plugin gewöhnliche, nicht
   geheime Dateien lesen, laufende Prozesse auflisten und, weil sich die
   Plugins ein Konto teilen, die Dateien eines anderen Plugins lesen oder
   stören.
 
 Installieren Sie auf einem solchen Host nur Plugins, denen Sie vertrauen, oder
-wechseln Sie auf einen modernen Kernel, um die vollen Dateimauern zu bekommen.
+wechseln Sie auf einen modernen Kernel, um die vollständige Dateibeschränkung zu erhalten.
 
 ## Beispiele für die Konfiguration
 
@@ -119,9 +119,9 @@ EVEY_PLUGINS_SANDBOX_MODE=auto
 EVEY_PLUGINS_UID_SEPARATION=auto        # (Standard) im Fall basic an
 ```
 
-```bash title="3. Doppelt abgesichert auf einem modernen Server"
-EVEY_PLUGINS_SANDBOX_MODE=auto          # läuft auf landlock hinaus
-EVEY_PLUGINS_UID_SEPARATION=on          # die unabhängige UID-Mauer zusätzlich
+```bash title="3. Beide Schutzmaßnahmen auf einem modernen Server"
+EVEY_PLUGINS_SANDBOX_MODE=auto          # ergibt landlock
+EVEY_PLUGINS_UID_SEPARATION=on          # zusätzlich die unabhängige UID-Trennung
 ```
 
 ```bash title="4. Einen Modus festlegen (fortgeschritten)"

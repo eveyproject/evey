@@ -5,7 +5,7 @@ reviewed: true
 # Datenbankmigrationen
 
 Wie Evey bei einem Update den Aufbau seiner Datenbank (das Schema) ändert, was
-Sie vorher und nachher prüfen, und wie Sie herauskommen, wenn eine Migration
+Sie vorher und nachher prüfen, und wie Sie den Fehler beheben, wenn eine Migration
 auf halbem Weg stehen bleibt. Für Betreiber der Standardinstallation, in der
 die Datenbank im Container `evey-server` läuft. Wer selbst eine Migration
 schreibt, findet die Regeln am Ende.
@@ -38,7 +38,7 @@ docker exec -it evey-server sh -c \
 
 ## Sicher aktualisieren
 
-1. **Legen Sie eine Sicherung an** unter **Verwaltung -> Sicherung &
+1. **Legen Sie eine Sicherung an** unter **Verwaltung → Sicherung &
    Wiederherstellung** (**Jetzt ausführen**), oder aus einem Skript:
    ```sh
    curl -X POST -H "Authorization: Bearer <admin-token>" \
@@ -70,7 +70,7 @@ docker exec -it evey-server sh -c \
    docker compose pull && docker compose up -d
    docker logs -f evey-server
    ```
-   Ein gutes Ergebnis: eine Zeile `migrations: pre-migration backup written`,
+   Ein erfolgreiches Update zeigt: eine Zeile `migrations: pre-migration backup written`,
    wenn es etwas anzuwenden gab, dann das Banner des Servers, dann antwortet
    `curl -sf http://localhost:9091/healthz`.
 
@@ -79,8 +79,8 @@ docker exec -it evey-server sh -c \
    docker exec evey-server evey admin migrate version
    docker logs --since 10m evey-server 2>&1 | grep -iE 'migrat|error'
    ```
-   Leeren Sie den Transkodierungs-Cache (**Verwaltung ->
-   Transkodierungs-Cache -> Alle leeren**), wenn die neue Version ändert,
+   Leeren Sie den Transkodierungs-Cache (**Verwaltung →
+   Transkodierungs-Cache → Alle leeren**), wenn die neue Version ändert,
    wie Videos kodiert werden.
 
 ## Zur vorherigen Version zurückkehren
@@ -118,8 +118,8 @@ UPDATE schema_migrations SET version = <N>, dirty = false;
 
 Starten Sie den Container neu; die Migrationen machen von dort aus weiter.
 Den Dump von vor der Migration wiederherzustellen
-([Wiederherstellung](recovery.md#restore-a-pre-migration-dump)) ist der
-andere Ausweg.
+([Wiederherstellung](recovery.md#restore-a-pre-migration-dump)) ist die
+andere Möglichkeit.
 
 ## Eine Migration schreiben
 
@@ -130,7 +130,7 @@ Beispiele, die schon ausgeliefert wurden:
 - **`000066_cascade_and_email_unique.up.sql`** - `ALTER TABLE ... DROP
   CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`. Setzt für die Dauer des ADD
   `ACCESS EXCLUSIVE` auf beide Tabellen. Günstig bei kleinen Tabellen,
-  schmerzhaft bei `media_items` / `watch_progress`.
+  problematisch bei `media_items` / `watch_progress`.
 - **`000067_sort_title_index.up.sql`**,
   **`000068_watch_progress_composite_index.up.sql`**,
   **`000069_quick_connect_shortcode_index.up.sql`** - einfaches
@@ -160,7 +160,7 @@ Richtlinien:
   `ADD COLUMN` + Nachfüllen + `SET NOT NULL` + `DROP COLUMN` nicht in eine
   Datei. Diese Form funktioniert nur, weil Evey als einzelne Instanz läuft
   und die Migrationen beim Start der Reihe nach angewendet werden; bei einem
-  schrittweisen Ausrollen würde die Hälfte, die zurückliegt, Fehler liefern.
+  schrittweisen Ausrollen würden die noch nicht aktualisierten Instanzen Fehler liefern.
   `000077` und `000098_playlists_profile_id.up.sql` wurden so geschrieben und
   bleiben so, weil sie schon ausgeliefert sind. Verteilen Sie eine neue auf
   drei Versionen:
@@ -169,7 +169,7 @@ Richtlinien:
   2. **migrieren** - die neue Spalte nachfüllen (Aufgabe im Hintergrund,
      nicht die Migration), dann das Lesen auf sie umstellen;
   3. **zusammenziehen** - sobald kein ausgerollter Code die alte Spalte mehr
-     anfasst, `SET NOT NULL` und die alte Spalte löschen.
+     verwendet, `SET NOT NULL` und die alte Spalte löschen.
 
 <!-- sources
 migrations: internal/adapters/driven/postgres/migrate.go - RunMigrations, RollbackLastMigration, CurrentMigrationVersion ; internal/adapters/driven/postgres/migrate_backup.go - dumpDatabase, backupFilePrefix, pruneOldBackups, defaultBackupRetention

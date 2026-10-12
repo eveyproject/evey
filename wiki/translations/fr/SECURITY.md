@@ -1,5 +1,5 @@
 ---
-source_sha: 8ccd966956a11a7a3ecb0c05f93391b743b2f875ce8eebf7c481ef523a5aa3cb
+source_sha: 75cf2b4a2c51b96a797f8a84d750a9f124cdfb957c1ca9a4cfa98cba23edbab8
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace

@@ -1,5 +1,5 @@
 ---
-source_sha: 6edbda5d141c4bdf890a36b49ddaf14c02a6bf242923470295dde702a2d0d3b5
+source_sha: af1b54b0c0e4fe2e86f3015114ce2667b287b7a2ec114f06ab77d2dc7f0de872
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture

@@ -9,12 +9,12 @@ Entscheidungsprotokollen, in denen sie sichtbar wird. Lesen Sie diese Seite,
 um zu verstehen, warum Evey sich so verhält, bevor Sie lesen, wie es gebaut
 ist ([Architektur](ARCHITECTURE.md)) oder warum eine grundlegende Wahl
 getroffen wurde ([Entscheidungsprotokolle](adr/README.md)). Wenn sich zwei
-Prinzipien widersprechen, gewinnt das, das weiter oben in der Liste steht.
+Prinzipien widersprechen, hat das Vorrang, das weiter oben in der Liste steht.
 
 | Prinzip | Wo es sichtbar wird | Entschieden durch |
 | --- | --- | --- |
 | 1. Zugang wird verweigert, wenn er sich nicht prüfen lässt | Kindersicherung, Plugin-Installation, Fernzugriff | [ADR-0026](adr/0026-remote-access-inferred-from-a-published-url.md) |
-| 2. Fremder Code wird eingesperrt, nicht vertraut | Plugin-Sandbox | [ADR-0012](adr/0012-plugin-token-deny-by-default.md), [ADR-0014](adr/0014-landlock-plugin-sandbox.md) |
+| 2. Fremder Code wird isoliert, ihm wird nicht vertraut | Plugin-Sandbox | [ADR-0012](adr/0012-plugin-token-deny-by-default.md), [ADR-0014](adr/0014-landlock-plugin-sandbox.md) |
 | 3. Das Original wird geliefert, wann immer es geht | Wiedergabeentscheidung | [ADR-0030](adr/0030-one-plan-one-decision.md) |
 | 4. Entscheidungen beruhen auf Nachweisen, nicht auf Namen | Streamen, Hardware-Beschleunigung | [ADR-0029](adr/0029-transcoding-routes-are-measured-not-assumed.md) |
 | 5. Eine Wiedergabe, eine Entscheidung | Wiedergabeplan, Stream-Info | [ADR-0030](adr/0030-one-plan-one-decision.md), [ADR-0024](adr/0024-playback-plan-resolver.md) |
@@ -35,11 +35,11 @@ Siehe [Benutzer, Profile und Kindersicherung](administration/users.md),
 [Fernzugriff und HTTPS](administration/remote-access.md),
 [ADR-0026](adr/0026-remote-access-inferred-from-a-published-url.md).
 
-## 2. Fremder Code wird eingesperrt, nicht vertraut
+## 2. Fremder Code wird isoliert, ihm wird nicht vertraut
 
 Ein Plugin bekommt die Berechtigungen, die sein Manifest angibt, und sonst
 nichts. Es wird vor der Installation analysiert, läuft in einer Sandbox ohne
-direkten Netzzugang und hält einen Token, der standardmäßig abgelehnt wird.
+direkten Netzzugang und hält ein Token, dessen Zugriffe standardmäßig verweigert werden.
 Was die Sandbox trotzdem nicht verhindern kann, steht ausdrücklich
 geschrieben, statt nur angedeutet zu werden.
 
@@ -66,7 +66,7 @@ Lässt sich eine Fähigkeit nicht nachweisen, nimmt der Server die vorsichtige
 Antwort: Ein unbekannter Cast-Empfänger bekommt die Fähigkeiten des ältesten
 Modells, und Pixelformate, die Player noch nicht melden, folgen einer festen
 Kompatibilitätsregel. Wer zu viel annimmt, bekommt ein schwarzes Bild oder
-falsche Farben. Wer zu wenig annimmt, bezahlt mit einer Transkodierung.
+falsche Farben. Wer zu wenig annimmt, verursacht eine Transkodierung.
 
 Siehe [Streamen auf Chromecast](playback/casting.md),
 [Hardware-Beschleunigung](administration/hardware-acceleration.md),

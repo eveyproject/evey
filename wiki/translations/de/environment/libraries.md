@@ -6,7 +6,7 @@ reviewed: true
 
 Die Variablen hinter dem Scannen, den Metadatenquellen und der
 Intro-Erkennung. Die meisten haben ein Feld im Verwaltungsbereich, das
-gewinnt, sobald dort ein Wert gespeichert ist. Die Seite des
+Vorrang hat, sobald dort ein Wert gespeichert ist. Die Seite des
 Verwaltungsbereichs ist unter
 [Bibliotheken und Metadaten](../administration/libraries.md) beschrieben.
 
@@ -23,7 +23,7 @@ Verwaltungsbereichs ist unter
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_METADATA_LANGUAGE` | `en` | Die Sprache von Titeln und Zusammenfassungen. Die im Einrichtungsassistenten gewählte Sprache gewinnt gegenüber dieser Variable. | Serverkonfiguration → Sprache & Region → **Metadatensprache**, sofort |
+| `EVEY_METADATA_LANGUAGE` | `en` | Die Sprache von Titeln und Zusammenfassungen. Die im Einrichtungsassistenten gewählte Sprache hat Vorrang vor dieser Variable. | Serverkonfiguration → Sprache & Region → **Metadatensprache**, sofort |
 | `EVEY_TMDB_API_KEY` | eingebauter Schlüssel | Ihr eigener TMDB-Schlüssel, für Ihr eigenes Kontingent. | Serverkonfiguration → API-Schlüssel → **TMDB API-Schlüssel**, Neustart |
 | `EVEY_OMDB_API_KEY` | leer | Ein OMDb-Schlüssel, eine zweite Quelle für Filme. | Serverkonfiguration → API-Schlüssel → **OMDB API-Schlüssel**, Neustart |
 | `EVEY_OPENSUBTITLES_API_KEY` | leer | Ein OpenSubtitles-Schlüssel, für die Suche nach Untertiteln über die API. | Serverkonfiguration → API-Schlüssel → **OpenSubtitles API-Schlüssel**, Neustart |

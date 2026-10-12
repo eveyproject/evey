@@ -6,7 +6,7 @@ reviewed: true
 
 Wie der Server aufgebaut ist: die hexagonale Schichtung unter `internal/`,
 die abgegrenzten Kontexte, die Ereignisse, die sie verbinden, und die
-statischen Wächter, die den Code auf diesen Schienen halten. Der Code liegt
+statischen Wächter, die prüfen, dass der Code diese Struktur einhält. Der Code liegt
 in `internal/domain`, `internal/app`, `internal/adapters/{driving,driven}`
 und wird in `cmd/evey/wire*.go` verdrahtet. Die Struktur ist durch
 [ADR-0001](adr/0001-hexagonal-architecture.md) festgelegt, die Aufteilung
@@ -43,9 +43,9 @@ flowchart LR
 
 Abhängigkeitsregel: `adapters -> app -> domain`. Die Domäne importiert nie
 die App oder die Adapter. Die Zusammensetzung ist von Hand geschrieben
-(nicht google/wire), in `cmd/evey/wire.go` und seinen Geschwistern
+(nicht google/wire), in `cmd/evey/wire.go` und den zugehörigen Dateien
 `wire_infra.go`, `wire_services.go`, `wire_adapters.go`, `wire_events.go`,
-`wire_helpers.go`. Tests umgehen die Adapter, indem sie Attrappen
+`wire_helpers.go`. Tests umgehen die Adapter, indem sie Fakes
 einsetzen, die dieselben Domänen-Ports umsetzen: 20 der 21 Domänenpakete
 bringen ein Unterpaket `fakes/` mit.
 
@@ -61,7 +61,7 @@ außerdem direkt das Domänenpaket eines benachbarten Kontexts (siehe
 | Kontext | Zuständigkeit |
 | --- | --- |
 | `user` | Konten, Authentifizierung, Sitzungen, Einstellungen |
-| `library` | Bibliotheken, Ordner, Scan-Aufträge, Medienindex, Personen, Sammlungen, Favoriten und Daumen eines Profils (Daumen haben keinen App-Dienst: Der Bewertungs-RPC speichert und liest `UserRatingRepository` direkt), Trickplay, Erkennung von Intro und Abspann |
+| `library` | Bibliotheken, Ordner, Scan-Aufträge, Medienindex, Personen, Sammlungen, Favoriten und Daumen-Bewertungen eines Profils (Daumen-Bewertungen haben keinen App-Dienst: Der Bewertungs-RPC speichert und liest `UserRatingRepository` direkt), Trickplay, Erkennung von Intro und Abspann |
 | `media` (nur App) | Freigabelinks und Stream-Tokens |
 | `mediarequest` | von Benutzern eingereichte Medienanfragen |
 | `metadata` | Anreicherung über TMDB / OMDb, Artwork |
@@ -85,12 +85,12 @@ außerdem direkt das Domänenpaket eines benachbarten Kontexts (siehe
 | `backup` | Sicherung/Wiederherstellung von Datenbank + Konfiguration |
 | `config` (nur App) | gespeicherte Servereinstellungen, geschrieben von den Einstiegspunkten REST und gRPC |
 | `dlna` (nur App) | SSDP-Erkennung und UPnP-AVTransport-Steuerung |
-| `loadtest` (nur App) | simuliert Zuschauer gegen den eigenen HTTP-Stack des Servers: HLS, oder die rohe Datei, wenn das Urteil für einen Client Direktwiedergabe lautet |
+| `loadtest` (nur App) | simuliert Zuschauer gegen den eigenen HTTP-Stack des Servers: HLS, oder die unveränderte Datei, wenn die Entscheidung für einen Client Direktwiedergabe lautet |
 | `maintenance` (nur App) | Medienwartung auf Anstoß des Administrators: Neuaufbau des Seek-Index, Reparaturjournal, Rückgängig, Prüfung der Tonspuren |
 | `presence` (nur App) | nicht gespeichertes Verzeichnis im Arbeitsspeicher, wer gerade verbunden ist |
 | `qoe` (nur App) | Empfang und Zusammenfassung der Wiedergabe-Telemetrie CMCD (CTA-5004) |
 | `demo` (nur App) | die öffentliche Demo-Instanz (`EVEY_DEMO=1`): legt ihre Konten, Bibliotheken und frei lizenzierten Medien über die eigenen Dienste des Produkts an und setzt sich selbst zurück |
-| `updatecheck` (nur App) | vergleicht den laufenden Build mit dem, was die Registry veröffentlicht, und sagt es dem Administrator; er aktualisiert nie etwas |
+| `updatecheck` (nur App) | vergleicht den laufenden Build mit dem, was die Registry veröffentlicht, und meldet es dem Administrator; er aktualisiert nie etwas |
 | `shared` (nur Domäne) | übergreifende Ports (`EventBus`, `TransactionalUnit`, `ServerConfigRepository`, `ShareLinkRepository`), typisierte IDs, Cursor, Stream-Tokens |
 
 ### Beziehungen
@@ -135,14 +135,14 @@ beschreibt [Ein Video ausliefern - der HLS-Wiedergabeweg](playback-serving.md).
 
 Die Regeln oben stehen nicht nur in der Dokumentation.
 `internal/contractguard/` enthält 58 statische Tests in 30 Dateien, die den
-Build scheitern lassen, wenn sich die Codebasis von ihnen entfernt.
+Build scheitern lassen, wenn die Codebasis von ihnen abweicht.
 
 Die hexagonale Regel selbst ist `TestDomainContextsDoNotImportEachOther`
 (ADR-0001), in `domain_imports_test.go`. Er durchläuft `internal/domain` und
 setzt genau das durch: Ein Kontext darf `internal/domain/shared` und seinen
 eigenen Paketbaum importieren, sonst nichts aus `internal/domain`, und nie
 `internal/app` oder `internal/adapters`. Sein Bereich endet bei
-`internal/domain`: Über die App-Schicht sagt er nichts.
+`internal/domain`: Die App-Schicht prüft er nicht.
 
 Die übrigen schützen Verträge, die eine Sprach- oder Prozessgrenze
 überqueren, darunter:
@@ -159,12 +159,12 @@ Die übrigen schützen Verträge, die eine Sprach- oder Prozessgrenze
 | `TestImageSubtitleCodecsAgreeAcrossServerAndClients` | eine zweite Liste von Codecs für Bilduntertitel in einem Player |
 | `TestHandWrittenClientTypesMatchTheEndpointTheyCall` | ein von Hand geschriebener Antworttyp für Handy/TV, der von seinem Endpunkt abweicht |
 | `TestOnlyThePlanDecidesPlayback`, `TestNoCallerDerivesDownstreamOfThePlaybackPlan` | eine Wiedergabeentscheidung außerhalb des Plan-Resolvers ([ADR-0030](adr/0030-one-plan-one-decision.md)) |
-| `TestRestartExitCodeAgreesWithTheEntrypoint` | ein Exit-Code in Go und `docker/entrypoint.sh`, die sich uneinig sind, was ein Neustart bedeutet |
+| `TestRestartExitCodeAgreesWithTheEntrypoint` | ein Exit-Code in Go und `docker/entrypoint.sh`, die unterschiedlich festlegen, was ein Neustart bedeutet |
 | `TestServerEmittedI18nKeysExistInCatalogue`, `TestI18nPlaceholdersAgreeAcrossLocales` | ein vom Server gesendeter Schlüssel, der im Katalog fehlt, Platzhalter, die sich zwischen Sprachen unterscheiden |
 
 ## C4-Diagramme
 
-Vier Diagramme beschreiben Evey in abnehmender Zoomstufe nach dem
+Vier Diagramme beschreiben Evey von der Gesamtsicht bis ins Detail nach dem
 [C4-Modell](https://c4model.com/). Die Knotennamen sind die echten
 Go-Paketnamen unter `internal/`. Die Containernamen stammen aus
 `docker-compose.yml` für `evey-server`, `evey-postgres` und `evey-caddy`;
@@ -174,7 +174,7 @@ Entwicklungsumgebung.
 
 ### Ebene 1 - Systemkontext
 
-Wer mit Evey spricht und welche Drittanbieter Evey erreicht.
+Wer mit Evey kommuniziert und welche Drittanbieter Evey erreicht.
 
 ```mermaid
 flowchart LR
@@ -363,11 +363,11 @@ Hinweise zu den Goroutinen:
 - Scan-Aufträge von `app/library` laufen in einem Worker-Pool (eine Goroutine pro laufendem Bibliotheksscan, siehe `library.ScanService`).
 - ffmpeg-Aufträge startet der getriebene Adapter `ffmpeg` (`ffmpeg.Transcoder.Start`) über `internal/pkg/procfork`, mit einer überwachenden Goroutine pro Auftrag, die die Fehlerausgabe (stderr) des Prozesses leert.
 - `shared.EventBus` verteilt an die Abonnenten asynchron: Jeder Abonnent läuft in seiner eigenen Goroutine, ein langsamer Empfänger blockiert also nie die Sender. Der Bus öffnet selbst keine Transaktion; das ist Aufgabe des Handlers.
-- `pluginrunner` startet einen Unterprozess pro Plugin; iframe-Plugins leben im Browser des Benutzers und sprechen über signierte Tokens zurück, die `app/plugin` ausstellt.
+- `pluginrunner` startet einen Unterprozess pro Plugin; iframe-Plugins laufen im Browser des Benutzers und rufen den Server mit signierten Tokens auf, die `app/plugin` ausstellt.
 
-### Ebene 3 (Zugabe) - Komponenten-Zoom auf die Scan-Kette
+### Ebene 3 (Ergänzung) - Komponenten-Zoom auf die Scan-Kette
 
-Der heiße Pfad, der Dateien auf der Platte in durchsuchbare, angereicherte
+Der Hot Path, der Dateien auf der Platte in durchsuchbare, angereicherte
 Medien verwandelt. Durchgezogene Pfeile sind direkte Aufrufe; gestrichelte
 Pfeile sind Domänenereignisse auf dem Bus. Die Suchindexierung ist ein
 direkter Port-Aufruf aus `ScanService`, kein Ereignis.

@@ -31,7 +31,7 @@ Inhaltsangabe eines Films auf Englisch, oder umgekehrt.
 
 Sechs: **Englisch (en)**, **Französisch (fr)**, **Deutsch (de)**,
 **Spanisch (es)**, **Chinesisch (zh)**, **Hindi (hi)**. Englisch ist die
-Ausgangssprache und der Rückfall: Fehlt ein Text in einer anderen Sprache,
+Ausgangssprache und die Ersatzsprache: Fehlt ein Text in einer anderen Sprache,
 erscheint er auf Englisch statt als leeres Feld oder als Schlüssel.
 
 ### Wie ein Text auf den Bildschirm kommt
@@ -48,7 +48,7 @@ erscheint er auf Englisch statt als leeres Feld oder als Schlüssel.
   nächsten Start und hält `<html lang>` mit der aktiven Sprache synchron,
   damit Hilfstechnologien die richtige Sprache ansagen. Die **Mobil- und
   TV-Apps** laden vom selben Endpunkt über das gemeinsame native i18n-Modul
-  und bringen eine eingebaute englische Grundausstattung mit
+  und bringen einen eingebauten englischen Grundbestand an Texten mit
   (`fallback.en.json`, `offlineStrings.ts`) für die Bildschirme, die vor der
   ersten Antwort eines Servers erscheinen.
 - Die Sprache kommt aus Ihrer Kontoeinstellung. Fehlt sie, gilt die Sprache
@@ -96,8 +96,8 @@ ist bewusst so gemacht. Es wurde aber **nicht** formal nach WCAG geprüft, es
 gibt **keine automatischen Barrierefreiheitstests** in der Testsuite, und es
 wurde **nicht** systematisch mit Screenreadern getestet. Teile davon sind
 mit Hilfstechnologien wahrscheinlich nutzbar, andere wahrscheinlich nicht.
-Wenn Sie auf Hilfstechnologien angewiesen sind, rechnen Sie mit Ecken und
-Kanten und melden Sie bitte Einzelheiten.
+Wenn Sie auf Hilfstechnologien angewiesen sind, rechnen Sie mit Mängeln
+und melden Sie bitte Einzelheiten.
 
 ### Was vorhanden ist
 
@@ -126,7 +126,7 @@ Kanten und melden Sie bitte Einzelheiten.
   Flächen. Die TV-App prüft ihre abgeleiteten Werte noch einmal
   (`ThemeProvider.contrast.test.ts`). Theme-Plugins und die Farben, die ein
   Plugin zur Laufzeit einfügt, werden nicht geprüft: Ein eigenes Theme kann
-  stellenweise durchfallen. AAA ist nicht das Ziel.
+  die Anforderung stellenweise nicht erfüllen. AAA ist nicht das Ziel.
 - **Keine Textvergrößerung in der App** über den Zoom von Browser oder
   Betriebssystem hinaus, und kein eigener Modus mit hohem Kontrast.
 - **Die Gestaltung von Untertiteln auf dem Handy ist begrenzt** (eine

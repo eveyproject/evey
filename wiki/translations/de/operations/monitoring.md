@@ -4,8 +4,8 @@ reviewed: true
 ---
 # Überwachung und Protokolle
 
-Wo Sie sehen, was der Server tut, für den Administrator, der nach dem Rechten
-sehen will, statt etwas zu reparieren: von dem, was gerade läuft, bis zur
+Wo Sie sehen, was der Server tut, für den Administrator, der den Zustand
+prüfen will, statt etwas zu reparieren: von dem, was gerade läuft, bis zur
 Statistik des Monats, mit den Protokollen dazwischen. Wenn Sie einem
 bestimmten Fehler nachgehen, beginnen Sie mit der
 [Fehlerbehebung](troubleshooting.md).
@@ -46,16 +46,16 @@ Dasselbe Protokoll liegt auf der Festplatte, eine JSON-Datei pro Tag in
 `./evey-data/logs/` (`/data/logs/evey-YYYY-MM-DD.log` im Container),
 standardmäßig 90 Tage aufbewahrt. `docker compose logs evey` zeigt nur, was
 der Container beim Start ausgibt. Das lesen Sie, wenn der Server nicht
-hochkommt. Siehe [Fehlerbehebung](troubleshooting.md#the-logs).
+startet. Siehe [Fehlerbehebung](troubleshooting.md#the-logs).
 
 ## Wie die Wiedergabe wirklich lief
 
 **Verwaltung → Streaming-Qualität** beruht auf dem, was die Player während der
 Wiedergabe melden (Pufferstand, erneutes Puffern, Durchsatz, im Format CMCD):
-wie oft Zuschauer gewartet haben, welche Titel am häufigsten hängen und welche
-Arten von Geräten Mühe haben, über den letzten Tag oder die letzte Woche.
+wie oft Zuschauer gewartet haben, welche Titel am häufigsten hängen und bei welchen
+Gerätearten Probleme auftreten, über den letzten Tag oder die letzte Woche.
 
-Der Server handelt auch danach. Lässt eine bestimmte Art von Quelle die
+Der Server reagiert auch darauf. Lässt eine bestimmte Art von Quelle die
 Zuschauer immer wieder warten, senkt er für eine Weile die höchste Qualität
 für diese Art von Quelle, zusätzlich zur kalibrierten Obergrenze, und hebt die
 Grenze danach von selbst wieder auf. Die aktiven Grenzen stehen unter

@@ -13,7 +13,7 @@ Stream überhaupt gewählt wird:
 
 Eine Variable mit einem Schlüssel im Verwaltungsbereich lässt sich auch als
 Zeile mit diesem Schlüssel unter **Verwaltung → Serverkonfiguration →
-Konfigurationseinträge** setzen. Die Zeile gewinnt gegenüber der Umgebung.
+Konfigurationseinträge** setzen. Die Zeile hat Vorrang vor der Umgebung.
 Der Verwaltungsbereich schlägt die Download-Schlüssel vor; die anderen tippen
 Sie so ein, wie sie hier stehen. Alle werden beim Start gelesen: Eine Änderung
 gilt also ab dem nächsten Neustart, egal auf welchem Weg sie gemacht wurde.
@@ -25,7 +25,7 @@ gilt also ab dem nächsten Neustart, egal auf welchem Weg sie gemacht wurde.
 | `EVEY_HLS_ONDEMAND` | an | Liefert eine Datei, deren Spuren kopiert werden können, indem sie im laufenden Betrieb neu verpackt wird, ohne ffmpeg und ohne in den Cache zu schreiben. `off`: Solche Dateien gehen stattdessen über den Kopierweg von ffmpeg. | Konfigurationseinträge `transcoding.hls_ondemand`, Neustart |
 | `EVEY_REMUX_COPY` | an | Der Kopierweg von ffmpeg: Das Video wird ohne neue Kodierung kopiert, wenn die Datei es erlaubt. `off`: Diese Dateien werden transkodiert. | Konfigurationseinträge `transcoding.remux_copy`, Neustart |
 | `EVEY_HLS_AUDIO_RENDITION_ENABLED` | `true` | Bietet die Tonspuren als eigene Renditionen an, damit ein Player die Sprache wechseln kann, ohne das Video neu zu laden. Erlaubt auch, ein kopiertes Video mit einer nebenher neu kodierten Tonspur abzuspielen. | keine |
-| `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Fügt neben einem kopierten Stream eine niedrige transkodierte Qualität hinzu. So kann ein Player, dessen Verbindung einbricht, eine Stufe heruntergehen, statt einzufrieren. Kostet nichts, solange kein Player sie nutzt. | keine |
+| `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Fügt neben einem kopierten Stream eine niedrige transkodierte Qualität hinzu. So kann ein Player, dessen Verbindung einbricht, eine Stufe heruntergehen, statt anzuhalten. Kostet nichts, solange kein Player sie nutzt. | keine |
 | `EVEY_HLS_ONDEMAND_CONCAT` | an | Lückenlose Wiedergabe über Folgen hinweg, wenn der Web-Player sie anfordert. Eine Folge, die nicht kopiert werden kann, fällt auf den normalen Stream zurück. | Konfigurationseinträge `transcoding.hls_ondemand_concat`, Neustart |
 | `EVEY_HLS_ONDEMAND_TRACK_TRIM` | aus | Packt nur die gewählte Tonspur in jeden Stream statt aller. | Konfigurationseinträge `transcoding.hls_ondemand_track_trim`, Neustart |
 | `EVEY_HLS_ONDEMAND_ENCRYPT` | aus | Verschlüsselt neu verpackte Streams mit AES-128 (nur HLS: Dann wird kein DASH-Manifest angeboten). | Konfigurationseinträge `transcoding.hls_ondemand_encrypt`, Neustart |

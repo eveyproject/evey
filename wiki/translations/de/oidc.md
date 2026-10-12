@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Single Sign-on (OIDC)
 
-Lassen Sie die Leute sich über den Identitätsanbieter anmelden, den Sie schon
+Lassen Sie Benutzer sich über den Identitätsanbieter anmelden, den Sie schon
 betreiben (Keycloak, Authentik, Authelia, Google oder jeder andere
 OpenID-Connect-Anbieter): Die Anmeldeseite der Web- und Android-Apps zeigt
 dann neben dem Passwortformular **Mit SSO anmelden**. Für den Administrator
@@ -24,7 +24,7 @@ Adressen beim Anbieter eintragen** zeigt:
 | **Weiterleitungs-URI nach der Abmeldung** | `https://<your address>/login` |
 
 Beide werden aus der öffentlichen Adresse des Servers gebildet (**Verwaltung →
-Fernzugriff**): Tragen Sie diese zuerst ein, wenn die Leute Evey unter einer
+Fernzugriff**): Tragen Sie diese zuerst ein, wenn die Benutzer Evey unter einer
 anderen Adresse erreichen.
 
 ## 2. Evey einrichten
@@ -47,11 +47,11 @@ speichern** gilt sofort, ohne Neustart. Die Zeile **Status** sagt, ob der
 Anbieter erreichbar ist, und nennt sonst den letzten Fehler.
 
 Die Variablen `EVEY_OIDC_*` aus
-[Konten und Anmeldung](environment/accounts.md#single-sign-on-oidc) sind der
-Rückfall: Die Karte sagt, wenn ihre Werte von dort kommen, und sobald Sie die
+[Konten und Anmeldung](environment/accounts.md#single-sign-on-oidc) sind die
+Rückfallwerte: Die Karte zeigt an, wenn ihre Werte von dort kommen, und sobald Sie die
 Karte speichern, gilt die Karte.
 
-!!! note "Der Anbieter liegt nie auf dem kritischen Pfad des Servers"
+!!! note "Der Server ist für seinen Betrieb nie auf den Anbieter angewiesen"
     Der Server startet auch, wenn der Anbieter ausgefallen ist. Die
     SSO-Schaltfläche bleibt verborgen, solange der Anbieter nicht erreichbar
     ist, und die Anmeldung mit Passwort funktioniert weiter. Der Anbieter wird

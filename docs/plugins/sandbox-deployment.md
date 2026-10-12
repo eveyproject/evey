@@ -3,12 +3,12 @@
 Which sandbox setup fits your server, in plain words. For almost everyone
 the answer is: leave the defaults. The server detects the machine and picks
 the strongest isolation it can. Read on only if you run an old NAS, run Evey
-without Docker, or want to tighten things further. The full technical model
+without Docker, or want stronger isolation. The full technical model
 is in [Security model and plugin sandbox](../SECURITY.md).
 
 ## What protects you
 
-A plugin you install is boxed in. Depending on the machine, the box:
+A plugin you install runs isolated. Depending on the machine, the isolation:
 
 - **limits which files it can touch**: its own folder and the system
   libraries it needs, nothing else (not your media, not your secrets, not
@@ -18,7 +18,7 @@ A plugin you install is boxed in. Depending on the machine, the box:
 - **cuts off direct network access**, always: a plugin that asked for the
   network, and that you approved, reaches only the hosts it declared, through
   the server;
-- **caps CPU, memory, disk and process count**, so a runaway plugin cannot
+- **caps CPU, memory, disk and process count**, so a plugin that uses too much cannot
   take the server down;
 - **keeps your secrets unreadable**: the login-signing key and the backups.
 
@@ -37,15 +37,15 @@ sections below say what to change.
 | Your server | What you get out of the box | Anything to do? |
 |---|---|---|
 | **Modern Linux in Docker** (kernel 5.13 or newer, roughly anything from 2021 on), the normal case | the strongest isolation (Landlock), automatically | nothing |
-| **Old NAS in Docker** (kernel older than 5.13) | good isolation minus the per-folder file walls; secrets, network and system actions stay locked down | nothing: uid separation (below) turns itself on |
+| **Old NAS in Docker** (kernel older than 5.13) | good isolation without the per-folder file restriction; secrets, network and system actions stay locked down | nothing: uid separation (below) turns itself on |
 | **Any Linux, no Docker** | the strongest isolation available: Landlock on a modern kernel, otherwise bubblewrap namespaces | follow [Without a container](../deployment-bare-metal.md) |
 
-## The one knob you might touch: uid separation
+## The one setting you might change: uid separation
 
 Uid separation makes a plugin run under a different user account than the
-server, so it physically cannot read the server's secret files even if
+server, so it cannot read the server's secret files even if
 nothing else stopped it. It only matters on a machine without the
-per-folder file walls (the `basic` case); on a modern machine the walls
+per-folder file restriction (the `basic` case); on a modern machine that restriction
 already keep secrets out of reach, and the separation is a redundant extra
 layer.
 
@@ -54,7 +54,7 @@ layer.
 | Value | Meaning | Use it when |
 |---|---|---|
 | `auto` (default) | on only when it is needed (the `basic` case), off where it is redundant | always, unless one of the two cases below applies |
-| `on` | always on, a second independent wall on top of the file walls | you want belt and braces and accept the small cost below |
+| `on` | always on, a second, independent protection on top of the file restriction | you want both protections and accept the small cost below |
 | `off` | never | a specific plugin misbehaves when run under it (rare) |
 
 !!! warning
@@ -62,35 +62,35 @@ layer.
     option: pick one. When the drop cannot be granted on an old machine
     (`basic`), the server refuses to start the plugin rather than run it
     next to your secrets; on a modern machine it logs a warning and runs the
-    plugin without the extra wall. The image ships everything needed, you
+    plugin without the extra protection. The image ships everything needed, you
     only set the variable.
 
 The small cost of `on`: the plugin runs as a separate account, so a plugin
-that writes scratch files inside its own folder can trip up. If one does,
+that writes scratch files inside its own folder can fail. If one does,
 set `off`. That is why the default is `auto`: it only takes that risk where
 there is a real benefit.
 
 ## What a malicious plugin could do
 
-**Modern Linux (Docker or bare metal):** a bad plugin is fully boxed in. It
+**Modern Linux (Docker or bare metal):** a malicious plugin is fully isolated. It
 cannot read your secrets, cannot see or touch other plugins' files, cannot
 make arbitrary network calls and cannot tamper with the system. The only
 realistic way out is a serious kernel bug, true of any sandbox that is not a
 full virtual machine.
 
-**Old NAS in Docker, no per-folder walls (`basic`):**
+**Old NAS in Docker, no per-folder file restriction (`basic`):**
 
 - your secrets stay protected (login key, backups) by the separate user
   account, which `auto` turns on here;
 - the plugin has no direct network; a permitted one reaches only the hosts it
   declared;
 - dangerous system actions are still blocked at the kernel;
-- but with no per-folder walls, a bad plugin could read ordinary, non-secret
+- but with no per-folder file restriction, a malicious plugin could read ordinary, non-secret
   files, list running processes and, because plugins share one account,
   read or disturb another plugin's files.
 
 Only install plugins you trust on such a host, or move to a modern kernel
-for the full file walls.
+for the full file restriction.
 
 ## Configuration examples
 
@@ -107,9 +107,9 @@ EVEY_PLUGINS_SANDBOX_MODE=auto
 EVEY_PLUGINS_UID_SEPARATION=auto        # (default) on in the basic case
 ```
 
-```bash title="3. Belt and braces on a modern server"
+```bash title="3. Both protections on a modern server"
 EVEY_PLUGINS_SANDBOX_MODE=auto          # resolves to landlock
-EVEY_PLUGINS_UID_SEPARATION=on          # add the independent uid wall on top
+EVEY_PLUGINS_UID_SEPARATION=on          # add the independent uid separation on top
 ```
 
 ```bash title="4. Pin a mode (advanced)"

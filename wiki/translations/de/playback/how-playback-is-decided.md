@@ -1,5 +1,5 @@
 ---
-source_sha: 6edbda5d141c4bdf890a36b49ddaf14c02a6bf242923470295dde702a2d0d3b5
+source_sha: af1b54b0c0e4fe2e86f3015114ce2667b287b7a2ec114f06ab77d2dc7f0de872
 reviewed: true
 ---
 # Wie Evey die Wiedergabeart wählt
@@ -9,9 +9,9 @@ umgewandelt?
 
 **Kurz gesagt:**
 
-- Sie wählen nie eine Qualität. Wenn Sie auf Abspielen drücken, schaut der
-  Server sich die Datei an, prüft, was Ihr Gerät abspielen kann, und wie
-  ausgelastet er selbst ist. Dann wählt er den leichtesten Weg, der
+- Sie wählen nie eine Qualität. Wenn Sie auf Abspielen drücken, prüft der
+  Server die Datei, was Ihr Gerät abspielen kann und wie ausgelastet er
+  selbst ist. Dann wählt er den leichtesten Weg, der
   funktioniert.
 - Es gibt drei Wege: **Direktwiedergabe** (die Datei, wie sie ist), **Remux**
   (dasselbe Bild und derselbe Ton, in ein anderes Dateiformat umverpackt) und
@@ -47,7 +47,7 @@ steht jede Spur mit ihrer Entscheidung (*kopiert*, *transkodiert* oder
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
   ![Stream-Info im Web-Player, bei einem Remux](../images/player-stream-info.webp){ loading=lazy }
-  <figcaption>Remux: Die Verpackung ändert sich, die Video- und Tonspuren bleiben unverändert, und der eine Grund, warum die Datei nicht so abgespielt wird, wie sie ist. „Kopiert“ beschreibt die Spuren, nicht die Wiedergabemethode (Oberfläche auf Englisch).</figcaption>
+  <figcaption>Remux: Die Verpackung ändert sich, die Video- und Tonspuren bleiben unverändert, und der Bereich zeigt den einzigen Grund, warum die Datei nicht so abgespielt wird, wie sie ist. „Kopiert“ beschreibt die Spuren, nicht die Wiedergabemethode (Oberfläche auf Englisch).</figcaption>
 </figure>
 
 Die Gründe fallen in vier Gruppen:

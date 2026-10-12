@@ -41,8 +41,8 @@ die vierstellige PIN dieses Profils. Mehr dazu:
 
 ## Etwas finden
 
-- **Startseite** beginnt mit dem, was Sie halb geschaut haben, bereit zum
-  Fortsetzen. Danach kommen Reihen wie **Kürzlich hinzugefügt** und eine
+- **Startseite** beginnt mit dem, was Sie angefangen und nicht beendet
+  haben, zum Fortsetzen. Danach kommen Reihen wie **Kürzlich hinzugefügt** und eine
   Reihe pro Bibliothek. Mit **Anpassen** wählen Sie, welche Reihen Sie sehen.
 - Mit **Bibliotheken** und **Genres** stöbern Sie in allem.
 - **Suche** findet einen Film, eine Serie oder ein Lied über den Namen.

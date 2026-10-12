@@ -23,7 +23,7 @@ ohne Neustart.
 
 Gibt es eine Einstellung an beiden Orten, gilt immer dieselbe Reihenfolge:
 
-1. **Der im Verwaltungsbereich gespeicherte Wert gewinnt.** Bei jedem Start
+1. **Der im Verwaltungsbereich gespeicherte Wert hat Vorrang.** Bei jedem Start
    liest der Server zuerst die Umgebung. Dann ersetzt er jedes Feld durch den
    Wert aus der Datenbank, falls dort einer gespeichert ist. Eine Variable
    überschreibt nie einen gespeicherten Wert.
@@ -85,7 +85,7 @@ Verwaltungsbereich gibt.
   die Compose-Datei bearbeitet haben.
 - `EVEY_DB_PASSWORD` und `MEILI_MASTER_KEY` können auch aus einer Datei
   kommen, deren Pfad in derselben Variable mit der Endung `_FILE` steht. Ein
-  ausdrücklich gesetzter Wert gewinnt gegenüber der Datei.
+  ausdrücklich gesetzter Wert hat Vorrang vor der Datei.
 
 ## Geheimnisse
 
@@ -98,7 +98,7 @@ Befehle `evey admin` kein Passwort. Setzen Sie `EVEY_DB_PASSWORD` oder
 
 Ein TMDB-Schlüssel ist eingebaut. `EVEY_TMDB_API_KEY` hinterlegt Ihren
 eigenen. Der Schlüssel unter **Verwaltung → Serverkonfiguration →
-API-Schlüssel** gewinnt gegenüber dieser Variable.
+API-Schlüssel** hat Vorrang vor dieser Variable.
 
 ## Variablen, die Sie nicht brauchen
 
@@ -111,13 +111,13 @@ nichts ändern:
 | `EVEY_FORWARDED_PROTO` | Veraltet - wird aus dem Schema von `EVEY_SERVER_BASE_URL` abgeleitet. Wer sie setzt, bekommt nur eine Warnung im Protokoll, dass sie veraltet ist. |
 | `EVEY_KEYFRAME_BACKFILL=on` | Alles außer `off` schaltet die Funktion ein, auch wenn die Variable fehlt. |
 | `LIBVA_DRIVER_NAME` | libva wählt den Treiber anhand der PCI-ID der GPU. Erzwingen Sie ihn nur, wenn Ihre Karte einen Treiber braucht, den libva nicht wählt (prüfen Sie es mit `docker exec evey-server vainfo`). |
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` wählt die stärkste Abschottung, die Ihr Host unterstützt. Setzen Sie die Variable nur ausdrücklich, wenn Sie eine *fail-closed*-Garantie wollen: `landlock` weigert sich, ein Plugin zu starten, das es nicht abschotten kann, während `auto` mit einer Warnung auf eine schwächere Stufe zurückfällt. |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` wählt die stärkste Isolierung, die Ihr Host unterstützt. Setzen Sie die Variable nur ausdrücklich, wenn Sie eine *fail-closed*-Garantie wollen: `landlock` weigert sich, ein Plugin zu starten, das es nicht isolieren kann, während `auto` mit einer Warnung auf eine schwächere Stufe zurückfällt. |
 | ein `group_add` für `/dev/dri/card0` | Evey öffnet immer nur `renderD128`. Prüfen Sie es mit `ls -ln /dev/dri` und fügen Sie nur diese Gruppe hinzu. |
 
 ## Dateibesitz (PUID und PGID)
 
-**Standard: automatisch.** Wenn `PUID`/`PGID` nicht gesetzt sind, schaut das
-Startskript (Entrypoint) beim Start nach, wem Ihre `/media*`-Mounts gehören,
+**Standard: automatisch.** Wenn `PUID`/`PGID` nicht gesetzt sind, prüft das
+Startskript (Entrypoint) beim Start, wem Ihre `/media*`-Mounts gehören,
 und startet den Server als dieser Benutzer. So funktionieren die Funktionen,
 die *in Ihre Bibliothek schreiben* (die Reparatur des Seek-Index baut Dateien
 an Ort und Stelle neu auf), ohne weiteres Zutun - kein `chown`, keine
@@ -128,13 +128,13 @@ evey: media mounts owned by 1026:100 (detected on /media) - running the
 server as that user so write features (seek-index repair) work out of the box
 ```
 
-Gehören die Medien-Mounts **verschiedenen Benutzern**, macht der Server das
-Beste daraus: Er übernimmt den Benutzer, dem die meisten Mounts gehören, und
+Gehören die Medien-Mounts **verschiedenen Benutzern**, wählt der Server die
+beste mögliche Lösung: Er übernimmt den Benutzer, dem die meisten Mounts gehören, und
 tritt den Gruppen der anderen Mounts als Zusatzgruppen bei. Reparaturen auf
 diesen Mounts funktionieren dann, wenn ihre Dateien für die Gruppe
 beschreibbar sind (die Warnung beim Start nennt die Mounts, die
-Schreibzugriffe womöglich noch ablehnen). Die automatische Erkennung tritt nur
-ganz zurück (sie fällt mit einer Warnung auf `1000:1000` zurück), wenn jeder
+Schreibzugriffe womöglich noch ablehnen). Die automatische Erkennung wird nur
+ganz aufgegeben (sie fällt mit einer Warnung auf `1000:1000` zurück), wenn jeder
 Medien-Mount root oder der reservierten UID `1001` gehört. Übertragen Sie Ihre
 Medien dann mit chown an einen normalen Benutzer, oder setzen Sie
 `PUID`/`PGID` ausdrücklich:
@@ -144,7 +144,7 @@ PUID=1026   # den Server unter dieser Benutzer-ID starten  (Host: `id -u <media-
 PGID=100    # ...und mit dieser Gruppen-ID
 ```
 
-Ausdrücklich gesetzte Werte gewinnen immer gegenüber der Erkennung.
+Ausdrücklich gesetzte Werte haben immer Vorrang vor der Erkennung.
 
 So funktioniert es: Der Container startet als root, gerade lange genug, um
 seinen internen Benutzer umzustellen (und Eveys eigene Zustandsverzeichnisse

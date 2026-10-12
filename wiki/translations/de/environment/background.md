@@ -26,7 +26,7 @@ dafür diesen Anteil.
 
 Jede Variable hat einen Schlüssel, der auch als Zeile unter **Verwaltung →
 Serverkonfiguration → Konfigurationseinträge** akzeptiert wird; dort werden
-diese Schlüssel vorgeschlagen. Die Zeile gewinnt gegenüber der Umgebung. Die
+diese Schlüssel vorgeschlagen. Die Zeile hat Vorrang vor der Umgebung. Die
 Karte **Hintergrundarbeiten** auf demselben Bildschirm stellt die wichtigsten
 ein. Alle werden beim Start gelesen: Eine Änderung gilt also ab dem nächsten
 Neustart, egal auf welchem Weg sie gemacht wurde.
@@ -40,7 +40,7 @@ Neustart, egal auf welchem Weg sie gemacht wurde.
 | `EVEY_KEYFRAME_BACKFILL_IDLE_SEC` | Serverstandard | Sekunden zwischen zwei Durchläufen, wenn nichts zu tun ist (> 0). | Konfigurationseinträge `transcoding.keyframe_backfill_idle_sec`, Neustart |
 | `EVEY_LEVEL_BACKFILL` | an | Liest das H.264/HEVC-Level von Dateien, die gescannt wurden, bevor es erfasst wurde. `off` schaltet es ab. | Konfigurationseinträge `transcoding.level_backfill`, Neustart |
 | `EVEY_LEVEL_BACKFILL_BATCH`, `_PAUSE_MS`, `_IDLE_SEC` | Serverstandard | Dasselbe Tempo, für diesen Durchlauf. | Konfigurationseinträge `transcoding.level_backfill_batch`, `_pause_ms`, `_idle_sec`, Neustart |
-| `EVEY_SNAPSHOT_FASTPATH` | an | Zieht Vorschaubilder mit dem schnellen Decoder im Prozess heraus. `off` nutzt nur den exakten Extraktor von ffmpeg, um ihn als Ursache auszuschließen, wenn ein Vorschaubild das falsche Bild zeigt. | Konfigurationseinträge `transcoding.snapshot_fastpath`, Neustart |
+| `EVEY_SNAPSHOT_FASTPATH` | an | Extrahiert Vorschaubilder mit dem schnellen Decoder im Prozess. `off` nutzt nur den exakten Extraktor von ffmpeg, um ihn als Ursache auszuschließen, wenn ein Vorschaubild das falsche Bild zeigt. | Konfigurationseinträge `transcoding.snapshot_fastpath`, Neustart |
 | `EVEY_TITLE_PROBE` | an | Untersucht Titel im Hintergrund mit niedriger Priorität, pausiert während der Wiedergabe. `off` schaltet es ab. | Konfigurationseinträge `transcoding.title_probe`, Neustart |
 
 <!-- sources

@@ -8,7 +8,7 @@ Diese Seite führt einen Entwickler von einem Klon von Evey zu einem Plugin,
 das auf einem lokalen Server läuft, und dann zu einem signierten Paket, das
 andere Administratoren installieren können. Die Anleitung in
 [Abschnitt 3](#3-your-first-plugin-step-by-step) ist der direkte Weg; der
-Rest ist Nachschlagestoff, zu dem Sie zurückkehren werden. Die Aufrufe und
+Rest ist Nachschlagematerial, zu dem Sie zurückkehren werden. Die Aufrufe und
 Felder selbst stehen in der [Plugin-API-Referenz](api-reference.md).
 
 ```mermaid
@@ -30,8 +30,8 @@ Ein Plugin ist ein ZIP mit einer `plugin.yaml` auf oberster Ebene und einem
 Backend-Prozess, den der Server in einer Sandbox startet. Der Prozess bietet
 einen kleinen gRPC-Dienst auf einem Unix-Socket an und ruft den Server über
 einen anderen zurück. Es kann auch ein Oberflächenmodul mitbringen, das in
-einem abgeschotteten Frame der Seite gezeichnet wird. Mit der Außenwelt
-spricht es nur über den Server, und nur mit den Hosts, die es angegeben hat.
+einem isolierten Frame der Seite dargestellt wird. Mit externen Diensten
+kommuniziert es nur über den Server, und nur mit den Hosts, die es angegeben hat.
 
 ## 1. Voraussetzungen
 
@@ -50,7 +50,7 @@ Image `-full` ergänzt PHP, Ruby und Lua. Ein Manifest, das eine Laufzeit
 nennt, die dem Image fehlt, wird bei der Installation abgelehnt, mit der
 Liste der verfügbaren Laufzeiten.
 
-Der gRPC-Vertrag ist eine einzige Datei, `proto/plugin/v1/plugin_api.proto`.
+Die gRPC-Schnittstelle ist in einer einzigen Datei definiert, `proto/plugin/v1/plugin_api.proto`.
 Stubs werden für Python, Node.js, PHP, Ruby, Dart, Java und Swift unter
 `sdk/<language>/` erzeugt. Der Server kopiert die Stubs Ihrer Sprache beim
 Start des Plugins neben Ihren Einstiegspunkt. Ein Plugin in Node.js oder
@@ -81,7 +81,7 @@ make dev                        # postgres, meilisearch, der Server (Air), die W
 Öffnen Sie `https://evey.test`. Der Einrichtungsassistent legt beim ersten
 Start das Administratorkonto an, wie in
 [Ersteinrichtung](../getting-started/first-setup.md) beschrieben.
-Plugin-Dateien landen in `./evey-data/plugins/<plugin-id>/`, im Container
+Plugin-Dateien liegen in `./evey-data/plugins/<plugin-id>/`, im Container
 als `/data/plugins` eingehängt.
 
 ## 3. Ihr erstes Plugin, Schritt für Schritt
@@ -160,10 +160,10 @@ kopieren es, ändern eine Sache und installieren es.
    abgelehnt. Eine neue Berechtigung im Manifest löst den
    Zustimmungsschritt aus, den der Administrator bestätigen muss.
 
-Was Sie jetzt haben, ist der ganze Backend-Vertrag. Von hier wächst ein
-Plugin in drei Richtungen: den Server aufrufen (`HostService`, Abschnitt 4),
-eine Oberfläche zeichnen (Abschnitt 5) und die Außenwelt erreichen
-(Abschnitt 6).
+Damit kennen Sie die gesamte Backend-Schnittstelle. Davon ausgehend lässt
+sich ein Plugin in drei Richtungen erweitern: den Server aufrufen
+(`HostService`, Abschnitt 4), eine Oberfläche darstellen (Abschnitt 5) und
+externe Dienste erreichen (Abschnitt 6).
 
 ## 4. Den Server aus dem Backend aufrufen
 
@@ -182,13 +182,13 @@ brauchen gar keine Berechtigung:
 
 `GetMediaItem` und `ListMediaItems` brauchen `api.library` oder
 `media.read`; `Fetch` braucht `network`. Die vollständige Tabelle, mit den
-Methoden, die im Vertrag stehen, aber noch nicht bedient werden, steht in
+Methoden, die in der Schnittstelle definiert sind, aber noch nicht bedient werden, steht in
 der [Plugin-API-Referenz](api-reference.md#hostservice-what-the-plugin-can-call).
 
 ## 5. Eine Oberfläche hinzufügen
 
 Eine Oberfläche ist ein JavaScript-Modul, das die Seite in einem
-abgeschotteten Frame lädt, in einem der Slots, die der Server erlaubt. Geben
+isolierten Frame lädt, in einem der Slots, die der Server erlaubt. Geben
 Sie an, wo die Dateien liegen und wohin das Modul kommt:
 
 ```yaml title="plugin.yaml"
@@ -199,20 +199,20 @@ frontend:
 ```
 
 Das Modul bekommt eine Brücke `window.evey`: `evey.onInit` übergibt ihm die
-Konfiguration des Plugins, die Sprache, das Design und die Oberfläche, auf
-der es gelandet ist. `evey.resize`, `evey.toast` und `evey.navigate` wirken
+Konfiguration des Plugins, die Sprache, das Design und die Oberfläche, in
+der es angezeigt wird. `evey.resize`, `evey.toast` und `evey.navigate` wirken
 innerhalb fester Grenzen auf die Seite. Und wenn das Manifest `prefs` oder
 `public` angibt, erreichen `evey.prefs.*` und `evey.media.*` den Server über
-einen kurzlebigen Token, den der Host für den Frame hält.
+einen kurzlebigen Token, den der Host für den Frame verwaltet.
 `examples/plugins/weather` ist ein vollständiges Widget mit Build-Schritt;
 `examples/plugins/data-demo` zeigt `prefs`, `public` und den Slot
 `admin.nav`. Die Brücke und die Slots sind in der
 [Plugin-API-Referenz](api-reference.md#frontend-api) beschrieben.
 
-## 6. Die Außenwelt erreichen
+## 6. Externe Dienste erreichen
 
 Ein Plugin-Prozess kann keinen Socket ins Internet öffnen, in keinem
-Sandbox-Modus. Der einzige Weg hinaus ist der Aufruf `Fetch` von
+Sandbox-Modus. Die einzige Verbindung nach außen ist der Aufruf `Fetch` von
 `HostService`: Der Server prüft das Ziel gegen das Manifest und führt die
 Anfrage dann selbst aus.
 
@@ -231,7 +231,7 @@ Oberfläche bekommt dieselbe Hostliste als `connect-src`. Ein Widget darf
 diese Hosts also direkt über `https` aufrufen. Die Regeln stehen in
 [Berechtigungen und Slots](security-model.md#external-fetch-rules).
 
-!!! note "Hosts sind ein Vertrag mit dem Administrator"
+!!! note "Die Hostliste ist eine verbindliche Zusage an den Administrator"
     Der Administrator sieht die Hostliste bei der Installation und muss
     jede Ergänzung beim Update bestätigen. Beschränken Sie sie auf das, was
     das Plugin braucht, und schreiben Sie in Ihre README, was jeder Host
@@ -240,9 +240,9 @@ diese Hosts also direkt über `https` aufrufen. Die Regeln stehen in
 ## 7. Ihr Plugin signieren
 
 !!! info "Was eine Signatur beweist"
-    Eine Signatur sagt, dass das ZIP, das der Administrator installiert,
+    Eine Signatur belegt, dass das ZIP, das der Administrator installiert,
     Byte für Byte das ist, das **Sie** veröffentlicht haben, signiert mit dem
-    Schlüssel, dem er vertraut. Sie sagt nichts darüber, was das Plugin tut:
+    Schlüssel, dem er vertraut. Sie sagt nichts darüber aus, was das Plugin tut:
     Berechtigungen, Hosts und die Analyse in der Vorschau gelten weiter.
     Evey prüft sie offline und im eigenen Prozess (ECDSA P-256 über den
     SHA-256 des ZIP, das Format, das `cosign sign-blob --key` erzeugt): kein
@@ -299,7 +299,7 @@ die Signatur das Feld `sig` beim Hochladen. Die Vorschau zeigt **Signiert**
 oder eine ungültige Signatur, und das Sicherheits-Dashboard behält das
 Ergebnis.
 
-Typische Stolpersteine:
+Typische Fehlerquellen:
 
 - **Jede Änderung am ZIP macht die Signatur ungültig**, sogar dieselben
   Dateien neu zu packen. Signieren Sie die Datei, die Sie verteilen, und
@@ -308,8 +308,8 @@ Typische Stolpersteine:
   `cosign generate-key-pair`. Schlüsselloses Signieren und Verweise auf ein
   KMS werden nicht geprüft.
 - Der Schlüssel wird beim Start aus einer PEM-Datei gelesen: Eine fehlende
-  oder fehlerhafte Datei hält den Server an, statt erst bei der ersten
-  Installation zu scheitern. Mit `enforce` und ohne Schlüssel startet der
+  oder fehlerhafte Datei verhindert den Start des Servers, statt erst bei der
+  ersten Installation einen Fehler auszulösen. Mit `enforce` und ohne Schlüssel startet der
   Server nicht.
 - Mit dem Standard `warn` und ohne konfigurierten öffentlichen Schlüssel
   **wird nichts geprüft**; der Server schreibt beim Start nur eine Warnung
@@ -340,17 +340,17 @@ das Serverprotokoll enthält die Einzelheiten.
 4. **Entpacken** in ein Zwischenverzeichnis: höchstens 5.000 Einträge,
    100 MB pro Datei, 500 MB insgesamt, ein Kompressionsverhältnis von 100:1,
    kein symbolischer Link, kein Pfad, der das Archiv verlässt. Ein Update
-   rührt die laufende Version erst an, wenn alle folgenden Schritte
+   ändert die laufende Version erst, wenn alle folgenden Schritte
    bestanden sind.
 5. **Nur Themes:** Das Stylesheet wird bereinigt und zurückgeschrieben, und
-   eine `theme.js`, die ein verbotenes Muster trifft, lässt das Paket
-   scheitern.
+   eine `theme.js`, die ein verbotenes Muster enthält, führt zur
+   Ablehnung des Pakets.
 6. **Statische Analyse** jeder Textdatei: Ein kritischer Fund lehnt das
    Paket ab. Die Warnungen `deserialization` und `obfuscation` lehnen es
    ebenfalls ab, und `native_code`, kompilierte Binärdateien und eingebettete
    Archive lehnen es ab, außer das Manifest gibt `native-binary` an.
-7. **Speichern und starten.** Das Zwischenverzeichnis wird an seinen Platz
-   getauscht, der Datensatz geschrieben und der Prozess gestartet.
+7. **Speichern und starten.** Das Zwischenverzeichnis ersetzt das bisherige
+   Verzeichnis, der Datensatz geschrieben und der Prozess gestartet.
 
 Wonach die Analyse sucht, steht in
 [Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md#static-analysis). Sie
@@ -368,7 +368,7 @@ anpassen. Ohne die Berechtigung `subprocess` kann der Prozess keine
 Kindprozesse starten, egal in welcher Sprache; Threads funktionieren.
 
 Die Sandbox beschränkt das Dateisystem auf das Verzeichnis des Plugins und
-kappt jeden Netzwerk-Socket, ohne Ausnahme. Welcher Modus gilt, hängt vom
+blockiert jeden Netzwerk-Socket, ohne Ausnahme. Welcher Modus gilt, hängt vom
 Host ab, nicht vom Plugin:
 [Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md#sandbox-modes)
 beschreibt die Modi, und [Plugin-Sandbox einrichten](sandbox-deployment.md)
@@ -385,7 +385,7 @@ Website).
   (Abschnitt 7).
 - Nennen Sie die Berechtigungen und die Hosts aus `external_fetch` in Ihrer
   README: Der Administrator sieht sie bei der Installation und muss sie
-  bestätigen. Eine Überraschung dort ist der häufigste Grund, warum eine
+  bestätigen. Ein unerwarteter Eintrag dort ist der häufigste Grund, warum eine
   Installation abgelehnt wird.
 - Damit Ihr Plugin bei den mitgelieferten Beispielen erscheint, öffnen Sie
   einen Pull Request gegen `examples/plugins/` mit dem Quellcode und einer

@@ -12,9 +12,9 @@ Plugin-Autoren sind [am Ende](#writing-a-plugin) aufgeführt.
 Ein Plugin ergänzt Evey um etwas, das es selbst nicht kann: einen Abschnitt
 auf der Startseite, eine Einblendung im Player, eine Metadatenquelle, ein
 Theme. Jedes Plugin ist ein eigener Prozess, der über einen lokalen Socket mit
-dem Server spricht, von einer Sandbox eingesperrt und auf die Berechtigungen
+dem Server kommuniziert, durch eine Sandbox isoliert und auf die Berechtigungen
 beschränkt, die sein Manifest angibt. Seine Oberfläche, falls es eine hat,
-läuft in einem abgeschotteten Rahmen der Seite.
+läuft in einem isolierten Rahmen der Seite.
 
 <div class="evey-shot-pair" markdown>
 
@@ -25,7 +25,7 @@ läuft in einem abgeschotteten Rahmen der Seite.
 
 <figure class="evey-shot" markdown="span">
   ![Die Startseite mit dem Wetter-Plugin](images/home.webp){ loading=lazy }
-  <figcaption>Mit dem Beispiel-Plugin für das Wetter: ein Abschnitt ganz oben, in seinem eigenen Rahmen gezeichnet.</figcaption>
+  <figcaption>Mit dem Beispiel-Plugin für das Wetter: ein Abschnitt ganz oben, in seinem eigenen Rahmen dargestellt.</figcaption>
 </figure>
 
 </div>
@@ -44,7 +44,7 @@ läuft in einem abgeschotteten Rahmen der Seite.
    will, die Hosts, die es kontaktieren wird, das Ergebnis der **Statischen
    Analyse** und, wenn der Server Signaturen prüft, ob das Paket
    **Signiert** ist.
-3. Lesen Sie diese Liste als Vertrag: Das ist alles, was das Plugin tun
+3. Diese Liste ist verbindlich: Das ist alles, was das Plugin tun
    können wird. Bestätigen Sie, und das Plugin startet.
 
 <figure class="evey-shot" markdown="span">
@@ -118,8 +118,8 @@ für Arbeitsspeicher, Prozesse oder Festplatte ab.
 Das **Sicherheits-Dashboard** hält pro Plugin die Befunde der Analyse, das
 Ergebnis der Signaturprüfung und den letzten Fehler fest. Seine Zeile
 **Host-Sandbox** zeigt den Sandbox-Modus, der auf dieser Maschine wirklich
-gilt: Steht dort `basic`, bietet der Host keine Abschottung des Dateisystems
-Pfad für Pfad, und [Plugin-Sandbox einrichten](plugins/sandbox-deployment.md)
+gilt: Steht dort `basic`, bietet der Host keine Beschränkung des Dateisystems
+pro Pfad, und [Plugin-Sandbox einrichten](plugins/sandbox-deployment.md)
 erklärt, was zu ändern ist.
 
 Plugins sind standardmäßig eingeschaltet. `EVEY_PLUGINS_ENABLED=false`
@@ -127,7 +127,7 @@ schaltet das gesamte Plugin-System ab.
 
 ## Was ein Plugin auf Ihrem Host tun kann
 
-Egal, was sein Manifest sagt, ein Plugin:
+Egal, was sein Manifest angibt, ein Plugin:
 
 - sieht sein eigenes Verzeichnis, weder die Daten des Servers noch die
   Mediendateien;
@@ -143,8 +143,8 @@ Abschnitt oder den großen Bereich oben auf der Startseite, eine Seitenleiste
 in einer Bibliothek oder auf einer Detailseite, eine Einblendung im Player,
 die Darstellungseinstellungen, den unteren Teil der Navigationsleiste oder
 einen Eintrag im Verwaltungsmenü, der die eigene Seite des Plugins öffnet.
-Ein Plugin kann nie in die Bildschirme für Anmeldung, Einrichtung und
-Sicherheit oder in die vorhandenen Verwaltungsbildschirme zeichnen. In seinem
+Ein Plugin kann nie etwas in den Bildschirmen für Anmeldung, Einrichtung und
+Sicherheit oder in den vorhandenen Verwaltungsbildschirmen anzeigen. In seinem
 Rahmen hat es keinen Zugriff auf die Seite, Ihre Cookies oder Ihre Sitzung:
 Was es vom Server liest, läuft über ein kurzlebiges Token, das auf die zwei
 Berechtigungen beschränkt ist, die es verlangen darf (`public` für eine
@@ -156,7 +156,7 @@ Die Berechtigungen, die ein Plugin verlangen kann, stehen unter
 funktioniert und was sie trotzdem nicht verhindern kann, steht unter
 [Plugin-Sandbox und Bedrohungsmodell](SECURITY.md).
 
-!!! warning "Der Server prüft, mit wem ein Plugin spricht, nicht was es sagt"
+!!! warning "Der Server prüft, welche Hosts ein Plugin kontaktiert, nicht welche Daten es sendet"
     Steht ein Host einmal auf der Liste eines Plugins, kann der Server nicht
     prüfen, was das Plugin an ihn schickt. Prüfen Sie ein Plugin eines
     Drittanbieters vor der Installation, wie jede andere Software, und
@@ -166,7 +166,7 @@ funktioniert und was sie trotzdem nicht verhindern kann, steht unter
 ## Themes
 
 Ein Theme ist ein Paket mit `kind: theme` ohne Prozess: ein Stylesheet und
-optional ein Skript, das in einem versteckten Rahmen eingesperrt ist. Es wird
+optional ein Skript, das isoliert in einem versteckten Rahmen läuft. Es wird
 über denselben Dialog **Plugin installieren** installiert; das Stylesheet wird
 bei der Installation bereinigt. Jeder Benutzer wählt es dann unter
 **Einstellungen → Darstellung → Design**. Was ein Theme enthalten darf, steht
@@ -176,7 +176,7 @@ unter [Themes](themes.md).
 
 | Seite | Inhalt |
 | --- | --- |
-| [Ein Plugin schreiben](plugins/dev-setup.md) | Ein erstes Plugin Schritt für Schritt, der Installationskreislauf, Signieren, Verteilung. Fangen Sie hier an. |
+| [Ein Plugin schreiben](plugins/dev-setup.md) | Ein erstes Plugin Schritt für Schritt, der Installationsablauf, Signieren, Verteilung. Fangen Sie hier an. |
 | [Plugin-API-Referenz](plugins/api-reference.md) | Das Manifest, die Backend-Aufrufe und der Datenspeicher, die `evey.*`-Brücke der Oberfläche. |
 | [Berechtigungen und Slots](plugins/security-model.md) | Was ein Manifest angeben darf, was bei der Installation geprüft wird, die Regeln für externe Abrufe, die Slots. |
 | [Themes](themes.md) | Die Oberfläche mit CSS und einem Skript in einer Sandbox umgestalten. |

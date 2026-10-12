@@ -14,7 +14,7 @@ Empfänger oder das Skript schreibt.
 ## Ereignisse an eine URL schicken
 
 **Verwaltung → Webhooks → Webhook erstellen**: ein **Name**, eine **URL**,
-die **Ereignisse**, die gesendet werden, und optional ein **Secret** zum
+die **Ereignisse**, die gesendet werden, und optional ein **Geheimnis** zum
 Signieren. **Testen** schickt einen Ping und zeigt die Antwort.
 
 <figure class="evey-shot" markdown="span">
@@ -32,7 +32,7 @@ veröffentlicht, unter anderem:
 | Wiedergabe | `playback.started`, `playback.stopped`, `media.marked.watched`, `transcode.started`, `transcode.failed` |
 | Konten | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created`, `user.apikey.created` |
 | Anfragen | `media.request.created`, `media.request.answered` |
-| Server | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed`, `transcoding.derived_cache_full` (der Untertitelspeicher unterschreitet seinen Spielraum an freiem Platz) |
+| Server | `backup.created`, `backup.failed`, `plugin.installed`, `plugin.error`, `server.config.changed`, `transcoding.derived_cache_full` (der freie Platz des Untertitelspeichers liegt unter der vorgesehenen Reserve) |
 
 Ein Plugin, das `EmitEvent` aufruft, veröffentlicht `plugin.event.<type>`.
 Ein Webhook auf **Alle Ereignisse** empfängt auch das.
@@ -71,9 +71,9 @@ API-Schlüssel** an. Sie gehören diesem Administrator.
 - **Der Schlüssel wird einmal angezeigt**, beim Erstellen. Speichern Sie ihn
   dann. Er lässt sich nicht noch einmal anzeigen, nur mit **Widerrufen**
   sperren.
-- **Er handelt als sein Besitzer**, mit Administratorrechten, im Rahmen
+- **Er handelt im Namen seines Besitzers**, mit Administratorrechten, im Rahmen
   seiner Bereiche.
-- **Bereiche** (Scopes) begrenzen, was der Schlüssel tun darf:
+- **Berechtigungen** (Scopes) begrenzen, was der Schlüssel tun darf:
 
 | Bereich | Erlaubt |
 | --- | --- |
