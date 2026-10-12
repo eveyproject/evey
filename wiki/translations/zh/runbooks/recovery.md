@@ -1,67 +1,93 @@
 ---
-source_sha: 64f12b2cc77ed7069bf33f581c2d91e3b13b6ff04cc4a3bc62db72c3607b46fe
-reviewed: false
+source_sha: 15f4243e2aa41d1a370efb30c5607eb485799cf11a0be191ea0b7489684f4485
+reviewed: true
 ---
-# 恢复手册
+# 恢复
 
-用于以下情况的 CLI 步骤：你无法再登录、怀疑 JWT 密钥已泄露，或者需要把数据库回滚到迁移前的备份。
+当谁都登录不了、用来签发访问令牌的密钥可能已经泄露，或者数据库必须回到迁移前的转储时，请打开本页。每个步骤都是在容器里运行一条 `evey admin` 命令；其他子命令见[命令行](cli.md)页面。
 
-所有命令都以 `evey admin <subcommand>` 的形式运行，并从与服务器相同的 `EVEY_*` 环境变量读取配置。它们**不会**启动服务器：大多数可以在服务器停止时安全运行。
+## 开始之前
 
-## reset-password
-
-为一个现有用户生成新密码。新密码会在标准输出上显示一次：请立即记下。
+这些命令读取和服务器相同的 `EVEY_*` 配置，所以在服务器的容器里运行它们，不需要任何别的东西：
 
 ```sh
-evey admin reset-password --user admin@example.com
+docker exec evey-server evey admin <subcommand>        # 服务器正在运行时
+docker compose run --rm evey admin <subcommand>        # 容器已停止时
 ```
 
-输出：
+第二种方式会先启动内置的数据库，再运行命令，然后退出。这些命令都不会启动服务器。
+
+## 给用户一个新密码
+
+在用户被锁在外面时使用，或者在怀疑账户被盗之后立即使用。新密码只显示一次，而且从不写进日志：关闭终端之前请先把它复制下来。
+
+```sh
+docker exec evey-server evey admin reset-password --user admin@example.com
+```
+
+结果正常时是这样的：
 
 ```
 user:     admin@example.com
 user_id:  usr-xxxxxxxx
 password: <random 24-byte base64url>
+
+Save this - it is the only time the new password is shown.
+Every session of this user has been ended.
 ```
 
-说明：
-- 该用户的所有会话都会结束：其刷新令牌被删除，访问令牌被吊销。已打开的应用会在大约 30 秒内察觉并要求重新登录。
-- 明文密码从不记录到日志中。如果你丢失了输出，就必须再次运行该命令。
+这位用户的所有会话会立即结束：刷新令牌被删除，访问令牌被吊销。已打开的应用大约在 30 秒内会发现，并要求重新登录。如果您弄丢了输出，再运行一次命令即可。
 
-## rotate-jwt-key
+## 轮换签发访问令牌的密钥
 
-替换签署访问令牌的 RSA 密钥。
+在密钥文件可能已经泄露时使用，或者想让所有用户一次性退出登录时使用。如果只涉及一个账户，用**管理 → 用户 → 禁用**或上面的重置密码就够了。
 
 ```sh
-evey admin rotate-jwt-key
+docker exec evey-server evey admin rotate-jwt-key
 ```
 
-行为：
-- 当前的密钥文件（路径 = `EVEY_JWT_PRIVATE_KEY_PATH`，默认 `/data/jwt.key`）会被重命名为 `<path>.rotated-<UTC-timestamp>`。
-- 下次服务器启动时，`LoadOrGenerateRSAKey` 会重新生成一个新的 2048 位 RSA 密钥。
-- 所有会话立即结束，无需等待重启：该命令会删除数据库中的所有刷新令牌并吊销所有访问令牌。已打开的应用会在大约 30 秒内察觉，所有人都需要重新登录。
-- 如果无法连接数据库，密钥仍会被移到一旁，命令会提示这一点：数据库恢复响应后请再次运行。
+会发生什么：
 
-何时使用：
-- 怀疑密钥泄露：没有人能再用旧密钥签发有效的访问令牌。
-- 批量终止会话。对于单个账户，在 **Admin → 用户** 中禁用它，或使用 `reset-password`，就足够了。
+1. 密钥文件（`EVEY_JWT_PRIVATE_KEY_PATH`，默认是 `/data/jwt.key`）被重命名为 `<path>.rotated-<UTC timestamp>`。
+2. 在同一个事务里，删除所有刷新令牌，并吊销所有访问令牌。已打开的应用大约在 30 秒内会发现；所有人都要重新登录。
+3. 服务器下次启动时，会生成一个新的 2048 位 RSA 密钥。
 
-## restore-backup
+之后请重启容器（`docker compose restart evey`），让新密钥生效。如果连不上数据库，密钥仍然会被移到一边，命令会显示 `key rotated, but sessions could not be ended (restart the server, then run this again)`：请照着做，先重启服务器，再运行一次这条命令。
 
-把由迁移前备份机制（或任何其他来源）生成的 `pg_dump.gz` 应用到配置的数据库中。**会覆盖现有数据。** 文件必须以 `.sql.gz` 结尾：**Admin → 备份与恢复** 的 `.tar.gz` 备份是从面板恢复的，而不是用这个命令。
+## 恢复迁移前的转储
+
+当某次更新必须撤销、而且之后写入的数据可以丢弃时使用。这条命令会把一个 `.sql.gz` 转储通过 `gunzip | psql` 导入到配置好的数据库里。
+
+!!! warning
+    恢复会覆盖当前的数据。如果您有可能还需要当前的状态，请先给它做一次备份（**管理 → 备份与恢复 → 立即运行**）。
 
 ```sh
-evey admin restore-backup /data/backups/pre-migration-15-20260418T220130Z.sql.gz
+docker compose stop evey
+docker compose run --rm evey admin restore-backup /data/backups/pre-migration-152-20260418T220130Z.sql.gz
+docker compose up -d
 ```
 
-步骤：
-1. 命令在执行任何操作之前会暂停 5 秒：按 Ctrl+C 可以中止。
-2. 文件通过 `gunzip | psql` 流式写入配置的数据库，使用 `--single-transaction` 和 `ON_ERROR_STOP=1`。
-3. 出现任何错误时，psql 会回滚事务：数据库保持原来的状态。
+会发生什么：
+
+1. 命令先读取整个文件：文件必须能完整解压，并以 `pg_dump` 的完成标记行结尾。被截断或损坏的转储会被拒绝（`refusing to restore: ...`），这时还没有删除任何东西。
+2. 然后它会等待 5 秒再动手：按 Ctrl+C 可以中止。
+3. `psql` 以 `--single-transaction` 和 `ON_ERROR_STOP=1` 应用转储。只要出现任何错误，事务就会回滚，数据库保持原样。
+4. 成功时，最后一行是 `[admin] restored backup <path>`。
 
 要求：
-- `psql` 和 `gunzip` 必须在 PATH 中（两者都与 `pg_dump` 一起包含在生产镜像中）。
-- 目标数据库必须存在；转储只包含表的 DROP/CREATE，不包含数据库本身。
-- 配置的 `EVEY_DB_USER` 必须是目标数据库的所有者。
 
-迁移前备份在每次 `migrate.Up()` 之前自动生成，位于 `EVEY_BACKUP_DIR` 下（默认 `/data/backups`）。最近 3 个架构版本中每个版本只保留最新的一个转储；其他的会被清理。
+- 文件名必须以 `.sql.gz` 结尾。**管理 → 备份与恢复**生成的 `.tar.gz` 归档要在面板里恢复，不能用这条命令。
+- 目标数据库必须已经存在；转储会删除并重建数据表，但不会删除和重建数据库本身。
+- `psql` 和 `gunzip` 必须在 PATH 里，镜像已经保证了这一点。
+
+每次改变数据库结构之前，都会自动写入迁移前的转储，位于 `EVEY_BACKUP_DIR` 下（`/data/backups`，也就是主机上的 `./evey-data/backups`），文件名为 `pre-migration-<schema version>-<UTC timestamp>.sql.gz`。最近 3 个数据库结构版本中，每个版本保留最新的一份转储，其余的会被清理掉。什么时候应该恢复转储、而不是把数据库结构回退一步，见[数据库迁移](migration-runbook.md)。
+
+<!-- sources
+reset-password / rotate-jwt-key: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL: internal/app/user/token_epoch.go - epochCacheTTL
+restore-backup: cmd/evey/admin.go - adminRestoreBackup, verifyDumpComplete (whole gzip + completion marker before anything runs), 5 s pause, --single-transaction, ON_ERROR_STOP=1, .sql.gz suffix)
+admin commands boot the embedded database: docker/entrypoint.sh
+refresh validation by stored hash: internal/app/user/auth.go - validateRefreshToken
+disable signs out: internal/app/user/user_service.go - DisableUser
+dump naming and retention: internal/adapters/driven/postgres/migrate_backup.go - dumpDatabase, backupFilePrefix, pruneOldBackups, defaultBackupRetention
+defaults: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH, EVEY_BACKUP_DIR)
+-->
