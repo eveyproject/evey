@@ -4,9 +4,9 @@ reviewed: true
 ---
 # आर्किटेक्चर
 
-सर्वर कैसे जुड़ा है: `internal/` के नीचे hexagonal परतें, bounded context, उन्हें
-जोड़ने वाले event, और वे static पहरेदार जो कोड को इन पटरियों पर रखते हैं। कोड
-`internal/domain`, `internal/app`, `internal/adapters/{driving,driven}` में रहता है
+सर्वर की बनावट: `internal/` के नीचे hexagonal परतें, bounded context, उन्हें
+जोड़ने वाले event, और वे static जाँचें जो कोड को इन नियमों के अनुसार बनाए रखती हैं। कोड
+`internal/domain`, `internal/app`, `internal/adapters/{driving,driven}` में है
 और `cmd/evey/wire*.go` में जोड़ा जाता है; बनावट [ADR-0001](adr/0001-hexagonal-architecture.md)
 तय करता है, repository का बँटवारा [ADR-0009](adr/0009-cqrs-repo-split.md) और event
 bus [ADR-0010](adr/0010-event-bus.md)। build करने और चलाने के लिए [DEV.md](../DEV.md)
@@ -31,7 +31,7 @@ flowchart LR
 | फ़ोल्डर | क्या रखता है | नियम |
 | --- | --- | --- |
 | `internal/domain/<context>/` | model, value object और **port** (interface) | किसी framework का import नहीं, किसी दूसरे context का import नहीं |
-| `internal/app/<context>/` | ऐप्लिकेशन सर्विस जो port को चलाती हैं | IO एक port से होकर जाता है; `dlna` (SSDP / UPnP AVTransport) और `loadtest` (उसका अपना HTTP client) दो जानबूझकर रखे गए अपवाद हैं जो सीधे नेटवर्क तक जाते हैं |
+| `internal/app/<context>/` | ऐप्लिकेशन सर्विस जो port के ज़रिए काम का समन्वय करती हैं | IO एक port से होकर जाता है; `dlna` (SSDP / UPnP AVTransport) और `loadtest` (उसका अपना HTTP client) दो जानबूझकर रखे गए अपवाद हैं जो सीधे नेटवर्क तक जाते हैं |
 | `internal/adapters/driven/` | बाहर जाने वाले adapter जो port लागू करते हैं: `postgres`, `meilisearch`, `ffmpeg`, `mkvgo`, `filesystem`, `prober`, `opensubtitles`, `email`, `webpush`, `webhooksender`, `pluginrunner`, `metadata`, `introproviders`, `search` | तीन और domain port की जगह app परत के किसी interface को पूरा करते हैं: `itunes` और `musicbrainz` (`app/music.AlbumArtFetcher`), `ociregistry` (`app/updatecheck`) |
 | `internal/adapters/driving/` | अंदर आने वाले adapter: `grpcapi` (+ grpc-gateway HTTP), `http` (static, auth middleware, SSE, HLS, प्लगइन iframe की फ़ाइलें), `pluginhost` (Unix socket पर gRPC सर्वर, peer credentials से पहचान, वह होस्ट API जिसे सैंडबॉक्स वाले प्लगइन वापस कॉल करते हैं) | |
 | `internal/pkg/` | साझा तकनीकी केंद्र: auth, logger, eventbus, i18n, metrics, tracing, ratelimit, procfork, ssrf, cache, ... | |
@@ -40,17 +40,17 @@ flowchart LR
 
 निर्भरता का नियम: `adapters -> app -> domain`। domain कभी app या adapter को import
 नहीं करता। जोड़ने का काम हाथ से लिखा गया है (google/wire नहीं), `cmd/evey/wire.go`
-में और उसकी बहनों `wire_infra.go`, `wire_services.go`, `wire_adapters.go`,
-`wire_events.go`, `wire_helpers.go` में। टेस्ट adapter को छोड़कर नकली चीज़ें डालते
-हैं जो वही domain port लागू करती हैं: 21 में से 20 domain package के साथ एक `fakes/`
+में और उसके साथ की फ़ाइलों `wire_infra.go`, `wire_services.go`, `wire_adapters.go`,
+`wire_events.go`, `wire_helpers.go` में। टेस्ट adapter को छोड़कर fake implementation डालते
+हैं जो वही domain port लागू करते हैं: 21 में से 20 domain package के साथ एक `fakes/`
 sub-package आता है।
 
 ## Bounded context
 
-बत्तीस context package `internal/domain/` और `internal/app/` के नीचे रहते हैं: 19
+बत्तीस context package `internal/domain/` और `internal/app/` के नीचे हैं: 19
 दोनों परतों में हैं, 2 सिर्फ़ domain में (`ratings`, `shared`), 11 सिर्फ़ app में। ये
 कुछ हद तक एक साझा bus पर domain event के ज़रिए साथ काम करते हैं; app परत पड़ोसी
-context का domain package सीधे भी पढ़ती है (देखें [रिश्ते](#relations))।
+context का domain package सीधे भी पढ़ती है (देखें [संबंध](#relations))।
 
 | Context | ज़िम्मेदारी |
 | --- | --- |
@@ -87,27 +87,27 @@ context का domain package सीधे भी पढ़ती है (दे
 | `updatecheck` (सिर्फ़ app) | चल रहे build की तुलना उससे करता है जो registry प्रकाशित करती है, और एडमिन को बताता है; यह कभी कुछ अपडेट नहीं करता |
 | `shared` (सिर्फ़ domain) | सब पर लागू port (`EventBus`, `TransactionalUnit`, `ServerConfigRepository`, `ShareLinkRepository`), typed id, cursor, stream token |
 
-### रिश्ते
+### संबंध
 
 | भेजने वाला | Event | कौन लेता है |
 | --- | --- | --- |
-| `library` | `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` | `media.item.added`: `notification`, `metadata` (अपने-आप जानकारी जोड़ना), `library` खुद (trickplay worker + इंट्रो की पहचान), `feed` (genre cache हटाना) |
-| `playback` | `PlaybackStarted` / `PlaybackStopped` | आज कोई अलग सुनने वाला नहीं; सिर्फ़ `webhook` का `"*"` सब-कुछ-लेने वाला इन्हें पाता है |
-| `user` | `UserCreated`, `user.password.reset_requested` | पहले का कोई सुनने वाला नहीं; दूसरे को `email` driven adapter लेता है |
+| `library` | `LibraryCreated` / `LibraryDeleted`, `LibraryScanStarted` / `LibraryScanCompleted`, `MediaItemAdded`, `MediaItemRemoved`, `TrickplayGenerated` | `media.item.added`: `notification`, `metadata` (अपने-आप जानकारी जोड़ना), `library` खुद (trickplay worker + इंट्रो की पहचान), `feed` (genre cache अमान्य करना) |
+| `playback` | `PlaybackStarted` / `PlaybackStopped` | आज कोई अलग subscriber नहीं; सिर्फ़ `webhook` का `"*"` catch-all subscriber इन्हें पाता है |
+| `user` | `UserCreated`, `user.password.reset_requested` | पहले का कोई subscriber नहीं; दूसरे को `email` driven adapter लेता है |
 | `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` अपने सुरक्षा डैशबोर्ड के लिए, `notification` एडमिन के लिए |
 | `shared` | `ServerConfigChanged` | वे सर्विस जो एडमिन पैनल में सहेजी गई सेटिंग बिना restart के लागू करती हैं (SMTP, समय-क्षेत्र, CPU बजट, ...) |
 
 - खोज का इंडेक्स बनाना event से **नहीं** चलता: `library.ScanService` सीधे
   `library.SearchIndex` port को कॉल करता है।
-- domain event को प्लगइन तक ले जाने वाला कोई पुल नहीं है: प्लगइन सीमित दायरे वाले JWT
+- domain event को प्लगइन तक ले जाने वाली कोई व्यवस्था (bridge) नहीं है: प्लगइन सीमित दायरे वाले JWT
   से API तक पहुँचते हैं ([ADR-0003](adr/0003-plugin-scoped-tokens.md))। bus खुद
   [ADR-0010](adr/0010-event-bus.md) है।
-- `shared.TransactionalUnit` कई aggregate वाले लेखन को लपेटता है
+- `shared.TransactionalUnit` कई aggregate वाले लेखन को एक transaction में रखता है
   ([ADR-0002](adr/0002-transactional-unit-port.md))।
 
 `internal/domain` के नीचे का कोई package किसी दूसरे context का domain package import
 नहीं करता; यह नियम `internal/contractguard/domain_imports_test.go` लागू करता है
-(देखें [आर्किटेक्चर के पहरेदार](#architecture-guards))। app परत इससे बँधी नहीं है: आज
+(देखें [आर्किटेक्चर की जाँचें](#architecture-guards))। app परत इससे बँधी नहीं है: आज
 15 app package किसी पड़ोसी context का domain package import करते हैं।
 
 ## आम डेटा का रास्ता - "उपयोगकर्ता एक मीडिया चलाता है"
@@ -117,35 +117,35 @@ context का domain package सीधे भी पढ़ती है (दे
 3. `internal/adapters/driving/grpcapi` (`playback_handler.go`) proto जाँचता है, `app/playback.CommandService.StartStream` कॉल करता है (command/query का बँटवारा, देखें [ADR-0009](adr/0009-cqrs-repo-split.md))।
 4. `app/playback.CommandService` domain port कॉल करता है: `user.UserRepository`, `playback.SessionQueryRepo` (idempotency + डिवाइस की सीमा), `playback.SessionCommandRepo`, फिर `shared.EventBus.Publish(PlaybackStarted)`।
 5. driven adapter काम करते हैं: `postgres` सेशन को एक `shared.TransactionalUnit.Do` दायरे के अंदर सहेजता है; प्रोसेस के अंदर का bus (`internal/pkg/eventbus`) asynchronous रूप से आगे भेजता है।
-6. `PlaybackStarted` का आज कोई अलग सुनने वाला नहीं: सिर्फ़ `webhook` का `"*"` सब-कुछ-लेने वाला इसे पाता है।
+6. `PlaybackStarted` का आज कोई अलग subscriber नहीं: सिर्फ़ `webhook` का `"*"` catch-all subscriber इसे पाता है।
 7. जवाब grpc-gateway से JSON के रूप में वापस जाता है; प्रगति के अपडेट SSE / gRPC stream पर आते हैं।
 
 प्लेयर के manifest और segment माँगने के बाद क्या होता है, यह
-[एक वीडियो परोसना - HLS प्लेबैक का रास्ता](playback-serving.md) का विषय है।
+[प्लेबैक पाइपलाइन](playback-serving.md) का विषय है।
 
-## आर्किटेक्चर के पहरेदार
+## आर्किटेक्चर की जाँचें
 
 ऊपर के नियम सिर्फ़ दस्तावेज़ में नहीं हैं। `internal/contractguard/` में 30 फ़ाइलों में
-58 static टेस्ट हैं, जो कोड के इनसे भटकने पर build फ़ेल कर देते हैं।
+58 static टेस्ट हैं, जो कोड के इनसे हटने पर build फ़ेल कर देते हैं।
 
 hexagonal नियम खुद `TestDomainContextsDoNotImportEachOther` (ADR-0001) है,
-`domain_imports_test.go` में। यह `internal/domain` में घूमता है और ठीक यही लागू करता
+`domain_imports_test.go` में। यह `internal/domain` की सारी फ़ाइलें जाँचता है और ठीक यही लागू करता
 है: एक context `internal/domain/shared` और अपना package tree import कर सकता है,
 `internal/domain` से और कुछ नहीं, और `internal/app` या `internal/adapters` कभी नहीं।
 इसका दायरा `internal/domain` पर रुक जाता है: यह app परत के बारे में कुछ नहीं कहता।
 
-बाकी पहरेदार उन अनुबंधों की रक्षा करते हैं जो किसी भाषा या प्रोसेस की सीमा पार करते
+बाकी जाँचें उन अनुबंधों को सुरक्षित रखती हैं जो किसी भाषा या प्रोसेस की सीमा पार करते
 हैं, उनमें से कुछ:
 
-| पहरेदार | यह क्या मना करता है |
+| जाँच | यह क्या मना करती है |
 | --- | --- |
 | `TestNoClientReadOfAFieldTheServerNeverWrites` | proto जवाब का ऐसा फ़ील्ड जिसे कोई क्लाइंट पढ़ता है पर कोई सर्वर कोड नहीं लिखता |
 | `TestRegisteredHandlersGetEveryPortTheyDeclare`, `TestBootInstallsItsSilentWirings` | ऐसी जोड़ जो वरना चुपचाप फ़ेल हो जाती |
 | `TestPostgresRepositoriesBoundTheirQueries` | timeout के बिना Postgres repository की query |
 | `TestProcfork_EveryForkGoesThroughCommand` | ऐसा subprocess fork जो `internal/pkg/procfork` को छोड़कर जाता है |
 | `TestEverySortFieldTheAPIAcceptsHasASQLColumn`, `...CanBuildACursorValue` | ऐसा sort फ़ील्ड जो SQL कॉलम map या cursor encoder में नहीं है |
-| `TestEveryWebSurfaceReachingAnAdminRPCIsClassified`, और मोबाइल और टीवी के लिए उसका native जोड़ीदार | इंटरफ़ेस का ऐसा हिस्सा जो सिर्फ़-एडमिन RPC कॉल करता है, बिना तय किए कि उसे कौन देखता है |
-| `TestEveryAllowedSlotIsMountedOnWebAndMobile`, `TestPluginBridgeParityWebMobile` | प्लगइन का ऐसा स्लॉट या पुल संदेश जो सिर्फ़ एक क्लाइंट पर है |
+| `TestEveryWebSurfaceReachingAnAdminRPCIsClassified`, और मोबाइल और टीवी के लिए उसका native रूप | इंटरफ़ेस का ऐसा हिस्सा जो सिर्फ़-एडमिन RPC कॉल करता है, बिना तय किए कि उसे कौन देखता है |
+| `TestEveryAllowedSlotIsMountedOnWebAndMobile`, `TestPluginBridgeParityWebMobile` | प्लगइन का ऐसा स्लॉट या bridge संदेश जो सिर्फ़ एक क्लाइंट पर है |
 | `TestImageSubtitleCodecsAgreeAcrossServerAndClients` | किसी प्लेयर पर bitmap सबटाइटल codec की एक दूसरी सूची |
 | `TestHandWrittenClientTypesMatchTheEndpointTheyCall` | मोबाइल/टीवी का हाथ से लिखा जवाब टाइप जो अपने endpoint से अलग हो जाए |
 | `TestOnlyThePlanDecidesPlayback`, `TestNoCallerDerivesDownstreamOfThePlaybackPlan` | योजना तय करने वाले के बाहर लिया गया प्लेबैक का फ़ैसला ([ADR-0030](adr/0030-one-plan-one-decision.md)) |
@@ -163,7 +163,7 @@ hexagonal नियम खुद `TestDomainContextsDoNotImportEachOther` (ADR-0
 
 ### स्तर 1 - सिस्टम का संदर्भ
 
-Evey से कौन बात करता है, और Evey किन तीसरे पक्षों तक पहुँचता है।
+Evey से कौन जुड़ता है, और Evey किन तीसरे पक्षों तक पहुँचता है।
 
 ```mermaid
 flowchart LR
@@ -347,12 +347,12 @@ Goroutine के बारे में:
 - gRPC सर्वर (`grpc.Server.Serve`) और HTTP सर्वर (gateway + static), दोनों `cmd/evey` की मुख्य जोड़ से अलग अपनी-अपनी goroutine में चलते हैं।
 - `app/library` के स्कैन काम एक worker pool पर चलते हैं (हर सक्रिय लाइब्रेरी स्कैन के लिए एक goroutine, देखें `library.ScanService`)।
 - ffmpeg के काम driven `ffmpeg` adapter (`ffmpeg.Transcoder.Start`) `internal/pkg/procfork` के ज़रिए fork करता है, हर काम के लिए एक निगरानी वाली goroutine जो प्रोसेस का stderr खाली करती रहती है।
-- `shared.EventBus` सुनने वालों को asynchronous रूप से भेजता है: हर सुनने वाला अपनी goroutine में चलता है, ताकि धीमा लेने वाला कभी भेजने वालों को न रोके। bus अपना कोई transaction नहीं खोलता; यह handler का काम है।
-- `pluginrunner` हर प्लगइन के लिए एक subprocess शुरू करता है; iframe प्लगइन उपयोगकर्ता के ब्राउज़र के अंदर रहते हैं और `app/plugin` के दिए साइन किए गए token से वापस बात करते हैं।
+- `shared.EventBus` subscriber को asynchronous रूप से चलाता है: हर subscriber अपनी goroutine में चलता है, ताकि धीमा subscriber कभी publisher को न रोके। bus अपना कोई transaction नहीं खोलता; यह handler का काम है।
+- `pluginrunner` हर प्लगइन के लिए एक subprocess शुरू करता है; iframe प्लगइन उपयोगकर्ता के ब्राउज़र के अंदर रहते हैं और `app/plugin` के दिए साइन किए गए token से सर्वर से संपर्क करते हैं।
 
 ### स्तर 3 (अतिरिक्त) - स्कैन pipeline पर component zoom
 
-वह गर्म रास्ता जो डिस्क की फ़ाइलों को खोजने लायक, जानकारी से भरे मीडिया में बदलता है।
+वह मुख्य रास्ता (hot path) जो डिस्क की फ़ाइलों को खोजने लायक, जानकारी से भरे मीडिया में बदलता है।
 ठोस तीर सीधी कॉल हैं; बिंदीदार तीर bus पर domain event हैं। खोज का इंडेक्स बनाना
 `ScanService` से एक सीधी port कॉल है, event नहीं।
 
@@ -413,13 +413,13 @@ flowchart LR
 
 इसे ऊपर के "आम डेटा का रास्ता" वाले हिस्से के साथ पढ़ें: प्लेबैक का रास्ता उसका
 जोड़ीदार पढ़ने वाला रास्ता है; स्कैन pipeline लिखने वाला रास्ता है, जो वह मीडिया
-इंडेक्स तैयार करता है जिससे पढ़ने वाला रास्ता परोसता है।
+इंडेक्स तैयार करता है जिससे पढ़ने वाला रास्ता डेटा भेजता है।
 
 ## आगे पढ़ें
 
 - [DEV.md](../DEV.md) - build, चलाना, migration, proto बनाना
 - [कोड का नक्शा](CODEBASE_MAP.md) - आम बदलावों के लिए कौन सी फ़ाइलें छूनी हैं
-- [एक वीडियो परोसना - HLS प्लेबैक का रास्ता](playback-serving.md) - HLS वीडियो परोसने का पढ़ने वाला रास्ता, गहराई से
+- [प्लेबैक पाइपलाइन](playback-serving.md) - HLS वीडियो भेजने का पढ़ने वाला रास्ता, गहराई से
 - [सर्वर API](api/) - बनाया गया API रेफ़रेंस
 - [फ़ैसलों के रिकॉर्ड](adr/) - आर्किटेक्चर के फ़ैसलों के रिकॉर्ड
 

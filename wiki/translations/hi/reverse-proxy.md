@@ -22,7 +22,7 @@ Manager, या वह जो आप पहले से चला रहे ह
 पता [रिमोट एक्सेस और HTTPS](administration/remote-access.md) में समझाए गए हैं।
 
 यही जवाब environment से भी आ सकते हैं, उस इंस्टॉलेशन के लिए जो पूरा कोड के
-रूप में लिखा है (दोनों सेट हों तो पैनल की बात मानी जाती है):
+रूप में लिखा है (दोनों सेट हों तो पैनल के मान को प्राथमिकता मिलती है):
 
 ```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
@@ -196,7 +196,7 @@ location ~ ^/api/v1/libraries/.+/scan {
 
 ## वह प्रॉक्सी जो आप पहले से चला रहे हैं (TLS पहले ही संभाला गया)
 
-जिस NAS पर पहले से एक रिवर्स प्रॉक्सी है (कंपनी का अपना, Nginx Proxy Manager,
+जिस NAS पर पहले से एक रिवर्स प्रॉक्सी है (NAS निर्माता का अपना, Nginx Proxy Manager,
 या किसी साझा Docker नेटवर्क पर Traefik), वहाँ Caddy की ज़रूरत नहीं है: Evey
 अपने सुरक्षा हेडर और पूरा CSP खुद भेजता है, और स्ट्रीमिंग के नियम वैसे भी
 सिर्फ़ वही प्रॉक्सी लागू कर सकता है जो क्लाइंट के सामने है। उसके पीछे दूसरा
@@ -205,7 +205,7 @@ location ~ ^/api/v1/libraries/.+/scan {
 ### सेट करें
 
 evey सर्विस को उस प्रॉक्सी के नेटवर्क पर रखें और `evey-server:9091` को
-निशाना बनाएँ (कंटेनर का नाम; सर्विस का नाम `evey` भी काम करता है):
+लक्ष्य के रूप में सेट करें (कंटेनर का नाम; सर्विस का नाम `evey` भी काम करता है):
 
 ```yaml title="docker-compose.yml"
 services:
@@ -319,7 +319,7 @@ default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:/
 !!! warning "ब्राउज़र तक ठीक एक ही CSP हेडर पहुँचना चाहिए"
     दो हों (ऐप का और आपके प्रॉक्सी का, या Caddy का और Nginx Proxy Manager के
     "Advanced" snippet का), तो ब्राउज़र दोनों का *साझा हिस्सा* लागू करते हैं:
-    सबसे सख्त वाला जीतता है और गड़बड़ी चुपचाप होती है। इससे जाँचें:
+    सबसे सख्त नियम लागू होता है और गड़बड़ी का कोई संकेत नहीं मिलता। इससे जाँचें:
     `curl -sI https://your.domain | grep -ci content-security-policy`, जिसे
     `1` छापना चाहिए।
 
@@ -333,7 +333,7 @@ default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:/
   `curl -sI https://your.domain/plugin-frame.html | grep -i -e content-security -e x-frame`
   में `sandbox allow-scripts` और `SAMEORIGIN` दिखने चाहिए।
 
-## क्लाइंट के असली IP और रिमोट एक्सेस का दरवाज़ा
+## क्लाइंट के असली IP और रिमोट एक्सेस की जाँच
 
 जब प्रॉक्सी क्लाइंट का असली पता आगे भेजता है, तो Evey घर के दर्शक और
 इंटरनेट के दर्शक में फ़र्क कर पाता है: **अधिकतम रिमोट बिटरेट** और रिमोट
