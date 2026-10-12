@@ -25,7 +25,7 @@ restaurarla y cómo volver a una versión anterior.
 3. En **Retención (días)**, indica cuánto tiempo se guarda cada copia, por
    ejemplo `30`. Las copias más antiguas se borran después de cada
    ejecución programada.
-4. Marca **Habilitado** y pulsa **Guardar**.
+4. Marca **Activado** y pulsa **Guardar**.
 
 **Ejecutar ahora** hace una copia en el momento, igual que **Crear copia de
 seguridad** en la parte de arriba de la página.

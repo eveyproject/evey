@@ -73,7 +73,7 @@ services:
 **Capacidad de reproducción en directo** (**Administración →
 Transcodificación**) es el número de flujos de vídeo que se pueden codificar
 a la vez. Se deduce de la medición y se ajusta sola cuando cambia el
-hardware. **Limitar las emisiones de vídeo simultáneas** puede bajarla,
+hardware. **Limitar los flujos de vídeo simultáneos** puede bajarla,
 nunca subirla.
 
 - Una transcodificación que solo vuelve a codificar el audio (con el vídeo
@@ -121,7 +121,7 @@ quita el límite por sí solo. Consulta
 | --- | --- |
 | Códec de vídeo | H.264. HEVC cuando el reproductor lo descodifica y una tarjeta gráfica lo codifica, o cuando lo pide el **Códec de vídeo preferido** del perfil; AV1 cuando está activado (**Salida AV1**, solo por hardware) y el reproductor lo descodifica. |
 | Resolución | La de la fuente, salvo que se aplique un límite: el máximo del reproductor, el límite de bitrate, o lo que el servidor puede codificar en tiempo real. |
-| Bitrate | Sigue al de la fuente, ajustado a la resolución. **Tope de bitrate de vídeo** lo limita; **Techo de bitrate de vídeo, espectadores remotos** lo limita aún más fuera de las redes locales. |
+| Bitrate | Sigue al de la fuente, ajustado a la resolución. **Techo de bitrate de vídeo** lo limita; **Techo de bitrate de vídeo, espectadores remotos** lo limita aún más fuera de las redes locales. |
 | Audio | AAC. Consulta [Audio](audio.md). |
 | Entrega | HLS, en segmentos MP4 fragmentados. |
 
@@ -137,7 +137,7 @@ se reutilizan cuando otro espectador, o el mismo más tarde, reproduce el
 mismo título con la misma decisión. **Administración → Caché de
 transcodificación** muestra su tamaño y la vacía; el **Presupuesto de caché
 de transcodificación** (**Administración → Configuración del servidor →
-Configuración del servidor**) le pone un límite. **Limpiar todo** también
+Configuración del servidor**) le pone un límite. **Borrar todo** también
 borra los subtítulos extraídos de tus archivos, guardados en
 `./evey-data/subtitles`: se vuelven a extraer cuando se piden.
 

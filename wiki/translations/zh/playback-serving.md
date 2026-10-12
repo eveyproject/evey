@@ -58,7 +58,7 @@ ffmpeg 的分段是指纹目录下的一个文件，写一次，之后从那里�
 
 1. **入口** - `internal/adapters/driving/http/transcode_handler_vod.go`：
    `serveHTTP` 先验证身份，再分派到 master / variant / segment / audio。
-2. **计划** - `http/transcode_vod_plan.go` 把 `*http.Request` 整理成一个与传输层无关的 `PlaybackRequest`；
+2. **计划任务** - `http/transcode_vod_plan.go` 把 `*http.Request` 整理成一个与传输层无关的 `PlaybackRequest`；
    `app/transcoding/playback_plan_resolver.go`（`PlanResolver.Resolve`，具体实现是 `playback_plan.go` 里的 `PlaybackPlanResolver`）
    返回一个不可变的 `PlaybackPlan`：决定（Q2）、阶梯类别、调整后的阶梯、硬件路线、打包器和指纹。
    这个会话的每个清单文件和每个分段都依据它来提供：清单的输入、降档探测、过期 URL 的封存、生产者的选择和分段的键，读的都是这同一次解析结果，

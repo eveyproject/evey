@@ -71,7 +71,7 @@ Der Scanner erkennt Namen wie diese:
 Enthalten Ihre Dateien ein Wort, das Evey noch nicht ignoriert, fügen Sie es
 unter **Verwaltung → Serverkonfiguration → Parser-Tokens** hinzu: unter
 **Zusätzliche Qualitäts-Tokens** für einzelne Wörter (`HDRIP`), unter
-**Zusätzliche Edition-Suffixe** für Wortgruppen. Das gilt ab dem nächsten
+**Zusätzliche Editions-Suffixe** für Wortgruppen. Das gilt ab dem nächsten
 Scan.
 
 ## Einen falschen oder fehlenden Titel korrigieren
@@ -82,7 +82,7 @@ am schnellsten:
 1. Öffnen Sie den Titel und wählen Sie **Metadaten bearbeiten**.
 2. Drücken Sie auf **Auf TMDB identifizieren** und suchen Sie den richtigen
    Titel.
-3. Drücken Sie auf **Dieses verwenden**.
+3. Drücken Sie auf **Diese Zuordnung verwenden**.
 
 Weitere Möglichkeiten in **Metadaten bearbeiten**:
 
@@ -97,7 +97,7 @@ Weitere Möglichkeiten in **Metadaten bearbeiten**:
 
 Für eine ganze Bibliothek bietet die Zeile unter **Verwaltung → Bibliotheken**:
 
-- **Nur Waisen abgleichen** versucht es noch einmal mit den Dateien, die nie
+- **Nur nicht erkannte Dateien abgleichen** versucht es noch einmal mit den Dateien, die nie
   erkannt wurden. Das geht schnell.
 - **Alle erneut mit TMDB abgleichen** sucht jeden Titel neu. Das dauert. Nutzen
   Sie es, nachdem Sie viele Dateien umbenannt haben.

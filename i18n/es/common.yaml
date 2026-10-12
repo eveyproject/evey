@@ -197,7 +197,7 @@ feeds:
   saved: "Configuración guardada"
   customize: Personalizar
   customizeTitle: "Personalizar inicio"
-  resetDefaults: "Restablecer"
+  resetDefaults: "Restablecer valores predeterminados"
   resetConfirm: "¿Restablecer la personalización del feed a los valores predeterminados?"
   moveUp: Mover sección hacia arriba
   moveDown: Mover sección hacia abajo

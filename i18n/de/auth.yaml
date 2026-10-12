@@ -105,7 +105,7 @@ register:
   backToLogin: "Zurück zur Anmeldung"
 profile:
   title: Profil
-  logoutIncomplete: "Die Abmeldung ist auf diesem Gerät möglicherweise unvollständig. Starte die App neu, um sie abzuschließen."
+  logoutIncomplete: "Die Abmeldung ist auf diesem Gerät möglicherweise unvollständig. Starten Sie die App neu, um sie abzuschließen."
   edit: Bearbeiten
   username: Benutzername
   email: E-Mail
@@ -124,7 +124,7 @@ profile:
   closingSoon: "Dieses Profil schließt um {time} (noch {minutes} Min.)."
   schedule:
     title: "Nutzungszeiten"
-    description: "Lege fest, wann dieses Kinderprofil genutzt werden darf. Außerhalb dieser Zeiten wird es auf allen Geräten gesperrt, auch während der Wiedergabe."
+    description: "Legen Sie fest, wann dieses Kinderprofil genutzt werden darf. Außerhalb dieser Zeiten wird es auf allen Geräten gesperrt, auch während der Wiedergabe."
     enable: "Auf Nutzungszeiten beschränken"
     modeWeek: "Wochentage / Wochenende"
     modeDaily: "Tag für Tag"
@@ -159,11 +159,11 @@ profile:
     signOut: "Abmelden"
     wrongPin: "Falsche Eltern-PIN"
     noParentPin: "Für dieses Konto ist keine Eltern-PIN festgelegt."
-    rateLimited: "Zu viele Versuche, versuche es in einer Minute erneut."
+    rateLimited: "Zu viele Versuche, versuchen Sie es in einer Minute erneut."
     failed: "Das Profil konnte nicht entsperrt werden."
   select:
     title: "Wer schaut zu?"
-    description: "Wähle ein Profil aus, um fortzufahren."
+    description: "Wählen Sie ein Profil aus, um fortzufahren."
     kidsBadge: "Kind"
     active: "Aktiv"
     manage: "Profile verwalten"
@@ -290,7 +290,7 @@ settings:
       updatePin: "PIN aktualisieren"
 apiDocs:
   title: API-Dokumentation
-  subtitle: Die Endpunkte, die mit einem API-Schlüssel aufgerufen werden können, gruppiert nach dem jeweils erforderlichen Scope. Mit „Authorize“ kannst du sie mit deinem Schlüssel ausprobieren.
+  subtitle: Die Endpunkte, die mit einem API-Schlüssel aufgerufen werden können, gruppiert nach dem jeweils erforderlichen Scope. Mit „Authorize“ können Sie sie mit Ihrem Schlüssel ausprobieren.
   link: API-Dokumentation ansehen
   loadError: Die API-Spezifikation konnte nicht geladen werden.
 apiKeys:
@@ -303,7 +303,7 @@ apiKeys:
   nameRequired: Name ist erforderlich
   key: Schlüssel
   scopes: Berechtigungen
-  scopesAll: Alle (Legacy)
+  scopesAll: "Alle (veraltet)"
   scopesHint: "Leer lassen für vollen Zugriff (Legacy). Bestimmte Berechtigungen auswählen, um einzuschränken."
   scopeLabels:
     "media:read": Medien-Metadaten lesen

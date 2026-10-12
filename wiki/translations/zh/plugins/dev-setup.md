@@ -224,7 +224,7 @@ EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
 EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的包
 ```
 
-之后，在**管理 → 插件**里选择 ZIP 包，并在**签名文件 (.zip.sig，可选)**里选择对应的 `.zip.sig`；
+之后，在**管理 → 插件**里选择 ZIP 包，并在**签名文件（.zip.sig，可选）**里选择对应的 `.zip.sig`；
 通过 API 上传时，签名放在 `sig` 字段里。预览会显示**已签名**或签名无效，**安全仪表板**会保存这个结果。
 
 容易踩坑的地方：
@@ -284,7 +284,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 | `plugin already installed at version 1.0.0, new version must be higher` | ZIP 包的版本和已安装的相同。 | 调高 `version`，或者先卸载。 |
 | `signature does not match the plugin or the configured key` | `.sig` 是用另一把密钥做的，或者 ZIP 包在签名之后被改过。 | 用正确的密钥给这个 ZIP 包重新签名，或者修正 `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`。 |
 | `plugin blocked: theme.js contains forbidden pattern` | 主题脚本扫描器匹配到了被禁止的 API。 | 主题只能调用 `evey.theme.*`：见[主题](../themes.md#what-the-scanner-refuses)。 |
-| 日志最后一行是 `memory quota exceeded (... MB > ... MB)` | 插件超出内存上限，被监控程序停掉了。 | 降低内存用量，或者在**资源限制**里调高**最大内存 (MiB)**。 |
+| 日志最后一行是 `memory quota exceeded (... MB > ... MB)` | 插件超出内存上限，被监控程序停掉了。 | 降低内存用量，或者在**资源限制**里调高**最大内存（MiB）**。 |
 | `bwrap: ... permission denied` | 在 Docker 里使用 `bubblewrap` 模式，被容器的 seccomp 或 AppArmor 配置拦住了。 | 保持默认的 `auto` 模式。否则请看[插件沙箱设置](sandbox-deployment.md)。 |
 | 界面模块没有出现 | 插件被禁用了、插槽名称拼错了，或者 `src` 不在 `web_root` 之下。 | 检查卡片的状态、插槽名称，以及浏览器网络面板里 `/api/v1/plugins/<id>/assets/...` 的请求。 |
 

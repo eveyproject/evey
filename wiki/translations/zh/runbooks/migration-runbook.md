@@ -27,7 +27,7 @@ docker exec -it evey-server sh -c \
 
 ## 安全地更新
 
-1. **先做一次备份**：在**管理 → 备份与恢复**里（**立即运行**），或者用脚本：
+1. **先做一次备份**：在**管理 → 数据库备份**里（**立即运行**），或者用脚本：
    ```sh
    curl -X POST -H "Authorization: Bearer <admin-token>" \
      http://localhost:9091/api/v1/admin/backups

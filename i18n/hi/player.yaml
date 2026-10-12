@@ -95,7 +95,7 @@ introSkipped: "इंट्रो छोड़ा गया"
 download: "डाउनलोड"
 watchTogether: "साथ में देखें"
 buffering: "बफरिंग…"
-subtitlesPreparing: "उपशीर्षक तैयार किए जा रहे हैं…"
+subtitlesPreparing: "सबटाइटल तैयार किए जा रहे हैं…"
 playbackFailed: "प्लेबैक विफल"
 unableToPlayAnyQuality: "किसी भी गुणवत्ता स्तर पर चलाने में असमर्थ"
 failedToStart: "प्लेबैक शुरू करने में विफल"
@@ -157,7 +157,7 @@ streamInfo:
   sampleRate: नमूना दर
   transcodeReasons: ट्रांसकोड कारण
   noDirectPlayReasons: सीधा प्लेबैक क्यों नहीं
-  methodDirectPlay: सीधा प्लेबैक
+  methodDirectPlay: "डायरेक्ट प्ले"
   methodDirectStream: रीमक्स
   methodTranscode: ट्रांसकोड
   containerSource: स्रोत कंटेनर

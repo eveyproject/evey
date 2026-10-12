@@ -136,7 +136,7 @@ una cosa y lo instalamos.
     zip -r ../hello-plugin.zip . -x ".*" "node_modules/*"
     ```
 
-5. **Instálalo.** En **Administración → Plugins**, **Instalar Plugin**, elige
+5. **Instálalo.** En **Administración → Plugins**, **Instalar plugin**, elige
    el ZIP y **Vista previa e instalar**: la vista previa muestra
    `api.library` y el resultado del análisis estático. Por la API, la misma
    subida es:
@@ -147,7 +147,7 @@ una cosa y lo instalamos.
          https://evey.test/api/v1/admin/plugins/upload
     ```
 
-6. **Lee el registro.** En la tarjeta del plugin, **Logs** muestra la línea
+6. **Lee el registro.** En la tarjeta del plugin, **Registros** muestra la línea
    escrita por `Initialize`. `docker compose logs evey` muestra el lado del
    servidor de ese mismo arranque, con el id del plugin.
 
@@ -168,7 +168,7 @@ cualquier llamada cuyo permiso no declare el manifiesto. Tres grupos no
 necesitan ningún permiso:
 
 - `Log` escribe en el registro del plugin, que se ve en su tarjeta;
-- `GetConfig` lee los valores que el administrador fijó en **Config**
+- `GetConfig` lee los valores que el administrador fijó en **Configuración**
   (declarados en `config_schema`), y `SetConfig` permite al plugin guardar
   ahí sus propias claves;
 - `GetData` / `SetData` / `DeleteData` / `ListDataKeys` es el almacén

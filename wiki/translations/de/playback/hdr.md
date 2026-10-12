@@ -98,7 +98,7 @@ jede Dekodierung von Dolby Vision richtig angezeigt wird:
 | Dolby-Vision-Profil | HDR-Player | SDR-Player |
 | --- | --- | --- |
 | **8.1** (Basisschicht, die mit HDR10 kompatibel ist) | Wie HDR10 behandelt: Die Regeln oben gelten, das Original kann erhalten bleiben. | Per Tone-Mapping auf SDR umgerechnet. |
-| **7** (UHD Blu-ray) | Die HDR10-Basisschicht wird als HEVC 10 Bit neu kodiert, das HDR bleibt erhalten. Stream-Info: **Dolby-Vision-Basisschicht neu codiert (HDR bleibt)**. | Per Tone-Mapping auf SDR umgerechnet. |
+| **7** (UHD Blu-ray) | Die HDR10-Basisschicht wird als HEVC 10 Bit neu kodiert, das HDR bleibt erhalten. Stream-Info: **Dolby-Vision-Basisschicht neu kodiert (HDR bleibt)**. | Per Tone-Mapping auf SDR umgerechnet. |
 | **5** (keine HDR10-Basisschicht) | Per Tone-Mapping auf SDR umgerechnet. | Per Tone-Mapping auf SDR umgerechnet. |
 
 ## Prüfen, was passiert ist

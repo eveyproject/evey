@@ -205,7 +205,7 @@ plugins:
   uploadFile: Datei hochladen
   fromUrl: Von URL
   installFromUrl: Von URL installieren
-  installFromUrlHint: "Füge die URL eines Plugin-.zip ein - optional #sha256:<hash> anhängen, um den Download zu verifizieren."
+  installFromUrlHint: "Fügen Sie die URL eines Plugin-.zip ein - optional #sha256:<hash> anhängen, um den Download zu verifizieren."
   chooseFile: "Datei auswählen..."
   previewInstall: Vorschau & Installieren
   pluginFileZip: Plugin-Datei (.zip)
@@ -372,7 +372,7 @@ users:
 
 mediaRequests:
   title: Medienanfragen
-  subtitle: Prüfe die von Nutzern eingereichten Anfragen und lege fest, wer Anfragen stellen darf.
+  subtitle: Prüfen Sie die von Nutzern eingereichten Anfragen und legen Sie fest, wer Anfragen stellen darf.
   tabQueue: Warteschlange
   tabAccess: Zugriff
   filterAll: Alle
@@ -429,7 +429,7 @@ libraries:
   refreshMetadata: Alle erneut mit TMDB abgleichen
   refreshMetadataTooltip: "Führt die TMDB-Suche für jedes Element neu aus - langsam, korrigiert aber frühere falsche Zuordnungen. Verwenden Sie dies nach großen Umbenennungs-Batches."
   refreshAllMetadataStarted: "Erneuter Abgleich gestartet - Titel und Poster werden im Hintergrund aktualisiert"
-  matchOrphans: Nur Waisen abgleichen
+  matchOrphans: "Nur nicht erkannte Dateien abgleichen"
   matchOrphansTooltip: "Zielt nur auf Elemente ab, die beim Scan nie mit TMDB übereinstimmten (Anbieter-IDs leer). Schnell, läuft im Hintergrund."
   matchOrphansStarted_one: "{{count}} Waise für Abgleich eingereiht - sie erscheint mit Poster/Übersicht, sobald TMDB antwortet"
   matchOrphansStarted_other: "{{count}} Waisen für Abgleich eingereiht - sie erscheinen mit Poster/Übersicht, sobald TMDB antwortet"
@@ -610,7 +610,7 @@ webhooks:
   form:
     name: Name
     url: URL
-    secret: Secret (optional, für HMAC-Signierung)
+    secret: "Geheimnis (optional, für HMAC-Signierung)"
     events: Ereignisse
     allEvents: Alle Ereignisse
     enabled: Aktiviert
@@ -740,7 +740,7 @@ serverConfig:
         label: "Komplexitätsklassifizierung"
         desc: "Probe-Encodes, die jeden Titel für die Transcoding-Leiter einstufen."
   backgroundJobs:
-    title: "Hintergrundarbeiten"
+    title: "Hintergrundaufgaben"
     subtitle: "Betreiber-Einstellungen für die Hintergrund-Worker der Transkodierung - Pausenverhalten, Nachtrag-Durchläufe und deren Rhythmus."
     restartWarning: "Diese Einstellungen werden nur einmal beim Serverstart gelesen. Eine hier gespeicherte Änderung wirkt sich nicht auf den laufenden Server aus - er muss neu gestartet werden, damit der neue Wert greift."
     pauseBgOnPlaybackLabel: "Hintergrundaufgaben während der Wiedergabe anhalten"
@@ -798,11 +798,11 @@ serverConfig:
   failedSmtp: "{{key}} konnte nicht gespeichert werden"
   smtpEnvHint: "Sobald hier ein Host eingetragen ist, kommen alle Felder aus dieser Karte und die Umgebungsvariablen EVEY_SMTP_* des Servers werden ignoriert; ohne Host hier gilt die Umgebung. Änderungen gelten ohne Neustart."
   sendTestEmail: "Test-E-Mail senden"
-  testEmailHint: "Sendet eine kurze Nachricht an die E-Mail-Adresse deines Kontos mit den gespeicherten Einstellungen. Speichere deine Änderungen zuerst."
+  testEmailHint: "Sendet eine kurze Nachricht an die E-Mail-Adresse Ihres Kontos mit den gespeicherten Einstellungen. Speichern Sie Ihre Änderungen zuerst."
   testEmailSent: "Test-E-Mail an {{to}} gesendet"
   testEmailFailed: "Test-E-Mail fehlgeschlagen: {{error}}"
-  testEmailNotConfigured: "Kein SMTP-Server festgelegt. Gib einen ein und speichere, bevor du einen Test sendest."
-  testEmailNoRecipient: "Dein Konto hat keine E-Mail-Adresse. Füge zuerst eine in deinem Profil hinzu."
+  testEmailNotConfigured: "Kein SMTP-Server festgelegt. Geben Sie einen ein und speichern Sie, bevor Sie einen Test senden."
+  testEmailNoRecipient: "Ihr Konto hat keine E-Mail-Adresse. Fügen Sie zuerst eine in Ihrem Profil hinzu."
   trickplayTitle: Trickplay-Vorschaubilder
   trickplayDesc: Automatisch Zeitleisten-Vorschaubilder für Filme und Episoden generieren.
   trickplayEnabled: Trickplay-Vorschaubilder aktivieren
@@ -810,7 +810,7 @@ serverConfig:
   memoryProfileTitle: "Speicherprofil"
   memoryProfileSubtitle: "Steuert, wie aggressiv inaktive Plugin-Prozesse ausgesetzt werden, um RAM zu sparen."
   memoryProfileLabel: "Speicherprofil"
-  memoryProfileAuto: "Auto (empfohlen)"
+  memoryProfileAuto: "Automatisch (empfohlen)"
   memoryProfileNormal: "Normal"
   memoryProfileLow: "Niedrig"
   memoryProfileDesc: "Niedrig setzt inaktive Plugin-Prozesse aus, um RAM zu sparen (werden bei Bedarf fortgesetzt); Auto wählt Niedrig auf Rechnern mit weniger als 3 GB."
@@ -833,7 +833,7 @@ serverConfig:
   parserTokensTitle: "Parser-Tokens"
   parserTokensDesc: "Zusätzliche Release-Tags, die der Dateinamen-Parser über seine Standardliste hinaus erkennt."
   parserTokensInfo: "Tags ergänzen, die der Parser standardmäßig nicht entfernt (HDRIP, eigene Editionen usw.), damit verwaiste Dateien mit TMDB übereinstimmen. Änderungen werden beim nächsten Scan sofort wirksam."
-  parserTokensEditions: "Zusätzliche Edition-Suffixe"
+  parserTokensEditions: "Zusätzliche Editions-Suffixe"
   parserTokensEditionsHint: "Komma-getrennt, können mehrere Wörter umfassen (Regex-Pre-Tokenisierung). Werden vor dem TMDB-Lookup vom Titel entfernt."
   parserTokensQualities: "Zusätzliche Qualitäts-Tokens"
   parserTokensQualitiesHint: "Komma-getrennt, Einzel-Wort-Tokens (in Kleinbuchstaben). Der Parser zerlegt Dateinamen an '.', '_', '-' und Leerzeichen."
@@ -976,7 +976,7 @@ transcodeCache:
   transcodingSettings: "Transkodierungs-Einstellungen"
   hwAccelNote: "Die Hardware-Beschleunigung wird unter Transkodierung → Encode-Kalibrierung konfiguriert."
   hwAccelNoteLink: "Zu Transkodierung"
-  hwDevices: Hardware-Beschleunigung
+  hwDevices: "Hardwarebeschleunigung"
 
 dashboardStats:
   movies: Filme
@@ -1045,11 +1045,11 @@ serverSettings:
   passwordRecoveryHint: "Zeigt auf der Anmeldeseite einen Link „Passwort vergessen?\", der einen Link zum Zurücksetzen per E-Mail sendet. Erfordert eine konfigurierte E-Mail (SMTP). Gilt sofort."
   backupTelemetry: "Telemetrie in Sicherungen einschließen"
   backupTelemetryHint: "Sicherungen lassen die umfangreichen Telemetrietabellen (Wiedergabe- und Servermetriken) standardmäßig weg, um klein zu bleiben. Aktivieren Sie dies, um sie einzuschließen. Gilt für manuelle, geplante und CLI-Sicherungen; beim Wiederherstellen werden diese Tabellen immer geleert."
-  auditRetentionDays: "Aufbewahrung des Audit-Logs (Tage, 0 = unbegrenzt)"
+  auditRetentionDays: "Aufbewahrung des Audit-Protokolls (Tage, 0 = unbegrenzt)"
   metricsRetentionDays: "Aufbewahrung der Servermetriken (Tage)"
   qoeRetentionDays: "Aufbewahrung der Wiedergabequalität (QoE) (Tage)"
   playSessionRetentionDays: "Aufbewahrung des Sitzungsverlaufs (Tage, 0 = unbegrenzt)"
-  transcodeCacheMaxGB: "Budget des Transcode-Caches (GB)"
+  transcodeCacheMaxGB: "Budget des Transkodierungs-Caches (GB)"
   retentionSweepHint: "(gilt ab dem nächsten täglichen Durchlauf)"
   saved: Einstellungen gespeichert
   usingDefault: "Standardwert:"
@@ -1072,9 +1072,9 @@ transcoding:
   advancedRestartHint: "Diese Werte werden beim Serverstart gelesen: Speichern merkt sich Ihre Wahl, ein Neustart wendet sie an."
   savedRestart: "Gespeichert - starten Sie den Server neu, um sie anzuwenden"
   maxSessions: "Maximale gleichzeitige HLS-Sitzungen (leer = unbegrenzt)"
-  softwareMaxHeight: "Höhengrenze für Software-Transcoding (leer = keine Grenze)"
+  softwareMaxHeight: "Höhengrenze für Software-Transkodierung (leer = keine Grenze)"
   softwareHDRMaxHeight: "HDR-Höhengrenze für Software (leer = keine Grenze)"
-  singleVariant: "Nur eine Ladder-Stufe gleichzeitig kodieren"
+  singleVariant: "Nur eine Qualitätsstufe gleichzeitig kodieren"
   hwPerVariant: "Ein Hardware-Encoder-Prozess pro Stufe"
   videoSessionsMeasured: "Kapazität: {{auto}} gleichzeitige Videostreams. Aktuell belegt: {{active}}."
   videoSessionsEvidence: "Gemessen: {{height}}p mit {{fps}} fps bei {{requiredFps}} benötigten, {{cores}} Kerne."
@@ -1275,18 +1275,18 @@ calibration:
   errorToast: "Neukalibrierung fehlgeschlagen"
   setupTitle: "Kodierleistung wird kalibriert"
   setupSubtitle: "Es wird gemessen, wie hoch Ihr Host in Echtzeit kodieren kann. Das dauert in der Regel etwa 20 Sekunden und läuft nur einmal."
-  hwFallbacks: "Hardware-Rückfälle"
+  hwFallbacks: "Hardware-Fallbacks"
   hwFallbacksDesc: "Kürzliche Hardware-Kodierungen, die automatisch zurückgefallen sind - der Host spielt weiter per Software ab, während die Ursache aufgezeichnet wird. Kalibrieren Sie neu, sobald die Hardware behoben ist."
   fallbackUnsupportedOption: "nicht unterstützte Encoder-Option"
   fallbackEncoderMissing: "Encoder nicht verfügbar"
   fallbackInit: "GPU-Initialisierung fehlgeschlagen"
-  hwModeLabel: "Hardware-Beschleunigung"
+  hwModeLabel: "Hardwarebeschleunigung"
   hwModeAuto: "Auto (bestmöglich)"
   hwModeOff: "Aus (nur Software)"
   detected: "Erkannt: {{list}}"
   detectedNone: "Kein GPU-Beschleuniger erkannt"
   modeApplied: "Modus angewendet - Neukalibrierung…"
-  hwEnableLabel: "Hardware-Beschleunigung"
+  hwEnableLabel: "Hardwarebeschleunigung"
   hwEnabledHint: "Kodierung auf der GPU, wenn möglich"
   hwDisabledHint: "Nur Software (CPU)"
   hwBackendLabel: "Backend"
@@ -1359,7 +1359,7 @@ qoe:
     recoInsufficient: "Messwerte werden gesammelt - schauen Sie wieder vorbei, sobald einige Sitzungen abgespielt wurden."
 
 segments:
-  empty: "Keine Segmente erkannt. Füge unten eines hinzu oder starte die automatische Erkennung."
+  empty: "Keine Segmente erkannt. Fügen Sie unten eines hinzu oder starten Sie die automatische Erkennung."
   title: Mediensegmente
   markStart: Startpunkt hier setzen
   markEnd: Endpunkt hier setzen
@@ -1373,9 +1373,9 @@ segments:
   propagateSuccess_other: "Auf {{count}} Folgen übertragen"
   preview: Vorschau
   playerLoading: "Player wird geladen …"
-  selectHint: "(Wähle ein Segment auf der Zeitleiste)"
+  selectHint: "(Wählen Sie ein Segment auf der Zeitleiste)"
   timeline: Timeline
-  emptyState: "Kein Segment erkannt. Füge unten ein Segment hinzu oder starte die automatische Erkennung."
+  emptyState: "Kein Segment erkannt. Fügen Sie unten ein Segment hinzu oder starten Sie die automatische Erkennung."
   addLabel: "Hinzufügen:"
   add: "Segment hinzufügen:"
   start: "Start mm:ss"
@@ -1397,9 +1397,9 @@ seekIndex:
   introMore: "Mehr über die beiden Urteile"
   introDetailScope: "Jede reparierte Datei behält ihr Original als .mkvgobak-Backup, jederzeit wiederherstellbar."
   introDetailRemarks: "Auf der Seite „Zur Information“: unvollständiger Download, zu weit auseinanderliegende Keyframes, Versatz zwischen den Tonspuren, kürzere Tonspur, überschüssige Bytes am Ende."
-  readOnlyNote: "Die Reparatur schreibt in deine Medienordner. Sind sie schreibgeschützt eingebunden (:ro in docker-compose), binde sie zuerst beschreibbar ein und starte die Container neu - der Scan funktioniert trotzdem."
+  readOnlyNote: "Die Reparatur schreibt in Ihre Medienordner. Sind sie schreibgeschützt eingebunden (:ro in docker-compose), binden Sie sie zuerst beschreibbar ein und starten Sie die Container neu - der Scan funktioniert trotzdem."
   keepBackups: "Sicherungen behalten"
-  keepBackupsHint: "Ein .mkvgobak jeder reparierten Datei bleibt nach dem Auftrag erhalten, sodass du jederzeit zurückrollen kannst - kostet eine zusätzliche Kopie pro Datei auf der Festplatte."
+  keepBackupsHint: "Ein .mkvgobak jeder reparierten Datei bleibt nach dem Auftrag erhalten, sodass Sie jederzeit zurückrollen können - kostet eine zusätzliche Kopie pro Datei auf der Festplatte."
   keepBackupsOffHint: "Keine Sicherung bleibt zurück: Nur die letzten {{n}} bleiben während des Laufs erhalten und werden am Ende entfernt, dafür wird jede Reparatur tief verifiziert. Bei knappem Speicher wählen."
   library: "Bibliothek"
   allLibraries: "Alle Bibliotheken"
@@ -1421,14 +1421,14 @@ seekIndex:
   statsTrailingJunk: "Überschüssige Bytes"
   onlyAttention: "Nur zeigen, was eine Aktion oder einen Blick erwartet"
   emptyTitle: "Noch kein Scan"
-  emptyDescription: "Wähle eine Bibliothek und scanne, um MKV/WebM-Dateien ohne Seek-Index zu finden."
+  emptyDescription: "Wählen Sie eine Bibliothek und scannen Sie, um MKV/WebM-Dateien ohne Seek-Index zu finden."
   noEbml: "Keine MKV/WebM-Dateien in diesem Bereich - andere Container brauchen keinen Seek-Index."
-  allGood: "Nichts wartet auf dich - jede analysierte Datei ist gesund oder bestätigt."
+  allGood: "Nichts wartet auf Sie - jede analysierte Datei ist gesund oder bestätigt."
   tableHeaders:
     file: "Datei"
     container: "Container"
     size: "Größe"
-    status: "Seek-Index"
+    status: "Diagnose"
   statusIndexed: "Indiziert"
   statusMissing: "Fehlt"
   backupBadge: "Sicherung"
@@ -1463,13 +1463,13 @@ seekIndex:
   trailingJunkBadge: "Überschüssige Bytes"
   trailingJunkHint: "Überschüssige Bytes liegen NACH dem deklarierten Ende des Segments - das Medium ist vollständig und abspielbar. Nichts zu tun: Ein Neuschreiben für eine andere Reparatur entfernt sie nebenbei."
   statsAudioShort: "Audio endet zu früh"
-  audioShortBadge: "Audio -{{sec}}s"
+  audioShortBadge: "Audio -{{sec}} s"
   audioShortHint: "Eine Audiospur endet {{sec}}s vor dem Bild (stummer Abspann auf dieser Spur). Die Datei ist ansonsten intakt; die Wiedergabe füllt das fehlende Ende mit Stille. Gemessen wird gegen das tatsächliche Ende des Bildes, nicht gegen die deklarierte Dauer des Containers - eine zu hoch angesetzte Dauer wird also nie dem Ton angelastet. Keine Reparatur möglich: Dieses Audio ist schlicht nicht in der Datei; für eine echte Korrektur die Quelle neu beziehen."
-  statsSeekCoarse: "Grobe Suche"
-  seekCoarseBadge: "Grobe Suche"
+  statsSeekCoarse: "Grobes Springen"
+  seekCoarseBadge: "Grobes Springen"
   seekCoarseHint: "Der Index wurde neu aufgebaut und eine Lücke bleibt: {{detail}}. Ein Sprung IN diese Lücke landet an ihrem Rand; überall sonst ist das Springen exakt. Live gemessen ist die Lücke meist der Abspann (kein Keyframe nach dem letzten), den kein Index füllen kann und der niemanden stört. Eine Lücke mitten im Film sind die Keyframes der Kodierung selbst - nur eine bessere Quelle hilft."
   repair: "Reparieren"
-  repairResync: "Trotzdem reparieren"
+  repairResync: "Reparatur mit Neusynchronisierung"
   repairResyncHint: "Baut den Index neu und überspringt den beschädigten Bereich: rettet alles davor und danach, verliert nur die beschädigte Spanne (Sekundenbruchteil). Behält eine Sicherung."
   resyncRequiredBadge: "Beschädigung bei der Reparatur gefunden"
   resyncRequiredHint: "Die normale Reparatur hat diese Datei durchlaufen und ihr Stream lässt sich nicht lesen: ein beschädigter Bereich, den der Scan - der nur den Kopf liest - nicht sehen konnte. Nur eine Resynchronisierung kommt daran vorbei; sie überspringt den Bereich und verliert diese Bytes endgültig, behält aber immer das Original als Backup. Wie viel verloren geht, ist hier nicht im Voraus bekannt."
@@ -1492,7 +1492,7 @@ seekIndex:
   lastJob: "Letzter Vorgang"
   lastJobLine: "{{kind}} - {{done}}/{{total}} Datei(en) verarbeitet"
   lastJobOk: "Abgeschlossen"
-  jobCancel: "Anhalten"
+  jobCancel: "Stoppen"
   jobCancelHint: "Hält bei der nächsten Datei an: die laufende Datei wird fertiggestellt oder wiederhergestellt, nie halb geschrieben zurückgelassen."
   jobCancelRequested: "Anhalten angefordert - der Vorgang endet nach der aktuellen Datei"
   jobCancelFailed: "Der Vorgang konnte nicht angehalten werden"
@@ -1504,7 +1504,7 @@ seekIndex:
   jobSkippedCount: "{{count}} übersprungen"
   jobSkippedHint: "Dateien, die der Job angesehen und unangetastet gelassen hat - bereits im Zielzustand oder außerhalb dessen, was diese Reparatur leisten kann. Sie zählen zu den \"verarbeiteten\"."
   jobCompletedSkipped: "{{kind}} abgeschlossen - {{done}} Datei(en) repariert, {{skipped}} übersprungen (nichts zu tun)"
-  jobReadOnlyHint: "Einige Dateien liegen auf einem schreibgeschützten Volume. Binde die Medienordner lese-schreibbar ein (:ro aus docker-compose entfernen), starte die Container neu und versuche es erneut."
+  jobReadOnlyHint: "Einige Dateien liegen auf einem schreibgeschützten Volume. Binden Sie die Medienordner lese-schreibbar ein (:ro aus docker-compose entfernen), starten Sie die Container neu und versuchen Sie es erneut."
   scannedAt: "Gescannt am {{date}}"
   repairAllConfirmTitle: "Bibliothek reparieren"
   repairAllConfirm_one: "{{count}} Datei im Hintergrund reparieren? Fehlende Indizes werden neu aufgebaut und falsch benannte Container in .mp4 umbenannt - jede neu geschriebene Datei wird geprüft und atomar getauscht. Das ist ein LANGER Vorgang: Er schreibt Dateien neu und kann Stunden dauern."
@@ -1598,7 +1598,7 @@ repairHistory:
   opResync: "Beschädigter Abschnitt übersprungen"
   opContainerFix: "In .mp4 umbenannt"
   opAudioRetime: "Tonspur verschoben"
-  opRollback: "Aus Backup wiederhergestellt"
+  opRollback: "Aus Sicherung wiederhergestellt"
   reversible: "Rückgängig machbar"
   shift: "Angewendeter Versatz - {{shift}}"
   evidenceMeasured: "Gemessen: die Tonspuren der Datei lagen {{lag}}s auseinander, Konfidenz {{confidence}}."
@@ -1635,7 +1635,7 @@ syncPreview:
   render: "Zeig es mir"
   idle: "Einen Moment wählen und auf Zeig es mir klicken. Der Clip entsteht auf dem Server, das dauert ein paar Sekunden."
   apply: "{{shift}} s auf diese Spur anwenden"
-  applyHint: "Als dein Urteil festgehalten, nicht als Messung - und aus dem Verlauf rückgängig zu machen wie jede andere Reparatur."
+  applyHint: "Als Ihr Urteil festgehalten, nicht als Messung - und aus dem Verlauf rückgängig zu machen wie jede andere Reparatur."
   applyFailed: "Der Versatz konnte nicht angewendet werden."
   applyDone: "Versatz angewendet. Aus dem Verlauf der Datei rückgängig zu machen."
 backgroundTasks:

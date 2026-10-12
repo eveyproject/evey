@@ -16,7 +16,7 @@ funcionan las capas, en
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
 | `EVEY_PLUGINS_ENABLED` | `true` | El sistema de plugins. `false` lo desactiva por completo. | ninguno |
-| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` o `basic`. `auto` elige el más fuerte que admite el equipo; un `landlock` explícito rechaza un plugin que no puede confinar. | Plugins → Límites de recursos → **Modo aislado**, se aplica a los plugins que arranquen después |
+| `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` o `basic`. `auto` elige el más fuerte que admite el equipo; un `landlock` explícito rechaza un plugin que no puede confinar. | Plugins → Límites de recursos → **Modo de sandbox**, se aplica a los plugins que arranquen después |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` u `off`: ejecuta los plugins con un usuario aparte. `auto` lo hace solo cuando el sandbox queda en `basic`. Incompatible con `no_new_privs` en el contenedor. | ninguno |
 
 ## Límites de recursos

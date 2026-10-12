@@ -36,7 +36,7 @@ ejecuten.
 **Comprueba lo que está activo:** **Administración -> Plugins -> Panel de
 seguridad** muestra el sandbox del equipo, el modo que eligió `auto`
 (`landlock`, `bubblewrap` o `basic`) y los resultados de las pruebas
-(**Kernel Landlock**, **Lanzador sandbox**, **Bubblewrap**). `basic` significa
+(**Kernel Landlock**, **Lanzador del sandbox**, **Bubblewrap**). `basic` significa
 que el equipo no ofrece aislamiento de archivos por carpeta: los plugins se
 ejecutan solo con un cambio de usuario (uid) y seccomp, las pruebas dicen por
 qué, y las secciones siguientes explican qué cambiar.
@@ -138,7 +138,7 @@ EVEY_PLUGINS_CPU_NICE=10                # prioridad de CPU 0-19 (más alto = má
 
 ## Cambiar el modo de sandbox en marcha
 
-Cambia el **Modo aislado** en la tarjeta **Límites de recursos** de
+Cambia el **Modo de sandbox** en la tarjeta **Límites de recursos** de
 **Administración -> Plugins**. Los plugins en marcha se reinician
 automáticamente para que el nuevo modo se aplique enseguida, y el **Panel de
 seguridad** muestra el modo activo. Un plugin que no puede funcionar con el

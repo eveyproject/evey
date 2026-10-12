@@ -127,13 +127,13 @@ notifications:
   backupFailed: "Geplante Sicherung fehlgeschlagen"
   cacheFull: "Untertitel-Cache voll"
   mediaRequest: "Neue Medienanfrage: {{name}}"
-  requestAnswered: "Deine Medienanfrage wurde aktualisiert: {{name}}"
+  requestAnswered: "Ihre Medienanfrage wurde aktualisiert: {{name}}"
   clearConfirm: Alle Benachrichtigungen löschen?
   clearTitle: Benachrichtigungen löschen
   clearFailed: Benachrichtigungen konnten nicht gelöscht werden
 offline:
   openDownloads: Meine Downloads öffnen
-  description: Prüfe deine Internetverbindung und versuche es erneut.
+  description: Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.
   title: Offline
 noNotifications: Keine Benachrichtigungen
 aria:
@@ -238,7 +238,7 @@ selectedCount: '{{count}} ausgewählt'
 somethingWentWrong: Etwas ist schiefgelaufen
 tryAgain: Erneut versuchen
 unknownError: Unbekannter Fehler
-restartRequired: "Das passiert wiederholt. Bitte starte die App neu."
+restartRequired: "Das passiert wiederholt. Bitte starten Sie die App neu."
 shufflePlay: Zufallswiedergabe
 shuffleEmpty: Nichts zum Mischen vorhanden
 shuffleFailed: Konnte nichts zum Abspielen auswählen

@@ -127,8 +127,8 @@ de la cuenta en **Administración → Usuarios**.
 | --- | --- |
 | **Acceso a bibliotecas** (el botón **Bibliotecas** de la fila) | Las bibliotecas que ve la cuenta. Las demás no le aparecen en ningún sitio: ni en la búsqueda ni en su página de inicio. Un administrador siempre lo ve todo. |
 | **Bitrate máximo** (el botón **Bitrate**) | Limita la calidad de vídeo que recibe la cuenta, de 1 a 40 Mbps (0 = sin límite). Un título que lo supera se convierte para bajar a ese valor. |
-| **Perfiles máx** | Cuántos perfiles puede crear la cuenta (0 = sin límite). |
-| **Dispositivos máx por perfil** | Cuántos vídeos puede reproducir cada perfil a la vez, sumando sus dispositivos (0 = sin límite). Uno más se rechaza al empezar. |
+| **Máximo de perfiles** | Cuántos perfiles puede crear la cuenta (0 = sin límite). |
+| **Máximo de dispositivos por perfil** | Cuántos vídeos puede reproducir cada perfil a la vez, sumando sus dispositivos (0 = sin límite). Uno más se rechaza al empezar. |
 
 **Conectarse como** muestra el servidor exactamente como lo ve ese usuario.
 Úsalo para comprobar una restricción o para ver un problema con tus propios
@@ -197,10 +197,10 @@ mostrar se oculta.
 | **A continuación** | Para cada serie que el perfil ha empezado, el siguiente episodio que todavía no ha visto. |
 | **Colecciones** | Las colecciones, con un enlace a la lista completa. |
 | **Recomendado para ti** | Películas y series de los géneros que más ve el perfil, primero las que mejor encajan y después por valoración. Un género cuenta cuando aparece en al menos 3 de las últimas 200 reproducciones del perfil. |
-| **Más popular** | Las películas y series más reproducidas en el servidor en los últimos 90 días. |
+| **Más populares** | Las películas y series más reproducidas en el servidor en los últimos 90 días. |
 | Una fila por biblioteca | Lo último que se ha añadido a esa biblioteca, lo más nuevo primero. |
 
-**Recomendado para ti** y **Más popular** dejan fuera lo que el perfil ya ha
+**Recomendado para ti** y **Más populares** dejan fuera lo que el perfil ya ha
 terminado. Una serie cuenta como terminada cuando se han visto todos sus
 episodios. Los plugins pueden añadir sus propias filas.
 

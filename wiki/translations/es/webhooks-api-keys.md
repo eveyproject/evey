@@ -12,7 +12,7 @@ configura y para quien escribe el receptor o el script.
 
 ## Enviar eventos a una URL
 
-**Administración → Webhooks → Crear Webhook**: un **Nombre**, una **URL**,
+**Administración → Webhooks → Crear webhook**: un **Nombre**, una **URL**,
 los **Eventos** que se envían y un **Secreto** opcional para firmar.
 **Probar** envía un ping y muestra la respuesta.
 
@@ -70,7 +70,7 @@ administrador.
   no se puede volver a mostrar, solo revocar con **Revocar**.
 - **Actúa como su dueño**, con derechos de administrador, dentro de sus
   alcances.
-- Los **Permisos** (los alcances de la clave) limitan lo que puede hacer:
+- Los **Alcances** de la clave limitan lo que puede hacer:
 
 | Alcance | Permite |
 | --- | --- |
@@ -83,7 +83,7 @@ administrador.
 | `admin:read` | Leer la actividad y las estadísticas de administración |
 | `admin:write` | Modificar los ajustes de administración |
 
-Una clave creada sin ningún alcance (**Todos (legado)**) tiene acceso
+Una clave creada sin ningún alcance (**Todos (heredado)**) tiene acceso
 completo a los métodos que no son de administración, como su dueño, pero los
 métodos de administración siempre exigen su alcance: una clave heredada no
 puede llegar a ellos. Elige los alcances que necesita el script.

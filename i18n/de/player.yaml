@@ -118,7 +118,7 @@ goBack: Zurück
 shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"
 copyLink: Link kopieren
 copyCode: "Code kopieren"
-codeShareDesc: "Teile diesen Code - jeder kann ihn eingeben, um beizutreten und mit dir zu schauen."
+codeShareDesc: "Teilen Sie diesen Code - jeder kann ihn eingeben, um beizutreten und mit Ihnen zu schauen."
 close: Schließen
 shortcuts:
   title: Tastenkürzel
@@ -155,7 +155,7 @@ streamInfo:
   channels: Kanäle
   language: Sprache
   sampleRate: Abtastrate
-  transcodeReasons: Transcodierungsgründe
+  transcodeReasons: "Transkodierungsgründe"
   noDirectPlayReasons: Warum keine Direktwiedergabe
   methodDirectPlay: Direktwiedergabe
   methodDirectStream: Remux
@@ -168,9 +168,9 @@ streamInfo:
     video_codec_unsupported: Videocodec, den dieser Player nicht dekodieren kann
     audio_codec_unsupported: Audiocodec, den dieser Player nicht dekodieren kann
     hdr_tonemapping_needed: HDR nach SDR konvertiert (Tone-Mapping)
-    dovi_base_layer: "Dolby-Vision-Basisschicht neu codiert (HDR bleibt)"
+    dovi_base_layer: "Dolby-Vision-Basisschicht neu kodiert (HDR bleibt)"
     hdr_copy_unavailable: "Kopie nicht verfügbar, HDR beim Neukodieren erhalten"
-    pixel_format_unsupported: "Pixelformat, das der Player nicht decodiert (10-Bit-H.264, 4:2:2)"
+    pixel_format_unsupported: "Pixelformat, das der Player nicht dekodiert (10-Bit-H.264, 4:2:2)"
     level_exceeded: "H.264-Level über dem Limit des Geräts"
     container_incompatible: Container nicht direkt abspielbar (zu HLS umverpackt)
     resolution_exceeded: Auflösung über dem Limit des Players
@@ -204,8 +204,8 @@ playOn:
   failed: Senden fehlgeschlagen - das Gerät ist möglicherweise getrennt
   empty: Keine verbundenen Geräte. Öffnen Sie die Evey-App auf Ihrem TV oder Smartphone, um es hier verfügbar zu machen.
 sessionExpired:
-  title: Deine Sitzung ist abgelaufen
-  body: Melde dich erneut an, um weiterzuschauen.
+  title: Ihre Sitzung ist abgelaufen
+  body: Melden Sie sich erneut an, um weiterzuschauen.
 a11y:
   progress: "Wiedergabefortschritt"
 # The television client: the hint on its bar for the one key into the options.

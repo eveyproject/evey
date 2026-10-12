@@ -35,7 +35,7 @@ de la imagen) y `docker logs evey-server`. El que manda es el archivo: el
 driver json-file de Docker rota `docker logs`, y después de una rotación el
 comando puede dejar de mostrar líneas horas antes de que se parara el
 contenedor. Cuando los dos no coinciden, lee el archivo. La página
-**Logs y depuración** del panel de administración busca en el mismo flujo
+**Registros y depuración** del panel de administración busca en el mismo flujo
 (`GET /api/v1/admin/logs/search?q=<term>&limit=200`); los bearers, los JWT y
 los valores `token=` / `password=` aparecen ahí como `[redacted]`, así que
 busca un id de medio, nunca un token.
@@ -157,7 +157,7 @@ docker exec evey-server touch /cache/transcode/.write-test && \
 - **«El servidor está ocupado transcodificando otros flujos»**: la capacidad
   en directo se mide, no se fija; consulta [Repartir la
   capacidad](../playback/transcoding.md#sharing-the-capacity).
-  `EVEY_TRANSCODING_MAX_CONCURRENT` (**Máximo concurrente** en
+  `EVEY_TRANSCODING_MAX_CONCURRENT` (**Máximo simultáneo** en
   **Administración -> Caché de transcodificación**) solo cubre las tareas de
   transcodificación fuera de la reproducción en directo.
 
@@ -340,7 +340,7 @@ docker volume inspect evey_evey-cache   # el prefijo del compose puede cambiar
   ```
   Esto también borra `photos/` (las versiones redimensionadas de las fotos)
   y `track-art/` (las portadas extraídas de las etiquetas de audio) que hay
-  dentro; las dos se reconstruyen en la siguiente petición. **Limpiar todo**
+  dentro; las dos se reconstruyen en la siguiente petición. **Borrar todo**
   en **Administración -> Caché de transcodificación** vacía la misma caché
   desde el panel.
 - Las miniaturas de la barra de avance (trickplay) cuestan más de regenerar;
@@ -381,7 +381,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 
 ## Un envío se ha congelado, se ha quedado sin sonido, o el teléfono no deja de cargar
 
-Todo lo de aquí se puede leer en **Administración -> Logs y depuración**; no
+Todo lo de aquí se puede leer en **Administración -> Registros y depuración**; no
 hace falta un shell en la máquina. Las horas están en UTC. Cada señal es una
 línea `player-client: playback event reported` con `type=` y una cadena
 `details=`.

@@ -24,7 +24,7 @@ kann.
 ## Einschalten
 
 1. Öffnen Sie **Verwaltung → Transkodierung → Encode-Kalibrierung**.
-   **Hardware-Beschleunigung** steht standardmäßig auf **Auto
+   **Hardwarebeschleunigung** steht standardmäßig auf **Auto
    (bestmöglich)**, und die Zeile **Erkannt:** nennt die Beschleuniger, die
    der Host meldet.
 2. Steht dort **Kein GPU-Beschleuniger erkannt**, geben Sie dem Container das
@@ -143,7 +143,7 @@ Karte und eine HEVC-Umwandlung auf einer anderen.
 
 **Verwaltung → Transkodierung → Encode-Kalibrierung** zeigt die erkannten
 Beschleuniger, das verwendete Backend, die für die GPU und für den Prozessor
-bestätigten Auflösungen und unter **Hardware-Rückfälle** die letzten
+bestätigten Auflösungen und unter **Hardware-Fallbacks** die letzten
 Umwandlungen, die auf den Prozessor ausgewichen sind, mit ihrem Grund. Während
 einer Wiedergabe nennt **Verwaltung → Aktuelle Wiedergabe** das Backend, mit
 dem jeder Stream umgewandelt wird.
