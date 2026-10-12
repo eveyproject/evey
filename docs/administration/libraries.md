@@ -1,11 +1,14 @@
 # Libraries and metadata
 
-A library is a type and a set of folders: Evey walks the folders, recognises
-each file from its name and fetches its details (titles, summaries, posters,
-cast, ratings). This page is for the administrator who adds one: the three
-things you will do first (add a library, name the files, fix a wrong match)
-come first; how scans run, music and photo specifics, collections and the
-metadata sources follow.
+A **library** is one kind of media (films, series, music or photos) in one or
+more folders. Evey reads the folders, recognises each file from its name, and
+fetches its details from the internet: title, summary, poster, cast,
+ratings. These details are called **metadata**. For films and series, they
+come from The Movie Database (TMDB), a free online film database.
+
+The three things you will do first come first on this page: add a library,
+name your files, fix a wrong match. How scans work, music and photos,
+collections and the metadata sources come after.
 
 <figure class="evey-shot" markdown="span">
   ![Admin → Libraries on the demo server](../images/admin-libraries.webp){ loading=lazy }
@@ -19,9 +22,10 @@ metadata sources follow.
    libraries: the type tells the scanner what to look for.
 3. Under **Paths**, pick a folder from the list, or **Enter custom path...**
    to type one; **+ Add Path** adds a second folder to the same library.
-4. **Create Library**. The first walk of the folders follows within a couple
-   of minutes; **Scan** on the row starts it right away. Posters and summaries
-   arrive in the background, so a large library fills in over a few minutes.
+4. Press **Create Library**. Evey reads the folders within a couple of
+   minutes; press **Scan** on the library's row to start right away. Posters
+   and summaries arrive in the background, so a large library fills in over
+   a few minutes.
 
 | Type | Recognised as | Metadata from |
 | --- | --- | --- |
@@ -30,11 +34,12 @@ metadata sources follow.
 | **Music** | Artists, albums, tracks | The files' tags; covers from the files, the album folder, Cover Art Archive (MusicBrainz), then iTunes |
 | **Photos** | Albums, pictures with their shooting details | The files |
 
-!!! note "Paths are the container's"
-    The folder picker lists what the container sees. With the installation's
-    compose file, your media folder is `/media`, so a folder `/srv/media/films`
-    on the host is `/media/films` for Evey. A second mounted folder (`/media2`)
-    is added the same way.
+!!! note "Folders are named as Evey sees them"
+    The folder list shows the folders as Evey sees them, inside its
+    container. With the compose file from [Install](../installation.md), your
+    media folder is `/media`. So a folder `/srv/media/films` on your computer
+    is `/media/films` in Evey. A second media folder (`/media2`) works the
+    same way.
 
 ## Name files so they are recognised
 
@@ -47,63 +52,75 @@ The scanner recognises names like these:
 /media/series/Quiet Storm/Quiet.Storm.03x10.mkv
 ```
 
-For a film, the year matters most. For an episode, `S01E05` or `1x05`. Release
-tags (resolution, source, codec, audio, language tags such as `VOSTFR` or
-`MULTI`, editions such as "Director's Cut") are removed before the search.
+- **For a film**, the year matters most: `The Mirror (1999)`.
+- **For an episode**, the season and episode number: `S01E05` or `1x05`.
+- Extra words in the name are ignored: resolution, source, codec, audio,
+  language tags such as `VOSTFR` or `MULTI`, editions such as "Director's
+  Cut".
 
-If your files carry a tag the parser does not know, add it in **Admin → Server
-Config → Parser tokens**: **Extra quality tokens** for single words (`HDRIP`),
-**Extra edition suffixes** for phrases. It applies from the next scan.
+If your files carry a word Evey does not ignore yet, add it in **Admin →
+Server Config → Parser tokens**: **Extra quality tokens** for single words
+(`HDRIP`), **Extra edition suffixes** for phrases. It applies from the next
+scan.
 
 ## Fix a wrong or missing title
 
-For one title, open it and choose **Edit Metadata**:
+A film shows the poster of another film with the same name? The quickest
+fix:
 
-- **Identify on TMDB** searches TMDB by title; **Use this match** applies the
-  result. This is the quickest fix for a film matched to a namesake.
-- The fields change the details by hand. A value you edit is kept: later
-  refreshes do not overwrite it. Changing **TMDB ID** or **IMDB ID** fetches
-  the details of that id when you save.
+1. Open the title and choose **Edit Metadata**.
+2. Press **Identify on TMDB**, search for the right title.
+3. Press **Use this match**.
+
+Other options in **Edit Metadata**:
+
+- **Edit a field by hand.** A value you change is kept: later refreshes do
+  not overwrite it. Changing **TMDB ID** or **IMDB ID** fetches the details
+  of that id when you save.
 - **Refresh metadata** fetches the details again for the current match.
-  **Reset metadata** and **Re-match metadata** start over from the file name,
-  dropping your edits; Reset also wipes artwork and cast, and the seasons and
-  episodes of a series.
+- **Reset metadata** and **Re-match metadata** start over from the file name
+  and drop your edits. Reset also removes the artwork and cast, and the
+  seasons and episodes of a series.
 
 For a whole library, the row in **Admin → Libraries** offers:
 
-- **Match orphans only** retries the files that were never recognised. It is
-  fast.
-- **Re-match all from TMDB** redoes the search for every title. It is slow,
-  and corrects old mistakes after a large renaming.
+- **Match orphans only** tries again for the files that were never
+  recognised. It is fast.
+- **Re-match all from TMDB** searches again for every title. It is slow. Use
+  it after renaming many files.
 - **Repair sagas** joins films that belong to no collection back to their
   saga, when the other films of the saga are already in the library.
 
 ## How new files are picked up
 
-The server walks every library at each start, then every 2 minutes
-(**Admin → Server Config → Server Settings → Periodic scan interval**, applied
-on restart). While something is playing, the walks are spaced out to 15
-minutes so they do not compete with playback for the disk. A new, renamed or
-deleted file is therefore seen within minutes without any setting.
+You do not need to do anything: a new, renamed or deleted file shows up in
+Evey within a few minutes.
 
-Two more ways to scan, on the library's row:
+To force it, or to add a regular full scan, use the library's row:
 
-| Action | Effect |
+| Action | What it does |
 | --- | --- |
-| **Scan** | A walk now. The row shows **Scanning...** then the result; a folder that could not be read is named. |
+| **Scan** | Reads the folders now. The row shows **Scanning...**, then the result. A folder that could not be read is named. |
 | **Schedule** | A full scan **Every 6 hours**, **Every 12 hours**, **Daily (3 AM)**, **Weekly (Sunday 3 AM)**, or on a **Cron expression**. |
 
-The server also watches folders for file system events (**Admin → Server
-Config → Server Settings → Library file watcher**), on the libraries whose
-realtime monitoring is on. It checks that the watch still answers by writing a
-probe file into the folder for a few seconds; a library whose watch is proven
-alive is walked once an hour instead of every 2 minutes, the others keep the
-periodic walk. Libraries created from the panel are not watched: the periodic
-walk is what picks their files up.
+??? info "How the server checks the folders"
+
+    - The server reads every library at each start, then every 2 minutes
+      (**Admin → Server Config → Server Settings → Periodic scan interval**,
+      applied on restart). While something is playing, it waits 15 minutes
+      between reads, so that it does not slow playback down.
+    - It can also be told by the system when a file changes (**Admin →
+      Server Config → Server Settings → Library file watcher**), for the
+      libraries whose realtime monitoring is on. To check that this still
+      works, it writes a small test file into the folder for a few seconds.
+      A library where this is proven to work is read once an hour instead of
+      every 2 minutes.
+    - Libraries created from the panel do not use the file watcher: the
+      reads every 2 minutes pick up their files.
 
 !!! note "Network shares"
-    On an NFS or SMB share, a file written by another machine raises no event
-    on the server. The periodic walk is what finds it.
+    On an NFS or SMB share, a file written by another machine sends no
+    signal to the server. The regular reads find it.
 
 ## Music libraries
 
@@ -112,11 +129,11 @@ track from its tags: title (the file name when it is missing), artist, album
 artist, album, year, track and disc numbers, genre. Artists are grouped by
 album artist, or by artist when that tag is empty.
 
-**An album is a folder.** Tracks are grouped by the folder they sit in, not by
-their album tag: two folders sharing one album tag are two albums, and an album
-split into `CD1` and `CD2` subfolders shows as two. Keep each album in one
-folder; its tracks are ordered by disc number, then track number, and the album
-takes the name most of its tracks carry.
+**An album is a folder.** Keep each album in one folder. Evey groups tracks
+by the folder they are in, not by their album tag. So two folders with the
+same album tag make two albums, and an album split into `CD1` and `CD2`
+subfolders shows as two. In an album, tracks are ordered by disc number,
+then track number, and the album takes the name most of its tracks carry.
 
 The cover is the picture embedded in the files, otherwise an image in the album
 folder (`cover.jpg`, `folder.jpg` or `front.jpg`), otherwise Cover Art Archive
@@ -150,9 +167,10 @@ Only administrators create and edit collections. Anyone can browse them, and
 
 ## Metadata keys
 
-Evey ships with a TMDB key, so metadata works without configuration. Other
-sources are optional; their keys go in **Admin → Server Config → API Keys**,
-and a key set there wins over the same key given in the environment (see
+Evey comes with a TMDB key, so metadata works with no setup. Other sources
+are optional. To use them, you get a key (a kind of password) from that
+service and paste it in **Admin → Server Config → API Keys**. A key set there
+wins over the same key given in the environment (see
 [Environment: libraries and metadata](../environment/libraries.md)).
 
 | Key | Adds |
@@ -164,11 +182,11 @@ and a key set there wins over the same key given in the environment (see
 
 ## Intro, recap and credits
 
-Evey marks the intro, the recap and the credits of episodes and films so the
-players can offer to skip them. The timings come from community databases
-(TheIntroDB, then IntroDB) when they know the title, and from the server's own
-analysis of the files otherwise. An administrator can adjust the segments of a
-title by hand, or run the detection again.
+Evey finds the intro, the recap and the credits of episodes and films, so
+the players can offer to skip them. The timings come from community
+databases (TheIntroDB, then IntroDB) when they know the title. Otherwise,
+the server works them out by analysing the files. An administrator can
+adjust them by hand for a title, or run the detection again.
 
 Players show **Skip Intro**, **Skip Recap** and **Skip Credits** buttons by
 default. **Auto-skip intros** (**Admin → Server Config → Server Settings**, off
@@ -189,4 +207,5 @@ collections: internal/domain/library/model.go Collection (TmdbID, Rules), MaxCol
 keys: i18n admin.serverConfig.apiKeys.* ; admin.serverConfig.introProvidersTidbAuthed ; cmd/evey/wire_infra.go resolveAPIKeyWithBuiltin
 opensubtitles: internal/app/subtitle/service.go
 intro providers: docs/adr/0011-intro-detection-providers.md ; i18n admin.serverSettings.introAutoSkip
+labels: i18n admin.libraries.scan, createLibrary, addPath ; media.detail refreshMetadata, resetMetadata, rematchMetadata ; media identify openButton, useThis
 -->

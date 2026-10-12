@@ -1,57 +1,64 @@
 # Troubleshooting
 
-Something is wrong and you want to know where to look first. Find your
-symptom in the table, open the page or the panel section it names, and
-come back here for the logs and the recovery procedures when that is not
-enough.
+Something does not work? Find what you see in the table below. The middle
+column says where to look first; the last one leads to the fix. If that is
+not enough, the logs and `evey admin doctor` (further down) say more.
 
 ## Where to look, by symptom
 
-| Symptom | Look first | Then |
+| What you see | Look first | Then |
 | --- | --- | --- |
-| Nothing answers, not even at home | `docker compose ps`, then `docker compose logs --tail=200 evey` | [The server does not start](#the-server-does-not-start) below; [Server not reachable](../runbooks/incident-runbook.md#the-server-does-not-answer) |
-| The app says **Unable to reach server** or **Connection failed** | The address typed in the app: [Apps and devices](../getting-started/apps.md#the-server-address-to-enter) | Away from home only: [Remote access and HTTPS](../administration/remote-access.md) |
-| Everyone is signed out, every sign-in fails | **Admin → Remote Access → Trusted proxies**, and the database in the logs | [Nobody can sign in](#nobody-can-sign-in) below |
-| No picture, playback will not start, or it stops | **Stream info** in the player, then **Admin → Media Health** for that title | [Playback problems](#playback-problems) below |
-| It stutters or keeps buffering | **Admin → Streaming Quality** (which titles and devices wait) and **Admin → System Health** (is the server at capacity) | [Transcoding and server capacity](../playback/transcoding.md) |
-| Wrong poster, wrong title, a film that is not recognised | **Edit Metadata** or **Re-match metadata** on the title | [Fix a wrong or missing title](../administration/libraries.md#fix-a-wrong-or-missing-title) |
+| Nothing answers, not even at home | Is Evey running? `docker compose ps`, then the last lines of its output: `docker compose logs --tail=200 evey` | [The server does not start](#the-server-does-not-start) below; [The server does not answer](../runbooks/incident-runbook.md#the-server-does-not-answer) |
+| The app says **Unable to reach server** or **Connection failed** | The address typed in the app | [Connect the apps](../getting-started/apps.md#the-server-address-to-enter); away from home only: [Remote access and HTTPS](../administration/remote-access.md) |
+| Everyone is signed out, or nobody can sign in | **Admin → Remote Access**, the trusted proxies; then the logs | [Nobody can sign in](#nobody-can-sign-in) below |
+| A film shows no picture, will not start, or stops | **Stream info** in the player, then **Admin → Media Health** for that title | [Playback problems](#playback-problems) below |
+| It stutters or keeps loading | **Admin → Streaming Quality** (which titles and devices wait) and **Admin → System Health** (is the server too busy) | [Transcoding and server capacity](../playback/transcoding.md) |
+| Wrong poster, wrong title, or a film is not recognised | **Edit Metadata** on the title | [Fix a wrong or missing title](../administration/libraries.md#fix-a-wrong-or-missing-title) |
 | Posters missing or broken | **Admin → Artworks Cache** | [Library and posters](#library-and-posters) below |
-| A plugin fails | Its **Logs** on its card in **Admin → Plugins** | [Plugin crashed](../runbooks/incident-runbook.md#a-plugin-crashed) |
-| A cast froze or went silent | **Admin → Now Playing** (is the session still there) | [A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
-| The disk fills up | **Admin → Transcode Cache** | [Transcode cache disk full](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
+| New files do not show up | The scan result on the library's row in **Admin → Libraries** | [Library and posters](#library-and-posters) below |
+| E-mails do not arrive | **Send test email** in **Admin → Server Config → Email / SMTP** | [E-mails do not arrive](#e-mails-do-not-arrive) below |
+| A plugin fails | Its **Logs**, on its card in **Admin → Plugins** | [A plugin crashed](../runbooks/incident-runbook.md#a-plugin-crashed) |
+| A cast froze or went silent | **Admin → Now Playing**: is the playback still listed? | [A cast froze, went silent, or the phone keeps spinning](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
+| The disk fills up | **Admin → Transcode Cache** | [The cache disk is full](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
 
 ## The logs
 
-The server writes its log to `/data/logs/evey-YYYY-MM-DD.log` inside the
-container, which is `./evey-data/logs/` next to your compose file. One file
-per day, in JSON, kept 90 days by default (`EVEY_LOG_RETENTION_DAYS`).
+The log is Evey's diary: every error is written there, with the time.
 
-**Admin → Logs & Debug** reads the same files: full-text search, a **Live**
-tail, and a **Where** filter that narrows to one area (player and transcode,
-seek index, subtitles, intro detection, Chromecast, auth, infrastructure...).
-When a viewer reports a problem, this is the first place to look.
+**The easy way: Admin → Logs & Debug.** It shows the log with a search box,
+a **Live** view that follows new lines, and a **Where** filter for one area
+(player and conversion, subtitles, intro detection, Chromecast, sign-in...).
+When someone reports a problem, look here first, around the time they give
+you.
 
-`docker compose logs evey` shows what the container prints while it starts:
-the start-up script's `evey:` lines, the embedded database and the banner. It
-is the place to read when the server does not come up; once it runs, the
-application log is in the file and the panel.
+??? info "Where the log files are"
+
+    - The files are in `./evey-data/logs/`, next to your compose file
+      (`/data/logs/evey-YYYY-MM-DD.log` inside the container). One file per
+      day, in JSON, kept 90 days by default (`EVEY_LOG_RETENTION_DAYS`).
+    - `docker compose logs evey` shows something else: what the container
+      prints while it starts (the start-up script's `evey:` lines, the
+      database, the banner). Read it when the server does not come up. Once
+      it runs, the log is in the files and the panel.
 
 ## `evey admin doctor`
 
-One command checks the whole server and prints one line per check, `ok`,
-`WARN` or `FAIL`, with a remedy:
+One command checks the whole server. It prints one line per check, `ok`,
+`WARN` or `FAIL`, with what to do:
 
 ```bash
 docker exec evey-server evey admin doctor
 ```
 
-It covers the database and its schema, the signing key, the search index and
-its drift against the database, the media mounts (including whether the server
-can write to each library), the cache and log directories, `ffmpeg` and
-`mkvgo`, the trusted proxies, remote access and free disk space. `--repair`
-applies only the safe fixes (creating and re-owning missing writable
-directories). It exits non-zero when a check fails. The other commands are in
-[Command line](../runbooks/cli.md).
+??? info "What it checks"
+
+    The database and its schema, the signing key, the search index (and
+    whether it matches the database), the media folders (including whether
+    Evey can write in each library), the cache and log folders, `ffmpeg` and
+    `mkvgo`, the trusted proxies, remote access, and free disk space.
+    `--repair` applies only the safe fixes (creating missing folders and
+    giving them the right owner). It exits with an error code when a check
+    fails. The other commands are in [Command line](../runbooks/cli.md).
 
 ## The server does not start
 
@@ -66,11 +73,16 @@ database: [Recovery](../runbooks/recovery.md).
 
 ## Nobody can sign in
 
-Every request checks the account against the database and is refused when it
-cannot answer; the log says so. The other usual cause is a reverse proxy
-missing from **Admin → Remote Access → Trusted proxies**: every visitor then
-shares the proxy's address and one sign-in rate limit. The procedure is
-[All logins return 401](../runbooks/incident-runbook.md#every-login-returns-401).
+Two usual causes:
+
+- **The database does not answer.** Evey checks every sign-in against it, and
+  refuses when it cannot. The log says so.
+- **A reverse proxy is missing from the trusted proxies** (**Admin → Remote
+  Access**). Every visitor then seems to come from the proxy's address, and
+  they all share one limit on sign-in attempts.
+
+The step-by-step procedure:
+[Every login returns 401](../runbooks/incident-runbook.md#every-login-returns-401).
 
 !!! note
     A lost or replaced signing key alone signs nobody out: the apps renew
@@ -110,18 +122,18 @@ when it fails. A TLS mode that does not match the port (`starttls` with 587,
 
 ## Playback problems
 
-**Stream info** in the player names the playback method (sent as is, copied
-or re-encoded, track by track) and the reasons. A title that transcodes when
-you expected Direct Play is explained there: see
+Start with **Stream info** in the player. It says how the film is sent (as
+it is, copied into another format, or converted), track by track, and why.
+A title that is converted when you expected it to play as it is: see
 [How playback is decided](../playback/how-playback-is-decided.md).
 
-- One title stops, buffers or seeks slowly: open **Admin → Media Health**. A
-  file without a seek index, a damaged stretch or tracks stored in blocks
-  explains it, and most of these are repaired in place. See
-  [Media health](../runbooks/media-health.md).
-- Several titles, when several people watch: the server may be at its
-  transcoding capacity. **Admin → System Health** shows how much of it is in
-  use. See [Transcoding and server capacity](../playback/transcoding.md).
+- **One title** stops, keeps loading, or is slow to jump to another moment:
+  open **Admin → Media Health**. The usual causes are a file without an
+  index for jumping, a damaged stretch, or tracks stored in large blocks.
+  Most of these can be repaired. See [Media health](../runbooks/media-health.md).
+- **Several titles, when several people watch**: the server may be at the
+  limit of what it can convert. **Admin → System Health** shows how busy it
+  is. See [Transcoding and server capacity](../playback/transcoding.md).
 - Transcoded playback fails outright:
   [Transcoding fails](../runbooks/incident-runbook.md#transcoded-playback-fails).
 - It buffers and the logs do not say why:
@@ -153,6 +165,11 @@ posters a failed resize left empty, which are then rebuilt on demand.
 A poster or a title that belongs to another film is a metadata match, not an
 artwork problem: [Fix a wrong or missing title](../administration/libraries.md#fix-a-wrong-or-missing-title).
 
+A new file normally shows up within a few minutes (see
+[How new files are picked up](../administration/libraries.md#how-new-files-are-picked-up)).
+If it does not, press **Scan** on the library's row in **Admin → Libraries**
+and read the result.
+
 A scan ends with **Partial scan - these folders could not be read:**
 followed by paths: Evey cannot read those folders (permissions, a network
 share that dropped). The rest of the library is scanned, and the titles under
@@ -160,9 +177,9 @@ an unreadable folder are kept rather than removed. Check the mount and the
 owner (`PUID`/`PGID`, see [Install](../installation.md#common-variations)),
 then scan again.
 
-Search returns nothing: rebuild the index from the database with
-`docker exec evey-server evey admin reindex-search`. The index can always be
-rebuilt; nothing is lost.
+Search returns nothing: rebuild the search index from the database with
+`docker exec evey-server evey admin reindex-search`. Nothing is lost: the
+index can always be rebuilt.
 
 ## Reporting a problem
 
@@ -198,4 +215,5 @@ rotate-jwt-key ends sessions: cmd/evey/admin.go - endAllSessions
 startup failures: docker/entrypoint.sh ; cache ownership: docker/entrypoint.sh (re-own /cache)
 remote access warning: docs/adr/0026-remote-access-inferred-from-a-published-url.md
 reporting: docs/privacy.md (contact@eveyproject.org) ; docs/SECURITY.md (security@eveyproject.org) ; app version: frontend/apps/mobile/app/(auth)/(tabs)/settings.tsx, i18n mobile.settings.appVersion ; server version: cmd/evey/cli.go
+new files row: i18n admin.libraries.scan, scanPartial ; docs/administration/libraries.md (How new files are picked up) ; e-mail row: i18n admin.serverConfig.sendTestEmail
 -->

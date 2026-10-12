@@ -1,16 +1,31 @@
 ---
-source_sha: e32e8517676eabffe84ba900193c0d8972c65ff67df198c24a47fc61b94a9139
+source_sha: 3491f399b6609d0b4c4818444e5ea8b6d8e3caf38d396767aac9f943257919b8
 reviewed: true
 ---
 # Transcodage et capacité du serveur
 
-Le transcodage est l'issue coûteuse de
-[la décision de lecture](how-playback-is-decided.md) : la lecture directe et
-le remux ne coûtent presque rien au serveur et n'occupent jamais de créneau
-de transcodage. Cette page s'adresse à l'administrateur qui veut savoir
-combien de spectateurs le serveur peut servir à la fois : comment il mesure
-ce qu'il sait encoder, comment il répartit cette capacité, et ce que voit un
-spectateur quand elle est épuisée.
+**En bref :**
+
+- Le **transcodage**, c'est convertir une vidéo dans une forme que
+  l'appareil sait lire. C'est le seul gros travail que fait le serveur : lire
+  un fichier tel quel (Lecture directe) ou le remettre dans un autre format
+  de fichier (Remux) ne coûte presque rien. Voir
+  [Comment Evey choisit le mode de lecture](how-playback-is-decided.md).
+- Vous ne réglez pas combien de personnes le serveur peut servir. Il se
+  mesure lui-même dès son premier moment calme, en quelques minutes, et n'en
+  accepte jamais plus.
+- Quand la place manque, une nouvelle lecture reçoit une qualité plus basse,
+  ou passe d'une carte graphique occupée au processeur. Si aucun des deux n'a
+  de place, le lecteur affiche **Le serveur est occupé par d'autres
+  transcodages. Réessayez dans un instant.**
+- Ce que vous voudrez peut-être faire : donner une carte graphique au
+  serveur ([Accélération matérielle](../administration/hardware-acceleration.md)),
+  et garder de la place libre sur le disque qui contient le cache
+  ([Le cache de transcodage](#the-transcoding-cache)).
+
+Le reste de cette page s'adresse à l'administrateur qui veut les détails :
+comment le serveur mesure ce qu'il sait encoder, comment il partage cette
+capacité, et ce que voit un spectateur quand elle est épuisée.
 
 ## Le serveur se mesure lui-même
 
@@ -27,7 +42,7 @@ La capacité n'est pas un réglage à estimer. Le serveur la mesure :
   vraie lecture. Le résultat est la résolution la plus haute que chacun tient
   en temps réel, et le coût de chaque type de flux.
 - **De nouveau.** Après un changement de matériel, ou avec **Recalibrer**
-  dans **Admin → Configuration transcodage → Calibrage de l'encodage**. Le
+  dans **Administration → Configuration transcodage → Calibrage de l'encodage**. Le
   bouton attend que plus personne ne regarde.
 
 Pendant la mesure, une lecture qui a besoin d'un transcodage affiche **Le
@@ -53,7 +68,7 @@ services:
 
 ## Partage de la capacité
 
-La **Capacité de lecture en direct** (**Admin → Configuration transcodage**)
+La **Capacité de lecture en direct** (**Administration → Configuration transcodage**)
 est le nombre de flux vidéo qui peuvent être encodés en même temps. Elle
 découle de la mesure et s'ajuste seule quand le matériel change. **Limiter les
 flux vidéo simultanés** permet de l'abaisser, jamais de la relever.
@@ -108,16 +123,16 @@ cette limite de lui-même. Voir
 | Livraison | HLS, en segments MP4 fragmentés. |
 
 <figure class="evey-shot" markdown="span">
-  ![Les deux plafonds de débit vidéo dans Admin → Configuration transcodage](../images/admin-transcoding-bitrate.webp){ loading=lazy }
-  <figcaption>Les deux plafonds de <strong>Admin → Configuration transcodage</strong> : pour tous les spectateurs, et pour ceux hors des réseaux locaux.</figcaption>
+  ![Les deux plafonds de débit vidéo dans Administration → Configuration transcodage](../images/admin-transcoding-bitrate.webp){ loading=lazy }
+  <figcaption>Les deux plafonds de <strong>Administration → Configuration transcodage</strong> : pour tous les spectateurs, et pour ceux hors des réseaux locaux.</figcaption>
 </figure>
 
 ## Le cache de transcodage
 
 Les segments encodés sont gardés sur disque dans le volume `evey-cache` et
 réutilisés quand un autre spectateur, ou le même plus tard, lit le même titre
-avec la même décision. **Admin → Cache de transcodage** affiche sa taille et
-permet de le vider ; le **Budget du cache de transcodage** (**Admin →
+avec la même décision. **Administration → Cache de transcodage** affiche sa taille et
+permet de le vider ; le **Budget du cache de transcodage** (**Administration →
 Configuration du serveur → Paramètres du serveur**) le plafonne. **Tout
 vider** supprime aussi les sous-titres extraits de vos fichiers, gardés dans
 `./evey-data/subtitles` : ils sont extraits de nouveau à la demande.
@@ -143,12 +158,12 @@ plein** (au plus une fois par heure, envoyé aussi aux webhooks sous
 
 ## Vérifier ce qui se passe
 
-- **Admin → En cours de lecture** : chaque flux, son mode de lecture piste par
+- **Administration → En cours de lecture** : chaque flux, son mode de lecture piste par
   piste, et le backend qui l'encode.
-- **Admin → Configuration transcodage → Calibrage de l'encodage** : les
+- **Administration → Configuration transcodage → Calibrage de l'encodage** : les
   plafonds mesurés et les accélérateurs utilisés.
-- **Admin → Qualité streaming** : le déroulement des lectures pour les vrais
+- **Administration → Qualité streaming** : le déroulement des lectures pour les vrais
   spectateurs.
-- **Test de charge** (**Admin → Configuration transcodage**) : simule des
+- **Test de charge** (**Administration → Configuration transcodage**) : simule des
   spectateurs pour mesurer ce que le serveur tient. Il refuse de démarrer tant
   que quelqu'un regarde.

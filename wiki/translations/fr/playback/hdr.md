@@ -1,14 +1,27 @@
 ---
-source_sha: bba642beddfecc61a337da0207c83db6966aeb16853b74d87cd7189f7eb3850f
+source_sha: a631c73d13e67b6253b0aa9e7c5c362475b1e0fcb6153effecea88bd092feca5
 reviewed: true
 ---
 # HDR et Dolby Vision
 
-À quoi ressemble un titre HDR ou Dolby Vision sur votre écran, et pourquoi :
-l'image d'origine, un réencodage qui conserve le HDR, ou une conversion en
-SDR. Pour les spectateurs qui se demandent pourquoi un film n'a pas le même
-rendu d'un appareil à l'autre, et pour les admins qui dimensionnent un
-serveur. Les règles générales de lecture sont dans
+**En bref :**
+
+- Le **HDR** est une image avec des zones claires plus lumineuses et des
+  couleurs plus riches que l'image habituelle (appelée **SDR**). Dolby Vision
+  est une sorte de HDR. Le HDR demande un écran capable de l'afficher.
+- Sur un écran HDR avec l'application Android ou Android TV (et un appareil
+  qui décode le HEVC), vous avez l'image HDR d'origine, tant que rien d'autre
+  n'oblige à convertir.
+- Dans un navigateur web, et sur tout écran qui n'est pas HDR, le serveur
+  convertit l'image en SDR. C'est voulu : du HDR affiché sur un écran SDR
+  paraît gris et délavé.
+- Convertir du HDR en SDR est le travail le plus lourd que puisse faire le
+  processeur. Une carte graphique aide : voir
+  [Accélération matérielle](../administration/hardware-acceleration.md).
+
+Le reste de cette page explique chaque cas : l'image d'origine, un
+réencodage qui garde le HDR, ou une conversion en SDR. Les règles générales
+de lecture sont dans
 [Comment Evey choisit le mode de lecture](how-playback-is-decided.md).
 
 ## Ce que vous verrez, selon l'appareil
@@ -92,5 +105,5 @@ Les **Infos du flux** montrent la décision vidéo et, parmi les raisons, le
 tone mapping ou le HDR conservé. Toutes les routes qui font du tone mapping
 l'y signalent, à une exception près : quand la carte graphique est saturée au
 moment où un flux démarre, le flux passe sur le processeur après le calcul
-des Infos du flux. **Admin → En cours de lecture** indique le backend
+des Infos du flux. **Administration → En cours de lecture** indique le backend
 réellement utilisé.

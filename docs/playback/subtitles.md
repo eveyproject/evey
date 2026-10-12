@@ -1,10 +1,25 @@
 # Subtitles
 
-How a subtitle is shown on your device, and whether choosing it changes how
-the video is delivered. For viewers; the only setting that matters is the
-profile's **Subtitle Burn-in**, in **Settings → Playback**. The short
-answer: text and Blu-ray subtitles never touch the video, DVD and broadcast
-subtitles are burned in and force a re-encode.
+**To turn subtitles on**, open the settings menu in the player and choose
+**Subtitles**. To get them in your language every time, set **Settings →
+Playback → Default Subtitle Language**.
+
+Most subtitles appear straight away. Two cases are different:
+
+- **The first time anyone picks a subtitle stored inside the file**, Evey has
+  to take it out of the file. The player shows **Subtitles are being
+  prepared…**, the video keeps playing, and the subtitles appear by
+  themselves. On a very large film this can take a few minutes, once: after
+  that, they show at once for everyone. See
+  [The first time a subtitle is shown](#the-first-time-a-subtitle-is-shown).
+- **DVD and TV-broadcast subtitles** are pictures, not text. The server
+  draws them into the video itself, which makes it work much harder. The
+  profile setting **Subtitle Burn-in** (**Settings → Playback**) can refuse
+  this, but then those subtitles cannot be shown. See
+  [Subtitle Burn-in](#subtitle-burn-in).
+
+The rest of this page explains each subtitle format and what it changes for
+the server.
 
 ## What each format does to the video
 
@@ -78,4 +93,5 @@ players: frontend/apps/mobile/src/components/player/SubtitleOverlay.tsx ; fronte
 opensubtitles: internal/app/subtitle/service.go (.subtitles folder) ; internal/adapters/driving/http/subtitle_handler.go - registerSubtitleRoutes (no client calls search/download)
 first extraction, preparing, failure memo: internal/adapters/driving/http/subtitle_preparing.go (202 + Retry-After past 20 s, detached extraction) ; subtitle_cache.go - getFailure, putFailure (keyed by the mkvgo version) ; frontend/packages/api/src/subtitleFetch.ts ; frontend/packages/client/src/hooks/useSubtitleTrack.ts ; i18n player.subtitlesPreparing
 labels: i18n auth.settings.playback.subtitleBurnIn, subtitleBurnAuto, subtitleBurnAlways, subtitleBurnNever, subtitleLanguage ; player.settings.subtitleSync, subtitleStyle, uploadSubtitle ; player.subtitleStyle.* ; player.streamInfo.reason.subtitle_burn_in
+viewer opening: i18n player.subtitles, player.subtitlesPreparing, auth.settings.playback.subtitleLanguage, subtitleBurnIn
 -->

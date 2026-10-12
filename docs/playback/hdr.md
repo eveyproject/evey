@@ -1,10 +1,23 @@
 # HDR and Dolby Vision
 
-What an HDR or Dolby Vision title looks like on your screen, and why: the
-original picture, a re-encode that keeps the HDR, or an SDR conversion. For
-viewers who wonder why a film looks different from one device to another, and
-for admins sizing a server. The general rules of playback are in
-[How playback is decided](how-playback-is-decided.md).
+**In short:**
+
+- **HDR** is a picture with brighter highlights and richer colours than the
+  usual picture (called **SDR**). Dolby Vision is one kind of HDR. HDR needs
+  a screen that can show it.
+- On an HDR screen with the Android or Android TV app (and a device that
+  decodes HEVC), you get the original HDR picture, as long as nothing else
+  forces a conversion.
+- In a web browser, and on any screen that is not HDR, the server converts
+  the picture to SDR. That is on purpose: HDR shown on an SDR screen looks
+  grey and washed out.
+- Converting HDR to SDR is the heaviest work the processor can do. A
+  graphics card helps: see
+  [Hardware acceleration](../administration/hardware-acceleration.md).
+
+The rest of this page explains each case: the original picture, a re-encode
+that keeps the HDR, or an SDR conversion. The general rules of playback are
+in [How playback is decided](how-playback-is-decided.md).
 
 ## What you will see, by device
 
@@ -94,4 +107,5 @@ who declares an HDR screen: frontend/packages/client/src/native/displayHdr.ts - 
 tonemapx, software HDR ceiling: internal/adapters/driven/ffmpeg/tonemapx.go ; internal/pkg/hdr/hdr.go ; docs/adr/0017-software-hdr-tonemap-delivery-resolution.md
 tests: internal/app/transcoding/route_golden_test.go ; internal/app/transcoding/route_tonemap_report_test.go
 labels: i18n player.streamInfo.reason.* ; admin.nowPlaying
+plain opening: rules below ; tone mapping cost: internal/app/transcoding/calibration_service.go (separate HDR ceiling)
 -->

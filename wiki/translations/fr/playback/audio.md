@@ -1,15 +1,27 @@
 ---
-source_sha: e25235d99b58b97d354dd1fbf4fffcdec186364db070996d8707ea1dd581d643
+source_sha: 87e08f341b329e7354b9d42ef5972fac5cb564784a1488786bff878e7d74ba8a
 reviewed: true
 ---
 # Audio
 
-Quelle piste vous entendrez, si elle arrive telle quelle ou réencodée sur
-votre appareil, et avec combien de canaux. Pour les spectateurs ; les réglages
-de profil cités ici se trouvent dans **Paramètres → Lecture**. La piste audio
-est évaluée indépendamment de la vidéo : dans la plupart des transcodages,
-c'est la seule chose réencodée, la vidéo est copiée et le son converti dans un
-format que le lecteur sait lire.
+**En bref :**
+
+- Vous entendez la langue de votre profil quand le film l'a : réglez-la dans
+  **Paramètres → Lecture → Langue audio par défaut**. Une piste que vous
+  choisissez à la main dans le lecteur passe toujours en premier.
+- Le son est envoyé tel quel quand votre appareil sait le lire. Sinon, le
+  serveur le convertit dans un format courant (AAC). Souvent, le son est la
+  seule chose convertie, et l'image n'est pas touchée.
+- Sur le haut-parleur d'un téléphone, un casque ou en Bluetooth,
+  l'application Android lit en stéréo. Avec l'application Android ou Android
+  TV en HDMI, vous avez autant de canaux que la TV ou l'amplificateur en
+  accepte (5.1, par exemple).
+- Le son est décalé par rapport à l'image ? Voir
+  [Son désynchronisé](#sound-out-of-sync).
+
+Le reste de cette page explique quelle piste est lue, quand elle est copiée
+ou convertie, et avec combien de canaux. Les réglages de profil cités ici
+sont dans **Paramètres → Lecture**.
 
 ## Ce que vous entendrez, selon l'appareil
 
@@ -86,7 +98,7 @@ décalée : le serveur la réencode, et les Infos du flux affichent
 **Resynchronisation audio demandée**.
 
 Quand le décalage vient du fichier lui-même (une piste audio qui démarre
-après l'image, ou des pistes en désaccord entre elles), **Admin → Santé des
+après l'image, ou des pistes en désaccord entre elles), **Administration → Santé des
 médias** le signale mais ne le réécrit jamais de lui-même : une piste qui
 démarre en retard est le plus souvent un doublage calé volontairement.
 **Vérifier la synchro**, sur la ligne du fichier, permet d'en juger à l'œil et

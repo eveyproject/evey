@@ -1,31 +1,40 @@
 ---
-source_sha: a6c61f9f7b1e619f46c4d5eea7ca2c2b93356f93c04681e95963303bdf287723
-reviewed: false
+source_sha: ae588b2b2b2d42902a1b916cd8e90978a81afd473115c9eb522377e95409d542
+reviewed: true
 ---
 # 安装
 
-Evey 以一个容器运行。镜像在一个端口上同时提供 API 和网页界面，并在容器内运行自己的数据库（Postgres）和搜索引擎（Meilisearch），它们的密码在首次启动时生成。下面的 compose 文件就是全部的安装：不需要 `.env`，不需要特权模式，不需要内存或 CPU 设置。
+这一页写给要为全家运行 Evey 的人。您需要一台一直开着、装好了 Docker 的电脑或 NAS。一共三步：
 
-!!! warning "不是仓库里的 docker-compose.yml"
+1. 保存一个文件，也就是 compose 文件。
+2. 用一条命令启动 Evey。
+3. 在浏览器里打开 Evey。
 
-    Git 仓库根目录下的 `docker-compose.yml` 是另一种布局（Postgres 作为单独的服务、自带 Caddy、必须有 `.env`）。请使用本页的文件。另一种布局在[高级部署](operations/advanced-deployments.md)中说明。
+接下来，[首次设置](getting-started/first-setup.md)向导会带您往下走。
 
-## 需求
+Evey 只运行一个容器。数据库和搜索引擎都在容器里，所以不用另外安装任何东西，不用写 `.env` 文件，也不用设置内存或处理器。
 
-- 带 Compose v2 的 Docker（`docker compose`，而不是旧的 `docker-compose`）。
-- 一块用来存放 Evey 数据的持久磁盘（下面的 compose 文件把数据放在文件旁边的 `./evey-data` 中）。
-- 一台 x86-64 主机，或者使用版本标签的 ARM64 主机：见[ARM 主机](operations/advanced-deployments.md#arm-hosts)。
+!!! warning "请用本页的文件，不要用 Git 仓库里的那个"
 
-Evey 提供未加密的 HTTP。要在家庭网络之外通过 HTTPS 访问它，之后在它前面放一个反向代理：见[远程访问与 HTTPS](administration/remote-access.md)。
+    Git 仓库根目录下的 `docker-compose.yml` 是另一套配置，给开发者和高级安装用的：它需要一个 `.env` 文件，还会运行额外的服务。相关说明见[高级部署](operations/advanced-deployments.md)。
 
-## compose 文件
+## 您需要准备什么
 
-把它保存为 `docker-compose.yml`，并替换最后一行卷中的媒体路径。
+- **一台一直开着的电脑或 NAS**，处理器是 x86-64 架构（Intel 或 AMD）。ARM64 机器需要正式发布的版本标签，目前还没有：见 [ARM 主机](operations/advanced-deployments.md#arm-hosts)。
+- **带 Compose v2 的 Docker。** 命令是 `docker compose`（中间有空格），不是旧的 `docker-compose`。
+- **您的媒体文件夹**：放电影、剧集、音乐或照片的地方。
+- **一些磁盘空间，给 Evey 存自己的数据**（数据库、海报图片、搜索索引）。下面的 compose 文件会把这些数据放在文件旁边一个叫 `evey-data` 的文件夹里。
+
+在家里的网络中，Evey 使用普通的 HTTP。要在外面观看，需要 HTTPS，可以以后再加：[远程访问与 HTTPS](administration/remote-access.md)。
+
+## 第 1 步：保存 compose 文件 { #the-compose-file }
+
+为 Evey 建一个文件夹，比如 `evey`，然后把下面的内容保存到里面，文件名为 `docker-compose.yml`。只需改一行：您媒体文件的路径（标着 5 的那一行）。比如您的电影在 `/srv/media`，这一行就改成 `- /srv/media:/media`。
 
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: eveyproject/evey:latest # (1)!
+    image: eveyproject/evey:beta-0.0.1 # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!
@@ -40,50 +49,84 @@ volumes:
   evey-cache:
 ```
 
-1. `latest` 是最新的稳定版本。真正开始使用 Evey 后请固定一个标签，这样相隔一天的两次拉取运行的是同样的代码：见[备份与更新](backups.md#updating-evey)。
-2. API 和网页界面，在一个端口上，使用未加密的 HTTP。
-3. 属于 Evey 的一切：数据库、签名密钥、生成的密码、搜索索引、时间轴缩略图、图片、日志、备份、插件。这是需要备份的文件夹。
-4. 转码缓存：分段、缩放后的照片和封面。可以随时删除，需要时会重新生成。
-5. 你的媒体。特意以读写方式挂载：[媒体健康](runbooks/media-health.md)的修复会就地改写文件。加上 `:ro` 可得到只读媒体库，那些修复就会失败。更多文件夹挂载为 `/media2`、`/media3`……
-6. 在 `docker stop` 时给内置数据库留出干净停止的时间。Docker 默认的 10 秒对大型片库来说太短。
+1. Evey 的版本。Evey 还在测试阶段，所以还没有 `latest` 标签：`beta-0.0.1` 跟随开发分支，每次更新都会变。如果想一直停在完全相同的代码上，请改用 `sha-<commit>` 标签：见[备份与更新](backups.md#updating-evey)。
+2. 端口。左边的数字就是您以后在浏览器和应用里要输入的那个。除非已经有别的程序占用了 `9091`，否则保持不变。
+3. Evey 自己的数据：数据库、密钥、自动生成的密码、搜索索引、海报图片、日志、备份、插件。**需要备份的就是这个文件夹。**
+4. 缓存：转换过的视频、缩放过的照片和封面。随时可以删除，它会自己重新填满。
+5. 您的媒体。把 `/path/to/your/media` 换成真实的文件夹。在 Evey 里，这个文件夹叫 `/media`。它特意设成可写，这样您要求时，[媒体健康](runbooks/media-health.md)才能修复文件。在末尾加上 `:ro` 就变成只读：Evey 就不能在里面写东西，修复也会失败。
+6. 容器停止时，给数据库留出时间正常关闭。Docker 默认只给 10 秒，对大型片库来说太短。
 
-## 首次启动
+## 第 2 步：启动 Evey { #first-launch }
+
+在终端里，进入放着这个文件的文件夹，运行：
 
 ```bash
 docker compose up -d
-docker compose logs -f evey
 ```
 
-首次启动时，服务器在 `./evey-data` 中生成签名密钥和密码，创建数据库并执行迁移。不需要手动准备任何东西。
+Evey 会在后台启动。想看它在做什么，可以运行 `docker compose logs -f evey`；按 `Ctrl+C` 停止查看，Evey 会继续运行。
 
-然后打开 `http://<server-address>:9091`。还没有管理员的服务器会打开设置向导：继续阅读[首次设置](getting-started/first-setup.md)。
+第一次启动时，Evey 会在 `evey-data` 里创建自己的密码和数据库。您什么都不用准备。
 
-## 数据存放在哪里
+## 第 3 步：在浏览器里打开 Evey { #the-address-to-open-next }
 
-| 位置 | 内容 | 可以删除吗？ |
+地址是 `http://`，加上运行 Docker 那台机器的地址，再加上 `:9091`：
+
+| 您的浏览器在哪里 | 要输入的地址 |
+| --- | --- |
+| 就在运行 Docker 的那台机器上 | `http://localhost:9091` |
+| 家里的另一台电脑或手机上 | `http://` + 运行 Docker 那台机器的 IP 地址 + `:9091`，比如 `http://192.168.1.20:9091` |
+| 不在家时 | 暂时不行。这需要 HTTPS 和公网地址：见[远程访问与 HTTPS](administration/remote-access.md)。 |
+
+要查运行 Docker 那台机器的 IP 地址，可以看路由器里已连接设备的列表，或者在 Linux 上运行 `ip a`，在 Windows 上运行 `ipconfig`，在 macOS 上运行 `ifconfig`。如果您在第 1 步改了端口，请用 `ports:` 那一行左边的数字代替 `9091`。
+
+第一次打开这个地址时，会进入设置向导。请接着看[首次设置](getting-started/first-setup.md#1-the-setup-wizard)。向导完成后，同一个地址会打开登录页面。
+
+!!! tip "把这个地址记下来"
+
+    家里每个人都会用到它。Android 和 Android TV 应用在第一个界面就会要这个地址，要带上 `http://` 和端口：[连接应用](getting-started/apps.md#the-server-address-to-enter)。
+
+## 您的数据放在哪里 { #where-the-data-lives }
+
+| 位置 | 里面有什么 | 能删吗？ |
 | --- | --- | --- |
-| `./evey-data` | 数据库、签名密钥、生成的密码、搜索索引、时间轴缩略图、图片、日志、备份、插件 | 不可以。丢失它就会丢失所有账户、观看记录和设置。只有其中的 `meili/` 可以删除：搜索索引可以用 `evey admin reindex-search` 从数据库重建。 |
-| `evey-cache` 卷 | 转码后的分段、缩放后的照片和封面 | 可以。需要时会重新生成。 |
-| 你的媒体文件夹 | 你的文件 | Evey 不会删除它们；在 Evey 中删除一个条目只会把它从媒体库中移除，而不会从磁盘上删除。它只在三种情况下写入这里：从媒体健康执行的修复（原文件作为备份保留）、从 OpenSubtitles 下载的字幕（电影旁边的 `.subtitles` 文件夹），以及一个几秒钟的探测文件，用于检查文件夹监视器仍能收到事件。 |
+| `./evey-data` | 数据库、密钥、自动生成的密码、搜索索引、进度条缩略图、海报图片、日志、备份、插件 | **不能。** 丢了它，所有账户、观看历史和设置都会丢失。唯一的例外是里面的 `meili/`，也就是搜索索引：命令 `evey admin reindex-search` 可以根据数据库重建它。 |
+| `evey-cache` 卷 | 转换过的视频、缩放过的照片和封面 | 能。它会自己重新填满。 |
+| 您的媒体文件夹 | 您的文件 | Evey 从不删除它们。在 Evey 里删除一部片子，只是把它从媒体库移除，不会从硬盘上删除。 |
 
-## 常见变体
+Evey 只在三种情况下往您的媒体文件夹里写东西：
 
-每一种都只是在同一个文件里加几行。
+- 您在**媒体健康**里发起的修复（原文件会保留作为备份）；
+- 从 OpenSubtitles 下载的字幕（保存在电影旁边的 `.subtitles` 文件夹里）；
+- 一个小测试文件，用来确认 Evey 还能发现新文件，写完马上删除。
 
-**第二个媒体文件夹。** 在 `volumes:` 下添加 `- /other/path:/media2`。
+## 常见改动 { #common-variations }
 
-**文件所有权。** 默认情况下，容器采用你的 `/media` 挂载的所有者，以便修复可以写入。要自己选择，在 `environment:` 下设置 `PUID` 和 `PGID`（即 `id -u` 和 `id -g` 的输出）。容器只为应用这个映射而以 root 启动；服务器本身从不以 root 运行。
+下面每一项都只是在同一个文件里改几行。
 
-**用于转码的显卡。** 把设备映射进容器：见[硬件加速](administration/hardware-acceleration.md)。
+**第二个媒体文件夹。** 在 `volumes:` 下面加一行 `- /other/path:/media2`。第三个就是 `/media3`，以此类推。
 
-**在你已有的反向代理之后。** 见[远程访问与 HTTPS](administration/remote-access.md)。
+**换个端口。** 只改左边的数字，比如 `"8080:9091"`。之后在浏览器和应用里输入 `:8080`。
+
+**文件归谁所有。** 默认情况下，Evey 会使用您媒体文件夹的所有者身份，这样修复时才能写入。如果想自己指定，就在 `environment:` 下面加上 `PUID` 和 `PGID`，值用 `id -u` 和 `id -g` 给出的数字。容器只是为了应用这个设置才以 root 启动；Evey 本身从不以 root 身份运行。
+
+**用显卡转换视频。** 让容器能访问显卡：见[硬件加速](administration/hardware-acceleration.md)。
+
+**您已经在用反向代理**（一个在您的服务前面加上 HTTPS 的程序）：见[远程访问与 HTTPS](administration/remote-access.md)。
 
 ??? note "在 NAS 上（Synology Container Manager、QNAP Container Station）"
 
-    - 在首次启动前创建 `evey-data` 文件夹。与 Docker 命令行不同，这些界面会拒绝文件夹不存在的绑定挂载。其他什么都不需要创建。
-    - 把 `PUID` 和 `PGID` 设置为拥有媒体的 NAS 用户（通过 SSH 执行 `id <user>`；在 Synology 上通常在 `1026` 左右，组为 `100`）。NAS 共享文件夹常常属于 `root`，而自动检测从不采用 root。
-    - 带 Quick Sync 的 Intel NAS：添加[硬件加速](administration/hardware-acceleration.md)中描述的 `devices:` 和 `group_add:` 行。
+    - 第一次启动前，先建好 `evey-data` 文件夹。和 Docker 命令行不同，这些界面不肯挂载不存在的文件夹。其他都不用建。
+    - 把 `PUID` 和 `PGID` 设成拥有媒体文件的那个 NAS 用户（通过 SSH 运行 `id <用户名>` 查看；Synology 上通常在 `1026` 左右，用户组 `100`）。NAS 的共享文件夹常常归 `root` 所有，而 Evey 绝不会自动使用 root 身份。
+    - 带 Quick Sync 的 Intel NAS：按[硬件加速](administration/hardware-acceleration.md)里的说明，加上 `devices:` 和 `group_add:` 这几行。
 
-## 不需要配置的东西
+## Evey 会自己设置好的东西
 
-转码容量、显卡、每台设备的播放方式以及远程访问都由服务器决定：它在第一个空闲时刻测量机器，检测你映射的硬件，并在你给它一个公网地址时开启远程访问。之后可能改变的设置（服务器名称、计划、限制、API 密钥）在管理面板中，而不在 compose 文件里。确实存在的环境变量列在[配置参考](configuration.md)中。
+这些都不用您配置：
+
+- **服务器能同时转换多少视频。** 它会在第一次空闲时测量这台机器。
+- **显卡。** Evey 会检测您交给容器的显卡，并用一次真实的转换来检验它。
+- **每台设备怎么播放文件。** 每次播放时决定：见[Evey 如何选择播放方式](playback/how-playback-is-decided.md)。
+- **从家外面访问。** 默认关闭，直到您给服务器设置公网地址。
+
+以后可能要改的设置（服务器名称、计划任务时间、各种限制、API 密钥）都在管理面板里，不在 compose 文件里。为数不多的环境变量列在[配置参考](configuration.md)里。

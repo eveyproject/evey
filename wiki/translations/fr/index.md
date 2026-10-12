@@ -1,17 +1,17 @@
 ---
-source_sha: 7ece62a6b2bf102990118650fc96a4fc1876d380d696b0eb241572216e67b542
+source_sha: 7054417ac65e819ee642ffbf7da5dbd0563a120f80044a01e2f2a3ed12770dc0
 reviewed: true
 hide:
   - navigation
   - toc
 ---
+
 # Evey
 
-Evey est un serveur que vous faites tourner chez vous pour vos films, séries,
-musique et photos. Vous ajoutez vos médias et les personnes qui les
-regarderont. À chaque lecture, le fichier, le lecteur et le serveur négocient
-la façon dont l'image est livrée, sans rien à choisir avant d'appuyer sur
-lecture.
+Evey est un serveur de médias que vous installez chez vous. Il garde vos
+films, séries, musique et photos, et chaque personne de la maison les regarde
+sur ses propres appareils. Vous ne choisissez jamais une qualité : vous
+appuyez sur lecture, Evey s'occupe du reste.
 
 [Installer Evey](installation.md){ .md-button .md-button--primary }
 [Essayer la démo](https://demo.eveyproject.org){ .md-button }
@@ -24,12 +24,27 @@ lecture.
 
 <p class="evey-platforms">
 <strong>Ce qu'il vous faut :</strong> un ordinateur ou un NAS x86-64 avec
-Docker, un dossier contenant vos médias, et un port libre. Un conteneur, un
-fichier compose, une commande.<br>
-<strong>Regardez</strong> dans n'importe quel navigateur, sur un Chromecast,
-sur les téléphones et tablettes Android, et sur Android TV. Les applications
-Android et Android TV sont en phase de test et pas encore sur Google Play.
+Docker, et un dossier avec vos médias. L'installation tient en un fichier et
+une commande.<br>
+<strong>Regardez</strong> dans un navigateur web, sur les téléphones et
+tablettes Android, sur Android TV et sur un Chromecast. Les applications
+Android et Android TV sont en test et pas encore sur Google Play.
 </p>
+
+<div class="grid cards" markdown>
+
+-   **Vous allez installer le serveur**
+
+    Installez Evey sur votre ordinateur ou votre NAS, ajoutez vos médias,
+    invitez votre famille.
+    [Commencer par l'installation](installation.md)
+
+-   **On vous a donné une adresse**
+
+    Quelqu'un chez vous fait déjà tourner Evey, et vous voulez juste regarder.
+    [Lire Regarder avec Evey](getting-started/watching.md)
+
+</div>
 
 <div class="evey-showcase" markdown>
 
@@ -39,8 +54,8 @@ Android et Android TV sont en phase de test et pas encore sur Google Play.
 </figure>
 
 <figure class="evey-shot" markdown="span">
-  ![Une fiche de film](images/showcase-media.webp){ loading=lazy data-gallery="showcase" }
-  <figcaption>Une fiche de film : visuels, classification d'âge, notes, synopsis et distribution.</figcaption>
+  ![La fiche d'un film](images/showcase-media.webp){ loading=lazy data-gallery="showcase" }
+  <figcaption>La fiche d'un film : affiche, âge conseillé, notes, résumé et distribution.</figcaption>
 </figure>
 
 <figure class="evey-shot" markdown="span">
@@ -49,7 +64,7 @@ Android et Android TV sont en phase de test et pas encore sur Google Play.
 </figure>
 
 <figure class="evey-shot" markdown="span">
-  ![Le tableau de bord d'administration pendant deux lectures](images/showcase-dashboard.webp){ loading=lazy data-gallery="showcase" }
+  ![Le tableau de bord d'administration pendant la lecture de deux films](images/showcase-dashboard.webp){ loading=lazy data-gallery="showcase" }
   <figcaption>Le tableau de bord pendant que deux personnes regardent : l'image, l'appareil, Lecture directe ou Remux.</figcaption>
 </figure>
 
@@ -58,120 +73,120 @@ Android et Android TV sont en phase de test et pas encore sur Google Play.
 ## Pour toute la maison
 
 - **Un profil par personne.** Chaque profil garde son historique, ses points
-  de reprise, ses favoris et ses langues ; un foyer partage en général un seul
-  compte.
-- **Des profils enfant.** Un profil enfant s'ouvre sans code ; en sortir vers
-  un profil adulte demande un code PIN à quatre chiffres. Un profil peut avoir
-  un âge maximum, appliqué par le serveur : un titre au-dessus n'est jamais
-  envoyé, même en téléchargement.
-- **Reprendre là où vous en étiez**, sur n'importe quel appareil : les points
-  de reprise sont sur le serveur, pas sur le téléphone.
-- **En déplacement.** L'application Android télécharge un titre pour le
-  regarder hors connexion, pendant 30 jours.
-- **Sur la TV.** Android TV se connecte avec la **Connexion rapide** : un code
-  affiché à l'écran, tapé ou scanné depuis un téléphone ou un ordinateur déjà
-  connecté. Aucun mot de passe à taper à la télécommande.
-- **Ensemble.** Plusieurs personnes regardent le même titre au même instant,
-  chacune sur son appareil.
+  de reprise, ses favoris et ses langues. En général, une maison partage un
+  seul compte, avec un profil par personne.
+- **Des profils enfant.** Un profil enfant s'ouvre sans code. Pour en sortir
+  vers un profil adulte, il faut un code PIN à quatre chiffres. Un profil
+  enfant a un âge maximum, et le serveur n'envoie jamais un titre au-dessus,
+  même en téléchargement.
+- **Reprenez là où vous en étiez**, sur n'importe quel appareil. Les points de
+  reprise sont gardés sur le serveur, pas sur le téléphone.
+- **En déplacement.** L'application Android peut télécharger un titre pour le
+  regarder sans connexion, pendant 30 jours.
+- **Sur la TV.** Vous connectez une Android TV avec la **Connexion rapide** :
+  la TV affiche un code, et vous l'acceptez depuis votre téléphone ou votre
+  ordinateur. Aucun mot de passe à taper avec la télécommande.
+- **Ensemble.** Plusieurs personnes peuvent regarder le même titre au même
+  moment, chacune sur son appareil.
 
-Les bibliothèques de musique et de photos sont traitées comme les films et
-les séries, sur le web, sur Android et sur la TV.
-[Applications et appareils](getting-started/apps.md) ·
+La musique et les photos marchent comme les films et les séries, sur le web,
+sur Android et sur la TV.
+[Connecter les applications](getting-started/apps.md) ·
 [Utilisateurs, profils et contrôle parental](administration/users.md)
 
-## Comment un fichier arrive à l'écran
+## Rien à choisir avant d'appuyer sur lecture
 
-Evey ne vous demande jamais de choisir une qualité. À chaque lancement d'un
-titre, le serveur tranche à partir de trois choses : ce que contient le
-fichier, ce que ce lecteur sait décoder, et ce que ce serveur peut encoder à
-cet instant. Il préfère, dans cet ordre :
+Certains fichiers se lisent partout. D'autres sont trop lourds pour un vieux
+téléphone, ou ont un son qu'une TV ne sait pas lire. À chaque lecture, le
+serveur regarde le fichier, l'appareil et sa propre charge, puis choisit la
+façon la plus légère qui fonctionne :
 
-- **Lecture directe** : le fichier tel quel.
-- **Remux** : la même image et le même son dans un autre format de fichier,
-  rien n'est réencodé. **MKVGo** le fait à l'intérieur du serveur quand il le
-  peut, sans lancer un programme de plus à chaque lecture ; sinon FFmpeg copie
-  les pistes.
-- **Transcodage** : seules les pistes que l'appareil ne sait pas lire sont
-  réencodées par FFmpeg, souvent juste le son.
+- **Lecture directe** : le fichier est envoyé tel quel.
+- **Remux** : l'image et le son sont recopiés, sans changement, dans un
+  format de fichier que l'appareil accepte. Cela ne coûte presque rien au
+  serveur. Evey a son propre outil pour ça, **MKVGo**, et passe par FFmpeg
+  quand MKVGo ne peut pas.
+- **Transcodage** : le serveur convertit seulement ce que l'appareil ne sait
+  pas lire, souvent juste le son. C'est le seul cas qui fait travailler le
+  processeur.
 
-Le même film peut partir intact vers une TV et être réencodé pour un vieux
-téléphone. Dans le lecteur, les **Infos du flux** montrent le plan réellement
-servi et pourquoi le fichier n'a pas été envoyé tel quel. **Admin → Tableau
-de bord** montre la même chose pour chaque spectateur.
+Le même film peut donc partir intact vers une TV et être converti pour un
+vieux téléphone. Dans le lecteur, les **Infos du flux** montrent lequel des
+trois vous avez eu, et pourquoi. **Administration → Tableau de bord** montre
+la même chose pour toutes les personnes qui regardent.
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
-  ![Infos du flux dans le lecteur web](images/player-stream-info.webp){ loading=lazy }
-  <figcaption>La première lecture du tableau de bord ci-dessus, vue depuis le lecteur. Remux : le format de fichier change, image et son sont copiés, et la dernière ligne dit pourquoi le fichier ne pouvait pas être envoyé tel quel (interface en anglais).</figcaption>
+  ![Les Infos du flux dans le lecteur web](images/player-stream-info.webp){ loading=lazy }
+  <figcaption>La première lecture du tableau de bord ci-dessus, vue depuis le lecteur. Remux : le format de fichier change, l'image et le son sont recopiés, et la dernière ligne dit pourquoi le fichier n'a pas pu être envoyé tel quel (interface en anglais).</figcaption>
 </figure>
 
 [Comment Evey choisit le mode de lecture](playback/how-playback-is-decided.md) ·
 [MKVGo dans Evey](playback/mkvgo.md)
 
-## Un seul conteneur, et le serveur se mesure lui-même
+## Un seul conteneur, rien à régler
 
-Un fichier compose est toute l'installation : aucun `.env` à écrire, aucun
-réglage de mémoire ou de processeur.
+Toute l'installation tient dans un fichier compose. Pas de `.env` à écrire,
+pas de réglage de mémoire ou de processeur.
 
-- **La base de données et le moteur de recherche tournent dans le
-  conteneur**, joignables uniquement depuis lui, avec des mots de passe
-  générés au premier démarrage.
+- **Tout est dedans.** La base de données et le moteur de recherche tournent
+  dans le conteneur. Leurs mots de passe sont créés au premier démarrage.
 - **Le serveur ne tourne jamais en root.** Il tourne sous le propriétaire de
-  votre dossier de médias quand il peut le détecter, pour que les réparations
-  puissent écrire.
-- **La capacité de transcodage est mesurée, pas devinée.** Dans un moment
-  calme, le serveur chronomètre de vrais encodages sur le processeur et sur
-  chaque carte graphique confiée au conteneur ; une carte ne compte que pour
-  ce qui a réussi. Quand la place manque, une nouvelle lecture reçoit une
-  qualité plus basse, ou passe d'une carte occupée au processeur. Un démarrage
-  qui ne peut pas être servi est refusé avec un message qui nomme la raison :
-  le serveur est plein, il est encore en train de se mesurer, ou le fichier
-  n'est pas prêt.
-- **L'accès distant s'ouvre quand vous donnez une adresse publique au
-  serveur**, et reste fermé sinon.
+  votre dossier de médias quand il arrive à le trouver, pour que les
+  réparations puissent écrire.
+- **Le serveur se mesure lui-même.** Dans un moment calme, il chronomètre de
+  vraies conversions sur le processeur et sur la carte graphique que vous lui
+  avez donnée, s'il y en a une. Il sait alors combien de personnes il peut
+  servir en même temps. Quand la place manque, une nouvelle lecture reçoit une
+  qualité plus basse, ou passe d'une carte graphique occupée au processeur. Si
+  une lecture ne peut pas démarrer, le message dit pourquoi : le serveur est
+  plein, il est encore en train de se mesurer, ou le fichier n'est pas prêt.
+- **L'accès depuis l'extérieur de chez vous est fermé** tant que vous ne
+  donnez pas d'adresse publique au serveur.
 
-Utiliser votre propre base de données ou moteur de recherche reste possible :
+Vous pouvez aussi utiliser votre propre base de données ou votre propre
+moteur de recherche :
 [Déploiements avancés](operations/advanced-deployments.md).
 [Transcodage et capacité du serveur](playback/transcoding.md)
 
-## Ce qu'Evey fait de vos fichiers
+## Ce qu'Evey fait de vos fichiers et de vos données
 
-**Vos fichiers.** Retirer un titre ou une bibliothèque le retire d'Evey, pas
-du disque. Evey n'écrit dans vos dossiers de médias que pour une réparation
-que vous avez demandée, pour un sous-titre récupéré par l'API, et pour un
-petit fichier de sonde qui vérifie que la surveillance du dossier fonctionne
-encore ; montez une bibliothèque en lecture seule et rien de tout cela ne se
-produit. **Santé des médias** lit vos fichiers MKV et WebM et liste ce qu'il
-trouve ; une réparation ne réécrit un fichier que sur demande, dans une copie
-vérifiée en entier avant de remplacer le fichier, garde l'original par défaut,
-et chaque changement est consigné. Ce qui ne peut pas être réparé est signalé
-et laissé tel quel.
+**Vos fichiers.** Retirer un titre ou une bibliothèque le retire d'Evey,
+jamais du disque. Evey n'écrit dans vos dossiers de médias que dans trois
+cas : une réparation que vous avez demandée, un sous-titre récupéré par l'API,
+et un petit fichier de test qui vérifie qu'Evey voit toujours arriver les
+nouveaux fichiers. Montez vos médias en lecture seule et rien de tout cela
+n'arrive. **Santé des médias** vérifie vos fichiers MKV et WebM et liste les
+problèmes trouvés. Elle ne répare un fichier que si vous le demandez. Elle
+travaille sur une copie, vérifiée en entier avant de remplacer le fichier,
+garde l'original par défaut, et note chaque changement. Ce qui ne peut pas
+être réparé est signalé et laissé tel quel.
 [Santé des médias](runbooks/media-health.md)
 
-**Vos données.** Le projet ne fait tourner aucun service qui les reçoit :
-aucun compte chez nous, aucune mesure d'audience, aucun rapport de plantage.
-Les applications parlent à votre serveur et à rien d'autre que nous
-exploiterions. Ce qui sort de votre réseau : le serveur demande à des services
-extérieurs les visuels et les descriptions (The Movie Database, et des sources
-de pochettes pour la musique), et de temps en temps demande au registre
-d'images s'il existe une version plus récente, ce que vous pouvez désactiver.
-La base de données est sauvegardée avant chaque mise à jour qui la modifie.
+**Vos données.** Le projet ne fait tourner aucun service qui les reçoit : pas
+de compte chez nous, pas de statistiques d'usage, pas de rapports de
+plantage. Les applications parlent à votre serveur, et à rien d'autre que
+nous gérons. Ce qui sort de votre réseau : le serveur va chercher les images
+et les descriptions sur des services extérieurs (The Movie Database, et des
+sources de pochettes pour la musique). De temps en temps, il demande aussi
+s'il existe une version plus récente, ce que vous pouvez couper. La base de
+données est sauvegardée avant chaque mise à jour qui la modifie.
 [Règles de confidentialité](privacy.md) · [Sauvegardes et mises à jour](backups.md)
 
-## Les plugins sont confinés, pas crus sur parole
+## Les plugins sont tenus en laisse
 
-Un plugin est analysé avant l'installation ; l'administrateur voit ce que
-l'analyse a trouvé et les permissions demandées, et une nouvelle permission
-exige un accord explicite. Il tourne comme un processus à part, sous un
-utilisateur distinct, sans accès direct au réseau, et il est arrêté dès qu'il
-dépasse sa limite de mémoire, de processus ou de disque. La rigueur du
-confinement du système de fichiers dépend de la machine, et le **Tableau de
-bord sécurité** indique le mode de sandbox réellement utilisé. Les plugins
-ajoutent des sources de métadonnées, des canaux de notification, des sections
-d'accueil et des surcouches du lecteur ; les thèmes changent l'apparence. Le
-widget d'un plugin s'affiche sur le web, sur Android et sur la TV ; sur la
-TV, il est affiché, pas manipulé.
+Les plugins ajoutent des sources d'informations sur les titres, des canaux de
+notification, des sections sur l'accueil et des éléments par-dessus le
+lecteur. Les thèmes changent l'apparence. Avant d'installer un plugin,
+l'administrateur voit ce que l'analyse du plugin a trouvé et les permissions
+qu'il demande. Une nouvelle permission doit être acceptée clairement. Un plugin
+tourne dans son propre processus, sous un utilisateur à part, sans accès
+direct au réseau. Il est arrêté s'il dépasse sa limite de mémoire, de
+processus ou de disque. Le niveau de verrouillage de ses fichiers dépend de
+la machine, et le **Tableau de bord sécurité** montre le mode utilisé. Le
+widget d'un plugin s'affiche sur le web, sur Android et sur la TV. Sur la
+TV, vous pouvez le voir mais pas vous en servir.
 [Plugins](plugins.md) ·
-[Sandbox des plugins et modèle de menace](SECURITY.md#sandbox-modes)
+[Modèle de sécurité et sandbox des plugins](SECURITY.md#sandbox-modes)
 
 ## Par où commencer
 
@@ -179,25 +194,36 @@ TV, il est affiché, pas manipulé.
 
 -   **[Installer Evey](installation.md)**
 
-    Prérequis, le fichier compose, le premier lancement, l'adresse à ouvrir.
+    Ce qu'il vous faut, le fichier compose, le premier démarrage, l'adresse à
+    ouvrir.
 
 -   **[Première configuration](getting-started/first-setup.md)**
 
-    L'assistant, vos bibliothèques, les personnes qui regarderont, les
-    applications.
+    L'assistant de configuration, vos bibliothèques, les personnes qui
+    regarderont.
+
+-   **[Connecter les applications](getting-started/apps.md)**
+
+    L'adresse à taper sur un téléphone ou une TV, la connexion, et ce que
+    veut dire chaque erreur.
+
+-   **[Regarder avec Evey](getting-started/watching.md)**
+
+    Pour celles et ceux qui regardent : les profils, trouver un titre, les
+    sous-titres, demander un film.
 
 -   **[Administration](administration/libraries.md)**
 
-    Bibliothèques, utilisateurs, profils et contrôle parental, accès distant,
-    carte graphique, sauvegardes.
+    Bibliothèques, utilisateurs et contrôle parental, accès depuis
+    l'extérieur, carte graphique, sauvegardes.
+
+-   **[Dépannage](operations/troubleshooting.md)**
+
+    Un tableau par problème : où regarder, quoi vérifier, comment le régler.
 
 -   **[Comment Evey choisit le mode de lecture](playback/how-playback-is-decided.md)**
 
     Lecture directe, Remux, Transcodage, et comment lire les Infos du flux.
-
--   **[Dépannage](operations/troubleshooting.md)**
-
-    Un tableau par symptôme : où regarder, quoi vérifier, comment récupérer.
 
 -   **[Plugins et API](plugins.md)**
 

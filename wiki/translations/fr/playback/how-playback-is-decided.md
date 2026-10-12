@@ -1,20 +1,29 @@
 ---
-source_sha: 15b64141cd700d7cdeab1ff4fff37cbd34d9a927813ebbac03526360f4a4f8d9
+source_sha: 6edbda5d141c4bdf890a36b49ddaf14c02a6bf242923470295dde702a2d0d3b5
 reviewed: true
 ---
 # Comment Evey choisit le mode de lecture
 
-Pourquoi ce film est-il lu tel quel sur la TV et réencodé sur le téléphone ?
-Cette page répond à quiconque appuie sur lecture : les trois modes et la
-lecture des **Infos du flux** viennent d'abord ; les règles exactes que le
-serveur applique suivent, pour qui veut comprendre ou les ajuster.
+Pourquoi un film est-il lu tel quel sur la TV mais converti sur le téléphone ?
 
-Evey ne vous demande jamais de choisir une qualité avant de lancer un titre.
-Chaque lancement est une négociation entre trois parties : le contenu du
-fichier, ce que ce lecteur sait décoder, et ce que ce serveur peut encoder à
-cet instant. Un même film peut donc partir intact vers un appareil et être
-réencodé pour un autre, ou être lu différemment sur le même appareil quand le
-serveur est chargé.
+**En bref :**
+
+- Vous ne choisissez jamais de qualité. Quand vous appuyez sur lecture, le
+  serveur regarde le fichier, ce que votre appareil sait lire, et sa propre
+  charge. Puis il choisit la façon la plus légère qui fonctionne.
+- Il y a trois façons : **Lecture directe** (le fichier tel quel), **Remux**
+  (la même image et le même son, remis dans un autre format de fichier), et
+  **Transcodage** (une partie du film convertie, souvent seulement le son).
+- Le même film peut donc partir intact vers un appareil et être converti pour
+  un autre, ou être lu différemment sur le même appareil quand le serveur est
+  chargé.
+- En général, vous n'avez rien à faire. Pour voir quelle façon vous avez eue,
+  et pourquoi, ouvrez les **Infos du flux** dans le lecteur : voir
+  [Lire les Infos du flux](#reading-stream-info).
+
+Les trois façons et la lecture des **Infos du flux** viennent d'abord. Les
+règles exactes que le serveur applique suivent, pour qui veut les comprendre
+ou les ajuster.
 
 ## Les trois modes de lecture
 
@@ -54,7 +63,7 @@ commentaire, non sélectionnée, est en DTS ne sera pas transcodé pour autant.
 
 Les Infos du flux sont calculées au lancement de la lecture. Un seul cas leur
 échappe : une carte graphique saturée au moment précis où le flux démarre. Le
-flux bascule alors sur le processeur, et **Admin → En cours de lecture**
+flux bascule alors sur le processeur, et **Administration → En cours de lecture**
 indique le backend réellement utilisé.
 
 ## Ce qui entre dans la décision
@@ -113,8 +122,8 @@ ces limites est transcodé pour s'y conformer :
 - le **Débit maximal** du compte, fixé par un administrateur ;
 - le **Débit maximum en streaming** du profil, et son **Débit maximum en
   mobile** quand un téléphone est sur le réseau cellulaire ;
-- le **Débit distant maximal** (**Admin → Accès distant**) et le **Plafond de
-  débit vidéo, spectateurs distants** (**Admin → Configuration transcodage**),
+- le **Débit distant maximal** (**Administration → Accès distant**) et le **Plafond de
+  débit vidéo, spectateurs distants** (**Administration → Configuration transcodage**),
   le plus bas des deux, quand l'adresse du spectateur est publique et hors des
   **Réseaux LAN**. Une adresse privée n'est jamais plafonnée.
 
