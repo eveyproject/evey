@@ -1,48 +1,63 @@
 ---
-source_sha: a10d4c679e7aed09a2fa56ed708a6beb299e8c731fcea4016e7cbf7b9f1e30e5
-reviewed: false
+source_sha: 935a77e1c7b524e4df14c0a67f9ad57f4571098b770e8c3245fda5189aefc0c3
+reviewed: true
 ---
-# Hintergrundaufgaben und Serverlast
+# Hintergrundarbeiten und Serverlast
 
-Neben der Wiedergabe erledigt der Server eigene Arbeit: Bibliotheken scannen,
-Bilder holen, die Vorschaubilder der Zeitleiste erzeugen, Intros und Abspann
-erkennen, Dateien analysieren (Keyframes, Codec-Level, Medienzustand). Diese
-Seite erklärt, wie sich diese Arbeit die Maschine mit den Zuschauern teilt.
+Warum der Server beschäftigt ist, wenn niemand schaut, und warum die
+Vorschaubilder einer neuen Bibliothek Stunden brauchen: Neben der Wiedergabe
+erledigt der Server eigene Arbeit (Bibliotheken scannen, Bilder holen,
+Vorschaubilder für die Zeitleiste erzeugen, Intros und Abspann erkennen,
+Dateien analysieren). Diese Seite sagt, wie sich diese Arbeit den Rechner mit
+den Zuschauern teilt und wo Sie ihren Anteil einstellen.
 
 ## Die Wiedergabe hat Vorrang
 
-Hintergrundaufgaben nutzen einen Anteil des Prozessors, standardmäßig **25 %**
-(**Admin → Serverkonfiguration → Zugeteilte Rechenleistung**). **50 %**
-beschleunigt sie, für Zeiten, in denen niemand den Server nutzt; eine schwere
-Aufgabe (Medienanalyse, Vorschaubilder, Intro-Erkennung, Klassifizierung) kann
-einen eigenen Anteil erhalten. Eine Änderung gilt ab dem nächsten verarbeiteten
-Element.
+Hintergrundaufgaben bekommen einen Anteil am Prozessor, den **Globaler
+Anteil** unter **Verwaltung → Serverkonfiguration → Zugeteilte
+Rechenleistung**: standardmäßig **25 %**, **50 %**, um sie zu beschleunigen,
+wenn niemand den Server benutzt. Unter **Schwere Aufgaben** kann eine von
+ihnen (Analyse neuer Medien, Trickplay-Vorschaubilder, Intro-Erkennung,
+Einstufung der Komplexität) einen eigenen Anteil bekommen, der für diese
+Aufgabe den globalen ersetzt; Anteile addieren sich nie. Eine Änderung gilt ab
+dem nächsten bearbeiteten Eintrag, ohne Neustart.
 
-Unabhängig vom Anteil pausiert eine Hintergrundaufgabe, während jemand schaut,
-und setzt danach fort. Bei einer neuen Bibliothek kommen Vorschaubilder und
-Intro-Markierungen daher über Stunden statt Minuten, wenn der Server genutzt
-wird.
+Egal wie groß der Anteil ist: Eine Hintergrundaufgabe pausiert, solange
+jemand schaut, und macht danach weiter. Bei einer neuen Bibliothek kommen
+Vorschaubilder und Intro-Markierungen deshalb über Stunden statt Minuten,
+wenn der Server benutzt wird.
 
 ## Was im Hintergrund läuft
 
 | Arbeit | Was sie bringt | Wann sie läuft |
 | --- | --- | --- |
-| Bibliotheksscan | Neue, geänderte und entfernte Dateien | Bei Dateiänderungen, nach Zeitplan, beim Start, falls aktiviert. Siehe [Bibliotheken und Metadaten](../administration/libraries.md). |
-| Bilder herunterladen | Poster und Hintergründe auf dem Server, in WebP | Während des Scans; fehlende werden stündlich erneut versucht. Aus: Die Bilder lädt der Browser aus dem Internet, was manche Browser blockieren. |
-| Vorschaubilder der Zeitleiste | Die Vorschauen beim Ziehen der Zeitleiste (ein Bild alle 7 Sekunden) | Wenn ein Titel hinzukommt, und beim Start für die ohne. Lässt sich unter **Serverkonfiguration** abschalten. |
-| Intro- und Abspann-Erkennung | Die Schaltflächen **Überspringen** | Fortlaufend, für Titel, die Community-Datenbanken nicht abdecken |
-| Keyframe-Index und Codec-Level | Direktwiedergabe und Kopie ohne Neukodierung, korrekte Farben | Fortlaufend, bei Dateien, die vor dem Erfassen dieser Informationen gescannt wurden |
+| Bibliotheks-Scan | Neue, geänderte und entfernte Dateien | Bei Dateiänderungen, nach Zeitplan, beim Start, wenn eingeschaltet. Siehe [Bibliotheken und Metadaten](../administration/libraries.md). |
+| Herunterladen der Bilder | Poster und Hintergrundbilder, auf dem Server aufbewahrt, in WebP | Während des Scans; fehlende werden stündlich erneut versucht. Ausgeschaltet: Der Browser lädt die Bilder aus dem Internet, was manche Browser blockieren. |
+| Vorschaubilder der Zeitleiste | Die Vorschauen, die beim Ziehen der Zeitleiste erscheinen (ein Bild alle 7 Sekunden) | Wenn ein Titel hinzukommt, und beim Start für die Titel ohne. **Trickplay-Vorschaubilder aktivieren** unter **Serverkonfiguration** schaltet sie ab. |
+| Erkennung von Intro und Abspann | Die Schaltflächen zum **Überspringen** | Laufend, für Titel, die Community-Datenbanken nicht abdecken |
+| Keyframe-Index und Codec-Level | Direct Play und Kopieren ohne Neukodierung, richtige Farben | Laufend, für Dateien, die gescannt wurden, bevor diese Angaben gesammelt wurden |
 
-## Speicher
+## Arbeitsspeicher
 
-**Speicherprofil** (**Admin → Serverkonfiguration**): **Niedrig** hält
-untätige Plugins an, um Speicher zu sparen, und weckt sie bei Bedarf. **Auto
-(empfohlen)** wählt Niedrig auf Maschinen mit weniger als 3 GB Speicher.
+**Speicherprofil** (**Verwaltung → Serverkonfiguration**): **Niedrig** legt
+Plugins, die nichts tun, schlafen, um Arbeitsspeicher zu sparen, und weckt sie
+bei Bedarf. **Auto (empfohlen)** wählt Niedrig auf Rechnern mit weniger als
+3 GB Arbeitsspeicher.
 
-## Beim Start gelesene Einstellungen
+## Einstellungen, die beim Start gelesen werden
 
-Einige Einstellungen werden einmal gelesen, wenn der Server startet: Beim
-Speichern wird Ihre Wahl abgelegt, ein Neustart wendet sie an. Der
-Admin-Bereich sagt das neben ihnen. Es sind die Karte **Hintergrundarbeiten**
-(Pausieren und Taktung der Keyframe- und Codec-Level-Durchläufe), der Schalter
-**Intro-Skip-Anbieter** und der Bereich **Erweiterte Grenzwerte** der Transkodierung.
+Einige Einstellungen werden nur einmal gelesen, wenn der Server startet: Beim
+Speichern wird Ihre Wahl festgehalten, ein Neustart wendet sie an. Der
+Verwaltungsbereich sagt das neben ihnen. Es sind die Karte
+**Hintergrundarbeiten** (Pausieren und Tempo der Durchgänge für Keyframes und
+Codec-Level), der Schalter **Intro-Skip-Anbieter** und die **Erweiterte
+Grenzwerte** der Transkodierung.
+
+<!-- sources
+processing power, heavy tasks, pause during playback: i18n admin.serverConfig.cpuBudget.* (globalLabel, tasksTitle, tasksDesc, applyHint) ; admin.activity.bgTaskHelp.*
+thumbnails switch: i18n admin.serverConfig.trickplayEnabled
+artwork: i18n admin.serverConfig.artworkInfo, artworkRetryDesc
+thumbnails: i18n admin.activity.bgTaskHelp.trickplay_generation
+memory: i18n admin.serverConfig.memoryProfileDesc
+read at startup: i18n admin.serverConfig.backgroundJobs.restartWarning, introProvidersRestart ; docs/playback/transcoding.md
+-->

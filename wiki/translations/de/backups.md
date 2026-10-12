@@ -1,92 +1,164 @@
 ---
-source_sha: cd66a9194ddc930c849aec83b5d0a19bb86c2f982c6fcf9e5f4211e0a00e0cde
-reviewed: false
+source_sha: 3529db45dbbd12f6980bca0989017583b6ccad6c3c5a3b54597887c6b09d6285
+reviewed: true
 ---
 # Sicherungen und Updates
+
+Zwei Gewohnheiten halten Ihren Server sicher:
+
+- **Sichern.** Schalten Sie eine tägliche Sicherung der Datenbank ein, und
+  bewahren Sie eine Kopie des Ordners `evey-data` an einem anderen Ort auf.
+- **Aktualisieren.** Ein Befehl holt die neue Version. Evey sichert die
+  Datenbank vorher von selbst, wann immer ein Update sie verändert.
+
+Diese Seite zeigt beides, danach, was eine Sicherung enthält, wie Sie eine
+Sicherung wiederherstellen und wie Sie zu einer älteren Version zurückkehren.
+
+## Sicherungen planen
+
+1. Gehen Sie zu **Verwaltung → Sicherung & Wiederherstellung**, Karte
+   **Zeitplan**.
+2. Legen Sie unter **Cron-Ausdruck** fest, wann sie laufen soll. `0 3 * * *`
+   heißt jeden Tag um 3 Uhr. (Das Format ist Minute, Stunde, Tag, Monat,
+   Wochentag.)
+3. Legen Sie unter **Aufbewahrung (Tage)** fest, wie lange jede Sicherung
+   aufbewahrt wird, zum Beispiel `30`. Ältere Sicherungen werden nach jedem
+   geplanten Durchlauf gelöscht.
+4. Setzen Sie das Häkchen bei **Aktiviert** und drücken Sie auf
+   **Speichern**.
+
+**Jetzt ausführen** erstellt sofort eine Sicherung, ebenso **Sicherung
+erstellen** oben auf der Seite.
+
+<figure class="evey-shot" markdown="span">
+  ![Verwaltung → Sicherung & Wiederherstellung mit einem täglichen Zeitplan](images/admin-backup.webp){ loading=lazy }
+  <figcaption>Eine Sicherung jeden Tag um 3 Uhr, 30 Tage aufbewahrt (Oberfläche auf Englisch).</figcaption>
+</figure>
+
+Sicherungen werden in `./evey-data/backups` gespeichert. Das liegt in dem
+Ordner, den Sie ohnehin auf eine andere Festplatte kopieren sollten (siehe
+[Was eine Sicherung enthält](#what-a-backup-contains)).
+
+??? info "Über die Kommandozeile"
+
+    Ein Skript oder ein Cron-Job auf dem Host kann dieselbe Sicherung
+    erstellen:
+
+    ```bash
+    docker exec evey-server evey admin backup
+    ```
+
+    Der Befehl folgt dem Telemetrie-Schalter im Verwaltungsbereich (siehe
+    unten); `--include-telemetry` nimmt die Telemetrie nur für diesen
+    Durchlauf mit.
+
+Der Server sichert die Datenbank außerdem von selbst, bevor ein Update sie
+verändert, unabhängig vom Zeitplan (siehe [Evey aktualisieren](#updating-evey)).
 
 ## Was eine Sicherung enthält
 
 Eine Sicherung ist eine Kopie der **Datenbank**: Konten, Profile, Bibliotheken
-und ihre Metadaten, Verlauf und Wiedergabepositionen, Sammlungen und Playlists,
-Einstellungen, Plugin-Einträge, Webhooks und Audit-Logs. Sie ist eine
-`.tar.gz`-Datei mit dem SQL-Dump und einem Manifest mit dem SHA256 des Dumps.
+und ihr Katalog, Wiedergabeverlauf und Fortsetzungspunkte, Sammlungen,
+Playlists und Favoriten, Einstellungen, Plugin-Einträge, Webhooks,
+API-Schlüssel, Benachrichtigungen und Audit-Protokolle.
 
 Sie enthält **nicht**:
 
 - Ihre Mediendateien;
-- den Transkodierungs-Cache (wird bei Bedarf neu erzeugt);
-- den Suchindex (wird aus der Datenbank neu aufgebaut);
-- die Schlüssel in `./evey-data`: `jwt.key`, der die Sitzungen signiert, und
+- den Video-Cache (er füllt sich von selbst wieder);
+- den Suchindex (er wird aus der Datenbank neu aufgebaut);
+- die Schlüssel in `./evey-data`: `jwt.key`, der jede Anmeldung schützt, und
   den Ordner `keys` (Datenbankpasswort, Suchschlüssel);
-- die installierten Plugin-Dateien.
+- die Dateien der installierten Plugins.
 
-Eine Datenbanksicherung stellt Eveys Zustand also auf derselben Installation
-wieder her. Um eine Maschine neu aufbauen zu können, bewahren Sie zusätzlich
-eine Kopie des ganzen Ordners `./evey-data` auf: Die Datenbanksicherungen
-liegen darin, in `./evey-data/backups`.
+**Bewahren Sie deshalb auch eine Kopie des ganzen Ordners `./evey-data`
+auf.** Eine Datenbanksicherung stellt Evey auf derselben Installation wieder
+her. Um einen Rechner von Grund auf neu aufzubauen, brauchen Sie den Ordner.
 
-## Geplante Sicherungen
+??? info "Telemetrie und das Dateiformat"
 
-**Admin → Sicherung & Wiederherstellung → Zeitplan**: ein Cron-Ausdruck (zum
-Beispiel `0 3 * * *`, jeden Tag um 3 Uhr) und eine Aufbewahrung in Tagen.
-Sicherungen, die älter als die Aufbewahrung sind, werden nach jedem geplanten
-Lauf gelöscht. **Jetzt ausführen** erstellt sofort eine.
+    Messwerte zu Wiedergabe und Server (hinter den Diagrammen zu Qualität und
+    Last) bleiben standardmäßig draußen: Sie wachsen am schnellsten und sagen
+    nichts über Ihren Katalog. **Telemetrie in Sicherungen einschließen**
+    (**Verwaltung → Serverkonfiguration**) nimmt sie wieder auf, für manuelle,
+    geplante und über die Kommandozeile erstellte Sicherungen. Beim
+    Wiederherstellen einer Sicherung werden diese Tabellen immer geleert.
 
-<figure class="evey-shot" markdown="span">
-  ![Admin → Sicherung & Wiederherstellung mit einem täglichen Zeitplan](images/admin-backup.webp){ loading=lazy }
-  <figcaption>Eine Sicherung jeden Tag um 3 Uhr, 30 Tage aufbewahrt (Oberfläche auf Englisch).</figcaption>
-</figure>
+    Eine Sicherung ist eine `.tar.gz`-Datei mit dem Datenbank-Dump und einer
+    kurzen Beschreibung samt Prüfsumme (SHA256) und Schemaversion.
 
-Der Server sichert die Datenbank außerdem von selbst, bevor er während eines
-Updates eine Migration anwendet, unabhängig vom Zeitplan (siehe unten).
+## Eine Sicherung wiederherstellen
 
-## Wiederherstellen
+**Verwaltung → Sicherung & Wiederherstellung** listet die Sicherungen auf.
+Stellen Sie eine aus der Liste wieder her, oder laden Sie mit **Aus Datei
+wiederherstellen** eine Datei hoch. Das Wiederherstellen ersetzt die aktuelle
+Datenbank: Alles seit dieser Sicherung geht verloren.
 
-**Admin → Sicherung & Wiederherstellung** listet die Sicherungen auf und stellt
-eine davon wieder her, oder eine hochgeladene Datei. Die Wiederherstellung
-ersetzt die aktuelle Datenbank.
+!!! warning "Nur eine Sicherung aus einer Version mit demselben Datenbankaufbau"
+    Der Server prüft zuerst die Datei und den Aufbau der Datenbank (die
+    Schemaversion). Eine Sicherung aus einer Version mit anderem Aufbau lehnt
+    er ab, statt sie zu laden. Wie Sie mit Ihren Daten zu einer älteren
+    Version zurückkehren, steht unter [Zurückkehren](#going-back).
 
-Eine Sicherung lässt sich nur auf einem Server mit demselben Datenbankschema
-wiederherstellen: Der Server prüft zuerst die Prüfsumme und die Schemaversion
-und verweigert eine Sicherung, die von einer Version mit anderem Schema stammt,
-statt sie zu laden. Um mit ihren Daten zu einer älteren Version zurückzukehren,
-siehe [Zurückgehen](#going-back) unten.
-
-Startet der Server nicht mehr, stellt die Kommandozeile die vor einer Migration
-erstellten Dumps (`pre-migration-*.sql.gz`) wieder her, nicht die
-`.tar.gz`-Sicherungen dieses Bereichs: siehe [Wiederherstellung](runbooks/recovery.md).
+Startet der Server nicht mehr, kann die Kommandozeile die Sicherheitskopien
+wiederherstellen, die vor einem Update angelegt wurden
+(`pre-migration-*.sql.gz`), nicht die `.tar.gz`-Sicherungen aus diesem Bereich:
+siehe [Wiederherstellung](runbooks/recovery.md).
 
 ## Evey aktualisieren
+
+In dem Ordner, in dem Ihre Compose-Datei liegt:
 
 ```bash
 docker compose pull && docker compose up -d
 docker compose logs -f evey
 ```
 
-Das ist das ganze Update. Muss die neue Version die Datenbank ändern, schreibt
-sie zuerst einen Dump nach `./evey-data/backups/pre-migration-*` und wendet dann
-beim Start die Migrationen an; ein großer Katalog kann einige Minuten dauern,
-und der Container meldet sich als gesund, sobald er wieder ausliefert. Evey
-prüft alle 6 Stunden, ob ein neueres Image veröffentlicht wurde, und zeigt das
-im Admin-Bereich an; er aktualisiert sich nie selbst.
+Das ist das ganze Update.
 
-**Legen Sie fest, was Sie betreiben.** `latest` folgt der neuesten stabilen Version. Für
-einen Server, auf den Sie sich verlassen, setzen Sie ein Release-Tag (`0.2.0`)
-oder ein unveränderliches Tag `sha-<commit>` in die Zeile `image:`, damit zwei
-Pulls im Abstand eines Tages denselben Code ausführen. Ein Branch-Tag wie
-`beta-0.0.1` bewegt sich mit jeder Änderung.
+- **Ihre Daten werden zuerst gesichert.** Muss die neue Version die Datenbank
+  verändern, schreibt sie zuerst eine Kopie nach
+  `./evey-data/backups/pre-migration-*.sql.gz` (die drei neuesten werden
+  aufbewahrt) und nimmt die Änderung dann beim Start vor.
+- **Das kann bei einem großen Katalog ein paar Minuten dauern.** Der Container
+  meldet sich als gesund, sobald er wieder antwortet.
+- **Evey sagt Ihnen, wenn es ein Update gibt.** Es prüft jede Stunde, ob ein
+  neueres Image veröffentlicht ist, und zeigt das im Verwaltungsbereich an. Es
+  aktualisiert sich nie selbst.
+- **Welche Version läuft:** `docker exec evey-server evey version` gibt die
+  Version und den Commit aus.
 
-**Welche Version läuft.** `docker exec evey-server evey version` gibt die
-Version und den Commit des laufenden Programms aus.
+??? info "Die genaue Version festlegen, die Sie betreiben"
 
-### Zurückgehen
+    Während der Beta gibt es keine nummerierten Versionen und keinen Tag
+    `latest`. Der Tag `beta-0.0.1` ändert sich mit jedem Update. Für einen
+    Server, auf den Sie sich verlassen, tragen Sie in der Zeile `image:` einen
+    festen Tag `sha-<commit>` ein. So laufen zwei Pulls im Abstand eines Tages
+    mit demselben Code. Sobald es Versionen gibt, folgt `latest` der neuesten
+    stabilen Version, und ein Versions-Tag (`0.2.0`) legt sie fest.
 
-Setzen Sie das vorherige Tag in die Zeile `image:` und führen Sie
-`docker compose up -d` aus. Hatte die neuere Version die Datenbank migriert,
-stellen Sie zuerst ihren Dump von vor der Migration wieder her:
-`docker exec evey-server evey admin rollback` gibt die genauen Schritte mit dem
-Pfad des Dumps aus.
+### Zurückkehren
 
-Image-Tags, Laufzeitvarianten und GPU-Varianten sind unter
-[Erweiterte Bereitstellungen](operations/advanced-deployments.md#image-tags)
+1. Tragen Sie den vorherigen Tag in die Zeile `image:` Ihrer Compose-Datei
+   ein.
+2. Hat die neuere Version die Datenbank verändert, stellen Sie zuerst deren
+   Kopie von vor dem Update wieder her:
+   `docker exec evey-server evey admin rollback` gibt die genauen Schritte
+   aus, mit dem Pfad der Datei.
+3. Führen Sie `docker compose up -d` aus.
+
+Image-Tags, weitere Varianten und Builds für Grafikkarten sind unter
+[Fortgeschrittene Bereitstellungen](operations/advanced-deployments.md#image-tags-and-variants)
 beschrieben.
+
+<!-- sources
+contents: internal/app/backup/service.go - BackupTables, CreateBackup (sha256 + schema version in manifest), RestoreBackup (checksum + schema guard), CleanupOldBackups ; internal/adapters/driven/filesystem/backup_store.go
+schedule: i18n admin.backup.schedule.* (cronLabel, retentionLabel, runNow) ; admin.backup.createBackup, restoreFromFile ; cmd/evey/main.go (DB cron scheduler, env fallback)
+telemetry left out by default, emptied on restore: internal/adapters/driven/postgres/backup.go - DumpAll, telemetryTables ; internal/app/backup/service.go - WithIncludeTelemetry ; internal/adapters/driving/http/settings_handler.go - BackupIncludeTelemetryKey ; i18n admin.serverSettings.backupTelemetry, backupTelemetryHint
+command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry, else the panel setting)
+keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
+pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
+update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
+rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (beta-0.0.1 + sha-<short>, latest gated on vX.Y.Z)
+schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
+-->

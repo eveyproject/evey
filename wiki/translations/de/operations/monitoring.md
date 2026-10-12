@@ -1,68 +1,107 @@
 ---
-source_sha: 379364a92d0108cdaeaf5ac5c24f9bf18ca1e30aa45e876c7e38da2ea3d133ca
-reviewed: false
+source_sha: d6335afa014ad627b79829f653197424d1a5c4572cdf3b9832ed19a3f7a079ac
+reviewed: true
 ---
-# Überwachung und Logs
+# Überwachung und Protokolle
 
-Wo man sieht, was der Server tut, vom Unmittelbarsten bis zum Zusammengefassten.
-Für ein zu untersuchendes Symptom beginnen Sie mit der
+Wo Sie sehen, was der Server tut, für den Administrator, der nach dem Rechten
+sehen will, statt etwas zu reparieren: von dem, was gerade läuft, bis zur
+Statistik des Monats, mit den Protokollen dazwischen. Wenn Sie einem
+bestimmten Fehler nachgehen, beginnen Sie mit der
 [Fehlerbehebung](troubleshooting.md).
 
 ## Was gerade läuft
 
-**Admin → Aktuelle Wiedergabe** listet jeden laufenden Stream: wer, was, auf
-welchem Gerät und wie, Spur für Spur (kopiert, transkodiert und das Backend,
-das kodiert). Ein Administrator kann eine Sitzung **Stoppen** oder dem
-Zuschauer eine **Nachricht senden**.
+**Verwaltung → Aktuelle Wiedergabe** listet jeden laufenden Stream auf: wer,
+was, auf welchem Gerät und wie, Spur für Spur (kopiert, transkodiert, und mit
+welchem Backend umgewandelt). Ein Administrator kann eine Sitzung mit
+**Stoppen** beenden oder dem Zuschauer mit **Nachricht senden** schreiben.
 
-Die Karte **Wer ist online** im Dashboard listet, wer gerade verbunden ist,
-nach Profil, mit der Zeit seit dem letzten Lebenszeichen jeder App. Ein
-Chromecast, dessen Fernseher Eveys Empfänger geladen hält, bleibt nach dem Ende
-seiner Wiedergabe gelistet, auch wenn er aus **Aktuelle Wiedergabe** verschwunden
-ist; **Diesen Chromecast stoppen** schickt ihm einen Stoppbefehl, den der
-Fernseher innerhalb von 30 Sekunden ausführt.
+Die Karte **Wer ist online** im Dashboard listet auf, wer gerade verbunden
+ist, nach Profil, und wie lange es her ist, dass sich jede App zuletzt
+gemeldet hat. Ein Chromecast, dessen Fernseher Eveys Empfänger geladen hält,
+bleibt in der Liste, auch wenn seine Wiedergabe beendet ist und aus
+**Aktuelle Wiedergabe** verschwunden ist; **Diesen Chromecast stoppen**
+schickt ihm einen Stopp-Befehl, den der Fernseher innerhalb von 30 Sekunden
+ausführt.
 
-**Admin → Systemzustand** zeigt Prozessor, Speicher, Bandbreite und
-Speicherplatz, und wie viel der Transkodierungskapazität genutzt wird.
+**Verwaltung → Systemzustand** zeigt Prozessor, Arbeitsspeicher, Bandbreite
+und Speicherplatz und wie viel der Kapazität für die Transkodierung belegt
+ist.
 
 <figure class="evey-shot" markdown="span">
-  ![Admin → Systemzustand auf dem Demo-Server](../images/admin-system-health.webp){ loading=lazy }
-  <figcaption><strong>Admin → Systemzustand</strong>, darunter die laufenden Hintergrundaufgaben (Oberfläche auf Englisch).</figcaption>
+  ![Verwaltung → Systemzustand auf dem Demo-Server](../images/admin-system-health.webp){ loading=lazy }
+  <figcaption><strong>Verwaltung → Systemzustand</strong>, mit den Hintergrundarbeiten darunter (Oberfläche auf Englisch).</figcaption>
 </figure>
 
-## Logs
+## Protokolle
 
-**Admin → Protokolle & Debug** durchsucht die Logs des Servers und verfolgt sie
-live, nach Bereich gefiltert (Wiedergabe, Transkodierung, Scan, Untertitel...).
-Hier sieht man zuerst nach, wenn ein Benutzer ein Problem meldet. Dieselben Logs
-gibt es mit `docker compose logs evey`.
+**Verwaltung → Protokolle & Debug** durchsucht das Protokoll des Servers und
+folgt ihm live (**Live**), mit **Bereich** eingegrenzt auf einen Teil (Player
+und Transkodierung, Seek-Index, Untertitel, Intro-Erkennung,
+Chromecast, Anmeldung, Infrastruktur...). Hier sehen Sie zuerst nach, wenn
+ein Benutzer ein Problem meldet.
 
-## Wie die Wiedergabe tatsächlich lief
+Dasselbe Protokoll liegt auf der Festplatte, eine JSON-Datei pro Tag in
+`./evey-data/logs/` (`/data/logs/evey-YYYY-MM-DD.log` im Container),
+standardmäßig 90 Tage aufbewahrt. `docker compose logs evey` zeigt nur, was
+der Container beim Start ausgibt. Das lesen Sie, wenn der Server nicht
+hochkommt. Siehe [Fehlerbehebung](troubleshooting.md#the-logs).
 
-**Admin → Streaming-Qualität** baut auf dem auf, was die Player während der
-Wiedergabe melden (Pufferstand, erneutes Puffern, Durchsatz, im CMCD-Format):
-wie oft Zuschauer gewartet haben, die Titel, die am häufigsten stocken, und die
-Gerätearten, die Mühe haben, über den letzten Tag oder die letzte Woche.
+## Wie die Wiedergabe wirklich lief
 
-Der Server handelt auch danach. Lässt eine Art von Quelle Zuschauer immer wieder
-warten, senkt er für eine Weile die Höchstqualität für diese Art von Quelle,
-zusätzlich zur kalibrierten Obergrenze, und hebt die Grenze dann von selbst
-wieder auf. Die aktiven Grenzen stehen unter **Automatische Qualitätsgrenzen**,
-mit Grund und Ablauf; **Zurücksetzen** entfernt eine sofort.
+**Verwaltung → Streaming-Qualität** beruht auf dem, was die Player während der
+Wiedergabe melden (Pufferstand, erneutes Puffern, Durchsatz, im Format CMCD):
+wie oft Zuschauer gewartet haben, welche Titel am häufigsten hängen und welche
+Arten von Geräten Mühe haben, über den letzten Tag oder die letzte Woche.
 
-## Verlauf und Statistiken
+Der Server handelt auch danach. Lässt eine bestimmte Art von Quelle die
+Zuschauer immer wieder warten, senkt er für eine Weile die höchste Qualität
+für diese Art von Quelle, zusätzlich zur kalibrierten Obergrenze, und hebt die
+Grenze danach von selbst wieder auf. Die aktiven Grenzen stehen unter
+**Automatische Qualitätsgrenzen**, mit Grund und Ablaufzeit; **Zurücksetzen**
+hebt eine sofort auf.
 
-- **Admin → Analysen**: Wiedergaben heute und in dieser Woche, aktive Benutzer,
-  die meistgesehenen Titel der letzten 30 Tage.
-- **Admin → Aktivität**: der Verlauf der Wiedergaben und der administrativen
-  Aktionen, und die laufenden Hintergrundaufgaben.
+## Verlauf und Statistik
 
-Wie lange jede Art von Verlauf aufbewahrt wird, legt **Admin →
-Serverkonfiguration → Servereinstellungen** fest (Wiedergabesitzungen,
-Audit-Log, Servermetriken, Streaming-Qualität). Eine Änderung gilt ab der
-nächsten täglichen Bereinigung.
+- **Verwaltung → Analysen**: Wiedergaben heute und in dieser Woche, aktive
+  Benutzer, die meistgesehenen Titel der letzten 30 Tage.
+- **Verwaltung → Aktivität**: der Verlauf der Wiedergaben und der
+  Verwaltungsaktionen sowie die laufenden Hintergrundarbeiten.
+
+Wie lange jede Art von Verlauf aufbewahrt wird, legen Sie unter **Verwaltung
+→ Serverkonfiguration → Servereinstellungen** fest (Wiedergabesitzungen,
+Audit-Protokoll, Servermesswerte, Streaming-Qualität). Eine Änderung gilt ab
+der nächsten täglichen Bereinigung.
+
+## Prometheus-Metriken
+
+`GET /metrics` liefert die Zähler des Servers im Textformat von Prometheus,
+alle mit Namen `evey_...`. Es antwortet einer Administratorsitzung oder einem
+festen Token, das in `EVEY_METRICS_SCRAPE_TOKEN` gesetzt und als
+`Authorization: Bearer <token>` gesendet wird, damit Prometheus oder Grafana
+die Werte abrufen können, ohne sich neu anzumelden
+([Sicherungen, Protokolle und Überwachung](../environment/logs-monitoring.md)).
+Die Gruppen, die sich für ein erstes Diagramm lohnen:
+
+| Metrik | Was sie zeigt |
+| --- | --- |
+| `evey_transcodes_active`, `evey_transcode_queue_depth` | Transkodierungsaufträge im Hintergrund (außerhalb der laufenden Wiedergabe), die laufen und die auf einen freien Platz warten. |
+| `evey_hlsvod_sessions_active`, `evey_hlsvod_sessions_rejected_total` | FFmpeg-Prozesse, die Segmente für die Wiedergabe erzeugen, und Starts, die abgelehnt wurden, weil der Server an seiner Grenze war. |
+| `evey_hlsvod_cache_size_bytes`, `evey_hlsvod_cache_evicted_bytes_total` | Größe des Segment-Caches auf der Festplatte und was die Bereinigung freigegeben hat. |
+| `evey_mkvgo_walks_in_flight`, `evey_mkvgo_plan_stats` | Der eingebaute Packager: Abschnitte, die gerade gelesen werden, Lesevorgänge in der Warteschlange (`stat="slot_waits"`), siehe [MKVGo in Evey](../playback/mkvgo.md#load-replaced-files-and-updates). |
+| `evey_http_requests_total`, `evey_http_request_duration_seconds` | Anfragen und Antwortzeit nach Methode und Pfad. |
+| `evey_watcher_alive`, `evey_scan_queue_depth` | Ob die Ordnerüberwachung jeder Bibliothek auf ihre letzte Prüfung geantwortet hat (1 oder 0), und Dateien, die auf den Scan warten. |
 
 ## Kommandozeile
 
 `evey admin doctor` prüft den ganzen Server in einem Bericht; die anderen
-Diagnosebefehle stehen unter [Kommandozeile](../runbooks/cli.md).
+Befehle zur Diagnose stehen unter [Kommandozeile](../runbooks/cli.md).
+
+<!-- sources
+who's online: frontend/apps/web/src/features/admin/DashboardOnline.tsx (presence heartbeat, profile names, idle, SendCastReceiverCommand) ; i18n admin.online.*
+logs: internal/pkg/logger/logger.go - New (file only outside DevMode), rotatingWriter ; config EVEY_LOG_RETENTION_DAYS ; docker-compose.yml ./evey-data:/data
+labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.where.*, admin.logs.live, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
+automatic limits: i18n admin.qoe.overrides.*
+metrics: internal/pkg/metrics/metrics.go (names) ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
+-->
