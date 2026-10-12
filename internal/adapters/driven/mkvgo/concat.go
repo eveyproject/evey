@@ -69,7 +69,8 @@ func (p *ConcatPackager) Plan(ctx context.Context, sources []string, opts apptra
 	// refusing the whole chain over one file's missing Cues.
 	// SkipUnsupported: same reason as the on-demand packager (ondemand.go) - one
 	// TrueHD/LPCM/Vorbis track must not fail the whole chain's plan.
-	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true, SkipUnsupported: true}
+	// NoIFrames: same reason as the on-demand packager (ondemand.go).
+	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true, SkipUnsupported: true, NoIFrames: true}
 	if opts.URLPrefix != "" {
 		prefix := opts.URLPrefix
 		o.RewriteURL = func(name string) string {

@@ -100,3 +100,17 @@ func TestStampPlanSourceURIs(t *testing.T) {
 	assert.Contains(t, out, "stream_1.m3u8?vh=1\n")
 	assert.Equal(t, in, stampPlanSourceURIs(in, ""), "an unstamped plan adds nothing")
 }
+
+func TestServeOnDemandResource_IFramePlaylistIs404WithoutAPlan(t *testing.T) {
+	h := newCopyTestHandler(t)
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{
+		sourceID:  "s",
+		resources: map[string][]byte{"iframe.m3u8": []byte("#EXTM3U")},
+	}}
+	h.onDemand = pkg
+
+	w := httptest.NewRecorder()
+	h.serveOnDemandResource(w, onDemandReq(), "m1", "od_iframe.m3u8", onDemandItem(), nil, noopSpan())
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Zero(t, pkg.calls, "no plan built, so nothing read from the media")
+}

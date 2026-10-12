@@ -85,6 +85,13 @@ func TestOnDemandPackagerIntegration(t *testing.T) {
 	if !strings.Contains(ct, "mpegurl") {
 		t.Errorf("master content-type = %q, want an HLS type", ct)
 	}
+	// No I-frame stream: no client uses it, and serving it walks keyframes.
+	if bytes.Contains(master, []byte("EXT-X-I-FRAME-STREAM-INF")) {
+		t.Errorf("master advertises an I-frame stream:\n%s", master)
+	}
+	if _, _, ierr := plan.Resource(ctx, "iframe.m3u8"); ierr == nil {
+		t.Error("Resource(iframe.m3u8) served, want an error")
+	}
 
 	// A chapterless source emits no EXT-X-DATERANGE lines: ChapterMarkers is
 	// hardcoded on in the adapter, but it must stay a no-op for a file with no

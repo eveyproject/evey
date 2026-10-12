@@ -323,7 +323,9 @@ func (p *OnDemandPackager) buildPlan(ctx context.Context, srcPath string, opts a
 	// track is exactly right here: Evey re-encodes any audio it can't carry anyway
 	// (the hybrid rung), so the packager never needed to carry it. The admin remux
 	// path has always passed this (adapter.go); the serving path had not.
-	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true, SkipUnsupported: true}
+	// NoIFrames: no client uses the I-frame stream (scrubbing uses trickplay),
+	// and a stray AVPlayer request for it cost a keyframe walk on the NAS.
+	o := mp4.Options{SegmentMs: opts.SegmentMs, ChapterMarkers: true, SynthesizeIndex: true, SkipUnsupported: true, NoIFrames: true}
 	// Audio start-delay resync, in presentation only, nothing written: the
 	// same per-track defect the admin retimer repairs on disk (audio_retime.go)
 	// is cancelled here at packaging time for a source the operator hasn't
