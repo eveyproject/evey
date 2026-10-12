@@ -112,7 +112,7 @@ func newStreamingServer(t *testing.T, plan *streamingPlan) *httptest.Server {
 	h := &hlsVODServe{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		name := strings.TrimPrefix(r.URL.Path, "/")
-		h.servePlanResourceData(w, r, "media-1", plan, name, trace.SpanFromContext(r.Context()))
+		h.servePlanResourceData(w, r, "media-1", plan, nil, name, trace.SpanFromContext(r.Context()))
 	}))
 	t.Cleanup(srv.Close)
 	return srv

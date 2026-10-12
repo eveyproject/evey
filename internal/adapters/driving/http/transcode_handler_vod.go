@@ -1482,7 +1482,7 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 					return
 				}
 				h.recordServing(r, mediaID, rp, domainplayback.ServingPath{VideoDecision: "copy", VideoEngine: "mkvgo", AudioDecision: "copy", AudioEngine: "mkvgo"}, "")
-				h.servePlanResourceData(w, r, mediaID, plan, "manifest.mpd", span)
+				h.servePlanResourceData(w, r, mediaID, plan, planKeep(rp, streams), "manifest.mpd", span)
 				return
 			}
 			slog.WarnContext(r.Context(), "hls-vod: dash manifest: on-demand plan build failed, the ffmpeg path serves this plan",
