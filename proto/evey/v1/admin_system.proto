@@ -542,6 +542,13 @@ message LoadTestReport {
   // served_paths is what the server decided for each viewer type over the
   // whole run: how a client-mix verdict says what it was measured on.
   repeated LoadTestServedPath served_paths = 44;
+  // break_viewers is the lowest audience that broke, and break_disks /
+  // break_cpu_percent_peak what the drives and the CPU did under it: where the
+  // cause of a stop shows (disks above describe the tier that held). 0 and
+  // empty when no tier broke.
+  int32 break_viewers = 45;
+  repeated LoadTestDiskActivity break_disks = 46;
+  double break_cpu_percent_peak = 47;
 }
 
 // LoadTestPoolBranch is how many of the run's viewers were placed on one branch

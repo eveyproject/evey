@@ -127,6 +127,22 @@ describe("stopCause", () => {
     });
   });
 
+  it("reads the tier that broke, not the one that held", () => {
+    expect(
+      stopCause({
+        stopReason: "slo_breach",
+        resources: { cpuPercentPeak: 4 },
+        disks: [{ device: "sda", utilPercentAvg: 15, awaitMsAvg: 4 }],
+        breakViewers: 38,
+        breakCpuPercentPeak: 6,
+        breakDisks: [
+          { device: "sdb", utilPercentAvg: 96, awaitMsAvg: 41 },
+          { device: "sda", utilPercentAvg: 18, awaitMsAvg: 5 },
+        ],
+      }),
+    ).toEqual({ key: "admin.loadtest.cause.disk", params: { device: "sdb", util: 96, wait: 41, others: 18 } });
+  });
+
   it("adds nothing when the stop reason already says it", () => {
     for (const stopReason of ["cpu_saturated", "max_viewers", "cancelled", "admission_full"] as const) {
       expect(stopCause({ stopReason })).toBeNull();

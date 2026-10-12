@@ -180,15 +180,10 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 				Viewers: int32(b.Viewers), //nolint:gosec // a viewer count, bounded by the run's configured ceiling
 			})
 		}
-		for _, d := range r.Resources.Disks {
-			out.LastReport.Disks = append(out.LastReport.Disks, &eveyv1.LoadTestDiskActivity{
-				Device:             d.Device,
-				UtilPercentAvg:     d.UtilPctAvg,
-				UtilPercentPeak:    d.UtilPctPeak,
-				ReadBytesPerSecAvg: d.ReadBytesPerSecAvg,
-				AwaitMsAvg:         d.AwaitMsAvg,
-			})
-		}
+		out.LastReport.Disks = loadTestDisksToProto(r.Resources.Disks)
+		out.LastReport.BreakViewers = int32(r.BreakViewers) //nolint:gosec // a viewer count, bounded by the run's configured ceiling
+		out.LastReport.BreakDisks = loadTestDisksToProto(r.BreakResources.Disks)
+		out.LastReport.BreakCpuPercentPeak = r.BreakResources.CPUPercentPeak
 		if r.HasPerViewerCost {
 			out.LastReport.PerViewerCost = loadTestResourcesToProto(r.PerViewerCost)
 		}
@@ -292,6 +287,20 @@ func tierCosts(in []apploadtest.TierCost) []*eveyv1.LoadTestTierCost {
 			Samples:             int32(t.Samples), //nolint:gosec // a sample count
 			GoHeapLiveBytes:     t.GoHeapLiveBytes,
 			GoGcCpuPercent:      t.GoGCCPUPercent,
+		})
+	}
+	return out
+}
+
+func loadTestDisksToProto(disks []apploadtest.DiskStat) []*eveyv1.LoadTestDiskActivity {
+	out := make([]*eveyv1.LoadTestDiskActivity, 0, len(disks))
+	for _, d := range disks {
+		out = append(out, &eveyv1.LoadTestDiskActivity{
+			Device:             d.Device,
+			UtilPercentAvg:     d.UtilPctAvg,
+			UtilPercentPeak:    d.UtilPctPeak,
+			ReadBytesPerSecAvg: d.ReadBytesPerSecAvg,
+			AwaitMsAvg:         d.AwaitMsAvg,
 		})
 	}
 	return out

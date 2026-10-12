@@ -564,6 +564,10 @@ func TestRunner_SLOBreachStopsAtPriorTier(t *testing.T) {
 	if report.SustainedViewers != 3 {
 		t.Fatalf("sustained viewers = %d, want 3", report.SustainedViewers)
 	}
+	// The report names the tier that broke, where the cause of the stop shows.
+	if report.BreakViewers <= report.SustainedViewers {
+		t.Fatalf("break viewers = %d, want the lowest tier above the %d that held", report.BreakViewers, report.SustainedViewers)
+	}
 	// The budget is HALF a segment's own duration, stated for the reference
 	// segment (6 s -> 3000ms) that every fetch is scaled to: a player that only
 	// just keeps up never fills its buffer.
