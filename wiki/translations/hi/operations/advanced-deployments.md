@@ -1,50 +1,63 @@
 ---
-source_sha: fffc05516a2ca96d615a64bc159a1b837a7601876648b7e40b6167296b59f1d5
-reviewed: false
+source_sha: be2352babc32903dbb0a839c8c6754b1f9c0751d295a958a65e2ab12031c037e
+reviewed: true
 ---
-# उन्नत डिप्लॉयमेंट
+# एडवांस्ड डिप्लॉयमेंट
 
-[एक कंटेनर वाला इंस्टॉलेशन](../installation.md) ज़्यादातर सर्वरों के लिए ठीक है। यह पेज उन लेआउट को कवर करता है जिन्हें कोई ऑपरेटर पसंद कर सकता है: डेटाबेस या सर्च इंजन अलग सर्विस के रूप में, ARM होस्ट, इमेज के वेरिएंट, और असामान्य होस्ट पर प्लगइन सैंडबॉक्स। Evey को Docker के बिना चलाने के लिए देखें [कंटेनर के बिना](../deployment-bare-metal.md)।
+[एक कंटेनर वाला इंस्टॉल](../installation.md) ज़्यादातर सर्वर के लिए ठीक है। यह
+पेज तब खोलें जब आप डेटाबेस या सर्च इंजन को अलग सर्विस के रूप में चाहते हों, जब
+होस्ट ARM हो, जब आपको इमेज का कोई दूसरा रूप चाहिए, या जब प्लगइन सैंडबॉक्स
+`landlock` के अलावा कुछ और बताए। Evey को Docker के बिना ही चलाने के लिए देखें
+[बिना कंटेनर के](../deployment-bare-metal.md)।
 
-## बिल्ट-इन डेटाबेस
+## अंदर वाला डेटाबेस
 
-डेटाबेस क्लस्टर `./evey-data/postgres` में रहता है (Postgres 17, पहली बार चालू होने पर बनाया गया, सर्वर उपयोगकर्ता के स्वामित्व में)। यह केवल कंटेनर के लूपबैक पर सुनता है और बनाया गया पासवर्ड माँगता है, इसलिए दूसरे उपयोगकर्ता के रूप में चल रहा प्लगइन इसे नहीं खोल सकता। सर्वर के अपने कनेक्शन बंद करने के बाद `docker stop` इसे ठीक से बंद करता है।
+क्लस्टर `./evey-data/postgres` में रहता है (Postgres 17, पहली बार शुरू होने पर
+बनता है, सर्वर के उपयोगकर्ता का होता है)। यह सिर्फ़ कंटेनर के loopback पर सुनता
+है और बनाया गया पासवर्ड माँगता है, इसलिए किसी दूसरे उपयोगकर्ता के रूप में चल
+रहा प्लगइन इसे नहीं खोल सकता। `docker stop` इसे ठीक से बंद करता है, जब सर्वर
+अपने कनेक्शन बंद कर चुका होता है।
 
-डेटा डायरेक्टरी किसी स्थानीय फ़ाइल सिस्टम (ext4, btrfs, xfs...) पर होनी चाहिए, SMB/CIFS या NFS शेयर पर नहीं।
-
-SQL शेल खोलने के लिए:
+डेटा वाला फ़ोल्डर लोकल फ़ाइल सिस्टम (ext4, btrfs, xfs...) पर होना चाहिए, SMB/CIFS
+या NFS शेयर पर नहीं। SQL shell खोलने के लिए:
 
 ```bash
 docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-### Postgres मुख्य संस्करण अपग्रेड
+### Postgres के नए major वर्ज़न पर जाना
 
-इमेज बिल्ट-इन Postgres का मुख्य संस्करण (17) तय रखती है। नए मुख्य संस्करण वाली इमेज पुराने क्लस्टर को खोलने से मना कर देती है, यहाँ की ओर इशारा करने वाले संदेश के साथ, बजाय ऐसी डेटा डायरेक्टरी चलाने के जिसे वह पढ़ नहीं सकती। पार जाने का तरीका है पुरानी इमेज से डंप और नई से पुनर्स्थापना:
+इमेज अंदर वाले डेटाबेस का major वर्ज़न तय रखती है। जो इमेज नया major वर्ज़न
+लाती है, वह पुराना क्लस्टर खोलने से मना कर देती है, और एक संदेश इस पेज की ओर
+भेजता है, बजाय ऐसे डेटा फ़ोल्डर को चलाने के जिसे वह पढ़ नहीं सकती। पार जाने का
+तरीका है पुरानी इमेज से एक dump, और नई इमेज से उसका restore:
 
 ```bash
 docker compose exec evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_dump -h 127.0.0.1 -U evey -Fc evey' > evey-before-upgrade.dump
 docker compose down
-mv evey-data/postgres evey-data/postgres.old      # पुनर्स्थापना की पुष्टि होने तक इसे रखें
-# compose फ़ाइल में नया इमेज टैग लिखें, फिर:
-docker compose up -d                              # नए मुख्य संस्करण पर एक ख़ाली क्लस्टर बनाता है
+mv evey-data/postgres evey-data/postgres.old      # restore की जाँच होने तक इसे रखें
+# compose फ़ाइल में नया इमेज tag डालें, फिर:
+docker compose up -d                              # नए major पर एक खाली क्लस्टर बनाता है
 docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_restore -h 127.0.0.1 -U evey -d evey --no-owner' < evey-before-upgrade.dump
 docker compose restart evey
 ```
 
-## बाहरी Postgres
+## Postgres को अलग सर्विस के रूप में चलाएँ
 
-डेटाबेस का जीवनचक्र ख़ुद संभालने के लिए (प्रबंधित Postgres, तय मुख्य संस्करण, अपनी डंप नीति), इसे अलग सर्विस के रूप में चलाएँ और सर्वर को उसकी ओर इंगित करें। **`EVEY_DB_HOST` सेट करना ही बिल्ट-इन डेटाबेस को बंद करता है।**
+डेटाबेस का पूरा रख-रखाव खुद करने के लिए (कोई managed Postgres, तय major वर्ज़न,
+dump का अपना तरीका), उसे अपनी अलग सर्विस के रूप में चलाएँ और सर्वर को उसकी ओर
+भेजें। `EVEY_DB_HOST` सेट करने से ही अंदर वाला डेटाबेस बंद होता है। डिफ़ॉल्ट
+पासवर्ड `evey` के साथ सर्वर शुरू होने से मना करता है।
 
 === "docker-compose.yml"
 
     ```yaml
     services:
       evey:
-        # ... एक कंटेनर वाली फ़ाइल की तरह, साथ में:
+        # ... एक कंटेनर वाली फ़ाइल की तरह, और साथ में:
         environment:
           EVEY_DB_HOST: postgres
-          EVEY_DB_SSLMODE: disable          # आंतरिक नेटवर्क, TLS नहीं
+          EVEY_DB_SSLMODE: disable          # अंदर का नेटवर्क, TLS नहीं
         depends_on:
           postgres: { condition: service_healthy }
 
@@ -68,19 +81,21 @@ docker compose restart evey
 === ".env"
 
     ```env
-    EVEY_DB_PASSWORD=<strong-password>   # डिफ़ॉल्ट 'evey' के साथ सर्वर शुरू होने से मना करता है
+    EVEY_DB_PASSWORD=<strong-password>
     ```
 
-## बाहरी Meilisearch
+## Meilisearch को अलग सर्विस के रूप में चलाएँ
 
-सर्च इंजन के लिए भी यही सिद्धांत: बिल्ट-इन बंद करें, सर्वर को अपने वाले की ओर इंगित करें और कुंजी साझा करें। स्पष्ट `MEILI_MASTER_KEY` बनाई गई `./evey-data/keys/meili.key` पर भारी पड़ता है।
+सर्च इंजन के लिए भी यही तरीका: अंदर वाले को बंद करें, सर्वर को अपने वाले की ओर
+भेजें और कुंजी दोनों को दें। साफ़ दिया गया `MEILI_MASTER_KEY` बनाई गई
+`./evey-data/keys/meili.key` पर भारी पड़ता है।
 
 === "docker-compose.yml"
 
     ```yaml
     services:
       evey:
-        # ... साथ में:
+        # ... और साथ में:
         environment:
           EVEY_EMBEDDED_MEILI: "false"
           EVEY_MEILI_URL: http://meilisearch:7700
@@ -108,46 +123,93 @@ docker compose restart evey
     MEILI_MASTER_KEY=<run: openssl rand -hex 16>
     ```
 
-इंडेक्स डेटाबेस से फिर से बनता है (`evey admin reindex-search`), इसलिए `meili-data` को कभी भी फेंका जा सकता है।
+इंडेक्स `docker exec evey-server evey admin reindex-search` से डेटाबेस से दोबारा
+बनता है, इसलिए `meili-data` को कभी भी हटाया जा सकता है।
 
-## बिल्ट-इन डेटाबेस पर जाना
+## अंदर वाले डेटाबेस पर लौटना
 
-जो इंस्टॉलेशन Postgres को अलग सर्विस के रूप में चलाता है वह एक कंटेनर पर जा सकता है। बिल्ट-इन डेटाबेस `./evey-data/postgres-import.sql.gz` पर मिला डंप एक बार, पहली बार चालू होने पर बनाए गए क्लस्टर में, सर्वर चलने से पहले आयात करता है; फिर सर्वर के माइग्रेशन उसके ऊपर लागू होते हैं।
+जो इंस्टॉलेशन Postgres को अलग सर्विस के रूप में चलाता है, वह एक कंटेनर वाले
+सेटअप पर आ सकता है। अंदर वाला डेटाबेस `./evey-data/postgres-import.sql.gz` पर
+मिले dump को एक बार, पहली बार शुरू होने पर बनाए गए क्लस्टर में, सर्वर चलने से
+पहले डाल लेता है; फिर सर्वर के माइग्रेशन उसके ऊपर लागू होते हैं।
 
 ```bash
-# 1. मौजूदा डेटाबेस का डंप लें (सादा SQL, gzip किया हुआ)
+# 1. मौजूदा डेटाबेस का dump लें (सादा SQL, gzip किया हुआ)
 docker compose exec -T postgres pg_dump -U evey --no-owner --no-privileges evey \
   | gzip > evey-data/postgres-import.sql.gz
 docker compose down
 
 # 2. compose फ़ाइल को एक कंटेनर वाली फ़ाइल से बदलें, अपने मीडिया फ़ोल्डर,
-#    रिवर्स प्रॉक्सी सेटिंग्स और हार्डवेयर लाइनें रखते हुए।
+#    रिवर्स प्रॉक्सी सेटिंग्स और हार्डवेयर वाली लाइनें रखते हुए।
 
-# 3. पहली शुरुआत: क्लस्टर बनाएँ, आयात करें, माइग्रेट करें, सर्वर शुरू करें
+# 3. पहली शुरुआत: क्लस्टर बनाना, import, माइग्रेशन, सर्वर शुरू करना
 docker compose up -d && docker compose logs -f evey     # "evey: import done"
 
-# 4. बाहरी Meilisearch का इंडेक्स साथ नहीं आता: उसे फिर से बनाएँ
+# 4. बाहरी Meilisearch का इंडेक्स साथ नहीं आता: उसे दोबारा बनाएँ
 docker exec evey-server evey admin reindex-search
 ```
 
-`EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY` और `EVEY_DB_HOST` / `EVEY_MEILI_URL` सेटिंग्स की अब ज़रूरत नहीं। सर्वर जाँच लेने तक `./postgres-data` रखें। किसी मौजूदा क्लस्टर के बगल में छोड़ा गया डंप बताया जाता है और अनदेखा किया जाता है, कभी मिलाया नहीं जाता; विफल आयात नया क्लस्टर हटा देता है ताकि अगली शुरुआत फिर से कोशिश करे।
+`EVEY_DB_PASSWORD`, `MEILI_MASTER_KEY` और `EVEY_DB_HOST` / `EVEY_MEILI_URL` की
+सेटिंग्स की अब ज़रूरत नहीं। सर्वर की जाँच करने तक `./postgres-data` रखें। किसी
+मौजूदा क्लस्टर के पास छोड़ा गया dump लॉग में बताया जाता है और अनदेखा किया जाता
+है, कभी मिलाया नहीं जाता; import फ़ेल हो जाए, तो नया क्लस्टर हटा दिया जाता है
+ताकि अगली बार शुरू होने पर dump से फिर कोशिश हो।
 
 ## ARM होस्ट
 
-रिलीज़ टैग से बनी इमेज (`0.2.0`, `0.2.0-beta.1` जैसे प्री-रिलीज़ समेत) बहु-आर्किटेक्चर (`linux/amd64` और `linux/arm64`) होती हैं; Docker सही वाली चुनता है। `beta-0.0.1` जैसे ब्रांच टैग केवल amd64 हैं: ARM होस्ट पर एक रिलीज़ टैग तय करें।
+किसी release tag (`0.2.0`, `0.2.0-beta.1` जैसे pre-release भी) से बनी इमेज कई
+आर्किटेक्चर के लिए होती हैं (`linux/amd64` और `linux/arm64`); Docker सही वाली
+चुन लेता है। `beta-0.0.1` जैसे branch tag सिर्फ़ amd64 के लिए हैं: ARM होस्ट पर
+कोई release tag तय करें।
 
-- **ARM पर हार्डवेयर ट्रांसकोडिंग** RKMPP के ज़रिए Rockchip SoC (RK3588, RK3576, RK3568 श्रेणी) तक सीमित है। `/dev/mpp_service`, `/dev/dri` और, जहाँ कर्नेल उसे उपलब्ध कराए, `/dev/rga` मैप करें; Evey इस्तेमाल से पहले एनकोडर को जाँचता और बेंचमार्क करता है। प्रोजेक्ट ने अभी असली हार्डवेयर पर RKMPP की पुष्टि नहीं की है। Raspberry Pi या Realtek-आधारित ARM NAS में ऐसा कोई हार्डवेयर एनकोडर नहीं जिसे Evey इस्तेमाल कर सके: वे सर्वर सीधे प्लेबैक और सॉफ़्टवेयर ट्रांसकोडिंग पर निर्भर रहते हैं, जिनका आकार किसी भी दूसरे होस्ट की तरह उसी कैलिब्रेशन से तय होता है।
-- **HDR टोन मैपिंग** ARM (NEON) पर वही SIMD `tonemapx` फ़िल्टर इस्तेमाल करती है जो x86-64 (AVX2) पर।
+- **ARM पर हार्डवेयर ट्रांसकोडिंग** RKMPP के ज़रिए सिर्फ़ Rockchip SoC (RK3588,
+  RK3576, RK3568 वर्ग) तक सीमित है। `/dev/mpp_service`, `/dev/dri` और, जहाँ
+  kernel इसे दिखाता है, `/dev/rga` कंटेनर को दें; सर्वर एनकोडर को इस्तेमाल करने
+  से पहले जाँचता और मापता है। प्रोजेक्ट ने RKMPP को अभी असली हार्डवेयर पर
+  परखा नहीं है। Raspberry Pi या Realtek वाले ARM NAS में ऐसा कोई हार्डवेयर
+  एनकोडर नहीं है जिसे सर्वर इस्तेमाल कर सके: ऐसे होस्ट direct play और
+  सॉफ़्टवेयर ट्रांसकोडिंग पर चलते हैं, जिसका आकार बाकी होस्ट की तरह उसी
+  कैलिब्रेशन से तय होता है।
+- **HDR tone mapping** ARM (NEON) पर भी वही SIMD `tonemapx` फ़िल्टर इस्तेमाल
+  करता है जो x86-64 (AVX2) पर।
 
-## इमेज टैग
+## इमेज tag और रूप
 
 इमेज `eveyproject/evey` है।
 
-- रिलीज़ टैग `vX.Y.Z` `X.Y.Z`, `X.Y`, `X` और `latest` प्रकाशित करते हैं। `latest` हमेशा सबसे नया स्थिर रिलीज़ है: प्री-रिलीज़ (`vX.Y.Z-beta.N`) केवल अपना टैग प्रकाशित करता है और `latest` को कभी नहीं खिसकाता।
-- ब्रांच बिल्ड ब्रांच का नाम (उदाहरण के लिए `beta-0.0.1`) और `sha-<commit>` प्रकाशित करते हैं।
-- **प्लगइन रनटाइम।** डिफ़ॉल्ट इमेज प्लगइन के लिए Python 3 साथ रखती है। `-nodejs` वेरिएंट Node.js जोड़ता है; `-full` PHP, Ruby और Lua जोड़ता है। वेरिएंट तभी इस्तेमाल करें जब आपके इंस्टॉल किए किसी प्लगइन को उसकी ज़रूरत हो।
-- **GPU परिवार।** प्रकाशित इमेज में हर समर्थित Intel और AMD पीढ़ी के ड्राइवर होते हैं। ख़ुद बनाई गई इमेज केवल एक रख सकती है: `docker build --build-arg GPU=intel-legacy .` (Intel Gen9 से Gen11), `GPU=intel` (Gen12 और नए), `GPU=amd` या `GPU=none`। NVIDIA को किसी वेरिएंट की ज़रूरत नहीं: NVIDIA Container Toolkit चलते समय होस्ट का ड्राइवर डालता है।
+| Tag | किससे प्रकाशित होता है | टिप्पणी |
+|---|---|---|
+| `X.Y.Z`, `X.Y`, `X`, `latest` | एक release tag `vX.Y.Z` | `latest` हमेशा सबसे नई स्थिर release है |
+| `X.Y.Z-beta.N` | एक pre-release tag | सिर्फ़ अपना tag प्रकाशित करता है, `latest` को कभी नहीं हिलाता |
+| `beta-0.0.1`, `sha-<commit>` | branch से बनी इमेज | सिर्फ़ amd64 |
 
-## प्लगइन सैंडबॉक्स
+हर tag तीन रूपों में आता है: डिफ़ॉल्ट रूप में प्लगइन के लिए Python 3 होता है,
+`-nodejs` में Node.js जुड़ता है, `-full` में PHP, Ruby और Lua जुड़ते हैं (जैसे
+`latest-full`)। कोई रूप सिर्फ़ तब इस्तेमाल करें जब किसी प्लगइन को उसकी ज़रूरत
+हो: installer उस प्लगइन को मना कर देता है जिसकी बताई गई भाषा इमेज में नहीं है,
+और संदेश में सही रूप का नाम बताता है।
 
-इमेज में प्रिविलेज्ड मोड के बिना प्लगइन को सीमित रखने के लिए ज़रूरी सब कुछ है। डिफ़ॉल्ट सैंडबॉक्स मोड (`auto`) होस्ट द्वारा अनुमत सबसे मज़बूत बैकएंड चुनता है: किसी भी आधुनिक कर्नेल पर Landlock। वास्तव में लागू मोड **Admin → प्लगइन** के **सुरक्षा डैशबोर्ड** में जाँचें। जो होस्ट `basic` दिखाता है वह प्लगइन की फ़ाइल पहुँच को अलग नहीं कर सकता: इसका क्या मतलब है और क्या बदलना है, इसके लिए [प्लगइन सैंडबॉक्स सेटअप](../plugins/sandbox-deployment.md) देखें। परतें ख़ुद [सुरक्षा मॉडल और प्लगइन सैंडबॉक्स](../SECURITY.md) में बताई गई हैं।
+प्रकाशित इमेज में हर समर्थित Intel और AMD पीढ़ी के ड्राइवर होते हैं। खुद बनाई
+गई इमेज में एक ही परिवार रखा जा सकता है: `docker build
+--build-arg GPU=intel-legacy .` (Intel Gen9 से Gen11), `GPU=intel` (Gen12 और नए),
+`GPU=amd` या `GPU=none`। NVIDIA के लिए किसी रूप की ज़रूरत नहीं: NVIDIA
+Container Toolkit चलते समय होस्ट का ड्राइवर कंटेनर में डाल देता है।
+
+## किसी असामान्य होस्ट पर प्लगइन सैंडबॉक्स
+
+इमेज में प्लगइन को घेरे में रखने के लिए सब कुछ है, privileged मोड के बिना।
+डिफ़ॉल्ट सैंडबॉक्स मोड (`auto`) वह सबसे मज़बूत बैकएंड चुनता है जिसकी होस्ट
+अनुमति देता है: किसी भी आधुनिक kernel पर Landlock। लागू मोड **एडमिन → प्लगइन**
+के **सुरक्षा डैशबोर्ड** में देखें। जो होस्ट `basic` दिखाता है, वह प्लगइन की
+फ़ाइलों तक पहुँच को अलग नहीं कर सकता: [प्लगइन सैंडबॉक्स
+सेटअप](../plugins/sandbox-deployment.md) बताता है कि इसका क्या मतलब है और क्या
+बदलना है। परतें खुद [प्लगइन सैंडबॉक्स और ख़तरा मॉडल](../SECURITY.md) में बताई
+गई हैं।
+
+<!-- sources
+embedded db, import, major upgrade, embedded meili: docker/entrypoint.sh (PG_MAJOR, PG_IMPORT, "evey: import done", EVEY_EMBEDDED_MEILI, MEILI_MASTER_KEY_FILE)
+external db switch and default password refusal: internal/config/config.go (EVEY_DB_HOST, hardFail on "evey")
+reindex: cmd/evey/admin.go - adminReindexSearch
+arm, variants, GPU families: Dockerfile (TARGETARCH, RUNTIMES, GPU) ; .github/workflows/ci.yml (tags, flavor suffix, platforms) ; internal/adapters/driven/ffmpeg/hwdetect.go - detectRKMPP
+sandbox auto: internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; i18n/en/admin.yaml - plugins.security.title
+-->

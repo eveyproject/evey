@@ -1,69 +1,75 @@
 ---
-source_sha: df7413e4af441d34d3b23275ec280881e68c4257572b636312f678009cf80c2e
-reviewed: false
+source_sha: 4aeebbe2feb50999e8470ea3f56b3e47af196ca12cf0100e22527f66ffe278e3
+reviewed: true
 ---
-# बेयर-मेटल डिप्लॉयमेंट (Docker के बिना)
+# बिना कंटेनर के
 
-Evey को [Docker इमेज](installation.md) की बजाय सीधे किसी होस्ट पर चलाना (systemd, init स्क्रिप्ट, या हाथ से)। Docker इमेज अनुशंसित रास्ता है: इसमें प्लगइन सैंडबॉक्स, हार्डनिंग और रनटाइम पहले से जुड़े होते हैं। बेयर मेटल पर जाने का मतलब है कि वह स्थिति **आपको** दोहरानी है: सही बाइनरी साथ-साथ, एक समर्पित गैर-root उपयोगकर्ता, आपके कर्नेल द्वारा समर्थित सैंडबॉक्स बैकएंड, और केवल मालिक के लिए सुलभ गोपनीय डायरेक्टरी। यह पेज उसी के लिए चरण-दर-चरण है।
+Evey को [Docker इमेज](installation.md) की जगह सीधे किसी होस्ट पर (systemd, किसी
+init script से, या हाथ से) कैसे चलाएँ। सुझाया गया रास्ता इमेज ही है: उसमें
+प्लगइन सैंडबॉक्स, सुरक्षा की मज़बूती और प्लगइन के runtime पहले से जुड़े हुए
+आते हैं। बिना कंटेनर (bare metal) चलाने का मतलब है यह सब खुद दोहराना: सही
+binary एक साथ, एक अलग उपयोगकर्ता जो root न हो, वह सैंडबॉक्स बैकएंड जो आपका
+kernel देता है, और secret वाले ऐसे फ़ोल्डर जिन्हें सिर्फ़ मालिक पढ़ सके। यह पेज
+इन्हें क्रम से बताता है।
 
-अगर आप केवल आसान इंस्टॉलेशन चाहते हैं, तो यहीं रुकें और [installation.md](installation.md) इस्तेमाल करें।
+## binary बनाएँ और इंस्टॉल करें
 
-## 1. पूर्व-शर्तें
-
-### बाइनरी (सोर्स से बनाएँ)
-
-दोनों Go बाइनरी बनाएँ और **उन्हें एक ही डायरेक्टरी में रखें**। प्लगइन रनर लॉन्चर को पहले `$EVEY_PLUGIN_LAUNCHER` जाँचकर, फिर अपने ही एक्ज़िक्यूटेबल (`os.Executable()`) के बगल में, फिर `$PATH` में खोजता है, इसलिए उन्हें साथ रखना सबसे सरल सही लेआउट है।
+दोनों Go binary बनाएँ और उन्हें एक ही फ़ोल्डर में इंस्टॉल करें: plugin runner
+launcher को पहले `$EVEY_PLUGIN_LAUNCHER` में ढूँढता है, फिर अपनी executable के
+बगल में, फिर `$PATH` पर।
 
 ```bash
-# रिपॉज़िटरी की जड़ से
+# रिपॉज़िटरी की जड़ (root) से
 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(git describe --tags --always) -X main.commit=$(git rev-parse HEAD)" -o evey ./cmd/evey
-CGO_ENABLED=0 go build -ldflags="-s -w"                                        -o evey-plugin-launcher ./cmd/evey-plugin-launcher
-
-# साथ-साथ इंस्टॉल करें, उदाहरण के लिए:
+CGO_ENABLED=0 go build -ldflags="-s -w" -o evey-plugin-launcher ./cmd/evey-plugin-launcher
 sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
 
-# वैकल्पिक: शेल कम्प्लीशन और मैनुअल पेज, दोनों बाइनरी छापता है
+# वैकल्पिक: shell completion और manual page, दोनों binary ही छापती है
 /opt/evey/evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
 /opt/evey/evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null
 ```
 
-`launcherPath()` (`internal/adapters/driven/pluginrunner/runner_landlock.go`) में खोज का क्रम:
+`evey version` बिना किसी कॉन्फ़िगरेशन के वर्ज़न, commit और build की तारीख छापता
+है।
 
-1. `$EVEY_PLUGIN_LAUNCHER` (एक्ज़िक्यूटेबल फ़ाइल होनी चाहिए): स्पष्ट ओवरराइड।
-2. चल रहे `evey` बाइनरी वाली **उसी डायरेक्टरी** में `evey-plugin-launcher`।
-3. `$PATH` में कहीं `evey-plugin-launcher`।
+### seccomp shim
 
-### LD_PRELOAD seccomp शिम
-
-`libevey-sandbox.so` शिम बनाएँ (एक छोटी C फ़ाइल; C कंपाइलर चाहिए):
+`libevey-sandbox.so` बनाएँ (एक C फ़ाइल, C compiler चाहिए) और इसे उस रास्ते पर
+इंस्टॉल करें जहाँ runner इसे ढूँढता है, `/app/libevey-sandbox.so`:
 
 ```bash
 gcc -shared -fPIC -nostartfiles -o libevey-sandbox.so sandbox/sandbox.c
-sudo install -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
+sudo install -D -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
 ```
 
-रनर इसे **तय पाथ `/app/libevey-sandbox.so`** (`runner.go` में `sandboxLibPath`) पर खोजता है। अगर यह मौजूद नहीं, तो प्लगइन **शुरू होने से मना करते हैं** (विफल होने पर बंद), जब तक आप डेवलपमेंट मोड में न चलाएँ। यह शिम डायनेमिक रूप से लिंक किए गए प्लगइन के लिए एक seccomp निषेध सूची जोड़ता है और Landlock/bubblewrap के ऊपर परत के रूप में काम करता है।
+यह रास्ता runner में तय है। इस फ़ाइल के बिना प्लगइन शुरू होने से मना कर देते हैं
+(fail closed), जब तक सर्वर dev मोड में न चल रहा हो। shim, dynamically linked
+प्लगइन के लिए Landlock या bubblewrap के ऊपर एक seccomp मनाही-सूची जोड़ता है।
+इमेज इसे SDK के साथ `/app` में रखती है; symlink भी काम करता है।
 
-> Docker इमेज ओपन-सोर्स बाइनरी, SDK और यह शिम `/app` के नीचे रखती है (वहाँ कोई गोपनीय चीज़ नहीं)। बेयर मेटल पर आप वही पाथ (`/app/libevey-sandbox.so`) दोहरा सकते हैं या एक सिमलिंक बना सकते हैं।
+### Runtime और सर्विस
 
-### रनटाइम
+आपके प्लगइन का `entrypoint:` जो भी चलाता है, उसे इंस्टॉल करें। runner `python3`,
+`python`, `node`, `php`, `ruby`, `perl`, `lua`, `bash` और `sh` पहचानता है;
+ज़्यादातर कम्युनिटी प्लगइन के लिए `python3` काफ़ी है। फिर वे सर्विस जिनसे सर्वर
+बात करता है:
 
-आपके प्लगइन का `entrypoint:` जो भी चलाता है उसे इंस्टॉल करें। रनर इन इंटरप्रेटर को पहचानता है (`runner_start.go` में `knownInterpreters`): `python3`, `python`, `node`, `php`, `ruby`, `perl`, `lua`, `bash`, `sh`। कम से कम:
+| ज़रूरत | क्यों |
+|---|---|
+| **ffmpeg** और **ffprobe** | ट्रांसकोडिंग, फ़ाइलों की जाँच; इमेज में VAAPI ड्राइवर और इंट्रो की पहचान के लिए `fpcalc` (chromaprint) भी होते हैं |
+| **PostgreSQL** (सर्वर और एक डेटाबेस) और **`pg_dump`** | डेटाबेस; `pg_dump` माइग्रेशन से पहले का अपने-आप वाला dump लिखता है |
+| **Meilisearch** | सर्च इंडेक्स; इसके बिना खोज SQL पर चलती है |
+| **`bwrap`** (bubblewrap) | सिर्फ़ bubblewrap सैंडबॉक्स बैकएंड के लिए |
+| **`setcap`** (libcap) | launcher को उसकी file capability देने के लिए |
 
-- **`python3`**: ज़्यादातर सामुदायिक प्लगइन।
-- **`node`**, **`php`**, **`ruby`**, **`lua`**: केवल अगर आपके प्लगइन उनका इस्तेमाल करें।
+अंदर वाला डेटाबेस और सर्च इंजन इमेज के entrypoint की सुविधा है, binary की नहीं:
+bare metal पर दोनों आप खुद चलाते हैं और `EVEY_DB_HOST` और `EVEY_MEILI_URL` को
+उनकी ओर भेजते हैं।
 
-साथ में मुख्य रनटाइम निर्भरताएँ:
+## एक अलग उपयोगकर्ता से चलाएँ, root से नहीं
 
-- **ffmpeg** (ट्रांसकोडिंग; इमेज में इंट्रो पहचान के लिए VAAPI ड्राइवर + `chromaprint` भी हैं)।
-- **PostgreSQL** (सर्वर + एक डेटाबेस)।
-- **Meilisearch** (सर्च इंडेक्स; या आधिकारिक बाइनरी से बिल्ट-इन रूप में चलाएँ)।
-- **`bwrap`** (bubblewrap): केवल अगर आप bubblewrap सैंडबॉक्स बैकएंड इस्तेमाल करना चाहते हैं (नीचे देखें)।
-- **`libcap`** (`setcap`): §4 में बताई गई फ़ाइल क्षमता देने के लिए।
-
-## 2. एक समर्पित गैर-root उपयोगकर्ता के रूप में चलाएँ
-
-**सर्वर को कभी root के रूप में न चलाएँ।** Docker इमेज की तरह एक समूह और दो बिना विशेषाधिकार वाले उपयोगकर्ता बनाएँ; प्लगइन UID 1001 पर उतारे जाते हैं (`pluginhost/host_server.go` में `pluginUID`):
+सर्वर को कभी root के रूप में न चलाएँ। इमेज की तरह एक ग्रुप और बिना विशेष
+अधिकार वाले दो उपयोगकर्ता बनाएँ:
 
 ```bash
 sudo groupadd --gid 1000 evey
@@ -71,135 +77,226 @@ sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
 sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugin
 ```
 
-समूह का id मायने रखता है: लॉन्चर प्लगइन को UID 1001 और सर्वर के अपने समूह पर उतारता है, और 1000 से नीचे के किसी भी id को मना करता है। केवल `useradd --system` से बने समूह को 1000 से नीचे का सिस्टम id मिलता है, और तब `basic` मोड में प्लगइन मना कर दिए जाते हैं।
-
 - `evey` (UID 1000) सर्वर चलाता है।
-- `evey-plugin` (UID 1001) वह UID है जिस पर प्लगइन उतारे जाते हैं (uid पृथक्करण सक्रिय होने पर लॉन्चर द्वारा), इसलिए सेंध लगा प्लगइन एक अलग, बिना विशेषाधिकार वाले उपयोगकर्ता के रूप में पहुँचता है जो सादी फ़ाइल सिस्टम अनुमतियों से सर्वर के रहस्य नहीं पढ़ सकता। देखें §4।
+- `evey-plugin` (UID 1001) वह उपयोगकर्ता है जिस पर प्लगइन uid separation चालू
+  होने पर भेजे जाते हैं, ताकि कोई हैक हुआ प्लगइन एक अलग, बिना विशेष अधिकार वाले
+  उपयोगकर्ता के रूप में रहे, जो सामान्य फ़ाइल अनुमतियों की वजह से सर्वर के
+  secret नहीं पढ़ सकता।
 
-सर्वर शुरू होते समय ख़ुद को **non-dumpable** चिह्नित करता है (`PR_SET_DUMPABLE=0`, `cmd/evey/hardening_linux.go`) ताकि साथ रहने वाला प्लगइन `/proc/<server-pid>/{mem,environ}` न खँगाल सके।
+!!! warning
+    ग्रुप id मायने रखती है: launcher प्लगइन को UID 1001 और सर्वर के अपने ग्रुप
+    पर भेजता है, और 1000 से नीचे की कोई भी uid या gid मना कर देता है। सिर्फ़
+    `useradd --system` से बने ग्रुप को 1000 से नीचे की system id मिलती है, और तब
+    `basic` मोड में प्लगइन मना कर दिए जाते हैं।
 
-## 3. अपने कर्नेल के लिए सैंडबॉक्स बैकएंड चुनें
+सर्वर शुरू होते समय खुद को non-dumpable बना लेता है (`PR_SET_DUMPABLE=0`), ताकि
+साथ चल रहा कोई प्लगइन `/proc/<server-pid>/{mem,environ}` न पढ़ सके।
 
-`EVEY_PLUGINS_SANDBOX_MODE` सेट करें। `auto` (डिफ़ॉल्ट) **landlock → bubblewrap → basic** क्रम में हल करता है और आपके होस्ट द्वारा समर्थित सबसे मज़बूत चुनता है (`runner_landlock.go` में `resolveAutoMode()`)। अगर आप विफल होने पर बंद व्यवहार चाहते हैं तो स्पष्ट रूप से चुनें।
+## अपने kernel के लिए सैंडबॉक्स बैकएंड चुनें
 
-### Landlock (अनुशंसित)
+`EVEY_PLUGINS_SANDBOX_MODE` सेट करें। `auto` (डिफ़ॉल्ट) इस क्रम में देखता है:
+landlock, bubblewrap, basic, और वह सबसे मज़बूत चुनता है जो होस्ट पर चलता है।
+जब आप fail-closed व्यवहार चाहते हों, तो मोड साफ़ तौर पर सेट करें।
 
-हर पाथ के लिए एक फ़ाइल सिस्टम अनुमति सूची (प्लगइन केवल अपनी डायरेक्टरी + सॉकेट डायरेक्टरी देखते हैं, कभी आपका डेटा या रहस्य नहीं) और साथ में Landlock v4 TCP-निकास फ़िल्टर। **किसी विशेषाधिकार, माउंट या नेमस्पेस की ज़रूरत नहीं**: लॉन्चर इसे ख़ुद पर लागू करता है, फिर प्लगइन को `execve` करता है।
+### Landlock (सुझाया गया)
 
-**कर्नेल की ज़रूरत**: Landlock कंपाइल किया हुआ *और* सक्रिय LSM सूची में होना चाहिए। रनर का `landlockAvailable()` (`landlock_probe_linux.go`) `landlock_create_ruleset(VERSION)` जाँचता है; जब सिस्टम कॉल मौजूद न हो (कर्नेल `<5.13`) या Landlock सक्रिय LSM सूची में न हो तो यह एक errno लौटाता है। जाँचें:
+हर रास्ते के हिसाब से फ़ाइल सिस्टम की अनुमति-सूची (प्लगइन अपना फ़ोल्डर और socket
+वाला फ़ोल्डर देखता है, आपका डेटा या secret कभी नहीं) और साथ में Landlock v4 का
+बाहर जाने वाले TCP का फ़िल्टर। इसके लिए न किसी विशेष अधिकार की ज़रूरत है, न
+mount की, न namespace की: launcher इसे खुद पर लागू करता है, फिर प्लगइन चलाता है।
+
+Landlock kernel में compile होना चाहिए और सक्रिय LSM सूची में होना चाहिए। runner
+`landlock_create_ruleset` को जाँचता है; यह जाँच तब फ़ेल होती है जब यह syscall
+नहीं है (5.13 से पुराना kernel) या जब Landlock सक्रिय सूची में नहीं है। जाँचें:
 
 ```bash
-uname -r                              # >= 5.13 चाहिए
+uname -r                              # 5.13 या नया चाहिए
 cat /sys/kernel/security/lsm          # इसमें "landlock" होना चाहिए
 ```
 
-अगर उस सूची में `landlock` नहीं है, तो उसे कर्नेल कमांड लाइन पर चालू करें और रीबूट करें (सटीक सूची हर डिस्ट्रो में अलग होती है: मौजूदा प्रविष्टियाँ रखें और `landlock` जोड़ें):
+अगर उस सूची में `landlock` नहीं है, तो इसे kernel command line में जोड़ें और
+reboot करें (मौजूदा एंट्री रखें, यह सूची हर distribution में अलग होती है):
 
 ```
-# उदाहरण के लिए GRUB_CMDLINE_LINUX में:
+# जैसे GRUB_CMDLINE_LINUX में:
 lsm=lockdown,capability,yama,apparmor,bpf,landlock
 ```
 
-फिर:
+फिर या तो `auto` रहने दें, या इसे तय कर दें:
 
 ```bash
-EVEY_PLUGINS_SANDBOX_MODE=landlock    # स्पष्ट + विफल होने पर बंद (Landlock लागू न हो सके तो प्लगइन मना)
-# या डिफ़ॉल्ट पर छोड़ दें:
-EVEY_PLUGINS_SANDBOX_MODE=auto        # उपलब्ध होने पर landlock पर हल होता है
+EVEY_PLUGINS_SANDBOX_MODE=landlock    # fail closed: Landlock लागू न हो सके तो प्लगइन मना कर दिया जाता है
 ```
 
-`landlock` मोड लॉन्चर को `-require-landlock` देता है, जो Landlock लागू न होने पर प्लगइन को बिना सीमा के चलाने की बजाय शून्य से अलग कोड के साथ बाहर निकल जाता है।
+`landlock` launcher को `-require-landlock` देता है, जो प्लगइन को बिना घेरे के
+चलाने की जगह non-zero के साथ बाहर निकल जाता है।
 
 ### bubblewrap
 
-अगर Landlock नहीं मिल सकता, तो `bwrap` बाइनरी इंस्टॉल करें। bubblewrap हर प्लगइन को माउंट श्वेतसूची के साथ user/pid/uts/ipc/(net) नेमस्पेस में रखता है। इसके लिए **बिना विशेषाधिकार वाले user नेमस्पेस चालू** और **`mount` सिस्टम कॉल उपलब्ध** होना चाहिए: ज़्यादातर बेयर-मेटल Linux पर यह सच है, लेकिन बिना विशेषाधिकार वाले Docker कंटेनर के अंदर रोका जाता है (यही कारण है कि कंटेनर में Landlock डिफ़ॉल्ट है)। `auto` bubblewrap केवल तब चुनता है जब Landlock **मौजूद न हो** और एक अस्थायी bwrap जाँच सचमुच सफल हो (`ProbeSandbox` / `sandbox_probe.go`)।
+जब Landlock उपलब्ध न हो, तो `bwrap` इंस्टॉल करें। यह हर प्लगइन को user, pid,
+uts, ipc और network namespace में रखता है, mount की एक अनुमति-सूची के साथ। इसके
+लिए बिना विशेष अधिकार वाले user namespace और `mount` syscall चाहिए, जो ज़्यादातर
+bare-metal Linux पर मिलते हैं पर बिना विशेष अधिकार वाले कंटेनर के अंदर बंद होते
+हैं, इसीलिए कंटेनर में डिफ़ॉल्ट Landlock है। `auto` bubblewrap को सिर्फ़ तब चुनता
+है जब Landlock न हो और `bwrap` की एक परख सफल हो।
 
 ```bash
-EVEY_PLUGINS_SANDBOX_MODE=bubblewrap  # bwrap नेमस्पेस
-# या:
-EVEY_PLUGINS_SANDBOX_MODE=strict      # bubblewrap + LD_PRELOAD seccomp शिम
+EVEY_PLUGINS_SANDBOX_MODE=bubblewrap  # namespace
+EVEY_PLUGINS_SANDBOX_MODE=strict      # namespace और साथ में seccomp shim
 ```
 
-जाँचें कि होस्ट सचमुच नेमस्पेस + माउंट सेटअप की अनुमति देता है:
+जाँचें कि होस्ट namespace और mount की यह सेटिंग करने देता है:
 
 ```bash
 bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 ```
 
-### basic (आख़िरी उपाय)
+### basic (आखिरी उपाय)
 
-`EVEY_PLUGINS_SANDBOX_MODE=basic`: UID उतारना + LD_PRELOAD seccomp शिम, और लॉन्चर फिर भी कर्नेल seccomp निषेध सूची और मौजूद होने पर यथासंभव Landlock लगाता है। **हर पाथ के लिए कोई फ़ाइल सिस्टम सीमा नहीं**: प्लगइन केवल seccomp के साथ UID 1001 पर चलता है। इसे केवल पुराने या बंद कर्नेल पर इस्तेमाल करें जहाँ न Landlock है न bubblewrap, और रहस्यों की सुरक्षा के लिए §4 के UID पृथक्करण पर भरोसा करें।
+`EVEY_PLUGINS_SANDBOX_MODE=basic` में uid बदला जाता है और साथ में seccomp shim
+होता है; launcher मौजूद हो, तो वह फिर भी अपनी kernel seccomp मनाही-सूची और जितना
+हो सके उतना Landlock लगाता है। हर रास्ते के हिसाब से फ़ाइल सिस्टम का कोई घेरा
+नहीं है: प्लगइन सिर्फ़ seccomp के साथ UID 1001 पर चलता है। इसे पुराने या कसकर
+बंद kernel पर इस्तेमाल करें जहाँ न Landlock चलता है न bubblewrap, और secret
+बचाने के लिए नीचे दिए uid separation पर भरोसा करें।
 
-> **`subprocess` अनुमति वाले प्लगइन को लॉन्चर चाहिए**, basic मोड में भी। LD_PRELOAD शिम किसी चाइल्ड प्रोसेस के `exec` के बाद नहीं बचता, इसलिए वह सबप्रोसेस शुरू करने की अनुमति वाले प्लगइन को सीमित नहीं कर सकता: केवल लॉन्चर का कर्नेल seccomp (`exec` से ठीक पहले लगाया गया और उसके पार विरासत में मिला) कर सकता है। अगर `evey-plugin-launcher` नहीं है (देखें §1), तो ऐसा प्लगइन प्रोडक्शन में बिना सीमा के चलने की बजाय **शुरू होने से मना करता है** (विफल होने पर बंद)। उस अनुमति के बिना प्लगइन ऊपर बताए अनुसार LD_PRELOAD शिम पर लौट आते हैं।
+जिस प्लगइन को `subprocess` की अनुमति मिली है, उसे `basic` मोड में भी launcher
+चाहिए: shim किसी child process के `exec` के बाद नहीं बचता, सिर्फ़ launcher का
+kernel seccomp बचता है। launcher के बिना ऐसा प्लगइन बिना घेरे के चलने की जगह शुरू
+होने से मना कर देता है।
 
-## 4. UID पृथक्करण (root के बिना रहस्यों की सुरक्षा)
+## secret को प्लगइन की पहुँच से दूर रखें
 
-UID पृथक्करण हर प्लगइन को सर्वर (UID 1000) से अलग एक उपयोगकर्ता (UID 1001, `evey-plugin`) के रूप में चलाता है, ताकि प्लगइन सादी फ़ाइल सिस्टम अनुमतियों (DAC) से सर्वर का `jwt.key`, बैकअप या लॉग न पढ़ सके। यह **`basic`** मोड में सबसे ज़्यादा मायने रखता है (Landlock की पाथ सीमा नहीं); Landlock या bubblewrap में फ़ाइल सिस्टम पहले से घिरा होता है, इसलिए वहाँ यह अतिरिक्त है।
+uid separation हर प्लगइन को `evey-plugin` (UID 1001) के रूप में चलाता है, जो
+सर्वर (UID 1000) से अलग है, ताकि सामान्य फ़ाइल अनुमतियों की वजह से प्लगइन
+`jwt.key`, बैकअप या लॉग न पढ़ सके। यह `basic` मोड में मायने रखता है; Landlock या
+bubblewrap में फ़ाइल सिस्टम पहले से घिरा होता है, इसलिए वहाँ यह दोहराव है।
 
-`EVEY_PLUGINS_UID_SEPARATION` से नियंत्रित (`auto` | `on` | `off`, डिफ़ॉल्ट `auto`):
+`EVEY_PLUGINS_UID_SEPARATION`:
 
-- `auto`: केवल तब चालू जब सैंडबॉक्स `basic` पर हल हो। आधुनिक बेयर-मेटल कर्नेल (Landlock) पर यह जान-बूझकर बंद रहता है।
-- `on`: हमेशा, Landlock/bubblewrap में भी (एक अतिरिक्त स्वतंत्र परत)।
-- `off`: कभी नहीं।
+| मान | व्यवहार |
+|---|---|
+| `auto` (डिफ़ॉल्ट) | सिर्फ़ तब चालू जब सैंडबॉक्स `basic` पर पहुँचे |
+| `on` | हमेशा, एक अलग अतिरिक्त परत के रूप में |
+| `off` | कभी नहीं |
 
-**उतारने का काम लॉन्चर करता है, सर्वर नहीं।** सर्वर बिना किसी क्षमता के गैर-root रहता है; छोटा `evey-plugin-launcher` बाइनरी एक ही फ़ाइल क्षमता रखता है और प्लगइन चलाने से ठीक पहले ख़ुद को 1001 पर `setuid` करता है:
+uid बदलने का काम launcher करता है, सर्वर नहीं। सर्वर root के बिना और बिना किसी
+capability के रहता है; launcher के पास एक file capability होती है और वह प्लगइन
+चलाने से ठीक पहले UID 1001 पर चला जाता है:
 
 ```bash
 sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 ```
 
-इससे सर्वर पूरी तरह बिना विशेषाधिकार रहता है: सर्वर का RCE `setuid(0)` नहीं कर सकता क्योंकि सर्वर के पास कोई क्षमता नहीं; केवल छोटे, बिना इनपुट वाले लॉन्चर के पास है (और वह 1000 से नीचे के किसी भी लक्ष्य UID को मना करता है)। अगर लॉन्चर उतार न सके (क्षमता गुम, या `no_new_privs` सेट), तो `basic` मोड में प्लगइन **मना** कर दिया जाता है, क्योंकि वहाँ UID ही रहस्यों के आगे उसकी एकमात्र दीवार है; Landlock में यह एक चेतावनी लॉग करता है और सर्वर के UID पर चलता है।
+launcher 1000 से नीचे की कोई भी लक्ष्य uid या gid मना कर देता है। जब वह uid नहीं
+बदल पाता (capability नहीं है, `no_new_privs` सेट है), तो `basic` मोड वाला प्लगइन
+मना कर दिया जाता है, क्योंकि वहाँ uid ही उसकी अकेली दीवार है; Landlock में वह लॉग
+में चेतावनी लिखता है और सर्वर की uid पर चलता है।
 
-> **`no_new_privs` के साथ असंगत।** अगर आप सर्वर को `no-new-privileges` (या systemd `NoNewPrivileges=yes`) के साथ चलाते हैं, तो exec पर फ़ाइल क्षमता अनदेखी होती है: `basic` मोड में प्लगइन मना होते हैं, और Landlock में uid पृथक्करण उसी UID तक गिर जाता है (चेतावनी के साथ)। एक चुनें।
+!!! warning
+    uid separation `no_new_privs` के साथ नहीं चलता। अगर सर्वर systemd
+    `NoNewPrivileges=yes` के साथ चलता है, तो exec पर file capability अनदेखी हो
+    जाती है: `basic` मोड में प्लगइन मना कर दिए जाते हैं, और Landlock में uid
+    separation घटकर एक ही uid रह जाता है। एक चुनें।
 
-अगर इसकी बजाय सर्वर **root के रूप में** चलता है (अनुशंसित नहीं), तो वह प्लगइन को सीधे 1001 पर उतारता है और लॉन्चर की क्षमता की ज़रूरत नहीं।
+अगर सर्वर इसकी जगह root के रूप में चलता है (सुझाया नहीं जाता), तो वह प्लगइन को
+सीधे 1001 पर भेजता है और capability की ज़रूरत नहीं होती। हर स्थिति की आसान भाषा
+में तस्वीर [प्लगइन सैंडबॉक्स सेटअप](plugins/sandbox-deployment.md) में है।
 
-हर स्थिति की तस्वीर के लिए सरल भाषा वाली मार्गदर्शिका देखें: [plugins/sandbox-deployment.md](plugins/sandbox-deployment.md)।
+## secret वाली फ़ाइलों की अनुमतियाँ
 
-## 5. गोपनीय फ़ाइलों की अनुमतियाँ
-
-Docker इमेज जो करती है (`Dockerfile`) उसे दोहराएँ: रहस्य रखने वाली डायरेक्टरी को **केवल मालिक के लिए** रखें ताकि UID 1001 पर उतारा गया प्लगइन Landlock के बिना भी उन्हें सादे DAC से न पढ़ सके।
+इमेज की नकल करें: secret वाले फ़ोल्डर सिर्फ़ मालिक के लिए होते हैं, ताकि UID
+1001 पर भेजा गया प्लगइन Landlock के बिना भी उन्हें न पढ़ सके।
 
 ```bash
 sudo chown -R evey:evey /var/lib/evey
-# plugins/ का मालिक सर्वर है (वह वहाँ इंस्टॉल निकालता है); evey समूह, जिसका
-# evey-plugin सदस्य है, इंस्टॉल फ़ाइलें केवल पढ़ता/चलाता है:
+# plugins/ सर्वर का है (वह इंस्टॉल वहीं खोलता है); ग्रुप evey,
+# जिसमें evey-plugin है, इंस्टॉल की गई फ़ाइलें सिर्फ़ पढ़ता और चलाता है:
 sudo chmod 750 /var/lib/evey/plugins
-# गोपनीय डायरेक्टरी पर केवल मालिक (समूह/अन्य नहीं):
+# secret वाले फ़ोल्डर सिर्फ़ मालिक के लिए:
 sudo chmod 700 /var/lib/evey/keys /var/lib/evey/logs /var/lib/evey/backups
-# JWT साइनिंग कुंजी ख़ुद:
-sudo chmod 600 /var/lib/evey/jwt.key      # (पहली बार चालू होने पर 0600 के साथ अपने आप बनती है)
+# JWT पर साइन करने वाली कुंजी खुद (पहले बूट पर 0600 के साथ बनती है):
+sudo chmod 600 /var/lib/evey/jwt.key
 ```
 
-(पाथ वहाँ के अनुसार बदलें जहाँ आप `EVEY_*_DIR` / `EVEY_JWT_PRIVATE_KEY_PATH` रखते हैं।)
+रास्ते वहाँ के हिसाब से बदलें जहाँ आप `EVEY_*_DIR` वेरिएबल और
+`EVEY_JWT_PRIVATE_KEY_PATH` भेजते हैं।
 
-## 6. एनवायरनमेंट और कॉन्फ़िग
+## environment कॉन्फ़िगर करें
 
-सारा रनटाइम कॉन्फ़िग `EVEY_*` एनवायरनमेंट वेरिएबल से होता है। डेटाबेस, सर्च, स्टोरेज पाथ, JWT कुंजी पाथ और रिवर्स-प्रॉक्सी वेरिएबल वैसे ही सेट करें जैसे Docker डिप्लॉयमेंट करता है: पूरी तालिका के लिए [configuration.md](configuration.md) और डेटाबेस/सर्च/रिवर्स-प्रॉक्सी के विवरण के लिए [installation.md](installation.md) देखें। तालिका यहाँ न दोहराएँ। बेयर मेटल की ख़ास बातें:
+सारा कॉन्फ़िगरेशन `EVEY_*` environment वेरिएबल से होता है;
+[कॉन्फ़िगरेशन रेफ़रेंस](configuration.md) में पूरी टेबल है। bare metal पर चलाने
+की खास बातें:
 
-- `EVEY_DB_HOST` / `EVEY_MEILI_URL` को अपने स्थानीय PostgreSQL / Meilisearch की ओर इंगित करें।
-- सर्वर अब भी **सादा HTTP** देता है: TLS के लिए आगे एक रिवर्स प्रॉक्सी लगाएँ (**Admin → रिमोट एक्सेस** में एक `https://` बाहरी URL और प्रॉक्सी को विश्वसनीय प्रॉक्सी में, या `EVEY_SERVER_BASE_URL` और `EVEY_TRUSTED_PROXIES`)। देखें [reverse-proxy.md](reverse-proxy.md)।
-- **सर्वर दो पोर्ट खोलता है, और उनमें से केवल एक को उजागर किया जा सकता है।** `EVEY_SERVER_PORT` (डिफ़ॉल्ट `9090`) मूल gRPC लिसनर है; जिस HTTP API से आपके क्लाइंट और रिवर्स प्रॉक्सी बात करते हैं वह **उस पोर्ट से एक ज़्यादा** (`9091`) है। अपने रिवर्स प्रॉक्सी और फ़ायरवॉल को केवल HTTP पोर्ट की ओर इंगित करें। gRPC पोर्ट एक आंतरिक ट्रांसपोर्ट है: रिमोट-एक्सेस नेटवर्क रोक, जो तय करती है कि आपके LAN के बाहर के क्लाइंट कनेक्ट कर सकते हैं या नहीं, HTTP शृंखला में जुड़ी है और **gRPC लिसनर को कवर नहीं करती**। इसीलिए gRPC लिसनर डिफ़ॉल्ट रूप से **केवल लूपबैक** से बँधता है (`EVEY_GRPC_BIND=127.0.0.1`), ताकि बेयर-मेटल रन इसे ग़लती से उजागर न कर सके। अगर आपके पास इसे प्रकाशित करने का कारण है (किसी दूसरे होस्ट पर मूल gRPC क्लाइंट), तो `EVEY_GRPC_BIND=0.0.0.0` सेट करें; सर्वर शुरू होते समय चेतावनी देता है कि रोक इस पर लागू नहीं होती, और तब इसे फ़ायरवॉल से बचाना आपकी ज़िम्मेदारी है।
-- माइग्रेशन शुरू होते समय अपने आप चलते हैं; कोई अलग माइग्रेट चरण नहीं।
-- प्लगइन संसाधन सीमाएँ (`EVEY_PLUGINS_MEMORY_MB`, `_PIDS_MAX`, `_DISK_MAX_MB`, `_CPU_NICE`) और सैंडबॉक्स मोड Admin → प्लगइन से चलते समय एडमिन द्वारा बदले जा सकते हैं; एनवायरनमेंट मान केवल शुरुआती डिफ़ॉल्ट हैं।
+- `EVEY_DB_HOST` और `EVEY_MEILI_URL` को अपने PostgreSQL और Meilisearch की ओर
+  भेजें। `EVEY_DB_PASSWORD` डिफ़ॉल्ट `evey` नहीं होना चाहिए।
+- रास्तों के Go डिफ़ॉल्ट कंटेनर के लिए चुने गए थे: `EVEY_LOG_DIR` (डिफ़ॉल्ट
+  सापेक्ष `logs`), `EVEY_BACKUP_DIR` (`/data/backups`),
+  `EVEY_TRANSCODING_CACHE_DIR` (`/data/transcode`), `EVEY_TRICKPLAY_CACHE_DIR`
+  (`/cache/trickplay`) और `EVEY_JWT_PRIVATE_KEY_PATH` (`/data/jwt.key`) को अपने
+  फ़ोल्डरों पर सेट करें।
+- सर्वर सादा HTTP देता है: TLS के लिए आगे एक रिवर्स प्रॉक्सी लगाएँ, `https://`
+  वाले **बाहरी URL** के साथ, और प्रॉक्सी को **विश्वसनीय प्रॉक्सी** में डालें
+  (**एडमिन → रिमोट एक्सेस**; `EVEY_SERVER_BASE_URL` और `EVEY_TRUSTED_PROXIES`
+  बैकअप हैं)। देखें [रिवर्स प्रॉक्सी कॉन्फ़िगरेशन](reverse-proxy.md)।
+- **सर्वर दो पोर्ट खोलता है, और सिर्फ़ एक बाहर खुला होना चाहिए।**
+  `EVEY_SERVER_PORT` (डिफ़ॉल्ट `9090`) अपना gRPC listener है; जिस HTTP API से
+  आपके क्लाइंट और रिवर्स प्रॉक्सी बात करते हैं, वह इस पोर्ट से एक आगे (`9091`)
+  है। रिमोट एक्सेस की जाँच, जो तय करती है कि आपके LAN के बाहर के क्लाइंट जुड़
+  सकते हैं या नहीं, HTTP वाले रास्ते में लगी है और gRPC listener पर लागू नहीं
+  होती, इसीलिए वह डिफ़ॉल्ट रूप से सिर्फ़ loopback पर सुनता है
+  (`EVEY_GRPC_BIND=127.0.0.1`)। अगर उसे बाहर खोलने की कोई वजह है, तो
+  `EVEY_GRPC_BIND=0.0.0.0` सेट करें; सर्वर बूट पर चेतावनी देता है कि जाँच उस पर
+  लागू नहीं होती, और तब उसे फ़ायरवॉल से बचाना आपकी ज़िम्मेदारी है।
+- माइग्रेशन सर्वर शुरू होते समय चलते हैं; माइग्रेशन का कोई अलग कदम नहीं है।
+- प्लगइन के संसाधनों की सीमाएँ (`EVEY_PLUGINS_MEMORY_MB`, `_PIDS_MAX`,
+  `_DISK_MAX_MB`, `_CPU_NICE`) और सैंडबॉक्स मोड चलते-चलते **एडमिन → प्लगइन →
+  संसाधन सीमाएँ** से बदले जा सकते हैं; environment के मान शुरुआती डिफ़ॉल्ट हैं।
+- एडमिन पैनल से सर्वर रीस्टार्ट इमेज के supervisor पर निर्भर है, और बिना कंटेनर
+  चलाने पर खुद को उपलब्ध नहीं बताता: सर्विस को खुद रीस्टार्ट करें।
 
-## 7. अपना सैंडबॉक्स जाँचें
+## सैंडबॉक्स की जाँच करें
 
-सर्वर हल किया गया सैंडबॉक्स बैकएंड लॉग करता है। पहला प्लगइन शुरू होने के बाद सर्वर लॉग जाँचें:
+सर्वर लॉग में वह बैकएंड लिखता है जो उसने चुना। पहला प्लगइन शुरू होने के बाद
+ये देखें:
 
-- **auto हल** (एक बार लॉग होता है): `plugin sandbox auto-detection complete  selected_mode=landlock` (या `bubblewrap` / `basic`)।
-- **हर प्लगइन** (हर प्लगइन शुरुआत पर): `plugin sandbox applied  sandbox_mode=landlock plugin_id=...`
-- **basic पर लौटा** (अगर आपको Landlock की उम्मीद थी तो यह चेतावनी आप *नहीं* देखना चाहते): `plugin sandbox auto-detection fell back to basic mode: no per-path filesystem isolation available …`: मतलब न Landlock मिला न काम करने वाला bwrap। §3 फिर से जाँचें।
+- एक बार, `auto` के लिए: `plugin sandbox auto-detection complete
+  selected_mode=landlock` (या `bubblewrap`, `basic`);
+- हर प्लगइन के शुरू होने पर: `plugin sandbox applied sandbox_mode=landlock
+  plugin_id=...`;
+- वह चेतावनी जो आप नहीं चाहते जब आपको Landlock की उम्मीद थी: `plugin sandbox
+  auto-detection fell back to basic mode: no per-path filesystem isolation
+  available ...`, यानी न Landlock मिला न चलता हुआ `bwrap`। ऊपर बैकएंड वाला
+  हिस्सा फिर से देखें।
 
-कर्नेल के हिस्सों की अलग से पुष्टि करें:
+kernel की तरफ़ से अलग से पुष्टि करें:
 
 ```bash
-cat /sys/kernel/security/lsm          # क्या Landlock सक्रिय है? ("landlock" सूची में होना चाहिए)
-grep Seccomp: /proc/<plugin-pid>/status   # 2 = चल रहे प्लगइन पर फ़िल्टर मोड सक्रिय
+cat /sys/kernel/security/lsm              # "landlock" दिखाता है
+grep Seccomp: /proc/<plugin-pid>/status   # 2 = प्लगइन पर एक seccomp फ़िल्टर सक्रिय है
 ```
 
-चल रहे प्लगइन प्रोसेस पर `Seccomp: 2` लाइन पुष्टि करती है कि कर्नेल seccomp फ़िल्टर लगा है। अगर आपने `EVEY_PLUGINS_SANDBOX_MODE=landlock` तय किया और Landlock लागू नहीं है, तो प्लगइन **शुरू होने से मना करता है**: यह विफल होने पर बंद वाला अनुबंध अपेक्षा के अनुसार काम कर रहा है।
+चल रहे प्लगइन प्रोसेस पर `Seccomp: 2` वाली लाइन पुष्टि करती है कि kernel
+फ़िल्टर लगा हुआ है। `EVEY_PLUGINS_SANDBOX_MODE=landlock` के साथ और Landlock लागू
+न होने पर, प्लगइन शुरू होने से मना कर देता है: यही fail-closed वादा काम कर रहा
+है।
 
----
+बैकअप, अपडेट और रिकवरी की कमांड के लिए कंटेनर वाले पेज जैसे हैं वैसे लागू होते
+हैं: [बैकअप और अपडेट](backups.md), [रिकवरी](runbooks/recovery.md) और
+[कमांड लाइन](runbooks/cli.md) उसी `evey admin` binary के बारे में हैं।
 
-बाक़ी सब के लिए (बैकअप, अपडेट, पुनर्प्राप्ति CLI, समस्या निवारण) [installation.md](installation.md) के Docker-केंद्रित सेक्शन समान रूप से लागू होते हैं: `evey admin` सबकमांड और बैकअप तंत्र वही बाइनरी है।
+<!-- sources
+launcher lookup: internal/adapters/driven/pluginrunner/runner_landlock.go - launcherPath, launcherBinaryName, resolveAutoMode
+shim path and modes: internal/adapters/driven/pluginrunner/runner.go - sandboxLibPath, sandboxModeStrict, pluginUID ; sandbox/sandbox.c ; Dockerfile (gcc line, /app/libevey-sandbox.so)
+interpreters: internal/adapters/driven/pluginrunner/runner_start.go - knownInterpreters
+basic sandbox, subprocess refusal, uid separation policy: internal/adapters/driven/pluginrunner/runner_sandbox.go - applyBasicSandbox, pluginDropArgs, uidSepApplies, WithUIDSeparation, effectiveMode ("auto-detection complete")
+landlock probe: internal/adapters/driven/pluginrunner/landlock_probe_linux.go - landlockAvailable ; bwrap probe: sandbox_probe.go - ProbeSandbox
+launcher: cmd/evey-plugin-launcher/main.go (-require-landlock, -uid, -uid-besteffort) ; cmd/evey-plugin-launcher/droppriv_linux.go (uid/gid >= 1000)
+hardening: cmd/evey/hardening_linux.go - PR_SET_DUMPABLE
+cli: cmd/evey/cli.go (version, completion bash, man)
+ports and defaults: internal/config/config.go (EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_LOG_DIR, EVEY_BACKUP_DIR, EVEY_TRANSCODING_CACHE_DIR, EVEY_TRICKPLAY_CACHE_DIR, EVEY_JWT_PRIVATE_KEY_PATH, EVEY_PLUGINS_*, hardFail on password "evey") ; cmd/evey/main.go - httpPort = Port+1
+pre-migration dump needs pg_dump: internal/adapters/driven/postgres/migrate_backup.go - dumpDatabase
+restart RPC needs the supervisor: docker/entrypoint.sh (EVEY_SUPERVISED)
+image permissions: Dockerfile (chmod 750 /data/plugins, chmod 700 keys/logs/backups, setcap)
+labels: i18n/en/admin.yaml - remoteAccess.externalUrl, remoteAccess.trustedProxies, plugins.resourceLimits.title
+-->
