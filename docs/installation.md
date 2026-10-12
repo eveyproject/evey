@@ -1,35 +1,47 @@
 # Install
 
-Evey runs as one container: the image serves the API and the web interface on
-one port, and runs its own database (Postgres) and search engine (Meilisearch)
-inside it. This page is for the person who runs Docker at home or on a NAS:
-copy the compose file, start it, open **`http://<server-address>:9091`** in a
-browser, and continue with the setup wizard. No `.env`, no privileged mode,
-no memory or CPU setting.
+This page is for the person who will run Evey for the household. You need a
+computer or a NAS that stays on, with Docker installed. It takes three steps:
 
-!!! warning "Not the repository's docker-compose.yml"
+1. Save one file, the compose file.
+2. Start Evey with one command.
+3. Open Evey in a browser.
+
+Then the [First setup](getting-started/first-setup.md) wizard takes over.
+
+Evey runs as a single container. Its database and search engine are inside
+it, so there is nothing else to install, no `.env` file to write, and no
+memory or CPU setting.
+
+!!! warning "Use the file on this page, not the one in the Git repository"
 
     The `docker-compose.yml` at the root of the Git repository is a different
-    layout (Postgres as a separate service, a bundled Caddy, a required `.env`).
-    Use the file on this page. The other layout is described in
+    setup, for developers and advanced installs: it needs a `.env` file and
+    runs extra services. It is described in
     [Advanced deployments](operations/advanced-deployments.md).
 
-## Requirements
+## What you need
 
-- Docker with Compose v2 (`docker compose`, not the older `docker-compose`).
-- A persistent disk for Evey's data (the compose file below keeps it in
-  `./evey-data`, next to the file).
-- An x86-64 host, or ARM64 with a release tag: see
+- **A computer or NAS that stays on**, with an x86-64 processor (Intel or
+  AMD). ARM64 machines need a release tag, which does not exist yet: see
   [ARM hosts](operations/advanced-deployments.md#arm-hosts).
+- **Docker with Compose v2.** The command is `docker compose`, with a space,
+  not the older `docker-compose`.
+- **Your media folder**: where your films, series, music or photos are.
+- **Some disk space for Evey's own data** (database, artwork, search index).
+  The compose file below keeps it in a folder named `evey-data`, next to the
+  file.
 
-Evey serves plain HTTP. To reach it from outside your home over HTTPS, put a
-reverse proxy in front of it later: see
+Evey answers in plain HTTP on your home network. Watching from outside your
+home needs HTTPS, which you can add later:
 [Remote access and HTTPS](administration/remote-access.md).
 
-## The compose file
+## Step 1: Save the compose file { #the-compose-file }
 
-Save this as `docker-compose.yml` and replace the media path on the last volume
-line.
+Create a folder for Evey, for example `evey`, and save this file in it as
+`docker-compose.yml`. Change one line: the path to your media (the line
+marked 5). For example, if your films are in `/srv/media`, the line becomes
+`- /srv/media:/media`.
 
 ```yaml title="docker-compose.yml"
 services:
@@ -49,108 +61,130 @@ volumes:
   evey-cache:
 ```
 
-1. Evey is in beta and has no numbered release yet, so there is no `latest`
-   tag: `beta-0.0.1` follows the development branch and moves with every
-   change. To run the same code from one pull to the next, put an immutable
-   `sha-<commit>` tag here instead: see
+1. The version of Evey. Evey is in beta, so there is no `latest` tag yet:
+   `beta-0.0.1` follows the development branch and changes with every update.
+   To stay on exactly the same code, use a `sha-<commit>` tag instead: see
    [Backups and updates](backups.md#updating-evey).
-2. The API and the web interface, on one port, in plain HTTP. The number on
-   the left is the port you will type in the browser and in the apps; keep
-   `9091` unless it is already taken on the host.
-3. Everything Evey owns: database, signing key, generated passwords, search
-   index, timeline thumbnails, artwork, logs, backups, plugins. This is the
-   folder to back up.
-4. Transcoding cache: segments, resized photos and covers. It can be deleted
-   at any time and refills on demand.
-5. Your media. Mounted read-write on purpose: the repairs of
-   [Media health](runbooks/media-health.md) rewrite files in place. Append
-   `:ro` for a read-only library and those repairs will fail. More folders are
-   mounted as `/media2`, `/media3`...
-6. Leaves the embedded database time to stop cleanly on `docker stop`. Docker's
-   default of 10 seconds is short for a large catalogue.
+2. The port. The number on the left is the one you will type in the browser
+   and in the apps. Keep `9091` unless another program already uses it.
+3. Evey's own data: database, keys, generated passwords, search index,
+   artwork, logs, backups, plugins. **This is the folder to back up.**
+4. A cache of converted video, resized photos and covers. It can be deleted
+   at any time and fills up again by itself.
+5. Your media. Replace `/path/to/your/media` with the real folder. Inside
+   Evey, this folder is called `/media`. It is writable on purpose, so that
+   [Media health](runbooks/media-health.md) can repair a file when you ask.
+   Add `:ro` at the end to make it read-only: Evey then cannot write there,
+   and repairs fail.
+6. Gives the database time to stop cleanly when the container stops.
+   Docker's default of 10 seconds is short for a large collection.
 
-## First launch
+## Step 2: Start Evey { #first-launch }
+
+In a terminal, in the folder that holds the file:
 
 ```bash
 docker compose up -d
-docker compose logs -f evey
 ```
 
-On the first start the server generates its signing key and passwords in
-`./evey-data`, creates the database and applies its migrations. Nothing has to
-be prepared by hand.
+Evey starts in the background. To watch what it is doing, run
+`docker compose logs -f evey`; press `Ctrl+C` to stop watching, Evey keeps
+running.
 
-## The address to open next
+On the first start, Evey creates its passwords and its database in
+`evey-data`. You have nothing to prepare.
 
-Open **`http://<server-address>:9091`** in a browser on the same network:
+## Step 3: Open Evey in a browser { #the-address-to-open-next }
 
-| Where the browser is | Address to type |
+The address is `http://`, then the address of the machine running Docker,
+then `:9091`:
+
+| Where your browser is | Address to type |
 | --- | --- |
 | On the machine running Docker | `http://localhost:9091` |
-| Another computer or a phone at home | `http://` + the IP of the Docker host on your home network + `:9091`, for example `http://192.168.1.20:9091` |
-| Outside your home | Not yet: this needs HTTPS and a public address, see [Remote access and HTTPS](administration/remote-access.md) |
+| On another computer or a phone at home | `http://` + the IP address of the machine running Docker + `:9091`, for example `http://192.168.1.20:9091` |
+| Outside your home | Not yet. This needs HTTPS and a public address: see [Remote access and HTTPS](administration/remote-access.md). |
 
-The IP of the Docker host is in your router's list of devices, or on the host
-itself (`ip a` on Linux, `ipconfig` on Windows, `ifconfig` on macOS). The
-port is the left-hand number of the `ports:` line in the compose file.
+To find the IP address of the machine running Docker, look in your router's
+list of connected devices, or run `ip a` on Linux, `ipconfig` on Windows,
+`ifconfig` on macOS. If you changed the port in step 1, use the number on the
+left of the `ports:` line instead of `9091`.
 
-A server with no administrator opens on the setup wizard: continue with
+The first time, the address opens the setup wizard. Continue with
 [First setup](getting-started/first-setup.md#1-the-setup-wizard). Once the
-administrator exists, the same address opens on the sign-in page.
+wizard is done, the same address opens the sign-in page.
 
-!!! tip "The apps ask for the same address"
+!!! tip "Write this address down"
 
-    The Android and Android TV apps ask for the server address on their first
-    screen. It is exactly this address, with `http://` and the port:
-    [The server address to enter](getting-started/apps.md#the-server-address-to-enter).
+    Everyone at home will need it. The Android and Android TV apps ask for
+    exactly this address on their first screen, with `http://` and the port:
+    [Connect the apps](getting-started/apps.md#the-server-address-to-enter).
 
-## Where the data lives
+## Where your data lives { #where-the-data-lives }
 
-| Location | Contains | Can be deleted? |
+| Location | What it holds | Can you delete it? |
 | --- | --- | --- |
-| `./evey-data` | Database, signing key, generated passwords, search index, timeline thumbnails, artwork, logs, backups, plugins | No. Losing it loses every account, watch history and setting. Only `meili/` inside it can go: the search index is rebuilt from the database with `evey admin reindex-search`. |
-| `evey-cache` volume | Transcoded segments, resized photos and covers | Yes. Regenerated on demand. |
-| Your media folders | Your files | Evey does not delete them; removing a title in Evey removes it from the library, not from the disk. It writes there in three cases: a repair run from Media health (the original is kept as a backup), subtitles downloaded from OpenSubtitles (a `.subtitles` folder next to the film), and a probe file of a few seconds that checks the folder watcher still receives events. |
+| `./evey-data` | Database, keys, generated passwords, search index, timeline thumbnails, artwork, logs, backups, plugins | **No.** Losing it loses every account, watch history and setting. The only exception is `meili/` inside it, the search index: the command `evey admin reindex-search` rebuilds it from the database. |
+| `evey-cache` volume | Converted video, resized photos and covers | Yes. It fills up again by itself. |
+| Your media folders | Your files | Evey never deletes them. Removing a title in Evey removes it from the library, not from the disk. |
 
-## Common variations
+Evey writes into your media folders in three cases only:
 
-Each of these is a few lines added to the same file.
+- a repair you start from **Media Health** (the original is kept as a
+  backup);
+- a subtitle downloaded from OpenSubtitles (saved in a `.subtitles` folder
+  next to the film);
+- a small test file, deleted right after, that checks Evey still
+  notices new files.
 
-**A second media folder.** Add `- /other/path:/media2` under `volumes:`.
+## Common changes { #common-variations }
 
-**Another port on the host.** Change the left-hand number only, for example
-`"8080:9091"`, and type `:8080` in the browser and the apps instead.
+Each of these is a few lines in the same file.
 
-**File ownership.** By default the container adopts the owner of your `/media`
-mount, so that repairs can write. To choose it yourself, set `PUID` and `PGID`
-under `environment:` (the output of `id -u` and `id -g`). The container starts
-as root only to apply that mapping; the server itself never runs as root.
+**A second media folder.** Add `- /other/path:/media2` under `volumes:`. A
+third one is `/media3`, and so on.
 
-**A graphics card for transcoding.** Map the device into the container: see
-[Hardware acceleration](administration/hardware-acceleration.md).
+**Another port.** Change only the number on the left, for example
+`"8080:9091"`. Then type `:8080` in the browser and in the apps.
 
-**Behind a reverse proxy you already run.** See
-[Remote access and HTTPS](administration/remote-access.md).
+**Who owns the files.** By default, Evey adopts the owner of your media
+folder, so that repairs can write. To choose yourself, add `PUID` and `PGID`
+under `environment:`, with the numbers given by `id -u` and `id -g`. The
+container starts as root only to apply this; Evey itself never runs as root.
+
+**A graphics card for video conversion.** Give the container access to the
+card: see [Hardware acceleration](administration/hardware-acceleration.md).
+
+**You already run a reverse proxy** (a program that puts HTTPS in front of
+your services): see [Remote access and HTTPS](administration/remote-access.md).
 
 ??? note "On a NAS (Synology Container Manager, QNAP Container Station)"
 
     - Create the `evey-data` folder before the first start. These interfaces
-      refuse a bind mount whose folder does not exist, unlike the Docker
-      command line. Nothing else needs creating.
+      refuse to mount a folder that does not exist, unlike the Docker command
+      line. Nothing else needs creating.
     - Set `PUID` and `PGID` to the NAS user that owns the media (`id <user>`
-      over SSH; on Synology typically around `1026`, group `100`). A NAS share
-      is often owned by `root`, which the automatic detection never adopts.
+      over SSH; on Synology usually around `1026`, group `100`). NAS shares
+      are often owned by `root`, which Evey never adopts on its own.
     - Intel NAS with Quick Sync: add the `devices:` and `group_add:` lines
       described in [Hardware acceleration](administration/hardware-acceleration.md).
 
-## What you do not need to configure
+## What Evey sets up by itself
 
-Transcoding capacity, the graphics card, the playback method for each device
-and remote access are decided by the server: it measures the machine on its
-first quiet moment, detects the hardware you mapped, and opens remote access
-when you give it a public address. Settings that can change later (server
-name, schedules, limits, API keys) are in the admin panel, not in the compose
-file. The environment variables that do exist are listed in the
+You do not configure these:
+
+- **How much video the server can convert at once.** It measures the machine
+  at its first quiet moment.
+- **The graphics card.** Evey detects the card you gave the container and
+  checks it with a real conversion.
+- **How each device plays a file.** Decided for each playback: see
+  [How playback is decided](playback/how-playback-is-decided.md).
+- **Access from outside your home.** Off until you give the server a public
+  address.
+
+Settings that you may change later (server name, schedules, limits, API
+keys) are in the admin panel, not in the compose file. The few environment
+variables that exist are listed in the
 [Configuration reference](configuration.md).
 
 <!-- sources
@@ -165,4 +199,7 @@ writes into media folders: internal/app/subtitle/service.go (.subtitles) ; inter
 delete = library only: internal/app/library/command_service.go - DeleteMediaItem ; internal/app/music/command_service.go - DeleteTrack
 remote access inference: docs/adr/0026-remote-access-inferred-from-a-published-url.md
 calibration at first quiet moment: internal/app/transcoding/calibration_service.go
+ARM needs a release tag, none exists yet: docs/operations/advanced-deployments.md (ARM hosts) ; git tag (none)
+probe file removed right after: internal/app/library/watcher_probe.go - probeOnce
+apps link label: docs/getting-started/apps.md (Connect the apps)
 -->

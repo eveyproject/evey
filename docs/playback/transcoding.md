@@ -1,10 +1,24 @@
 # Transcoding and server capacity
 
-Transcoding is the expensive outcome of [the playback decision](how-playback-is-decided.md):
-Direct Play and Remux cost the server almost nothing and never take a
-transcoding slot. This page is for the administrator who wants to know how
-many viewers the server can serve at once: how it measures what it can
-encode, how it shares that capacity, and what a viewer sees when it is full.
+**In short:**
+
+- **Transcoding** means converting a video into a form the device can play.
+  It is the only heavy work the server does: playing a file as it is (Direct
+  Play) or repackaging it (Remux) costs almost nothing. See
+  [How playback is decided](how-playback-is-decided.md).
+- You do not set how many people the server can serve. It measures itself
+  at its first quiet moment, in a few minutes, and never accepts more.
+- When it runs short, a new playback gets a lower quality, or moves from a
+  busy graphics card to the processor. If neither has room, the player says
+  **The server is busy transcoding other streams**.
+- What you may want to do: give the server a graphics card
+  ([Hardware acceleration](../administration/hardware-acceleration.md)), and
+  keep free space on the disk that holds the cache
+  ([The transcoding cache](#the-transcoding-cache)).
+
+The rest of this page is for the administrator who wants the details: how
+the server measures what it can encode, how it shares that capacity, and
+what a viewer sees when it is full.
 
 ## The server measures itself
 
@@ -146,4 +160,5 @@ single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT, defa
 bench samples: internal/config/config.go (EVEY_BENCH_{SDR,HDR}_SAMPLE{,_URL,_SHA256})
 cache budget, clear while live: i18n admin.serverSettings.transcodeCacheMaxGB, admin.transcodeCache.clearConfirmLiveSessions ; automatic limits: admin.qoe.overrides.*
 load test: i18n admin.loadtest.idleWarning, errorActiveStreams
+plain opening, busy message: i18n errors max_concurrent_reached ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper.GrantRoute
 -->

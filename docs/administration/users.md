@@ -1,18 +1,24 @@
 # Users, profiles and parental control
 
-An **account** signs in; a **profile** watches. This page is for the
-administrator who adds the household: create the accounts, let each one
-create its profiles, mark the children's profiles as kids profiles and give
-them an age limit. What an account can be restricted to, opening hours,
-requests, public download links and the home page come after.
+Two words matter on this page:
+
+- An **account** is what signs in: a username and a password.
+- A **profile** is a person who watches. Each profile has its own history,
+  resume points, favourites, languages and home page.
+
+An account can hold several profiles. Most households share one account,
+with one profile per person. You can also give each adult their own account.
+
+This page starts with the common tasks: add someone, add a child. The
+finer controls (limits per account, opening hours, requests, the home page,
+download links) come after.
 
 ## Accounts and profiles
 
-An account has a username and a password (or a single sign-on identity, see
-[OIDC](../oidc.md)), and it is either an administrator or not. Each account
-holds one or more profiles, each with its own watch history, resume points,
-favourites, languages and home page. A household typically shares one
-account, with a profile per person.
+An account has a username and a password, or signs in through single
+sign-on (see [OIDC](../oidc.md)). It is either an administrator or a normal
+account. Every new account starts with one profile, named after its
+username.
 
 ## Create an account
 
@@ -21,151 +27,195 @@ account, with a profile per person.
   <figcaption><strong>Admin → Users</strong>: each account with its profiles, its role and its state.</figcaption>
 </figure>
 
-**Admin → Users** offers two ways:
+Go to **Admin → Users**. There are two ways.
 
-- **Create User**: you choose the **Username** and the **Password**, tick
-  **Admin** for an administrator, and can set the libraries, the number of
-  profiles and the number of devices right there (see below).
-- **Create Invite Link**: the person chooses their own. A link can have an
-  expiry date (**Expires at**) and a maximum number of uses (**Max uses**),
-  restrict the libraries the new account sees (**Accessible libraries**), cap
-  the number of profiles it may create, and **Create as administrator**.
-  **Invite Links** lists them; **Copy Link** copies one, **Revoke** ends it.
+**Send an invitation link**, so the person picks their own password:
 
-**Disable** on an account's row refuses its sign-ins without deleting
-anything; **Enable** restores it. **Delete** removes the account and its
-profiles.
+1. Press **Create Invite Link**.
+2. Optionally, limit it: **Expires at (optional)**, **Max uses (empty =
+   unlimited)**, **Accessible libraries** (the libraries the new account
+   will see), and the number of profiles it may create. Tick **Create as
+   administrator** only for someone who will manage the server with you.
+3. Under **Invite Links**, press **Copy Link** and send it.
+
+The link is built from the address in your browser. Open the admin panel
+from the address the others will use (for example
+`http://192.168.1.20:9091`), not from `localhost`. **Revoke** stops a link
+from working.
+
+**Or create the account yourself**: press **Create User**, choose the
+**Username** and the **Password**, and give them to the person. Tick
+**Admin** for an administrator. You can also set the libraries, the number of
+profiles and the number of devices right away (see
+[What an administrator can restrict per account](#what-an-administrator-can-restrict-per-account)).
+
+On an account's row:
+
+- **Disable** blocks its sign-ins without deleting anything. **Enable** lets
+  it back in.
+- **Delete** removes the account and its profiles.
 
 ## Profiles, kids profiles and the PIN
 
-Each account creates its profiles in **Settings → Profiles → Create Profile**;
-an administrator can also add one from **Edit User → New profile**. A profile
-has a **Name**, a **Language** and a **Region**, and two settings that matter
-for children:
+**To add a profile**: from that account, go to **Settings → Profiles →
+Create Profile**. An administrator can also add one to any account, from
+**Edit User → New profile**. A profile has a **Name**, a **Language** and a
+**Region**.
 
-- **Kids profile** marks the profile as a child's. It opens without a PIN,
-  and leaving it for another profile asks for that profile's **PIN
-  (4 digits)**. While a kids profile exists, every other profile of the
-  account must have a PIN: the server refuses to save a profile without one.
-  Setting a PIN the first time asks for the account password; changing it
-  asks for the current PIN. **Settings → Parental** sets the PIN of the
-  profile in use.
-- **Max age rating** appears on a kids profile only: titles rated above it are
-  never sent to the profile. Left on **Default (12+)**, the limit is 12.
+**To add a child's profile**:
 
-Managing profiles and parental settings is only possible from a profile that
-is not a kids profile. An administrator's account cannot have a kids profile:
-the limit would gate the administrator's own library.
+1. Create the profile and tick **Kids profile**.
+2. Choose a **Max age rating**. If you leave **Default (12+)**, the limit is
+   12.
+3. Give a **PIN (4 digits)** to every other profile of the account. The
+   server requires it as soon as a kids profile exists, and refuses to save
+   a profile without one.
+
+What the child then sees:
+
+- The kids profile opens without a PIN.
+- Leaving it for another profile asks for that profile's PIN.
+- Titles above the age limit never appear (see [Age limits](#age-limits)).
+
+??? info "PIN details and who can manage profiles"
+
+    - Setting a PIN for the first time asks for the account password.
+      Changing it asks for the current PIN. **Settings → Parental** sets the
+      PIN of the profile in use.
+    - Profiles and parental settings can only be managed from a profile that
+      is not a kids profile.
+    - An administrator's account cannot have a kids profile: the limit would
+      hide part of the administrator's own library.
 
 ## Age limits
 
-The age is read against the rating system of the profile's **Region**
-(**Settings → Profiles → Edit**; **Automatic** derives it from the profile's
-language, and falls back to the British system). A title whose rating that
-system cannot place is hidden from the kids profile rather than shown.
+The server, not the app, applies the age limit. A title above the limit is
+not just hidden on screen: it is never sent to the kids profile. This holds
+for browsing, search, playback and downloads.
 
-The limit is applied by the server, not by the apps: a title above it is not
-hidden in the interface, it is never sent. That holds for browsing and search,
-for playback and for downloads. If the server cannot read a profile's settings
-(a database error, for example), it refuses the content rather than allowing
-it. Administrators are not subject to profile limits.
+- **Which ratings are used.** The age is read from the rating system of the
+  profile's **Region** (**Settings → Profiles → Edit**). With **Automatic**,
+  the region comes from the profile's language, and the British system is
+  used when that does not help.
+- **A title without a usable rating** is hidden from the kids profile rather
+  than shown.
+- **When in doubt, no.** If the server cannot read a profile's settings (a
+  database error, for example), it refuses the content instead of allowing
+  it.
+- **Downloads too.** A film downloaded to a phone keeps its limit offline: a
+  kids profile cannot open a download made by another profile if it is above
+  its age limit.
 
-A film downloaded to a phone stays subject to the limit offline: a kids profile
-cannot open a download made by another profile above its age limit.
+Administrators are not subject to profile limits.
 
 ## What an administrator can restrict per account
 
-These settings live in **Create User** and **Edit User**, and on the account's
-row in **Admin → Users**.
+These settings are in **Create User** and **Edit User**, and on the
+account's row in **Admin → Users**.
 
-| Setting | Effect |
+| Setting | What it does |
 | --- | --- |
-| **Library Access** (the **Libraries** button on the row) | The libraries the account sees. Everything else is absent from its searches, home page and API responses. An administrator always sees everything. |
-| **Max Bitrate** (the **Bitrate** button) | A ceiling, from 1 to 40 Mbps, on the bitrate the account's players receive (0 = unlimited). A title above it is transcoded down to it. |
-| **Max profiles** | How many profiles the account may create (0 = unlimited). |
-| **Max devices per profile** | How many playbacks each profile may have running at once, across its devices (0 = unlimited). One more is refused when it starts. |
+| **Library Access** (the **Libraries** button on the row) | The libraries the account sees. The others do not appear anywhere for it: not in search, not on its home page. An administrator always sees everything. |
+| **Max Bitrate** (the **Bitrate** button) | Limits the video quality the account receives, from 1 to 40 Mbps (0 = no limit). A title above it is converted down to it. |
+| **Max profiles** | How many profiles the account may create (0 = no limit). |
+| **Max devices per profile** | How many videos each profile may play at the same time, across its devices (0 = no limit). One more is refused when it starts. |
 
-**Connect as** opens the server as that user sees it, to check a restriction
-or reproduce a problem. A banner stays visible, and **Exit** returns to your
-own account.
+**Connect as** shows the server exactly as that user sees it. Use it to check
+a restriction or to see a problem for yourself. A banner stays on screen, and
+**Exit** takes you back to your own account.
 
 ## Opening hours
 
-A kids profile can be limited to **opening hours**: the clock icon next to it
-in **Settings → Profiles** opens the editor. Nothing is set until you turn on
-**Limit to opening hours**; the editor then suggests weekdays 18:00 to 22:00,
-and Saturday and Sunday 9:00 to 12:00 and 14:00 to 21:00.
+You can let a kids profile watch only at certain hours.
 
-The hours are a list of time ranges, edited two ways: **Weekdays / weekend**
-(one block for Monday to Friday, one for the weekend) or **Day by day**. A day
-can have several ranges, a range can run past midnight (20:00 to 0:30), and a
-day with no range is closed. Switching back to the week view is refused when
-the days of a block differ, so nothing is lost silently.
+1. In **Settings → Profiles**, press the clock icon next to the kids profile.
+2. Turn on **Limit to opening hours**. Evey suggests weekdays 18:00 to 22:00,
+   and Saturday and Sunday 9:00 to 12:00 and 14:00 to 21:00.
+3. Adjust the hours, either with **Weekdays / weekend** (one block for Monday
+   to Friday, one for the weekend) or **Day by day**.
 
-The server enforces the hours, in its own time zone (**Admin → Server Config →
-Language & Region → Server time zone**; without it, the `TZ` variable, then
-Europe/Paris). Changing the clock of a tablet changes nothing. Outside the
-hours the profile is refused everywhere - browsing, every segment of a film in
-progress, music, downloads - and every app shows a lock screen saying when it
-opens again. Ten minutes before closing, the player shows a warning; at the
-time, playback stops.
+A day can have several time ranges. A range can go past midnight (20:00 to
+0:30). A day with no range is closed.
 
-On the lock screen, the **Parent PIN** (the PIN of a profile of the same
-account that is not a kids profile) opens the kids profile until its next
-opening; the child's own PIN, if it has one, does not. **Switch profile** leads
-to the profile picker. A schedule that the server cannot read keeps the
-profile closed rather than open.
+What happens:
 
-A film downloaded to a phone and played without a connection does not reach the
-server, so the hours do not apply to it.
+- **Outside the hours**, the profile is closed everywhere: browsing, films,
+  music, downloads. Every app shows a lock screen saying when it opens again.
+- **Ten minutes before closing**, the player shows a warning. At closing
+  time, playback stops.
+- **To let the child in anyway**, type the **Parent PIN** on the lock screen:
+  the PIN of a profile of the same account that is not a kids profile. It
+  opens the kids profile until its next opening. The child's own PIN does
+  not work there. **Switch profile** goes back to the profile list.
+
+??? info "Time zone and edge cases"
+
+    - The server applies the hours in its own time zone: **Admin → Server
+      Config → Language & Region → Server time zone** (if empty, the `TZ`
+      variable, then Europe/Paris). Changing the clock on a tablet changes
+      nothing.
+    - Going back from **Day by day** to **Weekdays / weekend** is refused
+      when the days of a block differ, so nothing is lost by accident.
+    - A schedule the server cannot read keeps the profile closed.
+    - A downloaded film played without a connection never reaches the
+      server, so the hours do not apply to it.
 
 ## Requests
 
-Users can search for a film, a series or an artist that is missing from the
-libraries and ask for it. Requests arrive in **Admin → Media Requests**, where
-an administrator chooses **Approve**, **Reject** or **Later**, with a note.
-The **Access** tab sets who may request: **Allow requests by default for all
-users**, with **Per-user overrides**.
+People can ask for a film, a series or an artist you do not have yet. Their
+requests arrive in **Admin → Media Requests**. For each one, choose
+**Approve**, **Reject** or **Later**, and add a note if you like. The person
+is notified of your answer.
 
-## Public download links
-
-On a film or episode page, an administrator can create a **Public download
-link** (web and Android apps). It is a URL anyone can open, without an account,
-to download the original file; it is copied to the clipboard.
-
-- It expires after 48 hours. Through the server API it can last up to 72 hours
-  and be limited to a number of downloads (`POST /api/v1/media/{id}/share`).
-- Only administrators can create, list and revoke links. The apps only create
-  them: listing and revoking go through the API (`GET /api/v1/admin/share-links`,
-  `DELETE /api/v1/share-links/{id}`).
-- With remote access off, the link only works from the local networks.
-- Whoever holds the link can download the file until it expires: share it like
-  the file itself.
+To choose who may ask, open the **Access** tab: **Allow requests by default
+for all users**, then **Per-user overrides** for exceptions.
 
 ## The home page
 
-The home page is a stack of rows; a row with nothing to show is hidden.
+The home page is a stack of rows. A row with nothing to show is hidden.
 
 | Row | What it shows |
 | --- | --- |
 | **Resume Playback** | What the profile started and has not finished, most recent first. A title counts as watched at 90 %. |
-| **Up Next** | For each series the profile has watched an episode of, the next unwatched episode. |
+| **Up Next** | For each series the profile has started, the next episode not yet watched. |
 | **Collections** | The collections, with a link to the full list. |
-| **Recommended For You** | Films and series in the profile's usual genres, best match first, then by rating. A genre counts when it appears in at least 3 of the profile's last 200 playbacks. |
+| **Recommended For You** | Films and series in the genres the profile watches most, best match first, then by rating. A genre counts when it appears in at least 3 of the profile's last 200 playbacks. |
 | **Most Popular** | The films and series played most on the server over the last 90 days. |
 | One row per library | The latest additions to that library, newest first. |
 
-Recommended For You and Most Popular leave out what the profile has already
-finished; a series counts as finished once every episode is watched. Plugins can
-add their own rows.
+**Recommended For You** and **Most Popular** leave out what the profile has
+already finished. A series counts as finished once every episode is watched.
+Plugins can add their own rows.
 
-**Admin → Server Config → Home feeds** sets the default for every profile:
-which rows appear, in what order, and how many items each shows. Each profile
-then arranges its own home with **Customize** (on the home page of the web and
-mobile apps, in the header of the TV app): show or hide a row, move it, or
-**Reset to Defaults**. The choice is saved on the server and follows the profile
-to every device. A profile can show a row the administrator has hidden, except
-a plugin's row: there the administrator's choice is final.
+**Who decides the rows:**
+
+- You set the default for every profile in **Admin → Server Config → Home
+  feeds**: which rows appear, in what order, and how many items each shows.
+- Each profile can then arrange its own home with **Customize** (on the home
+  page of the web and phone apps, in the top bar of the TV app): show or hide
+  a row, move it, or **Reset to Defaults**. This is saved on the server and
+  follows the profile to every device.
+- A profile can show a row you have hidden, except a plugin's row: there,
+  your choice is final.
+
+## Public download links
+
+On a film or episode page, an administrator can create a **Public download
+link** (web and Android apps). Anyone who has the link can download the
+original file, without an account. The link is copied for you to paste.
+
+- It stops working after 48 hours.
+- With remote access off, it only works from your home network.
+- Whoever holds the link can download the file until it expires: share it as
+  carefully as the file itself.
+
+??? info "Through the server API"
+
+    Only administrators can create, list and revoke links. The apps only
+    create them; listing and revoking go through the API
+    (`GET /api/v1/admin/share-links`, `DELETE /api/v1/share-links/{id}`).
+    Through the API, a link can last up to 72 hours and be limited to a
+    number of downloads (`POST /api/v1/media/{id}/share`).
 
 <!-- sources
 create user / edit user: frontend/apps/web/src/features/admin/CreateUserForm.tsx, EditUserModal.tsx (CreateProfileDialog), UserRow.tsx (edit, impersonate, libraries, bitrate, enable/disable, delete) ; i18n admin.users.createUser, username, password, admin, libraryAccessTitle, maxProfiles, maxDevicesPerProfile, impersonate, exitImpersonation ; common.enable, disable, delete
@@ -182,4 +232,8 @@ requests: i18n admin.mediaRequests.* (approve, reject, later, tabAccess, accessD
 share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
 opening hours: internal/domain/user/schedule.go - AccessSchedule, DefaultKidsSchedule, Window, AccessAt, OverrideUntil ; internal/app/user/profile_schedule.go - Unlock (adult PIN only) ; internal/adapters/driving/http/profile_closed.go (httpAuthMiddleware, httpStreamAuthMiddleware) ; grpcapi/interceptors/profile_hours.go ; grpcapi/playback_closing_soon.go (closingWarnLead 10 min) ; internal/app/config/timezone.go - KeyServerTimezone ; postgres profile_repo.go - scheduleFromJSON (unreadable = closed) ; i18n auth.profile.schedule.*, auth.profile.locked.*, admin.serverConfig.timezone
 home: internal/app/feed/* ; i18n admin.serverConfig.feedConfig.*, media.home.*
+first profile named after the username: internal/app/user/user_service.go, access_service.go - RegisterWithInvite (NewProfile with u.Username)
+invite link built from the admin's browser address: frontend/apps/web/src/features/admin/InviteLinkRow.tsx - inviteUrl (window.location.origin)
+requester notified of the answer: internal/app/mediarequest/service.go - Answer ; i18n notifications push.request_answered
+labels: i18n auth.profile.schedule.enable, modeWeek, modeDaily ; auth.profile.locked.pinLabel, switchProfile ; media.shareLink ; admin.users.admin, libraries, bitrate, inviteIsAdmin, revoke
 -->

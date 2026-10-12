@@ -119,7 +119,7 @@ plugins:
             Getting started: Premiers pas
             Install: Installation
             First setup: Première configuration
-            Apps and devices: Applications et appareils
+            Connect the apps: Connecter les applications
             Watching with Evey: Regarder avec Evey
             Privacy policy: Règles de confidentialité
             Administration: Administration
@@ -182,13 +182,15 @@ plugins:
             Contributing: Contribuer
         - locale: de
           name: Deutsch
-          build: false
+          build: true
           nav_translations:
             Home: Startseite
             Getting started: Erste Schritte
             Install: Installation
             First setup: Ersteinrichtung
-            Apps and devices: Apps und Geräte
+            Connect the apps: Apps verbinden
+            Watching with Evey: Mit Evey schauen
+            Privacy policy: Datenschutzerklärung
             Administration: Verwaltung
             Libraries and metadata: Bibliotheken und Metadaten
             Users, profiles and parental control: Benutzer, Profile und Kindersicherung
@@ -201,6 +203,7 @@ plugins:
             Playback: Wiedergabe
             How playback is decided: Wie Evey die Wiedergabeart wählt
             Transcoding and server capacity: Transkodierung und Serverkapazität
+            MKVGo in Evey: MKVGo in Evey
             HDR and Dolby Vision: HDR und Dolby Vision
             Audio: Audio
             Subtitles: Untertitel
@@ -248,13 +251,15 @@ plugins:
             Contributing: Mitwirken
         - locale: es
           name: Español
-          build: false
+          build: true
           nav_translations:
             Home: Inicio
             Getting started: Primeros pasos
             Install: Instalación
             First setup: Primera configuración
-            Apps and devices: Aplicaciones y dispositivos
+            Connect the apps: Conectar las aplicaciones
+            Watching with Evey: Ver con Evey
+            Privacy policy: Política de privacidad
             Administration: Administración
             Libraries and metadata: Bibliotecas y metadatos
             Users, profiles and parental control: Usuarios, perfiles y control parental
@@ -267,6 +272,7 @@ plugins:
             Playback: Reproducción
             How playback is decided: Cómo elige Evey el modo de reproducción
             Transcoding and server capacity: Transcodificación y capacidad del servidor
+            MKVGo in Evey: MKVGo en Evey
             HDR and Dolby Vision: HDR y Dolby Vision
             Audio: Audio
             Subtitles: Subtítulos
@@ -314,16 +320,18 @@ plugins:
             Contributing: Contribuir
         - locale: hi
           name: हिन्दी
-          build: false
+          build: true
           nav_translations:
-            Home: मुखपृष्ठ
+            Home: होम
             Getting started: शुरुआत
-            Install: इंस्टॉल करें
-            First setup: पहली सेटिंग
-            Apps and devices: ऐप और डिवाइस
-            Administration: प्रशासन
+            Install: इंस्टॉल
+            First setup: पहला सेटअप
+            Connect the apps: ऐप कनेक्ट करें
+            Watching with Evey: Evey पर देखना
+            Privacy policy: प्राइवेसी पॉलिसी
+            Administration: एडमिन
             Libraries and metadata: लाइब्रेरी और मेटाडेटा
-            Users, profiles and parental control: उपयोगकर्ता, प्रोफ़ाइल और अभिभावक नियंत्रण
+            Users, profiles and parental control: यूज़र, प्रोफ़ाइल और पैरेंटल कंट्रोल
             Remote access and HTTPS: रिमोट एक्सेस और HTTPS
             Reverse proxy configurations: रिवर्स प्रॉक्सी कॉन्फ़िगरेशन
             Hardware acceleration: हार्डवेयर एक्सेलेरेशन
@@ -332,28 +340,29 @@ plugins:
             Backups and updates: बैकअप और अपडेट
             Playback: प्लेबैक
             How playback is decided: Evey प्लेबैक का तरीका कैसे चुनता है
-            Transcoding and server capacity: ट्रांसकोडिंग और सर्वर क्षमता
+            Transcoding and server capacity: ट्रांसकोडिंग और सर्वर की क्षमता
+            MKVGo in Evey: Evey में MKVGo
             HDR and Dolby Vision: HDR और Dolby Vision
             Audio: ऑडियो
             Subtitles: सबटाइटल
             Casting: Chromecast पर कास्ट करना
             Watching together: साथ में देखें
-            Operations: संचालन
-            Troubleshooting: समस्या निवारण
+            Operations: सर्वर चलाना
+            Troubleshooting: समस्या का हल
             Monitoring and logs: निगरानी और लॉग
             Background work and server load: बैकग्राउंड काम और सर्वर लोड
             Media health: मीडिया स्वास्थ्य
             Command line: कमांड लाइन
-            Recovery: पुनर्प्राप्ति
+            Recovery: रिकवरी
             Database migrations: डेटाबेस माइग्रेशन
-            Incident runbook: घटना पुस्तिका
-            Advanced deployments: उन्नत डिप्लॉयमेंट
+            Incident runbook: गड़बड़ी होने पर क्या करें
+            Advanced deployments: एडवांस्ड डिप्लॉयमेंट
             Without a container: कंटेनर के बिना
             Plugin sandbox setup: प्लगइन सैंडबॉक्स सेटअप
-            Configuration reference: कॉन्फ़िगरेशन संदर्भ
+            Configuration reference: कॉन्फ़िगरेशन रेफ़रेंस
             Environment variables: एनवायरनमेंट वेरिएबल
             Server and network: सर्वर और नेटवर्क
-            Database and search: डेटाबेस और खोज
+            Database and search: डेटाबेस और सर्च
             Accounts and sign-in: खाते और साइन-इन
             Transcoding and hardware: ट्रांसकोडिंग और हार्डवेयर
             Playback delivery and downloads: प्लेबैक डिलीवरी और डाउनलोड
@@ -363,16 +372,16 @@ plugins:
             Plugins & API: प्लगइन और API
             Plugins: प्लगइन
             Writing a plugin: प्लगइन लिखना
-            Plugin API reference: प्लगइन API संदर्भ
-            Permissions and slots: अनुमतियाँ और स्लॉट
+            Plugin API reference: प्लगइन API रेफ़रेंस
+            Permissions and slots: परमिशन और स्लॉट
             Themes: थीम
-            Webhooks and API keys: वेबहुक और API कुंजियाँ
+            Webhooks and API keys: वेबहुक और API keys
             Server API: सर्वर API
-            Public API: सार्वजनिक API
-            Admin API: प्रशासन API
+            Public API: पब्लिक API
+            Admin API: एडमिन API
             Plugin API: प्लगइन API
-            Internals: आंतरिक संरचना
-            Design principles: डिज़ाइन सिद्धांत
+            Internals: अंदर की बनावट
+            Design principles: डिज़ाइन के सिद्धांत
             Architecture: आर्किटेक्चर
             Playback pipeline: प्लेबैक पाइपलाइन
             Security model and plugin sandbox: सुरक्षा मॉडल और प्लगइन सैंडबॉक्स
@@ -380,13 +389,15 @@ plugins:
             Contributing: योगदान करें
         - locale: zh
           name: 中文
-          build: false
+          build: true
           nav_translations:
             Home: 首页
             Getting started: 入门
             Install: 安装
             First setup: 首次设置
-            Apps and devices: 应用与设备
+            Connect the apps: 连接应用
+            Watching with Evey: 用 Evey 观看
+            Privacy policy: 隐私政策
             Administration: 管理
             Libraries and metadata: 媒体库与元数据
             Users, profiles and parental control: 用户、个人资料与家长控制
@@ -399,10 +410,11 @@ plugins:
             Playback: 播放
             How playback is decided: Evey 如何选择播放方式
             Transcoding and server capacity: 转码与服务器容量
+            MKVGo in Evey: Evey 中的 MKVGo
             HDR and Dolby Vision: HDR 与杜比视界
             Audio: 音频
             Subtitles: 字幕
-            Casting: 投放到 Chromecast
+            Casting: 投屏到 Chromecast
             Watching together: 一起看
             Operations: 运维
             Troubleshooting: 故障排除
@@ -499,7 +511,7 @@ nav:
   - Getting started:
       - Install: installation.md
       - First setup: getting-started/first-setup.md
-      - Apps and devices: getting-started/apps.md
+      - Connect the apps: getting-started/apps.md
       - Watching with Evey: getting-started/watching.md
       - Privacy policy: privacy.md
   - Administration:

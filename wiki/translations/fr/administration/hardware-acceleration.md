@@ -1,18 +1,30 @@
 ---
-source_sha: 4256e39247f54abe7168e73eb1aac25f271ab369034f6575abc391a7992a843c
+source_sha: 1a4e824d130bb84b068353b3024d71ea59b8db2ff04ee70f219e637e02212468
 reviewed: true
 ---
 # Accélération matérielle
 
-Une carte graphique ou un GPU intégré permet au serveur de transcoder plus de
-flux à la fois, et en plus haute résolution, que le processeur seul. Cette
-page s'adresse à l'administrateur : donnez le périphérique au conteneur,
-laissez le panneau sur **Auto**, et le serveur prouve lui-même ce que la carte
-sait faire avant de lui confier la moindre lecture.
+**En bref :**
+
+- Une carte graphique, ou la partie graphique intégrée à beaucoup de
+  processeurs (Intel Quick Sync, par exemple), permet au serveur de convertir
+  plus de vidéos à la fois, et en plus haute résolution, que le processeur
+  seul.
+- Elle ne sert que quand une vidéo est convertie (transcodée). Les films
+  envoyés tels quels, ou remis dans un autre format de fichier, ne
+  l'utilisent pas.
+- Ce que vous faites : ajoutez quelques lignes à votre fichier compose pour
+  qu'Evey puisse utiliser la carte, puis laissez le réglage sur **Auto
+  (meilleur disponible)**.
+- Evey teste la carte avec une vraie conversion avant de lui envoyer la
+  moindre lecture. Une carte qui rate le test n'est pas utilisée.
+
+Les étapes suivent, puis la façon dont le serveur prouve ce que la carte sait
+faire.
 
 ## L'activer
 
-1. Ouvrez **Admin → Configuration transcodage → Calibrage de l'encodage**.
+1. Ouvrez **Administration → Configuration transcodage → Calibrage de l'encodage**.
    **Accélération matérielle** est sur **Auto (meilleur disponible)** par
    défaut, et la ligne **Détecté :** nomme les accélérateurs que la machine
    annonce.
@@ -125,11 +137,11 @@ encodage HEVC sur une autre.
 
 ## Vérifier qu'elle est utilisée
 
-**Admin → Configuration transcodage → Calibrage de l'encodage** affiche les
+**Administration → Configuration transcodage → Calibrage de l'encodage** affiche les
 accélérateurs détectés, le backend utilisé, les résolutions certifiées pour
 le GPU et pour le processeur, et sous **Replis matériels** les encodages
 récents qui se sont repliés sur le processeur, avec leur cause. Pendant une
-lecture, **Admin → En cours de lecture** indique le backend qui encode chaque
+lecture, **Administration → En cours de lecture** indique le backend qui encode chaque
 flux.
 
 Sous WSL2, NVENC fonctionne ; VAAPI et Quick Sync non (le pilote graphique de
@@ -146,4 +158,5 @@ quiet moment: internal/app/transcoding/calibration_service.go - idleProbes, idle
 render group: docker-compose.gpu.yml ; nvidia: docker-compose.gpu-nvidia.yml
 panel: frontend/apps/web/src/features/admin/EncodeCalibrationCard.tsx (hw_mode, detected_backends, is_wsl)
 labels: i18n admin.calibration.cardTitle, hwModeLabel, hwModeAuto, hwModeOff, hwBackendLabel, detected, detectedNone, recalibrate, hwFallbacks, wslUnsupported ; admin.nav.transcodingConfig, nowPlaying
+plain opening: rules below ; i18n admin.calibration.hwModeAuto
 -->

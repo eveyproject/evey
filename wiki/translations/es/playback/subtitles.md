@@ -1,52 +1,98 @@
 ---
-source_sha: 3fced19f436765baa59845968676caa83737f9a681cd41288d6e854fcde880ae
-reviewed: false
+source_sha: 0df87f23e8ea13dc773d22a1984be991c45751df70cc5c7cfc5cad5238cb7d7b
+reviewed: true
 ---
 # Subtítulos
 
-Lo que le pasa a un subtítulo depende de su formato: texto o imágenes.
+**Para activar los subtítulos**, abre el menú de ajustes del reproductor y
+elige **Subtítulos**. Para tenerlos siempre en tu idioma, configura
+**Ajustes → Reproducción → Idioma de subtítulos por defecto**.
+
+La mayoría de los subtítulos aparecen al momento. Hay dos casos distintos:
+
+- **La primera vez que alguien elige un subtítulo guardado dentro del
+  archivo**, Evey tiene que sacarlo del archivo. El reproductor muestra
+  **Preparando subtítulos…**, el vídeo sigue reproduciéndose y los subtítulos
+  aparecen solos. En una película muy grande esto puede tardar unos minutos,
+  una sola vez: después, se muestran al momento para todo el mundo. Consulta
+  [La primera vez que se muestra un subtítulo](#the-first-time-a-subtitle-is-shown).
+- **Los subtítulos de DVD y de emisiones de TV** son imágenes, no texto. El
+  servidor los dibuja dentro del propio vídeo, lo que le hace trabajar mucho
+  más. El ajuste de perfil **Incrustar subtítulos** (**Ajustes →
+  Reproducción**) puede negarse a hacerlo, pero entonces esos subtítulos no
+  se pueden mostrar. Consulta [Incrustar subtítulos](#subtitle-burn-in).
+
+El resto de la página explica cada formato de subtítulos y lo que cambia para
+el servidor.
+
+## Qué le hace cada formato al vídeo
 
 | Formato | Ejemplos | Cómo se muestra | Efecto en el vídeo |
 | --- | --- | --- | --- |
-| Texto | SRT, ASS/SSA, WebVTT, subtítulos dentro del archivo | Se envía junto al vídeo y lo dibuja el reproductor | Ninguno |
-| PGS (Blu-ray) | `hdmv_pgs_subtitle` | El servidor lo descodifica en imágenes una vez, lo guarda en caché y lo dibuja el reproductor | Ninguno |
-| Otros formatos de imagen | VobSub (DVD), DVB, XSUB | El servidor lo incrusta en la imagen | El vídeo se recodifica |
+| Texto | SRT, ASS/SSA, WebVTT, subtítulos dentro del archivo | Se envía junto al vídeo y lo dibuja el reproductor, con tu **Estilo de subtítulos** | Ninguno |
+| PGS (Blu-ray) | `hdmv_pgs_subtitle` | El servidor lo convierte en imágenes una vez, las guarda en caché, y el reproductor las dibuja tal cual | Ninguno |
+| Otros formatos de imagen | VobSub (DVD), DVB, XSUB | El servidor lo incrusta en la imagen | El vídeo se vuelve a codificar |
 
 Todos los reproductores (web, Android, Android TV) dibujan ellos mismos los
-subtítulos de texto y PGS, así que elegir uno nunca cambia cómo se entrega el
-vídeo. Solo la última fila lo hace: incrustar subtítulos en la imagen exige
-descodificar y recodificar el vídeo, así que un título que se reproducía de forma
-directa pasa a transcodificarse. Información del flujo indica entonces
-**Subtítulos incrustados en la imagen**.
+subtítulos de texto y PGS, así que elegir uno nunca cambia la forma en que se
+entrega el vídeo. Solo la última fila lo cambia: incrustar subtítulos en la
+imagen obliga a decodificar y volver a codificar el vídeo, así que un título
+que se reproducía de forma directa pasa a transcodificarse. La Información
+del flujo muestra entonces **Subtítulos incrustados en la imagen**.
 
-Un subtítulo de imagen solo se incrusta cuando lo seleccionas de verdad. Un
-archivo que simplemente lo lleva, o lo marca como predeterminado, conserva su
-Reproducción directa.
+Un subtítulo de imagen solo se incrusta cuando lo eliges de verdad. Un
+archivo que simplemente lo lleva, o que lo marca como predeterminado, sigue
+en Reproducción directa.
 
 ## Incrustar subtítulos
 
-El ajuste de perfil **Incrustar subtítulos** (**Ajustes → Reproducción**) rige los
-formatos de la última fila:
+El ajuste de perfil **Incrustar subtítulos** (**Ajustes → Reproducción**)
+controla los formatos de la última fila:
 
-- **Auto** e **Incrustar siempre**: una pista VobSub, DVB o XSUB seleccionada se
-  incrusta. El texto nunca se incrusta, sea cual sea el ajuste.
-- **Nunca incrustar**: el vídeo nunca se recodifica por un subtítulo. Una pista
-  VobSub, DVB o XSUB no puede mostrarse entonces.
+| Ajuste | Una pista VobSub, DVB o XSUB elegida | Texto y PGS |
+| --- | --- | --- |
+| **Auto** | Se incrusta y el vídeo se vuelve a codificar. | Los dibuja el reproductor. |
+| **Incrustar siempre** | Igual que Auto. | Los dibuja el reproductor: el texto nunca se incrusta, sea cual sea el ajuste. |
+| **Nunca incrustar** | No se puede mostrar: el vídeo nunca se vuelve a codificar por un subtítulo. | Los dibuja el reproductor. |
+
+## La primera vez que se muestra un subtítulo
+
+Un subtítulo que va dentro del archivo (texto o PGS) lo extrae el servidor la
+primera vez que alguien lo elige, y luego lo guarda: las veces siguientes,
+sea quien sea, aparece al momento. Cuando el índice del propio archivo cubre
+la pista, el servidor lee solo los bloques del subtítulo y tarda unos
+segundos. Sin ese índice, lee el archivo entero: varios minutos para una
+película grande (unos cinco para un remux UHD de 85 GB en un disco local, más
+si el mismo servidor está emitiendo vídeo a la vez).
+
+Mientras tanto, el reproductor muestra **Preparando subtítulos…** donde
+aparecen los subtítulos, vuelve a comprobar por su cuenta y los muestra en
+cuanto están listos; el vídeo sigue reproduciéndose. Elegir otra pista no
+detiene el trabajo: el servidor lo termina para la próxima vez.
+
+Una pista que el servidor no puede extraer se queda vacía. El fallo se
+recuerda, así que volver a elegirla no lanza otra lectura completa; una
+actualización de MKVGo, la biblioteca que la extrae, lo vuelve a intentar.
+Consulta [MKVGo en Evey](mkvgo.md#what-mkvgo-does) para saber qué se lee y
+cuándo.
 
 ## Elegir y ajustar
 
-- Los reproductores seleccionan el subtítulo del **Idioma de subtítulos por
-  defecto** del perfil y, después, la pista que el archivo marca como
-  predeterminada (una pista forzada, por ejemplo).
-- **Sincronización de subtítulos**, en el reproductor, desplaza los subtítulos
-  del título actual (los valores positivos los muestran más tarde). Se aplica al
-  instante.
-- **Estilo de subtítulos** fija el tamaño, el color, el fondo, la fuente y la
-  posición de los subtítulos de texto.
-- **Subir subtítulo…** añade un archivo al título.
+- Los reproductores eligen el subtítulo del **Idioma de subtítulos por
+  defecto** del perfil y, si no lo hay, la pista que el archivo marca como
+  predeterminada (una pista forzada, por ejemplo). Una pista elegida a mano
+  nunca se cambia, y con un título nuevo la elección vuelve a empezar de
+  cero.
+- **Sincronización de subtítulos**, en el reproductor, adelanta o retrasa los
+  subtítulos del título actual (con valores positivos aparecen más tarde). Se
+  aplica al momento.
+- **Estilo de subtítulos** define el tamaño, el color del texto, el fondo, la
+  fuente, la sombra y la posición de los subtítulos de texto. Las imágenes
+  PGS se dibujan tal cual.
+- **Subir subtítulo…** añade un archivo para el título.
 - Con una clave de OpenSubtitles (consulta [Bibliotecas y metadatos](../administration/libraries.md#metadata-keys)),
   la API del servidor puede buscar y descargar un subtítulo que el archivo no
-  lleva (`GET /api/v1/media/{id}/subtitles/search`, y después
+  lleva (`GET /api/v1/media/{id}/subtitles/search`, y luego
   `POST /api/v1/media/{id}/subtitles/download`). El archivo se guarda en una
-  carpeta `.subtitles` junto a la película.
-  Las aplicaciones todavía no ofrecen esta búsqueda.
+  carpeta `.subtitles` junto a la película. Las apps no ofrecen esta
+  búsqueda.

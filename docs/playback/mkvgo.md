@@ -1,9 +1,18 @@
 # MKVGo in Evey
 
-MKVGo is the media library Evey runs inside its own process to read and
-repackage MKV/WebM and MP4/MOV files. This page is for the reader who wants to
-know what the server does without starting FFmpeg, and where FFmpeg still
-takes over.
+**In short:**
+
+- MKVGo is a part of Evey that reads and repackages video files (MKV, WebM,
+  MP4, MOV) without converting the picture or the sound.
+- Where it can, it is what serves **Remux** playbacks, extracts subtitles,
+  and reads your files during a scan. Anything that needs real conversion goes to
+  FFmpeg, a separate video tool.
+- You have nothing to set. **Admin → Now Playing** shows, track by track,
+  whether MKVGo or FFmpeg served a playback.
+
+The rest of this page is for the reader who wants to know what the server
+does without starting FFmpeg, and where FFmpeg still takes over. MKVGo runs
+inside the Evey server process.
 
 MKVGo works on the structure of a file: its headers, its index, its tracks and
 their packets. It never decodes or encodes a picture or a sound; everything
@@ -105,4 +114,5 @@ reads at once: internal/adapters/driven/mkvgo/budget.go - BudgetFor (one walk pe
 replaced file: internal/adapters/driving/http/transcode_ondemand.go - planSourceParam, servePlanSourceGone (410), replay once on a rebuilt plan ; internal/adapters/driving/http/transcode_vod_manifest_rebake.go - stampPlanSourceURIs
 after an update: packager version in segment URLs (?v=) ; internal/adapters/driving/http/remux_handler.go - remuxCacheFormat, remuxCacheName
 metrics: internal/pkg/metrics/metrics.go - MkvgoWalksInFlight, MkvgoPlanStats ; cmd/evey/wire.go - startMkvgoMetrics
+plain opening: rules below ; i18n admin.sessions.track.engine
 -->

@@ -1,44 +1,61 @@
 ---
-source_sha: a6c61f9f7b1e619f46c4d5eea7ca2c2b93356f93c04681e95963303bdf287723
-reviewed: false
+source_sha: ae588b2b2b2d42902a1b916cd8e90978a81afd473115c9eb522377e95409d542
+reviewed: true
 ---
 # Installation
 
-Evey läuft als ein einziger Container. Das Image liefert die API und die
-Weboberfläche über einen Port aus und betreibt darin seine eigene Datenbank
-(Postgres) und Suchmaschine (Meilisearch), deren Passwörter beim ersten Start
-erzeugt werden. Die Compose-Datei unten ist die gesamte Installation: keine
-`.env`, kein privilegierter Modus, keine Speicher- oder CPU-Einstellung.
+Diese Seite ist für die Person, die Evey für den Haushalt betreiben wird. Sie
+brauchen einen Computer oder ein NAS, das eingeschaltet bleibt, mit Docker.
+Es sind drei Schritte:
 
-!!! warning "Nicht die docker-compose.yml des Repositorys"
+1. Eine Datei speichern, die Compose-Datei.
+2. Evey mit einem Befehl starten.
+3. Evey im Browser öffnen.
 
-    Die `docker-compose.yml` im Wurzelverzeichnis des Git-Repositorys ist ein
-    anderer Aufbau (Postgres als eigener Dienst, ein mitgelieferter Caddy, eine
-    erforderliche `.env`). Verwenden Sie die Datei auf dieser Seite. Der andere
-    Aufbau ist unter [Erweiterte Bereitstellungen](operations/advanced-deployments.md)
+Danach übernimmt der Assistent der [Ersteinrichtung](getting-started/first-setup.md).
+
+Evey läuft in einem einzigen Container. Die Datenbank und die Suchmaschine
+sind darin enthalten. Sie müssen also nichts anderes installieren, keine
+`.env`-Datei schreiben und nichts an Arbeitsspeicher oder Prozessor
+einstellen.
+
+!!! warning "Nehmen Sie die Datei von dieser Seite, nicht die aus dem Git-Repository"
+
+    Die `docker-compose.yml` im Hauptordner des Git-Repositorys ist ein
+    anderer Aufbau, für Entwickler und fortgeschrittene Installationen: Sie
+    braucht eine `.env`-Datei und startet zusätzliche Dienste. Sie ist unter
+    [Erweiterte Bereitstellungen](operations/advanced-deployments.md)
     beschrieben.
 
-## Voraussetzungen
+## Was Sie brauchen
 
-- Docker mit Compose v2 (`docker compose`, nicht das ältere `docker-compose`).
-- Ein dauerhafter Datenträger für Eveys Daten (die Compose-Datei unten legt sie
-  in `./evey-data` neben der Datei ab).
-- Ein x86-64-Host, oder ARM64 mit einem Release-Tag: siehe
-  [ARM-Hosts](operations/advanced-deployments.md#arm-hosts).
+- **Einen Computer oder ein NAS, das eingeschaltet bleibt**, mit einem
+  x86-64-Prozessor (Intel oder AMD). ARM64-Geräte brauchen ein
+  Versions-Tag, das es noch nicht gibt: siehe
+  [ARM-Rechner](operations/advanced-deployments.md#arm-hosts).
+- **Docker mit Compose v2.** Der Befehl heißt `docker compose`, mit
+  Leerzeichen, nicht das ältere `docker-compose`.
+- **Ihren Medienordner**: dort, wo Ihre Filme, Serien, Musik oder Fotos
+  liegen.
+- **Etwas Speicherplatz für Eveys eigene Daten** (Datenbank, Bilder,
+  Suchindex). Die Compose-Datei unten legt sie in einem Ordner namens
+  `evey-data` neben der Datei ab.
 
-Evey liefert einfaches HTTP aus. Um ihn von außerhalb Ihres Zuhauses über HTTPS
-zu erreichen, stellen Sie später einen Reverse Proxy davor: siehe
+Evey antwortet in Ihrem Heimnetz über einfaches HTTP. Um von unterwegs zu
+schauen, braucht es HTTPS, das Sie später hinzufügen können:
 [Fernzugriff und HTTPS](administration/remote-access.md).
 
-## Die Compose-Datei
+## Schritt 1: Die Compose-Datei speichern { #the-compose-file }
 
-Speichern Sie dies als `docker-compose.yml` und ersetzen Sie den Medienpfad in
-der letzten Volume-Zeile.
+Legen Sie einen Ordner für Evey an, zum Beispiel `evey`, und speichern Sie
+darin diese Datei als `docker-compose.yml`. Ändern Sie eine einzige Zeile:
+den Pfad zu Ihren Medien (die mit 5 markierte Zeile). Liegen Ihre Filme zum
+Beispiel in `/srv/media`, wird die Zeile zu `- /srv/media:/media`.
 
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: eveyproject/evey:latest # (1)!
+    image: eveyproject/evey:beta-0.0.1 # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!
@@ -53,84 +70,139 @@ volumes:
   evey-cache:
 ```
 
-1. `latest` ist die neueste stabile Version. Legen Sie ein Tag fest, sobald Sie Evey
-   ernsthaft betreiben, damit zwei Pulls im Abstand eines Tages denselben Code
-   ausführen: siehe [Sicherungen und Updates](backups.md#updating-evey).
-2. Die API und die Weboberfläche, auf einem Port, in einfachem HTTP.
-3. Alles, was Evey gehört: Datenbank, Signaturschlüssel, erzeugte Passwörter,
-   Suchindex, Vorschaubilder der Zeitleiste, Bilder, Logs, Sicherungen, Plugins. Dieser Ordner muss gesichert werden.
-4. Transkodierungs-Cache: Segmente, verkleinerte Fotos und Cover. Er kann
-   jederzeit gelöscht werden und füllt sich bei Bedarf neu.
-5. Ihre Medien. Absichtlich mit Schreibzugriff eingebunden: Die Reparaturen
-   unter [Medienzustand](runbooks/media-health.md) schreiben Dateien an Ort
-   und Stelle neu. Hängen Sie `:ro` an, um eine schreibgeschützte Bibliothek zu
-   erhalten; diese Reparaturen schlagen dann fehl. Weitere Ordner werden als
-   `/media2`, `/media3`... eingebunden.
-6. Gibt der eingebetteten Datenbank Zeit, bei `docker stop` sauber
-   herunterzufahren. Dockers Standard von 10 Sekunden ist für einen großen
-   Katalog knapp.
+1. Die Version von Evey. Evey ist in der Beta, deshalb gibt es noch kein
+   `latest`-Tag: `beta-0.0.1` folgt dem Entwicklungszweig und ändert sich mit
+   jedem Update. Um genau beim selben Code zu bleiben, nehmen Sie stattdessen
+   ein `sha-<commit>`-Tag: siehe
+   [Sicherungen und Updates](backups.md#updating-evey).
+2. Der Port. Die Zahl links ist die, die Sie im Browser und in den Apps
+   eintippen. Behalten Sie `9091`, außer ein anderes Programm nutzt ihn
+   schon.
+3. Eveys eigene Daten: Datenbank, Schlüssel, erzeugte Passwörter, Suchindex,
+   Bilder, Logs, Sicherungen, Plugins. **Diesen Ordner müssen Sie sichern.**
+4. Ein Zwischenspeicher für umgewandelte Videos, verkleinerte Fotos und
+   Cover. Sie können ihn jederzeit löschen, er füllt sich von selbst wieder.
+5. Ihre Medien. Ersetzen Sie `/path/to/your/media` durch den echten Ordner.
+   In Evey heißt dieser Ordner `/media`. Evey darf absichtlich hineinschreiben,
+   damit der [Medienzustand](runbooks/media-health.md) eine Datei reparieren
+   kann, wenn Sie es wollen. Hängen Sie `:ro` an, um ihn schreibgeschützt zu
+   machen: Dann kann Evey dort nicht schreiben, und Reparaturen schlagen
+   fehl.
+6. Gibt der Datenbank Zeit, sauber anzuhalten, wenn der Container stoppt. Die
+   10 Sekunden, die Docker sonst lässt, sind für eine große Sammlung knapp.
 
-## Erster Start
+## Schritt 2: Evey starten { #first-launch }
+
+In einem Terminal, im Ordner mit der Datei:
 
 ```bash
 docker compose up -d
-docker compose logs -f evey
 ```
 
-Beim ersten Start erzeugt der Server seinen Signaturschlüssel und die
-Passwörter in `./evey-data`, legt die Datenbank an und wendet seine Migrationen
-an. Nichts muss von Hand vorbereitet werden.
+Evey startet im Hintergrund. Um zu sehen, was es tut, führen Sie
+`docker compose logs -f evey` aus; mit `Ctrl+C` hören Sie auf zuzuschauen,
+Evey läuft weiter.
 
-Öffnen Sie dann `http://<server-address>:9091`. Ein Server ohne Administrator
-öffnet den Einrichtungsassistenten: weiter mit
-[Ersteinrichtung](getting-started/first-setup.md).
+Beim ersten Start legt Evey seine Passwörter und seine Datenbank in
+`evey-data` an. Sie müssen nichts vorbereiten.
 
-## Wo die Daten liegen
+## Schritt 3: Evey im Browser öffnen { #the-address-to-open-next }
 
-| Ort | Enthält | Löschbar? |
+Die Adresse ist `http://`, dann die Adresse des Rechners, auf dem Docker
+läuft, dann `:9091`:
+
+| Wo Ihr Browser ist | Adresse zum Eintippen |
+| --- | --- |
+| Auf dem Rechner, auf dem Docker läuft | `http://localhost:9091` |
+| Auf einem anderen Computer oder einem Handy zu Hause | `http://` + die IP-Adresse des Rechners, auf dem Docker läuft, + `:9091`, zum Beispiel `http://192.168.1.20:9091` |
+| Außerhalb Ihres Zuhauses | Noch nicht. Dafür braucht es HTTPS und eine öffentliche Adresse: siehe [Fernzugriff und HTTPS](administration/remote-access.md). |
+
+Die IP-Adresse des Rechners, auf dem Docker läuft, finden Sie in der Liste
+der verbundenen Geräte Ihres Routers. Oder Sie führen `ip a` unter Linux,
+`ipconfig` unter Windows, `ifconfig` unter macOS aus. Haben Sie den Port in
+Schritt 1 geändert, nehmen Sie statt `9091` die linke Zahl aus der Zeile
+`ports:`.
+
+Beim ersten Mal öffnet die Adresse den Einrichtungsassistenten. Weiter geht es
+mit der [Ersteinrichtung](getting-started/first-setup.md#1-the-setup-wizard).
+Ist der Assistent fertig, öffnet dieselbe Adresse die Anmeldeseite.
+
+!!! tip "Schreiben Sie sich diese Adresse auf"
+
+    Alle im Haushalt werden sie brauchen. Die Apps für Android und Android TV
+    fragen auf ihrem ersten Bildschirm genau nach dieser Adresse, mit
+    `http://` und dem Port:
+    [Apps verbinden](getting-started/apps.md#the-server-address-to-enter).
+
+## Wo Ihre Daten liegen { #where-the-data-lives }
+
+| Ort | Was er enthält | Dürfen Sie ihn löschen? |
 | --- | --- | --- |
-| `./evey-data` | Datenbank, Signaturschlüssel, erzeugte Passwörter, Suchindex, Vorschaubilder der Zeitleiste, Bilder, Logs, Sicherungen, Plugins | Nein. Geht er verloren, gehen alle Konten, der Wiedergabeverlauf und alle Einstellungen verloren. Nur `meili/` darin darf weg: Der Suchindex wird mit `evey admin reindex-search` aus der Datenbank neu aufgebaut. |
-| Volume `evey-cache` | Transkodierte Segmente, verkleinerte Fotos und Cover | Ja. Wird bei Bedarf neu erzeugt. |
-| Ihre Medienordner | Ihre Dateien | Evey löscht sie nicht; einen Titel in Evey zu entfernen, entfernt ihn aus der Bibliothek, nicht von der Festplatte. Evey schreibt dort in drei Fällen: bei einer Reparatur aus dem Medienzustand (das Original bleibt als Sicherung erhalten), bei von OpenSubtitles heruntergeladenen Untertiteln (ein Ordner `.subtitles` neben dem Film) und für eine Prüfdatei von wenigen Sekunden, die kontrolliert, dass die Ordnerüberwachung noch Ereignisse empfängt. |
+| `./evey-data` | Datenbank, Schlüssel, erzeugte Passwörter, Suchindex, Vorschaubilder für die Zeitleiste, Bilder, Logs, Sicherungen, Plugins | **Nein.** Wer ihn verliert, verliert alle Konten, den Wiedergabeverlauf und alle Einstellungen. Einzige Ausnahme ist `meili/` darin, der Suchindex: Der Befehl `evey admin reindex-search` baut ihn aus der Datenbank neu auf. |
+| Volume `evey-cache` | Umgewandelte Videos, verkleinerte Fotos und Cover | Ja. Er füllt sich von selbst wieder. |
+| Ihre Medienordner | Ihre Dateien | Evey löscht sie nie. Wenn Sie einen Titel in Evey entfernen, verschwindet er aus der Bibliothek, nicht von der Festplatte. |
 
-## Häufige Varianten
+Evey schreibt nur in drei Fällen in Ihre Medienordner:
 
-Jede davon besteht aus ein paar zusätzlichen Zeilen in derselben Datei.
+- bei einer Reparatur, die Sie im **Medienzustand** starten (das Original wird
+  als Sicherung behalten);
+- bei einem Untertitel, der von OpenSubtitles geladen wurde (gespeichert in
+  einem Ordner `.subtitles` neben dem Film);
+- bei einer kleinen Testdatei, die gleich wieder gelöscht wird und prüft, ob
+  Evey neue Dateien noch bemerkt.
+
+## Häufige Änderungen { #common-variations }
+
+Jede davon braucht nur ein paar Zeilen in derselben Datei.
 
 **Ein zweiter Medienordner.** Fügen Sie `- /other/path:/media2` unter
-`volumes:` hinzu.
+`volumes:` hinzu. Ein dritter wird `/media3`, und so weiter.
 
-**Dateibesitz.** Standardmäßig übernimmt der Container den Besitzer Ihrer
-`/media`-Einbindung, damit Reparaturen schreiben können. Um ihn selbst zu
-wählen, setzen Sie `PUID` und `PGID` unter `environment:` (die Ausgabe von
-`id -u` und `id -g`). Der Container startet nur als root, um diese Zuordnung
-anzuwenden; der Server selbst läuft nie als root.
+**Ein anderer Port.** Ändern Sie nur die linke Zahl, zum Beispiel
+`"8080:9091"`. Tippen Sie dann `:8080` im Browser und in den Apps.
 
-**Eine Grafikkarte für die Transkodierung.** Reichen Sie das Gerät an den
-Container durch: siehe [Hardwarebeschleunigung](administration/hardware-acceleration.md).
+**Wem die Dateien gehören.** Standardmäßig übernimmt Evey den Besitzer Ihres
+Medienordners, damit Reparaturen schreiben können. Wenn Sie das selbst
+festlegen wollen, fügen Sie `PUID` und `PGID` unter `environment:` hinzu, mit
+den Zahlen, die `id -u` und `id -g` ausgeben. Der Container startet nur als
+root, um das anzuwenden; Evey selbst läuft nie als root.
 
-**Hinter einem bereits vorhandenen Reverse Proxy.** Siehe
-[Fernzugriff und HTTPS](administration/remote-access.md).
+**Eine Grafikkarte zum Umwandeln von Videos.** Geben Sie dem Container Zugriff
+auf die Karte: siehe [Hardwarebeschleunigung](administration/hardware-acceleration.md).
+
+**Sie betreiben schon einen Reverse Proxy** (ein Programm, das HTTPS vor Ihre
+Dienste setzt): siehe [Fernzugriff und HTTPS](administration/remote-access.md).
 
 ??? note "Auf einem NAS (Synology Container Manager, QNAP Container Station)"
 
     - Legen Sie den Ordner `evey-data` vor dem ersten Start an. Diese
-      Oberflächen verweigern eine Bind-Einbindung, deren Ordner nicht existiert,
-      anders als die Docker-Kommandozeile. Sonst muss nichts angelegt werden.
-    - Setzen Sie `PUID` und `PGID` auf den NAS-Benutzer, dem die Medien gehören
-      (`id <user>` per SSH; auf Synology typischerweise um `1026`, Gruppe
-      `100`). Eine NAS-Freigabe gehört oft `root`, den die automatische
-      Erkennung nie übernimmt.
+      Oberflächen weigern sich, einen Ordner einzubinden, der nicht
+      existiert, anders als die Docker-Kommandozeile. Sonst müssen Sie nichts
+      anlegen.
+    - Setzen Sie `PUID` und `PGID` auf den NAS-Benutzer, dem die Medien
+      gehören (`id <benutzer>` per SSH; bei Synology meist um `1026`, Gruppe
+      `100`). Freigaben auf einem NAS gehören oft `root`, und den übernimmt
+      Evey nie von selbst.
     - Intel-NAS mit Quick Sync: Fügen Sie die Zeilen `devices:` und
-      `group_add:` hinzu, die unter [Hardwarebeschleunigung](administration/hardware-acceleration.md)
+      `group_add:` hinzu, die unter
+      [Hardwarebeschleunigung](administration/hardware-acceleration.md)
       beschrieben sind.
 
-## Was Sie nicht konfigurieren müssen
+## Was Evey selbst einrichtet
 
-Transkodierungskapazität, Grafikkarte, Wiedergabeart für jedes Gerät und
-Fernzugriff entscheidet der Server: Er vermisst die Maschine im ersten ruhigen
-Moment, erkennt die durchgereichte Hardware und öffnet den Fernzugriff, sobald
-Sie ihm eine öffentliche Adresse geben. Einstellungen, die sich später ändern
-können (Servername, Zeitpläne, Grenzen, API-Schlüssel), liegen im Admin-Bereich,
-nicht in der Compose-Datei. Die vorhandenen Umgebungsvariablen stehen in der
+Das müssen Sie nicht einstellen:
+
+- **Wie viel Video der Server gleichzeitig umwandeln kann.** Er misst den
+  Rechner in seinem ersten ruhigen Moment.
+- **Die Grafikkarte.** Evey erkennt die Karte, die Sie dem Container gegeben
+  haben, und prüft sie mit einer echten Umwandlung.
+- **Wie jedes Gerät eine Datei abspielt.** Das wird bei jeder Wiedergabe neu
+  entschieden: siehe
+  [Wie Evey die Wiedergabeart wählt](playback/how-playback-is-decided.md).
+- **Der Zugriff von außerhalb Ihres Zuhauses.** Aus, bis Sie dem Server eine
+  öffentliche Adresse geben.
+
+Einstellungen, die Sie später vielleicht ändern (Servername, Zeitpläne,
+Grenzen, API-Schlüssel), liegen im Verwaltungsbereich, nicht in der
+Compose-Datei. Die wenigen Umgebungsvariablen, die es gibt, stehen in der
 [Konfigurationsreferenz](configuration.md).

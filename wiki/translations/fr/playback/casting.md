@@ -1,17 +1,28 @@
 ---
-source_sha: eb0bf4bc0439ca7578ac20f7489cba0718e37fee252faa25b0bdd1888c7bbbb5
+source_sha: 8c3a42e5732d38c6b13e080b8869dff85cef64c692ff15ed7ef067e6d0e686e9
 reviewed: true
 ---
 # Diffusion (Chromecast)
 
-Ce que le téléviseur lit quand vous diffusez, et pourquoi cela peut différer
-de ce que lisait votre téléphone ou votre navigateur. Pour les spectateurs qui
-utilisent le bouton **Caster** du lecteur web sous Chrome ou de l'application
-Android, vers un Chromecast ou une TV équipée de Chromecast ; l'application
-Android TV n'a pas de bouton Caster. Le téléphone ou le navigateur ne fait que
-lancer la session : la TV lit le flux directement depuis le serveur, via
-l'application récepteur d'Evey, et le serveur décide de ce qu'il envoie en
-fonction de la TV, pas de l'appareil qui a lancé la diffusion.
+Caster, c'est envoyer un film de votre téléphone ou de votre ordinateur vers
+la TV.
+
+1. Lancez le film dans le lecteur web sous Chrome, ou dans l'application
+   Android.
+2. Appuyez sur **Caster** dans le lecteur.
+3. Choisissez votre Chromecast, ou votre TV avec Chromecast intégré.
+
+Le film passe alors sur la TV. L'application Android TV n'a pas de bouton
+**Caster** : elle est déjà sur la TV. Firefox n'affiche pas non plus de bouton
+**Caster**. Avec Safari, ou Chrome sur un téléphone Android, le bouton marche
+autrement : voir
+[Navigateurs sans session Cast propre](#browsers-without-a-cast-session-of-their-own).
+
+L'image sur la TV peut être différente de celle de votre téléphone, et c'est
+normal. La TV ne reçoit pas ce que lisait votre téléphone : elle va chercher
+le film elle-même sur le serveur, et le serveur prépare une version adaptée à
+la TV. La suite de cette page explique comment, pour les curieux et pour la
+personne qui fait tourner Evey.
 
 ## Ce que la TV lit
 

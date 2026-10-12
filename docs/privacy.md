@@ -2,10 +2,12 @@
 
 Last updated: 2026-10-04.
 
-This policy covers the Evey apps for Android and Android TV. The Evey project
-runs no service that receives your data: no account with us, no analytics, no
-advertising, no crash reporting to us. The apps talk to the Evey server that
-you, or the person who invited you, installed and runs.
+This policy covers the Evey apps for Android and Android TV.
+
+In short: the Evey project runs no service that receives your data. There is
+no account with us, no analytics, no advertising, and no crash reporting to
+us. The apps talk to the Evey server that you, or the person who invited you,
+installed and runs.
 
 ## What the apps send, and to whom
 
@@ -13,7 +15,7 @@ you, or the person who invited you, installed and runs.
 media player needs to work:
 
 - your username and password when you sign in (or the Quick Connect code),
-  then a session token;
+  then a session token, a key that keeps you signed in;
 - what you browse, search, play, rate, favourite or request, and your playback
   position, so you can resume on another device;
 - the name of the device (as Android reports it), so you can tell your devices

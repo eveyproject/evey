@@ -1,15 +1,32 @@
 ---
-source_sha: 1fa2aa8b1aeedf6d8bb34160a2e73f730328fc1dc61351026633c7005e056976
+source_sha: 0df87f23e8ea13dc773d22a1984be991c45751df70cc5c7cfc5cad5238cb7d7b
 reviewed: true
 ---
 # Sous-titres
 
-Comment un sous-titre s'affiche sur votre appareil, et si le choisir change
-la façon dont la vidéo est livrée. Pour les spectateurs ; le seul réglage qui
-compte est l'**Incrustation des sous-titres** du profil, dans **Paramètres →
-Lecture**. En bref : les sous-titres texte et Blu-ray ne touchent jamais à la
-vidéo, les sous-titres DVD et de diffusion sont incrustés et imposent un
-réencodage.
+**Pour activer les sous-titres**, ouvrez le menu des réglages dans le lecteur
+et choisissez **Sous-titres**. Pour les avoir dans votre langue à chaque fois,
+réglez **Paramètres → Lecture → Langue des sous-titres par défaut**.
+
+La plupart des sous-titres s'affichent tout de suite. Deux cas sont
+différents :
+
+- **La première fois que quelqu'un choisit un sous-titre rangé dans le
+  fichier**, Evey doit le sortir du fichier. Le lecteur affiche
+  **Sous-titres en préparation…**, la vidéo continue, et les sous-titres
+  apparaissent tout seuls. Sur un très gros film, cela peut prendre quelques
+  minutes, une seule fois : ensuite, ils s'affichent tout de suite pour tout
+  le monde. Voir
+  [La première fois qu'un sous-titre s'affiche](#the-first-time-a-subtitle-is-shown).
+- **Les sous-titres des DVD et de la télévision** sont des images, pas du
+  texte. Le serveur les dessine dans la vidéo elle-même, ce qui le fait
+  beaucoup plus travailler. Le réglage de profil **Incrustation des
+  sous-titres** (**Paramètres → Lecture**) peut refuser cela, mais ces
+  sous-titres ne peuvent alors pas s'afficher. Voir
+  [Incrustation des sous-titres](#subtitle-burn-in).
+
+La suite de cette page explique chaque format de sous-titres et ce qu'il
+change pour le serveur.
 
 ## Ce que chaque format fait à la vidéo
 

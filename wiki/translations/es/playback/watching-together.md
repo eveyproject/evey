@@ -1,15 +1,28 @@
 ---
-source_sha: a6742845a66194948de961b0490bc70821d9e1a06b1c6ff4aaed96f02c9910ba
-reviewed: false
+source_sha: 9fad7f52fd0f1b44bc2f65ef902487f1f2929c2f19b89072be7f363968ba8bb8
+reviewed: true
 ---
 # Ver juntos
 
-**Ver juntos** mantiene a varias personas en el mismo título en el mismo momento,
-cada una en su propio dispositivo: una sala guarda la posición y todos los
-reproductores la siguen. El flujo de cada espectador se sigue decidiendo para su
-propio dispositivo, como en
-[Cómo elige Evey el modo de reproducción](how-playback-is-decided.md): una
-persona puede estar en Reproducción directa mientras otra se transcodifica.
+Ve la misma película al mismo tiempo que otras personas, cada una en su
+pantalla. Una persona abre una sala y las demás se unen con un código. No hay
+nada que configurar en el servidor.
+
+En resumen:
+
+1. Pon la película en el reproductor web o en la app de Android y pulsa
+   **Ver juntos**. Eres el anfitrión de la sala y ves su código: seis letras
+   y números.
+2. Envía el código a las personas que quieres que te acompañen.
+3. Se unen con el código: desde su propia cuenta (consulta la tabla de
+   abajo) o, sin cuenta, con **Ver juntos** en la página de inicio de sesión.
+
+Quién puede pausar o mover la película para todos depende de la app:
+consulta [Qué controla cada miembro](#what-each-member-controls).
+
+Cada persona sigue recibiendo la versión de la película que le va bien a su
+propio dispositivo, como se explica en
+[Cómo elige Evey el modo de reproducción](how-playback-is-decided.md).
 
 ## Crear una sala y unirse
 
@@ -19,50 +32,57 @@ persona puede estar en Reproducción directa mientras otra se transcodifica.
 | Unirse con una cuenta | El enlace de la sala, o el código en **Escuchar juntos** → **Unirse a una sala** | El código en **Escuchar juntos** | El código en **Ajustes** → **Ver juntos** |
 | Unirse sin cuenta | **Ver juntos** en la página de inicio de sesión, con el código | Igual | - |
 
-La persona que crea la sala es su anfitrión y ve su código: seis caracteres,
-letras y cifras. Los códigos se escriben sin preocuparse por mayúsculas,
-espacios ni por confundir `O` con `0` e `I` o `L` con `1`.
+Al escribir el código no hace falta ser exacto: da igual usar mayúsculas o
+no, poner espacios, o escribir `O` en lugar de `0`, o `I` o `L` en lugar de
+`1`.
 
-Unirse con una cuenta sigue las reglas habituales: la biblioteca debe estar
-compartida con esa cuenta y el control parental del perfil debe permitir el
-título. Un perfil restringido tampoco puede abrir una sala sobre un título que no
-puede ver.
+Unirse con una cuenta sigue las reglas de siempre: la biblioteca tiene que
+estar compartida con esa cuenta, y los ajustes de control parental del perfil
+tienen que permitir el título. Un perfil con restricciones tampoco puede abrir
+una sala con un título que no tiene permiso para ver.
+
+## Qué controla cada miembro
+
+| | Anfitrión | Otros miembros |
+| --- | --- | --- |
+| Android | Reproducir, pausar y saltar a otro momento mueven toda la sala. | Reproducir, pausar y saltar a otro momento solo afectan a tu pantalla. |
+| Android TV | Reproducir y pausar mueven toda la sala; un salto solo afecta al televisor. | Igual que en Android. |
+| Web | Reproducir, pausar y saltar a otro momento solo afectan a tu pantalla, también para el anfitrión. | Igual. |
+
+En el reproductor web, unos botones concretos sustituyen al control del
+anfitrión. **Sincronizar a todos** lleva a toda la sala a tu posición y
+reanuda la reproducción; lo puede usar cualquier miembro, no solo el
+anfitrión. **Ponerme al día** te lleva a donde está la sala, sin mover a
+nadie más; aparece en la página de invitado (para quien se une con un código,
+sin cuenta), no en el reproductor con la sesión iniciada.
+
+Quien se une tarde empieza donde está la sala en ese momento, no donde
+estaba cuando se envió la última orden.
+
+Si el anfitrión se va, el miembro que lleva más tiempo en la sala pasa a ser
+el anfitrión. Cuando se va el último miembro, la sala se cierra y se retira
+el acceso de invitado que daba su código. Una sala en la que nunca entró
+nadie se borra al cabo de una hora.
 
 ## Invitados sin cuenta
 
-Un invitado que introduce un código en la página de inicio de sesión ve ese
+Un invitado que escribe un código en la página de inicio de sesión ve ese
 título y nada más:
 
-- solo streaming, nunca descarga;
+- solo en streaming, nunca descargando;
 - solo salas de vídeo, no salas de música;
-- el acceso dura mientras se usa, caduca tras tres horas sin reproducción y tras
-  24 horas en cualquier caso, y termina en cuanto se cierra la sala.
+- el acceso dura mientras se usa, caduca tras tres horas sin reproducción y,
+  en cualquier caso, tras 24 horas, y termina en cuanto se cierra la sala.
 
-El código es lo único que protege una sala, así que compártelo solo con las
-personas que quieras dentro. Los códigos erróneos están limitados por dirección y
-en todo el servidor, lo que deja fuera de alcance adivinarlos.
-
-## Qué se mantiene sincronizado
-
-- **En Android y Android TV**, cuando el anfitrión reproduce, pausa o salta a
-  otro punto, toda la sala le sigue. Los controles de los demás miembros no
-  afectan a nadie más.
-- **En el reproductor web**, pausar y saltar solo afectan a tu propia pantalla.
-  **Ponerme al día** te devuelve adonde está la sala, sin mover a nadie más.
-  **Sincronizar a todos** lleva a toda la sala a tu posición; cualquier miembro
-  puede usarlo, no solo el anfitrión.
-
-Quien se une tarde empieza donde está la sala ahora, no donde estaba cuando se
-envió la última orden.
-
-Si el anfitrión se va, el miembro que lleva más tiempo en la sala pasa a ser el
-anfitrión. Cuando se va el último miembro, la sala se cierra y se retira el
-acceso de invitado que daba su código. Una sala en la que nunca entró nadie se
-elimina al cabo de una hora.
+!!! warning
+    El código es lo único que protege una sala, así que compártelo solo con
+    las personas que quieres en ella. Los intentos con códigos erróneos están
+    limitados por dirección y en todo el servidor, así que no se pueden
+    adivinar probando.
 
 ## Escuchar juntos
 
-Una sala de música se crea desde **Escuchar juntos** con una cola de álbumes,
-pistas y listas de reproducción. El anfitrión reproduce, pausa y avanza por la
-cola; todos los miembros le siguen. Los invitados sin cuenta no pueden unirse a
-las salas de música.
+Una sala de música se crea desde **Escuchar juntos**, con una cola de
+álbumes, canciones y listas de reproducción. El anfitrión reproduce, pausa y
+avanza por la cola; todos los miembros le siguen. Los invitados sin cuenta no
+pueden unirse a las salas de música.

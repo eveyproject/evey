@@ -1,16 +1,29 @@
 ---
-source_sha: c71d26ad4217c6fabc0068b559c21f4a78531ce50e7ff7f66989a1bebc1fd517
+source_sha: 9fad7f52fd0f1b44bc2f65ef902487f1f2929c2f19b89072be7f363968ba8bb8
 reviewed: true
 ---
 # Regarder ensemble
 
-Comment regarder le même titre au même instant que d'autres personnes,
-chacune sur son propre appareil, et ce que chacun peut s'attendre à contrôler.
-Pour les spectateurs ; rien à configurer sur le serveur. **Regarder
-ensemble** ouvre une salle qui tient la position, et chaque lecteur la suit.
-Le flux de chacun reste décidé pour son propre appareil, comme dans
-[Comment Evey choisit le mode de lecture](how-playback-is-decided.md) : une
-personne peut être en lecture directe pendant qu'une autre est transcodée.
+Regardez le même film au même moment que d'autres personnes, chacune sur son
+écran. Une personne ouvre une salle ; les autres la rejoignent avec un code.
+Il n'y a rien à régler sur le serveur.
+
+En bref :
+
+1. Lancez le film dans le lecteur web ou dans l'application Android, et
+   appuyez sur **Regarder ensemble**. Vous êtes l'hôte de la salle, et vous
+   voyez son code : six lettres et chiffres.
+2. Envoyez le code aux personnes que vous voulez avec vous.
+3. Elles rejoignent la salle avec le code : depuis leur propre compte (voir
+   le tableau ci-dessous) ou, sans compte, avec **Regarder ensemble** sur la
+   page de connexion.
+
+Qui peut mettre en pause ou avancer le film pour tout le monde dépend de
+l'application : voir [Ce que chaque membre contrôle](#what-each-member-controls).
+
+Chaque personne reçoit quand même la version du film qui convient à son
+propre appareil, comme expliqué dans
+[Comment Evey choisit le mode de lecture](how-playback-is-decided.md).
 
 ## Créer et rejoindre une salle
 
@@ -20,10 +33,8 @@ personne peut être en lecture directe pendant qu'une autre est transcodée.
 | Rejoindre avec un compte | Le lien de la salle, ou le code dans **Écoute partagée** → **Rejoindre une salle** | Le code dans **Écoute partagée** | Le code dans **Paramètres** → **Regarder ensemble** |
 | Rejoindre sans compte | **Regarder ensemble** sur la page de connexion, avec le code | Pareil | - |
 
-La personne qui crée la salle en est l'hôte et voit son code : six
-caractères, lettres et chiffres. Le code se saisit sans se soucier des
-majuscules, des espaces, ni de la confusion entre `O` et `0`, ou entre `I`,
-`L` et `1`.
+Le code est facile à taper : majuscules ou non, espaces, `O` à la place de
+`0`, `I` ou `L` à la place de `1`, tout est accepté.
 
 Rejoindre avec un compte suit les règles habituelles : la bibliothèque doit
 être partagée avec ce compte, et le contrôle parental du profil doit autoriser

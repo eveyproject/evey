@@ -1,11 +1,22 @@
 # Audio
 
-Which track you will hear, whether it reaches your device as it is or
-re-encoded, and with how many channels. For viewers; the profile settings
-named here live in **Settings → Playback**. The audio track is judged
-separately from the video: in most transcodes it is the only thing
-re-encoded, the video is copied and the sound converted to a format the
-player reads.
+**In short:**
+
+- You hear your profile's language when the film has it: set it in
+  **Settings → Playback → Default Audio Language**. A track you pick by hand
+  in the player always wins.
+- The sound is sent as it is when your device can play it. Otherwise the
+  server converts it to a common format (AAC). Often the sound is the only
+  thing converted, and the picture stays untouched.
+- On a phone's speaker, headphones or Bluetooth, the Android app plays
+  stereo. With the Android or Android TV app on HDMI, you get as many
+  channels as the TV or amplifier accepts (5.1, for example).
+- Sound out of sync with the picture? See
+  [Sound out of sync](#sound-out-of-sync).
+
+The rest of this page explains which track plays, when it is copied or
+converted, and with how many channels. The profile settings named here are
+in **Settings → Playback**.
 
 ## What you will hear, by device
 
@@ -93,4 +104,5 @@ sample rate: internal/app/transcoding/decision.go - evaluateAudio (no sample-rat
 resync: internal/app/transcoding/playback_plan_resolver.go - Decide (audio_resync_requested) ; frontend/apps/web/src/features/playback/HLSPlayer.tsx (audioOffsetAvailable=transcodeMode) ; frontend/apps/mobile/app/(auth)/player/[id].tsx (audioOffsetAvailable)
 media health: i18n admin.syncPreview.btn ; docs/runbooks/media-health.md
 labels: i18n auth.settings.playback.maxAudioChannels, channelsStereo, channels51, channels71, audioLanguage ; player.settings.audioSync, audioSyncHint, audioSyncUnavailable ; player.streamInfo.decisionWasm, reason.audio_passthrough_unsupported, reason.audio_resync_requested
+plain opening: frontend/packages/client/src/hooks/usePlayerTrackSelection.ts ; i18n auth.settings.playback.audioLanguage
 -->

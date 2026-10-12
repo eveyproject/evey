@@ -1,12 +1,21 @@
 # Casting
 
-What the television plays when you cast, and why it can differ from what your
-phone or browser was playing. For viewers using the **Cast** button of the web
-player in Chrome or of the Android app, towards a Chromecast or a TV with
-Chromecast built in; the Android TV app has no Cast button. The phone or the
-browser only starts the session: the TV plays the stream from the server
-directly, through Evey's own receiver application, and the server decides what
-to send for the TV, not for the device that cast.
+Casting sends a film from your phone or computer to the TV.
+
+1. Start the film in the web player in Chrome, or in the Android app.
+2. Press **Cast** in the player.
+3. Pick your Chromecast, or your TV with Chromecast built in.
+
+The film then plays on the TV. The Android TV app has no **Cast** button: it
+already is the TV. Firefox shows no **Cast** button either. With Safari, or
+Chrome on an Android phone, the button works differently: see
+[Browsers without a Cast session of their own](#browsers-without-a-cast-session-of-their-own).
+
+The picture on the TV can differ from the one on your phone, and that is
+normal. The TV does not receive what your phone was playing: it fetches the
+film from the server itself, and the server prepares a version that suits
+the TV. The rest of this page explains how, for the curious and for the
+person who runs Evey.
 
 ## What the TV plays
 
@@ -86,4 +95,5 @@ server-driven receiver: docs/adr/0025-server-driven-cast.md
 web button and fallbacks: frontend/apps/web/src/features/playback/HLSPlayer.tsx - castAvailable, handleMobileCast ; hooks/hlsPlayerUtils.ts - pickCastTapPath, planRendererLoad, pickPlayOnFallback ; frontend/apps/web/src/hooks/useCasting.ts - startCast (castDevices[0], renderers[0])
 DLNA: internal/app/dlna/service.go (SSDP AVTransport) ; not in frontend/apps/mobile
 labels: i18n player.cast ; player.playOn.title ; player.streamInfo.reason.client_line_exceeded, abr_floor_requested
+viewer steps: i18n player.cast ; Android TV has no Cast button: frontend/apps/tv (no useCastSession)
 -->

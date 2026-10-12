@@ -1,15 +1,23 @@
 # How playback is decided
 
-Why does this film play untouched on the TV and get re-encoded on the phone?
-This page answers that for anyone who presses play: the three outcomes and how
-to read **Stream info** come first; the exact rules the server applies follow,
-for the reader who wants to understand or tune them.
+Why does a film play untouched on the TV but get converted on the phone?
 
-Evey never asks you to pick a quality before playing. Each start of a title is
-a negotiation between three parties: what the file contains, what this player
-can decode, and what this server can encode right now. The same film can
-therefore be sent as it is to one device and re-encoded for another, or play
-differently on the same device when the server is busy.
+**In short:**
+
+- You never choose a quality. When you press play, the server looks at the
+  file, at what your device can play, and at how busy it is. Then it picks
+  the lightest way that works.
+- There are three ways: **Direct Play** (the file as it is), **Remux** (the
+  same picture and sound, repackaged in another file format), and
+  **Transcode** (part of the film converted, often only the sound).
+- So the same film can go untouched to one device and be converted for
+  another, or play differently on the same device when the server is busy.
+- You usually have nothing to do. To see which way you got, and why, open
+  **Stream info** in the player: see [Reading Stream info](#reading-stream-info).
+
+The three ways and how to read **Stream info** come first. The exact rules
+the server applies follow, for the reader who wants to understand or tune
+them.
 
 ## The three outcomes
 
@@ -159,4 +167,5 @@ tone-map reported: internal/app/transcoding/route_tonemap_report_test.go
 labels: i18n player.streamInfo.* ; player.quality.* ; auth.settings.playback.* ; admin.yaml maxBitrate (user limit) ; admin.remoteAccess.maxRemoteBitrate, lanNetworks ; admin.calibration.maxBitrateRemoteLabel
 entry point: frontend/apps/web/src/features/playback/StreamInfoPanel.tsx ; frontend/apps/web/src/features/playback/PlayerSettingsPanel.tsx ; frontend/apps/mobile/src/components/player/PlayerControlsRow.tsx ; frontend/apps/tv/src/components/TrackOptionsMenu.tsx
 adr: 0024, 0029, 0030
+plain opening: docs/playback/transcoding.md ; i18n player.streamInfo.title
 -->

@@ -1,10 +1,18 @@
 # Hardware acceleration
 
-A graphics card or an integrated GPU lets the server transcode more streams at
-once, and at higher resolutions, than the processor alone. This page is for
-the administrator: give the device to the container, leave the panel on
-**Auto**, and the server proves on its own what the card can do before it
-sends a single playback to it.
+**In short:**
+
+- A graphics card, or the graphics part built into many processors (Intel
+  Quick Sync, for example), lets the server convert more videos at once, and
+  at higher resolutions, than the processor alone.
+- It only helps when a video is converted (transcoded). Films sent as they
+  are, or repackaged, do not use it.
+- What you do: add a few lines to your compose file so that Evey can use the
+  card, then leave the setting on **Auto (best available)**.
+- Evey tests the card with a real conversion before sending any playback to
+  it. A card that fails the test is not used.
+
+The steps follow, then how the server proves what the card can do.
 
 ## Turn it on
 
@@ -132,4 +140,5 @@ quiet moment: internal/app/transcoding/calibration_service.go - idleProbes, idle
 render group: docker-compose.gpu.yml ; nvidia: docker-compose.gpu-nvidia.yml
 panel: frontend/apps/web/src/features/admin/EncodeCalibrationCard.tsx (hw_mode, detected_backends, is_wsl)
 labels: i18n admin.calibration.cardTitle, hwModeLabel, hwModeAuto, hwModeOff, hwBackendLabel, detected, detectedNone, recalibrate, hwFallbacks, wslUnsupported ; admin.nav.transcodingConfig, nowPlaying
+plain opening: rules below ; i18n admin.calibration.hwModeAuto
 -->

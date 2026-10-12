@@ -1,13 +1,23 @@
 ---
-source_sha: 54a26c796379301c31f200b4414df7b931526d8fb5a083da29c563084d94aef4
+source_sha: 91a46caa213d6048de832a4352bd5972b5f2d393a40a66301f693b3d908f084c
 reviewed: true
 ---
 # MKVGo dans Evey
 
-MKVGo est la bibliothèque multimédia qu'Evey exécute dans son propre processus
-pour lire et réempaqueter les fichiers MKV/WebM et MP4/MOV. Cette page
-s'adresse à qui veut savoir ce que le serveur fait sans lancer FFmpeg, et où
-FFmpeg prend encore le relais.
+**En bref :**
+
+- MKVGo est une partie d'Evey qui lit les fichiers vidéo (MKV, WebM, MP4,
+  MOV) et les remet dans un autre format de fichier, sans convertir l'image
+  ni le son.
+- Quand c'est possible, c'est elle qui sert les lectures en **Remux**, sort
+  les sous-titres des fichiers, et lit vos fichiers pendant un scan. Tout ce
+  qui demande une vraie conversion passe par FFmpeg, un outil vidéo à part.
+- Vous n'avez rien à régler. **Administration → En cours de lecture** montre,
+  piste par piste, si une lecture a été servie par MKVGo ou par FFmpeg.
+
+Le reste de cette page s'adresse à qui veut savoir ce que le serveur fait
+sans lancer FFmpeg, et où FFmpeg prend encore le relais. MKVGo tourne à
+l'intérieur du processus du serveur Evey.
 
 MKVGo travaille sur la structure d'un fichier : ses en-têtes, son index, ses
 pistes et leurs paquets. Elle ne décode ni n'encode jamais une image ou un
@@ -94,6 +104,6 @@ au lieu d'être diffusés directement.
 
 ## Voir quel moteur sert un flux
 
-**Admin → Tableau de bord** et **Admin → En cours de lecture** indiquent le
+**Administration → Tableau de bord** et **Administration → En cours de lecture** indiquent le
 moteur de chaque piste : `mkvgo` ou `ffmpeg`. Un remux peut afficher les deux,
 par exemple la vidéo empaquetée par MKVGo et l'audio copié par FFmpeg.
