@@ -96,12 +96,12 @@ its `caddy-data` volume holds the TLS certificates (re-requested if deleted).
 
 ## Apps
 
-Android and Android TV apps connect to your server URL. Use **Quick Connect** to log in on TV - type the code on your phone instead of wrestling with a remote.
+Android and Android TV apps connect to your server URL. A TV without Android TV opens `<server>/tv` in its own browser: the same remote-driven interface, nothing to install. Use **Quick Connect** to log in on TV - type the code on your phone instead of wrestling with a remote.
 
 ## Features
 
 - Adaptive HLS transcoding with [hardware acceleration](docs/administration/hardware-acceleration.md) (VAAPI, NVENC, QSV)
-- Android & Android TV apps (Expo/React Native)
+- Android & Android TV apps (Expo/React Native), and a TV browser client under `/tv`
 - Full-text search powered by Meilisearch
 - Multi-language metadata (TMDB/OMDb) + 6 UI languages (EN, FR, DE, ES, ZH, HI)
 - [SSO/OIDC](docs/oidc.md) - Keycloak, Authentik, Google, anything OIDC-compliant
