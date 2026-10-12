@@ -4,7 +4,7 @@ reviewed: true
 ---
 # 恢复
 
-当谁都登录不了、用来签发访问令牌的密钥可能已经泄露，或者数据库必须回到迁移前的转储时，请打开本页。每个步骤都是在容器里运行一条 `evey admin` 命令；其他子命令见[命令行](cli.md)页面。
+当所有人都无法登录、用来签发访问令牌的密钥可能已经泄露，或者数据库必须回到迁移前的转储时，请打开本页。每个步骤都是在容器里运行一条 `evey admin` 命令；其他子命令见[命令行](cli.md)页面。
 
 ## 开始之前
 
@@ -19,7 +19,7 @@ docker compose run --rm evey admin <subcommand>        # 容器已停止时
 
 ## 给用户一个新密码
 
-在用户被锁在外面时使用，或者在怀疑账户被盗之后立即使用。新密码只显示一次，而且从不写进日志：关闭终端之前请先把它复制下来。
+在用户无法登录时使用，或者在怀疑账户被盗之后立即使用。新密码只显示一次，而且从不写进日志：关闭终端之前请先把它复制下来。
 
 ```sh
 docker exec evey-server evey admin reset-password --user admin@example.com
@@ -36,7 +36,7 @@ Save this - it is the only time the new password is shown.
 Every session of this user has been ended.
 ```
 
-这位用户的所有会话会立即结束：刷新令牌被删除，访问令牌被吊销。已打开的应用大约在 30 秒内会发现，并要求重新登录。如果您弄丢了输出，再运行一次命令即可。
+这位用户的所有会话会立即结束：刷新令牌被删除，访问令牌被吊销。已打开的应用大约在 30 秒内会发现，并要求重新登录。如果输出丢失，再运行一次命令即可。
 
 ## 轮换签发访问令牌的密钥
 
@@ -52,7 +52,7 @@ docker exec evey-server evey admin rotate-jwt-key
 2. 在同一个事务里，删除所有刷新令牌，并吊销所有访问令牌。已打开的应用大约在 30 秒内会发现；所有人都要重新登录。
 3. 服务器下次启动时，会生成一个新的 2048 位 RSA 密钥。
 
-之后请重启容器（`docker compose restart evey`），让新密钥生效。如果连不上数据库，密钥仍然会被移到一边，命令会显示 `key rotated, but sessions could not be ended (restart the server, then run this again)`：请照着做，先重启服务器，再运行一次这条命令。
+之后请重启容器（`docker compose restart evey`），让新密钥生效。如果连不上数据库，密钥文件仍然会被重命名移走，命令会显示 `key rotated, but sessions could not be ended (restart the server, then run this again)`：请按此操作，先重启服务器，再运行一次这条命令。
 
 ## 恢复迁移前的转储
 
@@ -70,7 +70,7 @@ docker compose up -d
 会发生什么：
 
 1. 命令先读取整个文件：文件必须能完整解压，并以 `pg_dump` 的完成标记行结尾。被截断或损坏的转储会被拒绝（`refusing to restore: ...`），这时还没有删除任何东西。
-2. 然后它会等待 5 秒再动手：按 Ctrl+C 可以中止。
+2. 然后它会等待 5 秒再进行任何更改：按 Ctrl+C 可以中止。
 3. `psql` 以 `--single-transaction` 和 `ON_ERROR_STOP=1` 应用转储。只要出现任何错误，事务就会回滚，数据库保持原样。
 4. 成功时，最后一行是 `[admin] restored backup <path>`。
 

@@ -1,16 +1,16 @@
 ---
-source_sha: 8ccd966956a11a7a3ecb0c05f93391b743b2f875ce8eebf7c481ef523a5aa3cb
+source_sha: 75cf2b4a2c51b96a797f8a84d750a9f124cdfb957c1ca9a4cfa98cba23edbab8
 reviewed: true
 ---
 # 插件沙箱与威胁模型
 
-服务器为了把插件关住做了哪些事：安装时的检查、运行时的各层防护、各种沙箱模式，以及每一层仍然防不住的东西。
+服务器为限制插件所采取的措施：安装时的检查、运行时的各层防护、各种沙箱模式，以及每一层仍然无法阻止的情况。
 代码位于 `internal/adapters/driven/pluginrunner`（安装分析、沙箱）、`cmd/evey-plugin-launcher`（Landlock 和内核 seccomp 过滤器）、
 `sandbox/sandbox.c`（`LD_PRELOAD` 过滤器）以及 `internal/adapters/driving/pluginhost`（插件调用的宿主 API）；
 设计依据 [ADR-0012](adr/0012-plugin-token-deny-by-default.md)、
 [ADR-0013](adr/0013-userspace-plugin-resource-monitor.md) 和
-[ADR-0014](adr/0014-landlock-plugin-sandbox.md)。如果您在编写插件，想知道可以声明什么、什么会被拒绝，请读
-[权限与插槽](plugins/security-model.md)；想知道您的机器会用上哪种沙箱，请读[插件沙箱设置](plugins/sandbox-deployment.md)。
+[ADR-0014](adr/0014-landlock-plugin-sandbox.md)。如果您在编写插件，想知道可以声明什么、什么会被拒绝，请阅读
+[权限与插槽](plugins/security-model.md)；想知道您的机器会使用哪种沙箱，请阅读[插件沙箱设置](plugins/sandbox-deployment.md)。
 
 ## 威胁模型
 
@@ -18,10 +18,10 @@ reviewed: true
 
 1. **冒充** - 插件假装成另一个插件，以使用对方的权限。
 2. **权限提升** - 插件逃出沙箱，以服务器的身份执行命令。
-3. **文件系统访问** - 插件读写自己目录之外的东西，尤其是服务器的机密。
+3. **文件系统访问** - 插件读写自己目录之外的内容，尤其是服务器的机密。
 4. **网络外泄** - 插件把数据发送到它自己挑选的主机。
 5. **滥用资源** - 挖矿、fork 炸弹、耗尽内存或磁盘。
-6. **供应链** - 分析读不懂的混淆代码或编译代码。
+6. **供应链** - 分析无法读取的混淆代码或编译代码。
 
 ```mermaid
 flowchart LR
@@ -57,7 +57,7 @@ flowchart LR
 清单声明插件申请的权限。未知的权限会导致安装被拒绝。之后这些权限会被强制执行：
 
 - **`subprocess`** 允许创建子进程。没有它时，内核会拒绝创建进程（`-deny-fork`），对于解释型插件，`LD_PRELOAD` 过滤器还会拒绝 `execve`。
-- **`native-binary`** 允许包里带编译好的代码或压缩包，这些是分析读不懂的。
+- **`native-binary`** 允许包中包含编译好的代码或压缩包，分析无法读取这些内容。
 - **API 权限**（`api.library`、`api.user`、`api.metadata`、`media.read`、`media.write`、`notification.sender`……）在每次调用宿主时都由
   [`PluginPermissionInterceptor`](../internal/adapters/driving/grpcapi/plugin_interceptor.go) 检查。
 
@@ -91,11 +91,11 @@ flowchart LR
 出现 CRITICAL 发现或 `mime_mismatch` 时，安装会被拒绝。`compiled_binary` 和 `embedded_archive` 也会导致拒绝，除非清单声明了 `native-binary`。
 
 !!! note "分析无法保证的事情"
-    它是按模式工作的。它能识破已知的几类混淆（分好几步把字符串拼接成可调用对象、按名称查找内置函数、`Function.constructor` 逃逸），
+    它是按模式工作的。它能还原已知的几类混淆（分好几步把字符串拼接成可调用对象、按名称查找内置函数、`Function.constructor` 逃逸），
     每一类在 `tests/fixtures/plugins/malicious/` 里都有一个回归测试样例；但它无法跟踪运行时进行的每一种变换
     （`strrev("metsys")`、解码从文件里读出的载荷）。它也会匹配注释里的内容：一行 `# pip install foo` 注释会触发 `runtime_install`。
-    **真正起把关作用的是运行时的沙箱，而不是分析**：即使某个插件让一个模式从分析下溜了过去，它仍然读不到服务器的数据，
-    调用不了被拒绝的系统调用，突破不了资源限制，也调用不了它没有权限的宿主方法。
+    **实际执行限制的是运行时的沙箱，而不是分析**：即使插件中的某个模式未被分析发现，该插件仍然无法读取服务器的数据，
+    无法调用被拒绝的系统调用，无法超出资源限制，也无法调用它没有权限的宿主方法。
 
 ### 签名
 
@@ -137,11 +137,11 @@ flowchart LR
   所以 DNS 重绑定和重定向都会被再次检查（重定向到列表之外的主机会被拒绝）；
 - 不附加服务器的任何凭据，响应体最大 8 MiB，请求头最大 8 KiB，20 秒后放弃。
 
-这堵住了直接外连留下的漏洞（像 `169.254.169.254` 这样的 IP 地址、插件自带的 DNS 解析器）。剩下的问题是：代理控制的是一次调用*去哪里*，
+这关闭了直接外连所留下的途径（像 `169.254.169.254` 这样的 IP 地址、插件自带的 DNS 解析器）。剩下的问题是：代理控制的是一次调用*去哪里*，
 而不是它*带了什么*。见[已知限制](#known-limits)。
 
 !!! tip "给运维人员的建议"
-    代理把 SSRF 的暴露面转移到了宿主上。在 `evey-server` 容器上加一条出站规则，不依赖代码，就多了第二道墙：
+    代理把 SSRF 的暴露面转移到了宿主上。在 `evey-server` 容器上添加一条与代码无关的出站规则，可以提供第二层保护：
     丢弃 `169.254.0.0/16`，并把内部网络限制为只能访问数据库和搜索服务的端点。
 
 ### 系统调用
@@ -177,21 +177,21 @@ flowchart LR
 这样 C 库会退回使用 `clone`）；线程仍然可以正常工作。
 
 这是一份**黑名单**：`open`、`read`、`write`、`mmap`、Unix `socket` 和 `connect` 仍然允许。路径由文件系统那一层限制，而不是靠 seccomp。
-在 `bubblewrap` 下不使用启动器：静态二进制文件在那里没有 seccomp 过滤器，靠命名空间和挂载白名单关住。
+在 `bubblewrap` 下不使用启动器：静态二进制文件在那里没有 seccomp 过滤器，由命名空间和挂载白名单进行限制。
 
 ### 独立的用户
 
-插件可以以用户 1001（`evey-plugin`）运行，和服务器（1000）不同，这样光靠文件权限，它就读不到服务器的机密。
+插件可以以用户 1001（`evey-plugin`）运行，和服务器（1000）不同，这样仅凭文件权限，它就无法读取服务器的机密。
 由 `EVEY_PLUGINS_UID_SEPARATION` 控制：
 
 | 值 | 什么时候切换用户 |
 |---|---|
-| `auto`（默认） | 只在沙箱最终落到 `basic` 时，这是文件权限成为机密周围唯一一道墙的唯一情况 |
+| `auto`（默认） | 只在沙箱最终解析为 `basic` 时，这是文件权限成为机密唯一保护的唯一情况 |
 | `on` | 始终切换，作为额外的一层 |
 | `off` | 从不切换 |
 
 切换由启动器完成，它持有 `cap_setuid`；服务器本身不带任何特权或能力运行。启动器拒绝切换到 1000 以下的任何用户。
-如果无法切换，`basic` 下的插件会被拒绝（在那里，用户是唯一的一道墙），而在 `landlock` 下，插件会以服务器的用户身份运行，并记录一条警告。
+如果无法切换，`basic` 下的插件会被拒绝（在那里，用户是唯一的保护），而在 `landlock` 下，插件会以服务器的用户身份运行，并记录一条警告。
 在 `bubblewrap` 和 `strict` 下，由用户命名空间承担这个角色。
 
 启用时，签名密钥（`0600`）和备份（`0700` 目录、`0600` 文件）在运行时只有所有者能访问，即使 `/data` 是绑定挂载的也一样。
@@ -205,7 +205,7 @@ flowchart LR
 
 ### 资源限制
 
-一个运行在用户空间的监控程序（在无特权的容器里用不了 cgroups）每 2 秒读取一次 `/proc/<pid>`，停掉超出限制的插件
+一个运行在用户空间的监控程序（在无特权的容器里用不了 cgroups）每 2 秒读取一次 `/proc/<pid>`，停止超出限制的插件
 （[ADR-0013](adr/0013-userspace-plugin-resource-monitor.md)）：
 
 | 限制 | 默认值 | 检查频率 |
@@ -215,7 +215,7 @@ flowchart LR
 | 插件目录占用的磁盘 | 100 MiB | 每 15 轮一次，大约 30 秒 |
 | CPU 优先级 | `nice` 10，启动时设置 | - |
 
-同一轮检查还会标记让 CPU 持续高于 90% 大约 30 秒的插件，并停掉以同样方式让图形引擎持续满载的、获得了 `hardware.gpu` 权限的插件。
+同一轮检查还会标记让 CPU 持续高于 90% 大约 30 秒的插件，并停止以同样方式让图形引擎持续满载的、获得了 `hardware.gpu` 权限的插件。
 这些限制可以在**管理 → 插件 → 资源限制**里按插件设置；环境变量 `EVEY_PLUGINS_MEMORY_MB`、`EVEY_PLUGINS_PIDS_MAX`、`EVEY_PLUGINS_DISK_MAX_MB`
 和 `EVEY_PLUGINS_CPU_NICE` 设置启动时的默认值。
 
@@ -254,7 +254,7 @@ flowchart LR
 ### `auto`（默认）
 
 在第一个插件启动时确定一次，选用宿主支持的最强模式：内核强制执行 Landlock，*并且*找得到 `evey-plugin-launcher` 二进制文件
-（在服务器二进制旁边、在 `$PATH` 里，或在 `EVEY_PLUGIN_LAUNCHER` 指定的位置）时，选 **landlock**；否则，如果测试沙箱真的能建起来
+（在服务器二进制旁边、在 `$PATH` 里，或在 `EVEY_PLUGIN_LAUNCHER` 指定的位置）时，选 **landlock**；否则，如果测试沙箱确实能够创建
 （[`ProbeSandbox`](../internal/adapters/driven/pluginrunner/sandbox_probe.go)），选 **bubblewrap**，实际上这意味着裸机或特权容器；
 再否则，选 **basic**。Landlock 排在第一，是因为它不需要任何特权，而且能在 Docker 默认的安全配置下运行。
 最终选定的模式会记录在日志里，并显示在**管理 → 插件 → 安全仪表板**的**主机沙箱**一行。
@@ -268,7 +268,7 @@ flowchart LR
 ### `landlock`
 
 - **文件系统：** 由启动器应用的 Landlock 允许列表。系统目录（`/usr`、`/lib`、`/lib64`、`/bin`、`/sbin`、`/etc`、`/app`）只读；
-  `/dev` 里只有 `null`、`zero`、`full`、`random` 和 `urandom`，所以显卡节点和服务器的终端都碰不到；插件的目录和套接字目录可读写；
+  `/dev` 里只有 `null`、`zero`、`full`、`random` 和 `urandom`，所以显卡节点和服务器的终端都无法访问；插件的目录和套接字目录可读写；
   其他一切，包括 `/data` 和其他插件，一律拒绝。获得了 `hardware.gpu` 权限的插件，作为唯一的例外，可以访问它的渲染节点。
 - **网络：** `-restrict-net` 和 `-deny-inet`；只能通过 `Fetch` 外连。
 - **系统调用：** 内核过滤器和 `LD_PRELOAD` 过滤器。
@@ -301,7 +301,7 @@ flowchart LR
 
 ### `basic`
 
-`auto` 的最后退路：独立的用户、内核过滤器、`LD_PRELOAD` 过滤器、`-deny-inet`，内核支持时还有 Landlock。
+`auto` 的最后选择：独立的用户、内核过滤器、`LD_PRELOAD` 过滤器、`-deny-inet`，内核支持时还有 Landlock。
 在没有 Landlock 的内核上，没有按路径的限制：插件可以读取不敏感、所有人可读的文件，也能看到进程列表。
 服务器的机密仍然由独立的用户和 `PR_SET_DUMPABLE` 保护，网络被切断，危险的系统调用被拒绝，编译好的二进制也不例外。
 
@@ -323,24 +323,24 @@ flowchart LR
 | 限制 | 影响 | 目前靠什么缓解 |
 |---|---|---|
 | 在没有 Landlock 的内核上，`basic` 没有按路径的限制 | 插件可以读取不敏感、所有人可读的文件，以及其他插件的目录 | 机密由独立的用户和 `PR_SET_DUMPABLE` 保护；`auto` 优先选择 Landlock 或 bubblewrap |
-| 所有插件共用用户 1001 | 插件可以向同伴发信号（向服务器发信号会被拒绝） | `PR_SET_DUMPABLE` 阻止通过 `/proc` 读取其他进程；Landlock 和 bubblewrap 隔离各个插件的目录 |
+| 所有插件共用用户 1001 | 插件可以向其他插件发信号（向服务器发信号会被拒绝） | `PR_SET_DUMPABLE` 阻止通过 `/proc` 读取其他进程；Landlock 和 bubblewrap 隔离各个插件的目录 |
 | seccomp 是黑名单 | 文件调用和 Unix 套接字调用仍然允许 | 路径由 Landlock 或 bubblewrap 限制；IP 套接字被拒绝 |
 | 代理把 SSRF 暴露面转移到了宿主上 | 代理的校验一旦有漏洞，就可能访问到内部地址 | Go 写的允许列表和防 SSRF 客户端；容器上的出站规则作为独立的一层 |
 | 代理控制调用去哪里，而不控制它带了什么 | 数据可以发往插件列表里的某个主机 | 只允许那些您放心交给它这些数据的主机 |
-| 分析是按模式工作的 | 有意的混淆可以藏住代码 | 管理员预览；起把关作用的是沙箱，而不是分析 |
-| `LD_PRELOAD` 只覆盖动态链接的解释型插件 | 在没有启动器的 `basic` 下，静态二进制可以躲开它 | 官方镜像始终带有启动器，它的内核过滤器覆盖静态二进制 |
+| 分析是按模式工作的 | 有意的混淆可以隐藏代码 | 管理员预览；安全边界是沙箱，而不是分析 |
+| `LD_PRELOAD` 只覆盖动态链接的解释型插件 | 在没有启动器的 `basic` 下，静态二进制可以绕过它 | 官方镜像始终带有启动器，它的内核过滤器覆盖静态二进制 |
 
 ## 网络暴露（不属于插件威胁模型）
 
 有两条不变的规则决定谁能访问到服务器：
 
 - **只有 HTTP 端口是打算对外公开的。** gRPC 端口（`EVEY_SERVER_PORT`，默认 9090）是内部传输通道，唯一的客户端是同一进程里的 HTTP 网关；
-  HTTP API 用的是这个端口加一。gRPC 默认只绑定在回环地址上（`EVEY_GRPC_BIND=127.0.0.1`），因为远程访问的关卡是 HTTP 中间件，管不到它。
-  扩大绑定范围会记录一条警告；之后用防火墙把它挡住，就是运维人员的事了。
-- **远程访问关卡依据的是在受信任代理边界上验证过的那一个客户端地址**，从不依据请求头。客户端无法通过 `X-Forwarded-For` 冒称 `127.0.0.1`，
-  而没有经过那道边界的请求，一律算作远程。这是部署层面的控制，不是身份验证。
+  HTTP API 用的是这个端口加一。gRPC 默认只绑定在回环地址上（`EVEY_GRPC_BIND=127.0.0.1`），因为远程访问控制是 HTTP 中间件，不覆盖 gRPC。
+  扩大绑定范围会记录一条警告；此时需要由运维人员用防火墙限制该端口。
+- **远程访问控制依据的是在受信任代理边界上验证过的那一个客户端地址**，从不依据请求头。客户端无法通过 `X-Forwarded-For` 冒称 `127.0.0.1`，
+  而没有经过该边界的请求，一律视为远程请求。这是部署层面的控制，不是身份验证。
 
-见[远程访问和 HTTPS](administration/remote-access.md)以及[服务器与网络](environment/server.md#remote-access)。
+见[远程访问和 HTTPS](administration/remote-access.md)以及[配置参考](environment/server.md#remote-access)。
 
 ## 日志里可能有什么
 
@@ -352,7 +352,7 @@ flowchart LR
 ## 报告漏洞
 
 请私下报告，绝不要发在公开的 issue 里：`security@eveyproject.org`，也就是仓库[安全策略](../SECURITY.md)里的地址。
-插件的身份验证、权限和沙箱逃逸，和其他问题一样都在范围之内。请不要拿不属于您的 Evey 实例做测试。
+插件的身份验证、权限和沙箱逃逸，和其他问题一样都在范围之内。请不要对不属于您的 Evey 实例进行测试。
 
 <!-- sources
 install checks: internal/adapters/driven/pluginrunner/zip.go ; internal/adapters/driven/pluginrunner/analyzer.go ; internal/adapters/driven/pluginrunner/cosign.go ; internal/app/plugin/install.go ; internal/adapters/driving/grpcapi/plugin_interceptor.go - PluginPermissionInterceptor

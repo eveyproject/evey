@@ -12,7 +12,7 @@ reviewed: true
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
 | `EVEY_BACKUP_DIR` | `/data/backups` | 数据库备份写入的位置。 | 无 |
-| `EVEY_BACKUP_INTERVAL_HOURS` | `0`（关闭） | 每 N 小时备份一次，和面板里的计划互不相干；通常用面板里的计划。 | 数据库备份 → **计划任务**（cron 表达式），实时生效 |
+| `EVEY_BACKUP_INTERVAL_HOURS` | `0`（关闭） | 每 N 小时备份一次，与面板里的计划相互独立；通常使用面板里的计划。 | 数据库备份 → **计划任务**（cron 表达式），实时生效 |
 | `EVEY_BACKUP_RETENTION_DAYS` | `30` | 设置了上面的间隔时，超过这个天数的备份会被删除，删除发生在启动时和每次按间隔备份之后。面板里的计划有它自己的**保留天数**。 | 数据库备份 → 计划任务 → **保留天数**，实时生效 |
 
 ## 日志
@@ -20,7 +20,7 @@ reviewed: true
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
 | `EVEY_LOG_LEVEL` | `info` | `debug`、`info`、`warn` 或 `error`。 | 服务器配置 → 服务器设置 → **日志级别**，实时生效 |
-| `EVEY_LOG_DIR` | `/data/logs` | 每天的日志文件 `evey-YYYY-MM-DD.log` 写入的位置。由镜像设置。这个文件才是准的：`docker logs` 显示的是同样的内容，但 Docker 会轮换掉旧的部分。 | 无 |
+| `EVEY_LOG_DIR` | `/data/logs` | 每天的日志文件 `evey-YYYY-MM-DD.log` 写入的位置。由镜像设置。以这个文件为准：`docker logs` 显示的是同样的内容，但 Docker 会对其进行轮换。 | 无 |
 | `EVEY_LOG_MAX_SIZE_MB` | `50` | 日志文件达到多大时轮换。 | 无 |
 | `EVEY_LOG_RETENTION_DAYS` | `90` | 日志文件保留的天数。 | 无 |
 

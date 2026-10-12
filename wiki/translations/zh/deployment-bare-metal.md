@@ -1,5 +1,5 @@
 ---
-source_sha: 4aeebbe2feb50999e8470ea3f56b3e47af196ca12cf0100e22527f66ffe278e3
+source_sha: 0b2dda412b186b3b40f33ea4027ceb0d328e5f8f39f87d2312a8c7bdab2edbed
 reviewed: true
 ---
 # 不使用容器
@@ -7,7 +7,7 @@ reviewed: true
 这一页说明怎样直接在主机上运行 Evey（用 systemd、init 脚本，或者手动运行），而不用 Docker 镜像（见[安装](installation.md)）。
 推荐的方式是镜像：插件沙箱、安全加固和插件运行时都已经在里面配好了。不用容器运行，就意味着要自己做到同样的安全程度：
 相关的程序放在一起，一个专用的非 root 用户，您的内核支持的沙箱后端，以及只有所有者能访问的密钥目录。
-这一页按顺序一步步讲。
+本页按顺序逐步说明。
 
 ## 构建并安装程序
 
@@ -36,20 +36,20 @@ gcc -shared -fPIC -nostartfiles -o libevey-sandbox.so sandbox/sandbox.c
 sudo install -D -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
 ```
 
-这个路径是写死在运行器里的。没有这个文件，插件会拒绝启动（无法隔离就拒绝），除非服务器以开发模式运行。
+这个路径在运行器中是固定的。没有这个文件，插件会拒绝启动（无法隔离就拒绝），除非服务器以开发模式运行。
 这个垫片库在 Landlock 或 bubblewrap 之上，为动态链接的插件再加一份 seccomp 禁止清单。
 镜像把它和 SDK 一起放在 `/app` 下；用符号链接也可以。
 
 ### 运行时和服务
 
-请安装您的插件的 `entrypoint:` 会调用的程序。运行器认得 `python3`、`python`、`node`、`php`、`ruby`、`perl`、`lua`、`bash` 和 `sh`；
+请安装您的插件的 `entrypoint:` 会调用的程序。运行器识别 `python3`、`python`、`node`、`php`、`ruby`、`perl`、`lua`、`bash` 和 `sh`；
 大多数社区插件只需要 `python3`。然后是服务器要通信的那些服务：
 
 | 依赖 | 用途 |
 |---|---|
 | **ffmpeg** 和 **ffprobe** | 转码、探测文件；镜像里还带了 VAAPI 驱动和用于片头检测的 `fpcalc`（chromaprint） |
 | **PostgreSQL**（服务器加一个数据库）和 **`pg_dump`** | 数据库；`pg_dump` 用来在迁移前自动导出数据库 |
-| **Meilisearch** | 搜索索引；没有它，搜索会退回到用 SQL |
+| **Meilisearch** | 搜索索引；没有它，搜索会改用 SQL |
 | **`bwrap`**（bubblewrap） | 只有使用 bubblewrap 沙箱后端时才需要 |
 | **`setcap`**（libcap） | 用来给启动器授予文件能力（capability） |
 
@@ -67,8 +67,8 @@ sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugi
 ```
 
 - `evey`（UID 1000）运行服务器。
-- `evey-plugin`（UID 1001）是开启 uid 分离时插件切换到的用户。这样，被攻破的插件落到的是另一个无特权的用户上，
-  单凭普通的文件权限，它就读不到服务器的密钥。
+- `evey-plugin`（UID 1001）是开启 uid 分离时插件切换到的用户。这样，被攻破的插件会以另一个无特权用户的身份运行，
+  单凭普通的文件权限，它就无法读取服务器的密钥。
 
 !!! warning
     组 id 很重要：启动器会把插件切换到 UID 1001 和服务器自己的组，并且拒绝任何小于 1000 的 uid 或 gid。
@@ -84,7 +84,7 @@ sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugi
 ### Landlock（推荐）
 
 按路径的文件系统允许清单（插件只看得到自己的目录和套接字目录，永远看不到您的数据或密钥），
-再加上 Landlock v4 的 TCP 出站过滤。它不需要特权、不需要挂载，也不需要命名空间：启动器先把它加在自己身上，然后再执行插件。
+再加上 Landlock v4 的 TCP 出站过滤。它不需要特权、不需要挂载，也不需要命名空间：启动器先对自身应用它，然后再执行插件。
 
 Landlock 必须编译进内核，并且在当前启用的 LSM 列表里。运行器会探测 `landlock_create_ruleset`；
 如果没有这个系统调用（内核比 5.13 旧），或者 Landlock 不在启用列表里，探测就会失败。检查方法：
@@ -126,7 +126,7 @@ EVEY_PLUGINS_SANDBOX_MODE=strict      # 命名空间加上 seccomp 垫片库
 bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 ```
 
-### basic（最后的办法）
+### basic（最后选择）
 
 `EVEY_PLUGINS_SANDBOX_MODE=basic` 就是切换用户（uid）加上 seccomp 垫片库；如果有启动器，它仍然会装上它的内核 seccomp 禁止清单，
 并尽力加上 Landlock。没有按路径的文件系统隔离：插件以 UID 1001 运行，只有 seccomp 保护。
@@ -135,10 +135,10 @@ bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 获得了 `subprocess` 权限的插件，即使在 `basic` 模式下也需要启动器：垫片库在子进程 `exec` 之后就不再起作用，
 只有启动器设置的内核 seccomp 还在。没有启动器时，这样的插件会拒绝启动，而不是在没有隔离的情况下运行。
 
-## 让密钥远离插件
+## 防止插件访问密钥
 
 uid 分离让每个插件以 `evey-plugin`（UID 1001）运行，和服务器（UID 1000）分开，这样，单凭普通的文件权限，
-插件就读不到 `jwt.key`、备份或日志。它在 `basic` 模式下很重要；在 Landlock 或 bubblewrap 下，文件系统已经被隔开了，所以它在那里是多余的。
+插件就无法读取 `jwt.key`、备份或日志。它在 `basic` 模式下很重要；在 Landlock 或 bubblewrap 下，文件系统已经受到限制，所以它在那里是多余的。
 
 `EVEY_PLUGINS_UID_SEPARATION`：
 
@@ -156,7 +156,7 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 ```
 
 启动器拒绝任何小于 1000 的目标 uid 或 gid。如果无法切换（缺少能力，或者设置了 `no_new_privs`），
-`basic` 模式下的插件会被拒绝，因为在那里 uid 是它唯一的一道墙；在 Landlock 下，它会记录一条警告，然后以服务器的 uid 运行。
+`basic` 模式下的插件会被拒绝，因为在那里 uid 是它唯一的保护；在 Landlock 下，它会记录一条警告，然后以服务器的 uid 运行。
 
 !!! warning
     uid 分离和 `no_new_privs` 不能同时使用。如果服务器在 systemd 的 `NoNewPrivileges=yes` 下运行，
@@ -167,7 +167,7 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 
 ## 密钥文件的权限
 
-照镜像的做法：存放密钥的目录只有所有者能访问，这样，即使没有 Landlock，切换到 UID 1001 的插件也读不到它们。
+按照镜像的做法：存放密钥的目录只有所有者能访问，这样，即使没有 Landlock，切换到 UID 1001 的插件也无法读取它们。
 
 ```bash
 sudo chown -R evey:evey /var/lib/evey
@@ -191,19 +191,19 @@ sudo chmod 600 /var/lib/evey/jwt.key
   `EVEY_TRANSCODING_CACHE_DIR`（`/data/transcode`）、`EVEY_TRICKPLAY_CACHE_DIR`（`/cache/trickplay`）
   和 `EVEY_JWT_PRIVATE_KEY_PATH`（`/data/jwt.key`）设为您自己的目录。
 - 服务器提供的是普通的 HTTP：请在前面放一个反向代理来提供 TLS，把**外部 URL** 设为 `https://` 地址，
-  并把代理加到**受信任的代理**里（**管理 -> 远程访问**；`EVEY_SERVER_BASE_URL` 和 `EVEY_TRUSTED_PROXIES` 是备用方式）。
+  并把代理加到**受信任的代理**里（**管理 → 远程访问**；`EVEY_SERVER_BASE_URL` 和 `EVEY_TRUSTED_PROXIES` 是后备值）。
   见[反向代理配置](reverse-proxy.md)。
 - **服务器会打开两个端口，只能对外开放其中一个。**
   `EVEY_SERVER_PORT`（默认 `9090`）是原生的 gRPC 监听端口；您的客户端和反向代理访问的 HTTP API 是这个端口加一（`9091`）。
-  远程访问的把关决定局域网以外的客户端能不能连接，它接在 HTTP 这条处理链上，不管 gRPC 监听端口，
+  远程访问控制决定局域网以外的客户端能否连接，它位于 HTTP 处理链中，不覆盖 gRPC 监听端口，
   所以 gRPC 默认只绑定本机回环地址（`EVEY_GRPC_BIND=127.0.0.1`）。如果您有理由对外开放它，请设置 `EVEY_GRPC_BIND=0.0.0.0`；
-  服务器启动时会警告您把关对它不起作用，这时防火墙就要由您自己来设。
+  服务器启动时会警告远程访问控制不适用于该端口，此时需要您自己用防火墙限制它。
 - 迁移在启动时执行；没有单独的迁移步骤。
 - 插件的资源上限（`EVEY_PLUGINS_MEMORY_MB`、`_PIDS_MAX`、`_DISK_MAX_MB`、`_CPU_NICE`）和沙箱模式，
-  可以在运行时从**管理 -> 插件 -> 资源限制**修改；环境变量的值只是初始默认值。
+  可以在运行时从**管理 → 插件 → 资源限制**修改；环境变量的值只是初始默认值。
 - 管理面板里的重启服务器功能依赖镜像里的进程管理程序，不用容器运行时会显示为不可用：请自己重启服务。
 
-## 确认沙箱在工作
+## 确认沙箱正常工作
 
 服务器会在日志里记录它最终选择的后端。第一个插件启动后，请查找：
 
@@ -222,8 +222,8 @@ cat /sys/kernel/security/lsm              # 列出 "landlock"
 grep Seccomp: /proc/<plugin-pid>/status   # 2 = 插件上有一个生效的 seccomp 过滤器
 ```
 
-正在运行的插件进程上出现 `Seccomp: 2` 这一行，说明内核过滤器已经装上了。
-如果设置了 `EVEY_PLUGINS_SANDBOX_MODE=landlock`，而 Landlock 没有生效，插件会拒绝启动：这正是“无法隔离就拒绝”的约定在起作用。
+正在运行的插件进程上出现 `Seccomp: 2` 这一行，说明内核过滤器已经安装。
+如果设置了 `EVEY_PLUGINS_SANDBOX_MODE=landlock`，而 Landlock 没有生效，插件会拒绝启动：这说明“无法隔离就拒绝”的机制在正常工作。
 
 关于备份、更新和恢复命令，容器的那些页面同样适用：[备份和更新](backups.md)、[恢复](runbooks/recovery.md)
 和[命令行](runbooks/cli.md)介绍的是同一个 `evey admin` 程序。
