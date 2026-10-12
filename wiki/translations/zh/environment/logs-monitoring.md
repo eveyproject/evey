@@ -1,53 +1,60 @@
 ---
-source_sha: 4ea9a6d07b743691fa611b4154d0b15ea314d413a0aa20fafe038abaf561a972
-reviewed: false
+source_sha: 423abcebbc76e4563928da41b2a7c832f1c58ae0ac12a6c3ca307b8a59582cb1
+reviewed: true
 ---
-# 备份、日志与监控
+# 备份、日志和监控
 
-备份、服务器日志、历史保留多长时间，以及供外部监控系统使用的指标。
+这些是数据库备份、服务器日志、历史记录保留多久，以及外部监控系统所用接口背后的变量。
+日常操作见[备份和更新](../backups.md)和[监控和日志](../operations/monitoring.md)。
 
 ## 备份
 
-| 变量 | 默认值 | 作用 |
-| --- | --- | --- |
-| `EVEY_BACKUP_DIR` | `/data/backups` | 数据库备份写入的位置。 |
-| `EVEY_BACKUP_INTERVAL_HOURS` | `0`（关闭） | 每 N 小时备份一次。只在 **Admin → 备份与恢复 → 计划任务** 中没有设置计划时使用，而后者才是通常的方式。 |
-| `EVEY_BACKUP_RETENTION_DAYS` | `30` | 比这更旧的备份会在启动时以及由上面的计划删除。在面板中设置的计划有它自己的保留期。 |
-
-见[备份与更新](../backups.md)。
+| 变量 | 默认值 | 作用 | 面板 |
+| --- | --- | --- | --- |
+| `EVEY_BACKUP_DIR` | `/data/backups` | 数据库备份写入的位置。 | 无 |
+| `EVEY_BACKUP_INTERVAL_HOURS` | `0`（关闭） | 每 N 小时备份一次，和面板里的计划互不相干；通常用面板里的计划。 | 备份与恢复 → **计划任务**（cron 表达式），实时生效 |
+| `EVEY_BACKUP_RETENTION_DAYS` | `30` | 设置了上面的间隔时，超过这个天数的备份会被删除，删除发生在启动时和每次按间隔备份之后。面板里的计划有它自己的**保留天数**。 | 备份与恢复 → 计划任务 → **保留天数**，实时生效 |
 
 ## 日志
 
-| 变量 | 默认值 | 作用 |
-| --- | --- | --- |
-| `EVEY_LOG_LEVEL` | `info` | `debug`、`info`、`warn` 或 `error`。**Admin → 服务器配置 → 服务器设置** 会覆盖它。 |
-| `EVEY_LOG_DIR` | `/data/logs` | 每日日志文件 `evey-YYYY-MM-DD.log` 写入的位置。由镜像设置。这个文件是参考依据：`docker logs` 显示的是同一个流，但 Docker 会轮转它。 |
-| `EVEY_LOG_MAX_SIZE_MB` | `50` | 日志文件轮转前的大小。 |
-| `EVEY_LOG_RETENTION_DAYS` | `90` | 日志文件保留的天数。 |
+| 变量 | 默认值 | 作用 | 面板 |
+| --- | --- | --- | --- |
+| `EVEY_LOG_LEVEL` | `info` | `debug`、`info`、`warn` 或 `error`。 | 服务器配置 → 服务器设置 → **日志级别**，实时生效 |
+| `EVEY_LOG_DIR` | `/data/logs` | 每天的日志文件 `evey-YYYY-MM-DD.log` 写入的位置。由镜像设置。这个文件才是准的：`docker logs` 显示的是同样的内容，但 Docker 会轮换掉旧的部分。 | 无 |
+| `EVEY_LOG_MAX_SIZE_MB` | `50` | 日志文件达到多大时轮换。 | 无 |
+| `EVEY_LOG_RETENTION_DAYS` | `90` | 日志文件保留的天数。 | 无 |
 
-## 历史保留
+## 历史记录保留
 
-每一项都会被 **Admin → 服务器配置 → 服务器设置** 中对应的字段覆盖，在下一次每日清理时生效。
+每天的清理都会重新读取这些保留期限，所以在**管理 → 服务器配置 → 服务器设置**里保存的值，会在下一次清理时生效。
 
-| 变量 | 默认值 | 作用 |
-| --- | --- | --- |
-| `EVEY_PLAY_SESSION_RETENTION_DAYS` | `0`（永久） | 历史中已结束的播放会话。 |
-| `EVEY_AUDIT_LOG_RETENTION_DAYS` | `0`（永久） | 管理操作的审计日志。 |
-| `EVEY_METRICS_RETENTION_DAYS` | `90` | 服务器的资源采样（处理器、内存、带宽）。 |
-| `EVEY_QOE_RETENTION_DAYS` | `30` | 播放器的流媒体质量报告。 |
-| `EVEY_METRICS_SAMPLE_INTERVAL_SEC` | `60` | 资源采样的频率。 |
+| 变量 | 默认值 | 作用 | 面板 |
+| --- | --- | --- | --- |
+| `EVEY_PLAY_SESSION_RETENTION_DAYS` | `0`（永久） | 历史记录里已结束的播放会话。 | 服务器设置 → **播放会话历史保留期**，下次清理时生效 |
+| `EVEY_AUDIT_LOG_RETENTION_DAYS` | `0`（永久） | 管理操作的审计日志。 | 服务器设置 → **审计日志保留期**，下次清理时生效 |
+| `EVEY_METRICS_RETENTION_DAYS` | `90` | 服务器的资源采样数据（处理器、内存、带宽）。 | 服务器设置 → **服务器指标保留期**，下次清理时生效 |
+| `EVEY_QOE_RETENTION_DAYS` | `30` | 播放器上报的流媒体质量报告。 | 服务器设置 → **播放质量（QoE）保留期**，下次清理时生效 |
+| `EVEY_METRICS_SAMPLE_INTERVAL_SEC` | `60` | 多久采样一次资源数据。 | 无 |
 
 ## 外部监控
 
-| 变量 | 默认值 | 作用 |
-| --- | --- | --- |
-| `EVEY_METRICS_SCRAPE_TOKEN` | 空 | 除管理员会话之外，`GET /metrics` 还接受的一个静态令牌，这样 Prometheus 或 Grafana 无需续期登录即可抓取。为空：只接受管理员会话。 |
-| `EVEY_OTLP_ENDPOINT` | 空 | 发送追踪数据的 OpenTelemetry 端点。为空：不追踪。 |
-| `EVEY_TRACING_SERVICE_NAME` | `evey` | 追踪中的服务名称。 |
-| `EVEY_TRACING_SAMPLE_RATIO` | `0` | 被追踪的请求比例，0 到 1。 |
+| 变量 | 默认值 | 作用 | 面板 |
+| --- | --- | --- | --- |
+| `EVEY_METRICS_SCRAPE_TOKEN` | 空 | 一个固定的令牌，除了管理员会话之外，`GET /metrics` 也接受它，这样 Prometheus 或 Grafana 不用反复登录就能抓取数据。为空时：只接受管理员会话。 | 无 |
+| `EVEY_OTLP_ENDPOINT` | 空 | 接收追踪数据的 OpenTelemetry 接口。为空时：不做追踪。 | 无 |
+| `EVEY_TRACING_SERVICE_NAME` | `evey` | 追踪数据里的服务名称。 | 无 |
+| `EVEY_TRACING_SAMPLE_RATIO` | `0` | 被追踪的请求所占的比例，0 到 1（是比例，不是百分数）。 | 无 |
 
 ## 仅用于开发
 
-| 变量 | 默认值 | 作用 |
-| --- | --- | --- |
-| `EVEY_LOG_DEV_MODE` | `false` | 开发者模式：启动时的安全检查只给出警告，插件可以在没有沙箱库的情况下运行。绝不要在真实服务器上使用；设置了 `EVEY_ENV=production` 时服务器会拒绝启动。 |
+| 变量 | 默认值 | 作用 | 面板 |
+| --- | --- | --- | --- |
+| `EVEY_LOG_DEV_MODE` | `false` | 开发者模式：启动时的安全检查只给出警告，插件可以在没有沙箱库的情况下运行。绝不要在真正的服务器上开启；如果设置了 `EVEY_ENV=production`，服务器会拒绝启动。 | 无 |
+
+<!-- sources
+internal/config/config.go - EVEY_BACKUP_*, EVEY_LOG_*, EVEY_*_RETENTION_DAYS, EVEY_METRICS_*, EVEY_OTLP_ENDPOINT, EVEY_TRACING_* ; ScrapeToken comment ; WarnValidate (DevMode, sample ratio)
+overrides: cmd/evey/main.go - loadOverride (log.level, *_retention_days) ; internal/adapters/driving/http/settings_handler.go (log.level live via logger.SetLevel ; retention keys) ; i18n admin.serverSettings.logLevel, *RetentionDays, retentionSweepHint
+backup: cmd/evey/main.go (StartScheduler env interval + DB cron scheduler both started) ; internal/app/backup/service.go - StartScheduler (returns when interval <= 0 ; CleanupOldBackups first, then each tick) ; i18n admin.backup.schedule.*
+dev mode: internal/adapters/driven/pluginrunner/runner.go ; cmd/evey/wire_infra.go - refuseDevModeInProd
+log dir: Dockerfile
+-->

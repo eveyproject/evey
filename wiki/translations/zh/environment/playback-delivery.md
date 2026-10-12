@@ -1,38 +1,50 @@
 ---
-source_sha: ae7eadc681e514dab83967eab7a3ef8dfadf53af27b3d1e4c676d5dd2d1176ec
-reviewed: false
+source_sha: 3bd3ddf0df0a475d6ddf4417b5aa5b3630c871184888584df522bdae5daee7d4
+reviewed: true
 ---
 # 播放分发与下载
 
-流如何封装，以及服务器为下载准备什么。默认值就是推荐的行为；这些开关的存在是为了在排查问题时关闭某条路线，或者启用一条默认关闭的路线。
+这些开关决定视频流怎样打包，以及服务器为下载准备什么。默认值就是推荐的做法：
+这些开关的用途，是在排查问题时关掉某条路线，或者主动开启一条默认关闭的路线。
+最开始是怎样选择播放方式的：见[Evey 如何选择播放方式](../playback/how-playback-is-decided.md)。
 
-带有键名的变量也可以在 **Admin → 服务器配置 → 配置条目** 中以该键名添加一行来设置；该行优先于环境变量。面板会提示下载相关的键；其他键按这里的写法手动输入。全部在启动时读取。
+有面板键的变量，也可以在**管理 → 服务器配置 → 配置条目**里用这个键添加一行来设置；这一行优先于环境变量。
+面板会提示下载相关的键；其他的键请按这里写的样子输入。它们都在启动时读取，
+所以不管用哪种方式修改，都要到下次重启才生效。
 
-## 封装
+## 打包
 
-| 变量 | 面板键名 | 默认值 | 作用 |
+| 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_HLS_ONDEMAND` | `transcoding.hls_ondemand` | 开启 | 对于轨道可以直接复制的文件，通过即时重新封装来提供，不使用 ffmpeg，也不写入缓存。关闭：这类文件改走 ffmpeg 直接复制路线。 |
-| `EVEY_REMUX_COPY` | `transcoding.remux_copy` | 开启 | ffmpeg 直接复制路线：在文件允许时，视频不重新编码而直接复制。关闭：这些文件会被转码。 |
-| `EVEY_HLS_AUDIO_RENDITION_ENABLED` | | `true` | 把音轨作为单独的 rendition 提供，这样播放器切换语言时无需重新获取视频。也让直接复制的视频可以搭配一条单独重新编码的音轨播放。 |
-| `EVEY_HLS_COPY_FALLBACK_RUNG` | | `true` | 在直接复制的流旁边加一个低画质的转码档位，这样连接变差的播放器可以降档而不是卡住。在有播放器使用它之前不产生任何开销。 |
-| `EVEY_HLS_ONDEMAND_CONCAT` | `transcoding.hls_ondemand_concat` | 开启 | 当网页播放器请求时，在剧集之间无缝播放。无法直接复制的剧集会退回普通的流。 |
-| `EVEY_HLS_ONDEMAND_TRACK_TRIM` | `transcoding.hls_ondemand_track_trim` | 关闭 | 每个流中只放入选中的音轨，而不是全部音轨。 |
-| `EVEY_HLS_ONDEMAND_ENCRYPT` | `transcoding.hls_ondemand_encrypt` | 关闭 | 用 AES-128 加密重新封装的流（仅 HLS：此时不提供 DASH 清单）。 |
-| `EVEY_HLS_KEY_ROTATION_SEGMENTS` | `transcoding.hls_key_rotation_segments` | `0` | 开启加密时，每 N 个分段更换一次密钥；`0` = 每个条目一个密钥。 |
-| `EVEY_CAST_WASM_AUDIO_ENABLED` | | `false` | 让 Chromecast 自己解码杜比数字，而不是接收 AAC。默认关闭，因为它让低端接收器过载，却没有节省任何东西。浏览器不受影响。 |
+| `EVEY_HLS_ONDEMAND` | 开启 | 如果文件的轨道可以直接复制，就在发送时即时重新打包，不用 ffmpeg，也不写入缓存。`off`：这类文件改走 ffmpeg 的复制路线。 | 配置条目 `transcoding.hls_ondemand`，需重启 |
+| `EVEY_REMUX_COPY` | 开启 | ffmpeg 的复制路线：文件允许时，视频直接复制，不重新编码。`off`：这些文件改为转码。 | 配置条目 `transcoding.remux_copy`，需重启 |
+| `EVEY_HLS_AUDIO_RENDITION_ENABLED` | `true` | 把各条音轨作为单独的音频版本提供，这样播放器换语言时不用重新获取视频。也让一路直接复制的视频可以配上一条另外重新编码的音轨播放。 | 无 |
+| `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | 在直接复制的视频流旁边，再加一个转码出来的低画质，这样网络突然变差时，播放器可以降一档，而不是卡住。在播放器用到它之前，不消耗任何资源。 | 无 |
+| `EVEY_HLS_ONDEMAND_CONCAT` | 开启 | 网页播放器请求时，剧集之间无缝衔接播放。不能直接复制的一集会退回到普通的视频流。 | 配置条目 `transcoding.hls_ondemand_concat`，需重启 |
+| `EVEY_HLS_ONDEMAND_TRACK_TRIM` | 关闭 | 每个视频流里只放选中的那条音轨，而不是全部音轨。 | 配置条目 `transcoding.hls_ondemand_track_trim`，需重启 |
+| `EVEY_HLS_ONDEMAND_ENCRYPT` | 关闭 | 用 AES-128 加密重新打包的视频流（只限 HLS：开启后不再提供 DASH 清单）。 | 配置条目 `transcoding.hls_ondemand_encrypt`，需重启 |
+| `EVEY_HLS_KEY_ROTATION_SEGMENTS` | `0` | 开启加密时，每 N 个片段换一次密钥；`0` = 每部影片一个密钥。 | 配置条目 `transcoding.hls_key_rotation_segments`，需重启 |
+| `EVEY_CAST_WASM_AUDIO_ENABLED` | `false` | 让 Chromecast 自己解码杜比数字（Dolby Digital），而不是接收 AAC。默认关闭，因为它会让低端接收器负担过重，又没有带来任何好处。浏览器不受影响。 | 无 |
 
 ## 下载
 
-| 变量 | 面板键名 | 默认值 | 作用 |
+| 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_COMPAT_DOWNLOAD` | `transcoding.compat_download` | 开启 | 准备一个手机能播放其音频（AAC）的下载，视频保持不变。只重新编码音频，需要几分钟。 |
-| `EVEY_DOWNLOAD_QUALITY_CHOICE` | `downloads.quality_choice` | 关闭 | 为下载提供一个较小的 720p 副本。它会重新编码视频，在性能较弱的机器上大约以实时速度进行，这就是它在你开启之前一直关闭的原因。 |
-| `EVEY_DOWNLOAD_REDUCE_ABOVE_BYTES` | `downloads.reduce_above_bytes` | `4294967296`（4 GiB） | 超过这个大小时应用会提供较小的副本；当电影放不下时手机也会提供。 |
+| `EVEY_COMPAT_DOWNLOAD` | 开启 | 准备一个手机能播放音频（AAC）的下载版本，视频保持不变。只有音频重新编码，需要几分钟。 | 配置条目 `transcoding.compat_download`，需重启 |
+| `EVEY_DOWNLOAD_QUALITY_CHOICE` | 关闭 | 为下载提供一个更小的 720p 版本。它要重新编码视频，在性能弱的机器上大约和片长一样久，所以在您开启之前它是关闭的。 | 配置条目 `downloads.quality_choice`，需重启 |
+| `EVEY_DOWNLOAD_REDUCE_ABOVE_BYTES` | `4294967296`（4 GiB） | 超过这个大小，应用就会提供更小的版本；电影放不下时，手机也会提供它。 | 配置条目 `downloads.reduce_above_bytes`，需重启 |
 
 ## 播放器
 
-| 变量 | 默认值 | 作用 |
-| --- | --- | --- |
-| `EVEY_PLAYBACK_SKIP_FORWARD` | `30` | 快进按钮跳过的秒数。 |
-| `EVEY_PLAYBACK_SKIP_BACKWARD` | `30` | 快退按钮跳过的秒数。 |
+| 变量 | 默认值 | 作用 | 面板 |
+| --- | --- | --- | --- |
+| `EVEY_PLAYBACK_SKIP_FORWARD` | `30` | 快进按钮跳过的秒数。 | 无 |
+| `EVEY_PLAYBACK_SKIP_BACKWARD` | `30` | 后退按钮跳过的秒数。 | 无 |
+
+<!-- sources
+packaging flags: internal/adapters/driving/http/transcode_vod_wire.go (serverFlagEnabled, resolveServerFlag: hls_ondemand, remux_copy, hls_ondemand_concat, hls_ondemand_track_trim, hls_ondemand_encrypt, hls_key_rotation_segments)
+renditions, fallback rung, cast wasm: internal/config/config.go - AudioRenditionEnabled, CopyFallbackRungEnabled, CastWasmAudioEnabled
+downloads: cmd/evey/http.go (compat_download, quality_choice, reduce_above_bytes via resolveFlag)
+config entries catalogue: frontend/apps/web/src/features/admin/operatorFlags.ts ; i18n admin.serverConfig.entriesTitle, appliedOnRestart
+skip: internal/config/config.go - EVEY_PLAYBACK_SKIP_*
+-->
