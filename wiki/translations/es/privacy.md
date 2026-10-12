@@ -10,7 +10,7 @@ Esta política se aplica a las apps de Evey para Android y Android TV.
 
 En resumen: el proyecto Evey no tiene ningún servicio que reciba tus datos.
 No hay cuenta con nosotros, ni estadísticas de uso, ni publicidad, ni
-informes de errores que nos lleguen. Las apps hablan con el servidor Evey
+informes de errores que nos lleguen. Las apps se comunican con el servidor Evey
 instalado y gestionado por ti o por la persona que te invitó.
 
 ## Qué envían las apps, y a quién

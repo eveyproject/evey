@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Referencia de configuración
 
-Dónde vive cada ajuste de un servidor Evey, qué valor gana cuando un ajuste
+Dónde está cada ajuste de un servidor Evey, qué valor tiene prioridad cuando un ajuste
 existe a la vez en el panel de administración y en el entorno, y para qué
 hace falta reiniciar. Las variables en sí están listadas por tema en las diez
 páginas enlazadas más abajo; esta página es para el administrador que edita
@@ -16,14 +16,14 @@ el archivo compose o que se pregunta por qué una variable parece ignorada.
 rutas de almacenamiento, la dirección pública, datos del proxy inverso) va en
 el archivo compose como variables de entorno. **Lo que un administrador
 ajusta después** (idiomas, límites de transcodificación, aceleración por
-hardware, horarios, límites de los plugins) vive en el panel de
+hardware, horarios, límites de los plugins) está en el panel de
 administración, se guarda en la base de datos, sobrevive a una actualización
 del contenedor y casi siempre se aplica sin reiniciar.
 
 Para un ajuste que existe en los dos lugares, la prioridad es siempre la
 misma:
 
-1. **Gana el valor guardado en el panel.** En cada arranque, el servidor lee
+1. **Tiene prioridad el valor guardado en el panel.** En cada arranque, el servidor lee
    primero el entorno y después sustituye cada campo por el valor guardado en
    la base de datos, si lo hay. Una variable nunca se impone a un valor
    guardado.
@@ -85,7 +85,7 @@ panel.
   después de editar el archivo compose.
 - `EVEY_DB_PASSWORD` y `MEILI_MASTER_KEY` también pueden venir de un archivo
   indicado por la misma variable con el sufijo `_FILE`; un valor explícito
-  gana al archivo.
+  tiene prioridad sobre el archivo.
 
 ## Secretos
 
@@ -97,13 +97,13 @@ arranque, en `./evey-data/keys` (`postgres.password`, `meili.key`, modo
 `MEILI_MASTER_KEY` solo para una base de datos o un motor de búsqueda
 externos.
 
-Evey trae una clave TMDB integrada. `EVEY_TMDB_API_KEY` siembra la tuya; la
+Evey trae una clave TMDB integrada. `EVEY_TMDB_API_KEY` define la tuya como valor inicial; la
 clave definida en **Administración → Configuración del servidor → Claves
 API** tiene prioridad sobre ella.
 
 ## Variables que no necesitas
 
-Líneas que a menudo se arrastran de instalaciones antiguas, y por qué no
+Líneas que a menudo se conservan de instalaciones antiguas, y por qué no
 cambian nada:
 
 | Línea | Por qué no hace falta |
@@ -135,7 +135,7 @@ se une a los grupos de los demás montajes como grupos adicionales, así que
 las reparaciones en esos montajes funcionan cuando sus archivos tienen
 permiso de escritura para el grupo (el aviso de arranque indica qué montajes
 podrían seguir rechazando la escritura). La detección automática solo se
-aparta del todo (vuelve a `1000:1000` con un aviso) cuando todos los montajes
+desactiva del todo (vuelve a `1000:1000` con un aviso) cuando todos los montajes
 de medios pertenecen a root o al uid reservado `1001`: cambia el propietario
 de tus medios a un usuario normal con chown, o define `PUID`/`PGID`
 explícitamente:
@@ -145,7 +145,7 @@ PUID=1026   # ejecuta el servidor con este id de usuario  (en el equipo: `id -u 
 PGID=100    # ...y este id de grupo
 ```
 
-Los valores explícitos siempre ganan a la detección.
+Los valores explícitos siempre tienen prioridad sobre la detección.
 
 Cómo funciona: el contenedor arranca como root solo el tiempo justo para
 reasignar su usuario interno (y devolver al usuario la propiedad de las
@@ -155,11 +155,11 @@ con `group_add:` en el compose (por ejemplo el grupo render de tu equipo para
 la transcodificación por hardware con `/dev/dri`) se conservan después del
 cambio. El proceso del servidor nunca se ejecuta como root.
 
-Alternativa sin nada de root: si ni siquiera ese root pasajero te parece
-aceptable, define `user: "UID:GID"` en el servicio de tu archivo compose. El
+Alternativa sin nada de root: si ni siquiera ese uso temporal de root te
+parece aceptable, define `user: "UID:GID"` en el servicio de tu archivo compose. El
 punto de entrada detecta el arranque sin root y se salta la reasignación
-(incluida la detección del propietario de los medios); entonces te toca a ti
-mantener `./evey-data` con permiso de escritura para ese UID.
+(incluida la detección del propietario de los medios); entonces tienes que
+mantener tú `./evey-data` con permiso de escritura para ese UID.
 
 !!! note
     `PUID=1001` se rechaza: es el usuario interno `evey-plugin`, que se

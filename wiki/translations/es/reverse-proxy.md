@@ -19,12 +19,12 @@ una **URL externa** en `https://` y, cuando el proxy es un contenedor, su
 red en **Proxies de confianza**. Las dos se aplican sin reiniciar. Una
 dirección `https://` es lo que le dice a Evey que delante de él hay un proxy
 que se encarga de TLS: las cookies llevan la marca `Secure`, se envía HSTS y
-se cree la cabecera `X-Forwarded-Proto` de un proxy de confianza. El
+se acepta la cabecera `X-Forwarded-Proto` de un proxy de confianza. El
 interruptor de acceso remoto y la dirección real del cliente se explican en
 [Acceso remoto y HTTPS](administration/remote-access.md).
 
 Las mismas respuestas pueden venir del entorno, para una instalación descrita
-entera como código (el panel gana cuando están las dos):
+entera como código (el panel tiene prioridad cuando están las dos):
 
 ```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
@@ -193,7 +193,7 @@ location ~ ^/api/v1/libraries/.+/scan {
 
 Todas las demás rutas (la interfaz web, el resto de la API, el WebSocket de
 SyncPlay) pasan por el bloque de proxy propio de NPM, que se configura en la
-pestaña Details. Si te saltas este fragmento, no se rompe nada - solo cambia
+pestaña Details. Si omites este fragmento, no deja de funcionar nada - solo cambia
 dónde se guardan en búfer los archivos grandes.
 
 ## Un proxy que ya tienes funcionando (TLS resuelto antes)
@@ -239,7 +239,7 @@ puestos los proxies de confianza.
 
 Evey funciona detrás de un proxy inverso con sus valores por defecto: cada
 respuesta larga o bien envía datos sin parar (segmentos HLS, reproducción
-directa, salida de la transcodificación), o bien da señales de vida al
+directa, salida de la transcodificación), o bien envía una señal de actividad al
 cliente cada 30 s (los flujos de eventos), así que un tiempo límite de
 lectura por defecto nunca salta. Aun así, conviene saber dos cosas:
 
@@ -324,7 +324,7 @@ default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:/
 !!! warning "Al navegador tiene que llegar exactamente una cabecera CSP"
     Con dos (la de la aplicación y la de tu proxy, o la de Caddy y el
     fragmento "Advanced" de Nginx Proxy Manager), los navegadores aplican la
-    *intersección*: gana la más estricta y el fallo no se ve. Compruébalo con
+    *intersección*: se impone la más estricta y el fallo no es visible. Compruébalo con
     `curl -sI https://your.domain | grep -ci content-security-policy`, que
     tiene que mostrar `1`.
 
@@ -332,7 +332,7 @@ Dos comprobaciones más después de cualquier cambio:
 
 - **Deja la política en una sola línea.** Una CSP repartida en varias líneas
   en la configuración de un proxy es una corrupción silenciosa clásica: al
-  unir las líneas se pierden los caracteres de la junta
+  unir las líneas se pierden los caracteres de la unión
   (`...gstatic.com; connect-src` se convirtió una vez en
   `...gstaticonnect-src`, lo que desactivó el SDK de Cast y fusionó dos
   directivas).

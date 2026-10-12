@@ -74,7 +74,7 @@ otro campo nunca borra un secreto.
 
 ## Backend: los dos servicios
 
-El proceso del backend y el servidor hablan gRPC por dos sockets Unix cuyas
+El proceso del backend y el servidor se comunican por gRPC mediante dos sockets Unix cuyas
 rutas llegan en el entorno:
 
 ```
@@ -137,7 +137,7 @@ se borra con el plugin.
 | `ListDataKeys()` | Las claves del plugin. |
 
 Este almacén es global para el plugin. Los datos **por usuario** (una
-preferencia de la persona que mira el widget) viven del lado de la interfaz,
+preferencia de la persona que mira el widget) se guardan del lado de la interfaz,
 con el permiso `prefs` que se explica más abajo.
 
 ## API de la interfaz
@@ -171,7 +171,7 @@ evey.onInit(function (data) {
 Lleva la aplicación anfitriona a `path`. Solo se siguen los prefijos
 `/home`, `/library`, `/media`, `/player`, `/settings` y `/search`; todo lo
 demás (la zona de administración, el inicio de sesión, una URL absoluta) se
-descarta sin decir nada.
+descarta sin avisar.
 
 ### `evey.toast(level, message)`
 
@@ -184,9 +184,9 @@ caracteres; se muestran como mucho 3 avisos por segundo.
 Pide que el slot mida `height` píxeles de alto, limitado entre 50 y 800. `0`
 pliega el slot: un widget sin nada que mostrar no ocupa sitio. Un widget
 `home.section` se abre a `data.suggestedHeight` sin hacer nada: la página
-anfitriona conoce la superficie en la que te ha puesto y recomienda la altura
+anfitriona conoce la superficie en la que ha colocado tu widget y recomienda la altura
 que tiene ahí un widget del inicio, así que todos los widgets salen del mismo
-tamaño. Cambia el tamaño solo si sabes algo mejor.
+tamaño. Cambia el tamaño solo si tienes un motivo concreto.
 
 ### `evey.prefs.*` (permiso `prefs`)
 
@@ -235,7 +235,7 @@ que son ciertas en un navegador dejan de serlo ahí:
   darte. Calcula el tamaño a partir de `data.viewportHeight` o
   `data.suggestedHeight`.
 - **Ni foco ni puntero.** El widget nunca recibe el foco de la cruceta y no
-  hay efecto al pasar por encima; todo lo interactivo es cosa de las
+  hay efecto al pasar por encima; todo lo interactivo corresponde a las
   superficies web y móvil.
 - **Aleja el texto de los bordes.** Los televisores recortan los bordes de la
   imagen (overscan): deja libre alrededor de un 5 % de la anchura y de la

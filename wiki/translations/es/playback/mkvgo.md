@@ -15,7 +15,7 @@ reviewed: true
   muestra, pista por pista, si una reproducción la ha servido MKVGo o FFmpeg.
 
 El resto de esta página es para quien quiera saber qué hace el servidor sin
-arrancar FFmpeg, y dónde sigue tomando el relevo FFmpeg. MKVGo funciona
+arrancar FFmpeg, y en qué casos sigue interviniendo FFmpeg. MKVGo funciona
 dentro del proceso del servidor Evey.
 
 MKVGo trabaja con la estructura de un archivo: sus cabeceras, su índice, sus
@@ -30,7 +30,7 @@ como una biblioteca Go aparte:
 | --- | --- | --- |
 | **Reproducción directa** | El archivo se sirve tal cual. | Leer un archivo. |
 | **MKVGo** | Trabajo de estructura: leer un archivo, reempaquetar sus pistas para el streaming, reconstruir su índice, mover una pista en la línea de tiempo. | Código dentro del proceso del servidor: no se arranca FFmpeg ni ffprobe por cada flujo, y no se escriben segmentos en disco para el empaquetado bajo demanda. |
-| **FFmpeg** | Transformaciones de verdad: volver a codificar, convertir HDR a SDR (tone-mapping), descodificar una imagen. También es el recurso de reserva cada vez que MKVGo no puede con un archivo. | Un proceso por tarea. |
+| **FFmpeg** | Transformaciones de verdad: volver a codificar, convertir HDR a SDR (tone-mapping), descodificar una imagen. También es el recurso de reserva cada vez que MKVGo no puede procesar un archivo. | Un proceso por tarea. |
 
 Una copia con FFmpeg (`-c copy`) tampoco vuelve a codificar nada y sigue
 siendo barata; lo que MKVGo ahorra además es el proceso que se arranca para
@@ -48,7 +48,7 @@ reproductor: [Cómo elige Evey el modo de reproducción](how-playback-is-decided
 
 | Trabajo | Dónde se nota | Cuando MKVGo no puede |
 | --- | --- | --- |
-| **Leer archivos** | Durante un escaneo de la biblioteca, los códecs, la resolución, el HDR, el bitrate y la duración se leen del principio del archivo. | Lo lee ffprobe. También toma el relevo ante cualquier duda: un error de lectura, o información de color que MKVGo no ha podido leer en un códec que admite HDR. |
+| **Leer archivos** | Durante un escaneo de la biblioteca, los códecs, la resolución, el HDR, el bitrate y la duración se leen del principio del archivo. | Lo lee ffprobe. También se usa ante cualquier duda: un error de lectura, o información de color que MKVGo no ha podido leer en un códec que admite HDR. |
 | **Índice de fotogramas clave** | Las posiciones desde las que puede empezar la reproducción, leídas del índice del archivo; permiten que el Remux y la copia de vídeo corten los segmentos en fotogramas clave. | ffprobe. |
 | **Streaming sin volver a codificar** | Remux: segmentos HLS en MP4 fragmentado (CMAF), construidos cuando se piden a partir de un plan guardado para cada archivo. Un segmento se escribe en la conexión directamente desde el archivo de origen a medida que sale: no se monta nada antes en memoria, no se escribe nada en la caché de transcodificación. Sobre los mismos segmentos se genera un manifiesto DASH; las apps usan HLS. | FFmpeg copia las pistas, también sin volver a codificar, en segmentos escritos en la caché. |
 | **MP4 para el navegador** | Un archivo Matroska que un navegador no puede abrir se reescribe una sola vez como un MP4 de inicio rápido, guardado en una caché. | - |

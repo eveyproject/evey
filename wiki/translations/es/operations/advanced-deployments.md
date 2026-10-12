@@ -13,7 +13,7 @@ una variante de la imagen, o si el sandbox de plugins indica algo distinto de
 
 ## La base de datos integrada
 
-El clúster vive en `./evey-data/postgres` (Postgres 17, creado en el primer
+El clúster está en `./evey-data/postgres` (Postgres 17, creado en el primer
 arranque y propiedad del usuario del servidor). Solo escucha en la interfaz
 local del contenedor y exige la contraseña generada, así que un plugin que se
 ejecuta con otro usuario no puede abrirlo. `docker stop` lo apaga limpiamente
@@ -47,7 +47,7 @@ docker compose restart evey
 
 ## Usar Postgres como servicio aparte
 
-Para gestionar tú mismo la vida de la base de datos (un Postgres gestionado,
+Para gestionar tú mismo el ciclo de vida de la base de datos (un Postgres gestionado,
 una versión mayor fijada, tu propia política de volcados), ejecútala como un
 servicio aparte e indícale al servidor dónde está. Definir `EVEY_DB_HOST` es
 lo que desactiva la base de datos integrada. El servidor se niega a arrancar
@@ -211,7 +211,7 @@ equipo al ejecutar el contenedor.
 La imagen contiene todo lo necesario para confinar los plugins, sin modo
 privilegiado. El modo de sandbox por defecto (`auto`) elige el mecanismo más
 fuerte que permite el equipo: Landlock en cualquier kernel moderno. Comprueba
-el modo activo en el **Panel de seguridad** de **Administración -> Plugins**.
+el modo activo en el **Panel de seguridad** de **Administración → Plugins**.
 Un equipo que muestra `basic` no puede aislar el acceso de los plugins a los
 archivos: [Configurar el sandbox de plugins](../plugins/sandbox-deployment.md)
 explica lo que eso significa y qué cambiar. Las capas en sí se describen en

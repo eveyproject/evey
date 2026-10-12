@@ -54,7 +54,7 @@ pierdes lo que ha mostrado el comando, vuelve a ejecutarlo.
 
 Úsalo cuando el archivo de la clave puede haberse filtrado, o para cerrar la
 sesión de todos los usuarios a la vez. Para una sola cuenta, basta con
-**Administración -> Usuarios -> Desactivar** o con cambiar la contraseña como
+**Administración → Usuarios → Desactivar** o con cambiar la contraseña como
 se explica arriba.
 
 ```sh
@@ -84,8 +84,8 @@ escritos desde entonces. El comando pasa una copia `.sql.gz` por
 
 !!! warning
     La restauración sobrescribe las filas actuales. Haz antes una copia de
-    seguridad del estado actual (**Administración -> Copia de seguridad y
-    restauración -> Ejecutar ahora**) si hay alguna posibilidad de que lo
+    seguridad del estado actual (**Administración → Copia de seguridad y
+    restauración → Ejecutar ahora**) si hay alguna posibilidad de que lo
     necesites.
 
 ```sh
@@ -108,7 +108,7 @@ Lo que pasa:
 Requisitos:
 
 - El nombre del archivo tiene que terminar en `.sql.gz`. Los archivos
-  `.tar.gz` de **Administración -> Copia de seguridad y restauración** se
+  `.tar.gz` de **Administración → Copia de seguridad y restauración** se
   restauran desde el panel, no con este comando.
 - La base de datos de destino tiene que existir; la copia borra y vuelve a
   crear las tablas, no la base de datos.

@@ -19,9 +19,9 @@ botón funciona de otra manera: consulta
 
 Es normal que la imagen del televisor no sea igual que la de tu teléfono. El
 televisor no recibe lo que reproducía tu teléfono: pide la película al
-servidor por su cuenta, y el servidor prepara una versión que le va bien al
-televisor. El resto de la página explica cómo, para los curiosos y para la
-persona que gestiona Evey.
+servidor por su cuenta, y el servidor prepara una versión adecuada para el
+televisor. El resto de la página explica cómo, para quien quiera saber más y
+para la persona que gestiona Evey.
 
 ## Qué reproduce el televisor
 
@@ -42,7 +42,7 @@ fiable que haya:
    recibe las capacidades del Chromecast más antiguo: H.264 hasta 1080p, SDR,
    sin Dolby.
 
-El orden sigue el precio de equivocarse: suponer una capacidad que el
+El orden refleja el coste de equivocarse: suponer una capacidad que el
 dispositivo no tiene da una pantalla negra, mientras que suponer de menos
 solo cuesta una transcodificación. En la práctica: el HDR solo llega al
 televisor si su receptor ha dicho que tiene una pantalla HDR; el Dolby

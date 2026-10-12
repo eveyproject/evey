@@ -79,7 +79,7 @@ desde la siguiente reproducción.
 | --- | --- |
 | **Activar acceso remoto** | Activado: la gente de fuera de la red de tu casa puede conectarse como cualquier otra persona. Desactivado: se la rechaza (`403`). |
 | **URL externa** | Tu dirección pública. La usan los enlaces de los correos, el inicio de sesión único y el envío a otros dispositivos (cast). Una dirección `https://` también activa el modo HTTPS (más abajo). |
-| **Proxies de confianza (IP o CIDR, separados por comas)** | Los proxies inversos a los que Evey cree cuando dicen quién es el visitante real. La propia máquina (loopback) siempre es de confianza. Vacío: la lista sale de `EVEY_TRUSTED_PROXIES`. |
+| **Proxies de confianza (IP o CIDR, separados por comas)** | Los proxies inversos en los que Evey confía para indicar quién es el visitante real. La propia máquina (loopback) siempre es de confianza. Vacío: la lista sale de `EVEY_TRUSTED_PROXIES`. |
 | **Redes LAN (CIDR, separadas por comas)** | Los rangos de direcciones que Evey considera «casa». Los rangos privados vienen en la lista por defecto. Si usas una VPN (Tailscale, WireGuard) y quieres que sus usuarios cuenten como de casa, añade aquí su rango. |
 | **Bitrate remoto máximo (Kbps, 0 = ilimitado)** | Un límite de calidad para la gente de fuera de la red de tu casa. Una dirección privada nunca se limita. Si **Administración → Transcodificación** también fija un límite para los espectadores remotos, se aplica el más bajo. Ver [Cómo se decide la reproducción](../playback/how-playback-is-decided.md#limits-on-the-session). |
 
@@ -91,7 +91,7 @@ Acceso remoto**:
 
 - **URL externa** en `https://`. Esto le dice a Evey que un proxy se encarga
   de HTTPS. Evey protege entonces sus cookies de inicio de sesión (marca
-  `Secure`), pide a los navegadores que usen siempre HTTPS (HSTS), y cree la
+  `Secure`), pide a los navegadores que usen siempre HTTPS (HSTS), y acepta la
   cabecera `X-Forwarded-Proto` de un proxy de confianza.
 - **Los proxies de confianza**, cuando el proxy no está en la misma máquina
   que Evey. Un proxy en otro contenedor necesita aquí su red, por ejemplo
@@ -110,7 +110,7 @@ desde el archivo compose. Esto encaja con una configuración escrita entera
 en archivos, o con un servidor que debe responder por HTTPS desde su primer
 arranque.
 
-Cuando están las dos cosas, gana el panel. Una **URL externa** en `https://`
+Cuando están las dos cosas, tiene prioridad el panel. Una **URL externa** en `https://`
 activa el modo HTTPS aunque la URL base sea HTTP simple, y una lista de
 proxies guardada sustituye a la variable. Vacía el campo para devolverle la
 decisión a la variable. Ver
@@ -121,7 +121,7 @@ decisión a la variable. Ver
 Para que el acceso remoto y el límite de calidad remoto funcionen, Evey tiene
 que ver la dirección real de cada visitante. Dos ajustes trabajan juntos:
 
-1. Los proxies de confianza deciden a quién cree Evey sobre la dirección
+1. Los proxies de confianza deciden de quién acepta Evey la dirección
    real del visitante.
 2. Las redes LAN deciden después si esa dirección es de «casa» o «remota».
 

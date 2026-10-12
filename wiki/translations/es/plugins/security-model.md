@@ -6,8 +6,8 @@ reviewed: true
 
 Para quien crea plugins: lo que puede declarar un manifiesto, lo que
 comprueba el instalador y las reglas que se aplican a un plugin mientras
-funciona. El catálogo de abajo es la lista entre la que elegir; cómo encierra
-el servidor a un plugin, y lo que ese encierro no puede impedir, se explica en
+funciona. El catálogo de abajo es la lista entre la que elegir; cómo aísla
+el servidor a un plugin, y lo que ese aislamiento no puede impedir, se explica en
 [Sandbox de plugins y modelo de amenazas](../SECURITY.md).
 
 ## Lo que se comprueba al instalar

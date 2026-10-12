@@ -14,8 +14,8 @@ protege la reproducción de ellas:
 La parte del procesador que pueden usar las tareas en segundo plano se
 ajusta en **Administración → Configuración del servidor → Potencia
 asignada**, al momento y sin reiniciar; no tiene variable de entorno. Las dos
-variables siguientes dimensionan a mano un grupo de trabajo y, para él, se
-saltan esa parte.
+variables siguientes dimensionan a mano un grupo de trabajo y, para ese grupo,
+sustituyen a esa parte.
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
@@ -26,7 +26,7 @@ saltan esa parte.
 
 Cada variable tiene una clave, que también se acepta como fila en
 **Administración → Configuración del servidor → Entradas de configuración**,
-que sugiere estas claves; la fila gana al entorno. La tarjeta **Trabajos en
+que sugiere estas claves; la fila tiene prioridad sobre el entorno. La tarjeta **Trabajos en
 segundo plano** de la misma pantalla ajusta las principales. Todas se leen al
 arrancar, así que un cambio se aplica en el siguiente reinicio, se haga como
 se haga.

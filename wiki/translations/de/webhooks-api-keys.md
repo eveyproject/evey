@@ -72,7 +72,7 @@ API-Schlüssel** an. Sie gehören diesem Administrator.
   dann. Er lässt sich nicht noch einmal anzeigen, nur mit **Widerrufen**
   sperren.
 - **Er handelt im Namen seines Besitzers**, mit Administratorrechten, im Rahmen
-  seiner Bereiche.
+  seiner Berechtigungen.
 - **Berechtigungen** (Scopes) begrenzen, was der Schlüssel tun darf:
 
 | Bereich | Erlaubt |

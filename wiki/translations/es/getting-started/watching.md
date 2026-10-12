@@ -5,7 +5,7 @@ reviewed: true
 # Ver con Evey
 
 Esta página es para quienes ven: la familia, los amigos. Otra persona se
-encarga del servidor Evey; tú solo quieres sentarte y darle a reproducir.
+encarga del servidor Evey; tú solo quieres sentarte y pulsar reproducir.
 
 ## Cómo entrar
 

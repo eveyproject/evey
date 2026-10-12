@@ -1,20 +1,20 @@
 ---
-source_sha: 88e0bffcb0012a56a1138eec253a0e443e751536aff3d4d36eb018d38b7a86e9
+source_sha: 38effb73470754ed93d55d3b3cbf2f54bb84816288347233487a89e9c04593af
 reviewed: true
 ---
 # Configurar el sandbox de plugins
 
-Qué configuración de sandbox le va a tu servidor, en palabras sencillas. Para
+Qué configuración de sandbox conviene a tu servidor, en palabras sencillas. Para
 casi todo el mundo la respuesta es: deja los valores por defecto. El servidor
 detecta la máquina y elige el aislamiento más fuerte que puede. Sigue leyendo
-solo si tienes un NAS antiguo, si usas Evey sin Docker o si quieres reforzar
-aún más la protección. El modelo técnico completo está en
+solo si tienes un NAS antiguo, si usas Evey sin Docker o si quieres un aislamiento
+más fuerte. El modelo técnico completo está en
 [Sandbox de plugins y modelo de amenazas](../SECURITY.md).
 
 ## Qué te protege
 
-Un plugin que instalas queda encerrado en una caja. Según la máquina, esa
-caja:
+Un plugin que instalas se ejecuta aislado. Según la máquina, ese
+aislamiento:
 
 - **limita los archivos que puede tocar**: su propia carpeta y las
   bibliotecas del sistema que necesita, nada más (ni tus medios, ni tus
@@ -25,7 +25,7 @@ caja:
   y al que tú se la diste, solo llega a los servidores que declaró, y siempre
   pasando por el servidor de Evey;
 - **limita la CPU, la memoria, el disco y el número de procesos**, para que
-  un plugin descontrolado no pueda tumbar el servidor;
+  un plugin que consume demasiado no pueda dejar fuera de servicio el servidor;
 - **mantiene tus secretos ilegibles**: la clave que firma los inicios de
   sesión y las copias de seguridad.
 
@@ -33,7 +33,7 @@ Además, solo un administrador puede instalar plugins, se analizan en
 busca de código sospechoso y tú apruebas sus permisos antes de que se
 ejecuten.
 
-**Comprueba lo que está activo:** **Administración -> Plugins -> Panel de
+**Comprueba lo que está activo:** **Administración → Plugins → Panel de
 seguridad** muestra el sandbox del equipo, el modo que eligió `auto`
 (`landlock`, `bubblewrap` o `basic`) y los resultados de las pruebas
 (**Kernel Landlock**, **Lanzador del sandbox**, **Bubblewrap**). `basic` significa
@@ -46,16 +46,16 @@ qué, y las secciones siguientes explican qué cambiar.
 | Tu servidor | Lo que tienes sin hacer nada | ¿Algo que hacer? |
 |---|---|---|
 | **Linux moderno con Docker** (kernel 5.13 o posterior, es decir, casi todo lo que salió desde 2021), el caso normal | el aislamiento más fuerte (Landlock), automáticamente | nada |
-| **NAS antiguo con Docker** (kernel anterior a 5.13) | buen aislamiento, sin los muros de archivos por carpeta; los secretos, la red y las acciones del sistema siguen bloqueados | nada: la separación de uid (más abajo) se activa sola |
+| **NAS antiguo con Docker** (kernel anterior a 5.13) | buen aislamiento, sin la restricción de archivos por carpeta; los secretos, la red y las acciones del sistema siguen bloqueados | nada: la separación de uid (más abajo) se activa sola |
 | **Cualquier Linux, sin Docker** | el aislamiento más fuerte disponible: Landlock en un kernel moderno, si no, los espacios de nombres de bubblewrap | sigue [Sin contenedor](../deployment-bare-metal.md) |
 
-## El único ajuste que quizá toques: la separación de uid
+## El único ajuste que quizá cambies: la separación de uid
 
 La separación de uid hace que un plugin se ejecute con una cuenta de usuario
-distinta de la del servidor, así que físicamente no puede leer los archivos
+distinta de la del servidor, así que no puede leer los archivos
 secretos del servidor aunque nada más se lo impidiera. Solo importa en una
-máquina sin los muros de archivos por carpeta (el caso `basic`); en una
-máquina moderna, esos muros ya mantienen los secretos fuera de su alcance, y
+máquina sin la restricción de archivos por carpeta (el caso `basic`); en una
+máquina moderna, esa restricción ya mantiene los secretos fuera de su alcance, y
 la separación es una capa extra redundante.
 
 `EVEY_PLUGINS_UID_SEPARATION`:
@@ -63,7 +63,7 @@ la separación es una capa extra redundante.
 | Valor | Significado | Úsalo cuando |
 |---|---|---|
 | `auto` (por defecto) | activa solo cuando hace falta (el caso `basic`), desactivada donde es redundante | siempre, salvo que se dé uno de los dos casos siguientes |
-| `on` | siempre activa, un segundo muro independiente encima de los muros de archivos | quieres protección doble y aceptas el pequeño coste descrito más abajo |
+| `on` | siempre activa, una segunda protección independiente además de la restricción de archivos | quieres las dos protecciones y aceptas el pequeño coste descrito más abajo |
 | `off` | nunca | un plugin concreto funciona mal con ella (poco frecuente) |
 
 !!! warning
@@ -71,7 +71,7 @@ la separación es una capa extra redundante.
     `no-new-privileges`: elige una de las dos. Cuando no se puede cambiar de
     usuario en una máquina antigua (`basic`), el servidor se niega a arrancar
     el plugin en lugar de ejecutarlo junto a tus secretos; en una máquina
-    moderna, registra un aviso y ejecuta el plugin sin el muro extra. La
+    moderna, registra un aviso y ejecuta el plugin sin la protección adicional. La
     imagen trae todo lo necesario, solo tienes que definir la variable.
 
 El pequeño coste de `on`: el plugin se ejecuta con una cuenta aparte, así que
@@ -81,25 +81,25 @@ riesgo donde hay un beneficio real.
 
 ## Lo que podría hacer un plugin malicioso
 
-**Linux moderno (con Docker o sin él):** un plugin malo queda completamente
-encerrado. No puede leer tus secretos, no puede ver ni tocar los archivos de
+**Linux moderno (con Docker o sin él):** un plugin malicioso queda completamente
+aislado. No puede leer tus secretos, no puede ver ni tocar los archivos de
 otros plugins, no puede hacer llamadas de red arbitrarias y no puede alterar
 el sistema. La única salida realista sería un fallo grave del kernel, algo
 que vale para cualquier sandbox que no sea una máquina virtual completa.
 
-**NAS antiguo con Docker, sin muros por carpeta (`basic`):**
+**NAS antiguo con Docker, sin restricción de archivos por carpeta (`basic`):**
 
 - tus secretos siguen protegidos (clave de inicio de sesión, copias de
   seguridad) gracias a la cuenta de usuario aparte, que `auto` activa aquí;
 - el plugin no tiene acceso directo a la red; uno que tenga permiso solo llega
   a los servidores que declaró;
 - las acciones peligrosas del sistema siguen bloqueadas en el kernel;
-- pero sin muros por carpeta, un plugin malo podría leer archivos corrientes
+- pero sin restricción de archivos por carpeta, un plugin malicioso podría leer archivos corrientes
   que no son secretos, ver la lista de procesos en marcha y, como los plugins
   comparten una misma cuenta, leer o alterar los archivos de otro plugin.
 
 En un equipo así, instala solo plugins de confianza, o pasa a un kernel
-moderno para tener todos los muros de archivos.
+moderno para tener la restricción de archivos completa.
 
 ## Ejemplos de configuración
 
@@ -116,9 +116,9 @@ EVEY_PLUGINS_SANDBOX_MODE=auto
 EVEY_PLUGINS_UID_SEPARATION=auto        # (por defecto) activa en el caso basic
 ```
 
-```bash title="3. Protección doble en un servidor moderno"
+```bash title="3. Las dos protecciones en un servidor moderno"
 EVEY_PLUGINS_SANDBOX_MODE=auto          # queda en landlock
-EVEY_PLUGINS_UID_SEPARATION=on          # añade encima el muro independiente de uid
+EVEY_PLUGINS_UID_SEPARATION=on          # añade además la separación de uid independiente
 ```
 
 ```bash title="4. Fijar un modo (avanzado)"
@@ -139,7 +139,7 @@ EVEY_PLUGINS_CPU_NICE=10                # prioridad de CPU 0-19 (más alto = má
 ## Cambiar el modo de sandbox en marcha
 
 Cambia el **Modo de sandbox** en la tarjeta **Límites de recursos** de
-**Administración -> Plugins**. Los plugins en marcha se reinician
+**Administración → Plugins**. Los plugins en marcha se reinician
 automáticamente para que el nuevo modo se aplique enseguida, y el **Panel de
 seguridad** muestra el modo activo. Un plugin que no puede funcionar con el
 nuevo modo (por ejemplo `bubblewrap` dentro de un contenedor sin privilegios)
@@ -156,7 +156,7 @@ docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 
-El modo de sandbox activo es la insignia de **Administración -> Plugins ->
+El modo de sandbox activo es la insignia de **Administración → Plugins →
 Panel de seguridad**.
 
 <!-- sources

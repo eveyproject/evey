@@ -1,12 +1,12 @@
 ---
-source_sha: 8ccd966956a11a7a3ecb0c05f93391b743b2f875ce8eebf7c481ef523a5aa3cb
+source_sha: 75cf2b4a2c51b96a797f8a84d750a9f124cdfb957c1ca9a4cfa98cba23edbab8
 reviewed: true
 ---
 # Sandbox de plugins y modelo de amenazas
 
-Lo que hace el servidor para encerrar a un plugin: las comprobaciones al
+Lo que hace el servidor para aislar a un plugin: las comprobaciones al
 instalar, las capas mientras funciona, los modos de sandbox, y lo que cada
-uno todavía no puede impedir. El código vive en
+uno todavía no puede impedir. El código está en
 `internal/adapters/driven/pluginrunner` (análisis en la instalación,
 sandbox), `cmd/evey-plugin-launcher` (Landlock y el filtro seccomp del
 núcleo), `sandbox/sandbox.c` (el filtro `LD_PRELOAD`) e
@@ -21,7 +21,7 @@ tu máquina, lee [Configurar el sandbox de plugins](plugins/sandbox-deployment.m
 
 ## Modelo de amenazas
 
-Los plugins funcionan como procesos separados que hablan con el servidor por
+Los plugins funcionan como procesos separados que se comunican con el servidor por
 gRPC sobre sockets Unix. Por defecto, el servidor no confía en el código de
 ningún plugin. Los riesgos de los que se defiende, del más grave al menos
 grave:
@@ -121,8 +121,8 @@ manifiesto declare `native-binary`.
     (`strrev("metsys")`, decodificar una carga leída de un archivo). También
     busca dentro de los comentarios: un comentario `# pip install foo` dispara
     `runtime_install`. **La frontera que se impone es el sandbox en
-    funcionamiento, no el análisis**: un plugin que cuela un patrón sin que el
-    análisis lo vea sigue sin poder leer los datos del servidor, hacer una
+    funcionamiento, no el análisis**: un plugin con un patrón que el
+    análisis no detecta sigue sin poder leer los datos del servidor, hacer una
     llamada al sistema prohibida, superar sus límites de recursos ni llamar a
     un método del servidor para el que no tiene permiso.
 
@@ -162,7 +162,7 @@ cómo se imponen las dos primeras depende del modo.
 Un plugin ve su propia carpeta y la carpeta de su socket, y no los datos del
 servidor, gracias a una lista permitida de Landlock (`landlock`) o a una
 lista blanca de montajes de bubblewrap (`bubblewrap`, `strict`). En el modo
-`basic`, en un núcleo sin Landlock, no hay encierro por ruta: entonces lo que
+`basic`, en un núcleo sin Landlock, no hay restricción por ruta: entonces lo que
 protege los secretos del servidor son el usuario aparte y los permisos de los
 archivos.
 
@@ -192,7 +192,7 @@ Consulta [Límites conocidos](#known-limits).
 !!! tip "Recomendado para quien administra el servidor"
     El intermediario traslada al servidor la superficie de ataque SSRF. Una
     regla de salida en el contenedor `evey-server`, independiente del código,
-    añade un segundo muro: bloquea `169.254.0.0/16` y limita la red interna
+    añade una segunda protección: bloquea `169.254.0.0/16` y limita la red interna
     a la base de datos y al servicio de búsqueda.
 
 ### Llamadas al sistema
@@ -235,7 +235,7 @@ procesos (`fork`, `vfork`, `clone` sin `CLONE_THREAD`; `clone3` responde
 funcionando.
 
 Es una **lista de bloqueo**: `open`, `read`, `write`, `mmap`, `socket` Unix y
-`connect` siguen permitidos. Las rutas las encierra la capa del sistema de
+`connect` siguen permitidos. Las rutas las restringe la capa del sistema de
 archivos, no seccomp. En `bubblewrap` no se usa el lanzador: ahí un binario
 estático no recibe ningún filtro seccomp, y lo contienen los espacios de
 nombres y la lista blanca de montajes.
@@ -248,14 +248,14 @@ por los permisos de los archivos. Lo controla `EVEY_PLUGINS_UID_SEPARATION`:
 
 | Valor | Cuándo se hace el cambio |
 |---|---|
-| `auto` (por defecto) | solo cuando el sandbox acaba en `basic`, el único caso en el que los permisos de los archivos son el único muro alrededor de los secretos |
+| `auto` (por defecto) | solo cuando el sandbox acaba en `basic`, el único caso en el que los permisos de los archivos son la única protección de los secretos |
 | `on` | siempre, como capa extra |
 | `off` | nunca |
 
 El cambio lo hace el lanzador, que tiene `cap_setuid`; el servidor en sí
 funciona sin privilegios ni capacidades. El lanzador rechaza cualquier
 destino por debajo de 1000. Si no puede cambiar, un plugin en `basic` se
-rechaza (ahí el usuario es el único muro), mientras que en `landlock`
+rechaza (ahí el usuario es la única protección), mientras que en `landlock`
 funciona con el usuario del servidor y un aviso. En `bubblewrap` y `strict`,
 este papel lo cumple el espacio de nombres de usuario.
 
@@ -328,10 +328,10 @@ canales configurados, y el **Panel de seguridad** lo registra.
 
 ## Modos de sandbox
 
-El modo elige cómo se encierran el sistema de archivos y la red.
+El modo elige cómo se restringen el sistema de archivos y la red.
 `EVEY_PLUGINS_SANDBOX_MODE` fija el valor inicial (por defecto `auto`); se
-puede cambiar en **Administración → Plugins → Límites de recursos → Modo
-aislado**. El ejecutor lo aplica en
+puede cambiar en **Administración → Plugins → Límites de recursos → Modo de
+sandbox**. El ejecutor lo aplica en
 [`applySandbox`](../internal/adapters/driven/pluginrunner/runner_sandbox.go).
 En todos los modos: ninguna salida IP directa, el vigilante de recursos y la
 autenticación del socket del servidor.
@@ -361,7 +361,7 @@ host** de **Administración → Plugins → Panel de seguridad**.
 
 | Despliegue | Lo que da `auto` |
 |---|---|
-| Docker en un núcleo reciente | `landlock`: encierro por ruta, sin salida directa, llamadas al sistema peligrosas rechazadas, binarios estáticos incluidos. El caso normal. |
+| Docker en un núcleo reciente | `landlock`: restricción por ruta, sin salida directa, llamadas al sistema peligrosas rechazadas, binarios estáticos incluidos. El caso normal. |
 | Docker en un núcleo antiguo sin Landlock, p. ej. un NAS antiguo | `basic`: secretos protegidos y red cortada, pero los archivos legibles por todos quedan visibles. Consulta [Configurar el sandbox de plugins](plugins/sandbox-deployment.md). |
 | Sin contenedor | `bubblewrap`: el aislamiento más fuerte del sistema de archivos y de los procesos, sin filtro seccomp para los binarios estáticos. |
 
@@ -380,7 +380,7 @@ host** de **Administración → Plugins → Panel de seguridad**.
 - **Requiere:** un núcleo 5.13 o posterior con Landlock en la lista de LSM
   activos, y el lanzador (las dos cosas se cumplen con la imagen oficial en
   un equipo reciente). Un `landlock` explícito se niega a arrancar un plugin
-  que no puede encerrar.
+  que no puede aislar.
 
 ### `bubblewrap`
 
@@ -417,7 +417,7 @@ host** de **Administración → Plugins → Panel de seguridad**.
 
 El último recurso de `auto`: el usuario aparte, el filtro del núcleo, el
 filtro `LD_PRELOAD`, `-deny-inet` y Landlock si el núcleo lo tiene. En un
-núcleo sin Landlock no hay encierro por ruta: un plugin puede leer los
+núcleo sin Landlock no hay restricción por ruta: un plugin puede leer los
 archivos no sensibles legibles por todos y ver la lista de procesos. Los
 secretos del servidor siguen protegidos por el usuario aparte y
 `PR_SET_DUMPABLE`, la red está cortada y las llamadas al sistema peligrosas
@@ -443,13 +443,13 @@ en palabras sencillas:
 
 | Límite | Consecuencia | Lo que lo limita hoy |
 |---|---|---|
-| Sin encierro por ruta en `basic` en un núcleo sin Landlock | Un plugin puede leer los archivos no sensibles legibles por todos y las carpetas de los otros plugins | Secretos protegidos por el usuario aparte y `PR_SET_DUMPABLE`; `auto` prefiere Landlock o bubblewrap |
-| Todos los plugins comparten el usuario 1001 | Un plugin puede enviar señales a sus hermanos (enviarlas al servidor se rechaza) | `PR_SET_DUMPABLE` impide leer otros procesos por `/proc`; Landlock y bubblewrap aíslan las carpetas de los plugins |
-| Seccomp es una lista de bloqueo | Las llamadas de archivos y de sockets Unix siguen permitidas | Las rutas las encierran Landlock o bubblewrap; los sockets IP se rechazan |
+| Sin restricción por ruta en `basic` en un núcleo sin Landlock | Un plugin puede leer los archivos no sensibles legibles por todos y las carpetas de los otros plugins | Secretos protegidos por el usuario aparte y `PR_SET_DUMPABLE`; `auto` prefiere Landlock o bubblewrap |
+| Todos los plugins comparten el usuario 1001 | Un plugin puede enviar señales a los otros plugins (enviarlas al servidor se rechaza) | `PR_SET_DUMPABLE` impide leer otros procesos por `/proc`; Landlock y bubblewrap aíslan las carpetas de los plugins |
+| Seccomp es una lista de bloqueo | Las llamadas de archivos y de sockets Unix siguen permitidas | Las rutas las restringen Landlock o bubblewrap; los sockets IP se rechazan |
 | El intermediario traslada al servidor la superficie SSRF | Un fallo en la validación del intermediario podría llegar a una dirección interna | Lista permitida y cliente protegido contra SSRF en Go; una regla de salida en el contenedor como capa independiente |
 | El intermediario controla adónde va una llamada, no lo que lleva | Los datos pueden salir hacia un host de la lista del plugin | Permite solo los hosts a los que confiarías esos datos |
 | El análisis funciona con patrones | Una ofuscación deliberada puede esconder código | Vista previa del administrador; la frontera es el sandbox, no el análisis |
-| `LD_PRELOAD` solo cubre los plugins dinámicos e interpretados | Un binario estático en `basic` sin el lanzador se le escapa | La imagen oficial siempre incluye el lanzador, cuyo filtro del núcleo cubre los binarios estáticos |
+| `LD_PRELOAD` solo cubre los plugins dinámicos e interpretados | No cubre un binario estático en `basic` sin el lanzador | La imagen oficial siempre incluye el lanzador, cuyo filtro del núcleo cubre los binarios estáticos |
 
 ## Exposición a la red (fuera del modelo de amenazas de los plugins)
 

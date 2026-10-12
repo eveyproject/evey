@@ -91,7 +91,7 @@ de principio a fin:
    en `http/transcode_vod_fingerprint.go`, son simples envoltorios para los
    puntos de llamada sin plan (precalentamiento, master bajo demanda).
 3. **P2 - Decisión** - `internal/app/transcoding/decision.go`:
-   `MakePlaybackDecisionWithPrefs` (pura) es el cerebro que decide copiar o
+   `MakePlaybackDecisionWithPrefs` (pura) es la función que decide copiar o
    transcodificar pista por pista. El resolutor añade encima los valores
    fijados en la petición (`vd=` / `ad=`), la corrección de la
    resincronización del audio, etc.
@@ -118,11 +118,11 @@ de principio a fin:
    `master.m3u8` / `stream_N.m3u8`; `manifest_generator_dash.go` escribe
    `manifest.mpd`.
 
-!!! warning "Entre peticiones, la regla depende de grabar los datos en las URL"
-    Cada dato que entra en la decisión tiene que quedar grabado en las URL
+!!! warning "Entre peticiones, la regla depende de incluir los datos en las URL"
+    Cada dato que entra en la decisión tiene que quedar incluido en las URL
     hijas (`querySuffix` en `manifest_generator.go`); si no, una consulta a
     mitad de la reproducción puede cambiar el plan sin que el reproductor lo
-    sepa. Las URL de cada sesión se vuelven a grabar
+    sepa. Las URL de cada sesión se vuelven a generar
     (`transcode_vod_manifest_rebake.go`) para llevar el token de streaming,
     tanto en HLS como en DASH, incluido Chromecast, que no usa cookies.
 
@@ -133,7 +133,7 @@ cadena de responsabilidad según la extensión: prueba mkvgo, y vuelve a
 ffprobe ante cualquier duda (error de lectura, pánico, resultado que no se
 puede traducir, una pista multimedia MP4 descartada, DoVi perfil 5, color
 ilegible). Las dos vías rápidas están siempre activas (puertas nil en
-`wire.go`); ffprobe es la red de seguridad y nunca se salta. Un segundo
+`wire.go`); ffprobe es el respaldo y nunca se omite. Un segundo
 repartidor idéntico (`keyframe_dispatcher.go`) se encarga del índice de
 posicionamiento.
 
@@ -201,7 +201,7 @@ peldaños, con el audio aparte dentro de una trama AAC).
 
 | Patrón | Dónde |
 | --- | --- |
-| Puertos y adaptadores (hexagonal) | la capa de aplicación habla con `StreamProber`, `BenchmarkRunner`, `OnDemandPackager`, `StreamProducer`; ffmpeg y mkvgo los implementan, y un motor nuevo es un adaptador nuevo |
+| Puertos y adaptadores (hexagonal) | la capa de aplicación usa `StreamProber`, `BenchmarkRunner`, `OnDemandPackager`, `StreamProducer`; ffmpeg y mkvgo los implementan, y un motor nuevo es un adaptador nuevo |
 | Estrategia | `StreamProducer` (software / hardware / copia), elegido por un `ProducerSelector` |
 | Cadena de responsabilidad con respaldo | los repartidores de análisis y de fotogramas clave (mkvgo, y después ffprobe como autoridad) |
 | Caché direccionada por contenido | el hash `DecisionFingerprint` es la clave de la caché y de la sesión de ffmpeg |

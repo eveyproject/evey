@@ -5,7 +5,7 @@ reviewed: true
 # Migraciones de la base de datos
 
 Cómo cambia Evey el esquema de su base de datos durante una actualización,
-qué comprobar antes y después, y cómo salir cuando una migración se queda a
+qué comprobar antes y después, y qué hacer cuando una migración se queda a
 medias. Para quien administra la instalación estándar, donde la base de datos
 funciona dentro del contenedor `evey-server`; quien contribuya escribiendo
 una migración encontrará las reglas al final.
@@ -28,7 +28,7 @@ docker exec evey-server evey admin migrate up        # aplica todas las migracio
 docker exec evey-server evey admin migrate down      # deshace exactamente un paso
 ```
 
-`up` y `down` hacen antes una copia; `--no-backup` se la salta. Para abrir
+`up` y `down` hacen antes una copia; `--no-backup` la omite. Para abrir
 un shell SQL en la base de datos integrada:
 
 ```sh
@@ -38,7 +38,7 @@ docker exec -it evey-server sh -c \
 
 ## Actualizar sin riesgo
 
-1. **Haz una copia de seguridad** en **Administración -> Copia de seguridad y
+1. **Haz una copia de seguridad** en **Administración → Copia de seguridad y
    restauración** (**Ejecutar ahora**), o desde un script:
    ```sh
    curl -X POST -H "Authorization: Bearer <admin-token>" \
@@ -79,8 +79,8 @@ docker exec -it evey-server sh -c \
    docker exec evey-server evey admin migrate version
    docker logs --since 10m evey-server 2>&1 | grep -iE 'migrat|error'
    ```
-   Vacía la caché de transcodificación (**Administración -> Caché de
-   transcodificación -> Limpiar todo**) si la versión ha cambiado la forma de
+   Vacía la caché de transcodificación (**Administración → Caché de
+   transcodificación → Borrar todo**) si la versión ha cambiado la forma de
    codificar los vídeos.
 
 ## Volver a la versión anterior
@@ -117,7 +117,7 @@ UPDATE schema_migrations SET version = <N>, dirty = false;
 
 Reinicia el contenedor; las migraciones siguen desde ahí. Restaurar la copia
 anterior a la migración ([Recuperación](recovery.md#restore-a-pre-migration-dump))
-es la otra salida.
+es la otra opción.
 
 ## Escribir una migración
 
@@ -127,7 +127,7 @@ Ejemplos ya publicados:
 
 - **`000066_cascade_and_email_unique.up.sql`** - `ALTER TABLE ... DROP
   CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`. Toma `ACCESS EXCLUSIVE` en
-  las dos tablas mientras dura el ADD. Barato en tablas pequeñas, doloroso en
+  las dos tablas mientras dura el ADD. Rápido en tablas pequeñas, costoso en
   `media_items` / `watch_progress`.
 - **`000067_sort_title_index.up.sql`**,
   **`000068_watch_progress_composite_index.up.sql`**,
@@ -157,7 +157,8 @@ Pautas:
   COLUMN` + relleno + `SET NOT NULL` + `DROP COLUMN` en un solo archivo. Esa
   forma solo funciona porque Evey funciona con una sola instancia, con las
   migraciones aplicadas de forma síncrona al arrancar; un despliegue
-  escalonado devolvería errores desde la mitad que vaya por detrás. `000077`
+  escalonado devolvería errores desde la mitad de las instancias que
+  todavía no esté actualizada. `000077`
   y `000098_playlists_profile_id.up.sql` se escribieron así y se quedan como
   están porque ya se han publicado. Para una nueva, repártela en tres
   versiones:

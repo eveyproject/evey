@@ -6,7 +6,7 @@ reviewed: true
 
 Un tema cambia el aspecto de la interfaz de Evey: es un paquete de
 `kind: theme` sin proceso de servidor, hecho de una hoja de estilos y,
-si quieres, de un script encerrado en un marco oculto. Esta página es para
+si quieres, de un script aislado en un marco oculto. Esta página es para
 quien crea temas; explica lo que pueden contener los dos archivos y lo que el
 instalador reescribe o rechaza. Los temas se instalan como los plugins, desde
 **Administración → Plugins**, y cada usuario elige el suyo en
@@ -58,7 +58,7 @@ comentario. Cambiarlas cambia el aspecto de todas las pantallas a la vez:
 }
 ```
 
-### Ganchos estables para temas
+### Selectores estables para temas
 
 Algunos elementos decorativos llevan clases estables a las que puedes
 apuntar sin depender de las clases utilitarias, que cambian de una versión a
@@ -97,7 +97,7 @@ escribiste. Nunca rechaza el paquete.
 | `z-index` por encima de 999 | Se limita a 999 | Un tema se queda por debajo de la capa de ventanas modales de la propia aplicación. |
 
 Los caracteres escapados se decodifican antes de estas comprobaciones, así
-que una secuencia de escape no sirve para saltárselas.
+que una secuencia de escape no sirve para eludirlas.
 
 ## theme.js
 
@@ -105,7 +105,7 @@ El script es opcional. Se sirve en `/api/v1/themes/<id>/theme.js` a los
 usuarios conectados y se ejecuta en un `<iframe sandbox="allow-scripts">`
 oculto cuya política fija `connect-src 'none'`: no tiene acceso a la página
 anfitriona, a su almacenamiento ni a la red, aunque el script haya pasado el
-análisis de la instalación. Lo único que tiene a mano es `window.evey.theme`,
+análisis de la instalación. Lo único a lo que tiene acceso es `window.evey.theme`,
 inyectado antes de que el script se ejecute.
 
 ### `evey.theme.css(declarations)`

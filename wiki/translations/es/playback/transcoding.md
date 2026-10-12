@@ -29,7 +29,7 @@ qué ve un espectador cuando está lleno.
 
 ## El servidor se mide a sí mismo
 
-La capacidad no es un ajuste que tengas que calcular a ojo. El servidor la
+La capacidad no es un ajuste que tengas que estimar tú. El servidor la
 mide:
 
 - **Cuándo.** No al arrancar: el servidor arranca con lo que ya sabía (o, la
@@ -41,7 +41,7 @@ mide:
 - **Qué.** Codificaciones reales de un clip 4K, en SDR y en HDR, con el
   procesador y con cada acelerador que el servidor ha detectado, de la misma
   forma que una reproducción real. El resultado es la resolución más alta que
-  cada uno aguanta en tiempo real, y lo que cuesta cada tipo de flujo.
+  cada uno soporta en tiempo real, y lo que cuesta cada tipo de flujo.
 - **Otra vez.** Cuando cambia el hardware, o con **Recalibrar** en
   **Administración → Transcodificación → Calibración de codificación**. El
   botón espera a que nadie esté viendo nada.
@@ -51,14 +51,14 @@ muestra **El servidor se está calibrando** y se le pide que lo vuelva a
 intentar en un momento. La Reproducción directa y el Remux no se ven
 afectados.
 
-En un procesador que no aguanta ninguna de las resoluciones, el servidor
+En un procesador que no soporta ninguna de las resoluciones, el servidor
 sigue ofreciendo 720p (SDR) y 480p (HDR), un flujo cada vez.
 
 La medición usa, por este orden, un clip que le des tú, un clip de referencia
 que se descarga una vez y se comprueba con su SHA256, o un clip sintético
 generado en el momento. Un clip real mide de forma más fiel que el
 sintético, que exagera el coste y puede poner a una máquina un límite más
-bajo del que merece:
+bajo del que le corresponde:
 
 ```yaml title="docker-compose.yml"
 services:
@@ -101,13 +101,13 @@ Cuando falta sitio, el servidor responde en este orden:
 
 Si una codificación con la tarjeta gráfica falla en un título, ese título
 pasa al procesador durante un tiempo, para todos los espectadores. La
-tarjeta en sí solo se aparta si también falla en ella una codificación de
+tarjeta en sí solo se deja de usar si también falla en ella una codificación de
 prueba que no depende del contenido, y se vuelve a probar más tarde:
 consulta [Aceleración por hardware](../administration/hardware-acceleration.md).
 
 Mientras alguien ve algo, el trabajo de fondo del propio servidor
 (miniaturas, detección de intros, análisis de los medios) se pone en pausa,
-para que la reproducción tenga la máquina para ella: consulta
+para que la reproducción disponga de toda la máquina: consulta
 [Tareas en segundo plano y carga del servidor](../operations/background-work.md).
 
 Cuando un tipo de fuente sigue haciendo esperar a los espectadores a pesar
@@ -169,7 +169,7 @@ llena** (como mucho una vez por hora, también enviado a los webhooks como
 - **Administración → Calidad de streaming**: cómo ha ido la reproducción para
   los espectadores reales.
 - **Prueba de carga** (**Administración → Transcodificación**): simula
-  espectadores para medir lo que aguanta el servidor. No se ejecuta mientras
+  espectadores para medir lo que soporta el servidor. No se ejecuta mientras
   alguien esté viendo algo.
 
 <!-- sources

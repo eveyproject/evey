@@ -34,8 +34,8 @@ pruebas y todavía no están en Google Play.
 
 -   **Vas a instalar el servidor**
 
-    Instala Evey en tu ordenador o tu NAS, añade tus archivos e invita a los
-    de casa.
+    Instala Evey en tu ordenador o tu NAS, añade tus archivos e invita a las
+    personas de tu casa.
     [Empezar por la instalación](installation.md)
 
 -   **Alguien te ha dado una dirección**
@@ -96,7 +96,7 @@ web, en Android y en el televisor.
 ## Nada que elegir antes de pulsar reproducir { #nothing-to-choose-before-pressing-play }
 
 Algunos archivos se reproducen en cualquier sitio. Otros pesan demasiado para
-un teléfono antiguo, o llevan un sonido que un televisor no sabe leer. Cada vez
+un teléfono antiguo, o llevan un formato de sonido que un televisor no puede leer. Cada vez
 que pulsas reproducir, el servidor mira el archivo, el dispositivo y lo
 ocupado que está, y elige la forma más ligera que funciona:
 
@@ -111,7 +111,7 @@ ocupado que está, y elige la forma más ligera que funciona:
 
 Así, la misma película puede llegar intacta a un televisor y convertida a un
 teléfono antiguo. En el reproductor, la **Información del flujo** muestra
-cuál de los tres te ha tocado, y por qué. **Administración → Panel** muestra
+cuál de los tres se ha usado, y por qué. **Administración → Panel** muestra
 lo mismo para todas las personas que están viendo algo.
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
@@ -162,7 +162,7 @@ deja como está.
 
 **Tus datos.** El proyecto no tiene ningún servicio que los reciba: ni
 cuenta con nosotros, ni estadísticas de uso, ni informes de errores. Las apps
-hablan con tu servidor y con nada más que gestionemos nosotros. Lo que sale
+se comunican con tu servidor y con nada más que gestionemos nosotros. Lo que sale
 de tu red: el servidor busca imágenes y descripciones en servicios externos
 (The Movie Database, y fuentes de portadas para la música). De vez en cuando
 también pregunta si hay una versión más nueva, algo que puedes desactivar. La
@@ -178,7 +178,7 @@ administrador ve lo que el análisis del plugin ha encontrado y los permisos
 que pide. Un permiso nuevo hay que aceptarlo de forma explícita. Un plugin
 funciona en su propio proceso, con un usuario aparte, sin acceso directo a
 la red. Se detiene si supera su límite de memoria, de procesos o de disco.
-El nivel de bloqueo de sus archivos depende de la máquina, y el **Panel de
+El nivel de restricción del acceso a sus archivos depende de la máquina, y el **Panel de
 seguridad** muestra el modo que se usa. El widget de un plugin aparece en la
 web, en Android y en el televisor. En el televisor puedes verlo, pero no usarlo.
 [Plugins](plugins.md) ·

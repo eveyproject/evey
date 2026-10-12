@@ -5,7 +5,7 @@ reviewed: true
 # Supervisión y registros
 
 Dónde ver lo que está haciendo el servidor, para el administrador que quiere
-echarle un vistazo más que arreglar algo: desde lo que se reproduce ahora
+comprobar su estado más que arreglar algo: desde lo que se reproduce ahora
 mismo hasta las estadísticas del mes, con los registros por medio. Si tienes
 un síntoma que investigar, empieza por
 [Solución de problemas](troubleshooting.md).
@@ -54,7 +54,7 @@ cuando el servidor no llega a arrancar. Ver
 **Administración → Calidad de streaming** se construye con lo que informan
 los reproductores mientras reproducen (nivel del búfer, recargas,
 velocidad, en formato CMCD): cada cuánto han tenido que esperar los
-espectadores, los títulos que más se atascan y los tipos de dispositivo que
+espectadores, los títulos que más se detienen y los tipos de dispositivo que
 tienen problemas, en el último día o la última semana.
 
 El servidor también actúa en consecuencia. Cuando un tipo de fuente hace
@@ -84,7 +84,7 @@ administrador, o a un token fijo puesto en `EVEY_METRICS_SCRAPE_TOKEN` y
 enviado como `Authorization: Bearer <token>`, para que Prometheus o Grafana
 puedan recogerlas sin volver a iniciar sesión
 ([Copias de seguridad, registros y supervisión](../environment/logs-monitoring.md)).
-Las familias que merecen un primer gráfico:
+Las familias con las que conviene empezar los gráficos:
 
 | Métrica | Qué indica |
 | --- | --- |

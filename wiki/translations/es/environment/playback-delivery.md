@@ -13,7 +13,7 @@ elige un flujo en primer lugar:
 
 Una variable con clave de panel también se puede definir como una fila con
 esa clave en **Administración → Configuración del servidor → Entradas de
-configuración**; la fila gana al entorno. El panel sugiere las claves de las
+configuración**; la fila tiene prioridad sobre el entorno. El panel sugiere las claves de las
 descargas; las demás se escriben tal como aparecen aquí. Todas se leen al
 arrancar, así que un cambio se aplica en el siguiente reinicio, se haga como
 se haga.
@@ -25,7 +25,7 @@ se haga.
 | `EVEY_HLS_ONDEMAND` | activado | Sirve un archivo cuyas pistas se pueden copiar reempaquetándolo sobre la marcha, sin ffmpeg y sin escribir en la caché. `off`: esos archivos pasan por la vía de copia de ffmpeg. | Entradas de configuración `transcoding.hls_ondemand`, al reiniciar |
 | `EVEY_REMUX_COPY` | activado | La vía de copia de ffmpeg: el vídeo se copia sin recodificar cuando el archivo lo permite. `off`: esos archivos se transcodifican. | Entradas de configuración `transcoding.remux_copy`, al reiniciar |
 | `EVEY_HLS_AUDIO_RENDITION_ENABLED` | `true` | Ofrece las pistas de audio como versiones aparte, para que un reproductor cambie de idioma sin volver a descargar el vídeo. También permite reproducir un vídeo copiado con una pista de audio recodificada por separado. | ninguno |
-| `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Añade una calidad baja transcodificada junto a un flujo copiado, para que un reproductor cuya conexión se hunde pueda bajar de calidad en lugar de congelarse. No cuesta nada hasta que un reproductor la usa. | ninguno |
+| `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Añade una calidad baja transcodificada junto a un flujo copiado, para que un reproductor cuya conexión cae bruscamente pueda bajar de calidad en lugar de quedarse parado. No cuesta nada hasta que un reproductor la usa. | ninguno |
 | `EVEY_HLS_ONDEMAND_CONCAT` | activado | Reproducción sin cortes entre episodios, cuando el reproductor web la pide. Un episodio que no se puede copiar vuelve al flujo normal. | Entradas de configuración `transcoding.hls_ondemand_concat`, al reiniciar |
 | `EVEY_HLS_ONDEMAND_TRACK_TRIM` | desactivado | Pone en cada flujo solo la pista de audio seleccionada en lugar de todas. | Entradas de configuración `transcoding.hls_ondemand_track_trim`, al reiniciar |
 | `EVEY_HLS_ONDEMAND_ENCRYPT` | desactivado | Cifra los flujos reempaquetados con AES-128 (solo HLS: entonces no se ofrece ningún manifiesto DASH). | Entradas de configuración `transcoding.hls_ondemand_encrypt`, al reiniciar |

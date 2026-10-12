@@ -9,12 +9,12 @@ de decisión donde se ve. Lee esta página para entender por qué Evey se
 comporta como se comporta, antes de leer cómo está construido
 ([Arquitectura](ARCHITECTURE.md)) o por qué se tomó una decisión de
 estructura ([registros de decisión](adr/README.md)). Cuando dos principios
-chocan, gana el que aparece antes en esta lista.
+entran en conflicto, prevalece el que aparece antes en esta lista.
 
 | Principio | Dónde se ve | Decidido en |
 | --- | --- | --- |
 | 1. Si no se puede comprobar, se niega el acceso | control parental, instalación de plugins, acceso remoto | [ADR-0026](adr/0026-remote-access-inferred-from-a-published-url.md) |
-| 2. El código de terceros se encierra, no se le da confianza | sandbox de plugins | [ADR-0012](adr/0012-plugin-token-deny-by-default.md), [ADR-0014](adr/0014-landlock-plugin-sandbox.md) |
+| 2. El código de terceros se aísla, no se le da confianza | sandbox de plugins | [ADR-0012](adr/0012-plugin-token-deny-by-default.md), [ADR-0014](adr/0014-landlock-plugin-sandbox.md) |
 | 3. Se entrega el original siempre que se puede | decisión de reproducción | [ADR-0030](adr/0030-one-plan-one-decision.md) |
 | 4. Las decisiones se basan en lo que se ha demostrado, no en nombres | envío a Chromecast, aceleración por hardware | [ADR-0029](adr/0029-transcoding-routes-are-measured-not-assumed.md) |
 | 5. Una reproducción, una decisión | plan de reproducción, Información del flujo | [ADR-0030](adr/0030-one-plan-one-decision.md), [ADR-0024](adr/0024-playback-plan-resolver.md) |
@@ -35,7 +35,7 @@ Consulta [Usuarios, perfiles y control parental](administration/users.md),
 [Acceso remoto y HTTPS](administration/remote-access.md),
 [ADR-0026](adr/0026-remote-access-inferred-from-a-published-url.md).
 
-## 2. El código de terceros se encierra, no se le da confianza
+## 2. El código de terceros se aísla, no se le da confianza
 
 Un plugin recibe los permisos que declara su manifiesto y nada más, se
 analiza antes de instalarse, se ejecuta en un sandbox sin acceso directo a la

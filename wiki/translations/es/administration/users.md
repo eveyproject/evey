@@ -188,7 +188,7 @@ por usuario** para los casos especiales.
 
 ## La página de inicio
 
-La página de inicio es una pila de filas. Una fila que no tiene nada que
+La página de inicio está formada por filas. Una fila que no tiene nada que
 mostrar se oculta.
 
 | Fila | Qué muestra |
@@ -212,10 +212,10 @@ episodios. Los plugins pueden añadir sus propias filas.
 - Después, cada perfil puede organizar su propia página de inicio con
   **Personalizar** (en la página de inicio de la web y de las apps del
   teléfono, en la barra superior de la app de TV): mostrar u ocultar una
-  fila, moverla, o **Restablecer**. Esto se guarda en el servidor y sigue al
-  perfil en todos sus dispositivos.
+  fila, moverla, o **Restablecer**. Esto se guarda en el servidor y se aplica
+  al perfil en todos sus dispositivos.
 - Un perfil puede mostrar una fila que tú has ocultado, salvo la fila de un
-  plugin: ahí, tu decisión es la última palabra.
+  plugin: ahí, tu decisión es definitiva.
 
 ## Enlaces de descarga públicos
 
