@@ -1,69 +1,64 @@
 ---
-source_sha: df7413e4af441d34d3b23275ec280881e68c4257572b636312f678009cf80c2e
-reviewed: false
+source_sha: 4aeebbe2feb50999e8470ea3f56b3e47af196ca12cf0100e22527f66ffe278e3
+reviewed: true
 ---
-# 裸机部署（不使用 Docker）
+# 不使用容器
 
-直接在主机上运行 Evey（systemd、init 脚本或手动），而不是使用 [Docker 镜像](installation.md)。Docker 镜像是推荐的方式：它预先接好了插件沙箱、加固措施和运行时。选择裸机意味着要由**你**来重现这套安全配置：把正确的二进制文件放在一起、一个专用的非 root 用户、你的内核支持的沙箱后端，以及只有所有者可访问的机密目录。本页就是为此准备的分步说明。
+这一页说明怎样直接在主机上运行 Evey（用 systemd、init 脚本，或者手动运行），而不用 Docker 镜像（见[安装](installation.md)）。
+推荐的方式是镜像：插件沙箱、安全加固和插件运行时都已经在里面配好了。不用容器运行，就意味着要自己做到同样的安全程度：
+相关的程序放在一起，一个专用的非 root 用户，您的内核支持的沙箱后端，以及只有所有者能访问的密钥目录。
+这一页按顺序一步步讲。
 
-如果你只想要简单的安装，到此为止，使用 [installation.md](installation.md)。
+## 构建并安装程序
 
-## 1. 前提条件
-
-### 二进制文件（从源码构建）
-
-构建两个 Go 二进制文件，并**把它们放在同一个目录中**。插件运行器查找启动器的顺序是：先检查 `$EVEY_PLUGIN_LAUNCHER`，然后是它自己的可执行文件旁边（`os.Executable()`），最后是 `$PATH`，所以让它们放在一起是最简单的正确布局。
+构建两个 Go 程序，并把它们安装在同一个目录里：插件运行器先在 `$EVEY_PLUGIN_LAUNCHER` 里找启动器，
+然后在它自己的可执行文件旁边找，最后在 `$PATH` 里找。
 
 ```bash
-# 在仓库根目录
+# 在代码仓库的根目录下执行
 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=$(git describe --tags --always) -X main.commit=$(git rev-parse HEAD)" -o evey ./cmd/evey
-CGO_ENABLED=0 go build -ldflags="-s -w"                                        -o evey-plugin-launcher ./cmd/evey-plugin-launcher
-
-# 并排安装，例如：
+CGO_ENABLED=0 go build -ldflags="-s -w" -o evey-plugin-launcher ./cmd/evey-plugin-launcher
 sudo install -m 0755 evey evey-plugin-launcher /opt/evey/
 
-# 可选：shell 补全和手册页，都由二进制文件输出
+# 可选：命令行自动补全和手册页，都由程序自己输出
 /opt/evey/evey completion bash | sudo tee /etc/bash_completion.d/evey >/dev/null
 /opt/evey/evey man | sudo tee /usr/local/share/man/man1/evey.1 >/dev/null
 ```
 
-`launcherPath()`（`internal/adapters/driven/pluginrunner/runner_landlock.go`）中的查找顺序：
+`evey version` 不需要任何配置，就能显示版本号、提交和构建日期。
 
-1. `$EVEY_PLUGIN_LAUNCHER`（必须是可执行文件）：显式覆盖。
-2. 与正在运行的 `evey` 二进制文件位于**同一目录**中的 `evey-plugin-launcher`。
-3. `$PATH` 中某处的 `evey-plugin-launcher`。
+### seccomp 垫片库
 
-### LD_PRELOAD seccomp 垫片
-
-构建 `libevey-sandbox.so` 垫片（一个小的 C 文件；需要 C 编译器）：
+构建 `libevey-sandbox.so`（只有一个 C 文件，需要 C 编译器），并把它安装到运行器要求的路径 `/app/libevey-sandbox.so`：
 
 ```bash
 gcc -shared -fPIC -nostartfiles -o libevey-sandbox.so sandbox/sandbox.c
-sudo install -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
+sudo install -D -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
 ```
 
-运行器在**硬编码路径 `/app/libevey-sandbox.so`**（`runner.go` 中的 `sandboxLibPath`）查找它。如果它不存在，插件会**拒绝启动**（失败即拒绝），除非你在开发模式下运行。这个垫片为动态链接的插件添加一个 seccomp 拒绝列表，叠加在 Landlock/bubblewrap 之上。
+这个路径是写死在运行器里的。没有这个文件，插件会拒绝启动（无法隔离就拒绝），除非服务器以开发模式运行。
+这个垫片库在 Landlock 或 bubblewrap 之上，为动态链接的插件再加一份 seccomp 禁止清单。
+镜像把它和 SDK 一起放在 `/app` 下；用符号链接也可以。
 
-> Docker 镜像把开源二进制文件、SDK 和这个垫片放在 `/app` 下（那里没有机密）。在裸机上，你可以照搬这个路径（`/app/libevey-sandbox.so`），或者创建一个符号链接。
+### 运行时和服务
 
-### 运行时
+请安装您的插件的 `entrypoint:` 会调用的程序。运行器认得 `python3`、`python`、`node`、`php`、`ruby`、`perl`、`lua`、`bash` 和 `sh`；
+大多数社区插件只需要 `python3`。然后是服务器要通信的那些服务：
 
-安装你的插件的 `entrypoint:` 所调用的任何东西。运行器识别这些解释器（`runner_start.go` 中的 `knownInterpreters`）：`python3`、`python`、`node`、`php`、`ruby`、`perl`、`lua`、`bash`、`sh`。至少需要：
+| 依赖 | 用途 |
+|---|---|
+| **ffmpeg** 和 **ffprobe** | 转码、探测文件；镜像里还带了 VAAPI 驱动和用于片头检测的 `fpcalc`（chromaprint） |
+| **PostgreSQL**（服务器加一个数据库）和 **`pg_dump`** | 数据库；`pg_dump` 用来在迁移前自动导出数据库 |
+| **Meilisearch** | 搜索索引；没有它，搜索会退回到用 SQL |
+| **`bwrap`**（bubblewrap） | 只有使用 bubblewrap 沙箱后端时才需要 |
+| **`setcap`**（libcap） | 用来给启动器授予文件能力（capability） |
 
-- **`python3`**：大多数社区插件。
-- **`node`**、**`php`**、**`ruby`**、**`lua`**：只在你的插件使用它们时需要。
+内置的数据库和搜索引擎是镜像入口脚本提供的功能，不是程序本身的：不用容器时，这两者都要您自己运行，
+并把 `EVEY_DB_HOST` 和 `EVEY_MEILI_URL` 指向它们。
 
-再加上核心运行时依赖：
+## 以专用的非 root 用户运行
 
-- **ffmpeg**（转码；镜像还捆绑了 VAAPI 驱动和用于片头检测的 `chromaprint`）。
-- **PostgreSQL**（服务器 + 一个数据库）。
-- **Meilisearch**（搜索索引；或者通过官方二进制文件以内置方式运行）。
-- **`bwrap`**（bubblewrap）：只在你打算使用 bubblewrap 沙箱后端时需要（见下文）。
-- **`libcap`**（`setcap`）：用于授予 §4 中描述的文件能力。
-
-## 2. 以专用的非 root 用户运行
-
-**永远不要以 root 运行服务器。** 像 Docker 镜像那样，创建一个组和两个无特权用户；插件会降权到 UID 1001（`pluginhost/host_server.go` 中的 `pluginUID`）：
+永远不要以 root 运行服务器。像镜像那样，创建一个组和两个无特权的用户：
 
 ```bash
 sudo groupadd --gid 1000 evey
@@ -71,135 +66,180 @@ sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
 sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugin
 ```
 
-组的 id 很重要：启动器会把插件降权到 UID 1001 和服务器自己的组，并拒绝任何低于 1000 的 id。仅用 `useradd --system` 创建的组会得到一个低于 1000 的系统 id，此时 `basic` 模式下的插件就会被拒绝。
-
 - `evey`（UID 1000）运行服务器。
-- `evey-plugin`（UID 1001）是插件被降权到的 UID（在 uid 分离生效时由启动器完成），这样被攻破的插件会落到一个不同的无特权用户上，仅凭普通的文件系统权限就无法读取服务器的机密。见 §4。
+- `evey-plugin`（UID 1001）是开启 uid 分离时插件切换到的用户。这样，被攻破的插件落到的是另一个无特权的用户上，
+  单凭普通的文件权限，它就读不到服务器的密钥。
 
-服务器在启动时把自己标记为**不可转储**（`PR_SET_DUMPABLE=0`，`cmd/evey/hardening_linux.go`），这样同一台机器上的插件就无法读取 `/proc/<server-pid>/{mem,environ}`。
+!!! warning
+    组 id 很重要：启动器会把插件切换到 UID 1001 和服务器自己的组，并且拒绝任何小于 1000 的 uid 或 gid。
+    只用 `useradd --system` 创建的组会得到一个小于 1000 的系统 id，这时 `basic` 模式下的插件就会被拒绝。
 
-## 3. 为你的内核选择沙箱后端
+服务器在启动时把自己标记为不可转储（`PR_SET_DUMPABLE=0`），这样同一台机器上的插件读不到 `/proc/<server-pid>/{mem,environ}`。
 
-设置 `EVEY_PLUGINS_SANDBOX_MODE`。`auto`（默认）按 **landlock → bubblewrap → basic** 的顺序解析，并选择你的主机支持的最强的一个（`runner_landlock.go` 中的 `resolveAutoMode()`）。如果你想要失败即拒绝的行为，就显式选择。
+## 为您的内核选择沙箱后端
+
+设置 `EVEY_PLUGINS_SANDBOX_MODE`。`auto`（默认）按 landlock、bubblewrap、basic 的顺序尝试，选择主机支持的最强方式。
+如果您希望“无法隔离就拒绝”，请明确设置一种模式。
 
 ### Landlock（推荐）
 
-按路径的文件系统允许列表（插件只能看到自己的目录 + socket 目录，永远看不到你的数据或机密），加上 Landlock v4 的 TCP 出站过滤。**不需要特权、挂载或命名空间**：启动器把它应用到自己身上，然后 `execve` 插件。
+按路径的文件系统允许清单（插件只看得到自己的目录和套接字目录，永远看不到您的数据或密钥），
+再加上 Landlock v4 的 TCP 出站过滤。它不需要特权、不需要挂载，也不需要命名空间：启动器先把它加在自己身上，然后再执行插件。
 
-**内核要求**：Landlock 必须既被编译进内核，*又*在活动的 LSM 列表中。运行器的 `landlockAvailable()`（`landlock_probe_linux.go`）会探测 `landlock_create_ruleset(VERSION)`；当系统调用不存在（内核 `<5.13`）或 Landlock 不在活动的 LSM 列表中时，它会返回一个 errno。验证：
+Landlock 必须编译进内核，并且在当前启用的 LSM 列表里。运行器会探测 `landlock_create_ruleset`；
+如果没有这个系统调用（内核比 5.13 旧），或者 Landlock 不在启用列表里，探测就会失败。检查方法：
 
 ```bash
-uname -r                              # 需要 >= 5.13
+uname -r                              # 需要 5.13 或更新
 cat /sys/kernel/security/lsm          # 必须包含 "landlock"
 ```
 
-如果列表中缺少 `landlock`，在内核命令行中启用它并重启（具体列表因发行版而异：保留现有条目并追加 `landlock`）：
+如果列表里没有 `landlock`，请把它加到内核启动参数里，然后重启（保留原有的项，这个列表因发行版而异）：
 
 ```
-# 例如在 GRUB_CMDLINE_LINUX 中：
+# 例如在 GRUB_CMDLINE_LINUX 里：
 lsm=lockdown,capability,yama,apparmor,bpf,landlock
 ```
 
-然后：
+然后，可以继续用 `auto`，也可以固定下来：
 
 ```bash
-EVEY_PLUGINS_SANDBOX_MODE=landlock    # 显式 + 失败即拒绝（如果无法强制执行 Landlock 就拒绝插件）
-# 或者保持默认：
-EVEY_PLUGINS_SANDBOX_MODE=auto        # 可用时解析为 landlock
+EVEY_PLUGINS_SANDBOX_MODE=landlock    # 无法隔离就拒绝：无法强制执行 Landlock 时，插件会被拒绝
 ```
 
-`landlock` 模式会向启动器传入 `-require-landlock`，如果 Landlock 没有生效，启动器会以非零状态退出，而不是在没有隔离的情况下运行插件。
+`landlock` 会给启动器传入 `-require-landlock`，启动器会以非零状态退出，而不是在没有隔离的情况下运行插件。
 
 ### bubblewrap
 
-如果无法使用 Landlock，安装 `bwrap` 二进制文件。bubblewrap 把每个插件放在 user/pid/uts/ipc/(net) 命名空间中，并使用挂载白名单。它需要**启用无特权用户命名空间**，并且 **`mount` 系统调用可用**：这在大多数裸机 Linux 上成立，但在无特权的 Docker 容器内会被阻止（这正是 Landlock 成为容器默认选项的原因）。`auto` 只在 Landlock **不存在** 并且一次临时的 bwrap 探测确实成功时才会选择 bubblewrap（`ProbeSandbox` / `sandbox_probe.go`）。
+没有 Landlock 时，请安装 `bwrap`。它把每个插件放进 user、pid、uts、ipc 和 network 命名空间里，并配上一份挂载允许清单。
+它需要无特权用户命名空间和 `mount` 系统调用。大多数直接运行在主机上的 Linux 都满足，但在无特权容器里会被阻止，
+这就是为什么容器里默认用 Landlock。只有在没有 Landlock、并且一次临时的 `bwrap` 探测成功时，`auto` 才会选择 bubblewrap。
 
 ```bash
-EVEY_PLUGINS_SANDBOX_MODE=bubblewrap  # bwrap 命名空间
-# 或者：
-EVEY_PLUGINS_SANDBOX_MODE=strict      # bubblewrap + LD_PRELOAD seccomp 垫片
+EVEY_PLUGINS_SANDBOX_MODE=bubblewrap  # 命名空间
+EVEY_PLUGINS_SANDBOX_MODE=strict      # 命名空间加上 seccomp 垫片库
 ```
 
-检查主机确实允许命名空间 + 挂载的设置：
+检查主机是否允许设置命名空间和挂载：
 
 ```bash
 bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 ```
 
-### basic（最后手段）
+### basic（最后的办法）
 
-`EVEY_PLUGINS_SANDBOX_MODE=basic`：UID 降权 + LD_PRELOAD seccomp 垫片，启动器仍会安装内核 seccomp 拒绝列表，并在可用时尽力应用 Landlock。**没有按路径的文件系统隔离**：插件以 UID 1001 运行，只有 seccomp。只在既没有 Landlock 也没有 bubblewrap 的旧内核或受限内核上使用它，并依靠 §4 中的 UID 分离来保护机密。
+`EVEY_PLUGINS_SANDBOX_MODE=basic` 就是切换用户（uid）加上 seccomp 垫片库；如果有启动器，它仍然会装上它的内核 seccomp 禁止清单，
+并尽力加上 Landlock。没有按路径的文件系统隔离：插件以 UID 1001 运行，只有 seccomp 保护。
+请在 Landlock 和 bubblewrap 都不能用的旧内核或受限内核上使用它，并依靠下面的 uid 分离来保护密钥。
 
-> **被授予 `subprocess` 权限的插件需要启动器**，即使在 basic 模式下也是如此。LD_PRELOAD 垫片在子进程 `exec` 之后不再存在，所以它无法隔离被允许启动子进程的插件：只有启动器的内核 seccomp（在 `exec` 之前安装并在其后继承）可以。如果缺少 `evey-plugin-launcher`（见 §1），这样的插件在生产环境中会**拒绝启动**（失败即拒绝），而不是在没有隔离的情况下运行。没有该权限的插件会像上面说明的那样退回 LD_PRELOAD 垫片。
+获得了 `subprocess` 权限的插件，即使在 `basic` 模式下也需要启动器：垫片库在子进程 `exec` 之后就不再起作用，
+只有启动器设置的内核 seccomp 还在。没有启动器时，这样的插件会拒绝启动，而不是在没有隔离的情况下运行。
 
-## 4. UID 分离（无需 root 也能保护机密）
+## 让密钥远离插件
 
-UID 分离让每个插件以一个单独的用户（UID 1001，`evey-plugin`）运行，与服务器（UID 1000）不同，这样插件仅凭普通的文件系统权限（DAC）就无法读取服务器的 `jwt.key`、备份或日志。它在 **`basic`** 模式下最重要（没有 Landlock 的路径隔离）；在 Landlock 或 bubblewrap 下，文件系统已经被隔开，所以那里它是多余的。
+uid 分离让每个插件以 `evey-plugin`（UID 1001）运行，和服务器（UID 1000）分开，这样，单凭普通的文件权限，
+插件就读不到 `jwt.key`、备份或日志。它在 `basic` 模式下很重要；在 Landlock 或 bubblewrap 下，文件系统已经被隔开了，所以它在那里是多余的。
 
-由 `EVEY_PLUGINS_UID_SEPARATION` 控制（`auto` | `on` | `off`，默认 `auto`）：
+`EVEY_PLUGINS_UID_SEPARATION`：
 
-- `auto`：只在沙箱解析为 `basic` 时启用。在现代的裸机内核上（Landlock），它按设计保持关闭。
-- `on`：始终启用，即使在 Landlock/bubblewrap 下（额外的一层独立保护）。
-- `off`：从不启用。
+| 值 | 行为 |
+|---|---|
+| `auto`（默认） | 只在沙箱最终是 `basic` 时开启 |
+| `on` | 始终开启，作为额外的一层独立防护 |
+| `off` | 从不开启 |
 
-**降权由启动器完成，而不是服务器。** 服务器保持非 root 且**没有**任何能力；小巧的 `evey-plugin-launcher` 二进制文件带有唯一的一项文件能力，并在 exec 插件之前把自己 `setuid` 到 1001：
+切换用户由启动器完成，不由服务器完成。服务器始终不是 root，也没有任何能力（capability）；
+启动器带有一项文件能力，在执行插件之前切换到 UID 1001：
 
 ```bash
 sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 ```
 
-这让服务器保持完全无特权：服务器的远程代码执行漏洞无法 `setuid(0)`，因为服务器不持有任何能力；只有那个小巧、不接受输入的启动器持有（并且它会拒绝任何低于 1000 的目标 UID）。如果启动器无法降权（缺少能力，或者设置了 `no_new_privs`），`basic` 模式下的插件会被**拒绝**，因为在那里 UID 是它与机密之间唯一的墙；在 Landlock 下，它会记录一条警告并以服务器的 UID 运行。
+启动器拒绝任何小于 1000 的目标 uid 或 gid。如果无法切换（缺少能力，或者设置了 `no_new_privs`），
+`basic` 模式下的插件会被拒绝，因为在那里 uid 是它唯一的一道墙；在 Landlock 下，它会记录一条警告，然后以服务器的 uid 运行。
 
-> **与 `no_new_privs` 不兼容。** 如果你以 `no-new-privileges`（或 systemd 的 `NoNewPrivileges=yes`）启动服务器，文件能力在 exec 时会被忽略：`basic` 模式下的插件会被拒绝，而在 Landlock 下，uid 分离会退化为同一个 UID（并带有警告）。二者只能选其一。
+!!! warning
+    uid 分离和 `no_new_privs` 不能同时使用。如果服务器在 systemd 的 `NoNewPrivileges=yes` 下运行，
+    文件能力在 exec 时会被忽略：`basic` 模式下的插件会被拒绝，而在 Landlock 下，uid 分离会退化为使用同一个 uid。只能二选一。
 
-如果服务器改为**以 root** 运行（不推荐），它会直接把插件降权到 1001，就不需要启动器的能力了。
+如果服务器改为以 root 运行（不推荐），它会直接把插件切换到 1001，就不需要这项能力了。
+用简单的话说明每种情况，见[插件沙箱设置](plugins/sandbox-deployment.md)。
 
-按场景说明的通俗指南：[plugins/sandbox-deployment.md](plugins/sandbox-deployment.md)。
+## 密钥文件的权限
 
-## 5. 机密文件的权限
-
-照搬 Docker 镜像的做法（`Dockerfile`）：让包含机密的目录**只有所有者可访问**，这样即使没有 Landlock，降权到 UID 1001 的插件也无法通过普通的 DAC 读取它们。
+照镜像的做法：存放密钥的目录只有所有者能访问，这样，即使没有 Landlock，切换到 UID 1001 的插件也读不到它们。
 
 ```bash
 sudo chown -R evey:evey /var/lib/evey
-# 服务器拥有 plugins/（它把安装内容解压到那里）；evey 组（evey-plugin
-# 属于该组）只能读取/执行已安装的文件：
+# plugins/ 归服务器所有（安装的插件解压在这里）；evey 组
+# （evey-plugin 属于这个组）只能读取和执行已安装的文件：
 sudo chmod 750 /var/lib/evey/plugins
-# 机密目录只允许所有者访问（组和其他人都不行）：
+# 密钥目录只有所有者能访问：
 sudo chmod 700 /var/lib/evey/keys /var/lib/evey/logs /var/lib/evey/backups
-# JWT 签名密钥本身：
-sudo chmod 600 /var/lib/evey/jwt.key      # （首次启动时自动以 0600 生成）
+# JWT 签名密钥本身（第一次启动时以 0600 生成）：
+sudo chmod 600 /var/lib/evey/jwt.key
 ```
 
-（根据你设置的 `EVEY_*_DIR` / `EVEY_JWT_PRIVATE_KEY_PATH` 调整路径。）
+请把路径改成您给 `EVEY_*_DIR` 变量和 `EVEY_JWT_PRIVATE_KEY_PATH` 设置的位置。
 
-## 6. 环境与配置
+## 配置环境变量
 
-所有运行时配置都通过 `EVEY_*` 环境变量完成。像 Docker 部署那样设置数据库、搜索、存储路径、JWT 密钥路径和反向代理变量：完整的表格见 [configuration.md](configuration.md)，数据库、搜索和反向代理的说明见 [installation.md](installation.md)。这里不重复那张表。裸机特有的注意事项：
+所有配置都是 `EVEY_*` 环境变量；完整的表格见[配置参考](configuration.md)。不用容器运行时，需要注意这几点：
 
-- 让 `EVEY_DB_HOST` / `EVEY_MEILI_URL` 指向你本地的 PostgreSQL / Meilisearch。
-- 服务器仍然提供**未加密的 HTTP**：在前面放一个反向代理来提供 TLS（在 **Admin → 远程访问** 中设置一个 `https://` 外部 URL 并把代理加入受信任的代理，或者使用 `EVEY_SERVER_BASE_URL` 和 `EVEY_TRUSTED_PROXIES`）。见 [reverse-proxy.md](reverse-proxy.md)。
-- **服务器会打开两个端口，只有其中一个可以暴露。** `EVEY_SERVER_PORT`（默认 `9090`）是原生 gRPC 监听端口；你的客户端和反向代理使用的 HTTP API 是**该端口加一**（`9091`）。只让你的反向代理和防火墙指向 HTTP 端口。gRPC 端口是内部传输通道：决定局域网之外的客户端能否连接的远程访问网络限制位于 HTTP 链路中，**不覆盖 gRPC 监听端口**。因此，gRPC 监听端口默认**只绑定到环回地址**（`EVEY_GRPC_BIND=127.0.0.1`），这样裸机运行就不会意外暴露它。如果你有理由发布它（另一台主机上的原生 gRPC 客户端），设置 `EVEY_GRPC_BIND=0.0.0.0`；服务器会在启动时警告该限制不适用于它，此时用防火墙保护它就是你的责任了。
-- 迁移在启动时自动运行；没有单独的迁移步骤。
-- 插件资源上限（`EVEY_PLUGINS_MEMORY_MB`、`_PIDS_MAX`、`_DISK_MAX_MB`、`_CPU_NICE`）和沙箱模式可以在运行时从 Admin → 插件 中由管理员修改；环境变量的值只是初始默认值。
+- 把 `EVEY_DB_HOST` 和 `EVEY_MEILI_URL` 指向您的 PostgreSQL 和 Meilisearch。`EVEY_DB_PASSWORD` 不能是默认的 `evey`。
+- Go 程序里路径的默认值是为容器选的：请把 `EVEY_LOG_DIR`（默认是相对路径 `logs`）、`EVEY_BACKUP_DIR`（`/data/backups`）、
+  `EVEY_TRANSCODING_CACHE_DIR`（`/data/transcode`）、`EVEY_TRICKPLAY_CACHE_DIR`（`/cache/trickplay`）
+  和 `EVEY_JWT_PRIVATE_KEY_PATH`（`/data/jwt.key`）设为您自己的目录。
+- 服务器提供的是普通的 HTTP：请在前面放一个反向代理来提供 TLS，把**外部 URL** 设为 `https://` 地址，
+  并把代理加到**受信任的代理**里（**管理 -> 远程访问**；`EVEY_SERVER_BASE_URL` 和 `EVEY_TRUSTED_PROXIES` 是备用方式）。
+  见[反向代理配置](reverse-proxy.md)。
+- **服务器会打开两个端口，只能对外开放其中一个。**
+  `EVEY_SERVER_PORT`（默认 `9090`）是原生的 gRPC 监听端口；您的客户端和反向代理访问的 HTTP API 是这个端口加一（`9091`）。
+  远程访问的把关决定局域网以外的客户端能不能连接，它接在 HTTP 这条处理链上，不管 gRPC 监听端口，
+  所以 gRPC 默认只绑定本机回环地址（`EVEY_GRPC_BIND=127.0.0.1`）。如果您有理由对外开放它，请设置 `EVEY_GRPC_BIND=0.0.0.0`；
+  服务器启动时会警告您把关对它不起作用，这时防火墙就要由您自己来设。
+- 迁移在启动时执行；没有单独的迁移步骤。
+- 插件的资源上限（`EVEY_PLUGINS_MEMORY_MB`、`_PIDS_MAX`、`_DISK_MAX_MB`、`_CPU_NICE`）和沙箱模式，
+  可以在运行时从**管理 -> 插件 -> 资源限制**修改；环境变量的值只是初始默认值。
+- 管理面板里的重启服务器功能依赖镜像里的进程管理程序，不用容器运行时会显示为不可用：请自己重启服务。
 
-## 7. 验证你的沙箱
+## 确认沙箱在工作
 
-服务器会记录解析后的沙箱后端。第一个插件启动后，检查服务器日志：
+服务器会在日志里记录它最终选择的后端。第一个插件启动后，请查找：
 
-- **auto 解析**（记录一次）：`plugin sandbox auto-detection complete  selected_mode=landlock`（或 `bubblewrap` / `basic`）。
-- **每个插件**（每次插件启动时）：`plugin sandbox applied  sandbox_mode=landlock plugin_id=...`
-- **退回到 basic**（如果你期望 Landlock，这是你*不*想看到的警告）：`plugin sandbox auto-detection fell back to basic mode: no per-path filesystem isolation available …`：表示既没有找到 Landlock，也没有找到可用的 bwrap。重新检查 §3。
+- 使用 `auto` 时，会出现一次：`plugin sandbox auto-detection complete
+  selected_mode=landlock`（或者 `bubblewrap`、`basic`）；
+- 每次插件启动时：`plugin sandbox applied sandbox_mode=landlock
+  plugin_id=...`；
+- 在您期望使用 Landlock 时，不想看到的警告是：`plugin sandbox
+  auto-detection fell back to basic mode: no per-path filesystem isolation
+  available ...`，意思是既没有找到 Landlock，也没有找到能用的 `bwrap`。请重新检查上面关于后端的那一节。
 
-单独确认内核部分：
+另外单独确认内核这一侧：
 
 ```bash
-cat /sys/kernel/security/lsm          # Landlock 是否生效？（应列出 "landlock"）
-grep Seccomp: /proc/<plugin-pid>/status   # 2 = 运行中的插件启用了过滤模式
+cat /sys/kernel/security/lsm              # 列出 "landlock"
+grep Seccomp: /proc/<plugin-pid>/status   # 2 = 插件上有一个生效的 seccomp 过滤器
 ```
 
-在一个运行中的插件进程上出现 `Seccomp: 2` 行，就确认了内核 seccomp 过滤器已安装。如果你固定了 `EVEY_PLUGINS_SANDBOX_MODE=landlock` 而 Landlock 没有生效，插件会**拒绝启动**：这是失败即拒绝的约定在按预期工作。
+正在运行的插件进程上出现 `Seccomp: 2` 这一行，说明内核过滤器已经装上了。
+如果设置了 `EVEY_PLUGINS_SANDBOX_MODE=landlock`，而 Landlock 没有生效，插件会拒绝启动：这正是“无法隔离就拒绝”的约定在起作用。
 
----
+关于备份、更新和恢复命令，容器的那些页面同样适用：[备份和更新](backups.md)、[恢复](runbooks/recovery.md)
+和[命令行](runbooks/cli.md)介绍的是同一个 `evey admin` 程序。
 
-其他所有事项（备份、更新、恢复 CLI、故障排除）同样适用 [installation.md](installation.md) 中面向 Docker 的部分：`evey admin` 子命令和备份机制都是同一个二进制文件。
+<!-- sources
+launcher lookup: internal/adapters/driven/pluginrunner/runner_landlock.go - launcherPath, launcherBinaryName, resolveAutoMode
+shim path and modes: internal/adapters/driven/pluginrunner/runner.go - sandboxLibPath, sandboxModeStrict, pluginUID ; sandbox/sandbox.c ; Dockerfile (gcc line, /app/libevey-sandbox.so)
+interpreters: internal/adapters/driven/pluginrunner/runner_start.go - knownInterpreters
+basic sandbox, subprocess refusal, uid separation policy: internal/adapters/driven/pluginrunner/runner_sandbox.go - applyBasicSandbox, pluginDropArgs, uidSepApplies, WithUIDSeparation, effectiveMode ("auto-detection complete")
+landlock probe: internal/adapters/driven/pluginrunner/landlock_probe_linux.go - landlockAvailable ; bwrap probe: sandbox_probe.go - ProbeSandbox
+launcher: cmd/evey-plugin-launcher/main.go (-require-landlock, -uid, -uid-besteffort) ; cmd/evey-plugin-launcher/droppriv_linux.go (uid/gid >= 1000)
+hardening: cmd/evey/hardening_linux.go - PR_SET_DUMPABLE
+cli: cmd/evey/cli.go (version, completion bash, man)
+ports and defaults: internal/config/config.go (EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_LOG_DIR, EVEY_BACKUP_DIR, EVEY_TRANSCODING_CACHE_DIR, EVEY_TRICKPLAY_CACHE_DIR, EVEY_JWT_PRIVATE_KEY_PATH, EVEY_PLUGINS_*, hardFail on password "evey") ; cmd/evey/main.go - httpPort = Port+1
+pre-migration dump needs pg_dump: internal/adapters/driven/postgres/migrate_backup.go - dumpDatabase
+restart RPC needs the supervisor: docker/entrypoint.sh (EVEY_SUPERVISED)
+image permissions: Dockerfile (chmod 750 /data/plugins, chmod 700 keys/logs/backups, setcap)
+labels: i18n/en/admin.yaml - remoteAccess.externalUrl, remoteAccess.trustedProxies, plugins.resourceLimits.title
+-->

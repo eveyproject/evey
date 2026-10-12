@@ -1,144 +1,131 @@
 ---
-source_sha: a6f8003c3c1502fd56c9686aaf41877fd1dc643a86c7f3eb3cb6910f60615fd6
-reviewed: false
+source_sha: 88e0bffcb0012a56a1138eec253a0e443e751536aff3d4d36eb018d38b7a86e9
+reviewed: true
 ---
-# 插件沙箱：你的服务器该用哪种设置
+# 插件沙箱设置
 
-Evey 在沙箱中运行第三方插件。**对几乎所有人来说，答案都是：保持默认设置。** 服务器会检测你的机器，并自动选择它能做到的最强隔离。只有当你运行的是**老旧 NAS**、**不使用 Docker** 运行 Evey，或者想要**进一步加固**时，才需要继续往下读。
+用简单的话说明哪种沙箱设置适合您的服务器。对几乎所有人来说，答案都是：保持默认设置。
+服务器会检测这台机器，并选择它能做到的最强隔离。只有当您用的是旧款 NAS、不用 Docker 运行 Evey，
+或者想把安全收得更紧时，才需要往下读。完整的技术说明见[插件沙箱与威胁模型](../SECURITY.md)。
 
-完整的技术模型见 [SECURITY.md](../SECURITY.md)。本页是用通俗语言写成的决策指南。
+## 是什么在保护您
 
----
+您安装的插件会被关在一个“盒子”里。根据机器的不同，这个盒子：
 
-## 什么在保护你（通俗地说）
+- **限制它能碰的文件**：只有它自己的文件夹和它需要的系统库，别的都不行（碰不到您的媒体、您的密钥，也碰不到其他插件）；
+- 在内核层面**阻止危险的系统操作**：调试其他进程、加载模块、修改时钟、挂载磁盘；
+- 始终**切断直接的网络访问**：一个申请了网络权限、并且您批准了的插件，也只能经过服务器访问它声明过的主机；
+- **限制 CPU、内存、磁盘和进程数量**，这样失控的插件不会拖垮服务器；
+- **让您的密钥无法被读取**：用来给登录签名的密钥，以及备份。
 
-你安装的插件会被关在一个盒子里。根据你的机器，这个盒子会：
+除此之外，只有管理员才能安装插件，插件会被扫描是否有可疑代码，而且在它运行之前，您要先批准它的权限。
 
-- **限制它能接触哪些文件**：它只能看到自己的文件夹和运行所需的系统库，别的都看不到（看不到你的媒体、你的机密、其他插件）。
-- **阻止危险的系统操作**：调试其他进程、加载内核模块、修改时钟、挂载磁盘等，都会在内核层面被拒绝。
-- **始终切断直接的网络访问**。一个请求了网络（并且你批准了）的插件，只能通过服务器访问它声明过的主机。
-- **限制 CPU、内存、磁盘和进程数量**，这样失控的插件无法拖垮服务器。
-- **让你的机密无法读取**：签署登录的密钥和备份。
+**查看实际生效的保护：** **管理 -> 插件 -> 安全仪表板**会显示主机沙箱，也就是 `auto` 最终选择的模式
+（`landlock`、`bubblewrap` 或 `basic`），以及各项检测的结果（**Landlock 内核**、**沙箱启动器**、**Bubblewrap**）。
+`basic` 表示主机无法按路径隔离文件：插件只靠切换用户（uid）和 seccomp 运行，检测结果会说明原因，下面几节会说明要改什么。
 
-除此之外：只有**管理员才能安装**插件，插件会被**扫描**是否含有可疑代码，并且在运行之前由你**批准它们的权限**。
+## 找到您的情况
 
-**检查实际生效的保护：** Admin → 插件 → 安全仪表板 会显示*主机沙箱*：`auto` 解析得到的模式（`landlock`、`bubblewrap` 或 `basic`）以及各项探测结果。如果显示 **basic**，说明你的主机不提供按路径的文件系统隔离（插件只有 UID 降权 + seccomp）；探测结果会告诉你原因，下面的章节会告诉你如何解决。
-
----
-
-## 选择你的情况
-
-| 你的服务器 | 开箱即得 | 需要做什么吗？ |
+| 您的服务器 | 不用设置就能得到什么 | 需要做什么吗？ |
 |---|---|---|
-| **Docker 中的现代 Linux**（内核 ≥ 5.13，基本上是大约 2021 年以后的任何系统）：*常见情况* | **最强的隔离**（Landlock），自动启用。 | **什么都不用做。** 保持默认。 |
-| **Docker 中的老旧 NAS**（例如较旧的 Synology，内核 < 5.13） | 良好的隔离，**但没有按文件夹的文件隔离墙**。机密、网络和系统操作仍然被锁住。 | **什么都不用做。** 这种情况下 uid 分离（见下文）会自动开启。 |
-| **任何 Linux，不使用 Docker**（裸机） | **最强的隔离**，自动启用（现代内核上是 Landlock，否则是 bubblewrap 命名空间）。 | 按照[裸机指南](../deployment-bare-metal.md)操作。 |
+| **在 Docker 里运行的现代 Linux**（内核 5.13 或更新，大致是 2021 年以后的系统），最常见的情况 | 自动得到最强的隔离（Landlock） | 不用 |
+| **在 Docker 里运行的旧款 NAS**（内核比 5.13 旧） | 良好的隔离，只是没有按文件夹划分的文件“墙”；密钥、网络和系统操作仍然被锁住 | 不用：uid 分离（见下文）会自动开启 |
+| **任意 Linux，不用 Docker** | 能得到的最强隔离：内核较新时用 Landlock，否则用 bubblewrap 命名空间 | 按照[不使用容器](../deployment-bare-metal.md)操作 |
 
-如何知道你得到的是哪一种：打开 **Admin → 插件**，安全面板上的标记会显示实际生效的沙箱模式：`landlock` 或 `bubblewrap` 表示强，`basic` 表示“老旧 NAS”的情况。
+## 您可能会动的唯一一个开关：uid 分离
 
----
+uid 分离让插件以一个和服务器不同的用户账户运行，这样，即使没有别的东西拦住它，它在物理上也读不到服务器的机密文件。
+它只在没有按文件夹划分文件墙的机器上才重要（也就是 `basic` 的情况）；在现代机器上，文件墙已经让密钥够不着，
+uid 分离只是一层多余的额外防护。
 
-## 你可能会碰的唯一一个开关：uid 分离
+`EVEY_PLUGINS_UID_SEPARATION`：
 
-**它做什么，简单地说：** 让插件以与 Evey 本身**不同的用户账户**运行，这样它在物理上就无法读取 Evey 的机密文件，即使没有其他东西阻止它。
-
-**什么时候重要：** 只在**没有按文件夹文件隔离墙的老机器**上（即 `basic` 的情况）。在现代机器上，文件隔离墙已经让机密无法触及，所以那里的 uid 分离只是一层多余的额外保护。
-
-**设置**：`EVEY_PLUGINS_UID_SEPARATION`：
-
-| 值 | 含义 | 何时使用 |
+| 值 | 含义 | 什么时候用 |
 |---|---|---|
-| `auto` *(默认)* | **只在真正需要时开启**（`basic` 的情况）。在多余的地方关闭。 | **保持这个**：它会针对每台机器做出正确的选择。 |
-| `on` | **始终开启**，即使在现代机器上：在文件隔离墙之上，再加一道独立的机密保护墙。 | 你想要最大程度的双重保险，并接受下面的小代价。 |
-| `off` | **从不开启。** | 某个特定插件在它下面运行不正常（少见）。 |
+| `auto`（默认） | 只在需要时开启（`basic` 的情况），在多余的地方关闭 | 一直用它，除非遇到下面两种情况之一 |
+| `on` | 始终开启，在文件墙之上再加一道独立的墙 | 您想要双重保险，并接受下面说的小代价 |
+| `off` | 从不开启 | 某个插件在 uid 分离下运行不正常（很少见） |
 
-**要注意的地方：** uid 分离**与 Docker 的 `no-new-privileges` 加固选项不兼容**：二者只能选其一。如果你的配置在老机器（`basic`）上无法授予它，Evey 会**拒绝启动插件**，而不是让它在你的机密旁边运行；在现代机器上，它会记录一条警告并正常运行插件（只是你得不到那道额外的墙）。官方镜像已经包含所需的一切；你只需设置这个变量。
+!!! warning
+    uid 分离和 Docker 的 `no-new-privileges` 选项不能同时使用：只能二选一。在旧机器上（`basic`），
+    如果无法切换用户，服务器宁可不启动这个插件，也不会让它在您的密钥旁边运行；在现代机器上，
+    服务器会记录一条警告，然后在没有这道额外墙的情况下运行插件。镜像里已经带好了所需的一切，您只需要设置这个变量。
 
-**`on` 的小代价：** 插件以单独的账户运行，所以一个在*自己文件夹内*写临时文件的插件可能会出问题。如果出现这种情况，设置为 `off`。（这就是默认值为 `auto` 的原因：它只在确实有好处的地方承担这个风险。）
+`on` 的小代价：插件以一个单独的账户运行，所以在自己文件夹里写临时文件的插件可能会出问题。
+如果遇到这种情况，请设为 `off`。这就是默认值为 `auto` 的原因：它只在真正有好处的地方才承担这个风险。
 
----
+## 恶意插件能做什么
 
-## 风险，通俗地说
+**现代 Linux（Docker 或裸机）：** 坏插件被完全关在盒子里。它读不到您的密钥，看不到也碰不到其他插件的文件，
+不能随意发起网络请求，也不能篡改系统。唯一现实的逃出办法是内核里的严重漏洞，任何不是完整虚拟机的沙箱都是如此。
 
-一个**恶意**插件能做和不能做什么，按场景划分：
+**在 Docker 里运行、没有按文件夹划分文件墙的旧款 NAS（`basic`）：**
 
-**现代 Linux（Docker 或裸机）：**
-坏插件被完全关在盒子里。它**不能**读取你的机密，**不能**看到或接触其他插件的文件，**不能**任意发起网络请求，也**不能**篡改系统。唯一现实的出路是 Linux **内核**的严重漏洞，而这一点适用于*任何*不是完整虚拟机的沙箱。
+- 您的密钥（登录密钥、备份）仍然受到保护，靠的是单独的用户账户，`auto` 在这种情况下会把它开启；
+- 插件不能直接上网；获准上网的插件也只能访问它声明过的主机；
+- 危险的系统操作仍然在内核层面被阻止；
+- 但由于没有按文件夹划分的墙，坏插件可以读取普通的、不机密的文件，列出正在运行的进程，
+  而且因为所有插件共用一个账户，它还能读取或干扰另一个插件的文件。
 
-**Docker 中的老旧 NAS，没有按文件夹的隔离墙（`basic`）：**
-- ✅ 你的**机密仍受保护**（登录密钥、备份），靠的是单独的用户账户，`auto` 会在这里开启它。
-- ✅ 插件**没有直接网络**；被允许的插件只能访问它声明过的主机。
-- ✅ **危险的系统操作仍在内核层面被阻止**。
-- ⚠️ 但由于没有按文件夹的隔离墙，坏插件**可能读取普通的非机密文件**、**列出正在运行的进程**，并且由于插件共用一个账户，可能**读取或干扰另一个插件的文件**。
-- **结论：** 在这样的主机上只安装你信任的插件，或者换用现代内核以获得完整的文件隔离墙。
+在这样的主机上，请只安装您信任的插件，或者换用较新的内核，以获得完整的文件墙。
 
----
+## 配置示例
 
-## 配置示例（复制粘贴）
+这些写在您的 `.env`（compose）里，或者作为 `EVEY_*` 环境变量设置。
 
-这些写在你的 `.env`（Docker compose）中，或者作为 `EVEY_*` 环境变量。
-
-**1. 普通的现代服务器，推荐（什么都不做）：**
-```bash
-# 默认值是正确的。也可以显式写出：
-EVEY_PLUGINS_SANDBOX_MODE=auto          # 选择可用的最强模式
+```bash title="1. 现代服务器，推荐做法（什么都不用做）"
+EVEY_PLUGINS_SANDBOX_MODE=auto          # 选择能用的最强方式（默认）
 # EVEY_PLUGINS_UID_SEPARATION=auto      # （默认）只在需要的地方开启
 ```
 
-**2. 老旧 NAS：** 什么都不用设置，`auto` 已经在那里以单独的账户运行插件。不要在 compose 的 `security_opt` 中加入 `no-new-privileges`，否则会阻止它：
-```bash
+```bash title="2. 旧款 NAS（什么都不用设置，列出来只是为了说清楚）"
+# 不要在 compose 的 security_opt 里加 no-new-privileges，它会阻止切换用户
 EVEY_PLUGINS_SANDBOX_MODE=auto
-EVEY_PLUGINS_UID_SEPARATION=auto        # （默认）在 basic 情况下开启
+EVEY_PLUGINS_UID_SEPARATION=auto        # （默认）在 basic 的情况下开启
 ```
 
-**3. 现代服务器上的最大双重保险（叠加两道墙）：**
-```bash
-EVEY_PLUGINS_SANDBOX_MODE=auto          # → landlock
-EVEY_PLUGINS_UID_SEPARATION=on          # 在上面再加一道独立的 uid 墙
+```bash title="3. 在现代服务器上加双重保险"
+EVEY_PLUGINS_SANDBOX_MODE=auto          # 最终选择 landlock
+EVEY_PLUGINS_UID_SEPARATION=on          # 再加上独立的 uid 墙
 ```
 
-**4. 固定一个特定模式（高级）：**
-```bash
-EVEY_PLUGINS_SANDBOX_MODE=landlock      # Landlock 不可用时拒绝启动插件（失败即拒绝）
+```bash title="4. 固定一种模式（高级）"
+EVEY_PLUGINS_SANDBOX_MODE=landlock      # 如果 Landlock 不可用，就拒绝启动插件
 ```
 
-**5. 某个插件在 uid 分离下出问题：**
-```bash
+```bash title="5. 某个插件在 uid 分离下出问题"
 EVEY_PLUGINS_UID_SEPARATION=off
 ```
 
-**6. 资源上限（之后都可以在 Admin → 插件 中由管理员修改）：**
-```bash
+```bash title="6. 资源上限（之后可以在 管理 -> 插件 -> 资源限制 里修改）"
 EVEY_PLUGINS_MEMORY_MB=256              # 每个插件的最大内存
-EVEY_PLUGINS_PIDS_MAX=64                # 最大进程/线程数
-EVEY_PLUGINS_DISK_MAX_MB=100            # 安装目录的最大大小（0 = 不限）
-EVEY_PLUGINS_CPU_NICE=10                # 调度优先级 0-19（越高越谦让）
+EVEY_PLUGINS_PIDS_MAX=64                # 最大进程和线程数
+EVEY_PLUGINS_DISK_MAX_MB=100            # 安装目录的最大大小（0 = 关闭）
+EVEY_PLUGINS_CPU_NICE=10                # 调度优先级 0-19（越大越谦让）
 ```
 
----
+## 运行中更改沙箱模式
 
-## 在运行时更改沙箱模式
+在**管理 -> 插件**的**资源限制**卡片里修改**沙箱模式**。正在运行的插件会自动重启，让新模式立即生效，
+**安全仪表板**会显示实际生效的模式。无法在新模式下运行的插件（例如在无特权容器里使用 `bubblewrap`）会显示为出错：这时请改回原来的模式。
 
-你可以在 **Admin → 插件** 的 **资源限制** 卡片中更改模式。正在运行的插件会**自动重启**，让新模式立即生效（无需手动禁用/启用）。安全标记会显示实际生效的模式。如果某个插件无法在新模式下运行（例如你在 Docker 上选择了需要特权的 `bubblewrap`），它会在仪表板中显示为**出错**：切回去即可。
-
----
-
-## 验证它在工作
+## 确认它在工作
 
 ```bash
-# 启动器持有用于 uid 分离的能力：
-docker exec evey-server getcap /evey-plugin-launcher        # → cap_setuid=ep
+# 启动器带有 uid 分离所用的能力（capability）
+docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
-# 运行中的插件以哪个用户运行（evey = 与服务器共用，evey-plugin = 已分离）：
-docker exec evey-server ps -o user,pid,args | grep -v grep | grep -iE "node|python"
-
-# 实际生效的沙箱模式：Admin → 插件 页面上的安全标记。
+# 正在运行的插件以哪个用户运行（evey = 和服务器共用，
+# evey-plugin = 已分离）；镜像里没有 ps，所以问 Docker
+docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 
----
+实际生效的沙箱模式，就是**管理 -> 插件 -> 安全仪表板**上的标记。
 
-## 另见
-
-- [SECURITY.md](../SECURITY.md)：完整的插件安全模型（每一层、按模式的表格、已知限制）。
-- [deployment-bare-metal.md](../deployment-bare-metal.md)：不使用 Docker 运行。
-- [installation.md](../installation.md)：Docker 自托管的完整说明。
+<!-- sources
+auto resolution and probes: internal/adapters/driven/pluginrunner/runner_landlock.go - resolveAutoMode ; runner_sandbox.go - effectiveMode, SandboxStatus, uidSepApplies, WithUIDSeparation, applyBasicSandbox
+defaults: internal/config/config.go (EVEY_PLUGINS_SANDBOX_MODE, EVEY_PLUGINS_UID_SEPARATION, EVEY_PLUGINS_MEMORY_MB, _PIDS_MAX, _DISK_MAX_MB, _CPU_NICE)
+restart on mode change: internal/app/plugin/runtime_service.go - RestartRunningPlugins
+image: Dockerfile (setcap cap_setuid+ep /evey-plugin-launcher, no procps) ; docker-compose.yml (no security_opt)
+labels: i18n/en/admin.yaml - plugins.security.title, probeLandlock, probeLauncher, probeBubblewrap, plugins.resourceLimits.title, resourceLimits.sandboxMode
+-->
