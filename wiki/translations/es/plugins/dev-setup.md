@@ -30,7 +30,7 @@ Un plugin es un ZIP con un `plugin.yaml` en su raíz y un proceso backend que
 el servidor arranca en un sandbox. El proceso sirve un pequeño servicio gRPC
 en un socket Unix y llama al servidor por otro. También puede incluir un
 módulo de interfaz, que se dibuja en un marco con sandbox dentro de la
-página, y solo habla con el exterior a través del servidor, con los hosts que
+página, y solo se comunica con el exterior a través del servidor, con los hosts que
 declaró.
 
 ## 1. Requisitos previos
@@ -157,7 +157,7 @@ una cosa y lo instalamos.
    el paso de consentimiento que el administrador tiene que aprobar.
 
 Lo que tienes es todo el contrato del backend. A partir de aquí, un plugin
-crece en tres direcciones: llamar al servidor (`HostService`, sección 4),
+se puede ampliar de tres formas: llamar al servidor (`HostService`, sección 4),
 dibujar una interfaz (sección 5) y llegar al exterior (sección 6).
 
 ## 4. Llamar al servidor desde el backend
@@ -193,8 +193,8 @@ frontend:
 ```
 
 El módulo recibe un puente `window.evey`: `evey.onInit` le entrega la
-configuración del plugin, el idioma, el tema y la superficie en la que ha
-caído; `evey.resize`, `evey.toast` y `evey.navigate` actúan sobre la página
+configuración del plugin, el idioma, el tema y la superficie en la que se
+muestra; `evey.resize`, `evey.toast` y `evey.navigate` actúan sobre la página
 dentro de unos límites fijos; y, cuando el manifiesto declara `prefs` o
 `public`, `evey.prefs.*` y `evey.media.*` llegan al servidor con un token de
 corta duración que la página anfitriona guarda para el marco.
@@ -290,9 +290,9 @@ firma (.zip.sig, opcional)**, su `.zip.sig`; por la API, la firma es el campo
 `sig` de la subida. La vista previa muestra **Firmado** o una firma no
 válida, y el Panel de seguridad guarda el resultado.
 
-Lo que suele hacer tropezar:
+Errores habituales:
 
-- **Cualquier cambio en el ZIP rompe la firma**, incluso volver a comprimir
+- **Cualquier cambio en el ZIP invalida la firma**, incluso volver a comprimir
   los mismos archivos. Firma el archivo que distribuyes, y vuelve a firmar en
   cada versión.
 - **Solo se aceptan claves ECDSA P-256**, que es lo que crea `cosign
@@ -369,7 +369,7 @@ versión en una forja, tu propia web).
 
 - Publica juntos el ZIP, su `.sig` y tu `cosign.pub` (sección 7).
 - Indica los permisos y los hosts de `external_fetch` en tu README: el
-  administrador los ve al instalar y tiene que aprobarlos; una sorpresa ahí
+  administrador los ve al instalar y tiene que aprobarlos; algo inesperado ahí
   es el primer motivo por el que se rechaza una instalación.
 - Para que tu plugin aparezca con los ejemplos incluidos, abre una pull
   request contra `examples/plugins/` con el código fuente y un README. Los

@@ -124,7 +124,7 @@ biblioteca:
       Configuración del servidor → Intervalo de escaneo periódico**, se
       aplica al reiniciar). Mientras se reproduce algo, espera 15 minutos
       entre lecturas para no ralentizar la reproducción.
-    - El sistema también puede avisarle cuando cambia un archivo
+    - El sistema también puede avisar al servidor cuando cambia un archivo
       (**Administración → Configuración del servidor → Configuración del
       servidor → Monitor de archivos de biblioteca**), en las bibliotecas que
       tienen activada la supervisión en tiempo real. Para comprobar que esto

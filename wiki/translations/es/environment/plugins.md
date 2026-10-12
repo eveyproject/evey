@@ -5,8 +5,8 @@ reviewed: true
 # Plugins y sandbox
 
 Las variables que deciden cómo se confinan y se limitan los plugins. Los
-valores por defecto sirven para un equipo Docker normal; qué configuración le
-va a cada equipo está en
+valores por defecto sirven para un equipo Docker normal; qué configuración
+conviene a cada equipo está en
 [Configurar el sandbox de plugins](../plugins/sandbox-deployment.md), y cómo
 funcionan las capas, en
 [Sandbox de plugins y modelo de amenazas](../SECURITY.md).

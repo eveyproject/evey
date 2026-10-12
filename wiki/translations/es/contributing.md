@@ -5,7 +5,7 @@ reviewed: true
 # Contribuir
 
 Por dónde empezar si quieres trabajar en el código de Evey, y qué tiene que
-superar una pull request. Los documentos escritos para quien contribuye viven
+superar una pull request. Los documentos escritos para quien contribuye están
 junto al código, en GitHub, y no en este sitio; esta página te lleva a ellos.
 
 ## Por dónde empezar

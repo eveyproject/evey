@@ -11,8 +11,8 @@ listadas [al final](#writing-a-plugin).
 
 Un plugin añade a Evey lo que no hace por sí mismo: una sección en la página
 de inicio, una capa encima del reproductor, una fuente de metadatos, un tema.
-Cada plugin es un proceso aparte que habla con el servidor a través de un
-socket local, encerrado en un sandbox y limitado a los permisos que declara su
+Cada plugin es un proceso aparte que se comunica con el servidor a través de
+un socket local, aislado en un sandbox y limitado a los permisos que declara su
 manifiesto. Su interfaz, si tiene una, funciona en un marco aislado de la
 página.
 
@@ -154,7 +154,7 @@ Los permisos que puede pedir un plugin están listados en
 que todavía no puede impedir, está en
 [Sandbox de plugins y modelo de amenazas](SECURITY.md).
 
-!!! warning "El servidor controla con quién habla un plugin, no lo que dice"
+!!! warning "El servidor controla con quién se comunica un plugin, no lo que envía"
     En cuanto un servidor está en la lista de un plugin, Evey no puede
     inspeccionar lo que el plugin le envía. Revisa un plugin de terceros
     antes de instalarlo, como harías con cualquier programa, y considera su
@@ -164,8 +164,8 @@ que todavía no puede impedir, está en
 ## Temas
 
 Un tema es un paquete de tipo `kind: theme` sin proceso: una hoja de estilos
-y, opcionalmente, un script encerrado en un marco oculto. Se instala desde el
-mismo cuadro **Instalar plugin**; la hoja de estilos se depura al instalarla.
+y, opcionalmente, un script aislado en un marco oculto. Se instala desde el
+mismo cuadro **Instalar plugin**; la hoja de estilos se sanea al instalarla.
 Después, cada usuario lo elige en **Ajustes → Apariencia → Tema**. Lo que
 puede contener un tema se describe en [Temas](themes.md).
 

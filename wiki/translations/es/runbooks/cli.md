@@ -96,7 +96,7 @@ evey admin migrate version                   Print the current schema version; e
 
 Se hace un `pg_dump` antes de la migración para `up` y `down` cuando
 `EVEY_BACKUP_DIR` está definido (`/data/backups` en la imagen Docker);
-`--no-backup` se lo salta, para equipos sin `pg_dump`. Un fallo a mitad de
+`--no-backup` lo omite, para equipos sin `pg_dump`. Un fallo a mitad de
 `up` deja `schema_migrations.dirty = true`: consulta
 [Migraciones de la base de datos](migration-runbook.md). En el entorno de
 desarrollo, el Makefile ofrece estos tres como `make migrate-up`,
@@ -235,7 +235,7 @@ imagen Docker no los incluye:
 
 - [Recuperación](recovery.md): restablecer una contraseña, cambiar la clave JWT, restaurar una copia de seguridad.
 - [Migraciones de la base de datos](migration-runbook.md): desplegar el esquema, volver atrás, recuperar un estado «dirty».
-- [Manual de incidentes](incident-runbook.md): qué hacer primero cuando el servidor se porta mal.
+- [Manual de incidentes](incident-runbook.md): qué hacer primero cuando el servidor no funciona como debe.
 
 <!-- sources
 dispatch and top-level commands: cmd/evey/cli.go - runCLI (version, help, completion, man, unknown command refused), cmd/evey/main.go

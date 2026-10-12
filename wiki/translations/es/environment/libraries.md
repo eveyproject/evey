@@ -6,7 +6,7 @@ reviewed: true
 
 Las variables que hay detrás del escaneo, de las fuentes de metadatos y de la
 detección de intros. La mayoría tiene un campo en el panel de administración,
-que gana en cuanto se guarda un valor ahí; la parte del panel se describe en
+que tiene prioridad en cuanto se guarda un valor ahí; la parte del panel se describe en
 [Bibliotecas y metadatos](../administration/libraries.md).
 
 ## Escaneo
@@ -14,8 +14,8 @@ que gana en cuanto se guarda un valor ahí; la parte del panel se describe en
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
 | `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | Vigilancia de los archivos en tiempo real. | Configuración del servidor → Ajustes del servidor → **Monitor de archivos de biblioteca**, al reiniciar |
-| `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | Cada cuánto se revisan las carpetas en busca de lo que se le escapó a la vigilancia (carpetas compartidas por red). | Configuración del servidor → Ajustes del servidor → **Intervalo de escaneo periódico**, al reiniciar |
-| `EVEY_LIBRARY_SCAN_WORKERS` | según la parte de CPU | Archivos analizados en paralelo durante un escaneo. Si la defines a mano, se salta la parte de **Potencia asignada** para los escaneos. | ninguno |
+| `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | Cada cuánto se revisan las carpetas en busca de lo que la vigilancia no detectó (carpetas compartidas por red). | Configuración del servidor → Ajustes del servidor → **Intervalo de escaneo periódico**, al reiniciar |
+| `EVEY_LIBRARY_SCAN_WORKERS` | según la parte de CPU | Archivos analizados en paralelo durante un escaneo. Si la defines a mano, no se aplica la parte de **Potencia asignada** para los escaneos. | ninguno |
 | `EVEY_SEEKINDEX_STATE_DIR` | `/data/seek-index` | Dónde guarda el escaneo de Salud de medios sus resultados y su tarea en curso entre reinicios. Vacía: no se guardan. | ninguno |
 
 ## Metadatos
@@ -36,7 +36,7 @@ que gana en cuanto se guarda un valor ahí; la parte del panel se describe en
 | `EVEY_INTRO_TIDB_API_KEY` | vacío | Una clave TheIntroDB: 500 consultas al día en lugar de 100. | Configuración del servidor → Claves API → **Clave API de TheIntroDB**, al reiniciar |
 | `EVEY_INTRO_AUTO_SKIP_ENABLED` | `false` | Todos los reproductores se saltan solos las intros detectadas. | Configuración del servidor → Ajustes del servidor → **Saltar intros automáticamente**, inmediato |
 | `EVEY_INTRO_SKIP_PREVIEW_ENABLED` | `false` | También ofrece saltar el avance del episodio siguiente. | Configuración del servidor → Ajustes del servidor → **Saltar segmentos de avance**, inmediato |
-| `EVEY_INTRO_DETECTION_MAX_PARALLEL` | según la parte de CPU | Títulos analizados a la vez. Si la defines a mano, se salta la parte de **Potencia asignada** para esta tarea. | ninguno |
+| `EVEY_INTRO_DETECTION_MAX_PARALLEL` | según la parte de CPU | Títulos analizados a la vez. Si la defines a mano, no se aplica la parte de **Potencia asignada** para esta tarea. | ninguno |
 | `EVEY_INTRO_FFMPEG_THREADS` | `1` | Hilos por proceso ffmpeg durante la detección (de 1 a 16). | ninguno |
 
 <!-- sources

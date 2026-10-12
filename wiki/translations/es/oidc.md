@@ -50,7 +50,7 @@ puede llegar al proveedor y, si no, muestra el último error.
 Las variables `EVEY_OIDC_*` de
 [Cuentas e inicio de sesión](environment/accounts.md#single-sign-on-oidc)
 son la opción de reserva: la tarjeta indica cuándo sus valores vienen de
-ellas, y al guardar la tarjeta pasa a mandar ella.
+ellas, y una vez guardada, la tarjeta tiene prioridad.
 
 !!! note "El servidor nunca depende del proveedor para funcionar"
     El servidor arranca aunque el proveedor no esté disponible, el botón SSO
@@ -71,7 +71,7 @@ ellas, y al guardar la tarjeta pasa a mandar ella.
 3. Si no, con **Crear cuentas para nuevos usuarios SSO** activado, se crea
    una cuenta nueva, con un perfil y el acceso a bibliotecas elegido en la
    tarjeta. Su nombre de usuario es el `preferred_username` del proveedor,
-   o si no, la parte del correo antes de `@`; si el nombre ya está cogido,
+   o si no, la parte del correo antes de `@`; si el nombre ya está en uso,
    se le añade un sufijo corto.
 
 !!! warning "Por qué la creación de cuentas está desactivada por defecto"

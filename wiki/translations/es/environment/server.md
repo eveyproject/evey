@@ -4,7 +4,7 @@ reviewed: true
 ---
 # Servidor y red
 
-Las variables que dicen dónde se publica el servidor, de qué proxies se fía,
+Las variables que dicen dónde se publica el servidor, en qué proxies confía,
 quién puede llegar a él desde fuera y cuántas peticiones acepta. La mayoría
 se definen una sola vez en el archivo compose; lo que guarda después
 **Administración → Acceso remoto** tiene prioridad sobre ellas, como explica
@@ -14,7 +14,7 @@ la [Referencia de configuración](../configuration.md).
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | La dirección pública. Una dirección `https://` activa las cookies `Secure`, HSTS y la confianza en `X-Forwarded-Proto`. Los enlaces de los correos, las redirecciones del inicio de sesión único y las URL de envío a Chromecast se construyen a partir de ella. | Acceso remoto → **URL externa** gana si está definida, inmediato; una URL externa en `https://` también activa HTTPS |
+| `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | La dirección pública. Una dirección `https://` activa las cookies `Secure`, HSTS y la confianza en `X-Forwarded-Proto`. Los enlaces de los correos, las redirecciones del inicio de sesión único y las URL de envío a Chromecast se construyen a partir de ella. | Acceso remoto → **URL externa** tiene prioridad si está definida, inmediato; una URL externa en `https://` también activa HTTPS |
 | `EVEY_SERVER_PORT` | `9090` | El puerto gRPC interno. La API HTTP y la interfaz web escuchan en este puerto más uno (`9091`). | ninguno |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | La dirección en la que escucha el puerto gRPC. El control de acceso remoto no cubre gRPC, así que abrirlo más (`0.0.0.0`) escribe un aviso en el registro y te deja a ti la tarea de protegerlo con un cortafuegos. | ninguno |
 | `EVEY_SERVER_NAME` | `Evey` | El nombre que aparece en la página de inicio de sesión, en la lista de servidores de las aplicaciones y en los correos. | Configuración del servidor → Ajustes del servidor → **Nombre del servidor**, inmediato |
@@ -23,7 +23,7 @@ la [Referencia de configuración](../configuration.md).
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_TRUSTED_PROXIES` | solo la interfaz local | Redes cuya dirección de cliente reenviada se cree, separadas por comas (para un proxy en un contenedor: `172.16.0.0/12`, que puedes acotar cuando la conozcas). Se suman a la interfaz local, nunca la sustituyen; una entrada mal escrita impide el arranque. | Acceso remoto → **Proxies de confianza (IP o CIDR, separados por comas)** sustituye esta lista, inmediato; vaciar el campo vuelve a aplicar la variable |
+| `EVEY_TRUSTED_PROXIES` | solo la interfaz local | Redes cuya dirección de cliente reenviada se acepta, separadas por comas (para un proxy en un contenedor: `172.16.0.0/12`, que puedes acotar cuando la conozcas). Se suman a la interfaz local, nunca la sustituyen; una entrada mal escrita impide el arranque. | Acceso remoto → **Proxies de confianza (IP o CIDR, separados por comas)** sustituye esta lista, inmediato; vaciar el campo vuelve a aplicar la variable |
 | `EVEY_REAL_IP_HEADER` | `X-Forwarded-For` | La cabecera en la que un proxy de confianza pone la dirección del cliente. | ninguno |
 | `EVEY_FORWARDED_PROTO` | deducido | Obsoleta: HTTPS se deduce del esquema de `EVEY_SERVER_BASE_URL`. Se sigue aceptando para forzar el valor, con un aviso. | ninguno |
 

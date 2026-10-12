@@ -1,5 +1,5 @@
 ---
-source_sha: 5dbf80c7cfab5adb1eeb033bff154974a751780f86ca9c44f991546921de8f3f
+source_sha: 181fd5fb4e9492dc7feeae765f9c469162e43e7a56a39a6399be584d8e660049
 reviewed: true
 ---
 # Salud de medios
@@ -26,9 +26,9 @@ dos:
 | **Reparable** | Un defecto que Evey repara en este servidor. | **Reparar todo** se encarga de ellos en segundo plano; su número es exactamente el número de estos archivos. |
 | **Info** | Algo que se ha medido en el archivo y que Evey no reescribe por su cuenta. | Nada. Márcalo como visto. |
 
-Ninguno de los dos te pone deberes. Una medida sobre la que Evey no puede
-actuar es una observación, y una medida puede equivocarse: si el archivo se
-reproduce bien, está bien.
+Ninguno de los dos te pide trabajo manual. Una medida sobre la que Evey no
+puede actuar es solo una observación, y una medida puede equivocarse: si el
+archivo se reproduce correctamente, no hay nada que hacer.
 
 ### Reparable
 

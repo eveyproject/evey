@@ -1,5 +1,5 @@
 ---
-source_sha: 4aeebbe2feb50999e8470ea3f56b3e47af196ca12cf0100e22527f66ffe278e3
+source_sha: 0b2dda412b186b3b40f33ea4027ceb0d328e5f8f39f87d2312a8c7bdab2edbed
 reviewed: true
 ---
 # Sin contenedor
@@ -55,7 +55,7 @@ también sirve.
 Instala lo que invoque el `entrypoint:` de tus plugins. El ejecutor reconoce
 `python3`, `python`, `node`, `php`, `ruby`, `perl`, `lua`, `bash` y `sh`;
 `python3` cubre la mayoría de los plugins de la comunidad. Después, los
-servicios con los que habla el servidor:
+servicios que usa el servidor:
 
 | Dependencia | Para qué |
 |---|---|
@@ -181,7 +181,7 @@ La separación de uid ejecuta cada plugin como `evey-plugin` (UID 1001),
 distinto del servidor (UID 1000), así que un plugin no puede leer
 `jwt.key`, las copias de seguridad ni los registros por simples permisos de
 archivo. Es importante en modo `basic`; con Landlock o bubblewrap, el sistema
-de archivos ya está cerrado, así que ahí es redundante.
+de archivos ya está restringido, así que ahí es redundante.
 
 `EVEY_PLUGINS_UID_SEPARATION`:
 
@@ -201,7 +201,7 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 
 El lanzador rechaza cualquier uid o gid de destino por debajo de 1000. Cuando
 no puede cambiar de usuario (falta la capacidad, `no_new_privs` activado), un
-plugin en modo `basic` se rechaza, porque ahí el uid es su única barrera; con
+plugin en modo `basic` se rechaza, porque ahí el uid es su única protección; con
 Landlock, registra un aviso y se ejecuta con el uid del servidor.
 
 !!! warning
@@ -251,23 +251,23 @@ Puntos propios de una instalación sin contenedor:
   `EVEY_JWT_PRIVATE_KEY_PATH` (`/data/jwt.key`) con tus propias carpetas.
 - El servidor sirve HTTP sin cifrar: pon delante un proxy inverso para TLS,
   con una **URL externa** en `https://` y el proxy en **Proxies de
-  confianza** (**Administración -> Acceso remoto**; `EVEY_SERVER_BASE_URL` y
+  confianza** (**Administración → Acceso remoto**; `EVEY_SERVER_BASE_URL` y
   `EVEY_TRUSTED_PROXIES` son los valores de respaldo). Consulta
   [Configuraciones de proxy inverso](reverse-proxy.md).
 - **El servidor abre dos puertos, y solo uno puede quedar expuesto.**
   `EVEY_SERVER_PORT` (por defecto `9090`) es la escucha gRPC nativa; la API
-  HTTP con la que hablan tus clientes y tu proxy inverso usa ese puerto más
+  HTTP a la que se conectan tus clientes y tu proxy inverso usa ese puerto más
   uno (`9091`). El control de acceso remoto, que decide si los clientes de
   fuera de tu red local pueden conectarse, está en la cadena HTTP y no cubre
   la escucha gRPC. Por eso esta solo escucha en la interfaz local por defecto
   (`EVEY_GRPC_BIND=127.0.0.1`). Si tienes un motivo para publicarla, define
   `EVEY_GRPC_BIND=0.0.0.0`; el servidor avisa al arrancar de que el control
-  no se le aplica, y entonces te toca a ti protegerla con un cortafuegos.
+  no se le aplica, y entonces tienes que protegerla tú con un cortafuegos.
 - Las migraciones se ejecutan al arrancar; no hay un paso de migración
   aparte.
 - Los límites de recursos de los plugins (`EVEY_PLUGINS_MEMORY_MB`,
   `_PIDS_MAX`, `_DISK_MAX_MB`, `_CPU_NICE`) y el modo de sandbox se pueden
-  cambiar en marcha desde **Administración -> Plugins -> Límites de
+  cambiar en marcha desde **Administración → Plugins → Límites de
   recursos**; los valores del entorno son los valores iniciales.
 - El reinicio del servidor desde el panel de administración depende del
   supervisor de la imagen y se indica como no disponible sin contenedor:
@@ -282,7 +282,7 @@ plugin, busca:
   selected_mode=landlock` (o `bubblewrap`, `basic`);
 - en cada arranque de plugin: `plugin sandbox applied sandbox_mode=landlock
   plugin_id=...`;
-- el aviso que no quieres ver si esperabas Landlock: `plugin sandbox
+- el aviso que indica un problema si esperabas Landlock: `plugin sandbox
   auto-detection fell back to basic mode: no per-path filesystem isolation
   available ...`, que significa que no se encontró ni Landlock ni un `bwrap`
   que funcione. Vuelve a revisar la sección sobre los mecanismos de sandbox.

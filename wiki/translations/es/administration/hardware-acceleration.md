@@ -94,11 +94,11 @@ de la tarjeta:
    través de él sale bien.
 2. **Certificar.** Cada acelerador codifica la escala de resoluciones (de
    720p a 2160p) con la misma cadena de procesamiento que una reproducción
-   real, y se queda con el escalón más alto que aguanta a 1,2 veces el
+   real, y se queda con el escalón más alto que soporta a 1,2 veces el
    tiempo real. Algunas imágenes de cada prueba se vuelven a decodificar y
    se comparan con el original, porque un driver defectuoso puede terminar
    sin error mientras produce imágenes verdes o deformadas. Un acelerador
-   que no aguanta 720p no se usa.
+   que no soporta 720p no se usa.
 3. **Medir las rutas.** Para cada capacidad que el acelerador ha demostrado
    (SDR, HEVC, AV1, mapeo de tonos en la GPU, HDR conservado), se mide el
    coste de una sesión real.
@@ -113,7 +113,7 @@ dejen los límites demasiado bajos. Se repite cuando cambia el hardware.
 **Recalibrar** la lanza en el momento: úsalo después de añadir una tarjeta o
 de mover el contenedor a otra máquina.
 
-!!! note "Un arranque en frío no es un veredicto"
+!!! note "Un fallo en un arranque en frío no es definitivo"
     Una GPU que no consigue iniciarse en los primeros segundos después de
     arrancar el contenedor se vuelve a probar varias veces en poco tiempo
     antes de anotar nada. Solo un fallo que persiste, o uno de un tipo

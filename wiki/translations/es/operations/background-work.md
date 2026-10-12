@@ -41,7 +41,7 @@ minutos si el servidor está en uso.
 
 **Perfil de memoria** (**Administración → Configuración del servidor**):
 **Bajo** suspende los plugins que no están haciendo nada para ahorrar
-memoria, y los despierta cuando hacen falta. **Automático (recomendado)** elige
+memoria, y los reactiva cuando hacen falta. **Automático (recomendado)** elige
 Bajo en las máquinas con menos de 3 GB de memoria.
 
 ## Ajustes que se leen al arrancar

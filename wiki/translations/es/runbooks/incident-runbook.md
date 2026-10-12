@@ -31,7 +31,7 @@ docker exec -it evey-server sh -c \
 
 **Registros.** El mismo flujo existe dos veces: el archivo diario
 `./evey-data/logs/evey-YYYY-MM-DD.log` (`EVEY_LOG_DIR`, `/data/logs` dentro
-de la imagen) y `docker logs evey-server`. El que manda es el archivo: el
+de la imagen) y `docker logs evey-server`. La referencia es el archivo: el
 driver json-file de Docker rota `docker logs`, y después de una rotación el
 comando puede dejar de mostrar líneas horas antes de que se parara el
 contenedor. Cuando los dos no coinciden, lee el archivo. La página
@@ -85,7 +85,7 @@ docker exec evey-server ls -l /data/jwt.key
 
 Busca primero la línea de la época (epoch). Cada petición autenticada vuelve
 a comprobar la época del token del usuario en la base de datos, y esa
-comprobación falla en cerrado: una base de datos lenta, bloqueada o
+comprobación aplica el cierre por defecto: una base de datos lenta, bloqueada o
 inalcanzable hace que todas las peticiones devuelvan el mismo 401 que un
 token caducado, lo que parece un problema de JWT y no lo es. El servidor lo
 dice:
@@ -109,11 +109,11 @@ ejecuta la consulta de la época. El contador de Prometheus es
   no con la clave: los usuarios siguen con la sesión iniciada. Comprueba que
   el volumen `./evey-data` está montado en `/data`; sin él, también falta la
   base de datos.
-- **El limitador de peticiones salta en cada petición**:
+- **El limitador de peticiones se activa en cada petición**:
   `EVEY_RATELIMIT_LOGIN_MAX` (`10` por IP y por minuto) y
   `EVEY_RATELIMIT_GLOBAL_MAX` (`300`). Un proxy inverso que lo reenvía todo
-  como una sola dirección lo hace saltar enseguida: añade el proxy a
-  **Proxies de confianza** en **Administración -> Acceso remoto** (se aplica
+  como una sola dirección lo activa enseguida: añade el proxy a
+  **Proxies de confianza** en **Administración → Acceso remoto** (se aplica
   sin reiniciar; `EVEY_TRUSTED_PROXIES` es el valor de reserva). El
   `docker-compose.override.yml` del repositorio sube los dos a `1000` /
   `10000` para el desarrollo.
@@ -148,9 +148,9 @@ docker exec evey-server touch /cache/transcode/.write-test && \
   compose los sustituye. Fuera de la imagen, los valores por defecto de Go
   son `/data/transcode` y `/cache/trickplay`.
 - **Caché llena**: consulta [El disco de la caché está lleno](#the-cache-disk-is-full).
-- **La aceleración por hardware se porta mal**: pon **Aceleración por
-  hardware** en **Desactivada (solo software)** en **Administración ->
-  Transcodificación -> Calibración de codificación** (se aplica en el acto y
+- **La aceleración por hardware falla**: pon **Aceleración por
+  hardware** en **Desactivada (solo software)** en **Administración →
+  Transcodificación → Calibración de codificación** (se aplica en el acto y
   vuelve a calibrar) para que todas las transcodificaciones se hagan con el
   procesador; vuelve a **Auto (mejor disponible)** cuando el hardware esté
   arreglado.
@@ -158,14 +158,14 @@ docker exec evey-server touch /cache/transcode/.write-test && \
   en directo se mide, no se fija; consulta [Repartir la
   capacidad](../playback/transcoding.md#sharing-the-capacity).
   `EVEY_TRANSCODING_MAX_CONCURRENT` (**Máximo simultáneo** en
-  **Administración -> Caché de transcodificación**) solo cubre las tareas de
+  **Administración → Caché de transcodificación**) solo cubre las tareas de
   transcodificación fuera de la reproducción en directo.
 
 ### Se queda cargando o se corta y el registro no dice por qué
 
-**Síntoma**: un espectador avisa de parones en un título transcodificado; el
+**Síntoma**: un espectador avisa de interrupciones en un título transcodificado; el
 registro muestra `hls-vod: segment timeout` con `err:"context canceled"`, lo
-que significa que el cliente ha colgado, no que el servidor haya agotado su
+que significa que el cliente ha cerrado la conexión, no que el servidor haya agotado su
 tiempo.
 
 **Diagnóstico**: empieza por lo que el servidor ya ha registrado, no cuesta
@@ -216,7 +216,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
 
 - **Saltos cortos hacia delante repetidos**: cada uno puede lanzar un
   codificador nuevo, y el límite por hash (`MaxSessionsPerHash`, 2 por
-  defecto, 1 con el perfil de poca memoria) echa al que lleva más tiempo sin
+  defecto, 1 con el perfil de poca memoria) cierra el que lleva más tiempo sin
   usarse: `session killed reason:lru_cap` en el registro. Normal si no pasa
   demasiado.
 - **El cliente tiene menos paciencia que el servidor**: la ventana para
@@ -224,7 +224,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
   que el propio margen de espera del servidor (`WaitBudgetDur`) es de 60 s.
   Una línea `reach decision` con `over_client_patience: true` significa que
   el servidor estaba a punto de pedir una espera que ningún reproductor
-  aguanta.
+  soporta.
 
 ### Errores 410 `stale_rendition`: el reproductor vuelve a pedir su lista maestra en plena reproducción
 
@@ -233,7 +233,7 @@ registro muestra
 `hls-vod: stale rendition URL refused (the ladder moved under a live player)`
 y peticiones respondidas con `410 Gone` y `X-Evey-Error: stale_rendition`.
 
-Es una protección que salta, no la avería en sí. Cada URI del manifiesto
+Es una protección que se activa, no la avería en sí. Cada URI del manifiesto
 lleva el hash de la decisión con la que se construyó (`fp=`). Un 410 significa
 que un reproductor ha presentado una URL de una sesión cuya escala ABR ha
 cambiado de forma desde entonces; servirla le daría al descodificador bytes
@@ -341,7 +341,7 @@ docker volume inspect evey_evey-cache   # el prefijo del compose puede cambiar
   Esto también borra `photos/` (las versiones redimensionadas de las fotos)
   y `track-art/` (las portadas extraídas de las etiquetas de audio) que hay
   dentro; las dos se reconstruyen en la siguiente petición. **Borrar todo**
-  en **Administración -> Caché de transcodificación** vacía la misma caché
+  en **Administración → Caché de transcodificación** vacía la misma caché
   desde el panel.
 - Las miniaturas de la barra de avance (trickplay) cuestan más de regenerar;
   bórralas solo si hace falta:
@@ -349,8 +349,8 @@ docker volume inspect evey_evey-cache   # el prefijo del compose puede cambiar
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
 - Baja el **Presupuesto de caché de transcodificación (GB)** en
-  **Administración -> Configuración del servidor -> Configuración del
-  servidor** (por defecto `10`) si el volumen del equipo va justo. Sea cual
+  **Administración → Configuración del servidor → Configuración del
+  servidor** (por defecto `10`) si el volumen del equipo tiene poco espacio. Sea cual
   sea el presupuesto, la limpieza automática mantiene 2 GiB libres en el
   volumen de la caché.
 
@@ -369,36 +369,36 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 **Solución**:
 
 1. Vuelve a lanzar el plugin sin tocar el servidor: **Activar** otra vez en
-   **Administración -> Plugins**, o `POST /api/v1/admin/plugins/<id>/enable`.
+   **Administración → Plugins**, o `POST /api/v1/admin/plugins/<id>/enable`.
    Funciona cuando el plugin está activado pero atascado en `Error`: el
    arranque solo rechaza un plugin que ya está `Running` o `Initializing`.
 2. Si con eso no se arregla, **Desactivar** el plugin desde el panel.
 3. Si el propio servidor está inestable: `docker compose restart evey`.
 4. Los archivos de los plugins están en `./evey-data/plugins/` en el equipo
-   (`/data/plugins` en el contenedor). Borra la carpeta del plugin roto y
+   (`/data/plugins` en el contenedor). Borra la carpeta del plugin que falla y
    reinicia.
 5. Envía la traza del panic y el id del plugin a su autor.
 
 ## Un envío se ha congelado, se ha quedado sin sonido, o el teléfono no deja de cargar
 
-Todo lo de aquí se puede leer en **Administración -> Registros y depuración**; no
+Todo lo de aquí se puede leer en **Administración → Registros y depuración**; no
 hace falta un shell en la máquina. Las horas están en UTC. Cada señal es una
 línea `player-client: playback event reported` con `type=` y una cadena
 `details=`.
 
-1. **¿Estaba vivo el receptor, y hasta cuándo?** Busca `cast_receiver_alive`.
+1. **¿Funcionaba el receptor, y hasta cuándo?** Busca `cast_receiver_alive`.
    El receptor envía una cada 30 s mientras reproduce; `details` lleva
    `buf=<behind>/<ahead>/<ranges>` (los segundos en búfer alrededor de la
    posición de lectura) y `pos_sec`. Una reproducción sana muestra `ahead`
    en decenas de segundos. La hora de la última señal es cuando el receptor
-   murió o lo mataron: si no hay nada después, la tele ya no está ejecutando
+   se detuvo o fue terminado: si no hay nada después, la tele ya no está ejecutando
    el receptor, diga lo que diga el teléfono.
 2. **¿Por qué se paró?** Busca `cast_receiver_finished`:
    `reason=INTERRUPTED` es un LOAD nuevo que sustituye al que estaba en
    marcha (busca un `StartStream` unos segundos antes), `reason=ERROR` lleva
    el error del reproductor. Si no hay ningún `finished` después del último
    `alive`, el proceso del receptor ha desaparecido; casi siempre es un
-   Chromecast HD que se ha cerrado por falta de memoria con una lista maestra
+   Chromecast HD que el sistema ha cerrado por falta de memoria con una lista maestra
    de copia de más de 20 Mbps.
 3. **¿Qué ha visto el teléfono?** Busca `cast_sender_stall`: el emisor envía
    `state=playing frozen=<n>s pos=<p>` cuando el SDK de Cast sigue diciendo
@@ -406,7 +406,7 @@ línea `player-client: playback event reported` con `type=` y una cadena
    `state=idle reason=<r>` cuando el receptor ha indicado un motivo de
    inactividad. Son líneas WARN, así que el filtro de avisos de la página
    las muestra. Compara su `pos` con el último `pos_sec` del receptor.
-4. **¿Ha habido una reacción en cadena en la sesión?** Busca
+4. **¿Ha provocado la sesión fallos en cadena?** Busca
    `refresh rejected`: un token de renovación `not found` cierra la sesión de
    la app y la vuelve a abrir (con las credenciales guardadas), lo que vuelve
    a lanzar el flujo; la línea lleva el `jti`, `issued` y `age` del token,
@@ -415,27 +415,27 @@ línea `player-client: playback event reported` con `type=` y una cadena
 5. **¿Era el flujo demasiado pesado para el dispositivo?** Busca
    `advertises a fallback rung` (el bitrate máximo de la lista maestra de
    copia) y `plan fitted to the client's line` (la medida `maxKbps` del
-   receptor o su rescate `abr=floor`; la lista maestra transcodificada que
+   receptor o su mecanismo de rescate `abr=floor`; la lista maestra transcodificada que
    viene después lleva el motivo `client_line_exceeded` o
    `abr_floor_requested`). Una sesión que empezó con una lista maestra de
    copia de más de 20 Mbps y bajó a un escalón 1080p ajustado al cabo de
-   unos segundos es el rescate haciendo su trabajo; un nuevo LOAD que vuelve
-   a empezar con la lista maestra de copia es lo que mata a un Chromecast
-   HD.
+   unos segundos es el mecanismo de rescate funcionando como debe; un nuevo LOAD que vuelve
+   a empezar con la lista maestra de copia es lo que hace fallar a un
+   Chromecast HD.
 6. **¿Le ha faltado algo al servidor?** Busca
    `on-demand resource refused`: una ráfaga de rechazos `context canceled`
    en segmentos seguidos es alguien moviéndose por la barra de avance (cada
    petición la cancela la siguiente), no un fallo del servidor; las líneas
    `served` con duraciones largas sí lo son.
 
-Si los pasos 1 a 3 muestran el receptor vivo y el emisor callado, el problema
+Si los pasos 1 a 3 muestran el receptor activo y el emisor sin señales, el problema
 está en la sesión de Cast del teléfono (el SDK, la red hasta la tele). Si las
 señales del receptor se paran primero, mira la tele: la memoria, el códec,
 el bitrate del flujo.
 
 ## Detener una sesión o un dispositivo comprometido
 
-**Síntoma**: un dispositivo inesperado en **Administración -> Reproduciendo
+**Síntoma**: un dispositivo inesperado en **Administración → Reproduciendo
 ahora**, o un usuario avisa de un dispositivo desconocido en su lista de
 sesiones.
 
@@ -447,7 +447,7 @@ sesiones.
       WHERE ended_at IS NULL
       ORDER BY started_at DESC LIMIT 20;"'
    ```
-2. Detenla desde **Administración -> Reproduciendo ahora**: el icono de
+2. Detenla desde **Administración → Reproduciendo ahora**: el icono de
    parar de la sesión (**Detener sesión**), y después **Detener** para
    confirmar; o `AdminSessionService/KillSession` por gRPC con el id de la
    sesión. El reproductor recibe primero una orden de parar y el flujo se
@@ -458,7 +458,7 @@ sesiones.
    ```sh
    docker compose restart evey
    ```
-4. Si la propia cuenta está comprometida, **Administración -> Usuarios ->
+4. Si la propia cuenta está comprometida, **Administración → Usuarios →
    Desactivar**: los tokens de renovación se borran y los tokens de acceso se
    revocan en el acto, así que se cierra la sesión en todos los
    dispositivos. Pon una contraseña nueva (`evey admin reset-password
@@ -490,7 +490,7 @@ archivos en el registro.
    sudo sysctl -p
    ```
 
-## Chuleta
+## Resumen de comandos
 
 ```sh
 # Estado de todo

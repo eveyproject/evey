@@ -6,7 +6,7 @@ reviewed: true
 
 En qué punto está Evey en internacionalización (i18n) y accesibilidad
 (a11y): qué se traduce y cómo llega el catálogo a cada cliente, y después qué
-hay para las tecnologías de apoyo y qué no. El catálogo vive en
+hay para las tecnologías de apoyo y qué no. El catálogo está en
 `i18n/<locale>/*.yaml`, en la raíz del repositorio; lo sirve
 `internal/pkg/i18n` y lo carga el módulo i18n de cada aplicación. Es un
 proyecto autoalojado que mantiene una sola persona: considera la a11y, sobre
@@ -37,7 +37,7 @@ lugar de un hueco vacío o una clave.
 - **Una sola fuente de verdad:** [`/i18n/<locale>/*.yaml`](../i18n) en la
   raíz del repositorio, dividido en espacios de nombres (`common`, `auth`,
   `media`, `player`, `admin`, `errors`, `notifications`, `mobile`,
-  `downloads`, `requests`). El mismo catálogo alimenta todas las superficies.
+  `downloads`, `requests`). El mismo catálogo se usa en todas las interfaces.
 - El **servidor** lo carga y lo sirve en `GET /api/v1/i18n/{locale}`, y lo
   usa directamente para los mensajes de error traducidos de la API y el texto
   de las notificaciones.
@@ -94,7 +94,7 @@ deliberadas. Pero **no** se ha auditado formalmente según las WCAG, **no hay
 tests automáticos de accesibilidad** en la batería de tests y **no** se ha
 probado de forma sistemática con lectores de pantalla. Algunas partes
 probablemente se pueden usar con tecnologías de apoyo; otras probablemente
-no. Si dependes de ellas, espera asperezas y, por favor, cuéntanos los
+no. Si dependes de ellas, espera algunos problemas y, por favor, cuéntanos los
 detalles.
 
 ### Lo que ya está

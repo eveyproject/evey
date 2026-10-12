@@ -17,13 +17,13 @@ equivalente en el panel.
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
 | `EVEY_EMBEDDED_POSTGRES` | sin definir | Sin definir: integrada cuando `EVEY_DB_HOST` no está definida, externa en caso contrario. `true` o `false` para decidirlo explícitamente. La lee el punto de entrada. | ninguno |
-| `EVEY_POSTGRES_DATA_DIR` | `/data/postgres` | Dónde vive el clúster integrado. Tiene que estar en un sistema de archivos local, no en una carpeta compartida por red. La lee el punto de entrada. | ninguno |
+| `EVEY_POSTGRES_DATA_DIR` | `/data/postgres` | Dónde está el clúster integrado. Tiene que estar en un sistema de archivos local, no en una carpeta compartida por red. La lee el punto de entrada. | ninguno |
 | `EVEY_POSTGRES_IMPORT` | `/data/postgres-import.sql.gz` | Un `pg_dump` comprimido con gzip que se restaura en el clúster integrado la primera vez que se crea, y que después se renombra `*.imported-<date>`. Se ignora, con un mensaje, cuando el clúster ya existe. La lee el punto de entrada. | ninguno |
 | `EVEY_DB_HOST` | `localhost` | El equipo de la base de datos. **Definirla desactiva la base de datos integrada.** | ninguno |
 | `EVEY_DB_PORT` | `5432` | El puerto de la base de datos. | ninguno |
 | `EVEY_DB_USER` | `evey` | El usuario de la base de datos. Cuando es un superusuario (el clúster integrado y el compose que viene con Evey), el servidor lo reserva solo para la restauración y funciona como `EVEY_DB_APP_USER`. | ninguno |
 | `EVEY_DB_APP_USER` | `evey_app` | El rol sin privilegios con el que funcionan el servidor y sus migraciones cuando `EVEY_DB_USER` es un superusuario. Se crea al arrancar, recibe la base de datos y sus objetos, y obtiene una contraseña aleatoria nueva en cada arranque (nunca se escribe en ningún sitio). Así, una inyección SQL no puede ejecutar programas ni leer archivos en el equipo. | ninguno |
-| `EVEY_DB_PRIVILEGE_SPLIT` | `true` | `false` lo ejecuta todo como `EVEY_DB_USER`, también como superusuario. Una salida si una base de datos rechaza la separación; si no, el arranque se detiene y nombra esta variable. | ninguno |
+| `EVEY_DB_PRIVILEGE_SPLIT` | `true` | `false` lo ejecuta todo como `EVEY_DB_USER`, también como superusuario. Una solución alternativa si una base de datos rechaza la separación; si no, el arranque se detiene y nombra esta variable. | ninguno |
 | `EVEY_DB_NAME` | `evey` | El nombre de la base de datos. | ninguno |
 | `EVEY_DB_PASSWORD` | generada | La contraseña. Con una base de datos externa, el servidor se niega a arrancar con el valor `evey` y avisa con `changeme`. | ninguno |
 | `EVEY_DB_PASSWORD_FILE` | `/data/keys/postgres.password` | Un archivo que contiene la contraseña, leído cuando `EVEY_DB_PASSWORD` no está definida. La define la imagen. | ninguno |
@@ -39,7 +39,7 @@ equivalente en el panel.
 | `EVEY_MEILI_URL` | `http://localhost:7700` | La dirección de Meilisearch. | ninguno |
 | `MEILI_MASTER_KEY` | generada | La clave de Meilisearch. Con una instancia externa, una clave vacía o de ejemplo impide el arranque; una clave de menos de 16 caracteres escribe un aviso en el registro. | ninguno |
 | `MEILI_MASTER_KEY_FILE` | `/data/keys/meili.key` | Un archivo que contiene la clave, leído cuando `MEILI_MASTER_KEY` no está definida. La define la imagen. | ninguno |
-| `MEILI_DATA_DIR` | `/data/meili` | Dónde vive el índice integrado. La lee el punto de entrada. | ninguno |
+| `MEILI_DATA_DIR` | `/data/meili` | Dónde está el índice integrado. La lee el punto de entrada. | ninguno |
 | `MEILI_MAX_INDEXING_MEMORY` | alrededor del 20 % de la memoria del contenedor, como mínimo 128 MiB | La memoria que puede usar el Meilisearch integrado para indexar. Se calcula a partir del límite del contenedor, no de la memoria de la máquina, para que un escaneo no agote un contenedor pequeño. Un valor explícito se transmite tal cual. | ninguno |
 
 <!-- sources

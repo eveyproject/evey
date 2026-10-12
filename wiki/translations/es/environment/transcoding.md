@@ -9,8 +9,8 @@ de calidad y la caché de transcodificación. La mayoría de las instalaciones
 no define ninguna: el servidor mide la máquina y elige el hardware por sí
 mismo, como se explica en
 [Transcodificación y capacidad del servidor](../playback/transcoding.md).
-Cuando un ajuste existe en **Administración → Transcodificación**, gana el
-valor guardado ahí.
+Cuando un ajuste existe en **Administración → Transcodificación**, tiene
+prioridad el valor guardado ahí.
 
 ## Aceleración por hardware
 
@@ -25,7 +25,7 @@ Cómo dar acceso a la GPU al contenedor:
 | `EVEY_TRANSCODING_HW_DEVICE` | vacío (todos) | Fija un solo dispositivo: un nodo de render (`/dev/dri/renderD129`) o un índice CUDA (`1`). Con `EVEY_TRANSCODING_HW_BACKEND`, asocia un contenedor a una GPU en un equipo con varias GPU. | ninguno |
 | `EVEY_TRANSCODING_HW_FIRST_SEGMENT_TIMEOUT` | `10s` | Una sesión por hardware que no ha producido su primer segmento en este plazo se trata como una GPU bloqueada y pasa al procesador. | ninguno |
 | `EVEY_TRANSCODING_HW_TONEMAP` | activado | `0` desactiva el mapeo de tonos HDR en la GPU y lo hace con el procesador, para un controlador que se sabe que funciona mal. | ninguno |
-| `EVEY_TRANSCODING_HW_PER_VARIANT` | `false` | Un ffmpeg por calidad en la vía de GPU en lugar de un solo proceso para todas: aísla los fallos y evita el grafo de varias salidas que hace caer los controladores VA frágiles. | Transcodificación → Límites avanzados → **Un proceso de codificación por hardware por peldaño**, al reiniciar |
+| `EVEY_TRANSCODING_HW_PER_VARIANT` | `false` | Un ffmpeg por calidad en la vía de GPU en lugar de un solo proceso para todas: aísla los fallos y evita el grafo de varias salidas que hace fallar los controladores VA poco estables. | Transcodificación → Límites avanzados → **Un proceso de codificación por hardware por peldaño**, al reiniciar |
 
 El codificador Intel de bajo consumo y la salida AV1 (interruptor y tope) no
 tienen variable: se ajustan solo en **Administración → Transcodificación**.
@@ -34,7 +34,7 @@ tienen variable: se ajustan solo en **Administración → Transcodificación**.
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_MAX_SESSIONS` | `0` (número de CPU) | Total de sesiones de transcodificación simultáneas. En una máquina que apenas aguanta una transcodificación 4K HDR por software, pon `1` o `2`. | Transcodificación → Límites avanzados → **Sesiones HLS simultáneas máximas (vacío = sin límite)**, al reiniciar |
+| `EVEY_TRANSCODING_MAX_SESSIONS` | `0` (número de CPU) | Total de sesiones de transcodificación simultáneas. En una máquina que apenas puede hacer una transcodificación 4K HDR por software, pon `1` o `2`. | Transcodificación → Límites avanzados → **Sesiones HLS simultáneas máximas (vacío = sin límite)**, al reiniciar |
 | `EVEY_TRANSCODING_MAX_CONCURRENT` | `2` | Tareas de transcodificación fuera de la reproducción en directo. | Caché de transcodificación → **Máximo simultáneo**, inmediato |
 | `EVEY_TRANSCODING_SINGLE_VARIANT` | `true` | Codifica solo la calidad que está viendo un espectador. `false` comparte una sola decodificación entre todas las calidades, pero codifica las que nadie ve; solo para un equipo sin decodificación por hardware y con fuentes pesadas. | Transcodificación → Límites avanzados → **Codificar un peldaño a la vez**, al reiniciar |
 | `EVEY_TRANSCODING_SOFTWARE_MAX_HEIGHT` | `0` (medido) | Impone el tope de resolución del procesador en lugar del medido. | Transcodificación → Límites avanzados → **Tope de altura en transcodificación por software (vacío = sin tope)**, al reiniciar |
@@ -49,8 +49,8 @@ tienen variable: se ajustan solo en **Administración → Transcodificación**.
 | --- | --- | --- | --- |
 | `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | El tamaño de toda la caché de transcodificación (segmentos, remux, descargas preparadas); lo usado hace más tiempo se borra primero. | Configuración del servidor → Ajustes del servidor → **Presupuesto de caché de transcodificación (GB)**, al reiniciar |
 | `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | Espacio libre que se reserva en el disco de la caché. Por debajo, se expulsan los segmentos inactivos y después se rechazan los segmentos nuevos en lugar de escribirlos; los subtítulos extraídos dejan de guardarse y se avisa a los administradores. `0` desactiva este margen. Consulta [La caché de transcodificación](../playback/transcoding.md#the-transcoding-cache). | ninguno |
-| `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Dónde vive. La define la imagen. | ninguno |
-| `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Dónde viven las miniaturas de la barra de progreso. La define la imagen: cuesta mucho regenerarlas, así que se quedan en `/data`. | ninguno |
+| `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Dónde está. La define la imagen. | ninguno |
+| `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Dónde están las miniaturas de la barra de progreso. La define la imagen: cuesta mucho regenerarlas, así que se quedan en `/data`. | ninguno |
 
 ## Clip de calibración
 

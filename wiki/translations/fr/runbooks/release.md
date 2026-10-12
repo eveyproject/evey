@@ -1,84 +1,90 @@
 ---
-source_sha: f7107d811a1a25b00c55dbd3789c083144308003ef8ab0ea3e52905c56b1bc7c
+source_sha: 9799389e468bf0c2405a7ba1c26d00d34208a504484cbe7402b43359c20b1080
 ---
 
 # Publier une version
 
-Comment une version d'Evey passe d'une branche à quelque chose qu'un
+Comment une version d'Evey passe d'une branche à une image qu'un
 administrateur peut épingler. Écrit avant la première version étiquetée, pour
 que la première suive une procédure au lieu de l'inventer.
 
 ## Ce que la CI fait d'une étiquette (à lire avant d'étiqueter)
 
-La chaîne d'intégration construit et publie des images à chaque poussée et à
-chaque étiquette de version, en trois variantes d'environnement d'exécution pour
-les extensions - la version allégée, celle avec Node, et la complète - vers les
-deux registres publics :
+`.github/workflows/ci.yml` construit et publie des images à chaque poussée et à
+chaque étiquette `v*.*.*`, en trois variantes d'environnement d'exécution des
+plugins (`` (allégée), `-nodejs`, `-full`), vers `docker.io/eveyproject/evey`
+et `ghcr.io/evey-project/evey` :
 
-| Ce que vous poussez | Étiquettes d'image publiées (chacune aussi en `-nodejs` et `-full`) |
+| Ce que vous poussez | Étiquettes d'image publiées (chacune aussi en `-nodejs` / `-full`) |
 |---|---|
-| une branche (par exemple `beta-0.0.1`) | `beta-0.0.1`, `sha-<court>` |
-| l'étiquette `v0.2.0-beta.1` (préversion : elle contient un tiret) | `0.2.0-beta.1`, `sha-<court>` |
-| l'étiquette `v0.2.0` (stable) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<court>` |
+| une branche (par exemple `beta-0.0.1`) | `beta-0.0.1`, `sha-<short>` |
+| l'étiquette `v0.2.0-beta.1` (préversion : elle contient un tiret) | `0.2.0-beta.1`, `sha-<short>` |
+| l'étiquette `v0.2.0` (stable) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
-Trois conséquences.
+Trois conséquences :
 
-- **Une étiquette de branche bouge.** Elle désigne ce qui a été poussé en
-  dernier : deux récupérations à un jour d'intervalle peuvent faire tourner du
-  code différent, et « revenir à `beta-0.0.1` » ne désigne aucune version précise. Un
-  administrateur doit épingler une étiquette `sha-<court>` ou une étiquette de
-  version, jamais un nom de branche.
+- **Une étiquette de branche change.** `beta-0.0.1-full` désigne ce qui a été
+  poussé en dernier : deux `docker compose pull` à un jour d'intervalle peuvent
+  faire tourner du code différent, et un retour « à `beta-0.0.1-full` » ne
+  désigne aucune version précise. Un administrateur doit épingler une étiquette
+  `sha-<short>` (ou une étiquette de version), jamais un nom de branche : c'est
+  ce que `scripts/evey-update.sh` affiche à la fin, à reporter dans `.env`.
 - **Une préversion ne modifie jamais `latest`.** `latest` désigne la version
-  stable la plus récente ; une préversion de bêta fermée reste invisible pour qui
-  suit `latest`. Une préversion ne reçoit pas non plus les étiquettes courtes, réservées
-  aux versions stables.
-- **Toutes les constructions sont multi-architectures**, amd64 et arm64, si bien
-  qu'un administrateur sur ARM peut épingler n'importe laquelle.
+  stable la plus récente ; une préversion de bêta fermée reste invisible pour
+  qui suit `latest`. (Une préversion ne reçoit pas non plus les étiquettes
+  `X.Y` / `X`, réservées aux versions stables.)
+- **Multi-architecture sur les étiquettes de version uniquement.** Une étiquette
+  `v*.*.*` (stable ou préversion) construit amd64 + arm64 ; la poussée d'une
+  branche ne construit que amd64, sauf si le message de commit contient
+  `[arm64]` ou si le workflow est lancé à la main. Un administrateur sur ARM
+  épingle une étiquette de version.
 
-Le commit est estampillé dans le binaire et dans les étiquettes de l'image, si
-bien que la question « quel code tourne ici » se répond toujours sans faire
-confiance à une étiquette.
+Le commit est inscrit dans le binaire (`evey version`, `/healthz`) et dans les
+labels de l'image (`org.opencontainers.image.revision`) : on peut donc toujours
+savoir quel code tourne sans faire confiance à une étiquette.
 
 ## Publier une préversion (bêta fermée)
 
-1. **Les contrôles réussis sur le commit exact** : `make pre-push` en local, la CI
-   passe les mêmes à la poussée.
-2. **Prouvée d'abord sur une vraie installation.** Le commit doit déjà avoir
-   tourné sur le déploiement de référence sous son étiquette `sha-<court>`, mis
-   à jour puis vérifié par le script prévu. Une étiquette engage envers d'autres
-   administrateurs : on la pose après la preuve, pas avant.
-3. **Le journal des modifications** : déplacer les entrées non publiées sous la
-   nouvelle version avec sa date, en formulations orientées utilisateur.
-4. **Étiqueter depuis ce commit**, de façon annotée, et ne pousser que
-   l'étiquette :
+1. **Contrôles réussis sur le commit exact** : `make pre-push` en local. La CI
+   exécute les mêmes contrôles à la poussée.
+2. **Vérifiée d'abord sur une vraie installation.** Le commit doit déjà avoir
+   tourné sur le déploiement de référence sous une étiquette `sha-<short>`, mis
+   à jour avec `scripts/evey-update.sh --tag sha-<short> --apply` et vérifié
+   avec `--commit <sha>`. Une étiquette engage envers les autres
+   administrateurs : on la crée après cette vérification, pas avant.
+3. **`CHANGELOG.md`** : déplacer les entrées `[Unreleased]` sous la nouvelle
+   version, avec la date. Format Keep a Changelog, formulations destinées aux
+   utilisateurs uniquement.
+4. **Étiqueter ce commit**, avec une étiquette annotée, et ne pousser que
+   l'étiquette :
    ```bash
    git tag -a v0.2.0-beta.1 -m "v0.2.0-beta.1"
    git push origin v0.2.0-beta.1
    ```
-5. **Surveiller la publication** par la CI, puis épingler cette étiquette de
-   version sur le déploiement de référence, ce qui remplace l'épinglage par
-   empreinte de commit.
-6. **Annoncer l'étiquette** avec la section correspondante du journal des
-   modifications. Les administrateurs épinglent alors cette version sur leur
-   ligne `image:`.
+5. **Surveiller la CI** qui publie `0.2.0-beta.1` (+ variantes). Puis, sur le
+   déploiement de référence, `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply` :
+   l'étiquette de version remplace l'épinglage `sha-`.
+6. **Annoncer l'étiquette** avec sa section du changelog. Les administrateurs
+   épinglent `eveyproject/evey:0.2.0-beta.1` (ou `-full`) sur leur ligne
+   `image:`.
 
-Les étiquettes de préversion ne coûtent rien : `-beta.2`, `-beta.3`, autant que
-nécessaire. Ce qu'elles ne sont pas, c'est rétractables : une étiquette publiée
-reste publiée. Pour corriger une mauvaise version, on en publie une nouvelle ; on ne
-redirige jamais une étiquette existante.
+Créer des étiquettes de préversion ne coûte rien : `-beta.2`, `-beta.3` autant
+que nécessaire. En revanche, elles ne peuvent pas être retirées : une étiquette
+publiée reste publiée. Pour corriger une mauvaise préversion, on publie la
+suivante ; on ne déplace jamais une étiquette.
 
 ## Publier une version stable
 
-Mêmes étapes, avec une étiquette sans suffixe. Une chose à vérifier dont une
-préversion se passe : la version majeure de Postgres embarquée dans l'image doit
-figurer au journal des modifications, car un administrateur sur la base
-embarquée doit suivre la section de montée de version de
+Mêmes étapes, avec une étiquette `vX.Y.Z` sans suffixe. Un point à vérifier
+dont une préversion se passe : la version majeure de Postgres intégrée à
+l'image doit figurer dans le changelog, car un administrateur qui utilise la
+base intégrée doit suivre la section de mise à niveau de
 [installation.md](../installation.md) quand elle change.
 
-## Revenir en arrière sur une version
+## Revenir à une version précédente
 
 Les images restent dans le registre. Un administrateur revient en arrière avec
-le script de retour arrière, en épinglant l'étiquette précédente et, au besoin,
-en restaurant le dump d'avant mise à jour ; le script de mise à jour affiche la
-ligne exacte à utiliser. Rien n'est à défaire côté publication : on publie une
-préversion corrigée quand le correctif arrive.
+`scripts/evey-rollback.sh --tag <previous> [--restore <pre-update dump>] --apply`
+(le script de mise à jour affiche cette ligne exacte). Rien n'est à annuler
+côté publication ; on publie une `-beta.N+1` corrigée quand le correctif est
+prêt.

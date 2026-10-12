@@ -6,7 +6,7 @@ reviewed: true
 
 Cómo está montado el servidor: las capas hexagonales bajo `internal/`, los
 contextos delimitados, los eventos que los conectan y las guardas estáticas
-que mantienen el código en esos raíles. El código vive en `internal/domain`,
+que hacen cumplir esas reglas en el código. El código está en `internal/domain`,
 `internal/app`, `internal/adapters/{driving,driven}` y se conecta en
 `cmd/evey/wire*.go`; la organización la decide
 [ADR-0001](adr/0001-hexagonal-architecture.md), la separación de los
@@ -42,15 +42,15 @@ flowchart LR
 
 Regla de dependencias: `adapters -> app -> domain`. El dominio nunca importa
 la aplicación ni los adaptadores. La composición está escrita a mano (no con
-google/wire) en `cmd/evey/wire.go` y sus hermanos `wire_infra.go`,
+google/wire) en `cmd/evey/wire.go` y los archivos relacionados `wire_infra.go`,
 `wire_services.go`, `wire_adapters.go`, `wire_events.go`, `wire_helpers.go`.
-Los tests se saltan los adaptadores inyectando dobles que implementan los
+Los tests prescinden de los adaptadores inyectando dobles que implementan los
 mismos puertos del dominio: 20 de los 21 paquetes del dominio incluyen un
 subpaquete `fakes/`.
 
 ## Contextos delimitados
 
-Treinta y dos paquetes de contexto viven en `internal/domain/` e
+Treinta y dos paquetes de contexto están en `internal/domain/` e
 `internal/app/`: 19 existen en las dos capas, 2 solo en el dominio
 (`ratings`, `shared`) y 11 solo en la aplicación. Colaboran en parte mediante
 eventos de dominio en un bus compartido; la capa de aplicación también lee
@@ -70,9 +70,9 @@ directamente el paquete de dominio de un contexto vecino (consulta
 | `mkv` | operaciones con el contenedor MKV (con [mkvgo](playback/mkvgo.md)) |
 | `music` | reproducción y etiquetado propios del audio |
 | `photo` | bibliotecas de fotos |
-| `favorite` (solo aplicación) | favoritos por perfil; el modelo y `FavoriteRepository` viven en `domain/library` |
+| `favorite` (solo aplicación) | favoritos por perfil; el modelo y `FavoriteRepository` están en `domain/library` |
 | `playlist` | listas de reproducción de los usuarios, listas inteligentes |
-| `collection` (solo aplicación) | colecciones preparadas por el administrador; sus puertos viven en `domain/library` |
+| `collection` (solo aplicación) | colecciones preparadas por el administrador; sus puertos están en `domain/library` |
 | `ratings` (solo dominio) | traduce las clasificaciones de cada país (CSA, FSK, MPAA, BBFC, ACB) a un único eje de edad mínima |
 | `feed` | feed de actividad / descubrir |
 | `activity` | cronología de la actividad del usuario |
@@ -89,7 +89,7 @@ directamente el paquete de dominio de un contexto vecino (consulta
 | `presence` (solo aplicación) | registro en memoria, no guardado, de quién está conectado ahora mismo |
 | `qoe` (solo aplicación) | recepción y agregación de la telemetría de reproducción CMCD (CTA-5004) |
 | `demo` (solo aplicación) | la instancia pública de demostración (`EVEY_DEMO=1`): crea sus cuentas, sus bibliotecas y sus medios de licencia libre con los propios servicios del producto, y se reinicia sola |
-| `updatecheck` (solo aplicación) | compara la versión en marcha con lo que publica el registro y se lo dice al administrador; nunca actualiza nada |
+| `updatecheck` (solo aplicación) | compara la versión en marcha con lo que publica el registro y se lo indica al administrador; nunca actualiza nada |
 | `shared` (solo dominio) | puertos transversales (`EventBus`, `TransactionalUnit`, `ServerConfigRepository`, `ShareLinkRepository`), ids tipados, cursores, tokens de streaming |
 
 ### Relaciones
@@ -173,7 +173,7 @@ contenedores vienen de `docker-compose.yml` para `evey-server`,
 
 ### Nivel 1 - Contexto del sistema
 
-Quién habla con Evey, y a qué servicios de terceros se conecta Evey.
+Quién se comunica con Evey, y a qué servicios de terceros se conecta Evey.
 
 ```mermaid
 flowchart LR
@@ -362,7 +362,7 @@ Notas sobre las goroutines:
 - Los trabajos de escaneo de `app/library` funcionan en un grupo de trabajadores (una goroutine por cada escaneo de biblioteca activo, consulta `library.ScanService`).
 - Los trabajos de ffmpeg los lanza el adaptador de salida `ffmpeg` (`ffmpeg.Transcoder.Start`) a través de `internal/pkg/procfork`, con una goroutine de supervisión por trabajo que vacía el stderr del proceso.
 - `shared.EventBus` reparte a los suscriptores de forma asíncrona: cada suscriptor funciona en su propia goroutine, así que un consumidor lento nunca bloquea a quien publica. El bus no abre ninguna transacción propia; eso es trabajo del handler.
-- `pluginrunner` lanza un subproceso por plugin; los plugins de iframe viven dentro del navegador del usuario y se comunican con tokens firmados emitidos por `app/plugin`.
+- `pluginrunner` lanza un subproceso por plugin; los plugins de iframe se ejecutan dentro del navegador del usuario y se comunican con tokens firmados emitidos por `app/plugin`.
 
 ### Nivel 3 (extra) - Zoom en la cadena de escaneo
 

@@ -20,7 +20,7 @@ En resumen:
 Quién puede pausar o mover la película para todos depende de la app:
 consulta [Qué controla cada miembro](#what-each-member-controls).
 
-Cada persona sigue recibiendo la versión de la película que le va bien a su
+Cada persona sigue recibiendo la versión de la película adecuada para su
 propio dispositivo, como se explica en
 [Cómo elige Evey el modo de reproducción](how-playback-is-decided.md).
 
@@ -45,8 +45,8 @@ una sala con un título que no tiene permiso para ver.
 
 | | Anfitrión | Otros miembros |
 | --- | --- | --- |
-| Android | Reproducir, pausar y saltar a otro momento mueven toda la sala. | Reproducir, pausar y saltar a otro momento solo afectan a tu pantalla. |
-| Android TV | Reproducir y pausar mueven toda la sala; un salto solo afecta al televisor. | Igual que en Android. |
+| Android | Reproducir, pausar y saltar a otro momento afectan a toda la sala. | Reproducir, pausar y saltar a otro momento solo afectan a tu pantalla. |
+| Android TV | Reproducir y pausar afectan a toda la sala; un salto solo afecta al televisor. | Igual que en Android. |
 | Web | Reproducir, pausar y saltar a otro momento solo afectan a tu pantalla, también para el anfitrión. | Igual. |
 
 En el reproductor web, unos botones concretos sustituyen al control del

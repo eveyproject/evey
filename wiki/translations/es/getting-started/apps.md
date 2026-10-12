@@ -9,8 +9,8 @@ página te dice qué escribir, y qué hacer cuando no funciona.
 
 Cada app se conecta a tu propio servidor Evey, en casa. Escribes su dirección
 una vez, inicias sesión y eliges tu perfil. Dónde te quedaste, lo que has
-visto y tus favoritos se guardan en el servidor, así que te siguen de un
-dispositivo a otro.
+visto y tus favoritos se guardan en el servidor, así que los encuentras en
+cualquiera de tus dispositivos.
 
 - **Navegador web**: no hay nada que instalar. Abre la dirección del
   servidor. Ahí está también el panel de administración, para los

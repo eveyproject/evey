@@ -1,5 +1,5 @@
 ---
-source_sha: 6edbda5d141c4bdf890a36b49ddaf14c02a6bf242923470295dde702a2d0d3b5
+source_sha: af1b54b0c0e4fe2e86f3015114ce2667b287b7a2ec114f06ab77d2dc7f0de872
 reviewed: true
 ---
 # Cómo elige Evey el modo de reproducción
@@ -19,7 +19,7 @@ teléfono?
 - Así, la misma película puede llegar intacta a un dispositivo y convertida a
   otro, o reproducirse de otra forma en el mismo dispositivo cuando el
   servidor está ocupado.
-- Normalmente no tienes que hacer nada. Para ver qué forma te ha tocado, y
+- Normalmente no tienes que hacer nada. Para ver qué forma se ha usado, y
   por qué, abre **Información del flujo** en el reproductor: consulta
   [Leer la Información del flujo](#reading-stream-info).
 
@@ -49,7 +49,7 @@ directa**, los motivos.
 
 <figure class="evey-shot evey-shot--narrow" markdown="span">
   ![Información del flujo en el reproductor web, para un Remux](../images/player-stream-info.webp){ loading=lazy }
-  <figcaption>Remux: cambia el empaquetado, las pistas de vídeo y audio quedan intactas, y aparece el único motivo por el que el archivo no se reproduce tal cual. «Copiado» describe las pistas, no el modo de reproducción (interfaz en inglés).</figcaption>
+  <figcaption>Remux: cambia el empaquetado, las pistas de vídeo y audio quedan intactas, y el panel muestra el único motivo por el que el archivo no se reproduce tal cual. «Copiado» describe las pistas, no el modo de reproducción (interfaz en inglés).</figcaption>
 </figure>
 
 Los motivos se reparten en cuatro grupos:
@@ -111,7 +111,7 @@ muestra HDR:
   lo codifica en HEVC y conserva el HDR, porque la tele y la tarjeta pueden
   hacerlo.
 - **El mismo límite, con la tarjeta gráfica ocupada o no disponible para este
-  título.** El procesador toma el relevo. Codifica en H.264, que aquí no
+  título.** El procesador se encarga. Codifica en H.264, que aquí no
   lleva HDR, así que la imagen se convierte a SDR (tone-mapping), con la
   calidad que el procesador puede mantener.
 

@@ -27,8 +27,8 @@ los registros y `evey admin doctor` (más abajo) dan más información.
 
 ## Los registros
 
-El registro (log) es el diario de Evey: cada error se anota ahí, con la
-hora.
+El registro (log) es el archivo donde Evey anota lo que hace: cada error
+se anota ahí, con la hora.
 
 **La forma fácil: Administración → Registros y depuración.** Muestra el registro
 con un buscador, una vista **En vivo** que sigue las líneas nuevas, y un
@@ -74,7 +74,7 @@ docker exec evey-server evey admin doctor
 | Lo que dice `docker compose logs evey` | Qué significa |
 | --- | --- |
 | Un mensaje de validación de la configuración | Con una base de datos externa, el servidor rechaza la contraseña por defecto `evey`; con un Meilisearch externo, una clave vacía o de ejemplo. Corrige el valor que indica el mensaje. |
-| Líneas que empiezan por `evey:` sobre Postgres | La base de datos integrada no quiso arrancar: un clúster de otra versión principal de Postgres ([Actualización de versión principal de Postgres](advanced-deployments.md#move-to-a-newer-postgres-major)), un directorio de datos que no es un clúster de Postgres, un disco lleno, o `./evey-data/postgres` en una carpeta compartida en red. |
+| Líneas que empiezan por `evey:` sobre Postgres | La base de datos integrada se negó a arrancar: un clúster de otra versión principal de Postgres ([Actualización de versión principal de Postgres](advanced-deployments.md#move-to-a-newer-postgres-major)), un directorio de datos que no es un clúster de Postgres, un disco lleno, o `./evey-data/postgres` en una carpeta compartida en red. |
 | `permission denied` en `/cache/...`, en un bucle de reinicios | El volumen `evey-cache` pertenece a un usuario distinto del que ejecuta el servidor. Actualiza la imagen; con una imagen anterior al 2026-09-17, ejecuta una vez `docker run --rm -v <project>_evey-cache:/c alpine chown -R <PUID>:<PGID> /c`. |
 
 Una contraseña de administrador perdida, una clave de firma comprometida o
@@ -169,7 +169,7 @@ reprodujera tal cual: ver
 - **Preparando subtítulos…** se queda varios minutos: el archivo no tiene
   índice para esa pista y el servidor lo lee entero, una vez. Ver
   [La primera vez que se muestra un subtítulo](../playback/subtitles.md#the-first-time-a-subtitle-is-shown).
-- Los títulos transcodificados no arrancan o se atascan mientras los títulos
+- Los títulos transcodificados no arrancan o se detienen mientras los títulos
   ya reproducidos siguen funcionando, o los administradores reciben **Caché
   de subtítulos llena**: el disco está por debajo de su margen de espacio
   libre. Ver

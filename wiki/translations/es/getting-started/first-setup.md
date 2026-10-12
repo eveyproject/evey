@@ -14,7 +14,7 @@ Quedan cuatro pasos antes de que en casa se pueda ver algo:
    minuto.
 2. [Añadir tus bibliotecas](#2-add-your-libraries): decirle a Evey dónde
    están tus archivos.
-3. [Invitar a los de casa](#3-invite-your-household): una cuenta por
+3. [Invitar a las personas de tu casa](#3-invite-your-household): una cuenta por
    persona, o una sola cuenta compartida con un perfil por persona.
 4. [Conectar las aplicaciones](#4-connect-the-apps): teléfonos, tablets y
    televisores.
@@ -131,7 +131,7 @@ solos.
 [Bibliotecas y metadatos](../administration/libraries.md): cómo nombrar los
 archivos y cómo corregir un título mal reconocido.
 
-## 3. Invitar a los de casa
+## 3. Invitar a las personas de tu casa
 
 Hay dos formas de darle una cuenta a alguien, las dos en
 **Administración → Usuarios**.
@@ -207,7 +207,7 @@ No tienes que configurar nada de esto:
 
 ## Antes de compartir la dirección fuera de casa
 
-1. Pon el servidor detrás de HTTPS. Evey solo habla HTTP simple, que vale en
+1. Pon el servidor detrás de HTTPS. Evey solo usa HTTP simple, que sirve en
    casa pero no por internet.
    [Acceso remoto y HTTPS](../administration/remote-access.md).
 2. Programa copias de seguridad y guarda una copia de la carpeta `evey-data`.
