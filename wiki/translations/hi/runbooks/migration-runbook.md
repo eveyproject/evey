@@ -5,14 +5,14 @@ reviewed: true
 # डेटाबेस माइग्रेशन
 
 अपडेट के दौरान Evey अपने डेटाबेस का स्कीमा कैसे बदलता है, पहले और बाद में क्या
-जाँचना है, और जब कोई माइग्रेशन आधे रास्ते में रुक जाए तो बाहर कैसे निकलें। यह
+जाँचना है, और जब कोई माइग्रेशन आधे रास्ते में रुक जाए तो क्या करें। यह
 आम इंस्टॉल चलाने वाले ऑपरेटरों के लिए है, जहाँ डेटाबेस `evey-server` कंटेनर के
 अंदर चलता है; माइग्रेशन लिखने वाले योगदानकर्ताओं के लिए नियम आखिर में हैं।
 
 ## माइग्रेशन कैसे चलते हैं
 
-माइग्रेशन प्रोग्राम के अंदर ही होते हैं और सर्वर शुरू होने पर `golang-migrate`
-उन्हें लागू करता है। हालत `schema_migrations` टेबल में रहती है, जिसमें एक पंक्ति
+माइग्रेशन binary के अंदर ही शामिल होते हैं और सर्वर शुरू होने पर `golang-migrate`
+उन्हें लागू करता है। स्थिति `schema_migrations` टेबल में दर्ज रहती है, जिसमें एक पंक्ति
 `{version, dirty}` होती है। कुछ भी लागू करने से पहले, सर्वर `EVEY_BACKUP_DIR`
 (`/data/backups`, यानी होस्ट पर `./evey-data/backups`) में एक पूरा डंप लिखता है,
 जिसका नाम `pre-migration-<version>-<UTC timestamp>.sql.gz` होता है, और सबसे हाल
@@ -26,7 +26,7 @@ docker exec evey-server evey admin migrate up        # सारे बाकी
 docker exec evey-server evey admin migrate down      # ठीक एक कदम पीछे जाएँ
 ```
 
-`up` और `down` पहले एक डंप लेते हैं; `--no-backup` इसे छोड़ देता है। अंदर वाले
+`up` और `down` पहले एक डंप लेते हैं; `--no-backup` इसे छोड़ देता है। embedded
 डेटाबेस पर SQL शेल खोलने के लिए:
 
 ```sh
@@ -110,8 +110,8 @@ UPDATE schema_migrations SET version = <N>, dirty = false;
 ```
 
 कंटेनर रीस्टार्ट करें; माइग्रेशन वहीं से आगे चलते हैं। माइग्रेशन से पहले का डंप
-वापस लाना ([रिकवरी](recovery.md#restore-a-pre-migration-dump)) बाहर निकलने का
-दूसरा रास्ता है।
+वापस लाना ([रिकवरी](recovery.md#restore-a-pre-migration-dump)) दूसरा
+उपाय है।
 
 ## माइग्रेशन लिखना
 
@@ -121,8 +121,8 @@ UPDATE schema_migrations SET version = <N>, dirty = false;
 
 - **`000066_cascade_and_email_unique.up.sql`** - `ALTER TABLE ... DROP
   CONSTRAINT ... ADD CONSTRAINT ... FOREIGN KEY`। ADD चलने तक दोनों टेबल पर
-  `ACCESS EXCLUSIVE` लेता है। छोटी टेबल पर सस्ता, `media_items` /
-  `watch_progress` पर तकलीफ़देह।
+  `ACCESS EXCLUSIVE` लेता है। छोटी टेबल पर इसका असर कम है, `media_items` /
+  `watch_progress` पर भारी।
 - **`000067_sort_title_index.up.sql`**,
   **`000068_watch_progress_composite_index.up.sql`**,
   **`000069_quick_connect_shortcode_index.up.sql`** - सादा `CREATE INDEX`, जो

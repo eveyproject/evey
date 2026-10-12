@@ -1,5 +1,5 @@
 ---
-source_sha: 4aeebbe2feb50999e8470ea3f56b3e47af196ca12cf0100e22527f66ffe278e3
+source_sha: 0b2dda412b186b3b40f33ea4027ceb0d328e5f8f39f87d2312a8c7bdab2edbed
 reviewed: true
 ---
 # बिना कंटेनर के
@@ -52,7 +52,7 @@ sudo install -D -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
 आपके प्लगइन का `entrypoint:` जो भी चलाता है, उसे इंस्टॉल करें। runner `python3`,
 `python`, `node`, `php`, `ruby`, `perl`, `lua`, `bash` और `sh` पहचानता है;
 ज़्यादातर कम्युनिटी प्लगइन के लिए `python3` काफ़ी है। फिर वे सर्विस जिनसे सर्वर
-बात करता है:
+जुड़ता है:
 
 | ज़रूरत | क्यों |
 |---|---|
@@ -62,9 +62,9 @@ sudo install -D -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
 | **`bwrap`** (bubblewrap) | सिर्फ़ bubblewrap सैंडबॉक्स बैकएंड के लिए |
 | **`setcap`** (libcap) | launcher को उसकी file capability देने के लिए |
 
-अंदर वाला डेटाबेस और सर्च इंजन इमेज के entrypoint की सुविधा है, binary की नहीं:
-bare metal पर दोनों आप खुद चलाते हैं और `EVEY_DB_HOST` और `EVEY_MEILI_URL` को
-उनकी ओर भेजते हैं।
+इमेज में शामिल (embedded) डेटाबेस और सर्च इंजन इमेज के entrypoint की सुविधा है,
+binary की नहीं: bare metal पर दोनों आप खुद चलाते हैं और `EVEY_DB_HOST` और
+`EVEY_MEILI_URL` में उनके पते सेट करते हैं।
 
 ## एक अलग उपयोगकर्ता से चलाएँ, root से नहीं
 
@@ -78,14 +78,14 @@ sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugi
 ```
 
 - `evey` (UID 1000) सर्वर चलाता है।
-- `evey-plugin` (UID 1001) वह उपयोगकर्ता है जिस पर प्लगइन uid separation चालू
-  होने पर भेजे जाते हैं, ताकि कोई हैक हुआ प्लगइन एक अलग, बिना विशेष अधिकार वाले
-  उपयोगकर्ता के रूप में रहे, जो सामान्य फ़ाइल अनुमतियों की वजह से सर्वर के
-  secret नहीं पढ़ सकता।
+- `evey-plugin` (UID 1001) वह उपयोगकर्ता है जिसके रूप में uid separation चालू
+  होने पर प्लगइन चलाए जाते हैं, ताकि कोई हैक हुआ प्लगइन एक अलग, बिना विशेष
+  अधिकार वाले उपयोगकर्ता के रूप में चले, जो सामान्य फ़ाइल अनुमतियों की वजह से
+  सर्वर के secret नहीं पढ़ सकता।
 
 !!! warning
     ग्रुप id मायने रखती है: launcher प्लगइन को UID 1001 और सर्वर के अपने ग्रुप
-    पर भेजता है, और 1000 से नीचे की कोई भी uid या gid मना कर देता है। सिर्फ़
+    पर स्विच करता है, और 1000 से नीचे की कोई भी uid या gid मना कर देता है। सिर्फ़
     `useradd --system` से बने ग्रुप को 1000 से नीचे की system id मिलती है, और तब
     `basic` मोड में प्लगइन मना कर दिए जाते हैं।
 
@@ -128,8 +128,8 @@ lsm=lockdown,capability,yama,apparmor,bpf,landlock
 EVEY_PLUGINS_SANDBOX_MODE=landlock    # fail closed: Landlock लागू न हो सके तो प्लगइन मना कर दिया जाता है
 ```
 
-`landlock` launcher को `-require-landlock` देता है, जो प्लगइन को बिना घेरे के
-चलाने की जगह non-zero के साथ बाहर निकल जाता है।
+`landlock` launcher को `-require-landlock` देता है, जो प्लगइन को बिना प्रतिबंध के
+चलाने की जगह non-zero कोड के साथ बंद हो जाता है।
 
 ### bubblewrap
 
@@ -155,22 +155,22 @@ bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 
 `EVEY_PLUGINS_SANDBOX_MODE=basic` में uid बदला जाता है और साथ में seccomp shim
 होता है; launcher मौजूद हो, तो वह फिर भी अपनी kernel seccomp मनाही-सूची और जितना
-हो सके उतना Landlock लगाता है। हर रास्ते के हिसाब से फ़ाइल सिस्टम का कोई घेरा
-नहीं है: प्लगइन सिर्फ़ seccomp के साथ UID 1001 पर चलता है। इसे पुराने या कसकर
-बंद kernel पर इस्तेमाल करें जहाँ न Landlock चलता है न bubblewrap, और secret
+हो सके उतना Landlock लगाता है। हर रास्ते के हिसाब से फ़ाइल सिस्टम का कोई प्रतिबंध
+नहीं है: प्लगइन सिर्फ़ seccomp के साथ UID 1001 पर चलता है। इसे पुराने या सख़्ती से
+प्रतिबंधित kernel पर इस्तेमाल करें जहाँ न Landlock चलता है न bubblewrap, और secret
 बचाने के लिए नीचे दिए uid separation पर भरोसा करें।
 
 जिस प्लगइन को `subprocess` की अनुमति मिली है, उसे `basic` मोड में भी launcher
-चाहिए: shim किसी child process के `exec` के बाद नहीं बचता, सिर्फ़ launcher का
-kernel seccomp बचता है। launcher के बिना ऐसा प्लगइन बिना घेरे के चलने की जगह शुरू
-होने से मना कर देता है।
+चाहिए: shim किसी child process के `exec` के बाद लागू नहीं रहता, सिर्फ़ launcher का
+kernel seccomp लागू रहता है। launcher के बिना ऐसा प्लगइन बिना प्रतिबंध के चलने की
+जगह शुरू होने से मना कर देता है।
 
 ## secret को प्लगइन की पहुँच से दूर रखें
 
 uid separation हर प्लगइन को `evey-plugin` (UID 1001) के रूप में चलाता है, जो
 सर्वर (UID 1000) से अलग है, ताकि सामान्य फ़ाइल अनुमतियों की वजह से प्लगइन
 `jwt.key`, बैकअप या लॉग न पढ़ सके। यह `basic` मोड में मायने रखता है; Landlock या
-bubblewrap में फ़ाइल सिस्टम पहले से घिरा होता है, इसलिए वहाँ यह दोहराव है।
+bubblewrap में फ़ाइल सिस्टम पहले से प्रतिबंधित होता है, इसलिए वहाँ यह दोहराव है।
 
 `EVEY_PLUGINS_UID_SEPARATION`:
 
@@ -190,22 +190,22 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
 
 launcher 1000 से नीचे की कोई भी लक्ष्य uid या gid मना कर देता है। जब वह uid नहीं
 बदल पाता (capability नहीं है, `no_new_privs` सेट है), तो `basic` मोड वाला प्लगइन
-मना कर दिया जाता है, क्योंकि वहाँ uid ही उसकी अकेली दीवार है; Landlock में वह लॉग
+मना कर दिया जाता है, क्योंकि वहाँ uid ही उसकी एकमात्र सुरक्षा है; Landlock में वह लॉग
 में चेतावनी लिखता है और सर्वर की uid पर चलता है।
 
 !!! warning
     uid separation `no_new_privs` के साथ नहीं चलता। अगर सर्वर systemd
     `NoNewPrivileges=yes` के साथ चलता है, तो exec पर file capability अनदेखी हो
     जाती है: `basic` मोड में प्लगइन मना कर दिए जाते हैं, और Landlock में uid
-    separation घटकर एक ही uid रह जाता है। एक चुनें।
+    separation लागू नहीं होता, प्लगइन सर्वर की uid पर चलता है। एक चुनें।
 
 अगर सर्वर इसकी जगह root के रूप में चलता है (सुझाया नहीं जाता), तो वह प्लगइन को
-सीधे 1001 पर भेजता है और capability की ज़रूरत नहीं होती। हर स्थिति की आसान भाषा
-में तस्वीर [प्लगइन सैंडबॉक्स सेटअप](plugins/sandbox-deployment.md) में है।
+सीधे 1001 पर भेजता है और capability की ज़रूरत नहीं होती। हर स्थिति का आसान भाषा
+में विवरण [प्लगइन सैंडबॉक्स सेटअप](plugins/sandbox-deployment.md) में है।
 
 ## secret वाली फ़ाइलों की अनुमतियाँ
 
-इमेज की नकल करें: secret वाले फ़ोल्डर सिर्फ़ मालिक के लिए होते हैं, ताकि UID
+इमेज जैसी ही अनुमतियाँ रखें: secret वाले फ़ोल्डर सिर्फ़ मालिक के लिए होते हैं, ताकि UID
 1001 पर भेजा गया प्लगइन Landlock के बिना भी उन्हें न पढ़ सके।
 
 ```bash
@@ -219,8 +219,8 @@ sudo chmod 700 /var/lib/evey/keys /var/lib/evey/logs /var/lib/evey/backups
 sudo chmod 600 /var/lib/evey/jwt.key
 ```
 
-रास्ते वहाँ के हिसाब से बदलें जहाँ आप `EVEY_*_DIR` वेरिएबल और
-`EVEY_JWT_PRIVATE_KEY_PATH` भेजते हैं।
+रास्ते उन फ़ोल्डरों के हिसाब से बदलें जो आप `EVEY_*_DIR` वेरिएबल और
+`EVEY_JWT_PRIVATE_KEY_PATH` में सेट करते हैं।
 
 ## environment कॉन्फ़िगर करें
 
@@ -228,8 +228,8 @@ sudo chmod 600 /var/lib/evey/jwt.key
 [कॉन्फ़िगरेशन रेफ़रेंस](configuration.md) में पूरी टेबल है। bare metal पर चलाने
 की खास बातें:
 
-- `EVEY_DB_HOST` और `EVEY_MEILI_URL` को अपने PostgreSQL और Meilisearch की ओर
-  भेजें। `EVEY_DB_PASSWORD` डिफ़ॉल्ट `evey` नहीं होना चाहिए।
+- `EVEY_DB_HOST` और `EVEY_MEILI_URL` में अपने PostgreSQL और Meilisearch के पते
+  सेट करें। `EVEY_DB_PASSWORD` डिफ़ॉल्ट `evey` नहीं होना चाहिए।
 - रास्तों के Go डिफ़ॉल्ट कंटेनर के लिए चुने गए थे: `EVEY_LOG_DIR` (डिफ़ॉल्ट
   सापेक्ष `logs`), `EVEY_BACKUP_DIR` (`/data/backups`),
   `EVEY_TRANSCODING_CACHE_DIR` (`/data/transcode`), `EVEY_TRICKPLAY_CACHE_DIR`
@@ -238,10 +238,10 @@ sudo chmod 600 /var/lib/evey/jwt.key
 - सर्वर सादा HTTP देता है: TLS के लिए आगे एक रिवर्स प्रॉक्सी लगाएँ, `https://`
   वाले **बाहरी URL** के साथ, और प्रॉक्सी को **विश्वसनीय प्रॉक्सी** में डालें
   (**एडमिन → रिमोट एक्सेस**; `EVEY_SERVER_BASE_URL` और `EVEY_TRUSTED_PROXIES`
-  बैकअप हैं)। देखें [रिवर्स प्रॉक्सी कॉन्फ़िगरेशन](reverse-proxy.md)।
+  वैकल्पिक तरीका (fallback) हैं)। देखें [रिवर्स प्रॉक्सी कॉन्फ़िगरेशन](reverse-proxy.md)।
 - **सर्वर दो पोर्ट खोलता है, और सिर्फ़ एक बाहर खुला होना चाहिए।**
-  `EVEY_SERVER_PORT` (डिफ़ॉल्ट `9090`) अपना gRPC listener है; जिस HTTP API से
-  आपके क्लाइंट और रिवर्स प्रॉक्सी बात करते हैं, वह इस पोर्ट से एक आगे (`9091`)
+  `EVEY_SERVER_PORT` (डिफ़ॉल्ट `9090`) native gRPC listener है; जिस HTTP API से
+  आपके क्लाइंट और रिवर्स प्रॉक्सी जुड़ते हैं, वह इस पोर्ट से एक आगे (`9091`)
   है। रिमोट एक्सेस की जाँच, जो तय करती है कि आपके LAN के बाहर के क्लाइंट जुड़
   सकते हैं या नहीं, HTTP वाले रास्ते में लगी है और gRPC listener पर लागू नहीं
   होती, इसीलिए वह डिफ़ॉल्ट रूप से सिर्फ़ loopback पर सुनता है
@@ -250,7 +250,7 @@ sudo chmod 600 /var/lib/evey/jwt.key
   लागू नहीं होती, और तब उसे फ़ायरवॉल से बचाना आपकी ज़िम्मेदारी है।
 - माइग्रेशन सर्वर शुरू होते समय चलते हैं; माइग्रेशन का कोई अलग कदम नहीं है।
 - प्लगइन के संसाधनों की सीमाएँ (`EVEY_PLUGINS_MEMORY_MB`, `_PIDS_MAX`,
-  `_DISK_MAX_MB`, `_CPU_NICE`) और सैंडबॉक्स मोड चलते-चलते **एडमिन → प्लगइन →
+  `_DISK_MAX_MB`, `_CPU_NICE`) और सैंडबॉक्स मोड सर्वर चलते समय **एडमिन → प्लगइन →
   संसाधन सीमाएँ** से बदले जा सकते हैं; environment के मान शुरुआती डिफ़ॉल्ट हैं।
 - एडमिन पैनल से सर्वर रीस्टार्ट इमेज के supervisor पर निर्भर है, और बिना कंटेनर
   चलाने पर खुद को उपलब्ध नहीं बताता: सर्विस को खुद रीस्टार्ट करें।
@@ -278,7 +278,7 @@ grep Seccomp: /proc/<plugin-pid>/status   # 2 = प्लगइन पर एक
 
 चल रहे प्लगइन प्रोसेस पर `Seccomp: 2` वाली लाइन पुष्टि करती है कि kernel
 फ़िल्टर लगा हुआ है। `EVEY_PLUGINS_SANDBOX_MODE=landlock` के साथ और Landlock लागू
-न होने पर, प्लगइन शुरू होने से मना कर देता है: यही fail-closed वादा काम कर रहा
+न होने पर, प्लगइन शुरू होने से मना कर देता है: यही fail-closed नियम काम कर रहा
 है।
 
 बैकअप, अपडेट और रिकवरी की कमांड के लिए कंटेनर वाले पेज जैसे हैं वैसे लागू होते

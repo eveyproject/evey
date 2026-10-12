@@ -5,14 +5,14 @@ reviewed: true
 # प्लगइन API संदर्भ
 
 वह अनुबंध जिसके हिसाब से प्लगइन लिखा जाता है: `plugin.yaml` के फ़ील्ड, वे दो gRPC
-सर्विस जिनसे बैकएंड और सर्वर आपस में बात करते हैं, और `window.evey` पुल, जो
+सर्विस जिनसे बैकएंड और सर्वर आपस में संवाद करते हैं, और `window.evey` bridge, जो
 इंटरफ़ेस मॉड्यूल को उसके फ़्रेम में मिलता है। इनका इस्तेमाल करने वाला पूरा उदाहरण
 [प्लगइन लिखना](dev-setup.md) में है; हर अनुमति क्या करने देती है और इंस्टॉलर क्या
 मना करता है, यह [अनुमतियाँ और स्लॉट](security-model.md) में है।
 
 ## Manifest
 
-हर ZIP की जड़ में एक `plugin.yaml` (या `plugin.yml`) होता है, ज़्यादा से ज़्यादा
+हर ZIP के root फ़ोल्डर में एक `plugin.yaml` (या `plugin.yml`) होता है, ज़्यादा से ज़्यादा
 1 MB का।
 
 ```yaml title="plugin.yaml"
@@ -56,7 +56,7 @@ config_schema:               # प्लगइन के कार्ड पर 
 | `language` | `kind: plugin` के लिए ज़रूरी: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` या `go`। इससे तय होता है कि कौन सा runtime जाँचा जाए और कौन से stub entrypoint के बगल में कॉपी हों; यह कुछ शुरू नहीं करता। |
 | `entrypoint` | `kind: plugin` के लिए ज़रूरी। पहला शब्द interpreter है (या `native-binary` के साथ binary), बाकी उसके arguments; प्रोसेस प्लगइन के फ़ोल्डर में चलता है। |
 | `permissions` | हर मान [अनुमतियों की सूची](security-model.md#permissions-catalog) में होना चाहिए। `network` के लिए `external_fetch` खाली नहीं होना चाहिए। |
-| `external_fetch` | सिर्फ़ होस्ट के नाम। scheme चल जाता है और हटा दिया जाता है; wildcard या IP लिखने पर इंस्टॉल मना होता है ([नियम](security-model.md#external-fetch-rules))। |
+| `external_fetch` | सिर्फ़ होस्ट के नाम। scheme स्वीकार किया जाता है और हटा दिया जाता है; wildcard या IP लिखने पर इंस्टॉल मना होता है ([नियम](security-model.md#external-fetch-rules))। |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` या `notification.sender`; बाकी सब मना है। थीम कोई क्षमता नहीं बता सकती। |
 | `web_root` | `frontend` खाली न हो तो ज़रूरी; relative, बिना `..`, बिना backslash। `.` प्लगइन का पूरा फ़ोल्डर देता है और सिर्फ़ एक चेतावनी लॉग करता है। |
 | `frontend[]` | `slot` [स्लॉट की सूची](#slots) में होना चाहिए; `src` `web_root` के अंदर होना चाहिए। |
@@ -73,7 +73,7 @@ config_schema:               # प्लगइन के कार्ड पर 
 
 ## बैकएंड: दो सर्विस
 
-बैकएंड प्रोसेस और सर्वर दो Unix socket पर gRPC बोलते हैं, जिनके रास्ते
+बैकएंड प्रोसेस और सर्वर दो Unix socket पर gRPC से संवाद करते हैं, जिनके रास्ते
 environment में मिलते हैं:
 
 ```
@@ -102,15 +102,15 @@ EVEY_HOST_SOCK=<path>     # आपका प्रोसेस HostService क�
 
 जिस कॉल की अनुमति manifest में नहीं बताई गई, वह `PermissionDenied` के साथ मना हो
 जाती है। *दिया नहीं जाता* वाले method `Unimplemented` लौटाते हैं; वे आगे के किसी
-वर्ज़न के अनुबंध का हिस्सा हैं, और यहाँ इसलिए लिखे हैं ताकि कोई stub आपको भटकाए
-नहीं।
+वर्ज़न के अनुबंध का हिस्सा हैं, और यहाँ इसलिए लिखे हैं ताकि किसी stub से आपको
+गलतफ़हमी न हो।
 
 | Method | अनुमति | टिप्पणी |
 |---|---|---|
 | `Log(level, message, fields)` | कोई नहीं | प्लगइन के लॉग में लिखा जाता है, जो उसके कार्ड पर **लॉग** में दिखता है। |
 | `GetConfig(key)` / `SetConfig(key, value)` | कोई नहीं | प्लगइन का कॉन्फ़िगरेशन: **कॉन्फ़िग** पैनल के मान, और वे कुंजियाँ जो प्लगइन खुद लिखता है। ज़्यादा से ज़्यादा 256 कुंजियाँ, 256 बाइट की कुंजी, 16 KiB का मान। |
 | `GetData`, `SetData`, `DeleteData`, `ListDataKeys` | कोई नहीं | नीचे वाला [डेटा स्टोर](#data-store)। |
-| `EmitEvent(event_type, payload)` | कोई नहीं | सर्वर की event bus पर `plugin.event.<event_type>` के रूप में प्रकाशित होता है, जहाँ वेबहुक इसे सुन सकते हैं। |
+| `EmitEvent(event_type, payload)` | कोई नहीं | सर्वर की event bus पर `plugin.event.<event_type>` के रूप में प्रकाशित होता है, जहाँ वेबहुक इसकी सदस्यता ले सकते हैं। |
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` या `media.read` | मीडिया का पूरा रिकॉर्ड, `file_path`, `provider_ids` और `genres` के साथ। |
 | `Fetch(url, method, headers)` | `network` | सैंडबॉक्स से बाहर जाने का अकेला रास्ता: `http` या `https`, `GET` या `HEAD`, `external_fetch` का कोई होस्ट; पता निकालने के बाद और redirect में भी निजी पते मना हैं। body 8 MiB तक सीमित है (`truncated` यह बताता है) और पूरा request 20 सेकंड तक। सर्वर अपनी तरफ़ से कोई credential नहीं जोड़ता। |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` या `media.read` | *दिया नहीं जाता।* |
@@ -121,8 +121,8 @@ EVEY_HOST_SOCK=<path>     # आपका प्रोसेस HostService क�
 ### डेटा स्टोर
 
 हर प्लगइन के पास एक स्थायी key/value स्टोर होता है, बिना कोई अनुमति बताए: cursor,
-cache, आखिरी sync का समय, कुछ भी जो restart के बाद भी याद रखना हो। मान बंद
-string हैं; JSON खुद encode करें। प्लगइन की id पहचाने गए socket से आती है, इसलिए
+cache, आखिरी sync का समय, कुछ भी जो restart के बाद भी याद रखना हो। मान ऐसी
+string हैं जिन्हें सर्वर नहीं पढ़ता; JSON खुद encode करें। प्लगइन की id पहचाने गए socket से आती है, इसलिए
 प्लगइन सिर्फ़ अपने हिस्से में पढ़ता और लिखता है, और पूरा स्टोर प्लगइन के साथ
 मिटा दिया जाता है।
 
@@ -138,7 +138,7 @@ string हैं; JSON खुद encode करें। प्लगइन क�
 
 ## Frontend API
 
-इंटरफ़ेस मॉड्यूल एक बंद origin वाले फ़्रेम में चलता है, `default-src 'none'` नीति
+इंटरफ़ेस मॉड्यूल एक opaque origin वाले फ़्रेम में चलता है, `default-src 'none'` नीति
 के साथ: होस्ट पेज, उसकी कुकी या उसके स्टोरेज तक कोई पहुँच नहीं, कोई फ़ॉर्म नहीं,
 कोई popup नहीं, और `connect-src` सिर्फ़ `https` पर `external_fetch` के होस्ट तक
 सीमित। बाकी सब `window.evey` से होकर जाता है, जो मॉड्यूल चलने से पहले डाला जाता
@@ -178,13 +178,13 @@ evey.onInit(function (data) {
 `0` स्लॉट को समेट देता है: जिस विजेट के पास दिखाने को कुछ नहीं, वह जगह नहीं
 लेता। `home.section` विजेट बिना कुछ किए `data.suggestedHeight` पर खुलता है: होस्ट
 जानता है कि उसने आपको किस जगह रखा है और वहाँ होम विजेट की जो ऊँचाई होती है वही
-सुझाता है, ताकि हर विजेट एक ही आकार में दिखे। आकार तभी बदलें जब आप बेहतर
-जानते हों।
+सुझाता है, ताकि हर विजेट एक ही आकार में दिखे। आकार तभी बदलें जब आपके पास इससे
+बेहतर जानकारी हो।
 
 ### `evey.prefs.*` (अनुमति `prefs`)
 
-मौजूदा उपयोगकर्ता की पसंद, प्लगइन के अपने हिस्से में, उस token से (यह प्लगइन, यह
-उपयोगकर्ता) से बँधी हुई जो होस्ट फ़्रेम के लिए रखता है। हर कॉल एक promise
+मौजूदा उपयोगकर्ता की पसंद, प्लगइन के अपने हिस्से में, उस token के ज़रिए (यह प्लगइन, यह
+उपयोगकर्ता) से जुड़ी हुई जो होस्ट फ़्रेम के लिए रखता है। हर कॉल एक promise
 लौटाती है; अनुमति न हो तो वह reject होता है।
 
 ```js
@@ -279,7 +279,7 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
 और Python में शुरुआती प्लगइन (`nodejs-example`, `python-example`), एक मेटाडेटा
 provider (`metadata-example`), एक वेबहुक receiver (`webhook-receiver`), build
 step वाला एक होम विजेट (`weather`), `public` और `prefs` अनुमतियों और `admin.nav`
-स्लॉट के साथ डेटा स्टोर (`data-demo`), `config_schema` के हर फ़ील्ड टाइप का दौरा
+स्लॉट के साथ डेटा स्टोर (`data-demo`), `config_schema` के हर फ़ील्ड टाइप का उदाहरण
 (`config-demo`), और दो थीम (`theme-dark-blue`, `open-workshop`)। `make plugin-zips`
 इन सबको पैक करता है।
 

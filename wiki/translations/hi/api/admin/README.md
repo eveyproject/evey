@@ -18,7 +18,7 @@ reviewed: true
 | [activity.swagger.json](activity.swagger.json) | प्लेबैक का इतिहास, साइन-इन का इतिहास, सर्वर के आँकड़े |
 | [admin_session.swagger.json](admin_session.swagger.json) | Audit लॉग |
 | [admin_task.swagger.json](admin_task.swagger.json) | तय समय पर चलने वाले बैकग्राउंड काम |
-| [presence.swagger.json](presence.swagger.json) | अभी कौन जुड़ा है (ऐप की धड़कन और एडमिन वाली सूची) |
+| [presence.swagger.json](presence.swagger.json) | अभी कौन जुड़ा है (ऐप के heartbeat संकेत और एडमिन वाली सूची) |
 
 ### मीडिया और ट्रांसकोडिंग
 | Spec | विवरण |
@@ -28,7 +28,7 @@ reviewed: true
 | [transcoding.swagger.json](transcoding.swagger.json) | ट्रांसकोड प्रोफ़ाइल, हार्डवेयर की पहचान, चल रहे काम |
 | [transcode_cache.swagger.json](transcode_cache.swagger.json) | ट्रांसकोड cache संभालना |
 | [mkv.swagger.json](mkv.swagger.json) | MKV container के टूल (ट्रैक, chapter, mux/demux) |
-| [admin_intro.swagger.json](admin_intro.swagger.json) | इंट्रो के समय का cache: एक एपिसोड का हटाना, पीछे के एपिसोड भरना |
+| [admin_intro.swagger.json](admin_intro.swagger.json) | इंट्रो के समय का cache: एक एपिसोड का cache अमान्य करना, पुराने डेटा को भरना (backfill) |
 
 ### उपयोगकर्ता और नीतियाँ
 | Spec | विवरण |
