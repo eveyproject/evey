@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 type FakeHWDetector struct {

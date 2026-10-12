@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driven/itunes"
+	"github.com/eveyproject/evey/internal/adapters/driven/itunes"
 )
 
 // Régression prod 2026-07-25 : le fetcher demandait limit=1 et prenait

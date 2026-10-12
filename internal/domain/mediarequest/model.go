@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // MediaType is the kind of media a request targets.

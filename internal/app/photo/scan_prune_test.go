@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	appphoto "github.com/evey-project/evey/internal/app/photo"
-	"github.com/evey-project/evey/internal/domain/photo"
-	"github.com/evey-project/evey/internal/domain/photo/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appphoto "github.com/eveyproject/evey/internal/app/photo"
+	"github.com/eveyproject/evey/internal/domain/photo"
+	"github.com/eveyproject/evey/internal/domain/photo/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // Same contract as the music scan's prune tests (scan_prune_test.go in

@@ -7,10 +7,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
-	appplayback "github.com/evey-project/evey/internal/app/playback"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
+	appplayback "github.com/eveyproject/evey/internal/app/playback"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/require"
 )
 

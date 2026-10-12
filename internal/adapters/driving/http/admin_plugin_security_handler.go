@@ -3,13 +3,13 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	domainplugin "github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // pluginSecurityDashboardProvider is the minimal service interface the handler needs.

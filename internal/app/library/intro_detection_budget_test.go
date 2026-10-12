@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/cpubudget"
+	"github.com/eveyproject/evey/internal/pkg/cpubudget"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	libraryfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	libraryfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // ctxHonoringSegmentRepo mirrors the postgres repo's contract on an expired

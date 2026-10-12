@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	appmaintenance "github.com/evey-project/evey/internal/app/maintenance"
-	"github.com/evey-project/evey/internal/domain/mkv"
+	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

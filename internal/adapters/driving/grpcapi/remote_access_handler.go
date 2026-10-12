@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/network"
-	"github.com/evey-project/evey/internal/pkg/tracing"
-	"github.com/evey-project/evey/internal/pkg/urlvalidator"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/pkg/network"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/urlvalidator"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

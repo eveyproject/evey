@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	appmetadata "github.com/evey-project/evey/internal/app/metadata"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	appmetadata "github.com/eveyproject/evey/internal/app/metadata"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 )
 

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	appmedia "github.com/evey-project/evey/internal/app/media"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
 )
 
 // Plan B P1/P2: a valid opaque stream token authenticates an HLS request whether

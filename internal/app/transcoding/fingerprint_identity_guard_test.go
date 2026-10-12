@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // The DecisionFingerprint is three things in one struct (ADR-0030, 5): the

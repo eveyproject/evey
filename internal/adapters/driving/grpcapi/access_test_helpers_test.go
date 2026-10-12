@@ -3,9 +3,9 @@ package grpcapi
 import (
 	"testing"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"

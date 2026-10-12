@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	domainplugin "github.com/eveyproject/evey/internal/domain/plugin"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 // fakeSecurityDashboardSvc implements pluginSecurityDashboardProvider for tests.

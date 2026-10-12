@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // ErrVideoCapacityExhausted is returned by a StreamProducer when a session

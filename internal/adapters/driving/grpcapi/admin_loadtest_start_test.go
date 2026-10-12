@@ -13,9 +13,9 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
-	"github.com/evey-project/evey/internal/domain/user"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	apploadtest "github.com/eveyproject/evey/internal/app/loadtest"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 type fakeLoadTestRunner struct {

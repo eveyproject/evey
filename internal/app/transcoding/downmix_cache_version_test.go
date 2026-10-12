@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 func stereoAudioFp() AudioFingerprint {

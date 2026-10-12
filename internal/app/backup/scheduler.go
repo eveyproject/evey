@@ -9,9 +9,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/backup"
-	"github.com/evey-project/evey/internal/pkg/cron"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/pkg/cron"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // ErrBackupInProgress is returned when a backup is requested while another one

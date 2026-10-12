@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 var ErrDuplicateTokenHash = fmt.Errorf("%w: duplicate key value violates unique constraint", shared.ErrConflict)

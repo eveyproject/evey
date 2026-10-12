@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/syncplay"
-	"github.com/evey-project/evey/internal/domain/syncplay/fakes"
+	"github.com/eveyproject/evey/internal/domain/syncplay"
+	"github.com/eveyproject/evey/internal/domain/syncplay/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

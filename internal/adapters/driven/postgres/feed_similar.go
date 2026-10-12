@@ -1,6 +1,6 @@
 package postgres
 
-import "github.com/evey-project/evey/internal/domain/feed"
+import "github.com/eveyproject/evey/internal/domain/feed"
 
 // genreFamilies pairs the combined genres TMDB gives series with the single
 // genres it gives films, in the two metadata languages the server ships. Left

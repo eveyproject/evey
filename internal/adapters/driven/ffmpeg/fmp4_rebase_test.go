@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 	"time"
 )
 

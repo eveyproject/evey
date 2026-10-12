@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/evey-project/evey/internal/domain/feed"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/feed"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // FeedConfigCommandRepo implements feed.ConfigCommandRepo (write side).

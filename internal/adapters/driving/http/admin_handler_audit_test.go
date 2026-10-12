@@ -7,11 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	appactivity "github.com/evey-project/evey/internal/app/activity"
-	"github.com/evey-project/evey/internal/domain/activity"
-	actfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	appactivity "github.com/eveyproject/evey/internal/app/activity"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	actfakes "github.com/eveyproject/evey/internal/domain/activity/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 // Every hand-written admin route audits through this helper. The row must

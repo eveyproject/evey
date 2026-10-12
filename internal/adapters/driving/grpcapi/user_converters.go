@@ -5,8 +5,8 @@ import (
 	"maps"
 	"strings"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/domain/user"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 func userToProto(u *user.User) *eveyv1.User {

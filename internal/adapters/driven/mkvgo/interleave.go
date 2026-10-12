@@ -10,7 +10,7 @@ import (
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // interleaveSamples offsets per file: ~11 MB read. Sparser sampling can land

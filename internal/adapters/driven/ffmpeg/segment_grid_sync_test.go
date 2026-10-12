@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 // TestSegmentGridConstantsInSync guards the HLS segment grid, which is defined

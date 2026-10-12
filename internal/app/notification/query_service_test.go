@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"testing"
 
-	appnotification "github.com/evey-project/evey/internal/app/notification"
-	"github.com/evey-project/evey/internal/domain/notification"
-	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	appnotification "github.com/eveyproject/evey/internal/app/notification"
+	"github.com/eveyproject/evey/internal/domain/notification"
+	notiffakes "github.com/eveyproject/evey/internal/domain/notification/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

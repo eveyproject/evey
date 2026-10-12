@@ -3,7 +3,7 @@ package httpapi
 import (
 	"context"
 	"fmt"
-	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
+	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
 	"log/slog"
 	"mime"
 	"net/http"
@@ -16,12 +16,12 @@ import (
 
 	"go.opentelemetry.io/otel/codes"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // logDownloadRefusal records a download the server turned away.

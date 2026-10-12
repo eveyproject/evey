@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
-	pluginfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	pluginfakes "github.com/eveyproject/evey/internal/domain/plugin/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

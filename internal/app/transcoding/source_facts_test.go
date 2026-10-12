@@ -3,8 +3,8 @@ package transcoding
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 	"github.com/stretchr/testify/assert"
 )
 

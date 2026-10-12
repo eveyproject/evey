@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 // A decode that hit its memory cap reproduces on the same file, like a kernel

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 func TestIsClientCanceled(t *testing.T) {

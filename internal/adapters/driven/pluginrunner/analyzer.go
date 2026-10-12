@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 type AnalysisSeverity int

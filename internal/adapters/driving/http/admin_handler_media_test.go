@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	appmetadata "github.com/evey-project/evey/internal/app/metadata"
-	"github.com/evey-project/evey/internal/domain/metadata"
-	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appmetadata "github.com/eveyproject/evey/internal/app/metadata"
+	"github.com/eveyproject/evey/internal/domain/metadata"
+	metafakes "github.com/eveyproject/evey/internal/domain/metadata/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 func newAdminMediaMux(t *testing.T) (mux *http.ServeMux, adminTok, userTok string, provider *metafakes.FakeMetadataProvider) {

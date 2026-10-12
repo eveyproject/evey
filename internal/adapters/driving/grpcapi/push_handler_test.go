@@ -5,12 +5,12 @@ import (
 	"errors"
 	"testing"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appnotification "github.com/evey-project/evey/internal/app/notification"
-	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appnotification "github.com/eveyproject/evey/internal/app/notification"
+	notiffakes "github.com/eveyproject/evey/internal/domain/notification/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

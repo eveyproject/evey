@@ -1,6 +1,6 @@
 package postgres
 
-import "github.com/evey-project/evey/internal/domain/library"
+import "github.com/eveyproject/evey/internal/domain/library"
 
 // SearchWhereForTest exposes the SQL fallback's WHERE builder to the package's
 // external test file. The builder is pure (no DB), which is the only way to

@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"strings"
 
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // hdrQuerySupported reports whether the client advertised an HDR-capable

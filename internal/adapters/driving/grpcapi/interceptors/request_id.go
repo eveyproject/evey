@@ -5,7 +5,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	eveylogger "github.com/eveyproject/evey/internal/pkg/logger"
 )
 
 // RequestIDUnary stamps the request id as the FIRST interceptor in the chain.

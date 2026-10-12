@@ -1,5 +1,5 @@
 ---
-source_sha: cd6782421b9f6afc3bb0fb42bd4f3bedff9feecbd2d8e4dfde59f3032637c55d
+source_sha: 07f8809212342fec2288b8611c0fea43a5e011cfb97b0f8f1689f01d869f62f4
 reviewed: true
 ---
 # प्लगइन लिखना
@@ -67,7 +67,7 @@ protoc --proto_path=proto \
 ## 2. Evey को लोकल चलाएँ
 
 ```sh
-git clone git@github.com:Evey-project/evey.git
+git clone git@github.com:eveyproject/evey.git
 cd evey
 cp .env.dev.example .env.dev   # फिर MEDIA_DIR, EVEY_DB_PASSWORD, MEILI_MASTER_KEY सेट करें
 make setup                      # एक बार: /etc/hosts में evey.test जोड़ता है

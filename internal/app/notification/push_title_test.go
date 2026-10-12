@@ -3,7 +3,7 @@ package notification
 import (
 	"testing"
 
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 )
 
 // The push title is the one line a viewer reads on the lock screen: translated

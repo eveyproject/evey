@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // Sentinel errors returned by NewMediaItem so call sites can branch on

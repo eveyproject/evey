@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainmeta "github.com/eveyproject/evey/internal/domain/metadata"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 // --- shared helpers ---

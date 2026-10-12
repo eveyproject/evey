@@ -16,11 +16,11 @@ import (
 
 	"golang.org/x/net/websocket"
 
-	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
-	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
-	syncplayfakes "github.com/evey-project/evey/internal/domain/syncplay/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	appsyncplay "github.com/eveyproject/evey/internal/app/syncplay"
+	domainsyncplay "github.com/eveyproject/evey/internal/domain/syncplay"
+	syncplayfakes "github.com/eveyproject/evey/internal/domain/syncplay/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 type devicesFixture struct {

@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 const (

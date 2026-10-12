@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	appqoe "github.com/evey-project/evey/internal/app/qoe"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/pkg/cmcd"
-	eveymetrics "github.com/evey-project/evey/internal/pkg/metrics"
+	appqoe "github.com/eveyproject/evey/internal/app/qoe"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/cmcd"
+	eveymetrics "github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // ingestCMCD parses CMCD (CTA-5004) from the request and forwards the event

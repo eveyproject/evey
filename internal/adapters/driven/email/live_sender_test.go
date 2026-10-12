@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	"github.com/evey-project/evey/internal/domain/shared/fakes"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	"github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 func (s *scriptedSMTP) hostPort() (string, string) {

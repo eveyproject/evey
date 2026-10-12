@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 const loginLimiterMaxEntries = 10000

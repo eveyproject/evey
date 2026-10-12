@@ -8,7 +8,7 @@ import (
 
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // AnalyzeFrameRateMode classifies path's video track as constant or variable

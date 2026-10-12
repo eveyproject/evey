@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // pHashPass glue: siblings come from the repo (episodes of the same parent,

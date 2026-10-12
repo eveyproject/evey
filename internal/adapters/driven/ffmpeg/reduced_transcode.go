@@ -44,12 +44,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 
-	domainmkv "github.com/evey-project/evey/internal/domain/mkv"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/reduceddl"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domainmkv "github.com/eveyproject/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/reduceddl"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // reducedTimeout bounds one production. Video re-encode runs near realtime on

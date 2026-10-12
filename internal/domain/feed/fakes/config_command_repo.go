@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/eveyproject/evey/internal/domain/feed"
 )
 
 type FakeConfigCommandRepo struct {

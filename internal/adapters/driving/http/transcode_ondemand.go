@@ -14,14 +14,14 @@ import (
 	"strings"
 	"sync"
 
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // transcode_ondemand.go - the on-demand HLS/DASH copy rung served straight from

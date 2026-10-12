@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -18,11 +18,11 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"golang.org/x/net/websocket"
 
-	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appsyncplay "github.com/eveyproject/evey/internal/app/syncplay"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainsyncplay "github.com/eveyproject/evey/internal/domain/syncplay"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // guestTokenValidator resolves an opaque stream token. Satisfied by

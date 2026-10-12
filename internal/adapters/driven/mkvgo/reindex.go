@@ -15,8 +15,8 @@ import (
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // durToleranceMs is the slack allowed when comparing the rebuilt file's duration

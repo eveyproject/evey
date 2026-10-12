@@ -7,9 +7,9 @@ import (
 	"runtime"
 	"sort"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // systemMetrics is the finer-grained picture the health page adds to the

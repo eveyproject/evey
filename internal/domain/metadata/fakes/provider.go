@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 var ErrNotFound = shared.ErrNotFound

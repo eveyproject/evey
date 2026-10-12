@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/bgloop"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 )
 
 // A recover only unwinds defers. bgloop.Tick (2026-08-01) caught panics in the

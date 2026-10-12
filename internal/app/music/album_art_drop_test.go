@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	musicdom "github.com/evey-project/evey/internal/domain/music"
-	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	musicdom "github.com/eveyproject/evey/internal/domain/music"
+	musicfakes "github.com/eveyproject/evey/internal/domain/music/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // An album art fetched before the source-verification era is dropped when the

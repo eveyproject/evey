@@ -1,5 +1,5 @@
 ---
-source_sha: 9799389e468bf0c2405a7ba1c26d00d34208a504484cbe7402b43359c20b1080
+source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 ---
 # 版本发布手册
 
@@ -10,7 +10,7 @@ source_sha: 9799389e468bf0c2405a7ba1c26d00d34208a504484cbe7402b43359c20b1080
 
 `.github/workflows/ci.yml` 在每次 push 和每个 `v*.*.*` 标签时构建并发布镜像，共三种插件
 运行时变体（`` (lean)、`-nodejs`、`-full`），发布到 `docker.io/eveyproject/evey` 和
-`ghcr.io/evey-project/evey`：
+`ghcr.io/eveyproject/evey`：
 
 | 您推送的内容 | 发布的镜像标签（每个标签另有 `-nodejs` / `-full` 版本） |
 |---|---|

@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 func TestToPlaybackInfoDTO_PreservesWireContract(t *testing.T) {

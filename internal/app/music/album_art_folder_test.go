@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/music"
-	"github.com/evey-project/evey/internal/domain/music/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/music/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 var folderJPEG = []byte{0xFF, 0xD8, 0xFF, 0xE0, 'f', 'o', 'l', 'd', 'e', 'r'}

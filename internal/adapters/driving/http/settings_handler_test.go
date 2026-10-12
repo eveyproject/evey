@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/config"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/config"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // fakeHWModeController records SetHWMode calls so the settings test can assert

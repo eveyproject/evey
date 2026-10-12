@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	photodomain "github.com/evey-project/evey/internal/domain/photo"
-	"github.com/evey-project/evey/internal/domain/shared"
+	photodomain "github.com/eveyproject/evey/internal/domain/photo"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // photoCursorSortValue is the payload packed into shared.Cursor.SortValue for

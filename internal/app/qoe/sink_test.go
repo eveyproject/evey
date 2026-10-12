@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/pkg/cmcd"
+	"github.com/eveyproject/evey/internal/pkg/cmcd"
 )
 
 // captureStorage records every event it receives. block can be set to make

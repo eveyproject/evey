@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/quickconnecthub"
+	"github.com/eveyproject/evey/internal/pkg/quickconnecthub"
 )
 
 // syncRecorder is a goroutine-safe ResponseWriter+Flusher for SSE tests.

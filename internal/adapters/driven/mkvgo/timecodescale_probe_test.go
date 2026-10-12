@@ -28,9 +28,9 @@ import (
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/writer"
 
-	adapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/mkv"
+	adapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // 20832 ns per unit (~1/48000 s, 48 units to the millisecond) is the value

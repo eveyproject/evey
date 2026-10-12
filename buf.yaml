@@ -9,3 +9,6 @@ lint:
 breaking:
   use:
     - FILE
+  # go_package only names the generated Go import path, nothing on the wire.
+  except:
+    - FILE_SAME_GO_PACKAGE

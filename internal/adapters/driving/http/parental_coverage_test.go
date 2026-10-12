@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 // --- shared helpers ---

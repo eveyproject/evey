@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/syncplay"
-	"github.com/evey-project/evey/internal/domain/syncplay/fakes"
+	"github.com/eveyproject/evey/internal/domain/syncplay"
+	"github.com/eveyproject/evey/internal/domain/syncplay/fakes"
 )
 
 func lastCommand(t *testing.T, s *fakes.FakeMessageSender) syncplay.SyncCommand {

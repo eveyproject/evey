@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/music"
 )
 
 type FakeMusicScanner struct {

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	"github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
+	"github.com/eveyproject/evey/internal/adapters/driven/filesystem"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	"github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
 )
 
 // stubScanner records ScanLibrary calls so the test can prove the probe does -

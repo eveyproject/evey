@@ -3,8 +3,8 @@ package transcoding
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // The HLS read path's brain lives in PlanResolver (playback_plan_resolver.go):

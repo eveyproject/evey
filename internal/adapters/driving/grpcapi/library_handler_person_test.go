@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	"github.com/evey-project/evey/internal/domain/library"
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	"github.com/eveyproject/evey/internal/domain/library"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

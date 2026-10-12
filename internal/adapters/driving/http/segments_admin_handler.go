@@ -8,7 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/codes"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // PUT /api/v1/admin/media/{id}/segments

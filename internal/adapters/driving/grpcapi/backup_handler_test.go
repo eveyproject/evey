@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appbackup "github.com/evey-project/evey/internal/app/backup"
-	backupfakes "github.com/evey-project/evey/internal/domain/backup/fakes"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	backupfakes "github.com/eveyproject/evey/internal/domain/backup/fakes"
 )
 
 func newTestBackupHandler() *backupHandler {

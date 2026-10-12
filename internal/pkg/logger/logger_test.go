@@ -12,7 +12,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/evey-project/evey/internal/pkg/logger"
+	"github.com/eveyproject/evey/internal/pkg/logger"
 )
 
 func todayLogFile(dir string) string {

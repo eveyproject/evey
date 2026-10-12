@@ -23,7 +23,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // SyncPreviewMaxSec bounds a preview. Long enough to judge lip sync on a line

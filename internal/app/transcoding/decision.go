@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/hdr"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/hdr"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"go.opentelemetry.io/otel/attribute"
 )
 

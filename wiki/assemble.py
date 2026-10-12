@@ -130,7 +130,7 @@ def source_for(path: str) -> Path | None:
 # intent (go look at the code) and keeps the source files readable on GitHub -
 # the alternative, editing twenty pages by hand, would break the GitHub view to
 # fix the site.
-BLOB = "https://github.com/Evey-project/evey/blob/master/"
+BLOB = "https://github.com/eveyproject/evey/blob/master/"
 MD_LINK = re.compile(r"\]\(([^)\s]+?)(\s+\"[^\"]*\")?\)")
 
 

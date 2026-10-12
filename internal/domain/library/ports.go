@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // ListLibrariesFilter paginates LibraryQueryRepo.List with offset semantics.

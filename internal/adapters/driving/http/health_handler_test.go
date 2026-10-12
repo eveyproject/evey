@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/config"
+	"github.com/eveyproject/evey/internal/config"
 )
 
 type fakeDBPinger struct{ err error }

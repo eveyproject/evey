@@ -3,7 +3,7 @@ package photo_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/eveyproject/evey/internal/domain/photo"
 )
 
 func TestPhotoEventNames(t *testing.T) {

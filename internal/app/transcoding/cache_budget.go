@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/bgloop"
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // CacheBudget is the one sweeper of the transcode cache. It holds the segment

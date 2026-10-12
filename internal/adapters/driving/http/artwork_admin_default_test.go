@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // Default ON is the load-bearing UX guarantee: without it 99% of fresh

@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 // RetryProvider wraps a MetadataProvider and retries Search / GetByProviderID

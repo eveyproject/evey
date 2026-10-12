@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 // The fork tests check what Command builds, not whether the host has room:

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // update.go holds the in-place upgrade surface: applying a previewed update

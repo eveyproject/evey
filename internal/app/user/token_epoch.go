@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/cache"
 )
 
 // ErrTokenRevoked is returned by EpochGuardedTokens.ValidateAccessToken when a

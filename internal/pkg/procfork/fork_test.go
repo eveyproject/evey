@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
-	"github.com/evey-project/evey/internal/pkg/cpubudget"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/cpubudget"
 )
 
 func TestHasInputThreads(t *testing.T) {

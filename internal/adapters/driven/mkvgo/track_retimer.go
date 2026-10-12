@@ -14,7 +14,7 @@ import (
 
 	extmatroska "github.com/gravity-zero/mkvgo/matroska"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // TrackRetimer implements maintenance.TrackRetimer.

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
+	metafakes "github.com/eveyproject/evey/internal/domain/metadata/fakes"
 )
 
 // Only zero-byte resized variants (<base>_w<width>.webp) are deleted; valid

@@ -6,10 +6,10 @@ import (
 	"sync"
 	"testing"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/domain/user/fakes"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/user/fakes"
 )
 
 // fakeEpochRepo is an in-memory TokenEpochRepository counting DB lookups so

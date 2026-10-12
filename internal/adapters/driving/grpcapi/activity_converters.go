@@ -3,8 +3,8 @@ package grpcapi
 import (
 	"encoding/json"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/domain/activity"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/domain/activity"
 )
 
 func loginEntryToProto(e *activity.LoginEntry) *eveyv1.LoginEntry {

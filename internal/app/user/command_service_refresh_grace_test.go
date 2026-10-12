@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 // Multi-tab refresh race: two tabs share the same HttpOnly refresh cookie and

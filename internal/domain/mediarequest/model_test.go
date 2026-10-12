@@ -3,8 +3,8 @@ package mediarequest_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/mediarequest"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/mediarequest"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 func TestNewRequest(t *testing.T) {

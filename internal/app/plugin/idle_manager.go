@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 // DefaultPluginIdleTimeout is how long a plugin may stay interaction-free

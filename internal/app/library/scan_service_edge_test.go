@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	applib "github.com/evey-project/evey/internal/app/library"
-	"github.com/evey-project/evey/internal/domain/library"
+	applib "github.com/eveyproject/evey/internal/app/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

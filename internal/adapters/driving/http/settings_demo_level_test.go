@@ -3,7 +3,7 @@ package httpapi
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/config"
+	"github.com/eveyproject/evey/internal/config"
 )
 
 // Production greys nothing, the public demo greys everything (shared account),

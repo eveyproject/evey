@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/eveyproject/evey/internal/domain/photo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

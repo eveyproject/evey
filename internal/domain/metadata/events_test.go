@@ -3,7 +3,7 @@ package metadata_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 func TestEventNames(t *testing.T) {

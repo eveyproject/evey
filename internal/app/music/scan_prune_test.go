@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	appmusic "github.com/evey-project/evey/internal/app/music"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/music"
-	"github.com/evey-project/evey/internal/domain/music/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appmusic "github.com/eveyproject/evey/internal/app/music"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/music/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // Review 2026-08-26: the scan NEVER pruned - a file deleted from disk kept its

@@ -7,8 +7,8 @@ package httpapi
 import (
 	"context"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // pictureHeight is the tallest picture these consumers draw (an 854px clip):

@@ -13,8 +13,8 @@ package transcoding
 import (
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // pictureCodec is the one codec a browser-side picture is drawn in.

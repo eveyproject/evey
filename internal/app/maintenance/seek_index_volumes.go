@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // SeekVolume aggregates the un-indexed repair candidates of one filesystem so

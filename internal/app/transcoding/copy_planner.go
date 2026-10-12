@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/cache"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/cache"
 )
 
 // CopyStreamReader loads a media item's streams, which carry the keyframe index

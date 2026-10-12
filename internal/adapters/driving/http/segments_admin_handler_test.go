@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 // --- fakes ---

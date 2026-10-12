@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"mime"
@@ -21,12 +21,12 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/safefs"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	domainplugin "github.com/eveyproject/evey/internal/domain/plugin"
+	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/safefs"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type pluginManager interface {

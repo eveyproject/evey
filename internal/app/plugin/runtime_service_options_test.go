@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	plgfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	plgfakes "github.com/eveyproject/evey/internal/domain/plugin/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/require"
 )
 

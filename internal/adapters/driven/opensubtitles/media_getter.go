@@ -3,9 +3,9 @@ package opensubtitles
 import (
 	"context"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/subtitle"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/subtitle"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type libraryQuerySvc interface {

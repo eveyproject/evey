@@ -9,9 +9,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/id"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/id"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // password_reset.go holds the email-based password recovery flow: the enable

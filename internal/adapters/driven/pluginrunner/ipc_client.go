@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	pluginv1 "github.com/evey-project/evey/gen/plugin/v1"
+	pluginv1 "github.com/eveyproject/evey/gen/plugin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/types/known/structpb"

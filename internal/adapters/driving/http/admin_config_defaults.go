@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // registerConfigDefaultsRoute serves what the language-and-region settings

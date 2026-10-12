@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/app/updatecheck"
+	"github.com/eveyproject/evey/internal/app/updatecheck"
 )
 
 // fakeRegistry answers like Docker Hub: 401 + challenge without a token, an
@@ -54,7 +54,7 @@ func fakeRegistry(t *testing.T) *httptest.Server {
 	mux.HandleFunc("/v2/someone/evey/blobs/sha256:cfg", authed(func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprint(w, `{"created":"2026-09-26T09:00:00Z","config":{"Labels":{
 			"org.opencontainers.image.revision":"e77dc0a31",
-			"org.opencontainers.image.source":"https://github.com/evey-project/evey"}}}`)
+			"org.opencontainers.image.source":"https://github.com/eveyproject/evey"}}}`)
 	}))
 	mux.HandleFunc("/v2/someone/evey/tags/list", authed(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("last") == "" {
@@ -81,7 +81,7 @@ func TestDescribe_WalksChallengeIndexManifestAndConfig(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "e77dc0a31", remote.Revision)
 	assert.Equal(t, "2026-09-26T09:00:00Z", remote.Created)
-	assert.Equal(t, "https://github.com/evey-project/evey", remote.Source)
+	assert.Equal(t, "https://github.com/eveyproject/evey", remote.Source)
 
 	_, err = c.Describe(context.Background(), image, "nope")
 	assert.ErrorIs(t, err, updatecheck.ErrNotFound)
@@ -99,7 +99,7 @@ func TestRef_DockerHubConventions(t *testing.T) {
 		{"docker.io/someone/evey", "registry-1.docker.io", "someone/evey"},
 		{"someone/evey", "registry-1.docker.io", "someone/evey"},
 		{"nginx", "registry-1.docker.io", "library/nginx"},
-		{"ghcr.io/evey-project/evey", "ghcr.io", "evey-project/evey"},
+		{"ghcr.io/eveyproject/evey", "ghcr.io", "eveyproject/evey"},
 		{"localhost:5000/evey", "localhost:5000", "evey"},
 	} {
 		h, n := ref(tc.in)

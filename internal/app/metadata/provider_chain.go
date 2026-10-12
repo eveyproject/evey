@@ -1,7 +1,7 @@
 package metadata
 
 import (
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 // ProviderChain is an ordered list of metadata providers with capability

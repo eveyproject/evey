@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // hw_gpu_repro_test.go - end-to-end reproductions on a real NVIDIA GPU, run

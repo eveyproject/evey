@@ -10,7 +10,7 @@ import (
 	extwriter "github.com/gravity-zero/mkvgo/mkv/writer"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // genAudioOnlyCuedMKV writes a real MKV whose Cues element exists and is

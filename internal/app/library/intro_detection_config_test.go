@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 func TestLoadIntroConfig_NilRepo_ReturnsDefaults(t *testing.T) {

@@ -16,11 +16,11 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/hdr"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/hdr"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // keyframeInputFormat maps a mkvgo keyframe-packet extension to the ffmpeg

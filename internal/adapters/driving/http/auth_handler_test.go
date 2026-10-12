@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 // newMockOIDCServer returns an httptest.Server that serves minimal OIDC discovery + JWKS.

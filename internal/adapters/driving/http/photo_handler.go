@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,11 +16,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appphoto "github.com/evey-project/evey/internal/app/photo"
-	domainphoto "github.com/evey-project/evey/internal/domain/photo"
-	"github.com/evey-project/evey/internal/pkg/exifstrip"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appphoto "github.com/eveyproject/evey/internal/app/photo"
+	domainphoto "github.com/eveyproject/evey/internal/domain/photo"
+	"github.com/eveyproject/evey/internal/pkg/exifstrip"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // photoAllowedWidths caps photo variant generation to a fixed set so the

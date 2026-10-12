@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
-	appbackup "github.com/evey-project/evey/internal/app/backup"
-	"github.com/evey-project/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
+	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	"github.com/eveyproject/evey/internal/domain/backup"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

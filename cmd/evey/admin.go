@@ -18,11 +18,11 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/evey-project/evey/internal/adapters/driven/meilisearch"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/adapters/driven/meilisearch"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 // runAdmin dispatches `evey admin <subcommand> [flags]` to the right

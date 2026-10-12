@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	domainmusic "github.com/evey-project/evey/internal/domain/music"
-	musicfakes "github.com/evey-project/evey/internal/domain/music/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
+	domainmusic "github.com/eveyproject/evey/internal/domain/music"
+	musicfakes "github.com/eveyproject/evey/internal/domain/music/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // downloadTrack: missing Authorization → 401.

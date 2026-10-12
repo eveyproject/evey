@@ -9,9 +9,9 @@ import (
 
 	"github.com/gravity-zero/mkvgo/mp4"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // concat.go - the mkvgo implementation of apptranscoding.ConcatPackager:

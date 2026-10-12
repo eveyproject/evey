@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/ssrf"
-	"github.com/evey-project/evey/internal/pkg/titlematch"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/ssrf"
+	"github.com/eveyproject/evey/internal/pkg/titlematch"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 const (

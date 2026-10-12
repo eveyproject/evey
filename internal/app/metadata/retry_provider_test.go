@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 type decoratorFakeProvider struct {

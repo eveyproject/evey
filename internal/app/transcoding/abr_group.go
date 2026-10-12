@@ -3,7 +3,7 @@ package transcoding
 import (
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // ABRGroup identifies a set of renditions a player may auto-switch between

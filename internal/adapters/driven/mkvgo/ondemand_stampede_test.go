@@ -16,7 +16,7 @@ import (
 	extmatroska "github.com/gravity-zero/mkvgo/matroska"
 	"github.com/gravity-zero/mkvgo/mp4"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 // stubPlan satisfies OnDemandPlan without touching mkvgo - the stampede tests

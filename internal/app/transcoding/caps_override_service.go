@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // CapOverrideService consumes the CMCD telemetry persisted in

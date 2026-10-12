@@ -10,7 +10,7 @@ import (
 	"slices"
 	"syscall"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 // runner_sandbox.go holds the sandbox selection and application: mode

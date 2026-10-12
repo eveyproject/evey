@@ -13,8 +13,8 @@ import (
 
 	extmatroska "github.com/gravity-zero/mkvgo/matroska"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // Diagnose implements the mkv.Diagnoser port. Matroska/WebM only: a

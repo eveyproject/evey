@@ -112,11 +112,11 @@ GitHub and on the site.
 make wiki-check      # assemble + guards, no site
 make wiki            # full strict build into wiki/site (Docker)
 make wiki-serve      # local preview on http://localhost:8000
-make wiki-publish    # build HEAD, commit it into ../evey-project.github.io
+make wiki-publish    # build HEAD, commit it into ../eveyproject.github.io
 ```
 
 `wiki/build/` and `wiki/site/` are generated. Both are ignored by git.
 
-The site is served by GitHub Pages from `Evey-project/evey-project.github.io`.
+The site is served by GitHub Pages from `eveyproject/eveyproject.github.io`.
 `make wiki-publish` builds HEAD in a detached worktree and commits the result
 into the local clone of that repository; pushing that clone puts it live.

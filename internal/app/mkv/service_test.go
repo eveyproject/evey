@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	appmkv "github.com/evey-project/evey/internal/app/mkv"
-	"github.com/evey-project/evey/internal/domain/mkv"
-	mkvfakes "github.com/evey-project/evey/internal/domain/mkv/fakes"
+	appmkv "github.com/eveyproject/evey/internal/app/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
+	mkvfakes "github.com/eveyproject/evey/internal/domain/mkv/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -9,8 +9,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	"github.com/evey-project/evey/internal/pkg/i18n"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 func i18nHandler(translator *i18n.Translator, devMode ...bool) http.HandlerFunc {

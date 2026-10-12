@@ -7,10 +7,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	appmediarequest "github.com/evey-project/evey/internal/app/mediarequest"
-	"github.com/evey-project/evey/internal/domain/mediarequest"
-	mrfakes "github.com/evey-project/evey/internal/domain/mediarequest/fakes"
-	"github.com/evey-project/evey/internal/domain/metadata"
+	appmediarequest "github.com/eveyproject/evey/internal/app/mediarequest"
+	"github.com/eveyproject/evey/internal/domain/mediarequest"
+	mrfakes "github.com/eveyproject/evey/internal/domain/mediarequest/fakes"
+	"github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 // The synopsis, release date and rating ride along with the request so the

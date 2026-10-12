@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domtc "github.com/evey-project/evey/internal/domain/transcoding"
-	tcfakes "github.com/evey-project/evey/internal/domain/transcoding/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domtc "github.com/eveyproject/evey/internal/domain/transcoding"
+	tcfakes "github.com/eveyproject/evey/internal/domain/transcoding/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

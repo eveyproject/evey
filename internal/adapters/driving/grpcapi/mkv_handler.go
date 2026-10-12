@@ -3,14 +3,14 @@ package grpcapi
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	appmkv "github.com/evey-project/evey/internal/app/mkv"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	appmkv "github.com/eveyproject/evey/internal/app/mkv"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

@@ -6,8 +6,8 @@ import (
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 	"github.com/gravity-zero/mkvgo/mp4"
 
-	mkvadapter "github.com/evey-project/evey/internal/adapters/driven/mkvgo"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	mkvadapter "github.com/eveyproject/evey/internal/adapters/driven/mkvgo"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // KeyframeProber is the slow ffprobe packet-scan this dispatcher wraps as its

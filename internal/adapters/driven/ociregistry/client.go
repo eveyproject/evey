@@ -17,7 +17,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/app/updatecheck"
+	"github.com/eveyproject/evey/internal/app/updatecheck"
 )
 
 const (

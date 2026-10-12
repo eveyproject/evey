@@ -1,6 +1,6 @@
 package transcoding
 
-import "github.com/evey-project/evey/internal/pkg/sysinfo"
+import "github.com/eveyproject/evey/internal/pkg/sysinfo"
 
 // cpuSigForTest is a thin wrapper that tests use to grab the host CPU
 // signature without importing sysinfo directly (keeps test imports

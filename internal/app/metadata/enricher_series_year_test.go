@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"testing"
 
-	libfakes "github.com/evey-project/evey/internal/domain/library/fakes"
-	domain "github.com/evey-project/evey/internal/domain/metadata"
-	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
+	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
+	metafakes "github.com/eveyproject/evey/internal/domain/metadata/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

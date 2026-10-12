@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	appmusic "github.com/evey-project/evey/internal/app/music"
-	"github.com/evey-project/evey/internal/domain/music"
-	"github.com/evey-project/evey/internal/domain/music/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appmusic "github.com/eveyproject/evey/internal/app/music"
+	"github.com/eveyproject/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/music/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // --- ID3v2 helpers ---

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // TranscodeCapsOverrideRepo persists CapOverride rows in the

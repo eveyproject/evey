@@ -11,7 +11,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
+	"github.com/eveyproject/evey/internal/adapters/driven/ffmpeg"
 )
 
 // adminLadderBench is the ladder engine's measuring instrument (plan P1): it

@@ -3,11 +3,11 @@ package grpcapi
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/ratings"
-	"github.com/evey-project/evey/internal/pkg/region"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/ratings"
+	"github.com/eveyproject/evey/internal/pkg/region"
 )
 
 // library_handler_parental.go holds the parental content filter resolved from

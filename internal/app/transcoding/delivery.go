@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // delivery.go - HOW a plan is served, decided once with the plan.

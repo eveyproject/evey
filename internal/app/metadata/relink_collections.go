@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	domainlib "github.com/evey-project/evey/internal/domain/library"
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domainlib "github.com/eveyproject/evey/internal/domain/library"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // relinkPageSize is how many candidates one query brings back. It only bounds

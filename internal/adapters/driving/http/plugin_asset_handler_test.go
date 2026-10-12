@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	"github.com/evey-project/evey/internal/domain/plugin"
-	pluginfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	pluginfakes "github.com/eveyproject/evey/internal/domain/plugin/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

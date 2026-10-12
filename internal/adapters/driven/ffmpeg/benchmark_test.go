@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
-	transcoding "github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/adapters/driven/ffmpeg"
+	transcoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // TestBenchmarkRunner_TestSrcFallback_ReturnsValidCap exercises the

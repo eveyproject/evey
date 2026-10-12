@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 func TestRouteBenchRoutes_FollowTheCapability(t *testing.T) {

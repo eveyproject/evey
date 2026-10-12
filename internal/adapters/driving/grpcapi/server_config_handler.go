@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	"github.com/evey-project/evey/internal/domain/shared"
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

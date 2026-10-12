@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	domain "github.com/evey-project/evey/internal/domain/metadata"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 const maxTrailersPerLanguage = 3

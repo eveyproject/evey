@@ -12,8 +12,8 @@ import (
 	"github.com/vishen/go-chromecast/application"
 	"github.com/vishen/go-chromecast/dns"
 
-	domaincast "github.com/evey-project/evey/internal/domain/chromecast"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domaincast "github.com/eveyproject/evey/internal/domain/chromecast"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 const (

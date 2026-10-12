@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 func claimsCtx(profileID string) context.Context {

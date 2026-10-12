@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 type fakeCapOverrideRepo struct {

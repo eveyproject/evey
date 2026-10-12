@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
-	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	eveylogger "github.com/eveyproject/evey/internal/pkg/logger"
 )
 
 // ctxSpyHandler records the context each log record was emitted with. The real

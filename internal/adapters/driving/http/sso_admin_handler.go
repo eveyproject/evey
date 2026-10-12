@@ -12,12 +12,12 @@ import (
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // ssoSettingsStore persists the panel's SSO keys (appconfig.Service).

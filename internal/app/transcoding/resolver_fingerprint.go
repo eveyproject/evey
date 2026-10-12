@@ -7,8 +7,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // audioChannelsFor is the channel count of the track the VIDEO segments carry:

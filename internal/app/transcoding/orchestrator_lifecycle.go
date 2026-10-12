@@ -5,11 +5,11 @@ package transcoding
 // for readability; pure move, no behaviour change).
 
 import (
-	"github.com/evey-project/evey/internal/pkg/bgloop"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	"log/slog"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // Close stops the inactivity GC, kills all live sessions, and purges their

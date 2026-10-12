@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
-	domainsubtitle "github.com/evey-project/evey/internal/domain/subtitle"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainmeta "github.com/eveyproject/evey/internal/domain/metadata"
+	domainsubtitle "github.com/eveyproject/evey/internal/domain/subtitle"
 )
 
 // buildSubtitleRoutesWithParental constructs subtitleRoutes directly (bypassing

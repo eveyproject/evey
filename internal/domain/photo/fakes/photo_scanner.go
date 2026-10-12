@@ -3,7 +3,7 @@ package fakes
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/photo"
+	"github.com/eveyproject/evey/internal/domain/photo"
 )
 
 type FakePhotoScanner struct {

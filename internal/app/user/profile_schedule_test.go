@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/user"
-	ufakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/eveyproject/evey/internal/domain/user"
+	ufakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 )
 
 type fixedClock struct{ loc *time.Location }

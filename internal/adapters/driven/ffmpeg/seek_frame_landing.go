@@ -26,7 +26,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 // seekLandingProbeBinary is the bundled ffprobe, like every other probe here.

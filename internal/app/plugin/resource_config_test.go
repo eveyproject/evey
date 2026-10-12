@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // Stored overrides win over the boot defaults only when they parse and sit in

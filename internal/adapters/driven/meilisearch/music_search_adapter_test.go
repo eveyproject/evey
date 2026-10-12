@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/domain/music"
+	"github.com/eveyproject/evey/internal/domain/music"
 )
 
 // The music document must reconstruct a playable track without a DB hydration:

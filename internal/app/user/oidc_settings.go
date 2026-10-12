@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // SSO settings persisted by Admin -> Server settings -> Single sign-on. A key

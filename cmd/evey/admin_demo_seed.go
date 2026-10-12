@@ -8,14 +8,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	appdemo "github.com/evey-project/evey/internal/app/demo"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/demo"
-	"github.com/evey-project/evey/internal/pkg/eventbus"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	appdemo "github.com/eveyproject/evey/internal/app/demo"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/demo"
+	"github.com/eveyproject/evey/internal/pkg/eventbus"
 )
 
 // demo-seed -- run the demo bootstrap by hand, without the server: the `demo`

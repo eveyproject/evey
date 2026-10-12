@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
-	plgfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	plugindomain "github.com/eveyproject/evey/internal/domain/plugin"
+	plgfakes "github.com/eveyproject/evey/internal/domain/plugin/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

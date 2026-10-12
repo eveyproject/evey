@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	appactivity "github.com/evey-project/evey/internal/app/activity"
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
-	"github.com/evey-project/evey/internal/pkg/procfork"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appactivity "github.com/eveyproject/evey/internal/app/activity"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // backgroundTaskView is one registry entry plus what its forked processes

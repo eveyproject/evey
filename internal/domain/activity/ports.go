@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // LoginHistoryCursor keysets by (started_at, id) DESC. Empty = first

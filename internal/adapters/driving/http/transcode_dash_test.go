@@ -13,10 +13,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/testutil"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // withAudioRenditions wires the separate audio renditions DASH needs (a

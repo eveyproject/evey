@@ -6,7 +6,7 @@ import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 import "evey/v1/library.proto";
 
-option go_package = "github.com/evey-project/evey/gen/evey/v1;eveyv1";
+option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
 service MetadataService {
   rpc SearchMetadata(SearchMetadataRequest) returns (SearchMetadataResponse) {

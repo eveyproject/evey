@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // ChainedProvider implements domainlibrary.IntroMetadataProvider by

@@ -1,5 +1,5 @@
 ---
-source_sha: 9799389e468bf0c2405a7ba1c26d00d34208a504484cbe7402b43359c20b1080
+source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 ---
 # रिलीज़ रनबुक
 
@@ -11,7 +11,7 @@ Evey का कोई संस्करण एक branch से उस स्�
 
 `.github/workflows/ci.yml` हर push पर और हर `v*.*.*` टैग पर इमेज बनाता और प्रकाशित
 करता है, प्लगइन रनटाइम के तीन रूपों में (`` (lean), `-nodejs`, `-full`),
-`docker.io/eveyproject/evey` और `ghcr.io/evey-project/evey` पर:
+`docker.io/eveyproject/evey` और `ghcr.io/eveyproject/evey` पर:
 
 | आप push करते हैं | प्रकाशित इमेज टैग (हर एक `-nodejs` / `-full` के साथ भी) |
 |---|---|

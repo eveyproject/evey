@@ -3,8 +3,8 @@ package grpcapi
 import (
 	"fmt"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/domain/mkv"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 func mkvChapterToProto(ch mkv.Chapter) *eveyv1.Chapter {

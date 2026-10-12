@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // hls_audio_only.go groups the audio-only HLS process: arg building,

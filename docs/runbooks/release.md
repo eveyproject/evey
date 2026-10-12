@@ -8,7 +8,7 @@ instead of inventing it.
 
 `.github/workflows/ci.yml` builds and publishes images on every push and on
 every `v*.*.*` tag, in three plugin-runtime variants (`` (lean), `-nodejs`,
-`-full`), to `docker.io/eveyproject/evey` and `ghcr.io/evey-project/evey`:
+`-full`), to `docker.io/eveyproject/evey` and `ghcr.io/eveyproject/evey`:
 
 | You push | Image tags published (each also `-nodejs` / `-full`) |
 |---|---|

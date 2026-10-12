@@ -4,9 +4,9 @@ import (
 	"errors"
 	"testing"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/library"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/library"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 )
 
 // The parental restriction lives on the profile. When that profile cannot be

@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/backup"
-	"github.com/evey-project/evey/internal/domain/mediarequest"
-	"github.com/evey-project/evey/internal/domain/notification"
-	"github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/domain/mediarequest"
+	"github.com/eveyproject/evey/internal/domain/notification"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/user"
 	"github.com/google/uuid"
 )
 

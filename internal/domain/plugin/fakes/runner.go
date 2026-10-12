@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 type FakePluginRunner struct {

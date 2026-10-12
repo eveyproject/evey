@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // PhotoTranscoder resizes/reformats photos via ffmpeg for thumbnail serving.

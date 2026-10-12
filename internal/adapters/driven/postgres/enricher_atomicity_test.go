@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
-	appmetadata "github.com/evey-project/evey/internal/app/metadata"
-	"github.com/evey-project/evey/internal/domain/library"
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
+	appmetadata "github.com/eveyproject/evey/internal/app/metadata"
+	"github.com/eveyproject/evey/internal/domain/library"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // failingMediaPersons delegates everything to the real repository but fails

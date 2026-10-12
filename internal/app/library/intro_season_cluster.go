@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"math/bits"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // Season-level intro clustering (v2).

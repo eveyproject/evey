@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // ManifestSegmentSeconds is the target HLS segment length. MUST stay in sync with

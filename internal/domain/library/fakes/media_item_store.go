@@ -3,7 +3,7 @@ package fakes
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // FakeMediaItemStore is the shared media item store for tests of services that

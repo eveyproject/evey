@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // Which tracks are worth extracting ahead of time, and in which order. Getting

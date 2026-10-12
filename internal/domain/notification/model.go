@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // ErrSubscriptionGone signals that a push provider reported the subscription is

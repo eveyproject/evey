@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/app/presence"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	shared "github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/app/presence"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	shared "github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 // The 2026-07-15 incident: a viewer watched a rainbow-garbled screen for

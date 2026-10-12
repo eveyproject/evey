@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	"github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/i18n"
 )
 
 func LocaleUnary() grpc.UnaryServerInterceptor {

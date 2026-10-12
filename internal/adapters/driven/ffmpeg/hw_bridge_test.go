@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // A bridged session must not put the GPU deinterlacer in front of hwdownload:

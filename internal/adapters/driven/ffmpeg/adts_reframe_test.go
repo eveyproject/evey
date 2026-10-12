@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // An AAC track copied out of an MPEG-TS is ADTS-framed and must be re-framed

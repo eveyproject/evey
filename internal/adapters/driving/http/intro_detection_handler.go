@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // introDetectionHandler handles POST /api/v1/admin/media/{id}/detect-segments.

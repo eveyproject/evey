@@ -2,12 +2,12 @@ package httpapi
 
 import (
 	"context"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainmeta "github.com/eveyproject/evey/internal/domain/metadata"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 // LibraryAccessChecker checks whether a user has access to a library.

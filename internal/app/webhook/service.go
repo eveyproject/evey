@@ -12,10 +12,10 @@ import (
 	"maps"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/webhook"
-	"github.com/evey-project/evey/internal/pkg/tracing"
-	"github.com/evey-project/evey/internal/pkg/urlvalidator"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/webhook"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/urlvalidator"
 	"github.com/google/uuid"
 )
 

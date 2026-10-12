@@ -3,7 +3,7 @@ package mediarequest
 import (
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // RequestCreated is published when a user submits a new media request. The

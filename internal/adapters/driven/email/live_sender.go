@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
 )
 
 // LiveSMTPSender sends with the SMTP settings in force at send time, so a

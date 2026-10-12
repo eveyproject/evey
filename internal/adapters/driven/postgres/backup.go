@@ -17,8 +17,8 @@ import (
 
 	"github.com/lib/pq"
 
-	"github.com/evey-project/evey/internal/domain/backup"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 var pgDumpHeader = []byte("-- PostgreSQL database dump")

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/cron"
+	"github.com/eveyproject/evey/internal/pkg/cron"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

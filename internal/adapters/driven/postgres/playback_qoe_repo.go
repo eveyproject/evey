@@ -9,7 +9,7 @@ import (
 
 	"go.opentelemetry.io/otel/codes"
 
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // PlaybackQoERepo writes Common Media Client Data (CTA-5004) events received

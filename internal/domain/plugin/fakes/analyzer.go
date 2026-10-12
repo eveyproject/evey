@@ -1,6 +1,6 @@
 package fakes
 
-import "github.com/evey-project/evey/internal/domain/plugin"
+import "github.com/eveyproject/evey/internal/domain/plugin"
 
 type FakePluginAnalyzer struct {
 	Report *plugin.AnalysisReport

@@ -3,7 +3,7 @@ package library
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
 )
 
 // The system-health view's library-wide progress per worker; see the

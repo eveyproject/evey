@@ -6,7 +6,7 @@ import (
 
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 func ptr[T any](v T) *T { return &v }

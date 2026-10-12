@@ -63,7 +63,7 @@ names the gRPC plugin its language needs.
 ## 2. Bring up Evey locally
 
 ```sh
-git clone git@github.com:Evey-project/evey.git
+git clone git@github.com:eveyproject/evey.git
 cd evey
 cp .env.dev.example .env.dev   # then set MEDIA_DIR, EVEY_DB_PASSWORD, MEILI_MASTER_KEY
 make setup                      # once: adds evey.test to /etc/hosts

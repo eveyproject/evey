@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // ErrProfileCapReached is returned by ProfileRepository.CreateWithinCap when the

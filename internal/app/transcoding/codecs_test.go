@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	apptranscode "github.com/evey-project/evey/internal/app/transcoding"
+	apptranscode "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 // IsImageSubtitle is the single bitmap-detection source of truth for the

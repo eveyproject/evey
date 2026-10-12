@@ -9,14 +9,14 @@ import (
 
 	"go.opentelemetry.io/otel/codes"
 
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	appmusic "github.com/evey-project/evey/internal/app/music"
-	appphoto "github.com/evey-project/evey/internal/app/photo"
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	appmusic "github.com/eveyproject/evey/internal/app/music"
+	appphoto "github.com/eveyproject/evey/internal/app/photo"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // libraryItemCounter implements LibraryItemCounter by dispatching to the right

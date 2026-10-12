@@ -28,7 +28,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 )
 
 // AudioIntegrityAudibleSlackSec is how much audible time a track may lose

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // A direct play arrives as a run of Range requests; the item is read once per

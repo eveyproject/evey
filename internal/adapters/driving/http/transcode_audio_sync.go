@@ -3,8 +3,8 @@ package httpapi
 import (
 	"net/http"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // renditionTimelineShiftSec is 0: every video Evey packages presents at its

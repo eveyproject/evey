@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/pkg/ssrf"
+	"github.com/eveyproject/evey/internal/pkg/ssrf"
 )
 
 func TestNewArtworkHTTPDownloader_DefaultClient(t *testing.T) {

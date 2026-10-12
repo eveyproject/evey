@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
-	eveylogger "github.com/evey-project/evey/internal/pkg/logger"
+	eveylogger "github.com/eveyproject/evey/internal/pkg/logger"
 )
 
 // The HTTP middleware assigns a request id and hands it back in the response

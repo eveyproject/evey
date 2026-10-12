@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	domain "github.com/evey-project/evey/internal/domain/metadata"
-	metafakes "github.com/evey-project/evey/internal/domain/metadata/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	domain "github.com/eveyproject/evey/internal/domain/metadata"
+	metafakes "github.com/eveyproject/evey/internal/domain/metadata/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

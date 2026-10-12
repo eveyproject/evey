@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // fakeProducer records the RemoveSession / Close fan-out and reports a fixed

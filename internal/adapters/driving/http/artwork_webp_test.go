@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainmeta "github.com/evey-project/evey/internal/domain/metadata"
-	shared "github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainmeta "github.com/eveyproject/evey/internal/domain/metadata"
+	shared "github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 type fakeImageConverter struct {

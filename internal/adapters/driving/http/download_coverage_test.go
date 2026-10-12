@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	shared "github.com/evey-project/evey/internal/domain/shared"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	shared "github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // --- shared helpers ---

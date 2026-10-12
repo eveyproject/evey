@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 )
 
 func extendedCall(t *testing.T, d *DemoInterceptor, method string, req any) error {

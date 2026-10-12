@@ -5,13 +5,13 @@ import (
 	"errors"
 	"time"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/shared"
-	eveyi18n "github.com/evey-project/evey/internal/pkg/i18n"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 )
 

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	"github.com/evey-project/evey/internal/domain/user"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/user"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 	"google.golang.org/grpc/codes"
 )
 

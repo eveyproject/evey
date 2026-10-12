@@ -6,7 +6,7 @@
 # have gone public. A docs change that breaks the site fails here, not after it
 # is served.
 #
-# Nothing here publishes. The site lives in Evey-project/evey-project.github.io
+# Nothing here publishes. The site lives in eveyproject/eveyproject.github.io
 # and is published by hand: `make wiki-publish` commits the build into the local
 # clone of that repository, and pushing it puts the site live.
 

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 // Hardware encoders can fail SILENTLY: exit 0, healthy FPS, and yet visually

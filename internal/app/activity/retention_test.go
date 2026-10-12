@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/activity"
-	activityfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	activityfakes "github.com/eveyproject/evey/internal/domain/activity/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // runRetention DELETES rows. Every branch in it was unmeasured until a first

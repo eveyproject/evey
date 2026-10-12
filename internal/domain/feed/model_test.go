@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/feed"
+	"github.com/eveyproject/evey/internal/domain/feed"
 )
 
 func TestType_IsValid(t *testing.T) {

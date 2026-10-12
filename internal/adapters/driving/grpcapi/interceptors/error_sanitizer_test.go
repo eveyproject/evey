@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

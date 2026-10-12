@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	domainshared "github.com/evey-project/evey/internal/domain/shared"
-	domaintranscoding "github.com/evey-project/evey/internal/domain/transcoding"
+	domainshared "github.com/eveyproject/evey/internal/domain/shared"
+	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // CapabilityConfigKey is the server_settings row that stores the JSON-

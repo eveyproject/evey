@@ -6,8 +6,8 @@ import (
 	"math/rand"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // Mechanical contracts of the Chromaprint confirmation stage: guards, the

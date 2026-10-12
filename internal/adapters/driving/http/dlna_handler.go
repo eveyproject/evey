@@ -10,8 +10,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appdlna "github.com/evey-project/evey/internal/app/dlna"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appdlna "github.com/eveyproject/evey/internal/app/dlna"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 const dlnaMaxBodySize = 4096

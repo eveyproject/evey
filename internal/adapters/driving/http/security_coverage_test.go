@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
-	shared "github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/pkg/auth"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	shared "github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // --- shared helpers ---

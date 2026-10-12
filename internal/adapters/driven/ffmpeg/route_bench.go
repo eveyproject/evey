@@ -15,9 +15,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/procfork"
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 // route_bench.go - the instrument that measures what a SESSION of each

@@ -3,8 +3,8 @@ package fakes
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 var ErrNotFound = shared.ErrNotFound

@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	ffmpegadapter "github.com/evey-project/evey/internal/adapters/driven/ffmpeg"
+	ffmpegadapter "github.com/eveyproject/evey/internal/adapters/driven/ffmpeg"
 	_ "golang.org/x/image/webp"
 )
 

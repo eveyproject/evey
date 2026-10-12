@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 // resolveRenderNode returns the host's primary DRM render node

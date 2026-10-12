@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/ssrf"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/ssrf"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type ArtworkHTTPDownloader struct {

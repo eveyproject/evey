@@ -3,7 +3,7 @@ package playback_test
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/eveyproject/evey/internal/domain/playback"
 )
 
 func TestEventNames(t *testing.T) {

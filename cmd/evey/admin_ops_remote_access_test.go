@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/config"
+	"github.com/eveyproject/evey/internal/config"
 )
 
 // `evey admin doctor` is where a self-hoster looks when "it works for me but not

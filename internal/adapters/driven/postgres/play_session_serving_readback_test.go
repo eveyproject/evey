@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
-	"github.com/evey-project/evey/internal/domain/playback"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/eveyproject/evey/internal/domain/playback"
 )
 
 // Prod, 2026-10-02: 58 non-direct sessions carried video_engine = ”. The

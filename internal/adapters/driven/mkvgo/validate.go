@@ -6,8 +6,8 @@ import (
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/ops"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // validate.go - streaming-readiness validation via mkvgo's ops.Validate. Beyond

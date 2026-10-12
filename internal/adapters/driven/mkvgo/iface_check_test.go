@@ -1,6 +1,6 @@
 package mkvgo
 
-import "github.com/evey-project/evey/internal/domain/mkv"
+import "github.com/eveyproject/evey/internal/domain/mkv"
 
 // Compile-time interface checks: Adapter must satisfy MetadataEditor and
 // SubtitleExtractor. This file adds no runtime tests - the compiler does the

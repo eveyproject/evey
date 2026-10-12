@@ -4,7 +4,7 @@ package transcoding
 // out of software_producer.go for readability; pure move, no behaviour change).
 
 import (
-	"github.com/evey-project/evey/internal/pkg/bgloop"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	"log/slog"
 	"time"
 )

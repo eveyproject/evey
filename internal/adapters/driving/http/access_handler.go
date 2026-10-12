@@ -2,19 +2,19 @@ package httpapi
 
 import (
 	"encoding/json"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"log/slog"
 	"net/http"
 	"strconv"
 
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	"github.com/evey-project/evey/internal/config"
-	"github.com/evey-project/evey/internal/pkg/network"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
-	"github.com/evey-project/evey/internal/pkg/urlvalidator"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	"github.com/eveyproject/evey/internal/config"
+	"github.com/eveyproject/evey/internal/pkg/network"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/pkg/urlvalidator"
 )
 
 const remoteAccessConfigKey = "remote_access"

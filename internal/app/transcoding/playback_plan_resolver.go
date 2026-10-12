@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	pkgcache "github.com/evey-project/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
 )
 
 // PlanResolver resolves a PlaybackRequest into an immutable PlaybackPlan. It

@@ -34,7 +34,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 )
 
 // closeSegmentFile applies the segment handle's final Close, as a var (not a

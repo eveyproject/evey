@@ -3,7 +3,7 @@ package ffmpeg
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // Every shape the resolver can emit (RuntimeRouteShapes, derived from

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // Operator flags used to be compared against the literal strings "on"/"off",

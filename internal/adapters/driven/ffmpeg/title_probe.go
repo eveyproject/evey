@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
-	"github.com/evey-project/evey/internal/pkg/procfork"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 // title_probe.go - the per-title probe (plan P3). One scene, one point on the

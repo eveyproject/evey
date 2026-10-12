@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/user"
 )
 
 // demoCredentials hands the demo bootstrap the two stores of credentials a

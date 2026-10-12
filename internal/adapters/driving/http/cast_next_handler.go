@@ -18,9 +18,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"go.opentelemetry.io/otel/attribute"
 )
 

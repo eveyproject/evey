@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/evey-project/evey/internal/pkg/cpubudget"
+	"github.com/eveyproject/evey/internal/pkg/cpubudget"
 )
 
 // On the global share a generation must leave room for the other tasks: sized

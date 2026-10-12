@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 
-	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
+	apploadtest "github.com/eveyproject/evey/internal/app/loadtest"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	applibrary "github.com/evey-project/evey/internal/app/library"
-	appuser "github.com/evey-project/evey/internal/app/user"
-	"github.com/evey-project/evey/internal/domain/library"
-	domainplugin "github.com/evey-project/evey/internal/domain/plugin"
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	applibrary "github.com/eveyproject/evey/internal/app/library"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/library"
+	domainplugin "github.com/eveyproject/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 // wire_adapters.go holds the small local adapter types that bridge one app

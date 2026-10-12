@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"testing"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	"github.com/evey-project/evey/internal/adapters/driven/pluginrunner"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driven/pluginrunner"
 )
 
 // Round-trip ÉCRITEUR → LECTEUR. Les tests existants de GetPluginLogs

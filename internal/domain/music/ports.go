@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // TrackReader is the read-only surface of the track store.

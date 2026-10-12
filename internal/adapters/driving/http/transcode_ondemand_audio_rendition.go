@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // Naming the RIGHT audio rendition of an on-demand plan.

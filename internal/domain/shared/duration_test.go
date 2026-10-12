@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 func TestNewDurationMs_Valid(t *testing.T) {

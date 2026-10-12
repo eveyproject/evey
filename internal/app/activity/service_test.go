@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	appactivity "github.com/evey-project/evey/internal/app/activity"
-	"github.com/evey-project/evey/internal/domain/activity"
-	actfakes "github.com/evey-project/evey/internal/domain/activity/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appactivity "github.com/eveyproject/evey/internal/app/activity"
+	"github.com/eveyproject/evey/internal/domain/activity"
+	actfakes "github.com/eveyproject/evey/internal/domain/activity/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

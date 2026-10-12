@@ -9,18 +9,18 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 
-	appbackup "github.com/evey-project/evey/internal/app/backup"
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	backupdomain "github.com/evey-project/evey/internal/domain/backup"
-	"github.com/evey-project/evey/internal/pkg/metrics"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	backupdomain "github.com/eveyproject/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // backupDownloadTokenTTL is how long a minted download link stays usable:

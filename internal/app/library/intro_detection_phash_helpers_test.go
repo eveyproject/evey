@@ -3,7 +3,7 @@ package library
 import (
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // Mechanical contracts of the pHash helpers: window bounds, degenerate

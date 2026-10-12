@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres"
-	appqoe "github.com/evey-project/evey/internal/app/qoe"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
+	appqoe "github.com/eveyproject/evey/internal/app/qoe"
 )
 
 // qoeReaderAdapter bridges the postgres reader (returns postgres-typed rows)

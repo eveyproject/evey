@@ -19,7 +19,7 @@ import (
 // the run takes its own heap profile when it finishes and logs the biggest
 // sites: no debug port, no tool, readable through the admin log API.
 
-const moduleMarker = "github.com/evey-project/evey/"
+const moduleMarker = "github.com/eveyproject/evey/"
 
 // HeapSite is one allocation site and the bytes it still holds.
 type HeapSite struct {

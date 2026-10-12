@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/evey-project/evey/internal/pkg/demo"
-	"github.com/evey-project/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/demo"
+	"github.com/eveyproject/evey/internal/pkg/i18n"
 )
 
 // The demo lock judges the PATTERN the mux resolves, not the raw path, so a

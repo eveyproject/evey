@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 func TestRatingIDOR_DeniedWhenNoLibraryAccess(t *testing.T) {

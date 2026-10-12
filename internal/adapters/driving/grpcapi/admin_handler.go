@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 type adminLibraryLister interface {

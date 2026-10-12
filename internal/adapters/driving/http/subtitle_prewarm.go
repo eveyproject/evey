@@ -31,8 +31,8 @@ import (
 	"sync"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
-	"github.com/evey-project/evey/internal/domain/library"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 // subtitlePrewarmDelay is the head start the picture gets. A player spends the

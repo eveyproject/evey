@@ -3,7 +3,7 @@ package pluginrunner
 import (
 	"context"
 	"fmt"
-	"github.com/evey-project/evey/internal/pkg/bgloop"
+	"github.com/eveyproject/evey/internal/pkg/bgloop"
 	"log/slog"
 	"os"
 	"path/filepath"

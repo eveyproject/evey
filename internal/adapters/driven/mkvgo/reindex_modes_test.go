@@ -10,7 +10,7 @@ import (
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	extwriter "github.com/gravity-zero/mkvgo/mkv/writer"
 
-	"github.com/evey-project/evey/internal/domain/mkv"
+	"github.com/eveyproject/evey/internal/domain/mkv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // The port states the builder's own gates (hwUsable) once: what it refuses

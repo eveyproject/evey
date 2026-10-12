@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
 // codeAlphabet is Crockford base32: no I, L, O or U, so a code read off a

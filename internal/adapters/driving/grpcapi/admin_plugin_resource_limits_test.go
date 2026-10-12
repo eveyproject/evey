@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

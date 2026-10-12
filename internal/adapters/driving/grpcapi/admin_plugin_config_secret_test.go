@@ -7,12 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	eveyv1 "github.com/evey-project/evey/gen/evey/v1"
-	appconfig "github.com/evey-project/evey/internal/app/config"
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
-	plugindomain "github.com/evey-project/evey/internal/domain/plugin"
-	pluginfakes "github.com/evey-project/evey/internal/domain/plugin/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	appconfig "github.com/eveyproject/evey/internal/app/config"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
+	plugindomain "github.com/eveyproject/evey/internal/domain/plugin"
+	pluginfakes "github.com/eveyproject/evey/internal/domain/plugin/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // The admin config route must hide secret fields exactly like the public one

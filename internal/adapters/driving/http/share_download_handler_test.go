@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	appmedia "github.com/evey-project/evey/internal/app/media"
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	"github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
+	appmedia "github.com/eveyproject/evey/internal/app/media"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 )
 
 // Compile-time check: fakeMediaItemGetter must satisfy MediaArchiveSource so

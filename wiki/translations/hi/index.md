@@ -1,5 +1,5 @@
 ---
-source_sha: a20ccaa391b89b92446e57eeaeeb717cf000938ddc861683cedff5803f6715fd
+source_sha: 2e3ff20895f1c270b8850bb90fe01d2ae9e29cd86d2af35333b1b7912ab888a7
 reviewed: true
 hide:
 - navigation
@@ -225,7 +225,7 @@ MKV और WebM फ़ाइलें जाँचता है और जो �
 
 <p class="evey-meta">
 यह डॉक्यूमेंटेशन डेवलपमेंट ब्रांच के मौजूदा कोड के अनुसार है। ·
-<a href="https://github.com/Evey-project/evey">GitHub पर सोर्स कोड</a> ·
+<a href="https://github.com/eveyproject/evey">GitHub पर सोर्स कोड</a> ·
 सुरक्षा से जुड़ी रिपोर्ट: security@eveyproject.org ·
 <a href="privacy/">प्राइवेसी पॉलिसी</a>
 </p>

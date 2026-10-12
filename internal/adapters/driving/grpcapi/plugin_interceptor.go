@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/evey-project/evey/internal/adapters/driving/pluginhost"
-	appplugin "github.com/evey-project/evey/internal/app/plugin"
+	"github.com/eveyproject/evey/internal/adapters/driving/pluginhost"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

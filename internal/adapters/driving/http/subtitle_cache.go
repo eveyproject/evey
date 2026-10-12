@@ -34,7 +34,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/evey-project/evey/internal/pkg/sysinfo"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
 // subtitleCacheMaxBytes bounds what is stored. A dialogue track is a few KB; an

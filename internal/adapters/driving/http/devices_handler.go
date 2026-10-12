@@ -3,7 +3,7 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,10 +14,10 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"golang.org/x/net/websocket"
 
-	appsyncplay "github.com/evey-project/evey/internal/app/syncplay"
-	domainsyncplay "github.com/evey-project/evey/internal/domain/syncplay"
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	appsyncplay "github.com/eveyproject/evey/internal/app/syncplay"
+	domainsyncplay "github.com/eveyproject/evey/internal/domain/syncplay"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 // Device routes power the "Play On" feature: first-party clients (TV app,

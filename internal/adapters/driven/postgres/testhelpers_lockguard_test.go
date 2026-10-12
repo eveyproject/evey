@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/adapters/driven/postgres/testhelpers"
+	"github.com/eveyproject/evey/internal/adapters/driven/postgres/testhelpers"
 	"github.com/stretchr/testify/require"
 )
 

@@ -7,10 +7,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	libevent "github.com/evey-project/evey/internal/domain/library"
-	notiffakes "github.com/evey-project/evey/internal/domain/notification/fakes"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	libevent "github.com/eveyproject/evey/internal/domain/library"
+	notiffakes "github.com/eveyproject/evey/internal/domain/notification/fakes"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 )
 
 // The eviction used to leave the entry in s.batches until the detached flush

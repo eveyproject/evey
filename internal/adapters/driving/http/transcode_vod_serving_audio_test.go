@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
-	domainplayback "github.com/evey-project/evey/internal/domain/playback"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
+	domainplayback "github.com/eveyproject/evey/internal/domain/playback"
 )
 
 // ladderWithAC3 has the SHAPE of the living-room case of 2026-09-19: a 4K HEVC

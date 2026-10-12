@@ -1,9 +1,9 @@
 package httpapi
 
 import (
-	"github.com/evey-project/evey/internal/pkg/langcode"
+	"github.com/eveyproject/evey/internal/pkg/langcode"
 
-	domainlibrary "github.com/evey-project/evey/internal/domain/library"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 )
 
 // normalizeLanguageCode folds the many spellings a probe emits (ISO 639-2/B,

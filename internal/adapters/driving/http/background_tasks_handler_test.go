@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/evey-project/evey/internal/pkg/bgtasks"
+	"github.com/eveyproject/evey/internal/pkg/bgtasks"
 )
 
 func TestBackgroundTasksRoute_Admin_ReturnsSnapshot(t *testing.T) {

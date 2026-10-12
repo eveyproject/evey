@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/evey-project/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/library"
 )
 
 type SQLSearchFallback struct {

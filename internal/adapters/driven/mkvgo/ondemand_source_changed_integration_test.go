@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	apptranscoding "github.com/evey-project/evey/internal/app/transcoding"
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 // TestOnDemandPackagerIntegration_SourceReplacedMidPlayback replaces a media's

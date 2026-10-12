@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	authpkg "github.com/evey-project/evey/internal/pkg/auth"
+	authpkg "github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 func TestMethodFromOperationID(t *testing.T) {

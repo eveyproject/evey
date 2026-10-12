@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/shared/fakes"
-	ufakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared/fakes"
+	ufakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

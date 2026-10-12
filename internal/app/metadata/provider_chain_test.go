@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	domainmetadata "github.com/evey-project/evey/internal/domain/metadata"
+	domainmetadata "github.com/eveyproject/evey/internal/domain/metadata"
 )
 
 type chainTestProvider struct {

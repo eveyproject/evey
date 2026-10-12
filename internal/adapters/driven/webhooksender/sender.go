@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/webhook"
-	"github.com/evey-project/evey/internal/pkg/ssrf"
-	"github.com/evey-project/evey/internal/pkg/tracing"
+	"github.com/eveyproject/evey/internal/domain/webhook"
+	"github.com/eveyproject/evey/internal/pkg/ssrf"
+	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 var _ webhook.Sender = (*HTTPSender)(nil)

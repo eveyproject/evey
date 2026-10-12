@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/evey-project/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // A click at 1.000 s of the source must land at 1.000 + VideoCompositionDelay

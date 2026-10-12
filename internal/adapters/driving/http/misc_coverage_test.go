@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	"github.com/eveyproject/evey/internal/domain/plugin"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 	"github.com/stretchr/testify/assert"
 )
 

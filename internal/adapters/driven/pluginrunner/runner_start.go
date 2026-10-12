@@ -14,7 +14,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/plugin"
+	"github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 // runner_start.go holds the plugin start path: entrypoint validation +

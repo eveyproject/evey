@@ -3,7 +3,7 @@ package httpapi
 import (
 	"net/http"
 
-	"github.com/evey-project/evey/internal/pkg/ratelimit"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // streamingRateLimitKey picks the rate-limit bucket for a streaming request,

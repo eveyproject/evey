@@ -9,7 +9,7 @@ import (
 
 	"google.golang.org/grpc/metadata"
 
-	apploadtest "github.com/evey-project/evey/internal/app/loadtest"
+	apploadtest "github.com/eveyproject/evey/internal/app/loadtest"
 )
 
 // tierCosts is the wire mapping of the per-audience cost table: every field

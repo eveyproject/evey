@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/evey-project/evey/internal/domain/shared"
-	"github.com/evey-project/evey/internal/domain/shared/fakes"
-	"github.com/evey-project/evey/internal/domain/user"
-	ufakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/domain/shared/fakes"
+	"github.com/eveyproject/evey/internal/domain/user"
+	ufakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 )
 
 type accessTestDeps struct {

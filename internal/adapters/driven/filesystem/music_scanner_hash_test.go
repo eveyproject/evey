@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/evey-project/evey/internal/adapters/driven/filesystem"
+	"github.com/eveyproject/evey/internal/adapters/driven/filesystem"
 )
 
 // MusicScanner.ComputeHash delegates to filehash.Compute - asserts a stable

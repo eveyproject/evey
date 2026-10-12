@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	appphoto "github.com/evey-project/evey/internal/app/photo"
-	"github.com/evey-project/evey/internal/domain/photo"
-	photofakes "github.com/evey-project/evey/internal/domain/photo/fakes"
-	"github.com/evey-project/evey/internal/domain/shared"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	domainuser "github.com/evey-project/evey/internal/domain/user"
-	"github.com/evey-project/evey/internal/pkg/auth"
+	appphoto "github.com/eveyproject/evey/internal/app/photo"
+	"github.com/eveyproject/evey/internal/domain/photo"
+	photofakes "github.com/eveyproject/evey/internal/domain/photo/fakes"
+	"github.com/eveyproject/evey/internal/domain/shared"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 )
 
 func TestCheckLibraryAccess_AdminBypass(t *testing.T) {

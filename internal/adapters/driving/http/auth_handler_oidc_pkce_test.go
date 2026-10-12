@@ -18,9 +18,9 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 
-	appuser "github.com/evey-project/evey/internal/app/user"
-	sharedfakes "github.com/evey-project/evey/internal/domain/shared/fakes"
-	userfakes "github.com/evey-project/evey/internal/domain/user/fakes"
+	appuser "github.com/eveyproject/evey/internal/app/user"
+	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
+	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
 )
 
 // pkceIdP is a fake provider that binds each code to the authorization

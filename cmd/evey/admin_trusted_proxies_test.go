@@ -3,7 +3,7 @@ package main
 import (
 	"testing"
 
-	"github.com/evey-project/evey/internal/config"
+	"github.com/eveyproject/evey/internal/config"
 )
 
 func TestDoctorJudgesTheTrustedProxies(t *testing.T) {
