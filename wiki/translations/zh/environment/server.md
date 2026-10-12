@@ -14,15 +14,15 @@ reviewed: true
 | --- | --- | --- | --- |
 | `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | 公网地址。以 `https://` 开头的地址会开启 `Secure` Cookie、HSTS，并信任 `X-Forwarded-Proto`。邮件里的链接、单点登录的跳转地址和投屏地址都由它生成。 | 设置了远程访问 → **外部 URL** 时以它为准，实时生效；以 `https://` 开头的外部 URL 也会开启 HTTPS |
 | `EVEY_SERVER_PORT` | `9090` | 内部 gRPC 端口。HTTP API 和网页界面监听这个端口加一（`9091`）。 | 无 |
-| `EVEY_GRPC_BIND` | `127.0.0.1` | gRPC 端口监听的地址。远程访问的把关不管 gRPC，所以放宽它（`0.0.0.0`）会记录一条警告，防火墙就要由您自己来设。 | 无 |
+| `EVEY_GRPC_BIND` | `127.0.0.1` | gRPC 端口监听的地址。远程访问控制不覆盖 gRPC，所以放宽它（`0.0.0.0`）会记录一条警告，此时需要您自己用防火墙限制该端口。 | 无 |
 | `EVEY_SERVER_NAME` | `Evey` | 显示在登录页面、应用的服务器列表和邮件里的名称。 | 服务器配置 → 服务器设置 → **服务器名称**，实时生效 |
 
 ## 反向代理
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_TRUSTED_PROXIES` | 仅本机回环地址 | 哪些网络转发来的客户端地址可以相信，用逗号分隔（代理在容器里时：`172.16.0.0/12`，弄清楚后再缩小范围）。它加在本机回环地址之上，不会取代它；有一项格式错误，服务器就不会启动。 | 远程访问 → **受信任的代理**会实时取代这个列表；清空该字段，这个变量重新生效 |
-| `EVEY_REAL_IP_HEADER` | `X-Forwarded-For` | 受信任的代理用来放客户端地址的请求头。 | 无 |
+| `EVEY_TRUSTED_PROXIES` | 仅本机回环地址 | 转发来的客户端地址可被信任的网络，用逗号分隔（代理在容器里时：`172.16.0.0/12`，确定代理地址后再缩小范围）。它加在本机回环地址之上，不会取代它；有一项格式错误，服务器就不会启动。 | 远程访问 → **受信任的代理**会实时取代这个列表；清空该字段，这个变量重新生效 |
+| `EVEY_REAL_IP_HEADER` | `X-Forwarded-For` | 受信任的代理存放客户端地址所用的请求头。 | 无 |
 | `EVEY_FORWARDED_PROTO` | 自动推断 | 已弃用：是否使用 HTTPS，由 `EVEY_SERVER_BASE_URL` 的协议推断。仍可用来强制指定，但会给出警告。 | 无 |
 
 哪些代理设置会影响播放：见[反向代理配置](../reverse-proxy.md)。
@@ -30,14 +30,14 @@ reviewed: true
 ## 远程访问
 
 这些变量只在第一次启动时提供初始值；之后**管理 → 远程访问**会保存自己的值，并且不用重启就能应用。
-把关是怎么判断的：见[远程访问和 HTTPS](../administration/remote-access.md)。
+远程访问控制如何判断：见[远程访问和 HTTPS](../administration/remote-access.md)。
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_REMOTE_ACCESS_ENABLED` | 未设置 | 未设置：启动时自动推断，`EVEY_SERVER_BASE_URL` 或 `EVEY_REMOTE_ACCESS_EXTERNAL_URL` 是公网地址时开启。`true` 或 `false`：您明确的选择，永远不会被改掉。 | 远程访问 → **启用远程访问**，实时生效 |
+| `EVEY_REMOTE_ACCESS_ENABLED` | 未设置 | 未设置：启动时自动推断，`EVEY_SERVER_BASE_URL` 或 `EVEY_REMOTE_ACCESS_EXTERNAL_URL` 是公网地址时开启。`true` 或 `false`：您明确的选择，不会被覆盖。 | 远程访问 → **启用远程访问**，实时生效 |
 | `EVEY_REMOTE_ACCESS_EXTERNAL_URL` | 空 | 公网地址，在它和 `EVEY_SERVER_BASE_URL` 不同时使用。以 `https://` 开头的地址会开启 HTTPS 模式，和基础地址一样。 | 远程访问 → **外部 URL**，实时生效 |
-| `EVEY_REMOTE_ACCESS_LAN_NETWORKS` | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` | 被当作家里的网络。如果某个 VPN 或 CGNAT 地址段（`100.64.0.0/10`）里的客户端应该算作本地，请把它加进来。 | 远程访问 → **LAN 网络**，实时生效 |
-| `EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS` | `0` | 家以外的客户端的码率上限，单位 kbit/s；`0` = 不限。私有地址永远不受限。 | 远程访问 → **最大远程码率**，实时生效 |
+| `EVEY_REMOTE_ACCESS_LAN_NETWORKS` | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` | 视为家庭网络的地址段。如果某个 VPN 或 CGNAT 地址段（`100.64.0.0/10`）里的客户端应该算作本地，请把它加进来。 | 远程访问 → **LAN 网络**，实时生效 |
+| `EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS` | `0` | 家庭网络以外的客户端的码率上限，单位 kbit/s；`0` = 不限。私有地址永远不受限。 | 远程访问 → **最大远程码率**，实时生效 |
 
 ## 请求限制
 
@@ -58,7 +58,7 @@ reviewed: true
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_DEMO` | `false` | 把服务器作为公开演示运行：管理方面的修改被锁定，不发邮件、不推送，也不发出 webhook。不要用于真正的安装。 | 无 |
+| `EVEY_DEMO` | `false` | 把服务器作为公开演示运行：管理方面的修改被锁定，不发邮件、不推送，也不发出 webhook。不要用于实际的安装。 | 无 |
 
 <!-- sources
 internal/config/config.go - EVEY_SERVER_BASE_URL, EVEY_SERVER_PORT, EVEY_GRPC_BIND, EVEY_SERVER_NAME, EVEY_REAL_IP_HEADER, EVEY_RATELIMIT_LOGIN_MAX, EVEY_RATELIMIT_GLOBAL_MAX, EVEY_REMOTE_ACCESS_*, EVEY_DEMO, forwardedProtoFromEnv, EffectiveBaseURL

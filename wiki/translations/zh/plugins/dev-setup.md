@@ -4,8 +4,8 @@ reviewed: true
 ---
 # 编写插件
 
-本页带开发者从克隆 Evey 开始，到让一个插件在本地服务器上跑起来，再到做出一个其他管理员也能安装的签名包。
-[第 3 节](#3-your-first-plugin-step-by-step)的教程是最顺利的那条路；其余部分是您以后会回来查的参考。
+本页带开发者从克隆 Evey 开始，到让一个插件在本地服务器上运行起来，再到做出一个其他管理员也能安装的签名包。
+[第 3 节](#3-your-first-plugin-step-by-step)的教程介绍基本流程；其余部分是供以后查阅的参考资料。
 具体的调用和字段在[插件 API 参考](api-reference.md)里。
 
 ```mermaid
@@ -24,8 +24,8 @@ flowchart LR
 ```
 
 插件是一个 ZIP 包，根目录里有一个 `plugin.yaml`，还有一个由服务器在沙箱里启动的后端进程。
-这个进程在一个 Unix 套接字上提供一个小小的 gRPC 服务，再通过另一个套接字回头调用服务器。
-插件还可以带一个界面模块，显示在页面里一个沙箱化的框架中；它和外界打交道只能经过服务器，而且只能访问它声明过的主机。
+这个进程在一个 Unix 套接字上提供一个简单的 gRPC 服务，再通过另一个套接字调用服务器。
+插件还可以带一个界面模块，显示在页面里一个沙箱化的框架中；它与外部通信只能经过服务器，而且只能访问它声明过的主机。
 
 ## 1. 准备工作
 
@@ -77,7 +77,7 @@ make dev                        # postgres、meilisearch、服务器（Air）、
     cd ~/hello-plugin
     ```
 
-2. **给它起个名字。** 编辑 `plugin.yaml`：
+2. **为它命名。** 编辑 `plugin.yaml`：
 
     ```yaml title="plugin.yaml"
     name: hello-plugin          # 唯一，kebab-case 格式
@@ -94,7 +94,7 @@ make dev                        # postgres、meilisearch、服务器（Air）、
     `language` 告诉服务器要检查哪个运行时、复制哪些存根；`entrypoint` 是它要执行的命令，
     在插件的目录里运行，并带有下一步介绍的环境变量。
 
-3. **读一读 `main.js`。** 服务器给进程传三个变量：`EVEY_PLUGIN_ID`、`EVEY_PLUGIN_SOCK`（*您的*进程必须在这个套接字上监听，提供 `PluginService`）
+3. **阅读 `main.js`。** 服务器给进程传三个变量：`EVEY_PLUGIN_ID`、`EVEY_PLUGIN_SOCK`（*您的*进程必须在这个套接字上监听，提供 `PluginService`）
    和 `EVEY_HOST_SOCK`（您连接这个套接字来调用 `HostService`）。示例从自己的目录加载 `plugin_api.proto`（服务器把它复制到了那里），
    并实现了 `PluginService` 的五个方法。改一下 `Initialize` 里的消息：
 
@@ -126,7 +126,7 @@ make dev                        # postgres、meilisearch、服务器（Air）、
    清单里新增的权限会触发一个需要管理员批准的同意步骤。
 
 到这里，您已经掌握了全部的后端约定。接下来，插件可以朝三个方向扩展：调用服务器（`HostService`，第 4 节）、
-画出界面（第 5 节）、与外界通信（第 6 节）。
+绘制界面（第 5 节）、与外界通信（第 6 节）。
 
 ## 4. 从后端调用服务器
 
@@ -141,7 +141,7 @@ make dev                        # postgres、meilisearch、服务器（Air）、
 完整的表格，包括约定里已经声明但还没有提供的方法，见
 [插件 API 参考](api-reference.md#hostservice-what-the-plugin-can-call)。
 
-## 5. 加上界面
+## 5. 添加界面
 
 界面是一个 JavaScript 模块，页面把它加载到一个沙箱化的框架里，放在服务器允许的某个插槽中。声明文件在哪里、模块放在哪里：
 
@@ -160,7 +160,7 @@ frontend:
 
 ## 6. 与外界通信
 
-无论哪种沙箱模式，插件进程都不能打开通向互联网的套接字。唯一的出路是 `HostService` 的 `Fetch` 调用：
+无论哪种沙箱模式，插件进程都不能打开通向互联网的套接字。唯一的途径是 `HostService` 的 `Fetch` 调用：
 服务器按清单检查目标，然后由它自己发出请求。
 
 ```yaml title="plugin.yaml"
@@ -215,7 +215,7 @@ external_fetch:
     ```
 
 4. **三个文件一起发布**：`hello-plugin.zip`、`hello-plugin.zip.sig` 和 `cosign.pub`。
-   把公钥的指纹放在用户能对照的地方（README、发布说明），这样他们就知道 `cosign.pub` 没有被调包。
+   把公钥的指纹放在用户能对照的地方（README、发布说明），这样他们就知道 `cosign.pub` 没有被替换。
 
 在要安装插件的服务器上，管理员设置公钥和策略，然后重启服务器：
 
@@ -227,7 +227,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 之后，在**管理 → 插件**里选择 ZIP 包，并在**签名文件（.zip.sig，可选）**里选择对应的 `.zip.sig`；
 通过 API 上传时，签名放在 `sig` 字段里。预览会显示**已签名**或签名无效，**安全仪表板**会保存这个结果。
 
-容易踩坑的地方：
+常见问题：
 
 - **对 ZIP 包的任何改动都会让签名失效**，哪怕只是把同样的文件重新打包。请给您分发的那个文件签名，每个版本都重新签一次。
 - **只接受 ECDSA P-256 密钥**，`cosign generate-key-pair` 生成的正是这种。无密钥签名和 KMS 引用不会被验证。
@@ -241,13 +241,13 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 每一步都可能拒绝这个包；管理员会看到原因，服务器日志里有详细信息。
 
 1. **清单。** 直接从 ZIP 包里读取 `plugin.yaml`：必填字段、semver 版本号、已知的权限和能力、插槽在允许列表里、
-   `external_fetch` 的条目是单纯的主机名、声明了 `frontend` 时有 `web_root`。声明的 `language` 必须是镜像里有的运行时。
+   `external_fetch` 的条目是纯主机名、声明了 `frontend` 时有 `web_root`。声明的 `language` 必须是镜像里有的运行时。
 2. **版本和权限升级。** 对于已经安装的插件，新版本必须更高；任何新增的权限、能力、插槽或主机，都会让安装停在这一步，
    直到管理员批准这些差异（上传路由上的 `accept_permission_changes=true`）。
 3. **签名和哈希。** 配置了公钥时会验证签名；只有在 `enforce` 下，验证失败才会阻止安装。ZIP 包的哈希会被记录下来，
    之前预览过的更新在应用时会再核对一次。
 4. **解压**到一个临时目录：最多 5,000 个条目，单个文件最大 100 MB，总共最多 500 MB，压缩比不超过 100:1，
-   不允许符号链接，不允许跑出压缩包范围的路径。在后面每一步都通过之前，更新绝不会动正在运行的版本。
+   不允许符号链接，不允许超出压缩包范围的路径。在后面每一步都通过之前，更新绝不会改动正在运行的版本。
 5. **仅限主题：** 样式表会被清理并写回；`theme.js` 如果匹配到被禁止的模式，整个包会被拒绝。
 6. 对每个文本文件做**静态分析**：严重级别的发现会拒绝这个包；`deserialization` 和 `obfuscation` 警告同样会拒绝；
    `native_code`、编译好的二进制文件和内嵌的压缩包也会拒绝，除非清单声明了 `native-binary`。
@@ -258,7 +258,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 ## 9. 您的进程在什么条件下运行
 
 服务器以较低的 CPU 优先级启动进程，并设置内存上限、进程和线程数量上限，以及目录大小上限；
-超出这些限制的插件会被监控程序停掉。默认值是 256 MiB、64 个进程和 100 MiB，管理员可以在**管理 → 插件 → 资源限制**里调整。
+超出这些限制的插件会被监控程序停止。默认值是 256 MiB、64 个进程和 100 MiB，管理员可以在**管理 → 插件 → 资源限制**里调整。
 没有 `subprocess` 权限时，无论用什么语言，进程都不能创建子进程；线程可以正常使用。
 
 沙箱把文件系统限制在插件自己的目录里，并无条件切断所有网络套接字。生效的是哪种模式，取决于宿主机器，而不是插件：
@@ -269,7 +269,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 没有插件目录商店：管理员在管理面板里上传插件的 ZIP 包，或者粘贴它的网址，来源是您发布它的任何地方（代码托管平台上的一个 release，您自己的网站）。
 
 - 把 ZIP 包、它的 `.sig` 和您的 `cosign.pub` 放在一起发布（第 7 节）。
-- 在 README 里写明权限和 `external_fetch` 主机：管理员安装时会看到它们，并且必须批准；这里出现意外，是安装被拒绝的头号原因。
+- 在 README 里写明权限和 `external_fetch` 主机：管理员安装时会看到它们，并且必须批准；这里出现未预期的内容，是安装被拒绝的首要原因。
 - 如果想让您的插件和自带的示例列在一起，请向 `examples/plugins/` 提交一个 pull request，附上源代码和 README。
   示例会经过审查，并从源代码构建；被列入并不代表项目背书，也不带项目的签名。
 
@@ -282,10 +282,10 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 | `manifest: frontend slot "admin.section" not allowed` | 这个插槽不在允许列表里。 | 从[插槽列表](api-reference.md#slots)里选一个；`admin.nav` 是管理区域里唯一的插槽。 |
 | `manifest: network permission requires non-empty external_fetch` | 声明了 `network` 却没有主机。 | 加上主机，或者去掉这个权限。 |
 | `plugin already installed at version 1.0.0, new version must be higher` | ZIP 包的版本和已安装的相同。 | 调高 `version`，或者先卸载。 |
-| `signature does not match the plugin or the configured key` | `.sig` 是用另一把密钥做的，或者 ZIP 包在签名之后被改过。 | 用正确的密钥给这个 ZIP 包重新签名，或者修正 `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`。 |
+| `signature does not match the plugin or the configured key` | `.sig` 是用另一个密钥生成的，或者 ZIP 包在签名之后被改过。 | 用正确的密钥给这个 ZIP 包重新签名，或者修正 `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`。 |
 | `plugin blocked: theme.js contains forbidden pattern` | 主题脚本扫描器匹配到了被禁止的 API。 | 主题只能调用 `evey.theme.*`：见[主题](../themes.md#what-the-scanner-refuses)。 |
-| 日志最后一行是 `memory quota exceeded (... MB > ... MB)` | 插件超出内存上限，被监控程序停掉了。 | 降低内存用量，或者在**资源限制**里调高**最大内存（MiB）**。 |
-| `bwrap: ... permission denied` | 在 Docker 里使用 `bubblewrap` 模式，被容器的 seccomp 或 AppArmor 配置拦住了。 | 保持默认的 `auto` 模式。否则请看[插件沙箱设置](sandbox-deployment.md)。 |
+| 日志最后一行是 `memory quota exceeded (... MB > ... MB)` | 插件超出内存上限，被监控程序停止。 | 降低内存用量，或者在**资源限制**里调高**最大内存（MiB）**。 |
+| `bwrap: ... permission denied` | 在 Docker 里使用 `bubblewrap` 模式，被容器的 seccomp 或 AppArmor 配置阻止。 | 保持默认的 `auto` 模式。否则请看[插件沙箱设置](sandbox-deployment.md)。 |
 | 界面模块没有出现 | 插件被禁用了、插槽名称拼错了，或者 `src` 不在 `web_root` 之下。 | 检查卡片的状态、插槽名称，以及浏览器网络面板里 `/api/v1/plugins/<id>/assets/...` 的请求。 |
 
 <!-- sources

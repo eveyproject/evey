@@ -53,7 +53,7 @@ config_schema:               # 插件卡片上“配置”面板里的字段
 | `language` | `kind: plugin` 必填：`python`、`nodejs`、`php`、`ruby`、`lua`、`bash`、`sh` 或 `go`。它决定检查哪个运行时、把哪些存根复制到入口旁边；它本身不启动任何东西。 |
 | `entrypoint` | `kind: plugin` 必填。第一个词是解释器（声明了 `native-binary` 时是二进制文件），其余是它的参数；进程在插件的目录里运行。 |
 | `permissions` | 每个值都必须在[权限目录](security-model.md#permissions-catalog)里。`network` 要求 `external_fetch` 不为空。 |
-| `external_fetch` | 单纯的主机名。带协议前缀可以，但前缀会被丢掉；通配符或 IP 地址会导致安装被拒绝（[规则](security-model.md#external-fetch-rules)）。 |
+| `external_fetch` | 纯主机名。带协议前缀可以，但前缀会被丢弃；通配符或 IP 地址会导致安装被拒绝（[规则](security-model.md#external-fetch-rules)）。 |
 | `capabilities` | `metadata.provider`、`media.read`、`media.write`、`webhook.receiver` 或 `notification.sender`；其他值都会被拒绝。主题不能声明任何能力。 |
 | `web_root` | `frontend` 不为空时必填；必须是相对路径，不能含 `..`，不能含反斜杠。写 `.` 会把整个插件目录都提供出去，只会记录一条警告。 |
 | `frontend[]` | `slot` 必须在[插槽列表](#slots)里；`src` 必须位于 `web_root` 之下。 |
@@ -84,9 +84,9 @@ EVEY_HOST_SOCK=<path>     # 您的进程连接这里，调用 HostService
 | 方法 | 何时调用 |
 |---|---|
 | `Initialize(plugin_id, config, host_version)` | 进程绑定好自己的套接字之后，调用一次。`config` 带着管理员设置的 `config_schema` 的值。回答 `success: false` 并附上 `error`，就表示拒绝启动。 |
-| `HealthCheck()` | 定期调用，用来区分活着的进程和卡住的进程。只要还能提供服务，就回答 `healthy: true`。 |
+| `HealthCheck()` | 定期调用，用来区分正常运行的进程和无响应的进程。只要还能提供服务，就回答 `healthy: true`。 |
 | `Shutdown(reason)` | 插件被禁用、更新、卸载，或服务器停止时。回答之后请尽快退出。 |
-| `OnEvent(event_type, payload, source)` | 约定里有定义，但服务器目前不向插件投递任何事件：实现它并回答 `handled: true` 即可，不要指望会被调用。 |
+| `OnEvent(event_type, payload, source)` | 约定里有定义，但服务器目前不向插件投递任何事件：实现它并回答 `handled: true` 即可，目前它不会被调用。 |
 | `GetCapabilities()` | 约定里有定义；服务器目前不调用它。 |
 
 ### HostService：插件能调用什么
@@ -101,7 +101,7 @@ EVEY_HOST_SOCK=<path>     # 您的进程连接这里，调用 HostService
 | `GetData`、`SetData`、`DeleteData`、`ListDataKeys` | 无 | 下面介绍的[数据存储](#data-store)。 |
 | `EmitEvent(event_type, payload)` | 无 | 以 `plugin.event.<event_type>` 的名字发布到服务器的事件总线上，Webhook 可以订阅它。 |
 | `GetMediaItem(id)`、`ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` 或 `media.read` | 完整的媒体记录，包括 `file_path`、`provider_ids` 和 `genres`。 |
-| `Fetch(url, method, headers)` | `network` | 走出沙箱的唯一途径：`http` 或 `https`，`GET` 或 `HEAD`，目标是 `external_fetch` 里的主机；私有地址在解析后和重定向时都会被拒绝。响应体最大 8 MiB（`truncated` 会注明是否被截断），整个请求最长 20 秒。服务器不会附加自己的任何凭据。 |
+| `Fetch(url, method, headers)` | `network` | 访问沙箱外部的唯一途径：`http` 或 `https`，`GET` 或 `HEAD`，目标是 `external_fetch` 里的主机；私有地址在解析后和重定向时都会被拒绝。响应体最大 8 MiB（`truncated` 会注明是否被截断），整个请求最长 20 秒。服务器不会附加自己的任何凭据。 |
 | `SearchMedia`、`GetMediaStreams`、`GetChapters`、`GetSubtitles` | `api.library` 或 `media.read` | *未提供。* |
 | `UpdateMetadata` | `api.metadata` 或 `media.write` | *未提供。* |
 | `GetUserPreferences` | `api.user` | *未提供。* |
@@ -124,8 +124,8 @@ EVEY_HOST_SOCK=<path>     # 您的进程连接这里，调用 HostService
 
 ## 前端 API
 
-界面模块运行在一个来源不透明的框架里，策略是 `default-src 'none'`：碰不到宿主页面、宿主的 cookie 和存储，
-不能用表单，不能弹出窗口，`connect-src` 也只限于 `external_fetch` 里的主机，且只能走 `https`。
+界面模块运行在一个来源不透明的框架里，策略是 `default-src 'none'`：无法访问宿主页面、宿主的 cookie 和存储，
+不能用表单，不能弹出窗口，`connect-src` 也只限于 `external_fetch` 里的主机，且只能使用 `https`。
 其他一切都通过 `window.evey` 进行，它在模块运行之前注入。同一个模块无需修改，就能在网页应用以及移动和电视应用里运行。
 
 ### `evey.onInit(callback)`
@@ -146,7 +146,7 @@ evey.onInit(function (data) {
 ### `evey.navigate(path)`
 
 让宿主应用跳转到 `path`。只有 `/home`、`/library`、`/media`、`/player`、`/settings` 和 `/search` 开头的路径会被执行；
-其他路径（管理区域、登录页、绝对 URL）都会被悄悄丢弃。
+其他路径（管理区域、登录页、绝对 URL）都会被直接丢弃，不给任何提示。
 
 ### `evey.toast(level, message)`
 
@@ -157,7 +157,7 @@ evey.onInit(function (data) {
 
 请求把插槽的高度设为 `height` 像素，限制在 50 到 800 之间。`0` 会把插槽收起来：没有内容可显示的小组件不占任何空间。
 `home.section` 小组件什么都不用做，打开时就是 `data.suggestedHeight` 的高度：宿主知道把您放在了哪个界面上，
-会推荐首页小组件在那里应有的高度，这样每个小组件的大小都一致。只有在您确实更清楚该多高时，才需要调整。
+会推荐首页小组件在那里应有的高度，这样每个小组件的大小都一致。只有在您确实需要不同的高度时，才需要调整。
 
 ### `evey.prefs.*`（权限 `prefs`）
 
@@ -194,7 +194,7 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 
 - **不要按自己的视口来定尺寸。** 在 WebView 里，`window.innerHeight` 就是宿主刚刚分给您的插槽高度。
   请按 `data.viewportHeight` 或 `data.suggestedHeight` 来定尺寸。
-- **没有焦点，也没有指针。** 小组件永远拿不到方向键的焦点，也没有悬停效果；任何需要交互的东西都应放在网页和移动端。
+- **没有焦点，也没有指针。** 小组件永远不会获得方向键的焦点，也没有悬停效果；任何需要交互的东西都应放在网页和移动端。
 - **文字不要贴着边缘。** 电视会过扫描：每一边都留出大约 5% 的宽度和高度。
 - **在真实的电视盒上测试 WebGL。** 着色器运行在电视盒自己的 GPU 和驱动上，而不是您电脑上的；噪声坐标要保持在有限范围内。
   `tests/plugins/weather-v2` 是以上所有要点的参考小组件。
@@ -231,7 +231,7 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 （[ADR-0012](../adr/0012-plugin-token-deny-by-default.md)）。
 
 !!! note "插件永远不能申请的权限"
-    `admin.*`、`auth.*`、`system.*`、`user.write` 和 `library.write` 被彻底锁死：
+    `admin.*`、`auth.*`、`system.*`、`user.write` 和 `library.write` 被完全禁止：
     写了它们的清单会被拒绝，令牌永远不可能带有它们，而且无论令牌带有什么权限范围，管理方法都会拒绝插件令牌。
 
 ## 示例

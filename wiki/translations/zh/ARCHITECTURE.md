@@ -4,12 +4,12 @@ reviewed: true
 ---
 # 架构
 
-服务器是怎样搭起来的：`internal/` 下的六边形分层、各个限界上下文、连接它们的事件，以及让代码不偏离这些轨道的静态守卫。
+服务器的组织结构：`internal/` 下的六边形分层、各个限界上下文、连接它们的事件，以及确保代码遵守这些规则的静态检查。
 代码位于 `internal/domain`、`internal/app`、`internal/adapters/{driving,driven}`，在 `cmd/evey/wire*.go` 里组装起来；
 分层方式由 [ADR-0001](adr/0001-hexagonal-architecture.md) 决定，仓储的拆分由 [ADR-0009](adr/0009-cqrs-repo-split.md) 决定，
-事件总线由 [ADR-0010](adr/0010-event-bus.md) 决定。构建和运行请读 [DEV.md](../DEV.md)；某项改动该碰哪些文件，请读[代码地图](CODEBASE_MAP.md)。
+事件总线由 [ADR-0010](adr/0010-event-bus.md) 决定。构建和运行请读 [DEV.md](../DEV.md)；某项改动需要修改哪些文件，请读[代码地图](CODEBASE_MAP.md)。
 
-后端用 Go 编写；网页、移动和电视客户端是 `frontend/` 下的一个 TypeScript/React 单体仓库（移动和电视端用 React Native / Expo）。
+后端用 Go 编写；网页、移动和电视客户端是 `frontend/` 下的一个 TypeScript/React 统一代码仓库（monorepo）（移动和电视端用 React Native / Expo）。
 
 ## 分层
 
@@ -81,19 +81,19 @@ flowchart LR
 
 | 发出方 | 事件 | 由谁消费 |
 | --- | --- | --- |
-| `library` | `LibraryCreated` / `LibraryDeleted`、`LibraryScanStarted` / `LibraryScanCompleted`、`MediaItemAdded`、`MediaItemRemoved`、`TrickplayGenerated` | `media.item.added`：`notification`、`metadata`（自动补全）、`library` 自己（trickplay 工作器 + 片头检测）、`feed`（让类型缓存失效） |
-| `playback` | `PlaybackStarted` / `PlaybackStopped` | 目前没有专门的订阅者；只有 `webhook` 的 `"*"` 全收订阅会收到 |
+| `library` | `LibraryCreated` / `LibraryDeleted`、`LibraryScanStarted` / `LibraryScanCompleted`、`MediaItemAdded`、`MediaItemRemoved`、`TrickplayGenerated` | `media.item.added`：`notification`、`metadata`（自动补全）、`library` 自己（trickplay 工作器 + 片头检测）、`feed`（使流派缓存失效） |
+| `playback` | `PlaybackStarted` / `PlaybackStopped` | 目前没有专门的订阅者；只有 `webhook` 的 `"*"` 通配订阅会收到 |
 | `user` | `UserCreated`、`user.password.reset_requested` | 前者没有订阅者；后者由 `email` 被驱动适配器消费 |
 | `pluginrunner` | `plugin.error` / `plugin.started` | `app/plugin` 用于它的安全仪表板，`notification` 用于通知管理员 |
 | `shared` | `ServerConfigChanged` | 那些无需重启就能应用管理面板中已保存设置的服务（SMTP、时区、CPU 预算……） |
 
 - 搜索索引**不是**由事件驱动的：`library.ScanService` 直接调用 `library.SearchIndex` 端口。
-- 没有把领域事件送进插件的桥梁：插件通过限定权限范围的 JWT 访问 API（[ADR-0003](adr/0003-plugin-scoped-tokens.md)）。
+- 没有把领域事件传给插件的机制：插件通过限定权限范围的 JWT 访问 API（[ADR-0003](adr/0003-plugin-scoped-tokens.md)）。
   总线本身见 [ADR-0010](adr/0010-event-bus.md)。
 - `shared.TransactionalUnit` 包裹涉及多个聚合的写入（[ADR-0002](adr/0002-transactional-unit-port.md)）。
 
 `internal/domain` 下的任何包都不会导入其他上下文的领域包，这条规则由 `internal/contractguard/domain_imports_test.go` 强制执行
-（见[架构守卫](#architecture-guards)）。应用层不受这条规则约束：目前有 15 个应用包导入了相邻上下文的领域包。
+（见[架构检查](#architecture-guards)）。应用层不受这条规则约束：目前有 15 个应用包导入了相邻上下文的领域包。
 
 ## 典型的数据流：“用户播放一个媒体”
 
@@ -102,25 +102,25 @@ flowchart LR
 3. `internal/adapters/driving/grpcapi`（`playback_handler.go`）校验 proto，调用 `app/playback.CommandService.StartStream`（命令和查询分离，见 [ADR-0009](adr/0009-cqrs-repo-split.md)）。
 4. `app/playback.CommandService` 调用领域端口：`user.UserRepository`、`playback.SessionQueryRepo`（幂等 + 设备数量上限）、`playback.SessionCommandRepo`，然后 `shared.EventBus.Publish(PlaybackStarted)`。
 5. 被驱动适配器执行：`postgres` 在一个 `shared.TransactionalUnit.Do` 范围内保存会话；进程内的总线（`internal/pkg/eventbus`）异步分发事件。
-6. `PlaybackStarted` 目前没有专门的订阅者：只有 `webhook` 的 `"*"` 全收订阅会收到它。
+6. `PlaybackStarted` 目前没有专门的订阅者：只有 `webhook` 的 `"*"` 通配订阅会收到它。
 7. 响应以 JSON 形式经 grpc-gateway 返回；进度更新通过 SSE / gRPC 流传输。
 
-播放器请求清单文件和分段之后发生的事情，是[提供视频：HLS 播放路径](playback-serving.md)的主题。
+播放器请求清单文件和分段之后发生的事情，是[播放链路](playback-serving.md)的主题。
 
-## 架构守卫
+## 架构检查
 
 上面这些规则不只是写在文档里。`internal/contractguard/` 里有分布在 30 个文件中的 58 个静态测试，代码一旦偏离这些规则，构建就会失败。
 
 六边形规则本身是 `domain_imports_test.go` 里的 `TestDomainContextsDoNotImportEachOther`（ADR-0001）。它遍历 `internal/domain`，
-严格执行这一点：一个上下文可以导入 `internal/domain/shared` 和它自己的包树，`internal/domain` 里的其他东西一概不行，
+严格执行这一点：一个上下文可以导入 `internal/domain/shared` 和它自己的包树，`internal/domain` 里的其他内容一律不能导入，
 也永远不能导入 `internal/app` 或 `internal/adapters`。它的范围止于 `internal/domain`：对应用层不做任何约束。
 
-其余的守卫保护跨越语言或进程边界的约定，其中包括：
+其余的检查保护跨越语言或进程边界的约定，其中包括：
 
-| 守卫 | 它拒绝什么 |
+| 检查 | 它拒绝什么 |
 | --- | --- |
 | `TestNoClientReadOfAFieldTheServerNeverWrites` | 客户端读取、但服务器代码从不写入的 proto 响应字段 |
-| `TestRegisteredHandlersGetEveryPortTheyDeclare`、`TestBootInstallsItsSilentWirings` | 否则会悄无声息地失败的组装 |
+| `TestRegisteredHandlersGetEveryPortTheyDeclare`、`TestBootInstallsItsSilentWirings` | 否则会在没有任何提示的情况下失败的组装 |
 | `TestPostgresRepositoriesBoundTheirQueries` | 没有超时的 Postgres 仓储查询 |
 | `TestProcfork_EveryForkGoesThroughCommand` | 绕过 `internal/pkg/procfork` 创建的子进程 |
 | `TestEverySortFieldTheAPIAcceptsHasASQLColumn`、`...CanBuildACursorValue` | 在 SQL 列映射或游标编码器里缺失的排序字段 |
@@ -316,8 +316,8 @@ flowchart LR
 - gRPC 服务器（`grpc.Server.Serve`）和 HTTP 服务器（网关 + 静态文件）各自在自己的 goroutine 里运行，由 `cmd/evey` 的主组装流程启动。
 - `app/library` 的扫描任务在一个工作池里运行（每个正在扫描的媒体库一个 goroutine，见 `library.ScanService`）。
 - ffmpeg 任务由 `ffmpeg` 被驱动适配器（`ffmpeg.Transcoder.Start`）通过 `internal/pkg/procfork` 创建子进程，每个任务有一个负责监督的 goroutine 读取进程的 stderr。
-- `shared.EventBus` 异步分发给各个订阅者：每个订阅者在自己的 goroutine 里运行，所以慢的消费者永远不会阻塞发布者。总线自己不开启事务；那是处理器的事。
-- `pluginrunner` 为每个插件创建一个子进程；iframe 插件运行在用户的浏览器里，凭借 `app/plugin` 签发的签名令牌回头通信。
+- `shared.EventBus` 异步分发给各个订阅者：每个订阅者在自己的 goroutine 里运行，所以慢的消费者永远不会阻塞发布者。总线自己不开启事务；事务由处理器负责。
+- `pluginrunner` 为每个插件创建一个子进程；iframe 插件运行在用户的浏览器里，凭借 `app/plugin` 签发的签名令牌与服务器通信。
 
 ### 第 3 层（附加）：放大扫描流程
 
@@ -355,7 +355,7 @@ flowchart LR
         meta[app/metadata<br/>TMDB/OMDb 补全]
         trick[app/library<br/>trickplay 工作器]
         intro[app/library<br/>片头检测]
-        feed[app/feed<br/>类型缓存失效]
+        feed[app/feed<br/>流派缓存失效]
         notif[app/notification<br/>新媒体提醒]
         wh[app/webhook<br/>全收订阅，出站 POST]
     end
@@ -384,8 +384,8 @@ flowchart LR
 ## 延伸阅读
 
 - [DEV.md](../DEV.md) - 构建、运行、数据库迁移、proto 生成
-- [代码地图](CODEBASE_MAP.md) - 常见改动该碰哪些文件
-- [提供视频：HLS 播放路径](playback-serving.md) - HLS 视频提供的读取路径，深入讲解
+- [代码地图](CODEBASE_MAP.md) - 常见改动需要修改哪些文件
+- [播放链路](playback-serving.md) - HLS 视频提供的读取路径，深入讲解
 - [服务器 API](api/) - 生成的 API 参考
 - [决策记录](adr/) - 架构决策记录
 

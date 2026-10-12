@@ -4,7 +4,7 @@ reviewed: true
 ---
 # 事故手册
 
-本页写给值班的运维人员，说明 Evey 常见故障的第一步处理。找到和症状相符的小节，按其中的方法检查，再根据检查结果采取对应的修复办法。每个小节的结构都一样：**症状**、**诊断**、**修复**。
+本页写给值班的运维人员，说明 Evey 常见故障的初步处理。找到和症状相符的小节，按其中的方法检查，再根据检查结果采取对应的修复办法。每个小节的结构都一样：**症状**、**诊断**、**修复**。
 
 ## 开始之前
 
@@ -23,7 +23,7 @@ docker exec -it evey-server sh -c \
 
 ## 服务器没有应答
 
-**症状**：客户端连不上；`curl http://localhost:9091/healthz` 超时或被拒绝。
+**症状**：客户端无法连接；`curl http://localhost:9091/healthz` 超时或被拒绝。
 
 **诊断**：
 
@@ -38,9 +38,9 @@ curl -v http://localhost:9091/healthz
 **修复**：
 
 - 容器已经退出：panic 信息在 `docker logs evey-server` 的末尾。解决原因后，运行 `docker compose up -d evey`。
-- 健康检查变红，是因为数据库或搜索引擎停了：见[数据库错误](#database-errors)和[搜索功能降级](#search-is-degraded)。
-- 主机上端口冲突：修改 compose 里 `ports:` 那一行的主机端口，或者把这个端口腾出来。
-- 前面的 Caddy 不转发请求（代码仓库的部署方式）：查看 `docker logs evey-caddy`，检查 `EVEY_DOMAIN`，并确认 `evey` 的健康检查是绿色的，因为 Caddy 会等它。
+- 健康检查变红，是因为数据库或搜索引擎停止运行：见[数据库错误](#database-errors)和[搜索功能降级](#search-is-degraded)。
+- 主机上端口冲突：修改 compose 里 `ports:` 那一行的主机端口，或者释放这个端口。
+- 前面的 Caddy 不转发请求（代码仓库的部署方式）：查看 `docker logs evey-caddy`，检查 `EVEY_DOMAIN`，并确认 `evey` 的健康检查是绿色的，因为 Caddy 会等待它就绪。
 
 ## 每次登录都返回 401
 
@@ -53,7 +53,7 @@ docker logs --since 10m evey-server | grep -iE 'epoch|jwt|auth|signing|private k
 docker exec evey-server ls -l /data/jwt.key
 ```
 
-先找关于 epoch 的那一行。每个经过身份验证的请求，都会到数据库里重新检查用户的令牌 epoch，而这项检查在出问题时一律拒绝：只要数据库很慢、被锁住或者连不上，每个请求都会返回和令牌过期时一模一样的 401，看起来像是 JWT 的问题，其实不是。服务器会明确说出来：
+先找关于 epoch 的那一行。每个经过身份验证的请求，都会到数据库里重新检查用户的令牌 epoch，而这项检查在出问题时一律拒绝：只要数据库很慢、被锁住或者无法连接，每个请求都会返回和令牌过期时完全相同的 401，看起来像是 JWT 的问题，其实不是。服务器会在日志中明确说明：
 
 ```
 auth rejected: the token epoch could not be read, so every authenticated request is failing - check the database, not the JWT key
@@ -63,7 +63,7 @@ auth rejected: the token epoch could not be read, so every authenticated request
 
 **修复**：
 
-- **JWT 密钥丢失或改变，很少是原因。** 密钥文件（`EVEY_JWT_PRIVATE_KEY_PATH`，`/data/jwt.key`）读不出来时，服务器根本无法启动；文件不存在时，会重新生成一个。这时旧密钥签发的访问令牌会被拒绝，但应用会用刷新令牌来续签，而刷新令牌是在数据库里检查的，和密钥无关：用户仍然保持登录。请确认 `./evey-data` 卷挂载在 `/data`；没有它，数据库也不在。
+- **JWT 密钥丢失或改变，很少是原因。** 密钥文件（`EVEY_JWT_PRIVATE_KEY_PATH`，`/data/jwt.key`）无法读取时，服务器根本无法启动；文件不存在时，会重新生成一个。这时旧密钥签发的访问令牌会被拒绝，但应用会用刷新令牌来续签，而刷新令牌是在数据库里检查的，和密钥无关：用户仍然保持登录。请确认 `./evey-data` 卷挂载在 `/data`；没有它，数据库也不存在。
 - **每个请求都触发了限流**：`EVEY_RATELIMIT_LOGIN_MAX`（每个 IP 每分钟 `10` 次）和 `EVEY_RATELIMIT_GLOBAL_MAX`（`300`）。如果反向代理把所有请求都以同一个地址转发过来，很快就会触发限流：在**管理 → 远程访问**里把这个代理加到**受信任的代理**中（无需重启就会生效；`EVEY_TRUSTED_PROXIES` 是后备方式）。代码仓库里的 `docker-compose.override.yml` 在开发时把两者分别提高到 `1000` / `10000`。
 - **服务器和客户端之间的时钟不一致**：在主机上运行 `date -u` 查看。
 
@@ -87,15 +87,15 @@ docker exec evey-server touch /cache/transcode/.write-test && \
 
 - **没有 ffmpeg**（自己定制的镜像）：用官方的 `Dockerfile` 重新构建。
 - **缓存目录不可写**：镜像设置了 `EVEY_TRANSCODING_CACHE_DIR=/cache/transcode`（`evey-cache` 卷）和 `EVEY_TRICKPLAY_CACHE_DIR=/data/trickplay`；compose 里 `environment:` 下的设置会覆盖它们。在镜像之外，Go 代码里的默认值是 `/data/transcode` 和 `/cache/trickplay`。
-- **缓存满了**：见[缓存磁盘满了](#the-cache-disk-is-full)。
+- **缓存已满**：见[缓存磁盘已满](#the-cache-disk-is-full)。
 - **硬件加速工作不正常**：在**管理 → 转码 → 编码校准**里把**硬件加速**设为**关闭（仅软件）**（立即生效，并重新校准），让所有转码都在处理器上进行；硬件修好后，再改回**自动（最佳可用）**。
-- **“服务器正忙于转码其他流”**：实时容量是测量出来的，不是设置出来的；见[分配这份能力](../playback/transcoding.md#sharing-the-capacity)。`EVEY_TRANSCODING_MAX_CONCURRENT`（**管理 → 转码缓存**里的**最大并发**）只管实时播放以外的转码任务。
+- **“服务器正忙于转码其他流”**：实时容量是测量出来的，不是设置出来的；见[分配这份能力](../playback/transcoding.md#sharing-the-capacity)。`EVEY_TRANSCODING_MAX_CONCURRENT`（**管理 → 转码缓存**里的**最大并发**）只适用于实时播放以外的转码任务。
 
-### 播放缓冲或中断，日志却没说原因
+### 播放缓冲或中断，日志却没有说明原因
 
-**症状**：一位观众反映，某部转码播放的片子会卡住；日志里有 `hls-vod: segment timeout` 和 `err:"context canceled"`，意思是客户端挂断了连接，而不是服务器超时。
+**症状**：一位观众反映，某部转码播放的影片会卡住；日志里有 `hls-vod: segment timeout` 和 `err:"context canceled"`，意思是客户端挂断了连接，而不是服务器超时。
 
-**诊断**：先看服务器已经记录下来的内容，这不花任何代价：
+**诊断**：先看服务器已经记录下来的内容，这不需要额外开销：
 
 ```sh
 # 某个片段请求为什么沿用了一个编码器、或者新启动了一个，以及这让播放器付出了什么代价。
@@ -127,23 +127,23 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
 ```
 
 !!! note
-    不在排查问题时，请让进度日志保持关闭：每个编码器一个文件，每个会话几 MB，这台机器上的每次播放都会产生。文件名里带有决策哈希、档位（`-vN-`）和起始片段（`-sN-`），所以能和 JSON 日志对应起来；在同一位置重新启动的编码器会有自己单独的文件，正是这一点让编码器的反复启动变得一目了然。
+    不在排查问题时，请让进度日志保持关闭：每个编码器一个文件，每个会话几 MB，这台机器上的每次播放都会产生。文件名里带有决策哈希、档位（`-vN-`）和起始片段（`-sN-`），所以能和 JSON 日志对应起来；在同一位置重新启动的编码器会有自己单独的文件，正是这一点让编码器的反复启动清晰可见。
 
 **修复**：
 
-- **反复短距离向前跳转**：每次跳转都可能启动一个新的编码器，而每个哈希的上限（`MaxSessionsPerHash`，默认 2，低内存配置下为 1）会终止最久没用的那个：日志里显示 `session killed reason:lru_cap`。适度出现属于正常。
-- **客户端比服务器更没耐心**：跳转可达窗口是按 `clientSegmentPatience`（6 秒）来定的，而服务器自己的等待预算（`WaitBudgetDur`）是 60 秒。如果一行 `reach decision` 带有 `over_client_patience: true`，说明服务器正准备让播放器等待一段没有任何播放器会等下去的时间。
+- **反复短距离向前跳转**：每次跳转都可能启动一个新的编码器，而每个哈希的上限（`MaxSessionsPerHash`，默认 2，低内存配置下为 1）会终止最久未使用的那个：日志里显示 `session killed reason:lru_cap`。适度出现属于正常。
+- **客户端的等待时间比服务器短**：跳转可达窗口是按 `clientSegmentPatience`（6 秒）来定的，而服务器自己的等待预算（`WaitBudgetDur`）是 60 秒。如果一行 `reach decision` 带有 `over_client_patience: true`，说明服务器正准备让播放器等待超过任何播放器所能等待的时间。
 
 ### `stale_rendition` 410，播放器在播放中途重新获取主播放列表
 
 **症状**：播放器短暂卡住，然后恢复；日志里有 `hls-vod: stale rendition URL refused (the ladder moved under a live player)`，请求得到的回复是 `410 Gone`，带有 `X-Evey-Error: stale_rendition`。
 
-这是一项保护机制在起作用，本身并不是故障。每个清单 URI 都带有生成它时的决策哈希（`fp=`）。410 表示播放器出示的 URL 来自一个会话，而这个会话的 ABR 档位阶梯后来已经改变了；如果照样提供，就会把另一个版本的字节交给解码器。拒绝请求会迫使播放器干净地重新获取主播放列表。
+这是一项保护机制在起作用，本身并不是故障。每个清单 URI 都带有生成它时的决策哈希（`fp=`）。410 表示播放器出示的 URL 来自一个会话，而这个会话的 ABR 档位阶梯后来已经改变了；如果照样提供，就会把另一个版本的字节交给解码器。拒绝请求会迫使播放器完整地重新获取主播放列表。
 
 **诊断**：这条 WARN 带有 `sealed_fp`、`current_fp` 和媒体 ID。
 
 - **在部署、重启或重新校准之后立即出现一阵**是正常的：正在进行的会话经历了一次能力变化。播放器在一次轮询之内就会重新同步。
-- **在正常运行期间持续零星出现**，说明有什么东西在不断改变正在播放的视频流的档位阶梯：检查能力是否反复变化（`docker logs evey-server | grep -iE 'calibrat|capability'`）、准入调节器是否在负载下频繁变动，或者 CMCD 上限覆盖是否在来回摆动。
+- **在正常运行期间持续零星出现**，说明有某种机制在不断改变正在播放的视频流的档位阶梯：检查能力是否反复变化（`docker logs evey-server | grep -iE 'calibrat|capability'`）、准入调节器是否在负载下频繁变动，或者 CMCD 上限覆盖是否在来回摆动。
 - **在 410 上反复循环**的播放器，持有的是缓存下来的主播放列表（旧版应用，或者缓存了 `.m3u8` 的代理）。代理必须把 `Cache-Control: no-cache` 原样传过去。
 
 ## 数据库错误
@@ -178,7 +178,7 @@ df -h ./evey-data
 
 **症状**：搜索结果变差了；日志里有 `meilisearch unavailable, using SQL search fallback`。
 
-Meilisearch 连不上时，搜索会通过 SQL 继续工作；只是排序质量下降，没有人会因此用不了。Meilisearch 运行在 `evey-server` 里面（`EVEY_EMBEDDED_MEILI`，默认开启），使用容器的回环地址，端口 7700。
+无法连接 Meilisearch 时，搜索会通过 SQL 继续工作；只是排序质量下降，不会有人因此无法使用。Meilisearch 运行在 `evey-server` 里面（`EVEY_EMBEDDED_MEILI`，默认开启），使用容器的回环地址，端口 7700。
 
 **诊断**：
 
@@ -196,7 +196,7 @@ docker logs --tail=300 evey-server | grep -i meili
   ```
   重建是一条命令，不是面板里的操作。
 
-## 缓存磁盘满了
+## 缓存磁盘已满
 
 **症状**：转码失败，提示 `no space left on device`；健康检查时好时坏。
 
@@ -234,24 +234,24 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
 
 **修复**：
 
-1. 不动服务器，重新启动插件：在**管理 → 插件**里再次**启用**它，或者 `POST /api/v1/admin/plugins/<id>/enable`。当插件处于启用状态、却卡在 `Error` 时，这样做有效：启动流程只会拒绝已经处于 `Running` 或 `Initializing` 状态的插件。
+1. 无需改动服务器，重新启动插件：在**管理 → 插件**里再次**启用**它，或者 `POST /api/v1/admin/plugins/<id>/enable`。当插件处于启用状态、却卡在 `Error` 时，这样做有效：启动流程只会拒绝已经处于 `Running` 或 `Initializing` 状态的插件。
 2. 如果这样还不行，在面板里**禁用**这个插件。
 3. 如果服务器本身不稳定：`docker compose restart evey`。
 4. 插件文件位于主机上的 `./evey-data/plugins/`（容器内是 `/data/plugins`）。删除出问题的插件的目录，然后重启。
 5. 把 panic 堆栈和插件 ID 发给插件作者。
 
-## 投屏卡住、没有声音，或者手机一直在转圈
+## 投屏卡住、没有声音，或者手机一直显示加载中
 
 这里的所有信息都可以在**管理 → 日志与调试**里看到；不需要登录到机器上的 shell。时间都是 UTC。每个信标都是一行 `player-client: playback event reported`，带有 `type=` 和一个 `details=` 字符串。
 
-1. **接收端当时还活着吗？活到什么时候？** 搜索 `cast_receiver_alive`。接收端在播放时每 30 秒发送一次；`details` 里带有 `buf=<behind>/<ahead>/<ranges>`（播放位置前后缓冲了多少秒）和 `pos_sec`。播放正常时，`ahead` 是几十秒。最后一个信标的时间，就是接收端停止运行或被终止的时间：在那之后什么都没有，就说明电视已经不再运行接收端了，不管手机上显示的是什么。
-2. **它为什么停了？** 搜索 `cast_receiver_finished`：`reason=INTERRUPTED` 表示一个新的 LOAD 替换了正在播放的内容（往前几秒找找有没有 `StartStream`），`reason=ERROR` 带有播放器的错误。如果最后一个 `alive` 之后没有 `finished`，说明接收端进程消失了，最常见的情况是 Chromecast HD 在播放 20 Mbps 以上的直接复制主播放列表时，因内存不足被终止。
+1. **接收端当时是否在运行？运行到什么时候？** 搜索 `cast_receiver_alive`。接收端在播放时每 30 秒发送一次；`details` 里带有 `buf=<behind>/<ahead>/<ranges>`（播放位置前后缓冲了多少秒）和 `pos_sec`。播放正常时，`ahead` 是几十秒。最后一个信标的时间，就是接收端停止运行或被终止的时间：在那之后什么都没有，就说明电视已经不再运行接收端了，不管手机上显示的是什么。
+2. **它为什么停了？** 搜索 `cast_receiver_finished`：`reason=INTERRUPTED` 表示一个新的 LOAD 替换了正在播放的内容（查找几秒钟前是否有 `StartStream`），`reason=ERROR` 带有播放器的错误。如果最后一个 `alive` 之后没有 `finished`，说明接收端进程消失了，最常见的情况是 Chromecast HD 在播放 20 Mbps 以上的直接复制主播放列表时，因内存不足被终止。
 3. **手机看到了什么？** 搜索 `cast_sender_stall`：当 Cast SDK 仍然显示 PLAYING、但播放位置 20 秒都没有动时，发送端会发出 `state=playing frozen=<n>s pos=<p>`；当接收端报告了空闲原因时，会发出 `state=idle reason=<r>`。这些是 WARN 级别的日志行，所以页面的警告筛选会把它们显示出来。把它的 `pos` 和接收端最后一个 `pos_sec` 比较一下。
 4. **会话有没有引发连锁反应？** 搜索 `refresh rejected`：刷新令牌 `not found` 会让应用退出登录再重新登录（用保存的凭据），从而重新发起视频流；这一行带有令牌的 `jti`、`issued` 和 `age`，可以据此分辨是一份过时的副本还是伪造的令牌。搜索 `StartStream` 可以看到重新发起的情况。
 5. **视频流对设备来说太大了吗？** 搜索 `advertises a fallback rung`（直接复制主播放列表的峰值码率）和 `plan fitted to the client's line`（接收端测得的 `maxKbps`，或者它的 `abr=floor` 补救；随后的转码主播放列表会带有原因 `client_line_exceeded` 或 `abr_floor_requested`）。如果一个会话从 20 Mbps 以上的直接复制主播放列表开始，几秒钟后降到一个适配过的 1080p 档位，那是补救机制在正常工作；如果重新 LOAD 后又从直接复制主播放列表开始，这正是会让 Chromecast HD 崩溃的模式。
-6. **是服务器那边供不上数据吗？** 搜索 `on-demand resource refused`：连续几个片段出现一连串 `context canceled` 拒绝，是在拖动进度条（每个请求都被下一个请求取消了），不是服务器的问题；持续时间很长的 `served` 日志行才是。
+6. **是服务器无法及时提供数据吗？** 搜索 `on-demand resource refused`：连续几个片段出现一连串 `context canceled` 拒绝，是在拖动进度条（每个请求都被下一个请求取消了），不是服务器的问题；持续时间很长的 `served` 日志行才是。
 
-如果第 1-3 步显示接收端还活着、发送端却没有动静，问题出在手机的投屏会话上（SDK，或者到电视的网络）。如果接收端的信标先停了，就去看电视：内存、编码、视频流的码率。
+如果第 1-3 步显示接收端仍在运行、发送端却没有任何记录，问题出在手机的投屏会话上（SDK，或者到电视的网络）。如果接收端的信标先停了，就去看电视：内存、编码、视频流的码率。
 
 ## 停止一个会话或一台被盗用的设备
 

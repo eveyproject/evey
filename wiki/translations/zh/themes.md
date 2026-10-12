@@ -5,7 +5,7 @@ reviewed: true
 # 主题
 
 主题用来改变 Evey 界面的外观：它是一个 `kind: theme` 的包，没有后端进程，由一个样式表组成，
-还可以带一个脚本，这个脚本被关在一个隐藏的框架里运行。本页写给主题作者，说明这两个文件里可以写什么，
+还可以带一个脚本，这个脚本在一个隐藏的框架中受限运行。本页面向主题作者，说明这两个文件里可以写什么，
 以及安装程序会改写或拒绝什么。主题和插件一样，从**管理 → 插件**安装；每位用户在**设置 → 外观 → 主题**里挑选自己的主题。
 
 ## 清单
@@ -21,7 +21,7 @@ author: "..."              # 可选
 # 不要写 language、entrypoint、permissions 或 capabilities：写了安装就会被拒绝
 ```
 
-ZIP 包的根目录里，在清单旁边放 `theme.css` 和/或 `theme.js`。两个都没有的包也能安装，只是看不出任何效果。
+ZIP 包的根目录里，在清单旁边放 `theme.css` 和/或 `theme.js`。两个都没有的包也能安装，但没有可见效果。
 `examples/plugins/theme-dark-blue`（一个只覆盖颜色变量的简短 `theme.css`）和 `examples/plugins/open-workshop`（一套完整的外观重设计）
 都能通过清理器，是很好的起点。
 
@@ -50,7 +50,7 @@ ZIP 包的根目录里，在清单旁边放 `theme.css` 和/或 `theme.js`。两
 ### 稳定的样式挂钩
 
 有几个纯装饰性的元素带有稳定的类名，您可以直接针对它们写样式，而不必依赖那些每个版本都会变化的工具类。
-这是一项约定：这些类名不会被改名。
+这是一项约定：这些类名不会被重命名。
 
 | 选择器 | 元素 | 可以放心修改的样式 |
 |---|---|---|
@@ -79,15 +79,15 @@ ZIP 包的根目录里，在清单旁边放 `theme.css` 和/或 `theme.js`。两
 | `url(javascript:...)`、`expression(...)`、`-moz-binding`、`behavior` | 删除 | 旧式的代码执行途径。 |
 | 选择器匹配 `[type=password]`、`[type=hidden]`、`.admin-*`、`.token-*` 或 `.secret-*` 的规则 | 删除整个规则块 | 主题不能改变密码输入框或特权元素的样式。 |
 | 用 `position: fixed` 或 `sticky` 盖住整个屏幕的规则：`inset: 0`、四条边都为 `0`，或者 `top`/`right`/`bottom`/`left: 0`、`width: 100vw`、`height: 100vh` 中至少两项且其中有一项是视口尺寸 | 删除整个规则块 | 这是典型的钓鱼遮罩层。用 `top: 0; left: 0` 固定、大小由内容决定的页眉会保留。同一个选择器在不同规则里的声明会合并起来计算。 |
-| 在针对 `button`、`[role=button]`、`a[href*=logout]` 或 `[data-critical]` 的规则里写 `pointer-events: none` | 删除这一条声明，其余保留 | 让关键控件点不动，是一种界面伪装攻击。 |
-| 大于 999 的 `z-index` | 压到 999 | 主题必须待在应用自己的对话框层之下。 |
+| 在针对 `button`、`[role=button]`、`a[href*=logout]` 或 `[data-critical]` 的规则里写 `pointer-events: none` | 删除这一条声明，其余保留 | 让关键控件无法点击，是一种界面伪装攻击。 |
+| 大于 999 的 `z-index` | 限制为 999 | 主题必须位于应用自身的对话框层之下。 |
 
-转义字符会在这些检查之前先解码，所以用转义序列绕不过去。
+转义字符会在这些检查之前先解码，所以无法用转义序列绕过这些检查。
 
 ## theme.js
 
 脚本是可选的。它在 `/api/v1/themes/<id>/theme.js` 提供给已登录的用户，运行在一个隐藏的 `<iframe sandbox="allow-scripts">` 里，
-这个框架的策略设置了 `connect-src 'none'`：即使脚本通过了安装扫描，它也碰不到宿主页面、宿主的存储，也上不了网。
+这个框架的策略设置了 `connect-src 'none'`：即使脚本通过了安装扫描，它也无法访问宿主页面、宿主的存储或网络。
 它唯一能用的接口是 `window.evey.theme`，在脚本运行之前注入。
 
 ### `evey.theme.css(declarations)`

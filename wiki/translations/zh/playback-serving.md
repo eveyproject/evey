@@ -6,14 +6,14 @@ reviewed: true
 
 播放器请求一个视频时发生了什么：从第一个 `master.m3u8` 请求，一直到某个分段的字节，也就是读取路径。
 相关代码分散在 `http` 驱动适配器（`internal/adapters/driving/http/transcode_*`）、`app/transcoding` 的各项服务，
-以及 `ffmpeg` / `mkvgo` / `prober` 这几个被驱动适配器里；没有哪一个函数负责整条流程，所以本页就是这张地图。
+以及 `ffmpeg` / `mkvgo` / `prober` 这几个被驱动适配器里；没有哪一个函数负责整条流程，所以由本页说明整个流程。
 它依据的决策是 [ADR-0030](adr/0030-one-plan-one-decision.md)（一个计划，一个决定）、
 [ADR-0024](adr/0024-playback-plan-resolver.md)（计划解析器）和
 [ADR-0029](adr/0029-transcoding-routes-are-measured-not-assumed.md)（经过测量的能力）。
 它和[架构](ARCHITECTURE.md)里的扫描流程相对应，也是[代码地图](CODEBASE_MAP.md)里 "Golden path 4" 背后的详细说明。
 同一套协商过程在用户眼里是什么样子，请读[Evey 如何选择播放方式](playback/how-playback-is-decided.md)。
 
-## 思路：3 个问题，2 个引擎，1 把钥匙
+## 思路：3 个问题，2 个引擎，1 个键
 
 提供一个视频，归结起来就是回答三个问题，再把答案打包，而一切都用同一个哈希值来定位。
 
@@ -28,8 +28,8 @@ reviewed: true
 - **mkvgo** 读取并重新打包（重封装、按需生成），不需要启动进程。没有成本。
 - **ffmpeg / ffprobe** 通过启动进程来解码、重新编码和探测。成本高。
 
-一把钥匙：一切（缓存目录、ffmpeg 会话、分段 URL）都用**决定指纹**来定位，它是决定的哈希值。
-字节相同，哈希就相同，大家共用同一次编码。整个系统是否正确，取决于这个哈希在播放器手里的清单文件和它之后取的每一个分段之间保持**稳定**。
+一个键：一切（缓存目录、ffmpeg 会话、分段 URL）都用**决定指纹**来定位，它是决定的哈希值。
+字节相同，哈希就相同，共用同一次编码。整个系统是否正确，取决于这个哈希在播放器手里的清单文件和它之后取的每一个分段之间保持**稳定**。
 
 ```mermaid
 flowchart LR
@@ -49,30 +49,30 @@ flowchart LR
     ff --> seg
 ```
 
-两个引擎的输出离开服务器的方式不同：mkvgo 的分段在收到请求时才生成，边生成边写到连接上，所以复制路径从不碰分段缓存；
+两个引擎的输出离开服务器的方式不同：mkvgo 的分段在收到请求时才生成，边生成边写到连接上，所以复制路径从不使用分段缓存；
 ffmpeg 的分段是指纹目录下的一个文件，写一次，之后从那里提供。
 
-## 阅读顺序：跟着一个请求走一遍代码
+## 阅读顺序：按一个请求的处理过程阅读代码
 
 按这个顺序打开文件，就能从头到尾追踪一次播放请求：
 
 1. **入口** - `internal/adapters/driving/http/transcode_handler_vod.go`：
    `serveHTTP` 先验证身份，再分派到 master / variant / segment / audio。
-2. **计划任务** - `http/transcode_vod_plan.go` 把 `*http.Request` 整理成一个与传输层无关的 `PlaybackRequest`；
+2. **计划** - `http/transcode_vod_plan.go` 把 `*http.Request` 整理成一个与传输层无关的 `PlaybackRequest`；
    `app/transcoding/playback_plan_resolver.go`（`PlanResolver.Resolve`，具体实现是 `playback_plan.go` 里的 `PlaybackPlanResolver`）
-   返回一个不可变的 `PlaybackPlan`：决定（Q2）、阶梯类别、调整后的阶梯、硬件路线、打包器和指纹。
+   返回一个不可变的 `PlaybackPlan`：决定（Q2）、阶梯类别、调整后的阶梯、硬件路径、打包器和指纹。
    这个会话的每个清单文件和每个分段都依据它来提供：清单的输入、降档探测、过期 URL 的封存、生产者的选择和分段的键，读的都是这同一次解析结果，
-   所以在一个请求之内，缓存哈希的不变量天然成立（分段的热路径从大约 5 次读取配置偏好减少到 1 次）。
+   所以在一个请求之内，缓存哈希的不变量由设计保证成立（分段的热路径从大约 5 次读取配置偏好减少到 1 次）。
    关于源文件事实的辅助函数（编码、HDR、SAR、10 位……）放在旁边的 `source_facts.go` 里。
    `http/transcode_vod_fingerprint.go` 里的 `makeDecision` 和 `buildFingerprint` 是薄包装，供没有计划的调用处使用（预热、按需生成的 master）。
 3. **Q2 - 决定** - `internal/app/transcoding/decision.go`：
-   `MakePlaybackDecisionWithPrefs`（纯函数）是按轨道决定复制还是转码的大脑。解析器在它之上叠加请求时的固定参数（`vd=` / `ad=`）、
+   `MakePlaybackDecisionWithPrefs`（纯函数）是按轨道决定复制还是转码的核心逻辑。解析器在它之上叠加请求时的固定参数（`vd=` / `ad=`）、
    音频重新同步的覆盖设置等。
 4. **Q3 - 能力** - `internal/app/transcoding/calibration_service.go`：
    `Current()` 返回 `domain/transcoding.Derive(report, policy)`（`derive.go`），也就是根据最近一次校准推算出的这台机器的上限。
-5. **阶梯和准入** - 解析器调整阶梯（复杂度类别、生产者配置、源文件和能力的上限、CMCD/AV1 上限、准入路线和上限），
+5. **阶梯和准入** - 解析器调整阶梯（复杂度类别、生产者配置、源文件和能力的上限、CMCD/AV1 上限、准入路径和上限），
    然后把它**冻结**在准入记录上（`admission_shaper.go`，`FreezeLadder`），之后每次调用都原样读取：
-   缓存哈希的不变量由结构来保证。`video_session_limiter.go` 占住容量名额；名额满了，路线就从硬件溢出到软件。
+   缓存哈希的不变量由结构来保证。`video_session_limiter.go` 占用容量名额；名额满了，处理路径就从硬件转到软件。
 6. **指纹** - 一个 `DecisionFingerprint`（类型和 `Hash()` 在 `app/transcoding/segment_cache.go` 里），由解析器组装。这个哈希就是缓存的键。
 7. **生成字节** - 复制：**mkvgo**，`app/transcoding/ondemand.go`（端口）和 `adapters/driven/mkvgo/ondemand.go`；
    转码：**ffmpeg**，`adapters/driven/ffmpeg/hls_transcoder.go`（`BuildFFmpegArgs` 是纯函数；分段写到 `/cache/transcode/segments/<hash>/`）。
@@ -85,8 +85,8 @@ ffmpeg 的分段是指纹目录下的一个文件，写一次，之后从那里�
 ## 两个引擎，按成本区分
 
 **探测分派器**（`adapters/driven/prober/dispatcher.go`）是一条按扩展名区分的责任链：它先试 mkvgo，只要有任何疑问就退回 ffprobe
-（解析错误、panic、结果无法映射、MP4 的某条媒体轨道丢失、DoVi profile 5、颜色信息读不出）。两条快速路径始终开启（`wire.go` 里的开关为 nil）；
-ffprobe 是安全网，从不被绕过。另一个一模一样的分派器（`keyframe_dispatcher.go`）负责跳转索引。
+（解析错误、panic、结果无法映射、MP4 的某条媒体轨道丢失、DoVi profile 5、颜色信息无法读取）。两条快速路径始终开启（`wire.go` 里的开关为 nil）；
+ffprobe 是最终的后备，从不被绕过。另一个完全相同的分派器（`keyframe_dispatcher.go`）负责跳转索引。
 
 | 操作 | mkvgo（无成本） | ffprobe / ffmpeg（成本高） |
 |---|---|---|
@@ -123,7 +123,7 @@ Safari 被排除在 wasm 路径之外，依据的是能力，而不是名称：`
 - **DASH**（`manifest.mpd`）：在 mkvgo 复制路径上，用打包器自己生成的清单（`OnDemandPlan.HasDASH`，逐字节相同，不占存储，在 AES-128 下关闭）；
   在 ffmpeg 路径上，用一份**根据计划声明**的清单，指向 HLS 播放列表所用的同一批片段（`ManifestGenerator.MPD`），在任何片段生成之前就写好。
 
-让 DASH 清单名副其实的，是**分段网格**（`domain/transcoding.SegmentGrid`）：每一档转码都按同样的整数帧数切分，即 `round(3 s x fps)`
+保证 DASH 清单准确的，是**分段网格**（`domain/transcoding.SegmentGrid`）：每一档转码都按同样的整数帧数切分，即 `round(3 s x fps)`
 （23.976 fps 时为 72，25 时为 75，29.97 时为 90），所以每个分段在视频轨道的时间刻度上都是精确的，并且在可切换的各档之间完全一致；
 复制路径的后备方案则声明自己的关键帧计划。帧率未知或可变的源文件仍然使用旧的 3 秒时钟，保留 HLS，对 `manifest.mpd` 返回 404。
 没有任何客户端被切换到 DASH：HLS 在所有地方仍是默认。在生成的片段上运行 mkvgo 的 `DASHFromCMAF`，作为一致性的参照
@@ -133,12 +133,12 @@ Safari 被排除在 wasm 路径之外，依据的是能力，而不是名称：`
 
 | 模式 | 在哪里 |
 | --- | --- |
-| 端口与适配器（六边形架构） | 应用层只和 `StreamProber`、`BenchmarkRunner`、`OnDemandPackager`、`StreamProducer` 打交道；ffmpeg 和 mkvgo 实现它们，新增一个引擎就是新增一个适配器 |
+| 端口与适配器（六边形架构） | 应用层只和 `StreamProber`、`BenchmarkRunner`、`OnDemandPackager`、`StreamProducer` 交互；ffmpeg 和 mkvgo 实现它们，新增一个引擎就是新增一个适配器 |
 | 策略模式 | `StreamProducer`（软件 / 硬件 / 复制），由一个 `ProducerSelector` 挑选 |
 | 带后备的责任链 | 探测分派器和关键帧分派器（先 mkvgo，再由 ffprobe 作为权威） |
 | 按内容寻址的缓存 | `DecisionFingerprint` 哈希作为缓存和 ffmpeg 会话的键 |
 | 纯核心，命令式外壳 | `Derive`、`MakePlaybackDecision` 和成本模型都是纯函数，不需要 ffmpeg 或数据库就能做单元测试 |
-| 不可变的值对象 | `StreamPlan`，也就是准入决定，只生成一次，从不修改，所以“URL 对应字节”的不变量天然成立 |
+| 不可变的值对象 | `StreamPlan`，也就是准入决定，只生成一次，从不修改，所以“URL 对应字节”的不变量由设计保证成立 |
 | 优雅降级 | 每一步都有安全的后备：默认能力 720p、硬件溢出到软件、复制退回转码、mkvgo 退回 ffprobe |
 
 <!-- sources

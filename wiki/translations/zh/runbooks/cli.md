@@ -21,12 +21,12 @@ docker exec -it evey-server bash      # 管理用的 shell：evey admin ...、ma
 | --- | --- |
 | `evey` | 启动服务器。 |
 | `evey admin <subcommand>` | 运行一个运维工具，然后退出。只输入 `evey admin` 会列出所有命令，并以退出码 1 退出；`evey admin <subcommand> --help` 显示某个命令的详细说明。 |
-| `evey version` | 版本、提交、构建日期。它不需要配置，也不需要数据库，所以在一个无法启动的容器里也能回答。 |
+| `evey version` | 版本、提交、构建日期。它不需要配置，也不需要数据库，所以在一个无法启动的容器里也能输出结果。 |
 | `evey help` | 命令摘要。 |
 | `evey man [--text]` | 使用手册：给 `man` 用的 roff 格式，加 `--text` 则输出纯文本。 |
 | `evey completion bash` | bash 自动补全脚本。 |
 
-其他任何第一个参数都会被拒绝（退出码 1），而不会悄悄地启动服务器。
+其他任何第一个参数都会被拒绝（退出码 1），而不会在没有任何提示的情况下启动服务器。
 
 ## 命令列表
 
@@ -109,7 +109,7 @@ evey admin artwork-gc [--root <dir>] [--apply]
 
 **管理 → 媒体健康**背后运行的是同一套引擎，用它来修复媒体库更简单：见[媒体健康](media-health.md)。
 
-### 按片编码
+### 按影片编码
 
 ```
 evey admin reclassify <media-id>             Force-recompute the complexity class of one media item.
@@ -182,7 +182,7 @@ zsh 用户：先运行 `autoload -U +X bashcompinit && bashcompinit`，再加载
 
 Docker 镜像在构建时就安装好了自动补全。镜像里没有 `man` 程序，所以在它的管理 shell（`docker exec -it evey-server bash`）里输入 `man evey`，会分页显示 `evey man --text` 的内容。
 
-## `evey admin` 里没有的东西
+## `evey admin` 未包含的程序
 
 源代码树里，服务器旁边还有三个独立的程序。它们是开发和测试用的工具，不是运维命令，Docker 镜像里也不包含它们：
 
@@ -196,7 +196,7 @@ Docker 镜像在构建时就安装好了自动补全。镜像里没有 `man` 程
 
 - [恢复](recovery.md)：重置密码、轮换 JWT 密钥、恢复备份。
 - [数据库迁移](migration-runbook.md)：部署数据库结构、回退、从“脏”状态恢复。
-- [事故手册](incident-runbook.md)：服务器出问题时的第一步处理。
+- [事故手册](incident-runbook.md)：服务器运行异常时的初步处理。
 
 <!-- sources
 dispatch and top-level commands: cmd/evey/cli.go - runCLI (version, help, completion, man, unknown command refused), cmd/evey/main.go

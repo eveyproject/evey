@@ -11,8 +11,8 @@ reviewed: true
 ## 内置数据库
 
 数据库集群放在 `./evey-data/postgres` 里（Postgres 17，第一次启动时创建，归服务器用户所有）。
-它只监听容器内部的本机回环地址，并且需要自动生成的密码，所以以其他用户运行的插件打不开它。
-`docker stop` 会在服务器关闭它的连接之后，干净地关闭数据库。
+它只监听容器内部的本机回环地址，并且需要自动生成的密码，所以以其他用户运行的插件无法打开它。
+`docker stop` 会在服务器关闭它的连接之后，正常关闭数据库。
 
 数据目录必须在本地文件系统上（ext4、btrfs、xfs……），不能放在 SMB/CIFS 或 NFS 共享上。打开 SQL 命令行：
 
@@ -23,7 +23,7 @@ docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 ### 升级 Postgres 大版本
 
 镜像固定了内置数据库的大版本。如果新镜像带的是更新的大版本，它会拒绝打开旧的集群，并给出一条指向这里的提示，
-而不是去运行一个它读不懂的数据目录。升级的办法是：用旧镜像导出（dump），再用新镜像恢复：
+而不是去运行一个它无法读取的数据目录。升级的办法是：用旧镜像导出（dump），再用新镜像恢复：
 
 ```bash
 docker compose exec evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) pg_dump -h 127.0.0.1 -U evey -Fc evey' > evey-before-upgrade.dump
@@ -114,7 +114,7 @@ docker compose restart evey
     MEILI_MASTER_KEY=<run: openssl rand -hex 16>
     ```
 
-索引可以用 `docker exec evey-server evey admin reindex-search` 根据数据库重建，所以 `meili-data` 随时都可以丢掉。
+索引可以用 `docker exec evey-server evey admin reindex-search` 根据数据库重建，所以 `meili-data` 随时都可以删除。
 
 ## 改回内置数据库
 
@@ -144,7 +144,7 @@ docker exec evey-server evey admin reindex-search
 ## ARM 主机
 
 从发布标签构建的镜像（`0.2.0`，也包括 `0.2.0-beta.1` 这样的预发布版本）支持多种架构（`linux/amd64` 和 `linux/arm64`）；
-Docker 会自动选对的那个。像 `beta-0.0.1` 这样的分支标签只有 amd64：在 ARM 主机上请固定使用发布标签。
+Docker 会自动选择对应的架构。像 `beta-0.0.1` 这样的分支标签只有 amd64：在 ARM 主机上请固定使用发布标签。
 
 - **ARM 上的硬件转码**只支持 Rockchip 芯片（RK3588、RK3576、RK3568 这一类），通过 RKMPP 实现。
   请映射 `/dev/mpp_service`、`/dev/dri`，如果内核提供的话，再映射 `/dev/rga`；服务器在使用编码器之前，会先探测并测试它的性能。
@@ -172,9 +172,9 @@ NVIDIA 不需要变体：NVIDIA Container Toolkit 会在运行时注入主机的
 ## 在特殊主机上的插件沙箱
 
 镜像里带有隔离插件所需的一切，不需要特权模式。默认的沙箱模式（`auto`）会选择主机允许的最强后端：
-在任何现代内核上都是 Landlock。实际生效的模式可以在**管理 -> 插件**的**安全仪表板**里查看。
+在任何现代内核上都是 Landlock。实际生效的模式可以在**管理 → 插件**的**安全仪表板**里查看。
 显示 `basic` 的主机无法隔离插件对文件的访问：[插件沙箱设置](../plugins/sandbox-deployment.md)说明了这意味着什么，以及要改什么。
-各层防护本身见[插件沙箱与威胁模型](../SECURITY.md)。
+各层防护本身见[安全模型与插件沙箱](../SECURITY.md)。
 
 <!-- sources
 embedded db, import, major upgrade, embedded meili: docker/entrypoint.sh (PG_MAJOR, PG_IMPORT, "evey: import done", EVEY_EMBEDDED_MEILI, MEILI_MASTER_KEY_FILE)
