@@ -1,77 +1,25 @@
 ---
-source_sha: 3f509ca8086807c1f4d1c33d492ae026a83e372b7e31aba45a835fc6bbbd56d9
-reviewed: false
+source_sha: d47608ac11df56bc518674752f94a79d5498896103d51978e420575983e71cf4
+reviewed: true
 ---
-# 反向代理
+# 反向代理配置
 
-Evey 在 **9091** 端口上（未加密 HTTP）同时提供 **API 和网页界面**。反向代理只需终止 TLS，并把所有请求转发到 `evey:9091`：**没有需要单独构建或提供的前端**。
+Evey 在端口 **9091** 上用普通 HTTP 同时提供 API 和网页界面；反向代理只需要终止 TLS，然后把所有请求转发到 `evey:9091`。请在下面选择您的代理（自带的 Caddy、Nginx、Traefik、Nginx Proxy Manager，或者您已经在运行的代理）。如果您要调整流媒体传输，或者自己设置安全头，请再读一读最后两节。
 
-无论你在哪里运行代理，都要告诉 Evey 它的公网 URL 以及要信任哪个代理。最简单的地方是 **Admin → 远程访问**：一个 `https://` 的 **外部 URL**，以及当代理是容器时，在 **受信任的代理** 中填写它的网络。两者都无需重启即可生效。同样的答案也可以来自环境变量，适用于完全以代码描述的安装（两者都设置时以面板为准）：
+## 在 Evey 里登记代理
+
+无论用哪种代理，Evey 都需要知道它的公网地址，以及该信任哪个代理。这两项都在**管理 → 远程访问**里设置：一个 `https://` 开头的**外部 URL**；如果代理是一个容器，再把它的网络填进**受信任的代理**。两项都无需重启就会生效。正是 `https://` 地址告诉 Evey 前面有代理在终止 TLS：Cookie 会带上 `Secure` 标记，会发送 HSTS，并且会相信受信任代理发来的 `X-Forwarded-Proto`。远程访问开关和客户端真实地址的说明见[远程访问和 HTTPS](administration/remote-access.md)。
+
+如果您的整套安装都用代码描述，同样的设置也可以来自环境变量（两边都设置时，以管理面板为准）：
 
 ```env title=".env"
 EVEY_SERVER_BASE_URL=https://media.example.com
-EVEY_TRUSTED_PROXIES=172.16.0.0/12       # 仅当代理是容器时需要；环回地址始终受信任
+EVEY_TRUSTED_PROXIES=172.16.0.0/12       # 只有代理是容器时才需要；环回地址始终受信任
 ```
 
-`https://` 地址就是告诉 Evey 前面有代理终止 TLS 的信号：Cookie 会带上 `Secure` 标志，会发送 HSTS，并相信来自受信任代理的 `X-Forwarded-Proto`。不需要单独的开关（旧的 `EVEY_FORWARDED_PROTO` 仍被接受作为覆盖，但已弃用）。
+以前的 `EVEY_FORWARDED_PROTO` 仍然可以用来强制指定，但已经弃用：地址里的协议就足够了。
 
-## 流媒体：代理的默认设置对它的影响
-
-Evey 可以在保持默认设置的反向代理之后工作：每个长时间的响应要么持续发送字节（HLS 分段、直接播放、转码输出），要么每 30 秒向客户端发送一次心跳（事件流），所以默认的读取超时永远不会触发。不过仍有两点值得了解：
-
-- **缓冲。** 会缓冲响应的代理（nginx 默认如此）会先把直接播放的文件读入自己的缓冲区和临时文件，再交给客户端：这能工作，但一部几 GB 的电影就会经过代理主机的磁盘。在流媒体路径上设置 `proxy_buffering off` 可以避免这一点。
-- **扫描。** `/api/v1/libraries/*/scan` 会在扫描进行期间持续传送进度；限制响应总时长的代理（很少见：nginx 和 Caddy 默认都不会）会把它截断。不过扫描本身会在服务器端继续进行。
-
-涉及的路径：
-
-```
-/api/v1/media/*/hls/*
-/api/v1/media/*/stream
-/api/v1/libraries/*/scan
-```
-
-自带的 Caddy 以及下面的 Nginx/Traefik 示例都在这些路径上设置了这两点（不缓冲、不超时）。对于 Nginx Proxy Manager 这类通过界面管理的代理，默认设置就可以，调优只是一个可选的片段。
-
-## 安全头与 CSP：如果你的代理设置自己的，请阅读
-
-Evey 会发出完整的 Content-Security-Policy。如果你的代理原样传递它，就无需再做什么。
-
-很多配置会去掉它（Caddy 中的 `header_down -Content-Security-Policy`）并使用自己的策略：这没问题，但这时**你的**策略必须保留以下这些令牌，否则某些功能会悄无声息地失效：
-
-| 令牌 | 指令 | 缺少时失效的功能 |
-| --- | --- | --- |
-| `'unsafe-inline'` | `script-src` | 所有插件界面（空白 iframe）。插件包使用用户的令牌获取，并内联到一个 `srcdoc` iframe 中，而 srcdoc 文档会继承嵌入它的页面的策略。在此期间限制插件的是 iframe 的 `sandbox="allow-scripts"`（不透明来源，无法访问父页面的 DOM 和 Cookie）。 |
-| `'wasm-unsafe-eval'` | `script-src` | 浏览器中的 AC-3/E-AC-3 播放（ac3go WebAssembly 解码器无法编译 → 电影无声播放）。这是只允许编译 Wasm 的窄令牌，并不是通用的 `eval()`。 |
-| `https://www.gstatic.com` | `script-src`（+ `frame-src`） | Google Cast 发送端 SDK 永远无法加载 → 所有人都没有投放按钮。这是浏览器发现用户本地网络中 Chromecast 的唯一方式。 |
-| `blob:` | `media-src` | MSE 播放（hls.js 通过 blob URL 连接流）。 |
-| `blob:` | `worker-src` | hls.js 会悄悄退回在主线程中解复用（在移动设备上更卡顿）。 |
-
-一个适用于自定义策略代理的可靠策略：
-
-```
-default-src 'self'; base-uri 'self'; object-src 'none';
-img-src 'self' https: data: blob:; media-src 'self' blob:;
-style-src 'self' 'unsafe-inline';
-script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com;
-connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:;
-frame-src https://www.gstatic.com
-```
-
-`base-uri` 和 `object-src` 不会回退到 `default-src`，因此省略它们的策略会让 `<base href>` 注入以及 `<object>`/`<embed>` 嵌入不受限制。如果你使用自己的策略，请保留它们。
-
-有一个页面需要更宽的策略：`/cast-receiver.html`，即 Chromecast 从 Evey 播放时加载的页面。Cast 播放器会向其中注入来自 `www.gstatic.com` 的样式、字体和图片，因此应用会为这个页面发送它自己的策略。请在这条路径上保留应用的头，或者只对这条路径应用下面的策略：
-
-```
-default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: https:; worker-src 'self' blob:; font-src 'self' data: https://www.gstatic.com; connect-src 'self' https: wss:; frame-src https://www.gstatic.com; base-uri 'self'; object-src 'none'
-```
-
-经验法则：
-
-- **到达浏览器的 CSP 头必须恰好只有一个。** 如果有两个（例如应用的和你的代理的，或者 Caddy 的和 Nginx Proxy Manager "Advanced" 片段的），浏览器会执行它们的*交集*：最严格的那个胜出，而且失败是无声的。用 `curl -sI https://your.domain | grep -ci content-security-policy` 检查 → 必须输出 `1`。
-- **把策略保持在一行。** 在代理配置中把 CSP 拆成多行是一种典型的无声损坏：拼接时会吞掉接缝处的字符（`...gstatic.com; connect-src` 曾经变成 `...gstaticonnect-src`，这让 Cast SDK 失效并把两条指令合并成了一条）。
-- `script-src` 中的 `'unsafe-inline'` 有真实的代价，而且目前不可缺少（插件界面，见上表）。只有在不运行任何插件前端的部署上，去掉它才是安全的。
-
-所有自带的示例都从**一个地方**读取域名：你的 `.env` 中的 `EVEY_DOMAIN`。设置一次即可；Caddy、Nginx 和 Traefik 都会读取它。
+每个自带的示例都从同一个地方读取域名，即 `.env` 里的 `EVEY_DOMAIN`。只需设置一次，Caddy、Nginx 和 Traefik 都会读取它。
 
 ```env title=".env"
 EVEY_DOMAIN=media.example.com
@@ -79,49 +27,77 @@ EVEY_DOMAIN=media.example.com
 
 ## Caddy（自带）
 
-仓库提供了 [`docker/Caddyfile`](../docker/Caddyfile)（由 [`docker/Dockerfile.caddy`](../docker/Dockerfile.caddy) 构建成镜像）：它为 `EVEY_DOMAIN` 自动获取 HTTPS，并把所有请求代理到 `evey:9091`，流媒体的例外已经设置好。它还会设置上一节中的标准安全头和 CSP（并去掉应用自己的 CSP，使到达浏览器的恰好只有一个）。在你的 compose 中添加一个 `caddy` 服务（参考仓库 [`docker-compose.yml`](../docker-compose.yml) 中的 `caddy` 服务）。
+### 文件
 
-### 在你已有的代理之后（TLS 在上游终止）
+[`docker/Caddyfile`](../docker/Caddyfile)，由 [`docker/Dockerfile.caddy`](../docker/Dockerfile.caddy) 构建成镜像；对应仓库 [`docker-compose.yml`](../docker-compose.yml) 里的 `caddy` 服务。
 
-在已经有反向代理的 NAS 上（厂商自带的、Nginx Proxy Manager、共享 Docker 网络上的 Traefik），**不需要 Caddy**：Evey 会发出自己的安全头和完整的 CSP，而流媒体规则无论如何都只能由面向客户端的那个代理执行：在它后面再放一个代理没有任何好处。把 evey 服务放到那个代理的网络中，并指向 `evey-server:9091`（容器名；服务名 `evey` 同样可用）：
+### 设置
 
-```yaml title="docker-compose.yml"
-services:
-  evey:
-    # 不设 ports：代理是唯一的入口
-    environment:
-      EVEY_SERVER_BASE_URL: https://media.example.com
-      EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # 知道代理的子网后再收窄
-    # ...
-networks:
-  default:
-    name: proxy-net
-    external: true
-```
+1. 在 `.env` 里设置 `EVEY_DOMAIN`，并确保主机的 80 和 443 端口能到达 Caddy 容器。
+2. 把仓库 compose 文件里的 `caddy` 服务加到您的 compose 文件里，然后运行 `docker compose up -d`。Caddy 会自己为 `EVEY_DOMAIN` 申请 Let's Encrypt 证书。
+3. 在**管理 → 远程访问**里，设置 `https://` 开头的**外部 URL**，并在**受信任的代理**里填入 `172.16.0.0/12`。
 
-然后在那个代理中，为指向 `evey-server:9091` 的路由：转发 `X-Forwarded-For` 和 `X-Forwarded-Proto`，开启 WebSocket 支持，并应用上面的流媒体规则（在流媒体路径上不缓冲、没有读写超时）：下面的 Nginx、Traefik 和 Nginx Proxy Manager 部分给出了具体的配置行。
+### 它已经处理好的事情
+
+把所有请求代理到 `evey:9091`，流媒体路径不缓冲、不超时，数据随到随发。它整理好[安全一节](#security-headers--csp---read-this-if-your-proxy-sets-its-own)中的安全头和标准 CSP，并去掉应用自己的 CSP，确保到达浏览器的恰好只有一个；两个自带策略的页面会保留各自的策略。
 
 ## Nginx
 
-使用 [`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template)（现成的 compose 在 [`examples/nginx/docker-compose.nginx.yml`](../examples/nginx/docker-compose.nginx.yml)）。nginx 镜像在启动时生成它并替换 `EVEY_DOMAIN`：证书必须以对应的文件名存在。它代理到 `evey:9091`，并关闭了流媒体缓冲，没有前端构建步骤。
+### 文件
+
+[`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template)，以及一个现成的 compose 叠加文件 [`examples/nginx/docker-compose.nginx.yml`](../examples/nginx/docker-compose.nginx.yml)。
+
+### 设置
+
+1. 在 `.env` 里设置 `EVEY_DOMAIN`。nginx 镜像在启动时会生成配置模板，并替换其中的 `EVEY_DOMAIN`。
+2. 把证书和密钥放到模板期望的位置，用对应的文件名（`nginx-certs` 卷里的 `/etc/ssl/certs/<domain>.pem` 和 `/etc/ssl/private/<domain>.key`）：这个叠加文件不会替您申请证书。
+3. `docker compose -f docker-compose.yml -f examples/nginx/docker-compose.nginx.yml up -d`。
+4. 在**管理 → 远程访问**里，设置 `https://` 开头的**外部 URL**，并在**受信任的代理**里填入 `172.16.0.0/12`。
+
+### 它已经处理好的事情
+
+代理到 `evey:9091`，在流媒体路径上关闭缓冲和超时，升级 SyncPlay 的 WebSocket，转发 `X-Forwarded-For` 和 `X-Forwarded-Proto`，并设置 `client_max_body_size 2G`，用于上传插件和恢复备份。它会原样传递应用自己的安全头和 CSP。
 
 ## Traefik
 
-见 [`examples/traefik/docker-compose.traefik.yml`](../examples/traefik/docker-compose.traefik.yml)：
+### 文件
 
-```bash
-docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d
-```
+[`examples/traefik/docker-compose.traefik.yml`](../examples/traefik/docker-compose.traefik.yml)。
+
+### 设置
+
+1. 运行 Traefik，并配置一个 `websecure` 入口点、一个 `letsencrypt` 证书解析器，以及一个名为 `proxy` 的外部 Docker 网络；叠加文件里的标签默认使用这些名字。
+2. 在 `.env` 里设置 `EVEY_DOMAIN`，然后运行：
+
+    ```bash
+    docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d
+    ```
+
+3. 在**管理 → 远程访问**里，设置 `https://` 开头的**外部 URL**，并在**受信任的代理**里填入 `proxy` 网络的地址范围（`172.16.0.0/12` 覆盖 Docker 的默认网络）。
+
+### 它已经处理好的事情
+
+叠加文件只添加路由标签，并加入 `proxy` 网络。Traefik 在默认设置下既不缓冲响应，也不限制响应的时长，所以不需要为流媒体做任何调整；它会自己转发 `X-Forwarded-For` 和 `X-Forwarded-Proto`，并原样传递应用的安全头。
 
 ## Nginx Proxy Manager
 
-evey 容器必须位于 NPM 使用的网络中（见上文“在你已有的代理之后”）。然后，**Edit Proxy Host**：
+### 文件
 
-1. **Details**：Scheme `http`，Forward Hostname `evey-server`，Forward Port `9091`。**Websockets Support: on**（SyncPlay）。**Cache Assets: off**：否则它会以固定过期时间缓存媒体分段和播放列表。Block Common Exploits 可以保持开启（如果搜索或插件上传无故返回 403，就关掉它）。
-2. **SSL**：你的证书、Force SSL、HTTP/2。这里的 HSTS 是可选的：应用已经发送了它。
-就这些：NPM 会自己转发 `X-Forwarded-For` / `X-Forwarded-Proto` 和 Host 头，它的默认超时也永远不会在 Evey 的流上触发（见上面的流媒体部分）。
+没有：一切都在 NPM 的界面里设置。evey 容器必须在 NPM 使用的网络上，见[您已经在运行的代理](#a-proxy-you-already-run-tls-terminated-upstream)。
 
-**可选**：防止 NPM 通过自己的磁盘缓冲直接播放的文件：**Advanced** → *Custom Nginx Configuration*（`Custom Locations` 标签页无法表达这个正则表达式）：
+### 设置
+
+在 **Edit Proxy Host** 里：
+
+1. **Details**：Scheme 填 `http`，Forward Hostname 填 `evey-server`，Forward Port 填 `9091`。**Websockets Support：开启**（SyncPlay 需要）。**Cache Assets：关闭**，否则它会以固定的过期时间缓存媒体片段和播放列表。Block Common Exploits 可以保持开启（如果搜索或插件上传无缘无故返回 403，就把它关掉）。
+2. **SSL**：您的证书、Force SSL、HTTP/2。HSTS 在这里可选，因为应用已经会发送它。
+3. 在**管理 → 远程访问**里，设置 `https://` 开头的**外部 URL**，并在**受信任的代理**里填入 NPM 网络的地址范围。
+
+### 它已经处理好的事情
+
+NPM 会自己转发 `X-Forwarded-For`、`X-Forwarded-Proto` 和 Host 头，它的默认超时也永远不会在 Evey 的流上触发。不需要其他设置。
+
+**可选**：不让 NPM 用自己的磁盘来缓冲直接播放的文件。在 **Advanced** → *Custom Nginx Configuration* 里设置（`Custom Locations` 标签页无法写正则表达式）：
 
 ```nginx
 # 插件上传（最多 100 MB）和备份恢复（最多 2 GB）。
@@ -142,7 +118,7 @@ location ~ ^/api/v1/media/.+/(hls|stream) {
     proxy_set_header X-Forwarded-Proto $scheme;
 }
 
-# 媒体库扫描在整个扫描期间持续传送进度。
+# 媒体库扫描在整个扫描期间持续发送进度。
 location ~ ^/api/v1/libraries/.+/scan {
     proxy_pass http://evey-server:9091;
     proxy_buffering off;
@@ -157,15 +133,114 @@ location ~ ^/api/v1/libraries/.+/scan {
 }
 ```
 
-其他所有路径（网页界面、其余 API、SyncPlay WebSocket）都经过 NPM 自己的代理块，由 Details 标签页配置。跳过这个片段也不会有任何东西出问题：它只改变大文件在哪里被缓冲。
+其他所有路径（网页界面、API 的其余部分、SyncPlay 的 WebSocket）都走 NPM 自己的代理块，也就是 Details 标签页配置的那部分。不加这段配置也不会出问题，它只是改变大文件在哪里缓冲。
 
-## 客户端真实地址与远程访问限制
+## 您已经在运行的代理（TLS 在上游终止）
 
-一旦你的代理转发了客户端的真实地址，Evey 就能区分在家的观众和在互联网上的观众。WAN 码率上限和远程访问限制都依赖于此，所以这两项设置只有一起才能正确工作：
+如果 NAS 上已经有反向代理（厂商自带的、Nginx Proxy Manager，或者共享 Docker 网络上的 Traefik），就不需要 Caddy：Evey 会自己发出安全头和完整的 CSP，而流媒体规则无论如何也只能由面对客户端的那个代理来执行。在它后面再加一个代理没有任何好处。
 
-- 受信任的代理（面板或 `EVEY_TRUSTED_PROXIES`）必须覆盖该代理（当它是 Docker 网络上的容器时为 `172.16.0.0/12`；当它运行在主机上时无需添加，环回地址始终受信任）。你设置的内容会**添加**到环回地址这一基础之上，从不取代它，所以 Docker 的值不会悄悄地让限制看不到客户端的真实地址。
-- 代理链中的每个代理都必须保留 `X-Forwarded-For`。在 Caddy 中是 `servers { trusted_proxies static private_ranges }`；nginx 使用 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`。
+### 设置
 
-**开启这一点会改变谁算作远程。** 在此之前，每个请求看起来都来自代理自己的私有地址，所以所有人都被归类为 LAN。在此之后，真正的远程客户端会被正确识别，如果远程访问是关闭的，它们会在所有路由上被拒绝（`403 {"code":"remote_access_disabled"}`），尽管应用的设置没有任何改变。
+把 evey 服务放到那个代理的网络上，目标设为 `evey-server:9091`（容器名；服务名 `evey` 也能解析）：
 
-Evey 对此有所防护：在配置了公网 URL 且没有做出明确选择时，远程访问默认开启；状态会在每次启动时记录；拒绝会连同客户端 IP 一起记录；`evey admin doctor` 会对“已发布却在拒绝”明确报告失败；管理面板会显示警告。如果你更改了代理信任设置，之后请检查 `evey admin doctor`。
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    # 不暴露端口：代理是唯一的入口
+    environment:
+      EVEY_SERVER_BASE_URL: https://media.example.com
+      EVEY_TRUSTED_PROXIES: 172.16.0.0/12     # 知道代理的子网后，改成更窄的范围
+    # ...
+networks:
+  default:
+    name: proxy-net
+    external: true
+```
+
+然后，在那个代理里，为通往 `evey-server:9091` 的路由：转发 `X-Forwarded-For` 和 `X-Forwarded-Proto`，开启 WebSocket 支持，并在流媒体路径上应用下面的流媒体规则。上面 Nginx 和 Nginx Proxy Manager 两节给出了具体的配置行。
+
+### 它已经处理好的事情
+
+这取决于代理本身：请检查到达浏览器的 CSP 头恰好只有一个（见后面几节），并在设置好受信任的代理后运行一次 `evey admin doctor`。
+
+## 流媒体：代理的默认设置会对它产生什么影响
+
+即使反向代理保持默认设置，Evey 也能正常工作：每个长时间的响应要么连续发送数据（HLS 片段、直接播放、转码输出），要么每 30 秒向客户端发一次心跳（事件流），所以默认的读取超时永远不会触发。不过还有两点值得了解：
+
+- **缓冲。** 会缓冲响应的代理（nginx 默认如此）会先把直接播放的文件读进自己的缓冲区和临时文件，客户端才能收到。这样能用，但一部几 GB 的电影就会经过代理主机的磁盘。在流媒体路径上设置 `proxy_buffering off` 可以避免这种情况。
+- **扫描。** `/api/v1/libraries/*/scan` 在整个扫描期间持续发送进度；如果代理限制响应的总时长（这种情况很少见，nginx、Caddy 和 Traefik 默认都不限制），就会把它提前切断。不过扫描本身仍然会在服务器端继续进行。
+
+涉及的路径：
+
+```
+/api/v1/media/*/hls/*
+/api/v1/media/*/stream
+/api/v1/libraries/*/scan
+```
+
+自带的 Caddy 和 Nginx 示例都在这些路径上做了这两项设置（不缓冲、不超时）。Traefik 示例和 Nginx Proxy Manager 这类通过界面配置的代理保持默认设置，这样也没有问题；上面 NPM 的那段配置是可选的。
+
+## 安全头和 CSP：如果您的代理自己设置安全头，请读这一节
+
+Evey 会发出完整的 Content-Security-Policy。如果您的代理原样传递它，就不用再做什么了。
+
+但很多配置会把它去掉（Caddy 里的 `header_down -Content-Security-Policy`），再自己整理一份策略。这样做没问题，但**您的**策略必须保留下面这些指令值，否则一些功能会悄无声息地失效：
+
+| 指令值 | 指令 | 缺少时会出问题的地方 |
+| --- | --- | --- |
+| `'self'` | `frame-src` | 所有插件界面和主题脚本（iframe 一片空白）。它们运行在 `/plugin-frame.html` 里，这是应用用框架嵌入的一个 Evey 页面（见下文）。 |
+| `'wasm-unsafe-eval'` | `script-src` | 浏览器里的 AC-3/E-AC-3 播放（ac3go WebAssembly 解码器无法编译，所以电影播放时没有声音）。这是一个范围很窄的指令值，只允许编译 Wasm，不允许一般的 `eval()`。 |
+| `https://www.gstatic.com` | `script-src`（以及 `frame-src`） | Google Cast 发送端 SDK 永远加载不了，所以谁都看不到投屏按钮。这是浏览器发现用户自己局域网里 Chromecast 的唯一途径。 |
+| `blob:` | `media-src` | MSE 播放（hls.js 通过 blob URL 挂载视频流）。 |
+| `blob:` | `worker-src` | hls.js 会悄悄退回到在主线程里解复用（在手机上更卡顿）。 |
+
+对于自己整理策略的代理，这是一份确认可用的策略，也就是自带的 Caddy 发送的那一份：
+
+```
+default-src 'self'; base-uri 'self'; object-src 'none';
+img-src 'self' https: data: blob:; media-src 'self' blob:;
+style-src 'self' 'unsafe-inline';
+script-src 'self' 'wasm-unsafe-eval' https://www.gstatic.com;
+connect-src 'self' https: wss:; worker-src 'self' blob:; font-src 'self' data:;
+frame-src 'self' https://www.gstatic.com
+```
+
+`base-uri` 和 `object-src` 不会退回到 `default-src`，所以省略它们的策略对 `<base href>` 注入和 `<object>`/`<embed>` 嵌入毫无限制。如果您自己整理策略，请保留它们。`script-src` 里没有 `'unsafe-inline'`：注入到页面里的脚本不会运行。请不要把它加回去，应用里没有任何地方需要它。
+
+有两个页面带有自己的策略，由应用发送；请在这两个路径上保留应用的头：
+
+- `/plugin-frame.html`：插件界面和主题脚本运行的页面。它的策略把它放进沙箱（即使在 iframe 以外打开也是如此），把它的网络访问限制在插件清单声明的主机内，并且只允许应用用框架嵌入它，所以它还会发送 `X-Frame-Options: SAMEORIGIN`：不要在这个路径上用 `DENY` 覆盖它，否则所有插件界面都会一片空白。
+- `/cast-receiver.html`：Chromecast 从 Evey 播放时加载的页面。Cast 播放器会往里面注入来自 `www.gstatic.com` 的样式、字体和图片。请在这个路径上保留应用的头，或者只对这个路径应用下面的策略：
+
+```
+default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://www.gstatic.com; img-src 'self' data: https: blob:; media-src 'self' blob: https:; worker-src 'self' blob:; font-src 'self' data: https://www.gstatic.com; connect-src 'self' https: wss:; frame-src https://www.gstatic.com; base-uri 'self'; object-src 'none'
+```
+
+!!! warning "到达浏览器的 CSP 头必须恰好只有一个"
+    如果有两个（应用的和您代理的，或者 Caddy 的和 Nginx Proxy Manager“Advanced”里那段配置的），浏览器会执行两者的*交集*：最严格的那个说了算，而且出错时没有任何提示。请用 `curl -sI https://your.domain | grep -ci content-security-policy` 检查，它必须输出 `1`。
+
+每次修改后，还要再做两项检查：
+
+- **策略要写在一行里。** 在代理配置里把 CSP 拆成多行，是一种典型的、不会报错的损坏：拼接时会吞掉接缝处的字符（有一次 `...gstatic.com; connect-src` 变成了 `...gstaticonnect-src`，结果 Cast SDK 被禁用，两条指令也被合并了）。
+- **插件框架保留它自己的策略：** `curl -sI https://your.domain/plugin-frame.html | grep -i -e content-security -e x-frame` 必须显示 `sandbox allow-scripts` 和 `SAMEORIGIN`。
+
+## 客户端真实 IP 和远程访问关口
+
+代理一旦转发客户端的真实地址，Evey 就能分辨观众是在家里还是在互联网上：**最大远程码率**和远程访问开关正是依据这一点起作用。有两条规则：
+
+- 受信任的代理（管理面板或 `EVEY_TRUSTED_PROXIES`）必须包含这个代理：如果代理是 Docker 网络上的容器，填 `172.16.0.0/12`；如果它运行在主机上，就什么都不用加，因为环回地址始终受信任，您设置的内容会加在它之上。
+- 多个代理串联时，每一个都必须保留 `X-Forwarded-For`。在 Caddy 里是 `servers { trusted_proxies static private_ranges }`；nginx 用 `proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`。
+
+开启这项功能会改变谁算作远程：一台远程访问原本关闭的服务器，会开始拒绝真正的远程客户端（`403 {"code":"remote_access_disabled"}`），尽管应用的设置一项都没改。设置了公网地址、而您又没有做过选择时，Evey 会自己开启远程访问；它在每次启动时记录当前状态，每次拒绝时记录客户端地址；`evey admin doctor` 会对“已发布但在拒绝访问”的情况报告失败。整个机制的说明见[远程访问和 HTTPS](administration/remote-access.md#the-real-client-address)。
+
+<!-- sources
+one port for API and UI, https mode from the scheme: internal/config/config.go (EVEY_FORWARDED_PROTO deprecated) ; internal/config/network_live.go - EffectiveHTTPS
+bundled Caddy: docker/Caddyfile (streaming matcher, @ownPolicy, header_down CSP) ; docker/Dockerfile.caddy ; docker-compose.yml caddy service
+nginx: examples/nginx/evey.conf.template ; examples/nginx/docker-compose.nginx.yml (nginx-certs volume, no ACME)
+traefik: examples/traefik/docker-compose.traefik.yml (labels + proxy network only)
+streaming paths: cmd/evey/gateway.go ; event streams ping 30 s ; scan progress stream
+csp and own-policy pages: internal/adapters/driving/http/helpers.go - securityHeadersMiddleware ; /plugin-frame.html ; /cast-receiver.html
+trusted proxies, catch-all refused, doctor: internal/config/trusted_proxies.go ; cmd/evey/admin_ops.go - checkTrustedProxies
+remote access inferred: docs/adr/0026-remote-access-inferred-from-a-published-url.md
+labels: i18n admin.remoteAccess.*
+-->
