@@ -51,6 +51,7 @@ type hlsVODServe struct {
 	// the container. nil = disabled. See subtitle_prewarm.go.
 	subtitlePrewarm *subtitlePrewarmer
 	startHints      startPositionHints // master's ?startSec= -> variant pre-warm
+	livePositions   startPositionHints // decision hash -> last segment served, for a later init
 
 	// servingRecord: see SessionServingRecord; nil = not wired (tests).
 	servingRecord SessionServingRecord
@@ -549,9 +550,10 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// thing every player sends. Useful for "time to first frame" admin views.
 	h.ingestCMCD(r, mediaID, 0, 0, false, true, false)
 
-	if seg, ok := startSegmentHint(r); ok {
-		h.startHints.remember(mediaID, seg, time.Now())
-	}
+	// Absent = a start at 0, remembered as such so the variant fetch that
+	// follows still warms its rafale.
+	seg, _ := startSegmentHint(r)
+	h.startHints.remember(mediaID, seg, time.Now())
 
 	// ONE resolution: decision, route, shaped ladder, fingerprint and the
 	// delivery strategy - which engine carries the video and the audio. From
@@ -954,8 +956,12 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// PreWarm runs in a goroutine bound to the orchestrator's shutdownCtx
 	// so Close() cancels every in-flight pre-warm (clean test teardown).
 	// At the announced start position when the master carried one.
+	// No fresh master = a mid-viewing refetch: the segment request spawns at
+	// the right place, a warm-up here would only open an encoder at 0.
 	if producer := h.producerForPlan(rp); producer != nil {
-		producer.PreWarm(rp.FP, profileIdx, h.prewarmSegment(mediaID, in.DurationSec, time.Now()))
+		if seg, ok := h.prewarmSegment(mediaID, in.DurationSec, time.Now()); ok {
+			producer.PreWarm(rp.FP, profileIdx, seg)
+		}
 	}
 }
 
@@ -1073,14 +1079,16 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		// Pass variantIdx so in single-variant mode the correct per-rung session
 		// is created (or reused). In multi-variant mode variantIdx is forwarded
 		// but the session covers all rungs anyway.
-		// Every rafale writes the same init, so ensure it at the announced start:
+		// Every rafale writes the same init, so ensure it where playback is:
 		// ensuring segment 0 opened, or kept alive, a second GPU encoder at 0
 		// next to the one being drained (prod 2026-09-09).
 		durSec := 0.0
 		if item.File != nil {
 			durSec = item.File.Duration.Seconds()
 		}
-		ensureSeg = h.prewarmSegment(mediaID, durSec, time.Now())
+		ensureSeg = h.initSegment(mediaID, rp.FPHash, durSec, time.Now())
+	} else {
+		h.livePositions.rememberWithin(rp.FPHash, segmentIdx, time.Now(), livePositionTTL)
 	}
 	key := apptranscoding.SegmentKey{
 		DecisionHash: rp.FPHash,

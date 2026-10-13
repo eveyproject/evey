@@ -47,6 +47,7 @@ func TestStartPositionHints_RememberedPerMediaAndExpire(t *testing.T) {
 	hints.remember("m2", 500, now)
 	hints.remember("", 7, now) // no media, no hint
 	hints.remember("m3", 0, now)
+	hints.remember("m4", -1, now)
 
 	seg, ok := hints.peek("m1", now.Add(time.Second))
 	assert.True(t, ok)
@@ -54,8 +55,11 @@ func TestStartPositionHints_RememberedPerMediaAndExpire(t *testing.T) {
 	seg, ok = hints.peek("m2", now.Add(time.Second))
 	assert.True(t, ok)
 	assert.Equal(t, 500, seg)
-	_, ok = hints.peek("m3", now)
-	assert.False(t, ok, "a start at 0 is the default, not a hint")
+	seg, ok = hints.peek("m3", now)
+	assert.True(t, ok, "a master starting at 0 is remembered: its variant fetch is a cold start")
+	assert.Equal(t, 0, seg)
+	_, ok = hints.peek("m4", now)
+	assert.False(t, ok, "a negative start is no hint")
 
 	// A peek does not consume: an ABR probe fetches two variant playlists.
 	seg, ok = hints.peek("m1", now.Add(2*time.Second))
@@ -70,12 +74,48 @@ func TestPrewarmSegment_UsesTheHintOnlyInsideThePresentation(t *testing.T) {
 	h := &hlsVODServe{}
 	now := time.Now()
 
-	assert.Equal(t, 0, h.prewarmSegment("m1", 7980, now), "no hint: segment 0, as before")
+	// Prod 2026-10-12: a variant playlist refetched after a token refresh, long
+	// after its master, warmed segment 0 on a rung nobody read.
+	seg, ok := h.prewarmSegment("m1", 7980, now)
+	assert.False(t, ok, "no fresh master: a mid-viewing refetch, no warm-up")
+	assert.Equal(t, 0, seg)
+
+	h.startHints.remember("m1", 0, now)
+	seg, ok = h.prewarmSegment("m1", 7980, now)
+	assert.True(t, ok, "a master starting at 0: warm at 0")
+	assert.Equal(t, 0, seg)
 
 	h.startHints.remember("m1", 23, now)
-	assert.Equal(t, 23, h.prewarmSegment("m1", 7980, now), "the prod switch: warm at 23, not 0")
-	assert.Equal(t, 23, h.prewarmSegment("m1", 0, now), "unknown duration: trust the hint")
+	seg, ok = h.prewarmSegment("m1", 7980, now)
+	assert.True(t, ok)
+	assert.Equal(t, 23, seg, "the prod switch: warm at 23, not 0")
+	seg, _ = h.prewarmSegment("m1", 0, now)
+	assert.Equal(t, 23, seg, "unknown duration: trust the hint")
+
+	_, ok = h.prewarmSegment("m1", 7980, now.Add(startHintTTL+time.Second))
+	assert.False(t, ok, "the master is too old: no warm-up")
 
 	h.startHints.remember("m1", 4000, now)
-	assert.Equal(t, 0, h.prewarmSegment("m1", 7980, now), "a hint past the end is bogus: back to 0")
+	seg, ok = h.prewarmSegment("m1", 7980, now)
+	assert.True(t, ok)
+	assert.Equal(t, 0, seg, "a hint past the end is bogus: back to 0")
+}
+
+// A rung's init first asked after a long pause (no fresh master) is ensured
+// where playback is, not at 0.
+func TestInitSegment_FallsBackToTheLivePositionThenZero(t *testing.T) {
+	h := &hlsVODServe{}
+	now := time.Now()
+
+	assert.Equal(t, 0, h.initSegment("m1", "fp1", 7980, now), "nothing known: 0")
+
+	h.livePositions.rememberWithin("fp1", 1333, now, livePositionTTL)
+	later := now.Add(7 * time.Minute)
+	assert.Equal(t, 1333, h.initSegment("m1", "fp1", 7980, later), "after a long pause: the last segment served")
+	assert.Equal(t, 0, h.initSegment("m1", "fp2", 7980, later), "another decision does not borrow it")
+
+	h.startHints.remember("m1", 23, later)
+	assert.Equal(t, 23, h.initSegment("m1", "fp1", 7980, later), "a fresh master wins")
+
+	assert.Equal(t, 0, h.initSegment("m1", "fp1", 7980, now.Add(livePositionTTL+time.Minute)), "too old: 0")
 }
