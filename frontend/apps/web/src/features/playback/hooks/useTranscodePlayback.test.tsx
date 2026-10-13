@@ -232,6 +232,28 @@ describe("useTranscodePlayback - errors", () => {
     expect(hls().startLoad).toHaveBeenCalledTimes(2);
   });
 
+  // Prod 2026-10-12: resumed near the end, seeked back, paused ~10 min; the
+  // refresh re-parsed the manifest and the playhead jumped back to the end.
+  it("a manifest reload after a token refresh lands on the live position, not the mount-time resume point", async () => {
+    const { refs, video, hls } = setup({ startPositionMs: 9831822 });
+    refs.positionRef.current = 9831.822;
+    act(() => hls().emit("MANIFEST_PARSED", { levels: hls().levels }));
+    expect(video.currentTime).toBe(9831.822);
+    (video as any).currentTime = 3433;
+    await act(async () => hls().emit("ERROR", { fatal: true, type: "networkError", details: "levelLoadError", response: { code: 401 } }));
+    expect(hls().startLoad).toHaveBeenLastCalledWith(3433);
+    act(() => hls().emit("MANIFEST_PARSED", { levels: hls().levels }));
+    expect(video.currentTime).toBe(3433);
+  });
+
+  it("a fragment 401 restarts loading at the playhead, not at -1 (subtitles refetched from the start)", async () => {
+    const { video, hls } = setup();
+    (video as any).currentTime = 3980;
+    await act(async () => hls().emit("ERROR", { fatal: true, type: "networkError", details: "fragLoadError", response: { code: 401 } }));
+    expect(hls().loadSource).toHaveBeenCalledTimes(1);
+    expect(hls().startLoad).toHaveBeenLastCalledWith(3980);
+  });
+
   it("a failed token refresh is fatal only for the live instance", async () => {
     const { refs, spies, hls } = setup();
     refs.onStreamTokenRefreshRef.current = vi.fn(async () => { throw new Error("expired"); });
