@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
@@ -69,6 +70,10 @@ type TrickplayService struct {
 	// for an already-running item is skipped (generation is idempotent).
 	genMu      sync.Mutex
 	inProgress map[string]struct{}
+
+	// requeue hands an item back to the worker's queue (StartTrickplayWorker
+	// sets it); nil before the worker runs, when the next sweep lists it.
+	requeue atomic.Pointer[func(mediaItemID string)]
 }
 
 // claimGeneration marks mediaItemID as generating and returns true. It returns
@@ -177,6 +182,14 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 		slog.DebugContext(ctx, "trickplay generation already in progress, skipping", slog.String("media_item_id", mediaItemID))
 		return nil
 	}
+	// Deferred before the release, so it runs after it: the queued remake
+	// must find the item free.
+	var replacedMeanwhile bool
+	defer func() {
+		if replacedMeanwhile {
+			s.requeueItem(ctx, mediaItemID)
+		}
+	}()
 	defer s.releaseGeneration(mediaItemID)
 	s.waitForIdleStreams(ctx)
 
@@ -204,6 +217,7 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 	result, err := s.trickplayGen.Generate(ctx, item.File.Path, outputDir, interval, width, tileWidth, tileHeight, s.decoderThreads(), item.File.Duration.Milliseconds())
 	if err != nil {
 		s.recordGenerationFailure(ctx, mediaItemID, item.File, err)
+		replacedMeanwhile = ctx.Err() == nil && s.fileReplacedSince(ctx, item)
 		return fmt.Errorf("generate trickplay: %w", err)
 	}
 
@@ -240,6 +254,10 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 		}
 		return fmt.Errorf("store trickplay manifest: %w", err)
 	}
+
+	// The file replaced while it was read: the manifest names the old one and
+	// is not served. Remade now rather than at the next sweep.
+	replacedMeanwhile = s.fileReplacedSince(ctx, item)
 
 	if s.events != nil {
 		s.events.Publish(ctx, library.TrickplayGenerated{
@@ -420,6 +438,15 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 	// semaphore this replaces dropped every arrival while one was generating
 	// ("trickplay queue full, dropping", prod 2026-09-25) until the next boot.
 	queue := make(chan string, trickplayEventQueue)
+	enqueue := func(id string) {
+		select {
+		case queue <- id:
+			bgtasks.Queue(trickplayTask, 1)
+		default:
+			slog.WarnContext(ctx, "trickplay queue full, the next sweep lists it", slog.String("media_id", id))
+		}
+	}
+	s.requeue.Store(&enqueue)
 	go func() {
 		for {
 			select {
@@ -469,13 +496,27 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 		if err != nil || (item.Type != library.MovieItem && item.Type != library.Episode) {
 			return
 		}
-		select {
-		case queue <- id:
-			bgtasks.Queue(trickplayTask, 1)
-		default:
-			slog.WarnContext(ctx, "trickplay queue full, the next sweep remakes the replaced file's sprites", slog.String("media_id", id))
-		}
+		enqueue(id)
 	})
+}
+
+// fileReplacedSince reports whether the item's file is no longer the one
+// read (another size or mtime is stored now).
+func (s *TrickplayService) fileReplacedSince(ctx context.Context, read *library.MediaItem) bool {
+	cur, err := s.mediaItems.GetByID(ctx, read.ID)
+	if err != nil || cur.File == nil {
+		return false
+	}
+	return cur.File.Size != read.File.Size || !cur.File.ModTime.Equal(read.File.ModTime)
+}
+
+// requeueItem hands the item back to the worker's queue.
+func (s *TrickplayService) requeueItem(ctx context.Context, mediaItemID string) {
+	slog.InfoContext(ctx, "trickplay: the file was replaced during its generation, remaking it",
+		slog.String("media_id", mediaItemID))
+	if q := s.requeue.Load(); q != nil {
+		(*q)(mediaItemID)
+	}
 }
 
 // dropReplacedManifest drops the manifest and the sprites of a file since
