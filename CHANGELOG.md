@@ -76,6 +76,12 @@ line - earlier history lives in git.
   Cues.
 
 ### Changed
+- Webhooks: a `media.item.updated` event whose `Reason` is `file_replaced`
+  now carries the file's duration before and after the replacement, in
+  milliseconds, as `PreviousDurationMs` and `DurationMs` (0 when unknown: a
+  file never probed, or a new file the probe could not read). The fields are
+  added to the payload; none is renamed or removed, so an existing receiver
+  keeps working. Other reasons send both at 0.
 - Packager upgraded to mkvgo 0.42.0: media segments of an MKV are written
   from the source as they go out instead of being assembled whole in memory,
   so the server's memory no longer grows with slow viewers (a 4-film run
