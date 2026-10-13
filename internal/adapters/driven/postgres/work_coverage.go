@@ -60,12 +60,13 @@ func keyframesPendingSQL(version string) string {
 	return `keyframes_ms IS NULL AND keyframes_probe_version < ` + version
 }
 
-// trickplayPendingSQL: no manifest at the current version and no failure
-// recorded for this very file (size + mtime).
+// trickplayPendingSQL: no manifest of this very file at the current version
+// and no failure recorded for it (size + mtime).
 func trickplayPendingSQL(version string) string {
 	return `NOT EXISTS (
 	     SELECT 1 FROM trickplay_manifests tm
-	     WHERE tm.media_item_id = mi.id AND tm.algo_version >= ` + version + `)
+	     WHERE tm.media_item_id = mi.id AND tm.algo_version >= ` + version + `
+	       AND ` + trickplayOfCurrentFileSQL("tm") + `)
 	   AND NOT EXISTS (
 	     SELECT 1 FROM trickplay_failures tf
 	     WHERE tf.media_item_id = mi.id
@@ -91,9 +92,10 @@ func introPendingSQL(versioned string) string {
 	  AND (att.media_item_id IS NULL OR att.algo_version <> $4 OR att.attempts < $5)`
 }
 
-const introFromSQL = `media_items mi
+var introFromSQL = `media_items mi
 	LEFT JOIN media_segments intro
 	       ON intro.media_item_id = mi.id AND intro.type = 'intro'
+	      AND ` + segmentOfCurrentFileSQL("intro") + `
 	LEFT JOIN intro_detection_attempts att
 	       ON att.media_item_id = mi.id`
 

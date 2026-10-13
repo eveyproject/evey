@@ -85,3 +85,11 @@ func sourcePathOf(item *domainlibrary.MediaItem) string {
 	}
 	return item.File.Path
 }
+
+// sourceFingerprintOf is the scanned file's size and mtime, "" without a file.
+func sourceFingerprintOf(item *domainlibrary.MediaItem) string {
+	if item == nil || item.File == nil {
+		return ""
+	}
+	return item.File.Fingerprint
+}

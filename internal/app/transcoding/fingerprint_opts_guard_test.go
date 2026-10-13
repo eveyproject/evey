@@ -70,10 +70,11 @@ var (
 	// Part of the cache identity but NOT an encoder input - each with the
 	// reason it legitimately stops at the fingerprint.
 	fingerprintNonEncoderFields = map[string]string{
-		"MediaID":    "cache key only; the source is resolved from SourcePath",
-		"SourcePath": "reaches ffmpeg as opts.FilePath, resolved by the caller",
-		"AudioCopy":  "selects the audio branch via fp.AudioDecision(), not a raw field",
-		"Profiles":   "converted by profilesToDomain into opts.Profiles",
+		"MediaID":           "cache key only; the source is resolved from SourcePath",
+		"SourcePath":        "reaches ffmpeg as opts.FilePath, resolved by the caller",
+		"SourceFingerprint": "cache key only - a replaced file at the same path must not reuse its segments",
+		"AudioCopy":         "selects the audio branch via fp.AudioDecision(), not a raw field",
+		"Profiles":          "converted by profilesToDomain into opts.Profiles",
 		// Priced, never encoded: ffmpeg learns the height by opening the file.
 		"SourceVideoHeight": "admission input only - VideoCostModel.CostForSource, never an ffmpeg arg",
 		"SourceFPS":         "admission input only - RouteCostModel required rate, never an ffmpeg arg (ffmpeg reads the fps from the file)",
@@ -225,7 +226,8 @@ var (
 		"SourceAudioCodec":      "AudioProcessOpts.SourceAudioCodec (-bsf:a aac_adtstoasc on a copied ADTS track)",
 	}
 	audioFingerprintNonEncoderFields = map[string]string{
-		"MediaID": "cache addressing only - two items sharing a source path must not share segments",
+		"MediaID":           "cache addressing only - two items sharing a source path must not share segments",
+		"SourceFingerprint": "cache addressing only - a replaced file at the same path must not reuse its segments",
 		"SourceDurationSec": "transport for the silence-tail bound - not an encode input, deliberately " +
 			"NOT hashed (TestAudioFingerprint_SourceDurationSec_DoesNotForkHash pins that)",
 	}

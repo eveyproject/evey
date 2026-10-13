@@ -222,7 +222,11 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 		ImageCount:  result.ImageCount,
 		ImagePath:   result.ImageDir,
 		AlgoVersion: trickplayAlgoVersion,
-		CreatedAt:   time.Now(),
+		// The file as stored when generation began: replaced since, the
+		// manifest is born stale and the sweep remakes it.
+		FileSize:  item.File.Size,
+		ModTime:   item.File.ModTime,
+		CreatedAt: time.Now(),
 	}
 
 	if err := s.trickplayRepo.Create(ctx, manifest); err != nil {

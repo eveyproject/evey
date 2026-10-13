@@ -486,7 +486,11 @@ type MediaSegment struct {
 	EndMs       int64
 	Confidence  float64
 	Source      string
-	CreatedAt   time.Time
+	// SourceFingerprint is the file (MediaFile.Fingerprint) a detector found
+	// the segment in; empty for an operator mark. Set when known, else the
+	// repository stamps the file the item points at when the row is written.
+	SourceFingerprint string
+	CreatedAt         time.Time
 }
 
 type ScanSchedule struct {
@@ -620,5 +624,9 @@ type TrickplayManifest struct {
 	// with; 0 = legacy rows from before versioning. The missing-sweep
 	// re-lists anything below the generator's current version.
 	AlgoVersion int
-	CreatedAt   time.Time
+	// FileSize and ModTime are the media file's as stored when generation
+	// began: a manifest of a file since replaced is neither served nor counted.
+	FileSize  int64
+	ModTime   time.Time
+	CreatedAt time.Time
 }

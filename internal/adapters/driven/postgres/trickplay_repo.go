@@ -15,6 +15,44 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
+// trickplayManifestColumns and trickplayManifestDest read one manifest row
+// (alias tm); a manifest from before stamping reads FileSize 0.
+const trickplayManifestColumns = `tm.id, tm.media_item_id, tm.interval_sec, tm.width, tm.height, tm.tile_width,
+	tm.tile_height, tm.image_count, tm.image_path, tm.algo_version, tm.created_at,
+	COALESCE(tm.file_size, 0), COALESCE(tm.mod_time, 'epoch'::timestamptz)`
+
+func trickplayManifestDest(m *library.TrickplayManifest) []any {
+	return []any{&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth,
+		&m.TileHeight, &m.ImageCount, &m.ImagePath, &m.AlgoVersion, &m.CreatedAt, &m.FileSize, &m.ModTime}
+}
+
+// trickplayOfCurrentFileSQL keeps a manifest made from the file the item points
+// at now (its size and mtime), or one from before stamping (NULL). A manifest of
+// a replaced file is neither served nor counted as done, so the sweep remakes it.
+func trickplayOfCurrentFileSQL(alias string) string {
+	return `(` + alias + `.file_size IS NULL OR EXISTS (
+	     SELECT 1 FROM media_files cur
+	     WHERE cur.media_item_id = ` + alias + `.media_item_id
+	       AND cur.file_size = ` + alias + `.file_size
+	       AND cur.mod_time = ` + alias + `.mod_time))`
+}
+
+// nullableFileSize and nullableModTime store "unknown" as NULL, never as a
+// zero that could match an empty file.
+func nullableFileSize(n int64) any {
+	if n <= 0 {
+		return nil
+	}
+	return n
+}
+
+func nullableModTime(t time.Time) any {
+	if t.IsZero() {
+		return nil
+	}
+	return t
+}
+
 type TrickplayRepository struct {
 	db *sql.DB
 }
@@ -30,8 +68,8 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO trickplay_manifests (id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, algo_version, created_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+		`INSERT INTO trickplay_manifests (id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, algo_version, created_at, file_size, mod_time)
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   interval_sec = EXCLUDED.interval_sec,
 		   width = EXCLUDED.width,
@@ -41,8 +79,11 @@ func (r *TrickplayRepository) Create(ctx context.Context, m *library.TrickplayMa
 		   image_count = EXCLUDED.image_count,
 		   image_path = EXCLUDED.image_path,
 		   algo_version = EXCLUDED.algo_version,
-		   created_at = EXCLUDED.created_at`,
+		   created_at = EXCLUDED.created_at,
+		   file_size = EXCLUDED.file_size,
+		   mod_time = EXCLUDED.mod_time`,
 		m.ID, m.MediaItemID, m.Interval, m.Width, m.Height, m.TileWidth, m.TileHeight, m.ImageCount, m.ImagePath, m.AlgoVersion, m.CreatedAt,
+		nullableFileSize(m.FileSize), nullableModTime(m.ModTime),
 	)
 	if err != nil {
 		// A foreign-key violation here means the media item was deleted while
@@ -103,9 +144,9 @@ func (r *TrickplayRepository) GetByMediaItemID(ctx context.Context, mediaItemID 
 	defer cancel()
 	m := &library.TrickplayManifest{}
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, algo_version, created_at
-		 FROM trickplay_manifests WHERE media_item_id = $1`, mediaItemID,
-	).Scan(&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth, &m.TileHeight, &m.ImageCount, &m.ImagePath, &m.AlgoVersion, &m.CreatedAt)
+		`SELECT `+trickplayManifestColumns+`
+		 FROM trickplay_manifests tm WHERE tm.media_item_id = $1 AND `+trickplayOfCurrentFileSQL("tm"), mediaItemID,
+	).Scan(trickplayManifestDest(m)...)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, shared.ErrNotFound
 	}
@@ -136,8 +177,8 @@ func (r *TrickplayRepository) GetByMediaItemIDs(ctx context.Context, mediaItemID
 	}
 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, media_item_id, interval_sec, width, height, tile_width, tile_height, image_count, image_path, algo_version, created_at
-		 FROM trickplay_manifests WHERE media_item_id = ANY($1)`, pq.Array(ids))
+		`SELECT `+trickplayManifestColumns+`
+		 FROM trickplay_manifests tm WHERE tm.media_item_id = ANY($1) AND `+trickplayOfCurrentFileSQL("tm"), pq.Array(ids))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -148,7 +189,7 @@ func (r *TrickplayRepository) GetByMediaItemIDs(ctx context.Context, mediaItemID
 	result := make(map[shared.MediaItemID]*library.TrickplayManifest, len(mediaItemIDs))
 	for rows.Next() {
 		m := &library.TrickplayManifest{}
-		if err := rows.Scan(&m.ID, &m.MediaItemID, &m.Interval, &m.Width, &m.Height, &m.TileWidth, &m.TileHeight, &m.ImageCount, &m.ImagePath, &m.AlgoVersion, &m.CreatedAt); err != nil {
+		if err := rows.Scan(trickplayManifestDest(m)...); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err

@@ -60,3 +60,24 @@ func TestResolver_PinnedVideoCodec_IgnoredWhenUndecodableOrCopy(t *testing.T) {
 		assert.NotContains(t, d.TranscodeReasons, "video_codec_pinned", "a copy is not re-encoded to honour a pin")
 	}
 }
+
+// The resolved plan carries the file's size and mtime into its cache key: a
+// replaced file at the same path resolves to another hash.
+func TestResolver_SourceFingerprintForksTheCacheKey(t *testing.T) {
+	pr := fallbackResolver(probedNVENC())
+	req := PlaybackRequest{
+		MediaID: "m1", SourcePath: "/m.mkv", SourceFingerprint: "1000-1",
+		Streams:             sdrStreams("h264", "yuv420p", false),
+		Client:              transcoding.ClientProfile{VideoCodecs: []string{"h264"}, AudioCodecs: []string{"aac"}, Containers: []string{"mp4"}},
+		Prefs:               DefaultTranscodingPreferences(),
+		PinnedVideoDecision: "transcode",
+	}
+	before, err := pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	assert.Equal(t, "1000-1", before.Fingerprint.SourceFingerprint)
+
+	req.SourceFingerprint = "1000-2"
+	after, err := pr.Resolve(context.Background(), req)
+	require.NoError(t, err)
+	assert.NotEqual(t, before.FingerprintHash, after.FingerprintHash)
+}

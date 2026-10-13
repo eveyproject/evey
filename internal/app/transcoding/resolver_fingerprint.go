@@ -80,9 +80,10 @@ func (pr *PlanResolver) fingerprintFor(ctx context.Context, req PlaybackRequest,
 	audioCopy := AudioCopyEligible(decision, normalize, len(fpProfiles), srcAudio, req.Client) &&
 		AACCopyDeclarable(srcAudio, snap.AudioProfile)
 	fp := DecisionFingerprint{
-		MediaID:    req.MediaID,
-		SourcePath: req.SourcePath,
-		VideoCodec: route.Codec,
+		MediaID:           req.MediaID,
+		SourcePath:        req.SourcePath,
+		SourceFingerprint: req.SourceFingerprint,
+		VideoCodec:        route.Codec,
 		// The SOURCE codec (excluded from Hash - derivable from MediaID): the
 		// copy builder tags the fMP4 sample entry from it (-tag:v hvc1).
 		SourceVideoCodec: snap.Codec,

@@ -1242,6 +1242,7 @@ func (s *IntroDetectionService) detectIntroWithHint(ctx context.Context, mediaIt
 		}
 		seg.ID = uuid.New().String()
 		seg.MediaItemID = shared.MediaItemID(mediaItemID)
+		seg.SourceFingerprint = item.File.Fingerprint // the file read, not the one there at write time
 		if err := s.upsertSegmentRespectingManual(persistCtx, &seg); err != nil {
 			return fmt.Errorf("upsert segment %s: %w", seg.Type, err)
 		}
