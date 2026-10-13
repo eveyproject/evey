@@ -336,6 +336,12 @@ export function useTranscodePlayback({
       };
     }
 
+    // Where MANIFEST_PARSED puts the playhead. A token refresh reloads the
+    // manifest on this same instance: it must land on the live position, not on
+    // the mount-time resume point (prod 2026-10-12, resume after a long pause
+    // jumped back to the end of the film).
+    let resumeSec = initialSeekSec;
+
     const hls = new Hls({
       // Load from the resume position: with -1 hls.js fetched fragment 0 first,
       // which opened a GPU encoder at 0 nobody read (prod 2026-09-09).
@@ -455,8 +461,8 @@ export function useTranscodePlayback({
       // with the matching -ss; hls.js accepts it because the playlist's EXTINF
       // places the segment - the fragment's tfdt resets to 0 per session and is
       // tolerated (positioning is by the manifest, not the fragment timestamp).
-      if (initialSeekSec > 0) {
-        video.currentTime = initialSeekSec;
+      if (resumeSec > 0) {
+        video.currentTime = resumeSec;
       } else if (video.currentTime !== 0) {
         video.currentTime = 0;
       }
@@ -565,11 +571,15 @@ export function useTranscodePlayback({
                 data.details === "levelLoadTimeOut";
               if (isManifestLevel) {
                 const seekPos = transcodeOffsetRef.current + (video.currentTime || 0);
+                resumeSec = video.currentTime || 0;
                 const freshUrl = buildTranscodeHlsUrl(mediaId, newToken, audioTrackOverrideRef?.current ?? currentTrackIndex, selectedBurnInTrack, seekPos, audioOffsetMs, gapless, wasmAudio, forceTranscodeRef.current);
                 hls.loadSource(freshUrl);
-                hls.startLoad();
+                hls.startLoad(resumeSec > 0 ? resumeSec : -1);
               } else {
-                hls.startLoad();
+                // Without a position the subtitle controller restarts at -1 and
+                // refetched the film's first cues (prod 2026-10-12).
+                const pos = video.currentTime || 0;
+                hls.startLoad(pos > 0 ? pos : -1);
               }
             } catch {
               // Only fail the LIVE instance - if the effect re-ran during the
