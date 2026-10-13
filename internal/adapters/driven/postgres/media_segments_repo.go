@@ -21,6 +21,21 @@ import (
 // unbounded query is what let a 500-season truncation go unnoticed for weeks.
 const introPendingSeasonsDefaultLimit = 100
 
+// segmentSourceFingerprintSQL stamps a written segment with the file it was
+// found in: the caller's MediaSegment.SourceFingerprint, else the file the row
+// points at now. An operator mark ($7 locked) is no file's and stays NULL.
+const segmentSourceFingerprintSQL = `CASE WHEN $7 IN ('manual', 'manual_propagated') THEN NULL
+	ELSE COALESCE(NULLIF($9, ''), (SELECT mf.file_fingerprint FROM media_files mf WHERE mf.media_item_id = $2)) END`
+
+// segmentOfCurrentFileSQL keeps the segments that describe the file the item
+// points at now: an operator mark, a row from before stamping (NULL), or one
+// stamped with that file. A segment found in a replaced file is neither served
+// nor counted as coverage, so the sweep detects the new one.
+func segmentOfCurrentFileSQL(alias string) string {
+	return `(` + alias + `.source_fingerprint IS NULL OR ` + alias + `.source_fingerprint =
+	    (SELECT mf.file_fingerprint FROM media_files mf WHERE mf.media_item_id = ` + alias + `.media_item_id))`
+}
+
 type MediaSegmentRepository struct {
 	db *sql.DB
 }
@@ -37,8 +52,8 @@ func (r *MediaSegmentRepository) GetByMediaItemID(ctx context.Context, mediaItem
 	defer cancel()
 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, media_item_id, type, start_ms, end_ms, confidence, source, created_at
-		 FROM media_segments WHERE media_item_id = $1 ORDER BY start_ms`, string(mediaItemID))
+		`SELECT ms.id, ms.media_item_id, ms.type, ms.start_ms, ms.end_ms, ms.confidence, ms.source, COALESCE(ms.source_fingerprint, ''), ms.created_at
+		 FROM media_segments ms WHERE ms.media_item_id = $1 AND `+segmentOfCurrentFileSQL("ms")+` ORDER BY ms.start_ms`, string(mediaItemID))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -49,7 +64,7 @@ func (r *MediaSegmentRepository) GetByMediaItemID(ctx context.Context, mediaItem
 	var result []*library.MediaSegment
 	for rows.Next() {
 		seg := &library.MediaSegment{}
-		if err := rows.Scan(&seg.ID, &seg.MediaItemID, &seg.Type, &seg.StartMs, &seg.EndMs, &seg.Confidence, &seg.Source, &seg.CreatedAt); err != nil {
+		if err := rows.Scan(&seg.ID, &seg.MediaItemID, &seg.Type, &seg.StartMs, &seg.EndMs, &seg.Confidence, &seg.Source, &seg.SourceFingerprint, &seg.CreatedAt); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
@@ -83,8 +98,8 @@ func (r *MediaSegmentRepository) GetByMediaItemIDs(ctx context.Context, mediaIte
 	}
 
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT id, media_item_id, type, start_ms, end_ms, confidence, source, created_at
-		 FROM media_segments WHERE media_item_id = ANY($1) ORDER BY media_item_id, start_ms`, pq.Array(ids))
+		`SELECT ms.id, ms.media_item_id, ms.type, ms.start_ms, ms.end_ms, ms.confidence, ms.source, COALESCE(ms.source_fingerprint, ''), ms.created_at
+		 FROM media_segments ms WHERE ms.media_item_id = ANY($1) AND `+segmentOfCurrentFileSQL("ms")+` ORDER BY ms.media_item_id, ms.start_ms`, pq.Array(ids))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -95,7 +110,7 @@ func (r *MediaSegmentRepository) GetByMediaItemIDs(ctx context.Context, mediaIte
 	result := make(map[shared.MediaItemID][]*library.MediaSegment, len(mediaItemIDs))
 	for rows.Next() {
 		seg := &library.MediaSegment{}
-		if err := rows.Scan(&seg.ID, &seg.MediaItemID, &seg.Type, &seg.StartMs, &seg.EndMs, &seg.Confidence, &seg.Source, &seg.CreatedAt); err != nil {
+		if err := rows.Scan(&seg.ID, &seg.MediaItemID, &seg.Type, &seg.StartMs, &seg.EndMs, &seg.Confidence, &seg.Source, &seg.SourceFingerprint, &seg.CreatedAt); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
@@ -125,14 +140,15 @@ func (r *MediaSegmentRepository) Upsert(ctx context.Context, seg *library.MediaS
 	}
 
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO media_segments (id, media_item_id, type, start_ms, end_ms, confidence, source, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`INSERT INTO media_segments (id, media_item_id, type, start_ms, end_ms, confidence, source, created_at, source_fingerprint)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, `+segmentSourceFingerprintSQL+`)
 		 ON CONFLICT (media_item_id, type) DO UPDATE SET
 		   start_ms   = EXCLUDED.start_ms,
 		   end_ms     = EXCLUDED.end_ms,
 		   confidence = EXCLUDED.confidence,
-		   source     = EXCLUDED.source`,
-		seg.ID, seg.MediaItemID, seg.Type, seg.StartMs, seg.EndMs, seg.Confidence, seg.Source, seg.CreatedAt,
+		   source     = EXCLUDED.source,
+		   source_fingerprint = EXCLUDED.source_fingerprint`,
+		seg.ID, seg.MediaItemID, seg.Type, seg.StartMs, seg.EndMs, seg.Confidence, seg.Source, seg.CreatedAt, seg.SourceFingerprint,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -165,15 +181,16 @@ func (r *MediaSegmentRepository) UpsertUnlessManual(ctx context.Context, seg *li
 	}
 
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO media_segments (id, media_item_id, type, start_ms, end_ms, confidence, source, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`INSERT INTO media_segments (id, media_item_id, type, start_ms, end_ms, confidence, source, created_at, source_fingerprint)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, `+segmentSourceFingerprintSQL+`)
 		 ON CONFLICT (media_item_id, type) DO UPDATE SET
 		   start_ms   = EXCLUDED.start_ms,
 		   end_ms     = EXCLUDED.end_ms,
 		   confidence = EXCLUDED.confidence,
-		   source     = EXCLUDED.source
+		   source     = EXCLUDED.source,
+		   source_fingerprint = EXCLUDED.source_fingerprint
 		 WHERE media_segments.source NOT IN ('manual', 'manual_propagated')`,
-		seg.ID, seg.MediaItemID, seg.Type, seg.StartMs, seg.EndMs, seg.Confidence, seg.Source, seg.CreatedAt,
+		seg.ID, seg.MediaItemID, seg.Type, seg.StartMs, seg.EndMs, seg.Confidence, seg.Source, seg.CreatedAt, seg.SourceFingerprint,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -206,15 +223,16 @@ func (r *MediaSegmentRepository) UpsertUnlessOperatorManual(ctx context.Context,
 	}
 
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO media_segments (id, media_item_id, type, start_ms, end_ms, confidence, source, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`INSERT INTO media_segments (id, media_item_id, type, start_ms, end_ms, confidence, source, created_at, source_fingerprint)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, `+segmentSourceFingerprintSQL+`)
 		 ON CONFLICT (media_item_id, type) DO UPDATE SET
 		   start_ms   = EXCLUDED.start_ms,
 		   end_ms     = EXCLUDED.end_ms,
 		   confidence = EXCLUDED.confidence,
-		   source     = EXCLUDED.source
+		   source     = EXCLUDED.source,
+		   source_fingerprint = EXCLUDED.source_fingerprint
 		 WHERE media_segments.source <> 'manual'`,
-		seg.ID, seg.MediaItemID, seg.Type, seg.StartMs, seg.EndMs, seg.Confidence, seg.Source, seg.CreatedAt,
+		seg.ID, seg.MediaItemID, seg.Type, seg.StartMs, seg.EndMs, seg.Confidence, seg.Source, seg.CreatedAt, seg.SourceFingerprint,
 	)
 	if err != nil {
 		span.RecordError(err)

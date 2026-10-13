@@ -224,6 +224,9 @@ func (s *IntroDetectionService) refreshSuspectCredits(ctx context.Context, item 
 	}
 	seg.ID = uuid.New().String()
 	seg.MediaItemID = item.ID
+	if item.File != nil {
+		seg.SourceFingerprint = item.File.Fingerprint
+	}
 	if _, err := s.segmentRepo.UpsertUnlessManual(ctx, seg); err != nil {
 		slog.WarnContext(ctx, "intro_detection: suspect credits upsert failed",
 			slog.String("media_id", string(item.ID)), slog.Any("err", err))

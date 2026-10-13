@@ -666,3 +666,22 @@ func TestDecisionFingerprint_Hash_ForksByBackend(t *testing.T) {
 		t.Fatal("software hash must be stable across the feature")
 	}
 }
+
+// A file replaced at the same path with the same codecs is other bytes: its
+// size and mtime fork both caches. A row scanned without one keeps its hash.
+func TestFingerprints_Hash_DistinguishesTheReplacedFile(t *testing.T) {
+	dec := DecisionFingerprint{MediaID: "m1", SourcePath: "/m.mkv", VideoCodec: "h264", AudioCodec: "aac"}
+	legacy := dec.Hash()
+	dec.SourceFingerprint = "1000-1"
+	before := dec.Hash()
+	dec.SourceFingerprint = "1000-2"
+	assert.NotEqual(t, before, dec.Hash(), "a replaced source must not reuse the video segments of the old one")
+	assert.NotEqual(t, legacy, before)
+	dec.SourceFingerprint = ""
+	assert.Equal(t, legacy, dec.Hash())
+
+	aud := AudioFingerprint{MediaID: "m1", SourcePath: "/m.mkv", AudioCodec: "aac", SourceFingerprint: "1000-1"}
+	audBefore := aud.Hash()
+	aud.SourceFingerprint = "1000-2"
+	assert.NotEqual(t, audBefore, aud.Hash(), "a replaced source must not reuse the audio segments of the old one")
+}

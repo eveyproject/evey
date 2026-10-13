@@ -20,6 +20,7 @@ var (
 	fingerprintIdentityFields = map[string]string{
 		"MediaID":             "media=",
 		"SourcePath":          "src=",
+		"SourceFingerprint":   "srcfp= (when set)",
 		"VideoCodec":          "vcodec=",
 		"AudioCodec":          "acodec=",
 		"AudioEncoder":        "aenc= (non-native only)",

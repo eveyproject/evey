@@ -87,9 +87,13 @@ type DecisionFingerprint struct {
 	// transcoding.SegmentGrid). A Hash() dimension when exact: segments cut on
 	// the frame grid are not the segments cut on the 3 s clock. The legacy
 	// grid hashes as nothing, so every existing cache entry keeps its name.
-	Grid                transcoding.SegmentGrid
-	MediaID             string
-	SourcePath          string // absolute path; same media at a different path = different cache
+	Grid       transcoding.SegmentGrid
+	MediaID    string
+	SourcePath string // absolute path; same media at a different path = different cache
+	// SourceFingerprint is the file's size and mtime as scanned
+	// (MediaFile.Fingerprint): a file replaced at the same path with the same
+	// codecs and duration is other bytes. Hashed when set.
+	SourceFingerprint   string
 	VideoCodec          string // domain codec: "h264", "hevc", "av1"
 	AudioCodec          string
 	AudioTrack          int
@@ -300,8 +304,10 @@ type AudioFingerprint struct {
 	SourceAudioCodec string
 	MediaID          string
 	SourcePath       string
-	SourceTrackIdx   int
-	AudioCodec       string
+	// SourceFingerprint: see DecisionFingerprint.SourceFingerprint.
+	SourceFingerprint string
+	SourceTrackIdx    int
+	AudioCodec        string
 	// AudioEncoder is the concrete ffmpeg AAC implementation these bytes were
 	// made with - see HLSProcessOpts.AudioEncoder. Hashed only when it is not
 	// the native encoder, so existing caches stay valid where nothing changed.
@@ -363,6 +369,9 @@ func (a AudioFingerprint) hashWithDownmixPolicy(downmixPolicy string) string {
 	b.WriteString("audio:\n")
 	fmt.Fprintf(&b, "media=%s\n", a.MediaID)
 	fmt.Fprintf(&b, "src=%s\n", a.SourcePath)
+	if a.SourceFingerprint != "" {
+		fmt.Fprintf(&b, "srcfp=%s\n", a.SourceFingerprint)
+	}
 	if a.SourceDurationSec > 0 {
 		fmt.Fprintf(&b, "dur=%.3f\n", a.SourceDurationSec)
 	}
@@ -456,6 +465,9 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 	var b strings.Builder
 	fmt.Fprintf(&b, "media=%s\n", f.MediaID)
 	fmt.Fprintf(&b, "src=%s\n", f.SourcePath)
+	if f.SourceFingerprint != "" {
+		fmt.Fprintf(&b, "srcfp=%s\n", f.SourceFingerprint)
+	}
 	fmt.Fprintf(&b, "vcodec=%s\n", f.VideoCodec)
 	fmt.Fprintf(&b, "acodec=%s\n", f.AudioCodec)
 	// The CONCRETE AAC implementation, and only when it is not the historical

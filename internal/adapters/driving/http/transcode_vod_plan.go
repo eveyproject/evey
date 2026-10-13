@@ -122,6 +122,7 @@ func (h *hlsVODServe) marshalPlaybackRequest(r *http.Request, mediaID string, it
 	return apptranscoding.PlaybackRequest{
 		MediaID:             mediaID,
 		SourcePath:          sourcePathOf(item),
+		SourceFingerprint:   sourceFingerprintOf(item),
 		Container:           containerOf(item),
 		Streams:             streams,
 		Client:              parseClientCapabilities(r, hdrQuerySupported(r)),

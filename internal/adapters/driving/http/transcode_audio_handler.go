@@ -347,6 +347,7 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 			Grid:                  grid,
 			MediaID:               mediaID,
 			SourcePath:            item.File.Path,
+			SourceFingerprint:     item.File.Fingerprint,
 			SourceTrackIdx:        trackIdx,
 			AudioCodec:            "copy",
 			SourceAudioCodec:      strings.ToLower(copyCodec),
@@ -357,12 +358,13 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	if h.wasmAudio(r) {
 		if c := strings.ToLower(h.sourceAudioCodecForTrack(r.Context(), mediaID, trackIdx)); c == "ac3" || c == "eac3" {
 			return apptranscoding.AudioFingerprint{
-				Grid:             grid,
-				MediaID:          mediaID,
-				SourcePath:       item.File.Path,
-				SourceTrackIdx:   trackIdx,
-				AudioCodec:       "copy",
-				SourceAudioCodec: c,
+				Grid:              grid,
+				MediaID:           mediaID,
+				SourcePath:        item.File.Path,
+				SourceFingerprint: item.File.Fingerprint,
+				SourceTrackIdx:    trackIdx,
+				AudioCodec:        "copy",
+				SourceAudioCodec:  c,
 				// The shift is the video MUXER's, not the codec's: a passthrough
 				// rendition rides the same timeline as an AAC one.
 				VideoCompositionDelay: videoCompositionDelay,
@@ -375,11 +377,12 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 	}
 	sourceChannels := h.sourceAudioChannels(r.Context(), mediaID, trackIdx)
 	return apptranscoding.AudioFingerprint{
-		Grid:           grid,
-		MediaID:        mediaID,
-		SourcePath:     item.File.Path,
-		SourceTrackIdx: trackIdx,
-		AudioCodec:     "aac",
+		Grid:              grid,
+		MediaID:           mediaID,
+		SourcePath:        item.File.Path,
+		SourceFingerprint: item.File.Fingerprint,
+		SourceTrackIdx:    trackIdx,
+		AudioCodec:        "aac",
 		// Same encoder the muxed ladder uses, and hashed with the bytes: a
 		// rendition re-encoded by a different AAC implementation is different
 		// bytes and must not land on the same cache entry.

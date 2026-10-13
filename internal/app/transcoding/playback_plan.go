@@ -31,10 +31,13 @@ func UnwiredDecider() PlaybackDecider { return &PlanResolver{} }
 type PlaybackRequest struct {
 	MediaID    string
 	SourcePath string
-	Container  string
-	Streams    []*library.MediaStream
-	Client     transcoding.ClientProfile
-	Prefs      TranscodingPreferences
+	// SourceFingerprint is the scanned file's size and mtime
+	// (MediaFile.Fingerprint): see DecisionFingerprint.SourceFingerprint.
+	SourceFingerprint string
+	Container         string
+	Streams           []*library.MediaStream
+	Client            transcoding.ClientProfile
+	Prefs             TranscodingPreferences
 
 	// Request-time pins - baked into the child URLs so a mid-play playlist poll
 	// cannot flip the plan under the player (the cache-hash invariant).
