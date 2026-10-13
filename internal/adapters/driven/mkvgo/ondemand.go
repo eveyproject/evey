@@ -20,6 +20,7 @@ import (
 
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
+	"github.com/eveyproject/evey/internal/pkg/metrics"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
@@ -155,6 +156,18 @@ func (p *OnDemandPackager) WithSubtitleIndex(lookup func(path string) (*extmatro
 	p.subtitleIndex = lookup
 	return p
 }
+
+// WithMaxBuilds replaces the onDemandMaxBuilds cap; n <= 0 keeps it. Call it
+// before the packager serves, the semaphore is swapped, not resized.
+func (p *OnDemandPackager) WithMaxBuilds(n int) *OnDemandPackager {
+	if n > 0 {
+		p.builds = make(chan struct{}, n)
+	}
+	return p
+}
+
+// MaxBuilds is the plans that may be built at once.
+func (p *OnDemandPackager) MaxBuilds() int { return cap(p.builds) }
 
 // subtitleIndexFor is the stored subtitle index of a Matroska source, or nil
 // (no lookup wired, not Matroska, no index stored).
@@ -317,6 +330,7 @@ func (p *OnDemandPackager) buildNamingTheSlowOnes(ctx context.Context, srcPath s
 			slog.Int("builds_running", len(p.builds)))
 	})
 	pl, err := p.build(ctx, srcPath, opts)
+	metrics.MkvgoPlanBuildSeconds.WithLabelValues(buildResult(err)).Observe(time.Since(started).Seconds())
 	if !stillRunning.Stop() {
 		args := []any{
 			slog.String("path", srcPath),
@@ -329,6 +343,18 @@ func (p *OnDemandPackager) buildNamingTheSlowOnes(ctx context.Context, srcPath s
 		p.logger.WarnContext(ctx, "mkvgo on-demand: slow plan build", args...)
 	}
 	return pl, err
+}
+
+// buildResult labels a build for the histogram: ok, cancelled or failed.
+func buildResult(err error) string {
+	switch {
+	case err == nil:
+		return "ok"
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return "cancelled"
+	default:
+		return "failed"
+	}
 }
 
 // buildPlan is the uncached construction Plan's singleflight runs: options

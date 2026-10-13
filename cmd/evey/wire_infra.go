@@ -118,12 +118,14 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	// One source window read per CPU at a time, fewer when the heap limit
 	// (applyMemoryLimit, from the container budget) cannot hold them; the rest
 	// of an audience starting together queues instead of growing the RSS.
-	budget := mkvgoadapter.BudgetFor(runtime.GOMAXPROCS(0), debug.SetMemoryLimit(-1))
+	budget := mkvgoBudgetFromEnv(rootLog, mkvgoadapter.BudgetFor(runtime.GOMAXPROCS(0), debug.SetMemoryLimit(-1)))
 	mkvgoadapter.ApplyProcessBudget(budget)
+	onDemandPackager := mkvgoadapter.NewOnDemandPackager()
+	applyMkvgoMaxPlanBuilds(rootLog, onDemandPackager)
 	rootLog.InfoContext(ctx, "mkvgo on-demand budget",
 		slog.Int("max_walks", budget.MaxWalks),
+		slog.Int("max_plan_builds", onDemandPackager.MaxBuilds()),
 		slog.Int64("table_cache_mb", budget.TableCacheBytes>>20))
-	onDemandPackager := mkvgoadapter.NewOnDemandPackager()
 	onDemandConcatPackager := mkvgoadapter.NewConcatPackager()
 	bus := eventbus.New()
 	hasher := auth.BcryptHasher{}
