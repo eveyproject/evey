@@ -570,6 +570,24 @@ func (r *fakeSegmentRepo) DeleteByMediaItemIDAndType(_ context.Context, id share
 	return nil
 }
 
+// DeleteDetectedOfReplacedFile drops the item's non-operator segments; the
+// fake has no file to compare them with.
+func (r *fakeSegmentRepo) DeleteDetectedOfReplacedFile(_ context.Context, id shared.MediaItemID) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var n int64
+	keep := r.seeded[:0]
+	for _, seg := range r.seeded {
+		if seg.MediaItemID == id && seg.Source != "manual" && seg.Source != "manual_propagated" {
+			n++
+			continue
+		}
+		keep = append(keep, seg)
+	}
+	r.seeded = keep
+	return n, nil
+}
+
 // ListSeasonsPendingIntroDetection mirrors the postgres predicate: a season is
 // returned when at least one of its episodes has no settled intro AND has not
 // burned its retry budget at algoVersion. Derived from the fake's own rows and
@@ -768,6 +786,9 @@ func (r *fakeTrickplayRepo) Create(_ context.Context, _ *domainlibrary.Trickplay
 	return nil
 }
 func (r *fakeTrickplayRepo) Delete(_ context.Context, _ shared.MediaItemID) error { return nil }
+func (r *fakeTrickplayRepo) DeleteOfReplacedFile(_ context.Context, _ shared.MediaItemID) (bool, error) {
+	return false, nil
+}
 func (r *fakeTrickplayRepo) RecordFailure(_ context.Context, _ shared.MediaItemID, _ int64, _ time.Time, _ string) error {
 	return nil
 }
@@ -793,6 +814,9 @@ func (r *fakeTrickplayRepoWithManifest) Create(_ context.Context, _ *domainlibra
 }
 func (r *fakeTrickplayRepoWithManifest) Delete(_ context.Context, _ shared.MediaItemID) error {
 	return nil
+}
+func (r *fakeTrickplayRepoWithManifest) DeleteOfReplacedFile(_ context.Context, _ shared.MediaItemID) (bool, error) {
+	return false, nil
 }
 func (r *fakeTrickplayRepoWithManifest) RecordFailure(_ context.Context, _ shared.MediaItemID, _ int64, _ time.Time, _ string) error {
 	return nil

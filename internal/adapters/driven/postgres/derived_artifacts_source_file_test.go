@@ -170,3 +170,56 @@ func TestMediaSegmentRepo_ReplacedFileReopensIntroDetection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, got, string(season.ID))
 }
+
+// On a replacement the detected segments of other files go, the operator
+// marks and a detection already made on the new file stay, and the attempts
+// are forgotten. The manifest goes unless it is of the current file.
+func TestReplacedFileCleanup_DropsOnlyWhatIsOfAnotherFile(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	segRepo := postgres.NewMediaSegmentRepository(db)
+	tpRepo := postgres.NewTrickplayRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("cleanup")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	mod := time.Date(2026, 10, 13, 10, 0, 0, 0, time.UTC)
+	item := seedFileItem(t, itemRepo, lib.ID, "cleanup-m1", 100, mod)
+	oldFP := item.File.Fingerprint
+	_, err := segRepo.UpsertUnlessManual(ctx, &library.MediaSegment{MediaItemID: item.ID, Type: "intro", StartMs: 1000, EndMs: 60000, Confidence: 0.9, Source: "phash", SourceFingerprint: oldFP})
+	require.NoError(t, err)
+	require.NoError(t, segRepo.Upsert(ctx, &library.MediaSegment{MediaItemID: item.ID, Type: "recap", StartMs: 0, EndMs: 900, Confidence: 1, Source: "manual_propagated"}))
+	require.NoError(t, segRepo.RecordIntroDetectionAttempt(ctx, string(item.ID), 5))
+	require.NoError(t, tpRepo.Create(ctx, &library.TrickplayManifest{ID: "cleanup-tp", MediaItemID: item.ID, ImagePath: "/t", AlgoVersion: 1, FileSize: 100, ModTime: mod, CreatedAt: time.Now()}))
+
+	dropped, err := tpRepo.DeleteOfReplacedFile(ctx, item.ID)
+	require.NoError(t, err)
+	assert.False(t, dropped, "the current file's manifest is kept")
+
+	replaceFile(t, itemRepo, item, 200, mod.Add(time.Hour))
+	_, err = segRepo.UpsertUnlessManual(ctx, &library.MediaSegment{MediaItemID: item.ID, Type: "end_credits", StartMs: 3_000_000, EndMs: 3_100_000, Confidence: 0.8, Source: "blackdetect", SourceFingerprint: item.File.Fingerprint})
+	require.NoError(t, err)
+
+	n, err := segRepo.DeleteDetectedOfReplacedFile(ctx, item.ID)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), n)
+	var sources []string
+	var count int
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT COUNT(*) FROM media_segments WHERE media_item_id = $1`, string(item.ID)).Scan(&count))
+	segs, err := segRepo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	for _, s := range segs {
+		sources = append(sources, s.Source)
+	}
+	assert.ElementsMatch(t, []string{"manual_propagated", "blackdetect"}, sources)
+	assert.Equal(t, 2, count, "the old file's detected intro is still stored")
+	versions, err := segRepo.IntroDetectionAttemptVersions(ctx, []string{string(item.ID)})
+	require.NoError(t, err)
+	assert.Empty(t, versions, "the old file's detection attempts are remembered")
+
+	dropped, err = tpRepo.DeleteOfReplacedFile(ctx, item.ID)
+	require.NoError(t, err)
+	assert.True(t, dropped, "the replaced file's manifest is kept")
+}

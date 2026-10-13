@@ -259,6 +259,46 @@ func (r *MediaSegmentRepository) DeleteByMediaItemID(ctx context.Context, mediaI
 	return nil
 }
 
+// DeleteDetectedOfReplacedFile is
+// library.MediaSegmentRepository.DeleteDetectedOfReplacedFile.
+func (r *MediaSegmentRepository) DeleteDetectedOfReplacedFile(ctx context.Context, mediaItemID shared.MediaItemID) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.DeleteDetectedOfReplacedFile")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.ExecContext(ctx,
+		`DELETE FROM media_segments ms
+		 WHERE ms.media_item_id = $1
+		   AND ms.source NOT IN ('manual', 'manual_propagated')
+		   AND ms.source_fingerprint IS DISTINCT FROM
+		       (SELECT mf.file_fingerprint FROM media_files mf WHERE mf.media_item_id = $1)`, string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM intro_detection_attempts WHERE media_item_id = $1`, string(mediaItemID)); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return n, nil
+}
+
 func (r *MediaSegmentRepository) DeleteByMediaItemIDAndType(ctx context.Context, mediaItemID shared.MediaItemID, segType string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediasegment.DeleteByMediaItemIDAndType")
 	defer span.End()
