@@ -16,7 +16,6 @@ import (
 	extmkv "github.com/gravity-zero/mkvgo/mkv"
 	"github.com/gravity-zero/mkvgo/mkv/reader"
 	"github.com/gravity-zero/mkvgo/mp4"
-	"golang.org/x/sync/singleflight"
 
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	pkgcache "github.com/eveyproject/evey/internal/pkg/cache"
@@ -90,11 +89,14 @@ type OnDemandPackager struct {
 	// can resolve KeepAudioTrack's ordinal to a real track ID. Injectable for
 	// tests; production passes reader.OpenMeta.
 	trackList func(ctx context.Context, path string) ([]extmkv.Track, error)
-	// group collapses concurrent cache misses for the SAME key into one build:
+	// flights collapses concurrent cache misses for the SAME key into one build:
 	// plan building can cluster-walk the whole source (SynthesizeIndex), and N
 	// players hitting a cold file at stream start would walk it N times in
 	// parallel - the weak-NAS I/O-starvation shape of the 2026-07-19 incident.
-	group singleflight.Group
+	// Each flight counts its callers, so one they all left before it got a
+	// build slot is dropped instead of built for nobody.
+	flightsMu sync.Mutex
+	flights   map[string]*planFlight
 	// build is the uncached plan construction; a field (like audioDelays /
 	// trackList above) so the stampede tests can count builds without a
 	// real source.
@@ -213,39 +215,124 @@ func (p *OnDemandPackager) Plan(ctx context.Context, srcPath string, opts apptra
 		return nil, err
 	}
 
-	// Concurrent misses for the same key share ONE build (see p.group). The
-	// winner builds under WithoutCancel so the first caller bailing (seek
-	// away, tab close) can't abort the plan every follower is waiting on -
-	// same contract as the remux singleflight. Errors are shared with the
-	// waiters (they all fall back to ffmpeg together) and remembered for
-	// onDemandFailureTTL, so the next requests fall back without rebuilding.
-	v, err, _ := p.group.Do(key, func() (any, error) {
-		// Re-check under the flight: a prior winner may have cached it while
-		// this caller queued.
-		if pl, ok := p.plans.Get(key); ok {
-			return pl, nil
-		}
-		if err, ok := p.failures.Get(key); ok {
-			return nil, err
-		}
-		pl, err := p.buildNamingTheSlowOnes(context.WithoutCancel(ctx), srcPath, opts)
-		if err != nil {
-			if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-				p.failures.Set(key, err, onDemandFailureTTL)
-			}
-			return nil, err
-		}
-		if op, ok := pl.(*ondemandPlan); ok {
-			op.pkg, op.key, op.srcPath, op.opts = p, key, srcPath, opts
-		}
-		p.plans.Set(key, pl, p.ttl)
+	// Concurrent misses for the same key share ONE build (see p.flights). A
+	// caller that leaves (seek away, tab close) stops waiting at once. Once the
+	// build holds a slot it runs detached to the end and its plan is cached for
+	// the next viewer; before that, the last caller leaving drops it from the
+	// queue. Errors are shared with the waiters (they all fall back to ffmpeg
+	// together) and remembered for onDemandFailureTTL, so the next requests
+	// fall back without rebuilding.
+	f := p.joinFlight(ctx, key, srcPath, opts)
+	select {
+	case <-f.done:
+	case <-ctx.Done():
+		p.leaveFlight(key, f)
+		span.RecordError(ctx.Err())
+		return nil, ctx.Err()
+	}
+	if f.err != nil {
+		span.RecordError(f.err)
+		return nil, f.err
+	}
+	return f.pl, nil
+}
+
+// planFlight is one build shared by every caller missing the same key.
+type planFlight struct {
+	done chan struct{} // closed once pl or err is set
+	pl   apptranscoding.OnDemandPlan
+	err  error
+	// waiters and started are guarded by flightsMu. left is closed when the
+	// last waiter leaves before the build got its slot.
+	waiters int
+	started bool
+	left    chan struct{}
+}
+
+// errFlightAbandoned ends a build every caller left while it queued for a
+// slot. A cancellation, so it is never remembered as a failure.
+var errFlightAbandoned = fmt.Errorf("mkvgo on-demand: every caller left before the plan build got a slot: %w", context.Canceled)
+
+// joinFlight counts the caller in the key's flight, starting it if none runs.
+func (p *OnDemandPackager) joinFlight(ctx context.Context, key, srcPath string, opts apptranscoding.OnDemandOptions) *planFlight {
+	p.flightsMu.Lock()
+	defer p.flightsMu.Unlock()
+	if f, ok := p.flights[key]; ok {
+		f.waiters++
+		return f
+	}
+	f := &planFlight{done: make(chan struct{}), left: make(chan struct{}), waiters: 1}
+	if p.flights == nil {
+		p.flights = map[string]*planFlight{}
+	}
+	p.flights[key] = f
+	go p.fly(context.WithoutCancel(ctx), key, f, srcPath, opts)
+	return f
+}
+
+// leaveFlight counts a caller out; the last one out of a build still queued
+// for its slot abandons it, and the next miss starts a new flight.
+func (p *OnDemandPackager) leaveFlight(key string, f *planFlight) {
+	p.flightsMu.Lock()
+	defer p.flightsMu.Unlock()
+	f.waiters--
+	if f.waiters > 0 || f.started {
+		return
+	}
+	select {
+	case <-f.left:
+	default:
+		close(f.left)
+	}
+	if p.flights[key] == f {
+		delete(p.flights, key)
+	}
+}
+
+// startFlight claims the build for its slot, unless every caller already left.
+func (p *OnDemandPackager) startFlight(f *planFlight) bool {
+	p.flightsMu.Lock()
+	defer p.flightsMu.Unlock()
+	if f.waiters == 0 {
+		return false
+	}
+	f.started = true
+	return true
+}
+
+// fly runs the flight and hands its result to the callers still waiting.
+func (p *OnDemandPackager) fly(ctx context.Context, key string, f *planFlight, srcPath string, opts apptranscoding.OnDemandOptions) {
+	pl, err := p.flyOnce(ctx, key, f, srcPath, opts)
+	p.flightsMu.Lock()
+	if p.flights[key] == f {
+		delete(p.flights, key)
+	}
+	f.pl, f.err = pl, err
+	p.flightsMu.Unlock()
+	close(f.done)
+}
+
+func (p *OnDemandPackager) flyOnce(ctx context.Context, key string, f *planFlight, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
+	// Re-check under the flight: a prior one may have cached it while this
+	// caller missed.
+	if pl, ok := p.plans.Get(key); ok {
 		return pl, nil
-	})
-	if err != nil {
-		span.RecordError(err)
+	}
+	if err, ok := p.failures.Get(key); ok {
 		return nil, err
 	}
-	return v.(apptranscoding.OnDemandPlan), nil
+	pl, err := p.buildNamingTheSlowOnes(ctx, f, srcPath, opts)
+	if err != nil {
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			p.failures.Set(key, err, onDemandFailureTTL)
+		}
+		return nil, err
+	}
+	if op, ok := pl.(*ondemandPlan); ok {
+		op.pkg, op.key, op.srcPath, op.opts = p, key, srcPath, opts
+	}
+	p.plans.Set(key, pl, p.ttl)
+	return pl, nil
 }
 
 // Replan is apptranscoding.OnDemandPackager.Replan. The drop is skipped when
@@ -317,11 +404,19 @@ func WalksInFlight() int64 { return mp4.WalksInFlight() }
 // buildNamingTheSlowOnes runs one build under the onDemandMaxBuilds cap and
 // names any that outlasts slowAfter: once while it is still running, because a
 // build stuck behind a saturated disk only ends after the peak it caused, and
-// once at the end with what it cost.
-func (p *OnDemandPackager) buildNamingTheSlowOnes(ctx context.Context, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
+// once at the end with what it cost. A flight every caller left while it
+// queued gives up its turn without building.
+func (p *OnDemandPackager) buildNamingTheSlowOnes(ctx context.Context, f *planFlight, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
 	queued := time.Now()
-	p.builds <- struct{}{}
+	select {
+	case p.builds <- struct{}{}:
+	case <-f.left:
+		return nil, errFlightAbandoned
+	}
 	defer func() { <-p.builds }()
+	if !p.startFlight(f) {
+		return nil, errFlightAbandoned
+	}
 	started := time.Now()
 	stillRunning := time.AfterFunc(p.slowAfter, func() {
 		p.logger.WarnContext(ctx, "mkvgo on-demand: plan build still running",
@@ -357,7 +452,7 @@ func buildResult(err error) string {
 	}
 }
 
-// buildPlan is the uncached construction Plan's singleflight runs: options
+// buildPlan is the uncached construction Plan's flight runs: options
 // assembly, best-effort Matroska probes, then mp4.PlanHLS.
 func (p *OnDemandPackager) buildPlan(ctx context.Context, srcPath string, opts apptranscoding.OnDemandOptions) (apptranscoding.OnDemandPlan, error) {
 	// ChapterMarkers is hardcoded on: per mp4.Options docs, it is additive and

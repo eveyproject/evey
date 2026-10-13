@@ -1491,3 +1491,27 @@ func TestPlanStamp_RoundTrip(t *testing.T) {
 		assert.False(t, ok, q)
 	}
 }
+
+// A viewer that left while its plan was being built gets nothing: no fallback
+// counted, no ffmpeg master served to a closed connection.
+func TestServePackagerMaster_ViewerLeftDuringTheBuildServesNothing(t *testing.T) {
+	h := newCopyTestHandler(t)
+	h.onDemand = &fakeOnDemandPackager{err: fmt.Errorf("mkvgo on-demand: %w", context.Canceled)}
+	ctx, cancel := context.WithCancel(onDemandReq().Context())
+	req := onDemandReq().WithContext(ctx)
+	rp := planFor(t, h, req, onDemandItem(), copyEligibleAV())
+	cancel()
+	w := httptest.NewRecorder()
+
+	served, fallback := h.servePackagerMaster(w, req, "m1", onDemandItem(), copyEligibleAV(), rp, noopSpan())
+
+	assert.True(t, served, "a viewer that left must not fall through to the ffmpeg path")
+	assert.Empty(t, fallback)
+	assert.Zero(t, w.Body.Len())
+
+	// The same error while the viewer is still there is a real fallback.
+	h.onDemand = &fakeOnDemandPackager{err: fmt.Errorf("mkvgo on-demand: %w", context.Canceled)}
+	served, fallback = h.servePackagerMaster(httptest.NewRecorder(), onDemandReq(), "m1", onDemandItem(), copyEligibleAV(), planFor(t, h, onDemandReq(), onDemandItem(), copyEligibleAV()), noopSpan())
+	assert.False(t, served)
+	assert.Equal(t, fallbackPackagerUnbuildable, fallback)
+}

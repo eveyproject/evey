@@ -205,9 +205,9 @@ func TestOnDemandPlan_BuildsAreCapped(t *testing.T) {
 	wg.Wait()
 }
 
-// The flight's winner must build under a cancel-detached context: the first
-// caller bailing out (seek away, tab close) must not abort the walk every
-// follower is waiting on. Same contract as the remux singleflight.
+// The flight must build under a cancel-detached context: the first caller
+// bailing out (seek away, tab close) must not abort the walk every follower is
+// waiting on. That caller stops waiting; the plan still lands in the cache.
 func TestOnDemandPlan_WinnerSurvivesFirstCallerCancel(t *testing.T) {
 	p := NewOnDemandPackager()
 	defer p.Close()
@@ -231,11 +231,14 @@ func TestOnDemandPlan_WinnerSurvivesFirstCallerCancel(t *testing.T) {
 	cancel()
 	close(canceled)
 
-	if err := <-done; err != nil {
-		t.Fatalf("plan failed: %v", err)
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("the caller that bailed got %v, want context.Canceled", err)
 	}
 	if <-sawCancel {
 		t.Fatal("build ran under the caller's cancelable ctx - a bailing caller would abort every follower's plan")
+	}
+	if _, err := p.Plan(context.Background(), src, apptranscoding.OnDemandOptions{}); err != nil {
+		t.Fatalf("the plan built for a caller that left is not served: %v", err)
 	}
 }
 
