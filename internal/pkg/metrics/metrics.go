@@ -341,6 +341,14 @@ var (
 		Name: "evey_mkvgo_walks_in_flight",
 		Help: "Source windows the on-demand packager is reading right now.",
 	})
+	// MkvgoPlanBuildSeconds is how long each on-demand plan build ran, from
+	// its slot under the build cap to its end (the wait for the slot is not
+	// in it), by result: ok, cancelled, failed.
+	MkvgoPlanBuildSeconds = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:    "evey_mkvgo_plan_build_seconds",
+		Help:    "On-demand plan build duration in seconds, by result.",
+		Buckets: []float64{0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 40, 80, 160},
+	}, []string{"result"})
 	// MkvgoPlanStats sums each counter of mkvgo's plan statistics over the plans
 	// the packager holds (window_builds, slot_waits, streamed_segments,
 	// stream_fallbacks, subtitle_cue_indexed, subtitle_cue_unverified,
@@ -425,7 +433,7 @@ func init() {
 		HLSVODCacheHits, HLSVODCacheMisses, HLSVODCacheBytes, HLSVODCacheEvictedBytes,
 		HLSVODThrottlePause, HLSVODThrottleResume, HLSVODStarvationResumes,
 		QoEIngestEvents, QoEIngestDrops,
-		MkvgoWalksInFlight, MkvgoPlanStats,
+		MkvgoWalksInFlight, MkvgoPlanBuildSeconds, MkvgoPlanStats,
 		RateLimitRejected,
 		PluginUp, PluginErrorsTotal,
 	)
