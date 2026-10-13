@@ -1475,6 +1475,9 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 		fallback = fallbackPackagerUnwired
 		if h.onDemand != nil {
 			plan, perr := h.buildPlan(r, mediaID, item, streams, rp)
+			if viewerLeft(r, perr) {
+				return
+			}
 			if perr == nil {
 				if rp.Plan.Delivery.Audio == apptranscoding.EngineFFmpeg && h.audio != nil {
 					// Hybrid: the packager's video beside Evey's renditions.

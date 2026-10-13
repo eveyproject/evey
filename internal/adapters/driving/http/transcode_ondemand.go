@@ -78,6 +78,9 @@ func (h *hlsVODServe) servePackagerMaster(w http.ResponseWriter, r *http.Request
 	// The source must package verbatim. Building here also warms the plan
 	// cache the sub-resource requests hit.
 	plan, err := h.buildPlan(r, mediaID, item, streams, rp)
+	if viewerLeft(r, err) {
+		return true, "" // nobody to answer, no fallback to start or count
+	}
 	if err != nil {
 		slog.WarnContext(r.Context(), "hls-vod: on-demand plan build failed, the ffmpeg path serves this plan",
 			slog.String("media_id", mediaID), slog.Any("err", err))
@@ -419,6 +422,9 @@ func (h *hlsVODServe) serveWasmAudioMaster(w http.ResponseWriter, r *http.Reques
 	// also warms the cache the od_audio* sub-requests hit. A plan failure routes
 	// the audio to the ffmpeg copy rendition instead - the source is still served.
 	plan, planErr := h.buildPlan(r, mediaID, item, streams, rp)
+	if viewerLeft(r, planErr) {
+		return true, "" // nobody to answer, no fallback to start or count
+	}
 	useMkvgoAudio := planErr == nil
 	useMkvgoVideo := videoCopy && planErr == nil
 	if videoCopy && planErr != nil {
@@ -896,6 +902,13 @@ func planKeep(rp *requestPlan, streams []*domainlibrary.MediaStream) *int {
 	}
 	idx := rp.AudioTrack
 	return &idx
+}
+
+// viewerLeft reports a plan error that only says the request's client went
+// away while it waited for the build: there is no one to serve a fallback to.
+func viewerLeft(r *http.Request, err error) bool {
+	return err != nil && r.Context().Err() != nil &&
+		(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded))
 }
 
 // buildPlanWith builds the packager plan that keeps the audio track keep
