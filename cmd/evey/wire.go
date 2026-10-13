@@ -38,6 +38,7 @@ import (
 	appplugin "github.com/eveyproject/evey/internal/app/plugin"
 	apppresence "github.com/eveyproject/evey/internal/app/presence"
 	appqoe "github.com/eveyproject/evey/internal/app/qoe"
+	appsubtitle "github.com/eveyproject/evey/internal/app/subtitle"
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	appwebhook "github.com/eveyproject/evey/internal/app/webhook"
@@ -415,6 +416,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	playlistSvc, playlistGenSvc := buildPlaylistServices(infra)
 
 	subtitleSvc := buildSubtitleService(ctx, infra, libQuerySvc, rootLog)
+	// Rows downloaded before the key was removed are still served: cleaned up
+	// whether or not OpenSubtitles is configured now.
+	appsubtitle.SubscribeReplacedFileCleanup(bus, r.Subtitle)
 
 	serverCfgSvc := appconfig.NewService(r.ServerCfg, appconfig.WithEventBus(bus), appconfig.WithUnitOfWork(postgres.NewTxUnit(db)))
 

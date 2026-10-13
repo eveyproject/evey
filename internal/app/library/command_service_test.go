@@ -1884,3 +1884,47 @@ func TestScanTVShow_RescanResolvesFromPreloadedIndex(t *testing.T) {
 	assert.Zero(t, h.mediaItems.GetByFilePathCalls.Load(),
 		"an unchanged rescan must resolve every episode from the preloaded index, not from the DB")
 }
+
+// file_replaced carries the duration before and after, so a subscriber can
+// tell another cut from a remux; a new file the probe could not read says 0.
+func TestUpsertMediaFile_ReplacedFile_CarriesBothDurations(t *testing.T) {
+	t.Parallel()
+	ninety, err := shared.NewDurationFromTime(90 * time.Minute)
+	require.NoError(t, err)
+	twoHours, err := shared.NewDurationFromTime(2 * time.Hour)
+	require.NoError(t, err)
+	run := func(probe *library.ProbeResult) library.MediaItemUpdated {
+		h := newHarness()
+		lib := &library.Library{ID: "lib-1", Name: "Movies", Type: "movie", Paths: []string{"/movies"}}
+		h.libQuery.Seed(lib)
+		h.libCmd.Seed(lib)
+		h.mediaItems.Create(context.Background(), &library.MediaItem{
+			ID: "item-1", LibraryID: "lib-1", Overview: "Already enriched",
+			File: &library.MediaFile{Path: "/movies/film.mkv", Size: 500, Fingerprint: "fp-old", Duration: ninety},
+		})
+		if probe != nil {
+			h.prober.Results["/movies/film.mkv"] = probe
+		} else {
+			h.prober.Err = errors.New("unreadable")
+		}
+		h.scanner.Results["/movies"] = []library.ScannedFile{{Path: "/movies/film.mkv", Size: 500, Fingerprint: "fp-new"}}
+		_, _, scanErr := h.svc.ScanLibrary(context.Background(), "lib-1")
+		require.NoError(t, scanErr)
+		for _, e := range h.bus.PublishedEvents() {
+			if u, ok := e.(library.MediaItemUpdated); ok {
+				return u
+			}
+		}
+		t.Fatal("no file_replaced")
+		return library.MediaItemUpdated{}
+	}
+
+	got := run(&library.ProbeResult{Duration: twoHours, Container: "matroska",
+		Streams: []*library.MediaStream{{StreamType: library.StreamTypeVideo, Codec: "h264"}}})
+	assert.Equal(t, int64(5_400_000), got.PreviousDurationMs)
+	assert.Equal(t, int64(7_200_000), got.DurationMs)
+
+	got = run(nil)
+	assert.Equal(t, int64(5_400_000), got.PreviousDurationMs)
+	assert.Zero(t, got.DurationMs, "an unprobed new file has no known duration")
+}

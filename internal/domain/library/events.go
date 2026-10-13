@@ -71,7 +71,12 @@ type MediaItemUpdated struct {
 	MediaItemID shared.MediaItemID
 	LibraryID   shared.LibraryID // empty when the emitter did not load the item
 	Reason      string           // metadata_edited, metadata_reset, metadata_refreshed, file_replaced
-	OccurredAt  time.Time
+	// PreviousDurationMs and DurationMs are the file's duration before and
+	// after a file_replaced; 0 when unknown (never probed, or the probe of
+	// the new file failed).
+	PreviousDurationMs int64
+	DurationMs         int64
+	OccurredAt         time.Time
 }
 
 func (e MediaItemUpdated) EventName() string { return "media.item.updated" }

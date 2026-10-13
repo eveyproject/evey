@@ -961,6 +961,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		}
 		return
 	}
+	previousDurationMs := existing.File.Duration.Milliseconds()
 	existing.ParentID = parentID
 	existing.File.Path = f.Path
 	existing.File.Size = f.Size
@@ -1002,11 +1003,17 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		s.metadata.extractAndStoreChapters(ctx, string(existing.ID), f.Path)
 	}
 	s.indexItem(ctx, existing)
+	newDurationMs := int64(0)
+	if probedOK {
+		newDurationMs = existing.File.Duration.Milliseconds()
+	}
 	s.publish(ctx, library.MediaItemUpdated{
-		MediaItemID: existing.ID,
-		LibraryID:   existing.LibraryID,
-		Reason:      library.UpdateReasonFileReplaced,
-		OccurredAt:  time.Now(),
+		MediaItemID:        existing.ID,
+		LibraryID:          existing.LibraryID,
+		Reason:             library.UpdateReasonFileReplaced,
+		PreviousDurationMs: previousDurationMs,
+		DurationMs:         newDurationMs,
+		OccurredAt:         time.Now(),
 	})
 	if existing.Overview == "" {
 		s.publish(ctx, library.MediaItemAdded{
