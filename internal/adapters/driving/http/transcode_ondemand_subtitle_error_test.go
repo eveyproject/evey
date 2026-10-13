@@ -42,7 +42,7 @@ func serveSubCtx(t *testing.T, ctx context.Context, plan apptranscoding.OnDemand
 	t.Helper()
 	var buf bytes.Buffer
 	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	t.Cleanup(func() { slog.SetDefault(prev) })
 	h := &hlsVODServe{libSvc: &testFakeStreamsGetter{}}
 	r := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/od_"+name+"?v=x&src=s1.a", nil).WithContext(ctx)
@@ -104,6 +104,29 @@ func TestServePlanResourceData_CancelledSubtitleIsNoWarning(t *testing.T) {
 	plan := &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{}}, fails: 9,
 		err: fmt.Errorf("mp4: read subtitle sample: %w", context.Canceled)}
 	w, logs := serveSubCtx(t, ctx, plan, "sub2_00050.vtt")
-	assert.NotEqual(t, http.StatusOK, w.Code)
+	assert.Zero(t, w.Body.Len(), "nothing is written to a client that left")
 	assert.NotContains(t, logs, "unreadable")
+	assert.NotContains(t, logs, "refused")
+}
+
+// mkvgo 0.48 refuses a segment whose request is already cancelled: a viewer
+// that left is no failure, nothing is written, logged or traced. The same
+// error while the viewer is still there stays a refused resource.
+func TestServePlanResourceData_SegmentOfAViewerThatLeftIsNoWarning(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	plan := &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{}}, fails: 9, err: context.Canceled}
+	w, logs := serveSubCtx(t, ctx, plan, "seg00003.m4s")
+	assert.Zero(t, w.Body.Len())
+	assert.NotContains(t, logs, "refused")
+	assert.Contains(t, logs, "level=DEBUG")
+	assert.Contains(t, logs, "of a viewer that left")
+
+	for _, err := range []error{context.Canceled, context.DeadlineExceeded} {
+		plan = &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{}}, fails: 9, err: err}
+		w, logs = serveSubCtx(t, context.Background(), plan, "seg00003.m4s")
+		assert.Equal(t, http.StatusNotFound, w.Code, "%v while the viewer is there", err)
+		assert.Contains(t, logs, "level=WARN")
+		assert.Contains(t, logs, "on-demand resource refused")
+	}
 }

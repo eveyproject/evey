@@ -695,6 +695,15 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 			}
 		}
 	}
+	// A viewer that left (seek, tab closed) before its resource was handed
+	// over: since mkvgo 0.48 the plan refuses it with the context's error.
+	// Nobody reads the answer and it is no failure: a debug line, no WARN, no
+	// 404. A cancellation while the request is still alive stays an error.
+	if err != nil && r.Context().Err() != nil {
+		slog.DebugContext(r.Context(), "hls-vod: on-demand resource of a viewer that left",
+			slog.String("media_id", mediaID), slog.String("resource", name), slog.Any("err", err))
+		return
+	}
 	// The mkvgo path serves every byte of a copy playback and used to log none
 	// of them: when a cast died at load, the server's side of it was a blank.
 	// Kept deliberately sparse - see shouldLogPlanResource.
