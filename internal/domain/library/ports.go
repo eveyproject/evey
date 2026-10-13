@@ -168,6 +168,11 @@ type MediaSegmentRepository interface {
 	UpsertUnlessOperatorManual(ctx context.Context, seg *MediaSegment) (applied bool, err error)
 	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
 	DeleteByMediaItemIDAndType(ctx context.Context, mediaItemID shared.MediaItemID, segType string) error
+	// DeleteDetectedOfReplacedFile drops the item's segments a detector found
+	// in another file than the one it points at now, operator marks kept, and
+	// forgets its detection attempts so the new file is detected afresh.
+	// Returns how many segments it dropped.
+	DeleteDetectedOfReplacedFile(ctx context.Context, mediaItemID shared.MediaItemID) (int64, error)
 	// ListSeasonsPendingIntroDetection returns up to limit season parent_ids
 	// that still have intro-detection work to do: at least one episode whose
 	// stored intro does not satisfy IntroDetectionSettled AND that has not
@@ -454,6 +459,10 @@ type TrickplayRepository interface {
 	// for the item - a success settles the question the failure recorded.
 	Create(ctx context.Context, manifest *TrickplayManifest) error
 	Delete(ctx context.Context, mediaItemID shared.MediaItemID) error
+	// DeleteOfReplacedFile drops the item's manifest unless it was made from
+	// the file the item points at now (one from before stamping counts as
+	// another file's), and reports whether it dropped one.
+	DeleteOfReplacedFile(ctx context.Context, mediaItemID shared.MediaItemID) (bool, error)
 	// RecordFailure remembers that generation failed against this exact file
 	// (identified by size + mod time) so ListMissingMediaItemIDs stops
 	// re-serving the item at every boot. A replaced file no longer matches the

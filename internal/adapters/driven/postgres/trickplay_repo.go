@@ -219,6 +219,26 @@ func (r *TrickplayRepository) Delete(ctx context.Context, mediaItemID shared.Med
 	return nil
 }
 
+// DeleteOfReplacedFile is library.TrickplayRepository.DeleteOfReplacedFile.
+func (r *TrickplayRepository) DeleteOfReplacedFile(ctx context.Context, mediaItemID shared.MediaItemID) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.trickplay.DeleteOfReplacedFile")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM trickplay_manifests tm
+		 WHERE tm.media_item_id = $1
+		   AND NOT (tm.file_size IS NOT NULL AND `+trickplayOfCurrentFileSQL("tm")+`)`, string(mediaItemID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
 func (r *TrickplayRepository) ListMissingMediaItemIDs(ctx context.Context, minAlgoVersion int) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.trickplay.ListMissingMediaItemIDs")
 	defer span.End()

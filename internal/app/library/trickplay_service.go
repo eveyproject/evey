@@ -452,6 +452,54 @@ func (s *TrickplayService) StartTrickplayWorker(ctx context.Context) {
 			slog.WarnContext(ctx, "trickplay queue full, dropping", slog.String("media_id", string(e.MediaItemID)))
 		}
 	})
+	// A file replaced at the same path: its sprites show the old one. They are
+	// dropped now and remade like a new item's; an item the queue cannot take
+	// is listed by the next sweep (its manifest is gone, or of another file).
+	s.events.Subscribe(library.MediaItemUpdated{}.EventName(), func(_ context.Context, ev shared.Event) {
+		e, ok := ev.(library.MediaItemUpdated)
+		if !ok || e.Reason != library.UpdateReasonFileReplaced {
+			return
+		}
+		id := string(e.MediaItemID)
+		s.dropReplacedManifest(ctx, id)
+		if !s.isTrickplayEnabled(ctx) || bgtasks.Paused(trickplayTask) {
+			return
+		}
+		item, err := s.mediaItems.GetByID(ctx, e.MediaItemID)
+		if err != nil || (item.Type != library.MovieItem && item.Type != library.Episode) {
+			return
+		}
+		select {
+		case queue <- id:
+			bgtasks.Queue(trickplayTask, 1)
+		default:
+			slog.WarnContext(ctx, "trickplay queue full, the next sweep remakes the replaced file's sprites", slog.String("media_id", id))
+		}
+	})
+}
+
+// dropReplacedManifest drops the manifest and the sprites of a file since
+// replaced. A generation running for the item keeps its directory: the
+// manifest it stores names the file it read, and the queued one remakes it.
+func (s *TrickplayService) dropReplacedManifest(ctx context.Context, mediaItemID string) {
+	if !s.claimGeneration(mediaItemID) {
+		return
+	}
+	defer s.releaseGeneration(mediaItemID)
+	dropped, err := s.trickplayRepo.DeleteOfReplacedFile(ctx, shared.MediaItemID(mediaItemID))
+	if err != nil {
+		slog.WarnContext(ctx, "trickplay: dropping the replaced file's manifest failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+		return
+	}
+	if !dropped {
+		return
+	}
+	if err := os.RemoveAll(filepath.Join(s.trickplayCacheDir, mediaItemID)); err != nil {
+		slog.WarnContext(ctx, "trickplay: removing the replaced file's sprites failed",
+			slog.String("media_id", mediaItemID), slog.Any("err", err))
+	}
+	slog.InfoContext(ctx, "trickplay: the replaced file's sprites dropped", slog.String("media_id", mediaItemID))
 }
 
 // trickplayEventQueue bounds the items waiting behind the one in flight; a

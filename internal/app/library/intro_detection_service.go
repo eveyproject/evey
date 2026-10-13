@@ -493,6 +493,44 @@ func (s *IntroDetectionService) StartWorker(ctx context.Context) {
 		scheduleSeason(item.ParentID)
 	})
 
+	// A file replaced at the same path: what a detector found in the old one is
+	// dropped (operator marks stay) and the item is detected afresh - after its
+	// sprites are remade when trickplay is on (trickplay.generated below), now
+	// otherwise. The sweep's work list sees it either way.
+	s.events.Subscribe(domainlibrary.MediaItemUpdated{}.EventName(), func(_ context.Context, ev shared.Event) {
+		e, ok := ev.(domainlibrary.MediaItemUpdated)
+		if !ok || e.Reason != domainlibrary.UpdateReasonFileReplaced {
+			return
+		}
+		n, err := s.segmentRepo.DeleteDetectedOfReplacedFile(ctx, e.MediaItemID)
+		if err != nil {
+			slog.WarnContext(ctx, "intro_detection: dropping the replaced file's segments failed",
+				slog.String("media_id", string(e.MediaItemID)), slog.Any("err", err))
+			return
+		}
+		slog.InfoContext(ctx, "intro_detection: the replaced file's detected segments dropped",
+			slog.String("media_id", string(e.MediaItemID)), slog.Int64("segments", n))
+		if s.isTrickplayEnabled(ctx) {
+			return
+		}
+		item, err := s.mediaItems.GetByID(ctx, e.MediaItemID)
+		if err != nil {
+			return
+		}
+		switch item.Type {
+		case domainlibrary.Episode:
+			scheduleSeason(item.ParentID)
+		case domainlibrary.MovieItem:
+			id := string(e.MediaItemID)
+			runDeferred("movie:"+id, 30*time.Second, func() {
+				if err := s.DetectIntro(ctx, id); err != nil {
+					slog.WarnContext(ctx, "intro detection of a replaced movie failed",
+						slog.String("media_id", id), slog.Any("err", err))
+				}
+			})
+		}
+	})
+
 	// trickplay.generated fires for both fresh and regenerated trickplays,
 	// covering the case where existing media's sprites get rebuilt (e.g. after
 	// a format change). Episodes share the season debounce; movies trigger

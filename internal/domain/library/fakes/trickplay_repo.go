@@ -14,6 +14,9 @@ type FakeTrickplayRepository struct {
 	items    map[string]*library.TrickplayManifest
 	failures []TrickplayFailure
 	Err      error
+	// CurrentFile is the size and mtime the item's file has now, for
+	// DeleteOfReplacedFile.
+	CurrentFile func(shared.MediaItemID) (int64, time.Time, bool)
 }
 
 func NewFakeTrickplayRepository() *FakeTrickplayRepository {
@@ -47,6 +50,29 @@ func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemI
 		return nil, ErrNotFound
 	}
 	return cloneTrickplayManifest(m), nil
+}
+
+// DeleteOfReplacedFile drops the manifest unless CurrentFile names the very
+// file it was made from; without CurrentFile every stamped manifest is kept.
+func (r *FakeTrickplayRepository) DeleteOfReplacedFile(_ context.Context, mediaItemID shared.MediaItemID) (bool, error) {
+	if r.Err != nil {
+		return false, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	m, ok := r.items[string(mediaItemID)]
+	if !ok {
+		return false, nil
+	}
+	if r.CurrentFile != nil && m.FileSize > 0 {
+		if size, mod, ok := r.CurrentFile(mediaItemID); ok && size == m.FileSize && mod.Equal(m.ModTime) {
+			return false, nil
+		}
+	} else if m.FileSize > 0 {
+		return false, nil
+	}
+	delete(r.items, string(mediaItemID))
+	return true, nil
 }
 
 func (r *FakeTrickplayRepository) GetByMediaItemIDs(_ context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID]*library.TrickplayManifest, error) {

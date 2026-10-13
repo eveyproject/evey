@@ -35,12 +35,18 @@ func (s *MetadataExtractionService) WithSubtitleScanner(sc library.ExternalSubti
 }
 
 func (s *MetadataExtractionService) extractAndStoreChapters(ctx context.Context, mediaItemID, filePath string) {
-	if s.chapters == nil || s.mkvReader == nil || !strings.HasSuffix(strings.ToLower(filePath), ".mkv") {
+	if s.chapters == nil || s.mkvReader == nil {
 		return
 	}
-	mkvChapters, err := s.mkvReader.ReadChapters(ctx, filePath)
-	if err != nil || len(mkvChapters) == 0 {
-		return
+	// A file without chapters clears the stored ones: a replaced file (same
+	// item, same path) must not keep its predecessor's. A read error keeps
+	// them, it says nothing about the file.
+	var mkvChapters []mkv.Chapter
+	if strings.HasSuffix(strings.ToLower(filePath), ".mkv") {
+		var err error
+		if mkvChapters, err = s.mkvReader.ReadChapters(ctx, filePath); err != nil {
+			return
+		}
 	}
 	chapters := make([]*library.Chapter, len(mkvChapters))
 	for i, ch := range mkvChapters {
