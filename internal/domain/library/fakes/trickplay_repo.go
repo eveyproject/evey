@@ -46,10 +46,20 @@ func (r *FakeTrickplayRepository) GetByMediaItemID(_ context.Context, mediaItemI
 		return nil, r.Err
 	}
 	m, ok := r.items[string(mediaItemID)]
-	if !ok {
+	if !ok || r.ofReplacedFile(mediaItemID, m) {
 		return nil, ErrNotFound
 	}
 	return cloneTrickplayManifest(m), nil
+}
+
+// ofReplacedFile mirrors the database: with CurrentFile set, a stamped
+// manifest of another file is not served.
+func (r *FakeTrickplayRepository) ofReplacedFile(id shared.MediaItemID, m *library.TrickplayManifest) bool {
+	if r.CurrentFile == nil || m.FileSize <= 0 {
+		return false
+	}
+	size, mod, ok := r.CurrentFile(id)
+	return !ok || size != m.FileSize || !mod.Equal(m.ModTime)
 }
 
 // DeleteOfReplacedFile drops the manifest unless CurrentFile names the very
