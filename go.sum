@@ -95,6 +95,8 @@ github.com/gravity-zero/mkvgo v0.47.0 h1:1U6UyQGckU4TIGTmpRDCLAWkgQtP811xv+Rlfc3
 github.com/gravity-zero/mkvgo v0.47.0/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
 github.com/gravity-zero/mkvgo v0.48.0 h1:LjuHl6kLzT7rlXrxjFHbUjV5EeDnUpx2VjUC3H80HSw=
 github.com/gravity-zero/mkvgo v0.48.0/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
+github.com/gravity-zero/mkvgo v0.48.1 h1:w2450Xq1baF4CL6BK4erjEDU5TKvv1RKARhkSNIzbp0=
+github.com/gravity-zero/mkvgo v0.48.1/go.mod h1:0nPnJRtOSszNtlaiMy2DGMf+aaVkfpHQWMbHkK5UACw=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 h1:/Tnpcb2E0Pz/tN9s3bfEY2Q8ePCEX9iuS+cneUwncnw=
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0/go.mod h1:zOBXOsUaBSjKgmH4OGzV1esUpR3oUSCPYVd2cUBjKYY=
 github.com/h2non/filetype v1.1.3 h1:FKkx9QbD7HR/zjK1Ia5XiBsq9zdLi5Kf3zGyFTAFkGg=
