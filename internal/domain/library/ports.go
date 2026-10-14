@@ -88,14 +88,17 @@ type MediaStreamRepository interface {
 	CreateBatch(ctx context.Context, streams []*MediaStream) error
 	ReplaceBatch(ctx context.Context, mediaItemID shared.MediaItemID, streams []*MediaStream) error
 	// RefreshProbedFields writes a new probe's own fields (frame rate, bit
-	// depth, pixel format, colour, HDR type, bitrate) onto the stored rows of
-	// the same file, in place: the rows and all the backfills derived on them
-	// (level, idet, frame-rate mode, keyframes, and their versions) stay, where
-	// ReplaceBatch would reset them and send the workers back over the file.
-	// A field the probe did not read keeps its stored value. changed counts
-	// the rows written. ErrStreamSetChanged, nothing written, when the probe's
-	// container streams are not the stored ones (index, type, codec).
-	RefreshProbedFields(ctx context.Context, mediaItemID shared.MediaItemID, streams []*MediaStream) (changed int, err error)
+	// depth, pixel format, colour, HDR type, bitrate, channels and layout)
+	// onto the stored rows of the same file, in place, field by field: the
+	// rows and all the backfills derived on them (level, idet, frame-rate
+	// mode, keyframes, and their versions) stay, where ReplaceBatch would
+	// reset them and send the workers back over the file. A field the probe
+	// did not read keeps its stored value; the codec and the title change only
+	// as RefreshCodec and RefreshTitle allow, and every one they keep against
+	// the probe is listed in Kept. ErrStreamSetChanged, nothing written, only
+	// when the probe's container streams are not the stored ones (count,
+	// index, type).
+	RefreshProbedFields(ctx context.Context, mediaItemID shared.MediaItemID, streams []*MediaStream) (RefreshResult, error)
 	DeleteByMediaItemID(ctx context.Context, mediaItemID shared.MediaItemID) error
 }
 

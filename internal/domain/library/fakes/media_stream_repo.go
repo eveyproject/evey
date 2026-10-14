@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/eveyproject/evey/internal/domain/library"
@@ -92,9 +93,10 @@ func (r *FakeMediaStreamRepository) DeleteByMediaItemID(_ context.Context, media
 // RefreshProbedFields mirrors the Postgres contract: same container streams
 // (index, type, codec) or ErrStreamSetChanged, then only the probe's own
 // fields are written, a nil one keeping the stored value.
-func (r *FakeMediaStreamRepository) RefreshProbedFields(_ context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (int, error) {
+func (r *FakeMediaStreamRepository) RefreshProbedFields(_ context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (library.RefreshResult, error) {
+	var res library.RefreshResult
 	if r.Err != nil {
-		return 0, r.Err
+		return res, r.Err
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -111,15 +113,13 @@ func (r *FakeMediaStreamRepository) RefreshProbedFields(_ context.Context, media
 		}
 	}
 	if len(probed) != len(stored) {
-		return 0, library.ErrStreamSetChanged
+		return res, library.ErrStreamSetChanged
 	}
 	for _, p := range probed {
-		s, ok := stored[p.StreamIndex]
-		if !ok || s.StreamType != p.StreamType || s.Codec != p.Codec {
-			return 0, library.ErrStreamSetChanged
+		if s, ok := stored[p.StreamIndex]; !ok || s.StreamType != p.StreamType {
+			return res, library.ErrStreamSetChanged
 		}
 	}
-	changed := 0
 	for _, p := range probed {
 		s := stored[p.StreamIndex]
 		before := *s
@@ -132,11 +132,20 @@ func (r *FakeMediaStreamRepository) RefreshProbedFields(_ context.Context, media
 		refreshField(&s.Bitrate, p.Bitrate)
 		refreshField(&s.Channels, p.Channels)
 		refreshField(&s.ChannelLayout, p.ChannelLayout)
+		codec, keptCodec := library.RefreshCodec(s.Codec, p.Codec)
+		if keptCodec {
+			res.Kept = append(res.Kept, fmt.Sprintf("stream %d codec: stored %q, probe %q", p.StreamIndex, s.Codec, p.Codec))
+		}
+		title, keptTitle := library.RefreshTitle(s.Title, p)
+		if keptTitle {
+			res.Kept = append(res.Kept, fmt.Sprintf("stream %d title: stored %q, probe %q", p.StreamIndex, s.Title, p.Title))
+		}
+		s.Codec, s.Title = codec, title
 		if !sameProbedFields(&before, s) {
-			changed++
+			res.Changed++
 		}
 	}
-	return changed, nil
+	return res, nil
 }
 
 func refreshField[T comparable](stored **T, probed *T) {
@@ -149,7 +158,8 @@ func refreshField[T comparable](stored **T, probed *T) {
 func sameProbedFields(a, b *library.MediaStream) bool {
 	return eqPtr(a.Framerate, b.Framerate) && eqPtr(a.BitDepth, b.BitDepth) && eqPtr(a.PixelFormat, b.PixelFormat) &&
 		eqPtr(a.ColorSpace, b.ColorSpace) && eqPtr(a.ColorTransfer, b.ColorTransfer) && eqPtr(a.HDRType, b.HDRType) &&
-		eqPtr(a.Bitrate, b.Bitrate) && eqPtr(a.Channels, b.Channels) && eqPtr(a.ChannelLayout, b.ChannelLayout)
+		eqPtr(a.Bitrate, b.Bitrate) && eqPtr(a.Channels, b.Channels) && eqPtr(a.ChannelLayout, b.ChannelLayout) &&
+		a.Codec == b.Codec && a.Title == b.Title
 }
 
 func eqPtr[T comparable](a, b *T) bool {

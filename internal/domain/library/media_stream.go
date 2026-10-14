@@ -7,9 +7,46 @@ import (
 )
 
 // ErrStreamSetChanged: a probe of an unchanged file found other container
-// streams (index, type, codec) than the stored ones, so a field-by-field
+// streams (count, index, type) than the stored ones, so a field-by-field
 // refresh has no row to write to (see MediaStreamRepository.RefreshProbedFields).
 var ErrStreamSetChanged = errors.New("library: the probed streams are not the stored ones")
+
+// RefreshResult is what a metadata refresh did to a file's streams: Changed
+// counts the rows written, Kept says each field it left against the probe.
+type RefreshResult struct {
+	Changed int
+	Kept    []string
+}
+
+// RefreshCodec is the codec a metadata refresh stores. The probe's replaces
+// the stored one only when it renames it: an MP4 timed-text track was
+// "subrip" on the mkvgo fast path before 0.51 and is "mov_text" since, as
+// ffprobe names it, the same text subtitle either way. kept reports a stored
+// codec the refresh left against the probe.
+func RefreshCodec(stored, probed string) (codec string, kept bool) {
+	switch {
+	case stored == probed:
+		return stored, false
+	case stored == "subrip" && probed == "mov_text":
+		return probed, false
+	}
+	return stored, true
+}
+
+// RefreshTitle is the title a metadata refresh stores. The probe's replaces
+// the stored one only to clear an MP4 muxer's default handler name the probe
+// once took for a title: the stored title is that very hdlr name, which mkvgo
+// now reports apart (HandlerName) and no longer as a title. Any other stored
+// title - an edit, a real name - stays, reported as kept when it differs.
+func RefreshTitle(stored string, probed *MediaStream) (title string, kept bool) {
+	switch {
+	case stored == probed.Title:
+		return stored, false
+	case probed.Title == "" && probed.HandlerName != "" && stored == probed.HandlerName:
+		return "", false
+	}
+	return stored, true
+}
 
 // Strict enum for MediaStream.StreamType. The underlying StreamType type and
 // the legacy short-form constants (Video, Audio, Subtitle) live in model.go

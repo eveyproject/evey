@@ -1092,7 +1092,7 @@ func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.Med
 			slog.String("mediaItemID", string(item.ID)), slog.String("path", path), slog.Any("err", err))
 		return
 	}
-	changed, err := s.mediaStreams.RefreshProbedFields(ctx, item.ID, result.Streams)
+	refreshed, err := s.mediaStreams.RefreshProbedFields(ctx, item.ID, result.Streams)
 	switch {
 	case errors.Is(err, library.ErrStreamSetChanged):
 		slog.WarnContext(ctx, "scan: version re-probe found other streams than the stored ones, none written",
@@ -1100,9 +1100,15 @@ func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.Med
 	case err != nil:
 		slog.WarnContext(ctx, "scan: version re-probe could not refresh the streams",
 			slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
-	case changed > 0:
+	case refreshed.Changed > 0:
 		slog.InfoContext(ctx, "scan: version re-probe refreshed stream metadata",
-			slog.String("mediaItemID", string(item.ID)), slog.Int("streams", changed))
+			slog.String("mediaItemID", string(item.ID)), slog.Int("streams", refreshed.Changed))
+	}
+	// What the refresh left against the probe, field by field: the rest of
+	// the file was refreshed all the same.
+	if len(refreshed.Kept) > 0 {
+		slog.InfoContext(ctx, "scan: version re-probe kept stored values the probe disagrees with",
+			slog.String("mediaItemID", string(item.ID)), slog.String("path", path), slog.Any("kept", refreshed.Kept))
 	}
 	if !result.Duration.IsZero() {
 		item.File.Duration = result.Duration
