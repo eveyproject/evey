@@ -313,14 +313,15 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 		h.playbackActivity = s.PlaybackActivity
 		slog.Default().Info("hls vod: on-demand copy rung enabled (mp4.PlanHLS, default; disable with server_config transcoding.hls_ondemand=off or EVEY_HLS_ONDEMAND=off)")
 
-		// AES-128 encryption of the on-demand segments (HLS-only, no DASH).
+		// AES-128 encryption of the on-demand segments (HLS-only, no DASH, and no
+		// gapless concat: serveConcatMaster declines while it is on).
 		// Off by default; needs the derivation secret. Only meaningful with the
 		// rung enabled, hence nested.
 		if len(s.HLSAESSecret) > 0 &&
 			serverFlagEnabled(s.ServerCfgRepo, "transcoding.hls_ondemand_encrypt", "EVEY_HLS_ONDEMAND_ENCRYPT", false) {
 			h.onDemandEncrypt = true
 			h.hlsAESSecret = s.HLSAESSecret
-			slog.Default().Info("hls vod: on-demand AES-128 encryption enabled (HLS only; no DASH manifest)")
+			slog.Default().Info("hls vod: on-demand AES-128 encryption enabled (HLS only: no DASH manifest, no gapless playback across episodes)")
 
 			// Optional AES-128 key rotation (forward secrecy). Only meaningful
 			// with encryption on, hence nested. 0/absent = single key per media.
