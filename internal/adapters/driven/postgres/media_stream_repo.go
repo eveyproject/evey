@@ -786,14 +786,16 @@ func (r *MediaStreamRepository) RefreshProbedFields(ctx context.Context, mediaIt
 			framerate = COALESCE($4, framerate), bit_depth = COALESCE($5, bit_depth),
 			pixel_format = COALESCE($6, pixel_format), color_space = COALESCE($7, color_space),
 			color_transfer = COALESCE($8, color_transfer), hdr_type = COALESCE($9, hdr_type),
-			bitrate = COALESCE($10, bitrate)
+			bitrate = COALESCE($10, bitrate), channels = COALESCE($11, channels),
+			channel_layout = COALESCE($12, channel_layout)
 		WHERE media_item_id = $1 AND stream_index = $2 AND stream_type = $3 AND NOT is_external
-		  AND (framerate, bit_depth, pixel_format, color_space, color_transfer, hdr_type, bitrate)
+		  AND (framerate, bit_depth, pixel_format, color_space, color_transfer, hdr_type, bitrate, channels, channel_layout)
 		      IS DISTINCT FROM (COALESCE($4, framerate), COALESCE($5, bit_depth), COALESCE($6, pixel_format),
 		                        COALESCE($7, color_space), COALESCE($8, color_transfer), COALESCE($9, hdr_type),
-		                        COALESCE($10, bitrate))`,
+		                        COALESCE($10, bitrate), COALESCE($11, channels), COALESCE($12, channel_layout))`,
 			string(mediaItemID), s.StreamIndex, string(s.StreamType),
-			s.Framerate, s.BitDepth, s.PixelFormat, s.ColorSpace, s.ColorTransfer, s.HDRType, s.Bitrate)
+			s.Framerate, s.BitDepth, s.PixelFormat, s.ColorSpace, s.ColorTransfer, s.HDRType, s.Bitrate,
+			s.Channels, s.ChannelLayout)
 		if err != nil {
 			return 0, fmt.Errorf("MediaStreamRepo.RefreshProbedFields update: %w", err)
 		}

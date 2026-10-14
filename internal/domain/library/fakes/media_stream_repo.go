@@ -130,6 +130,8 @@ func (r *FakeMediaStreamRepository) RefreshProbedFields(_ context.Context, media
 		refreshField(&s.ColorTransfer, p.ColorTransfer)
 		refreshField(&s.HDRType, p.HDRType)
 		refreshField(&s.Bitrate, p.Bitrate)
+		refreshField(&s.Channels, p.Channels)
+		refreshField(&s.ChannelLayout, p.ChannelLayout)
 		if !sameProbedFields(&before, s) {
 			changed++
 		}
@@ -147,7 +149,7 @@ func refreshField[T comparable](stored **T, probed *T) {
 func sameProbedFields(a, b *library.MediaStream) bool {
 	return eqPtr(a.Framerate, b.Framerate) && eqPtr(a.BitDepth, b.BitDepth) && eqPtr(a.PixelFormat, b.PixelFormat) &&
 		eqPtr(a.ColorSpace, b.ColorSpace) && eqPtr(a.ColorTransfer, b.ColorTransfer) && eqPtr(a.HDRType, b.HDRType) &&
-		eqPtr(a.Bitrate, b.Bitrate)
+		eqPtr(a.Bitrate, b.Bitrate) && eqPtr(a.Channels, b.Channels) && eqPtr(a.ChannelLayout, b.ChannelLayout)
 }
 
 func eqPtr[T comparable](a, b *T) bool {
