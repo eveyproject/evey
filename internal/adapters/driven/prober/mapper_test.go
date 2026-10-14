@@ -222,6 +222,14 @@ func TestMapContainer_StreamChannelsWinOverTheContainer(t *testing.T) {
 	res, ok = mapContainer(mk(6, nil), true)
 	require.True(t, ok)
 	assert.Equal(t, 6, *res.Streams[1].Channels)
+	// A 7.1 E-AC-3: the first frame's independent substream says 6, the
+	// dependent one carries the other two. ffprobe says 8, so does the container.
+	eac3 := mk(8, new(uint8(6)))
+	eac3.Tracks[1].Codec = "eac3"
+	res, ok = mapContainer(eac3, true)
+	require.True(t, ok)
+	assert.Equal(t, 8, *res.Streams[1].Channels)
+	assert.Equal(t, "7.1", *res.Streams[1].ChannelLayout)
 }
 
 func TestMapContainer_MP4TimedTextIsMovText(t *testing.T) {

@@ -209,9 +209,12 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			// (ChannelsMismatch): ffprobe reports the decoder's count, and an
 			// AC-3 track muxed as 6 channels over a stereo stream decodes as
 			// stereo. Every audio decision (copy, downmix, the client's channel
-			// cap) reads this count, so it is the stream's or nothing.
+			// cap) reads this count. Not for E-AC-3: mkvgo 0.51 reads the first
+			// frame's independent substream only, and a 7.1 E-AC-3 puts its two
+			// extra channels in a dependent one - 6 where ffprobe says 8 (6 dev
+			// files, 2026-10-14).
 			channels := t.Channels
-			if t.StreamChannels != nil && *t.StreamChannels > 0 {
+			if t.StreamChannels != nil && *t.StreamChannels > 0 && codec != "eac3" {
 				channels = t.StreamChannels
 			}
 			if channels != nil && *channels > 0 {
