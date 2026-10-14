@@ -164,6 +164,31 @@ func TestMapContainer_H264_SDR_NoColourOK(t *testing.T) {
 	assert.Equal(t, "High", res.Streams[0].Profile)
 }
 
+func TestMapContainer_EstimatedFrameRateFillsAMissingOne(t *testing.T) {
+	video := func(fr, est *float64) *extmkv.Container {
+		return &extmkv.Container{Tracks: []extmkv.Track{
+			{Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)),
+				FrameRate: fr, EstimatedFrameRate: est},
+		}}
+	}
+	// No DefaultDuration: the estimate is the rate.
+	res, ok := mapContainer(video(nil, new(23.976)), true)
+	require.True(t, ok)
+	require.NotNil(t, res.Streams[0].Framerate)
+	assert.InDelta(t, 23.976, *res.Streams[0].Framerate, 1e-9)
+	// A declared rate always wins over the estimate.
+	res, ok = mapContainer(video(new(25.0), new(23.976)), true)
+	require.True(t, ok)
+	assert.InDelta(t, 25.0, *res.Streams[0].Framerate, 1e-9)
+	// Neither: still unknown, not zero.
+	res, ok = mapContainer(video(nil, nil), true)
+	require.True(t, ok)
+	assert.Nil(t, res.Streams[0].Framerate)
+	res, ok = mapContainer(video(nil, new(0.0)), true)
+	require.True(t, ok)
+	assert.Nil(t, res.Streams[0].Framerate)
+}
+
 func TestMapContainer_H264_NoColour_StillOK(t *testing.T) {
 	// h264 with NO colour read at all -> still OK (h264 HDR is nonexistent; SDR
 	// legitimately has no colour, matching ffprobe leaving it empty).

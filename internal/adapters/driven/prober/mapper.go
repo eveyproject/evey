@@ -136,8 +136,16 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			if codec == "vp9" && isVP9FeatureMetadata(t.CodecPrivate) {
 				return nil, false
 			}
+			// A Matroska track without DefaultDuration has no FrameRate; mkvgo
+			// 0.50 estimates one from the statistics tags or the first block
+			// timestamps, each equal to ffprobe's r_frame_rate or avg_frame_rate
+			// on the files it was measured on. The ffprobe fallback stores that
+			// same rate, so the estimate is stored the same way.
 			if t.FrameRate != nil && *t.FrameRate > 0 {
 				fr := *t.FrameRate
+				ms.Framerate = &fr
+			} else if t.EstimatedFrameRate != nil && *t.EstimatedFrameRate > 0 {
+				fr := *t.EstimatedFrameRate
 				ms.Framerate = &fr
 			}
 			if t.VideoBitDepth != nil && *t.VideoBitDepth > 0 {
