@@ -62,9 +62,10 @@ func TestMediaStreamRepo_RefreshProbedFields_KeepsEveryBackfill(t *testing.T) {
 		// Muxed as 6 channels, the stream says stereo.
 		{StreamIndex: 1, StreamType: "audio", Codec: "ac3", Channels: new(2), ChannelLayout: new("stereo")},
 	}
-	changed, err := repo.RefreshProbedFields(ctx, item.ID, probed)
+	res, err := repo.RefreshProbedFields(ctx, item.ID, probed)
 	require.NoError(t, err)
-	assert.Equal(t, 2, changed, "the video and the audio rows learnt something")
+	assert.Equal(t, 2, res.Changed, "the video and the audio rows learnt something")
+	assert.Empty(t, res.Kept)
 
 	got, err := repo.GetByMediaItemID(ctx, item.ID)
 	require.NoError(t, err)
@@ -78,9 +79,9 @@ func TestMediaStreamRepo_RefreshProbedFields_KeepsEveryBackfill(t *testing.T) {
 	assert.Equal(t, "stereo", *got[1].ChannelLayout)
 	assert.Equal(t, before, backfills(), "every backfill stays")
 
-	changed, err = repo.RefreshProbedFields(ctx, item.ID, probed)
+	res, err = repo.RefreshProbedFields(ctx, item.ID, probed)
 	require.NoError(t, err)
-	assert.Zero(t, changed, "nothing new, nothing written")
+	assert.Zero(t, res.Changed, "nothing new, nothing written")
 
 	// The probe now sees a third stream: no row to write to, nothing written.
 	other := append(probed, &library.MediaStream{StreamIndex: 2, StreamType: "subtitle", Codec: "subrip"})
@@ -90,4 +91,64 @@ func TestMediaStreamRepo_RefreshProbedFields_KeepsEveryBackfill(t *testing.T) {
 	got, err = repo.GetByMediaItemID(ctx, item.ID)
 	require.NoError(t, err)
 	assert.InDelta(t, 23.976, *got[0].Framerate, 1e-9, "a refused refresh writes nothing")
+}
+
+// Field by field: one field the refresh may not take (another codec, a title
+// someone set) is kept and listed, and the rest of the file is refreshed all
+// the same. An MP4 timed-text "subrip" becomes "mov_text"; a title that is the
+// track's MP4 handler name - what an older probe stored - is cleared.
+func TestMediaStreamRepo_RefreshProbedFields_FieldByField(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	repo := postgres.NewMediaStreamRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("fieldlib")
+	require.NoError(t, libRepo.Create(ctx, lib))
+	item := newTestMediaItem("fieldmi", lib.ID)
+	require.NoError(t, itemRepo.Create(ctx, item))
+	require.NoError(t, repo.CreateBatch(ctx, []*library.MediaStream{
+		{ID: "v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "h264", Title: "video handler"},
+		{ID: "a", MediaItemID: item.ID, StreamIndex: 1, StreamType: "audio", Codec: "aac", Title: "Commentaire"},
+		{ID: "s", MediaItemID: item.ID, StreamIndex: 2, StreamType: "subtitle", Codec: "subrip", Title: "srt@GPAC0.9.0"},
+		{ID: "t", MediaItemID: item.ID, StreamIndex: 3, StreamType: "subtitle", Codec: "ass", Title: "Forced"},
+	}))
+
+	probed := []*library.MediaStream{
+		// The handler name the old probe took for a title: cleared.
+		{StreamIndex: 0, StreamType: "video", Codec: "h264", Framerate: new(23.976), HandlerName: "video handler"},
+		// A title that is not the handler name (an edit, a real name): kept.
+		{StreamIndex: 1, StreamType: "audio", Codec: "aac", Channels: new(2), HandlerName: "SoundHandler"},
+		// The one codec rename the refresh takes, and its handler title.
+		{StreamIndex: 2, StreamType: "subtitle", Codec: "mov_text", HandlerName: "srt@GPAC0.9.0"},
+		// Another codec: kept and listed, the row still refreshed.
+		{StreamIndex: 3, StreamType: "subtitle", Codec: "subrip", Title: "Forced"},
+	}
+	res, err := repo.RefreshProbedFields(ctx, item.ID, probed)
+	require.NoError(t, err, "a field in disagreement no longer refuses the file")
+	assert.Equal(t, 3, res.Changed)
+	assert.ElementsMatch(t, []string{
+		`stream 1 title: stored "Commentaire", probe ""`,
+		`stream 3 codec: stored "ass", probe "subrip"`,
+	}, res.Kept)
+
+	got, err := repo.GetByMediaItemID(ctx, item.ID)
+	require.NoError(t, err)
+	require.Len(t, got, 4)
+	assert.Empty(t, got[0].Title)
+	assert.InDelta(t, 23.976, *got[0].Framerate, 1e-9)
+	assert.Equal(t, "Commentaire", got[1].Title)
+	assert.Equal(t, 2, *got[1].Channels, "the rest of a row with a kept field is refreshed")
+	assert.Equal(t, "mov_text", got[2].Codec)
+	assert.Empty(t, got[2].Title)
+	assert.Equal(t, "ass", got[3].Codec)
+	assert.Equal(t, "Forced", got[3].Title)
+
+	// Idempotent: the same probe again writes nothing and lists the same.
+	again, err := repo.RefreshProbedFields(ctx, item.ID, probed)
+	require.NoError(t, err)
+	assert.Zero(t, again.Changed)
+	assert.ElementsMatch(t, res.Kept, again.Kept)
 }

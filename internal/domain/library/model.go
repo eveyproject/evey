@@ -358,6 +358,10 @@ type MediaStream struct {
 	Level     *int
 	Language  string
 	Title     string
+	// HandlerName is an MP4 track's hdlr name as the probe read it, apart
+	// from its title. Probe-time only, never stored: a metadata refresh uses
+	// it to recognise a title an older probe took from it (RefreshTitle).
+	HandlerName string
 	IsDefault bool
 	IsForced  bool
 	// Extended disposition flags, sourced from Matroska FlagCommentary/… and the

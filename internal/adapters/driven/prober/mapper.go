@@ -84,6 +84,7 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 		if t.Name != "" {
 			ms.Title = t.Name
 		}
+		ms.HandlerName = t.HandlerName
 		if cln := t.CodecLongName(); cln != "" {
 			ms.CodecLongName = cln
 		}
