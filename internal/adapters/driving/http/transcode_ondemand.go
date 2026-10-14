@@ -26,6 +26,7 @@ import (
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 )
 
 // transcode_ondemand.go - the on-demand HLS/DASH copy rung served straight from
@@ -651,6 +652,17 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	// for the on-demand path. Touch before the write, not after: a client that
 	// aborts mid-segment is still a client that is watching.
 	h.playbackActivity.Touch(mediaID)
+
+	if h.encryptedSegments != nil && isPlanMediaSegment(name) {
+		key := streamingRateLimitKey(r)
+		release, ok := h.encryptedSegments.acquire(key)
+		if !ok {
+			span.SetStatus(codes.Error, "encrypted segments in flight at the client's limit")
+			ratelimit.RefuseStreaming(w, r, 1, key)
+			return
+		}
+		defer release()
+	}
 
 	var (
 		data        []byte
