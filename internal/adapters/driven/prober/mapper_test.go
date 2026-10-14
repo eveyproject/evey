@@ -199,6 +199,23 @@ func TestMapContainer_H264_NoColour_StillOK(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestMapContainer_MP4TimedTextIsMovText(t *testing.T) {
+	mk := func() *extmkv.Container {
+		return &extmkv.Container{Tracks: []extmkv.Track{
+			{Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)), ColorSpace: new(cicpBT709)},
+			{Type: extmkv.SubtitleTrack, Codec: "srt", Language: "fre", LanguagePresent: true},
+		}}
+	}
+	// ffprobe names an MP4 tx3g track mov_text.
+	res, ok := mapContainer(mk(), false)
+	require.True(t, ok)
+	assert.Equal(t, "mov_text", res.Streams[1].Codec)
+	// A Matroska SRT stays subrip, whatever the DocType says.
+	res, ok = mapContainer(mk(), true)
+	require.True(t, ok)
+	assert.Equal(t, "subrip", res.Streams[1].Codec)
+}
+
 func TestMapContainer_LanguageAbsent(t *testing.T) {
 	mk := func() *extmkv.Container {
 		return &extmkv.Container{Tracks: []extmkv.Track{
