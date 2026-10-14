@@ -40,6 +40,10 @@ import (
 type CacheBudget struct {
 	segments *SegmentCache
 	files    []*RemuxCacheJanitor
+	// oversize names the entries already reported as larger than the cap on
+	// their own, so the WARN fires once per entry and not on every sweep.
+	// Touched by the sweeper goroutine only.
+	oversize map[string]bool
 }
 
 // NewCacheBudget builds the sweeper over the segment cache and any flat file
@@ -224,6 +228,8 @@ func (b *CacheBudget) sweepOnce(p EvictionPolicy, logger *slog.Logger, now time.
 		}
 	}
 
+	b.warnOversize(entries, gone, p, logger, now)
+
 	metrics.HLSVODCacheBytes.Set(float64(total))
 	if evicted > 0 {
 		metrics.HLSVODCacheEvictedBytes.Add(float64(freed))
@@ -233,4 +239,31 @@ func (b *CacheBudget) sweepOnce(p EvictionPolicy, logger *slog.Logger, now time.
 			slog.Int64("total_after_bytes", total),
 			slog.Int64("max_bytes", p.MaxBytes))
 	}
+}
+
+// warnOversize reports, once, an entry larger than the whole cap. The cap pass
+// cannot hold it: while a viewer reads it (the protect window, a live encoder)
+// it is skipped and keeps growing, bounded by the free-space floor alone; once
+// idle it goes whole, the only entry left or not. Nothing loops, but the
+// budget an admin set is not the one the disk sees, and nothing said so.
+func (b *CacheBudget) warnOversize(entries []budgetEntry, gone map[int]bool, p EvictionPolicy, logger *slog.Logger, now time.Time) {
+	if p.MaxBytes <= 0 {
+		return
+	}
+	still := make(map[string]bool, len(b.oversize))
+	for i, e := range entries {
+		if gone[i] || e.bytes <= p.MaxBytes {
+			continue
+		}
+		key := e.hash + e.path
+		still[key] = true
+		if b.oversize[key] {
+			continue
+		}
+		logger.Warn("cache budget: one entry is larger than the whole cache budget",
+			slog.String("hash", e.hash), slog.String("path", e.path),
+			slog.Int64("entry_bytes", e.bytes), slog.Int64("max_bytes", p.MaxBytes),
+			slog.Bool("in_use", e.lastAccess.After(now.Add(-p.ProtectWindow))))
+	}
+	b.oversize = still
 }
