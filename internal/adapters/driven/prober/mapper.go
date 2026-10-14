@@ -47,6 +47,11 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 		// A_MPEG/L3) and hands back the raw CodecID when it cannot: never a
 		// guess. A raw id is unmapped -> ffprobe decides (WMV3/WVC1/HEVC in VfW).
 		codec := t.FFprobeCodecName()
+		if !ebml {
+			// An MP4 timed-text track (tx3g) reads as "srt" and FFprobeCodecName
+			// says "subrip"; ffprobe says "mov_text". The container knows.
+			codec = c.TrackCodecName(t)
+		}
 		if codec == "" || strings.Contains(codec, "/") || isRawCodecID(codec) {
 			return nil, false
 		}
