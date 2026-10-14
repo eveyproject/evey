@@ -27,6 +27,7 @@ import (
 
 	appsubtitle "github.com/eveyproject/evey/internal/app/subtitle"
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
+	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	domainsubtitle "github.com/eveyproject/evey/internal/domain/subtitle"
 	domainuser "github.com/eveyproject/evey/internal/domain/user"
@@ -469,12 +470,14 @@ func tryMKVGoSubtitleBytes(ctx context.Context,
 	}
 
 	// Codec guard: the DB stores the ffprobe codec_name; mkvgo uses its own short
-	// name. FFprobeCodecName translates the short name to the ffprobe form. A
-	// mismatch means the DB ordinal has drifted from mkvgo's ordinal (e.g. the
-	// file was edited and the library was not re-scanned). Falling back to ffmpeg
-	// is the safe option - never serve a track that doesn't match the DB entry.
-	mkvCodec := extmkv.FFprobeCodecName(mkvTrack.Codec)
-	if mkvCodec != matchedCodec {
+	// name. TrackCodecName translates it to the ffprobe form in this container
+	// (an MP4 timed-text track is mov_text, not subrip). A mismatch means the DB
+	// ordinal has drifted from mkvgo's ordinal (e.g. the file was edited and the
+	// library was not re-scanned). Falling back to ffmpeg is the safe option -
+	// never serve a track that doesn't match the DB entry. A row an older probe
+	// stored as subrip is the same track (RefreshCodec's one rename).
+	mkvCodec := c.TrackCodecName(mkvTrack)
+	if _, drifted := domainlibrary.RefreshCodec(matchedCodec, mkvCodec); drifted {
 		slog.WarnContext(ctx, "subtitle: mkvgo codec mismatch vs DB, falling back to ffmpeg",
 			slog.String("path", filePath),
 			slog.String("db_codec", matchedCodec),
