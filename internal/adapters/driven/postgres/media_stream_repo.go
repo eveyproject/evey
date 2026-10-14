@@ -728,3 +728,83 @@ func (r *MediaStreamRepository) VideoDims(ctx context.Context, mediaItemID share
 	}
 	return int(w.Int64), int(h.Int64), nil
 }
+
+// RefreshProbedFields implements library.MediaStreamRepository: the probe's own
+// columns are written onto the matching rows, every other column (the
+// backfills' level, idet, frame-rate mode, keyframes and their versions)
+// stays as it is.
+func (r *MediaStreamRepository) RefreshProbedFields(ctx context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.media_stream.RefreshProbedFields")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(mediaItemID)))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("MediaStreamRepo.RefreshProbedFields begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	type storedStream struct{ streamType, codec string }
+	rows, err := tx.QueryContext(ctx, `SELECT stream_index, stream_type, codec FROM media_streams
+		WHERE media_item_id = $1 AND NOT is_external FOR UPDATE`, string(mediaItemID))
+	if err != nil {
+		return 0, fmt.Errorf("MediaStreamRepo.RefreshProbedFields read: %w", err)
+	}
+	defer rows.Close()
+	stored := map[int]storedStream{}
+	for rows.Next() {
+		var idx int
+		var st storedStream
+		if err := rows.Scan(&idx, &st.streamType, &st.codec); err != nil {
+			return 0, fmt.Errorf("MediaStreamRepo.RefreshProbedFields scan: %w", err)
+		}
+		stored[idx] = st
+	}
+	if err := rows.Err(); err != nil {
+		return 0, fmt.Errorf("MediaStreamRepo.RefreshProbedFields rows: %w", err)
+	}
+	var probed []*library.MediaStream
+	for _, s := range streams {
+		if !s.IsExternal {
+			probed = append(probed, s)
+		}
+	}
+	if len(probed) != len(stored) {
+		return 0, library.ErrStreamSetChanged
+	}
+	for _, s := range probed {
+		st, ok := stored[s.StreamIndex]
+		if !ok || st.streamType != string(s.StreamType) || st.codec != s.Codec {
+			return 0, library.ErrStreamSetChanged
+		}
+	}
+
+	changed := 0
+	for _, s := range probed {
+		res, err := tx.ExecContext(ctx, `UPDATE media_streams SET
+			framerate = COALESCE($4, framerate), bit_depth = COALESCE($5, bit_depth),
+			pixel_format = COALESCE($6, pixel_format), color_space = COALESCE($7, color_space),
+			color_transfer = COALESCE($8, color_transfer), hdr_type = COALESCE($9, hdr_type),
+			bitrate = COALESCE($10, bitrate)
+		WHERE media_item_id = $1 AND stream_index = $2 AND stream_type = $3 AND NOT is_external
+		  AND (framerate, bit_depth, pixel_format, color_space, color_transfer, hdr_type, bitrate)
+		      IS DISTINCT FROM (COALESCE($4, framerate), COALESCE($5, bit_depth), COALESCE($6, pixel_format),
+		                        COALESCE($7, color_space), COALESCE($8, color_transfer), COALESCE($9, hdr_type),
+		                        COALESCE($10, bitrate))`,
+			string(mediaItemID), s.StreamIndex, string(s.StreamType),
+			s.Framerate, s.BitDepth, s.PixelFormat, s.ColorSpace, s.ColorTransfer, s.HDRType, s.Bitrate)
+		if err != nil {
+			return 0, fmt.Errorf("MediaStreamRepo.RefreshProbedFields update: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("MediaStreamRepo.RefreshProbedFields rows affected: %w", err)
+		}
+		changed += int(n)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("MediaStreamRepo.RefreshProbedFields commit: %w", err)
+	}
+	return changed, nil
+}

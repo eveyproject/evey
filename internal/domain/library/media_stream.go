@@ -1,9 +1,15 @@
 package library
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
+
+// ErrStreamSetChanged: a probe of an unchanged file found other container
+// streams (index, type, codec) than the stored ones, so a field-by-field
+// refresh has no row to write to (see MediaStreamRepository.RefreshProbedFields).
+var ErrStreamSetChanged = errors.New("library: the probed streams are not the stored ones")
 
 // Strict enum for MediaStream.StreamType. The underlying StreamType type and
 // the legacy short-form constants (Video, Audio, Subtitle) live in model.go
