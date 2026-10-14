@@ -157,12 +157,19 @@ func (h *hlsVODServe) serveConcatResource(w http.ResponseWriter, r *http.Request
 // serveConcatResourceData writes one concat plan resource. Same cache-header
 // split as servePlanResourceData: playlists no-cache, media/init segments
 // immutable (byte-identical across builds).
+//
+// A part's media segment streams from its source through the plan's Open
+// (mkvgo 0.51), as a single episode's does; playlists stay on Resource.
 func (h *hlsVODServe) serveConcatResourceData(w http.ResponseWriter, r *http.Request, plan apptranscoding.ConcatPlan, name string, span trace.Span) {
-	data, contentType, err := plan.Resource(r.Context(), name)
+	data, contentType, streamed, err := fetchPlanResource(r.Context(), plan, name)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "concat resource")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		return
+	}
+	if streamed != nil {
+		servePlanResourceStreamed(w, r, name, streamed, "mkvgo-concat", span)
 		return
 	}
 	setCORSHeaders(w, r, "")

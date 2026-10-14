@@ -115,3 +115,68 @@ func TestConcatPackagerIntegration_TwoEpisodesGapless(t *testing.T) {
 		t.Errorf("part 1 segment 1 is not a CMAF fragment, got %d bytes", len(seg2))
 	}
 }
+
+// The streamed concat (mkvgo 0.51 ConcatPlan.Open) serves Resource's bytes for
+// every resource of the session, whole and by range: a part's media segment
+// written from its source, the concatenated playlists and inits as built.
+func TestConcatPackagerIntegration_OpenServesResourceBytes(t *testing.T) {
+	if os.Getenv("EVEY_TRANSCODE_ITEST") != "1" {
+		t.Skip("integration test: set EVEY_TRANSCODE_ITEST=1 (use `make transcode-itest`)")
+	}
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not in PATH")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	dir := t.TempDir()
+	e1 := genEpisode(t, ctx, dir, "s01e01.mkv")
+	e2 := genEpisode(t, ctx, dir, "s01e02.mkv")
+	pkg := NewConcatPackager()
+	defer pkg.Close()
+	plan, err := pkg.Plan(ctx, []string{e1, e2}, apptranscoding.ConcatOptions{SegmentMs: 6000, URLPrefix: "cc_"})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	opener, ok := plan.(apptranscoding.OnDemandOpener)
+	if !ok {
+		t.Fatal("the concat plan does not open its resources")
+	}
+	streamed := 0
+	for _, name := range plan.Resources() {
+		name = strings.ReplaceAll(name, "/", concatPathSep)
+		want, _, err := plan.Resource(ctx, name)
+		if err != nil {
+			t.Fatalf("Resource(%s): %v", name, err)
+		}
+		res, err := opener.Open(ctx, name)
+		if err != nil {
+			t.Fatalf("Open(%s): %v", name, err)
+		}
+		if res.Size() != int64(len(want)) {
+			t.Fatalf("%s: Size %d, Resource has %d bytes", name, res.Size(), len(want))
+		}
+		if res.Bytes() == nil {
+			streamed++
+		}
+		var whole bytes.Buffer
+		if _, err := res.WriteRange(ctx, &whole, 0, res.Size()); err != nil {
+			t.Fatalf("%s: WriteRange: %v", name, err)
+		}
+		if !bytes.Equal(whole.Bytes(), want) {
+			t.Fatalf("%s: Open's bytes differ from Resource's", name)
+		}
+		if n := int64(len(want)); n > 10 {
+			var mid bytes.Buffer
+			if _, err := res.WriteRange(ctx, &mid, n/3, n/3); err != nil {
+				t.Fatalf("%s: WriteRange middle: %v", name, err)
+			}
+			if !bytes.Equal(mid.Bytes(), want[n/3:2*(n/3)]) {
+				t.Fatalf("%s: a range in the middle differs from Resource's", name)
+			}
+		}
+		_ = res.Close()
+	}
+	if streamed == 0 {
+		t.Fatal("no resource streamed: every one came back whole")
+	}
+}

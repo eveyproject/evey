@@ -750,7 +750,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if streamed != nil {
-		servePlanResourceStreamed(w, r, name, streamed, span)
+		servePlanResourceStreamed(w, r, name, streamed, "mkvgo", span)
 		return
 	}
 	setCORSHeaders(w, r, "")
@@ -790,12 +790,18 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	_, _ = w.Write(data)
 }
 
+// planResourcer is what fetchPlanResource needs of a plan: a single-file
+// OnDemandPlan and a concatenated ConcatPlan both are.
+type planResourcer interface {
+	Resource(ctx context.Context, name string) ([]byte, string, error)
+}
+
 // fetchPlanResource gets one resource off the plan. A plan that can stream
 // hands a media segment over as a handle read from the source while it is
 // written (transcode_ondemand_stream.go); anything it returns whole -
 // playlists, inits, subtitles, a segment it had to assemble - comes back as
 // bytes.
-func fetchPlanResource(ctx context.Context, plan apptranscoding.OnDemandPlan, name string) ([]byte, string, apptranscoding.OnDemandResource, error) {
+func fetchPlanResource(ctx context.Context, plan planResourcer, name string) ([]byte, string, apptranscoding.OnDemandResource, error) {
 	opener, ok := plan.(apptranscoding.OnDemandOpener)
 	if !ok || isPlanPlaylist(name) {
 		data, ct, err := plan.Resource(ctx, name)

@@ -35,16 +35,17 @@ func isPlanPlaylist(name string) bool {
 	return strings.HasSuffix(name, ".m3u8") || strings.HasSuffix(name, ".mpd")
 }
 
-// servePlanResourceStreamed writes one streamed resource: exact Content-Length,
+// servePlanResourceStreamed writes one streamed resource, servedBy naming the
+// path in X-Evey-Served-By (mkvgo, mkvgo-concat): exact Content-Length,
 // a weak ETag, one Range at a time, HEAD honoured, and on a write error the
 // connection cut short (http.ErrAbortHandler - net/http closes it without a
 // final chunk and without logging).
-func servePlanResourceStreamed(w http.ResponseWriter, r *http.Request, name string, res apptranscoding.OnDemandResource, span trace.Span) {
+func servePlanResourceStreamed(w http.ResponseWriter, r *http.Request, name string, res apptranscoding.OnDemandResource, servedBy string, span trace.Span) {
 	defer closePlanResource(r.Context(), name, res)
 	size := res.Size()
 	etag := res.ETag()
 	setCORSHeaders(w, r, "")
-	w.Header().Set("X-Evey-Served-By", "mkvgo")
+	w.Header().Set("X-Evey-Served-By", servedBy)
 	w.Header().Set("ETag", etag)
 	w.Header().Set("Accept-Ranges", "bytes")
 	if inm := r.Header.Get("If-None-Match"); inm != "" && weakETagMatches(inm, etag) {
