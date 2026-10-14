@@ -156,7 +156,8 @@ type hlsVODServe struct {
 
 	// onDemandEncrypt AES-128-encrypts the on-demand rung's media segments
 	// (behind transcoding.hls_ondemand_encrypt). Off by default; requires
-	// hlsAESSecret. When on, no DASH manifest is emitted (AES-128 is HLS-only).
+	// hlsAESSecret. When on, no DASH manifest is emitted (AES-128 is HLS-only)
+	// and no gapless concat is served.
 	onDemandEncrypt bool
 	// hlsAESSecret derives per-media AES-128 keys (HMAC(secret, mediaID)); the
 	// /hls/{id}/key endpoint serves the derived key to authorised clients.
@@ -166,6 +167,9 @@ type hlsVODServe struct {
 	// gets its own derived key, advertised as key?i=<n> and served by the key
 	// endpoint. 0 = single key per media (the default).
 	hlsKeyRotateSegments int
+	// encryptedSegments bounds each client's encrypted media segments in
+	// flight (maxEncryptedSegmentsPerClient); nil when encryption is off.
+	encryptedSegments *clientSegmentGate
 
 	// onDemandConcat serves a gapless multi-episode HLS session (mkvgo's
 	// mp4.PlanConcat) when a master request opts in with ?gapless=1 (behind
