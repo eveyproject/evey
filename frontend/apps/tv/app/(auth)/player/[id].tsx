@@ -17,7 +17,7 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
-import { reloadAtPlayhead, staleRenditionRetry } from "@evey/client/native/staleRendition";
+import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
@@ -225,8 +225,8 @@ export default function PlayerScreen() {
   // of the NEXT one (e.g. after a next-episode auto-advance), showing a dead
   // error screen over a stream that hadn't even started yet.
   useEffect(() => { setNativeError(null); }, [mediaId]);
-  // When the last stale-URL rebuild was made (see staleRenditionRetry).
-  const staleRetryAtRef = useRef<number | null>(null);
+  // When the last reload on a 404 or 410 was made (see playbackReloadRetry).
+  const reloadRetryAtRef = useRef<number | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
@@ -453,15 +453,16 @@ export default function PlayerScreen() {
         setDashSource((d) => (d ? { ...d, state: "off" } : d));
         return;
       }
-      // A 410 is a URL the server no longer serves as held (ladder moved, new
-      // server build, file replaced): reload at the playhead, like the web
-      // player does.
+      // A 410 (a URL the server no longer serves as held) or a 404 (a
+      // resource gone, e.g. evicted during a long pause): reload the same
+      // source at the playhead, like the web player does.
       const now = Date.now();
-      if (ev.status === "error" && player && staleRenditionRetry(ev.error?.message, staleRetryAtRef.current, now)) {
-        staleRetryAtRef.current = now;
+      if (ev.status === "error" && player && playbackReloadRetry(ev.error?.message, reloadRetryAtRef.current, now)) {
+        reloadRetryAtRef.current = now;
         const at = currentTimeRef.current;
         reportPlayerEvent({
-          type: "native_player_stale_retry",
+          type: "native_player_reload",
+          code: reloadableStatus(ev.error?.message) ?? 0,
           details: ev.error?.message ?? "",
           fatal: false,
           posSec: Math.round(at),
