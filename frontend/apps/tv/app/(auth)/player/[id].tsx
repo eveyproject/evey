@@ -17,6 +17,7 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
+import { reloadAtPlayhead, staleRenditionRetry } from "@evey/client/native/staleRendition";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
@@ -224,6 +225,8 @@ export default function PlayerScreen() {
   // of the NEXT one (e.g. after a next-episode auto-advance), showing a dead
   // error screen over a stream that hadn't even started yet.
   useEffect(() => { setNativeError(null); }, [mediaId]);
+  // When the last stale-URL rebuild was made (see staleRenditionRetry).
+  const staleRetryAtRef = useRef<number | null>(null);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Whether the NEXT player instance should start playing. Changing tracks or
   // quality recreates the native player, whose setup used to call play()
@@ -448,6 +451,24 @@ export default function PlayerScreen() {
         console.log(`[dev-dash] DASH source failed (${ev.error?.message ?? ""}): HLS fallback`);
         dashFailedRef.current = true;
         setDashSource((d) => (d ? { ...d, state: "off" } : d));
+        return;
+      }
+      // A 410 is a URL the server no longer serves as held (ladder moved, new
+      // server build, file replaced): reload at the playhead, like the web
+      // player does.
+      const now = Date.now();
+      if (ev.status === "error" && player && staleRenditionRetry(ev.error?.message, staleRetryAtRef.current, now)) {
+        staleRetryAtRef.current = now;
+        const at = currentTimeRef.current;
+        reportPlayerEvent({
+          type: "native_player_stale_retry",
+          details: ev.error?.message ?? "",
+          fatal: false,
+          posSec: Math.round(at),
+        });
+        reloadAtPlayhead(player, lastSourceRef.current, at).catch(() => {
+          setNativeError(ev.error?.message ?? "playback error");
+        });
         return;
       }
       if (ev.status === "error") {
