@@ -113,6 +113,17 @@ func (p *concatPlan) Resource(ctx context.Context, name string) ([]byte, string,
 	return p.plan.Resource(ctx, strings.ReplaceAll(name, concatPathSep, "/"))
 }
 
+// Open is apptranscoding.OnDemandOpener (mkvgo 0.51): a part's media segment
+// streams from its source as it is written; the concatenated playlists and the
+// shifted subtitles come back whole, as Resource returns them.
+func (p *concatPlan) Open(ctx context.Context, name string) (apptranscoding.OnDemandResource, error) {
+	h, err := p.plan.Open(ctx, strings.ReplaceAll(name, concatPathSep, "/"))
+	if err != nil {
+		return nil, err
+	}
+	return h, nil
+}
+
 func (p *concatPlan) Resources() []string { return p.plan.Resources() }
 
 func (p *concatPlan) NumParts() int { return p.plan.NumParts() }
