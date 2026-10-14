@@ -177,6 +177,18 @@ docker build -t evey .
 # Single image serves both API and frontend SPA
 ```
 
+## Dependency upgrades
+
+Things no compiler or test catches when the dependency moves:
+
+- **expo-video or Media3 (androidx.media3)**: the phone and TV players read the
+  HTTP status of a playback error from its text, since expo-video's
+  `PlayerError` carries only `message`. Check on a device that a 404 or 410 on a
+  segment still reads `... Response code: 404` / `410` in the
+  `native_player_reload` beacon (admin logs), or whether `PlayerError` now has a
+  structured status to use instead - see
+  `frontend/packages/client/src/native/playbackReload.ts`.
+
 ## Useful Tools
 
 | Tool | Purpose |
