@@ -37,7 +37,10 @@ import (
 // boundaries, a laced AAC/AC-3 track without DefaultDuration takes its frame
 // size from the stream (+11.3 s drift by the end of a film before), and
 // compressed tracks are written decoded; a v3 file may carry any of those.
-const remuxCacheFormat = "remux-v4"
+// v5 (mkvgo 0.49): the tkhd carries the source's display rotation and an Opus
+// track its pre-skip as an edit list; a v4 file plays a phone video sideways
+// and its Opus 6.5 ms late.
+const remuxCacheFormat = "remux-v5"
 
 // remuxCacheName derives a collision-free, traversal-proof cache filename from
 // the item identity, the cache-format version, and the SOURCE FINGERPRINT
