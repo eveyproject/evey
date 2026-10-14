@@ -22,12 +22,12 @@ func TestReadChapters_DefaultEditionOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, src, 0o644); err != nil {
+	if err = os.WriteFile(path, src, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	// Name the non-default edition's second chapter the way chapterPass reads
 	// an intro.
-	if err := matroska.EditInPlace(ctx, path, func(c *matroska.Container) {
+	if err = matroska.EditInPlace(ctx, path, func(c *matroska.Container) {
 		if len(c.OtherEditions) != 1 || len(c.OtherEditions[0].Chapters) != 3 {
 			t.Fatalf("fixture editions: %+v", c.OtherEditions)
 		}
