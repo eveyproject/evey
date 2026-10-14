@@ -88,3 +88,71 @@ func (r *FakeMediaStreamRepository) DeleteByMediaItemID(_ context.Context, media
 	delete(r.items, string(mediaItemID))
 	return nil
 }
+
+// RefreshProbedFields mirrors the Postgres contract: same container streams
+// (index, type, codec) or ErrStreamSetChanged, then only the probe's own
+// fields are written, a nil one keeping the stored value.
+func (r *FakeMediaStreamRepository) RefreshProbedFields(_ context.Context, mediaItemID shared.MediaItemID, streams []*library.MediaStream) (int, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	stored := map[int]*library.MediaStream{}
+	for _, s := range r.items[string(mediaItemID)] {
+		if !s.IsExternal {
+			stored[s.StreamIndex] = s
+		}
+	}
+	var probed []*library.MediaStream
+	for _, s := range streams {
+		if !s.IsExternal {
+			probed = append(probed, s)
+		}
+	}
+	if len(probed) != len(stored) {
+		return 0, library.ErrStreamSetChanged
+	}
+	for _, p := range probed {
+		s, ok := stored[p.StreamIndex]
+		if !ok || s.StreamType != p.StreamType || s.Codec != p.Codec {
+			return 0, library.ErrStreamSetChanged
+		}
+	}
+	changed := 0
+	for _, p := range probed {
+		s := stored[p.StreamIndex]
+		before := *s
+		refreshField(&s.Framerate, p.Framerate)
+		refreshField(&s.BitDepth, p.BitDepth)
+		refreshField(&s.PixelFormat, p.PixelFormat)
+		refreshField(&s.ColorSpace, p.ColorSpace)
+		refreshField(&s.ColorTransfer, p.ColorTransfer)
+		refreshField(&s.HDRType, p.HDRType)
+		refreshField(&s.Bitrate, p.Bitrate)
+		if !sameProbedFields(&before, s) {
+			changed++
+		}
+	}
+	return changed, nil
+}
+
+func refreshField[T comparable](stored **T, probed *T) {
+	if probed != nil {
+		v := *probed
+		*stored = &v
+	}
+}
+
+func sameProbedFields(a, b *library.MediaStream) bool {
+	return eqPtr(a.Framerate, b.Framerate) && eqPtr(a.BitDepth, b.BitDepth) && eqPtr(a.PixelFormat, b.PixelFormat) &&
+		eqPtr(a.ColorSpace, b.ColorSpace) && eqPtr(a.ColorTransfer, b.ColorTransfer) && eqPtr(a.HDRType, b.HDRType) &&
+		eqPtr(a.Bitrate, b.Bitrate)
+}
+
+func eqPtr[T comparable](a, b *T) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}

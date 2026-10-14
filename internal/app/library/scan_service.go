@@ -1065,32 +1065,53 @@ func (s *ScanService) reprobeStreamlessFile(ctx context.Context, item *library.M
 	}
 }
 
-// reprobeStaleVersion refreshes the streams of an unchanged file last probed by
-// an older prober revision and stamps the current StreamProbeVersion. A failed
-// probe keeps the old streams (ProbeAndStoreStreams leaves them) and still
-// stamps the version: this prober failed on this unchanged file, so retrying it
-// every scan only reruns ffprobe; a change to the file probes it again.
+// reprobeStaleVersion refreshes the metadata of an unchanged file last probed
+// by an older prober revision and stamps the current StreamProbeVersion. The
+// streams are refreshed in place (RefreshProbedFields), never replaced: a
+// replace resets what the backfills derived on the rows (level, idet,
+// frame-rate mode, keyframes) and sends their workers back over every file -
+// a whole-library decode pass for a metadata refresh. So it publishes nothing
+// either: no trickplay, intro, chapter or cache work follows. A probe that
+// finds other streams than the stored ones writes none (logged); a failed
+// probe keeps the old streams. Either way the version is stamped: retrying an
+// unchanged file every scan only reruns the probe, and a change to the file
+// probes it again in full.
 func (s *ScanService) reprobeStaleVersion(ctx context.Context, item *library.MediaItem, path string) {
-	dur, container, probedOK := s.ProbeAndStoreStreams(ctx, string(item.ID), path)
-	if !probedOK {
-		item.File.StreamProbeVersion = library.StreamProbeVersion
+	item.File.StreamProbeVersion = library.StreamProbeVersion
+	defer func() {
 		if err := s.mediaItems.Update(ctx, item); err != nil {
-			slog.WarnContext(ctx, "update media item after failed re-probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+			slog.WarnContext(ctx, "update media item after version re-probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
 		}
+	}()
+	if s.prober == nil {
 		return
 	}
-	item.File.StreamProbeVersion = library.StreamProbeVersion
-	if !dur.IsZero() {
-		item.File.Duration = dur
+	result, err := s.prober.ProbeStreams(ctx, path)
+	if err != nil || len(result.Streams) == 0 {
+		slog.WarnContext(ctx, "scan: version re-probe failed, streams kept",
+			slog.String("mediaItemID", string(item.ID)), slog.String("path", path), slog.Any("err", err))
+		return
+	}
+	changed, err := s.mediaStreams.RefreshProbedFields(ctx, item.ID, result.Streams)
+	switch {
+	case errors.Is(err, library.ErrStreamSetChanged):
+		slog.WarnContext(ctx, "scan: version re-probe found other streams than the stored ones, none written",
+			slog.String("mediaItemID", string(item.ID)), slog.String("path", path))
+	case err != nil:
+		slog.WarnContext(ctx, "scan: version re-probe could not refresh the streams",
+			slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
+	case changed > 0:
+		slog.InfoContext(ctx, "scan: version re-probe refreshed stream metadata",
+			slog.String("mediaItemID", string(item.ID)), slog.Int("streams", changed))
+	}
+	if !result.Duration.IsZero() {
+		item.File.Duration = result.Duration
 	}
 	item.File.Bitrate = item.File.BitrateBps()
-	if container != "" {
-		item.File.ContainerFormat = container
+	if result.Container != "" {
+		item.File.ContainerFormat = result.Container
 	}
 	item.UpdatedAt = time.Now()
-	if err := s.mediaItems.Update(ctx, item); err != nil {
-		slog.WarnContext(ctx, "update media item after version re-probe failed", slog.String("mediaItemID", string(item.ID)), slog.Any("err", err))
-	}
 }
 
 func (s *ScanService) ProbeAndStoreStreams(ctx context.Context, mediaItemID, filePath string) (dur shared.Duration, container string, probedOK bool) {
