@@ -199,6 +199,31 @@ func TestMapContainer_H264_NoColour_StillOK(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestMapContainer_StreamChannelsWinOverTheContainer(t *testing.T) {
+	mk := func(container uint8, stream *uint8) *extmkv.Container {
+		return &extmkv.Container{Tracks: []extmkv.Track{
+			{Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)), ColorSpace: new(cicpBT709)},
+			{Type: extmkv.AudioTrack, Codec: "ac3", Channels: new(container), StreamChannels: stream,
+				ChannelsMismatch: stream != nil && *stream != container, SampleRate: new(48000.0)},
+		}}
+	}
+	// Muxed as 6 channels over a stereo AC-3 stream: stereo, as ffprobe says.
+	res, ok := mapContainer(mk(6, new(uint8(2))), true)
+	require.True(t, ok)
+	require.NotNil(t, res.Streams[1].Channels)
+	assert.Equal(t, 2, *res.Streams[1].Channels)
+	require.NotNil(t, res.Streams[1].ChannelLayout)
+	assert.Equal(t, "stereo", *res.Streams[1].ChannelLayout)
+	// Agreeing counts, or no stream count read: the container's.
+	res, ok = mapContainer(mk(6, new(uint8(6))), true)
+	require.True(t, ok)
+	assert.Equal(t, 6, *res.Streams[1].Channels)
+	assert.Equal(t, "5.1", *res.Streams[1].ChannelLayout)
+	res, ok = mapContainer(mk(6, nil), true)
+	require.True(t, ok)
+	assert.Equal(t, 6, *res.Streams[1].Channels)
+}
+
 func TestMapContainer_MP4TimedTextIsMovText(t *testing.T) {
 	mk := func() *extmkv.Container {
 		return &extmkv.Container{Tracks: []extmkv.Track{

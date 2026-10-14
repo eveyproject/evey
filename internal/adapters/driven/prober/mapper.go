@@ -205,8 +205,17 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 				// carries, so what a manifest must declare (mp4a.40.<AOT>).
 				ms.Profile = aacProfileFromASC(t.CodecPrivate)
 			}
-			if t.Channels != nil && *t.Channels > 0 {
-				ch := int(*t.Channels)
+			// The channels the stream states win over the container's
+			// (ChannelsMismatch): ffprobe reports the decoder's count, and an
+			// AC-3 track muxed as 6 channels over a stereo stream decodes as
+			// stereo. Every audio decision (copy, downmix, the client's channel
+			// cap) reads this count, so it is the stream's or nothing.
+			channels := t.Channels
+			if t.StreamChannels != nil && *t.StreamChannels > 0 {
+				channels = t.StreamChannels
+			}
+			if channels != nil && *channels > 0 {
+				ch := int(*channels)
 				ms.Channels = &ch
 			}
 			// The rate ffprobe and ffmpeg's decoder report: the SBR-doubled
@@ -222,7 +231,9 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 				sr := int(math.Round(rate))
 				ms.SampleRate = &sr
 			}
-			if cl := t.ChannelLayout(); cl != "" {
+			counted := *t
+			counted.Channels = channels
+			if cl := counted.ChannelLayout(); cl != "" {
 				ms.ChannelLayout = &cl
 			}
 			if t.BitDepth != nil && *t.BitDepth > 0 {
