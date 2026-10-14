@@ -143,7 +143,10 @@ func (realMetaReader) ReadMeta(ctx context.Context, path string) (*extmkv.Contai
 	// WithFrameRateReads: a track without DefaultDuration gets its estimated rate
 	// from the block headers of the first 512 KiB, 32-byte reads (dev library,
 	// 498 MKV: +33 us median, +7.4 ms p95, +266 ms on the worst 4K title).
-	c, err := reader.OpenMeta(ctx, path, reader.WithInBandColourFallback(), reader.WithBitrate(), reader.WithFrameRateReads())
+	// WithInBandChannels: the channel count an AC-3/E-AC-3 track's first frame
+	// header or an AAC AudioSpecificConfig states (one block), which the mapper
+	// prefers over a container that says otherwise.
+	c, err := reader.OpenMeta(ctx, path, reader.WithInBandColourFallback(), reader.WithBitrate(), reader.WithFrameRateReads(), reader.WithInBandChannels())
 	if errors.Is(err, reader.ErrNotMatroska) {
 		// A .mkv/.webm extension on an ISO-BMFF (MP4) payload - a mislabeled file.
 		// mkvgo typed the input rather than returning a cryptic EBML error, so read
