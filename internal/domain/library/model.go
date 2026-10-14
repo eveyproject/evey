@@ -269,7 +269,14 @@ type MediaFile struct {
 
 // StreamProbeVersion is the current prober revision. Bump when the prober
 // learns a field the scanner must re-read on existing rows.
-const StreamProbeVersion = 1
+//
+//	2: mkvgo 0.51 - the frame rate of a Matroska video track without
+//	   DefaultDuration (codec header, then an estimate), the channel count an
+//	   AC-3 stream states over its container's, the HEVC bit depth, the MPEG-2
+//	   colour, the MP4 stts frame rate, the mov_text label and the MP4 handler
+//	   names an older probe took for titles. Dry run on the NAS library
+//	   (8,797 files, 2026-10-15): 576 files corrected, none skipped.
+const StreamProbeVersion = 2
 
 // LevelProbeVersion is the current revision of the video level backfill's
 // probe. media_streams.level_probe_version records the revision at which a
