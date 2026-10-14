@@ -1,8 +1,8 @@
 ---
-source_sha: 3bd3ddf0df0a475d6ddf4417b5aa5b3630c871184888584df522bdae5daee7d4
+source_sha: ebb072bbebfc9bd7bf678229831e531e8fb4937c38720f305ee4e13f6535e311
 reviewed: true
 ---
-# 播放分发与下载
+# 播放分发与下载 { #playback-delivery-and-downloads }
 
 这些开关决定视频流怎样打包，以及服务器为下载准备什么。默认值就是推荐的做法：
 这些开关的用途，是在排查问题时关闭某种处理方式，或者主动开启一种默认关闭的处理方式。
@@ -12,7 +12,7 @@ reviewed: true
 面板会提示下载相关的键；其他的键请按这里写的样子输入。它们都在启动时读取，
 所以不管用哪种方式修改，都要到下次重启才生效。
 
-## 打包
+## 打包 { #packaging }
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
@@ -22,11 +22,11 @@ reviewed: true
 | `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | 在直接复制的视频流旁边，再加一个转码出来的低画质，这样网络突然变差时，播放器可以降低一档画质，而不是卡住。在播放器用到它之前，不消耗任何资源。 | 无 |
 | `EVEY_HLS_ONDEMAND_CONCAT` | 开启 | 网页播放器请求时，剧集之间无缝衔接播放。不能直接复制的一集会改用普通的视频流。 | 配置条目 `transcoding.hls_ondemand_concat`，需重启 |
 | `EVEY_HLS_ONDEMAND_TRACK_TRIM` | 关闭 | 每个视频流里只放选中的那条音轨，而不是全部音轨。 | 配置条目 `transcoding.hls_ondemand_track_trim`，需重启 |
-| `EVEY_HLS_ONDEMAND_ENCRYPT` | 关闭 | 用 AES-128 加密重新打包的视频流（只限 HLS：开启后不再提供 DASH 清单）。 | 配置条目 `transcoding.hls_ondemand_encrypt`，需重启 |
+| `EVEY_HLS_ONDEMAND_ENCRYPT` | 关闭 | 用 AES-128 加密重新打包的视频流。开启后关闭两项功能：DASH 清单（只限 HLS）和剧集之间的无缝衔接播放（每一集作为单独的视频流播放）。 | 配置条目 `transcoding.hls_ondemand_encrypt`，需重启 |
 | `EVEY_HLS_KEY_ROTATION_SEGMENTS` | `0` | 开启加密时，每 N 个片段换一次密钥；`0` = 每部影片一个密钥。 | 配置条目 `transcoding.hls_key_rotation_segments`，需重启 |
 | `EVEY_CAST_WASM_AUDIO_ENABLED` | `false` | 让 Chromecast 自己解码杜比数字（Dolby Digital），而不是接收 AAC。默认关闭，因为它会让低端接收器负担过重，又没有带来任何好处。浏览器不受影响。 | 无 |
 
-## 下载
+## 下载 { #downloads }
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
@@ -34,7 +34,7 @@ reviewed: true
 | `EVEY_DOWNLOAD_QUALITY_CHOICE` | 关闭 | 为下载提供一个更小的 720p 版本。它要重新编码视频，在性能弱的机器上大约和片长一样久，所以在您开启之前它是关闭的。 | 配置条目 `downloads.quality_choice`，需重启 |
 | `EVEY_DOWNLOAD_REDUCE_ABOVE_BYTES` | `4294967296`（4 GiB） | 超过这个大小，应用就会提供更小的版本；手机存储空间放不下电影时，手机也会提供它。 | 配置条目 `downloads.reduce_above_bytes`，需重启 |
 
-## 播放器
+## 播放器 { #player }
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |

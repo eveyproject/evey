@@ -1,8 +1,8 @@
 ---
-source_sha: 3bd3ddf0df0a475d6ddf4417b5aa5b3630c871184888584df522bdae5daee7d4
+source_sha: ebb072bbebfc9bd7bf678229831e531e8fb4937c38720f305ee4e13f6535e311
 reviewed: true
 ---
-# Entrega de la reproducción y descargas
+# Entrega de la reproducción y descargas { #playback-delivery-and-downloads }
 
 Los interruptores que deciden cómo se empaquetan los flujos y qué prepara el
 servidor para las descargas. Los valores por defecto son el comportamiento
@@ -18,7 +18,7 @@ descargas; las demás se escriben tal como aparecen aquí. Todas se leen al
 arrancar, así que un cambio se aplica en el siguiente reinicio, se haga como
 se haga.
 
-## Empaquetado
+## Empaquetado { #packaging }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
@@ -28,11 +28,11 @@ se haga.
 | `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Añade una calidad baja transcodificada junto a un flujo copiado, para que un reproductor cuya conexión cae bruscamente pueda bajar de calidad en lugar de quedarse parado. No cuesta nada hasta que un reproductor la usa. | ninguno |
 | `EVEY_HLS_ONDEMAND_CONCAT` | activado | Reproducción sin cortes entre episodios, cuando el reproductor web la pide. Un episodio que no se puede copiar vuelve al flujo normal. | Entradas de configuración `transcoding.hls_ondemand_concat`, al reiniciar |
 | `EVEY_HLS_ONDEMAND_TRACK_TRIM` | desactivado | Pone en cada flujo solo la pista de audio seleccionada en lugar de todas. | Entradas de configuración `transcoding.hls_ondemand_track_trim`, al reiniciar |
-| `EVEY_HLS_ONDEMAND_ENCRYPT` | desactivado | Cifra los flujos reempaquetados con AES-128 (solo HLS: entonces no se ofrece ningún manifiesto DASH). | Entradas de configuración `transcoding.hls_ondemand_encrypt`, al reiniciar |
+| `EVEY_HLS_ONDEMAND_ENCRYPT` | desactivado | Cifra los flujos reempaquetados con AES-128. Desactiva dos cosas: el manifiesto DASH (solo HLS) y la reproducción sin cortes entre episodios (cada episodio se reproduce como un flujo propio). | Entradas de configuración `transcoding.hls_ondemand_encrypt`, al reiniciar |
 | `EVEY_HLS_KEY_ROTATION_SEGMENTS` | `0` | Con el cifrado activado, cambia la clave cada N segmentos; `0` = una clave por título. | Entradas de configuración `transcoding.hls_key_rotation_segments`, al reiniciar |
 | `EVEY_CAST_WASM_AUDIO_ENABLED` | `false` | Permite que un Chromecast decodifique él mismo el Dolby Digital en lugar de recibir AAC. Desactivado porque sobrecargaba los receptores modestos sin ahorrar nada. Los navegadores no se ven afectados. | ninguno |
 
-## Descargas
+## Descargas { #downloads }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
@@ -40,7 +40,7 @@ se haga.
 | `EVEY_DOWNLOAD_QUALITY_CHOICE` | desactivado | Ofrece una copia más pequeña en 720p para las descargas. Recodifica el vídeo, a más o menos tiempo real en una máquina modesta, y por eso está desactivado hasta que lo actives. | Entradas de configuración `downloads.quality_choice`, al reiniciar |
 | `EVEY_DOWNLOAD_REDUCE_ABOVE_BYTES` | `4294967296` (4 GiB) | El tamaño a partir del cual la aplicación ofrece la copia más pequeña; el teléfono también la ofrece cuando la película no cabe. | Entradas de configuración `downloads.reduce_above_bytes`, al reiniciar |
 
-## Reproductor
+## Reproductor { #player }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |

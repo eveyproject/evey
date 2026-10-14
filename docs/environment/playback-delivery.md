@@ -22,7 +22,7 @@ the next restart whichever way it is made.
 | `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Adds one low transcoded quality next to a copied stream, so a player whose connection collapses can step down instead of freezing. Costs nothing until a player uses it. | none |
 | `EVEY_HLS_ONDEMAND_CONCAT` | on | Gapless playback across episodes, when the web player asks for it. An episode that cannot be copied falls back to the normal stream. | Config entries `transcoding.hls_ondemand_concat`, restart |
 | `EVEY_HLS_ONDEMAND_TRACK_TRIM` | off | Puts only the selected audio track in each stream instead of all of them. | Config entries `transcoding.hls_ondemand_track_trim`, restart |
-| `EVEY_HLS_ONDEMAND_ENCRYPT` | off | Encrypts repackaged streams with AES-128 (HLS only: no DASH manifest is offered then). | Config entries `transcoding.hls_ondemand_encrypt`, restart |
+| `EVEY_HLS_ONDEMAND_ENCRYPT` | off | Encrypts repackaged streams with AES-128. Turns off two things: the DASH manifest (HLS only) and gapless playback across episodes (each episode plays as its own stream). | Config entries `transcoding.hls_ondemand_encrypt`, restart |
 | `EVEY_HLS_KEY_ROTATION_SEGMENTS` | `0` | With encryption on, changes the key every N segments; `0` = one key per title. | Config entries `transcoding.hls_key_rotation_segments`, restart |
 | `EVEY_CAST_WASM_AUDIO_ENABLED` | `false` | Lets a Chromecast decode Dolby Digital itself instead of receiving AAC. Off because it overloaded low-end receivers without saving anything. Browsers are not affected. | none |
 
