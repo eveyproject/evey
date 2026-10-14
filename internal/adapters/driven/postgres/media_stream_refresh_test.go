@@ -31,7 +31,8 @@ func TestMediaStreamRepo_RefreshProbedFields_KeepsEveryBackfill(t *testing.T) {
 	require.NoError(t, itemRepo.Create(ctx, item))
 	require.NoError(t, repo.CreateBatch(ctx, []*library.MediaStream{
 		{ID: "v", MediaItemID: item.ID, StreamIndex: 0, StreamType: "video", Codec: "hevc", BitDepth: new(10)},
-		{ID: "a", MediaItemID: item.ID, StreamIndex: 1, StreamType: "audio", Codec: "eac3", Bitrate: new(int64(640000))},
+		{ID: "a", MediaItemID: item.ID, StreamIndex: 1, StreamType: "audio", Codec: "ac3", Bitrate: new(int64(640000)),
+			Channels: new(6), ChannelLayout: new("5.1")},
 	}))
 	_, err := repo.SetVideoLevels(ctx, item.ID, []*library.MediaStream{{StreamIndex: 0, StreamType: "video", Level: new(153)}})
 	require.NoError(t, err)
@@ -58,11 +59,12 @@ func TestMediaStreamRepo_RefreshProbedFields_KeepsEveryBackfill(t *testing.T) {
 
 	probed := []*library.MediaStream{
 		{StreamIndex: 0, StreamType: "video", Codec: "hevc", Framerate: new(23.976), ColorTransfer: new("smpte2084")},
-		{StreamIndex: 1, StreamType: "audio", Codec: "eac3"},
+		// Muxed as 6 channels, the stream says stereo.
+		{StreamIndex: 1, StreamType: "audio", Codec: "ac3", Channels: new(2), ChannelLayout: new("stereo")},
 	}
 	changed, err := repo.RefreshProbedFields(ctx, item.ID, probed)
 	require.NoError(t, err)
-	assert.Equal(t, 1, changed, "only the video row learnt something")
+	assert.Equal(t, 2, changed, "the video and the audio rows learnt something")
 
 	got, err := repo.GetByMediaItemID(ctx, item.ID)
 	require.NoError(t, err)
@@ -72,6 +74,8 @@ func TestMediaStreamRepo_RefreshProbedFields_KeepsEveryBackfill(t *testing.T) {
 	assert.Equal(t, "smpte2084", *got[0].ColorTransfer)
 	assert.Equal(t, 10, *got[0].BitDepth, "a column the probe did not read keeps its value")
 	assert.Equal(t, int64(640000), *got[1].Bitrate)
+	assert.Equal(t, 2, *got[1].Channels)
+	assert.Equal(t, "stereo", *got[1].ChannelLayout)
 	assert.Equal(t, before, backfills(), "every backfill stays")
 
 	changed, err = repo.RefreshProbedFields(ctx, item.ID, probed)
