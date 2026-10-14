@@ -1,8 +1,8 @@
 ---
-source_sha: 3bd3ddf0df0a475d6ddf4417b5aa5b3630c871184888584df522bdae5daee7d4
+source_sha: ebb072bbebfc9bd7bf678229831e531e8fb4937c38720f305ee4e13f6535e311
 reviewed: true
 ---
-# Auslieferung und Downloads
+# Auslieferung und Downloads { #playback-delivery-and-downloads }
 
 Die Schalter dafür, wie Streams verpackt werden und was der Server für
 Downloads vorbereitet. Die Standardwerte sind das empfohlene Verhalten: Diese
@@ -18,7 +18,7 @@ Der Verwaltungsbereich schlägt die Download-Schlüssel vor; die anderen tippen
 Sie so ein, wie sie hier stehen. Alle werden beim Start gelesen: Eine Änderung
 gilt also ab dem nächsten Neustart, egal auf welchem Weg sie gemacht wurde.
 
-## Verpackung
+## Verpackung { #packaging }
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
@@ -28,11 +28,11 @@ gilt also ab dem nächsten Neustart, egal auf welchem Weg sie gemacht wurde.
 | `EVEY_HLS_COPY_FALLBACK_RUNG` | `true` | Fügt neben einem kopierten Stream eine niedrige transkodierte Qualität hinzu. So kann ein Player, dessen Verbindung einbricht, eine Stufe heruntergehen, statt anzuhalten. Kostet nichts, solange kein Player sie nutzt. | keine |
 | `EVEY_HLS_ONDEMAND_CONCAT` | an | Lückenlose Wiedergabe über Folgen hinweg, wenn der Web-Player sie anfordert. Eine Folge, die nicht kopiert werden kann, fällt auf den normalen Stream zurück. | Konfigurationseinträge `transcoding.hls_ondemand_concat`, Neustart |
 | `EVEY_HLS_ONDEMAND_TRACK_TRIM` | aus | Packt nur die gewählte Tonspur in jeden Stream statt aller. | Konfigurationseinträge `transcoding.hls_ondemand_track_trim`, Neustart |
-| `EVEY_HLS_ONDEMAND_ENCRYPT` | aus | Verschlüsselt neu verpackte Streams mit AES-128 (nur HLS: Dann wird kein DASH-Manifest angeboten). | Konfigurationseinträge `transcoding.hls_ondemand_encrypt`, Neustart |
+| `EVEY_HLS_ONDEMAND_ENCRYPT` | aus | Verschlüsselt neu verpackte Streams mit AES-128. Schaltet zwei Dinge ab: das DASH-Manifest (nur HLS) und die lückenlose Wiedergabe über Folgen hinweg (jede Folge läuft als eigener Stream). | Konfigurationseinträge `transcoding.hls_ondemand_encrypt`, Neustart |
 | `EVEY_HLS_KEY_ROTATION_SEGMENTS` | `0` | Wechselt bei eingeschalteter Verschlüsselung den Schlüssel alle N Segmente; `0` = ein Schlüssel pro Titel. | Konfigurationseinträge `transcoding.hls_key_rotation_segments`, Neustart |
 | `EVEY_CAST_WASM_AUDIO_ENABLED` | `false` | Lässt einen Chromecast Dolby Digital selbst dekodieren, statt AAC zu empfangen. Aus, weil es schwache Empfänger überlastet hat, ohne etwas einzusparen. Browser sind nicht betroffen. | keine |
 
-## Downloads
+## Downloads { #downloads }
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
@@ -40,7 +40,7 @@ gilt also ab dem nächsten Neustart, egal auf welchem Weg sie gemacht wurde.
 | `EVEY_DOWNLOAD_QUALITY_CHOICE` | aus | Bietet für Downloads eine kleinere Kopie in 720p an. Dafür wird das Video neu kodiert, auf einer schwachen Maschine etwa in Echtzeit. Deshalb ist es aus, bis Sie es einschalten. | Konfigurationseinträge `downloads.quality_choice`, Neustart |
 | `EVEY_DOWNLOAD_REDUCE_ABOVE_BYTES` | `4294967296` (4 GiB) | Die Größe, ab der die App die kleinere Kopie anbietet; das Handy bietet sie auch an, wenn der Film nicht hineinpasst. | Konfigurationseinträge `downloads.reduce_above_bytes`, Neustart |
 
-## Player
+## Player { #player }
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
