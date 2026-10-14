@@ -230,6 +230,21 @@ func TestMapContainer_StreamChannelsWinOverTheContainer(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 8, *res.Streams[1].Channels)
 	assert.Equal(t, "7.1", *res.Streams[1].ChannelLayout)
+	// HE-AACv2 with implicit Parametric Stereo: a mono core in the header,
+	// stereo decoded. It stays stereo.
+	ps := mk(2, new(uint8(1)))
+	ps.Tracks[1].Codec = "aac"
+	res, ok = mapContainer(ps, true)
+	require.True(t, ok)
+	assert.Equal(t, 2, *res.Streams[1].Channels)
+	assert.Equal(t, "stereo", *res.Streams[1].ChannelLayout)
+	// An AAC stating MORE channels than its container (a program config
+	// element) is believed.
+	pce := mk(2, new(uint8(6)))
+	pce.Tracks[1].Codec = "aac"
+	res, ok = mapContainer(pce, true)
+	require.True(t, ok)
+	assert.Equal(t, 6, *res.Streams[1].Channels)
 }
 
 func TestMapContainer_MP4TimedTextIsMovText(t *testing.T) {

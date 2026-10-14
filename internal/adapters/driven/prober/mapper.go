@@ -213,9 +213,13 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 			// cap) reads this count. Not for E-AC-3: mkvgo 0.51 reads the first
 			// frame's independent substream only, and a 7.1 E-AC-3 puts its two
 			// extra channels in a dependent one - 6 where ffprobe says 8 (6 dev
-			// files, 2026-10-14).
+			// files, 2026-10-14). Nor for AAC stating fewer channels than its
+			// container: an HE-AACv2 with implicit Parametric Stereo has a mono
+			// core in its AudioSpecificConfig and decodes to stereo, as ffprobe
+			// reports - such a track must not turn mono.
 			channels := t.Channels
-			if t.StreamChannels != nil && *t.StreamChannels > 0 && codec != "eac3" {
+			if t.StreamChannels != nil && *t.StreamChannels > 0 && codec != "eac3" &&
+				(codec != "aac" || t.Channels == nil || *t.StreamChannels >= *t.Channels) {
 				channels = t.StreamChannels
 			}
 			if channels != nil && *channels > 0 {
