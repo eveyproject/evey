@@ -1,8 +1,11 @@
 package transcoding
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -172,4 +175,39 @@ func TestCacheBudget_LeasedFileSurvivesEveryPass(t *testing.T) {
 		b.sweepOnce(p.withDefaults(), quietLogger(), base.Add(leases.Linger+time.Second))
 		assert.NoFileExists(t, playing, "%s pass: released and past the linger, it goes", name)
 	}
+}
+
+// An entry larger than the whole cap, read right now: the cap pass skips it
+// and it stays, and the budget says so once, not on every sweep. Idle, it goes
+// whole; one that grows past the cap again is reported again.
+func TestCacheBudget_OversizeEntryIsReportedOnce(t *testing.T) {
+	c, _ := newTestCache(t)
+	writeSegments(t, c, "h-big", 3, 100) // 300 B, written now
+	writeSegments(t, c, "h-small", 1, 50)
+	backdateHash(t, c, "h-small", -time.Hour)
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	b := NewCacheBudget(c)
+	p := capOnly(200, 0)
+	p.ProtectWindow = 10 * time.Minute
+	p = p.withDefaults()
+	const warn = "one entry is larger than the whole cache budget"
+
+	now := time.Now()
+	for i := range 3 {
+		b.sweepOnce(p, logger, now.Add(time.Duration(i)*time.Minute))
+	}
+	assert.Equal(t, 1, strings.Count(logs.String(), warn), logs.String())
+	assert.Contains(t, logs.String(), "hash=h-big")
+	assert.Contains(t, logs.String(), "in_use=true")
+	assert.DirExists(t, filepath.Join(c.baseDir, "h-big"), "a viewer reads it: tolerated over the cap")
+
+	// Idle past the window: the cap pass takes it whole.
+	b.sweepOnce(p, logger, now.Add(time.Hour))
+	assert.NoDirExists(t, filepath.Join(c.baseDir, "h-big"))
+
+	// Made again past the cap: a new report.
+	writeSegments(t, c, "h-big", 3, 100)
+	b.sweepOnce(p, logger, time.Now())
+	assert.Equal(t, 2, strings.Count(logs.String(), warn))
 }
