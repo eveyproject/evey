@@ -53,7 +53,7 @@ import {
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
-import { reloadAtPlayhead, staleRenditionRetry } from "@evey/client/native/staleRendition";
+import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
@@ -310,8 +310,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // One recovery per media: a dead stream token is worth one silent retry, a
   // second identical failure is a real one and must be shown.
   const authRetriedRef = useRef(false);
-  // When the last stale-URL rebuild was made (see staleRenditionRetry).
-  const staleRetryAtRef = useRef<number | null>(null);
+  // When the last reload on a 404 or 410 was made (see playbackReloadRetry).
+  const reloadRetryAtRef = useRef<number | null>(null);
   // The status listener is installed before restartWithTracks exists in its
   // closure, so it reaches it through a ref that is kept current below.
   const restartWithTracksRef = useRef<(() => void) | null>(null);
@@ -696,15 +696,16 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
           restartWithTracksRef.current?.();
           return;
         }
-        // A 410 is a URL the server no longer serves as held (ladder moved,
-        // new server build, file replaced): reload at the playhead, like the
-        // web player does.
+        // A 410 (a URL the server no longer serves as held) or a 404 (a
+        // resource gone, e.g. evicted during a long pause): reload the same
+        // source at the playhead, like the web player does.
         const now = Date.now();
-        if (staleRenditionRetry(ev.error?.message, staleRetryAtRef.current, now)) {
-          staleRetryAtRef.current = now;
+        if (playbackReloadRetry(ev.error?.message, reloadRetryAtRef.current, now)) {
+          reloadRetryAtRef.current = now;
           const at = currentTimeRef.current;
           reportPlayerEvent({
-            type: "native_player_stale_retry",
+            type: "native_player_reload",
+            code: reloadableStatus(ev.error?.message) ?? 0,
             details: ev.error?.message ?? "",
             fatal: false,
             posSec: Math.round(at),
