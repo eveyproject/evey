@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"golang.org/x/time/rate"
+
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -181,5 +183,54 @@ func TestScanService_StaleProbeVersion_RefreshesMetadataOnly(t *testing.T) {
 		case library.MediaItemUpdated, library.MediaItemAdded:
 			t.Errorf("a metadata refresh published %T, which sends workers over the file", ev)
 		}
+	}
+}
+
+// The version re-probes are paced: a scan re-probes as many stale rows as the
+// pace allows and leaves the others unstamped, and a later scan takes them.
+// Nothing is lost when a scan stops halfway, nothing is probed twice.
+func TestScanService_StaleProbeVersion_IsPacedAndResumes(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	paths := []string{"/m/a.mkv", "/m/b.mkv", "/m/c.mkv"}
+	for _, p := range paths {
+		h.scanner.Results["/m"] = append(h.scanner.Results["/m"],
+			library.ScannedFile{Path: p, Size: 100, Fingerprint: "fp" + p, Type: library.MovieItem, Title: p})
+		h.prober.Results[p] = &library.ProbeResult{
+			Duration: mustProbeDuration(42000),
+			Streams:  []*library.MediaStream{{ID: "v" + p, StreamType: "video", Codec: "h264"}},
+		}
+	}
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	for _, it := range h.media.All() {
+		it.File.StreamProbeVersion = 0
+		require.NoError(t, h.media.Update(context.Background(), it))
+	}
+	h.prober.Calls.Store(0)
+
+	// One re-probe allowed, none refilled during the test.
+	h.svc.WithStaleReprobePace(0, 1)
+	_, _, err = h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), h.prober.Calls.Load(), "one file re-probed, at the pace")
+	stale := 0
+	for _, it := range h.media.All() {
+		if it.File.StreamProbeVersion < library.StreamProbeVersion {
+			stale++
+		}
+	}
+	assert.Equal(t, 2, stale, "the files over the pace stay unstamped")
+
+	// The next scans take the rest, each file once.
+	h.svc.WithStaleReprobePace(rate.Inf, 1)
+	_, _, err = h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	_, _, err = h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), h.prober.Calls.Load(), "every stale file re-probed exactly once")
+	for _, it := range h.media.All() {
+		assert.Equal(t, library.StreamProbeVersion, it.File.StreamProbeVersion)
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"golang.org/x/time/rate"
 )
 
 // ErrScanInProgress is returned by ScanLibrary when a scan is already running
@@ -56,10 +57,14 @@ type TypedDirectoryScanner interface {
 }
 
 type ScanService struct {
-	scanner    library.FileScanner
-	prober     library.StreamProber
-	subScanner library.ExternalSubtitleScanner
-	search     library.SearchIndex
+	scanner library.FileScanner
+	prober  library.StreamProber
+	// staleReprobes paces the re-probes a StreamProbeVersion bump owes every
+	// unchanged file (reprobeStaleVersion): without it the first scan after
+	// an update reads the head of the whole library at once.
+	staleReprobes *rate.Limiter
+	subScanner    library.ExternalSubtitleScanner
+	search        library.SearchIndex
 	// indexQueue batches search documents during a scan (one Meilisearch task
 	// per page instead of one per item); flushed by processNewItems.
 	indexMu      sync.Mutex
@@ -114,20 +119,36 @@ func NewScanService(
 	events shared.EventBus,
 ) *ScanService {
 	return &ScanService{
-		libraries:    libraries,
-		libQueries:   libQueries,
-		mediaItems:   mediaItems,
-		mediaStreams: mediaStreams,
-		persons:      persons,
-		mediaPersons: mediaPersons,
-		scanner:      scanner,
-		prober:       prober,
-		search:       search,
-		events:       events,
-		pruner:       NewOrphanPruner(mediaItems, search, events),
-		scanning:     make(map[string]bool),
-		settleRetry:  make(map[string]*time.Timer),
+		libraries:     libraries,
+		libQueries:    libQueries,
+		mediaItems:    mediaItems,
+		mediaStreams:  mediaStreams,
+		persons:       persons,
+		mediaPersons:  mediaPersons,
+		scanner:       scanner,
+		prober:        prober,
+		search:        search,
+		events:        events,
+		pruner:        NewOrphanPruner(mediaItems, search, events),
+		scanning:      make(map[string]bool),
+		settleRetry:   make(map[string]*time.Timer),
+		staleReprobes: rate.NewLimiter(staleReprobeRate, staleReprobeBurst),
 	}
+}
+
+// staleReprobeRate and staleReprobeBurst pace the version re-probes: 2 files a
+// second once the first 20 are done, about an hour for 7,300 files on a NAS,
+// next to the scan's own CPU budget. A file over the pace is left unstamped
+// and taken by a later scan.
+const (
+	staleReprobeRate  = rate.Limit(2)
+	staleReprobeBurst = 20
+)
+
+// WithStaleReprobePace overrides the version re-probe pace (tests).
+func (s *ScanService) WithStaleReprobePace(r rate.Limit, burst int) *ScanService {
+	s.staleReprobes = rate.NewLimiter(r, burst)
+	return s
 }
 
 // WithFileSettle makes the scan leave alone a file modified less than window
@@ -956,7 +977,8 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		// self-heals, without re-probing a durably-unprobeable file every scan.
 		if existing.File.StreamProbeAttempts > 0 && existing.File.StreamProbeAttempts < maxStreamProbeAttempts {
 			s.reprobeStreamlessFile(ctx, existing, f.Path)
-		} else if existing.File.StreamProbeAttempts == 0 && existing.File.StreamProbeVersion < library.StreamProbeVersion {
+		} else if existing.File.StreamProbeAttempts == 0 && existing.File.StreamProbeVersion < library.StreamProbeVersion &&
+			s.staleReprobes.Allow() {
 			s.reprobeStaleVersion(ctx, existing, f.Path)
 		}
 		return
