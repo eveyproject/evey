@@ -362,15 +362,15 @@ type MediaStream struct {
 	// Level is the codec level (e.g. H.264 level 4.0 = 40), nil when unknown.
 	// Needed with Profile to build the exact RFC-6381 CODECS string for a
 	// video-copy rung; a nil Level gates copy off (no accurate codec advertise).
-	Level     *int
-	Language  string
-	Title     string
+	Level    *int
+	Language string
+	Title    string
 	// HandlerName is an MP4 track's hdlr name as the probe read it, apart
 	// from its title. Probe-time only, never stored: a metadata refresh uses
 	// it to recognise a title an older probe took from it (RefreshTitle).
 	HandlerName string
-	IsDefault bool
-	IsForced  bool
+	IsDefault   bool
+	IsForced    bool
 	// Extended disposition flags, sourced from Matroska FlagCommentary/… and the
 	// matching ffprobe disposition fields. All false when the container or the probe
 	// did not report the flag. Commentary marks director/cast commentary audio tracks
