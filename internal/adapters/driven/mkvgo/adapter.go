@@ -147,6 +147,22 @@ func (a *Adapter) CanRemux(path string) bool {
 	return IsEBMLContainer(path)
 }
 
+// DisplayMatrix is the first video track's display orientation, read
+// head-only: clockwise rotation in degrees and a horizontal mirror (mkvgo
+// 0.51 Track.Rotation and Track.HFlip, what RemuxToMP4 writes in the tkhd).
+func (a *Adapter) DisplayMatrix(ctx context.Context, path string) (int, bool, error) {
+	c, err := reader.OpenMeta(ctx, path)
+	if err != nil {
+		return 0, false, fmt.Errorf("mkvgo display matrix: %w", err)
+	}
+	for _, t := range c.Tracks {
+		if t.Type == extmkv.VideoTrack {
+			return t.Rotation, t.HFlip, nil
+		}
+	}
+	return 0, false, nil
+}
+
 // RemuxToMP4 repackages the EBML (Matroska/WebM) file at sourcePath into a
 // fast-start MP4 at outputPath WITHOUT re-encoding: each track's compressed
 // samples are copied verbatim and the moov box is written before mdat, so a

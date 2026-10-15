@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -25,9 +27,18 @@ type fakeRemuxer struct {
 	payload  []byte
 	err      error
 	calls    int
+	// The source's display orientation, and how many times it was read.
+	rotation    int
+	hflip       bool
+	matrixReads int
 }
 
 func (f *fakeRemuxer) CanRemux(string) bool { return f.canRemux }
+
+func (f *fakeRemuxer) DisplayMatrix(context.Context, string) (int, bool, error) {
+	f.matrixReads++
+	return f.rotation, f.hflip, nil
+}
 
 func (f *fakeRemuxer) RemuxToMP4(_ context.Context, _, dst string) error {
 	f.calls++
@@ -245,4 +256,45 @@ func TestRemux_TokenScopeAndProduceFailure(t *testing.T) {
 	}
 	wg.Wait()
 	assert.Equal(t, 1, rmx.calls, "concurrent first requests share one produce")
+}
+
+// The display orientation keys the remux cache only when it is set: an
+// upright, unmirrored source keeps the very name it had (nothing remade), a
+// rotated or mirrored one gets a new name and is remuxed again with the
+// matrix mkvgo 0.51 writes (0.49-0.50 dropped the mirror).
+func TestRemuxCacheName_DisplayOrientationKeysOnlyRotatedOrMirrored(t *testing.T) {
+	sum := sha256.Sum256([]byte("m1\x00" + remuxCacheFormat + "\x00fp"))
+	before := remuxCacheFormat + "-" + hex.EncodeToString(sum[:]) + ".mp4"
+	assert.Equal(t, before, remuxCacheName("m1", "fp", remuxDisplayTag(0, false)), "an upright file keeps its cached remux")
+
+	names := map[string]bool{before: true}
+	for _, d := range []struct {
+		rot   int
+		hflip bool
+	}{{90, false}, {270, false}, {0, true}, {180, true}} {
+		n := remuxCacheName("m1", "fp", remuxDisplayTag(d.rot, d.hflip))
+		assert.False(t, names[n], "rotation %d hflip %v shares a name", d.rot, d.hflip)
+		names[n] = true
+	}
+}
+
+func TestRemuxServe_MirroredSourceRemuxedUnderItsOwnName(t *testing.T) {
+	upright := &fakeRemuxer{canRemux: true, payload: []byte("upright")}
+	h := newTestRemuxServe(t, upright, allowAll())
+	require.Equal(t, http.StatusOK, doRemuxRequest(h, true, "").Code)
+	uprightFiles, err := os.ReadDir(h.cacheDir)
+	require.NoError(t, err)
+	require.Len(t, uprightFiles, 1)
+
+	mirrored := &fakeRemuxer{canRemux: true, payload: []byte("mirrored"), hflip: true}
+	hm := newTestRemuxServe(t, mirrored, allowAll())
+	hm.cacheDir = h.cacheDir
+	for range 3 {
+		require.Equal(t, http.StatusPartialContent, doRemuxRequest(hm, true, "bytes=0-3").Code)
+	}
+	assert.Equal(t, 1, mirrored.calls, "the mirrored source is remuxed once, not served the upright file")
+	assert.Equal(t, 1, mirrored.matrixReads, "the orientation is read once for every range of the file")
+	files, err := os.ReadDir(h.cacheDir)
+	require.NoError(t, err)
+	assert.Len(t, files, 2, "the mirrored remux has a name of its own")
 }

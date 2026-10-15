@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
@@ -50,9 +51,32 @@ const remuxCacheFormat = "remux-v5"
 // (the artwork-freeze class of bug, this time for video bytes). The sha256 hex
 // has no path separators, so filepath.Join can't escape the cache dir whatever
 // the id contains - that is the path-traversal guard, by construction.
-func remuxCacheName(itemID, fingerprint string) string {
-	sum := sha256.Sum256([]byte(itemID + "\x00" + remuxCacheFormat + "\x00" + fingerprint))
+//
+// display is the source's display orientation (remuxDisplayTag), "" for an
+// upright, unmirrored picture: it is hashed only when set, so every other
+// file keeps its name. mkvgo 0.51 writes a mirror into the MP4 that 0.49 to
+// 0.50 dropped: only a rotated or mirrored source is remuxed again, where a
+// remux-v6 would have made the whole cache over.
+func remuxCacheName(itemID, fingerprint, display string) string {
+	key := itemID + "\x00" + remuxCacheFormat + "\x00" + fingerprint
+	if display != "" {
+		key += "\x00" + display
+	}
+	sum := sha256.Sum256([]byte(key))
 	return remuxCacheFormat + "-" + hex.EncodeToString(sum[:]) + ".mp4"
+}
+
+// remuxDisplayTag names a display orientation for the cache key: "" upright
+// and unmirrored, else "rot<deg>" with ",hflip" when mirrored.
+func remuxDisplayTag(rotation int, hflip bool) string {
+	if rotation == 0 && !hflip {
+		return ""
+	}
+	tag := fmt.Sprintf("rot%d", rotation)
+	if hflip {
+		tag += ",hflip"
+	}
+	return tag
 }
 
 // Remuxer repackages an EBML (Matroska/WebM) source into a fast-start MP4
@@ -62,6 +86,9 @@ type Remuxer interface {
 	CanRemux(path string) bool
 	// RemuxToMP4 writes a fast-start (moov-first) MP4 at dstPath from srcPath.
 	RemuxToMP4(ctx context.Context, srcPath, dstPath string) error
+	// DisplayMatrix is the source video's display orientation: clockwise
+	// rotation in degrees and a horizontal mirror, as the remux writes them.
+	DisplayMatrix(ctx context.Context, path string) (rotation int, hflip bool, err error)
 }
 
 // remuxServe serves GET /api/v1/media/{id}/remux.mp4 - a progressive, seekable,
@@ -81,6 +108,9 @@ type remuxServe struct {
 	cacheDir      string // <transcoding cache>/remux
 	baseURL       string
 	group         singleflight.Group
+	// displays remembers each source version's display tag: a player reads
+	// one remux in many ranges, the orientation is read from the head once.
+	displays sync.Map // itemID + "\x00" + fingerprint -> string
 }
 
 func remuxHandler(libSvc MediaItemGetter, libraryAccess LibraryAccessChecker, parental ParentalChecker, libLister LibraryLister, remuxer Remuxer, cacheRoot, baseURL string, leases *apptranscoding.FileLeases) http.HandlerFunc {
@@ -164,7 +194,7 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 			fingerprint = fmt.Sprintf("%d-%d", fi.Size(), fi.ModTime().UnixNano())
 		}
 	}
-	outPath := filepath.Join(h.cacheDir, remuxCacheName(string(item.ID), fingerprint))
+	outPath := filepath.Join(h.cacheDir, remuxCacheName(string(item.ID), fingerprint, h.displayTag(ctx, string(item.ID), fingerprint, item.File.Path)))
 	if produceErr := h.ensureRemuxed(ctx, item.File.Path, outPath); produceErr != nil {
 		span.RecordError(produceErr)
 		span.SetStatus(codes.Error, "remux failed")
@@ -203,6 +233,24 @@ func (h *remuxServe) handle(w http.ResponseWriter, r *http.Request) {
 	// ServeContent handles Range requests, conditional GETs and seeking - the
 	// fast-start (moov-first) layout lets a player start without reading to EOF.
 	http.ServeContent(w, r, mediaID+".mp4", time.Time{}, f)
+}
+
+// displayTag is the source's remuxDisplayTag, read once per source version. A
+// head that cannot be read says nothing: the upright key, as before.
+func (h *remuxServe) displayTag(ctx context.Context, itemID, fingerprint, path string) string {
+	key := itemID + "\x00" + fingerprint
+	if v, ok := h.displays.Load(key); ok {
+		return v.(string)
+	}
+	rotation, hflip, err := h.remuxer.DisplayMatrix(ctx, path)
+	if err != nil {
+		slog.WarnContext(ctx, "remux: display orientation unreadable, keyed as upright",
+			slog.String("media_id", itemID), slog.Any("err", err))
+		return ""
+	}
+	tag := remuxDisplayTag(rotation, hflip)
+	h.displays.Store(key, tag)
+	return tag
 }
 
 // ensureRemuxed guarantees outPath holds a complete remuxed MP4, producing it
