@@ -163,7 +163,7 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			StorageCollapsesAtReaders:     int32(r.StorageCollapsesAtReaders),
 			ReadAmplification:             r.ReadAmplification,
 			AppReadAmplification:          r.AppReadAmplification,
-			DiskCeilingAtReaders:          int32(r.DiskCeilingAtReaders), //nolint:gosec // a concurrency width, bounded by the probe's own sweep
+			DiskCeilingAtReaders:          int32(r.DiskCeilingAtReaders), //nolint:gosec // a concurrency width, bounded by the probe sweep
 			DiskReadAtAudienceBytesPerSec: r.DiskReadBytesPerSecAtAudience,
 			HarnessCpuFraction:            r.HarnessCPUFraction,
 			HarnessCpuMeasured:            r.HarnessCPUMeasured,
@@ -207,7 +207,7 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 		}
 		for _, w := range r.Windows {
 			out.LastReport.Windows = append(out.LastReport.Windows, &eveyv1.LoadTestWindow{
-				Viewers:            int32(w.Tier), //nolint:gosec // a viewer count, bounded by the run's configured ceiling
+				Viewers:            int32(w.Tier), //nolint:gosec // a viewer count, bounded by the configured ceiling of the run
 				Phase:              w.Phase,
 				Measured:           w.Measured,
 				Broke:              w.Broke,
@@ -227,11 +227,11 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 		for _, b := range r.PoolBranches {
 			out.LastReport.PoolBranches = append(out.LastReport.PoolBranches, &eveyv1.LoadTestPoolBranch{
 				Branch:  b.Branch,
-				Viewers: int32(b.Viewers), //nolint:gosec // a viewer count, bounded by the run's configured ceiling
+				Viewers: int32(b.Viewers), //nolint:gosec // a viewer count, bounded by the configured ceiling of the run
 			})
 		}
 		out.LastReport.Disks = loadTestDisksToProto(r.Resources.Disks)
-		out.LastReport.BreakViewers = int32(r.BreakViewers) //nolint:gosec // a viewer count, bounded by the run's configured ceiling
+		out.LastReport.BreakViewers = int32(r.BreakViewers) //nolint:gosec // a viewer count, bounded by the configured ceiling of the run
 		out.LastReport.BreakDisks = loadTestDisksToProto(r.BreakResources.Disks)
 		out.LastReport.BreakCpuPercentPeak = r.BreakResources.CPUPercentPeak
 		out.LastReport.BreakResources = loadTestResourcesToProto(r.BreakResources)
