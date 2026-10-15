@@ -389,7 +389,17 @@ func (c *climb) nextDown() int { return max(1, c.target-c.step) }
 // done ends the climb: lo is the answer. The reason is what broke the first
 // size above it, or the operator's ceiling when nothing did.
 func (c *climb) done() (climbOutcome, StopReason, string) {
-	if c.hi == 0 || c.hi <= c.lo {
+	// The cause is read on the first size ABOVE the answer that did not hold:
+	// a size below it that lost a window or two along the way is noise the
+	// answer already outlived.
+	c.hi, c.hiReason, c.hiDetail = 0, "", ""
+	for v, t := range c.tallies {
+		if v > c.lo && t.class() != "held" && (c.hi == 0 || v < c.hi) {
+			c.hi = v
+			c.hiReason, c.hiDetail = t.mainReason()
+		}
+	}
+	if c.hi == 0 {
 		return climbDone, StopMaxViewers, fmt.Sprintf("reached %d viewers with room to spare", c.lo)
 	}
 	return climbDone, c.hiReason, c.hiDetail

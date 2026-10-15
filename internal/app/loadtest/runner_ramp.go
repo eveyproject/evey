@@ -64,6 +64,9 @@ type rampState struct {
 	stratumBySlot map[int]string
 	strataByTier  map[int][]StratumShare
 	pool          *candidatePool
+	// replaceTypes queues the types of viewers the grid's churn sent away:
+	// their replacements are spawned with them (see shedOldest).
+	replaceTypes []viewerType
 
 	// rebuilding is true while resizeTo is repopulating a REBUILT audience;
 	// herdBySlot marks the viewers spawned that way. Their first fetches all
@@ -112,11 +115,17 @@ func (r *Runner) shedTo(ramp *rampState, target int) {
 // them stay long enough for their first fetch - the startup being measured -
 // to land. Shedding the youngest instead cut each window's newcomers off
 // before their first segment arrived, and startup was never measured.
+//
+// Each newcomer takes the TYPE of the viewer it replaces (queued in
+// replaceTypes for spawnNext): the scenario's mix is a property of the
+// audience, and newcomers typed by their rank after older survivors drifted
+// it - a 50/50 audience came back with an extra encode and was refused.
 func (r *Runner) shedOldest(ramp *rampState, n int) {
 	for slot := 1; slot <= ramp.nextSlot && n > 0; slot++ {
 		if _, live := ramp.cancelBySlot[slot]; !live {
 			continue
 		}
+		ramp.replaceTypes = append(ramp.replaceTypes, ramp.viewerTypeBySlot[slot])
 		r.dropSlot(ramp, slot)
 		n--
 	}
@@ -181,6 +190,10 @@ func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, pool *candidat
 	// slot id: the scenario's mix (e.g. 50/50) must hold for the viewers that
 	// are actually watching, even after the bisection has shed some.
 	vt := scenarioViewerType(cfg.Scenario, ramp.tier+1)
+	if len(ramp.replaceTypes) > 0 {
+		// A newcomer replacing a departed viewer keeps that viewer's type.
+		vt, ramp.replaceTypes = ramp.replaceTypes[0], ramp.replaceTypes[1:]
+	}
 
 	asg, ok := pool.takeFor(vt)
 	if !ok {
