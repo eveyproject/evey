@@ -28,6 +28,7 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 	loadOverride(ctx, deps.cfgStore, "library.periodic_scan_interval", parseDuration, &cfg.Library.PeriodicScanInterval)
 
 	watcherSvc := startWatcher(ctx, cfg, bus, r.Library, deps.library.cmdSvc, rootLog)
+	logLibrarySourceAccess(ctx, r.Library, rootLog)
 
 	rootLog.Info("periodic scan started for all libraries", slog.Duration("interval", cfg.Library.PeriodicScanInterval))
 	// The periodic walk is now a BACKSTOP, not the primary discovery path:
