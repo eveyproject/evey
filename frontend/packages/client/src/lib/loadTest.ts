@@ -153,6 +153,22 @@ export interface LoadTestWindow {
   endedAt?: string;
 }
 
+// One audience size of the grid: how many windows it was judged on, how many
+// passed, whether it held, and what the machine did over them.
+export interface LoadTestGridTier {
+  viewers?: number;
+  windows?: number;
+  passed?: number;
+  held?: boolean;
+  reason?: string;
+  resources?: LoadTestResources;
+}
+
+export interface LoadTestStratum {
+  stratum?: string;
+  viewers?: number;
+}
+
 // Which block device a library location (a pool branch, a mount) is read
 // from, resolved at the run's start - device letters rotate at reboot.
 export interface LoadTestDeviceMapping {
@@ -236,6 +252,22 @@ export interface LoadTestReport {
   // seed: the title draw's seed, as a string (it exceeds a JS number). Passing
   // it back replays the same draw.
   seed?: string;
+  // grid: every audience size measured on full windows, smallest first. The
+  // answer (sustainedViewers) is the largest passing four windows in five;
+  // rangeLow / rangeHigh bound it (every window passed / half passed).
+  grid?: LoadTestGridTier[];
+  rangeLow?: number;
+  rangeHigh?: number;
+  // limiter: what gave out first, named by the server ("disk", "cpu",
+  // "memory", "proxy", "server", "unknown", "none"); limiterLocation the
+  // library location of a limiting disk; advice set only when one follows.
+  limiter?: string;
+  limiterLocation?: string;
+  advice?: string;
+  // strata: the retained audience by disk x bitrate quarter, and summed each way.
+  strata?: LoadTestStratum[];
+  strataByDisk?: LoadTestStratum[];
+  strataByBand?: LoadTestStratum[];
   // diskReadCeilingBytesPerSec: how fast this box reads its media - every disk
   // the library spans, read at once. The kernel cannot report this when the
   // library sits on a network share or a 9p mount, so the run measures it itself
@@ -586,4 +618,50 @@ export function predictedStreams(pools: V1VideoPool[]): number | undefined {
   const rungs = cls?.rungFits ?? [];
   if (rungs.length === 0) return undefined;
   return rungs[Math.floor(rungs.length / 2)]?.maxStreams;
+}
+
+// --- The main view: words an admin who is not technical understands ---------
+
+// What gives out first, worded for the report's main view.
+const LIMITER_KEYS: Record<string, string> = {
+  disk: "admin.loadtest.limiter.disk",
+  cpu: "admin.loadtest.limiter.cpu",
+  memory: "admin.loadtest.limiter.memory",
+  proxy: "admin.loadtest.limiter.proxy",
+  server: "admin.loadtest.limiter.server",
+  unknown: "admin.loadtest.limiter.unknown",
+  none: "admin.loadtest.limiter.none",
+};
+
+// limiterLine is the "what gives out first" sentence, or undefined when the
+// run did not get far enough to say (cancelled, an error).
+export function limiterLine(t: (key: string, opts?: Record<string, unknown>) => string, report: LoadTestReport): string | undefined {
+  const key = report.limiter ? LIMITER_KEYS[report.limiter] : undefined;
+  if (!key) return undefined;
+  const where = report.limiter === "disk" && report.limiterLocation ? t("admin.loadtest.limiter.diskWhere", { location: report.limiterLocation }) : "";
+  return t(key, { where });
+}
+
+const ADVICE_KEYS: Record<string, string> = {
+  spread_titles: "admin.loadtest.advice.spreadTitles",
+  try_direct: "admin.loadtest.advice.tryDirect",
+};
+
+// adviceLine is the one actionable advice, only when the server found one.
+export function adviceLine(t: (key: string, opts?: Record<string, unknown>) => string, report: LoadTestReport): string | undefined {
+  const key = report.advice ? ADVICE_KEYS[report.advice] : undefined;
+  return key ? t(key) : undefined;
+}
+
+// verdictLine is the headline: "about N viewers in <scenario> (between A and
+// B)", the range said only when it is one.
+export function verdictLine(t: (key: string, opts?: Record<string, unknown>) => string, report: LoadTestReport): string {
+  const count = report.sustainedViewers ?? 0;
+  const scenario = scenarioNoun(t, report.scenario);
+  const low = report.rangeLow ?? 0;
+  const high = report.rangeHigh ?? 0;
+  if ((report.grid?.length ?? 0) > 0 && high > 0 && (low !== count || high !== count)) {
+    return t("admin.loadtest.verdictRange", { count, scenario, low: Math.min(low || count, count), high: Math.max(high, count) });
+  }
+  return t("admin.loadtest.verdict", { count, scenario });
 }

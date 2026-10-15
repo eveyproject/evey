@@ -66,7 +66,8 @@ describe("LoadTestSection (mobile)", () => {
     await waitFor(() => expect(screen.getByText(/runningViewers\(4\)/)).toBeTruthy(), { timeout: 4000 });
     expect(screen.getByText(/runningElapsed\(0:09\)/)).toBeTruthy();
     fireEvent.click(screen.getByText("Annuler"));
-    await screen.findByText("admin.loadtest.reportHeadline(11,admin.loadtest.scenarioMkvgoNoun)");
+    await screen.findByText("admin.loadtest.verdict(11,admin.loadtest.scenarioMkvgoNoun)");
+    fireEvent.click(screen.getByText(/admin\.loadtest\.detailsSummary|Détails de métrologie/));
     expect(screen.getByText("admin.loadtest.stopReason.maxViewers")).toBeTruthy();
     expect(screen.getByText("Aucune ressource n'a cédé : le plafond est ailleurs.")).toBeTruthy();
   });
@@ -83,6 +84,8 @@ describe("LoadTestSection (mobile)", () => {
       },
     });
     mount();
+    // Where the audience sat is a technical detail: folded until asked for.
+    fireEvent.click(await screen.findByText(/admin\.loadtest\.detailsSummary|Détails de métrologie/));
     await screen.findByText(/admin\.loadtest\.poolTitle\(46\)/);
     expect(screen.getByText(/poolBranchLine\(\/mnt\/disk_2,41,82\)/)).toBeTruthy();
     expect(screen.getByText(/poolBranchLine\(\/mnt\/disk_1,9,18\)/)).toBeTruthy();

@@ -18,8 +18,10 @@ import {
   windowStateKey,
   phaseKey,
   deviceLines,
+  limiterLine,
+  adviceLine,
+  verdictLine,
   clientMixScenario,
-  scenarioNoun,
   servedPathLines,
   formatElapsed,
   formatMbps,
@@ -266,12 +268,47 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
 
   return (
     <View style={{ gap: 6, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }}>
-      <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "700" }}>
-        {t("admin.loadtest.reportHeadline", {
-          count: report.sustainedViewers ?? 0,
-          scenario: scenarioNoun(t, report.scenario),
-        })}
-      </Text>
+      <Text style={{ color: theme.colors.text, fontSize: 20, fontWeight: "700" }}>{verdictLine(t, report)}</Text>
+      {limiterLine(t, report) ? (
+        <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>{limiterLine(t, report)}</Text>
+      ) : null}
+      {adviceLine(t, report) ? <Text style={{ color: theme.colors.text, fontSize: 14 }}>{adviceLine(t, report)}</Text> : null}
+      {(report.grid?.length ?? 0) > 0 && (
+        <View style={{ marginTop: 6 }}>
+          <View style={[s.tierRow, { borderBottomColor: theme.colors.border }]}>
+            <Text style={[s.tierHead, { flex: 1 }]}>{t("admin.loadtest.grid.viewers")}</Text>
+            <Text style={[s.tierHead, { flex: 1 }]}>{t("admin.loadtest.grid.cpu")}</Text>
+            <Text style={[s.tierHead, { flex: 1.3 }]}>{t("admin.loadtest.grid.mem")}</Text>
+            <Text style={[s.tierHead, { flex: 1.4 }]}>{t("admin.loadtest.grid.disk")}</Text>
+            <Text style={[s.tierHead, { flex: 1.4 }]}>{t("admin.loadtest.grid.served")}</Text>
+            <Text style={[s.tierHead, { flex: 0.8 }]}>{t("admin.loadtest.grid.state")}</Text>
+          </View>
+          {(report.grid ?? []).map((g) => {
+            const answer = g.viewers === report.sustainedViewers;
+            const col = answer ? theme.colors.text : theme.colors.textMuted;
+            const weight = answer ? "700" : "400";
+            return (
+              <View key={g.viewers} style={[s.tierRow, { borderBottomColor: theme.colors.border }]}>
+                <Text style={[s.tierCell, { flex: 1, color: col, fontWeight: weight }]}>{g.viewers ?? 0}</Text>
+                <Text style={[s.tierCell, { flex: 1, color: col, fontWeight: weight }]}>{`${Math.round(g.resources?.cpuPercentAvg ?? 0)}%`}</Text>
+                <Text style={[s.tierCell, { flex: 1.3, color: col, fontWeight: weight }]}>{formatBytes(g.resources?.processRssBytesAvg ?? 0)}</Text>
+                <Text style={[s.tierCell, { flex: 1.4, color: col, fontWeight: weight }]}>{diskMeasured ? formatMbps(g.resources?.diskReadBytesPerSec ?? 0) : "-"}</Text>
+                <Text style={[s.tierCell, { flex: 1.4, color: col, fontWeight: weight }]}>{formatMbps(g.resources?.servedBytesPerSec ?? 0)}</Text>
+                <Text style={[s.tierCell, { flex: 0.8, color: g.held ? theme.colors.success : theme.colors.warning, fontWeight: weight }]}>
+                  {t(g.held ? "admin.loadtest.grid.ok" : "admin.loadtest.grid.ko")}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+      <Pressable onPress={() => setShowDetails((v) => !v)} style={{ marginTop: 6 }}>
+        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+          {showDetails ? "▾ " : "▸ "}{t("admin.loadtest.detailsSummary", "Détails de métrologie")}
+        </Text>
+      </Pressable>
+      {showDetails && (
+        <View style={{ gap: 6, paddingTop: 4 }}>
       <Text style={{ color: isBottleneck ? theme.colors.text : theme.colors.textMuted, fontSize: 14, fontWeight: isBottleneck ? "600" : "400" }}>
         {t((report.stopReason && STOP_REASON_KEYS[report.stopReason]) ?? "admin.loadtest.stopReason.error")}
       </Text>
@@ -444,13 +481,13 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
         </View>
       )}
 
-      <Pressable onPress={() => setShowDetails((v) => !v)} style={{ marginTop: 6 }}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-          {showDetails ? "▾ " : "▸ "}{t("admin.loadtest.detailsSummary", "Détails de métrologie")}
-        </Text>
-      </Pressable>
-      {showDetails && (
-        <View style={{ gap: 6, paddingTop: 4 }}>
+          {(report.grid?.length ?? 0) > 0 ? (
+            <Text style={s.hint}>
+              {t("admin.loadtest.gridWindowsLine", {
+                parts: (report.grid ?? []).map((g) => t("admin.loadtest.gridWindowsPart", { viewers: g.viewers ?? 0, passed: g.passed ?? 0, windows: g.windows ?? 0 })).join(", "),
+              })}
+            </Text>
+          ) : null}
           {predicted !== undefined && (report.viewerMix?.transcode ?? 0) > 0 && (
             <Text style={s.hint}>{t("admin.loadtest.predictedLine", { count: predicted, measured: report.viewerMix?.transcode ?? 0 })}</Text>
           )}

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@evey/api";
-import { BOTTLENECK_REASONS, STOP_REASON_KEYS, deviceLines, formatMbps, mixParts, phaseKey, poolShares, scenarioNoun, servedPathLines, stopCause, windowStateKey } from "./loadTestHelpers";
+import { BOTTLENECK_REASONS, STOP_REASON_KEYS, adviceLine, deviceLines, formatMbps, limiterLine, mixParts, phaseKey, poolShares, servedPathLines, stopCause, verdictLine, windowStateKey } from "./loadTestHelpers";
 import type { LoadTestReport, LoadTestResources, LoadTestWindow } from "./loadTestTypes";
 
 // LoadTestReportPanel renders the "answer" of a finished load test run: the
@@ -26,18 +26,77 @@ export function LoadTestReportPanel({
   const diskMeasured = report.diskReadMeasured !== false;
   const res = report.resources;
 
+  const limiter = limiterLine(t, report);
+  const advice = adviceLine(t, report);
+  const grid = report.grid ?? [];
+
   return (
     <div className="flex flex-col gap-1.5" data-testid="load-test-report">
-      {/* The answer, then the verdict, then anything that changes how to
-          READ the answer (the path measured, cold cache, blind disk,
-          collapsing storage). Everything else is metrology and lives folded
-          below the table. */}
-      <p className="text-xl font-bold text-[var(--text)]">
-        {t("admin.loadtest.reportHeadline", {
-          count: report.sustainedViewers ?? 0,
-          scenario: scenarioNoun(t, report.scenario),
-        })}
+      {/* The main view answers three questions in words an admin who is not
+          technical understands: how many, what gives out first, what to do
+          about it. Everything else is folded into the technical details. */}
+      <p className="text-xl font-bold text-[var(--text)]" data-testid="load-test-verdict">
+        {verdictLine(t, report)}
       </p>
+      {limiter && (
+        <p className="text-sm font-medium text-[var(--text)]" data-testid="load-test-limiter">
+          {limiter}
+        </p>
+      )}
+      {advice && (
+        <p className="text-sm text-[var(--text)]" data-testid="load-test-advice">
+          {advice}
+        </p>
+      )}
+      {/* One row per audience size measured: what it cost and whether it
+          held. The repeated windows behind each row are in the details. */}
+      {grid.length > 0 && (
+        <div className="overflow-x-auto" data-testid="load-test-grid">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--text-muted)]">
+                <th className="py-1 pr-3 font-medium">{t("admin.loadtest.grid.viewers")}</th>
+                <th className="py-1 pr-3 font-medium">{t("admin.loadtest.grid.cpu")}</th>
+                <th className="py-1 pr-3 font-medium">{t("admin.loadtest.grid.mem")}</th>
+                <th className="py-1 pr-3 font-medium">{t("admin.loadtest.grid.disk")}</th>
+                <th className="py-1 pr-3 font-medium">{t("admin.loadtest.grid.served")}</th>
+                <th className="py-1 font-medium">{t("admin.loadtest.grid.state")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {grid.map((g) => {
+                const answer = g.viewers === report.sustainedViewers;
+                return (
+                  <tr
+                    key={g.viewers}
+                    className={
+                      answer
+                        ? "border-b border-[var(--border)] font-semibold text-[var(--text)]"
+                        : "border-b border-[var(--border)] text-[var(--text-muted)]"
+                    }
+                    data-testid={answer ? "load-test-grid-answer" : "load-test-grid-row"}
+                  >
+                    <td className="py-1 pr-3">{g.viewers ?? 0}</td>
+                    <td className="py-1 pr-3">{Math.round(g.resources?.cpuPercentAvg ?? 0)}%</td>
+                    <td className="py-1 pr-3">{formatBytes(g.resources?.processRssBytesAvg ?? 0)}</td>
+                    <td className="py-1 pr-3">{diskMeasured ? formatMbps(g.resources?.diskReadBytesPerSec ?? 0) : "-"}</td>
+                    <td className="py-1 pr-3">{formatMbps(g.resources?.servedBytesPerSec ?? 0)}</td>
+                    <td className={g.held ? "py-1 text-[var(--color-success)]" : "py-1 text-[var(--color-warning)]"}>
+                      {t(g.held ? "admin.loadtest.grid.ok" : "admin.loadtest.grid.ko")}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <details className="text-sm" data-testid="load-test-details">
+        <summary className="cursor-pointer select-none text-xs text-[var(--text-muted)] hover:text-[var(--text)]">
+          {t("admin.loadtest.detailsSummary")}
+        </summary>
+        <div className="flex flex-col gap-1.5 pt-2">
       <p
         className={
           report.stopReason && BOTTLENECK_REASONS.includes(report.stopReason)
@@ -51,13 +110,17 @@ export function LoadTestReportPanel({
             "admin.loadtest.stopReason.error",
         )}
       </p>
-      {/* The cause, in plain words, and WHICH hold it was read on: the
-          lowest audience that broke when one did. The header and the table
-          below then speak of the same tier. */}
       {cause && (
-        <p className="text-sm font-medium text-[var(--text)]" data-testid="load-test-cause">
+        <p className="text-sm text-[var(--text)]" data-testid="load-test-cause">
           {t(cause.tierState === "broke" ? "admin.loadtest.cause.tierBroke" : "admin.loadtest.cause.tierHeld", { tier: cause.tier })}{" "}
           {t(cause.key, { ...cause.params, what: cause.whatKey ? t(cause.whatKey) : "" })}
+        </p>
+      )}
+      {grid.length > 0 && (
+        <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-grid-windows">
+          {t("admin.loadtest.gridWindowsLine", {
+            parts: grid.map((g) => t("admin.loadtest.gridWindowsPart", { viewers: g.viewers ?? 0, passed: g.passed ?? 0, windows: g.windows ?? 0 })).join(", "),
+          })}
         </p>
       )}
       {report.stopReason === "max_viewers" && (
@@ -65,54 +128,41 @@ export function LoadTestReportPanel({
           {t("admin.loadtest.noBottleneckHint")}
         </p>
       )}
-      {/* The path the viewers took. Two runs on different paths are two
-          different measurements, so the report always says which. */}
       {report.endpoint && (
         <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-endpoint">
           {t(report.viaProxy ? "admin.loadtest.endpointProxyLine" : "admin.loadtest.endpointDirectLine", { endpoint: report.endpoint })}
         </p>
       )}
-      {/* A cold-cache run measured the storage on purpose: say so, or
-          its (lower) figure gets compared against a warm run's as if
-          the server had regressed. */}
       {report.coldCache && !report.storageOpaque && (
         <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-cold-cache">
           {t("admin.loadtest.coldCacheLine")}
         </p>
       )}
-      {/* A pooled mount (mergerfs, NFS, 9p...): the eviction stops at the
-          mount and the branches keep their own page cache, so "cold" is
-          only cold at the mount. Said once, up front. */}
       {report.storageOpaque && (
-        <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-storage-opaque">
+        <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-storage-opaque">
           {t(report.coldCache ? "admin.loadtest.storageOpaqueColdLine" : "admin.loadtest.storageOpaqueLine", {
             fs: report.storageFsType ?? "",
           })}
         </p>
       )}
-      {/* No disk of this machine could be tied to the library: the disk
-          figures are absent, and the panel says why rather than printing a
-          zero that reads as "idle". */}
       {!diskMeasured && (
-        <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-unmeasured">
+        <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-disk-unmeasured">
           {t("admin.loadtest.diskUnmeasuredLine")}
         </p>
       )}
-      {/* The disk was mapped and still barely moved: the page cache did the
-          work, and the count is overstated. */}
       {report.diskReadStarved && !report.storageOpaque && (
-        <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-disk-starved">
+        <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-disk-starved">
           {t(report.coldCache ? "admin.loadtest.coldCacheStillStarvedLine" : "admin.loadtest.servedFromCacheLine")}
         </p>
       )}
       {(report.storageCollapsesAtReaders ?? 0) > 0 && (
-        <p className="text-sm font-medium text-[var(--color-warning)]" data-testid="load-test-storage-collapse">
+        <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-storage-collapse">
           {t("admin.loadtest.storageCollapseLine", {
             count: report.storageCollapsesAtReaders ?? 0,
           })}
         </p>
       )}
-      <p className="text-sm text-[var(--text-muted)]">
+      <p className="text-xs text-[var(--text-muted)]">
         {t("admin.loadtest.ttffLine", {
           p50: Math.round(report.ttffMsP50 ?? 0),
           p95: Math.round(report.ttffMsP95 ?? 0),
@@ -310,14 +360,6 @@ export function LoadTestReportPanel({
           )}
         </div>
       )}
-      {/* The metrology: real, but secondary. Folded, so the card stays a
-          few lines and a table. (A <details> keeps its content in the DOM,
-          so nothing here hides from tests or a ctrl-F.) */}
-      <details className="text-sm" data-testid="load-test-details">
-        <summary className="cursor-pointer select-none text-xs text-[var(--text-muted)] hover:text-[var(--text)]">
-          {t("admin.loadtest.detailsSummary")}
-        </summary>
-        <div className="flex flex-col gap-1.5 pt-2">
           {predicted !== undefined && (report.viewerMix?.transcode ?? 0) > 0 && (
             <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-predicted">
               {t("admin.loadtest.predictedLine", {
