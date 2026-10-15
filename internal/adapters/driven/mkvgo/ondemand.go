@@ -654,10 +654,10 @@ func (p *ondemandPlan) Resource(ctx context.Context, name string) ([]byte, strin
 	return data, ct, sourceChangedErr(err)
 }
 
-// Open is apptranscoding.OnDemandOpener: a media segment of a local Matroska
-// source streams from the file as it is written (mkvgo 0.42); everything else
-// - playlists, inits, subtitles, an encrypted or converted segment - comes back
-// whole, as Resource would return it (Stats().StreamFallbacks counts those).
+// Open is apptranscoding.OnDemandOpener: a media segment streams from the file
+// as it is written, AES-128 encrypted ones included (mkvgo 0.52); everything
+// else - playlists, inits, subtitles, a converted segment - comes back whole,
+// as Resource would return it (Stats().StreamFallbacks counts those).
 func (p *ondemandPlan) Open(ctx context.Context, name string) (apptranscoding.OnDemandResource, error) {
 	h, err := p.plan.Open(ctx, name)
 	if err != nil {
