@@ -404,8 +404,10 @@ describe("LoadTestCard", () => {
     const details = screen.getByTestId("load-test-details");
     expect(details.contains(screen.getByTestId("load-test-viewer-mix"))).toBe(true);
     expect(details.contains(screen.getByTestId("load-test-harness-cpu"))).toBe(true);
-    // The verdict does not: it IS the answer.
-    expect(details.contains(screen.getByTestId("load-test-stop-reason"))).toBe(false);
+    // The verdict does not: it IS the answer. The stop reason's technical
+    // wording is folded with the rest.
+    expect(details.contains(screen.getByTestId("load-test-verdict"))).toBe(false);
+    expect(details.contains(screen.getByTestId("load-test-stop-reason"))).toBe(true);
   });
 
   it("does not tell a cold run that its library fits in RAM: a silent disk then means unaccountable reads", async () => {
@@ -492,7 +494,7 @@ describe("LoadTestCard", () => {
 
     const report = screen.getByTestId("load-test-report");
     expect(report.textContent).toContain("5");
-    expect(report.textContent).toMatch(/sustains/i);
+    expect(report.textContent).toMatch(/holds about 5 viewers/i);
     const stopReason = screen.getByTestId("load-test-stop-reason");
     expect(stopReason.textContent).toMatch(/refused the next viewer, as designed/i);
     expect(report.textContent).toMatch(/2 viewers of the retained tier were replaying/i);

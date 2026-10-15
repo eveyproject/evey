@@ -39,7 +39,7 @@ describe("LoadTestReportPanel", () => {
     } as LoadTestReport;
     render(<LoadTestReportPanel report={report} predicted={10} />);
 
-    expect(screen.getByText("admin.loadtest.reportHeadline(count=12,scenario=admin.loadtest.scenarioBalancedNoun)")).toBeInTheDocument();
+    expect(screen.getByTestId("load-test-verdict")).toHaveTextContent("admin.loadtest.verdict(count=12,scenario=admin.loadtest.scenarioBalancedNoun)");
     const verdict = screen.getByTestId("load-test-stop-reason");
     expect(verdict).toHaveTextContent("admin.loadtest.stopReason.cpuSaturated");
     expect(verdict.className).toContain("font-medium");
@@ -75,6 +75,52 @@ describe("LoadTestReportPanel", () => {
 
     expect(screen.getByTestId("load-test-predicted")).toHaveTextContent("count=10,measured=8");
     expect(screen.getByTestId("load-test-viewer-mix")).toBeInTheDocument();
+  });
+
+  it("the main view says how many, what gives out first and what to do, in plain words; everything technical is folded", () => {
+    const report = {
+      scenario: "mkvgo",
+      sustainedViewers: 101,
+      rangeLow: 91,
+      rangeHigh: 111,
+      stopReason: "slo_breach",
+      limiter: "disk",
+      limiterLocation: "/mnt/disk_1",
+      advice: "spread_titles",
+      diskReadMeasured: true,
+      seed: "42",
+      endpoint: "http://127.0.0.1:9091",
+      grid: [
+        { viewers: 91, windows: 4, passed: 4, held: true, resources: { cpuPercentAvg: 4.4, processRssBytesAvg: 400, diskReadBytesPerSec: 50_000_000, servedBytesPerSec: 48_000_000 } },
+        { viewers: 101, windows: 5, passed: 4, held: true, resources: { cpuPercentAvg: 5.1, processRssBytesAvg: 450, diskReadBytesPerSec: 60_000_000, servedBytesPerSec: 58_000_000 } },
+        { viewers: 111, windows: 5, passed: 3, held: false, reason: "slo_breach", resources: { cpuPercentAvg: 5.6, processRssBytesAvg: 470, diskReadBytesPerSec: 70_000_000, servedBytesPerSec: 60_000_000 } },
+      ],
+      windows: [{ viewers: 101, phase: "measuring", measured: true, resources: { cpuPercentAvg: 5 }, segmentMsP95: 900, segmentMsP95Scaled: 700 }],
+      diskDevices: [{ location: "/mnt/disk_1", device: "sda", resolved: "read" }],
+    } as LoadTestReport;
+    render(<LoadTestReportPanel report={report} predicted={undefined} />);
+    expect(screen.getByTestId("load-test-verdict")).toHaveTextContent("admin.loadtest.verdictRange(count=101,scenario=admin.loadtest.scenarioMkvgoNoun,low=91,high=111)");
+    expect(screen.getByTestId("load-test-limiter")).toHaveTextContent("admin.loadtest.limiter.disk(where=admin.loadtest.limiter.diskWhere(location=/mnt/disk_1))");
+    expect(screen.getByTestId("load-test-advice")).toHaveTextContent("admin.loadtest.advice.spreadTitles");
+    const answer = screen.getByTestId("load-test-grid-answer");
+    expect(within(answer).getByText("101")).toBeInTheDocument();
+    expect(within(answer).getByText("5%")).toBeInTheDocument();
+    expect(within(answer).getByText("450B")).toBeInTheDocument();
+    expect(within(answer).getByText("480.0 Mb/s")).toBeInTheDocument();
+    expect(within(answer).getByText("464.0 Mb/s")).toBeInTheDocument();
+    expect(within(answer).getByText("admin.loadtest.grid.ok")).toBeInTheDocument();
+    const rows = screen.getAllByTestId("load-test-grid-row");
+    expect(within(rows[1]!).getByText("admin.loadtest.grid.ko")).toBeInTheDocument();
+    // The main table has six columns, no technical one.
+    expect(within(screen.getByTestId("load-test-grid")).getAllByRole("columnheader")).toHaveLength(6);
+    const details = screen.getByTestId("load-test-details");
+    for (const id of ["load-test-verdict", "load-test-limiter", "load-test-advice", "load-test-grid"]) {
+      expect(details.contains(screen.getByTestId(id))).toBe(false);
+    }
+    for (const id of ["load-test-stop-reason", "load-test-windows", "load-test-endpoint", "load-test-seed", "load-test-grid-windows", "load-test-device"]) {
+      expect(details.contains(screen.getAllByTestId(id)[0]!)).toBe(true);
+    }
+    expect(screen.getByTestId("load-test-grid-windows")).toHaveTextContent("viewers=111,passed=3,windows=5");
   });
 
   it("a run that hit the viewer ceiling says no bottleneck; an opaque mount replaces the disk lines", () => {
@@ -182,7 +228,7 @@ describe("LoadTestReportPanel", () => {
   it("an unknown stop reason falls back to the error verdict", () => {
     render(<LoadTestReportPanel report={{ sustainedViewers: 0 } as LoadTestReport} predicted={undefined} />);
     expect(screen.getByTestId("load-test-stop-reason")).toHaveTextContent("admin.loadtest.stopReason.error");
-    expect(screen.getByText(/count=0,scenario=/)).toBeInTheDocument();
+    expect(screen.getByTestId("load-test-verdict")).toHaveTextContent(/count=0,scenario=/);
   });
 
   it("names a client mix in the headline and what the server did for each client", () => {
