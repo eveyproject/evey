@@ -6,9 +6,9 @@ import (
 )
 
 // maxEncryptedSegmentsPerClient bounds the encrypted on-demand media segments
-// one client has in flight. An encrypted segment is never streamed: mkvgo
-// builds and encrypts it whole for each request, and a Range in its middle
-// costs the whole encryption again, AES-CBC chaining from the start. A player
+// one client has in flight. mkvgo (0.52) streams an encrypted segment from the
+// source, encrypting as it writes, but a Range in its middle still reads and
+// encrypts everything before it, AES-CBC chaining from the start. A player
 // holds one video and one audio segment at a time; 4 leaves room for a second
 // device on the same profile, and keeps one client's Range requests from
 // taking every core.
