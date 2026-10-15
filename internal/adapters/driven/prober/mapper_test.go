@@ -199,52 +199,46 @@ func TestMapContainer_H264_NoColour_StillOK(t *testing.T) {
 	assert.True(t, ok)
 }
 
-func TestMapContainer_StreamChannelsWinOverTheContainer(t *testing.T) {
-	mk := func(container uint8, stream *uint8) *extmkv.Container {
+func TestMapContainer_StreamChannelsNeverLowerTheContainer(t *testing.T) {
+	mk := func(codec string, container uint8, stream *uint8) *extmkv.Container {
 		return &extmkv.Container{Tracks: []extmkv.Track{
 			{Type: extmkv.VideoTrack, Codec: "h264", Width: new(uint32(1920)), Height: new(uint32(1080)), ColorSpace: new(cicpBT709)},
-			{Type: extmkv.AudioTrack, Codec: "ac3", Channels: new(container), StreamChannels: stream,
+			{Type: extmkv.AudioTrack, Codec: codec, Channels: new(container), StreamChannels: stream,
 				ChannelsMismatch: stream != nil && *stream != container, SampleRate: new(48000.0)},
 		}}
 	}
-	// Muxed as 6 channels over a stereo AC-3 stream: stereo, as ffprobe says.
-	res, ok := mapContainer(mk(6, new(uint8(2))), true)
-	require.True(t, ok)
-	require.NotNil(t, res.Streams[1].Channels)
-	assert.Equal(t, 2, *res.Streams[1].Channels)
-	require.NotNil(t, res.Streams[1].ChannelLayout)
-	assert.Equal(t, "stereo", *res.Streams[1].ChannelLayout)
-	// Agreeing counts, or no stream count read: the container's.
-	res, ok = mapContainer(mk(6, new(uint8(6))), true)
-	require.True(t, ok)
-	assert.Equal(t, 6, *res.Streams[1].Channels)
-	assert.Equal(t, "5.1", *res.Streams[1].ChannelLayout)
-	res, ok = mapContainer(mk(6, nil), true)
-	require.True(t, ok)
-	assert.Equal(t, 6, *res.Streams[1].Channels)
-	// A 7.1 E-AC-3: the first frame's independent substream says 6, the
-	// dependent one carries the other two. ffprobe says 8, so does the container.
-	eac3 := mk(8, new(uint8(6)))
-	eac3.Tracks[1].Codec = "eac3"
-	res, ok = mapContainer(eac3, true)
-	require.True(t, ok)
-	assert.Equal(t, 8, *res.Streams[1].Channels)
-	assert.Equal(t, "7.1", *res.Streams[1].ChannelLayout)
-	// HE-AACv2 with implicit Parametric Stereo: a mono core in the header,
-	// stereo decoded. It stays stereo.
-	ps := mk(2, new(uint8(1)))
-	ps.Tracks[1].Codec = "aac"
-	res, ok = mapContainer(ps, true)
-	require.True(t, ok)
-	assert.Equal(t, 2, *res.Streams[1].Channels)
-	assert.Equal(t, "stereo", *res.Streams[1].ChannelLayout)
-	// An AAC stating MORE channels than its container (a program config
-	// element) is believed.
-	pce := mk(2, new(uint8(6)))
-	pce.Tracks[1].Codec = "aac"
-	res, ok = mapContainer(pce, true)
-	require.True(t, ok)
-	assert.Equal(t, 6, *res.Streams[1].Channels)
+	channels := func(c *extmkv.Container) (int, string) {
+		t.Helper()
+		res, ok := mapContainer(c, true)
+		require.True(t, ok)
+		require.NotNil(t, res.Streams[1].Channels)
+		require.NotNil(t, res.Streams[1].ChannelLayout)
+		return *res.Streams[1].Channels, *res.Streams[1].ChannelLayout
+	}
+	for _, c := range []struct {
+		name       string
+		codec      string
+		container  uint8
+		stream     *uint8
+		want       int
+		wantLayout string
+	}{
+		// One frame stating fewer is not trusted, whatever the codec: a
+		// broadcast AC-3 opening on a stereo advert, a 7.1 E-AC-3 whose
+		// dependent substream is not counted, an HE-AACv2 with implicit PS.
+		{"ac3 5.1 opening on stereo", "ac3", 6, new(uint8(2)), 6, "5.1"},
+		{"eac3 7.1 independent substream", "eac3", 8, new(uint8(6)), 8, "7.1"},
+		{"aac implicit parametric stereo", "aac", 2, new(uint8(1)), 2, "stereo"},
+		// As many or more: the stream's count.
+		{"agreeing", "ac3", 6, new(uint8(6)), 6, "5.1"},
+		{"aac program config element", "aac", 2, new(uint8(6)), 6, "5.1(side)"},
+		// No stream count read: the container's.
+		{"not read", "ac3", 6, nil, 6, "5.1"},
+	} {
+		got, layout := channels(mk(c.codec, c.container, c.stream))
+		assert.Equal(t, c.want, got, c.name)
+		assert.Equal(t, c.wantLayout, layout, c.name)
+	}
 }
 
 func TestMapContainer_MP4TimedTextIsMovText(t *testing.T) {
