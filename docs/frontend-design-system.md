@@ -52,7 +52,8 @@ reintroduces jank that is very hard to bisect later:
    `el.animate`), feature-detected for jsdom.
 3. **Cap what a stacked page mounts initially.** Horizontal rows render a
    bounded number of items (see `MediaSlider` INITIAL_CARDS) and reveal the
-   rest on first interaction; vertical grids virtualize (`VirtuosoGrid`).
+   rest on first interaction; vertical grids virtualize (`useVirtualizer` from
+   `@tanstack/react-virtual`, see `MediaGrid`).
 4. **Route files must not import their component.** A non-lazy route file is
    statically imported by `routeTree.gen.ts`: anything it pulls in ships to
    every page. Heavy features (hls.js!) live in the `.lazy.tsx` sibling.
