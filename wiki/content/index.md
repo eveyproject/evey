@@ -196,6 +196,11 @@ the TV; on the TV you can see it but not use it.
     For the people who watch: profiles, finding a title, subtitles, asking
     for a film.
 
+-   **[Common questions](getting-started/faq.md)**
+
+    Why a film is slow to start, the sound in the wrong language, the TV,
+    the train, a friend far away, a lost password.
+
 -   **[Administration](administration/libraries.md)**
 
     Libraries, users and parental control, access from outside, graphics
