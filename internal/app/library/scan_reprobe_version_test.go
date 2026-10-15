@@ -7,6 +7,8 @@ import (
 
 	"golang.org/x/time/rate"
 
+	"github.com/eveyproject/evey/internal/domain/shared"
+
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -233,4 +235,71 @@ func TestScanService_StaleProbeVersion_IsPacedAndResumes(t *testing.T) {
 	for _, it := range h.media.All() {
 		assert.Equal(t, library.StreamProbeVersion, it.File.StreamProbeVersion)
 	}
+}
+
+// A version re-probe skips a file a play session is open on: a refreshed frame
+// rate would move its segment grid and get the player's URLs refused 410
+// mid-film (an error screen on the installed phone and TV builds). The file is
+// taken by a scan after the session ends. Sessions that cannot be read hold
+// every re-probe back.
+func TestScanService_StaleProbeVersion_SkipsFilesBeingWatched(t *testing.T) {
+	h := newScanHarness()
+	h.libQuery.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	h.libCmd.Seed(&library.Library{ID: "lib-1", Type: "movie", Paths: []string{"/m"}})
+	for _, p := range []string{"/m/watched.mkv", "/m/idle.mkv"} {
+		h.scanner.Results["/m"] = append(h.scanner.Results["/m"],
+			library.ScannedFile{Path: p, Size: 100, Fingerprint: "fp" + p, Type: library.MovieItem, Title: p})
+		h.prober.Results[p] = &library.ProbeResult{
+			Duration: mustProbeDuration(42000),
+			Streams:  []*library.MediaStream{{ID: "v" + p, StreamType: "video", Codec: "h264"}},
+		}
+	}
+	_, _, err := h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	var watched shared.MediaItemID
+	for _, it := range h.media.All() {
+		if it.File.Path == "/m/watched.mkv" {
+			watched = it.ID
+		}
+		it.File.StreamProbeVersion = 0
+		require.NoError(t, h.media.Update(context.Background(), it))
+	}
+	require.NotEmpty(t, watched)
+	version := func(path string) int {
+		for _, it := range h.media.All() {
+			if it.File.Path == path {
+				return it.File.StreamProbeVersion
+			}
+		}
+		t.Fatalf("no item at %s", path)
+		return 0
+	}
+
+	// Sessions unreadable: nothing is re-probed.
+	h.prober.Calls.Store(0)
+	h.svc.WithPlayingMedia(func(context.Context) (map[shared.MediaItemID]bool, error) {
+		return nil, errors.New("db down")
+	})
+	_, _, err = h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Zero(t, h.prober.Calls.Load(), "no session list, no re-probe")
+
+	// One file is being watched: the other one is re-probed, it is not.
+	h.svc.WithPlayingMedia(func(context.Context) (map[shared.MediaItemID]bool, error) {
+		return map[shared.MediaItemID]bool{watched: true}, nil
+	})
+	_, _, err = h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), h.prober.Calls.Load())
+	assert.Equal(t, library.StreamProbeVersion, version("/m/idle.mkv"))
+	assert.Less(t, version("/m/watched.mkv"), library.StreamProbeVersion, "the watched file is left for later")
+
+	// The session ends: the next scan takes it.
+	h.svc.WithPlayingMedia(func(context.Context) (map[shared.MediaItemID]bool, error) {
+		return map[shared.MediaItemID]bool{}, nil
+	})
+	_, _, err = h.svc.ScanLibrary(context.Background(), "lib-1")
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), h.prober.Calls.Load())
+	assert.Equal(t, library.StreamProbeVersion, version("/m/watched.mkv"))
 }

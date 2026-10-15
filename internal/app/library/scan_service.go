@@ -63,8 +63,14 @@ type ScanService struct {
 	// unchanged file (reprobeStaleVersion): without it the first scan after
 	// an update reads the head of the whole library at once.
 	staleReprobes *rate.Limiter
-	subScanner    library.ExternalSubtitleScanner
-	search        library.SearchIndex
+	// playingMedia lists the media items a play session is open on. A version
+	// re-probe skips them: a refreshed frame rate moves the segment grid, and
+	// the player's sealed rendition URLs would be refused 410 mid-film - an
+	// error screen on the phone and TV builds that predate the reload. The
+	// file is taken by a later scan. nil = not wired, nothing skipped.
+	playingMedia func(ctx context.Context) (map[shared.MediaItemID]bool, error)
+	subScanner   library.ExternalSubtitleScanner
+	search       library.SearchIndex
 	// indexQueue batches search documents during a scan (one Meilisearch task
 	// per page instead of one per item); flushed by processNewItems.
 	indexMu      sync.Mutex
@@ -144,6 +150,30 @@ const (
 	staleReprobeRate  = rate.Limit(2)
 	staleReprobeBurst = 20
 )
+
+// WithPlayingMedia wires the open play sessions (see playingMedia).
+func (s *ScanService) WithPlayingMedia(list func(ctx context.Context) (map[shared.MediaItemID]bool, error)) *ScanService {
+	s.playingMedia = list
+	return s
+}
+
+// isPlaying reports whether a play session is open on id, read right before
+// the re-probe (at the re-probe pace, so at most a few reads a second): a
+// cached answer would let a session opened since go unseen. When the sessions
+// cannot be read it answers true: a re-probe skipped is taken later, a player
+// cut mid-film is not.
+func (s *ScanService) isPlaying(ctx context.Context, id shared.MediaItemID) bool {
+	if s.playingMedia == nil {
+		return false
+	}
+	playing, err := s.playingMedia(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "scan: open play sessions unreadable, version re-probe waits",
+			slog.String("mediaItemID", string(id)), slog.Any("err", err))
+		return true
+	}
+	return playing[id]
+}
 
 // WithStaleReprobePace overrides the version re-probe pace (tests).
 func (s *ScanService) WithStaleReprobePace(r rate.Limit, burst int) *ScanService {
@@ -978,7 +1008,7 @@ func (s *ScanService) updateMediaFile(ctx context.Context, existing *library.Med
 		if existing.File.StreamProbeAttempts > 0 && existing.File.StreamProbeAttempts < maxStreamProbeAttempts {
 			s.reprobeStreamlessFile(ctx, existing, f.Path)
 		} else if existing.File.StreamProbeAttempts == 0 && existing.File.StreamProbeVersion < library.StreamProbeVersion &&
-			s.staleReprobes.Allow() {
+			s.staleReprobes.Allow() && !s.isPlaying(ctx, existing.ID) {
 			s.reprobeStaleVersion(ctx, existing, f.Path)
 		}
 		return
