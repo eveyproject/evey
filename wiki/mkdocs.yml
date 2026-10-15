@@ -121,6 +121,7 @@ plugins:
             First setup: Première configuration
             Connect the apps: Connecter les applications
             Watching with Evey: Regarder avec Evey
+            Common questions: Questions fréquentes
             Privacy policy: Règles de confidentialité
             Administration: Administration
             Libraries and metadata: Bibliothèques et métadonnées
@@ -190,6 +191,7 @@ plugins:
             First setup: Ersteinrichtung
             Connect the apps: Apps verbinden
             Watching with Evey: Mit Evey schauen
+            Common questions: Häufige Fragen
             Privacy policy: Datenschutzerklärung
             Administration: Verwaltung
             Libraries and metadata: Bibliotheken und Metadaten
@@ -259,6 +261,7 @@ plugins:
             First setup: Primera configuración
             Connect the apps: Conectar las aplicaciones
             Watching with Evey: Ver con Evey
+            Common questions: Preguntas frecuentes
             Privacy policy: Política de privacidad
             Administration: Administración
             Libraries and metadata: Bibliotecas y metadatos
@@ -328,6 +331,7 @@ plugins:
             First setup: पहला सेटअप
             Connect the apps: ऐप कनेक्ट करें
             Watching with Evey: Evey पर देखना
+            Common questions: अक्सर पूछे जाने वाले सवाल
             Privacy policy: प्राइवेसी पॉलिसी
             Administration: एडमिन
             Libraries and metadata: लाइब्रेरी और मेटाडेटा
@@ -397,6 +401,7 @@ plugins:
             First setup: 首次设置
             Connect the apps: 连接应用
             Watching with Evey: 用 Evey 观看
+            Common questions: 常见问题
             Privacy policy: 隐私政策
             Administration: 管理
             Libraries and metadata: 媒体库与元数据
@@ -513,6 +518,7 @@ nav:
       - First setup: getting-started/first-setup.md
       - Connect the apps: getting-started/apps.md
       - Watching with Evey: getting-started/watching.md
+      - Common questions: getting-started/faq.md
       - Privacy policy: privacy.md
   - Administration:
       - Libraries and metadata: administration/libraries.md

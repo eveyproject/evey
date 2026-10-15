@@ -1,5 +1,5 @@
 ---
-source_sha: 8b5109c0af499483f4c9038e9c785a28ed41a147962487df2de2848bd91fe88b
+source_sha: 6e76bc51062fd0da4948dd5d4a7f4a24f632f7964d6ff25ba7c70254b1551408
 reviewed: true
 hide:
 - navigation
@@ -212,6 +212,12 @@ TV, vous pouvez le voir mais pas vous en servir.
 
     Pour celles et ceux qui regardent : les profils, trouver un titre, les
     sous-titres, demander un film.
+
+-   **[Questions fréquentes](getting-started/faq.md)**
+
+    Pourquoi un film met du temps à démarrer, le son dans la mauvaise
+    langue, la télé, le train, un ami loin de chez vous, un mot de passe
+    oublié.
 
 -   **[Administration](administration/libraries.md)**
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 8b5109c0af499483f4c9038e9c785a28ed41a147962487df2de2848bd91fe88b
+source_sha: 6e76bc51062fd0da4948dd5d4a7f4a24f632f7964d6ff25ba7c70254b1551408
 reviewed: true
 hide:
 - navigation
@@ -213,6 +213,11 @@ nicht bedienen.
 
     Für alle, die schauen: Profile, einen Titel finden, Untertitel, einen
     Film anfragen.
+
+-   **[Häufige Fragen](getting-started/faq.md)**
+
+    Warum ein Film langsam startet, der Ton in der falschen Sprache, der
+    Fernseher, der Zug, ein Freund weit weg, ein vergessenes Passwort.
 
 -   **[Verwaltung](administration/libraries.md)**
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 8b5109c0af499483f4c9038e9c785a28ed41a147962487df2de2848bd91fe88b
+source_sha: 6e76bc51062fd0da4948dd5d4a7f4a24f632f7964d6ff25ba7c70254b1551408
 reviewed: true
 hide:
 - navigation
@@ -139,6 +139,10 @@ Evey 是一个在您家中运行的媒体服务器。它存放您的电影、剧
 -   **[用 Evey 观看](getting-started/watching.md)**
 
     写给观看的人：个人资料、查找影片、字幕、请求电影。
+
+-   **[常见问题](getting-started/faq.md)**
+
+    为什么影片启动慢、声音语言不对、电视、火车上、远方的朋友、忘记密码。
 
 -   **[管理](administration/libraries.md)**
 

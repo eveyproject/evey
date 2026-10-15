@@ -1,5 +1,5 @@
 ---
-source_sha: 8b5109c0af499483f4c9038e9c785a28ed41a147962487df2de2848bd91fe88b
+source_sha: 6e76bc51062fd0da4948dd5d4a7f4a24f632f7964d6ff25ba7c70254b1551408
 reviewed: true
 hide:
 - navigation
@@ -207,6 +207,12 @@ web, en Android y en el televisor. En el televisor puedes verlo, pero no usarlo.
 
     Para quienes ven: los perfiles, encontrar un título, los subtítulos,
     pedir una película.
+
+-   **[Preguntas frecuentes](getting-started/faq.md)**
+
+    Por qué una película tarda en empezar, el sonido en el idioma
+    equivocado, el televisor, el tren, un amigo lejos, una contraseña
+    olvidada.
 
 -   **[Administración](administration/libraries.md)**
 
