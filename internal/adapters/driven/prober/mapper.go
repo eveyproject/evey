@@ -206,20 +206,19 @@ func mapContainer(c *extmkv.Container, ebml bool) (*library.ProbeResult, bool) {
 				// carries, so what a manifest must declare (mp4a.40.<AOT>).
 				ms.Profile = aacProfileFromASC(t.CodecPrivate)
 			}
-			// The channels the stream states win over the container's
-			// (ChannelsMismatch): ffprobe reports the decoder's count, and an
-			// AC-3 track muxed as 6 channels over a stereo stream decodes as
-			// stereo. Every audio decision (copy, downmix, the client's channel
-			// cap) reads this count. Not for E-AC-3: mkvgo 0.51 reads the first
-			// frame's independent substream only, and a 7.1 E-AC-3 puts its two
-			// extra channels in a dependent one - 6 where ffprobe says 8 (6 dev
-			// files, 2026-10-14). Nor for AAC stating fewer channels than its
-			// container: an HE-AACv2 with implicit Parametric Stereo has a mono
-			// core in its AudioSpecificConfig and decodes to stereo, as ffprobe
-			// reports - such a track must not turn mono.
+			// The channels the stream states, read from its first frame or its
+			// AudioSpecificConfig, replace the container's only when they are
+			// at least as many (a Matroska track without Channels, an AAC whose
+			// program config element counts 6 behind a container's 2). Fewer is
+			// not trusted on one frame: a broadcast AC-3 capture can open on a
+			// stereo advert inside a 5.1 programme, a 7.1 E-AC-3 states its two
+			// extra channels in a dependent substream mkvgo 0.51 does not count,
+			// and an HE-AACv2 with implicit Parametric Stereo has a mono core
+			// that decodes to stereo. Every audio decision (copy, downmix, the
+			// client's channel cap) reads this count.
 			channels := t.Channels
-			if t.StreamChannels != nil && *t.StreamChannels > 0 && codec != "eac3" &&
-				(codec != "aac" || t.Channels == nil || *t.StreamChannels >= *t.Channels) {
+			if t.StreamChannels != nil && *t.StreamChannels > 0 &&
+				(t.Channels == nil || *t.StreamChannels >= *t.Channels) {
 				channels = t.StreamChannels
 			}
 			if channels != nil && *channels > 0 {
