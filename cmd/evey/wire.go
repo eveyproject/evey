@@ -647,6 +647,18 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// gated by library.ingest_serving_plan (off | plan | plan+repair).
 	libCmdSvc.WithIngestPlanning(r.ServerCfg, infra.mkvAdapter, infra.mkvAdapter)
 	libCmdSvc.WithIngestActivePlayback(hlsVODRemover.ActivePlaybackCount)
+	// A version re-probe leaves alone the files a play session is open on.
+	libCmdSvc.WithPlayingMedia(func(ctx context.Context) (map[shared.MediaItemID]bool, error) {
+		active, err := r.PlaySession.ListActiveSessions(ctx)
+		if err != nil {
+			return nil, err
+		}
+		playing := make(map[shared.MediaItemID]bool, len(active))
+		for _, a := range active {
+			playing[a.MediaItemID] = true
+		}
+		return playing, nil
+	})
 	// Trickplay generation throttles while any stream is live - feed it the
 	// fan-out selector so SOFTWARE streams also hold it off, not just HW ones (a
 	// weak NAS must not burn CPU on trickplay during an SW transcode).

@@ -166,6 +166,11 @@ func (s *CommandService) WithIngestActivePlayback(count func() int) {
 	s.scan.WithIngestActivePlayback(count)
 }
 
+// WithPlayingMedia lets a version re-probe skip the files being watched.
+func (s *CommandService) WithPlayingMedia(list func(ctx context.Context) (map[shared.MediaItemID]bool, error)) {
+	s.scan.WithPlayingMedia(list)
+}
+
 // WithIngestKeyframeWarmer arms the scan-time keyframe warm-up consuming the
 // freshly computed serving verdict (first-play fast path).
 func (s *CommandService) WithIngestKeyframeWarmer(warm func(ctx context.Context, mediaItemID, path string) bool) {
