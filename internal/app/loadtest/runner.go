@@ -444,9 +444,8 @@ func (r *Runner) finish(report Report) {
 		"go_gc_cpu_pct_peak", int(report.Resources.GoGCCPUPercentPeak),
 		"served_mbps", report.Resources.ServedBytesPerSecAvg * 8 / 1e6,
 	}
-	for _, m := range report.DiskDevices {
-		r.logger.Info("loadtest: disk device", "location", m.Location, "device", m.Device, "resolved", m.Resolved)
-	}
+	// The location-to-device mapping was logged when it was resolved, at the
+	// run's start; the verdict below names the device by that mapping.
 	if v := report.DiskVerdict; v.Device != "" {
 		r.logger.Info("loadtest: disk verdict",
 			"tier", max(report.BreakViewers, report.SustainedViewers),
