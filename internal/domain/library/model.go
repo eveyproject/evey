@@ -276,7 +276,13 @@ type MediaFile struct {
 //	   colour, the MP4 stts frame rate, the mov_text label and the MP4 handler
 //	   names an older probe took for titles. Dry run on the NAS library
 //	   (8,797 files, 2026-10-15): 576 files corrected, none skipped.
-const StreamProbeVersion = 2
+//	3: mkvgo 0.53 - a fragmented MP4's duration (mehd, else the fragments'
+//	   end), a Matroska audio track without Channels read as one channel and
+//	   without SamplingFrequency as the codec header's rate (an absurd rate
+//	   dropped), AMR mono and MPEG-H channels from the mhaC, and every MP4
+//	   track described (PCM, encrypted, unknown codecs) instead of an error
+//	   that sent the file to ffprobe.
+const StreamProbeVersion = 3
 
 // LevelProbeVersion is the current revision of the video level backfill's
 // probe. media_streams.level_probe_version records the revision at which a

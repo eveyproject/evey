@@ -13,11 +13,12 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/pprof v0.0.0-20260830191439-4932ad3515ea
 	github.com/google/uuid v1.6.0
-	github.com/gravity-zero/mkvgo v0.52.0
+	github.com/gravity-zero/mkvgo v0.53.0
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
 	github.com/lib/pq v1.12.3
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/prometheus/client_golang v1.24.1
+	github.com/prometheus/client_model v0.6.3
 	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.44.0
 	github.com/vishen/go-chromecast v0.3.4
@@ -90,7 +91,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
-	github.com/prometheus/client_model v0.6.3 // indirect
 	github.com/prometheus/common v0.71.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.8 // indirect
