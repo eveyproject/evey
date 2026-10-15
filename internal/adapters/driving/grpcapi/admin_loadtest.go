@@ -45,13 +45,15 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 		// Without it the report charges the harness's HTTP overhead to the server
 		// and an operator sizes his hardware for a cost that isn't there.
 		ProfileHarnessCPU: true,
+		// The server itself by default; the proxy path only when asked, and the
+		// report says which was taken.
+		ViaProxy: req.GetViaProxy(),
+		// A replayed draw: the same titles in the same order as the run that
+		// reported this seed.
+		Seed: req.GetSeed(),
 	}
 	if secs := req.GetDurationSec(); secs > 0 {
 		cfg.MaxDuration = time.Duration(secs) * time.Second
-	}
-	// Direct: no public address to prefer, so the viewers use the loopback.
-	if req.GetDirect() {
-		cfg.PublicBaseURL = ""
 	}
 
 	token, err := d.loadTestCredential(ctx, cfg)
@@ -153,7 +155,7 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			StartedAt:                     timestamppb.New(r.StartedAt),
 			EndedAt:                       timestamppb.New(r.EndedAt),
 			Resources:                     loadTestResourcesToProto(r.Resources),
-			ResourceBaseline:              loadTestSampleToProto(r.ResourceBaseline),
+			ResourceBaseline:              loadTestResourcesToProto(r.ResourceBaseline),
 			ThroughputCeilingBytesPerSec:  r.ThroughputCeilingBytesPerSec,
 			DiskReadCeilingBytesPerSec:    r.DiskReadBytesPerSecCeiling,
 			SlowestDiskBytesPerSec:        r.SlowestDiskBytesPerSec,
@@ -173,6 +175,36 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			StorageOpaque:                 r.StorageOpaque,
 			Endpoint:                      r.Endpoint,
 			ViaProxy:                      r.ViaProxy,
+			Seed:                          r.Seed,
+			DiskReadMeasured:              r.DiskReadMeasured,
+			AppReadMeasured:               r.AppReadMeasured,
+			BreakReason:                   string(r.BreakReason),
+			BreakDetail:                   r.BreakDetail,
+			DiskVerdict:                   loadTestDiskVerdictToProto(r.DiskVerdict),
+		}
+		for _, m := range r.DiskDevices {
+			out.LastReport.DiskDevices = append(out.LastReport.DiskDevices, &eveyv1.LoadTestDeviceMapping{
+				Location: m.Location, Device: m.Device, Resolved: m.Resolved,
+			})
+		}
+		for _, w := range r.Windows {
+			out.LastReport.Windows = append(out.LastReport.Windows, &eveyv1.LoadTestWindow{
+				Viewers:            int32(w.Tier), //nolint:gosec // a viewer count, bounded by the run's configured ceiling
+				Phase:              w.Phase,
+				Measured:           w.Measured,
+				Broke:              w.Broke,
+				Reason:             string(w.Reason),
+				Detail:             w.Detail,
+				Resources:          loadTestResourcesToProto(w.Resources),
+				SegmentMsP50:       int32(w.SegmentMsP50),       //nolint:gosec // milliseconds of one fetch
+				SegmentMsP95:       int32(w.SegmentMsP95),       //nolint:gosec // milliseconds of one fetch
+				SegmentMsP95Scaled: int32(w.SegmentMsP95Scaled), //nolint:gosec // milliseconds of one fetch
+				SegmentSamples:     int32(w.SegmentSamples),     //nolint:gosec // a sample count
+				TtffMsP95:          int32(w.TTFFMsP95),          //nolint:gosec // milliseconds of one fetch
+				DiskVerdict:        loadTestDiskVerdictToProto(w.DiskVerdict),
+				StartedAt:          timestamppb.New(w.StartedAt),
+				EndedAt:            timestamppb.New(w.EndedAt),
+			})
 		}
 		for _, b := range r.PoolBranches {
 			out.LastReport.PoolBranches = append(out.LastReport.PoolBranches, &eveyv1.LoadTestPoolBranch{
@@ -184,6 +216,7 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 		out.LastReport.BreakViewers = int32(r.BreakViewers) //nolint:gosec // a viewer count, bounded by the run's configured ceiling
 		out.LastReport.BreakDisks = loadTestDisksToProto(r.BreakResources.Disks)
 		out.LastReport.BreakCpuPercentPeak = r.BreakResources.CPUPercentPeak
+		out.LastReport.BreakResources = loadTestResourcesToProto(r.BreakResources)
 		if r.HasPerViewerCost {
 			out.LastReport.PerViewerCost = loadTestResourcesToProto(r.PerViewerCost)
 		}
@@ -226,35 +259,47 @@ func loadTestResourcesToProto(s apploadtest.ResourceStats) *eveyv1.LoadTestResou
 		return nil
 	}
 	return &eveyv1.LoadTestResources{
-		CpuPercentAvg:       s.CPUPercentAvg,
-		CpuPercentPeak:      s.CPUPercentPeak,
-		MemUsedBytesAvg:     s.MemUsedBytesAvg,
-		MemUsedBytesMax:     s.MemUsedBytesMax,
-		MemLimitBytes:       s.MemLimitBytes,
-		DiskReadBytesPerSec: s.DiskReadBytesPerSecAvg,
-		ServedBytesPerSec:   s.ServedBytesPerSecAvg,
-		Samples:             int32(s.Samples),
-		GoHeapLiveBytesAvg:  s.GoHeapLiveBytesAvg,
-		GoHeapLiveBytesMax:  s.GoHeapLiveBytesMax,
-		GoMemLimitBytes:     s.GoMemLimitBytes,
-		GoGcCpuPercentAvg:   s.GoGCCPUPercentAvg,
-		GoGcCpuPercentPeak:  s.GoGCCPUPercentPeak,
+		CpuPercentAvg:            s.CPUPercentAvg,
+		CpuPercentPeak:           s.CPUPercentPeak,
+		MachineCpuPercentAvg:     s.MachineCPUPercentAvg,
+		MachineCpuPercentPeak:    s.MachineCPUPercentPeak,
+		MachineIowaitPercentAvg:  s.MachineIOWaitPercentAvg,
+		MachineIowaitPercentPeak: s.MachineIOWaitPercentPeak,
+		MemUsedBytesAvg:          s.MemUsedBytesAvg,
+		MemUsedBytesMax:          s.MemUsedBytesMax,
+		ProcessRssBytesAvg:       s.ProcessRSSBytesAvg,
+		ProcessRssBytesMax:       s.ProcessRSSBytesMax,
+		MemLimitBytes:            s.MemLimitBytes,
+		DiskReadBytesPerSec:      s.DiskReadBytesPerSecAvg,
+		DiskReadMeasured:         s.DiskReadMeasured,
+		AppReadBytesPerSec:       s.AppReadBytesPerSecAvg,
+		AppReadMeasured:          s.AppReadMeasured,
+		ServedBytesPerSec:        s.ServedBytesPerSecAvg,
+		Samples:                  int32(s.Samples), //nolint:gosec // a sample count
+		GoHeapLiveBytesAvg:       s.GoHeapLiveBytesAvg,
+		GoHeapLiveBytesMax:       s.GoHeapLiveBytesMax,
+		GoMemLimitBytes:          s.GoMemLimitBytes,
+		GoGcCpuPercentAvg:        s.GoGCCPUPercentAvg,
+		GoGcCpuPercentPeak:       s.GoGCCPUPercentPeak,
 	}
 }
 
-// loadTestSampleToProto carries the pre-viewer baseline, which is a single
-// reading rather than a tier's worth of samples.
-func loadTestSampleToProto(s apploadtest.ResourceSample) *eveyv1.LoadTestResources {
-	if s.MemLimitBytes == 0 && s.CPUPercent == 0 {
+// loadTestDiskVerdictToProto carries a hold's disk verdict; nil when the hold
+// saw no device.
+func loadTestDiskVerdictToProto(v apploadtest.DiskVerdict) *eveyv1.LoadTestDiskVerdict {
+	if v.Device == "" {
 		return nil
 	}
-	return &eveyv1.LoadTestResources{
-		CpuPercentAvg:       s.CPUPercent,
-		MemUsedBytesAvg:     s.MemUsedBytes,
-		MemLimitBytes:       s.MemLimitBytes,
-		DiskReadBytesPerSec: s.DiskReadBytesPerSec,
-		ServedBytesPerSec:   s.ServedBytesPerSec,
-		Samples:             1,
+	return &eveyv1.LoadTestDiskVerdict{
+		Device:          v.Device,
+		AwaitMs:         v.AwaitMs,
+		AwaitBaselineMs: v.AwaitBaselineMs,
+		AwaitMsPeak:     v.AwaitMsPeak,
+		QueueDepth:      v.QueueDepth,
+		UtilPercent:     v.UtilPct,
+		ReadBytesPerSec: v.ReadBytesPerSec,
+		IowaitPercent:   v.IOWaitPct,
+		Saturated:       v.Saturated,
 	}
 }
 
@@ -277,16 +322,17 @@ func tierCosts(in []apploadtest.TierCost) []*eveyv1.LoadTestTierCost {
 	out := make([]*eveyv1.LoadTestTierCost, 0, len(in))
 	for _, t := range in {
 		out = append(out, &eveyv1.LoadTestTierCost{
-			Viewers:             int32(t.Viewers), //nolint:gosec // an audience size, bounded by the run itself
-			CpuPercent:          t.CPUPercent,
-			MemUsedBytes:        t.MemUsedBytes,
-			DiskReadBytesPerSec: t.DiskReadBytesPerSec,
-			ServedBytesPerSec:   t.ServedBytesPerSec,
-			CpuPercentPerViewer: t.CPUPercentPerViewer,
-			MemBytesPerViewer:   t.MemBytesPerViewer,
-			Samples:             int32(t.Samples), //nolint:gosec // a sample count
-			GoHeapLiveBytes:     t.GoHeapLiveBytes,
-			GoGcCpuPercent:      t.GoGCCPUPercent,
+			Viewers:              int32(t.Viewers), //nolint:gosec // an audience size, bounded by the run itself
+			CpuPercent:           t.CPUPercent,
+			MachineCpuPercent:    t.MachineCPUPercent,
+			MachineIowaitPercent: t.MachineIOWaitPct,
+			MemUsedBytes:         t.MemUsedBytes,
+			ProcessRssBytes:      t.ProcessRSSBytes,
+			DiskReadBytesPerSec:  t.DiskReadBytesPerSec,
+			ServedBytesPerSec:    t.ServedBytesPerSec,
+			Samples:              int32(t.Samples), //nolint:gosec // a sample count
+			GoHeapLiveBytes:      t.GoHeapLiveBytes,
+			GoGcCpuPercent:       t.GoGCCPUPercent,
 		})
 	}
 	return out
@@ -296,11 +342,14 @@ func loadTestDisksToProto(disks []apploadtest.DiskStat) []*eveyv1.LoadTestDiskAc
 	out := make([]*eveyv1.LoadTestDiskActivity, 0, len(disks))
 	for _, d := range disks {
 		out = append(out, &eveyv1.LoadTestDiskActivity{
-			Device:             d.Device,
-			UtilPercentAvg:     d.UtilPctAvg,
-			UtilPercentPeak:    d.UtilPctPeak,
-			ReadBytesPerSecAvg: d.ReadBytesPerSecAvg,
-			AwaitMsAvg:         d.AwaitMsAvg,
+			Device:              d.Device,
+			UtilPercentAvg:      d.UtilPctAvg,
+			UtilPercentPeak:     d.UtilPctPeak,
+			ReadBytesPerSecAvg:  d.ReadBytesPerSecAvg,
+			ReadBytesPerSecPeak: d.ReadBytesPerSecPeak,
+			AwaitMsAvg:          d.AwaitMsAvg,
+			AwaitMsPeak:         d.AwaitMsPeak,
+			QueueDepthAvg:       d.QueueDepthAvg,
 		})
 	}
 	return out

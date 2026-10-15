@@ -86,61 +86,78 @@ describe("load test helpers", () => {
   });
 });
 
-// The three prod reports of 2026-10-12, as the operator saw them: a 410 on the
-// variant playlist, a pool with one disk saturated, an idle machine whose
-// segments still went slow.
+// The prod reports of 2026-10-12 and the 2026-10-15 cross-check, as the
+// operator saw them: a 410 on the variant playlist, a disk the server judged
+// saturated on its wait per read, an idle machine whose segments still went
+// slow. Every cause names the tier it was read on.
 describe("stopCause", () => {
   it("names the HTTP error and the request it hit", () => {
     expect(
-      stopCause({ stopReason: "server_failing", stopDetail: "variant playlist fetch failed (status=410, err=<nil>)" }),
-    ).toEqual({ key: "admin.loadtest.cause.http410", params: { status: "410" }, whatKey: "admin.loadtest.cause.request.variant" });
+      stopCause({ stopReason: "server_failing", stopDetail: "variant playlist fetch failed (status=410, err=<nil>)", sustainedViewers: 37 }),
+    ).toEqual({ key: "admin.loadtest.cause.http410", params: { status: "410" }, whatKey: "admin.loadtest.cause.request.variant", tier: 37, tierState: "held" });
     expect(
       stopCause({ stopReason: "server_failing", stopDetail: "master playlist fetch failed (status=502, err=<nil>)" }),
     ).toMatchObject({ key: "admin.loadtest.cause.httpStatus", params: { status: "502" }, whatKey: "admin.loadtest.cause.request.master" });
   });
 
-  it("names the saturated disk against the others", () => {
+  it("words the disk the server judged saturated, with its wait against the baseline", () => {
     expect(
       stopCause({
         stopReason: "slo_breach",
-        resources: { cpuPercentPeak: 4.7 },
-        disks: [
-          { device: "sdc", utilPercentAvg: 11.6, awaitMsAvg: 7.5 },
-          { device: "sda", utilPercentAvg: 92.9, awaitMsAvg: 58.5 },
-          { device: "sdb", utilPercentAvg: 3.2, awaitMsAvg: 0.3 },
-        ],
+        sustainedViewers: 126,
+        breakViewers: 131,
+        breakResources: { cpuPercentPeak: 13, machineIowaitPercentAvg: 65 },
+        diskVerdict: { device: "sda", awaitMs: 27.4, awaitBaselineMs: 7.2, awaitMsPeak: 46, queueDepth: 3.46, utilPercent: 68.4, iowaitPercent: 65.2, saturated: true },
       }),
-    ).toEqual({ key: "admin.loadtest.cause.disk", params: { device: "sda", util: 93, wait: 59, others: 12 } });
-  });
-
-  it("says nothing was saturated when nothing was", () => {
-    expect(
-      stopCause({
-        stopReason: "slo_breach",
-        resources: { cpuPercentPeak: 4 },
-        disks: [{ device: "sda", utilPercentAvg: 15, awaitMsAvg: 4 }, { device: "sdc", utilPercentAvg: 2, awaitMsAvg: 4 }],
-      }),
-    ).toEqual({ key: "admin.loadtest.cause.nothingSaturated", params: { cpu: 4, disk: 15 } });
-    expect(stopCause({ stopReason: "slo_breach", resources: { cpuPercentPeak: 91 } })).toEqual({
-      key: "admin.loadtest.cause.cpu",
-      params: { peak: 91 },
+    ).toEqual({
+      key: "admin.loadtest.cause.disk",
+      params: { device: "sda", wait: 27, baseline: 7, queue: "3.5", util: 68, iowait: 65 },
+      tier: 131,
+      tierState: "broke",
     });
   });
 
-  it("reads the tier that broke, not the one that held", () => {
+  it("does not call a busy disk saturated when the server did not", () => {
+    // 2026-10-15: 56-82 % busy was under the old 80 % bar and the reads
+    // waited 27-46 ms; now the server judges, and a disk busy but quick is
+    // not the cause.
     expect(
       stopCause({
         stopReason: "slo_breach",
-        resources: { cpuPercentPeak: 4 },
-        disks: [{ device: "sda", utilPercentAvg: 15, awaitMsAvg: 4 }],
-        breakViewers: 38,
-        breakCpuPercentPeak: 6,
-        breakDisks: [
-          { device: "sdb", utilPercentAvg: 96, awaitMsAvg: 41 },
-          { device: "sda", utilPercentAvg: 18, awaitMsAvg: 5 },
-        ],
+        sustainedViewers: 78,
+        resources: { cpuPercentPeak: 4, machineIowaitPercentAvg: 20.6 },
+        diskVerdict: { device: "sda", awaitMs: 8.4, awaitBaselineMs: 6, utilPercent: 85, iowaitPercent: 20.6, saturated: false },
       }),
-    ).toEqual({ key: "admin.loadtest.cause.disk", params: { device: "sdb", util: 96, wait: 41, others: 18 } });
+    ).toEqual({
+      key: "admin.loadtest.cause.nothingSaturated",
+      params: { cpu: 4, device: "sda", wait: 8, util: 85, iowait: 21 },
+      tier: 78,
+      tierState: "held",
+    });
+    expect(stopCause({ stopReason: "slo_breach", sustainedViewers: 12, resources: { cpuPercentPeak: 91 } })).toEqual({
+      key: "admin.loadtest.cause.cpu",
+      params: { peak: 91 },
+      tier: 12,
+      tierState: "held",
+    });
+    expect(stopCause({ stopReason: "slo_breach", sustainedViewers: 12, resources: { cpuPercentPeak: 3, machineIowaitPercentAvg: 1.4 } })).toEqual({
+      key: "admin.loadtest.cause.nothingSaturatedNoDisks",
+      params: { cpu: 3, iowait: 1 },
+      tier: 12,
+      tierState: "held",
+    });
+  });
+
+  it("reads the CPU of the tier that broke, not the one that held", () => {
+    expect(
+      stopCause({
+        stopReason: "startup_too_slow",
+        sustainedViewers: 37,
+        resources: { cpuPercentPeak: 4 },
+        breakViewers: 38,
+        breakCpuPercentPeak: 92,
+      }),
+    ).toEqual({ key: "admin.loadtest.cause.cpu", params: { peak: 92 }, tier: 38, tierState: "broke" });
   });
 
   it("adds nothing when the stop reason already says it", () => {

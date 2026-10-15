@@ -51,7 +51,9 @@ func percentile(samples []int, p int) int {
 // "0.0 MB/s read from disk" next to a gigabit of traffic, which reads as a fact
 // and is at best a blind spot.
 func diskReadStarved(s ResourceStats) bool {
-	if s.Samples == 0 || s.ServedBytesPerSecAvg <= 0 {
+	// No device could be tied to the library: the counter is not starved, it
+	// is absent, and the report says that instead.
+	if s.Samples == 0 || s.ServedBytesPerSecAvg <= 0 || !s.DiskReadMeasured {
 		return false
 	}
 	// A tenth of what went out the door is a generous floor: below that, the
@@ -102,7 +104,7 @@ func (r *Runner) endpointReachable(ctx context.Context, baseURL, token string) b
 // Zero when the reads could not be accounted (see diskReadStarved) - a ratio
 // computed from a blind counter would be worse than no ratio at all.
 func readAmplification(s ResourceStats) float64 {
-	if s.Samples == 0 || s.ServedBytesPerSecAvg <= 0 || s.DiskReadBytesPerSecAvg <= 0 {
+	if s.Samples == 0 || s.ServedBytesPerSecAvg <= 0 || s.DiskReadBytesPerSecAvg <= 0 || !s.DiskReadMeasured {
 		return 0
 	}
 	return float64(s.DiskReadBytesPerSecAvg) / float64(s.ServedBytesPerSecAvg)

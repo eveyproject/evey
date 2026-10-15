@@ -53,25 +53,57 @@ const (
 )
 
 // resourceSampleEvery is the cadence at which the run samples CPU/memory/IO.
-// Fast enough to see a tier's shape (~15 samples per 30s measurement window),
-// slow enough that the sampling itself costs nothing measurable.
-const resourceSampleEvery = 2 * time.Second
+// One second: a disk's burst (a join, a seek storm) lasts about that long, and
+// a two-second average halved every peak the 2026-10-15 cross-check saw (sda
+// at 41 % on the report, 59 % on a one-second probe). Reading a handful of
+// /proc and cgroup files once a second costs nothing measurable.
+const resourceSampleEvery = 1 * time.Second
+
+// coldCacheEvictEvery is how often cold-cache mode re-drops the library from
+// the page cache. Kept apart from the sampling cadence: an eviction makes the
+// packager re-read through the mount (about a fifth more reads at two seconds,
+// measured 2026-10-15), and sampling faster must not evict faster.
+const coldCacheEvictEvery = 2 * time.Second
+
+// baselineFor is how long the run watches the idle server before the first
+// viewer joins. Every "saturated" verdict is read against this floor - above
+// all the disks' wait at rest, which an SSD puts under a millisecond and a
+// spinning pool at several - and a baseline taken from a single reading is a
+// coin toss.
+const baselineFor = 5 * time.Second
 
 // ResourceSample is one instantaneous reading of what the server is consuming.
 type ResourceSample struct {
-	CPUPercent   float64
-	MemUsedBytes int64
+	CPUPercent float64
+	// MachineCPUPercent / MachineIOWaitPercent are the whole machine's share of
+	// busy time and of time waiting on I/O (/proc/stat), beside the container's
+	// figure above. The gap covers what serves the viewers from outside the
+	// container (a FUSE pool, a VM host); iowait is the storage path saturating.
+	MachineCPUPercent    float64
+	MachineIOWaitPercent float64
+	MemUsedBytes         int64
+	// ProcessRSSBytes is the server process's own resident set, apart from the
+	// container total (which also holds whatever else the image runs).
+	ProcessRSSBytes int64
 	// MemCacheBytes is the page cache the run accumulated by reading films. It
 	// is NOT consumption: the kernel hands it straight back under pressure. It is
 	// reported so an operator can see why "memory used" on a naive gauge climbs
 	// to fill the box during a load test, and ignore it.
 	MemCacheBytes       int64
 	MemLimitBytes       int64
+	// DiskReadBytesPerSec is what the block devices the library sits on read,
+	// summed, machine-wide: every reader of those disks counts, not only this
+	// server. DiskReadMeasured is false when no device could be tied to the
+	// library (a network share, a mount this kernel cannot see through): the
+	// figure is then absent, never a zero.
 	DiskReadBytesPerSec int64
+	DiskReadMeasured    bool
 	// AppReadBytesPerSec is what the server ASKED the filesystem for, as opposed
 	// to what the disk delivered (DiskReadBytesPerSec). The difference is the
-	// kernel's readahead.
+	// kernel's readahead. AppReadMeasured is false when nothing counts those
+	// reads in-process.
 	AppReadBytesPerSec int64
+	AppReadMeasured    bool
 	ServedBytesPerSec  int64
 	// Disks is the per-device view of the same interval (see pooldiag.go): empty
 	// when the counters are not available.
@@ -88,14 +120,19 @@ type ResourceSample struct {
 // ResourceStats is what a whole tier consumed: the average is what a viewer
 // costs in steady state, the peak is what the machine had to absorb.
 type ResourceStats struct {
-	CPUPercentAvg, CPUPercentPeak    float64
-	MemUsedBytesAvg, MemUsedBytesMax int64
-	MemCacheBytesAvg                 int64
-	MemLimitBytes                    int64
-	DiskReadBytesPerSecAvg           int64
-	AppReadBytesPerSecAvg            int64
-	ServedBytesPerSecAvg             int64
-	Samples                          int
+	CPUPercentAvg, CPUPercentPeak                   float64
+	MachineCPUPercentAvg, MachineCPUPercentPeak     float64
+	MachineIOWaitPercentAvg, MachineIOWaitPercentPeak float64
+	MemUsedBytesAvg, MemUsedBytesMax                int64
+	ProcessRSSBytesAvg, ProcessRSSBytesMax          int64
+	MemCacheBytesAvg                                int64
+	MemLimitBytes                                   int64
+	DiskReadBytesPerSecAvg                          int64
+	DiskReadMeasured                                bool
+	AppReadBytesPerSecAvg                           int64
+	AppReadMeasured                                 bool
+	ServedBytesPerSecAvg                            int64
+	Samples                                         int
 	// Disks is what each physical drive did over the tier, busiest first.
 	Disks []DiskStat
 	// The server's Go runtime over the tier (see goruntime.go).
@@ -115,9 +152,10 @@ type counterSource interface {
 	// memory returns what the process genuinely holds (anon+kernel), the page
 	// cache it has accumulated, and the ceiling. Cache is NOT consumption.
 	memory() (used, cache, limit int64)
-	// diskReadBytes is cumulative bytes the BLOCK LAYER actually fetched - what
-	// the hardware really did.
-	diskReadBytes() int64
+	// diskReadBytes is cumulative bytes the BLOCK LAYER actually fetched from
+	// the devices the library sits on - what the hardware really did, whoever
+	// asked. measured is false when no device could be tied to the library.
+	diskReadBytes() (bytes int64, measured bool)
 	// appReadBytes is cumulative bytes the server ASKED FOR through read()
 	// syscalls - what the code actually wants, page cache or not.
 	//
@@ -135,6 +173,13 @@ type counterSource interface {
 	cpuAllowance() float64
 }
 
+// machineSource is the optional seam for the whole-machine readings: a test
+// machine that models only the container keeps compiling and reports none.
+type machineSource interface {
+	machineTicks() machineTicks
+	processRSS() int64
+}
+
 // resourceSampler turns monotonic counters into per-second rates. It is
 // stateful: every reading is a delta against the previous one, so the first
 // sample after construction is discarded as a baseline.
@@ -150,6 +195,8 @@ type resourceSampler struct {
 	hasPrevSample bool
 	lastDisks     map[string]diskCounters
 	lastGo        goRuntime
+	lastMachine   machineTicks
+	appMeasured   bool
 }
 
 func newResourceSampler(src counterSource) *resourceSampler {
@@ -161,7 +208,7 @@ func newResourceSampler(src counterSource) *resourceSampler {
 // ok is false for the very first call (no previous reading to diff against).
 func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSample, bool) {
 	cpuUsec := s.src.cpuUsageUsec()
-	diskRead := s.src.diskReadBytes()
+	diskRead, diskMeasured := s.src.diskReadBytes()
 	appRead := s.src.appReadBytes()
 	memUsed, memCache, memLimit := s.src.memory()
 	var disks map[string]diskCounters
@@ -170,6 +217,14 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	}
 	prevDisks := s.lastDisks
 	s.lastDisks = disks
+	var machine machineTicks
+	var rss int64
+	if ms, ok := s.src.(machineSource); ok {
+		machine = ms.machineTicks()
+		rss = ms.processRSS()
+	}
+	prevMachine := s.lastMachine
+	s.lastMachine = machine
 	goNow := readGoRuntime()
 	prevGo := s.lastGo
 	s.lastGo = goNow
@@ -191,19 +246,28 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	}
 
 	out := ResourceSample{
-		MemUsedBytes:  memUsed,
-		MemCacheBytes: memCache,
-		MemLimitBytes: memLimit,
+		MemUsedBytes:     memUsed,
+		MemCacheBytes:    memCache,
+		MemLimitBytes:    memLimit,
+		ProcessRSSBytes:  rss,
+		DiskReadMeasured: diskMeasured,
 	}
+	out.MachineCPUPercent, out.MachineIOWaitPercent = machineDeltas(prevMachine, machine)
 	if cpuUsec > 0 && prevCPU > 0 && s.ncpu > 0 {
 		// usage is in microseconds of CPU time; the wall clock gives the
 		// budget (elapsed x cores), so the ratio is the share of the machine.
 		out.CPUPercent = float64(cpuUsec-prevCPU) / (elapsed * 1e6 * s.ncpu) * 100
 	}
-	if diskRead > 0 && prevDisk > 0 {
+	if diskMeasured && diskRead >= prevDisk {
 		out.DiskReadBytesPerSec = int64(float64(diskRead-prevDisk) / elapsed)
 	}
-	if appRead > 0 && prevApp > 0 {
+	// The in-process counter starts at zero and only moves once a viewer
+	// reads: it is "measured" from the first byte it ever counted, and stays so.
+	if appRead > 0 {
+		s.appMeasured = true
+	}
+	out.AppReadMeasured = s.appMeasured
+	if appRead > 0 && prevApp > 0 && appRead >= prevApp {
 		out.AppReadBytesPerSec = int64(float64(appRead-prevApp) / elapsed)
 	}
 	if servedTotal >= prevServed {
@@ -277,11 +341,75 @@ type resourceState struct {
 	regimeOpen         bool
 	regimeRefPerViewer float64
 
-	// baseline is what the server consumed BEFORE any viewer joined - the
-	// floor an operator must subtract to read a per-viewer cost honestly.
-	baseline ResourceSample
+	// baselineSamples is what the server consumed BEFORE any viewer joined,
+	// read over baselineFor: the floor an operator reads every cost against,
+	// and the disks' wait at rest that the saturation verdict is measured from.
+	baselineSamples []ResourceSample
+
+	// windows is every hold the run made, in order: the climb as it happened,
+	// FAST hunts and broken tiers included. cur is the one open now.
+	windows []*windowRecord
+	cur     *windowRecord
 
 	cpuOverRun, memOverRun int
+}
+
+// windowRecord is one hold of one tier: what the machine did while the tier
+// was observed, and how the tier fared. A tier measured twice (a break that
+// had to reproduce) is two windows, and the table shows both.
+type windowRecord struct {
+	id        int
+	tier      int
+	phase     string
+	measured  bool
+	startedAt time.Time
+	endedAt   time.Time
+	samples   []ResourceSample
+	closed    bool
+	broke     bool
+	reason    StopReason
+	detail    string
+}
+
+// addBaseline records one pre-viewer sample.
+func (rs *resourceState) addBaseline(s ResourceSample) {
+	rs.baselineSamples = append(rs.baselineSamples, s)
+}
+
+// baseline is the idle server, averaged over the pre-viewer window.
+func (rs *resourceState) baseline() ResourceStats {
+	return statsOf(rs.baselineSamples)
+}
+
+// windowID is the id of the hold open now; 0 before any tier started.
+func (rs *resourceState) windowID() int {
+	if rs.cur == nil {
+		return 0
+	}
+	return rs.cur.id
+}
+
+// openWindow closes the hold in progress (as held, unless closeWindow already
+// said otherwise) and opens a new one for tier.
+func (rs *resourceState) openWindow(tier int, phase string, measured bool, now time.Time) {
+	rs.closeWindow(now, "", "")
+	w := &windowRecord{id: len(rs.windows) + 1, tier: tier, phase: phase, measured: measured, startedAt: now}
+	rs.windows = append(rs.windows, w)
+	rs.cur = w
+}
+
+// closeWindow ends the hold in progress with its verdict: reason names what
+// broke it, "" means it held. A second call on a closed window is a no-op, so
+// the run loop may close at the verdict and openWindow may close for safety.
+func (rs *resourceState) closeWindow(now time.Time, reason StopReason, detail string) {
+	w := rs.cur
+	if w == nil || w.closed {
+		return
+	}
+	w.closed, w.endedAt = true, now
+	if reason != "" {
+		w.broke, w.reason, w.detail = true, reason, detail
+	}
 }
 
 func newResourceState(warmup time.Duration, startedAt time.Time) *resourceState {
@@ -318,13 +446,14 @@ func (rs *resourceState) settling(now time.Time) bool {
 // starts the tier's record afresh - the tier number may have been visited on a
 // FAST hold, and a join burst must never sit inside a measured tier's stats -
 // and arms the regime gate against the best regime measured so far.
-func (rs *resourceState) startTier(tier int, now time.Time, measuredHold bool) {
+func (rs *resourceState) startTier(tier int, now time.Time, measuredHold bool, phase string) {
 	rs.lastTier = tier
 	rs.tierStartedAt = now
 	rs.cpuOverRun, rs.memOverRun = 0, 0
 	rs.curTierMeasured = measuredHold
 	rs.regimeOpen = true
 	rs.regimeRefPerViewer = 0
+	rs.openWindow(tier, phase, measuredHold, now)
 	if !measuredHold {
 		return
 	}
@@ -488,9 +617,12 @@ func (rs *resourceState) observe(tier int, s ResourceSample, now time.Time) (sat
 		rs.cpuOverRun, rs.memOverRun = 0, 0
 		rs.curTierMeasured = false
 		rs.regimeOpen = true
+		if tier > 0 {
+			rs.openWindow(tier, phaseFast.String(), false, now)
+		}
 	}
 	if tier == 0 {
-		rs.baseline = s
+		rs.addBaseline(s)
 		return "", ""
 	}
 	if s.MemLimitBytes > 0 && float64(s.MemUsedBytes)/float64(s.MemLimitBytes)*100 >= memCriticalPercent {
@@ -519,6 +651,9 @@ func (rs *resourceState) observe(tier int, s ResourceSample, now time.Time) (sat
 		}
 	}
 	rs.byTier[tier] = append(rs.byTier[tier], s)
+	if rs.cur != nil && rs.cur.tier == tier && !rs.cur.closed {
+		rs.cur.samples = append(rs.cur.samples, s)
+	}
 
 	if s.CPUPercent >= cpuSaturationPercent {
 		rs.cpuOverRun++
@@ -574,11 +709,12 @@ func (rs *resourceState) tierCosts(serverShare float64) []TierCost {
 		out = append(out, TierCost{
 			Viewers:             t,
 			CPUPercent:          cpu,
+			MachineCPUPercent:   s.MachineCPUPercentAvg,
+			MachineIOWaitPct:    s.MachineIOWaitPercentAvg,
 			MemUsedBytes:        s.MemUsedBytesAvg,
+			ProcessRSSBytes:     s.ProcessRSSBytesAvg,
 			DiskReadBytesPerSec: s.DiskReadBytesPerSecAvg,
 			ServedBytesPerSec:   s.ServedBytesPerSecAvg,
-			CPUPercentPerViewer: cpu / float64(t),
-			MemBytesPerViewer:   s.MemUsedBytesAvg / int64(t),
 			Samples:             s.Samples,
 			GoHeapLiveBytes:     s.GoHeapLiveBytesAvg,
 			GoGCCPUPercent:      s.GoGCCPUPercentAvg,
@@ -588,13 +724,26 @@ func (rs *resourceState) tierCosts(serverShare float64) []TierCost {
 }
 
 func (rs *resourceState) stats(tier int) ResourceStats {
-	samples := rs.byTier[tier]
+	return statsOf(rs.byTier[tier])
+}
+
+// statsOf averages a run of samples into one ResourceStats.
+func statsOf(samples []ResourceSample) ResourceStats {
 	if len(samples) == 0 {
 		return ResourceStats{}
 	}
 	var out ResourceStats
 	var cpuSum, memSum, cacheSum, diskSum, appSum, servedSum, heapSum, gcSum float64
+	var machineSum, iowaitSum, rssSum float64
 	for _, s := range samples {
+		machineSum += s.MachineCPUPercent
+		iowaitSum += s.MachineIOWaitPercent
+		rssSum += float64(s.ProcessRSSBytes)
+		out.MachineCPUPercentPeak = max(out.MachineCPUPercentPeak, s.MachineCPUPercent)
+		out.MachineIOWaitPercentPeak = max(out.MachineIOWaitPercentPeak, s.MachineIOWaitPercent)
+		out.ProcessRSSBytesMax = max(out.ProcessRSSBytesMax, s.ProcessRSSBytes)
+		out.DiskReadMeasured = out.DiskReadMeasured || s.DiskReadMeasured
+		out.AppReadMeasured = out.AppReadMeasured || s.AppReadMeasured
 		heapSum += float64(s.GoHeapLiveBytes)
 		gcSum += s.GoGCCPUPercent
 		out.GoHeapLiveBytesMax = max(out.GoHeapLiveBytesMax, s.GoHeapLiveBytes)
@@ -611,6 +760,9 @@ func (rs *resourceState) stats(tier int) ResourceStats {
 		out.MemLimitBytes = max(out.MemLimitBytes, s.MemLimitBytes)
 	}
 	n := float64(len(samples))
+	out.MachineCPUPercentAvg = machineSum / n
+	out.MachineIOWaitPercentAvg = iowaitSum / n
+	out.ProcessRSSBytesAvg = int64(rssSum / n)
 	out.CPUPercentAvg = cpuSum / n
 	out.MemUsedBytesAvg = int64(memSum / n)
 	out.MemCacheBytesAvg = int64(cacheSum / n)
@@ -672,15 +824,40 @@ func formatMemDetail(used, limit int64, tier int) string {
 // or cgroup-v1 install. A counter that can't be read reports 0, and the report
 // simply omits that resource rather than inventing a number.
 
-// cgroupSource reads the server's own cgroup. fsRoot is "/" in production;
-// tests point it at a staged tree.
-type cgroupSource struct{ fsRoot string }
+// cgroupSource reads the server's own cgroup, and the machine beside it.
+// fsRoot is "/" in production; tests point it at a staged tree. devices are
+// the whole disks the library was mapped to (see devices_linux.go): the disk
+// figure is their /proc/diskstats sum, and absent when none was mapped.
+// appRead counts, in-process, the bytes the packager read from its sources;
+// nil when nothing counts them.
+type cgroupSource struct {
+	fsRoot  string
+	devices []string
+	appRead func() int64
+}
 
-func (c cgroupSource) cpuUsageUsec() int64                { return readCPUUsageUsec(c.fsRoot) }
-func (c cgroupSource) diskReadBytes() int64               { return readDiskReadBytes(c.fsRoot) }
-func (c cgroupSource) appReadBytes() int64                { return readAppReadBytes(c.fsRoot) }
+func (c cgroupSource) cpuUsageUsec() int64 { return readCPUUsageUsec(c.fsRoot) }
+func (c cgroupSource) diskReadBytes() (int64, bool) {
+	if len(c.devices) == 0 {
+		return 0, false
+	}
+	counters := readDiskCounters(c.fsRoot)
+	var total int64
+	for _, d := range c.devices {
+		total += int64(counters[d].sectorsRead) * 512 //nolint:gosec // sectors read, far below the int64 range
+	}
+	return total, true
+}
+func (c cgroupSource) appReadBytes() int64 {
+	if c.appRead == nil {
+		return 0
+	}
+	return c.appRead()
+}
 func (c cgroupSource) memory() (used, cache, limit int64) { return readMemory(c.fsRoot) }
 func (c cgroupSource) cpuAllowance() float64              { return cpuAllowance(c.fsRoot) }
+func (c cgroupSource) machineTicks() machineTicks         { return readMachineTicks(c.fsRoot) }
+func (c cgroupSource) processRSS() int64                  { return readProcessRSS(c.fsRoot) }
 
 // cpuAllowance is how many cores the server may actually use: the cgroup quota
 // when one is set, else every core on the machine. This is the denominator of
@@ -786,33 +963,6 @@ func readMemory(fsRoot string) (used, cache, limit int64) {
 	return used, cache, limit
 }
 
-// readDiskReadBytes returns the cgroup's cumulative bytes read from disk,
-// summed across every block device. This is the number that says whether the
-// storage - not the CPU - is what a viewer is really costing.
-func readDiskReadBytes(fsRoot string) int64 {
-	f, err := os.Open(filepath.Join(fsRoot, "sys/fs/cgroup/io.stat"))
-	if err != nil {
-		return 0
-	}
-	defer func() { _ = f.Close() }()
-
-	var total int64
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		// Each line is "<major>:<minor> rbytes=N wbytes=N rios=N ...".
-		for field := range strings.FieldsSeq(scanner.Text()) {
-			key, value, ok := strings.Cut(field, "=")
-			if !ok || key != "rbytes" {
-				continue
-			}
-			if v, err := strconv.ParseInt(value, 10, 64); err == nil {
-				total += v
-			}
-		}
-	}
-	return total
-}
-
 // readMeminfo is the bare-metal fallback for readMemory.
 func readMeminfo(fsRoot string) (total, available int64) {
 	f, err := os.Open(filepath.Join(fsRoot, "proc/meminfo"))
@@ -847,33 +997,4 @@ func parseMeminfoKB(line string) int64 {
 		return 0
 	}
 	return kb * 1024
-}
-
-// readAppReadBytes returns the bytes the server has asked the filesystem for
-// through read() syscalls (/proc/self/io: rchar), page cache included.
-//
-// This is the number the CODE is responsible for. Set against the block layer's
-// (readDiskReadBytes), it separates two very different problems: a packager that
-// reads more than it serves, and a kernel that reads ahead into data nobody
-// wanted. It also works where the block counter cannot - a library on a network
-// share or a 9p mount, where io.stat reports a confident zero.
-func readAppReadBytes(fsRoot string) int64 {
-	f, err := os.Open(filepath.Join(fsRoot, "proc/self/io"))
-	if err != nil {
-		return 0
-	}
-	defer func() { _ = f.Close() }()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		field, value, ok := strings.Cut(scanner.Text(), ": ")
-		if ok && field == "rchar" {
-			v, err := strconv.ParseInt(strings.TrimSpace(value), 10, 64)
-			if err != nil {
-				return 0
-			}
-			return v
-		}
-	}
-	return 0
 }

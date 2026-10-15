@@ -15,6 +15,9 @@ import {
   LOAD_TEST_URL,
   STOP_REASON_KEYS,
   stopCause,
+  windowStateKey,
+  phaseKey,
+  deviceLines,
   clientMixScenario,
   scenarioNoun,
   servedPathLines,
@@ -25,6 +28,7 @@ import {
   predictedStreams,
   type ClientProfile,
   type LoadTestReport,
+  type LoadTestResources,
   type LoadTestScenario,
   type LoadTestStatus,
 } from "./loadTest";
@@ -63,6 +67,10 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
   const [weights, setWeights] = useState<Record<ClientProfile, number>>(DEFAULT_CLIENT_WEIGHTS);
   const sentScenario = scenario === CUSTOM_CLIENTS ? clientMixScenario(weights) : scenario;
   const [coldCache, setColdCache] = useState(false);
+  // The server itself by default; the proxy path on request. A previous
+  // run's seed replays its title draw.
+  const [viaProxy, setViaProxy] = useState(false);
+  const [seed, setSeed] = useState("");
 
   const statusQuery = useQuery<LoadTestStatus>({
     queryKey: LOAD_TEST_QUERY_KEY,
@@ -77,7 +85,7 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
     // No viewer ceiling is sent on purpose: the run climbs until a RESOURCE
     // gives out - a cap here would just cap the answer.
     mutationFn: () =>
-      eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "POST", data: { scenario: sentScenario, coldCache } }),
+      eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "POST", data: { scenario: sentScenario, coldCache, viaProxy, ...(seed.trim() ? { seed: seed.trim() } : {}) } }),
     onSuccess: (data) => {
       qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
       void qc.invalidateQueries({ queryKey: LOAD_TEST_QUERY_KEY });
@@ -193,6 +201,31 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
               />
             </View>
             <Text style={s.hint}>{t("admin.loadtest.coldCacheHint", "Évince la bibliothèque du cache pour mesurer le disque, pas la RAM.")}</Text>
+            <View style={[s.switchRow, { marginTop: 10 }]}>
+              <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1, marginRight: 12 }}>
+                {t("admin.loadtest.viaProxyToggle", "Passer par le proxy public")}
+              </Text>
+              <Switch
+                value={viaProxy}
+                onValueChange={setViaProxy}
+                disabled={start.isPending}
+                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
+                accessibilityLabel="proxy"
+              />
+            </View>
+            <Text style={s.hint}>{t("admin.loadtest.viaProxyHint", "Par défaut le test vise le serveur en direct.")}</Text>
+            <Text style={[s.hint, { marginTop: 10 }]}>{t("admin.loadtest.seedLabel", "Graine du tirage (optionnel)")}</Text>
+            <TextInput
+              value={seed}
+              keyboardType="number-pad"
+              editable={!start.isPending}
+              onChangeText={(v) => setSeed(v.replace(/[^0-9]/g, ""))}
+              placeholder={t("admin.loadtest.seedPlaceholder", "vide = nouveau tirage")}
+              placeholderTextColor={theme.colors.textMuted}
+              accessibilityLabel="seed"
+              style={{ width: 220, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, color: theme.colors.text }}
+            />
+            <Text style={s.hint}>{t("admin.loadtest.seedHint", "Deux tests ne se comparent qu'à tirage égal.")}</Text>
 
             <Pressable
               onPress={() => start.mutate()}
@@ -222,6 +255,14 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
 
   const isBottleneck = report.stopReason ? BOTTLENECK_REASONS.includes(report.stopReason) : false;
   const cause = stopCause(report);
+  const windows = report.windows ?? [];
+  const sustainedRow = windows.map((w, i) => ({ w, i })).filter(({ w }) => w.viewers === report.sustainedViewers && !w.broke).at(-1)?.i;
+  // A report from before the mapping existed has no flag and counts as
+  // measured; only an explicit false hides the disk figures.
+  const diskMeasured = report.diskReadMeasured !== false;
+  const res = report.resources;
+  const cpuCell = (r: LoadTestResources | undefined) => `${Math.round(r?.cpuPercentAvg ?? 0)}% · ${Math.round(r?.machineCpuPercentAvg ?? 0)}%`;
+  const memCell = (r: LoadTestResources | undefined) => `${formatBytes(r?.memUsedBytesAvg ?? 0)} · ${formatBytes(r?.processRssBytesAvg ?? 0)}`;
 
   return (
     <View style={{ gap: 6, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border }}>
@@ -236,9 +277,13 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
       </Text>
       {cause && (
         <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>
+          {String(t(cause.tierState === "broke" ? "admin.loadtest.cause.tierBroke" : "admin.loadtest.cause.tierHeld", { tier: cause.tier }))}{" "}
           {String(t(cause.key, { ...cause.params, what: cause.whatKey ? String(t(cause.whatKey)) : "" }))}
         </Text>
       )}
+      {report.endpoint ? (
+        <Text style={s.hint}>{t(report.viaProxy ? "admin.loadtest.endpointProxyLine" : "admin.loadtest.endpointDirectLine", { endpoint: report.endpoint })}</Text>
+      ) : null}
       {report.stopReason === "max_viewers" && (
         <Text style={s.hint}>{t("admin.loadtest.noBottleneckHint", "Aucune ressource n'a cédé : le plafond est ailleurs.")}</Text>
       )}
@@ -249,6 +294,9 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
         <Text style={[s.warnText]}>
           {t(report.coldCache ? "admin.loadtest.storageOpaqueColdLine" : "admin.loadtest.storageOpaqueLine", { fs: report.storageFsType ?? "" })}
         </Text>
+      )}
+      {!diskMeasured && (
+        <Text style={s.warnText}>{t("admin.loadtest.diskUnmeasuredLine")}</Text>
       )}
       {report.diskReadStarved && !report.storageOpaque && (
         <Text style={s.warnText}>
@@ -263,8 +311,50 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
         {"  ·  "}
         {t("admin.loadtest.segmentLine", { p50: Math.round(report.segmentMsP50 ?? 0), p95: Math.round(report.segmentMsP95 ?? 0) })}
       </Text>
+      {res && (res.samples ?? 0) > 0 ? (
+        <Text style={s.hint}>
+          {t("admin.loadtest.machineLine", {
+            tier: report.sustainedViewers ?? 0,
+            cpu: Math.round(res.cpuPercentAvg ?? 0),
+            machine: Math.round(res.machineCpuPercentAvg ?? 0),
+            iowait: Math.round(res.machineIowaitPercentAvg ?? 0),
+            mem: formatBytes(res.memUsedBytesAvg ?? 0),
+            rss: formatBytes(res.processRssBytesAvg ?? 0),
+          })}
+        </Text>
+      ) : null}
 
-      {(report.tiers?.length ?? 0) > 0 && (
+      {/* One row per hold, broken ones included and marked, with the raw p95
+          and the p95 the stall verdict was read on. */}
+      {windows.length > 0 && (
+        <View style={{ marginTop: 6 }}>
+          <View style={[s.tierRow, { borderBottomColor: theme.colors.border }]}>
+            <Text style={[s.tierHead, { flex: 0.8 }]}>{t("admin.loadtest.table.viewers", "Spect.")}</Text>
+            <Text style={[s.tierHead, { flex: 1.6 }]}>{t("admin.loadtest.table.state", "Fenêtre")}</Text>
+            <Text style={[s.tierHead, { flex: 1.2 }]}>{t("admin.loadtest.table.cpu", "CPU")}</Text>
+            <Text style={[s.tierHead, { flex: 1.4 }]}>{t("admin.loadtest.table.disk", "Disque")}</Text>
+            <Text style={[s.tierHead, { flex: 1.2 }]}>{t("admin.loadtest.table.served", "Servi")}</Text>
+            <Text style={[s.tierHead, { flex: 1.2 }]}>{t("admin.loadtest.table.p95Verdict", "p95")}</Text>
+          </View>
+          {windows.map((w, i) => {
+            const sustained = i === sustainedRow;
+            const col = sustained ? theme.colors.text : w.broke ? theme.colors.warning : theme.colors.textMuted;
+            const weight = sustained ? "700" : "400";
+            return (
+              <View key={i} style={[s.tierRow, { borderBottomColor: theme.colors.border }]}>
+                <Text style={[s.tierCell, { flex: 0.8, color: col, fontWeight: weight }]}>{w.viewers ?? 0}</Text>
+                <Text style={[s.tierCell, { flex: 1.6, color: col, fontWeight: weight }]}>{`${t(windowStateKey(w))} · ${t(phaseKey(w.phase))}`}</Text>
+                <Text style={[s.tierCell, { flex: 1.2, color: col, fontWeight: weight }]}>{cpuCell(w.resources)}</Text>
+                <Text style={[s.tierCell, { flex: 1.4, color: col, fontWeight: weight }]}>{diskMeasured ? formatMbps(w.resources?.diskReadBytesPerSec ?? 0) : t("admin.loadtest.notMeasured")}</Text>
+                <Text style={[s.tierCell, { flex: 1.2, color: col, fontWeight: weight }]}>{formatMbps(w.resources?.servedBytesPerSec ?? 0)}</Text>
+                <Text style={[s.tierCell, { flex: 1.2, color: col, fontWeight: weight }]}>{`${Math.round(w.segmentMsP95 ?? 0)} / ${Math.round(w.segmentMsP95Scaled ?? 0)} ms`}</Text>
+              </View>
+            );
+          })}
+          <Text style={s.hint}>{t("admin.loadtest.table.mem")}: {memCell(res)} · {t("admin.loadtest.table.note")}</Text>
+        </View>
+      )}
+      {windows.length === 0 && (report.tiers?.length ?? 0) > 0 && (
         <View style={{ marginTop: 6 }}>
           <View style={[s.tierRow, { borderBottomColor: theme.colors.border }]}>
             <Text style={[s.tierHead, { flex: 1.1 }]}>{t("admin.loadtest.table.viewers", "Spect.")}</Text>
@@ -280,21 +370,41 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
             return (
               <View key={tier.viewers} style={[s.tierRow, { borderBottomColor: theme.colors.border }]}>
                 <Text style={[s.tierCell, { flex: 1.1, color: col, fontWeight: weight }]}>{tier.viewers ?? 0}</Text>
-                <Text style={[s.tierCell, { flex: 1, color: col, fontWeight: weight }]}>{Math.round(tier.cpuPercent ?? 0)}%</Text>
-                <Text style={[s.tierCell, { flex: 1.4, color: col, fontWeight: weight }]}>{formatBytes(tier.memUsedBytes ?? 0)}</Text>
-                <Text style={[s.tierCell, { flex: 1.6, color: col, fontWeight: weight }]}>{formatMbps(tier.diskReadBytesPerSec ?? 0)}</Text>
+                <Text style={[s.tierCell, { flex: 1, color: col, fontWeight: weight }]}>{`${Math.round(tier.cpuPercent ?? 0)}% · ${Math.round(tier.machineCpuPercent ?? 0)}%`}</Text>
+                <Text style={[s.tierCell, { flex: 1.4, color: col, fontWeight: weight }]}>{`${formatBytes(tier.memUsedBytes ?? 0)} · ${formatBytes(tier.processRssBytes ?? 0)}`}</Text>
+                <Text style={[s.tierCell, { flex: 1.6, color: col, fontWeight: weight }]}>{diskMeasured ? formatMbps(tier.diskReadBytesPerSec ?? 0) : t("admin.loadtest.notMeasured")}</Text>
                 <Text style={[s.tierCell, { flex: 1.6, color: col, fontWeight: weight }]}>{formatMbps(tier.servedBytesPerSec ?? 0)}</Text>
               </View>
             );
           })}
         </View>
       )}
+      {report.perViewerCost && (report.perViewerCost.samples ?? 0) > 0 ? (
+        <Text style={s.hint}>
+          {t("admin.loadtest.perViewerLine", {
+            cpu: (report.perViewerCost.cpuPercentAvg ?? 0).toFixed(2),
+            mem: formatBytes(report.perViewerCost.memUsedBytesAvg ?? 0),
+            disk: diskMeasured ? formatMbps(report.perViewerCost.diskReadBytesPerSec ?? 0) : t("admin.loadtest.notMeasured"),
+            net: formatMbps(report.perViewerCost.servedBytesPerSec ?? 0),
+          })}
+        </Text>
+      ) : null}
+      {(report.breakViewers ?? 0) > 0 && (report.breakDisks?.length ?? 0) > 0 && diskMeasured ? (
+        <Text style={s.hint}>
+          {t("admin.loadtest.breakCapacityLine", {
+            tier: report.breakViewers ?? 0,
+            parts: (report.breakDisks ?? [])
+              .map((d) => t("admin.loadtest.breakCapacityPart", { device: d.device ?? "", rate: formatMbps(d.readBytesPerSecAvg ?? 0), peak: formatMbps(d.readBytesPerSecPeak ?? 0) }))
+              .join(", "),
+          })}
+        </Text>
+      ) : null}
 
-      {((report.poolBranches?.length ?? 0) > 0 || (report.disks?.length ?? 0) > 0) && (
+      {((report.poolBranches?.length ?? 0) > 0 || (report.disks?.length ?? 0) > 0 || (report.diskDevices?.length ?? 0) > 0) && (
         <View style={{ gap: 2, marginTop: 6 }}>
           {(report.poolBranches?.length ?? 0) > 0 && (
             <>
-              <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }}>{t("admin.loadtest.poolTitle")}</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600" }}>{t("admin.loadtest.poolTitle", { tier: report.sustainedViewers ?? 0 })}</Text>
               {poolShares(report.poolBranches ?? []).map((b) => (
                 <Text key={b.branch} style={s.hint}>
                   {t("admin.loadtest.poolBranchLine", { branch: b.branch, count: b.viewers, pct: b.pct })}
@@ -305,7 +415,7 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
           )}
           {(report.disks?.length ?? 0) > 0 && (
             <>
-              <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600", marginTop: 4 }}>{t("admin.loadtest.disksTitle")}</Text>
+              <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600", marginTop: 4 }}>{t("admin.loadtest.disksTitle", { tier: report.sustainedViewers ?? 0 })}</Text>
               {(report.disks ?? []).map((d) => (
                 <Text key={d.device} style={s.hint}>
                   {t("admin.loadtest.diskLine", {
@@ -313,11 +423,22 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
                     util: Math.round(d.utilPercentAvg ?? 0),
                     peak: Math.round(d.utilPercentPeak ?? 0),
                     rate: formatMbps(d.readBytesPerSecAvg ?? 0),
+                    ratePeak: formatMbps(d.readBytesPerSecPeak ?? 0),
                     wait: Math.round(d.awaitMsAvg ?? 0),
+                    waitPeak: Math.round(d.awaitMsPeak ?? 0),
+                    queue: (d.queueDepthAvg ?? 0).toFixed(1),
                   })}
                 </Text>
               ))}
               <Text style={s.hint}>{t("admin.loadtest.disksNote")}</Text>
+            </>
+          )}
+          {(report.diskDevices?.length ?? 0) > 0 && (
+            <>
+              <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "600", marginTop: 4 }}>{t("admin.loadtest.devicesTitle")}</Text>
+              {deviceLines(t, report.diskDevices).map((line) => (
+                <Text key={line} style={s.hint}>{line}</Text>
+              ))}
             </>
           )}
         </View>
@@ -351,8 +472,16 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
             <Text style={s.hint}>{t("admin.loadtest.sloByTypeLine", { parts: mixParts(t, report.segmentSloMsByType, "admin.loadtest.segmentByTypePart", "ms") })}</Text>
           )}
           {(report.sharedCacheViewers ?? 0) > 0 && (
-            <Text style={s.hint}>{t("admin.loadtest.sharedCacheLine", { count: report.sharedCacheViewers })}</Text>
+            <Text style={s.hint}>{t("admin.loadtest.replayedTitlesLine", { count: report.sharedCacheViewers })}</Text>
           )}
+          {res && (res.samples ?? 0) > 0 ? (
+            <Text style={s.hint}>
+              {report.appReadMeasured
+                ? t("admin.loadtest.appReadLine", { rate: formatMbps(res.appReadBytesPerSec ?? 0), ratio: (report.appReadAmplification ?? 0).toFixed(2) })
+                : t("admin.loadtest.appReadUnmeasuredLine")}
+            </Text>
+          ) : null}
+          {report.seed && report.seed !== "0" ? <Text style={s.hint}>{t("admin.loadtest.seedLine", { seed: report.seed })}</Text> : null}
           {(report.skippedCandidates ?? 0) > 0 && (
             <Text style={s.hint}>{t("admin.loadtest.skippedCandidatesLine", { count: report.skippedCandidates })}</Text>
           )}

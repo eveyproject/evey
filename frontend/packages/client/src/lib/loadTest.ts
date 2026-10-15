@@ -72,10 +72,27 @@ export type LoadTestStopReason =
 export interface LoadTestResources {
   cpuPercentAvg?: number;
   cpuPercentPeak?: number;
+  // The whole machine beside the container (/proc/stat): its busy share, and
+  // the share of time its cores waited on I/O - the storage path saturating.
+  machineCpuPercentAvg?: number;
+  machineCpuPercentPeak?: number;
+  machineIowaitPercentAvg?: number;
+  machineIowaitPercentPeak?: number;
+  // memUsedBytes* is the whole container (Meilisearch and Postgres included in
+  // the -full image); processRssBytes* is the server process alone.
   memUsedBytesAvg?: number;
   memUsedBytesMax?: number;
+  processRssBytesAvg?: number;
+  processRssBytesMax?: number;
   memLimitBytes?: number;
+  // diskReadBytesPerSec is the machine's block counters summed over the
+  // devices the library sits on; absent (diskReadMeasured false) when none
+  // could be tied to it. appReadBytesPerSec is what the packager asked its
+  // sources for, counted in-process; absent when appReadMeasured is false.
   diskReadBytesPerSec?: number;
+  diskReadMeasured?: boolean;
+  appReadBytesPerSec?: number;
+  appReadMeasured?: boolean;
   servedBytesPerSec?: number;
   samples?: number;
   // The server's own Go runtime over the tier: reachable heap, GOMEMLIMIT (0 =
@@ -92,7 +109,56 @@ export interface LoadTestDiskActivity {
   utilPercentAvg?: number;
   utilPercentPeak?: number;
   readBytesPerSecAvg?: number;
+  // One-second peaks and the mean queue depth (aqu-sz).
+  readBytesPerSecPeak?: number;
   awaitMsAvg?: number;
+  awaitMsPeak?: number;
+  queueDepthAvg?: number;
+}
+
+// The busiest disk of a hold, judged against the server at rest: a read
+// waiting past the bar, with the device busy or the machine in iowait to
+// corroborate it. The server decides; the panel only words it.
+export interface LoadTestDiskVerdict {
+  device?: string;
+  awaitMs?: number;
+  awaitBaselineMs?: number;
+  awaitMsPeak?: number;
+  queueDepth?: number;
+  utilPercent?: number;
+  readBytesPerSec?: number;
+  iowaitPercent?: number;
+  saturated?: boolean;
+}
+
+// One hold of the climb: the tier, how it was observed, whether it held, what
+// the machine did meanwhile, and the latencies the verdict was read on.
+export interface LoadTestWindow {
+  viewers?: number;
+  phase?: string;
+  measured?: boolean;
+  broke?: boolean;
+  reason?: LoadTestStopReason | "";
+  detail?: string;
+  resources?: LoadTestResources;
+  segmentMsP50?: number;
+  segmentMsP95?: number;
+  // The p95 of the same fetches scaled to the reference segment length: the
+  // figure the stall verdict is read on.
+  segmentMsP95Scaled?: number;
+  segmentSamples?: number;
+  ttffMsP95?: number;
+  diskVerdict?: LoadTestDiskVerdict;
+  startedAt?: string;
+  endedAt?: string;
+}
+
+// Which block device a library location (a pool branch, a mount) is read
+// from, resolved at the run's start - device letters rotate at reboot.
+export interface LoadTestDeviceMapping {
+  location?: string;
+  device?: string;
+  resolved?: string;
 }
 
 export interface LoadTestReport {
@@ -147,12 +213,29 @@ export interface LoadTestReport {
   // disks: what each physical drive did over the sustained tier, busiest first.
   // Read from the host-wide block counters, so it includes other readers too.
   disks?: LoadTestDiskActivity[];
-  // breakViewers / breakDisks / breakCpuPercentPeak: the lowest audience that
-  // broke and what the drives and the CPU did under it - where the cause of a
-  // stop shows. 0 and empty when no tier broke.
+  // breakViewers / breakDisks / breakCpuPercentPeak / breakResources: the
+  // lowest audience that broke and what the machine did under it - where the
+  // cause of a stop shows. 0 and empty when no tier broke. breakReason /
+  // breakDetail name what broke it.
   breakViewers?: number;
   breakDisks?: LoadTestDiskActivity[];
   breakCpuPercentPeak?: number;
+  breakResources?: LoadTestResources;
+  breakReason?: LoadTestStopReason | "";
+  breakDetail?: string;
+  // diskVerdict: the busiest disk under the audience the stop is read on,
+  // judged by the server against the baseline.
+  diskVerdict?: LoadTestDiskVerdict;
+  // windows: every hold the run made, in order, broken ones included.
+  windows?: LoadTestWindow[];
+  // diskDevices / diskReadMeasured: the location-to-device mapping the run
+  // resolved, and whether any device could be tied to the library at all.
+  diskDevices?: LoadTestDeviceMapping[];
+  diskReadMeasured?: boolean;
+  appReadMeasured?: boolean;
+  // seed: the title draw's seed, as a string (it exceeds a JS number). Passing
+  // it back replays the same draw.
+  seed?: string;
   // diskReadCeilingBytesPerSec: how fast this box reads its media - every disk
   // the library spans, read at once. The kernel cannot report this when the
   // library sits on a network share or a 9p mount, so the run measures it itself
@@ -171,11 +254,12 @@ export interface LoadTestReport {
   tiers?: {
     viewers?: number;
     cpuPercent?: number;
+    machineCpuPercent?: number;
+    machineIowaitPercent?: number;
     memUsedBytes?: number;
+    processRssBytes?: number;
     diskReadBytesPerSec?: number;
     servedBytesPerSec?: number;
-    cpuPercentPerViewer?: number;
-    memBytesPerViewer?: number;
     samples?: number;
   }[];
   // harnessCpuFraction: how much of the measured CPU was the load GENERATOR, not
@@ -257,11 +341,16 @@ export const BOTTLENECK_REASONS: LoadTestStopReason[] = [
 ];
 
 // A stop cause: the i18n key and its values. whatKey, when set, names the
-// request the server failed on and is translated into the "what" value.
+// request the server failed on and is translated into the "what" value. tier
+// is the audience the cause was read under and tierState says whether that
+// audience held or broke - the header and the table then speak of the same
+// hold.
 export interface LoadTestCause {
   key: string;
   params: Record<string, string | number>;
   whatKey?: string;
+  tier: number;
+  tierState: "broke" | "held";
 }
 
 // The request a viewer was making when the server failed, read off the
@@ -274,51 +363,106 @@ const FAILED_REQUEST_KEYS: [string, string][] = [
   ["stream-info", "admin.loadtest.cause.request.streamInfo"],
 ];
 
-// A disk busy this share of the time is what held the audience back.
-const SATURATED_DISK_PERCENT = 80;
 // A CPU peak this high is the ceiling even when the stop reason was latency.
 const SATURATED_CPU_PERCENT = 85;
 
 // stopCause says WHY a run stopped, from what it measured: the server's own
-// error when it failed a request outright, else the resource that was
-// saturated, else that none was (the delay came from outside the box). null
-// when the stop reason already names it (CPU, memory, the operator's limit, a
-// cancel, a refusal by design).
+// error when it failed a request outright, else the disk the server judged
+// saturated (its wait per read against the baseline, not a busy percentage:
+// the tiers that stalled on 2026-10-15 had their disks 56-82 % busy and every
+// read waiting 27-46 ms), else a CPU at its ceiling, else that nothing was
+// (the delay came from outside the box). null when the stop reason already
+// names it (CPU, memory, the operator's limit, a cancel, a refusal by design).
+//
+// Everything is read under the audience that BROKE when one did: the
+// sustained tier is by definition the one that held, so its figures look idle
+// (measured 2026-10-12: disks at 15 % on the 37 that held, the 38 that broke
+// unseen). The cause names that tier, so the header and the table agree.
 export function stopCause(report: LoadTestReport): LoadTestCause | null {
   const reason = report.stopReason;
   if (!reason || !["slo_breach", "startup_too_slow", "server_failing", "throughput_saturated"].includes(reason)) {
     return null;
   }
+  const atBreak = (report.breakViewers ?? 0) > 0;
+  const tier = atBreak ? (report.breakViewers ?? 0) : (report.sustainedViewers ?? 0);
+  const tierState = atBreak ? "broke" : "held";
   const detail = report.stopDetail ?? "";
   const status = reason === "server_failing" ? /status=(\d+)/.exec(detail)?.[1] : undefined;
   if (status && status !== "0") {
     const whatKey = FAILED_REQUEST_KEYS.find(([p]) => detail.includes(p))?.[1] ?? "admin.loadtest.cause.request.other";
-    return { key: status === "410" ? "admin.loadtest.cause.http410" : "admin.loadtest.cause.httpStatus", params: { status }, whatKey };
+    return { key: status === "410" ? "admin.loadtest.cause.http410" : "admin.loadtest.cause.httpStatus", params: { status }, whatKey, tier, tierState };
   }
-  // Read the tier that broke when the report has it: the sustained tier is by
-  // definition the one that held, so its figures can look idle (measured
-  // 2026-10-12: disks at 15 % on the 37 that held, the 38 that broke unseen).
-  const atBreak = (report.breakViewers ?? 0) > 0;
-  const source = atBreak ? (report.breakDisks ?? []) : (report.disks ?? []);
-  const disks = [...source].sort((a, b) => (b.utilPercentAvg ?? 0) - (a.utilPercentAvg ?? 0));
-  const top = disks[0];
-  if (top && (top.utilPercentAvg ?? 0) >= SATURATED_DISK_PERCENT) {
+  const verdict = report.diskVerdict;
+  const iowait = Math.round(verdict?.iowaitPercent ?? (atBreak ? report.breakResources : report.resources)?.machineIowaitPercentAvg ?? 0);
+  if (verdict?.saturated) {
     const params = {
-      device: top.device ?? "",
-      util: Math.round(top.utilPercentAvg ?? 0),
-      wait: Math.round(top.awaitMsAvg ?? 0),
-      others: Math.round(disks[1]?.utilPercentAvg ?? 0),
+      device: verdict.device ?? "",
+      wait: Math.round(verdict.awaitMs ?? 0),
+      baseline: Math.round(verdict.awaitBaselineMs ?? 0),
+      queue: (verdict.queueDepth ?? 0).toFixed(1),
+      util: Math.round(verdict.utilPercent ?? 0),
+      iowait,
     };
-    return { key: disks.length > 1 ? "admin.loadtest.cause.disk" : "admin.loadtest.cause.diskAlone", params };
+    return { key: "admin.loadtest.cause.disk", params, tier, tierState };
   }
-  const cpu = Math.round((atBreak ? report.breakCpuPercentPeak : report.resources?.cpuPercentPeak) ?? 0);
+  const cpu = Math.round((atBreak ? (report.breakResources?.cpuPercentPeak ?? report.breakCpuPercentPeak) : report.resources?.cpuPercentPeak) ?? 0);
   if (cpu >= SATURATED_CPU_PERCENT) {
-    return { key: "admin.loadtest.cause.cpu", params: { peak: cpu } };
+    return { key: "admin.loadtest.cause.cpu", params: { peak: cpu }, tier, tierState };
   }
-  if (!top) {
-    return { key: "admin.loadtest.cause.nothingSaturatedNoDisks", params: { cpu } };
+  if (!verdict?.device) {
+    return { key: "admin.loadtest.cause.nothingSaturatedNoDisks", params: { cpu, iowait }, tier, tierState };
   }
-  return { key: "admin.loadtest.cause.nothingSaturated", params: { cpu, disk: Math.round(top.utilPercentAvg ?? 0) } };
+  return {
+    key: "admin.loadtest.cause.nothingSaturated",
+    params: { cpu, device: verdict.device, wait: Math.round(verdict.awaitMs ?? 0), util: Math.round(verdict.utilPercent ?? 0), iowait },
+    tier,
+    tierState,
+  };
+}
+
+// windowStateKey labels a hold's outcome for the table: held, or broke on
+// which signal.
+export function windowStateKey(w: LoadTestWindow): string {
+  if (!w.broke) return "admin.loadtest.window.held";
+  return (w.reason && STOP_REASON_SHORT_KEYS[w.reason as LoadTestStopReason]) ?? "admin.loadtest.window.broke";
+}
+
+// Short names of the break signals, for a table cell.
+export const STOP_REASON_SHORT_KEYS: Partial<Record<LoadTestStopReason, string>> = {
+  slo_breach: "admin.loadtest.window.brokeSlo",
+  startup_too_slow: "admin.loadtest.window.brokeStartup",
+  admission_full: "admin.loadtest.window.brokeAdmission",
+  cpu_saturated: "admin.loadtest.window.brokeCpu",
+  memory_saturated: "admin.loadtest.window.brokeMemory",
+  throughput_saturated: "admin.loadtest.window.brokeThroughput",
+  server_failing: "admin.loadtest.window.brokeServer",
+};
+
+// phaseKey names the climb phase a hold served.
+export function phaseKey(phase: string | undefined): string {
+  switch (phase) {
+    case "narrowing":
+      return "admin.loadtest.phase.narrowing";
+    case "confirming":
+      return "admin.loadtest.phase.confirming";
+    case "measuring":
+      return "admin.loadtest.phase.measuring";
+    default:
+      return "admin.loadtest.phase.ramping";
+  }
+}
+
+// deviceLines renders the location-to-device mapping, one line per location;
+// an unresolved location says so rather than printing an empty device.
+export function deviceLines(
+  t: (key: string, opts?: Record<string, unknown>) => string,
+  devices: LoadTestDeviceMapping[] | undefined,
+): string[] {
+  return (devices ?? []).map((m) =>
+    m.device
+      ? t("admin.loadtest.deviceLine", { location: m.location ?? "", device: m.device })
+      : t("admin.loadtest.deviceUnresolvedLine", { location: m.location ?? "" }),
+  );
 }
 
 // Throughput is quoted in bits per second, the way a network link is.

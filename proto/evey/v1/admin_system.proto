@@ -406,12 +406,20 @@ message StartLoadTestRequest {
   // library dwarfs the RAM; warm (the default) measures today. Both are true,
   // and the report says which one was measured.
   bool cold_cache = 5;
-  // direct sends the viewers to the server's own loopback instead of the
-  // public address. The default goes through the reverse proxy, the way real
-  // viewers come; on a box whose proxy path tops out below the server (670
-  // Mb/s in front of a server that serves 15 Gb/s, measured 2026-10-06), that
-  // run measures the proxy. Direct measures what the server alone holds.
-  bool direct = 6;
+  // direct is kept for older clients and has no effect: the viewers hit the
+  // server's own loopback by default.
+  bool direct = 6 [deprecated = true];
+  // via_proxy sends the viewers through the public address - the reverse
+  // proxy, the way real viewers come - instead of the server's loopback. It
+  // is a different measurement: the proxy's own limits are part of the answer
+  // (a box whose proxy path tops out below the server measured the proxy,
+  // 2026-10-06; a hairpin through the operator's router added 200 ms to the
+  // median fetch, 2026-10-15). The report says which path was taken.
+  bool via_proxy = 7;
+  // seed replays a previous run's title draw: the report carries the seed it
+  // used, and passing it back draws the same titles in the same order. Zero
+  // (the default) takes a fresh one from the clock.
+  uint64 seed = 8;
 }
 
 message GetLoadTestStatusRequest {}
@@ -586,6 +594,85 @@ message LoadTestReport {
   int32 break_viewers = 45;
   repeated LoadTestDiskActivity break_disks = 46;
   double break_cpu_percent_peak = 47;
+  // seed is the title draw's seed; passing it back to StartLoadTestRequest
+  // replays the same draw.
+  uint64 seed = 48;
+  // disk_devices is the mapping the run resolved at its start: which block
+  // device each library location (a pool branch, a mount) is read from.
+  // Device letters rotate at reboot; this is what makes the disk lines
+  // readable later. disk_read_measured is false when no device could be tied
+  // to the library: the disk read figures are then absent, not zero.
+  repeated LoadTestDeviceMapping disk_devices = 49;
+  bool disk_read_measured = 50;
+  // app_read_measured is false when nothing counts, in-process, the bytes the
+  // packager read from its sources: the app-read figures are then absent.
+  bool app_read_measured = 51;
+  // windows is every hold the run made, in order, broken ones included: the
+  // climb as it happened, one row per window. A tier measured twice is two.
+  repeated LoadTestWindow windows = 52;
+  // disk_verdict judges the busiest disk under the audience the stop is read
+  // on (the lowest tier that broke, else the sustained one).
+  LoadTestDiskVerdict disk_verdict = 53;
+  // break_reason / break_detail name what broke break_viewers, when a tier did.
+  string break_reason = 54;
+  string break_detail = 55;
+  // break_resources is everything the machine did under the lowest audience
+  // that broke (break_disks and break_cpu_percent_peak are two of its fields).
+  LoadTestResources break_resources = 56;
+}
+
+// LoadTestDeviceMapping ties a library location to the block device it is
+// read from.
+message LoadTestDeviceMapping {
+  // location is the branch of a pooled mount, or the mount point.
+  string location = 1;
+  // device is the whole block device ("sda", "nvme0n1", "dm-0"); empty when
+  // none on this machine could be tied to the location.
+  string device = 2;
+  // resolved says how: "stat" (the filesystem's device id), "read" (a cold
+  // read moved its sectors), "" when unresolved.
+  string resolved = 3;
+}
+
+// LoadTestDiskVerdict is the busiest disk of a hold, judged against the
+// server at rest: a read waiting past the bar, with the device busy or the
+// machine in iowait to corroborate it.
+message LoadTestDiskVerdict {
+  string device = 1;
+  double await_ms = 2;
+  double await_baseline_ms = 3;
+  double await_ms_peak = 4;
+  double queue_depth = 5;
+  double util_percent = 6;
+  int64 read_bytes_per_sec = 7;
+  double iowait_percent = 8;
+  bool saturated = 9;
+}
+
+// LoadTestWindow is one hold of the climb: the tier, how it was observed,
+// whether it held, what the machine did meanwhile, and the latencies the
+// verdict was read on.
+message LoadTestWindow {
+  int32 viewers = 1;
+  // phase is the climb phase ("ramping", "narrowing", "confirming",
+  // "measuring"); measured says it was a full window rather than a FAST hunt.
+  string phase = 2;
+  bool measured = 3;
+  bool broke = 4;
+  string reason = 5;
+  string detail = 6;
+  LoadTestResources resources = 7;
+  // segment_ms_p50 / segment_ms_p95 are the raw fetch times of the hold's
+  // segments; segment_ms_p95_scaled is the p95 of the same fetches scaled to
+  // the reference segment length, the figure the stall verdict is read on.
+  int32 segment_ms_p50 = 8;
+  int32 segment_ms_p95 = 9;
+  int32 segment_ms_p95_scaled = 10;
+  int32 segment_samples = 11;
+  int32 ttff_ms_p95 = 12;
+  LoadTestDiskVerdict disk_verdict = 13;
+  google.protobuf.Timestamp started_at = 14;
+  google.protobuf.Timestamp ended_at = 15;
 }
 
 // LoadTestPoolBranch is how many of the run's viewers were placed on one branch
@@ -604,6 +691,11 @@ message LoadTestDiskActivity {
   double util_percent_peak = 3;
   int64 read_bytes_per_sec_avg = 4;
   double await_ms_avg = 5;
+  // One-second peaks and the mean queue depth (aqu-sz): a burst the average
+  // flattens, and the queue a saturated disk forms.
+  int64 read_bytes_per_sec_peak = 6;
+  double await_ms_peak = 7;
+  double queue_depth_avg = 8;
 }
 
 // LoadTestTierCost is what ONE audience size cost the server: one row of the
@@ -616,16 +708,23 @@ message LoadTestTierCost {
   int64 mem_used_bytes = 3;
   int64 disk_read_bytes_per_sec = 4;
   int64 served_bytes_per_sec = 5;
-  // cpu_percent_per_viewer / mem_bytes_per_viewer: this row's cost divided by its
-  // headcount. The TREND down the table is what says whether the server is still
-  // scaling.
-  double cpu_percent_per_viewer = 6;
-  int64 mem_bytes_per_viewer = 7;
+  // 6 and 7 carried the row's cost divided by its headcount - the idle
+  // server's own consumption charged to the viewers. The per-viewer cost is
+  // the slope between tiers (per_viewer_cost) and nothing else.
+  reserved 6, 7;
+  reserved "cpu_percent_per_viewer", "mem_bytes_per_viewer";
   int32 samples = 8;
   // go_heap_live_bytes / go_gc_cpu_percent: the server's Go runtime over this
   // tier (see LoadTestResources).
   int64 go_heap_live_bytes = 9;
   double go_gc_cpu_percent = 10;
+  // machine_cpu_percent / machine_iowait_percent: the whole machine's busy and
+  // iowait shares beside the container's cpu_percent.
+  double machine_cpu_percent = 11;
+  double machine_iowait_percent = 12;
+  // process_rss_bytes is the server process alone; mem_used_bytes is the whole
+  // container (Meilisearch and Postgres included in the -full image).
+  int64 process_rss_bytes = 13;
 }
 
 // LoadTestResources is what the box was actually spending. The figures come
@@ -651,4 +750,18 @@ message LoadTestResources {
   int64 go_mem_limit_bytes = 11;
   double go_gc_cpu_percent_avg = 12;
   double go_gc_cpu_percent_peak = 13;
+  // The whole machine beside the container (/proc/stat): busy share, and the
+  // share of time its cores waited on I/O - the storage path saturating.
+  double machine_cpu_percent_avg = 14;
+  double machine_cpu_percent_peak = 15;
+  double machine_iowait_percent_avg = 16;
+  double machine_iowait_percent_peak = 17;
+  // The server process alone (VmRSS); mem_used_bytes_avg is the container.
+  int64 process_rss_bytes_avg = 18;
+  int64 process_rss_bytes_max = 19;
+  // What the packager asked its sources for, counted in-process; absent when
+  // app_read_measured is false.
+  int64 app_read_bytes_per_sec = 20;
+  bool app_read_measured = 21;
+  bool disk_read_measured = 22;
 }

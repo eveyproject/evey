@@ -16,16 +16,17 @@ import (
 // crosses with a distinct value so a swapped pair shows.
 func TestTierCosts_MapsEveryField(t *testing.T) {
 	in := []apploadtest.TierCost{{
-		Viewers: 12, CPUPercent: 34.5, MemUsedBytes: 67, DiskReadBytesPerSec: 89, ServedBytesPerSec: 101,
-		CPUPercentPerViewer: 2.5, MemBytesPerViewer: 7, Samples: 3,
+		Viewers: 12, CPUPercent: 34.5, MachineCPUPercent: 40.5, MachineIOWaitPct: 9.5, MemUsedBytes: 67, ProcessRSSBytes: 45,
+		DiskReadBytesPerSec: 89, ServedBytesPerSec: 101, Samples: 3,
 	}}
 	out := tierCosts(in)
 	if len(out) != 1 {
 		t.Fatalf("got %d tiers", len(out))
 	}
 	got := out[0]
-	if got.Viewers != 12 || got.CpuPercent != 34.5 || got.MemUsedBytes != 67 || got.DiskReadBytesPerSec != 89 ||
-		got.ServedBytesPerSec != 101 || got.CpuPercentPerViewer != 2.5 || got.MemBytesPerViewer != 7 || got.Samples != 3 {
+	if got.Viewers != 12 || got.CpuPercent != 34.5 || got.MachineCpuPercent != 40.5 || got.MachineIowaitPercent != 9.5 ||
+		got.MemUsedBytes != 67 || got.ProcessRssBytes != 45 || got.DiskReadBytesPerSec != 89 ||
+		got.ServedBytesPerSec != 101 || got.Samples != 3 {
 		t.Errorf("tier = %+v", got)
 	}
 	if got := tierCosts(nil); got == nil || len(got) != 0 {
@@ -116,8 +117,60 @@ func TestLoadTestStatusToProto(t *testing.T) {
 	if loadTestResourcesToProto(apploadtest.ResourceStats{}) != nil {
 		t.Error("resources without samples must be omitted")
 	}
-	if b := loadTestSampleToProto(apploadtest.ResourceSample{CPUPercent: 12, MemUsedBytes: 5, MemLimitBytes: 50}); b == nil || b.CpuPercentAvg != 12 || b.MemLimitBytes != 50 {
+	if b := loadTestResourcesToProto(apploadtest.ResourceStats{Samples: 4, CPUPercentAvg: 12, MemUsedBytesAvg: 5, MemLimitBytes: 50}); b == nil || b.CpuPercentAvg != 12 || b.MemLimitBytes != 50 || b.Samples != 4 {
 		t.Errorf("baseline = %+v", b)
+	}
+}
+
+// The machine beside the container, the process beside the container total,
+// the mapping, the windows and the verdict cross the wire with distinct values.
+func TestLoadTestStatusToProto_CarriesMachineWindowsAndVerdict(t *testing.T) {
+	rep := &apploadtest.Report{
+		Scenario: "mkvgo", Seed: 1792073232940793883, DiskReadMeasured: true, AppReadMeasured: true,
+		BreakViewers: 131, BreakReason: apploadtest.StopSLOBreach, BreakDetail: "p95 7178ms",
+		DiskDevices: []apploadtest.DeviceMapping{{Location: "/mnt/disk_1", Device: "sda", Resolved: "read"}, {Location: "/mnt/disk_3", Device: "", Resolved: ""}},
+		Resources: apploadtest.ResourceStats{Samples: 6, CPUPercentAvg: 9, MachineCPUPercentAvg: 14, MachineCPUPercentPeak: 21, MachineIOWaitPercentAvg: 65, MachineIOWaitPercentPeak: 81,
+			ProcessRSSBytesAvg: 462 << 20, ProcessRSSBytesMax: 470 << 20, MemUsedBytesAvg: 923 << 20, DiskReadMeasured: true, AppReadMeasured: true, AppReadBytesPerSecAvg: 50 << 20},
+		BreakResources: apploadtest.ResourceStats{Samples: 4, CPUPercentAvg: 11, CPUPercentPeak: 13,
+			Disks: []apploadtest.DiskStat{{Device: "sda", UtilPctAvg: 68, UtilPctPeak: 91, ReadBytesPerSecAvg: 38 << 20, ReadBytesPerSecPeak: 60 << 20, AwaitMsAvg: 27, AwaitMsPeak: 46, QueueDepthAvg: 3.5}}},
+		DiskVerdict: apploadtest.DiskVerdict{Device: "sda", AwaitMs: 27, AwaitBaselineMs: 7, AwaitMsPeak: 46, QueueDepth: 3.5, UtilPct: 68, ReadBytesPerSec: 38 << 20, IOWaitPct: 65, Saturated: true},
+		Windows: []apploadtest.TierWindow{
+			{Tier: 126, Phase: "measuring", Measured: true, Resources: apploadtest.ResourceStats{Samples: 6, CPUPercentAvg: 9}, SegmentMsP50: 262, SegmentMsP95: 1747, SegmentMsP95Scaled: 1200, SegmentSamples: 124, TTFFMsP95: 2079},
+			{Tier: 131, Phase: "narrowing", Measured: true, Broke: true, Reason: apploadtest.StopSLOBreach, Detail: "p95 12073ms", Resources: apploadtest.ResourceStats{Samples: 4, CPUPercentAvg: 11},
+				SegmentMsP95Scaled: 12073, DiskVerdict: apploadtest.DiskVerdict{Device: "sda", Saturated: true, AwaitMs: 27}},
+		},
+	}
+	got := loadTestStatusToProto(apploadtest.Status{LastReport: rep}).LastReport
+	if got.Seed != 1792073232940793883 || !got.DiskReadMeasured || !got.AppReadMeasured || got.BreakReason != "slo_breach" || got.BreakDetail != "p95 7178ms" {
+		t.Errorf("headline fields = seed %d measured %v/%v break %q %q", got.Seed, got.DiskReadMeasured, got.AppReadMeasured, got.BreakReason, got.BreakDetail)
+	}
+	if len(got.DiskDevices) != 2 || got.DiskDevices[0].Location != "/mnt/disk_1" || got.DiskDevices[0].Device != "sda" || got.DiskDevices[0].Resolved != "read" || got.DiskDevices[1].Device != "" {
+		t.Errorf("devices = %+v", got.DiskDevices)
+	}
+	r := got.Resources
+	if r.MachineCpuPercentAvg != 14 || r.MachineCpuPercentPeak != 21 || r.MachineIowaitPercentAvg != 65 || r.MachineIowaitPercentPeak != 81 ||
+		r.ProcessRssBytesAvg != 462<<20 || r.ProcessRssBytesMax != 470<<20 || !r.DiskReadMeasured || !r.AppReadMeasured || r.AppReadBytesPerSec != 50<<20 {
+		t.Errorf("resources = %+v", r)
+	}
+	if got.BreakResources == nil || got.BreakResources.CpuPercentPeak != 13 || len(got.BreakDisks) != 1 || got.BreakDisks[0].ReadBytesPerSecPeak != 60<<20 || got.BreakDisks[0].AwaitMsPeak != 46 || got.BreakDisks[0].QueueDepthAvg != 3.5 {
+		t.Errorf("break = %+v disks %+v", got.BreakResources, got.BreakDisks)
+	}
+	v := got.DiskVerdict
+	if v == nil || v.Device != "sda" || v.AwaitMs != 27 || v.AwaitBaselineMs != 7 || v.AwaitMsPeak != 46 || v.QueueDepth != 3.5 || v.UtilPercent != 68 || v.ReadBytesPerSec != 38<<20 || v.IowaitPercent != 65 || !v.Saturated {
+		t.Errorf("verdict = %+v", v)
+	}
+	if len(got.Windows) != 2 {
+		t.Fatalf("windows = %d", len(got.Windows))
+	}
+	w0, w1 := got.Windows[0], got.Windows[1]
+	if w0.Viewers != 126 || w0.Phase != "measuring" || !w0.Measured || w0.Broke || w0.SegmentMsP50 != 262 || w0.SegmentMsP95 != 1747 || w0.SegmentMsP95Scaled != 1200 || w0.SegmentSamples != 124 || w0.TtffMsP95 != 2079 || w0.Resources.CpuPercentAvg != 9 || w0.DiskVerdict != nil {
+		t.Errorf("window 0 = %+v", w0)
+	}
+	if w1.Viewers != 131 || !w1.Broke || w1.Reason != "slo_breach" || w1.Detail != "p95 12073ms" || w1.SegmentMsP95Scaled != 12073 || w1.DiskVerdict == nil || !w1.DiskVerdict.Saturated {
+		t.Errorf("window 1 = %+v", w1)
+	}
+	if loadTestDiskVerdictToProto(apploadtest.DiskVerdict{}) != nil {
+		t.Error("a verdict without a device must be omitted")
 	}
 }
 

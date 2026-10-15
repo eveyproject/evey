@@ -8,8 +8,10 @@ vi.mock("react-native", () => ({
   Text: ({ children }: any) => React.createElement("span", null, children),
   Pressable: ({ children, onPress, disabled }: any) => React.createElement("button", { onClick: onPress, disabled }, children),
   ActivityIndicator: () => React.createElement("div", { "data-testid": "spinner" }),
-  Switch: ({ value, onValueChange }: any) =>
-    React.createElement("input", { type: "checkbox", "aria-label": "cold", checked: value, onChange: (e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.target.checked) }),
+  Switch: ({ value, onValueChange, accessibilityLabel }: any) =>
+    React.createElement("input", { type: "checkbox", "aria-label": accessibilityLabel ?? "cold", checked: value, onChange: (e: React.ChangeEvent<HTMLInputElement>) => onValueChange(e.target.checked) }),
+  TextInput: ({ value, onChangeText, accessibilityLabel }: any) =>
+    React.createElement("input", { type: "text", "aria-label": accessibilityLabel ?? "input", value, onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChangeText(e.target.value) }),
   StyleSheet: { create: (s: any) => s },
 }));
 vi.mock("react-i18next", () => ({
@@ -49,7 +51,7 @@ describe("LoadTestSection (mobile)", () => {
       if (method === "GET") return Promise.resolve(running ? { running: true, viewers: 4, phase: "climb", elapsedMs: 9000 } : { running: false, lastReport });
       if (method === "POST") {
         running = true;
-        expect(data).toEqual({ scenario: "mkvgo", coldCache: true });
+        expect(data).toEqual({ scenario: "mkvgo", coldCache: true, viaProxy: false });
         return Promise.resolve({ running: true, viewers: 0, phase: "warmup", elapsedMs: 0 });
       }
       running = false;
@@ -81,7 +83,7 @@ describe("LoadTestSection (mobile)", () => {
       },
     });
     mount();
-    await screen.findByText("admin.loadtest.poolTitle");
+    await screen.findByText(/admin\.loadtest\.poolTitle\(46\)/);
     expect(screen.getByText(/poolBranchLine\(\/mnt\/disk_2,41,82\)/)).toBeTruthy();
     expect(screen.getByText(/poolBranchLine\(\/mnt\/disk_1,9,18\)/)).toBeTruthy();
     expect(screen.getByText(/diskLine\(sdc,89,97,/)).toBeTruthy();

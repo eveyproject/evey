@@ -64,9 +64,9 @@ func (m *modelledMachine) cpuUsageUsec() int64 {
 	return cpu
 }
 
-func (m *modelledMachine) diskReadBytes() int64 {
+func (m *modelledMachine) diskReadBytes() (int64, bool) {
 	_, disk := m.integrate()
-	return disk
+	return disk, true
 }
 
 // A modelled machine whose code asks for exactly what the disk delivers: the
@@ -248,9 +248,24 @@ func TestCgroupSource_ReadsQuotaUsageMemoryAndIO(t *testing.T) {
 		// cache with films.
 		"memory.stat": "anon 805306368\nfile 3221225472\nkernel 268435456\nslab 12345\n",
 		"memory.max":  "4294967296\n",
-		"io.stat":     "8:0 rbytes=1000 wbytes=5 rios=1\n8:16 rbytes=2000 wbytes=5 rios=1\n",
 	})
-	src := cgroupSource{fsRoot: root}
+	// The disk figure is the machine's block counters over the devices the
+	// library was mapped to: sda and sdb here, sdc is someone else's.
+	for _, d := range []string{"sda", "sdb", "sdc"} {
+		if err := os.MkdirAll(filepath.Join(root, "sys/block", d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(root, "proc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stats := "8 0 sda 10 0 2 50 0 0 0 0 0 90 0\n" +
+		"8 16 sdb 10 0 4 50 0 0 0 0 0 90 0\n" +
+		"8 32 sdc 10 0 1000 50 0 0 0 0 0 90 0\n"
+	if err := os.WriteFile(filepath.Join(root, "proc/diskstats"), []byte(stats), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	src := cgroupSource{fsRoot: root, devices: []string{"sda", "sdb"}}
 
 	if got := src.cpuAllowance(); got != 2 {
 		t.Fatalf("cpuAllowance = %v, want 2 (the cgroup quota, not the host's cores)", got)
@@ -272,9 +287,17 @@ func TestCgroupSource_ReadsQuotaUsageMemoryAndIO(t *testing.T) {
 	if limit != 4<<30 {
 		t.Fatalf("memory limit = %d, want 4GiB", limit)
 	}
-	// Disk reads sum across every block device the container touched.
-	if got := src.diskReadBytes(); got != 3000 {
-		t.Fatalf("diskReadBytes = %d, want 3000 (summed across devices)", got)
+	// Disk reads sum the library's devices only: 2 + 4 sectors of 512 bytes.
+	if got, measured := src.diskReadBytes(); !measured || got != 6*512 {
+		t.Fatalf("diskReadBytes = %d (measured %v), want 3072 summed over sda and sdb", got, measured)
+	}
+	// No device mapped: the figure is absent, never a zero that reads as "idle".
+	if got, measured := (cgroupSource{fsRoot: root}).diskReadBytes(); measured || got != 0 {
+		t.Fatalf("unmapped diskReadBytes = %d (measured %v), want absent", got, measured)
+	}
+	// A hook that nothing wired reads as 0; the sampler then says "not measured".
+	if got := src.appReadBytes(); got != 0 {
+		t.Fatalf("appReadBytes without a counter = %d, want 0", got)
 	}
 }
 
@@ -367,12 +390,12 @@ func TestResourceState_FlatThroughputIsTheStorageCeiling(t *testing.T) {
 	// is already giving everything it has, and the newcomers only take a slice
 	// of the same pie. Both tiers measured under full windows, disk visibly
 	// delivering the bytes - the honest version of this verdict.
-	rs.startTier(10, at, true)
+	rs.startTier(10, at, true, "test")
 	for range 5 {
 		at = at.Add(time.Second)
 		rs.observe(10, ResourceSample{CPUPercent: 12, ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: 100 << 20}, at)
 	}
-	rs.startTier(20, at, true)
+	rs.startTier(20, at, true, "test")
 	for range 5 {
 		at = at.Add(time.Second)
 		rs.observe(20, ResourceSample{CPUPercent: 12, ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: 100 << 20}, at)
@@ -392,12 +415,12 @@ func TestResourceState_FlatThroughputIsTheStorageCeiling(t *testing.T) {
 func TestResourceState_GrowingThroughputIsNotAPlateau(t *testing.T) {
 	rs := newResourceState(0, time.Now())
 	at := time.Now()
-	rs.startTier(10, at, true)
+	rs.startTier(10, at, true, "test")
 	for range 5 {
 		at = at.Add(time.Second)
 		rs.observe(10, ResourceSample{ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: 100 << 20}, at)
 	}
-	rs.startTier(20, at, true)
+	rs.startTier(20, at, true, "test")
 	for range 5 {
 		at = at.Add(time.Second)
 		rs.observe(20, ResourceSample{ServedBytesPerSec: 190 << 20, DiskReadBytesPerSec: 190 << 20}, at)
@@ -425,13 +448,13 @@ func TestResourceState_OneMoreViewerInALargeAudienceIsNotAPlateau(t *testing.T) 
 
 	const perViewer = 24 << 20 // each viewer pulls its bitrate, and no more
 
-	rs.startTier(21, at, true)
+	rs.startTier(21, at, true, "test")
 	for range 5 {
 		at = at.Add(time.Second)
 		rs.observe(21, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 21 * perViewer, DiskReadBytesPerSec: 21 * perViewer}, at)
 	}
 	// The 22nd viewer is served exactly as well as the other 21: +4.76%.
-	rs.startTier(22, at, true)
+	rs.startTier(22, at, true, "test")
 	for range 5 {
 		at = at.Add(time.Second)
 		rs.observe(22, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 22 * perViewer, DiskReadBytesPerSec: 22 * perViewer}, at)
@@ -451,14 +474,14 @@ func TestResourceState_ManyMoreViewersWithoutTheBytesIsStillAPlateau(t *testing.
 	rs := newResourceState(0, time.Now())
 	at := time.Now()
 
-	rs.startTier(20, at, true)
+	rs.startTier(20, at, true, "test")
 	for range 5 {
 		at = at.Add(time.Second)
 		rs.observe(20, ResourceSample{ServedBytesPerSec: 500 << 20, DiskReadBytesPerSec: 500 << 20}, at)
 	}
 	// 30 viewers should move ~750 MiB/s. They move 525: the newcomers are eating
 	// the same pie, not being served.
-	rs.startTier(30, at, true)
+	rs.startTier(30, at, true, "test")
 	for range 5 {
 		at = at.Add(time.Second)
 		rs.observe(30, ResourceSample{ServedBytesPerSec: 525 << 20, DiskReadBytesPerSec: 525 << 20}, at)
@@ -490,7 +513,7 @@ func TestResourceState_ARestartingAudienceIsNotMeasured(t *testing.T) {
 	const perViewer = int64(3 << 20)
 
 	// Tier 21, measured in steady state: 21 viewers, each at its bitrate.
-	rs.startTier(21, start, true)
+	rs.startTier(21, start, true, "test")
 	at := start.Add(11 * time.Second)
 	for range 5 {
 		rs.observe(21, ResourceSample{CPUPercent: 25, ServedBytesPerSec: 21 * perViewer, DiskReadBytesPerSec: 21 * perViewer}, at)
@@ -500,7 +523,7 @@ func TestResourceState_ARestartingAudienceIsNotMeasured(t *testing.T) {
 	// The audience is rebuilt at 22: everyone restarts. Past the fixed warm-up
 	// the viewers are still recovering, pulling a tenth of their regime.
 	t2 := at
-	rs.startTier(22, t2, true)
+	rs.startTier(22, t2, true, "test")
 	at = t2.Add(11 * time.Second)
 	for range 3 {
 		rs.observe(22, ResourceSample{CPUPercent: 2, ServedBytesPerSec: 21 * perViewer / 10, DiskReadBytesPerSec: 21 * perViewer / 10}, at)
@@ -537,7 +560,7 @@ func TestResourceState_AJoinBurstDoesNotOpenTheWindow(t *testing.T) {
 	rs := newResourceState(10*time.Second, start)
 	const perViewer = int64(3 << 20)
 
-	rs.startTier(20, start, true)
+	rs.startTier(20, start, true, "test")
 	at := start.Add(11 * time.Second)
 	for range 5 {
 		rs.observe(20, ResourceSample{ServedBytesPerSec: 20 * perViewer, DiskReadBytesPerSec: 20 * perViewer}, at)
@@ -547,7 +570,7 @@ func TestResourceState_AJoinBurstDoesNotOpenTheWindow(t *testing.T) {
 	// Rebuild at 21: everyone restarts and burst-fills, at three times the
 	// regime, still inside the cap.
 	t2 := at
-	rs.startTier(21, t2, true)
+	rs.startTier(21, t2, true, "test")
 	at = t2.Add(11 * time.Second)
 	for range 3 {
 		rs.observe(21, ResourceSample{ServedBytesPerSec: 3 * 21 * perViewer, DiskReadBytesPerSec: 3 * 21 * perViewer}, at)
@@ -578,7 +601,7 @@ func TestResourceState_ARegimeThatNeverResumesIsMeasuredAnyway(t *testing.T) {
 	rs := newResourceState(10*time.Second, start)
 	const perViewer = int64(3 << 20)
 
-	rs.startTier(21, start, true)
+	rs.startTier(21, start, true, "test")
 	at := start.Add(11 * time.Second)
 	for range 5 {
 		rs.observe(21, ResourceSample{ServedBytesPerSec: 21 * perViewer, DiskReadBytesPerSec: 21 * perViewer}, at)
@@ -588,7 +611,7 @@ func TestResourceState_ARegimeThatNeverResumesIsMeasuredAnyway(t *testing.T) {
 	// Tier 31 genuinely cannot feed its viewers: throughput stays at a tenth of
 	// the regime, forever.
 	t2 := at
-	rs.startTier(31, t2, true)
+	rs.startTier(31, t2, true, "test")
 	at = t2.Add(11 * time.Second)
 	for range 20 { // well past any reasonable cap
 		rs.observe(31, ResourceSample{ServedBytesPerSec: 21 * perViewer / 10, DiskReadBytesPerSec: 21 * perViewer / 10}, at)
@@ -617,7 +640,7 @@ func TestResourceState_AFastTierNeverAnchorsTheVerdict(t *testing.T) {
 	const perViewer = int64(3 << 20)
 
 	// Tier 21 on a FAST hold, mid join-burst: three times the regime rate.
-	rs.startTier(21, start, false)
+	rs.startTier(21, start, false, "test")
 	at := start.Add(time.Second)
 	for range 2 {
 		rs.observe(21, ResourceSample{CPUPercent: 61, ServedBytesPerSec: 3 * 21 * perViewer, DiskReadBytesPerSec: 3 * 21 * perViewer}, at)
@@ -625,7 +648,7 @@ func TestResourceState_AFastTierNeverAnchorsTheVerdict(t *testing.T) {
 	}
 
 	// Tier 31, measured for real: every viewer at its full bitrate.
-	rs.startTier(31, at, true)
+	rs.startTier(31, at, true, "test")
 	for range 5 {
 		rs.observe(31, ResourceSample{CPUPercent: 9, ServedBytesPerSec: 31 * perViewer, DiskReadBytesPerSec: 31 * perViewer}, at)
 		at = at.Add(2 * time.Second)
@@ -657,15 +680,15 @@ func TestResourceState_AStarvedDiskCannotBeTheStorageCeiling(t *testing.T) {
 	build := func(diskPerSec int64) *resourceState {
 		rs := newResourceState(0, time.Now())
 		at := time.Now()
-		rs.startTier(10, at, true)
+		rs.startTier(10, at, true, "test")
 		for range 5 {
 			at = at.Add(time.Second)
-			rs.observe(10, ResourceSample{ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: diskPerSec}, at)
+			rs.observe(10, ResourceSample{ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: diskPerSec, DiskReadMeasured: true}, at)
 		}
-		rs.startTier(20, at, true)
+		rs.startTier(20, at, true, "test")
 		for range 5 {
 			at = at.Add(time.Second)
-			rs.observe(20, ResourceSample{ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: diskPerSec}, at)
+			rs.observe(20, ResourceSample{ServedBytesPerSec: 100 << 20, DiskReadBytesPerSec: diskPerSec, DiskReadMeasured: true}, at)
 		}
 		return rs
 	}
@@ -733,7 +756,7 @@ func TestReport_ReadAmplificationExposesWastedBandwidth(t *testing.T) {
 	// viewers.
 	got := readAmplification(ResourceStats{
 		Samples:                20,
-		DiskReadBytesPerSecAvg: 221 << 20,
+		DiskReadBytesPerSecAvg: 221 << 20, DiskReadMeasured: true,
 		ServedBytesPerSecAvg:   57 << 20,
 	})
 	if got < 3.8 || got > 4.0 {
@@ -743,7 +766,7 @@ func TestReport_ReadAmplificationExposesWastedBandwidth(t *testing.T) {
 	// A server that reads exactly what it serves is doing the best it can.
 	if perfect := readAmplification(ResourceStats{
 		Samples:                20,
-		DiskReadBytesPerSecAvg: 100 << 20,
+		DiskReadBytesPerSecAvg: 100 << 20, DiskReadMeasured: true,
 		ServedBytesPerSecAvg:   100 << 20,
 	}); perfect < 0.99 || perfect > 1.01 {
 		t.Fatalf("a server reading exactly what it serves has an amplification of 1, got %.2f", perfect)
@@ -753,7 +776,7 @@ func TestReport_ReadAmplificationExposesWastedBandwidth(t *testing.T) {
 	// a ratio: a number derived from a blind counter is worse than no number.
 	if blind := readAmplification(ResourceStats{
 		Samples:                20,
-		DiskReadBytesPerSecAvg: 0,
+		DiskReadBytesPerSecAvg: 0, DiskReadMeasured: true,
 		ServedBytesPerSecAvg:   100 << 20,
 	}); blind != 0 {
 		t.Fatalf("a blind I/O counter must not yield an amplification ratio, got %.2f", blind)
@@ -771,7 +794,7 @@ func TestReport_SeparatesAGreedyPackagerFromAGuessingKernel(t *testing.T) {
 		Samples:                20,
 		ServedBytesPerSecAvg:   100 << 20,
 		AppReadBytesPerSecAvg:  130 << 20,
-		DiskReadBytesPerSecAvg: 260 << 20,
+		DiskReadBytesPerSecAvg: 260 << 20, DiskReadMeasured: true,
 	}
 	app, disk := appReadAmplification(stats), readAmplification(stats)
 	if app < 1.25 || app > 1.35 {
@@ -927,7 +950,7 @@ func TestResourceState_CriticalMemoryStopsInsideWarmup(t *testing.T) {
 	start := time.Now()
 	rs := newResourceState(10*time.Second, start)
 	rs.observe(0, ResourceSample{}, start)
-	rs.startTier(100, start, false)
+	rs.startTier(100, start, false, "test")
 
 	hot := ResourceSample{MemUsedBytes: 96 << 20, MemLimitBytes: 100 << 20}
 	if reason, _ := rs.observe(100, hot, start.Add(time.Second)); reason != StopMemorySaturated {
@@ -937,7 +960,7 @@ func TestResourceState_CriticalMemoryStopsInsideWarmup(t *testing.T) {
 	busy := ResourceSample{MemUsedBytes: 92 << 20, MemLimitBytes: 100 << 20}
 	rs2 := newResourceState(10*time.Second, start)
 	rs2.observe(0, ResourceSample{}, start)
-	rs2.startTier(100, start, false)
+	rs2.startTier(100, start, false, "test")
 	if reason, _ := rs2.observe(100, busy, start.Add(time.Second)); reason != "" {
 		t.Fatalf("92%% memory inside warm-up must not stop the run on its own, got %q", reason)
 	}

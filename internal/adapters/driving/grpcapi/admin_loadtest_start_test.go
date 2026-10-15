@@ -197,16 +197,22 @@ func TestLoadTestStatusAndCancel(t *testing.T) {
 	assert.Equal(t, "cancelled", got.GetPhase())
 }
 
-// A direct run gets no public address, so its viewers use the server's own
-// loopback and measure the server rather than the reverse proxy in front of it.
-func TestStartLoadTest_DirectSkipsThePublicAddress(t *testing.T) {
+// The viewers hit the server's own loopback by default; the proxy path is an
+// opt-in, and a replayed seed passes through. The legacy direct flag changes
+// nothing.
+func TestStartLoadTest_DirectByDefaultProxyOnRequest(t *testing.T) {
 	runner := &fakeLoadTestRunner{}
 	d := newLoadTestHandler(runner, &fakeLoadTestMinter{})
 	d.calibrationSvc = fakeCalibrationSnapshot{}
 
-	_, err := d.StartLoadTest(ctxWithClaims("admin-7", "prof-1", true), &eveyv1.StartLoadTestRequest{Scenario: "mkvgo", Direct: true})
+	_, err := d.StartLoadTest(ctxWithClaims("admin-7", "prof-1", true), &eveyv1.StartLoadTestRequest{Scenario: "mkvgo", Direct: true}) //nolint:staticcheck // the legacy flag must stay inert
 	require.NoError(t, err)
-	require.Len(t, runner.started, 1)
-	assert.Empty(t, runner.started[0].PublicBaseURL, "a direct run must not prefer the public address")
+	_, err = d.StartLoadTest(ctxWithClaims("admin-7", "prof-1", true), &eveyv1.StartLoadTestRequest{Scenario: "mkvgo", ViaProxy: true, Seed: 1792073232940793883})
+	require.NoError(t, err)
+	require.Len(t, runner.started, 2)
+	assert.False(t, runner.started[0].ViaProxy, "the default run measures the server directly")
 	assert.Equal(t, "http://127.0.0.1:8080", runner.started[0].BaseURL)
+	assert.True(t, runner.started[1].ViaProxy, "via_proxy opts into the proxy path")
+	assert.Equal(t, uint64(1792073232940793883), runner.started[1].Seed, "the seed replays a draw")
+	assert.NotEmpty(t, runner.started[1].PublicBaseURL, "the proxy run keeps the public address to probe")
 }

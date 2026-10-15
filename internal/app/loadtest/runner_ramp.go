@@ -53,6 +53,11 @@ type rampState struct {
 	// kills sessions media-wide (RemoveSession), so it must know which media
 	// still have a live viewer on them and leave those alone.
 	mediaBySlot map[int]string
+	// filePathBySlot is the file each live viewer reads, so a tier can say
+	// which branch of a pooled mount ITS audience sat on; branchesByTier
+	// snapshots that at each tier's start, like replayedByTier.
+	filePathBySlot map[int]string
+	branchesByTier map[int][]BranchShare
 
 	// rebuilding is true while resizeTo is repopulating a REBUILT audience;
 	// herdBySlot marks the viewers spawned that way. Their first fetches all
@@ -86,6 +91,7 @@ func (r *Runner) shedTo(ramp *rampState, target int) {
 		delete(ramp.cancelBySlot, slot)
 		delete(ramp.herdBySlot, slot)
 		delete(ramp.mediaBySlot, slot)
+		delete(ramp.filePathBySlot, slot)
 		ramp.tier--
 		r.liveViewers.Add(-1)
 		if ramp.viewerTypeBySlot[slot] == viewerTypeTranscode {
@@ -125,6 +131,9 @@ func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, pool *candidat
 	ramp.viewerTypeBySlot[slot] = vt
 	ramp.roundBySlot[slot] = asg.round
 	ramp.mediaBySlot[slot] = asg.media.ID
+	if ramp.filePathBySlot != nil {
+		ramp.filePathBySlot[slot] = asg.media.Path
+	}
 	if ramp.rebuilding {
 		ramp.herdBySlot[slot] = true
 	}
@@ -236,6 +245,22 @@ func (ramp *rampState) replayedInAudience() int {
 	return n
 }
 
+// liveBranchShares is where the viewers watching RIGHT NOW sit on a pooled
+// mount, most viewers first: the placement of this tier's audience, not of
+// every viewer the run ever spawned. nil when the mount is not a pool.
+func (ramp *rampState) liveBranchShares(tally *branchTally) []BranchShare {
+	if tally == nil {
+		return nil
+	}
+	counts := map[string]int{}
+	for slot := range ramp.cancelBySlot {
+		if br := tally.branchFor(ramp.filePathBySlot[slot]); br != "" {
+			counts[br]++
+		}
+	}
+	return sharesFromCounts(counts)
+}
+
 // dropViewer removes one viewer from the live audience: it is no longer
 // watching anything (the server refused it, or it failed outright), so leaving
 // it in the count would inflate every tier above.
@@ -248,6 +273,7 @@ func (r *Runner) dropViewer(ramp *rampState, slot int) {
 	delete(ramp.cancelBySlot, slot)
 	delete(ramp.herdBySlot, slot)
 	delete(ramp.mediaBySlot, slot)
+	delete(ramp.filePathBySlot, slot)
 	ramp.tier--
 	r.liveViewers.Add(-1)
 	if ramp.viewerTypeBySlot[slot] == viewerTypeTranscode {

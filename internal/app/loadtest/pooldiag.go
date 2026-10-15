@@ -31,6 +31,10 @@ type diskCounters struct {
 	sectorsRead uint64 // 512-byte sectors
 	readMs      uint64 // time spent reading
 	ioTicksMs   uint64 // time the device had at least one request in flight
+	// weightedMs is the time every request in flight spent waiting, summed
+	// (the "weighted time doing I/Os" column): divided by the interval it is
+	// the mean queue depth, what iostat calls aqu-sz.
+	weightedMs uint64
 }
 
 // diskActivitySource is the optional seam a counterSource implements to expose
@@ -46,6 +50,7 @@ type DiskSample struct {
 	UtilPct         float64 // share of the interval the device had a request in flight
 	ReadBytesPerSec int64
 	AwaitMs         float64 // mean time one read took, queueing included
+	QueueDepth      float64 // mean requests in flight over the interval (aqu-sz)
 }
 
 // DiskStat is one device's activity over a whole tier.
@@ -54,7 +59,12 @@ type DiskStat struct {
 	UtilPctAvg         float64
 	UtilPctPeak        float64
 	ReadBytesPerSecAvg int64
-	AwaitMsAvg         float64
+	// ReadBytesPerSecPeak is the busiest single sampling interval (one second):
+	// the burst a join or a seek storm imposes, which the average flattens.
+	ReadBytesPerSecPeak int64
+	AwaitMsAvg          float64
+	AwaitMsPeak         float64
+	QueueDepthAvg       float64
 }
 
 // BranchShare is how many of the audience's viewers were placed on one branch
@@ -85,6 +95,9 @@ func diskDeltas(prev, cur map[string]diskCounters, elapsedSec float64) []DiskSam
 		if dr := c.reads - p.reads; dr > 0 && c.readMs >= p.readMs {
 			s.AwaitMs = float64(c.readMs-p.readMs) / float64(dr)
 		}
+		if c.weightedMs >= p.weightedMs {
+			s.QueueDepth = float64(c.weightedMs-p.weightedMs) / (elapsedSec * 1000)
+		}
 		if s.ReadBytesPerSec == 0 && s.UtilPct < 1 {
 			continue
 		}
@@ -100,8 +113,11 @@ func aggregateDisks(samples []ResourceSample) []DiskStat {
 	type acc struct {
 		n                 int
 		util, rate, await float64
+		queue             float64
 		awaitN            int
 		peak              float64
+		awaitPeak         float64
+		ratePeak          int64
 	}
 	byDev := map[string]*acc{}
 	for _, s := range samples {
@@ -115,22 +131,28 @@ func aggregateDisks(samples []ResourceSample) []DiskStat {
 			a.util += d.UtilPct
 			a.rate += float64(d.ReadBytesPerSec)
 			a.peak = max(a.peak, d.UtilPct)
+			a.ratePeak = max(a.ratePeak, d.ReadBytesPerSec)
+			a.queue += d.QueueDepth
 			if d.AwaitMs > 0 {
 				a.await += d.AwaitMs
 				a.awaitN++
+				a.awaitPeak = max(a.awaitPeak, d.AwaitMs)
 			}
 		}
 	}
 	out := make([]DiskStat, 0, len(byDev))
 	for dev, a := range byDev {
 		st := DiskStat{
-			Device:             dev,
-			UtilPctAvg:         a.util / float64(a.n),
-			UtilPctPeak:        a.peak,
-			ReadBytesPerSecAvg: int64(a.rate / float64(a.n)),
+			Device:              dev,
+			UtilPctAvg:          a.util / float64(a.n),
+			UtilPctPeak:         a.peak,
+			ReadBytesPerSecAvg:  int64(a.rate / float64(a.n)),
+			ReadBytesPerSecPeak: a.ratePeak,
+			QueueDepthAvg:       a.queue / float64(a.n),
 		}
 		if a.awaitN > 0 {
 			st.AwaitMsAvg = a.await / float64(a.awaitN)
+			st.AwaitMsPeak = a.awaitPeak
 		}
 		out = append(out, st)
 	}
@@ -157,7 +179,7 @@ func readDiskCounters(fsRoot string) map[string]diskCounters {
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		fields := strings.Fields(sc.Text())
-		if len(fields) < 13 {
+		if len(fields) < 14 {
 			continue
 		}
 		name := fields[2]
@@ -172,6 +194,7 @@ func readDiskCounters(fsRoot string) map[string]diskCounters {
 		c.sectorsRead, _ = strconv.ParseUint(fields[5], 10, 64)
 		c.readMs, _ = strconv.ParseUint(fields[6], 10, 64)
 		c.ioTicksMs, _ = strconv.ParseUint(fields[12], 10, 64)
+		c.weightedMs, _ = strconv.ParseUint(fields[13], 10, 64)
 		out[name] = c
 	}
 	return out
@@ -217,12 +240,34 @@ func (b *branchTally) record(path string) {
 	}
 }
 
+// branchFor resolves a file to its branch, cached; "" when unknown.
+func (b *branchTally) branchFor(path string) string {
+	if b == nil || b.branchOf == nil || path == "" {
+		return ""
+	}
+	br, ok := b.cache[path]
+	if !ok {
+		br = b.branchOf(path)
+		b.cache[path] = br
+	}
+	return br
+}
+
+// shares is every handout the run made, by branch - a cumulative figure.
 func (b *branchTally) shares() []BranchShare {
 	if b == nil || len(b.counts) == 0 {
 		return nil
 	}
-	out := make([]BranchShare, 0, len(b.counts))
-	for br, n := range b.counts {
+	return sharesFromCounts(b.counts)
+}
+
+// sharesFromCounts orders branch counts most viewers first.
+func sharesFromCounts(counts map[string]int) []BranchShare {
+	if len(counts) == 0 {
+		return nil
+	}
+	out := make([]BranchShare, 0, len(counts))
+	for br, n := range counts {
 		out = append(out, BranchShare{Branch: br, Viewers: n})
 	}
 	sort.Slice(out, func(i, j int) bool {

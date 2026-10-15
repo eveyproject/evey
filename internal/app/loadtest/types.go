@@ -132,14 +132,17 @@ type Config struct {
 	// reachable, and it measures the SERVER alone.
 	BaseURL string
 	// PublicBaseURL is the origin real viewers actually come through - the
-	// reverse proxy (Caddy), with its TLS, HTTP/2 and buffering. Optional. When
-	// set AND reachable, the run uses it instead of the loopback, which is a
-	// truer picture of what a household experiences: the proxy is part of the
-	// delivery path, and its own limits are part of the answer. When it cannot
-	// be reached (no proxy deployed, a public hostname the box can't resolve
-	// from inside), the run silently falls back to BaseURL rather than failing -
-	// a measurement of the server alone beats no measurement.
+	// reverse proxy (Caddy), with its TLS, HTTP/2 and buffering. Optional, and
+	// only used when ViaProxy asks for it: the default run measures the SERVER
+	// and hits BaseURL. A proxy run is a different measurement - the proxy's
+	// own limits are part of its answer (a hairpin through the operator's box
+	// and a second TLS hop added 200 ms to the median fetch on 2026-10-15), and
+	// the report says which path was taken. When the proxy cannot be reached
+	// (none deployed, a public hostname the box can't resolve from inside), the
+	// run falls back to BaseURL and says so.
 	PublicBaseURL string
+	// ViaProxy sends the viewers through PublicBaseURL instead of the loopback.
+	ViaProxy bool
 	// Token is the bearer token used by every simulated viewer. It is a real
 	// credential exercising the real auth path, not a bypass.
 	Token string
@@ -200,8 +203,13 @@ type Config struct {
 	// HarnessProfileFor is how long that profile runs. Zero means the default.
 	HarnessProfileFor time.Duration
 	// Seed orders the draw of titles. Zero (the default) takes a fresh one from
-	// the clock; the run logs whichever it used, so a draw can be replayed.
+	// the clock; the run logs and reports whichever it used, so a draw can be
+	// replayed by passing it back.
 	Seed uint64
+	// BaselineFor overrides how long the idle server is watched before the first
+	// viewer joins. Zero means baselineFor, scaled down when a test shrinks the
+	// sampling or ramp cadence; negative skips the baseline.
+	BaselineFor time.Duration
 }
 
 // TierCost is what ONE audience size cost the server: one row of the report's
@@ -209,16 +217,19 @@ type Config struct {
 // overhead has already been subtracted (see harnesscpu.go) - and MemUsedBytes is
 // anonymous memory, never the page cache of the films being read.
 type TierCost struct {
-	Viewers             int
-	CPUPercent          float64
-	MemUsedBytes        int64
+	Viewers    int
+	CPUPercent float64
+	// MachineCPUPercent / MachineIOWaitPct are the whole machine's busy and
+	// iowait shares beside the container's CPU: what served the viewers from
+	// outside the container, and the storage path saturating.
+	MachineCPUPercent float64
+	MachineIOWaitPct  float64
+	MemUsedBytes      int64
+	// ProcessRSSBytes is the server process alone; MemUsedBytes is the whole
+	// container (Meilisearch and Postgres included in the -full image).
+	ProcessRSSBytes     int64
 	DiskReadBytesPerSec int64
 	ServedBytesPerSec   int64
-	// CPUPercentPerViewer / MemBytesPerViewer are this row's cost divided by its
-	// headcount - the figure an operator actually plans with, and the one whose
-	// TREND down the table says whether the server is still scaling.
-	CPUPercentPerViewer float64
-	MemBytesPerViewer   int64
 	Samples             int
 	// GoHeapLiveBytes / GoGCCPUPercent: the server's own Go runtime over this
 	// tier - how much heap was reachable and how much CPU the collector took.
@@ -238,6 +249,39 @@ func (c Config) resourceSampleEvery() time.Duration {
 		return resourceSampleEvery
 	}
 	return c.ResourceSampleEvery
+}
+
+// baselineFor is how long the idle server is watched before the first viewer.
+// A test that shrinks the sampling cadence gets a baseline of a few samples
+// at that cadence rather than five real seconds.
+func (c Config) baselineFor() time.Duration {
+	switch {
+	case c.BaselineFor < 0:
+		return 0
+	case c.BaselineFor > 0:
+		return c.BaselineFor
+	case c.ResourceSampleEvery > 0:
+		return 5 * c.ResourceSampleEvery
+	}
+	// A shrunk hold or ramp cadence (a test) shrinks the baseline with it: five
+	// real seconds in front of a hold of a few hundred milliseconds would be
+	// the whole run.
+	out := baselineFor
+	for _, d := range []time.Duration{c.RampEvery, c.FastHold, c.MeasureHold} {
+		if d > 0 && d < out {
+			out = d
+		}
+	}
+	return out
+}
+
+// evictEvery is the cold-cache re-eviction cadence: coldCacheEvictEvery, or
+// twice a shrunk sampling cadence under test.
+func (c Config) evictEvery() time.Duration {
+	if c.ResourceSampleEvery > 0 {
+		return 2 * c.ResourceSampleEvery
+	}
+	return coldCacheEvictEvery
 }
 
 func (c Config) harnessProfileFor() time.Duration {
@@ -411,13 +455,37 @@ type Report struct {
 	// same host legitimately land on different numbers purely by codec draw.
 	SourceMix []SourceMixEntry
 
-	// Endpoint is the origin the viewers actually hit: the reverse proxy when it
-	// was reachable (real delivery path, TLS and all), the server's own loopback
-	// otherwise. Two runs are not comparable across different endpoints.
+	// Endpoint is the origin the viewers actually hit: the server's own
+	// loopback by default, the reverse proxy when the run asked for it and it
+	// answered. Two runs are not comparable across different endpoints.
 	Endpoint string
 	// ViaProxy is true when Endpoint was the reverse proxy rather than the
 	// server's loopback.
 	ViaProxy bool
+	// Seed is the title draw's seed: passing it back replays the same draw.
+	Seed uint64
+
+	// DiskDevices is the mapping the run resolved at its start: which block
+	// device each library location (a branch, a mount) is read from. Device
+	// letters rotate at reboot; the mapping is what makes the disk lines below
+	// readable later. DiskReadMeasured is false when no device could be tied to
+	// the library - the disk figures are then absent, not zero.
+	DiskDevices      []DeviceMapping
+	DiskReadMeasured bool
+	// AppReadMeasured is false when nothing counts, in-process, the bytes the
+	// packager read: the app-read figures are then absent.
+	AppReadMeasured bool
+
+	// Windows is every hold the run made, in order, broken ones included: the
+	// climb as it happened, one row per window. A tier measured twice is two
+	// rows. Tiers below keeps one row per measured tier for the summary.
+	Windows []TierWindow
+	// DiskVerdict judges the busiest disk of the hold the stop is read on: the
+	// lowest tier that broke when one did, else the sustained tier.
+	DiskVerdict DiskVerdict
+	// BreakReason / BreakDetail name what broke BreakViewers, when a tier did.
+	BreakReason StopReason
+	BreakDetail string
 
 	// DiskReadBytesPerSecCeiling is how fast this box can READ its media - every
 	// disk the library spans, read at once. This is the number that decides a
@@ -534,9 +602,10 @@ type Report struct {
 	BreakViewers   int
 	BreakResources ResourceStats
 	// ResourceBaseline is what the server consumed BEFORE the first viewer
-	// joined. An operator reads the per-viewer cost against this floor, not
-	// against zero.
-	ResourceBaseline ResourceSample
+	// joined, averaged over the baseline window. An operator reads the
+	// per-viewer cost against this floor, and the disk verdict reads each
+	// device's wait against its wait at rest here.
+	ResourceBaseline ResourceStats
 	// PerViewerCost is what ONE more viewer costs in steady state, measured
 	// as the slope across tiers rather than a naive total/viewers (which
 	// would charge the idle server's own consumption to the viewers).

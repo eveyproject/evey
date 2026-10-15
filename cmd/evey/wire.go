@@ -921,6 +921,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	loadTestRunner.WithPlaybackSignal(func() func() { return playbackActivity.Begin("loadtest") })
 	// The run logs what it cost the packager in window reads, rebuilds apart.
 	loadTestRunner.WithWindowStats(infra.onDemandPackager.WindowStats)
+	// The bytes the packager read from its sources, counted in-process: the
+	// "app read" figure /proc/self/io would give if the server could read it
+	// (it is non-dumpable). The key is filled once mkvgo exposes the counter;
+	// until then the report says the figure was not measured.
+	loadTestRunner.WithAppReadCounter(func() int64 { return infra.onDemandPackager.WindowStats()["source_read_bytes"] })
 	// A "clients:history" run plays the mix of the last 30 days' playbacks.
 	loadTestRunner.WithClientHistory(func(ctx context.Context) (map[apploadtest.PlaybackDevice]int, error) {
 		counts, err := r.PlaySessionStats.CountByDeviceSince(ctx, time.Now().Add(-30*24*time.Hour))
