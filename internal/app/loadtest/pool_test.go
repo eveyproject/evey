@@ -115,7 +115,7 @@ func TestRepresentativeDrawOnDisks_KeepsEachDiskToItsShare(t *testing.T) {
 		diskOf[c.ID] = disks[i]
 	}
 	for _, seed := range []uint64{1, 2, 3, 42} {
-		out, mix, _ := representativeDrawOnDisks(in, disks, seed)
+		out, mix, _, _ := representativeDrawOnDisks(in, disks, seed)
 		if len(out) != len(in) || mix["q4"] != 25 {
 			t.Fatalf("seed %d: %d titles, q4=%d; want %d and 25", seed, len(out), mix["q4"], len(in))
 		}
@@ -132,7 +132,7 @@ func TestRepresentativeDrawOnDisks_KeepsEachDiskToItsShare(t *testing.T) {
 		}
 	}
 	// No disk known: the plain bitrate draw, unchanged.
-	a, _, _ := representativeDrawOnDisks(in, nil, 9)
+	a, _, _, _ := representativeDrawOnDisks(in, nil, 9)
 	b, _, _ := representativeDraw(in, 9)
 	for i := range a {
 		if a[i].ID != b[i].ID {

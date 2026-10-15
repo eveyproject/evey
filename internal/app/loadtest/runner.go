@@ -90,6 +90,11 @@ type Runner struct {
 	// appReadBytes counts, in-process, the bytes the packager has read from its
 	// sources so far (see WithAppReadCounter). nil: not measured.
 	appReadBytes func() int64
+	// dropPlans forgets the packager's plans for these sources (see
+	// WithPlanDrop); forgetPlayback clears the "someone is watching" signal
+	// for these media (see WithPlaybackForget). nil: not wired.
+	dropPlans      func(paths []string)
+	forgetPlayback func(mediaIDs []string)
 
 	// evictFile drops one file from the OS page cache (cold-cache mode). The
 	// real one is posix_fadvise; tests record the calls instead.
@@ -191,6 +196,24 @@ func (r *Runner) WithWindowStats(read func() map[string]int64) *Runner {
 // report says the figure was not measured rather than printing a zero.
 func (r *Runner) WithAppReadCounter(read func() int64) *Runner {
 	r.appReadBytes = read
+	return r
+}
+
+// WithPlanDrop lets the run forget the packager plans its own eligibility
+// check built, so the first viewer of each title pays the plan build as a real
+// first play does.
+func (r *Runner) WithPlanDrop(drop func(paths []string)) *Runner {
+	r.dropPlans = drop
+	return r
+}
+
+// WithPlaybackForget lets the run clear, at its end, the playback activity its
+// simulated viewers raised. The server keeps a title "being watched" for a
+// minute after its last request; without the purge the next run (or a
+// background job waiting for the server to go quiet) saw the run's own ghosts
+// for that minute and refused to start.
+func (r *Runner) WithPlaybackForget(forget func(mediaIDs []string)) *Runner {
+	r.forgetPlayback = forget
 	return r
 }
 
@@ -389,6 +412,11 @@ func (r *Runner) finish(report Report) {
 		// log line that doesn't say which one this was invites comparing them.
 		"cold_cache", report.ColdCache,
 		"seed", report.Seed,
+		"range_low", report.RangeLow,
+		"range_high", report.RangeHigh,
+		"limiter", report.Limiter,
+		"limiter_location", report.LimiterLocation,
+		"advice", report.Advice,
 		"endpoint", report.Endpoint,
 		"via_proxy", report.ViaProxy,
 		"skipped_candidates", report.SkippedCandidates,
@@ -534,6 +562,24 @@ func (r *Runner) finish(report Report) {
 			"go_gc_cpu_pct", int(t.GoGCCPUPercent),
 			"samples", t.Samples,
 		)
+	}
+	// The grid the answer was read from: each size, its windows and passes.
+	for _, g := range report.Grid {
+		r.logger.Info("loadtest: grid",
+			"viewers", g.Viewers, "windows", g.Windows, "passed", g.Passed, "held", g.Held, "reason", string(g.Reason),
+			"cpu_pct", int(g.Resources.CPUPercentAvg), "process_rss_mb", g.Resources.ProcessRSSBytesAvg/(1<<20),
+			"disk_read_mbps", g.Resources.DiskReadBytesPerSecAvg*8/1e6, "served_mbps", g.Resources.ServedBytesPerSecAvg*8/1e6)
+	}
+	// Who the retained audience was, by disk and bitrate quarter.
+	if len(report.Strata) > 0 {
+		args := []any{"viewers", report.SustainedViewers}
+		for _, st := range report.StrataByDisk {
+			args = append(args, "disk:"+st.Stratum, st.Viewers)
+		}
+		for _, st := range report.StrataByBand {
+			args = append(args, "band:"+st.Stratum, st.Viewers)
+		}
+		r.logger.Info("loadtest: retained audience", args...)
 	}
 	// Every hold, broken ones included, with the p95 the verdict read: the
 	// climb as it happened, which the per-tier table above summarises.

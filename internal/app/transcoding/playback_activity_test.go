@@ -248,3 +248,22 @@ func TestPlaybackActivity_NilIsZero(t *testing.T) {
 		t.Fatalf("nil tracker must report 0, got %d", got)
 	}
 }
+
+// Forget drops settled media at once, and keeps a media whose request is still
+// in flight: someone is reading it right now.
+func TestPlaybackActivity_ForgetDropsSettledMediaOnly(t *testing.T) {
+	a := NewPlaybackActivity(time.Minute)
+	a.Touch("ondemand")
+	release := a.Begin("direct")
+	defer release()
+	a.Touch("other")
+	if n := a.ActiveSessionCount(); n != 3 {
+		t.Fatalf("active = %d, want 3", n)
+	}
+	a.Forget("ondemand", "direct", "never-seen")
+	if n := a.ActiveSessionCount(); n != 2 {
+		t.Fatalf("active after Forget = %d, want 2 (the in-flight read and the untouched media stay)", n)
+	}
+	var nilA *PlaybackActivity
+	nilA.Forget("x")
+}

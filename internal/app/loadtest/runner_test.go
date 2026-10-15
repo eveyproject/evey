@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"net/http/httptest"
 	"strconv"
 	"strings"
@@ -22,7 +23,7 @@ import (
 
 type fakeMediaLister struct{ candidates []MediaCandidate }
 
-func (f fakeMediaLister) ListLoadTestCandidates(_ context.Context, limit int) ([]MediaCandidate, error) {
+func (f fakeMediaLister) ListLoadTestCandidates(_ context.Context, limit int, _ uint64) ([]MediaCandidate, error) {
 	if limit > 0 && limit < len(f.candidates) {
 		return f.candidates[:limit], nil
 	}
@@ -39,7 +40,12 @@ func manyCandidates(n int) []MediaCandidate {
 
 func zeroActive() int { return 0 }
 
+// testLogger discards the run's logs; LT_DEBUG=1 prints them, to trace a
+// climb that does not end where a test expects.
 func testLogger() *slog.Logger {
+	if os.Getenv("LT_DEBUG") != "" {
+		return slog.New(slog.NewTextHandler(os.Stderr, nil))
+	}
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
@@ -325,6 +331,16 @@ func mediaIDFromPath(path string) string {
 
 func (s *serverState) handler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// The run's eligibility check asks every candidate's master before the
+		// draw: answered like a master (served-by included), but it is not a
+		// viewer, so it is neither recorded nor counted as a master hit.
+		if r.Header.Get(headerLoadTest) == loadTestEligibilityProbe {
+			if s.servedBy(mediaIDFromPath(r.URL.Path), "master", -1) {
+				w.Header().Set(headerServedBy, servedByMkvgo)
+			}
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		s.record(r)
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/master.m3u8"):
@@ -518,7 +534,7 @@ func TestRunner_AdmissionFullStopsRampAtSustainedTier(t *testing.T) {
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
+		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -551,7 +567,7 @@ func TestRunner_SLOBreachStopsAtPriorTier(t *testing.T) {
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 8, RampEvery: 700 * time.Millisecond, FastHold: 700 * time.Millisecond, MeasureHold: 1200 * time.Millisecond, MaxDuration: 30 * time.Second,
+		MaxViewers: 8, RampEvery: 700 * time.Millisecond, FastHold: 700 * time.Millisecond, MeasureHold: 1200 * time.Millisecond, GridWindows: 2, MaxDuration: 30 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -611,7 +627,7 @@ func TestRunner_AHerdOfRestartingViewersIsNotAStartupVerdict(t *testing.T) {
 	for slot := 1; slot <= 21+startupMinSamples; slot++ {
 		ramp.cancelBySlot[slot] = func() {}
 	}
-	cl := &climb{phase: phaseBisect, target: 21}
+	cl := &climb{phase: phaseGrid, target: 21}
 	res := newResourceState(0, time.Now().Add(-time.Minute))
 	events := make(chan viewerEvent, 8)
 	var wg sync.WaitGroup
@@ -678,7 +694,7 @@ func TestRunner_ColdCacheKeepsEvictingTheLibrary(t *testing.T) {
 	}
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, ColdCache: true,
-		MaxViewers: 3, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond,
+		MaxViewers: 3, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2,
 		MaxDuration: 10 * time.Second, ResourceSampleEvery: 50 * time.Millisecond,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
@@ -715,7 +731,7 @@ func TestRunner_WarmCacheRunNeverEvicts(t *testing.T) {
 	r.evictFile = func(string) error { evictions++; return nil }
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 2, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 2, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -740,7 +756,7 @@ func TestRunner_ShortLibraryDoesNotStopTheRamp(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -808,7 +824,7 @@ func TestRunner_TranscodeScenarioForksBeyondLibrary(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioTranscode,
-		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 3 * time.Second,
+		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 3 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -838,8 +854,10 @@ func TestRunner_TranscodeScenarioForksBeyondLibrary(t *testing.T) {
 		}
 	}
 	st.mu.Unlock()
-	if forked != 2 {
-		t.Fatalf("master fetches carrying audioOffsetMs = %d, want 2", forked)
+	// Two of four viewers replay a title; the grid's newcomers replay too, so
+	// at least two masters carry the fork.
+	if forked < 2 {
+		t.Fatalf("master fetches carrying audioOffsetMs = %d, want at least 2", forked)
 	}
 }
 
@@ -851,7 +869,7 @@ func TestRunner_CancelStopsAndReportsPartial(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(20)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 20, RampEvery: 60 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 10 * time.Second,
+		MaxViewers: 20, RampEvery: 60 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 10 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -889,7 +907,7 @@ func TestRunner_TokenExpiredStopsImmediately(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "expired", Scenario: ScenarioNatural,
-		MaxViewers: 3, RampEvery: 50 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 2 * time.Second,
+		MaxViewers: 3, RampEvery: 50 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 2 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -923,7 +941,7 @@ func TestRunner_StartRefusesWhenAlreadyRunning(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 5, RampEvery: 500 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 500 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("first Start: %v", err)
@@ -945,7 +963,7 @@ func TestRunner_PacesSegmentFetchesInRealTime(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 1, RampEvery: 5 * time.Second, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 2 * time.Second,
+		MaxViewers: 1, RampEvery: 5 * time.Second, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 2 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1010,7 +1028,7 @@ func TestRunner_SLOBudgetIsPerViewerType(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
-		MaxViewers: 6, RampEvery: 400 * time.Millisecond, FastHold: time.Second, MeasureHold: 2 * time.Second, MaxDuration: 30 * time.Second,
+		MaxViewers: 6, RampEvery: 400 * time.Millisecond, FastHold: time.Second, MeasureHold: 2 * time.Second, GridWindows: 2, MaxDuration: 30 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1055,7 +1073,7 @@ func TestRunner_MkvgoSkipsIneligibleCandidateAndKeepsClimbing(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(3)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1086,7 +1104,7 @@ func TestRunner_ReusedTitleStartsAtADistinctPosition(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 3, RampEvery: 60 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 3, RampEvery: 60 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1128,7 +1146,7 @@ func TestRunner_MkvgoFirstSegmentWithoutHeaderCountsAsFailure(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 1, RampEvery: 5 * time.Second, FastHold: 600 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 1, RampEvery: 5 * time.Second, FastHold: 600 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1159,7 +1177,7 @@ func TestRunner_LogsFinalReport(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, logger)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 2, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 3 * time.Second,
+		MaxViewers: 2, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 3 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1217,7 +1235,7 @@ func TestRunner_BalancedMixAlternatesTypes(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
-		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 4 * time.Second,
+		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 4 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1234,9 +1252,12 @@ func TestRunner_BalancedMixAlternatesTypes(t *testing.T) {
 		t.Fatalf("viewer mix = %v, want mkvgo=3 transcode=3", report.ViewerMix)
 	}
 
+	// Each new grid window replaces a few viewers by newcomers of the same
+	// rank, so both types keep fetching masters - and only ever as many
+	// distinct ranks as the mix gives each.
 	mkvgoHits, transcodeHits := countMasterHitsByType(st)
-	if mkvgoHits != 3 || transcodeHits != 3 {
-		t.Fatalf("master hits by type = (mkvgo=%d, transcode=%d), want (3,3)", mkvgoHits, transcodeHits)
+	if mkvgoHits < 3 || transcodeHits < 3 {
+		t.Fatalf("master hits by type = (mkvgo=%d, transcode=%d), want at least (3,3)", mkvgoHits, transcodeHits)
 	}
 }
 
@@ -1248,7 +1269,7 @@ func TestRunner_LightMixIsMostlyMkvgo(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(10)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioLight,
-		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 4 * time.Second,
+		MaxViewers: 5, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 4 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1281,7 +1302,7 @@ func TestRunner_HeavyMixAdmissionFullOnTranscodePool(t *testing.T) {
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioHeavy,
-		MaxViewers: 8, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
+		MaxViewers: 8, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1333,7 +1354,7 @@ func TestRunner_ShrinkWithoutRebuildReapsIdleMediaOnly(t *testing.T) {
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural,
-		MaxViewers: 8, RampEvery: 700 * time.Millisecond, FastHold: 700 * time.Millisecond, MeasureHold: 1200 * time.Millisecond, MaxDuration: 30 * time.Second,
+		MaxViewers: 8, RampEvery: 700 * time.Millisecond, FastHold: 700 * time.Millisecond, MeasureHold: 1200 * time.Millisecond, GridWindows: 2, MaxDuration: 30 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1370,7 +1391,7 @@ func TestRunner_BisectionReapsLeftoverSessionsBetweenTiers(t *testing.T) {
 		WithSessionReaper(reap)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioBalanced,
-		MaxViewers: 8, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
+		MaxViewers: 8, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1441,7 +1462,7 @@ func TestRunner_PinnedScenario_OneTranscodeThenMkvgo(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(6)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: "mkvgo+1",
-		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 3 * time.Second,
+		MaxViewers: 4, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 3 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1517,7 +1538,7 @@ func TestRunner_FlashDoesNotStopOnAdmissionRefusalsAndCountsSurvivors(t *testing
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
-		MaxViewers: 5, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	start := time.Now()
 	if err := r.Start(context.Background(), cfg); err != nil {
@@ -1555,7 +1576,7 @@ func TestRunner_FlashLaunchesAllViewersInSameWindow(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(5)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
-		MaxViewers: 5, RampEvery: 300 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 300 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1615,7 +1636,7 @@ func TestRunner_FlashPlusMkvgoStillRequiresTheHeader(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(1)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo, Mode: ModeFlash,
-		MaxViewers: 1, RampEvery: 30 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
+		MaxViewers: 1, RampEvery: 30 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1748,7 +1769,7 @@ func TestRunner_SeekModeVerdictsUnchanged(t *testing.T) {
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeSeek,
-		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
+		MaxViewers: 6, RampEvery: 40 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1776,7 +1797,7 @@ func TestRunner_EnduranceHoldsPlateauThenCompletes(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeEndurance,
-		MaxViewers: 2, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 1500 * time.Millisecond,
+		MaxViewers: 2, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 1500 * time.Millisecond,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1813,7 +1834,7 @@ func TestRunner_EnduranceSLOBreachDuringHoldStillStops(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(4)}, zeroActive, testLogger())
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeEndurance,
-		MaxViewers: 2, RampEvery: 80 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 2, RampEvery: 80 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1861,20 +1882,22 @@ func TestRunner_SlowStartupIsACapacityVerdict(t *testing.T) {
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 
-	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(12)}, zeroActive, testLogger())
+	// Enough titles that every newcomer of the grid's churn starts a fresh one
+	// at its first segment - the one this server makes crawl.
+	r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(120)}, zeroActive, testLogger())
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
 		// The holds must outlast the slow startup they are meant to catch: a tier
 		// judged before its newcomers have even received a first frame would be
 		// declared healthy on no evidence.
-		MaxViewers: 10, FastHold: 8 * time.Second, MeasureHold: 10 * time.Second, MaxDuration: 90 * time.Second,
+		MaxViewers: 10, FastHold: 5 * time.Second, MeasureHold: 5 * time.Second, GridWindows: 3, MaxDuration: 120 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
 
-	report := waitForReport(t, r, 90*time.Second)
+	report := waitForReport(t, r, 120*time.Second)
 	if report.StopReason != StopStartupTooSlow {
 		t.Fatalf("stop reason = %s, want %s (detail=%q): a newcomer waiting seconds for its first frame is a full server", report.StopReason, StopStartupTooSlow, report.StopDetail)
 	}
@@ -1904,7 +1927,7 @@ func TestRunner_AnyServiceUnavailableIsACapacityAnswer(t *testing.T) {
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 8, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 20 * time.Second,
+		MaxViewers: 8, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 20 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1939,7 +1962,7 @@ func TestRunner_ServerThatStopsAnsweringIsSaturatedNotBroken(t *testing.T) {
 	aud.bind(r)
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 8, FastHold: 400 * time.Millisecond, MeasureHold: 800 * time.Millisecond, MaxDuration: 30 * time.Second,
+		MaxViewers: 8, FastHold: 400 * time.Millisecond, MeasureHold: 800 * time.Millisecond, GridWindows: 2, MaxDuration: 30 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -2048,7 +2071,7 @@ func TestRunner_FlashReapsRefusedViewersMidWindow(t *testing.T) {
 		})
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioNatural, Mode: ModeFlash,
-		MaxViewers: 5, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, MaxDuration: 5 * time.Second,
+		MaxViewers: 5, RampEvery: 100 * time.Millisecond, FastHold: 300 * time.Millisecond, MeasureHold: 600 * time.Millisecond, GridWindows: 2, MaxDuration: 5 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -2105,7 +2128,7 @@ func TestRunner_HoldsThePlaybackSignalForTheWholeRun(t *testing.T) {
 	})
 	cfg := Config{
 		BaseURL: srv.URL, Token: "tkn", Scenario: ScenarioMkvgo,
-		MaxViewers: 2, RampEvery: 50 * time.Millisecond, FastHold: 100 * time.Millisecond, MeasureHold: 200 * time.Millisecond, MaxDuration: 10 * time.Second,
+		MaxViewers: 2, RampEvery: 50 * time.Millisecond, FastHold: 100 * time.Millisecond, MeasureHold: 200 * time.Millisecond, GridWindows: 2, MaxDuration: 10 * time.Second,
 	}
 	if err := r.Start(context.Background(), cfg); err != nil {
 		t.Fatalf("Start: %v", err)

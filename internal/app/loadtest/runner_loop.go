@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"sort"
 	"context"
 	"errors"
 	"fmt"
@@ -18,6 +19,16 @@ import (
 // so none of that state needs its own lock.
 func (r *Runner) run(runCtx context.Context, cfg Config) {
 	startedAt := time.Now()
+	// The "someone is watching" signal the run and its viewers raised is
+	// cleared on the way out, AFTER the run's own signal is released (defers
+	// run last-registered first): left alone it counted the run's ghosts for
+	// a minute and refused the next run.
+	var purgePool *candidatePool
+	defer func() {
+		if purgePool != nil {
+			r.purgeRunActivity(purgePool)
+		}
+	}()
 	if r.holdPlayback != nil {
 		defer r.holdPlayback()()
 	}
@@ -48,10 +59,17 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		"via_proxy", viaProxy,
 	)
 
+	// The seed decides EVERYTHING the run draws: which slice of the library the
+	// candidates are, and their order. A seed that only ordered a list drawn
+	// at random elsewhere replayed nothing (2026-10-15: two runs "with the
+	// same seed" played different titles).
+	seed := cfg.Seed
+	if seed == 0 {
+		seed = uint64(time.Now().UnixNano()) //nolint:gosec // a shuffle seed, not a secret
+	}
 	// Ask for far more titles than viewers. The pool multiplies them by start
-	// position anyway, and a generous list is what lets an ineligible title be
-	// skipped without costing a viewer.
-	candidates, err := r.media.ListLoadTestCandidates(runCtx, candidatePoolSize)
+	// position anyway.
+	candidates, err := r.media.ListLoadTestCandidates(runCtx, candidatePoolSize, seed)
 	if err != nil {
 		r.finish(Report{
 			Scenario: cfg.Scenario, Mode: cfg.Mode, StopReason: StopError,
@@ -68,12 +86,6 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		})
 		return
 	}
-	// Titles are drawn at random, like an audience's choices: each disk of the
-	// library then carries its share of them, whatever the storage is made of.
-	seed := cfg.Seed
-	if seed == 0 {
-		seed = uint64(time.Now().UnixNano()) //nolint:gosec // a shuffle seed, not a secret
-	}
 	// Each viewer type draws on its own: a direct viewer by bitrate (what it
 	// pulls off the disk and the line), an encoded one by codec, height and
 	// dynamic range (what it costs the encoder).
@@ -83,20 +95,42 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	if storageOpaque {
 		branchOf = mergerfsBranchOf
 	}
-	drawn, mix, floors := representativeDrawOnDisks(candidates, diskKeys(candidates, branchOf), seed)
+	// The titles the server will not package for an mkvgo viewer are known
+	// before anything is drawn: retiring them mid-run replaced each one with a
+	// title from another disk and skewed the audience (75 to 83 per run).
+	direct := candidates
+	if scenarioUsesMkvgo(cfg.Scenario) {
+		direct = r.mkvgoEligible(runCtx, cfg, candidates)
+		if len(direct) == 0 {
+			r.finish(Report{
+				Scenario: cfg.Scenario, Mode: cfg.Mode, StopReason: StopLibraryLimit,
+				StopDetail: fmt.Sprintf("no mkvgo-eligible title among %d candidates", len(candidates)),
+				StartedAt:  startedAt, EndedAt: time.Now(), Seed: seed, SkippedCandidates: len(candidates),
+			})
+			return
+		}
+	}
+	// Strata = disk x bitrate quarter: every audience size holds each disk's
+	// share of the eligible titles in every quarter, as the library does.
+	drawn, mix, floors, drawnClasses := representativeDrawOnDisks(direct, diskKeys(direct, branchOf), seed)
 	floorsMbps := make([]float64, len(floors))
 	for i, f := range floors {
 		floorsMbps[i] = float64(f/100_000) / 10
 	}
 	r.logger.Info("loadtest: title draw", "seed", seed, "titles", len(candidates),
 		"band_floors_mbps", floorsMbps, "q1", mix["q1"], "q2", mix["q2"], "q3", mix["q3"], "q4", mix["q4"], "unknown", mix["unknown"])
-	encoded, costMix := costDraw(candidates, seed+1)
+	r.logStrataShares(drawnClasses)
+	encoded, costMix, encodedClasses := costDraw(candidates, seed+1)
 	r.logger.Info("loadtest: title draw for encoded viewers", "seed", seed+1, "classes", costMix)
-	pool := newLanedPool(candidates, map[viewerType][]MediaCandidate{
-		viewerTypeMkvgo:     drawn,
-		viewerTypeNatural:   drawn,
-		viewerTypeTranscode: encoded,
+	// The natural lane plays every candidate (the server decides each path);
+	// its strata are drawn over the whole list.
+	natural, _, _, naturalClasses := representativeDrawOnDisks(candidates, diskKeys(candidates, branchOf), seed)
+	pool := newLanedPool(candidates, map[viewerType]drawnLane{
+		viewerTypeMkvgo:     {titles: drawn, classes: drawnClasses},
+		viewerTypeNatural:   {titles: natural, classes: naturalClasses},
+		viewerTypeTranscode: {titles: encoded, classes: encodedClasses},
 	}, cfg.MaxDuration)
+	purgePool = pool
 
 	if storageOpaque {
 		r.logger.Warn("loadtest: the library sits on a mount this kernel cannot see through - cache eviction stops at the mount, the disks behind it are found by reading them",
@@ -205,6 +239,12 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		cancelBySlot:     map[int]context.CancelFunc{},
 		roundBySlot:      map[int]int{},
 		replayedByTier:   map[int]int{},
+		stratumBySlot:    map[int]string{},
+		// Titles the eligibility check kept out count as skipped, as they did
+		// when they were retired mid-run.
+		skippedCandidates: len(candidates) - len(direct),
+		strataByTier:     map[int][]StratumShare{},
+		pool:             pool,
 		herdBySlot:       map[int]bool{},
 		audienceIntact:   true,
 	}
@@ -224,6 +264,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		// A run that never starts an encoder needs a far shorter measurement
 		// window: there is no ffmpeg cold start to wait out.
 		spawnsEncoders: scenarioSpawnsEncoders(cfg.Scenario),
+		windows:        cfg.GridWindows,
 	}
 	// Tests shrink the holds; the warm-up must shrink with them, or a 50ms hold
 	// with a 15s warm-up would discard every sample it ever took.
@@ -373,6 +414,11 @@ runLoop:
 			// cancelled during its very first tier has proven nothing yet - it
 			// would report zero viewers while several were happily watching.
 			stopReason, stopDetail, sustained = r.cancelVerdict(runCtx, isEndurance, ramp.tier, cfg)
+			// A run cut short inside the grid already measured sizes: the
+			// answer is the largest one that held, not whatever was streaming.
+			if cl.phase == phaseGrid && cl.lo > 0 && !isEndurance {
+				sustained = cl.lo
+			}
 			break runLoop
 
 		case <-resTicker.C:
@@ -421,10 +467,15 @@ runLoop:
 			if enduranceHold {
 				// Parked on the plateau. Nothing new joins; the run is now
 				// watching for a slow drift, and a break here IS the finding.
+				r.judgeWindowLatency(cl, slo, &samples, res)
 				if cl.broke != "" {
+					res.closeWindow(time.Now(), cl.broke, cl.detail)
 					stopReason, stopDetail, sustained = cl.broke, cl.detail, cl.lo
 					break runLoop
 				}
+				res.closeWindow(time.Now(), "", "")
+				res.nextWindow(ramp.tier, time.Now(), "holding")
+				slo.startTier()
 				holdTimer.Reset(cl.holdFor())
 				continue
 			}
@@ -443,6 +494,14 @@ runLoop:
 				continue
 			}
 
+			// A grid window is judged on ALL of its segments at once: the p95 of
+			// the window's fetches, scaled to the reference segment, against the
+			// budget. A rolling twenty-fetch p95 flips on a handful of slow
+			// segments, and one flip used to condemn the whole size.
+			if cl.phase == phaseGrid {
+				r.judgeWindowLatency(cl, slo, &samples, res)
+			}
+
 			// A tier that pushed no more bytes than a smaller one already did has
 			// found the storage ceiling: the viewers are there, the server just
 			// can't feed them any faster.
@@ -452,9 +511,7 @@ runLoop:
 			}
 
 			if cl.broke != "" {
-				r.logger.Info("loadtest: tier broke", "phase", cl.phase.String(), "viewers", ramp.tier, "reason", string(cl.broke), "detail", cl.detail,
-					// false: the first window to break; true: the second, which makes it a verdict.
-					"second_window", cl.retried)
+				r.logger.Info("loadtest: tier broke", "phase", cl.phase.String(), "viewers", ramp.tier, "reason", string(cl.broke), "detail", cl.detail)
 			}
 			// This hold is over, with its verdict: one row of the report.
 			res.closeWindow(time.Now(), cl.broke, cl.detail)
@@ -477,6 +534,27 @@ runLoop:
 				}
 				stopReason, stopDetail, sustained = reason, detail, cl.lo
 				break runLoop
+			}
+			if cl.sameTier {
+				// Another window of the same audience size: refill any viewer
+				// the server dropped (a respawn joins like a real newcomer) and
+				// judge the new window on its own fetches. No warm-up: the
+				// audience is already in its regime.
+				// The oldest few viewers leave and newcomers take their
+				// place: the window then also measures how long a newcomer
+				// waits at this audience size (see gridChurn).
+				r.shedOldest(&ramp, gridChurn(cl.target))
+				r.reapIdleSessions(pool, &ramp)
+				if ok, d := r.resizeTo(cl.target, viewerCtx, cfg, pool, events, &wg, &ramp); !ok {
+					stopReason, stopDetail, sustained = StopLibraryLimit, d, cl.lo
+					break runLoop
+				}
+				ramp.audienceIntact = true
+				slo.startTier()
+				res.nextWindow(ramp.tier, time.Now(), cl.phase.String())
+				r.logStrata(&ramp, pool)
+				holdTimer.Reset(cl.holdFor())
+				continue
 			}
 			// Move the audience to the new target by ADDING or REMOVING the
 			// difference. Rebuilding it wholesale every time - which is what this
@@ -538,7 +616,9 @@ runLoop:
 			// ever spawned.
 			ramp.replayedByTier[ramp.tier] = ramp.replayedInAudience()
 			ramp.branchesByTier[ramp.tier] = ramp.liveBranchShares(pool.branches)
+			ramp.strataByTier[ramp.tier] = ramp.liveStrata()
 			r.logger.Info("loadtest tier", "phase", cl.phase.String(), "viewers", ramp.tier, "lo", cl.lo, "hi", cl.hi)
+			r.logStrata(&ramp, pool)
 			r.setStatus(cl.phase.String(), ramp.tier)
 			holdTimer.Reset(cl.holdFor())
 		}
@@ -604,6 +684,23 @@ runLoop:
 	if breakViewers > 0 {
 		verdictRes = breakRes
 	}
+	diskV := diskVerdict(verdictRes, baseline)
+	var grid []GridTier
+	rangeLow, rangeHigh := sustained, sustained
+	if !isFlash && cl.phase == phaseGrid {
+		grid = cl.gridReport()
+		for i := range grid {
+			g := res.stats(grid[i].Viewers)
+			g.CPUPercentAvg *= serverShare
+			g.CPUPercentPeak *= serverShare
+			grid[i].Resources = g
+		}
+		rangeLow, rangeHigh = cl.gridRange()
+		rangeLow, rangeHigh = min(rangeLow, sustained), max(rangeHigh, sustained)
+	}
+	limiter, limiterLocation, advice := limiterOf(stopReason, stopDetail, verdictRes, diskV, viaProxy, devices)
+	strata := ramp.strataByTier[sampleTier]
+	strataDisk, strataBand := strataSummary(strata)
 
 	r.finish(Report{
 		Scenario:                   cfg.Scenario,
@@ -627,7 +724,16 @@ runLoop:
 		DiskReadMeasured:           len(mappedDevices(devices)) > 0,
 		AppReadMeasured:            sustainedRes.AppReadMeasured,
 		Windows:                    res.windowReports(serverShare, samples.windowPercentiles, baseline),
-		DiskVerdict:                diskVerdict(verdictRes, baseline),
+		DiskVerdict:                diskV,
+		Grid:                       grid,
+		RangeLow:                   rangeLow,
+		RangeHigh:                  rangeHigh,
+		Limiter:                    limiter,
+		LimiterLocation:            limiterLocation,
+		Advice:                     advice,
+		Strata:                     strata,
+		StrataByDisk:               strataDisk,
+		StrataByBand:               strataBand,
 		BreakReason:                breakReason,
 		BreakDetail:                breakDetail,
 		ColdCache:                  coldCache,
@@ -663,6 +769,33 @@ runLoop:
 		StartedAt:                     startedAt,
 		EndedAt:                       time.Now(),
 	})
+}
+
+// judgeWindowLatency breaks the current window when the p95 of all its
+// segment fetches, scaled to the reference segment, exceeds the budget. It
+// needs a handful of fetches: fewer is a snapshot.
+func (r *Runner) judgeWindowLatency(cl *climb, slo *sloTracker, samples *sampleState, res *resourceState) {
+	if cl.broke != "" {
+		return
+	}
+	byType := samples.windowScaledByType[res.windowID()]
+	types := make([]string, 0, len(byType))
+	for vt := range byType {
+		types = append(types, string(vt))
+	}
+	sort.Strings(types)
+	for _, name := range types {
+		vt := viewerType(name)
+		scaled := byType[vt]
+		budget := slo.budgetFor(vt)
+		if budget <= 0 || len(scaled) < minSLOSamples {
+			continue
+		}
+		if p95 := percentile(scaled, 95); p95 > budget {
+			cl.tierBroke(StopSLOBreach, fmt.Sprintf("%s viewers: p95 segment fetch %dms exceeds their %dms budget at %d viewers (%d fetches in the window)", vt, p95, budget, cl.target, len(scaled)))
+			return
+		}
+	}
 }
 
 // evictLibrary drops every candidate file from the OS page cache and reports
@@ -786,8 +919,8 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 		}
 		samples.perTypeSegments[ev.vt][ramp.tier] = append(samples.perTypeSegments[ev.vt][ramp.tier], ev.ms)
 		scaled := slo.scaled(ev.ms, ev.segMs)
-		samples.recordSegment(res.windowID(), ev.ms, scaled)
-		if breached, p95, sloMs := slo.observe(ev.vt, scaled); breached {
+		samples.recordSegment(res.windowID(), ev.vt, ev.ms, scaled)
+		if breached, p95, sloMs := slo.observe(ev.vt, scaled); breached && cl.phase == phaseFast {
 			if isFlash {
 				// A flash slam is designed to overload; a global latency
 				// blip doesn't end the measurement, it's one of the reasons

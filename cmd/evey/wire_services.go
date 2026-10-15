@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"crypto/rand"
+	"encoding/binary"
+	mathrand "math/rand/v2"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -358,7 +359,7 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 				IdleConnTimeout:     90 * time.Second,
 			},
 		},
-		loadTestMediaListerFunc(func(ctx context.Context, limit int) ([]apploadtest.MediaCandidate, error) {
+		loadTestMediaListerFunc(func(ctx context.Context, limit int, seed uint64) ([]apploadtest.MediaCandidate, error) {
 			// Over-fetch: rows without a playable file (series, seasons) and
 			// clips too short to pace against are both dropped below, and the
 			// runner wants a deep pool - it reuses a title at a fresh start
@@ -369,7 +370,10 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 			// listing is in title order, and a pool made of whatever sorts first
 			// loads the disks those titles happen to sit on instead of the
 			// library as an audience would.
-			items, err := filmsAndEpisodes(ctx, libQuerySvc.ListMediaItems, limit*3, randomItemID)
+			// The slice of the library starts at a point the run's seed decides:
+			// the same seed lists the same titles (as long as the library has
+			// not changed), which is what makes a run replayable.
+			items, err := filmsAndEpisodes(ctx, libQuerySvc.ListMediaItems, limit*3, seededItemIDs(seed))
 			if err != nil {
 				return nil, err
 			}
@@ -593,15 +597,20 @@ func filmsAndEpisodes(ctx context.Context, list func(context.Context, library.Li
 	return out, nil
 }
 
-// randomItemID is a random point in the id space (media ids are random UUIDs).
-func randomItemID() string {
-	var b [16]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return "" // falls back to a walk from the first id
+// seededItemIDs returns successive points in the id space (media ids are
+// random UUIDs), derived from seed: one per kind of title asked for, the same
+// points for the same seed.
+func seededItemIDs(seed uint64) func() string {
+	gen := mathrand.New(mathrand.NewPCG(seed, seed^0x5851f42d4c957f2d)) //nolint:gosec // a replayable slice of the library, not a secret
+	return func() string {
+		var b [16]byte
+		for i := 0; i < 16; i += 8 {
+			binary.LittleEndian.PutUint64(b[i:], gen.Uint64())
+		}
+		b[6] = b[6]&0x0f | 0x40
+		b[8] = b[8]&0x3f | 0x80
+		return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 	}
-	b[6] = b[6]&0x0f | 0x40
-	b[8] = b[8]&0x3f | 0x80
-	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 // randomLibrarySlice returns up to want items starting just after a random id

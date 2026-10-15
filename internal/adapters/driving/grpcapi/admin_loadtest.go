@@ -181,6 +181,24 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			BreakReason:                   string(r.BreakReason),
 			BreakDetail:                   r.BreakDetail,
 			DiskVerdict:                   loadTestDiskVerdictToProto(r.DiskVerdict),
+			RangeLow:                      int32(r.RangeLow),  //nolint:gosec // a viewer count
+			RangeHigh:                     int32(r.RangeHigh), //nolint:gosec // a viewer count
+			Limiter:                       r.Limiter,
+			LimiterLocation:               r.LimiterLocation,
+			Advice:                        r.Advice,
+			Strata:                        loadTestStrataToProto(r.Strata),
+			StrataByDisk:                  loadTestStrataToProto(r.StrataByDisk),
+			StrataByBand:                  loadTestStrataToProto(r.StrataByBand),
+		}
+		for _, g := range r.Grid {
+			out.LastReport.Grid = append(out.LastReport.Grid, &eveyv1.LoadTestGridTier{
+				Viewers:   int32(g.Viewers), //nolint:gosec // a viewer count
+				Windows:   int32(g.Windows), //nolint:gosec // a window count
+				Passed:    int32(g.Passed),  //nolint:gosec // a window count
+				Held:      g.Held,
+				Reason:    string(g.Reason),
+				Resources: loadTestResourcesToProto(g.Resources),
+			})
 		}
 		for _, m := range r.DiskDevices {
 			out.LastReport.DiskDevices = append(out.LastReport.DiskDevices, &eveyv1.LoadTestDeviceMapping{
@@ -282,6 +300,15 @@ func loadTestResourcesToProto(s apploadtest.ResourceStats) *eveyv1.LoadTestResou
 		GoGcCpuPercentAvg:        s.GoGCCPUPercentAvg,
 		GoGcCpuPercentPeak:       s.GoGCCPUPercentPeak,
 	}
+}
+
+// loadTestStrataToProto carries an audience split.
+func loadTestStrataToProto(in []apploadtest.StratumShare) []*eveyv1.LoadTestStratum {
+	out := make([]*eveyv1.LoadTestStratum, 0, len(in))
+	for _, s := range in {
+		out = append(out, &eveyv1.LoadTestStratum{Stratum: s.Stratum, Viewers: int32(s.Viewers)}) //nolint:gosec // a viewer count
+	}
+	return out
 }
 
 // loadTestDiskVerdictToProto carries a hold's disk verdict; nil when the hold

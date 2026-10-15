@@ -36,6 +36,10 @@ type assignment struct {
 	// decision hash (audioOffsetMs), or it would land in the session an earlier
 	// viewer already owns instead of creating work of its own.
 	round int
+	// stratum is the class the title was drawn in ("<disk>|q3" for a direct
+	// viewer, a cost class for an encoded one). A replay or a replacement stays
+	// in it.
+	stratum string
 }
 
 // minUsableRunway is how much of a title must lie ahead of a replayed viewer
@@ -66,53 +70,133 @@ type candidatePool struct {
 	branches *branchTally
 }
 
-// lane is one queue of assignments with its own position and retired titles.
+// lane hands out one viewer type's assignments, stratum by stratum.
+//
+// Every stratum (disk x bitrate quarter for a direct viewer) keeps its share
+// of the eligible titles at EVERY audience size, not only over the whole run:
+// each new viewer goes to the stratum furthest behind its share in the LIVE
+// audience, and a viewer that leaves (shed by the climb, dropped by the
+// server) frees its stratum's place. A single ordered list did not: the climb
+// sheds the youngest viewers and refills from wherever the list had got to,
+// so after a few resizes the retained audience was whatever the list order
+// left, and a title retired mid-run was replaced by the next one in the list,
+// from another disk (2026-10-15: 49/44/7 % by disk, 75 to 83 titles retired
+// on the way).
 type lane struct {
-	assignments []assignment
-	taken       int
-	// dead titles are never handed out again by this lane. Mkvgo eligibility
-	// is a property of the TITLE (how the server decides to serve it), not of
-	// the start position: a title skipped at one offset will be skipped at
-	// every other, and retrying it - above all when the climb rebuilds its
-	// audience - burns candidates and inflates the skip count for nothing.
+	strata []string
+	queues map[string][]assignment
+	next   map[string]int
+	share  map[string]float64
+	live   map[string]int
+	// dead titles are never handed out again by this lane: eligibility is a
+	// property of the TITLE, not of the start position.
 	dead map[string]bool
 }
 
-// newLane lays out every assignment the run may hand out, breadth first: every
-// title once at the start, THEN every (long enough) title again half-way in,
-// and so on. Titles are spread before they are stacked, so a run only ever
-// reuses a file once it has exhausted the library. The order of the titles is
-// the caller's (see representativeDraw, costDraw).
-func newLane(candidates []MediaCandidate, runDuration time.Duration) *lane {
-	l := &lane{}
-	for round := range startPositions {
-		for _, m := range candidates {
-			if round > 0 && usableFraction(m.DurationSec, runDuration) <= minUsableRunway {
-				// Too short to replay: it would wrap around and re-read bytes
-				// the page cache is already holding.
-				continue
+// newLane lays out every assignment the run may hand out, stratum by stratum
+// and breadth first within each: every title of the stratum once at the start,
+// THEN every long enough title again further in, and so on - a replay stays in
+// its title's stratum. classes[i] is candidates[i]'s stratum; nil puts every
+// title in one. A stratum's share is its count of titles.
+func newLane(candidates []MediaCandidate, classes []string, runDuration time.Duration) *lane {
+	l := &lane{queues: map[string][]assignment{}, next: map[string]int{}, share: map[string]float64{}, live: map[string]int{}}
+	byStratum := map[string][]MediaCandidate{}
+	for i, m := range candidates {
+		k := ""
+		if i < len(classes) {
+			k = classes[i]
+		}
+		if _, ok := byStratum[k]; !ok {
+			l.strata = append(l.strata, k)
+		}
+		byStratum[k] = append(byStratum[k], m)
+	}
+	sort.Strings(l.strata)
+	for _, k := range l.strata {
+		titles := byStratum[k]
+		l.share[k] = float64(len(titles)) / float64(max(len(candidates), 1))
+		for round := range startPositions {
+			for _, m := range titles {
+				if round > 0 && usableFraction(m.DurationSec, runDuration) <= minUsableRunway {
+					// Too short to replay: it would wrap around and re-read bytes
+					// the page cache is already holding.
+					continue
+				}
+				l.queues[k] = append(l.queues[k], assignment{media: m, startFrac: startFracFor(m, round, runDuration), round: round, stratum: k})
 			}
-			l.assignments = append(l.assignments, assignment{
-				media:     m,
-				startFrac: startFracFor(m, round, runDuration),
-				round:     round,
-			})
 		}
 	}
 	return l
 }
 
-// newCandidatePool is a pool whose every viewer type shares one draw.
+// size is how many assignments the lane holds in total.
+func (l *lane) size() int {
+	n := 0
+	for _, q := range l.queues {
+		n += len(q)
+	}
+	return n
+}
+
+// pick chooses the stratum the next viewer goes to: the one furthest behind
+// its share of the live audience, among those with an assignment left. Ties go
+// to the first in name order, so a seed replays its picks.
+func (l *lane) pick() (string, bool) {
+	total := 0
+	for _, n := range l.live {
+		total += n
+	}
+	best, bestDeficit, found := "", 0.0, false
+	for _, k := range l.strata {
+		if !l.hasNext(k) {
+			continue
+		}
+		deficit := l.share[k]*float64(total+1) - float64(l.live[k])
+		if !found || deficit > bestDeficit {
+			best, bestDeficit, found = k, deficit, true
+		}
+	}
+	return best, found
+}
+
+// hasNext reports whether stratum k still has an assignment that is not dead,
+// skipping past dead ones.
+func (l *lane) hasNext(k string) bool {
+	q := l.queues[k]
+	for l.next[k] < len(q) {
+		if !l.dead[q[l.next[k]].media.ID] {
+			return true
+		}
+		l.next[k]++
+	}
+	return false
+}
+
+// release frees a live viewer's place in its stratum.
+func (l *lane) release(stratum string) {
+	if l != nil && l.live[stratum] > 0 {
+		l.live[stratum]--
+	}
+}
+
+// newCandidatePool is a pool whose every viewer type shares one draw, in one
+// stratum.
 func newCandidatePool(candidates []MediaCandidate, runDuration time.Duration) *candidatePool {
-	return &candidatePool{candidates: candidates, def: newLane(candidates, runDuration)}
+	return &candidatePool{candidates: candidates, def: newLane(candidates, nil, runDuration)}
+}
+
+// drawnLane is one viewer type's drawn titles and their strata.
+type drawnLane struct {
+	titles  []MediaCandidate
+	classes []string
 }
 
 // newLanedPool gives each viewer type in byType its own draw; candidates is
 // their union.
-func newLanedPool(candidates []MediaCandidate, byType map[viewerType][]MediaCandidate, runDuration time.Duration) *candidatePool {
+func newLanedPool(candidates []MediaCandidate, byType map[viewerType]drawnLane, runDuration time.Duration) *candidatePool {
 	p := &candidatePool{candidates: candidates, lanes: make(map[viewerType]*lane, len(byType))}
-	for vt, drawn := range byType {
-		p.lanes[vt] = newLane(drawn, runDuration)
+	for vt, d := range byType {
+		p.lanes[vt] = newLane(d.titles, d.classes, runDuration)
 	}
 	return p
 }
@@ -134,8 +218,8 @@ func (p *candidatePool) laneFor(vt viewerType) *lane {
 func (p *candidatePool) capacity() int {
 	n := -1
 	for _, l := range append(slices.Collect(maps.Values(p.lanes)), p.def) {
-		if l != nil && (n < 0 || len(l.assignments) < n) {
-			n = len(l.assignments)
+		if l != nil && (n < 0 || l.size() < n) {
+			n = l.size()
 		}
 	}
 	return max(n, 0)
@@ -144,24 +228,40 @@ func (p *candidatePool) capacity() int {
 // take hands out the next assignment of the shared draw.
 func (p *candidatePool) take() (assignment, bool) { return p.takeFor("") }
 
-// takeFor hands out the next assignment of vt's lane, skipping titles that
-// lane retired.
+// takeFor hands out vt's next assignment, from the stratum furthest behind its
+// share of the live audience.
 func (p *candidatePool) takeFor(vt viewerType) (assignment, bool) {
 	l := p.laneFor(vt)
 	if l == nil {
 		return assignment{}, false
 	}
-	for l.taken < len(l.assignments) {
-		asg := l.assignments[l.taken]
-		l.taken++
-		if l.dead[asg.media.ID] {
-			continue
-		}
-		p.recordServed(asg.media)
-		p.branches.record(asg.media.Path)
-		return asg, true
+	k, ok := l.pick()
+	if !ok {
+		return assignment{}, false
 	}
-	return assignment{}, false
+	asg := l.queues[k][l.next[k]]
+	l.next[k]++
+	l.live[k]++
+	p.recordServed(asg.media)
+	p.branches.record(asg.media.Path)
+	return asg, true
+}
+
+// release gives back a viewer's place in its stratum (shed, dropped, skipped).
+func (p *candidatePool) release(vt viewerType, stratum string) {
+	if p == nil {
+		return
+	}
+	p.laneFor(vt).release(stratum)
+}
+
+// liveStrata is how many live viewers of vt's lane sit in each stratum.
+func (p *candidatePool) liveStrata(vt viewerType) map[string]int {
+	l := p.laneFor(vt)
+	if l == nil {
+		return nil
+	}
+	return maps.Clone(l.live)
 }
 
 // markIneligible retires a title from the shared draw.
@@ -295,7 +395,8 @@ func bitrateBands(candidates []MediaCandidate) (band []string, floors []int64) {
 // of the library. Each slot goes to the band furthest behind its share. It
 // returns the order, each band's count and the band floors in bit/s.
 func representativeDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandidate, map[string]int, []int64) {
-	return representativeDrawOnDisks(candidates, nil, seed)
+	out, counts, floors, _ := representativeDrawOnDisks(candidates, nil, seed)
+	return out, counts, floors
 }
 
 // representativeDrawOnDisks is representativeDraw that also keeps each disk to
@@ -306,7 +407,7 @@ func representativeDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandid
 // the others idled (measured 2026-10-12: sda at 97 %, the others under 12 %).
 // A disk that holds most of the heavy files still carries most of them: the
 // draw follows the library, it cannot spread what the library does not.
-func representativeDrawOnDisks(candidates []MediaCandidate, disks []string, seed uint64) ([]MediaCandidate, map[string]int, []int64) {
+func representativeDrawOnDisks(candidates []MediaCandidate, disks []string, seed uint64) ([]MediaCandidate, map[string]int, []int64, []string) {
 	bands, floors := bitrateBands(candidates)
 	counts := make(map[string]int, 5)
 	classes := make([]string, len(candidates))
@@ -317,8 +418,8 @@ func representativeDrawOnDisks(candidates []MediaCandidate, disks []string, seed
 			classes[i] = disks[i] + "|" + b
 		}
 	}
-	out, _ := stratifiedDraw(candidates, classes, seed)
-	return out, counts, floors
+	out, _, outClasses := stratifiedDrawClasses(candidates, classes, seed)
+	return out, counts, floors, outClasses
 }
 
 // diskKeys names the disk each candidate is read from: its branch on a
@@ -343,12 +444,12 @@ func diskKeys(candidates []MediaCandidate, branchOf func(string) string) []strin
 // viewer costs is the source's codec, height and dynamic range (a 4K HDR10
 // title needs a tone map, a 1080p H.264 one barely a decode), not its bitrate.
 // Each class keeps its share of the library, drawn at random within it.
-func costDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandidate, map[string]int) {
+func costDraw(candidates []MediaCandidate, seed uint64) ([]MediaCandidate, map[string]int, []string) {
 	classes := make([]string, len(candidates))
 	for i, c := range candidates {
 		classes[i] = costClass(c)
 	}
-	return stratifiedDraw(candidates, classes, seed)
+	return stratifiedDrawClasses(candidates, classes, seed)
 }
 
 // costClass names what a title costs to encode, e.g. "hevc 2160p hdr10".
@@ -384,6 +485,13 @@ func heightClass(h int) string {
 // slot goes to the class furthest behind its share. It returns the order and
 // each class's count.
 func stratifiedDraw(candidates []MediaCandidate, classOf []string, seed uint64) ([]MediaCandidate, map[string]int) {
+	out, counts, _ := stratifiedDrawClasses(candidates, classOf, seed)
+	return out, counts
+}
+
+// stratifiedDrawClasses is stratifiedDraw that also returns each drawn title's
+// class, aligned with the order.
+func stratifiedDrawClasses(candidates []MediaCandidate, classOf []string, seed uint64) ([]MediaCandidate, map[string]int, []string) {
 	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)) //nolint:gosec // a replayable draw of titles, not a secret
 	byClass := map[string][]MediaCandidate{}
 	for i, c := range candidates {
@@ -405,6 +513,7 @@ func stratifiedDraw(candidates []MediaCandidate, classOf []string, seed uint64) 
 	total := len(candidates)
 	taken := make(map[string]int, len(classes))
 	out := make([]MediaCandidate, 0, total)
+	outClasses := make([]string, 0, total)
 	for slot := 1; slot <= total; slot++ {
 		best, bestDeficit := "", -1.0
 		for _, k := range classes {
@@ -417,7 +526,8 @@ func stratifiedDraw(candidates []MediaCandidate, classOf []string, seed uint64) 
 			}
 		}
 		out = append(out, byClass[best][taken[best]])
+		outClasses = append(outClasses, best)
 		taken[best]++
 	}
-	return out, counts
+	return out, counts, outClasses
 }

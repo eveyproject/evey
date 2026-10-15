@@ -75,8 +75,14 @@ const (
 // MediaLister supplies the pool of media the load test can pick viewers'
 // streams from. The parent wires this to its media query service.
 type MediaLister interface {
-	ListLoadTestCandidates(ctx context.Context, limit int) ([]MediaCandidate, error)
+	// ListLoadTestCandidates returns up to limit titles, a random slice of the
+	// library decided by seed: the same seed lists the same titles.
+	ListLoadTestCandidates(ctx context.Context, limit int, seed uint64) ([]MediaCandidate, error)
 }
+
+// loadTestActivityID is the media id the run's own playback signal is raised
+// under (see WithPlaybackSignal), purged with the viewers' at the end.
+const loadTestActivityID = "loadtest"
 
 // Scenario selects how a simulated viewer negotiates playback.
 const (
@@ -193,6 +199,9 @@ type Config struct {
 	// climb runs in milliseconds; an operator has no reason to touch them.
 	FastHold    time.Duration
 	MeasureHold time.Duration
+	// GridWindows overrides how many windows each audience size is judged on
+	// (gridWindows). Tests shrink it; an operator has no reason to.
+	GridWindows int
 
 	// ProfileHarnessCPU turns on the one measurement that separates the server's
 	// CPU from the load generator's (see harnesscpu.go). On by default for a real
@@ -486,6 +495,24 @@ type Report struct {
 	// BreakReason / BreakDetail name what broke BreakViewers, when a tier did.
 	BreakReason StopReason
 	BreakDetail string
+
+	// Grid is every audience size the run measured on full windows, smallest
+	// first, with how many windows it passed: what SustainedViewers and the
+	// range below are read from. SustainedViewers is the largest size passing
+	// at least four windows in five; RangeLow the largest that passed every
+	// window, RangeHigh the largest that passed at least half.
+	Grid                 []GridTier
+	RangeLow, RangeHigh  int
+	// Limiter names what gave out first ("disk", "cpu", "memory", "proxy",
+	// "server", "unknown", "none"); LimiterLocation is the library location
+	// of a limiting disk. Advice is set only when one follows ("spread_titles",
+	// "try_direct").
+	Limiter         string
+	LimiterLocation string
+	Advice          string
+	// Strata is the retained audience's split by stratum (disk x bitrate
+	// quarter), and the same summed by disk and by quarter.
+	Strata, StrataByDisk, StrataByBand []StratumShare
 
 	// DiskReadBytesPerSecCeiling is how fast this box can READ its media - every
 	// disk the library spans, read at once. This is the number that decides a

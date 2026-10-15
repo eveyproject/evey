@@ -398,6 +398,16 @@ func (rs *resourceState) openWindow(tier int, phase string, measured bool, now t
 	rs.cur = w
 }
 
+// nextWindow opens another window of the SAME audience size: the tier's
+// record and its warm-up clock are kept, only the window changes.
+func (rs *resourceState) nextWindow(tier int, now time.Time, phase string) {
+	rs.closeWindow(now, "", "")
+	w := &windowRecord{id: len(rs.windows) + 1, tier: tier, phase: phase, measured: rs.curTierMeasured, startedAt: now}
+	rs.windows = append(rs.windows, w)
+	rs.cur = w
+	rs.cpuOverRun, rs.memOverRun = 0, 0
+}
+
 // closeWindow ends the hold in progress with its verdict: reason names what
 // broke it, "" means it held. A second call on a closed window is a no-op, so
 // the run loop may close at the verdict and openWindow may close for safety.

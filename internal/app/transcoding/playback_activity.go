@@ -165,6 +165,23 @@ func (a *PlaybackActivity) ActiveSessionCount() int {
 	return n
 }
 
+// Forget drops these media from the activity count at once, instead of letting
+// their TTL run out. A media with a request still in flight is kept: someone
+// is reading it right now, whoever asked to forget it. The load test calls it
+// at its end so its own simulated viewers stop counting as an audience.
+func (a *PlaybackActivity) Forget(mediaItemIDs ...string) {
+	if a == nil {
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, id := range mediaItemIDs {
+		if e, ok := a.media[id]; ok && e.inFlight == 0 {
+			delete(a.media, id)
+		}
+	}
+}
+
 // entry returns the media's state, creating it on first use. Caller holds mu.
 func (a *PlaybackActivity) entry(mediaItemID string) *mediaActivity {
 	e, ok := a.media[mediaItemID]

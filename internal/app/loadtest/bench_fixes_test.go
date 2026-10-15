@@ -310,12 +310,12 @@ func TestRunner_ReportsEveryHoldWithItsVerdict(t *testing.T) {
 // scaled; the percentiles come back per hold.
 func TestSampleState_PerWindowPercentiles(t *testing.T) {
 	s := newSampleState()
-	s.recordSegment(0, 100, 50) // no hold open: dropped
+	s.recordSegment(0, viewerTypeMkvgo, 100, 50) // no hold open: dropped
 	for _, ms := range []int{100, 200, 300, 400, 1000} {
-		s.recordSegment(1, ms, ms/2)
+		s.recordSegment(1, viewerTypeMkvgo, ms, ms/2)
 	}
 	s.recordTTFF(1, 700)
-	s.recordSegment(2, 5000, 2500)
+	s.recordSegment(2, viewerTypeMkvgo, 5000, 2500)
 	p50, p95, p95s, n, ttff := s.windowPercentiles(1)
 	if p50 != 300 || p95 != 1000 || p95s != 500 || n != 5 || ttff != 700 {
 		t.Fatalf("window 1 = %d %d %d %d %d", p50, p95, p95s, n, ttff)
