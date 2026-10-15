@@ -405,6 +405,20 @@ jobs:
           fi
           echo "value=${value}" >> "$GITHUB_OUTPUT"
 
+      # The build pushes ONE tag, the immutable sha-<short>-full, and the boot
+      # test below runs on it. The moving tags operators pull (beta-0.0.1-full,
+      # a release's version tags, latest) are pointed at it only once it has
+      # booted: a non-booting image never reaches them.
+      - name: Pick the immutable tag
+        id: immutable
+        env:
+          TAGS_FULL: ${{ steps.meta-full.outputs.tags }}
+        run: |
+          set -eu
+          tag=$(printf '%s\n' "$TAGS_FULL" | grep ':sha-' | head -1)
+          [ -n "$tag" ] || { echo "::error::no sha- tag in: $TAGS_FULL"; exit 1; }
+          echo "full=${tag}" >> "$GITHUB_OUTPUT"
+
       - name: Login to Docker Hub
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -451,7 +465,7 @@ jobs:
         with:
           context: .
           platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.meta-full.outputs.tags }}
+          tags: ${{ steps.immutable.outputs.full }}
           labels: ${{ steps.meta-full.outputs.labels }}
           build-args: |
             VERSION=${{ steps.meta-full.outputs.version }}
@@ -470,7 +484,7 @@ jobs:
         with:
           context: .
           platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.meta-full.outputs.tags }}
+          tags: ${{ steps.immutable.outputs.full }}
           labels: ${{ steps.meta-full.outputs.labels }}
           build-args: |
             VERSION=${{ steps.meta-full.outputs.version }}
@@ -482,9 +496,43 @@ jobs:
           cache-to: type=gha,mode=max,scope=docker,ignore-error=true
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
+      # Boot the image we just built and walk the real install / scan / playback
+      # / disk-full / SIGKILL scenarios (tests/ops). The gate never runs the
+      # image, so this is the check that catches one that builds green but does
+      # not start - the 2026-09-26 Dockerfile regression shipped a non-booting
+      # image because nothing launched it. Pulls the full tag just pushed and
+      # runs the harness; a failure here fails the job (and so the ci-pass gate).
+      - name: Operations harness (boot the built image)
+        id: ops
+        if: steps.build-full.outcome == 'success' || steps.build-full-retry.outcome == 'success'
+        env:
+          IMG: ${{ steps.immutable.outputs.full }}
+        run: |
+          set -eu
+          echo "ops harness against $IMG"
+          docker pull "$IMG"
+          make ops OPS_IMG="$IMG"
+
+      # The image booted: the moving tags now point at it (a manifest copy, no
+      # rebuild, every platform kept).
+      - name: Promote the booted image to its moving tags
+        if: steps.ops.outcome == 'success'
+        env:
+          TAGS_FULL: ${{ steps.meta-full.outputs.tags }}
+          IMG: ${{ steps.immutable.outputs.full }}
+        run: |
+          set -eu
+          printf '%s\n' "$TAGS_FULL" | while read -r t; do
+            [ -z "$t" ] || [ "$t" = "$IMG" ] && continue
+            echo "promote $IMG -> $t"
+            docker buildx imagetools create -t "$t" "$IMG"
+          done
+
+      # lean and nodejs (release tags and manual runs only) differ from full by
+      # the plugin runtimes layer alone: built once full has booted.
       - name: Build and push (lean)
         id: build-lean
-        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        if: steps.ops.outcome == 'success' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
@@ -502,7 +550,7 @@ jobs:
 
       - name: Build and push (nodejs)
         id: build-nodejs
-        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        if: steps.ops.outcome == 'success' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
@@ -518,23 +566,6 @@ jobs:
           cache-from: type=gha,scope=docker
           outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
 
-      # Boot the image we just built and walk the real install / scan / playback
-      # / disk-full / SIGKILL scenarios (tests/ops). The gate never runs the
-      # image, so this is the check that catches one that builds green but does
-      # not start - the 2026-09-26 Dockerfile regression shipped a non-booting
-      # image because nothing launched it. Pulls the full tag just pushed and
-      # runs the harness; a failure here fails the job (and so the ci-pass gate).
-      - name: Operations harness (boot the built image)
-        if: steps.build-full.outcome == 'success' || steps.build-full-retry.outcome == 'success'
-        env:
-          TAGS_FULL: ${{ steps.meta-full.outputs.tags }}
-        run: |
-          set -eu
-          IMG=$(printf '%s\n' "$TAGS_FULL" | head -1)
-          echo "ops harness against $IMG"
-          docker pull "$IMG"
-          make ops OPS_IMG="$IMG"
-
       # GHCR is a mirror, not the deliverable: the builds above push Docker Hub
       # only, then every tag they produced is copied here by manifest (no
       # rebuild, multi-platform kept). A refused GHCR (the org package lost its
@@ -542,7 +573,7 @@ jobs:
       # as a warning on this step and never fails a run whose image already
       # shipped to Docker Hub.
       - name: Mirror tags to GHCR (best effort)
-        if: steps.build-full.outcome == 'success' || steps.build-full-retry.outcome == 'success'
+        if: steps.ops.outcome == 'success'
         continue-on-error: true
         env:
           GHCR_IMAGE: ghcr.io/${{ steps.owner.outputs.name }}/evey
