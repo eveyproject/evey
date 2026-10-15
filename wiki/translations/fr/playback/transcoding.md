@@ -1,5 +1,5 @@
 ---
-source_sha: 3491f399b6609d0b4c4818444e5ea8b6d8e3caf38d396767aac9f943257919b8
+source_sha: 8dce7b245de8c61f7635ccfc84431db9870d2376b17d9a0280028477af945f80
 reviewed: true
 ---
 # Transcodage et capacité du serveur

@@ -34,7 +34,7 @@ that rule: on a demo every visitor reaches the admin panel, so a setting the
 panel can write is a setting a visitor can turn off. The switch has to sit where
 the running application cannot reach it.
 
-### What Jellyfin does, measured
+### What a well-known open-source media server does, measured
 
 Their demo signs in as `demo` with no password, and the instance is restored at
 the top of every hour. Reading the policy their API returns for that account:
@@ -47,14 +47,14 @@ the top of every hour. Reading the policy their API returns for that account:
 | `EnableSubtitleManagement` | false |
 | `EnableUserPreferenceAccess` | true |
 
-So Jellyfin has no demo mode. It has an ordinary non-administrator account and
+So that server has no demo mode. It has an ordinary non-administrator account and
 an hourly restore. There is nothing to lock because nothing dangerous is
 reachable, and the restore only has to undo a changed password, a preference and
 some watch state. That is why it looks effortless.
 
 The demo we want is a strictly harder problem: it shows the admin panel. That
 choice is what creates the work, and it is worth being explicit that we are not
-copying Jellyfin here - we are taking on the thing they avoided, because an
+copying it here - we are taking on the thing they avoided, because an
 Evey demo that hides the admin panel hides most of the product.
 
 ### What the authorization model actually is
@@ -247,8 +247,8 @@ idle-triggered restore gets the same result with a shell script.
 day regardless, so a demo that is busy for eighteen hours straight does not
 accumulate a day of edits.
 
-**Credentials: `demo` / `demo`.** A visible password rather than Jellyfin's
-empty one, so the demo exercises the real login path instead of a special case.
+**Credentials: `demo` / `demo`.** A visible password rather than the empty
+one that server uses, so the demo exercises the real login path instead of a special case.
 Note that this password is published, and `?token=` is accepted on every route
 (`http/helpers.go:208-226`): every lock has to hold against a hand-written
 request, not merely against a disabled button.
@@ -311,7 +311,7 @@ of the public demo have nothing left to protect.
   would call them unguarded.
 - Showing a degraded admin panel is more work than hiding it, and it is the
   reason this ADR is long. The alternative - a plain non-administrator account,
-  the Jellyfin shape - remains available and would cost almost nothing.
+  the shape that server uses - remains available and would cost almost nothing.
 - The demo instance is the first publicly reachable Evey, so it is the first
   target. It shares no secret, no key and no network with any other instance,
   and holds nothing worth stealing: seeded accounts and freely licensed media.

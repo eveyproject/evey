@@ -15,6 +15,7 @@ proto/evey/v1/*.proto            the API contract (gRPC + HTTP gateway annotatio
 internal/adapters/driving/       "the world calls us"
   grpcapi/                       gRPC handlers (one file per service)
   http/                          raw-HTTP handlers (streaming, HLS, assets, subtitles)
+  pluginhost/                    the host gRPC API running plugins call back into
         ▼
 internal/app/<domain>/           use cases (command/query services, workers)
         ▼
@@ -41,8 +42,8 @@ with `pnpm generate` in that package, run inside the `evey-web` container).
 2. `make proto-gen` (or `buf generate` inside the `evey-server` container),
    then **restart the dev server** - Air does not watch `gen/`.
 3. Handler in `internal/adapters/driving/grpcapi/<service>.go`. Guards:
-   `requireClaims(ctx)`, and `checkLibraryAccess`/`requireMediaAccess` on
-   anything taking a library/media id (IDOR pattern - reviewers look for it).
+   `requireClaims(ctx)`, and `libraryAccessOrStatus`/`requireMediaLibraryAccess`
+   (`grpcapi/helpers.go`) on anything taking a library/media id (IDOR pattern - reviewers look for it).
 4. Use case in `internal/app/<domain>/` - handlers stay thin.
 5. Wiring: `cmd/evey/wire.go` (constructor) + `GRPCServerDeps` if the handler
    needs a new dependency.

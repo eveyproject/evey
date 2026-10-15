@@ -308,7 +308,7 @@ Risk: doubled events for ~1 release. Mitigation: every existing transcode subscr
 ### Phase 4 - Cleanup
 - Drop the direct `bus.Publish` calls in `Service` (only outbox).
 - Remove `TranscodesActive` gauge's transient double-count guard (was Phase 1 mitigation).
-- Document the new lifecycle in `docs/transcoding.md`.
+- Document the new lifecycle in `docs/playback/transcoding.md`.
 - Bump runbook in `docs/runbooks/` with the new "stuck saga" diagnostic SQL.
 
 ---
@@ -338,7 +338,7 @@ Five PRs, sequenced. Each independently revertable.
 | #2 | Phase 2 - `SessionSaga` skeleton, dual-emit on HLS path. HLSManager unchanged. | `internal/app/transcoding/saga.go` (new), `internal/domain/transcoding/saga_state.go` (new enum), `internal/adapters/driven/postgres/transcode_saga_repo.go` (new), HTTP handlers wire saga calls. New tests for state machine. | 3 days |
 | #3 | Phase 3a - saga adopts ffmpeg lifetime; `HLSManager` becomes a hot-path facade. Recovery on boot. | `internal/app/transcoding/saga.go` (+spawn/stop/reap), `internal/app/transcoding/hls.go` (shrunk), `cmd/evey/main.go` (recovery hook), playback / admin handlers swapped. Rewrite of `hls_test.go` impacted suites. | 4 days |
 | #4 | Phase 3b - direct-transcode path joins the saga. `sweepOrphanCacheDirs` deleted. | `internal/adapters/driving/http/transcode_handler.go` (transcodeHandler refactor), test additions. | 1 day |
-| #5 | Phase 4 - cleanup, docs, runbook, metric collector swap. | `internal/app/transcoding/service.go`, `docs/transcoding.md`, `docs/runbooks/transcode-saga.md` (new), Prom collector. | 1 day |
+| #5 | Phase 4 - cleanup, docs, runbook, metric collector swap. | `internal/app/transcoding/service.go`, `docs/playback/transcoding.md`, `docs/runbooks/transcode-saga.md` (new), Prom collector. | 1 day |
 
 **Total: ~11 engineer-days**, plus 1 day buffer for review iterations = **~2.5 weeks elapsed**.
 
