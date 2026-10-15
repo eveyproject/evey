@@ -137,3 +137,66 @@ func TestMigration000177_ExistingRowsAreStampedNotRegenerated(t *testing.T) {
 	_, err = tpRepo.GetByMediaItemID(ctx, ep.ID)
 	require.ErrorIs(t, err, shared.ErrNotFound)
 }
+
+// 000177 joins on media_item_id alone, which is exact: media_files is keyed by
+// media_item_id, so an item has one file at most and a second one is refused.
+// Two versions of one film are two items, two files: each row stays on its own.
+func TestMigration000177_TwoVersionsOfAFilmKeepTheirOwnFile(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test")
+	}
+	db := migrationDB(t)
+	m := newMigrator(t, db)
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	libRepo := postgres.NewLibraryRepository(db)
+	itemRepo := postgres.NewMediaItemRepository(db)
+	tpRepo := postgres.NewTrickplayRepository(db)
+	segRepo := postgres.NewMediaSegmentRepository(db)
+	lib := newTestLibrary("mig177v")
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	modA := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+	modB := time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)
+	versions := []struct {
+		id   string
+		path string
+		size int64
+		mod  time.Time
+	}{
+		{"mig177-1080p", "/media/Film (2001) - 1080P.mkv", 8_000, modA},
+		{"mig177-2160p", "/media/Film (2001) - 2160P.mkv", 40_000, modB},
+	}
+	for _, v := range versions {
+		it := newTestMediaItem(v.id, lib.ID)
+		it.Title = "Film"
+		it.File = &library.MediaFile{Path: v.path, Size: v.size, ModTime: v.mod, Fingerprint: fingerprintOf(v.size, v.mod)}
+		require.NoError(t, itemRepo.Create(ctx, it))
+		require.NoError(t, tpRepo.Create(ctx, &library.TrickplayManifest{ID: v.id + "-tp", MediaItemID: it.ID, ImagePath: "/t/" + v.id,
+			AlgoVersion: 1, FileSize: v.size, ModTime: v.mod, CreatedAt: time.Now()}))
+		_, err := segRepo.UpsertUnlessManual(ctx, &library.MediaSegment{MediaItemID: it.ID, Type: "intro", StartMs: 30_000, EndMs: 90_000, Confidence: 1, Source: "mkv_chapter"})
+		require.NoError(t, err)
+	}
+	// The premise: a second file for one item does not exist in this schema.
+	_, err := db.Exec(`INSERT INTO media_files (media_item_id, file_path, file_size) VALUES ($1, '/media/other.mkv', 1)`, versions[0].id)
+	require.Error(t, err, "media_files accepted a second file for one item")
+
+	require.NoError(t, m.Migrate(176))
+	require.NoError(t, m.Migrate(177))
+
+	for _, v := range versions {
+		var size sql.NullInt64
+		var mtime sql.NullTime
+		require.NoError(t, db.QueryRow(`SELECT file_size, mod_time FROM trickplay_manifests WHERE media_item_id = $1`, v.id).Scan(&size, &mtime))
+		assert.Equal(t, v.size, size.Int64, "%s: sprites stamped with another file", v.id)
+		assert.True(t, mtime.Valid && mtime.Time.Equal(v.mod), "%s: mod_time = %v", v.id, mtime)
+		var fp sql.NullString
+		require.NoError(t, db.QueryRow(`SELECT source_fingerprint FROM media_segments WHERE media_item_id = $1`, v.id).Scan(&fp))
+		assert.Equal(t, fingerprintOf(v.size, v.mod), fp.String, "%s: segment stamped with another file", v.id)
+	}
+	missing, err := tpRepo.ListMissingMediaItemIDs(ctx, 0)
+	require.NoError(t, err)
+	assert.Empty(t, missing, "a version's sprites were listed for regeneration")
+}
