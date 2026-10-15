@@ -115,8 +115,8 @@ func (c *compositeTokenRevoker) Revoke(ctx context.Context, userID string) error
 }
 
 // loadTestMediaListerFunc adapts a closure to apploadtest.MediaLister.
-type loadTestMediaListerFunc func(ctx context.Context, limit int) ([]apploadtest.MediaCandidate, error)
+type loadTestMediaListerFunc func(ctx context.Context, limit int, seed uint64) ([]apploadtest.MediaCandidate, error)
 
-func (f loadTestMediaListerFunc) ListLoadTestCandidates(ctx context.Context, limit int) ([]apploadtest.MediaCandidate, error) {
-	return f(ctx, limit)
+func (f loadTestMediaListerFunc) ListLoadTestCandidates(ctx context.Context, limit int, seed uint64) ([]apploadtest.MediaCandidate, error) {
+	return f(ctx, limit, seed)
 }

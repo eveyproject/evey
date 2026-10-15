@@ -1,6 +1,9 @@
 package loadtest
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // verdict.go - what the measurements say about the storage, read against the
 // server at rest rather than against a fixed percentage.
@@ -132,4 +135,101 @@ func (rs *resourceState) windowReports(serverShare float64, percentiles func(win
 		out = append(out, tw)
 	}
 	return out
+}
+
+// What gives out first, in the words the report uses: the panel turns each
+// into a plain sentence an operator understands without the details.
+const (
+	LimiterDisk    = "disk"    // the disk that holds the films
+	LimiterCPU     = "cpu"     // the processor
+	LimiterMemory  = "memory"  // the memory
+	LimiterProxy   = "proxy"   // the reverse proxy in front of the server
+	LimiterServer  = "server"  // the server answered with errors
+	LimiterUnknown = "unknown" // nothing on this machine was saturated
+	LimiterNone    = "none"    // nothing gave out (the operator's ceiling)
+)
+
+// Advice the report may give, only when one follows from the measurements.
+const (
+	// AdviceSpreadTitles: one disk saturated while another disk of the
+	// library sat mostly idle - spreading the most watched titles over the
+	// disks moves the ceiling.
+	AdviceSpreadTitles = "spread_titles"
+	// AdviceTryDirect: the run went through the proxy and nothing on the
+	// server was saturated - a run without it says what the server holds.
+	AdviceTryDirect = "try_direct"
+)
+
+// spreadIdleUtilPct is the busy share under which another disk counts as
+// having room to take titles.
+const spreadIdleUtilPct = 40.0
+
+// limiterOf names what gave out first, where (a library location for a disk),
+// and the advice that follows, if any. breakRes is what the machine did under
+// the first audience that did not hold; verdict judges its busiest disk.
+func limiterOf(stop StopReason, breakDetail string, breakRes ResourceStats, verdict DiskVerdict, viaProxy bool, devices []DeviceMapping) (limiter, location, advice string) {
+	switch stop {
+	case StopMaxViewers, StopCompleted:
+		return LimiterNone, "", ""
+	case StopCancelled, StopTokenExpired, StopError, StopLibraryLimit, "":
+		return "", "", ""
+	case StopMemorySaturated:
+		return LimiterMemory, "", ""
+	case StopCPUSaturated:
+		return LimiterCPU, "", ""
+	case StopServerFailing:
+		if strings.Contains(breakDetail, "status=") && !strings.Contains(breakDetail, "status=0") {
+			return LimiterServer, "", ""
+		}
+	}
+	if verdict.Saturated {
+		for _, m := range devices {
+			if m.Device == verdict.Device {
+				location = m.Location
+				break
+			}
+		}
+		if hasIdleOtherDisk(breakRes, verdict.Device, devices) {
+			advice = AdviceSpreadTitles
+		}
+		return LimiterDisk, location, advice
+	}
+	if breakRes.CPUPercentPeak >= cpuSaturationPercent {
+		return LimiterCPU, "", ""
+	}
+	if viaProxy {
+		return LimiterProxy, "", AdviceTryDirect
+	}
+	return LimiterUnknown, "", ""
+}
+
+// hasIdleOtherDisk reports whether another library disk had room while the
+// saturated one did not.
+func hasIdleOtherDisk(res ResourceStats, saturated string, devices []DeviceMapping) bool {
+	library := map[string]bool{}
+	for _, m := range devices {
+		if m.Device != "" {
+			library[m.Device] = true
+		}
+	}
+	if len(library) < 2 {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, d := range res.Disks {
+		if d.Device == saturated || !library[d.Device] {
+			continue
+		}
+		seen[d.Device] = true
+		if d.UtilPctAvg < spreadIdleUtilPct {
+			return true
+		}
+	}
+	// A library disk that never appeared in the samples read nothing at all.
+	for dev := range library {
+		if dev != saturated && !seen[dev] {
+			return true
+		}
+	}
+	return false
 }

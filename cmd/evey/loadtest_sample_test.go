@@ -112,15 +112,23 @@ func TestFilmsAndEpisodes(t *testing.T) {
 	}
 }
 
-// The random starting point must be a well-formed version 4 UUID (the id
-// column's type) and must actually vary.
-func TestRandomItemID(t *testing.T) {
+// The starting points are well-formed version 4 UUIDs (the id column's type),
+// vary from one call to the next, and are the SAME sequence for the same seed:
+// that is what makes a seed replay the run's slice of the library.
+func TestSeededItemIDs(t *testing.T) {
 	re := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
-	a, b := randomItemID(), randomItemID()
+	g1, g2, g3 := seededItemIDs(42), seededItemIDs(42), seededItemIDs(43)
+	a, b := g1(), g1()
 	if !re.MatchString(a) || !re.MatchString(b) {
 		t.Fatalf("ids %q / %q are not version 4 UUIDs", a, b)
 	}
 	if a == b {
-		t.Fatal("two draws gave the same id")
+		t.Fatal("two calls gave the same id")
+	}
+	if c, d := g2(), g2(); c != a || d != b {
+		t.Fatalf("seed 42 gave %q %q then %q %q: a seed must replay its points", a, b, c, d)
+	}
+	if g3() == a {
+		t.Fatal("seeds 42 and 43 gave the same first point")
 	}
 }

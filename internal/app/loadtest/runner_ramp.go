@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"sort"
 	"sync"
 )
 
@@ -58,6 +59,11 @@ type rampState struct {
 	// snapshots that at each tier's start, like replayedByTier.
 	filePathBySlot map[int]string
 	branchesByTier map[int][]BranchShare
+	// stratumBySlot is each live viewer's stratum, given back to the pool when
+	// the viewer leaves; strataByTier snapshots the live split at each tier.
+	stratumBySlot map[int]string
+	strataByTier  map[int][]StratumShare
+	pool          *candidatePool
 
 	// rebuilding is true while resizeTo is repopulating a REBUILT audience;
 	// herdBySlot marks the viewers spawned that way. Their first fetches all
@@ -88,6 +94,7 @@ func (r *Runner) shedTo(ramp *rampState, target int) {
 			continue
 		}
 		cancel()
+		ramp.releaseStratum(slot)
 		delete(ramp.cancelBySlot, slot)
 		delete(ramp.herdBySlot, slot)
 		delete(ramp.mediaBySlot, slot)
@@ -98,6 +105,70 @@ func (r *Runner) shedTo(ramp *rampState, target int) {
 			r.liveTranscodeViewers.Add(-1)
 		}
 	}
+}
+
+// shedOldest drops the n OLDEST live viewers: the grid's churn. The oldest
+// leave the way an audience does (they finish), and the newcomers who replace
+// them stay long enough for their first fetch - the startup being measured -
+// to land. Shedding the youngest instead cut each window's newcomers off
+// before their first segment arrived, and startup was never measured.
+func (r *Runner) shedOldest(ramp *rampState, n int) {
+	for slot := 1; slot <= ramp.nextSlot && n > 0; slot++ {
+		if _, live := ramp.cancelBySlot[slot]; !live {
+			continue
+		}
+		r.dropSlot(ramp, slot)
+		n--
+	}
+}
+
+// dropSlot removes one live viewer without marking the audience as holed: a
+// planned departure, not a refusal.
+func (r *Runner) dropSlot(ramp *rampState, slot int) {
+	cancel, live := ramp.cancelBySlot[slot]
+	if !live {
+		return
+	}
+	cancel()
+	ramp.releaseStratum(slot)
+	delete(ramp.cancelBySlot, slot)
+	delete(ramp.herdBySlot, slot)
+	delete(ramp.mediaBySlot, slot)
+	delete(ramp.filePathBySlot, slot)
+	ramp.tier--
+	r.liveViewers.Add(-1)
+	if ramp.viewerTypeBySlot[slot] == viewerTypeTranscode {
+		r.liveTranscodeViewers.Add(-1)
+	}
+}
+
+// releaseStratum gives a leaving viewer's stratum place back to the pool.
+func (ramp *rampState) releaseStratum(slot int) {
+	if ramp.pool != nil {
+		ramp.pool.release(ramp.viewerTypeBySlot[slot], ramp.stratumBySlot[slot])
+	}
+	delete(ramp.stratumBySlot, slot)
+}
+
+// StratumShare is how many viewers of an audience sat in one stratum
+// ("/mnt/disk_1|q3"), for the report.
+type StratumShare struct {
+	Stratum string
+	Viewers int
+}
+
+// liveStrata is the live audience's split by stratum, largest first.
+func (ramp *rampState) liveStrata() []StratumShare {
+	counts := map[string]int{}
+	for slot := range ramp.cancelBySlot {
+		counts[ramp.stratumBySlot[slot]]++
+	}
+	out := make([]StratumShare, 0, len(counts))
+	for k, n := range counts {
+		out = append(out, StratumShare{Stratum: k, Viewers: n})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Stratum < out[j].Stratum })
+	return out
 }
 
 // spawnNext tries to fill the next ramp slot (ramp.tier+1) with the pool's
@@ -133,6 +204,9 @@ func (r *Runner) spawnNext(viewerCtx context.Context, cfg Config, pool *candidat
 	ramp.mediaBySlot[slot] = asg.media.ID
 	if ramp.filePathBySlot != nil {
 		ramp.filePathBySlot[slot] = asg.media.Path
+	}
+	if ramp.stratumBySlot != nil {
+		ramp.stratumBySlot[slot] = asg.stratum
 	}
 	if ramp.rebuilding {
 		ramp.herdBySlot[slot] = true
@@ -270,6 +344,7 @@ func (r *Runner) dropViewer(ramp *rampState, slot int) {
 		return
 	}
 	cancel()
+	ramp.releaseStratum(slot)
 	delete(ramp.cancelBySlot, slot)
 	delete(ramp.herdBySlot, slot)
 	delete(ramp.mediaBySlot, slot)
@@ -289,10 +364,17 @@ func (r *Runner) dropViewer(ramp *rampState, slot int) {
 // no simulated viewer is watching: right after the audience was shed to zero
 // for a rebuild, and once the run is over. No-op without a wired reaper.
 func (r *Runner) reapLeftoverSessions(pool *candidatePool) {
-	if r.reapSessions == nil {
-		return
+	if r.reapSessions != nil {
+		r.reapSessions(pool.candidateIDs())
 	}
-	r.reapSessions(pool.candidateIDs())
+}
+
+// purgeRunActivity clears the playback activity the run raised, its own
+// "loadtest" signal included: called once no simulated viewer is left.
+func (r *Runner) purgeRunActivity(pool *candidatePool) {
+	if r.forgetPlayback != nil {
+		r.forgetPlayback(append(pool.candidateIDs(), loadTestActivityID))
+	}
 }
 
 // liveMedia is the set of media IDs the live audience currently holds.

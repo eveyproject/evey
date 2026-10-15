@@ -170,6 +170,9 @@ func (s *sloTracker) startTier() {
 	}
 }
 
+// budgetFor is the budget a viewer type is judged against.
+func (s *sloTracker) budgetFor(vt viewerType) int { return s.forType(vt).ms }
+
 // budgets reports each type's budget, so the report can say what each path was
 // actually judged against instead of a single blended number.
 func (s *sloTracker) budgets() map[string]int {
@@ -205,6 +208,9 @@ type sampleState struct {
 	windowSegments       map[int][]int
 	windowSegmentsScaled map[int][]int
 	windowTTFF           map[int][]int
+	// windowScaledByType keeps a window's scaled fetches per viewer type: each
+	// type is judged against its own budget.
+	windowScaledByType map[int]map[viewerType][]int
 }
 
 func newSampleState() sampleState {
@@ -215,16 +221,24 @@ func newSampleState() sampleState {
 		windowSegments:       map[int][]int{},
 		windowSegmentsScaled: map[int][]int{},
 		windowTTFF:           map[int][]int{},
+		windowScaledByType:   map[int]map[viewerType][]int{},
 	}
 }
 
 // recordSegment files one fetch under its hold, raw and scaled.
-func (s *sampleState) recordSegment(windowID, rawMs, scaledMs int) {
+func (s *sampleState) recordSegment(windowID int, vt viewerType, rawMs, scaledMs int) {
 	if windowID <= 0 {
 		return
 	}
 	s.windowSegments[windowID] = append(s.windowSegments[windowID], rawMs)
 	s.windowSegmentsScaled[windowID] = append(s.windowSegmentsScaled[windowID], scaledMs)
+	if s.windowScaledByType == nil {
+		s.windowScaledByType = map[int]map[viewerType][]int{}
+	}
+	if s.windowScaledByType[windowID] == nil {
+		s.windowScaledByType[windowID] = map[viewerType][]int{}
+	}
+	s.windowScaledByType[windowID][vt] = append(s.windowScaledByType[windowID][vt], scaledMs)
 }
 
 // recordTTFF files one first fetch under its hold.

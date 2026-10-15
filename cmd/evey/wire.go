@@ -919,12 +919,15 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// A run counts as playback from its first second, the way a first real
 	// viewer does, so background workers yield before the storage is measured.
 	loadTestRunner.WithPlaybackSignal(func() func() { return playbackActivity.Begin("loadtest") })
+	// The run clears the activity its own viewers raised, and drops the plans
+	// its eligibility check built, when it is done with them.
+	loadTestRunner.WithPlaybackForget(func(ids []string) { playbackActivity.Forget(ids...) })
+	loadTestRunner.WithPlanDrop(infra.onDemandPackager.DropSources)
 	// The run logs what it cost the packager in window reads, rebuilds apart.
 	loadTestRunner.WithWindowStats(infra.onDemandPackager.WindowStats)
 	// The bytes the packager read from its sources, counted in-process: the
 	// "app read" figure /proc/self/io would give if the server could read it
-	// (it is non-dumpable). The key is filled once mkvgo exposes the counter;
-	// until then the report says the figure was not measured.
+	// (it is non-dumpable).
 	loadTestRunner.WithAppReadCounter(func() int64 { return infra.onDemandPackager.WindowStats()["source_read_bytes"] })
 	// A "clients:history" run plays the mix of the last 30 days' playbacks.
 	loadTestRunner.WithClientHistory(func(ctx context.Context) (map[apploadtest.PlaybackDevice]int, error) {

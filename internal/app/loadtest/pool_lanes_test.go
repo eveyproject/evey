@@ -36,9 +36,12 @@ func lanedCandidates() []MediaCandidate {
 // bands handed the encodes bands 2 and 4 only.
 func TestLanedPool_BalancedPatternGivesEachTypeTheLibrarysMix(t *testing.T) {
 	in := lanedCandidates()
-	direct, _, _ := representativeDraw(in, 3)
-	encoded, _ := costDraw(in, 4)
-	pool := newLanedPool(in, map[viewerType][]MediaCandidate{viewerTypeMkvgo: direct, viewerTypeTranscode: encoded}, time.Hour)
+	direct, _, _, directClasses := representativeDrawOnDisks(in, nil, 3)
+	encoded, _, encodedClasses := costDraw(in, 4)
+	pool := newLanedPool(in, map[viewerType]drawnLane{
+		viewerTypeMkvgo:     {titles: direct, classes: directClasses},
+		viewerTypeTranscode: {titles: encoded, classes: encodedClasses},
+	}, time.Hour)
 
 	band := func(m MediaCandidate) string { return fmt.Sprint(m.BitrateBps) }
 	got := map[viewerType]map[string]int{viewerTypeMkvgo: {}, viewerTypeTranscode: {}}
@@ -70,7 +73,7 @@ func TestLanedPool_BalancedPatternGivesEachTypeTheLibrarysMix(t *testing.T) {
 // encoded viewer may still be handed it.
 func TestLanedPool_RetiringATitleForOneTypeKeepsItForTheOthers(t *testing.T) {
 	in := []MediaCandidate{{ID: "x", DurationSec: 7200}}
-	pool := newLanedPool(in, map[viewerType][]MediaCandidate{viewerTypeMkvgo: in, viewerTypeTranscode: in}, time.Hour)
+	pool := newLanedPool(in, map[viewerType]drawnLane{viewerTypeMkvgo: {titles: in}, viewerTypeTranscode: {titles: in}}, time.Hour)
 	pool.markIneligibleFor(viewerTypeMkvgo, "x")
 	if asg, ok := pool.takeFor(viewerTypeMkvgo); ok {
 		t.Fatalf("direct lane handed out %q after retiring it", asg.media.ID)

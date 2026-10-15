@@ -619,6 +619,42 @@ message LoadTestReport {
   // break_resources is everything the machine did under the lowest audience
   // that broke (break_disks and break_cpu_percent_peak are two of its fields).
   LoadTestResources break_resources = 56;
+  // grid is every audience size measured on full windows, smallest first:
+  // sustained_viewers is the largest passing at least four windows in five,
+  // range_low the largest passing every window, range_high the largest
+  // passing at least half.
+  repeated LoadTestGridTier grid = 57;
+  int32 range_low = 58;
+  int32 range_high = 59;
+  // limiter names what gave out first, in plain terms the panel words:
+  // "disk", "cpu", "memory", "proxy", "server", "unknown", "none".
+  // limiter_location is the library location of a limiting disk. advice is
+  // set only when one follows: "spread_titles", "try_direct".
+  string limiter = 60;
+  string limiter_location = 61;
+  string advice = 62;
+  // strata is the retained audience's split by stratum (disk x bitrate
+  // quarter); strata_by_disk / strata_by_band sum it each way.
+  repeated LoadTestStratum strata = 63;
+  repeated LoadTestStratum strata_by_disk = 64;
+  repeated LoadTestStratum strata_by_band = 65;
+}
+
+// LoadTestGridTier is one audience size of the grid and how its windows went.
+message LoadTestGridTier {
+  int32 viewers = 1;
+  int32 windows = 2;
+  int32 passed = 3;
+  bool held = 4;
+  string reason = 5;
+  LoadTestResources resources = 6;
+}
+
+// LoadTestStratum is how many viewers sat in one stratum ("/mnt/disk_1|q3"),
+// one disk, or one bitrate quarter.
+message LoadTestStratum {
+  string stratum = 1;
+  int32 viewers = 2;
 }
 
 // LoadTestDeviceMapping ties a library location to the block device it is
