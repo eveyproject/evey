@@ -1964,12 +1964,12 @@ func TestReport_FlagsAServerThatNeverTouchedItsDisk(t *testing.T) {
 	starved := diskReadStarved(ResourceStats{
 		Samples:                10,
 		ServedBytesPerSecAvg:   50 << 20, // 50 MiB/s out the door
-		DiskReadBytesPerSecAvg: 1 << 20,  // 1 MiB/s off the disk
+		DiskReadBytesPerSecAvg: 1 << 20, DiskReadMeasured: true,  // 1 MiB/s off the disk
 	})
 	if !starved {
 		t.Fatalf("50 MiB/s served against 1 MiB/s read means the page cache is doing the work; the report must say so")
 	}
-	if diskReadStarved(ResourceStats{Samples: 10, ServedBytesPerSecAvg: 50 << 20, DiskReadBytesPerSecAvg: 40 << 20}) {
+	if diskReadStarved(ResourceStats{Samples: 10, ServedBytesPerSecAvg: 50 << 20, DiskReadBytesPerSecAvg: 40 << 20, DiskReadMeasured: true}) {
 		t.Fatalf("a server reading most of what it serves off the disk is not starved")
 	}
 }

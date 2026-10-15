@@ -28,9 +28,13 @@ describe("LoadTestReportPanel", () => {
       segmentMsP50: 80,
       segmentMsP95: 300,
       viewerMix: { transcode: 8, copy: 4 },
-      tiers: [
-        { viewers: 8, cpuPercent: 61.2, memUsedBytes: 100, diskReadBytesPerSec: 1_000_000, servedBytesPerSec: 2_000_000, cpuPercentPerViewer: 7.65, memBytesPerViewer: 12 },
-        { viewers: 12, cpuPercent: 94.7, memUsedBytes: 140, diskReadBytesPerSec: 1_500_000, servedBytesPerSec: 3_000_000, cpuPercentPerViewer: 7.9, memBytesPerViewer: 11 },
+      diskReadMeasured: true,
+      seed: "1792073232940793883",
+      endpoint: "http://127.0.0.1:9092",
+      windows: [
+        { viewers: 8, phase: "ramping", measured: false, resources: { cpuPercentAvg: 61.2, machineCpuPercentAvg: 70.4, memUsedBytesAvg: 100, processRssBytesAvg: 40, diskReadBytesPerSec: 1_000_000, servedBytesPerSec: 2_000_000 }, segmentMsP95: 300, segmentMsP95Scaled: 150 },
+        { viewers: 16, phase: "ramping", measured: false, broke: true, reason: "cpu_saturated", resources: { cpuPercentAvg: 97, machineCpuPercentAvg: 99 }, segmentMsP95: 900, segmentMsP95Scaled: 450 },
+        { viewers: 12, phase: "narrowing", measured: true, resources: { cpuPercentAvg: 94.7, machineCpuPercentAvg: 98.1, machineIowaitPercentAvg: 2.4, memUsedBytesAvg: 140, processRssBytesAvg: 60, diskReadBytesPerSec: 1_500_000, servedBytesPerSec: 3_000_000 }, segmentMsP95: 310, segmentMsP95Scaled: 155 },
       ],
     } as LoadTestReport;
     render(<LoadTestReportPanel report={report} predicted={10} />);
@@ -44,19 +48,37 @@ describe("LoadTestReportPanel", () => {
     expect(screen.getByTestId("load-test-disk-starved")).toHaveTextContent("coldCacheStillStarvedLine");
     expect(screen.getByTestId("load-test-storage-collapse")).toHaveTextContent("count=9");
 
+    // The path measured and the seed are said, so the run can be replayed
+    // and compared with the right thing.
+    expect(screen.getByTestId("load-test-endpoint")).toHaveTextContent("endpointDirectLine(endpoint=http://127.0.0.1:9092)");
+    expect(screen.getByTestId("load-test-seed")).toHaveTextContent("seed=1792073232940793883");
+
+    // One row per hold: the sustained one bold, the broken one marked with
+    // its signal, the container CPU beside the machine's, the raw p95 beside
+    // the one the verdict read.
     const sustained = screen.getByTestId("load-test-tier-sustained");
     expect(within(sustained).getByText("12")).toBeInTheDocument();
-    expect(within(sustained).getByText("95%")).toBeInTheDocument();
+    expect(within(sustained).getByText("95% · 98%")).toBeInTheDocument();
+    expect(within(sustained).getByText("2%")).toBeInTheDocument();
+    expect(within(sustained).getByText("140B · 60B")).toBeInTheDocument();
     expect(within(sustained).getByText("12.0 Mb/s")).toBeInTheDocument();
     expect(within(sustained).getByText("24.0 Mb/s")).toBeInTheDocument();
+    expect(within(sustained).getByText("310 ms")).toBeInTheDocument();
+    expect(within(sustained).getByText("155 ms")).toBeInTheDocument();
+    expect(within(sustained).getByText("admin.loadtest.window.held · admin.loadtest.phase.narrowing")).toBeInTheDocument();
     expect(screen.getAllByTestId("load-test-tier-sustained")).toHaveLength(1);
+    const broke = screen.getByTestId("load-test-window-broke");
+    expect(within(broke).getByText("16")).toBeInTheDocument();
+    expect(within(broke).getByText("admin.loadtest.window.brokeCpu · admin.loadtest.phase.ramping")).toBeInTheDocument();
+    expect(screen.getAllByTestId("load-test-window")).toHaveLength(1);
+    expect(screen.queryByTestId("load-test-disk-unmeasured")).toBeNull();
 
     expect(screen.getByTestId("load-test-predicted")).toHaveTextContent("count=10,measured=8");
     expect(screen.getByTestId("load-test-viewer-mix")).toBeInTheDocument();
   });
 
   it("a run that hit the viewer ceiling says no bottleneck; an opaque mount replaces the disk lines", () => {
-    const report = { scenario: "copy", sustainedViewers: 40, stopReason: "max_viewers", storageOpaque: true, storageFsType: "fuse.mergerfs", diskReadStarved: true, coldCache: false } as LoadTestReport;
+    const report = { scenario: "copy", sustainedViewers: 40, stopReason: "max_viewers", storageOpaque: true, storageFsType: "fuse.mergerfs", diskReadStarved: true, diskReadMeasured: false, coldCache: false } as LoadTestReport;
     render(<LoadTestReportPanel report={report} predicted={undefined} />);
     expect(screen.getByTestId("load-test-stop-reason").className).toContain("text-muted");
     expect(screen.getByTestId("load-test-no-bottleneck")).toBeInTheDocument();
@@ -64,7 +86,29 @@ describe("LoadTestReportPanel", () => {
     expect(screen.queryByTestId("load-test-disk-starved")).toBeNull();
     expect(screen.queryByTestId("load-test-cold-cache")).toBeNull();
     expect(screen.queryByTestId("load-test-tiers")).toBeNull();
+    expect(screen.queryByTestId("load-test-windows")).toBeNull();
     expect(screen.queryByTestId("load-test-predicted")).toBeNull();
+  });
+
+  it("names the tier the cause was read on, and says when no disk could be mapped", () => {
+    const report = {
+      scenario: "mkvgo",
+      sustainedViewers: 126,
+      stopReason: "slo_breach",
+      breakViewers: 131,
+      breakReason: "slo_breach",
+      diskReadMeasured: false,
+      resources: { samples: 6, cpuPercentAvg: 9.2, machineCpuPercentAvg: 14.5, machineIowaitPercentAvg: 65.1, memUsedBytesAvg: 923, processRssBytesAvg: 462 },
+      windows: [{ viewers: 126, phase: "measuring", measured: true, resources: { cpuPercentAvg: 9, servedBytesPerSec: 1_000_000 } }],
+    } as LoadTestReport;
+    render(<LoadTestReportPanel report={report} predicted={undefined} />);
+    expect(screen.getByTestId("load-test-cause")).toHaveTextContent("admin.loadtest.cause.tierBroke(tier=131)");
+    expect(screen.getByTestId("load-test-machine")).toHaveTextContent("machineLine(tier=126,cpu=9,machine=15,iowait=65,mem=923B,rss=462B)");
+    expect(screen.getByTestId("load-test-disk-unmeasured")).toBeInTheDocument();
+    expect(screen.queryByTestId("load-test-disk-starved")).toBeNull();
+    const row = screen.getByTestId("load-test-tier-sustained");
+    expect(within(row).getByText("admin.loadtest.notMeasured")).toBeInTheDocument();
+    expect(screen.getByTestId("load-test-app-read")).toHaveTextContent("appReadUnmeasuredLine");
   });
 
   it("a pooled run says where the audience sat and what each disk did, busiest first", () => {
@@ -78,9 +122,16 @@ describe("LoadTestReportPanel", () => {
         { branch: "/mnt/disk_2", viewers: 41 },
         { branch: "/mnt/disk_1", viewers: 9 },
       ],
+      diskReadMeasured: true,
+      breakViewers: 48,
+      breakDisks: [{ device: "sdc", readBytesPerSecAvg: 38 * 125000, readBytesPerSecPeak: 60 * 125000 }],
       disks: [
-        { device: "sdc", utilPercentAvg: 88.6, utilPercentPeak: 97, readBytesPerSecAvg: 104 * 1048576, awaitMsAvg: 132.4 },
+        { device: "sdc", utilPercentAvg: 88.6, utilPercentPeak: 97, readBytesPerSecAvg: 104 * 1048576, readBytesPerSecPeak: 150 * 1048576, awaitMsAvg: 132.4, awaitMsPeak: 410, queueDepthAvg: 7.25 },
         { device: "sdb", utilPercentAvg: 31, utilPercentPeak: 55, readBytesPerSecAvg: 30 * 1048576, awaitMsAvg: 18 },
+      ],
+      diskDevices: [
+        { location: "/mnt/disk_2", device: "sdc", resolved: "read" },
+        { location: "/mnt/disk_3", device: "", resolved: "" },
       ],
     } as LoadTestReport;
     render(<LoadTestReportPanel report={report} predicted={undefined} />);
@@ -96,6 +147,14 @@ describe("LoadTestReportPanel", () => {
     expect(disks[0]).toHaveTextContent("util=89");
     expect(disks[0]).toHaveTextContent("peak=97");
     expect(disks[0]).toHaveTextContent("wait=132");
+    expect(disks[0]).toHaveTextContent("waitPeak=410");
+    expect(disks[0]).toHaveTextContent("queue=7.3");
+    // The mapping says which disk each location was read from, and which
+    // could not be tied to one; the capacity at the break is per disk.
+    const devices = within(pool).getAllByTestId("load-test-device");
+    expect(devices[0]).toHaveTextContent("deviceLine(location=/mnt/disk_2,device=sdc)");
+    expect(devices[1]).toHaveTextContent("deviceUnresolvedLine(location=/mnt/disk_3)");
+    expect(screen.getByTestId("load-test-break-capacity")).toHaveTextContent("tier=48,parts=admin.loadtest.breakCapacityPart(device=sdc,rate=38.0 Mb/s,peak=60.0 Mb/s)");
   });
 
   it("the Go runtime line says how much of the CPU the collector took, and is absent when unmeasured", () => {

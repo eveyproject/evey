@@ -45,6 +45,12 @@ export function LoadTestCard() {
   // measures the storage, not the RAM. Off by default - the warm figure is
   // today's truth on this box; cold is the day the library outgrows memory.
   const [coldCache, setColdCache] = useState(false);
+  // The server itself by default. Through the proxy only on request: it is a
+  // different measurement (the proxy's own limits are part of its answer).
+  const [viaProxy, setViaProxy] = useState(false);
+  // A previous run's seed replays its title draw: the headcount depends on
+  // the draw, so two runs are only comparable on the same one.
+  const [seed, setSeed] = useState("");
 
   const statusQuery = useQuery<LoadTestStatus>({
     queryKey: LOAD_TEST_QUERY_KEY,
@@ -63,7 +69,7 @@ export function LoadTestCard() {
       eveyFetch<LoadTestStatus>({
         url: LOAD_TEST_URL,
         method: "POST",
-        data: { scenario: sentScenario, coldCache },
+        data: { scenario: sentScenario, coldCache, viaProxy, ...(seed.trim() ? { seed: seed.trim() } : {}) },
       }),
     onSuccess: (data) => {
       qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
@@ -213,6 +219,28 @@ export function LoadTestCard() {
               data-testid="load-test-cold-cache-toggle"
             />
             <p className="text-xs text-[var(--text-muted)]">{t("admin.loadtest.coldCacheHint")}</p>
+            <Checkbox
+              label={t("admin.loadtest.viaProxyToggle")}
+              checked={viaProxy}
+              onChange={setViaProxy}
+              disabled={start.isPending}
+              data-testid="load-test-via-proxy-toggle"
+            />
+            <p className="text-xs text-[var(--text-muted)]">{t("admin.loadtest.viaProxyHint")}</p>
+            <label className="flex flex-col gap-1 text-xs text-[var(--text-muted)] w-64">
+              {t("admin.loadtest.seedLabel")}
+              <input
+                type="text"
+                inputMode="numeric"
+                value={seed}
+                disabled={start.isPending}
+                onChange={(e) => setSeed(e.target.value.replace(/[^0-9]/g, ""))}
+                placeholder={t("admin.loadtest.seedPlaceholder")}
+                data-testid="load-test-seed-input"
+                className="px-2 py-1 rounded-[var(--radius-md)] bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] text-sm"
+              />
+            </label>
+            <p className="text-xs text-[var(--text-muted)]">{t("admin.loadtest.seedHint")}</p>
           </div>
         </>
       )}

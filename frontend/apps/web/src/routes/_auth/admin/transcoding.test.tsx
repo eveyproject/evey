@@ -300,7 +300,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "clients:history", coldCache: false },
+        data: { scenario: "clients:history", coldCache: false, viaProxy: false },
       }),
     );
   });
@@ -327,7 +327,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "light", coldCache: false },
+        data: { scenario: "light", coldCache: false, viaProxy: false },
       }),
     );
   });
@@ -343,7 +343,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "mkvgo", coldCache: false },
+        data: { scenario: "mkvgo", coldCache: false, viaProxy: false },
       }),
     );
   });
@@ -359,7 +359,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "clients:history", coldCache: true },
+        data: { scenario: "clients:history", coldCache: true, viaProxy: false },
       }),
     );
   });
@@ -445,7 +445,9 @@ describe("LoadTestCard", () => {
 
     const opaque = screen.getByTestId("load-test-storage-opaque").textContent ?? "";
     expect(opaque).toContain("fuse.mergerfs");
-    expect(opaque).toMatch(/colder than a warm run/i);
+    // Cold at the mount only: the branches keep their page cache, and the
+    // line says so instead of promising cold storage.
+    expect(opaque).toMatch(/page cache still active/i);
     // The mount is the one explanation behind both: neither "measured the
     // storage" nor "the disk counter saw nothing" may stand next to it.
     expect(screen.queryByTestId("load-test-cold-cache")).toBeNull();
@@ -493,7 +495,7 @@ describe("LoadTestCard", () => {
     expect(report.textContent).toMatch(/sustains/i);
     const stopReason = screen.getByTestId("load-test-stop-reason");
     expect(stopReason.textContent).toMatch(/refused the next viewer, as designed/i);
-    expect(report.textContent).toMatch(/2 of them served/i);
+    expect(report.textContent).toMatch(/2 viewers of the retained tier were replaying/i);
     // The idle controls stay reachable so the operator can relaunch a test.
     expect(screen.getByTestId("load-test-idle")).toBeTruthy();
   });
@@ -576,20 +578,26 @@ describe("LoadTestCard", () => {
         sustainedViewers: 40,
         stopReason: "cpu_saturated",
         viewerMix: { mkvgo: 40 },
-        tiers: [
-          { viewers: 10, cpuPercent: 4, memUsedBytes: 300_000_000, diskReadBytesPerSec: 30_000_000, servedBytesPerSec: 30_000_000, cpuPercentPerViewer: 0.4, memBytesPerViewer: 30_000_000 },
-          { viewers: 40, cpuPercent: 20, memUsedBytes: 400_000_000, diskReadBytesPerSec: 120_000_000, servedBytesPerSec: 120_000_000, cpuPercentPerViewer: 0.5, memBytesPerViewer: 10_000_000 },
+        windows: [
+          { viewers: 10, phase: "ramping", resources: { cpuPercentAvg: 4, machineCpuPercentAvg: 9, memUsedBytesAvg: 300_000_000, processRssBytesAvg: 100_000_000, diskReadBytesPerSec: 30_000_000, servedBytesPerSec: 30_000_000 }, segmentMsP95: 210, segmentMsP95Scaled: 105 },
+          { viewers: 80, phase: "ramping", broke: true, reason: "cpu_saturated", resources: { cpuPercentAvg: 96, machineCpuPercentAvg: 99 } },
+          { viewers: 40, phase: "narrowing", measured: true, resources: { cpuPercentAvg: 20, machineCpuPercentAvg: 31, machineIowaitPercentAvg: 3, memUsedBytesAvg: 400_000_000, processRssBytesAvg: 120_000_000, diskReadBytesPerSec: 120_000_000, servedBytesPerSec: 120_000_000 }, segmentMsP95: 260, segmentMsP95Scaled: 130 },
         ],
+        perViewerCost: { samples: 20, cpuPercentAvg: 0.53, memUsedBytesAvg: 3_300_000, diskReadBytesPerSec: 3_000_000, servedBytesPerSec: 3_000_000 },
       },
     };
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
 
-    const table = screen.getByTestId("load-test-tiers");
+    const table = screen.getByTestId("load-test-windows");
     expect(table.textContent).toContain("10");
     expect(table.textContent).toContain("40");
-    // The per-viewer CPU cost is what an operator plans with.
-    expect(table.textContent).toContain("0.50");
+    // The container's CPU beside the machine's, and the window that broke
+    // marked with what broke it.
+    expect(table.textContent).toContain("20% · 31%");
+    expect(table.textContent).toMatch(/broke: CPU/i);
+    // What one more viewer costs is the slope, never a total over a headcount.
+    expect(screen.getByTestId("load-test-per-viewer").textContent).toContain("0.53");
     // The sustained tier is the answer: it must be findable, not buried.
     expect(screen.getByTestId("load-test-tier-sustained").textContent).toContain("40");
   });

@@ -26,11 +26,17 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		defer func() { r.logWindowStats(before, r.windowStats()) }()
 	}
 
-	// Prefer the path real viewers take - through the reverse proxy - and fall
-	// back to the loopback when it isn't reachable from in here.
+	// The server itself, by default: the loopback. The reverse proxy only when
+	// the operator asked for it - it is a different measurement (its TLS hop,
+	// its buffering, a hairpin through the operator's router) - and only if it
+	// answers from in here; otherwise the run says so and measures direct.
 	viaProxy := false
-	if cfg.PublicBaseURL != "" && r.endpointReachable(runCtx, cfg.PublicBaseURL, cfg.Token) {
-		cfg.BaseURL, viaProxy = cfg.PublicBaseURL, true
+	if cfg.ViaProxy && cfg.PublicBaseURL != "" {
+		if r.endpointReachable(runCtx, cfg.PublicBaseURL, cfg.Token) {
+			cfg.BaseURL, viaProxy = cfg.PublicBaseURL, true
+		} else {
+			r.logger.Warn("loadtest: the proxy path was asked for but does not answer from here; measuring the server directly", "proxy", cfg.PublicBaseURL)
+		}
 	}
 
 	r.logger.Info("loadtest started",
@@ -93,11 +99,29 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	}, cfg.MaxDuration)
 
 	if storageOpaque {
-		r.logger.Warn("loadtest: the library sits on a mount this kernel cannot account for - the disk counter will not see its reads, cache eviction stops at the mount, a pool counts as one disk",
+		r.logger.Warn("loadtest: the library sits on a mount this kernel cannot see through - cache eviction stops at the mount, the disks behind it are found by reading them",
 			"fs_types", storageFS)
 		// Ask the pool which branch each handed-out title lives on: the report
 		// then says how the audience was spread over the disks behind it.
 		pool.branches = newBranchTally(mergerfsBranchOf)
+	}
+
+	// The PRNG picks read offsets inside the media files (the device mapping
+	// below, the disk probe further down), nothing more: no secret, no token,
+	// no identifier derives from it. A cryptographic source would be slower
+	// and no more random for scattering reads across a disk.
+	//nolint:gosec // G404: offsets for a disk benchmark, not a security decision
+	rng := rand.New(rand.NewPCG(uint64(startedAt.UnixNano()), 0))
+
+	// Which block device each library location is read from, resolved NOW:
+	// device letters rotate at reboot, and every disk figure the report
+	// carries is the machine's block counters summed over exactly these.
+	devices := libraryDevices(runCtx, candidates, branchOf, cfg.fsRoot(), rng)
+	for _, m := range devices {
+		r.logger.Info("loadtest: disk device", "location", m.Location, "device", m.Device, "resolved", m.Resolved)
+	}
+	if len(mappedDevices(devices)) == 0 {
+		r.logger.Warn("loadtest: no block device of this machine could be tied to the library - the disk read figures will be absent (a network share, or a mount this kernel cannot see through)")
 	}
 
 	// Cold-cache mode: drop the library from the page cache before anything is
@@ -112,7 +136,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		coldCache = evicted > 0
 		if coldCache {
 			r.logger.Info("loadtest: cold cache on - the library is evicted from the page cache for the whole run",
-				"files", evicted, "every", cfg.resourceSampleEvery().String())
+				"files", evicted, "every", cfg.evictEvery().String(), "branches_stay_warm", storageOpaque)
 		} else {
 			r.logger.Warn("loadtest: cold cache requested but no file could be evicted; measuring with a warm cache")
 		}
@@ -124,11 +148,6 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	// network share or a 9p/virtiofs mount - so the run reads the files itself
 	// and times them.
 	//
-	// The PRNG picks read offsets inside the media files, nothing more: no secret,
-	// no token, no identifier derives from it. A cryptographic source would be
-	// slower and no more random for scattering reads across a disk.
-	//nolint:gosec // G404: offsets for a disk benchmark, not a security decision
-	rng := rand.New(rand.NewPCG(uint64(startedAt.UnixNano()), 0))
 	disk := measureDiskThroughput(runCtx, candidates, rng)
 	if disk.Measured {
 		for _, d := range disk.Disks {
@@ -173,7 +192,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	// the resource sampler's - fast enough that no tier gets to build a warm
 	// working set, cheap enough (one fadvise per file) to cost nothing.
 	if coldCache {
-		go r.keepEvicting(viewerCtx, candidates, cfg.resourceSampleEvery())
+		go r.keepEvicting(viewerCtx, candidates, cfg.evictEvery())
 	}
 
 	ramp := rampState{
@@ -181,6 +200,8 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		pathBySlot:       map[int]string{},
 		pathsByType:      map[viewerType]map[string]int{},
 		mediaBySlot:      map[int]string{},
+		filePathBySlot:   map[int]string{},
+		branchesByTier:   map[int][]BranchShare{},
 		cancelBySlot:     map[int]context.CancelFunc{},
 		roundBySlot:      map[int]int{},
 		replayedByTier:   map[int]int{},
@@ -192,6 +213,69 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	// server look busier than it is.
 	r.liveViewers.Store(0)
 	r.audienceEpoch.Store(0)
+
+	// The climb is the search for the ceiling: big strides while the machine is
+	// wide open, a bisection once something gives out, and a confirmation pass
+	// so a short-hold false alarm can never cap the result. Its hold length
+	// changes with the phase, so it drives a timer rather than a fixed ticker.
+	cl := &climb{
+		target: ramp.tier, batch: fastBatch,
+		fastHold: cfg.FastHold, measureHold: cfg.MeasureHold,
+		// A run that never starts an encoder needs a far shorter measurement
+		// window: there is no ffmpeg cold start to wait out.
+		spawnsEncoders: scenarioSpawnsEncoders(cfg.Scenario),
+	}
+	// Tests shrink the holds; the warm-up must shrink with them, or a 50ms hold
+	// with a 15s warm-up would discard every sample it ever took.
+	if cfg.FastHold > 0 {
+		cl.fastWarmup = cfg.FastHold / 3
+	}
+	if cfg.MeasureHold > 0 {
+		cl.measureWarmup = cfg.MeasureHold / 3
+	}
+
+	// The resource sampler is what lets the run name its own bottleneck. It
+	// samples the server's cgroup (ffmpeg included) and the machine beside it
+	// on its own cadence, independent of the ramp, and discards each tier's
+	// warm-up so a tier is only ever judged once it has settled.
+	r.servedBytes.Store(0)
+	src := r.counters
+	if src == nil {
+		src = cgroupSource{fsRoot: cfg.fsRoot(), devices: mappedDevices(devices), appRead: r.appReadBytes}
+	}
+	sampler := newResourceSampler(src)
+	res := newResourceState(cl.warmupFor(), time.Now())
+
+	// The idle server first: a few seconds of samples before any viewer joins,
+	// the floor every cost is read against and - above all - each disk's wait
+	// at rest, which the saturation verdict is measured from.
+	if bl := cfg.baselineFor(); bl > 0 {
+		r.setStatus("baseline", 0)
+		deadline := time.NewTimer(bl)
+		tick := time.NewTicker(cfg.resourceSampleEvery())
+	baseline:
+		for {
+			select {
+			case <-runCtx.Done():
+				break baseline
+			case <-deadline.C:
+				break baseline
+			case <-tick.C:
+				if sample, ok := sampler.sample(r.servedBytes.Load(), time.Now()); ok {
+					res.addBaseline(sample)
+				}
+			}
+		}
+		deadline.Stop()
+		tick.Stop()
+		b := res.baseline()
+		r.logger.Info("loadtest: baseline", "seconds", int(bl.Seconds()), "samples", b.Samples,
+			"cpu_pct", int(b.CPUPercentAvg), "machine_cpu_pct", int(b.MachineCPUPercentAvg), "iowait_pct", int(b.MachineIOWaitPercentAvg),
+			"mem_mb", b.MemUsedBytesAvg/(1<<20), "process_rss_mb", b.ProcessRSSBytesAvg/(1<<20))
+		for _, d := range b.Disks {
+			r.logger.Info("loadtest: baseline disk", "device", d.Device, "await_ms", int(d.AwaitMsAvg), "util_pct", int(d.UtilPctAvg), "read_mib_per_sec", d.ReadBytesPerSecAvg/(1<<20))
+		}
+	}
 
 	r.setStatus("ramping", ramp.tier)
 	if ok, detail := r.spawnInitialViewers(isFlash, viewerCtx, cfg, pool, events, &wg, &ramp); !ok {
@@ -221,45 +305,16 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	flash := flashState{served: map[int]bool{}, shed: map[int]bool{}}
 
 	slo := newSLOTracker(cfg.SegmentSLOMs)
-	samples := sampleState{
-		tierSegments:    map[int][]int{},
-		tierTTFF:        map[int][]int{},
-		perTypeSegments: map[viewerType]map[int][]int{},
-	}
+	samples := newSampleState()
 
-	// The climb is the search for the ceiling: big strides while the machine is
-	// wide open, a bisection once something gives out, and a confirmation pass
-	// so a short-hold false alarm can never cap the result. Its hold length
-	// changes with the phase, so it drives a timer rather than a fixed ticker.
-	cl := &climb{
-		target: ramp.tier, batch: fastBatch,
-		fastHold: cfg.FastHold, measureHold: cfg.MeasureHold,
-		// A run that never starts an encoder needs a far shorter measurement
-		// window: there is no ffmpeg cold start to wait out.
-		spawnsEncoders: scenarioSpawnsEncoders(cfg.Scenario),
-	}
-	// Tests shrink the holds; the warm-up must shrink with them, or a 50ms hold
-	// with a 15s warm-up would discard every sample it ever took.
-	if cfg.FastHold > 0 {
-		cl.fastWarmup = cfg.FastHold / 3
-	}
-	if cfg.MeasureHold > 0 {
-		cl.measureWarmup = cfg.MeasureHold / 3
-	}
+	// The first hold is a FAST one at the first audience: open its window so
+	// its fetches and samples have somewhere to go.
+	cl.target = ramp.tier
+	res.startTier(ramp.tier, time.Now(), false, cl.phase.String())
+	ramp.branchesByTier[ramp.tier] = ramp.liveBranchShares(pool.branches)
 	holdTimer := time.NewTimer(cl.holdFor())
 	defer holdTimer.Stop()
 
-	// The resource sampler is what lets the run name its own bottleneck. It
-	// samples the server's cgroup (ffmpeg included) on its own cadence,
-	// independent of the ramp, and discards each tier's warm-up so a tier is
-	// only ever judged once it has settled.
-	r.servedBytes.Store(0)
-	src := r.counters
-	if src == nil {
-		src = cgroupSource{fsRoot: cfg.fsRoot()}
-	}
-	sampler := newResourceSampler(src)
-	res := newResourceState(cl.warmupFor(), time.Now())
 	resTicker := time.NewTicker(cfg.resourceSampleEvery())
 	defer resTicker.Stop()
 
@@ -401,6 +456,8 @@ runLoop:
 					// false: the first window to break; true: the second, which makes it a verdict.
 					"second_window", cl.retried)
 			}
+			// This hold is over, with its verdict: one row of the report.
+			res.closeWindow(time.Now(), cl.broke, cl.detail)
 			outcome, reason, detail := cl.next(cfg.MaxViewers, res.tierLoad(ramp.tier))
 			if outcome == climbDone {
 				// Endurance doesn't stop when it finds the ceiling - finding it
@@ -474,10 +531,13 @@ runLoop:
 				// percentiles the report quotes for it.
 				samples.resetTier(ramp.tier)
 			}
-			res.startTier(ramp.tier, time.Now(), cl.phase != phaseFast)
-			// Snapshot how many of THIS audience are replaying a title, so the
-			// report can say it for the tier that ends up being the answer.
+			res.startTier(ramp.tier, time.Now(), cl.phase != phaseFast, cl.phase.String())
+			// Snapshot how many of THIS audience are replaying a title, and where
+			// it sits on a pooled mount, so the report can say it for the tier
+			// that ends up being the answer rather than for every viewer the run
+			// ever spawned.
 			ramp.replayedByTier[ramp.tier] = ramp.replayedInAudience()
+			ramp.branchesByTier[ramp.tier] = ramp.liveBranchShares(pool.branches)
 			r.logger.Info("loadtest tier", "phase", cl.phase.String(), "viewers", ramp.tier, "lo", cl.lo, "hi", cl.hi)
 			r.setStatus(cl.phase.String(), ramp.tier)
 			holdTimer.Reset(cl.holdFor())
@@ -485,6 +545,7 @@ runLoop:
 	}
 
 	r.setStatus("stopping", ramp.tier)
+	res.closeWindow(time.Now(), "", "")
 	cancelViewers()
 	wg.Wait()
 	// The last audience's encoder sessions would otherwise grind on for
@@ -507,6 +568,13 @@ runLoop:
 	perViewer, hasPerViewer := res.perViewerCost(sampleTier)
 	replayed := ramp.replayedByTier[sampleTier]
 	sustainedRes := res.stats(sampleTier)
+	baseline := res.baseline()
+	// The audience's placement at the tier the report is about; the run-wide
+	// tally only when no tier was snapshotted (a run cut short).
+	branches := ramp.branchesByTier[sampleTier]
+	if len(branches) == 0 {
+		branches = pool.branches.shares()
+	}
 
 	// Charge the load generator's own CPU back to the load generator. Everything
 	// the report says about CPU - the tier table, the per-viewer cost, the
@@ -521,11 +589,20 @@ runLoop:
 	tiers := res.tierCosts(serverShare)
 	var breakViewers int
 	var breakRes ResourceStats
+	var breakReason StopReason
+	var breakDetail string
 	if !isFlash && cl != nil && cl.hi > sustained {
 		breakViewers = cl.hi
 		breakRes = res.stats(cl.hi)
 		breakRes.CPUPercentAvg *= serverShare
 		breakRes.CPUPercentPeak *= serverShare
+		breakReason, breakDetail = cl.hiReason, cl.hiDetail
+	}
+	// The disk is judged where the stop shows: under the audience that broke
+	// when one did, else under the one that held.
+	verdictRes := sustainedRes
+	if breakViewers > 0 {
+		verdictRes = breakRes
 	}
 
 	r.finish(Report{
@@ -543,12 +620,20 @@ runLoop:
 		Samples:                    len(segSamples),
 		Endpoint:                   cfg.BaseURL,
 		ViaProxy:                   viaProxy,
+		Seed:                       seed,
 		ReplayedTitleViewers:       replayed,
 		DiskReadStarved:            diskReadStarved(sustainedRes),
+		DiskDevices:                devices,
+		DiskReadMeasured:           len(mappedDevices(devices)) > 0,
+		AppReadMeasured:            sustainedRes.AppReadMeasured,
+		Windows:                    res.windowReports(serverShare, samples.windowPercentiles, baseline),
+		DiskVerdict:                diskVerdict(verdictRes, baseline),
+		BreakReason:                breakReason,
+		BreakDetail:                breakDetail,
 		ColdCache:                  coldCache,
 		StorageFSType:              storageFS,
 		StorageOpaque:              storageOpaque,
-		PoolBranches:               pool.branches.shares(),
+		PoolBranches:               branches,
 		ReadAmplification:          readAmplification(sustainedRes),
 		AppReadAmplification:       appReadAmplification(sustainedRes),
 		Tiers:                      tiers,
@@ -568,7 +653,7 @@ runLoop:
 		Resources:                     sustainedRes,
 		BreakViewers:                  breakViewers,
 		BreakResources:                breakRes,
-		ResourceBaseline:              res.baseline,
+		ResourceBaseline:              baseline,
 		PerViewerCost:                 perViewer,
 		HasPerViewerCost:              hasPerViewer,
 		ViewerMix:                     mix,
@@ -660,6 +745,7 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 			// The whole point of a flash slam is everyone starting at once: the
 			// herd IS the measurement there.
 			samples.tierTTFF[ramp.tier] = append(samples.tierTTFF[ramp.tier], ev.ms)
+			samples.recordTTFF(res.windowID(), ev.ms)
 			flash.served[ev.slot] = true
 			break
 		}
@@ -674,6 +760,7 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 			return "", "", 0, false
 		}
 		samples.tierTTFF[ramp.tier] = append(samples.tierTTFF[ramp.tier], ev.ms)
+		samples.recordTTFF(res.windowID(), ev.ms)
 		// Startup is judged on its own. A server can be feeding its existing
 		// viewers perfectly well and still take six seconds to let a new one
 		// start watching - which, to the person holding the remote, IS the
@@ -698,7 +785,9 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 			samples.perTypeSegments[ev.vt] = map[int][]int{}
 		}
 		samples.perTypeSegments[ev.vt][ramp.tier] = append(samples.perTypeSegments[ev.vt][ramp.tier], ev.ms)
-		if breached, p95, sloMs := slo.observe(ev.vt, slo.scaled(ev.ms, ev.segMs)); breached {
+		scaled := slo.scaled(ev.ms, ev.segMs)
+		samples.recordSegment(res.windowID(), ev.ms, scaled)
+		if breached, p95, sloMs := slo.observe(ev.vt, scaled); breached {
 			if isFlash {
 				// A flash slam is designed to overload; a global latency
 				// blip doesn't end the measurement, it's one of the reasons

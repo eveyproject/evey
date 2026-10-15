@@ -45,7 +45,7 @@ describe("LoadTestCard", () => {
       if (method === "GET") return Promise.resolve(running ? { running: true, viewers: 7, phase: "climb", elapsedMs: 65_000 } : { running: false, lastReport });
       if (method === "POST") {
         running = true;
-        expect(data).toEqual({ scenario: "heavy", coldCache: true });
+        expect(data).toEqual({ scenario: "heavy", coldCache: true, viaProxy: false });
         return Promise.resolve({ running: true, viewers: 0, phase: "warmup", elapsedMs: 0 });
       }
       running = false;
@@ -98,13 +98,13 @@ describe("LoadTestCard", () => {
     mount();
     await screen.findByTestId("load-test-idle");
     fireEvent.click(screen.getByTestId("load-test-start-btn"));
-    await waitFor(() => expect(sent).toEqual([{ scenario: "clients:history", coldCache: false }]));
+    await waitFor(() => expect(sent).toEqual([{ scenario: "clients:history", coldCache: false, viaProxy: false }]));
 
     fireEvent.change(screen.getByTestId("load-test-scenario-select"), { target: { value: "clients:custom" } });
     fireEvent.change(screen.getByTestId("load-test-weight-tv"), { target: { value: "50" } });
     fireEvent.change(screen.getByTestId("load-test-weight-web-chrome"), { target: { value: "0" } });
     fireEvent.click(screen.getByTestId("load-test-start-btn"));
-    await waitFor(() => expect(sent[1]).toEqual({ scenario: "clients:tv=50,mobile=40", coldCache: false }));
+    await waitFor(() => expect(sent[1]).toEqual({ scenario: "clients:tv=50,mobile=40", coldCache: false, viaProxy: false }));
 
     // Nothing weighted: there is no audience to play, so no run to start.
     fireEvent.change(screen.getByTestId("load-test-weight-tv"), { target: { value: "0" } });

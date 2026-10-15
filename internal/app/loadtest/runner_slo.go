@@ -199,6 +199,48 @@ type sampleState struct {
 	tierSegments    map[int][]int
 	tierTTFF        map[int][]int
 	perTypeSegments map[viewerType]map[int][]int
+	// Per hold (window id): the raw fetch times, the same fetches scaled to the
+	// reference segment length (what the stall verdict reads), and the first
+	// fetches. A tier measured twice keeps both holds apart.
+	windowSegments       map[int][]int
+	windowSegmentsScaled map[int][]int
+	windowTTFF           map[int][]int
+}
+
+func newSampleState() sampleState {
+	return sampleState{
+		tierSegments:         map[int][]int{},
+		tierTTFF:             map[int][]int{},
+		perTypeSegments:      map[viewerType]map[int][]int{},
+		windowSegments:       map[int][]int{},
+		windowSegmentsScaled: map[int][]int{},
+		windowTTFF:           map[int][]int{},
+	}
+}
+
+// recordSegment files one fetch under its hold, raw and scaled.
+func (s *sampleState) recordSegment(windowID, rawMs, scaledMs int) {
+	if windowID <= 0 {
+		return
+	}
+	s.windowSegments[windowID] = append(s.windowSegments[windowID], rawMs)
+	s.windowSegmentsScaled[windowID] = append(s.windowSegmentsScaled[windowID], scaledMs)
+}
+
+// recordTTFF files one first fetch under its hold.
+func (s *sampleState) recordTTFF(windowID, ms int) {
+	if windowID <= 0 {
+		return
+	}
+	s.windowTTFF[windowID] = append(s.windowTTFF[windowID], ms)
+}
+
+// windowPercentiles reads a hold's latencies back: raw p50 and p95, the
+// scaled p95 the verdict is read on, how many fetches, and the p95 of first
+// fetches.
+func (s *sampleState) windowPercentiles(windowID int) (p50, p95, p95Scaled, n, ttffP95 int) {
+	raw := s.windowSegments[windowID]
+	return percentile(raw, 50), percentile(raw, 95), percentile(s.windowSegmentsScaled[windowID], 95), len(raw), percentile(s.windowTTFF[windowID], 95)
 }
 
 // resetTier drops a tier's segment-latency samples before a measured hold: the

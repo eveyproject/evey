@@ -87,6 +87,9 @@ type Runner struct {
 	// counters is where the resource sampler reads CPU/memory/disk from. nil
 	// means the server's own cgroup; tests inject a modelled machine.
 	counters counterSource
+	// appReadBytes counts, in-process, the bytes the packager has read from its
+	// sources so far (see WithAppReadCounter). nil: not measured.
+	appReadBytes func() int64
 
 	// evictFile drops one file from the OS page cache (cold-cache mode). The
 	// real one is posix_fadvise; tests record the calls instead.
@@ -178,6 +181,16 @@ func (r *Runner) WithPlaybackSignal(hold func() (release func())) *Runner {
 // packager reading the same window twice.
 func (r *Runner) WithWindowStats(read func() map[string]int64) *Runner {
 	r.windowStats = read
+	return r
+}
+
+// WithAppReadCounter wires the in-process count of the bytes the packager
+// read from its sources: what the CODE asked for, as opposed to what the disks
+// delivered. /proc/self/io would say the same and cannot be read - the server
+// is non-dumpable - so the packager's own reader counts instead. Unwired, the
+// report says the figure was not measured rather than printing a zero.
+func (r *Runner) WithAppReadCounter(read func() int64) *Runner {
+	r.appReadBytes = read
 	return r
 }
 
@@ -375,10 +388,20 @@ func (r *Runner) finish(report Report) {
 		// A warm and a cold run of the same box are two different answers, and a
 		// log line that doesn't say which one this was invites comparing them.
 		"cold_cache", report.ColdCache,
+		"seed", report.Seed,
+		"endpoint", report.Endpoint,
+		"via_proxy", report.ViaProxy,
 		"skipped_candidates", report.SkippedCandidates,
 		"duration_ms", report.EndedAt.Sub(report.StartedAt).Milliseconds(),
 		"cpu_pct_avg", int(report.Resources.CPUPercentAvg),
 		"cpu_pct_peak", int(report.Resources.CPUPercentPeak),
+		// The whole machine beside the container: what runs outside it (a FUSE
+		// pool, a VM host) and the time its cores spent waiting on the storage.
+		"machine_cpu_pct_avg", int(report.Resources.MachineCPUPercentAvg),
+		"machine_iowait_pct_avg", int(report.Resources.MachineIOWaitPercentAvg),
+		"machine_iowait_pct_peak", int(report.Resources.MachineIOWaitPercentPeak),
+		// The server process alone, beside the container total below.
+		"process_rss_mb", report.Resources.ProcessRSSBytesAvg / (1 << 20),
 		// The server's ANONYMOUS memory - what it genuinely holds. The page cache
 		// of the films is reported apart (mem_cache_mb) and is not consumption:
 		// the kernel hands it straight back. Conflating the two once reported
@@ -397,6 +420,11 @@ func (r *Runner) finish(report Report) {
 		"read_amplification_disk", report.ReadAmplification,
 		"read_amplification_app", report.AppReadAmplification,
 		"app_read_mib_per_sec", report.Resources.AppReadBytesPerSecAvg / (1 << 20),
+		"app_read_measured", report.AppReadMeasured,
+		// The disk figure is the machine's block counters summed over the devices
+		// the library was mapped to (see disk_device lines): other readers of
+		// those disks count too, and "not measured" means no device was mapped.
+		"disk_read_measured", report.DiskReadMeasured,
 		"disk_ceiling_at_readers", report.DiskCeilingAtReaders,
 		"disk_at_audience_mbps", report.DiskReadBytesPerSecAtAudience * 8 / 1e6,
 		// Named for the unit it actually carries: this one is MEBIbytes, while
@@ -415,6 +443,22 @@ func (r *Runner) finish(report Report) {
 		"go_gc_cpu_pct_avg", int(report.Resources.GoGCCPUPercentAvg),
 		"go_gc_cpu_pct_peak", int(report.Resources.GoGCCPUPercentPeak),
 		"served_mbps", report.Resources.ServedBytesPerSecAvg * 8 / 1e6,
+	}
+	for _, m := range report.DiskDevices {
+		r.logger.Info("loadtest: disk device", "location", m.Location, "device", m.Device, "resolved", m.Resolved)
+	}
+	if v := report.DiskVerdict; v.Device != "" {
+		r.logger.Info("loadtest: disk verdict",
+			"tier", max(report.BreakViewers, report.SustainedViewers),
+			"device", v.Device,
+			"saturated", v.Saturated,
+			"await_ms", int(v.AwaitMs),
+			"await_baseline_ms", int(v.AwaitBaselineMs),
+			"await_ms_peak", int(v.AwaitMsPeak),
+			"queue_depth", fmt.Sprintf("%.1f", v.QueueDepth),
+			"util_pct", int(v.UtilPct),
+			"iowait_pct", int(v.IOWaitPct),
+		)
 	}
 	if report.HasPerViewerCost {
 		args = append(args,
@@ -442,7 +486,22 @@ func (r *Runner) finish(report Report) {
 			"util_pct_avg", int(d.UtilPctAvg),
 			"util_pct_peak", int(d.UtilPctPeak),
 			"read_mib_per_sec", d.ReadBytesPerSecAvg/(1<<20),
+			"read_mib_per_sec_peak", d.ReadBytesPerSecPeak/(1<<20),
 			"await_ms", int(d.AwaitMsAvg),
+			"await_ms_peak", int(d.AwaitMsPeak),
+			"queue_depth", fmt.Sprintf("%.1f", d.QueueDepthAvg),
+		)
+	}
+	// The capacity at the break: what each disk delivered under the lowest
+	// audience that broke. The headcount depends on the draw; this does not.
+	for _, d := range report.BreakResources.Disks {
+		r.logger.Info("loadtest: disk at break",
+			"viewers", report.BreakViewers,
+			"device", d.Device,
+			"mbps", d.ReadBytesPerSecAvg*8/1e6,
+			"mbps_peak", d.ReadBytesPerSecPeak*8/1e6,
+			"await_ms", int(d.AwaitMsAvg),
+			"util_pct", int(d.UtilPctAvg),
 		)
 	}
 
@@ -466,14 +525,40 @@ func (r *Runner) finish(report Report) {
 		r.logger.Info("loadtest: tier cost",
 			"viewers", t.Viewers,
 			"cpu_pct", int(t.CPUPercent),
-			"cpu_pct_per_viewer", fmt.Sprintf("%.2f", t.CPUPercentPerViewer),
+			"machine_cpu_pct", int(t.MachineCPUPercent),
+			"machine_iowait_pct", int(t.MachineIOWaitPct),
 			"mem_mb", t.MemUsedBytes/(1<<20),
-			"mem_mb_per_viewer", t.MemBytesPerViewer/(1<<20),
+			"process_rss_mb", t.ProcessRSSBytes/(1<<20),
 			"disk_read_mib_per_sec", t.DiskReadBytesPerSec/(1<<20),
 			"served_mbps", t.ServedBytesPerSec*8/1e6,
 			"go_heap_live_mb", t.GoHeapLiveBytes/(1<<20),
 			"go_gc_cpu_pct", int(t.GoGCCPUPercent),
 			"samples", t.Samples,
+		)
+	}
+	// Every hold, broken ones included, with the p95 the verdict read: the
+	// climb as it happened, which the per-tier table above summarises.
+	for _, w := range report.Windows {
+		r.logger.Info("loadtest: window",
+			"viewers", w.Tier,
+			"phase", w.Phase,
+			"measured", w.Measured,
+			"broke", w.Broke,
+			"reason", string(w.Reason),
+			"cpu_pct", int(w.Resources.CPUPercentAvg),
+			"machine_cpu_pct", int(w.Resources.MachineCPUPercentAvg),
+			"iowait_pct", int(w.Resources.MachineIOWaitPercentAvg),
+			"served_mbps", w.Resources.ServedBytesPerSecAvg*8/1e6,
+			"disk_read_mib_per_sec", w.Resources.DiskReadBytesPerSecAvg/(1<<20),
+			"segment_ms_p50", w.SegmentMsP50,
+			"segment_ms_p95", w.SegmentMsP95,
+			"segment_ms_p95_scaled", w.SegmentMsP95Scaled,
+			"segments", w.SegmentSamples,
+			"ttff_ms_p95", w.TTFFMsP95,
+			"disk", w.DiskVerdict.Device,
+			"disk_await_ms", int(w.DiskVerdict.AwaitMs),
+			"disk_saturated", w.DiskVerdict.Saturated,
+			"seconds", int(w.EndedAt.Sub(w.StartedAt).Seconds()),
 		)
 	}
 
