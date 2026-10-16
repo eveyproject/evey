@@ -51,22 +51,16 @@ var allowlist = map[string]string{
 // cannot see (set through an untyped path); triage in the backlog, then
 // delete the line. Never grow this list to silence a new regression.
 var neverWrittenByMessage = map[string]string{
+	"Attachment.mime_type":                    "never written BY DESIGN: the MKV toolbox RPCs are not exposed (TestMKVToolboxRPCsAreNotExposed); the client mimeType reads are Photo's and Track's, surfaced once MimeType stopped being matched by name",
 	"ContainerInfo.date":                      "never written: tracked in backlog",
 	"ContainerInfo.file_size":                 "never written: tracked in backlog",
 	"ExtractDataChunk.total_size":             "never written: tracked in backlog",
-	"LoadTestReport.cold_cache":               "never written: tracked in backlog",
-	"LoadTestReport.disk_read_starved":        "never written: tracked in backlog",
-	"LoadTestReport.harness_cpu_fraction":     "never written: tracked in backlog",
-	"LoadTestReport.harness_cpu_measured":     "never written: tracked in backlog",
-	"LoadTestReport.storage_fs_type":          "never written: tracked in backlog",
-	"LoadTestReport.storage_opaque":           "never written: tracked in backlog",
-	"LoadTestReport.tiers":                    "never written: tracked in backlog",
 	"MetadataResult.backdrop_url":             "never written: tracked in backlog",
 	"MetadataResult.poster_url":               "never written: tracked in backlog",
 	"MetadataResult.provider_id":              "never written: tracked in backlog",
 	"MkvTrack.bit_depth":                      "never written: tracked in backlog",
 	"MkvTrack.frame_rate":                     "never written: tracked in backlog",
-	"MkvTrack.is_forced":                      "never written: tracked in backlog",
+	"MkvTrack.is_forced":                      "never written: tracked in backlog; masked today by the untyped IsForced writes of the subtitle scanner, so the guard cannot fire on it",
 	"ScheduledTask.last_error":                "never written: tracked in backlog",
 	"SystemInfo.server_id":                    "never written: tracked in backlog (previously masked by a namesake)",
 	"RollbackMediaSeekIndexResponse.restored": "never written: read by the TV browser app, surfaced when tv-web joined the scan; tracked in backlog",
@@ -176,11 +170,31 @@ func jsonName(snake string) string {
 }
 
 // collectCorpus concatenates the content of every file under roots that the
-// keep filter accepts. Plain bytes are enough: the guard only needs "does this
-// pattern occur anywhere", never positions.
+// keep filter accepts. Plain bytes are enough for the client side: the guard
+// only needs "does this pattern occur anywhere", never positions.
 func collectCorpus(t *testing.T, roots []string, keep func(path string) bool) string {
 	t.Helper()
 	var sb strings.Builder
+	walkSources(t, roots, keep, func(_ string, body []byte) {
+		sb.Write(body)
+		sb.WriteByte('\n')
+	})
+	return sb.String()
+}
+
+// collectGoSources returns the server files under roots one by one: the
+// index parses each, and a parser wants a file, not a concatenation.
+func collectGoSources(t *testing.T, roots []string) []goSource {
+	t.Helper()
+	var out []goSource
+	walkSources(t, roots, isServerSource, func(path string, body []byte) {
+		out = append(out, goSource{path: path, src: string(body)})
+	})
+	return out
+}
+
+func walkSources(t *testing.T, roots []string, keep func(path string) bool, visit func(path string, body []byte)) {
+	t.Helper()
 	for _, root := range roots {
 		err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
@@ -198,8 +212,7 @@ func collectCorpus(t *testing.T, roots []string, keep func(path string) bool) st
 				if rerr != nil {
 					return rerr
 				}
-				sb.Write(b)
-				sb.WriteByte('\n')
+				visit(path, b)
 			}
 			return nil
 		})
@@ -207,7 +220,6 @@ func collectCorpus(t *testing.T, roots []string, keep func(path string) bool) st
 			t.Fatalf("walk %s: %v", root, err)
 		}
 	}
-	return sb.String()
 }
 
 func isServerSource(path string) bool {
@@ -229,29 +241,25 @@ func isClientSource(path string) bool {
 // The corpora are tokenized ONCE into sets so the per-field check is a lookup
 // (a thousand fields times a regex over megabytes was 14 s of gate).
 //
-// Server side, per message: a field is written when it is a key of a
-// `pkg.Message{...}` literal (depth 1 of that literal only), or the target of
+// Server side, per message, read off the parsed syntax tree: a field is
+// written when it is a key of a `pkg.Message{...}` literal, or the target of
 // `x.Field = ...` where x is typed to Message in the enclosing function. Two
 // name-level fallbacks remain, because the guard has no type information
 // there: an assignment whose receiver it cannot type (`a.b.Field = ...`,
 // range variables, call results) and a JSON name appearing as a string literal
 // (the manual-JSON HTTP handlers: struct tags, map keys). Both can still mask
 // a never-written namesake. Client side stays by name: JSON carries no type.
-func deadFields(fields []protoField, serverCorpus, clientCorpus string) []string {
-	tokenize := func(corpus string, re *regexp.Regexp) map[string]bool {
-		set := map[string]bool{}
-		for _, m := range re.FindAllStringSubmatch(corpus, -1) {
-			set[m[1]] = true
-		}
-		return set
-	}
+func deadFields(t *testing.T, fields []protoField, server []goSource, clientCorpus string) []string {
+	t.Helper()
 	messages := map[string]bool{}
 	for _, f := range fields {
 		messages[msgKey(f.Message)] = true
 	}
-	typed, untyped := indexServerWrites(serverCorpus, messages)
-	stringLits := tokenize(serverCorpus, regexp.MustCompile(`"(\w+)"`))
-	clientProps := tokenize(clientCorpus, regexp.MustCompile(`\.(\w+)\b`))
+	idx := indexServerWrites(t, server, messages)
+	clientProps := map[string]bool{}
+	for _, m := range regexp.MustCompile(`\.(\w+)\b`).FindAllStringSubmatch(clientCorpus, -1) {
+		clientProps[m[1]] = true
+	}
 
 	seen := map[string]bool{}
 	var out []string
@@ -263,7 +271,7 @@ func deadFields(fields []protoField, serverCorpus, clientCorpus string) []string
 		seen[id] = true
 		g := goName(f.Snake)
 		j := jsonName(f.Snake)
-		if typed[msgKey(f.Message)+"|"+g] || untyped[g] || stringLits[j] {
+		if idx.typed[msgKey(f.Message)+"|"+g] || idx.untyped[g] || idx.stringLits[j] {
 			continue
 		}
 		if clientProps[j] {
@@ -284,9 +292,9 @@ func TestGuardDetectsAFixtureDeadField(t *testing.T) {
 	if len(fields) != 4 {
 		t.Fatalf("fixture proto parsed into %d fields, want 4: %v", len(fields), fields)
 	}
-	server := collectCorpus(t, []string{"testdata/server"}, isServerSource)
+	server := collectGoSources(t, []string{"testdata/server"})
 	client := collectCorpus(t, []string{"testdata/client"}, isClientSource)
-	got := deadFields(fields, server, client)
+	got := deadFields(t, fields, server, client)
 	if len(got) != 1 || got[0] != "ThingResponse.dead_field" {
 		t.Fatalf("guard verdict = %v, want exactly [ThingResponse.dead_field]", got)
 	}
@@ -297,7 +305,7 @@ func TestNoClientReadOfAFieldTheServerNeverWrites(t *testing.T) {
 	if len(fields) < 100 {
 		t.Fatalf("only %d proto fields parsed - the parser lost the tree, refusing to pass vacuously", len(fields))
 	}
-	server := collectCorpus(t, []string{filepath.Join(repoRoot, "internal")}, isServerSource)
+	server := collectGoSources(t, []string{filepath.Join(repoRoot, "internal")})
 	client := collectCorpus(t, []string{
 		filepath.Join(repoRoot, "frontend/apps/web/src"),
 		filepath.Join(repoRoot, "frontend/apps/mobile/app"),
@@ -306,7 +314,7 @@ func TestNoClientReadOfAFieldTheServerNeverWrites(t *testing.T) {
 		filepath.Join(repoRoot, "frontend/apps/tv/src"),
 		filepath.Join(repoRoot, "frontend/apps/tv-web/src"),
 	}, isClientSource)
-	for _, f := range deadFields(fields, server, client) {
+	for _, f := range deadFields(t, fields, server, client) {
 		if _, ok := allowlist[f[strings.IndexByte(f, '.')+1:]]; ok {
 			continue
 		}
