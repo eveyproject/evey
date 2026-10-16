@@ -43,7 +43,8 @@ async function askConnectedReceiverCaps(): Promise<CapsAnswer | null> {
 }
 
 interface UseCastSessionArgs {
-  player: VideoPlayer;
+  /** The local player, absent while the stream URL is still being negotiated. */
+  player: VideoPlayer | null;
   /** Puts the local player back on the bar's level (trim, device, boost) once a cast ends. */
   restoreLocalVolume: () => void;
   streamUrl: string | null;

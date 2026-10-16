@@ -9,7 +9,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { useTranslation } from "react-i18next";
@@ -65,7 +66,9 @@ export default function GuestWatch() {
     return { uri, contentType: "hls" as const, headers: { Authorization: `Bearer ${guest.token}` } };
   }, [guest, serverUrl, mediaId, streamInfo]);
 
-  const player = useVideoPlayer(videoSource, (p) => {
+  // No guest token or server yet means no native player: see
+  // useSourcedVideoPlayer for why a sourceless one is unsafe.
+  const player = useSourcedVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
     p.play();
   });
@@ -145,7 +148,7 @@ export default function GuestWatch() {
     router.replace("/login");
   }, [syncPlay]);
 
-  if (!guest) return null;
+  if (!guest || !player) return null;
 
   const progress = duration > 0 ? (seekPreviewPct ?? currentTime / duration) : 0;
 

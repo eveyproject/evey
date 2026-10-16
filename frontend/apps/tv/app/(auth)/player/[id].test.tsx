@@ -55,7 +55,13 @@ const playerMock = {
 };
 let lastSourceUri: string | null = null;
 vi.mock("expo-video", () => ({
-  useVideoPlayer: (source: { uri?: string } | null, setup?: (p: unknown) => void) => {
+  VideoView: () => React.createElement("div", { "data-testid": "video-view" }),
+}));
+// Mirrors the real hook's contract where the tests depend on it: no source, no
+// player; otherwise one player per source identity.
+vi.mock("@evey/client/native/useSourcedVideoPlayer", () => ({
+  useSourcedVideoPlayer: (source: { uri?: string } | null, setup?: (p: unknown) => void) => {
+    if (source === null) return null;
     const uri = source?.uri ?? null;
     if (uri !== lastSourceUri) {
       lastSourceUri = uri;
@@ -63,7 +69,6 @@ vi.mock("expo-video", () => ({
     }
     return playerMock;
   },
-  VideoView: () => React.createElement("div", { "data-testid": "video-view" }),
 }));
 
 // --- react-i18next mock ----------------------------------------------------------
@@ -155,7 +160,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
 // audio/subtitle tracks without a dedicated mock module.
 const stopSessionMock = vi.fn();
 const sessionState = {
-  streamUrl: "http://srv.test/stream.m3u8",
+  streamUrl: "http://srv.test/stream.m3u8" as string | null,
   isAuthError: false,
   mediaStreams: [] as { type: string; index: number; language?: string; isDefault?: boolean; codec?: string }[],
   progress: null as { positionMs?: string; durationMs?: string; played?: boolean } | null,
@@ -1105,6 +1110,25 @@ describe("the end of the stream (TV)", () => {
     act(() => { playerListeners.get("playToEnd")?.(); });
     expect(stopSessionMock).toHaveBeenCalled();
     expect(backMock).toHaveBeenCalled();
+  });
+
+  // While the stream URL is still negotiated there is no native player, so no
+  // listener exists for an empty player's "end" to reach (on Android, expo-video
+  // reports a sourceless player as ended at once: mobile beta.80 left every film
+  // before its first byte on it, 2026-10-16).
+  it("installs no player listener before the stream URL is known", () => {
+    nextEpisodeStateMock.mockReturnValue(endState(null));
+    sessionState.streamUrl = null;
+    playerListeners.clear();
+    try {
+      render(<PlayerScreen />);
+      expect(playerListeners.has("playToEnd")).toBe(false);
+      expect(playerListeners.size).toBe(0);
+      expect(screen.queryByTestId("video-view")).toBeNull();
+      expect(backMock).not.toHaveBeenCalled();
+    } finally {
+      sessionState.streamUrl = "http://srv.test/stream.m3u8";
+    }
   });
 
   it("hands over to the up-next countdown when another episode follows", () => {

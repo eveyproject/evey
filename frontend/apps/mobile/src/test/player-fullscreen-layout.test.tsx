@@ -126,16 +126,22 @@ const resumeHarness = {
   progress: null as { positionMs?: string; durationMs?: string; played?: boolean } | null,
   runSetup: false,
 };
+// The stream URL the play session hands the screen; null = still negotiating.
+const sessionHarness = { streamUrl: "http://server/stream.m3u8" as string | null };
 vi.mock("expo-video", () => ({
-  useVideoPlayer: (_source: unknown, setup?: (p: typeof fakePlayer) => void) => {
+  VideoView: () => null,
+  isPictureInPictureSupported: () => false,
+}));
+// Mirrors the real hook's one contract the tests depend on: no source, no player.
+vi.mock("@evey/client/native/useSourcedVideoPlayer", () => ({
+  useSourcedVideoPlayer: (source: unknown, setup?: (p: typeof fakePlayer) => void) => {
+    if (source === null) return null;
     if (resumeHarness.runSetup) {
       resumeHarness.runSetup = false;
       setup?.(fakePlayer);
     }
     return fakePlayer;
   },
-  VideoView: () => null,
-  isPictureInPictureSupported: () => false,
 }));
 vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ id: "media-1" }),
@@ -180,7 +186,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
 
 vi.mock("../hooks/usePlaySession", () => ({
   usePlaySession: () => ({
-    streamUrl: "http://server/stream.m3u8",
+    streamUrl: sessionHarness.streamUrl,
     streamToken: "tok",
     sessionId: "s1",
     streamInfo: { playMethod: "PLAY_METHOD_TRANSCODE", mediaStreams: [] },
@@ -438,6 +444,23 @@ describe("player at the end of a film", () => {
     expect(router.back).not.toHaveBeenCalled();
     act(() => { playerListeners.get("playToEnd")?.(); });
     expect(router.back).toHaveBeenCalled();
+  });
+
+  // While the stream URL is still negotiated there is no native player, so no
+  // listener exists for an empty player's "end" to reach (on Android, expo-video
+  // reports a sourceless player as ended at once: beta.80 left every film before
+  // its first byte on it, 2026-10-16).
+  it("installs no player listener before the stream URL is known", async () => {
+    sessionHarness.streamUrl = null;
+    playerListeners.clear();
+    try {
+      await act(async () => { render(React.createElement(PlayerScreen)); });
+      expect(playerListeners.has("playToEnd")).toBe(false);
+      expect(playerListeners.size).toBe(0);
+      expect(router.back).not.toHaveBeenCalled();
+    } finally {
+      sessionHarness.streamUrl = "http://server/stream.m3u8";
+    }
   });
 
   it("hands over to the up-next countdown when another episode follows", async () => {
