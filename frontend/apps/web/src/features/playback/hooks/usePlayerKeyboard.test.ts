@@ -300,6 +300,26 @@ describe("usePlayerKeyboard", () => {
       expect(args.onCloseRef.current).toHaveBeenCalled();
     });
 
+    // A viewer refusing the next episode used to be thrown out of the player
+    // by the very key they reached for (prod 2026-10-15).
+    it("cancels a running credits countdown instead of leaving the player", () => {
+      const args = makeArgs(video);
+      const cancel = vi.fn();
+      const cancelCountdownRef = { current: cancel as (() => void) | null };
+      args.anyPanelOpenRef.current = true;
+      renderHook(() => usePlayerKeyboard({ ...args, cancelCountdownRef }));
+
+      pressKey("Escape");
+
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(args.closePanelRef.current).not.toHaveBeenCalled();
+      expect(args.onCloseRef.current).not.toHaveBeenCalled();
+
+      cancelCountdownRef.current = null;
+      pressKey("Escape");
+      expect(args.closePanelRef.current).toHaveBeenCalledTimes(1);
+    });
+
     it("yields Escape to an open aria-modal dialog (does not exit the player)", () => {
       const dialog = document.createElement("div");
       dialog.setAttribute("role", "dialog");

@@ -365,12 +365,32 @@ var (
 // its LEAD (distance to the end of the file), never by its position percentage.
 // Returns (0, 0, false, nil) when nothing useful is found - caller skips.
 func (d *IntroDetector) DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (startMs, endMs int64, found bool, err error) {
+	return d.detectEndCreditsInWindow(ctx, filePath, durationSec, creditsScanWindowSec(durationSec))
+}
+
+// DetectEndCreditsWithin is DetectEndCredits with the decode held to the last
+// maxLeadSec of the file: the season credits prior's re-scan of an outlier,
+// where a black outside the season's stretch is the same scene fade again.
+// 0 or less keeps the default window.
+func (d *IntroDetector) DetectEndCreditsWithin(ctx context.Context, filePath string, durationSec, maxLeadSec float64) (startMs, endMs int64, found bool, err error) {
+	return d.detectEndCreditsInWindow(ctx, filePath, durationSec, creditsWindowWithin(durationSec, maxLeadSec))
+}
+
+// creditsWindowWithin narrows the default window, never widens it.
+func creditsWindowWithin(durationSec, maxLeadSec float64) float64 {
+	window := creditsScanWindowSec(durationSec)
+	if maxLeadSec > 0 && maxLeadSec < window {
+		return maxLeadSec
+	}
+	return window
+}
+
+func (d *IntroDetector) detectEndCreditsInWindow(ctx context.Context, filePath string, durationSec, windowSec float64) (startMs, endMs int64, found bool, err error) {
 	ctx, span := tracing.StartSpan(ctx, "ffmpeg.intro.DetectEndCredits")
 	defer span.End()
 	if durationSec < 60 {
 		return 0, 0, false, nil
 	}
-	windowSec := creditsScanWindowSec(durationSec)
 	startSec := math.Max(0, durationSec-windowSec)
 	args := endCreditsArgs(filePath, startSec, windowSec)
 	cmd, finish, err := procfork.Command(ctx, procfork.Options{Class: procfork.Scan, Site: "intro.end_credits"}, d.binary, args...)

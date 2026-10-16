@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, type MutableRefObject } from "react";
 import { Pressable, Text, View, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
@@ -16,6 +16,7 @@ import {
   skippableCandidates,
   type ResolvedSegment,
   useChapterSkippables,
+  useCreditsCountdown,
 } from "@evey/client";
 
 export { CREDITS_COUNTDOWN_SEC };
@@ -44,8 +45,11 @@ interface SkipIntroButtonProps {
   // dismiss the credits before reaching the next episode.
   onNextEpisode?: () => void;
   /** The profile's auto-play choice. On, the next-episode button counts down
-   *  through the credits and fires on its own; "Watch credits" cancels it. */
+   *  through the credits and fires on its own; "Keep watching" cancels it. */
   autoAdvance?: boolean;
+  /** Armed with the cancel while the countdown runs, null otherwise, so the
+   *  screen can make BACK "keep watching" before it means "leave". */
+  cancelCountdownRef?: MutableRefObject<(() => void) | null>;
 }
 
 export function SkipIntroButton({
@@ -58,6 +62,7 @@ export function SkipIntroButton({
   liftForNextEpisode,
   onNextEpisode,
   autoAdvance = false,
+  cancelCountdownRef,
 }: SkipIntroButtonProps) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -114,29 +119,23 @@ export function SkipIntroButton({
     toast.info(t("player.introSkipped"));
   }, [autoTarget, t]);
 
-  // Credits countdown. Cancelled per segment (keyed on its start, like the
-  // auto-skip): "Watch credits" is a decision for this episode's credits, a
-  // seek back into them must not restart the clock on the viewer.
-  const withNext = resolved?.type === "end_credits" && !!onNextEpisode;
-  const [cancelledCredits, setCancelledCredits] = useState<Set<number>>(() => new Set());
-  const [lastCancelMedia, setLastCancelMedia] = useState(mediaId);
-  if (lastCancelMedia !== mediaId) {
-    setLastCancelMedia(mediaId);
-    setCancelledCredits(new Set());
-  }
-  const counting =
-    withNext && autoAdvance && resolved !== null && !cancelledCredits.has(resolved.startSec);
-  const remaining = counting && resolved
-    ? Math.max(0, Math.ceil(Math.min(resolved.startSec + CREDITS_COUNTDOWN_SEC, resolved.endSec) - currentTime))
-    : null;
-  const onNextEpisodeRef = useRef(onNextEpisode);
-  onNextEpisodeRef.current = onNextEpisode;
-  const firedRef = useRef<number | null>(null);
+  // Credits countdown: @evey/client's, shared with the browser and the phone.
+  // It starts where the viewer entered the credits and "Keep watching"
+  // cancels it for these credits.
+  const { counting, remaining, watchCredits } = useCreditsCountdown({
+    segment: resolved,
+    currentTime,
+    mediaId,
+    enabled: autoAdvance,
+    onNextEpisode,
+  });
   useEffect(() => {
-    if (remaining !== 0 || !resolved || firedRef.current === resolved.startSec) return;
-    firedRef.current = resolved.startSec;
-    onNextEpisodeRef.current?.();
-  }, [remaining, resolved]);
+    if (!cancelCountdownRef) return;
+    cancelCountdownRef.current = counting ? watchCredits : null;
+    return () => {
+      cancelCountdownRef.current = null;
+    };
+  }, [cancelCountdownRef, counting, watchCredits]);
 
   // Hook must run before the early return below (rules of hooks). While an
   // auto-skip is pending the button is on its way out, so it must not claim
@@ -176,11 +175,7 @@ export function SkipIntroButton({
     <View style={[styles.row, liftForNextEpisode && styles.rowRaised]}>
       <Pressable
         hasTVPreferredFocus
-        onPress={() =>
-          counting
-            ? setCancelledCredits((prev) => new Set(prev).add(resolved.startSec))
-            : onSkip(resolved.endSec)
-        }
+        onPress={() => (counting ? watchCredits() : onSkip(resolved.endSec))}
         onFocus={handleSkipFocus}
         onBlur={handleSkipBlur}
         accessible

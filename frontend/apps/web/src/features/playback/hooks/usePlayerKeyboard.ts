@@ -32,6 +32,10 @@ interface UsePlayerKeyboardArgs {
   // onKeyDown no longer sees the next key: the shortcut handler reveals
   // instead, as any key on a focused control used to.
   revealControlsRef?: React.MutableRefObject<(() => void) | null>;
+  // Armed by SkipIntroButton while the credits countdown runs. Escape then
+  // means "keep watching", not "leave": a viewer refusing the next episode
+  // used to be thrown out of the player instead (prod 2026-10-15).
+  cancelCountdownRef?: React.MutableRefObject<(() => void) | null>;
   setPlaybackSpeed: (s: number) => void;
   // Burn-in-aware subtitle selector (same handler the settings panel uses), so
   // the "c" shortcut restarts the transcode for PGS/VobSub tracks instead of
@@ -61,6 +65,7 @@ export function usePlayerKeyboard({
   setShowShortcuts,
   showActionFlash,
   revealControlsRef,
+  cancelCountdownRef,
 }: UsePlayerKeyboardArgs) {
   const setPlaybackSpeedRef = useRef(setPlaybackSpeed);
   setPlaybackSpeedRef.current = setPlaybackSpeed;
@@ -98,7 +103,9 @@ export function usePlayerKeyboard({
       switch (e.key) {
         case "Escape":
           e.preventDefault();
-          if (anyPanelOpenRef.current) {
+          if (cancelCountdownRef?.current) {
+            cancelCountdownRef.current();
+          } else if (anyPanelOpenRef.current) {
             closePanelRef.current?.();
           } else {
             onCloseRef.current?.();
@@ -218,5 +225,5 @@ export function usePlayerKeyboard({
 
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, playbackSpeedRef, subtitleStreamsRef, currentSubtitleRef, anyPanelOpenRef, closePanelRef, pipToggleRef, castRef, onCloseRef, revealControlsRef]);
+  }, [videoRef, positionRef, knownDurationSecRef, seekRef, skipFwdRef, skipBwdRef, playbackSpeedRef, subtitleStreamsRef, currentSubtitleRef, anyPanelOpenRef, closePanelRef, pipToggleRef, castRef, onCloseRef, revealControlsRef, cancelCountdownRef]);
 }

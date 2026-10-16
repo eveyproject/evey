@@ -89,7 +89,7 @@ nextEpisodeOverlay:
 skipIntro: "Passer l'intro"
 skipRecap: "Passer le résumé"
 skipCredits: "Passer le générique"
-watchCredits: "Regarder le générique"
+watchCredits: "Continuer à regarder"
 skipPreview: "Passer l'aperçu"
 introSkipped: "Intro passée"
 download: "Télécharger"

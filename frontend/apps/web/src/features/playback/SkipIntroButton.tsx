@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import {
-  CREDITS_COUNTDOWN_SEC,
   SKIPPABLE_SEGMENTS,
   SKIP_LABEL_KEY,
   activeSkippable,
   skippableCandidates,
   useChapterSkippables,
+  useCreditsCountdown,
   type ResolvedSegment,
 } from "@evey/client";
 import { useMediaSegments } from "@/hooks/useMediaSegments";
@@ -36,14 +36,17 @@ interface SkipIntroButtonProps {
    *  and already offers "Play now"; two overlapping prompts help nobody. */
   hidden?: boolean;
   /** The profile's auto-play choice. On, the next-episode button counts down
-   *  through the credits and fires on its own; "Watch credits" cancels it. */
+   *  through the credits and fires on its own; "Keep watching" cancels it. */
   autoAdvance?: boolean;
+  /** Armed with the cancel while the countdown runs, null otherwise, so the
+   *  keyboard can make Escape "keep watching" before it means "leave". */
+  cancelCountdownRef?: MutableRefObject<(() => void) | null>;
 }
 
 const BUTTON_CLASS =
   "px-5 py-2.5 text-sm font-semibold text-white rounded-md transition-all duration-200 hover:scale-105 bg-[var(--overlay-btn-bg)] border border-[var(--overlay-dot-inactive)] backdrop-blur-[8px]";
 
-export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip, onNextEpisode, hidden, autoAdvance = false }: SkipIntroButtonProps) {
+export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip, onNextEpisode, hidden, autoAdvance = false, cancelCountdownRef }: SkipIntroButtonProps) {
   const { t } = useTranslation();
 
   const { data: segmentsData } = useMediaSegments(mediaId, [...SKIPPABLE_SEGMENTS]);
@@ -78,29 +81,24 @@ export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip, onNext
     toast.info(t("player.introSkipped"));
   }, [autoTarget, t]);
 
-  // Credits countdown. Cancelled per segment (keyed on its start, like the
-  // auto-skip): "Watch credits" is a decision for this episode's credits, a
-  // seek back into them must not restart the clock on the viewer.
+  // Credits countdown: @evey/client's, shared with the phone and the
+  // televisions. It starts where the viewer entered the credits and "Watch
+  // credits" cancels it for these credits.
   const withNext = resolved?.type === "end_credits" && !!onNextEpisode;
-  const [cancelledCredits, setCancelledCredits] = useState<Set<number>>(() => new Set());
-  const [lastCancelMedia, setLastCancelMedia] = useState(mediaId);
-  if (lastCancelMedia !== mediaId) {
-    setLastCancelMedia(mediaId);
-    setCancelledCredits(new Set());
-  }
-  const counting =
-    withNext && autoAdvance && resolved !== null && !cancelledCredits.has(resolved.startSec);
-  const remaining = counting && resolved
-    ? Math.max(0, Math.ceil(Math.min(resolved.startSec + CREDITS_COUNTDOWN_SEC, resolved.endSec) - currentTime))
-    : null;
-  const onNextEpisodeRef = useRef(onNextEpisode);
-  onNextEpisodeRef.current = onNextEpisode;
-  const firedRef = useRef<number | null>(null);
+  const { counting, remaining, watchCredits } = useCreditsCountdown({
+    segment: resolved,
+    currentTime,
+    mediaId,
+    enabled: autoAdvance,
+    onNextEpisode,
+  });
   useEffect(() => {
-    if (remaining !== 0 || !resolved || firedRef.current === resolved.startSec) return;
-    firedRef.current = resolved.startSec;
-    onNextEpisodeRef.current?.();
-  }, [remaining, resolved]);
+    if (!cancelCountdownRef) return;
+    cancelCountdownRef.current = counting ? watchCredits : null;
+    return () => {
+      cancelCountdownRef.current = null;
+    };
+  }, [cancelCountdownRef, counting, watchCredits]);
 
   if (!resolved || hidden) return null;
 
@@ -110,7 +108,7 @@ export function SkipIntroButton({ mediaId, filePath, currentTime, onSkip, onNext
     <div className="absolute bottom-28 right-4 z-float flex gap-2 animate-fade-in">
       {counting ? (
         <button
-          onClick={() => setCancelledCredits((prev) => new Set(prev).add(resolved.startSec))}
+          onClick={watchCredits}
           className={BUTTON_CLASS}
           aria-label={t("player.watchCredits")}
         >

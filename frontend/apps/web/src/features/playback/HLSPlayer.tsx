@@ -151,6 +151,9 @@ export function HLSPlayer({
   // Set by PlayerControls to its reveal action, so hovering the cluster keeps
   // the controls up (and reschedules the hide) just like hovering the bars.
   const revealControlsRef = useRef<(() => void) | null>(null);
+  // Set by SkipIntroButton while the credits countdown runs: Escape cancels
+  // it instead of leaving the player.
+  const cancelCountdownRef = useRef<(() => void) | null>(null);
   // Set by PlayerControls to its Document-PiP-aware toggle, so the "p" keyboard
   // shortcut opens the same rich PiP window as the on-screen button instead of
   // the bare-<video> legacy PiP.
@@ -1037,7 +1040,7 @@ export function HLSPlayer({
     playbackSpeedRef, subtitleStreamsRef, currentSubtitleRef, anyPanelOpenRef,
     closePanelRef, onCloseRef, setPlaybackSpeed, onSubtitleChange: handleSubtitleChange,
     setShowShortcuts, showActionFlash, pipToggleRef, castRef: castKeyboardRef,
-    revealControlsRef,
+    revealControlsRef, cancelCountdownRef,
   });
 
   const { overlayTime, overlayDuration } = useOverlayTime({
@@ -1433,6 +1436,7 @@ export function HLSPlayer({
         onNextEpisode={nextEpisode ? () => handleNextEpisode(nextEpisode.id) : undefined}
         hidden={nextCardVisible}
         autoAdvance={autoplayNext}
+        cancelCountdownRef={cancelCountdownRef}
       />
       {nextEpisode && (
         <NextEpisodeOverlay

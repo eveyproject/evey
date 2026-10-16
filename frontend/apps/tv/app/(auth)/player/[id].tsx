@@ -197,6 +197,9 @@ export default function PlayerScreen() {
   // Whether the Skip button itself holds TV focus - distinct from skipVisible,
   // see the remote handler's "select" guard below (B5).
   const [skipFocused, setSkipFocused] = useState(false);
+  // Armed by SkipIntroButton while the credits countdown runs: BACK then
+  // keeps watching instead of leaving the player (prod 2026-10-15).
+  const cancelCountdownRef = useRef<(() => void) | null>(null);
   const [selectedQuality, setSelectedQuality] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const committedTimeRef = useRef(0);
@@ -1026,6 +1029,11 @@ export default function PlayerScreen() {
     // OK on the focused surface already fires its native onPress - handling
     // "select" here too would double-toggle play/pause.
     if (surfaceFocused && type === "select") return;
+    // The credits countdown is running: BACK is the refusal, not the exit.
+    if (cancelCountdownRef.current && (type === "menu" || type === "back")) {
+      cancelCountdownRef.current();
+      return;
+    }
     // The 30s "up next" card is on screen but hasn't claimed the D-pad (see
     // anyOverlayOpen above) - back/menu dismisses IT instead of exiting the
     // player, since the viewer is a keypress from losing their place otherwise.
@@ -1142,6 +1150,10 @@ export default function PlayerScreen() {
   // closes and the film keeps playing.
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (cancelCountdownRef.current) {
+        cancelCountdownRef.current();
+        return true;
+      }
       // One step back up the menu, not out of it: a panel returns to the
       // settings menu that opened it, and only the menu itself returns to the
       // film.
@@ -1473,6 +1485,7 @@ export default function PlayerScreen() {
         liftForNextEpisode={nextEp.visible}
         onNextEpisode={nextEp.nextEpisode ? nextEp.playNow : undefined}
         autoAdvance={autoplayNext}
+        cancelCountdownRef={cancelCountdownRef}
       />
 
       <NextEpisodeOverlay

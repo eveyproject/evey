@@ -45,6 +45,9 @@ func (d *hashesDetector) AudioFallback(_ context.Context, _ string, _ float64) (
 func (d *hashesDetector) DetectEndCredits(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
 	return 0, 0, false, nil
 }
+func (d *hashesDetector) DetectEndCreditsWithin(_ context.Context, _ string, _, _ float64) (int64, int64, bool, error) {
+	return 0, 0, false, nil
+}
 func (d *hashesDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool) {
 	return 0, 0, false
 }

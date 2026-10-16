@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, screen } from "@testing-library/react";
+import { act, render, fireEvent, screen } from "@testing-library/react";
 import React from "react";
 
 const announce = vi.fn();
@@ -127,58 +127,91 @@ describe("SkipIntroOverlay credits countdown with auto-play on", () => {
     segments = { segments: [seg("end_credits", 10_000, 60_000)], introAutoSkip: false };
   });
 
-  it("counts down on the playhead from the start of the credits", () => {
-    const { rerender } = render(
-      <SkipIntroOverlay mediaId="m1" currentTime={10} onSkip={() => {}} onNextEpisode={() => {}} autoAdvance />,
+  // Playback as the player reports it, a tick every half second: a single
+  // rerender far ahead reads as a seek, which cancels (its own test below).
+  function mountCredits(at: number, props: { autoAdvance?: boolean; cancelCountdownRef?: React.MutableRefObject<(() => void) | null> } = {}) {
+    const onNextEpisode = vi.fn();
+    const autoAdvance = props.autoAdvance ?? true;
+    const el = (t: number) => (
+      <SkipIntroOverlay mediaId="m1" currentTime={t} onSkip={() => {}} onNextEpisode={onNextEpisode} autoAdvance={autoAdvance} cancelCountdownRef={props.cancelCountdownRef} />
     );
+    const view = render(el(at));
+    const playTo = (to: number, from: number) => {
+      for (let t = from + 0.5; t < to; t += 0.5) view.rerender(el(t));
+      view.rerender(el(to));
+    };
+    const seekTo = (to: number) => view.rerender(el(to));
+    return { ...view, onNextEpisode, playTo, seekTo };
+  }
+  const nextText = () => screen.getByLabelText("player.nextEpisodeOverlay.nextEpisode").textContent;
+
+  it("counts down on the playhead from the start of the credits", () => {
+    const { playTo } = mountCredits(10);
     expect(screen.getByLabelText("player.watchCredits")).toBeTruthy();
     // remaining = ceil(min(10+15,60) - 10) = 15
-    expect(screen.getByLabelText("player.nextEpisodeOverlay.nextEpisode").textContent).toBe(
-      "player.nextEpisodeOverlay.nextIn:15",
-    );
+    expect(nextText()).toBe("player.nextEpisodeOverlay.nextIn:15");
 
-    rerender(<SkipIntroOverlay mediaId="m1" currentTime={15.2} onSkip={() => {}} onNextEpisode={() => {}} autoAdvance />);
+    playTo(15.2, 10);
     // remaining = ceil(25 - 15.2) = ceil(9.8) = 10
-    expect(screen.getByLabelText("player.nextEpisodeOverlay.nextEpisode").textContent).toBe(
-      "player.nextEpisodeOverlay.nextIn:10",
-    );
+    expect(nextText()).toBe("player.nextEpisodeOverlay.nextIn:10");
   });
 
-  it("fires onNextEpisode exactly once when the countdown reaches zero, and not again on later re-renders", () => {
-    const onNextEpisode = vi.fn();
-    const { rerender } = render(
-      <SkipIntroOverlay mediaId="m1" currentTime={24} onSkip={() => {}} onNextEpisode={onNextEpisode} autoAdvance />,
-    );
+  it("fires onNextEpisode exactly once when the countdown reaches zero, and not again on later ticks", () => {
+    const { playTo, onNextEpisode } = mountCredits(10);
+    playTo(24, 10);
     expect(onNextEpisode).not.toHaveBeenCalled();
-    rerender(<SkipIntroOverlay mediaId="m1" currentTime={25} onSkip={() => {}} onNextEpisode={onNextEpisode} autoAdvance />);
-    rerender(<SkipIntroOverlay mediaId="m1" currentTime={26} onSkip={() => {}} onNextEpisode={onNextEpisode} autoAdvance />);
+    playTo(26, 24);
     expect(onNextEpisode).toHaveBeenCalledTimes(1);
   });
 
-  it("Watch credits cancels the countdown for these credits and restores Skip Credits, no later auto-fire", () => {
-    const onNextEpisode = vi.fn();
-    const { rerender } = render(
-      <SkipIntroOverlay mediaId="m1" currentTime={10} onSkip={() => {}} onNextEpisode={onNextEpisode} autoAdvance />,
-    );
+  // Prod 2026-10-15: credits marked four minutes early, a resume inside them
+  // inherited six seconds of the clock, then the next episode, every time.
+  it("gives a viewer who resumes inside the credits the full countdown", () => {
+    const { playTo, onNextEpisode } = mountCredits(24);
+    expect(nextText()).toBe("player.nextEpisodeOverlay.nextIn:15");
+    playTo(30, 24);
+    expect(nextText()).toBe("player.nextEpisodeOverlay.nextIn:9");
+    expect(onNextEpisode).not.toHaveBeenCalled();
+  });
+
+  it("Keep watching cancels the countdown for these credits and restores Skip Credits, no later auto-fire", () => {
+    const { playTo, onNextEpisode } = mountCredits(10);
     fireEvent.click(screen.getByLabelText("player.watchCredits"));
     expect(screen.getByLabelText("player.skipCredits")).toBeTruthy();
-    expect(screen.getByLabelText("player.nextEpisodeOverlay.nextEpisode").textContent).toBe(
-      "player.nextEpisodeOverlay.nextEpisode",
-    );
-    rerender(<SkipIntroOverlay mediaId="m1" currentTime={50} onSkip={() => {}} onNextEpisode={onNextEpisode} autoAdvance />);
+    expect(nextText()).toBe("player.nextEpisodeOverlay.nextEpisode");
+    playTo(50, 10);
+    expect(onNextEpisode).not.toHaveBeenCalled();
+  });
+
+  // "Nothing lets me cancel it" (owner, 2026-10-15): a scrub inside the
+  // credits is the viewer still watching, it cancels like the button does.
+  it("a seek inside the credits cancels the countdown", () => {
+    const { playTo, seekTo, onNextEpisode } = mountCredits(10);
+    playTo(12, 10);
+    seekTo(40);
+    expect(screen.getByLabelText("player.skipCredits")).toBeTruthy();
+    playTo(59, 40);
+    expect(onNextEpisode).not.toHaveBeenCalled();
+  });
+
+  it("arms the hardware Back cancel while counting and clears it once the viewer keeps watching", () => {
+    const cancelCountdownRef = { current: null as (() => void) | null };
+    const { playTo, onNextEpisode } = mountCredits(10, { cancelCountdownRef });
+    expect(cancelCountdownRef.current).not.toBeNull();
+    act(() => cancelCountdownRef.current?.());
+    expect(cancelCountdownRef.current).toBeNull();
+    expect(screen.getByLabelText("player.skipCredits")).toBeTruthy();
+    playTo(50, 10);
     expect(onNextEpisode).not.toHaveBeenCalled();
   });
 
   it("never counts down or fires with auto-play off", () => {
-    const onNextEpisode = vi.fn();
-    const { rerender } = render(
-      <SkipIntroOverlay mediaId="m1" currentTime={10} onSkip={() => {}} onNextEpisode={onNextEpisode} />,
-    );
-    rerender(<SkipIntroOverlay mediaId="m1" currentTime={26} onSkip={() => {}} onNextEpisode={onNextEpisode} />);
+    const cancelCountdownRef = { current: null as (() => void) | null };
+    const { playTo, onNextEpisode } = mountCredits(10, { autoAdvance: false, cancelCountdownRef });
+    playTo(26, 10);
     expect(screen.getByLabelText("player.skipCredits")).toBeTruthy();
-    expect(screen.getByLabelText("player.nextEpisodeOverlay.nextEpisode").textContent).toBe(
-      "player.nextEpisodeOverlay.nextEpisode",
-    );
+    expect(nextText()).toBe("player.nextEpisodeOverlay.nextEpisode");
+    expect(cancelCountdownRef.current).toBeNull();
     expect(onNextEpisode).not.toHaveBeenCalled();
   });
 });

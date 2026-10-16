@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import { AccessibilityInfo, Pressable, Text, View, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
@@ -6,12 +6,12 @@ import { useTheme } from "../providers/ThemeProvider";
 import { useMediaSegments } from "../hooks/useMediaSegments";
 import { FONT_SIZE } from "@evey/theme";
 import {
-  CREDITS_COUNTDOWN_SEC,
   SKIPPABLE_SEGMENTS,
   SKIP_LABEL_KEY,
   activeSkippable,
   skippableCandidates,
   useChapterSkippables,
+  useCreditsCountdown,
   type ResolvedSegment,
   type SkippableType,
 } from "@evey/client";
@@ -42,8 +42,11 @@ interface SkipIntroOverlayProps {
   // button renders next to the skip button.
   onNextEpisode?: () => void;
   /** The profile's auto-play choice. On, the next-episode button counts down
-   *  through the credits and fires on its own; "Watch credits" cancels it. */
+   *  through the credits and fires on its own; "Keep watching" cancels it. */
   autoAdvance?: boolean;
+  /** Armed with the cancel while the countdown runs, null otherwise, so the
+   *  screen can make the hardware Back "keep watching" before it means "leave". */
+  cancelCountdownRef?: MutableRefObject<(() => void) | null>;
 }
 
 export function SkipIntroOverlay({
@@ -55,6 +58,7 @@ export function SkipIntroOverlay({
   hidden = false,
   onNextEpisode,
   autoAdvance = false,
+  cancelCountdownRef,
 }: SkipIntroOverlayProps) {
   const { t } = useTranslation();
   const theme = useTheme();
@@ -105,29 +109,24 @@ export function SkipIntroOverlay({
     AccessibilityInfo.announceForAccessibility(t(SKIP_LABEL_KEY[type]));
   }, [announceKey, t]);
 
-  // Credits countdown. Cancelled per segment (keyed on its start, like the
-  // auto-skip): "Watch credits" is a decision for this episode's credits, a
-  // seek back into them must not restart the clock on the viewer.
+  // Credits countdown: @evey/client's, shared with the browser and the
+  // televisions. It starts where the viewer entered the credits and "Watch
+  // credits" cancels it for these credits.
   const withNext = resolved?.type === "end_credits" && !!onNextEpisode;
-  const [cancelledCredits, setCancelledCredits] = useState<Set<number>>(() => new Set());
-  const [lastCancelMedia, setLastCancelMedia] = useState(mediaId);
-  if (lastCancelMedia !== mediaId) {
-    setLastCancelMedia(mediaId);
-    setCancelledCredits(new Set());
-  }
-  const counting =
-    withNext && autoAdvance && resolved !== null && !cancelledCredits.has(resolved.startSec);
-  const remaining = counting && resolved
-    ? Math.max(0, Math.ceil(Math.min(resolved.startSec + CREDITS_COUNTDOWN_SEC, resolved.endSec) - currentTime))
-    : null;
-  const onNextEpisodeRef = useRef(onNextEpisode);
-  onNextEpisodeRef.current = onNextEpisode;
-  const firedRef = useRef<number | null>(null);
+  const { counting, remaining, watchCredits } = useCreditsCountdown({
+    segment: resolved,
+    currentTime,
+    mediaId,
+    enabled: autoAdvance,
+    onNextEpisode,
+  });
   useEffect(() => {
-    if (remaining !== 0 || !resolved || firedRef.current === resolved.startSec) return;
-    firedRef.current = resolved.startSec;
-    onNextEpisodeRef.current?.();
-  }, [remaining, resolved]);
+    if (!cancelCountdownRef) return;
+    cancelCountdownRef.current = counting ? watchCredits : null;
+    return () => {
+      cancelCountdownRef.current = null;
+    };
+  }, [cancelCountdownRef, counting, watchCredits]);
 
   if (!resolved || hidden) return null;
 
@@ -142,7 +141,7 @@ export function SkipIntroOverlay({
       {counting ? (
         <Pressable
           style={buttonStyle}
-          onPress={() => setCancelledCredits((prev) => new Set(prev).add(resolved.startSec))}
+          onPress={watchCredits}
           accessible={true}
           accessibilityLabel={t("player.watchCredits")}
           accessibilityRole="button"

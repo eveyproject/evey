@@ -27,6 +27,9 @@ type IntroDetector interface {
 	PrecisionPass(ctx context.Context, filePath string, startSec, endSec, padSec float64) (int64, int64, error)
 	AudioFallback(ctx context.Context, filePath string, maxSec float64) (int64, int64, bool, error)
 	DetectEndCredits(ctx context.Context, filePath string, durationSec float64) (int64, int64, bool, error)
+	// DetectEndCreditsWithin is DetectEndCredits with the decode held to the
+	// last maxLeadSec of the file (the season credits prior's re-scan).
+	DetectEndCreditsWithin(ctx context.Context, filePath string, durationSec, maxLeadSec float64) (int64, int64, bool, error)
 	DetectLeadingLogoBlock(ctx context.Context, filePath string, durationSec float64) (int64, int64, bool, error)
 	DetectStudioLogo(hashes []uint64, intervalSec int) (int64, int64, bool)
 	AudioBandedFingerprint(ctx context.Context, filePath string, startSec, durationSec float64, binMs int) ([]float64, error)
@@ -1052,6 +1055,7 @@ func (s *IntroDetectionService) detectSeason(ctx context.Context, parentID strin
 	// Season-wide duration prior: shrink over-long outliers (absorbed recap /
 	// music-bleed) back to the season's median intro duration. Runs last so it
 	// sees the season's final mix of sources.
+	// The same walk carries the season credits prior (intro_credits_prior.go).
 	s.reconcileSeasonIntroDurations(ctx, parentID)
 }
 

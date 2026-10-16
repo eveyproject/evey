@@ -40,6 +40,9 @@ func (nothingFoundDetector) AudioFallback(context.Context, string, float64) (int
 func (nothingFoundDetector) DetectEndCredits(context.Context, string, float64) (int64, int64, bool, error) {
 	return 0, 0, false, nil
 }
+func (nothingFoundDetector) DetectEndCreditsWithin(context.Context, string, float64, float64) (int64, int64, bool, error) {
+	return 0, 0, false, nil
+}
 func (nothingFoundDetector) DetectLeadingLogoBlock(context.Context, string, float64) (int64, int64, bool, error) {
 	return 0, 0, false, nil
 }
