@@ -70,6 +70,9 @@ func printBootBanner(w io.Writer, cfg *config.Config, build buildIdentity) {
 	row("HTTP    ", paint(bWhite, fmt.Sprintf("http://0.0.0.0:%d", httpPort)))
 	row("gRPC    ", paint(bWhite, fmt.Sprintf(":%d", cfg.Server.Port)))
 	row("Plugins ", plugins)
+	if cfg.Server.BenchInstance {
+		row("Bench   ", paint(bRed, "BENCH INSTANCE - background work off"))
+	}
 	b.WriteByte('\n')
 
 	fmt.Fprint(w, b.String())

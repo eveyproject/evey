@@ -385,6 +385,9 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 				slog.ErrorContext(ctx, "panic recovered in backup retention cleanup", "error", r, "stack", string(debug.Stack()))
 			}
 		}()
+		if benchInstance {
+			return
+		}
 		if err := deps.backupSvc.CleanupOldBackups(ctx, cfg.Backup.RetentionDays); err != nil {
 			slog.WarnContext(ctx, "backup retention cleanup", slog.Any("err", err))
 		}
@@ -440,6 +443,8 @@ func startUpdateCheck(ctx context.Context, cfgRepo shared.ServerConfigRepository
 	b := buildID()
 	svc := updatecheck.New(ociregistry.New(), cfgRepo,
 		updatecheck.Build{Version: b.Version, Commit: b.Commit, BuildDate: b.BuildDate}, image)
-	svc.Start(ctx)
+	if !benchInstance {
+		svc.Start(ctx)
+	}
 	return svc
 }

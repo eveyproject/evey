@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
-	mathrand "math/rand/v2"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
 	"log/slog"
+	mathrand "math/rand/v2"
 	"net/http"
 	"os"
 	"strconv"
@@ -220,7 +220,9 @@ func startTranscodingWorkers(
 	capsOverrideSvc := apptranscoding.NewCapOverrideService(
 		capsOverrideRepo, apptranscoding.CapOverrideServiceOpts{}, slog.Default(),
 	)
-	capsOverrideSvc.Start(ctx)
+	if !benchInstance {
+		capsOverrideSvc.Start(ctx)
+	}
 	stoppers = append(stoppers, capsOverrideSvc.Close)
 
 	complexityWorker := apptranscoding.NewComplexityWorker(
@@ -232,8 +234,10 @@ func startTranscodingWorkers(
 		apptranscoding.ComplexityWorkerOpts{},
 		slog.Default(),
 	).WithVideoDims(r.MediaStream).WithActivePlayback(hlsVODRemover.ActivePlaybackCount)
-	complexityWorker.Start(ctx)
-	stoppers = append(stoppers, complexityWorker.Stop)
+	if !benchInstance {
+		complexityWorker.Start(ctx)
+		stoppers = append(stoppers, complexityWorker.Stop)
+	}
 
 	// Level backfill: re-probe existing media to fill media_streams.level. The
 	// scanner skips unchanged files, so it never back-populates the column the
@@ -243,7 +247,7 @@ func startTranscodingWorkers(
 	// admin can flip it from /admin/server-config (key transcoding.level_backfill,
 	// or the raw EVEY_LEVEL_BACKFILL) without touching the container env; a
 	// restart is required. transcoding.level_backfill=off disables it entirely.
-	if resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill", "EVEY_LEVEL_BACKFILL") != "off" {
+	if !benchInstance && resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill", "EVEY_LEVEL_BACKFILL") != "off" {
 		levelOpts := apptranscoding.LevelBackfillOpts{}
 		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.level_backfill_batch", "EVEY_LEVEL_BACKFILL_BATCH"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {

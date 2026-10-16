@@ -253,6 +253,13 @@ type ServerConfig struct {
 	// entirely (admin RPCs return FailedPrecondition, the runner is not
 	// constructed).
 	PluginsEnabled bool
+	// BenchInstance runs this server as a load-test bench beside a
+	// production one (EVEY_BENCH_INSTANCE, deliberately undocumented): every
+	// background task is off - scans, re-probes, trickplay, intro detection,
+	// calibration, backfills, search reindex, backups, notifications, plugins -
+	// so the only work on the disks is the load test's. Meant for a second
+	// container on a copy of the production database, media mounted read-only.
+	BenchInstance bool
 	// Demo turns this instance into a public demo: every visitor is an admin,
 	// so every admin operation is refused except the reads named in
 	// internal/pkg/demo, and the outbound ports (mail, webhooks, push) are
@@ -934,7 +941,8 @@ func Load() (*Config, error) {
 			ForwardedProto:     forwardedProtoFromEnv(baseURL),
 			LoginRateLimitMax:  envInt("EVEY_RATELIMIT_LOGIN_MAX", 10),
 			GlobalRateLimitMax: envInt("EVEY_RATELIMIT_GLOBAL_MAX", 300),
-			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", true),
+			PluginsEnabled:     envBool("EVEY_PLUGINS_ENABLED", true) && !envBool("EVEY_BENCH_INSTANCE", false),
+			BenchInstance:      envBool("EVEY_BENCH_INSTANCE", false),
 			Demo:               demoLevel().on,
 			DemoExtended:       demoLevel().extended,
 			DemoUser:           envStr("EVEY_DEMO_USER", ""),

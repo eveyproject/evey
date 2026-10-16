@@ -888,6 +888,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// probe window (5 samples 4 s apart, no stream, CPU under 20 %); otherwise
 	// the loop idles on the 5-minute clock.
 	go func() {
+		if benchInstance {
+			return
+		}
 		reprobe := time.NewTicker(5 * time.Minute)
 		defer reprobe.Stop()
 		for {
@@ -945,7 +948,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Cues-indexed subtitle tracks...) on /metrics.
 	startMkvgoMetrics(ctx, infra.onDemandPackager.WindowStats, mkvgoadapter.WalksInFlight)
 
-	if resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") != "off" {
+	if !benchInstance && resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill", "EVEY_KEYFRAME_BACKFILL") != "off" {
 		kfOpts := apptranscoding.KeyframeBackfillOpts{}
 		if v := resolveFlag(ctx, r.ServerCfg, "transcoding.keyframe_backfill_batch", "EVEY_KEYFRAME_BACKFILL_BATCH"); v != "" {
 			if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -993,7 +996,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// at scan priority (nice/ionice), SIGSTOPped under playback, and skips a
 	// tick entirely while a stream is served; results resume from the shared
 	// point cache. A failure here never touches playback or P1/P2.
-	if resolveFlag(ctx, infra.repos.ServerCfg, "transcoding.title_probe", "EVEY_TITLE_PROBE") != "off" {
+	if !benchInstance && resolveFlag(ctx, infra.repos.ServerCfg, "transcoding.title_probe", "EVEY_TITLE_PROBE") != "off" {
 		prober := ffmpeg.NewTitleProber(filepath.Join(cfg.Transcoding.CacheDir, "probe-cache"), "", isBusy)
 		probeWorker := apptranscoding.NewProbeWorker(
 			complexityRepo,
@@ -1013,7 +1016,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Library-wide progress and ETA of the heavy workers for the system-health
 	// view: one COUNT per worker a minute, from the counts they registered.
 	coverageCtx, stopCoverage := context.WithCancel(ctx)
-	go bgtasks.RunCoverageSampler(coverageCtx, time.Minute)
+	if !benchInstance {
+		go bgtasks.RunCoverageSampler(coverageCtx, time.Minute)
+	}
 	bgStoppers = append(bgStoppers, stopCoverage)
 	// The cast tracker's Stop performs the FINAL flush of derived positions -
 	// the common end of a cast is the user turning everything off, and losing

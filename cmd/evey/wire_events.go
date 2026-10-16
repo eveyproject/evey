@@ -27,6 +27,11 @@ func buildEventWiring(ctx context.Context, cfg *config.Config, infra *infraDeps,
 	loadOverride(ctx, deps.cfgStore, "library.watcher_enabled", parseBool, &cfg.Library.WatcherEnabled)
 	loadOverride(ctx, deps.cfgStore, "library.periodic_scan_interval", parseDuration, &cfg.Library.PeriodicScanInterval)
 
+	// A bench instance watches, scans, enriches and indexes nothing: the
+	// only reads on the library's disks are the load test's.
+	if benchInstance {
+		return
+	}
 	watcherSvc := startWatcher(ctx, cfg, bus, r.Library, deps.library.cmdSvc, rootLog)
 	logLibrarySourceAccess(ctx, r.Library, rootLog)
 

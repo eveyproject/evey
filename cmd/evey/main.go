@@ -92,6 +92,7 @@ func run() error {
 
 	build := buildID()
 	printBootBanner(os.Stderr, cfg, build)
+	announceBenchInstance(cfg, rootLog)
 	// First line of every boot: the exact code that is running. Reading it back
 	// from the logs must never require correlating an asset hash with a commit.
 	rootLog.Info("build identity",
@@ -211,7 +212,9 @@ func run() error {
 		return err
 	}
 
-	startMetricsCollector(ctx, db, deps.media.hlsVODRemover, deps.repos.mediaItemRepo)
+	if !benchInstance {
+		startMetricsCollector(ctx, db, deps.media.hlsVODRemover, deps.repos.mediaItemRepo)
+	}
 
 	qcHub := quickconnecthub.New()
 	grpcSrv := buildGRPCServer(deps, cfg, rootLog, logCfg.Dir, ctx, qcHub)
@@ -263,8 +266,10 @@ func run() error {
 		httpSrv.RegisterOnShutdown(deps.media.musicNowPlaying.Close)
 	}
 
-	deps.engagement.notifCmdSvc.Start(ctx)
-	deps.engagement.notifCmdSvc.StartCleanup(ctx)
+	if !benchInstance {
+		deps.engagement.notifCmdSvc.Start(ctx)
+		deps.engagement.notifCmdSvc.StartCleanup(ctx)
+	}
 	deps.user.authSvc.StartCleanup(ctx)
 	deps.media.playbackSvc.CommandService().StartCleanup(ctx)
 	deps.media.playbackSvc.CommandService().StartProgressFlusher(ctx)
@@ -281,18 +286,22 @@ func run() error {
 	// attempt so a missing account cannot be found by timing), so without a
 	// sweep a credential-stuffing dictionary is stored permanently.
 	deps.user.authSvc.StartLoginAttemptCleanup(ctx)
-	deps.engagement.activityCmdSvc.StartRetentionPurge(ctx, func() (int, int, int) {
-		return cfg.EffectiveAuditRetentionDays(), cfg.EffectiveMetricsRetentionDays(), cfg.EffectiveQoERetentionDays()
-	})
+	if !benchInstance {
+		deps.engagement.activityCmdSvc.StartRetentionPurge(ctx, func() (int, int, int) {
+			return cfg.EffectiveAuditRetentionDays(), cfg.EffectiveMetricsRetentionDays(), cfg.EffectiveQoERetentionDays()
+		})
+	}
 	// Minute-grained server-metric samples (CPU/RAM, streams, measured
 	// streaming bandwidth) - feeds the dashboard rate + the activity stats'
 	// consumed-bandwidth integral.
-	go deps.engagement.metricsSampler.Run(ctx)
-	// env-var-based fallback scheduler (used when DB row has enabled=false and EVEY_BACKUP_INTERVAL_HOURS>0)
-	deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
-	// DB-driven cron scheduler (admin-configurable via /api/v1/admin/backup-schedule)
-	go deps.backupScheduler.Run(ctx)
-	go deps.library.scheduler.Run(ctx)
+	if !benchInstance {
+		go deps.engagement.metricsSampler.Run(ctx)
+		// env-var-based fallback scheduler (used when DB row has enabled=false and EVEY_BACKUP_INTERVAL_HOURS>0)
+		deps.backupSvc.StartScheduler(ctx, cfg.Backup.IntervalHours, cfg.Backup.RetentionDays)
+		// DB-driven cron scheduler (admin-configurable via /api/v1/admin/backup-schedule)
+		go deps.backupScheduler.Run(ctx)
+		go deps.library.scheduler.Run(ctx)
+	}
 
 	// Plugin subsystem is gated by EVEY_PLUGINS_ENABLED. When false the
 	// host socket and auto-start are skipped - a plugin enabled in DB
