@@ -18,9 +18,15 @@ package pluginrunner
 //     skipped (logged) on a kernel without Landlock so the test never
 //     false-fails on, e.g., a WSL2 dev kernel.
 //
-// Prerequisites: a `node` runtime (the fixtures are Node.js, builtins only - no
-// node_modules) and `cc` (for the LD_PRELOAD shim; absent ⇒ execve assertions
-// skipped). Run it where both exist, e.g. the evey-server container:
+// Prerequisites: a `node` runtime the sandbox lets run (the fixtures are
+// Node.js, builtins only - no node_modules), i.e. installed under the
+// read-only paths the launcher allowlists (/usr, /bin, ...): a node under a
+// home directory is refused exec by Landlock and every fixture would print
+// nothing. And `cc` for the LD_PRELOAD shim the execve probes need. Locally,
+// a missing prerequisite skips what it would leave unasserted, with the
+// reason; in CI (CI set) it fails instead, so the suite cannot go green on a
+// runner where the sandbox was never exercised. Run it where both exist, e.g.
+// the evey-server container:
 //
 //	docker exec evey-server go test ./internal/adapters/driven/pluginrunner/ -run TestRedTeamSandboxEscape -v
 //
@@ -160,10 +166,36 @@ func runEscapeFixture(t *testing.T, nodePath, launcher, soPath, root, name strin
 	return parseEscapeVerdicts(string(out))
 }
 
+// skipUnlessCI skips with the reason on a developer machine and fails in CI,
+// where a skipped sandbox test would be a green suite that asserted nothing.
+func skipUnlessCI(t *testing.T, reason string) {
+	t.Helper()
+	if os.Getenv("CI") != "" {
+		t.Fatalf("%s - the red-team sandbox test must run in CI", reason)
+	}
+	t.Skip(reason)
+}
+
+// nodeRunsSandboxed reports whether the launcher lets node start under the
+// sandbox at all, and what it said when it did not.
+func nodeRunsSandboxed(t *testing.T, nodePath, launcher string) (bool, string) {
+	t.Helper()
+	dir := t.TempDir()
+	sock := filepath.Join(sockDir, "redteam-preflight")
+	_ = os.MkdirAll(sock, 0o755)
+	t.Cleanup(func() { _ = os.RemoveAll(sock) })
+	p := &plugin.Plugin{ID: "redteam-preflight", InstallDir: dir, Permissions: []string{"api.library"}}
+	argv := buildLauncherArgv(launcher, p, exec.Command(nodePath, "-e", "console.log('preflight-ok')"), landlockAvailable(), 0, 0)
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Dir = dir
+	out, _ := cmd.CombinedOutput()
+	return strings.Contains(string(out), "preflight-ok"), strings.TrimSpace(string(out))
+}
+
 func TestRedTeamSandboxEscape(t *testing.T) {
 	nodePath, err := exec.LookPath("node")
 	if err != nil {
-		t.Skip("node not in PATH; the backend red-team fixtures are Node.js scripts")
+		skipUnlessCI(t, "node not in PATH; the backend red-team fixtures are Node.js scripts")
 	}
 	root := repoRoot(t)
 	bin := t.TempDir()
@@ -173,6 +205,9 @@ func TestRedTeamSandboxEscape(t *testing.T) {
 	build.Dir = root
 	if out, berr := build.CombinedOutput(); berr != nil {
 		t.Fatalf("build launcher: %v\n%s", berr, out)
+	}
+	if ok, said := nodeRunsSandboxed(t, nodePath, launcher); !ok {
+		skipUnlessCI(t, "node at "+nodePath+" cannot start inside the sandbox (outside its read-only paths?): every fixture would print nothing; launcher said: "+said)
 	}
 
 	// Best-effort: build the LD_PRELOAD seccomp shim. Without cc, the execve
@@ -256,6 +291,9 @@ func TestRedTeamSandboxEscape(t *testing.T) {
 	})
 
 	t.Run("escape-exec", func(t *testing.T) {
+		if !soBuilt {
+			skipUnlessCI(t, "no C compiler (cc) built the LD_PRELOAD shim: the execve denial cannot be asserted")
+		}
 		v := runEscapeFixture(t, nodePath, launcher, soPath, root, "escape-exec", []string{noNetNoSub})
 		assert(t, v, []probeExpect{
 			{"spawn_subprocess", "BLOCKED", gatePreload},   // LD_PRELOAD denies execve
