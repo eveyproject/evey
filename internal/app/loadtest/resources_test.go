@@ -983,3 +983,59 @@ func TestResourceStats_AggregatesTheGoRuntime(t *testing.T) {
 		t.Fatalf("gc avg/peak = %.0f/%.0f limit %d, want 30 / 50 / 8 GiB", got.GoGCCPUPercentAvg, got.GoGCCPUPercentPeak, got.GoMemLimitBytes)
 	}
 }
+
+// Two sizes a few percent apart cannot tell a plateau from noise: 67 viewers
+// against 65 expect 1.5 % more bytes, less than the spread between two
+// windows of one size (2026-10-16). The verdict needs a reference at least
+// plateauMinHeadcountRatio smaller.
+func TestResourceState_NoPlateauVerdictBetweenNeighbouringSizes(t *testing.T) {
+	rs := newResourceState(0, time.Now())
+	at := time.Now()
+	for _, tier := range []int{65, 67} {
+		rs.startTier(tier, at, true, "test")
+		for range 5 {
+			at = at.Add(time.Second)
+			rs.observe(tier, ResourceSample{ServedBytesPerSec: 40 << 20, DiskReadBytesPerSec: 40 << 20}, at)
+		}
+	}
+	if plateaued, _ := rs.throughputPlateaued(67); plateaued {
+		t.Fatalf("67 against 65 viewers: a flat curve between neighbours is noise, not the storage ceiling")
+	}
+	// Against a size far enough below, the same flat curve is the ceiling.
+	rs.startTier(80, at, true, "test")
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(80, ResourceSample{ServedBytesPerSec: 40 << 20, DiskReadBytesPerSec: 40 << 20}, at)
+	}
+	if plateaued, _ := rs.throughputPlateaued(80); !plateaued {
+		t.Fatalf("80 viewers pushing what 65 did: that is the ceiling")
+	}
+}
+
+// A size judged on several windows is judged on each window's own
+// throughput: a starved first window must not condemn the next one.
+func TestResourceState_PlateauIsJudgedOnTheWindowInProgress(t *testing.T) {
+	rs := newResourceState(0, time.Now())
+	at := time.Now()
+	rs.startTier(50, at, true, "test")
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(50, ResourceSample{ServedBytesPerSec: 50 << 20, DiskReadBytesPerSec: 50 << 20}, at)
+	}
+	rs.startTier(80, at, true, "test")
+	for range 5 { // first window: flat
+		at = at.Add(time.Second)
+		rs.observe(80, ResourceSample{ServedBytesPerSec: 50 << 20, DiskReadBytesPerSec: 50 << 20}, at)
+	}
+	if plateaued, _ := rs.throughputPlateaued(80); !plateaued {
+		t.Fatalf("first window flat: plateau")
+	}
+	rs.nextWindow(80, at, "test")
+	for range 5 { // second window: scaling
+		at = at.Add(time.Second)
+		rs.observe(80, ResourceSample{ServedBytesPerSec: 80 << 20, DiskReadBytesPerSec: 80 << 20}, at)
+	}
+	if plateaued, _ := rs.throughputPlateaued(80); plateaued {
+		t.Fatalf("the second window pushed 80 MiB/s: it must not inherit the first window's verdict")
+	}
+}
