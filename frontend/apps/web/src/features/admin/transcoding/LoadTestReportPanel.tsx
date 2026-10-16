@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@evey/api";
-import { BOTTLENECK_REASONS, STOP_REASON_KEYS, adviceLine, deviceLines, formatMbps, limiterLine, mixParts, phaseKey, poolShares, servedPathLines, stopCause, verdictLine, windowStateKey } from "./loadTestHelpers";
+import { BOTTLENECK_REASONS, STOP_REASON_KEYS, adviceLine, gridRows, deviceLines, formatMbps, limiterLine, mixParts, phaseKey, poolShares, servedPathLines, stopCause, verdictLine, windowStateKey } from "./loadTestHelpers";
 import type { LoadTestReport, LoadTestResources, LoadTestWindow } from "./loadTestTypes";
 
 // LoadTestReportPanel renders the "answer" of a finished load test run: the
@@ -28,7 +28,7 @@ export function LoadTestReportPanel({
 
   const limiter = limiterLine(t, report);
   const advice = adviceLine(t, report);
-  const grid = report.grid ?? [];
+  const grid = gridRows(report);
 
   return (
     <div className="flex flex-col gap-1.5" data-testid="load-test-report">
@@ -64,11 +64,11 @@ export function LoadTestReportPanel({
               </tr>
             </thead>
             <tbody>
-              {grid.map((g) => {
+              {grid.map((g, i) => {
                 const answer = g.viewers === report.sustainedViewers;
                 return (
                   <tr
-                    key={g.viewers}
+                    key={`${g.viewers}-${i}`}
                     className={
                       answer
                         ? "border-b border-[var(--border)] font-semibold text-[var(--text)]"

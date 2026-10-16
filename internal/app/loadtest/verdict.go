@@ -140,13 +140,17 @@ func (rs *resourceState) windowReports(serverShare float64, percentiles func(win
 // What gives out first, in the words the report uses: the panel turns each
 // into a plain sentence an operator understands without the details.
 const (
-	LimiterDisk    = "disk"    // the disk that holds the films
-	LimiterCPU     = "cpu"     // the processor
-	LimiterMemory  = "memory"  // the memory
-	LimiterProxy   = "proxy"   // the reverse proxy in front of the server
-	LimiterServer  = "server"  // the server answered with errors
-	LimiterUnknown = "unknown" // nothing on this machine was saturated
-	LimiterNone    = "none"    // nothing gave out (the operator's ceiling)
+	LimiterDisk   = "disk"   // the disk that holds the films
+	LimiterCPU    = "cpu"    // the processor
+	LimiterMemory = "memory" // the memory
+	LimiterProxy  = "proxy"  // the reverse proxy in front of the server
+	LimiterServer = "server" // the server answered with errors
+	// LimiterStorageUnmeasured: nothing measurable gave out, and the films sit
+	// (at least partly) on storage this machine cannot measure - a network
+	// share, a volume the container cannot see. The likely limit, unproven.
+	LimiterStorageUnmeasured = "storage_unmeasured"
+	LimiterUnknown           = "unknown" // nothing on this machine was saturated
+	LimiterNone              = "none"    // nothing gave out (the operator's ceiling)
 )
 
 // Advice the report may give, only when one follows from the measurements.
@@ -196,6 +200,11 @@ func limiterOf(stop StopReason, breakDetail string, breakRes ResourceStats, verd
 	}
 	if breakRes.CPUPercentPeak >= cpuSaturationPercent {
 		return LimiterCPU, "", ""
+	}
+	if !allMapped(devices) {
+		// "Nothing was saturated" would be a claim about disks the run never
+		// saw: say the storage could not be measured instead.
+		return LimiterStorageUnmeasured, "", ""
 	}
 	if viaProxy {
 		return LimiterProxy, "", AdviceTryDirect

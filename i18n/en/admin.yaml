@@ -1251,6 +1251,7 @@ loadtest:
   verdictRange_other: "This server holds about {{count}} viewers in {{scenario}} (between {{low}} and {{high}})."
   limiter:
     disk: "What gives out first: the disk that holds the films{{where}}."
+    storageUnmeasured: "What gives out first could not be established: the films are on storage this server cannot measure (a network share or a volume it cannot see). The limit most likely comes from there."
     diskWhere: " ({{location}})"
     cpu: "What gives out first: the processor."
     memory: "What gives out first: the memory."

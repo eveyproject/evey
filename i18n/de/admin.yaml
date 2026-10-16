@@ -1284,6 +1284,7 @@ loadtest:
   verdictRange_other: "Dieser Server hält etwa {{count}} Zuschauer bei {{scenario}} (zwischen {{low}} und {{high}})."
   limiter:
     disk: "Was zuerst nachgibt: die Festplatte mit den Filmen{{where}}."
+    storageUnmeasured: "Was zuerst nachgibt, ließ sich nicht feststellen: die Filme liegen auf einem Speicher, den dieser Server nicht messen kann (eine Netzwerkfreigabe oder ein Volume, das er nicht sieht). Die Grenze kommt wahrscheinlich von dort."
     diskWhere: " ({{location}})"
     cpu: "Was zuerst nachgibt: der Prozessor."
     memory: "Was zuerst nachgibt: der Arbeitsspeicher."

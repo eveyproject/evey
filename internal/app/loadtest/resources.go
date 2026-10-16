@@ -89,8 +89,8 @@ type ResourceSample struct {
 	// is NOT consumption: the kernel hands it straight back under pressure. It is
 	// reported so an operator can see why "memory used" on a naive gauge climbs
 	// to fill the box during a load test, and ignore it.
-	MemCacheBytes       int64
-	MemLimitBytes       int64
+	MemCacheBytes int64
+	MemLimitBytes int64
 	// DiskReadBytesPerSec is what the block devices the library sits on read,
 	// summed, machine-wide: every reader of those disks counts, not only this
 	// server. DiskReadMeasured is false when no device could be tied to the
@@ -120,19 +120,19 @@ type ResourceSample struct {
 // ResourceStats is what a whole tier consumed: the average is what a viewer
 // costs in steady state, the peak is what the machine had to absorb.
 type ResourceStats struct {
-	CPUPercentAvg, CPUPercentPeak                   float64
-	MachineCPUPercentAvg, MachineCPUPercentPeak     float64
+	CPUPercentAvg, CPUPercentPeak                     float64
+	MachineCPUPercentAvg, MachineCPUPercentPeak       float64
 	MachineIOWaitPercentAvg, MachineIOWaitPercentPeak float64
-	MemUsedBytesAvg, MemUsedBytesMax                int64
-	ProcessRSSBytesAvg, ProcessRSSBytesMax          int64
-	MemCacheBytesAvg                                int64
-	MemLimitBytes                                   int64
-	DiskReadBytesPerSecAvg                          int64
-	DiskReadMeasured                                bool
-	AppReadBytesPerSecAvg                           int64
-	AppReadMeasured                                 bool
-	ServedBytesPerSecAvg                            int64
-	Samples                                         int
+	MemUsedBytesAvg, MemUsedBytesMax                  int64
+	ProcessRSSBytesAvg, ProcessRSSBytesMax            int64
+	MemCacheBytesAvg                                  int64
+	MemLimitBytes                                     int64
+	DiskReadBytesPerSecAvg                            int64
+	DiskReadMeasured                                  bool
+	AppReadBytesPerSecAvg                             int64
+	AppReadMeasured                                   bool
+	ServedBytesPerSecAvg                              int64
+	Samples                                           int
 	// Disks is what each physical drive did over the tier, busiest first.
 	Disks []DiskStat
 	// The server's Go runtime over the tier (see goruntime.go).

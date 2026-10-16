@@ -2,230 +2,465 @@ package loadtest
 
 import "testing"
 
-// drive runs the climb against a modelled machine whose windows hold up to
-// `ceiling` viewers. failAt, when set, decides a window's fate instead: it
-// gets the target and that target's window number (0-based) and says whether
-// the window broke. It returns the climb, the targets tried, the answer and
-// the reason.
-func drive(t *testing.T, ceiling, maxViewers int, failAt func(target, window int) bool) (c *climb, targets []int, sustained int, reason StopReason) {
+// drive runs the climb against a modelled machine that holds up to `ceiling`
+// viewers, and returns the sequence of targets it tried plus the final verdict.
+// phantomAt, when non-zero, makes the machine cry wolf ONCE at that target
+// during a FAST hold - a cold-start spike misread as saturation.
+func drive(t *testing.T, ceiling, maxViewers, phantomAt int) (targets []int, sustained int, reason StopReason) {
 	t.Helper()
-	c = &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
-	windowOf := map[int]int{}
-	for range 400 {
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	phantomFired := false
+
+	for range 200 { // a generous bound; a real climb converges in a few dozen
 		targets = append(targets, c.target)
+
+		// Judge the tier the way the run loop would.
 		broke := c.target > ceiling
-		if failAt != nil {
-			w := 0
-			if c.phase == phaseGrid {
-				w = windowOf[c.target]
-				windowOf[c.target]++
-			}
-			broke = failAt(c.target, w)
+		if !broke && c.phase == phaseFast && phantomAt > 0 && c.target == phantomAt && !phantomFired {
+			broke = true
+			phantomFired = true
 		}
 		if broke {
-			c.tierBroke(StopSLOBreach, "slow")
+			c.tierBroke(StopCPUSaturated, "cpu")
+		}
+
+		// Model the load the way the real machine reports it: proportional to
+		// how close this tier is to the ceiling.
+		load := float64(c.target) / float64(max(ceiling, 1))
+		outcome, r, _ := c.next(maxViewers, load)
+		if outcome == climbDone {
+			return targets, c.lo, r
+		}
+	}
+	t.Fatalf("climb did not converge; targets=%v", targets)
+	return nil, 0, ""
+}
+
+// closeEnough: the climb stops once the answer is within a few percent, because
+// chasing the exact viewer costs a full measurement window per step and nobody
+// acts differently on 58 than on 61.
+func closeEnough(t *testing.T, got, want int, targets []int) {
+	t.Helper()
+	tolerance := max(1, want*bisectTolerancePercent/100)
+	if got > want || want-got > tolerance {
+		t.Fatalf("sustained = %d, want %d (+0/-%d) (targets=%v)", got, want, tolerance, targets)
+	}
+}
+
+// The whole point: find the ceiling in a handful of steps, not one per viewer.
+func TestClimb_FindsTheCeilingFastThenBisects(t *testing.T) {
+	targets, sustained, reason := drive(t, 47, 0, 0)
+
+	closeEnough(t, sustained, 47, targets)
+	if reason != StopCPUSaturated {
+		t.Fatalf("reason = %s, want %s", reason, StopCPUSaturated)
+	}
+	// A one-at-a-time ramp would need 48 tiers. Batches of 10 + bisection get
+	// there in far fewer.
+	if len(targets) > 15 {
+		t.Fatalf("took %d tiers to find a ceiling of 47: %v", len(targets), targets)
+	}
+}
+
+// A box that holds far more than a naive default must be allowed to say so:
+// with no ceiling configured, the climb keeps going until the machine breaks.
+func TestClimb_UnboundedByDefault(t *testing.T) {
+	targets, sustained, reason := drive(t, 312, 0, 0)
+	closeEnough(t, sustained, 312, targets)
+	if reason != StopCPUSaturated {
+		t.Fatalf("reason = %s, want a capacity verdict", reason)
+	}
+}
+
+// An operator ceiling that is never reached is NOT a capacity result, and the
+// verdict must not pretend otherwise.
+func TestClimb_OperatorCeilingIsNotACapacityVerdict(t *testing.T) {
+	_, sustained, reason := drive(t, 1000, 30, 0)
+	if sustained != 30 {
+		t.Fatalf("sustained = %d, want 30 (the operator's ceiling)", sustained)
+	}
+	if reason != StopMaxViewers {
+		t.Fatalf("reason = %s, want %s", reason, StopMaxViewers)
+	}
+}
+
+// The FAST phase judges on a few seconds of samples, so it can misread an
+// ffmpeg cold start as saturation. A phantom break must NOT cap the run: the
+// CONFIRM phase re-tests under a full window, finds the tier holds, and the
+// climb resumes.
+func TestClimb_PhantomBreakDoesNotCapTheRun(t *testing.T) {
+	// The machine really holds 80, but cries wolf once at 11.
+	targets, sustained, reason := drive(t, 80, 0, 11)
+	if sustained < 70 {
+		t.Fatalf("sustained = %d, want ~80: a phantom break at 11 capped the whole run (targets=%v)", sustained, targets)
+	}
+	if reason != StopCPUSaturated {
+		t.Fatalf("reason = %s, want %s", reason, StopCPUSaturated)
+	}
+}
+
+// A server that can't even hold one viewer says so, rather than looping.
+func TestClimb_ZeroCapacity(t *testing.T) {
+	_, sustained, _ := drive(t, 0, 0, 0)
+	if sustained != 0 {
+		t.Fatalf("sustained = %d, want 0", sustained)
+	}
+}
+
+// Every candidate the bisection settles on must be re-tested under a full
+// measurement window before it becomes the answer - a FAST hold is never the
+// last word.
+// A ceiling that was only ever established on a SHORT hold is too cheap to be
+// the final answer: the FAST phase judges on a few seconds of samples and can
+// mistake a cold start for saturation. That one must be re-tested under a full
+// window before the run stands behind it.
+func TestClimb_AShortHoldVerdictIsNeverTheFinalAnswer(t *testing.T) {
+	// A box already working hard (so the FAST batch stays at its base stride and
+	// overshoots the ceiling by only one batch) and a ceiling of 30. The FAST
+	// phase breaks at 31; every tier the bisection then tries HOLDS, so hi is
+	// never re-broken under a full window - it stays a short-hold verdict, and
+	// must be confirmed before the run stands behind it.
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	seenConfirm := false
+	for range 200 {
+		if c.target > 30 {
+			c.tierBroke(StopCPUSaturated, "cpu")
+		}
+		if c.phase == phaseConfirm {
+			seenConfirm = true
+		}
+		outcome, _, _ := c.next(0, 0.8) // a busy box: the batch never doubles
+		if outcome == climbDone {
+			break
+		}
+	}
+	if !seenConfirm {
+		t.Fatalf("a ceiling established only on a short hold became the final answer with no confirmation")
+	}
+	if c.lo < 29 || c.lo > 30 {
+		t.Fatalf("sustained = %d, want ~30", c.lo)
+	}
+}
+
+// The hold and warm-up must be short while hunting and long while judging:
+// that asymmetry is the entire reason the climb is both fast AND trustworthy.
+func TestClimb_HuntsOnAShortHoldAndJudgesOnALongOne(t *testing.T) {
+	c := &climb{phase: phaseFast, spawnsEncoders: true}
+	if c.holdFor() != fastHold || c.warmupFor() != fastWarmup {
+		t.Fatalf("FAST must hunt on a short hold, got hold=%v warmup=%v", c.holdFor(), c.warmupFor())
+	}
+	for _, p := range []climbPhase{phaseBisect, phaseConfirm} {
+		c.phase = p
+		if c.holdFor() != measureHold || c.warmupFor() != measureWarmup {
+			t.Fatalf("%v must judge on a full window, got hold=%v warmup=%v", p, c.holdFor(), c.warmupFor())
+		}
+	}
+	if fastHold >= measureHold {
+		t.Fatalf("the hunting hold (%v) must be much shorter than the judging one (%v)", fastHold, measureHold)
+	}
+}
+
+// A box that holds a thousand direct-play viewers must be discovered in a
+// handful of tiers, not a hundred: while the machine is idle the batch doubles.
+func TestClimb_BigIdleBoxIsFoundInFewTiers(t *testing.T) {
+	targets, sustained, reason := drive(t, 1000, 0, 0)
+	closeEnough(t, sustained, 1000, targets)
+	if reason != StopCPUSaturated {
+		t.Fatalf("reason = %s, want a capacity verdict", reason)
+	}
+	// A +10-at-a-time ramp would need ~100 tiers. Doubling while idle, plus a
+	// bisection that stops within a few percent, must get there in a small
+	// fraction of that - every tier past the FAST phase costs a full measurement
+	// window, so tier count IS wall-clock.
+	if len(targets) > 22 {
+		t.Fatalf("took %d tiers to find a ceiling of 1000: %v", len(targets), targets)
+	}
+}
+
+// A pure direct-play run starts no ffmpeg, so it must not sit through an
+// encoder's cold-start warm-up at every judged tier. Across a bisection that is
+// most of the run's wall clock, spent waiting for something that never happens.
+func TestClimb_DirectPlayDoesNotWaitForAnEncoderThatNeverStarts(t *testing.T) {
+	transcoding := &climb{phase: phaseBisect, spawnsEncoders: true}
+	directPlay := &climb{phase: phaseBisect, spawnsEncoders: false}
+
+	if directPlay.holdFor() >= transcoding.holdFor() {
+		t.Fatalf("direct play holds a tier for %v, transcoding for %v: with no encoder to cold-start, it must be markedly shorter",
+			directPlay.holdFor(), transcoding.holdFor())
+	}
+	if directPlay.warmupFor() >= transcoding.warmupFor() {
+		t.Fatalf("direct play warm-up %v is not shorter than transcoding's %v", directPlay.warmupFor(), transcoding.warmupFor())
+	}
+	// And the scenarios must be classified correctly, or the saving lands on the
+	// wrong runs.
+	if scenarioSpawnsEncoders(ScenarioMkvgo) {
+		t.Fatalf("the mkvgo scenario never starts an encoder")
+	}
+	for _, s := range []string{ScenarioTranscode, ScenarioHeavy, ScenarioBalanced, ScenarioLight, ScenarioNatural} {
+		if !scenarioSpawnsEncoders(s) {
+			t.Fatalf("scenario %q can put a viewer on the transcode path; it must wait out the cold start", s)
+		}
+	}
+}
+
+// THE 21-VIEWER REGRESSION, second act. Straight from a dev run: the climb held
+// 21 on a FAST hold, then 31, 26, 23 and 22 all broke under full windows, so the
+// bisection converged and the run stood behind 21 - a tier it had only ever
+// observed for a few seconds, in the middle of a ten-viewer join burst. The
+// report's headline CPU for "21 viewers" was 61% (the spawn burst), against 1-9%
+// for every bigger tier, and the per-viewer column an operator sizes a machine
+// with was garbage.
+//
+// The answer the run stands behind must ALWAYS have been measured under a full
+// window. If it only ever held a FAST hold, the climb owes it one real
+// measurement before calling it the ceiling.
+func TestClimb_TheAnswerIsNeverLeftOnFastEvidence(t *testing.T) {
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	measuredAnswer := false
+	var reason StopReason
+	done := false
+	for range 200 {
+		if c.phase != phaseFast && c.target == 21 {
+			measuredAnswer = true
+		}
+		// The machine holds exactly 21: every bigger tier breaks, in ANY phase.
+		if c.target > 21 {
+			c.tierBroke(StopCPUSaturated, "cpu")
+		}
+		// A working box (load between the growth ceiling and the caution floor),
+		// so the FAST stride stays at 10 and the climb walks 1, 11, 21, 31 - the
+		// production shape.
+		outcome, r, _ := c.next(0, 0.6)
+		if outcome == climbDone {
+			reason, done = r, true
+			break
+		}
+	}
+	if !done {
+		t.Fatalf("climb did not converge")
+	}
+	if c.lo != 21 {
+		t.Fatalf("sustained = %d, want 21", c.lo)
+	}
+	if !measuredAnswer {
+		t.Fatalf("the verdict tier (21) was never held under a full measurement window: the report's resource figures for the answer come from a %v join-burst sample", fastHold)
+	}
+	if reason != StopCPUSaturated {
+		t.Fatalf("reason = %s, want %s (the verdict must survive the final measurement)", reason, StopCPUSaturated)
+	}
+}
+
+// And the counterpart: if the answer FAILS its own final measurement, it was
+// never the answer. The climb must resume the search below it rather than
+// report a tier it just watched break.
+func TestClimb_AnAnswerThatFailsItsOwnMeasurementIsNotTheAnswer(t *testing.T) {
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	for range 200 {
+		// The machine really holds 20. A FAST hold is too short to notice 21
+		// struggling (it only breaks past 30 there), but any full window sees
+		// the truth.
+		if (c.phase == phaseFast && c.target > 30) || (c.phase != phaseFast && c.target > 20) {
+			c.tierBroke(StopCPUSaturated, "cpu")
+		}
+		outcome, _, _ := c.next(0, 0.6)
+		if outcome == climbDone {
+			if c.lo > 20 {
+				t.Fatalf("sustained = %d, want <= 20: the run stood behind a tier that broke under its own final measurement", c.lo)
+			}
+			if c.lo < 19 {
+				t.Fatalf("sustained = %d, want ~20: the search below the disproven answer gave up too much", c.lo)
+			}
+			return
+		}
+	}
+	t.Fatalf("climb did not converge")
+}
+
+// Once the bisection has broken a tier under a FULL measurement window, that IS
+// the proof. Spending another whole window "confirming" it re-learns what was
+// just measured, and a measurement window is the single most expensive thing the
+// run does.
+func TestClimb_DoesNotReconfirmWhatTheBisectionAlreadyProved(t *testing.T) {
+	// A box with plenty of headroom right up to its cliff: the load stays low
+	// (so the FAST batch keeps doubling and overshoots well past the ceiling),
+	// and the bisection then breaks a tier of its own under a full window.
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	confirms := 0
+	brokeDuringBisect := false
+	for range 200 {
+		if c.phase == phaseConfirm {
+			confirms++
+		}
+		if c.target > 40 {
+			c.tierBroke(StopCPUSaturated, "cpu")
+			if c.phase == phaseBisect {
+				brokeDuringBisect = true
+			}
+		}
+		outcome, _, _ := c.next(0, 0.1) // idle box: never throttles the batch
+		if outcome == climbDone {
+			break
+		}
+	}
+	if !brokeDuringBisect {
+		t.Fatalf("test setup: the bisection never broke a tier, so there is nothing to re-confirm")
+	}
+	// The bisection broke a tier under a FULL window. That IS the proof; spending
+	// another whole window to re-learn it is the most expensive thing the run
+	// could do.
+	if confirms > 0 {
+		t.Fatalf("ran %d confirmation tiers after the bisection had already broken a tier under a full window", confirms)
+	}
+	if c.lo < 38 || c.lo > 40 {
+		t.Fatalf("sustained = %d, want ~40", c.lo)
+	}
+}
+
+// driveNoisy is drive with a machine whose full-window measurements can lie:
+// falseBreak decides, for the n-th time a given target is judged in a given
+// phase, whether to report a break the machine does not actually have. The real
+// ceiling is `ceiling`; every break above it reproduces.
+func driveNoisy(t *testing.T, ceiling, maxViewers int, falseBreak func(phase climbPhase, target, n int) bool) (targets []int, sustained int, reason StopReason) {
+	t.Helper()
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	seen := map[[2]int]int{}
+
+	for range 300 {
+		targets = append(targets, c.target)
+		key := [2]int{int(c.phase), c.target}
+		n := seen[key]
+		seen[key]++
+		if c.target > ceiling || falseBreak(c.phase, c.target, n) {
+			c.tierBroke(StopSLOBreach, "p95")
 		}
 		load := float64(c.target) / float64(max(ceiling, 1))
 		outcome, r, _ := c.next(maxViewers, load)
 		if outcome == climbDone {
-			return c, targets, c.lo, r
+			return targets, c.lo, r
 		}
 	}
-	t.Fatalf("climb did not finish; targets=%v", targets)
-	return nil, nil, 0, ""
+	t.Fatalf("climb did not converge; targets=%v", targets)
+	return nil, 0, ""
 }
 
-func gridTallyOf(c *climb, viewers int) *gridTally { return c.tallies[viewers] }
-
-// The FAST hunt only finds the neighbourhood; the answer is the largest grid
-// size within a step of the true ceiling, and the reason is what broke above.
-func TestClimb_HuntsFastThenAnswersFromTheGrid(t *testing.T) {
-	c, targets, sustained, reason := drive(t, 47, 0, nil)
+// The 2026-10-04 run: the machine held 63, but the settle window at 61 read
+// 5879 ms against a 5500 ms budget once. The answer was thrown away and the
+// bisection restarted from zero, landing on 29. A break that has not
+// reproduced in a second window is noise: the answer stands.
+func TestClimb_ASingleNoisyWindowDoesNotThrowTheAnswerAway(t *testing.T) {
+	targets, sustained, reason := driveNoisy(t, 62, 80, func(p climbPhase, target, n int) bool {
+		return p == phaseSettle && n == 0 // the first settle window lies, the second tells the truth
+	})
 	if reason != StopSLOBreach {
-		t.Fatalf("reason = %s, want slo_breach", reason)
+		t.Fatalf("reason = %s, want %s", reason, StopSLOBreach)
 	}
-	if sustained > 47 || sustained < 47-c.step {
-		t.Fatalf("sustained = %d, want within one grid step (%d) under 47 (targets=%v)", sustained, c.step, targets)
-	}
-	if c.hi <= sustained {
-		t.Fatalf("hi = %d, want the first size above the answer that lost", c.hi)
-	}
-	if g := gridTallyOf(c, sustained); g == nil || g.passed < 4 {
-		t.Fatalf("the answer %d rests on %+v, want at least four passing windows", sustained, g)
-	}
-}
-
-// A size is held when it passes four windows of five: one join transient does
-// not condemn it, two do.
-func TestClimb_ASizeIsJudgedOnItsShareOfWindows(t *testing.T) {
-	// 40 and below always hold; up to 50 fails its first window only; up to
-	// 60 fails two; above, everything fails.
-	fail := func(target, w int) bool {
-		switch {
-		case target <= 40:
-			return false
-		case target <= 50:
-			return w == 0
-		case target <= 60:
-			return w < 2
-		}
-		return true
-	}
-	c, targets, sustained, _ := drive(t, 0, 0, fail)
-	if sustained < 41 || sustained > 50 {
-		t.Fatalf("sustained = %d, want the largest size failing at most one window in five (targets=%v)", sustained, targets)
-	}
-	low, high := c.gridRange()
-	if low > sustained || high < sustained {
-		t.Fatalf("range [%d, %d] must hold the answer %d", low, high, sustained)
-	}
-	if low >= sustained {
-		t.Fatalf("low = %d: the answer %d failed one window, the bottom of the range is the last size that failed none", low, sustained)
-	}
-	if high <= sustained {
-		t.Fatalf("high = %d: a size passing three windows of five sits inside the range, above the answer %d (targets=%v)", high, sustained, targets)
-	}
-}
-
-// A size is decided as soon as the remaining windows cannot change it: four
-// passes is held, three failures is lost.
-func TestClimb_StopsMeasuringASizeOnceItIsDecided(t *testing.T) {
-	c, _, _, _ := drive(t, 30, 0, nil)
-	for v, g := range c.tallies {
-		if g.windows > gridWindows {
-			t.Fatalf("size %d measured %d windows, at most %d", v, g.windows, gridWindows)
-		}
-		if g.class() == "held" && g.windows != 4 {
-			t.Fatalf("size %d held after %d windows, want 4 (decided at four passes)", v, g.windows)
-		}
-		if g.class() == "lost" && g.windows != 3 {
-			t.Fatalf("size %d lost after %d windows, want 3 (decided at three failures)", v, g.windows)
+	closeEnough(t, sustained, 62, targets)
+	for i, tg := range targets {
+		if tg > 0 && tg < sustained-sustained*bisectTolerancePercent/100-1 && i > len(targets)/2 {
+			t.Fatalf("the search dropped to %d after the settle window: the noisy break was believed (targets=%v)", tg, targets)
 		}
 	}
 }
 
-// When the first grid size already loses (FAST survived a size the server
-// cannot hold under full windows), the grid walks down until a size holds.
-func TestClimb_WalksDownWhenTheFirstGridSizeLoses(t *testing.T) {
-	c := &climb{target: 1, batch: fastBatch}
-	// FAST: the short holds survive up to the fourth tier, the fifth breaks.
-	for _, held := range []bool{true, true, true, true, false} {
-		if !held {
-			c.tierBroke(StopSLOBreach, "slow")
-		}
-		c.next(0, 0.1)
-		if c.phase == phaseGrid {
-			break
-		}
-	}
-	if c.phase != phaseGrid {
-		t.Fatalf("still in FAST at %d", c.target)
-	}
-	first := c.target
-	ceiling := first / 2
-	for range 300 {
-		if c.target > ceiling {
-			c.tierBroke(StopSLOBreach, "slow")
-		}
-		if out, _, _ := c.next(0, 0.5); out == climbDone {
-			break
-		}
-	}
-	if c.lo == 0 || c.lo > ceiling || c.lo < ceiling-c.step {
-		t.Fatalf("answer = %d, want within a step under %d, found walking down from %d", c.lo, ceiling, first)
-	}
-}
-
-// The FAST hunt decides nothing about the answer: a phantom break on a short
-// hold only places the grid, which then climbs past it.
-func TestClimb_AFastPhantomDoesNotCapTheAnswer(t *testing.T) {
-	phantomUsed := false
-	fail := func(target, w int) bool {
-		if target == 21 && !phantomUsed {
-			phantomUsed = true
+// A noisy first window in the bisection must not push hi down either: the tier
+// is measured again, holds, and the search keeps climbing towards the truth.
+func TestClimb_ABisectionBreakThatDoesNotReproduceIsNotAVerdict(t *testing.T) {
+	fired := false
+	targets, sustained, _ := driveNoisy(t, 100, 0, func(p climbPhase, target, n int) bool {
+		// The first bisection tier the machine actually holds lies once.
+		if p == phaseBisect && target <= 100 && n == 0 && !fired {
+			fired = true
 			return true
 		}
-		return target > 47
+		return false
+	})
+	if !fired {
+		t.Fatalf("the scenario never reached a bisection tier below the ceiling (targets=%v): the test proves nothing", targets)
 	}
-	_, targets, sustained, _ := drive(t, 0, 0, fail)
-	if sustained < 40 {
-		t.Fatalf("sustained = %d: a single short-hold phantom at 21 capped the run (targets=%v)", sustained, targets)
-	}
+	closeEnough(t, sustained, 100, targets)
 }
 
-// The operator's ceiling is not a capacity verdict, and it is measured on full
-// windows before it is reported.
-func TestClimb_OperatorCeilingIsMeasuredThenReported(t *testing.T) {
-	c, _, sustained, reason := drive(t, 1000, 25, nil)
-	if reason != StopMaxViewers || sustained != 25 {
-		t.Fatalf("got %d (%s), want 25 (max_viewers)", sustained, reason)
-	}
-	if g := gridTallyOf(c, 25); g == nil || g.passed < 4 {
-		t.Fatalf("the ceiling was reported on %+v, want full windows", g)
-	}
-}
-
-// A server that cannot hold even one viewer reports zero.
-func TestClimb_ZeroCapacity(t *testing.T) {
-	_, _, sustained, reason := drive(t, 0, 0, nil)
-	if sustained != 0 {
-		t.Fatalf("sustained = %d, want 0", sustained)
-	}
+// The retry must not be a loophole: a tier above the real ceiling breaks in
+// both windows and still condemns.
+func TestClimb_ABreakThatReproducesStillCondemnsTheTier(t *testing.T) {
+	targets, sustained, reason := driveNoisy(t, 47, 0, func(climbPhase, int, int) bool { return false })
+	closeEnough(t, sustained, 47, targets)
 	if reason != StopSLOBreach {
-		t.Fatalf("reason = %s, want what broke the single viewer", reason)
+		t.Fatalf("reason = %s, want %s", reason, StopSLOBreach)
 	}
 }
 
-// FAST hunts on a short hold, the grid judges on a long one, and a run that
-// starts no encoder does not wait for one.
-func TestClimb_HoldsFollowThePhase(t *testing.T) {
-	c := &climb{phase: phaseFast, spawnsEncoders: true}
-	if c.holdFor() != fastHold || c.warmupFor() != fastWarmup {
-		t.Fatalf("FAST hold %v warm-up %v", c.holdFor(), c.warmupFor())
+// A measured candidate is judged sequentially on up to five windows: held at
+// the fourth pass, broken at the second failure, and one failed window alone
+// condemns nothing.
+func TestClimb_AMeasuredCandidateIsJudgedOnItsWindows(t *testing.T) {
+	c := &climb{phase: phaseBisect, lo: 10, hi: 80, target: 45, batch: fastBatch}
+	c.tierBroke(StopSLOBreach, "p95")
+	if outcome, _, _ := c.next(0, 0.5); outcome != climbContinue || !c.sameTier || c.target != 45 || c.hi != 80 {
+		t.Fatalf("first failed window: sameTier=%v target=%d hi=%d, want another window of 45 with hi untouched", c.sameTier, c.target, c.hi)
 	}
-	c.phase = phaseGrid
-	if c.holdFor() != measureHold || c.warmupFor() != measureWarmup {
-		t.Fatalf("grid hold %v warm-up %v", c.holdFor(), c.warmupFor())
+	for range 3 {
+		c.next(0, 0.5)
+		if !c.sameTier || c.lo != 10 {
+			t.Fatalf("passes under four: sameTier=%v lo=%d, want 45 still undecided", c.sameTier, c.lo)
+		}
 	}
-	c.spawnsEncoders = false
-	if c.holdFor() != directPlayMeasureHold || c.warmupFor() != directPlayMeasureWarmup {
-		t.Fatalf("direct-play grid hold %v warm-up %v", c.holdFor(), c.warmupFor())
+	c.next(0, 0.5) // the fourth pass
+	if c.sameTier || c.lo != 45 {
+		t.Fatalf("four passes in five: sameTier=%v lo=%d, want 45 held", c.sameTier, c.lo)
+	}
+	if g := c.steps[0]; g.windows != 5 || g.passed != 4 {
+		t.Fatalf("tally %+v, want 4 of 5", g)
+	}
+
+	c = &climb{phase: phaseBisect, lo: 10, hi: 80, target: 45, batch: fastBatch}
+	c.tierBroke(StopSLOBreach, "p95")
+	c.next(0, 0.5)
+	c.next(0, 0.5) // a pass in between
+	c.tierBroke(StopSLOBreach, "p95")
+	c.next(0, 0.5) // the second failure
+	if c.sameTier || c.hi != 45 || c.hiReason != StopSLOBreach {
+		t.Fatalf("two failures: sameTier=%v hi=%d reason=%s, want 45 broken", c.sameTier, c.hi, c.hiReason)
+	}
+	if g := c.steps[0]; g.windows != 3 || g.passed != 1 {
+		t.Fatalf("tally %+v, want decided after 3 windows", g)
 	}
 }
 
-// A big idle box is still found in a handful of FAST tiers.
-func TestClimb_BigIdleBoxIsFoundInFewFastTiers(t *testing.T) {
-	c, targets, sustained, _ := drive(t, 600, 0, nil)
-	fast := 0
-	for _, tg := range targets {
-		if c.tallies[tg] == nil {
-			fast++
+// FAST holds are not tallied: one short hold each, as designed.
+func TestClimb_FastHoldsAreNotTallied(t *testing.T) {
+	c := &climb{target: 1, batch: fastBatch}
+	for range 3 {
+		c.next(0, 0.1)
+		if c.sameTier || len(c.steps) != 0 {
+			t.Fatalf("a FAST hold was repeated or tallied: sameTier=%v steps=%d", c.sameTier, len(c.steps))
 		}
-	}
-	if fast > 10 {
-		t.Fatalf("%d FAST tiers to find 600: %v", fast, targets)
-	}
-	if sustained < 600-c.step {
-		t.Fatalf("sustained = %d, want within a step of 600", sustained)
 	}
 }
 
-// The grid report lists every measured size with its windows, smallest first.
-func TestClimb_GridReport(t *testing.T) {
-	c, _, _, _ := drive(t, 47, 0, nil)
-	rep := c.gridReport()
-	if len(rep) < 2 {
-		t.Fatalf("grid report = %+v", rep)
+// The report lists the measured candidates in the order judged; the range is
+// the last size held and the first broken above it.
+func TestClimb_StepReportAndRange(t *testing.T) {
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	for range 400 {
+		if c.target > 47 {
+			c.tierBroke(StopCPUSaturated, "cpu")
+		}
+		if out, _, _ := c.next(0, float64(c.target)/47); out == climbDone {
+			break
+		}
 	}
-	for i, g := range rep {
-		if i > 0 && rep[i-1].Viewers >= g.Viewers {
-			t.Fatalf("not sorted: %+v", rep)
+	rep := c.stepReport()
+	if len(rep) == 0 {
+		t.Fatal("no measured candidate reported")
+	}
+	for _, g := range rep {
+		if g.Held != (g.Passed >= 4) || (!g.Held && g.Reason == "") {
+			t.Fatalf("row %+v: held exactly at four passes, a broken row names its reason", g)
 		}
-		if g.Held != (g.Passed >= 4) {
-			t.Fatalf("held flag wrong: %+v", g)
-		}
-		if !g.Held && g.Reason == "" {
-			t.Fatalf("a size that did not hold names its reason: %+v", g)
-		}
+	}
+	low, high := c.answerRange()
+	if low != c.lo || high != c.hi || high <= low {
+		t.Fatalf("range [%d, %d], want [lo=%d, hi=%d]", low, high, c.lo, c.hi)
 	}
 }

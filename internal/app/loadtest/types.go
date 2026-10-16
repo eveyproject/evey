@@ -199,9 +199,9 @@ type Config struct {
 	// climb runs in milliseconds; an operator has no reason to touch them.
 	FastHold    time.Duration
 	MeasureHold time.Duration
-	// GridWindows overrides how many windows each audience size is judged on
-	// (gridWindows). Tests shrink it; an operator has no reason to.
-	GridWindows int
+	// StepWindows overrides how many windows a measured candidate is judged on
+	// (stepWindows). Tests shrink it; an operator has no reason to.
+	StepWindows int
 
 	// ProfileHarnessCPU turns on the one measurement that separates the server's
 	// CPU from the load generator's (see harnesscpu.go). On by default for a real
@@ -496,13 +496,11 @@ type Report struct {
 	BreakReason StopReason
 	BreakDetail string
 
-	// Grid is every audience size the run measured on full windows, smallest
-	// first, with how many windows it passed: what SustainedViewers and the
-	// range below are read from. SustainedViewers is the largest size passing
-	// at least four windows in five; RangeLow the largest that passed every
-	// window, RangeHigh the largest that passed at least half.
-	Grid                 []GridTier
-	RangeLow, RangeHigh  int
+	// Grid is every candidate the bisection judged on measured windows, in
+	// the order judged, with how many windows each passed. SustainedViewers is
+	// the last one held; RangeLow is it, RangeHigh the first broken above it.
+	Grid                []StepTier
+	RangeLow, RangeHigh int
 	// Limiter names what gave out first ("disk", "cpu", "memory", "proxy",
 	// "server", "unknown", "none"); LimiterLocation is the library location
 	// of a limiting disk. Advice is set only when one follows ("spread_titles",

@@ -202,7 +202,7 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 		}
 		for _, m := range r.DiskDevices {
 			out.LastReport.DiskDevices = append(out.LastReport.DiskDevices, &eveyv1.LoadTestDeviceMapping{
-				Location: m.Location, Device: m.Device, Resolved: m.Resolved,
+				Location: m.Location, Device: m.Device, Resolved: m.Resolved, Disks: m.Disks,
 			})
 		}
 		for _, w := range r.Windows {

@@ -175,6 +175,7 @@ export interface LoadTestDeviceMapping {
   location?: string;
   device?: string;
   resolved?: string;
+  disks?: string[];
 }
 
 export interface LoadTestReport {
@@ -490,11 +491,13 @@ export function deviceLines(
   t: (key: string, opts?: Record<string, unknown>) => string,
   devices: LoadTestDeviceMapping[] | undefined,
 ): string[] {
-  return (devices ?? []).map((m) =>
-    m.device
-      ? t("admin.loadtest.deviceLine", { location: m.location ?? "", device: m.device })
-      : t("admin.loadtest.deviceUnresolvedLine", { location: m.location ?? "" }),
-  );
+  return (devices ?? []).map((m) => {
+    if (!m.device) return t("admin.loadtest.deviceUnresolvedLine", { location: m.location ?? "" });
+    // A volume names the physical disks it was judged on.
+    const disks = (m.disks ?? []).filter((d) => d !== m.device);
+    const device = disks.length > 0 ? `${m.device} (${disks.join(", ")})` : m.device;
+    return t("admin.loadtest.deviceLine", { location: m.location ?? "", device });
+  });
 }
 
 // Throughput is quoted in bits per second, the way a network link is.
@@ -625,6 +628,7 @@ export function predictedStreams(pools: V1VideoPool[]): number | undefined {
 // What gives out first, worded for the report's main view.
 const LIMITER_KEYS: Record<string, string> = {
   disk: "admin.loadtest.limiter.disk",
+  storage_unmeasured: "admin.loadtest.limiter.storageUnmeasured",
   cpu: "admin.loadtest.limiter.cpu",
   memory: "admin.loadtest.limiter.memory",
   proxy: "admin.loadtest.limiter.proxy",
@@ -651,6 +655,12 @@ const ADVICE_KEYS: Record<string, string> = {
 export function adviceLine(t: (key: string, opts?: Record<string, unknown>) => string, report: LoadTestReport): string | undefined {
   const key = report.advice ? ADVICE_KEYS[report.advice] : undefined;
   return key ? t(key) : undefined;
+}
+
+// gridRows is the main table's rows, smallest audience first: the server
+// reports the bisection's candidates in the order judged.
+export function gridRows(report: LoadTestReport): LoadTestGridTier[] {
+  return [...(report.grid ?? [])].sort((a, b) => (a.viewers ?? 0) - (b.viewers ?? 0));
 }
 
 // verdictLine is the headline: "about N viewers in <scenario> (between A and
