@@ -609,11 +609,7 @@ func TestRunner_AHerdOfRestartingViewersIsNotAStartupVerdict(t *testing.T) {
 	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
 	pool := newCandidatePool(manyCandidates(3), time.Minute)
 	slo := newSLOTracker(0)
-	samples := sampleState{
-		tierSegments:    map[int][]int{},
-		tierTTFF:        map[int][]int{},
-		perTypeSegments: map[viewerType]map[int][]int{},
-	}
+	samples := newSampleState()
 	flash := flashState{served: map[int]bool{}, shed: map[int]bool{}}
 	ramp := rampState{
 		tier:             21,
@@ -629,6 +625,8 @@ func TestRunner_AHerdOfRestartingViewersIsNotAStartupVerdict(t *testing.T) {
 	}
 	cl := &climb{phase: phaseBisect, target: 21}
 	res := newResourceState(0, time.Now().Add(-time.Minute))
+	// A measured size is judged on the window in progress.
+	res.openWindow(21, cl.phase.String(), true, time.Now())
 	events := make(chan viewerEvent, 8)
 	var wg sync.WaitGroup
 
@@ -2204,5 +2202,41 @@ func TestSLOTracker_JudgesEachFetchAgainstItsOwnSegment(t *testing.T) {
 	}
 	if got := newSLOTracker(5000).scaled(4000, 12000); got != 4000 {
 		t.Fatalf("a pinned budget is absolute, got %d", got)
+	}
+}
+
+// A measured size is judged window by window on startup too: slow joins in
+// one window do not condemn the next window, whose newcomers start in time.
+func TestRunner_StartupIsJudgedOnTheWindowInProgress(t *testing.T) {
+	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger())
+	pool := newCandidatePool(manyCandidates(3), time.Minute)
+	slo := newSLOTracker(0)
+	samples := newSampleState()
+	flash := flashState{served: map[int]bool{}, shed: map[int]bool{}}
+	ramp := rampState{tier: 30, viewerTypeBySlot: map[int]viewerType{}, cancelBySlot: map[int]context.CancelFunc{}, roundBySlot: map[int]int{}, replayedByTier: map[int]int{}, herdBySlot: map[int]bool{}, audienceIntact: true}
+	cl := &climb{phase: phaseBisect, target: 30}
+	res := newResourceState(0, time.Now().Add(-time.Minute))
+	res.openWindow(30, cl.phase.String(), true, time.Now())
+	events := make(chan viewerEvent, 8)
+	var wg sync.WaitGroup
+	slot := 0
+	send := func(ms int) {
+		slot++
+		ramp.cancelBySlot[slot] = func() {}
+		r.handleViewerEvent(viewerEvent{kind: evTTFF, vt: viewerTypeMkvgo, slot: slot, ms: ms}, false, context.Background(), Config{}, pool, events, &wg, &ramp, &flash, slo, &samples, cl, res)
+	}
+	for range startupMinSamples {
+		send(startupBudgetMs * 2)
+	}
+	if cl.broke != StopStartupTooSlow {
+		t.Fatalf("first window: broke = %q, want startup_too_slow", cl.broke)
+	}
+	cl.broke, cl.detail = "", ""
+	res.nextWindow(30, time.Now(), cl.phase.String())
+	for range startupMinSamples {
+		send(startupBudgetMs / 4)
+	}
+	if cl.broke != "" {
+		t.Fatalf("second window's newcomers started in time, yet broke = %q: the first window's startups were judged again", cl.broke)
 	}
 }

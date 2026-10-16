@@ -899,7 +899,14 @@ func (r *Runner) handleViewerEvent(ev viewerEvent, isFlash bool, viewerCtx conte
 		// viewers perfectly well and still take six seconds to let a new one
 		// start watching - which, to the person holding the remote, IS the
 		// server being full.
-		if ttff := samples.tierTTFF[ramp.tier]; len(ttff) >= startupMinSamples {
+		// A measured size is judged window by window, on the startups of
+		// that window alone: the tier's whole list would hand every later
+		// window the verdict of the first.
+		ttff := samples.tierTTFF[ramp.tier]
+		if cl.phase != phaseFast {
+			ttff = samples.windowTTFF[res.windowID()]
+		}
+		if len(ttff) >= startupMinSamples {
 			if p95 := percentile(ttff, 95); p95 > startupBudgetMs {
 				cl.tierBroke(StopStartupTooSlow, fmt.Sprintf("playback takes %dms to start at %d viewers (budget %dms)", p95, ramp.tier, startupBudgetMs))
 			}

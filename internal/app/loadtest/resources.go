@@ -543,6 +543,14 @@ const minPlateauBytesPerSec = 8 << 20 // 8 MiB/s
 // the report carries is the number an operator can act on.
 func (rs *resourceState) throughputPlateaued(tier int) (bool, int64) {
 	cur := rs.stats(tier)
+	// A size judged on several windows is judged on each window's own
+	// throughput: the tier's running average would hand every later window
+	// the verdict of the first.
+	if w := rs.cur; w != nil && w.tier == tier && w.measured {
+		if ws := statsOf(w.samples); ws.Samples > 0 {
+			cur = ws
+		}
+	}
 	// Only a tier measured under a full window may be judged, and only against
 	// references measured the same way: a FAST hold's samples sit inside a join
 	// burst that pulls several times any regime, and a verdict comparing a
@@ -558,7 +566,7 @@ func (rs *resourceState) throughputPlateaued(tier int) (bool, int64) {
 	if diskReadStarved(cur) {
 		return false, 0
 	}
-	best, bestTier := rs.bestMeasuredServed(tier)
+	best, bestTier := rs.bestMeasuredServed(int(float64(tier) / plateauMinHeadcountRatio))
 	// A plateau only means something once real data is moving. Below this, the
 	// run is measuring noise - and calling a trickle "the storage ceiling" would
 	// blame the disk for whatever else is actually wrong.
@@ -577,16 +585,25 @@ func (rs *resourceState) throughputPlateaued(tier int) (bool, int64) {
 	return false, 0
 }
 
-// bestMeasuredServed is the highest served throughput among the tiers BELOW
-// `tier` that were measured under a full window, and the headcount that
+// plateauMinHeadcountRatio is how much larger an audience must be than the
+// reference it is compared with before "it pushed no more bytes" means
+// anything. Near the end of a bisection two sizes are a few percent apart
+// (65 and 67 viewers, 2026-10-16): the gain expected between them is smaller
+// than the window-to-window spread of the throughput, and the comparison flagged
+// a plateau on noise. Fifteen percent more viewers is a gain the spread cannot
+// hide.
+const plateauMinHeadcountRatio = 1.15
+
+// bestMeasuredServed is the highest served throughput among the tiers AT OR
+// BELOW `limit` that were measured under a full window, and the headcount that
 // produced it: the reference a plateau verdict compares against. The gain
 // expected of the current tier is only meaningful relative to the headcount
 // that produced the figure being compared against.
-func (rs *resourceState) bestMeasuredServed(tier int) (int64, int) {
+func (rs *resourceState) bestMeasuredServed(limit int) (int64, int) {
 	var best int64
 	bestTier := 0
 	for t, samples := range rs.byTier {
-		if t <= 0 || t >= tier || !rs.measured[t] || len(samples) == 0 {
+		if t <= 0 || t > limit || !rs.measured[t] || len(samples) == 0 {
 			continue
 		}
 		if served := rs.stats(t).ServedBytesPerSecAvg; served > best {
