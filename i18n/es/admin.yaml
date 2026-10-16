@@ -1284,6 +1284,7 @@ loadtest:
   verdictRange_other: "Este servidor aguanta unos {{count}} espectadores en {{scenario}} (entre {{low}} y {{high}})."
   limiter:
     disk: "Lo que falla primero: el disco que guarda las películas{{where}}."
+    storageUnmeasured: "No se pudo establecer qué cede primero: las películas están en un almacenamiento que este servidor no puede medir (un recurso de red o un volumen que no ve). El límite viene probablemente de ahí."
     diskWhere: " ({{location}})"
     cpu: "Lo que falla primero: el procesador."
     memory: "Lo que falla primero: la memoria."

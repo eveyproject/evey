@@ -1,11 +1,12 @@
 package loadtest
 
 import (
-	"sort"
 	"context"
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -152,7 +153,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	// carries is the machine's block counters summed over exactly these.
 	devices := libraryDevices(runCtx, candidates, branchOf, cfg.fsRoot(), rng)
 	for _, m := range devices {
-		r.logger.Info("loadtest: disk device", "location", m.Location, "device", m.Device, "resolved", m.Resolved)
+		r.logger.Info("loadtest: disk device", "location", m.Location, "device", m.Device, "resolved", m.Resolved, "disks", strings.Join(m.Disks, ","))
 	}
 	if len(mappedDevices(devices)) == 0 {
 		r.logger.Warn("loadtest: no block device of this machine could be tied to the library - the disk read figures will be absent (a network share, or a mount this kernel cannot see through)")
@@ -243,10 +244,10 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		// Titles the eligibility check kept out count as skipped, as they did
 		// when they were retired mid-run.
 		skippedCandidates: len(candidates) - len(direct),
-		strataByTier:     map[int][]StratumShare{},
-		pool:             pool,
-		herdBySlot:       map[int]bool{},
-		audienceIntact:   true,
+		strataByTier:      map[int][]StratumShare{},
+		pool:              pool,
+		herdBySlot:        map[int]bool{},
+		audienceIntact:    true,
 	}
 	// Zero the live audience BEFORE the first viewer spawns: spawnNext counts
 	// up from here, and a leftover value from the previous run would make the
@@ -264,7 +265,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		// A run that never starts an encoder needs a far shorter measurement
 		// window: there is no ffmpeg cold start to wait out.
 		spawnsEncoders: scenarioSpawnsEncoders(cfg.Scenario),
-		windows:        cfg.GridWindows,
+		windows:        cfg.StepWindows,
 	}
 	// Tests shrink the holds; the warm-up must shrink with them, or a 50ms hold
 	// with a 15s warm-up would discard every sample it ever took.
@@ -414,9 +415,9 @@ runLoop:
 			// cancelled during its very first tier has proven nothing yet - it
 			// would report zero viewers while several were happily watching.
 			stopReason, stopDetail, sustained = r.cancelVerdict(runCtx, isEndurance, ramp.tier, cfg)
-			// A run cut short inside the grid already measured sizes: the
-			// answer is the largest one that held, not whatever was streaming.
-			if cl.phase == phaseGrid && cl.lo > 0 && !isEndurance {
+			// A run cut short in a measured phase already judged sizes: the
+			// answer is what they say, not whatever was streaming.
+			if cl.phase != phaseFast && cl.lo > 0 && !isEndurance {
 				sustained = cl.lo
 			}
 			break runLoop
@@ -498,7 +499,7 @@ runLoop:
 			// the window's fetches, scaled to the reference segment, against the
 			// budget. A rolling twenty-fetch p95 flips on a handful of slow
 			// segments, and one flip used to condemn the whole size.
-			if cl.phase == phaseGrid {
+			if cl.phase != phaseFast {
 				r.judgeWindowLatency(cl, slo, &samples, res)
 			}
 
@@ -542,8 +543,8 @@ runLoop:
 				// audience is already in its regime.
 				// The oldest few viewers leave and newcomers take their
 				// place: the window then also measures how long a newcomer
-				// waits at this audience size (see gridChurn).
-				r.shedOldest(&ramp, gridChurn(cl.target))
+				// waits at this audience size (see stepChurn).
+				r.shedOldest(&ramp, stepChurn(cl.target))
 				r.reapIdleSessions(pool, &ramp)
 				if ok, d := r.resizeTo(cl.target, viewerCtx, cfg, pool, events, &wg, &ramp); !ok {
 					stopReason, stopDetail, sustained = StopLibraryLimit, d, cl.lo
@@ -685,17 +686,17 @@ runLoop:
 		verdictRes = breakRes
 	}
 	diskV := diskVerdict(verdictRes, baseline)
-	var grid []GridTier
+	var grid []StepTier
 	rangeLow, rangeHigh := sustained, sustained
-	if !isFlash && cl.phase == phaseGrid {
-		grid = cl.gridReport()
+	if !isFlash && cl.phase != phaseFast {
+		grid = cl.stepReport()
 		for i := range grid {
 			g := res.stats(grid[i].Viewers)
 			g.CPUPercentAvg *= serverShare
 			g.CPUPercentPeak *= serverShare
 			grid[i].Resources = g
 		}
-		rangeLow, rangeHigh = cl.gridRange()
+		rangeLow, rangeHigh = cl.answerRange()
 		rangeLow, rangeHigh = min(rangeLow, sustained), max(rangeHigh, sustained)
 	}
 	limiter, limiterLocation, advice := limiterOf(stopReason, stopDetail, verdictRes, diskV, viaProxy, devices)

@@ -13,6 +13,7 @@ type DeviceMapping struct {
 	Location string
 	Device   string
 	Resolved string
+	Disks    []string
 }
 
 func libraryDevices(context.Context, []MediaCandidate, func(string) string, string, *rand.Rand) []DeviceMapping {
@@ -20,3 +21,5 @@ func libraryDevices(context.Context, []MediaCandidate, func(string) string, stri
 }
 
 func mappedDevices([]DeviceMapping) []string { return nil }
+
+func allMapped([]DeviceMapping) bool { return false }

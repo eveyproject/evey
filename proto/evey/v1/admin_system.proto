@@ -619,10 +619,10 @@ message LoadTestReport {
   // break_resources is everything the machine did under the lowest audience
   // that broke (break_disks and break_cpu_percent_peak are two of its fields).
   LoadTestResources break_resources = 56;
-  // grid is every audience size measured on full windows, smallest first:
-  // sustained_viewers is the largest passing at least four windows in five,
-  // range_low the largest passing every window, range_high the largest
-  // passing at least half.
+  // grid is every candidate the bisection judged on measured windows, in the
+  // order judged, with how many of its windows passed (held at four of at
+  // most five). sustained_viewers is the last one held: range_low is it,
+  // range_high the first broken above it.
   repeated LoadTestGridTier grid = 57;
   int32 range_low = 58;
   int32 range_high = 59;
@@ -668,6 +668,9 @@ message LoadTestDeviceMapping {
   // resolved says how: "stat" (the filesystem's device id), "read" (a cold
   // read moved its sectors), "" when unresolved.
   string resolved = 3;
+  // disks are the physical disks under device: the device itself for a
+  // plain disk, the members of a volume (md, LVM, both stacked).
+  repeated string disks = 4;
 }
 
 // LoadTestDiskVerdict is the busiest disk of a hold, judged against the

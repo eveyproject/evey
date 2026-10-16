@@ -1250,6 +1250,7 @@ loadtest:
   verdictRange_other: "Ce serveur tient environ {{count}} spectateurs en {{scenario}} (entre {{low}} et {{high}})."
   limiter:
     disk: "Ce qui lâche en premier : le disque qui porte les films{{where}}."
+    storageUnmeasured: "Ce qui lâche en premier n'a pas pu être établi : les films sont sur un stockage que ce serveur ne peut pas mesurer (un partage réseau ou un volume qu'il ne voit pas). La limite vient probablement de là."
     diskWhere: " ({{location}})"
     cpu: "Ce qui lâche en premier : le processeur."
     memory: "Ce qui lâche en premier : la mémoire."

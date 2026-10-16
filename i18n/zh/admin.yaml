@@ -1284,6 +1284,7 @@ loadtest:
   verdictRange_other: "此服务器在{{scenario}}下约可承载 {{count}} 位观众（{{low}} 至 {{high}} 之间）。"
   limiter:
     disk: "最先撑不住的：存放影片的磁盘{{where}}。"
+    storageUnmeasured: "无法确定最先撑不住的是什么：影片位于本服务器无法测量的存储上（网络共享或它看不到的卷）。限制很可能来自那里。"
     diskWhere: "（{{location}}）"
     cpu: "最先撑不住的：处理器。"
     memory: "最先撑不住的：内存。"

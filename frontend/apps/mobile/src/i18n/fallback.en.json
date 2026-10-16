@@ -486,6 +486,7 @@
   "admin.loadtest.limiter.none": "Nothing gave out before the requested viewer limit.",
   "admin.loadtest.limiter.proxy": "What gives out first: the proxy, the go-between the viewers come through.",
   "admin.loadtest.limiter.server": "What gives out first: the server itself, which answered with errors.",
+  "admin.loadtest.limiter.storageUnmeasured": "What gives out first could not be established: the films are on storage this server cannot measure (a network share or a volume it cannot see). The limit most likely comes from there.",
   "admin.loadtest.limiter.unknown": "Nothing on this machine was at its limit: the limit is elsewhere, the network or shared storage.",
   "admin.loadtest.machineLine": "At the retained tier ({{tier}} viewers): container CPU {{cpu}}%, whole machine {{machine}}%, waiting on disk (iowait) {{iowait}}%. Container memory {{mem}} (Meilisearch and Postgres included in the -full image), evey process {{rss}}.",
   "admin.loadtest.mixPart": "{{count}} in {{label}}",

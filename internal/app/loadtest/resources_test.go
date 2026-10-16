@@ -757,7 +757,7 @@ func TestReport_ReadAmplificationExposesWastedBandwidth(t *testing.T) {
 	got := readAmplification(ResourceStats{
 		Samples:                20,
 		DiskReadBytesPerSecAvg: 221 << 20, DiskReadMeasured: true,
-		ServedBytesPerSecAvg:   57 << 20,
+		ServedBytesPerSecAvg: 57 << 20,
 	})
 	if got < 3.8 || got > 4.0 {
 		t.Fatalf("read amplification = %.2f, want ~3.9 (221 MiB/s read for 57 MiB/s served)", got)
@@ -767,7 +767,7 @@ func TestReport_ReadAmplificationExposesWastedBandwidth(t *testing.T) {
 	if perfect := readAmplification(ResourceStats{
 		Samples:                20,
 		DiskReadBytesPerSecAvg: 100 << 20, DiskReadMeasured: true,
-		ServedBytesPerSecAvg:   100 << 20,
+		ServedBytesPerSecAvg: 100 << 20,
 	}); perfect < 0.99 || perfect > 1.01 {
 		t.Fatalf("a server reading exactly what it serves has an amplification of 1, got %.2f", perfect)
 	}
@@ -777,7 +777,7 @@ func TestReport_ReadAmplificationExposesWastedBandwidth(t *testing.T) {
 	if blind := readAmplification(ResourceStats{
 		Samples:                20,
 		DiskReadBytesPerSecAvg: 0, DiskReadMeasured: true,
-		ServedBytesPerSecAvg:   100 << 20,
+		ServedBytesPerSecAvg: 100 << 20,
 	}); blind != 0 {
 		t.Fatalf("a blind I/O counter must not yield an amplification ratio, got %.2f", blind)
 	}

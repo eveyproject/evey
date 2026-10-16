@@ -220,6 +220,32 @@ describe("LoadTestReportPanel", () => {
     expect(screen.queryByTestId("load-test-go-runtime")).toBeNull();
   });
 
+  it("films on storage the server cannot measure: the main view says so instead of naming nothing", () => {
+    const report = { scenario: "mkvgo", sustainedViewers: 30, stopReason: "slo_breach", limiter: "storage_unmeasured", diskReadMeasured: false, diskDevices: [{ location: "/mnt/nas" }] } as LoadTestReport;
+    render(<LoadTestReportPanel report={report} predicted={undefined} />);
+    expect(screen.getByTestId("load-test-limiter")).toHaveTextContent("admin.loadtest.limiter.storageUnmeasured");
+  });
+
+  it("the bisection's steps show smallest first, and a volume names the disks it was judged on", () => {
+    const report = {
+      scenario: "mkvgo",
+      sustainedViewers: 81,
+      rangeLow: 81,
+      rangeHigh: 91,
+      stopReason: "slo_breach",
+      grid: [
+        { viewers: 111, windows: 2, passed: 0, held: false, reason: "slo_breach" },
+        { viewers: 81, windows: 4, passed: 4, held: true },
+        { viewers: 91, windows: 3, passed: 1, held: false, reason: "slo_breach" },
+      ],
+      diskDevices: [{ location: "/volume1", device: "dm-0", resolved: "read", disks: ["sda", "sdb"] }],
+    } as LoadTestReport;
+    render(<LoadTestReportPanel report={report} predicted={undefined} />);
+    const rows = screen.getAllByTestId(/load-test-grid-(row|answer)/);
+    expect(rows.map((r) => within(r).getAllByRole("cell")[0]!.textContent)).toEqual(["81", "91", "111"]);
+    expect(screen.getAllByTestId("load-test-device")[0]).toHaveTextContent("device=dm-0 (sda, sdb)");
+  });
+
   it("a run on plain storage shows no pool block", () => {
     render(<LoadTestReportPanel report={{ sustainedViewers: 3, stopReason: "cpu_saturated" } as LoadTestReport} predicted={undefined} />);
     expect(screen.queryByTestId("load-test-pool")).toBeNull();

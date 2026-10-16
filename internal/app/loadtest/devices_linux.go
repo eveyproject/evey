@@ -8,6 +8,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -24,16 +25,22 @@ import (
 // Two ways to resolve a location, tried in order:
 //
 //   - stat: a file's st_dev names its filesystem's device; /sys/dev/block
-//     turns that into the whole disk (a partition's parent). This is the plain
-//     case - a library on ext4/xfs/btrfs, an LVM or md volume (the volume is
-//     the device the kernel accounts, and that is the right one to sum).
-//   - a read: on a mount this kernel cannot see through (a FUSE pool, where
-//     st_dev is the pool's own anonymous device and the branches may not even
-//     be visible from inside a container), the run reads a few MiB cold from a
-//     file on each branch and watches which whole disk moved sectors. The disk
-//     that moved most of those bytes is the branch's. Nothing on a network
-//     share moves a local disk, and the branch then stays unresolved - which
-//     is the truth: that disk is not on this machine.
+//     turns that into the whole disk (a partition's parent) or the volume (an
+//     LVM or md device). This is the plain case - ext4/xfs on a disk or a
+//     volume.
+//   - a read: on a mount whose st_dev is anonymous (a FUSE pool, btrfs, which
+//     gives every filesystem its own anonymous device, a network share), the
+//     run reads a few MiB cold from a file on the location and watches which
+//     device moved sectors. The device that moved most of those bytes is the
+//     location's, the top of a stack when several moved them all (an md array
+//     and the volume on it). Nothing on a network share moves a local disk,
+//     and the location then stays unresolved - which is the truth: that disk
+//     is not on this machine.
+//
+// A volume is then walked down to the physical disks under it (dm-0 -> md2 ->
+// sda5, sdb5 -> sda, sdb, the Synology SHR stack): the queue that decides the
+// verdict forms on the disks, and an md array's own counters carry no wait
+// time on older kernels - judged on the array, a saturated pool reads as idle.
 
 // DeviceMapping says which block device a library location is read from.
 type DeviceMapping struct {
@@ -46,6 +53,10 @@ type DeviceMapping struct {
 	// Resolved says how: "stat" (the filesystem's device id), "read" (a cold
 	// read moved its sectors), "" when unresolved.
 	Resolved string
+	// Disks are the physical disks under Device: Device itself for a plain
+	// disk, the members of a volume (an md array, an LVM volume, both
+	// stacked). What the run sums and judges.
+	Disks []string
 }
 
 // deviceProbeBytes is how much a read-probe pulls from one file of a branch:
@@ -92,23 +103,93 @@ func libraryDevices(ctx context.Context, candidates []MediaCandidate, branchOf f
 		} else if dev := deviceByRead(ctx, fsRoot, byLocation[loc], rng); dev != "" {
 			m.Device, m.Resolved = dev, "read"
 		}
+		if m.Device != "" {
+			m.Disks = physicalDisks(fsRoot, m.Device)
+		}
 		out = append(out, m)
 	}
 	return out
 }
 
-// mappedDevices is the set of whole disks the mapping named, deduplicated,
-// in mapping order.
+// mappedDevices is the set of physical disks the mapping named,
+// deduplicated, in mapping order.
 func mappedDevices(mapping []DeviceMapping) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, m := range mapping {
-		if m.Device != "" && !seen[m.Device] {
-			seen[m.Device] = true
-			out = append(out, m.Device)
+		disks := m.Disks
+		if len(disks) == 0 && m.Device != "" {
+			disks = []string{m.Device}
+		}
+		for _, d := range disks {
+			if !seen[d] {
+				seen[d] = true
+				out = append(out, d)
+			}
 		}
 	}
 	return out
+}
+
+// allMapped reports whether every library location was tied to a disk of
+// this machine. A location left unresolved (a network share, a volume the
+// container cannot see) is storage the run could not measure.
+func allMapped(mapping []DeviceMapping) bool {
+	if len(mapping) == 0 {
+		return false
+	}
+	for _, m := range mapping {
+		if m.Device == "" {
+			return false
+		}
+	}
+	return true
+}
+
+// physicalDisks walks a device down to the physical disks under it: a
+// partition to its disk, a volume (dm, md) through its slaves, recursively.
+// A device with no slaves is its own disk.
+func physicalDisks(fsRoot, name string) []string {
+	seen := map[string]bool{}
+	var out []string
+	var walk func(n string, depth int)
+	walk = func(n string, depth int) {
+		disk := diskOfName(fsRoot, n)
+		if disk == "" || depth > 8 {
+			return
+		}
+		slaves, _ := os.ReadDir(filepath.Join(fsRoot, "sys/block", disk, "slaves"))
+		if len(slaves) == 0 {
+			if !seen[disk] {
+				seen[disk] = true
+				out = append(out, disk)
+			}
+			return
+		}
+		for _, s := range slaves {
+			walk(s.Name(), depth+1)
+		}
+	}
+	walk(name, 0)
+	sort.Strings(out)
+	return out
+}
+
+// diskOfName is the entry of /sys/block a device name belongs to: itself for
+// a disk or a volume, the parent disk for a partition; "" when unknown.
+func diskOfName(fsRoot, name string) string {
+	if _, err := os.Stat(filepath.Join(fsRoot, "sys/block", name)); err == nil {
+		return name
+	}
+	target, err := os.Readlink(filepath.Join(fsRoot, "sys/class/block", name))
+	if err != nil {
+		return ""
+	}
+	parent := filepath.Base(filepath.Dir(target))
+	if _, err := os.Stat(filepath.Join(fsRoot, "sys/block", parent)); err != nil {
+		return ""
+	}
+	return parent
 }
 
 // deviceOfPath is the whole block device a file's filesystem sits on, by its
@@ -189,20 +270,62 @@ func deviceByRead(ctx context.Context, fsRoot string, paths []string, rng *rand.
 	if got <= 0 {
 		return ""
 	}
-	best, bestBytes := "", int64(0)
+	// Every device that moved most of the read: one disk, or a stack (the
+	// volume, the array under it, a mirror member) that all carried it.
+	var movers []string
 	for dev, c := range after {
 		p, ok := before[dev]
 		if !ok || c.sectorsRead < p.sectorsRead {
 			continue
 		}
-		if moved := int64(c.sectorsRead-p.sectorsRead) * 512; moved > bestBytes {
-			best, bestBytes = dev, moved
+		if moved := int64(c.sectorsRead-p.sectorsRead) * 512; float64(moved) >= float64(got)*deviceProbeMinShare {
+			movers = append(movers, dev)
 		}
 	}
-	if float64(bestBytes) < float64(got)*deviceProbeMinShare {
-		return ""
+	return stackTop(fsRoot, movers)
+}
+
+// stackTop picks, among devices that all carried a read, the one no other of
+// them sits on: the volume rather than its array, the array rather than a
+// member. Its physical disks then cover every member, not only the one a
+// mirror happened to read from. "" when none moved.
+func stackTop(fsRoot string, movers []string) string {
+	sort.Strings(movers)
+	under := map[string]bool{}
+	for _, m := range movers {
+		for _, d := range physicalDisks(fsRoot, m) {
+			if d != m {
+				under[d] = true
+			}
+		}
+		slaves, _ := os.ReadDir(filepath.Join(fsRoot, "sys/block", m, "slaves"))
+		for _, s := range slaves {
+			under[diskOfName(fsRoot, s.Name())] = true
+		}
+	}
+	best, bestDepth := "", -1
+	for _, m := range movers {
+		if under[m] {
+			continue
+		}
+		if d := stackDepth(fsRoot, m, 0); d > bestDepth {
+			best, bestDepth = m, d
+		}
 	}
 	return best
+}
+
+// stackDepth is how many volume levels sit under a device (0 for a disk).
+func stackDepth(fsRoot, name string, depth int) int {
+	if depth > 8 {
+		return depth
+	}
+	slaves, _ := os.ReadDir(filepath.Join(fsRoot, "sys/block", diskOfName(fsRoot, name), "slaves"))
+	deepest := depth
+	for _, s := range slaves {
+		deepest = max(deepest, stackDepth(fsRoot, s.Name(), depth+1))
+	}
+	return deepest
 }
 
 // mountPointOf is the longest mount point under which path sits, read from

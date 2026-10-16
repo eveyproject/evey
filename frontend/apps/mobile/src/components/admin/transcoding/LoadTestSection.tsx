@@ -21,6 +21,7 @@ import {
   limiterLine,
   adviceLine,
   verdictLine,
+  gridRows,
   clientMixScenario,
   servedPathLines,
   formatElapsed,
@@ -283,12 +284,12 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
             <Text style={[s.tierHead, { flex: 1.4 }]}>{t("admin.loadtest.grid.served")}</Text>
             <Text style={[s.tierHead, { flex: 0.8 }]}>{t("admin.loadtest.grid.state")}</Text>
           </View>
-          {(report.grid ?? []).map((g) => {
+          {gridRows(report).map((g, i) => {
             const answer = g.viewers === report.sustainedViewers;
             const col = answer ? theme.colors.text : theme.colors.textMuted;
             const weight = answer ? "700" : "400";
             return (
-              <View key={g.viewers} style={[s.tierRow, { borderBottomColor: theme.colors.border }]}>
+              <View key={`${g.viewers}-${i}`} style={[s.tierRow, { borderBottomColor: theme.colors.border }]}>
                 <Text style={[s.tierCell, { flex: 1, color: col, fontWeight: weight }]}>{g.viewers ?? 0}</Text>
                 <Text style={[s.tierCell, { flex: 1, color: col, fontWeight: weight }]}>{`${Math.round(g.resources?.cpuPercentAvg ?? 0)}%`}</Text>
                 <Text style={[s.tierCell, { flex: 1.3, color: col, fontWeight: weight }]}>{formatBytes(g.resources?.processRssBytesAvg ?? 0)}</Text>
