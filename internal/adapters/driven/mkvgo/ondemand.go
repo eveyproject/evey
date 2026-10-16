@@ -395,6 +395,9 @@ func addWindowStats(out map[string]int64, st mp4.HLSPlanStats) {
 	out["subtitle_cue_indexed"] += st.SubtitleCueIndexed
 	out["subtitle_cue_unverified"] += st.SubtitleCueUnverified
 	out["spread_laced_tracks"] += st.SpreadLacedTracks
+	// mkvgo 0.53: the bytes the plan read from its source since it was built
+	// (the build itself not counted) - the in-process "app read" of the load test.
+	out["source_read_bytes"] += st.SourceReadBytes
 }
 
 // WalksInFlight is how many source windows the process is reading right now,
