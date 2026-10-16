@@ -270,6 +270,8 @@ type fakeDetector struct {
 	creditsEndMs   int64
 	creditsFound   bool
 	creditsErr     error
+	// creditsWithin answers DetectEndCreditsWithin (nil: nothing found).
+	creditsWithin func(path string, durationSec, maxLeadSec float64) (int64, int64, bool, error)
 
 	logoStartMs int64
 	logoEndMs   int64
@@ -331,6 +333,13 @@ func (f *fakeDetector) AudioFallback(_ context.Context, _ string, _ float64) (in
 }
 func (f *fakeDetector) DetectEndCredits(_ context.Context, _ string, _ float64) (int64, int64, bool, error) {
 	return f.creditsStartMs, f.creditsEndMs, f.creditsFound, f.creditsErr
+}
+
+func (f *fakeDetector) DetectEndCreditsWithin(_ context.Context, path string, durationSec, maxLeadSec float64) (int64, int64, bool, error) {
+	if f.creditsWithin == nil {
+		return 0, 0, false, nil
+	}
+	return f.creditsWithin(path, durationSec, maxLeadSec)
 }
 func (f *fakeDetector) DetectStudioLogo(_ []uint64, _ int) (int64, int64, bool) {
 	return f.logoStartMs, f.logoEndMs, f.logoFound

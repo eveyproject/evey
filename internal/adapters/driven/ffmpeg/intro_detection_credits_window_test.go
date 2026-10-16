@@ -177,3 +177,17 @@ func renderBlackdetect(regions []floatRange, windowStart float64) string {
 	}
 	return b.String()
 }
+
+// On the 48:43 episode of the 2026-10-15 report the default window is the 12%
+// clamp (350.8s) and the season's stretch 122s.
+func TestCreditsWindowWithin_NarrowsButNeverWidens(t *testing.T) {
+	t.Parallel()
+	const durationSec = 2923.296
+	def := creditsScanWindowSec(durationSec)
+	require.InDelta(t, 350.795, def, 0.01)
+
+	require.InDelta(t, 122.0, creditsWindowWithin(durationSec, 122), 1e-9, "the stretch narrows the decode")
+	require.InDelta(t, def, creditsWindowWithin(durationSec, 900), 1e-9, "a wider ask never widens it")
+	require.InDelta(t, def, creditsWindowWithin(durationSec, 0), 1e-9, "zero keeps the default")
+	require.InDelta(t, def, creditsWindowWithin(durationSec, -1), 1e-9, "negative keeps the default")
+}

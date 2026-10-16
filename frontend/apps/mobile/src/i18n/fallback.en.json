@@ -3278,7 +3278,7 @@
   "player.subtitleStyle.top": "Top",
   "player.subtitlesPreparing": "Subtitles are being prepared…",
   "player.unableToPlayAnyQuality": "Unable to play at any quality level",
-  "player.watchCredits": "Watch credits",
+  "player.watchCredits": "Keep watching",
   "player.watchTogether": "Watch Together",
   "requests.adminNote": "Note: {{note}}",
   "requests.disabledDesc": "The administrator has disabled media requests for your account.",

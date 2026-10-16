@@ -89,7 +89,7 @@ nextEpisodeOverlay:
 skipIntro: "跳过片头"
 skipRecap: "跳过前情提要"
 skipCredits: "跳过片尾"
-watchCredits: "观看片尾"
+watchCredits: "继续观看"
 skipPreview: 跳过预告
 introSkipped: "已跳过片头"
 download: "下载"

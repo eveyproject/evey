@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { act, render, fireEvent } from "@testing-library/react";
 import React from "react";
 
 vi.mock("react-native", () => ({
@@ -272,55 +272,92 @@ describe("SkipIntroButton", () => {
   describe("countdown with auto-play on", () => {
     const endCredits = { type: "end_credits", startMs: 3_400_000, endMs: 3_600_000, confidence: 0.9, source: "audio" };
 
-    it("counts down on the playhead from the start of the credits", () => {
+    // Playback as the player reports it, a tick every half second: a single
+    // rerender far ahead reads as a seek, which cancels (its own test below).
+    function mountCredits(at: number, props: { autoAdvance?: boolean; cancelCountdownRef?: React.MutableRefObject<(() => void) | null> } = {}) {
       useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
-      const { getByText, rerender } = render(
-        <SkipIntroButton mediaId="m1" currentTime={3_400} onSkip={vi.fn()} onNextEpisode={vi.fn()} autoAdvance />,
+      const onNextEpisode = vi.fn();
+      const autoAdvance = props.autoAdvance ?? true;
+      const el = (t: number) => (
+        <SkipIntroButton mediaId="m1" currentTime={t} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance={autoAdvance} cancelCountdownRef={props.cancelCountdownRef} />
       );
+      const view = render(el(at));
+      const playTo = (to: number, from: number) => {
+        for (let t = from + 0.5; t < to; t += 0.5) view.rerender(el(t));
+        view.rerender(el(to));
+      };
+      const seekTo = (to: number) => view.rerender(el(to));
+      return { ...view, onNextEpisode, playTo, seekTo };
+    }
+
+    it("counts down on the playhead from the start of the credits", () => {
+      const { getByText, playTo } = mountCredits(3_400);
       expect(getByText("player.watchCredits")).toBeTruthy();
       expect(getByText("player.nextEpisodeOverlay.nextIn:15")).toBeTruthy();
 
-      rerender(<SkipIntroButton mediaId="m1" currentTime={3_405.2} onSkip={vi.fn()} onNextEpisode={vi.fn()} autoAdvance />);
+      playTo(3_405.2, 3_400);
       expect(getByText("player.nextEpisodeOverlay.nextIn:10")).toBeTruthy();
     });
 
-    it("fires once when the countdown reaches zero, and not on a later re-render", () => {
-      useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
-      const onNextEpisode = vi.fn();
-      const { rerender } = render(
-        <SkipIntroButton mediaId="m1" currentTime={3_414} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />,
-      );
+    it("fires once when the countdown reaches zero, and not on a later tick", () => {
+      const { playTo, onNextEpisode } = mountCredits(3_400);
+      playTo(3_414, 3_400);
       expect(onNextEpisode).not.toHaveBeenCalled();
 
-      rerender(<SkipIntroButton mediaId="m1" currentTime={3_415} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />);
-      rerender(<SkipIntroButton mediaId="m1" currentTime={3_416} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />);
+      playTo(3_416, 3_414);
       expect(onNextEpisode).toHaveBeenCalledTimes(1);
     });
 
-    it("Watch credits cancels the countdown for these credits and restores Skip credits", () => {
-      useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
-      const onNextEpisode = vi.fn();
-      const { getByText, rerender } = render(
-        <SkipIntroButton mediaId="m1" currentTime={3_400} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />,
-      );
+    // Prod 2026-10-15: credits marked four minutes early, a resume inside them
+    // inherited six seconds of the clock, then the next episode, every time.
+    it("gives a viewer who resumes inside the credits the full countdown", () => {
+      const { getByText, playTo, onNextEpisode } = mountCredits(3_410);
+      expect(getByText("player.nextEpisodeOverlay.nextIn:15")).toBeTruthy();
+      playTo(3_416, 3_410);
+      expect(getByText("player.nextEpisodeOverlay.nextIn:9")).toBeTruthy();
+      expect(onNextEpisode).not.toHaveBeenCalled();
+    });
+
+    it("Keep watching cancels the countdown for these credits and restores Skip credits", () => {
+      const { getByText, playTo, onNextEpisode } = mountCredits(3_400);
       fireEvent.click(getByText("player.watchCredits"));
       expect(getByText("player.skipCredits")).toBeTruthy();
       expect(getByText("player.nextEpisodeOverlay.nextEpisode")).toBeTruthy();
 
-      rerender(<SkipIntroButton mediaId="m1" currentTime={3_500} onSkip={vi.fn()} onNextEpisode={onNextEpisode} autoAdvance />);
+      playTo(3_500, 3_400);
+      expect(onNextEpisode).not.toHaveBeenCalled();
+    });
+
+    // "Nothing lets me cancel it" (owner, 2026-10-15): a seek inside the
+    // credits is the viewer still watching, it cancels like the button does.
+    it("a seek inside the credits cancels the countdown", () => {
+      const { getByText, playTo, seekTo, onNextEpisode } = mountCredits(3_400);
+      playTo(3_402, 3_400);
+      seekTo(3_430);
+      expect(getByText("player.skipCredits")).toBeTruthy();
+      playTo(3_500, 3_430);
+      expect(onNextEpisode).not.toHaveBeenCalled();
+    });
+
+    it("arms the BACK cancel while counting and clears it once the viewer keeps watching", () => {
+      const cancelCountdownRef = { current: null as (() => void) | null };
+      const { getByText, playTo, onNextEpisode } = mountCredits(3_400, { cancelCountdownRef });
+      expect(cancelCountdownRef.current).not.toBeNull();
+      act(() => cancelCountdownRef.current?.());
+      expect(cancelCountdownRef.current).toBeNull();
+      expect(getByText("player.skipCredits")).toBeTruthy();
+      playTo(3_500, 3_400);
       expect(onNextEpisode).not.toHaveBeenCalled();
     });
 
     it("never counts down with auto-play off", () => {
-      useMediaSegmentsMock.mockReturnValue({ data: { introAutoSkip: false, segments: [endCredits] } });
-      const onNextEpisode = vi.fn();
-      const { getByText, rerender } = render(
-        <SkipIntroButton mediaId="m1" currentTime={3_400} onSkip={vi.fn()} onNextEpisode={onNextEpisode} />,
-      );
+      const cancelCountdownRef = { current: null as (() => void) | null };
+      const { getByText, playTo, onNextEpisode } = mountCredits(3_400, { autoAdvance: false, cancelCountdownRef });
       expect(getByText("player.skipCredits")).toBeTruthy();
       expect(getByText("player.nextEpisodeOverlay.nextEpisode")).toBeTruthy();
 
-      rerender(<SkipIntroButton mediaId="m1" currentTime={3_415} onSkip={vi.fn()} onNextEpisode={onNextEpisode} />);
+      playTo(3_415, 3_400);
+      expect(cancelCountdownRef.current).toBeNull();
       expect(onNextEpisode).not.toHaveBeenCalled();
     });
   });

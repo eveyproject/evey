@@ -306,6 +306,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // Read by the gestures' PanResponder (built once): a state captured in
   // its closure would be frozen, the ref always stays up to date.
   const settingsOpenRef = useRef(false);
+  // Armed by SkipIntroOverlay while the credits countdown runs: the hardware
+  // Back then keeps watching instead of leaving the player (prod 2026-10-15).
+  const cancelCountdownRef = useRef<(() => void) | null>(null);
   useEffect(() => { settingsOpenRef.current = settingsOpen; }, [settingsOpen]);
   // One recovery per media: a dead stream token is worth one silent retry, a
   // second identical failure is a real one and must be shown.
@@ -853,6 +856,10 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
 
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (cancelCountdownRef.current) {
+        cancelCountdownRef.current();
+        return true;
+      }
       // Close the settings panel first: it is a plain View, so unlike the
       // Modal-based sheets nothing else intercepts the back press for it.
       if (backPressAction(settingsOpenRef.current) === "close-settings") {
@@ -1531,6 +1538,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
           hidden={nextEp.visible}
           onNextEpisode={nextEp.nextEpisode ? nextEp.playNow : undefined}
           autoAdvance={autoplayNext}
+          cancelCountdownRef={cancelCountdownRef}
         />
 
         {nextEp.visible && nextEp.nextEpisode && (

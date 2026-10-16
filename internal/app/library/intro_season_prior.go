@@ -175,9 +175,12 @@ func totalAbsDev(xs []int64, center int64) int64 {
 // [start, start+median]. Runs after the per-episode detection loop so it sees
 // the season's final state, whatever mix of sources produced it. Manual marks
 // are never touched (the repo guard enforces it too).
+// The same walk feeds the season credits prior (intro_credits_prior.go), so
+// the credits rows cost no third pass over the season.
 func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Context, parentID string) {
 	episodeType := string(domainlibrary.Episode)
 	var intros []introRow
+	var credits []creditsPriorRow
 	const pageSize = 200
 	pos := 0
 	for offset := 0; ; offset += pageSize {
@@ -205,6 +208,10 @@ func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Contex
 				idx = *ep.IndexNumber
 			}
 			for _, sg := range byID[ep.ID] {
+				if creditsPriorVoter(sg) {
+					credits = append(credits, creditsPriorRow{seg: sg, item: ep})
+					continue
+				}
 				if sg.Type != "intro" || sg.Source == "manual" || sg.Source == "manual_propagated" {
 					continue
 				}
@@ -218,7 +225,13 @@ func (s *IntroDetectionService) reconcileSeasonIntroDurations(ctx context.Contex
 		}
 	}
 	slices.SortStableFunc(intros, func(a, b introRow) int { return a.idx - b.idx })
+	s.reconcileIntroEras(ctx, parentID, intros)
+	s.reconcileSeasonCredits(ctx, credits)
+}
 
+// reconcileIntroEras runs the duration prior over the season's intros, split
+// into two eras first when a changepoint separates them.
+func (s *IntroDetectionService) reconcileIntroEras(ctx context.Context, parentID string, intros []introRow) {
 	durationsAll := make([]int64, len(intros))
 	for i, r := range intros {
 		durationsAll[i] = r.seg.EndMs - r.seg.StartMs

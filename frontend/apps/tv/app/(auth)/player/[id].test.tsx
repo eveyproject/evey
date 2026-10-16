@@ -590,6 +590,25 @@ describe("player exit contract (TV)", () => {
     expect(backMock).not.toHaveBeenCalled();
     expect(replaceMock).toHaveBeenCalledWith("/media/ep-1");
   });
+
+  // While the credits countdown runs, BACK is the viewer refusing the next
+  // episode, not leaving the player (prod 2026-10-15).
+  it("cancels a running credits countdown on back instead of exiting", () => {
+    canGoBackMock.mockReturnValue(true);
+    render(<PlayerScreen />);
+    const cancel = vi.fn();
+    const ref = (lastSkipIntroProps as { cancelCountdownRef?: { current: (() => void) | null } } | null)?.cancelCountdownRef;
+    expect(ref).toBeDefined();
+    ref!.current = cancel;
+    act(() => { capturedTVHandler?.({ eventType: "back" }); });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(backMock).not.toHaveBeenCalled();
+    expect(replaceMock).not.toHaveBeenCalledWith(expect.stringContaining("/media/"));
+
+    ref!.current = null;
+    act(() => { capturedTVHandler?.({ eventType: "back" }); });
+    expect(backMock).toHaveBeenCalled();
+  });
 });
 
 // Manual previous/next episode - distinct from the auto-advance countdown.
