@@ -259,6 +259,8 @@ type ServerConfig struct {
 	// calibration, backfills, search reindex, backups, notifications, plugins -
 	// so the only work on the disks is the load test's. Meant for a second
 	// container on a copy of the production database, media mounted read-only.
+	// Its outbound ports (mail, push, webhooks) are sinks, as on the demo: the
+	// copy's subscriptions and webhooks belong to the production users.
 	BenchInstance bool
 	// Demo turns this instance into a public demo: every visitor is an admin,
 	// so every admin operation is refused except the reads named in
