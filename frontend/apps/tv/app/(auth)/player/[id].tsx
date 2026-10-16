@@ -7,7 +7,8 @@ import {
 } from "@evey/api";
 import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensions, useTVEventHandler, BackHandler, findNodeHandle } from "react-native";
 import { useLocalSearchParams, router } from "expo-router";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { VideoView } from "expo-video";
+import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer";
 import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetMediaItem,
@@ -272,10 +273,9 @@ export default function PlayerScreen() {
   const chapters = chaptersData ?? [];
 
   // Leaving the screen calls stopSession(), which clears streamUrl. Letting the
-  // source go back to null changes useVideoPlayer's dependency, and
-  // useReleasingSharedObject then builds a whole new native player - with no
-  // source - only to release it again a frame later. Holding the last source
-  // keeps the identity stable so unmount performs the single real release.
+  // source go back to null would release the native player one frame before
+  // the unmount releases the screen. Holding the last source keeps the identity
+  // stable so unmount performs the single real release.
   // (This is hygiene, not the exit-crash fix: that one was an unguarded read in
   // getPositionMs, see the comment there.)
   const lastSourceRef = useRef<{ uri: string; contentType?: "hls" | "dash" } | null>(null);
@@ -334,7 +334,9 @@ export default function PlayerScreen() {
     return resolveStartPositionMs(false, progress) / 1000;
   }, [progress, restart, start, restartPositionMs]);
 
-  const player = useVideoPlayer(videoSource, (p) => {
+  // No source yet (the stream URL is still being negotiated) means no native
+  // player at all: see useSourcedVideoPlayer for why a sourceless one is unsafe.
+  const player = useSourcedVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
     if (resumePositionSec > 0) {
       p.currentTime = resumePositionSec;
@@ -346,7 +348,7 @@ export default function PlayerScreen() {
   // covers the player, and the film stops instead of playing its buffer out.
   const profileLock = useProfileLock();
   useEffect(() => {
-    if (!profileLock.closed) return;
+    if (!profileLock.closed || !player) return;
     try {
       if (player.playing) player.pause();
     } catch { /* released */ }
@@ -1300,6 +1302,9 @@ export default function PlayerScreen() {
   }
 
   if (isLoading || !streamUrl) return <PlayerLoadingScreen />;
+  // A stream URL means a source, hence a player; this only tells the type
+  // system so, and covers the commit in which the source just arrived.
+  if (!player) return <PlayerLoadingScreen />;
 
   // The preview position (set the instant a seek key fires) takes over the
   // display until the real playhead catches up - see playerSeek.ts.

@@ -26,12 +26,16 @@ const player = vi.hoisted(() => ({
   source: null as unknown,
 }));
 vi.mock("expo-video", () => ({
-  useVideoPlayer: (source: unknown, setup?: (p: typeof player) => void) => {
+  VideoView: () => React.createElement("div", { "data-testid": "video" }),
+}));
+// Mirrors the real hook's one contract this screen depends on: no source, no player.
+vi.mock("@evey/client/native/useSourcedVideoPlayer", () => ({
+  useSourcedVideoPlayer: (source: unknown, setup?: (p: typeof player) => void) => {
+    if (source === null) return null;
     player.source = source;
     setup?.(player);
     return player;
   },
-  VideoView: () => React.createElement("div", { "data-testid": "video" }),
 }));
 vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
 vi.mock("expo-screen-orientation", () => ({ unlockAsync: vi.fn(), lockAsync: vi.fn(), OrientationLock: { DEFAULT: 0 } }));

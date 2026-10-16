@@ -10,7 +10,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-import { useVideoPlayer, VideoView, isPictureInPictureSupported } from "expo-video";
+import { VideoView, isPictureInPictureSupported } from "expo-video";
+import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
@@ -614,7 +615,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     return resolveStartPositionMs(false, progress) / 1000;
   }, [progress, restart, offlineProgress, restartPositionMs]);
 
-  const player = useVideoPlayer(videoSource, (p) => {
+  // No source yet (the stream URL is still being negotiated) means no native
+  // player at all: see useSourcedVideoPlayer for why a sourceless one is unsafe.
+  const player = useSourcedVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
     // An audio-offset restart takes priority: it always has a live playhead to
     // resume at, whereas resumePositionSec can be a stale server-reported
@@ -1497,6 +1500,12 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
         onBack={handleBack}
       />
     );
+  }
+
+  // The gate above guarantees a source, hence a player; this only tells the
+  // type system so, and covers the commit in which the source just arrived.
+  if (!player) {
+    return <LoadingScreen />;
   }
 
   return (
