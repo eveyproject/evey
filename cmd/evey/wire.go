@@ -176,7 +176,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	liveSMTP := appconfig.NewLiveSMTP(ctx, r.ServerCfg, appconfig.SMTPSettings{
 		Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username,
 		Password: cfg.SMTP.Password, From: cfg.SMTP.From, TLS: cfg.SMTP.TLS,
-	}, cfg.Server.Demo)
+	}, cfg.Server.Demo || cfg.Server.BenchInstance)
 	liveSMTP.Watch(bus)
 	// guardedTokens enforces users.token_epoch on every access-token mint and
 	// validation: bumping the epoch (disable, role change, password change,
@@ -394,9 +394,11 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	var webhookSender webhook.Sender = webhooksender.New()
-	if cfg.Server.Demo {
+	if cfg.Server.Demo || cfg.Server.BenchInstance {
 		// The stored webhooks keep firing on events, into a sink: the delivery
-		// log still shows the product, the host makes no outbound call.
+		// log still shows the product, the host makes no outbound call. A bench
+		// instance runs on a copy of a production database: its webhooks must
+		// not fire from a load test.
 		webhookSender = webhooksender.Discard{}
 	}
 	webhookSvc := appwebhook.NewService(r.Webhook, r.WebhookDelivery, webhookSender, webhookLog, bus)

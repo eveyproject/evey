@@ -14,7 +14,7 @@ var benchInstance bool
 
 // benchInstanceOff lists what a bench instance does not start, for its boot
 // warning and banner.
-const benchInstanceOff = "library watcher and scans, re-probes, trickplay, intro detection, calibration bench, keyframe/level/complexity backfills, title probes, metadata enrichment, search reindex, backups, notifications, plugins, update check, metrics sampling"
+const benchInstanceOff = "library watcher and scans, re-probes, trickplay, intro detection, calibration bench, keyframe/level/complexity backfills, title probes, metadata enrichment, search reindex, backups, notifications, plugins, update check, metrics sampling; outbound mail, push and webhooks go to sinks"
 
 // announceBenchInstance logs, once and loudly, that this server is a bench.
 func announceBenchInstance(cfg *config.Config, log *slog.Logger) {

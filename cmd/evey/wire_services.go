@@ -59,8 +59,9 @@ func buildNotificationServices(ctx context.Context, cfg *config.Config, infra *i
 	var notifOpts []appnotification.Option
 	vapidPub, vapidPriv := resolveVAPIDKeys(ctx, r.ServerCfg, cfg)
 	// Demo: no push sender at all, so the subscriptions visitors register are
-	// stored and never pushed to - the host contacts no push service.
-	if vapidPub != "" && vapidPriv != "" && !cfg.Server.Demo {
+	// stored and never pushed to - the host contacts no push service. Nor a
+	// bench instance, whose subscriptions are a production copy's.
+	if vapidPub != "" && vapidPriv != "" && !cfg.Server.Demo && !cfg.Server.BenchInstance {
 		wpSender := webpushadapter.NewSender(vapidPub, vapidPriv, cfg.VAPID.Subject)
 		notifOpts = append(notifOpts, appnotification.WithPush(wpSender, r.PushSubscription))
 		rootLog.Info("Web Push (VAPID) notifications enabled")
