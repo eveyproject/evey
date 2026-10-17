@@ -255,15 +255,6 @@ func (p *candidatePool) release(vt viewerType, stratum string) {
 	p.laneFor(vt).release(stratum)
 }
 
-// liveStrata is how many live viewers of vt's lane sit in each stratum.
-func (p *candidatePool) liveStrata(vt viewerType) map[string]int {
-	l := p.laneFor(vt)
-	if l == nil {
-		return nil
-	}
-	return maps.Clone(l.live)
-}
-
 // markIneligible retires a title from the shared draw.
 func (p *candidatePool) markIneligible(mediaID string) { p.markIneligibleFor("", mediaID) }
 
@@ -480,17 +471,11 @@ func heightClass(h int) string {
 	}
 }
 
-// stratifiedDraw orders the titles so that every prefix holds each class in
-// its share of the whole, titles shuffled at random within their class. Each
-// slot goes to the class furthest behind its share. It returns the order and
-// each class's count.
-func stratifiedDraw(candidates []MediaCandidate, classOf []string, seed uint64) ([]MediaCandidate, map[string]int) {
-	out, counts, _ := stratifiedDrawClasses(candidates, classOf, seed)
-	return out, counts
-}
-
-// stratifiedDrawClasses is stratifiedDraw that also returns each drawn title's
-// class, aligned with the order.
+// stratifiedDrawClasses orders the titles so that every prefix holds each
+// class in its share of the whole, titles shuffled at random within their
+// class. Each slot goes to the class furthest behind its share. It returns the
+// order, each class's count and each drawn title's class, aligned with the
+// order.
 func stratifiedDrawClasses(candidates []MediaCandidate, classOf []string, seed uint64) ([]MediaCandidate, map[string]int, []string) {
 	rng := rand.New(rand.NewPCG(seed, seed^0x9e3779b97f4a7c15)) //nolint:gosec // a replayable draw of titles, not a secret
 	byClass := map[string][]MediaCandidate{}
