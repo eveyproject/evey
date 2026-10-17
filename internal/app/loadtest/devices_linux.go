@@ -348,7 +348,7 @@ func stackDepth(fsRoot, name string, depth int) int {
 // mountPointOf is the longest mount point under which path sits, read from
 // fsRoot/proc/self/mounts; "" when none matches.
 func mountPointOf(fsRoot, path string) string {
-	raw, err := os.ReadFile(filepath.Join(fsRoot, "proc/self/mounts"))
+	raw, err := os.ReadFile(filepath.Join(fsRoot, "proc/self/mounts")) //nolint:gosec // G703 FP: fsRoot is "/" unless a test stages a tree (Config.FSRoot, never set from a request), the rest a literal
 	if err != nil {
 		return ""
 	}
