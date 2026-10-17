@@ -1280,6 +1280,7 @@ loadtest:
     admissionFull: "The server refused the next viewer, as designed."
     cpuSaturated: "The CPU saturated: that is what limits this server."
     throughputSaturated: "Throughput flattened out: the server cannot read the media any faster. That is the bottleneck."
+    throughputViaProxy: "Throughput flattened out on the path through the proxy, while neither the server's processor nor its disks were at their limit."
     startupTooSlow: "Starting a new stream became too slow: the server is full, even though it keeps feeding the others."
     serverFailing: "The server stopped serving viewers under this load."
     memorySaturated: "Memory saturated: that is what limits this server."

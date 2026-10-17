@@ -564,6 +564,7 @@
   "admin.loadtest.stopReason.sloBreach": "Playback would have started stalling beyond this point.",
   "admin.loadtest.stopReason.startupTooSlow": "Starting a new stream became too slow: the server is full, even though it keeps feeding the others.",
   "admin.loadtest.stopReason.throughputSaturated": "Throughput flattened out: the server cannot read the media any faster. That is the bottleneck.",
+  "admin.loadtest.stopReason.throughputViaProxy": "Throughput flattened out on the path through the proxy, while neither the server's processor nor its disks were at their limit.",
   "admin.loadtest.stopReason.tokenExpired": "Session expired - log back in and try again.",
   "admin.loadtest.storageCollapseLine": "Warning: the storage collapses past {{count}} concurrent reads - throughput falls away and a single read starts taking seconds. It is the storage, not the server, that caps how many people can watch.",
   "admin.loadtest.storageOpaqueColdLine": "The library sits on a {{fs}} mount: cold at the mount, the branches' page cache still active. Eviction stops at the mount and the disks underneath keep serving from their own cache: these figures measure the delivery path, not cold storage.",

@@ -1313,6 +1313,7 @@ loadtest:
     admissionFull: "服务器按预期拒绝了下一位观众。"
     cpuSaturated: "CPU 已饱和：这就是本服务器的瓶颈。"
     throughputSaturated: "吞吐量停止增长：服务器无法更快地读取媒体。这就是瓶颈。"
+    throughputViaProxy: "经由代理的路径上吞吐量到顶，而服务器的处理器和磁盘都未达到极限。"
     startupTooSlow: "新播放的启动变得过慢：即便老观众仍被正常服务，服务器也已经满了。"
     serverFailing: "在该负载下，服务器已无法继续为观众提供服务。"
     memorySaturated: "内存已饱和：这就是本服务器的瓶颈。"

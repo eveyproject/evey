@@ -1313,6 +1313,7 @@ loadtest:
     admissionFull: "Der Server hat den nächsten Zuschauer wie vorgesehen abgelehnt."
     cpuSaturated: "Die CPU war ausgelastet: Sie ist die Grenze dieses Servers."
     throughputSaturated: "Der Durchsatz stagnierte: Der Server kann die Medien nicht schneller lesen. Das ist der Engpass."
+    throughputViaProxy: "Der Durchsatz stagnierte auf dem Weg über den Proxy, während weder der Prozessor noch die Festplatten des Servers am Limit waren."
     startupTooSlow: "Neue Wiedergaben starteten zu langsam: Der Server ist voll, auch wenn er die anderen weiter versorgt."
     serverFailing: "Der Server hat unter dieser Last aufgehört, Zuschauer zu bedienen."
     memorySaturated: "Der Speicher war ausgelastet: Er ist die Grenze dieses Servers."
