@@ -70,10 +70,6 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
   const [weights, setWeights] = useState<Record<ClientProfile, number>>(DEFAULT_CLIENT_WEIGHTS);
   const sentScenario = scenario === CUSTOM_CLIENTS ? clientMixScenario(weights) : scenario;
   const [coldCache, setColdCache] = useState(false);
-  // The server itself by default; the proxy path on request. A previous
-  // run's seed replays its title draw.
-  const [viaProxy, setViaProxy] = useState(false);
-  const [seed, setSeed] = useState("");
 
   const statusQuery = useQuery<LoadTestStatus>({
     queryKey: LOAD_TEST_QUERY_KEY,
@@ -88,7 +84,7 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
     // No viewer ceiling is sent on purpose: the run climbs until a RESOURCE
     // gives out - a cap here would just cap the answer.
     mutationFn: () =>
-      eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "POST", data: { scenario: sentScenario, coldCache, viaProxy, ...(seed.trim() ? { seed: seed.trim() } : {}) } }),
+      eveyFetch<LoadTestStatus>({ url: LOAD_TEST_URL, method: "POST", data: { scenario: sentScenario, coldCache } }),
     onSuccess: (data) => {
       qc.setQueryData(LOAD_TEST_QUERY_KEY, data);
       void qc.invalidateQueries({ queryKey: LOAD_TEST_QUERY_KEY });
@@ -204,31 +200,6 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
               />
             </View>
             <Text style={s.hint}>{t("admin.loadtest.coldCacheHint", "Évince la bibliothèque du cache pour mesurer le disque, pas la RAM.")}</Text>
-            <View style={[s.switchRow, { marginTop: 10 }]}>
-              <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1, marginRight: 12 }}>
-                {t("admin.loadtest.viaProxyToggle", "Passer par le proxy public")}
-              </Text>
-              <Switch
-                value={viaProxy}
-                onValueChange={setViaProxy}
-                disabled={start.isPending}
-                trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
-                accessibilityLabel="proxy"
-              />
-            </View>
-            <Text style={s.hint}>{t("admin.loadtest.viaProxyHint", "Par défaut le test vise le serveur en direct.")}</Text>
-            <Text style={[s.hint, { marginTop: 10 }]}>{t("admin.loadtest.seedLabel", "Graine du tirage (optionnel)")}</Text>
-            <TextInput
-              value={seed}
-              keyboardType="number-pad"
-              editable={!start.isPending}
-              onChangeText={(v) => setSeed(v.replace(/[^0-9]/g, ""))}
-              placeholder={t("admin.loadtest.seedPlaceholder", "vide = nouveau tirage")}
-              placeholderTextColor={theme.colors.textMuted}
-              accessibilityLabel="seed"
-              style={{ width: 220, borderWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.border, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, color: theme.colors.text }}
-            />
-            <Text style={s.hint}>{t("admin.loadtest.seedHint", "Deux tests ne se comparent qu'à tirage égal.")}</Text>
 
             <Pressable
               onPress={() => start.mutate()}
@@ -519,7 +490,6 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
                 : t("admin.loadtest.appReadUnmeasuredLine")}
             </Text>
           ) : null}
-          {report.seed && report.seed !== "0" ? <Text style={s.hint}>{t("admin.loadtest.seedLine", { seed: report.seed })}</Text> : null}
           {(report.skippedCandidates ?? 0) > 0 && (
             <Text style={s.hint}>{t("admin.loadtest.skippedCandidatesLine", { count: report.skippedCandidates })}</Text>
           )}

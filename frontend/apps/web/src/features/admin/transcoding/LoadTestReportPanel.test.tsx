@@ -48,10 +48,8 @@ describe("LoadTestReportPanel", () => {
     expect(screen.getByTestId("load-test-disk-starved")).toHaveTextContent("coldCacheStillStarvedLine");
     expect(screen.getByTestId("load-test-storage-collapse")).toHaveTextContent("count=9");
 
-    // The path measured and the seed are said, so the run can be replayed
-    // and compared with the right thing.
+    // The path measured is said, so the run is compared with the right thing.
     expect(screen.getByTestId("load-test-endpoint")).toHaveTextContent("endpointDirectLine(endpoint=http://127.0.0.1:9092)");
-    expect(screen.getByTestId("load-test-seed")).toHaveTextContent("seed=1792073232940793883");
 
     // One row per hold: the sustained one bold, the broken one marked with
     // its signal, the container CPU beside the machine's, the raw p95 beside
@@ -117,7 +115,7 @@ describe("LoadTestReportPanel", () => {
     for (const id of ["load-test-verdict", "load-test-limiter", "load-test-advice", "load-test-grid"]) {
       expect(details.contains(screen.getByTestId(id))).toBe(false);
     }
-    for (const id of ["load-test-stop-reason", "load-test-windows", "load-test-endpoint", "load-test-seed", "load-test-grid-windows", "load-test-device"]) {
+    for (const id of ["load-test-stop-reason", "load-test-windows", "load-test-endpoint", "load-test-grid-windows", "load-test-device"]) {
       expect(details.contains(screen.getAllByTestId(id)[0]!)).toBe(true);
     }
     expect(screen.getByTestId("load-test-grid-windows")).toHaveTextContent("viewers=111,passed=3,windows=5");

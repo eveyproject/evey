@@ -159,9 +159,6 @@ const (
 	// library sat mostly idle - spreading the most watched titles over the
 	// disks moves the ceiling.
 	AdviceSpreadTitles = "spread_titles"
-	// AdviceTryDirect: the run went through the proxy and nothing on the
-	// server was saturated - a run without it says what the server holds.
-	AdviceTryDirect = "try_direct"
 )
 
 // spreadIdleUtilPct is the busy share under which another disk counts as
@@ -207,7 +204,7 @@ func limiterOf(stop StopReason, breakDetail string, breakRes ResourceStats, verd
 		return LimiterStorageUnmeasured, "", ""
 	}
 	if viaProxy {
-		return LimiterProxy, "", AdviceTryDirect
+		return LimiterProxy, "", ""
 	}
 	return LimiterUnknown, "", ""
 }

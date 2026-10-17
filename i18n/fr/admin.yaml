@@ -1223,12 +1223,6 @@ loadtest:
   replayedTitlesLine_other: "{{count}} spectateurs du palier retenu rejouaient un titre déjà lu par un autre, à une autre position (aucun cache : chaque segment est construit depuis la source)."
   appReadLine: "Lectures du packager dans ses sources : {{rate}}, soit {{ratio}} fois le débit servi (compteur en process)."
   appReadUnmeasuredLine: "Lectures du packager dans ses sources : non mesurées (aucun compteur en process dans cette version)."
-  seedLine: "Graine du tirage : {{seed}}. Saisissez-la avant de relancer pour rejouer le même tirage."
-  seedLabel: "Graine du tirage (optionnel)"
-  seedPlaceholder: "vide = nouveau tirage"
-  seedHint: "Deux tests ne se comparent qu'à tirage égal : le nombre de spectateurs dépend des titres tirés."
-  viaProxyToggle: "Passer par le proxy public"
-  viaProxyHint: "Par défaut le test vise le serveur en direct. Via le proxy, ses limites (TLS, tampon, routeur) font partie du résultat."
   window:
     held: "tenu"
     broke: "cassé"
@@ -1260,7 +1254,6 @@ loadtest:
     none: "Rien n'a lâché avant la limite de spectateurs demandée."
   advice:
     spreadTitles: "Conseil : répartir les titres les plus regardés sur plusieurs disques."
-    tryDirect: "Conseil : relancer le test sans passer par le proxy, pour savoir ce que le serveur tient seul."
   grid:
     viewers: "Spectateurs"
     cpu: "Processeur"

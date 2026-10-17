@@ -355,6 +355,28 @@
           "type": "number",
           "format": "double",
           "description": "The part of cpu_percent taken by Evey itself: the server and every\nprocess it forked (ffmpeg, ffprobe). The rest is the host's other work."
+        },
+        "iowaitPercent": {
+          "type": "number",
+          "format": "double",
+          "description": "The machine's share of CPU time spent idle with a disk request\noutstanding. cpu_percent does not include it: a waiting core is free."
+        },
+        "disks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1DiskIOInfo"
+          },
+          "description": "Every physical disk the machine exposes, over the last sampling window.\nEmpty when /proc does not expose them (not a machine with idle disks)."
+        },
+        "idleDiskAwaitMs": {
+          "type": "number",
+          "format": "double",
+          "description": "The disks' wait at rest (from the last day of history, floored at 4 ms)\nand the wait above which a disk counts as saturated. The same line the\nhistory chart draws, so the live card and the trend agree."
+        },
+        "saturationAwaitMs": {
+          "type": "number",
+          "format": "double"
         }
       }
     },
@@ -374,6 +396,49 @@
         }
       },
       "description": "DecodeThroughput is one measured DECODE-only rate, per source codec."
+    },
+    "v1DiskIOInfo": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "Stable label: model and the tail of the wwid or serial. Two identical\ndisks of a VM differ only by that tail."
+        },
+        "device": {
+          "type": "string",
+          "description": "Kernel name (sda), shown for the operator who runs iostat; it can move\nbetween boots, so it is never an identity."
+        },
+        "rotational": {
+          "type": "boolean"
+        },
+        "awaitMs": {
+          "type": "number",
+          "format": "double",
+          "description": "Mean time a request waited and was served, reads and writes together.\nThe one signal that separates a disk that keeps up from one that does\nnot; see saturated."
+        },
+        "utilPercent": {
+          "type": "number",
+          "format": "double",
+          "description": "Share of the window with at least one request in flight. Reaches 100 on\na healthy SSD or array, so it only corroborates the wait."
+        },
+        "readBps": {
+          "type": "string",
+          "format": "int64"
+        },
+        "writeBps": {
+          "type": "string",
+          "format": "int64"
+        },
+        "requestsPerSecond": {
+          "type": "number",
+          "format": "double"
+        },
+        "saturated": {
+          "type": "boolean",
+          "description": "The wait is above the saturation line and either the disk was busy or\nthe CPUs were waiting on it."
+        }
+      },
+      "description": "DiskIOInfo is one physical disk's activity over the sampling window. The\ncounters are the whole machine's: a neighbour's copy onto the same disk\nshows here too."
     },
     "v1HWAccelType": {
       "type": "string",
@@ -418,6 +483,31 @@
         }
       }
     },
+    "v1LoadTestDeviceMapping": {
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "string",
+          "description": "location is the branch of a pooled mount, or the mount point."
+        },
+        "device": {
+          "type": "string",
+          "description": "device is the whole block device (\"sda\", \"nvme0n1\", \"dm-0\"); empty when\nnone on this machine could be tied to the location."
+        },
+        "resolved": {
+          "type": "string",
+          "description": "resolved says how: \"stat\" (the filesystem's device id), \"read\" (a cold\nread moved its sectors), \"\" when unresolved."
+        },
+        "disks": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "disks are the physical disks under device: the device itself for a\nplain disk, the members of a volume (md, LVM, both stacked)."
+        }
+      },
+      "description": "LoadTestDeviceMapping ties a library location to the block device it is\nread from."
+    },
     "v1LoadTestDiskActivity": {
       "type": "object",
       "properties": {
@@ -439,9 +529,89 @@
         "awaitMsAvg": {
           "type": "number",
           "format": "double"
+        },
+        "readBytesPerSecPeak": {
+          "type": "string",
+          "format": "int64",
+          "description": "One-second peaks and the mean queue depth (aqu-sz): a burst the average\nflattens, and the queue a saturated disk forms."
+        },
+        "awaitMsPeak": {
+          "type": "number",
+          "format": "double"
+        },
+        "queueDepthAvg": {
+          "type": "number",
+          "format": "double"
         }
       },
       "description": "LoadTestDiskActivity is one physical drive's activity over the sustained\ntier. util_percent is the share of time the drive had a request in flight\n(iostat %util); await_ms is the mean time one read took, queueing included."
+    },
+    "v1LoadTestDiskVerdict": {
+      "type": "object",
+      "properties": {
+        "device": {
+          "type": "string"
+        },
+        "awaitMs": {
+          "type": "number",
+          "format": "double"
+        },
+        "awaitBaselineMs": {
+          "type": "number",
+          "format": "double"
+        },
+        "awaitMsPeak": {
+          "type": "number",
+          "format": "double"
+        },
+        "queueDepth": {
+          "type": "number",
+          "format": "double"
+        },
+        "utilPercent": {
+          "type": "number",
+          "format": "double"
+        },
+        "readBytesPerSec": {
+          "type": "string",
+          "format": "int64"
+        },
+        "iowaitPercent": {
+          "type": "number",
+          "format": "double"
+        },
+        "saturated": {
+          "type": "boolean"
+        }
+      },
+      "description": "LoadTestDiskVerdict is the busiest disk of a hold, judged against the\nserver at rest: a read waiting past the bar, with the device busy or the\nmachine in iowait to corroborate it."
+    },
+    "v1LoadTestGridTier": {
+      "type": "object",
+      "properties": {
+        "viewers": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "windows": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "passed": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "held": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/v1LoadTestResources"
+        }
+      },
+      "description": "LoadTestGridTier is one audience size of the grid and how its windows went."
     },
     "v1LoadTestPoolBranch": {
       "type": "object",
@@ -689,6 +859,97 @@
         "breakCpuPercentPeak": {
           "type": "number",
           "format": "double"
+        },
+        "seed": {
+          "type": "string",
+          "format": "uint64",
+          "description": "seed is the title draw's seed; passing it back to StartLoadTestRequest\nreplays the same draw."
+        },
+        "diskDevices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestDeviceMapping"
+          },
+          "description": "disk_devices is the mapping the run resolved at its start: which block\ndevice each library location (a pool branch, a mount) is read from.\nDevice letters rotate at reboot; this is what makes the disk lines\nreadable later. disk_read_measured is false when no device could be tied\nto the library: the disk read figures are then absent, not zero."
+        },
+        "diskReadMeasured": {
+          "type": "boolean"
+        },
+        "appReadMeasured": {
+          "type": "boolean",
+          "description": "app_read_measured is false when nothing counts, in-process, the bytes the\npackager read from its sources: the app-read figures are then absent."
+        },
+        "windows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestWindow"
+          },
+          "description": "windows is every hold the run made, in order, broken ones included: the\nclimb as it happened, one row per window. A tier measured twice is two."
+        },
+        "diskVerdict": {
+          "$ref": "#/definitions/v1LoadTestDiskVerdict",
+          "description": "disk_verdict judges the busiest disk under the audience the stop is read\non (the lowest tier that broke, else the sustained one)."
+        },
+        "breakReason": {
+          "type": "string",
+          "description": "break_reason / break_detail name what broke break_viewers, when a tier did."
+        },
+        "breakDetail": {
+          "type": "string"
+        },
+        "breakResources": {
+          "$ref": "#/definitions/v1LoadTestResources",
+          "description": "break_resources is everything the machine did under the lowest audience\nthat broke (break_disks and break_cpu_percent_peak are two of its fields)."
+        },
+        "grid": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestGridTier"
+          },
+          "description": "grid is every candidate the bisection judged on measured windows, in the\norder judged, with how many of its windows passed (held at four of at\nmost five). sustained_viewers is the last one held: range_low is it,\nrange_high the first broken above it."
+        },
+        "rangeLow": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "rangeHigh": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "limiter": {
+          "type": "string",
+          "description": "limiter names what gave out first, in plain terms the panel words:\n\"disk\", \"cpu\", \"memory\", \"proxy\", \"server\", \"unknown\", \"none\".\nlimiter_location is the library location of a limiting disk. advice is\nset only when one follows: \"spread_titles\"."
+        },
+        "limiterLocation": {
+          "type": "string"
+        },
+        "advice": {
+          "type": "string"
+        },
+        "strata": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestStratum"
+          },
+          "description": "strata is the retained audience's split by stratum (disk x bitrate\nquarter); strata_by_disk / strata_by_band sum it each way."
+        },
+        "strataByDisk": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestStratum"
+          }
+        },
+        "strataByBand": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1LoadTestStratum"
+          }
         }
       },
       "description": "LoadTestReport is what the box MEASURED, next to what the admission model\npredicted - the panel shows both so the operator sees promises kept."
@@ -748,6 +1009,43 @@
         "goGcCpuPercentPeak": {
           "type": "number",
           "format": "double"
+        },
+        "machineCpuPercentAvg": {
+          "type": "number",
+          "format": "double",
+          "description": "The whole machine beside the container (/proc/stat): busy share, and the\nshare of time its cores waited on I/O - the storage path saturating."
+        },
+        "machineCpuPercentPeak": {
+          "type": "number",
+          "format": "double"
+        },
+        "machineIowaitPercentAvg": {
+          "type": "number",
+          "format": "double"
+        },
+        "machineIowaitPercentPeak": {
+          "type": "number",
+          "format": "double"
+        },
+        "processRssBytesAvg": {
+          "type": "string",
+          "format": "int64",
+          "description": "The server process alone (VmRSS); mem_used_bytes_avg is the container."
+        },
+        "processRssBytesMax": {
+          "type": "string",
+          "format": "int64"
+        },
+        "appReadBytesPerSec": {
+          "type": "string",
+          "format": "int64",
+          "description": "What the packager asked its sources for, counted in-process; absent when\napp_read_measured is false."
+        },
+        "appReadMeasured": {
+          "type": "boolean"
+        },
+        "diskReadMeasured": {
+          "type": "boolean"
         }
       },
       "description": "LoadTestResources is what the box was actually spending. The figures come\nfrom the server's own cgroup, so every ffmpeg it spawned is already counted;\nserved_bytes_per_sec is tallied by the viewers themselves (they reach the\nserver over loopback, where no NIC counter would see the traffic)."
@@ -813,6 +1111,19 @@
         }
       }
     },
+    "v1LoadTestStratum": {
+      "type": "object",
+      "properties": {
+        "stratum": {
+          "type": "string"
+        },
+        "viewers": {
+          "type": "integer",
+          "format": "int32"
+        }
+      },
+      "description": "LoadTestStratum is how many viewers sat in one stratum (\"/mnt/disk_1|q3\"),\none disk, or one bitrate quarter."
+    },
     "v1LoadTestTierCost": {
       "type": "object",
       "properties": {
@@ -839,7 +1150,7 @@
         "cpuPercentPerViewer": {
           "type": "number",
           "format": "double",
-          "description": "cpu_percent_per_viewer / mem_bytes_per_viewer: this row's cost divided by its\nheadcount. The TREND down the table is what says whether the server is still\nscaling."
+          "description": "Deprecated, never filled any more: 6 and 7 carried the row's cost divided\nby its headcount - the idle server's own consumption charged to the\nviewers. The per-viewer cost is the slope between tiers (per_viewer_cost)\nand nothing else. Kept declared so the published contract loses no field."
         },
         "memBytesPerViewer": {
           "type": "string",
@@ -857,9 +1168,84 @@
         "goGcCpuPercent": {
           "type": "number",
           "format": "double"
+        },
+        "machineCpuPercent": {
+          "type": "number",
+          "format": "double",
+          "description": "machine_cpu_percent / machine_iowait_percent: the whole machine's busy and\niowait shares beside the container's cpu_percent."
+        },
+        "machineIowaitPercent": {
+          "type": "number",
+          "format": "double"
+        },
+        "processRssBytes": {
+          "type": "string",
+          "format": "int64",
+          "description": "process_rss_bytes is the server process alone; mem_used_bytes is the whole\ncontainer (Meilisearch and Postgres included in the -full image)."
         }
       },
       "description": "LoadTestTierCost is what ONE audience size cost the server: one row of the\nreport's table. Every CPU figure is the SERVER's share - the load generator's\nown overhead has already been subtracted - and mem_used_bytes is anonymous\nmemory, never the page cache of the films being read."
+    },
+    "v1LoadTestWindow": {
+      "type": "object",
+      "properties": {
+        "viewers": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "phase": {
+          "type": "string",
+          "description": "phase is the climb phase (\"ramping\", \"narrowing\", \"confirming\",\n\"measuring\"); measured says it was a full window rather than a FAST hunt."
+        },
+        "measured": {
+          "type": "boolean"
+        },
+        "broke": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "resources": {
+          "$ref": "#/definitions/v1LoadTestResources"
+        },
+        "segmentMsP50": {
+          "type": "integer",
+          "format": "int32",
+          "description": "segment_ms_p50 / segment_ms_p95 are the raw fetch times of the hold's\nsegments; segment_ms_p95_scaled is the p95 of the same fetches scaled to\nthe reference segment length, the figure the stall verdict is read on."
+        },
+        "segmentMsP95": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "segmentMsP95Scaled": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "segmentSamples": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "ttffMsP95": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "diskVerdict": {
+          "$ref": "#/definitions/v1LoadTestDiskVerdict"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "LoadTestWindow is one hold of the climb: the tier, how it was observed,\nwhether it held, what the machine did meanwhile, and the latencies the\nverdict was read on."
     },
     "v1RestartServerRequest": {
       "type": "object"
@@ -1000,7 +1386,16 @@
         },
         "direct": {
           "type": "boolean",
-          "description": "direct sends the viewers to the server's own loopback instead of the\npublic address. The default goes through the reverse proxy, the way real\nviewers come; on a box whose proxy path tops out below the server (670\nMb/s in front of a server that serves 15 Gb/s, measured 2026-10-06), that\nrun measures the proxy. Direct measures what the server alone holds."
+          "description": "direct is kept for older clients and has no effect: the viewers hit the\nserver's own loopback by default."
+        },
+        "viaProxy": {
+          "type": "boolean",
+          "description": "via_proxy is ignored: the viewers go through the public address whenever\none is configured and answers, the way real viewers come, and hit the\nserver's loopback otherwise. The report says which path was taken."
+        },
+        "seed": {
+          "type": "string",
+          "format": "uint64",
+          "description": "seed replays a previous run's title draw: the report carries the seed it\nused, and passing it back draws the same titles in the same order. Zero\n(the default) takes a fresh one from the clock."
         }
       }
     },

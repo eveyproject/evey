@@ -409,13 +409,10 @@ message StartLoadTestRequest {
   // direct is kept for older clients and has no effect: the viewers hit the
   // server's own loopback by default.
   bool direct = 6 [deprecated = true];
-  // via_proxy sends the viewers through the public address - the reverse
-  // proxy, the way real viewers come - instead of the server's loopback. It
-  // is a different measurement: the proxy's own limits are part of the answer
-  // (a box whose proxy path tops out below the server measured the proxy,
-  // 2026-10-06; a hairpin through the operator's router added 200 ms to the
-  // median fetch, 2026-10-15). The report says which path was taken.
-  bool via_proxy = 7;
+  // via_proxy is ignored: the viewers go through the public address whenever
+  // one is configured and answers, the way real viewers come, and hit the
+  // server's loopback otherwise. The report says which path was taken.
+  bool via_proxy = 7 [deprecated = true];
   // seed replays a previous run's title draw: the report carries the seed it
   // used, and passing it back draws the same titles in the same order. Zero
   // (the default) takes a fresh one from the clock.
@@ -629,7 +626,7 @@ message LoadTestReport {
   // limiter names what gave out first, in plain terms the panel words:
   // "disk", "cpu", "memory", "proxy", "server", "unknown", "none".
   // limiter_location is the library location of a limiting disk. advice is
-  // set only when one follows: "spread_titles", "try_direct".
+  // set only when one follows: "spread_titles".
   string limiter = 60;
   string limiter_location = 61;
   string advice = 62;

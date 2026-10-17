@@ -196,20 +196,21 @@ func TestMountPointOf_LongestPrefix(t *testing.T) {
 	}
 }
 
-// The viewers hit the server directly unless the run asks for the proxy; the
+// The viewers go through the public proxy whenever one is configured and
+// answers, and hit the server directly otherwise - nothing to choose; the
 // report says which path was taken, and the seed it drew.
-func TestRunner_TargetsTheServerDirectlyUnlessAskedForTheProxy(t *testing.T) {
+func TestRunner_GoesThroughTheProxyWhenThereIsOne(t *testing.T) {
 	st := newServerState()
 	srv := httptest.NewServer(st.handler())
 	defer srv.Close()
 	proxy := httptest.NewServer(st.handler())
 	defer proxy.Close()
 
-	run := func(viaProxy bool) *Report {
+	run := func(public string) *Report {
 		r := New(&http.Client{}, fakeMediaLister{candidates: manyCandidates(2)}, zeroActive, testLogger())
 		r.counters = &modelledMachine{cores: 8, cpuPctPerViewer: 1, memPerViewer: 1 << 20, memLimit: 16 << 30, diskPerViewer: 1 << 20, viewers: func() int { return 1 }}
 		cfg := Config{
-			BaseURL: srv.URL, PublicBaseURL: proxy.URL, ViaProxy: viaProxy, Token: "tkn", Scenario: ScenarioMkvgo,
+			BaseURL: srv.URL, PublicBaseURL: public, Token: "tkn", Scenario: ScenarioMkvgo,
 			MaxViewers: 1, RampEvery: 200 * time.Millisecond, FastHold: 200 * time.Millisecond, MeasureHold: 300 * time.Millisecond, MaxDuration: 10 * time.Second,
 			Seed: 1792073232940793883,
 		}
@@ -218,16 +219,20 @@ func TestRunner_TargetsTheServerDirectlyUnlessAskedForTheProxy(t *testing.T) {
 		}
 		return waitForReport(t, r, 10*time.Second)
 	}
-	direct := run(false)
+	direct := run("")
 	if direct.ViaProxy || direct.Endpoint != srv.URL {
-		t.Fatalf("default run: endpoint %q via proxy %v, want the server's own %q", direct.Endpoint, direct.ViaProxy, srv.URL)
+		t.Fatalf("no proxy configured: endpoint %q via proxy %v, want the server's own %q", direct.Endpoint, direct.ViaProxy, srv.URL)
 	}
 	if direct.Seed != 1792073232940793883 {
 		t.Fatalf("the report must carry the seed it drew with, got %d", direct.Seed)
 	}
-	viaProxy := run(true)
+	viaProxy := run(proxy.URL)
 	if !viaProxy.ViaProxy || viaProxy.Endpoint != proxy.URL {
-		t.Fatalf("proxy run: endpoint %q via proxy %v, want %q", viaProxy.Endpoint, viaProxy.ViaProxy, proxy.URL)
+		t.Fatalf("proxy configured: endpoint %q via proxy %v, want %q", viaProxy.Endpoint, viaProxy.ViaProxy, proxy.URL)
+	}
+	unreachable := run("http://127.0.0.1:1")
+	if unreachable.ViaProxy || unreachable.Endpoint != srv.URL {
+		t.Fatalf("proxy that does not answer: endpoint %q via proxy %v, want the server's own %q", unreachable.Endpoint, unreachable.ViaProxy, srv.URL)
 	}
 }
 

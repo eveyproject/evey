@@ -45,9 +45,6 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 		// Without it the report charges the harness's HTTP overhead to the server
 		// and an operator sizes his hardware for a cost that isn't there.
 		ProfileHarnessCPU: true,
-		// The server itself by default; the proxy path only when asked, and the
-		// report says which was taken.
-		ViaProxy: req.GetViaProxy(),
 		// A replayed draw: the same titles in the same order as the run that
 		// reported this seed.
 		Seed: req.GetSeed(),

@@ -1224,12 +1224,6 @@ loadtest:
   replayedTitlesLine_other: "{{count}} viewers of the retained tier were replaying a title another viewer already read, at another position (no cache: every segment is built from the source)."
   appReadLine: "Packager reads from its sources: {{rate}}, {{ratio}}x the served throughput (in-process counter)."
   appReadUnmeasuredLine: "Packager reads from its sources: not measured (no in-process counter in this version)."
-  seedLine: "Draw seed: {{seed}}. Enter it before relaunching to replay the same draw."
-  seedLabel: "Draw seed (optional)"
-  seedPlaceholder: "empty = new draw"
-  seedHint: "Two runs only compare on the same draw: the headcount depends on the titles drawn."
-  viaProxyToggle: "Go through the public proxy"
-  viaProxyHint: "By default the run targets the server directly. Through the proxy, its limits (TLS, buffering, router) are part of the result."
   window:
     held: "held"
     broke: "broke"
@@ -1261,7 +1255,6 @@ loadtest:
     none: "Nothing gave out before the requested viewer limit."
   advice:
     spreadTitles: "Advice: spread the most watched titles over several disks."
-    tryDirect: "Advice: run the test again without the proxy, to see what the server holds on its own."
   grid:
     viewers: "Viewers"
     cpu: "Processor"
