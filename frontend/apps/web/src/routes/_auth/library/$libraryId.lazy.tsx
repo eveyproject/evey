@@ -3,6 +3,7 @@ import { Folder, ChevronRight, Shuffle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { nextFilterOffset } from "@evey/client";
 import {
   useLibraryServiceListLibraries,
   useLibraryServiceListMediaItems,
@@ -245,8 +246,8 @@ function LibraryPage() {
     },
   });
 
-  // Filter endpoint uses offset/limit (no cursor support yet); we page by
-  // offset = sum(items fetched so far). Same UX as the regular path.
+  // Filter endpoint uses offset/limit (no cursor support yet); the server
+  // names the next offset (see nextFilterOffset). Same UX as the regular path.
   const filterKey = useMemo(
     () =>
       [
@@ -284,13 +285,7 @@ function LibraryPage() {
         },
         signal,
       ),
-    getNextPageParam: (last, allPages) => {
-      const fetched = allPages.reduce((n, p) => n + (p.items?.length ?? 0), 0);
-      const total = last.total ?? 0;
-      const got = last.items?.length ?? 0;
-      if (got < PAGE_SIZE || fetched >= total) return undefined;
-      return fetched;
-    },
+    getNextPageParam: (last, _allPages, lastPageParam) => nextFilterOffset(last, lastPageParam as number, PAGE_SIZE),
   });
 
   // Server-side title search when the input is non-empty. Replaces the

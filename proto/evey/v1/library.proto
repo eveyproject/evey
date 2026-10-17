@@ -539,6 +539,13 @@ message FilterMediaItemsRequest {
 message FilterMediaItemsResponse {
   repeated MediaItem items = 1;
   int32 total = 2;
+  // Offset of the next page: the request's offset plus the rows the database
+  // returned, BEFORE the parental pass removed any. A client that adds up the
+  // items it received instead re-reads rows and, on a page the pass shortened,
+  // believes it reached the end.
+  int32 next_offset = 3;
+  // Whether rows remain past next_offset.
+  bool has_more = 4;
 }
 
 message ListGenresRequest {

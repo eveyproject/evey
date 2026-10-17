@@ -257,19 +257,6 @@ export function buildFilterMediaItemsParams(input: BuildFilterParamsInput): Filt
   };
 }
 
-// Offset-pagination stop condition for the filter endpoint (no cursor
-// support, unlike ListMediaItems) - mirrors web's useInfiniteQuery
-// getNextPageParam for the same endpoint: stop once the last page came back
-// short or the running total reaches the server-reported total.
-export function computeNextFilterOffset(
-  fetchedSoFar: number,
-  lastPageItemCount: number,
-  total: number,
-  limit: number,
-): number | undefined {
-  if (lastPageItemCount < limit || fetchedSoFar >= total) return undefined;
-  return fetchedSoFar;
-}
 
 // --- Bulk selection helpers ---
 

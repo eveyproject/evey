@@ -60,11 +60,10 @@ import {
   hasServerFilters,
   countActiveFilters,
   buildFilterMediaItemsParams,
-  computeNextFilterOffset,
   buildBulkMediaIds,
   selectableMediaIds,
 } from "../../../src/components/library/libraryFilterUtils";
-import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState } from "@evey/client";
+import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState, nextFilterOffset } from "@evey/client";
 import { POSTER_GRID } from "../../../src/lib/posterGrid";
 
 const NUM_COLUMNS = POSTER_GRID.columns;
@@ -455,9 +454,7 @@ export default function LibraryDetailScreen() {
     } else {
       setFilterItems((prev) => [...prev, ...newItems]);
     }
-    const total = filterData.total ?? 0;
-    const fetchedSoFar = filterOffset + newItems.length;
-    setFilterNextOffset(computeNextFilterOffset(fetchedSoFar, newItems.length, total, PAGE_SIZE));
+    setFilterNextOffset(nextFilterOffset(filterData, filterOffset, PAGE_SIZE));
   }, [filterData, filterOffset]);
 
   const totalItems = searchActive

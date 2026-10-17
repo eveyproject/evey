@@ -496,8 +496,18 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "list", err)
 	}
+	// Paged on the rows the database returned, before the parental pass: a
+	// page it shortened is not the last one, and the next page starts after
+	// every row read, seen or not.
+	nextOffset := filter.Offset + len(items)
 	items = filterOutParentalBlocked(pf, items)
-	resp := &eveyv1.FilterMediaItemsResponse{Total: int32(total)}
+	resp := &eveyv1.FilterMediaItemsResponse{
+		Total:      int32(total),
+		NextOffset: int32(nextOffset),
+		// An empty read never claims more, whatever the count says: a client
+		// would ask for the same offset forever.
+		HasMore: nextOffset > filter.Offset && nextOffset < total,
+	}
 	ids := make([]string, 0, len(items))
 	for _, item := range items {
 		ids = append(ids, string(item.ID))

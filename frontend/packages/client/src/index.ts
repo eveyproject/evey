@@ -68,6 +68,7 @@ export * from "./lib/feedCustomize";
 export * from "./lib/heroTitle";
 export * from "./lib/homeShortcut";
 export * from "./lib/genres";
+export * from "./lib/filterPaging";
 export * from "./lib/librarySelection";
 export * from "./lib/progressPercent";
 export * from "./lib/playbackPrefs";
