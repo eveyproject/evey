@@ -133,6 +133,16 @@ func (a *admission) take(need int64, interactive bool) {
 	}
 }
 
+// Reserved is the sum of the memory caps of the processes in flight, in
+// bytes: what admission subtracts from the free memory before letting the next
+// one start. It is zero when nothing runs; anything else at rest is a
+// reservation whose Finish was never called.
+func Reserved() int64 {
+	defaultAdmission.mu.Lock()
+	defer defaultAdmission.mu.Unlock()
+	return defaultAdmission.reserved
+}
+
 func (a *admission) releaseFn(need int64, interactive bool) func() {
 	var once sync.Once
 	return func() {

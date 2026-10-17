@@ -120,11 +120,15 @@ func (t *CompatTranscoder) TranscodeCompat(ctx context.Context, src, dst string,
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+	// Finish on every exit after Command: the admission it booked is only
+	// handed back there, an ffmpeg that never starts included.
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		_ = finish(err, nil) //nolint:errcheck // the start error is the one returned
 		return fmt.Errorf("compat-transcode: stdout pipe: %w", err)
 	}
 	if err := cmd.Start(); err != nil {
+		_ = finish(err, nil) //nolint:errcheck // the start error is the one returned
 		return fmt.Errorf("compat-transcode: start ffmpeg: %w", err)
 	}
 	scanCompatProgress(stdout, durationMs, onProgress)
