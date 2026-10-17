@@ -87,6 +87,8 @@ func logOverRead(logger *slog.Logger, path string, st mp4.HLSPlanStats, served, 
 		slog.Int64("served_bytes", served),
 		slog.Int64("read_ratio_pct", st.SourceReadBytes*100/served),
 		slog.Int64("resources_served", resources),
+		// Every handle Open returns counts in exactly one of the three.
+		slog.Int64("segments_opened", st.StreamedSegments+st.KeptSegments+st.StreamFallbacks),
 		slog.Int64("window_builds", st.WindowBuilds),
 		slog.Int64("window_rebuilds", st.WindowRebuilds),
 		slog.Int64("far_lookups", st.FarLookups),

@@ -71,14 +71,14 @@ func TestServedWatch_AtOrUnderTheBarStaysQuiet(t *testing.T) {
 func TestLogOverRead_CarriesTheCase(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
-	st := mp4.HLSPlanStats{SourceReadBytes: 400, WindowBuilds: 7, FarLookups: 5, FarHits: 4, KeptSegments: 30, KeptFallbacks: 1}
+	st := mp4.HLSPlanStats{SourceReadBytes: 400, WindowBuilds: 7, FarLookups: 5, FarHits: 4, KeptSegments: 30, KeptFallbacks: 1, StreamedSegments: 2, StreamFallbacks: 3}
 	logOverRead(logger, "/media/a.mkv", st, 100, 12, true)
 	var line map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
 		t.Fatal(err)
 	}
 	want := map[string]any{"path": "/media/a.mkv", "read_bytes": 400.0, "served_bytes": 100.0, "read_ratio_pct": 400.0,
-		"resources_served": 12.0, "window_builds": 7.0, "far_lookups": 5.0, "far_hits": 4.0,
+		"resources_served": 12.0, "segments_opened": 35.0, "window_builds": 7.0, "far_lookups": 5.0, "far_hits": 4.0,
 		"kept_segments": 30.0, "kept_fallbacks": 1.0, "final": true}
 	for k, v := range want {
 		if line[k] != v {
