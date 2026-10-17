@@ -139,12 +139,16 @@ func (p *OnDemandPackager) retire(pl apptranscoding.OnDemandPlan) {
 	if !ok {
 		return
 	}
+	if op, ok := pl.(*ondemandPlan); ok {
+		op.retireReadRatio()
+	}
 	p.retiredMu.Lock()
 	defer p.retiredMu.Unlock()
 	if p.retired == nil {
 		p.retired = map[string]int64{}
 	}
 	addWindowStats(p.retired, st.Stats())
+	addServedStats(p.retired, pl)
 	p.retired["retired_plans"]++
 }
 
@@ -369,8 +373,25 @@ func (p *OnDemandPackager) WindowStats() map[string]int64 {
 		}
 		out["plans"]++
 		addWindowStats(out, pl.Stats())
+		addServedStats(out, v)
 	}
 	return out
+}
+
+// addServedStats adds what Evey handed out from pl and whether pl read over
+// the ratio bar: "served_to_clients_bytes" beside "source_read_bytes" is the
+// read ratio of the plans summed, "plans_read_over_ratio" how many of them
+// read more than readRatioFlag times what they served.
+func addServedStats(out map[string]int64, pl apptranscoding.OnDemandPlan) {
+	op, ok := pl.(*ondemandPlan)
+	if !ok {
+		return
+	}
+	served, over := op.servedStats()
+	out["served_to_clients_bytes"] += served
+	if over {
+		out["plans_read_over_ratio"]++
+	}
 }
 
 func addWindowStats(out map[string]int64, st mp4.HLSPlanStats) {
@@ -658,6 +679,10 @@ type ondemandPlan struct {
 	key     string
 	srcPath string
 	opts    apptranscoding.OnDemandOptions
+
+	// watch counts what the plan served, for its read ratio
+	// (ondemand_readratio.go).
+	watch servedWatch
 }
 
 func (p *ondemandPlan) Resource(ctx context.Context, name string) ([]byte, string, error) {
@@ -674,7 +699,12 @@ func (p *ondemandPlan) Open(ctx context.Context, name string) (apptranscoding.On
 	if err != nil {
 		return nil, sourceChangedErr(err)
 	}
-	return h, nil
+	if b := h.Bytes(); b != nil {
+		// Handed out whole by the caller.
+		p.served(int64(len(b)))
+		return h, nil
+	}
+	return &countedResource{OnDemandResource: h, plan: p}, nil
 }
 
 func (p *ondemandPlan) SourceID() string { return p.plan.SourceID() }
