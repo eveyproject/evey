@@ -74,9 +74,7 @@ fi
 mkdir -p "$(dirname "$last")"; touch "$(dirname "$last")/trickplay_001.webp"
 %sexit 0
 `, calls, keyExit, keyExit, show(keyMs), show(scanMs))
-	bin = filepath.Join(dir, "ffmpeg")
-	require.NoError(t, os.WriteFile(bin, []byte(body), 0o755))
-	return bin, calls
+	return writeFakeBinary(t, filepath.Join(dir, "ffmpeg"), body), calls
 }
 
 func readCalls(t *testing.T, path string) []string {
@@ -206,9 +204,8 @@ func TestTrickplayKeyframes_KeepsSourceTimes(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	args := filepath.Join(dir, "args")
-	bin := filepath.Join(dir, "ffmpeg")
 	body := "#!/bin/sh\necho \"$@\" > " + args + "\ncat > /dev/null\nfor last; do :; done\ntouch \"$(dirname \"$last\")/trickplay_001.webp\"\n>&2 echo 'n: 0 pts: 5 pts_time:0.005'\n"
-	require.NoError(t, os.WriteFile(bin, []byte(body), 0o755))
+	bin := writeFakeBinary(t, filepath.Join(dir, "ffmpeg"), body)
 	g := NewTrickplayGenerator(bin, makeFakeProbeScript(t, 25)).
 		WithKeyframeStreamer(&fakeKeyframeStreamer{stats: goodStats(5)})
 
@@ -230,8 +227,7 @@ func TestTrickplayKeyframes_SuspendedWhileBusy(t *testing.T) {
 	defer func() { detectionPausePoll = old }()
 
 	inner, calls := makeTwoPathFfmpeg(t, []int64{0, 7008}, []int64{0, 8000}, 0)
-	slow := filepath.Join(t.TempDir(), "slow-ffmpeg.sh")
-	require.NoError(t, os.WriteFile(slow, []byte("#!/bin/sh\nsleep 0.2\nexec "+inner+" \"$@\"\n"), 0o755))
+	slow := writeFakeBinary(t, filepath.Join(t.TempDir(), "slow-ffmpeg.sh"), "#!/bin/sh\nsleep 0.2\nexec "+inner+" \"$@\"\n")
 	var busy atomic.Bool
 	busy.Store(true)
 	kf := &fakeKeyframeStreamer{stats: goodStats(0, 7008), payload: make([]byte, 1<<20)}
@@ -279,8 +275,7 @@ func TestTrickplayKeyframes_SparseKeyframesKeepTheStream(t *testing.T) {
 // container's start_time - the same times the scan writes.
 func TestTrickplayKeyframes_RebasedOnStartTime(t *testing.T) {
 	t.Parallel()
-	probe := filepath.Join(t.TempDir(), "ffprobe")
-	require.NoError(t, os.WriteFile(probe, []byte("#!/bin/sh\nprintf '{\"streams\":[{}],\"format\":{\"start_time\":\"0.083000\"}}'\n"), 0o755))
+	probe := writeFakeBinary(t, filepath.Join(t.TempDir(), "ffprobe"), "#!/bin/sh\nprintf '{\"streams\":[{}],\"format\":{\"start_time\":\"0.083000\"}}'\n")
 	bin, _ := makeTwoPathFfmpeg(t, []int64{83, 8091}, nil, 0)
 	g := NewTrickplayGenerator(bin, probe).
 		WithKeyframeStreamer(&fakeKeyframeStreamer{stats: goodStats(83, 8091)})

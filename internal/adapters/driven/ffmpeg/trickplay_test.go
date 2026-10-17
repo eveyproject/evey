@@ -16,14 +16,8 @@ import (
 
 func makeFakeProbeScript(t *testing.T, duration float64) string {
 	t.Helper()
-	f, err := os.CreateTemp("", "fake-ffprobe-*.sh")
-	require.NoError(t, err)
-	_, err = fmt.Fprintf(f, "#!/bin/sh\nprintf '{\"format\":{\"duration\":\"%g\"}}'\n", duration)
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
-	require.NoError(t, os.Chmod(f.Name(), 0755))
-	t.Cleanup(func() { os.Remove(f.Name()) })
-	return f.Name()
+	body := fmt.Sprintf("#!/bin/sh\nprintf '{\"format\":{\"duration\":\"%g\"}}'\n", duration)
+	return writeFakeBinary(t, filepath.Join(t.TempDir(), "ffprobe"), body)
 }
 
 // makeFakeFfmpegScript creates a fake ffmpeg that emulates the
@@ -36,9 +30,7 @@ func makeFakeProbeScript(t *testing.T, duration float64) string {
 // "no timestamps captured from showinfo".
 func makeFakeFfmpegScript(t *testing.T) string {
 	t.Helper()
-	f, err := os.CreateTemp("", "fake-ffmpeg-trickplay-*.sh")
-	require.NoError(t, err)
-	_, err = f.WriteString(`#!/bin/sh
+	return writeFakeBinary(t, filepath.Join(t.TempDir(), "ffmpeg"), `#!/bin/sh
 prev=""
 for arg; do
   if [ "$prev" = "-y" ]; then
@@ -53,11 +45,6 @@ for arg; do
 done
 exit 0
 `)
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
-	require.NoError(t, os.Chmod(f.Name(), 0755))
-	t.Cleanup(func() { os.Remove(f.Name()) })
-	return f.Name()
 }
 
 func TestTrickplayGenerator_Generate_Success(t *testing.T) {
@@ -82,9 +69,8 @@ func TestTrickplayGenerator_Generate_SuspendedWhileBusy(t *testing.T) {
 	detectionPausePoll = 10 * time.Millisecond
 	defer func() { detectionPausePoll = old }()
 
-	script := filepath.Join(t.TempDir(), "slow-ffmpeg.sh")
 	body := strings.Replace("#!/bin/sh\nsleep 0.2\nexec REAL \"$@\"\n", "REAL", makeFakeFfmpegScript(t), 1)
-	require.NoError(t, os.WriteFile(script, []byte(body), 0o755))
+	script := writeFakeBinary(t, filepath.Join(t.TempDir(), "slow-ffmpeg.sh"), body)
 
 	var busy atomic.Bool
 	busy.Store(true)
