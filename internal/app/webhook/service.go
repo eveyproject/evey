@@ -241,6 +241,7 @@ func (s *Service) Update(ctx context.Context, cfg *webhook.Config) error {
 	// fail the same way it always did - we only skip the merge, not the write.
 	if existing, err := s.repo.GetByID(ctx, cfg.ID); err == nil {
 		cfg.Secret = resolveUpdatedSecret(existing.Secret, cfg.Secret)
+		cfg.Headers = resolveUpdatedHeaders(existing.Headers, cfg.Headers)
 	} else if !errors.Is(err, shared.ErrNotFound) {
 		s.log.WarnContext(ctx, "webhook: could not read existing config before update, secret merge skipped", slog.String("webhookID", cfg.ID), slog.Any("err", err))
 	}
@@ -264,6 +265,26 @@ func resolveUpdatedSecret(stored, incoming string) string {
 		return stored
 	}
 	return incoming
+}
+
+// resolveUpdatedHeaders is resolveUpdatedSecret for the custom headers, whose
+// values are masked on read the same way (they routinely carry a receiver's
+// Authorization). Neither admin UI edits headers - the enable toggle sends none
+// - so an empty map means "unchanged": persisting it wiped the headers on every
+// toggle. A sent value equal to the mask of the stored one keeps the stored
+// one; anything else, including a dropped key, is an intentional edit.
+func resolveUpdatedHeaders(stored, incoming map[string]string) map[string]string {
+	if len(incoming) == 0 {
+		return stored
+	}
+	out := make(map[string]string, len(incoming))
+	for k, v := range incoming {
+		if prev, ok := stored[k]; ok {
+			v = resolveUpdatedSecret(prev, v)
+		}
+		out[k] = v
+	}
+	return out
 }
 
 // maskStoredSecret mirrors grpcapi.maskSecret exactly. The app layer can't
