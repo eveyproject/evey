@@ -179,7 +179,7 @@ func TestSourceChangedErr_MapsMkvgoRefusals(t *testing.T) {
 	if got := sourceChangedErr(mp4.ErrSourceChanged); !errors.Is(got, apptranscoding.ErrSourceChanged) || errors.Is(got, apptranscoding.ErrSourceDamaged) {
 		t.Fatalf("replaced source mapped to %v", got)
 	}
-	if got := sourceChangedErr(io.ErrUnexpectedEOF); got != io.ErrUnexpectedEOF {
+	if got := sourceChangedErr(io.ErrUnexpectedEOF); !errors.Is(got, io.ErrUnexpectedEOF) || errors.Is(got, apptranscoding.ErrSourceDamaged) || errors.Is(got, apptranscoding.ErrSourceChanged) {
 		t.Fatalf("other error mapped to %v", got)
 	}
 	if sourceChangedErr(nil) != nil {
