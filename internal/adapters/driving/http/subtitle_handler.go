@@ -351,7 +351,7 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 	// mkvgo refuses an index that does not match this exact file rather than
 	// read cues out of the wrong bytes.
 	// Paced while a stream is being served - see subtitle_read_pacer.go.
-	opts := subtitleReadOptions(ctx)
+	opts := subtitleReadOptions(ctx, filePath)
 	if ix, ok := subtitleIndexes.get(filePath); ok {
 		if err := matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, ix, w, opts...); err == nil {
 			return nil

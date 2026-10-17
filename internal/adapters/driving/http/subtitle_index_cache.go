@@ -138,7 +138,7 @@ func (c subtitleIndexCache) buildAndStore(ctx context.Context, filePath string, 
 		return nil, nil //nolint:nilnil // "nothing to index" is not a failure
 	}
 	// Paced while a stream is being served - see subtitle_read_pacer.go.
-	ix, err := matroska.BuildSubtitleIndex(ctx, filePath, trackIDs, subtitleReadOptions(ctx)...)
+	ix, err := matroska.BuildSubtitleIndex(ctx, filePath, trackIDs, subtitleReadOptions(ctx, filePath)...)
 	if err != nil {
 		return nil, fmt.Errorf("subtitle index: build: %w", err)
 	}
@@ -157,7 +157,7 @@ func (c subtitleIndexCache) buildAndStore(ctx context.Context, filePath string, 
 // must go through resolveAndStore before it serves; verified says which of the
 // file's subtitle tracks it covers. nil, nil, nil when no track is verified.
 func (c subtitleIndexCache) fromCues(ctx context.Context, filePath string) (ix *matroska.SubtitleIndex, verified map[uint64]bool, err error) {
-	fs := extmkv.FSFrom(subtitleReadOptions(ctx))
+	fs := extmkv.FSFrom(subtitleReadOptions(ctx, filePath))
 	cont, err := reader.OpenMetaWithFS(ctx, filePath, fs, reader.WithCues(), reader.WithTags())
 	if err != nil {
 		return nil, nil, fmt.Errorf("subtitle index from cues: %w", err)
@@ -207,7 +207,7 @@ func (c subtitleIndexCache) resolveAndStore(ctx context.Context, filePath string
 		if stored, ok := c.get(filePath); ok {
 			return stored, nil
 		}
-		if rerr := ix.Resolve(ctx, filePath, subtitleReadOptions(ctx)...); rerr != nil {
+		if rerr := ix.Resolve(ctx, filePath, subtitleReadOptions(ctx, filePath)...); rerr != nil {
 			return nil, fmt.Errorf("subtitle index from cues: resolve: %w", rerr)
 		}
 		return ix, c.put(filePath, ix)

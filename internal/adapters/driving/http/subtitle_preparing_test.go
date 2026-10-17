@@ -102,7 +102,7 @@ func TestPacedReader_ReportsProgressToTheFlight(t *testing.T) {
 	path := sparseMKV(t, 1000)
 	fl := &subtitleFlight{started: time.Now(), size: 1000}
 	ctx := context.WithValue(context.Background(), subtitleFlightCtxKey{}, fl)
-	opts := subtitleReadOptions(ctx)
+	opts := subtitleReadOptions(ctx, path)
 	if len(opts) != 1 || opts[0].FS == nil {
 		t.Fatal("a flight in the context must yield a reporting FS, pacer or not")
 	}
@@ -157,8 +157,8 @@ func TestPacedReader_ReportsProgressToTheFlight(t *testing.T) {
 		t.Errorf("the new handle's seek is progress, got %v", fl.progress())
 	}
 	// Without a flight and without a pacer there is nothing to wrap.
-	if opts := subtitleReadOptions(context.Background()); subtitleReadPacer == nil && opts != nil {
-		t.Error("no flight, no pacer: mkvgo opens the file itself")
+	if opts := subtitleReadOptions(context.Background(), path); subtitleReadPacer == nil && (len(opts) != 1 || opts[0].FS != nil || opts[0].OnSkip == nil) {
+		t.Error("no flight, no pacer: mkvgo opens the file itself, the damage is still reported")
 	}
 }
 
