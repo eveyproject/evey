@@ -86,7 +86,7 @@ func TestSampleIO_DiffsWholePhysicalDisksOnly(t *testing.T) {
 	writeFixture(t, netdev, netDevHeader+`    lo: 999999 1 0 0 0 0 0 0 999999 1 0 0 0 0 0 0
   eth0: 1000 10 0 0 0 0 0 0 2000 10 0 0 0 0 0 0
 `)
-	primeIO()
+	primeIO(&ioPrev)
 	if !ioPrev.ok {
 		t.Fatal("first reading should prime the sampler")
 	}
@@ -101,7 +101,7 @@ func TestSampleIO_DiffsWholePhysicalDisksOnly(t *testing.T) {
 	writeFixture(t, netdev, netDevHeader+`    lo: 999999 1 0 0 0 0 0 0 999999 1 0 0 0 0 0 0
   eth0: 2000 10 0 0 0 0 0 0 4000 10 0 0 0 0 0 0
 `)
-	disks, net := sampleIO()
+	disks, net := sampleIO(&ioPrev)
 	if len(disks) != 2 {
 		t.Fatalf("want sda and sdb only, got %+v", disks)
 	}
@@ -137,7 +137,7 @@ func TestSampleIO_FirstCallReportsNothing(t *testing.T) {
 	fakeBlockDevice(t, sysBlock, "sda", 0, nil)
 	writeFixture(t, diskstats, "   8       0 sda 1 0 8 1 0 0 0 0 0 1 1 0 0 0 0 0 0\n")
 	writeFixture(t, netdev, netDevHeader)
-	disks, net := sampleIO()
+	disks, net := sampleIO(&ioPrev)
 	if disks != nil || net != (NetIO{}) {
 		t.Errorf("without a previous reading nothing can be averaged: %+v %+v", disks, net)
 	}
@@ -148,8 +148,8 @@ func TestSampleIO_FirstCallReportsNothing(t *testing.T) {
 
 func TestSampleIO_UnreadableProcIsSilent(t *testing.T) {
 	useFakeProc(t)
-	primeIO()
-	disks, net := sampleIO()
+	primeIO(&ioPrev)
+	disks, net := sampleIO(&ioPrev)
 	if disks != nil || net != (NetIO{}) {
 		t.Errorf("no /proc/diskstats: want nothing, got %+v %+v", disks, net)
 	}
@@ -207,5 +207,37 @@ func TestDiskSaturated_WaitAgainstRestDecides(t *testing.T) {
 	}
 	if !IdleAwaitCandidate(6, 3) || IdleAwaitCandidate(6, 50) || IdleAwaitCandidate(0, 1) {
 		t.Error("a rest candidate served requests while nearly idle")
+	}
+}
+
+// The history sampler measures since ITS previous call, whatever the dashboard
+// asked in between. Sharing one previous reading, the dashboard's poll moved
+// the window on and the sampler's next row described only what came after it:
+// here the whole read burst happened between the sampler's two calls, before
+// the dashboard's, and the shared state handed the sampler an empty window.
+func TestSampler_WindowIsItsOwnWhateverTheDashboardAsks(t *testing.T) {
+	diskstats, netdev, sysBlock := useFakeProc(t)
+	fakeBlockDevice(t, sysBlock, "sda", 0, nil)
+	writeFixture(t, netdev, netDevHeader)
+	writeFixture(t, diskstats, "   8       0 sda 1000 0 20000 5000 0 0 0 0 0 10000 6000 0 0 0 0 0 0\n")
+	collectMu.Lock()
+	prevCPU, prevExp := cpuPrev, cacheExpiresAt
+	cacheExpiresAt = time.Time{}
+	collectMu.Unlock()
+	t.Cleanup(func() {
+		collectMu.Lock()
+		cpuPrev, cacheExpiresAt = prevCPU, prevExp
+		collectMu.Unlock()
+	})
+
+	history := NewSampler()
+	history.Collect() // first reading of the history's own window
+
+	writeFixture(t, diskstats, "   8       0 sda 1100 0 22048 8000 0 0 0 0 0 10600 9000 0 0 0 0 0 0\n")
+	Collect() // the dashboard polls after the burst
+
+	s := history.Collect()
+	if len(s.Disks) != 1 || s.Disks[0].ReadBps <= 0 {
+		t.Fatalf("the history's window lost the burst the dashboard saw: %+v", s.Disks)
 	}
 }

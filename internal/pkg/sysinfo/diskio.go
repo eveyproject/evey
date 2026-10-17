@@ -105,8 +105,9 @@ type diskSnapshot struct {
 	ok    bool
 }
 
-// ioPrev is the previous disk and network reading, guarded by collectMu like
-// cpuPrev: every window spans the whole gap since the previous sample.
+// ioPrev is the previous disk and network reading of the cached Collect,
+// guarded by collectMu like cpuPrev: every window spans the whole gap since
+// the previous sample. A Sampler keeps its own.
 var ioPrev diskSnapshot
 
 // Paths read by the samplers; variables so tests point them at fixtures.
@@ -118,19 +119,19 @@ var (
 
 // primeIO takes the first reading when none exists, so the first Collect can
 // report a window at all (the CPU sampler sleeps 500 ms right after).
-func primeIO() {
-	if !ioPrev.ok {
-		ioPrev = readIOSnapshot()
+func primeIO(prev *diskSnapshot) {
+	if !prev.ok {
+		*prev = readIOSnapshot()
 	}
 }
 
 // sampleIO diffs the current counters against the previous reading and
 // advances it. Without a previous reading it returns nothing rather than
 // since-boot averages, which would read as a flat lie.
-func sampleIO() ([]DiskIO, NetIO) {
+func sampleIO(state *diskSnapshot) ([]DiskIO, NetIO) {
 	cur := readIOSnapshot()
-	prev := ioPrev
-	ioPrev = cur
+	prev := *state
+	*state = cur
 	if !cur.ok || !prev.ok {
 		return nil, NetIO{}
 	}
