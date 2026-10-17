@@ -54,9 +54,7 @@ func TestViewerClient_OneConnectionPerViewer(t *testing.T) {
 		conns.Store(0)
 		var wg sync.WaitGroup
 		for range viewers {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				ctx := context.Background()
 				if ownClient {
 					var release func()
@@ -66,7 +64,7 @@ func TestViewerClient_OneConnectionPerViewer(t *testing.T) {
 				for range 3 {
 					get(ctx)
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		return conns.Load()
