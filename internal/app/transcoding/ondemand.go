@@ -33,6 +33,11 @@ type OnDemandPlan interface {
 // is no longer the one it was built on: drop the plan and build a new one.
 var ErrSourceChanged = errors.New("on-demand: the source changed since the plan was built")
 
+// ErrSourceDamaged is a plan's refusal to serve a window that lies inside a
+// damaged region of its source too long to pass over: the file wants
+// replacing or repairing, rebuilding the plan changes nothing.
+var ErrSourceDamaged = errors.New("on-demand: the source is damaged there")
+
 // OnDemandOpener is the streaming side of a plan: a media segment is written
 // from the source as it goes out, through one small buffer, instead of being
 // assembled whole in memory first. A plan that can stream implements it

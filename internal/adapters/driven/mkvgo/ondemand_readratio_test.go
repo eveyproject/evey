@@ -4,49 +4,67 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"testing"
 
+	"github.com/gravity-zero/mkvgo/mkv/reader"
 	"github.com/gravity-zero/mkvgo/mp4"
+
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
 type reported struct {
-	st                mp4.HLSPlanStats
-	served, resources int64
+	st        mp4.HLSPlanStats
+	resources int64
+}
+
+// served is a plan's counters having served n bytes through Resource.
+func served(n, read int64) mp4.HLSPlanStats {
+	return mp4.HLSPlanStats{ServedBytes: n, SourceReadBytes: read}
 }
 
 // A plan reading over three times what it served is reported once while in
-// use, at the first readRatioMinServed step past the bar, and again with its
-// final figures when it leaves the cache.
+// use, at the first readRatioMinServed step Evey hands out past the bar, and
+// again with its final figures when it leaves the cache. The ratio is read on
+// mkvgo's own count, Resource and Open together.
 func TestServedWatch_NamesAPlanReadingOverTheBarOnce(t *testing.T) {
 	var w servedWatch
 	st := mp4.HLSPlanStats{}
 	stats := func() mp4.HLSPlanStats { return st }
-	var got []reported
-	report := func(s mp4.HLSPlanStats, served, resources int64) { got = append(got, reported{s, served, resources}) }
+	var got, damaged []reported
+	report := func(s mp4.HLSPlanStats, resources int64) { got = append(got, reported{s, resources}) }
+	damage := func(s mp4.HLSPlanStats, resources int64) { damaged = append(damaged, reported{s, resources}) }
 
 	// Under the minimum served nothing is read, however bad the ratio.
-	st.SourceReadBytes = 10 * readRatioMinServed
-	w.count(readRatioMinServed/2, stats, report)
+	st = served(readRatioMinServed/2, 10*readRatioMinServed)
+	w.count(readRatioMinServed/2, stats, report, damage)
 	if len(got) != 0 {
 		t.Fatalf("reported before %d bytes served: %+v", readRatioMinServed, got)
 	}
-	// The step is crossed at 64 MiB served, 640 MiB read: named.
-	w.count(readRatioMinServed/2, stats, report)
-	if len(got) != 1 || got[0].served != readRatioMinServed || got[0].resources != 2 {
+	// The step is crossed at 64 MiB served (half streamed), 640 MiB read: named.
+	st = served(readRatioMinServed/2, 10*readRatioMinServed)
+	st.StreamedBytes = readRatioMinServed / 2
+	w.count(readRatioMinServed/2, stats, report, damage)
+	if len(got) != 1 || planServed(got[0].st) != readRatioMinServed || got[0].resources != 2 {
 		t.Fatalf("got %+v, want one report at %d served after 2 resources", got, readRatioMinServed)
 	}
 	// Later steps still over the bar: not named again while in use.
-	w.count(readRatioMinServed, stats, report)
+	st.ServedBytes += readRatioMinServed
+	w.count(readRatioMinServed, stats, report, damage)
 	if len(got) != 1 {
 		t.Fatalf("named twice while in use: %+v", got)
 	}
 	// Leaving the cache: the final figures, even back under the bar.
 	st.SourceReadBytes = 2 * readRatioMinServed
-	w.final(stats, report)
-	if len(got) != 2 || got[1].served != 2*readRatioMinServed {
+	w.final(stats, report, damage)
+	if len(got) != 2 || planServed(got[1].st) != 2*readRatioMinServed {
 		t.Fatalf("final = %+v", got)
+	}
+	if len(damaged) != 0 {
+		t.Fatalf("an undamaged plan named damaged: %+v", damaged)
 	}
 }
 
@@ -54,16 +72,50 @@ func TestServedWatch_NamesAPlanReadingOverTheBarOnce(t *testing.T) {
 // nothing when it leaves.
 func TestServedWatch_AtOrUnderTheBarStaysQuiet(t *testing.T) {
 	var w servedWatch
-	st := mp4.HLSPlanStats{SourceReadBytes: readRatioFlag * readRatioMinServed}
+	st := served(readRatioMinServed, readRatioFlag*readRatioMinServed)
 	stats := func() mp4.HLSPlanStats { return st }
 	n := 0
-	report := func(mp4.HLSPlanStats, int64, int64) { n++ }
-	w.count(readRatioMinServed, stats, report)
-	w.final(stats, report)
+	report := func(mp4.HLSPlanStats, int64) { n++ }
+	w.count(readRatioMinServed, stats, report, report)
+	w.final(stats, report, report)
 	var idle servedWatch
-	idle.final(func() mp4.HLSPlanStats { return mp4.HLSPlanStats{SourceReadBytes: 1 << 30} }, report)
+	idle.final(func() mp4.HLSPlanStats { return mp4.HLSPlanStats{SourceReadBytes: 1 << 30, DamageSkips: 1} }, report, report)
 	if n != 0 {
 		t.Fatalf("%d reports for a plan at the bar or idle", n)
+	}
+}
+
+// A plan that passed over a damaged region names it once, at the first step
+// that sees it or when it leaves the cache; a refused region too.
+func TestServedWatch_NamesADamagedPlanOnce(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		st   mp4.HLSPlanStats
+	}{
+		{"skipped", mp4.HLSPlanStats{ServedBytes: readRatioMinServed, DamageSkips: 1}},
+		{"refused", mp4.HLSPlanStats{ServedBytes: readRatioMinServed, DamageRefusals: 1}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var w servedWatch
+			stats := func() mp4.HLSPlanStats { return tc.st }
+			n := 0
+			damage := func(mp4.HLSPlanStats, int64) { n++ }
+			none := func(mp4.HLSPlanStats, int64) {}
+			w.count(readRatioMinServed, stats, none, damage)
+			w.count(readRatioMinServed, stats, none, damage)
+			w.final(stats, none, damage)
+			if n != 1 {
+				t.Fatalf("named %d times, want once", n)
+			}
+		})
+	}
+	// Seen only at the end: named when it leaves.
+	var w servedWatch
+	n := 0
+	w.count(1, func() mp4.HLSPlanStats { return mp4.HLSPlanStats{} }, nil, nil)
+	w.final(func() mp4.HLSPlanStats { return mp4.HLSPlanStats{DamageSkips: 2} }, func(mp4.HLSPlanStats, int64) {}, func(mp4.HLSPlanStats, int64) { n++ })
+	if n != 1 {
+		t.Fatalf("named %d times on leaving, want once", n)
 	}
 }
 
@@ -71,8 +123,8 @@ func TestServedWatch_AtOrUnderTheBarStaysQuiet(t *testing.T) {
 func TestLogOverRead_CarriesTheCase(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
-	st := mp4.HLSPlanStats{SourceReadBytes: 400, WindowBuilds: 7, FarLookups: 5, FarHits: 4, KeptSegments: 30, KeptFallbacks: 1, StreamedSegments: 2, StreamFallbacks: 3}
-	logOverRead(logger, "/media/a.mkv", st, 100, 12, true)
+	st := mp4.HLSPlanStats{SourceReadBytes: 400, ServedBytes: 60, StreamedBytes: 40, ServedSegments: 35, WindowBuilds: 7, FarLookups: 5, FarHits: 4, KeptSegments: 30, KeptFallbacks: 1, StreamedSegments: 2, StreamFallbacks: 3}
+	logOverRead(logger, "/media/a.mkv", st, 12, true)
 	var line map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
 		t.Fatal(err)
@@ -112,5 +164,25 @@ func TestCountedResource_CountsWhatWentOut(t *testing.T) {
 	}
 	if b, r := p.watch.bytes.Load(), p.watch.resources.Load(); b != 500 || r != 2 {
 		t.Fatalf("served %d bytes over %d resources, want 500 over 2", b, r)
+	}
+}
+
+// mkvgo's refusals reach the port as its errors, mkvgo's own kept in the
+// chain: a replaced source, a window inside a damaged region; anything else
+// passes through.
+func TestSourceChangedErr_MapsMkvgoRefusals(t *testing.T) {
+	damage := fmt.Errorf("window 287: %w", &reader.DamageError{Offset: 1260397865, Resume: -1, Cause: io.ErrUnexpectedEOF})
+	got := sourceChangedErr(damage)
+	if !errors.Is(got, apptranscoding.ErrSourceDamaged) || !errors.Is(got, reader.ErrDamagedRegion) || errors.Is(got, apptranscoding.ErrSourceChanged) {
+		t.Fatalf("damaged region mapped to %v", got)
+	}
+	if got := sourceChangedErr(mp4.ErrSourceChanged); !errors.Is(got, apptranscoding.ErrSourceChanged) || errors.Is(got, apptranscoding.ErrSourceDamaged) {
+		t.Fatalf("replaced source mapped to %v", got)
+	}
+	if got := sourceChangedErr(io.ErrUnexpectedEOF); got != io.ErrUnexpectedEOF {
+		t.Fatalf("other error mapped to %v", got)
+	}
+	if sourceChangedErr(nil) != nil {
+		t.Fatal("nil mapped to an error")
 	}
 }

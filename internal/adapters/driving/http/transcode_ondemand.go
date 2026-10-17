@@ -729,6 +729,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 				slog.String("media_id", mediaID),
 				slog.String("resource", name),
 				slog.Bool("cast", cast),
+				slog.Bool("damaged", errors.Is(err, apptranscoding.ErrSourceDamaged)),
 				slog.Any("err", err))
 		} else {
 			size := int64(len(data))

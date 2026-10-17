@@ -427,6 +427,13 @@ func addWindowStats(out map[string]int64, st mp4.HLSPlanStats) {
 	out["kept_fallbacks"] += st.KeptFallbacks
 	out["far_lookups"] += st.FarLookups
 	out["far_hits"] += st.FarHits
+	// mkvgo 0.55: what Open handed out beside Resource (served_bytes + this is
+	// what the plans served), the media segments served either way, and the
+	// damaged regions the windows passed over or were refused on.
+	out["streamed_bytes"] += st.StreamedBytes
+	out["served_segments"] += st.ServedSegments
+	out["damage_skips"] += st.DamageSkips
+	out["damage_refusals"] += st.DamageRefusals
 }
 
 // WalksInFlight is how many source windows the process is reading right now,
@@ -710,10 +717,17 @@ func (p *ondemandPlan) Open(ctx context.Context, name string) (apptranscoding.On
 func (p *ondemandPlan) SourceID() string { return p.plan.SourceID() }
 
 // sourceChangedErr makes mkvgo's refusal of a replaced source the port's
-// apptranscoding.ErrSourceChanged, keeping mkvgo's error in the chain.
+// apptranscoding.ErrSourceChanged, and its refusal of a window inside a long
+// damaged region apptranscoding.ErrSourceDamaged, keeping mkvgo's error (the
+// offset, the repair) in the chain.
 func sourceChangedErr(err error) error {
-	if err != nil && errors.Is(err, mp4.ErrSourceChanged) {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, mp4.ErrSourceChanged):
 		return fmt.Errorf("%w: %w", apptranscoding.ErrSourceChanged, err)
+	case errors.Is(err, reader.ErrDamagedRegion):
+		return fmt.Errorf("%w: %w", apptranscoding.ErrSourceDamaged, err)
 	}
 	return err
 }

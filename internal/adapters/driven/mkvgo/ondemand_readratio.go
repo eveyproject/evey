@@ -34,45 +34,68 @@ const (
 	readRatioMinServed = 64 << 20
 )
 
-// servedWatch counts what Evey handed to clients from a plan's resources other
-// than its playlists: media segments, inits, subtitle windows.
+// servedWatch is the clock that reads a plan's counters while it serves: it
+// counts what Evey handed to clients from the plan's resources other than its
+// playlists (media segments, inits, subtitle windows), and the ratio itself is
+// read on mkvgo's own count of what the plan served (planServed).
 type servedWatch struct {
 	bytes     atomic.Int64
 	resources atomic.Int64
 	// flagged is set once the plan has been named while still in use; its
 	// final figures are logged again when it leaves the cache.
 	flagged atomic.Bool
+	// damaged is set once the plan has named the damaged regions it passed over.
+	damaged atomic.Bool
 }
 
+// planReport is what the watch hands its callers: the plan's counters, and
+// how many resources Evey handed out from it.
+type planReport func(st mp4.HLSPlanStats, resources int64)
+
 // count adds n bytes handed out and, each time the total crosses a multiple
-// of readRatioMinServed, reads the plan's counters (stats) and calls report
-// the first time the plan reads over the bar.
-func (w *servedWatch) count(n int64, stats func() mp4.HLSPlanStats, report func(st mp4.HLSPlanStats, served, resources int64)) {
+// of readRatioMinServed, reads the plan's counters (stats): report is called
+// the first time the plan reads over the bar, damaged the first time it has
+// passed over a damaged region of its source.
+func (w *servedWatch) count(n int64, stats func() mp4.HLSPlanStats, report, damaged planReport) {
 	resources := w.resources.Add(1)
 	after := w.bytes.Add(n)
 	if n <= 0 || (after-n)/readRatioMinServed == after/readRatioMinServed {
 		return
 	}
-	if st := stats(); overRead(st, after) && w.flagged.CompareAndSwap(false, true) {
-		report(st, after, resources)
+	st := stats()
+	if overRead(st) && w.flagged.CompareAndSwap(false, true) {
+		report(st, resources)
+	}
+	if st.DamageSkips+st.DamageRefusals > 0 && w.damaged.CompareAndSwap(false, true) {
+		damaged(st, resources)
 	}
 }
 
 // final reads the counters of a plan leaving the cache and calls report when
-// it read over the bar, or had been named while in use, with its last figures.
-func (w *servedWatch) final(stats func() mp4.HLSPlanStats, report func(st mp4.HLSPlanStats, served, resources int64)) {
-	served := w.bytes.Load()
-	if served == 0 {
+// it read over the bar, or had been named while in use, with its last figures;
+// damaged when it met a damaged region not named yet.
+func (w *servedWatch) final(stats func() mp4.HLSPlanStats, report, damaged planReport) {
+	if w.bytes.Load() == 0 {
 		return
 	}
-	if st := stats(); overRead(st, served) || w.flagged.Load() {
-		report(st, served, w.resources.Load())
+	st := stats()
+	if overRead(st) || w.flagged.Load() {
+		report(st, w.resources.Load())
+	}
+	if st.DamageSkips+st.DamageRefusals > 0 && w.damaged.CompareAndSwap(false, true) {
+		damaged(st, w.resources.Load())
 	}
 }
 
-// overRead reports whether a plan that served served bytes read more than
-// readRatioFlag times that from its source.
-func overRead(st mp4.HLSPlanStats, served int64) bool {
+// planServed is what the plan served through Open, by mkvgo's count (0.55):
+// segments handed out whole by Resource, and everything Open handed out
+// beside them, streamed or kept.
+func planServed(st mp4.HLSPlanStats) int64 { return st.ServedBytes + st.StreamedBytes }
+
+// overRead reports whether a plan that served at least readRatioMinServed
+// read more than readRatioFlag times what it served from its source.
+func overRead(st mp4.HLSPlanStats) bool {
+	served := planServed(st)
 	return served >= readRatioMinServed && st.SourceReadBytes > readRatioFlag*served
 }
 
@@ -80,15 +103,15 @@ func overRead(st mp4.HLSPlanStats, served int64) bool {
 // bytes read and served, the lookups in the uncued regions, the segments
 // served from a kept window and the tables that fell back to the source, and
 // the windows built. final says the plan has left the cache.
-func logOverRead(logger *slog.Logger, path string, st mp4.HLSPlanStats, served, resources int64, final bool) {
+func logOverRead(logger *slog.Logger, path string, st mp4.HLSPlanStats, resources int64, final bool) {
+	served := planServed(st)
 	logger.Warn("mkvgo: plan read its source far more than it served",
 		slog.String("path", path),
 		slog.Int64("read_bytes", st.SourceReadBytes),
 		slog.Int64("served_bytes", served),
-		slog.Int64("read_ratio_pct", st.SourceReadBytes*100/served),
+		slog.Int64("read_ratio_pct", st.SourceReadBytes*100/max(served, 1)),
 		slog.Int64("resources_served", resources),
-		// Every handle Open returns counts in exactly one of the three.
-		slog.Int64("segments_opened", st.StreamedSegments+st.KeptSegments+st.StreamFallbacks),
+		slog.Int64("segments_opened", st.ServedSegments),
 		slog.Int64("window_builds", st.WindowBuilds),
 		slog.Int64("window_rebuilds", st.WindowRebuilds),
 		slog.Int64("far_lookups", st.FarLookups),
@@ -99,18 +122,33 @@ func logOverRead(logger *slog.Logger, path string, st mp4.HLSPlanStats, served, 
 		slog.Bool("final", final))
 }
 
+// logDamaged names a file whose plan met a damaged region (zeroed bytes, an
+// element that does not decode): passed over, the stretch it held played as a
+// still image; refused, the windows inside it are not served. Either way the
+// file wants replacing or `mkvgo reindex --resync`.
+func logDamaged(logger *slog.Logger, path string, st mp4.HLSPlanStats) {
+	logger.Warn("mkvgo: plan met a damaged region of its source, replace or repair the file",
+		slog.String("path", path),
+		slog.Int64("damage_skips", st.DamageSkips),
+		slog.Int64("damage_refusals", st.DamageRefusals))
+}
+
 // served counts n bytes handed out (see servedWatch.count).
 func (p *ondemandPlan) served(n int64) {
-	p.watch.count(n, p.Stats, func(st mp4.HLSPlanStats, served, resources int64) {
-		logOverRead(p.logger(), p.srcPath, st, served, resources, false)
-	})
+	p.watch.count(n, p.Stats, func(st mp4.HLSPlanStats, resources int64) {
+		logOverRead(p.logger(), p.srcPath, st, resources, false)
+	}, p.logDamaged)
 }
 
 // retireReadRatio logs a plan leaving the cache (see servedWatch.final).
 func (p *ondemandPlan) retireReadRatio() {
-	p.watch.final(p.Stats, func(st mp4.HLSPlanStats, served, resources int64) {
-		logOverRead(p.logger(), p.srcPath, st, served, resources, true)
-	})
+	p.watch.final(p.Stats, func(st mp4.HLSPlanStats, resources int64) {
+		logOverRead(p.logger(), p.srcPath, st, resources, true)
+	}, p.logDamaged)
+}
+
+func (p *ondemandPlan) logDamaged(st mp4.HLSPlanStats, _ int64) {
+	logDamaged(p.logger(), p.srcPath, st)
 }
 
 func (p *ondemandPlan) logger() *slog.Logger {
@@ -120,11 +158,11 @@ func (p *ondemandPlan) logger() *slog.Logger {
 	return slog.Default()
 }
 
-// servedStats is what a plan adds to WindowStats beside mkvgo's counters: the
-// bytes Evey handed out from it, and whether it read over the bar.
+// servedStats is what a plan adds to WindowStats beside mkvgo's counters: what
+// it served, and whether it read over the bar.
 func (p *ondemandPlan) servedStats() (served int64, overBar bool) {
-	served = p.watch.bytes.Load()
-	return served, overRead(p.Stats(), served)
+	st := p.Stats()
+	return planServed(st), overRead(st)
 }
 
 // countedResource counts what a streamed resource wrote to its client.
