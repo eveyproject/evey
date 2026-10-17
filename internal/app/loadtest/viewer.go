@@ -66,6 +66,8 @@ const (
 // a viewer error.
 func (r *Runner) runViewer(ctx context.Context, cfg Config, tierAtSpawn int, vt viewerType, asg assignment, forked bool, events chan<- viewerEvent, wg *sync.WaitGroup) {
 	defer wg.Done()
+	ctx, release := r.withViewerClient(ctx)
+	defer release()
 	defer func() {
 		if rec := recover(); rec != nil {
 			r.logger.Warn("loadtest viewer recovered from panic", "panic", fmt.Sprint(rec))
@@ -441,7 +443,7 @@ func (r *Runner) fetch(ctx context.Context, rawURL, token string, keepBody bool,
 	req.Header.Set(headerLoadTest, "1")
 
 	start := time.Now()
-	resp, err := r.httpClient.Do(req)
+	resp, err := r.clientFor(ctx).Do(req)
 	if err != nil {
 		return 0, nil, nil, int(time.Since(start).Milliseconds()), err
 	}
