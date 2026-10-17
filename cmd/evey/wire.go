@@ -361,9 +361,12 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// Counts the bytes the streaming routes actually serve; the sampler turns
 	// that into the server_metrics history (dashboard rate + consumed total).
 	streamMeter := &netmeter.Meter{}
+	// Its own windows, not the dashboard's cached ones: each history row
+	// covers the whole minute since the previous row.
+	historySys := sysinfo.NewSampler()
 	metricsSampler := appactivity.NewMetricsSampler(activityCmdSvc, r.PlaySessionStats, streamMeter,
 		func() appactivity.SysSample {
-			s := sysinfo.Collect()
+			s := historySys.Collect()
 			return appactivity.SysSample{
 				CPUPercent: s.CPUPercent, MemUsedBytes: s.MemUsedBytes, MemTotalBytes: s.MemTotalBytes,
 				IOWaitPercent: s.IOWaitPercent, Disks: s.Disks, Net: s.Net,

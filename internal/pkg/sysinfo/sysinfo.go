@@ -57,6 +57,10 @@ type cpuSample struct {
 	total  uint64
 }
 
+// Collect is the machine as the live dashboard shows it: computed at most
+// every collectCacheTTL whoever asks, each figure averaged since the previous
+// computation. A caller that needs windows of its own - the history, whose
+// rows must each cover the whole gap since the previous row - uses a Sampler.
 func Collect() Stats {
 	collectMu.Lock()
 	defer collectMu.Unlock()
@@ -64,7 +68,34 @@ func Collect() Stats {
 	if time.Now().Before(cacheExpiresAt) {
 		return cachedStats
 	}
+	s := measure(&cpuPrev, &ioPrev)
+	cachedStats = s
+	cacheExpiresAt = time.Now().Add(collectCacheTTL)
+	return s
+}
 
+// Sampler measures the machine over the windows between its OWN calls. The
+// history sampler and the dashboard used to share Collect's previous readings
+// and its cache: with the system page open, the dashboard's 5 s polls moved
+// the window on, so a history row covered the 30 s before the cache refill -
+// up to half of each minute never reached the history, and the iowait or
+// disk-wait spike an admin watched live was missing from the trend.
+type Sampler struct {
+	mu  sync.Mutex
+	cpu cpuWindow
+	io  diskSnapshot
+}
+
+func NewSampler() *Sampler { return &Sampler{} }
+
+// Collect measures since this sampler's previous call (500 ms on the first).
+func (sm *Sampler) Collect() Stats {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	return measure(&sm.cpu, &sm.io)
+}
+
+func measure(cpu *cpuWindow, io *diskSnapshot) Stats {
 	var s Stats
 
 	memTotal, memAvail := readMeminfo()
@@ -78,12 +109,9 @@ func Collect() Stats {
 		s.MemUsedBytes = int64(m.Sys)
 	}
 
-	primeIO()
-	s.CPUPercent, s.EveyCPUPercent, s.IOWaitPercent = sampleCPU()
-	s.Disks, s.Net = sampleIO()
-
-	cachedStats = s
-	cacheExpiresAt = time.Now().Add(collectCacheTTL)
+	primeIO(io)
+	s.CPUPercent, s.EveyCPUPercent, s.IOWaitPercent = sampleCPU(cpu)
+	s.Disks, s.Net = sampleIO(io)
 	return s
 }
 
@@ -166,40 +194,43 @@ func parseKB(line string) int64 {
 	return kb * 1024
 }
 
-// cpuPrev is the previous sampleCPU reading, guarded by collectMu: each sample
-// covers the whole time since the last one, so a 500 ms window cannot land on
-// a periodic burst (a library scan) and read its peak as the load.
-var cpuPrev struct {
+// cpuWindow is the previous sampleCPU reading: each sample covers the whole
+// time since the last one, so a 500 ms window cannot land on a periodic burst
+// (a library scan) and read its peak as the load.
+type cpuWindow struct {
 	host cpuSample
 	evey uint64
 	ok   bool
 }
 
+// cpuPrev is the cached Collect's window, guarded by collectMu.
+var cpuPrev cpuWindow
+
 // sampleCPU returns the host's busy share, the part of it Evey accounts for
 // (this server's process tree plus its companions) and the share spent
 // waiting on disks, averaged since the previous call; the first call measures
 // a 500 ms window.
-func sampleCPU() (host, evey, iowait float64) {
+func sampleCPU(prev *cpuWindow) (host, evey, iowait float64) {
 	roots := append([]int{os.Getpid()}, companionPIDs(os.Getenv("EVEY_COMPANION_PIDS"))...)
 	read := func() (cpuSample, uint64, bool) {
 		s, ok := readCPUStat()
 		return s, treeSum(treeTicksReaped(roots)), ok
 	}
-	if !cpuPrev.ok {
+	if !prev.ok {
 		s, t, ok := read()
 		if !ok {
 			return 0, 0, 0
 		}
-		cpuPrev.host, cpuPrev.evey, cpuPrev.ok = s, t, true
+		prev.host, prev.evey, prev.ok = s, t, true
 		time.Sleep(500 * time.Millisecond)
 	}
 	s, t, ok := read()
 	if !ok {
 		return 0, 0, 0
 	}
-	host, evey = cpuShares(cpuPrev.host, s, cpuPrev.evey, t)
-	iowait = iowaitShare(cpuPrev.host, s)
-	cpuPrev.host, cpuPrev.evey = s, t
+	host, evey = cpuShares(prev.host, s, prev.evey, t)
+	iowait = iowaitShare(prev.host, s)
+	prev.host, prev.evey = s, t
 	return host, evey, iowait
 }
 
