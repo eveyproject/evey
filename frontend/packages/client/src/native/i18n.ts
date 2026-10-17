@@ -106,6 +106,11 @@ export async function initI18n(serverUrl: string) {
     return i18n;
   }
 
+  // The first language is chosen from the persisted locale, so it has to be
+  // readable first: deciding before SecureStore answers loaded the device
+  // language's catalogue, then applyServerLanguage fetched the viewer's own
+  // pick - two bundles and a flash of the wrong language on each cold start.
+  await Promise.all([storeHydrated(useAuthStore), storeHydrated(useLocaleStore)]);
   i18n.on?.("loaded", () => { catalogueArrived = true; });
   i18n.on?.("failedLoading", (lng: string) => {
     catalogueArrived = false;
