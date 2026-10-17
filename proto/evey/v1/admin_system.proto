@@ -747,11 +747,12 @@ message LoadTestTierCost {
   int64 mem_used_bytes = 3;
   int64 disk_read_bytes_per_sec = 4;
   int64 served_bytes_per_sec = 5;
-  // 6 and 7 carried the row's cost divided by its headcount - the idle
-  // server's own consumption charged to the viewers. The per-viewer cost is
-  // the slope between tiers (per_viewer_cost) and nothing else.
-  reserved 6, 7;
-  reserved "cpu_percent_per_viewer", "mem_bytes_per_viewer";
+  // Deprecated, never filled any more: 6 and 7 carried the row's cost divided
+  // by its headcount - the idle server's own consumption charged to the
+  // viewers. The per-viewer cost is the slope between tiers (per_viewer_cost)
+  // and nothing else. Kept declared so the published contract loses no field.
+  double cpu_percent_per_viewer = 6 [deprecated = true];
+  int64 mem_bytes_per_viewer = 7 [deprecated = true];
   int32 samples = 8;
   // go_heap_live_bytes / go_gc_cpu_percent: the server's Go runtime over this
   // tier (see LoadTestResources).
