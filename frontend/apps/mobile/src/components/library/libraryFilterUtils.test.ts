@@ -8,7 +8,6 @@ import {
   hasServerFilters,
   countActiveFilters,
   buildFilterMediaItemsParams,
-  computeNextFilterOffset,
   buildBulkMediaIds,
   selectableMediaIds,
 } from "./libraryFilterUtils";
@@ -288,20 +287,6 @@ describe("buildFilterMediaItemsParams", () => {
 
   it("drops an empty genres array", () => {
     expect(buildFilterMediaItemsParams({ ...base, genres: [] })).toEqual(base);
-  });
-});
-
-describe("computeNextFilterOffset", () => {
-  it("returns undefined when the last page came back short", () => {
-    expect(computeNextFilterOffset(10, 5, 100, 10)).toBeUndefined();
-  });
-
-  it("returns undefined once the running total reaches the server total", () => {
-    expect(computeNextFilterOffset(100, 10, 100, 10)).toBeUndefined();
-  });
-
-  it("returns the running total as the next offset otherwise", () => {
-    expect(computeNextFilterOffset(30, 30, 100, 30)).toBe(30);
   });
 });
 

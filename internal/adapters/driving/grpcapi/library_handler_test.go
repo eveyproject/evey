@@ -987,3 +987,37 @@ func TestLibraryHandler_ListMediaItems_OverrideBeatsAutoTranslation(t *testing.T
 	assert.Equal(t, "Traduction seule", byID["mi-tr"],
 		"without an override the auto-translation still applies - or the test would pass on a handler that ignores locale entirely")
 }
+
+// A kids profile pages FilterMediaItems by offset. The strict parental pass
+// can shorten a page, and the clients stopped on a short page and computed
+// the next offset from the items they received: the first title the pass
+// removed ended the scroll, and later offsets re-read rows. The response now
+// says where the next page starts and whether there is one.
+func TestLibraryHandler_FilterMediaItems_KidsPageShortenedByParentalPass_KeepsPaging(t *testing.T) {
+	h, _, mediaQuery, _, libraryAccess, profiles, _ := newTestLibraryHandler()
+	ctx := context.Background()
+
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-a", LibraryID: "lib-1", Title: "A unrated", SortTitle: "a", Type: "movie"}) // passes SQL, fails closed
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-b", LibraryID: "lib-1", Title: "B", SortTitle: "b", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}})
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-c", LibraryID: "lib-1", Title: "C", SortTitle: "c", Type: "movie",
+		Classification: &library.MediaClassification{OfficialRating: "PG"}})
+	maxAge := 13
+	profiles.Create(ctx, &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Kid", IsKids: true,
+		Parental: &user.ParentalSettings{MaxAge: &maxAge, Enabled: true}})
+	libraryAccess.Grant(ctx, "user-2", "lib-1")
+	kid := userCtx("user-2", "profile-2")
+
+	first, err := h.FilterMediaItems(kid, &eveyv1.FilterMediaItemsRequest{LibraryId: "lib-1", Limit: 2})
+	require.NoError(t, err)
+	require.Len(t, first.Items, 1, "the unrated title is removed from the first page")
+	assert.Equal(t, int32(2), first.NextOffset, "the next page starts after both rows read")
+	assert.True(t, first.HasMore, "a page the parental pass shortened is not the last one")
+
+	second, err := h.FilterMediaItems(kid, &eveyv1.FilterMediaItemsRequest{LibraryId: "lib-1", Limit: 2, Offset: first.NextOffset})
+	require.NoError(t, err)
+	require.Len(t, second.Items, 1)
+	assert.Equal(t, "mi-c", second.Items[0].Id)
+	assert.Equal(t, int32(3), second.NextOffset)
+	assert.False(t, second.HasMore)
+}
