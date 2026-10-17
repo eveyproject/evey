@@ -15,14 +15,7 @@ import (
 // VideoCompositionDelaySec can be exercised without a real ffprobe.
 func writeFakeProbeScript(t *testing.T, fakeJSON string) string {
 	t.Helper()
-	script, err := os.CreateTemp("", "fake_ffprobe_*.sh")
-	require.NoError(t, err)
-	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
-	require.NoError(t, err)
-	require.NoError(t, script.Close())
-	require.NoError(t, os.Chmod(script.Name(), 0o755))
-	t.Cleanup(func() { os.Remove(script.Name()) })
-	return script.Name()
+	return writeFakeBinary(t, filepath.Join(t.TempDir(), "ffprobe"), "#!/bin/sh\necho '"+fakeJSON+"'\n")
 }
 
 // videoCompositionDelayCache must stay bounded exactly like its sibling

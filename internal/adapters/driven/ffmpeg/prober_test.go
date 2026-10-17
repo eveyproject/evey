@@ -2,7 +2,7 @@ package ffmpeg
 
 import (
 	"context"
-	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -109,17 +109,9 @@ func TestProbeStreams_InvalidBinary(t *testing.T) {
 func TestProbeStreams_WithFakeScript(t *testing.T) {
 	fakeJSON := `{"streams":[{"index":0,"codec_name":"h264","codec_type":"video","width":1920,"height":1080,"r_frame_rate":"24/1","disposition":{"default":1,"forced":0},"tags":{"language":"eng"}},{"index":1,"codec_name":"aac","codec_type":"audio","channels":6,"channel_layout":"5.1","sample_rate":"48000","disposition":{"default":1,"forced":0},"tags":{"language":"eng","title":"Surround"}}],"format":{"duration":"7200.5"}}`
 
-	script, err := os.CreateTemp("", "fake_ffprobe_*.sh")
-	require.NoError(t, err)
-	defer os.Remove(script.Name())
+	script := fakeFFprobe(t, fakeJSON)
 
-	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
-	require.NoError(t, err)
-	script.Close()
-
-	require.NoError(t, os.Chmod(script.Name(), 0755))
-
-	p := NewProber(script.Name())
+	p := NewProber(script)
 	result, err := p.ProbeStreams(context.Background(), "/fake/movie.mkv")
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -159,16 +151,9 @@ func TestProbeStreams_WithFakeScript(t *testing.T) {
 func TestProbeStreams_WithColorSpace(t *testing.T) {
 	fakeJSON := `{"streams":[{"index":0,"codec_name":"hevc","codec_type":"video","width":3840,"height":2160,"r_frame_rate":"60/1","color_space":"bt2020nc","bits_per_raw_sample":"10","bit_rate":"20000000","disposition":{"default":1,"forced":0},"tags":{}}],"format":{"duration":"5400.0"}}`
 
-	script, err := os.CreateTemp("", "fake_ffprobe_hdr_*.sh")
-	require.NoError(t, err)
-	defer os.Remove(script.Name())
+	script := fakeFFprobe(t, fakeJSON)
 
-	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
-	require.NoError(t, err)
-	script.Close()
-	require.NoError(t, os.Chmod(script.Name(), 0755))
-
-	p := NewProber(script.Name())
+	p := NewProber(script)
 	result, err := p.ProbeStreams(context.Background(), "/fake/movie.mkv")
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -193,16 +178,9 @@ func TestProbeStreams_WithColorSpace(t *testing.T) {
 func TestProbeStreams_ColorTransferAndDoVi(t *testing.T) {
 	fakeJSON := `{"streams":[{"index":0,"codec_name":"hevc","codec_type":"video","profile":"Main 10","level":153,"width":3840,"height":2160,"r_frame_rate":"24000/1001","color_space":"bt2020nc","color_transfer":"smpte2084","disposition":{"default":1,"forced":0},"tags":{},"side_data_list":[{"side_data_type":"DOVI configuration record","dv_version_major":1,"dv_version_minor":0,"dv_profile":8,"dv_level":6,"rpu_present_flag":1,"el_present_flag":0,"bl_present_flag":1,"dv_bl_signal_compatibility_id":1}]}],"format":{"duration":"5400.0"}}`
 
-	script, err := os.CreateTemp("", "fake_ffprobe_dovi_*.sh")
-	require.NoError(t, err)
-	defer os.Remove(script.Name())
+	script := fakeFFprobe(t, fakeJSON)
 
-	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
-	require.NoError(t, err)
-	script.Close()
-	require.NoError(t, os.Chmod(script.Name(), 0755))
-
-	p := NewProber(script.Name())
+	p := NewProber(script)
 	result, err := p.ProbeStreams(context.Background(), "/fake/movie.mkv")
 	require.NoError(t, err)
 	require.Len(t, result.Streams, 1)
@@ -223,16 +201,9 @@ func TestProbeStreams_ColorTransferAndDoVi(t *testing.T) {
 func TestProbeStreams_NoDoViSideData(t *testing.T) {
 	fakeJSON := `{"streams":[{"index":0,"codec_name":"hevc","codec_type":"video","color_transfer":"arib-std-b67","disposition":{"default":1,"forced":0},"tags":{},"side_data_list":[{"side_data_type":"Content light level metadata"}]}],"format":{"duration":"60.0"}}`
 
-	script, err := os.CreateTemp("", "fake_ffprobe_nodovi_*.sh")
-	require.NoError(t, err)
-	defer os.Remove(script.Name())
+	script := fakeFFprobe(t, fakeJSON)
 
-	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
-	require.NoError(t, err)
-	script.Close()
-	require.NoError(t, os.Chmod(script.Name(), 0755))
-
-	p := NewProber(script.Name())
+	p := NewProber(script)
 	result, err := p.ProbeStreams(context.Background(), "/fake/movie.mkv")
 	require.NoError(t, err)
 	require.Len(t, result.Streams, 1)
@@ -247,16 +218,9 @@ func TestProbeStreams_NoDoViSideData(t *testing.T) {
 func TestProbeStreams_EmptyStreams(t *testing.T) {
 	fakeJSON := `{"streams":[],"format":{"duration":"0"}}`
 
-	script, err := os.CreateTemp("", "fake_ffprobe_empty_*.sh")
-	require.NoError(t, err)
-	defer os.Remove(script.Name())
+	script := fakeFFprobe(t, fakeJSON)
 
-	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
-	require.NoError(t, err)
-	script.Close()
-	require.NoError(t, os.Chmod(script.Name(), 0755))
-
-	p := NewProber(script.Name())
+	p := NewProber(script)
 	result, err := p.ProbeStreams(context.Background(), "/fake/empty.mkv")
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -265,17 +229,10 @@ func TestProbeStreams_EmptyStreams(t *testing.T) {
 }
 
 func TestProbeStreams_InvalidJSON(t *testing.T) {
-	script, err := os.CreateTemp("", "fake_ffprobe_bad_*.sh")
-	require.NoError(t, err)
-	defer os.Remove(script.Name())
+	script := writeFakeBinary(t, filepath.Join(t.TempDir(), "ffprobe"), "#!/bin/sh\necho 'not valid json'\n")
 
-	_, err = script.WriteString("#!/bin/sh\necho 'not valid json'\n")
-	require.NoError(t, err)
-	script.Close()
-	require.NoError(t, os.Chmod(script.Name(), 0755))
-
-	p := NewProber(script.Name())
-	_, err = p.ProbeStreams(context.Background(), "/fake/movie.mkv")
+	p := NewProber(script)
+	_, err := p.ProbeStreams(context.Background(), "/fake/movie.mkv")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ffprobe parse")
 }
@@ -322,16 +279,9 @@ func TestProbeStreams_ExtendedDispositions(t *testing.T) {
 		`{"index":2,"codec_name":"aac","codec_type":"audio","channels":2,"sample_rate":"48000","disposition":{"default":1,"forced":0,"comment":0,"hearing_impaired":0,"visual_impaired":0,"descriptions":1,"original":1},"tags":{"language":"eng"}}` +
 		`],"format":{"duration":"3600.0"}}`
 
-	script, err := os.CreateTemp("", "fake_ffprobe_disp_*.sh")
-	require.NoError(t, err)
-	defer os.Remove(script.Name())
+	script := fakeFFprobe(t, fakeJSON)
 
-	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
-	require.NoError(t, err)
-	script.Close()
-	require.NoError(t, os.Chmod(script.Name(), 0755))
-
-	p := NewProber(script.Name())
+	p := NewProber(script)
 	result, err := p.ProbeStreams(context.Background(), "/fake/multi.mkv")
 	require.NoError(t, err)
 	require.Len(t, result.Streams, 3)
@@ -406,16 +356,10 @@ func TestProbeStreams_SoleMJPEGVideoIsKept(t *testing.T) {
 	assert.Equal(t, library.StreamTypeVideo, result.Streams[0].StreamType)
 }
 
+// fakeFFprobe is an ffprobe that ignores its arguments and prints fakeJSON.
 func fakeFFprobe(t *testing.T, fakeJSON string) string {
 	t.Helper()
-	script, err := os.CreateTemp("", "fake_ffprobe_*.sh")
-	require.NoError(t, err)
-	t.Cleanup(func() { os.Remove(script.Name()) })
-	_, err = script.WriteString("#!/bin/sh\necho '" + fakeJSON + "'\n")
-	require.NoError(t, err)
-	require.NoError(t, script.Close())
-	require.NoError(t, os.Chmod(script.Name(), 0755))
-	return script.Name()
+	return writeFakeBinary(t, filepath.Join(t.TempDir(), "ffprobe"), "#!/bin/sh\necho '"+fakeJSON+"'\n")
 }
 
 func TestParseIdetVerdict_Telecine(t *testing.T) {

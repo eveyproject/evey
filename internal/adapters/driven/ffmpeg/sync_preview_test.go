@@ -3,6 +3,7 @@ package ffmpeg
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -26,14 +27,7 @@ func fakeClipFFmpeg(t *testing.T, failHW bool) (bin, argsDir string) {
 		body += "for a; do case \"$a\" in -hwaccel|-vaapi_device) echo 'Device creation failed' >&2; exit 1;; esac; done\n"
 	}
 	body += "for a; do out=$a; done\nprintf 'mp4' > \"$out\"\n"
-	f, err := os.CreateTemp("", "fake-ffmpeg-sync-*.sh")
-	require.NoError(t, err)
-	_, err = f.WriteString(body)
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
-	require.NoError(t, os.Chmod(f.Name(), 0o755))
-	t.Cleanup(func() { os.Remove(f.Name()) })
-	return f.Name(), argsDir
+	return writeFakeBinary(t, filepath.Join(t.TempDir(), "ffmpeg"), body), argsDir
 }
 
 func recordedCalls(t *testing.T, argsDir string) [][]string {
