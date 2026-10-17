@@ -13,7 +13,7 @@ import {
   DEFAULT_CLIENT_WEIGHTS,
   LOAD_TEST_QUERY_KEY,
   LOAD_TEST_URL,
-  STOP_REASON_KEYS,
+  stopReasonKey,
   stopCause,
   windowStateKey,
   phaseKey,
@@ -311,7 +311,7 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
       {showDetails && (
         <View style={{ gap: 6, paddingTop: 4 }}>
       <Text style={{ color: isBottleneck ? theme.colors.text : theme.colors.textMuted, fontSize: 14, fontWeight: isBottleneck ? "600" : "400" }}>
-        {t((report.stopReason && STOP_REASON_KEYS[report.stopReason]) ?? "admin.loadtest.stopReason.error")}
+        {t(stopReasonKey(report))}
       </Text>
       {cause && (
         <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>

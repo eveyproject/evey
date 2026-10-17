@@ -1279,6 +1279,7 @@ loadtest:
     admissionFull: "Le serveur a refusé le spectateur suivant, comme prévu."
     cpuSaturated: "Le CPU a saturé : c'est lui qui limite ce serveur."
     throughputSaturated: "Le débit a plafonné : le serveur ne peut pas lire les médias plus vite. C'est lui, le goulot."
+    throughputViaProxy: "Le débit a plafonné sur le chemin par le proxy, alors que ni le processeur ni les disques du serveur n'étaient à bout."
     startupTooSlow: "Le démarrage d'une nouvelle lecture est devenu trop lent : le serveur est plein, même s'il continue de servir les autres."
     serverFailing: "Le serveur a cessé de servir des spectateurs sous cette charge."
     memorySaturated: "La mémoire a saturé : c'est elle qui limite ce serveur."

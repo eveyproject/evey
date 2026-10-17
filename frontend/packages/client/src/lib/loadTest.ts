@@ -411,6 +411,17 @@ const SATURATED_CPU_PERCENT = 85;
 // sustained tier is by definition the one that held, so its figures look idle
 // (measured 2026-10-12: disks at 15 % on the 37 that held, the 38 that broke
 // unseen). The cause names that tier, so the header and the table agree.
+// stopReasonKey is the stop sentence. A throughput plateau the server put on
+// the proxy (nothing on the server saturated, the run went through the proxy)
+// is said to be the proxy path's: "the server cannot read faster" was printed
+// on 2026-10-17 beside a headline naming the proxy, disks 13 % busy.
+export function stopReasonKey(report: LoadTestReport): string {
+  if (report.stopReason === "throughput_saturated" && report.limiter === "proxy") {
+    return "admin.loadtest.stopReason.throughputViaProxy";
+  }
+  return (report.stopReason && STOP_REASON_KEYS[report.stopReason]) ?? "admin.loadtest.stopReason.error";
+}
+
 export function stopCause(report: LoadTestReport): LoadTestCause | null {
   const reason = report.stopReason;
   if (!reason || !["slo_breach", "startup_too_slow", "server_failing", "throughput_saturated"].includes(reason)) {
@@ -441,6 +452,12 @@ export function stopCause(report: LoadTestReport): LoadTestCause | null {
   const cpu = Math.round((atBreak ? (report.breakResources?.cpuPercentPeak ?? report.breakCpuPercentPeak) : report.resources?.cpuPercentPeak) ?? 0);
   if (cpu >= SATURATED_CPU_PERCENT) {
     return { key: "admin.loadtest.cause.cpu", params: { peak: cpu }, tier, tierState };
+  }
+  // Nothing on the server saturated and the server put it on the proxy: the
+  // headline and the stop sentence already say so, a "the delay came from
+  // elsewhere" list would be a third answer.
+  if (report.limiter === "proxy") {
+    return null;
   }
   if (!verdict?.device) {
     return { key: "admin.loadtest.cause.nothingSaturatedNoDisks", params: { cpu, iowait }, tier, tierState };

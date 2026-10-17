@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { V1VideoPool } from "@evey/api";
-import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, servedPathLines, stopCause } from "./loadTestHelpers";
+import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, servedPathLines, stopCause, stopReasonKey } from "./loadTestHelpers";
 
 // Pure formatting/reading helpers behind the load-test panel.
 describe("load test helpers", () => {
@@ -164,5 +164,35 @@ describe("stopCause", () => {
     for (const stopReason of ["cpu_saturated", "max_viewers", "cancelled", "admission_full"] as const) {
       expect(stopCause({ stopReason })).toBeNull();
     }
+  });
+});
+
+describe("stopReasonKey", () => {
+  // The 2026-10-17 run through the proxy: 49 held, 51 broke on a throughput
+  // plateau near 255 Mb/s, CPU 9 %, sda 7 ms and 13 % busy, the server naming
+  // the proxy - and the report saying the server could not read any faster.
+  const viaProxy = {
+    stopReason: "throughput_saturated" as const,
+    limiter: "proxy",
+    viaProxy: true,
+    sustainedViewers: 49,
+    breakViewers: 51,
+    breakResources: { cpuPercentPeak: 9, machineIowaitPercentAvg: 14 },
+    diskVerdict: { device: "sda", awaitMs: 7, utilPercent: 13, iowaitPercent: 14, saturated: false },
+  };
+
+  it("puts a plateau the server named on the proxy on the proxy path, with no third cause", () => {
+    expect(stopReasonKey(viaProxy)).toBe("admin.loadtest.stopReason.throughputViaProxy");
+    expect(stopCause(viaProxy)).toBeNull();
+  });
+
+  it("keeps the server's own plateau and its cause when the run went direct", () => {
+    const direct = { ...viaProxy, limiter: "unknown", viaProxy: false };
+    expect(stopReasonKey(direct)).toBe("admin.loadtest.stopReason.throughputSaturated");
+    expect(stopCause(direct)).toMatchObject({ key: "admin.loadtest.cause.nothingSaturated", tier: 51, tierState: "broke" });
+  });
+
+  it("falls back to the generic error sentence without a stop reason", () => {
+    expect(stopReasonKey({})).toBe("admin.loadtest.stopReason.error");
   });
 });

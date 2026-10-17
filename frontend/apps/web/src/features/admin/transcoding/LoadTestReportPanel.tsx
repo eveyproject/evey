@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@evey/api";
-import { BOTTLENECK_REASONS, STOP_REASON_KEYS, adviceLine, gridRows, deviceLines, formatMbps, limiterLine, mixParts, phaseKey, poolShares, servedPathLines, stopCause, verdictLine, windowStateKey } from "./loadTestHelpers";
+import { BOTTLENECK_REASONS, adviceLine, gridRows, deviceLines, formatMbps, limiterLine, mixParts, phaseKey, poolShares, servedPathLines, stopCause, stopReasonKey, verdictLine, windowStateKey } from "./loadTestHelpers";
 import type { LoadTestReport, LoadTestResources, LoadTestWindow } from "./loadTestTypes";
 
 // LoadTestReportPanel renders the "answer" of a finished load test run: the
@@ -105,10 +105,7 @@ export function LoadTestReportPanel({
         }
         data-testid="load-test-stop-reason"
       >
-        {t(
-          (report.stopReason && STOP_REASON_KEYS[report.stopReason]) ??
-            "admin.loadtest.stopReason.error",
-        )}
+        {t(stopReasonKey(report))}
       </p>
       {cause && (
         <p className="text-sm text-[var(--text)]" data-testid="load-test-cause">

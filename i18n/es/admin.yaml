@@ -1313,6 +1313,7 @@ loadtest:
     admissionFull: "El servidor rechazó al siguiente espectador, tal como estaba previsto."
     cpuSaturated: "La CPU se saturó: es lo que limita este servidor."
     throughputSaturated: "El caudal se estancó: el servidor no puede leer los medios más rápido. Ese es el cuello de botella."
+    throughputViaProxy: "El caudal se estancó en el camino a través del proxy, sin que el procesador ni los discos del servidor estuvieran al límite."
     startupTooSlow: "Iniciar una nueva reproducción se volvió demasiado lento: el servidor está lleno, aunque siga sirviendo a los demás."
     serverFailing: "El servidor dejó de servir espectadores con esta carga."
     memorySaturated: "La memoria se saturó: es lo que limita este servidor."
