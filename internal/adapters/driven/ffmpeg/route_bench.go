@@ -679,7 +679,11 @@ func (s *gpuSampler) start() func() (float64, float64, float64) {
 		return func() (float64, float64, float64) { return -1, -1, -1 }
 	}
 	out, err := cmd.StdoutPipe()
-	if err != nil || cmd.Start() != nil {
+	if err == nil {
+		err = cmd.Start()
+	}
+	if err != nil {
+		_ = finish(err, nil) //nolint:errcheck // the flight is tracked until Finish, started or not
 		cancel()
 		return func() (float64, float64, float64) { return -1, -1, -1 }
 	}
