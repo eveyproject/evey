@@ -14,9 +14,9 @@ import (
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 )
 
-// A real plan counts as served exactly the bytes its segments wrote, whether
-// streamed or handed out whole, and WindowStats sums them beside the source
-// read.
+// A real plan counts as served (mkvgo's ServedBytes + StreamedBytes) exactly
+// the bytes its segments wrote, whether streamed or handed out whole, and
+// WindowStats sums them beside the source read.
 //
 //	EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/mkvgo/ -run TestReadRatio -v
 func TestReadRatio_RealPlanCountsWhatItServed(t *testing.T) {
