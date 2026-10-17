@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"syscall"
 	"testing"
 	"time"
@@ -132,7 +133,7 @@ func TestCollect_CachesResult(t *testing.T) {
 	s1 := Collect()
 	s2 := Collect() // should return cached value instantly
 
-	if s1 != s2 {
+	if !reflect.DeepEqual(s1, s2) {
 		t.Error("second Collect() should return cached result")
 	}
 

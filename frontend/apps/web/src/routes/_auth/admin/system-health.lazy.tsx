@@ -6,6 +6,8 @@ import { useAdminSystemServiceGetDashboard, useAdminSystemServiceGetSystemInfo, 
 import { Spinner } from "@/components/ui/Spinner";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { BackgroundTasksPanel } from "@/features/admin/BackgroundTasksPanel";
+import { DiskIOList } from "@/features/admin/DiskIO";
+import { SystemTrends } from "@/features/admin/SystemTrends";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 import type { V1SystemInfo } from "@evey/api";
 
@@ -78,9 +80,11 @@ interface MetricCardProps {
   label: string;
   value: number;
   history: number[];
+  // A quieter second fact under the gauge ("of which 12 % waiting on disks").
+  sub?: string;
 }
 
-function MetricCard({ label, value, history }: MetricCardProps) {
+function MetricCard({ label, value, history, sub }: MetricCardProps) {
   const pct = Math.min(100, Math.max(0, value));
   const color = getUsageColor(pct);
   const textClass = getUsageTextColor(pct);
@@ -108,7 +112,8 @@ function MetricCard({ label, value, history }: MetricCardProps) {
           style={{ width: `${pct}%`, backgroundColor: color }}
         />
       </div>
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-[var(--text-muted)]">{sub ?? ""}</span>
         <Sparkline values={history} color={color} />
       </div>
     </div>
@@ -444,6 +449,7 @@ function SystemHealthPage() {
                 label={t("admin.systemHealth.cpuUsage")}
                 value={dashData.cpuPercent ?? 0}
                 history={cpuHistory.current}
+                sub={t("admin.systemHealth.iowaitSub", { percent: (dashData.iowaitPercent ?? 0).toFixed(1) })}
               />
               <MetricCard
                 label={t("admin.systemHealth.memoryUsage")}
@@ -466,6 +472,27 @@ function SystemHealthPage() {
               <ForksCard forks={metrics.forks} />
             </div>
           )}
+
+          {dashData?.disks && dashData.disks.length > 0 && (
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
+                {t("admin.systemHealth.disksSection")}
+              </h2>
+              <DiskIOList
+                disks={dashData.disks}
+                idleAwaitMs={dashData.idleDiskAwaitMs}
+                saturationAwaitMs={dashData.saturationAwaitMs}
+                iowaitPercent={dashData.iowaitPercent}
+              />
+            </div>
+          )}
+
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">
+              {t("admin.systemHealth.trendsSection")}
+            </h2>
+            <SystemTrends />
+          </div>
 
           <div>
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-[var(--text-muted)]">

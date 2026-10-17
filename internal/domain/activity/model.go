@@ -57,7 +57,22 @@ type ServerMetric struct {
 	BandwidthBps      int64
 	StorageUsedBytes  int64
 	StorageTotalBytes int64
-	RecordedAt        time.Time
+	// IOWaitPercent is the machine's share of CPU time spent waiting on a
+	// disk; the CPU figure above counts that time as idle.
+	IOWaitPercent float64
+	// DiskAwaitMs and DiskUtilPercent are the busiest disk's mean request
+	// wait and busy share over the sample; DiskBusiest names that disk by
+	// its stable label. The rates are summed over every physical disk.
+	DiskAwaitMs     float64
+	DiskUtilPercent float64
+	DiskReadBps     int64
+	DiskWriteBps    int64
+	DiskBusiest     string
+	// NetRxBps and NetTxBps are the traffic of every interface but the
+	// loopback: what crossed the server's network, streaming or not.
+	NetRxBps   int64
+	NetTxBps   int64
+	RecordedAt time.Time
 }
 
 type UserStats struct {

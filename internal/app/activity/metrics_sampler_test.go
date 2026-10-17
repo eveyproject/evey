@@ -7,6 +7,7 @@ import (
 
 	"github.com/eveyproject/evey/internal/domain/activity"
 	"github.com/eveyproject/evey/internal/domain/activity/fakes"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -88,6 +89,65 @@ func TestNewMetricsSampler_RejectsNonPositiveAndTooSmallIntervals(t *testing.T) 
 		s := NewMetricsSampler(nil, nil, nil, nil, nil).WithSampleInterval(d)
 		if got := s.SampleInterval(); got != defaultSampleInterval {
 			t.Errorf("interval for %v: want the default %v, got %v", d, defaultSampleInterval, got)
+		}
+	}
+}
+
+// The disks' saturation never showed in the history because no sample carried
+// it: the autumn's two production incidents were idle cores waiting on a disk.
+// A sample now keeps the disk that waited the most (not the busiest one: a
+// disk at 100 % serving requests in 2 ms is fine), sums the rates and fills
+// the storage columns that were written as zero since the table existed.
+func TestMetricsSampler_RecordsDisksIOWaitNetworkAndStorage(t *testing.T) {
+	repo := fakes.NewFakeServerMetricRepository()
+	cmd := NewCommandService(nil, repo, nil, nil)
+	s := NewMetricsSampler(cmd, nil, nil, func() SysSample {
+		return SysSample{
+			IOWaitPercent: 42,
+			Net:           sysinfo.NetIO{RxBps: 1000, TxBps: 2000},
+			Disks: []sysinfo.DiskIO{
+				{Label: "QEMU HARDDISK drive-scsi1", AwaitMs: 8, UtilPercent: 100, ReadBps: 10, WriteBps: 1},
+				{Label: "QEMU HARDDISK drive-scsi2", AwaitMs: 35, UtilPercent: 60, ReadBps: 20, WriteBps: 2},
+			},
+		}
+	}, nil).WithStorage(func() (int64, int64) { return 300, 1000 })
+
+	s.SampleOnce(context.Background())
+
+	rows, err := repo.GetByTimeRange(context.Background(), time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	m := rows[0]
+	assert.InEpsilon(t, 42.0, m.IOWaitPercent, 1e-9)
+	assert.Equal(t, "QEMU HARDDISK drive-scsi2", m.DiskBusiest, "the disk that waited the most, not the busiest")
+	assert.InEpsilon(t, 35.0, m.DiskAwaitMs, 1e-9)
+	assert.InEpsilon(t, 60.0, m.DiskUtilPercent, 1e-9)
+	assert.Equal(t, int64(30), m.DiskReadBps)
+	assert.Equal(t, int64(3), m.DiskWriteBps)
+	assert.Equal(t, int64(1000), m.NetRxBps)
+	assert.Equal(t, int64(2000), m.NetTxBps)
+	assert.Equal(t, int64(300), m.StorageUsedBytes)
+	assert.Equal(t, int64(1000), m.StorageTotalBytes)
+}
+
+// A week of one-minute samples is 10 080 rows, above the repository's cap, so
+// a chart asks for buckets: the width adapts to the window unless the client
+// named one, and always lands on a step two clients share.
+func TestMetricBucket_FitsTheWindowUnderThePointCap(t *testing.T) {
+	cases := []struct {
+		window, requested, want time.Duration
+	}{
+		{time.Hour, 0, time.Minute},
+		{24 * time.Hour, 0, 2 * time.Minute},
+		{7 * 24 * time.Hour, 0, 15 * time.Minute},
+		{30 * 24 * time.Hour, 0, time.Hour},
+		{365 * 24 * time.Hour, 0, 24 * time.Hour},
+		{7 * 24 * time.Hour, 7 * time.Minute, 10 * time.Minute},
+		{time.Hour, 24 * time.Hour, 24 * time.Hour},
+	}
+	for _, c := range cases {
+		if got := MetricBucket(c.window, c.requested); got != c.want {
+			t.Errorf("window %v requested %v: want %v, got %v", c.window, c.requested, c.want, got)
 		}
 	}
 }

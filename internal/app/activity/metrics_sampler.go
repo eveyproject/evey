@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 	"github.com/google/uuid"
 )
 
@@ -22,7 +23,13 @@ type SysSample struct {
 	CPUPercent    float64
 	MemUsedBytes  int64
 	MemTotalBytes int64
+	IOWaitPercent float64
+	Disks         []sysinfo.DiskIO
+	Net           sysinfo.NetIO
 }
+
+// StorageTotals reports the library disks' used and total bytes.
+type StorageTotals func() (used, total int64)
 
 // MetricsSampler periodically records a ServerMetric row: CPU/memory, active
 // stream/transcode counts and the streaming bandwidth actually served over
@@ -34,6 +41,7 @@ type MetricsSampler struct {
 	stats    activity.PlaySessionStatsReader
 	meter    BytesTotaler
 	collect  func() SysSample
+	storage  StorageTotals
 	interval time.Duration
 	logger   *slog.Logger
 
@@ -82,6 +90,13 @@ func (s *MetricsSampler) WithSampleInterval(d time.Duration) *MetricsSampler {
 	return s
 }
 
+// WithStorage supplies the library disks' usage. Without it the storage
+// columns stay zero, as they did for every sample before this existed.
+func (s *MetricsSampler) WithStorage(fn StorageTotals) *MetricsSampler {
+	s.storage = fn
+	return s
+}
+
 // SampleInterval exposes the cadence actually in force - the operator-set one
 // or the default.
 func (s *MetricsSampler) SampleInterval() time.Duration { return s.interval }
@@ -114,6 +129,12 @@ func (s *MetricsSampler) SampleOnce(ctx context.Context) {
 		m.CPUPercent = sys.CPUPercent
 		m.MemoryUsedBytes = sys.MemUsedBytes
 		m.MemoryTotalBytes = sys.MemTotalBytes
+		m.IOWaitPercent = sys.IOWaitPercent
+		m.NetRxBps, m.NetTxBps = sys.Net.RxBps, sys.Net.TxBps
+		recordDisks(m, sys.Disks)
+	}
+	if s.storage != nil {
+		m.StorageUsedBytes, m.StorageTotalBytes = s.storage()
 	}
 	if s.stats != nil {
 		if st, err := s.stats.GetServerStats(ctx); err != nil {
@@ -134,5 +155,21 @@ func (s *MetricsSampler) SampleOnce(ctx context.Context) {
 
 	if err := s.cmd.RecordMetric(ctx, m); err != nil {
 		s.logger.Warn("metrics sample: record failed", slog.Any("err", err))
+	}
+}
+
+// recordDisks keeps the busiest disk's wait and busy share and sums the
+// rates. The busiest disk is the one that waited the most: a disk at 100 %
+// busy serving every request in 2 ms is doing fine, one at 60 % making each
+// request wait 40 ms is the one the admin must see.
+func recordDisks(m *activity.ServerMetric, disks []sysinfo.DiskIO) {
+	for _, d := range disks {
+		m.DiskReadBps += d.ReadBps
+		m.DiskWriteBps += d.WriteBps
+		if d.AwaitMs > m.DiskAwaitMs || (m.DiskBusiest == "" && d.AwaitMs == m.DiskAwaitMs) {
+			m.DiskAwaitMs = d.AwaitMs
+			m.DiskUtilPercent = d.UtilPercent
+			m.DiskBusiest = d.Label
+		}
 	}
 }

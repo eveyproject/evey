@@ -11,9 +11,20 @@ vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useAdminSystemServiceGetDashboard: (...args: unknown[]) => mockGetDashboard(...args),
   useAdminSystemServiceGetSystemInfo: (...args: unknown[]) => mockGetSystemInfo(...args),
+  // The trends section reads the sampled history; empty here, it has its own test.
+  useActivityServiceListServerMetrics: () => ({ data: { metrics: [] }, isLoading: false, isFetching: false, isError: false }),
   // The finer metrics and the background-tasks panel read plain JSON routes.
   eveyFetch: (...args: unknown[]) => mockFetch(...args),
 }));
+
+// recharts renders real SVG that jsdom cannot measure.
+vi.mock("recharts", () => {
+  const Passthrough = ({ children }: { children?: React.ReactNode }) => React.createElement("div", null, children);
+  return {
+    LineChart: Passthrough, Line: () => null, XAxis: () => null, YAxis: () => null,
+    Tooltip: () => null, Legend: () => null, ReferenceLine: () => null, CartesianGrid: () => null,
+  };
+});
 
 const metrics = {
   load: { avg1: 1.5, avg5: 1.2, avg15: 0.9, known: true, cpus: 8, cpuBudget: 4 },
@@ -46,6 +57,7 @@ async function getSystemHealthPage() {
 const dashData = {
   cpuPercent: 45,
   memoryPercent: 60,
+  iowaitPercent: 12.3,
   activeStreams: 2,
   activeTranscodes: 1,
   totalMediaItems: 500,
@@ -134,6 +146,48 @@ describe("SystemHealthPage", () => {
     // The activity counters (streams, users) left for the dashboard.
     expect(screen.queryByText(/Total Users/i)).not.toBeInTheDocument();
     expect(screen.getByTestId("background-tasks-panel")).toBeInTheDocument();
+  });
+
+  it("shows the share of CPU time waiting on disks under the CPU gauge", async () => {
+    mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    expect(screen.getByText("of which 12.3% waiting on disks")).toBeInTheDocument();
+  });
+
+  it("lists the machine's disks when the server exposes them, and hides the section otherwise", async () => {
+    mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
+    mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
+    const SystemHealthPage = await getSystemHealthPage();
+    const { unmount } = render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    expect(screen.queryByTestId("disk-io-list")).not.toBeInTheDocument();
+    unmount();
+
+    const withDisks = {
+      ...dashData,
+      idleDiskAwaitMs: 7.5,
+      saturationAwaitMs: 20,
+      disks: [
+        { label: "QEMU HARDDISK drive-scsi1", device: "sda", rotational: true, awaitMs: 38.2, utilPercent: 61, readBps: "73400320", writeBps: "0", saturated: true },
+      ],
+    };
+    mockGetDashboard.mockReturnValue({ data: withDisks, isLoading: false, dataUpdatedAt: Date.now() });
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    expect(screen.getByText("Disks (whole machine)")).toBeInTheDocument();
+    const list = screen.getByTestId("disk-io-list");
+    expect(list).toHaveTextContent("38.2 ms");
+    expect(list).toHaveTextContent("Saturated");
+    expect(list).toHaveTextContent("At rest 7.5 ms · saturated above 20 ms");
+  });
+
+  it("hosts the trends section under the live cards", async () => {
+    mockGetDashboard.mockReturnValue({ data: dashData, isLoading: false, dataUpdatedAt: Date.now() });
+    mockGetSystemInfo.mockReturnValue({ data: sysData, isLoading: false });
+    const SystemHealthPage = await getSystemHealthPage();
+    render(React.createElement(SystemHealthPage), { wrapper: createWrapper() });
+    expect(screen.getByText("Trends")).toBeInTheDocument();
+    expect(screen.getByTestId("system-trends")).toBeInTheDocument();
   });
 
   it("renders server info panel with version", async () => {

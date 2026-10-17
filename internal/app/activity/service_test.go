@@ -487,7 +487,11 @@ func (p *panicMetricRepo) Create(context.Context, *activity.ServerMetric) error 
 func (p *panicMetricRepo) GetByTimeRange(context.Context, time.Time, time.Time) ([]*activity.ServerMetric, error) {
 	return nil, nil
 }
-func (p *panicMetricRepo) TotalBandwidthBytes(context.Context) (int64, error) { return 0, nil }
+func (p *panicMetricRepo) GetBucketed(context.Context, time.Time, time.Time, time.Duration) ([]*activity.ServerMetric, error) {
+	return nil, nil
+}
+func (p *panicMetricRepo) IdleDiskAwaitMs(context.Context, time.Time) (float64, error) { return 0, nil }
+func (p *panicMetricRepo) TotalBandwidthBytes(context.Context) (int64, error)          { return 0, nil }
 func (p *panicMetricRepo) Purge(context.Context, time.Time) error {
 	select {
 	case p.called <- struct{}{}:

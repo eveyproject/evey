@@ -12,6 +12,8 @@ import {
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { BackgroundTasksPanel } from "../../../src/components/admin/BackgroundTasksPanel";
+import { DiskIOList } from "../../../src/components/admin/DiskIO";
+import { SystemTrends } from "../../../src/components/admin/SystemTrends";
 import { formatBytes } from "@evey/api";
 
 const HISTORY_SIZE = 30;
@@ -132,6 +134,9 @@ export default function SystemHealthScreen() {
           <Text style={{ color: getUsageColor(cpuPct, theme), fontSize: 13, fontWeight: "700" }}>{cpuPct.toFixed(1)}%</Text>
         </View>
         <ProgressBar pct={cpuPct} color={getUsageColor(cpuPct, theme)} />
+        <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 4 }}>
+          {t("admin.systemHealth.iowaitSub", { percent: (dashboard?.iowaitPercent ?? 0).toFixed(1) })}
+        </Text>
         {cpuData.length > 1 && (
           <View style={{ marginTop: 8 }}>
             <LineChart
@@ -284,6 +289,30 @@ export default function SystemHealthScreen() {
           </View>
         </>
       )}
+
+      {/* The machine's disks, the wait first (mirror web DiskIOList). */}
+      {dashboard?.disks && dashboard.disks.length > 0 && (
+        <>
+          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+            {t("admin.systemHealth.disksSection")}
+          </Text>
+          <View style={{ marginHorizontal: 16 }}>
+            <DiskIOList
+              disks={dashboard.disks}
+              idleAwaitMs={dashboard.idleDiskAwaitMs}
+              saturationAwaitMs={dashboard.saturationAwaitMs}
+              iowaitPercent={dashboard.iowaitPercent}
+              theme={theme}
+            />
+          </View>
+        </>
+      )}
+
+      {/* The sampled history, 24 h / 7 d / 30 d (mirror web SystemTrends). */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+        {t("admin.systemHealth.trendsSection")}
+      </Text>
+      <SystemTrends theme={theme} />
 
       {/* Background tasks, with how far each one and the whole library are */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>

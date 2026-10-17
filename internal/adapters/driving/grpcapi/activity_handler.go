@@ -17,6 +17,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -325,11 +326,19 @@ func (h *activityHandler) ListServerMetrics(ctx context.Context, req *eveyv1.Lis
 	if !fromOK {
 		from = to.Add(-24 * time.Hour)
 	}
-	metrics, err := h.svc.GetServerMetrics(ctx, from, to)
+	// The samples are folded into buckets: a week of one-minute rows is more
+	// than the repository hands out and more than any chart can draw.
+	bucket := appactivity.MetricBucket(to.Sub(from), time.Duration(req.GetIntervalSeconds())*time.Second)
+	metrics, err := h.svc.GetServerMetricsBucketed(ctx, from, to, bucket)
 	if err != nil {
 		return nil, internalError(ctx, "get metrics", err)
 	}
-	resp := &eveyv1.ListServerMetricsResponse{}
+	idle := h.svc.IdleDiskAwaitMs(ctx)
+	resp := &eveyv1.ListServerMetricsResponse{
+		IntervalSeconds:   int32(bucket.Seconds()),
+		IdleDiskAwaitMs:   idle,
+		SaturationAwaitMs: sysinfo.SaturationAwaitMs(idle),
+	}
 	for _, m := range metrics {
 		resp.Metrics = append(resp.Metrics, serverMetricToProto(m))
 	}

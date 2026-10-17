@@ -548,7 +548,30 @@ func (d *adminSystemHandler) GetDashboard(ctx context.Context, _ *eveyv1.GetDash
 		CpuPercent:       sys.CPUPercent,
 		EveyCpuPercent:   sys.EveyCPUPercent,
 		MemoryPercent:    sys.MemoryPercent,
+		IowaitPercent:    sys.IOWaitPercent,
 		StreamingBps:     -1,
+	}
+	if len(sys.Disks) > 0 {
+		// The saturation line comes from the disks' own wait at rest, read
+		// from the last day of history: a fixed threshold misjudged the load
+		// test of 2026-10-15 (disks 56-82 % busy, every request waiting
+		// 27-46 ms against 7-8 ms when the run held).
+		idle := d.activitySvc.IdleDiskAwaitMs(ctx)
+		resp.IdleDiskAwaitMs = idle
+		resp.SaturationAwaitMs = sysinfo.SaturationAwaitMs(idle)
+		for _, disk := range sys.Disks {
+			resp.Disks = append(resp.Disks, &eveyv1.DiskIOInfo{
+				Label:             disk.Label,
+				Device:            disk.Device,
+				Rotational:        disk.Rotational,
+				AwaitMs:           disk.AwaitMs,
+				UtilPercent:       disk.UtilPercent,
+				ReadBps:           disk.ReadBps,
+				WriteBps:          disk.WriteBps,
+				RequestsPerSecond: disk.RequestsPerS,
+				Saturated:         sysinfo.DiskSaturated(disk.AwaitMs, idle, disk.UtilPercent, sys.IOWaitPercent),
+			})
+		}
 	}
 
 	if d.streamMeter != nil {

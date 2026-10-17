@@ -79,6 +79,7 @@ export type {
   V1SetupWizardRequest,
   V1DashboardInfo,
   V1SystemInfo,
+  V1DiskIOInfo,
   V1VideoPool,
   V1VideoClassRungs,
   V1VideoRungFit,
@@ -123,3 +124,4 @@ export * from "./trackPick";
 export * from "./profileSchedule";
 export * from "./configDefaults";
 export * from "./sessionTrackLines";
+export type { V1ServerMetric, V1ListServerMetricsResponse } from "./generated/activity.schemas";

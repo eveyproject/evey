@@ -173,10 +173,31 @@ message ServerMetric {
   double cpu_percent = 2;
   double memory_percent = 3;
   int64 memory_used_bytes = 4;
-  int64 network_rx_bytes = 5;
-  int64 network_tx_bytes = 6;
+  // Never filled: the sampler records rates, see network_rx_bps/tx_bps.
+  int64 network_rx_bytes = 5 [deprecated = true];
+  int64 network_tx_bytes = 6 [deprecated = true];
   int32 active_streams = 7;
   int32 active_transcodes = 8;
+  int64 memory_total_bytes = 9;
+  // Streaming bits per second Evey served over the sample.
+  int64 bandwidth_bps = 10;
+  int64 storage_used_bytes = 11;
+  int64 storage_total_bytes = 12;
+  // The machine's share of CPU time spent waiting on a disk; cpu_percent
+  // counts that time as idle.
+  double iowait_percent = 13;
+  // The disk that waited the most over the sample: its mean request wait,
+  // its busy share and its stable label (model and serial tail, never the
+  // kernel letter). Whole machine figures, not Evey's alone.
+  double disk_await_ms = 14;
+  double disk_util_percent = 15;
+  string disk_busiest = 16;
+  // Summed over every physical disk.
+  int64 disk_read_bps = 17;
+  int64 disk_write_bps = 18;
+  // Every interface but the loopback, streaming or not.
+  int64 network_rx_bps = 19;
+  int64 network_tx_bps = 20;
 }
 
 message GetPlayHistoryRequest {
@@ -227,13 +248,26 @@ message GetLoginHistoryResponse {
 }
 
 message ListServerMetricsRequest {
+  // Defaults: the last 24 hours.
   google.protobuf.Timestamp from = 1;
   google.protobuf.Timestamp to = 2;
+  // Width of the buckets the samples are folded into. 0 lets the server
+  // pick one that keeps the window under a few hundred points; a given
+  // value is rounded up to the nearest step the server uses.
   int32 interval_seconds = 3;
 }
 
 message ListServerMetricsResponse {
+  // One point per bucket: percentages and rates averaged, counts, disk wait
+  // and storage at their maximum, disk_busiest the most frequent name.
   repeated ServerMetric metrics = 1;
+  // The bucket width actually applied.
+  int32 interval_seconds = 2;
+  // The disks' wait at rest over the last day (floored at 4 ms) and the wait
+  // above which a sample counts as saturated: the two reference lines a
+  // chart draws under disk_await_ms.
+  double idle_disk_await_ms = 3;
+  double saturation_await_ms = 4;
 }
 
 message PopularMediaItem {

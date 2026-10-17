@@ -305,3 +305,43 @@ func TestActivityHandler_GetPlayHistory_AdminNarrowsByUserThenProfile(t *testing
 	require.Len(t, byProfile.Entries, 1)
 	assert.Equal(t, "Les enfants", byProfile.Entries[0].ProfileName)
 }
+
+// A week of one-minute samples never fit the raw read, so the RPC folds them:
+// the bucket follows the window (15 minutes for a week), the response says
+// which, and the disk's saturation line comes from its wait at rest.
+func TestActivityHandler_ListServerMetrics_BucketsAWeekAndDrawsTheDiskLine(t *testing.T) {
+	h, _, _, _, metricsRepo := newActivityHandler()
+	now := time.Now()
+	// Two samples in one bucket, recent enough for the quiet one to set the
+	// rest line (looked for over the last day).
+	base := now.Add(-2 * time.Hour).Truncate(15 * time.Minute)
+	for i, m := range []activity.ServerMetric{
+		{CPUPercent: 10, DiskAwaitMs: 6, DiskUtilPercent: 2, DiskBusiest: "disk A", NetRxBps: 100},
+		{CPUPercent: 30, DiskAwaitMs: 40, DiskUtilPercent: 70, DiskBusiest: "disk B", NetRxBps: 300},
+	} {
+		m.ID = "sm" + string(rune('1'+i))
+		m.RecordedAt = base.Add(time.Duration(i) * time.Minute)
+		require.NoError(t, metricsRepo.Create(context.Background(), &m))
+	}
+
+	resp, err := h.ListServerMetrics(context.Background(), &eveyv1.ListServerMetricsRequest{
+		From: timestamppb.New(now.Add(-7 * 24 * time.Hour)), To: timestamppb.New(now),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(900), resp.IntervalSeconds, "a week folds into 15 minute buckets")
+	require.Len(t, resp.Metrics, 1, "both samples share one bucket")
+	m := resp.Metrics[0]
+	assert.InDelta(t, 20, m.CpuPercent, 1e-6, "averaged")
+	assert.InDelta(t, 40, m.DiskAwaitMs, 1e-6, "the worst wait of the bucket")
+	assert.EqualValues(t, 200, m.NetworkRxBps)
+	assert.Equal(t, "disk B", m.DiskBusiest, "the disk behind that wait")
+	assert.InDelta(t, 6, resp.IdleDiskAwaitMs, 1e-6, "the quiet sample's wait is the rest line")
+	assert.InDelta(t, 20, resp.SaturationAwaitMs, 1e-6, "2.5 x 6 ms is under the 20 ms floor")
+
+	resp, err = h.ListServerMetrics(context.Background(), &eveyv1.ListServerMetricsRequest{
+		From: timestamppb.New(now.Add(-7 * 24 * time.Hour)), To: timestamppb.New(now), IntervalSeconds: 60,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(60), resp.IntervalSeconds, "a requested width is honoured")
+	assert.Len(t, resp.Metrics, 2)
+}

@@ -289,6 +289,43 @@ message DashboardInfo {
   // The part of cpu_percent taken by Evey itself: the server and every
   // process it forked (ffmpeg, ffprobe). The rest is the host's other work.
   double evey_cpu_percent = 11;
+  // The machine's share of CPU time spent idle with a disk request
+  // outstanding. cpu_percent does not include it: a waiting core is free.
+  double iowait_percent = 12;
+  // Every physical disk the machine exposes, over the last sampling window.
+  // Empty when /proc does not expose them (not a machine with idle disks).
+  repeated DiskIOInfo disks = 13;
+  // The disks' wait at rest (from the last day of history, floored at 4 ms)
+  // and the wait above which a disk counts as saturated. The same line the
+  // history chart draws, so the live card and the trend agree.
+  double idle_disk_await_ms = 14;
+  double saturation_await_ms = 15;
+}
+
+// DiskIOInfo is one physical disk's activity over the sampling window. The
+// counters are the whole machine's: a neighbour's copy onto the same disk
+// shows here too.
+message DiskIOInfo {
+  // Stable label: model and the tail of the wwid or serial. Two identical
+  // disks of a VM differ only by that tail.
+  string label = 1;
+  // Kernel name (sda), shown for the operator who runs iostat; it can move
+  // between boots, so it is never an identity.
+  string device = 2;
+  bool rotational = 3;
+  // Mean time a request waited and was served, reads and writes together.
+  // The one signal that separates a disk that keeps up from one that does
+  // not; see saturated.
+  double await_ms = 4;
+  // Share of the window with at least one request in flight. Reaches 100 on
+  // a healthy SSD or array, so it only corroborates the wait.
+  double util_percent = 5;
+  int64 read_bps = 6;
+  int64 write_bps = 7;
+  double requests_per_second = 8;
+  // The wait is above the saturation line and either the disk was busy or
+  // the CPUs were waiting on it.
+  bool saturated = 9;
 }
 
 message StorageInfo {
