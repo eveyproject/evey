@@ -129,6 +129,20 @@ func maskSecret(s string) string {
 	return s[:4] + "****"
 }
 
+// maskHeaders masks every custom header value like the secret: they routinely
+// carry the receiver's credentials (Authorization, X-Api-Key). The app layer
+// keeps the stored value when Update receives the mask back.
+func maskHeaders(h map[string]string) map[string]string {
+	if len(h) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(h))
+	for k, v := range h {
+		out[k] = maskSecret(v)
+	}
+	return out
+}
+
 func webhookConfigToProto(c *webhook.Config) *eveyv1.WebhookConfig {
 	return &eveyv1.WebhookConfig{
 		Id:        c.ID,
@@ -136,7 +150,7 @@ func webhookConfigToProto(c *webhook.Config) *eveyv1.WebhookConfig {
 		Url:       c.URL,
 		Events:    c.Events,
 		Secret:    maskSecret(c.Secret),
-		Headers:   c.Headers,
+		Headers:   maskHeaders(c.Headers),
 		Enabled:   c.Enabled,
 		CreatedAt: toTimestamppb(c.CreatedAt),
 	}

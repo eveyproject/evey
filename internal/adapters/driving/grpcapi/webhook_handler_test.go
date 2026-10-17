@@ -274,3 +274,39 @@ func TestWebhookHandler_UpdateUnknownIsNotFound(t *testing.T) {
 		t.Fatalf("code = %v, want NotFound", status.Code(err))
 	}
 }
+
+// Custom headers carry the receiver's credentials, so ListWebhooks masks their
+// values like the secret, and a UI that echoes the masks back keeps the real
+// values stored.
+func TestListWebhooks_MasksHeaderValues(t *testing.T) {
+	h, repo, _ := setupWebhookHandler()
+	ctx := context.Background()
+	created, err := h.CreateWebhook(ctx, &eveyv1.CreateWebhookRequest{
+		Name: "hook", Url: "https://example.com/hook", Events: []string{"*"}, Enabled: true,
+		Headers: map[string]string{"Authorization": "Bearer receiver-token"},
+	})
+	if err != nil {
+		t.Fatalf("CreateWebhook: %v", err)
+	}
+	list, err := h.ListWebhooks(ctx, &eveyv1.ListWebhooksRequest{})
+	if err != nil {
+		t.Fatalf("ListWebhooks: %v", err)
+	}
+	got := list.Webhooks[0].Headers["Authorization"]
+	if got != "Bear****" {
+		t.Fatalf("listed Authorization = %q, want the mask", got)
+	}
+	if _, err = h.UpdateWebhook(ctx, &eveyv1.UpdateWebhookRequest{
+		Id: created.Id, Name: "hook", Url: "https://example.com/hook", Events: []string{"*"}, Enabled: false,
+		Headers: list.Webhooks[0].Headers,
+	}); err != nil {
+		t.Fatalf("UpdateWebhook: %v", err)
+	}
+	stored, err := repo.GetByID(ctx, created.Id)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+	if stored.Headers["Authorization"] != "Bearer receiver-token" {
+		t.Fatalf("stored Authorization = %q, the mask was written over it", stored.Headers["Authorization"])
+	}
+}
