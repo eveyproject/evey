@@ -189,7 +189,7 @@ func extractPGSBlob(ctx context.Context, filePath string, trackID uint64, ix *ma
 	}
 
 	// Paced while a stream is being served - see subtitle_read_pacer.go.
-	opts := subtitleReadOptions(ctx)
+	opts := subtitleReadOptions(ctx, filePath)
 	var err error
 	if ix != nil {
 		err = matroska.ForEachSubtitlePGSFrom(ctx, filePath, trackID, ix, collect, opts...)

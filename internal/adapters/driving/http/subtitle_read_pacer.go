@@ -8,6 +8,7 @@ package httpapi
 import (
 	"context"
 	"io"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -88,12 +89,26 @@ func (p *mediaReadPacer) options(ctx context.Context) []matroska.Options {
 // subtitleReadOptions: paced while a stream plays (nil pacer = unpaced), and
 // reporting its offsets to the running flight when the context carries one,
 // so a poll's Retry-After follows the walk's real pace. No pacer and no
-// flight means mkvgo opens the file itself.
-func subtitleReadOptions(ctx context.Context) []matroska.Options {
-	if subtitleReadPacer == nil && subtitleFlightFromContext(ctx) == nil {
-		return nil
+// flight means mkvgo opens the file itself. Every read names in the log the
+// damaged regions of filePath it passed over (mkvgo 0.55.1): the cues inside
+// are lost, the rest of the track is delivered.
+func subtitleReadOptions(ctx context.Context, filePath string) []matroska.Options {
+	opts := matroska.Options{OnSkip: func(r extmkv.DamagedRange) { logSubtitleDamage(ctx, filePath, r) }}
+	if subtitleReadPacer != nil || subtitleFlightFromContext(ctx) != nil {
+		opts.FS = readOptions(ctx, subtitleReadPacer)[0].FS
 	}
-	return readOptions(ctx, subtitleReadPacer)
+	return []matroska.Options{opts}
+}
+
+// logSubtitleDamage names a damaged region a subtitle read passed over: the
+// file wants replacing or `mkvgo reindex --resync`.
+func logSubtitleDamage(ctx context.Context, filePath string, r extmkv.DamagedRange) {
+	slog.WarnContext(ctx, "subtitles: read passed over a damaged region of the source, its cues are lost, replace or repair the file",
+		slog.String("path", filePath),
+		slog.Int64("start_offset", r.StartOffset),
+		slog.Int64("end_offset", r.EndOffset),
+		slog.Int64("approx_start_ms", r.ApproxStartMs),
+		slog.Int64("approx_end_ms", r.ApproxEndMs))
 }
 
 func readOptions(ctx context.Context, p *mediaReadPacer) []matroska.Options {
