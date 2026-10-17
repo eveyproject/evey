@@ -186,3 +186,24 @@ func TestSourceChangedErr_MapsMkvgoRefusals(t *testing.T) {
 		t.Fatal("nil mapped to an error")
 	}
 }
+
+// "plans_read_over_ratio" is diffed between two WindowStats snapshots by the
+// load test, so a plan counted over the bar stays counted when its ratio falls
+// back under it as it serves more: a live state there logged negative runs.
+func TestServedWatch_CountedOverOnlyGrows(t *testing.T) {
+	var w servedWatch
+	if w.countedOver(false) {
+		t.Fatal("a plan never over the bar is not counted")
+	}
+	if !w.countedOver(true) {
+		t.Fatal("a plan over the bar is counted")
+	}
+	if !w.countedOver(false) {
+		t.Fatal("a plan counted once stays counted after falling back under the bar")
+	}
+	var named servedWatch
+	named.flagged.Store(true)
+	if !named.countedOver(false) {
+		t.Fatal("a plan already named over the bar is counted")
+	}
+}

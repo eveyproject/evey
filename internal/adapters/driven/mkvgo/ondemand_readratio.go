@@ -46,6 +46,20 @@ type servedWatch struct {
 	flagged atomic.Bool
 	// damaged is set once the plan has named the damaged regions it passed over.
 	damaged atomic.Bool
+	// counted is set the first time WindowStats counts the plan over the bar,
+	// see countedOver.
+	counted atomic.Bool
+}
+
+// countedOver latches the plan's place in "plans_read_over_ratio": a plan
+// counted once stays counted, though its ratio may fall back under the bar as
+// it serves more. WindowStats promises counters that only grow, and the load
+// test diffs two snapshots of them: a live state there read negative.
+func (w *servedWatch) countedOver(nowOver bool) bool {
+	if nowOver || w.flagged.Load() {
+		w.counted.Store(true)
+	}
+	return w.counted.Load()
 }
 
 // planReport is what the watch hands its callers: the plan's counters, and
@@ -162,7 +176,7 @@ func (p *ondemandPlan) logger() *slog.Logger {
 // it served, and whether it read over the bar.
 func (p *ondemandPlan) servedStats() (served int64, overBar bool) {
 	st := p.Stats()
-	return planServed(st), overRead(st)
+	return planServed(st), p.watch.countedOver(overRead(st))
 }
 
 // countedResource counts what a streamed resource wrote to its client.
