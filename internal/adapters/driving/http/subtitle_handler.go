@@ -296,6 +296,9 @@ func extractSubtitleWithFFmpeg(ctx context.Context, filePath string, trackIndex 
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	if err := cmd.Start(); err != nil {
+		// Hands the admission back: Start refuses a context already done (an
+		// extraction deadline spent in mkvgo) and a fork the kernel refuses.
+		_ = finish(err, nil) //nolint:errcheck // the start error is the one returned
 		return nil, fmt.Errorf("ffmpeg subtitle start: %w", err)
 	}
 	if err := finish(cmd.Wait(), nil); err != nil {
@@ -545,6 +548,7 @@ func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir
 	w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
 	cmd.Stdout = w
 	if err := cmd.Start(); err != nil {
+		_ = finish(err, nil) //nolint:errcheck // hands the admission back, see extractSubtitleWithFFmpeg
 		slog.ErrorContext(r.Context(), "ffmpeg external subtitle", slog.Any("err", err))
 		return
 	}
