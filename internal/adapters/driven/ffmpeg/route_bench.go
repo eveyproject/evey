@@ -607,8 +607,12 @@ func runMeasured(ctx context.Context, ffmpegPath string, args []string, sampler 
 	}
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
+	// A session that never starts still holds its admission until Finish
+	// runs: one skipped Finish here kept 4 GiB booked for the life of the
+	// process (measured 2026-10-17, a bench whose context had expired).
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		_ = finish(err, nil) //nolint:errcheck // the start error is the one returned
 		m.err = err.Error()
 		return m
 	}
@@ -616,6 +620,7 @@ func runMeasured(ctx context.Context, ffmpegPath string, args []string, sampler 
 	started := time.Now()
 	if err := cmd.Start(); err != nil {
 		stop()
+		_ = finish(err, nil) //nolint:errcheck // the start error is the one returned
 		m.err = err.Error()
 		return m
 	}

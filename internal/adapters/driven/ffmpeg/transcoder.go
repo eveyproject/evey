@@ -53,13 +53,17 @@ func (t *Transcoder) Start(ctx context.Context, job *transcoding.TranscodeJob) (
 		return "", err
 	}
 
+	// Finish on every exit after Command: the admission it booked is only
+	// handed back there, an ffmpeg that never starts included.
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
+		_ = finish(err, nil) //nolint:errcheck // the start error is the one returned
 		cancel()
 		return "", fmt.Errorf("stderr pipe: %w", err)
 	}
 
 	if err := cmd.Start(); err != nil {
+		_ = finish(err, nil) //nolint:errcheck // the start error is the one returned
 		cancel()
 		return "", fmt.Errorf("start ffmpeg: %w", err)
 	}

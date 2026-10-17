@@ -104,12 +104,16 @@ func (c *Chromaprinter) Compute(ctx context.Context, filePath string, startSec, 
 	if err != nil {
 		return nil, err
 	}
+	// Finish on every exit after Command: the admission it booked is only
+	// handed back there, a decoder that never starts included.
 	pipe, err := ffmpegCmd.StdoutPipe()
 	if err != nil {
+		_ = finishFFmpeg(err, nil) //nolint:errcheck // the start error is the one returned
 		return nil, fmt.Errorf("ffmpeg stdout pipe: %w", err)
 	}
 	ffmpegCmd.Stderr = nil
-	if err := ffmpegCmd.Start(); err != nil {
+	if err = ffmpegCmd.Start(); err != nil {
+		_ = finishFFmpeg(err, nil) //nolint:errcheck // the start error is the one returned
 		return nil, fmt.Errorf("ffmpeg start: %w", err)
 	}
 	// Suspend the audio decoder while real work runs; fpcalc then blocks on the

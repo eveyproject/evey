@@ -198,11 +198,15 @@ func (t *ReducedTranscoder) TranscodeReducedSlices(ctx context.Context, src, dir
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
+	// Finish on every exit after Command: the admission it booked is only
+	// handed back there, an ffmpeg that never starts included.
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		_ = finish(err, nil) //nolint:errcheck // the start error is the one returned
 		return fmt.Errorf("reduced-transcode: stdout pipe: %w", err)
 	}
 	if err := cmd.Start(); err != nil {
+		_ = finish(err, nil) //nolint:errcheck // the start error is the one returned
 		return fmt.Errorf("reduced-transcode: start ffmpeg: %w", err)
 	}
 	// A resumed production reports against the whole film, not against what is
