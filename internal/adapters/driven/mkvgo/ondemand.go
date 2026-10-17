@@ -398,6 +398,14 @@ func addWindowStats(out map[string]int64, st mp4.HLSPlanStats) {
 	// mkvgo 0.53: the bytes the plan read from its source since it was built
 	// (the build itself not counted) - the in-process "app read" of the load test.
 	out["source_read_bytes"] += st.SourceReadBytes
+	// mkvgo 0.54: the segments served from the bytes their window's walk had
+	// already read, the tables that fell back to copying from the source, and
+	// the walks that looked for a track stored apart from the video in the
+	// source's uncued regions (and found it) - a run says whether each engaged.
+	out["kept_segments"] += st.KeptSegments
+	out["kept_fallbacks"] += st.KeptFallbacks
+	out["far_lookups"] += st.FarLookups
+	out["far_hits"] += st.FarHits
 }
 
 // WalksInFlight is how many source windows the process is reading right now,

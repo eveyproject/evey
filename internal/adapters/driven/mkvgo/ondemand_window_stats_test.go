@@ -40,3 +40,22 @@ func TestWindowStats_APlanLeavingTheCacheKeepsItsCounts(t *testing.T) {
 		t.Fatalf("plans=%d retired=%d, want 1 and 1", after["plans"], after["retired_plans"])
 	}
 }
+
+// The window kept for serving and the lookup in the uncued regions (mkvgo
+// 0.54) reach the totals the load test logs.
+func TestWindowStats_KeptWindowAndUncuedLookups(t *testing.T) {
+	p := NewOnDemandPackager()
+	t.Cleanup(p.Close)
+	a := &statPlan{st: mp4.HLSPlanStats{KeptSegments: 40, KeptFallbacks: 1, FarLookups: 5, FarHits: 5}}
+	b := &statPlan{st: mp4.HLSPlanStats{KeptSegments: 2, FarLookups: 1}}
+	p.plans.Set("a", apptranscoding.OnDemandPlan(a), p.ttl)
+	p.plans.Set("b", apptranscoding.OnDemandPlan(b), p.ttl)
+	p.plans.Delete("a")
+	got := p.WindowStats()
+	want := map[string]int64{"kept_segments": 42, "kept_fallbacks": 1, "far_lookups": 6, "far_hits": 5}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %d, want %d (%v)", k, got[k], v, got)
+		}
+	}
+}
