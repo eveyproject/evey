@@ -300,7 +300,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "clients:history", coldCache: false, viaProxy: false },
+        data: { scenario: "clients:history", coldCache: false },
       }),
     );
   });
@@ -327,7 +327,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "light", coldCache: false, viaProxy: false },
+        data: { scenario: "light", coldCache: false },
       }),
     );
   });
@@ -343,7 +343,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "mkvgo", coldCache: false, viaProxy: false },
+        data: { scenario: "mkvgo", coldCache: false },
       }),
     );
   });
@@ -359,7 +359,7 @@ describe("LoadTestCard", () => {
       expect(mockEveyFetch).toHaveBeenCalledWith({
         url: "/api/v1/admin/load-test",
         method: "POST",
-        data: { scenario: "clients:history", coldCache: true, viaProxy: false },
+        data: { scenario: "clients:history", coldCache: true },
       }),
     );
   });

@@ -138,17 +138,13 @@ type Config struct {
 	// reachable, and it measures the SERVER alone.
 	BaseURL string
 	// PublicBaseURL is the origin real viewers actually come through - the
-	// reverse proxy (Caddy), with its TLS, HTTP/2 and buffering. Optional, and
-	// only used when ViaProxy asks for it: the default run measures the SERVER
-	// and hits BaseURL. A proxy run is a different measurement - the proxy's
-	// own limits are part of its answer (a hairpin through the operator's box
-	// and a second TLS hop added 200 ms to the median fetch on 2026-10-15), and
-	// the report says which path was taken. When the proxy cannot be reached
-	// (none deployed, a public hostname the box can't resolve from inside), the
-	// run falls back to BaseURL and says so.
+	// reverse proxy (Caddy), with its TLS, HTTP/2 and buffering. When one is
+	// configured and answers from here the viewers go through it, the way real
+	// ones do, and its limits are part of the answer; with none, or one this
+	// box cannot reach, they hit BaseURL. Nothing for the operator to choose
+	// (2026-10-17: "s'il y a un proxy public on l'utilise, sinon non"). The
+	// report says which path was taken.
 	PublicBaseURL string
-	// ViaProxy sends the viewers through PublicBaseURL instead of the loopback.
-	ViaProxy bool
 	// Token is the bearer token used by every simulated viewer. It is a real
 	// credential exercising the real auth path, not a bypass.
 	Token string
@@ -503,8 +499,7 @@ type Report struct {
 	RangeLow, RangeHigh int
 	// Limiter names what gave out first ("disk", "cpu", "memory", "proxy",
 	// "server", "unknown", "none"); LimiterLocation is the library location
-	// of a limiting disk. Advice is set only when one follows ("spread_titles",
-	// "try_direct").
+	// of a limiting disk. Advice is set only when one follows ("spread_titles").
 	Limiter         string
 	LimiterLocation string
 	Advice          string

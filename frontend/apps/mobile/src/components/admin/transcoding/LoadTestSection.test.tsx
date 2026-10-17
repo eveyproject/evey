@@ -51,7 +51,7 @@ describe("LoadTestSection (mobile)", () => {
       if (method === "GET") return Promise.resolve(running ? { running: true, viewers: 4, phase: "climb", elapsedMs: 9000 } : { running: false, lastReport });
       if (method === "POST") {
         running = true;
-        expect(data).toEqual({ scenario: "mkvgo", coldCache: true, viaProxy: false });
+        expect(data).toEqual({ scenario: "mkvgo", coldCache: true });
         return Promise.resolve({ running: true, viewers: 0, phase: "warmup", elapsedMs: 0 });
       }
       running = false;

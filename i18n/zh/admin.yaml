@@ -1257,12 +1257,6 @@ loadtest:
   replayedTitlesLine_other: "保持档位中有 {{count}} 位观众在重播另一位观众已在读取的标题（不同位置；无缓存：每个分段都从源文件构建）。"
   appReadLine: "打包器从源文件的读取：{{rate}}，为所服务吞吐的 {{ratio}} 倍（进程内计数器）。"
   appReadUnmeasuredLine: "打包器从源文件的读取：未测量（此版本没有进程内计数器）。"
-  seedLine: "抽取种子：{{seed}}。重新启动前输入它即可重播同一抽取。"
-  seedLabel: "抽取种子（可选）"
-  seedPlaceholder: "留空 = 新抽取"
-  seedHint: "两次测试只有在同一抽取下才可比较：观众数取决于抽到的标题。"
-  viaProxyToggle: "经由公共代理"
-  viaProxyHint: "默认直接访问服务器。经由代理时，其限制（TLS、缓冲、路由器）也是结果的一部分。"
   window:
     held: "保持"
     broke: "崩溃"
@@ -1294,7 +1288,6 @@ loadtest:
     none: "在达到所请求的观众上限之前没有任何部件撑不住。"
   advice:
     spreadTitles: "建议：把最常观看的影片分散到多块磁盘上。"
-    tryDirect: "建议：不经过代理再测一次，看看服务器单独能承载多少。"
   grid:
     viewers: "观众"
     cpu: "处理器"

@@ -441,12 +441,6 @@ export function LoadTestReportPanel({
               })}
             </p>
           )}
-          {/* The draw's seed: the one thing that makes a run replayable. */}
-          {report.seed && report.seed !== "0" && (
-            <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-seed">
-              {t("admin.loadtest.seedLine", { seed: report.seed })}
-            </p>
-          )}
         </div>
       </details>
     </div>

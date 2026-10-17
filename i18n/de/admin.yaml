@@ -1257,12 +1257,6 @@ loadtest:
   replayedTitlesLine_other: "{{count}} Zuschauer der gehaltenen Stufe spielten einen Titel erneut, den ein anderer bereits las, an anderer Stelle (kein Cache: jedes Segment wird aus der Quelle gebaut)."
   appReadLine: "Lesezugriffe des Packagers auf seine Quellen: {{rate}}, das {{ratio}}-Fache des gelieferten Durchsatzes (Zähler im Prozess)."
   appReadUnmeasuredLine: "Lesezugriffe des Packagers auf seine Quellen: nicht gemessen (kein Zähler im Prozess in dieser Version)."
-  seedLine: "Saatwert der Ziehung: {{seed}}. Vor dem nächsten Start eingeben, um dieselbe Ziehung zu wiederholen."
-  seedLabel: "Saatwert der Ziehung (optional)"
-  seedPlaceholder: "leer = neue Ziehung"
-  seedHint: "Zwei Tests sind nur bei gleicher Ziehung vergleichbar: die Zuschauerzahl hängt von den gezogenen Titeln ab."
-  viaProxyToggle: "Über den öffentlichen Proxy gehen"
-  viaProxyHint: "Standardmäßig zielt der Test direkt auf den Server. Über den Proxy sind dessen Grenzen (TLS, Pufferung, Router) Teil des Ergebnisses."
   window:
     held: "gehalten"
     broke: "gebrochen"
@@ -1294,7 +1288,6 @@ loadtest:
     none: "Nichts hat vor der gewünschten Zuschauergrenze nachgegeben."
   advice:
     spreadTitles: "Tipp: die meistgesehenen Titel auf mehrere Festplatten verteilen."
-    tryDirect: "Tipp: den Test ohne Proxy wiederholen, um zu sehen, was der Server allein schafft."
   grid:
     viewers: "Zuschauer"
     cpu: "Prozessor"

@@ -170,7 +170,7 @@ func TestLimiterOf(t *testing.T) {
 		{"cpu verdict", StopCPUSaturated, "", ResourceStats{}, DiskVerdict{}, false, LimiterCPU, "", ""},
 		{"memory", StopMemorySaturated, "", ResourceStats{}, DiskVerdict{}, false, LimiterMemory, "", ""},
 		{"server errors", StopServerFailing, "master playlist fetch failed (status=502, err=<nil>)", ResourceStats{}, DiskVerdict{}, false, LimiterServer, "", ""},
-		{"through the proxy, nothing saturated", StopSLOBreach, "", ResourceStats{}, DiskVerdict{Device: "sda"}, true, LimiterProxy, "", AdviceTryDirect},
+		{"through the proxy, nothing saturated", StopSLOBreach, "", ResourceStats{}, DiskVerdict{Device: "sda"}, true, LimiterProxy, "", ""},
 		{"nothing saturated", StopSLOBreach, "", ResourceStats{}, DiskVerdict{Device: "sda"}, false, LimiterUnknown, "", ""},
 		{"operator ceiling", StopMaxViewers, "", ResourceStats{}, DiskVerdict{}, false, LimiterNone, "", ""},
 		{"cancelled", StopCancelled, "", ResourceStats{}, DiskVerdict{}, false, "", "", ""},

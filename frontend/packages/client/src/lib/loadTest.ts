@@ -665,7 +665,6 @@ export function limiterLine(t: (key: string, opts?: Record<string, unknown>) => 
 
 const ADVICE_KEYS: Record<string, string> = {
   spread_titles: "admin.loadtest.advice.spreadTitles",
-  try_direct: "admin.loadtest.advice.tryDirect",
 };
 
 // adviceLine is the one actionable advice, only when the server found one.

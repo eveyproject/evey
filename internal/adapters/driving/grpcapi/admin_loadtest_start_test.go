@@ -197,22 +197,22 @@ func TestLoadTestStatusAndCancel(t *testing.T) {
 	assert.Equal(t, "cancelled", got.GetPhase())
 }
 
-// The viewers hit the server's own loopback by default; the proxy path is an
-// opt-in, and a replayed seed passes through. The legacy direct flag changes
-// nothing.
-func TestStartLoadTest_DirectByDefaultProxyOnRequest(t *testing.T) {
+// The run gets the loopback and the public address to probe whatever the
+// request says: the legacy direct and via_proxy flags change nothing, and a
+// replayed seed passes through.
+func TestStartLoadTest_PathIsNotTheOperatorsChoice(t *testing.T) {
 	runner := &fakeLoadTestRunner{}
 	d := newLoadTestHandler(runner, &fakeLoadTestMinter{})
 	d.calibrationSvc = fakeCalibrationSnapshot{}
 
 	_, err := d.StartLoadTest(ctxWithClaims("admin-7", "prof-1", true), &eveyv1.StartLoadTestRequest{Scenario: "mkvgo", Direct: true}) //nolint:staticcheck // the legacy flag must stay inert
 	require.NoError(t, err)
-	_, err = d.StartLoadTest(ctxWithClaims("admin-7", "prof-1", true), &eveyv1.StartLoadTestRequest{Scenario: "mkvgo", ViaProxy: true, Seed: 1792073232940793883})
+	_, err = d.StartLoadTest(ctxWithClaims("admin-7", "prof-1", true), &eveyv1.StartLoadTestRequest{Scenario: "mkvgo", ViaProxy: true, Seed: 1792073232940793883}) //nolint:staticcheck // the legacy flag must stay inert
 	require.NoError(t, err)
 	require.Len(t, runner.started, 2)
-	assert.False(t, runner.started[0].ViaProxy, "the default run measures the server directly")
-	assert.Equal(t, "http://127.0.0.1:8080", runner.started[0].BaseURL)
-	assert.True(t, runner.started[1].ViaProxy, "via_proxy opts into the proxy path")
+	for i, cfg := range runner.started {
+		assert.Equal(t, "http://127.0.0.1:8080", cfg.BaseURL, "run %d", i)
+		assert.NotEmpty(t, cfg.PublicBaseURL, "run %d keeps the public address to probe", i)
+	}
 	assert.Equal(t, uint64(1792073232940793883), runner.started[1].Seed, "the seed replays a draw")
-	assert.NotEmpty(t, runner.started[1].PublicBaseURL, "the proxy run keeps the public address to probe")
 }

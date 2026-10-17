@@ -1257,12 +1257,6 @@ loadtest:
   replayedTitlesLine_other: "{{count}} espectadores del nivel retenido repetían un título que otro ya leía, en otra posición (sin caché: cada segmento se construye desde la fuente)."
   appReadLine: "Lecturas del empaquetador en sus fuentes: {{rate}}, {{ratio}} veces el caudal servido (contador en proceso)."
   appReadUnmeasuredLine: "Lecturas del empaquetador en sus fuentes: no medidas (sin contador en proceso en esta versión)."
-  seedLine: "Semilla del sorteo: {{seed}}. Introdúzcala antes de relanzar para repetir el mismo sorteo."
-  seedLabel: "Semilla del sorteo (opcional)"
-  seedPlaceholder: "vacío = nuevo sorteo"
-  seedHint: "Dos pruebas solo se comparan con el mismo sorteo: el número de espectadores depende de los títulos sorteados."
-  viaProxyToggle: "Pasar por el proxy público"
-  viaProxyHint: "Por defecto la prueba apunta al servidor directamente. A través del proxy, sus límites (TLS, búfer, router) forman parte del resultado."
   window:
     held: "sostenida"
     broke: "rota"
@@ -1294,7 +1288,6 @@ loadtest:
     none: "Nada falló antes del límite de espectadores pedido."
   advice:
     spreadTitles: "Consejo: repartir los títulos más vistos entre varios discos."
-    tryDirect: "Consejo: repetir la prueba sin pasar por el proxy, para saber lo que aguanta el servidor solo."
   grid:
     viewers: "Espectadores"
     cpu: "Procesador"

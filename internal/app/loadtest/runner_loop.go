@@ -38,16 +38,14 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		defer func() { r.logWindowStats(before, r.windowStats()) }()
 	}
 
-	// The server itself, by default: the loopback. The reverse proxy only when
-	// the operator asked for it - it is a different measurement (its TLS hop,
-	// its buffering, a hairpin through the operator's router) - and only if it
-	// answers from in here; otherwise the run says so and measures direct.
+	// The way real viewers come: through the public proxy when one is
+	// configured and answers from in here, else the server's own loopback.
 	viaProxy := false
-	if cfg.ViaProxy && cfg.PublicBaseURL != "" {
+	if cfg.PublicBaseURL != "" {
 		if r.endpointReachable(runCtx, cfg.PublicBaseURL, cfg.Token) {
 			cfg.BaseURL, viaProxy = cfg.PublicBaseURL, true
 		} else {
-			r.logger.Warn("loadtest: the proxy path was asked for but does not answer from here; measuring the server directly", "proxy", cfg.PublicBaseURL)
+			r.logger.Warn("loadtest: the public proxy does not answer from here; measuring the server directly", "proxy", cfg.PublicBaseURL)
 		}
 	}
 
