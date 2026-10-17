@@ -28,6 +28,7 @@ import { LoadFailed } from "../../../src/components/LoadFailed";
 import { SessionCard } from "../../../src/components/admin/SessionCard";
 import { BackgroundTasksPanel } from "../../../src/components/admin/BackgroundTasksPanel";
 import { UpdateBanner } from "../../../src/components/admin/UpdateBanner";
+import { busiestDisk } from "../../../src/components/admin/DiskIO";
 
 function StatCard({ label, value, icon, theme, sub, valueColor }: { label: string; value: string | number; icon: IoniconName; theme: ReturnType<typeof useTheme>; sub?: string; valueColor?: string }) {
   return (
@@ -431,6 +432,9 @@ export default function AdminDashboard() {
   const cpu = dashboard?.cpuPercent;
   const mem = dashboard?.memoryPercent;
   const transcodes = dashboard?.activeTranscodes ?? 0;
+  // The disk that waits the most, when the machine exposes its disks: the
+  // signal both production incidents hid behind calm CPU and memory tiles.
+  const worstDisk = busiestDisk(dashboard?.disks);
 
   return (
     <ScrollView
@@ -494,6 +498,18 @@ export default function AdminDashboard() {
           icon="server-outline"
           theme={theme}
         />
+        {worstDisk && (
+          <StatCard
+            label={t("admin.dashboardStats.disks")}
+            value={`${(worstDisk.awaitMs ?? 0).toFixed(1)} ms`}
+            valueColor={worstDisk.saturated ? theme.colors.danger : undefined}
+            sub={worstDisk.saturated
+              ? t("admin.dashboardStats.diskSaturatedSub", { label: worstDisk.label ?? worstDisk.device ?? "" })
+              : t("admin.dashboardStats.diskSub", { label: worstDisk.label ?? worstDisk.device ?? "", percent: Math.round(worstDisk.utilPercent ?? 0) })}
+            icon="disc-outline"
+            theme={theme}
+          />
+        )}
       </View>
 
       {/* What Evey is doing on its own, and its live cost. */}

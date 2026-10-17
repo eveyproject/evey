@@ -33,6 +33,14 @@ type Stats struct {
 	MemoryPercent  float64
 	MemUsedBytes   int64
 	MemTotalBytes  int64
+	// IOWaitPercent is the share of CPU time the machine spent idle with a
+	// request outstanding on a disk. CPUPercent counts it as idle (a waiting
+	// core can run anything); this is where it shows up on its own.
+	IOWaitPercent float64
+	// Disks and Net cover the whole machine over the same window as the CPU
+	// figures; empty when /proc does not expose them.
+	Disks []DiskIO
+	Net   NetIO
 }
 
 type StorageStats struct {
@@ -44,8 +52,9 @@ type StorageStats struct {
 }
 
 type cpuSample struct {
-	idle  uint64
-	total uint64
+	idle   uint64
+	iowait uint64
+	total  uint64
 }
 
 func Collect() Stats {
@@ -69,7 +78,9 @@ func Collect() Stats {
 		s.MemUsedBytes = int64(m.Sys)
 	}
 
-	s.CPUPercent, s.EveyCPUPercent = sampleCPU()
+	primeIO()
+	s.CPUPercent, s.EveyCPUPercent, s.IOWaitPercent = sampleCPU()
+	s.Disks, s.Net = sampleIO()
 
 	cachedStats = s
 	cacheExpiresAt = time.Now().Add(collectCacheTTL)
@@ -164,10 +175,11 @@ var cpuPrev struct {
 	ok   bool
 }
 
-// sampleCPU returns the host's busy share and the part of it Evey accounts
-// for (this server's process tree plus its companions), averaged since the
-// previous call; the first call measures a 500 ms window.
-func sampleCPU() (host, evey float64) {
+// sampleCPU returns the host's busy share, the part of it Evey accounts for
+// (this server's process tree plus its companions) and the share spent
+// waiting on disks, averaged since the previous call; the first call measures
+// a 500 ms window.
+func sampleCPU() (host, evey, iowait float64) {
 	roots := append([]int{os.Getpid()}, companionPIDs(os.Getenv("EVEY_COMPANION_PIDS"))...)
 	read := func() (cpuSample, uint64, bool) {
 		s, ok := readCPUStat()
@@ -176,18 +188,28 @@ func sampleCPU() (host, evey float64) {
 	if !cpuPrev.ok {
 		s, t, ok := read()
 		if !ok {
-			return 0, 0
+			return 0, 0, 0
 		}
 		cpuPrev.host, cpuPrev.evey, cpuPrev.ok = s, t, true
 		time.Sleep(500 * time.Millisecond)
 	}
 	s, t, ok := read()
 	if !ok {
-		return 0, 0
+		return 0, 0, 0
 	}
 	host, evey = cpuShares(cpuPrev.host, s, cpuPrev.evey, t)
+	iowait = iowaitShare(cpuPrev.host, s)
 	cpuPrev.host, cpuPrev.evey = s, t
-	return host, evey
+	return host, evey, iowait
+}
+
+// iowaitShare is the part of the window the CPUs spent idle with disk
+// requests outstanding, in percent of all CPU time.
+func iowaitShare(h1, h2 cpuSample) float64 {
+	if h2.total <= h1.total || h2.iowait < h1.iowait {
+		return 0
+	}
+	return float64(min(h2.iowait-h1.iowait, h2.total-h1.total)) / float64(h2.total-h1.total) * 100
 }
 
 // cpuShares turns two readings into the host's busy share and Evey's part of
@@ -387,15 +409,18 @@ func readCPUStat() (cpuSample, bool) {
 		// guest time is already inside user, and a core waiting on the disk
 		// (iowait) is free to run anything - a file copy onto the library
 		// used to read as CPU load.
-		var total, idle uint64
+		var total, idle, iowait uint64
 		for i := 1; i < len(fields) && i <= 8; i++ {
 			v, _ := strconv.ParseUint(fields[i], 10, 64)
 			total += v
 			if i == 4 || i == 5 {
 				idle += v
 			}
+			if i == 5 {
+				iowait = v
+			}
 		}
-		return cpuSample{idle: idle, total: total}, true
+		return cpuSample{idle: idle, iowait: iowait, total: total}, true
 	}
 	return cpuSample{}, false
 }

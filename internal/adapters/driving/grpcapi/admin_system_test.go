@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
+
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	appconfig "github.com/eveyproject/evey/internal/app/config"
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
@@ -747,6 +749,36 @@ func TestAdminGetSetupStatus_DemoLevels(t *testing.T) {
 		}
 		if resp.DemoMode != c.wantMode || resp.DemoExtended != c.wantExt {
 			t.Errorf("%s: demo_mode=%v demo_extended=%v, want %v %v", c.name, resp.DemoMode, resp.DemoExtended, c.wantMode, c.wantExt)
+		}
+	}
+}
+
+// The dashboard reports the disks the machine exposes: every physical disk
+// with its wait, the rest and saturation lines, and a verdict per disk. It
+// cannot assert values (the test host's disks are whatever they are), but a
+// reported disk must be labelled and judged against the line it was given.
+func TestAdminGetDashboard_DisksAreLabelledAndJudged(t *testing.T) {
+	d := newTestSystemHandler()
+	resp, err := d.GetDashboard(context.Background(), &eveyv1.GetDashboardRequest{})
+	if err != nil {
+		t.Fatalf("GetDashboard: %v", err)
+	}
+	if resp.IowaitPercent < 0 || resp.IowaitPercent > 100 {
+		t.Errorf("iowait out of range: %.2f", resp.IowaitPercent)
+	}
+	if len(resp.Disks) == 0 {
+		t.Skip("no physical disk visible from this host (no /proc/diskstats or sysfs)")
+	}
+	if resp.SaturationAwaitMs < sysinfo.SaturatedAwaitFloorMs {
+		t.Errorf("saturation line %.1f under the floor", resp.SaturationAwaitMs)
+	}
+	for _, disk := range resp.Disks {
+		if disk.Label == "" || disk.Device == "" {
+			t.Errorf("unlabelled disk: %+v", disk)
+		}
+		want := sysinfo.DiskSaturated(disk.AwaitMs, resp.IdleDiskAwaitMs, disk.UtilPercent, resp.IowaitPercent)
+		if disk.Saturated != want {
+			t.Errorf("%s: saturated=%v, the thresholds say %v", disk.Device, disk.Saturated, want)
 		}
 	}
 }

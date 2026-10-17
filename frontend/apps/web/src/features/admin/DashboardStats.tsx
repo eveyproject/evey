@@ -18,6 +18,7 @@ import { PlayActivityChart, PeakHours } from "./DashboardCharts";
 import { OnlineNow } from "./DashboardOnline";
 import { BackgroundTasksPanel } from "./BackgroundTasksPanel";
 import { DashboardUpdateBanner } from "./DashboardUpdateBanner";
+import { DisksStatCard } from "./DiskIO";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 interface DashboardStatsProps {
@@ -49,6 +50,9 @@ export function DashboardStats({ info }: DashboardStatsProps) {
   const movieCount = moviesFailed ? "-" : (moviesData?.pagination?.totalItems ?? 0);
   const seriesCount = seriesFailed ? "-" : (seriesData?.pagination?.totalItems ?? 0);
   const transcodes = info.activeTranscodes ?? 0;
+  // The disks tile only exists when the machine exposes its disks: the row
+  // widens to make room for it rather than leaving a hole.
+  const hasDisks = (info.disks?.length ?? 0) > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -73,7 +77,7 @@ export function DashboardStats({ info }: DashboardStatsProps) {
         </div>
       </DemoReadOnly>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-2 gap-4 ${hasDisks ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <StatCard
           icon={<StreamIcon />}
           label={t("admin.dashboardStats.activeStreams")}
@@ -94,6 +98,7 @@ export function DashboardStats({ info }: DashboardStatsProps) {
           sub={t("admin.dashboardStats.eveyCpuSub", { percent: Math.round(info.eveyCpuPercent ?? 0) })}
         />
         <StatCard icon={<MemoryIcon />} label={t("admin.dashboardStats.memory")} value={`${(info.memoryPercent ?? 0).toFixed(1)}%`} valueColor={getUsageColor(info.memoryPercent ?? 0)} />
+        <DisksStatCard disks={info.disks} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">

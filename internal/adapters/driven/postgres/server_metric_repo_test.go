@@ -92,3 +92,56 @@ func TestServerMetricRepo_TotalBandwidthBytes(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, 600_000_000+1_000_000*300, total)
 }
+
+// The new columns round-trip, a week folds into buckets whose averages and
+// maxima match the samples and name the disk behind the worst wait, and the
+// quiet wait is the lowest one recorded by a nearly idle disk.
+func TestServerMetricRepo_BucketedAndIdleAwait(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewServerMetricRepository(db)
+	ctx := context.Background()
+	base := time.Date(2026, 10, 15, 20, 0, 0, 0, time.UTC)
+	mk := func(id string, at time.Time, m activity.ServerMetric) {
+		t.Helper()
+		m.ID, m.RecordedAt = id, at
+		require.NoError(t, repo.Create(ctx, &m))
+	}
+	// Three samples in the first 15-minute bucket, one in the next.
+	mk("io-1", base, activity.ServerMetric{CPUPercent: 10, IOWaitPercent: 10, DiskAwaitMs: 7, DiskUtilPercent: 5, DiskBusiest: "disk A", DiskReadBps: 100, NetRxBps: 10, StorageUsedBytes: 10, StorageTotalBytes: 100, ActiveStreams: 1})
+	mk("io-2", base.Add(time.Minute), activity.ServerMetric{CPUPercent: 20, IOWaitPercent: 70, DiskAwaitMs: 40, DiskUtilPercent: 60, DiskBusiest: "disk B", DiskReadBps: 300, NetRxBps: 30, StorageUsedBytes: 11, StorageTotalBytes: 100, ActiveStreams: 5})
+	mk("io-3", base.Add(2*time.Minute), activity.ServerMetric{CPUPercent: 30, IOWaitPercent: 40, DiskAwaitMs: 30, DiskUtilPercent: 50, DiskBusiest: "disk B", DiskReadBps: 200, NetRxBps: 20, StorageUsedBytes: 12, StorageTotalBytes: 100, ActiveStreams: 3})
+	mk("io-4", base.Add(16*time.Minute), activity.ServerMetric{CPUPercent: 50, DiskAwaitMs: 3, DiskUtilPercent: 1, DiskBusiest: "disk A"})
+
+	raw, err := repo.GetByTimeRange(ctx, base, base.Add(time.Hour))
+	require.NoError(t, err)
+	require.Len(t, raw, 4)
+	assert.Equal(t, "disk B", raw[1].DiskBusiest)
+	assert.InDelta(t, 40, raw[1].DiskAwaitMs, 0.01)
+	assert.EqualValues(t, 300, raw[1].DiskReadBps)
+	assert.EqualValues(t, 30, raw[1].NetRxBps)
+	assert.EqualValues(t, 11, raw[1].StorageUsedBytes)
+
+	buckets, err := repo.GetBucketed(ctx, base, base.Add(time.Hour), 15*time.Minute)
+	require.NoError(t, err)
+	require.Len(t, buckets, 2)
+	b := buckets[0]
+	assert.True(t, b.RecordedAt.Equal(base), "bucket start: %v", b.RecordedAt)
+	assert.InDelta(t, 20, b.CPUPercent, 0.01, "average")
+	assert.InDelta(t, 40, b.IOWaitPercent, 0.01, "average")
+	assert.InDelta(t, 40, b.DiskAwaitMs, 0.01, "maximum")
+	assert.InDelta(t, 60, b.DiskUtilPercent, 0.01, "maximum")
+	assert.EqualValues(t, 200, b.DiskReadBps, "average")
+	assert.EqualValues(t, 20, b.NetRxBps, "average")
+	assert.EqualValues(t, 12, b.StorageUsedBytes, "maximum")
+	assert.Equal(t, 5, b.ActiveStreams, "maximum")
+	assert.Equal(t, "disk B", b.DiskBusiest, "the disk behind the worst wait")
+	assert.Equal(t, "disk A", buckets[1].DiskBusiest)
+
+	idle, err := repo.IdleDiskAwaitMs(ctx, base)
+	require.NoError(t, err)
+	assert.InDelta(t, 3, idle, 0.01, "the 7 ms sample was idle too, the 3 ms one is lower; the busy ones do not count")
+	idle, err = repo.IdleDiskAwaitMs(ctx, base.Add(time.Hour))
+	require.NoError(t, err)
+	assert.Zero(t, idle, "nothing recorded since")
+}

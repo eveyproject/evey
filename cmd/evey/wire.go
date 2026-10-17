@@ -364,8 +364,28 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	metricsSampler := appactivity.NewMetricsSampler(activityCmdSvc, r.PlaySessionStats, streamMeter,
 		func() appactivity.SysSample {
 			s := sysinfo.Collect()
-			return appactivity.SysSample{CPUPercent: s.CPUPercent, MemUsedBytes: s.MemUsedBytes, MemTotalBytes: s.MemTotalBytes}
+			return appactivity.SysSample{
+				CPUPercent: s.CPUPercent, MemUsedBytes: s.MemUsedBytes, MemTotalBytes: s.MemTotalBytes,
+				IOWaitPercent: s.IOWaitPercent, Disks: s.Disks, Net: s.Net,
+			}
 		}, rootLog).
+		// The library disks' usage, grouped per physical disk like the
+		// dashboard's storage cards, so the history shows how fast they fill.
+		WithStorage(func() (used, total int64) {
+			libs, err := libQuerySvc.ListLibraries(ctx)
+			if err != nil {
+				return 0, 0
+			}
+			var paths []string
+			for _, lib := range libs {
+				paths = append(paths, lib.Paths...)
+			}
+			for _, st := range sysinfo.GetStorageStats(paths) {
+				used += st.UsedBytes
+				total += st.TotalBytes
+			}
+			return used, total
+		}).
 		// Honour EVEY_METRICS_SAMPLE_INTERVAL_SEC: it was parsed into config and
 		// then dropped on the floor, so an operator changing it saw no effect.
 		WithSampleInterval(time.Duration(cfg.Metrics.SampleIntervalSec) * time.Second)

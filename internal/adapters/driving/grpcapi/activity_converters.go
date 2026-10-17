@@ -28,12 +28,24 @@ func serverMetricToProto(m *activity.ServerMetric) *eveyv1.ServerMetric {
 		memPercent = float64(m.MemoryUsedBytes) / float64(m.MemoryTotalBytes) * 100
 	}
 	return &eveyv1.ServerMetric{
-		Timestamp:        toTimestamppb(m.RecordedAt),
-		CpuPercent:       m.CPUPercent,
-		MemoryPercent:    memPercent,
-		MemoryUsedBytes:  m.MemoryUsedBytes,
-		ActiveStreams:    int32(m.ActiveStreams),
-		ActiveTranscodes: int32(m.ActiveTranscodes),
+		Timestamp:         toTimestamppb(m.RecordedAt),
+		CpuPercent:        m.CPUPercent,
+		MemoryPercent:     memPercent,
+		MemoryUsedBytes:   m.MemoryUsedBytes,
+		MemoryTotalBytes:  m.MemoryTotalBytes,
+		ActiveStreams:     int32(m.ActiveStreams),
+		ActiveTranscodes:  int32(m.ActiveTranscodes),
+		BandwidthBps:      m.BandwidthBps,
+		StorageUsedBytes:  m.StorageUsedBytes,
+		StorageTotalBytes: m.StorageTotalBytes,
+		IowaitPercent:     m.IOWaitPercent,
+		DiskAwaitMs:       m.DiskAwaitMs,
+		DiskUtilPercent:   m.DiskUtilPercent,
+		DiskBusiest:       m.DiskBusiest,
+		DiskReadBps:       m.DiskReadBps,
+		DiskWriteBps:      m.DiskWriteBps,
+		NetworkRxBps:      m.NetRxBps,
+		NetworkTxBps:      m.NetTxBps,
 	}
 }
 

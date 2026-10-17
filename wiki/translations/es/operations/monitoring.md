@@ -1,8 +1,8 @@
 ---
-source_sha: d6335afa014ad627b79829f653197424d1a5c4572cdf3b9832ed19a3f7a079ac
+source_sha: af969a3c2ee02e3c968a79874fba9fc3a2e1b7c9925fd9888aacdf51fcda149b
 reviewed: true
 ---
-# Supervisión y registros
+# Supervisión y registros { #monitoring-and-logs }
 
 Dónde ver lo que está haciendo el servidor, para el administrador que quiere
 comprobar su estado más que arreglar algo: desde lo que se reproduce ahora
@@ -10,7 +10,7 @@ mismo hasta las estadísticas del mes, con los registros por medio. Si tienes
 un síntoma que investigar, empieza por
 [Solución de problemas](troubleshooting.md).
 
-## Lo que se reproduce ahora
+## Lo que se reproduce ahora { #what-is-playing-now }
 
 **Administración → Reproduciendo ahora** muestra todos los flujos en curso:
 quién, qué, en qué dispositivo, y cómo, pista por pista (copiada,
@@ -27,14 +27,32 @@ segundos como mucho.
 
 **Administración → Estado del sistema** muestra el procesador, la memoria,
 el ancho de banda y el almacenamiento, y qué parte de la capacidad de
-transcodificación está en uso.
+transcodificación está en uso. También lista los discos de la máquina, cada
+uno con el tiempo medio que esperó una petición durante el último minuto, su
+ocupación y sus caudales de lectura y escritura. La espera es la cifra que hay
+que vigilar: un disco puede estar ocupado al 100 % y seguir el ritmo, mientras
+que uno que hace esperar a cada petición varias veces más que en reposo
+convierte la reproducción en almacenamiento en búfer, aunque el procesador
+parezca libre. Un disco se marca como **Saturado** cuando su espera alcanza al
+menos 20 ms y al menos 2,5 veces su espera en reposo, con el disco ocupado o el
+procesador esperándolo. La tarjeta de CPU indica qué parte del tiempo del
+procesador se pasó esperando a los discos.
+
+**Tendencias**, bajo las tarjetas en directo, dibuja las últimas 24 horas,
+7 días o 30 días a partir de las muestras que el servidor registra cada minuto:
+procesador y espera de disco, memoria, la espera de disco con sus líneas de
+reposo y de saturación, ocupación y caudal de los discos, red entrante y
+saliente junto al streaming realmente servido, flujos y transcodificaciones, y
+el llenado de los discos de las bibliotecas. Procesador, discos y red son de
+toda la máquina: una copia u otro servicio que lea los mismos discos aparece
+ahí también. El panel lleva una tarjeta **Discos** con el disco que más espera.
 
 <figure class="evey-shot" markdown="span">
   ![Administración → Estado del sistema en el servidor de demostración](../images/admin-system-health.webp){ loading=lazy }
   <figcaption><strong>Administración → Estado del sistema</strong>, con el trabajo en segundo plano que se ejecuta debajo (interfaz en inglés).</figcaption>
 </figure>
 
-## Registros
+## Registros { #logs }
 
 **Administración → Registros y depuración** busca en el registro del servidor y
 lo sigue en directo (**En vivo**), filtrado con **Zona** a una sola parte
@@ -49,7 +67,7 @@ que el contenedor escribe mientras arranca, que es lo que hay que leer
 cuando el servidor no llega a arrancar. Ver
 [Solución de problemas](troubleshooting.md#the-logs).
 
-## Cómo ha ido de verdad la reproducción
+## Cómo ha ido de verdad la reproducción { #how-playback-actually-went }
 
 **Administración → Calidad de streaming** se construye con lo que informan
 los reproductores mientras reproducen (nivel del búfer, recargas,
@@ -64,7 +82,7 @@ después quita el límite por sí solo. Los límites activos aparecen en
 **Límites de calidad automáticos**, con el motivo y la fecha de caducidad;
 **Restablecer** quita uno en el momento.
 
-## Historial y estadísticas
+## Historial y estadísticas { #history-and-statistics }
 
 - **Administración → Analítica**: reproducciones de hoy y de esta semana,
   usuarios activos, los títulos más vistos de los últimos 30 días.
@@ -76,7 +94,7 @@ El tiempo que se guarda cada tipo de historial se fija en **Administración
 reproducción, registro de auditoría, métricas del servidor, calidad de
 streaming). Un cambio se aplica en la siguiente limpieza diaria.
 
-## Métricas de Prometheus
+## Métricas de Prometheus { #prometheus-metrics }
 
 `GET /metrics` sirve los contadores del servidor en el formato de texto de
 Prometheus, todos con nombres `evey_...`. Responde a una sesión de
@@ -95,7 +113,7 @@ Las familias con las que conviene empezar los gráficos:
 | `evey_http_requests_total`, `evey_http_request_duration_seconds` | Peticiones y latencia por método y por ruta. |
 | `evey_watcher_alive`, `evey_scan_queue_depth` | Si el monitor de archivos de cada biblioteca respondió a su última comprobación (1 o 0), y los archivos que esperan a ser escaneados. |
 
-## Línea de comandos
+## Línea de comandos { #command-line }
 
 `evey admin doctor` revisa todo el servidor en un solo informe; los demás
 comandos de diagnóstico están en [Línea de comandos](../runbooks/cli.md).

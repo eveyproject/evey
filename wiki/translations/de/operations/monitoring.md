@@ -1,8 +1,8 @@
 ---
-source_sha: d6335afa014ad627b79829f653197424d1a5c4572cdf3b9832ed19a3f7a079ac
+source_sha: af969a3c2ee02e3c968a79874fba9fc3a2e1b7c9925fd9888aacdf51fcda149b
 reviewed: true
 ---
-# Überwachung und Protokolle
+# Überwachung und Protokolle { #monitoring-and-logs }
 
 Wo Sie sehen, was der Server tut, für den Administrator, der den Zustand
 prüfen will, statt etwas zu reparieren: von dem, was gerade läuft, bis zur
@@ -10,7 +10,7 @@ Statistik des Monats, mit den Protokollen dazwischen. Wenn Sie einem
 bestimmten Fehler nachgehen, beginnen Sie mit der
 [Fehlerbehebung](troubleshooting.md).
 
-## Was gerade läuft
+## Was gerade läuft { #what-is-playing-now }
 
 **Verwaltung → Aktuelle Wiedergabe** listet jeden laufenden Stream auf: wer,
 was, auf welchem Gerät und wie, Spur für Spur (kopiert, transkodiert, und mit
@@ -27,14 +27,35 @@ ausführt.
 
 **Verwaltung → Systemzustand** zeigt Prozessor, Arbeitsspeicher, Bandbreite
 und Speicherplatz und wie viel der Kapazität für die Transkodierung belegt
-ist.
+ist. Außerdem listet die Seite die Datenträger der Maschine auf, jeden mit der
+mittleren Wartezeit einer Anfrage in der letzten Minute, seiner Auslastung und
+seinen Lese- und Schreibraten. Die Wartezeit ist die Zahl, auf die es ankommt:
+ein Datenträger kann zu 100 % ausgelastet sein und trotzdem mithalten, während
+einer, der jede Anfrage um ein Mehrfaches länger warten lässt als im
+Ruhezustand, die Wiedergabe ins Puffern treibt, selbst wenn der Prozessor
+untätig wirkt. Ein Datenträger gilt als **Gesättigt**, wenn seine Wartezeit
+mindestens 20 ms und mindestens das 2,5-Fache seiner Wartezeit im Ruhezustand
+erreicht und entweder der Datenträger ausgelastet ist oder der Prozessor auf
+ihn wartet. Die CPU-Karte nennt den Anteil der Prozessorzeit, der mit Warten
+auf Datenträger verging.
+
+**Trends** unter den Live-Karten zeichnet die letzten 24 Stunden, 7 Tage oder
+30 Tage aus den Proben, die der Server jede Minute speichert: Prozessor und
+Datenträger-Wartezeit, Arbeitsspeicher, die Datenträger-Wartezeit mit ihrer
+Ruhe- und Sättigungslinie, Auslastung und Durchsatz der Datenträger,
+eingehendes und ausgehendes Netzwerk neben dem tatsächlich ausgelieferten
+Streaming, Streams und Transkodierungen sowie den Füllstand der
+Bibliotheksdatenträger. Prozessor, Datenträger und Netzwerk betreffen die
+gesamte Maschine: ein Kopiervorgang oder ein benachbarter Dienst, der dieselben
+Datenträger liest, erscheint dort ebenfalls. Das Dashboard trägt eine Kachel
+**Datenträger** mit dem Datenträger, der am längsten wartet.
 
 <figure class="evey-shot" markdown="span">
   ![Verwaltung → Systemzustand auf dem Demo-Server](../images/admin-system-health.webp){ loading=lazy }
   <figcaption><strong>Verwaltung → Systemzustand</strong>, mit den Hintergrundarbeiten darunter (Oberfläche auf Englisch).</figcaption>
 </figure>
 
-## Protokolle
+## Protokolle { #logs }
 
 **Verwaltung → Protokolle & Debug** durchsucht das Protokoll des Servers und
 folgt ihm live (**Live**), mit **Bereich** eingegrenzt auf einen Teil (Player
@@ -48,7 +69,7 @@ standardmäßig 90 Tage aufbewahrt. `docker compose logs evey` zeigt nur, was
 der Container beim Start ausgibt. Das lesen Sie, wenn der Server nicht
 startet. Siehe [Fehlerbehebung](troubleshooting.md#the-logs).
 
-## Wie die Wiedergabe wirklich lief
+## Wie die Wiedergabe wirklich lief { #how-playback-actually-went }
 
 **Verwaltung → Streaming-Qualität** beruht auf dem, was die Player während der
 Wiedergabe melden (Pufferstand, erneutes Puffern, Durchsatz, im Format CMCD):
@@ -62,7 +83,7 @@ Grenze danach von selbst wieder auf. Die aktiven Grenzen stehen unter
 **Automatische Qualitätsgrenzen**, mit Grund und Ablaufzeit; **Zurücksetzen**
 hebt eine sofort auf.
 
-## Verlauf und Statistik
+## Verlauf und Statistik { #history-and-statistics }
 
 - **Verwaltung → Analysen**: Wiedergaben heute und in dieser Woche, aktive
   Benutzer, die meistgesehenen Titel der letzten 30 Tage.
@@ -74,7 +95,7 @@ Wie lange jede Art von Verlauf aufbewahrt wird, legen Sie unter **Verwaltung
 Audit-Protokoll, Servermesswerte, Streaming-Qualität). Eine Änderung gilt ab
 der nächsten täglichen Bereinigung.
 
-## Prometheus-Metriken
+## Prometheus-Metriken { #prometheus-metrics }
 
 `GET /metrics` liefert die Zähler des Servers im Textformat von Prometheus,
 alle mit Namen `evey_...`. Es antwortet einer Administratorsitzung oder einem
@@ -93,7 +114,7 @@ Die Gruppen, die sich für ein erstes Diagramm lohnen:
 | `evey_http_requests_total`, `evey_http_request_duration_seconds` | Anfragen und Antwortzeit nach Methode und Pfad. |
 | `evey_watcher_alive`, `evey_scan_queue_depth` | Ob die Ordnerüberwachung jeder Bibliothek auf ihre letzte Prüfung geantwortet hat (1 oder 0), und Dateien, die auf den Scan warten. |
 
-## Kommandozeile
+## Kommandozeile { #command-line }
 
 `evey admin doctor` prüft den ganzen Server in einem Bericht; die anderen
 Befehle zur Diagnose stehen unter [Kommandozeile](../runbooks/cli.md).

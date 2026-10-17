@@ -131,6 +131,23 @@ describe("DashboardStats", () => {
     }
   });
 
+  it("adds a disks tile only when the machine exposes its disks", () => {
+    const { unmount } = render(<DashboardStats info={baseInfo as never} />, { wrapper: createWrapper() });
+    expect(screen.queryByTestId("disks-stat-card")).not.toBeInTheDocument();
+    unmount();
+    const withDisks = {
+      ...baseInfo,
+      disks: [
+        { label: "QEMU HARDDISK drive-scsi1", device: "sda", awaitMs: 6.1, utilPercent: 100, saturated: false },
+        { label: "QEMU HARDDISK drive-scsi2", device: "sdc", awaitMs: 38.2, utilPercent: 61, saturated: true },
+      ],
+    };
+    render(<DashboardStats info={withDisks as never} />, { wrapper: createWrapper() });
+    // The disk that waits, not the one that is busiest, and its verdict.
+    expect(screen.getByTestId("disks-stat-card")).toHaveTextContent("38.2 ms");
+    expect(screen.getByTestId("disks-stat-card")).toHaveTextContent("Saturated · QEMU HARDDISK drive-scsi2");
+  });
+
   it("leaves storage to the System Health page", () => {
     const infoWithStorage = {
       ...baseInfo,

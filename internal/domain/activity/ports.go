@@ -26,6 +26,16 @@ type LoginHistoryRepository interface {
 type ServerMetricRepository interface {
 	Create(ctx context.Context, metric *ServerMetric) error
 	GetByTimeRange(ctx context.Context, from, to time.Time) ([]*ServerMetric, error)
+	// GetBucketed folds the samples of [from, to] into buckets of the given
+	// width: the percentages and rates are averaged, the counts, the disk
+	// wait and the storage figures keep their maximum, and the busiest disk
+	// is the one behind that maximum wait. A week of one-minute samples
+	// becomes a few hundred points instead of ten thousand rows.
+	GetBucketed(ctx context.Context, from, to time.Time, bucket time.Duration) ([]*ServerMetric, error)
+	// IdleDiskAwaitMs is the lowest disk wait recorded since the given time
+	// by a sample whose disk was nearly idle: the disk's wait at rest, the
+	// reference the saturation line is drawn from. 0 when no sample qualifies.
+	IdleDiskAwaitMs(ctx context.Context, since time.Time) (float64, error)
 	Purge(ctx context.Context, before time.Time) error
 	// TotalBandwidthBytes integrates the sampled streaming rate over the whole
 	// metric history: the real bytes served, bounded by the retention window.

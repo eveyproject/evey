@@ -10,6 +10,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/activity"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
@@ -31,6 +32,11 @@ type QueryService struct {
 	bwCached   int64
 	bwCachedAt time.Time
 	bwHasValue bool
+
+	idleMu       sync.Mutex
+	idleCached   float64
+	idleCachedAt time.Time
+	idleHasValue bool
 }
 
 type Option func(*QueryService)
@@ -82,6 +88,65 @@ func (s *QueryService) GetServerMetrics(ctx context.Context, from, to time.Time)
 	ctx, span := tracing.StartSpan(ctx, "app.activity.GetServerMetrics")
 	defer span.End()
 	return s.metrics.GetByTimeRange(ctx, from, to)
+}
+
+// maxMetricPoints is how many points a history chart is handed at most:
+// enough for a wide screen, few enough for a phone to draw and to keep the
+// 7 and 30 day windows under the repository's row cap.
+const maxMetricPoints = 720
+
+// metricBucketSteps are the bucket widths the history is folded into, so two
+// clients asking for the same window get the same points.
+var metricBucketSteps = []time.Duration{
+	time.Minute, 2 * time.Minute, 5 * time.Minute, 10 * time.Minute, 15 * time.Minute,
+	30 * time.Minute, time.Hour, 2 * time.Hour, 6 * time.Hour, 24 * time.Hour,
+}
+
+// MetricBucket picks the bucket for a window: the requested width when the
+// caller gave one (rounded up to a step), else the smallest step that keeps
+// the window under maxMetricPoints.
+func MetricBucket(window, requested time.Duration) time.Duration {
+	want := requested
+	if want <= 0 {
+		want = window / maxMetricPoints
+	}
+	for _, step := range metricBucketSteps {
+		if step >= want {
+			return step
+		}
+	}
+	return metricBucketSteps[len(metricBucketSteps)-1]
+}
+
+// GetServerMetricsBucketed is the history folded for a chart; see MetricBucket.
+func (s *QueryService) GetServerMetricsBucketed(ctx context.Context, from, to time.Time, bucket time.Duration) ([]*activity.ServerMetric, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.activity.GetServerMetricsBucketed")
+	defer span.End()
+	return s.metrics.GetBucketed(ctx, from, to, bucket)
+}
+
+// idleAwaitWindow is how far back the disk's wait at rest is looked for: a
+// day covers a night, when the disks are quiet, on any schedule.
+const idleAwaitWindow = 24 * time.Hour
+
+// IdleDiskAwaitMs is the disks' wait at rest over the last day, floored so a
+// fast SSD still gets a sensible saturation line. Cached like the bandwidth
+// total: the dashboard polls every few seconds and the value moves by the
+// hour.
+func (s *QueryService) IdleDiskAwaitMs(ctx context.Context) float64 {
+	s.idleMu.Lock()
+	defer s.idleMu.Unlock()
+	if s.idleHasValue && time.Since(s.idleCachedAt) < bandwidthCacheTTL {
+		return s.idleCached
+	}
+	idle, err := s.metrics.IdleDiskAwaitMs(ctx, time.Now().Add(-idleAwaitWindow))
+	if err != nil {
+		return max(s.idleCached, sysinfo.IdleAwaitFloorMs)
+	}
+	s.idleCached = max(idle, sysinfo.IdleAwaitFloorMs)
+	s.idleCachedAt = time.Now()
+	s.idleHasValue = true
+	return s.idleCached
 }
 
 func (s *QueryService) GetAuditLog(ctx context.Context, filter activity.AuditLogFilter) ([]*activity.AuditLogEntry, error) {

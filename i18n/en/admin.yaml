@@ -908,6 +908,48 @@ remoteAccess:
   publishedInfo: "Remote access is enabled and this server is reachable from the Internet."
 
 systemHealth:
+  iowaitSub: "of which {{percent}}% waiting on disks"
+  disksSection: "Disks (whole machine)"
+  diskRestLine: "At rest {{idle}} ms · saturated above {{line}} ms"
+  diskIowait: "CPU waiting on disks: {{percent}}%"
+  diskSolidState: "SSD"
+  diskAwaitHint: "Mean time a request waited and was served over the last window"
+  diskUtil: "busy {{percent}}%"
+  diskRates: "read {{read}} · write {{write}}"
+  diskSaturated: "Saturated"
+  diskMachineNote: "Whole-machine counters: a copy or another service reading the same disks shows here too. The wait is the signal; a busy share near 100% is normal on an SSD."
+  trendsSection: "Trends"
+  trendsRangeLabel: "Window"
+  trendsRange_24h: "24 h"
+  trendsRange_7d: "7 days"
+  trendsRange_30d: "30 days"
+  trendsBucket: "one point every {{minutes}} min"
+  trendsEmpty: "Not enough history yet: the server records one sample a minute."
+  trendsError: "The history could not be loaded."
+  trendsCpu: "CPU and disk wait (%)"
+  trendsCpuSeries: "CPU"
+  trendsIowaitSeries: "waiting on disks"
+  trendsMemory: "Memory (%)"
+  trendsMemorySeries: "memory"
+  trendsDiskAwait: "Disk wait (ms)"
+  trendsDiskAwaitSeries: "wait"
+  trendsDiskAwaitIdle: "at rest"
+  trendsDiskAwaitSaturation: "saturation"
+  trendsDiskUtil: "Disk busy share (%)"
+  trendsDiskUtilSeries: "busy"
+  trendsDiskThroughput: "Disk throughput"
+  trendsRead: "read"
+  trendsWrite: "write"
+  trendsNetwork: "Network"
+  trendsNetRx: "received"
+  trendsNetTx: "sent"
+  trendsStreaming: "streaming served"
+  trendsStreams: "Streams and transcodes"
+  trendsStreamsSeries: "streams"
+  trendsTranscodesSeries: "transcodes"
+  trendsStorage: "Storage used (%)"
+  trendsStorageSeries: "used"
+  trendsMachineNote: "CPU, disks and network are the whole machine's; streaming and streams are Evey's own."
   metricsSection: "System"
   title: System Health
   autoRefresh: "Updated {{time}} · auto-refreshes every 5s"
@@ -979,6 +1021,9 @@ transcodeCache:
   hwDevices: Hardware Acceleration
 
 dashboardStats:
+  disks: "Disks"
+  diskSub: "{{label}} · busy {{percent}}%"
+  diskSaturatedSub: "Saturated · {{label}}"
   movies: Movies
   series: Series
   users: Users

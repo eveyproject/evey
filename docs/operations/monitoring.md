@@ -19,7 +19,24 @@ ended and left **Now Playing**; **Stop this Chromecast** sends it a stop
 command, which the television applies within 30 seconds.
 
 **Admin → System Health** shows the processor, memory, bandwidth and storage,
-and how much of the transcoding capacity is in use.
+and how much of the transcoding capacity is in use. It also lists the
+machine's disks, each with the mean time a request waited over the last
+minute, its busy share and its read and write rates. The wait is the figure
+to watch: a disk can be 100 % busy and keep up, while one that makes every
+request wait several times longer than it does at rest is what turns playback
+into buffering, even when the processor looks idle. A disk is marked
+**Saturated** when its wait is at least 20 ms and at least 2.5 times its wait
+at rest, with either the disk busy or the processor waiting on it. The CPU card
+says how much of the processor's time was spent waiting on disks.
+
+**Trends** under the live cards draws the last 24 hours, 7 days or 30 days
+from the samples the server records once a minute: processor and disk wait,
+memory, the disk wait with its rest and saturation lines, the disks' busy
+share and throughput, network in and out beside the streaming actually served,
+streams and transcodes, and how full the library disks are. Processor, disk
+and network figures are the whole machine's; a copy or a neighbouring service
+reading the same disks shows there too. The dashboard carries a **Disks** tile
+with the disk that waits the most.
 
 <figure class="evey-shot" markdown="span">
   ![Admin → System Health on the demo server](../images/admin-system-health.webp){ loading=lazy }
@@ -89,6 +106,7 @@ diagnostic commands are listed in [Command line](../runbooks/cli.md).
 <!-- sources
 who's online: frontend/apps/web/src/features/admin/DashboardOnline.tsx (presence heartbeat, profile names, idle, SendCastReceiverCommand) ; i18n admin.online.*
 logs: internal/pkg/logger/logger.go - New (file only outside DevMode), rotatingWriter ; config EVEY_LOG_RETENTION_DAYS ; docker-compose.yml ./evey-data:/data
+disks and trends: internal/pkg/sysinfo/diskio.go (DiskIO, DiskSaturated, SaturationAwaitMs) ; internal/app/activity/metrics_sampler.go (recordDisks, WithStorage) ; postgres server_metric_repo.go GetBucketed/IdleDiskAwaitMs ; proto ActivityService.ListServerMetrics, DashboardInfo.disks ; web features/admin/SystemTrends.tsx, DiskIO.tsx ; tests sysinfo diskio_test.go, SystemTrends.test.tsx
 labels: i18n admin.sessions.*, admin.systemHealth.*, admin.logs.where.*, admin.logs.live, admin.qoe.*, admin.analytics.*, admin.activity.*, admin.serverSettings.*RetentionDays, retentionSweepHint
 automatic limits: i18n admin.qoe.overrides.*
 metrics: internal/pkg/metrics/metrics.go (names) ; internal/adapters/driving/http/auth_middleware.go - httpScrapeOrAdminMiddleware (Bearer scrape token or admin JWT) ; docs/adr/0018-cmcd-qoe-pipeline.md
