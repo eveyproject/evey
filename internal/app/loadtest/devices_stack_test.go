@@ -120,3 +120,21 @@ func TestLimiterOf_StorageNotMeasured(t *testing.T) {
 		t.Fatalf("cpu on a share: limiter %q, want cpu", l)
 	}
 }
+
+// A name that is not one path element never reaches /sys/block: a malformed
+// one cannot walk out of it.
+func TestBlockName_OnePathElementOnly(t *testing.T) {
+	for _, name := range []string{"sda", "dm-0", "nvme0n1", "md127"} {
+		if !blockName(name) {
+			t.Errorf("%q refused", name)
+		}
+	}
+	for _, name := range []string{"", ".", "..", "../etc", "sda/../../etc", "/sda"} {
+		if blockName(name) {
+			t.Errorf("%q accepted", name)
+		}
+	}
+	if got := diskOfName(t.TempDir(), "../../etc"); got != "" {
+		t.Errorf("diskOfName(../../etc) = %q", got)
+	}
+}

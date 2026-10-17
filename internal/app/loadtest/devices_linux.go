@@ -178,7 +178,10 @@ func physicalDisks(fsRoot, name string) []string {
 // diskOfName is the entry of /sys/block a device name belongs to: itself for
 // a disk or a volume, the parent disk for a partition; "" when unknown.
 func diskOfName(fsRoot, name string) string {
-	if _, err := os.Stat(filepath.Join(fsRoot, "sys/block", name)); err == nil {
+	if !blockName(name) {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(fsRoot, "sys/block", name)); err == nil { //nolint:gosec // G703 FP: name is a kernel block device name (sysfs, diskstats), checked a single path element by blockName
 		return name
 	}
 	target, err := os.Readlink(filepath.Join(fsRoot, "sys/class/block", name))
@@ -186,7 +189,10 @@ func diskOfName(fsRoot, name string) string {
 		return ""
 	}
 	parent := filepath.Base(filepath.Dir(target))
-	if _, err := os.Stat(filepath.Join(fsRoot, "sys/block", parent)); err != nil {
+	if !blockName(parent) {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(fsRoot, "sys/block", parent)); err != nil { //nolint:gosec // G703 FP: parent is the base name of a sysfs link target, checked a single path element by blockName
 		return ""
 	}
 	return parent
@@ -223,10 +229,21 @@ func wholeDiskOf(fsRoot string, dev uint64) string {
 		// .../block/<disk>/<partition>: the disk is the parent.
 		name = parent
 	}
-	if _, err := os.Stat(filepath.Join(fsRoot, "sys/block", name)); err != nil {
+	if !blockName(name) {
+		return ""
+	}
+	if _, err := os.Stat(filepath.Join(fsRoot, "sys/block", name)); err != nil { //nolint:gosec // G703 FP: name is an element of a /sys/dev/block link target, checked a single path element by blockName
 		return ""
 	}
 	return name
+}
+
+// blockName reports whether name can be a block device's entry under
+// /sys/block: one path element, never "." or "..". Every name here comes from
+// the kernel (sysfs entries and link targets, /proc/diskstats); the check
+// keeps a malformed one from walking out of /sys/block.
+func blockName(name string) bool {
+	return name != "" && name != "." && name != ".." && !strings.ContainsRune(name, '/')
 }
 
 // deviceByRead names the whole disk that moved the bytes of a cold read from
