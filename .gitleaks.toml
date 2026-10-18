@@ -30,6 +30,7 @@ regexes = [
   '''q-secret", "eyJhbGciOiJSUzI1NiJ9"''',
   '''header\.eyJzdWIiOiJ1c2VyLTEifQ\.sig''',
   '''h\.eyJleHAiOjk5OTk5OTk5OTl9\.s''',
+  '''h\.eyJleHAiOjF9\.s''',
   '''eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9\.''',
   '''MIIBVQIBADANBgkq''',
   '''-----BEGIN RSA PRIVATE KEY-----\\nfake''',
