@@ -64,7 +64,7 @@ func TestRequireClaims_NoClaims(t *testing.T) {
 func TestResolveProfileID_Empty(t *testing.T) {
 	t.Parallel()
 	claims := &user.Claims{ProfileID: "p-1", IsAdmin: false}
-	pid, err := resolveProfileID(claims, "")
+	pid, err := resolveProfileID(context.Background(), claims, "")
 	if err != nil || pid != "p-1" {
 		t.Errorf("expected p-1, got %q err=%v", pid, err)
 	}
@@ -73,7 +73,7 @@ func TestResolveProfileID_Empty(t *testing.T) {
 func TestResolveProfileID_SameProfile(t *testing.T) {
 	t.Parallel()
 	claims := &user.Claims{ProfileID: "p-1", IsAdmin: false}
-	pid, err := resolveProfileID(claims, "p-1")
+	pid, err := resolveProfileID(context.Background(), claims, "p-1")
 	if err != nil || pid != "p-1" {
 		t.Errorf("expected p-1, got %q err=%v", pid, err)
 	}
@@ -82,7 +82,7 @@ func TestResolveProfileID_SameProfile(t *testing.T) {
 func TestResolveProfileID_DifferentProfile_NonAdmin(t *testing.T) {
 	t.Parallel()
 	claims := &user.Claims{ProfileID: "p-1", IsAdmin: false}
-	_, err := resolveProfileID(claims, "p-2")
+	_, err := resolveProfileID(context.Background(), claims, "p-2")
 	if err == nil {
 		t.Error("expected error for non-admin accessing different profile")
 	}
@@ -95,7 +95,7 @@ func TestResolveProfileID_DifferentProfile_Admin(t *testing.T) {
 	// explicit ImpersonateUser RPC (which mints a token whose ProfileID is the
 	// target, so resolveProfileID then sees reqProfileID == claims.ProfileID).
 	claims := &user.Claims{ProfileID: "p-1", IsAdmin: true}
-	if _, err := resolveProfileID(claims, "p-2"); err == nil {
+	if _, err := resolveProfileID(context.Background(), claims, "p-2"); err == nil {
 		t.Error("expected admin to be denied a foreign profile_id (must impersonate instead)")
 	}
 }

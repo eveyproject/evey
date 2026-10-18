@@ -200,6 +200,7 @@ profile:
   schedule_kids_only: "开放时间仅适用于儿童个人资料。"
   wrong_parent_pin: "家长 PIN 错误。"
   no_parent_pin: "此账户未设置家长 PIN：请先在成人个人资料上设置。"
+  cannot_access_other: "无法访问其他个人资料。"
 
 metadata:
   no_provider_id: "此项目没有 {provider} ID"

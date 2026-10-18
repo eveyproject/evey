@@ -200,6 +200,7 @@ profile:
   schedule_kids_only: "Les horaires ne s'appliquent qu'aux profils enfants."
   wrong_parent_pin: "Code PIN parent incorrect."
   no_parent_pin: "Aucun code PIN parent n'existe sur ce compte : définissez-en un sur un profil adulte."
+  cannot_access_other: "Vous ne pouvez pas accéder à un autre profil."
 
 metadata:
   no_provider_id: "Cet élément n'a pas d'identifiant {provider}"

@@ -126,7 +126,7 @@ func (h *feedHandler) GetFeedConfig(ctx context.Context, req *eveyv1.GetFeedConf
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.GetFeedConfig: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.GetFeedConfig: %w", err)
 	}
@@ -148,7 +148,7 @@ func (h *feedHandler) ContinueWatching(ctx context.Context, req *eveyv1.Continue
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.ContinueWatching: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.ContinueWatching: %w", err)
 	}
@@ -194,7 +194,7 @@ func (h *feedHandler) Recommended(ctx context.Context, req *eveyv1.RecommendedRe
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.Recommended: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.Recommended: %w", err)
 	}
@@ -216,7 +216,7 @@ func (h *feedHandler) SimilarItems(ctx context.Context, req *eveyv1.SimilarItems
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.SimilarItems: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.SimilarItems: %w", err)
 	}
@@ -270,7 +270,7 @@ func (h *feedHandler) UpdateProfileFeedConfig(ctx context.Context, req *eveyv1.U
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.UpdateProfileFeedConfig: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.UpdateProfileFeedConfig: %w", err)
 	}
@@ -302,7 +302,7 @@ func (h *feedHandler) ResetProfileFeedConfig(ctx context.Context, req *eveyv1.Re
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.ResetProfileFeedConfig: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.ResetProfileFeedConfig: %w", err)
 	}
@@ -319,7 +319,7 @@ func (h *feedHandler) ResumePlayback(ctx context.Context, req *eveyv1.ResumePlay
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.ResumePlayback: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.ResumePlayback: %w", err)
 	}
@@ -345,7 +345,7 @@ func (h *feedHandler) NextEpisode(ctx context.Context, req *eveyv1.NextEpisodeRe
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.NextEpisode: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("feedHandler.NextEpisode: %w", err)
 	}

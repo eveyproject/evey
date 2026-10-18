@@ -522,7 +522,7 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.StartStream: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -764,7 +764,7 @@ func (h *playbackHandler) GetWatchProgress(ctx context.Context, req *eveyv1.GetW
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetWatchProgress: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -818,7 +818,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetWatchHistory: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -970,7 +970,7 @@ func (h *playbackHandler) GetResumeItems(ctx context.Context, req *eveyv1.GetRes
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetResumeItems: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -1050,7 +1050,7 @@ func (h *playbackHandler) GetNextUp(ctx context.Context, req *eveyv1.GetNextUpRe
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetNextUp: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -1126,7 +1126,7 @@ func (h *playbackHandler) MarkAsWatched(ctx context.Context, req *eveyv1.MarkAsW
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.MarkAsWatched: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -1160,7 +1160,7 @@ func (h *playbackHandler) MarkAsUnwatched(ctx context.Context, req *eveyv1.MarkA
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.MarkAsUnwatched: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -1196,7 +1196,7 @@ func (h *playbackHandler) ClearWatchHistory(ctx context.Context, req *eveyv1.Cle
 	}
 	// resolveProfileID pins the call to the caller's own profile (admins too),
 	// so nobody clears another profile's history through this RPC.
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -1229,7 +1229,7 @@ func (h *playbackHandler) GetSeriesPlayTarget(ctx context.Context, req *eveyv1.G
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.GetSeriesPlayTarget: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())

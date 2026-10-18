@@ -88,7 +88,7 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 	// anyone else is dropped, not honored.
 	profileID, userID := req.ProfileId, req.UserId
 	if !interceptors.AdminReach(ctx, auth.ScopeAdminRead) {
-		own, resolveErr := resolveProfileID(claims, req.ProfileId)
+		own, resolveErr := resolveProfileID(ctx, claims, req.ProfileId)
 		if resolveErr != nil {
 			return nil, fmt.Errorf("activityHandler.GetPlayHistory: %w", resolveErr)
 		}
@@ -182,7 +182,7 @@ func (h *activityHandler) GetUserStats(ctx context.Context, req *eveyv1.GetUserS
 	if err != nil {
 		return nil, fmt.Errorf("activityHandler.GetUserStats: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("activityHandler.GetUserStats: %w", err)
 	}

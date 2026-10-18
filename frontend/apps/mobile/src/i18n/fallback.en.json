@@ -2502,6 +2502,7 @@
   "errors.plugin.sandbox_mode_invalid": "The sandbox mode must be one of: {modes}",
   "errors.plugin.source_required": "A plugin source is required",
   "errors.plugin.system_disabled": "The plugin system is disabled (set EVEY_PLUGINS_ENABLED=true to enable it)",
+  "errors.profile.cannot_access_other": "You cannot access another profile.",
   "errors.profile.closed": "This profile is locked outside its opening hours.",
   "errors.profile.no_parent_pin": "No parent PIN is set on this account: set one on an adult profile first.",
   "errors.profile.schedule_invalid": "These opening hours are not valid.",
