@@ -2,8 +2,10 @@ package filesystem
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -54,8 +56,17 @@ func (s *Scanner) ParseTitle(path string) string {
 
 // FileExists reports whether path is still present on disk.
 func (s *Scanner) FileExists(path string) bool {
+	return notProvenGone(path)
+}
+
+// notProvenGone reports false only when the OS says the file does not exist.
+// The scan prunes on this answer, and a stat that fails for any other reason
+// (a folder whose permissions changed, EIO, a stale NFS handle) says nothing
+// about the file being deleted: reading it as gone would drop the item and
+// its watch history.
+func notProvenGone(path string) bool {
 	_, err := os.Stat(path)
-	return err == nil
+	return !errors.Is(err, fs.ErrNotExist)
 }
 
 func NewScanner() *Scanner {
@@ -72,6 +83,9 @@ func (s *Scanner) Scan(ctx context.Context, root string) ([]library.ScannedFile,
 			if path == root {
 				return err
 			}
+			// Skipped, not fatal: the pruner re-checks each unseen file on disk,
+			// so what lives under this folder keeps its item.
+			slog.Warn("scan: walk error", slog.String("path", path), slog.Any("err", err))
 			return nil
 		}
 		if ctx.Err() != nil {

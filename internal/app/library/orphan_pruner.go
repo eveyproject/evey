@@ -38,17 +38,25 @@ type OrphanPruner struct {
 	mediaItems library.MediaItemCommandRepo
 	search     library.SearchIndex
 	events     shared.EventBus
+	files      fileChecker
+}
+
+// fileChecker re-checks a prune candidate on disk before its row goes.
+type fileChecker interface {
+	FileExists(path string) bool
 }
 
 func NewOrphanPruner(
 	mediaItems library.MediaItemCommandRepo,
 	search library.SearchIndex,
 	events shared.EventBus,
+	files fileChecker,
 ) *OrphanPruner {
 	return &OrphanPruner{
 		mediaItems: mediaItems,
 		search:     search,
 		events:     events,
+		files:      files,
 	}
 }
 
@@ -95,10 +103,17 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 			skippedDegraded++
 			continue
 		}
+		// The walk skips a folder it cannot read without failing the scan, so
+		// "not seen" alone is not "deleted": the file must be confirmed gone
+		// on disk, as the music and photo prunes already do.
+		if p.files != nil && p.files.FileExists(path) {
+			skippedDegraded++
+			continue
+		}
 		orphanIDs = append(orphanIDs, id)
 	}
 	if skippedDegraded > 0 {
-		slog.WarnContext(ctx, "orphan prune skipped some items under roots that scanned empty (likely a degraded mount)",
+		slog.WarnContext(ctx, "orphan prune skipped items the scan did not see but that are not gone from disk (degraded mount or unreadable folder)",
 			slog.String("library_id", libraryID), slog.Int("skipped", skippedDegraded))
 	}
 	deleted := 0

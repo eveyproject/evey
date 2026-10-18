@@ -135,7 +135,7 @@ func NewScanService(
 		prober:        prober,
 		search:        search,
 		events:        events,
-		pruner:        NewOrphanPruner(mediaItems, search, events),
+		pruner:        NewOrphanPruner(mediaItems, search, events, scanner),
 		scanning:      make(map[string]bool),
 		settleRetry:   make(map[string]*time.Timer),
 		staleReprobes: rate.NewLimiter(staleReprobeRate, staleReprobeBurst),
