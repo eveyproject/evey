@@ -423,7 +423,7 @@ func (h *userHandler) ListProfiles(ctx context.Context, req *eveyv1.ListProfiles
 		return nil, fmt.Errorf("userHandler.ListProfiles: %w", err)
 	}
 	userID := req.UserId
-	if !claims.IsAdmin && userID != claims.UserID {
+	if !interceptors.AdminReach(ctx, auth.ScopeAdminRead) && userID != claims.UserID {
 		userID = claims.UserID
 	}
 	profiles, err := h.query.ListProfiles(ctx, userID)
