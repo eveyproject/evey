@@ -15,6 +15,7 @@ import { useTheme } from "../../providers/ThemeProvider";
 import { useServerUrl } from "../../hooks/useServerUrl";
 import { PinPromptDialog } from "../../features/profile/PinPromptDialog";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { useAuthHeaders } from "../../hooks/useAuthenticatedImage";
 
 const LAST_PROFILE_KEY = "evey:last_profile_id";
 
@@ -36,6 +37,9 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
   const { t } = useTranslation();
   const qc = useQueryClient();
   const accessToken = useAuthStore((s) => s.accessToken);
+  // The avatar route takes the token as a header, never in the URL, where
+  // it lands in caches and logs.
+  const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const logout = useAuthStore((s) => s.logout);
@@ -112,7 +116,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
   if (!active) return null;
 
   const activeAvatarUrl = active.avatarPath && active.id && serverUrl && accessToken
-    ? `${serverUrl}/api/v1/profiles/${active.id}/avatar?token=${accessToken}`
+    ? `${serverUrl}/api/v1/profiles/${active.id}/avatar`
     : null;
   const initial = (active.name ?? "?").charAt(0).toUpperCase();
   const s = styles(theme);
@@ -134,7 +138,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
         accessibilityLabel={t("common.nav.userMenu", "User menu")}
       >
         {activeAvatarUrl ? (
-          <Image source={{ uri: activeAvatarUrl }} style={{ width: size, height: size, borderRadius: size / 2 }} contentFit="cover" />
+          <Image source={{ uri: activeAvatarUrl, headers: authHeaders }} style={{ width: size, height: size, borderRadius: size / 2 }} contentFit="cover" />
         ) : (
           <Text style={{ color: theme.colors.onAccent, fontSize: Math.round(size * 0.45), fontWeight: "600" }}>
             {initial}
@@ -216,7 +220,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
               {profiles.map((p) => {
                 const isActive = p.id === active.id;
                 const avatarUrl = p.avatarPath && p.id && serverUrl && accessToken
-                  ? `${serverUrl}/api/v1/profiles/${p.id}/avatar?token=${accessToken}`
+                  ? `${serverUrl}/api/v1/profiles/${p.id}/avatar`
                   : null;
                 const itemInitial = (p.name ?? "?").charAt(0).toUpperCase();
                 return (
@@ -231,7 +235,7 @@ export function ProfileSwitcher({ profiles, activeProfileId, size = 30 }: Props)
                   >
                     <View style={[s.itemAvatar, { backgroundColor: theme.colors.accent }]}>
                       {avatarUrl ? (
-                        <Image source={{ uri: avatarUrl }} style={{ width: 36, height: 36, borderRadius: 18 }} contentFit="cover" />
+                        <Image source={{ uri: avatarUrl, headers: authHeaders }} style={{ width: 36, height: 36, borderRadius: 18 }} contentFit="cover" />
                       ) : (
                         <Text style={{ color: theme.colors.onAccent, fontSize: FONT_SIZE.sm, fontWeight: "600" }}>{itemInitial}</Text>
                       )}

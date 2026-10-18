@@ -32,6 +32,7 @@ import i18n from "../src/i18n";
 import { useBiometricAvailable, useBiometricEnabled } from "../src/hooks/useBiometric";
 import { PinPromptDialog } from "../src/features/profile/PinPromptDialog";
 import { loadProfileCache, type CachedProfile } from "@evey/store";
+import { useAuthHeaders } from "../src/hooks/useAuthenticatedImage";
 
 const LAST_PROFILE_KEY = "evey:last_profile_id";
 
@@ -41,6 +42,9 @@ export default function ProfileSelect() {
   const qc = useQueryClient();
   const setProfile = useAuthStore((s) => s.setProfile);
   const accessToken = useAuthStore((s) => s.accessToken);
+  // The avatar route takes the token as a header, never in the URL, where
+  // it lands in caches and logs.
+  const authHeaders = useAuthHeaders();
   const activeProfileId = useAuthStore((s) => s.profileId);
   const serverUrl = useServerUrl();
 
@@ -221,7 +225,7 @@ export default function ProfileSelect() {
         {rows.map((p) => {
           const initial = (p.name ?? "?")[0]?.toUpperCase() ?? "?";
           const avatarUrl = p.avatarPath && p.id && serverUrl && accessToken
-            ? `${serverUrl}/api/v1/profiles/${p.id}/avatar?token=${accessToken}`
+            ? `${serverUrl}/api/v1/profiles/${p.id}/avatar`
             : null;
           const isBusy = busy === p.id;
           return (
@@ -239,7 +243,7 @@ export default function ProfileSelect() {
                   // Decorative: the parent Pressable already carries the
                   // profile name as its accessibilityLabel.
                   <Image
-                    source={{ uri: avatarUrl }}
+                    source={{ uri: avatarUrl, headers: authHeaders }}
                     style={{ width: 96, height: 96, borderRadius: 48 }}
                     contentFit="cover"
                     accessible={false}

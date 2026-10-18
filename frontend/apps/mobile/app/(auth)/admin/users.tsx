@@ -30,6 +30,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { BitrateModal } from "./users/BitrateModal";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 
 interface LibraryInfo {
   id: string;
@@ -203,6 +204,9 @@ function UserActionsSheet({ user, actions, profiles, onClose, theme }: { user: V
   const router = useRouter();
   const serverUrl = useServerUrl();
   const accessToken = useAuthStore((s) => s.accessToken);
+  // The avatar route takes the token as a header, never in the URL, where
+  // it lands in caches and logs.
+  const authHeaders = useAuthHeaders();
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable
@@ -239,13 +243,13 @@ function UserActionsSheet({ user, actions, profiles, onClose, theme }: { user: V
           <View style={{ gap: 10, marginTop: 8, marginBottom: 4 }}>
             {profiles.map((p) => {
               const avatarUrl = p.avatarPath && p.id && serverUrl && accessToken
-                ? `${serverUrl}/api/v1/profiles/${p.id}/avatar?token=${accessToken}`
+                ? `${serverUrl}/api/v1/profiles/${p.id}/avatar`
                 : null;
               return (
                 <View key={p.id} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                   <View style={[styles.profileAvatar, { backgroundColor: theme.colors.surfaceRaised }]}>
                     {avatarUrl ? (
-                      <Image source={{ uri: avatarUrl }} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                      <Image source={{ uri: avatarUrl, headers: authHeaders }} style={{ width: 28, height: 28, borderRadius: 14 }} />
                     ) : (
                       <Text style={{ color: theme.colors.text, fontSize: 12, fontWeight: "700" }}>
                         {(p.name ?? "?").charAt(0).toUpperCase()}

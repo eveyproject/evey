@@ -18,6 +18,7 @@ import { supportedLanguages } from "../../../src/i18n";
 import { ThemeSelector } from "../../../src/components/ThemeSelector";
 import { wikiUrl } from "@evey/client";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 
 function ChevronRight({ color }: { color: string }) {
   return <Text style={{ color, fontSize: 18 }}>{"›"}</Text>;
@@ -63,6 +64,9 @@ export default function SettingsScreen() {
   const { data: systemInfo } = useAdminSystemServiceGetSystemInfo({ query: { enabled: isAdmin } });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const accessToken = useAuthStore((s) => s.accessToken);
+  // The avatar route takes the token as a header, never in the URL, where
+  // it lands in caches and logs.
+  const authHeaders = useAuthHeaders();
 
   const updateUser = useUserServiceUpdateUser({
     mutation: {
@@ -250,7 +254,7 @@ export default function SettingsScreen() {
               // defaultProfile here meant anyone on a non-default profile saw an
               // initial instead of the avatar they had just set.
               <Image
-                source={{ uri: `${serverUrl}/api/v1/profiles/${activeProfile.id}/avatar?token=${accessToken}` }}
+                source={{ uri: `${serverUrl}/api/v1/profiles/${activeProfile.id}/avatar`, headers: authHeaders }}
                 style={{ width: 56, height: 56, borderRadius: 28 }}
                 contentFit="cover"
               />
