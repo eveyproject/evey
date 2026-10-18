@@ -41,7 +41,7 @@ type audioServe struct {
 	cache         *apptranscoding.SegmentCache
 	audioOrch     AudioSegmentEnsurer
 	// startHint is the segment the master request said playback starts at
-	// (transcode_start_hint.go), 0 when unknown.
+	// (transcode_start_hint.go), 0 when unknown; it takes a startHintKey.
 	startHint func(mediaID string) int
 
 	// audioNormalizeGetter mirrors the video pipeline knob.
@@ -166,17 +166,17 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 
 	// The player's next request is the segment at its position: start encoding it now.
 	if pw, ok := h.audioOrch.(audioStartAware); ok {
-		if seg := h.hintFor(mediaID); seg > 0 {
+		if seg := h.hintFor(r, mediaID); seg > 0 {
 			pw.PreWarmAudio(h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay, copyCodec), seg)
 		}
 	}
 }
 
-func (h *audioServe) hintFor(mediaID string) int {
+func (h *audioServe) hintFor(r *http.Request, mediaID string) int {
 	if h.startHint == nil {
 		return 0
 	}
-	return h.startHint(mediaID)
+	return h.startHint(startHintKey(r, mediaID))
 }
 
 func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64, copyCodec string) {
@@ -212,7 +212,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	ensureInit := h.audioOrch.EnsureAudioInit
 	if at, ok := h.audioOrch.(audioStartAware); ok {
 		ensureInit = func(ctx context.Context, fp apptranscoding.AudioFingerprint) error {
-			return at.EnsureAudioInitAt(ctx, fp, h.hintFor(mediaID))
+			return at.EnsureAudioInitAt(ctx, fp, h.hintFor(r, mediaID))
 		}
 	}
 	if err := ensureInit(waitCtx, fp); err != nil {

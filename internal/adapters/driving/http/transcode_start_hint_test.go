@@ -1,11 +1,14 @@
 package httpapi
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	domainuser "github.com/eveyproject/evey/internal/domain/user"
 )
 
 func TestStartSegmentHint_ParsesTheMasterQuery(t *testing.T) {
@@ -118,4 +121,25 @@ func TestInitSegment_FallsBackToTheLivePositionThenZero(t *testing.T) {
 	assert.Equal(t, 23, h.initSegment("m1", "fp1", 7980, later), "a fresh master wins")
 
 	assert.Equal(t, 0, h.initSegment("m1", "fp1", 7980, now.Add(livePositionTTL+time.Minute)), "too old: 0")
+}
+
+// The hint is the start of ONE viewer's playback. Kept per media, a second
+// viewer's master at 0 overwrote the first viewer's resume at 40 min within the
+// minute, and the first viewer's variant warmed an encoder at 0 nobody read.
+func TestStartHint_IsPerViewer(t *testing.T) {
+	h := &hlsVODServe{}
+	now := time.Now()
+	viewer := func(profile string) *http.Request {
+		return withHTTPClaims(httptest.NewRequest(http.MethodGet, "/x", nil), &domainuser.Claims{UserID: "u-" + profile, ProfileID: profile})
+	}
+	alice, bob := viewer("p-alice"), viewer("p-bob")
+
+	h.startHints.remember(startHintKey(alice, "m1"), 480, now)
+	h.startHints.remember(startHintKey(bob, "m1"), 0, now)
+
+	seg, ok := h.prewarmSegment(startHintKey(alice, "m1"), 7980, now)
+	assert.True(t, ok)
+	assert.Equal(t, 480, seg, "the other viewer's start at 0 must not replace this one's resume")
+	seg, _ = h.prewarmSegment(startHintKey(bob, "m1"), 7980, now)
+	assert.Equal(t, 0, seg)
 }

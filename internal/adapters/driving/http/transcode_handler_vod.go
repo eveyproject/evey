@@ -589,7 +589,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// Absent = a start at 0, remembered as such so the variant fetch that
 	// follows still warms its rafale.
 	seg, _ := startSegmentHint(r)
-	h.startHints.remember(mediaID, seg, time.Now())
+	h.startHints.remember(startHintKey(r, mediaID), seg, time.Now())
 
 	// ONE resolution: decision, route, shaped ladder, fingerprint and the
 	// delivery strategy - which engine carries the video and the audio. From
@@ -995,7 +995,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// No fresh master = a mid-viewing refetch: the segment request spawns at
 	// the right place, a warm-up here would only open an encoder at 0.
 	if producer := h.producerForPlan(rp); producer != nil {
-		if seg, ok := h.prewarmSegment(mediaID, in.DurationSec, time.Now()); ok {
+		if seg, ok := h.prewarmSegment(startHintKey(r, mediaID), in.DurationSec, time.Now()); ok {
 			producer.PreWarm(rp.FP, profileIdx, seg)
 		}
 	}
@@ -1122,7 +1122,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		if item.File != nil {
 			durSec = item.File.Duration.Seconds()
 		}
-		ensureSeg = h.initSegment(mediaID, rp.FPHash, durSec, time.Now())
+		ensureSeg = h.initSegment(startHintKey(r, mediaID), rp.FPHash, durSec, time.Now())
 	} else {
 		h.livePositions.rememberWithin(rp.FPHash, segmentIdx, time.Now(), livePositionTTL)
 	}
