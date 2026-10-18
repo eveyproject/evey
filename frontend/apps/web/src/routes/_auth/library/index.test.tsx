@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const librariesHook = vi.fn(() => ({ data: { libraries: [] }, isLoading: false, isError: false, error: null, refetch: vi.fn() }));
 
+const mediaItemsHook = vi.fn(() => ({ data: { pagination: { totalItems: 0 } } }));
+
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (def: { component: React.ComponentType }) => def,
   Link: ({ children, ...props }: { children: React.ReactNode; to?: string; params?: Record<string, string> }) =>
@@ -14,7 +16,7 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@evey/api", () => ({
   useLibraryServiceListLibraries: () => librariesHook(),
-  useLibraryServiceListMediaItems: () => ({ data: { pagination: { totalItems: 0 } } }),
+  useLibraryServiceListMediaItems: () => mediaItemsHook(),
   useMusicServiceListTracks: () => ({ data: { total: 0 } }),
   usePhotoServiceListPhotos: () => ({ data: { total: 0 } }),
 }));
@@ -91,5 +93,28 @@ describe("LibraryIndex", () => {
     render(React.createElement(LibraryIndex), { wrapper: createWrapper() });
 
     await waitFor(() => expect(screen.getByRole("heading", { name: "Movies", level: 2 })).toBeInTheDocument());
+  });
+
+  it("reads each card's count from the library itself and sends no per-card item query", async () => {
+    librariesHook.mockReturnValue({
+      data: {
+        libraries: [
+          { id: "l1", name: "Movies", type: "LIBRARY_TYPE_MOVIES", itemCount: 42 },
+          { id: "l2", name: "Shows", type: "LIBRARY_TYPE_SHOWS" },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const LibraryIndex = await getLibraryIndex();
+    render(React.createElement(LibraryIndex), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(screen.getByText("42 items")).toBeInTheDocument());
+    // The absent count of the second card shows nothing, never "0 items".
+    expect(screen.queryByText(/^0 items?$/)).not.toBeInTheDocument();
+    expect(mediaItemsHook).not.toHaveBeenCalled();
   });
 });

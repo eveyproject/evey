@@ -1,7 +1,7 @@
 import { Film, Monitor, Music, Folder, ChevronRight } from "lucide-react";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { useLibraryServiceListLibraries, useLibraryServiceListMediaItems, useMusicServiceListTracks, usePhotoServiceListPhotos } from "@evey/api";
+import { useLibraryServiceListLibraries, useMusicServiceListTracks, usePhotoServiceListPhotos } from "@evey/api";
 import type { V1Library, V1LibraryType } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -66,14 +66,10 @@ function PhotoItemCount({ libraryId }: { libraryId: string }) {
   return <span className="text-sm text-[var(--text-muted)]">{t("common.item", { count: total })}</span>;
 }
 
-function MediaItemCount({ libraryId }: { libraryId: string }) {
+// The count rides on the ListLibraries answer. It is absent when the server
+// could not count (or predates the field): show nothing rather than a 0.
+function MediaItemCount({ total }: { total?: number }) {
   const { t } = useTranslation();
-  const { data } = useLibraryServiceListMediaItems({
-    libraryId,
-    "pagination.page": 1,
-    "pagination.pageSize": 1,
-  });
-  const total = data?.pagination?.totalItems;
   if (total === undefined) return null;
   return (
     <span className="text-sm text-[var(--text-muted)]">
@@ -87,10 +83,10 @@ function MediaItemCount({ libraryId }: { libraryId: string }) {
 // "rendered more hooks" class (react/rules-of-hooks): safe here only while a
 // card's type never changes, which is exactly the kind of luck lint exists
 // to replace.
-function LibraryItemCount({ libraryId, libraryType }: { libraryId: string; libraryType?: V1LibraryType }) {
+function LibraryItemCount({ libraryId, libraryType, itemCount }: { libraryId: string; libraryType?: V1LibraryType; itemCount?: number }) {
   if (libraryType === "LIBRARY_TYPE_MUSIC") return <MusicItemCount libraryId={libraryId} />;
   if (libraryType === "LIBRARY_TYPE_PHOTOS") return <PhotoItemCount libraryId={libraryId} />;
-  return <MediaItemCount libraryId={libraryId} />;
+  return <MediaItemCount total={itemCount} />;
 }
 
 function LibraryCard({ library }: { library: V1Library }) {
@@ -131,7 +127,7 @@ function LibraryCard({ library }: { library: V1Library }) {
             </h2>
             <Badge variant="info">{label}</Badge>
           </div>
-          {library.id && <LibraryItemCount libraryId={library.id} libraryType={library.type} />}
+          {library.id && <LibraryItemCount libraryId={library.id} libraryType={library.type} itemCount={library.itemCount} />}
           {library.updatedAt && (
             <p className="text-xs mt-2 text-[var(--text-muted)]">
               {t("media.updated")} {new Date(library.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
