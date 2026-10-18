@@ -39,15 +39,13 @@ export const BACKGROUND_JOB_RATES = [
   { key: "transcoding.keyframe_backfill_idle_sec", labelKey: "admin.serverConfig.backgroundJobs.keyframeBackfillIdleSecLabel" },
 ] as const;
 
-export interface WriteCallbacks {
-  onSuccess?: () => void;
-  onError?: () => void;
-}
-
+// save/remove are mutateAsync: TanStack keeps the callbacks of the last
+// mutate() call only, so per-call callbacks over six writes never all fired.
+// The mutations toast their own failures; the form only reads the outcome.
 export function useBackgroundJobsForm(opts: {
   entries: { key?: string; value?: string }[] | undefined;
-  save: (key: string, value: string, callbacks?: WriteCallbacks) => void;
-  remove: (key: string, callbacks?: WriteCallbacks) => void;
+  save: (key: string, value: string) => Promise<unknown>;
+  remove: (key: string) => Promise<unknown>;
 }) {
   const { entries, save, remove } = opts;
   const [rateDrafts, setRateDrafts] = useState<Record<string, string>>({});
@@ -75,22 +73,19 @@ export function useBackgroundJobsForm(opts: {
     },
     isEnabled: (key: string) => entries?.find((e) => e.key === key)?.value !== "off",
     // Re-enabling reverts to the server default rather than writing "on".
-    toggle: (key: string, enabled: boolean) => (enabled ? remove(key) : save(key, "off")),
+    toggle: (key: string, enabled: boolean) => {
+      (enabled ? remove(key) : save(key, "off")).catch(() => {});
+    },
     // The dirty flag clears only once every write has landed: clearing it up
     // front reported success when every write failed, and dropped the edits.
-    saveRates: () => {
-      let remaining = BACKGROUND_JOB_RATES.length;
-      let hasError = false;
-      const settle = () => {
-        remaining -= 1;
-        if (remaining === 0 && !hasError) setRateDirty(false);
-      };
-      for (const field of BACKGROUND_JOB_RATES) {
-        const value = (rateDrafts[field.key] ?? "").trim();
-        const callbacks = { onSuccess: settle, onError: () => { hasError = true; } };
-        if (value) save(field.key, value, callbacks);
-        else remove(field.key, callbacks);
-      }
+    saveRates: async () => {
+      const results = await Promise.allSettled(
+        BACKGROUND_JOB_RATES.map((field) => {
+          const value = (rateDrafts[field.key] ?? "").trim();
+          return value ? save(field.key, value) : remove(field.key);
+        }),
+      );
+      if (results.every((r) => r.status === "fulfilled")) setRateDirty(false);
     },
   };
 }

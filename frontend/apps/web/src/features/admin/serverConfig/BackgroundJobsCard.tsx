@@ -13,8 +13,8 @@ export function BackgroundJobsCard({ entries }: { entries: ConfigEntry[] | undef
 
   const { rateDrafts, rateDirty, setRate, isEnabled, toggle, saveRates } = useBackgroundJobsForm({
     entries,
-    save: (key, value, callbacks) => (callbacks ? setEntry.mutate({ key, value }, callbacks) : setEntry.mutate({ key, value })),
-    remove: (key, callbacks) => (callbacks ? deleteEntry.mutate(key, callbacks) : deleteEntry.mutate(key)),
+    save: (key, value) => setEntry.mutateAsync({ key, value }),
+    remove: (key) => deleteEntry.mutateAsync(key),
   });
 
   return (
