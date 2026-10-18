@@ -18,7 +18,6 @@ import (
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type feedHandler struct {
@@ -384,7 +383,7 @@ func (h *feedHandler) BatchUpdateAdminFeedConfigs(ctx context.Context, req *evey
 		case errors.Is(err, feed.ErrNegativeMaxItems):
 			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.feed.max_items_negative")
 		}
-		return nil, status.Errorf(codes.InvalidArgument, "batch update: %v", err)
+		return nil, internalError(ctx, "batch update admin feed configs", err)
 	}
 	return &eveyv1.BatchUpdateAdminFeedConfigsResponse{}, nil
 }
