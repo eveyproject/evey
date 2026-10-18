@@ -253,12 +253,35 @@ export interface PlaySessionResult {
   shedReason: ShedReason;
   stopSession: () => void;
   restartWithTracks: (audioIndex?: number, subtitleIndex?: number, maxHeight?: number) => void;
+  /**
+   * The audio track the player switched to in place (absolute stream index).
+   * The verdict is asked again for it, as the web does, so the panel describes
+   * that track and not the one the stream was negotiated for. "reload" when
+   * that verdict moves playback between the file and the master, which an
+   * in-place switch cannot do; "superseded" when a later pick or stream took
+   * over; "kept" otherwise, a failed ask included (the track still plays).
+   */
+  selectAudioStream: (audioStreamIndex: number) => Promise<AudioSwitchOutcome>;
   progress: V1WatchProgress | null;
   // Where a later stream (a quality, audio or subtitle switch) was declared to
   // start, null on the first: the player seeks there instead of re-reading the
   // progress row by the first-start rule.
   restartPositionMs: number | null;
 }
+
+export type AudioSwitchOutcome = "kept" | "reload" | "superseded";
+
+type VerdictParams = NonNullable<Parameters<typeof playbackServiceGetStreamInfo>[1]>;
+
+// The verdict the stream plays under, and what it was asked with: an in-place
+// track switch re-asks with the same declaration and the master's own ceiling.
+interface LiveVerdict {
+  params: VerdictParams;
+  ceiling: number | undefined;
+  info: V1StreamInfo;
+}
+
+const isDirectPlay = (info: V1StreamInfo) => info.playMethod === "PLAY_METHOD_DIRECT_PLAY";
 
 // Tracks chosen on the media page BEFORE playback (absolute stream indices):
 // the first negotiation carries them, so the manifest opens on that audio.
@@ -306,11 +329,15 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
   // answered LAST used to win - the player silently went back to the track the
   // viewer had just left. The web guards its equivalent rebuild the same way.
   const generationRef = useRef(0);
+  const liveVerdictRef = useRef<LiveVerdict | null>(null);
+  // Which in-place track switch is the current one; a new stream drops them all.
+  const audioPickRef = useRef(0);
 
   const startStream = useCallback(
     async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number) => {
       const generation = ++generationRef.current;
       const superseded = () => generation !== generationRef.current;
+      audioPickRef.current++;
       const dev = deviceRef.current;
       try {
         const serverUrl = serverUrlRef.current || ((await dev.getServerUrl()) ?? "");
@@ -418,6 +445,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         });
 
         if (!stoppedRef.current && !superseded()) {
+          liveVerdictRef.current = { params: verdictParams, ceiling, info };
           setStreamInfo(info);
           setServerUrl(serverUrl);
           setRestartPositionMs(firstStream ? null : startMs);
@@ -486,6 +514,34 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
     [startStream],
   );
 
+  const selectAudioStream = useCallback(
+    async (audioStreamIndex: number): Promise<AudioSwitchOutcome> => {
+      const pick = ++audioPickRef.current;
+      const live = liveVerdictRef.current;
+      if (!live || audioStreamIndex <= 0) return "kept";
+      if (pickedAudioStream(live.info, live.params.audioStreamIndex)?.index === audioStreamIndex) return "kept";
+      const superseded = () => pick !== audioPickRef.current || stoppedRef.current;
+      try {
+        // Same two-step ask as the negotiation, against the ceiling the master
+        // URL already carries: the segments hold the track under that one.
+        const params = { ...live.params, audioStreamIndex };
+        let info = await playbackServiceGetStreamInfo(mediaId, params);
+        if (ceilingChangesVerdict(info, audioStreamIndex, live.ceiling)) {
+          info = await playbackServiceGetStreamInfo(mediaId, { ...params, maxAudioChannels: live.ceiling });
+        }
+        if (superseded()) return "superseded";
+        if (isDirectPlay(info) !== isDirectPlay(live.info)) return "reload";
+        liveVerdictRef.current = { ...live, params, info };
+        setStreamInfo(info);
+        return "kept";
+      } catch (err) {
+        (deviceRef.current.warn ?? console.warn)("[player] stream verdict for the audio track failed:", err);
+        return superseded() ? "superseded" : "kept";
+      }
+    },
+    [mediaId],
+  );
+
   // No restartAtPosition: the VOD manifest covers the whole timeline and the
   // player seeks natively, free of the offset bookkeeping that doubled positions.
 
@@ -493,5 +549,5 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
     return () => stopSession();
   }, [stopSession]);
 
-  return { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, progress, restartPositionMs };
+  return { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, isAuthError, shedReason, stopSession, restartWithTracks, selectAudioStream, progress, restartPositionMs };
 }

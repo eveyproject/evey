@@ -537,6 +537,86 @@ describe("usePlaySession: concurrent track switches", () => {
   });
 });
 
+// A track switched in place on the player kept the verdict of the track the
+// stream was negotiated for: the panel described one track while another
+// played, and a track the device cannot decode stayed on the file.
+describe("usePlaySession: audio track switched in place", () => {
+  const realFetch = global.fetch;
+  const fetchMock = vi.fn();
+  const streams = [
+    { type: "MEDIA_STREAM_TYPE_AUDIO", index: 1, codec: "aac", channels: 2, isDefault: true },
+    { type: "MEDIA_STREAM_TYPE_AUDIO", index: 2, codec: "dts", channels: 6 },
+  ];
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ status: 200, headers: { get: () => null }, json: async () => ({}) });
+    eveyFetchMock.mockResolvedValue({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  async function negotiated(playMethod: string) {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+    getStreamInfoMock.mockResolvedValueOnce({ playMethod, audioDecision: "copy", mediaStreams: streams });
+    const hook = renderHook(() => usePlaySession("m1"));
+    await waitFor(() => expect(hook.result.current.streamUrl).not.toBeNull());
+    return hook;
+  }
+
+  it("asks the verdict for the new track and shows it without reloading the stream", async () => {
+    const { result } = await negotiated("PLAY_METHOD_TRANSCODE");
+    const url = result.current.streamUrl;
+    getStreamInfoMock.mockResolvedValueOnce({ playMethod: "PLAY_METHOD_TRANSCODE", audioDecision: "transcode", mediaStreams: streams });
+
+    let outcome: string | undefined;
+    const { act } = await import("@testing-library/react");
+    await act(async () => { outcome = await result.current.selectAudioStream(2); });
+
+    expect(outcome).toBe("kept");
+    expect(getStreamInfoMock).toHaveBeenLastCalledWith("m1", expect.objectContaining({ audioStreamIndex: 2 }));
+    expect(result.current.streamInfo?.audioDecision).toBe("transcode");
+    expect(result.current.streamUrl).toBe(url);
+    expect(startStreamMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for a reload when the new track moves playback off the file", async () => {
+    const { result } = await negotiated("PLAY_METHOD_DIRECT_PLAY");
+    getStreamInfoMock.mockResolvedValueOnce({ playMethod: "PLAY_METHOD_TRANSCODE", audioDecision: "transcode", mediaStreams: streams });
+
+    await expect(result.current.selectAudioStream(2)).resolves.toBe("reload");
+    expect(result.current.streamInfo?.playMethod).toBe("PLAY_METHOD_DIRECT_PLAY");
+  });
+
+  it("asks nothing for the track the verdict already describes", async () => {
+    const { result } = await negotiated("PLAY_METHOD_TRANSCODE");
+    const asked = getStreamInfoMock.mock.calls.length;
+
+    await expect(result.current.selectAudioStream(1)).resolves.toBe("kept");
+    expect(getStreamInfoMock.mock.calls.length).toBe(asked);
+  });
+
+  it("drops the answer of a pick a later pick overtook", async () => {
+    const { result } = await negotiated("PLAY_METHOD_TRANSCODE");
+    let resolveSlow: ((v: unknown) => void) | null = null;
+    getStreamInfoMock
+      .mockImplementationOnce(() => new Promise((res) => { resolveSlow = res; }))
+      .mockResolvedValueOnce({ playMethod: "PLAY_METHOD_TRANSCODE", audioDecision: "copy", mediaStreams: streams });
+
+    const { act } = await import("@testing-library/react");
+    const slow = result.current.selectAudioStream(2);
+    await act(async () => { await result.current.selectAudioStream(2); });
+    resolveSlow?.({ playMethod: "PLAY_METHOD_TRANSCODE", audioDecision: "transcode", mediaStreams: streams });
+
+    await expect(slow).resolves.toBe("superseded");
+    expect(result.current.streamInfo?.audioDecision).toBe("copy");
+  });
+});
+
 // The shared hook reports an expired session apart (isAuthError); the phone's
 // player has no screen for it, so it must keep showing the stream error.
 describe("usePlaySession: expired session on the phone", () => {
