@@ -19,7 +19,7 @@ func newConcatStreamingServer(t *testing.T, plan *streamingPlan) *httptest.Serve
 	t.Helper()
 	h := &hlsVODServe{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.serveConcatResourceData(w, r, streamingConcat{plan}, strings.TrimPrefix(r.URL.Path, "/"), trace.SpanFromContext(r.Context()))
+		h.serveConcatResourceData(w, r, streamingConcat{plan}, strings.TrimPrefix(r.URL.Path, "/"), "", trace.SpanFromContext(r.Context()))
 	}))
 	t.Cleanup(srv.Close)
 	return srv

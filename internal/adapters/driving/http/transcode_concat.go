@@ -1,8 +1,11 @@
 package httpapi
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"go.opentelemetry.io/otel/codes"
@@ -23,8 +26,11 @@ import (
 //
 // Wire: sub-resources are prefixed concatPrefix so serveHTTP routes them here
 // instead of the single-episode on-demand path; the URL still keys on the
-// STARTING episode's id (the chain itself is re-resolved, cache-hit on the
-// packager, from that one id - no episode list travels in the URL).
+// STARTING episode's id. The master stamps the chain it served into every
+// sub-resource URI (concatChainParam: its length and a digest of its sources),
+// and a sub-resource replays exactly that chain. It used to re-decide the
+// chain from its own request, which carries none of the client's capabilities:
+// a stereo device's master left out a 5.1 episode its playlists then served.
 
 const (
 	concatPrefix = "cc_"
@@ -32,7 +38,52 @@ const (
 	// eligibility, each a few DB/probe round-trips) so a pathological season
 	// doesn't make one request pay for the whole library.
 	concatMaxEpisodes = 20
+	// concatChainParam carries the chain the master served: "<n>.<digest>".
+	concatChainParam = "cc"
 )
+
+// concatChainStamp names a chain by its length and a digest of its sources.
+func concatChainStamp(chain []*domainlibrary.MediaItem) string {
+	h := sha256.New()
+	for _, ep := range chain {
+		h.Write([]byte(ep.File.Path))
+		h.Write([]byte{0})
+	}
+	return strconv.Itoa(len(chain)) + "." + hex.EncodeToString(h.Sum(nil))[:16]
+}
+
+// concatManifestSuffix is planManifestSuffix plus the chain stamp.
+func concatManifestSuffix(r *http.Request, stamp string) string {
+	return planManifestSuffix(r, "") + "&" + concatChainParam + "=" + stamp
+}
+
+// stampedConcatChain replays the chain a master stamped: the same number of
+// episodes from start, still in its season and still allowed to the profile.
+// The capability probes are not run again - the request of a sub-resource
+// carries none of the client's capabilities, the master already judged them.
+// ok is false when the chain no longer is the one stamped (an episode added,
+// removed or replaced in between), which the caller answers 410.
+func (h *hlsVODServe) stampedConcatChain(r *http.Request, start *domainlibrary.MediaItem, stamp string) (chain []*domainlibrary.MediaItem, ok bool) {
+	nStr, _, found := strings.Cut(stamp, ".")
+	n, err := strconv.Atoi(nStr)
+	if !found || err != nil || n < 2 || n > concatMaxEpisodes {
+		return nil, false
+	}
+	claims := HTTPClaimsFromContext(r.Context())
+	chain = []*domainlibrary.MediaItem{start}
+	for cur := start; len(chain) < n; {
+		next, err := h.libSvc.NextEpisodeOf(r.Context(), string(cur.ID))
+		if err != nil || next == nil || next.ParentID != start.ParentID || next.File == nil || next.File.Path == "" {
+			return nil, false
+		}
+		if h.parental != nil && h.parental.BlockedByParental(r.Context(), claims.ProfileID, next) {
+			return nil, false
+		}
+		chain = append(chain, next)
+		cur = next
+	}
+	return chain, concatChainStamp(chain) == stamp
+}
 
 // serveConcatMaster resolves the episode chain starting at item (itself plus
 // every following same-season episode, individually copy-eligible and not
@@ -61,7 +112,8 @@ func (h *hlsVODServe) serveConcatMaster(w http.ResponseWriter, r *http.Request, 
 			slog.String("media_id", mediaID), slog.Int("chain_len", len(chain)), slog.Any("err", err))
 		return false
 	}
-	h.serveConcatResourceData(w, r, plan, "master.m3u8", span)
+	h.playbackActivity.Touch(mediaID)
+	h.serveConcatResourceData(w, r, plan, "master.m3u8", concatChainStamp(chain), span)
 	return true
 }
 
@@ -138,12 +190,27 @@ func (h *hlsVODServe) serveConcatResource(w http.ResponseWriter, r *http.Request
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	chain := h.resolveEpisodeChain(r, item)
+	var chain []*domainlibrary.MediaItem
+	stamp := r.URL.Query().Get(concatChainParam)
+	if stamp != "" {
+		var ok bool
+		if chain, ok = h.stampedConcatChain(r, item, stamp); !ok {
+			servePlanSourceGone(w, r, mediaID, name, span)
+			return
+		}
+	} else {
+		// A URI from a master served before the chain was stamped.
+		chain = h.resolveEpisodeChain(r, item)
+		stamp = concatChainStamp(chain)
+	}
 	if len(chain) < 2 {
 		span.SetStatus(codes.Error, "concat chain no longer resolvable")
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
+	// A viewer on a gapless session is watching as much as one on a single
+	// episode: the background work that yields to playback must see it.
+	h.playbackActivity.Touch(mediaID)
 	plan, err := h.buildConcatPlan(r, chain)
 	if err != nil {
 		span.RecordError(err)
@@ -151,16 +218,17 @@ func (h *hlsVODServe) serveConcatResource(w http.ResponseWriter, r *http.Request
 		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 		return
 	}
-	h.serveConcatResourceData(w, r, plan, name, span)
+	h.serveConcatResourceData(w, r, plan, name, stamp, span)
 }
 
 // serveConcatResourceData writes one concat plan resource. Same cache-header
-// split as servePlanResourceData: playlists no-cache, media/init segments
-// immutable (byte-identical across builds).
+// split as servePlanResourceData: playlists no-cache, their bare URIs stamped
+// with the packager version, the request's query token and the chain;
+// media/init segments immutable (byte-identical across builds).
 //
 // A part's media segment streams from its source through the plan's Open
 // (mkvgo 0.51), as a single episode's does; playlists stay on Resource.
-func (h *hlsVODServe) serveConcatResourceData(w http.ResponseWriter, r *http.Request, plan apptranscoding.ConcatPlan, name string, span trace.Span) {
+func (h *hlsVODServe) serveConcatResourceData(w http.ResponseWriter, r *http.Request, plan apptranscoding.ConcatPlan, name, stamp string, span trace.Span) {
 	data, contentType, streamed, err := fetchPlanResource(r.Context(), plan, name)
 	if err != nil {
 		span.RecordError(err)
@@ -179,6 +247,7 @@ func (h *hlsVODServe) serveConcatResourceData(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", contentType)
 	if strings.HasSuffix(name, ".m3u8") {
 		w.Header().Set("Cache-Control", "no-cache")
+		data = []byte(rebakeManifestURIs(string(data), concatManifestSuffix(r, stamp)))
 	} else {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 	}
