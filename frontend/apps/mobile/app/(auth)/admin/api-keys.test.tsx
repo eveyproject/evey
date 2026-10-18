@@ -8,6 +8,7 @@ import React from "react";
 // a refused revoke is reported instead of leaving the key looking active.
 const alerts = vi.hoisted(() => ({ last: null as any }));
 const share = vi.hoisted(() => vi.fn(async () => ({})));
+const openURL = vi.hoisted(() => vi.fn(async () => true));
 vi.mock("react-native", () => ({
   View: ({ children }: any) => React.createElement("div", null, children),
   ScrollView: ({ children }: any) => React.createElement("div", null, children),
@@ -22,6 +23,7 @@ vi.mock("react-native", () => ({
     React.createElement("button", { onClick: onPress, disabled, role: accessibilityRole, "aria-label": accessibilityLabel, "aria-checked": accessibilityState?.checked }, children),
   Alert: { alert: (title: string, message: string, buttons: any[]) => { alerts.last = { title, message, buttons }; } },
   Share: { share: (...a: unknown[]) => share(...(a as [])) },
+  Linking: { openURL: (...a: unknown[]) => openURL(...(a as [])) },
   StyleSheet: { create: (s: any) => s },
 }));
 vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
@@ -57,6 +59,8 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 }));
 vi.mock("../../../src/components/LoadFailed", () => ({ LoadFailed: ({ onRetry }: any) => React.createElement("button", { onClick: onRetry }, "retry") }));
 
+vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrlNullable: () => "http://evey:9091" }));
+
 import AdminAPIKeysScreen from "./api-keys";
 
 beforeEach(() => {
@@ -71,6 +75,14 @@ beforeEach(() => {
 });
 
 describe("admin api keys screen (mobile)", () => {
+  // The phone has no Swagger reader: the link opens the web app's page, which
+  // the server itself serves, in the phone's browser.
+  it("opens the server's API documentation page in the browser", () => {
+    render(<AdminAPIKeysScreen />);
+    fireEvent.click(screen.getByRole("link", { name: "auth.apiDocs.link" }));
+    expect(openURL).toHaveBeenCalledWith("http://evey:9091/admin/api-docs");
+  });
+
   it("lists keys with their scopes and confirms a revoke by name before calling", async () => {
     render(<AdminAPIKeysScreen />);
     expect(screen.getByText("CI")).toBeTruthy();
