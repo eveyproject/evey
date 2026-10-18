@@ -182,7 +182,12 @@ func (i *AuthInterceptor) enforceRBAC(ctx context.Context, method string) error 
 		//    closes). A key holding either the coarse scope (APIKeyScopeFor,
 		//    colon notation) or the fine-grained permission (MethodPermissions,
 		//    dot notation) is authorized.
-		if isAdminMethod || len(claims.Permissions) > 0 {
+		//    An admin:* scope is enforced like an admin method: GetAnalytics,
+		//    the library schedules and their kin default to RoleUser and are
+		//    admin-only in the handler (claims.IsAdmin), so an admin-owned
+		//    legacy key used to reach them with no scope at all.
+		adminScope := scope == authpkg.ScopeAdminRead || scope == authpkg.ScopeAdminWrite
+		if isAdminMethod || adminScope || len(claims.Permissions) > 0 {
 			ok := (hasScope && claims.HasPermission(scope)) || (hasPerm && claims.HasPermission(perm))
 			if !ok {
 				slog.WarnContext(ctx, "api key scope denied", slog.String("method", method), slog.String("required_scope", scope), slog.String("required_perm", perm))
@@ -289,6 +294,27 @@ func shouldWriteLastUsed(lastUsedAt *time.Time, now time.Time, window time.Durat
 func IsAPIKeyAuth(ctx context.Context) bool {
 	v, _ := ctx.Value(apiKeyAuthKey{}).(bool)
 	return v
+}
+
+// AdminReach reports whether the caller may use its admin role on this request:
+// the admin-only branch of a handler on a method the RBAC leaves to every user
+// (another account's password, profiles or sessions, a host scan).
+//
+// A JWT carries the role itself. An API key does not: authenticateAPIKey copies
+// its owner's IsAdmin, so a bare claims.IsAdmin test handed the whole admin role
+// to every admin-owned key whatever its scopes - a "users:write" key could reset
+// another account's password, the account lifecycle InternalMethods keeps away
+// from every key. For an API key the role counts only when the key holds scope,
+// and an empty scope means no key ever gets it (JWT-only, like ImpersonateUser).
+func AdminReach(ctx context.Context, scope string) bool {
+	claims := ClaimsFromContext(ctx)
+	if claims == nil || !claims.IsAdmin {
+		return false
+	}
+	if !IsAPIKeyAuth(ctx) {
+		return true
+	}
+	return scope != "" && claims.HasPermission(scope)
 }
 
 func (i *AuthInterceptor) translatedErr(ctx context.Context, code codes.Code, key string) error {

@@ -22,6 +22,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/playback"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/id"
 	"github.com/eveyproject/evey/internal/pkg/network"
@@ -626,7 +627,9 @@ func (h *playbackHandler) StopStream(ctx context.Context, req *eveyv1.StopStream
 		return nil, fmt.Errorf("playbackHandler.StopStream: %w", err)
 	}
 	sess, sessErr := h.cmd.GetSession(ctx, req.SessionId)
-	if !claims.IsAdmin {
+	// Stopping another viewer's session is KillSession's job, which no API
+	// key reaches: an admin-owned key gets no bypass here either.
+	if !interceptors.AdminReach(ctx, auth.ScopeAdminWrite) {
 		if sessErr != nil {
 			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")
 			span.RecordError(tErr)
@@ -706,7 +709,7 @@ func (h *playbackHandler) ReportProgress(ctx context.Context, req *eveyv1.Report
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("playbackHandler.ReportProgress: %w", err)
 	}
-	if !claims.IsAdmin {
+	if !interceptors.AdminReach(ctx, auth.ScopeAdminWrite) {
 		session, err := h.cmd.GetSession(ctx, req.SessionId)
 		if err != nil {
 			tErr := h.translator.TranslatedError(ctx, codes.NotFound, "errors.playback.session_not_found")

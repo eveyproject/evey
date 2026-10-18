@@ -102,7 +102,9 @@ func (h *userHandler) RevokeInviteLink(ctx context.Context, req *eveyv1.RevokeIn
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.RevokeInviteLink: %w", err)
 	}
-	if !claims.IsAdmin {
+	// CreateInviteLink is unreachable to every API key; revoking someone
+	// else's invite stays admin work no key gets either.
+	if !interceptors.AdminReach(ctx, "") {
 		links, err := h.query.ListInviteLinks(ctx, claims.UserID)
 		if err != nil {
 			span.RecordError(err)
