@@ -17,6 +17,7 @@ import { useServerUrl } from "../../hooks/useServerUrl";
 import { EditProfileDialog } from "./EditProfileDialog";
 import { ProfileScheduleSheet } from "./ProfileScheduleSheet";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { useAuthHeaders } from "../../hooks/useAuthenticatedImage";
 
 interface Props {
   userId: string;
@@ -34,6 +35,9 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
   const { t } = useTranslation();
   const qc = useQueryClient();
   const accessToken = useAuthStore((s) => s.accessToken);
+  // The avatar route takes the token as a header, never in the URL, where
+  // it lands in caches and logs.
+  const authHeaders = useAuthHeaders();
   const serverUrl = useServerUrl();
   const [editing, setEditing] = useState<V1Profile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<V1Profile | null>(null);
@@ -72,7 +76,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
         {profiles.map((p) => {
           const initial = (p.name ?? "?").charAt(0).toUpperCase();
           const avatarUrl = p.avatarPath && p.id && serverUrl && accessToken
-            ? `${serverUrl}/api/v1/profiles/${p.id}/avatar?token=${accessToken}`
+            ? `${serverUrl}/api/v1/profiles/${p.id}/avatar`
             : null;
           const isDefault = p.isDefault === true;
           const setDefPending = setDefault.isPending && setDefault.variables?.id === p.id;
@@ -86,7 +90,7 @@ export function ProfileManagerList({ userId, profiles, canSetDefault = false }: 
             >
               <View style={[s.avatar, { backgroundColor: theme.colors.accent }]}>
                 {avatarUrl ? (
-                  <Image source={{ uri: avatarUrl }} style={{ width: 40, height: 40, borderRadius: 20 }} contentFit="cover" />
+                  <Image source={{ uri: avatarUrl, headers: authHeaders }} style={{ width: 40, height: 40, borderRadius: 20 }} contentFit="cover" />
                 ) : (
                   <Text style={[s.avatarText, { color: theme.colors.onAccent }]}>{initial}</Text>
                 )}

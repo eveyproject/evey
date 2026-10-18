@@ -11,7 +11,9 @@ vi.mock("react-native", () => ({
   ActivityIndicator: () => React.createElement("div", { "data-testid": "spinner" }),
   StyleSheet: { create: (s: any) => s },
 }));
-vi.mock("expo-image", () => ({ Image: () => React.createElement("img", { alt: "" }) }));
+vi.mock("expo-image", () => ({
+  Image: ({ source }: any) => React.createElement("img", { alt: "", src: source?.uri, "data-auth": source?.headers?.Authorization }),
+}));
 vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (_k: string, fallback?: string, opts?: { name?: string }) => (typeof fallback === "string" ? fallback.replace("{{name}}", opts?.name ?? "") : _k) }),
@@ -59,6 +61,14 @@ beforeEach(() => {
 // confirmed by name first, and "set as default" only appears on non-default
 // profiles when the caller is on the admin flow the RPC is gated to.
 describe("ProfileManagerList", () => {
+  // The token rides as a header: in the URL it lands in caches and logs.
+  it("asks for an avatar with the token as a header, not in the URL", () => {
+    const { container } = render(<ProfileManagerList userId="u1" profiles={[{ id: "p1", name: "Salon", avatarPath: "avatars/p1.jpg" }] as any[]} />);
+    const img = container.querySelector("img")!;
+    expect(img.getAttribute("src")).toBe("http://evey.local/api/v1/profiles/p1/avatar");
+    expect(img.getAttribute("data-auth")).toBe("Bearer tok");
+  });
+
   it("guards the default profile, confirms a delete by name, and refreshes the list", () => {
     render(<ProfileManagerList userId="u1" profiles={profiles} />);
     expect(screen.getByText("Default")).toBeTruthy();
