@@ -50,6 +50,7 @@ export * from "./lib/musicRemoteCommands";
 export * from "./lib/mutationErrorMessage";
 export * from "./lib/mutationErrorNet";
 export * from "./lib/certifications";
+export * from "./lib/pluginConfigSchema";
 export * from "./lib/resumeNudge";
 export * from "./lib/playbackSpeeds";
 export * from "./lib/segmentedSubtitles";

@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import type { TFunction } from "i18next";
+import { type ConfigFieldSchema, normaliseOptions, validateConfigField } from "@evey/client";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -49,40 +49,6 @@ const STATE_LABEL_KEYS: Record<string, string> = {
   PLUGIN_STATE_STOPPED: "admin.plugin.state.stopped",
   PLUGIN_STATE_INSTALLED: "admin.plugin.state.installed",
 };
-
-interface ConfigFieldSchema {
-  type?: string;
-  label?: string;
-  description?: string;
-  default?: unknown;
-  required?: boolean;
-  // YAML accepts either a flat list of strings or a list of {value,label}
-  // objects (the documented standard form). Both shapes are normalised at
-  // render time.
-  options?: Array<string | { value: string; label?: string }>;
-  min?: number;
-  max?: number;
-}
-
-function normaliseOptions(opts: ConfigFieldSchema["options"]): Array<{ value: string; label: string }> {
-  return (opts ?? []).map((o) =>
-    typeof o === "string"
-      ? { value: o, label: o }
-      : { value: String(o.value), label: o.label ?? String(o.value) },
-  );
-}
-
-function validateField(key: string, value: string, schema: ConfigFieldSchema, t: TFunction): string | undefined {
-  if (schema.required && value.trim() === "") return t("admin.plugins.validation.required", { field: key });
-  if ((schema.type === "integer" || schema.type === "number") && value !== "") {
-    const n = Number(value);
-    if (isNaN(n)) return t("admin.plugins.validation.notNumber", { field: key });
-    if (schema.type === "integer" && !Number.isInteger(n)) return t("admin.plugins.validation.notInteger", { field: key });
-    if (schema.min !== undefined && n < schema.min) return t("admin.plugins.validation.min", { field: key, min: schema.min });
-    if (schema.max !== undefined && n > schema.max) return t("admin.plugins.validation.max", { field: key, max: schema.max });
-  }
-  return undefined;
-}
 
 function SchemaField({
   fieldKey,
@@ -255,7 +221,7 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
       for (const key of keys) {
         const schema = configSchema[key];
         if (schema) {
-          const err = validateField(key, resolved[key] ?? "", schema, t);
+          const err = validateConfigField(key, resolved[key] ?? "", schema, t);
           if (err) newErrors[key] = err;
         }
       }
