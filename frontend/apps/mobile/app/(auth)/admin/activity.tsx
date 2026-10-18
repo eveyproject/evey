@@ -273,7 +273,8 @@ function AuditLogTab({ watcher }: { watcher: Watcher }) {
   );
 }
 
-type BgTask = { name: string; state: string; detail?: string; processed: number; lastActiveAt?: string };
+// paused: stopped by an admin (Stop), the worker skips every item until Resume.
+type BgTask = { name: string; state: string; detail?: string; processed: number; lastActiveAt?: string; paused?: boolean };
 
 // Mirrors the web BackgroundTasksCard: shows what the background workers are
 // doing right now so an operator understands why the CPU isn't idle. Polls
@@ -307,7 +308,7 @@ function BackgroundTasksCard() {
                   width: 8,
                   height: 8,
                   borderRadius: 4,
-                  backgroundColor: running ? theme.colors.success : theme.colors.border,
+                  backgroundColor: task.paused ? theme.colors.warning : running ? theme.colors.success : theme.colors.border,
                 }}
               />
               <Text style={{ color: theme.colors.text, fontSize: 13, flexShrink: 1 }} numberOfLines={1}>
@@ -327,7 +328,9 @@ function BackgroundTasksCard() {
               <View style={{ flex: 1 }} />
             </View>
             <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-              {running ? t("admin.activity.bgRunning", "running") : t("admin.activity.bgIdle", "idle")}
+              {task.paused
+                ? (running ? t("admin.backgroundTasks.stopping") : t("admin.backgroundTasks.paused"))
+                : running ? t("admin.activity.bgRunning", "running") : t("admin.activity.bgIdle", "idle")}
               {" · "}
               {t("admin.activity.bgProcessed", "{{n}} done", { n: task.processed })}
             </Text>
