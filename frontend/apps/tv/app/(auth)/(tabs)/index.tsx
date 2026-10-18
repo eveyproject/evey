@@ -37,6 +37,7 @@ import { HOME_LIBRARY_ROW_PAGE_SIZE } from "../../../src/lib/homeLibraryRows";
 import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { buildHomeSections, placedPluginIds, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
+import { serverImageUri } from "@evey/client";
 
 // How long the home waits for its slower rows before showing what it has.
 const HOME_REVEAL_CAP_MS = 2500;
@@ -662,7 +663,7 @@ export default function HomeScreen() {
               key: String(a.id ?? a.title ?? ""),
               label: String(a.title ?? ""),
               sublabel: a.artist ? String(a.artist) : undefined,
-              uri: a.coverArtUrl ? `${String(a.coverArtUrl)}${tokenParam}` : undefined,
+              uri: serverImageUri(serverUrl, a.coverArtUrl ? String(a.coverArtUrl) : undefined, tokenParam),
               // Through the shared helper: the album screen needs the library
               // id too, and a bare id left it with a disabled query - a title
               // that was the raw id and "no track found" (device, 2026-08-03).
@@ -755,7 +756,8 @@ export default function HomeScreen() {
             tiles={cols.map((c) => ({
               key: c.id,
               label: c.name,
-              uri: c.posterUrl ? `${c.posterUrl}${tokenParam}` : undefined,
+              // A collection poster is usually a TMDB url: no token for it.
+              uri: serverImageUri(serverUrl, c.posterUrl, tokenParam),
               onPress: () => router.push(`/(auth)/collections/${c.id}`),
             }))}
           />

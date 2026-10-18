@@ -39,13 +39,12 @@ export function avatarSrc(profileId: string): string {
   return authedSrc(`/api/v1/profiles/${profileId}/avatar`);
 }
 
-/** An image url the server handed over (absolute or server-relative), loadable by an <img>. */
+/**
+ * An image url the server handed over, loadable by an <img>. A server-relative
+ * path gets the token; an absolute url is another host's (a collection poster
+ * on TMDB) and is used as is: the viewer's token must never leave for it.
+ */
 export function serverImageSrc(url: string | undefined): string | undefined {
   if (!url) return undefined;
-  return /^https?:/.test(url) ? authedAbsolute(url) : authedSrc(url);
-}
-
-function authedAbsolute(url: string): string {
-  const token = useAuthStore.getState().accessToken;
-  return token ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : url;
+  return /^https?:/i.test(url) ? url : authedSrc(url);
 }
