@@ -70,7 +70,9 @@ describe("SeekIndexTable", () => {
     expect(p.ackOne.mutate).toHaveBeenCalledWith({ data: { mediaId: "info", acked: true } });
     within(byId.D).getByTestId("seek-index-rollback-btn").click();
     expect(p.rollbackOne.mutate).toHaveBeenCalledWith({ mediaId: "info" });
-    within(byId.D).getByTestId("seek-index-delete-backup-btn").click();
+    fireEvent.click(within(byId.D).getByTestId("seek-index-delete-backup-btn"));
+    expect(p.deleteBackup.mutate).not.toHaveBeenCalled();
+    fireEvent.click(within(byId.D).getByTestId("seek-index-delete-backup-btn"));
     expect(p.deleteBackup.mutate).toHaveBeenCalledWith({ data: { mediaId: "info" } });
     expect(within(byId.A).queryByTestId("seek-index-rollback-btn")).toBeNull();
 
