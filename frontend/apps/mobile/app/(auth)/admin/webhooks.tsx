@@ -208,7 +208,7 @@ export default function AdminWebhooksScreen() {
   }, [formName, formUrl, formSecret, allEvents, selectedEvents, formEnabled, editTarget, createWebhook, updateWebhook]);
 
   const handleDelete = useCallback((wh: V1WebhookConfig) => {
-    Alert.alert(t("common.delete"), `Delete "${wh.name || wh.url}"?`, [
+    Alert.alert(t("common.delete"), t("admin.webhooks.deleteConfirmPlain", { name: wh.name || wh.url }), [
       { text: t("common.cancel"), style: "cancel" },
       { text: t("common.delete"), style: "destructive", onPress: () => wh.id && deleteWebhook.mutate({ id: wh.id }) },
     ]);

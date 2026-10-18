@@ -600,6 +600,7 @@ webhooks:
   testPingFailed: Test ping failed
   deleteTitle: Delete Webhook
   deleteConfirm: "Delete <strong>{{name}}</strong>? This cannot be undone."
+  deleteConfirmPlain: "Delete \"{{name}}\"? This cannot be undone."
   noWebhooks: No webhooks configured.
   tableHeaders:
     nameUrl: Name / URL
@@ -1014,7 +1015,6 @@ transcodeCache:
   maxConcurrent: "Max Concurrent"
   settingsSaved: "Settings saved"
   settingsSaveFailed: "Failed to save settings"
-  throttle: "Throttle transcodes when client buffer is full"
   transcodingSettings: "Transcoding Settings"
   hwAccelNote: "Hardware acceleration is configured in Transcoding → Encode calibration."
   hwAccelNoteLink: "Go to Transcoding"
@@ -1504,6 +1504,8 @@ segments:
   noChanges: "No changes to save."
   saveError: "Failed to save"
   deleteError: "Failed to delete"
+  saved: "Segment saved"
+  deleted: "Segment deleted"
   redetectSuccess: "Detection started. Refresh in 1-2 minutes."
   redetectError: "Failed to trigger detection"
   propagateError: "Failed to propagate"

@@ -135,11 +135,9 @@ export default function AdminMediaSegmentsScreen() {
   async function handleAutoDetect() {
     try {
       await triggerDetect.mutateAsync();
-      toast.success(
-        t("admin.segments.redetect", "Auto-detect triggered. Refresh in 1-2 minutes."),
-      );
+      toast.success(t("admin.segments.redetectSuccess"));
     } catch {
-      toast.error(t("common.error", "An error occurred"));
+      toast.error(t("admin.segments.redetectError"));
     }
   }
 
@@ -152,9 +150,9 @@ export default function AdminMediaSegmentsScreen() {
       setLocalSegments((prev) =>
         prev.map((s) => (s.type === seg.type ? { ...s, isDirty: false } : s)),
       );
-      toast.success(t("admin.segments.save", "Saved") + " - OK");
+      toast.success(t("admin.segments.saved"));
     } catch {
-      toast.error(t("common.error", "An error occurred"));
+      toast.error(t("admin.segments.saveError"));
     }
   }
 
@@ -171,9 +169,9 @@ export default function AdminMediaSegmentsScreen() {
             try {
               await deleteSegment.mutateAsync(seg.type);
               setLocalSegments((prev) => prev.filter((s) => s.type !== seg.type));
-              toast.success(t("admin.segments.delete", "Deleted") + " - OK");
+              toast.success(t("admin.segments.deleted"));
             } catch {
-              toast.error(t("common.error", "An error occurred"));
+              toast.error(t("admin.segments.deleteError"));
             }
           },
         },

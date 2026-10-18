@@ -600,6 +600,7 @@ webhooks:
   testPingFailed: Test-Ping fehlgeschlagen
   deleteTitle: Webhook löschen
   deleteConfirm: "<strong>{{name}}</strong> löschen? Dies kann nicht rückgängig gemacht werden."
+  deleteConfirmPlain: "„{{name}}“ löschen? Dies kann nicht rückgängig gemacht werden."
   noWebhooks: Keine Webhooks konfiguriert.
   tableHeaders:
     nameUrl: Name / URL
@@ -1014,7 +1015,6 @@ transcodeCache:
   maxConcurrent: "Max. gleichzeitig"
   settingsSaved: "Einstellungen gespeichert"
   settingsSaveFailed: "Einstellungen konnten nicht gespeichert werden"
-  throttle: "Transkodierungen drosseln, wenn der Client-Puffer voll ist"
   transcodingSettings: "Transkodierungs-Einstellungen"
   hwAccelNote: "Die Hardware-Beschleunigung wird unter Transkodierung → Encode-Kalibrierung konfiguriert."
   hwAccelNoteLink: "Zu Transkodierung"
@@ -1504,6 +1504,8 @@ segments:
   noChanges: "Keine Änderungen zu speichern."
   saveError: "Speichern fehlgeschlagen"
   deleteError: "Löschen fehlgeschlagen"
+  saved: "Segment gespeichert"
+  deleted: "Segment gelöscht"
   redetectSuccess: "Erkennung gestartet. Aktualisiere in 1-2 Minuten."
   redetectError: "Erkennung konnte nicht gestartet werden"
   propagateError: "Übertragen fehlgeschlagen"
