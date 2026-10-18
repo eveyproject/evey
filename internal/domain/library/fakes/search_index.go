@@ -126,8 +126,11 @@ func (s *FakeSearchIndex) Search(_ context.Context, query string, _ map[string]s
 			hits = append(hits, hit)
 		}
 	}
-	if limit > 0 && int64(len(hits)) > limit {
+	// The total counts every match, like the real index's estimate: it is
+	// what tells a caller there are more pages.
+	total := int64(len(hits))
+	if limit > 0 && total > limit {
 		hits = hits[:limit]
 	}
-	return hits, int64(len(hits)), nil
+	return hits, total, nil
 }
