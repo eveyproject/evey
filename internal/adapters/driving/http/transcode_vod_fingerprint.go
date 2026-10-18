@@ -190,7 +190,7 @@ func (h *hlsVODServe) buildManifestInputWith(r *http.Request, mediaID string, it
 		// The playback's FIRST playlist stamps its decision; children inherit
 		// the stamp verbatim so the whole session stays on one plan even if
 		// background enrichment flips copy-eligibility mid-play.
-		PinnedVideoDecision: pinnedVideoDecision(r, decision),
+		PinnedVideoDecision: pinnedVideoDecision(r, decision, rp.Plan.Route.Copy || rp.Plan.Delivery.Video == apptranscoding.EngineMkvgo),
 		PinnedAudioDecision: pinnedAudioDecision(r, decision),
 		PinnedVideoCodec:    r.URL.Query().Get("vc"),
 		// The client's line constraints are plan inputs: baked like the pins.
@@ -254,15 +254,19 @@ func pinnedAudioDecision(r *http.Request, decision domaintranscoding.PlaybackDec
 
 // pinnedVideoDecision returns the vd value to bake into this playback's URLs:
 // the request's own pin when it carries one (pass-through - children must
-// inherit the ORIGINAL stamp, not re-derive it), else the decision this very
-// request just computed (the first playlist of the playback mints the pin).
-func pinnedVideoDecision(r *http.Request, decision domaintranscoding.PlaybackDecision) string {
+// inherit the ORIGINAL stamp, not re-derive it), else what this very request
+// serves (the first playlist of the playback mints the pin). servedCopy is the
+// plan's copy route: a copy DECISION whose copy rung is gated (keyframe index,
+// level, colour truth) is served as a re-encode, and a "copy" stamp then let
+// the children switch to copied segments under the transcode init the moment
+// the gate opened mid-play.
+func pinnedVideoDecision(r *http.Request, decision domaintranscoding.PlaybackDecision, servedCopy bool) string {
 	if r != nil {
 		if v := r.URL.Query().Get("vd"); v == "copy" || v == "transcode" {
 			return v
 		}
 	}
-	if decision.VideoDecision == "copy" {
+	if decision.VideoDecision == "copy" && servedCopy {
 		return "copy"
 	}
 	return "transcode"

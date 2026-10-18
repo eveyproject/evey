@@ -352,12 +352,24 @@ func TestPinnedVideoDecision_MintAndPassthrough(t *testing.T) {
 	copyDec := domaintranscoding.PlaybackDecision{VideoDecision: "copy"}
 	trDec := domaintranscoding.PlaybackDecision{VideoDecision: "transcode"}
 
-	assert.Equal(t, "copy", pinnedVideoDecision(reqWith(""), copyDec), "first playlist mints its decision")
-	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith(""), trDec))
-	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith("vd=transcode"), copyDec),
+	assert.Equal(t, "copy", pinnedVideoDecision(reqWith(""), copyDec, true), "first playlist mints its decision")
+	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith(""), trDec, false))
+	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith("vd=transcode"), copyDec, true),
 		"an inherited pin wins over the fresh decision - that IS the fix")
-	assert.Equal(t, "copy", pinnedVideoDecision(reqWith("vd=copy"), trDec))
-	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith("vd=banana"), trDec), "garbage pin is re-minted")
+	assert.Equal(t, "copy", pinnedVideoDecision(reqWith("vd=copy"), trDec, false))
+	assert.Equal(t, "transcode", pinnedVideoDecision(reqWith("vd=banana"), trDec, false), "garbage pin is re-minted")
+}
+
+// The decision says copy from the codecs alone; the copy RUNG has gates of its
+// own (keyframe index, level, colour truth) and the master serves a re-encode
+// when one is closed. Pinning "copy" there let the children switch to copied
+// segments under the transcode init the moment the gate opened mid-play (the
+// keyframe backfill): the stamp must name what the master SERVES.
+func TestPinnedVideoDecision_MintsWhatTheMasterServes(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	copyDec := domaintranscoding.PlaybackDecision{VideoDecision: "copy"}
+	assert.Equal(t, "transcode", pinnedVideoDecision(req, copyDec, false),
+		"a copy decision served as a re-encode is pinned transcode")
 }
 
 // A user audio resync (audioOffsetMs) can only be applied by re-encoding the
