@@ -95,4 +95,19 @@ describe("PluginSecurityDashboard", () => {
     fireEvent.click(screen.getByText("Tidy").closest("button")!);
     expect(screen.getAllByText("Findings")).toHaveLength(1);
   });
+
+  // A 500 or a dropped connection used to read as "no data", hiding the
+  // degraded-sandbox warning behind an empty-looking dashboard.
+  it("shows the load error with Retry when the read fails, not the empty state", async () => {
+    eveyFetchMock.mockRejectedValue(new Error("500"));
+    mount();
+    expect(await screen.findByText("common.loadError")).toBeTruthy();
+    expect(screen.queryByText("No plugin security data.")).toBeNull();
+    eveyFetchMock.mockResolvedValue({
+      plugins: [],
+      sandbox: { configured: "strict", effective: "basic", landlockKernel: true, launcherPresent: false, bubblewrapUsable: false },
+    });
+    fireEvent.click(screen.getByText("common.retry"));
+    expect(await screen.findByText("Falling back to basic isolation.")).toBeTruthy();
+  });
 });

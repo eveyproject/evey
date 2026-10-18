@@ -85,4 +85,16 @@ describe("PluginSecurityDashboard", () => {
     expect(screen.getAllByText("landlock")).toHaveLength(2);
     expect(screen.queryByText(/No security data available/i)).not.toBeInTheDocument();
   });
+
+  // A 500 or a dropped connection used to read as "no data", hiding the
+  // degraded-sandbox warning behind an empty-looking dashboard.
+  it("shows an error with Retry when the read fails, not the empty state", async () => {
+    mockEveyFetch.mockRejectedValue(new Error("500"));
+    renderDashboard();
+    expect(await screen.findByTestId("fetch-error-state")).toBeInTheDocument();
+    expect(screen.queryByText(/No security data available/i)).not.toBeInTheDocument();
+    mockEveyFetch.mockResolvedValue({ plugins: [], sandbox: basicSandbox });
+    screen.getByRole("button", { name: /Retry/i }).click();
+    expect(await screen.findByTestId("sandbox-degraded-warning")).toBeInTheDocument();
+  });
 });
