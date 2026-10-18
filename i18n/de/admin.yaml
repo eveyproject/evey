@@ -189,6 +189,12 @@ plugin:
     apply: "Aktualisierung anwenden"
 
 plugins:
+  validation:
+    required: "{{field}} ist erforderlich"
+    notNumber: "{{field}} muss eine Zahl sein"
+    notInteger: "{{field}} muss eine ganze Zahl sein"
+    min: "{{field}} muss mindestens {{min}} sein"
+    max: "{{field}} darf höchstens {{max}} sein"
   installFromFile: "Aus Datei installieren (.zip)"
   resourceLimits:
     title: "Ressourcenlimits"

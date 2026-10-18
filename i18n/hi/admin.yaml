@@ -189,6 +189,12 @@ plugin:
     apply: "अपडेट लागू करें"
 
 plugins:
+  validation:
+    required: "{{field}} आवश्यक है"
+    notNumber: "{{field}} एक संख्या होनी चाहिए"
+    notInteger: "{{field}} एक पूर्ण संख्या होनी चाहिए"
+    min: "{{field}} कम से कम {{min}} होना चाहिए"
+    max: "{{field}} अधिकतम {{max}} होना चाहिए"
   installFromFile: "फ़ाइल से इंस्टॉल करें (.zip)"
   resourceLimits:
     title: "संसाधन सीमाएँ"

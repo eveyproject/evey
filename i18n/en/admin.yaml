@@ -189,6 +189,12 @@ plugin:
     apply: Apply update
 
 plugins:
+  validation:
+    required: "{{field}} is required"
+    notNumber: "{{field}} must be a number"
+    notInteger: "{{field}} must be a whole number"
+    min: "{{field}} must be at least {{min}}"
+    max: "{{field}} must be at most {{max}}"
   installFromFile: "Install from file (.zip)"
   title: Plugins
   installPlugin: Install Plugin

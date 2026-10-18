@@ -188,6 +188,12 @@ plugin:
     apply: "Appliquer la mise à jour"
 
 plugins:
+  validation:
+    required: "{{field}} est requis"
+    notNumber: "{{field}} doit être un nombre"
+    notInteger: "{{field}} doit être un nombre entier"
+    min: "{{field}} doit valoir au moins {{min}}"
+    max: "{{field}} doit valoir au plus {{max}}"
   installFromFile: "Installer depuis un fichier (.zip)"
   resourceLimits:
     title: "Limites de ressources"
