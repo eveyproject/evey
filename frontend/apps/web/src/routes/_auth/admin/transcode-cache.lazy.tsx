@@ -4,27 +4,24 @@ import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
-import { formatBytes } from "@evey/api";
+import { formatBytes, eveyFetch } from "@evey/api";
 import {
   useTranscodeCacheServiceGetTranscodeCache,
   clearTranscodeCacheUnbounded,
   transcodeCacheServiceDeleteTranscodeCacheFile,
   getTranscodeCacheServiceGetTranscodeCacheQueryKey,
-  useServerConfigServiceListServerConfigEntries,
-  serverConfigServiceSetServerConfigEntry,
-  getServerConfigServiceListServerConfigEntriesQueryKey,
   apiErrorMessage,
 } from "@evey/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
+import { SETTINGS_KEY, useTranscodingServerSettings } from "@/features/admin/transcoding/hooks";
 
 export const Route = createLazyFileRoute("/_auth/admin/transcode-cache")({
   // Every control here is an operator write the demo refuses (DemoReadOnly).
@@ -41,51 +38,36 @@ function formatDate(d: string | undefined): string {
   return d ? new Date(d).toLocaleString() : "";
 }
 
-const CONFIG_QUERY_KEY = getServerConfigServiceListServerConfigEntriesQueryKey();
-
-function useServerConfig() {
-  return useServerConfigServiceListServerConfigEntries({
-    query: {
-      select: (d) => {
-        const map: Record<string, string> = {};
-        for (const e of d.entries ?? []) if (e.key) map[e.key] = e.value ?? "";
-        return map;
-      },
-    },
-  });
-}
-
-async function setConfigKey(key: string, value: string) {
-  await serverConfigServiceSetServerConfigEntry(key, { value });
-}
-
+// The cap goes through /admin/server-settings, which applies it to the running
+// transcoder; the raw server-config key was only read back at the next start.
 function TranscodingSettings() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data: config, isLoading } = useServerConfig();
+  const { data: settings, isLoading } = useTranscodingServerSettings();
 
   const [maxConcurrent, setMaxConcurrent] = useState("2");
-  const [throttle, setThrottle] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!config) return;
-    setMaxConcurrent(config["transcoding.max_concurrent"] ?? "2");
-    setThrottle(config["transcoding.throttle"] !== "false");
-  }, [config]);
+    if (settings) setMaxConcurrent(String(settings.maxConcurrentTranscodes.value));
+  }, [settings]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      await setConfigKey("transcoding.max_concurrent", maxConcurrent);
-      await setConfigKey("transcoding.throttle", throttle ? "true" : "false");
-      await qc.invalidateQueries({ queryKey: CONFIG_QUERY_KEY });
+      // An empty field is an explicit null: the server drops the override.
+      await eveyFetch({
+        url: "/api/v1/admin/server-settings",
+        method: "PUT",
+        data: { maxConcurrentTranscodes: maxConcurrent === "" ? null : parseInt(maxConcurrent, 10) },
+      });
+      await qc.invalidateQueries({ queryKey: SETTINGS_KEY });
       toast.success(t("admin.transcodeCache.settingsSaved") || "Transcoding settings saved");
     } catch {
       toast.error(t("admin.transcodeCache.settingsSaveFailed"));
     }
     setSaving(false);
-  }, [maxConcurrent, throttle, qc, t]);
+  }, [maxConcurrent, qc, t]);
 
   if (isLoading) return <div className="flex justify-center py-8"><Spinner size="md" /></div>;
 
@@ -113,12 +95,6 @@ function TranscodingSettings() {
           max={16}
           value={maxConcurrent}
           onChange={(e) => setMaxConcurrent(e.target.value)}
-        />
-
-        <Checkbox
-          label={t("admin.transcodeCache.throttle")}
-          checked={throttle}
-          onChange={setThrottle}
         />
 
         <div className="pt-2">
