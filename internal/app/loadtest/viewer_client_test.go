@@ -77,6 +77,42 @@ func TestViewerClient_OneConnectionPerViewer(t *testing.T) {
 	}
 }
 
+// The transport cmd/evey wires sets neither TLSClientConfig nor
+// ForceAttemptHTTP2: Go turns HTTP/2 on by itself at the first request and
+// writes "h2" into the ALPN list of a TLSClientConfig it creates. A clone made
+// after that copies the "h2" offer but not the HTTP/2 support, so the proxy
+// answers in HTTP/2 to a client reading HTTP/1.1 (prod 2026-10-18: every
+// viewer failed with "malformed HTTP response \x00\x00$\x04", verdict 0).
+func TestViewerClient_CloneOfAUsedProductionTransport(t *testing.T) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, r.Proto)
+	}))
+	srv.EnableHTTP2 = true
+	srv.StartTLS()
+	defer srv.Close()
+
+	tr := &http.Transport{MaxIdleConns: 2048, MaxIdleConnsPerHost: 2048, IdleConnTimeout: 90 * time.Second}
+	r := New(&http.Client{Transport: tr}, nil, nil, slog.New(slog.DiscardHandler))
+	// First use, as the eligibility check and the proxy probe do before any
+	// viewer starts. The certificate is refused, but Go has set HTTP/2 up by
+	// then; trusting the test certificate afterwards keeps that state.
+	_, _, _, _, _ = r.fetch(context.Background(), srv.URL, "t", true, "")
+	if tr.TLSClientConfig == nil {
+		t.Fatal("premise: the first request should have created the TLS config")
+	}
+	tr.TLSClientConfig.InsecureSkipVerify = true //nolint:gosec // test server's self-signed certificate
+
+	ctx, release := r.withViewerClient(context.Background())
+	defer release()
+	status, _, body, _, err := r.fetch(ctx, srv.URL, "t", true, "")
+	if err != nil || status != http.StatusOK {
+		t.Fatalf("viewer fetch through the cloned transport: %d %v", status, err)
+	}
+	if string(body) != "HTTP/2.0" {
+		t.Fatalf("viewer spoke %q, want HTTP/2.0 like the run's own client", body)
+	}
+}
+
 // A request no viewer makes keeps the run's own client.
 func TestViewerClient_OutsideAViewerIsTheRunsClient(t *testing.T) {
 	r := New(&http.Client{}, nil, nil, slog.New(slog.DiscardHandler))
