@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { V1VideoPool } from "@evey/api";
-import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, servedPathLines, stopCause, stopReasonKey, verdictLine } from "./loadTestHelpers";
+import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, liveElapsedMs, phaseKey, servedPathLines, stopCause, stopReasonKey, verdictLine } from "./loadTestHelpers";
 
 // Pure formatting/reading helpers behind the load-test panel.
 describe("load test helpers", () => {
@@ -209,5 +209,23 @@ describe("verdictLine", () => {
 
   it("keeps the count for a run that measured a capacity", () => {
     expect(verdictLine(t, { stopReason: "slo_breach" as const, sustainedViewers: 12 })).toMatch(/^admin\.loadtest\.verdict.*:12$/);
+  });
+});
+
+describe("running status", () => {
+  // The status line printed the server's raw word ("phase: narrowing"), and
+  // the minute of checks before the first viewer read as a fast climb.
+  it("names every phase with a translation key, the preparation included", () => {
+    expect(phaseKey("starting")).toBe("admin.loadtest.phase.starting");
+    expect(phaseKey("narrowing")).toBe("admin.loadtest.phase.narrowing");
+    expect(phaseKey("ramping")).toBe("admin.loadtest.phase.ramping");
+  });
+
+  // The counter jumped by the poll interval; it now adds the time since the
+  // last answer.
+  it("moves the elapsed time between polls", () => {
+    expect(liveElapsedMs("57000", 1_000_000, 1_001_500)).toBe(58_500);
+    expect(liveElapsedMs(57_000, 1_000_000, 1_000_000)).toBe(57_000);
+    expect(liveElapsedMs(undefined, 0, 5_000)).toBe(0);
   });
 });

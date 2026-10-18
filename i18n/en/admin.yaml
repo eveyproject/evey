@@ -1242,6 +1242,7 @@ loadtest:
     brokeThroughput: "broke: throughput flat"
     brokeServer: "broke: server errors"
   phase:
+    starting: "preparation (titles checked, disks measured)"
     ramping: "fast climb"
     narrowing: "bisection"
     confirming: "confirmation"

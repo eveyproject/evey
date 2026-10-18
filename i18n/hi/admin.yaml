@@ -1275,6 +1275,7 @@ loadtest:
     brokeThroughput: "टूटा: थ्रूपुट स्थिर"
     brokeServer: "टूटा: सर्वर त्रुटियाँ"
   phase:
+    starting: "तैयारी (टाइटल की जाँच, डिस्क का माप)"
     ramping: "तेज़ चढ़ाई"
     narrowing: "द्विभाजन"
     confirming: "पुष्टि"

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -17,6 +17,8 @@ import {
   LOAD_TEST_URL,
   clientMixScenario,
   formatElapsed,
+  liveElapsedMs,
+  phaseKey,
   predictedStreams,
 } from "./loadTestHelpers";
 import type { ClientProfile, LoadTestScenario, LoadTestStatus } from "./loadTestTypes";
@@ -54,6 +56,13 @@ export function LoadTestCard() {
   const status = statusQuery.data;
   const running = status?.running ?? false;
   const report = status?.lastReport;
+  // The counter ticks every second between polls (liveElapsedMs).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running]);
 
   const start = useMutation({
     // No viewer ceiling is sent, and that is the point: the run climbs until a
@@ -102,9 +111,9 @@ export function LoadTestCard() {
           <p className="text-sm text-[var(--text)]">
             {t("admin.loadtest.runningViewers", { count: status.viewers ?? 0 })}
             {" · "}
-            {t("admin.loadtest.runningPhase", { phase: status.phase ?? "" })}
+            {t("admin.loadtest.runningPhase", { phase: t(phaseKey(status.phase)) })}
             {" · "}
-            {t("admin.loadtest.runningElapsed", { elapsed: formatElapsed(status.elapsedMs ?? 0) })}
+            {t("admin.loadtest.runningElapsed", { elapsed: formatElapsed(liveElapsedMs(status.elapsedMs, statusQuery.dataUpdatedAt, now)) })}
           </p>
           <div className="flex justify-start">
             <Button

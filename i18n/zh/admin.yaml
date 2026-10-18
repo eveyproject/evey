@@ -1275,6 +1275,7 @@ loadtest:
     brokeThroughput: "崩溃：吞吐持平"
     brokeServer: "崩溃：服务器错误"
   phase:
+    starting: "准备中（检查影片、测量磁盘）"
     ramping: "快速爬升"
     narrowing: "二分"
     confirming: "确认"

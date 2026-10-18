@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, Pressable, ActivityIndicator, Switch, StyleSheet, TextInput } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -25,6 +25,7 @@ import {
   clientMixScenario,
   servedPathLines,
   formatElapsed,
+  liveElapsedMs,
   formatMbps,
   mixParts,
   poolShares,
@@ -79,6 +80,13 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
   const status = statusQuery.data;
   const running = status?.running ?? false;
   const report = status?.lastReport;
+  // The counter ticks every second between polls (liveElapsedMs).
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [running]);
 
   const start = useMutation({
     // No viewer ceiling is sent on purpose: the run climbs until a RESOURCE
@@ -113,9 +121,9 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
           <Text style={{ color: theme.colors.text, fontSize: 14 }}>
             {t("admin.loadtest.runningViewers", { count: status.viewers ?? 0 })}
             {"  ·  "}
-            {t("admin.loadtest.runningPhase", { phase: status.phase ?? "" })}
+            {t("admin.loadtest.runningPhase", { phase: t(phaseKey(status.phase)) })}
             {"  ·  "}
-            {t("admin.loadtest.runningElapsed", { elapsed: formatElapsed(status.elapsedMs ?? 0) })}
+            {t("admin.loadtest.runningElapsed", { elapsed: formatElapsed(liveElapsedMs(status.elapsedMs, statusQuery.dataUpdatedAt, now)) })}
           </Text>
           <Pressable
             onPress={() => cancel.mutate()}

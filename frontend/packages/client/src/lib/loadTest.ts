@@ -491,6 +491,11 @@ export const STOP_REASON_SHORT_KEYS: Partial<Record<LoadTestStopReason, string>>
 // phaseKey names the climb phase a hold served.
 export function phaseKey(phase: string | undefined): string {
   switch (phase) {
+    // Before the first viewer: the titles are checked and the disks measured,
+    // which takes about a minute on a large library. "Fast climb" there told
+    // the operator a climb was under way while nobody was playing yet.
+    case "starting":
+      return "admin.loadtest.phase.starting";
     case "narrowing":
       return "admin.loadtest.phase.narrowing";
     case "confirming":
@@ -500,6 +505,15 @@ export function phaseKey(phase: string | undefined): string {
     default:
       return "admin.loadtest.phase.ramping";
   }
+}
+
+// liveElapsedMs is the run's elapsed time now: the server's figure as of the
+// last poll plus the time since that answer, so the counter moves every second
+// instead of jumping by the poll interval.
+export function liveElapsedMs(elapsedMs: number | string | undefined, polledAt: number, now: number): number {
+  const base = Number(elapsedMs ?? 0);
+  if (!polledAt || now <= polledAt) return base;
+  return base + (now - polledAt);
 }
 
 // deviceLines renders the location-to-device mapping, one line per location;
