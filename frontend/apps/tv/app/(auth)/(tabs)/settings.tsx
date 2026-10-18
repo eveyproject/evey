@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useUserServiceGetCurrentUser, useUserServiceListProfiles, useUserServiceUpdateProfile, useAdminSystemServiceGetSystemInfo } from "@evey/api";
 import { useAuthStore, useThemeStore, useLocaleStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes as builtInThemes } from "@evey/theme";
-import { pluginThemeKey } from "@evey/client";
+import { pluginThemeKey, wikiUrl } from "@evey/client";
 import { usePluginThemes } from "../../../src/hooks/usePluginThemes";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
@@ -495,17 +495,21 @@ export default function SettingsScreen() {
       {/* About - the server version row is admin-only info (GetSystemInfo is an
           admin RPC): showing it to everyone else meant a 403 on every visit
           and a version that always read "-". */}
-      {isAdmin && (
-        <>
-          <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.about")}</Text>
-          <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-            <View style={styles.infoRow}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.serverVersion")}</Text>
-              <Text style={[styles.value, { color: theme.colors.textMuted }]}>{systemInfo?.version ?? "-"}</Text>
-            </View>
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.about")}</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        {isAdmin && (
+          <View style={styles.infoRow}>
+            <Text style={[styles.label, { color: theme.colors.text }]}>{t("common.serverVersion")}</Text>
+            <Text style={[styles.value, { color: theme.colors.textMuted }]}>{systemInfo?.version ?? "-"}</Text>
           </View>
-        </>
-      )}
+        )}
+        {/* The store listing and the app both have to point at the policy. A
+            television has no browser to open it in: the address is shown. */}
+        <View style={styles.infoRow}>
+          <Text style={[styles.label, { color: theme.colors.text }]}>{t("mobile.settings.privacyPolicy")}</Text>
+          <Text style={[styles.value, { color: theme.colors.textMuted }]}>{wikiUrl(i18n.language, "privacy/")}</Text>
+        </View>
+      </View>
 
       <View style={{ height: 64 }} />
     </ScrollView>

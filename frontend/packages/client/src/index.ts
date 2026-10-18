@@ -124,3 +124,4 @@ export * from "./plugins/bridgeScript";
 export * from "./api/collections";
 export * from "./api/playlists";
 export * from "./lib/profileScheduleEditor";
+export * from "./lib/wikiUrl";

@@ -3135,6 +3135,7 @@
   "mobile.settings.biometricLogin": "Biometric login",
   "mobile.settings.changeServer": "Change server",
   "mobile.settings.changeServerConfirm": "Changing server signs you out of this television. Continue?",
+  "mobile.settings.privacyPolicy": "Privacy policy",
   "mobile.settings.server": "Server",
   "mobile.settings.serverVersion": "Server version",
   "mobile.settings.signOut": "Sign out",

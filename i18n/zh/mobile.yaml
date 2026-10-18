@@ -30,6 +30,7 @@ settings:
   signOutConfirm: 确定要退出吗？
   about: 关于
   appVersion: 应用版本
+  privacyPolicy: 隐私政策
   serverVersion: 服务器版本
   switchProfile: "切换个人资料"
   uiScale: "界面大小"

@@ -30,6 +30,7 @@ settings:
   signOutConfirm: ¿Estás seguro?
   about: Acerca de
   appVersion: Versión de la app
+  privacyPolicy: Política de privacidad
   serverVersion: Versión del servidor
   switchProfile: "Cambiar perfil"
   uiScale: "Tamaño de la interfaz"

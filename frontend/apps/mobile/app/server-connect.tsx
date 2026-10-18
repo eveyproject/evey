@@ -12,6 +12,7 @@ import { parseEveyHealth } from "../src/lib/serverIdentity";
 import { isCleartextToPublicHost, confirmInsecureServer } from "../src/lib/privateHost";
 import { versionLabel } from "../src/lib/versionLabel";
 import { FONT_SIZE } from "@evey/theme";
+import { wikiUrl } from "@evey/client";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { scanLocalNetwork } from "../src/lib/network-scan";
 
@@ -38,15 +39,10 @@ function describeConnectError(e: unknown, target: string): string {
   return `${raw}\n\n(${target})`;
 }
 
-// Where novices learn what a server address is and where to find theirs. Points
-// at the wiki in the viewer's language when that language is published there
-// (only the non-default locales need listing; everything else is the English
-// root), so the help reads in the same language as the app.
-const WIKI_LOCALES = new Set(["fr"]);
+// Where novices learn what a server address is and where to find theirs, on
+// the wiki in the viewer's language when it is published there.
 function serverHelpUrl(lang: string): string {
-  const code = (lang || "en").split("-")[0];
-  const prefix = WIKI_LOCALES.has(code) ? `/${code}` : "";
-  return `https://eveyproject.org${prefix}/getting-started/apps/`;
+  return wikiUrl(lang, "getting-started/apps/");
 }
 
 export default function ServerConnect() {
