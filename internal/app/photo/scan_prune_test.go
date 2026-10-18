@@ -142,3 +142,89 @@ func TestPhotoScanDirectory_DoesNotPruneAMovedFile(t *testing.T) {
 		t.Fatalf("a moved file keeps its row - it must not be pruned, have %d", n)
 	}
 }
+
+// batchSpyRepo counts how the prune reaches the store (see the music twin).
+type batchSpyRepo struct {
+	*fakes.FakeRepository
+	singleDeletes int
+	batchCalls    int
+	batchErr      error
+}
+
+func (r *batchSpyRepo) Delete(ctx context.Context, id string) error {
+	r.singleDeletes++
+	return r.FakeRepository.Delete(ctx, id)
+}
+
+func (r *batchSpyRepo) DeleteByIDs(ctx context.Context, ids []string) error {
+	r.batchCalls++
+	if r.batchErr != nil {
+		return r.batchErr
+	}
+	return r.FakeRepository.DeleteByIDs(ctx, ids)
+}
+
+func prunePhotoScan(t *testing.T, spy *batchSpyRepo) *sharedfakes.FakeEventBus {
+	t.Helper()
+	scanner := fakes.NewFakePhotoScanner()
+	keepTime := time.Unix(1_700_000_000, 0)
+	if err := spy.Upsert(context.Background(), photo.Photo{
+		ID: "keep-1", LibraryID: "lib-1", FilePath: "/photos/a/keep.jpg",
+		FileSize: 100, FileHash: "hash-keep-1", ModTime: keepTime,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	seedPrunePhoto(t, spy.FakeRepository, "gone-1", "/photos/a/gone1.jpg")
+	seedPrunePhoto(t, spy.FakeRepository, "gone-2", "/photos/a/gone2.jpg")
+	scanner.Files = []photo.ScannedImageFile{
+		{Path: "/photos/a/keep.jpg", Size: 100, MimeType: "image/jpeg", ModTime: keepTime},
+	}
+	scanner.Hashes["/photos/a/keep.jpg"] = "hash-keep-1"
+	bus := sharedfakes.NewFakeEventBus()
+	cs := appphoto.NewCommandService(spy, bus, nil, scanner)
+	if _, err := cs.ScanDirectory(context.Background(), "lib-1", "/photos"); err != nil {
+		t.Fatal(err)
+	}
+	return bus
+}
+
+func removedPhotoEvents(bus *sharedfakes.FakeEventBus) []photo.PhotoRemoved {
+	var out []photo.PhotoRemoved
+	for _, ev := range bus.PublishedEvents() {
+		if e, ok := ev.(photo.PhotoRemoved); ok {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func TestPhotoScanDirectory_PrunesGoneFilesInOneBatch(t *testing.T) {
+	spy := &batchSpyRepo{FakeRepository: fakes.NewFakeRepository()}
+	bus := prunePhotoScan(t, spy)
+	if spy.batchCalls != 1 || spy.singleDeletes != 0 {
+		t.Fatalf("prune must be ONE batch delete and no per-photo delete, got batch=%d single=%d", spy.batchCalls, spy.singleDeletes)
+	}
+	if n := photoCount(t, spy.FakeRepository); n != 1 {
+		t.Fatalf("both gone photos must be pruned, have %d rows", n)
+	}
+	evs := removedPhotoEvents(bus)
+	if len(evs) != 2 {
+		t.Fatalf("each pruned photo must emit PhotoRemoved, got %d", len(evs))
+	}
+	for _, e := range evs {
+		if e.LibraryID != "lib-1" {
+			t.Fatalf("PhotoRemoved must carry the library id, got %q", e.LibraryID)
+		}
+	}
+}
+
+func TestPhotoScanDirectory_FailedBatchPruneEmitsNothing(t *testing.T) {
+	spy := &batchSpyRepo{FakeRepository: fakes.NewFakeRepository(), batchErr: errors.New("db down")}
+	bus := prunePhotoScan(t, spy)
+	if evs := removedPhotoEvents(bus); len(evs) != 0 {
+		t.Fatalf("rows survived the failed batch: no PhotoRemoved may be emitted, got %d", len(evs))
+	}
+	if n := photoCount(t, spy.FakeRepository); n != 3 {
+		t.Fatalf("rows must remain after a failed batch, have %d", n)
+	}
+}

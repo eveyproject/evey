@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -113,6 +114,23 @@ func (r *PhotoRepository) Delete(ctx context.Context, id string) error {
 		span.RecordError(shared.ErrNotFound)
 		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
+	}
+	return nil
+}
+
+func (r *PhotoRepository) DeleteByIDs(ctx context.Context, ids []string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.photo.DeleteByIDs")
+	defer span.End()
+	if len(ids) == 0 {
+		return nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM photos WHERE id = ANY($1)`, pq.Array(ids))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("PhotoRepo.DeleteByIDs: %w", err)
 	}
 	return nil
 }

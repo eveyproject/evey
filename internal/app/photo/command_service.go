@@ -67,7 +67,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 	// (same contract, guards and reasons as the music scan's
 	// pruneMissingTracks; until 2026-08-26 neither branch ever pruned).
 	if walkErr == nil && ctx.Err() == nil {
-		s.pruneMissingPhotos(ctx, dir, entries, seen, movedIDs)
+		s.pruneMissingPhotos(ctx, libraryID, dir, entries, seen, movedIDs)
 	}
 	return total, walkErr
 }
@@ -76,7 +76,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 // report AND whose absence the scanner confirms - see the music twin for the
 // full rationale (the Exists re-check keeps a transient walk error from
 // reading as a user deletion).
-func (s *CommandService) pruneMissingPhotos(ctx context.Context, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
+func (s *CommandService) pruneMissingPhotos(ctx context.Context, libraryID, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
 	prefix := strings.TrimSuffix(dir, string(os.PathSeparator)) + string(os.PathSeparator)
 	// Safety net against a degraded mount wiping the catalog - see the music
 	// twin (pruneMissingTracks) for the full rationale: a walk that saw ZERO
@@ -90,7 +90,7 @@ func (s *CommandService) pruneMissingPhotos(ctx context.Context, dir string, ent
 			}
 		}
 	}
-	removed := 0
+	var gone []string
 	for _, e := range entries {
 		if ctx.Err() != nil {
 			return
@@ -104,15 +104,23 @@ func (s *CommandService) pruneMissingPhotos(ctx context.Context, dir string, ent
 		if s.scanner.Exists(e.Path) {
 			continue
 		}
-		if err := s.DeletePhoto(ctx, e.ID); err != nil {
-			slog.WarnContext(ctx, "photo scan: prune failed", slog.String("id", e.ID), slog.String("path", e.Path), slog.Any("err", err))
-			continue
+		gone = append(gone, e.ID)
+	}
+	if len(gone) == 0 {
+		return
+	}
+	// One statement for the whole set (see the music twin). Fail closed: on
+	// error the rows remain, so no removal event goes out.
+	if err := s.repo.DeleteByIDs(ctx, gone); err != nil {
+		slog.WarnContext(ctx, "photo scan: batch prune failed", slog.String("dir", dir), slog.Int("candidates", len(gone)), slog.Any("err", err))
+		return
+	}
+	for _, id := range gone {
+		if pubErr := s.bus.Publish(ctx, photo.PhotoRemoved{PhotoID: id, LibraryID: shared.LibraryID(libraryID), OccurredAt: time.Now()}); pubErr != nil {
+			slog.WarnContext(ctx, "photo: PhotoRemoved publish failed", slog.String("photoID", id), slog.Any("err", pubErr))
 		}
-		removed++
 	}
-	if removed > 0 {
-		slog.InfoContext(ctx, "photo scan: pruned photos whose files are gone", slog.Int("removed", removed), slog.String("dir", dir))
-	}
+	slog.InfoContext(ctx, "photo scan: pruned photos whose files are gone", slog.Int("removed", len(gone)), slog.String("dir", dir))
 }
 
 // loadPhotoIndex preloads every photo row for the library into a

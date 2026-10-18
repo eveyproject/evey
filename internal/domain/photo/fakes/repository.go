@@ -58,6 +58,18 @@ func (r *FakeRepository) Delete(_ context.Context, id string) error {
 	return nil
 }
 
+func (r *FakeRepository) DeleteByIDs(_ context.Context, ids []string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, id := range ids {
+		delete(r.photos, id)
+	}
+	return nil
+}
+
 func (r *FakeRepository) ListByLibrary(_ context.Context, libraryID shared.LibraryID, limit, offset int) ([]photo.Photo, int, error) {
 	if r.Err != nil {
 		return nil, 0, r.Err

@@ -917,3 +917,31 @@ func TestMusicTrackRepo_AlbumFolders_AllAlbums_CoverURL(t *testing.T) {
 	assert.Equal(t, "/art/fetched-a", got.CoverArtURL)
 	require.NoError(t, repo.SetTrackCoverArtURL(ctx, "ghost", "/x"), "an unknown track is a no-op")
 }
+
+func TestMusicTrackRepo_DeleteByIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mt-lib-batch")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+	for _, id := range []string{"mtb1", "mtb2", "mtb3"} {
+		_, err := repo.Upsert(ctx, newTestTrack(id, lib.ID, "Song "+id, "Art", "Alb"))
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, repo.DeleteByIDs(ctx, nil))
+	require.NoError(t, repo.DeleteByIDs(ctx, []string{"mtb1", "mtb2", "no-such-id"}))
+
+	for _, id := range []string{"mtb1", "mtb2"} {
+		_, err := repo.GetByID(ctx, id)
+		require.ErrorIs(t, err, shared.ErrNotFound)
+	}
+	kept, err := repo.GetByID(ctx, "mtb3")
+	require.NoError(t, err)
+	assert.Equal(t, "mtb3", kept.ID)
+}
