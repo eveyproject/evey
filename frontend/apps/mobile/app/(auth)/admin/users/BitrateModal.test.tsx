@@ -11,8 +11,8 @@ vi.mock("react-native", () => ({
   View: ({ children }: any) => React.createElement("div", null, children),
   Text: ({ children }: any) => React.createElement("span", null, children),
   ActivityIndicator: () => React.createElement("div", { "data-testid": "spinner" }),
-  Pressable: ({ children, onPress, accessibilityRole, accessibilityLabel }: any) =>
-    React.createElement("button", { onClick: onPress, role: accessibilityRole, "aria-label": accessibilityLabel }, children),
+  Pressable: ({ children, onPress, disabled, accessibilityRole, accessibilityLabel }: any) =>
+    React.createElement("button", { onClick: onPress, disabled, role: accessibilityRole, "aria-label": accessibilityLabel }, children),
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
 }));
 vi.mock("react-i18next", () => ({
@@ -26,7 +26,7 @@ vi.mock("@evey/theme", () => ({ FONT_SIZE: { sm: 14, lg: 18 } }));
 vi.mock("../../../../src/components/BottomSheet", () => ({
   BottomSheet: ({ visible, title, children }: any) => (visible ? React.createElement("div", { "data-testid": "sheet" }, React.createElement("h2", null, title), children) : null),
 }));
-vi.mock("../../../../src/providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { accent: "#f00", border: "#333", text: "#fff" } }) }));
+vi.mock("../../../../src/providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { accent: "#f00", border: "#333", text: "#fff", textMuted: "#888" } }) }));
 
 import { BitrateModal } from "./BitrateModal";
 
@@ -77,5 +77,33 @@ describe("BitrateModal (mobile)", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Failed to update bitrate limit"));
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByTestId("sheet")).toBeTruthy();
+  });
+
+  // A failed read is not "no cap": it used to fall through to 0 and tick
+  // Unlimited. It shows the error with a retry that reads again.
+  it("shows a retry instead of ticking Unlimited when the read fails", async () => {
+    eveyFetch.mockRejectedValueOnce(new Error("offline"));
+    mount(true);
+    await waitFor(() => expect(screen.getByText("Failed to load")).toBeTruthy());
+    expect(screen.queryByText("✓")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Unlimited" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "4 Mbps" }).textContent).toContain("✓"));
+  });
+
+  // A second tap while the first write is in flight sends nothing.
+  it("disables the rows while a write is in flight", async () => {
+    let release: () => void = () => {};
+    eveyFetch.mockImplementation((req: { method: string }) =>
+      req.method === "GET" ? Promise.resolve({ max_bitrate_kbps: 0 }) : new Promise<void>((r) => { release = r; }),
+    );
+    const onClose = mount(true);
+    const eight = await screen.findByRole("button", { name: "8 Mbps" });
+    fireEvent.click(eight);
+    fireEvent.click(screen.getByRole("button", { name: "8 Mbps" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 Mbps" }));
+    expect(eveyFetch.mock.calls.filter((c) => (c[0] as { method: string }).method === "PATCH")).toHaveLength(1);
+    release();
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
   });
 });
