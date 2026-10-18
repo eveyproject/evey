@@ -7,9 +7,13 @@ vi.mock("react-native", () => ({
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
-  Modal: ({ children, visible }: any) => (visible ? React.createElement("div", { "data-testid": "modal" }, children) : null),
+  Modal: ({ children, visible, onRequestClose }: any) =>
+    visible ? React.createElement("div", { "data-testid": "modal", onKeyUp: onRequestClose }, children) : null,
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Animated: { View: ({ children, ...p }: any) => React.createElement("div", p, children) },
+  Animated: {
+    View: ({ children, accessibilityViewIsModal, onAccessibilityEscape, ...p }: any) =>
+      React.createElement("div", { ...p, "data-testid": "drawer-panel", "data-modal": String(accessibilityViewIsModal), onKeyDown: onAccessibilityEscape }, children),
+  },
   StyleSheet: { create: (s: any) => s, absoluteFillObject: {} },
 }));
 
@@ -51,8 +55,10 @@ vi.mock("../providers/ThemeProvider", () => ({
   }),
 }));
 
+const closeMock = vi.fn();
+const dismissMock = vi.fn();
 vi.mock("../providers/DrawerProvider", () => ({
-  useDrawer: () => ({ isOpen: true, close: vi.fn(), toggle: vi.fn(), translateX: 0 }),
+  useDrawer: () => ({ isOpen: true, close: closeMock, dismiss: dismissMock, toggle: vi.fn(), translateX: 0 }),
 }));
 
 let mockPluginEntries: any[] = [];
@@ -113,5 +119,33 @@ describe("SideDrawer - main vs admin tray", () => {
     render(<SideDrawer />);
     fireEvent.click(screen.getByText("Librarian").closest("button")!);
     return waitFor(() => expect(pushMock).toHaveBeenCalledWith("/admin/extensions/plg-librarian"));
+  });
+});
+
+// The drawer is a modal: the screen reader stays inside it, and every way out
+// that is not a navigation (Escape or Back via onRequestClose, the backdrop,
+// VoiceOver's escape gesture) is a dismiss, which hands the focus back to the
+// rail control that opened it.
+describe("SideDrawer - modal accessibility", () => {
+  it("keeps the screen reader inside the drawer panel", () => {
+    render(<SideDrawer />);
+    expect(screen.getByTestId("drawer-panel").getAttribute("data-modal")).toBe("true");
+  });
+
+  it("dismisses on Escape/Back, on the backdrop and on the screen reader escape gesture", () => {
+    render(<SideDrawer />);
+    fireEvent.keyUp(screen.getByTestId("modal"));
+    fireEvent.click(screen.getByLabelText("Close"));
+    fireEvent.keyDown(screen.getByTestId("drawer-panel"));
+    expect(dismissMock).toHaveBeenCalledTimes(3);
+    expect(closeMock).not.toHaveBeenCalled();
+  });
+
+  it("a navigation closes without dismissing, so the focus goes to the new screen", async () => {
+    render(<SideDrawer />);
+    fireEvent.click(screen.getByText("common.nav.home").closest("button")!);
+    expect(closeMock).toHaveBeenCalledTimes(1);
+    expect(dismissMock).not.toHaveBeenCalled();
+    await waitFor(() => expect(pushMock).toHaveBeenCalled());
   });
 });
