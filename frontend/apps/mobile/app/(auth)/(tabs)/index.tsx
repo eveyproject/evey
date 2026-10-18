@@ -94,8 +94,9 @@ function MusicLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
                   // have to prefix the active server explicitly. ?w= only
                   // applies to our own album-art endpoint, not external URLs.
                   source={{
+                    // An absolute cover is another host's: never with the token.
                     uri: /^https?:/i.test(a.coverArtUrl)
-                      ? `${a.coverArtUrl}${tokenParam}`
+                      ? a.coverArtUrl
                       : `${serverUrl ?? ""}${a.coverArtUrl}${artQuery}`,
                   }}
                   style={{ width: "100%", height: "100%" }}

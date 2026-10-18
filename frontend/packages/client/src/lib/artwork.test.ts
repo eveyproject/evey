@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { artworkUrl, coverArtUri } from "./artwork";
+import { artworkUrl, coverArtUri, serverImageUri } from "./artwork";
 
 describe("artworkUrl", () => {
   it("builds poster artwork URL by default", () => {
@@ -89,5 +89,18 @@ describe("artworkUrl versioning", () => {
   it("stays unversioned when the item's change time is unknown", () => {
     expect(artworkUrl("http://srv", "m1", "poster", 400, {})).toBe("http://srv/api/v1/media/m1/artwork/poster?w=400");
     expect(artworkUrl("http://srv", "m1", "backdrop")).toBe("http://srv/api/v1/media/m1/artwork/backdrop");
+  });
+});
+
+describe("serverImageUri", () => {
+  it("never hands the token to another host", () => {
+    expect(serverImageUri("http://evey:9091", "https://image.tmdb.org/t/p/w500/x.jpg", "?token=jwt")).toBe("https://image.tmdb.org/t/p/w500/x.jpg");
+  });
+
+  it("anchors the server's own relative path and adds the token", () => {
+    expect(serverImageUri("http://evey:9091", "/api/v1/music/albums/a1/art", "?token=jwt")).toBe("http://evey:9091/api/v1/music/albums/a1/art?token=jwt");
+    expect(serverImageUri("http://evey:9091", "/api/v1/music/albums/a1/art?w=185", "?token=jwt")).toBe("http://evey:9091/api/v1/music/albums/a1/art?w=185&token=jwt");
+    expect(serverImageUri("http://evey:9091", "/api/v1/x", "")).toBe("http://evey:9091/api/v1/x");
+    expect(serverImageUri("http://evey:9091", undefined, "?token=jwt")).toBeUndefined();
   });
 });

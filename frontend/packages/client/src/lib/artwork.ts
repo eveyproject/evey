@@ -47,3 +47,18 @@ export function coverArtUri(serverUrl: string, coverArtUrl?: string, width?: num
   if (!width || width <= 0) return abs;
   return `${abs}${abs.includes("?") ? "&" : "?"}w=${Math.round(width)}`;
 }
+
+/**
+ * An image url the server handed over, loadable by a native Image. The
+ * server's own paths come relative: they get the server origin (a native
+ * Image refuses a relative uri) and the token. An absolute url points at a
+ * third party (a collection poster on TMDB, a music cover service) and is
+ * returned untouched: the viewer's token must never leave for another host.
+ */
+export function serverImageUri(serverUrl: string | null | undefined, url: string | undefined, tokenParam: string): string | undefined {
+  if (!url) return undefined;
+  if (/^https?:/i.test(url)) return url;
+  const abs = `${serverUrl ?? ""}${url}`;
+  if (!tokenParam) return abs;
+  return abs.includes("?") ? `${abs}&${tokenParam.replace(/^\?/, "")}` : `${abs}${tokenParam}`;
+}
