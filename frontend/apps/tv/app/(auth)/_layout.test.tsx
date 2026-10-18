@@ -13,6 +13,7 @@ vi.mock("react-native", () => ({
   Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
   StyleSheet: { create: (s: any) => s },
+  ActivityIndicator: () => React.createElement("div", { "data-testid": "spinner" }),
 }));
 
 // --- expo-router mock --------------------------------------------------------
@@ -35,10 +36,12 @@ vi.mock("expo-router", () => ({
 // would otherwise fail to parse a plain string and treat it as expired,
 // redirecting to /login before the shortcut ever gets to render.
 const FAKE_TOKEN = "h.eyJleHAiOjk5OTk5OTk5OTl9.s";
+const EXPIRED_TOKEN = "h.eyJleHAiOjF9.s";
+let tokenMock = FAKE_TOKEN;
 const logoutMock = vi.fn();
 vi.mock("@evey/store", async (orig) => ({
   ...(await orig<typeof import("@evey/store")>()),
-  useAuthStore: (sel: any) => sel({ accessToken: FAKE_TOKEN, profileId: "p1", logout: logoutMock }),
+  useAuthStore: (sel: any) => sel({ accessToken: tokenMock, profileId: "p1", logout: logoutMock }),
 }));
 
 // --- @expo/vector-icons mock ---------------------------------------------------
@@ -61,7 +64,8 @@ vi.mock("../../src/components/TVMusicPlayer", () => ({ TVMusicPlayer: () => null
 const initI18nMock = vi.fn(async (_url: string) => undefined);
 vi.mock("../../src/i18n", () => ({ initI18n: (url: string) => initI18nMock(url) }));
 vi.mock("../../src/lib/server-config", () => ({ resolveServerUrl: async () => "http://srv:9091" }));
-vi.mock("../../src/lib/auth-refresh", () => ({ refreshAccessTokenIfNeeded: () => Promise.resolve(true) }));
+const refreshMock = vi.fn(async () => true);
+vi.mock("../../src/lib/auth-refresh", () => ({ refreshAccessTokenIfNeeded: () => refreshMock() }));
 vi.mock("../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", accent: "#88f" } }),
 }));
@@ -71,6 +75,8 @@ import AuthLayout from "./_layout";
 beforeEach(() => {
   vi.clearAllMocks();
   pathnameMock = "/media/123";
+  tokenMock = FAKE_TOKEN;
+  refreshMock.mockResolvedValue(true);
 });
 
 describe("AuthLayout home shortcut", () => {
@@ -120,5 +126,20 @@ describe("AuthLayout translation catalogue", () => {
     pathnameMock = "/media/123";
     render(<AuthLayout />);
     await vi.waitFor(() => expect(initI18nMock).toHaveBeenCalledWith("http://srv:9091"));
+  });
+});
+
+// A renewal that throws (the keystore refused the refresh token read) is a
+// renewal that failed: the spinner must give way to the sign-in screen
+// instead of turning for the rest of the session.
+describe("AuthLayout token renewal", () => {
+  it("leaves the spinner for /login when the renewal throws", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    tokenMock = EXPIRED_TOKEN;
+    refreshMock.mockRejectedValue(new Error("keystore"));
+    render(<AuthLayout />);
+    await vi.waitFor(() => expect(screen.getByTestId("redirect").getAttribute("data-href")).toBe("/login"));
+    expect(screen.queryByTestId("spinner")).toBeNull();
+    warn.mockRestore();
   });
 });

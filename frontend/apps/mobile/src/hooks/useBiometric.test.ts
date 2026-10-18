@@ -140,6 +140,16 @@ describe("useBiometricEnabled", () => {
     expect(result.current.enabled).toBe(false);
   });
 
+  it("leaves enabled=false and reports a keystore that refuses the read", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockGetItem.mockRejectedValue(new Error("keystore"));
+
+    const { result } = renderHook(() => useBiometricEnabled());
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(result.current.enabled).toBe(false);
+    warn.mockRestore();
+  });
+
   it("leaves enabled=false when stored value is not 'true'", async () => {
     mockGetItem.mockResolvedValue("false");
 

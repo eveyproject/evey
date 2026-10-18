@@ -75,6 +75,21 @@ describe("usePlayOnDevices", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     await waitFor(() => expect(result.current.data).toEqual([devices[1]]));
   });
+
+  it("still lists every device when the keystore refuses this install's id", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getItemAsyncMock.mockRejectedValue(new Error("keystore"));
+    const fetch = await getEveyFetch();
+    const devices = [{ id: "dev-2", name: "Living Room TV", type: "tv", connectedAt: "2026-06-04T00:01:00Z" }];
+    fetch.mockResolvedValueOnce({ devices });
+
+    const { usePlayOnDevices } = await import("./usePlayOnDevices");
+    const { result } = renderHook(() => usePlayOnDevices(), { wrapper: createWrapper() });
+
+    await waitFor(() => expect(result.current.data).toEqual(devices));
+    await waitFor(() => expect(warn).toHaveBeenCalled());
+    warn.mockRestore();
+  });
 });
 
 describe("usePlayOnCommand", () => {

@@ -36,7 +36,9 @@ export function useBiometricEnabled() {
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
-    SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY).then((v) => setEnabled(v === "true"));
+    SecureStore.getItemAsync(BIOMETRIC_ENABLED_KEY)
+      .then((v) => setEnabled(v === "true"))
+      .catch((err) => console.warn("evey-biometric read", err));
   }, []);
 
   const toggle = useCallback(async (value: boolean) => {

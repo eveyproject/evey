@@ -79,7 +79,12 @@ export default function AuthLayout() {
   useEffect(() => {
     if (!needsRenewal) return;
     let cancelled = false;
-    void refreshAccessTokenIfNeeded().then((ok) => {
+    // A renewal that throws (an unreadable keystore) failed like any other:
+    // without the catch the spinner below never gave way.
+    void refreshAccessTokenIfNeeded().catch((err) => {
+      console.warn("evey-auth renewal", err);
+      return false;
+    }).then((ok) => {
       if (cancelled) return;
       if (!ok) logout();
       setRenewalDone(true);

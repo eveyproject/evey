@@ -74,7 +74,9 @@ export default function ServerConnect() {
   useEffect(() => {
     // Pre-fill URL input from legacy storage (first-run or migration fallback).
     if (!hasServers) {
-      getServerUrl().then((saved) => { if (saved) setUrl(saved); });
+      getServerUrl()
+        .then((saved) => { if (saved) setUrl(saved); })
+        .catch((err) => console.warn("server-connect legacy url", err));
     }
   }, [hasServers]);
 

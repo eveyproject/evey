@@ -78,6 +78,11 @@ export default function AuthLayout() {
       else if (state === "unavailable") setRefreshState("unavailable");
       // "valid"/"refreshed": a fresh token landed in the store and re-renders
       // us with expired=false, so there is nothing to latch.
+    }).catch((err) => {
+      // A keystore read that throws is no refusal: without this latch the
+      // gate waited on "pending" and the shell stayed blank.
+      console.warn("evey-auth refresh", err);
+      if (!cancelled) setRefreshState("unavailable");
     });
     return () => { cancelled = true; };
   }, [expired, accessToken, online]);
