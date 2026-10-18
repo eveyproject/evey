@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -10,11 +11,17 @@ export function BackgroundJobsCard({ entries }: { entries: ConfigEntry[] | undef
   const { t } = useTranslation();
   const setEntry = useSetConfigEntry();
   const deleteEntry = useDeleteConfigEntry();
+  const quietSet = useSetConfigEntry({ ownToast: true });
+  const quietDelete = useDeleteConfigEntry({ ownToast: true });
 
   const { rateDrafts, rateDirty, setRate, isEnabled, toggle, saveRates } = useBackgroundJobsForm({
     entries,
     save: (key, value) => setEntry.mutateAsync({ key, value }),
     remove: (key) => deleteEntry.mutateAsync(key),
+    quietSave: (key, value) => quietSet.mutateAsync({ key, value }),
+    quietRemove: (key) => quietDelete.mutateAsync(key),
+    onRatesSaved: (failed) =>
+      failed.length === 0 ? toast.success(t("admin.serverConfig.configUpdated")) : toast.error(t("admin.serverConfig.failedUpdate")),
   });
 
   return (
@@ -63,7 +70,7 @@ export function BackgroundJobsCard({ entries }: { entries: ConfigEntry[] | undef
           ))}
         </div>
         <div className="flex justify-end">
-          <Button onClick={saveRates} loading={setEntry.isPending} disabled={!rateDirty}>
+          <Button onClick={saveRates} loading={quietSet.isPending || quietDelete.isPending} disabled={!rateDirty}>
             {t("common.save")}
           </Button>
         </div>
