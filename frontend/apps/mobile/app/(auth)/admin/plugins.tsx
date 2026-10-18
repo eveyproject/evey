@@ -528,7 +528,7 @@ function PluginUpdateModal({
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       setPhase("previewing");
       setError(null);
       try {

@@ -98,8 +98,11 @@ export default function GuestWatch() {
   }, [guest, syncPlay]);
 
   useEffect(() => {
-    ScreenOrientation.unlockAsync();
-    return () => { ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT); };
+    ScreenOrientation.unlockAsync().catch((err) => console.warn("orientation unlock failed", err));
+    return () => {
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT)
+        .catch((err) => console.warn("orientation restore failed", err));
+    };
   }, []);
 
   useEffect(() => { return () => { mountedRef.current = false; }; }, []);

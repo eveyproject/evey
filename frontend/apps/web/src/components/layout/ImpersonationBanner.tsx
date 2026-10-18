@@ -31,7 +31,7 @@ export function ImpersonationBanner() {
           // the admin doesn't keep seeing the impersonated user's filtered views.
           exitImpersonation();
           queryClient.clear();
-          navigate({ to: "/admin/users" });
+          void navigate({ to: "/admin/users" });
         }}
       >
         {t("admin.users.exitImpersonation")}

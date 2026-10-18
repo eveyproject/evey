@@ -79,7 +79,7 @@ vi.mock("@kesha-antonov/react-native-background-downloader", () => ({
       start: vi.fn(),
       // Recorded by id so a test can assert the OS download was actually
       // stopped, not merely that the promise rejected.
-      stop: vi.fn(() => { taskStops.push(id); }),
+      stop: vi.fn(async () => { taskStops.push(id); }),
     };
     return task;
   }),

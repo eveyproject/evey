@@ -37,7 +37,7 @@ vi.mock("expo-constants", () => ({
 
 // vi.hoisted: vi.mock is lifted above every const, so a plain module-level
 // spy is still in its temporal dead zone when the factory runs.
-const clearRefreshToken = vi.hoisted(() => vi.fn());
+const clearRefreshToken = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock("./refresh-token", () => ({ clearRefreshToken }));
 
 // Overrides the global inert stub (src/test/__mocks__/expo-secure-store.ts)

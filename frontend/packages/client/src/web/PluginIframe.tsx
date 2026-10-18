@@ -160,7 +160,7 @@ export function PluginIframe({ pluginId, slot, src, externalFetch, context, onNa
   useEffect(() => {
     if (!accessToken) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         // cache: "no-cache" = always revalidate with If-None-Match. The server
         // answers 304 when unchanged, so the cost is one conditional request -

@@ -75,7 +75,7 @@ export default function SettingsScreen() {
   const [uiScale, setUiScale] = useState<number>(DEFAULT_UI_SCALE);
   useEffect(() => {
     let stale = false;
-    getUiScalePercent().then((v) => { if (!stale) setUiScale(effectiveUiScale(v)); });
+    void getUiScalePercent().then((v) => { if (!stale) setUiScale(effectiveUiScale(v)); });
     return () => { stale = true; };
   }, []);
   const handleUiScaleChange = useCallback((value: number) => {

@@ -615,7 +615,7 @@ function PluginsPage() {
   const { data: runtimesData } = useAvailableRuntimes();
   const runtimes = runtimesData?.runtimes ?? [];
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: PLUGINS_QUERY_KEY });
+  const invalidate = () => { void queryClient.invalidateQueries({ queryKey: PLUGINS_QUERY_KEY }); };
 
   const installTimers = useRef<number[]>([]);
   useEffect(() => () => {

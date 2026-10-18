@@ -39,7 +39,7 @@ export function UserProfilesPanel({ user, profiles }: { user: V1User; profiles: 
         // sees every library unfiltered) is served under the target's identity.
         doImpersonate(data.accessToken);
         queryClient.clear();
-        navigate({ to: "/" });
+        void navigate({ to: "/" });
       },
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.users.failedImpersonate"))),
     },

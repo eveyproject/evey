@@ -50,7 +50,7 @@ function SmartFilterPage() {
     deleteMut.mutate(filterId, {
       onSuccess: () => {
         toast.success(t("media.collections.smartDeleted"));
-        navigate({ to: "/collections" });
+        void navigate({ to: "/collections" });
       },
       onError: () => toast.error(t("media.collections.deleteFailed")),
     });

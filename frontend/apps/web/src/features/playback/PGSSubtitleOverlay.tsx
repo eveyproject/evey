@@ -97,7 +97,7 @@ export function PGSSubtitleOverlay({ mediaId, trackIndex, streamToken, videoRef,
       return;
     }
     const aborter = new AbortController();
-    (async () => {
+    void (async () => {
       try {
         // Follows the server's 202s until the blob exists - a track without a
         // block index is a read of the whole film.

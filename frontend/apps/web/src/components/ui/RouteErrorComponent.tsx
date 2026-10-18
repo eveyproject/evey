@@ -20,7 +20,7 @@ export function RouteErrorComponent({ error, reset }: ErrorComponentProps) {
 
   const handleRetry = () => {
     reset();
-    router.invalidate();
+    void router.invalidate();
   };
 
   const handleGoHome = () => {

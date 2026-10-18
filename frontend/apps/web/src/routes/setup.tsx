@@ -137,7 +137,7 @@ function SetupPage() {
 
   useEffect(() => {
     if (step !== 3) return;
-    (async () => {
+    void (async () => {
       try {
         const dirs = await eveyFetch<{ name: string; path: string }[]>({
           url: "/api/v1/admin/fs/browse",

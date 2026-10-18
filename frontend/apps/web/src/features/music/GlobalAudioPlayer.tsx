@@ -251,7 +251,7 @@ export function GlobalAudioPlayer() {
       setIsPlaying(false);
       return;
     }
-    (async () => {
+    void (async () => {
       try {
         await audio.play();
         setIsPlaying(true);

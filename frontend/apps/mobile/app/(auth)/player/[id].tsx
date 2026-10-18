@@ -342,7 +342,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const [subtitleOffsetMs, setSubtitleOffsetMs] = useState(0);
   useEffect(() => {
     let cancelled = false;
-    getSubtitleStylePref().then((saved) => { if (!cancelled && saved) setSubtitleStyle(saved); });
+    void getSubtitleStylePref().then((saved) => { if (!cancelled && saved) setSubtitleStyle(saved); });
     return () => { cancelled = true; };
   }, []);
   const handleSubtitleStyleChange = useCallback((patch: Partial<SubtitleStyle>) => {
@@ -824,9 +824,10 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // The user toggles fullscreen (== lock to landscape) explicitly via the
   // bottom bar button. Restore the OS default lock when leaving the screen.
   useEffect(() => {
-    ScreenOrientation.unlockAsync();
+    ScreenOrientation.unlockAsync().catch((err) => console.warn("orientation unlock failed", err));
     return () => {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT);
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.DEFAULT)
+        .catch((err) => console.warn("orientation restore failed", err));
     };
   }, []);
 
@@ -842,7 +843,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     setIsFullscreen(next);
     ScreenOrientation.lockAsync(
       next ? ScreenOrientation.OrientationLock.LANDSCAPE : ScreenOrientation.OrientationLock.PORTRAIT_UP,
-    );
+    ).catch((err) => console.warn("orientation lock failed", err));
   }, [isFullscreen]);
 
   // Same exit contract as the web player's back button (playerUtils.playerExit):
@@ -1104,12 +1105,12 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // the edge still reveals it; hiding again here covers that and a return
   // from the background.
   useEffect(() => {
-    if (!showControls) NavigationBar.setVisibilityAsync("hidden");
+    if (!showControls) NavigationBar.setVisibilityAsync("hidden").catch((err) => console.warn("navigation bar hide failed", err));
   }, [showControls]);
 
   useEffect(() => {
-    NavigationBar.setVisibilityAsync("hidden");
-    return () => { NavigationBar.setVisibilityAsync("visible"); };
+    NavigationBar.setVisibilityAsync("hidden").catch((err) => console.warn("navigation bar hide failed", err));
+    return () => { NavigationBar.setVisibilityAsync("visible").catch((err) => console.warn("navigation bar restore failed", err)); };
   }, []);
 
   const handleNavigateEpisode = useCallback(
@@ -1617,9 +1618,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
               syncConnected={syncPlay.state.connected}
               castConnected={castConnected}
               castAvailable={!!CastContext}
-              onCast={() => { handleCast(); resetHideTimer(); }}
+              onCast={() => { void handleCast(); resetHideTimer(); }}
               onSyncPress={() => {
-                if (syncPlay.state.connected) syncPlay.leaveRoom();
+                if (syncPlay.state.connected) void syncPlay.leaveRoom();
                 else setActiveSheet("syncPlay");
                 resetHideTimer();
               }}

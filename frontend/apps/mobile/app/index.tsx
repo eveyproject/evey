@@ -23,7 +23,7 @@ export default function EntryRedirect() {
 
   useEffect(() => {
     if (!serverUrl || hasSession) return;
-    pingServer(serverUrl).then(setServerOk);
+    void pingServer(serverUrl).then(setServerOk);
   }, [serverUrl, hasSession]);
 
   // "Who is watching" on a COLD START, and only there. This screen is the

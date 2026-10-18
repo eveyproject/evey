@@ -47,7 +47,7 @@ export function UserRow({ user, profiles = [] }: { user: V1User; profiles?: V1Pr
         // query refetches with the impersonation token.
         doImpersonate(data.accessToken);
         queryClient.clear();
-        navigate({ to: "/" });
+        void navigate({ to: "/" });
       },
       onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("admin.users.failedImpersonate"))),
     },

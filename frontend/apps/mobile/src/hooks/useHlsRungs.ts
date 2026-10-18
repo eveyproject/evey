@@ -24,7 +24,7 @@ export function useHlsRungs(streamUrl: string | null, streamToken?: string | nul
     }
     const ctrl = new AbortController();
     let alive = true;
-    (async () => {
+    void (async () => {
       try {
         const res = await fetch(streamUrl, {
           signal: ctrl.signal,

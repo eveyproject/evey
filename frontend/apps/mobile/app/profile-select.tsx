@@ -123,7 +123,7 @@ export default function ProfileSelect() {
           { text: t("common.yes", "Yes"), onPress: () => void toggleBiometric(true) },
         ],
       );
-    })();
+    })().catch((err) => console.warn("biometric prompt check failed", err));
   }, [biometricAvailable, biometricEnabled, loading, t, toggleBiometric]);
 
   const switchProfile = useCallback(async (target: V1Profile, pinToken?: string): Promise<"ok" | "pin" | "fail"> => {

@@ -333,7 +333,7 @@ function BackupRow({ backup }: { backup: Backup }) {
               loading={restoring}
               onClick={() => {
                 setConfirmRestore(false);
-                handleRestore();
+                void handleRestore();
               }}
             >
               {t("common.restore")}

@@ -246,11 +246,11 @@ export function useUpdateCollection() {
         smart: smart ?? (rules != null && rules.length > 0),
       }),
     onSuccess: (_d, vars) => {
-      invalidate.list();
-      invalidate.head(vars.id);
+      void invalidate.list();
+      void invalidate.head(vars.id);
       // A smart collection's rules decide which items match, so editing them
       // changes the items list - refresh it too, not just the metadata.
-      invalidate.items(vars.id);
+      void invalidate.items(vars.id);
     },
   });
 }
@@ -277,9 +277,9 @@ export function useRemoveCollectionItem(collectionId: string) {
   return useMutation({
     mutationFn: (mediaItemId: string) => collectionServiceRemoveCollectionItem(collectionId, mediaItemId),
     onSuccess: () => {
-      invalidate.items(collectionId);
-      invalidate.head(collectionId);
-      invalidate.list();
+      void invalidate.items(collectionId);
+      void invalidate.head(collectionId);
+      void invalidate.list();
     },
   });
 }
@@ -299,8 +299,8 @@ export function useReorderCollectionItems(collectionId: string) {
       await collectionServiceUpdateCollection(collectionId, { name, sortBy: "manual" });
     },
     onSuccess: () => {
-      invalidate.items(collectionId);
-      invalidate.head(collectionId);
+      void invalidate.items(collectionId);
+      void invalidate.head(collectionId);
     },
   });
 }

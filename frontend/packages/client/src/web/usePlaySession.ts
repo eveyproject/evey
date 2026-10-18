@@ -219,7 +219,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
         ? "PLAY_METHOD_DIRECT_STREAM"
         : "PLAY_METHOD_TRANSCODE";
 
-    (async () => {
+    void (async () => {
       try {
         // A native <video> HLS session (Safari/iOS) can't re-mint the sliding
         // token mid-stream, so it gets the long-lived window up front; the

@@ -33,7 +33,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         // non-admin or network error
       }
     };
-    checkPlugin();
+    void checkPlugin();
     return () => { ignore = true; };
   }, [pluginId, setTheme]);
 

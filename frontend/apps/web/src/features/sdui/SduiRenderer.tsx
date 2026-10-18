@@ -110,7 +110,7 @@ function SduiNodeView({ node, nav }: { node: SduiNode; nav: Nav }) {
 export function SduiRenderer({ doc }: { doc: SduiDocument }) {
   const navigate = useNavigate();
   const nav: Nav = (to) => {
-    if (to) navigate({ to });
+    if (to) void navigate({ to });
   };
   return (
     <div

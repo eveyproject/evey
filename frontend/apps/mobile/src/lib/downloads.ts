@@ -935,7 +935,7 @@ export async function startDownload(
           const free = Paths?.availableDiskSpace;
           if (typeof free === "number" && free > 0 && requiredDownloadBytes(expectedBytes, compatPass) > free) {
             console.log(`evey-dl no-space ${mediaItemId} expected=${expectedBytes} free=${free} compatPass=${compatPass}`);
-            task.stop();
+            task.stop().catch(() => undefined);
             inFlight.delete(mediaItemId);
             inFlightTitles.delete(mediaItemId);
             activeDownloads.delete(mediaItemId);
@@ -971,7 +971,7 @@ export async function startDownload(
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
         activeDownloads.delete(mediaItemId);
-        completeHandler(mediaItemId);
+        completeHandler(mediaItemId)?.catch(() => undefined);
         unsubscribeProgress?.();
         resolve(destPath);
         // Fire-and-forget: the download IS complete (promise resolved above);
@@ -988,7 +988,7 @@ export async function startDownload(
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
         activeDownloads.delete(mediaItemId);
-        completeHandler(mediaItemId);
+        completeHandler(mediaItemId)?.catch(() => undefined);
         unsubscribeProgress?.();
         // A failed download leaves a partial file at destPath that never enters
         // the index, so deleteDownload can never reach it - clean it up here.
@@ -1066,7 +1066,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
         activeDownloads.delete(mediaItemId);
-        completeHandler(mediaItemId);
+        completeHandler(mediaItemId)?.catch(() => undefined);
         void import("./audioCompatPass")
           .then((m) => m.runAudioCompatPass(mediaItemId))
           .catch((err) => console.warn("evey-audiopass kickoff", err));
@@ -1075,7 +1075,7 @@ export async function rehydrateBackgroundDownloads(): Promise<void> {
         inFlight.delete(mediaItemId);
         inFlightTitles.delete(mediaItemId);
         activeDownloads.delete(mediaItemId);
-        completeHandler(mediaItemId);
+        completeHandler(mediaItemId)?.catch(() => undefined);
         // Same leak as startDownload's error handler: the partial file never
         // entered the index, so it's otherwise unreachable by deleteDownload.
         await deleteMediaFileAnywhere(destPath);
@@ -1179,7 +1179,7 @@ export async function cancelDownload(mediaItemId: string): Promise<void> {
   inFlightTitles.delete(mediaItemId);
   handle.unsubscribe?.();
   try { await handle.task.stop(); } catch (err) { console.warn("caught", err); }
-  completeHandler(mediaItemId);
+  completeHandler(mediaItemId)?.catch(() => undefined);
   await deleteMediaFileAnywhere(handle.destPath);
 }
 

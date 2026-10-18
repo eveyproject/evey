@@ -248,12 +248,12 @@ async function fetchSlice(
     task
       .progress(onProgress)
       .done(() => {
-        completeHandler(taskId);
+        completeHandler(taskId)?.catch(() => undefined);
         job.stopTransfer = undefined;
         resolve();
       })
       .error(({ error }) => {
-        completeHandler(taskId);
+        completeHandler(taskId)?.catch(() => undefined);
         job.stopTransfer = undefined;
         void deleteDownloadedFileAnywhere(destPath);
         reject(new Error(error || `slice ${index} failed`));

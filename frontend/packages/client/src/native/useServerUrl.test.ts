@@ -61,3 +61,24 @@ describe("useServerUrlNullable", () => {
     expect(result.current).toBe("http://myserver:9091");
   });
 });
+
+describe("useServerUrl read failure", () => {
+  it("useServerUrlNullable settles to null when the keystore read rejects", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getServerUrlMock.mockRejectedValue(new Error("keystore unavailable"));
+    const { result } = renderHook(() => useServerUrlNullable());
+    await act(async () => {});
+    expect(result.current).toBeNull();
+    warn.mockRestore();
+  });
+
+  it("useServerUrl stays empty when the keystore read rejects", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getServerUrlMock.mockRejectedValue(new Error("keystore unavailable"));
+    const { result } = renderHook(() => useServerUrl());
+    await act(async () => {});
+    expect(result.current).toBe("");
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});

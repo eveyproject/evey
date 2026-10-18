@@ -38,7 +38,7 @@ export function TrickplayPreview({ mediaId, hoverTime, mediaType }: TrickplayPre
     // one refactor away from breaking silently; the cancelled flag makes the
     // guarantee local.
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const res = await eveyFetchRaw({ url: `/api/v1/media/${mediaId}/trickplay`, method: "GET" });
         const text = await res.text();

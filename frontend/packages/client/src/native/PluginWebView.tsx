@@ -145,7 +145,7 @@ export function PluginWebView({
   useEffect(() => {
     if (!accessToken || !armed) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const r = await eveyFetch<{ values?: Record<string, unknown> }>({
           url: `/api/v1/plugins/${encodeURIComponent(pluginId)}/config`,
@@ -166,7 +166,7 @@ export function PluginWebView({
     if (!accessToken || !serverUrl || !armed) return;
     let cancelled = false;
     const controller = new AbortController();
-    (async () => {
+    void (async () => {
       // 1. Try the cache - instant on warm starts.
       const cached = bundleCache ? await bundleCache.read(pluginId, entryPath) : null;
       if (cancelled) return;

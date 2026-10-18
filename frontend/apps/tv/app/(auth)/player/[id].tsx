@@ -1543,7 +1543,7 @@ export default function PlayerScreen() {
                 connected={syncplay.state.connected}
                 onFocusChange={setSyncplayBadgeFocused}
                 onPress={() => {
-                  if (syncplay.state.connected) syncplay.leaveRoom();
+                  if (syncplay.state.connected) void syncplay.leaveRoom();
                   else router.push("/(auth)/syncplay");
                 }}
               />
