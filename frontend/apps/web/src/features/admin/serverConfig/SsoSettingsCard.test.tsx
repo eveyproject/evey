@@ -93,4 +93,13 @@ describe("SsoSettingsCard", () => {
     const post = fetchMock.mock.calls.map((c) => c[0]).find((r) => r.method === "POST");
     expect(post.data).toEqual({ issuer: "https://idp.example" });
   });
+
+  it("tells the admin when the clipboard refuses a redirect URI", async () => {
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    renderCard();
+    await screen.findByTestId("sso-status");
+    fireEvent.click(screen.getAllByText("admin.sso.copy")[0]);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("common.clipboardFailed"));
+  });
 });

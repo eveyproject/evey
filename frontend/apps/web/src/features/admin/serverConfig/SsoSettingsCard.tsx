@@ -65,7 +65,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
             void navigator.clipboard?.writeText(value).then(() => {
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
-            });
+            }, () => toast.error(t("common.clipboardFailed")));
           }}
         >
           {copied ? t("admin.sso.copied") : t("admin.sso.copy")}
