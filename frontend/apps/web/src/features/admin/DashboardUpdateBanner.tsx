@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUpCircle, Copy, Check, ExternalLink } from "lucide-react";
 import { UPDATE_COMMAND, changesUrl, latestLabel, useUpdateStatus } from "@evey/client";
+import { toast } from "@evey/store";
 import { ICON } from "@/constants/iconSizes";
 
 // Shown on the dashboard only when the registry publishes a newer image than
@@ -18,7 +19,7 @@ export function DashboardUpdateBanner() {
     void navigator.clipboard?.writeText(UPDATE_COMMAND).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }, () => toast.error(t("common.clipboardFailed")));
   };
 
   return (

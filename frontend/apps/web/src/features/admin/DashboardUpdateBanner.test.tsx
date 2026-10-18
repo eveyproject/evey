@@ -1,9 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DashboardUpdateBanner } from "./DashboardUpdateBanner";
 
 const mockFetch = vi.fn();
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("@evey/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/store")>()),
+  toast,
+}));
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: (...args: unknown[]) => mockFetch(...args),
@@ -42,5 +47,22 @@ describe("DashboardUpdateBanner", () => {
     renderBanner();
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByTestId("update-banner")).toBeNull();
+  });
+
+  it("tells the admin when the clipboard refuses the update command", async () => {
+    mockFetch.mockResolvedValue({
+      state: "update_available",
+      currentVersion: "beta-0.0.1-full",
+      currentCommit: "cbcd835ec767",
+      latestVersion: "beta-0.0.1-full",
+      latestCommit: "e77dc0a31fff",
+      source: "https://github.com/eveyproject/evey",
+    });
+    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    renderBanner();
+    await screen.findByTestId("update-banner");
+    fireEvent.click(screen.getAllByRole("button")[0]);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Copy to clipboard failed"));
   });
 });
