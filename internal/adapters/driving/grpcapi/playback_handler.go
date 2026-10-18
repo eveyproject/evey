@@ -372,6 +372,15 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	// (VideoBitrate == 0) also falls back to source - video dominates the total.
 	resp.Bitrate = servedBitrateBps(decision.PlayMethod, decision.VideoBitrate, decision.AudioBitrate, sourceBitrateBps(item))
 	resp.AudioBitrate = servedAudioBitrateBps(decision, streams, prefs.AudioTrack)
+	// A copied video with a re-encoded audio track still carries the source
+	// video but not the source audio: swap the one rate for the other in the
+	// total, when both are known. Quoting the whole source counted a DTS track
+	// that never leaves the server.
+	if decision.PlayMethod != "direct_play" && decision.VideoBitrate == 0 && decision.AudioDecision == "transcode" {
+		if src := sourceAudioBitrateBps(streams, prefs.AudioTrack); src > 0 && resp.AudioBitrate > 0 && resp.Bitrate > src {
+			resp.Bitrate = resp.Bitrate - src + resp.AudioBitrate
+		}
+	}
 
 	return resp, nil
 }

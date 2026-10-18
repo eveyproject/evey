@@ -1786,3 +1786,28 @@ func (copyRungProducer) NotifyClientHint(string, int, int, bool, int) {}
 func (copyRungProducer) ActiveSessionCount() int                      { return 0 }
 func (copyRungProducer) RemoveSession(string)                         {}
 func (copyRungProducer) Close()                                       {}
+
+// A copied video with a transcoded audio track (H.264 + DTS to an AAC client):
+// the total used to quote the whole source - DTS included - although the DTS
+// never leaves the server. The served total swaps the source audio for the
+// audio actually served.
+func TestGetStreamInfo_ServedBitrate_CopiedVideoSwapsTheAudio(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	mediaQuery.Seed(&library.MediaItem{
+		ID: "mi-srv-vc", Title: "VC", Type: "movie",
+		File: &library.MediaFile{ContainerFormat: "matroska", Bitrate: 8_000_000},
+	})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-srv-vc", StreamType: "video", Codec: "h264", Profile: "High", Level: new(40), Width: new(1920), Height: new(1080), Bitrate: int64Ptr(6_400_000), IsDefault: true},
+		{MediaItemID: "mi-srv-vc", StreamType: "audio", Codec: "dts", Channels: new(6), Bitrate: int64Ptr(1_536_000), IsDefault: true},
+	})
+	resp, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId: "mi-srv-vc", SupportedCodecs: []string{"h264"}, SupportedAudioCodecs: []string{"aac"},
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, eveyv1.PlayMethod_PLAY_METHOD_DIRECT_PLAY, resp.PlayMethod)
+	require.Positive(t, resp.AudioBitrate, "the served audio rate is known")
+	assert.Equal(t, int64(8_000_000-1_536_000)+resp.AudioBitrate, resp.Bitrate,
+		"total = source - the DTS that stays home + the audio actually served")
+}
