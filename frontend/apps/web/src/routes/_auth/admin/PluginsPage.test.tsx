@@ -170,7 +170,7 @@ describe("PluginsPage", () => {
         language: "Go",
         permissions: ["api.library"],
         capabilities: [],
-        analysis: { safe: true, file_count: 3, issues: ["[WARNING] overreach: docker invoked at runtime"], urls: [] },
+        analysis: { safe: true, total_files_scanned: 3, issues: ["[WARNING] overreach: docker invoked at runtime"], urls: [] },
       }));
       await openUrlForm();
       expect(screen.queryByText(/skip the preview/i)).not.toBeInTheDocument();
