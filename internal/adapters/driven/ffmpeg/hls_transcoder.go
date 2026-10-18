@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 )
 
@@ -123,6 +124,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 
 	processCtx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(processCtx, "ffmpeg", args...)
+	procfork.DieWithParent(cmd)
 	// Capture stderr in a ring buffer so we can surface real ffmpeg errors
 	// (codec mismatch, channel layout, missing audio encoder, etc.). Without
 	// this the audio-only-failure cases are invisible - ffmpeg writes a

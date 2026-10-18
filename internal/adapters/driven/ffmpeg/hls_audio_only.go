@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
 // hls_audio_only.go groups the audio-only HLS process: arg building,
@@ -213,6 +214,7 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 
 	processCtx, cancel := context.WithCancel(ctx)
 	cmd := exec.CommandContext(processCtx, "ffmpeg", args...)
+	procfork.DieWithParent(cmd)
 	stderr := newRingBuffer(8 * 1024)
 	cmd.Stderr = stderr
 
