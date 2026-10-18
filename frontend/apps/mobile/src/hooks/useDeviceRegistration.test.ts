@@ -307,4 +307,15 @@ describe("useDeviceRegistration", () => {
     expect(socket.close).toHaveBeenCalled();
     expect(appStateRemoveMock).toHaveBeenCalled();
   });
+
+  it("opens no socket when it unmounts while the device id is still being read (StrictMode double mount)", async () => {
+    let resolveId: (id: string) => void = () => {};
+    getItemAsyncMock.mockReturnValue(new Promise<string>((resolve) => { resolveId = resolve; }));
+    const { unmount } = renderHook(() => useDeviceRegistration());
+
+    unmount();
+    await act(async () => { resolveId("device-abc-123"); });
+
+    expect(wsInstances.length).toBe(0);
+  });
 });
