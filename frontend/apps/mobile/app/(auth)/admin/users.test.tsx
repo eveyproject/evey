@@ -294,7 +294,10 @@ describe("AdminUsersScreen - user row action sheet", () => {
 
     // The Alert mock auto-confirms, so tapping Delete must reach the mutation.
     fireEvent.click(screen.getByText("Delete"));
-    expect(deleteMutate).toHaveBeenCalledWith({ id: "u1" });
+    expect(deleteMutate).toHaveBeenCalledWith({ id: "u1" }, expect.anything());
+    // The toast names who was deleted (it used to say User "" deleted).
+    deleteMutate.mock.calls[0][1].onSuccess();
+    expect(toastSuccess).toHaveBeenCalledWith(expect.stringContaining("alice"));
   });
 
   it("adapts the sheet to the user's state: admins have no library access, disabled users re-enable", () => {

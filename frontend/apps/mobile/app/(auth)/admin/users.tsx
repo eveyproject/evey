@@ -685,8 +685,8 @@ export default function AdminUsersScreen() {
 
   const deleteUser = useUserServiceDeleteUser({
     mutation: {
+      // The success toast is per call (handleDelete): only it knows the name.
       onSuccess: async () => {
-        toast.success(t("admin.users.userDeleted", { name: "" }));
         await qc.invalidateQueries({ queryKey: getUserServiceListUsersQueryKey() });
       },
       onError: () => toast.error(t("admin.users.failedDeleteUser")),
@@ -726,7 +726,9 @@ export default function AdminUsersScreen() {
   const handleDelete = useCallback((user: V1User) => {
     Alert.alert(t("common.delete"), `${t("common.delete")} ${user.username}?`, [
       { text: t("common.cancel"), style: "cancel" },
-      { text: t("common.delete"), style: "destructive", onPress: () => user.id && deleteUser.mutate({ id: user.id }) },
+      { text: t("common.delete"), style: "destructive", onPress: () => user.id && deleteUser.mutate({ id: user.id }, {
+        onSuccess: () => toast.success(t("admin.users.userDeleted", 'User "{{name}}" deleted', { name: user.username ?? "" })),
+      }) },
     ]);
   }, [deleteUser, t]);
 
