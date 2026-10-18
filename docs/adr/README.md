@@ -59,6 +59,6 @@ to.
 | --- | --- | --- | --- |
 | 0007 | Context lifecycle for fire-and-forget goroutines | [code-conventions.md](../code-conventions.md#fire-and-forget-goroutines) | A coding rule, reversible file by file, enforced by review and by guards. |
 | 0008 | Domain aggregate constructor pattern | [code-conventions.md](../code-conventions.md#domain-aggregate-constructors) | Same: a pattern to follow, not a decision to defend. |
-| 0027 | Demo mode as a boot flag | [design/demo-mode.md](../design/demo-mode.md) | Proposed, never implemented. It recorded an intention, not a decision the code embodies. |
+| 0027 | Demo mode as a boot flag | [design/demo-mode.md](../design/demo-mode.md) | A design proposal; the decision that shipped is [ADR-0031](0031-demo-mode-is-a-boot-flag-on-the-production-binary.md). |
 
 See also [docs/ARCHITECTURE.md](../ARCHITECTURE.md) for the high-level picture.
