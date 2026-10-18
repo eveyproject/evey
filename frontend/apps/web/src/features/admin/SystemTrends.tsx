@@ -46,20 +46,21 @@ function useMeasuredWidth<T extends HTMLElement>(fallback: number) {
 
 type Unit = "percent" | "ms" | "bps" | "bytesps" | "count";
 
+// null = not measured: the chart leaves a gap instead of drawing a zero.
 interface Point {
   t: number;
   cpu: number;
-  iowait: number;
+  iowait: number | null;
   memory: number;
-  diskAwait: number;
-  diskUtil: number;
+  diskAwait: number | null;
+  diskUtil: number | null;
   diskBusiest: string;
-  diskRead: number;
-  diskWrite: number;
-  netRx: number;
-  netTx: number;
+  diskRead: number | null;
+  diskWrite: number | null;
+  netRx: number | null;
+  netTx: number | null;
   streaming: number;
-  storage: number;
+  storage: number | null;
   streams: number;
   transcodes: number;
 }
@@ -118,24 +119,35 @@ function num(v: string | number | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// A row written before migration 000178 has no disk, network, iowait or
+// storage reading: those columns defaulted to 0. A measured row always moves
+// some network bytes, so "every one of them is zero" means "never measured".
+function measuredIO(m: V1ServerMetric): boolean {
+  return [m.iowaitPercent, m.diskAwaitMs, m.diskUtilPercent, m.diskReadBps, m.diskWriteBps, m.networkRxBps, m.networkTxBps, m.storageTotalBytes]
+    .some((v) => num(v) !== 0);
+}
+
 export function toPoints(metrics: V1ServerMetric[] | undefined): Point[] {
   return (metrics ?? [])
     .map((m) => {
       const total = num(m.storageTotalBytes);
+      const io = measuredIO(m);
+      const orGap = (v: number) => (io ? v : null);
       return {
         t: Date.parse(m.timestamp ?? ""),
         cpu: m.cpuPercent ?? 0,
-        iowait: m.iowaitPercent ?? 0,
+        iowait: orGap(m.iowaitPercent ?? 0),
         memory: m.memoryPercent ?? 0,
-        diskAwait: m.diskAwaitMs ?? 0,
-        diskUtil: m.diskUtilPercent ?? 0,
+        diskAwait: orGap(m.diskAwaitMs ?? 0),
+        diskUtil: orGap(m.diskUtilPercent ?? 0),
         diskBusiest: m.diskBusiest ?? "",
-        diskRead: num(m.diskReadBps),
-        diskWrite: num(m.diskWriteBps),
-        netRx: num(m.networkRxBps),
-        netTx: num(m.networkTxBps),
+        diskRead: orGap(num(m.diskReadBps)),
+        diskWrite: orGap(num(m.diskWriteBps)),
+        netRx: orGap(num(m.networkRxBps)),
+        netTx: orGap(num(m.networkTxBps)),
         streaming: num(m.bandwidthBps),
-        storage: total > 0 ? (num(m.storageUsedBytes) / total) * 100 : 0,
+        // No disk has a zero total: the sampler could not read it.
+        storage: total > 0 ? (num(m.storageUsedBytes) / total) * 100 : null,
         streams: m.activeStreams ?? 0,
         transcodes: m.activeTranscodes ?? 0,
       };
@@ -200,7 +212,7 @@ function TrendTooltip({ active, payload, chart, t }: TrendTooltipProps) {
       {chart.series.map((s) => (
         <div key={s.key} className="flex justify-between gap-4 text-[var(--text)]">
           <span>{t(s.labelKey)}</span>
-          <span className="tabular-nums font-medium">{formatValue(chart.unit, p[s.key])}</span>
+          <span className="tabular-nums font-medium">{((v) => (v == null ? "-" : formatValue(chart.unit, v)))(p[s.key])}</span>
         </div>
       ))}
       {chart.diskLabel && p.diskBusiest && (

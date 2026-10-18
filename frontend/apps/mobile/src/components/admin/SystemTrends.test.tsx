@@ -53,6 +53,22 @@ beforeEach(() => {
 });
 
 describe("SystemTrends (mobile)", () => {
+  // Rows written before migration 000178 carry no disk, network, iowait or
+  // storage reading (the columns defaulted to 0): unmeasured, never zero.
+  it("marks a never-measured row as unmeasured, not as zeros", () => {
+    const pts = toPoints([
+      { timestamp: "2026-10-01T00:00:00Z", cpuPercent: 12, memoryPercent: 40 },
+      { timestamp: "2026-10-01T00:15:00Z", cpuPercent: 10, networkRxBps: "500", diskReadBps: "0" },
+    ]);
+    expect(pts[0].cpu).toBe(12);
+    for (const k of ["iowait", "diskAwait", "diskUtil", "diskRead", "diskWrite", "netRx", "netTx", "storage"] as const) {
+      expect(pts[0][k]).toBeNull();
+    }
+    expect(pts[1].netRx).toBe(500);
+    expect(pts[1].diskRead).toBe(0);
+    expect(pts[1].storage).toBeNull();
+  });
+
   it("asks for 7 days by default, draws one chart per unit and the disk wait's two reference lines", () => {
     render(<SystemTrends theme={theme} />);
     const hours = (Date.parse(q.params.to) - Date.parse(q.params.from)) / 3600_000;
