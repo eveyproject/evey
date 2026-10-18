@@ -648,6 +648,28 @@ describe("HLSPlayer: audio track verdict", () => {
     expect(url).toContain("startSec=42");
   });
 
+  // Chrome and Firefox open a file on its default audio and expose no
+  // audioTracks to switch it: a picked track the verdict still direct-plays
+  // used to keep playing the default one. The master serves the pick.
+  it("moves a non-default pick onto the HLS master when the browser cannot switch the file's audio", () => {
+    const { rerender, playAt } = mount(DIRECT);
+    playAt(30);
+    act(() => { lastControlsProps?.onAudioChange?.(2); });
+    act(() => { rerender({ ...DIRECT }); });
+    expect(lastHlsInstance).toBeTruthy();
+    const url = lastHlsInstance!.loadSource.mock.calls.at(-1)![0] as string;
+    expect(url).toContain("/api/v1/media/media-1/hls/master.m3u8");
+    expect(url).toContain("audioTrack=1");
+    expect(url).toContain("startSec=30");
+  });
+
+  it("keeps the file when the pick is the track it already plays", () => {
+    const { video } = mount(DIRECT);
+    act(() => { lastControlsProps?.onAudioChange?.(1); });
+    expect(lastHlsInstance).toBeNull();
+    expect(video.src).toContain("/api/v1/media/media-1/stream");
+  });
+
   it("keeps the file playing when the new track's verdict is still direct play", () => {
     const { rerender, video } = mount(DIRECT);
     const play = HTMLMediaElement.prototype.play as unknown as ReturnType<typeof vi.fn>;
