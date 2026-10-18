@@ -239,6 +239,8 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	prefs := loadProfilePrefs(r.Context(), h.profilePrefs, claims.ProfileID)
+	// Same network hint the master reads, so this info describes its decision.
+	prefs.NetworkType = networkTypeQuery(r)
 	// Gate burn on the selected subtitle (if the client signalled one) rather than
 	// on existence, so PlaybackInfo doesn't report "transcode" for a title that
 	// merely carries a bitmap track the user isn't playing.

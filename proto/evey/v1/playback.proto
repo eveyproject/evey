@@ -214,6 +214,15 @@ message GetStreamInfoRequest {
   // 0 (older clients, or a browser that cannot probe its output) keeps the
   // profile default.
   int32 max_audio_channels = 17;
+  // supported_pixel_formats: the pixel formats the device decodes, as ffmpeg
+  // names them without endianness ("yuv420p", "yuv420p10", "yuv422p10"), or
+  // qualified with one codec ("hevc:yuv420p10") when only that decoder takes
+  // it. Same meaning as ?pixelFormats= on the HLS master. When present the
+  // decision judges the source's pixel format against it (a TV that decodes
+  // 4:2:2 is not transcoded for it, a device without 10-bit is); empty (older
+  // clients) keeps the built-in browser rule: 8-bit 4:2:0 H.264, up to 10-bit
+  // 4:2:0 HEVC/VP9/AV1.
+  repeated string supported_pixel_formats = 18;
 }
 
 message StartStreamRequest {

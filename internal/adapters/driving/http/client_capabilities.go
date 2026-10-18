@@ -20,6 +20,7 @@ import (
 	"strconv"
 	"strings"
 
+	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
@@ -63,6 +64,9 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 	if n := maxAudioChannelsQuery(r); n > 0 {
 		client.MaxAudioChannels = n
 	}
+	// Pixel formats the device decodes (see ClientProfile.PixelFormats).
+	// Absent, the decision keeps its built-in browser rule.
+	client.PixelFormats = domaintranscoding.NormalizePixelFormats(splitCSVQuery(r, "pixelFormats"))
 	if n := parseIntQuery(r, "maxH264Level", 0); n > 0 {
 		client.MaxH264Level = n
 	}
@@ -94,6 +98,17 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 		client.SupportsHDR = true
 	}
 	return client
+}
+
+// networkTypeQuery is the network the client is on (?networkType), the same
+// hint GetStreamInfo reads from network_type: "cellular" brings the profile's
+// cellular bitrate cap into the decision. It is a decision input, so it rides
+// every child URI (bakeClientInputs) like the capabilities above.
+func networkTypeQuery(r *http.Request) string {
+	if r == nil {
+		return apptranscoding.NormalizeNetworkType("")
+	}
+	return apptranscoding.NormalizeNetworkType(r.URL.Query().Get("networkType"))
 }
 
 // maxAudioChannelsQuery is the ONE reading of the client's channel ceiling.

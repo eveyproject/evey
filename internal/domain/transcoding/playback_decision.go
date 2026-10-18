@@ -26,6 +26,13 @@ type ClientProfile struct {
 	// refuses it in that container. Empty (the default) keeps every client that
 	// says nothing on the historical behaviour: re-encode to AAC.
 	FMP4AudioPassthrough []string
+	// PixelFormats lists the pixel formats the device decodes, in the family
+	// vocabulary of NormalizePixelFormats ("yuv420p", "yuv420p10", or
+	// "hevc:yuv420p10" for one codec only). When present the decision judges
+	// the source's pix_fmt against it: a TV that decodes 4:2:2 or 10-bit H.264
+	// keeps the copy, a device without 10-bit loses it. Empty (the default)
+	// keeps the built-in browser rule (pixelFormatPlayable).
+	PixelFormats []string
 }
 
 type PlaybackDecision struct {

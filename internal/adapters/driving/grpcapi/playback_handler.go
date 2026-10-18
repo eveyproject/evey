@@ -159,6 +159,8 @@ func clientProfileFromRequest(req *eveyv1.GetStreamInfoRequest, userAgent string
 	if n := int(req.MaxAudioChannels); n >= 1 && n <= 8 {
 		client.MaxAudioChannels = n
 	}
+	// Same pixel-format declaration the master reads from ?pixelFormats=.
+	client.PixelFormats = transcoding.NormalizePixelFormats(req.SupportedPixelFormats)
 	return client
 }
 
@@ -178,7 +180,7 @@ func (h *playbackHandler) resolvePlaybackPrefs(ctx context.Context, req *eveyv1.
 	}
 
 	prefs := apptranscoding.DefaultTranscodingPreferences()
-	prefs.NetworkType = normalizeNetworkType(req.NetworkType)
+	prefs.NetworkType = apptranscoding.NormalizeNetworkType(req.NetworkType)
 	if h.userQuery != nil {
 		if claims := interceptors.ClaimsFromContext(ctx); claims != nil && claims.ProfileID != "" {
 			if prof, err := h.userQuery.GetProfileByID(ctx, claims.ProfileID); err == nil && prof != nil {
@@ -1327,14 +1329,6 @@ func (h *playbackHandler) getAllowedLibraryIDs(ctx context.Context) ([]string, e
 		return nil, nil // zero grants = unrestricted (opt-out default)
 	}
 	return ids, nil
-}
-
-// normalizeNetworkType accepts "wifi" or "cellular" and defaults unknown/empty to "wifi".
-func normalizeNetworkType(raw string) string {
-	if raw == "cellular" {
-		return "cellular"
-	}
-	return "wifi"
 }
 
 func (h *playbackHandler) isBlockedByParental(ctx context.Context, _ string, mediaItemID string) (bool, string) {
