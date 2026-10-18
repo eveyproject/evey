@@ -690,6 +690,9 @@ func TestLibraryHandler_SearchMedia_ParentalFailClosed(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, resp.Items, 1, "only the PG item passes; R is over-age and the unrated item fails closed")
 	assert.Equal(t, "mi-pg", resp.Items[0].Id)
+	// The parental drops count like the library ones: a total of 3 for one
+	// visible hit tells a kids profile two hidden titles match.
+	assert.EqualValues(t, 1, resp.TotalHits, "the tally must not count hits the parental filter hid")
 }
 
 // When the item resolution fails for a kids profile, every hit is withheld
@@ -725,6 +728,22 @@ func TestLibraryHandler_SearchMedia_NonKids_Unfiltered(t *testing.T) {
 	resp, err := h.SearchMedia(userCtx("user-2", "profile-2"), &eveyv1.SearchMediaRequest{Query: "Searchword", Limit: 10})
 	require.NoError(t, err)
 	assert.Len(t, resp.Items, 2)
+}
+
+// With nothing dropped the backend total stands: it legitimately exceeds the
+// page, and recounting it to the page size would hide every later page.
+func TestLibraryHandler_SearchMedia_TotalKeptWhenNothingDropped(t *testing.T) {
+	h, _, _, searchIdx, libraryAccess, _, _ := newTestLibraryHandler()
+	ctx := context.Background()
+	for _, id := range []string{"mi-1", "mi-2", "mi-3"} {
+		searchIdx.IndexMediaItem(ctx, &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: "Searchword " + id, Type: "movie"})
+	}
+	libraryAccess.Grant(ctx, "user-2", "lib-1")
+
+	resp, err := h.SearchMedia(userCtx("user-2", "profile-2"), &eveyv1.SearchMediaRequest{Query: "Searchword", Limit: 2})
+	require.NoError(t, err)
+	assert.Len(t, resp.Items, 2)
+	assert.EqualValues(t, 3, resp.TotalHits)
 }
 
 // A search hit is rebuilt from its stored item: the grids filter results on
