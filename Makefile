@@ -240,6 +240,12 @@ MUTATION_REPORT := $(CURDIR)/.mutation-report.txt
 # when the machine has no room for it.
 MUTATION_CTR := evey-mutation-run
 MUTATION_MIN_AVAIL_GB ?= 5
+# A big package (grpcapi: ~1600 mutants, 1 h 50 for 41 of its 68 files) needs
+# more than 2 h. TIMEOUT_COEF bounds how long a looping mutant is waited for, as
+# a multiple of the baseline (.gremlins.yaml says 10); it counts as killed
+# either way, so 3 changes the time, not the verdict.
+MUTATION_MAX_SECS ?= 7200
+MUTATION_TIMEOUT_COEF ?=
 MUTATION_DOCKER := docker run --rm --name $(MUTATION_CTR) --cpus 4 --memory 3g --memory-swap 3g --pids-limit 2048 \
 	  --user "$$(id -u):$$(id -g)" \
 	  -e GOPATH=/tmp/go -e GOCACHE=/tmp/gocache -e HOME=/tmp \
@@ -269,7 +275,7 @@ mutation-test:
 	@$(MUTATION_DOCKER) go test $(PKG) -count=1 >/dev/null || \
 	  { echo "BASELINE RED on $(PKG) - a mutation run would report a fake 100%"; rm -rf $(MUTATION_SRC); exit 1; }
 	@echo "→ gremlins on $(PKG) (clean checkout, containerised, non-root)"
-	@$(MUTATION_DOCKER) timeout 7200 gremlins unleash $(if $(DRY),--dry-run,) $(PKG) \
+	@$(MUTATION_DOCKER) timeout $(MUTATION_MAX_SECS) gremlins unleash $(if $(DRY),--dry-run,) $(if $(MUTATION_TIMEOUT_COEF),--timeout-coefficient $(MUTATION_TIMEOUT_COEF),) $(PKG) \
 	  | tee $(MUTATION_REPORT)
 	@# A run cut short (the 2 h bound, a killed container) prints no summary,
 	@# and tee hides gremlins' exit: without this an interrupted run passed for
