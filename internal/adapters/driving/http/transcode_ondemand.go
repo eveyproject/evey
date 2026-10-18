@@ -597,6 +597,10 @@ func (h *hlsVODServe) serveOnDemandResource(w http.ResponseWriter, r *http.Reque
 	// refused the URL with a 410). A URL stamped before the stamp named the
 	// tracks falls back to re-deciding from the request.
 	keep, stamped := stampedKeep(r)
+	if stamped && keep != nil && !h.stampedTrackPackageable(*keep, streams) {
+		servePlanSourceGone(w, r, mediaID, name, span)
+		return
+	}
 	if !stamped {
 		rp := h.planOf(r, mediaID, item, streams)
 		if rp == nil {
@@ -1086,6 +1090,24 @@ func stampedKeep(r *http.Request) (keep *int, ok bool) {
 		return nil, false
 	}
 	return &n, true
+}
+
+// stampedTrackPackageable reports whether a stamped audio track is one this
+// server could have stamped: the trim is on and the source has that track. The
+// number is the client's to send, and each distinct one is its own packager
+// cache key - trusted as is, any viewer could force a plan build per integer,
+// taking build slots and evicting other viewers' plans.
+func (h *hlsVODServe) stampedTrackPackageable(keep int, streams []*domainlibrary.MediaStream) bool {
+	if !h.onDemandTrackTrim || keep < 0 {
+		return false
+	}
+	audio := 0
+	for _, s := range streams {
+		if s.StreamType == domainlibrary.Audio {
+			audio++
+		}
+	}
+	return keep < audio
 }
 
 // planManifestSuffix is the query the packager's bare sub-resource URIs get:
