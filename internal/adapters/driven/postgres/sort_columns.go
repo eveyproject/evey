@@ -23,7 +23,15 @@ var SortColumnMap = map[string]string{
 	"premiere_date":    "mc.premiere_date",
 	"rating":           "mcl.community_rating",
 	"community_rating": "mcl.community_rating",
+	// Not a client choice: the default for a parent's children (grpcapi
+	// mediaItemsFilterFromRequest), so a season's episodes come back in
+	// broadcast order instead of the first 500 by title re-sorted client-side.
+	"index_number": indexNumberColumn,
 }
+
+// indexNumberColumn is the one media_items column a sort can use that may be
+// NULL (an unnumbered special). mediaItemCursorSeek must know it.
+const indexNumberColumn = "mi.index_number"
 
 // effectiveAddedAt is the date a library sorted by "date added" sees: a series
 // moves up when it gets a new episode. Every page has to order and seek on the

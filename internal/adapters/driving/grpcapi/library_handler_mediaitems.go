@@ -159,6 +159,13 @@ func mediaItemsFilterFromRequest(req *eveyv1.ListMediaItemsRequest) library.List
 	}
 	if req.ParentId != "" {
 		filter.ParentID = &req.ParentId
+		// A parent's children are a season's episodes or a series' seasons:
+		// unless the client asked for another order, serve them by number. By
+		// title, a season longer than one page came back as the first 500
+		// titles, which no client-side re-sort can turn into episodes 1-500.
+		if filter.SortField == "" {
+			filter.SortField = "index_number"
+		}
 	}
 	if req.PersonId != "" {
 		filter.PersonID = &req.PersonId
@@ -408,6 +415,11 @@ func mediaItemSortValue(m *library.MediaItem, sortKey string) string {
 	case "premiere_date":
 		if m.Catalog != nil && m.Catalog.PremiereDate != nil {
 			return m.Catalog.PremiereDate.UTC().Format("2006-01-02T15:04:05.999999999Z07:00")
+		}
+		return ""
+	case "index_number":
+		if m.IndexNumber != nil {
+			return fmt.Sprintf("%010d", *m.IndexNumber)
 		}
 		return ""
 	case "rating", "community_rating":
