@@ -787,8 +787,16 @@ func (h *subtitleRoutes) delete(w http.ResponseWriter, r *http.Request) {
 		attribute.String("media_item_id", mediaID),
 		attribute.String("subtitle_id", subtitleID),
 	)
-	if _, ok := h.requireMediaAccess(w, r, mediaID); !ok {
+	claims, ok := h.requireMediaAccess(w, r, mediaID)
+	if !ok {
 		span.SetStatus(otelcodes.Error, "media access denied")
+		return
+	}
+	// A downloaded subtitle is shared by everyone who watches the title:
+	// library access lets a viewer add one, removing it is the admin's call.
+	if !claims.IsAdmin {
+		span.SetStatus(otelcodes.Error, "admin only")
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
 		return
 	}
 	subs, err := h.subtitleSvc.List(r.Context(), mediaID)

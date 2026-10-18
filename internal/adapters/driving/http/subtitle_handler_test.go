@@ -385,6 +385,27 @@ func TestSubtitleDelete_Success(t *testing.T) {
 	}
 }
 
+// A downloaded subtitle is shared by everyone who watches the title: library
+// access lets a viewer add one, removing it is the admin's call.
+func TestSubtitleDelete_NonAdmin_403(t *testing.T) {
+	svc := &fakeSubtitleService{listSubs: []*domainsubtitle.SubtitleDownload{{ID: "s1", MediaItemID: "m1"}}}
+	h := newSubtitleRoutes(svc, validUserValidator(false), subtitleMediaGetter("lib1"), allowAll())
+	mux := http.NewServeMux()
+	mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", h.delete)
+
+	req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/m1/subtitles/s1", nil)
+	req.Header.Set("Authorization", "Bearer tok")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d", w.Code)
+	}
+	if svc.lastDeleteID != "" {
+		t.Errorf("Delete must not run for a non-admin")
+	}
+}
+
 func TestSubtitleDelete_NotInList_404(t *testing.T) {
 	svc := &fakeSubtitleService{listSubs: []*domainsubtitle.SubtitleDownload{{ID: "other"}}}
 	h := newSubtitleRoutes(svc, validUserValidator(true), subtitleMediaGetter("lib1"), allowAll())
