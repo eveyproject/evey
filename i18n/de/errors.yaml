@@ -200,6 +200,7 @@ profile:
   schedule_kids_only: "Nutzungszeiten gelten nur für Kinderprofile."
   wrong_parent_pin: "Falsche Eltern-PIN."
   no_parent_pin: "Für dieses Konto ist keine Eltern-PIN festgelegt: Legen Sie zuerst eine in einem Erwachsenenprofil fest."
+  cannot_access_other: "Sie können nicht auf ein anderes Profil zugreifen."
 
 metadata:
   no_provider_id: "Dieser Eintrag hat keine {provider}-ID"

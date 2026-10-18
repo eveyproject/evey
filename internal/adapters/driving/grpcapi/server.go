@@ -193,6 +193,11 @@ func (s *GRPCServer) RegisterServices() {
 	case d.HLSVODOrch != nil:
 		hlsMgr = d.HLSVODOrch
 	}
+	// The shared helpers (requireClaims, resolveProfileID, the media access
+	// check) answer in the caller's language too.
+	if d.Translator != nil {
+		helperTranslator.Store(d.Translator)
+	}
 	// Operator remote-access bitrate cap, read live from cfg.RemoteAccess (the
 	// admin PUT writes it under the same lock). nil cfg (tests) leaves it off.
 	playbackRemoteAccess := remoteAccessFromConfig(d.Cfg)

@@ -8,6 +8,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	appactivity "github.com/eveyproject/evey/internal/app/activity"
@@ -61,10 +62,24 @@ func secureToken(prefix string, n int) string {
 }
 
 // requireClaims extracts claims from context, returns error if not authenticated.
+// helperTranslator localises the answers of the shared helpers below, which
+// take no translator of their own (requireClaims alone has ~150 callers). Set
+// once by NewServer; nil (unit tests, a server built without one) keeps the
+// English message, so nothing depends on it being there.
+var helperTranslator atomic.Pointer[eveyi18n.Translator]
+
+// helperError answers code with the localised key, or the English fallback.
+func helperError(ctx context.Context, code codes.Code, key, fallback string) error {
+	if t := helperTranslator.Load(); t != nil {
+		return t.TranslatedError(ctx, code, key)
+	}
+	return status.Error(code, fallback)
+}
+
 func requireClaims(ctx context.Context) (*user.Claims, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+		return nil, helperError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated", "not authenticated")
 	}
 	return claims, nil
 }
@@ -260,11 +275,11 @@ func auditProfileID(ctx context.Context, userID string) shared.ProfileID {
 	return shared.ProfileID(c.ProfileID)
 }
 
-func resolveProfileID(claims *user.Claims, reqProfileID string) (string, error) {
+func resolveProfileID(ctx context.Context, claims *user.Claims, reqProfileID string) (string, error) {
 	if reqProfileID == "" || reqProfileID == claims.ProfileID {
 		return claims.ProfileID, nil
 	}
-	return "", status.Error(codes.PermissionDenied, "cannot access another profile")
+	return "", helperError(ctx, codes.PermissionDenied, "errors.profile.cannot_access_other", "cannot access another profile")
 }
 
 // requireMediaLibraryAccess refuses a media item the caller's user has no
@@ -289,7 +304,7 @@ func requireMediaLibraryAccess(
 ) error {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return status.Error(codes.Unauthenticated, "unauthenticated")
+		return helperError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated", "unauthenticated")
 	}
 	if libQuery == nil {
 		return errUserAccessNotConfigured(ctx, who)
@@ -302,7 +317,7 @@ func requireMediaLibraryAccess(
 	// is waived for an admin, not the question of whether the thing exists.
 	item, err := libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {
-		return status.Error(codes.NotFound, "not found")
+		return helperError(ctx, codes.NotFound, "errors.general.not_found", "not found")
 	}
 	if claims.IsAdmin {
 		return nil
@@ -312,7 +327,7 @@ func requireMediaLibraryAccess(
 	}
 	ok, accessErr := userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {
-		return status.Error(codes.NotFound, "not found")
+		return helperError(ctx, codes.NotFound, "errors.general.not_found", "not found")
 	}
 	return nil
 }

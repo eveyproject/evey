@@ -36,7 +36,7 @@ func (h *favoriteHandler) ListFavorites(ctx context.Context, req *eveyv1.ListFav
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.ListFavorites: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.ListFavorites: %w", err)
 	}
@@ -125,7 +125,7 @@ func (h *favoriteHandler) AddFavorite(ctx context.Context, req *eveyv1.AddFavori
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.AddFavorite: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.AddFavorite: %w", err)
 	}
@@ -149,7 +149,7 @@ func (h *favoriteHandler) RemoveFavorite(ctx context.Context, req *eveyv1.Remove
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.RemoveFavorite: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.RemoveFavorite: %w", err)
 	}
@@ -170,7 +170,7 @@ func (h *favoriteHandler) IsFavorite(ctx context.Context, req *eveyv1.IsFavorite
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.IsFavorite: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.IsFavorite: %w", err)
 	}
@@ -196,7 +196,7 @@ func (h *favoriteHandler) BatchIsFavorite(ctx context.Context, req *eveyv1.Batch
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.BatchIsFavorite: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("favoriteHandler.BatchIsFavorite: %w", err)
 	}

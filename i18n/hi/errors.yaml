@@ -200,6 +200,7 @@ profile:
   schedule_kids_only: "उपयोग समय केवल बच्चों की प्रोफ़ाइल पर लागू होता है।"
   wrong_parent_pin: "अभिभावक PIN गलत है।"
   no_parent_pin: "इस खाते पर कोई अभिभावक PIN नहीं है: पहले किसी वयस्क प्रोफ़ाइल पर PIN सेट करें।"
+  cannot_access_other: "आप किसी दूसरी प्रोफ़ाइल तक नहीं पहुँच सकते।"
 
 metadata:
   no_provider_id: "इस आइटम की कोई {provider} आईडी नहीं है"

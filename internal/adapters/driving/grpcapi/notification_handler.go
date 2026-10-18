@@ -34,7 +34,7 @@ func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.ListNotifications: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.ListNotifications: %w", err)
 	}
@@ -114,7 +114,7 @@ func (h *notificationHandler) MarkAllRead(ctx context.Context, req *eveyv1.MarkA
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.MarkAllRead: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.MarkAllRead: %w", err)
 	}
@@ -131,7 +131,7 @@ func (h *notificationHandler) GetUnreadCount(ctx context.Context, req *eveyv1.Ge
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.GetUnreadCount: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.GetUnreadCount: %w", err)
 	}
@@ -149,7 +149,7 @@ func (h *notificationHandler) DeleteAllNotifications(ctx context.Context, req *e
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.DeleteAllNotifications: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.DeleteAllNotifications: %w", err)
 	}
@@ -166,7 +166,7 @@ func (h *notificationHandler) GetNotificationSettings(ctx context.Context, req *
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.GetNotificationSettings: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.GetNotificationSettings: %w", err)
 	}
@@ -184,7 +184,7 @@ func (h *notificationHandler) UpdateNotificationSettings(ctx context.Context, re
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.UpdateNotificationSettings: %w", err)
 	}
-	profileID, err := resolveProfileID(claims, req.ProfileId)
+	profileID, err := resolveProfileID(ctx, claims, req.ProfileId)
 	if err != nil {
 		return nil, fmt.Errorf("notificationHandler.UpdateNotificationSettings: %w", err)
 	}
