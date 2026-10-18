@@ -183,3 +183,23 @@ describe("the API's own shapes", () => {
     expect(eveyFetchFn).toHaveBeenCalledWith({ url: "/api/v1/playlists/p-1/items/reorder", method: "PUT", data: { items: [{ mediaItemId: "a", sortOrder: 0 }] } });
   });
 });
+
+// A caller that toasts its own failure (the smart rules editor) asks the
+// global mutation net to stay quiet; every other caller keeps the net's toast.
+describe("useUpdatePlaylist error ownership", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("marks the mutation silent only when the caller owns the error toast", async () => {
+    updateFn.mockRejectedValue(new Error("boom"));
+    const { useUpdatePlaylist } = await import("./playlists");
+    const { qc, wrapper } = createWrapper();
+    const owned = renderHook(() => useUpdatePlaylist({ ownErrorToast: true }), { wrapper });
+    const plain = renderHook(() => useUpdatePlaylist(), { wrapper });
+    await act(async () => {
+      await owned.result.current.mutateAsync({ id: "p-1", rules: [] }).catch(() => {});
+      await plain.result.current.mutateAsync({ id: "p-2", rules: [] }).catch(() => {});
+    });
+    const metas = qc.getMutationCache().getAll().map((m) => m.meta?.silentError === true);
+    expect(metas).toEqual([true, false]);
+  });
+});

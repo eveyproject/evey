@@ -154,9 +154,12 @@ export function useCreatePlaylist() {
   });
 }
 
-export function useUpdatePlaylist() {
+// ownErrorToast: the caller toasts its own failure (a specific message), so the
+// global mutation error net must stay quiet or the viewer gets two toasts.
+export function useUpdatePlaylist(opts: { ownErrorToast?: boolean } = {}) {
   const invalidate = useInvalidate();
   return useMutation({
+    meta: opts.ownErrorToast ? { silentError: true } : undefined,
     mutationFn: ({ id, ...data }: { id: string; name?: string; description?: string; rules?: PlaylistRule[]; sort_by?: string; sort_order?: string }) =>
       playlistServiceUpdatePlaylist(id, {
         name: data.name,
