@@ -28,8 +28,8 @@ type startHint struct {
 	at  time.Time
 }
 
-// startPositionHints remembers, per media, the segment playback starts at. The
-// zero value is ready to use.
+// startPositionHints remembers, per viewer and media (startHintKey), the segment
+// playback starts at. The zero value is ready to use.
 type startPositionHints struct {
 	mu sync.Mutex
 	m  map[string]startHint
@@ -73,6 +73,20 @@ func (s *startPositionHints) peekWithin(mediaID string, now time.Time, ttl time.
 	return h.seg, true
 }
 
+// startHintKey names one viewer's playback of a media: the hint is where THAT
+// playback starts. Keyed by the media alone, a second viewer's master at 0
+// replaced the first viewer's resume within the minute, and the first viewer's
+// variant then warmed an encoder at 0 nobody read. The profile rides the
+// stream token too, so a cast receiver lands on its sender's key.
+func startHintKey(r *http.Request, mediaID string) string {
+	if r != nil {
+		if c := HTTPClaimsFromContext(r.Context()); c != nil && c.ProfileID != "" {
+			return c.ProfileID + "\x00" + mediaID
+		}
+	}
+	return mediaID
+}
+
 // startSegmentHint reads ?startSec= as a segment index; absent, zero, negative
 // or unparsable = no hint.
 func startSegmentHint(r *http.Request) (int, bool) {
@@ -95,8 +109,8 @@ func startSegmentHint(r *http.Request) (int, bool) {
 // 0. ok is false when no master announced a start within startHintTTL: a variant
 // playlist refetched mid-viewing (token refresh after a long pause, level
 // fallback) then warmed segment 0 on a rung nobody read (prod 2026-10-12).
-func (h *hlsVODServe) prewarmSegment(mediaID string, durationSec float64, now time.Time) (int, bool) {
-	seg, ok := h.startHints.peek(mediaID, now)
+func (h *hlsVODServe) prewarmSegment(hintKey string, durationSec float64, now time.Time) (int, bool) {
+	seg, ok := h.startHints.peek(hintKey, now)
 	if !ok {
 		return 0, false
 	}
@@ -109,8 +123,8 @@ func (h *hlsVODServe) prewarmSegment(mediaID string, durationSec float64, now ti
 // initSegment: where an init request ensures its rafale. Every rafale writes the
 // same init, so: the fresh master's start, else the last segment served on this
 // decision (a rung first asked mid-viewing, after a long pause), else 0.
-func (h *hlsVODServe) initSegment(mediaID, fpHash string, durationSec float64, now time.Time) int {
-	if seg, ok := h.prewarmSegment(mediaID, durationSec, now); ok {
+func (h *hlsVODServe) initSegment(hintKey, fpHash string, durationSec float64, now time.Time) int {
+	if seg, ok := h.prewarmSegment(hintKey, durationSec, now); ok {
 		return seg
 	}
 	if seg, ok := h.livePositions.peekWithin(fpHash, now, livePositionTTL); ok {
