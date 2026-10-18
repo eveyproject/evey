@@ -251,20 +251,6 @@ func TestBuildFFmpegArgs_MultiVariant(t *testing.T) {
 	assert.Contains(t, joined, "-pix_fmt yuv420p")
 }
 
-func TestBuildFFmpegArgs_AudioNormalize(t *testing.T) {
-	opts := transcoding.HLSProcessOpts{
-		OutputDir:      "/tmp/test",
-		FilePath:       "/f.mkv",
-		Profiles:       transcoding.DefaultHLSProfiles,
-		VideoDecision:  "copy",
-		AudioDecision:  "transcode",
-		AudioNormalize: true,
-	}
-	args := ffmpeg.BuildFFmpegArgs(opts)
-	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
-}
-
 func TestBuildFFmpegArgs_BurnIn(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:          "/tmp/test",
@@ -363,20 +349,6 @@ func TestBuildFFmpegArgs_MultiVariant_ToneMap_FoldsScaleAtTopRung(t *testing.T) 
 	assert.Contains(t, joined, "split=")
 }
 
-func TestBuildFFmpegArgs_SingleTranscode_AudioNormalize(t *testing.T) {
-	opts := transcoding.HLSProcessOpts{
-		OutputDir:      "/tmp/test",
-		FilePath:       "/f.mkv",
-		Profiles:       transcoding.DefaultHLSProfiles,
-		VideoDecision:  "transcode",
-		AudioDecision:  "transcode",
-		AudioNormalize: true,
-	}
-	args := ffmpeg.BuildFFmpegArgs(opts)
-	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "loudnorm")
-}
-
 func TestBuildFFmpegArgs_SingleTranscode_WithSeek(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:     "/tmp/test",
@@ -419,21 +391,6 @@ func TestBuildFFmpegArgs_MultiVariant_WithSeek(t *testing.T) {
 	assert.NotContains(t, joined, "-copyts")
 }
 
-func TestBuildFFmpegArgs_MultiVariant_AudioNormalize(t *testing.T) {
-	opts := transcoding.HLSProcessOpts{
-		OutputDir:       "/tmp/test",
-		FilePath:        "/f.mkv",
-		Profiles:        transcoding.DefaultHLSProfiles,
-		VideoDecision:   "",
-		AudioDecision:   "",
-		AudioTrackIndex: 0,
-		AudioNormalize:  true,
-	}
-	args := ffmpeg.BuildFFmpegArgs(opts)
-	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "loudnorm")
-}
-
 func TestBuildFFmpegArgs_VideoCopy_AudioCopy(t *testing.T) {
 	opts := transcoding.HLSProcessOpts{
 		OutputDir:       "/tmp/test",
@@ -448,21 +405,6 @@ func TestBuildFFmpegArgs_VideoCopy_AudioCopy(t *testing.T) {
 	assert.Contains(t, joined, "-c:v copy")
 	assert.Contains(t, joined, "-c:a copy")
 	assert.Contains(t, joined, "0:a:1")
-}
-
-func TestBuildFFmpegArgs_VideoCopy_AudioNormalize(t *testing.T) {
-	opts := transcoding.HLSProcessOpts{
-		OutputDir:       "/tmp/test",
-		FilePath:        "/f.mkv",
-		Profiles:        transcoding.DefaultHLSProfiles,
-		VideoDecision:   "copy",
-		AudioDecision:   "transcode",
-		AudioNormalize:  true,
-		AudioTrackIndex: 0,
-	}
-	args := ffmpeg.BuildFFmpegArgs(opts)
-	joined := strings.Join(args, " ")
-	assert.Contains(t, joined, "loudnorm")
 }
 
 func TestBuildFFmpegArgs_SingleTranscode_BurnInSubtitle(t *testing.T) {
@@ -1137,25 +1079,6 @@ func TestBuildFFmpegAudioOnlyArgs_StartSecAndStartNumber(t *testing.T) {
 	})
 }
 
-// AudioNormalize must inject the loudnorm filter; absence must not emit it.
-func TestBuildFFmpegAudioOnlyArgs_AudioNormalize(t *testing.T) {
-	base := transcoding.AudioProcessOpts{
-		FilePath:       "/media/movie.mkv",
-		OutputDir:      "/tmp/audio",
-		SourceTrackIdx: 0,
-	}
-
-	withNorm := base
-	withNorm.AudioNormalize = true
-	joined := strings.Join(ffmpeg.BuildFFmpegAudioOnlyArgs(withNorm), " ")
-	assert.Contains(t, joined, "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true")
-
-	withoutNorm := base
-	withoutNorm.AudioNormalize = false
-	joined = strings.Join(ffmpeg.BuildFFmpegAudioOnlyArgs(withoutNorm), " ")
-	assert.NotContains(t, joined, "loudnorm")
-}
-
 // BitRate > 0 must emit -b:a; 0 must not.
 func TestBuildFFmpegAudioOnlyArgs_Bitrate(t *testing.T) {
 	opts := transcoding.AudioProcessOpts{
@@ -1445,4 +1368,32 @@ func TestBuildFFmpegArgs_VideoOnlyFMP4PresentsAtSourceTime(t *testing.T) {
 	ts := videoOnly
 	ts.UseFMP4 = false
 	assert.False(t, hasFlag(ffmpeg.BuildFFmpegArgs(ts)), "MPEG-TS has no edit list to write")
+}
+
+// transcode.audio_normalize is refused: a single-pass loudnorm without the
+// measured_* values of a first pass silently runs DYNAMIC (measured on
+// jellyfin-ffmpeg 7.1, print_format=json: "normalization_type" : "dynamic",
+// a 23 dB step flattened to 0.3 dB), which pumps the sound and makes the bytes
+// depend on where the session started. The knob must therefore change nothing:
+// every builder emits the very argv it emits with the knob off.
+func TestAudioNormalize_RefusedEveryBuilderEmitsTheDefaultArgv(t *testing.T) {
+	sessions := map[string]transcoding.HLSProcessOpts{
+		"video-copy-audio-transcode": {OutputDir: "/tmp/test", FilePath: "/f.mkv", Profiles: transcoding.DefaultHLSProfiles, VideoDecision: "copy", AudioDecision: "transcode"},
+		"single-transcode":           {OutputDir: "/tmp/test", FilePath: "/f.mkv", Profiles: transcoding.DefaultHLSProfiles[:1], VideoDecision: "transcode", AudioDecision: "transcode"},
+		"multi-variant":              {OutputDir: "/tmp/test", FilePath: "/f.mkv", Profiles: transcoding.DefaultHLSProfiles},
+	}
+	for name, off := range sessions {
+		on := off
+		on.AudioNormalize = true
+		got := ffmpeg.BuildFFmpegArgs(on)
+		assert.Equal(t, ffmpeg.BuildFFmpegArgs(off), got, name)
+		assert.NotContains(t, strings.Join(got, " "), "loudnorm", name)
+	}
+
+	audioOff := transcoding.AudioProcessOpts{FilePath: "/media/movie.mkv", OutputDir: "/tmp/audio", SourceTrackIdx: 0, AudioCodec: "aac", AudioBitrate: 192}
+	audioOn := audioOff
+	audioOn.AudioNormalize = true
+	got := ffmpeg.BuildFFmpegAudioOnlyArgs(audioOn)
+	assert.Equal(t, ffmpeg.BuildFFmpegAudioOnlyArgs(audioOff), got, "audio-only rendition")
+	assert.NotContains(t, strings.Join(got, " "), "loudnorm", "audio-only rendition")
 }

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/transcoding"
@@ -207,20 +208,31 @@ func hasAudio(opts transcoding.HLSProcessOpts) bool {
 	return opts.AudioTrackIndex >= 0
 }
 
-const loudnormFilter = "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true"
+// audioNormalizeRefusedOnce keeps the refusal below to one log line per process:
+// the setting is read per session.
+var audioNormalizeRefusedOnce sync.Once
 
 // audioFilterArgs is the single audio filter option of a re-encoded stream
-// (flag = -af or -filter:a:N): the stereo fold guard, then loudnorm when asked.
+// (flag = -af or -filter:a:N): the stereo fold guard.
 func audioFilterArgs(flag string, opts transcoding.HLSProcessOpts) []string {
 	return audioFilterOption(flag, opts.SourceAudioChannels, opts.MaxAudioChannels, opts.AudioNormalize)
 }
 
+// audioFilterOption refuses normalize. A linear loudnorm needs the measured_*
+// values of a first pass over the whole track, which a session that starts
+// mid-file never has; without them loudnorm silently runs dynamic (measured on
+// jellyfin-ffmpeg 7.1: "normalization_type" : "dynamic", a 23 dB step
+// flattened to 0.3 dB), which pumps the sound and makes a segment's bytes
+// depend on where its session started. The knob changes nothing until a
+// stored per-track measurement can feed a linear pass.
 func audioFilterOption(flag string, sourceChannels, maxChannels int, normalize bool) []string {
-	norm := ""
 	if normalize {
-		norm = loudnormFilter
+		audioNormalizeRefusedOnce.Do(func() {
+			slog.Warn("transcode: transcode.audio_normalize is set but not applied, a single-pass loudnorm without a measurement runs dynamic and pumps the sound",
+				slog.String("setting", "transcode.audio_normalize"))
+		})
 	}
-	chain := transcoding.JoinAudioFilters(transcoding.AudioFoldFilter(sourceChannels, maxChannels), norm)
+	chain := transcoding.AudioFoldFilter(sourceChannels, maxChannels)
 	if chain == "" {
 		return nil
 	}
@@ -293,7 +305,7 @@ func appendAudioDelayInput(args []string, opts transcoding.HLSProcessOpts, ssSec
 
 // audioOutputArgsSingle returns the audio map + single-stream encode/copy args
 // for the copy and single-variant transcode builders, or nil when the source
-// has no audio. Honours the copy-vs-transcode decision and optional loudnorm.
+// has no audio. Honours the copy-vs-transcode decision.
 func audioOutputArgsSingle(opts transcoding.HLSProcessOpts, bitrateKbps int64) []string {
 	if !hasAudio(opts) {
 		return nil
