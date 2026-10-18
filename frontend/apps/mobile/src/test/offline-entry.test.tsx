@@ -220,6 +220,22 @@ describe("(auth) layout - an unanswered refresh is not a logout", () => {
     expect(redirectedTo()).toBeNull();
   });
 
+  // The refresh reads the keystore before it asks the server; a read that
+  // throws must not leave the shell blank for the rest of the session.
+  it("renders the app when the refresh itself throws ONLINE", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    online = true;
+    authState.accessToken = staleToken();
+    authState.profileId = "p1";
+    ensureAccessTokenMock.mockRejectedValue(new Error("keystore"));
+
+    render(React.createElement(AuthLayout));
+
+    await waitFor(() => expect(screen.queryByTestId("stack")).not.toBeNull());
+    expect(redirectedTo()).toBeNull();
+    warn.mockRestore();
+  });
+
   it("goes to /login when the server REFUSES the refresh credential", async () => {
     authState.accessToken = staleToken();
     authState.profileId = "p1";

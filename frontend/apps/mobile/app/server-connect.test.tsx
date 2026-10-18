@@ -55,6 +55,7 @@ vi.mock("../src/providers/ThemeProvider", () => ({
 }));
 
 import ServerConnect from "./server-connect";
+import { getServerUrl } from "../src/lib/server-config";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -86,5 +87,16 @@ describe("ServerConnect saved-server delete", () => {
     expect(alerts.last?.title).toBe("Can't delete the only saved server");
     expect(alerts.last?.buttons).toBeUndefined();
     expect(store.removeServer).not.toHaveBeenCalled();
+  });
+});
+
+describe("ServerConnect first run", () => {
+  it("keeps an empty address field when the legacy address cannot be read", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    store.servers = {};
+    vi.mocked(getServerUrl).mockRejectedValueOnce(new Error("keystore"));
+    render(React.createElement(ServerConnect));
+    await vi.waitFor(() => expect(warn).toHaveBeenCalled());
+    warn.mockRestore();
   });
 });

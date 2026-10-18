@@ -59,7 +59,9 @@ export default function ServerConnect() {
 
   useEffect(() => {
     if (!hasServers) {
-      getServerUrl().then((saved) => { if (saved) setUrl(saved); });
+      getServerUrl()
+        .then((saved) => { if (saved) setUrl(saved); })
+        .catch((err) => console.warn("server-connect legacy url", err));
     }
   }, [hasServers]);
 

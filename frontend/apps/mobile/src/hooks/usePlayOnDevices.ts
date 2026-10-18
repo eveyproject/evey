@@ -13,9 +13,10 @@ export function usePlayOnDevices(opts?: { enabled?: boolean }) {
   const [selfId, setSelfId] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
+    // An unreadable id only means this install is not filtered out of its own list.
     void SecureStore.getItemAsync(DEVICE_ID_KEY).then((id) => {
       if (!cancelled) setSelfId(id);
-    });
+    }).catch((err) => console.warn("evey-playon device id", err));
     return () => { cancelled = true; };
   }, []);
   return useSharedPlayOnDevices({ enabled: opts?.enabled, selfId });
