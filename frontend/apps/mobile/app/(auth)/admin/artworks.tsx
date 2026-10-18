@@ -40,6 +40,8 @@ function useStartDownload() {
         url: "/api/v1/admin/artworks/download-all",
         method: "POST",
       }),
+    // The screen toasts its own failure; without this the global net adds a second one.
+    meta: { silentError: true },
   });
 }
 
@@ -50,6 +52,8 @@ function useBackfillBlurhashes() {
         url: "/api/v1/admin/artworks/backfill-blurhashes",
         method: "POST",
       }),
+    // The screen toasts its own failure; without this the global net adds a second one.
+    meta: { silentError: true },
   });
 }
 
@@ -60,6 +64,8 @@ function usePurgeVariants() {
         url: "/api/v1/admin/artworks/purge-variants",
         method: "POST",
       }),
+    // The screen toasts its own failure; without this the global net adds a second one.
+    meta: { silentError: true },
   });
 }
 
