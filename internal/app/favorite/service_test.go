@@ -3,6 +3,7 @@ package favorite
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -329,4 +330,23 @@ func TestIsFavoriteMany_EmptyShortCircuits(t *testing.T) {
 	got, err := svc.IsFavoriteMany(context.Background(), "p1", nil)
 	require.NoError(t, err)
 	assert.Empty(t, got)
+}
+
+// The page size is honoured up to 500 inclusive, and a missing one means 50:
+// both edges of the clamp, with more favourites than the default page holds.
+func TestList_ClampEdges(t *testing.T) {
+	t.Parallel()
+	svc := newTestService()
+	ctx := context.Background()
+	for i := range 60 {
+		_, _ = svc.Toggle(ctx, "p1", fmt.Sprintf("m%02d", i))
+	}
+
+	items, err := svc.List(ctx, "p1", 500, 0)
+	require.NoError(t, err)
+	assert.Len(t, items, 60, "a page of 500 is allowed, not reset to the default")
+
+	items, err = svc.List(ctx, "p1", 0, 0)
+	require.NoError(t, err)
+	assert.Len(t, items, 50, "no page size means the default 50")
 }
