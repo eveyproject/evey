@@ -35,13 +35,7 @@ describe("artworkUrl", () => {
     expect(artworkUrl("mi-2", "backdrop", undefined)).toBe("/api/v1/media/mi-2/artwork/backdrop");
   });
 
-  it("combines version and auth token with a single separator", () => {
-    expect(artworkUrl("mi-3", "poster", item, "tok en/with+chars")).toBe(
-      `/api/v1/media/mi-3/artwork/poster?v=${ver}&token=${encodeURIComponent("tok en/with+chars")}`,
-    );
-  });
-
-  it("uses the token alone when there is no version", () => {
-    expect(artworkUrl("mi-4", "backdrop", {}, "abc")).toBe("/api/v1/media/mi-4/artwork/backdrop?token=abc");
+  it("never carries a token: the artwork route is public", () => {
+    expect(artworkUrl("mi-3", "poster", item)).not.toContain("token=");
   });
 });

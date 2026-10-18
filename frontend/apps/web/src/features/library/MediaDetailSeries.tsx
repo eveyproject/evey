@@ -7,7 +7,6 @@ import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "
 import { Button } from "@/components/ui/Button";
 import { formatDurationMs, seasonLabel } from "@evey/api";
 import { artworkUrl } from "./artworkUrl";
-import { useAuthStore } from "@evey/store";
 import { useSeriesPlayTarget } from "@evey/client";
 import { DownloadButton } from "@/features/playback/DownloadButton";
 import { useStreamToken } from "@/hooks/useStreamToken";
@@ -25,9 +24,8 @@ function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
 // dead weight between the viewer and playback. Seasons keep their own page.
 function EpisodeRow({ ep }: { ep: V1MediaItem }) {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
   const { fetchStreamToken } = useStreamToken();
-  const stillUrl = ep.id ? artworkUrl(ep.id, "backdrop", ep, accessToken || undefined) : undefined;
+  const stillUrl = ep.id ? artworkUrl(ep.id, "backdrop", ep) : undefined;
   const stillSrcSet = stillUrl
     ? `${stillUrl}${stillUrl.includes("?") ? "&" : "?"}w=342 342w, ${stillUrl}${stillUrl.includes("?") ? "&" : "?"}w=500 500w`
     : undefined;
@@ -117,7 +115,6 @@ const SEASONS_PAGE_SIZE = 100;
 // where the episode list now lives.
 function SeasonCard({ seasonId }: { seasonId: string }) {
   const { t } = useTranslation();
-  const accessToken = useAuthStore((s) => s.accessToken);
   const { data: season } = useLibraryServiceGetMediaItem(seasonId);
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: seasonId, "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE });
   const episodes = sortByIndex(episodesData?.items ?? []);
@@ -125,7 +122,7 @@ function SeasonCard({ seasonId }: { seasonId: string }) {
 
   const label = seasonLabel(season ?? {}, t);
 
-  const posterUrl = artworkUrl(seasonId, "poster", season, accessToken || undefined);
+  const posterUrl = artworkUrl(seasonId, "poster", season);
   const posterSrcSet = posterUrl
     ? `${posterUrl}${posterUrl.includes("?") ? "&" : "?"}w=185 185w, ${posterUrl}${posterUrl.includes("?") ? "&" : "?"}w=342 342w`
     : undefined;

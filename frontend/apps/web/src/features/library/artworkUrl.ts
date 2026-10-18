@@ -20,7 +20,8 @@ export { artworkVersion };
 
 /**
  * artworkUrl builds `/api/v1/media/<id>/artwork/<kind>` with a `?v=` content
- * version (and an optional auth `token` for the detail views). The server ignores
+ * version. The route is public: no token rides the URL, where it only reached
+ * the proxy logs and the browser history. The server ignores
  * unknown query params and always serves the current artwork, so `?v=` is a
  * pure client-side cache key. Width variants (`&w=`) are appended by callers via
  * the standard separator check, since this URL may already carry a `?`.
@@ -29,12 +30,10 @@ export function artworkUrl(
   itemId: string,
   kind: "poster" | "backdrop",
   item: ArtworkVersioned | undefined,
-  token?: string,
 ): string {
   const params: string[] = [];
   const v = artworkVersion(item);
   if (v) params.push(`v=${v}`);
-  if (token) params.push(`token=${encodeURIComponent(token)}`);
   const qs = params.length > 0 ? `?${params.join("&")}` : "";
   return `/api/v1/media/${itemId}/artwork/${kind}${qs}`;
 }

@@ -34,8 +34,9 @@ export function authedSrc(path: string): string {
   return token ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : url;
 }
 
+// The avatar route is public too: no token in its URL.
 export function avatarSrc(profileId: string): string {
-  return authedSrc(`/api/v1/profiles/${profileId}/avatar`);
+  return `${getBaseURL()}/api/v1/profiles/${profileId}/avatar`;
 }
 
 /**
