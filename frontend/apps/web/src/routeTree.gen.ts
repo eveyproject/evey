@@ -25,7 +25,6 @@ import { Route as AuthRequestsRouteImport } from './routes/_auth/requests'
 import { Route as AuthQuickconnectRouteImport } from './routes/_auth/quickconnect'
 import { Route as AuthHomeRouteImport } from './routes/_auth/home'
 import { Route as AuthFavoritesRouteImport } from './routes/_auth/favorites'
-import { Route as AuthExperiencePocRouteImport } from './routes/_auth/experience-poc'
 import { Route as AuthAdminRouteImport } from './routes/_auth/admin'
 import { Route as AuthProfileIndexRouteImport } from './routes/_auth/profile/index'
 import { Route as AuthPlaylistsIndexRouteImport } from './routes/_auth/playlists/index'
@@ -161,13 +160,6 @@ const AuthFavoritesRoute = AuthFavoritesRouteImport.update({
   getParentRoute: () => AuthRoute,
 } as any).lazy(() =>
   import('./routes/_auth/favorites.lazy').then((d) => d.Route),
-)
-const AuthExperiencePocRoute = AuthExperiencePocRouteImport.update({
-  id: '/experience-poc',
-  path: '/experience-poc',
-  getParentRoute: () => AuthRoute,
-} as any).lazy(() =>
-  import('./routes/_auth/experience-poc.lazy').then((d) => d.Route),
 )
 const AuthAdminRoute = AuthAdminRouteImport.update({
   id: '/admin',
@@ -494,7 +486,6 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/setup': typeof SetupRoute
   '/admin': typeof AuthAdminRouteWithChildren
-  '/experience-poc': typeof AuthExperiencePocRoute
   '/favorites': typeof AuthFavoritesRoute
   '/home': typeof AuthHomeRoute
   '/quickconnect': typeof AuthQuickconnectRoute
@@ -555,7 +546,6 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/setup': typeof SetupRoute
-  '/experience-poc': typeof AuthExperiencePocRoute
   '/favorites': typeof AuthFavoritesRoute
   '/home': typeof AuthHomeRoute
   '/quickconnect': typeof AuthQuickconnectRoute
@@ -619,7 +609,6 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/setup': typeof SetupRoute
   '/_auth/admin': typeof AuthAdminRouteWithChildren
-  '/_auth/experience-poc': typeof AuthExperiencePocRoute
   '/_auth/favorites': typeof AuthFavoritesRoute
   '/_auth/home': typeof AuthHomeRoute
   '/_auth/quickconnect': typeof AuthQuickconnectRoute
@@ -683,7 +672,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/setup'
     | '/admin'
-    | '/experience-poc'
     | '/favorites'
     | '/home'
     | '/quickconnect'
@@ -744,7 +732,6 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/setup'
-    | '/experience-poc'
     | '/favorites'
     | '/home'
     | '/quickconnect'
@@ -807,7 +794,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/setup'
     | '/_auth/admin'
-    | '/_auth/experience-poc'
     | '/_auth/favorites'
     | '/_auth/home'
     | '/_auth/quickconnect'
@@ -985,13 +971,6 @@ declare module '@tanstack/react-router' {
       path: '/favorites'
       fullPath: '/favorites'
       preLoaderRoute: typeof AuthFavoritesRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/experience-poc': {
-      id: '/_auth/experience-poc'
-      path: '/experience-poc'
-      fullPath: '/experience-poc'
-      preLoaderRoute: typeof AuthExperiencePocRouteImport
       parentRoute: typeof AuthRoute
     }
     '/_auth/admin': {
@@ -1367,7 +1346,6 @@ const AuthAdminRouteWithChildren = AuthAdminRoute._addFileChildren(
 
 interface AuthRouteChildren {
   AuthAdminRoute: typeof AuthAdminRouteWithChildren
-  AuthExperiencePocRoute: typeof AuthExperiencePocRoute
   AuthFavoritesRoute: typeof AuthFavoritesRoute
   AuthHomeRoute: typeof AuthHomeRoute
   AuthQuickconnectRoute: typeof AuthQuickconnectRoute
@@ -1396,7 +1374,6 @@ interface AuthRouteChildren {
 
 const AuthRouteChildren: AuthRouteChildren = {
   AuthAdminRoute: AuthAdminRouteWithChildren,
-  AuthExperiencePocRoute: AuthExperiencePocRoute,
   AuthFavoritesRoute: AuthFavoritesRoute,
   AuthHomeRoute: AuthHomeRoute,
   AuthQuickconnectRoute: AuthQuickconnectRoute,
