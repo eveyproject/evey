@@ -1033,6 +1033,15 @@
         "total": {
           "type": "integer",
           "format": "int32"
+        },
+        "nextOffset": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Offset of the next page: the request's offset plus the rows the database\nreturned, BEFORE the parental pass removed any. A client that adds up the\nitems it received instead re-reads rows and, on a page the pass shortened,\nbelieves it reached the end."
+        },
+        "hasMore": {
+          "type": "boolean",
+          "description": "Whether rows remain past next_offset."
         }
       }
     },

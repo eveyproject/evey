@@ -436,6 +436,17 @@
         },
         "posterUrl": {
           "type": "string"
+        },
+        "overview": {
+          "type": "string",
+          "description": "Copied from the TitleCandidate the requester picked (see MediaRequestProto)."
+        },
+        "releaseDate": {
+          "type": "string"
+        },
+        "rating": {
+          "type": "number",
+          "format": "double"
         }
       }
     },
@@ -532,6 +543,17 @@
         "requesterName": {
           "type": "string",
           "description": "requester_name is populated on the admin moderation view for display."
+        },
+        "overview": {
+          "type": "string",
+          "description": "What the requester saw when picking the title, kept so the operator can\njudge the request without opening a browser: the synopsis, the release\ndate (YYYY-MM-DD, empty when the provider had none) and the community\nrating on a 0-10 scale (0 = unrated)."
+        },
+        "releaseDate": {
+          "type": "string"
+        },
+        "rating": {
+          "type": "number",
+          "format": "double"
         }
       }
     },
@@ -589,6 +611,14 @@
         },
         "mediaItemId": {
           "type": "string"
+        },
+        "releaseDate": {
+          "type": "string",
+          "description": "release_date is the provider's premiere date as YYYY-MM-DD (empty when\nunknown); rating is the community score on a 0-10 scale (0 = unrated)."
+        },
+        "rating": {
+          "type": "number",
+          "format": "double"
         }
       }
     },
