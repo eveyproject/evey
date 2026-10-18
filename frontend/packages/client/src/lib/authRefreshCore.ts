@@ -76,13 +76,24 @@ export function createAuthRefresh(storage: RefreshTokenStorage): AuthRefresh {
 
   async function doRefresh(): Promise<RefreshOutcome> {
     const auth = useAuthStore.getState();
-    const stored = await storage.getRefreshToken();
-    if (!stored) {
-      if (auth.accessToken) auth.logout();
-      return "refused";
+    // The keystore read can reject (Android SecureStore's DecryptException).
+    // Thrown from here it escaped the outcome entirely: the mobile gate waited
+    // on "pending" forever (a blank shell) and the TV spinner never stopped.
+    // An unreadable store is an absent answer, not a refusal - the session
+    // stays as it is.
+    let stored: string | null;
+    let base: string | null;
+    try {
+      stored = await storage.getRefreshToken();
+      if (!stored) {
+        if (auth.accessToken) auth.logout();
+        return "refused";
+      }
+      base = await storage.getServerUrl();
+    } catch (err) {
+      console.warn("auth refresh: secure storage read failed", err);
+      return "unavailable";
     }
-
-    const base = await storage.getServerUrl();
     if (!base) return "unavailable";
 
     const controller = new AbortController();
