@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, TextInput, Pressable, ScrollView, Modal, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
@@ -23,8 +23,7 @@ const FIELD_LABELS: Record<RuleField, string> = {
   rating_gte: "Rating ≥",
 };
 
-// Maps the (untranslated) chip copy above to its existing i18n key, used only
-// for the accessibility label so screen readers announce a real word.
+// The i18n key of each field; FIELD_LABELS above is only the fallback copy.
 const FIELD_I18N_KEYS: Record<RuleField, string> = {
   genre: "media.playlist.fieldGenre",
   year: "media.playlist.fieldYear",
@@ -94,11 +93,13 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave, availableFie
     onClose();
   }, [local, onSave, onClose]);
 
-  // Sync local edits when the parent's rules change (e.g. modal re-opens
-  // with a different playlist). Without this, the editor stays stuck on the
-  // previously edited rules even after the parent updates `rules`.
+  // Reload the parent's rules each time the editor OPENS (another playlist,
+  // rules saved elsewhere), never while it is open: a parent re-render hands
+  // a fresh array and used to wipe what was being typed.
+  const wasVisible = useRef(false);
   useEffect(() => {
-    if (visible) setLocal(rules);
+    if (visible && !wasVisible.current) setLocal(rules);
+    wasVisible.current = visible;
   }, [visible, rules]);
 
   return (
@@ -129,7 +130,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave, availableFie
                     accessibilityRole="radio"
                     accessibilityState={{ selected: rule.field === f }}
                   >
-                    <Text style={{ color: rule.field === f ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{FIELD_LABELS[f]}</Text>
+                    <Text style={{ color: rule.field === f ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{t(FIELD_I18N_KEYS[f], FIELD_LABELS[f])}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -189,7 +190,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave, availableFie
                         accessibilityRole="radio"
                         accessibilityState={{ selected: rule.value === mt.value }}
                       >
-                        <Text style={{ color: rule.value === mt.value ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{mt.label}</Text>
+                        <Text style={{ color: rule.value === mt.value ? theme.colors.onAccent : theme.colors.text, fontSize: FONT_SIZE.xs }}>{t(mt.i18nKey, mt.label)}</Text>
                       </Pressable>
                     ))}
                   </ScrollView>
@@ -213,7 +214,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave, availableFie
                   <TextInput
                     value={rule.value}
                     onChangeText={(v) => updateRule(idx, { ...rule, value: v })}
-                    placeholder="Value"
+                    placeholder={t("media.playlist.value", "Value")}
                     placeholderTextColor={theme.colors.textMuted}
                     accessibilityLabel={t("media.playlist.fields.ruleValue", "Rule value")}
                     style={[styles.input, { backgroundColor: theme.colors.bg, color: theme.colors.text, borderRadius: theme.radii.sm, flex: 1 }]}
@@ -240,7 +241,7 @@ export function SmartRulesEditor({ visible, onClose, rules, onSave, availableFie
             accessibilityRole="button"
           >
             <Ionicons name="add-circle-outline" size={ICON_SIZE.lg} color={theme.colors.accent} />
-            <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.sm, fontWeight: "500" }}>Add Rule</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.sm, fontWeight: "500" }}>{t("media.playlist.addRule", "Add Rule")}</Text>
           </Pressable>
         </ScrollView>
 

@@ -40,6 +40,22 @@ beforeEach(() => {
 });
 
 describe("SmartRulesEditor", () => {
+  // The parent re-renders with a fresh rules array (a refetch, a parent state
+  // change): what was typed must survive until the editor is closed.
+  it("keeps the rules being edited when the parent re-renders while open", () => {
+    const rules = () => [{ field: "year" as const, operator: "gte" as const, value: "2020" }];
+    const { rerender } = render(<SmartRulesEditor visible onClose={vi.fn()} rules={rules()} onSave={vi.fn()} />);
+    const input = () => screen.getByDisplayValue(/^(2020|1999)$/) as HTMLInputElement;
+    fireEvent.change(input(), { target: { value: "1999" } });
+    rerender(<SmartRulesEditor visible onClose={vi.fn()} rules={rules()} onSave={vi.fn()} />);
+    expect(input().value).toBe("1999");
+
+    // Closed then reopened: back to what the parent holds.
+    rerender(<SmartRulesEditor visible={false} onClose={vi.fn()} rules={rules()} onSave={vi.fn()} />);
+    rerender(<SmartRulesEditor visible onClose={vi.fn()} rules={rules()} onSave={vi.fn()} />);
+    expect(input().value).toBe("2020");
+  });
+
   it("offers the playlist fields by default and rating only when a collection opts in", () => {
     const { unmount } = render(<SmartRulesEditor visible onClose={vi.fn()} rules={[{ field: "genre", operator: "eq", value: "" }]} onSave={vi.fn()} />);
     expect(screen.getByText("Library")).toBeTruthy();
