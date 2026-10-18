@@ -277,7 +277,8 @@ function AdminLogsContent() {
         url: `/api/v1/admin/logs/search?${buildSearchQS(filters, PAGE_SIZE, pageParam)}`,
         method: "GET",
         signal,
-      }),
+        // An older server answered a search that matched nothing with entries: null.
+      }).then((res) => ({ ...res, entries: res.entries ?? [] })),
     getNextPageParam: (last, all) => {
       const fetched = all.reduce((n, p) => n + p.entries.length, 0);
       return fetched < last.total ? fetched : undefined;
