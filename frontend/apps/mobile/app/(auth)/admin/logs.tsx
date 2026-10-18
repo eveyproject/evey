@@ -302,7 +302,7 @@ function AdminLogsContent() {
   }, []);
 
   const loadMore = useCallback(() => {
-    if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+    if (hasNextPage && !isFetchingNextPage) void fetchNextPage();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Resolve user/profile ids in log rows to names (mirror web buildIdentityIndex).

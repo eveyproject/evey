@@ -79,7 +79,7 @@ export default function AdminMediaSegmentsScreen() {
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const res = await eveyFetch<{ token: string }>({ url: `/api/v1/media/${id}/stream-token`, method: "POST" });
         if (!cancelled) setStreamToken(res.token);

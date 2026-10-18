@@ -86,7 +86,7 @@ export function AlbumsTab({
           </div>
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); downloadAlbum(a); }}
+            onClick={(e) => { e.stopPropagation(); void downloadAlbum(a); }}
             aria-label={t("media.music.downloadAlbum")}
             title={t("media.music.downloadAlbum")}
             className="absolute top-2 right-2 p-1.5 rounded-full bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity-fast"

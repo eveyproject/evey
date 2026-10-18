@@ -123,7 +123,7 @@ export function useWasmAudioPlayback({
       true, // wasmAudio
     );
 
-    (async () => {
+    void (async () => {
       try {
         const resp = await fetch(injectToken(masterUrl, streamTokenRef.current), { credentials: "include" });
         if (!resp.ok) throw new Error(`master ${resp.status}`);

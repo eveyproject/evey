@@ -16,7 +16,7 @@ export default function EntryRedirect() {
 
   useEffect(() => {
     if (!serverUrl) return;
-    probeServerHealth(serverUrl).then(({ ok, name }) => {
+    void probeServerHealth(serverUrl).then(({ ok, name }) => {
       // Translations live on the server. Knowing here that it is unreachable is
       // what lets the next screen speak the viewer's language instead of
       // waiting for i18next's own fetch to time out.

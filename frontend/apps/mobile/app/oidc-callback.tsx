@@ -31,7 +31,7 @@ export default function OidcCallbackScreen() {
       fail(ssoErrorKey(params.oidc_error));
       return;
     }
-    (async () => {
+    void (async () => {
       try {
         const data = await eveyFetch<{ accessToken: string; refreshToken?: string }>({
           url: "/api/v1/auth/oidc/app/token",

@@ -21,7 +21,7 @@ export function LibraryForm({ onSuccess, library }: LibraryFormProps) {
   const [mediaDirs, setMediaDirs] = useState<string[]>([]);
 
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
         const dirs = await eveyFetch<{ name: string; path: string }[]>({
           url: "/api/v1/admin/fs/browse",

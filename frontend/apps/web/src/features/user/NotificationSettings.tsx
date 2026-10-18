@@ -66,7 +66,7 @@ function PushNotificationSection() {
 
   useEffect(() => {
     if (!supported) return;
-    (async () => {
+    void (async () => {
       try {
         const subscribed = await isPushSubscribed();
         setEnabled(subscribed);

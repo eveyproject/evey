@@ -50,7 +50,7 @@ export default function Login() {
 
   useEffect(() => {
     if (canUseBiometric) {
-      handleBiometricLogin();
+      void handleBiometricLogin();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- prompt once when biometric becomes usable; the handler is rebuilt every render
   }, [canUseBiometric]);

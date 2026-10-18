@@ -188,7 +188,7 @@ function ExperiencePoc() {
 
   useEffect(() => {
     let active = true;
-    (async () => {
+    void (async () => {
       const [dashR, sysR, popR, libsR] = await Promise.all([
         tryFetch("/api/v1/admin/dashboard"),
         tryFetch("/api/v1/admin/system"),

@@ -116,7 +116,7 @@ export function useDirectPlayback({
       ) {
         refreshedForRef.current = sourceKey;
         const positionSec = positionRef.current || (v.currentTime || 0);
-        (async () => {
+        void (async () => {
           try {
             const newToken = await onStreamTokenRefreshRef.current();
             streamTokenRef.current = newToken;

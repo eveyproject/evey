@@ -64,7 +64,7 @@ export function TrickplayPreview({ mediaId, currentTime, visible, maxWidth }: Pr
       setCues([]);
     }
     let cancelled = false;
-    (async () => {
+    void (async () => {
       const cached = memCache.get(mediaId) ?? await readCachedCues(mediaId);
       if (cancelled) return;
       if (cached && cached.length > 0) {
@@ -79,7 +79,7 @@ export function TrickplayPreview({ mediaId, currentTime, visible, maxWidth }: Pr
         const parsed = parseTrickplayVTT(text);
         memCache.set(mediaId, parsed);
         setCues(parsed);
-        writeCachedCues(mediaId, parsed);
+        void writeCachedCues(mediaId, parsed);
       } catch {
         memCache.set(mediaId, []);
       }

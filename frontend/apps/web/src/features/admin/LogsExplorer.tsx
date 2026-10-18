@@ -349,7 +349,7 @@ export function LogsExplorer() {
       setLiveEntries((prev) => [entry, ...prev].slice(0, LIVE_CAP));
       if (anchorRef.current) setHiddenAbove((n) => n + 1);
     };
-    (async () => {
+    void (async () => {
       while (!ctrl.signal.aborted) {
         try {
           const token = useAuthStore.getState().accessToken;
@@ -425,7 +425,7 @@ export function LogsExplorer() {
     if (live) return;
     const last = virtualItems[virtualItems.length - 1];
     if (!last) return;
-    if (last.index >= entries.length - 1 && hasNextPage && !isFetchingNextPage) fetchNextPage();
+    if (last.index >= entries.length - 1 && hasNextPage && !isFetchingNextPage) void fetchNextPage();
   }, [live, virtualItems, entries.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // Live-tail viewport anchor. New lines are PREPENDED, so without help every

@@ -17,7 +17,7 @@ export async function initFetcher() {
     userAgent: eveyClientUserAgent(),
     onUnauthorized: () => {
       useAuthStore.getState().logout();
-      clearRefreshToken();
+      clearRefreshToken().catch((err) => console.warn("clear refresh token failed", err));
       // The cached profile list describes ONE account on ONE server. Left behind,
       // it would name the previous household's profiles on the next login.
       void clearProfileCache();

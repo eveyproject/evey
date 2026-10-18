@@ -86,7 +86,7 @@ export const CardContextMenu = memo(function CardContextMenu({
             key: "edit-metadata",
             label: t("media.contextMenu.editMetadata"),
             onClick: () => {
-              navigate({ to: "/media/$mediaId", params: { mediaId }, search: { edit: true } as never });
+              void navigate({ to: "/media/$mediaId", params: { mediaId }, search: { edit: true } as never });
               onClose();
             },
           },

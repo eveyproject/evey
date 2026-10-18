@@ -550,7 +550,7 @@ export function useTranscodePlayback({
       }
       if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
         if (data.response?.code === 401) {
-          (async () => {
+          void (async () => {
             try {
               const newToken = await onStreamTokenRefreshRef.current();
               streamTokenRef.current = newToken;

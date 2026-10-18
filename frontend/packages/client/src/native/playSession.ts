@@ -483,7 +483,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
     stoppedRef.current = false;
     if (!mediaId || startedRef.current) return;
     startedRef.current = true;
-    startStream(initialRef.current?.audioStreamIndex, initialRef.current?.subtitleStreamIndex);
+    void startStream(initialRef.current?.audioStreamIndex, initialRef.current?.subtitleStreamIndex);
   }, [mediaId, startStream]);
 
   const stopSession = useCallback(() => {
@@ -514,7 +514,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
       setIsAuthError(false);
       setShedReason(null);
       setIsLoading(true);
-      startStream(audioIndex, subtitleIndex, maxHeight);
+      void startStream(audioIndex, subtitleIndex, maxHeight);
     },
     [startStream],
   );

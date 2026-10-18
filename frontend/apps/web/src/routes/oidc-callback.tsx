@@ -26,7 +26,7 @@ function OIDCCallbackPage() {
       void navigate({ to: "/login", search: { oidc_error } });
       return;
     }
-    (async () => {
+    void (async () => {
       try {
         const { accessToken } = await eveyFetch<{ accessToken: string }>({ url: "/api/v1/auth/oidc/session", method: "GET" });
         setTokens(accessToken);

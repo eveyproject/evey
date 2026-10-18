@@ -38,7 +38,7 @@ vi.mock("@evey/client/native/useSourcedVideoPlayer", () => ({
   },
 }));
 vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
-vi.mock("expo-screen-orientation", () => ({ unlockAsync: vi.fn(), lockAsync: vi.fn(), OrientationLock: { DEFAULT: 0 } }));
+vi.mock("expo-screen-orientation", () => ({ unlockAsync: vi.fn(async () => {}), lockAsync: vi.fn(async () => {}), OrientationLock: { DEFAULT: 0 } }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, fallback?: string) => fallback ?? k }) }));
 vi.mock("@evey/api", () => ({ formatTime: (s: number) => `${s}s` }));
 vi.mock("../../src/providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { accent: "#f00", text: "#fff" } }) }));

@@ -547,7 +547,7 @@ export function HLSPlayer({
 
   const handleCastToggle = useCallback(async () => {
     if (castConnected) {
-      stopCast();
+      void stopCast();
       return;
     }
     // Same handover as the media page's Cast button: an Evey TV app gets the

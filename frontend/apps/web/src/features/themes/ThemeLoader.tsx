@@ -66,7 +66,7 @@ export function ThemeLoader() {
 
     let cancelled = false;
 
-    (async () => {
+    void (async () => {
       try {
         // Probe for theme.js existence using a HEAD-equivalent GET that tolerates 404.
         // We use eveyFetchRaw (not eveyFetch) to handle 404 without throwing.

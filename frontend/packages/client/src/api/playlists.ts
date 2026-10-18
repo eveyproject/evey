@@ -169,11 +169,11 @@ export function useUpdatePlaylist(opts: { ownErrorToast?: boolean } = {}) {
         sortOrder: data.sort_order,
       }),
     onSuccess: (_d, vars) => {
-      invalidate.list();
-      invalidate.head(vars.id);
+      void invalidate.list();
+      void invalidate.head(vars.id);
       // A smart playlist's rules decide which items match, so editing them
       // changes the items list - refresh it too, not just the metadata.
-      invalidate.items(vars.id);
+      void invalidate.items(vars.id);
     },
   });
 }

@@ -26,7 +26,7 @@ export function useBiometricAvailable() {
         setAvailable(false);
       }
     }
-    check();
+    void check();
   }, []);
 
   return { available, biometricType };

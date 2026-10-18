@@ -423,9 +423,9 @@ function LibraryPage() {
     const id = pick?.id;
     if (!id) { toast.error(t("common.shuffleFailed")); return; }
     if (pick?.type === "MEDIA_ITEM_TYPE_MOVIE") {
-      navigate({ to: "/player/$mediaId", params: { mediaId: id } });
+      void navigate({ to: "/player/$mediaId", params: { mediaId: id } });
     } else {
-      navigate({ to: "/media/$mediaId", params: { mediaId: id } });
+      void navigate({ to: "/media/$mediaId", params: { mediaId: id } });
     }
   }, [navigate, t]);
   const handleRandomPlay = useCallback(async () => {

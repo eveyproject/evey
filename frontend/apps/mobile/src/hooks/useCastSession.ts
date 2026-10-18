@@ -329,7 +329,7 @@ export function useCastSession({
   useEffect(() => {
     if (!castClient || !castConnected || !streamUrl) return;
     if (castLoadedForMedia.current === mediaId) return;
-    castLoadMedia(castClient);
+    void castLoadMedia(castClient);
   }, [castClient, castConnected, streamUrl, mediaId, castLoadMedia]);
 
   // Track the receiver's last known position WHILE casting.
