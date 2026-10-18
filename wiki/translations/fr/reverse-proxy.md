@@ -1,8 +1,8 @@
 ---
-source_sha: d47608ac11df56bc518674752f94a79d5498896103d51978e420575983e71cf4
+source_sha: 882540a1c223edaceac62b6090fc29c8d6391b2bdbb9f156d5cd7015f46e2bc2
 reviewed: true
 ---
-# Configurations de reverse proxy
+# Configurations de reverse proxy { #reverse-proxy-configurations }
 
 Evey sert l'API et l'interface web ensemble sur le port **9091**, en HTTP
 simple ; un reverse proxy n'a qu'à terminer le TLS et tout renvoyer vers
@@ -11,7 +11,7 @@ Nginx Proxy Manager, ou celui que vous avez déjà), puis lisez les deux
 sections de la fin si vous ajustez le streaming ou définissez vos propres en-têtes
 de sécurité.
 
-## Indiquer le proxy à Evey
+## Indiquer le proxy à Evey { #tell-evey-about-the-proxy }
 
 Quel que soit le proxy, Evey a besoin de son adresse publique et du proxy
 auquel faire confiance. L'endroit pour les deux est **Administration → Accès
@@ -24,45 +24,46 @@ confiance est pris en compte. L'interrupteur d'accès distant et l'adresse réel
 client sont expliqués dans
 [Accès distant et HTTPS](administration/remote-access.md).
 
-Les mêmes réponses peuvent venir de l'environnement, pour une installation
-entièrement décrite dans des fichiers (le panneau l'emporte quand les deux
-sont renseignés) :
+Les mêmes réponses peuvent venir de l'environnement, sous `environment:` dans
+le fichier compose, pour une installation entièrement décrite dans des
+fichiers (le panneau l'emporte quand les deux sont renseignés) :
 
-```env title=".env"
-EVEY_SERVER_BASE_URL=https://media.example.com
-EVEY_TRUSTED_PROXIES=172.16.0.0/12       # seulement si le proxy est un conteneur ; la boucle locale est toujours de confiance
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      EVEY_SERVER_BASE_URL: https://media.example.com
+      EVEY_TRUSTED_PROXIES: 172.16.0.0/12   # seulement si le proxy est un conteneur ; la boucle locale est toujours de confiance
 ```
 
 L'ancienne variable `EVEY_FORWARDED_PROTO` reste acceptée pour forcer la
 valeur, mais elle est obsolète : le schéma de l'adresse suffit.
 
-Chaque exemple fourni lit le domaine à un seul endroit, `EVEY_DOMAIN` dans
-votre `.env`. Renseignez-le une fois ; Caddy, Nginx et Traefik le reprennent
-tous.
+Chaque exemple fourni lit le domaine dans `EVEY_DOMAIN`, avec une valeur
+fictive dans le fichier que vous copiez : remplacez-la à cet endroit par votre
+domaine, sur la ligne `EVEY_DOMAIN:` du service du proxy (Caddy, Nginx) ou
+dans la règle `Host(...)` (Traefik).
 
-```env title=".env"
-EVEY_DOMAIN=media.example.com
-```
+## Caddy (fourni) { #caddy-bundled }
 
-## Caddy (fourni)
+### Fichiers { #files }
 
-### Fichiers
+[`docker/Caddyfile`](https://github.com/eveyproject/evey/blob/master/docker/Caddyfile), construit en image par
+[`docker/Dockerfile.caddy`](https://github.com/eveyproject/evey/blob/master/docker/Dockerfile.caddy) ; le service `caddy`
+du [`docker-compose.yml`](https://github.com/eveyproject/evey/blob/master/docker-compose.yml) du dépôt.
 
-[`docker/Caddyfile`](../docker/Caddyfile), construit en image par
-[`docker/Dockerfile.caddy`](../docker/Dockerfile.caddy) ; le service `caddy`
-du [`docker-compose.yml`](../docker-compose.yml) du dépôt.
+### Mise en place { #set-it-up }
 
-### Mise en place
-
-1. Renseignez `EVEY_DOMAIN` dans `.env` et assurez-vous que les ports 80 et
-   443 de la machine arrivent au conteneur Caddy.
+1. Écrivez votre domaine sur la ligne `EVEY_DOMAIN:` du service `caddy` et
+   assurez-vous que les ports 80 et 443 de la machine arrivent au conteneur
+   Caddy.
 2. Ajoutez le service `caddy` du fichier compose du dépôt au vôtre et lancez
    `docker compose up -d`. Caddy obtient automatiquement un certificat Let's Encrypt pour
    `EVEY_DOMAIN`.
 3. Dans **Administration → Accès distant**, renseignez l'**URL externe** en `https://`
    et `172.16.0.0/12` dans **Proxys de confiance**.
 
-### Ce qu'il gère déjà
+### Ce qu'il gère déjà { #what-it-already-handles }
 
 Il renvoie tout vers `evey:9091`, les chemins de streaming étant servis sans
 tampon ni délai. Il ajoute les en-têtes de sécurité et la CSP de référence de la
@@ -70,18 +71,19 @@ tampon ni délai. Il ajoute les en-têtes de sécurité et la CSP de référence
 et retire la CSP de l'application pour qu'une seule arrive au navigateur ; les
 deux pages qui portent leur propre politique la conservent.
 
-## Nginx
+## Nginx { #nginx }
 
-### Fichiers
+### Fichiers { #files }
 
-[`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template)
+[`examples/nginx/evey.conf.template`](https://github.com/eveyproject/evey/blob/master/examples/nginx/evey.conf.template)
 et un compose complémentaire prêt à l'emploi,
-[`examples/nginx/docker-compose.nginx.yml`](../examples/nginx/docker-compose.nginx.yml).
+[`examples/nginx/docker-compose.nginx.yml`](https://github.com/eveyproject/evey/blob/master/examples/nginx/docker-compose.nginx.yml).
 
-### Mise en place
+### Mise en place { #set-it-up }
 
-1. Renseignez `EVEY_DOMAIN` dans `.env`. L'image nginx génère le modèle au
-   démarrage en y substituant `EVEY_DOMAIN`.
+1. Écrivez votre domaine sur la ligne `EVEY_DOMAIN:` du compose
+   complémentaire. L'image nginx génère le modèle au démarrage en y
+   substituant `EVEY_DOMAIN`.
 2. Placez le certificat et la clé là où le modèle les attend, sous les noms
    de fichier correspondants (`/etc/ssl/certs/<domaine>.pem`,
    `/etc/ssl/private/<domaine>.key` dans le volume `nginx-certs`) : le compose
@@ -90,7 +92,7 @@ et un compose complémentaire prêt à l'emploi,
 4. Dans **Administration → Accès distant**, renseignez l'**URL externe** en `https://`
    et `172.16.0.0/12` dans **Proxys de confiance**.
 
-### Ce qu'il gère déjà
+### Ce qu'il gère déjà { #what-it-already-handles }
 
 Il renvoie vers `evey:9091` sans tampon ni délai sur les chemins de streaming,
 avec le WebSocket de SyncPlay pris en charge, `X-Forwarded-For` et
@@ -98,18 +100,19 @@ avec le WebSocket de SyncPlay pris en charge, `X-Forwarded-For` et
 plugins et les restaurations de sauvegarde. Il laisse passer les en-têtes de
 sécurité et la CSP de l'application.
 
-## Traefik
+## Traefik { #traefik }
 
-### Fichiers
+### Fichiers { #files }
 
-[`examples/traefik/docker-compose.traefik.yml`](../examples/traefik/docker-compose.traefik.yml).
+[`examples/traefik/docker-compose.traefik.yml`](https://github.com/eveyproject/evey/blob/master/examples/traefik/docker-compose.traefik.yml).
 
-### Mise en place
+### Mise en place { #set-it-up }
 
 1. Faites tourner Traefik avec un point d'entrée `websecure`, un résolveur de
    certificats `letsencrypt` et un réseau Docker externe nommé `proxy` ; les
    étiquettes du compose complémentaire supposent ces noms.
-2. Renseignez `EVEY_DOMAIN` dans `.env`, puis :
+2. Écrivez votre domaine dans la règle `Host(...)` du compose
+   complémentaire, puis :
 
     ```bash
     docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d
@@ -119,7 +122,7 @@ sécurité et la CSP de l'application.
    et la plage du réseau `proxy` dans **Proxys de confiance** (`172.16.0.0/12`
    couvre les réseaux Docker par défaut).
 
-### Ce qu'il gère déjà
+### Ce qu'il gère déjà { #what-it-already-handles }
 
 Le compose complémentaire ajoute seulement les étiquettes du routeur et
 rejoint le réseau `proxy`. Traefik sur ses réglages par défaut ne met pas les
@@ -128,15 +131,15 @@ n'est donc nécessaire ; il transmet de lui-même `X-Forwarded-For` et
 `X-Forwarded-Proto` et laisse passer les en-têtes de sécurité de
 l'application.
 
-## Nginx Proxy Manager
+## Nginx Proxy Manager { #nginx-proxy-manager }
 
-### Fichiers
+### Fichiers { #files }
 
 Aucun : tout se règle dans l'interface de NPM. Le conteneur evey doit être
 sur le réseau qu'utilise NPM, voir
 [Un proxy que vous avez déjà](#a-proxy-you-already-run-tls-terminated-upstream).
 
-### Mise en place
+### Mise en place { #set-it-up }
 
 Dans **Edit Proxy Host** :
 
@@ -150,7 +153,7 @@ Dans **Edit Proxy Host** :
 3. Dans **Administration → Accès distant**, renseignez l'**URL externe** en `https://`
    et la plage du réseau de NPM dans **Proxys de confiance**.
 
-### Ce qu'il gère déjà
+### Ce qu'il gère déjà { #what-it-already-handles }
 
 NPM transmet de lui-même `X-Forwarded-For`, `X-Forwarded-Proto` et l'en-tête
 Host, et ses délais par défaut ne se déclenchent jamais sur les flux d'Evey.
@@ -199,7 +202,7 @@ SyncPlay) passent par le bloc de proxy de NPM, que configure l'onglet Details.
 Sans cet extrait, tout fonctionne : il change seulement l'endroit où les gros
 fichiers sont mis en tampon.
 
-## Un proxy que vous avez déjà (TLS terminé en amont)
+## Un proxy que vous avez déjà (TLS terminé en amont) { #a-proxy-you-already-run-tls-terminated-upstream }
 
 Sur un NAS qui a déjà un reverse proxy (celui du fabricant, Nginx Proxy
 Manager, un Traefik sur un réseau Docker partagé), Caddy est inutile : Evey
@@ -207,7 +210,7 @@ Manager, un Traefik sur un réseau Docker partagé), Caddy est inutile : Evey
 streaming ne peuvent de toute façon être appliquées que par le proxy qui fait
 face au client. Un second proxy derrière lui n'ajoute rien.
 
-### Mise en place
+### Mise en place { #set-it-up }
 
 Placez le service evey sur le réseau de ce proxy et indiquez-lui la cible `evey-server:9091`
 (le nom du conteneur ; le nom du service, `evey`, fonctionne aussi) :
@@ -232,13 +235,13 @@ WebSockets, et appliquez les règles de streaming ci-dessous sur les chemins de
 streaming. Les sections Nginx et Nginx Proxy Manager ci-dessus donnent les
 lignes exactes.
 
-### Ce qu'il gère déjà
+### Ce qu'il gère déjà { #what-it-already-handles }
 
 Cela dépend du proxy : vérifiez qu'un seul en-tête CSP arrive au navigateur
 (sections suivantes) et lancez `evey admin doctor` une fois les proxys de
 confiance renseignés.
 
-## Le streaming et les réglages par défaut d'un proxy
+## Le streaming et les réglages par défaut d'un proxy { #streaming---what-a-proxys-defaults-do-to-it }
 
 Evey fonctionne derrière un reverse proxy laissé sur ses réglages par défaut :
 chaque réponse longue envoie des octets en continu (segments HLS, lecture
@@ -269,7 +272,7 @@ délai) sur ces chemins. L'exemple Traefik et un proxy piloté par une interface
 comme Nginx Proxy Manager gardent leurs réglages par défaut, qui conviennent ;
 l'extrait NPM ci-dessus est facultatif.
 
-## En-têtes de sécurité et CSP : à lire si votre proxy définit les siens
+## En-têtes de sécurité et CSP : à lire si votre proxy définit les siens { #security-headers--csp---read-this-if-your-proxy-sets-its-own }
 
 Evey émet une Content-Security-Policy complète. Si votre proxy la laisse
 passer, il n'y a rien d'autre à faire.
@@ -343,7 +346,7 @@ Deux vérifications de plus après tout changement :
   `curl -sI https://votre.domaine/plugin-frame.html | grep -i -e content-security -e x-frame`
   doit afficher `sandbox allow-scripts` et `SAMEORIGIN`.
 
-## Adresse réelle des clients et contrôle de l'accès distant
+## Adresse réelle des clients et contrôle de l'accès distant { #real-client-ips-and-the-remote-access-gate }
 
 Dès que le proxy transmet l'adresse réelle du client, Evey sait distinguer un
 spectateur sur le réseau domestique d'un spectateur sur Internet : c'est sur cette

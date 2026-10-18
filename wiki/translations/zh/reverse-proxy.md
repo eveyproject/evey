@@ -1,73 +1,72 @@
 ---
-source_sha: d47608ac11df56bc518674752f94a79d5498896103d51978e420575983e71cf4
+source_sha: 882540a1c223edaceac62b6090fc29c8d6391b2bdbb9f156d5cd7015f46e2bc2
 reviewed: true
 ---
-# 反向代理配置
+# 反向代理配置 { #reverse-proxy-configurations }
 
 Evey 在端口 **9091** 上用普通 HTTP 同时提供 API 和网页界面；反向代理只需要终止 TLS，然后把所有请求转发到 `evey:9091`。请在下面选择您的代理（自带的 Caddy、Nginx、Traefik、Nginx Proxy Manager，或者您已经在运行的代理）。如果您要调整流媒体传输，或者自己设置安全头，请再读一读最后两节。
 
-## 在 Evey 里登记代理
+## 在 Evey 里登记代理 { #tell-evey-about-the-proxy }
 
 无论用哪种代理，Evey 都需要知道它的公网地址，以及该信任哪个代理。这两项都在**管理 → 远程访问**里设置：一个 `https://` 开头的**外部 URL**；如果代理是一个容器，再把它的网络填进**受信任的代理**。两项都无需重启就会生效。正是 `https://` 地址告诉 Evey 前面有代理在终止 TLS：Cookie 会带上 `Secure` 标记，会发送 HSTS，并且会相信受信任代理发来的 `X-Forwarded-Proto`。远程访问开关和客户端真实地址的说明见[远程访问和 HTTPS](administration/remote-access.md)。
 
-如果您的整套安装都用代码描述，同样的设置也可以来自环境变量（两边都设置时，以管理面板为准）：
+如果您的整套安装都用代码描述，同样的设置也可以来自环境变量，写在 compose 文件的 `environment:` 下（两边都设置时，以管理面板为准）：
 
-```env title=".env"
-EVEY_SERVER_BASE_URL=https://media.example.com
-EVEY_TRUSTED_PROXIES=172.16.0.0/12       # 只有代理是容器时才需要；环回地址始终受信任
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      EVEY_SERVER_BASE_URL: https://media.example.com
+      EVEY_TRUSTED_PROXIES: 172.16.0.0/12   # 只有代理是容器时才需要；环回地址始终受信任
 ```
 
 以前的 `EVEY_FORWARDED_PROTO` 仍然可以用来强制指定，但已经弃用：地址里的协议就足够了。
 
-每个自带的示例都从同一个地方读取域名，即 `.env` 里的 `EVEY_DOMAIN`。只需设置一次，Caddy、Nginx 和 Traefik 都会读取它。
+每个自带的示例都从 `EVEY_DOMAIN` 读取域名，您复制的文件里放的是一个占位值：请就在那里把它换成您的域名，写在代理服务（Caddy、Nginx）的 `EVEY_DOMAIN:` 那一行，或者写在 `Host(...)` 规则里（Traefik）。
 
-```env title=".env"
-EVEY_DOMAIN=media.example.com
-```
+## Caddy（自带） { #caddy-bundled }
 
-## Caddy（自带）
+### 文件 { #files }
 
-### 文件
+[`docker/Caddyfile`](https://github.com/eveyproject/evey/blob/master/docker/Caddyfile)，由 [`docker/Dockerfile.caddy`](https://github.com/eveyproject/evey/blob/master/docker/Dockerfile.caddy) 构建成镜像；对应仓库 [`docker-compose.yml`](https://github.com/eveyproject/evey/blob/master/docker-compose.yml) 里的 `caddy` 服务。
 
-[`docker/Caddyfile`](../docker/Caddyfile)，由 [`docker/Dockerfile.caddy`](../docker/Dockerfile.caddy) 构建成镜像；对应仓库 [`docker-compose.yml`](../docker-compose.yml) 里的 `caddy` 服务。
+### 设置 { #set-it-up }
 
-### 设置
-
-1. 在 `.env` 里设置 `EVEY_DOMAIN`，并确保主机的 80 和 443 端口能到达 Caddy 容器。
+1. 在 `caddy` 服务的 `EVEY_DOMAIN:` 那一行写上您的域名，并确保主机的 80 和 443 端口能到达 Caddy 容器。
 2. 把仓库 compose 文件里的 `caddy` 服务加到您的 compose 文件里，然后运行 `docker compose up -d`。Caddy 会自己为 `EVEY_DOMAIN` 申请 Let's Encrypt 证书。
 3. 在**管理 → 远程访问**里，设置 `https://` 开头的**外部 URL**，并在**受信任的代理**里填入 `172.16.0.0/12`。
 
-### 它已经处理好的事情
+### 它已经处理好的事情 { #what-it-already-handles }
 
 把所有请求代理到 `evey:9091`，流媒体路径不缓冲、不超时，数据即时转发。它设置好[安全一节](#security-headers--csp---read-this-if-your-proxy-sets-its-own)中的安全头和标准 CSP，并去掉应用自己的 CSP，确保到达浏览器的恰好只有一个；两个自带策略的页面会保留各自的策略。
 
-## Nginx
+## Nginx { #nginx }
 
-### 文件
+### 文件 { #files }
 
-[`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template)，以及一个现成的 compose 叠加文件 [`examples/nginx/docker-compose.nginx.yml`](../examples/nginx/docker-compose.nginx.yml)。
+[`examples/nginx/evey.conf.template`](https://github.com/eveyproject/evey/blob/master/examples/nginx/evey.conf.template)，以及一个现成的 compose 叠加文件 [`examples/nginx/docker-compose.nginx.yml`](https://github.com/eveyproject/evey/blob/master/examples/nginx/docker-compose.nginx.yml)。
 
-### 设置
+### 设置 { #set-it-up }
 
-1. 在 `.env` 里设置 `EVEY_DOMAIN`。nginx 镜像在启动时会根据模板生成配置，并替换其中的 `EVEY_DOMAIN`。
+1. 在叠加文件的 `EVEY_DOMAIN:` 那一行写上您的域名。nginx 镜像在启动时会根据模板生成配置，并替换其中的 `EVEY_DOMAIN`。
 2. 把证书和密钥放到模板期望的位置，用对应的文件名（`nginx-certs` 卷里的 `/etc/ssl/certs/<domain>.pem` 和 `/etc/ssl/private/<domain>.key`）：这个叠加文件不会替您申请证书。
 3. `docker compose -f docker-compose.yml -f examples/nginx/docker-compose.nginx.yml up -d`。
 4. 在**管理 → 远程访问**里，设置 `https://` 开头的**外部 URL**，并在**受信任的代理**里填入 `172.16.0.0/12`。
 
-### 它已经处理好的事情
+### 它已经处理好的事情 { #what-it-already-handles }
 
 代理到 `evey:9091`，在流媒体路径上关闭缓冲和超时，升级 SyncPlay 的 WebSocket，转发 `X-Forwarded-For` 和 `X-Forwarded-Proto`，并设置 `client_max_body_size 2G`，用于上传插件和恢复备份。它会原样传递应用自己的安全头和 CSP。
 
-## Traefik
+## Traefik { #traefik }
 
-### 文件
+### 文件 { #files }
 
-[`examples/traefik/docker-compose.traefik.yml`](../examples/traefik/docker-compose.traefik.yml)。
+[`examples/traefik/docker-compose.traefik.yml`](https://github.com/eveyproject/evey/blob/master/examples/traefik/docker-compose.traefik.yml)。
 
-### 设置
+### 设置 { #set-it-up }
 
 1. 运行 Traefik，并配置一个 `websecure` 入口点、一个 `letsencrypt` 证书解析器，以及一个名为 `proxy` 的外部 Docker 网络；叠加文件里的标签默认使用这些名字。
-2. 在 `.env` 里设置 `EVEY_DOMAIN`，然后运行：
+2. 在叠加文件的 `Host(...)` 规则里写上您的域名，然后运行：
 
     ```bash
     docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d
@@ -75,17 +74,17 @@ EVEY_DOMAIN=media.example.com
 
 3. 在**管理 → 远程访问**里，设置 `https://` 开头的**外部 URL**，并在**受信任的代理**里填入 `proxy` 网络的地址范围（`172.16.0.0/12` 覆盖 Docker 的默认网络）。
 
-### 它已经处理好的事情
+### 它已经处理好的事情 { #what-it-already-handles }
 
 叠加文件只添加路由标签，并加入 `proxy` 网络。Traefik 在默认设置下既不缓冲响应，也不限制响应的时长，所以不需要为流媒体做任何调整；它会自己转发 `X-Forwarded-For` 和 `X-Forwarded-Proto`，并原样传递应用的安全头。
 
-## Nginx Proxy Manager
+## Nginx Proxy Manager { #nginx-proxy-manager }
 
-### 文件
+### 文件 { #files }
 
 没有：一切都在 NPM 的界面里设置。evey 容器必须在 NPM 使用的网络上，见[您已经在运行的代理](#a-proxy-you-already-run-tls-terminated-upstream)。
 
-### 设置
+### 设置 { #set-it-up }
 
 在 **Edit Proxy Host** 里：
 
@@ -93,7 +92,7 @@ EVEY_DOMAIN=media.example.com
 2. **SSL**：您的证书、Force SSL、HTTP/2。HSTS 在这里可选，因为应用已经会发送它。
 3. 在**管理 → 远程访问**里，设置 `https://` 开头的**外部 URL**，并在**受信任的代理**里填入 NPM 网络的地址范围。
 
-### 它已经处理好的事情
+### 它已经处理好的事情 { #what-it-already-handles }
 
 NPM 会自己转发 `X-Forwarded-For`、`X-Forwarded-Proto` 和 Host 头，它的默认超时也永远不会在 Evey 的流上触发。不需要其他设置。
 
@@ -135,11 +134,11 @@ location ~ ^/api/v1/libraries/.+/scan {
 
 其他所有路径（网页界面、API 的其余部分、SyncPlay 的 WebSocket）都经过 NPM 自己的代理块，也就是 Details 标签页配置的那部分。不加这段配置也不会出问题，它只是改变大文件在哪里缓冲。
 
-## 您已经在运行的代理（TLS 在上游终止）
+## 您已经在运行的代理（TLS 在上游终止） { #a-proxy-you-already-run-tls-terminated-upstream }
 
 如果 NAS 上已经有反向代理（厂商自带的、Nginx Proxy Manager，或者共享 Docker 网络上的 Traefik），就不需要 Caddy：Evey 会自己发出安全头和完整的 CSP，而流媒体规则无论如何也只能由直接面向客户端的代理来执行。在它后面再加一个代理没有任何好处。
 
-### 设置
+### 设置 { #set-it-up }
 
 把 evey 服务放到那个代理的网络上，目标设为 `evey-server:9091`（容器名；服务名 `evey` 也能解析）：
 
@@ -159,11 +158,11 @@ networks:
 
 然后，在那个代理里，为通往 `evey-server:9091` 的路由：转发 `X-Forwarded-For` 和 `X-Forwarded-Proto`，开启 WebSocket 支持，并在流媒体路径上应用下面的流媒体规则。上面 Nginx 和 Nginx Proxy Manager 两节给出了具体的配置行。
 
-### 它已经处理好的事情
+### 它已经处理好的事情 { #what-it-already-handles }
 
 这取决于代理本身：请检查到达浏览器的 CSP 头恰好只有一个（见后面几节），并在设置好受信任的代理后运行一次 `evey admin doctor`。
 
-## 流媒体：代理的默认设置会对它产生什么影响
+## 流媒体：代理的默认设置会对它产生什么影响 { #streaming---what-a-proxys-defaults-do-to-it }
 
 即使反向代理保持默认设置，Evey 也能正常工作：每个长时间的响应要么连续发送数据（HLS 片段、直接播放、转码输出），要么每 30 秒向客户端发一次心跳（事件流），所以默认的读取超时永远不会触发。不过还有两点值得了解：
 
@@ -180,7 +179,7 @@ networks:
 
 自带的 Caddy 和 Nginx 示例都在这些路径上做了这两项设置（不缓冲、不超时）。Traefik 示例和 Nginx Proxy Manager 这类通过界面配置的代理保持默认设置，这样也没有问题；上面 NPM 的那段配置是可选的。
 
-## 安全头和 CSP：如果您的代理自己设置安全头，请读这一节
+## 安全头和 CSP：如果您的代理自己设置安全头，请读这一节 { #security-headers--csp---read-this-if-your-proxy-sets-its-own }
 
 Evey 会发出完整的 Content-Security-Policy。如果您的代理原样传递它，就不用再做什么了。
 
@@ -224,7 +223,7 @@ default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:/
 - **策略要写在一行里。** 在代理配置里把 CSP 拆成多行，是一种典型的、不会报错的损坏：拼接时会丢失连接处的字符（有一次 `...gstatic.com; connect-src` 变成了 `...gstaticonnect-src`，结果 Cast SDK 被禁用，两条指令也被合并了）。
 - **插件框架保留它自己的策略：** `curl -sI https://your.domain/plugin-frame.html | grep -i -e content-security -e x-frame` 必须显示 `sandbox allow-scripts` 和 `SAMEORIGIN`。
 
-## 客户端真实 IP 和远程访问控制
+## 客户端真实 IP 和远程访问控制 { #real-client-ips-and-the-remote-access-gate }
 
 代理一旦转发客户端的真实地址，Evey 就能分辨观众是在家里还是在互联网上：**最大远程码率**和远程访问开关正是依据这一点起作用。有两条规则：
 

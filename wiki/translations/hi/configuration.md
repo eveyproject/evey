@@ -1,5 +1,5 @@
 ---
-source_sha: 4ce746becabde8112df318ae11e703de89cf7fccdfe4a116c6824a17426dd290
+source_sha: bcd1fe92a6c6837ce30d66edf387d4539752382b0a9f6038a14c15967da4eb32
 reviewed: true
 ---
 # कॉन्फ़िगरेशन रेफ़रेंस { #configuration-reference }
@@ -124,11 +124,15 @@ server as that user so write features (seek-index repair) work out of the box
 चेतावनी बताती है कि कौन से माउंट अब भी लिखने से मना कर सकते हैं)। अपने-आप
 पहचान पूरी तरह तभी छोड़ी जाती है (एक चेतावनी के साथ `1000:1000` लागू होता है)
 जब हर मीडिया माउंट root का या आरक्षित uid `1001` का हो - अपने मीडिया का मालिक
-किसी सामान्य उपयोगकर्ता को बनाएँ (chown), या `PUID`/`PGID` साफ़ तौर पर सेट करें:
+किसी सामान्य उपयोगकर्ता को बनाएँ (chown), या compose फ़ाइल में `environment:` के
+नीचे `PUID`/`PGID` साफ़ तौर पर सेट करें:
 
-```env title=".env"
-PUID=1026   # सर्वर को इस user id से चलाएँ  (होस्ट पर: `id -u <media-owner>`)
-PGID=100    # ...और इस group id से
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      PUID: "1026"   # सर्वर को इस user id से चलाएँ  (होस्ट पर: `id -u <media-owner>`)
+      PGID: "100"    # ...और इस group id से
 ```
 
 साफ़ दिए गए मानों को हमेशा अपने-आप पहचान से ज़्यादा प्राथमिकता मिलती है।

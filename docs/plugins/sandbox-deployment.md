@@ -94,7 +94,8 @@ for the full file restriction.
 
 ## Configuration examples
 
-These go in your `.env` (compose) or as `EVEY_*` environment variables.
+Each line goes under `environment:` in the compose file, written
+`KEY: value` (for example `EVEY_PLUGINS_UID_SEPARATION: "on"`).
 
 ```bash title="1. Modern server, recommended (nothing to do)"
 EVEY_PLUGINS_SANDBOX_MODE=auto          # picks the strongest available (default)

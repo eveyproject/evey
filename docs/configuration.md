@@ -121,11 +121,14 @@ files are group-writable (the startup warning lists which mounts may still
 refuse writes). Auto-detection only steps aside entirely (falls back to
 `1000:1000` with a warning) when every media mount is owned by root or by
 the reserved uid `1001` - chown your media to a regular user, or set
-`PUID`/`PGID` explicitly:
+`PUID`/`PGID` explicitly, under `environment:` in the compose file:
 
-```env title=".env"
-PUID=1026   # run the server as this user id  (host: `id -u <media-owner>`)
-PGID=100    # ...and this group id
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      PUID: "1026"   # run the server as this user id  (host: `id -u <media-owner>`)
+      PGID: "100"    # ...and this group id
 ```
 
 Explicit values always win over detection.

@@ -59,15 +59,19 @@ you send yourself.
 
 ??? info "Setting e-mail in the environment instead"
 
-    The `EVEY_SMTP_*` variables are used only while the card has no host:
+    The `EVEY_SMTP_*` variables, under `environment:` in the compose file,
+    are used only while the card has no host:
 
-    ```env title=".env"
-    EVEY_SMTP_HOST=smtp.example.com
-    EVEY_SMTP_PORT=587
-    EVEY_SMTP_USERNAME=notifications@example.com
-    EVEY_SMTP_PASSWORD=your-smtp-password
-    EVEY_SMTP_FROM=noreply@example.com
-    EVEY_SMTP_TLS=starttls
+    ```yaml title="docker-compose.yml"
+    services:
+      evey:
+        environment:
+          EVEY_SMTP_HOST: smtp.example.com
+          EVEY_SMTP_PORT: "587"
+          EVEY_SMTP_USERNAME: notifications@example.com
+          EVEY_SMTP_PASSWORD: your-smtp-password
+          EVEY_SMTP_FROM: noreply@example.com
+          EVEY_SMTP_TLS: starttls
     ```
 
     As soon as a host is saved in the card, every field comes from the card

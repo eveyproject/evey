@@ -1,8 +1,8 @@
 ---
-source_sha: 38effb73470754ed93d55d3b3cbf2f54bb84816288347233487a89e9c04593af
+source_sha: 4bdba6d5067098c1afe18961724efcb0456688185654b46271045220a6665f03
 reviewed: true
 ---
-# Sandbox des plugins
+# Sandbox des plugins { #plugin-sandbox-setup }
 
 Quelle configuration de sandbox convient à votre serveur, en langage courant.
 Pour presque tout le monde la réponse est : gardez les valeurs par défaut.
@@ -11,7 +11,7 @@ peut. Continuez seulement si vous avez un vieux NAS, si vous faites tourner
 Evey sans Docker, ou si vous voulez renforcer davantage l'isolation. Le modèle technique
 complet est dans [Modèle de sécurité et sandbox des plugins](../SECURITY.md).
 
-## Ce qui vous protège
+## Ce qui vous protège { #what-protects-you }
 
 Un plugin que vous installez tourne isolé. Selon la machine, cette isolation :
 
@@ -41,7 +41,7 @@ l'hôte n'offre aucune isolation des fichiers par chemin : les plugins
 tournent avec un abaissement d'uid et seccomp seulement, les sondes indiquent
 pourquoi, et les sections ci-dessous indiquent quoi changer.
 
-## Trouver votre situation
+## Trouver votre situation { #pick-your-situation }
 
 | Votre serveur | Ce que vous avez d'office | Quelque chose à faire ? |
 |---|---|---|
@@ -49,7 +49,7 @@ pourquoi, et les sections ci-dessous indiquent quoi changer.
 | **Vieux NAS sous Docker** (noyau antérieur à 5.13) | une bonne isolation, sans la restriction d'accès aux fichiers par dossier ; secrets, réseau et actions système restent verrouillés | rien : la séparation d'uid (ci-dessous) s'active d'elle-même |
 | **Linux quelconque, sans Docker** | l'isolation la plus forte disponible : Landlock sur un noyau moderne, sinon les espaces de noms bubblewrap | suivez [Sans conteneur](../deployment-bare-metal.md) |
 
-## Le seul réglage que vous pourriez modifier : la séparation d'uid
+## Le seul réglage que vous pourriez modifier : la séparation d'uid { #the-one-setting-you-might-change-uid-separation }
 
 La séparation d'uid fait tourner un plugin sous un autre compte utilisateur
 que le serveur, pour qu'il ne puisse en aucun cas lire les fichiers
@@ -80,7 +80,7 @@ plugin qui écrit des fichiers temporaires dans son propre dossier peut
 échouer. Si c'est le cas, passez à `off`. C'est pourquoi le défaut est
 `auto` : il ne prend ce risque que là où il y a un vrai bénéfice.
 
-## Ce qu'un plugin malveillant pourrait faire
+## Ce qu'un plugin malveillant pourrait faire { #what-a-malicious-plugin-could-do }
 
 **Linux moderne (Docker ou sans conteneur) :** un plugin malveillant est
 entièrement confiné. Il ne peut pas lire vos secrets, ne peut pas voir
@@ -104,10 +104,10 @@ machine virtuelle complète.
 N'installez que des plugins de confiance sur un tel hôte, ou passez à un
 noyau moderne pour avoir la restriction d'accès complète.
 
-## Exemples de configuration
+## Exemples de configuration { #configuration-examples }
 
-À mettre dans votre `.env` (compose) ou comme variables d'environnement
-`EVEY_*`.
+Chaque ligne se place sous `environment:` dans le fichier compose, écrite
+`KEY: value` (par exemple `EVEY_PLUGINS_UID_SEPARATION: "on"`).
 
 ```bash title="1. Serveur moderne, recommandé (rien à faire)"
 EVEY_PLUGINS_SANDBOX_MODE=auto          # choisit le plus fort disponible (défaut)
@@ -140,7 +140,7 @@ EVEY_PLUGINS_DISK_MAX_MB=100            # taille max du dossier d'installation (
 EVEY_PLUGINS_CPU_NICE=10                # priorité d'ordonnancement 0-19 (plus haut = plus poli)
 ```
 
-## Changer le mode de sandbox à chaud
+## Changer le mode de sandbox à chaud { #change-the-sandbox-mode-while-running }
 
 Changez **Mode sandbox** dans la carte **Limites de ressources** de **Administration
 → Plugins**. Les plugins en cours sont redémarrés automatiquement pour que
@@ -149,7 +149,7 @@ affiche le mode en vigueur. Un plugin qui ne peut pas tourner sous le nouveau
 mode (par exemple `bubblewrap` dans un conteneur non privilégié) apparaît en
 erreur : rétablissez le mode précédent.
 
-## Vérifier le fonctionnement
+## Vérifier le fonctionnement { #verify-it-is-working }
 
 ```bash
 # le launcher porte la capability utilisée pour la séparation d'uid

@@ -1,8 +1,8 @@
 ---
-source_sha: a8b7449b152c8718e3a2aef1de3cabe29af5dbe26aa1f77133448c996ce35d3c
+source_sha: 8d9681876fde4e364272e6256089c42f068178b9ea4848f17733c827d82a157f
 reviewed: true
 ---
-# 邮件和通知
+# 邮件和通知 { #e-mail-and-notifications }
 
 有新的电影、电视剧、季、剧集或专辑加入时，Evey 会通知每个个人资料。它还会通知：
 
@@ -11,7 +11,7 @@ reviewed: true
 
 通知会出现在应用里，不需要任何设置。要通过邮件接收，需要先设置邮件服务器（见下文）。
 
-## 通知出现在哪里
+## 通知出现在哪里 { #where-notifications-appear }
 
 - **在每个应用里**：铃铛图标，上面显示未读通知的数量。始终开启。通知保留 30 天。每个人只会看到自己账户能打开的媒体库里的内容。
 - **在浏览器里（推送）**：在网页版上，每个个人资料在**设置 → 通知**里开启**推送通知**，每个浏览器开启一次。浏览器只允许在 `https://` 地址（或 `localhost`）上这样做。在其他地址上，这项设置会显示**推送通知需要 HTTPS 地址：请通过 HTTPS 打开此服务器以启用推送通知。** Android 应用和电视应用不接收推送通知。
@@ -21,7 +21,7 @@ reviewed: true
 
     服务器在第一次启动时会创建浏览器推送所需的密钥。如果要使用您自己的密钥，见[邮件和通知](environment/notifications.md#browser-push)。
 
-## 设置邮件
+## 设置邮件 { #set-up-e-mail }
 
 Evey 通过一个您已有账户的邮件服务器发送邮件：您的邮件服务商，或者一个发信服务。下面这些值可以在服务商的帮助页面上找到。
 
@@ -44,20 +44,23 @@ Evey 通过一个您已有账户的邮件服务器发送邮件：您的邮件服
 
 ??? info "改用环境变量设置邮件"
 
-    只有当卡片里没有填主机时，才会使用 `EVEY_SMTP_*` 变量：
+    只有当卡片里没有填主机时，才会使用 compose 文件中 `environment:` 下的 `EVEY_SMTP_*` 变量：
 
-    ```env title=".env"
-    EVEY_SMTP_HOST=smtp.example.com
-    EVEY_SMTP_PORT=587
-    EVEY_SMTP_USERNAME=notifications@example.com
-    EVEY_SMTP_PASSWORD=your-smtp-password
-    EVEY_SMTP_FROM=noreply@example.com
-    EVEY_SMTP_TLS=starttls
+    ```yaml title="docker-compose.yml"
+    services:
+      evey:
+        environment:
+          EVEY_SMTP_HOST: smtp.example.com
+          EVEY_SMTP_PORT: "587"
+          EVEY_SMTP_USERNAME: notifications@example.com
+          EVEY_SMTP_PASSWORD: your-smtp-password
+          EVEY_SMTP_FROM: noreply@example.com
+          EVEY_SMTP_TLS: starttls
     ```
 
     一旦在卡片里保存了主机，所有栏位都取自卡片，变量会被忽略。这样，服务器永远不会把变量里的密码发给在面板里输入的邮件服务器。清空主机，就会改回使用变量。
 
-## 选择个人资料接收哪些通知
+## 选择个人资料接收哪些通知 { #choose-what-a-profile-receives }
 
 在**设置 → 通知**里，每个个人资料为**电影**、**剧集**和**音乐**各选一个级别：
 
@@ -72,7 +75,7 @@ Evey 通过一个您已有账户的邮件服务器发送邮件：您的邮件服
 
 同一部电视剧在 24 小时内新增多集时，您只会收到一条通知，里面写明集数。如果这部电视剧或这一季刚刚通知过，就不再发送。
 
-## 让用户自行重置密码
+## 让用户自行重置密码 { #let-people-reset-their-password }
 
 1. 设置好邮件（见上文）。
 2. 在**管理 → 服务器配置 → 服务器设置**里开启**密码找回**。它会立即生效。

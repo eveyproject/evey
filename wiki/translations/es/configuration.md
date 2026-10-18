@@ -1,5 +1,5 @@
 ---
-source_sha: 4ce746becabde8112df318ae11e703de89cf7fccdfe4a116c6824a17426dd290
+source_sha: bcd1fe92a6c6837ce30d66edf387d4539752382b0a9f6038a14c15967da4eb32
 reviewed: true
 ---
 # Referencia de configuración { #configuration-reference }
@@ -142,11 +142,14 @@ podrían seguir rechazando la escritura). La detección automática solo se
 desactiva del todo (vuelve a `1000:1000` con un aviso) cuando todos los montajes
 de medios pertenecen a root o al uid reservado `1001`: cambia el propietario
 de tus medios a un usuario normal con chown, o define `PUID`/`PGID`
-explícitamente:
+explícitamente, bajo `environment:` en el archivo compose:
 
-```env title=".env"
-PUID=1026   # ejecuta el servidor con este id de usuario  (en el equipo: `id -u <media-owner>`)
-PGID=100    # ...y este id de grupo
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      PUID: "1026"   # ejecuta el servidor con este id de usuario  (en el equipo: `id -u <media-owner>`)
+      PGID: "100"    # ...y este id de grupo
 ```
 
 Los valores explícitos siempre tienen prioridad sobre la detección.

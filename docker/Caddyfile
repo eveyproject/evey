@@ -1,5 +1,5 @@
 # Bundled reverse proxy. The site address is injected from the environment:
-# set EVEY_DOMAIN in your .env (compose passes it through) and Caddy obtains
+# set EVEY_DOMAIN on the caddy service in the compose file and Caddy obtains
 # a Let's Encrypt certificate for it automatically. Default: localhost.
 {$EVEY_DOMAIN:localhost} {
 	encode gzip
