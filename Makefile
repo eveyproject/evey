@@ -271,6 +271,12 @@ mutation-test:
 	@echo "→ gremlins on $(PKG) (clean checkout, containerised, non-root)"
 	@$(MUTATION_DOCKER) timeout 7200 gremlins unleash $(if $(DRY),--dry-run,) $(PKG) \
 	  | tee $(MUTATION_REPORT)
+	@# A run cut short (the 2 h bound, a killed container) prints no summary,
+	@# and tee hides gremlins' exit: without this an interrupted run passed for
+	@# a finished one (grpcapi, 2026-10-18: 41 of 68 files, exit 0).
+	@$(if $(DRY),true,grep -q '^Killed:' $(MUTATION_REPORT)) || { \
+	  echo ""; echo "INCOMPLETE RUN: no summary line - gremlins stopped before the end, the counts above are partial."; \
+	  rm -rf $(MUTATION_SRC) $(MUTATION_REPORT); exit 1; }
 	@# PLAUSIBILITY GATE. A green baseline is not enough: on
 	@# ./internal/adapters/driving/http gremlins reports "Killed 1647, Lived 0,
 	@# efficacy 100%" in 7 SECONDS with a passing baseline - and a mutant it
