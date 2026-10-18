@@ -1,14 +1,14 @@
 ---
-source_sha: fc6dc6008146f2970b260b3c75a326e8cda72d352a8582783f9ee1b68923c74a
+source_sha: 4ce746becabde8112df318ae11e703de89cf7fccdfe4a116c6824a17426dd290
 reviewed: true
 ---
-# 配置参考
+# 配置参考 { #configuration-reference }
 
 本页说明：Evey 服务器的每项设置位于哪里，一项设置同时出现在管理面板和环境变量里时以哪个值为准，
 以及什么情况需要重启。变量本身按主题列在下面链接的十个页面里；本页面向要修改 compose 文件的管理员，
 或者想知道为什么某个变量好像不起作用的人。
 
-## 两个地方，一条规则
+## 两个地方，一条规则 { #two-places-one-rule }
 
 **服务器启动之前就必须具备的内容**，例如密钥、存储路径、公网地址、反向代理的情况，作为环境变量写在 compose 文件里。
 **管理员之后再调整的内容**，例如语言、转码上限、硬件加速、计划任务、插件限制，放在管理面板里，
@@ -25,7 +25,7 @@ reviewed: true
 密钥是例外：面板从不显示它保存的密码或密钥；而像 `EVEY_TMDB_API_KEY` 这样的变量，
 第一次使用时会被复制到数据库里，这样面板就能显示正在使用自定义密钥。
 
-## 什么需要重启
+## 什么需要重启 { #what-needs-a-restart }
 
 - 修改**环境变量**，总是需要重新创建容器（`docker compose up -d`）：进程只读取一次环境变量。
 - 在**面板**里修改，大多数设置会实时生效（服务器名称、日志级别、速率限制、硬件加速、SMTP、单点登录、
@@ -49,7 +49,7 @@ reviewed: true
 | [邮件和通知](environment/notifications.md) | SMTP、浏览器推送密钥 |
 | [备份、日志和监控](environment/logs-monitoring.md) | 备份、日志、历史记录保留、指标和追踪 |
 
-## 值是怎样读取的
+## 值是怎样读取的 { #how-values-are-read }
 
 - 布尔值接受 `1`、`t`、`true`、`0`、`f`、`false`。时长必须带单位：`30s`、`5m`、`2h`（单独写 `30` 会被忽略）。
   列表用逗号分隔。
@@ -59,7 +59,7 @@ reviewed: true
 - `EVEY_DB_PASSWORD` 和 `MEILI_MASTER_KEY` 也可以来自一个文件，这个文件由同名加 `_FILE` 后缀的变量指定；
   明确给出的值优先于文件。
 
-## 密钥
+## 密钥 { #secrets }
 
 内置的 Postgres 和 Meilisearch 在第一次启动时生成自己的密钥，放在 `./evey-data/keys` 里
 （`postgres.password`、`meili.key`，权限 0600）。服务器通过镜像里设置好的 `EVEY_DB_PASSWORD_FILE` 和
@@ -69,7 +69,7 @@ reviewed: true
 Evey 内置了一个 TMDB 密钥。`EVEY_TMDB_API_KEY` 可以提供您自己的密钥作为初始值；
 在**管理 → 服务器配置 → API 密钥**里设置的密钥优先于它。
 
-## 不需要的变量
+## 不需要的变量 { #variables-you-do-not-need }
 
 这些行常常是从旧的配置里带过来的，下面说明为什么它们不起任何作用：
 
@@ -82,7 +82,7 @@ Evey 内置了一个 TMDB 密钥。`EVEY_TMDB_API_KEY` 可以提供您自己的�
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` 会选择您的主机支持的最强隔离方式。只有当您想要“无法隔离就拒绝”（*fail-closed*）的保证时，才需要明确设置：`landlock` 会拒绝运行它无法隔离的插件，而 `auto` 会降级并给出警告。 |
 | 为 `/dev/dri/card0` 添加的 `group_add` | Evey 只会打开 `renderD128`。用 `ls -ln /dev/dri` 查看，只添加那一个组。 |
 
-## 文件所有者（PUID 和 PGID）
+## 文件所有者（PUID 和 PGID） { #file-ownership-puid-and-pgid }
 
 **默认：自动。** 没有设置 `PUID`/`PGID` 时，入口脚本会在启动时查看您的 `/media*` 挂载目录归谁所有，
 并以那个用户运行服务器。这样，那些会*写入*您媒体库的功能（修复跳转索引时会就地重建文件）无需额外设置即可使用：
@@ -122,7 +122,7 @@ PGID=100    # ……以及这个组 id
     媒体默认以读写方式挂载，这样修复可以直接进行；如果您希望媒体库只读，请在媒体卷后面加上 `:ro`
     （这时修复会失败，并给出明确的错误）。
 
-## 服务器不读取的变量
+## 服务器不读取的变量 { #variables-the-server-does-not-read }
 
 有些变量出现在 compose 文件里，但服务器并不读取：
 
