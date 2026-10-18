@@ -120,11 +120,15 @@ func (pr *PlanResolver) shapeLadderFor(ctx context.Context, req PlaybackRequest,
 			}
 		}
 	}
-	// Every encoded rung carries the level it is encoded and declared at,
-	// from the target of the route it is served on (after a spill); a rung
-	// above the client's H.264 level is dropped, never relabelled. Before the
-	// freeze, so the frozen ladder is the one served.
+	// Every encoded rung carries the picture it is encoded at (the source's
+	// aspect fitted in its box), stamped once every cap has picked the boxes:
+	// the scaler and the manifests' RESOLUTION read that one stamp. It also
+	// carries the level it is encoded and declared at, from the target of the
+	// route it is served on (after a spill); a rung above the client's H.264
+	// level is dropped, never relabelled. Before the freeze, so the frozen
+	// ladder is the one served.
 	if !isCopy {
+		laddered = transcoding.FrameLadderToSource(laddered, in.Source)
 		served := route
 		if spilled {
 			served = route.spill(SpillPoolFull, decision)

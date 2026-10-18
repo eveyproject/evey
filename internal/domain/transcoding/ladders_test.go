@@ -93,10 +93,12 @@ func TestCapLadderToHeight_CapAboveTopKeepsAll(t *testing.T) {
 
 func TestCapLadderToHeight_BelowLowestKeepsExactlyOne(t *testing.T) {
 	// A cap below the smallest rung must still return one rung (never empty),
-	// so even a pathologically weak host is offered the lowest quality.
-	got := CapLadderToHeight(capHeightTestLadder, 1)
-	assert.Len(t, got, 1, "cap below the lowest rung returns exactly the lowest rung")
-	assert.Equal(t, 360, got[0].Height)
+	// so even a pathologically weak host is offered the lowest quality - shrunk
+	// to the cap, never above it.
+	got := CapLadderToHeight(capHeightTestLadder, 240)
+	assert.Len(t, got, 1, "cap below the lowest rung returns exactly one rung")
+	assert.Equal(t, 240, got[0].Height)
+	assert.Equal(t, "240p", got[0].Name)
 }
 
 func TestClassify_AnimationFromLowMetrics(t *testing.T) {
@@ -250,11 +252,11 @@ func TestBoostCappedTopRung_NoDropNoBoost(t *testing.T) {
 // The single-lowest-rung fallback (cap below the lowest rung) still boosts:
 // the bit budget is nearly free for the encoder, only the height is costly.
 func TestBoostCappedTopRung_SingleRungFallbackBoosts(t *testing.T) {
-	capped := CapLadderToHeight(boostTestLadder, 1)
+	capped := CapLadderToHeight(boostTestLadder, 240)
 	got := BoostCappedTopRung(boostTestLadder, capped)
 
 	assert.Len(t, got, 1)
-	assert.Equal(t, 360, got[0].Height)
+	assert.Equal(t, 240, got[0].Height, "the lowest rung shrunk to the cap")
 	assert.Equal(t, int64(1400), got[0].VideoBitrate, "lowest rung adopts the 480p budget")
 }
 

@@ -457,14 +457,28 @@ func hwSourceFilterPrefix(opts transcoding.HLSProcessOpts) string {
 // 8-bit-only h264 HW encoders as 10-bit and fail with "10 bit encode not
 // supported" → "device doesn't support required NVENC features", producing no
 // segment. This mirrors the software path's `-pix_fmt yuv420p`. (No HDR tonemap
-// here, matching the software path's current behaviour.)
-func hwScaleFilter(accel transcoding.HWAccelType, width int) string {
-	return hwScaleFilterFormat(accel, width, "nv12")
+// here, matching the software path's current behaviour.) height > 0 pins the
+// height instead (a ladder-framed rung, see rungPicture).
+func hwScaleFilter(accel transcoding.HWAccelType, width, height int) string {
+	return hwScaleFilterFormat(accel, width, height, "nv12")
 }
 
 // hwScaleFilterFormat is hwScaleFilter with the output surface format (nv12, or
 // p010 for the 10-bit HDR passthrough).
-func hwScaleFilterFormat(accel transcoding.HWAccelType, width int, format string) string {
+func hwScaleFilterFormat(accel transcoding.HWAccelType, width, height int, format string) string {
+	if height > 0 {
+		switch accel {
+		case transcoding.NVENC:
+			return fmt.Sprintf("scale_cuda=%d:%d:format=%s", width, height, format)
+		case transcoding.VAAPI:
+			return fmt.Sprintf("scale_vaapi=%d:%d:format=%s", width, height, format)
+		case transcoding.QSV:
+			return fmt.Sprintf("scale_qsv=w=%d:h=%d:format=%s", width, height, format)
+		case transcoding.RKMPP:
+			return fmt.Sprintf("scale_rkrga=w=%d:h=%d:format=%s", width, height, format)
+		}
+		return fmt.Sprintf("scale=%d:%d", width, height)
+	}
 	switch accel {
 	case transcoding.NVENC:
 		return fmt.Sprintf("scale_cuda=%d:-2:format=%s", width, format)
@@ -502,11 +516,12 @@ func hwScaleToHeight(scaler string, height int) string {
 }
 
 // hwRungScaleFilter is the per-rung scaler: p010 surfaces on an HDR passthrough, nv12 otherwise.
-func hwRungScaleFilter(opts transcoding.HLSProcessOpts, width int) string {
+// height > 0 pins a ladder-framed rung's height (rungPicture), 0 follows the aspect.
+func hwRungScaleFilter(opts transcoding.HLSProcessOpts, width, height int) string {
 	if opts.HDRPassthrough {
-		return hwScaleFilterFormat(opts.HWAccel, width, "p010")
+		return hwScaleFilterFormat(opts.HWAccel, width, height, "p010")
 	}
-	return hwScaleFilter(opts.HWAccel, width)
+	return hwScaleFilter(opts.HWAccel, width, height)
 }
 
 // hwHDRPassthroughArgs: HEVC Main10 + the source's HDR signalling, so the encoder
@@ -724,7 +739,8 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 
 	args := appendHWTranscodeInputArgs(nil, opts)
 
-	vf := hwRungScaleFilter(opts, p.Width)
+	rungW, rungH := rungPicture(p)
+	vf := hwRungScaleFilter(opts, rungW, rungH)
 	if tm := hwToneMapStage(opts); tm != "" {
 		vf = tm + "," + vf
 	}
@@ -743,7 +759,7 @@ func buildSingleTranscodeHWArgs(opts transcoding.HLSProcessOpts) []string {
 		}
 		subBranch, blend := hwBurnInBranch(opts, "[main]")
 		args = append(args, "-filter_complex", fmt.Sprintf("[0:v]%s[main];%s;%s,%s%s[out]",
-			main, subBranch, blend, hwRungScaleFilter(opts, p.Width), eosPadFilter(opts)))
+			main, subBranch, blend, hwRungScaleFilter(opts, rungW, rungH), eosPadFilter(opts)))
 		args = append(args, "-map", "[out]")
 	} else {
 		args = append(args, "-map", "0:v:0", "-vf", vf)
@@ -805,7 +821,8 @@ func buildMultiVariantHWArgs(opts transcoding.HLSProcessOpts) []string {
 		filterParts = append(filterParts, fmt.Sprintf("%ssplit=%d%s", src, n, strings.Join(splitOutputs, "")))
 	}
 	for i, p := range opts.Profiles {
-		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s%s[o%d]", i, hwRungScaleFilter(opts, p.Width), eosPadFilter(opts), i))
+		rungW, rungH := rungPicture(p)
+		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s%s[o%d]", i, hwRungScaleFilter(opts, rungW, rungH), eosPadFilter(opts), i))
 	}
 	args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 

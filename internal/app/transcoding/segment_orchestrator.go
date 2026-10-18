@@ -1432,6 +1432,8 @@ func profilesToDomain(ps []ProfileFingerprint) []transcoding.HLSProfile {
 			VideoBitrate: p.VideoBitrate,
 			AudioBitrate: p.AudioBitrate,
 			CodecLevel:   p.CodecLevel,
+			FrameWidth:   p.FrameWidth,
+			FrameHeight:  p.FrameHeight,
 		}
 	}
 	return out
