@@ -80,8 +80,8 @@ function safeJson(s: string): unknown {
 }
 
 // The server answers a refused archive with {"message": "..."}: the operator
-// reads the reason, not the JSON envelope.
-function refusalMessage(body: string, fallback: string): string {
+// reads the reason, not the JSON envelope. The backup restore shares it.
+export function refusalMessage(body: string, fallback: string): string {
   const parsed = safeJson(body) as { message?: unknown } | null;
   if (parsed && typeof parsed.message === "string" && parsed.message) return parsed.message;
   return body || fallback;
