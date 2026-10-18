@@ -1,4 +1,4 @@
-import { View, Text, FlatList, Alert, StyleSheet } from "react-native";
+import { View, Text, FlatList, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useCallback, useState, useEffect } from "react";
@@ -8,6 +8,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { SessionCard } from "../../../src/components/admin/SessionCard";
+import { confirmStopSession } from "../../../src/components/admin/confirmStopSession";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 
 const REFRESH_INTERVAL = 5_000;
@@ -72,14 +73,7 @@ export default function AdminSessionsScreen() {
   });
 
   const handleKill = useCallback((session: V1ActiveSession) => {
-    Alert.alert(
-      t("admin.sessions.stopSession", "Stop Session"),
-      `${t("admin.sessions.stop", "Stop")} ${session.profileName}?`,
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        { text: t("admin.sessions.stop", "Stop"), style: "destructive", onPress: () => killSession.mutate(session.sessionId ?? "") },
-      ],
-    );
+    confirmStopSession(t, session, () => killSession.mutate(session.sessionId ?? ""));
   }, [killSession, t]);
 
   const handleCommand = useCallback((sessionId: string, command: string) => {
