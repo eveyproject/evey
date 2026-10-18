@@ -139,7 +139,7 @@ export function SmartPlaylistRulesEditor({ playlistId, initialRules, onSaved }: 
   const [rules, setRules] = useState<SmartRule[]>(() =>
     (initialRules ?? []).map(toSmartRule).filter((r): r is SmartRule => r !== null)
   );
-  const update = useUpdatePlaylist();
+  const update = useUpdatePlaylist({ ownErrorToast: true });
 
   const usedFields = new Set(rules.map((r) => r.field));
   const available = ALL_FIELDS.filter((f) => !usedFields.has(f));
