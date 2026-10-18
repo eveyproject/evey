@@ -86,6 +86,7 @@ nextEpisodeOverlay:
   playNow: Play Now
   episode: "Episode {{number}}"
   nextEpisode: Next Episode
+  stillWatching: "Still watching?"
 skipIntro: Skip Intro
 skipRecap: Skip Recap
 skipCredits: Skip Credits

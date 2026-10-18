@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { noteAutoAdvance, useStillWatchingHold } from "../lib/stillWatching";
 
 const CREDITS_THRESHOLD_SEC = 30;
 export const COUNTDOWN_SEC = 5;
@@ -50,8 +51,11 @@ export function useUpNextCountdown({
 
   const visible = !!nextEpisodeId && !cancelled && !suppress && (isInCredits || ended);
   // Counting down is the auto-advance itself: without it the card is a plain
-  // "up next" prompt that waits for the viewer.
-  const counting = ended && autoAdvance && visible;
+  // "up next" prompt that waits for the viewer. Past the "still watching?"
+  // threshold it waits too, until the viewer does something (stillWatching.ts).
+  const hold = useStillWatchingHold();
+  const counting = ended && autoAdvance && visible && !hold;
+  const stillWatching = ended && autoAdvance && visible && hold;
 
   useEffect(() => {
     if (!counting) return;
@@ -70,13 +74,18 @@ export function useUpNextCountdown({
   }, [nextEpisodeId]);
 
   useEffect(() => {
-    if (counting && countdown <= 0) fire();
+    if (counting && countdown <= 0) {
+      noteAutoAdvance();
+      fire();
+    }
   }, [counting, countdown, fire]);
 
+  // No viewer activity noted here: the credits countdown calls playNow by
+  // itself. The players note the real input (a click, a key, a touch).
   const cancel = useCallback(() => {
     setCancelled(true);
     if (intervalRef.current) clearInterval(intervalRef.current);
   }, []);
 
-  return { visible, ended, counting, countdown, playNow: fire, cancel };
+  return { visible, ended, counting, countdown, stillWatching, playNow: fire, cancel };
 }

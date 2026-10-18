@@ -237,6 +237,10 @@ settings:
     allowTranscodingDesc: "Transcoder en dernier recours, si ni la lecture directe ni le remux ne sont possibles."
     autoplayNextTitle: "Épisode suivant automatique"
     autoplayNextDesc: "Lancer l'épisode suivant tout seul à la fin de celui-ci. Le bouton Épisode suivant reste disponible dans tous les cas."
+    stillWatchingTitle: "Demander si je regarde toujours"
+    stillWatchingDesc: "Après ce nombre d'épisodes enchaînés sans toucher, touche ni clic, le suivant vous attend."
+    stillWatchingNever: "Jamais"
+    stillWatchingAfter: "Après {{count}} épisodes"
   quickConnect:
     title: "Connexion rapide"
     description: "Entrez le code affiché sur l'appareil que vous souhaitez connecter."

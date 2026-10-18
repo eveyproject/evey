@@ -26,6 +26,7 @@ import {
   shedI18nKey,
   playingFromHlsLevel,
   servedVariant,
+  noteViewerActivity,
   type PlayingVariant,
 } from "@evey/client";
 import {
@@ -126,6 +127,17 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
 
   // A film silences the album, as on the phone and the Android TV.
   useEffect(() => { useMusicQueueStore.getState().clear(); }, [mediaId]);
+  // A key on the remote (or a click) is the viewer saying they are still here
+  // (the "still watching?" count, stillWatching.ts).
+  useEffect(() => {
+    const onActivity = () => noteViewerActivity();
+    window.addEventListener("keydown", onActivity);
+    window.addEventListener("pointerdown", onActivity);
+    return () => {
+      window.removeEventListener("keydown", onActivity);
+      window.removeEventListener("pointerdown", onActivity);
+    };
+  }, []);
 
   const showOsd = useCallback(() => {
     setOsd(true);

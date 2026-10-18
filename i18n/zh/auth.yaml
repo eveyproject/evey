@@ -237,6 +237,10 @@ settings:
     allowTranscodingDesc: "当既无法直接播放也无法重封装时回退到转码。"
     autoplayNextTitle: "自动播放下一集"
     autoplayNextDesc: "本集结束后自动开始下一集。无论如何，“下一集”按钮始终可用。"
+    stillWatchingTitle: "询问我是否还在看"
+    stillWatchingDesc: "连续播放这么多集且没有任何触摸、按键或点击后，下一集会等你。"
+    stillWatchingNever: "从不"
+    stillWatchingAfter: "{{count}} 集后"
   quickConnect:
     title: "快速连接"
     description: "输入您要登录的设备上显示的代码。"

@@ -13,9 +13,11 @@ export function NextEpisodeCard({ nextEp }: { nextEp: NextEpisode }) {
   return (
     <FocusRoot className="nextep-card">
       <div className="nextep-heading">
-        {nextEp.ended
-          ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(nextEp.countdown, 0) })
-          : t("player.nextEpisodeOverlay.upNext", "Up next")}
+        {nextEp.stillWatching
+          ? t("player.nextEpisodeOverlay.stillWatching", "Still watching?")
+          : nextEp.ended
+            ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(nextEp.countdown, 0) })
+            : t("player.nextEpisodeOverlay.upNext", "Up next")}
       </div>
       <div className="nextep-title">
         {[

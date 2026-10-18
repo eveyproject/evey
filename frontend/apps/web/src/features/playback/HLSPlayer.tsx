@@ -55,7 +55,7 @@ import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
 import { useRemotePlayback } from "@/hooks/useRemotePlayback";
 // Admin message on screen: the same 12 s as the other players and the cast receiver.
-import { ADMIN_MESSAGE_MS, pickedAudioStream, servedVariant, usePlayerProfilePrefs } from "@evey/client";
+import { ADMIN_MESSAGE_MS, noteViewerActivity, pickedAudioStream, servedVariant, usePlayerProfilePrefs } from "@evey/client";
 
 
 export type { AudioStream, SubtitleStream };
@@ -266,6 +266,16 @@ export function HLSPlayer({
   // subtitle/offset change) read this ref back to build the URL and re-select
   // the rendition - without it they would replay the previous track.
   const audioTrackOverrideRef = useRef<number | null>(null);
+
+  // A click, a key or a scroll anywhere while the player is up is the viewer
+  // saying they are still here (the "still watching?" count, stillWatching.ts).
+  // Not a bare mouse move: a nudged table would keep a sleeper's chain going.
+  useEffect(() => {
+    const onActivity = () => noteViewerActivity();
+    const events = ["pointerdown", "keydown", "wheel"] as const;
+    for (const e of events) window.addEventListener(e, onActivity, { passive: true });
+    return () => { for (const e of events) window.removeEventListener(e, onActivity); };
+  }, []);
 
   const onAudioStreamChangeRef = useRef(onAudioStreamChange);
   onAudioStreamChangeRef.current = onAudioStreamChange;

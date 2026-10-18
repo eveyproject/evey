@@ -237,6 +237,10 @@ settings:
     allowTranscodingDesc: Auf Transkodierung zurückfallen, wenn weder Direktwiedergabe noch Remux möglich ist.
     autoplayNextTitle: "Nächste Folge automatisch abspielen"
     autoplayNextDesc: "Die nächste Folge startet von selbst, wenn diese endet. Der Button Nächste Folge bleibt in jedem Fall verfügbar."
+    stillWatchingTitle: "Fragen, ob ich noch schaue"
+    stillWatchingDesc: "Nach so vielen Folgen hintereinander ohne Berührung, Taste oder Klick wartet die nächste auf Sie."
+    stillWatchingNever: "Nie"
+    stillWatchingAfter: "Nach {{count}} Folgen"
   quickConnect:
     title: Schnellverbindung
     description: Geben Sie den Code ein, der auf dem Gerät angezeigt wird, das Sie anmelden möchten.

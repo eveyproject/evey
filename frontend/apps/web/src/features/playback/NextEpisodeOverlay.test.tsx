@@ -1,5 +1,6 @@
 import { render, screen, act } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
+import { noteAutoAdvance, resetStillWatchingForTests, setStillWatchingLimit } from "@evey/client";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 
 const nextEpisode = { id: "ep-2", title: "The Reckoning", indexNumber: 2 };
@@ -16,6 +17,24 @@ function creditsProps(overrides: Record<string, unknown> = {}) {
 }
 
 describe("NextEpisodeOverlay", () => {
+  // Past the "still watching?" threshold the card asks instead of counting.
+  it("asks if the viewer is still watching instead of counting down", () => {
+    vi.useFakeTimers();
+    try {
+      setStillWatchingLimit(1);
+      act(() => { noteAutoAdvance(); });
+      const onPlayNow = vi.fn();
+      const { rerender } = render(<NextEpisodeOverlay {...creditsProps({ onPlayNow })} />);
+      rerender(<NextEpisodeOverlay {...creditsProps({ onPlayNow, currentTime: 3599.9 })} />);
+      act(() => { vi.advanceTimersByTime(7000); });
+      expect(screen.getByText("Still watching?")).toBeInTheDocument();
+      expect(onPlayNow).not.toHaveBeenCalled();
+    } finally {
+      act(() => { resetStillWatchingForTests(); });
+      vi.useRealTimers();
+    }
+  });
+
   it("shows overlay content when in credits window", () => {
     render(<NextEpisodeOverlay {...creditsProps()} />);
 

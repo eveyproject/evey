@@ -237,6 +237,10 @@ settings:
     allowTranscodingDesc: Fall back to transcoding when neither Direct Play nor remux is possible.
     autoplayNextTitle: "Auto-play next episode"
     autoplayNextDesc: "Start the next episode on its own when this one ends. The Next episode button stays available either way."
+    stillWatchingTitle: "Ask if I am still watching"
+    stillWatchingDesc: "After this many episodes in a row with no touch, key or click, the next one waits for you."
+    stillWatchingNever: "Never"
+    stillWatchingAfter: "After {{count}} episodes"
   quickConnect:
     title: Quick Connect
     description: Enter the code displayed on the device you want to sign in to.

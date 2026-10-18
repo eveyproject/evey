@@ -9,12 +9,14 @@ interface NextEpisodeOverlayProps {
   visible: boolean;
   ended: boolean;
   countdown: number;
+  /** Past the "still watching?" threshold: the card waits for the viewer. */
+  stillWatching?: boolean;
   nextEpisode: V1MediaItem | null | undefined;
   onPlayNow: () => void;
   onCancel: () => void;
 }
 
-export function NextEpisodeOverlay({ visible, ended, countdown, nextEpisode, onPlayNow, onCancel }: NextEpisodeOverlayProps) {
+export function NextEpisodeOverlay({ visible, ended, countdown, stillWatching = false, nextEpisode, onPlayNow, onCancel }: NextEpisodeOverlayProps) {
   const { t } = useTranslation();
   const theme = useTheme();
 
@@ -29,9 +31,11 @@ export function NextEpisodeOverlay({ visible, ended, countdown, nextEpisode, onP
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
       <Text style={[styles.heading, { color: theme.colors.textMuted }]}>
-        {ended
-          ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) })
-          : t("player.nextEpisodeOverlay.upNext", "Up next")}
+        {stillWatching
+          ? t("player.nextEpisodeOverlay.stillWatching", "Still watching?")
+          : ended
+            ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) })
+            : t("player.nextEpisodeOverlay.upNext", "Up next")}
       </Text>
       {episodeLine ? (
         <Text style={[styles.title, { color: theme.colors.text }]} numberOfLines={1}>

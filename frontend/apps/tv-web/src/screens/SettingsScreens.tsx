@@ -28,6 +28,7 @@ import { SettingsGroup, SettingsRow } from "../components/SettingsList";
 import { goBack, navigate, replace } from "../app/router";
 import { selectServer, signOut } from "../lib/session";
 import { SavedServers } from "./ServerConnect";
+import { STILL_WATCHING_PREF_KEY, STILL_WATCHING_STEPS, stillWatchingLimit } from "@evey/client";
 
 interface Option<T> { value: T; labelKey: string; fallback: string }
 
@@ -115,6 +116,19 @@ export function PlaybackSettingsScreen() {
       <SettingsGroup label={t("auth.settings.playback.autoplayNextTitle")} hint={t("auth.settings.playback.autoplayNextDesc")}>
         {rows(TOGGLE_OPTIONS, bool("autoplay_next_episode"), toggle("autoplay_next_episode"))}
       </SettingsGroup>
+      {/* "Still watching?": only meaningful while episodes follow on their own. */}
+      {bool("autoplay_next_episode") ? (
+        <SettingsGroup label={t("auth.settings.playback.stillWatchingTitle")} hint={t("auth.settings.playback.stillWatchingDesc")}>
+          {STILL_WATCHING_STEPS.map((n) => (
+            <SettingsRow
+              key={n}
+              label={n === 0 ? t("auth.settings.playback.stillWatchingNever") : t("auth.settings.playback.stillWatchingAfter", { count: n })}
+              checked={stillWatchingLimit(prefs) === n}
+              onPress={() => void save({ [STILL_WATCHING_PREF_KEY]: String(n) })}
+            />
+          ))}
+        </SettingsGroup>
+      ) : null}
       <h2 className="set-section-title">{t("auth.settings.playback.transcodeTitle", "Transcoding")}</h2>
       <SettingsGroup label={t("auth.settings.playback.allowDirectPlay")} hint={t("auth.settings.playback.allowDirectPlayDesc")}>
         {rows(TOGGLE_OPTIONS, bool("allow_direct_play"), toggle("allow_direct_play"))}

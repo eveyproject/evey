@@ -35,7 +35,7 @@ export function NextEpisodeOverlay({
   const { t } = useTranslation();
   // The card's life (credits, end, countdown, a single move on) is
   // @evey/client's, shared with the phone and the televisions.
-  const { visible, counting, countdown, playNow, cancel } = useUpNextCountdown({
+  const { visible, counting, countdown, stillWatching, playNow, cancel } = useUpNextCountdown({
     nextEpisodeId: nextEpisode?.id,
     currentTime,
     duration,
@@ -64,7 +64,9 @@ export function NextEpisodeOverlay({
     <div className="absolute bottom-24 right-4 z-float rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right bg-[var(--overlay-scrim)] border border-[var(--border)]"
     >
       <p className="text-xs uppercase tracking-wider mb-1 text-[var(--text-muted)]">
-        {counting ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("player.nextEpisodeOverlay.upNext")}
+        {stillWatching
+          ? t("player.nextEpisodeOverlay.stillWatching")
+          : counting ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("player.nextEpisodeOverlay.upNext")}
       </p>
       <p className="text-sm font-medium text-white mb-3 truncate">
         {label}{nextEpisode.title ? ` - ${nextEpisode.title}` : ""}

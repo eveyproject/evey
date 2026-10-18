@@ -67,7 +67,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
-import { resolveStartPositionMs, servedVariant, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock, type AudioTrackPlayer } from "@evey/client";
+import { noteViewerActivity, resolveStartPositionMs, servedVariant, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -1521,7 +1521,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: "#000" }]}>
+    // Any touch on the player is the viewer saying they are still here (the
+    // "still watching?" count, stillWatching.ts); a touch never needs claiming.
+    <View style={[styles.container, { backgroundColor: "#000" }]} onTouchStart={noteViewerActivity}>
       <StatusBar hidden />
 
       {/* Sized by the native layout, not by a JS pixel measure: a
