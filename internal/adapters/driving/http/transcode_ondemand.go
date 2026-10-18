@@ -657,7 +657,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	// aborts mid-segment is still a client that is watching.
 	h.playbackActivity.Touch(mediaID)
 
-	if h.encryptedSegments != nil && isPlanMediaSegment(name) {
+	if h.encryptedSegments != nil && isPlanMediaSegment(name) && (h.loadTestActive == nil || !h.loadTestActive()) {
 		key := streamingRateLimitKey(r)
 		release, ok := h.encryptedSegments.acquire(key)
 		if !ok {

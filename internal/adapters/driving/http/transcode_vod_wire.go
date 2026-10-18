@@ -322,6 +322,7 @@ func newHLSVODServe(s *HTTPServer, libSvc MediaStreamsGetter, libAccess LibraryA
 			h.onDemandEncrypt = true
 			h.hlsAESSecret = s.HLSAESSecret
 			h.encryptedSegments = newClientSegmentGate(maxEncryptedSegmentsPerClient)
+			h.loadTestActive = s.LoadTestActive
 			slog.Default().Info("hls vod: on-demand AES-128 encryption enabled (HLS only: no DASH manifest, no gapless playback across episodes)")
 
 			// Optional AES-128 key rotation (forward secrecy). Only meaningful

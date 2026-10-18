@@ -170,6 +170,10 @@ type hlsVODServe struct {
 	// encryptedSegments bounds each client's encrypted media segments in
 	// flight (maxEncryptedSegmentsPerClient); nil when encryption is off.
 	encryptedSegments *clientSegmentGate
+	// loadTestActive suspends encryptedSegments during a built-in load test,
+	// whose simulated viewers all share one profile and so one gate key (the
+	// streaming rate limiter stands aside the same way). nil: never active.
+	loadTestActive func() bool
 
 	// onDemandConcat serves a gapless multi-episode HLS session (mkvgo's
 	// mp4.PlanConcat) when a master request opts in with ?gapless=1 (behind

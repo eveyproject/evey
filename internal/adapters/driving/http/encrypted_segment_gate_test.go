@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"time"
 	"context"
 	"io"
 	"net/http"
@@ -122,6 +123,53 @@ func TestServePlanResource_NoGateWhenEncryptionIsOff(t *testing.T) {
 		_ = res.Body.Close()
 		if res.StatusCode != http.StatusOK {
 			t.Fatalf("status %d without encryption", res.StatusCode)
+		}
+	}
+}
+
+// The built-in load test signs every simulated viewer in with one profile, so
+// they all share one gate key: with encryption on, the run measured this
+// per-client bound (about 4 segments in flight in total, each extra one a 503
+// the runner counts as a full server) instead of the server. The gate stands
+// aside during a run, as the streaming rate limiter already does.
+func TestServePlanResource_EncryptedGateStandsAsideDuringALoadTest(t *testing.T) {
+	plan := &heldPlan{
+		fakeOnDemandPlan: fakeOnDemandPlan{resources: map[string][]byte{}},
+		entered:          make(chan struct{}, 4),
+		release:          make(chan struct{}),
+	}
+	h := &hlsVODServe{encryptedSegments: newClientSegmentGate(1), loadTestActive: func() bool { return true }}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.servePlanResourceData(w, r, "media-1", plan, nil, strings.TrimPrefix(r.URL.Path, "/"), trace.SpanFromContext(r.Context()))
+	}))
+	defer srv.Close()
+	codes := make(chan int, 2)
+	for _, name := range []string{"seg00001.m4s", "seg00002.m4s"} {
+		go func() {
+			res, err := http.Get(srv.URL + "/" + name)
+			if err != nil {
+				codes <- -1
+				return
+			}
+			_ = res.Body.Close()
+			codes <- res.StatusCode
+		}()
+	}
+	// Both segments reach the plan at once: neither was refused at the gate.
+	for range 2 {
+		select {
+		case <-plan.entered:
+		case code := <-codes:
+			close(plan.release)
+			t.Fatalf("a segment was answered %d before reaching the plan: refused at the gate", code)
+		case <-time.After(5 * time.Second):
+			t.Fatal("the segments never reached the plan together")
+		}
+	}
+	close(plan.release)
+	for range 2 {
+		if code := <-codes; code != http.StatusOK {
+			t.Fatalf("status %d during a load test, want 200", code)
 		}
 	}
 }
