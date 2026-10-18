@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet, TextInput, Switch } from "react-native";
+import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet, TextInput } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -24,20 +24,16 @@ interface CacheInfo {
   activeEncodingSessions?: number;
 }
 
-interface ConfigEntry {
-  key: string;
-  value: string;
+interface TranscodeServerSettings {
+  maxConcurrentTranscodes: { value: number; default: number; source: string };
 }
 
 const CACHE_KEY = ["admin", "transcode-cache"];
-const CONFIG_KEY = ["admin", "server-config", "transcoding"];
+// Same key as the Transcoding screen, so a save here refreshes it too.
+const SETTINGS_KEY = ["admin", "transcoding-settings"];
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleString();
-}
-
-async function setConfigKey(key: string, value: string) {
-  await eveyFetch<void>({ url: `/api/v1/admin/server-config/${key}`, method: "PUT", data: { value } });
 }
 
 function TranscodingSettings() {
@@ -45,38 +41,36 @@ function TranscodingSettings() {
   const { t } = useTranslation();
   const qc = useQueryClient();
 
-  const { data: config, isLoading } = useQuery<Record<string, string>>({
-    queryKey: CONFIG_KEY,
-    queryFn: async () => {
-      const res = await eveyFetch<{ entries: ConfigEntry[] }>({ url: "/api/v1/admin/server-config", method: "GET" });
-      const map: Record<string, string> = {};
-      for (const e of res.entries ?? []) map[e.key] = e.value;
-      return map;
-    },
+  // The cap goes through /admin/server-settings, which applies it to the
+  // running transcoder; the raw server-config key was only read at startup.
+  const { data: settings, isLoading } = useQuery<TranscodeServerSettings>({
+    queryKey: SETTINGS_KEY,
+    queryFn: () => eveyFetch<TranscodeServerSettings>({ url: "/api/v1/admin/server-settings", method: "GET" }),
   });
 
   const [maxConcurrent, setMaxConcurrent] = useState("2");
-  const [throttle, setThrottle] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!config) return;
-    setMaxConcurrent(config["transcoding.max_concurrent"] ?? "2");
-    setThrottle(config["transcoding.throttle"] !== "false");
-  }, [config]);
+    if (settings) setMaxConcurrent(String(settings.maxConcurrentTranscodes.value));
+  }, [settings]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      await setConfigKey("transcoding.max_concurrent", maxConcurrent);
-      await setConfigKey("transcoding.throttle", throttle ? "true" : "false");
-      await qc.invalidateQueries({ queryKey: CONFIG_KEY });
+      // An empty field is an explicit null: the server drops the override.
+      await eveyFetch({
+        url: "/api/v1/admin/server-settings",
+        method: "PUT",
+        data: { maxConcurrentTranscodes: maxConcurrent === "" ? null : parseInt(maxConcurrent, 10) },
+      });
+      await qc.invalidateQueries({ queryKey: SETTINGS_KEY });
       toast.success(t("admin.transcodeCache.settingsSaved", "Réglages de transcodage enregistrés"));
     } catch {
       toast.error(t("admin.transcodeCache.settingsSaveFailed", "Échec de l'enregistrement"));
     }
     setSaving(false);
-  }, [maxConcurrent, throttle, qc, t]);
+  }, [maxConcurrent, qc, t]);
 
   if (isLoading) {
     return (
@@ -107,17 +101,6 @@ function TranscodingSettings() {
             borderColor: theme.colors.border,
             backgroundColor: theme.colors.bg,
           }]}
-        />
-      </View>
-
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <Text style={{ color: theme.colors.text, fontSize: 13 }}>
-          {t("admin.transcodeCache.throttle", "Limiter le débit de transcodage")}
-        </Text>
-        <Switch
-          value={throttle}
-          onValueChange={setThrottle}
-          trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
         />
       </View>
 

@@ -5,8 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Wiping the cache is confirmed with the file count and size, and warns how
 // many viewers are being transcoded right now (their stream rebuffers);
-// deleting one file names it; the transcoding settings are seeded from the
-// server config and written back key by key, throttle as "true"/"false".
+// deleting one file names it; the concurrency cap is seeded from and written
+// to /admin/server-settings, the endpoint that applies it to the running
+// transcoder, never to the server-config keys only read at startup.
 const alerts = vi.hoisted(() => ({ last: null as any }));
 vi.mock("react-native", () => ({
   View: ({ children }: any) => React.createElement("div", null, children),
@@ -46,7 +47,7 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 import AdminTranscodeCacheScreen from "./transcode-cache";
 
 const cache = { totalSize: 4096, fileCount: 2, files: [{ name: "a.ts", size: 1024, lastModified: "2026-09-16T04:00:00Z" }, { name: "b/c.ts", size: 3072, lastModified: "2026-09-16T04:00:00Z" }], activeEncodingSessions: 0 };
-const config = { entries: [{ key: "transcoding.max_concurrent", value: "3" }, { key: "transcoding.throttle", value: "false" }] };
+const settings = { maxConcurrentTranscodes: { value: 3, default: 2, source: "override" } };
 
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -60,7 +61,7 @@ beforeEach(() => {
   live = 0;
   eveyFetch.mockImplementation(async (req: { url: string; method: string }) => {
     if (req.url === "/api/v1/admin/transcode-cache" && req.method === "GET") return { ...cache, activeEncodingSessions: live };
-    if (req.url === "/api/v1/admin/server-config" && req.method === "GET") return config;
+    if (req.url === "/api/v1/admin/server-settings" && req.method === "GET") return settings;
     return undefined;
   });
 });
@@ -90,17 +91,17 @@ describe("admin transcode cache screen (mobile)", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Deleted"));
   });
 
-  it("seeds the transcoding settings from the config and writes them back key by key", async () => {
+  it("seeds the cap from /server-settings and saves it there, never to server-config", async () => {
     mount();
     const max = await screen.findByLabelText("Transcodages simultanés max") as HTMLInputElement;
     await waitFor(() => expect(max.value).toBe("3"));
-    expect((screen.getByRole("switch") as HTMLInputElement).checked).toBe(false);
+    // The throttle switch wrote a key no server code reads.
+    expect(screen.queryByRole("switch")).toBeNull();
     fireEvent.change(max, { target: { value: "5" } });
-    fireEvent.click(screen.getByRole("switch"));
     fireEvent.click(screen.getByText("Enregistrer"));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Réglages de transcodage enregistrés"));
-    expect(eveyFetch).toHaveBeenCalledWith({ url: "/api/v1/admin/server-config/transcoding.max_concurrent", method: "PUT", data: { value: "5" } });
-    expect(eveyFetch).toHaveBeenCalledWith({ url: "/api/v1/admin/server-config/transcoding.throttle", method: "PUT", data: { value: "true" } });
+    expect(eveyFetch).toHaveBeenCalledWith({ url: "/api/v1/admin/server-settings", method: "PUT", data: { maxConcurrentTranscodes: 5 } });
+    expect(eveyFetch).not.toHaveBeenCalledWith(expect.objectContaining({ url: expect.stringContaining("/server-config") }));
 
     eveyFetch.mockImplementationOnce(async () => { throw new Error("403"); });
     fireEvent.click(screen.getByText("Enregistrer"));

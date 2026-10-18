@@ -5,6 +5,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const mockUseQuery = vi.fn();
 const mockServerCfg = { data: undefined, isLoading: false };
+const mockSetServerConfigEntry = vi.fn();
+const mockSettings = {
+  data: { maxConcurrentTranscodes: { value: 3, default: 2, source: "override" } },
+  isLoading: false,
+};
 const mockInvalidateQueries = vi.fn();
 const mockEveyFetch = vi.fn();
 const mockToast = { success: vi.fn(), error: vi.fn() };
@@ -13,7 +18,13 @@ vi.mock("@tanstack/react-query", async (importActual) => {
   const actual = await importActual<typeof import("@tanstack/react-query")>();
   return {
     ...actual,
-    useQuery: (...args: unknown[]) => mockUseQuery(...args),
+    // The concurrency card reads /admin/server-settings; every other query here
+    // is the cache listing.
+    useQuery: (...args: unknown[]) => {
+      const opts = args[0] as { queryKey?: unknown[] } | undefined;
+      if (opts?.queryKey?.[0] === "/api/v1/admin/server-settings") return mockSettings;
+      return mockUseQuery(...args);
+    },
     useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
   };
 });
@@ -27,7 +38,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   transcodeCacheServiceDeleteTranscodeCacheFile: vi.fn(),
   getTranscodeCacheServiceGetTranscodeCacheQueryKey: () => ["transcode-cache"],
   useServerConfigServiceListServerConfigEntries: () => mockServerCfg,
-  serverConfigServiceSetServerConfigEntry: vi.fn(),
+  serverConfigServiceSetServerConfigEntry: (...args: unknown[]) => mockSetServerConfigEntry(...args),
   getServerConfigServiceListServerConfigEntriesQueryKey: () => ["server-config"],
 }));
 
@@ -137,6 +148,27 @@ describe("TranscodeCachePage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Clear All/i }));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeInTheDocument());
     expect(screen.queryByTestId("clear-cache-live-warning")).not.toBeInTheDocument();
+  });
+
+  // transcoding.throttle had no reader on the server, and
+  // transcoding.max_concurrent was only read at startup: the cap must go
+  // through /server-settings, which applies it to the running transcoder.
+  it("saves the concurrency cap through /server-settings, never server-config", async () => {
+    mockEveyFetch.mockResolvedValue(undefined);
+    const TranscodeCachePage = await getTranscodeCachePage();
+    render(React.createElement(TranscodeCachePage), { wrapper: createWrapper() });
+    const input = screen.getByLabelText(/Max Concurrent/i) as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe("3"));
+    expect(screen.queryByText(/Throttle transcodes/i)).not.toBeInTheDocument();
+    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+    await waitFor(() => expect(mockEveyFetch).toHaveBeenCalledWith({
+      url: "/api/v1/admin/server-settings",
+      method: "PUT",
+      data: { maxConcurrentTranscodes: 5 },
+    }));
+    expect(mockSetServerConfigEntry).not.toHaveBeenCalled();
+    expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["/api/v1/admin/server-settings"] });
   });
 
   it("each file row has a Delete button", async () => {
