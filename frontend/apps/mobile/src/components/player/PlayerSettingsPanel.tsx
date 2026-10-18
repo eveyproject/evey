@@ -235,7 +235,7 @@ export function PlayerSettingsPanel({
   autoplayNext,
   onAutoplayNextChange,
 }: PlayerSettingsPanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const theme = useTheme();
   const { height: screenH } = useWindowDimensions();
   const QUALITY_OPTIONS = useQualityOptions(availableQualities ?? []);
@@ -433,7 +433,7 @@ export function PlayerSettingsPanel({
               </>
             )}
             {audioStreams.map((s) => {
-              const label = formatAudioTrackLabel(s, t("media.track", { number: s.index }));
+              const label = formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language);
               return (
                 <OptionRow
                   key={s.index}
@@ -455,7 +455,7 @@ export function PlayerSettingsPanel({
               onPress={() => select(() => onSubtitleChange(null))}
             />
             {subtitleStreams.map((s) => {
-              const label = trackDisplayName(s, t("media.track", { number: s.index }));
+              const label = trackDisplayName(s, t("media.track", { number: s.index }), i18n.language);
               return (
                 <OptionRow
                   key={s.index}
