@@ -37,6 +37,7 @@ export function SegmentPlayer({
 
   const player = useVideoPlayer(streamUrl, (p) => {
     p.pause(); // don't auto-play the whole title in an admin editor
+    p.timeUpdateEventInterval = 0.5; // expo-video's default 0 emits no timeUpdate, so the playhead would stay at 00:00
   });
   playerRef.current = player;
 

@@ -19,13 +19,17 @@ const video = vi.hoisted(() => {
     player: {
       currentTime: 0,
       duration: 0,
+      // expo-video's default: 0 means the native player emits no timeUpdate at all.
+      timeUpdateEventInterval: 0,
       pause: vi.fn(),
       addListener: (_: string, fn: (ev: { currentTime: number }) => void) => {
         listeners.add(fn);
         return { remove: () => listeners.delete(fn) };
       },
     },
-    tick: (sec: number) => listeners.forEach((l) => l({ currentTime: sec })),
+    tick(sec: number) {
+      if (this.player.timeUpdateEventInterval > 0) listeners.forEach((l) => l({ currentTime: sec }));
+    },
   };
 });
 vi.mock("expo-video", () => ({
@@ -51,6 +55,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   video.player.currentTime = 0;
   video.player.duration = 0;
+  video.player.timeUpdateEventInterval = 0;
 });
 
 // The editor never auto-plays, marks from the live playhead only once a
@@ -63,6 +68,7 @@ describe("SegmentPlayer", () => {
     const onMark = vi.fn();
     render(<SegmentPlayer streamUrl="http://x/stream" durationMsFallback={200_000} segments={segments} selectedType={null} onSelectType={onSelectType} onMark={onMark} />);
     expect(video.player.pause).toHaveBeenCalled();
+    expect(video.player.timeUpdateEventInterval).toBeGreaterThan(0);
     expect(screen.getByText("03:20")).toBeTruthy();
     const bars = Array.from(document.querySelectorAll("button[data-w]"));
     expect(bars.map((b) => [b.getAttribute("data-left"), b.getAttribute("data-w")])).toEqual([["5%", "15%"], ["50%", "10%"]]);
