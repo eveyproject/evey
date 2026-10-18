@@ -355,21 +355,6 @@ func (p *OnDemandPackager) Replan(ctx context.Context, stale apptranscoding.OnDe
 	return p.Plan(ctx, sp.srcPath, sp.opts)
 }
 
-// DropSources forgets every cached plan built on one of these sources, so the
-// next request builds it again. The load test drops the plans its eligibility
-// check built: the run then starts as cold as a real first play.
-func (p *OnDemandPackager) DropSources(paths []string) {
-	want := make(map[string]bool, len(paths))
-	for _, path := range paths {
-		want[path] = true
-	}
-	for _, v := range p.plans.Held() {
-		if pl, ok := v.(*ondemandPlan); ok && want[pl.srcPath] && pl.key != "" {
-			p.plans.Delete(pl.key)
-		}
-	}
-}
-
 // WindowStats sums the window counters of every plan the cache holds
 // (mkvgo HLSPlan.Stats: each window build is a read of the source, a rebuild
 // one that read the same window again), plus "plans", how many were summed,

@@ -93,10 +93,8 @@ type Runner struct {
 	// appServedBytes counts what the packager served so far, the denominator
 	// of its read amplification (see WithAppServedCounter). nil: not measured.
 	appServedBytes func() int64
-	// dropPlans forgets the packager's plans for these sources (see
-	// WithPlanDrop); forgetPlayback clears the "someone is watching" signal
-	// for these media (see WithPlaybackForget). nil: not wired.
-	dropPlans      func(paths []string)
+	// forgetPlayback clears the "someone is watching" signal for these media
+	// (see WithPlaybackForget). nil: not wired.
 	forgetPlayback func(mediaIDs []string)
 
 	// evictFile drops one file from the OS page cache (cold-cache mode). The
@@ -207,14 +205,6 @@ func (r *Runner) WithAppReadCounter(read func() int64) *Runner {
 // than over every viewer's, ffmpeg ones included.
 func (r *Runner) WithAppServedCounter(served func() int64) *Runner {
 	r.appServedBytes = served
-	return r
-}
-
-// WithPlanDrop lets the run forget the packager plans its own eligibility
-// check built, so the first viewer of each title pays the plan build as a real
-// first play does.
-func (r *Runner) WithPlanDrop(drop func(paths []string)) *Runner {
-	r.dropPlans = drop
 	return r
 }
 
