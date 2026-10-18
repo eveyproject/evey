@@ -1,0 +1,50 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "off",
+    "suspicious": "off",
+    "pedantic": "off",
+    "perf": "off",
+    "style": "off",
+    "restriction": "off",
+    "nursery": "off"
+  },
+  "rules": {
+    "typescript/no-floating-promises": [
+      "error",
+      {
+        "allowForKnownSafeCalls": [
+          {
+            "from": "package",
+            "package": "@tanstack/query-core",
+            "name": [
+              "invalidateQueries",
+              "refetchQueries",
+              "cancelQueries",
+              "prefetchQuery",
+              "resetQueries"
+            ]
+          },
+          {
+            "from": "package",
+            "package": "@tanstack/router-core",
+            "name": [
+              "navigate",
+              "invalidate"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "ignorePatterns": [
+    "**/*.test.*",
+    "**/test/**",
+    "**/generated/**",
+    "**/dist/**",
+    "**/dist-*/**",
+    "**/public/**",
+    "**/android/**",
+    "**/.expo/**"
+  ]
+}
