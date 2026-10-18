@@ -750,10 +750,13 @@ describe("SeekIndexPage", () => {
     expect(screen.getByTestId("seek-index-ro-hint")).toBeInTheDocument();
     expect(screen.getAllByText(/x\.mkv/).length).toBeGreaterThan(0);
   });
-  it("row delete-backup button deletes the single backup synchronously", async () => {
+  it("row delete-backup button arms on the first click and deletes the single backup on the second", async () => {
     mockScan.mockReturnValue(scanned);
     const Page = await getPage();
     render(React.createElement(Page));
+    fireEvent.click(screen.getByTestId("seek-index-delete-backup-btn"));
+    expect(deleteBackupMutate).not.toHaveBeenCalled();
+    expect(screen.getByTestId("seek-index-delete-backup-btn")).toHaveTextContent("Confirm");
     fireEvent.click(screen.getByTestId("seek-index-delete-backup-btn"));
     expect(deleteBackupMutate).toHaveBeenCalledWith({ data: { mediaId: "mi-2" } });
   });

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { V1SeekIndexItem } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { RepairHistoryPanel } from "./RepairHistoryPanel";
 import { SyncPreviewPanel } from "./SyncPreviewPanel";
@@ -59,6 +59,15 @@ export function SeekIndexTable({
   // The preview is the only thing that answers "does the sound follow the
   // picture". One row at a time, like the journal.
   const [previewFor, setPreviewFor] = useState<string | null>(null);
+  // Deleting a backup drops the only copy of the file as it was before the
+  // repair: one click arms, a second within a few seconds deletes (same
+  // pattern as the config entries). The batch purge already confirms.
+  const [deleteArmedFor, setDeleteArmedFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!deleteArmedFor) return;
+    const id = setTimeout(() => setDeleteArmedFor(null), 4000);
+    return () => clearTimeout(id);
+  }, [deleteArmedFor]);
 
   return items.length === 0 ? (
     <div className="rounded-[var(--radius-lg)] bg-[var(--surface)] border border-[var(--border)]">
@@ -408,10 +417,19 @@ export function SeekIndexTable({
                         className="text-xs"
                         disabled={deleteBackup.isPending}
                         loading={deleteBackup.isPending && deleteBackup.variables?.data?.mediaId === it.mediaId}
-                        onClick={() => it.mediaId && deleteBackup.mutate({ data: { mediaId: it.mediaId } })}
+                        onClick={() => {
+                          if (!it.mediaId) return;
+                          if (deleteArmedFor !== it.mediaId) {
+                            setDeleteArmedFor(it.mediaId);
+                            return;
+                          }
+                          setDeleteArmedFor(null);
+                          deleteBackup.mutate({ data: { mediaId: it.mediaId } });
+                        }}
+                        title={t("admin.seekIndex.purgeAllConfirm", { count: 1 })}
                         data-testid="seek-index-delete-backup-btn"
                       >
-                        {t("admin.seekIndex.deleteBackup")}
+                        {deleteArmedFor === it.mediaId ? t("common.confirm") : t("admin.seekIndex.deleteBackup")}
                       </Button>
                     )}
                   </div>

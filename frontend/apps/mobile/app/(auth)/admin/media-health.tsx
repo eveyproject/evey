@@ -435,7 +435,14 @@ export default function AdminSeekIndexScreen() {
             onFixContainer={(mediaId) => fixContainerOne.mutate({ mediaId })}
             onReinterleave={(mediaId) => reinterleaveOne.mutate({ mediaId })}
             onAck={(mediaId, acked) => ackOne.mutate({ data: { mediaId, acked } })}
-            onDeleteBackup={(mediaId) => deleteBackup.mutate({ data: { mediaId } })}
+            onDeleteBackup={(mediaId) =>
+              // The backup is the only copy of the file as it was before the
+              // repair; one stray tap must not drop it (the batch purge confirms too).
+              Alert.alert(t("admin.seekIndex.deleteBackup"), t("admin.seekIndex.purgeAllConfirm", { count: 1 }), [
+                { text: t("common.cancel"), style: "cancel" },
+                { text: t("admin.seekIndex.deleteBackup"), style: "destructive", onPress: () => deleteBackup.mutate({ data: { mediaId } }) },
+              ])
+            }
             onHistory={(mediaId, title) => setHistoryTarget({ mediaId, title })}
             onSyncPreview={(it) => setSyncTarget({ item: it, title: it.title || it.path || "" })}
             repairPending={repairOne.isPending && repairOne.variables?.mediaId === item.mediaId && !repairOne.variables?.data?.resync}
