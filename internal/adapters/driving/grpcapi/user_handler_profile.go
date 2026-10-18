@@ -9,9 +9,11 @@ import (
 	"strings"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/domain/user"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 	"github.com/eveyproject/evey/internal/pkg/id"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"go.opentelemetry.io/otel/attribute"
@@ -34,7 +36,9 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.CreateProfile: %w", err)
 	}
-	if !claims.IsAdmin && req.UserId != claims.UserID {
+	// Another account's profiles are admin work an API key never gets
+	// (interceptors.AdminReach), same as below in update and delete.
+	if !interceptors.AdminReach(ctx, auth.ScopeAdminWrite) && req.UserId != claims.UserID {
 		span.SetStatus(otelcodes.Error, "cannot create profile for other")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_create_profile_other")
 	}
@@ -119,19 +123,20 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 // them apart; an admin gets NotFound instead since only they may legitimately
 // look up an arbitrary profile ID.
 func (h *userHandler) loadProfileForUpdate(ctx context.Context, span trace.Span, id string, claims *user.Claims) (*user.Profile, error) {
+	adminReach := interceptors.AdminReach(ctx, auth.ScopeAdminWrite)
 	p, gerr := h.query.GetProfileByID(ctx, id)
 	if gerr != nil || p == nil {
 		if gerr != nil {
 			span.RecordError(gerr)
 		}
-		if !claims.IsAdmin {
+		if !adminReach {
 			span.SetStatus(otelcodes.Error, "cannot update profile other")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 		}
 		span.SetStatus(otelcodes.Error, "profile not found")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.auth.profile_not_found")
 	}
-	if !claims.IsAdmin && string(p.UserID) != claims.UserID {
+	if !adminReach && string(p.UserID) != claims.UserID {
 		span.SetStatus(otelcodes.Error, "cannot update profile other")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_profile_other")
 	}
@@ -385,7 +390,7 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 	if gateErr := h.refuseFromRestrictedProfile(ctx, span, claims); gateErr != nil {
 		return nil, gateErr
 	}
-	if !claims.IsAdmin {
+	if !interceptors.AdminReach(ctx, auth.ScopeAdminWrite) {
 		existing, gerr := h.query.GetProfileByID(ctx, req.Id)
 		if gerr != nil || existing == nil || string(existing.UserID) != claims.UserID {
 			if gerr != nil {

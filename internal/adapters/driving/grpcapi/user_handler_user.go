@@ -81,7 +81,9 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("userHandler.UpdateUser: %w", err)
 	}
-	if !claims.IsAdmin {
+	// Another account's password, admin flag or caps is account lifecycle: an
+	// API key never gets it, even an admin's (interceptors.AdminReach).
+	if !interceptors.AdminReach(ctx, "") {
 		if req.Id != claims.UserID {
 			span.SetStatus(otelcodes.Error, "cannot update other")
 			return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.user.cannot_update_other")

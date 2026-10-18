@@ -8,11 +8,13 @@ import (
 	"strings"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
+	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
 	appphoto "github.com/eveyproject/evey/internal/app/photo"
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	photodomain "github.com/eveyproject/evey/internal/domain/photo"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
@@ -212,13 +214,14 @@ func (h *photoHandler) SearchPhotos(ctx context.Context, req *eveyv1.SearchPhoto
 func (h *photoHandler) ScanPhotoDirectory(ctx context.Context, req *eveyv1.ScanPhotoDirectoryRequest) (*eveyv1.ScanPhotoDirectoryResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.photo.ScanPhotoDirectory")
 	defer span.End()
-	claims, err := requireClaims(ctx)
-	if err != nil {
+	if _, err := requireClaims(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, fmt.Errorf("photoHandler.ScanPhotoDirectory: %w", err)
 	}
-	if !claims.IsAdmin {
+	// media:write like ScanLibrary: a pre-scope key with no permissions must
+	// not inherit its owner's admin role here (interceptors.AdminReach).
+	if !interceptors.AdminReach(ctx, auth.ScopeMediaWrite) {
 		span.SetStatus(otelcodes.Error, "admin only")
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
