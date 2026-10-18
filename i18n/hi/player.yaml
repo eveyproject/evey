@@ -176,6 +176,7 @@ streamInfo:
     resolution_exceeded: रिज़ॉल्यूशन प्लेयर की सीमा से अधिक
     bitrate_exceeded: बिटरेट अनुमत सीमा से अधिक
     audio_channels_exceeded: इस प्लेयर के समर्थन से अधिक ऑडियो चैनल
+    audio_samplerate_exceeded: ऑडियो सैंपल रेट 48 kHz से अधिक
     subtitle_burn_in: उपशीर्षक चित्र में स्थायी रूप से जोड़े गए
     audio_resync_requested: ऑडियो पुनः-सिंक का अनुरोध किया गया
     decision_pinned: इस सत्र के लिए चुनाव स्थिर किया गया

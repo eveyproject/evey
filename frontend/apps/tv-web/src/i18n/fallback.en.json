@@ -3336,6 +3336,7 @@
   "player.streamInfo.reason.audio_codec_unsupported": "Audio codec this player cannot decode",
   "player.streamInfo.reason.audio_passthrough_unsupported": "Audio track cannot be passed through unchanged in the stream",
   "player.streamInfo.reason.audio_resync_requested": "Audio resync requested",
+  "player.streamInfo.reason.audio_samplerate_exceeded": "Audio sample rate above 48 kHz",
   "player.streamInfo.reason.bitrate_exceeded": "Bitrate above the allowed limit",
   "player.streamInfo.reason.client_line_exceeded": "The line the client measured cannot carry the copy",
   "player.streamInfo.reason.container_incompatible": "Container not playable as-is (repackaged to HLS)",
