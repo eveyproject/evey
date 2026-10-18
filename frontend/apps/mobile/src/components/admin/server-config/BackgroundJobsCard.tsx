@@ -1,5 +1,6 @@
 import { View, Text, TextInput, Switch, TouchableOpacity, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
+import { toast } from "@evey/store";
 import { useTheme } from "../../../providers/ThemeProvider";
 import { BACKGROUND_JOB_RATES, BACKGROUND_JOB_TOGGLES, useBackgroundJobsForm } from "@evey/client";
 import type { ConfigEntry, SaveEntryAsync } from "./types";
@@ -8,10 +9,13 @@ interface BackgroundJobsCardProps {
   entries: ConfigEntry[] | undefined;
   saveEntry: SaveEntryAsync;
   deleteEntry: (key: string) => Promise<unknown>;
+  // The pace Save writes six keys and toasts once: these writers stay quiet.
+  quietSaveEntry: SaveEntryAsync;
+  quietDeleteEntry: (key: string) => Promise<unknown>;
   saving: boolean;
 }
 
-export function BackgroundJobsCard({ entries, saveEntry, deleteEntry, saving }: BackgroundJobsCardProps) {
+export function BackgroundJobsCard({ entries, saveEntry, deleteEntry, quietSaveEntry, quietDeleteEntry, saving }: BackgroundJobsCardProps) {
   const theme = useTheme();
   const { t } = useTranslation();
 
@@ -19,6 +23,12 @@ export function BackgroundJobsCard({ entries, saveEntry, deleteEntry, saving }: 
     entries,
     save: (key, value) => saveEntry({ key, value }),
     remove: (key) => deleteEntry(key),
+    quietSave: (key, value) => quietSaveEntry({ key, value }),
+    quietRemove: (key) => quietDeleteEntry(key),
+    onRatesSaved: (failed) =>
+      failed.length === 0
+        ? toast.success(t("admin.serverConfig.configUpdated", "Config saved"))
+        : toast.error(t("admin.serverConfig.failedUpdate", "Failed to update config")),
   });
 
   return (

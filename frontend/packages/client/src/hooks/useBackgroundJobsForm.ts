@@ -41,13 +41,17 @@ export const BACKGROUND_JOB_RATES = [
 
 // save/remove are mutateAsync: TanStack keeps the callbacks of the last
 // mutate() call only, so per-call callbacks over six writes never all fired.
-// The mutations toast their own failures; the form only reads the outcome.
+// A toggle is one write and toasts its own outcome. The pace Save is six: it
+// goes through the quiet writers and reports once, through onRatesSaved.
 export function useBackgroundJobsForm(opts: {
   entries: { key?: string; value?: string }[] | undefined;
   save: (key: string, value: string) => Promise<unknown>;
   remove: (key: string) => Promise<unknown>;
+  quietSave: (key: string, value: string) => Promise<unknown>;
+  quietRemove: (key: string) => Promise<unknown>;
+  onRatesSaved: (failedKeys: string[]) => void;
 }) {
-  const { entries, save, remove } = opts;
+  const { entries, save, remove, quietSave, quietRemove, onRatesSaved } = opts;
   const [rateDrafts, setRateDrafts] = useState<Record<string, string>>({});
   const [rateDirty, setRateDirty] = useState(false);
 
@@ -82,10 +86,12 @@ export function useBackgroundJobsForm(opts: {
       const results = await Promise.allSettled(
         BACKGROUND_JOB_RATES.map((field) => {
           const value = (rateDrafts[field.key] ?? "").trim();
-          return value ? save(field.key, value) : remove(field.key);
+          return value ? quietSave(field.key, value) : quietRemove(field.key);
         }),
       );
-      if (results.every((r) => r.status === "fulfilled")) setRateDirty(false);
+      const failed = BACKGROUND_JOB_RATES.filter((_, i) => results[i].status === "rejected").map((f) => f.key);
+      if (failed.length === 0) setRateDirty(false);
+      onRatesSaved(failed);
     },
   };
 }

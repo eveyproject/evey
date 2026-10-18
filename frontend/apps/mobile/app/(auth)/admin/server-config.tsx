@@ -216,9 +216,9 @@ export default function AdminServerConfigScreen() {
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
 
-  // The SMTP card writes six keys in one Save and toasts the outcome once:
+  // The SMTP and pace Saves write six keys each and toast the outcome once:
   // these writes carry no toast of their own, nor the error net's.
-  const saveSmtpEntry = useMutation({
+  const quietSaveEntry = useMutation({
     mutationFn: putConfigEntry,
     onSuccess: () => qc.invalidateQueries({ queryKey: SERVER_CONFIG_ENTRIES_KEY }),
     meta: { silentError: true },
@@ -232,6 +232,13 @@ export default function AdminServerConfigScreen() {
       toast.success(t("admin.serverConfig.configUpdated", "Config saved"));
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
+  });
+
+  const quietDeleteEntry = useMutation({
+    mutationFn: (key: string) =>
+      eveyFetch({ url: `/api/v1/admin/server-config/${key}`, method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SERVER_CONFIG_ENTRIES_KEY }),
+    meta: { silentError: true },
   });
 
   const introEnabled = getEntryValue("intro_providers.enabled") === "true";
@@ -578,8 +585,8 @@ export default function AdminServerConfigScreen() {
             </Text>
             <SmtpSettingsCard
               entries={configEntries}
-              saveEntry={saveSmtpEntry.mutateAsync}
-              saving={saveSmtpEntry.isPending}
+              saveEntry={quietSaveEntry.mutateAsync}
+              saving={quietSaveEntry.isPending}
             />
           </>
 
@@ -611,7 +618,9 @@ export default function AdminServerConfigScreen() {
               entries={configEntries}
               saveEntry={saveConfigEntry.mutateAsync}
               deleteEntry={deleteConfigEntry.mutateAsync}
-              saving={saveConfigEntry.isPending || deleteConfigEntry.isPending}
+              quietSaveEntry={quietSaveEntry.mutateAsync}
+              quietDeleteEntry={quietDeleteEntry.mutateAsync}
+              saving={saveConfigEntry.isPending || deleteConfigEntry.isPending || quietSaveEntry.isPending || quietDeleteEntry.isPending}
             />
             {/* The timeline thumbnails are background work too. */}
             <Text style={[s.sectionTitle, { fontSize: 15, marginTop: 20 }]}>{t("admin.serverConfig.trickplayTitle", "Trickplay")}</Text>

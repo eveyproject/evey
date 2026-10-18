@@ -116,5 +116,20 @@ describe("admin server config (mobile): background pacing save", () => {
     fireEvent.click(save);
     await waitFor(() => expect(eveyFetch.mock.calls.filter((c) => c[0].method !== "GET" && String(c[0].url).includes("backfill_")).length).toBe(6));
     await waitFor(() => expect(save.disabled).toBe(true));
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith("Config saved");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("reports one failure when a write does not land, and keeps Save enabled", async () => {
+    failKey = "transcoding.keyframe_backfill_pause_ms";
+    await mount();
+    fireEvent.change(await screen.findByTestId("bg-rate-transcoding.level_backfill_batch"), { target: { value: "25" } });
+    const save = screen.getByTestId("bg-rates-save") as HTMLButtonElement;
+    fireEvent.click(save);
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith("Failed to update config");
+    expect(toast.success).not.toHaveBeenCalled();
+    expect(save.disabled).toBe(false);
   });
 });

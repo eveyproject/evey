@@ -13,6 +13,8 @@ vi.mock("./hooks", () => ({
   useDeleteConfigEntry: () => ({ mutateAsync: deleteMutate, isPending: false }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock("@evey/store", () => ({ toast }));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -54,8 +56,12 @@ describe("BackgroundJobsCard", () => {
     pending.slice(0, 5).forEach((p) => p.resolve({}));
     await Promise.resolve();
     expect(save.disabled).toBe(false);
+    expect(toast.success).not.toHaveBeenCalled();
     pending[5].resolve({});
     await waitFor(() => expect(save.disabled).toBe(true));
+    // Six writes, one toast.
+    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalledWith("admin.serverConfig.configUpdated");
   });
 
   it("a failed write keeps the form dirty so the edit can be retried", async () => {
@@ -66,7 +72,9 @@ describe("BackgroundJobsCard", () => {
     fireEvent.click(save);
     pending[0].reject(new Error("boom"));
     pending.slice(1).forEach((p) => p.resolve({}));
-    await new Promise((r) => setTimeout(r, 0));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1));
+    expect(toast.error).toHaveBeenCalledWith("admin.serverConfig.failedUpdate");
+    expect(toast.success).not.toHaveBeenCalled();
     expect(save.disabled).toBe(false);
   });
 });

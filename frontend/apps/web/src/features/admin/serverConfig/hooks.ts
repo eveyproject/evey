@@ -36,15 +36,16 @@ export function useSetConfigEntry(opts: { ownToast?: boolean } = {}) {
   });
 }
 
-export function useDeleteConfigEntry() {
+export function useDeleteConfigEntry(opts: { ownToast?: boolean } = {}) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   return useMutation({
+    meta: opts.ownToast ? { silentError: true } : undefined,
     mutationFn: (key: string) => serverConfigServiceDeleteServerConfigEntry(key),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: QUERY_KEY });
-      toast.success(t("admin.serverConfig.configDeleted"));
+      if (!opts.ownToast) toast.success(t("admin.serverConfig.configDeleted"));
     },
-    onError: () => toast.error(t("admin.serverConfig.failedDeleteEntry")),
+    onError: opts.ownToast ? undefined : () => toast.error(t("admin.serverConfig.failedDeleteEntry")),
   });
 }
