@@ -151,6 +151,30 @@ func TestRunner_IneligibleTitlesAreKeptOutBeforeTheDraw(t *testing.T) {
 }
 
 // What gives out first, and the advice that follows from it.
+// A run whose first viewer never got an HTTP answer measured nothing: it is an
+// error, never "0 viewers" with a limiter picked by elimination. The symmetric
+// cases keep their verdicts: a server answering 502, and a transport failure
+// once an audience had held.
+func TestNeverReached(t *testing.T) {
+	const h2 = `master playlist fetch failed (status=0, err=net/http: HTTP/1.x transport connection broken: malformed HTTP response "\x00\x00$\x04")`
+	for _, tc := range []struct {
+		name      string
+		sustained int
+		stop      StopReason
+		detail    string
+		want      bool
+	}{
+		{"no answer at the first viewer", 0, StopServerFailing, h2, true},
+		{"server answered 502 at the first viewer", 0, StopServerFailing, "master playlist fetch failed (status=502, err=<nil>)", false},
+		{"no answer after 12 viewers held", 12, StopServerFailing, h2, false},
+		{"too slow at the first viewer", 0, StopSLOBreach, "", false},
+	} {
+		if got := neverReached(tc.sustained, tc.stop, tc.detail); got != tc.want {
+			t.Errorf("%s: neverReached = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestLimiterOf(t *testing.T) {
 	devices := []DeviceMapping{{Location: "/mnt/disk_1", Device: "sda"}, {Location: "/mnt/disk_2", Device: "sdc"}, {Location: "/mnt/disk_3", Device: "sdd"}}
 	busy := ResourceStats{Disks: []DiskStat{{Device: "sda", UtilPctAvg: 90}, {Device: "sdc", UtilPctAvg: 25}, {Device: "sdd", UtilPctAvg: 3}}}

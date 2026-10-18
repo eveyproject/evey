@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { V1VideoPool } from "@evey/api";
-import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, servedPathLines, stopCause, stopReasonKey } from "./loadTestHelpers";
+import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, servedPathLines, stopCause, stopReasonKey, verdictLine } from "./loadTestHelpers";
 
 // Pure formatting/reading helpers behind the load-test panel.
 describe("load test helpers", () => {
@@ -194,5 +194,20 @@ describe("stopReasonKey", () => {
 
   it("falls back to the generic error sentence without a stop reason", () => {
     expect(stopReasonKey({})).toBe("admin.loadtest.stopReason.error");
+  });
+});
+
+describe("verdictLine", () => {
+  const t = (key: string, opts?: Record<string, unknown>) => (opts && "count" in opts ? `${key}:${opts.count}` : key);
+
+  // Prod 2026-10-18: the first viewer never got an answer, and the headline
+  // still said "about 0 viewers". A run that measured nothing states no count.
+  it("headlines the stop sentence, not a count, when the run ended on an error", () => {
+    const report = { stopReason: "error" as const, sustainedViewers: 0, rangeLow: 0, rangeHigh: 1, grid: [{ viewers: 1, held: false }] };
+    expect(verdictLine(t, report)).toBe("admin.loadtest.stopReason.error");
+  });
+
+  it("keeps the count for a run that measured a capacity", () => {
+    expect(verdictLine(t, { stopReason: "slo_breach" as const, sustainedViewers: 12 })).toMatch(/^admin\.loadtest\.verdict.*:12$/);
   });
 });
