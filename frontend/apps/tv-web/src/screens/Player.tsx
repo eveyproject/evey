@@ -75,7 +75,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   audio?: number;
   subtitle?: number | "off";
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const [playingVariant, setPlayingVariant] = useState<PlayingVariant | null>(null);
@@ -554,10 +554,10 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   // --- settings panel --------------------------------------------------------
   // The labels the phone, the browser and the Android television print, from
   // the shared helpers: one track must not read differently per client.
-  const audioLabel = useCallback((s: V1MediaStream, fallback: string) => formatAudioTrackLabel(s, fallback), []);
+  const audioLabel = useCallback((s: V1MediaStream, fallback: string) => formatAudioTrackLabel(s, fallback, i18n.language), [i18n.language]);
   const subtitleLabel = useCallback(
-    (s: V1MediaStream, fallback: string) => `${trackDisplayName(s, fallback)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
-    [t],
+    (s: V1MediaStream, fallback: string) => `${trackDisplayName(s, fallback, i18n.language)}${s.isForced ? ` - ${t("media.streams.forced")}` : ""}`,
+    [t, i18n.language],
   );
   const sections: PanelSection[] = useMemo(() => {
     const out: PanelSection[] = [];

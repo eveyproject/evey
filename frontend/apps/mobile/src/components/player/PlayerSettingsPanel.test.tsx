@@ -87,7 +87,7 @@ const TRANSLATIONS: Record<string, string> = {
 };
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: string) => TRANSLATIONS[key] ?? fallback ?? key }),
+  useTranslation: () => ({ t: (key: string, fallback?: string) => TRANSLATIONS[key] ?? fallback ?? key, i18n: { language: "en" } }),
 }));
 
 import { PlayerSettingsPanel, QUALITY_HEIGHTS } from "./PlayerSettingsPanel";
@@ -372,7 +372,8 @@ describe("PlayerSettingsPanel - track selection", () => {
     );
     fireEvent.click(getByLabelText("Audio"));
     expect(getByText("VF - 5.1")).toBeTruthy();
-    fireEvent.click(getByLabelText("eng - 2.0"));
+    // A track with no title reads as its language's name, not its ISO code.
+    fireEvent.click(getByLabelText("English - 2.0"));
     expect(onAudioChange).toHaveBeenCalledTimes(1);
     expect(onAudioChange).toHaveBeenCalledWith(2);
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -387,7 +388,7 @@ describe("PlayerSettingsPanel - track selection", () => {
     expect(getByLabelText("Subtitles").textContent).toContain("Francais");
     fireEvent.click(getByLabelText("Subtitles"));
     expect(getByText("burn-in")).toBeTruthy();
-    fireEvent.click(getByLabelText("eng"));
+    fireEvent.click(getByLabelText("English"));
     expect(onSubtitleChange).toHaveBeenCalledWith(4);
     fireEvent.click(getByLabelText("Off"));
     expect(onSubtitleChange).toHaveBeenLastCalledWith(null);

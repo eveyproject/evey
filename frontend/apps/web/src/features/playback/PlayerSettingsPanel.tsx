@@ -221,7 +221,7 @@ export function SettingsPanel({
   onSleepTimerEndOfEpisode,
   onSleepTimerCancel,
 }: SettingsPanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const allQualityOptions = useQualityOptions();
   // Build the manual quality list from the ACTUAL hls rung heights, each
   // labelled by its nearest standard tier - the static list only matched 16:9
@@ -454,7 +454,7 @@ export function SettingsPanel({
                 </>
               )}
               {audioStreams.map((s) => {
-                const label = formatAudioTrackLabel(s, t("media.track", { number: s.index }));
+                const label = formatAudioTrackLabel(s, t("media.track", { number: s.index }), i18n.language);
                 return (
                   <button
                     key={s.index}
@@ -480,7 +480,7 @@ export function SettingsPanel({
                 {currentSubtitleTrackIndex === null && <CheckIcon />}
               </button>
               {subtitleStreams.map((s) => {
-                const label = trackDisplayName(s, t("media.track", { number: s.index }));
+                const label = trackDisplayName(s, t("media.track", { number: s.index }), i18n.language);
                 return (
                   <button
                     key={s.index}
