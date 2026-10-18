@@ -325,6 +325,14 @@ func (s *CommandService) clearFieldsAndUpdate(ctx context.Context, item *library
 	item.Tagline = ""
 	item.OriginalTitle = ""
 	item.Catalog = nil
+	// The year the file name carries is not enriched metadata: the scan stored
+	// it before any match, and the re-match needs it to tell a film from its
+	// remake or a namesake.
+	if s.yearParser != nil && filePath != "" {
+		if year := s.yearParser.ParseYear(filePath); year != nil {
+			item.Catalog = &library.MediaCatalog{Year: year}
+		}
+	}
 	item.Classification = nil
 	item.Trailers = nil
 	item.UpdatedAt = time.Now()

@@ -345,6 +345,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		appmetadata.WithMediaPersons(r.MediaPerson),
 		appmetadata.WithShutdownCtx(ctx),
 		appmetadata.WithServerConfig(r.ServerCfg),
+		// A metadata reset keeps the year the file name carries for its re-match.
+		appmetadata.WithFileYearParser(infra.scanner),
 	)
 	// Fire the artwork auto-download the moment the enricher persists a new record
 	// (no-op unless the admin toggle artwork.auto_download is on, checked inside

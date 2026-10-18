@@ -54,6 +54,15 @@ func (s *Scanner) ParseTitle(path string) string {
 	return (&FilenameParser{}).Parse(path).Title
 }
 
+// ParseYear is the year Scan stores for path: the file name's, else its
+// folder's ("Show Name (2025)/"). Pure, no I/O.
+func (s *Scanner) ParseYear(path string) *int {
+	if year := (&FilenameParser{}).Parse(path).Year; year != nil {
+		return year
+	}
+	return (&FilenameParser{}).Parse(filepath.Dir(path) + ".mkv").Year
+}
+
 // FileExists reports whether path is still present on disk.
 func (s *Scanner) FileExists(path string) bool {
 	return notProvenGone(path)
