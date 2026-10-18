@@ -534,9 +534,8 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 				// blocked:" paths (analyzer-failed, theme.js scanner,
 				// native-binary, escalated warnings) don't have categories
 				// and fall back to the legacy string-extracted issues.
-				var blockErr *appplugin.PluginBlockedError
 				var issues, categories []string
-				if errors.As(installErr, &blockErr) {
+				if blockErr, ok := errors.AsType[*appplugin.PluginBlockedError](installErr); ok {
 					issues = blockErr.Issues
 					categories = blockErr.Categories
 				} else {
@@ -791,11 +790,11 @@ func extractBlockedIssues(errMsg string) []string {
 // render the diff modal without re-parsing free-form prose.
 func extractEscalationEntries(errMsg string) []string {
 	const marker = "new entries requested: "
-	idx := strings.Index(errMsg, marker)
-	if idx < 0 {
+	_, after, ok := strings.Cut(errMsg, marker)
+	if !ok {
 		return nil
 	}
-	raw := errMsg[idx+len(marker):]
+	raw := after
 	parts := strings.Split(raw, ", ")
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {

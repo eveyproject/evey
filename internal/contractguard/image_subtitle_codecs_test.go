@@ -89,19 +89,19 @@ func tsImageSubtitleCodecs(t *testing.T) []string {
 	src := string(raw)
 
 	const marker = "IMAGE_SUBTITLE_CODECS: ReadonlySet<string> = new Set(["
-	start := strings.Index(src, marker)
-	if start < 0 {
+	_, after, ok := strings.Cut(src, marker)
+	if !ok {
 		t.Fatalf("%s: IMAGE_SUBTITLE_CODECS set literal not found - was it renamed or reshaped? "+
 			"this guard must be updated with it", path)
 	}
-	body := src[start+len(marker):]
-	end := strings.Index(body, "])")
-	if end < 0 {
+	body := after
+	before0, _, ok0 := strings.Cut(body, "])")
+	if !ok0 {
 		t.Fatalf("%s: unterminated IMAGE_SUBTITLE_CODECS literal", path)
 	}
 
 	var out []string
-	for _, m := range tsStringLiteral.FindAllStringSubmatch(body[:end], -1) {
+	for _, m := range tsStringLiteral.FindAllStringSubmatch(before0, -1) {
 		out = append(out, m[1])
 	}
 	return out

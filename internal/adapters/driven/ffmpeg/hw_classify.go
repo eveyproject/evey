@@ -33,8 +33,7 @@ func ClassifyHWFailure(exitErr error, stderrTail string) transcoding.FailureClas
 	// A kill-by-signal is, by default, attributed to us (seek-cancel or the
 	// resource monitor's SIGKILL) - we don't demote the host on a kill we
 	// can't confirm came from the GPU.
-	var ee *exec.ExitError
-	if errors.As(exitErr, &ee) {
+	if ee, ok := errors.AsType[*exec.ExitError](exitErr); ok {
 		if ws, ok := ee.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
 			switch ws.Signal() {
 			case syscall.SIGKILL, syscall.SIGTERM, syscall.SIGINT:

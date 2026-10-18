@@ -228,8 +228,8 @@ func waitSites(prof *pprofprofile.Profile, marker string, n int) []WaitSite {
 // shortFunc drops the import path: "github.com/x/mkvgo/mp4.(*Plan).read"
 // becomes "mp4.(*Plan).read".
 func shortFunc(fn string) string {
-	if i := strings.LastIndex(fn, "/"); i >= 0 {
-		return fn[i+1:]
+	if _, after, ok := strings.CutLast(fn, "/"); ok {
+		return after
 	}
 	return fn
 }

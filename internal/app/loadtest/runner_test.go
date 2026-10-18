@@ -308,11 +308,11 @@ func segIndexFromPath(path string) (int, bool) {
 		return 0, false
 	}
 	base := path[strings.LastIndex(path, "/")+1:]
-	idx := strings.LastIndex(base, "seg")
-	if idx < 0 {
+	_, after, ok := strings.CutLast(base, "seg")
+	if !ok {
 		return 0, false
 	}
-	v, err := strconv.Atoi(strings.TrimSuffix(base[idx+3:], ".ts"))
+	v, err := strconv.Atoi(strings.TrimSuffix(after, ".ts"))
 	if err != nil {
 		return 0, false
 	}
@@ -468,8 +468,8 @@ func (s *serverState) serveSegment(w http.ResponseWriter, r *http.Request) {
 	mediaID := mediaIDFromPath(r.URL.Path)
 	base := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
 	segIdx := 0
-	if idx := strings.LastIndex(base, "seg"); idx >= 0 {
-		if v, err := strconv.Atoi(strings.TrimSuffix(base[idx+3:], ".ts")); err == nil {
+	if _, after, ok := strings.CutLast(base, "seg"); ok {
+		if v, err := strconv.Atoi(strings.TrimSuffix(after, ".ts")); err == nil {
 			segIdx = v
 		}
 	}

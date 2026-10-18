@@ -35,11 +35,11 @@ func initCodecString(t *testing.T, init []byte) string {
 	if i := bytes.Index(init, []byte("avcC")); i > 0 {
 		return fmt.Sprintf("avc1.%02x%02x%02x", init[i+5], init[i+6], init[i+7])
 	}
-	i := bytes.Index(init, []byte("hvcC"))
-	if i < 0 {
+	_, after, ok := bytes.Cut(init, []byte("hvcC"))
+	if !ok {
 		t.Fatal("no avcC or hvcC in the init")
 	}
-	c := init[i+4:]
+	c := after
 	profileIdc := c[1] & 0x1f
 	tier := "L"
 	if c[1]&0x20 != 0 {

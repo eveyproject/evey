@@ -132,8 +132,8 @@ func parseRequestedWidth(r *http.Request) int {
 // /data/artworks/abc/poster.jpg → /data/artworks/abc/poster_w400.webp
 func buildVariantPath(srcPath string, width int) string {
 	base := srcPath
-	if idx := strings.LastIndex(srcPath, "."); idx >= 0 {
-		base = srcPath[:idx]
+	if before, _, ok := strings.CutLast(srcPath, "."); ok {
+		base = before
 	}
 	return fmt.Sprintf("%s_w%d.webp", base, width)
 }

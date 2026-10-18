@@ -108,8 +108,8 @@ func (r *Runner) logStrata(ramp *rampState, pool *candidatePool) {
 // splitStratum separates "<disk>|q3" into its disk and band; a stratum
 // without a disk (one disk, or an encoded viewer's cost class) is all band.
 func splitStratum(s string) (disk, band string) {
-	if i := strings.LastIndex(s, "|"); i >= 0 {
-		return s[:i], s[i+1:]
+	if before, after, ok := strings.CutLast(s, "|"); ok {
+		return before, after
 	}
 	return "", s
 }

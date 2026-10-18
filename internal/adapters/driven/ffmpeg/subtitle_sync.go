@@ -228,8 +228,8 @@ func (p *SubtitleSync) centreIsReal(ctx context.Context, path string, ordinal in
 	}
 	loud := 0
 	for line := range strings.SplitSeq(string(out), "\n") {
-		if i := strings.Index(line, "RMS_level="); i >= 0 {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(line[i+10:]), 64); err == nil && v > subSyncFloorDB {
+		if _, after, ok := strings.Cut(line, "RMS_level="); ok {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(after), 64); err == nil && v > subSyncFloorDB {
 				loud++
 			}
 		}
@@ -287,17 +287,17 @@ func readEnvelope(path string, at float64, n int) ([]float64, error) {
 	sc.Buffer(make([]byte, 0, 1<<20), 64<<20)
 	for sc.Scan() {
 		line := sc.Text()
-		if idx := strings.Index(line, "pts_time:"); idx >= 0 {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(line[idx+9:]), 64); err == nil {
+		if _, after, ok := strings.Cut(line, "pts_time:"); ok {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(after), 64); err == nil {
 				pts = v
 			}
 			continue
 		}
-		idx := strings.Index(line, "RMS_level=")
-		if idx < 0 || pts < 0 {
+		_, after, ok := strings.Cut(line, "RMS_level=")
+		if !ok || pts < 0 {
 			continue
 		}
-		v, err := strconv.ParseFloat(strings.TrimSpace(line[idx+10:]), 64)
+		v, err := strconv.ParseFloat(strings.TrimSpace(after), 64)
 		if err != nil || math.IsInf(v, 0) || math.IsNaN(v) {
 			v = subSyncFloorDB
 		}

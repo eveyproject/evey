@@ -42,7 +42,7 @@ func TestDomainContextsDoNotImportEachOther(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		own := strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]
+		own, _, _ := strings.Cut(filepath.ToSlash(rel), "/")
 		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
 		if err != nil {
 			return err
@@ -53,7 +53,7 @@ func TestDomainContextsDoNotImportEachOther(t *testing.T) {
 			case strings.HasPrefix(spec, appImport), strings.HasPrefix(spec, adapterImprt):
 				violations = append(violations, rel+" imports "+spec+" (domain must not depend on app/adapters)")
 			case strings.HasPrefix(spec, domainImport):
-				ctx := strings.SplitN(strings.TrimPrefix(spec, domainImport), "/", 2)[0]
+				ctx, _, _ := strings.Cut(strings.TrimPrefix(spec, domainImport), "/")
 				if ctx != "shared" && ctx != own {
 					violations = append(violations, rel+" imports "+spec+" (cross-context domain import)")
 				}

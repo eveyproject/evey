@@ -433,8 +433,7 @@ func classifyExitError(err error) string {
 	if err == nil {
 		return ""
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		ws, ok := exitErr.Sys().(syscall.WaitStatus)
 		if ok && ws.Signaled() && ws.Signal() == syscall.SIGKILL {
 			return "process SIGKILLed from outside the server - likely the host/container OOM-killer under memory pressure, or a manual kill (a breach of the EVEY_PLUGINS_MEMORY_MB cap is logged as 'memory quota exceeded' instead)"

@@ -300,11 +300,11 @@ func TestPermissions_SemanticConsistency(t *testing.T) {
 
 	for method, perm := range auth.MethodPermissions {
 		// extract method name after last '/'
-		idx := strings.LastIndex(method, "/")
-		if idx < 0 {
+		_, after, ok := strings.CutLast(method, "/")
+		if !ok {
 			continue
 		}
-		name := method[idx+1:]
+		name := after
 
 		isRead := false
 		for _, p := range readPrefixes {

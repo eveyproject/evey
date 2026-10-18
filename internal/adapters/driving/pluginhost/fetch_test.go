@@ -173,7 +173,7 @@ func TestFetch_RedirectToOffListHostBlocked(t *testing.T) {
 		http.Redirect(w, &http.Request{}, "https://evil.attacker.tld/exfil", http.StatusFound)
 	}))
 	defer srv.Close()
-	host := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
+	host, _, _ := strings.Cut(strings.TrimPrefix(srv.URL, "http://"), ":")
 
 	h := newFetchTestServer(t, []string{host}) // only the redirecting host is allowed
 	prev := newFetchClient
@@ -198,7 +198,7 @@ func TestFetch_RedirectToAllowedHostFollowed(t *testing.T) {
 		http.Redirect(w, r, srv.URL+"/final", http.StatusFound)
 	}))
 	defer srv.Close()
-	host := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
+	host, _, _ := strings.Cut(strings.TrimPrefix(srv.URL, "http://"), ":")
 
 	h := newFetchTestServer(t, []string{host})
 	prev := newFetchClient
@@ -228,7 +228,7 @@ func TestFetch_BodyCapTruncates(t *testing.T) {
 		_, _ = io.WriteString(w, big)
 	}))
 	defer srv.Close()
-	host := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
+	host, _, _ := strings.Cut(strings.TrimPrefix(srv.URL, "http://"), ":")
 
 	h := newFetchTestServer(t, []string{host})
 	prev := newFetchClient
