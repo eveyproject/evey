@@ -281,7 +281,7 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 	r.servedBytes.Store(0)
 	src := r.counters
 	if src == nil {
-		src = cgroupSource{fsRoot: cfg.fsRoot(), devices: mappedDevices(devices), appRead: r.appReadBytes}
+		src = cgroupSource{fsRoot: cfg.fsRoot(), devices: mappedDevices(devices), appRead: r.appReadBytes, appServed: r.appServedBytes}
 	}
 	sampler := newResourceSampler(src)
 	res := newResourceState(cl.warmupFor(), time.Now())

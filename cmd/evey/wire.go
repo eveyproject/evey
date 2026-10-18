@@ -937,6 +937,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	// "app read" figure /proc/self/io would give if the server could read it
 	// (it is non-dumpable).
 	loadTestRunner.WithAppReadCounter(func() int64 { return infra.onDemandPackager.WindowStats()["source_read_bytes"] })
+	// And what it served, the bytes those reads were for.
+	loadTestRunner.WithAppServedCounter(func() int64 { return infra.onDemandPackager.WindowStats()["served_to_clients_bytes"] })
 	// A "clients:history" run plays the mix of the last 30 days' playbacks.
 	loadTestRunner.WithClientHistory(func(ctx context.Context) (map[apploadtest.PlaybackDevice]int, error) {
 		counts, err := r.PlaySessionStats.CountByDeviceSince(ctx, time.Now().Add(-30*24*time.Hour))

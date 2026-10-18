@@ -90,6 +90,9 @@ type Runner struct {
 	// appReadBytes counts, in-process, the bytes the packager has read from its
 	// sources so far (see WithAppReadCounter). nil: not measured.
 	appReadBytes func() int64
+	// appServedBytes counts what the packager served so far, the denominator
+	// of its read amplification (see WithAppServedCounter). nil: not measured.
+	appServedBytes func() int64
 	// dropPlans forgets the packager's plans for these sources (see
 	// WithPlanDrop); forgetPlayback clears the "someone is watching" signal
 	// for these media (see WithPlaybackForget). nil: not wired.
@@ -196,6 +199,14 @@ func (r *Runner) WithWindowStats(read func() map[string]int64) *Runner {
 // report says the figure was not measured rather than printing a zero.
 func (r *Runner) WithAppReadCounter(read func() int64) *Runner {
 	r.appReadBytes = read
+	return r
+}
+
+// WithAppServedCounter wires the in-process count of the bytes the packager
+// served, so its read amplification is its reads over its own output rather
+// than over every viewer's, ffmpeg ones included.
+func (r *Runner) WithAppServedCounter(served func() int64) *Runner {
+	r.appServedBytes = served
 	return r
 }
 
