@@ -1017,6 +1017,13 @@
           "type": "integer",
           "format": "int32",
           "description": "Parental age cap. Only honored when the profile is_kids=true; ignored\notherwise. Sentinel: -1 clears any stored value, 0+ sets it."
+        },
+        "currentPin": {
+          "type": "string",
+          "description": "Proof required when `pin` is set, the same rule as the parental HTTP\nroute: a profile that already has a PIN needs its CURRENT PIN to change\nor clear it (current_pin); a first PIN needs the caller's account\npassword (current_password). An admin editing another user's profile\nproves their own password in both cases."
+        },
+        "currentPassword": {
+          "type": "string"
         }
       }
     },
@@ -1046,6 +1053,10 @@
         "maxDevicesPerProfile": {
           "type": "integer",
           "format": "int32"
+        },
+        "currentPassword": {
+          "type": "string",
+          "description": "Required when the caller edits their OWN password, e-mail or username:\na stolen access token alone must not take the account over."
         }
       }
     },
@@ -1401,6 +1412,10 @@
           "type": "string",
           "format": "date-time",
           "description": "When an access token was last minted for this profile (login or refresh).\nAbsent = never. Admin impersonation does not count."
+        },
+        "hasPin": {
+          "type": "boolean",
+          "description": "Whether a parental PIN is set: tells an edit dialog which proof to ask\nfor before changing it (the current PIN, or the account password for a\nfirst one). The hash itself never leaves the server."
         }
       }
     },

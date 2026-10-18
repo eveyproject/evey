@@ -489,6 +489,14 @@
             "required": false,
             "type": "integer",
             "format": "int32"
+          },
+          {
+            "name": "maxAudioChannels",
+            "description": "max_audio_channels: the channel ceiling of the device's OUTPUT chain (a\nstereo TV, a 2.0 cast target), not of its decoder. Same meaning as\n?maxAudioChannels= on the HLS master, so the stream-info verdict describes\nthe audio the segments will carry: without it the panel announced a 6ch\ncopy while the master, asked with the ceiling, re-encoded to stereo.\n0 (older clients, or a browser that cannot probe its output) keeps the\nprofile default.",
+            "in": "query",
+            "required": false,
+            "type": "integer",
+            "format": "int32"
           }
         ],
         "tags": [
