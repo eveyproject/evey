@@ -164,3 +164,28 @@ metadata:
   no_provider_id: "This item has no {provider} ID"
   unsupported_provider: "Unsupported metadata provider: {provider}"
   field_name_required: "A field name is required"
+
+collection:
+  not_found: "Collection not found"
+  id_required: "A collection id is required"
+  name_required: "A collection name is required"
+  items_required: "At least one item is required"
+  too_many_items: "A collection holds at most {max} items"
+  items_not_members: "These items are not in this collection: {ids}"
+  items_left_during_reorder: "Some items left this collection during the reorder - reload it and try again"
+
+rating:
+  invalid_value: "The rating must be -1, 0 or 1"
+
+feed:
+  invalid_type: "Invalid feed type"
+  max_items_negative: "The maximum number of items must be 0 or more"
+
+notification:
+  not_found: "Notification not found"
+
+push:
+  too_many_registrations: "Too many push notification registrations - try again later"
+  endpoint_and_keys_required: "A push endpoint and its keys are required"
+  invalid_key_encoding: "The push keys are not validly encoded"
+  endpoint_required: "A push endpoint is required"

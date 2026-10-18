@@ -164,3 +164,28 @@ metadata:
   no_provider_id: "इस आइटम की कोई {provider} आईडी नहीं है"
   unsupported_provider: "असमर्थित मेटाडेटा प्रदाता: {provider}"
   field_name_required: "फ़ील्ड का नाम आवश्यक है"
+
+collection:
+  not_found: "संग्रह नहीं मिला"
+  id_required: "संग्रह आईडी आवश्यक है"
+  name_required: "संग्रह का नाम आवश्यक है"
+  items_required: "कम से कम एक आइटम आवश्यक है"
+  too_many_items: "एक संग्रह में अधिकतम {max} आइटम हो सकते हैं"
+  items_not_members: "ये आइटम इस संग्रह में नहीं हैं: {ids}"
+  items_left_during_reorder: "क्रम बदलते समय कुछ आइटम इस संग्रह से हट गए - इसे फिर से लोड करें और दोबारा प्रयास करें"
+
+rating:
+  invalid_value: "रेटिंग -1, 0 या 1 होनी चाहिए"
+
+feed:
+  invalid_type: "अमान्य फ़ीड प्रकार"
+  max_items_negative: "आइटम की अधिकतम संख्या 0 या उससे अधिक होनी चाहिए"
+
+notification:
+  not_found: "सूचना नहीं मिली"
+
+push:
+  too_many_registrations: "पुश सूचना के लिए बहुत अधिक पंजीकरण - बाद में पुनः प्रयास करें"
+  endpoint_and_keys_required: "एक पुश एंडपॉइंट और उसकी कुंजियाँ आवश्यक हैं"
+  invalid_key_encoding: "पुश कुंजियाँ सही ढंग से एन्कोड नहीं हैं"
+  endpoint_required: "एक पुश एंडपॉइंट आवश्यक है"

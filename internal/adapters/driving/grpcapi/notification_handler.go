@@ -13,9 +13,9 @@ import (
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/domain/notification"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type notificationHandler struct {
@@ -24,6 +24,7 @@ type notificationHandler struct {
 	query      *appnotification.QueryService
 	userAccess *appuser.AccessService
 	libQuery   *applibrary.QueryService
+	translator *eveyi18n.Translator
 }
 
 func (h *notificationHandler) ListNotifications(ctx context.Context, req *eveyv1.ListNotificationsRequest) (*eveyv1.ListNotificationsResponse, error) {
@@ -99,7 +100,7 @@ func (h *notificationHandler) MarkRead(ctx context.Context, req *eveyv1.MarkRead
 		// is the caller's mistake, not the server's - and the same answer for
 		// another profile's id keeps that id unguessable.
 		if errors.Is(err, shared.ErrNotFound) {
-			return nil, status.Errorf(codes.NotFound, "notification not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.notification.not_found")
 		}
 		return nil, internalError(ctx, "mark read", err)
 	}
@@ -212,7 +213,7 @@ func (h *notificationHandler) ListAdminNotifications(ctx context.Context, req *e
 		return nil, fmt.Errorf("notificationHandler.ListAdminNotifications: %w", err)
 	}
 	if !claims.IsAdmin {
-		return nil, status.Errorf(codes.PermissionDenied, "admin role required")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	adminLimit, adminOffset := clampLimitOffset(req.Limit, req.Offset, 200)
 	items, err := h.query.ListAdminOnly(ctx, shared.ProfileID(claims.ProfileID), req.UnreadOnly, adminLimit, adminOffset)

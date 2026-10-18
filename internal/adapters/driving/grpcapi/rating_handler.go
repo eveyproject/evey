@@ -12,6 +12,7 @@ import (
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	domainlibrary "github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -25,12 +26,13 @@ type ratingHandler struct {
 	thumbs     domainlibrary.UserRatingRepository
 	libQuery   *applibrary.QueryService
 	userAccess *appuser.AccessService
+	translator *eveyi18n.Translator
 }
 
 func (h *ratingHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return status.Error(codes.Unauthenticated, "unauthenticated")
+		return h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	// Existence check runs for every caller (admin included) so rating on a
 	// non-existent mediaItemID returns NotFound instead of falling through
@@ -38,7 +40,7 @@ func (h *ratingHandler) requireMediaAccess(ctx context.Context, mediaItemID stri
 	// "rating must be between 1 and 10" InvalidArgument.
 	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {
-		return status.Error(codes.NotFound, "not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 	}
 	if claims.IsAdmin {
 		return nil
@@ -48,7 +50,7 @@ func (h *ratingHandler) requireMediaAccess(ctx context.Context, mediaItemID stri
 	}
 	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {
-		return status.Error(codes.NotFound, "not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 	}
 	return nil
 }
@@ -69,7 +71,7 @@ func (h *ratingHandler) PutThumbRating(ctx context.Context, req *eveyv1.PutThumb
 	}
 	if req.Value < -1 || req.Value > 1 {
 		span.SetStatus(otelcodes.Error, "value must be -1, 0, or 1")
-		return nil, status.Error(codes.InvalidArgument, "value must be -1, 0, or 1")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.rating.invalid_value")
 	}
 	r := &domainlibrary.UserRating{
 		ProfileID:   shared.ProfileID(claims.ProfileID),

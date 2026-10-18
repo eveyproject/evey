@@ -17,6 +17,7 @@ import (
 	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/eveyproject/evey/internal/domain/user"
 	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -983,6 +984,13 @@ func TestCollectionReorderCollectionItems_OK(t *testing.T) {
 // back instead (decision 2026-08-05).
 func TestCollectionReorderCollectionItems_RejectsNonMembers(t *testing.T) {
 	h, cmdRepo, mediaRepo, _ := newTestCollectionHandlerWithAccess()
+	// The real catalogue: the offending ids reach the caller through the
+	// {ids} placeholder, which a nil translator would not substitute.
+	tr, trErr := eveyi18n.NewFromDir("../../../../i18n")
+	if trErr != nil {
+		t.Fatalf("load translations: %v", trErr)
+	}
+	h.translator = tr
 	cmdRepo.Upsert(context.Background(), &library.Collection{ID: "col-1", Name: "Chrono", SortBy: "manual"})
 	for _, id := range []string{"m1", "m2"} {
 		mediaRepo.Create(context.Background(), &library.MediaItem{ID: shared.MediaItemID(id), LibraryID: "lib-1", Title: id, Type: "movie"})

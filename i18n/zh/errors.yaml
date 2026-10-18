@@ -164,3 +164,28 @@ metadata:
   no_provider_id: "此项目没有 {provider} ID"
   unsupported_provider: "不支持的元数据提供方：{provider}"
   field_name_required: "字段名称为必填项"
+
+collection:
+  not_found: "未找到合集"
+  id_required: "需要合集 ID"
+  name_required: "合集名称为必填项"
+  items_required: "至少需要一个项目"
+  too_many_items: "一个合集最多包含 {max} 个项目"
+  items_not_members: "以下项目不在此合集中：{ids}"
+  items_left_during_reorder: "重新排序期间有项目离开了此合集，请重新加载后再试"
+
+rating:
+  invalid_value: "评分必须为 -1、0 或 1"
+
+feed:
+  invalid_type: "信息流类型无效"
+  max_items_negative: "最大项目数必须大于或等于 0"
+
+notification:
+  not_found: "未找到通知"
+
+push:
+  too_many_registrations: "推送通知注册次数过多，请稍后再试"
+  endpoint_and_keys_required: "需要推送端点及其密钥"
+  invalid_key_encoding: "推送密钥编码无效"
+  endpoint_required: "需要推送端点"
