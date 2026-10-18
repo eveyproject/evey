@@ -267,7 +267,7 @@ func TestServeConcatResource_StripsPrefixAndDecodesPartPath(t *testing.T) {
 		streamsByID: map[string][]*domainlibrary.MediaStream{"e1": copyEligibleAV(), "e2": copyEligibleAV()},
 		nextByID:    map[string]*domainlibrary.MediaItem{"e1": e2},
 	}
-	pkg := &fakeConcatPackager{plan: &fakeConcatPlan{resources: map[string][]byte{"playlist.m3u8": []byte("data")}}}
+	pkg := &fakeConcatPackager{plan: &fakeConcatPlan{resources: map[string][]byte{"playlist.m3u8": []byte("#EXTM3U\n")}}}
 	h := newCopyTestHandler(t)
 	h.onDemand = &fakeOnDemandPackager{plan: &fakeOnDemandPlan{}}
 	h.onDemandConcat = pkg
@@ -276,7 +276,7 @@ func TestServeConcatResource_StripsPrefixAndDecodesPartPath(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.serveConcatResource(w, concatReq(""), "e1", concatPrefix+"playlist.m3u8", e1, noopSpan())
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, "data", w.Body.String())
+	assert.Equal(t, "#EXTM3U\n", w.Body.String())
 }
 
 func TestServeConcatResource_FeatureOff404s(t *testing.T) {
