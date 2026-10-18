@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1132,5 +1133,43 @@ func TestServiceTest_DeliveryFailed(t *testing.T) {
 	}
 	if err.Error() == webhook.ErrDeliveryFailed.Error() {
 		t.Fatal("expected the receiver's status to be included in the error message")
+	}
+}
+
+// A delivery cancelled while it waits before a retry stops there: it neither
+// sends again nor sits out the rest of its backoff. Nothing exercised that
+// branch (mutation testing reported it uncovered), so a refactor that dropped
+// the ctx.Done case would have held a Test call for the full 36 s of retries.
+func TestTest_CancelledDuringBackoffStopsRetrying(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	deliveries := &fakeDeliveryRepo{}
+	bus := sharedfakes.NewFakeEventBus()
+	sender := &programmableSender{responder: func(_ int) (int, error) { return http.StatusInternalServerError, nil }}
+	svc := newTestServiceWithSender(repo, deliveries, bus, sender)
+	svc.SetRetryDelays([]time.Duration{time.Hour})
+	repo.mu.Lock()
+	repo.data = append(repo.data, &webhookdomain.Config{ID: "slow", URL: "http://hook.example", Events: []string{"*"}, Enabled: true})
+	repo.mu.Unlock()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.Test(ctx, "slow")
+		done <- err
+	}()
+	waitForCalls(t, sender, 1, 2*time.Second)
+	cancel()
+
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), context.Canceled.Error()) {
+			t.Fatalf("Test returned %v, want the cancellation", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("a cancelled delivery kept waiting out its retry backoff")
+	}
+	if n := len(sender.Calls()); n != 1 {
+		t.Fatalf("sent %d times, want the one attempt before the cancellation", n)
 	}
 }
