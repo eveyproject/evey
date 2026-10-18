@@ -232,8 +232,24 @@ sec-scan:
 PKG ?= ./internal/pkg/ratelimit/
 MUTATION_SRC := $(CURDIR)/.mutation-src
 MUTATION_REPORT := $(CURDIR)/.mutation-report.txt
+# A mutant can loop and allocate until its cap: on 2026-10-18 three webhook
+# runs whose `docker run` client had died kept their containers, each pinned
+# at 6 GiB, and with the other sessions' work WSL ran out of memory. So: one
+# fixed name (a leftover run is removed before a new one, and two never run at
+# once), a 3 GiB cap without swap, a wall-clock bound, and a refusal to start
+# when the machine has no room for it.
+MUTATION_CTR := evey-mutation-run
+MUTATION_MIN_AVAIL_GB ?= 5
+MUTATION_DOCKER := docker run --rm --name $(MUTATION_CTR) --cpus 4 --memory 3g --memory-swap 3g --pids-limit 2048 \
+	  --user "$$(id -u):$$(id -g)" \
+	  -e GOPATH=/tmp/go -e GOCACHE=/tmp/gocache -e HOME=/tmp \
+	  -v $(MUTATION_SRC):/src -w /src evey-mutation
 mutation-test:
 	@command -v git >/dev/null || { echo "git required"; exit 1; }
+	@avail=$$(awk '/^MemAvailable:/ { print int($$2 / 1048576) }' /proc/meminfo); \
+	  if [ "$$avail" -lt $(MUTATION_MIN_AVAIL_GB) ]; then \
+	    echo "only $${avail} GiB available, a mutation run needs $(MUTATION_MIN_AVAIL_GB): wait for the other jobs"; exit 1; fi
+	@docker rm -f $(MUTATION_CTR) >/dev/null 2>&1 || true
 	@docker build -q -t evey-mutation -f docker/Dockerfile.mutation . >/dev/null
 	@rm -rf $(MUTATION_SRC) && mkdir -p $(MUTATION_SRC)
 	@git archive HEAD | tar -x -C $(MUTATION_SRC)
@@ -250,18 +266,10 @@ mutation-test:
 	@# package's own tests must pass in the clean checkout BEFORE mutating. A
 	@# red baseline makes every mutant look killed.
 	@echo "→ baseline check on $(PKG)"
-	@docker run --rm --cpus 4 --memory 6g \
-	  --user "$$(id -u):$$(id -g)" \
-	  -e GOPATH=/tmp/go -e GOCACHE=/tmp/gocache -e HOME=/tmp \
-	  -v $(MUTATION_SRC):/src -w /src \
-	  evey-mutation go test $(PKG) -count=1 >/dev/null || \
+	@$(MUTATION_DOCKER) go test $(PKG) -count=1 >/dev/null || \
 	  { echo "BASELINE RED on $(PKG) - a mutation run would report a fake 100%"; rm -rf $(MUTATION_SRC); exit 1; }
 	@echo "→ gremlins on $(PKG) (clean checkout, containerised, non-root)"
-	@docker run --rm --cpus 4 --memory 6g \
-	  --user "$$(id -u):$$(id -g)" \
-	  -e GOPATH=/tmp/go -e GOCACHE=/tmp/gocache -e HOME=/tmp \
-	  -v $(MUTATION_SRC):/src -w /src \
-	  evey-mutation gremlins unleash $(if $(DRY),--dry-run,) $(PKG) \
+	@$(MUTATION_DOCKER) timeout 7200 gremlins unleash $(if $(DRY),--dry-run,) $(PKG) \
 	  | tee $(MUTATION_REPORT)
 	@# PLAUSIBILITY GATE. A green baseline is not enough: on
 	@# ./internal/adapters/driving/http gremlins reports "Killed 1647, Lived 0,
