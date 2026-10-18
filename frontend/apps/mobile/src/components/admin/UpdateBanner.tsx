@@ -5,8 +5,8 @@ import { UPDATE_COMMAND, changesUrl, latestLabel, useUpdateStatus } from "@evey/
 import { useTheme } from "../../providers/ThemeProvider";
 
 // The web dashboard's update banner: shown only when the registry publishes a
-// newer image. Evey never updates itself; the command is selectable text, a
-// long press copies it.
+// newer image. Evey never updates itself. The app has no clipboard module: the
+// command is selectable text, so a long press opens the system copy menu.
 export function UpdateBanner() {
   const theme = useTheme();
   const { t } = useTranslation();
