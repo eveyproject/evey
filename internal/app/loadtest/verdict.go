@@ -1,6 +1,7 @@
 package loadtest
 
 import (
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 	"strings"
 	"time"
 )
@@ -16,27 +17,11 @@ import (
 // is saturated when its queue has formed, and the queue shows in the time a
 // read waits, not in the share of seconds the disk was doing something.
 
-const (
-	// diskAwaitSaturatedMs is the mean wait per read past which the queue has
-	// formed. Sits between the held tier's 7-8 ms and the broken tiers' 27 ms
-	// of the cross-check, with room on both sides for the run-to-run spread.
-	diskAwaitSaturatedMs = 20.0
-	// diskAwaitBaselineFactor is how much longer than at rest a read must wait,
-	// on top of the floor above: a pool that already waits 15 ms idle (SMR, a
-	// busy NAS) is not saturated at 20.
-	diskAwaitBaselineFactor = 2.5
-	// diskAwaitBaselineFloorMs is the least rest wait the factor is applied
-	// to: an SSD rests under a millisecond, and 2.5 times nothing would make
-	// the floor the only bar - which is what it should be there.
-	diskAwaitBaselineFloorMs = 4.0
-	// diskSaturatedMinUtilPct is the least share of the interval the device
-	// must have been busy: a disk slow on a handful of reads but idle most of
-	// the time is not what held the audience back.
-	diskSaturatedMinUtilPct = 30.0
-	// iowaitCorroboratesPct is the machine-wide iowait share that corroborates
-	// the device's own wait: the cores were parked on this storage.
-	iowaitCorroboratesPct = 25.0
-)
+// The thresholds live in sysinfo (SaturatedAwaitFloorMs 20 ms, sitting
+// between the held tier's 7-8 ms and the broken tiers' 27 ms of the
+// cross-check; SaturatedAwaitRatio 2.5 over a rest wait floored at 4 ms, so an
+// SMR pool resting at 15 ms is not saturated at 20; SaturatedUtilMinPct 30 and
+// SaturatedIOWaitMinPct 25 to corroborate), shared with the dashboard.
 
 // DiskVerdict is the busiest device of a hold, judged.
 type DiskVerdict struct {
@@ -83,8 +68,9 @@ func diskVerdict(hold ResourceStats, baseline ResourceStats) DiskVerdict {
 			v.AwaitBaselineMs = d.AwaitMsAvg
 		}
 	}
-	bar := max(diskAwaitSaturatedMs, diskAwaitBaselineFactor*max(v.AwaitBaselineMs, diskAwaitBaselineFloorMs))
-	v.Saturated = v.AwaitMs >= bar && (v.UtilPct >= diskSaturatedMinUtilPct || v.IOWaitPct >= iowaitCorroboratesPct)
+	// The dashboard's rule (sysinfo.DiskSaturated), not a copy of it: the badge
+	// and the verdict must not contradict each other on the same disk.
+	v.Saturated = sysinfo.DiskSaturated(v.AwaitMs, v.AwaitBaselineMs, v.UtilPct, v.IOWaitPct)
 	return v
 }
 

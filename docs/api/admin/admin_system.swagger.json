@@ -414,7 +414,7 @@
         "awaitMs": {
           "type": "number",
           "format": "double",
-          "description": "Mean time a request waited and was served, reads and writes together.\nThe one signal that separates a disk that keeps up from one that does\nnot; see saturated."
+          "description": "Mean time a READ waited and was served (a read queued behind writes\ncounts that queueing): the wait the load test judges on too. The one\nsignal that separates a disk that keeps up from one that does not; see\nsaturated. Averaged reads and writes together before 2026-10-18."
         },
         "utilPercent": {
           "type": "number",

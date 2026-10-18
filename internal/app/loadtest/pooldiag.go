@@ -1,11 +1,10 @@
 package loadtest
 
 import (
-	"bufio"
+	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 )
 
@@ -174,28 +173,21 @@ func readDiskCounters(fsRoot string) map[string]diskCounters {
 		return nil
 	}
 	defer func() { _ = f.Close() }()
-
-	out := map[string]diskCounters{}
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		fields := strings.Fields(sc.Text())
-		if len(fields) < 14 {
-			continue
-		}
-		name := fields[2]
+	// The dashboard's parser (sysinfo.ParseDiskstats): one reading of the
+	// file, so the bench and the "saturated" badge judge the same counters.
+	parsed := sysinfo.ParseDiskstats(f, func(name string) bool {
 		if skipDevice(name) {
-			continue
+			return false
 		}
-		if _, err := os.Stat(filepath.Join(fsRoot, "sys/block", name)); err != nil {
-			continue
+		_, statErr := os.Stat(filepath.Join(fsRoot, "sys/block", name))
+		return statErr == nil
+	})
+	out := make(map[string]diskCounters, len(parsed))
+	for name, c := range parsed {
+		out[name] = diskCounters{
+			reads: c.Reads, sectorsRead: c.SectorsRead, readMs: c.ReadMs,
+			ioTicksMs: c.IOTicksMs, weightedMs: c.WeightedMs,
 		}
-		var c diskCounters
-		c.reads, _ = strconv.ParseUint(fields[3], 10, 64)
-		c.sectorsRead, _ = strconv.ParseUint(fields[5], 10, 64)
-		c.readMs, _ = strconv.ParseUint(fields[6], 10, 64)
-		c.ioTicksMs, _ = strconv.ParseUint(fields[12], 10, 64)
-		c.weightedMs, _ = strconv.ParseUint(fields[13], 10, 64)
-		out[name] = c
 	}
 	return out
 }

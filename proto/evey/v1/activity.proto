@@ -186,7 +186,7 @@ message ServerMetric {
   // The machine's share of CPU time spent waiting on a disk; cpu_percent
   // counts that time as idle.
   double iowait_percent = 13;
-  // The disk that waited the most over the sample: its mean request wait,
+  // The disk that waited the most over the sample: its mean read wait,
   // its busy share and its stable label (model and serial tail, never the
   // kernel letter). Whole machine figures, not Evey's alone.
   double disk_await_ms = 14;
