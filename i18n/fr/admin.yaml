@@ -15,6 +15,7 @@ nav:
   usersAccess: Utilisateurs et accès
   users: Utilisateurs
   mediaRequests: Demandes de média
+  shareLinks: "Liens de partage"
   integrations: Intégrations
   plugins: Plugins
   webhooks: Webhooks
@@ -1856,3 +1857,19 @@ sso:
   save: "Enregistrer les réglages SSO"
   saved: "Réglages SSO enregistrés"
   saveFailed: "Impossible d'enregistrer les réglages SSO"
+shareLinks:
+  title: "Liens de partage"
+  description: "Chaque lien qui permet à quelqu'un sans compte de regarder un titre. Révoquez-en un pour l'arrêter aussitôt."
+  noLinks: "Aucun lien de partage."
+  tableHeaders:
+    media: "Titre"
+    expires: "Expire"
+    views: "Vues"
+    actions: "Actions"
+  revoke: "Révoquer"
+  revokeTitle: "Révoquer le lien de partage"
+  revokeConfirm: "Révoquer le lien vers « {{title}} » ? La personne qui le détient ne pourra plus le regarder."
+  revoked: "Lien de partage révoqué"
+  failedRevoke: "Impossible de révoquer le lien de partage"
+  expired: "expiré"
+  unlimited: "illimité"

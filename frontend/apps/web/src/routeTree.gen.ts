@@ -50,6 +50,7 @@ import { Route as AuthAdminUsersRouteImport } from './routes/_auth/admin/users'
 import { Route as AuthAdminTranscodingRouteImport } from './routes/_auth/admin/transcoding'
 import { Route as AuthAdminTranscodeCacheRouteImport } from './routes/_auth/admin/transcode-cache'
 import { Route as AuthAdminSystemHealthRouteImport } from './routes/_auth/admin/system-health'
+import { Route as AuthAdminShareLinksRouteImport } from './routes/_auth/admin/share-links'
 import { Route as AuthAdminSessionsRouteImport } from './routes/_auth/admin/sessions'
 import { Route as AuthAdminServerConfigRouteImport } from './routes/_auth/admin/server-config'
 import { Route as AuthAdminRemoteAccessRouteImport } from './routes/_auth/admin/remote-access'
@@ -338,6 +339,13 @@ const AuthAdminSystemHealthRoute = AuthAdminSystemHealthRouteImport.update({
 } as any).lazy(() =>
   import('./routes/_auth/admin/system-health.lazy').then((d) => d.Route),
 )
+const AuthAdminShareLinksRoute = AuthAdminShareLinksRouteImport.update({
+  id: '/share-links',
+  path: '/share-links',
+  getParentRoute: () => AuthAdminRoute,
+} as any).lazy(() =>
+  import('./routes/_auth/admin/share-links.lazy').then((d) => d.Route),
+)
 const AuthAdminSessionsRoute = AuthAdminSessionsRouteImport.update({
   id: '/sessions',
   path: '/sessions',
@@ -510,6 +518,7 @@ export interface FileRoutesByFullPath {
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
   '/admin/server-config': typeof AuthAdminServerConfigRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
+  '/admin/share-links': typeof AuthAdminShareLinksRoute
   '/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/admin/transcoding': typeof AuthAdminTranscodingRoute
@@ -570,6 +579,7 @@ export interface FileRoutesByTo {
   '/admin/remote-access': typeof AuthAdminRemoteAccessRoute
   '/admin/server-config': typeof AuthAdminServerConfigRoute
   '/admin/sessions': typeof AuthAdminSessionsRoute
+  '/admin/share-links': typeof AuthAdminShareLinksRoute
   '/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/admin/transcoding': typeof AuthAdminTranscodingRoute
@@ -633,6 +643,7 @@ export interface FileRoutesById {
   '/_auth/admin/remote-access': typeof AuthAdminRemoteAccessRoute
   '/_auth/admin/server-config': typeof AuthAdminServerConfigRoute
   '/_auth/admin/sessions': typeof AuthAdminSessionsRoute
+  '/_auth/admin/share-links': typeof AuthAdminShareLinksRoute
   '/_auth/admin/system-health': typeof AuthAdminSystemHealthRoute
   '/_auth/admin/transcode-cache': typeof AuthAdminTranscodeCacheRoute
   '/_auth/admin/transcoding': typeof AuthAdminTranscodingRoute
@@ -696,6 +707,7 @@ export interface FileRouteTypes {
     | '/admin/remote-access'
     | '/admin/server-config'
     | '/admin/sessions'
+    | '/admin/share-links'
     | '/admin/system-health'
     | '/admin/transcode-cache'
     | '/admin/transcoding'
@@ -756,6 +768,7 @@ export interface FileRouteTypes {
     | '/admin/remote-access'
     | '/admin/server-config'
     | '/admin/sessions'
+    | '/admin/share-links'
     | '/admin/system-health'
     | '/admin/transcode-cache'
     | '/admin/transcoding'
@@ -818,6 +831,7 @@ export interface FileRouteTypes {
     | '/_auth/admin/remote-access'
     | '/_auth/admin/server-config'
     | '/_auth/admin/sessions'
+    | '/_auth/admin/share-links'
     | '/_auth/admin/system-health'
     | '/_auth/admin/transcode-cache'
     | '/_auth/admin/transcoding'
@@ -1148,6 +1162,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthAdminSystemHealthRouteImport
       parentRoute: typeof AuthAdminRoute
     }
+    '/_auth/admin/share-links': {
+      id: '/_auth/admin/share-links'
+      path: '/share-links'
+      fullPath: '/admin/share-links'
+      preLoaderRoute: typeof AuthAdminShareLinksRouteImport
+      parentRoute: typeof AuthAdminRoute
+    }
     '/_auth/admin/sessions': {
       id: '/_auth/admin/sessions'
       path: '/sessions'
@@ -1301,6 +1322,7 @@ interface AuthAdminRouteChildren {
   AuthAdminRemoteAccessRoute: typeof AuthAdminRemoteAccessRoute
   AuthAdminServerConfigRoute: typeof AuthAdminServerConfigRoute
   AuthAdminSessionsRoute: typeof AuthAdminSessionsRoute
+  AuthAdminShareLinksRoute: typeof AuthAdminShareLinksRoute
   AuthAdminSystemHealthRoute: typeof AuthAdminSystemHealthRoute
   AuthAdminTranscodeCacheRoute: typeof AuthAdminTranscodeCacheRoute
   AuthAdminTranscodingRoute: typeof AuthAdminTranscodingRoute
@@ -1328,6 +1350,7 @@ const AuthAdminRouteChildren: AuthAdminRouteChildren = {
   AuthAdminRemoteAccessRoute: AuthAdminRemoteAccessRoute,
   AuthAdminServerConfigRoute: AuthAdminServerConfigRoute,
   AuthAdminSessionsRoute: AuthAdminSessionsRoute,
+  AuthAdminShareLinksRoute: AuthAdminShareLinksRoute,
   AuthAdminSystemHealthRoute: AuthAdminSystemHealthRoute,
   AuthAdminTranscodeCacheRoute: AuthAdminTranscodeCacheRoute,
   AuthAdminTranscodingRoute: AuthAdminTranscodingRoute,

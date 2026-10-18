@@ -23,6 +23,7 @@ import {
   ScanSearch,
   ScrollText,
   Inbox,
+  Share2,
   type LucideIcon,
 } from "lucide-react";
 import { usePluginSlotEntries } from "@/features/plugins/usePluginSlot";
@@ -65,6 +66,7 @@ const sectionsDef: NavSection[] = [
     links: [
       { href: "/admin/users", labelKey: "admin.nav.users", icon: Users },
       { href: "/admin/media-requests", labelKey: "admin.nav.mediaRequests", icon: Inbox },
+      { href: "/admin/share-links", labelKey: "admin.nav.shareLinks", icon: Share2 },
     ],
   },
   {

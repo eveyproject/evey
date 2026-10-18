@@ -16,6 +16,7 @@ nav:
   usersAccess: Usuarios y acceso
   users: Usuarios
   mediaRequests: Solicitudes de contenido
+  shareLinks: "Enlaces compartidos"
   integrations: Integraciones
   plugins: Plugins
   webhooks: Webhooks
@@ -1857,3 +1858,19 @@ sso:
   save: "Guardar ajustes SSO"
   saved: "Ajustes SSO guardados"
   saveFailed: "No se pudieron guardar los ajustes SSO"
+shareLinks:
+  title: "Enlaces compartidos"
+  description: "Cada enlace que permite a alguien sin cuenta ver un título. Revoca uno para detenerlo al instante."
+  noLinks: "Ningún enlace compartido."
+  tableHeaders:
+    media: "Título"
+    expires: "Caduca"
+    views: "Vistas"
+    actions: "Acciones"
+  revoke: "Revocar"
+  revokeTitle: "Revocar enlace compartido"
+  revokeConfirm: "¿Revocar el enlace a «{{title}}»? Quien lo tenga ya no podrá verlo."
+  revoked: "Enlace compartido revocado"
+  failedRevoke: "No se pudo revocar el enlace compartido"
+  expired: "caducado"
+  unlimited: "ilimitado"
