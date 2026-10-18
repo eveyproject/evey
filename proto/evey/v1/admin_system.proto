@@ -313,9 +313,10 @@ message DiskIOInfo {
   // between boots, so it is never an identity.
   string device = 2;
   bool rotational = 3;
-  // Mean time a request waited and was served, reads and writes together.
-  // The one signal that separates a disk that keeps up from one that does
-  // not; see saturated.
+  // Mean time a READ waited and was served (a read queued behind writes
+  // counts that queueing): the wait the load test judges on too. The one
+  // signal that separates a disk that keeps up from one that does not; see
+  // saturated. Averaged reads and writes together before 2026-10-18.
   double await_ms = 4;
   // Share of the window with at least one request in flight. Reaches 100 on
   // a healthy SSD or array, so it only corroborates the wait.

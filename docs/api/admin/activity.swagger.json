@@ -206,6 +206,7 @@
         "parameters": [
           {
             "name": "from",
+            "description": "Defaults: the last 24 hours.",
             "in": "query",
             "required": false,
             "type": "string",
@@ -220,6 +221,7 @@
           },
           {
             "name": "intervalSeconds",
+            "description": "Width of the buckets the samples are folded into. 0 lets the server\npick one that keeps the window under a few hundred points; a given\nvalue is rounded up to the nearest step the server uses.",
             "in": "query",
             "required": false,
             "type": "integer",
@@ -673,7 +675,22 @@
           "items": {
             "type": "object",
             "$ref": "#/definitions/v1ServerMetric"
-          }
+          },
+          "description": "One point per bucket: percentages and rates averaged, counts, disk wait\nand storage at their maximum, disk_busiest the most frequent name."
+        },
+        "intervalSeconds": {
+          "type": "integer",
+          "format": "int32",
+          "description": "The bucket width actually applied."
+        },
+        "idleDiskAwaitMs": {
+          "type": "number",
+          "format": "double",
+          "description": "The disks' wait at rest over the last day (floored at 4 ms) and the wait\nabove which a sample counts as saturated: the two reference lines a\nchart draws under disk_await_ms."
+        },
+        "saturationAwaitMs": {
+          "type": "number",
+          "format": "double"
         }
       }
     },
@@ -939,7 +956,8 @@
         },
         "networkRxBytes": {
           "type": "string",
-          "format": "int64"
+          "format": "int64",
+          "description": "Never filled: the sampler records rates, see network_rx_bps/tx_bps."
         },
         "networkTxBytes": {
           "type": "string",
@@ -952,6 +970,58 @@
         "activeTranscodes": {
           "type": "integer",
           "format": "int32"
+        },
+        "memoryTotalBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "bandwidthBps": {
+          "type": "string",
+          "format": "int64",
+          "description": "Streaming bits per second Evey served over the sample."
+        },
+        "storageUsedBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "storageTotalBytes": {
+          "type": "string",
+          "format": "int64"
+        },
+        "iowaitPercent": {
+          "type": "number",
+          "format": "double",
+          "description": "The machine's share of CPU time spent waiting on a disk; cpu_percent\ncounts that time as idle."
+        },
+        "diskAwaitMs": {
+          "type": "number",
+          "format": "double",
+          "description": "The disk that waited the most over the sample: its mean read wait,\nits busy share and its stable label (model and serial tail, never the\nkernel letter). Whole machine figures, not Evey's alone."
+        },
+        "diskUtilPercent": {
+          "type": "number",
+          "format": "double"
+        },
+        "diskBusiest": {
+          "type": "string"
+        },
+        "diskReadBps": {
+          "type": "string",
+          "format": "int64",
+          "description": "Summed over every physical disk."
+        },
+        "diskWriteBps": {
+          "type": "string",
+          "format": "int64"
+        },
+        "networkRxBps": {
+          "type": "string",
+          "format": "int64",
+          "description": "Every interface but the loopback, streaming or not."
+        },
+        "networkTxBps": {
+          "type": "string",
+          "format": "int64"
         }
       }
     },

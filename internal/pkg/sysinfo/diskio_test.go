@@ -3,6 +3,7 @@ package sysinfo
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -239,5 +240,31 @@ func TestSampler_WindowIsItsOwnWhateverTheDashboardAsks(t *testing.T) {
 	s := history.Collect()
 	if len(s.Disks) != 1 || s.Disks[0].ReadBps <= 0 {
 		t.Fatalf("the history's window lost the burst the dashboard saw: %+v", s.Disks)
+	}
+}
+
+// The dashboard averaged the waits of reads AND writes, the bench judged reads
+// alone. A window of slow reads behind a burst of fast cached writes read as
+// healthy on the dashboard while the bench, on the same disk, called it
+// saturated. Both now judge the read wait.
+func TestDiffDisk_JudgesTheReadWait(t *testing.T) {
+	prev := DiskCounters{}
+	// 100 reads that took 4000 ms (40 ms each), 900 writes that took 900 ms.
+	cur := DiskCounters{Reads: 100, ReadMs: 4000, Writes: 900, WriteMs: 900, IOTicksMs: 900}
+	d := diffDisk("sdz", prev, cur, 1)
+	if d.AwaitMs != 40 {
+		t.Fatalf("await = %v ms, want the 40 ms a read waited (the read+write mean is 4.9)", d.AwaitMs)
+	}
+	if !DiskSaturated(d.AwaitMs, 4, d.UtilPercent, 0) {
+		t.Fatal("40 ms reads on a 90 percent busy disk are saturated, as the bench says")
+	}
+}
+
+func TestParseDiskstats_ReadsEveryColumnBothCallersNeed(t *testing.T) {
+	line := "   8       0 sda 100 0 2000 4000 900 0 7200 900 0 900 4900 0 0 0 0\n"
+	got := ParseDiskstats(strings.NewReader(line+"   7       0 loop0 1 0 1 1 1 0 1 1 0 1 1\n"), func(n string) bool { return n == "sda" })
+	want := DiskCounters{Reads: 100, SectorsRead: 2000, ReadMs: 4000, Writes: 900, SectorsWritten: 7200, WriteMs: 900, IOTicksMs: 900, WeightedMs: 4900}
+	if len(got) != 1 || got["sda"] != want {
+		t.Fatalf("parsed %+v, want only sda = %+v", got, want)
 	}
 }
