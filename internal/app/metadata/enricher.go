@@ -483,15 +483,6 @@ func (e *Enricher) upsertPeople(ctx context.Context, mediaItemID string, people 
 // person's biography: it is missing AND either never checked, or last
 // checked longer than bioRecheckTTL ago. A person the provider genuinely has
 // no bio for is otherwise re-fetched on every re-enrichment pass, forever.
-// clockNow is the injectable clock with its production default, for every
-// stamp the enricher writes.
-func (e *Enricher) clockNow() time.Time {
-	if e.now == nil {
-		return time.Now()
-	}
-	return e.now()
-}
-
 func (e *Enricher) personNeedsBio(p *domainlib.Person) bool {
 	if p.Biography != "" {
 		return false
