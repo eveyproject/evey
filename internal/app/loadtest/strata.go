@@ -30,9 +30,14 @@ func scenarioUsesMkvgo(scenario string) bool {
 // mkvgoEligible keeps the candidates the server packages through mkvgo for an
 // mkvgo viewer, by asking for each one's master playlist exactly as the viewer
 // will. It runs before anything is drawn, so a title the server will not
-// package never takes a place in a stratum. The plans those requests built,
-// and the playback activity they raised, are dropped afterwards: the run must
-// start as cold as a real first play.
+// package never takes a place in a stratum. The playback activity those
+// requests raised is cleared afterwards; the plans they built are KEPT. Dropped,
+// every viewer of the climb's batches paid a cold plan build (5-30 s on prod,
+// 16 at a time, the rest queued) and the run judged that first-play storm as
+// capacity: prod 2026-10-19, every broken tier (141, 101, 100, 81 twice) fell
+// inside the storm, the tiers after it held with disks 10-30 % busy and 81
+// was never measured again. A real audience does not start 80 cold titles in
+// the same five seconds.
 func (r *Runner) mkvgoEligible(ctx context.Context, cfg Config, candidates []MediaCandidate) []MediaCandidate {
 	keep := make([]bool, len(candidates))
 	sem := make(chan struct{}, eligibilityProbeConcurrency)
@@ -48,17 +53,12 @@ func (r *Runner) mkvgoEligible(ctx context.Context, cfg Config, candidates []Med
 	}
 	wg.Wait()
 	out := make([]MediaCandidate, 0, len(candidates))
-	paths := make([]string, 0, len(candidates))
 	ids := make([]string, 0, len(candidates))
 	for i, m := range candidates {
 		ids = append(ids, m.ID)
 		if keep[i] {
 			out = append(out, m)
-			paths = append(paths, m.Path)
 		}
-	}
-	if r.dropPlans != nil {
-		r.dropPlans(paths)
 	}
 	if r.forgetPlayback != nil {
 		r.forgetPlayback(ids)

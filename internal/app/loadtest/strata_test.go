@@ -129,16 +129,11 @@ func TestRunner_IneligibleTitlesAreKeptOutBeforeTheDraw(t *testing.T) {
 	ts := httptest.NewServer(st.handler())
 	defer ts.Close()
 	srv := ts.URL
-	var dropped []string
 	var forgotten []string
-	r.WithPlanDrop(func(paths []string) { dropped = paths })
 	r.WithPlaybackForget(func(ids []string) { forgotten = ids })
 	got := r.mkvgoEligible(context.Background(), Config{BaseURL: srv, Token: "tkn"}, manyCandidates(3))
 	if len(got) != 2 || got[0].ID != "m0" || got[1].ID != "m2" {
 		t.Fatalf("eligible = %+v, want m0 and m2", got)
-	}
-	if len(dropped) != 2 {
-		t.Fatalf("plans dropped for %v, want the two eligible titles", dropped)
 	}
 	if len(forgotten) != 3 {
 		t.Fatalf("activity forgotten for %v, want every probed title", forgotten)
