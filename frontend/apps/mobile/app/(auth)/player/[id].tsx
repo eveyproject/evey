@@ -265,7 +265,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // remount us on a real episode in a tick. Passing "" makes usePlaySession
   // hold its initial loading state instead of hitting /transcode and 404'ing.
   const sessionMediaId = isSeriesOrSeason ? "" : mediaId;
-  const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, progress, restartPositionMs } =
+  const { streamUrl, streamToken, sessionId, streamInfo, serverUrl, isLoading, isError, shedReason, stopSession, restartWithTracks, selectAudioStream, progress, restartPositionMs } =
     usePlaySession(sessionMediaId, {
       ...(trackPick.audio === undefined ? {} : { audioStreamIndex: trackPick.audio }),
       // The encoder is pre-warmed where the player will start.
@@ -1280,6 +1280,17 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       if (nativeTrack && player) {
         try {
           (player as unknown as { audioTrack: unknown }).audioTrack = nativeTrack;
+          // The server judged the track the stream was negotiated for: ask
+          // again for this one, so the panel describes what plays, and restart
+          // when it belongs on the other side (file vs master). A downloaded
+          // copy plays on its own, whatever the server would say.
+          if (!useLocalSource) {
+            void selectAudioStream(index).then((outcome) => {
+              if (outcome !== "reload") return;
+              resumeAfterRestartRef.current = player.playing ?? true;
+              restartWithTracks(index, burnInSubtitleIndex, selectedQuality || undefined);
+            });
+          }
           return;
         } catch (err) {
           console.warn("[player] native audioTrack switch failed, restarting:", err);
@@ -1288,7 +1299,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       resumeAfterRestartRef.current = player?.playing ?? true;
       restartWithTracks(index, burnInSubtitleIndex, selectedQuality || undefined);
     },
-    [player, nativeAudioTracks, audioStreams, restartWithTracks, burnInSubtitleIndex, selectedQuality, userPickedAudioRef, setSelectedAudioIndex],
+    [player, nativeAudioTracks, audioStreams, restartWithTracks, selectAudioStream, useLocalSource, burnInSubtitleIndex, selectedQuality, userPickedAudioRef, setSelectedAudioIndex],
   );
 
   // The file itself (direct play, downloaded copy) opens on its own default
