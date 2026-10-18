@@ -168,8 +168,14 @@ scan:
 		hi = len(matches)
 	}
 
+	// matches is nil until the first add(): a miss must still encode "[]",
+	// the admin log screens read .length/.map off it.
+	page := matches[lo:hi]
+	if page == nil {
+		page = []logSearchEntry{}
+	}
 	return logSearchResult{
-		Entries:   matches[lo:hi],
+		Entries:   page,
 		Total:     total,
 		Scanned:   scanned,
 		Truncated: trunc,
