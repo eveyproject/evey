@@ -24,10 +24,8 @@ import {
 import { toast, useAuthStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
+import { type ConfigFieldSchema, normaliseOptions, validateConfigField } from "@evey/client";
 import {
-  type ConfigFieldSchema,
-  normaliseOptions,
-  validateConfigField,
   parseEscalationEntries,
   parseBlockedIssues,
   type InstallPreview,
