@@ -56,7 +56,11 @@ export default function AuthLayout() {
     void (async () => {
       const url = await resolveServerUrl(useServerListStore.getState().getActiveServer()?.url);
       if (url) await initI18n(url);
-    })();
+    })().catch((err) => {
+      // The keystore read can fail: this is only a retry, the bundled floor
+      // keeps the UI readable.
+      console.warn("i18n retry failed", err);
+    });
   }, []);
   // Foreground presence beats for the admin "online" panel - enabled only
   // once fully authenticated, for the same hook-order reason as above.
