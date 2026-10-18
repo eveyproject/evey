@@ -149,6 +149,9 @@ func (s *CommandService) RefreshItemMetadata(ctx context.Context, mediaItemID, t
 		span.SetStatus(otelcodes.Error, err.Error())
 		return fmt.Errorf("get media item: %w", err)
 	}
+	if item.Type == library.Episode || item.Type == library.Season {
+		return s.refreshThroughSeries(ctx, item)
+	}
 	result, _ := s.fetchFromProviders(ctx, tmdbID, mediaType, "")
 	if result == nil {
 		err := fmt.Errorf("no provider returned metadata for tmdb id %s", tmdbID)
@@ -227,6 +230,26 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 	}
 	s.publishItemUpdated(ctx, shared.MediaItemID(mediaItemID), library.UpdateReasonMetadataRefreshed)
 	s.refreshSeriesChildren(item)
+	return nil
+}
+
+// refreshThroughSeries re-enriches an episode or a season from its series,
+// the way a scan does. The by-id lookups only know movies and series, so the
+// item's own stored TMDB id (the one the gRPC refresh hands over) was fetched
+// as a series - /tv/{episode id} - and answered by an unrelated show, or by a
+// miss that walked every provider of the chain in turn while the request
+// waited.
+func (s *CommandService) refreshThroughSeries(ctx context.Context, item *library.MediaItem) error {
+	se, ok := s.enricher.(SingleItemEnricher)
+	if !ok {
+		return errors.New("enricher cannot refresh a single item")
+	}
+	se.ForceAutoEnrichItem(ctx, item, slog.Default())
+	evt := metadata.MetadataRefreshed{MediaItemID: item.ID, Provider: "tmdb", OccurredAt: time.Now()}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
+	s.publishItemUpdated(ctx, item.ID, library.UpdateReasonMetadataRefreshed)
 	return nil
 }
 
