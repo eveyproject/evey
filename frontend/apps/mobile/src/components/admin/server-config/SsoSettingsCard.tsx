@@ -6,6 +6,7 @@ import { eveyFetch, apiErrorMessage, useLibraryServiceListLibraries } from "@eve
 import { toast } from "@evey/store";
 import { useTheme } from "../../../providers/ThemeProvider";
 import { ChipSelect } from "./ChipSelect";
+import { LoadFailed } from "../../LoadFailed";
 
 // SsoSettingsCard configures OpenID Connect sign-in, same routes and keys as
 // the web card: the server applies a save live and only returns the secret
@@ -42,7 +43,7 @@ export function SsoSettingsCard() {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const { data, isLoading } = useQuery<SsoSettings>({
+  const { data, isLoading, isError, refetch } = useQuery<SsoSettings>({
     queryKey: SSO_QUERY_KEY,
     queryFn: () => eveyFetch<SsoSettings>({ url: SSO_URL, method: "GET" }),
   });
@@ -101,6 +102,7 @@ export function SsoSettingsCard() {
 
   const s = styles(theme);
 
+  if (isError && !data) return <LoadFailed inline onRetry={() => void refetch()} />;
   if (isLoading || !data) {
     return (
       <View style={{ paddingVertical: 24, alignItems: "center" }}>
