@@ -3,10 +3,10 @@ import { Folder, ChevronRight, Shuffle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { createLazyFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { nextFilterOffset } from "@evey/client";
+import { libraryFilterOptions, nextFilterOffset } from "@evey/client";
 import {
   useLibraryServiceListLibraries,
-  useLibraryServiceListMediaItems,
+  useLibraryServiceGetLibraryFilterFacets,
   useLibraryServiceListGenres,
   libraryServiceListMediaItems,
   libraryServiceFilterMediaItems,
@@ -37,7 +37,6 @@ import { MediaCardWithModals as MediaCard } from "@/features/library/MediaCardWi
 import {
   LibraryFilterToggle,
   LibraryFiltersPanel,
-  collectFilterOptions,
   applyLocalFilters,
 } from "@/features/library/LibraryFilters";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
@@ -339,25 +338,23 @@ function LibraryPage() {
   // Search returns top-N in a single response, no infinite scroll.
   const hasMore = searchActive ? false : (activeQuery.hasNextPage ?? false);
 
-  const { data: metaData } = useLibraryServiceListMediaItems({
+  // Codec, resolution and language chips come from the library's full
+  // distinct set (GetLibraryFilterFacets), narrowed by the same type as the
+  // grid. They used to be read off a 192-item sample of the first pages, so a
+  // language only the rest of the library carried was never offered.
+  const { data: facetsData } = useLibraryServiceGetLibraryFilterFacets(
     libraryId,
-    ...(typeFilter ? { type: typeFilter } : {}),
-    "pagination.page": 1,
-    "pagination.pageSize": PAGE_SIZE * 4,
-  }, { query: { enabled: !!libraryId && filtersOpen } });
+    typeFilter ? { type: typeFilter } : undefined,
+    { query: { enabled: !!libraryId && filtersOpen } },
+  );
 
-  // Genres come from a dedicated endpoint that returns the library's full
-  // distinct set, not just the genres present in the sampled first pages
-  // (metaData) - otherwise the filter chips silently missed genres.
+  // Genres come from their own endpoint for the same reason.
   const { data: genresData } = useLibraryServiceListGenres(libraryId, {
     query: { enabled: !!libraryId && filtersOpen },
   });
   const genres = useMemo(() => genresData?.genres ?? [], [genresData?.genres]);
 
-  const availableOptions = useMemo(
-    () => collectFilterOptions(metaData?.items ?? []),
-    [metaData?.items],
-  );
+  const availableOptions = useMemo(() => libraryFilterOptions(facetsData), [facetsData]);
 
   const localFiltered = useMemo(() => {
     // Title-based search runs server-side via searchQuery now - no client

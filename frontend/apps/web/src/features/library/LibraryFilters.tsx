@@ -8,60 +8,13 @@ import { GenreDot } from "@/components/ui/GenreDot";
 import type { LibrarySearch } from "@/routes/_auth/library/$libraryId";
 import { ICON } from "@/constants/iconSizes";
 import { normalizeLangCode } from "@/features/playback/hooks/hlsPlayerUtils";
-import { resolutionBand, RESOLUTION_BANDS, type ResolutionBand } from "@evey/client";
+import { normalizeCodec, resolutionBand, type ResolutionBand } from "@evey/client";
 
 // The bands every client filters on, the same tiers as the poster badge
-// (width-aware: a 1920x818 film is 1080p, not 720p).
-const RESOLUTION_OPTIONS = RESOLUTION_BANDS;
+// (width-aware: a 1920x818 film is 1080p, not 720p). The options offered come
+// from GetLibraryFilterFacets through libraryFilterOptions (@evey/client),
+// which labels codecs and languages with the same functions matched on here.
 type Resolution = ResolutionBand;
-
-// Normalize codec strings for display
-function normalizeCodec(codec: string): string {
-  const c = codec.toLowerCase();
-  if (c === "hevc" || c === "h265" || c === "h.265") return "H.265/HEVC";
-  if (c === "h264" || c === "avc" || c === "h.264") return "H.264";
-  if (c === "av1") return "AV1";
-  if (c === "vp9") return "VP9";
-  if (c === "vp8") return "VP8";
-  if (c === "mpeg4" || c === "xvid" || c === "divx") return "MPEG-4";
-  if (c === "mpeg2video") return "MPEG-2";
-  return codec.toUpperCase();
-}
-
-export function collectFilterOptions(items: V1MediaItem[]) {
-  const resolutions = new Set<string>();
-  const codecs = new Set<string>();
-  const audioLangs = new Set<string>();
-  const subLangs = new Set<string>();
-
-  for (const item of items) {
-    for (const stream of item.streams ?? []) {
-      if (stream.type === "MEDIA_STREAM_TYPE_VIDEO") {
-        if (stream.height) resolutions.add(resolutionBand(stream.width, stream.height));
-        if (stream.codec) codecs.add(normalizeCodec(stream.codec));
-      } else if (stream.type === "MEDIA_STREAM_TYPE_AUDIO") {
-        // Normalize so 639-2/B and 639-2/T forms of the same language
-        // ("fre"/"fra") collapse into one filter entry instead of two.
-        if (stream.language && stream.language !== "und") {
-          const norm = normalizeLangCode(stream.language);
-          if (norm) audioLangs.add(norm);
-        }
-      } else if (stream.type === "MEDIA_STREAM_TYPE_SUBTITLE") {
-        if (stream.language && stream.language !== "und") {
-          const norm = normalizeLangCode(stream.language);
-          if (norm) subLangs.add(norm);
-        }
-      }
-    }
-  }
-
-  return {
-    resolutions: RESOLUTION_OPTIONS.filter((r) => resolutions.has(r)),
-    codecs: Array.from(codecs).sort(),
-    audioLangs: Array.from(audioLangs).sort(),
-    subLangs: Array.from(subLangs).sort(),
-  };
-}
 
 export function applyLocalFilters(
   items: V1MediaItem[],

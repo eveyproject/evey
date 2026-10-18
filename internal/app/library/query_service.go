@@ -172,6 +172,23 @@ func (s *QueryService) CountMediaItems(ctx context.Context, filter library.ListM
 	return s.mediaItems.Count(ctx, filter)
 }
 
+// CountMediaItemsPerLibrary is CountMediaItems for several libraries in one
+// query, keyed by library (see MediaItemQueryRepo.CountPerLibrary).
+func (s *QueryService) CountMediaItemsPerLibrary(ctx context.Context, filter library.ListMediaItemsFilter) (map[shared.LibraryID]int, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.CountMediaItemsPerLibrary")
+	defer span.End()
+	return s.mediaItems.CountPerLibrary(ctx, filter)
+}
+
+// ListStreamFacets returns the distinct stream values of the items filter
+// selects, optionally restricted to itemIDs (see
+// MediaItemQueryRepo.ListStreamFacets).
+func (s *QueryService) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter, itemIDs []shared.MediaItemID) (library.StreamFacets, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.ListStreamFacets")
+	defer span.End()
+	return s.mediaItems.ListStreamFacets(ctx, filter, itemIDs)
+}
+
 // ListGenres returns the distinct, sorted genres present in a library, folded
 // onto one label per genre.
 //

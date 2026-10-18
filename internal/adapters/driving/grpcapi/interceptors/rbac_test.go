@@ -364,6 +364,8 @@ var allowedUserCallable = map[string]string{
 	"/evey.v1.LibraryService/FilterMediaItems":      "lib-access + parental filtered",
 	"/evey.v1.LibraryService/ListGenres":            "read",
 	"/evey.v1.LibraryService/GetSeriesAggregate":    "media-access + parental checked",
+	// Facets are computed over the items the caller may list.
+	"/evey.v1.LibraryService/GetLibraryFilterFacets": "lib-access + parental filtered",
 	// MetadataService - not RBAC-gated by design; per-item access via checkMediaItemAccess
 	"/evey.v1.MetadataService/SearchMetadata":         "per-item access in handler",
 	"/evey.v1.MetadataService/RefreshMetadata":        "per-item access in handler",

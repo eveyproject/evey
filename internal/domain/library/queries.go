@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"sort"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
 )
@@ -48,4 +49,48 @@ type MediaItemQueryRepo interface {
 	// ListGenres returns the distinct, sorted genres present across a library's
 	// media - the full set, not a sample of loaded items.
 	ListGenres(ctx context.Context, libraryID shared.LibraryID) ([]string, error)
+	// ListStreamFacets returns the distinct stream values of the items filter
+	// selects, across the whole set rather than a sample of loaded items. The
+	// filter's WHERE applies exactly as in List; its paging, cursor and sort
+	// do not. A non-nil itemIDs further restricts the set to those items, and
+	// an empty one selects none.
+	ListStreamFacets(ctx context.Context, filter ListMediaItemsFilter, itemIDs []shared.MediaItemID) (StreamFacets, error)
+	// CountPerLibrary is Count grouped by library, in one query: for each
+	// library of filter.LibraryIDs, what Count answers with LibraryID set to
+	// it. A library with no matching item is absent from the map, and an empty
+	// LibraryIDs counts nothing (it would read as "every library" in Count).
+	CountPerLibrary(ctx context.Context, filter ListMediaItemsFilter) (map[shared.LibraryID]int, error)
+}
+
+// StreamFacets holds the distinct values a library filter panel offers, raw
+// as probed: clients normalize them for display with the same functions they
+// match items with. Empty codecs and sizes without a height are left out, as
+// are empty and "und" languages.
+type StreamFacets struct {
+	VideoCodecs       []string
+	VideoSizes        []VideoSize
+	AudioLanguages    []string
+	SubtitleLanguages []string
+}
+
+// VideoSize is one distinct frame size of a video stream.
+type VideoSize struct {
+	Width  int
+	Height int
+}
+
+// ResolutionTiers folds the frame sizes onto their distinct ResolutionTier,
+// highest first: the bands a resolution filter offers.
+func (f StreamFacets) ResolutionTiers() []int {
+	seen := make(map[int]bool, len(f.VideoSizes))
+	var tiers []int
+	for _, s := range f.VideoSizes {
+		t := ResolutionTier(s.Width, s.Height)
+		if !seen[t] {
+			seen[t] = true
+			tiers = append(tiers, t)
+		}
+	}
+	sort.Sort(sort.Reverse(sort.IntSlice(tiers)))
+	return tiers
 }

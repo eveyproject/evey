@@ -9,8 +9,10 @@ import { join } from "node:path";
 // page - 30 items out of a thousand - so a viewer saw three audio languages and
 // three subtitle languages, always the same three, and could not filter on
 // anything the top of their library did not happen to contain. It looked
-// hardcoded because it never changed. Web has always fired a dedicated sampling
-// query for this; mobile had not (user, 2026-09-05).
+// hardcoded because it never changed (user, 2026-09-05). A 120-item sample
+// merged with that page came next, and still missed whatever the rest of the
+// library carried; both clients now ask GetLibraryFilterFacets for the full
+// distinct set.
 //
 // The other half of the same panel: the genre chips merged a hardcoded English
 // list into the library's real genres. Removed from web on 2026-09-04 and left
@@ -27,24 +29,23 @@ function source(): string {
 }
 
 describe("library filter panel: where the options come from", () => {
-  it("samples a dedicated page for the facets instead of reading the loaded list alone", () => {
+  it("asks the server for the whole library's facets instead of sampling items", () => {
     const src = source();
     expect(
       src,
-      "collectFilterOptions fed only by rawItems sees one page: the language chips then show " +
-        "whatever the top of the library happens to contain, and never change",
-    ).not.toMatch(/collectFilterOptions\(rawItems\)/);
-    expect(src).toMatch(/"pagination\.pageSize": PAGE_SIZE \* 4/);
+      "a sample, even merged with the loaded list, only ever sees the top of the library: the " +
+        "language chips then miss every value the rest of it carries",
+    ).not.toMatch(/collectFilterOptions\(/);
+    expect(src).not.toMatch(/"pagination\.pageSize": PAGE_SIZE \* 4/);
+    expect(src).toMatch(/useLibraryServiceGetLibraryFilterFacets\(/);
+    expect(src).toMatch(/libraryFilterOptions\(facetsData\)/);
   });
 
-  it("merges the sample with what is already on screen", () => {
-    expect(
-      source(),
-      "a language the viewer can see on a poster in front of them must never be missing from the panel",
-    ).toMatch(/collectFilterOptions\(\[\.\.\.\(facetSample\?\.items \?\? \[\]\), \.\.\.rawItems\]\)/);
+  it("narrows the facets by the list's type", () => {
+    expect(source()).toMatch(/typeFilter \? \{ type: typeFilter \} : undefined/);
   });
 
-  it("gates the sample on the panel being open", () => {
+  it("gates the facets on the panel being open", () => {
     expect(
       source(),
       "an extra request on every library visit, for a panel most visits never open",

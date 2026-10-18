@@ -301,6 +301,57 @@
         ]
       }
     },
+    "/api/v1/libraries/{libraryId}/filter-facets": {
+      "get": {
+        "summary": "GetLibraryFilterFacets returns the distinct stream values present across\nan entire library (video codecs, resolution tiers, audio and subtitle\nlanguages): the full set, like ListGenres, where the filter panels used to\nread them off a sample of loaded items and never offered a value the\nsample missed. Same library access and parental rules as ListMediaItems.",
+        "operationId": "LibraryService_GetLibraryFilterFacets",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1GetLibraryFilterFacetsResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "libraryId",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "type",
+            "description": "Narrows the facets to one item type, the same filter ListMediaItems takes:\na panel offers the values of the items it lists.\n\n - MEDIA_ITEM_TYPE_BOOK: Deprecated: see LIBRARY_TYPE_BOOKS.",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "enum": [
+              "MEDIA_ITEM_TYPE_UNSPECIFIED",
+              "MEDIA_ITEM_TYPE_MOVIE",
+              "MEDIA_ITEM_TYPE_SERIES",
+              "MEDIA_ITEM_TYPE_SEASON",
+              "MEDIA_ITEM_TYPE_EPISODE",
+              "MEDIA_ITEM_TYPE_ALBUM",
+              "MEDIA_ITEM_TYPE_ARTIST",
+              "MEDIA_ITEM_TYPE_TRACK",
+              "MEDIA_ITEM_TYPE_PHOTO",
+              "MEDIA_ITEM_TYPE_BOOK"
+            ],
+            "default": "MEDIA_ITEM_TYPE_UNSPECIFIED"
+          }
+        ],
+        "tags": [
+          "LibraryService"
+        ]
+      }
+    },
     "/api/v1/libraries/{libraryId}/genres": {
       "get": {
         "summary": "ListGenres returns the distinct, sorted genres present across an entire\nlibrary's media (the full set, not a sample). Powers the library filter's\ngenre chips, which otherwise only saw genres from the first loaded page.",
@@ -1045,6 +1096,39 @@
         }
       }
     },
+    "v1GetLibraryFilterFacetsResponse": {
+      "type": "object",
+      "properties": {
+        "videoCodecs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Raw codec names as probed (\"h264\", \"hevc\"), distinct and sorted."
+        },
+        "audioLanguages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Raw language tags as probed (\"fre\", \"eng\"), distinct and sorted; empty and\n\"und\" are left out."
+        },
+        "subtitleLanguages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resolutionTiers": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "description": "Distinct resolution tiers of the video streams (2160, 1440, 1080, 720,\nand 0 below 720p), width-aware like every client's badge, descending."
+        }
+      }
+    },
     "v1GetLibraryScheduleResponse": {
       "type": "object",
       "properties": {
@@ -1123,6 +1207,11 @@
         "lastScannedAt": {
           "type": "string",
           "format": "date-time"
+        },
+        "itemCount": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Number of media items in the library, as ListMediaItems' total_items\ncounts them for this library_id with no other filter (every item type,\nthe caller's parental rating pre-filter applied). Set by ListLibraries\nonly, absent when the count could not be read. Music and photo libraries\nhold no media items: their content lives in their own services."
         }
       }
     },

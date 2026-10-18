@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -16,15 +17,18 @@ type FakeMediaItemQueryRepo struct {
 	mu    sync.RWMutex
 	items map[string]*library.MediaItem
 	cast  map[string][]library.CastMember
-	Err   error
+	// streams backs ListStreamFacets only; seeded with SeedStreams.
+	streams map[string][]*library.MediaStream
+	Err     error
 	// ErrList fails List alone, leaving GetByID and Count answering.
 	ErrList error
 }
 
 func NewFakeMediaItemQueryRepo() *FakeMediaItemQueryRepo {
 	return &FakeMediaItemQueryRepo{
-		items: make(map[string]*library.MediaItem),
-		cast:  make(map[string][]library.CastMember),
+		items:   make(map[string]*library.MediaItem),
+		cast:    make(map[string][]library.CastMember),
+		streams: make(map[string][]*library.MediaStream),
 	}
 }
 
@@ -356,6 +360,103 @@ func (r *FakeMediaItemQueryRepo) ListGenres(_ context.Context, libraryID shared.
 	return genres, nil
 }
 
+// ListStreamFacets selects items through List (same predicates, no paging)
+// and folds their seeded streams with the postgres rules: no empty codec, no
+// size without a height, no empty or "und" language; sorted like the query.
+func (r *FakeMediaItemQueryRepo) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter, itemIDs []shared.MediaItemID) (library.StreamFacets, error) {
+	var facets library.StreamFacets
+	if r.Err != nil {
+		return facets, r.Err
+	}
+	if itemIDs != nil && len(itemIDs) == 0 {
+		return facets, nil
+	}
+	f := filter
+	f.Limit, f.Offset, f.Cursor = math.MaxInt32, 0, shared.Cursor{}
+	items, err := r.List(ctx, f)
+	if err != nil {
+		return facets, err
+	}
+	only := make(map[shared.MediaItemID]bool, len(itemIDs))
+	for _, id := range itemIDs {
+		only[id] = true
+	}
+	codecs, sizes, audio, subs := map[string]bool{}, map[library.VideoSize]bool{}, map[string]bool{}, map[string]bool{}
+	r.mu.RLock()
+	for _, item := range items {
+		if itemIDs != nil && !only[item.ID] {
+			continue
+		}
+		for _, st := range r.streams[string(item.ID)] {
+			switch st.StreamType {
+			case library.StreamTypeVideo:
+				if st.Codec != "" {
+					codecs[st.Codec] = true
+				}
+				if st.Height != nil && *st.Height > 0 {
+					w := 0
+					if st.Width != nil {
+						w = *st.Width
+					}
+					sizes[library.VideoSize{Width: w, Height: *st.Height}] = true
+				}
+			case library.StreamTypeAudio, library.StreamTypeSubtitle:
+				if st.Language == "" || st.Language == "und" {
+					continue
+				}
+				if st.StreamType == library.StreamTypeAudio {
+					audio[st.Language] = true
+				} else {
+					subs[st.Language] = true
+				}
+			}
+		}
+	}
+	r.mu.RUnlock()
+	facets.VideoCodecs = sortedKeys(codecs)
+	facets.AudioLanguages = sortedKeys(audio)
+	facets.SubtitleLanguages = sortedKeys(subs)
+	for sz := range sizes {
+		facets.VideoSizes = append(facets.VideoSizes, sz)
+	}
+	sort.Slice(facets.VideoSizes, func(i, j int) bool {
+		a, b := facets.VideoSizes[i], facets.VideoSizes[j]
+		return a.Width < b.Width || (a.Width == b.Width && a.Height < b.Height)
+	})
+	return facets, nil
+}
+
+func sortedKeys(set map[string]bool) []string {
+	if len(set) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(set))
+	for k := range set {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// CountPerLibrary answers Count once per library of filter.LibraryIDs, which
+// is exactly the contract the grouped postgres query has to meet.
+func (r *FakeMediaItemQueryRepo) CountPerLibrary(ctx context.Context, filter library.ListMediaItemsFilter) (map[shared.LibraryID]int, error) {
+	counts := make(map[shared.LibraryID]int, len(filter.LibraryIDs))
+	for _, id := range filter.LibraryIDs {
+		f := filter
+		libID := id
+		f.LibraryID, f.LibraryIDs = &libID, nil
+		n, err := r.Count(ctx, f)
+		if err != nil {
+			return nil, err
+		}
+		if n > 0 {
+			counts[id] = n
+		}
+	}
+	return counts, nil
+}
+
 func (r *FakeMediaItemQueryRepo) SeriesAggregate(_ context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
 	if r.Err != nil {
 		return library.SeriesAggregate{}, r.Err
@@ -555,6 +656,13 @@ func (r *FakeMediaItemQueryRepo) Seed(item *library.MediaItem) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[string(item.ID)] = cloneMediaItem(item)
+}
+
+// SeedStreams sets the streams ListStreamFacets reads for a media item.
+func (r *FakeMediaItemQueryRepo) SeedStreams(mediaItemID string, streams []*library.MediaStream) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.streams[mediaItemID] = streams
 }
 
 // SeedCast sets cast for a media item.

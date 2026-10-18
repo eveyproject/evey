@@ -33,7 +33,9 @@ vi.mock("expo-router", () => ({
 }));
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, opts?: { count?: number }) => (opts?.count !== undefined ? `${key}:${opts.count}` : key),
+  }),
 }));
 
 vi.mock("../../../src/providers/ThemeProvider", () => ({
@@ -46,10 +48,14 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 
 let librariesState: { data?: { libraries: unknown[] }; isLoading: boolean; isError: boolean; refetch: () => void };
 
-vi.mock("@evey/api", () => ({
+const listMediaItems = vi.fn(() => ({ data: undefined }));
+
+vi.mock("@evey/api", async (importOriginal) => ({
   useLibraryServiceListLibraries: () => librariesState,
-  useLibraryServiceListMediaItems: () => ({ data: undefined }),
-  hasMediaItemCount: () => false,
+  useLibraryServiceListMediaItems: () => listMediaItems(),
+  // The real rule: which library types have their own screen, and so no
+  // media_items count.
+  hasMediaItemCount: (await importOriginal<typeof import("@evey/api")>()).hasMediaItemCount,
 }));
 
 import LibraryScreen from "./library";
@@ -93,5 +99,34 @@ describe("LibraryScreen - a failed fetch must be recoverable", () => {
 
     expect(screen.getByText("Some Library")).toBeTruthy();
     expect(screen.queryByText("common.loadError")).toBeNull();
+  });
+});
+
+describe("LibraryScreen - item counts", () => {
+  function showLibraries(libraries: unknown[]) {
+    librariesState = { data: { libraries }, isLoading: false, isError: false, refetch: vi.fn() };
+    render(<LibraryScreen />);
+  }
+
+  it("reads each card's count off the library list, with no request per library", () => {
+    showLibraries([
+      { id: "lib-1", name: "Films", type: "LIBRARY_TYPE_MOVIES", itemCount: 42 },
+      { id: "lib-2", name: "Series", type: "LIBRARY_TYPE_SHOWS", itemCount: 0 },
+    ]);
+
+    expect(screen.getByText("common.item:42")).toBeTruthy();
+    expect(screen.getByText("common.item:0")).toBeTruthy();
+    // One ListMediaItems per card is what the field replaced.
+    expect(listMediaItems).not.toHaveBeenCalled();
+  });
+
+  it("shows no count for a music or photo library, nor when the server sent none", () => {
+    showLibraries([
+      { id: "lib-m", name: "Musique", type: "LIBRARY_TYPE_MUSIC", itemCount: 0 },
+      { id: "lib-p", name: "Photos", type: "LIBRARY_TYPE_PHOTOS", itemCount: 0 },
+      { id: "lib-x", name: "Films", type: "LIBRARY_TYPE_MOVIES" },
+    ]);
+
+    expect(screen.queryByText(/^common\.item/)).toBeNull();
   });
 });

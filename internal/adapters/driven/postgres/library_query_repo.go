@@ -259,6 +259,116 @@ func (r *MediaItemQueryRepoAdapter) ListGenres(ctx context.Context, libraryID sh
 	return genres, nil
 }
 
+// ListStreamFacets returns the distinct stream values of the items filter
+// selects, in one pass over their streams. The item side is List's own WHERE
+// (buildWhereClause), so the library, type and parental pre-filter are the
+// grid's, never a second copy of them. The join walks
+// idx_media_items_library_id then idx_media_streams_media_item_id; no other
+// index helps a DISTINCT over every stream of a library.
+func (r *MediaItemQueryRepoAdapter) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter, itemIDs []shared.MediaItemID) (library.StreamFacets, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.ListStreamFacets")
+	defer span.End()
+	var facets library.StreamFacets
+	if itemIDs != nil && len(itemIDs) == 0 {
+		return facets, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	where, args := r.items.buildWhereClause(filter)
+	if itemIDs != nil {
+		ids := make([]string, len(itemIDs))
+		for i, id := range itemIDs {
+			ids[i] = string(id)
+		}
+		args = append(args, pq.Array(ids))
+		where = whereAnd(where, fmt.Sprintf("mi.id = ANY($%d)", len(args)))
+	}
+	query := `WITH s AS (
+		SELECT ms.stream_type, ms.codec, ms.language, COALESCE(ms.width, 0) AS width, COALESCE(ms.height, 0) AS height
+		` + mediaItemFromJoins + `
+		JOIN media_streams ms ON ms.media_item_id = mi.id` + where + `
+	)
+	SELECT 'codec', codec, 0, 0 FROM s WHERE stream_type = 'video' AND codec <> '' GROUP BY codec
+	UNION ALL
+	SELECT 'size', '', width, height FROM s WHERE stream_type = 'video' AND height > 0 GROUP BY width, height
+	UNION ALL
+	SELECT stream_type, language, 0, 0 FROM s
+	 WHERE stream_type IN ('audio', 'subtitle') AND language NOT IN ('', 'und')
+	 GROUP BY stream_type, language
+	ORDER BY 1, 2, 3, 4`
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, query, args...)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return facets, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var kind, value string
+		var width, height int
+		if err := rows.Scan(&kind, &value, &width, &height); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return library.StreamFacets{}, err
+		}
+		switch kind {
+		case "codec":
+			facets.VideoCodecs = append(facets.VideoCodecs, value)
+		case "size":
+			facets.VideoSizes = append(facets.VideoSizes, library.VideoSize{Width: width, Height: height})
+		case string(library.StreamTypeAudio):
+			facets.AudioLanguages = append(facets.AudioLanguages, value)
+		case string(library.StreamTypeSubtitle):
+			facets.SubtitleLanguages = append(facets.SubtitleLanguages, value)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return library.StreamFacets{}, err
+	}
+	return facets, nil
+}
+
+// CountPerLibrary answers Count for several libraries at once: the same FROM
+// and WHERE as Count, grouped by library, so a library list carries its
+// counters without one round trip per card.
+func (r *MediaItemQueryRepoAdapter) CountPerLibrary(ctx context.Context, filter library.ListMediaItemsFilter) (map[shared.LibraryID]int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.CountPerLibrary")
+	defer span.End()
+	counts := make(map[shared.LibraryID]int, len(filter.LibraryIDs))
+	if len(filter.LibraryIDs) == 0 {
+		return counts, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	where, args := r.items.buildWhereClause(filter)
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
+		`SELECT mi.library_id, COUNT(*) `+mediaItemFromJoins+where+` GROUP BY mi.library_id`, args...)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var libraryID string
+		var n int
+		if err := rows.Scan(&libraryID, &n); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		counts[shared.LibraryID(libraryID)] = n
+	}
+	if err := rows.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return counts, nil
+}
+
 func (r *MediaItemQueryRepoAdapter) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.SeriesAggregate")
 	defer span.End()
