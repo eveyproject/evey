@@ -17,13 +17,17 @@ import (
 // the alwaysBlockChecker/allowAllParental pattern already used in parental_test.go
 // for the stream/download handlers.
 func buildSubtitleRoutesWithParental(svc subtitleService, mg *fakeMediaGetter, pc ParentalChecker) subtitleRoutesUnderTest {
+	return buildSubtitleRoutesWithParentalAs(svc, mg, pc, false)
+}
+
+func buildSubtitleRoutesWithParentalAs(svc subtitleService, mg *fakeMediaGetter, pc ParentalChecker, isAdmin bool) subtitleRoutesUnderTest {
 	h := &subtitleRoutes{
 		subtitleSvc:   svc,
 		mediaGetter:   mg,
 		libraryAccess: allowAll(),
 		parental:      pc,
 	}
-	auth := httpAuthMiddleware(validUserValidator(false))
+	auth := httpAuthMiddleware(validUserValidator(isAdmin))
 	return subtitleRoutesUnderTest{search: auth(h.search), download: auth(h.download), list: auth(h.list), delete: auth(h.delete)}
 }
 
@@ -66,8 +70,10 @@ func TestSubtitleDelete_ParentalBlocked_NotFound_AndNoDelete(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer tok")
 		return req
 	}
-	build := func(svc *fakeSubtitleService, pc ParentalChecker) http.Handler {
-		h := buildSubtitleRoutesWithParental(svc, subtitleMediaGetter("lib1"), pc)
+	// Deleting is admin-only; the blocked case uses a viewer, whose 404 must
+	// come from the parental gate before the admin check could answer 403.
+	build := func(svc *fakeSubtitleService, pc ParentalChecker, isAdmin bool) http.Handler {
+		h := buildSubtitleRoutesWithParentalAs(svc, subtitleMediaGetter("lib1"), pc, isAdmin)
 		mux := http.NewServeMux()
 		mux.HandleFunc("DELETE /api/v1/media/{id}/subtitles/{subtitleId}", h.delete)
 		return mux
@@ -76,7 +82,7 @@ func TestSubtitleDelete_ParentalBlocked_NotFound_AndNoDelete(t *testing.T) {
 	// Control: gate open, unrestricted profile can delete (non-regression).
 	okSvc := &fakeSubtitleService{listSubs: []*domainsubtitle.SubtitleDownload{{ID: "sub1", MediaItemID: "m1"}}}
 	wOK := httptest.NewRecorder()
-	build(okSvc, allowAllParental{}).ServeHTTP(wOK, newReq())
+	build(okSvc, allowAllParental{}, true).ServeHTTP(wOK, newReq())
 	if wOK.Code != http.StatusNoContent {
 		t.Fatalf("control: open parental gate should delete, got %d: %s", wOK.Code, wOK.Body.String())
 	}
@@ -87,7 +93,7 @@ func TestSubtitleDelete_ParentalBlocked_NotFound_AndNoDelete(t *testing.T) {
 	// A blocked profile must get 404 AND the delete must never reach the service.
 	blockedSvc := &fakeSubtitleService{listSubs: []*domainsubtitle.SubtitleDownload{{ID: "sub1", MediaItemID: "m1"}}}
 	wBlocked := httptest.NewRecorder()
-	build(blockedSvc, alwaysBlockChecker{}).ServeHTTP(wBlocked, newReq())
+	build(blockedSvc, alwaysBlockChecker{}, false).ServeHTTP(wBlocked, newReq())
 	if wBlocked.Code != http.StatusNotFound {
 		t.Errorf("parental-blocked subtitle delete must return 404, got %d", wBlocked.Code)
 	}

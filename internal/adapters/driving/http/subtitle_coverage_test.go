@@ -342,9 +342,14 @@ func TestSubtitleDownload_InvalidBody_400(t *testing.T) {
 }
 
 func TestSubtitleDelete_NotFound_404(t *testing.T) {
-	mux, token := newSubtitleTestMux(t)
+	key, _ := rsa.GenerateKey(rand.Reader, 2048)
+	gen := auth.NewJWTGenerator(key, time.Minute)
+	adminToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "a1", IsAdmin: true})
+	svc := appsubtitle.NewService(subfakes.NewFakeRepository(), subfakes.NewFakeProvider(), &fakeSubtitleMediaGetter{items: map[string]*domainsubtitle.MediaItemInfo{}})
+	mux := http.NewServeMux()
+	registerSubtitleRoutes(mux, svc, gen, &fakeMediaItemGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1"}}, allowAll(), nil, nil)
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/m1/subtitles/sub-999", nil)
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
@@ -381,6 +386,7 @@ func TestSubtitleDelete_OK(t *testing.T) {
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
 	gen := auth.NewJWTGenerator(key, time.Minute)
 	userToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "u1", IsAdmin: false})
+	adminToken, _ := gen.GenerateAccessToken(domainuser.Claims{UserID: "a1", IsAdmin: true})
 
 	repo := subfakes.NewFakeRepository()
 	provider := subfakes.NewFakeProvider()
@@ -406,9 +412,9 @@ func TestSubtitleDelete_OK(t *testing.T) {
 	json.NewDecoder(dw.Body).Decode(&dlResp)
 	subID := dlResp["id"].(string)
 
-	// delete
+	// A viewer added it; removing it is the admin's call.
 	req := httptest.NewRequest(http.MethodDelete, "/api/v1/media/m1/subtitles/"+subID, nil)
-	req.Header.Set("Authorization", "Bearer "+userToken)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 	if w.Code != http.StatusNoContent {
