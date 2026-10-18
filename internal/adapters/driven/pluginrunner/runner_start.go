@@ -398,25 +398,27 @@ func (r *Runner) trackLifecycle(entry *processEntry, cancel context.CancelFunc, 
 	if r.hostRegistry != nil {
 		r.hostRegistry.UnregisterPlugin(p.ID)
 	}
-	if err != nil {
-		msg := classifyExitError(err)
-		if entry.tail != nil {
-			if out := strings.TrimSpace(entry.tail.String()); out != "" {
-				const maxTail = 600
-				if len(out) > maxTail {
-					out = "…" + out[len(out)-maxTail:]
-				}
-				msg += " - plugin output: " + out
-			}
-		}
-		// Record before publishing so connectIPC (still waiting on the socket)
-		// can surface this exact reason instead of a generic socket timeout.
-		entry.setCrashReason(msg)
-		slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.String("classification", msg), slog.Any("err", err))
-		r.publishPluginError(context.Background(), p.ID, msg)
-	} else {
-		slog.Info("plugin process exited", slog.String("plugin", p.ID))
+	// Every server-side stop drops the tracking entry first (see above), so a
+	// clean exit here is the plugin quitting on its own: as dead as a crash,
+	// and its output is the only explanation the admin will get.
+	msg := classifyExitError(err)
+	if err == nil {
+		msg = "process exited on its own (status 0)"
 	}
+	if entry.tail != nil {
+		if out := strings.TrimSpace(entry.tail.String()); out != "" {
+			const maxTail = 600
+			if len(out) > maxTail {
+				out = "…" + out[len(out)-maxTail:]
+			}
+			msg += " - plugin output: " + out
+		}
+	}
+	// Record before publishing so connectIPC (still waiting on the socket)
+	// can surface this exact reason instead of a generic socket timeout.
+	entry.setCrashReason(msg)
+	slog.Warn("plugin process crashed", slog.String("plugin", p.ID), slog.String("classification", msg), slog.Any("err", err))
+	r.publishPluginError(context.Background(), p.ID, msg)
 }
 
 // classifyExitError turns the raw exec.Cmd.Wait error into an admin-readable
