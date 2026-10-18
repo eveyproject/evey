@@ -443,18 +443,23 @@ func itemSortValue(m *library.MediaItem, sortKey string) string {
 			return fmt.Sprintf("%020.6f", *m.Classification.CommunityRating)
 		}
 		return ""
+	case "index_number":
+		if m.IndexNumber != nil {
+			return fmt.Sprintf("%010d", *m.IndexNumber)
+		}
+		return ""
 	default:
 		return string(m.ID)
 	}
 }
 
 // sortKeyIsNullable reports whether an EMPTY itemSortValue means "this item has
-// no value" rather than "its value is the empty string". Only these three reach
-// SQL through a LEFT JOIN (media_catalog, media_classifications); title and
-// added_at live on media_items and are always present.
+// no value" rather than "its value is the empty string". Three reach SQL through
+// a LEFT JOIN (media_catalog, media_classifications), and the episode index is a
+// nullable media_items column; title and added_at are always present.
 func sortKeyIsNullable(sortKey string) bool {
 	switch sortKey {
-	case "year", "premiere_date", "community_rating":
+	case "year", "premiere_date", "community_rating", "index_number":
 		return true
 	default:
 		return false

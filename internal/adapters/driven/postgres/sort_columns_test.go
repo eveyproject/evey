@@ -31,6 +31,7 @@ func TestResolveSortKey(t *testing.T) {
 		{"year", "year", "year", "mc.year", true},
 		{"date_added", "date_added", "date_added", effectiveAddedAt, true},
 		{"premiere_date", "premiere_date", "premiere_date", "mc.premiere_date", true},
+		{"index_number orders a parent's children", "index_number", "index_number", "mi.index_number", true},
 		// The fallback itself is intended behaviour for input we never emit.
 		{"unknown field falls back to title", "no_such_field", "title", "mi.sort_title", false},
 		{"empty field falls back to title", "", "title", "mi.sort_title", false},

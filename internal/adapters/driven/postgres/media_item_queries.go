@@ -211,9 +211,10 @@ func whereAnd(where, predicate string) string {
 // because every nullable sort key encodes non-empty for a present value
 // (zero-padded number, RFC3339 date).
 func mediaItemCursorSeek(sortField, sortOrder string, cursor shared.Cursor, args []any) (string, []any) {
-	// mi.* columns come from the base table and are never NULL here; everything
-	// else arrives through a LEFT JOIN and can be.
-	nullable := !strings.HasPrefix(sortField, "mi.") && sortField != effectiveAddedAt
+	// mi.* columns come from the base table and are never NULL here, except the
+	// episode index; everything else arrives through a LEFT JOIN and can be.
+	nullable := sortField == indexNumberColumn ||
+		(!strings.HasPrefix(sortField, "mi.") && sortField != effectiveAddedAt)
 	atNullRow := nullable && cursor.SortValue == ""
 
 	cmp := ">"
