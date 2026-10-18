@@ -1,10 +1,14 @@
 import { View, Text, Pressable, ActivityIndicator, ScrollView, Modal, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import {
+  getAdminMediaServiceListMediaRepairsQueryKey,
+  SEEK_INDEX_SCAN_QUERY_BASE,
   useAdminMediaServiceGetMediaRepairHistory,
   useAdminMediaServiceUndoMediaRepair,
 } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
+import { LoadFailed } from "../../LoadFailed";
 import { repairOpLabel, repairEvidenceLine, repairShiftSummary } from "@evey/client";
 
 // What was done to this file's bytes, and the way back (mirror web
@@ -30,7 +34,18 @@ export function RepairHistoryModal({ mediaId, title, onClose }: { mediaId: strin
   const { t } = useTranslation();
   const s = styles(theme);
   const history = useAdminMediaServiceGetMediaRepairHistory(mediaId, { limit: 20 });
-  const undo = useAdminMediaServiceUndoMediaRepair({ mutation: { onSuccess: () => void history.refetch() } });
+  const queryClient = useQueryClient();
+  // An undo is a repair too: the library journal and the seek-index row moved
+  // with this file's history.
+  const undo = useAdminMediaServiceUndoMediaRepair({
+    mutation: {
+      onSuccess: () => {
+        void history.refetch();
+        void queryClient.invalidateQueries({ queryKey: getAdminMediaServiceListMediaRepairsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
+      },
+    },
+  });
   const entries = history.data?.entries ?? [];
   const undoable = entries.find((e) => e.reversible);
 
@@ -49,6 +64,8 @@ export function RepairHistoryModal({ mediaId, title, onClose }: { mediaId: strin
         <ScrollView style={{ maxHeight: 360, marginTop: 8 }}>
           {history.isLoading ? (
             <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} />
+          ) : history.isError ? (
+            <LoadFailed inline onRetry={() => void history.refetch()} />
           ) : entries.length === 0 ? (
             <Text style={s.hint}>{t("admin.repairHistory.empty", "No repair history for this file.")}</Text>
           ) : (

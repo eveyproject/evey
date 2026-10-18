@@ -1,8 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, Pressable, Modal, ScrollView, ActivityIndicator, StyleSheet } from "react-native";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { useVideoPlayer, VideoView, type VideoPlayerStatus } from "expo-video";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage, useAdminMediaServiceApplyAudioShift, useLibraryServiceGetMediaItem, type V1SeekIndexItem } from "@evey/api";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  apiErrorMessage,
+  getAdminMediaServiceGetMediaRepairHistoryQueryKey,
+  getAdminMediaServiceListMediaRepairsQueryKey,
+  SEEK_INDEX_SCAN_QUERY_BASE,
+  useAdminMediaServiceApplyAudioShift,
+  useLibraryServiceGetMediaItem,
+  type V1SeekIndexItem,
+} from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../../../providers/ThemeProvider";
 import { useServerUrl } from "../../../hooks/useServerUrl";
@@ -58,7 +67,20 @@ export function SyncPreviewModal({ item, title, onClose }: { item: V1SeekIndexIt
   const [shown, setShown] = useState<{ at: number; shift: number; track: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const applyShift = useAdminMediaServiceApplyAudioShift();
+  const queryClient = useQueryClient();
+  // The failure is said inline below, so the global net must not toast it too.
+  // A shift is a repair: the file's history, the library journal and the
+  // seek-index row all changed.
+  const applyShift = useAdminMediaServiceApplyAudioShift({
+    mutation: {
+      meta: { silentError: true },
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: getAdminMediaServiceGetMediaRepairHistoryQueryKey(mediaId) });
+        void queryClient.invalidateQueries({ queryKey: getAdminMediaServiceListMediaRepairsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
+      },
+    },
+  });
   const { data: media } = useLibraryServiceGetMediaItem(mediaId, { query: { enabled: mediaId !== "", staleTime: 5 * 60_000, retry: false } });
   const durationSec = Math.floor(Number(media?.durationMs ?? 0) / 1000);
   const audioStreams = useMemo(() => (media?.streams ?? []).filter((x) => x.type === "MEDIA_STREAM_TYPE_AUDIO"), [media]);
@@ -75,6 +97,25 @@ export function SyncPreviewModal({ item, title, onClose }: { item: V1SeekIndexIt
   useEffect(() => { if (durationSec > 0 && atSec > durationSec) setAtSec(Math.floor(durationSec / 2)); }, [durationSec, atSec]);
   useEffect(() => { try { player.playbackRate = speed; } catch { /* released */ } }, [speed, player]);
 
+  // On Android replaceAsync resolves as soon as the source is handed to
+  // ExoPlayer, before a byte of the clip is fetched: a refused render (4xx/5xx
+  // from /sync-preview) only ever arrives here, as an "error" status. The
+  // spinner therefore stays up until the player says it loaded or failed.
+  const settle = (status: VideoPlayerStatus) => {
+    if (status === "readyToPlay") setRendering(false);
+    if (status === "error") {
+      setRendering(false);
+      setShown(null);
+      setError(t("admin.syncPreview.renderFailed", "Could not render the clip"));
+    }
+  };
+  const settleRef = useRef(settle);
+  settleRef.current = settle;
+  useEffect(() => {
+    const sub = player.addListener("statusChange", (ev) => settleRef.current(ev.status));
+    return () => sub.remove();
+  }, [player]);
+
   async function render() {
     if (!mediaId) return;
     setRendering(true);
@@ -85,9 +126,10 @@ export function SyncPreviewModal({ item, title, onClose }: { item: V1SeekIndexIt
       await player.replaceAsync({ uri, headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined });
       setShown({ at: atSec, shift, track });
       try { player.play(); } catch { /* released */ }
+      // iOS may have settled before the promise did; its statusChange is gone.
+      settle(player.status);
     } catch (e) {
       setError(apiErrorMessage(e as Error, t, t("admin.syncPreview.renderFailed", "Could not render the clip")));
-    } finally {
       setRendering(false);
     }
   }
