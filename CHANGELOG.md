@@ -186,6 +186,14 @@ line - earlier history lives in git.
   search, ZIP download, metadata RPCs) and profile-management escapes closed.
 
 ### Security
+- API keys: an admin's key uses the admin role only within its scopes. A
+  `users:write` or `playback:write` key no longer changes another account's
+  password or role, manages its profiles or stops its sessions (another
+  account's profiles and sessions need `admin:write`; passwords, roles and
+  invites stay sign-in only), and reading another account's play history,
+  logins or profiles needs `admin:read`. Older keys created without any scope
+  no longer reach the admin statistics, library schedules or plugin tokens:
+  give them `admin:read` or `admin:write`.
 - Stream tokens hardened (scoped, sliding TTL, revocation on user disable).
 - Plugin sandbox: opaque-origin iframes, scoped tokens, per-plugin egress
   rules; installer validation tightened.

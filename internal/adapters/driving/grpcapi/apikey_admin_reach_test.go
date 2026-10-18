@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/eveyproject/evey/internal/domain/activity"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/domain/user"
 	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
@@ -195,4 +197,48 @@ func TestAPIKey_AdminWriteKeyStillManagesAnotherAccountsProfiles(t *testing.T) {
 	require.NoError(t, err, "an admin:write key reaches the admin branch")
 	spare, _ := env.profileRepo.GetByID(context.Background(), "prf-spare")
 	assert.Nil(t, spare, "the profile was deleted")
+}
+
+// The read side of the same rule: an admin's users:read key reads its owner's
+// login history, not another account's; with admin:read it reads both, as a
+// JWT admin does.
+func TestAPIKey_AdminUsersReadKeyNeedsAdminReadForAnotherLoginHistory(t *testing.T) {
+	h, loginRepo, _, _, _ := newActivityHandler()
+	require.NoError(t, loginRepo.Create(context.Background(), &activity.LoginEntry{
+		ID: "l1", UserID: "user-2", ClientIP: "10.0.0.1", Success: true, CreatedAt: time.Now(),
+	}))
+	users := userfakes.NewFakeUserRepository()
+	require.NoError(t, users.Create(context.Background(), &user.User{ID: "usr-root", Username: "root", IsAdmin: true, Enabled: true}))
+	call := func(ctx context.Context) error {
+		_, callErr := h.GetLoginHistory(ctx, &eveyv1.GetLoginHistoryRequest{UserId: "user-2"})
+		return callErr
+	}
+
+	err := viaAPIKey(t, users, "usr-root", []string{auth.ScopeUsersRead}, "/evey.v1.ActivityService/GetLoginHistory", call)
+	assert.Equal(t, codes.PermissionDenied, status.Code(err), "users:read alone is not another account's logins")
+
+	err = viaAPIKey(t, users, "usr-root", []string{auth.ScopeUsersRead, auth.ScopeAdminRead}, "/evey.v1.ActivityService/GetLoginHistory", call)
+	require.NoError(t, err, "admin:read reaches another account's logins")
+}
+
+func TestAPIKey_AdminUsersReadKeyListsOnlyItsOwnersProfiles(t *testing.T) {
+	env := setupUserHandler()
+	seedAdminKeyOwner(t, env)
+	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice", Email: "a@b.com"}, "pass12345678")
+	require.NoError(t, env.profileRepo.Create(context.Background(), &user.Profile{ID: "prf-alice", UserID: "usr-1", Name: "Alice"}))
+
+	var got []string
+	call := func(ctx context.Context) error {
+		resp, callErr := env.handler.ListProfiles(ctx, &eveyv1.ListProfilesRequest{UserId: "usr-1"})
+		got = nil
+		for _, p := range resp.GetProfiles() {
+			got = append(got, p.Id)
+		}
+		return callErr
+	}
+	require.NoError(t, viaAPIKey(t, env.userRepo, "usr-root", []string{auth.ScopeUsersRead}, "/evey.v1.UserService/ListProfiles", call))
+	assert.NotContains(t, got, "prf-alice", "users:read lists its owner's profiles, not another account's")
+
+	require.NoError(t, viaAPIKey(t, env.userRepo, "usr-root", []string{auth.ScopeUsersRead, auth.ScopeAdminRead}, "/evey.v1.UserService/ListProfiles", call))
+	assert.Contains(t, got, "prf-alice", "admin:read lists another account's profiles")
 }

@@ -10,6 +10,7 @@ import (
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
+	"github.com/eveyproject/evey/internal/pkg/auth"
 	appactivity "github.com/eveyproject/evey/internal/app/activity"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
 	appuser "github.com/eveyproject/evey/internal/app/user"
@@ -83,9 +84,11 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 	// Two different questions share this RPC. A normal caller asks "what did I
 	// watch?" and stays pinned to its own profile. An admin asks "who watched
 	// what?" - any profile, any account, or (both ids empty) the whole server.
-	// Only IsAdmin widens it; user_id from anyone else is dropped, not honored.
+	// Only the admin role widens it (an admin's API key needs admin:read: its
+	// playback:read alone is not the whole server's history); user_id from
+	// anyone else is dropped, not honored.
 	profileID, userID := req.ProfileId, req.UserId
-	if !claims.IsAdmin {
+	if !interceptors.AdminReach(ctx, auth.ScopeAdminRead) {
 		own, resolveErr := resolveProfileID(claims, req.ProfileId)
 		if resolveErr != nil {
 			return nil, fmt.Errorf("activityHandler.GetPlayHistory: %w", resolveErr)
@@ -279,7 +282,7 @@ func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLo
 	userID := req.UserId
 	if userID == "" {
 		userID = claims.UserID
-	} else if userID != claims.UserID && !claims.IsAdmin {
+	} else if userID != claims.UserID && !interceptors.AdminReach(ctx, auth.ScopeAdminRead) {
 		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.activity.cannot_access_other_history")
 	}
 	limit, offset := 50, 0
