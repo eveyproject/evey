@@ -16,7 +16,7 @@ func TestTokenRedactMiddleware_MovesQueryToHeader(t *testing.T) {
 		}
 	})
 	h := tokenRedactMiddleware(nil, false, next)
-	req := httptest.NewRequest(http.MethodGet, "/foo?token=mytoken", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/p1/serve?token=mytoken", nil)
 	h.ServeHTTP(httptest.NewRecorder(), req)
 	if gotHeader != "Bearer mytoken" {
 		t.Errorf("expected 'Bearer mytoken', got %q", gotHeader)

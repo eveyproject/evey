@@ -290,11 +290,11 @@ func tokenRedactMiddlewareFn(store streamTokenValidator, httpsOnly func() bool, 
 					slog.Int("token_len", len(rawTok)))
 			}
 		} else if fromQuery && r.Header.Get("Authorization") == "" {
-			// JWT delivered via ?token= (legacy images, music, photos): promoted
-			// to a Bearer header for READS only, and never on an admin route - a
-			// session token that leaks from a proxy log or a browser history
-			// must not be able to write anything, or reach the admin surface.
-			// The token has already left the URL either way.
+			// JWT delivered via ?token= (images, music, photos a client loads
+			// without a header): promoted to a Bearer header only on the reads
+			// jwtQueryAllowed names - a session token that leaks from a proxy log
+			// or a browser history must not open anything else. The token has
+			// already left the URL either way.
 			if jwtQueryAllowed(r) {
 				r.Header.Set("Authorization", "Bearer "+rawTok)
 			} else {
@@ -307,13 +307,74 @@ func tokenRedactMiddlewareFn(store streamTokenValidator, httpsOnly func() bool, 
 	})
 }
 
-// jwtQueryAllowed is where an account JWT may still arrive as ?token=: reads
-// outside /api/v1/admin/.
+// jwtQueryRoutes are the only routes an account JWT may reach as ?token=.
+// It is an allowlist, closed by default, because every route left off it is
+// one a leaked URL (proxy access log, browser history, a shared screenshot)
+// cannot replay: the old rule was "any read outside /api/v1/admin/", which
+// let a leaked image URL open every other non-admin read of the account.
+// Each entry is a resource a client hands to something that cannot send a
+// header (<img>, <audio>, expo-image, a native audio player) with the JWT in
+// the query.
+// A stream token (opaque, one media) never comes through here: it is
+// resolved above, on every route.
+//
+// "{}" matches exactly one non-empty path segment. To add a route: add its
+// pattern here AND its case to the accepted table of
+// jwt_query_allowlist_test.go, with the client file:line that builds the URL.
+// Prefer a stream token for anything that is not a small image or an audio
+// track.
+var jwtQueryRoutes = [][]string{
+	strings.Split("api/v1/music/tracks/{}/stream", "/"),
+	strings.Split("api/v1/music/tracks/{}/art", "/"),
+	strings.Split("api/v1/music/album-art/{}", "/"),
+	strings.Split("api/v1/photos/{}/serve", "/"),
+	strings.Split("api/v1/profiles/{}/avatar", "/"),
+	strings.Split("api/v1/media/{}/artwork/{}", "/"),
+	strings.Split("api/v1/media/{}/snapshot", "/"),
+}
+
+// jwtQueryAllowed reports whether an account JWT arriving as ?token= may be
+// promoted to a Bearer header: GET or HEAD only, never under /api/v1/admin/
+// (whatever the allowlist says), and only on a jwtQueryRoutes path.
 func jwtQueryAllowed(r *http.Request) bool {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		return false
 	}
-	return !strings.HasPrefix(r.URL.Path, "/api/v1/admin/")
+	if strings.HasPrefix(r.URL.Path, "/api/v1/admin/") {
+		return false
+	}
+	rest, ok := strings.CutPrefix(r.URL.Path, "/")
+	if !ok {
+		return false
+	}
+	segs := strings.Split(rest, "/")
+	for _, pattern := range jwtQueryRoutes {
+		if jwtQueryPathMatches(pattern, segs) {
+			return true
+		}
+	}
+	return false
+}
+
+// jwtQueryPathMatches compares a path's segments to a jwtQueryRoutes pattern. A
+// wildcard refuses an empty, "." or ".." segment, so a trailing slash, a
+// doubled slash or a dot segment never stands in for an id.
+func jwtQueryPathMatches(pattern, segs []string) bool {
+	if len(pattern) != len(segs) {
+		return false
+	}
+	for i, p := range pattern {
+		if p == "{}" {
+			if segs[i] == "" || segs[i] == "." || segs[i] == ".." {
+				return false
+			}
+			continue
+		}
+		if segs[i] != p {
+			return false
+		}
+	}
+	return true
 }
 
 type ctxKeyStreamToken struct{}

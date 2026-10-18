@@ -20,16 +20,17 @@ import (
 )
 
 // An account JWT that leaks through a proxy log or a browser history must not
-// be able to write, nor reach the admin surface: ?token= is promoted to a
-// Bearer header for reads outside /api/v1/admin/ only, and it leaves the URL
-// in every case.
-func TestTokenRedact_AccountJWTInQueryIsForReadsOutsideAdmin(t *testing.T) {
+// be able to write, reach the admin surface or read account data: ?token= is
+// promoted to a Bearer header only on the allowlisted image and audio reads
+// (jwtQueryRoutes), and it leaves the URL in every case.
+func TestTokenRedact_AccountJWTInQueryIsForAllowlistedReadsOnly(t *testing.T) {
 	cases := []struct {
 		method, path string
 		promoted     bool
 	}{
 		{http.MethodGet, "/api/v1/music/tracks/t1/art", true},
-		{http.MethodHead, "/api/v1/photos/p1", true},
+		{http.MethodHead, "/api/v1/photos/p1/serve", true},
+		{http.MethodGet, "/api/v1/users/me", false},
 		{http.MethodPost, "/api/v1/users", false},
 		{http.MethodDelete, "/api/v1/playlists/p1", false},
 		{http.MethodGet, "/api/v1/admin/backups/bk-1", false},

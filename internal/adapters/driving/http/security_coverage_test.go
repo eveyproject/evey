@@ -192,7 +192,7 @@ func TestTokenRedactMiddleware(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 	handler := tokenRedactMiddleware(nil, false, inner)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/media?token=mytoken", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/p1/serve?token=mytoken", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -344,7 +344,7 @@ func TestTokenRedactMiddlewareWithStore_JWTFallback(t *testing.T) {
 	})
 	handler := TokenRedactMiddlewareWithStore(store, false, inner)
 
-	req := httptest.NewRequest(http.MethodGet, "/test?token=jwt.with.dots", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/photos/p1/serve?token=jwt.with.dots", nil)
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 
