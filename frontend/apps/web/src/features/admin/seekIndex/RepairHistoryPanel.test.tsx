@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const api = vi.hoisted(() => ({
   history: { data: undefined as unknown, isLoading: false, isError: false, error: null as unknown, refetch: vi.fn() },
@@ -9,6 +10,8 @@ const api = vi.hoisted(() => ({
   undoOpts: null as any,
 }));
 vi.mock("@evey/api", () => ({
+  getAdminMediaServiceListMediaRepairsQueryKey: () => ["/api/v1/admin/media/repairs"],
+  SEEK_INDEX_SCAN_QUERY_BASE: "/api/v1/admin/media/seek-index",
   useAdminMediaServiceGetMediaRepairHistory: (...a: unknown[]) => {
     api.historyArgs(...a);
     return api.history;
@@ -25,6 +28,12 @@ vi.mock("@/components/ui/Button", () => ({ Button: ({ children, onClick, ...p }:
 vi.mock("@/components/ui/Badge", () => ({ Badge: ({ children, variant }: any) => React.createElement("span", { "data-variant": variant }, children) }));
 
 import { RepairHistoryPanel } from "./RepairHistoryPanel";
+
+let qc: QueryClient;
+function renderWithQC(ui: React.ReactElement) {
+  qc = new QueryClient();
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -44,7 +53,7 @@ describe("RepairHistoryPanel", () => {
       ],
     };
     const onClose = vi.fn();
-    render(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={onClose} />);
+    renderWithQC(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={onClose} />);
     expect(api.historyArgs).toHaveBeenCalledWith("mi-1", { limit: 20 });
     expect(screen.getByText("admin.repairHistory.title(title=Film)")).toBeInTheDocument();
     expect(screen.getAllByTestId("repair-history-entry")).toHaveLength(2);
@@ -68,20 +77,20 @@ describe("RepairHistoryPanel", () => {
   // already named it; both now read the same label.
   it("names an operator's repair as the operator's call", () => {
     api.history.data = { entries: [{ atMs: "1758000000000", op: "rollback", outcome: "applied", evidenceMethod: "operator-undo" }] };
-    render(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
+    renderWithQC(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
     expect(screen.getByText("admin.repairJournal.evidenceOperator")).toBeInTheDocument();
     expect(screen.queryByText("admin.repairHistory.evidenceDeclared")).toBeNull();
   });
 
   it("says when nothing can be undone, and when there is no history at all", () => {
     api.history.data = { entries: [{ atMs: "1", op: "rollback", outcome: "rolled_back", reversible: false }] };
-    render(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
+    renderWithQC(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
     expect(screen.queryByTestId("repair-history-undo-btn")).toBeNull();
     expect(screen.getByTestId("repair-history-not-reversible")).toBeInTheDocument();
     expect(screen.queryByTestId("repair-history-shift")).toBeNull();
 
     api.history = { data: { entries: [] }, isLoading: false, isError: false, error: null, refetch: vi.fn() };
-    render(<RepairHistoryPanel mediaId="mi-2" title="Other" onClose={vi.fn()} />);
+    renderWithQC(<RepairHistoryPanel mediaId="mi-2" title="Other" onClose={vi.fn()} />);
     expect(screen.getByTestId("repair-history-empty")).toBeInTheDocument();
   });
 
@@ -89,10 +98,22 @@ describe("RepairHistoryPanel", () => {
   // failure to read, not a file never repaired.
   it("says the history failed to load, not that it is empty, and retries", () => {
     api.history = { data: undefined, isLoading: false, isError: true, error: new Error("unavailable"), refetch: vi.fn() };
-    render(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
+    renderWithQC(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
     expect(screen.queryByTestId("repair-history-empty")).toBeNull();
     expect(screen.getByTestId("fetch-error-state")).toBeInTheDocument();
     fireEvent.click(screen.getByText("common.retry"));
     expect(api.history.refetch).toHaveBeenCalled();
+  });
+
+  // An undo rewrites the file: the journal and the seek-index row are
+  // refreshed along with this history.
+  it("refreshes the journal and the seek index after an undo", () => {
+    renderWithQC(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    api.undoOpts.mutation.onSuccess();
+    expect(invalidate.mock.calls.map(([f]) => f?.queryKey)).toEqual([
+      ["/api/v1/admin/media/repairs"],
+      ["/api/v1/admin/media/seek-index"],
+    ]);
   });
 });
