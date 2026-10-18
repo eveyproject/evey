@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -436,5 +437,27 @@ func TestParseLogSearchFilter_HideAccess(t *testing.T) {
 		if got := parseLogSearchFilter(r).HideAccess; got != want {
 			t.Fatalf("hide_access=%q: got %v want %v", raw, got, want)
 		}
+	}
+}
+
+// A search that matches nothing must still answer an array. The keeper's
+// slice is only allocated by add(), so a miss serialised "entries":null, and
+// both admin log screens read .length/.map off it: the page crashed on the
+// first query that found nothing.
+func TestSearchLogs_NoMatchEncodesAnEmptyArray(t *testing.T) {
+	dir := t.TempDir()
+	writeLog(t, dir, "evey-2026-07-07.log",
+		`{"time":"2026-07-07T11:00:00Z","level":"INFO","msg":"hls: ffmpeg start","media_id":"m1"}`,
+	)
+	res, err := searchLogs(dir, logSearchFilter{Limit: 100, Q: "no-such-needle"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"entries":[]`) {
+		t.Fatalf("a miss must encode an empty array, got %s", b)
 	}
 }
