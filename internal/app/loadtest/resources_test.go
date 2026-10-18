@@ -1039,3 +1039,49 @@ func TestResourceState_PlateauIsJudgedOnTheWindowInProgress(t *testing.T) {
 		t.Fatalf("the second window pushed 80 MiB/s: it must not inherit the first window's verdict")
 	}
 }
+
+// A mixed run: half the bytes went to ffmpeg viewers, whose source reads the
+// packager's counter never sees. Its reads over EVERY viewer's bytes read 0.65,
+// "the code reads less than it serves", and against a 2.6 disk figure sent an
+// operator after the kernel's readahead for what was ffmpeg's I/O. Its reads
+// over what it served itself say 1.3.
+func TestAppReadAmplification_IsThePackagersOwnRatioInAMixedRun(t *testing.T) {
+	mixed := ResourceStats{
+		Samples:                 20,
+		ServedBytesPerSecAvg:    200 << 20,
+		AppServedBytesPerSecAvg: 100 << 20,
+		AppReadBytesPerSecAvg:   130 << 20,
+	}
+	if a := appReadAmplification(mixed); a < 1.25 || a > 1.35 {
+		t.Fatalf("app amplification = %.2f, want ~1.3 (its reads over what IT served)", a)
+	}
+}
+
+// The sampler turns the packager's served counter into a rate beside its reads.
+func TestResourceSampler_RatesThePackagersServedBytes(t *testing.T) {
+	src := &appServedFakeSource{}
+	s := newResourceSampler(src)
+	t0 := time.Unix(1000, 0)
+	src.read, src.served = 1, 1
+	s.sample(1, t0)
+	src.read, src.served = 1+(13<<20), 1+(10<<20)
+	out, ok := s.sample(1+(20<<20), t0.Add(time.Second))
+	if !ok {
+		t.Fatal("second sample must report rates")
+	}
+	if out.AppServedBytesPerSec != 10<<20 {
+		t.Fatalf("AppServedBytesPerSec = %d, want %d", out.AppServedBytesPerSec, 10<<20)
+	}
+	if out.ServedBytesPerSec != 20<<20 {
+		t.Fatalf("ServedBytesPerSec = %d, want every viewer's %d", out.ServedBytesPerSec, 20<<20)
+	}
+}
+
+type appServedFakeSource struct{ read, served int64 }
+
+func (f *appServedFakeSource) cpuUsageUsec() int64                { return 0 }
+func (f *appServedFakeSource) memory() (used, cache, limit int64) { return 0, 0, 0 }
+func (f *appServedFakeSource) diskReadBytes() (int64, bool)       { return 0, false }
+func (f *appServedFakeSource) appReadBytes() int64                { return f.read }
+func (f *appServedFakeSource) cpuAllowance() float64              { return 1 }
+func (f *appServedFakeSource) appServedBytes() int64              { return f.served }

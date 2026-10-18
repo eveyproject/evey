@@ -114,9 +114,20 @@ func readAmplification(s ResourceStats) float64 {
 // byte it served. Set against readAmplification (what the disk delivered), it
 // separates a greedy packager from a kernel reading ahead - two problems with
 // nothing in common but their symptom.
+//
+// Both sides are the packager's: its reads over what IT served. Dividing by
+// every viewer's bytes put ffmpeg viewers' output under reads that do not
+// count theirs, so a mixed run read a low app figure beside a high disk one -
+// the "kernel readahead" signature - for I/O that was ffmpeg's. The bytes all
+// viewers pulled remain the denominator only when nothing counts the
+// packager's own.
 func appReadAmplification(s ResourceStats) float64 {
-	if s.Samples == 0 || s.ServedBytesPerSecAvg <= 0 || s.AppReadBytesPerSecAvg <= 0 {
+	served := s.AppServedBytesPerSecAvg
+	if served <= 0 {
+		served = s.ServedBytesPerSecAvg
+	}
+	if s.Samples == 0 || served <= 0 || s.AppReadBytesPerSecAvg <= 0 {
 		return 0
 	}
-	return float64(s.AppReadBytesPerSecAvg) / float64(s.ServedBytesPerSecAvg)
+	return float64(s.AppReadBytesPerSecAvg) / float64(served)
 }
