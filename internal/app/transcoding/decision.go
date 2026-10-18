@@ -22,14 +22,16 @@ import (
 // MakePlaybackDecisionWithPrefs via toStreamSpecs; every internal evaluator
 // then consumes StreamSpec.
 type StreamSpec struct {
-	Type      string // "video" | "audio" | "subtitle"
-	Codec     string
-	Width     *int
-	Height    *int
-	HDRType   *string
-	Channels  *int
-	Bitrate   *int64
-	IsDefault bool
+	Type     string // "video" | "audio" | "subtitle"
+	Codec    string
+	Width    *int
+	Height   *int
+	HDRType  *string
+	Channels *int
+	// SampleRate (Hz) of an audio track: a copy keeps it, see evaluateAudio.
+	SampleRate *int
+	Bitrate    *int64
+	IsDefault  bool
 	// Commentary marks a director/cast commentary audio track. The auto-selection
 	// (selectedAudioSpec) prefers a non-commentary default over a commentary default
 	// when both exist; an explicit AudioTrack selection always wins regardless.
@@ -82,6 +84,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			Height:      s.Height,
 			HDRType:     hdrType,
 			Channels:    s.Channels,
+			SampleRate:  s.SampleRate,
 			Bitrate:     s.Bitrate,
 			IsDefault:   s.IsDefault,
 			Commentary:  s.Commentary,
@@ -539,6 +542,15 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		}
 		d.MaxAudioChannels = client.MaxAudioChannels
 	}
+	// A copy keeps the source rate and players stop at 48 kHz (a 96 kHz AAC
+	// was served at 96000). The re-encode resamples to 48 kHz.
+	if s.SampleRate != nil && *s.SampleRate > maxCopiedAudioSampleRate {
+		addReasonOnce(d, "audio_samplerate_exceeded")
+		d.AudioDecision = "transcode"
+		if d.AudioCodec == "" {
+			d.AudioCodec = transcoding.DefaultAudioCodec
+		}
+	}
 	// Per-profile cap on audio channels (user pref).
 	if s.Channels != nil && prefs.MaxAudioChannels > 0 && *s.Channels > prefs.MaxAudioChannels {
 		addReasonOnce(d, "audio_channels_exceeded")
@@ -553,6 +565,9 @@ func evaluateAudio(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		}
 	}
 }
+
+// maxCopiedAudioSampleRate is the highest rate an audio track is copied at.
+const maxCopiedAudioSampleRate = 48000
 
 // Mirrors WasmAudioApplies on the spec the decision already carries.
 func wasmAudioApplies(s StreamSpec, prefs TranscodingPreferences) bool {

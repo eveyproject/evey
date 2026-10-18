@@ -176,6 +176,7 @@ streamInfo:
     resolution_exceeded: Resolución por encima del límite del reproductor
     bitrate_exceeded: Tasa de bits por encima del límite permitido
     audio_channels_exceeded: Más canales de audio de los que admite este reproductor
+    audio_samplerate_exceeded: Frecuencia de muestreo de audio superior a 48 kHz
     subtitle_burn_in: Subtítulos incrustados en la imagen
     audio_resync_requested: Resincronización de audio solicitada
     decision_pinned: Elección fijada para esta sesión

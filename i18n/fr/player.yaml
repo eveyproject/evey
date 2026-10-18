@@ -176,6 +176,7 @@ streamInfo:
     resolution_exceeded: Résolution au-dessus de la limite du lecteur
     bitrate_exceeded: Débit au-dessus de la limite autorisée
     audio_channels_exceeded: Trop de canaux audio pour ce lecteur
+    audio_samplerate_exceeded: Fréquence d'échantillonnage audio au-dessus de 48 kHz
     subtitle_burn_in: Sous-titres incrustés dans l'image
     audio_resync_requested: Resynchronisation audio demandée
     decision_pinned: Choix figé pour cette session

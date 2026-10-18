@@ -176,6 +176,7 @@ streamInfo:
     resolution_exceeded: 分辨率超出播放器上限
     bitrate_exceeded: 码率超出允许上限
     audio_channels_exceeded: 音频声道数超出此播放器支持范围
+    audio_samplerate_exceeded: 音频采样率高于 48 kHz
     subtitle_burn_in: 字幕已内嵌到画面
     audio_resync_requested: 已请求音频重新同步
     decision_pinned: 本次会话已固定该选择

@@ -176,6 +176,7 @@ streamInfo:
     resolution_exceeded: Resolution above the player's limit
     bitrate_exceeded: Bitrate above the allowed limit
     audio_channels_exceeded: More audio channels than this player supports
+    audio_samplerate_exceeded: Audio sample rate above 48 kHz
     subtitle_burn_in: Subtitles burned into the picture
     audio_resync_requested: Audio resync requested
     decision_pinned: Choice pinned for this session
