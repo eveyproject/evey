@@ -2,12 +2,15 @@ package config
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
+	"github.com/eveyproject/evey/internal/pkg/id"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
@@ -20,12 +23,17 @@ import (
 const (
 	KeyPlaybackSkipForward  = "playback.skip_forward_seconds"
 	KeyPlaybackSkipBackward = "playback.skip_backward_seconds"
+	// KeyServerID holds this server's stable identity, minted on first read.
+	KeyServerID = "server.id"
 )
 
 type Service struct {
 	repo   shared.ServerConfigRepository
 	events shared.EventBus
 	tx     shared.TransactionalUnit
+
+	idMu     sync.Mutex
+	serverID string
 }
 
 func NewService(repo shared.ServerConfigRepository, opts ...Option) *Service {
@@ -56,6 +64,34 @@ func (s *Service) Get(ctx context.Context, key string) (*shared.ServerConfigEntr
 	ctx, span := tracing.StartSpan(ctx, "app.config.Get")
 	defer span.End()
 	return s.repo.Get(ctx, key)
+}
+
+// ServerID is this server's stable identity: a random id minted on the first
+// read and persisted, so it survives restarts and upgrades and is the same for
+// every client. SystemInfo.server_id was declared, read by the web and the
+// phone, and never written. Serialised so two first readers cannot mint two.
+func (s *Service) ServerID(ctx context.Context) (string, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.config.ServerID")
+	defer span.End()
+	s.idMu.Lock()
+	defer s.idMu.Unlock()
+	if s.serverID != "" {
+		return s.serverID, nil
+	}
+	e, err := s.repo.Get(ctx, KeyServerID)
+	switch {
+	case err == nil && e != nil && e.Value != "":
+		s.serverID = e.Value
+		return s.serverID, nil
+	case err != nil && !errors.Is(err, shared.ErrNotFound):
+		return "", fmt.Errorf("config.ServerID: %w", err)
+	}
+	minted := id.New("srv")
+	if err := s.repo.Set(ctx, KeyServerID, minted); err != nil {
+		return "", fmt.Errorf("config.ServerID: %w", err)
+	}
+	s.serverID = minted
+	return minted, nil
 }
 
 func (s *Service) List(ctx context.Context) ([]*shared.ServerConfigEntry, error) {

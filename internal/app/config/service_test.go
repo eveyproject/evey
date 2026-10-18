@@ -178,3 +178,28 @@ func TestService_Get(t *testing.T) {
 	assert.Equal(t, "theme", entry.Key)
 	assert.Equal(t, "dark", entry.Value)
 }
+
+// SystemInfo.server_id was never written. The identity is minted once,
+// persisted, and read back unchanged - by the same service and by a fresh one
+// over the same store, which is what a restart is.
+func TestService_ServerID_MintedOnceAndStable(t *testing.T) {
+	repo := fakes.NewFakeServerConfigRepository()
+	first, err := NewService(repo).ServerID(context.Background())
+	require.NoError(t, err)
+	assert.NotEmpty(t, first)
+
+	again, err := NewService(repo).ServerID(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, first, again, "a restart keeps the identity")
+
+	stored, err := repo.Get(context.Background(), KeyServerID)
+	require.NoError(t, err)
+	assert.Equal(t, first, stored.Value)
+}
+
+func TestService_ServerID_StoreErrorIsNotAFreshIdentity(t *testing.T) {
+	repo := fakes.NewFakeServerConfigRepository()
+	repo.Err = errors.New("db down")
+	_, err := NewService(repo).ServerID(context.Background())
+	require.Error(t, err, "an unreadable store must not mint a second identity")
+}
