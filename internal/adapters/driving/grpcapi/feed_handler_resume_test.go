@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -79,4 +80,19 @@ func TestFeedHandler_BatchUpdateAdminFeedConfigs_Empty(t *testing.T) {
 	h, _, _, _ := newFeedHandler()
 	_, err := h.BatchUpdateAdminFeedConfigs(context.Background(), &eveyv1.BatchUpdateAdminFeedConfigsRequest{})
 	require.NoError(t, err)
+}
+
+// A storage failure is the server's fault, not the request's: it answers
+// Internal with no database detail, where it used to answer InvalidArgument
+// with the driver's message in it.
+func TestFeedHandler_BatchUpdateAdminFeedConfigs_StorageFailureIsInternal(t *testing.T) {
+	h, cmdRepo, _, _ := newFeedHandler()
+	cmdRepo.Err = errors.New("pq: relation \"feed_admin_config\" does not exist")
+
+	_, err := h.BatchUpdateAdminFeedConfigs(context.Background(), &eveyv1.BatchUpdateAdminFeedConfigsRequest{
+		Configs: []*eveyv1.AdminFeedConfig{{FeedType: "continue_watching", Enabled: true, DisplayOrder: 1, MaxItems: 10}},
+	})
+	require.Error(t, err)
+	assert.Equal(t, codes.Internal, status.Code(err))
+	assert.NotContains(t, err.Error(), "pq:")
 }
