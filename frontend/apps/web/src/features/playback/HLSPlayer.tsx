@@ -1311,10 +1311,20 @@ export function HLSPlayer({
       const video = videoRef.current as (HTMLVideoElement & { audioTracks?: { length: number; [i: number]: { id: string; enabled: boolean } } }) | null;
       if (!video) return;
       const tracks = video.audioTracks;
-      if (!tracks) return;
-      for (let i = 0; i < tracks.length; i++) {
-        tracks[i].enabled = tracks[i].id === String(index);
+      let switchable = false;
+      for (let i = 0; tracks && i < tracks.length; i++) {
+        if (tracks[i].id === String(index)) switchable = true;
       }
+      if (tracks && switchable) {
+        for (let i = 0; i < tracks.length; i++) {
+          tracks[i].enabled = tracks[i].id === String(index);
+        }
+        return;
+      }
+      // Chrome and Firefox expose no audioTracks: the file keeps playing its
+      // default track whatever is picked. Any other track moves to the HLS
+      // master, which serves the pick (currentTrackIndex follows it above).
+      if (pickedAudioStream(streamInfo, undefined)?.index !== index) setTranscodeMode(true);
       return;
     }
 
