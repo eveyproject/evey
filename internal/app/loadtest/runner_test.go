@@ -2241,3 +2241,30 @@ func TestRunner_StartupIsJudgedOnTheWindowInProgress(t *testing.T) {
 		t.Fatalf("second window's newcomers started in time, yet broke = %q: the first window's startups were judged again", cl.broke)
 	}
 }
+
+// The idle reap spares a title only for a live viewer that may encode it. An
+// mkvgo viewer is served by the packager and holds no producer session, so a
+// shed transcode viewer's title must be reaped even when a mkvgo survivor
+// watches it too - sparing it kept the dead viewer's encoder slot, and the next
+// newcomer was refused (the bisection test failed about 1 run in 7).
+func TestRunner_IdleReapIgnoresMkvgoViewersOnASharedTitle(t *testing.T) {
+	var reaped []string
+	r := New(&http.Client{}, fakeMediaLister{}, zeroActive, testLogger()).
+		WithSessionReaper(func(ids []string) { reaped = append(reaped, ids...) })
+	pool := newCandidatePool(manyCandidates(3), time.Minute)
+	ramp := rampState{
+		mediaBySlot:      map[int]string{1: "m1", 2: "m2", 3: "m2"},
+		viewerTypeBySlot: map[int]viewerType{1: viewerTypeMkvgo, 2: viewerTypeTranscode, 3: viewerTypeMkvgo},
+	}
+	r.reapIdleSessions(pool, &ramp)
+	got := map[string]bool{}
+	for _, id := range reaped {
+		got[id] = true
+	}
+	if !got["m0"] || !got["m1"] {
+		t.Fatalf("reaped %v: a title only a mkvgo viewer watches must be reaped", reaped)
+	}
+	if got["m2"] {
+		t.Fatalf("reaped %v: a title a live transcode viewer watches must be spared", reaped)
+	}
+}

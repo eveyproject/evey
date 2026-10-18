@@ -390,11 +390,19 @@ func (r *Runner) purgeRunActivity(pool *candidatePool) {
 	}
 }
 
-// liveMedia is the set of media IDs the live audience currently holds.
-func (ramp *rampState) liveMedia() map[string]bool {
+// liveEncodingMedia is the set of titles a live viewer may hold an encoder
+// session on: every live viewer's title except the mkvgo ones. The reap
+// (RemoveSession) stops the transcode producers only, which an mkvgo viewer,
+// served by the packager, never had. Sparing its title too left a shed
+// transcode viewer's encoder running whenever a mkvgo survivor happened to
+// watch the same title, and the next newcomer was refused for it (the
+// bisection test's "sustained 4, want 5", measured 2026-10-18).
+func (ramp *rampState) liveEncodingMedia() map[string]bool {
 	live := make(map[string]bool, len(ramp.mediaBySlot))
-	for _, id := range ramp.mediaBySlot {
-		live[id] = true
+	for slot, id := range ramp.mediaBySlot {
+		if ramp.viewerTypeBySlot[slot] != viewerTypeMkvgo {
+			live[id] = true
+		}
 	}
 	return live
 }
@@ -419,7 +427,7 @@ func (r *Runner) reapIdleSessions(pool *candidatePool, ramp *rampState) {
 	if r.reapSessions == nil {
 		return
 	}
-	live := ramp.liveMedia()
+	live := ramp.liveEncodingMedia()
 	ids := make([]string, 0, len(pool.candidates))
 	for _, m := range pool.candidates {
 		if !live[m.ID] {
