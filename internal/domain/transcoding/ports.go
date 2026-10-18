@@ -102,7 +102,7 @@ type AudioProcessOpts struct {
 	// Grid is the video's segmentation: the rendition cuts on the same
 	// cadence so audio segment N covers video segment N.
 	Grid           SegmentGrid
-	AudioNormalize bool // insert loudnorm filter
+	AudioNormalize bool // refused by the ffmpeg adapter: single-pass loudnorm runs dynamic
 	// AudioEncoder is the concrete AAC implementation the rendition was
 	// fingerprinted with ("aac" / "libfdk_aac"); empty = native. One value for
 	// the bytes and the hash, like HLSProcessOpts.AudioEncoder.

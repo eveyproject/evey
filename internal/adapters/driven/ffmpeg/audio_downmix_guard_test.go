@@ -89,25 +89,6 @@ func TestStereoFold_SkipsTheGuardOnAKnownStereoSource(t *testing.T) {
 	}
 }
 
-// loudnorm stacks on the guard in ONE filter option: ffmpeg keeps only the
-// last -af, so a second option would silently drop the fold.
-func TestStereoFold_StacksLoudnormInTheSameFilterOption(t *testing.T) {
-	args := ffmpeg.BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{
-		FilePath: "/f.mkv", OutputDir: "/o", AudioCodec: "aac",
-		AudioBitrate: transcoding.AudioRenditionBaseKbps, MaxAudioChannels: 2, AudioNormalize: true,
-	})
-	afs := 0
-	for i, a := range args {
-		if a == "-af" {
-			afs++
-			// The fold leads; the priming trim may close the chain (it drops input,
-			// it does not touch the sound).
-			assert.True(t, strings.HasPrefix(args[i+1], transcoding.AudioFoldFilter(0, 2)+",loudnorm="), args[i+1])
-		}
-	}
-	assert.Equal(t, 1, afs, "exactly one audio filter option: %v", args)
-}
-
 // The nominal 5.1 path must be untouched: nothing sums, so no option and above
 // all no audio filter (a filter graph node costs CPU and changes the sound for
 // nothing on a weak NAS).
