@@ -1241,6 +1241,7 @@ loadtest:
     brokeThroughput: "cassé : débit plafonné"
     brokeServer: "cassé : erreurs serveur"
   phase:
+    starting: "préparation (vérification des titres, mesure des disques)"
     ramping: "montée rapide"
     narrowing: "bissection"
     confirming: "confirmation"

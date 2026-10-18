@@ -1275,6 +1275,7 @@ loadtest:
     brokeThroughput: "gebrochen: Durchsatz flach"
     brokeServer: "gebrochen: Serverfehler"
   phase:
+    starting: "Vorbereitung (Titel prüfen, Festplatten messen)"
     ramping: "schneller Anstieg"
     narrowing: "Bisektion"
     confirming: "Bestätigung"

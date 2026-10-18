@@ -504,6 +504,7 @@
   "admin.loadtest.phase.measuring": "measurement",
   "admin.loadtest.phase.narrowing": "bisection",
   "admin.loadtest.phase.ramping": "fast climb",
+  "admin.loadtest.phase.starting": "preparation (titles checked, disks measured)",
   "admin.loadtest.poolBranchLine": "{{branch}}: {{count}} viewers ({{pct}}%)",
   "admin.loadtest.poolNote": "A pool is not a RAID: a file lives on one disk. When one disk holds most of the viewers, it sets the ceiling.",
   "admin.loadtest.poolTitle": "Where the retained tier's titles sat ({{tier}} viewers)",
