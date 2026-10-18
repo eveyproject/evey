@@ -10,7 +10,7 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s },
 }));
 vi.mock("expo-image", () => ({ Image: () => null }));
-vi.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
+vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string, o?: { version?: string }) => (o?.version ? `${key}:${o.version}` : key) }),
 }));

@@ -62,8 +62,8 @@ vi.mock("react-native", () => ({
 // --- expo-image mock ---------------------------------------------------------
 // The home now renders an icon on the "Customize" row; the real package pulls
 // a native icon set that does not resolve under vitest.
-vi.mock("@expo/vector-icons", () => ({
-  Ionicons: () => null,
+vi.mock("@expo/vector-icons/Ionicons", () => ({
+  default: () => null,
 }));
 
 vi.mock("expo-image", () => ({

@@ -3,7 +3,7 @@ import { formatDurationMs, formatTimeMs, itemLabel, seasonLabel, trackPickParams
 import { TrackPickRow } from "../../../src/components/TrackPickRow";
 import { View, Text, ScrollView, Pressable, FlatList, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, router } from "expo-router";
 import {
   useLibraryServiceGetMediaItem,

@@ -85,8 +85,8 @@ vi.mock("react-i18next", () => ({
 // AntDesign.js", unrelated to any app logic. Pre-existing gap, first hit here
 // because this screen is the first TV test to render a real (un-mocked)
 // Ionicons usage.
-vi.mock("@expo/vector-icons", () => ({
-  Ionicons: () => null,
+vi.mock("@expo/vector-icons/Ionicons", () => ({
+  default: () => null,
 }));
 
 // --- expo-router mock ---------------------------------------------------------

@@ -10,7 +10,7 @@ vi.mock("react-native", () => ({
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, "data-preferred": String(!!hasTVPreferredFocus) }, children),
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
 }));
-vi.mock("@expo/vector-icons", () => ({ Ionicons: ({ name }: any) => React.createElement("i", { "data-icon": name }) }));
+vi.mock("@expo/vector-icons/Ionicons", () => ({ default: ({ name }: any) => React.createElement("i", { "data-icon": name }) }));
 // The status is a tiny external store so a change re-renders the memoised
 // player the way expo-audio's own hook would.
 const audio = vi.hoisted(() => {

@@ -45,8 +45,8 @@ vi.mock("@evey/store", async (orig) => ({
 }));
 
 // --- @expo/vector-icons mock ---------------------------------------------------
-vi.mock("@expo/vector-icons", () => ({
-  Ionicons: (props: any) => React.createElement("span", { "data-testid": `icon-${props.name}` }),
+vi.mock("@expo/vector-icons/Ionicons", () => ({
+  default: (props: any) => React.createElement("span", { "data-testid": `icon-${props.name}` }),
 }));
 
 // --- react-i18next mock -------------------------------------------------------

@@ -7,7 +7,7 @@ import React from "react";
 vi.mock("react-native", () => ({
   View: ({ children, testID }: any) => React.createElement("div", { "data-testid": testID }, children),
 }));
-vi.mock("@expo/vector-icons", () => ({ Ionicons: ({ name }: any) => React.createElement("i", { "data-icon": name }) }));
+vi.mock("@expo/vector-icons/Ionicons", () => ({ default: ({ name }: any) => React.createElement("i", { "data-icon": name }) }));
 vi.mock("../providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { surface: "#111", textMuted: "#888" } }) }));
 vi.mock("expo-image", () => ({
   Image: ({ source, onError }: any) => React.createElement("img", { alt: "", src: source.uri, onError }),

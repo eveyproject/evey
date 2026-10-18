@@ -10,7 +10,7 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
 }));
 
-vi.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
+vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),

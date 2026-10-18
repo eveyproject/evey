@@ -58,8 +58,8 @@ vi.mock("expo-image", () => ({
 }));
 
 // --- @expo/vector-icons mock ------------------------------------------------
-vi.mock("@expo/vector-icons", () => ({
-  Ionicons: (p: any) => React.createElement("span", { "data-icon": p.name }),
+vi.mock("@expo/vector-icons/Ionicons", () => ({
+  default: (p: any) => React.createElement("span", { "data-icon": p.name }),
 }));
 
 // --- expo-router mock --------------------------------------------------------

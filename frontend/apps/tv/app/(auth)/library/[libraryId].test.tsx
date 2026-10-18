@@ -57,8 +57,8 @@ vi.mock("expo-image", () => ({
 // --- @expo/vector-icons mock ---------------------------------------------------
 // See player/[id].test.tsx: the real build can't be resolved by vitest's SSR
 // module resolution, unrelated to app logic.
-vi.mock("@expo/vector-icons", () => ({
-  Ionicons: ({ name }: any) => React.createElement("span", { "data-testid": `icon-${name}` }),
+vi.mock("@expo/vector-icons/Ionicons", () => ({
+  default: ({ name }: any) => React.createElement("span", { "data-testid": `icon-${name}` }),
 }));
 
 // --- expo-router mock ---------------------------------------------------------
