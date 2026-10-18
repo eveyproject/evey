@@ -24,7 +24,7 @@ func (s *headerStream) SetHeader(md metadata.MD) error {
 	return nil
 }
 func (s *headerStream) SendHeader(md metadata.MD) error { return s.SetHeader(md) }
-func (s *headerStream) SetTrailer(metadata.MD) error     { return nil }
+func (s *headerStream) SetTrailer(metadata.MD) error    { return nil }
 
 // A refused call tells the client how long to wait: the gateway turns the
 // header into HTTP Retry-After, and a login form that never got it retried at
