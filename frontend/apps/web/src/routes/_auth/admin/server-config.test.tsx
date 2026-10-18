@@ -334,8 +334,8 @@ describe("ServerConfigPage", () => {
 
   it("unchecking a toggle writes the key with value 'off'", async () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
-    const mutate = vi.fn();
-    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const mutate = vi.fn(async () => ({}));
+    mockUseMutation.mockReturnValue({ mutateAsync: mutate, isPending: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
@@ -363,8 +363,8 @@ describe("ServerConfigPage", () => {
       data: [{ key: "transcoding.level_backfill", value: "off", updatedAt: "2024-01-15T10:00:00Z" }],
       isLoading: false,
     });
-    const mutate = vi.fn();
-    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const mutate = vi.fn(async () => ({}));
+    mockUseMutation.mockReturnValue({ mutateAsync: mutate, isPending: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
@@ -377,8 +377,8 @@ describe("ServerConfigPage", () => {
 
   it("saves the pacing fields on Save, one entry per non-empty field", async () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
-    const mutate = vi.fn();
-    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const mutate = vi.fn(async () => ({}));
+    mockUseMutation.mockReturnValue({ mutateAsync: mutate, isPending: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
@@ -389,20 +389,15 @@ describe("ServerConfigPage", () => {
     const saveButtons = screen.getAllByRole("button", { name: /^Save$/i });
     fireEvent.click(saveButtons[saveButtons.length - 1]);
 
-    // Second arg is the per-call settle/error callback pair the card uses to
-    // hold the dirty flag until every write actually lands.
-    expect(mutate).toHaveBeenCalledWith(
-      { key: "transcoding.keyframe_backfill_batch", value: "50" },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
-    );
+    expect(mutate).toHaveBeenCalledWith({ key: "transcoding.keyframe_backfill_batch", value: "50" });
   });
 
   it("keeps the pacing form dirty when a write fails", async () => {
     mockUseQuery.mockReturnValue({ data: [], isLoading: false });
     // Fail every write: the Save button must stay enabled so the operator can
     // retry, instead of the form reporting itself saved and dropping the edits.
-    const mutate = vi.fn((_vars, cbs) => cbs?.onError?.(new Error("nope")));
-    mockUseMutation.mockReturnValue({ mutate, isPending: false });
+    const mutate = vi.fn(async () => { throw new Error("nope"); });
+    mockUseMutation.mockReturnValue({ mutateAsync: mutate, isPending: false });
     const ServerConfigPage = await getServerConfigPage();
     render(React.createElement(ServerConfigPage), { wrapper: createWrapper() });
     fireEvent.click(screen.getByRole("button", { name: /^Background work/i }));
@@ -414,6 +409,8 @@ describe("ServerConfigPage", () => {
     const save = saveButtons[saveButtons.length - 1];
     fireEvent.click(save);
 
+    await waitFor(() => expect(mutate).toHaveBeenCalledTimes(6));
+    await new Promise((r) => setTimeout(r, 0));
     expect(save).not.toBeDisabled();
   });
 });

@@ -204,14 +204,24 @@ export default function AdminServerConfigScreen() {
   const [apiKeyDrafts, setApiKeyDrafts] = useState<Record<string, string>>({});
   const [apiKeyShown, setApiKeyShown] = useState<Record<string, boolean>>({});
 
+  const putConfigEntry = ({ key, value }: { key: string; value: string }) =>
+    eveyFetch({ url: `/api/v1/admin/server-config/${key}`, method: "PUT", data: { value } });
+
   const saveConfigEntry = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: string }) =>
-      eveyFetch({ url: `/api/v1/admin/server-config/${key}`, method: "PUT", data: { value } }),
+    mutationFn: putConfigEntry,
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: SERVER_CONFIG_ENTRIES_KEY });
       toast.success(t("admin.serverConfig.configUpdated", "Config saved"));
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
+  });
+
+  // The SMTP card writes six keys in one Save and toasts the outcome once:
+  // these writes carry no toast of their own, nor the error net's.
+  const saveSmtpEntry = useMutation({
+    mutationFn: putConfigEntry,
+    onSuccess: () => qc.invalidateQueries({ queryKey: SERVER_CONFIG_ENTRIES_KEY }),
+    meta: { silentError: true },
   });
 
   const deleteConfigEntry = useMutation({
@@ -568,8 +578,8 @@ export default function AdminServerConfigScreen() {
             </Text>
             <SmtpSettingsCard
               entries={configEntries}
-              saveEntry={saveConfigEntry.mutate}
-              saving={saveConfigEntry.isPending}
+              saveEntry={saveSmtpEntry.mutateAsync}
+              saving={saveSmtpEntry.isPending}
             />
           </>
 
@@ -599,8 +609,8 @@ export default function AdminServerConfigScreen() {
             <Text style={s.sectionTitle}>{t("admin.serverConfig.backgroundJobs.title", "Background work")}</Text>
             <BackgroundJobsCard
               entries={configEntries}
-              saveEntry={saveConfigEntry.mutate}
-              deleteEntry={deleteConfigEntry.mutate}
+              saveEntry={saveConfigEntry.mutateAsync}
+              deleteEntry={deleteConfigEntry.mutateAsync}
               saving={saveConfigEntry.isPending || deleteConfigEntry.isPending}
             />
             {/* The timeline thumbnails are background work too. */}
