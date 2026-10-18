@@ -17,6 +17,7 @@ import (
 
 	"github.com/lib/pq"
 
+	"github.com/eveyproject/evey/internal/config"
 	"github.com/eveyproject/evey/internal/domain/backup"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -113,6 +114,13 @@ func NewDatabaseDumper(host string, port int, user, password, dbName, sslMode st
 		user: user, password: password,
 		dbName: dbName, sslMode: sslMode,
 	}
+}
+
+// dsn is the dumper's own connection string, escaped like the server's
+// (config.DBConfig.DSN): a password with a space or a quote broke the raw
+// Sprintf it used, and with it every backup, manual, scheduled and CLI.
+func (d *DatabaseDumper) dsn() string {
+	return config.DBConfig{Host: d.host, Port: d.port, User: d.user, Password: d.password, DBName: d.dbName, SSLMode: d.sslMode}.DSN()
 }
 
 // pgEnv returns env with PGPASSWORD set so the password never appears in /proc/PID/cmdline.
@@ -216,8 +224,7 @@ func (d *DatabaseDumper) DumpAll(ctx context.Context, includeTelemetry bool) (io
 // migration bookkeeping). Opens its own short-lived connection, like the other
 // dumper queries.
 func (d *DatabaseDumper) allTables(ctx context.Context) ([]string, error) {
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		d.host, d.port, d.user, d.password, d.dbName, d.sslMode)
+	dsn := d.dsn()
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("allTables: open db: %w", err)
@@ -341,8 +348,7 @@ func (d *DatabaseDumper) CurrentSchemaVersion(ctx context.Context) (string, erro
 	ctx, span := tracing.StartSpan(ctx, "postgres.backup.CurrentSchemaVersion")
 	defer span.End()
 
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		d.host, d.port, d.user, d.password, d.dbName, d.sslMode)
+	dsn := d.dsn()
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		return "", fmt.Errorf("CurrentSchemaVersion: open db: %w", err)
