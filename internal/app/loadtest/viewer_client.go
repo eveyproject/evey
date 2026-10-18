@@ -31,6 +31,13 @@ func (r *Runner) withViewerClient(ctx context.Context) (out context.Context, rel
 		base = http.DefaultTransport.(*http.Transport)
 	}
 	tr := base.Clone()
+	// Once the run's transport has served a request, Go has written "h2" into
+	// the ALPN list of its TLS config. The clone copies that offer but not the
+	// HTTP/2 support Go set up automatically, and with a TLS config present it
+	// no longer sets it up by itself: the proxy picks h2 and the viewer reads
+	// HTTP/1.1. Forcing the attempt restores what an unused transport does. A
+	// transport that turned HTTP/2 off (empty TLSNextProto) keeps it off.
+	tr.ForceAttemptHTTP2 = true
 	c := *r.httpClient
 	c.Transport = tr
 	return context.WithValue(ctx, viewerClientKey{}, &c), tr.CloseIdleConnections
