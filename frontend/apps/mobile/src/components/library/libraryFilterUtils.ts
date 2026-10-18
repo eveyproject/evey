@@ -5,7 +5,7 @@ import type {
   LibraryServiceListMediaItemsSortOrder,
 } from "@evey/api";
 import { normalizeLangCode } from "../../lib/langCodes";
-import { resolutionBand, RESOLUTION_BANDS, type ResolutionBand } from "@evey/client";
+import { normalizeCodec, resolutionBand, RESOLUTION_BANDS, type ResolutionBand } from "@evey/client";
 
 // The generated LibraryServiceFilterMediaItemsParams/SortField/SortOrder/Type
 // aliases exist in packages/api/src/generated/library.schemas.ts but aren't
@@ -21,7 +21,7 @@ import { resolutionBand, RESOLUTION_BANDS, type ResolutionBand } from "@evey/cli
 // client-filtered - kept as plain functions (no React) so they're testable
 // without mounting the screen or mocking react-query/react-native.
 
-// --- Resolution / codec facet labels (mirrors web's getResolutionLabel/normalizeCodec) ---
+// --- Resolution / codec facet labels (mirrors web's getResolutionLabel) ---
 
 // The ONE resolution vocabulary, used by the filter chips AND by the badge on
 // each poster. They used to be two different functions: the card labelled a
@@ -39,63 +39,11 @@ export function getResolutionLabel(height: number, width?: number): ResolutionBa
   return resolutionBand(width, height);
 }
 
-export function normalizeCodec(codec: string): string {
-  const c = codec.toLowerCase();
-  if (c === "hevc" || c === "h265" || c === "h.265") return "H.265/HEVC";
-  if (c === "h264" || c === "avc" || c === "h.264") return "H.264";
-  if (c === "av1") return "AV1";
-  if (c === "vp9") return "VP9";
-  if (c === "vp8") return "VP8";
-  if (c === "mpeg4" || c === "xvid" || c === "divx") return "MPEG-4";
-  if (c === "mpeg2video") return "MPEG-2";
-  return codec.toUpperCase();
-}
-
 export interface FilterFacets {
   resolutions: string[];
   codecs: string[];
   audioLangs: string[];
   subLangs: string[];
-}
-
-// Derives the available facet values from whatever items are currently
-// loaded (same source the genre chips already use on this screen) rather
-// than a dedicated sampling query - the generated API has no facet-listing
-// endpoint for these fields (unlike ListGenres for genres).
-export function collectFilterOptions(items: V1MediaItem[]): FilterFacets {
-  const resolutions = new Set<string>();
-  const codecs = new Set<string>();
-  const audioLangs = new Set<string>();
-  const subLangs = new Set<string>();
-
-  for (const item of items) {
-    for (const stream of item.streams ?? []) {
-      if (stream.type === "MEDIA_STREAM_TYPE_VIDEO") {
-        if (stream.height) resolutions.add(getResolutionLabel(stream.height, stream.width));
-        if (stream.codec) codecs.add(normalizeCodec(stream.codec));
-      } else if (stream.type === "MEDIA_STREAM_TYPE_AUDIO") {
-        // Normalize so 639-2/B and 639-2/T forms of the same language
-        // ("fre"/"fra") collapse into one filter entry instead of two -
-        // mirrors web's collectFilterOptions (LibraryFilters.tsx).
-        if (stream.language && stream.language !== "und") {
-          const norm = normalizeLangCode(stream.language);
-          if (norm) audioLangs.add(norm);
-        }
-      } else if (stream.type === "MEDIA_STREAM_TYPE_SUBTITLE") {
-        if (stream.language && stream.language !== "und") {
-          const norm = normalizeLangCode(stream.language);
-          if (norm) subLangs.add(norm);
-        }
-      }
-    }
-  }
-
-  return {
-    resolutions: RESOLUTION_OPTIONS.filter((r) => resolutions.has(r)),
-    codecs: Array.from(codecs).sort(),
-    audioLangs: Array.from(audioLangs).sort(),
-    subLangs: Array.from(subLangs).sort(),
-  };
 }
 
 export interface LocalFacetFilters {
