@@ -162,10 +162,18 @@ func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.Li
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// The total is its own count: carried as COUNT(*) OVER() on the page's
+	// rows it read 0 past the last page, and made Postgres read and sort every
+	// matching row whatever the LIMIT.
+	var total int
+	if err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `SELECT COUNT(*) FROM photos WHERE library_id = $1`, libraryID).Scan(&total); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, 0, err
+	}
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
-		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at,
-		       COUNT(*) OVER() AS total
+		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
 		FROM photos WHERE library_id = $1
 		ORDER BY taken_at DESC NULLS LAST, created_at DESC, id DESC
 		LIMIT $2 OFFSET $3`, libraryID, limit, offset,
@@ -176,7 +184,7 @@ func (r *PhotoRepository) ListByLibrary(ctx context.Context, libraryID shared.Li
 		return nil, 0, err
 	}
 	defer rows.Close()
-	photos, total, err := scanPhotosWithTotal(rows)
+	photos, err := scanPhotos(rows)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -190,10 +198,18 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.Libr
 	span.SetAttributes(attribute.String("library.id", string(libraryID)))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
+	// The total is its own count: carried as COUNT(*) OVER() on the page's
+	// rows it read 0 past the last page, and made Postgres read and sort every
+	// matching row whatever the LIMIT.
+	var total int
+	if err := txFromCtx(ctx, r.db).QueryRowContext(ctx, `SELECT COUNT(*) FROM photos WHERE library_id = $1 AND album = $2`, libraryID, album).Scan(&total); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, 0, err
+	}
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT id, library_id, title, file_path, file_size, file_hash, mod_time, mime_type, width, height,
-		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at,
-		       COUNT(*) OVER() AS total
+		       taken_at, latitude, longitude, camera_model, album, blurhash, created_at, updated_at
 		FROM photos WHERE library_id = $1 AND album = $2
 		ORDER BY taken_at DESC NULLS LAST, created_at DESC, id DESC
 		LIMIT $3 OFFSET $4`, libraryID, album, limit, offset,
@@ -204,7 +220,7 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.Libr
 		return nil, 0, err
 	}
 	defer rows.Close()
-	photos, total, err := scanPhotosWithTotal(rows)
+	photos, err := scanPhotos(rows)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -212,7 +228,7 @@ func (r *PhotoRepository) ListByAlbum(ctx context.Context, libraryID shared.Libr
 	return photos, total, err
 }
 
-// photoCursorOrderBy is the sort key both the offset (COUNT(*) OVER()) and
+// photoCursorOrderBy is the sort key both the offset and
 // keyset paginated queries share: taken_at DESC NULLS LAST, created_at DESC,
 // id DESC. Kept as the RAW columns (not COALESCE(taken_at, ...)) on purpose:
 // idx_photos_library_taken_at is built on exactly this expression, and an
@@ -456,26 +472,6 @@ func scanPhotos(rows *sql.Rows) ([]photo.Photo, error) {
 		photos = append(photos, p)
 	}
 	return photos, rows.Err()
-}
-
-func scanPhotosWithTotal(rows *sql.Rows) ([]photo.Photo, int, error) {
-	var photos []photo.Photo
-	var total int
-	for rows.Next() {
-		var p photo.Photo
-		var blurhash sql.NullString
-		if err := rows.Scan(
-			&p.ID, &p.LibraryID, &p.Title, &p.FilePath, &p.FileSize, &p.FileHash, &p.ModTime, &p.MimeType,
-			&p.Width, &p.Height, &p.TakenAt, &p.Latitude, &p.Longitude,
-			&p.CameraModel, &p.Album, &blurhash, &p.CreatedAt, &p.UpdatedAt,
-			&total,
-		); err != nil {
-			return nil, 0, err
-		}
-		p.Blurhash = blurhash.String
-		photos = append(photos, p)
-	}
-	return photos, total, rows.Err()
 }
 
 var _ photo.Repository = (*PhotoRepository)(nil)
