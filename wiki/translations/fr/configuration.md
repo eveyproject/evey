@@ -1,8 +1,8 @@
 ---
-source_sha: fc6dc6008146f2970b260b3c75a326e8cda72d352a8582783f9ee1b68923c74a
+source_sha: 4ce746becabde8112df318ae11e703de89cf7fccdfe4a116c6824a17426dd290
 reviewed: true
 ---
-# Référence de configuration
+# Référence de configuration { #configuration-reference }
 
 Où se trouve chaque réglage d'un serveur Evey, quelle valeur l'emporte quand un
 réglage existe à la fois dans le panneau d'administration et dans
@@ -11,7 +11,7 @@ sont listées par thème dans les dix pages liées plus bas ; cette page
 s'adresse à l'administrateur qui édite le fichier compose ou se demande
 pourquoi une variable semble ignorée.
 
-## Deux endroits, une règle
+## Deux endroits, une règle { #two-places-one-rule }
 
 **Ce qui doit exister avant le démarrage du serveur** - secrets, chemins de
 stockage, adresse publique, informations sur le reverse proxy - va dans le
@@ -40,7 +40,7 @@ une clé qu'il a stockés, et une variable comme `EVEY_TMDB_API_KEY` est
 copiée en base à la première utilisation, pour que le panneau puisse
 indiquer qu'une clé personnalisée est en service.
 
-## Ce qui demande un redémarrage
+## Ce qui demande un redémarrage { #what-needs-a-restart }
 
 - Une modification d'une **variable d'environnement** demande toujours de
   recréer le conteneur (`docker compose up -d`) : le processus lit son
@@ -75,7 +75,7 @@ panneau.
 | [E-mail et notifications](environment/notifications.md) | SMTP, clés de notification push |
 | [Sauvegardes, logs et supervision](environment/logs-monitoring.md) | Sauvegardes, log, durée de conservation des historiques, métriques et traces |
 
-## Comment les valeurs sont lues
+## Comment les valeurs sont lues { #how-values-are-read }
 
 - Les booléens acceptent `1`, `t`, `true`, `0`, `f`, `false`. Les durées
   exigent une unité : `30s`, `5m`, `2h` (un `30` nu est ignoré). Les listes
@@ -88,7 +88,7 @@ panneau.
   nommé par la même variable suffixée `_FILE` ; une valeur explicite prime
   sur le fichier.
 
-## Secrets
+## Secrets { #secrets }
 
 Le Postgres et le Meilisearch intégrés génèrent leurs secrets au premier
 démarrage, dans `./evey-data/keys` (`postgres.password`, `meili.key`, mode
@@ -101,7 +101,7 @@ recherche externe.
 Une clé TMDB est intégrée. `EVEY_TMDB_API_KEY` fournit la vôtre ; la clé
 saisie dans **Administration → Configuration du serveur → Clés API** l'emporte.
 
-## Variables inutiles
+## Variables inutiles { #variables-you-do-not-need }
 
 Des lignes souvent reprises d'anciennes installations, et pourquoi elles ne
 changent rien :
@@ -115,7 +115,7 @@ changent rien :
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` choisit le confinement le plus robuste que permet la machine. Ne la définissez explicitement que pour une garantie stricte : `landlock` refuse de lancer un plugin qu'il ne peut pas confiner, là où `auto` passe à un mode moins strict avec un avertissement. |
 | un `group_add` pour `/dev/dri/card0` | Evey n'ouvre que `renderD128`. Vérifiez avec `ls -ln /dev/dri` et n'ajoutez que ce groupe. |
 
-## Propriétaire des fichiers (PUID et PGID)
+## Propriétaire des fichiers (PUID et PGID) { #file-ownership-puid-and-pgid }
 
 **Par défaut : automatique.** Quand `PUID`/`PGID` ne sont pas définis,
 l'entrypoint regarde au démarrage le propriétaire de vos montages `/media*` et
@@ -172,7 +172,7 @@ garder `./evey-data` modifiable par cet uid.
     bibliothèque en lecture seule (les réparations échouent alors avec une
     erreur explicite).
 
-## Variables que le serveur ne lit pas
+## Variables que le serveur ne lit pas { #variables-the-server-does-not-read }
 
 Certaines variables figurent dans des fichiers compose sans être lues par le
 serveur :

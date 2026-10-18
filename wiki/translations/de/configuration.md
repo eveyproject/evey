@@ -1,8 +1,8 @@
 ---
-source_sha: fc6dc6008146f2970b260b3c75a326e8cda72d352a8582783f9ee1b68923c74a
+source_sha: 4ce746becabde8112df318ae11e703de89cf7fccdfe4a116c6824a17426dd290
 reviewed: true
 ---
-# Konfigurationsreferenz
+# Konfigurationsreferenz { #configuration-reference }
 
 Wo jede Einstellung eines Evey-Servers liegt, welcher Wert gilt, wenn es eine
 Einstellung sowohl im Verwaltungsbereich als auch in der Umgebung gibt, und
@@ -11,7 +11,7 @@ geordnet, auf den zehn unten verlinkten Seiten. Diese Seite richtet sich an
 Administratoren, die die Compose-Datei bearbeiten oder sich fragen, warum eine
 Variable scheinbar nicht wirkt.
 
-## Zwei Orte, eine Regel
+## Zwei Orte, eine Regel { #two-places-one-rule }
 
 **Was vor dem Serverstart da sein muss** - Geheimnisse, Speicherpfade, die
 öffentliche Adresse, Angaben zum Reverse Proxy - gehört als
@@ -39,7 +39,7 @@ oder einen Schlüssel an, den er gespeichert hat. Eine Variable wie
 damit der Verwaltungsbereich anzeigen kann, dass ein eigener Schlüssel
 verwendet wird.
 
-## Was einen Neustart braucht
+## Was einen Neustart braucht { #what-needs-a-restart }
 
 - Eine Änderung an einer **Umgebungsvariable** verlangt immer, dass der
   Container neu erstellt wird (`docker compose up -d`): Der Prozess liest
@@ -74,7 +74,7 @@ Verwaltungsbereich gibt.
 | [E-Mail und Benachrichtigungen](environment/notifications.md) | SMTP, Schlüssel für Browser-Push |
 | [Sicherungen, Protokolle und Überwachung](environment/logs-monitoring.md) | Sicherungen, Protokoll, Aufbewahrung des Verlaufs, Metriken und Tracing |
 
-## Wie Werte gelesen werden
+## Wie Werte gelesen werden { #how-values-are-read }
 
 - Wahrheitswerte akzeptieren `1`, `t`, `true`, `0`, `f`, `false`. Zeitdauern
   brauchen eine Einheit: `30s`, `5m`, `2h` (eine bloße `30` wird ignoriert).
@@ -87,7 +87,7 @@ Verwaltungsbereich gibt.
   kommen, deren Pfad in derselben Variable mit der Endung `_FILE` steht. Ein
   ausdrücklich gesetzter Wert hat Vorrang vor der Datei.
 
-## Geheimnisse
+## Geheimnisse { #secrets }
 
 Das eingebettete Postgres und Meilisearch erzeugen ihre Geheimnisse beim
 ersten Start in `./evey-data/keys` (`postgres.password`, `meili.key`, Modus
@@ -100,7 +100,7 @@ Ein TMDB-Schlüssel ist eingebaut. `EVEY_TMDB_API_KEY` hinterlegt Ihren
 eigenen. Der Schlüssel unter **Verwaltung → Serverkonfiguration →
 API-Schlüssel** hat Vorrang vor dieser Variable.
 
-## Variablen, die Sie nicht brauchen
+## Variablen, die Sie nicht brauchen { #variables-you-do-not-need }
 
 Zeilen, die oft aus älteren Installationen übernommen werden, und warum sie
 nichts ändern:
@@ -114,7 +114,7 @@ nichts ändern:
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` wählt die stärkste Isolierung, die Ihr Host unterstützt. Setzen Sie die Variable nur ausdrücklich, wenn Sie eine *fail-closed*-Garantie wollen: `landlock` weigert sich, ein Plugin zu starten, das es nicht isolieren kann, während `auto` mit einer Warnung auf eine schwächere Stufe zurückfällt. |
 | ein `group_add` für `/dev/dri/card0` | Evey öffnet immer nur `renderD128`. Prüfen Sie es mit `ls -ln /dev/dri` und fügen Sie nur diese Gruppe hinzu. |
 
-## Dateibesitz (PUID und PGID)
+## Dateibesitz (PUID und PGID) { #file-ownership-puid-and-pgid }
 
 **Standard: automatisch.** Wenn `PUID`/`PGID` nicht gesetzt sind, prüft das
 Startskript (Entrypoint) beim Start, wem Ihre `/media*`-Mounts gehören,
@@ -173,7 +173,7 @@ Das Startskript erkennt den Start ohne root und überspringt die Umstellung
     Medien-Volume an, wenn Sie eine schreibgeschützte Bibliothek bevorzugen
     (Reparaturen scheitern dann mit einer klaren Fehlermeldung).
 
-## Variablen, die der Server nicht liest
+## Variablen, die der Server nicht liest { #variables-the-server-does-not-read }
 
 Manche Variablen stehen in Compose-Dateien, ohne dass der Server sie liest:
 
