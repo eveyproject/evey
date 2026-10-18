@@ -41,8 +41,8 @@ vi.mock("../../../providers/ThemeProvider", () => ({
 
 import { BackgroundJobsCard } from "./BackgroundJobsCard";
 
-const saveEntry = vi.fn();
-const deleteEntry = vi.fn();
+const saveEntry = vi.fn(async (_vars: { key: string; value: string }) => ({}));
+const deleteEntry = vi.fn(async (_key: string) => ({}));
 
 beforeEach(() => {
   saveEntry.mockClear();
@@ -82,12 +82,9 @@ describe("BackgroundJobsCard", () => {
     fireEvent.change(screen.getByTestId("bg-rate-transcoding.level_backfill_batch"), { target: { value: "25" } });
     fireEvent.click(screen.getByTestId("bg-rates-save"));
 
-    expect(saveEntry).toHaveBeenCalledWith(
-      { key: "transcoding.level_backfill_batch", value: "25" },
-      expect.anything(),
-    );
+    expect(saveEntry).toHaveBeenCalledWith({ key: "transcoding.level_backfill_batch", value: "25" });
     // The five untouched (empty) fields revert to the server default.
-    expect(deleteEntry).toHaveBeenCalledWith("transcoding.keyframe_backfill_batch", expect.anything());
+    expect(deleteEntry).toHaveBeenCalledWith("transcoding.keyframe_backfill_batch");
   });
 
   it("save stays disabled until a pacing field is edited", () => {

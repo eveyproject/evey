@@ -2,12 +2,12 @@ import { View, Text, TextInput, Switch, TouchableOpacity, StyleSheet } from "rea
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../providers/ThemeProvider";
 import { BACKGROUND_JOB_RATES, BACKGROUND_JOB_TOGGLES, useBackgroundJobsForm } from "@evey/client";
-import type { ConfigEntry, SaveEntry } from "./types";
+import type { ConfigEntry, SaveEntryAsync } from "./types";
 
 interface BackgroundJobsCardProps {
   entries: ConfigEntry[] | undefined;
-  saveEntry: SaveEntry;
-  deleteEntry: (key: string, callbacks?: { onSuccess?: () => void; onError?: () => void }) => void;
+  saveEntry: SaveEntryAsync;
+  deleteEntry: (key: string) => Promise<unknown>;
   saving: boolean;
 }
 
@@ -17,8 +17,8 @@ export function BackgroundJobsCard({ entries, saveEntry, deleteEntry, saving }: 
 
   const { rateDrafts, rateDirty, setRate, isEnabled, toggle, saveRates } = useBackgroundJobsForm({
     entries,
-    save: (key, value, callbacks) => (callbacks ? saveEntry({ key, value }, callbacks) : saveEntry({ key, value })),
-    remove: (key, callbacks) => (callbacks ? deleteEntry(key, callbacks) : deleteEntry(key)),
+    save: (key, value) => saveEntry({ key, value }),
+    remove: (key) => deleteEntry(key),
   });
 
   return (

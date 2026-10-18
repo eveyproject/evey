@@ -1,16 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { BackgroundJobsCard } from "./BackgroundJobsCard";
 
-const setMutate = vi.fn();
-const deleteMutate = vi.fn();
+// Each write is a promise the test settles by hand.
+type Pending = { resolve: (v: unknown) => void; reject: (e: unknown) => void };
+const pending: Pending[] = [];
+const deferred = () => new Promise((resolve, reject) => pending.push({ resolve, reject }));
+const setMutate = vi.fn(deferred);
+const deleteMutate = vi.fn(deferred);
 vi.mock("./hooks", () => ({
-  useSetConfigEntry: () => ({ mutate: setMutate, isPending: false }),
-  useDeleteConfigEntry: () => ({ mutate: deleteMutate, isPending: false }),
+  useSetConfigEntry: () => ({ mutateAsync: setMutate, isPending: false }),
+  useDeleteConfigEntry: () => ({ mutateAsync: deleteMutate, isPending: false }),
 }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  pending.length = 0;
+});
 
 // A boot-time flag reads as on unless its row says "off"; switching it off
 // writes "off", switching it back on DELETES the row (server default), never
@@ -30,7 +37,7 @@ describe("BackgroundJobsCard", () => {
     expect(setMutate).toHaveBeenCalledTimes(1);
   });
 
-  it("saves every pace field at once, deleting the blank ones, and stays dirty until all writes land", () => {
+  it("saves every pace field at once, deleting the blank ones, and stays dirty until all writes land", async () => {
     render(<BackgroundJobsCard entries={[{ key: "transcoding.level_backfill_batch", value: "50" }]} />);
     const save = screen.getByRole("button", { name: "common.save" }) as HTMLButtonElement;
     expect(save.disabled).toBe(true);
@@ -39,29 +46,27 @@ describe("BackgroundJobsCard", () => {
     fireEvent.change(batch, { target: { value: "25" } });
     expect(save.disabled).toBe(false);
     fireEvent.click(save);
-    expect(setMutate).toHaveBeenCalledWith({ key: "transcoding.level_backfill_batch", value: "25" }, expect.anything());
+    expect(setMutate).toHaveBeenCalledWith({ key: "transcoding.level_backfill_batch", value: "25" });
     expect(deleteMutate).toHaveBeenCalledTimes(5);
-    expect(deleteMutate).toHaveBeenCalledWith("transcoding.keyframe_backfill_idle_sec", expect.anything());
+    expect(deleteMutate).toHaveBeenCalledWith("transcoding.keyframe_backfill_idle_sec");
 
     // Settle five of six writes: still dirty. The sixth lands: clean.
-    const callbacks = [...setMutate.mock.calls.map((c) => c[1]), ...deleteMutate.mock.calls.map((c) => c[1])] as { onSuccess: () => void; onError: () => void }[];
-    act(() => callbacks.slice(0, 5).forEach((cb) => cb.onSuccess()));
+    pending.slice(0, 5).forEach((p) => p.resolve({}));
+    await Promise.resolve();
     expect(save.disabled).toBe(false);
-    act(() => callbacks[5].onSuccess());
-    expect(save.disabled).toBe(true);
+    pending[5].resolve({});
+    await waitFor(() => expect(save.disabled).toBe(true));
   });
 
-  it("a failed write keeps the form dirty so the edit can be retried", () => {
+  it("a failed write keeps the form dirty so the edit can be retried", async () => {
     render(<BackgroundJobsCard entries={[]} />);
     const batch = screen.getByLabelText("admin.serverConfig.backgroundJobs.levelBackfillBatchLabel");
     fireEvent.change(batch, { target: { value: "10" } });
     const save = screen.getByRole("button", { name: "common.save" }) as HTMLButtonElement;
     fireEvent.click(save);
-    const callbacks = [...setMutate.mock.calls.map((c) => c[1]), ...deleteMutate.mock.calls.map((c) => c[1])] as { onSuccess: () => void; onError: () => void }[];
-    act(() => {
-      callbacks[0].onError();
-      callbacks.slice(1).forEach((cb) => cb.onSuccess());
-    });
+    pending[0].reject(new Error("boom"));
+    pending.slice(1).forEach((p) => p.resolve({}));
+    await new Promise((r) => setTimeout(r, 0));
     expect(save.disabled).toBe(false);
   });
 });
