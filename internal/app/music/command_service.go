@@ -439,7 +439,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 	// /media/musique vanished). Until 2026-08-26 the music branch never
 	// pruned at all - deleted albums stayed in the UI forever.
 	if walkErr == nil && ctx.Err() == nil {
-		s.pruneMissingTracks(ctx, dir, entries, seen, movedIDs)
+		s.pruneMissingTracks(ctx, libraryID, dir, entries, seen, movedIDs)
 	}
 	s.kickAlbumArtFetch(libraryID)
 	return total, walkErr
@@ -451,7 +451,7 @@ func (s *CommandService) ScanDirectory(ctx context.Context, libraryID, dir strin
 // never read as "the user deleted this" - a wrong prune breaks every playlist
 // referencing the track id. Moved files keep their row (updated in place by
 // buildTrackJobs) and are excluded by id.
-func (s *CommandService) pruneMissingTracks(ctx context.Context, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
+func (s *CommandService) pruneMissingTracks(ctx context.Context, libraryID, dir string, entries []scanindex.Summary, seen, movedIDs map[string]bool) {
 	prefix := strings.TrimSuffix(dir, string(os.PathSeparator)) + string(os.PathSeparator)
 	// Safety net against a degraded mount wiping the catalog: a walk that
 	// completed but reported ZERO files while the DB still has rows under this
@@ -469,7 +469,7 @@ func (s *CommandService) pruneMissingTracks(ctx context.Context, dir string, ent
 			}
 		}
 	}
-	removed := 0
+	var gone []string
 	for _, e := range entries {
 		if ctx.Err() != nil {
 			return
@@ -483,15 +483,22 @@ func (s *CommandService) pruneMissingTracks(ctx context.Context, dir string, ent
 		if s.scanner.Exists(e.Path) {
 			continue // the walk missed it but the file is on disk - keep it
 		}
-		if err := s.DeleteTrack(ctx, e.ID); err != nil {
-			slog.WarnContext(ctx, "music scan: prune failed", slog.String("id", e.ID), slog.String("path", e.Path), slog.Any("err", err))
-			continue
-		}
-		removed++
+		gone = append(gone, e.ID)
 	}
-	if removed > 0 {
-		slog.InfoContext(ctx, "music scan: pruned tracks whose files are gone", slog.Int("removed", removed), slog.String("dir", dir))
+	if len(gone) == 0 {
+		return
 	}
+	// One statement for the whole set, like the video orphan pruner. Fail
+	// closed: if it errors the rows are still there, so nothing is de-indexed
+	// and no removal event goes out for a track that was not deleted.
+	if err := s.tracks.DeleteByIDs(ctx, gone); err != nil {
+		slog.WarnContext(ctx, "music scan: batch prune failed", slog.String("dir", dir), slog.Int("candidates", len(gone)), slog.Any("err", err))
+		return
+	}
+	for _, id := range gone {
+		s.announceTrackRemoved(ctx, shared.LibraryID(libraryID), id)
+	}
+	slog.InfoContext(ctx, "music scan: pruned tracks whose files are gone", slog.Int("removed", len(gone)), slog.String("dir", dir))
 }
 
 // loadTrackIndex preloads every track for the library into a scanindex
@@ -733,6 +740,13 @@ func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error 
 	if err := s.tracks.Delete(ctx, trackID); err != nil {
 		return fmt.Errorf("CommandService.DeleteTrack: %w", err)
 	}
+	s.announceTrackRemoved(ctx, libraryID, trackID)
+	return nil
+}
+
+// announceTrackRemoved de-indexes a deleted track and emits its removal events.
+// Shared by the single delete and the scan's batch prune so both emit the same.
+func (s *CommandService) announceTrackRemoved(ctx context.Context, libraryID shared.LibraryID, trackID string) {
 	if s.searchIndex != nil {
 		if idxErr := s.searchIndex.RemoveTrack(ctx, trackID); idxErr != nil {
 			slog.WarnContext(ctx, "music: search index remove failed", slog.String("trackID", trackID), slog.Any("err", idxErr))
@@ -744,7 +758,6 @@ func (s *CommandService) DeleteTrack(ctx context.Context, trackID string) error 
 	if pubErr := s.bus.Publish(ctx, music.TrackRemoved{TrackID: trackID, LibraryID: libraryID, OccurredAt: time.Now()}); pubErr != nil {
 		slog.WarnContext(ctx, "music: TrackRemoved publish failed", slog.String("trackID", trackID), slog.Any("err", pubErr))
 	}
-	return nil
 }
 
 // titleFromFilename is the last-resort display title when the file carries no

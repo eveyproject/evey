@@ -409,3 +409,30 @@ func TestPhotoRepo_CountByLibrary_AgreesWithListTotal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, nEmpty)
 }
+
+func TestPhotoRepo_DeleteByIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewPhotoRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("ph-lib-batch")
+	lib.Type = "photo"
+	require.NoError(t, libRepo.Create(ctx, lib))
+	for _, id := range []string{"phb1", "phb2", "phb3"} {
+		require.NoError(t, repo.Upsert(ctx, newTestPhoto(id, lib.ID, "")))
+	}
+
+	require.NoError(t, repo.DeleteByIDs(ctx, nil))
+	require.NoError(t, repo.DeleteByIDs(ctx, []string{"phb1", "phb2", "no-such-id"}))
+
+	for _, id := range []string{"phb1", "phb2"} {
+		_, err := repo.GetByID(ctx, id)
+		require.ErrorIs(t, err, shared.ErrNotFound)
+	}
+	kept, err := repo.GetByID(ctx, "phb3")
+	require.NoError(t, err)
+	assert.Equal(t, "phb3", kept.ID)
+}

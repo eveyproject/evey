@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 
@@ -123,6 +124,23 @@ func (r *MusicTrackRepository) Delete(ctx context.Context, id string) error {
 		span.SetStatus(codes.Error, err.Error())
 	}
 	return err
+}
+
+func (r *MusicTrackRepository) DeleteByIDs(ctx context.Context, ids []string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.DeleteByIDs")
+	defer span.End()
+	if len(ids) == 0 {
+		return nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	_, err := txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM music_tracks WHERE id = ANY($1)`, pq.Array(ids))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("MusicTrackRepo.DeleteByIDs: %w", err)
+	}
+	return nil
 }
 
 // CountByLibrary counts a library's tracks without reading them. Same reason as

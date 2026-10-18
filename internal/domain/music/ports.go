@@ -55,6 +55,10 @@ type TrackWriter interface {
 	// row that does not exist.
 	Upsert(ctx context.Context, t Track) (string, error)
 	Delete(ctx context.Context, id string) error
+	// DeleteByIDs removes the rows in one statement - the scan prune's path, so
+	// a library that lost thousands of files is not thousands of round trips.
+	// Ids that match no row are ignored.
+	DeleteByIDs(ctx context.Context, ids []string) error
 	UpdateFilePath(ctx context.Context, id, newPath string, modTime time.Time) error
 	SetAlbumCoverArtURL(ctx context.Context, libraryID shared.LibraryID, albumFolder, url string) error
 

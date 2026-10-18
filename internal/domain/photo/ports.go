@@ -14,6 +14,9 @@ import (
 type CommandRepo interface {
 	Upsert(ctx context.Context, p Photo) error
 	Delete(ctx context.Context, id string) error
+	// DeleteByIDs removes the rows in one statement (the scan prune's path).
+	// Ids that match no row are ignored.
+	DeleteByIDs(ctx context.Context, ids []string) error
 	// UpdateFilePath re-points a photo whose file moved (same hash, new path).
 	// The album is the folder the file now sits in, so it moves with the path:
 	// a photo dragged into "Voyage/" joins that album instead of keeping the

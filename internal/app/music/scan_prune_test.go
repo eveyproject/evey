@@ -192,3 +192,94 @@ func TestScanDirectory_PublishesMediaItemAddedForNewTracks(t *testing.T) {
 		t.Fatalf("an UPDATED track must not publish MediaItemAdded again, got %d total", count)
 	}
 }
+
+// batchSpyRepo counts how the prune reaches the store: the video pruner deletes
+// a whole set in one statement, music must not issue one DELETE per track.
+type batchSpyRepo struct {
+	*fakes.FakeMusicTrackRepository
+	singleDeletes int
+	batchCalls    int
+	batchErr      error
+}
+
+func (r *batchSpyRepo) Delete(ctx context.Context, id string) error {
+	r.singleDeletes++
+	return r.FakeMusicTrackRepository.Delete(ctx, id)
+}
+
+func (r *batchSpyRepo) DeleteByIDs(ctx context.Context, ids []string) error {
+	r.batchCalls++
+	if r.batchErr != nil {
+		return r.batchErr
+	}
+	return r.FakeMusicTrackRepository.DeleteByIDs(ctx, ids)
+}
+
+func pruneRemovalEvents(bus *sharedfakes.FakeEventBus) (deleted, removed []music.TrackRemoved) {
+	for _, ev := range bus.PublishedEvents() {
+		if e, ok := ev.(music.TrackRemoved); ok {
+			removed = append(removed, e)
+		}
+		if e, ok := ev.(music.TrackDeleted); ok {
+			deleted = append(deleted, music.TrackRemoved{TrackID: e.TrackID, LibraryID: e.LibraryID})
+		}
+	}
+	return deleted, removed
+}
+
+func TestScanDirectory_PrunesGoneTracksInOneBatch(t *testing.T) {
+	spy := &batchSpyRepo{FakeMusicTrackRepository: fakes.NewFakeMusicTrackRepository()}
+	scanner := fakes.NewFakeMusicScanner()
+	seedPruneTrack(t, spy, "keep-1", "/lib/a/keep.mp3")
+	seedPruneTrack(t, spy, "gone-1", "/lib/a/gone1.mp3")
+	seedPruneTrack(t, spy, "gone-2", "/lib/a/gone2.mp3")
+	scanner.Files = []music.ScannedAudioFile{
+		{Path: "/lib/a/keep.mp3", Size: 100, MimeType: "audio/mpeg", ModTime: time.Now().Add(-time.Hour)},
+	}
+	scanner.Hashes["/lib/a/keep.mp3"] = "hash-keep-1"
+	bus := sharedfakes.NewFakeEventBus()
+
+	cs := appmusic.NewCommandService(spy, bus, nil, scanner)
+	if _, err := cs.ScanDirectory(context.Background(), "lib-1", "/lib"); err != nil {
+		t.Fatal(err)
+	}
+	if spy.batchCalls != 1 || spy.singleDeletes != 0 {
+		t.Fatalf("prune must be ONE batch delete and no per-track delete, got batch=%d single=%d", spy.batchCalls, spy.singleDeletes)
+	}
+	if n := trackCount(t, spy); n != 1 {
+		t.Fatalf("both gone tracks must be pruned, have %d rows", n)
+	}
+	deleted, removed := pruneRemovalEvents(bus)
+	if len(deleted) != 2 || len(removed) != 2 {
+		t.Fatalf("each pruned track must emit TrackDeleted and TrackRemoved, got %d / %d", len(deleted), len(removed))
+	}
+	for _, e := range removed {
+		if e.LibraryID != "lib-1" {
+			t.Fatalf("removal event must carry the library id, got %q", e.LibraryID)
+		}
+	}
+}
+
+func TestScanDirectory_FailedBatchPruneEmitsNothing(t *testing.T) {
+	spy := &batchSpyRepo{FakeMusicTrackRepository: fakes.NewFakeMusicTrackRepository(), batchErr: errors.New("db down")}
+	scanner := fakes.NewFakeMusicScanner()
+	seedPruneTrack(t, spy, "keep-1", "/lib/a/keep.mp3")
+	seedPruneTrack(t, spy, "gone-1", "/lib/a/gone1.mp3")
+	scanner.Files = []music.ScannedAudioFile{
+		{Path: "/lib/a/keep.mp3", Size: 100, MimeType: "audio/mpeg", ModTime: time.Now().Add(-time.Hour)},
+	}
+	scanner.Hashes["/lib/a/keep.mp3"] = "hash-keep-1"
+	bus := sharedfakes.NewFakeEventBus()
+
+	cs := appmusic.NewCommandService(spy, bus, nil, scanner)
+	if _, err := cs.ScanDirectory(context.Background(), "lib-1", "/lib"); err != nil {
+		t.Fatal(err)
+	}
+	deleted, removed := pruneRemovalEvents(bus)
+	if len(deleted) != 0 || len(removed) != 0 {
+		t.Fatalf("rows survived the failed batch: no removal event may be emitted, got %d / %d", len(deleted), len(removed))
+	}
+	if n := trackCount(t, spy); n != 2 {
+		t.Fatalf("rows must remain after a failed batch, have %d", n)
+	}
+}
