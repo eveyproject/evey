@@ -112,6 +112,11 @@ type CastAudioModeTouch func(ctx context.Context, profileID, mediaItemID, mode s
 // session at master render. Fire-and-forget by contract.
 type SessionServingRecord func(ctx context.Context, profileID, mediaItemID string, p domainplayback.ServingPath)
 
+// SessionAudioLegRecord records the audio leg alone (decision, engine, served
+// codec label) of the (profile, media) session, when a track switch fetches a
+// rendition the master render did not describe. Fire-and-forget by contract.
+type SessionAudioLegRecord func(ctx context.Context, profileID, mediaItemID, decision, engine, codecLabel string)
+
 // CastCommandConsumer hands the receiver the pending admin remote command of
 // its session ("pause", "play", "stop", "message:<text>"), or "" when none.
 // Destructive read - see playback.ConsumeCastCommand.

@@ -55,6 +55,8 @@ type hlsVODServe struct {
 
 	// servingRecord: see SessionServingRecord; nil = not wired (tests).
 	servingRecord SessionServingRecord
+	// audioLegRecord: see SessionAudioLegRecord; nil = not wired (tests).
+	audioLegRecord SessionAudioLegRecord
 	// frameRateProbe + encoderReorderProbe: wired when the host can measure a
 	// transcoded video's timing; they gate the transcoded ladder's renditions.
 	frameRateProbe      func(ctx context.Context, path string) float64
@@ -471,7 +473,33 @@ func (h *hlsVODServe) dispatchAudioPlaylist(w http.ResponseWriter, r *http.Reque
 	}
 	m := audioPlaylistNameRE.FindStringSubmatch(file)
 	trackIdx := atoiIndex(m[1])
-	h.audio.servePlaylistFile(w, r, mediaID, trackIdx, renditionTimelineShiftSec, h.audioRenditionCopyCodec(r, item, streams, trackIdx))
+	copyCodec := h.audioRenditionCopyCodec(r, item, streams, trackIdx)
+	h.audio.servePlaylistFile(w, r, mediaID, trackIdx, renditionTimelineShiftSec, copyCodec)
+	h.recordAudioLeg(r, mediaID, streams, trackIdx, copyCodec)
+}
+
+// recordAudioLeg tells the session which audio this rendition serves. A track
+// switched in place on the player fetches only its rendition playlist, so the
+// master's record kept naming the track playback started on. A wasm player
+// decodes the track itself and reports that leg through its own beacons.
+func (h *hlsVODServe) recordAudioLeg(r *http.Request, mediaID string, streams []*domainlibrary.MediaStream, trackIdx int, copyCodec string) {
+	if h.audioLegRecord == nil || h.audio == nil || h.audio.wasmAudio(r) {
+		return
+	}
+	claims := HTTPClaimsFromContext(r.Context())
+	if claims == nil || claims.ProfileID == "" {
+		return
+	}
+	source := sourceAudioCodec(streams, trackIdx)
+	if copyCodec != "" {
+		h.audioLegRecord(r.Context(), claims.ProfileID, mediaID, "copy", "ffmpeg", source)
+		return
+	}
+	label := "aac"
+	if source != "" && source != "aac" {
+		label = source + "→aac"
+	}
+	h.audioLegRecord(r.Context(), claims.ProfileID, mediaID, "transcode", "ffmpeg", label)
 }
 
 func (h *hlsVODServe) dispatchAudioSegment(w http.ResponseWriter, r *http.Request, mediaID, file string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, span trace.Span) {

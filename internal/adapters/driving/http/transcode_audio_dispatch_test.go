@@ -13,6 +13,7 @@ package httpapi
 // the error path finish quickly.
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -262,4 +263,43 @@ func TestDispatchAudioPlaylist_CarriesThePlanPins(t *testing.T) {
 		// and segments re-decide to AAC under a master that promised the copy.
 		assert.Contains(t, line, "fmp4AudioPassthrough=mp3%2Copus", "child URI must carry the passthrough opt-in")
 	}
+}
+
+// An in-place track switch never re-renders the master: hls.js only asks the
+// new track's rendition playlist. The admin's "Now playing" kept the audio of
+// the track playback started on; the rendition playlist now records its own
+// audio leg on the session (the video leg is the master's and stays).
+func TestDispatchAudioPlaylist_RecordsTheTracksAudioLeg(t *testing.T) {
+	item, streams := testMediaItemWithAudioStreams()
+	libSvc := &testFakeStreamsGetter{item: item, streams: streams}
+	h := buildVODHandlerWithAudio(t, libSvc, allowAll(), testFakeParentalChecker{}, &fakeAudioEnsurer{})
+	type leg struct{ profile, media, decision, engine, codec string }
+	var got []leg
+	h.audioLegRecord = func(_ context.Context, profileID, mediaID, decision, engine, codec string) {
+		got = append(got, leg{profileID, mediaID, decision, engine, codec})
+	}
+
+	w := doAudioDispatchRequest(h, "m1", "audio_1.m3u8")
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Len(t, got, 1)
+	assert.Equal(t, leg{"p1", "m1", "transcode", "ffmpeg", "ac3→aac"}, got[0])
+}
+
+// A wasm player decodes the track itself and says so through its beacons:
+// the rendition playlist must not overwrite that leg.
+func TestDispatchAudioPlaylist_WasmPlayerLegIsLeftToTheBeacons(t *testing.T) {
+	item, streams := testMediaItemWithAudioStreams()
+	libSvc := &testFakeStreamsGetter{item: item, streams: streams}
+	h := buildVODHandlerWithAudio(t, libSvc, allowAll(), testFakeParentalChecker{}, &fakeAudioEnsurer{})
+	called := false
+	h.audioLegRecord = func(context.Context, string, string, string, string, string) { called = true }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_1.m3u8?wasmAudio=1", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("file", "audio_1.m3u8")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.serveHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.False(t, called)
 }
