@@ -16,6 +16,7 @@ nav:
   usersAccess: Benutzer & Zugriff
   users: Benutzer
   mediaRequests: Medienanfragen
+  shareLinks: "Freigabelinks"
   integrations: Integrationen
   plugins: Plugins
   webhooks: Webhooks
@@ -1857,3 +1858,19 @@ sso:
   save: "SSO-Einstellungen speichern"
   saved: "SSO-Einstellungen gespeichert"
   saveFailed: "SSO-Einstellungen konnten nicht gespeichert werden"
+shareLinks:
+  title: "Freigabelinks"
+  description: "Jeder Link, mit dem jemand ohne Konto einen Titel ansehen kann. Widerrufen Sie einen, um ihn sofort zu stoppen."
+  noLinks: "Kein Freigabelink."
+  tableHeaders:
+    media: "Titel"
+    expires: "Läuft ab"
+    views: "Aufrufe"
+    actions: "Aktionen"
+  revoke: "Widerrufen"
+  revokeTitle: "Freigabelink widerrufen"
+  revokeConfirm: "Den Link zu „{{title}}“ widerrufen? Wer ihn hat, kann den Titel nicht mehr ansehen."
+  revoked: "Freigabelink widerrufen"
+  failedRevoke: "Freigabelink konnte nicht widerrufen werden"
+  expired: "abgelaufen"
+  unlimited: "unbegrenzt"

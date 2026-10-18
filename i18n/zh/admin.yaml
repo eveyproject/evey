@@ -16,6 +16,7 @@ nav:
   usersAccess: "用户与访问"
   users: "用户"
   mediaRequests: "媒体请求"
+  shareLinks: "分享链接"
   integrations: "集成"
   plugins: "插件"
   webhooks: Webhooks
@@ -1857,3 +1858,19 @@ sso:
   save: "保存 SSO 设置"
   saved: "SSO 设置已保存"
   saveFailed: "无法保存 SSO 设置"
+shareLinks:
+  title: "分享链接"
+  description: "每个让没有账户的人观看某个内容的链接。撤销一个链接即可立即使其失效。"
+  noLinks: "没有分享链接。"
+  tableHeaders:
+    media: "标题"
+    expires: "到期"
+    views: "观看次数"
+    actions: "操作"
+  revoke: "撤销"
+  revokeTitle: "撤销分享链接"
+  revokeConfirm: "撤销“{{title}}”的链接？持有该链接的人将无法再观看。"
+  revoked: "分享链接已撤销"
+  failedRevoke: "无法撤销分享链接"
+  expired: "已过期"
+  unlimited: "无限"

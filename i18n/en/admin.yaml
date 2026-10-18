@@ -15,6 +15,7 @@ nav:
   usersAccess: Users & Access
   users: Users
   mediaRequests: Media Requests
+  shareLinks: "Share links"
   integrations: Integrations
   plugins: Plugins
   webhooks: Webhooks
@@ -1857,3 +1858,19 @@ sso:
   save: "Save SSO settings"
   saved: "SSO settings saved"
   saveFailed: "Could not save the SSO settings"
+shareLinks:
+  title: "Share links"
+  description: "Every link that lets someone without an account watch a title. Revoke one to stop it at once."
+  noLinks: "No share link."
+  tableHeaders:
+    media: "Title"
+    expires: "Expires"
+    views: "Views"
+    actions: "Actions"
+  revoke: "Revoke"
+  revokeTitle: "Revoke share link"
+  revokeConfirm: "Revoke the link to \"{{title}}\"? Whoever holds it can no longer watch it."
+  revoked: "Share link revoked"
+  failedRevoke: "Failed to revoke the share link"
+  expired: "expired"
+  unlimited: "unlimited"
