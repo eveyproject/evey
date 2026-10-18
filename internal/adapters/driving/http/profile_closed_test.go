@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -173,11 +174,16 @@ func TestProfileClosing_CutsAResponseStillStreamingAtClosingTime(t *testing.T) {
 	SetProfileAccessGate(closesSoonGate{at: time.Now().Add(150 * time.Millisecond)})
 	t.Cleanup(func() { SetProfileAccessGate(nil) })
 
-	written, ctxEnded := 0, false
+	// Both cuts share the closing instant - the refused write and the context
+	// deadline - so which one the handler meets first depends on scheduling:
+	// either one stops the stream, and the test accepts both (it asserted the
+	// context alone and failed about once in 30 under load).
+	written, ctxEnded, writeRefused := 0, false, false
 	stream := func(w http.ResponseWriter, r *http.Request) {
 		chunk := make([]byte, 1024)
 		for range 20 {
 			if _, err := w.Write(chunk); err != nil {
+				writeRefused = errors.Is(err, errProfileClosing)
 				break
 			}
 			written++
@@ -203,8 +209,8 @@ func TestProfileClosing_CutsAResponseStillStreamingAtClosingTime(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > 600*time.Millisecond {
 		t.Errorf("the response ran %v, want it cut shortly after the 150 ms closing", elapsed)
 	}
-	if written >= 20 || !ctxEnded {
-		t.Errorf("wrote %d of 20 chunks, context ended=%v: want the stream stopped by the closing", written, ctxEnded)
+	if written >= 20 || (!ctxEnded && !writeRefused) {
+		t.Errorf("wrote %d of 20 chunks, context ended=%v, write refused by the closing=%v: want the stream stopped by the closing", written, ctxEnded, writeRefused)
 	}
 }
 
