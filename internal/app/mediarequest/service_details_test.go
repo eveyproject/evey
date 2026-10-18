@@ -115,3 +115,39 @@ func (p *detailsProvider) Search(context.Context, string, *int, string) ([]metad
 func (p *detailsProvider) GetByProviderID(context.Context, string, string) (*metadata.MetadataResult, error) {
 	return nil, nil
 }
+
+// The bounds are inclusive where a value is legitimate: a 10/10 rating is a
+// score, an overview of exactly 2000 runes is whole, and a provider reference
+// is kept when only one of its two halves was sent.
+func TestCreateRequest_KeepsValuesAtTheirBounds(t *testing.T) {
+	repo := mrfakes.NewFakeRepository()
+	svc := newService(repo, mrfakes.NewFakeAccess(true), &fakeBus{})
+
+	ten := 10.0
+	exact := strings.Repeat("é", 2000)
+	req, err := svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
+		MediaType: mediarequest.MediaTypeMovie, Title: "Top", Overview: exact, Rating: &ten, Provider: "tmdb",
+	})
+	if err != nil {
+		t.Fatalf("CreateRequest: %v", err)
+	}
+	if req.Rating == nil || *req.Rating != 10 {
+		t.Errorf("a 10/10 rating is on the scale and must be kept, got %v", req.Rating)
+	}
+	if req.Overview != exact {
+		t.Errorf("an overview of exactly 2000 runes must be kept whole, got %d runes", utf8.RuneCountInString(req.Overview))
+	}
+	if req.Provider != "tmdb" {
+		t.Errorf("a provider sent without its id must be kept, got %q", req.Provider)
+	}
+
+	req, err = svc.CreateRequest(context.Background(), "prf-1", "usr-1", appmediarequest.CreateInput{
+		MediaType: mediarequest.MediaTypeTV, Title: "Id only", ProviderID: "1399",
+	})
+	if err != nil {
+		t.Fatalf("CreateRequest: %v", err)
+	}
+	if req.ProviderID != "1399" {
+		t.Errorf("a provider id sent without its provider must be kept, got %q", req.ProviderID)
+	}
+}
