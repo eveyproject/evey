@@ -138,6 +138,7 @@ var APIKeyScopeFor = map[string]string{
 	"/evey.v1.LibraryService/GetPublicMediaItem":             ScopeMediaRead,
 	"/evey.v1.LibraryService/ListPublicMediaItems":           ScopeMediaRead,
 	"/evey.v1.LibraryService/ListGenres":                     ScopeMediaRead,
+	"/evey.v1.LibraryService/GetLibraryFilterFacets":         ScopeMediaRead,
 	"/evey.v1.CollectionService/GetCollection":               ScopeMediaRead,
 	"/evey.v1.CollectionService/GetCollectionItems":          ScopeMediaRead,
 	"/evey.v1.CollectionService/ListCollectionsForMediaItem": ScopeMediaRead,

@@ -23,6 +23,7 @@ import {
   shouldAutoFetchMore,
   dedicatedRouteFor,
   useLibraryServiceFilterMediaItems,
+  useLibraryServiceGetLibraryFilterFacets,
   useLibraryServiceListGenres,
   useLibraryServiceSearchMedia,
   usePlaybackServiceMarkAsWatched,
@@ -56,7 +57,6 @@ import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import {
-  collectFilterOptions,
   applyLocalFacetFilters,
   hasServerFilters,
   countActiveFilters,
@@ -64,7 +64,7 @@ import {
   buildBulkMediaIds,
   selectableMediaIds,
 } from "../../../src/components/library/libraryFilterUtils";
-import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState, nextFilterOffset } from "@evey/client";
+import { videoStream, isHdrStream, resolutionLabel, invalidateWatchedState, nextFilterOffset, libraryFilterOptions } from "@evey/client";
 import { POSTER_GRID } from "../../../src/lib/posterGrid";
 
 const NUM_COLUMNS = POSTER_GRID.columns;
@@ -494,34 +494,22 @@ export default function LibraryDetailScreen() {
     [rawItems, resolutions, codecs, audioLangs, subLangs, searchActive, genres, minRating],
   );
 
-  // Facet options (resolution, codec, audio and subtitle languages) come from a
-  // DEDICATED sample, not from whatever the infinite list happens to have
-  // scrolled to.
+  // Facet options (resolution, codec, audio and subtitle languages) come from
+  // the library's full distinct set (GetLibraryFilterFacets), narrowed by the
+  // same type as the list.
   //
-  // They used to be read off rawItems alone, which on opening the panel is just
-  // the first page - 30 items out of a thousand. A viewer therefore saw three
-  // audio languages and three subtitle languages, always the same three, and
-  // could not filter on anything the top of their library did not happen to
-  // contain. Web has fired a dedicated sampling query since the beginning
-  // ($libraryId.lazy.tsx, PAGE_SIZE * 4 gated on filtersOpen); this is the same
-  // request, gated the same way.
-  //
-  // Still merged with rawItems: a language the viewer can SEE on screen must
-  // never be missing from the panel, whatever the sample happened to catch.
-  const { data: facetSample } = useLibraryServiceListMediaItems(
-    {
-      libraryId,
-      ...(typeFilter ? { type: typeFilter } : {}),
-      "pagination.pageSize": PAGE_SIZE * 4,
-    },
+  // They used to be read off rawItems alone, the first 30 items out of a
+  // thousand, so a viewer saw the same three audio languages whatever the
+  // library held; then off a 120-item sample merged with rawItems, which still
+  // missed every value the top of the library did not carry. Whatever is on
+  // screen is part of that set, so nothing needs merging any more. Gated on
+  // the panel being open, like web.
+  const { data: facetsData } = useLibraryServiceGetLibraryFilterFacets(
+    libraryId,
+    typeFilter ? { type: typeFilter } : undefined,
     { query: { enabled: !!libraryId && showFilters } },
   );
-  // Built from rawItems rather than displayItems on purpose: picking one facet
-  // must not shrink the choices offered by the others.
-  const availableFacets = useMemo(
-    () => collectFilterOptions([...(facetSample?.items ?? []), ...rawItems]),
-    [facetSample?.items, rawItems],
-  );
+  const availableFacets = useMemo(() => libraryFilterOptions(facetsData), [facetsData]);
 
   const filterCount = useMemo(
     () =>

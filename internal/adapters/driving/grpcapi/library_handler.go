@@ -95,11 +95,44 @@ func (h *libraryHandler) ListLibraries(ctx context.Context, _ *eveyv1.ListLibrar
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "filter libraries", err)
 	}
+	counts := h.libraryItemCounts(ctx, libs)
 	resp := &eveyv1.ListLibrariesResponse{}
 	for _, lib := range libs {
-		resp.Libraries = append(resp.Libraries, libraryToProto(lib))
+		pb := libraryToProto(lib)
+		if counts != nil {
+			n := int32(counts[lib.ID])
+			pb.ItemCount = &n
+		}
+		resp.Libraries = append(resp.Libraries, pb)
 	}
 	return resp, nil
+}
+
+// libraryItemCounts counts every listed library's media items in one grouped
+// query, the number ListMediaItems' total_items answers for that library_id
+// alone: every item type, the profile's official_rating pre-filter applied
+// (that total never included the strict per-item pass, which runs on a page).
+// The phone used to send that request once per library card. nil when the
+// count could not be read: the cards then show no counter rather than a wrong
+// one, and the list itself still answers.
+func (h *libraryHandler) libraryItemCounts(ctx context.Context, libs []*library.Library) map[shared.LibraryID]int {
+	if len(libs) == 0 {
+		return nil
+	}
+	ids := make([]shared.LibraryID, len(libs))
+	for i, lib := range libs {
+		ids[i] = lib.ID
+	}
+	pf := h.resolveParentalFilter(ctx)
+	counts, err := h.query.CountMediaItemsPerLibrary(ctx, library.ListMediaItemsFilter{
+		LibraryIDs:     ids,
+		AllowedRatings: pf.allowedRatings,
+	})
+	if err != nil {
+		slog.WarnContext(ctx, "count media items per library", slog.Any("err", err))
+		return nil
+	}
+	return counts
 }
 
 func (h *libraryHandler) UpdateLibrary(ctx context.Context, req *eveyv1.UpdateLibraryRequest) (*eveyv1.Library, error) {

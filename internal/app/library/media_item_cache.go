@@ -157,6 +157,19 @@ func (c *CachedMediaItemQueryRepo) ListGenres(ctx context.Context, libraryID sha
 	return genres, nil
 }
 
+// ListStreamFacets passes through. Unlike ListGenres it reads indexed joins
+// only (library, then each item's streams), it fires only when a viewer opens
+// the filter panel, and a kids profile restricts it to an item set no cache
+// key would capture.
+func (c *CachedMediaItemQueryRepo) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter, itemIDs []shared.MediaItemID) (library.StreamFacets, error) {
+	return c.inner.ListStreamFacets(ctx, filter, itemIDs)
+}
+
+// CountPerLibrary passes through, like Count.
+func (c *CachedMediaItemQueryRepo) CountPerLibrary(ctx context.Context, filter library.ListMediaItemsFilter) (map[shared.LibraryID]int, error) {
+	return c.inner.CountPerLibrary(ctx, filter)
+}
+
 // NextEpisodeOf passes through; caching wouldn't pay off (one call per
 // progress event, rare) and would complicate eviction on episode adds.
 func (c *CachedMediaItemQueryRepo) NextEpisodeOf(ctx context.Context, episodeID shared.MediaItemID) (*library.MediaItem, error) {

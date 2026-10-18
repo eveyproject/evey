@@ -126,6 +126,17 @@ service LibraryService {
       get: "/api/v1/media/{id}/series-aggregate"
     };
   }
+
+  // GetLibraryFilterFacets returns the distinct stream values present across
+  // an entire library (video codecs, resolution tiers, audio and subtitle
+  // languages): the full set, like ListGenres, where the filter panels used to
+  // read them off a sample of loaded items and never offered a value the
+  // sample missed. Same library access and parental rules as ListMediaItems.
+  rpc GetLibraryFilterFacets(GetLibraryFilterFacetsRequest) returns (GetLibraryFilterFacetsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/libraries/{library_id}/filter-facets"
+    };
+  }
 }
 
 message Library {
@@ -138,6 +149,12 @@ message Library {
   google.protobuf.Timestamp created_at = 7;
   google.protobuf.Timestamp updated_at = 8;
   google.protobuf.Timestamp last_scanned_at = 9;
+  // Number of media items in the library, as ListMediaItems' total_items
+  // counts them for this library_id with no other filter (every item type,
+  // the caller's parental rating pre-filter applied). Set by ListLibraries
+  // only, absent when the count could not be read. Music and photo libraries
+  // hold no media items: their content lives in their own services.
+  optional int32 item_count = 10;
 }
 
 enum LibraryType {
@@ -554,6 +571,25 @@ message ListGenresRequest {
 
 message ListGenresResponse {
   repeated string genres = 1;
+}
+
+message GetLibraryFilterFacetsRequest {
+  string library_id = 1;
+  // Narrows the facets to one item type, the same filter ListMediaItems takes:
+  // a panel offers the values of the items it lists.
+  MediaItemType type = 2;
+}
+
+message GetLibraryFilterFacetsResponse {
+  // Raw codec names as probed ("h264", "hevc"), distinct and sorted.
+  repeated string video_codecs = 1;
+  // Raw language tags as probed ("fre", "eng"), distinct and sorted; empty and
+  // "und" are left out.
+  repeated string audio_languages = 2;
+  repeated string subtitle_languages = 3;
+  // Distinct resolution tiers of the video streams (2160, 1440, 1080, 720,
+  // and 0 below 720p), width-aware like every client's badge, descending.
+  repeated int32 resolution_tiers = 4;
 }
 
 message GetSeriesAggregateRequest {

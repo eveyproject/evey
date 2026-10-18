@@ -10,7 +10,6 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceListLibraries,
-  useLibraryServiceListMediaItems,
   hasMediaItemCount,
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -35,27 +34,22 @@ function getTypeIcon(type?: V1LibraryType): string {
   return (type && LIBRARY_TYPE_ICONS[type]) || "📁";
 }
 
+// The count arrives with the library itself (Library.item_count, computed by
+// ListLibraries in one grouped query). The card used to send its own
+// ListMediaItems request for it, one per library, to read the same total.
+//
 // Music and photo libraries hold no media_items (their content lives in the
-// music/photo domains), so this endpoint answers 0 for them - which rendered a
+// music/photo domains), so that count is 0 for them - which rendered a
 // confident "0 items" under a Musique library holding 3 albums. Those types
 // get no count rather than a wrong one; the dedicated screen shows the real
 // figures. Guarded by hasMediaItemCount so it can never drift from the
-// redirect table that decides which types are dedicated.
-function LibraryItemCount({ libraryId, libraryType }: { libraryId: string; libraryType?: string }) {
+// redirect table that decides which types are dedicated. An absent count (the
+// server could not read it, or predates the field) shows nothing either.
+function LibraryItemCount({ library }: { library: V1Library }) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const countable = hasMediaItemCount(libraryType);
-  const { data } = useLibraryServiceListMediaItems(
-    {
-      libraryId,
-      "pagination.page": 1,
-      "pagination.pageSize": 1,
-    },
-    { query: { enabled: countable } },
-  );
-  if (!countable) return null;
-  const total = data?.pagination?.totalItems;
-  if (total === undefined) return null;
+  const total = library.itemCount;
+  if (!hasMediaItemCount(library.type) || total === undefined) return null;
   return (
     <Text style={[styles.itemCount, { color: theme.colors.textMuted }]}>
       {t("common.item", { count: total })}
@@ -112,7 +106,7 @@ export default function LibraryScreen() {
               </Text>
             </View>
           </View>
-          {item.id && <LibraryItemCount libraryId={item.id} libraryType={item.type} />}
+          <LibraryItemCount library={item} />
           {item.updatedAt && (
             <Text style={[styles.updated, { color: theme.colors.textMuted }]}>
               {t("media.updated")}{" "}

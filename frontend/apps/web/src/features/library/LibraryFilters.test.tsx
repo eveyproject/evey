@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import type { V1MediaItem } from "@evey/api";
-import { LibraryFiltersPanel, collectFilterOptions, applyLocalFilters } from "./LibraryFilters";
+import { LibraryFiltersPanel, applyLocalFilters } from "./LibraryFilters";
 
 vi.mock("@/components/ui/Button", () => ({
   Button: ({ children, onClick }: { children: React.ReactNode; onClick?: () => void }) => (
@@ -181,30 +181,6 @@ describe("LibraryFiltersPanel", () => {
 function mediaItem(overrides: Partial<V1MediaItem> = {}): V1MediaItem {
   return { id: "mi-1", title: "Item", ...overrides };
 }
-
-describe("collectFilterOptions", () => {
-  it("normalizes 639-2/B and 639-2/T codes for the same language into a single filter entry", () => {
-    const items: V1MediaItem[] = [
-      mediaItem({
-        streams: [
-          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "fre" },
-          { type: "MEDIA_STREAM_TYPE_SUBTITLE", language: "ger" },
-        ],
-      }),
-      mediaItem({
-        id: "mi-2",
-        streams: [
-          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "fra" },
-          { type: "MEDIA_STREAM_TYPE_SUBTITLE", language: "deu" },
-        ],
-      }),
-    ];
-
-    const options = collectFilterOptions(items);
-    expect(options.audioLangs).toEqual(["fr"]);
-    expect(options.subLangs).toEqual(["de"]);
-  });
-});
 
 describe("applyLocalFilters", () => {
   it("matches a normalized audio language filter against a raw 639-2/B stream tag", () => {

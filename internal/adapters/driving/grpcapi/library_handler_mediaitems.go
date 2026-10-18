@@ -566,6 +566,105 @@ func (h *libraryHandler) ListGenres(ctx context.Context, req *eveyv1.ListGenresR
 	return &eveyv1.ListGenresResponse{Genres: genres}, nil
 }
 
+// GetLibraryFilterFacets answers the filter panel's codec, resolution and
+// language chips from the whole library, where the clients used to read them
+// off a sample of loaded items and never offered what the sample missed.
+//
+// Same gates as ListMediaItems for the same library_id: checkLibraryAccess
+// (an IDOR answers an empty set, like ListGenres), then the parental filter.
+// The SQL pre-filter on official_rating rides in the facet query itself; the
+// strict per-item pass (foreign certifications, blocked tags) cannot be
+// expressed in an aggregate, so a restricted profile first resolves the items
+// it may see and the facets are computed over exactly those. A facet value
+// carried only by a hidden title therefore never reaches a kids profile.
+func (h *libraryHandler) GetLibraryFilterFacets(ctx context.Context, req *eveyv1.GetLibraryFilterFacetsRequest) (*eveyv1.GetLibraryFilterFacetsResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.library.GetLibraryFilterFacets")
+	defer span.End()
+	if _, err := requireClaims(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	if req.LibraryId == "" {
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.id_required")
+	}
+	libID := shared.LibraryID(req.LibraryId)
+	if ok, accessErr := h.checkLibraryAccess(ctx, libID); !ok {
+		if accessErr != nil {
+			slog.WarnContext(ctx, "check library access", slog.Any("err", accessErr))
+		}
+		return &eveyv1.GetLibraryFilterFacetsResponse{}, nil
+	}
+	filter := library.ListMediaItemsFilter{LibraryID: &libID}
+	if req.Type != eveyv1.MediaItemType_MEDIA_ITEM_TYPE_UNSPECIFIED {
+		t := mediaItemTypeFromProto[req.Type]
+		filter.Type = &t
+	}
+	pf := h.resolveParentalFilter(ctx)
+	if pf.blockAll {
+		// The unreadable profile sees no item at all, so it has nothing to
+		// filter on either; no need to walk the library to find that out.
+		return &eveyv1.GetLibraryFilterFacetsResponse{}, nil
+	}
+	filter.AllowedRatings = pf.allowedRatings
+	var itemIDs []shared.MediaItemID
+	if pf.enforced() {
+		ids, err := h.parentalVisibleItemIDs(ctx, pf, filter)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, internalError(ctx, "list parental visible items", err)
+		}
+		itemIDs = ids
+	}
+	facets, err := h.query.ListStreamFacets(ctx, filter, itemIDs)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError(ctx, "list stream facets", err)
+	}
+	resp := &eveyv1.GetLibraryFilterFacetsResponse{
+		VideoCodecs:       facets.VideoCodecs,
+		AudioLanguages:    facets.AudioLanguages,
+		SubtitleLanguages: facets.SubtitleLanguages,
+	}
+	for _, tier := range facets.ResolutionTiers() {
+		resp.ResolutionTiers = append(resp.ResolutionTiers, int32(tier))
+	}
+	return resp, nil
+}
+
+// facetWalkPageSize is one page of the parental walk below, the list query's
+// own cap.
+const facetWalkPageSize = 500
+
+// parentalVisibleItemIDs walks every item filter selects, by id, and keeps
+// the ones the strict parental pass lets through: the set ListMediaItems would
+// serve this profile page after page. Never nil, so an all-hidden library
+// restricts the facets to nothing instead of lifting the restriction.
+func (h *libraryHandler) parentalVisibleItemIDs(ctx context.Context, pf parentalFilter, filter library.ListMediaItemsFilter) ([]shared.MediaItemID, error) {
+	ids := make([]shared.MediaItemID, 0)
+	walk := filter
+	walk.Limit, walk.KeysetByID = facetWalkPageSize, true
+	for {
+		page, err := h.query.ListMediaItems(ctx, walk)
+		if err != nil {
+			return nil, fmt.Errorf("libraryHandler.parentalVisibleItemIDs: %w", err)
+		}
+		if len(page) == 0 {
+			return ids, nil
+		}
+		last := string(page[len(page)-1].ID)
+		for _, it := range filterOutParentalBlocked(pf, page) {
+			ids = append(ids, it.ID)
+		}
+		if len(page) < facetWalkPageSize || last == walk.AfterID {
+			return ids, nil
+		}
+		walk.AfterID = last
+	}
+}
+
 func applyOverridesToItem(item *library.MediaItem, overrides []*domainmetadata.MetadataOverride) {
 	for _, o := range overrides {
 		v, _ := o.CustomValue.(string)
