@@ -148,15 +148,29 @@ describe("PlayerSettingsPanel - qualite", () => {
     expect(queryByLabelText("Auto")).toBeTruthy();
   });
 
-  // The value sent back is the EXACT encoded height, not the rounded label:
-  // the label is for the viewer, the height is for the server.
-  it("renvoie la hauteur reelle, pas le palier affiche", () => {
+  // The value sent back is the TIER: it goes to the server as maxHeight, and
+  // the server caps on each rung's box. Since rungs declare their encoded size,
+  // a scope 1080p rung reads 1920x800, and sending 800 dropped that very rung.
+  it("renvoie le palier, celui que le serveur plafonne", () => {
     const onQualityChange = vi.fn();
     const { getByLabelText } = render(
       <PlayerSettingsPanel {...baseProps} availableQualities={[798, 532]} onQualityChange={onQualityChange} />,
     );
     fireEvent.click(getByLabelText("720p"));
-    expect(onQualityChange).toHaveBeenCalledWith(798);
+    expect(onQualityChange).toHaveBeenCalledWith(720);
+  });
+
+  it("un film scope demande 1080, pas les 800 lignes encodees", () => {
+    const onQualityChange = vi.fn();
+    const { getByLabelText } = render(
+      <PlayerSettingsPanel
+        {...baseProps}
+        availableQualities={[{ width: 1920, height: 800 }, { width: 1280, height: 534 }]}
+        onQualityChange={onQualityChange}
+      />,
+    );
+    fireEvent.click(getByLabelText("1080p"));
+    expect(onQualityChange).toHaveBeenCalledWith(1080);
   });
 
   // Direct play has no manifest, and a manifest not read yet is not an answer:

@@ -155,7 +155,10 @@ function useQualityOptions(availableQualities: readonly QualityLevel[]) {
       label: height === 0 ? t("player.quality.auto") : `${height}p`,
     }));
   }
-  return [{ value: 0, label: t("player.quality.auto") }, ...rungs];
+  // The pick goes to the server as maxHeight (restartWithTracks), which caps
+  // on the rung's box: the tier, not the encoded height. A scope 1080p rung is
+  // encoded 1920x800, and asking for 800 served the 720p one.
+  return [{ value: 0, label: t("player.quality.auto") }, ...rungs.map((r) => ({ value: r.tier, label: r.label }))];
 }
 
 // Minimalist horizontal bar for brightness (same touch mechanics as

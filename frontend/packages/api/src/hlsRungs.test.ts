@@ -47,8 +47,8 @@ describe("a rung's label agrees with the title page", () => {
   it("labels the menu from the master's widths", () => {
     expect(parseHlsMasterResolutions(MASTER)).toEqual([{ width: 1920, height: 798 }, { width: 1280, height: 532 }]);
     expect(qualityRungsFromHeights(parseHlsMasterResolutions(MASTER))).toEqual([
-      { value: 798, label: "1080p" },
-      { value: 532, label: "720p" },
+      { value: 798, tier: 1080, label: "1080p" },
+      { value: 532, tier: 720, label: "720p" },
     ]);
   });
 });
@@ -81,16 +81,16 @@ describe("parseHlsMasterHeights", () => {
 describe("qualityRungsFromHeights", () => {
   it("offers the tallest first, labelled by tier and valued by exact height", () => {
     expect(qualityRungsFromHeights([532, 798])).toEqual([
-      { value: 798, label: "720p" },
-      { value: 532, label: "480p" },
+      { value: 798, tier: 720, label: "720p" },
+      { value: 532, tier: 480, label: "480p" },
     ]);
   });
 
   // Two rungs that round to the same label are indistinguishable on screen.
   it("keeps one rung per tier", () => {
     expect(qualityRungsFromHeights([1080, 1040, 720])).toEqual([
-      { value: 1080, label: "1080p" },
-      { value: 720, label: "720p" },
+      { value: 1080, tier: 1080, label: "1080p" },
+      { value: 720, tier: 720, label: "720p" },
     ]);
   });
 
