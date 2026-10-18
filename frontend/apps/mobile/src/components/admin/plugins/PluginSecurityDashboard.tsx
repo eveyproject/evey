@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { eveyFetch } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
+import { LoadFailed } from "../../LoadFailed";
 
 // Port of the web features/admin/PluginSecurityDashboard: host sandbox status
 // (which isolation is actually in force + why it degraded) and a per-plugin
@@ -144,7 +145,7 @@ export function PluginSecurityDashboard() {
   const theme = useTheme();
   const { t } = useTranslation();
   const s = styles(theme);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["/api/v1/admin/plugins/security-dashboard"],
     queryFn: () => eveyFetch<{ plugins: PluginSecuritySnapshot[]; sandbox?: SandboxStatus }>({ url: "/api/v1/admin/plugins/security-dashboard", method: "GET" }),
     staleTime: 30_000,
@@ -160,6 +161,10 @@ export function PluginSecurityDashboard() {
       </View>
       {isLoading ? (
         <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 16 }} />
+      ) : isError && !data ? (
+        // A failed read is not "no data": the degraded-sandbox warning would
+        // vanish behind an empty-looking dashboard.
+        <LoadFailed inline onRetry={() => void refetch()} />
       ) : (
         <>
           {data?.sandbox ? <SandboxStatusCard sandbox={data.sandbox} theme={theme} /> : null}

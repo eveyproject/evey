@@ -5,6 +5,7 @@ import { Shield, AlertTriangle, XCircle, Clock, ChevronDown, ChevronUp, CheckCir
 import { eveyFetch } from "@evey/api";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { ICON } from "@/constants/iconSizes";
 
 interface SecurityFinding {
@@ -243,7 +244,7 @@ function SnapshotRow({ snap }: { snap: PluginSecuritySnapshot }) {
 
 export function PluginSecurityDashboard() {
   const { t } = useTranslation();
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["/api/v1/admin/plugins/security-dashboard"],
     queryFn: () =>
       eveyFetch<{ plugins: PluginSecuritySnapshot[]; sandbox?: SandboxStatus }>({
@@ -269,6 +270,10 @@ export function PluginSecurityDashboard() {
         <div className="flex justify-center py-8">
           <Spinner size="sm" />
         </div>
+      ) : isError && !data ? (
+        // A failed read is not "no data": the degraded-sandbox warning would
+        // vanish behind an empty-looking dashboard.
+        <FetchErrorState error={error} onRetry={() => refetch()} />
       ) : (
         <>
           {data?.sandbox && <SandboxStatusCard sandbox={data.sandbox} />}
