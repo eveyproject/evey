@@ -7,7 +7,10 @@ import "google/api/annotations.proto";
 option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
 service MKVService {
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc GetContainerInfo(GetContainerInfoRequest) returns (Container) {
+    option deprecated = true;
     option (google.api.http) = {
       get: "/api/v1/mkv/info"
     };
@@ -25,48 +28,69 @@ service MKVService {
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc ListAttachments(ListAttachmentsRequest) returns (ListAttachmentsResponse) {
+    option deprecated = true;
     option (google.api.http) = {
       get: "/api/v1/mkv/attachments"
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc ExtractTrack(ExtractTrackRequest) returns (stream ExtractDataChunk) {
+    option deprecated = true;
     option (google.api.http) = {
       post: "/api/v1/mkv/tracks/extract"
       body: "*"
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc ExtractAttachment(ExtractAttachmentRequest) returns (ExtractAttachmentResponse) {
+    option deprecated = true;
     option (google.api.http) = {
       post: "/api/v1/mkv/attachments/extract"
       body: "*"
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc MuxContainer(MuxContainerRequest) returns (stream MuxProgress) {
+    option deprecated = true;
     option (google.api.http) = {
       post: "/api/v1/mkv/mux"
       body: "*"
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc DemuxContainer(DemuxContainerRequest) returns (stream DemuxProgress) {
+    option deprecated = true;
     option (google.api.http) = {
       post: "/api/v1/mkv/demux"
       body: "*"
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc AddTrack(AddTrackRequest) returns (AddTrackResponse) {
+    option deprecated = true;
     option (google.api.http) = {
       post: "/api/v1/mkv/tracks/add"
       body: "*"
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc RemoveTrack(RemoveTrackRequest) returns (RemoveTrackResponse) {
+    option deprecated = true;
     option (google.api.http) = {
       post: "/api/v1/mkv/tracks/remove"
       body: "*"
