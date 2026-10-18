@@ -171,3 +171,12 @@ func TestScan_FileSize(t *testing.T) {
 	require.Len(t, found, 1)
 	assert.Equal(t, int64(1024), found[0].Size)
 }
+
+func TestParseYear_FileThenFolder(t *testing.T) {
+	s := NewScanner()
+	require.NotNil(t, s.ParseYear("/media/Caminandes Llama Drama (2013).mkv"))
+	assert.Equal(t, 2013, *s.ParseYear("/media/Caminandes Llama Drama (2013).mkv"))
+	require.NotNil(t, s.ParseYear("/media/Dune (2021)/movie.mkv"))
+	assert.Equal(t, 2021, *s.ParseYear("/media/Dune (2021)/movie.mkv"))
+	assert.Nil(t, s.ParseYear("/media/untitled/movie.mkv"))
+}

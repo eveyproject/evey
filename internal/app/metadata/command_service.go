@@ -26,6 +26,18 @@ func WithMediaPersons(repo library.MediaPersonRepository) CommandServiceOption {
 	return func(s *CommandService) { s.mediaPersons = repo }
 }
 
+// FileYearParser reads the year a file name carries ("Title (2013).mkv"), the
+// one the scan stored before any match.
+type FileYearParser interface {
+	ParseYear(path string) *int
+}
+
+// WithFileYearParser lets a metadata reset keep the file's year, so the
+// re-match searches with the same hint a first scan had.
+func WithFileYearParser(p FileYearParser) CommandServiceOption {
+	return func(s *CommandService) { s.yearParser = p }
+}
+
 type CommandService struct {
 	overrides metadata.MetadataOverrideRepository
 	// artwork is split into its ADR-0009 command/query halves; both fields are
@@ -38,6 +50,7 @@ type CommandService struct {
 	providers    []metadata.MetadataProvider
 	mediaItems   library.MediaItemQueryRepo
 	itemUpdater  MediaItemUpdater
+	yearParser   FileYearParser
 	mediaPersons library.MediaPersonRepository
 	enricher     ItemEnricher
 	serverConfig shared.ServerConfigRepository

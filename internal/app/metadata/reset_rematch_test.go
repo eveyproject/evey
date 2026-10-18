@@ -100,3 +100,52 @@ func TestResetItemMetadata_RematchesByTitleNotStoredIDs(t *testing.T) {
 	assert.Equal(t, "Caminandes Llama Drama", provider.searches[0].query, "the re-match searches the scan title")
 	assert.Empty(t, provider.byID, "the re-match must not fetch the wrong record by its stored id")
 }
+
+type fixedYearParser map[string]int
+
+func (p fixedYearParser) ParseYear(path string) *int {
+	if y, ok := p[path]; ok {
+		return &y
+	}
+	return nil
+}
+
+// The reset clears the catalog, year included, and the re-match then searched
+// a bare title: a remake or a namesake could win. The year the scan read from
+// the file name is restored, so the search starts from the same hint a first
+// scan had.
+func TestResetItemMetadata_RematchesWithTheFileYear(t *testing.T) {
+	wrongYear := 2020
+	provider := &recordingProvider{FakeMetadataProvider: metafakes.NewFakeMetadataProvider("tmdb"), searched: make(chan struct{})}
+	const path = "/media/Caminandes Llama Drama (2013).mkv"
+
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	enricher := appmetadata.NewEnricher(metafakes.NewFakeArtworkRepository(), libfakes.NewFakePersonRepository(),
+		libfakes.NewFakeMediaPersonRepository(), mediaRepo, mediaRepo, libfakes.NewFakeSearchIndex(), provider, nil, nil, nil)
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(), metafakes.NewFakeArtworkRepository(), metafakes.NewFakeArtworkDownloader(),
+		sharedfakes.NewFakeEventBus(), nil,
+		appmetadata.WithFileYearParser(fixedYearParser{path: 2013}),
+	)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: shared.MediaItemID("m1"), Type: library.MovieItem,
+		Title: "Caminantes", ScanTitle: "Caminandes Llama Drama",
+		File:    &library.MediaFile{Path: path},
+		Catalog: &library.MediaCatalog{Year: &wrongYear, ProviderIDs: map[string]string{"tmdb": "999"}},
+	}))
+
+	require.NoError(t, cmdSvc.ResetItemMetadata(ctx, "m1"))
+
+	select {
+	case <-provider.searched:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the reset never re-matched the item by a title search")
+	}
+	provider.mu.Lock()
+	defer provider.mu.Unlock()
+	require.NotNil(t, provider.searches[0].year, "the re-match must carry the year from the file name")
+	assert.Equal(t, 2013, *provider.searches[0].year)
+}
