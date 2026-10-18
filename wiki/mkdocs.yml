@@ -122,6 +122,7 @@ plugins:
             Connect the apps: Connecter les applications
             Watching with Evey: Regarder avec Evey
             Common questions: Questions fréquentes
+            Known limitations: Limites connues
             Privacy policy: Règles de confidentialité
             Administration: Administration
             Libraries and metadata: Bibliothèques et métadonnées
@@ -192,6 +193,7 @@ plugins:
             Connect the apps: Apps verbinden
             Watching with Evey: Mit Evey schauen
             Common questions: Häufige Fragen
+            Known limitations: Bekannte Einschränkungen
             Privacy policy: Datenschutzerklärung
             Administration: Verwaltung
             Libraries and metadata: Bibliotheken und Metadaten
@@ -262,6 +264,7 @@ plugins:
             Connect the apps: Conectar las aplicaciones
             Watching with Evey: Ver con Evey
             Common questions: Preguntas frecuentes
+            Known limitations: Limitaciones conocidas
             Privacy policy: Política de privacidad
             Administration: Administración
             Libraries and metadata: Bibliotecas y metadatos
@@ -332,6 +335,7 @@ plugins:
             Connect the apps: ऐप कनेक्ट करें
             Watching with Evey: Evey पर देखना
             Common questions: अक्सर पूछे जाने वाले सवाल
+            Known limitations: ज्ञात सीमाएँ
             Privacy policy: प्राइवेसी पॉलिसी
             Administration: एडमिन
             Libraries and metadata: लाइब्रेरी और मेटाडेटा
@@ -402,6 +406,7 @@ plugins:
             Connect the apps: 连接应用
             Watching with Evey: 用 Evey 观看
             Common questions: 常见问题
+            Known limitations: 已知限制
             Privacy policy: 隐私政策
             Administration: 管理
             Libraries and metadata: 媒体库与元数据
@@ -519,6 +524,7 @@ nav:
       - Connect the apps: getting-started/apps.md
       - Watching with Evey: getting-started/watching.md
       - Common questions: getting-started/faq.md
+      - Known limitations: getting-started/limitations.md
       - Privacy policy: privacy.md
   - Administration:
       - Libraries and metadata: administration/libraries.md
