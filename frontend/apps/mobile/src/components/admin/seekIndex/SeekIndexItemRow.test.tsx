@@ -5,8 +5,12 @@ import React from "react";
 vi.mock("react-native", () => ({
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children }: any) => React.createElement("span", null, children),
-  Pressable: ({ children, onPress, accessibilityLabel }: any) =>
-    React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel }, children),
+  Pressable: ({ children, onPress, accessibilityLabel, accessibilityState }: any) =>
+    React.createElement(
+      "button",
+      { onClick: onPress, "aria-label": accessibilityLabel, "aria-busy": accessibilityState?.busy, disabled: accessibilityState?.disabled },
+      children,
+    ),
   ActivityIndicator: () => null,
   Alert: { alert: vi.fn() },
   StyleSheet: { create: (s: any) => s },
@@ -93,6 +97,40 @@ describe("SeekIndexItemRow, the audio offset badges", () => {
   it("shows nothing about audio on a file with neither", () => {
     row({});
     expect(screen.queryByText(/audioOffset|audioTracksDisagree/)).toBeNull();
+  });
+});
+
+describe("SeekIndexItemRow, the action buttons for a screen reader", () => {
+  // The spinner replaces the label during a write; the control must keep its
+  // name and say it is busy instead of going silent.
+  it("keeps the button named and busy while its write is in flight", () => {
+    render(
+      <SeekIndexItemRow
+        item={{ mediaId: "m1", title: "Film", path: "/m/film.mkv", hasIndex: false } as any}
+        theme={THEME}
+        busy={true}
+        containerFixAvailable={false}
+        reinterleaveAvailable={false}
+        onRepair={noop}
+        onRepairResync={noop}
+        onRollback={noop}
+        onFixContainer={noop}
+        onReinterleave={noop}
+        onAck={noop}
+        onDeleteBackup={noop}
+        repairPending={true}
+        repairResyncPending={false}
+        rollbackPending={false}
+        fixContainerPending={false}
+        reinterleavePending={false}
+        ackPending={false}
+        deleteBackupPending={false}
+      />,
+    );
+    const repair = screen.getByRole("button", { name: "admin.seekIndex.repair" });
+    expect(repair.getAttribute("aria-busy")).toBe("true");
+    expect((repair as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "admin.seekIndex.repairResync" }).getAttribute("aria-busy")).toBe("false");
   });
 });
 
