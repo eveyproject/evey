@@ -97,6 +97,13 @@ describe("restoreFromFile", () => {
     fs.upload.mockResolvedValueOnce({ status: 500, body: "" });
     await expect(restoreFromFile("f", null)).rejects.toThrow("restore failed");
   });
+
+  // The server refuses with http.Error(`{"message":"..."}`): the toast shows
+  // the reason, not the JSON envelope.
+  it("reads the message out of the server's JSON envelope", async () => {
+    fs.upload.mockResolvedValueOnce({ status: 422, body: '{"message":"x"}' });
+    await expect(restoreFromFile("f", null)).rejects.toThrow(/^x$/);
+  });
 });
 
 // A server-side backup has no restore-by-id route: it is downloaded to a temp
@@ -115,6 +122,11 @@ describe("restoreExistingBackup", () => {
     fs.upload.mockResolvedValueOnce({ status: 400, body: "bad archive" });
     await expect(restoreExistingBackup({ id: "b1" }, null)).rejects.toThrow("bad archive");
     expect(fs.deleted).toEqual(["cache/backup-restore/b1.tar.gz"]);
+  });
+
+  it("reads the message out of the server's JSON envelope", async () => {
+    fs.upload.mockResolvedValueOnce({ status: 422, body: '{"message":"x"}' });
+    await expect(restoreExistingBackup({ id: "b1" }, null)).rejects.toThrow(/^x$/);
   });
 
   it("refuses a backup without an id", async () => {

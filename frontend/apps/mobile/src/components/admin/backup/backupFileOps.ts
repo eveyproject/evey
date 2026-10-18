@@ -1,6 +1,7 @@
 import { Directory, File, Paths } from "expo-file-system";
 import { uploadAsync, FileSystemUploadType } from "expo-file-system/legacy";
 import { getBaseURL } from "@evey/api";
+import { refusalMessage } from "../plugins/pluginFileInstall";
 import { buildBackupDownloadUrl, buildBackupRestoreUrl, isBackupRestorable, type BackupSummary } from "./backupTransfer";
 
 /**
@@ -38,7 +39,7 @@ export async function restoreFromFile(fileUri: string, accessToken: string | nul
     headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
   });
   if (result.status < 200 || result.status >= 300) {
-    throw new Error(result.body || "restore failed");
+    throw new Error(refusalMessage(result.body, "restore failed"));
   }
 }
 
@@ -71,7 +72,7 @@ export async function restoreExistingBackup(backup: BackupSummary, accessToken: 
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
     });
     if (result.status < 200 || result.status >= 300) {
-      throw new Error(result.body || "restore failed");
+      throw new Error(refusalMessage(result.body, "restore failed"));
     }
   } finally {
     // Best-effort cleanup of the temp copy - a leftover few-MB file in the
