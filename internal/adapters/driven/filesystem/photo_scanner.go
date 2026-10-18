@@ -88,8 +88,7 @@ const maxExifReadBytes = 2 << 20 // 2 MiB
 // Exists reports whether the file is still on disk - the prune path's
 // last-resort check before deleting a row.
 func (s *PhotoScanner) Exists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+	return notProvenGone(path)
 }
 
 func (s *PhotoScanner) ReadFile(path string) ([]byte, error) {

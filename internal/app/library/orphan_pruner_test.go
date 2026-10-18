@@ -16,7 +16,7 @@ func newPrunerHarness() (*applib.OrphanPruner, *libfakes.FakeMediaItemCommandRep
 	items := libfakes.NewFakeMediaItemCommandRepo()
 	search := libfakes.NewFakeSearchIndex()
 	bus := sharedfakes.NewFakeEventBus()
-	return applib.NewOrphanPruner(items, search, bus), items, search, bus
+	return applib.NewOrphanPruner(items, search, bus, nil), items, search, bus
 }
 
 func TestOrphanPruner_AllPresent_NothingRemoved(t *testing.T) {
@@ -366,7 +366,7 @@ func TestOrphanPruner_NilSearchIndex_StillPrunesAndPublishes(t *testing.T) {
 	items := libfakes.NewFakeMediaItemCommandRepo()
 	bus := sharedfakes.NewFakeEventBus()
 	// nil search is allowed per the Prune contract - pruner skips index ops.
-	pruner := applib.NewOrphanPruner(items, nil, bus)
+	pruner := applib.NewOrphanPruner(items, nil, bus, nil)
 
 	items.Create(context.Background(), &library.MediaItem{
 		ID: "solo", LibraryID: "lib-1",
@@ -392,5 +392,39 @@ func TestOrphanPruner_NilSearchIndex_StillPrunesAndPublishes(t *testing.T) {
 	}
 	if rm == nil || rm.MediaItemID != shared.MediaItemID("solo") {
 		t.Fatalf("want MediaItemRemoved for solo, got %+v", rm)
+	}
+}
+
+// A folder the walk could not read under an otherwise healthy root leaves its
+// files out of the scan; they are still on disk, so their items (and the watch
+// history cascading from them) must stay. A file really gone is still pruned.
+func TestOrphanPruner_UnseenButStillOnDisk_NotPruned(t *testing.T) {
+	t.Parallel()
+	items := libfakes.NewFakeMediaItemCommandRepo()
+	bus := sharedfakes.NewFakeEventBus()
+	files := libfakes.NewFakeFileScanner()
+	files.ExistingPaths = map[string]bool{"/movies/locked/a.mkv": true}
+	pruner := applib.NewOrphanPruner(items, nil, bus, files)
+
+	for id, path := range map[string]string{
+		"seen":   "/movies/b.mkv",
+		"locked": "/movies/locked/a.mkv",
+		"gone":   "/movies/gone.mkv",
+	} {
+		items.Create(context.Background(), &library.MediaItem{
+			ID: shared.MediaItemID(id), LibraryID: "lib-1",
+			File: &library.MediaFile{Path: path},
+		})
+	}
+
+	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/b.mkv": {}}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 1 {
+		t.Fatalf("want only the gone item removed, got %d", removed)
+	}
+	if _, err := items.GetByID(context.Background(), "locked"); err != nil {
+		t.Fatalf("item behind an unreadable folder was pruned: %v", err)
 	}
 }
