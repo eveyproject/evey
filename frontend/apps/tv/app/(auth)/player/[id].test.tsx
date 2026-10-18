@@ -344,6 +344,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   playerListeners.clear();
   playerMock.playing = false;
+  // The released-player test turns currentTime into a throwing getter; every
+  // test starts from a plain field at zero, whatever ran before.
+  Object.defineProperty(playerMock, "currentTime", { value: 0, writable: true, configurable: true });
+  playerMock.duration = 0;
   lastSourceUri = null;
   sessionState.progress = null;
   capturedTVHandler = null;
@@ -1466,11 +1470,6 @@ describe("ac3go too slow (TV)", () => {
 
 // Where playback begins: the rule of every client (resolveStartPositionMs).
 describe("resume position (TV)", () => {
-  // Another suite turns currentTime into a getter; a plain field again.
-  beforeEach(() => {
-    Object.defineProperty(playerMock, "currentTime", { value: 0, writable: true, configurable: true });
-  });
-
   it("starts over a title stopped in its last seconds", () => {
     sessionState.progress = { positionMs: "89000", durationMs: "90006" };
     render(<PlayerScreen />);
