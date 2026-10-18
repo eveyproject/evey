@@ -144,6 +144,9 @@ func TestMetricBucket_FitsTheWindowUnderThePointCap(t *testing.T) {
 		{365 * 24 * time.Hour, 0, 24 * time.Hour},
 		{7 * 24 * time.Hour, 7 * time.Minute, 10 * time.Minute},
 		{time.Hour, 24 * time.Hour, 24 * time.Hour},
+		// 30 days at 1 minute is 43 200 buckets: the repository keeps 10 000,
+		// oldest first, and the last 23 days were gone.
+		{30 * 24 * time.Hour, time.Minute, 5 * time.Minute},
 	}
 	for _, c := range cases {
 		if got := MetricBucket(c.window, c.requested); got != c.want {

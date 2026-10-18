@@ -102,14 +102,22 @@ var metricBucketSteps = []time.Duration{
 	30 * time.Minute, time.Hour, 2 * time.Hour, 6 * time.Hour, 24 * time.Hour,
 }
 
+// maxRequestedMetricPoints is the most buckets an explicit width may ask for:
+// the repository returns at most that many rows (postgres maxMetricRows), the
+// OLDEST first, so a finer request kept the start of the window and cut its
+// end - the part an operator reads.
+const maxRequestedMetricPoints = 10000
+
 // MetricBucket picks the bucket for a window: the requested width when the
-// caller gave one (rounded up to a step), else the smallest step that keeps
-// the window under maxMetricPoints.
+// caller gave one (rounded up to a step, and never so fine that the window
+// overflows maxRequestedMetricPoints), else the smallest step that keeps the
+// window under maxMetricPoints.
 func MetricBucket(window, requested time.Duration) time.Duration {
 	want := requested
 	if want <= 0 {
 		want = window / maxMetricPoints
 	}
+	want = max(want, window/maxRequestedMetricPoints)
 	for _, step := range metricBucketSteps {
 		if step >= want {
 			return step
