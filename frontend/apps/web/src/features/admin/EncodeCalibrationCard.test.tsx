@@ -441,18 +441,18 @@ describe("EncodeCalibrationCard", () => {
     expect(screen.getByTestId("recalibrate-btn")).toBeDisabled();
   });
 
-  it("recalibrate onSuccess sets query data with fresh result and shows toast", async () => {
+  // The POST body is the bare capability: written into the cache it blanked
+  // the hw_fallbacks, hw_mode and is_wsl the GET wraps it with.
+  it("recalibrate onSuccess re-reads the calibration instead of caching the POST body", async () => {
     const { toast } = await import("@evey/store");
     renderCard();
     const freshData = { ...HW_NVENC_DATA, software_max_height: 1440 };
     recalibrateOnSuccess?.(freshData);
     await waitFor(() => {
-      expect(mockSetQueryData).toHaveBeenCalledWith(
-        ["admin", "transcode-calibration"],
-        freshData,
-      );
+      expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["admin", "transcode-calibration"] });
       expect(toast.success).toHaveBeenCalled();
     });
+    expect(mockSetQueryData).not.toHaveBeenCalledWith(["admin", "transcode-calibration"], expect.anything());
   });
 
   it("recalibrate onError shows 'Recalibration already in progress' toast for 409", async () => {

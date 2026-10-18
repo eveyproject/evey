@@ -164,8 +164,11 @@ export default function AdminTranscodingScreen() {
   const recalibrate = useMutation({
     mutationFn: () =>
       eveyFetch<EncodeCapability>({ url: "/api/v1/admin/transcode/calibration/recalibrate", method: "POST" }),
-    onSuccess: (fresh) => {
-      qc.setQueryData(CALIBRATION_KEY, fresh);
+    onSuccess: () => {
+      // The POST answers with the bare capability; the GET wraps it with
+      // hw_mode, is_wsl and hw_fallbacks. Writing the POST body into the cache
+      // blanked those until the next refetch, so re-read the GET instead.
+      qc.invalidateQueries({ queryKey: CALIBRATION_KEY });
       toast.success(t("admin.calibration.successToast", "Recalibration terminée"));
     },
     onError: (err: Error) => {
