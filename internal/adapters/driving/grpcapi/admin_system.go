@@ -3,14 +3,15 @@ package grpcapi
 import (
 	"context"
 	"errors"
-	apploadtest "github.com/eveyproject/evey/internal/app/loadtest"
-	"github.com/eveyproject/evey/internal/domain/user"
 	"log/slog"
 	"math"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
+
+	apploadtest "github.com/eveyproject/evey/internal/app/loadtest"
+	"github.com/eveyproject/evey/internal/domain/user"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -453,7 +454,7 @@ func (d *adminSystemHandler) UpdateServerConfig(ctx context.Context, req *eveyv1
 		if err := d.serverCfgSvc.Set(ctx, k, v); err != nil {
 			span.RecordError(err)
 			if errors.Is(err, appconfig.ErrInvalidValue) {
-				return nil, status.Error(codes.InvalidArgument, err.Error())
+				return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.config.invalid_value", map[string]string{"key": k, "value": v})
 			}
 			return nil, internalError(ctx, "update server config", err)
 		}
@@ -491,7 +492,7 @@ func (d *adminSystemHandler) SetupWizard(ctx context.Context, req *eveyv1.SetupW
 		// surface the actual problem.
 		if errors.Is(err, appuser.ErrUsernameRequired) {
 			span.SetStatus(otelcodes.Error, "username required")
-			return nil, status.Error(codes.InvalidArgument, "username is required")
+			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_required")
 		}
 		if errors.Is(err, appuser.ErrPasswordTooShort) {
 			span.SetStatus(otelcodes.Error, "password too short")
@@ -625,7 +626,7 @@ var restartGraceDelay = 700 * time.Millisecond
 // hook is wired (the process is not supervised, so exiting would just stop it).
 func (d *adminSystemHandler) RestartServer(ctx context.Context, _ *eveyv1.RestartServerRequest) (*eveyv1.RestartServerResponse, error) {
 	if d.restartFn == nil {
-		return nil, status.Error(codes.Unavailable, "server restart is not available in this deployment")
+		return nil, d.translator.TranslatedError(ctx, codes.Unavailable, "errors.admin.restart_unavailable")
 	}
 	who := "admin"
 	if c := interceptors.ClaimsFromContext(ctx); c != nil && c.Username != "" {

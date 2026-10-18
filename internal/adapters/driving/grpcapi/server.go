@@ -201,7 +201,7 @@ func (s *GRPCServer) RegisterServices() {
 	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteAccess: playbackRemoteAccess, hours: d.ProfileHours}
 	eveyv1.RegisterPlaybackServiceServer(s.server, s.playback)
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
-	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv, libQuery: d.LibQuery, userAccess: d.UserAccess})
+	eveyv1.RegisterMKVServiceServer(s.server, &mkvHandler{svc: d.Mkv, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	eveyv1.RegisterMetadataServiceServer(s.server, &metadataHandler{cmd: d.MetadataCmd, query: d.MetadataQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery, translator: d.Translator})
 	srvCtx := d.ServerCtx
 	if srvCtx == nil {
@@ -281,18 +281,18 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, cmd: d.ActivityCmd, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, translator: d.Translator})
 	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery, translator: d.Translator})
-	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook})
+	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook, translator: d.Translator})
 	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{cmd: d.CollectionCmd, query: d.CollectionQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: d.Favorite, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery})
 	eveyv1.RegisterMediaRequestServiceServer(s.server, &mediaRequestHandler{svc: d.MediaRequest, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterAdminMediaRequestServiceServer(s.server, &adminMediaRequestHandler{svc: d.MediaRequest, userQuery: d.UserQuery, translator: d.Translator})
-	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: d.Transcoding})
+	eveyv1.RegisterTranscodeCacheServiceServer(s.server, &transcodeCacheHandler{svc: d.Transcoding, translator: d.Translator})
 	eveyv1.RegisterBackupServiceServer(s.server, &backupHandler{svc: d.Backup})
 	if d.BackupScheduler != nil {
-		eveyv1.RegisterBackupScheduleServiceServer(s.server, &backupScheduleHandler{scheduler: d.BackupScheduler})
+		eveyv1.RegisterBackupScheduleServiceServer(s.server, &backupScheduleHandler{scheduler: d.BackupScheduler, translator: d.Translator})
 	}
-	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: d.Cfg, store: d.CfgStore})
+	eveyv1.RegisterRemoteAccessServiceServer(s.server, &remoteAccessHandler{cfg: d.Cfg, store: d.CfgStore, translator: d.Translator})
 	pbh := &playbackSettingsHandler{cfg: d.Cfg, configSvc: d.ServerCfgSvc, translator: d.Translator}
 	pbh.initFromDB(srvCtx) // srvCtx is nil-guarded (Background fallback); d.ServerCtx may be nil
 	eveyv1.RegisterPlaybackSettingsServiceServer(s.server, pbh)
@@ -322,8 +322,9 @@ func (s *GRPCServer) RegisterServices() {
 	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{thumbs: d.UserRatings, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	if d.IntroCache != nil || d.IntroBackfill != nil {
 		eveyv1.RegisterAdminIntroServiceServer(s.server, &adminIntroHandler{
-			cache:    d.IntroCache,
-			backfill: d.IntroBackfill,
+			cache:      d.IntroCache,
+			backfill:   d.IntroBackfill,
+			translator: d.Translator,
 		})
 	}
 }

@@ -34,11 +34,11 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 	_, span := tracing.StartSpan(ctx, "grpc.transcoding.StartTranscode")
 	defer span.End()
 	if req.MediaItemId == "" {
-		return status.Error(codes.InvalidArgument, "media_item_id required")
+		return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.media.id_required")
 	}
 	// Resolve media item: we need FilePath for InputPath + library check.
 	if h.libQuery == nil {
-		return status.Error(codes.FailedPrecondition, "library service not configured")
+		return h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.service_not_configured")
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, req.MediaItemId)
 	if err != nil || item == nil || item.File == nil || item.File.Path == "" {
@@ -54,7 +54,7 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 	// how the next wiring change would have shipped it.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return status.Error(codes.Unauthenticated, "unauthenticated")
+		return h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	if !claims.IsAdmin {
 		if h.userAccess == nil {
@@ -84,6 +84,9 @@ func (h *transcodingHandler) StartTranscode(req *eveyv1.StartTranscodeRequest, s
 		transcoding.WithJobResolution("", fmt.Sprintf("%dx%d", req.Width, req.Height)),
 	)
 	if err != nil {
+		if req.VideoCodec == "" {
+			return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.transcode.codec_required")
+		}
 		return status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.svc.StartTranscode(ctx, job); err != nil {
@@ -140,7 +143,7 @@ func (h *transcodingHandler) GetTranscodeStatus(ctx context.Context, req *eveyv1
 // Returns NotFound on any miss to avoid leaking job-existence.
 func (h *transcodingHandler) checkJobAccess(ctx context.Context, jobID string) error {
 	if jobID == "" {
-		return status.Error(codes.InvalidArgument, "job_id required")
+		return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.transcode.job_id_required")
 	}
 	// Identity first, wiring second. Whether the access port is wired says
 	// nothing about who is calling: an unauthenticated caller must still be told
@@ -150,7 +153,7 @@ func (h *transcodingHandler) checkJobAccess(ctx context.Context, jobID string) e
 	// is the mirror image of the fail-open this whole change closes.
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return status.Error(codes.Unauthenticated, "unauthenticated")
+		return h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	if claims.IsAdmin {
 		return nil

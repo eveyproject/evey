@@ -23,6 +23,7 @@ auth:
 general:
   not_found: "未找到"
   rate_limited: "请求过多，请在 {{wait}} 后重试。"
+  request_required: "请求为空"
 
 playlist:
   cannot_add_smart: "无法手动向智能播放列表添加项目"
@@ -38,6 +39,8 @@ playback:
   session_not_found: "会话未找到"
   max_streams_reached: "您已达到并发播放数上限"
   max_devices_reached: "此个人资料已达到设备上限。请先在其他设备上停止播放。"
+  session_id_required: "需要会话 ID"
+  transcoding_disabled_by_prefs: "此标题需要转码，但您的播放偏好已关闭转码"
 
 activity:
   cannot_access_other_history: "无法访问其他用户的登录历史"
@@ -73,10 +76,27 @@ admin:
   seek_index_audio_offset_not_a_repair: "音频起始偏移是文件本身的事实，不是 Evey 会改写的缺陷：它会被测量并显示，这里没有任何功能能判断该移动哪条音轨。请试听、手动校正，或重新获取文件。"
   seek_index_not_in_scan: "此文件不属于任何已完成的健康分析"
   seek_index_backup_overcommit: "为每个修复的文件保留备份所需的可用空间超过现有空间（{volumes}）- 请释放空间或不保留备份进行修复"
+  session_command_required: "需要会话和命令"
+  profile_command_required: "需要个人资料和命令"
+  tmdb_id_positive: "TMDB ID 必须为正数"
+  intro_backfill_running: "片头检测已在进行中"
+  loadtest_calibration_running: "校准基准测试正在运行，请等待其完成"
+  loadtest_streams_active: "有正在进行的播放 - 负载测试绝不会在真实观众观看时运行"
+  loadtest_already_running: "负载测试已在运行"
+  sync_shift_out_of_range: "此工具不会将音轨移动超过 {max} 秒"
+  repair_undo_none: "此文件没有修复记录"
+  repair_not_reversible: "此文件的上次修复无法通过软件撤销"
+  repair_journal_newer: "此修复由较新版本记录，无法安全读取"
+  restart_unavailable: "此部署不支持重启服务器"
+  backup_retention_positive: "保留期至少为 1 天"
+  backup_running: "备份已在进行中"
+  external_url_invalid: "外部 URL 无效：{reason}"
+  trusted_proxies_invalid: "可信代理无效：{reason}"
 
 config:
   key_required: "键为必填项"
   key_not_found: "未找到配置键"
+  invalid_value: "{value} 不是 {key} 的有效值"
 
 playback_settings:
   skip_forward_positive: "skip_forward_seconds 必须为正数"
@@ -106,6 +126,12 @@ user:
   no_local_password: "此账户通过单点登录登录，尚未设置密码：请联系管理员设置密码，或使用密码重置"
   apikey_name_required: "API 密钥名称为必填项"
   apikey_scope_required: "API 密钥至少需要一个权限范围"
+  username_required: "用户名为必填项"
+  email_invalid: "此电子邮件地址无效"
+  profile_name_required: "个人资料名称为必填项"
+  max_profiles_reached: "此账户的个人资料数量已达上限"
+  admin_cannot_be_kids: "管理员的个人资料不能是儿童个人资料"
+  cannot_delete_default_profile: "无法删除默认个人资料"
 
 media:
   not_found: "媒体未找到"
@@ -115,6 +141,10 @@ media:
 transcode:
   max_concurrent_reached: "服务器正忙于转码其他流，请稍后重试"
   job_not_found: "未找到转码任务"
+  codec_required: "需要视频编解码器"
+  job_id_required: "需要转码任务 ID"
+  cache_file_not_found: "未找到缓存文件"
+  cache_filename_invalid: "缓存文件名无效"
 
 share:
   not_found: "未找到分享链接"
@@ -139,6 +169,7 @@ request:
 
 photo:
   not_found: "未找到照片"
+  library_and_query_required: "需要指定媒体库和搜索内容"
 
 music:
   track_not_found: "未找到曲目"
@@ -149,6 +180,16 @@ plugin:
   not_enabled: "插件未启用"
   already_running: "插件已在运行"
   not_running: "插件未运行"
+  system_disabled: "插件系统已禁用（设置 EVEY_PLUGINS_ENABLED=true 以启用）"
+  id_required: "需要插件 ID"
+  id_invalid: "插件 ID 无效"
+  runtime_not_found: "未找到插件运行时"
+  source_required: "需要插件来源"
+  acknowledged_hash_required: "应用前请确认已审阅的更新"
+  candidate_changed: "更新自预览后已更改，请重新审阅"
+  limits_negative: "内存、进程和磁盘限制必须大于或等于 0"
+  cpu_nice_range: "CPU 优先级（nice）必须介于 0 到 19 之间"
+  sandbox_mode_invalid: "沙箱模式必须为以下之一：{modes}"
 
 demo:
   locked: "演示服务器上不可用"
@@ -189,3 +230,7 @@ push:
   endpoint_and_keys_required: "需要推送端点及其密钥"
   invalid_key_encoding: "推送密钥编码无效"
   endpoint_required: "需要推送端点"
+
+webhook:
+  invalid_config: "Webhook 配置无效"
+  not_found: "未找到 Webhook"

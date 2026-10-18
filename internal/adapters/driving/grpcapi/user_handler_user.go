@@ -34,7 +34,10 @@ func (h *userHandler) CreateUser(ctx context.Context, req *eveyv1.CreateUserRequ
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		if strings.TrimSpace(req.Username) == "" {
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.username_required")
+		}
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.email_invalid")
 	}
 	u.IsAdmin = req.IsAdmin
 	if req.MaxProfiles != nil {
@@ -159,7 +162,7 @@ func (h *userHandler) UpdateUser(ctx context.Context, req *eveyv1.UpdateUserRequ
 		// map it to FailedPrecondition with a clear reason, like CreateProfile,
 		// rather than a generic 500 logged at ERROR (which reads as an alert).
 		if errors.Is(err, appuser.ErrAdminCannotBeKids) {
-			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.admin_cannot_be_kids")
 		}
 		slog.ErrorContext(ctx, "update user", slog.Any("err", err))
 		return nil, status.Errorf(codes.Internal, "internal error")

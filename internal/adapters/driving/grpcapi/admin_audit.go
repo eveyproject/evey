@@ -16,7 +16,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -262,7 +261,7 @@ func (d *adminSessionHandler) KillSession(ctx context.Context, req *eveyv1.KillS
 	}
 	if req.SessionId == "" {
 		span.SetStatus(otelcodes.Error, "session_id required")
-		return nil, status.Error(codes.InvalidArgument, "session_id required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.playback.session_id_required")
 	}
 	session, err := d.playbackCmd.GetSession(ctx, req.SessionId)
 	if err != nil {
@@ -322,7 +321,7 @@ func (d *adminSessionHandler) SendSessionCommand(ctx context.Context, req *eveyv
 	}
 	if req.SessionId == "" || req.Command == "" {
 		span.SetStatus(otelcodes.Error, "session_id and command required")
-		return nil, status.Error(codes.InvalidArgument, "session_id and command required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.admin.session_command_required")
 	}
 	// A music session lives in the in-memory registry, not play_sessions: route
 	// its command there. SetCommand reports whether the id was a live music
@@ -359,7 +358,7 @@ func (d *adminSessionHandler) SendCastReceiverCommand(ctx context.Context, req *
 	}
 	if req.ProfileId == "" || req.Command == "" {
 		span.SetStatus(otelcodes.Error, "profile_id and command required")
-		return nil, status.Error(codes.InvalidArgument, "profile_id and command required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.admin.profile_command_required")
 	}
 	if err := d.playbackCmd.SetCastReceiverCommand(ctx, req.ProfileId, req.Command); err != nil {
 		span.RecordError(err)

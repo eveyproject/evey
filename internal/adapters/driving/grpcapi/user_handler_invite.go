@@ -31,7 +31,7 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 	}
 	if !claims.IsAdmin {
 		span.SetStatus(otelcodes.Error, "admin required")
-		return nil, status.Error(codes.PermissionDenied, "admin required")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	// Same rule as CreateUser's max_profiles: negative is refused, unset is no cap.
 	var maxProfiles *int
@@ -60,6 +60,9 @@ func (h *userHandler) CreateInviteLink(ctx context.Context, req *eveyv1.CreateIn
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if req.MaxUses < 0 {
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.limit_negative", map[string]string{"field": "max_uses"})
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.access.CreateInviteLink(ctx, link); err != nil {

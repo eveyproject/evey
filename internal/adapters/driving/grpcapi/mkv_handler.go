@@ -10,9 +10,9 @@ import (
 	applibrary "github.com/eveyproject/evey/internal/app/library"
 	appmkv "github.com/eveyproject/evey/internal/app/mkv"
 	appuser "github.com/eveyproject/evey/internal/app/user"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type mkvHandler struct {
@@ -20,6 +20,7 @@ type mkvHandler struct {
 	svc        *appmkv.Service
 	libQuery   *applibrary.QueryService
 	userAccess *appuser.AccessService
+	translator *eveyi18n.Translator
 }
 
 // checkPathAccess gates filesystem-path operations that are exposed to regular
@@ -45,11 +46,11 @@ func (h *mkvHandler) checkPathAccess(ctx context.Context, path string) error {
 	}
 	item, err := h.libQuery.GetMediaItemByFilePath(ctx, path)
 	if err != nil || item == nil {
-		return status.Error(codes.NotFound, "not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 	}
 	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {
-		return status.Error(codes.NotFound, "not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 	}
 	return nil
 }

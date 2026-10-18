@@ -161,17 +161,18 @@ func TestUndoMediaRepair_RefusalsAreFailedPreconditionAndUnaudited(t *testing.T)
 	catalog := fakeSeekCatalog{ref: appmaintenance.MediaRef{MediaID: "mi-1", Path: "/media/m.mkv"}}
 
 	d, repo := newAuditedMediaHandler(t)
+	d.translator = realTranslator(t)
 	d.seekIndex = appmaintenance.NewSeekIndexService(fakeReindexer{}, catalog, nil).WithRepairJournal(&recordingJournal{})
 	_, err := d.UndoMediaRepair(ctx, &eveyv1.UndoMediaRepairRequest{MediaId: "mi-1"})
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
-	assert.Equal(t, appmaintenance.ErrNoRepairToUndo.Error(), status.Convert(err).Message())
+	assert.Equal(t, "No repair is recorded for this file", status.Convert(err).Message())
 
 	d.seekIndex = appmaintenance.NewSeekIndexService(fakeReindexer{}, catalog, nil).WithRepairJournal(&recordingJournal{
 		records: []appmaintenance.RepairRecord{{MediaID: "mi-1", Path: "/media/m.mkv", Op: appmaintenance.RepairReindex, Outcome: "applied"}},
 	})
 	_, err = d.UndoMediaRepair(ctx, &eveyv1.UndoMediaRepairRequest{MediaId: "mi-1"})
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
-	assert.Equal(t, appmaintenance.ErrNotReversible.Error(), status.Convert(err).Message())
+	assert.Equal(t, "The last repair on this file cannot be undone in software", status.Convert(err).Message())
 
 	assert.Empty(t, auditEntries(t, repo, "undo_media_repair"), "nothing happened to the file, nothing to audit")
 }
@@ -216,7 +217,7 @@ func TestApplyAudioShift_RefusalsAreNotServerFaults(t *testing.T) {
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
 
 	r := &recordingRetimer{}
-	d := &adminMediaHandler{seekIndex: appmaintenance.NewSeekIndexService(fakeReindexer{}, catalog, nil).WithTrackRetimer(r)}
+	d := &adminMediaHandler{seekIndex: appmaintenance.NewSeekIndexService(fakeReindexer{}, catalog, nil).WithTrackRetimer(r), translator: realTranslator(t)}
 	_, err = d.ApplyAudioShift(ctx, &eveyv1.ApplyAudioShiftRequest{MediaId: "mi-1", Track: 2, ShiftSec: 3600})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 	assert.Contains(t, status.Convert(err).Message(), "60")

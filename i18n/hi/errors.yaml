@@ -23,6 +23,7 @@ auth:
 general:
   not_found: "नहीं मिला"
   rate_limited: "बहुत अधिक अनुरोध। {{wait}} में पुनः प्रयास करें।"
+  request_required: "अनुरोध खाली है"
 
 playlist:
   cannot_add_smart: "स्मार्ट प्लेलिस्ट में मैन्युअल रूप से आइटम नहीं जोड़े जा सकते"
@@ -38,6 +39,8 @@ playback:
   session_not_found: "सत्र नहीं मिला"
   max_streams_reached: "आप एक साथ चलाए जा सकने वाले स्ट्रीम की अधिकतम संख्या तक पहुँच गए हैं"
   max_devices_reached: "इस प्रोफ़ाइल के लिए डिवाइस सीमा पहुँच गई। पहले किसी अन्य डिवाइस पर प्लेबैक रोकें।"
+  session_id_required: "सत्र आईडी आवश्यक है"
+  transcoding_disabled_by_prefs: "इस शीर्षक को ट्रांसकोडिंग की आवश्यकता है, जिसे आपकी प्लेबैक प्राथमिकताएँ बंद रखती हैं"
 
 activity:
   cannot_access_other_history: "अन्य उपयोगकर्ता का लॉगिन इतिहास एक्सेस नहीं किया जा सकता"
@@ -73,10 +76,27 @@ admin:
   seek_index_audio_offset_not_a_repair: "ऑडियो का शुरुआती ऑफ़सेट फ़ाइल का एक तथ्य है, कोई दोष नहीं जिसे Evey फिर से लिखे: इसे मापकर दिखाया जाता है, और यहाँ कुछ भी नहीं बता सकता कि कौन-सा ट्रैक खिसकाना है। सुनें, हाथ से ठीक करें, या फ़ाइल दोबारा प्राप्त करें।"
   seek_index_not_in_scan: "यह फ़ाइल किसी पूर्ण स्वास्थ्य विश्लेषण का हिस्सा नहीं है"
   seek_index_backup_overcommit: "प्रत्येक मरम्मत की गई फ़ाइल का बैकअप रखने के लिए उपलब्ध से अधिक खाली स्थान चाहिए ({volumes}) - स्थान खाली करें या बिना बैकअप के मरम्मत करें"
+  session_command_required: "एक सत्र और एक कमांड आवश्यक है"
+  profile_command_required: "एक प्रोफ़ाइल और एक कमांड आवश्यक है"
+  tmdb_id_positive: "TMDB आईडी एक धनात्मक संख्या होनी चाहिए"
+  intro_backfill_running: "इंट्रो पहचान पहले से चल रही है"
+  loadtest_calibration_running: "एक कैलिब्रेशन बेंचमार्क चल रहा है - उसके पूरा होने की प्रतीक्षा करें"
+  loadtest_streams_active: "प्लेबैक सत्र सक्रिय हैं - लोड टेस्ट कभी भी वास्तविक दर्शकों के रहते नहीं चलता"
+  loadtest_already_running: "एक लोड टेस्ट पहले से चल रहा है"
+  sync_shift_out_of_range: "यह टूल किसी ट्रैक को {max} सेकंड से अधिक नहीं खिसकाता"
+  repair_undo_none: "इस फ़ाइल के लिए कोई मरम्मत दर्ज नहीं है"
+  repair_not_reversible: "इस फ़ाइल की पिछली मरम्मत को सॉफ़्टवेयर से पूर्ववत नहीं किया जा सकता"
+  repair_journal_newer: "यह मरम्मत एक नए संस्करण द्वारा दर्ज की गई थी और इसे सुरक्षित रूप से पढ़ा नहीं जा सकता"
+  restart_unavailable: "इस डिप्लॉयमेंट में सर्वर को पुनः आरंभ करना उपलब्ध नहीं है"
+  backup_retention_positive: "प्रतिधारण कम से कम 1 दिन होना चाहिए"
+  backup_running: "एक बैकअप पहले से चल रहा है"
+  external_url_invalid: "अमान्य बाहरी URL: {reason}"
+  trusted_proxies_invalid: "अमान्य विश्वसनीय प्रॉक्सी: {reason}"
 
 config:
   key_required: "कुंजी आवश्यक है"
   key_not_found: "कॉन्फ़िगरेशन कुंजी नहीं मिली"
+  invalid_value: "{value}, {key} के लिए मान्य मान नहीं है"
 
 playback_settings:
   skip_forward_positive: "skip_forward_seconds सकारात्मक होना चाहिए"
@@ -106,6 +126,12 @@ user:
   no_local_password: "यह खाता सिंगल साइन-ऑन से साइन इन करता है और इसका अभी कोई पासवर्ड नहीं है: किसी व्यवस्थापक से पासवर्ड सेट करने को कहें, या पासवर्ड रीसेट का उपयोग करें"
   apikey_name_required: "API कुंजी का नाम आवश्यक है"
   apikey_scope_required: "API कुंजी के लिए कम से कम एक स्कोप आवश्यक है"
+  username_required: "उपयोगकर्ता नाम आवश्यक है"
+  email_invalid: "यह ई-मेल पता मान्य नहीं है"
+  profile_name_required: "प्रोफ़ाइल का नाम आवश्यक है"
+  max_profiles_reached: "यह खाता प्रोफ़ाइल की अधिकतम संख्या तक पहुँच गया है"
+  admin_cannot_be_kids: "किसी व्यवस्थापक की प्रोफ़ाइल बच्चों की प्रोफ़ाइल नहीं हो सकती"
+  cannot_delete_default_profile: "डिफ़ॉल्ट प्रोफ़ाइल हटाई नहीं जा सकती"
 
 media:
   not_found: "मीडिया नहीं मिला"
@@ -115,6 +141,10 @@ media:
 transcode:
   max_concurrent_reached: "सर्वर अन्य स्ट्रीम ट्रांसकोड करने में व्यस्त है। कृपया थोड़ी देर में पुनः प्रयास करें।"
   job_not_found: "ट्रांसकोडिंग कार्य नहीं मिला"
+  codec_required: "एक वीडियो कोडेक आवश्यक है"
+  job_id_required: "ट्रांसकोडिंग कार्य आईडी आवश्यक है"
+  cache_file_not_found: "कैश फ़ाइल नहीं मिली"
+  cache_filename_invalid: "अमान्य कैश फ़ाइल नाम"
 
 share:
   not_found: "साझा लिंक नहीं मिला"
@@ -139,6 +169,7 @@ request:
 
 photo:
   not_found: "फ़ोटो नहीं मिली"
+  library_and_query_required: "एक लाइब्रेरी और एक खोज शब्द आवश्यक है"
 
 music:
   track_not_found: "ट्रैक नहीं मिला"
@@ -149,6 +180,16 @@ plugin:
   not_enabled: "प्लगइन सक्षम नहीं है"
   already_running: "प्लगइन पहले से चल रहा है"
   not_running: "प्लगइन नहीं चल रहा है"
+  system_disabled: "प्लगइन सिस्टम अक्षम है (इसे सक्षम करने के लिए EVEY_PLUGINS_ENABLED=true सेट करें)"
+  id_required: "प्लगइन आईडी आवश्यक है"
+  id_invalid: "अमान्य प्लगइन आईडी"
+  runtime_not_found: "प्लगइन रनटाइम नहीं मिला"
+  source_required: "प्लगइन स्रोत आवश्यक है"
+  acknowledged_hash_required: "लागू करने से पहले समीक्षा किए गए अपडेट की पुष्टि करें"
+  candidate_changed: "पूर्वावलोकन के बाद अपडेट बदल गया है - इसकी फिर से समीक्षा करें"
+  limits_negative: "मेमोरी, प्रोसेस और डिस्क सीमाएँ 0 या उससे अधिक होनी चाहिए"
+  cpu_nice_range: "CPU प्राथमिकता (nice) 0 और 19 के बीच होनी चाहिए"
+  sandbox_mode_invalid: "सैंडबॉक्स मोड इनमें से एक होना चाहिए: {modes}"
 
 demo:
   locked: "डेमो सर्वर पर उपलब्ध नहीं है"
@@ -189,3 +230,7 @@ push:
   endpoint_and_keys_required: "एक पुश एंडपॉइंट और उसकी कुंजियाँ आवश्यक हैं"
   invalid_key_encoding: "पुश कुंजियाँ सही ढंग से एन्कोड नहीं हैं"
   endpoint_required: "एक पुश एंडपॉइंट आवश्यक है"
+
+webhook:
+  invalid_config: "अमान्य वेबहुक कॉन्फ़िगरेशन"
+  not_found: "वेबहुक नहीं मिला"

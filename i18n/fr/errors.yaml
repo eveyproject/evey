@@ -23,6 +23,7 @@ auth:
 general:
   not_found: "Introuvable"
   rate_limited: "Trop de requêtes. Réessaye dans {{wait}}."
+  request_required: "La requête est vide"
 
 playlist:
   cannot_add_smart: "Impossible d'ajouter manuellement des éléments à une liste intelligente"
@@ -38,6 +39,8 @@ playback:
   session_not_found: "Session introuvable"
   max_streams_reached: "Vous avez atteint la limite de lectures simultanées"
   max_devices_reached: "Limite d'appareils atteinte pour ce profil. Arrêtez la lecture sur un autre appareil d'abord."
+  session_id_required: "Un identifiant de session est requis"
+  transcoding_disabled_by_prefs: "Ce titre doit être transcodé, ce que vos préférences de lecture désactivent"
 
 activity:
   cannot_access_other_history: "Impossible d'accéder à l'historique de connexion d'un autre utilisateur"
@@ -73,10 +76,27 @@ admin:
   seek_index_audio_offset_not_a_repair: "Un décalage de départ audio est un fait sur le fichier, pas un défaut qu'Evey réécrit : il est mesuré et affiché, et rien ici ne peut dire quelle piste déplacer. Écoutez, corrigez à la main, ou récupérez le fichier."
   seek_index_not_in_scan: "Ce fichier ne fait partie d'aucune analyse de santé terminée"
   seek_index_backup_overcommit: "Conserver une sauvegarde par fichier réparé demande plus d'espace libre que disponible ({volumes}) - libère de l'espace ou répare sans sauvegardes"
+  session_command_required: "Une session et une commande sont requises"
+  profile_command_required: "Un profil et une commande sont requis"
+  tmdb_id_positive: "L'identifiant TMDB doit être un nombre positif"
+  intro_backfill_running: "La détection des génériques est déjà en cours"
+  loadtest_calibration_running: "Un banc de calibrage est en cours - attendez qu'il se termine"
+  loadtest_streams_active: "Des lectures sont en cours - un test de charge ne tourne jamais pendant que de vrais spectateurs regardent"
+  loadtest_already_running: "Un test de charge est déjà en cours"
+  sync_shift_out_of_range: "Cet outil ne décale pas une piste de plus de {max} s"
+  repair_undo_none: "Aucune réparation n'est enregistrée pour ce fichier"
+  repair_not_reversible: "La dernière réparation de ce fichier ne peut pas être annulée par logiciel"
+  repair_journal_newer: "Cette réparation a été enregistrée par une version plus récente et ne peut pas être lue sans risque"
+  restart_unavailable: "Le redémarrage du serveur n'est pas disponible dans ce déploiement"
+  backup_retention_positive: "La durée de conservation doit être d'au moins 1 jour"
+  backup_running: "Une sauvegarde est déjà en cours"
+  external_url_invalid: "URL externe non valide : {reason}"
+  trusted_proxies_invalid: "Proxys de confiance non valides : {reason}"
 
 config:
   key_required: "La clé est obligatoire"
   key_not_found: "Clé de configuration introuvable"
+  invalid_value: "{value} n'est pas une valeur valide pour {key}"
 
 playback_settings:
   skip_forward_positive: "skip_forward_seconds doit être positif"
@@ -106,6 +126,12 @@ user:
   no_local_password: "Ce compte se connecte par authentification unique et n'a pas encore de mot de passe : demandez à un administrateur d'en définir un, ou utilisez la réinitialisation du mot de passe"
   apikey_name_required: "Un nom de clé API est requis"
   apikey_scope_required: "Une clé API doit avoir au moins une portée"
+  username_required: "Un nom d'utilisateur est requis"
+  email_invalid: "Cette adresse e-mail n'est pas valide"
+  profile_name_required: "Un nom de profil est requis"
+  max_profiles_reached: "Ce compte a atteint son nombre maximal de profils"
+  admin_cannot_be_kids: "Le profil d'un administrateur ne peut pas être un profil enfant"
+  cannot_delete_default_profile: "Le profil par défaut ne peut pas être supprimé"
 
 media:
   not_found: "Média introuvable"
@@ -115,6 +141,10 @@ media:
 transcode:
   max_concurrent_reached: "Le serveur est occupé par d'autres transcodages. Réessayez dans un instant."
   job_not_found: "Tâche de transcodage introuvable"
+  codec_required: "Un codec vidéo est requis"
+  job_id_required: "Un identifiant de tâche de transcodage est requis"
+  cache_file_not_found: "Fichier de cache introuvable"
+  cache_filename_invalid: "Nom de fichier de cache non valide"
 
 share:
   not_found: "Lien de partage introuvable"
@@ -139,6 +169,7 @@ request:
 
 photo:
   not_found: "Photo introuvable"
+  library_and_query_required: "Une bibliothèque et une recherche sont requises"
 
 music:
   track_not_found: "Piste introuvable"
@@ -149,6 +180,16 @@ plugin:
   not_enabled: "Le plugin n'est pas activé"
   already_running: "Le plugin est déjà en cours d'exécution"
   not_running: "Le plugin n'est pas en cours d'exécution"
+  system_disabled: "Le système de plugins est désactivé (définissez EVEY_PLUGINS_ENABLED=true pour l'activer)"
+  id_required: "Un identifiant de plugin est requis"
+  id_invalid: "Identifiant de plugin non valide"
+  runtime_not_found: "Environnement d'exécution de plugin introuvable"
+  source_required: "Une source de plugin est requise"
+  acknowledged_hash_required: "Confirmez la mise à jour examinée avant de l'appliquer"
+  candidate_changed: "La mise à jour a changé depuis son aperçu - examinez-la à nouveau"
+  limits_negative: "Les limites de mémoire, de processus et de disque doivent être supérieures ou égales à 0"
+  cpu_nice_range: "La priorité CPU (nice) doit être comprise entre 0 et 19"
+  sandbox_mode_invalid: "Le mode de bac à sable doit être l'un des suivants : {modes}"
 
 demo:
   locked: "Indisponible sur le serveur de démonstration"
@@ -189,3 +230,7 @@ push:
   endpoint_and_keys_required: "Un point de terminaison push et ses clés sont requis"
   invalid_key_encoding: "Les clés push ne sont pas correctement encodées"
   endpoint_required: "Un point de terminaison push est requis"
+
+webhook:
+  invalid_config: "Configuration de webhook non valide"
+  not_found: "Webhook introuvable"
