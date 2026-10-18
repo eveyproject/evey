@@ -189,6 +189,12 @@ plugin:
     apply: "应用更新"
 
 plugins:
+  validation:
+    required: "{{field}} 为必填项"
+    notNumber: "{{field}} 必须是数字"
+    notInteger: "{{field}} 必须是整数"
+    min: "{{field}} 不能小于 {{min}}"
+    max: "{{field}} 不能大于 {{max}}"
   installFromFile: "从文件安装 (.zip)"
   resourceLimits:
     title: "资源限制"

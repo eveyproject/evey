@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -71,14 +72,14 @@ function normaliseOptions(opts: ConfigFieldSchema["options"]): Array<{ value: st
   );
 }
 
-function validateField(key: string, value: string, schema: ConfigFieldSchema): string | undefined {
-  if (schema.required && value.trim() === "") return `${key} is required`;
+function validateField(key: string, value: string, schema: ConfigFieldSchema, t: TFunction): string | undefined {
+  if (schema.required && value.trim() === "") return t("admin.plugins.validation.required", { field: key });
   if ((schema.type === "integer" || schema.type === "number") && value !== "") {
     const n = Number(value);
-    if (isNaN(n)) return `${key} must be a number`;
-    if (schema.type === "integer" && !Number.isInteger(n)) return `${key} must be an integer`;
-    if (schema.min !== undefined && n < schema.min) return `${key} must be >= ${schema.min}`;
-    if (schema.max !== undefined && n > schema.max) return `${key} must be <= ${schema.max}`;
+    if (isNaN(n)) return t("admin.plugins.validation.notNumber", { field: key });
+    if (schema.type === "integer" && !Number.isInteger(n)) return t("admin.plugins.validation.notInteger", { field: key });
+    if (schema.min !== undefined && n < schema.min) return t("admin.plugins.validation.min", { field: key, min: schema.min });
+    if (schema.max !== undefined && n > schema.max) return t("admin.plugins.validation.max", { field: key, max: schema.max });
   }
   return undefined;
 }
@@ -254,7 +255,7 @@ function PluginConfigPanel({ pluginId }: { pluginId: string }) {
       for (const key of keys) {
         const schema = configSchema[key];
         if (schema) {
-          const err = validateField(key, resolved[key] ?? "", schema);
+          const err = validateField(key, resolved[key] ?? "", schema, t);
           if (err) newErrors[key] = err;
         }
       }

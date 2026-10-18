@@ -4,6 +4,8 @@
 // schema rendering / validation / escalation-parsing logic can be unit
 // tested without mounting the screen.
 
+import type { TFunction } from "i18next";
+
 export interface ConfigFieldSchema {
   type?: string;
   label?: string;
@@ -28,14 +30,14 @@ export function normaliseOptions(
   );
 }
 
-export function validateConfigField(key: string, value: string, schema: ConfigFieldSchema): string | undefined {
-  if (schema.required && value.trim() === "") return `${key} est requis`;
+export function validateConfigField(key: string, value: string, schema: ConfigFieldSchema, t: TFunction): string | undefined {
+  if (schema.required && value.trim() === "") return t("admin.plugins.validation.required", { field: key });
   if ((schema.type === "integer" || schema.type === "number") && value !== "") {
     const n = Number(value);
-    if (isNaN(n)) return `${key} doit être un nombre`;
-    if (schema.type === "integer" && !Number.isInteger(n)) return `${key} doit être un entier`;
-    if (schema.min !== undefined && n < schema.min) return `${key} doit être >= ${schema.min}`;
-    if (schema.max !== undefined && n > schema.max) return `${key} doit être <= ${schema.max}`;
+    if (isNaN(n)) return t("admin.plugins.validation.notNumber", { field: key });
+    if (schema.type === "integer" && !Number.isInteger(n)) return t("admin.plugins.validation.notInteger", { field: key });
+    if (schema.min !== undefined && n < schema.min) return t("admin.plugins.validation.min", { field: key, min: schema.min });
+    if (schema.max !== undefined && n > schema.max) return t("admin.plugins.validation.max", { field: key, max: schema.max });
   }
   return undefined;
 }
@@ -94,7 +96,7 @@ export interface InstallPreview {
   permissions?: string[];
   capabilities?: string[];
   source_hash?: string;
-  analysis?: { safe?: boolean; file_count?: number; issues?: string[]; urls?: string[] };
+  analysis?: { safe?: boolean; total_files_scanned?: number; issues?: string[]; urls?: string[] };
 }
 
 // installPreviewHasWarnings mirrors the web page: a subprocess permission or

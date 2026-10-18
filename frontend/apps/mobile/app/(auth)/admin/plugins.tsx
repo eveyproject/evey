@@ -279,7 +279,7 @@ function PluginConfigSection({ pluginId, theme, t }: { pluginId: string; theme: 
       for (const key of keys) {
         const schema = configSchema[key];
         if (schema) {
-          const err = validateConfigField(key, resolved[key] ?? "", schema);
+          const err = validateConfigField(key, resolved[key] ?? "", schema, t);
           if (err) newErrors[key] = err;
         }
       }

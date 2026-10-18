@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+import type { TFunction } from "i18next";
 import {
   normaliseOptions,
   validateConfigField,
@@ -33,44 +34,54 @@ describe("normaliseOptions", () => {
   });
 });
 
+// The messages go through t(): they were French literals, shown as-is to an
+// admin reading the app in any language.
+const t = ((key: string) => key) as unknown as TFunction;
+
 describe("validateConfigField", () => {
   it("flags a required field left empty", () => {
     const schema: ConfigFieldSchema = { required: true };
-    expect(validateConfigField("apiKey", "", schema)).toBe("apiKey est requis");
-    expect(validateConfigField("apiKey", "   ", schema)).toBe("apiKey est requis");
+    expect(validateConfigField("apiKey", "", schema, t)).toBe("admin.plugins.validation.required");
+    expect(validateConfigField("apiKey", "   ", schema, t)).toBe("admin.plugins.validation.required");
   });
 
   it("accepts a non-empty required field", () => {
-    expect(validateConfigField("apiKey", "secret", { required: true })).toBeUndefined();
+    expect(validateConfigField("apiKey", "secret", { required: true }, t)).toBeUndefined();
   });
 
   it("rejects a non-numeric value for number/integer types", () => {
-    expect(validateConfigField("port", "abc", { type: "integer" })).toBe("port doit être un nombre");
-    expect(validateConfigField("ratio", "abc", { type: "number" })).toBe("ratio doit être un nombre");
+    expect(validateConfigField("port", "abc", { type: "integer" }, t)).toBe("admin.plugins.validation.notNumber");
+    expect(validateConfigField("ratio", "abc", { type: "number" }, t)).toBe("admin.plugins.validation.notNumber");
   });
 
   it("rejects a fractional value for an integer type", () => {
-    expect(validateConfigField("port", "8080.5", { type: "integer" })).toBe("port doit être un entier");
+    expect(validateConfigField("port", "8080.5", { type: "integer" }, t)).toBe("admin.plugins.validation.notInteger");
   });
 
   it("accepts a fractional value for a number type", () => {
-    expect(validateConfigField("ratio", "0.5", { type: "number" })).toBeUndefined();
+    expect(validateConfigField("ratio", "0.5", { type: "number" }, t)).toBeUndefined();
   });
 
   it("enforces min/max bounds", () => {
     const schema: ConfigFieldSchema = { type: "integer", min: 1, max: 10 };
-    expect(validateConfigField("count", "0", schema)).toBe("count doit être >= 1");
-    expect(validateConfigField("count", "11", schema)).toBe("count doit être <= 10");
-    expect(validateConfigField("count", "5", schema)).toBeUndefined();
+    expect(validateConfigField("count", "0", schema, t)).toBe("admin.plugins.validation.min");
+    expect(validateConfigField("count", "11", schema, t)).toBe("admin.plugins.validation.max");
+    expect(validateConfigField("count", "5", schema, t)).toBeUndefined();
   });
 
   it("does not validate an empty optional numeric field as NaN", () => {
-    expect(validateConfigField("port", "", { type: "integer" })).toBeUndefined();
+    expect(validateConfigField("port", "", { type: "integer" }, t)).toBeUndefined();
+  });
+
+  it("hands the field name and the bound to the translation", () => {
+    const spy = vi.fn((key: string) => key);
+    validateConfigField("count", "0", { type: "integer", min: 1 }, spy as unknown as TFunction);
+    expect(spy).toHaveBeenCalledWith("admin.plugins.validation.min", { field: "count", min: 1 });
   });
 
   it("ignores type checks for plain string/select/boolean/password/text fields", () => {
-    expect(validateConfigField("name", "anything", { type: "string" })).toBeUndefined();
-    expect(validateConfigField("flag", "not-a-bool", { type: "boolean" })).toBeUndefined();
+    expect(validateConfigField("name", "anything", { type: "string" }, t)).toBeUndefined();
+    expect(validateConfigField("flag", "not-a-bool", { type: "boolean" }, t)).toBeUndefined();
   });
 });
 
