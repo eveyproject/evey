@@ -30,9 +30,8 @@ func serveStamped(h *hlsVODServe, streams []*domainlibrary.MediaStream, stamp st
 // The track a stamp names is a client-controlled integer, and every distinct
 // one is its own packager cache key: trusted as is, each forged value cost a
 // full plan build (16 build slots, a 256-plan LRU shared with every viewer)
-// before the SourceID check answered 410. A track the source does not have,
-// or any track while the operator never enabled the trim, is refused before
-// anything is built.
+// before the SourceID check answered 410. A track the source does not have is
+// refused before anything is built.
 func TestOnDemandResource_ForgedStampedTrackBuildsNothing(t *testing.T) {
 	streams := stampGuardStreams()
 	for _, tc := range []struct {
@@ -42,7 +41,7 @@ func TestOnDemandResource_ForgedStampedTrackBuildsNothing(t *testing.T) {
 	}{
 		{"track past the source's audio", true, "s1.2"},
 		{"huge track", true, "s1.123456"},
-		{"trim off", false, "s1.1"},
+		{"past the source's audio, trim off", false, "s1.2"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{"seg00001.m4s": []byte("x")}}}
@@ -67,5 +66,21 @@ func TestOnDemandResource_StampedTrackInRangeIsServed(t *testing.T) {
 	}
 	if pkg.lastOpts.KeepAudioTrack == nil || *pkg.lastOpts.KeepAudioTrack != 1 {
 		t.Fatalf("KeepAudioTrack = %v, want 1", pkg.lastOpts.KeepAudioTrack)
+	}
+}
+
+// The delivery trims by itself when only one audio track can be carried
+// verbatim (E-AC-3 beside TrueHD), with the operator's trim flag off: its
+// master stamps that track, and the sub-resource must serve it. Prod
+// 2026-10-18: every viewer of such a film got 410 on od_playlist.m3u8.
+func TestOnDemandResource_StampedTrackServedWithTrimOff(t *testing.T) {
+	streams := stampGuardStreams()
+	pkg := &fakeOnDemandPackager{plan: &fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{"seg00001.m4s": []byte("x")}}}
+	h := &hlsVODServe{onDemand: pkg, onDemandTrackTrim: false, libSvc: &testFakeStreamsGetter{streams: streams}}
+	if code := serveStamped(h, streams, "s1.0"); code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", code)
+	}
+	if pkg.lastOpts.KeepAudioTrack == nil || *pkg.lastOpts.KeepAudioTrack != 0 {
+		t.Fatalf("KeepAudioTrack = %v, want 0", pkg.lastOpts.KeepAudioTrack)
 	}
 }
