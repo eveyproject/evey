@@ -77,6 +77,10 @@ export default function AdminServerConfigScreen() {
 
   const [maxTranscodes, setMaxTranscodes] = useState("");
   const [hwAccel, setHwAccel] = useState(false);
+  // The HW mode is sent only once the switch is flipped: sending it on every
+  // save turned a backend pinned on the web (nvenc, vaapi, qsv) back to "auto"
+  // and re-ran the HW bench each time.
+  const [hwTouched, setHwTouched] = useState(false);
   const [loginRate, setLoginRate] = useState("");
   const [globalRate, setGlobalRate] = useState("");
   const [logLevel, setLogLevel] = useState("");
@@ -97,6 +101,7 @@ export default function AdminServerConfigScreen() {
       setServerName(settings.serverName?.source === "override" ? String(settings.serverName.value) : "");
       setMaxTranscodes(settings.maxConcurrentTranscodes.source === "override" ? String(settings.maxConcurrentTranscodes.value) : "");
       setHwAccel(settings.hwAccelEnabled.value);
+      setHwTouched(false);
       setLoginRate(settings.loginRateLimit.source === "override" ? String(settings.loginRateLimit.value) : "");
       setGlobalRate(settings.globalRateLimit.source === "override" ? String(settings.globalRateLimit.value) : "");
       setLogLevel(settings.logLevel?.source === "override" ? String(settings.logLevel.value) : "");
@@ -156,10 +161,12 @@ export default function AdminServerConfigScreen() {
       // so the mobile toggle stays consistent with the web backend picker and
       // the persisted transcoding.hw_mode override. On = auto (best available),
       // off = software only. Backend pinning (nvenc/vaapi/qsv) is web-only.
-      body.hwMode = hwAccel ? "auto" : "off";
+      if (hwTouched) body.hwMode = hwAccel ? "auto" : "off";
       if (loginRate) body.loginRateLimit = parseInt(loginRate, 10);
       if (globalRate) body.globalRateLimit = parseInt(globalRate, 10);
       if (logLevel) body.logLevel = logLevel;
+      // The env-default chip over an override is a reset, not "no change".
+      else if (settings?.logLevel?.source === "override") body.logLevel = null;
       body.libraryWatcherEnabled = libraryWatcher;
       if (scanInterval) body.periodicScanInterval = scanInterval;
       body.skipPreviewEnabled = skipPreview;
@@ -177,7 +184,7 @@ export default function AdminServerConfigScreen() {
       // also warn as an unhandled promise.
     }
   }, [
-    maxTranscodes, hwAccel, loginRate, globalRate, logLevel, libraryWatcher,
+    maxTranscodes, hwAccel, hwTouched, settings, loginRate, globalRate, logLevel, libraryWatcher,
     scanInterval, skipPreview, introAutoSkip, passwordRecovery, auditDays, metricsDays, qoeDays, sessionDays,
     cacheGB, saveMutation,
   ]);
@@ -661,11 +668,13 @@ export default function AdminServerConfigScreen() {
                 </Text>
                 <Switch
                   value={hwAccel}
-                  onValueChange={(v) => { setHwAccel(v); setSettingsDirty(true); }}
+                  onValueChange={(v) => { setHwAccel(v); setHwTouched(true); setSettingsDirty(true); }}
+                  accessibilityLabel={t("admin.serverSettings.hwAccelEnabled")}
                   trackColor={{ false: theme.colors.border, true: theme.colors.accent }}
                 />
               </View>
-              <DefaultHint setting={settings.hwAccelEnabled} field="hwAccelEnabled" />
+              {/* No reset here: the server keeps the HW mode family out of the
+                  panel's Reset (settings_handler.go), so the link did nothing. */}
 
               <Text style={s.label}>{t("admin.serverSettings.loginRateLimit")}</Text>
               <TextInput
