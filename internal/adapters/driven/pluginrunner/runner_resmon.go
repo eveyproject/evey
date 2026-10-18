@@ -293,11 +293,11 @@ func procCPUTicks(pid int) (uint64, error) {
 		return 0, err
 	}
 	s := string(data)
-	rparen := strings.LastIndexByte(s, ')')
-	if rparen < 0 {
+	_, after, ok := strings.CutLast(s, ")")
+	if !ok {
 		return 0, fmt.Errorf("malformed stat")
 	}
-	fields := strings.Fields(s[rparen+1:]) // fields[0] = state (field 3); utime=field14→idx 11, stime→idx 12
+	fields := strings.Fields(after) // fields[0] = state (field 3); utime=field14→idx 11, stime→idx 12
 	if len(fields) < 13 {
 		return 0, fmt.Errorf("short stat")
 	}

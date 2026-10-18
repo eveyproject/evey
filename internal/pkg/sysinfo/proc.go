@@ -64,11 +64,11 @@ func procStatReaped(pid int) (ppid int, ticks, reaped, start uint64, err error) 
 		return 0, 0, 0, 0, err
 	}
 	s := string(data)
-	rparen := strings.LastIndexByte(s, ')')
-	if rparen < 0 {
+	_, after, ok := strings.CutLast(s, ")")
+	if !ok {
 		return 0, 0, 0, 0, errors.New("malformed stat")
 	}
-	fields := strings.Fields(s[rparen+1:]) // fields[0] = state (field 3); ppid = idx 1, utime = idx 11, stime = idx 12, cutime = idx 13, cstime = idx 14, starttime = idx 19
+	fields := strings.Fields(after) // fields[0] = state (field 3); ppid = idx 1, utime = idx 11, stime = idx 12, cutime = idx 13, cstime = idx 14, starttime = idx 19
 	if len(fields) < 20 {
 		return 0, 0, 0, 0, errors.New("short stat")
 	}

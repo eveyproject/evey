@@ -119,8 +119,7 @@ func TestFinish_WrapsMemoryCapFailure(t *testing.T) {
 	if !errors.Is(got, ErrMemoryCapExceeded) {
 		t.Fatalf("exit 245 + allocation error must be attributed to the cap, got %v", got)
 	}
-	var exitErr *exec.ExitError
-	if !errors.As(got, &exitErr) {
+	if _, ok := errors.AsType[*exec.ExitError](got); !ok {
 		t.Fatal("the original exit error must stay reachable")
 	}
 }

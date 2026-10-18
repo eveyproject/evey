@@ -443,7 +443,7 @@ func checkTool(bin, why string) checkResult {
 	}
 	detail := p
 	if out, err := exec.Command(bin, "--version").Output(); err == nil {
-		if line := strings.SplitN(strings.TrimSpace(string(out)), "\n", 2)[0]; line != "" {
+		if line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n"); line != "" {
 			detail = line
 		}
 	}

@@ -138,8 +138,7 @@ func (p *OMDbProvider) doRequest(ctx context.Context, rawURL string) ([]byte, er
 	if err != nil {
 		// *url.Error quotes the request URL, apikey included: drop it before
 		// the error reaches a wrap or a log line.
-		var ue *url.Error
-		if errors.As(err, &ue) {
+		if ue, ok := errors.AsType[*url.Error](err); ok {
 			ue.URL = redactAPIKey(ue.URL)
 		}
 		return nil, err
@@ -165,7 +164,7 @@ func mapOMDbDetail(d omdbDetail) *domain.MetadataResult {
 
 	if d.Year != "" {
 		// OMDb sometimes returns "2010–2013" for series
-		yearStr := strings.Split(d.Year, "–")[0]
+		yearStr, _, _ := strings.Cut(d.Year, "\u2013") // OMDb writes a series run with an en dash
 		yearStr = strings.Split(yearStr, "-")[0]
 		if y, err := strconv.Atoi(strings.TrimSpace(yearStr)); err == nil {
 			result.Year = &y
@@ -206,7 +205,7 @@ func mapOMDbDetail(d omdbDetail) *domain.MetadataResult {
 		result.People = append(result.People, domain.PersonResult{Name: name, Role: "Director"})
 	}
 	for _, name := range splitNames(d.Writer) {
-		clean := strings.Split(name, " (")[0] // remove "(screenplay)" etc
+		clean, _, _ := strings.Cut(name, " (") // remove "(screenplay)" etc
 		result.People = append(result.People, domain.PersonResult{Name: strings.TrimSpace(clean), Role: "Writer"})
 	}
 	for _, name := range splitNames(d.Actors) {

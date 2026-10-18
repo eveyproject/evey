@@ -283,11 +283,11 @@ func parseDetections(output string) (silences, blacks []floatRange) {
 // parseAfterColon extracts the float64 value following the first occurrence of
 // key in line (format "key VALUE").
 func parseAfterColon(line, key string) float64 {
-	idx := strings.Index(line, key)
-	if idx < 0 {
+	_, after, ok := strings.Cut(line, key)
+	if !ok {
 		return 0
 	}
-	rest := strings.TrimSpace(line[idx+len(key):])
+	rest := strings.TrimSpace(after)
 	// rest may be "VALUE | other_key: ..." - take first token
 	fields := strings.Fields(rest)
 	if len(fields) == 0 {
@@ -300,11 +300,11 @@ func parseAfterColon(line, key string) float64 {
 // parseAfterPipe extracts the silence_end value; FFmpeg outputs
 // "silence_end: X | silence_duration: Y".
 func parseAfterPipe(line, key string) float64 {
-	idx := strings.Index(line, key)
-	if idx < 0 {
+	_, after, ok := strings.Cut(line, key)
+	if !ok {
 		return 0
 	}
-	rest := strings.TrimSpace(line[idx+len(key):])
+	rest := strings.TrimSpace(after)
 	// cut at " | "
 	if pipeIdx := strings.Index(rest, "|"); pipeIdx >= 0 {
 		rest = strings.TrimSpace(rest[:pipeIdx])

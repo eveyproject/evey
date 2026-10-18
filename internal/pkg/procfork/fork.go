@@ -281,8 +281,7 @@ func logExit(ctx context.Context, o Options, cmd *exec.Cmd, runErr error, stderr
 		}
 	}
 	if stderr == nil {
-		var exitErr *exec.ExitError
-		if errors.As(runErr, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](runErr); ok {
 			stderr = exitErr.Stderr
 		}
 	}

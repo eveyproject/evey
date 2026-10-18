@@ -66,11 +66,11 @@ func attrOf(attrs, key string) string {
 		return ""
 	}
 	rest := attrs[i+len(key)+2:]
-	j := strings.Index(rest, `"`)
-	if j < 0 {
+	before, _, ok := strings.Cut(rest, `"`)
+	if !ok {
 		return ""
 	}
-	return rest[:j]
+	return before
 }
 
 // planRenditionURIFor returns the plan rendition URI carrying the audioTrack-th

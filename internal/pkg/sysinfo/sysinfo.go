@@ -354,7 +354,7 @@ func FFmpegVersion(ffmpegPath string) string {
 		if err != nil {
 			return
 		}
-		line := strings.SplitN(string(out), "\n", 2)[0]
+		line, _, _ := strings.Cut(string(out), "\n")
 		fields := strings.Fields(line)
 		for i, f := range fields {
 			if f == "version" && i+1 < len(fields) {

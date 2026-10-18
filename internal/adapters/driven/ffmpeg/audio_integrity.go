@@ -112,14 +112,14 @@ func parseSilenceLog(log string, durationSec float64) (audibleSec float64, stret
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	for sc.Scan() {
 		line := sc.Text()
-		if i := strings.Index(line, "silence_start: "); i >= 0 {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(line[i+len("silence_start: "):]), 64); err == nil {
+		if _, after, ok := strings.Cut(line, "silence_start: "); ok {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(after), 64); err == nil {
 				openStart = v
 			}
 			continue
 		}
-		if i := strings.Index(line, "silence_duration: "); i >= 0 {
-			if v, err := strconv.ParseFloat(strings.TrimSpace(line[i+len("silence_duration: "):]), 64); err == nil {
+		if _, after, ok := strings.Cut(line, "silence_duration: "); ok {
+			if v, err := strconv.ParseFloat(strings.TrimSpace(after), 64); err == nil {
 				silent += v
 				stretches++
 				openStart = math.NaN()
