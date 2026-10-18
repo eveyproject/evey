@@ -15,21 +15,29 @@
 #   H. root + regular mixed -> the regular owner is adopted (root never is)
 #   I. /data pre-created by the operator as PUID (Synology) while the cache
 #      volume is still the image's 1000 -> /cache is re-owned on its own test
+#   J. nothing mounted on /media -> the base image's own empty /media is not a
+#      media mount: no "no adoptable media owner" warning, uid 1000
+#   K. a plain /media* directory that is not a mount point is ignored even
+#      when a regular user owns it (only mounts count)
 #   P. embedded Postgres (needs an evey image, EVEY_PG_IMG): the unix socket
 #      refuses a passwordless login, a legacy trust pg_hba.conf is migrated,
 #      a rotated EVEY_DB_PASSWORD is realigned
 #
 # Usage: scripts/entrypoint-sim-test.sh   (needs docker)
 #        EVEY_PG_IMG=eveyproject/evey:beta-0.0.1 scripts/entrypoint-sim-test.sh
+#        ENTRY=/path/to/another/entrypoint.sh scripts/entrypoint-sim-test.sh
+#          (runs the cases against that copy, e.g. the previous commit's)
 set -eu
 
 cd "$(dirname "$0")/.."
 IMG=debian:trixie-slim
-ENTRY="$PWD/docker/entrypoint.sh"
+ENTRY="${ENTRY:-$PWD/docker/entrypoint.sh}"
 RENDER_GID=105
 
 # MEDIA_SPEC (optional): space-separated "<dir>=<uid>:<gid>" entries creating
-# fake media mounts before the entrypoint runs, e.g. "/media=4242:4242".
+# PLAIN directories (not mounts) before the entrypoint runs, e.g.
+# "/media=4242:4242". Real media mounts come from media_case below, which
+# mounts a tmpfs per entry: the entrypoint only adopts a mounted /media*.
 # DATA_OWNER (optional): "<uid>:<gid>" the operator pre-created ./evey-data
 # with (a bind mount hides the image's /data, so plugins/ is absent too).
 setup='
@@ -59,6 +67,18 @@ run_case() { # $@ = extra docker run args
         -e EVEY_EMBEDDED_MEILI=false \
         -e EVEY_EMBEDDED_POSTGRES=false \
         "$IMG" sh -ec "$setup"
+}
+# media_case "<dir>=<uid>:<gid> ..." [extra docker run args]: each entry is a
+# tmpfs MOUNTED at <dir> and owned by <uid>:<gid>, the shape of an operator's
+# bind-mounted library as the entrypoint sees it (a mount point, an owner).
+media_case() {
+    spec="$1"; shift
+    set -- "$@"
+    for entry in $spec; do
+        dir="${entry%%=*}"; own="${entry#*=}"
+        set -- "$@" --tmpfs "$dir:uid=${own%%:*},gid=${own#*:}"
+    done
+    run_case "$@"
 }
 
 fail=0
@@ -107,7 +127,7 @@ refute_group "$outC" 0 C
 refute_group "$outC" "$RENDER_GID" C
 
 echo "--- case D: no PUID/PGID env -> media owner auto-adopted"
-outD=$(run_case --group-add "$RENDER_GID" -e MEDIA_SPEC="/media=4242:4242 /media2=4242:4242")
+outD=$(media_case "/media=4242:4242 /media2=4242:4242" --group-add "$RENDER_GID")
 echo "$outD"
 assert_uid "$outD" 4242 D
 assert_plugins_dir "$outD" "4242:4242" D
@@ -115,24 +135,26 @@ assert_group "$outD" "$RENDER_GID" D
 refute_group "$outD" 0 D
 
 echo "--- case E: explicit PUID/PGID beats auto-detection"
-outE=$(run_case -e PUID=1500 -e PGID=1500 -e MEDIA_SPEC="/media=4242:4242")
+outE=$(media_case "/media=4242:4242" -e PUID=1500 -e PGID=1500)
 echo "$outE"
 assert_uid "$outE" 1500 E
 
 echo "--- case F: root-owned media -> no adoption, fallback 1000"
-outF=$(run_case -e MEDIA_SPEC="/media=0:0")
+outF=$(media_case "/media=0:0" 2>&1)
 echo "$outF"
 assert_uid "$outF" 1000 F
+echo "$outF" | grep -q "no adoptable media owner" \
+    || { echo "FAIL [F]: a root-owned media MOUNT must still warn"; fail=1; }
 
 echo "--- case G: mixed owners -> majority adopted, other mounts' groups joined"
-outG=$(run_case -e MEDIA_SPEC="/media=4242:4242 /media2=4242:4242 /media3=5555:5556")
+outG=$(media_case "/media=4242:4242 /media2=4242:4242 /media3=5555:5556")
 echo "$outG"
 assert_uid "$outG" 4242 G
 assert_group "$outG" 5556 G
 refute_group "$outG" 0 G
 
 echo "--- case H: root + regular mixed -> the regular owner is adopted"
-outH=$(run_case -e MEDIA_SPEC="/media=0:0 /media2=4242:4242")
+outH=$(media_case "/media=0:0 /media2=4242:4242")
 echo "$outH"
 assert_uid "$outH" 4242 H
 refute_group "$outH" 0 H
@@ -144,6 +166,23 @@ assert_uid "$outI" 1026 I
 assert_plugins_dir "$outI" "1026:100" I
 echo "$outI" | grep -q "^cache=1026:100$" \
     || { echo "FAIL [I]: /cache must be re-owned 1026:100 even when /data already is (got: $(echo "$outI" | grep '^cache='))"; fail=1; }
+
+# The base image ships an empty root-owned /media (FHS). With nothing mounted
+# on it, it is not a media mount: no warning (the demo, whose media live under
+# /data, printed "no adoptable media owner" at every boot before 2026-10-18).
+echo "--- case J: nothing mounted on /media -> the image's placeholder is ignored, no warning"
+outJ=$(run_case 2>&1)
+echo "$outJ"
+assert_uid "$outJ" 1000 J
+echo "$outJ" | grep -q "no adoptable media owner" \
+    && { echo "FAIL [J]: the base image's empty /media was taken for a media mount"; fail=1; } || true
+
+echo "--- case K: a plain /media2 directory owned by 4242 but not mounted -> not adopted"
+outK=$(run_case -e MEDIA_SPEC="/media2=4242:4242" 2>&1)
+echo "$outK"
+assert_uid "$outK" 1000 K
+echo "$outK" | grep -q "no adoptable media owner" \
+    && { echo "FAIL [K]: an unmounted directory must not count as a media mount"; fail=1; } || true
 
 # Embedded Postgres cases run the real image with /evey swapped for a stub that
 # probes the socket as the server uid, then exits (no server, no Meili).

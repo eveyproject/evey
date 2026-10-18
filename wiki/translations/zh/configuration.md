@@ -93,6 +93,8 @@ evey: media mounts owned by 1026:100 (detected on /media) - running the
 server as that user so write features (seek-index repair) work out of the box
 ```
 
+只有真正挂载的 `/media*` 才算数：镜像自带的空 `/media`（每个 Debian 镜像都有一个）会被忽略，所以放在别处（比如 `/data` 下）的媒体库启动时不会有任何所有权警告。
+
 如果媒体挂载目录属于**不同的用户**，服务器会尽力处理：它采用拥有挂载目录最多的那个用户，
 并把其他挂载目录的组加为附加组，这样，只要那些挂载目录里的文件允许组写入，修复就能进行
 （启动时的警告会列出哪些挂载目录仍可能拒绝写入）。只有当所有媒体挂载目录都属于 root，

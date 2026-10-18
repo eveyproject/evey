@@ -110,6 +110,10 @@ evey: media mounts owned by 1026:100 (detected on /media) - running the
 server as that user so write features (seek-index repair) work out of the box
 ```
 
+Only a mounted `/media*` counts: the image's own empty `/media` (every Debian
+image ships one) is ignored, so a library kept elsewhere, under `/data` for
+instance, boots without any ownership warning.
+
 Media mounts owned by **different users** are handled best-effort: the
 server adopts the user owning the most mounts and joins the other mounts'
 groups as supplementary groups, so repairs on those mounts work when their

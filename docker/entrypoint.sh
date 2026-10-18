@@ -71,11 +71,17 @@ if [ "$(id -u)" = "0" ]; then
     # groups as supplementary groups (best effort: those need group-writable
     # files for repairs). Only root/1001-owned everything falls back to
     # 1000:1000 with a loud warning.
+    # Only a MOUNTED /media* is a media mount. The Debian base image ships an
+    # empty, root-owned /media of its own (FHS placeholder): without a bind
+    # mount on it, that directory is not the operator's library, and taking it
+    # for one warned "no adoptable media owner" on every deployment whose
+    # media live elsewhere (the demo keeps them under /data; seen 2026-10-18).
+    is_media_mount() { [ -d "$1" ] && mountpoint -q "$1"; }
     media_extra_gids=""
     if [ -z "${PUID:-}" ] && [ -z "${PGID:-}" ]; then
         det_uid="" det_gid="" det_src="" det_count=0 det_seen=""
         for m in /media*; do
-            [ -d "$m" ] || continue
+            is_media_mount "$m" || continue
             det_seen="$det_seen $m=$(stat -c '%u:%g' "$m")"
             u="$(stat -c %u "$m")"
             # root cannot be adopted (we never run as root); 1001 is the
@@ -84,7 +90,7 @@ if [ "$(id -u)" = "0" ]; then
             if [ "$u" = "1001" ] && [ "$evey_plugins_on" = "1" ]; then continue; fi
             count=0
             for n in /media*; do
-                [ -d "$n" ] || continue
+                is_media_mount "$n" || continue
                 [ "$(stat -c %u "$n")" = "$u" ] && count=$((count + 1))
             done
             if [ "$count" -gt "$det_count" ]; then
@@ -96,7 +102,7 @@ if [ "$(id -u)" = "0" ]; then
             PGID="$det_gid"
             leftover=""
             for m in /media*; do
-                [ -d "$m" ] || continue
+                is_media_mount "$m" || continue
                 [ "$(stat -c %u "$m")" = "$det_uid" ] && continue
                 leftover="$leftover $m=$(stat -c '%u:%g' "$m")"
                 g="$(stat -c %g "$m")"

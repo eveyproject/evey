@@ -129,6 +129,10 @@ evey: media mounts owned by 1026:100 (detected on /media) - running the
 server as that user so write features (seek-index repair) work out of the box
 ```
 
+Solo cuenta un `/media*` realmente montado: el `/media` vacío de la propia
+imagen (toda imagen Debian trae uno) se ignora, así que una biblioteca guardada
+en otro sitio, por ejemplo bajo `/data`, arranca sin ningún aviso de propiedad.
+
 Los montajes de medios que pertenecen a **usuarios distintos** se gestionan
 lo mejor posible: el servidor adopta el usuario propietario de más montajes y
 se une a los grupos de los demás montajes como grupos adicionales, así que
