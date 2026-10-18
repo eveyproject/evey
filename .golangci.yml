@@ -37,25 +37,11 @@ linters:
     - exhaustruct_v5
 
   settings:
-    # golangci-lint 2.13 shipped two NEW modernize analyzers that fire across
-    # pre-existing code (25 sites): `stringscut` (strings.SplitN(s,sep,2)[0] ->
-    # strings.Cut) and `errorsastype` (errors.As -> the Go 1.27 generic
-    # errors.AsType). Both are genuine improvements and both are mechanical -
-    # but a 114-file sweep does not belong in a dependency bump, and the
-    # linter's own --fix produced INVALID code on cmd/evey/gateway.go
-    # (it flattened a promoted field into a composite literal, which Go
-    # forbids). Disabled here so the ratchet stays honest about NEW code;
-    # the sweep is a backlog item to do deliberately, with tests.
-    modernize:
-      disable:
-        - stringscut
-        - errorsastype
-        # embedlit's autofix is BROKEN on this tree: on cmd/evey/gateway.go it
-        # rewrote `JSONPb{MarshalOptions: protojson.MarshalOptions{...}}` into
-        # `JSONPb{EmitUnpopulated: true}`, dropping the FIELD NAME as well as
-        # the type - a promoted field in a composite literal, which Go rejects.
-        # The legal elision keeps the name (`MarshalOptions: {...}`).
-        - embedlit
+    # modernize runs with every analyzer. stringscut, errorsastype and
+    # embedlit were disabled until the 2026-10-18 sweep cleared their 90 sites
+    # by hand-checked --fix (embedlit's autofix is only kept off
+    # cmd/evey/gateway.go, by an explicit nolint: the embedded MarshalOptions
+    # there decides the JSON of every API answer and stays spelled out).
     misspell:
       # Les commentaires de ce dépôt sont en FRANÇAIS, et misspell est un
       # correcteur anglais : il lit des mots français comme des fautes anglaises

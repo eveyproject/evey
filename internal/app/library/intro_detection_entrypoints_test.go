@@ -18,7 +18,7 @@ import (
 func TestDetectIntroDryRun_ReturnsWithoutPersisting(t *testing.T) {
 	t.Parallel()
 	repo, ep := uncoveredEpisode(t)
-	det := &countingDetector{fakeDetector: fakeDetector{fallbackFound: true, fallbackStartMs: 12_000, fallbackEndMs: 45_000}}
+	det := &countingDetector{fallbackFound: true, fallbackStartMs: 12_000, fallbackEndMs: 45_000}
 	svc := costTestService(repo, det, ep, &fakeConfigRepo{})
 
 	segs, err := svc.DetectIntroDryRun(context.Background(), "ep-1")

@@ -18,9 +18,8 @@ func TestRunPipeline_LeadingLogoBlock_MovieOnly(t *testing.T) {
 	t.Parallel()
 
 	newDetector := func() *countingDetector {
-		return &countingDetector{fakeDetector: fakeDetector{
-			leadingLogoFound: true, leadingLogoStartMs: 0, leadingLogoEndMs: 35_000,
-		}}
+		return &countingDetector{
+			leadingLogoFound: true, leadingLogoStartMs: 0, leadingLogoEndMs: 35_000}
 	}
 
 	t.Run("movie: the pass runs and its result is stored", func(t *testing.T) {
@@ -84,9 +83,8 @@ func TestRunPipeline_LeadingLogoBlock_MovieOnly(t *testing.T) {
 // pipeline (needIntro()).
 func TestRunPipeline_LeadingLogoBlock_SkippedWhenIntroAlreadyFilled(t *testing.T) {
 	t.Parallel()
-	det := &countingDetector{fakeDetector: fakeDetector{
-		leadingLogoFound: true, leadingLogoStartMs: 0, leadingLogoEndMs: 35_000,
-	}}
+	det := &countingDetector{
+		leadingLogoFound: true, leadingLogoStartMs: 0, leadingLogoEndMs: 35_000}
 	svc := NewIntroDetectionService(
 		&fakeSegmentRepo{},
 		&fakeTrickplayRepo{},
@@ -123,9 +121,8 @@ func TestRunPipeline_LeadingLogoBlock_SkippedWhenIntroAlreadyFilled(t *testing.T
 // not know.
 func TestRunPipeline_LeadingLogoBlock_RunsBeforeCommunityProvider(t *testing.T) {
 	t.Parallel()
-	det := &countingDetector{fakeDetector: fakeDetector{
-		leadingLogoFound: true, leadingLogoStartMs: 0, leadingLogoEndMs: 35_000,
-	}}
+	det := &countingDetector{
+		leadingLogoFound: true, leadingLogoStartMs: 0, leadingLogoEndMs: 35_000}
 	svc := NewIntroDetectionService(
 		&fakeSegmentRepo{},
 		&fakeTrickplayRepo{},

@@ -94,7 +94,7 @@ func newTestEnricherMulti(primary domain.MetadataProvider, supps []domain.Metada
 func TestMeta_KillMutant_SupplementaryFallback_BreaksOnFirstSuccess(t *testing.T) {
 	primary := &fakeProvider{name: "tmdb"} // search returns nothing → fallback
 
-	supp1 := &countingProvider{fakeProvider: fakeProvider{
+	supp1 := &countingProvider{
 		name: "supp1",
 		searchResults: []domain.MetadataResult{
 			{Title: "Movie", ProviderIDs: map[string]string{"supp1": "10"}},
@@ -103,9 +103,8 @@ func TestMeta_KillMutant_SupplementaryFallback_BreaksOnFirstSuccess(t *testing.T
 			Title:       "Movie",
 			Overview:    "From supp1",
 			ProviderIDs: map[string]string{"supp1": "10"},
-		},
-	}}
-	supp2 := &countingProvider{fakeProvider: fakeProvider{name: "supp2"}}
+		}}
+	supp2 := &countingProvider{name: "supp2"}
 
 	e, miRepo := newTestEnricherMulti(primary, []domain.MetadataProvider{supp1, supp2})
 	item := &domainlib.MediaItem{ID: "m1", Title: "Movie", Type: "movie"}
@@ -122,16 +121,14 @@ func TestMeta_KillMutant_SupplementaryFallback_BreaksOnFirstSuccess(t *testing.T
 // enricher_auto.go:73 NEGATION `if tmdbID != ""` (translation path).
 func TestMeta_KillMutant_TranslationsFetched_WhenTmdbIDPresent(t *testing.T) {
 	tp := &fakeTranslationProvider{
-		fakeProvider: fakeProvider{
-			name: "tmdb",
-			searchResults: []domain.MetadataResult{
-				{Title: "Movie", ProviderIDs: map[string]string{"tmdb": "42"}},
-			},
-			detailResult: &domain.MetadataResult{
-				Title:       "Movie",
-				Overview:    "ov",
-				ProviderIDs: map[string]string{"tmdb": "42"},
-			},
+		name: "tmdb",
+		searchResults: []domain.MetadataResult{
+			{Title: "Movie", ProviderIDs: map[string]string{"tmdb": "42"}},
+		},
+		detailResult: &domain.MetadataResult{
+			Title:       "Movie",
+			Overview:    "ov",
+			ProviderIDs: map[string]string{"tmdb": "42"},
 		},
 		result: map[string]domain.MetadataResult{
 			"fr": {Title: "Film", Overview: "ov-fr"},
@@ -153,13 +150,12 @@ func TestMeta_KillMutant_TranslationsFetched_WhenTmdbIDPresent(t *testing.T) {
 // TestMeta_KillMutant_SkipItemWithOverviewAndTrailers kills
 // enricher_auto.go:473 NEGATION `Overview != "" && len(Trailers) > 0 { continue }`.
 func TestMeta_KillMutant_SkipItemWithOverviewAndTrailers(t *testing.T) {
-	primary := &countingProvider{fakeProvider: fakeProvider{
+	primary := &countingProvider{
 		name: "tmdb",
 		searchResults: []domain.MetadataResult{
 			{Title: "X", ProviderIDs: map[string]string{"tmdb": "1"}},
 		},
-		detailResult: &domain.MetadataResult{Title: "X", Overview: "new"},
-	}}
+		detailResult: &domain.MetadataResult{Title: "X", Overview: "new"}}
 	e, miRepo := newTestEnricherMulti(primary, nil)
 
 	already := &domainlib.MediaItem{

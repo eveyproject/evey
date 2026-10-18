@@ -57,7 +57,7 @@ func TestServePlanResourceData_UnreadableSubtitleSegmentIsAnEmptyWindow(t *testi
 	readErr := fmt.Errorf("mp4: read subtitle sample: %w", errors.New("input/output error"))
 	vtt := []byte("WEBVTT\n\n00:05:00.000 --> 00:05:02.000\nBonjour\n")
 
-	plan := &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{"sub2_00050.vtt": vtt}}, fails: 2, err: readErr}
+	plan := &flakyPlan{sourceID: "s1", resources: map[string][]byte{"sub2_00050.vtt": vtt}, fails: 2, err: readErr}
 	w, logs := serveSub(t, plan, "sub2_00050.vtt")
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "WEBVTT\n\n", w.Body.String(), "a valid WebVTT document without a cue")
@@ -69,19 +69,19 @@ func TestServePlanResourceData_UnreadableSubtitleSegmentIsAnEmptyWindow(t *testi
 	assert.Contains(t, logs, "window_start_ms_approx=294000", "names count from 1: sub2_00050 opens at segment 49")
 
 	// A passing error: the retry serves the real cues.
-	plan = &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{"sub2_00050.vtt": vtt}}, fails: 1, err: readErr}
+	plan = &flakyPlan{sourceID: "s1", resources: map[string][]byte{"sub2_00050.vtt": vtt}, fails: 1, err: readErr}
 	w, logs = serveSub(t, plan, "sub2_00050.vtt")
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, string(vtt), w.Body.String())
 	assert.NotContains(t, logs, "served without cues")
 
 	// A replaced source keeps its own answer: never an empty window.
-	plan = &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{}}, fails: 9, err: fmt.Errorf("x: %w", apptranscoding.ErrSourceChanged)}
+	plan = &flakyPlan{sourceID: "s1", resources: map[string][]byte{}, fails: 9, err: fmt.Errorf("x: %w", apptranscoding.ErrSourceChanged)}
 	w, _ = serveSub(t, plan, "sub2_00050.vtt")
 	assert.NotEqual(t, http.StatusOK, w.Code)
 
 	// A video segment is not a subtitle: its error stays an error.
-	plan = &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{}}, fails: 9, err: readErr}
+	plan = &flakyPlan{sourceID: "s1", resources: map[string][]byte{}, fails: 9, err: readErr}
 	w, _ = serveSub(t, plan, "seg00050.m4s")
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
@@ -89,7 +89,7 @@ func TestServePlanResourceData_UnreadableSubtitleSegmentIsAnEmptyWindow(t *testi
 // A name the plan refuses is not a read error: a track or a segment out of
 // range stays a 404, read once, with no "unreadable" warning.
 func TestServePlanResourceData_OutOfRangeSubtitleStaysA404(t *testing.T) {
-	plan := &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{}}, fails: 9,
+	plan := &flakyPlan{sourceID: "s1", resources: map[string][]byte{}, fails: 9,
 		err: errors.New("mp4: subtitle rendition 9 out of range (0..2)")}
 	w, logs := serveSub(t, plan, "sub9_00001.vtt")
 	assert.Equal(t, http.StatusNotFound, w.Code)
@@ -101,7 +101,7 @@ func TestServePlanResourceData_OutOfRangeSubtitleStaysA404(t *testing.T) {
 func TestServePlanResourceData_CancelledSubtitleIsNoWarning(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	plan := &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{}}, fails: 9,
+	plan := &flakyPlan{sourceID: "s1", resources: map[string][]byte{}, fails: 9,
 		err: fmt.Errorf("mp4: read subtitle sample: %w", context.Canceled)}
 	w, logs := serveSubCtx(t, ctx, plan, "sub2_00050.vtt")
 	assert.Zero(t, w.Body.Len(), "nothing is written to a client that left")
@@ -115,7 +115,7 @@ func TestServePlanResourceData_CancelledSubtitleIsNoWarning(t *testing.T) {
 func TestServePlanResourceData_SegmentOfAViewerThatLeftIsNoWarning(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	plan := &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{}}, fails: 9, err: context.Canceled}
+	plan := &flakyPlan{sourceID: "s1", resources: map[string][]byte{}, fails: 9, err: context.Canceled}
 	w, logs := serveSubCtx(t, ctx, plan, "seg00003.m4s")
 	assert.Zero(t, w.Body.Len())
 	assert.NotContains(t, logs, "refused")
@@ -123,7 +123,7 @@ func TestServePlanResourceData_SegmentOfAViewerThatLeftIsNoWarning(t *testing.T)
 	assert.Contains(t, logs, "of a viewer that left")
 
 	for _, err := range []error{context.Canceled, context.DeadlineExceeded} {
-		plan = &flakyPlan{fakeOnDemandPlan: fakeOnDemandPlan{sourceID: "s1", resources: map[string][]byte{}}, fails: 9, err: err}
+		plan = &flakyPlan{sourceID: "s1", resources: map[string][]byte{}, fails: 9, err: err}
 		w, logs = serveSubCtx(t, context.Background(), plan, "seg00003.m4s")
 		assert.Equal(t, http.StatusNotFound, w.Code, "%v while the viewer is there", err)
 		assert.Contains(t, logs, "level=WARN")

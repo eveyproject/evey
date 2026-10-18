@@ -29,9 +29,9 @@ func newConcatStreamingServer(t *testing.T, plan *streamingPlan) *httptest.Serve
 // the concat's; its playlist still comes whole off Resource.
 func TestServeConcatResource_StreamsSegmentsPlaylistsWhole(t *testing.T) {
 	seg := []byte(strings.Repeat("c", 50_000))
-	plan := &streamingPlan{segment: seg, fakeOnDemandPlan: fakeOnDemandPlan{resources: map[string][]byte{
+	plan := &streamingPlan{segment: seg, resources: map[string][]byte{
 		"playlist.m3u8": []byte("#EXTM3U\n#EXT-X-DISCONTINUITY\n"),
-	}}}
+	}}
 	srv := newConcatStreamingServer(t, plan)
 
 	res, err := http.Get(srv.URL + "/seg00001.m4s")

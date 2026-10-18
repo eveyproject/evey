@@ -27,16 +27,14 @@ func migrationDB(t *testing.T) *sql.DB {
 	testhelpers.SkipIfNoDocker(t)
 	ctx := context.Background()
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "postgres:16-alpine",
-			ExposedPorts: []string{"5432/tcp"},
-			Cmd:          []string{"-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"},
-			Env:          map[string]string{"POSTGRES_USER": "evey_test", "POSTGRES_PASSWORD": "evey_test", "POSTGRES_DB": "evey_test"},
-			WaitingFor: wait.ForAll(
-				wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
-				wait.ForListeningPort("5432/tcp"),
-			).WithStartupTimeoutDefault(90 * time.Second),
-		},
+		Image:        "postgres:16-alpine",
+		ExposedPorts: []string{"5432/tcp"},
+		Cmd:          []string{"-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off"},
+		Env:          map[string]string{"POSTGRES_USER": "evey_test", "POSTGRES_PASSWORD": "evey_test", "POSTGRES_DB": "evey_test"},
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+			wait.ForListeningPort("5432/tcp"),
+		).WithStartupTimeoutDefault(90 * time.Second),
 		Started: true,
 	})
 	require.NoError(t, err)

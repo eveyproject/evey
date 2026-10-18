@@ -97,9 +97,8 @@ func TestDetectSeason_SuspectCreditsRefreshStopsAfterOneFailedRepair(t *testing.
 	t.Parallel()
 	const durMs = 42 * 60 * 1000
 	repo, eps := coveredEpisodeWithCredits(t, durMs-9*60*1000)
-	det := &countingDetector{fakeDetector: fakeDetector{
-		creditsFound: true, creditsStartMs: durMs - 8*60*1000, creditsEndMs: durMs,
-	}}
+	det := &countingDetector{
+		creditsFound: true, creditsStartMs: durMs - 8*60*1000, creditsEndMs: durMs}
 	svc := NewIntroDetectionService(
 		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
 		&fakeConfigRepo{}, det, "/tmp/trickplay",
@@ -119,9 +118,8 @@ func TestDetectSeason_RepairedCreditsAreNotRescanned(t *testing.T) {
 	t.Parallel()
 	const durMs = 42 * 60 * 1000
 	repo, eps := coveredEpisodeWithCredits(t, durMs-9*60*1000)
-	det := &countingDetector{fakeDetector: fakeDetector{
-		creditsFound: true, creditsStartMs: durMs - 80_000, creditsEndMs: durMs,
-	}}
+	det := &countingDetector{
+		creditsFound: true, creditsStartMs: durMs - 80_000, creditsEndMs: durMs}
 	svc := NewIntroDetectionService(
 		repo, &fakeTrickplayRepo{}, &fakeMediaItemRepo{siblings: eps},
 		&fakeConfigRepo{}, det, "/tmp/trickplay",

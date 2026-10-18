@@ -230,9 +230,9 @@ func TestServePlanResource_StreamedWriteErrorCutsTheConnection(t *testing.T) {
 // Whatever Open returns whole goes down the buffered path unchanged: the VTT
 // is sanitised, the cache header set, and the handle closed.
 func TestServePlanResource_BufferedHandleKeepsTheOldPath(t *testing.T) {
-	plan := &streamingPlan{fakeOnDemandPlan: fakeOnDemandPlan{resources: map[string][]byte{
+	plan := &streamingPlan{resources: map[string][]byte{
 		"sub1_00001.vtt": []byte("WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nhello\n"),
-	}}}
+	}}
 	srv := newStreamingServer(t, plan)
 	res, err := http.Get(srv.URL + "/sub1_00001.vtt")
 	if err != nil {
@@ -253,9 +253,9 @@ func TestServePlanResource_BufferedHandleKeepsTheOldPath(t *testing.T) {
 
 // Playlists are rewritten before they go out, so they never take the handle.
 func TestServePlanResource_PlaylistsStayOnResource(t *testing.T) {
-	plan := &streamingPlan{fakeOnDemandPlan: fakeOnDemandPlan{resources: map[string][]byte{
+	plan := &streamingPlan{resources: map[string][]byte{
 		"playlist.m3u8": []byte("#EXTM3U\nseg00001.m4s\n"),
-	}}}
+	}}
 	srv := newStreamingServer(t, plan)
 	res, err := http.Get(srv.URL + "/playlist.m3u8")
 	if err != nil {

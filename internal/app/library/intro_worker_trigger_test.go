@@ -23,7 +23,7 @@ func TestStartWorker_MovieTrickplayTriggersDetection(t *testing.T) {
 	}
 	start := func(t *testing.T, watching int) *countingDetector {
 		t.Helper()
-		det := &countingDetector{fakeDetector: fakeDetector{leadingLogoFound: true, leadingLogoEndMs: 35_000}}
+		det := &countingDetector{leadingLogoFound: true, leadingLogoEndMs: 35_000}
 		svc := NewIntroDetectionService(&fakeSegmentRepo{}, &fakeTrickplayRepo{}, &fakeMediaItemRepo{item: movie},
 			&fakeConfigRepo{}, det, "/tmp/trickplay")
 		svc.backfillBootDelay = time.Hour // keep the catalogue sweep out of this test

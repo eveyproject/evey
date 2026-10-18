@@ -91,8 +91,8 @@ func TestPersonNeedsBio_HasBiography_ReturnsFalseRegardlessOfStamp(t *testing.T)
 func TestEnrichItem_RecentNegativeCheck_SkipsTheProvider(t *testing.T) {
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	stub := &bioCacheProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		details:      &domainlib.PersonDetailsResult{Biography: "a late bio"},
+		name:    "tmdb",
+		details: &domainlib.PersonDetailsResult{Biography: "a late bio"},
 	}
 	e, personRepo, miRepo := newBioCacheEnricher(stub, now)
 
@@ -117,8 +117,8 @@ func TestEnrichItem_RecentNegativeCheck_SkipsTheProvider(t *testing.T) {
 func TestEnrichItem_StaleNegativeCheck_CallsTheProviderAgain(t *testing.T) {
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	stub := &bioCacheProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		details:      &domainlib.PersonDetailsResult{Biography: ""},
+		name:    "tmdb",
+		details: &domainlib.PersonDetailsResult{Biography: ""},
 	}
 	e, personRepo, miRepo := newBioCacheEnricher(stub, now)
 
@@ -140,8 +140,8 @@ func TestEnrichItem_StaleNegativeCheck_CallsTheProviderAgain(t *testing.T) {
 func TestFetchPersonBio_NoBiographyFromProvider_StampsNegativeCache(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	stub := &bioCacheProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		details:      &domainlib.PersonDetailsResult{Biography: ""},
+		name:    "tmdb",
+		details: &domainlib.PersonDetailsResult{Biography: ""},
 	}
 	e, personRepo, miRepo := newBioCacheEnricher(stub, now)
 
@@ -162,8 +162,8 @@ func TestFetchPersonBio_NoBiographyFromProvider_StampsNegativeCache(t *testing.T
 func TestFetchPersonBio_ProviderError_DoesNotStampTheCache(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	stub := &bioCacheProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		detailsErr:   errors.New("429 rate limited"),
+		name:       "tmdb",
+		detailsErr: errors.New("429 rate limited"),
 	}
 	e, personRepo, miRepo := newBioCacheEnricher(stub, now)
 
@@ -186,8 +186,8 @@ func TestFetchPersonBio_ProviderError_DoesNotStampTheCache(t *testing.T) {
 func TestFetchPersonBio_BiographyFound_PersistsBioAndStamp(t *testing.T) {
 	now := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
 	stub := &bioCacheProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		details:      &domainlib.PersonDetailsResult{Biography: "a life story"},
+		name:    "tmdb",
+		details: &domainlib.PersonDetailsResult{Biography: "a life story"},
 	}
 	e, personRepo, miRepo := newBioCacheEnricher(stub, now)
 

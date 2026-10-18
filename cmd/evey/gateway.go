@@ -29,7 +29,7 @@ func registerGateway(grpcAddr string) (http.Handler, *grpc.ClientConn) {
 	ctx := context.Background()
 	mux := runtime.NewServeMux(
 		runtime.WithMarshalerOption(runtime.MIMEWildcard, &runtime.JSONPb{
-			MarshalOptions: protojson.MarshalOptions{EmitUnpopulated: true},
+			MarshalOptions: protojson.MarshalOptions{EmitUnpopulated: true}, //nolint:modernize // embedlit: keep the embedded MarshalOptions explicit, it decides the JSON of every API answer and no test pins it
 		}),
 		runtime.WithIncomingHeaderMatcher(gatewayHeaderMatcher),
 		// Capture the REAL client user-agent + IP into metadata. Without this,
