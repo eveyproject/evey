@@ -4,6 +4,7 @@ import { useAdminMediaServiceListMediaRepairs, baseName } from "@evey/api";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { repairOpLabel, repairEvidenceLine } from "@evey/client";
 
 // What the repairs touched, across the whole library.
@@ -119,7 +120,7 @@ export function RepairJournalPanel() {
                 ))}
               </select>
             </label>
-            {!journal.isLoading && (
+            {!journal.isLoading && !journal.isError && (
               <span className="text-[var(--text-muted)]" data-testid="repair-journal-count">
                 {t("admin.repairJournal.count", { count: entries.length })}
               </span>
@@ -127,7 +128,8 @@ export function RepairJournalPanel() {
           </div>
 
           {journal.isLoading && <p className="text-xs text-[var(--text-muted)]">{t("common.loading")}</p>}
-          {!journal.isLoading && entries.length === 0 && (
+          {journal.isError && <FetchErrorState error={journal.error} onRetry={() => void journal.refetch()} />}
+          {!journal.isLoading && !journal.isError && entries.length === 0 && (
             <p className="text-xs text-[var(--text-muted)]" data-testid="repair-journal-empty">
               {t("admin.repairJournal.empty")}
             </p>

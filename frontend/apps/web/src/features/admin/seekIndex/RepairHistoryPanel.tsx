@@ -5,6 +5,7 @@ import {
 } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { repairOpLabel, repairEvidenceLine, repairShiftSummary } from "@evey/client";
 
 // What was done to this file's bytes, and the way back.
@@ -60,7 +61,9 @@ export function RepairHistoryPanel({ mediaId, title, onClose }: { mediaId: strin
 
       {history.isLoading && <p className="mt-2 text-xs text-[var(--text-muted)]">{t("common.loading")}</p>}
 
-      {!history.isLoading && entries.length === 0 && (
+      {history.isError && <FetchErrorState error={history.error} onRetry={() => void history.refetch()} />}
+
+      {!history.isLoading && !history.isError && entries.length === 0 && (
         <p className="mt-2 text-xs text-[var(--text-muted)]" data-testid="repair-history-empty">
           {t("admin.repairHistory.empty")}
         </p>

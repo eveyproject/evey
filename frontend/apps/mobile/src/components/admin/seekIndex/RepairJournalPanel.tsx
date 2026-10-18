@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useAdminMediaServiceListMediaRepairs, baseName } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
+import { LoadFailed } from "../../LoadFailed";
 import { repairOpLabel, repairEvidenceLine } from "@evey/client";
 
 // RepairJournalPanel mirrors the web features/admin/seekIndex/RepairJournalPanel:
@@ -96,6 +97,8 @@ export function RepairJournalPanel() {
 
           {journal.isLoading ? (
             <Text style={s.hint}>{t("common.loading")}</Text>
+          ) : journal.isError ? (
+            <LoadFailed inline onRetry={() => void journal.refetch()} />
           ) : entries.length === 0 ? (
             <Text style={s.hint}>{t("admin.repairJournal.empty", "No repairs in this window.")}</Text>
           ) : (
