@@ -22,16 +22,14 @@ func superuserServer(t *testing.T) (dsn func(user, password, db string) string) 
 	testhelpers.SkipIfNoDocker(t)
 	ctx := context.Background()
 	c, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: testcontainers.ContainerRequest{
-			Image:        "postgres:16-alpine",
-			ExposedPorts: []string{"5432/tcp"},
-			Cmd:          []string{"-c", "fsync=off"},
-			Env:          map[string]string{"POSTGRES_USER": "evey", "POSTGRES_PASSWORD": "admin-pw", "POSTGRES_DB": "evey"},
-			WaitingFor: wait.ForAll(
-				wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
-				wait.ForListeningPort("5432/tcp"),
-			).WithStartupTimeoutDefault(90 * time.Second),
-		},
+		Image:        "postgres:16-alpine",
+		ExposedPorts: []string{"5432/tcp"},
+		Cmd:          []string{"-c", "fsync=off"},
+		Env:          map[string]string{"POSTGRES_USER": "evey", "POSTGRES_PASSWORD": "admin-pw", "POSTGRES_DB": "evey"},
+		WaitingFor: wait.ForAll(
+			wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+			wait.ForListeningPort("5432/tcp"),
+		).WithStartupTimeoutDefault(90 * time.Second),
 		Started: true,
 	})
 	if err != nil {

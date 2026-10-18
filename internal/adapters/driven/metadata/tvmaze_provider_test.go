@@ -116,16 +116,14 @@ func TestTVMaze_GetByProviderID(t *testing.T) {
 	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
 		assert.Contains(t, r.URL.Path, "/shows/161")
 		json.NewEncoder(w).Encode(tvmazeShowDetail{
-			tvmazeShow: tvmazeShow{
-				ID:        161,
-				Name:      "Some Series",
-				Summary:   "<p>A serial killer.</p>",
-				Genres:    []string{"Drama", "Crime"},
-				Premiered: "2006-10-01",
-				Rating:    tvmazeRating{Average: 8.4},
-				Image:     &tvmazeImage{Original: "http://img.com/some-series.jpg"},
-				Externals: tvmazeExternal{IMDB: "tt0773262", TheTVDB: 79349},
-			},
+			ID:        161,
+			Name:      "Some Series",
+			Summary:   "<p>A serial killer.</p>",
+			Genres:    []string{"Drama", "Crime"},
+			Premiered: "2006-10-01",
+			Rating:    tvmazeRating{Average: 8.4},
+			Image:     &tvmazeImage{Original: "http://img.com/some-series.jpg"},
+			Externals: tvmazeExternal{IMDB: "tt0773262", TheTVDB: 79349},
 			Embedded: &tvmazeEmbedded{
 				Cast: []tvmazeCastMember{
 					{
@@ -169,7 +167,7 @@ func TestTVMaze_GetByProviderID_SkipsMovies(t *testing.T) {
 func TestTVMaze_GetByProviderID_NoCast(t *testing.T) {
 	srv, p := newTVMazeTestServer(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(tvmazeShowDetail{
-			tvmazeShow: tvmazeShow{ID: 1, Name: "Show"},
+			ID: 1, Name: "Show",
 		})
 	})
 	defer srv.Close()

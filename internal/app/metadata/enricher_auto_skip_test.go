@@ -14,11 +14,10 @@ import (
 // every trailer-less film (9500 items at 4/s, 40 min of TMDB and search
 // re-indexing per restart). An enriched item is skipped; force still refreshes.
 func TestAutoEnrichAll_SkipsEnrichedItemsWithoutTrailers(t *testing.T) {
-	primary := &countingProvider{fakeProvider: fakeProvider{
+	primary := &countingProvider{
 		name:          "tmdb",
 		searchResults: []domain.MetadataResult{{Title: "X", ProviderIDs: map[string]string{"tmdb": "1"}}},
-		detailResult:  &domain.MetadataResult{Title: "X", Overview: "new"},
-	}}
+		detailResult:  &domain.MetadataResult{Title: "X", Overview: "new"}}
 	e, miRepo := newTestEnricherMulti(primary, nil)
 
 	noTrailer := &domainlib.MediaItem{ID: "m1", Title: "X", Type: "movie", Overview: "already enriched"}
@@ -32,7 +31,7 @@ func TestAutoEnrichAll_SkipsEnrichedItemsWithoutTrailers(t *testing.T) {
 }
 
 func TestAutoEnrichItem_SkipsEnrichedEpisodesAndSeasons(t *testing.T) {
-	primary := &countingProvider{fakeProvider: fakeProvider{name: "tmdb"}}
+	primary := &countingProvider{name: "tmdb"}
 	e, miRepo := newTestEnricherMulti(primary, nil)
 
 	series := &domainlib.MediaItem{ID: "s", Title: "Show", Type: "series", Overview: "ov"}

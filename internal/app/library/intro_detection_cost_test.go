@@ -64,9 +64,8 @@ func TestDetectSeason_SkipsCreditsScanWhenStoredCreditsArePlausible(t *testing.T
 func TestDetectSeason_RunsCreditsScanWhenNoCreditsStored(t *testing.T) {
 	t.Parallel()
 	repo, ep := uncoveredEpisode(t)
-	det := &countingDetector{fakeDetector: fakeDetector{
-		creditsFound: true, creditsStartMs: costTestDurMs - 80_000, creditsEndMs: costTestDurMs,
-	}}
+	det := &countingDetector{
+		creditsFound: true, creditsStartMs: costTestDurMs - 80_000, creditsEndMs: costTestDurMs}
 	svc := costTestService(repo, det, ep, &fakeConfigRepo{})
 
 	svc.detectSeason(context.Background(), "season-id")
@@ -85,7 +84,7 @@ func TestDetectSeason_SuspectCreditsOnUncoveredEpisodeStillRepairOrDrop(t *testi
 		Type: "end_credits", StartMs: costTestDurMs - 9*60*1000, EndMs: costTestDurMs,
 		Source: "blackdetect", Confidence: 0.6,
 	})
-	det := &countingDetector{fakeDetector: fakeDetector{creditsFound: false}}
+	det := &countingDetector{creditsFound: false}
 	svc := costTestService(repo, det, ep, &fakeConfigRepo{})
 
 	svc.detectSeason(context.Background(), "season-id")
@@ -154,9 +153,8 @@ func TestRunPipeline_OptedInStillRunsTheFallbackWhenTheGateAdmitsIt(t *testing.T
 func TestRunPipeline_StoresTheFallbackRowButTheServeGateStillWithholdsIt(t *testing.T) {
 	t.Parallel()
 	repo, ep := uncoveredEpisode(t)
-	det := &countingDetector{fakeDetector: fakeDetector{
-		fallbackFound: true, fallbackStartMs: 12_000, fallbackEndMs: 45_000,
-	}}
+	det := &countingDetector{
+		fallbackFound: true, fallbackStartMs: 12_000, fallbackEndMs: 45_000}
 	svc := costTestService(repo, det, ep, &fakeConfigRepo{})
 
 	svc.detectSeason(context.Background(), "season-id")

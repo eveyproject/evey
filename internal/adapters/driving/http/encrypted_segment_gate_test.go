@@ -64,9 +64,9 @@ func (p *heldPlan) Resource(ctx context.Context, name string) ([]byte, string, e
 
 func TestServePlanResource_EncryptedSegmentsLimitedPerClient(t *testing.T) {
 	plan := &heldPlan{
-		fakeOnDemandPlan: fakeOnDemandPlan{resources: map[string][]byte{"index.m3u8": []byte("#EXTM3U\n")}},
-		entered:          make(chan struct{}, 4),
-		release:          make(chan struct{}),
+		resources: map[string][]byte{"index.m3u8": []byte("#EXTM3U\n")},
+		entered:   make(chan struct{}, 4),
+		release:   make(chan struct{}),
 	}
 	h := &hlsVODServe{encryptedSegments: newClientSegmentGate(1)}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -134,9 +134,9 @@ func TestServePlanResource_NoGateWhenEncryptionIsOff(t *testing.T) {
 // aside during a run, as the streaming rate limiter already does.
 func TestServePlanResource_EncryptedGateStandsAsideDuringALoadTest(t *testing.T) {
 	plan := &heldPlan{
-		fakeOnDemandPlan: fakeOnDemandPlan{resources: map[string][]byte{}},
-		entered:          make(chan struct{}, 4),
-		release:          make(chan struct{}),
+		resources: map[string][]byte{},
+		entered:   make(chan struct{}, 4),
+		release:   make(chan struct{}),
 	}
 	h := &hlsVODServe{encryptedSegments: newClientSegmentGate(1), loadTestActive: func() bool { return true }}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -118,8 +118,8 @@ func newTransEnricher(primary domain.MetadataProvider) (*Enricher, *libfakes.Fak
 
 func TestEnrichTranslationsForItem_NoRepo_NoOp(t *testing.T) {
 	stub := &translationProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		mediaResult:  map[string]domain.MetadataResult{"fr": {Title: "X"}},
+		name:        "tmdb",
+		mediaResult: map[string]domain.MetadataResult{"fr": {Title: "X"}},
 	}
 	e, _, _ := newTransEnricher(stub)
 	// no EnricherWithTranslations applied → mediaTranslations == nil
@@ -131,7 +131,7 @@ func TestEnrichTranslationsForItem_NoRepo_NoOp(t *testing.T) {
 }
 
 func TestEnrichTranslationsForItem_EmptyLocales_NoOp(t *testing.T) {
-	stub := &translationProviderStub{fakeProvider: fakeProvider{name: "tmdb"}}
+	stub := &translationProviderStub{name: "tmdb"}
 	repo := &trackingMediaTranslationRepo{}
 	e, _, _ := newTransEnricher(stub)
 	EnricherWithTranslations(repo, nil, []string{})(e)
@@ -158,8 +158,8 @@ func TestEnrichTranslationsForItem_ProviderNotTranslationProvider_NoOp(t *testin
 
 func TestEnrichTranslationsForItem_FetchError_LogsAndNoUpsert(t *testing.T) {
 	stub := &translationProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		mediaErr:     errors.New("boom"),
+		name:     "tmdb",
+		mediaErr: errors.New("boom"),
 	}
 	repo := &trackingMediaTranslationRepo{}
 	e, _, _ := newTransEnricher(stub)
@@ -174,7 +174,7 @@ func TestEnrichTranslationsForItem_FetchError_LogsAndNoUpsert(t *testing.T) {
 
 func TestEnrichTranslationsForItem_HappyPath_UpsertsEachLocale(t *testing.T) {
 	stub := &translationProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
+		name: "tmdb",
 		mediaResult: map[string]domain.MetadataResult{
 			"fr": {Title: "Film", Overview: "ov-fr", Tagline: "tag-fr"},
 			"es": {Title: "Pelicula", Overview: "ov-es", Tagline: "tag-es"},
@@ -208,7 +208,7 @@ func TestEnrichTranslationsForItem_HappyPath_UpsertsEachLocale(t *testing.T) {
 
 func TestEnrichPersonTranslations_NoRepo_NoOp(t *testing.T) {
 	stub := &translationProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
+		name:         "tmdb",
 		personResult: map[string]string{"fr": "bio-fr"},
 	}
 	e, _, _ := newTransEnricher(stub)
@@ -220,7 +220,7 @@ func TestEnrichPersonTranslations_NoRepo_NoOp(t *testing.T) {
 }
 
 func TestEnrichPersonTranslations_EmptyLocales_NoOp(t *testing.T) {
-	stub := &translationProviderStub{fakeProvider: fakeProvider{name: "tmdb"}}
+	stub := &translationProviderStub{name: "tmdb"}
 	repo := &trackingPersonTranslationRepo{}
 	e, _, _ := newTransEnricher(stub)
 	EnricherWithTranslations(nil, repo, []string{})(e)
@@ -246,8 +246,8 @@ func TestEnrichPersonTranslations_ProviderNotTranslationProvider_NoOp(t *testing
 
 func TestEnrichPersonTranslations_FetchError_LogsAndNoUpsert(t *testing.T) {
 	stub := &translationProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		personErr:    errors.New("boom"),
+		name:      "tmdb",
+		personErr: errors.New("boom"),
 	}
 	repo := &trackingPersonTranslationRepo{}
 	e, _, _ := newTransEnricher(stub)
@@ -262,7 +262,7 @@ func TestEnrichPersonTranslations_FetchError_LogsAndNoUpsert(t *testing.T) {
 
 func TestEnrichPersonTranslations_HappyPath_UpsertsEachLocale(t *testing.T) {
 	stub := &translationProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
+		name: "tmdb",
 		personResult: map[string]string{
 			"fr": "bio-fr",
 			"es": "bio-es",
@@ -295,9 +295,7 @@ func TestEnricherWithPersonFetcher_SetsFetcher_AndBioPopulated(t *testing.T) {
 	// translationProviderStub satisfies TranslationProvider (needed by fetchPersonBio).
 	// personDetailProviderStub embeds it AND implements personDetailFetcher.
 	stub := &personDetailProviderStub{
-		translationProviderStub: translationProviderStub{
-			fakeProvider: fakeProvider{name: "tmdb"},
-		},
+		name: "tmdb",
 		details: &domainlib.PersonDetailsResult{
 			Biography:    "an actor's life",
 			Birthday:     "1970-01-01",
@@ -350,10 +348,8 @@ func domainmetaResult(title, personName, personTMDB string) *domain.MetadataResu
 // then reads as "the provider has none".
 func TestFetchPersonBio_UselessTranslationCallDoesNotBlockTheBio(t *testing.T) {
 	stub := &personDetailProviderStub{
-		translationProviderStub: translationProviderStub{
-			fakeProvider: fakeProvider{name: "tmdb"},
-			personErr:    errors.New("429 rate limited"),
-		},
+		name:      "tmdb",
+		personErr: errors.New("429 rate limited"),
 		details: &domainlib.PersonDetailsResult{
 			Biography:    "an actor's life",
 			PlaceOfBirth: "Paris",
@@ -396,8 +392,8 @@ func (s *detailOnlyProviderStub) GetPersonDetails(_ context.Context, _ string) (
 // personDetailFetcher capability itself.
 func TestFetchPersonBio_RunsWithoutATranslationProvider(t *testing.T) {
 	stub := &detailOnlyProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		details:      &domainlib.PersonDetailsResult{Biography: "a director's life"},
+		name:    "tmdb",
+		details: &domainlib.PersonDetailsResult{Biography: "a director's life"},
 	}
 	e, miRepo, personRepo := newTransEnricher(stub)
 
@@ -414,8 +410,8 @@ func TestFetchPersonBio_RunsWithoutATranslationProvider(t *testing.T) {
 
 func TestFetchPersonBio_RunsWithoutATmdbID(t *testing.T) {
 	stub := &detailOnlyProviderStub{
-		fakeProvider: fakeProvider{name: "tmdb"},
-		details:      &domainlib.PersonDetailsResult{Biography: "known by name"},
+		name:    "tmdb",
+		details: &domainlib.PersonDetailsResult{Biography: "known by name"},
 	}
 	e, miRepo, personRepo := newTransEnricher(stub)
 

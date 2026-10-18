@@ -1323,7 +1323,7 @@ func (e *durationMissingError) Error() string {
 }
 
 func (h *hlsVODServe) writeManifestErr(ctx context.Context, w http.ResponseWriter, span trace.Span, err error, mediaID string) {
-	if _, ok := errors.AsType[*durationMissingError](err); ok {
+	if dme, ok := errors.AsType[*durationMissingError](err); ok && dme != nil {
 		span.SetStatus(codes.Error, "duration missing")
 		slog.WarnContext(ctx, "hls-vod: duration missing",
 			slog.String("media_id", mediaID))

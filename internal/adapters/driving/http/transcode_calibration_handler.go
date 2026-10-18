@@ -136,9 +136,9 @@ func transcodeCalibrationGetHandler(svc calibrationSvc) http.HandlerFunc {
 			// ceilings above may be interim until the first idle window.
 			Calibration apptranscoding.CalibrationStatus `json:"calibration"`
 		}{
-			publicEncodeCapability: publicEncodeCapability{EncodeCapability: cap.EncodeCapability},
-			HWMode:                 string(svc.HWMode()),
-			Calibration:            svc.Status(),
+			EncodeCapability: cap.EncodeCapability,
+			HWMode:           string(svc.HWMode()),
+			Calibration:      svc.Status(),
 			// WSL's d3d12 VA driver can't sustain Evey's multi-variant VAAPI/QSV
 			// encode, so the admin UI greys those backends when this is true.
 			IsWSL:       sysinfo.IsWSL(),
