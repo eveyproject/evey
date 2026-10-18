@@ -1,4 +1,4 @@
-import { Palette, Bell, Shield, Smartphone, QrCode, Pencil, X, Users, Plus, Inbox, ChevronRight, PlayCircle, Puzzle } from "lucide-react";
+import { Palette, Bell, Shield, QrCode, Pencil, X, Users, Plus, Inbox, ChevronRight, PlayCircle, Puzzle } from "lucide-react";
 import type React from "react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
@@ -22,7 +22,6 @@ import { AutoplayNextSettings } from "@/features/user/AutoplayNextSettings";
 import { PlaybackSettings } from "@/features/user/PlaybackSettings";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 import { NotificationSettings } from "@/features/user/NotificationSettings";
-import { DeviceSettings } from "@/features/user/DeviceSettings";
 import { QuickConnectSettings } from "@/features/user/QuickConnectSettings";
 import { ProfileManagerList } from "@/features/profile/ProfileManagerList";
 import { CreateProfileDialog } from "@/features/profile/CreateProfileDialog";
@@ -40,7 +39,7 @@ export const Route = createLazyFileRoute("/_auth/profile/settings")({
 // Each plugin mounting it becomes one entry under the "Plugins" menu.
 const USER_SETTINGS_SLOT = "settings.user.appearance";
 
-type Tab = "appearance" | "playback" | "profiles" | "notifications" | "parental" | "devices" | "quick-connect" | "plugins";
+type Tab = "appearance" | "playback" | "profiles" | "notifications" | "parental" | "quick-connect" | "plugins";
 
 const TABS: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
   { key: "appearance", labelKey: "auth.settings.tabs.appearance", icon: <Palette size={ICON.md} strokeWidth={1.5} /> },
@@ -48,7 +47,6 @@ const TABS: { key: Tab; labelKey: string; icon: React.ReactNode }[] = [
   { key: "profiles", labelKey: "auth.settings.tabs.profiles", icon: <Users size={ICON.md} strokeWidth={1.5} /> },
   { key: "notifications", labelKey: "auth.settings.tabs.notifications", icon: <Bell size={ICON.md} strokeWidth={1.5} /> },
   { key: "parental", labelKey: "auth.settings.tabs.parental", icon: <Shield size={ICON.md} strokeWidth={1.5} /> },
-  { key: "devices", labelKey: "auth.settings.tabs.devices", icon: <Smartphone size={ICON.md} strokeWidth={1.5} /> },
   { key: "quick-connect", labelKey: "auth.settings.tabs.quickConnect", icon: <QrCode size={ICON.md} strokeWidth={1.5} /> },
 ];
 
@@ -368,7 +366,6 @@ function SettingsPage() {
           {tab === "profiles" && <DemoReadOnly><ProfilesSection /></DemoReadOnly>}
           {tab === "notifications" && <DemoReadOnly><NotificationSettings /></DemoReadOnly>}
           {tab === "parental" && <DemoReadOnly><ParentalSection /></DemoReadOnly>}
-          {tab === "devices" && <DemoReadOnly><DeviceSettings /></DemoReadOnly>}
           {tab === "quick-connect" && <QuickConnectSettings />}
           {/* One plugin at a time, picked in the menu: a plugin's settings UI
               is a full iframe, and stacking every installed one in a single

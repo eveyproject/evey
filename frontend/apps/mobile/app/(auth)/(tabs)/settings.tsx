@@ -447,7 +447,6 @@ export default function SettingsScreen() {
           </View>
         )}
         <Pressable style={s.row} onPress={() => router.push("/admin/api-keys")} accessible={true} accessibilityLabel={t("auth.apiKeys.title")} accessibilityRole="button"><Text style={s.label}>{t("auth.apiKeys.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
-        <Pressable style={s.row} onPress={() => router.push("/settings/devices")} accessible={true} accessibilityLabel={t("auth.devices.title")} accessibilityRole="button"><Text style={s.label}>{t("auth.devices.title")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
 
       {/* Quick Connect */}

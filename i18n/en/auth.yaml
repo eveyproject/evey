@@ -205,7 +205,6 @@ settings:
     notifications: Notifications
     account: Account
     parental: Parental
-    devices: Devices
     security: Security
     quickConnect: Quick Connect
     plugins: "Plugins"
@@ -326,13 +325,6 @@ apiKeys:
   keyRevoked: API key revoked
   revokeError: Failed to revoke API key
   revoke: Revoke
-devices:
-  title: Devices
-  description: Manage push notification devices.
-  platform: Platform
-  token: Token
-  registered: Registered
-  noDevices: No registered devices
 notificationSettings:
   pushNotifications: Push Notifications
   pushDesc: Receive push notifications on this device.

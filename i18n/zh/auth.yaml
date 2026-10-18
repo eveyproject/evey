@@ -205,7 +205,6 @@ settings:
     notifications: "通知"
     account: "账户"
     parental: "家长控制"
-    devices: "设备"
     security: "安全"
     quickConnect: "快速连接"
     plugins: "插件"
@@ -321,13 +320,6 @@ apiKeys:
   keyRevoked: "API 密钥已撤销"
   revokeError: "撤销 API 密钥失败"
   revoke: 撤销
-devices:
-  title: "设备"
-  description: "管理推送通知设备。"
-  platform: "平台"
-  token: "令牌"
-  registered: "注册时间"
-  noDevices: "没有已注册的设备"
 notificationSettings:
   pushNotifications: "推送通知"
   pushDesc: "在此设备上接收推送通知。"

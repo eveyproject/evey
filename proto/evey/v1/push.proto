@@ -8,12 +8,13 @@ import "google/protobuf/timestamp.proto";
 option go_package = "github.com/eveyproject/evey/gen/evey/v1;eveyv1";
 
 service PushService {
-  // ListDevices backs the profile "Devices" tab. Native device-token
-  // registration (the FCM-era RegisterDevice/UnregisterDevice pair) was
-  // removed: the fcm_device_tokens table is long gone and no client ever
-  // called them, so the list is always empty until a native push backend
-  // exists.
+  // Deprecated: no replacement. ListDevices backed the profile "Devices" tab,
+  // removed from web and mobile in 2026-10: native device-token registration
+  // (the FCM-era RegisterDevice/UnregisterDevice pair) is gone, so the list
+  // could only ever be empty. Kept answering an empty list for beta builds
+  // that still open the old tab; remove after two server releases (ADR-0004).
   rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse) {
+    option deprecated = true;
     option (google.api.http) = {
       get: "/api/v1/push/devices"
     };
@@ -64,14 +65,21 @@ service PushService {
   }
 }
 
+// Deprecated with ListDevices.
 message Device {
+  option deprecated = true;
   string token = 1;
   string platform = 2;
 }
 
-message ListDevicesRequest {}
+// Deprecated with ListDevices.
+message ListDevicesRequest {
+  option deprecated = true;
+}
 
+// Deprecated with ListDevices.
 message ListDevicesResponse {
+  option deprecated = true;
   repeated Device devices = 1;
 }
 
