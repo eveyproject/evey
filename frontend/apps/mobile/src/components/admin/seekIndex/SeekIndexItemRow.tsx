@@ -89,11 +89,17 @@ export function SeekIndexItemRow({
   const verdictColor =
     verdict === "healthy" ? theme.colors.success : verdict === "repairable" ? theme.colors.warning : theme.colors.info;
 
+  // The label is spoken even while the spinner replaces it: a write in flight
+  // otherwise leaves TalkBack on a nameless, silent control.
   const btn = (label: string, onPress: () => void, pending: boolean, accent = false, hint?: string, disabled = busy) => (
     <Pressable
       disabled={disabled}
       onPress={onPress}
       onLongPress={hint ? () => Alert.alert(label, hint) : undefined}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+      accessibilityState={{ disabled, busy: pending }}
       style={[stylesCard.smallBtn, { backgroundColor: accent ? theme.colors.accent : theme.colors.bg, opacity: disabled ? 0.6 : 1 }]}
     >
       {pending ? (
