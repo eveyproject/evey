@@ -2,13 +2,12 @@ import { getBaseURL } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { artworkUrl } from "@evey/client";
 
-// An <img> cannot send a header: the access token rides in the query, as
-// the phone's image loader does (the token middleware reads it there).
+// The artwork route is public: a poster URL carries no token (in the query it
+// only reached the proxy logs, and changing at each refresh it defeated the
+// browser cache).
 export function posterSrc(mediaId: string | undefined, type: "poster" | "backdrop" = "poster", width = 400): string | undefined {
   if (!mediaId) return undefined;
-  const token = useAuthStore.getState().accessToken;
-  const url = artworkUrl(getBaseURL(), mediaId, type, width);
-  return token ? `${url}${url.includes("?") ? "&" : "?"}token=${encodeURIComponent(token)}` : url;
+  return artworkUrl(getBaseURL(), mediaId, type, width);
 }
 
 export function isEpisode(item: { type?: string } | undefined): boolean {

@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@evey/api", () => ({ getBaseURL: () => "http://evey:9091" }));
 vi.mock("@evey/store", () => ({ useAuthStore: { getState: () => ({ accessToken: "jwt" }) } }));
 
-import { serverImageSrc } from "./media";
+import { posterSrc, serverImageSrc } from "./media";
 
 // A collection poster is a TMDB url: the viewer's token must never ride to it.
 describe("serverImageSrc", () => {
@@ -13,5 +13,11 @@ describe("serverImageSrc", () => {
 
   it("anchors the server's own path and adds the token", () => {
     expect(serverImageSrc("/api/v1/music/albums/a1/art")).toBe("http://evey:9091/api/v1/music/albums/a1/art?token=jwt");
+  });
+});
+
+describe("posterSrc", () => {
+  it("names the public artwork route without the token", () => {
+    expect(posterSrc("m1")).toBe("http://evey:9091/api/v1/media/m1/artwork/poster?w=400");
   });
 });
