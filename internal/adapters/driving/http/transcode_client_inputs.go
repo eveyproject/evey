@@ -30,5 +30,6 @@ func bakeClientInputs(r *http.Request, in *apptranscoding.ManifestInput) {
 	in.ScreenHeight = parseIntQuery(r, "screenHeight", 0)
 	in.MaxHeight = parseIntQuery(r, "maxHeight", 0)
 	in.MaxH264Level = parseIntQuery(r, "maxH264Level", 0)
+	in.MaxH264Height = parseIntQuery(r, "maxH264Height", 0)
 	in.NetworkType = networkTypeQuery(r)
 }

@@ -184,12 +184,13 @@ type ManifestInput struct {
 	// WITHOUT it and produce tonemapped SDR h264 segments inside a variant the
 	// master advertised as hvc1/PQ copy - codec mismatch, broken playback.
 	HDRCapable bool
-	// ScreenHeight (?screenHeight), MaxHeight (?maxHeight) and MaxH264Level
-	// (?maxH264Level) shape the ladder like the codec lists do, so they ride
-	// every baked URL for the same reason.
-	ScreenHeight int
-	MaxHeight    int
-	MaxH264Level int
+	// ScreenHeight (?screenHeight), MaxHeight (?maxHeight), MaxH264Level
+	// (?maxH264Level) and MaxH264Height (?maxH264Height) shape the ladder like
+	// the codec lists do, so they ride every baked URL for the same reason.
+	ScreenHeight  int
+	MaxHeight     int
+	MaxH264Level  int
+	MaxH264Height int
 	// NetworkType (?networkType) brings the profile's cellular bitrate cap into
 	// the decision: a segment that lost it would re-decide a copy at the source
 	// bitrate under a master that advertised a capped ladder. Only "cellular"
@@ -995,6 +996,9 @@ func querySuffix(in ManifestInput) string {
 	}
 	if in.MaxH264Level > 0 {
 		q.Set("maxH264Level", fmt.Sprintf("%d", in.MaxH264Level))
+	}
+	if in.MaxH264Height > 0 {
+		q.Set("maxH264Height", fmt.Sprintf("%d", in.MaxH264Height))
 	}
 	if in.NetworkType == "cellular" {
 		q.Set("networkType", in.NetworkType)
