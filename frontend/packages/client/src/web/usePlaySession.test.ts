@@ -7,6 +7,8 @@ const fetchStreamTokenFn = vi.fn(() => Promise.resolve("stream-tok-abc"));
 const getStreamInfoFn = vi.fn((_mediaId: string, _params: unknown) => ({
   data: { directPlayUrl: "/original-url", videoCodec: "h264" },
 }));
+// The verdict asked again for another track (the query above is the first one).
+const askStreamInfoFn = vi.fn((_mediaId: string, _params: unknown): Promise<unknown> => Promise.resolve({}));
 
 vi.mock("@evey/api", () => ({
   // The web app: same origin, so the stop beacon goes to a relative path.
@@ -14,6 +16,7 @@ vi.mock("@evey/api", () => ({
   getCredentialsMode: () => "include",
   usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
   usePlaybackServiceGetStreamInfo: (...a: [string, unknown]) => getStreamInfoFn(...a),
+  playbackServiceGetStreamInfo: (...a: [string, unknown]) => askStreamInfoFn(...a),
   playbackServiceStartStream: startStreamFn,
 }));
 // The browser's output ceiling (stereo speakers here) - the same reading
@@ -34,6 +37,10 @@ describe("usePlaySession", () => {
     startStreamFn.mockReturnValue(Promise.resolve({ id: "session-123" }));
     fetchStreamTokenFn.mockClear();
     fetchStreamTokenFn.mockReturnValue(Promise.resolve("stream-tok-abc"));
+    getStreamInfoFn.mockReset();
+    getStreamInfoFn.mockImplementation(() => ({ data: { directPlayUrl: "/original-url", videoCodec: "h264" } }));
+    askStreamInfoFn.mockReset();
+    askStreamInfoFn.mockImplementation(() => Promise.resolve({}));
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true } as Response)));
     vi.resetModules();
   });
@@ -143,6 +150,84 @@ describe("usePlaySession", () => {
       renderHook(() => usePlaySession("media-4"));
     });
     expect(getStreamInfoFn).toHaveBeenCalledWith("media-4", expect.objectContaining({ maxAudioChannels: 2 }));
+  });
+
+  // Two audio tracks, the AAC flagged default: the first verdict, asked
+  // without a track, is the AAC's.
+  const TWO_TRACKS = {
+    playMethod: "PLAY_METHOD_DIRECT_PLAY",
+    audioDecision: "copy",
+    mediaStreams: [
+      { index: 0, type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264" },
+      { index: 1, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", channels: 2, isDefault: true },
+      { index: 2, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "dts", channels: 6 },
+    ],
+  };
+
+  // The track chosen on the title page rides the first negotiation, as on the
+  // native players: asked without it, the server judged the default track.
+  it("asks the first verdict for the audio track picked before playback", async () => {
+    const usePlaySession = await loadHook("");
+    await act(async () => {
+      renderHook(() => usePlaySession("media-5", undefined, { audioStreamIndex: 2 }));
+    });
+    expect(getStreamInfoFn).toHaveBeenCalledWith("media-5", expect.objectContaining({ audioStreamIndex: 2 }));
+  });
+
+  it("asks the verdict again for the track the viewer switches to, and exposes that one", async () => {
+    getStreamInfoFn.mockReturnValue({ data: { ...TWO_TRACKS } as never });
+    askStreamInfoFn.mockResolvedValueOnce({ ...TWO_TRACKS, playMethod: "PLAY_METHOD_TRANSCODE", audioDecision: "transcode" });
+    const usePlaySession = await loadHook("");
+    let result: { current: ReturnType<typeof usePlaySession> };
+    await act(async () => {
+      result = renderHook(() => usePlaySession("media-6")).result;
+    });
+    await act(async () => {
+      result.current.selectAudioStream(2);
+    });
+    // Same declaration as the first verdict, the track added.
+    expect(askStreamInfoFn).toHaveBeenCalledWith("media-6", expect.objectContaining({ audioStreamIndex: 2, maxAudioChannels: 2 }));
+    expect(result!.current.streamInfo?.audioDecision).toBe("transcode");
+    expect(result!.current.streamInfo?.playMethod).toBe("PLAY_METHOD_TRANSCODE");
+    // A new verdict is not a new play session.
+    expect(startStreamFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not ask again for the track the verdict already describes", async () => {
+    getStreamInfoFn.mockReturnValue({ data: { ...TWO_TRACKS } as never });
+    const usePlaySession = await loadHook("");
+    let result: { current: ReturnType<typeof usePlaySession> };
+    await act(async () => {
+      result = renderHook(() => usePlaySession("media-7")).result;
+    });
+    await act(async () => {
+      result.current.selectAudioStream(1);
+    });
+    expect(askStreamInfoFn).not.toHaveBeenCalled();
+  });
+
+  // Two quick picks: the answer for the track the viewer has already left
+  // lands last and must not win.
+  it("drops the answer for a track the viewer has since left", async () => {
+    getStreamInfoFn.mockReturnValue({ data: { ...TWO_TRACKS } as never });
+    let answerFirst: (v: unknown) => void = () => {};
+    askStreamInfoFn.mockImplementationOnce(() => new Promise((r) => { answerFirst = r; }));
+    const usePlaySession = await loadHook("");
+    let result: { current: ReturnType<typeof usePlaySession> };
+    await act(async () => {
+      result = renderHook(() => usePlaySession("media-8")).result;
+    });
+    await act(async () => {
+      result.current.selectAudioStream(2);
+    });
+    // Back on the default track: the first verdict describes it again.
+    await act(async () => {
+      result.current.selectAudioStream(1);
+    });
+    await act(async () => {
+      answerFirst({ ...TWO_TRACKS, audioDecision: "transcode" });
+    });
+    expect(result!.current.streamInfo?.audioDecision).toBe("copy");
   });
 
   it("exposes streamToken and fetchStreamToken", async () => {

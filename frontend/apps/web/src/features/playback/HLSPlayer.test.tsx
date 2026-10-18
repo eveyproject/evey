@@ -37,6 +37,7 @@ class MockHls {
   destroy = vi.fn();
   startLoad = vi.fn();
   audioTrack = 0;
+  audioTracks: unknown[] = [];
   subtitleTrack = -1;
   subtitleDisplay = false;
   subtitleTracks: unknown[] = [];
@@ -116,8 +117,13 @@ vi.mock("@/utils/codec", () => ({
   }),
 }));
 
+// Captured so a test can pick an audio track the way the menu does.
+let lastControlsProps: { onAudioChange?: (index: number) => void } | null = null;
 vi.mock("./PlayerControls", () => ({
-  PlayerControls: () => <div data-testid="player-controls" />,
+  PlayerControls: (props: { onAudioChange?: (index: number) => void }) => {
+    lastControlsProps = props;
+    return <div data-testid="player-controls" />;
+  },
 }));
 
 // Captured so a test can drive the admin-message path the reporter feeds.
@@ -565,5 +571,113 @@ describe("HLSPlayer: transcode rung pinning", () => {
     // startLoad picks the FIRST playlist from startLevel, not currentLevel: left
     // at -1 it fetched level 0 and the server opened a 480p rafale nobody read.
     expect(hls.startLevel).toBe(2);
+  });
+});
+
+// The verdict follows the track the viewer listens to: the session asks the
+// server again for it, and the player only reloads when that verdict moves
+// the title between the file and the HLS master.
+describe("HLSPlayer: audio track verdict", () => {
+  const AUDIO = [
+    { index: 1, trackIndex: 0, codec: "aac", language: "fre", isDefault: true },
+    { index: 2, trackIndex: 1, codec: "dts", language: "eng" },
+  ];
+  const MEDIA_STREAMS = [
+    { index: 0, type: "MEDIA_STREAM_TYPE_VIDEO", codec: "h264" },
+    { index: 1, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "aac", isDefault: true },
+    { index: 2, type: "MEDIA_STREAM_TYPE_AUDIO", codec: "dts" },
+  ];
+  const DIRECT = {
+    ...DEFAULT_STREAM_INFO,
+    playMethod: "PLAY_METHOD_DIRECT_PLAY",
+    directPlayUrl: "/api/v1/media/media-1/stream?token=test",
+    mediaStreams: MEDIA_STREAMS,
+  };
+  // The session hands the HLS master in directPlayUrl too (usePlaySession).
+  const HLS = {
+    ...DEFAULT_STREAM_INFO,
+    playMethod: "PLAY_METHOD_TRANSCODE",
+    directPlayUrl: "/api/v1/media/media-1/hls/master.m3u8?token=test",
+    mediaStreams: MEDIA_STREAMS,
+  };
+
+  function mount(streamInfo: object, onAudioStreamChange = vi.fn()) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const element = (info: object) => (
+      <QueryClientProvider client={qc}>
+        <HLSPlayer
+          streamInfo={info as never}
+          sessionId="session-1"
+          mediaId="media-1"
+          streamToken="test-token"
+          onStreamTokenRefresh={() => Promise.resolve("new-token")}
+          audioStreams={AUDIO}
+          onAudioStreamChange={onAudioStreamChange}
+        />
+      </QueryClientProvider>
+    );
+    const view = render(element(streamInfo));
+    const video = document.querySelector("video")!;
+    let ct = 0;
+    Object.defineProperty(video, "currentTime", { configurable: true, get: () => ct, set: (v: number) => { ct = v; } });
+    return {
+      onAudioStreamChange,
+      video,
+      rerender: (info: object) => view.rerender(element(info)),
+      playAt: (sec: number) => { ct = sec; video.dispatchEvent(new Event("timeupdate")); },
+    };
+  }
+
+  it("asks the session for the verdict of the track the viewer switches to", () => {
+    const { onAudioStreamChange } = mount(HLS);
+    lastHlsInstance!.audioTracks = [{}, {}];
+    act(() => { lastControlsProps?.onAudioChange?.(2); });
+    expect(onAudioStreamChange).toHaveBeenLastCalledWith(2);
+  });
+
+  it("moves onto the HLS master at the playhead when the new track's verdict leaves direct play", () => {
+    const { rerender, playAt } = mount(DIRECT);
+    expect(lastHlsInstance).toBeNull();
+    playAt(42);
+    act(() => { lastControlsProps?.onAudioChange?.(2); });
+    act(() => { rerender({ ...HLS }); });
+    expect(lastHlsInstance).toBeTruthy();
+    const url = lastHlsInstance!.loadSource.mock.calls.at(-1)![0] as string;
+    expect(url).toContain("/api/v1/media/media-1/hls/master.m3u8");
+    expect(url).toContain("audioTrack=1");
+    expect(url).toContain("startSec=42");
+  });
+
+  it("keeps the file playing when the new track's verdict is still direct play", () => {
+    const { rerender, video } = mount(DIRECT);
+    const play = HTMLMediaElement.prototype.play as unknown as ReturnType<typeof vi.fn>;
+    const loads = play.mock.calls.length;
+    act(() => { rerender({ ...DIRECT, audioDecision: "copy" }); });
+    expect(play.mock.calls.length).toBe(loads);
+    expect(video.src).toContain("/api/v1/media/media-1/stream");
+    expect(lastHlsInstance).toBeNull();
+  });
+
+  it("goes back to the file at the playhead when the verdict for its own track is direct play again", () => {
+    const { rerender, playAt, video } = mount(HLS);
+    const hls = lastHlsInstance!;
+    playAt(73);
+    act(() => { rerender({ ...DIRECT }); });
+    expect(hls.destroy).toHaveBeenCalled();
+    expect(video.src).toContain("/api/v1/media/media-1/stream");
+    expect(video.currentTime).toBe(73);
+  });
+
+  // The browser opens a file on its own default audio and most cannot switch
+  // it: going back to the file for any other track would play the wrong one.
+  it("stays on the HLS master when the direct-play verdict is for a track the file does not open on", () => {
+    const { rerender } = mount(HLS);
+    const hls = lastHlsInstance!;
+    // Both tracks are renditions of the master: the switch is hls.audioTrack.
+    hls.audioTracks = [{}, {}];
+    act(() => { lastControlsProps?.onAudioChange?.(2); });
+    act(() => { rerender({ ...DIRECT }); });
+    expect(hls.destroy).not.toHaveBeenCalled();
+    expect(lastHlsInstance).toBe(hls);
   });
 });

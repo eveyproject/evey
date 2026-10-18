@@ -9,6 +9,7 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { firstStartMs } from "../lib/resumePosition";
 import { isShedCode, type ShedReason } from "../lib/shed";
+import { pickedAudioStream } from "../lib/pickedAudioStream";
 import { getDeviceAudioCodecs, getDeviceMaxH264Level, getFmp4AudioPassthrough, getPlayerAudioCodecs } from "./deviceCodecs";
 
 // The play session of the two native players (phone and television). They
@@ -196,15 +197,6 @@ export function playerDecodesCopiedAudio(
   if (playerCodecs.length === 0 || info.audioDecision !== "copy") return false;
   const picked = pickedAudioStream(info, audioStreamIndex);
   return picked?.codec != null && playerCodecs.includes(picked.codec);
-}
-
-// The audio track the master will serve: the picked one, else the
-// default-flagged one, else the first.
-function pickedAudioStream(info: V1StreamInfo, audioStreamIndex: number | undefined) {
-  const audio = (info.mediaStreams ?? []).filter((s) => s.type === "MEDIA_STREAM_TYPE_AUDIO");
-  return audioStreamIndex != null && audioStreamIndex > 0
-    ? audio.find((s) => s.index === audioStreamIndex)
-    : (audio.find((s) => s.isDefault) ?? audio[0]);
 }
 
 /**

@@ -55,7 +55,7 @@ import { useOverlayTime } from "./hooks/useOverlayTime";
 import { useCasting } from "@/hooks/useCasting";
 import { useRemotePlayback } from "@/hooks/useRemotePlayback";
 // Admin message on screen: the same 12 s as the other players and the cast receiver.
-import { ADMIN_MESSAGE_MS, servedVariant, usePlayerProfilePrefs } from "@evey/client";
+import { ADMIN_MESSAGE_MS, pickedAudioStream, servedVariant, usePlayerProfilePrefs } from "@evey/client";
 
 
 export type { AudioStream, SubtitleStream };
@@ -89,6 +89,10 @@ interface HLSPlayerProps {
   // and count as a manual pick, so the profile preference never undoes them.
   initialAudioIndex?: number;
   initialSubtitle?: number | "off";
+  // The audio track now playing (absolute stream index), so the session asks
+  // the server's verdict for it: the one in streamInfo was asked for the track
+  // playback opened on.
+  onAudioStreamChange?: (audioStreamIndex: number) => void;
   title?: string;
   onClose?: () => void;
   seasons?: SeasonNavItem[];
@@ -124,6 +128,7 @@ export function HLSPlayer({
   subtitleStreams = [],
   initialAudioIndex,
   initialSubtitle,
+  onAudioStreamChange,
   title,
   onClose,
   seasons,
@@ -176,6 +181,16 @@ export function HLSPlayer({
   const [transcodeMode, setTranscodeMode] = useState(
     streamInfo.playMethod !== "PLAY_METHOD_DIRECT_PLAY"
   );
+  // The file failed to play here once (useDirectPlayback fell back to HLS):
+  // a later direct-play verdict must not send the player back to it.
+  const directFailedRef = useRef(false);
+  const fallBackFromDirect = useCallback((v: boolean) => {
+    if (v) directFailedRef.current = true;
+    setTranscodeMode(v);
+  }, []);
+  // Set when the player moves onto the file DURING playback: the file then
+  // opens at the playhead, not at the position playback started from.
+  const directAtPlayheadRef = useRef(false);
 
   // The running profile, its languages and its "auto-play next episode"
   // choice: the same reading on every player (usePlayerProfilePrefs).
@@ -251,6 +266,39 @@ export function HLSPlayer({
   // subtitle/offset change) read this ref back to build the URL and re-select
   // the rendition - without it they would replay the previous track.
   const audioTrackOverrideRef = useRef<number | null>(null);
+
+  const onAudioStreamChangeRef = useRef(onAudioStreamChange);
+  onAudioStreamChangeRef.current = onAudioStreamChange;
+  useEffect(() => {
+    if (currentAudioIndex > 0) onAudioStreamChangeRef.current?.(currentAudioIndex);
+  }, [currentAudioIndex]);
+
+  // A new verdict for the track now playing can move the title between the
+  // file and the HLS master; the player then reloads on the new source at the
+  // playhead, as the native players restart on theirs. Within the same mode
+  // the track switch already made stays (no reload). Adjusted during render,
+  // so the file's effect never loads a master URL meant for hls.js.
+  const verdictTranscode = streamInfo.playMethod !== "PLAY_METHOD_DIRECT_PLAY";
+  const [prevVerdictTranscode, setPrevVerdictTranscode] = useState(verdictTranscode);
+  if (prevVerdictTranscode !== verdictTranscode) {
+    setPrevVerdictTranscode(verdictTranscode);
+    if (verdictTranscode && !transcodeMode) {
+      // currentTrackIndex already follows the pick on the file's path.
+      setTranscodeMode(true);
+    } else if (!verdictTranscode && transcodeMode && !directFailedRef.current) {
+      // The browser opens a file on its own default audio and most cannot
+      // switch it (no audioTracks): only that track goes back to the file,
+      // any other stays on the master, which serves the pick.
+      const fileTrack = pickedAudioStream(streamInfo, undefined);
+      if (fileTrack?.index === currentAudioIndex) {
+        const stream = audioStreams.find((a) => a.index === currentAudioIndex);
+        if (stream) setCurrentTrackIndex(stream.trackIndex);
+        audioTrackOverrideRef.current = null;
+        directAtPlayheadRef.current = true;
+        setTranscodeMode(false);
+      }
+    }
+  }
 
   // Height of the wanted rung, readable without a re-render: the hook pins it
   // INSIDE MANIFEST_PARSED, before the first fragment. The sync effect below
@@ -681,8 +729,8 @@ export function HLSPlayer({
   useDirectPlayback({
     videoRef, positionRef, streamInfo, startPositionMs,
     transcodeMode, onEnded,
-    setTranscodeMode, setIsBuffering: setIsBufferingDebounced,
-    streamTokenRef, onStreamTokenRefreshRef,
+    setTranscodeMode: fallBackFromDirect, setIsBuffering: setIsBufferingDebounced,
+    streamTokenRef, onStreamTokenRefreshRef, atPlayheadRef: directAtPlayheadRef,
   });
 
   // Live A/V and subtitle resync. Subtitles shift the LOADED cues client-side
