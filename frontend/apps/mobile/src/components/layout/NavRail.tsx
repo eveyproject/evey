@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { View, Pressable, StyleSheet, ScrollView } from "react-native";
 import { router, usePathname } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
@@ -29,6 +30,7 @@ export function NavRail({ mode }: { mode: "main" | "admin" }) {
   const { open } = useDrawer();
   const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const logoRef = useRef<View>(null);
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const { data: requestPolicy } = useMediaRequestServiceGetRequestPolicy();
   const pluginAdminEntries = usePluginSlotEntries("admin.nav");
@@ -72,7 +74,8 @@ export function NavRail({ mode }: { mode: "main" | "admin" }) {
       ]}
     >
       <Pressable
-        onPress={open}
+        ref={logoRef}
+        onPress={() => open(logoRef.current)}
         style={styles.logoBtn}
         accessible={true}
         accessibilityLabel={t("common.nav.expandSidebar", "Expand sidebar")}

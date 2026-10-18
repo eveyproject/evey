@@ -96,9 +96,9 @@ describe("NavRail", () => {
     expect(pushMock).toHaveBeenCalledWith("/(auth)/(tabs)/");
   });
 
-  it("the brand mark expands the full drawer", () => {
+  it("the brand mark expands the full drawer and names itself as the control to refocus", () => {
     render(<NavRail mode="main" />);
     fireEvent.click(screen.getByLabelText("Expand sidebar"));
-    expect(openMock).toHaveBeenCalled();
+    expect(openMock).toHaveBeenCalledWith(screen.getByLabelText("Expand sidebar"));
   });
 });

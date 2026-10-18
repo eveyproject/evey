@@ -103,7 +103,7 @@ export function isMainLinkActive(pathname: string, href: string): boolean {
 export function SideDrawer() {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { isOpen, close, translateX } = useDrawer();
+  const { isOpen, close, dismiss, translateX } = useDrawer();
   const pathname = usePathname();
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const { data: requestPolicy } = useMediaRequestServiceGetRequestPolicy();
@@ -149,9 +149,15 @@ export function SideDrawer() {
   }
 
   return (
-    <Modal transparent animationType="none" visible={isOpen} onRequestClose={close}>
-      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={close} accessible accessibilityLabel={t("common.close", "Close")} accessibilityRole="button" />
+    // onRequestClose carries Back and a hardware keyboard's Escape on Android.
+    <Modal transparent animationType="none" visible={isOpen} onRequestClose={dismiss}>
+      <Pressable style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]} onPress={dismiss} accessible accessibilityLabel={t("common.close", "Close")} accessibilityRole="button" />
       <Animated.View
+        // Trap the screen reader inside the tray: a transparent iOS modal
+        // leaves the screen behind it reachable. The backdrop falls outside the
+        // trap, so VoiceOver's escape gesture is its way out.
+        accessibilityViewIsModal={true}
+        onAccessibilityEscape={dismiss}
         style={[
           styles.drawer,
           {
