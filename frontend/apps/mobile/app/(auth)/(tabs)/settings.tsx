@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { View, Text, ScrollView, Pressable, Alert, TextInput, Switch, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ScrollView, Pressable, Alert, TextInput, Switch, ActivityIndicator, StyleSheet, Linking } from "react-native";
 import { Image } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ImagePicker from "expo-image-picker";
@@ -16,6 +16,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { supportedLanguages } from "../../../src/i18n";
 import { ThemeSelector } from "../../../src/components/ThemeSelector";
+import { wikiUrl } from "@evey/client";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 
 function ChevronRight({ color }: { color: string }) {
@@ -510,6 +511,8 @@ export default function SettingsScreen() {
       <Text style={s.sectionTitle}>{t("mobile.settings.about")}</Text>
       <View style={s.section}>
         <View style={s.row}><Text style={s.label}>{t("mobile.settings.appVersion")}</Text><Text style={s.value}>{appVersion}</Text></View>
+        {/* The store listing and the app both have to point at the policy. */}
+        <Pressable style={s.row} onPress={() => { Linking.openURL(wikiUrl(i18n.language, "privacy/")).catch(() => {}); }} accessible={true} accessibilityLabel={t("mobile.settings.privacyPolicy")} accessibilityRole="link"><Text style={s.label}>{t("mobile.settings.privacyPolicy")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
     </ScrollView>
   );

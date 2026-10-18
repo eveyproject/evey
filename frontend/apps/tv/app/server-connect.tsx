@@ -11,14 +11,11 @@ import { scanLocalNetwork, type DiscoveredServer } from "../src/lib/network-scan
 import { onResultPicked, onScanStarted, rowClaimsFocus, scanFocusIdle } from "../src/lib/scanFocus";
 import { interpolateFallback } from "../src/i18n/interpolateFallback";
 import { useTheme } from "../src/providers/ThemeProvider";
+import { wikiUrl } from "@evey/client";
 
-// Wiki help for novices, in the viewer's language when it is published there
-// (only non-default locales need listing; everything else is the English root).
-const WIKI_LOCALES = new Set(["fr"]);
+// Wiki help for novices, in the viewer's language when it is published there.
 function serverHelpUrl(lang: string): string {
-  const code = (lang || "en").split("-")[0];
-  const prefix = WIKI_LOCALES.has(code) ? `/${code}` : "";
-  return `https://eveyproject.org${prefix}/getting-started/apps/`;
+  return wikiUrl(lang, "getting-started/apps/");
 }
 
 export default function ServerConnect() {

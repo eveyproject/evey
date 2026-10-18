@@ -30,6 +30,7 @@ settings:
   signOutConfirm: क्या आप सुनिश्चित हैं?
   about: जानकारी
   appVersion: ऐप संस्करण
+  privacyPolicy: गोपनीयता नीति
   serverVersion: सर्वर संस्करण
   switchProfile: "प्रोफ़ाइल बदलें"
   uiScale: "इंटरफ़ेस का आकार"

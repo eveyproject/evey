@@ -273,6 +273,12 @@ describe("SettingsScreen (TV) profile menu parity", () => {
     expect(screen.getByText("gravity")).toBeTruthy();
   });
 
+  // Play requires the policy inside the app too; a non-admin profile sees it.
+  it("shows where the privacy policy lives, to every profile", () => {
+    render(<SettingsScreen />);
+    expect(screen.getByText("https://eveyproject.org/privacy/")).toBeTruthy();
+  });
+
   it("offers my statistics, and opens the screen", () => {
     render(<SettingsScreen />);
     fireEvent.click(screen.getByLabelText("My statistics"));

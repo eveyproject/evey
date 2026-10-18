@@ -30,6 +30,7 @@ settings:
   signOutConfirm: Sind Sie sicher?
   about: Über
   appVersion: App-Version
+  privacyPolicy: Datenschutzerklärung
   serverVersion: Serverversion
   switchProfile: Profil wechseln
   uiScale: "Größe der Oberfläche"
