@@ -339,9 +339,17 @@ func TestActivityHandler_ListServerMetrics_BucketsAWeekAndDrawsTheDiskLine(t *te
 	assert.InDelta(t, 20, resp.SaturationAwaitMs, 1e-6, "2.5 x 6 ms is under the 20 ms floor")
 
 	resp, err = h.ListServerMetrics(context.Background(), &eveyv1.ListServerMetricsRequest{
-		From: timestamppb.New(now.Add(-7 * 24 * time.Hour)), To: timestamppb.New(now), IntervalSeconds: 60,
+		From: timestamppb.New(now.Add(-24 * time.Hour)), To: timestamppb.New(now), IntervalSeconds: 60,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, int32(60), resp.IntervalSeconds, "a requested width is honoured")
 	assert.Len(t, resp.Metrics, 2)
+
+	// A week at one minute is 10 080 buckets, past the 10 000 rows a read
+	// returns oldest first: the last 80 minutes were cut. The width is widened.
+	resp, err = h.ListServerMetrics(context.Background(), &eveyv1.ListServerMetricsRequest{
+		From: timestamppb.New(now.Add(-7 * 24 * time.Hour)), To: timestamppb.New(now), IntervalSeconds: 60,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int32(120), resp.IntervalSeconds, "a width too fine for the window is widened")
 }
