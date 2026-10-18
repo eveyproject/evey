@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Text, Pressable, StyleSheet, ActivityIndicator, View } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,8 +9,9 @@ import { BottomSheet } from "../../../../src/components/BottomSheet";
 import { useTheme } from "../../../../src/providers/ThemeProvider";
 import { FONT_SIZE } from "@evey/theme";
 
+// 0 is "no cap"; its label is translated, the Mbps figures are not.
 const BITRATE_OPTIONS = [
-  { label: "Unlimited", value: 0 },
+  { label: null, value: 0 },
   { label: "1 Mbps", value: 1000 },
   { label: "2 Mbps", value: 2000 },
   { label: "4 Mbps", value: 4000 },
@@ -30,7 +32,8 @@ export function BitrateModal({ user, visible, onClose }: BitrateModalProps) {
   const qc = useQueryClient();
 
   const queryKey = ["/api/v1/admin/users", user.id, "bitrate-limit"];
-  const { data: currentLimit, isLoading } = useQuery<{ max_bitrate_kbps: number }>({
+  const [pending, setPending] = useState(false);
+  const { data: currentLimit, isLoading, isError, refetch } = useQuery<{ max_bitrate_kbps: number }>({
     queryKey,
     queryFn: () =>
       eveyFetch<{ max_bitrate_kbps: number }>({
@@ -41,6 +44,8 @@ export function BitrateModal({ user, visible, onClose }: BitrateModalProps) {
   });
 
   async function handleSelect(value: number) {
+    if (pending) return;
+    setPending(true);
     try {
       await eveyFetch<void>({
         url: `/api/v1/admin/users/${user.id}/bitrate-limit`,
@@ -52,6 +57,8 @@ export function BitrateModal({ user, visible, onClose }: BitrateModalProps) {
       onClose();
     } catch {
       toast.error(t("admin.users.failedBitrate", "Failed to update bitrate limit"));
+    } finally {
+      setPending(false);
     }
   }
 
@@ -65,20 +72,30 @@ export function BitrateModal({ user, visible, onClose }: BitrateModalProps) {
     >
       {isLoading ? (
         <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 24 }} />
+      ) : isError ? (
+        // A failed read is not "no cap": falling through to 0 ticked Unlimited.
+        <View style={styles.error}>
+          <Text style={[styles.label, { color: theme.colors.textMuted }]}>{t("common.loadError", "Failed to load")}</Text>
+          <Pressable onPress={() => refetch()} accessibilityRole="button" accessibilityLabel={t("common.retry", "Retry")} hitSlop={8}>
+            <Text style={[styles.label, { color: theme.colors.accent, flex: 0 }]}>{t("common.retry", "Retry")}</Text>
+          </Pressable>
+        </View>
       ) : (
         <View>
           {BITRATE_OPTIONS.map((opt) => {
             const active = activeValue === opt.value;
+            const label = opt.label ?? t("auth.settings.playback.bitrateUnlimited", "Unlimited");
             return (
               <Pressable
                 key={opt.value}
-                style={[styles.row, { borderBottomColor: theme.colors.border }]}
+                style={[styles.row, { borderBottomColor: theme.colors.border, opacity: pending ? 0.5 : 1 }]}
                 onPress={() => handleSelect(opt.value)}
+                disabled={pending}
                 accessibilityRole="button"
-                accessibilityLabel={opt.label}
+                accessibilityLabel={label}
               >
                 <Text style={[styles.label, { color: theme.colors.text }, active && { color: theme.colors.accent }]}>
-                  {opt.label}
+                  {label}
                 </Text>
                 {active && <Text style={[styles.check, { color: theme.colors.accent }]}>{"✓"}</Text>}
               </Pressable>
@@ -101,6 +118,12 @@ const styles = StyleSheet.create({
   label: {
     fontSize: FONT_SIZE.sm,
     flex: 1,
+  },
+  error: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
   },
   check: {
     fontSize: FONT_SIZE.lg,
