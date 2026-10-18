@@ -170,3 +170,14 @@ func TestClientProfileFromRequest_DropsEAC3ForTheSilentBuilds(t *testing.T) {
 	got = clientProfileFromRequest(only, "EveyTV/0.1.10 (Android TV 14; Chromecast HD)")
 	assert.Equal(t, transcoding.DefaultWebProfile.AudioCodecs, got.AudioCodecs)
 }
+
+// The pixel-format declaration reaches the profile in the master's vocabulary
+// (the same NormalizePixelFormats ?pixelFormats= goes through), and a
+// declaration with nothing usable in it is no declaration at all.
+func TestClientProfileFromRequest_PixelFormats(t *testing.T) {
+	got := clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{SupportedPixelFormats: []string{"yuv420p", "yuv422p10le", "h265:p010le"}}, "")
+	assert.Equal(t, []string{"yuv420p", "yuv422p10", "hevc:yuv420p10"}, got.PixelFormats)
+
+	got = clientProfileFromRequest(&eveyv1.GetStreamInfoRequest{SupportedPixelFormats: []string{"", " "}}, "")
+	assert.Nil(t, got.PixelFormats, "an empty declaration keeps the built-in rule")
+}

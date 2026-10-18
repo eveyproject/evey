@@ -24,9 +24,11 @@ func bakeClientInputs(r *http.Request, in *apptranscoding.ManifestInput) {
 	in.AudioCodecs = domaintranscoding.WithoutBrokenPlayerCodecs(r.UserAgent(), splitCSVQuery(r, "audioCodecs"))
 	in.Containers = splitCSVQuery(r, "containers")
 	in.FMP4AudioPassthrough = splitCSVQuery(r, "fmp4AudioPassthrough")
+	in.PixelFormats = domaintranscoding.NormalizePixelFormats(splitCSVQuery(r, "pixelFormats"))
 	in.HDRCapable = hdrQuerySupported(r)
 	in.MaxAudioChannels = maxAudioChannelsQuery(r)
 	in.ScreenHeight = parseIntQuery(r, "screenHeight", 0)
 	in.MaxHeight = parseIntQuery(r, "maxHeight", 0)
 	in.MaxH264Level = parseIntQuery(r, "maxH264Level", 0)
+	in.NetworkType = networkTypeQuery(r)
 }

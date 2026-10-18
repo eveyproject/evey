@@ -310,6 +310,7 @@ func (h *hlsVODServe) decide(ctx context.Context, streams []*domainlibrary.Media
 func (h *hlsVODServe) decideWith(ctx context.Context, streams []*domainlibrary.MediaStream, container, sourcePath string, sourceKbps int64, r *http.Request, audioTrack *int) domaintranscoding.PlaybackDecision {
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := h.profilePrefsFor(ctx, claims.ProfileID)
+	prefs.NetworkType = networkTypeQuery(r)
 	selected := h.resolveAudioTrackWith(r, streams, prefs)
 	// The ad= pin is minted ONCE, from the verdict of the track the request
 	// selected, and then rides every child URL. A judgement about ANOTHER

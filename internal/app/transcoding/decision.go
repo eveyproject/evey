@@ -190,6 +190,16 @@ func (p TranscodingPreferences) EffectiveMaxBitrateKbps() int {
 	return p.MaxBitrateKbps
 }
 
+// NormalizeNetworkType is the ONE reading of a client's network hint, shared
+// by GetStreamInfo (network_type) and the HLS master (?networkType): "cellular"
+// is the only value that changes anything, everything else is Wi-Fi.
+func NormalizeNetworkType(raw string) string {
+	if raw == "cellular" {
+		return "cellular"
+	}
+	return "wifi"
+}
+
 // ParseTranscodingPreferences extracts transcoding prefs from a profile.Preferences map.
 // Missing keys default to permissive values (allow_* = true, codec = auto).
 func ParseTranscodingPreferences(prefs map[string]string) TranscodingPreferences {
@@ -424,7 +434,7 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		d.VideoDecision = "transcode"
 	}
 
-	if !pixelFormatPlayable(s.Codec, s.BitDepth, s.PixelFormat) {
+	if !pixelFormatPlayable(s.Codec, s.BitDepth, s.PixelFormat, client) {
 		addReasonOnce(d, "pixel_format_unsupported")
 		d.VideoDecision = "transcode"
 	}
@@ -467,10 +477,12 @@ func doViBaseLayerIsHDR10(profile *int) bool {
 	return profile != nil && *profile == 7
 }
 
-// pixelFormatPlayable: browsers decode 8-bit 4:2:0 H.264 and up to 10-bit 4:2:0
-// HEVC/VP9/AV1. Hi10P anime, 4:2:2 captures and 12-bit masters must transcode.
-// Unknown depth/format (older probes) is trusted.
-func pixelFormatPlayable(codec string, bitDepth *int, pixFmt *string) bool {
+// pixelFormatPlayable: a client that declares its pixel formats
+// (ClientProfile.PixelFormats) is judged on them. Otherwise the browser rule:
+// browsers decode 8-bit 4:2:0 H.264 and up to 10-bit 4:2:0 HEVC/VP9/AV1, so
+// Hi10P anime, 4:2:2 captures and 12-bit masters must transcode. Unknown
+// depth/format (older probes) is trusted either way.
+func pixelFormatPlayable(codec string, bitDepth *int, pixFmt *string, client transcoding.ClientProfile) bool {
 	pf := ""
 	if pixFmt != nil {
 		pf = strings.ToLower(strings.TrimSpace(*pixFmt))
@@ -478,6 +490,10 @@ func pixelFormatPlayable(codec string, bitDepth *int, pixFmt *string) bool {
 	depth := 0
 	if bitDepth != nil {
 		depth = *bitDepth
+	}
+	if len(client.PixelFormats) > 0 {
+		family := transcoding.SourcePixelFormat(pf, depth)
+		return family == "" || client.DecodesPixelFormat(codec, family)
 	}
 	if pf != "" && !strings.HasPrefix(pf, "yuv420p") && !strings.HasPrefix(pf, "yuvj420p") && pf != "nv12" && pf != "p010le" {
 		return false

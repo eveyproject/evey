@@ -73,6 +73,12 @@ type ManifestInput struct {
 	// advertise mp4a.6B over segments carrying AAC-LC.
 	FMP4AudioPassthrough []string
 
+	// PixelFormats is the client's pixel-format declaration (?pixelFormats),
+	// a video DECISION INPUT like the codec lists: a segment that lost it
+	// would re-judge the source on the browser rule and flip copy/transcode
+	// under the master. Empty for every client that declares nothing.
+	PixelFormats []string
+
 	// UseFMP4 picks the segment container: fMP4 (`.m4s` + `stream_N_init.mp4`)
 	// when true, MPEG-TS (`.ts`) when false. fMP4 is default in production -
 	// segments are ~30% smaller and CMAF-style aligns with hls.js modern path.
@@ -184,6 +190,11 @@ type ManifestInput struct {
 	ScreenHeight int
 	MaxHeight    int
 	MaxH264Level int
+	// NetworkType (?networkType) brings the profile's cellular bitrate cap into
+	// the decision: a segment that lost it would re-decide a copy at the source
+	// bitrate under a master that advertised a capped ladder. Only "cellular"
+	// is baked; Wi-Fi (the default) leaves every URI as it was.
+	NetworkType string
 
 	// MaxAudioChannels is the client's declared channel CEILING (?maxAudioChannels).
 	// A decision input on the audio-rendition path exactly like the codec lists,
@@ -968,6 +979,9 @@ func querySuffix(in ManifestInput) string {
 		// re-derives a re-encode under a master that promised a passthrough.
 		q.Set("fmp4AudioPassthrough", strings.Join(in.FMP4AudioPassthrough, ","))
 	}
+	if len(in.PixelFormats) > 0 {
+		q.Set("pixelFormats", strings.Join(in.PixelFormats, ","))
+	}
 	if in.HDRCapable {
 		// Decision input like the codec lists: dropping it flips the segment
 		// decision from copy to tonemap-transcode mid-presentation (see field doc).
@@ -981,6 +995,9 @@ func querySuffix(in ManifestInput) string {
 	}
 	if in.MaxH264Level > 0 {
 		q.Set("maxH264Level", fmt.Sprintf("%d", in.MaxH264Level))
+	}
+	if in.NetworkType == "cellular" {
+		q.Set("networkType", in.NetworkType)
 	}
 	if in.MaxAudioChannels > 0 {
 		// Audio-rendition decision input: without it the rendition falls back to

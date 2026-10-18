@@ -350,7 +350,8 @@ func (s *PlayabilityShadow) shouldLog(key string) bool {
 
 // mapClientProfileToTarget builds the mkvgo target from the SAME ClientProfile
 // the decision engine judges against. 10-bit HEVC/VP9 are declared decodable
-// because that is the decision's own rule (pixelFormatPlayable); Dolby Vision
+// because that is the decision's own rule (pixelFormatPlayable), unless the
+// client declared pixel formats without 10-bit 4:2:0 for them; Dolby Vision
 // stays unmapped (the decision's per-profile matrix has no ClientProfile
 // signal), so a DoVi-only "transcode" from mkvgo is an expected artifact.
 func mapClientProfileToTarget(client transcoding.ClientProfile) PlayabilityTarget {
@@ -363,9 +364,15 @@ func mapClientProfileToTarget(client transcoding.ClientProfile) PlayabilityTarge
 		MaxHeight:    client.MaxHeight,
 		HDR:          client.SupportsHDR,
 		MaxLevelH264: client.MaxH264Level,
-		HEVCMain10:   true,
-		VP9Profile2:  true,
+		HEVCMain10:   decodes10Bit420(client, "hevc"),
+		VP9Profile2:  decodes10Bit420(client, "vp9"),
 	}
+}
+
+// decodes10Bit420 is the decision's answer for a 10-bit 4:2:0 source of codec:
+// always yes under the built-in rule, the declaration's answer otherwise.
+func decodes10Bit420(client transcoding.ClientProfile, codec string) bool {
+	return len(client.PixelFormats) == 0 || client.DecodesPixelFormat(codec, "yuv420p10")
 }
 
 // unmappedCodecSignalReasons: the reason mkvgo emits for the one ops.Target

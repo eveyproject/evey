@@ -176,6 +176,7 @@ func (h *hlsVODServe) probePlan(r *http.Request, mediaID string, item *domainlib
 	}
 	claims := HTTPClaimsFromContext(r.Context())
 	prefs := h.profilePrefsFor(r.Context(), claims.ProfileID)
+	prefs.NetworkType = networkTypeQuery(r)
 	streams = h.warmKeyframesInline(r, mediaID, item, streams)
 	audioTrack := h.resolveAudioTrackWith(r, streams, prefs)
 	req := h.marshalPlaybackRequest(r, mediaID, item, streams, prefs, audioTrack)
