@@ -1,4 +1,4 @@
-import { ActivityIndicator, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useUserServiceListUsers } from "@evey/api";
@@ -12,7 +12,7 @@ export default function AdminEditUserRoute() {
   const { t } = useTranslation();
   const router = useRouter();
 
-  const { data, isLoading } = useUserServiceListUsers();
+  const { data, isLoading, isError, refetch } = useUserServiceListUsers();
   const user = data?.users?.find((u: { id?: string }) => u.id === id);
 
   return (
@@ -29,6 +29,14 @@ export default function AdminEditUserRoute() {
       {isLoading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator color={theme.colors.accent} size="large" />
+        </View>
+      ) : !user && isError ? (
+        // A list that failed to load says nothing about the user: not "not found".
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", gap: 12 }}>
+          <Text style={{ color: theme.colors.textMuted }}>{t("common.loadError", "Failed to load")}</Text>
+          <Pressable onPress={() => refetch()} accessibilityRole="button" hitSlop={8}>
+            <Text style={{ color: theme.colors.accent, fontWeight: "600" }}>{t("common.retry", "Retry")}</Text>
+          </Pressable>
         </View>
       ) : !user ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>

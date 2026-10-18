@@ -9,6 +9,7 @@ vi.mock("react-native", () => ({
   View: ({ children }: any) => React.createElement("div", null, children),
   Text: ({ children }: any) => React.createElement("span", null, children),
   ActivityIndicator: () => React.createElement("div", { "data-testid": "spinner" }),
+  Pressable: ({ children, onPress }: any) => React.createElement("button", { onClick: onPress }, children),
 }));
 const params = { current: { id: "u2" } };
 const back = vi.fn();
@@ -17,7 +18,8 @@ vi.mock("expo-router", () => ({
   useLocalSearchParams: () => params.current,
   useRouter: () => ({ back }),
 }));
-const users = { data: undefined as unknown, isLoading: false };
+const refetch = vi.fn();
+const users = { data: undefined as unknown, isLoading: false, isError: false, refetch };
 vi.mock("@evey/api", () => ({ useUserServiceListUsers: () => users }));
 vi.mock("../../../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", surface: "#111", text: "#fff", textMuted: "#888", accent: "#f00" } }),
@@ -40,6 +42,8 @@ beforeEach(() => {
   back.mockClear();
   users.data = { users: [{ id: "u1", username: "alice" }, { id: "u2", username: "bob" }] };
   users.isLoading = false;
+  users.isError = false;
+  refetch.mockClear();
 });
 
 describe("admin edit user screen (mobile)", () => {
@@ -66,5 +70,17 @@ describe("admin edit user screen (mobile)", () => {
     await renderScreen();
     expect(screen.getByText("User not found")).toBeTruthy();
     expect(screen.queryByTestId("editor")).toBeNull();
+  });
+
+  // A list that failed to load is not a missing user: it used to read
+  // "User not found" for a network error, with no way to try again.
+  it("offers a retry, not User not found, when the list fails to load", async () => {
+    users.data = undefined;
+    users.isError = true;
+    await renderScreen();
+    expect(screen.queryByText("User not found")).toBeNull();
+    expect(screen.getByText("Failed to load")).toBeTruthy();
+    fireEvent.click(screen.getByText("Retry"));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 });
