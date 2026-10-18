@@ -138,7 +138,9 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [shareOpen]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const { streamInfo, sessionId, streamToken, fetchStreamToken, isLoading, isError, progress, stopSession } = usePlaySession(mediaId);
+  // The track picked on the title page rides the first verdict.
+  const { streamInfo, sessionId, streamToken, fetchStreamToken, isLoading, isError, progress, stopSession, selectAudioStream } =
+    usePlaySession(mediaId, undefined, { audioStreamIndex: pickedAudio });
   const [loadingTimedOut, setLoadingTimedOut] = useState(false);
   useEffect(() => {
     if (!isLoading) { setLoadingTimedOut(false); return; }
@@ -375,6 +377,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             audioStreams={audioStreams}
             subtitleStreams={subtitleStreams}
             initialAudioIndex={pickedAudio}
+            onAudioStreamChange={selectAudioStream}
             initialSubtitle={pickedSubtitle}
             title={mediaItem?.title}
             onClose={handleClose}

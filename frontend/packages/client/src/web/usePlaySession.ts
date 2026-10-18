@@ -4,6 +4,7 @@ import {
   getCredentialsMode,
   usePlaybackServiceGetWatchProgress,
   usePlaybackServiceGetStreamInfo,
+  playbackServiceGetStreamInfo,
   playbackServiceStartStream,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
@@ -12,6 +13,7 @@ import { getBrowserCapabilities, canWasmDecodeAC3 } from "./codec";
 import { appendCodecParams, prefersNativeHLS, getFmp4AudioPassthrough } from "./hlsCodecParams";
 import { getMaxOutputChannels } from "./outputChannels";
 import { useStreamToken } from "../hooks/useStreamToken";
+import { pickedAudioStream } from "../lib/pickedAudioStream";
 
 // postStopStream tears down the server-side play session with a raw keepalive
 // fetch (not eveyFetch / react-query). It must fire reliably during teardown:
@@ -78,6 +80,19 @@ export interface PlaySessionResult {
   isError: boolean;
   progress: V1WatchProgress | null;
   stopSession: () => void;
+  /**
+   * The audio track the player now plays (absolute stream index). The verdict
+   * is asked again for it, as the native players do, so the decision, the
+   * served bitrate and the play method describe that track and not the one
+   * the first verdict was asked for. The play session itself is kept.
+   */
+  selectAudioStream: (audioStreamIndex: number) => void;
+}
+
+// The track chosen on the title page BEFORE playback (absolute stream index):
+// the first verdict is asked for it.
+export interface PlaySessionInitial {
+  audioStreamIndex?: number;
 }
 
 /**
@@ -87,8 +102,11 @@ export interface PlaySessionResult {
  * admin's Now Playing panel; the web app is the default, a television
  * browser says so.
  */
-export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_DEVICE): PlaySessionResult {
+export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_DEVICE, initial?: PlaySessionInitial): PlaySessionResult {
   const [sessionId, setSessionId] = useState<string | null>(null);
+  // The track the first verdict is asked for, fixed per title like the
+  // native initialRef: a later pick goes through selectAudioStream.
+  const initialAudioRef = useRef(initial?.audioStreamIndex);
   const sessionIdRef = useRef<string | null>(null);
   const stopped = useRef(false);
   const startedRef = useRef(false);
@@ -96,6 +114,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
   if (prevMediaIdRef.current !== mediaId) {
     prevMediaIdRef.current = mediaId;
     startedRef.current = false;
+    initialAudioRef.current = initial?.audioStreamIndex;
   }
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState(false);
@@ -103,6 +122,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
   const streamTokenRef = useRef<string | null>(null);
 
   const caps = useMemo(() => getBrowserCapabilities(), []);
+  const initialAudio = initialAudioRef.current;
   // No maxWidth/maxHeight: the screen size is NOT a decode capability. Sending
   // window.screen dims made the server flag resolution_exceeded and transcode
   // a 4K title for a 1366px laptop that decodes it natively (it should
@@ -127,21 +147,50 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
     // "copy 6ch" of a track the segments carried as AAC stereo. Omitted
     // (undefined) when the browser cannot probe its output, like the URL.
     maxAudioChannels: getMaxOutputChannels(),
-  }), [caps, device.wasmAudio]);
+    // Asked without it, the server judged the default track, not this one.
+    audioStreamIndex: initialAudio && initialAudio > 0 ? initialAudio : undefined,
+  }), [caps, device.wasmAudio, initialAudio]);
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
     query: { retry: false },
   });
   const { data: rawStreamInfo } = usePlaybackServiceGetStreamInfo(mediaId, streamInfoParams);
 
+  // The verdict asked again for a track picked during playback, keyed to its
+  // title so a next episode starts from its own first verdict.
+  const [trackVerdict, setTrackVerdict] = useState<{ mediaId: string; audioStreamIndex: number; info: V1StreamInfo } | null>(null);
+  const liveTrackVerdict = trackVerdict?.mediaId === mediaId ? trackVerdict : null;
+  const verdict = liveTrackVerdict?.info ?? rawStreamInfo;
+  const verdictAudioIndex = liveTrackVerdict ? liveTrackVerdict.audioStreamIndex : streamInfoParams.audioStreamIndex;
+  // Which pick is the current one. Two quick taps start two asks, and the one
+  // answering last used to win; the native session guards it the same way.
+  const generationRef = useRef(0);
+
+  const selectAudioStream = useCallback((audioStreamIndex: number) => {
+    const generation = ++generationRef.current;
+    if (!verdict || audioStreamIndex <= 0) return;
+    // Back on the track the verdict was asked for: nothing to ask, and the
+    // generation bump above already dropped any answer still in flight.
+    if (pickedAudioStream(verdict, verdictAudioIndex)?.index === audioStreamIndex) return;
+    playbackServiceGetStreamInfo(mediaId, { ...streamInfoParams, audioStreamIndex })
+      .then((info) => {
+        if (generation !== generationRef.current) return;
+        setTrackVerdict({ mediaId, audioStreamIndex, info });
+      })
+      // The track still plays: only the panel keeps the previous verdict.
+      .catch((err) => console.warn("stream verdict for the audio track failed", err));
+  }, [mediaId, streamInfoParams, verdict, verdictAudioIndex]);
+
   const currentStreamToken = streamTokenRef.current;
-  const streamInfo: V1StreamInfo | undefined = rawStreamInfo
+  // Memoised: the player reloads its source when this changes, and a fresh
+  // object on every render of the route re-ran that for nothing.
+  const streamInfo: V1StreamInfo | undefined = useMemo(() => verdict
     ? (() => {
         let url: string | undefined;
-        if (rawStreamInfo.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
+        if (verdict.playMethod === "PLAY_METHOD_DIRECT_PLAY") {
           url = currentStreamToken
-            ? `${rawStreamInfo.directPlayUrl ?? `/api/v1/media/${mediaId}/stream`}?token=${currentStreamToken}`
-            : rawStreamInfo.directPlayUrl;
+            ? `${verdict.directPlayUrl ?? `/api/v1/media/${mediaId}/stream`}?token=${currentStreamToken}`
+            : verdict.directPlayUrl;
         } else {
           // DIRECT_STREAM (container-only remux) and TRANSCODE both play the
           // HLS master: the copy rung serves the remux as fMP4 segments, the
@@ -151,12 +200,12 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
             appendCodecParams(p);
             url = `/api/v1/media/${mediaId}/hls/master.m3u8?${p.toString()}`;
           } else {
-            url = rawStreamInfo.transcodeUrl;
+            url = verdict.transcodeUrl;
           }
         }
-        return { ...rawStreamInfo, directPlayUrl: url };
+        return { ...verdict, directPlayUrl: url };
       })()
-    : undefined;
+    : undefined, [verdict, currentStreamToken, mediaId]);
 
   useEffect(() => {
     stopped.current = false;
@@ -244,5 +293,6 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
     isError: startError,
     progress: progress ?? null,
     stopSession,
+    selectAudioStream,
   };
 }

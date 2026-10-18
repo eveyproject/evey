@@ -30,6 +30,9 @@ interface UseDirectPlaybackArgs {
   setIsBuffering: (v: boolean) => void;
   streamTokenRef?: React.MutableRefObject<string>;
   onStreamTokenRefreshRef?: React.MutableRefObject<() => Promise<string>>;
+  // Set when the player comes back to the file mid-playback (a new verdict
+  // for the audio track): the file opens at the playhead.
+  atPlayheadRef?: React.MutableRefObject<boolean>;
 }
 
 function replaceTokenInUrl(url: string, newToken: string): string | null {
@@ -54,16 +57,20 @@ export function useDirectPlayback({
   setIsBuffering,
   streamTokenRef,
   onStreamTokenRefreshRef,
+  atPlayheadRef,
 }: UseDirectPlaybackArgs) {
+  // Only the URL reloads the file: a new verdict for the same file (another
+  // audio track, same direct play) must not restart it.
+  const directPlayUrl = streamInfo.directPlayUrl;
   // The source (URL minus its token) whose expired-token retry was spent.
   const refreshedForRef = useRef<string | null>(null);
   useEffect(() => {
     const video = videoRef.current;
     if (!video || transcodeMode) return;
 
-    if (streamInfo.directPlayUrl) {
-      video.src = streamInfo.directPlayUrl;
-      video.currentTime = startPositionMs / 1000;
+    if (directPlayUrl) {
+      video.src = directPlayUrl;
+      video.currentTime = atPlayheadRef?.current ? positionRef.current : startPositionMs / 1000;
       video.play().catch((err) => console.warn("video.play failed", err));
     } else {
       // Server said DIRECT_PLAY but provided no URL - fall back to transcode
@@ -156,5 +163,5 @@ export function useDirectPlayback({
     };
   // The refs and setters are stable at the call site (useRef / useState /
   // useCallback with no deps), so listing them never re-runs the effect.
-  }, [streamInfo, startPositionMs, onEnded, transcodeMode, videoRef, positionRef, setTranscodeMode, setIsBuffering, streamTokenRef, onStreamTokenRefreshRef]);
+  }, [directPlayUrl, startPositionMs, onEnded, transcodeMode, videoRef, positionRef, setTranscodeMode, setIsBuffering, streamTokenRef, onStreamTokenRefreshRef, atPlayheadRef]);
 }
