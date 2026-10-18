@@ -24,6 +24,7 @@ import {
   resolveLangPref,
   type PrefMap,
 } from "@evey/client";
+import { STILL_WATCHING_DEFAULT, STILL_WATCHING_PREF_KEY, STILL_WATCHING_STEPS, stillWatchingLimit } from "@evey/client";
 
 // resolveLangPref stays exported here: the screen's test imports it by this path.
 export { resolveLangPref };
@@ -74,6 +75,7 @@ export default function PlaybackSettingsScreen() {
   const [audioChannels, setAudioChannels] = useState("auto");
   const [subtitleBurn, setSubtitleBurn] = useState("auto");
   const [autoplayNext, setAutoplayNext] = useState(true);
+  const [stillWatchingAfter, setStillWatchingAfter] = useState(STILL_WATCHING_DEFAULT);
   const [allowDirectPlay, setAllowDirectPlay] = useState(true);
   const [allowDirectStream, setAllowDirectStream] = useState(true);
   const [allowTranscoding, setAllowTranscoding] = useState(true);
@@ -89,6 +91,7 @@ export default function PlaybackSettingsScreen() {
     if (prefs.max_audio_channels) setAudioChannels(prefs.max_audio_channels);
     if (prefs.subtitle_burn_in) setSubtitleBurn(prefs.subtitle_burn_in);
     if (prefs.autoplay_next_episode !== undefined) setAutoplayNext(prefs.autoplay_next_episode !== "false");
+    setStillWatchingAfter(stillWatchingLimit(prefs));
     if (prefs.allow_direct_play !== undefined) setAllowDirectPlay(prefs.allow_direct_play !== "false");
     if (prefs.allow_direct_stream !== undefined) setAllowDirectStream(prefs.allow_direct_stream !== "false");
     if (prefs.allow_transcoding !== undefined) setAllowTranscoding(prefs.allow_transcoding !== "false");
@@ -178,6 +181,14 @@ export default function PlaybackSettingsScreen() {
       setSubtitleBurn(v);
     } catch {
       // mutationErrorNet already toasted the failure
+    }
+  }
+  async function handleStillWatching(n: number) {
+    try {
+      await savePref({ [STILL_WATCHING_PREF_KEY]: String(n) });
+      setStillWatchingAfter(n);
+    } catch {
+      // the mutation's error handler already toasted the failure
     }
   }
   async function handleAutoplayNext(v: boolean) {
@@ -412,6 +423,31 @@ export default function PlaybackSettingsScreen() {
           />
         ))}
       </View>
+
+      {/* "Still watching?": only meaningful while episodes follow on their own. */}
+      {autoplayNext && (
+        <>
+          <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
+            {t("auth.settings.playback.stillWatchingTitle", "Ask if I am still watching")}
+          </Text>
+          <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
+            {t("auth.settings.playback.stillWatchingDesc", "After this many episodes in a row with no key pressed, the next one waits for you.")}
+          </Text>
+          <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+            {STILL_WATCHING_STEPS.map((n) => (
+              <OptionRow
+                key={`still-watching-${n}`}
+                rowKey={`still-watching-${n}`}
+                label={n === 0
+                  ? t("auth.settings.playback.stillWatchingNever", "Never")
+                  : t("auth.settings.playback.stillWatchingAfter", "After {{count}} episodes", { count: n })}
+                selected={stillWatchingAfter === n}
+                onPress={() => void handleStillWatching(n)}
+              />
+            ))}
+          </View>
+        </>
+      )}
 
       {/* Transcoding toggles */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>

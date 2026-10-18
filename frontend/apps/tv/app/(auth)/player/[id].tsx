@@ -29,7 +29,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
+import { noteViewerActivity, resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { useInterruptedPlaybackMarker } from "../../../src/hooks/useInterruptedPlaybackMarker";
@@ -61,6 +61,8 @@ import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { useSyncplay } from "../../../src/hooks/useSyncplay";
 import { SyncplaySessionBadge } from "../../../src/components/SyncplaySessionBadge";
+
+const REMOTE_KEYS = new Set(["up", "down", "left", "right", "select", "longSelect", "playPause", "play", "pause", "fastForward", "rewind", "menu", "back", "longLeft", "longRight"]);
 
 const CONTROLS_TIMEOUT = 4000;
 // Longer while the controls hold the remote: the viewer is aiming at a button,
@@ -1014,6 +1016,10 @@ export default function PlayerScreen() {
   remoteHandlerRef.current = (evt: { eventType: string } | undefined) => {
     if (!evt) return;
     const type = evt.eventType;
+    // A key on the remote is the viewer saying they are still here (the
+    // "still watching?" count, stillWatching.ts). Focus and blur are not: a
+    // card that takes focus as it appears emits them with nobody there.
+    if (REMOTE_KEYS.has(type)) noteViewerActivity();
 
     // While a picker/menu is showing, or the end-of-episode auto-advance
     // countdown is actually running, its own FocusableCard rows own the
@@ -1497,6 +1503,7 @@ export default function PlayerScreen() {
         visible={nextEp.visible}
         ended={nextEp.ended}
         countdown={nextEp.countdown}
+        stillWatching={nextEp.stillWatching}
         nextEpisode={nextEp.nextEpisode}
         onPlayNow={nextEp.playNow}
         onCancel={nextEp.cancel}

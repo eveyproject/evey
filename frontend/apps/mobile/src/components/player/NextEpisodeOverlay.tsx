@@ -26,9 +26,11 @@ export function NextEpisodeOverlay({ nextEp, bottomOffset = 80 }: NextEpisodeOve
         // reading.
         accessibilityLiveRegion={nextEp.ended ? "assertive" : "polite"}
       >
-        {nextEp.ended
-          ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(nextEp.countdown, 0) })
-          : t("player.nextEpisodeOverlay.upNext")}
+        {nextEp.stillWatching
+          ? t("player.nextEpisodeOverlay.stillWatching")
+          : nextEp.ended
+            ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(nextEp.countdown, 0) })
+            : t("player.nextEpisodeOverlay.upNext")}
       </Text>
       <Text style={styles.nextEpTitle} numberOfLines={1}>
         {nextEp.nextEpisode.indexNumber != null
@@ -57,7 +59,7 @@ export function NextEpisodeOverlay({ nextEp, bottomOffset = 80 }: NextEpisodeOve
           <Text style={styles.nextEpCancelText}>{t("common.cancel")}</Text>
         </Pressable>
       </View>
-      {nextEp.ended && (
+      {nextEp.ended && !nextEp.stillWatching && (
         <View style={styles.nextEpProgressBg}>
           <View
             style={[

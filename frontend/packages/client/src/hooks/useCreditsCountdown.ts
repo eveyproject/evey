@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CREDITS_COUNTDOWN_SEC, type ResolvedSegment } from "../lib/skipSegments";
+import { noteAutoAdvance, useStillWatchingHold } from "../lib/stillWatching";
 
 // A playhead that moves this far between two ticks was moved by the viewer:
 // the ticks come twice a second, the fastest speed covers two seconds, a
@@ -62,7 +63,9 @@ export function useCreditsCountdown({
     setCancelled((prev) => new Set(prev).add(startSec));
   }
 
-  const counting = enabled && startSec !== undefined && !cancelledHere && !jumped;
+  // Past the "still watching?" threshold the credits wait for the viewer.
+  const hold = useStillWatchingHold();
+  const counting = enabled && !hold && startSec !== undefined && !cancelledHere && !jumped;
   const remaining =
     counting && endSec !== undefined && entryRef.current
       ? Math.max(0, Math.ceil(Math.min(entryRef.current.atSec + CREDITS_COUNTDOWN_SEC, endSec) - currentTime))
@@ -73,6 +76,7 @@ export function useCreditsCountdown({
   useEffect(() => {
     if (remaining !== 0 || startSec === undefined || firedRef.current === startSec) return;
     firedRef.current = startSec;
+    noteAutoAdvance();
     onNextRef.current?.();
   }, [remaining, startSec]);
 

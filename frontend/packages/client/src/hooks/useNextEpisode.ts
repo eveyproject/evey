@@ -61,7 +61,7 @@ export function useNextEpisode({
     return siblings[idx - 1];
   })();
 
-  const { visible, ended, countdown, playNow, cancel } = useUpNextCountdown({
+  const { visible, ended, countdown, stillWatching, playNow, cancel } = useUpNextCountdown({
     nextEpisodeId: nextEpisode?.id,
     currentTime,
     duration,
@@ -77,6 +77,7 @@ export function useNextEpisode({
     visible,
     ended,
     countdown,
+    stillWatching,
     nextEpisode,
     previousEpisode,
     playNow,

@@ -34,6 +34,7 @@ export * from "./hooks/useNextEpisode";
 export * from "./hooks/useSeriesPlayTarget";
 export * from "./hooks/useUpNextCountdown";
 export * from "./hooks/useCreditsCountdown";
+export * from "./lib/stillWatching";
 export * from "./hooks/useChapterSkippables";
 export * from "./hooks/useAuthenticatedImage";
 export * from "./hooks/useProgressReporter";

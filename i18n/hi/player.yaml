@@ -86,6 +86,7 @@ nextEpisodeOverlay:
   playNow: "अभी चलाएं"
   episode: "एपिसोड {{number}}"
   nextEpisode: "अगला एपिसोड"
+  stillWatching: "क्या आप अभी भी देख रहे हैं?"
 skipIntro: "इंट्रो छोड़ें"
 skipRecap: "रीकैप छोड़ें"
 skipCredits: "क्रेडिट्स छोड़ें"
