@@ -5,7 +5,6 @@ import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceGetSeriesAggregate,
 } from "@evey/api";
-import { useImageToken } from "@/lib/imageToken";
 import { PluginSlot } from "@/features/plugins/PluginSlot";
 import { useStreamToken } from "@/hooks/useStreamToken";
 import { formatDurationMs } from "@evey/api";
@@ -50,15 +49,12 @@ export function MediaDetail({ item, onMetadataUpdated, initialEdit }: MediaDetai
     { query: { enabled: !!item.parentId && (item.type === "MEDIA_ITEM_TYPE_SEASON" || isEpisode) } } as never,
   );
 
-  const accessToken = useImageToken();
-
   // Always route through backend endpoint - see MediaCard for the ORB rationale.
   // The raw item.artwork[].url is the external provider URL (Amazon CDN for
   // OMDb, etc.) which Firefox blocks under Opaque Response Blocking. The ?v=
-  // content version busts the immutable cache on a poster change; the token
-  // rides along for the auth'd detail view (and incidentally also busts).
-  const backdropUrl = item.id ? artworkUrl(item.id, "backdrop", item, accessToken || undefined) : undefined;
-  const posterUrl = item.id ? artworkUrl(item.id, "poster", item, accessToken || undefined) : undefined;
+  // content version busts the immutable cache on a poster change.
+  const backdropUrl = item.id ? artworkUrl(item.id, "backdrop", item) : undefined;
+  const posterUrl = item.id ? artworkUrl(item.id, "poster", item) : undefined;
 
   const { data: seriesAggregate } = useLibraryServiceGetSeriesAggregate(
     item.id ?? "",
