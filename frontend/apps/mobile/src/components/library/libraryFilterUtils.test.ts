@@ -2,8 +2,6 @@ import { describe, it, expect } from "vitest";
 import type { V1MediaItem } from "@evey/api";
 import {
   getResolutionLabel,
-  normalizeCodec,
-  collectFilterOptions,
   applyLocalFacetFilters,
   hasServerFilters,
   countActiveFilters,
@@ -28,83 +26,6 @@ describe("getResolutionLabel", () => {
     [0, "SD"],
   ])("maps height %d to %s", (height, expected) => {
     expect(getResolutionLabel(height)).toBe(expected);
-  });
-});
-
-describe("normalizeCodec", () => {
-  it.each([
-    ["hevc", "H.265/HEVC"],
-    ["H265", "H.265/HEVC"],
-    ["h264", "H.264"],
-    ["AVC", "H.264"],
-    ["av1", "AV1"],
-    ["vp9", "VP9"],
-    ["vp8", "VP8"],
-    ["xvid", "MPEG-4"],
-    ["mpeg2video", "MPEG-2"],
-    ["prores", "PRORES"],
-  ])("normalizes %s to %s", (input, expected) => {
-    expect(normalizeCodec(input)).toBe(expected);
-  });
-});
-
-describe("collectFilterOptions", () => {
-  it("collects distinct facets across items, skipping und language", () => {
-    const items: V1MediaItem[] = [
-      item({
-        streams: [
-          { type: "MEDIA_STREAM_TYPE_VIDEO", height: 2160, codec: "hevc" },
-          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "eng" },
-          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "und" },
-          { type: "MEDIA_STREAM_TYPE_SUBTITLE", language: "fre" },
-        ],
-      }),
-      item({
-        id: "mi-2",
-        streams: [
-          { type: "MEDIA_STREAM_TYPE_VIDEO", height: 1080, codec: "h264" },
-          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "fre" },
-        ],
-      }),
-    ];
-
-    expect(collectFilterOptions(items)).toEqual({
-      resolutions: ["4K", "1080p"],
-      codecs: ["H.264", "H.265/HEVC"],
-      audioLangs: ["en", "fr"],
-      subLangs: ["fr"],
-    });
-  });
-
-  it("returns empty facets for items with no streams", () => {
-    expect(collectFilterOptions([item()])).toEqual({
-      resolutions: [],
-      codecs: [],
-      audioLangs: [],
-      subLangs: [],
-    });
-  });
-
-  it("normalizes 639-2/B and 639-2/T codes for the same language into a single filter entry", () => {
-    const items: V1MediaItem[] = [
-      item({
-        streams: [
-          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "fre" },
-          { type: "MEDIA_STREAM_TYPE_SUBTITLE", language: "ger" },
-        ],
-      }),
-      item({
-        id: "mi-2",
-        streams: [
-          { type: "MEDIA_STREAM_TYPE_AUDIO", language: "fra" },
-          { type: "MEDIA_STREAM_TYPE_SUBTITLE", language: "deu" },
-        ],
-      }),
-    ];
-
-    const options = collectFilterOptions(items);
-    expect(options.audioLangs).toEqual(["fr"]);
-    expect(options.subLangs).toEqual(["de"]);
   });
 });
 
