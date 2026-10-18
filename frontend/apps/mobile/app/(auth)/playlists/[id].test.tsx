@@ -18,8 +18,8 @@ vi.mock("react-native", () => ({
   ActivityIndicator: () => React.createElement("div", { "data-testid": "spinner" }),
   FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent }: any) =>
     React.createElement("div", null, (data ?? []).length === 0 ? ListEmptyComponent : (data as any[]).map((item, index) => React.createElement(React.Fragment, { key: keyExtractor(item) }, renderItem({ item, index })))),
-  TouchableOpacity: ({ children, onPress, accessibilityRole, accessibilityLabel }: any) =>
-    React.createElement("button", { onClick: onPress, role: accessibilityRole, "aria-label": accessibilityLabel }, children),
+  TouchableOpacity: ({ children, onPress, disabled, accessibilityRole, accessibilityLabel }: any) =>
+    React.createElement("button", { onClick: onPress, disabled, role: accessibilityRole, "aria-label": accessibilityLabel }, children),
   Pressable: ({ children, onPress, disabled, accessibilityRole, accessibilityLabel }: any) =>
     React.createElement("button", { onClick: (e: any) => { e.stopPropagation(); onPress?.(e); }, disabled, role: accessibilityRole, "aria-label": accessibilityLabel }, children),
   Alert: { alert: (title: string, message: string, buttons: any[]) => { alerts.last = { title, message, buttons }; } },
@@ -54,6 +54,7 @@ vi.mock("../../../src/api/playlists", () => ({
   useUpdatePlaylist: () => ({ mutate: api.update }),
 }));
 
+import { useDemoStore } from "@evey/store";
 import PlaylistDetailScreen from "./[id]";
 
 const manual = { id: "pl-1", name: "Mix", type: "manual", items: [{ media_item_id: "m1", title: "One" }, { media_item_id: "m2", title: "Two" }, { media_item_id: "m3", title: "Three" }] };
@@ -63,6 +64,7 @@ beforeEach(() => {
   alerts.last = null;
   api.detail = { data: manual, isLoading: false, isError: false, refetch: vi.fn() };
   api.del.mockResolvedValue({});
+  useDemoStore.getState().setDemoMode(false);
 });
 
 describe("playlist detail screen (mobile)", () => {
@@ -118,6 +120,38 @@ describe("playlist detail screen (mobile)", () => {
     fireEvent.click(screen.getByRole("button", { name: "media.playlist.editRules" }));
     fireEvent.click(screen.getByText("save-rules"));
     expect(api.update).toHaveBeenCalledWith({ id: "pl-1", rules: [{ field: "genre", operator: "eq", value: "Drama" }] }, expect.objectContaining({ onError: expect.any(Function) }));
+  });
+
+  // The demo's playlists are the shared account's and the server refuses
+  // them: reorder, remove, delete and the rules are greyed, a press reaches
+  // nothing; opening a title and the download stay.
+  it("greys every playlist edit on the demo", () => {
+    useDemoStore.getState().setDemoMode(true);
+    const { unmount } = render(<PlaylistDetailScreen />);
+    const locked = [
+      ...screen.getAllByRole("button", { name: "media.playlist.moveItemUp" }),
+      ...screen.getAllByRole("button", { name: "media.playlist.moveItemDown" }),
+      ...screen.getAllByRole("button", { name: "media.playlist.removeItem" }),
+      screen.getByRole("button", { name: "common.delete" }),
+    ] as HTMLButtonElement[];
+    for (const b of locked) {
+      expect(b.disabled).toBe(true);
+      fireEvent.click(b);
+    }
+    expect(alerts.last).toBeNull();
+    expect(api.reorder).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Two" }));
+    expect(router.push).toHaveBeenCalledWith("/media/m2");
+    fireEvent.click(screen.getByRole("button", { name: "media.playlist.download" }));
+    expect(dl.downloadAll).toHaveBeenCalledTimes(1);
+    unmount();
+
+    api.detail.data = { ...manual, type: "smart", rules: [] };
+    render(<PlaylistDetailScreen />);
+    const rules = screen.getByRole("button", { name: "media.playlist.editRules" }) as HTMLButtonElement;
+    expect(rules.disabled).toBe(true);
+    fireEvent.click(rules);
+    expect(screen.queryByText("save-rules")).toBeNull();
   });
 
   it("keeps failure, absence and loading apart", () => {

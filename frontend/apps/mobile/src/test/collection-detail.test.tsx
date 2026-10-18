@@ -59,6 +59,7 @@ vi.mock("react-i18next", () => ({
 
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: any) => unknown) => selector({ isAdmin: false }),
+  useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }),
 }));
 
 vi.mock("../providers/ThemeProvider", () => ({

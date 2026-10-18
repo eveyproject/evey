@@ -94,6 +94,7 @@ vi.mock("../components/Skeleton", () => ({ Skeleton: () => null }));
 const { isAdminRef } = vi.hoisted(() => ({ isAdminRef: { current: true } }));
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: any) => unknown) => selector({ isAdmin: isAdminRef.current }),
+  useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }),
 }));
 
 // --- src/api/collections ----------------------------------------------------------------

@@ -69,6 +69,7 @@ vi.mock("../../stores/musicQueue", () => ({
     selector({ setQueue: setQueueMock }),
 }));
 
+import { useDemoStore } from "@evey/store";
 import { MusicPlaylistsTab } from "./MusicPlaylistsTab";
 
 const PLAYLISTS = [
@@ -85,6 +86,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   usePlaylistListMock.mockReturnValue({ data: PLAYLISTS, isLoading: false });
   usePlaylistDetailMock.mockReturnValue({ data: undefined, isLoading: false });
+  useDemoStore.getState().setDemoMode(false);
 });
 
 describe("MusicPlaylistsTab", () => {
@@ -246,5 +248,34 @@ describe("MusicPlaylistsTab", () => {
   it("hides the generate button when no library is known", () => {
     render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} />);
     expect(screen.queryByTestId("generate-playlist-btn")).toBeNull();
+  });
+
+  // The demo's playlists are the shared account's and the server refuses
+  // them: generate, delete and remove are greyed, a press reaches nothing;
+  // opening and playing a playlist stay.
+  it("greys generate, delete and remove on the demo", async () => {
+    const { Alert } = await import("react-native");
+    useDemoStore.getState().setDemoMode(true);
+    usePlaylistDetailMock.mockReturnValue({
+      data: { id: "p1", name: "Road Trip", items: [{ media_item_id: "t1" }] },
+      isLoading: false,
+    });
+    render(<MusicPlaylistsTab libraryTracks={LIBRARY_TRACKS} libraryId="lib-1" />);
+    const generate = screen.getByTestId("generate-playlist-btn") as HTMLButtonElement;
+    const del = screen.getByTestId("icon-trash-outline").parentElement as HTMLButtonElement;
+    for (const b of [generate, del]) {
+      expect(b.disabled).toBe(true);
+      fireEvent.click(b);
+    }
+    expect(generateMutateMock).not.toHaveBeenCalled();
+    expect(Alert.alert).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("Road Trip"));
+    const remove = screen.getByLabelText("common.delete") as HTMLButtonElement;
+    expect(remove.disabled).toBe(true);
+    fireEvent.click(remove);
+    expect(removeMutateMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Song A"));
+    expect(setQueueMock).toHaveBeenCalled();
   });
 });

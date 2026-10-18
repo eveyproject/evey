@@ -4,8 +4,8 @@ import React from "react";
 
 vi.mock("react-native", () => ({
   Text: ({ children }: any) => React.createElement("span", null, children),
-  Pressable: ({ children, onPress, testID, accessibilityLabel }: any) =>
-    React.createElement("button", { onClick: onPress, "data-testid": testID, "aria-label": accessibilityLabel }, children),
+  Pressable: ({ children, onPress, disabled, testID, accessibilityLabel }: any) =>
+    React.createElement("button", { onClick: onPress, disabled, "data-testid": testID, "aria-label": accessibilityLabel }, children),
   StyleSheet: { create: (s: any) => s },
 }));
 vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
@@ -21,10 +21,11 @@ vi.mock("@evey/api", () => ({
   usePlaybackServiceMarkAsUnwatched: () => ({ mutate: markUnwatched }),
 }));
 vi.mock("@evey/client", () => ({ invalidateWatchedState: vi.fn() }));
-const auth = vi.hoisted(() => ({ profileId: "prf-1", isAdmin: false }));
+const auth = vi.hoisted(() => ({ profileId: "prf-1", isAdmin: false, demoMode: false }));
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   useAuthStore: (sel: (s: typeof auth) => unknown) => sel(auth),
+  useDemoStore: (sel: (s: typeof auth) => unknown) => sel(auth),
 }));
 vi.mock("@evey/theme", () => ({ FONT_SIZE: { sm: 15 } }));
 vi.mock("../providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { text: "#fff" }, radii: { md: 8 } }) }));
@@ -46,6 +47,7 @@ const item = { id: "m1", title: "Dune", type: "MEDIA_ITEM_TYPE_MOVIE" } as any;
 beforeEach(() => {
   vi.clearAllMocks();
   auth.isAdmin = false;
+  auth.demoMode = false;
 });
 
 // The long-press menu of a home card carries the web card menu's entries,
@@ -81,5 +83,28 @@ describe("MediaActionsSheet", () => {
     expect(markUnwatched).toHaveBeenCalledWith({ mediaItemId: "m1", params: { profileId: "prf-1" } });
     fireEvent.click(screen.getByTestId("media-actions-remove-from-favorites"));
     expect(toggleFav).toHaveBeenCalledWith(true);
+  });
+
+  // On the demo every entry but the editor writes the shared account's
+  // content, which the server refuses: greyed, as on the web card menu, and
+  // a press reaches no mutation.
+  it("greys every entry but the editor on the demo", () => {
+    auth.isAdmin = true;
+    auth.demoMode = true;
+    const onClose = vi.fn();
+    render(<MediaActionsSheet item={item} onClose={onClose} />);
+    for (const k of ["add-to-playlist", "add-to-collection", "remove-from-favorites", "mark-watched", "mark-unwatched"]) {
+      const b = screen.getByTestId(`media-actions-${k}`) as HTMLButtonElement;
+      expect(b.disabled).toBe(true);
+      fireEvent.click(b);
+    }
+    expect(markWatched).not.toHaveBeenCalled();
+    expect(markUnwatched).not.toHaveBeenCalled();
+    expect(toggleFav).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    const edit = screen.getByTestId("media-actions-edit-metadata") as HTMLButtonElement;
+    expect(edit.disabled).toBeFalsy();
+    fireEvent.click(edit);
+    expect(router.push).toHaveBeenCalledWith("/media/m1?edit=1");
   });
 });

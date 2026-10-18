@@ -18,8 +18,8 @@ vi.mock("react-native", () => ({
             React.createElement(React.Fragment, { key: keyExtractor(item) }, renderItem({ item })),
           ),
     ),
-  TouchableOpacity: ({ children, onPress, onLongPress, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, onContextMenu: onLongPress, ...p }, children),
+  TouchableOpacity: ({ children, onPress, onLongPress, disabled, accessibilityLabel }: any) =>
+    React.createElement("button", { onClick: onPress, onContextMenu: onLongPress, disabled, "aria-label": accessibilityLabel }, children),
   Pressable: ({ children, onPress, accessibilityLabel, ...p }: any) =>
     React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel, ...p }, children),
   StyleSheet: { create: (s: any) => s },
@@ -41,7 +41,7 @@ vi.mock("expo-image", () => ({
   Image: ({ source, ...p }: any) => React.createElement("img", { src: source?.uri, alt: "", ...p }),
 }));
 vi.mock("expo-router", () => ({
-  Stack: { Screen: () => null },
+  Stack: { Screen: ({ options }: any) => React.createElement("div", null, options?.headerRight?.() ?? null) },
   useRouter: () => ({ push: vi.fn() }),
 }));
 
@@ -49,8 +49,10 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+const store = vi.hoisted(() => ({ isAdmin: false, demoMode: false }));
 vi.mock("@evey/store", () => ({
-  useAuthStore: (selector: (s: any) => unknown) => selector({ isAdmin: false }),
+  useAuthStore: (selector: (s: any) => unknown) => selector(store),
+  useDemoStore: (selector: (s: any) => unknown) => selector(store),
 }));
 
 vi.mock("../../../src/providers/ThemeProvider", () => ({
@@ -66,11 +68,12 @@ vi.mock("../../../src/components/Skeleton", () => ({
 
 // --- ../../../src/api/collections ---------------------------------------------------------
 let collectionsState: { data?: { collections: unknown[] }; isLoading: boolean; isError: boolean; refetch: () => void };
+const deleteCollection = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../src/api/collections", () => ({
   useCollections: () => collectionsState,
   useCreateCollection: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
-  useDeleteCollection: () => ({ mutate: vi.fn(), isPending: false }),
+  useDeleteCollection: () => ({ mutate: deleteCollection, isPending: false }),
 }));
 
 import CollectionsScreen from "./index";
@@ -78,6 +81,8 @@ import CollectionsScreen from "./index";
 beforeEach(() => {
   vi.clearAllMocks();
   collectionsState = { data: { collections: [] }, isLoading: false, isError: false, refetch: vi.fn() };
+  store.isAdmin = false;
+  store.demoMode = false;
 });
 
 describe("CollectionsScreen - loading vs failure vs genuinely no collections", () => {
@@ -108,5 +113,39 @@ describe("CollectionsScreen - loading vs failure vs genuinely no collections", (
 
     expect(screen.getByText("media.collections.noCollections")).toBeTruthy();
     expect(screen.queryByText("common.loadError")).toBeNull();
+  });
+});
+
+// The demo's collections are the shared account's and the server refuses
+// them: an admin there sees create greyed and the long-press delete gone.
+describe("CollectionsScreen - the demo", () => {
+  const sagas = { collections: [{ id: "c1", name: "Dune saga", kind: "manual", itemCount: 2 }] };
+
+  it("greys create and drops the delete gesture on the demo", async () => {
+    const { Alert } = await import("react-native");
+    store.isAdmin = true;
+    store.demoMode = true;
+    collectionsState = { data: sagas, isLoading: false, isError: false, refetch: vi.fn() };
+    render(<CollectionsScreen />);
+    const create = screen.getByLabelText("media.collections.newCollection") as HTMLButtonElement;
+    expect(create.disabled).toBe(true);
+    fireEvent.click(create);
+    expect(screen.queryByTestId("modal")).toBeNull();
+    fireEvent.contextMenu(screen.getByText("Dune saga").closest("button")!);
+    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(deleteCollection).not.toHaveBeenCalled();
+  });
+
+  it("keeps both for an admin off the demo", async () => {
+    const { Alert } = await import("react-native");
+    store.isAdmin = true;
+    collectionsState = { data: sagas, isLoading: false, isError: false, refetch: vi.fn() };
+    render(<CollectionsScreen />);
+    const create = screen.getByLabelText("media.collections.newCollection") as HTMLButtonElement;
+    expect(create.disabled).toBeFalsy();
+    fireEvent.click(create);
+    expect(screen.getByTestId("modal")).toBeTruthy();
+    fireEvent.contextMenu(screen.getByText("Dune saga").closest("button")!);
+    expect(Alert.alert).toHaveBeenCalledWith("media.collections.deleteConfirm", "Dune saga", expect.any(Array));
   });
 });

@@ -137,6 +137,7 @@ const { toastErrorMock, toastInfoMock } = vi.hoisted(() => ({
 }));
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: any) => unknown) => selector({ profileId: "profile-1" }),
+  useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }),
   toast: { success: vi.fn(), error: toastErrorMock, info: toastInfoMock },
 }));
 

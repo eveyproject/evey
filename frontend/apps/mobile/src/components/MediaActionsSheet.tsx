@@ -10,6 +10,7 @@ import { toast, useAuthStore } from "@evey/store";
 import { FONT_SIZE } from "@evey/theme";
 import { useTheme } from "../providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../hooks/useFavorite";
+import { useDemoLock, DEMO_LOCKED_OPACITY } from "../hooks/useDemoLock";
 import { BottomSheet } from "./BottomSheet";
 import { AddToPlaylistSheet } from "./AddToPlaylistSheet";
 import { BulkAddToCollectionSheet } from "./library/BulkAddSheets";
@@ -32,6 +33,9 @@ export function MediaActionsSheet({ item, onClose }: { item: V1MediaItem | null;
   const mediaId = item?.id;
   const { data: isFav = false } = useIsFavorite(mediaId);
   const toggleFav = useToggleFavorite(mediaId);
+  // On the demo every entry but the editor writes the shared account's
+  // favourites, marks, playlists or collections: greyed, as on the web menu.
+  const { lock } = useDemoLock();
   // Follow-up sheets keep their own item: the menu has closed by then.
   const [playlistFor, setPlaylistFor] = useState<V1MediaItem | null>(null);
   const [collectionFor, setCollectionFor] = useState<string | null>(null);
@@ -80,20 +84,24 @@ export function MediaActionsSheet({ item, onClose }: { item: V1MediaItem | null;
   return (
     <>
       <BottomSheet visible={!!item} onClose={onClose} title={item ? displayTitle(item, t) : ""}>
-        {actions.map((a) => (
-          <Pressable
-            key={a.key}
-            onPress={a.onPress}
-            style={[styles.row, { borderRadius: theme.radii.md }]}
-            accessible={true}
-            accessibilityRole="button"
-            accessibilityLabel={a.label}
-            testID={`media-actions-${a.key}`}
-          >
-            <Ionicons name={a.icon} size={20} color={theme.colors.text} />
-            <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.sm }}>{a.label}</Text>
-          </Pressable>
-        ))}
+        {actions.map((a) => {
+          const locked = a.key !== "edit-metadata" && !!lock.disabled;
+          return (
+            <Pressable
+              key={a.key}
+              onPress={a.onPress}
+              style={[styles.row, { borderRadius: theme.radii.md }, locked ? { opacity: DEMO_LOCKED_OPACITY } : null]}
+              accessible={true}
+              accessibilityRole="button"
+              accessibilityLabel={a.label}
+              testID={`media-actions-${a.key}`}
+              {...(locked ? lock : {})}
+            >
+              <Ionicons name={a.icon} size={20} color={theme.colors.text} />
+              <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.sm }}>{a.label}</Text>
+            </Pressable>
+          );
+        })}
       </BottomSheet>
       {playlistFor?.id && (
         <AddToPlaylistSheet visible mediaItemId={playlistFor.id} mediaType={playlistFor.type} onClose={() => setPlaylistFor(null)} />

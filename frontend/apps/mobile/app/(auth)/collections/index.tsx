@@ -23,6 +23,7 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { SmartRulesEditor, COLLECTION_FIELDS, type SmartRule } from "../../../src/components/SmartRulesEditor";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useDemoLock, DEMO_LOCKED_OPACITY } from "../../../src/hooks/useDemoLock";
 import {
   useCollections,
   useCreateCollection,
@@ -263,6 +264,8 @@ export default function CollectionsScreen() {
   const { data, isLoading, isError, refetch } = useCollections();
   const deleteMut = useDeleteCollection();
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  // The demo's collections are the shared account's: create and delete greyed.
+  const { demo, lock } = useDemoLock();
   const [createVisible, setCreateVisible] = useState(false);
 
   const collections = data?.collections ?? [];
@@ -296,7 +299,7 @@ export default function CollectionsScreen() {
           headerTintColor: theme.colors.text,
           headerRight: () =>
             isAdmin ? (
-              <TouchableOpacity onPress={() => setCreateVisible(true)} style={{ marginRight: 8 }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("media.collections.newCollection")}>
+              <TouchableOpacity onPress={() => setCreateVisible(true)} style={{ marginRight: 8, opacity: demo ? DEMO_LOCKED_OPACITY : 1 }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("media.collections.newCollection")} {...lock}>
                 <Ionicons name="add-circle-outline" size={26} color={theme.colors.accent} />
               </TouchableOpacity>
             ) : null,
@@ -332,7 +335,7 @@ export default function CollectionsScreen() {
                   router.push(`/collections/${item.id}`);
                 }
               }}
-              onLongPress={isAdmin ? () => confirmDelete(item) : undefined}
+              onLongPress={isAdmin && !demo ? () => confirmDelete(item) : undefined}
             />
           )}
           ListEmptyComponent={

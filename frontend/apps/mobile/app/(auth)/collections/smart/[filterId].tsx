@@ -18,6 +18,7 @@ import { SmartRulesEditor, COLLECTION_FIELDS, type SmartRule } from "../../../..
 import { useTheme } from "../../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../../src/hooks/useAuthenticatedImage";
+import { useDemoLock, DEMO_LOCKED_OPACITY } from "../../../../src/hooks/useDemoLock";
 import { useCollection, useUpdateCollection, type CollectionItem } from "../../../../src/api/collections";
 import { artworkUrl } from "../../../../src/lib/artwork";
 import { POSTER_GRID } from "../../../../src/lib/posterGrid";
@@ -54,6 +55,8 @@ export default function SmartFilterScreen() {
   const rules = col?.rules ?? [];
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const updateMut = useUpdateCollection();
+  // The demo's collections are the shared account's: the rules editor greyed.
+  const { demo, lock } = useDemoLock();
   const [editOpen, setEditOpen] = useState(false);
 
   const renderItem = useCallback(
@@ -108,7 +111,7 @@ export default function SmartFilterScreen() {
           headerTintColor: theme.colors.text,
           headerRight: () =>
             isAdmin && col ? (
-              <TouchableOpacity onPress={() => setEditOpen(true)} hitSlop={8} style={{ marginRight: 8 }} accessibilityRole="button" accessibilityLabel={t("media.playlist.editRules", "Edit rules")}>
+              <TouchableOpacity onPress={() => setEditOpen(true)} hitSlop={8} style={{ marginRight: 8, opacity: demo ? DEMO_LOCKED_OPACITY : 1 }} accessibilityRole="button" accessibilityLabel={t("media.playlist.editRules", "Edit rules")} {...lock}>
                 <Ionicons name="options-outline" size={24} color={theme.colors.accent} />
               </TouchableOpacity>
             ) : null,

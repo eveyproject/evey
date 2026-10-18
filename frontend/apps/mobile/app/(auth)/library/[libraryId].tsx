@@ -47,6 +47,7 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { useBulkFavorite } from "../../../src/hooks/useFavorite";
+import { useDemoLock } from "../../../src/hooks/useDemoLock";
 import { MediaCard, CARD_CAPTION_HEIGHT } from "../../../src/components/MediaCard";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { LibraryFiltersPanel } from "../../../src/components/library/LibraryFiltersPanel";
@@ -186,6 +187,11 @@ export default function LibraryDetailScreen() {
   const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedWatched", "Marked watched")) } });
   const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: () => toast.success(t("media.library.markedUnwatched", "Marked unwatched")) } });
   const bulkFavorite = useBulkFavorite();
+  // On the demo the bar's watched marks, favourites, playlists and
+  // collections are the shared account's: greyed, as on the web bar. The
+  // admin's metadata editor stays.
+  const { demo, lock } = useDemoLock();
+  const bulkLocked = bulkBusy || demo;
   const [showBulkPlaylist, setShowBulkPlaylist] = useState(false);
   const [showBulkCollection, setShowBulkCollection] = useState(false);
 
@@ -1158,24 +1164,24 @@ export default function LibraryDetailScreen() {
                 <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.contextMenu.editMetadata")}</Text>
               </Pressable>
             )}
-            <Pressable onPress={bulkMarkWatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button">
+            <Pressable onPress={bulkMarkWatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkLocked && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.markWatched", "Mark watched")} accessibilityRole="button" {...lock}>
               <Ionicons name="checkmark-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.markWatched", "Watched")}</Text>
             </Pressable>
-            <Pressable onPress={bulkMarkUnwatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button">
+            <Pressable onPress={bulkMarkUnwatched} disabled={bulkBusy} style={[styles.bulkBtn, bulkLocked && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.markUnwatched", "Mark unwatched")} accessibilityRole="button" {...lock}>
               <Ionicons name="eye-off-outline" size={20} color={theme.colors.textMuted} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.markUnwatched", "Unwatched")}</Text>
             </Pressable>
-            <Pressable onPress={bulkToggleFavorite} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.favorites.toggleFavorite", "Favorite")} accessibilityRole="button">
+            <Pressable onPress={bulkToggleFavorite} disabled={bulkBusy} style={[styles.bulkBtn, bulkLocked && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.favorites.toggleFavorite", "Favorite")} accessibilityRole="button" {...lock}>
               <Ionicons name="heart-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.favorites.toggleFavorite", "Favorite")}</Text>
             </Pressable>
-            <Pressable onPress={() => setShowBulkPlaylist(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button">
+            <Pressable onPress={() => setShowBulkPlaylist(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkLocked && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.detail.addToPlaylist", "Playlist")} accessibilityRole="button" {...lock}>
               <Ionicons name="add-circle-outline" size={20} color={theme.colors.accent} />
               <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.detail.addToPlaylist", "Playlist")}</Text>
             </Pressable>
             {isAdmin && (
-              <Pressable onPress={() => setShowBulkCollection(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkBusy && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button">
+              <Pressable onPress={() => setShowBulkCollection(true)} disabled={bulkBusy} style={[styles.bulkBtn, bulkLocked && { opacity: 0.4 }]} accessible accessibilityLabel={t("media.library.addToCollection", "Add to collection")} accessibilityRole="button" {...lock}>
                 <Ionicons name="albums-outline" size={20} color={theme.colors.accent} />
                 <Text style={{ color: theme.colors.text, fontSize: 11 }}>{t("media.library.addToCollection", "Add to collection")}</Text>
               </Pressable>

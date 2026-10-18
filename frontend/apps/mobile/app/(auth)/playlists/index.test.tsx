@@ -46,6 +46,7 @@ vi.mock("../../../src/api/playlists", () => ({
   useDeletePlaylist: () => ({ mutateAsync: api.del }),
 }));
 
+import { useDemoStore } from "@evey/store";
 import PlaylistsScreen from "./index";
 
 const lists = [
@@ -59,6 +60,7 @@ beforeEach(() => {
   api.list = { data: lists, isLoading: false, isError: false, refetch: vi.fn() };
   api.create.mockResolvedValue({ id: "pl-new" });
   api.del.mockResolvedValue({});
+  useDemoStore.getState().setDemoMode(false);
 });
 
 describe("playlists screen (mobile)", () => {
@@ -99,6 +101,25 @@ describe("playlists screen (mobile)", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Delete" })[0]);
     await alerts.last.buttons.find((b: any) => b.style === "destructive").onPress();
     await waitFor(() => expect(alerts.last.message).toBe("media.playlist.deleteError"));
+  });
+
+  // The demo's playlists are the shared account's and the server refuses
+  // them: create and delete are greyed there, a press reaches nothing.
+  it("greys create and delete on the demo, and still opens a list", () => {
+    useDemoStore.getState().setDemoMode(true);
+    render(<PlaylistsScreen />);
+    const create = screen.getByRole("button", { name: "media.playlist.createPlaylist" }) as HTMLButtonElement;
+    expect(create.disabled).toBe(true);
+    fireEvent.click(create);
+    expect(screen.queryByTestId("modal")).toBeNull();
+    for (const del of screen.getAllByRole("button", { name: "Delete" }) as HTMLButtonElement[]) {
+      expect(del.disabled).toBe(true);
+      fireEvent.click(del);
+    }
+    expect(alerts.last).toBeNull();
+    expect(api.del).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Mix").closest("button")!);
+    expect(router.push).toHaveBeenCalledWith("/playlists/pl-1");
   });
 
   it("keeps loading, failure and none apart", () => {

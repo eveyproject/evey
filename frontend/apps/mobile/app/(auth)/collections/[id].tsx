@@ -23,6 +23,7 @@ import { Skeleton } from "../../../src/components/Skeleton";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { useDemoLock, DEMO_LOCKED_OPACITY } from "../../../src/hooks/useDemoLock";
 import {
   useCollection,
   useUpdateCollection,
@@ -167,6 +168,8 @@ export default function CollectionDetailScreen() {
   const removeItemMut = useRemoveCollectionItem(id ?? "");
   const reorderMut = useReorderCollectionItems(id ?? "");
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  // The demo's collections are the shared account's: every edit here is greyed.
+  const { demo, lock } = useDemoLock();
   const col = data?.collection;
   const items = useMemo(() => data?.items ?? [], [data?.items]);
 
@@ -270,10 +273,11 @@ export default function CollectionDetailScreen() {
                 }
                 hitSlop={8}
                 disabled={reorderMut.isPending || items[0]?.id === item.id}
-                style={{ opacity: reorderMut.isPending || items[0]?.id === item.id ? 0.4 : 1 }}
+                style={{ opacity: demo || reorderMut.isPending || items[0]?.id === item.id ? DEMO_LOCKED_OPACITY : 1 }}
                 accessibilityRole="button"
                 accessibilityLabel={t("media.collections.moveUp")}
                 testID={`collection-up-${item.id}`}
+                {...lock}
               >
                 <Ionicons name="chevron-up-circle" size={20} color={theme.colors.text} />
               </Pressable>
@@ -286,10 +290,11 @@ export default function CollectionDetailScreen() {
                 }
                 hitSlop={8}
                 disabled={reorderMut.isPending || items[items.length - 1]?.id === item.id}
-                style={{ opacity: reorderMut.isPending || items[items.length - 1]?.id === item.id ? 0.4 : 1 }}
+                style={{ opacity: demo || reorderMut.isPending || items[items.length - 1]?.id === item.id ? DEMO_LOCKED_OPACITY : 1 }}
                 accessibilityRole="button"
                 accessibilityLabel={t("media.collections.moveDown")}
                 testID={`collection-down-${item.id}`}
+                {...lock}
               >
                 <Ionicons name="chevron-down-circle" size={20} color={theme.colors.text} />
               </Pressable>
@@ -299,10 +304,11 @@ export default function CollectionDetailScreen() {
             <Pressable
               onPress={() => confirmRemoveItem(item)}
               hitSlop={8}
-              style={[styles.removeBtn, { backgroundColor: theme.colors.surface }]}
+              style={[styles.removeBtn, { backgroundColor: theme.colors.surface }, demo ? { opacity: DEMO_LOCKED_OPACITY } : null]}
               accessibilityRole="button"
               accessibilityLabel={t("media.collections.removeItem")}
               testID={`collection-remove-${item.id}`}
+              {...lock}
             >
               <Ionicons name="close-circle" size={20} color={theme.colors.danger} />
             </Pressable>
@@ -310,7 +316,7 @@ export default function CollectionDetailScreen() {
         </View>
       );
     },
-    [theme, router, serverUrl, authHeaders, t, isAdmin, confirmRemoveItem, items, reorderMut, col?.name],
+    [theme, router, serverUrl, authHeaders, t, isAdmin, confirmRemoveItem, items, reorderMut, col?.name, demo, lock],
   );
 
   return (
@@ -324,10 +330,10 @@ export default function CollectionDetailScreen() {
           headerRight: () =>
             isAdmin ? (
               <View style={{ flexDirection: "row", gap: 12, marginRight: 8 }}>
-                <TouchableOpacity onPress={() => setEditVisible(true)} testID="collection-edit-button" accessibilityRole="button" accessibilityLabel={t("common.edit")} hitSlop={8}>
+                <TouchableOpacity onPress={() => setEditVisible(true)} testID="collection-edit-button" accessibilityRole="button" accessibilityLabel={t("common.edit")} hitSlop={8} style={demo ? { opacity: DEMO_LOCKED_OPACITY } : undefined} {...lock}>
                   <Ionicons name="pencil-outline" size={22} color={theme.colors.text} />
                 </TouchableOpacity>
-                <TouchableOpacity onPress={confirmDelete} testID="collection-delete-button" accessibilityRole="button" accessibilityLabel={t("common.delete")} hitSlop={8}>
+                <TouchableOpacity onPress={confirmDelete} testID="collection-delete-button" accessibilityRole="button" accessibilityLabel={t("common.delete")} hitSlop={8} style={demo ? { opacity: DEMO_LOCKED_OPACITY } : undefined} {...lock}>
                   <Ionicons name="trash-outline" size={22} color={theme.colors.danger} />
                 </TouchableOpacity>
               </View>
