@@ -2,11 +2,12 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 
 	"github.com/eveyproject/evey/internal/domain/library"
 )
@@ -53,45 +54,92 @@ func (r *MediaItemRepository) SetInterleaveBackstep(ctx context.Context, path st
 	return nil
 }
 
-// upsertMediaFile writes (or deletes) the 1:1 media_files row driven by
-// item.File. nil File (or empty Path) means the item owns no on-disk
-// artefact (series root, season, album); we DELETE so a subsequent JOIN
-// cleanly returns NULL for every file column.
-func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) error {
-	if item.File == nil || item.File.Path == "" {
-		_, err := tx.ExecContext(ctx, `DELETE FROM media_files WHERE media_item_id = $1`, string(item.ID))
-		if err != nil {
-			return fmt.Errorf("delete media_files: %w", err)
+// itemWriteQuery builds the ONE statement that persists a MediaItem and the
+// sub-tables it owns (media_files, media_catalog, media_classifications,
+// media_trailers). A scan writes an item per file, so the chained form -
+// BEGIN, the item, a fingerprint clear, one upsert or delete per sub-table, a
+// trailer delete and insert, COMMIT - cost 8 to 10 round trips each, a hundred
+// thousand on a library of ten thousand files. A single statement is atomic on
+// its own, so no private transaction is needed; an ambient one (TxUnit.Do) is
+// joined by the caller exactly as before.
+//
+// Every child hangs off `u`, the CTE that returns the item's id only when the
+// item row was written. An UPDATE that matches nothing therefore writes nothing
+// anywhere, which is what the old early ErrNotFound return guaranteed.
+//
+// Sub-table semantics are unchanged: a nil or empty part DELETEs its row (nil
+// means erase), a part with data upserts it. On create the deletes are skipped:
+// the row was just inserted, so no child can exist yet.
+//
+// Two ordering rules the planner would not honour on its own, because the
+// sub-statements of one WITH run in no defined order:
+//   - the fingerprint clear must land before the file row takes the value (the
+//     unique index would refuse it otherwise); the file insert reads the clear's
+//     row count, which forces the clear to run to completion first;
+//   - the trailer delete must land before the re-insert of the same ids; same
+//     device.
+func itemWriteQuery(item *library.MediaItem, create bool, scanTitle, sortTitle string, parentID *string) (string, []any, error) {
+	var args []any
+	// arg appends a parameter and returns its placeholder, cast when the
+	// context (a SELECT list, unlike VALUES) gives Postgres nothing to infer from.
+	arg := func(v any, cast string) string {
+		args = append(args, v)
+		if cast == "" {
+			return fmt.Sprintf("$%d", len(args))
 		}
-		return nil
+		return fmt.Sprintf("$%d::%s", len(args), cast)
 	}
-	f := item.File
-	var fingerprint *string
-	if f.Fingerprint != "" {
-		fingerprint = &f.Fingerprint
-	}
-	// The fingerprint is size + mtime: a HINT about whether a file changed, not
-	// an identity. Two distinct files genuinely can share one (a copy made with
-	// cp -p, two files restored from the same backup), and the unique index
-	// turned that coincidence into an item whose every update failed - twelve
-	// times in one day on prod, for ever, because nothing cleared the way.
-	//
-	// The row being written was just scanned, so it is the fresher claim on the
-	// value. Whoever else holds it gives up the HINT, not the row: their file
-	// is simply re-probed at the next scan, which is the honest outcome of a
-	// real collision.
-	if fingerprint != nil {
-		if _, err := tx.ExecContext(ctx,
-			`UPDATE media_files SET file_fingerprint = NULL
-			 WHERE file_fingerprint = $1 AND media_item_id <> $2`,
-			*fingerprint, string(item.ID),
-		); err != nil {
-			return fmt.Errorf("clear colliding fingerprint: %w", err)
+	var ctes []string
+
+	if create {
+		ph := make([]string, 0, 13)
+		for _, v := range []any{item.ID, item.LibraryID, parentID, item.Type, item.Title, scanTitle,
+			sortTitle, item.OriginalTitle, item.Overview, item.Tagline, item.IndexNumber, item.AddedAt, item.UpdatedAt} {
+			ph = append(ph, arg(v, ""))
 		}
+		ctes = append(ctes, `u AS (INSERT INTO media_items (id, library_id, parent_id, type, title, scan_title, sort_title, original_title,
+			 overview, tagline, index_number, added_at, updated_at)
+			 VALUES (`+strings.Join(ph, ",")+`) RETURNING id)`)
+	} else {
+		lib, par, typ, title := arg(item.LibraryID, ""), arg(parentID, ""), arg(item.Type, ""), arg(item.Title, "")
+		scan, sortT, orig := arg(scanTitle, ""), arg(sortTitle, ""), arg(item.OriginalTitle, "")
+		over, tag, idx, upd, id := arg(item.Overview, ""), arg(item.Tagline, ""), arg(item.IndexNumber, ""), arg(item.UpdatedAt, ""), arg(item.ID, "")
+		// scan_title: see Update for why an empty value keeps the stored one.
+		ctes = append(ctes, `u AS (UPDATE media_items SET library_id=`+lib+`, parent_id=`+par+`, type=`+typ+`, title=`+title+`,
+			 scan_title=COALESCE(NULLIF(`+scan+`, ''), media_items.scan_title, `+title+`),
+			 sort_title=`+sortT+`, original_title=`+orig+`, overview=`+over+`, tagline=`+tag+`, index_number=`+idx+`, updated_at=`+upd+`
+			 WHERE id=`+id+` RETURNING id)`)
 	}
-	_, err := tx.ExecContext(ctx,
-		`INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts, interleave_backstep_ms, stream_probe_version)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+
+	// media_files: nil File (or empty Path) means the item owns no on-disk
+	// artefact (series root, season, album); the row is deleted so a JOIN
+	// returns NULL for every file column.
+	if f := item.File; f != nil && f.Path != "" {
+		var fingerprint *string
+		if f.Fingerprint != "" {
+			fingerprint = &f.Fingerprint
+		}
+		gate := ""
+		// The fingerprint is size + mtime: a HINT about whether a file changed,
+		// not an identity. Two distinct files genuinely can share one (a copy
+		// made with cp -p, two files restored from the same backup), and the
+		// unique index turned that coincidence into an item whose every update
+		// failed - twelve times in one day on prod, for ever.
+		//
+		// The row being written was just scanned, so it is the fresher claim on
+		// the value. Whoever else holds it gives up the HINT, not the row: their
+		// file is simply re-probed at the next scan.
+		if fingerprint != nil {
+			fp := arg(*fingerprint, "text")
+			ctes = append(ctes, `fc AS (UPDATE media_files SET file_fingerprint = NULL
+			 WHERE file_fingerprint = `+fp+` AND media_item_id <> (SELECT id FROM u) RETURNING 1)`)
+			gate = ", (SELECT count(*) FROM fc) AS gate"
+		}
+		ctes = append(ctes, `fi AS (INSERT INTO media_files (media_item_id, file_path, file_size, file_fingerprint, mod_time, duration_ms, bitrate, container_format, stream_probe_attempts, interleave_backstep_ms, stream_probe_version)
+		 SELECT u.id, `+arg(f.Path, "text")+`, `+arg(f.Size, "bigint")+`, `+arg(fingerprint, "text")+`, `+arg(f.ModTime, "timestamptz")+`,
+		   `+arg(f.Duration.Milliseconds(), "bigint")+`, `+arg(f.Bitrate, "bigint")+`, `+arg(f.ContainerFormat, "text")+`,
+		   `+arg(f.StreamProbeAttempts, "integer")+`, `+arg(f.InterleaveBackstepMs, "bigint")+`, `+arg(f.StreamProbeVersion, "integer")+`
+		 FROM u`+gate+` WHERE true
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   file_path = EXCLUDED.file_path,
 		   file_size = EXCLUDED.file_size,
@@ -102,145 +150,106 @@ func upsertMediaFile(ctx context.Context, tx *sql.Tx, item *library.MediaItem) e
 		   container_format = EXCLUDED.container_format,
 		   stream_probe_attempts = EXCLUDED.stream_probe_attempts,
 		   interleave_backstep_ms = EXCLUDED.interleave_backstep_ms,
-		   stream_probe_version = EXCLUDED.stream_probe_version`,
-		string(item.ID), f.Path, f.Size, fingerprint,
-		f.ModTime, f.Duration.Milliseconds(), f.Bitrate, f.ContainerFormat, f.StreamProbeAttempts, f.InterleaveBackstepMs, f.StreamProbeVersion,
-	)
-	if err != nil {
-		return fmt.Errorf("upsert media_files: %w", err)
+		   stream_probe_version = EXCLUDED.stream_probe_version)`)
+	} else if !create {
+		ctes = append(ctes, `fd AS (DELETE FROM media_files WHERE media_item_id IN (SELECT id FROM u))`)
 	}
-	return nil
-}
 
-// upsertMediaCatalog mirrors upsertMediaFile for the catalog row. Absent
-// when every catalog field is zero/empty (the row would only carry
-// defaults and a stale FK).
-func upsertMediaCatalog(ctx context.Context, tx *sql.Tx, item *library.MediaItem) error {
-	c := item.Catalog
-	hasData := c != nil && (c.PremiereDate != nil || c.Year != nil ||
-		len(c.ProviderIDs) > 0 || len(c.Genres) > 0 ||
-		len(c.Studios) > 0 || len(c.Tags) > 0)
-	if !hasData {
-		_, err := tx.ExecContext(ctx, `DELETE FROM media_catalog WHERE media_item_id = $1`, string(item.ID))
+	// media_catalog: absent when every field is zero/empty (the row would only
+	// carry defaults and a stale FK).
+	if c := item.Catalog; c != nil && (c.PremiereDate != nil || c.Year != nil ||
+		len(c.ProviderIDs) > 0 || len(c.Genres) > 0 || len(c.Studios) > 0 || len(c.Tags) > 0) {
+		providerJSON, err := json.Marshal(orEmptyMap(c.ProviderIDs))
 		if err != nil {
-			return fmt.Errorf("delete media_catalog: %w", err)
+			return "", nil, fmt.Errorf("marshal provider_ids: %w", err)
 		}
-		return nil
-	}
-	providerJSON, err := json.Marshal(orEmptyMap(c.ProviderIDs))
-	if err != nil {
-		return fmt.Errorf("marshal provider_ids: %w", err)
-	}
-	genresJSON, err := json.Marshal(orEmptySlice(c.Genres))
-	if err != nil {
-		return fmt.Errorf("marshal genres: %w", err)
-	}
-	studiosJSON, err := json.Marshal(orEmptySlice(c.Studios))
-	if err != nil {
-		return fmt.Errorf("marshal studios: %w", err)
-	}
-	tagsJSON, err := json.Marshal(orEmptySlice(c.Tags))
-	if err != nil {
-		return fmt.Errorf("marshal tags: %w", err)
-	}
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO media_catalog (media_item_id, premiere_date, year, provider_ids, genres, studios, tags)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7)
+		genresJSON, err := json.Marshal(orEmptySlice(c.Genres))
+		if err != nil {
+			return "", nil, fmt.Errorf("marshal genres: %w", err)
+		}
+		studiosJSON, err := json.Marshal(orEmptySlice(c.Studios))
+		if err != nil {
+			return "", nil, fmt.Errorf("marshal studios: %w", err)
+		}
+		tagsJSON, err := json.Marshal(orEmptySlice(c.Tags))
+		if err != nil {
+			return "", nil, fmt.Errorf("marshal tags: %w", err)
+		}
+		ctes = append(ctes, `ci AS (INSERT INTO media_catalog (media_item_id, premiere_date, year, provider_ids, genres, studios, tags)
+		 SELECT u.id, `+arg(c.PremiereDate, "timestamptz")+`, `+arg(c.Year, "integer")+`, `+arg(string(providerJSON), "jsonb")+`,
+		   `+arg(string(genresJSON), "jsonb")+`, `+arg(string(studiosJSON), "jsonb")+`, `+arg(string(tagsJSON), "jsonb")+`
+		 FROM u WHERE true
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   premiere_date = EXCLUDED.premiere_date,
 		   year = EXCLUDED.year,
 		   provider_ids = EXCLUDED.provider_ids,
 		   genres = EXCLUDED.genres,
 		   studios = EXCLUDED.studios,
-		   tags = EXCLUDED.tags`,
-		string(item.ID), c.PremiereDate, c.Year, providerJSON, genresJSON, studiosJSON, tagsJSON,
-	)
-	if err != nil {
-		return fmt.Errorf("upsert media_catalog: %w", err)
+		   tags = EXCLUDED.tags)`)
+	} else if !create {
+		ctes = append(ctes, `cd AS (DELETE FROM media_catalog WHERE media_item_id IN (SELECT id FROM u))`)
 	}
-	return nil
-}
 
-func upsertMediaClassification(ctx context.Context, tx *sql.Tx, item *library.MediaItem) error {
-	c := item.Classification
-	hasData := c != nil && (c.CommunityRating != nil || c.OfficialRating != "" ||
-		len(c.CertificationsByCountry) > 0 || len(c.ProviderRatings) > 0)
-	if !hasData {
-		_, err := tx.ExecContext(ctx, `DELETE FROM media_classifications WHERE media_item_id = $1`, string(item.ID))
+	if c := item.Classification; c != nil && (c.CommunityRating != nil || c.OfficialRating != "" ||
+		len(c.CertificationsByCountry) > 0 || len(c.ProviderRatings) > 0) {
+		certJSON, err := json.Marshal(orEmptyMap(c.CertificationsByCountry))
 		if err != nil {
-			return fmt.Errorf("delete media_classifications: %w", err)
+			return "", nil, fmt.Errorf("marshal certifications: %w", err)
 		}
-		return nil
-	}
-	certJSON, err := json.Marshal(orEmptyMap(c.CertificationsByCountry))
-	if err != nil {
-		return fmt.Errorf("marshal certifications: %w", err)
-	}
-	ratingsJSON, err := json.Marshal(orEmptyFloatMap(c.ProviderRatings))
-	if err != nil {
-		return fmt.Errorf("marshal provider_ratings: %w", err)
-	}
-	_, err = tx.ExecContext(ctx,
-		`INSERT INTO media_classifications (media_item_id, community_rating, official_rating, certifications_by_country, provider_ratings)
-		 VALUES ($1,$2,$3,$4,$5)
+		ratingsJSON, err := json.Marshal(orEmptyFloatMap(c.ProviderRatings))
+		if err != nil {
+			return "", nil, fmt.Errorf("marshal provider_ratings: %w", err)
+		}
+		ctes = append(ctes, `cli AS (INSERT INTO media_classifications (media_item_id, community_rating, official_rating, certifications_by_country, provider_ratings)
+		 SELECT u.id, `+arg(c.CommunityRating, "double precision")+`, `+arg(c.OfficialRating, "text")+`,
+		   `+arg(string(certJSON), "jsonb")+`, `+arg(string(ratingsJSON), "jsonb")+`
+		 FROM u WHERE true
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   community_rating = EXCLUDED.community_rating,
 		   official_rating = EXCLUDED.official_rating,
 		   certifications_by_country = EXCLUDED.certifications_by_country,
-		   provider_ratings = EXCLUDED.provider_ratings`,
-		string(item.ID), c.CommunityRating, c.OfficialRating, certJSON, ratingsJSON,
-	)
-	if err != nil {
-		return fmt.Errorf("upsert media_classifications: %w", err)
+		   provider_ratings = EXCLUDED.provider_ratings)`)
+	} else if !create {
+		ctes = append(ctes, `cld AS (DELETE FROM media_classifications WHERE media_item_id IN (SELECT id FROM u))`)
 	}
-	return nil
-}
 
-const trailerInsertCols = 10
-
-// buildTrailerInsert folds every trailer into a single multi-row INSERT
-// (one query for the whole item instead of one per trailer - it matters on a
-// full library scan). Returns ("", nil) for an empty list: Postgres rejects
-// INSERT ... VALUES with zero rows, so the caller must skip the exec entirely.
-func buildTrailerInsert(mediaItemID string, trailers []library.Trailer) (string, []any) {
-	if len(trailers) == 0 {
-		return "", nil
+	// media_trailers: the in-memory slice is the source of truth, so an update
+	// deletes then re-inserts (the ids are positional, "tlr-<item>-<i>").
+	gate := ""
+	if !create {
+		ctes = append(ctes, `td AS (DELETE FROM media_trailers WHERE media_item_id IN (SELECT id FROM u) RETURNING 1)`)
+		gate = ", (SELECT count(*) FROM td) AS gate"
 	}
-	values := make([]string, len(trailers))
-	args := make([]any, 0, len(trailers)*trailerInsertCols)
-	for i, t := range trailers {
-		base := i * trailerInsertCols
-		placeholders := make([]string, trailerInsertCols)
-		for j := range trailerInsertCols {
-			placeholders[j] = fmt.Sprintf("$%d", base+j+1)
+	if n := len(item.Trailers); n > 0 {
+		site, key, lang, typ, subLang := make([]string, n), make([]string, n), make([]string, n), make([]string, n), make([]string, n)
+		official, useSubs := make([]bool, n), make([]bool, n)
+		for i, t := range item.Trailers {
+			site[i], key[i], lang[i], typ[i], subLang[i] = t.Site, t.Key, t.Language, t.Type, t.SubtitleLanguage
+			official[i], useSubs[i] = t.Official, t.UseSubtitles
 		}
-		values[i] = "(" + strings.Join(placeholders, ",") + ")"
-		args = append(args,
-			fmt.Sprintf("tlr-%s-%d", mediaItemID, i),
-			mediaItemID, i, t.Site, t.Key, t.Language, t.Official, t.Type,
-			t.UseSubtitles, t.SubtitleLanguage,
-		)
+		ctes = append(ctes, `ti AS (INSERT INTO media_trailers (id, media_item_id, position, site, key, language, official, type, use_subtitles, subtitle_language)
+		 SELECT 'tlr-' || u.id || '-' || (t.ord - 1), u.id, (t.ord - 1)::integer, t.site, t.key, t.language, t.official, t.type, t.use_subtitles, t.subtitle_language
+		 FROM u`+gate+`, unnest(`+arg(pq.Array(site), "text[]")+`, `+arg(pq.Array(key), "text[]")+`, `+arg(pq.Array(lang), "text[]")+`,
+		   `+arg(pq.Array(official), "boolean[]")+`, `+arg(pq.Array(typ), "text[]")+`, `+arg(pq.Array(useSubs), "boolean[]")+`,
+		   `+arg(pq.Array(subLang), "text[]")+`) WITH ORDINALITY AS t(site, key, language, official, type, use_subtitles, subtitle_language, ord))`)
 	}
-	query := `INSERT INTO media_trailers (id, media_item_id, position, site, key, language, official, type, use_subtitles, subtitle_language)
-		 VALUES ` + strings.Join(values, ",")
-	return query, args
+
+	return "WITH " + strings.Join(ctes, ",\n") + "\nSELECT count(*) FROM u", args, nil
 }
 
-// replaceMediaTrailers deletes-then-reinserts so the in-memory slice is
-// the source of truth, matching how the previous JSONB array column
-// behaved.
-func replaceMediaTrailers(ctx context.Context, tx *sql.Tx, mediaItemID string, trailers []library.Trailer) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM media_trailers WHERE media_item_id = $1`, mediaItemID); err != nil {
-		return fmt.Errorf("delete media_trailers: %w", err)
+// writeMediaItem runs itemWriteQuery on the ambient transaction when there is
+// one, on the pool otherwise, and reports whether the item row was written
+// (false only for an UPDATE whose id matches nothing).
+func writeMediaItem(ctx context.Context, exec dbExecutor, item *library.MediaItem, create bool, scanTitle, sortTitle string, parentID *string) (bool, error) {
+	query, args, err := itemWriteQuery(item, create, scanTitle, sortTitle, parentID)
+	if err != nil {
+		return false, err
 	}
-	query, args := buildTrailerInsert(mediaItemID, trailers)
-	if query == "" {
-		return nil
+	var n int
+	if err := exec.QueryRowContext(ctx, query, args...).Scan(&n); err != nil {
+		return false, err
 	}
-	if _, err := tx.ExecContext(ctx, query, args...); err != nil {
-		return fmt.Errorf("insert media_trailers: %w", err)
-	}
-	return nil
+	return n > 0, nil
 }
 
 // orEmptyMap / orEmptySlice / orEmptyFloatMap normalise nil → empty

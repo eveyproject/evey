@@ -56,30 +56,6 @@ func NewMediaItemRepository(db *sql.DB) *MediaItemRepository {
 	return &MediaItemRepository{db: db}
 }
 
-// withMediaItemTx runs f inside a single transaction so that a partial
-// sub-aggregate write never leaves an item half-persisted. When the caller
-// already carries an ambient transaction (TxUnit.Do - e.g. EnrichItem's
-// item+artwork+cast unit of work), f JOINS it instead of opening a private
-// one: a private BEGIN here would commit the item independently of its
-// siblings and break the outer rollback. The ambient tx's commit/rollback
-// stays with its owner.
-func (r *MediaItemRepository) withMediaItemTx(ctx context.Context, f func(*sql.Tx) error) error {
-	if v := ctx.Value(txCtxKey{}); v != nil {
-		if tx, ok := v.(*sql.Tx); ok && tx != nil {
-			return f(tx)
-		}
-	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := f(tx); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
 // sanitizeMediaItemText strips bytes that aren't valid UTF-8 from the item's
 // text fields. Postgres TEXT columns reject invalid UTF-8 - e.g. a Latin-1
 // filename byte (0x80) parsed into the title made the insert fail on EVERY
@@ -138,31 +114,11 @@ func (r *MediaItemRepository) Create(ctx context.Context, item *library.MediaIte
 		parentID = &item.ParentID
 	}
 
-	err := r.withMediaItemTx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO media_items (id, library_id, parent_id, type, title, scan_title, sort_title, original_title,
-			 overview, tagline, index_number, added_at, updated_at)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-			item.ID, item.LibraryID, parentID, item.Type, item.Title, scanTitle,
-			sortTitle, item.OriginalTitle, item.Overview, item.Tagline,
-			item.IndexNumber, item.AddedAt, item.UpdatedAt,
-		); err != nil {
-			return fmt.Errorf("insert media_items: %w", err)
-		}
-		if err := upsertMediaFile(ctx, tx, item); err != nil {
-			return err
-		}
-		if err := upsertMediaCatalog(ctx, tx, item); err != nil {
-			return err
-		}
-		if err := upsertMediaClassification(ctx, tx, item); err != nil {
-			return err
-		}
-		if err := replaceMediaTrailers(ctx, tx, string(item.ID), item.Trailers); err != nil {
-			return err
-		}
-		return nil
-	})
+	// One statement, atomic on its own; an ambient transaction is joined.
+	_, err := writeMediaItem(ctx, txFromCtx(ctx, r.db), item, true, scanTitle, sortTitle, parentID)
+	if err != nil {
+		err = fmt.Errorf("insert media_items: %w", err)
+	}
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -210,35 +166,13 @@ func (r *MediaItemRepository) Update(ctx context.Context, item *library.MediaIte
 	// (a row created before scan_title existed).
 	scanTitle := item.ScanTitle
 
-	err := r.withMediaItemTx(ctx, func(tx *sql.Tx) error {
-		res, err := tx.ExecContext(ctx,
-			`UPDATE media_items SET library_id=$1, parent_id=$2, type=$3, title=$4,
-			 scan_title=COALESCE(NULLIF($5, ''), media_items.scan_title, $4),
-			 sort_title=$6, original_title=$7, overview=$8, tagline=$9, index_number=$10, updated_at=$11
-			 WHERE id=$12`,
-			item.LibraryID, parentID, item.Type, item.Title, scanTitle, sortTitle, item.OriginalTitle,
-			item.Overview, item.Tagline, item.IndexNumber, item.UpdatedAt, item.ID,
-		)
-		if err != nil {
-			return fmt.Errorf("update media_items: %w", err)
-		}
-		if n, _ := res.RowsAffected(); n == 0 {
-			return shared.ErrNotFound
-		}
-		if err := upsertMediaFile(ctx, tx, item); err != nil {
-			return err
-		}
-		if err := upsertMediaCatalog(ctx, tx, item); err != nil {
-			return err
-		}
-		if err := upsertMediaClassification(ctx, tx, item); err != nil {
-			return err
-		}
-		if err := replaceMediaTrailers(ctx, tx, string(item.ID), item.Trailers); err != nil {
-			return err
-		}
-		return nil
-	})
+	// One statement, atomic on its own; an ambient transaction is joined.
+	written, err := writeMediaItem(ctx, txFromCtx(ctx, r.db), item, false, scanTitle, sortTitle, parentID)
+	if err != nil {
+		err = fmt.Errorf("update media_items: %w", err)
+	} else if !written {
+		err = shared.ErrNotFound
+	}
 	if err != nil {
 		if errors.Is(err, shared.ErrNotFound) {
 			span.RecordError(err)
