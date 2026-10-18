@@ -19,7 +19,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("../../../providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { text: "#fff", textMuted: "#888", accent: "#f00", border: "#333", surface: "#111", success: "#0a0", warning: "#fa0", error: "#f33" }, radii: { sm: 4, md: 8 } }),
 }));
-const journal = vi.hoisted(() => ({ hook: vi.fn(), state: { data: undefined as unknown, isLoading: false } }));
+const journal = vi.hoisted(() => ({ hook: vi.fn(), state: { data: undefined as unknown, isLoading: false, isError: false, refetch: vi.fn() } }));
 vi.mock("@evey/api", () => ({
   useAdminMediaServiceListMediaRepairs: (...a: unknown[]) => {
     journal.hook(...a);
@@ -32,7 +32,7 @@ import { RepairJournalPanel } from "./RepairJournalPanel";
 
 beforeEach(() => {
   journal.hook.mockReset();
-  journal.state = { data: undefined, isLoading: false };
+  journal.state = { data: undefined, isLoading: false, isError: false, refetch: vi.fn() };
 });
 
 // Mobile twin of the web journal: fetch only once shown, the window pinned
@@ -52,6 +52,8 @@ describe("RepairJournalPanel (mobile)", () => {
   it("filters the batch kind server-side and the operator view client-side", () => {
     journal.state = {
       isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
       data: {
         entries: [
           { atMs: "1758000000000", path: "/m/a.mkv", op: "reindex", outcome: "applied", job: "reindex", evidenceMethod: "track-coherence", evidenceLagSec: 0.083, evidenceConfidence: 0.91 },
@@ -75,5 +77,17 @@ describe("RepairJournalPanel (mobile)", () => {
     expect(journal.hook.mock.calls.at(-1)![0].job).toBe("reindex");
     fireEvent.click(screen.getByText("admin.repairJournal.windowAll"));
     expect(journal.hook.mock.calls.at(-1)![0].sinceMs).toBeUndefined();
+  });
+
+  // The journal is refused while the seek index is not configured: a failure
+  // to read, not an empty window.
+  it("says the journal failed to load, not that the window is empty, and retries", () => {
+    journal.state = { data: undefined, isLoading: false, isError: true, refetch: vi.fn() };
+    render(<RepairJournalPanel />);
+    fireEvent.click(screen.getByText("Show"));
+    expect(screen.queryByText("No repairs in this window.")).toBeNull();
+    expect(screen.getByText("common.loadError")).toBeTruthy();
+    fireEvent.click(screen.getByText("common.retry"));
+    expect(journal.state.refetch).toHaveBeenCalled();
   });
 });

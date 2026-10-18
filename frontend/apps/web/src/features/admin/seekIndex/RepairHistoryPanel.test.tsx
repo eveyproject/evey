@@ -3,7 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
 const api = vi.hoisted(() => ({
-  history: { data: undefined as unknown, isLoading: false, refetch: vi.fn() },
+  history: { data: undefined as unknown, isLoading: false, isError: false, error: null as unknown, refetch: vi.fn() },
   historyArgs: vi.fn(),
   undo: vi.fn(),
   undoOpts: null as any,
@@ -28,7 +28,7 @@ import { RepairHistoryPanel } from "./RepairHistoryPanel";
 
 beforeEach(() => {
   vi.clearAllMocks();
-  api.history = { data: undefined, isLoading: false, refetch: vi.fn() };
+  api.history = { data: undefined, isLoading: false, isError: false, error: null, refetch: vi.fn() };
 });
 
 // The journal is the way back, with or without a backup copy. Each
@@ -80,8 +80,19 @@ describe("RepairHistoryPanel", () => {
     expect(screen.getByTestId("repair-history-not-reversible")).toBeInTheDocument();
     expect(screen.queryByTestId("repair-history-shift")).toBeNull();
 
-    api.history = { data: { entries: [] }, isLoading: false, refetch: vi.fn() };
+    api.history = { data: { entries: [] }, isLoading: false, isError: false, error: null, refetch: vi.fn() };
     render(<RepairHistoryPanel mediaId="mi-2" title="Other" onClose={vi.fn()} />);
     expect(screen.getByTestId("repair-history-empty")).toBeInTheDocument();
+  });
+
+  // GetMediaRepairHistory refuses while the seek index is not configured: a
+  // failure to read, not a file never repaired.
+  it("says the history failed to load, not that it is empty, and retries", () => {
+    api.history = { data: undefined, isLoading: false, isError: true, error: new Error("unavailable"), refetch: vi.fn() };
+    render(<RepairHistoryPanel mediaId="mi-1" title="Film" onClose={vi.fn()} />);
+    expect(screen.queryByTestId("repair-history-empty")).toBeNull();
+    expect(screen.getByTestId("fetch-error-state")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("common.retry"));
+    expect(api.history.refetch).toHaveBeenCalled();
   });
 });

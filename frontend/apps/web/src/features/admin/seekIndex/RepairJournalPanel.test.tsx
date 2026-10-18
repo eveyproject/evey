@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
-const journal = vi.hoisted(() => ({ hook: vi.fn(), state: { data: undefined as unknown, isLoading: false } }));
+const journal = vi.hoisted(() => ({ hook: vi.fn(), state: { data: undefined as unknown, isLoading: false, isError: false, error: null as unknown, refetch: vi.fn() } }));
 vi.mock("@evey/api", () => ({
   useAdminMediaServiceListMediaRepairs: (...args: unknown[]) => {
     journal.hook(...args);
@@ -21,7 +21,7 @@ import { RepairJournalPanel } from "./RepairJournalPanel";
 
 beforeEach(() => {
   journal.hook.mockReset();
-  journal.state = { data: undefined, isLoading: false };
+  journal.state = { data: undefined, isLoading: false, isError: false, error: null, refetch: vi.fn() };
 });
 
 // The journal answers "what did the repairs touch": it fetches only once
@@ -46,6 +46,9 @@ describe("RepairJournalPanel", () => {
   it("the batch kind is a server filter, 'operator' a client-side one, 'all' drops the window", () => {
     journal.state = {
       isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
       data: {
         entries: [
           { atMs: "1758000000000", path: "/media/a.mkv", op: "reindex", outcome: "applied", job: "reindex", evidenceMethod: "track-coherence", evidenceLagSec: 0.083, evidenceConfidence: 0.91 },
@@ -76,5 +79,18 @@ describe("RepairJournalPanel", () => {
 
     fireEvent.change(screen.getByTestId("repair-journal-window"), { target: { value: "all" } });
     expect(journal.hook.mock.calls.at(-1)![0].sinceMs).toBeUndefined();
+  });
+
+  // ListMediaRepairs refuses while the seek index is not configured: a failure
+  // to read, not an empty window.
+  it("says the journal failed to load, not that the window is empty, and retries", () => {
+    journal.state = { data: undefined, isLoading: false, isError: true, error: new Error("unavailable"), refetch: vi.fn() };
+    render(<RepairJournalPanel />);
+    fireEvent.click(screen.getByTestId("repair-journal-toggle"));
+    expect(screen.queryByTestId("repair-journal-empty")).toBeNull();
+    expect(screen.queryByTestId("repair-journal-count")).toBeNull();
+    expect(screen.getByTestId("fetch-error-state")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("common.retry"));
+    expect(journal.state.refetch).toHaveBeenCalled();
   });
 });
