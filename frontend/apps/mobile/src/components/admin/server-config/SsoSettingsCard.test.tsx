@@ -92,6 +92,14 @@ beforeEach(() => {
 });
 
 describe("SsoSettingsCard", () => {
+  // A failed GET used to leave the spinner turning for good.
+  it("says the settings did not load and retries on demand", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("offline"));
+    renderCard();
+    fireEvent.click(await screen.findByLabelText("common.retry"));
+    expect(await screen.findByDisplayValue("https://idp.example")).toBeTruthy();
+  });
+
   it("renders the status, its error, the env notice, the fields and the URIs from GET", async () => {
     renderCard();
     expect((await screen.findByTestId("sso-status")).textContent).toBe("admin.sso.state.error");
