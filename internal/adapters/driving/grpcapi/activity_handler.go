@@ -21,7 +21,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -107,7 +106,7 @@ func (h *activityHandler) GetPlayHistory(ctx context.Context, req *eveyv1.GetPla
 		if req.Pagination.Cursor != "" {
 			c, err := decodeTimeCursor(req.Pagination.Cursor)
 			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
+				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.cursor_invalid")
 			}
 			filter.Cursor = &activity.PlayHistoryCursor{StartedAt: c.t, SessionID: c.id}
 			filter.Offset = 0
@@ -292,7 +291,7 @@ func (h *activityHandler) GetLoginHistory(ctx context.Context, req *eveyv1.GetLo
 		if req.Pagination.Cursor != "" {
 			c, err := decodeTimeCursor(req.Pagination.Cursor)
 			if err != nil {
-				return nil, status.Errorf(codes.InvalidArgument, "invalid cursor: %v", err)
+				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.cursor_invalid")
 			}
 			cursor = &activity.LoginHistoryCursor{StartedAt: c.t, EntryID: c.id}
 		}
@@ -353,7 +352,7 @@ func (h *activityHandler) GetPopularMedia(ctx context.Context, req *eveyv1.GetPo
 	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return nil, status.Error(codes.Unauthenticated, "not authenticated")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	limit := int(req.Limit)
 	if limit <= 0 {
@@ -423,7 +422,7 @@ func (h *activityHandler) GetAnalytics(ctx context.Context, _ *eveyv1.GetAnalyti
 	defer span.End()
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || !claims.IsAdmin {
-		return nil, status.Error(codes.PermissionDenied, "admin only")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	data, err := h.svc.GetAnalytics(ctx)
 	if err != nil {

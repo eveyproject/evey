@@ -7,11 +7,11 @@ import (
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/config"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/network"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"github.com/eveyproject/evey/internal/pkg/urlvalidator"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 const remoteAccessCfgKey = "remote_access"
@@ -27,8 +27,9 @@ type remoteAccessConfigStore interface {
 // A private mutex here excluded neither of them.
 type remoteAccessHandler struct {
 	eveyv1.UnimplementedRemoteAccessServiceServer
-	cfg   *config.Config
-	store remoteAccessConfigStore
+	cfg        *config.Config
+	store      remoteAccessConfigStore
+	translator *eveyi18n.Translator
 }
 
 func (h *remoteAccessHandler) GetRemoteAccess(ctx context.Context, _ *eveyv1.GetRemoteAccessRequest) (*eveyv1.RemoteAccessConfig, error) {
@@ -51,18 +52,18 @@ func (h *remoteAccessHandler) UpdateRemoteAccess(ctx context.Context, req *eveyv
 		return nil, err
 	}
 	if !claims.IsAdmin {
-		return nil, status.Error(codes.PermissionDenied, "admin only")
+		return nil, h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.admin_access_required")
 	}
 	if req.ExternalUrl != nil {
 		if err := urlvalidator.ValidateExternalURL(*req.ExternalUrl); err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid ExternalURL: %v", err)
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.admin.external_url_invalid", map[string]string{"reason": err.Error()})
 		}
 	}
 	var trustedProxies []string
 	if len(req.TrustedProxies) > 0 {
 		list, err := config.PanelTrustedProxies(req.TrustedProxies)
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "invalid trusted_proxies: %v", err)
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.admin.trusted_proxies_invalid", map[string]string{"reason": err.Error()})
 		}
 		trustedProxies = list
 	}

@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	appbackup "github.com/eveyproject/evey/internal/app/backup"
 	domainbackup "github.com/eveyproject/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/pkg/cron"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -17,7 +20,8 @@ import (
 
 type backupScheduleHandler struct {
 	eveyv1.UnimplementedBackupScheduleServiceServer
-	scheduler *appbackup.Scheduler
+	scheduler  *appbackup.Scheduler
+	translator *eveyi18n.Translator
 }
 
 func (h *backupScheduleHandler) GetBackupSchedule(ctx context.Context, _ *eveyv1.GetBackupScheduleRequest) (*eveyv1.BackupSchedule, error) {
@@ -63,6 +67,12 @@ func (h *backupScheduleHandler) UpdateBackupSchedule(ctx context.Context, req *e
 		slog.ErrorContext(ctx, "update backup schedule", slog.Any("err", err))
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if retentionDays <= 0 {
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.admin.backup_retention_positive")
+		}
+		if _, cronErr := cron.NextTime(cronExpr, time.Now()); cronErr != nil {
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.cron_invalid")
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "invalid schedule: %v", err)
 	}
 	return backupScheduleToProto(updated), nil
@@ -75,7 +85,7 @@ func (h *backupScheduleHandler) RunBackupNow(ctx context.Context, _ *eveyv1.RunB
 	if err != nil {
 		if errors.Is(err, appbackup.ErrBackupInProgress) {
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Error(codes.FailedPrecondition, "a backup is already running")
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.backup_running")
 		}
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())

@@ -19,7 +19,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -187,7 +186,7 @@ func (h *photoHandler) SearchPhotos(ctx context.Context, req *eveyv1.SearchPhoto
 	}
 	if req.LibraryId == "" || req.Query == "" {
 		span.SetStatus(otelcodes.Error, "library_id and query required")
-		return nil, status.Error(codes.InvalidArgument, "library_id and query required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.photo.library_and_query_required")
 	}
 	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
 		span.RecordError(err)
@@ -227,7 +226,7 @@ func (h *photoHandler) ScanPhotoDirectory(ctx context.Context, req *eveyv1.ScanP
 	}
 	if req.LibraryId == "" || req.Directory == "" {
 		span.SetStatus(otelcodes.Error, "library_id and directory required")
-		return nil, status.Error(codes.InvalidArgument, "library_id and directory required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.music.library_and_directory_required")
 	}
 	if err := h.checkLibraryAccess(ctx, shared.LibraryID(req.LibraryId)); err != nil {
 		span.RecordError(err)

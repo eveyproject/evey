@@ -23,6 +23,7 @@ auth:
 general:
   not_found: "Not found"
   rate_limited: "Too many requests. Try again in {{wait}}."
+  request_required: "The request is empty"
 
 playlist:
   cannot_add_smart: "Cannot manually add items to a smart playlist"
@@ -38,6 +39,8 @@ playback:
   session_not_found: "Session not found"
   max_streams_reached: "You've reached the maximum number of concurrent streams"
   max_devices_reached: "Device limit reached for this profile. Stop playback on another device first."
+  session_id_required: "A session id is required"
+  transcoding_disabled_by_prefs: "This title needs transcoding, which your playback preferences turn off"
 
 activity:
   cannot_access_other_history: "Cannot access another user's login history"
@@ -73,10 +76,27 @@ admin:
   seek_index_audio_offset_not_a_repair: "An audio start offset is a fact about the file, not a defect Evey rewrites: it is measured and shown, and nothing here can tell which track to move. Listen, correct by hand, or re-acquire the file."
   seek_index_not_in_scan: "This file is not part of any completed health scan"
   seek_index_backup_overcommit: "Keeping one backup per repaired file needs more free space than available ({volumes}) - free up space or repair without backups"
+  session_command_required: "A session and a command are required"
+  profile_command_required: "A profile and a command are required"
+  tmdb_id_positive: "The TMDB id must be a positive number"
+  intro_backfill_running: "Intro detection is already running"
+  loadtest_calibration_running: "A calibration benchmark is running - wait for it to finish"
+  loadtest_streams_active: "Playback sessions are active - a load test never runs over real viewers"
+  loadtest_already_running: "A load test is already running"
+  sync_shift_out_of_range: "This tool does not move a track by more than {max} s"
+  repair_undo_none: "No repair is recorded for this file"
+  repair_not_reversible: "The last repair on this file cannot be undone in software"
+  repair_journal_newer: "This repair was recorded by a newer version and cannot be read safely"
+  restart_unavailable: "Restarting the server is not available in this deployment"
+  backup_retention_positive: "The retention must be at least 1 day"
+  backup_running: "A backup is already running"
+  external_url_invalid: "Invalid external URL: {reason}"
+  trusted_proxies_invalid: "Invalid trusted proxies: {reason}"
 
 config:
   key_required: "Key is required"
   key_not_found: "Configuration key not found"
+  invalid_value: "{value} is not a valid value for {key}"
 
 playback_settings:
   skip_forward_positive: "skip_forward_seconds must be positive"
@@ -106,6 +126,12 @@ user:
   no_local_password: "This account signs in with single sign-on and has no password yet: ask an administrator to set one, or use the password reset"
   apikey_name_required: "An API key name is required"
   apikey_scope_required: "An API key needs at least one scope"
+  username_required: "A username is required"
+  email_invalid: "This e-mail address is not valid"
+  profile_name_required: "A profile name is required"
+  max_profiles_reached: "This account has reached its maximum number of profiles"
+  admin_cannot_be_kids: "An administrator's profile cannot be a kids profile"
+  cannot_delete_default_profile: "The default profile cannot be deleted"
 
 media:
   not_found: "Media not found"
@@ -115,6 +141,10 @@ media:
 transcode:
   max_concurrent_reached: "The server is busy transcoding other streams. Please try again in a moment."
   job_not_found: "Transcoding job not found"
+  codec_required: "A video codec is required"
+  job_id_required: "A transcoding job id is required"
+  cache_file_not_found: "Cache file not found"
+  cache_filename_invalid: "Invalid cache file name"
 
 share:
   not_found: "Share link not found"
@@ -139,6 +169,7 @@ request:
 
 photo:
   not_found: "Photo not found"
+  library_and_query_required: "A library and a search query are required"
 
 music:
   track_not_found: "Track not found"
@@ -149,6 +180,16 @@ plugin:
   not_enabled: "Plugin is not enabled"
   already_running: "Plugin is already running"
   not_running: "Plugin is not running"
+  system_disabled: "The plugin system is disabled (set EVEY_PLUGINS_ENABLED=true to enable it)"
+  id_required: "A plugin id is required"
+  id_invalid: "Invalid plugin id"
+  runtime_not_found: "Plugin runtime not found"
+  source_required: "A plugin source is required"
+  acknowledged_hash_required: "Confirm the reviewed update before applying it"
+  candidate_changed: "The update changed since its preview - review it again"
+  limits_negative: "Memory, process and disk limits must be 0 or more"
+  cpu_nice_range: "The CPU priority (nice) must be between 0 and 19"
+  sandbox_mode_invalid: "The sandbox mode must be one of: {modes}"
 
 demo:
   locked: "Not available on the demo server"
@@ -189,3 +230,7 @@ push:
   endpoint_and_keys_required: "A push endpoint and its keys are required"
   invalid_key_encoding: "The push keys are not validly encoded"
   endpoint_required: "A push endpoint is required"
+
+webhook:
+  invalid_config: "Invalid webhook configuration"
+  not_found: "Webhook not found"

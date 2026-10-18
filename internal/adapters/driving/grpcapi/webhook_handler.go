@@ -8,15 +8,16 @@ import (
 	appwebhook "github.com/eveyproject/evey/internal/app/webhook"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/domain/webhook"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type webhookHandler struct {
 	eveyv1.UnimplementedWebhookServiceServer
-	svc *appwebhook.Service
+	svc        *appwebhook.Service
+	translator *eveyi18n.Translator
 }
 
 func (h *webhookHandler) CreateWebhook(ctx context.Context, req *eveyv1.CreateWebhookRequest) (*eveyv1.WebhookConfig, error) {
@@ -34,7 +35,7 @@ func (h *webhookHandler) CreateWebhook(ctx context.Context, req *eveyv1.CreateWe
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		if errors.Is(err, appwebhook.ErrInvalidConfig) {
-			return nil, status.Error(codes.InvalidArgument, "invalid webhook configuration")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.webhook.invalid_config")
 		}
 		return nil, internalError(ctx, "create webhook", err)
 	}
@@ -73,10 +74,10 @@ func (h *webhookHandler) UpdateWebhook(ctx context.Context, req *eveyv1.UpdateWe
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		if errors.Is(err, appwebhook.ErrInvalidConfig) {
-			return nil, status.Error(codes.InvalidArgument, "invalid webhook configuration")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.webhook.invalid_config")
 		}
 		if errors.Is(err, shared.ErrNotFound) {
-			return nil, status.Error(codes.NotFound, "webhook not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.webhook.not_found")
 		}
 		return nil, internalError(ctx, "update webhook", err)
 	}
@@ -90,7 +91,7 @@ func (h *webhookHandler) DeleteWebhook(ctx context.Context, req *eveyv1.DeleteWe
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		if errors.Is(err, shared.ErrNotFound) {
-			return nil, status.Error(codes.NotFound, "webhook not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.webhook.not_found")
 		}
 		return nil, internalError(ctx, "delete webhook", err)
 	}

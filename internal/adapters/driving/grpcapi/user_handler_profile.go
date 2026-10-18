@@ -79,6 +79,9 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		if hErr != nil {
 			span.RecordError(hErr)
 			span.SetStatus(otelcodes.Error, hErr.Error())
+			if errors.Is(hErr, appuser.ErrInvalidPINFormat) {
+				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.pin_must_be_4_digits")
+			}
 			return nil, status.Errorf(codes.InvalidArgument, "%v", hErr)
 		}
 		parental.PINHash = hash
@@ -101,13 +104,26 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case req.UserId == "":
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.id_required")
+		case req.Name == "":
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.profile_name_required")
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.userSvc.CreateProfile(ctx, p); err != nil {
 		span.RecordError(err)
-		if errors.Is(err, appuser.ErrMaxProfilesReached) || errors.Is(err, appuser.ErrKidsRequiresPIN) || errors.Is(err, appuser.ErrAdminCannotBeKids) {
+		switch {
+		case errors.Is(err, appuser.ErrMaxProfilesReached):
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.max_profiles_reached")
+		case errors.Is(err, appuser.ErrKidsRequiresPIN):
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.auth.pin_required_for_non_kids")
+		case errors.Is(err, appuser.ErrAdminCannotBeKids):
+			span.SetStatus(otelcodes.Error, err.Error())
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.admin_cannot_be_kids")
 		}
 		slog.ErrorContext(ctx, "create profile", slog.Any("err", err))
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -281,6 +297,9 @@ func (h *userHandler) applyProfileUpdateFields(ctx context.Context, span trace.S
 		if hErr != nil {
 			span.RecordError(hErr)
 			span.SetStatus(otelcodes.Error, hErr.Error())
+			if errors.Is(hErr, appuser.ErrInvalidPINFormat) {
+				return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.pin_must_be_4_digits")
+			}
 			return status.Errorf(codes.InvalidArgument, "%v", hErr)
 		}
 		if p.Parental == nil {
@@ -309,7 +328,7 @@ func (h *userHandler) persistProfileUpdate(ctx context.Context, span trace.Span,
 		span.RecordError(err)
 		if errors.Is(err, appuser.ErrKidsRequiresPIN) {
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.auth.pin_required_for_non_kids")
 		}
 		slog.ErrorContext(ctx, "update profile", slog.Any("err", err))
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -404,7 +423,7 @@ func (h *userHandler) DeleteProfile(ctx context.Context, req *eveyv1.DeleteProfi
 		span.RecordError(err)
 		if errors.Is(err, appuser.ErrCannotDeleteDefault) {
 			span.SetStatus(otelcodes.Error, err.Error())
-			return nil, status.Errorf(codes.FailedPrecondition, "%v", err)
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.user.cannot_delete_default_profile")
 		}
 		slog.ErrorContext(ctx, "delete profile", slog.Any("err", err))
 		span.SetStatus(otelcodes.Error, err.Error())

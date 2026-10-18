@@ -23,6 +23,7 @@ auth:
 general:
   not_found: "Nicht gefunden"
   rate_limited: "Zu viele Anfragen. Versuche es in {{wait}} erneut."
+  request_required: "Die Anfrage ist leer"
 
 playlist:
   cannot_add_smart: "Elemente können nicht manuell zu einer Smart-Playlist hinzugefügt werden"
@@ -38,6 +39,8 @@ playback:
   session_not_found: "Sitzung nicht gefunden"
   max_streams_reached: "Maximale Anzahl gleichzeitiger Wiedergaben erreicht"
   max_devices_reached: "Gerätelimit für dieses Profil erreicht. Beenden Sie zuerst die Wiedergabe auf einem anderen Gerät."
+  session_id_required: "Eine Sitzungs-ID ist erforderlich"
+  transcoding_disabled_by_prefs: "Dieser Titel muss transkodiert werden, was Ihre Wiedergabeeinstellungen deaktivieren"
 
 activity:
   cannot_access_other_history: "Anmeldeverlauf eines anderen Benutzers kann nicht aufgerufen werden"
@@ -73,10 +76,27 @@ admin:
   seek_index_audio_offset_not_a_repair: "Ein Audio-Startversatz ist eine Eigenschaft der Datei, kein Defekt, den Evey umschreibt: Er wird gemessen und angezeigt, und nichts hier kann sagen, welche Tonspur zu verschieben wäre. Anhören, von Hand korrigieren oder die Datei neu beschaffen."
   seek_index_not_in_scan: "Diese Datei ist Teil keiner abgeschlossenen Zustandsanalyse"
   seek_index_backup_overcommit: "Eine Sicherung pro reparierter Datei braucht mehr freien Speicher als verfügbar ({volumes}) - geben Sie Speicherplatz frei oder reparieren Sie ohne Sicherungen"
+  session_command_required: "Eine Sitzung und ein Befehl sind erforderlich"
+  profile_command_required: "Ein Profil und ein Befehl sind erforderlich"
+  tmdb_id_positive: "Die TMDB-ID muss eine positive Zahl sein"
+  intro_backfill_running: "Die Intro-Erkennung läuft bereits"
+  loadtest_calibration_running: "Ein Kalibrierungs-Benchmark läuft - warten Sie, bis er abgeschlossen ist"
+  loadtest_streams_active: "Es laufen Wiedergaben - ein Lasttest läuft nie, während echte Zuschauer schauen"
+  loadtest_already_running: "Ein Lasttest läuft bereits"
+  sync_shift_out_of_range: "Dieses Werkzeug verschiebt eine Spur um höchstens {max} s"
+  repair_undo_none: "Für diese Datei ist keine Reparatur verzeichnet"
+  repair_not_reversible: "Die letzte Reparatur dieser Datei kann nicht per Software rückgängig gemacht werden"
+  repair_journal_newer: "Diese Reparatur wurde von einer neueren Version aufgezeichnet und kann nicht sicher gelesen werden"
+  restart_unavailable: "Ein Neustart des Servers ist in dieser Installation nicht verfügbar"
+  backup_retention_positive: "Die Aufbewahrungsdauer muss mindestens 1 Tag betragen"
+  backup_running: "Eine Sicherung läuft bereits"
+  external_url_invalid: "Ungültige externe URL: {reason}"
+  trusted_proxies_invalid: "Ungültige vertrauenswürdige Proxys: {reason}"
 
 config:
   key_required: "Schlüssel ist erforderlich"
   key_not_found: "Konfigurationsschlüssel nicht gefunden"
+  invalid_value: "{value} ist kein gültiger Wert für {key}"
 
 playback_settings:
   skip_forward_positive: "skip_forward_seconds muss positiv sein"
@@ -106,6 +126,12 @@ user:
   no_local_password: "Dieses Konto meldet sich per Single Sign-On an und hat noch kein Passwort: Bitten Sie einen Administrator, eines festzulegen, oder nutzen Sie das Zurücksetzen des Passworts"
   apikey_name_required: "Ein Name für den API-Schlüssel ist erforderlich"
   apikey_scope_required: "Ein API-Schlüssel benötigt mindestens einen Berechtigungsbereich"
+  username_required: "Ein Benutzername ist erforderlich"
+  email_invalid: "Diese E-Mail-Adresse ist ungültig"
+  profile_name_required: "Ein Profilname ist erforderlich"
+  max_profiles_reached: "Dieses Konto hat die maximale Anzahl an Profilen erreicht"
+  admin_cannot_be_kids: "Das Profil eines Administrators kann kein Kinderprofil sein"
+  cannot_delete_default_profile: "Das Standardprofil kann nicht gelöscht werden"
 
 media:
   not_found: "Medium nicht gefunden"
@@ -115,6 +141,10 @@ media:
 transcode:
   max_concurrent_reached: "Der Server transkodiert gerade andere Streams. Bitte versuchen Sie es gleich erneut."
   job_not_found: "Transkodierungsauftrag nicht gefunden"
+  codec_required: "Ein Video-Codec ist erforderlich"
+  job_id_required: "Eine Transkodierungsauftrags-ID ist erforderlich"
+  cache_file_not_found: "Cache-Datei nicht gefunden"
+  cache_filename_invalid: "Ungültiger Cache-Dateiname"
 
 share:
   not_found: "Freigabelink nicht gefunden"
@@ -139,6 +169,7 @@ request:
 
 photo:
   not_found: "Foto nicht gefunden"
+  library_and_query_required: "Eine Bibliothek und ein Suchbegriff sind erforderlich"
 
 music:
   track_not_found: "Titel nicht gefunden"
@@ -149,6 +180,16 @@ plugin:
   not_enabled: "Das Plugin ist nicht aktiviert"
   already_running: "Das Plugin läuft bereits"
   not_running: "Das Plugin läuft nicht"
+  system_disabled: "Das Plugin-System ist deaktiviert (setzen Sie EVEY_PLUGINS_ENABLED=true, um es zu aktivieren)"
+  id_required: "Eine Plugin-ID ist erforderlich"
+  id_invalid: "Ungültige Plugin-ID"
+  runtime_not_found: "Plugin-Laufzeitumgebung nicht gefunden"
+  source_required: "Eine Plugin-Quelle ist erforderlich"
+  acknowledged_hash_required: "Bestätigen Sie das geprüfte Update, bevor Sie es anwenden"
+  candidate_changed: "Das Update hat sich seit der Vorschau geändert - prüfen Sie es erneut"
+  limits_negative: "Speicher-, Prozess- und Festplattenlimits müssen 0 oder mehr betragen"
+  cpu_nice_range: "Die CPU-Priorität (nice) muss zwischen 0 und 19 liegen"
+  sandbox_mode_invalid: "Der Sandbox-Modus muss einer der folgenden sein: {modes}"
 
 demo:
   locked: "Auf dem Demo-Server nicht verfügbar"
@@ -189,3 +230,7 @@ push:
   endpoint_and_keys_required: "Ein Push-Endpunkt und seine Schlüssel sind erforderlich"
   invalid_key_encoding: "Die Push-Schlüssel sind nicht korrekt kodiert"
   endpoint_required: "Ein Push-Endpunkt ist erforderlich"
+
+webhook:
+  invalid_config: "Ungültige Webhook-Konfiguration"
+  not_found: "Webhook nicht gefunden"

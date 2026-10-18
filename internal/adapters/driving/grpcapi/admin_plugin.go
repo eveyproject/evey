@@ -59,10 +59,9 @@ type adminPluginHandler struct {
 // Read-only methods (List*, Get*) intentionally bypass this so the
 // admin UI can render a consistent "plugins disabled" state without
 // 500-ing.
-func (d *adminPluginHandler) requireEnabled() error {
+func (d *adminPluginHandler) requireEnabled(ctx context.Context) error {
 	if !d.enabled {
-		return status.Error(codes.FailedPrecondition,
-			"plugin system is disabled (set EVEY_PLUGINS_ENABLED=true to enable)")
+		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.system_disabled")
 	}
 	return nil
 }
@@ -70,7 +69,7 @@ func (d *adminPluginHandler) requireEnabled() error {
 func (d *adminPluginHandler) IssuePluginToken(ctx context.Context, req *eveyv1.IssuePluginTokenRequest) (*eveyv1.IssuePluginTokenResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.IssuePluginToken")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
@@ -83,7 +82,7 @@ func (d *adminPluginHandler) IssuePluginToken(ctx context.Context, req *eveyv1.I
 	}
 	if req.PluginId == "" {
 		span.SetStatus(otelcodes.Error, "plugin_id required")
-		return nil, status.Error(codes.InvalidArgument, "plugin_id required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.id_required")
 	}
 	if d.tokenSvc == nil {
 		span.SetStatus(otelcodes.Error, "plugin token service not configured")
@@ -130,7 +129,7 @@ func (d *adminPluginHandler) ListPluginRuntimes(ctx context.Context, _ *eveyv1.L
 func (d *adminPluginHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.AddPluginRuntimeRequest) (*eveyv1.PluginRuntime, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.AddPluginRuntime")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
@@ -151,7 +150,7 @@ func (d *adminPluginHandler) AddPluginRuntime(ctx context.Context, req *eveyv1.A
 func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv1.RemovePluginRuntimeRequest) (*eveyv1.RemovePluginRuntimeResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RemovePluginRuntime")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
@@ -160,7 +159,7 @@ func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		if errors.Is(err, shared.ErrNotFound) {
-			return nil, status.Error(codes.NotFound, "runtime not found")
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.runtime_not_found")
 		}
 		return nil, internalError(ctx, "remove runtime", err)
 	}
@@ -170,7 +169,7 @@ func (d *adminPluginHandler) RemovePluginRuntime(ctx context.Context, req *eveyv
 func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.InstallPluginRequest) (*eveyv1.Plugin, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.InstallPlugin")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
@@ -215,7 +214,7 @@ func installPluginError(ctx context.Context, err error) error {
 func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.UninstallPluginRequest) (*eveyv1.UninstallPluginResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.UninstallPlugin")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
@@ -234,7 +233,7 @@ func (d *adminPluginHandler) UninstallPlugin(ctx context.Context, req *eveyv1.Un
 func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.EnablePluginRequest) (*eveyv1.Plugin, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.EnablePlugin")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
@@ -259,7 +258,7 @@ func (d *adminPluginHandler) EnablePlugin(ctx context.Context, req *eveyv1.Enabl
 func (d *adminPluginHandler) DisablePlugin(ctx context.Context, req *eveyv1.DisablePluginRequest) (*eveyv1.Plugin, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.DisablePlugin")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
@@ -322,7 +321,7 @@ func (d *adminPluginHandler) GetPluginConfig(ctx context.Context, req *eveyv1.Ge
 func (d *adminPluginHandler) UpdatePluginConfig(ctx context.Context, req *eveyv1.UpdatePluginConfigRequest) (*eveyv1.PluginConfig, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.UpdatePluginConfig")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
@@ -382,16 +381,16 @@ func restoreMaskedSecrets(values map[string]string, stored, schema map[string]an
 func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv1.PreviewPluginUpdateRequest) (*eveyv1.PreviewPluginUpdateResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.PreviewPluginUpdate")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if req.PluginId == "" {
-		return nil, status.Error(codes.InvalidArgument, "plugin_id required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.id_required")
 	}
 	if req.Source == "" {
-		return nil, status.Error(codes.InvalidArgument, "source required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.source_required")
 	}
 	preview, err := d.pluginInstaller.PreviewUpdate(ctx, req.PluginId, req.Source)
 	if err != nil {
@@ -432,19 +431,19 @@ func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv
 func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.ApplyPluginUpdateRequest) (*eveyv1.Plugin, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ApplyPluginUpdate")
 	defer span.End()
-	if err := d.requireEnabled(); err != nil {
+	if err := d.requireEnabled(ctx); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
 	}
 	if req.PluginId == "" {
-		return nil, status.Error(codes.InvalidArgument, "plugin_id required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.id_required")
 	}
 	if req.Source == "" {
-		return nil, status.Error(codes.InvalidArgument, "source required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.source_required")
 	}
 	if req.AcknowledgedHash == "" {
-		return nil, status.Error(codes.InvalidArgument, "acknowledged_hash required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.acknowledged_hash_required")
 	}
 	p, err := d.pluginInstaller.ApplyUpdate(ctx, req.PluginId, req.Source, req.AcknowledgedHash)
 	if err != nil {
@@ -454,7 +453,7 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 		case errors.Is(err, appplugin.ErrPluginNotFound):
 			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		case errors.Is(err, appplugin.ErrCandidateChanged):
-			return nil, status.Error(codes.Aborted, err.Error())
+			return nil, d.translator.TranslatedError(ctx, codes.Aborted, "errors.plugin.candidate_changed")
 		default:
 			return nil, internalError(ctx, "apply update", err)
 		}
@@ -474,7 +473,7 @@ func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetP
 	// The plugin ASSET handler already rejects exactly these - this is its twin.
 	if strings.ContainsAny(req.PluginId, `/\`) || strings.Contains(req.PluginId, "..") {
 		span.SetStatus(otelcodes.Error, "invalid plugin id")
-		return nil, status.Error(codes.InvalidArgument, "invalid plugin id")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.id_invalid")
 	}
 	paths, err := pluginLogFiles(filepath.Join(d.logDir, "plugins"), req.PluginId)
 	if err != nil {
@@ -687,19 +686,19 @@ func (d *adminPluginHandler) UpdatePluginResourceLimits(ctx context.Context, req
 		return nil, err
 	}
 	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request is required")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.general.request_required")
 	}
 	if req.MemoryMb < 0 || req.PidsMax < 0 || req.DiskMaxMb < 0 {
-		return nil, status.Error(codes.InvalidArgument, "memory_mb, pids_max and disk_max_mb must be >= 0")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.limits_negative")
 	}
 	if req.CpuNice < 0 || req.CpuNice > 19 {
-		return nil, status.Error(codes.InvalidArgument, "cpu_nice must be between 0 and 19")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.cpu_nice_range")
 	}
 	if req.SandboxMode != "" && !appplugin.IsValidSandboxMode(req.SandboxMode) {
-		return nil, status.Error(codes.InvalidArgument, "sandbox_mode must be one of: auto, landlock, bubblewrap, strict, basic")
+		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.sandbox_mode_invalid", map[string]string{"modes": "auto, landlock, bubblewrap, strict, basic"})
 	}
 	if d.serverCfg == nil {
-		return nil, status.Error(codes.FailedPrecondition, "server config store unavailable")
+		return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.service_not_configured")
 	}
 
 	// Capture the current sandbox mode so we can tell whether this update changes

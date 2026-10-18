@@ -9,10 +9,10 @@ import (
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // IntroCacheInvalidator is the port the handler needs. The postgres repo
@@ -33,6 +33,7 @@ type adminIntroHandler struct {
 	backfill        IntroBackfiller
 	backfillMu      sync.Mutex
 	backfillRunning bool
+	translator      *eveyi18n.Translator
 }
 
 func (h *adminIntroHandler) InvalidateIntroCache(ctx context.Context, req *eveyv1.InvalidateIntroCacheRequest) (*eveyv1.InvalidateIntroCacheResponse, error) {
@@ -40,7 +41,7 @@ func (h *adminIntroHandler) InvalidateIntroCache(ctx context.Context, req *eveyv
 	defer span.End()
 
 	if req.TmdbId <= 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "tmdb_id must be positive")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.admin.tmdb_id_positive")
 	}
 
 	n, err := h.cache.Invalidate(ctx, int(req.TmdbId), int(req.Season), int(req.Episode))
@@ -58,7 +59,7 @@ func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eve
 	defer span.End()
 
 	if h.backfill == nil {
-		return nil, status.Errorf(codes.Unavailable, "intro detection not configured")
+		return nil, h.translator.TranslatedError(ctx, codes.Unavailable, "errors.admin.service_not_configured")
 	}
 
 	h.backfillMu.Lock()
@@ -66,7 +67,7 @@ func (h *adminIntroHandler) BackfillIntroDetection(ctx context.Context, req *eve
 		h.backfillMu.Unlock()
 		// Return AlreadyExists so the caller knows the job is already running -
 		// no need for a second one.
-		return nil, status.Errorf(codes.AlreadyExists, "backfill already in progress")
+		return nil, h.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.intro_backfill_running")
 	}
 	h.backfillRunning = true
 	h.backfillMu.Unlock()

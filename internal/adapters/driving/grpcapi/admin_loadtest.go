@@ -28,7 +28,7 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 		return nil, status.Error(codes.Unimplemented, "load test not wired")
 	}
 	if d.calibrationSvc != nil && d.calibrationSvc.IsBenchmarking() {
-		return nil, status.Error(codes.FailedPrecondition, "a calibration benchmark is running; wait for it to finish")
+		return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.loadtest_calibration_running")
 	}
 	cfg := apploadtest.Config{
 		BaseURL:       d.loadTestBaseURL,
@@ -63,9 +63,9 @@ func (d *adminSystemHandler) StartLoadTest(ctx context.Context, req *eveyv1.Star
 	if err := d.loadTest.Start(context.WithoutCancel(ctx), cfg); err != nil {
 		switch {
 		case errors.Is(err, apploadtest.ErrStreamsActive):
-			return nil, status.Error(codes.FailedPrecondition, "playback sessions are active; the load test never runs over real viewers")
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.loadtest_streams_active")
 		case errors.Is(err, apploadtest.ErrAlreadyRunning):
-			return nil, status.Error(codes.AlreadyExists, "a load test is already running")
+			return nil, d.translator.TranslatedError(ctx, codes.AlreadyExists, "errors.admin.loadtest_already_running")
 		case errors.Is(err, apploadtest.ErrUnknownMode), errors.Is(err, apploadtest.ErrUnknownScenario):
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		default:
@@ -107,7 +107,7 @@ func (d *adminSystemHandler) loadTestCredential(ctx context.Context, cfg appload
 
 	token := bearerFromContext(ctx)
 	if token == "" {
-		return "", status.Error(codes.Unauthenticated, "no bearer token on the request")
+		return "", d.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.missing_authorization")
 	}
 	return token, nil
 }

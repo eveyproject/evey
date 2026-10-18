@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"strconv"
 	"time"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -20,7 +21,6 @@ import (
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // libraryGetter is the narrow slice of applibrary.QueryService the type guard
@@ -69,7 +69,7 @@ func (d *adminMediaHandler) guardProviderMatchable(ctx context.Context, libraryI
 	lib, err := d.libQuery.GetLibrary(ctx, libraryID)
 	if err != nil {
 		if errors.Is(err, shared.ErrNotFound) {
-			return status.Error(codes.NotFound, "library not found")
+			return d.translator.TranslatedError(ctx, codes.NotFound, "errors.library.not_found")
 		}
 		return internalError(ctx, "load library for metadata guard", err)
 	}
@@ -273,15 +273,23 @@ func (d *adminMediaHandler) seekIndexError(ctx context.Context, op string, err e
 	case errors.Is(err, domainmkv.ErrNoBackup):
 		return d.translator.TranslatedError(ctx, codes.NotFound, "errors.admin.seek_index_no_backup")
 	case errors.Is(err, shared.ErrNotFound):
-		return status.Error(codes.NotFound, "media item not found")
+		return d.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	case errors.Is(err, appmaintenance.ErrShiftOutOfRange):
-		return status.Error(codes.InvalidArgument, appmaintenance.ErrShiftOutOfRange.Error())
+		return d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.admin.sync_shift_out_of_range", map[string]string{"max": strconv.FormatFloat(appmaintenance.SyncPreviewMaxShiftSec, 'f', 0, 64)})
 	default:
 		// An undo the journal refuses is a verdict on the file, not a fault:
 		// the sentinel's own sentence is the operator's answer.
-		for _, refusal := range []error{appmaintenance.ErrNoRepairToUndo, appmaintenance.ErrNotReversible, appmaintenance.ErrJournalSchema} {
-			if errors.Is(err, refusal) {
-				return status.Error(codes.FailedPrecondition, refusal.Error())
+		refusals := []struct {
+			err error
+			key string
+		}{
+			{appmaintenance.ErrNoRepairToUndo, "errors.admin.repair_undo_none"},
+			{appmaintenance.ErrNotReversible, "errors.admin.repair_not_reversible"},
+			{appmaintenance.ErrJournalSchema, "errors.admin.repair_journal_newer"},
+		}
+		for _, refusal := range refusals {
+			if errors.Is(err, refusal.err) {
+				return d.translator.TranslatedError(ctx, codes.FailedPrecondition, refusal.key)
 			}
 		}
 		return internalError(ctx, op, err)

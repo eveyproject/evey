@@ -7,15 +7,16 @@ import (
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	apptranscoding "github.com/eveyproject/evey/internal/app/transcoding"
 	"github.com/eveyproject/evey/internal/domain/transcoding"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type transcodeCacheHandler struct {
 	eveyv1.UnimplementedTranscodeCacheServiceServer
-	svc *apptranscoding.Service
+	svc        *apptranscoding.Service
+	translator *eveyi18n.Translator
 }
 
 func (h *transcodeCacheHandler) GetTranscodeCache(ctx context.Context, _ *eveyv1.GetTranscodeCacheRequest) (*eveyv1.TranscodeCacheInfo, error) {
@@ -55,9 +56,9 @@ func (h *transcodeCacheHandler) DeleteTranscodeCacheFile(ctx context.Context, re
 	if err := h.svc.DeleteCacheFile(ctx, req.Filename); err != nil {
 		switch {
 		case errors.Is(err, transcoding.ErrCacheFileNotFound):
-			return nil, status.Error(codes.NotFound, "cache file not found")
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.transcode.cache_file_not_found")
 		case errors.Is(err, transcoding.ErrCacheFilenameInvalid):
-			return nil, status.Error(codes.InvalidArgument, "invalid filename")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.transcode.cache_filename_invalid")
 		}
 		return nil, internalError(ctx, "delete cache file", err)
 	}

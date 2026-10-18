@@ -253,7 +253,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		slog.WarnContext(ctx, "grpc GetStreamInfo: media item query failed", slog.Any("err", err))
-		return nil, status.Error(codes.NotFound, "media item not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	// Mirror StartStream: a parental-blocked item must look non-existent. Without
 	// this gate a kids profile could call GetStreamInfo by media ID and harvest a
@@ -331,7 +331,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	decided := h.playbackDecider().Reported(ctx, preq)
 	decision := &decided
 	if apptranscoding.TranscodeDisallowed(decision, prefs) {
-		err := status.Errorf(codes.FailedPrecondition, "transcoding disabled by user preferences")
+		err := h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.playback.transcoding_disabled_by_prefs")
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, err
@@ -571,6 +571,9 @@ func (h *playbackHandler) StartStream(ctx context.Context, req *eveyv1.StartStre
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		if req.MediaItemId == "" {
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.media.id_required")
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	// Per-track serving detail the player copied from the StreamInfo it resolved.
@@ -837,7 +840,7 @@ func (h *playbackHandler) GetWatchHistory(ctx context.Context, req *eveyv1.GetWa
 				span.RecordError(err)
 				span.SetStatus(otelcodes.Error, err.Error())
 				slog.WarnContext(ctx, "grpc GetWatchHistory: invalid cursor", slog.Any("err", err))
-				return nil, status.Error(codes.InvalidArgument, "invalid cursor")
+				return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.cursor_invalid")
 			}
 			cursor = &playback.WatchHistoryCursor{LastPlayedAt: c.t, MediaItemID: c.id}
 		}
@@ -1264,7 +1267,7 @@ func (h *playbackHandler) GetSeriesPlayTarget(ctx context.Context, req *eveyv1.G
 func (h *playbackHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return status.Errorf(codes.Unauthenticated, "unauthenticated")
+		return h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	if claims.IsAdmin {
 		return nil
