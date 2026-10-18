@@ -26,6 +26,7 @@ import { scanFailedPaths } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { SessionCard } from "../../../src/components/admin/SessionCard";
+import { confirmStopSession } from "../../../src/components/admin/confirmStopSession";
 import { BackgroundTasksPanel } from "../../../src/components/admin/BackgroundTasksPanel";
 import { UpdateBanner } from "../../../src/components/admin/UpdateBanner";
 import { busiestDisk } from "../../../src/components/admin/DiskIO";
@@ -111,8 +112,8 @@ function NowPlayingCard({ theme }: { theme: ReturnType<typeof useTheme> }) {
     onError: () => toast.error(t("admin.sessions.commandFailed", "Échec de l'envoi de la commande")),
   });
   const handleKill = useCallback((s: V1ActiveSession) => {
-    killSession.mutate(s.sessionId ?? "");
-  }, [killSession]);
+    confirmStopSession(t, s, () => killSession.mutate(s.sessionId ?? ""));
+  }, [killSession, t]);
   const handleCommand = useCallback((sessionId: string, command: string) => {
     sendCommand.mutate({ sessionId, command });
   }, [sendCommand]);
@@ -276,8 +277,8 @@ function QuickActionsRow({ theme }: { theme: ReturnType<typeof useTheme> }) {
       }
     }
     setScanningAll(false);
-    if (failed > 0) toast.error(t("admin.dashboardStats.scanFailed"));
-    else toast.success(t("admin.dashboardStats.allScansTriggered"));
+    // A failure already toasted through scanLibrary's onError.
+    if (failed === 0) toast.success(t("admin.dashboardStats.allScansTriggered"));
   }
 
   function onRestartPress() {
