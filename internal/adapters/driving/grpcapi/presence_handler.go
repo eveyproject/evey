@@ -7,21 +7,22 @@ import (
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	"github.com/eveyproject/evey/internal/app/presence"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // presenceHandler serves PresenceService: an authenticated heartbeat that marks
 // the caller online, and an admin read of everyone currently connected.
 type presenceHandler struct {
 	eveyv1.UnimplementedPresenceServiceServer
-	tracker *presence.Tracker
+	tracker    *presence.Tracker
+	translator *eveyi18n.Translator
 }
 
 func (h *presenceHandler) Heartbeat(ctx context.Context, _ *eveyv1.HeartbeatRequest) (*eveyv1.HeartbeatResponse, error) {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil || claims.UserID == "" {
-		return nil, status.Error(codes.Unauthenticated, "authentication required")
+		return nil, h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	h.tracker.Touch(presence.Entry{
 		UserID:    claims.UserID,

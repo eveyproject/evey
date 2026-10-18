@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -27,15 +28,16 @@ type feedHandler struct {
 	userAccess *appuser.AccessService
 	libQuery   *applibrary.QueryService
 	userQuery  *appuser.QueryService
+	translator *eveyi18n.Translator
 }
 
 func (h *feedHandler) requireMediaAccess(ctx context.Context, mediaItemID string) error {
 	if mediaItemID == "" {
-		return status.Error(codes.InvalidArgument, "media_item_id required")
+		return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.media.id_required")
 	}
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return status.Error(codes.Unauthenticated, "unauthenticated")
+		return h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	if claims.IsAdmin {
 		return nil
@@ -48,11 +50,11 @@ func (h *feedHandler) requireMediaAccess(ctx context.Context, mediaItemID string
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {
-		return status.Error(codes.NotFound, "not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 	}
 	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {
-		return status.Error(codes.NotFound, "not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 	}
 	return nil
 }
@@ -376,6 +378,12 @@ func (h *feedHandler) BatchUpdateAdminFeedConfigs(ctx context.Context, req *evey
 		})
 	}
 	if err := h.commands.BatchUpdateAdminConfigs(ctx, cfgs); err != nil {
+		switch {
+		case errors.Is(err, feed.ErrInvalidFeedType):
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.feed.invalid_type")
+		case errors.Is(err, feed.ErrNegativeMaxItems):
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.feed.max_items_negative")
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "batch update: %v", err)
 	}
 	return &eveyv1.BatchUpdateAdminFeedConfigsResponse{}, nil

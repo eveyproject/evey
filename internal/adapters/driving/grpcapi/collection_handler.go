@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
+	"strconv"
 	"strings"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -14,10 +15,10 @@ import (
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type collectionHandler struct {
@@ -27,6 +28,7 @@ type collectionHandler struct {
 	userAccess *appuser.AccessService
 	libQuery   *applibrary.QueryService
 	userQuery  *appuser.QueryService
+	translator *eveyi18n.Translator
 }
 
 // collectionVisibleUnderParental returns true when at least one item in the
@@ -140,7 +142,7 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "collection not found")
-		return nil, status.Error(codes.NotFound, "collection not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.collection.not_found")
 	}
 	allowed, filterErr := h.allowedLibraryIDs(ctx)
 	if filterErr != nil {
@@ -157,11 +159,11 @@ func (h *collectionHandler) GetCollection(ctx context.Context, req *eveyv1.GetCo
 	visibleItems, skip := filterItemsByAccess(items, allowed)
 	if skip {
 		span.SetStatus(otelcodes.Error, "collection access denied")
-		return nil, status.Errorf(codes.NotFound, "collection not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.collection.not_found")
 	}
 	if !h.collectionVisibleUnderParental(ctx, visibleItems) {
 		span.SetStatus(otelcodes.Error, "collection blocked by parental filter")
-		return nil, status.Errorf(codes.NotFound, "collection not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.collection.not_found")
 	}
 	// Per-item parental filtering, exactly as GetCollectionItems does it:
 	// handing the members back here without it would reopen the enumeration
@@ -206,7 +208,7 @@ func (h *collectionHandler) DeleteCollection(ctx context.Context, req *eveyv1.De
 	defer span.End()
 	if req.GetId() == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.id_required")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
 	// but verify caller has access to at least one library backing the
@@ -229,7 +231,7 @@ func (h *collectionHandler) CreateCollection(ctx context.Context, req *eveyv1.Cr
 	defer span.End()
 	if req.GetName() == "" {
 		span.SetStatus(otelcodes.Error, "name is required")
-		return nil, status.Errorf(codes.InvalidArgument, "name is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.name_required")
 	}
 	rules := protoRulesToDomain(req.GetRules())
 	var (
@@ -254,11 +256,11 @@ func (h *collectionHandler) UpdateCollection(ctx context.Context, req *eveyv1.Up
 	defer span.End()
 	if req.GetId() == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.id_required")
 	}
 	if req.GetName() == "" {
 		span.SetStatus(otelcodes.Error, "name is required")
-		return nil, status.Errorf(codes.InvalidArgument, "name is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.name_required")
 	}
 	// Defense-in-depth IDOR check: RBAC already restricts this RPC to admins,
 	// but verify caller has access to at least one library backing the
@@ -297,11 +299,11 @@ func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.A
 	defer span.End()
 	if req.GetId() == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.id_required")
 	}
 	if req.GetMediaItemId() == "" {
 		span.SetStatus(otelcodes.Error, "media_item_id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "media_item_id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.media.id_required")
 	}
 	// Defense-in-depth IDOR check, the same one its four siblings carry
 	// (DeleteCollection, UpdateCollection, RemoveCollectionItem,
@@ -320,7 +322,7 @@ func (h *collectionHandler) AddCollectionItem(ctx context.Context, req *eveyv1.A
 		// Naming something that does not exist is the caller's mistake, not the
 		// server's: answering 500 blamed the wrong side and buried the reason.
 		if errors.Is(err, shared.ErrNotFound) {
-			return nil, status.Errorf(codes.NotFound, "%v", err)
+			return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 		}
 		return nil, internalError(ctx, "add collection item", err)
 	}
@@ -336,7 +338,7 @@ func (h *collectionHandler) ListCollectionsForMediaItem(ctx context.Context, req
 	defer span.End()
 	if req.GetMediaItemId() == "" {
 		span.SetStatus(otelcodes.Error, "media_item_id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "media_item_id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.media.id_required")
 	}
 	cols, err := h.query.GetForMediaItem(ctx, req.GetMediaItemId())
 	if err != nil {
@@ -389,11 +391,11 @@ func (h *collectionHandler) RemoveCollectionItem(ctx context.Context, req *eveyv
 	defer span.End()
 	if req.GetId() == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.id_required")
 	}
 	if req.GetMediaItemId() == "" {
 		span.SetStatus(otelcodes.Error, "media_item_id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "media_item_id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.media.id_required")
 	}
 	// Defense-in-depth IDOR check, like DeleteCollection: RBAC already limits
 	// this to admins, but a collection the caller cannot see must stay
@@ -418,15 +420,15 @@ func (h *collectionHandler) ReorderCollectionItems(ctx context.Context, req *eve
 	defer span.End()
 	if req.GetId() == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Errorf(codes.InvalidArgument, "id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.id_required")
 	}
 	if len(req.GetMediaItemIds()) == 0 {
 		span.SetStatus(otelcodes.Error, "media_item_ids is required")
-		return nil, status.Errorf(codes.InvalidArgument, "media_item_ids is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.items_required")
 	}
 	if len(req.GetMediaItemIds()) > library.MaxCollectionItems {
 		span.SetStatus(otelcodes.Error, "too many items")
-		return nil, status.Errorf(codes.InvalidArgument, "at most %d items", library.MaxCollectionItems)
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.too_many_items", map[string]string{"max": strconv.Itoa(library.MaxCollectionItems)})
 	}
 	if err := h.checkCollectionAccess(ctx, req.GetId()); err != nil {
 		span.SetStatus(otelcodes.Error, "collection access denied")
@@ -441,7 +443,7 @@ func (h *collectionHandler) ReorderCollectionItems(ctx context.Context, req *eve
 		return nil, internalError(ctx, "load collection items for reorder", err)
 	} else if len(foreign) > 0 {
 		span.SetStatus(otelcodes.Error, "media_item_ids contains non-members")
-		return nil, status.Errorf(codes.InvalidArgument, "media_item_ids contains items that are not in this collection: %s", strings.Join(foreign, ", "))
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.items_not_members", map[string]string{"ids": strings.Join(foreign, ", ")})
 	}
 	if err := h.cmd.ReorderItems(ctx, req.GetId(), req.GetMediaItemIds()); err != nil {
 		span.RecordError(err)
@@ -450,7 +452,7 @@ func (h *collectionHandler) ReorderCollectionItems(ctx context.Context, req *eve
 		// hold is refused - including one that LEFT while the reorder was in
 		// flight (the repo rolled the write back).
 		if errors.Is(err, library.ErrCollectionReorderDrift) {
-			return nil, status.Errorf(codes.InvalidArgument, "media_item_ids contains items that left this collection during the reorder")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.collection.items_left_during_reorder")
 		}
 		return nil, internalError(ctx, "reorder collection items", err)
 	}
@@ -625,7 +627,7 @@ func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectio
 		return nil
 	}
 	if _, getErr := h.query.GetByID(ctx, collectionID); getErr != nil {
-		return status.Errorf(codes.NotFound, "collection not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.collection.not_found")
 	}
 	items, _, itemsErr := h.query.GetItems(ctx, collectionID, library.MaxCollectionItems, 0)
 	if itemsErr != nil {
@@ -637,7 +639,7 @@ func (h *collectionHandler) checkCollectionAccess(ctx context.Context, collectio
 			return nil
 		}
 	}
-	return status.Errorf(codes.NotFound, "collection not found")
+	return h.translator.TranslatedError(ctx, codes.NotFound, "errors.collection.not_found")
 }
 
 // collectionKind names how a collection came to exist: sourced from a TMDB

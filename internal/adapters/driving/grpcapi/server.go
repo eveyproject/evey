@@ -233,7 +233,7 @@ func (s *GRPCServer) RegisterServices() {
 		loadTestToken:     d.LoadTestTokens,
 	})
 	if d.Presence != nil {
-		eveyv1.RegisterPresenceServiceServer(s.server, &presenceHandler{tracker: d.Presence})
+		eveyv1.RegisterPresenceServiceServer(s.server, &presenceHandler{tracker: d.Presence, translator: d.Translator})
 	}
 	var pluginCfgRepo shared.ServerConfigRepository
 	if d.ServerCfgSvc != nil { // keep a true-nil interface when the store is absent
@@ -279,10 +279,10 @@ func (s *GRPCServer) RegisterServices() {
 		translator:  d.Translator,
 	})
 	eveyv1.RegisterActivityServiceServer(s.server, &activityHandler{svc: d.ActivityQuery, cmd: d.ActivityCmd, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
-	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery})
-	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
+	eveyv1.RegisterNotificationServiceServer(s.server, &notificationHandler{cmd: d.NotifCmd, query: d.NotifQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, translator: d.Translator})
+	eveyv1.RegisterFeedServiceServer(s.server, &feedHandler{commands: d.FeedCmd, queries: d.FeedQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterWebhookServiceServer(s.server, &webhookHandler{svc: d.Webhook})
-	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{cmd: d.CollectionCmd, query: d.CollectionQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery})
+	eveyv1.RegisterCollectionServiceServer(s.server, &collectionHandler{cmd: d.CollectionCmd, query: d.CollectionQuery, userAccess: d.UserAccess, libQuery: d.LibQuery, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterPlaylistServiceServer(s.server, &playlistHandler{svc: d.Playlist, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
 	eveyv1.RegisterFavoriteServiceServer(s.server, &favoriteHandler{svc: d.Favorite, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery})
 	eveyv1.RegisterMediaRequestServiceServer(s.server, &mediaRequestHandler{svc: d.MediaRequest, libQuery: d.LibQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, translator: d.Translator})
@@ -317,9 +317,9 @@ func (s *GRPCServer) RegisterServices() {
 		eveyv1.RegisterPhotoServiceServer(s.server, &photoHandler{svc: d.Photo, userAccess: d.UserAccess, libQuery: d.LibQuery, translator: d.Translator})
 	}
 	if d.PushEnabled {
-		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{notifCmd: d.NotifCmd, notifQuery: d.NotifQuery, vapidPubKey: d.VAPIDPubKey, registerRL: d.PushRegisterRL})
+		eveyv1.RegisterPushServiceServer(s.server, &webPushHandler{notifCmd: d.NotifCmd, notifQuery: d.NotifQuery, vapidPubKey: d.VAPIDPubKey, registerRL: d.PushRegisterRL, translator: d.Translator})
 	}
-	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{thumbs: d.UserRatings, libQuery: d.LibQuery, userAccess: d.UserAccess})
+	eveyv1.RegisterRatingServiceServer(s.server, &ratingHandler{thumbs: d.UserRatings, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
 	if d.IntroCache != nil || d.IntroBackfill != nil {
 		eveyv1.RegisterAdminIntroServiceServer(s.server, &adminIntroHandler{
 			cache:    d.IntroCache,

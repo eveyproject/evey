@@ -164,3 +164,28 @@ metadata:
   no_provider_id: "Cet élément n'a pas d'identifiant {provider}"
   unsupported_provider: "Fournisseur de métadonnées non pris en charge : {provider}"
   field_name_required: "Un nom de champ est requis"
+
+collection:
+  not_found: "Collection introuvable"
+  id_required: "Un identifiant de collection est requis"
+  name_required: "Un nom de collection est requis"
+  items_required: "Au moins un élément est requis"
+  too_many_items: "Une collection contient au plus {max} éléments"
+  items_not_members: "Ces éléments ne font pas partie de cette collection : {ids}"
+  items_left_during_reorder: "Des éléments ont quitté cette collection pendant le réordonnancement - rechargez-la et réessayez"
+
+rating:
+  invalid_value: "La note doit être -1, 0 ou 1"
+
+feed:
+  invalid_type: "Type de flux non valide"
+  max_items_negative: "Le nombre maximal d'éléments doit être supérieur ou égal à 0"
+
+notification:
+  not_found: "Notification introuvable"
+
+push:
+  too_many_registrations: "Trop d'inscriptions aux notifications push - réessayez plus tard"
+  endpoint_and_keys_required: "Un point de terminaison push et ses clés sont requis"
+  invalid_key_encoding: "Les clés push ne sont pas correctement encodées"
+  endpoint_required: "Un point de terminaison push est requis"

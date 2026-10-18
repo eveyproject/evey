@@ -8,6 +8,7 @@ import (
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	appnotification "github.com/eveyproject/evey/internal/app/notification"
 	"github.com/eveyproject/evey/internal/domain/shared"
+	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
@@ -36,6 +37,7 @@ type webPushHandler struct {
 	// registerRL caps subscriptions per user: each one is a row and a target
 	// of every later notification. Nil = unlimited (tests).
 	registerRL *ratelimit.Limiter
+	translator *eveyi18n.Translator
 }
 
 func (h *webPushHandler) GetVAPIDKey(ctx context.Context, _ *eveyv1.GetVAPIDKeyRequest) (*eveyv1.GetVAPIDKeyResponse, error) {
@@ -52,13 +54,13 @@ func (h *webPushHandler) RegisterWebPush(ctx context.Context, req *eveyv1.Regist
 		return nil, err
 	}
 	if h.registerRL != nil && !h.registerRL.Allow(claims.UserID) {
-		return nil, status.Error(codes.ResourceExhausted, "too many push registrations")
+		return nil, h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.push.too_many_registrations")
 	}
 	if req.Endpoint == "" || req.Keys == nil || req.Keys.P256Dh == "" || req.Keys.Auth == "" {
-		return nil, status.Error(codes.InvalidArgument, "endpoint and keys required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.push.endpoint_and_keys_required")
 	}
 	if !isBase64(req.Keys.P256Dh) || !isBase64(req.Keys.Auth) {
-		return nil, status.Error(codes.InvalidArgument, "invalid key encoding")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.push.invalid_key_encoding")
 	}
 	if err := h.notifCmd.UpsertPushSubscription(ctx, shared.UserID(claims.UserID), shared.ProfileID(claims.ProfileID), req.Endpoint, req.Keys.P256Dh, req.Keys.Auth); err != nil {
 		slog.ErrorContext(ctx, "push: register web push", slog.Any("err", err))
@@ -75,7 +77,7 @@ func (h *webPushHandler) UnregisterWebPush(ctx context.Context, req *eveyv1.Unre
 		return nil, err
 	}
 	if req.Endpoint == "" {
-		return nil, status.Error(codes.InvalidArgument, "endpoint required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.push.endpoint_required")
 	}
 	if err := h.notifCmd.DeletePushByEndpoint(ctx, shared.UserID(claims.UserID), req.Endpoint); err != nil {
 		slog.ErrorContext(ctx, "push: unregister web push", slog.Any("err", err))
@@ -129,7 +131,7 @@ func (h *webPushHandler) DeleteWebPushSubscription(ctx context.Context, req *eve
 		return nil, err
 	}
 	if req.Endpoint == "" {
-		return nil, status.Error(codes.InvalidArgument, "endpoint required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.push.endpoint_required")
 	}
 	if err := h.notifCmd.DeletePushByEndpoint(ctx, shared.UserID(claims.UserID), req.Endpoint); err != nil {
 		slog.ErrorContext(ctx, "push: delete subscription", slog.Any("err", err))

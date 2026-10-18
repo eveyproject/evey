@@ -164,3 +164,28 @@ metadata:
   no_provider_id: "Dieser Eintrag hat keine {provider}-ID"
   unsupported_provider: "Nicht unterstützter Metadatenanbieter: {provider}"
   field_name_required: "Ein Feldname ist erforderlich"
+
+collection:
+  not_found: "Sammlung nicht gefunden"
+  id_required: "Eine Sammlungs-ID ist erforderlich"
+  name_required: "Ein Name für die Sammlung ist erforderlich"
+  items_required: "Mindestens ein Eintrag ist erforderlich"
+  too_many_items: "Eine Sammlung enthält höchstens {max} Einträge"
+  items_not_members: "Diese Einträge gehören nicht zu dieser Sammlung: {ids}"
+  items_left_during_reorder: "Einige Einträge haben die Sammlung während der Neuordnung verlassen - laden Sie sie neu und versuchen Sie es erneut"
+
+rating:
+  invalid_value: "Die Bewertung muss -1, 0 oder 1 sein"
+
+feed:
+  invalid_type: "Ungültiger Feed-Typ"
+  max_items_negative: "Die maximale Anzahl an Einträgen muss 0 oder mehr betragen"
+
+notification:
+  not_found: "Benachrichtigung nicht gefunden"
+
+push:
+  too_many_registrations: "Zu viele Registrierungen für Push-Benachrichtigungen - versuchen Sie es später erneut"
+  endpoint_and_keys_required: "Ein Push-Endpunkt und seine Schlüssel sind erforderlich"
+  invalid_key_encoding: "Die Push-Schlüssel sind nicht korrekt kodiert"
+  endpoint_required: "Ein Push-Endpunkt ist erforderlich"
