@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, ActivityIndicator, ScrollView, Share, StyleSheet } from "react-native";
+import { View, Text, FlatList, Pressable, TextInput, Modal, Alert, ActivityIndicator, ScrollView, Share, StyleSheet, Linking } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -13,6 +13,7 @@ import {
 import { toast } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
+import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 
 const SCOPE_OPTIONS = [
   "media:read",
@@ -29,6 +30,7 @@ export default function AdminAPIKeysScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const serverUrl = useServerUrlNullable();
   const { data, isLoading, isError, refetch } = useUserServiceListAPIKeys();
   const keys = data?.apiKeys ?? [];
 
@@ -114,6 +116,21 @@ export default function AdminAPIKeysScreen() {
           </Pressable>
         ),
       }} />
+
+      {/* The phone has no Swagger reader: this opens the web app's API docs
+          page, which the server serves itself, in the phone's browser (it
+          asks for the web sign-in there, the spec being behind auth). */}
+      {serverUrl && (
+        <Pressable
+          onPress={() => { Linking.openURL(`${serverUrl}/admin/api-docs`).catch(() => {}); }}
+          style={styles.docsLink}
+          accessibilityRole="link"
+          accessibilityLabel={t("auth.apiDocs.link")}
+        >
+          <Ionicons name="book-outline" size={16} color={theme.colors.accent} />
+          <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>{t("auth.apiDocs.link")}</Text>
+        </Pressable>
+      )}
 
       {isLoading ? (
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -267,4 +284,5 @@ const styles = StyleSheet.create({
   createBtn: { paddingVertical: 14, alignItems: "center", marginTop: 12 },
   chip: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
   scopeRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 6, paddingHorizontal: 4 },
+  docsLink: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingTop: 12 },
 });
