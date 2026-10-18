@@ -80,8 +80,14 @@ export function parseHlsMasterResolutions(manifest: string): Required<RungSize>[
 }
 
 export interface QualityRung {
-  /** The exact encoded height to ask the server for. */
+  /** The exact encoded height: what a player pins a declared level by. */
   value: number;
+  /**
+   * The tier as a height (1080 for a 1920x800 scope rung): what a server-side
+   * maxHeight means. The server caps on the rung's box, so asking it for the
+   * encoded 800 drops the very 1080p rung the viewer picked.
+   */
+  tier: number;
   /** What the viewer reads: the rounded tier. */
   label: string;
 }
@@ -101,5 +107,5 @@ export function qualityRungsFromHeights(levels: readonly QualityLevel[]): Qualit
     .sort((a, b) => b.height - a.height)
     .map(({ width, height }) => ({ tier: nominalQualityTier(height, width), h: height }))
     .filter(({ tier }) => (seen.has(tier) ? false : (seen.add(tier), true)))
-    .map(({ tier, h }) => ({ value: h, label: `${tier}p` }));
+    .map(({ tier, h }) => ({ value: h, tier, label: `${tier}p` }));
 }
