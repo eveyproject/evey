@@ -1402,7 +1402,8 @@ func TestRunner_BisectionReapsLeftoverSessionsBetweenTiers(t *testing.T) {
 	// balanced is [mkvgo, transcode]: ranks 2 and 4 take the two encoder
 	// slots, rank 6 would need a third - the true ceiling is 5 viewers.
 	if report.SustainedViewers != 5 {
-		t.Fatalf("sustained viewers = %d, want 5 (leftover sessions from a broken tier must not refuse the next one)", report.SustainedViewers)
+		t.Fatalf("sustained viewers = %d, want 5 (leftover sessions from a broken tier must not refuse the next one); stop %s %q, break %s %q",
+			report.SustainedViewers, report.StopReason, report.StopDetail, report.BreakReason, report.BreakDetail)
 	}
 }
 
