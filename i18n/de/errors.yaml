@@ -30,6 +30,7 @@ playlist:
   limit_reached: "Playlist-Elementlimit erreicht"
   duplicate_name: "Eine Playlist mit diesem Namen existiert bereits"
   not_found: "Wiedergabeliste nicht gefunden"
+  name_required: "Ein Name für die Wiedergabeliste ist erforderlich"
 
 playback:
   cannot_stop_other_session: "Sitzung eines anderen Benutzers kann nicht beendet werden"
@@ -53,6 +54,9 @@ library:
   no_access: "Sie haben keinen Zugriff auf diese Bibliothek"
   directory_invalid: "Ungültiges Verzeichnis"
   directory_outside: "Das Verzeichnis liegt nicht innerhalb der Bibliothekspfade"
+  type_invalid: "Ungültiger Bibliothekstyp"
+  person_id_required: "Eine Personen-ID ist erforderlich"
+  person_not_found: "Person nicht gefunden"
 
 admin:
   setup_already_completed: "Einrichtung bereits abgeschlossen"
@@ -100,10 +104,13 @@ user:
   invalid_avatar_path: "Ungültiger Avatar-Pfad"
   current_password_required: "Geben Sie Ihr aktuelles Passwort ein, um Passwort, E-Mail oder Benutzernamen zu ändern"
   no_local_password: "Dieses Konto meldet sich per Single Sign-On an und hat noch kein Passwort: Bitten Sie einen Administrator, eines festzulegen, oder nutzen Sie das Zurücksetzen des Passworts"
+  apikey_name_required: "Ein Name für den API-Schlüssel ist erforderlich"
+  apikey_scope_required: "Ein API-Schlüssel benötigt mindestens einen Berechtigungsbereich"
 
 media:
   not_found: "Medium nicht gefunden"
   restricted_profile_edit: "Wechseln Sie zu einem Profil ohne Jugendschutz, um Titel und Bilder zu bearbeiten"
+  id_required: "Eine Medien-ID ist erforderlich"
 
 transcode:
   max_concurrent_reached: "Der Server transkodiert gerade andere Streams. Bitte versuchen Sie es gleich erneut."
@@ -126,12 +133,16 @@ request:
   duplicate: "Sie haben bereits eine offene Anfrage für diesen Titel"
   already_held: "Dieser Titel ist bereits in der Bibliothek"
   not_found: "Anfrage nicht gefunden"
+  invalid_media_type: "Ungültiger Medientyp"
+  invalid_status: "Der Status muss genehmigt, abgelehnt oder später sein"
+  invalid_access_mode: "Ungültiger Zugriffsmodus"
 
 photo:
   not_found: "Foto nicht gefunden"
 
 music:
   track_not_found: "Titel nicht gefunden"
+  library_and_directory_required: "Eine Bibliothek und ein Verzeichnis sind erforderlich"
 
 plugin:
   not_found: "Plugin nicht gefunden"
@@ -148,3 +159,8 @@ profile:
   schedule_kids_only: "Nutzungszeiten gelten nur für Kinderprofile."
   wrong_parent_pin: "Falsche Eltern-PIN."
   no_parent_pin: "Für dieses Konto ist keine Eltern-PIN festgelegt: Legen Sie zuerst eine in einem Erwachsenenprofil fest."
+
+metadata:
+  no_provider_id: "Dieser Eintrag hat keine {provider}-ID"
+  unsupported_provider: "Nicht unterstützter Metadatenanbieter: {provider}"
+  field_name_required: "Ein Feldname ist erforderlich"

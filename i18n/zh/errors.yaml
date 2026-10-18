@@ -30,6 +30,7 @@ playlist:
   limit_reached: "播放列表项目数量已达上限"
   duplicate_name: "已存在同名播放列表"
   not_found: "未找到播放列表"
+  name_required: "播放列表名称为必填项"
 
 playback:
   cannot_stop_other_session: "无法停止其他用户的会话"
@@ -53,6 +54,9 @@ library:
   no_access: "您无权访问此媒体库"
   directory_invalid: "目录无效"
   directory_outside: "该目录不在媒体库路径内"
+  type_invalid: "媒体库类型无效"
+  person_id_required: "需要人物 ID"
+  person_not_found: "未找到人物"
 
 admin:
   setup_already_completed: "设置已完成"
@@ -100,10 +104,13 @@ user:
   invalid_avatar_path: "头像路径无效"
   current_password_required: "请输入当前密码以更改密码、电子邮件或用户名"
   no_local_password: "此账户通过单点登录登录，尚未设置密码：请联系管理员设置密码，或使用密码重置"
+  apikey_name_required: "API 密钥名称为必填项"
+  apikey_scope_required: "API 密钥至少需要一个权限范围"
 
 media:
   not_found: "媒体未找到"
   restricted_profile_edit: "请切换到未启用家长控制的个人资料以编辑标题和图片"
+  id_required: "需要媒体 ID"
 
 transcode:
   max_concurrent_reached: "服务器正忙于转码其他流，请稍后重试"
@@ -126,12 +133,16 @@ request:
   duplicate: "您已对此标题提交了一个待处理的请求"
   already_held: "此标题已在媒体库中"
   not_found: "未找到请求"
+  invalid_media_type: "媒体类型无效"
+  invalid_status: "状态必须为已批准、已拒绝或稍后处理"
+  invalid_access_mode: "访问模式无效"
 
 photo:
   not_found: "未找到照片"
 
 music:
   track_not_found: "未找到曲目"
+  library_and_directory_required: "需要指定媒体库和目录"
 
 plugin:
   not_found: "未找到插件"
@@ -148,3 +159,8 @@ profile:
   schedule_kids_only: "开放时间仅适用于儿童个人资料。"
   wrong_parent_pin: "家长 PIN 错误。"
   no_parent_pin: "此账户未设置家长 PIN：请先在成人个人资料上设置。"
+
+metadata:
+  no_provider_id: "此项目没有 {provider} ID"
+  unsupported_provider: "不支持的元数据提供方：{provider}"
+  field_name_required: "字段名称为必填项"

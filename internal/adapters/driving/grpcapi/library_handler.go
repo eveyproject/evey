@@ -49,6 +49,12 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case req.Name == "":
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.name_required")
+		case !library.LibraryType(libraryTypeFromProto[req.Type]).IsValid():
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.type_invalid")
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.cmd.CreateLibrary(ctx, lib); err != nil {

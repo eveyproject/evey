@@ -17,7 +17,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -359,7 +358,7 @@ func (h *musicHandler) ScanMusicDirectory(ctx context.Context, req *eveyv1.ScanM
 	}
 	if req.LibraryId == "" || req.Directory == "" {
 		span.SetStatus(otelcodes.Error, "library_id and directory required")
-		return nil, status.Error(codes.InvalidArgument, "library_id and directory required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.music.library_and_directory_required")
 	}
 	if err := h.checkLibraryAccess(ctx, req.LibraryId); err != nil {
 		span.RecordError(err)

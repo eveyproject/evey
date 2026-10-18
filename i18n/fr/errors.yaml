@@ -30,6 +30,7 @@ playlist:
   limit_reached: "Limite d'éléments de la liste atteinte"
   duplicate_name: "Une liste avec ce nom existe déjà"
   not_found: "Playlist introuvable"
+  name_required: "Un nom de playlist est requis"
 
 playback:
   cannot_stop_other_session: "Impossible d'arrêter la session d'un autre utilisateur"
@@ -53,6 +54,9 @@ library:
   no_access: "Vous n'avez pas accès à cette bibliothèque"
   directory_invalid: "Dossier invalide"
   directory_outside: "Le dossier n'est pas dans les chemins de la bibliothèque"
+  type_invalid: "Type de bibliothèque non valide"
+  person_id_required: "Un identifiant de personne est requis"
+  person_not_found: "Personne introuvable"
 
 admin:
   setup_already_completed: "La configuration est déjà terminée"
@@ -100,10 +104,13 @@ user:
   invalid_avatar_path: "Chemin d'avatar invalide"
   current_password_required: "Saisissez votre mot de passe actuel pour changer votre mot de passe, votre e-mail ou votre nom d'utilisateur"
   no_local_password: "Ce compte se connecte par authentification unique et n'a pas encore de mot de passe : demandez à un administrateur d'en définir un, ou utilisez la réinitialisation du mot de passe"
+  apikey_name_required: "Un nom de clé API est requis"
+  apikey_scope_required: "Une clé API doit avoir au moins une portée"
 
 media:
   not_found: "Média introuvable"
   restricted_profile_edit: "Passez sur un profil sans contrôle parental pour modifier les titres et les visuels"
+  id_required: "Un identifiant de média est requis"
 
 transcode:
   max_concurrent_reached: "Le serveur est occupé par d'autres transcodages. Réessayez dans un instant."
@@ -126,12 +133,16 @@ request:
   duplicate: "Vous avez déjà une demande en cours pour ce titre"
   already_held: "Ce titre est déjà dans la bibliothèque"
   not_found: "Demande introuvable"
+  invalid_media_type: "Type de média non valide"
+  invalid_status: "Le statut doit être approuvé, refusé ou plus tard"
+  invalid_access_mode: "Mode d'accès non valide"
 
 photo:
   not_found: "Photo introuvable"
 
 music:
   track_not_found: "Piste introuvable"
+  library_and_directory_required: "Une bibliothèque et un dossier sont requis"
 
 plugin:
   not_found: "Plugin introuvable"
@@ -148,3 +159,8 @@ profile:
   schedule_kids_only: "Les horaires ne s'appliquent qu'aux profils enfants."
   wrong_parent_pin: "Code PIN parent incorrect."
   no_parent_pin: "Aucun code PIN parent n'existe sur ce compte : définissez-en un sur un profil adulte."
+
+metadata:
+  no_provider_id: "Cet élément n'a pas d'identifiant {provider}"
+  unsupported_provider: "Fournisseur de métadonnées non pris en charge : {provider}"
+  field_name_required: "Un nom de champ est requis"

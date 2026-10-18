@@ -30,6 +30,7 @@ playlist:
   limit_reached: "प्लेलिस्ट आइटम सीमा पूरी हो गई"
   duplicate_name: "इस नाम की प्लेलिस्ट पहले से मौजूद है"
   not_found: "प्लेलिस्ट नहीं मिली"
+  name_required: "प्लेलिस्ट का नाम आवश्यक है"
 
 playback:
   cannot_stop_other_session: "अन्य उपयोगकर्ता का सत्र रोका नहीं जा सकता"
@@ -53,6 +54,9 @@ library:
   no_access: "आपके पास इस लाइब्रेरी तक पहुँच नहीं है"
   directory_invalid: "अमान्य निर्देशिका"
   directory_outside: "निर्देशिका लाइब्रेरी पथों के भीतर नहीं है"
+  type_invalid: "अमान्य लाइब्रेरी प्रकार"
+  person_id_required: "व्यक्ति आईडी आवश्यक है"
+  person_not_found: "व्यक्ति नहीं मिला"
 
 admin:
   setup_already_completed: "सेटअप पहले ही पूर्ण हो चुका है"
@@ -100,10 +104,13 @@ user:
   invalid_avatar_path: "अमान्य अवतार पथ"
   current_password_required: "अपना पासवर्ड, ईमेल या उपयोगकर्ता नाम बदलने के लिए अपना वर्तमान पासवर्ड दर्ज करें"
   no_local_password: "यह खाता सिंगल साइन-ऑन से साइन इन करता है और इसका अभी कोई पासवर्ड नहीं है: किसी व्यवस्थापक से पासवर्ड सेट करने को कहें, या पासवर्ड रीसेट का उपयोग करें"
+  apikey_name_required: "API कुंजी का नाम आवश्यक है"
+  apikey_scope_required: "API कुंजी के लिए कम से कम एक स्कोप आवश्यक है"
 
 media:
   not_found: "मीडिया नहीं मिला"
   restricted_profile_edit: "शीर्षक और चित्र संपादित करने के लिए अभिभावकीय नियंत्रण के बिना किसी प्रोफ़ाइल पर जाएँ"
+  id_required: "मीडिया आईडी आवश्यक है"
 
 transcode:
   max_concurrent_reached: "सर्वर अन्य स्ट्रीम ट्रांसकोड करने में व्यस्त है। कृपया थोड़ी देर में पुनः प्रयास करें।"
@@ -126,12 +133,16 @@ request:
   duplicate: "इस शीर्षक के लिए आपका एक अनुरोध पहले से खुला है"
   already_held: "यह शीर्षक पहले से लाइब्रेरी में है"
   not_found: "अनुरोध नहीं मिला"
+  invalid_media_type: "अमान्य मीडिया प्रकार"
+  invalid_status: "स्थिति स्वीकृत, अस्वीकृत या बाद में होनी चाहिए"
+  invalid_access_mode: "अमान्य एक्सेस मोड"
 
 photo:
   not_found: "फ़ोटो नहीं मिली"
 
 music:
   track_not_found: "ट्रैक नहीं मिला"
+  library_and_directory_required: "एक लाइब्रेरी और एक डायरेक्टरी आवश्यक है"
 
 plugin:
   not_found: "प्लगइन नहीं मिला"
@@ -148,3 +159,8 @@ profile:
   schedule_kids_only: "उपयोग समय केवल बच्चों की प्रोफ़ाइल पर लागू होता है।"
   wrong_parent_pin: "अभिभावक PIN गलत है।"
   no_parent_pin: "इस खाते पर कोई अभिभावक PIN नहीं है: पहले किसी वयस्क प्रोफ़ाइल पर PIN सेट करें।"
+
+metadata:
+  no_provider_id: "इस आइटम की कोई {provider} आईडी नहीं है"
+  unsupported_provider: "असमर्थित मेटाडेटा प्रदाता: {provider}"
+  field_name_required: "फ़ील्ड का नाम आवश्यक है"
