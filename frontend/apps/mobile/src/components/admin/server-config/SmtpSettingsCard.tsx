@@ -5,7 +5,7 @@ import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
 import { ChipSelect } from "./ChipSelect";
-import type { ConfigEntry, SaveEntry } from "./types";
+import type { ConfigEntry, SaveEntryAsync } from "./types";
 
 const SMTP_KEYS = ["smtp.host", "smtp.port", "smtp.username", "smtp.password", "smtp.from", "smtp.tls"] as const;
 type SmtpKey = (typeof SMTP_KEYS)[number];
@@ -18,7 +18,7 @@ const TLS_OPTIONS = [
 
 interface SmtpSettingsCardProps {
   entries: ConfigEntry[] | undefined;
-  saveEntry: SaveEntry;
+  saveEntry: SaveEntryAsync;
   saving: boolean;
 }
 
@@ -38,6 +38,7 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
   const [tls, setTls] = useState(() => val(entries, "smtp.tls") || "starttls");
   const [showPassword, setShowPassword] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Re-seed from the config the FIRST time it arrives (mirrors the web card):
   // useState(() => val()) only seeds at mount, so a card that mounts before
@@ -56,7 +57,9 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries]);
 
-  const handleSave = useCallback(() => {
+  // One toast for the six writes: TanStack keeps the callbacks of the last
+  // mutate() call only, so per-call callbacks never all fired.
+  const handleSave = useCallback(async () => {
     const pairs: { key: SmtpKey; value: string }[] = [
       { key: "smtp.host", value: host },
       { key: "smtp.port", value: port },
@@ -65,23 +68,12 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
       { key: "smtp.from", value: from },
       { key: "smtp.tls", value: tls },
     ];
-    let remaining = pairs.length;
-    let hasError = false;
-    for (const { key, value } of pairs) {
-      saveEntry(
-        { key, value },
-        {
-          onSuccess: () => {
-            remaining -= 1;
-            if (remaining === 0 && !hasError) toast.success(t("admin.serverConfig.smtpSaved", "SMTP settings saved"));
-          },
-          onError: () => {
-            hasError = true;
-            toast.error(t("admin.serverConfig.failedSmtp", "Failed to save {{key}}", { key }));
-          },
-        },
-      );
-    }
+    setSubmitting(true);
+    const results = await Promise.allSettled(pairs.map((pair) => saveEntry(pair)));
+    setSubmitting(false);
+    const failed = pairs.filter((_, i) => results[i].status === "rejected").map((p) => p.key);
+    if (failed.length === 0) toast.success(t("admin.serverConfig.smtpSaved", "SMTP settings saved"));
+    else toast.error(t("admin.serverConfig.failedSmtp", "Failed to save {{key}}", { key: failed.join(", ") }));
   }, [host, port, username, password, from, tls, saveEntry, t]);
 
   // Sends with the SAVED settings (the server re-reads them) to the admin's own
@@ -102,6 +94,7 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
   }, [t]);
 
   const s = styles(theme);
+  const busy = saving || submitting;
 
   return (
     <View>
@@ -173,8 +166,8 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
       <Text style={s.label}>{t("admin.serverConfig.tlsMode", "TLS Mode")}</Text>
       <ChipSelect value={tls} onChange={setTls} options={TLS_OPTIONS} />
 
-      <Pressable onPress={handleSave} disabled={saving} style={[s.saveBtn, { opacity: saving ? 0.5 : 1 }]}>
-        {saving ? (
+      <Pressable onPress={handleSave} disabled={busy} style={[s.saveBtn, { opacity: busy ? 0.5 : 1 }]}>
+        {busy ? (
           <ActivityIndicator size="small" color={theme.colors.onAccent} />
         ) : (
           <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>

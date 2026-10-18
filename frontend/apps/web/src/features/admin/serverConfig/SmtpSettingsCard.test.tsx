@@ -3,8 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import { SmtpSettingsCard } from "./SmtpSettingsCard";
 
-const setMutate = vi.fn();
-vi.mock("./hooks", () => ({ useSetConfigEntry: () => ({ mutate: setMutate, isPending: false }) }));
+vi.mock("./hooks", () => ({ useSetConfigEntry: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@evey/store", () => ({ toast }));
 const eveyFetch = vi.hoisted(() => vi.fn());
@@ -29,8 +28,8 @@ beforeEach(() => vi.clearAllMocks());
 
 // The six rows are seeded ONCE the config arrives - a card mounted before the
 // query resolved used to save blanks over the stored settings - and never
-// re-seeded over an edit in progress; Save writes all six and reports once
-// only when every write landed, naming the row that failed otherwise.
+// re-seeded over an edit in progress. Save is pinned against the real
+// mutation in SmtpSettingsCard.save.test.tsx.
 describe("SmtpSettingsCard", () => {
   it("seeds once the config arrives and does not clobber an edit on a refetch", () => {
     const { rerender } = render(<SmtpSettingsCard entries={undefined} />);
@@ -43,26 +42,6 @@ describe("SmtpSettingsCard", () => {
     fireEvent.change(host, { target: { value: "smtp.new.test" } });
     rerender(<SmtpSettingsCard entries={[...stored, { key: "smtp.host", value: "refetched" }]} />);
     expect(host.value).toBe("smtp.new.test");
-  });
-
-  it("saves all six rows and reports once, or names the failed row", () => {
-    render(<SmtpSettingsCard entries={stored} />);
-    fireEvent.click(screen.getByText("admin.serverConfig.saveSmtp"));
-    expect(setMutate).toHaveBeenCalledTimes(6);
-    expect(setMutate.mock.calls.map((c) => c[0])).toEqual(stored);
-    const cbs = setMutate.mock.calls.map((c) => c[1] as { onSuccess: () => void; onError: () => void });
-    cbs.slice(0, 5).forEach((cb) => cb.onSuccess());
-    expect(toast.success).not.toHaveBeenCalled();
-    cbs[5].onSuccess();
-    expect(toast.success).toHaveBeenCalledTimes(1);
-
-    vi.clearAllMocks();
-    fireEvent.click(screen.getByText("admin.serverConfig.saveSmtp"));
-    const again = setMutate.mock.calls.map((c) => c[1] as { onSuccess: () => void; onError: () => void });
-    again[3].onError();
-    expect(toast.error).toHaveBeenCalledWith("admin.serverConfig.failedSmtp(smtp.password)");
-    again.filter((_, i) => i !== 3).forEach((cb) => cb.onSuccess());
-    expect(toast.success).not.toHaveBeenCalled();
   });
 
   // The test button posts to the admin route and shows the SMTP server's own

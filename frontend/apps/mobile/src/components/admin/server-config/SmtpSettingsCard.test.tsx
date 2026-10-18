@@ -51,32 +51,29 @@ describe("SmtpSettingsCard", () => {
     expect(screen.getByDisplayValue("smtp.example.com")).toBeTruthy();
   });
 
-  it("saves all six SMTP keys and toasts success once all resolve", () => {
-    const saveEntry = vi.fn((_vars: { key: string; value: string }, opts?: { onSuccess?: () => void }) => {
-      opts?.onSuccess?.();
-    });
+  it("saves all six SMTP keys and toasts success once all resolve", async () => {
+    const saveEntry = vi.fn(async (_vars: { key: string; value: string }) => ({}));
     render(<SmtpSettingsCard entries={[]} saveEntry={saveEntry} saving={false} />);
 
     fireEvent.click(screen.getByText("Save SMTP Settings"));
 
+    await vi.waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
     expect(saveEntry).toHaveBeenCalledTimes(6);
-    expect(saveEntry).toHaveBeenCalledWith(
-      { key: "smtp.host", value: "" },
-      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
-    );
-    expect(toastSuccess).toHaveBeenCalledTimes(1);
+    expect(saveEntry).toHaveBeenCalledWith({ key: "smtp.host", value: "" });
+    expect(toastError).not.toHaveBeenCalled();
   });
 
-  it("toasts a failure and does not also toast success when one key errors", () => {
-    const saveEntry = vi.fn((vars: { key: string; value: string }, opts?: { onSuccess?: () => void; onError?: () => void }) => {
-      if (vars.key === "smtp.password") opts?.onError?.();
-      else opts?.onSuccess?.();
+  it("toasts one failure naming the key and no success when one key errors", async () => {
+    const saveEntry = vi.fn(async (vars: { key: string; value: string }) => {
+      if (vars.key === "smtp.password") throw new Error("boom");
+      return {};
     });
     render(<SmtpSettingsCard entries={[]} saveEntry={saveEntry} saving={false} />);
 
     fireEvent.click(screen.getByText("Save SMTP Settings"));
 
-    expect(toastError).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    expect(toastError).toHaveBeenCalledWith("Failed to save {{key}}");
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 

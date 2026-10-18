@@ -19,7 +19,7 @@ const TLS_OPTIONS: { label: string; value: string }[] = [
 
 export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const { t } = useTranslation();
-  const setEntry = useSetConfigEntry();
+  const setEntry = useSetConfigEntry({ ownToast: true });
 
   function val(key: SmtpKey) {
     return entries?.find((e) => e.key === key)?.value ?? "";
@@ -33,6 +33,7 @@ export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefin
   const [tls, setTls] = useState(() => val("smtp.tls") || "starttls");
   const [showPassword, setShowPassword] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const { lock } = useDemoLock();
 
   // Re-seed from the config the FIRST time it arrives. useState(() => val())
@@ -53,7 +54,9 @@ export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefin
     setTls(get("smtp.tls") || "starttls");
   }, [entries]);
 
-  function handleSave() {
+  // One toast for the six writes: TanStack keeps the callbacks of the last
+  // mutate() call only, so per-call callbacks never all fired.
+  async function handleSave() {
     const pairs: { key: SmtpKey; value: string }[] = [
       { key: "smtp.host", value: host },
       { key: "smtp.port", value: port },
@@ -62,23 +65,12 @@ export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefin
       { key: "smtp.from", value: from },
       { key: "smtp.tls", value: tls },
     ];
-    let remaining = pairs.length;
-    let hasError = false;
-    for (const { key, value } of pairs) {
-      setEntry.mutate(
-        { key, value },
-        {
-          onSuccess: () => {
-            remaining -= 1;
-            if (remaining === 0 && !hasError) toast.success(t("admin.serverConfig.smtpSaved"));
-          },
-          onError: () => {
-            hasError = true;
-            toast.error(t("admin.serverConfig.failedSmtp", { key }));
-          },
-        }
-      );
-    }
+    setSubmitting(true);
+    const results = await Promise.allSettled(pairs.map((pair) => setEntry.mutateAsync(pair)));
+    setSubmitting(false);
+    const failed = pairs.filter((_, i) => results[i].status === "rejected").map((p) => p.key);
+    if (failed.length === 0) toast.success(t("admin.serverConfig.smtpSaved"));
+    else toast.error(t("admin.serverConfig.failedSmtp", { key: failed.join(", ") }));
   }
 
   // Sends with the SAVED settings (the server re-reads them) to the admin's own address.
@@ -115,7 +107,7 @@ export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefin
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={handleSave} loading={setEntry.isPending}>
+        <Button onClick={handleSave} loading={submitting}>
           {t("admin.serverConfig.saveSmtp")}
         </Button>
         <Button variant="secondary" onClick={handleTest} loading={testing} {...lock}>
