@@ -16,7 +16,6 @@ import (
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // mediaRequestHandler is the requester-facing surface. Every operation is
@@ -98,7 +97,7 @@ func (h *mediaRequestHandler) SearchTitles(ctx context.Context, req *eveyv1.Sear
 	}
 	mediaType := mediarequest.MediaType(req.MediaType)
 	if !mediaType.IsValid() {
-		return nil, status.Error(codes.InvalidArgument, "invalid media type")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.request.invalid_media_type")
 	}
 	var year *int
 	if req.Year > 0 {
@@ -263,7 +262,7 @@ func (h *adminMediaRequestHandler) AnswerRequest(ctx context.Context, req *eveyv
 	}
 	st := mediarequest.Status(req.Status)
 	if !st.IsAnswer() {
-		return nil, status.Error(codes.InvalidArgument, "status must be approved, rejected or later")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.request.invalid_status")
 	}
 	answered, err := h.svc.Answer(ctx, req.Id, st, req.Note, shared.ProfileID(claims.ProfileID))
 	if err != nil {
@@ -305,7 +304,7 @@ func (h *adminMediaRequestHandler) SetUserAccess(ctx context.Context, req *eveyv
 	ctx, span := tracing.StartSpan(ctx, "grpc.mediarequest.admin.SetUserAccess")
 	defer span.End()
 	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user id required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.id_required")
 	}
 	var mode appmediarequest.AccessMode
 	switch req.Mode {
@@ -316,7 +315,7 @@ func (h *adminMediaRequestHandler) SetUserAccess(ctx context.Context, req *eveyv
 	case eveyv1.AccessMode_ACCESS_MODE_DEFAULT:
 		mode = appmediarequest.AccessDefault
 	default:
-		return nil, status.Error(codes.InvalidArgument, "invalid access mode")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.request.invalid_access_mode")
 	}
 	if err := h.svc.SetUserAccess(ctx, req.UserId, mode); err != nil {
 		return nil, internalError(ctx, "set user access", err)

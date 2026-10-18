@@ -53,6 +53,12 @@ func (h *userHandler) CreateAPIKey(ctx context.Context, req *eveyv1.CreateAPIKey
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case req.Name == "":
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.apikey_name_required")
+		case len(req.Scopes) == 0:
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.apikey_scope_required")
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.access.CreateAPIKey(ctx, key); err != nil {

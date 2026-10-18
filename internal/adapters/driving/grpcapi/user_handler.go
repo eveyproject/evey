@@ -147,7 +147,7 @@ func (h *userHandler) GetCurrentUser(ctx context.Context, _ *eveyv1.GetCurrentUs
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		slog.WarnContext(ctx, "grpc GetCurrentUser: user query failed", slog.Any("err", err))
-		return nil, status.Error(codes.NotFound, "user not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.not_found")
 	}
 	return userToProto(u), nil
 }
@@ -170,10 +170,10 @@ func (h *userHandler) ResetPassword(ctx context.Context, req *eveyv1.ResetPasswo
 		switch {
 		case errors.Is(err, appuser.ErrResetTokenInvalid):
 			span.SetStatus(otelcodes.Error, "invalid or expired reset token")
-			return nil, status.Errorf(codes.InvalidArgument, "invalid or expired reset token")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.invalid_token")
 		case errors.Is(err, appuser.ErrPasswordTooShort):
 			span.SetStatus(otelcodes.Error, "password too short")
-			return nil, status.Errorf(codes.InvalidArgument, "password must be at least 8 characters")
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.password_too_short")
 		default:
 			slog.ErrorContext(ctx, "reset password", slog.Any("err", err))
 			span.SetStatus(otelcodes.Error, err.Error())

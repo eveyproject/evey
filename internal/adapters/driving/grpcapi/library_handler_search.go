@@ -11,7 +11,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // library_handler_search.go holds the search RPCs: full-text media search and
@@ -203,7 +202,7 @@ func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonReq
 	defer span.End()
 	if req.Id == "" {
 		span.SetStatus(otelcodes.Error, "id is required")
-		return nil, status.Error(codes.InvalidArgument, "id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.library.person_id_required")
 	}
 	person, err := h.query.GetPerson(ctx, req.Id)
 	if err != nil {
@@ -213,7 +212,7 @@ func (h *libraryHandler) GetPerson(ctx context.Context, req *eveyv1.GetPersonReq
 	}
 	if person == nil {
 		span.SetStatus(otelcodes.Error, "person not found")
-		return nil, status.Error(codes.NotFound, "person not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.library.person_not_found")
 	}
 	// Overlay translated biography if user locale != default
 	personLocale := eveyi18n.LocaleFromCtx(ctx)

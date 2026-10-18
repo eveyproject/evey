@@ -30,6 +30,7 @@ playlist:
   limit_reached: "Playlist item limit reached"
   duplicate_name: "A playlist with this name already exists"
   not_found: "Playlist not found"
+  name_required: "A playlist name is required"
 
 playback:
   cannot_stop_other_session: "Cannot stop another user's session"
@@ -53,6 +54,9 @@ library:
   no_access: "You do not have access to this library"
   directory_invalid: "Invalid directory"
   directory_outside: "The directory is not within the library paths"
+  type_invalid: "Invalid library type"
+  person_id_required: "A person id is required"
+  person_not_found: "Person not found"
 
 admin:
   setup_already_completed: "Setup already completed"
@@ -100,10 +104,13 @@ user:
   invalid_avatar_path: "Invalid avatar path"
   current_password_required: "Enter your current password to change your password, e-mail or username"
   no_local_password: "This account signs in with single sign-on and has no password yet: ask an administrator to set one, or use the password reset"
+  apikey_name_required: "An API key name is required"
+  apikey_scope_required: "An API key needs at least one scope"
 
 media:
   not_found: "Media not found"
   restricted_profile_edit: "Switch to a profile without parental controls to edit titles and artwork"
+  id_required: "A media id is required"
 
 transcode:
   max_concurrent_reached: "The server is busy transcoding other streams. Please try again in a moment."
@@ -126,12 +133,16 @@ request:
   duplicate: "You already have an open request for this title"
   already_held: "This title is already in the library"
   not_found: "Request not found"
+  invalid_media_type: "Invalid media type"
+  invalid_status: "The status must be approved, rejected or later"
+  invalid_access_mode: "Invalid access mode"
 
 photo:
   not_found: "Photo not found"
 
 music:
   track_not_found: "Track not found"
+  library_and_directory_required: "A library and a directory are required"
 
 plugin:
   not_found: "Plugin not found"
@@ -148,3 +159,8 @@ profile:
   schedule_kids_only: "Opening hours apply to kids profiles only."
   wrong_parent_pin: "Wrong parent PIN."
   no_parent_pin: "No parent PIN is set on this account: set one on an adult profile first."
+
+metadata:
+  no_provider_id: "This item has no {provider} ID"
+  unsupported_provider: "Unsupported metadata provider: {provider}"
+  field_name_required: "A field name is required"

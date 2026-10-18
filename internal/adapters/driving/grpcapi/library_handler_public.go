@@ -9,7 +9,6 @@ import (
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 // library_handler_public.go holds the unauthenticated public media-item RPCs
@@ -43,7 +42,7 @@ func (h *libraryHandler) GetPublicMediaItem(ctx context.Context, req *eveyv1.Get
 	defer span.End()
 	item, err := h.query.GetMediaItem(ctx, req.Id)
 	if err != nil {
-		return nil, status.Error(codes.NotFound, "media item not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")
 	}
 	if ok, _ := h.checkLibraryAccess(ctx, item.LibraryID); !ok { //nolint:errcheck // fail-closed: any error denies
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.media.not_found")

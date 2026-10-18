@@ -104,6 +104,9 @@ func (h *playlistHandler) CreatePlaylist(ctx context.Context, req *eveyv1.Create
 	}
 	pl, err := playlist.NewPlaylist(req.Name, claims.ProfileID, playlistTypeFromProto(req.Type))
 	if err != nil {
+		if req.Name == "" {
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.playlist.name_required")
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	pl.Description = req.Description

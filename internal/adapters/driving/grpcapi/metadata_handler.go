@@ -61,15 +61,15 @@ func (h *metadataHandler) checkMediaItemAccess(ctx context.Context, mediaItemID 
 	// checkLibraryAccess, which already denies on a nil checker.
 	if h.libQuery == nil {
 		slog.ErrorContext(ctx, "metadataHandler.checkMediaItemAccess: library query service not configured")
-		return status.Error(codes.FailedPrecondition, "library query service not configured")
+		return h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.service_not_configured")
 	}
 	item, err := h.libQuery.GetMediaItem(ctx, mediaItemID)
 	if err != nil || item == nil {
-		return status.Error(codes.NotFound, "not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 	}
 	ok, accessErr := h.userAccess.HasLibraryAccess(ctx, shared.UserID(claims.UserID), item.LibraryID)
 	if accessErr != nil || !ok {
-		return status.Error(codes.NotFound, "not found")
+		return h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 	case "", "tmdb":
 		tmdbID := providerIDs["tmdb"]
 		if tmdbID == "" {
-			return status.Errorf(codes.FailedPrecondition, "no TMDB ID for this item")
+			return h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.metadata.no_provider_id", map[string]string{"provider": "TMDB"})
 		}
 		if err := h.cmd.RefreshItemMetadata(ctx, req.MediaItemId, tmdbID, mediaType); err != nil {
 			return internalError(ctx, "refresh metadata", err)
@@ -136,13 +136,13 @@ func (h *metadataHandler) RefreshMetadata(req *eveyv1.RefreshMetadataRequest, st
 		// IMDB → TMDB so locale translations land on the right record.
 		imdbID := providerIDs["imdb"]
 		if imdbID == "" {
-			return status.Errorf(codes.FailedPrecondition, "no IMDB ID for this item")
+			return h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.metadata.no_provider_id", map[string]string{"provider": "IMDB"})
 		}
 		if err := h.cmd.RefreshItemMetadataByIMDB(ctx, req.MediaItemId, imdbID, mediaType); err != nil {
 			return internalError(ctx, "refresh metadata", err)
 		}
 	default:
-		return status.Errorf(codes.InvalidArgument, "unsupported provider %q", req.PreferredProvider)
+		return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.metadata.unsupported_provider", map[string]string{"provider": req.PreferredProvider})
 	}
 
 	return stream.Send(&eveyv1.RefreshMetadataProgress{
@@ -182,6 +182,9 @@ func (h *metadataHandler) SetMetadataOverride(ctx context.Context, req *eveyv1.S
 		domainmetadata.WithOverrideValue(req.CustomValue),
 	)
 	if err != nil {
+		if req.FieldName == "" {
+			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.metadata.field_name_required")
+		}
 		return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 	if err := h.cmd.SetOverride(ctx, override); err != nil {
@@ -200,7 +203,7 @@ func (h *metadataHandler) RemoveMetadataOverride(ctx context.Context, req *eveyv
 	// access. Returning NotFound on a stale id keeps existence opaque.
 	override, err := h.cmd.GetOverride(ctx, req.Id)
 	if err != nil || override == nil {
-		return nil, status.Error(codes.NotFound, "not found")
+		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.general.not_found")
 	}
 	if err := h.checkMediaItemAccess(ctx, string(override.MediaItemID)); err != nil {
 		return nil, err
@@ -235,7 +238,7 @@ func (h *metadataHandler) ResearchMetadata(ctx context.Context, req *eveyv1.Rese
 		return nil, err
 	}
 	if req.MediaItemId == "" {
-		return nil, status.Error(codes.InvalidArgument, "media_item_id is required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.media.id_required")
 	}
 	if err := h.checkMediaItemAccess(ctx, req.MediaItemId); err != nil {
 		return nil, err

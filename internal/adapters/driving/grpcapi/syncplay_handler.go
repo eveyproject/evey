@@ -19,7 +19,6 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type syncplayHandler struct {
@@ -40,7 +39,7 @@ type syncplayHandler struct {
 func (h *syncplayHandler) requireMediaAccess(ctx context.Context, mediaID, mediaType string) error {
 	claims := interceptors.ClaimsFromContext(ctx)
 	if claims == nil {
-		return status.Error(codes.Unauthenticated, "unauthenticated")
+		return h.translator.TranslatedError(ctx, codes.Unauthenticated, "errors.auth.unauthenticated")
 	}
 	if mediaType == "music" {
 		if claims.IsAdmin {
@@ -134,7 +133,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 	if req.PlaylistId != "" {
 		if h.playlistSvc == nil {
 			span.SetStatus(otelcodes.Error, "playlist service unavailable")
-			return nil, status.Error(codes.FailedPrecondition, "playlist service unavailable")
+			return nil, h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.admin.service_not_configured")
 		}
 		pl, plErr := h.playlistSvc.GetByID(ctx, req.PlaylistId, shared.ProfileID(claims.ProfileID))
 		if plErr != nil || pl == nil {
@@ -248,7 +247,7 @@ func (h *syncplayHandler) CreateRoom(ctx context.Context, req *eveyv1.CreateSync
 
 	if req.MediaId == "" {
 		span.SetStatus(otelcodes.Error, "media_id required")
-		return nil, status.Error(codes.InvalidArgument, "media_id required")
+		return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.media.id_required")
 	}
 	mediaType := req.MediaType
 	if mediaType == "" {
