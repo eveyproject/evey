@@ -96,6 +96,26 @@ describe("SystemTrends", () => {
     expect(toPoints([{ timestamp: "garbage" }])).toEqual([]);
   });
 
+  // Rows written before migration 000178 carry no disk, network, iowait or
+  // storage reading (the columns defaulted to 0): drawn as zeros they showed
+  // 29 days of idle disks and a storage jump from 0 to 85 %. Unmeasured is a
+  // gap, as is a storage total the sampler could not read.
+  it("leaves a gap, not a zero, where a row was never measured", () => {
+    const pts = toPoints([
+      { timestamp: "2026-10-01T00:00:00Z", cpuPercent: 12, memoryPercent: 40, activeStreams: 1 },
+      { timestamp: "2026-10-01T00:15:00Z", cpuPercent: 10, memoryPercent: 41, networkRxBps: "500", diskReadBps: "0", iowaitPercent: 0 },
+    ]);
+    expect(pts[0].cpu).toBe(12);
+    expect(pts[0].streams).toBe(1);
+    for (const k of ["iowait", "diskAwait", "diskUtil", "diskRead", "diskWrite", "netRx", "netTx", "storage"] as const) {
+      expect(pts[0][k]).toBeNull();
+    }
+    expect(pts[1].netRx).toBe(500);
+    expect(pts[1].diskRead).toBe(0);
+    expect(pts[1].iowait).toBe(0);
+    expect(pts[1].storage).toBeNull();
+  });
+
   it("labels ticks by the window and values by their unit", () => {
     const t = new Date(2026, 9, 15, 20, 5).getTime();
     expect(formatTick("24h", t)).toBe("20:05");

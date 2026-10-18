@@ -19,19 +19,20 @@ const SERIES_COLORS = ["#c81e1e", "#f59e0b", "#10b981"];
 
 type Unit = "percent" | "ms" | "bps" | "bytesps" | "count";
 
+// null = not measured: the chart skips the point instead of drawing a zero.
 export interface Point {
   t: number;
   cpu: number;
-  iowait: number;
+  iowait: number | null;
   memory: number;
-  diskAwait: number;
-  diskUtil: number;
-  diskRead: number;
-  diskWrite: number;
-  netRx: number;
-  netTx: number;
+  diskAwait: number | null;
+  diskUtil: number | null;
+  diskRead: number | null;
+  diskWrite: number | null;
+  netRx: number | null;
+  netTx: number | null;
   streaming: number;
-  storage: number;
+  storage: number | null;
   streams: number;
   transcodes: number;
 }
@@ -75,23 +76,34 @@ function num(v: string | number | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+// A row written before migration 000178 has no disk, network, iowait or
+// storage reading: those columns defaulted to 0. A measured row always moves
+// some network bytes, so "every one of them is zero" means "never measured".
+function measuredIO(m: V1ServerMetric): boolean {
+  return [m.iowaitPercent, m.diskAwaitMs, m.diskUtilPercent, m.diskReadBps, m.diskWriteBps, m.networkRxBps, m.networkTxBps, m.storageTotalBytes]
+    .some((v) => num(v) !== 0);
+}
+
 export function toPoints(metrics: V1ServerMetric[] | undefined): Point[] {
   return (metrics ?? [])
     .map((m) => {
       const total = num(m.storageTotalBytes);
+      const io = measuredIO(m);
+      const orGap = (v: number) => (io ? v : null);
       return {
         t: Date.parse(m.timestamp ?? ""),
         cpu: m.cpuPercent ?? 0,
-        iowait: m.iowaitPercent ?? 0,
+        iowait: orGap(m.iowaitPercent ?? 0),
         memory: m.memoryPercent ?? 0,
-        diskAwait: m.diskAwaitMs ?? 0,
-        diskUtil: m.diskUtilPercent ?? 0,
-        diskRead: num(m.diskReadBps),
-        diskWrite: num(m.diskWriteBps),
-        netRx: num(m.networkRxBps),
-        netTx: num(m.networkTxBps),
+        diskAwait: orGap(m.diskAwaitMs ?? 0),
+        diskUtil: orGap(m.diskUtilPercent ?? 0),
+        diskRead: orGap(num(m.diskReadBps)),
+        diskWrite: orGap(num(m.diskWriteBps)),
+        netRx: orGap(num(m.networkRxBps)),
+        netTx: orGap(num(m.networkTxBps)),
         streaming: num(m.bandwidthBps),
-        storage: total > 0 ? (num(m.storageUsedBytes) / total) * 100 : 0,
+        // No disk has a zero total: the sampler could not read it.
+        storage: total > 0 ? (num(m.storageUsedBytes) / total) * 100 : null,
         streams: m.activeStreams ?? 0,
         transcodes: m.activeTranscodes ?? 0,
       };
@@ -148,12 +160,16 @@ interface TrendChartProps {
   saturationAwaitMs?: number;
 }
 
-function TrendChart({ chart, points, range, width, theme, idleAwaitMs, saturationAwaitMs }: TrendChartProps) {
+function TrendChart({ chart, points: allPoints, range, width, theme, idleAwaitMs, saturationAwaitMs }: TrendChartProps) {
   const { t } = useTranslation();
+  // The chart library draws no gap: an unmeasured point is left out rather
+  // than drawn as a zero (29 days of idle disks before migration 000178).
+  const points = allPoints.filter((p) => chart.series.every((s) => p[s.key] != null));
+  if (points.length < 2) return null;
   // A label every quarter of the window keeps the axis readable on a phone.
   const labelEvery = Math.max(1, Math.floor(points.length / 4));
   const series = chart.series.map((s) => points.map((p, i) => ({
-    value: p[s.key],
+    value: p[s.key] ?? 0,
     label: i % labelEvery === 0 && i < points.length - labelEvery / 2 ? formatTick(range, p.t) : undefined,
   })));
   const maxValue = chart.unit === "percent"
