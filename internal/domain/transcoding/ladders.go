@@ -125,7 +125,9 @@ func LadderFor(c ContentClass) []HLSProfile {
 // accelerator is available.
 //
 // maxHeight=0 ⇒ no cap.
-// Always returns at least one rung (the lowest).
+// Always returns at least one rung: when even the lowest is too tall, the
+// lowest shrunk to the cap (a decoder limit is not a suggestion - the lowest
+// 480p rung handed whole to a 360 cap served a 640x480 source at 854x640).
 func CapLadderToHeight(ladder []HLSProfile, maxHeight int) []HLSProfile {
 	if maxHeight <= 0 {
 		return ladder
@@ -136,10 +138,26 @@ func CapLadderToHeight(ladder []HLSProfile, maxHeight int) []HLSProfile {
 			out = append(out, p)
 		}
 	}
-	if len(out) == 0 {
-		return ladder[:1]
+	if len(out) == 0 && len(ladder) > 0 {
+		return []HLSProfile{shrinkRungToHeight(ladder[0], maxHeight)}
 	}
 	return out
+}
+
+// shrinkRungToHeight scales the rung's box down to maxHeight (even), its
+// width following the box aspect. The bit budget stays: fewer pixels at the
+// same ceiling. Any stamped frame is dropped, it framed the former box.
+func shrinkRungToHeight(p HLSProfile, maxHeight int) HLSProfile {
+	h := max(maxHeight&^1, 2)
+	if p.Height > 0 && h < p.Height {
+		if p.Width > 0 {
+			p.Width = max(rescaleEven(p.Width, h, p.Height), 2)
+		}
+		p.Height = h
+		p.Name = fmt.Sprintf("%dp", h)
+	}
+	p.FrameWidth, p.FrameHeight = 0, 0
+	return p
 }
 
 // BoostCappedTopRung spends the bitrate budget of a capability-dropped rung at
@@ -180,28 +198,104 @@ func BoostCappedTopRung(sourceCapped, heightCapped []HLSProfile) []HLSProfile {
 // 2160p rung) gets clipped to 480p/720p only.
 //
 // sourceWidth/Height come from the source media stream metadata. Zero or
-// negative ⇒ no clipping (treat as unknown).
+// negative ⇒ no clipping (treat as unknown). Square pixels; the ladder
+// engine reads the sample aspect too (capLadderToSource).
 func CapLadderToSource(ladder []HLSProfile, sourceWidth, sourceHeight int) []HLSProfile {
-	if sourceWidth <= 0 || sourceHeight <= 0 {
+	return capLadderToSource(ladder, SourceFacts{Width: sourceWidth, Height: sourceHeight})
+}
+
+// capLadderToSource keeps the rungs whose picture (the source fitted in the
+// rung's box, RungFrame's fit) is no taller than the source: a letterboxed
+// 1920x800 keeps the 1080p box (it draws 1920x800 in it), a 4:3 640x480 keeps
+// the 480p box (640x480 in 854x480), which the widest-side comparison dropped.
+func capLadderToSource(ladder []HLSProfile, src SourceFacts) []HLSProfile {
+	if src.Width <= 0 || src.Height <= 0 {
 		return ladder
 	}
 	out := make([]HLSProfile, 0, len(ladder))
 	for _, p := range ladder {
-		// Allow the rung when it's strictly smaller OR equal in the tallest
-		// dimension. Some sources are letterboxed (e.g. 1920×800) - cap
-		// against the larger of width/height vs the rung's larger side.
-		srcMax := max(sourceHeight, sourceWidth)
-		rungMax := max(p.Height, p.Width)
-		if rungMax <= srcMax {
+		if _, h := fitInBox(p.Width, p.Height, src); h <= src.Height {
 			out = append(out, p)
 		}
 	}
 	// Always keep at least one rung - if the source is tiny (<360p), give
-	// the lowest pre-defined rung anyway so the player has something.
+	// the lowest pre-defined rung anyway so the player has something (its
+	// frame is held to the source size, RungFrame never upscales).
 	if len(out) == 0 {
 		return ladder[:1]
 	}
 	return out
+}
+
+// RungFrame is the picture a rung is encoded and advertised at for this
+// source: the source's DISPLAY aspect (storage size corrected by the sample
+// aspect) fitted inside the rung's Width x Height box, both sides even, never
+// larger than the source. A source at least as wide as the box pins the
+// width and the height follows, rounded the way ffmpeg's scale=W:-2 rounds
+// (a 16:9 source keeps its exact box, a 1920x800 scope one 1280x534 in the
+// 720p box); a narrower one pins the height (a 4:3 640x480 draws 480x360 in
+// the 360p box, not the 640x480 a width pin made of it). An unknown source or
+// box returns the box.
+func RungFrame(p HLSProfile, src SourceFacts) (w, h int) {
+	if p.Width <= 0 || p.Height <= 0 || src.Width <= 0 || src.Height <= 0 {
+		return p.Width, p.Height
+	}
+	num, den := sampleAspect(src)
+	boxW := min(p.Width, src.Width*num/den) &^ 1
+	boxH := min(p.Height, src.Height) &^ 1
+	w, h = fitInBox(max(boxW, 2), max(boxH, 2), src)
+	return max(min(w, boxW), 2), max(min(h, boxH), 2)
+}
+
+// FrameLadderToSource stamps every encoded rung with its RungFrame, so the
+// encoder's scaler and the manifests' RESOLUTION read one and the same
+// picture. A copy rung (the source itself) and an unknown source stay
+// unframed. Never mutates its input (it may alias a package-level ladder).
+func FrameLadderToSource(ladder []HLSProfile, src SourceFacts) []HLSProfile {
+	if src.Width <= 0 || src.Height <= 0 {
+		return ladder
+	}
+	out := make([]HLSProfile, len(ladder))
+	for i, p := range ladder {
+		if !p.Copy {
+			p.FrameWidth, p.FrameHeight = RungFrame(p, src)
+		}
+		out[i] = p
+	}
+	return out
+}
+
+// fitInBox fits the source's display aspect inside boxW x boxH, unclamped to
+// the source: the width pinned when the source is at least as wide as the box,
+// the height otherwise, the other side rounded to the nearest even value.
+func fitInBox(boxW, boxH int, src SourceFacts) (w, h int) {
+	if boxW <= 0 || boxH <= 0 {
+		return boxW, boxH
+	}
+	num, den := sampleAspect(src)
+	dispW, dispH := src.Width*num, src.Height*den
+	if dispW*boxH >= boxW*dispH {
+		return boxW, rescaleEven(boxW, dispH, dispW)
+	}
+	return rescaleEven(boxH, dispW, dispH), boxH
+}
+
+// sampleAspect is the source's sample aspect ratio, 1:1 when unknown.
+func sampleAspect(src SourceFacts) (num, den int) {
+	if src.SARNum <= 0 || src.SARDen <= 0 {
+		return 1, 1
+	}
+	return src.SARNum, src.SARDen
+}
+
+// rescaleEven is a*b/c rounded to the nearest EVEN integer, half up - what
+// ffmpeg's scale computes for a -2 dimension (av_rescale of a*b over 2c,
+// times two).
+func rescaleEven(a, b, c int) int {
+	if c <= 0 {
+		return a
+	}
+	return int((int64(a)*int64(b)+int64(c))/(2*int64(c))) * 2
 }
 
 // HEVC needs about two thirds of the H.264 bitrate at equal quality.

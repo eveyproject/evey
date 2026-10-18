@@ -260,6 +260,10 @@ type ProfileFingerprint struct {
 	// CodecLevel: the level the rung is encoded and declared at (0 = none
 	// pinned). Other bytes at another level: hashed when set.
 	CodecLevel int
+	// FrameWidth x FrameHeight: the picture the rung is encoded at (0 = not
+	// framed, the box width pinned). Hashed when it is not the box itself.
+	FrameWidth  int
+	FrameHeight int
 }
 
 // ProfileFingerprintOf projects a domain HLSProfile onto its cache fingerprint.
@@ -280,6 +284,8 @@ func ProfileFingerprintOf(p transcoding.HLSProfile) ProfileFingerprint {
 		CostModelled:      p.CostModelled,
 		EfficiencyVersion: p.EfficiencyVersion,
 		CodecLevel:        p.CodecLevel,
+		FrameWidth:        p.FrameWidth,
+		FrameHeight:       p.FrameHeight,
 	}
 }
 
@@ -553,11 +559,30 @@ func (f DecisionFingerprint) hashWithDownmixPolicy(downmixPolicy string) string 
 		if p.CodecLevel > 0 {
 			fmt.Fprintf(&b, "|lvl=%d", p.CodecLevel)
 		}
+		if f.frameForks(p) {
+			fmt.Fprintf(&b, "|frame=%dx%d", p.FrameWidth, p.FrameHeight)
+		}
 		b.WriteString("\n")
 	}
 	sum := sha256.Sum256([]byte(b.String()))
 	// 16 hex chars = 64 bits, low enough collision risk for our cache scale.
 	return hex.EncodeToString(sum[:])[:16]
+}
+
+// frameForks reports whether the rung's stamped frame names other bytes than
+// the width-pinned scale that preceded it: a frame other than the box (a 4:3
+// source drawn height-pinned, a scope one at its own height), or any frame of
+// an anamorphic source (the GPU scalers ignored its sample aspect). A 16:9
+// square-pixel source's frame IS its box and keeps the hash it had.
+func (f DecisionFingerprint) frameForks(p ProfileFingerprint) bool {
+	if p.FrameWidth == 0 && p.FrameHeight == 0 {
+		return false
+	}
+	if p.FrameWidth != p.Width || p.FrameHeight != p.Height {
+		return true
+	}
+	num, den, ok := parseSARRatio(f.SourceSAR)
+	return ok && num != den
 }
 
 // allProfilesCopy reports whether every rung is a remux (video-copy): a copy

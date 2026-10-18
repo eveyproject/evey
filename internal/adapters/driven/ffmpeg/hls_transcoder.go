@@ -467,6 +467,26 @@ func scaleFilterFor(opts transcoding.HLSProcessOpts, width int) string {
 	return fmt.Sprintf("scale=%d:-2,setsar=1", width)
 }
 
+// rungPicture is the picture the scaler draws the rung at: the frame the
+// ladder stamped (both sides pinned), else the box width with the height
+// left to the source aspect (h = 0).
+func rungPicture(p transcoding.HLSProfile) (w, h int) {
+	if p.Framed() {
+		return p.FrameWidth, p.FrameHeight
+	}
+	return p.Width, 0
+}
+
+// softwareRungScaleFilter is the software scaler of one ladder rung: its
+// stamped frame pinned on both sides (the aspect, the sample aspect and the
+// height cap already decided by the ladder), else scaleFilterFor's width pin.
+func softwareRungScaleFilter(opts transcoding.HLSProcessOpts, p transcoding.HLSProfile) string {
+	if w, h := rungPicture(p); h > 0 {
+		return fmt.Sprintf("scale=%d:%d,setsar=1", w, h)
+	}
+	return scaleFilterFor(opts, p.Width)
+}
+
 // parseAspect parses an "N:D" aspect string into its integer parts. Returns
 // ok=false for empty, malformed, or zero-denominator values.
 func parseAspect(s string) (num, den int, ok bool) {
@@ -932,7 +952,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	// keeps a full-resolution tonemap (overlay at a fixed size, then scale).
 	dstWidth := 0
 	if !burnIn {
-		dstWidth = p.Width
+		dstWidth, _ = rungPicture(p)
 	}
 	toneMap := resolveToneMap(opts, dstWidth)
 	if gpuPlan(opts) {
@@ -960,28 +980,35 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 			// deinterlace → tonemap → overlay → scale
 			filterParts = append(filterParts,
 				fmt.Sprintf("[0:v]%s,%s[vt]", deint, toneMap),
-				fmt.Sprintf("[vt][0:s:%d]overlay,%s%s[out]", opts.SubtitleTrackIndex, scaleFilterFor(opts, p.Width), eosPadFilter(opts)),
+				fmt.Sprintf("[vt][0:s:%d]overlay,%s%s[out]", opts.SubtitleTrackIndex, softwareRungScaleFilter(opts, p), eosPadFilter(opts)),
 			)
 		case burnIn:
 			// deinterlace the video before burning the subtitle overlay on it
 			filterParts = append(filterParts,
 				fmt.Sprintf("[0:v]%s[vd]", deint),
-				fmt.Sprintf("[vd][0:s:%d]overlay,%s%s[out]", opts.SubtitleTrackIndex, scaleFilterFor(opts, p.Width), eosPadFilter(opts)),
+				fmt.Sprintf("[vd][0:s:%d]overlay,%s%s[out]", opts.SubtitleTrackIndex, softwareRungScaleFilter(opts, p), eosPadFilter(opts)),
 			)
 		default:
-			// tonemap already downscaled to p.Width (folded into its linearizing
-			// zscale), so no trailing scale - that 4× cut in tonemapped pixels is
-			// the fix that keeps a weak host real-time on 4K HDR sources. (HDR and
-			// anamorphic SD are disjoint in practice, so no SAR correction here.)
+			// tonemap already downscaled to the rung width (folded into its
+			// linearizing zscale), so no trailing width scale - that 4× cut in
+			// tonemapped pixels is the fix that keeps a weak host real-time on 4K
+			// HDR sources. (HDR and anamorphic SD are disjoint in practice, so no
+			// SAR correction here.) A framed rung pins its height after it: a
+			// no-op pass-through when the tonemap's even height already is the
+			// frame's, the frame otherwise.
+			pin := ""
+			if w, h := rungPicture(p); h > 0 {
+				pin = fmt.Sprintf(",scale=%d:%d", w, h)
+			}
 			filterParts = append(filterParts,
-				fmt.Sprintf("[0:v]%s,%s,setsar=1%s[out]", deint, toneMap, eosPadFilter(opts)),
+				fmt.Sprintf("[0:v]%s,%s%s,setsar=1%s[out]", deint, toneMap, pin, eosPadFilter(opts)),
 			)
 		}
 		args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 		args = append(args, "-map", "[out]")
 	} else {
 		args = append(args, "-map", "0:v:0",
-			"-vf", fmt.Sprintf("%s,%s%s", deint, scaleFilterFor(opts, p.Width), eosPadFilter(opts)),
+			"-vf", fmt.Sprintf("%s,%s%s", deint, softwareRungScaleFilter(opts, p), eosPadFilter(opts)),
 		)
 	}
 
@@ -1012,8 +1039,8 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	dstWidth := 0
 	if !burnIn {
 		for _, p := range opts.Profiles {
-			if p.Width > dstWidth {
-				dstWidth = p.Width
+			if w, _ := rungPicture(p); w > dstWidth {
+				dstWidth = w
 			}
 		}
 	}
@@ -1076,7 +1103,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	}
 
 	for i, p := range opts.Profiles {
-		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s%s[o%d]", i, scaleFilterFor(opts, p.Width), eosPadFilter(opts), i))
+		filterParts = append(filterParts, fmt.Sprintf("[v%d]%s%s[o%d]", i, softwareRungScaleFilter(opts, p), eosPadFilter(opts), i))
 	}
 	args = append(args, "-filter_complex", strings.Join(filterParts, ";"))
 

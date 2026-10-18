@@ -83,7 +83,8 @@ func (g *ManifestGenerator) MPD(in ManifestInput) (string, error) {
 		bps := p.VideoBitrate * 1000
 		// The fragments' ladder name: a fitted plan's one rung keeps its own.
 		rung := in.FirstRungIndex + i
-		fmt.Fprintf(&b, `      <Representation id="v%d" bandwidth="%d" width="%d" height="%d" codecs="%s">`+"\n", rung, bps, p.Width, p.Height, xmlAttr(codecs))
+		fw, fh := p.Frame() // the encoded picture, as the HLS master declares it
+		fmt.Fprintf(&b, `      <Representation id="v%d" bandwidth="%d" width="%d" height="%d" codecs="%s">`+"\n", rung, bps, fw, fh, xmlAttr(codecs))
 		if copyRung {
 			fmt.Fprintf(&b, `        <SegmentTemplate initialization="stream_%d_init.mp4%s" media="stream_%d_$Number%%03d$.m4s%s" startNumber="0" timescale="1000">`+"\n", rung, suffix, rung, suffix)
 			writeCopyTimeline(&b, in.CopySegments)

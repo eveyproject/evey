@@ -226,6 +226,24 @@ type HLSProfile struct {
 	// ceiling, 0 for a copy or a codec the encoder levels itself. Other
 	// bytes at another level: fingerprinted and hashed.
 	CodecLevel int
+	// FrameWidth x FrameHeight is the picture the rung is encoded and
+	// advertised at (RungFrame): the source's aspect fitted inside the
+	// Width x Height box. 0 = not framed: the encoder pins the box width and
+	// the height follows the source. Other bytes: fingerprinted and hashed.
+	FrameWidth  int
+	FrameHeight int
+}
+
+// Framed reports whether the ladder stamped the rung's encoded picture.
+func (p HLSProfile) Framed() bool { return p.FrameWidth > 0 && p.FrameHeight > 0 }
+
+// Frame is the picture the rung is encoded and advertised at: the stamped
+// frame, else the box.
+func (p HLSProfile) Frame() (w, h int) {
+	if p.Framed() {
+		return p.FrameWidth, p.FrameHeight
+	}
+	return p.Width, p.Height
 }
 
 // Must stay identical to LadderFilmNormal, which is the fallback ladder - the

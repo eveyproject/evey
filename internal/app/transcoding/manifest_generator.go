@@ -520,7 +520,10 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 		// with light scenes amortising the high-motion peaks). Optional per
 		// HLS spec but hls.js + Safari both use it when present.
 		avg := bps * 85 / 100
-		res := fmt.Sprintf("%dx%d", p.Width, p.Height)
+		// The picture the rung is encoded at, not its box: a 4:3 source in the
+		// 360p box is 480x360, a scope one in the 1080p box 1920x800.
+		fw, fh := p.Frame()
+		res := fmt.Sprintf("%dx%d", fw, fh)
 
 		audioAttr := ""
 		if audioGroup != "" {
@@ -579,9 +582,10 @@ func (g *ManifestGenerator) Master(in ManifestInput) (string, error) {
 			codecs, audioAttr = vattr+","+audioAttrs, fmt.Sprintf(",AUDIO=%q", audioGroup)
 		}
 		bps := (v.Profile.VideoBitrate + v.Profile.AudioBitrate) * 1000
+		fw, fh := v.Profile.Frame()
 		fmt.Fprintf(&b,
 			"#EXT-X-STREAM-INF:BANDWIDTH=%d,AVERAGE-BANDWIDTH=%d,RESOLUTION=%dx%d,CODECS=%q%s%s\n",
-			bps, bps*85/100, v.Profile.Width, v.Profile.Height,
+			bps, bps*85/100, fw, fh,
 			codecs, audioAttr, subsAttr,
 		)
 		b.WriteString(v.URI + "\n")

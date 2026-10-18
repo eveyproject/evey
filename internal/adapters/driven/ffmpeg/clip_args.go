@@ -96,7 +96,7 @@ func BuildClipArgs(spec ClipSpec) ([]string, error) {
 		if tm := hwToneMapStage(opts); tm != "" {
 			vf += tm + ","
 		}
-		vf += hwRungScaleFilter(opts, spec.Width)
+		vf += hwRungScaleFilter(opts, spec.Width, 0)
 
 		encArgs = append([]string{"-c:v", videoEncoderFor("h264", opts.HWAccel)}, hwEncoderQualityArgs(opts.HWAccel, "h264", opts.HWFeatures)...)
 		encArgs = append(encArgs, hwRateControlArgs(opts.HWAccel, clipQuality, -1)...)

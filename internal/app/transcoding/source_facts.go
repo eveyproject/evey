@@ -643,11 +643,15 @@ func (s SourceSnapshot) Taken() bool { return s.taken }
 
 // Facts projects the snapshot onto the ladder engine's input.
 func (s SourceSnapshot) Facts() transcoding.SourceFacts {
-	return transcoding.SourceFacts{
+	f := transcoding.SourceFacts{
 		Width: s.Width, Height: s.Height, Codec: s.Codec, TenBit: s.TenBit,
 		HDRRange: s.HDRRange, Telecine: s.Telecine, BitrateKbps: s.BitrateKbps,
 		FPS: s.FPS,
 	}
+	if num, den, ok := parseSARRatio(s.SAR); ok && num != den {
+		f.SARNum, f.SARDen = num, den
+	}
+	return f
 }
 
 // Class names the DECODE workload admission prices.

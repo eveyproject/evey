@@ -34,6 +34,9 @@ type SourceFacts struct {
 	BitrateKbps int64
 	// FPS is the source frame rate (0 = unknown, priced as film cadence).
 	FPS float64
+	// SARNum:SARDen is the sample aspect ratio (64:45 on a 16:9 PAL DVD);
+	// 0 = square pixels. The display aspect a rung is framed on (RungFrame).
+	SARNum, SARDen int
 }
 
 // ComplexityVector is the per-title complexity the ladder is shaped for. The
@@ -351,7 +354,7 @@ func ShapeHardwareLadder(base []HLSProfile, src SourceFacts, cap EncodeCapabilit
 // gets a 1080p ladder; an unnamed or unknown backend reads the primary as
 // before.
 func ShapeHardwareLadderFor(base []HLSProfile, src SourceFacts, cap EncodeCapability, backend string) []HLSProfile {
-	sourceCapped := CapLadderToSource(base, src.Width, src.Height)
+	sourceCapped := capLadderToSource(base, src)
 	zeroCopyDecode := src.Codec == "" || cap.HWCanDecodeSource(src.Codec, src.TenBit, src.PixelFormat)
 	ceiling := cap.MaxHeightFor(zeroCopyDecode)
 	if bc, ok := cap.BackendCap(backend); ok && backend != "" {
@@ -368,7 +371,7 @@ func ShapeHardwareLadderFor(base []HLSProfile, src SourceFacts, cap EncodeCapabi
 // codec's CPU ceiling (its own for AV1, the HDR one when tone-mapping), the
 // top surviving rung inheriting the first dropped rung's bitrate budget.
 func ShapeSoftwareLadder(base []HLSProfile, src SourceFacts, codec string, tonemap bool, cap EncodeCapability) []HLSProfile {
-	sourceCapped := CapLadderToSource(base, src.Width, src.Height)
+	sourceCapped := capLadderToSource(base, src)
 	maxH := cap.SoftwareCeilingFor(codec)
 	if tonemap && cap.SoftwareHDRMaxHeight > 0 && cap.SoftwareHDRMaxHeight < maxH {
 		maxH = cap.SoftwareHDRMaxHeight
