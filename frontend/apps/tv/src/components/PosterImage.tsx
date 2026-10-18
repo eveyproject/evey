@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { Image, type ImageStyle } from "expo-image";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../providers/ThemeProvider";
 
 // A poster that falls back to a film glyph on the card surface when the

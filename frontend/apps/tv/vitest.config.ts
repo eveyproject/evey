@@ -25,6 +25,7 @@ export default defineConfig({
       // WebView from the package, where a per-test vi.mock does not reach.
       { find: "react-native-webview", replacement: resolve(__dirname, "./src/test/__mocks__/react-native-webview.ts") },
       { find: "react-native-svg", replacement: resolve(__dirname, "./src/test/__mocks__/react-native-svg.ts") },
+      { find: "@expo/vector-icons/Ionicons", replacement: resolve(__dirname, "./src/test/__mocks__/vector-icon.ts") },
     ],
   },
   define: {

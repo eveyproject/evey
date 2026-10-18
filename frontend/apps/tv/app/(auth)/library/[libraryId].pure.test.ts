@@ -18,7 +18,7 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s, absoluteFillObject: {}, absoluteFill: {} },
 }));
 vi.mock("expo-image", () => ({ Image: () => null }));
-vi.mock("@expo/vector-icons", () => ({ Ionicons: () => null }));
+vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
 vi.mock("expo-router", () => ({
   useLocalSearchParams: () => ({ libraryId: "lib-1" }),
   useRouter: () => ({ push: vi.fn() }),

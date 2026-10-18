@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet, DeviceEventEmitter } from "react-native";
 import { Slot, useRouter, usePathname } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { EveyWordmark, EveyMark } from "../../../src/components/EveyLogo";

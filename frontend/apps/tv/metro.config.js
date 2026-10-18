@@ -21,4 +21,15 @@ config.resolver.unstable_enableSymlinks = true;
 // 2026-07-25). The blockList keeps vitest visible to the test runner only.
 config.resolver.blockList = [/\.test\.(ts|tsx|js|jsx)$/];
 
+// expo-router's native tabs (unused here) pull expo-symbols, whose Android
+// build requires the 7 Material Symbols font weights (~6.6 MB in the bundle).
+// Resolving that font package to an empty module drops them, as on mobile.
+const upstreamResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName.startsWith("@expo-google-fonts/material-symbols")) {
+    return { type: "empty" };
+  }
+  return (upstreamResolveRequest ?? context.resolveRequest)(context, moduleName, platform);
+};
+
 module.exports = config;

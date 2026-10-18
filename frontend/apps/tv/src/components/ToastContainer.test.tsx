@@ -27,8 +27,8 @@ vi.mock("react-native", () => ({
 }));
 
 // --- @expo/vector-icons mock -------------------------------------------------
-vi.mock("@expo/vector-icons", () => ({
-  Ionicons: (props: any) => React.createElement("span", { "data-testid": `icon-${props.name}` }),
+vi.mock("@expo/vector-icons/Ionicons", () => ({
+  default: (props: any) => React.createElement("span", { "data-testid": `icon-${props.name}` }),
 }));
 
 // --- ThemeProvider mock ---------------------------------------------------------

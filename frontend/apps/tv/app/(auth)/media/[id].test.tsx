@@ -44,8 +44,8 @@ vi.mock("react-native", () => ({
 vi.mock("expo-image", () => ({
   Image: (p: any) => React.createElement("img", p),
 }));
-vi.mock("@expo/vector-icons", () => ({
-  Ionicons: () => null,
+vi.mock("@expo/vector-icons/Ionicons", () => ({
+  default: () => null,
 }));
 
 // --- react-i18next mock ------------------------------------------------------

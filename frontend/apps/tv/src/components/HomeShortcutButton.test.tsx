@@ -18,8 +18,8 @@ vi.mock("react-native", () => ({
   StyleSheet: { create: (s: any) => s },
 }));
 
-vi.mock("@expo/vector-icons", () => ({
-  Ionicons: (props: any) => React.createElement("span", { "data-testid": `icon-${props.name}` }),
+vi.mock("@expo/vector-icons/Ionicons", () => ({
+  default: (props: any) => React.createElement("span", { "data-testid": `icon-${props.name}` }),
 }));
 
 vi.mock("../providers/ThemeProvider", () => ({

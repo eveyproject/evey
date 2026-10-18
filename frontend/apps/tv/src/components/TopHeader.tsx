@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { Ionicons } from "@expo/vector-icons";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useNotificationServiceGetUnreadCount, useUserServiceGetCurrentUser, useUserServiceListProfiles } from "@evey/api";
 import { useAuthStore } from "@evey/store";
