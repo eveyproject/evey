@@ -167,6 +167,15 @@ describe("LogsExplorer", () => {
     expect(screen.getByText("player")).toBeInTheDocument();
   });
 
+  // An older server answered a search that matched nothing with entries: null,
+  // and the page read .length/.map off it: an empty search showed a failure
+  // instead of "no logs match".
+  it("shows the empty state for a search answered with entries: null", async () => {
+    mockFetch.mockResolvedValue({ entries: null, total: 0, scanned: 3, truncated: false });
+    await renderExplorerOnHistory();
+    expect(await screen.findByText("No logs match these filters.")).toBeInTheDocument();
+  });
+
   it("passes the level filter to the search query when a chip is toggled", async () => {
     await renderExplorerOnHistory();
     await screen.findByText("hls: ffmpeg exited with error");

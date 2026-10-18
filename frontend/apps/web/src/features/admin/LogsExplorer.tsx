@@ -316,7 +316,8 @@ export function LogsExplorer() {
         url: `/api/v1/admin/logs/search?${buildSearchQS(filters, PAGE_SIZE, pageParam)}`,
         method: "GET",
         signal,
-      }),
+        // An older server answered a search that matched nothing with entries: null.
+      }).then((res) => ({ ...res, entries: res.entries ?? [] })),
     getNextPageParam: (last, all) => {
       // An empty page ends the walk even when total is higher: the server
       // clamps how deep a single search can page, and `fetched < total` alone
