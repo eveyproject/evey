@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   errText,
   eveyFetchRaw,
+  getAdminMediaServiceGetMediaRepairHistoryQueryKey,
+  getAdminMediaServiceListMediaRepairsQueryKey,
+  SEEK_INDEX_SCAN_QUERY_BASE,
   useAdminMediaServiceApplyAudioShift,
   useLibraryServiceGetMediaItem,
 } from "@evey/api";
@@ -116,7 +120,20 @@ export function SyncPreviewPanel({
   const videoRef = useRef<HTMLVideoElement>(null);
   const urlRef = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const applyShift = useAdminMediaServiceApplyAudioShift();
+  const queryClient = useQueryClient();
+  // The failure is said inline below, so the global net must not toast it too.
+  // A shift is a repair: the file's history, the library journal and the
+  // seek-index row all changed.
+  const applyShift = useAdminMediaServiceApplyAudioShift({
+    mutation: {
+      meta: { silentError: true },
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: getAdminMediaServiceGetMediaRepairHistoryQueryKey(mediaId) });
+        void queryClient.invalidateQueries({ queryKey: getAdminMediaServiceListMediaRepairsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
+      },
+    },
+  });
 
   // The file's own description: how long it runs (so the moment is a scrubber
   // over the real film) and what its audio tracks are (so they are named rather

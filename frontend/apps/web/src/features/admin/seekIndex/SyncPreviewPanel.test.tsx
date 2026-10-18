@@ -1,16 +1,21 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const fetchRaw = vi.fn();
 const applyMutate = vi.fn();
 let applyState: Record<string, unknown> = { mutate: applyMutate, isPending: false };
+let applyOpts: { mutation?: { meta?: Record<string, unknown>; onSuccess?: () => void } } | undefined;
 const getMediaItem = vi.fn();
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetchRaw: (...args: unknown[]) => fetchRaw(...args),
-  useAdminMediaServiceApplyAudioShift: () => applyState,
+  useAdminMediaServiceApplyAudioShift: (opts?: typeof applyOpts) => {
+    applyOpts = opts;
+    return applyState;
+  },
   useLibraryServiceGetMediaItem: (...args: unknown[]) => getMediaItem(...args),
 }));
 
@@ -38,13 +43,19 @@ function blobResponse() {
   return { blob: async () => new Blob(["clip"], { type: "video/mp4" }) };
 }
 
+let qc: QueryClient;
 function renderPanel(item: Partial<typeof ITEM> = {}) {
+  qc = new QueryClient();
   return render(
-    React.createElement(SyncPreviewPanel, {
-      item: { ...ITEM, ...item },
-      title: "A film",
-      onClose: () => {},
-    }),
+    React.createElement(
+      QueryClientProvider,
+      { client: qc },
+      React.createElement(SyncPreviewPanel, {
+        item: { ...ITEM, ...item },
+        title: "A film",
+        onClose: () => {},
+      }),
+    ),
   );
 }
 
@@ -161,5 +172,16 @@ describe("SyncPreviewPanel apply outcome", () => {
     applyState = { mutate: applyMutate, isPending: false, isSuccess: true };
     renderPanel();
     expect(screen.getByTestId("sync-preview-apply-done")).toBeInTheDocument();
+  });
+
+  // The failure is said inline, so the app-wide error net must stay quiet; a
+  // shift rewrites the file, so the history, the journal and the seek-index
+  // row are refreshed.
+  it("silences the global net and refreshes what a shift changes", () => {
+    renderPanel();
+    expect(applyOpts?.mutation?.meta).toEqual({ silentError: true });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    applyOpts?.mutation?.onSuccess?.();
+    expect(invalidate).toHaveBeenCalledTimes(3);
   });
 });

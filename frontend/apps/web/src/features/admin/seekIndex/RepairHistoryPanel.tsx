@@ -1,7 +1,10 @@
 import { useTranslation } from "react-i18next";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useAdminMediaServiceGetMediaRepairHistory,
   useAdminMediaServiceUndoMediaRepair,
+  getAdminMediaServiceListMediaRepairsQueryKey,
+  SEEK_INDEX_SCAN_QUERY_BASE,
 } from "@evey/api";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -42,8 +45,17 @@ function outcomeVariant(outcome: string | undefined): "success" | "warning" | "e
 export function RepairHistoryPanel({ mediaId, title, onClose }: { mediaId: string; title: string; onClose: () => void }) {
   const { t } = useTranslation();
   const history = useAdminMediaServiceGetMediaRepairHistory(mediaId, { limit: 20 });
+  const queryClient = useQueryClient();
+  // An undo rewrites the file: the library journal and the seek-index row
+  // changed with this history.
   const undo = useAdminMediaServiceUndoMediaRepair({
-    mutation: { onSuccess: () => void history.refetch() },
+    mutation: {
+      onSuccess: () => {
+        void history.refetch();
+        void queryClient.invalidateQueries({ queryKey: getAdminMediaServiceListMediaRepairsQueryKey() });
+        void queryClient.invalidateQueries({ queryKey: [SEEK_INDEX_SCAN_QUERY_BASE] });
+      },
+    },
   });
   const entries = history.data?.entries ?? [];
   const undoable = entries.find((e) => e.reversible);
