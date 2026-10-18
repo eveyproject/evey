@@ -104,6 +104,7 @@ export interface StreamUrlOptions {
   maxHeight?: number;
   screenHeight?: number;
   supportsHdr?: boolean;
+  networkType?: "wifi" | "cellular";
 }
 
 function appendCodecParams(params: URLSearchParams, opts: StreamUrlOptions): void {
@@ -165,6 +166,9 @@ export function buildStreamUrl(
   // The panel's height trims the transcode ladder (no 2160p rung for a 1080p
   // panel) without turning a copy-playable title into a transcode.
   if (opts.screenHeight && opts.screenHeight > 0) params.set("screenHeight", String(opts.screenHeight));
+  // The profile's cellular cap shapes the master's ladder too: sent to
+  // GetStreamInfo alone, a phone on mobile data got the uncapped one.
+  if (opts.networkType === "cellular") params.set("networkType", "cellular");
   return `${serverUrl}/api/v1/media/${id}/hls/master.m3u8?${params.toString()}`;
 }
 
@@ -417,6 +421,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           maxHeight: explicitMaxHeight,
           screenHeight: dev.screenHeight?.(),
           supportsHdr,
+          networkType,
         });
 
         // Direct play streams the original file with no orchestrator involved,

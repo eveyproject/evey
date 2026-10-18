@@ -537,6 +537,49 @@ describe("usePlaySession: concurrent track switches", () => {
   });
 });
 
+// The cellular cap reached GetStreamInfo but not the master URL, so the ladder
+// the phone actually played was the uncapped one.
+describe("usePlaySession: network type on the master", () => {
+  const realFetch = global.fetch;
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    global.fetch = fetchMock as unknown as typeof fetch;
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({ status: 200, headers: { get: () => null }, json: async () => ({}) });
+    eveyFetchMock.mockResolvedValue({ token: "t1", mediaId: "m1" });
+    startStreamMock.mockResolvedValue({ id: "sess1" });
+    getStreamInfoMock.mockResolvedValue({ playMethod: "PLAY_METHOD_TRANSCODE" });
+  });
+  afterEach(() => {
+    global.fetch = realFetch;
+  });
+
+  async function masterUrl(networkType: "wifi" | "cellular"): Promise<URL> {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("@evey/client/native/playSession");
+    const device = {
+      id: "d", name: "d",
+      getServerUrl: async () => "http://localhost:8080",
+      probeMaxOutputChannels: async () => undefined,
+      probeHdr: () => false,
+      networkType: async () => networkType,
+    };
+    const { result } = renderHook(() => usePlaySession("m1", device));
+    await waitFor(() => expect(result.current.streamUrl).not.toBeNull());
+    expect(getStreamInfoMock).toHaveBeenLastCalledWith("m1", expect.objectContaining({ networkType }));
+    return new URL(result.current.streamUrl as string);
+  }
+
+  it("carries networkType=cellular on mobile data", async () => {
+    expect((await masterUrl("cellular")).searchParams.get("networkType")).toBe("cellular");
+  });
+
+  it("carries nothing on wifi, which has no cap", async () => {
+    expect((await masterUrl("wifi")).searchParams.has("networkType")).toBe(false);
+  });
+});
+
 // A track switched in place on the player kept the verdict of the track the
 // stream was negotiated for: the panel described one track while another
 // played, and a track the device cannot decode stayed on the file.
