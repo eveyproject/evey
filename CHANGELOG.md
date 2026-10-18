@@ -35,7 +35,8 @@ line - earlier history lives in git.
 - Mobile: volume up to 200% through the app's own audio chain (VLC-style
   preamp), with smooth steps between the device's hardware levels.
 - Single-container install: the image embeds Postgres (and Meilisearch) and
-  generates their secrets on first boot; `.env` needs only `MEDIA_DIR`.
+  generates their secrets on first boot; the compose file needs only the
+  media path, and no `.env`.
   Existing installs with their own Postgres (`EVEY_DB_HOST` set) are
   unchanged.
 - TMDB metadata works out of the box: a built-in read token is seeded as the

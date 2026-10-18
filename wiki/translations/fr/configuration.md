@@ -1,5 +1,5 @@
 ---
-source_sha: 4ce746becabde8112df318ae11e703de89cf7fccdfe4a116c6824a17426dd290
+source_sha: bcd1fe92a6c6837ce30d66edf387d4539752382b0a9f6038a14c15967da4eb32
 reviewed: true
 ---
 # Référence de configuration { #configuration-reference }
@@ -142,11 +142,15 @@ groupe (l'avertissement de démarrage liste les montages qui pourraient encore
 refuser l'écriture). La détection automatique n'est abandonnée (repli sur
 `1000:1000` avec un avertissement) que si tous les montages appartiennent à
 root ou à l'uid réservé `1001` : attribuez vos médias à un utilisateur
-ordinaire, ou définissez `PUID`/`PGID` explicitement :
+ordinaire, ou définissez `PUID`/`PGID` explicitement, sous `environment:`
+dans le fichier compose :
 
-```env title=".env"
-PUID=1026   # lancer le serveur sous cet uid  (sur l'hôte : `id -u <propriétaire-des-médias>`)
-PGID=100    # ...et ce gid
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      PUID: "1026"   # lancer le serveur sous cet uid  (sur l'hôte : `id -u <propriétaire-des-médias>`)
+      PGID: "100"    # ...et ce gid
 ```
 
 Des valeurs explicites l'emportent toujours sur la détection.

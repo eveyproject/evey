@@ -1,8 +1,8 @@
 ---
-source_sha: 38effb73470754ed93d55d3b3cbf2f54bb84816288347233487a89e9c04593af
+source_sha: 4bdba6d5067098c1afe18961724efcb0456688185654b46271045220a6665f03
 reviewed: true
 ---
-# Configurar el sandbox de plugins
+# Configurar el sandbox de plugins { #plugin-sandbox-setup }
 
 Qué configuración de sandbox conviene a tu servidor, en palabras sencillas. Para
 casi todo el mundo la respuesta es: deja los valores por defecto. El servidor
@@ -11,7 +11,7 @@ solo si tienes un NAS antiguo, si usas Evey sin Docker o si quieres un aislamien
 más fuerte. El modelo técnico completo está en
 [Sandbox de plugins y modelo de amenazas](../SECURITY.md).
 
-## Qué te protege
+## Qué te protege { #what-protects-you }
 
 Un plugin que instalas se ejecuta aislado. Según la máquina, ese
 aislamiento:
@@ -41,7 +41,7 @@ que el equipo no ofrece aislamiento de archivos por carpeta: los plugins se
 ejecutan solo con un cambio de usuario (uid) y seccomp, las pruebas dicen por
 qué, y las secciones siguientes explican qué cambiar.
 
-## Elige tu situación
+## Elige tu situación { #pick-your-situation }
 
 | Tu servidor | Lo que tienes sin hacer nada | ¿Algo que hacer? |
 |---|---|---|
@@ -49,7 +49,7 @@ qué, y las secciones siguientes explican qué cambiar.
 | **NAS antiguo con Docker** (kernel anterior a 5.13) | buen aislamiento, sin la restricción de archivos por carpeta; los secretos, la red y las acciones del sistema siguen bloqueados | nada: la separación de uid (más abajo) se activa sola |
 | **Cualquier Linux, sin Docker** | el aislamiento más fuerte disponible: Landlock en un kernel moderno, si no, los espacios de nombres de bubblewrap | sigue [Sin contenedor](../deployment-bare-metal.md) |
 
-## El único ajuste que quizá cambies: la separación de uid
+## El único ajuste que quizá cambies: la separación de uid { #the-one-setting-you-might-change-uid-separation }
 
 La separación de uid hace que un plugin se ejecute con una cuenta de usuario
 distinta de la del servidor, así que no puede leer los archivos
@@ -79,7 +79,7 @@ un plugin que escribe archivos temporales en su propia carpeta puede fallar.
 Si pasa, pon `off`. Por eso el valor por defecto es `auto`: solo asume ese
 riesgo donde hay un beneficio real.
 
-## Lo que podría hacer un plugin malicioso
+## Lo que podría hacer un plugin malicioso { #what-a-malicious-plugin-could-do }
 
 **Linux moderno (con Docker o sin él):** un plugin malicioso queda completamente
 aislado. No puede leer tus secretos, no puede ver ni tocar los archivos de
@@ -101,9 +101,10 @@ que vale para cualquier sandbox que no sea una máquina virtual completa.
 En un equipo así, instala solo plugins de confianza, o pasa a un kernel
 moderno para tener la restricción de archivos completa.
 
-## Ejemplos de configuración
+## Ejemplos de configuración { #configuration-examples }
 
-Esto va en tu `.env` (compose) o como variables de entorno `EVEY_*`.
+Cada línea va bajo `environment:` en el archivo compose, escrita
+`KEY: value` (por ejemplo `EVEY_PLUGINS_UID_SEPARATION: "on"`).
 
 ```bash title="1. Servidor moderno, recomendado (nada que hacer)"
 EVEY_PLUGINS_SANDBOX_MODE=auto          # elige el más fuerte disponible (por defecto)
@@ -136,7 +137,7 @@ EVEY_PLUGINS_DISK_MAX_MB=100            # tamaño máximo de la carpeta de insta
 EVEY_PLUGINS_CPU_NICE=10                # prioridad de CPU 0-19 (más alto = más cede a los demás)
 ```
 
-## Cambiar el modo de sandbox en marcha
+## Cambiar el modo de sandbox en marcha { #change-the-sandbox-mode-while-running }
 
 Cambia el **Modo de sandbox** en la tarjeta **Límites de recursos** de
 **Administración → Plugins**. Los plugins en marcha se reinician
@@ -145,7 +146,7 @@ seguridad** muestra el modo activo. Un plugin que no puede funcionar con el
 nuevo modo (por ejemplo `bubblewrap` dentro de un contenedor sin privilegios)
 aparece con error: vuelve al modo anterior.
 
-## Verificar que funciona
+## Verificar que funciona { #verify-it-is-working }
 
 ```bash
 # el lanzador lleva la capacidad que usa la separación de uid

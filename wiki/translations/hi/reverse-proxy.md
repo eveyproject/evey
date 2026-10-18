@@ -1,8 +1,8 @@
 ---
-source_sha: d47608ac11df56bc518674752f94a79d5498896103d51978e420575983e71cf4
+source_sha: 882540a1c223edaceac62b6090fc29c8d6391b2bdbb9f156d5cd7015f46e2bc2
 reviewed: true
 ---
-# रिवर्स प्रॉक्सी कॉन्फ़िगरेशन
+# रिवर्स प्रॉक्सी कॉन्फ़िगरेशन { #reverse-proxy-configurations }
 
 Evey, API और वेब इंटरफ़ेस दोनों को एक साथ पोर्ट **9091** पर सादे HTTP में
 देता है। रिवर्स प्रॉक्सी को बस TLS संभालना है और सब कुछ `evey:9091` पर भेजना
@@ -10,7 +10,7 @@ Evey, API और वेब इंटरफ़ेस दोनों को ए�
 Manager, या वह जो आप पहले से चला रहे हैं)। अगर आप स्ट्रीमिंग को ट्यून करते हैं
 या अपने सुरक्षा हेडर खुद सेट करते हैं, तो आखिर के दो सेक्शन भी पढ़ें।
 
-## Evey को प्रॉक्सी के बारे में बताएँ
+## Evey को प्रॉक्सी के बारे में बताएँ { #tell-evey-about-the-proxy }
 
 प्रॉक्सी कोई भी हो, Evey को उसका सार्वजनिक पता चाहिए और यह भी कि किस प्रॉक्सी
 पर भरोसा करना है। दोनों की जगह **एडमिन → रिमोट एक्सेस** है: `https://` वाला
@@ -21,45 +21,46 @@ Manager, या वह जो आप पहले से चला रहे ह
 `X-Forwarded-Proto` माना जाता है। रिमोट एक्सेस का स्विच और क्लाइंट का असली
 पता [रिमोट एक्सेस और HTTPS](administration/remote-access.md) में समझाए गए हैं।
 
-यही जवाब environment से भी आ सकते हैं, उस इंस्टॉलेशन के लिए जो पूरा कोड के
-रूप में लिखा है (दोनों सेट हों तो पैनल के मान को प्राथमिकता मिलती है):
+यही जवाब environment से भी आ सकते हैं, compose फ़ाइल में `environment:` के
+नीचे, उस इंस्टॉलेशन के लिए जो पूरा कोड के रूप में लिखा है (दोनों सेट हों तो
+पैनल के मान को प्राथमिकता मिलती है):
 
-```env title=".env"
-EVEY_SERVER_BASE_URL=https://media.example.com
-EVEY_TRUSTED_PROXIES=172.16.0.0/12       # सिर्फ़ तब ज़रूरी जब प्रॉक्सी एक कंटेनर हो; loopback पर हमेशा भरोसा है
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      EVEY_SERVER_BASE_URL: https://media.example.com
+      EVEY_TRUSTED_PROXIES: 172.16.0.0/12   # सिर्फ़ तब ज़रूरी जब प्रॉक्सी एक कंटेनर हो; loopback पर हमेशा भरोसा है
 ```
 
 पुराना `EVEY_FORWARDED_PROTO` अब भी ओवरराइड के रूप में माना जाता है, लेकिन
 पुराना पड़ चुका है: पते का scheme ही काफ़ी है।
 
-साथ आने वाले सभी उदाहरण डोमेन एक ही जगह से पढ़ते हैं: आपकी `.env` में
-`EVEY_DOMAIN`। इसे एक बार सेट करें; Caddy, Nginx और Traefik तीनों इसे ले लेते
-हैं।
+साथ आने वाले सभी उदाहरण डोमेन `EVEY_DOMAIN` से पढ़ते हैं, और जो फ़ाइल आप कॉपी
+करते हैं उसमें एक placeholder होता है: उसे वहीं अपने डोमेन से बदलें, प्रॉक्सी
+सर्विस (Caddy, Nginx) की `EVEY_DOMAIN:` लाइन में या `Host(...)` नियम (Traefik)
+में।
 
-```env title=".env"
-EVEY_DOMAIN=media.example.com
-```
+## Caddy (साथ आने वाला) { #caddy-bundled }
 
-## Caddy (साथ आने वाला)
+### फ़ाइलें { #files }
 
-### फ़ाइलें
-
-[`docker/Caddyfile`](../docker/Caddyfile), जिसे
-[`docker/Dockerfile.caddy`](../docker/Dockerfile.caddy) एक इमेज में बनाता है;
-रिपॉज़िटरी की [`docker-compose.yml`](../docker-compose.yml) में `caddy`
+[`docker/Caddyfile`](https://github.com/eveyproject/evey/blob/master/docker/Caddyfile), जिसे
+[`docker/Dockerfile.caddy`](https://github.com/eveyproject/evey/blob/master/docker/Dockerfile.caddy) एक इमेज में बनाता है;
+रिपॉज़िटरी की [`docker-compose.yml`](https://github.com/eveyproject/evey/blob/master/docker-compose.yml) में `caddy`
 सर्विस।
 
-### सेट करें
+### सेट करें { #set-it-up }
 
-1. `.env` में `EVEY_DOMAIN` सेट करें, और पक्का करें कि होस्ट के पोर्ट 80 और
-   443 Caddy कंटेनर तक पहुँचते हैं।
+1. `caddy` सर्विस की `EVEY_DOMAIN:` लाइन में अपना डोमेन लिखें, और पक्का करें
+   कि होस्ट के पोर्ट 80 और 443 Caddy कंटेनर तक पहुँचते हैं।
 2. रिपॉज़िटरी की compose फ़ाइल से `caddy` सर्विस अपनी फ़ाइल में जोड़ें और
    `docker compose up -d` चलाएँ। Caddy `EVEY_DOMAIN` के लिए Let's Encrypt
    सर्टिफ़िकेट अपने-आप ले लेता है।
 3. **एडमिन → रिमोट एक्सेस** में `https://` वाला **बाहरी URL** सेट करें, और
    **विश्वसनीय प्रॉक्सी** में `172.16.0.0/12`।
 
-### यह पहले से क्या संभालता है
+### यह पहले से क्या संभालता है { #what-it-already-handles }
 
 सब कुछ `evey:9091` पर भेजता है, और स्ट्रीमिंग वाले पथ बिना बफ़रिंग और बिना
 टाइमआउट के सीधे आगे जाते हैं।
@@ -68,17 +69,17 @@ EVEY_DOMAIN=media.example.com
 ताकि ब्राउज़र तक ठीक एक ही पहुँचे; जिन दो पेज की अपनी नीति है, वे उसे रखते
 हैं।
 
-## Nginx
+## Nginx { #nginx }
 
-### फ़ाइलें
+### फ़ाइलें { #files }
 
-[`examples/nginx/evey.conf.template`](../examples/nginx/evey.conf.template)
+[`examples/nginx/evey.conf.template`](https://github.com/eveyproject/evey/blob/master/examples/nginx/evey.conf.template)
 और एक तैयार compose overlay,
-[`examples/nginx/docker-compose.nginx.yml`](../examples/nginx/docker-compose.nginx.yml)।
+[`examples/nginx/docker-compose.nginx.yml`](https://github.com/eveyproject/evey/blob/master/examples/nginx/docker-compose.nginx.yml)।
 
-### सेट करें
+### सेट करें { #set-it-up }
 
-1. `.env` में `EVEY_DOMAIN` सेट करें। nginx इमेज शुरू होते समय template में
+1. overlay की `EVEY_DOMAIN:` लाइन में अपना डोमेन लिखें। nginx इमेज शुरू होते समय template में
    `EVEY_DOMAIN` भरकर उसे तैयार करती है।
 2. सर्टिफ़िकेट और कुंजी वहीं रखें जहाँ template उन्हें ढूँढता है, उसी नाम से
    (`nginx-certs` volume में `/etc/ssl/certs/<domain>.pem`,
@@ -87,7 +88,7 @@ EVEY_DOMAIN=media.example.com
 4. **एडमिन → रिमोट एक्सेस** में `https://` वाला **बाहरी URL** सेट करें, और
    **विश्वसनीय प्रॉक्सी** में `172.16.0.0/12`।
 
-### यह पहले से क्या संभालता है
+### यह पहले से क्या संभालता है { #what-it-already-handles }
 
 `evey:9091` पर भेजता है: स्ट्रीमिंग वाले पथों पर बफ़रिंग और टाइमआउट बंद,
 SyncPlay का WebSocket अपग्रेड होता है, `X-Forwarded-For` और
@@ -95,18 +96,18 @@ SyncPlay का WebSocket अपग्रेड होता है, `X-Forwarde
 लिए `client_max_body_size 2G`। यह ऐप के अपने सुरक्षा हेडर और CSP को जैसे का
 तैसा आगे जाने देता है।
 
-## Traefik
+## Traefik { #traefik }
 
-### फ़ाइलें
+### फ़ाइलें { #files }
 
-[`examples/traefik/docker-compose.traefik.yml`](../examples/traefik/docker-compose.traefik.yml)।
+[`examples/traefik/docker-compose.traefik.yml`](https://github.com/eveyproject/evey/blob/master/examples/traefik/docker-compose.traefik.yml)।
 
-### सेट करें
+### सेट करें { #set-it-up }
 
 1. Traefik को `websecure` entrypoint, `letsencrypt` सर्टिफ़िकेट resolver और
    `proxy` नाम के एक बाहरी Docker नेटवर्क के साथ चलाएँ; overlay के labels यही
    नाम मानकर चलते हैं।
-2. `.env` में `EVEY_DOMAIN` सेट करें, फिर:
+2. overlay के `Host(...)` नियम में अपना डोमेन लिखें, फिर:
 
     ```bash
     docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d
@@ -116,7 +117,7 @@ SyncPlay का WebSocket अपग्रेड होता है, `X-Forwarde
    **विश्वसनीय प्रॉक्सी** में `proxy` नेटवर्क की रेंज (`172.16.0.0/12` Docker
    के डिफ़ॉल्ट नेटवर्क को ढक लेता है)।
 
-### यह पहले से क्या संभालता है
+### यह पहले से क्या संभालता है { #what-it-already-handles }
 
 overlay सिर्फ़ router के labels जोड़ता है और `proxy` नेटवर्क से जुड़ता है।
 डिफ़ॉल्ट सेटिंग पर Traefik न जवाबों को बफ़र करता है, न किसी जवाब की अवधि पर
@@ -124,15 +125,15 @@ overlay सिर्फ़ router के labels जोड़ता है और
 `X-Forwarded-For` और `X-Forwarded-Proto` अपने-आप आगे भेजता है, और ऐप के सुरक्षा
 हेडर को जैसे का तैसा जाने देता है।
 
-## Nginx Proxy Manager
+## Nginx Proxy Manager { #nginx-proxy-manager }
 
-### फ़ाइलें
+### फ़ाइलें { #files }
 
 कोई नहीं: सब कुछ NPM के इंटरफ़ेस में सेट होता है। evey कंटेनर उसी नेटवर्क पर
 होना चाहिए जिसे NPM इस्तेमाल करता है, देखें
 [वह प्रॉक्सी जो आप पहले से चला रहे हैं](#a-proxy-you-already-run-tls-terminated-upstream)।
 
-### सेट करें
+### सेट करें { #set-it-up }
 
 **Edit Proxy Host** में:
 
@@ -146,7 +147,7 @@ overlay सिर्फ़ router के labels जोड़ता है और
 3. **एडमिन → रिमोट एक्सेस** में `https://` वाला **बाहरी URL** सेट करें, और
    **विश्वसनीय प्रॉक्सी** में NPM नेटवर्क की रेंज।
 
-### यह पहले से क्या संभालता है
+### यह पहले से क्या संभालता है { #what-it-already-handles }
 
 NPM `X-Forwarded-For`, `X-Forwarded-Proto` और Host हेडर अपने-आप आगे भेजता है,
 और उसके डिफ़ॉल्ट टाइमआउट Evey की स्ट्रीम पर कभी नहीं लगते। और कुछ ज़रूरी नहीं
@@ -194,7 +195,7 @@ location ~ ^/api/v1/libraries/.+/scan {
 प्रॉक्सी ब्लॉक से जाता है, जिसे Details टैब सेट करता है। यह snippet छोड़ दें तो
 भी कुछ नहीं टूटता - इससे सिर्फ़ यह बदलता है कि बड़ी फ़ाइलें कहाँ बफ़र होती हैं।
 
-## वह प्रॉक्सी जो आप पहले से चला रहे हैं (TLS पहले ही संभाला गया)
+## वह प्रॉक्सी जो आप पहले से चला रहे हैं (TLS पहले ही संभाला गया) { #a-proxy-you-already-run-tls-terminated-upstream }
 
 जिस NAS पर पहले से एक रिवर्स प्रॉक्सी है (NAS निर्माता का अपना, Nginx Proxy Manager,
 या किसी साझा Docker नेटवर्क पर Traefik), वहाँ Caddy की ज़रूरत नहीं है: Evey
@@ -202,7 +203,7 @@ location ~ ^/api/v1/libraries/.+/scan {
 सिर्फ़ वही प्रॉक्सी लागू कर सकता है जो क्लाइंट के सामने है। उसके पीछे दूसरा
 प्रॉक्सी कुछ नहीं जोड़ता।
 
-### सेट करें
+### सेट करें { #set-it-up }
 
 evey सर्विस को उस प्रॉक्सी के नेटवर्क पर रखें और `evey-server:9091` को
 लक्ष्य के रूप में सेट करें (कंटेनर का नाम; सर्विस का नाम `evey` भी काम करता है):
@@ -226,13 +227,13 @@ networks:
 वाले पथों पर नीचे दिए स्ट्रीमिंग नियम लागू करें - ऊपर Nginx और Nginx Proxy
 Manager वाले सेक्शन ठीक-ठीक लाइनें दिखाते हैं।
 
-### यह पहले से क्या संभालता है
+### यह पहले से क्या संभालता है { #what-it-already-handles }
 
 यह प्रॉक्सी पर निर्भर है: जाँचें कि ब्राउज़र तक ठीक एक ही CSP हेडर पहुँचता है
 (अगले सेक्शन देखें), और विश्वसनीय प्रॉक्सी सेट होने के बाद
 `evey admin doctor` चलाएँ।
 
-## स्ट्रीमिंग - प्रॉक्सी की डिफ़ॉल्ट सेटिंग इस पर क्या असर डालती है
+## स्ट्रीमिंग - प्रॉक्सी की डिफ़ॉल्ट सेटिंग इस पर क्या असर डालती है { #streaming---what-a-proxys-defaults-do-to-it }
 
 Evey अपनी डिफ़ॉल्ट सेटिंग पर छोड़े गए रिवर्स प्रॉक्सी के पीछे काम करता है: हर
 लंबा चलने वाला जवाब या तो लगातार बाइट भेजता है (HLS segments, direct play,
@@ -263,7 +264,7 @@ streams), इसलिए डिफ़ॉल्ट read timeout कभी नह
 चलने वाला प्रॉक्सी अपनी डिफ़ॉल्ट सेटिंग रखते हैं, जो ठीक है; ऊपर वाला NPM
 snippet ज़रूरी नहीं है।
 
-## सुरक्षा हेडर और CSP - अगर आपका प्रॉक्सी अपने हेडर लगाता है तो यह पढ़ें
+## सुरक्षा हेडर और CSP - अगर आपका प्रॉक्सी अपने हेडर लगाता है तो यह पढ़ें { #security-headers--csp---read-this-if-your-proxy-sets-its-own }
 
 Evey एक पूरी Content-Security-Policy भेजता है। अगर आपका प्रॉक्सी उसे आगे जाने
 देता है, तो आपका काम हो गया।
@@ -333,7 +334,7 @@ default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https:/
   `curl -sI https://your.domain/plugin-frame.html | grep -i -e content-security -e x-frame`
   में `sandbox allow-scripts` और `SAMEORIGIN` दिखने चाहिए।
 
-## क्लाइंट के असली IP और रिमोट एक्सेस की जाँच
+## क्लाइंट के असली IP और रिमोट एक्सेस की जाँच { #real-client-ips-and-the-remote-access-gate }
 
 जब प्रॉक्सी क्लाइंट का असली पता आगे भेजता है, तो Evey घर के दर्शक और
 इंटरनेट के दर्शक में फ़र्क कर पाता है: **अधिकतम रिमोट बिटरेट** और रिमोट

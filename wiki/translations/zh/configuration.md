@@ -1,5 +1,5 @@
 ---
-source_sha: 4ce746becabde8112df318ae11e703de89cf7fccdfe4a116c6824a17426dd290
+source_sha: bcd1fe92a6c6837ce30d66edf387d4539752382b0a9f6038a14c15967da4eb32
 reviewed: true
 ---
 # 配置参考 { #configuration-reference }
@@ -99,11 +99,14 @@ server as that user so write features (seek-index repair) work out of the box
 并把其他挂载目录的组加为附加组，这样，只要那些挂载目录里的文件允许组写入，修复就能进行
 （启动时的警告会列出哪些挂载目录仍可能拒绝写入）。只有当所有媒体挂载目录都属于 root，
 或者属于保留的 uid `1001` 时，自动检测才会完全不生效（改用 `1000:1000`，并给出警告）。
-这时，请把您的媒体 chown 给一个普通用户，或者明确设置 `PUID`/`PGID`：
+这时，请把您的媒体 chown 给一个普通用户，或者在 compose 文件的 `environment:` 下明确设置 `PUID`/`PGID`：
 
-```env title=".env"
-PUID=1026   # 以这个用户 id 运行服务器（在主机上查看：`id -u <media-owner>`）
-PGID=100    # ……以及这个组 id
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      PUID: "1026"   # 以这个用户 id 运行服务器（在主机上查看：`id -u <media-owner>`）
+      PGID: "100"    # ……以及这个组 id
 ```
 
 明确设置的值永远优先于自动检测。

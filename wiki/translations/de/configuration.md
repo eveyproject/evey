@@ -1,5 +1,5 @@
 ---
-source_sha: 4ce746becabde8112df318ae11e703de89cf7fccdfe4a116c6824a17426dd290
+source_sha: bcd1fe92a6c6837ce30d66edf387d4539752382b0a9f6038a14c15967da4eb32
 reviewed: true
 ---
 # Konfigurationsreferenz { #configuration-reference }
@@ -142,11 +142,14 @@ Schreibzugriffe womöglich noch ablehnen). Die automatische Erkennung wird nur
 ganz aufgegeben (sie fällt mit einer Warnung auf `1000:1000` zurück), wenn jeder
 Medien-Mount root oder der reservierten UID `1001` gehört. Übertragen Sie Ihre
 Medien dann mit chown an einen normalen Benutzer, oder setzen Sie
-`PUID`/`PGID` ausdrücklich:
+`PUID`/`PGID` ausdrücklich, unter `environment:` in der Compose-Datei:
 
-```env title=".env"
-PUID=1026   # den Server unter dieser Benutzer-ID starten  (Host: `id -u <media-owner>`)
-PGID=100    # ...und mit dieser Gruppen-ID
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      PUID: "1026"   # den Server unter dieser Benutzer-ID starten  (Host: `id -u <media-owner>`)
+      PGID: "100"    # ...und mit dieser Gruppen-ID
 ```
 
 Ausdrücklich gesetzte Werte haben immer Vorrang vor der Erkennung.

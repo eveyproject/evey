@@ -1,8 +1,8 @@
 ---
-source_sha: 38effb73470754ed93d55d3b3cbf2f54bb84816288347233487a89e9c04593af
+source_sha: 4bdba6d5067098c1afe18961724efcb0456688185654b46271045220a6665f03
 reviewed: true
 ---
-# Plugin-Sandbox einrichten
+# Plugin-Sandbox einrichten { #plugin-sandbox-setup }
 
 Welche Sandbox-Einrichtung zu Ihrem Server passt, in einfachen Worten. Für
 fast alle lautet die Antwort: Lassen Sie die Standardwerte. Der Server erkennt
@@ -11,7 +11,7 @@ Sie nur weiter, wenn Sie ein altes NAS haben, Evey ohne Docker betreiben oder
 eine stärkere Isolierung wollen. Das vollständige technische Modell
 steht unter [Sicherheitsmodell und Plugin-Sandbox](../SECURITY.md).
 
-## Was Sie schützt
+## Was Sie schützt { #what-protects-you }
 
 Ein Plugin, das Sie installieren, läuft isoliert. Je nach Maschine:
 
@@ -40,7 +40,7 @@ dass der Host keine Dateibeschränkung pro Pfad bietet: Plugins
 laufen nur mit einem Wechsel der UID und seccomp. Die Prüfungen sagen, warum,
 und die Abschnitte unten, was zu ändern ist.
 
-## Ihre Situation wählen
+## Ihre Situation wählen { #pick-your-situation }
 
 | Ihr Server | Was Sie ohne Zutun bekommen | Etwas zu tun? |
 |---|---|---|
@@ -48,7 +48,7 @@ und die Abschnitte unten, was zu ändern ist.
 | **Altes NAS in Docker** (Kernel älter als 5.13) | gute Isolierung, aber ohne die Dateibeschränkung pro Ordner; Geheimnisse, Netzwerk und Systemaktionen bleiben gesperrt | nichts: Die UID-Trennung (unten) schaltet sich selbst ein |
 | **Beliebiges Linux, ohne Docker** | die stärkste verfügbare Isolierung: Landlock auf einem modernen Kernel, sonst bubblewrap-Namespaces | folgen Sie [Ohne Container](../deployment-bare-metal.md) |
 
-## Die einzige Einstellung, die Sie vielleicht ändern: die UID-Trennung
+## Die einzige Einstellung, die Sie vielleicht ändern: die UID-Trennung { #the-one-setting-you-might-change-uid-separation }
 
 Die UID-Trennung lässt ein Plugin unter einem anderen Benutzerkonto als den
 Server laufen. So kann es die geheimen Dateien des Servers nicht lesen,
@@ -79,7 +79,7 @@ Plugin, das Hilfsdateien in seinen eigenen Ordner schreibt, kann dabei
 fehlschlagen. Passiert das, setzen Sie `off`. Deshalb ist der Standard `auto`: Er
 geht dieses Risiko nur ein, wo es einen echten Nutzen gibt.
 
-## Was ein bösartiges Plugin tun könnte
+## Was ein bösartiges Plugin tun könnte { #what-a-malicious-plugin-could-do }
 
 **Modernes Linux (Docker oder ohne Container):** Ein bösartiges Plugin ist
 vollständig isoliert. Es kann Ihre Geheimnisse nicht lesen, die Dateien
@@ -103,10 +103,10 @@ die keine vollständige virtuelle Maschine ist.
 Installieren Sie auf einem solchen Host nur Plugins, denen Sie vertrauen, oder
 wechseln Sie auf einen modernen Kernel, um die vollständige Dateibeschränkung zu erhalten.
 
-## Beispiele für die Konfiguration
+## Beispiele für die Konfiguration { #configuration-examples }
 
-Diese Zeilen gehören in Ihre `.env` (Compose) oder werden als
-`EVEY_*`-Umgebungsvariablen gesetzt.
+Jede Zeile gehört unter `environment:` in der Compose-Datei, geschrieben als
+`KEY: value` (zum Beispiel `EVEY_PLUGINS_UID_SEPARATION: "on"`).
 
 ```bash title="1. Moderner Server, empfohlen (nichts zu tun)"
 EVEY_PLUGINS_SANDBOX_MODE=auto          # wählt die stärkste verfügbare Stufe (Standard)
@@ -139,7 +139,7 @@ EVEY_PLUGINS_DISK_MAX_MB=100            # max. Größe des Installationsordners 
 EVEY_PLUGINS_CPU_NICE=10                # Planungspriorität 0-19 (höher = rücksichtsvoller)
 ```
 
-## Den Sandbox-Modus im laufenden Betrieb ändern
+## Den Sandbox-Modus im laufenden Betrieb ändern { #change-the-sandbox-mode-while-running }
 
 Ändern Sie **Sandbox-Modus** in der Karte **Ressourcenlimits** unter
 **Verwaltung → Plugins**. Laufende Plugins werden automatisch neu gestartet,
@@ -148,7 +148,7 @@ geltenden Modus. Ein Plugin, das unter dem neuen Modus nicht laufen kann (zum
 Beispiel `bubblewrap` in einem Container ohne Sonderrechte), erscheint als
 fehlerhaft: Stellen Sie den Modus zurück.
 
-## Prüfen, ob es funktioniert
+## Prüfen, ob es funktioniert { #verify-it-is-working }
 
 ```bash
 # der Launcher trägt die Capability für die UID-Trennung

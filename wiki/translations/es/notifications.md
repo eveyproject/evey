@@ -1,8 +1,8 @@
 ---
-source_sha: a8b7449b152c8718e3a2aef1de3cabe29af5dbe26aa1f77133448c996ce35d3c
+source_sha: 8d9681876fde4e364272e6256089c42f068178b9ea4848f17733c827d82a157f
 reviewed: true
 ---
-# Correo y notificaciones
+# Correo y notificaciones { #e-mail-and-notifications }
 
 Evey avisa a cada perfil cuando llegan películas, series, temporadas,
 episodios o álbumes nuevos. También avisa:
@@ -14,7 +14,7 @@ episodios o álbumes nuevos. También avisa:
 Las notificaciones aparecen en las apps sin configurar nada. Por correo,
 cuando configuras un servidor de correo (más abajo).
 
-## Dónde aparecen las notificaciones
+## Dónde aparecen las notificaciones { #where-notifications-appear }
 
 - **En todas las apps**: la campana, con el número de notificaciones sin
   leer. Siempre activa. Una notificación se guarda 30 días. Cada persona
@@ -37,7 +37,7 @@ cuando configuras un servidor de correo (más abajo).
     notificaciones push del navegador. Para usar las tuyas, ver
     [Correo y notificaciones](environment/notifications.md#browser-push).
 
-## Configurar el correo
+## Configurar el correo { #set-up-e-mail }
 
 Evey envía los correos a través de un servidor de correo en el que ya
 tienes una cuenta: tu proveedor de correo, o un servicio de envío. Las
@@ -65,16 +65,19 @@ Las invitaciones son enlaces que envías tú.
 
 ??? info "Configurar el correo en el entorno"
 
-    Las variables `EVEY_SMTP_*` solo se usan mientras la tarjeta no tiene
-    host:
+    Las variables `EVEY_SMTP_*`, bajo `environment:` en el archivo compose,
+    solo se usan mientras la tarjeta no tiene host:
 
-    ```env title=".env"
-    EVEY_SMTP_HOST=smtp.example.com
-    EVEY_SMTP_PORT=587
-    EVEY_SMTP_USERNAME=notifications@example.com
-    EVEY_SMTP_PASSWORD=your-smtp-password
-    EVEY_SMTP_FROM=noreply@example.com
-    EVEY_SMTP_TLS=starttls
+    ```yaml title="docker-compose.yml"
+    services:
+      evey:
+        environment:
+          EVEY_SMTP_HOST: smtp.example.com
+          EVEY_SMTP_PORT: "587"
+          EVEY_SMTP_USERNAME: notifications@example.com
+          EVEY_SMTP_PASSWORD: your-smtp-password
+          EVEY_SMTP_FROM: noreply@example.com
+          EVEY_SMTP_TLS: starttls
     ```
 
     En cuanto se guarda un host en la tarjeta, todos los campos salen de la
@@ -82,7 +85,7 @@ Las invitaciones son enlaces que envías tú.
     contraseña de las variables a un servidor de correo escrito en el panel.
     Vacía el host para volver a las variables.
 
-## Elegir lo que recibe un perfil
+## Elegir lo que recibe un perfil { #choose-what-a-profile-receives }
 
 En **Ajustes → Notificaciones**, cada perfil elige un nivel para
 **Películas**, **Series** y **Música**:
@@ -102,7 +105,7 @@ Cuando llegan varios episodios de una misma serie en menos de 24 horas,
 recibes una sola notificación que los cuenta. No se envía ninguna si la
 serie o la temporada se acaba de anunciar.
 
-## Dejar que la gente restablezca su contraseña
+## Dejar que la gente restablezca su contraseña { #let-people-reset-their-password }
 
 1. Configura el correo (más arriba).
 2. Activa **Recuperación de contraseña** en **Administración →

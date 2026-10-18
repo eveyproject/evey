@@ -17,23 +17,24 @@ terminates TLS in front of it: cookies get the `Secure` flag, HSTS is sent and
 and the real client address are explained in
 [Remote access and HTTPS](administration/remote-access.md).
 
-The same answers can come from the environment, for an installation described
-entirely as code (the panel wins when both are set):
+The same answers can come from the environment, under `environment:` in the
+compose file, for an installation described entirely as code (the panel wins
+when both are set):
 
-```env title=".env"
-EVEY_SERVER_BASE_URL=https://media.example.com
-EVEY_TRUSTED_PROXIES=172.16.0.0/12       # only needed if the proxy is a container; loopback is always trusted
+```yaml title="docker-compose.yml"
+services:
+  evey:
+    environment:
+      EVEY_SERVER_BASE_URL: https://media.example.com
+      EVEY_TRUSTED_PROXIES: 172.16.0.0/12   # only needed if the proxy is a container; loopback is always trusted
 ```
 
 The former `EVEY_FORWARDED_PROTO` is still accepted as an override but
 deprecated: the scheme of the address is enough.
 
-Every bundled example reads the domain from one place, `EVEY_DOMAIN` in your
-`.env`. Set it once; Caddy, Nginx and Traefik all pick it up.
-
-```env title=".env"
-EVEY_DOMAIN=media.example.com
-```
+Every bundled example reads the domain from `EVEY_DOMAIN`, with a placeholder
+in the file you copy: replace it with your domain there, on the `EVEY_DOMAIN:`
+line of the proxy service (Caddy, Nginx) or in the `Host(...)` rule (Traefik).
 
 ## Caddy (bundled)
 
@@ -45,8 +46,8 @@ in the repository's [`docker-compose.yml`](../docker-compose.yml).
 
 ### Set it up
 
-1. Set `EVEY_DOMAIN` in `.env` and make sure ports 80 and 443 of the host
-   reach the Caddy container.
+1. Write your domain on the `EVEY_DOMAIN:` line of the `caddy` service and
+   make sure ports 80 and 443 of the host reach the Caddy container.
 2. Add the `caddy` service from the repository compose file to yours and run
    `docker compose up -d`. Caddy obtains a Let's Encrypt certificate for
    `EVEY_DOMAIN` on its own.
@@ -71,8 +72,8 @@ and a ready compose overlay,
 
 ### Set it up
 
-1. Set `EVEY_DOMAIN` in `.env`. The nginx image renders the template at
-   startup with `EVEY_DOMAIN` substituted.
+1. Write your domain on the `EVEY_DOMAIN:` line of the overlay. The nginx
+   image renders the template at startup with `EVEY_DOMAIN` substituted.
 2. Put the certificate and key where the template expects them, under the
    matching file names (`/etc/ssl/certs/<domain>.pem`,
    `/etc/ssl/private/<domain>.key` in the `nginx-certs` volume): the overlay
@@ -99,7 +100,7 @@ restores. It passes the app's own security headers and CSP through.
 1. Run Traefik with a `websecure` entrypoint, a `letsencrypt` certificate
    resolver and an external Docker network named `proxy`; the overlay labels
    assume those names.
-2. Set `EVEY_DOMAIN` in `.env`, then:
+2. Write your domain in the overlay's `Host(...)` rule, then:
 
     ```bash
     docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d

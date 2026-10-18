@@ -1,8 +1,8 @@
 ---
-source_sha: a8b7449b152c8718e3a2aef1de3cabe29af5dbe26aa1f77133448c996ce35d3c
+source_sha: 8d9681876fde4e364272e6256089c42f068178b9ea4848f17733c827d82a157f
 reviewed: true
 ---
-# E-Mail und Benachrichtigungen
+# E-Mail und Benachrichtigungen { #e-mail-and-notifications }
 
 Evey benachrichtigt jedes Profil, wenn neue Filme, Serien, Staffeln, Folgen
 oder Alben hinzukommen. Außerdem benachrichtigt es:
@@ -14,7 +14,7 @@ oder Alben hinzukommen. Außerdem benachrichtigt es:
 Benachrichtigungen erscheinen in den Apps, ohne dass Sie etwas einrichten.
 Per E-Mail, sobald Sie einen Mailserver eingerichtet haben (siehe unten).
 
-## Wo Benachrichtigungen erscheinen
+## Wo Benachrichtigungen erscheinen { #where-notifications-appear }
 
 - **In jeder App**: die Glocke, mit der Zahl der ungelesenen
   Benachrichtigungen. Immer an. Eine Benachrichtigung wird 30 Tage
@@ -38,7 +38,7 @@ Per E-Mail, sobald Sie einen Mailserver eingerichtet haben (siehe unten).
     ersten Start. Wie Sie eigene verwenden, steht unter
     [E-Mail und Benachrichtigungen](environment/notifications.md#browser-push).
 
-## E-Mail einrichten
+## E-Mail einrichten { #set-up-e-mail }
 
 Evey verschickt E-Mails über einen Mailserver, bei dem Sie schon ein Konto
 haben: Ihren E-Mail-Anbieter oder einen Versanddienst. Die Hilfeseiten Ihres
@@ -67,16 +67,19 @@ benutzt. Einladungen sind Links, die Sie selbst verschicken.
 
 ??? info "E-Mail stattdessen in der Umgebung einstellen"
 
-    Die Variablen `EVEY_SMTP_*` werden nur benutzt, solange in der Karte kein
-    Host steht:
+    Die Variablen `EVEY_SMTP_*`, unter `environment:` in der Compose-Datei,
+    werden nur benutzt, solange in der Karte kein Host steht:
 
-    ```env title=".env"
-    EVEY_SMTP_HOST=smtp.example.com
-    EVEY_SMTP_PORT=587
-    EVEY_SMTP_USERNAME=notifications@example.com
-    EVEY_SMTP_PASSWORD=your-smtp-password
-    EVEY_SMTP_FROM=noreply@example.com
-    EVEY_SMTP_TLS=starttls
+    ```yaml title="docker-compose.yml"
+    services:
+      evey:
+        environment:
+          EVEY_SMTP_HOST: smtp.example.com
+          EVEY_SMTP_PORT: "587"
+          EVEY_SMTP_USERNAME: notifications@example.com
+          EVEY_SMTP_PASSWORD: your-smtp-password
+          EVEY_SMTP_FROM: noreply@example.com
+          EVEY_SMTP_TLS: starttls
     ```
 
     Sobald in der Karte ein Host gespeichert ist, kommt jedes Feld aus der
@@ -85,7 +88,7 @@ benutzt. Einladungen sind Links, die Sie selbst verschicken.
     Verwaltungsbereich eingetippt wurde. Leeren Sie den Host, um zu den
     Variablen zurückzukehren.
 
-## Festlegen, was ein Profil bekommt
+## Festlegen, was ein Profil bekommt { #choose-what-a-profile-receives }
 
 Unter **Einstellungen → Benachrichtigungen** wählt jedes Profil eine Stufe für
 **Filme**, **Serien** und **Musik**:
@@ -105,7 +108,7 @@ Kommen mehrere Folgen einer Serie innerhalb von 24 Stunden hinzu, bekommen Sie
 eine einzige Benachrichtigung, die sie zählt. Keine wird verschickt, wenn die
 Serie oder die Staffel gerade erst angekündigt wurde.
 
-## Benutzern das Zurücksetzen des Passworts erlauben
+## Benutzern das Zurücksetzen des Passworts erlauben { #let-people-reset-their-password }
 
 1. Richten Sie E-Mail ein (siehe oben).
 2. Schalten Sie **Passwort-Wiederherstellung** unter **Verwaltung →
