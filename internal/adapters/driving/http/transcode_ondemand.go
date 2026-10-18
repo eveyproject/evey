@@ -1093,12 +1093,16 @@ func stampedKeep(r *http.Request) (keep *int, ok bool) {
 }
 
 // stampedTrackPackageable reports whether a stamped audio track is one this
-// server could have stamped: the trim is on and the source has that track. The
-// number is the client's to send, and each distinct one is its own packager
-// cache key - trusted as is, any viewer could force a plan build per integer,
-// taking build slots and evicting other viewers' plans.
+// server could have stamped: the source has that track. The number is the
+// client's to send, and each distinct one is its own packager cache key -
+// trusted as is, any viewer could force a plan build per integer, taking
+// build slots and evicting other viewers' plans; bounded by the source's audio
+// tracks, it costs at most one plan per real track. The operator's trim flag
+// is NOT a condition: the delivery trims by itself when only one track can be
+// carried verbatim (E-AC-3 beside TrueHD), and refusing that stamp answered
+// 410 to every viewer of such a film (prod 2026-10-18).
 func (h *hlsVODServe) stampedTrackPackageable(keep int, streams []*domainlibrary.MediaStream) bool {
-	if !h.onDemandTrackTrim || keep < 0 {
+	if keep < 0 {
 		return false
 	}
 	audio := 0
