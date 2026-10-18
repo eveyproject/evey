@@ -301,6 +301,12 @@ func buildHTTPHandler(gwMux http.Handler, deps *appDeps, cfg *config.Config, sta
 					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
 			}
 		},
+		SessionAudioLegRecord: func(ctx context.Context, profileID, mediaItemID, decision, engine, codecLabel string) {
+			if err := deps.media.playbackSvc.CommandService().SetSessionAudioLeg(ctx, profileID, mediaItemID, decision, engine, codecLabel); err != nil {
+				slog.WarnContext(ctx, "session audio leg record failed",
+					slog.String("profile_id", profileID), slog.String("media_id", mediaItemID), slog.Any("err", err))
+			}
+		},
 		CastCommandConsume: func(ctx context.Context, profileID, mediaItemID string) string {
 			cmd, err := deps.media.playbackSvc.CommandService().ConsumeCastCommand(ctx, profileID, mediaItemID)
 			if err != nil {

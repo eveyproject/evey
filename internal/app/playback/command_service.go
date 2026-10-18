@@ -762,6 +762,20 @@ func (s *CommandService) SetSessionServing(ctx context.Context, profileID, media
 	return err
 }
 
+// SetSessionAudioLeg records the audio leg of the (profile, media) session
+// alone, as a rendition playlist serves it: a track switched in place on the
+// player never re-renders the master, whose record named the starting track.
+func (s *CommandService) SetSessionAudioLeg(ctx context.Context, profileID, mediaItemID, decision, engine, codecLabel string) error {
+	ctx, span := tracing.StartSpan(ctx, "app.playback.SetSessionAudioLeg")
+	defer span.End()
+	sess, err := s.activeSessionFor(ctx, profileID, mediaItemID)
+	if err != nil || sess == nil {
+		return err
+	}
+	_, err = s.sessions.SetSessionAudioPath(ctx, sess.ID, decision, engine, codecLabel)
+	return err
+}
+
 // activeSessionFor is the (profile, media) → live session lookup the beacon
 // paths share; nil when nothing matches.
 func (s *CommandService) activeSessionFor(ctx context.Context, profileID, mediaItemID string) (*playback.PlaySession, error) {

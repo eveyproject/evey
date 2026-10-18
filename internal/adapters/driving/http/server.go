@@ -318,6 +318,9 @@ type HTTPServer struct {
 	// SessionServingRecord tells the play session what a master playlist just
 	// handed its player (packager/encoder per track), for the admin panel.
 	SessionServingRecord SessionServingRecord
+	// SessionAudioLegRecord follows an in-place audio track switch, which
+	// fetches a rendition playlist and never re-renders the master.
+	SessionAudioLegRecord SessionAudioLegRecord
 
 	// Config store for remote access persistence
 	CfgStore remoteAccessPersister
