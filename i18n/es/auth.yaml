@@ -205,7 +205,6 @@ settings:
     notifications: "Notificaciones"
     account: "Cuenta"
     parental: "Control parental"
-    devices: "Dispositivos"
     security: "Seguridad"
     quickConnect: "Conexión rápida"
     plugins: "Plugins"
@@ -326,13 +325,6 @@ apiKeys:
   keyRevoked: "Clave API revocada"
   revokeError: "Error al revocar la clave API"
   revoke: Revocar
-devices:
-  title: "Dispositivos"
-  description: "Administra los dispositivos de notificaciones push."
-  platform: "Plataforma"
-  token: "Token"
-  registered: "Registrado"
-  noDevices: "No hay dispositivos registrados"
 notificationSettings:
   pushNotifications: "Notificaciones push"
   pushDesc: "Recibe notificaciones push en este dispositivo."

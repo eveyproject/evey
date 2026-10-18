@@ -205,7 +205,6 @@ settings:
     notifications: "सूचनाएं"
     account: "खाता"
     parental: "अभिभावक नियंत्रण"
-    devices: "डिवाइस"
     security: "सुरक्षा"
     quickConnect: "क्विक कनेक्ट"
     plugins: "प्लगइन"
@@ -321,13 +320,6 @@ apiKeys:
   keyRevoked: "API कुंजी रद्द हो गई"
   revokeError: "API कुंजी रद्द करने में विफल"
   revoke: रद्द करें
-devices:
-  title: "उपकरण"
-  description: "पुश सूचना उपकरण प्रबंधित करें।"
-  platform: "प्लेटफ़ॉर्म"
-  token: "टोकन"
-  registered: "पंजीकृत"
-  noDevices: "कोई पंजीकृत उपकरण नहीं"
 notificationSettings:
   pushNotifications: "पुश सूचनाएं"
   pushDesc: "इस उपकरण पर पुश सूचनाएं प्राप्त करें।"

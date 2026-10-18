@@ -106,21 +106,19 @@ func (h *webPushHandler) ListWebPushSubscriptions(ctx context.Context, _ *eveyv1
 	return &eveyv1.ListWebPushSubscriptionsResponse{Subscriptions: out}, nil
 }
 
-// ListDevices backs the profile "Devices" tab (GET /api/v1/push/devices).
-// There is no native device-token registration (the FCM-era RPCs are gone),
-// so a user never has any registered native devices. Return an empty list
-// instead of leaving the method Unimplemented: the embedded
-// UnimplementedPushServiceServer would otherwise answer the page-load query
-// with codes.Unimplemented - HTTP 501, surfacing a 5xx on a normal settings
-// page. The frontend already renders the empty ("no devices") state for this
-// response.
-func (h *webPushHandler) ListDevices(ctx context.Context, _ *eveyv1.ListDevicesRequest) (*eveyv1.ListDevicesResponse, error) {
+// ListDevices is deprecated (GET /api/v1/push/devices): it backed the profile
+// "Devices" tab that web and mobile no longer show. There is no native
+// device-token registration (the FCM-era RPCs are gone), so a user never has
+// any registered native devices. It keeps answering an empty list instead of
+// falling back to Unimplemented: beta builds that still open the old tab
+// would otherwise get codes.Unimplemented - HTTP 501 on a settings page.
+func (h *webPushHandler) ListDevices(ctx context.Context, _ *eveyv1.ListDevicesRequest) (*eveyv1.ListDevicesResponse, error) { //nolint:staticcheck // SA1019: the deprecated stub itself
 	ctx, span := tracing.StartSpan(ctx, "grpc.push.ListDevices")
 	defer span.End()
 	if _, err := requireClaims(ctx); err != nil {
 		return nil, err
 	}
-	return &eveyv1.ListDevicesResponse{}, nil
+	return &eveyv1.ListDevicesResponse{}, nil //nolint:staticcheck // SA1019: the deprecated stub itself
 }
 
 func (h *webPushHandler) DeleteWebPushSubscription(ctx context.Context, req *eveyv1.DeleteWebPushSubscriptionRequest) (*eveyv1.DeleteWebPushSubscriptionResponse, error) {

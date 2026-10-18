@@ -205,7 +205,6 @@ settings:
     notifications: Benachrichtigungen
     account: Konto
     parental: Kindersicherung
-    devices: Geräte
     security: Sicherheit
     quickConnect: Schnellverbindung
     plugins: "Plugins"
@@ -326,13 +325,6 @@ apiKeys:
   keyRevoked: API-Schlüssel widerrufen
   revokeError: API-Schlüssel konnte nicht widerrufen werden
   revoke: Widerrufen
-devices:
-  title: Geräte
-  description: Push-Benachrichtigungsgeräte verwalten.
-  platform: Plattform
-  token: Token
-  registered: Registriert
-  noDevices: Keine registrierten Geräte
 notificationSettings:
   pushNotifications: Push-Benachrichtigungen
   pushDesc: Push-Benachrichtigungen auf diesem Gerät empfangen.

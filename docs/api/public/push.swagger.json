@@ -70,7 +70,7 @@
     },
     "/api/v1/push/devices": {
       "get": {
-        "summary": "ListDevices backs the profile \"Devices\" tab. Native device-token\nregistration (the FCM-era RegisterDevice/UnregisterDevice pair) was\nremoved: the fcm_device_tokens table is long gone and no client ever\ncalled them, so the list is always empty until a native push backend\nexists.",
+        "summary": "Deprecated: no replacement. ListDevices backed the profile \"Devices\" tab,\nremoved from web and mobile in 2026-10: native device-token registration\n(the FCM-era RegisterDevice/UnregisterDevice pair) is gone, so the list\ncould only ever be empty. Kept answering an empty list for beta builds\nthat still open the old tab; remove after two server releases (ADR-0004).",
         "operationId": "PushService_ListDevices",
         "responses": {
           "200": {
@@ -272,7 +272,8 @@
         "platform": {
           "type": "string"
         }
-      }
+      },
+      "description": "Deprecated with ListDevices."
     },
     "v1GetPushConsentResponse": {
       "type": "object",
@@ -300,7 +301,8 @@
             "$ref": "#/definitions/v1Device"
           }
         }
-      }
+      },
+      "description": "Deprecated with ListDevices."
     },
     "v1ListWebPushSubscriptionsResponse": {
       "type": "object",

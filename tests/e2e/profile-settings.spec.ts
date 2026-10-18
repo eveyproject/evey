@@ -1,6 +1,6 @@
 import { test, expect } from "./fixtures/auth";
 
-const TAB_KEYS = ["appearance", "notifications", "parental", "devices", "quick-connect"] as const;
+const TAB_KEYS = ["appearance", "notifications", "parental", "quick-connect"] as const;
 
 test.describe("Profile settings", () => {
   test("loads with heading and tabs", async ({ page }) => {

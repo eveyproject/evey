@@ -77,10 +77,6 @@ vi.mock("@/features/user/NotificationSettings", () => ({
   NotificationSettings: () => React.createElement("div", { "data-testid": "notification-settings" }, "Notification Settings"),
 }));
 
-vi.mock("@/features/user/DeviceSettings", () => ({
-  DeviceSettings: () => React.createElement("div", { "data-testid": "device-settings" }, "Device Settings"),
-}));
-
 vi.mock("@/features/user/QuickConnectSettings", () => ({
   QuickConnectSettings: () => React.createElement("div", { "data-testid": "quickconnect-settings" }, "QuickConnect Settings"),
 }));
@@ -172,8 +168,9 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: /Appearance/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Notifications/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Parental/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Devices/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Quick Connect/i })).toBeInTheDocument();
+    // The push-devices tab is gone: nothing ever registers a native device.
+    expect(screen.queryByRole("button", { name: /Devices/i })).not.toBeInTheDocument();
   });
 
   it("shows Appearance tab content by default", async () => {
@@ -265,7 +262,7 @@ describe("SettingsPage menu", () => {
     const SettingsPage = await getSettingsPage();
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });
 
-    for (const key of ["appearance", "playback", "profiles", "notifications", "parental", "devices", "quick-connect"]) {
+    for (const key of ["appearance", "playback", "profiles", "notifications", "parental", "quick-connect"]) {
       expect(screen.getByTestId(`profile-settings-tab-${key}`)).toBeInTheDocument();
     }
     fireEvent.click(screen.getByTestId("profile-settings-tab-playback"));
