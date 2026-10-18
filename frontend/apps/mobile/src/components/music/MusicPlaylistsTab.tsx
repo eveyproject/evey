@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useAuthHeaders } from "../../hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../hooks/useServerUrl";
+import { useDemoLock, DEMO_LOCKED_OPACITY } from "../../hooks/useDemoLock";
 import { toast } from "@evey/store";
 import { usePlaylistList, usePlaylistDetail, useDeletePlaylist, useGeneratePlaylist, useRemoveFromPlaylist } from "../../api/playlists";
 import { useMusicQueueStore, type QueueTrack } from "../../stores/musicQueue";
@@ -58,6 +59,9 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
   const removeItem = useRemoveFromPlaylist();
   const deletePlaylist = useDeletePlaylist();
   const generate = useGeneratePlaylist();
+  // The demo's playlists are the shared account's: generate, remove and
+  // delete are greyed; browsing and playing them stay.
+  const { demo, lock } = useDemoLock();
 
   const handleGenerate = useCallback(() => {
     if (!libraryId || generate.isPending) return;
@@ -199,8 +203,9 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
                     handleRemove(item.id);
                   }}
                   hitSlop={8}
-                  style={styles.iconBtn}
+                  style={[styles.iconBtn, demo ? { opacity: DEMO_LOCKED_OPACITY } : null]}
                   accessibilityLabel={t("common.delete")}
+                  {...lock}
                 >
                   <Ionicons name="close-circle-outline" size={20} color={theme.colors.textMuted} />
                 </Pressable>
@@ -236,8 +241,9 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
             testID="generate-playlist-btn"
             style={[
               styles.generateBtn,
-              { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm, opacity: generate.isPending ? 0.5 : 1 },
+              { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm, opacity: demo ? DEMO_LOCKED_OPACITY : generate.isPending ? 0.5 : 1 },
             ]}
+            {...lock}
           >
             <Ionicons name="sparkles" size={16} color={theme.colors.onAccent} />
             <Text style={{ color: theme.colors.onAccent, fontSize: 13, fontWeight: "600" }}>
@@ -264,8 +270,9 @@ export function MusicPlaylistsTab({ libraryTracks, initialSelectedId = null, lib
           <Pressable
             onPress={() => handleDelete({ id: item.id, name: item.name })}
             hitSlop={8}
-            style={styles.iconBtn}
+            style={[styles.iconBtn, demo ? { opacity: DEMO_LOCKED_OPACITY } : null]}
             accessibilityLabel={t("common.delete")}
+            {...lock}
           >
             <Ionicons name="trash-outline" size={18} color={theme.colors.textMuted} />
           </Pressable>

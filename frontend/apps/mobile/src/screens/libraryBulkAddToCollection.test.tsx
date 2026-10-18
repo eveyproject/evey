@@ -119,16 +119,17 @@ vi.mock("../components/library/BulkAddSheets", () => ({
 // --- @evey/store -----------------------------------------------------------------------
 // Shape copied from packages/store/src/auth.ts: `isAdmin` is a plain boolean
 // field on the store state, read through the selector like the screen does.
-const { isAdminRef } = vi.hoisted(() => ({ isAdminRef: { current: true } }));
+const { isAdminRef, demoRef } = vi.hoisted(() => ({ isAdminRef: { current: true }, demoRef: { current: false } }));
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: any) => unknown) => selector({ profileId: "profile-1", isAdmin: isAdminRef.current }),
+  useDemoStore: (selector: (s: any) => unknown) => selector({ demoMode: demoRef.current }),
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
 // --- @evey/api -------------------------------------------------------------------------
 const ITEMS = [{ id: "mi-1", title: "Alpha", genres: ["Action"], year: 2001 }];
 
-const { getLibraryMock } = vi.hoisted(() => ({ getLibraryMock: vi.fn() }));
+const { getLibraryMock, markWatchedMock, markUnwatchedMock } = vi.hoisted(() => ({ getLibraryMock: vi.fn(), markWatchedMock: vi.fn(), markUnwatchedMock: vi.fn() }));
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetLibrary: () => getLibraryMock(),
@@ -141,8 +142,8 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useLibraryServiceFilterMediaItems: () => ({ data: undefined, isLoading: false, isError: false, isFetching: false, refetch: vi.fn() }),
   useLibraryServiceListGenres: () => ({ data: undefined }),
   usePlaybackServiceGetWatchHistory: () => ({ data: undefined }),
-  usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
-  usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false }),
+  usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), mutateAsync: markWatchedMock, isPending: false }),
+  usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), mutateAsync: markUnwatchedMock, isPending: false }),
 }));
 
 // -------------------------------------------------------------------------------------
@@ -165,6 +166,7 @@ function enterBulkModeOnAlpha() {
 beforeEach(() => {
   vi.clearAllMocks();
   isAdminRef.current = true;
+  demoRef.current = false;
   getLibraryMock.mockReturnValue({ data: { id: LIBRARY_ID, name: "My Library" } });
 });
 
@@ -190,5 +192,34 @@ describe("LibraryDetailScreen bulk 'add to collection'", () => {
     expect(screen.getByLabelText("Mark unwatched")).toBeTruthy();
     expect(screen.getByLabelText("Favorite")).toBeTruthy();
     expect(screen.getByLabelText("Playlist")).toBeTruthy();
+  });
+});
+
+// On the demo the bar's watched marks, favourites, playlists and collections
+// are the shared account's and the server refuses them: greyed, as on the web
+// bar, a press reaches nothing; the admin's metadata editor stays.
+describe("LibraryDetailScreen bulk bar on the demo", () => {
+  it("greys every shared write, keeps the editor", () => {
+    demoRef.current = true;
+    renderScreen();
+    enterBulkModeOnAlpha();
+    for (const label of ["Mark watched", "Mark unwatched", "Favorite", "Playlist", "Add to collection"]) {
+      const b = screen.getByLabelText(label) as HTMLButtonElement;
+      expect(b.disabled).toBe(true);
+      fireEvent.click(b);
+    }
+    expect(markWatchedMock).not.toHaveBeenCalled();
+    expect(markUnwatchedMock).not.toHaveBeenCalled();
+    expect(playlistSheetProps).not.toHaveBeenCalled();
+    expect(collectionSheetProps).not.toHaveBeenCalled();
+    expect((screen.getByLabelText("media.contextMenu.editMetadata") as HTMLButtonElement).disabled).toBeFalsy();
+  });
+
+  it("leaves them live off the demo", () => {
+    renderScreen();
+    enterBulkModeOnAlpha();
+    for (const label of ["Mark watched", "Mark unwatched", "Favorite", "Playlist", "Add to collection"]) {
+      expect((screen.getByLabelText(label) as HTMLButtonElement).disabled).toBe(false);
+    }
   });
 });

@@ -117,13 +117,15 @@ vi.mock("../components/Skeleton", () => ({ Skeleton: () => null }));
 // --- @evey/store -----------------------------------------------------------------------
 // Shape copied from packages/store/src/auth.ts: `isAdmin` is a plain boolean
 // field on the store state, read through the selector like the screen does.
-const { isAdminRef, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
+const { isAdminRef, demoRef, toastSuccessMock, toastErrorMock } = vi.hoisted(() => ({
   isAdminRef: { current: true },
+  demoRef: { current: false },
   toastSuccessMock: vi.fn(),
   toastErrorMock: vi.fn(),
 }));
 vi.mock("@evey/store", () => ({
   useAuthStore: (selector: (s: any) => unknown) => selector({ isAdmin: isAdminRef.current }),
+  useDemoStore: (selector: (s: any) => unknown) => selector({ demoMode: demoRef.current }),
   toast: { success: toastSuccessMock, error: toastErrorMock },
 }));
 
@@ -164,6 +166,7 @@ function renderScreen() {
 beforeEach(() => {
   vi.clearAllMocks();
   isAdminRef.current = true;
+  demoRef.current = false;
   removeItemMutateAsyncMock.mockResolvedValue(undefined);
 });
 
@@ -301,5 +304,36 @@ describe("CollectionDetailScreen header edit/delete controls", () => {
 
     expect(screen.queryByTestId("collection-edit-button")).toBeNull();
     expect(screen.queryByTestId("collection-delete-button")).toBeNull();
+  });
+});
+
+// The demo's collections are the shared account's and the server refuses
+// them: an admin there sees every edit greyed, and a press reaches nothing.
+describe("CollectionDetailScreen on the demo", () => {
+  it("greys edit, delete, reorder and remove, and still opens a title", () => {
+    demoRef.current = true;
+    renderScreen();
+    const locked = [
+      screen.getByTestId("collection-edit-button"),
+      screen.getByTestId("collection-delete-button"),
+      screen.getByTestId("collection-up-mi-2"),
+      screen.getByTestId("collection-down-mi-2"),
+      screen.getByTestId("collection-remove-mi-2"),
+    ] as HTMLButtonElement[];
+    for (const b of locked) {
+      expect(b.disabled).toBe(true);
+      fireEvent.click(b);
+    }
+    expect(alertMock).not.toHaveBeenCalled();
+    expect(reorderMutateMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("GoldenEye"));
+    expect(pushMock).toHaveBeenCalledWith("/media/mi-2");
+  });
+
+  it("leaves them live off the demo", () => {
+    renderScreen();
+    for (const id of ["collection-edit-button", "collection-delete-button", "collection-up-mi-2", "collection-remove-mi-2"]) {
+      expect((screen.getByTestId(id) as HTMLButtonElement).disabled).toBe(false);
+    }
   });
 });

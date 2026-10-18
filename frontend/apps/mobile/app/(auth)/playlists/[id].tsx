@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { usePlaylistDownloadAll } from "../../../src/hooks/usePlaylistDownloadAll";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useDemoLock, DEMO_LOCKED_OPACITY, type DemoLockProps } from "../../../src/hooks/useDemoLock";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { usePlaylistDetail, useDeletePlaylist, useRemoveFromPlaylist, useReorderPlaylistItems, useUpdatePlaylist, type PlaylistItem } from "../../../src/api/playlists";
 import { SmartRulesEditor, type SmartRule } from "../../../src/components/SmartRulesEditor";
@@ -30,6 +31,7 @@ function PlaylistItemRow({
   onMoveUp,
   onMoveDown,
   onRemove,
+  lock,
 }: {
   item: PlaylistItem;
   index: number;
@@ -41,6 +43,7 @@ function PlaylistItemRow({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onRemove: () => void;
+  lock: DemoLockProps;
 }) {
   const typeLabel = item.type?.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
 
@@ -55,13 +58,13 @@ function PlaylistItemRow({
     >
       {isManual && (
         <View style={{ alignItems: "center", marginRight: 4, gap: 2 }}>
-          <Pressable onPress={onMoveUp} disabled={index === 0} hitSlop={6} accessible={true} accessibilityLabel={t("media.playlist.moveItemUp")} accessibilityRole="button">
+          <Pressable onPress={onMoveUp} disabled={index === 0} hitSlop={6} style={lock.disabled ? { opacity: DEMO_LOCKED_OPACITY } : undefined} accessible={true} accessibilityLabel={t("media.playlist.moveItemUp")} accessibilityRole="button" {...lock}>
             <Ionicons name="chevron-up" size={16} color={index === 0 ? theme.colors.border : theme.colors.textMuted} />
           </Pressable>
           <Text style={[styles.order, { color: theme.colors.accent }]}>
             {item.sort_order != null ? item.sort_order + 1 : index + 1}
           </Text>
-          <Pressable onPress={onMoveDown} disabled={index === total - 1} hitSlop={6} accessible={true} accessibilityLabel={t("media.playlist.moveItemDown")} accessibilityRole="button">
+          <Pressable onPress={onMoveDown} disabled={index === total - 1} hitSlop={6} style={lock.disabled ? { opacity: DEMO_LOCKED_OPACITY } : undefined} accessible={true} accessibilityLabel={t("media.playlist.moveItemDown")} accessibilityRole="button" {...lock}>
             <Ionicons name="chevron-down" size={16} color={index === total - 1 ? theme.colors.border : theme.colors.textMuted} />
           </Pressable>
         </View>
@@ -85,7 +88,7 @@ function PlaylistItemRow({
         </View>
       </View>
       {isManual && (
-        <Pressable onPress={onRemove} hitSlop={8} style={{ padding: 4 }} accessible={true} accessibilityLabel={t("media.playlist.removeItem")} accessibilityRole="button">
+        <Pressable onPress={onRemove} hitSlop={8} style={{ padding: 4, opacity: lock.disabled ? DEMO_LOCKED_OPACITY : 1 }} accessible={true} accessibilityLabel={t("media.playlist.removeItem")} accessibilityRole="button" {...lock}>
           <Ionicons name="close-circle-outline" size={18} color={theme.colors.textMuted} />
         </Pressable>
       )}
@@ -102,6 +105,8 @@ export default function PlaylistDetailScreen() {
   const deleteMutation = useDeletePlaylist();
   const removeMutation = useRemoveFromPlaylist();
   const reorderMutation = useReorderPlaylistItems();
+  // The demo's playlists are the shared account's: every edit here is greyed.
+  const { lock } = useDemoLock();
 
   const { data: playlist, isLoading, isError, refetch } = usePlaylistDetail(id ?? "");
   const updatePlaylist = useUpdatePlaylist();
@@ -176,7 +181,7 @@ export default function PlaylistDetailScreen() {
           {downloadingAll ? <ActivityIndicator size="small" color={theme.colors.accent} /> : <Ionicons name="download-outline" size={22} color={theme.colors.text} />}
         </TouchableOpacity>
       )}
-      <TouchableOpacity onPress={confirmDelete} hitSlop={8} accessible={true} accessibilityLabel={t("common.delete")} accessibilityRole="button">
+      <TouchableOpacity onPress={confirmDelete} hitSlop={8} style={lock.disabled ? { opacity: DEMO_LOCKED_OPACITY } : undefined} accessible={true} accessibilityLabel={t("common.delete")} accessibilityRole="button" {...lock}>
         <Ionicons name="trash-outline" size={22} color={theme.colors.error} />
       </TouchableOpacity>
     </View>
@@ -258,10 +263,11 @@ export default function PlaylistDetailScreen() {
       {isSmart && (
         <Pressable
           onPress={() => setShowRulesEditor(true)}
-          style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8 }}
+          style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 16, paddingVertical: 8, opacity: lock.disabled ? DEMO_LOCKED_OPACITY : 1 }}
           accessible={true}
           accessibilityLabel={t("media.playlist.editRules") || "Edit Rules"}
           accessibilityRole="button"
+          {...lock}
         >
           <Ionicons name="options-outline" size={16} color={theme.colors.accent} />
           <Text style={{ color: theme.colors.accent, fontSize: 13, fontWeight: "600" }}>
@@ -284,6 +290,7 @@ export default function PlaylistDetailScreen() {
             onMoveUp={() => handleMove(index, -1)}
             onMoveDown={() => handleMove(index, 1)}
             onRemove={() => handleRemove(item.media_item_id)}
+            lock={lock}
           />
         )}
         ListEmptyComponent={

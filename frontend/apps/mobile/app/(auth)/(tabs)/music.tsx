@@ -24,6 +24,7 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useDebounce } from "../../../src/hooks/useDebounce";
+import { useDemoLock, DEMO_LOCKED_OPACITY } from "../../../src/hooks/useDemoLock";
 import { useMusicQueueStore, type QueueTrack } from "../../../src/stores/musicQueue";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { startDownload, getDownloadPath, deleteDownload, downloadErrorMessageKey } from "../../../src/lib/downloads";
@@ -165,6 +166,8 @@ export default function MusicScreen() {
   const [selectedLibraryID, setSelectedLibraryID] = useState<string | undefined>(undefined);
   const [showQueue, setShowQueue] = useState(false);
   const [playlistTrackId, setPlaylistTrackId] = useState<string | null>(null);
+  // The demo's playlists are the shared account's: "add to playlist" greyed.
+  const { demo, lock } = useDemoLock();
   const [trackSearch, setTrackSearch] = useState("");
   const debouncedTrackSearch = useDebounce(trackSearch.trim(), 300);
   // Per-track download progress: a key is only present while that track's
@@ -481,14 +484,15 @@ export default function MusicScreen() {
             setPlaylistTrackId(item.id);
           }}
           hitSlop={8}
-          style={styles.addBtn}
+          style={[styles.addBtn, demo ? { opacity: DEMO_LOCKED_OPACITY } : null]}
           accessibilityLabel={t("media.music.addToPlaylist")}
+          {...lock}
         >
           <Ionicons name="add-circle-outline" size={20} color={theme.colors.textMuted} />
         </Pressable>
       </TouchableOpacity>
     );},
-    [theme, currentIndex, queue, handlePlayTrack, trackDownloads, handleDownloadTrack, t, authHeaders, serverUrl],
+    [theme, currentIndex, queue, handlePlayTrack, trackDownloads, handleDownloadTrack, t, authHeaders, serverUrl, demo, lock],
   );
 
   const renderAlbum = useCallback(

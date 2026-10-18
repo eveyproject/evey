@@ -17,8 +17,8 @@ vi.mock("react-native", () => ({
       ? ListEmptyComponent
       : (data as any[]).map((item) => React.createElement(React.Fragment, { key: keyExtractor(item) }, renderItem({ item }))));
   },
-  TouchableOpacity: ({ children, onPress, accessibilityRole, accessibilityLabel }: any) =>
-    React.createElement("button", { onClick: onPress, role: accessibilityRole, "aria-label": accessibilityLabel }, children),
+  TouchableOpacity: ({ children, onPress, disabled, accessibilityRole, accessibilityLabel }: any) =>
+    React.createElement("button", { onClick: onPress, disabled, role: accessibilityRole, "aria-label": accessibilityLabel }, children),
   Pressable: ({ children, onPress }: any) => React.createElement("button", { onClick: onPress }, children),
   Dimensions: { get: () => ({ width: 360 }) },
   StyleSheet: { create: (s: any) => s },
@@ -40,8 +40,12 @@ vi.mock("expo-router", () => ({
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k: string, o?: string | { count?: number }) => (typeof o === "string" ? o : o ? `${k}:${o.count}` : k) }),
 }));
-const auth = vi.hoisted(() => ({ isAdmin: false }));
-vi.mock("@evey/store", () => ({ useAuthStore: (sel: (s: typeof auth) => unknown) => sel(auth), toast: { success: vi.fn(), error: vi.fn() } }));
+const auth = vi.hoisted(() => ({ isAdmin: false, demoMode: false }));
+vi.mock("@evey/store", () => ({
+  useAuthStore: (sel: (s: typeof auth) => unknown) => sel(auth),
+  useDemoStore: (sel: (s: typeof auth) => unknown) => sel(auth),
+  toast: { success: vi.fn(), error: vi.fn() },
+}));
 vi.mock("../../../../src/components/Skeleton", () => ({ Skeleton: () => React.createElement("div", { "data-testid": "skeleton" }) }));
 vi.mock("../../../../src/components/SmartRulesEditor", () => ({
   COLLECTION_FIELDS: ["genre", "year"],
@@ -70,6 +74,7 @@ import SmartFilterScreen from "./[filterId]";
 beforeEach(() => {
   vi.clearAllMocks();
   auth.isAdmin = false;
+  auth.demoMode = false;
   list.onEndReached = null;
   api.col = { data: undefined, isLoading: false, isError: false, refetch: vi.fn(), fetchNextPage: vi.fn(), hasNextPage: true, isFetchingNextPage: false };
 });
@@ -115,6 +120,20 @@ describe("smart collection screen (mobile)", () => {
     expect(api.col.refetch).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByText("close-editor"));
     expect(screen.queryByTestId("editor")).toBeNull();
+  });
+
+  // The demo's collections are the shared account's and the server refuses
+  // them: an admin there sees the rules editor greyed, a press opens nothing.
+  it("greys the rules editor on the demo", () => {
+    auth.isAdmin = true;
+    auth.demoMode = true;
+    api.col.data = { collection: { name: "Nineties", rules: [{ field: "year", value: "1990" }] }, items: [], total: 0 };
+    render(<SmartFilterScreen />);
+    const edit = screen.getByRole("button", { name: "Edit rules" }) as HTMLButtonElement;
+    expect(edit.disabled).toBe(true);
+    fireEvent.click(edit);
+    expect(screen.queryByTestId("editor")).toBeNull();
+    expect(api.update).not.toHaveBeenCalled();
   });
 
   it("words an empty result by whether rules exist, skeletons while loading, retries on failure", () => {

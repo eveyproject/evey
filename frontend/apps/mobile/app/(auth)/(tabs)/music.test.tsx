@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -65,9 +65,15 @@ vi.mock("../../../src/lib/downloads", () => ({
   downloadErrorMessageKey: () => "err",
 }));
 vi.mock("../../../src/lib/mobileDataGate", () => ({ confirmDownloadOnMobileData: vi.fn().mockResolvedValue(true) }));
+const demo = vi.hoisted(() => ({ demoMode: false }));
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
   useAuthStore: (sel: (s: any) => unknown) => sel({ profileId: "p1" }),
+  useDemoStore: (sel: (s: typeof demo) => unknown) => sel(demo),
+}));
+const sheet = vi.hoisted(() => ({ opened: [] as string[] }));
+vi.mock("../../../src/components/AddToPlaylistSheet", () => ({
+  AddToPlaylistSheet: ({ mediaItemId }: { mediaItemId: string }) => { sheet.opened.push(mediaItemId); return null; },
 }));
 
 const { fetchState } = vi.hoisted(() => ({
@@ -89,7 +95,7 @@ vi.mock("@evey/api", () => ({
         fetchState.rejectLibraries = reject;
       });
     }
-    return Promise.resolve({ tracks: [], albums: [], artists: [] });
+    return Promise.resolve({ tracks: [{ id: "t1", title: "Song A", artist: "A", album: "B", duration: 0 }], albums: [], artists: [] });
   },
 }));
 
@@ -98,7 +104,21 @@ import MusicScreen from "./music";
 beforeEach(() => {
   fetchState.resolveLibraries = null;
   fetchState.rejectLibraries = null;
+  demo.demoMode = false;
+  sheet.opened = [];
 });
+
+async function openTracks() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(
+    <QueryClientProvider client={qc}>
+      <MusicScreen />
+    </QueryClientProvider>,
+  );
+  fetchState.resolveLibraries?.({ libraries: [{ id: "l1", name: "Musique", type: "LIBRARY_TYPE_MUSIC" }] });
+  fireEvent.click(await screen.findByText("media.music.tracks"));
+  return (await screen.findByLabelText("media.music.addToPlaylist")) as HTMLButtonElement;
+}
 
 describe("MusicScreen", () => {
   it("survives the libraries query resolving after the loading render (hooks order)", async () => {
@@ -137,5 +157,22 @@ describe("MusicScreen", () => {
     fetchState.rejectLibraries?.(new Error("boom"));
     await waitFor(() => expect(screen.getByTestId("load-failed")).toBeTruthy());
     expect(screen.queryByText("media.music.noMusicLibraries")).toBeNull();
+  });
+
+  // The demo's playlists are the shared account's and the server refuses
+  // them: a track's "add to playlist" is greyed there and opens no sheet.
+  it("greys a track's add to playlist on the demo", async () => {
+    demo.demoMode = true;
+    const add = await openTracks();
+    expect(add.disabled).toBe(true);
+    fireEvent.click(add);
+    expect(sheet.opened).toEqual([]);
+  });
+
+  it("opens the playlist sheet for the track off the demo", async () => {
+    const add = await openTracks();
+    expect(add.disabled).toBeFalsy();
+    fireEvent.click(add);
+    await waitFor(() => expect(sheet.opened).toContain("t1"));
   });
 });

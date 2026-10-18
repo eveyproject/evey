@@ -17,6 +17,7 @@ import { Stack, useRouter } from "expo-router";
 import { Skeleton } from "../../../src/components/Skeleton";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { useDemoLock, DEMO_LOCKED_OPACITY, type DemoLockProps } from "../../../src/hooks/useDemoLock";
 import {
   usePlaylistList,
   useCreatePlaylist,
@@ -29,12 +30,14 @@ function PlaylistCard({
   theme,
   onPress,
   onLongPress,
+  lock,
   t,
 }: {
   playlist: Playlist;
   theme: ReturnType<typeof useTheme>;
   onPress: () => void;
   onLongPress: () => void;
+  lock: DemoLockProps;
   t: ReturnType<typeof useTranslation>["t"];
 }) {
   return (
@@ -48,7 +51,7 @@ function PlaylistCard({
       ]}
       activeOpacity={0.7}
       onPress={onPress}
-      onLongPress={onLongPress}
+      onLongPress={lock.disabled ? undefined : onLongPress}
     >
       <View
         style={[
@@ -88,10 +91,11 @@ function PlaylistCard({
       <TouchableOpacity
         onPress={onLongPress}
         hitSlop={8}
-        style={{ padding: 6 }}
+        style={{ padding: 6, opacity: lock.disabled ? DEMO_LOCKED_OPACITY : 1 }}
         accessible={true}
         accessibilityLabel={t("common.delete", "Delete")}
         accessibilityRole="button"
+        {...lock}
       >
         <Ionicons name="trash-outline" size={18} color={theme.colors.textMuted} />
       </TouchableOpacity>
@@ -109,6 +113,8 @@ export default function PlaylistsScreen() {
   const { data: playlists, isLoading, isError, refetch } = usePlaylistList();
   const createMutation = useCreatePlaylist();
   const deleteMutation = useDeletePlaylist();
+  // The demo's playlists are the shared account's: create and delete greyed.
+  const { lock } = useDemoLock();
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState("");
@@ -173,10 +179,11 @@ export default function PlaylistsScreen() {
           headerRight: () => (
             <TouchableOpacity
               onPress={() => setModalVisible(true)}
-              style={{ marginRight: 8 }}
+              style={{ marginRight: 8, opacity: lock.disabled ? DEMO_LOCKED_OPACITY : 1 }}
               hitSlop={8}
               accessibilityRole="button"
               accessibilityLabel={t("media.playlist.createPlaylist")}
+              {...lock}
             >
               <Ionicons name="add" size={26} color={theme.colors.accent} />
             </TouchableOpacity>
@@ -207,6 +214,7 @@ export default function PlaylistsScreen() {
               theme={theme}
               onPress={() => router.push(`/playlists/${item.id}`)}
               onLongPress={() => confirmDelete(item)}
+              lock={lock}
               t={t}
             />
           )}
