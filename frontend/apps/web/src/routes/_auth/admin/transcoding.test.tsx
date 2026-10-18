@@ -463,7 +463,9 @@ describe("LoadTestCard", () => {
 
     const running = screen.getByTestId("load-test-running");
     expect(running.textContent).toContain("3");
-    expect(running.textContent).toContain("ramping");
+    // The phase in the viewer's language, never the server's raw word.
+    expect(running.textContent).toContain("fast climb");
+    expect(running.textContent).not.toContain("ramping");
     expect(running.textContent).toContain("0:15");
     expect(screen.queryByTestId("load-test-idle")).toBeNull();
 
