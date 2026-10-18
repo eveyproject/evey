@@ -18,6 +18,7 @@
   "paths": {
     "/api/v1/mkv/attachments": {
       "get": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MKVService_ListAttachments",
         "responses": {
           "200": {
@@ -48,6 +49,7 @@
     },
     "/api/v1/mkv/attachments/extract": {
       "post": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MKVService_ExtractAttachment",
         "responses": {
           "200": {
@@ -110,6 +112,7 @@
     },
     "/api/v1/mkv/demux": {
       "post": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MKVService_DemuxContainer",
         "responses": {
           "200": {
@@ -151,6 +154,7 @@
     },
     "/api/v1/mkv/info": {
       "get": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MKVService_GetContainerInfo",
         "responses": {
           "200": {
@@ -181,6 +185,7 @@
     },
     "/api/v1/mkv/mux": {
       "post": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MKVService_MuxContainer",
         "responses": {
           "200": {
@@ -252,6 +257,7 @@
     },
     "/api/v1/mkv/tracks/add": {
       "post": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MKVService_AddTrack",
         "responses": {
           "200": {
@@ -284,6 +290,7 @@
     },
     "/api/v1/mkv/tracks/extract": {
       "post": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MKVService_ExtractTrack",
         "responses": {
           "200": {
@@ -325,6 +332,7 @@
     },
     "/api/v1/mkv/tracks/remove": {
       "post": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MKVService_RemoveTrack",
         "responses": {
           "200": {

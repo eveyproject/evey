@@ -52,14 +52,20 @@ service MetadataService {
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc UpdateMetadata(UpdateMetadataRequest) returns (UpdateMetadataResponse) {
+    option deprecated = true;
     option (google.api.http) = {
       put: "/api/v1/metadata/{media_item_id}"
       body: "*"
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc DeleteMetadata(DeleteMetadataRequest) returns (DeleteMetadataResponse) {
+    option deprecated = true;
     option (google.api.http) = {
       delete: "/api/v1/metadata/{media_item_id}"
     };

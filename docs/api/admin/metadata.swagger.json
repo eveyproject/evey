@@ -172,6 +172,7 @@
     },
     "/api/v1/metadata/{mediaItemId}": {
       "delete": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MetadataService_DeleteMetadata",
         "responses": {
           "200": {
@@ -200,6 +201,7 @@
         ]
       },
       "put": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "MetadataService_UpdateMetadata",
         "responses": {
           "200": {

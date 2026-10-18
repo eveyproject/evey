@@ -45,21 +45,30 @@ service TranscodingService {
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc CreateTranscodeProfile(CreateTranscodeProfileRequest) returns (TranscodeProfile) {
+    option deprecated = true;
     option (google.api.http) = {
       post: "/api/v1/transcoding/profiles"
       body: "*"
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc UpdateTranscodeProfile(UpdateTranscodeProfileRequest) returns (TranscodeProfile) {
+    option deprecated = true;
     option (google.api.http) = {
       put: "/api/v1/transcoding/profiles/{id}"
       body: "*"
     };
   }
 
+  // Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).
+  // Will be removed after two server releases (ADR-0004).
   rpc DeleteTranscodeProfile(DeleteTranscodeProfileRequest) returns (DeleteTranscodeProfileResponse) {
+    option deprecated = true;
     option (google.api.http) = {
       delete: "/api/v1/transcoding/profiles/{id}"
     };

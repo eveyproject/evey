@@ -82,6 +82,7 @@
         ]
       },
       "post": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "TranscodingService_CreateTranscodeProfile",
         "responses": {
           "200": {
@@ -114,6 +115,7 @@
     },
     "/api/v1/transcoding/profiles/{id}": {
       "delete": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "TranscodingService_DeleteTranscodeProfile",
         "responses": {
           "200": {
@@ -142,6 +144,7 @@
         ]
       },
       "put": {
+        "summary": "Deprecated: never implemented, answers UNIMPLEMENTED (no client calls it).\nWill be removed after two server releases (ADR-0004).",
         "operationId": "TranscodingService_UpdateTranscodeProfile",
         "responses": {
           "200": {
