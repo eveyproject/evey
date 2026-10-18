@@ -30,6 +30,7 @@ const serverMetricColumns = `id, cpu_percent, memory_used_bytes, memory_total_by
 // maxMetricRows bounds any history read. One-minute samples over a week are
 // 10 080 rows, so a raw read of a week is cut short: callers wanting more
 // than a day go through GetBucketed.
+// activity.maxRequestedMetricPoints mirrors it: keep the two equal.
 const maxMetricRows = 10000
 
 func (r *ServerMetricRepository) Create(ctx context.Context, m *activity.ServerMetric) error {
