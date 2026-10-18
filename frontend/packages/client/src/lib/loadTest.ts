@@ -681,7 +681,13 @@ export function gridRows(report: LoadTestReport): LoadTestGridTier[] {
 
 // verdictLine is the headline: "about N viewers in <scenario> (between A and
 // B)", the range said only when it is one.
+// A run that ended without measuring anything (an error, a cancel, an expired
+// session, no usable title) has no capacity to state: its stop sentence is the
+// headline, never "about 0 viewers" (prod 2026-10-18).
 export function verdictLine(t: (key: string, opts?: Record<string, unknown>) => string, report: LoadTestReport): string {
+  if (report.stopReason && ["error", "cancelled", "token_expired", "library_limit"].includes(report.stopReason)) {
+    return t(stopReasonKey(report));
+  }
   const count = report.sustainedViewers ?? 0;
   const scenario = scenarioNoun(t, report.scenario);
   const low = report.rangeLow ?? 0;

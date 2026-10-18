@@ -151,6 +151,17 @@ const (
 // having room to take titles.
 const spreadIdleUtilPct = 40.0
 
+// neverReached reports a run that measured nothing: no audience held, and
+// the failure is a request that got no HTTP answer at all (status=0: refused,
+// reset, unreadable). That is the harness failing to talk to the server, not
+// a capacity of zero, and naming a limiter would blame whatever is left by
+// elimination (prod 2026-10-18: "about 0 viewers, the proxy gives out first",
+// from a client that could not read the proxy's HTTP/2). A server that
+// answers with an error status keeps its server_failing verdict.
+func neverReached(sustained int, stop StopReason, detail string) bool {
+	return sustained == 0 && stop == StopServerFailing && strings.Contains(detail, "status=0")
+}
+
 // limiterOf names what gave out first, where (a library location for a disk),
 // and the advice that follows, if any. breakRes is what the machine did under
 // the first audience that did not hold; verdict judges its busiest disk.

@@ -697,6 +697,9 @@ runLoop:
 		rangeLow, rangeHigh = cl.answerRange()
 		rangeLow, rangeHigh = min(rangeLow, sustained), max(rangeHigh, sustained)
 	}
+	if neverReached(sustained, stopReason, stopDetail) {
+		stopReason = StopError
+	}
 	limiter, limiterLocation, advice := limiterOf(stopReason, stopDetail, verdictRes, diskV, viaProxy, devices)
 	strata := ramp.strataByTier[sampleTier]
 	strataDisk, strataBand := strataSummary(strata)
