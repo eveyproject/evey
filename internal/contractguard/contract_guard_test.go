@@ -62,7 +62,6 @@ var neverWrittenByMessage = map[string]string{
 	"MkvTrack.frame_rate":                     "never written: tracked in backlog",
 	"MkvTrack.is_forced":                      "never written: tracked in backlog; masked today by the untyped IsForced writes of the subtitle scanner, so the guard cannot fire on it",
 	"ScheduledTask.last_error":                "never written: tracked in backlog",
-	"SystemInfo.server_id":                    "never written: tracked in backlog (previously masked by a namesake)",
 	"RollbackMediaSeekIndexResponse.restored": "never written: read by the TV browser app, surfaced when tv-web joined the scan; tracked in backlog",
 	"TranscodeJob.container":                  "never written: tracked in backlog",
 	"WebPushKeys.p256dh":                      "never written: tracked in backlog",

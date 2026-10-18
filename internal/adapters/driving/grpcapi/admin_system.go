@@ -263,6 +263,14 @@ func (d *adminSystemHandler) GetSystemInfo(ctx context.Context, _ *eveyv1.GetSys
 		SmtpConfigured:          d.smtpConfigured != nil && d.smtpConfigured(),
 	}
 
+	if d.serverCfgSvc != nil {
+		if sid, err := d.serverCfgSvc.ServerID(ctx); err != nil {
+			slog.WarnContext(ctx, "server id", slog.Any("err", err))
+		} else {
+			info.ServerId = sid
+		}
+	}
+
 	if d.transcodingSvc != nil {
 		devices, err := d.transcodingSvc.DetectHardware(ctx)
 		if err != nil {

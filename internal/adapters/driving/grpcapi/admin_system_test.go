@@ -782,3 +782,27 @@ func TestAdminGetDashboard_DisksAreLabelledAndJudged(t *testing.T) {
 		}
 	}
 }
+
+// SystemInfo.server_id was declared and read by the web and the phone, and
+// never written: the admin page showed an empty "Server ID". It is the
+// server's persisted identity, the same on every call.
+func TestAdminGetSystemInfo_CarriesAStableServerID(t *testing.T) {
+	repo := &memServerConfigRepo{m: map[string]string{}}
+	d := newTestSystemHandler()
+	d.serverCfgSvc = appconfig.NewService(repo)
+	first, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if first.ServerId == "" {
+		t.Fatal("server_id must be written")
+	}
+	d.serverCfgSvc = appconfig.NewService(repo) // a restart over the same store
+	again, err := d.GetSystemInfo(context.Background(), &eveyv1.GetSystemInfoRequest{})
+	if err != nil {
+		t.Fatalf("GetSystemInfo: %v", err)
+	}
+	if again.ServerId != first.ServerId {
+		t.Fatalf("server_id changed across a restart: %q then %q", first.ServerId, again.ServerId)
+	}
+}
