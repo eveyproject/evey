@@ -347,6 +347,11 @@ func (p *candidatePool) sourceMix() []SourceMixEntry {
 // bitrate is a band of its own. It returns each title's band and the band
 // floors in bit/s, for the log.
 func bitrateBands(candidates []MediaCandidate) (band []string, floors []int64) {
+	return bitrateQuantiles(candidates, 4)
+}
+
+// bitrateQuantiles is bitrateBands cut into k bands instead of four.
+func bitrateQuantiles(candidates []MediaCandidate, k int) (band []string, floors []int64) {
 	var known []int64
 	for _, c := range candidates {
 		if c.BitrateBps > 0 {
@@ -355,8 +360,8 @@ func bitrateBands(candidates []MediaCandidate) (band []string, floors []int64) {
 	}
 	slices.Sort(known)
 	if len(known) > 0 {
-		for q := range 4 {
-			floors = append(floors, known[q*len(known)/4])
+		for q := range k {
+			floors = append(floors, known[q*len(known)/k])
 		}
 	}
 	band = make([]string, len(candidates))

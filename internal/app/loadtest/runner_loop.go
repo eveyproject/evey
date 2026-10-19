@@ -58,8 +58,9 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		"via_proxy", viaProxy,
 	)
 
-	// The seed decides EVERYTHING the run draws: which slice of the library the
-	// candidates are, and their order. A seed that only ordered a list drawn
+	// The seed decides EVERYTHING the run draws: which titles of the library
+	// the candidates are (each kind and bitrate decile in its share, see
+	// LibrarySample), and their order. A seed that only ordered a list drawn
 	// at random elsewhere replayed nothing (2026-10-15: two runs "with the
 	// same seed" played different titles).
 	seed := cfg.Seed
