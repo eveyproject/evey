@@ -355,8 +355,13 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 	// read cues out of the wrong bytes.
 	// Paced while a stream is being served - see subtitle_read_pacer.go.
 	opts := subtitleReadOptions(ctx, filePath)
+	// Each indexed read writes into its own buffer: one that fails partway has
+	// already written cues, and the walk after it would append the whole track
+	// to them.
 	if ix, ok := subtitleIndexes.get(filePath); ok {
-		if err := matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, ix, w, opts...); err == nil {
+		if err := wholeOrNothing(w, func(part io.Writer) error {
+			return matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, ix, part, opts...)
+		}); err == nil {
 			return nil
 		}
 	} else if cix, verified, cErr := subtitleIndexes.fromCues(ctx, filePath); cErr == nil && cix != nil && verified[trackID] {
@@ -364,7 +369,9 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 		// once (stored for the plan and every later request) and read the
 		// track's blocks where they point. Any failure falls back to the walk.
 		if resolved, rErr := subtitleIndexes.resolveAndStore(ctx, filePath, cix); rErr == nil {
-			if err := matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, resolved, w, opts...); err == nil {
+			if err := wholeOrNothing(w, func(part io.Writer) error {
+				return matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, resolved, part, opts...)
+			}); err == nil {
 				return nil
 			}
 		} else {
@@ -372,6 +379,18 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 		}
 	}
 	return matroska.ExtractSubtitleWebVTT(ctx, filePath, trackID, w, opts...)
+}
+
+// wholeOrNothing runs extract into a buffer of its own and hands w the result
+// only when extract succeeds, so the attempt that follows a failed one starts
+// from an untouched w.
+func wholeOrNothing(w io.Writer, extract func(io.Writer) error) error {
+	var part bytes.Buffer
+	if err := extract(&part); err != nil {
+		return err
+	}
+	_, err := w.Write(part.Bytes())
+	return err
 }
 
 // mkvgoTextSubtitleTrackIDs returns the mkvgo track IDs of the TEXT subtitle
