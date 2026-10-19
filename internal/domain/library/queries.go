@@ -52,9 +52,8 @@ type MediaItemQueryRepo interface {
 	// ListStreamFacets returns the distinct stream values of the items filter
 	// selects, across the whole set rather than a sample of loaded items. The
 	// filter's WHERE applies exactly as in List; its paging, cursor and sort
-	// do not. A non-nil itemIDs further restricts the set to those items, and
-	// an empty one selects none.
-	ListStreamFacets(ctx context.Context, filter ListMediaItemsFilter, itemIDs []shared.MediaItemID) (StreamFacets, error)
+	// do not. The parental rule, when set, hides the same items as in List.
+	ListStreamFacets(ctx context.Context, filter ListMediaItemsFilter) (StreamFacets, error)
 	// CountPerLibrary is Count grouped by library, in one query: for each
 	// library of filter.LibraryIDs, what Count answers with LibraryID set to
 	// it. A library with no matching item is absent from the map, and an empty

@@ -2,6 +2,7 @@ package fakes
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -22,7 +23,14 @@ type FakeMediaItemQueryRepo struct {
 	Err     error
 	// ErrList fails List alone, leaving GetByID and Count answering.
 	ErrList error
+	// ParentalBlocks applies a filter's ParentalRule (the rule is
+	// ratings.Blocks, which a domain package may not import). A filter
+	// carrying a rule while this is nil fails rather than ignore it.
+	ParentalBlocks func(library.ParentalRule, *library.MediaItem) bool
 }
+
+// errParentalUnwired is the answer to a ParentalRule with no ParentalBlocks.
+var errParentalUnwired = errors.New("fake media item repo: filter.Parental set but ParentalBlocks is nil")
 
 func NewFakeMediaItemQueryRepo() *FakeMediaItemQueryRepo {
 	return &FakeMediaItemQueryRepo{
@@ -133,6 +141,9 @@ func allowedRatingsSet(allowed []string) map[string]bool {
 }
 
 func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
+	if filter.Parental != nil && r.ParentalBlocks == nil {
+		return nil, errParentalUnwired
+	}
 	if r.Err != nil {
 		return nil, r.Err
 	}
@@ -164,6 +175,9 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 			continue
 		}
 		if !matchesGenres(item, filter.Genres) {
+			continue
+		}
+		if filter.Parental != nil && r.ParentalBlocks(*filter.Parental, item) {
 			continue
 		}
 		if allowedSet != nil {
@@ -235,6 +249,9 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 }
 
 func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMediaItemsFilter) (int, error) {
+	if filter.Parental != nil && r.ParentalBlocks == nil {
+		return 0, errParentalUnwired
+	}
 	if r.Err != nil {
 		return 0, r.Err
 	}
@@ -263,6 +280,9 @@ func (r *FakeMediaItemQueryRepo) Count(_ context.Context, filter library.ListMed
 			continue
 		}
 		if !matchesGenres(item, filter.Genres) {
+			continue
+		}
+		if filter.Parental != nil && r.ParentalBlocks(*filter.Parental, item) {
 			continue
 		}
 		if allowedSet != nil {
@@ -360,16 +380,14 @@ func (r *FakeMediaItemQueryRepo) ListGenres(_ context.Context, libraryID shared.
 	return genres, nil
 }
 
-// ListStreamFacets selects items through List (same predicates, no paging)
-// and folds their seeded streams with the postgres rules: no empty codec, no
-// size without a height, no empty or "und" language; sorted like the query.
-func (r *FakeMediaItemQueryRepo) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter, itemIDs []shared.MediaItemID) (library.StreamFacets, error) {
+// ListStreamFacets selects items through List (same predicates, parental
+// rule included, no paging) and folds their seeded streams with the postgres
+// rules: no empty codec, no size without a height, no empty or "und"
+// language; sorted like the query.
+func (r *FakeMediaItemQueryRepo) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter) (library.StreamFacets, error) {
 	var facets library.StreamFacets
 	if r.Err != nil {
 		return facets, r.Err
-	}
-	if itemIDs != nil && len(itemIDs) == 0 {
-		return facets, nil
 	}
 	f := filter
 	f.Limit, f.Offset, f.Cursor = math.MaxInt32, 0, shared.Cursor{}
@@ -377,16 +395,9 @@ func (r *FakeMediaItemQueryRepo) ListStreamFacets(ctx context.Context, filter li
 	if err != nil {
 		return facets, err
 	}
-	only := make(map[shared.MediaItemID]bool, len(itemIDs))
-	for _, id := range itemIDs {
-		only[id] = true
-	}
 	codecs, sizes, audio, subs := map[string]bool{}, map[library.VideoSize]bool{}, map[string]bool{}, map[string]bool{}
 	r.mu.RLock()
 	for _, item := range items {
-		if itemIDs != nil && !only[item.ID] {
-			continue
-		}
 		for _, st := range r.streams[string(item.ID)] {
 			switch st.StreamType {
 			case library.StreamTypeVideo:

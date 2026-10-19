@@ -31,6 +31,7 @@ func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *
 	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
 	mediaCmdRepo := libfakes.NewFakeMediaItemCommandRepo()
 	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	mediaQueryRepo.ParentalBlocks = parentalRuleBlocks
 	streamRepo := libfakes.NewFakeMediaStreamRepository()
 	personRepo := libfakes.NewFakePersonRepository()
 	mediaPersonRepo := libfakes.NewFakeMediaPersonRepository()

@@ -181,12 +181,11 @@ func (s *QueryService) CountMediaItemsPerLibrary(ctx context.Context, filter lib
 }
 
 // ListStreamFacets returns the distinct stream values of the items filter
-// selects, optionally restricted to itemIDs (see
-// MediaItemQueryRepo.ListStreamFacets).
-func (s *QueryService) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter, itemIDs []shared.MediaItemID) (library.StreamFacets, error) {
+// selects (see MediaItemQueryRepo.ListStreamFacets).
+func (s *QueryService) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter) (library.StreamFacets, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.ListStreamFacets")
 	defer span.End()
-	return s.mediaItems.ListStreamFacets(ctx, filter, itemIDs)
+	return s.mediaItems.ListStreamFacets(ctx, filter)
 }
 
 // ListGenres returns the distinct, sorted genres present in a library, folded

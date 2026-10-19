@@ -8,6 +8,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/ratings"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -131,6 +132,36 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 			argIdx++
 		}
 		conditions = append(conditions, "(mcl.official_rating IS NULL OR mcl.official_rating = '' OR mcl.official_rating = ANY(ARRAY["+strings.Join(placeholders, ",")+"]))")
+	}
+	if p := f.Parental; p != nil {
+		// library.ParentalRule.Blocks in SQL. The worst-case age is the larger
+		// of the stored certification age and the region's reading of the
+		// stored rating key (ratings/precomputed.go): within the cap on both,
+		// and known on at least one, or the item is hidden. A missing row or
+		// one computed under other rating tables is unknown, hence hidden.
+		if p.MaxAge >= 0 {
+			allowed, blocked := ratings.RatingKeysForRegion(p.Region, p.MaxAge)
+			// Never NULL: pq.Array(nil) binds NULL, ANY(NULL) is NULL, and the
+			// whole predicate would hide everything.
+			allowed, blocked = append([]string{}, allowed...), append([]string{}, blocked...)
+			conditions = append(conditions, fmt.Sprintf(
+				`(mcl.parental_rev = $%d AND mcl.cert_min_age <= $%d
+				  AND NOT (mcl.rating_key = ANY($%d::text[]))
+				  AND (mcl.cert_min_age >= 0 OR mcl.rating_key = ANY($%d::text[])))`,
+				argIdx, argIdx+1, argIdx+2, argIdx+3))
+			args = append(args, ratings.TablesRevision, p.MaxAge, pq.Array(blocked), pq.Array(allowed))
+			argIdx += 4
+		}
+		// HasBlockedTag trims and lower-cases both sides. Postgres E'' has no
+		// \v escape (it reads as the letter v), hence \x0b. Unicode spaces
+		// strings.TrimSpace also strips are not trimmed here.
+		if tags := p.NormalizedBlockedTags(); len(tags) > 0 {
+			conditions = append(conditions, fmt.Sprintf(
+				`NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(mc.tags) AS pt
+				              WHERE lower(btrim(pt, E' \t\n\r\f\x0b')) = ANY($%d::text[]))`, argIdx))
+			args = append(args, pq.Array(tags))
+			argIdx++
+		}
 	}
 	if f.PersonID != nil {
 		conditions = append(conditions, fmt.Sprintf("mi.id IN (SELECT media_item_id FROM media_people WHERE person_id = $%d)", argIdx))

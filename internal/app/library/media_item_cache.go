@@ -159,10 +159,10 @@ func (c *CachedMediaItemQueryRepo) ListGenres(ctx context.Context, libraryID sha
 
 // ListStreamFacets passes through. Unlike ListGenres it reads indexed joins
 // only (library, then each item's streams), it fires only when a viewer opens
-// the filter panel, and a kids profile restricts it to an item set no cache
-// key would capture.
-func (c *CachedMediaItemQueryRepo) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter, itemIDs []shared.MediaItemID) (library.StreamFacets, error) {
-	return c.inner.ListStreamFacets(ctx, filter, itemIDs)
+// the filter panel, and a kids profile's parental rule is part of the filter
+// no cache key here captures.
+func (c *CachedMediaItemQueryRepo) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter) (library.StreamFacets, error) {
+	return c.inner.ListStreamFacets(ctx, filter)
 }
 
 // CountPerLibrary passes through, like Count.
