@@ -56,13 +56,21 @@ function TranscodingSettings() {
   }, [settings]);
 
   const handleSave = useCallback(async () => {
+    // An empty field is an explicit null: the server drops the override. Any
+    // other text must be a cap of at least 1: the numeric keyboard offers "-"
+    // and ".", parseInt made NaN of them, and JSON sent NaN as that same null,
+    // so a stray key cleared the cap under a "saved" toast.
+    const cap = maxConcurrent.trim() === "" ? null : Number(maxConcurrent);
+    if (cap !== null && !(Number.isInteger(cap) && cap >= 1)) {
+      toast.error(t("admin.transcodeCache.maxConcurrentInvalid", "Saisissez un nombre entier d'au moins 1, ou laissez le champ vide pour la valeur par défaut du serveur."));
+      return;
+    }
     setSaving(true);
     try {
-      // An empty field is an explicit null: the server drops the override.
       await eveyFetch({
         url: "/api/v1/admin/server-settings",
         method: "PUT",
-        data: { maxConcurrentTranscodes: maxConcurrent === "" ? null : parseInt(maxConcurrent, 10) },
+        data: { maxConcurrentTranscodes: cap },
       });
       await qc.invalidateQueries({ queryKey: SETTINGS_KEY });
       toast.success(t("admin.transcodeCache.settingsSaved", "Réglages de transcodage enregistrés"));

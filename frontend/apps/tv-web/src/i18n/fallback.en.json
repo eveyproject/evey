@@ -1568,6 +1568,7 @@
   "admin.transcodeCache.hwAccelNoteLink": "Go to Transcoding",
   "admin.transcodeCache.hwDevices": "Hardware Acceleration",
   "admin.transcodeCache.maxConcurrent": "Max Concurrent",
+  "admin.transcodeCache.maxConcurrentInvalid": "Enter a whole number of at least 1, or leave the field empty for the server default.",
   "admin.transcodeCache.settingsSaveFailed": "Failed to save settings",
   "admin.transcodeCache.settingsSaved": "Settings saved",
   "admin.transcodeCache.tableHeaders.file": "File",
