@@ -35,6 +35,8 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		communityRating                                 sql.NullFloat64
 		officialRating                                  sql.NullString
 		certJSON, providerRatingsJSON, trailersJSON     []byte
+		seriesOfficialRating                            sql.NullString
+		seriesCertJSON, seriesTagsJSON                  []byte
 	)
 
 	if err := src.Scan(
@@ -44,6 +46,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 		&filePath, &fileSize, &fingerprint, &modTimeRaw, &durationMs, &bitrate, &containerFormat, &streamProbeAttempts, &interleaveBackstepMs, &streamProbeVersion,
 		&premiereDate, &year, &providerJSON, &genresJSON, &studiosJSON, &tagsJSON,
 		&communityRating, &officialRating, &certJSON, &providerRatingsJSON,
+		&seriesOfficialRating, &seriesCertJSON, &seriesTagsJSON,
 		&trailersJSON,
 	); err != nil {
 		return err
@@ -72,6 +75,7 @@ func scanMediaItemFields(src rowScanner, item *library.MediaItem) error {
 	}
 	item.Catalog = cat
 	item.Classification = buildMediaClassification(communityRating, officialRating, certJSON, providerRatingsJSON)
+	item.SeriesParental = buildSeriesParental(seriesOfficialRating, seriesCertJSON, seriesTagsJSON)
 
 	// Trailers (1:N → JSONB array via subquery → flat slice).
 	if len(trailersJSON) > 0 {
@@ -187,6 +191,30 @@ func buildMediaClassification(communityRating sql.NullFloat64, officialRating sq
 		}
 	}
 	return cl
+}
+
+// buildSeriesParental returns what a season or an episode inherits from its
+// series, or nil when the joins found neither a rating nor a tag. A
+// certification set that does not parse leaves the series unrated, which the
+// parental rule blocks.
+func buildSeriesParental(officialRating sql.NullString, certJSON, tagsJSON []byte) *library.SeriesParental {
+	sp := &library.SeriesParental{OfficialRating: officialRating.String}
+	if len(certJSON) > 0 {
+		if err := json.Unmarshal(certJSON, &sp.CertificationsByCountry); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "series certifications_by_country"), slog.Any("err", err))
+			sp.CertificationsByCountry = nil
+		}
+	}
+	if len(tagsJSON) > 0 {
+		if err := json.Unmarshal(tagsJSON, &sp.Tags); err != nil {
+			slog.Warn("json unmarshal", slog.String("field", "series tags"), slog.Any("err", err))
+			sp.Tags = nil
+		}
+	}
+	if sp.OfficialRating == "" && len(sp.CertificationsByCountry) == 0 && len(sp.Tags) == 0 {
+		return nil
+	}
+	return sp
 }
 
 func (r *MediaItemRepository) scanMediaItem(row *sql.Row) (*library.MediaItem, error) {

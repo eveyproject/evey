@@ -96,18 +96,36 @@ func tablesRevision() int64 {
 	return int64(h.Sum64() >> 1)
 }
 
-// Blocks is the parental rule on one item's ratings and tags, for a profile
-// capped at maxAge (-1 for none) in region and blocking blockedTags. The age is
+// Rated is what the parental rule reads off one title: its official rating,
+// its country certifications and its tags.
+type Rated struct {
+	OfficialRating string
+	Certifications map[string]string
+	Tags           []string
+}
+
+// Blocks is the parental rule for a profile capped at maxAge (-1 for none) in
+// region and blocking blockedTags. series is what a season or an episode
+// inherits from its series, nil for any other item: the age is the worst case
+// across the item and its series, and a tag on either blocks both. Each age is
 // the worst case across the region's reading of the official rating and every
 // country certification, and an age no table knows is blocked as soon as a cap
 // is set: a title rated only "AU: MA 15+" must not reach a kids profile in FR
-// for want of a French rating. A database applying the rule must hide exactly
+// for want of a French rating, and an episode, which carries no rating of its
+// own, is as old as its series. A database applying the rule must hide exactly
 // what this hides (see the identity at the top of this file).
-func Blocks(maxAge int, region string, blockedTags []string, officialRating string, certByCountry map[string]string, itemTags []string) bool {
+func Blocks(maxAge int, region string, blockedTags []string, item Rated, series *Rated) bool {
 	if maxAge >= 0 {
-		if worst := WorstCaseMinAge(region, officialRating, certByCountry); worst < 0 || worst > maxAge {
+		worst := WorstCaseMinAge(region, item.OfficialRating, item.Certifications)
+		if series != nil {
+			worst = max(worst, WorstCaseMinAge(region, series.OfficialRating, series.Certifications))
+		}
+		if worst < 0 || worst > maxAge {
 			return true
 		}
 	}
-	return HasBlockedTag(itemTags, blockedTags)
+	if series != nil && HasBlockedTag(series.Tags, blockedTags) {
+		return true
+	}
+	return HasBlockedTag(item.Tags, blockedTags)
 }

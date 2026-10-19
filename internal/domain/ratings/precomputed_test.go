@@ -100,3 +100,31 @@ func TestTablesRevisionFollowsTheTables(t *testing.T) {
 		t.Fatal("editing an age left the revision unchanged")
 	}
 }
+
+// A season or an episode is as old as its series and carries its tags; a
+// rating of its own can raise the age, never lower it.
+func TestBlocksInheritsTheSeries(t *testing.T) {
+	allAges := &Rated{OfficialRating: "TP"}
+	adult := &Rated{OfficialRating: "-16"}
+	horror := &Rated{OfficialRating: "TP", Tags: []string{"Horror"}}
+	tests := []struct {
+		name   string
+		item   Rated
+		series *Rated
+		want   bool
+	}{
+		{"an unrated episode of an all-ages series", Rated{}, allAges, false},
+		{"an unrated episode of a -16 series", Rated{}, adult, true},
+		{"an unrated episode with no series", Rated{}, nil, true},
+		{"an episode rated -16 in an all-ages series", Rated{OfficialRating: "-16"}, allAges, true},
+		{"an episode rated TP in a -16 series", Rated{OfficialRating: "TP"}, adult, true},
+		{"an episode of a series tagged horror", Rated{}, horror, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Blocks(12, "FR", []string{"horror"}, tt.item, tt.series); got != tt.want {
+				t.Errorf("Blocks = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

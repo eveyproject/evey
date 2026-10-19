@@ -134,31 +134,39 @@ func (r *MediaItemRepository) buildWhereClause(f library.ListMediaItemsFilter) (
 		conditions = append(conditions, "(mcl.official_rating IS NULL OR mcl.official_rating = '' OR mcl.official_rating = ANY(ARRAY["+strings.Join(placeholders, ",")+"]))")
 	}
 	if p := f.Parental; p != nil {
-		// library.ParentalRule.Blocks in SQL. The worst-case age is the larger
-		// of the stored certification age and the region's reading of the
-		// stored rating key (ratings/precomputed.go): within the cap on both,
-		// and known on at least one, or the item is hidden. A missing row or
-		// one computed under other rating tables is unknown, hence hidden.
+		// ratings.Blocks in SQL, on the item's own classification (mcl) and,
+		// for a season or an episode, its series' (scl, see
+		// mediaItemFromJoins). The worst-case age is the largest of the stored
+		// certification ages and the region's reading of the stored rating
+		// keys (ratings/precomputed.go): within the cap on every one, and
+		// known on at least one, or the item is hidden. A missing row adds
+		// nothing; a row computed under other rating tables hides the item.
 		if p.MaxAge >= 0 {
 			allowed, blocked := ratings.RatingKeysForRegion(p.Region, p.MaxAge)
 			// Never NULL: pq.Array(nil) binds NULL, ANY(NULL) is NULL, and the
 			// whole predicate would hide everything.
 			allowed, blocked = append([]string{}, allowed...), append([]string{}, blocked...)
 			conditions = append(conditions, fmt.Sprintf(
-				`(mcl.parental_rev = $%d AND mcl.cert_min_age <= $%d
-				  AND NOT (mcl.rating_key = ANY($%d::text[]))
-				  AND (mcl.cert_min_age >= 0 OR mcl.rating_key = ANY($%d::text[])))`,
+				`((mcl.media_item_id IS NULL OR mcl.parental_rev = $%[1]d)
+				  AND (scl.media_item_id IS NULL OR scl.parental_rev = $%[1]d)
+				  AND COALESCE(mcl.cert_min_age, -1) <= $%[2]d AND COALESCE(scl.cert_min_age, -1) <= $%[2]d
+				  AND NOT (COALESCE(mcl.rating_key, '') = ANY($%[3]d::text[]))
+				  AND NOT (COALESCE(scl.rating_key, '') = ANY($%[3]d::text[]))
+				  AND (mcl.cert_min_age >= 0 OR mcl.rating_key = ANY($%[4]d::text[])
+				       OR scl.cert_min_age >= 0 OR scl.rating_key = ANY($%[4]d::text[])))`,
 				argIdx, argIdx+1, argIdx+2, argIdx+3))
 			args = append(args, ratings.TablesRevision, p.MaxAge, pq.Array(blocked), pq.Array(allowed))
 			argIdx += 4
 		}
 		// HasBlockedTag trims and lower-cases both sides. Postgres E'' has no
 		// \v escape (it reads as the letter v), hence \x0b. Unicode spaces
-		// strings.TrimSpace also strips are not trimmed here.
+		// strings.TrimSpace also strips are not trimmed here. A series' tag
+		// blocks its seasons and episodes too.
 		if tags := p.NormalizedBlockedTags(); len(tags) > 0 {
 			conditions = append(conditions, fmt.Sprintf(
-				`NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(mc.tags) AS pt
-				              WHERE lower(btrim(pt, E' \t\n\r\f\x0b')) = ANY($%d::text[]))`, argIdx))
+				`NOT EXISTS (SELECT 1 FROM (SELECT jsonb_array_elements_text(mc.tags)
+				                            UNION ALL SELECT jsonb_array_elements_text(sct.tags)) AS pt(tag)
+				              WHERE lower(btrim(pt.tag, E' \t\n\r\f\x0b')) = ANY($%d::text[]))`, argIdx))
 			args = append(args, pq.Array(tags))
 			argIdx++
 		}

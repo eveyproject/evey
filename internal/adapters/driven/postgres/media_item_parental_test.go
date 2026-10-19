@@ -40,6 +40,44 @@ func parentalCorpus(t *testing.T, ctx context.Context, itemRepo *postgres.MediaI
 	}
 	bare := newTestMediaItem("pr-bare", lib.ID)
 	require.NoError(t, itemRepo.Create(ctx, bare))
+
+	// Series, each with a season and two episodes: one with no rating of its
+	// own, as every scanned episode is, and one carrying a rating, which the
+	// series' must not lower.
+	n = 0
+	for _, official := range officials {
+		for _, certs := range certSets[:4] {
+			for _, tags := range tagSets[:2] {
+				series := newTestMediaItem(fmt.Sprintf("ps-%03d", n), lib.ID)
+				series.Type = library.Series
+				series.Catalog.Tags = tags
+				series.Classification = &library.MediaClassification{OfficialRating: official, CertificationsByCountry: certs}
+				require.NoError(t, itemRepo.Create(ctx, series))
+				season := newTestMediaItem(fmt.Sprintf("ps-%03d-s", n), lib.ID)
+				season.Type, season.ParentID = library.Season, string(series.ID)
+				require.NoError(t, itemRepo.Create(ctx, season))
+				ep := newTestMediaItem(fmt.Sprintf("ps-%03d-e1", n), lib.ID)
+				ep.Type, ep.ParentID = library.Episode, string(season.ID)
+				require.NoError(t, itemRepo.Create(ctx, ep))
+				rated := newTestMediaItem(fmt.Sprintf("ps-%03d-e2", n), lib.ID)
+				rated.Type, rated.ParentID = library.Episode, string(season.ID)
+				rated.Classification = &library.MediaClassification{OfficialRating: officials[(n+5)%len(officials)]}
+				require.NoError(t, itemRepo.Create(ctx, rated))
+				n++
+			}
+		}
+	}
+	// An episode whose series has no rating, and one with no series at all.
+	unrated := newTestMediaItem("ps-unrated", lib.ID)
+	unrated.Type = library.Series
+	require.NoError(t, itemRepo.Create(ctx, unrated))
+	ep := newTestMediaItem("ps-unrated-e", lib.ID)
+	ep.Type, ep.ParentID = library.Episode, string(unrated.ID)
+	require.NoError(t, itemRepo.Create(ctx, ep))
+	orphan := newTestMediaItem("ps-orphan-e", lib.ID)
+	orphan.Type = library.Episode
+	orphan.Classification = &library.MediaClassification{OfficialRating: "PG"}
+	require.NoError(t, itemRepo.Create(ctx, orphan))
 }
 
 func parentalRules() []library.ParentalRule {
@@ -57,27 +95,49 @@ func parentalRules() []library.ParentalRule {
 	return out
 }
 
-// parentalBlocks is ratings.Blocks on a scanned item.
+// parentalBlocks is ratings.Blocks on a scanned item, with what a season or
+// an episode inherits from its series.
 func parentalBlocks(rule library.ParentalRule, it *library.MediaItem) bool {
-	var official string
-	var certs map[string]string
+	own := ratings.Rated{}
 	if it.Classification != nil {
-		official, certs = it.Classification.OfficialRating, it.Classification.CertificationsByCountry
+		own.OfficialRating, own.Certifications = it.Classification.OfficialRating, it.Classification.CertificationsByCountry
 	}
-	var tags []string
 	if it.Catalog != nil {
-		tags = it.Catalog.Tags
+		own.Tags = it.Catalog.Tags
 	}
-	return ratings.Blocks(rule.MaxAge, rule.Region, rule.BlockedTags, official, certs, tags)
+	var series *ratings.Rated
+	if sp := it.SeriesParental; sp != nil {
+		series = &ratings.Rated{OfficialRating: sp.OfficialRating, Certifications: sp.CertificationsByCountry, Tags: sp.Tags}
+	}
+	return ratings.Blocks(rule.MaxAge, rule.Region, rule.BlockedTags, own, series)
+}
+
+// listAllIDs walks every item filter selects, by id, past List's 500-row cap.
+func listAllIDs(t *testing.T, ctx context.Context, queryRepo *postgres.MediaItemQueryRepoAdapter, filter library.ListMediaItemsFilter) ([]*library.MediaItem, []string) {
+	t.Helper()
+	var items []*library.MediaItem
+	var ids []string
+	filter.Limit, filter.KeysetByID = 500, true
+	for {
+		page, err := queryRepo.List(ctx, filter)
+		require.NoError(t, err)
+		if len(page) == 0 {
+			return items, ids
+		}
+		for _, it := range page {
+			items = append(items, it)
+			ids = append(ids, string(it.ID))
+		}
+		filter.AfterID = string(page[len(page)-1].ID)
+	}
 }
 
 // assertParentalParity lists the library under each rule in SQL and checks the
 // result is exactly the items ratings.Blocks lets through.
 func assertParentalParity(t *testing.T, ctx context.Context, queryRepo *postgres.MediaItemQueryRepoAdapter, libID shared.LibraryID) {
 	t.Helper()
-	all, err := queryRepo.List(ctx, library.ListMediaItemsFilter{LibraryID: &libID, Limit: 10000})
-	require.NoError(t, err)
-	require.NotEmpty(t, all)
+	all, _ := listAllIDs(t, ctx, queryRepo, library.ListMediaItemsFilter{LibraryID: &libID})
+	require.Greater(t, len(all), 500, "the corpus spans more than one page")
 	for _, rule := range parentalRules() {
 		var want []string
 		for _, it := range all {
@@ -85,12 +145,7 @@ func assertParentalParity(t *testing.T, ctx context.Context, queryRepo *postgres
 				want = append(want, string(it.ID))
 			}
 		}
-		got, err := queryRepo.List(ctx, library.ListMediaItemsFilter{LibraryID: &libID, Limit: 10000, Parental: &rule})
-		require.NoError(t, err)
-		gotIDs := make([]string, 0, len(got))
-		for _, it := range got {
-			gotIDs = append(gotIDs, string(it.ID))
-		}
+		_, gotIDs := listAllIDs(t, ctx, queryRepo, library.ListMediaItemsFilter{LibraryID: &libID, Parental: &rule})
 		slices.Sort(want)
 		slices.Sort(gotIDs)
 		require.Equal(t, want, gotIDs, "rule %+v: SQL and ratings.Blocks disagree", rule)
@@ -113,6 +168,15 @@ func TestParentalRule_SQLMatchesGo(t *testing.T) {
 	libID := lib.ID
 	assertParentalParity(t, ctx, queryRepo, libID)
 
+	// What the inheritance is for: an episode, which carries no rating of its
+	// own, is as old as its series. ps-048 is the "TP" series, ps-032 the "R".
+	kid := library.ParentalRule{MaxAge: 12, Region: "FR"}
+	_, seenIDs := listAllIDs(t, ctx, queryRepo, library.ListMediaItemsFilter{LibraryID: &libID, Parental: &kid})
+	assert.Contains(t, seenIDs, "ps-048-e1", "an all-ages series' episode reaches a 12-year-old")
+	assert.Contains(t, seenIDs, "ps-048-s", "and so does its season")
+	assert.NotContains(t, seenIDs, "ps-032-e1", "an R series' episode does not")
+	assert.NotContains(t, seenIDs, "ps-unrated-e", "nor one whose series has no rating")
+
 	// Rows the migration left uncomputed, or computed under other rating
 	// tables, are unknown: a capped profile sees none of them until the
 	// startup refresh rewrites them, after which the parity holds again.
@@ -121,8 +185,7 @@ func TestParentalRule_SQLMatchesGo(t *testing.T) {
 	_, err = db.ExecContext(ctx, `UPDATE media_classifications SET parental_rev = 1 WHERE media_item_id >= 'pr-100'`)
 	require.NoError(t, err)
 	open := library.ParentalRule{MaxAge: 18, Region: "FR"}
-	hidden, err := queryRepo.List(ctx, library.ListMediaItemsFilter{LibraryID: &libID, Limit: 10000, Parental: &open})
-	require.NoError(t, err)
+	hidden, _ := listAllIDs(t, ctx, queryRepo, library.ListMediaItemsFilter{LibraryID: &libID, Parental: &open})
 	assert.Empty(t, hidden, "a stale row must read as unknown")
 
 	n, err := itemRepo.RefreshParentalRatings(ctx)

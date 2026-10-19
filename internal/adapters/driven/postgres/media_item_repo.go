@@ -38,15 +38,24 @@ const mediaItemColumns = `mi.id, mi.library_id, mi.parent_id, mi.type, mi.title,
 	 mf.file_path, mf.file_size, mf.file_fingerprint, mf.mod_time, mf.duration_ms, mf.bitrate, mf.container_format, mf.stream_probe_attempts, mf.interleave_backstep_ms, mf.stream_probe_version,
 	 mc.premiere_date, mc.year, mc.provider_ids, mc.genres, mc.studios, mc.tags,
 	 mcl.community_rating, mcl.official_rating, mcl.certifications_by_country, mcl.provider_ratings,
+	 scl.official_rating, scl.certifications_by_country, sct.tags,
 	 COALESCE((SELECT jsonb_agg(jsonb_build_object('Site', mt.site, 'Key', mt.key,
 	     'Language', mt.language, 'Official', mt.official, 'Type', mt.type,
 	     'UseSubtitles', mt.use_subtitles, 'SubtitleLanguage', mt.subtitle_language) ORDER BY mt.position)
 	     FROM media_trailers mt WHERE mt.media_item_id = mi.id), '[]'::jsonb) AS trailers`
 
+// mediaItemFromJoins also joins, for a season or an episode, its series'
+// classification (scl) and catalog (sct): the parental rule reads them
+// (MediaItem.SeriesParental). mip is the item's parent, the series itself for
+// a season, the season for an episode. Each join is on a primary key, one row
+// at most, so no query built on this counts an item twice.
 const mediaItemFromJoins = `FROM media_items mi
 	 LEFT JOIN media_files mf ON mf.media_item_id = mi.id
 	 LEFT JOIN media_catalog mc ON mc.media_item_id = mi.id
-	 LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id`
+	 LEFT JOIN media_classifications mcl ON mcl.media_item_id = mi.id
+	 LEFT JOIN media_items mip ON mip.id = mi.parent_id AND mi.type IN ('season', 'episode')
+	 LEFT JOIN media_classifications scl ON scl.media_item_id = CASE mip.type WHEN 'series' THEN mip.id WHEN 'season' THEN mip.parent_id END
+	 LEFT JOIN media_catalog sct ON sct.media_item_id = CASE mip.type WHEN 'series' THEN mip.id WHEN 'season' THEN mip.parent_id END`
 
 type MediaItemRepository struct {
 	db *sql.DB
