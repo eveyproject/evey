@@ -604,9 +604,12 @@ func (rs *resourceState) throughputPlateaued(tier int) (bool, int64) {
 // anything. Near the end of a bisection two sizes are a few percent apart
 // (65 and 67 viewers, 2026-10-16): the gain expected between them is smaller
 // than the window-to-window spread of the throughput, and the comparison flagged
-// a plateau on noise. Fifteen percent more viewers is a gain the spread cannot
-// hide.
-const plateauMinHeadcountRatio = 1.15
+// a plateau on noise. Fifteen percent was not enough either (prod 2026-10-19):
+// one size spread 16 % over its own windows, and 59 viewers were condemned
+// against 51 on a window inside that spread. One window a fraction s below its
+// regime, at r times the reference's headcount, clears the bar of half the
+// expected gain when r(1-s) >= 1+(r-1)/2, so r >= 1/(1-2s): 1.5 for s = 16 %.
+const plateauMinHeadcountRatio = 1.5
 
 // bestMeasuredServed is the highest served throughput among the tiers AT OR
 // BELOW `limit` that were measured under a full window, and the headcount that
