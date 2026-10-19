@@ -41,6 +41,8 @@ import { useMostPopular } from "../../../src/hooks/usePopular";
 import { CollectionRow } from "../../../src/components/CollectionRow";
 import { PluginSlot } from "../../../src/features/plugins/PluginSlot";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
+import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { coverArtUri } from "../../../src/lib/coverArtUri";
 import { FEED_TYPES, resolveMaxItems } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { ROW_CARD_WIDTH } from "../../../src/lib/rowCardWidth";
@@ -52,7 +54,7 @@ interface PhotoAlbumLite { name?: string; coverPhotoId?: string; photoCount?: nu
 function MusicLibraryRow({ libraryId, name, maxItems }: { libraryId: string; name: string; maxItems?: number }) {
   const theme = useTheme();
   const serverUrl = useServerUrl();
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const authHeaders = useAuthHeaders();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["music", "albums", libraryId],
     queryFn: () => eveyFetch<{ albums: MusicAlbumLite[] }>({ url: `/api/v1/music/albums?library_id=${libraryId}`, method: "GET" }),
@@ -66,12 +68,6 @@ function MusicLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
   // (see renderSection above).
   if (isError) return <LoadFailed inline onRetry={() => void refetch()} />;
   if (!isLoading && albums.length === 0) return null;
-  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
-  // The album card is 120dp - decoding the full-res original for a strip of
-  // up to 20 thumbnails is the exact cost /api/v1/music/album-art/{hash}?w=
-  // exists to avoid. 185 is the smallest resize bucket the endpoint supports,
-  // still crisp at ~1.5x the card size.
-  const artQuery = `?w=185${tokenParam ? `&${tokenParam.slice(1)}` : ""}`;
   return (
     <View style={{ marginVertical: 8 }}>
       <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700", marginHorizontal: 16, marginBottom: 8 }}>{name}</Text>
@@ -88,16 +84,14 @@ function MusicLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
               {a.coverArtUrl ? (
                 <Image
                   cachePolicy="memory-disk"
-                  // The server returns a relative path like /api/v1/...; web's
-                  // CSS background-url resolves that against the current origin
-                  // automatically but expo-image refuses relative URIs, so we
-                  // have to prefix the active server explicitly. ?w= only
-                  // applies to our own album-art endpoint, not external URLs.
+                  // The music screen's rule: the server prefixed, a display-
+                  // sized ?w= on our own art, another host's cover untouched,
+                  // and the token in the header - in the query it reached every
+                  // proxy log and changed the URL at each refresh, so the image
+                  // cache missed (the posters' fix, 9ab318eeb).
                   source={{
-                    // An absolute cover is another host's: never with the token.
-                    uri: /^https?:/i.test(a.coverArtUrl)
-                      ? a.coverArtUrl
-                      : `${serverUrl ?? ""}${a.coverArtUrl}${artQuery}`,
+                    uri: coverArtUri(serverUrl, a.coverArtUrl, 120),
+                    headers: /^https?:/i.test(a.coverArtUrl) ? undefined : authHeaders,
                   }}
                   style={{ width: "100%", height: "100%" }}
                   contentFit="cover"
@@ -115,8 +109,9 @@ function MusicLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
 
 function PhotoLibraryRow({ libraryId, name, maxItems }: { libraryId: string; name: string; maxItems?: number }) {
   const theme = useTheme();
+  const { t } = useTranslation();
   const serverUrl = useServerUrl();
-  const accessToken = useAuthStore((s) => s.accessToken);
+  const authHeaders = useAuthHeaders();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["photos", "albums", libraryId],
     queryFn: () => eveyFetch<{ albums: PhotoAlbumLite[] }>({ url: `/api/v1/photos/albums?library_id=${libraryId}`, method: "GET" }),
@@ -130,7 +125,6 @@ function PhotoLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
   // (see renderSection above).
   if (isError) return <LoadFailed inline onRetry={() => void refetch()} />;
   if (!isLoading && albums.length === 0) return null;
-  const tokenParam = accessToken ? `?token=${encodeURIComponent(accessToken)}` : "";
   return (
     <View style={{ marginVertical: 8 }}>
       <Text style={{ color: theme.colors.text, fontSize: 16, fontWeight: "700", marginHorizontal: 16, marginBottom: 8 }}>{name}</Text>
@@ -149,7 +143,9 @@ function PhotoLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
                 {a.coverPhotoId && serverUrl ? (
                   <Image
                     cachePolicy="memory-disk"
-                    source={{ uri: `${serverUrl}/api/v1/photos/${a.coverPhotoId}/serve${tokenParam}&w=400&fmt=webp` }}
+                    // Token in the header, like the photos screen: with no
+                    // token the query started with "&" and never reached ?w=.
+                    source={{ uri: `${serverUrl}/api/v1/photos/${a.coverPhotoId}/serve?w=400&fmt=webp`, headers: authHeaders }}
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
                   />
@@ -157,7 +153,7 @@ function PhotoLibraryRow({ libraryId, name, maxItems }: { libraryId: string; nam
               </View>
               <Text numberOfLines={1} style={{ color: theme.colors.text, fontSize: 13, marginTop: 4 }}>{last}</Text>
               <Text numberOfLines={1} style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-                {a.photoCount ?? 0} {(a.photoCount ?? 0) > 1 ? "photos" : "photo"}
+                {t("media.photos.photoCount", { count: a.photoCount ?? 0 })}
               </Text>
             </Pressable>
           );

@@ -30,7 +30,7 @@ vi.mock("react-native", () => ({
 
 // --- expo-image / expo-router -------------------------------------------------------
 vi.mock("expo-image", () => ({
-  Image: ({ source, ...p }: any) => React.createElement("img", { src: source?.uri, alt: "", ...p }),
+  Image: ({ source, ...p }: any) => React.createElement("img", { src: source?.uri, "data-auth": source?.headers?.Authorization, alt: "", ...p }),
 }));
 vi.mock("expo-router", () => ({
   router: { push: vi.fn() },
@@ -54,6 +54,7 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 
 // --- misc hooks/components not under test ------------------------------------------
 vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrl: () => "http://test-server" }));
+vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({ useAuthHeaders: () => ({ Authorization: "Bearer jwt" }) }));
 vi.mock("../../../src/hooks/useWatchedMap", () => ({ useWatchedMap: () => ({ get: () => false }) }));
 vi.mock("../../../src/features/plugins/PluginSlot", () => ({ PluginSlot: () => null }));
 vi.mock("../../../src/components/Skeleton", () => ({
@@ -89,6 +90,8 @@ let popularError = false;
 let popularItems: unknown[] = [];
 const popularRefetch = vi.fn();
 
+let musicAlbums: unknown[] = [];
+let photoAlbums: unknown[] = [];
 let musicAlbumsError = false;
 const musicAlbumsRefetch = vi.fn();
 let photoAlbumsError = false;
@@ -104,10 +107,10 @@ vi.mock("@tanstack/react-query", () => ({
       return { data: { collections: [] }, isLoading: false, isError: false, refetch: vi.fn() };
     }
     if (opts.queryKey[0] === "music") {
-      return { data: [], isLoading: false, isError: musicAlbumsError, refetch: musicAlbumsRefetch };
+      return { data: musicAlbums, isLoading: false, isError: musicAlbumsError, refetch: musicAlbumsRefetch };
     }
     if (opts.queryKey[0] === "photos") {
-      return { data: [], isLoading: false, isError: photoAlbumsError, refetch: photoAlbumsRefetch };
+      return { data: photoAlbums, isLoading: false, isError: photoAlbumsError, refetch: photoAlbumsRefetch };
     }
     if (opts.queryKey[0] === "/api/v1/plugins") {
       return { data: installedPlugins, isLoading: false, isError: false, refetch: vi.fn() };
@@ -167,6 +170,8 @@ beforeEach(() => {
   popularItems = [];
   resetMutateAsync.mockClear();
   musicAlbumsError = false;
+  musicAlbums = [];
+  photoAlbums = [];
   photoAlbumsError = false;
   feedLibraries = [];
   feedConfigsOverride = null;
@@ -195,6 +200,30 @@ describe("HomeScreen - most_popular shelf, loading vs failure vs empty", () => {
     render(<HomeScreen />);
     expect(screen.queryByText("common.loadError")).toBeNull();
     expect(screen.queryByText("media.home.mostPopular")).toBeNull();
+  });
+});
+
+// The token rode the artwork query: it reached every proxy log and changed the
+// URL at each refresh, so the image cache missed. With no token, the photo URL
+// started its query with "&" and the resize never applied.
+describe("HomeScreen - music/photo row artwork", () => {
+  it("sends the token in a header, never in the artwork URL", () => {
+    feedLibraries = [{ id: "m1", name: "Musique", type: "LIBRARY_TYPE_MUSIC" }, { id: "p1", name: "Photos", type: "LIBRARY_TYPE_PHOTOS" }];
+    feedConfigsOverride = [{ feedType: "library:m1", enabled: true, displayOrder: 0 }, { feedType: "library:p1", enabled: true, displayOrder: 1 }];
+    musicAlbums = [{ id: "a1", title: "Album", coverArtUrl: "/api/v1/music/album-art/abc" }, { id: "a2", title: "Remote", coverArtUrl: "https://covers.example/x.jpg" }];
+    photoAlbums = [{ name: "2024/Summer", coverPhotoId: "ph1", photoCount: 3 }];
+    const { container } = render(<HomeScreen />);
+    const imgs = Array.from(container.querySelectorAll("img"));
+    const art = imgs.find((i) => i.getAttribute("src")?.includes("album-art"))!;
+    expect(art.getAttribute("src")).toMatch(/^http:\/\/test-server\/api\/v1\/music\/album-art\/abc\?w=\d+$/);
+    expect(art.getAttribute("data-auth")).toBe("Bearer jwt");
+    const remote = imgs.find((i) => i.getAttribute("src")?.startsWith("https://covers.example"))!;
+    expect(remote.getAttribute("data-auth")).toBeNull();
+    const photo = imgs.find((i) => i.getAttribute("src")?.includes("/photos/"))!;
+    expect(photo.getAttribute("src")).toBe("http://test-server/api/v1/photos/ph1/serve?w=400&fmt=webp");
+    expect(photo.getAttribute("data-auth")).toBe("Bearer jwt");
+    expect(imgs.every((i) => !i.getAttribute("src")?.includes("token="))).toBe(true);
+    expect(screen.getByText("media.photos.photoCount")).toBeTruthy();
   });
 });
 
