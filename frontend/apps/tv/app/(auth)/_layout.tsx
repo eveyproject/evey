@@ -14,7 +14,8 @@ import { DemoBanner } from "../../src/components/DemoBanner";
 import { ProfileLockScreen } from "../../src/components/ProfileLockScreen";
 import { InterruptedPlaybackPrompt } from "../../src/components/InterruptedPlaybackPrompt";
 import { takeInterrupted, resumeRoute, type InterruptedPlayback } from "../../src/lib/interruptedPlayback";
-import { refreshAccessTokenIfNeeded } from "../../src/lib/auth-refresh";
+import { ensureAccessToken } from "../../src/lib/auth-refresh";
+import { ScreenState } from "../../src/components/ScreenState";
 import { resolveServerUrl } from "../../src/lib/server-config";
 import { initI18n } from "../../src/i18n";
 import { useTheme } from "../../src/providers/ThemeProvider";
@@ -32,7 +33,10 @@ function isTokenExpired(token: string): boolean {
 
 export default function AuthLayout() {
   const theme = useTheme();
-  const [renewalDone, setRenewalDone] = useState(false);
+  // Each expired token gets its own renewal: a verdict reached for an earlier
+  // token says nothing about this one.
+  const [renewal, setRenewal] = useState<{ token: string; outcome: "done" | "unavailable" } | null>(null);
+  const [renewalAttempt, setRenewalAttempt] = useState(0);
   const accessToken = useAuthStore((s) => s.accessToken);
   const profileId = useAuthStore((s) => s.profileId);
   const logout = useAuthStore((s) => s.logout);
@@ -75,29 +79,40 @@ export default function AuthLayout() {
   // An expired access token is not a logged-out viewer: the refresh token
   // outlives it by design. Try the silent renewal before sending a TV back to
   // a password form it has no keyboard for.
+  // Only the server REFUSING the refresh token ends the session. A server that
+  // did not answer (network down, proxy 502, a restart during a deployment)
+  // left the session alive, and logging out over it threw away a valid
+  // refresh token: the TV woke up on a password form it has no keyboard for.
+  // A renewal that throws (an unreadable keystore) has no token left to try:
+  // sign-in, as before.
   const needsRenewal = !!accessToken && isTokenExpired(accessToken);
+  const renewalState = needsRenewal && renewal?.token === accessToken ? renewal.outcome : needsRenewal ? "pending" : "done";
   useEffect(() => {
-    if (!needsRenewal) return;
+    if (!needsRenewal || !accessToken) return;
+    const token = accessToken;
     let cancelled = false;
-    // A renewal that throws (an unreadable keystore) failed like any other:
-    // without the catch the spinner below never gave way.
-    void refreshAccessTokenIfNeeded().catch((err) => {
-      console.warn("evey-auth renewal", err);
-      return false;
-    }).then((ok) => {
+    void ensureAccessToken().then((state) => {
       if (cancelled) return;
-      if (!ok) logout();
-      setRenewalDone(true);
+      if (state === "refused") logout();
+      setRenewal({ token, outcome: state === "unavailable" ? "unavailable" : "done" });
+    }).catch((err) => {
+      console.warn("evey-auth renewal", err);
+      if (cancelled) return;
+      logout();
+      setRenewal({ token, outcome: "done" });
     });
     return () => { cancelled = true; };
-  }, [needsRenewal, logout]);
+  }, [needsRenewal, accessToken, renewalAttempt, logout]);
 
-  if (needsRenewal && !renewalDone) {
+  if (renewalState === "pending") {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: theme.colors.bg }}>
         <ActivityIndicator color={theme.colors.accent} size="large" />
       </View>
     );
+  }
+  if (renewalState === "unavailable") {
+    return <ScreenState error onRetry={() => { setRenewal(null); setRenewalAttempt((n) => n + 1); }} />;
   }
 
   if (!accessToken || isTokenExpired(accessToken)) {

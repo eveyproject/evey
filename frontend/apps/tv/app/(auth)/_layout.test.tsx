@@ -64,8 +64,11 @@ vi.mock("../../src/components/TVMusicPlayer", () => ({ TVMusicPlayer: () => null
 const initI18nMock = vi.fn(async (_url: string) => undefined);
 vi.mock("../../src/i18n", () => ({ initI18n: (url: string) => initI18nMock(url) }));
 vi.mock("../../src/lib/server-config", () => ({ resolveServerUrl: async () => "http://srv:9091" }));
-const refreshMock = vi.fn(async () => true);
-vi.mock("../../src/lib/auth-refresh", () => ({ refreshAccessTokenIfNeeded: () => refreshMock() }));
+const refreshMock = vi.fn(async (): Promise<string> => "valid");
+vi.mock("../../src/lib/auth-refresh", () => ({ ensureAccessToken: () => refreshMock() }));
+vi.mock("../../src/components/ScreenState", () => ({
+  ScreenState: ({ onRetry }: { onRetry?: () => void }) => React.createElement("button", { "data-testid": "renewal-retry", onClick: onRetry }, "retry"),
+}));
 vi.mock("../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", accent: "#88f" } }),
 }));
@@ -76,7 +79,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   pathnameMock = "/media/123";
   tokenMock = FAKE_TOKEN;
-  refreshMock.mockResolvedValue(true);
+  refreshMock.mockResolvedValue("valid");
 });
 
 describe("AuthLayout home shortcut", () => {
@@ -141,5 +144,27 @@ describe("AuthLayout token renewal", () => {
     await vi.waitFor(() => expect(screen.getByTestId("redirect").getAttribute("data-href")).toBe("/login"));
     expect(screen.queryByTestId("spinner")).toBeNull();
     warn.mockRestore();
+  });
+
+  it("signs out when the server refuses the refresh token", async () => {
+    tokenMock = EXPIRED_TOKEN;
+    refreshMock.mockResolvedValue("refused");
+    render(<AuthLayout />);
+    await vi.waitFor(() => expect(logoutMock).toHaveBeenCalledOnce());
+  });
+
+  // A server that did not answer (a restart during a deployment, a proxy 502)
+  // left the session alive: logging out threw a valid refresh token away and
+  // left the TV on a password form.
+  it("keeps the session and offers a retry when the server does not answer", async () => {
+    tokenMock = EXPIRED_TOKEN;
+    refreshMock.mockResolvedValue("unavailable");
+    render(<AuthLayout />);
+    await vi.waitFor(() => expect(screen.getByTestId("renewal-retry")).toBeTruthy());
+    expect(logoutMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("redirect")).toBeNull();
+    fireEvent.click(screen.getByTestId("renewal-retry"));
+    await vi.waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(2));
+    expect(logoutMock).not.toHaveBeenCalled();
   });
 });
