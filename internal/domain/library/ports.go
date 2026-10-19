@@ -53,7 +53,11 @@ type ListMediaItemsFilter struct {
 	// SortField - repos return shared.ErrCursorMismatch otherwise.
 	Cursor         shared.Cursor
 	AllowedRatings []string // parental control: if set, only items with official_rating in this list (or empty rating) are returned
-	PersonID       *string  // filter to items featuring this person
+	// Parental, when set, hides exactly the items ratings.Blocks hides,
+	// in the query itself. AllowedRatings is a looser pre-filter that leaves
+	// the strict pass to the caller.
+	Parental *ParentalRule
+	PersonID *string // filter to items featuring this person
 	// MissingProviderIDs filters by whether the item's Catalog.ProviderIDs is
 	// effectively empty (NULL row in media_catalog or provider_ids = '{}').
 	// nil = no filter; true = only orphans; false = only matched items.

@@ -262,27 +262,17 @@ func (r *MediaItemQueryRepoAdapter) ListGenres(ctx context.Context, libraryID sh
 // ListStreamFacets returns the distinct stream values of the items filter
 // selects, in one pass over their streams. The item side is List's own WHERE
 // (buildWhereClause), so the library, type and parental pre-filter are the
-// grid's, never a second copy of them. The join walks
+// grid's, never a second copy of them; the parental rule included, so a kids
+// profile's facets come from the titles it may see. The join walks
 // idx_media_items_library_id then idx_media_streams_media_item_id; no other
 // index helps a DISTINCT over every stream of a library.
-func (r *MediaItemQueryRepoAdapter) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter, itemIDs []shared.MediaItemID) (library.StreamFacets, error) {
+func (r *MediaItemQueryRepoAdapter) ListStreamFacets(ctx context.Context, filter library.ListMediaItemsFilter) (library.StreamFacets, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.ListStreamFacets")
 	defer span.End()
 	var facets library.StreamFacets
-	if itemIDs != nil && len(itemIDs) == 0 {
-		return facets, nil
-	}
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	where, args := r.items.buildWhereClause(filter)
-	if itemIDs != nil {
-		ids := make([]string, len(itemIDs))
-		for i, id := range itemIDs {
-			ids[i] = string(id)
-		}
-		args = append(args, pq.Array(ids))
-		where = whereAnd(where, fmt.Sprintf("mi.id = ANY($%d)", len(args)))
-	}
 	query := `WITH s AS (
 		SELECT ms.stream_type, ms.codec, ms.language, COALESCE(ms.width, 0) AS width, COALESCE(ms.height, 0) AS height
 		` + mediaItemFromJoins + `

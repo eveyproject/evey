@@ -153,6 +153,19 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		applibrary.WithFileSettle(applibrary.DefaultFileSettle),
 	)
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
+	// Classification rows computed under other rating tables are hidden from
+	// kids profiles until rewritten (migration 000179). A few thousand rows,
+	// seconds at most, so it runs at every start, bench instance included.
+	go func() {
+		n, err := r.MediaItem.RefreshParentalRatings(ctx)
+		if err != nil {
+			slog.ErrorContext(ctx, "refresh parental ratings", slog.Int("rewritten", n), slog.Any("err", err))
+			return
+		}
+		if n > 0 {
+			slog.InfoContext(ctx, "parental ratings refreshed", slog.Int("rewritten", n))
+		}
+	}()
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
 	mediaItemCache.Register(bus)
 	cachingPersonRepo := applibrary.NewCachingPersonRepo(r.Person, infra.personFetcher, infra.personFetcher, r.PersonTranslation, eveyi18n.SupportedLocales())

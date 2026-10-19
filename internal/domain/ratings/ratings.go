@@ -69,7 +69,13 @@ func MinAgeFor(country, rating string) int {
 			c = agencyCountry
 		}
 	}
-	if c == "" {
+	return minAgeForKey(c, r)
+}
+
+// minAgeForKey is MinAgeFor's table lookup on an already normalized country
+// and rating key: the country's table, then the US one, else -1.
+func minAgeForKey(c, r string) int {
+	if c == "" || r == "" {
 		return -1
 	}
 	if table, ok := byCountry[c]; ok {

@@ -95,20 +95,11 @@ func resolveParentalFilterFromUserQuery(ctx context.Context, userQuery *appuser.
 }
 
 // mediaItemBlockedByParental returns true if the given item violates the
-// resolved parental filter. Conservative for kids: when no rating is
-// resolvable (no certifications anywhere, no official rating mapped),
-// the item is blocked rather than silently allowed - otherwise a movie
-// like Outbreak with only "AU: MA 15+" / "GB: 15" certifications would
-// slip past a profile region'd to FR because there is no FR cert and
-// the global ratings.IsAllowedByAge defaults to permissive.
-//
-// We pick the worst-case (highest) age cap across:
-//  1. the profile's region cert (if present)
-//  2. the OfficialRating field
-//  3. every other country cert we can map
-//
-// If none of those map to a known min-age, we fail closed for the kids
-// profile.
+// resolved parental filter: ratings.Blocks, the worst case across
+// the region's reading of the official rating and every country certification,
+// an unresolvable rating blocked for kids (an admin can expose the item with a
+// metadata override if it really is suitable). An unreadable profile blocks
+// everything.
 func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool {
 	if item == nil {
 		return false
@@ -119,27 +110,23 @@ func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool
 	if pf.blockAll {
 		return true
 	}
-	if pf.maxAge >= 0 {
-		var certByCountry map[string]string
-		var officialRating string
-		if item.Classification != nil {
-			certByCountry = item.Classification.CertificationsByCountry
-			officialRating = item.Classification.OfficialRating
-		}
-		// Worst-case across the region cert, the OfficialRating and every known
-		// foreign cert. A kid profile in FR shouldn't be the place to discover
-		// that an MA 15+ Australian rating existed all along.
-		worstAge := ratings.WorstCaseMinAge(pf.region, officialRating, certByCountry)
-		if worstAge < 0 || worstAge > pf.maxAge {
-			// Unresolvable rating fails closed for kids - admin can expose the
-			// item explicitly via a metadata override if it really is suitable.
-			return true
-		}
+	return parentalRuleBlocks(*pf.rule(), item)
+}
+
+// parentalRuleBlocks applies ratings.Blocks to an item under rule.
+func parentalRuleBlocks(rule library.ParentalRule, item *library.MediaItem) bool {
+	var certByCountry map[string]string
+	var officialRating string
+	if item.Classification != nil {
+		certByCountry = item.Classification.CertificationsByCountry
+		officialRating = item.Classification.OfficialRating
 	}
-	if ratings.HasBlockedTag(itemTags(item), pf.blockedTags) {
-		return true
-	}
-	return false
+	return ratings.Blocks(rule.MaxAge, rule.Region, rule.BlockedTags, officialRating, certByCountry, itemTags(item))
+}
+
+// rule is the filter as a list query applies it (ListMediaItemsFilter.Parental).
+func (pf parentalFilter) rule() *library.ParentalRule {
+	return &library.ParentalRule{MaxAge: pf.maxAge, Region: pf.region, BlockedTags: pf.blockedTags}
 }
 
 func (h *libraryHandler) isBlockedByParental(ctx context.Context, item *library.MediaItem) bool {

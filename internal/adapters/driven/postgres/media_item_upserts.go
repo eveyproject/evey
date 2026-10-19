@@ -10,6 +10,7 @@ import (
 	"github.com/lib/pq"
 
 	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/ratings"
 )
 
 // RefreshFileState re-stamps ONLY the change-detection columns (file_size,
@@ -200,15 +201,23 @@ func itemWriteQuery(item *library.MediaItem, create bool, scanTitle, sortTitle s
 		if err != nil {
 			return "", nil, fmt.Errorf("marshal provider_ratings: %w", err)
 		}
-		ctes = append(ctes, `cli AS (INSERT INTO media_classifications (media_item_id, community_rating, official_rating, certifications_by_country, provider_ratings)
+		// The parental columns are derived here, by the Go rule, so the row
+		// never carries a rating without them (see migration 000179).
+		ctes = append(ctes, `cli AS (INSERT INTO media_classifications (media_item_id, community_rating, official_rating, certifications_by_country, provider_ratings,
+		   cert_min_age, rating_key, parental_rev)
 		 SELECT u.id, `+arg(c.CommunityRating, "double precision")+`, `+arg(c.OfficialRating, "text")+`,
-		   `+arg(string(certJSON), "jsonb")+`, `+arg(string(ratingsJSON), "jsonb")+`
+		   `+arg(string(certJSON), "jsonb")+`, `+arg(string(ratingsJSON), "jsonb")+`,
+		   `+arg(ratings.CertificationsMinAge(c.CertificationsByCountry), "smallint")+`, `+arg(ratings.RatingKey(c.OfficialRating), "text")+`,
+		   `+arg(ratings.TablesRevision, "bigint")+`
 		 FROM u WHERE true
 		 ON CONFLICT (media_item_id) DO UPDATE SET
 		   community_rating = EXCLUDED.community_rating,
 		   official_rating = EXCLUDED.official_rating,
 		   certifications_by_country = EXCLUDED.certifications_by_country,
-		   provider_ratings = EXCLUDED.provider_ratings)`)
+		   provider_ratings = EXCLUDED.provider_ratings,
+		   cert_min_age = EXCLUDED.cert_min_age,
+		   rating_key = EXCLUDED.rating_key,
+		   parental_rev = EXCLUDED.parental_rev)`)
 	} else if !create {
 		ctes = append(ctes, `cld AS (DELETE FROM media_classifications WHERE media_item_id IN (SELECT id FROM u))`)
 	}

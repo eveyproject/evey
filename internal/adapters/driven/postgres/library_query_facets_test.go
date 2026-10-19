@@ -69,7 +69,7 @@ func TestMediaItemQueryRepoAdapter_ListStreamFacets(t *testing.T) {
 	}))
 
 	libID := lib.ID
-	all, err := queryRepo.ListStreamFacets(ctx, library.ListMediaItemsFilter{LibraryID: &libID}, nil)
+	all, err := queryRepo.ListStreamFacets(ctx, library.ListMediaItemsFilter{LibraryID: &libID})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"h264", "hevc"}, all.VideoCodecs, "distinct, sorted, no empty codec, no other library")
 	assert.Equal(t, []string{"fre", "kor"}, all.AudioLanguages, "und is not a language")
@@ -79,28 +79,27 @@ func TestMediaItemQueryRepoAdapter_ListStreamFacets(t *testing.T) {
 	assert.Equal(t, []int{2160, 1080}, all.ResolutionTiers())
 
 	movie := string(library.MovieItem)
-	movies, err := queryRepo.ListStreamFacets(ctx, library.ListMediaItemsFilter{LibraryID: &libID, Type: &movie}, nil)
+	movies, err := queryRepo.ListStreamFacets(ctx, library.ListMediaItemsFilter{LibraryID: &libID, Type: &movie})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"fre"}, movies.AudioLanguages, "the episode's Korean audio is not a movie's")
 
 	// The SQL pre-filter the grid applies for a 13-year-old: R is out.
 	kids, err := queryRepo.ListStreamFacets(ctx, library.ListMediaItemsFilter{
 		LibraryID: &libID, AllowedRatings: []string{"G", "PG", "PG-13"},
-	}, nil)
+	})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"h264"}, kids.VideoCodecs)
 	assert.Equal(t, []string{"eng"}, kids.SubtitleLanguages)
 
-	only, err := queryRepo.ListStreamFacets(ctx, library.ListMediaItemsFilter{LibraryID: &libID},
-		[]shared.MediaItemID{r.ID})
+	// The whole parental rule: the unrated episode the pre-filter let through
+	// is hidden too, so its Korean audio is no chip for a kids profile.
+	strict, err := queryRepo.ListStreamFacets(ctx, library.ListMediaItemsFilter{
+		LibraryID: &libID, Parental: &library.ParentalRule{MaxAge: 13, Region: "US"},
+	})
 	require.NoError(t, err)
-	assert.Equal(t, []string{"hevc"}, only.VideoCodecs)
-	assert.Equal(t, []string{"jpn"}, only.SubtitleLanguages)
-
-	none, err := queryRepo.ListStreamFacets(ctx, library.ListMediaItemsFilter{LibraryID: &libID}, []shared.MediaItemID{})
-	require.NoError(t, err)
-	assert.Empty(t, none.VideoCodecs, "an empty item set selects nothing, it does not lift the restriction")
-	assert.Empty(t, none.AudioLanguages)
+	assert.Equal(t, []string{"h264"}, strict.VideoCodecs)
+	assert.Equal(t, []string{"fre"}, strict.AudioLanguages)
+	assert.Equal(t, []string{"eng"}, strict.SubtitleLanguages)
 }
 
 // The grouped count answers, per library, exactly what Count answers for that
