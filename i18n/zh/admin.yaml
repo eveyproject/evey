@@ -1022,6 +1022,7 @@ transcodeCache:
   maxConcurrent: "最大并发"
   settingsSaved: "设置已保存"
   settingsSaveFailed: "设置保存失败"
+  maxConcurrentInvalid: "请输入不小于 1 的整数，或留空以使用服务器默认值。"
   transcodingSettings: "转码设置"
   hwAccelNote: "硬件加速在转码 → 编码校准中设置。"
   hwAccelNoteLink: "前往转码"

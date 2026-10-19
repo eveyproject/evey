@@ -107,4 +107,19 @@ describe("admin transcode cache screen (mobile)", () => {
     fireEvent.click(screen.getByText("Enregistrer"));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Échec de l'enregistrement"));
   });
+
+  // The numeric keyboard offers "-": parseInt made NaN of it, JSON sent null,
+  // and the server dropped the cap under a "saved" toast.
+  it("refuses a cap that is not a whole number of at least 1 and sends nothing", async () => {
+    mount();
+    const max = await screen.findByLabelText("Transcodages simultanés max");
+    for (const value of ["-", "0", "1.5"]) {
+      vi.mocked(eveyFetch).mockClear();
+      vi.mocked(toast.error).mockClear();
+      fireEvent.change(max, { target: { value } });
+      fireEvent.click(screen.getByText("Enregistrer"));
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(eveyFetch).not.toHaveBeenCalledWith(expect.objectContaining({ method: "PUT" }));
+    }
+  });
 });

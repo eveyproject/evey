@@ -1022,6 +1022,7 @@ transcodeCache:
   maxConcurrent: "अधिकतम समवर्ती"
   settingsSaved: "सेटिंग्स सहेजी गईं"
   settingsSaveFailed: "सेटिंग्स सहेजने में विफल"
+  maxConcurrentInvalid: "कम से कम 1 की पूर्ण संख्या डालें, या सर्वर के डिफ़ॉल्ट मान के लिए फ़ील्ड खाली छोड़ दें।"
   transcodingSettings: "ट्रांसकोडिंग सेटिंग्स"
   hwAccelNote: "हार्डवेयर एक्सेलेरेशन ट्रांसकोडिंग → एनकोड कैलिब्रेशन में कॉन्फ़िगर किया जाता है।"
   hwAccelNoteLink: "ट्रांसकोडिंग पर जाएं"

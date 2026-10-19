@@ -1021,6 +1021,7 @@ transcodeCache:
   maxConcurrent: "Maximum simultané"
   settingsSaved: "Paramètres enregistrés"
   settingsSaveFailed: "Échec de l'enregistrement des paramètres"
+  maxConcurrentInvalid: "Saisissez un nombre entier d'au moins 1, ou laissez le champ vide pour la valeur par défaut du serveur."
   transcodingSettings: "Paramètres de transcodage"
   hwAccelNote: "L'accélération matérielle se configure dans Transcodage → Calibrage de l'encodage."
   hwAccelNoteLink: "Aller à Transcodage"
