@@ -296,11 +296,11 @@ export default function PhotosScreen() {
             </View>
           )}
           <Text style={[styles.albumTitle, { color: theme.colors.text }]} numberOfLines={1}>{item.name}</Text>
-          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{item.photoCount} photo{item.photoCount !== 1 ? "s" : ""}</Text>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{t("media.photos.photoCount", { count: item.photoCount })}</Text>
         </TouchableOpacity>
       );
     },
-    [photoThumbUrl, authHeaders, theme],
+    [photoThumbUrl, authHeaders, theme, t],
   );
 
   if (libLoading) {
