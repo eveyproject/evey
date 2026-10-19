@@ -139,6 +139,15 @@ type HLSProcessHandle interface {
 	Resume() error
 }
 
+// HLSLandedStart is an optional capability of an HLSProcessHandle: the
+// segment the session really starts writing at. A transcode seek that starts
+// past the last video frame backs off to a segment that still holds one, and
+// a producer that kept the requested start in its books saw the segments in
+// between as uncovered and spawned a second encoder for them.
+type HLSLandedStart interface {
+	LandedStartSegment() int
+}
+
 type HLSProcessOpts struct {
 	OutputDir string
 	FilePath  string

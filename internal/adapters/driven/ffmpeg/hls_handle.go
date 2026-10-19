@@ -85,6 +85,15 @@ func (c *compositeHandle) Err() error {
 	return nil
 }
 
+// LandedStartSegment is where the rungs start writing: every rung backs off
+// from the same target against the same file, so they all land together.
+func (c *compositeHandle) LandedStartSegment() int {
+	if len(c.subs) == 0 {
+		return 0
+	}
+	return c.subs[0].LandedStartSegment()
+}
+
 func (c *compositeHandle) Failure() transcoding.FailureClass {
 	first := transcoding.FailureNone
 	for _, s := range c.subs {
@@ -252,6 +261,12 @@ func (h *hlsHandle) run(ctx context.Context) {
 // Failure classifies why the process exited, for the level-2 HW safety net. It
 // is only meaningful after Done() has closed; before that exitErr is nil and it
 // reports FailureNone. Reads the raw exit error + the captured stderr tail.
+// LandedStartSegment is the first segment this ffmpeg writes, after
+// backOffToVideo (transcoding.HLSLandedStart).
+func (h *hlsHandle) LandedStartSegment() int {
+	return startNumberFor(h.opts)
+}
+
 func (h *hlsHandle) Failure() transcoding.FailureClass {
 	h.mu.Lock()
 	e := h.exitErr
