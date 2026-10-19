@@ -970,6 +970,11 @@ func (o *SegmentOrchestrator) spawnSession(
 		}
 		return fmt.Errorf("spawnSession: ffmpeg start: %w", err)
 	}
+	// The books hold the segment ffmpeg really starts at: a transcode seek
+	// past the last video frame starts one segment or more earlier.
+	if l, ok := handle.(transcoding.HLSLandedStart); ok && l.LandedStartSegment() < startSegIdx {
+		startSegIdx = l.LandedStartSegment()
+	}
 
 	session := &orchestratorSession{
 		hash:              hash,

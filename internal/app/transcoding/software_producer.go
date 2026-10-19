@@ -905,6 +905,11 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 		}
 		return fmt.Errorf("software: startSession: ffmpeg start: %w", err)
 	}
+	// The books hold the segment ffmpeg really starts at: a transcode seek
+	// past the last video frame starts one segment or more earlier.
+	if l, ok := handle.(transcoding.HLSLandedStart); ok && l.LandedStartSegment() < startSeg {
+		startSeg = l.LandedStartSegment()
+	}
 
 	session := &swSession{
 		hash:              hash,
