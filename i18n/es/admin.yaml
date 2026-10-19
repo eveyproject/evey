@@ -1569,6 +1569,7 @@ seekIndex:
   purgeAllConfirm_other: "¿Eliminar definitivamente {{count}} copias de seguridad (.mkvgobak)? Restaura primero si un archivo reparado falla - después no hay vuelta atrás."
   purgeStarted: "Purga de copias iniciada"
   deleteBackup: "Eliminar copia"
+  deleteBackupConfirm: "Confirmar: eliminar esta copia"
   backupDeleted: "Copia eliminada"
   audioOffsetBadge: "Audio a +{{sec}} s"
   audioOffsetHint: "Una pista de audio empieza después de la imagen. Así se ajusta un doblaje a un montaje, y todos los reproductores lo respetan: no hay nada que corregir."

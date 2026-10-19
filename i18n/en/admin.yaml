@@ -1569,6 +1569,7 @@ seekIndex:
   purgeAllConfirm_other: "Permanently delete {{count}} backup files (.mkvgobak)? Roll back first if a repaired file misbehaves - after this there is no undo."
   purgeStarted: "Backup purge started"
   deleteBackup: "Delete backup"
+  deleteBackupConfirm: "Confirm: delete this backup"
   backupDeleted: "Backup deleted"
   audioOffsetBadge: "Audio at +{{sec}}s"
   audioOffsetHint: "An audio track starts after the picture. That is how a dub is lined up with a cut, and every player follows it - nothing to fix here."

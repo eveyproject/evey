@@ -975,6 +975,7 @@
   "admin.seekIndex.brokenInterleaveHint": "The tracks are stored in separate blocks of minutes (video alone, then audio alone) instead of side by side - a timestamp steps back {{sec}}s between two points of the file. Every header is fine and every stream decodes, but no sequential player gets past the first block: direct play stalls and ffmpeg waits minutes for its first audio segment. Only the packager (streaming without conversion) serves it, reading about twice the file and a whole block at each seek. The Re-mux button rewrites it losslessly (the original is kept as backup); a plain stream copy elsewhere reproduces the layout.",
   "admin.seekIndex.damagedBadge": "Damaged ~{{size}}",
   "admin.seekIndex.deleteBackup": "Delete backup",
+  "admin.seekIndex.deleteBackupConfirm": "Confirm: delete this backup",
   "admin.seekIndex.description": "A read-only scan gives every MKV/WebM file one verdict, and there are only two.",
   "admin.seekIndex.emptyDescription": "Pick a library and scan to find MKV/WebM files without a seek index.",
   "admin.seekIndex.emptyTitle": "No scan yet",

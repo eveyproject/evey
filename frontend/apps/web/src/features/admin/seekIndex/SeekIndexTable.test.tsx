@@ -6,7 +6,7 @@ import { SeekIndexTable } from "./SeekIndexTable";
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 vi.mock("@/components/ui/Badge", () => ({ Badge: ({ children, ...p }: any) => React.createElement("span", { "data-testid": p["data-testid"] }, children) }));
 vi.mock("@/components/ui/Button", () => ({
-  Button: ({ children, onClick, disabled, loading, ...p }: any) => React.createElement("button", { onClick, disabled: disabled || loading, "data-testid": p["data-testid"] }, children),
+  Button: ({ children, onClick, disabled, loading, ...p }: any) => React.createElement("button", { onClick, disabled: disabled || loading, "aria-label": p["aria-label"], "data-testid": p["data-testid"] }, children),
 }));
 vi.mock("@/components/ui/EmptyState", () => ({ EmptyState: ({ title }: any) => React.createElement("div", { "data-testid": "empty" }, title) }));
 vi.mock("@/components/ui/Pagination", () => ({ Pagination: () => null }));
@@ -72,6 +72,8 @@ describe("SeekIndexTable", () => {
     expect(p.rollbackOne.mutate).toHaveBeenCalledWith({ mediaId: "info" });
     fireEvent.click(within(byId.D).getByTestId("seek-index-delete-backup-btn"));
     expect(p.deleteBackup.mutate).not.toHaveBeenCalled();
+    // Armed, it reads "Confirm" on screen; a screen reader hears what it confirms.
+    expect(within(byId.D).getByTestId("seek-index-delete-backup-btn")).toHaveAccessibleName("admin.seekIndex.deleteBackupConfirm");
     fireEvent.click(within(byId.D).getByTestId("seek-index-delete-backup-btn"));
     expect(p.deleteBackup.mutate).toHaveBeenCalledWith({ data: { mediaId: "info" } });
     expect(within(byId.A).queryByTestId("seek-index-rollback-btn")).toBeNull();

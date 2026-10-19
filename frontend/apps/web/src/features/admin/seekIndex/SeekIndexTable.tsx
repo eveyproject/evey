@@ -427,6 +427,8 @@ export function SeekIndexTable({
                           deleteBackup.mutate({ data: { mediaId: it.mediaId } });
                         }}
                         title={t("admin.seekIndex.purgeAllConfirm", { count: 1 })}
+                        // Armed, the label reads "Confirm" alone: say what it confirms.
+                        aria-label={deleteArmedFor === it.mediaId ? t("admin.seekIndex.deleteBackupConfirm") : undefined}
                         data-testid="seek-index-delete-backup-btn"
                       >
                         {deleteArmedFor === it.mediaId ? t("common.confirm") : t("admin.seekIndex.deleteBackup")}

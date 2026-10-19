@@ -1568,6 +1568,7 @@ seekIndex:
   purgeAllConfirm_other: "Supprimer définitivement {{count}} fichiers de sauvegarde (.mkvgobak) ? Restaurez d'abord si un fichier réparé pose problème - après, aucun retour en arrière."
   purgeStarted: "Purge des sauvegardes démarrée"
   deleteBackup: "Supprimer la sauvegarde"
+  deleteBackupConfirm: "Confirmer : supprimer cette sauvegarde"
   backupDeleted: "Sauvegarde supprimée"
   audioOffsetBadge: "Audio à +{{sec}} s"
   audioOffsetHint: "Une piste audio démarre après l'image. C'est ainsi qu'un doublage est calé sur un montage, et tous les lecteurs le respectent - il n'y a rien à corriger."
