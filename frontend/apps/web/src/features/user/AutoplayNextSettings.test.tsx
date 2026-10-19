@@ -69,4 +69,20 @@ describe("AutoplayNextSettings", () => {
     });
     expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["profiles", "u1"] });
   });
+
+  // Both controls merge into the cached preferences and the server replaces
+  // the whole map: a second write before the first one's refetch dropped it.
+  it("holds both controls until the written profile is fresh again", async () => {
+    let refetched!: () => void;
+    mockInvalidateQueries.mockImplementationOnce(() => new Promise<void>((r) => { refetched = r; }));
+    const user = userEvent.setup();
+    renderIt();
+    await user.click(screen.getByRole("switch"));
+    await waitFor(() => expect(mockInvalidateQueries).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("switch")).toBeDisabled();
+    expect(screen.getByTestId("still-watching-select")).toBeDisabled();
+    refetched();
+    await waitFor(() => expect(screen.getByRole("switch")).not.toBeDisabled());
+    expect(screen.getByTestId("still-watching-select")).not.toBeDisabled();
+  });
 });

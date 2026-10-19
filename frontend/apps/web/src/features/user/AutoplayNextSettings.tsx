@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
@@ -20,27 +21,26 @@ export function AutoplayNextSettings() {
   const enabled = autoplayNextEpisode(activeProfile?.preferences);
   const stillWatchingAfter = stillWatchingLimit(activeProfile?.preferences);
 
-  const handleToggle = async () => {
+  // Both controls merge into the cached preferences and the server replaces
+  // the whole map: a second write sent before the first one's refetch landed
+  // dropped the first. One write at a time, released once the profile is
+  // fresh again.
+  const [writing, setWriting] = useState(false);
+  const writePreferences = async (preferences: Record<string, string>, what: string) => {
     if (!activeProfile?.id) return;
+    setWriting(true);
     try {
-      await updateProfile.mutateAsync({
-        id: activeProfile.id,
-        data: { preferences: autoplayNextPreferences(activeProfile.preferences, !enabled) },
-      });
-      if (userId) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(userId) });
-    } catch (err) { console.warn("autoplay next update failed", err); }
+      await updateProfile.mutateAsync({ id: activeProfile.id, data: { preferences } });
+      if (userId) await qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(userId) });
+    } catch (err) {
+      console.warn(`${what} update failed`, err);
+    } finally {
+      setWriting(false);
+    }
   };
 
-  const handleStillWatching = async (value: string) => {
-    if (!activeProfile?.id) return;
-    try {
-      await updateProfile.mutateAsync({
-        id: activeProfile.id,
-        data: { preferences: stillWatchingPreferences(activeProfile.preferences, Number(value)) },
-      });
-      if (userId) void qc.invalidateQueries({ queryKey: getUserServiceListProfilesQueryKey(userId) });
-    } catch (err) { console.warn("still watching update failed", err); }
-  };
+  const handleToggle = () => writePreferences(autoplayNextPreferences(activeProfile?.preferences, !enabled), "autoplay next");
+  const handleStillWatching = (value: string) => writePreferences(stillWatchingPreferences(activeProfile?.preferences, Number(value)), "still watching");
 
   return (
     <div className="flex flex-col gap-4">
@@ -53,7 +53,7 @@ export function AutoplayNextSettings() {
         checked={enabled}
         onChange={handleToggle}
         label={t("auth.settings.playback.autoplayNextTitle")}
-        disabled={!activeProfile}
+        disabled={!activeProfile || writing}
         data-testid="autoplay-next-switch"
       />
     </div>
@@ -72,7 +72,7 @@ export function AutoplayNextSettings() {
           }))}
           value={String(stillWatchingAfter)}
           onChange={(v) => void handleStillWatching(v)}
-          disabled={!activeProfile}
+          disabled={!activeProfile || writing}
           data-testid="still-watching-select"
         />
       </div>
