@@ -276,6 +276,45 @@ func TestClimb_AnAnswerThatFailsItsOwnMeasurementIsNotTheAnswer(t *testing.T) {
 	t.Fatalf("climb did not converge")
 }
 
+// Prod 2026-10-19: 91 held four windows of four under a full measurement, the
+// climb went on, its FAST answer 101 broke under its own settle window, and
+// the search restarted from zero - 50, 75, 62, 68, 71, 73 - until the run hit
+// its twenty minutes and ended cancelled, with no verdict. A settle failure
+// disproves the FAST answer, not what a full window already proved below it.
+func TestClimb_ASettleFailureKeepsWhatAFullWindowProved(t *testing.T) {
+	c := &climb{target: 1, batch: fastBatch, spawnsEncoders: true}
+	phantom := true
+	settled := false
+	for range 200 {
+		target := c.target
+		if settled && target < 61 {
+			t.Fatalf("after the settle failure the search went back to %d, below the 61 a full window proved", target)
+		}
+		wasSettle := c.phase == phaseSettle
+		switch {
+		case c.phase == phaseFast && target == 61 && phantom:
+			phantom = false // a join burst, read as saturation once
+			c.tierBroke(StopStartupTooSlow, "burst")
+		case c.phase == phaseFast && target > 115, c.phase != phaseFast && target > 95:
+			c.tierBroke(StopStartupTooSlow, "slow")
+		}
+		outcome, _, _ := c.next(0, 0.6)
+		if wasSettle && c.phase != phaseSettle && outcome != climbDone {
+			settled = true
+		}
+		if outcome == climbDone {
+			if !settled {
+				t.Fatalf("the model never failed a settle window: the test proves nothing")
+			}
+			if c.lo > 95 || c.lo < 90 {
+				t.Fatalf("sustained = %d, want 90-95", c.lo)
+			}
+			return
+		}
+	}
+	t.Fatalf("climb did not converge")
+}
+
 // Once the bisection has broken a tier under a FULL measurement window, that IS
 // the proof. Spending another whole window "confirming" it re-learns what was
 // just measured, and a measurement window is the single most expensive thing the
