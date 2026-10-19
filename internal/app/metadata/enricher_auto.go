@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -15,6 +16,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	"go.opentelemetry.io/otel/attribute"
+	otelcodes "go.opentelemetry.io/otel/codes"
 )
 
 // AutoEnrichItem searches providers and enriches a single item.
@@ -55,7 +57,10 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		if !force && item.Overview != "" {
 			return
 		}
-		e.autoEnrichEpisode(ctx, item, log)
+		// A scan carries on past an episode no provider has.
+		if err := e.autoEnrichEpisode(ctx, item, log); err != nil && log != nil {
+			log.Debug("episode not enriched", slog.String("id", string(item.ID)), slog.Any("err", err))
+		}
 		return
 	}
 
@@ -63,7 +68,10 @@ func (e *Enricher) autoEnrichItem(ctx context.Context, item *domainlib.MediaItem
 		if !force && item.Overview != "" {
 			return
 		}
-		e.autoEnrichSeason(ctx, item, log)
+		// A scan carries on past a season no provider has.
+		if err := e.autoEnrichSeason(ctx, item, log); err != nil && log != nil {
+			log.Debug("season not enriched", slog.String("id", string(item.ID)), slog.Any("err", err))
+		}
 		return
 	}
 
@@ -736,13 +744,13 @@ func episodeCountMatches(disk, tmdb int) bool {
 	return float64(diff) <= tolerance
 }
 
-func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
+func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) error {
 	if item.ParentID == "" || item.IndexNumber == nil {
-		return
+		return errNotPlacedInSeries
 	}
 	series, err := e.mediaItems.GetByID(ctx, shared.MediaItemID(item.ParentID))
 	if err != nil {
-		return
+		return fmt.Errorf("load series: %w", err)
 	}
 
 	// Ensure series is enriched first
@@ -750,7 +758,7 @@ func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaIt
 		e.AutoEnrichItem(ctx, series, log)
 		series, err = e.mediaItems.GetByID(ctx, shared.MediaItemID(item.ParentID))
 		if err != nil {
-			return
+			return fmt.Errorf("reload series: %w", err)
 		}
 	}
 
@@ -774,24 +782,31 @@ func (e *Enricher) autoEnrichSeason(ctx context.Context, item *domainlib.MediaIt
 			}
 			continue
 		}
-		if err := e.EnrichItem(ctx, item, result); err != nil && log != nil {
-			log.Warn("season enrich failed", slog.String("id", string(item.ID)), slog.Any("err", err))
+		if err := e.EnrichItem(ctx, item, result); err != nil {
+			if log != nil {
+				log.Warn("season enrich failed", slog.String("id", string(item.ID)), slog.Any("err", err))
+			}
+			return fmt.Errorf("enrich season: %w", err)
 		}
-		return
+		return nil
 	}
+	return errNoProviderAnswered
 }
 
-func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) {
+func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) error {
 	if item.ParentID == "" || item.IndexNumber == nil {
-		return
+		return errNotPlacedInSeries
 	}
 	season, err := e.mediaItems.GetByID(ctx, shared.MediaItemID(item.ParentID))
-	if err != nil || season.ParentID == "" || season.IndexNumber == nil {
-		return
+	if err != nil {
+		return fmt.Errorf("load season: %w", err)
+	}
+	if season.ParentID == "" || season.IndexNumber == nil {
+		return errNotPlacedInSeries
 	}
 	series, err := e.mediaItems.GetByID(ctx, shared.MediaItemID(season.ParentID))
 	if err != nil {
-		return
+		return fmt.Errorf("load series: %w", err)
 	}
 
 	primaryName := ""
@@ -835,11 +850,47 @@ func (e *Enricher) autoEnrichEpisode(ctx context.Context, item *domainlib.MediaI
 			continue
 		}
 
-		if err := e.EnrichItem(ctx, item, result); err != nil && log != nil {
-			log.Warn("episode enrich failed", slog.String("id", string(item.ID)), slog.Any("err", err))
+		if err := e.EnrichItem(ctx, item, result); err != nil {
+			if log != nil {
+				log.Warn("episode enrich failed", slog.String("id", string(item.ID)), slog.Any("err", err))
+			}
+			return fmt.Errorf("enrich episode: %w", err)
 		}
-		return
+		return nil
 	}
+	return errNoProviderAnswered
+}
+
+// errNotPlacedInSeries: the season or episode has no index or parent to look
+// it up by. errNoProviderAnswered: no provider of the chain had it, or none
+// could be reached.
+var (
+	errNotPlacedInSeries  = errors.New("not placed in a series: no parent or index to look it up by")
+	errNoProviderAnswered = errors.New("no provider returned this season or episode")
+)
+
+// RefreshEpisodeOrSeason re-enriches a season or an episode through its
+// series and says whether it worked: the admin refresh answered OK and
+// announced MetadataRefreshed even when no provider had the item or the
+// request ran out mid-lookup.
+func (e *Enricher) RefreshEpisodeOrSeason(ctx context.Context, item *domainlib.MediaItem, log *slog.Logger) error {
+	ctx, span := tracing.StartSpan(ctx, "app.metadata.RefreshEpisodeOrSeason")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", string(item.ID)))
+	var err error
+	switch item.Type {
+	case domainlib.Episode:
+		err = e.autoEnrichEpisode(ctx, item, log)
+	case domainlib.Season:
+		err = e.autoEnrichSeason(ctx, item, log)
+	default:
+		return fmt.Errorf("refresh %s: not a season or an episode", item.Type)
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+	}
+	return err
 }
 
 // AutoEnrichAll enriches all items concurrently (max 3 at a time)
@@ -1101,7 +1152,10 @@ func (e *Enricher) RefreshSeriesChildren(ctx context.Context, series *domainlib.
 		if err := e.apiLimiter.Wait(ctx); err != nil {
 			return err
 		}
-		e.autoEnrichSeason(ctx, season, log)
+		// One missing season does not stop the cascade.
+		if err := e.autoEnrichSeason(ctx, season, log); err != nil && log != nil {
+			log.Debug("season not enriched", slog.String("id", string(season.ID)), slog.Any("err", err))
+		}
 		seasonID := string(season.ID)
 		episodes, err := e.mediaItems.List(ctx, domainlib.ListMediaItemsFilter{ParentID: &seasonID, Type: &episodeType})
 		if err != nil {
@@ -1111,7 +1165,10 @@ func (e *Enricher) RefreshSeriesChildren(ctx context.Context, series *domainlib.
 			if err := e.apiLimiter.Wait(ctx); err != nil {
 				return err
 			}
-			e.autoEnrichEpisode(ctx, ep, log)
+			// One missing episode does not stop the cascade.
+			if err := e.autoEnrichEpisode(ctx, ep, log); err != nil && log != nil {
+				log.Debug("episode not enriched", slog.String("id", string(ep.ID)), slog.Any("err", err))
+			}
 		}
 	}
 	return nil

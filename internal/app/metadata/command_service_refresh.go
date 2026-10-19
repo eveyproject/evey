@@ -240,17 +240,30 @@ func (s *CommandService) RefreshItemMetadataByIMDB(ctx context.Context, mediaIte
 // miss that walked every provider of the chain in turn while the request
 // waited.
 func (s *CommandService) refreshThroughSeries(ctx context.Context, item *library.MediaItem) error {
-	se, ok := s.enricher.(SingleItemEnricher)
-	if !ok {
+	if er, ok := s.enricher.(EpisodeRefresher); ok {
+		// The answer is the enrichment's own: a miss or a request that ran out
+		// is an error, and nothing is announced as refreshed.
+		if err := er.RefreshEpisodeOrSeason(ctx, item, slog.Default()); err != nil {
+			return fmt.Errorf("refresh %s %s through its series: %w", item.Type, item.ID, err)
+		}
+	} else if se, ok := s.enricher.(SingleItemEnricher); ok {
+		se.ForceAutoEnrichItem(ctx, item, slog.Default())
+	} else {
 		return errors.New("enricher cannot refresh a single item")
 	}
-	se.ForceAutoEnrichItem(ctx, item, slog.Default())
 	evt := metadata.MetadataRefreshed{MediaItemID: item.ID, Provider: "tmdb", OccurredAt: time.Now()}
 	if err := s.events.Publish(ctx, evt); err != nil {
 		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
 	}
 	s.publishItemUpdated(ctx, item.ID, library.UpdateReasonMetadataRefreshed)
 	return nil
+}
+
+// EpisodeRefresher is the optional enricher capability behind
+// refreshThroughSeries that reports its outcome; the production Enricher has
+// it, the test fakes need not (they fall back to SingleItemEnricher).
+type EpisodeRefresher interface {
+	RefreshEpisodeOrSeason(ctx context.Context, item *library.MediaItem, log *slog.Logger) error
 }
 
 // SeriesChildrenRefresher is the optional enricher capability behind the
