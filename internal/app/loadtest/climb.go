@@ -18,13 +18,13 @@ import (
 //   FAST    - jump by whole batches (10 viewers) on a short hold. The goal is
 //             not to measure, it is to find the neighbourhood of the ceiling:
 //             keep doubling down until something gives out.
-//   BISECT  - once a batch breaks, the answer lies between the last batch that
-//             held (lo) and the one that broke (hi). Halve the interval, hold
+//   BISECT  - once a batch breaks and CONFIRM agrees, the answer lies between
+//             the last batch that held (lo) and the one that broke (hi). Halve the interval, hold
 //             each candidate long enough to judge it properly, and repeat.
 //             log2(step) rounds, not step rounds.
 //   CONFIRM - the FAST phase judges on a short hold, so it can cry wolf (an
-//             ffmpeg cold start looks like a CPU spike). Before accepting hi as
-//             the ceiling, re-test it in steady state. If hi actually holds, the
+//             ffmpeg cold start looks like a CPU spike). Before searching below
+//             a FAST break, re-test it in steady state. If hi actually holds, the
 //             break was a phantom: adopt it and go back to FAST. Without this,
 //             one bad reading at the first batch would cap the whole run.
 //   SETTLE  - the mirror image of CONFIRM, for the ANSWER instead of the break.
@@ -334,18 +334,14 @@ func (c *climb) next(maxViewers int, load float64) (climbOutcome, StopReason, st
 			return climbContinue, "", ""
 		}
 		// Something gave out. The ceiling is somewhere in (lo, target].
+		// A FAST verdict rests on a few seconds inside a join burst - too cheap
+		// to search below. Confirm it at the same size first: a phantom then
+		// costs one measured candidate instead of a bisection under it (prod
+		// 2026-10-19: a FAST break at 61 sent six full candidates, 41 to 61,
+		// through six of the run's ten minutes, and every one of them held).
 		c.hi, c.hiReason, c.hiDetail = c.target, brokeReason, brokeDetail
-		c.hiJudgedProperly = false // a FAST hold is too short to be the last word
-		if c.converged() {
-			// Nothing to bisect (a 1-wide gap, or the very first viewer broke),
-			// but a FAST verdict rests on a few seconds of samples - too cheap
-			// to accept. Confirm it properly.
-			c.phase = phaseConfirm
-			c.target = c.hi
-			return climbContinue, "", ""
-		}
-		c.phase = phaseBisect
-		c.target = (c.lo + c.hi) / 2
+		c.hiJudgedProperly = false
+		c.phase = phaseConfirm
 		return climbContinue, "", ""
 
 	case phaseBisect:
@@ -377,9 +373,17 @@ func (c *climb) next(maxViewers int, load float64) (climbOutcome, StopReason, st
 
 	case phaseConfirm:
 		if !held {
-			// Confirmed under a full measurement window: hi really is one viewer
-			// too many, so lo is the ceiling.
-			return c.finish(brokeReason, brokeDetail)
+			// Confirmed under a full measurement window: the ceiling lies in
+			// (lo, hi], and hi needs no other look. Close enough to lo, lo is
+			// the answer; otherwise bisect what is left.
+			c.hiReason, c.hiDetail = brokeReason, brokeDetail
+			c.hiJudgedProperly = true
+			if c.converged() {
+				return c.finish(brokeReason, brokeDetail)
+			}
+			c.phase = phaseBisect
+			c.target = (c.lo + c.hi) / 2
+			return climbContinue, "", ""
 		}
 		// hi HELD. The earlier break was a phantom - a cold-start spike read as
 		// saturation on a short hold. Adopt hi and resume climbing: capping the

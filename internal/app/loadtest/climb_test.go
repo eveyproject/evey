@@ -56,8 +56,9 @@ func TestClimb_FindsTheCeilingFastThenBisects(t *testing.T) {
 		t.Fatalf("reason = %s, want %s", reason, StopCPUSaturated)
 	}
 	// A one-at-a-time ramp would need 48 tiers. Batches of 10 + bisection get
-	// there in far fewer.
-	if len(targets) > 15 {
+	// there in far fewer - the FAST break confirmed at its own size first (two
+	// or three windows), so a phantom never sends a bisection under it.
+	if len(targets) > 17 {
 		t.Fatalf("took %d tiers to find a ceiling of 47: %v", len(targets), targets)
 	}
 }
@@ -327,7 +328,7 @@ func TestClimb_DoesNotReconfirmWhatTheBisectionAlreadyProved(t *testing.T) {
 	confirms := 0
 	brokeDuringBisect := false
 	for range 200 {
-		if c.phase == phaseConfirm {
+		if c.phase == phaseConfirm && brokeDuringBisect {
 			confirms++
 		}
 		if c.target > 40 {
@@ -526,6 +527,30 @@ func TestCutShortAnswer(t *testing.T) {
 		cl := &climb{phase: tc.phase, lo: tc.lo, measuredLo: tc.measuredLo}
 		if got := cutShortAnswer(cl, tc.endurance, 64); got != tc.want {
 			t.Errorf("%s: answer %d, want %d", tc.name, got, tc.want)
+		}
+	}
+}
+
+// A phantom FAST break is confirmed at its own size before anything below it
+// is measured: prod 2026-10-19, a FAST break at 61 inside the join burst sent
+// six full candidates from 41 to 61 through six of the run's ten minutes, and
+// every one of them held. Confirmed first, 61 holds and the climb goes on.
+func TestClimb_PhantomFastBreakIsConfirmedBeforeAnyBisection(t *testing.T) {
+	targets, sustained, _ := drive(t, 93, 0, 61)
+	closeEnough(t, sustained, 93, targets)
+	at := -1
+	for i, v := range targets {
+		if v == 61 {
+			at = i
+			break
+		}
+	}
+	if at < 0 {
+		t.Fatalf("test setup: the climb never stood at 61 (targets=%v)", targets)
+	}
+	for _, v := range targets[at:] {
+		if v < 61 {
+			t.Fatalf("measured %d below the phantom break at 61 (targets=%v)", v, targets)
 		}
 	}
 }
