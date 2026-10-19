@@ -13,7 +13,8 @@
 #   IMG=eveyproject/evey:beta-0.0.1-full tests/ops/run.sh
 #
 # Env: IMG image under test · PORT host port (19092) · OPS_OUT logs dir
-#      (tests/ops/test-results) · KEEP=1 leaves the container running.
+#      (tests/ops/test-results) · OPS_NAME container name (evey-ops-PORT; not
+#      NAME, which shells set to the host name) · KEEP=1 leaves the container running.
 #
 # Exit: 0 all green, 1 a scenario failed. An XFAIL (known defect, referenced
 # inline) does not fail the run; an XPASS does, so the mark gets removed.
@@ -22,7 +23,7 @@ set -u
 
 IMG="${IMG:-eveyproject/evey:ops-local}"
 PORT="${PORT:-19092}"
-NAME="${NAME:-evey-ops-$PORT}"
+NAME="${OPS_NAME:-evey-ops-$PORT}"
 OUT="${OPS_OUT:-$(cd "$(dirname "$0")" && pwd)/test-results}"
 KEEP="${KEEP:-0}"
 B="http://127.0.0.1:$PORT"
@@ -43,7 +44,7 @@ docker rm -f "$NAME" >/dev/null 2>&1
 START=$(now_ms)
 echo "image $IMG  pile $R" | tee -a "$OUT/run.log"
 
-# The clip comes from the image's own ffmpeg: 30 s, two audio tracks, owned by
+# The clip comes from the image's own ffmpeg: 120 s, two audio tracks, owned by
 # the caller. Its mtime is pushed back so the scan does not wait for it to settle.
 t=$(now_ms)
 make_clip "$R/media" "$IMG" 2>"$OUT/ffmpeg.err" \
@@ -89,6 +90,12 @@ served=$(curl -s -D - -o /dev/null "$M/$(grep -v '^#' "$R/variant.m3u8" | head -
 # still serves; a MISSING transcode segment is shed cleanly (503 cache_full,
 # Retry-After) with NO ffmpeg respawn - before 2026-10-09 this restarted ffmpeg
 # on every request (the storm). After space is freed, production resumes.
+# The missing segment is the last one: the first session reads the clip at
+# 1.5x real time past its 60 s burst, so it cannot have reached the end of a
+# 120 s clip yet, whatever the CPU (2026-10-19: a 30 s clip fit in the burst,
+# was encoded in half a second, and the verdict hung on a few ms). The last
+# segment starts where the picture ends, so the recovery also proves a seek
+# past the last frame is produced.
 # Needs the server booted with a low free-space floor (EVEY_TRANSCODE_CACHE_MIN_FREE_MB).
 t=$(now_ms)
 curl -s -o "$R/m240.m3u8" "$M/master.m3u8?token=$ST&maxHeight=240&videoCodecs=h264"
