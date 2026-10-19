@@ -326,6 +326,19 @@ export interface LoadTestReport {
   // endpoints are not comparable.
   endpoint?: string;
   viaProxy?: boolean;
+  // proxyAddress: the local address the proxy was reached at when it sits on
+  // the server's network, skipping the router's turn no outside viewer takes;
+  // empty when the viewers took the public address.
+  proxyAddress?: string;
+  // uplink*: what the line in front of the server sent to a speed-test
+  // service before the run (uplinkService), the upload outside viewers come
+  // through. remoteViewers: how many of them the line and the server both
+  // carry; remoteByLine: the line is the smaller.
+  uplinkBytesPerSec?: number;
+  uplinkMeasured?: boolean;
+  uplinkService?: string;
+  remoteViewers?: number;
+  remoteByLine?: boolean;
 }
 
 export interface LoadTestStatus {
@@ -671,10 +684,36 @@ const LIMITER_KEYS: Record<string, string> = {
 // limiterLine is the "what gives out first" sentence, or undefined when the
 // run did not get far enough to say (cancelled, an error).
 export function limiterLine(t: (key: string, opts?: Record<string, unknown>) => string, report: LoadTestReport): string | undefined {
-  const key = report.limiter ? LIMITER_KEYS[report.limiter] : undefined;
+  // A proxy reached at its local address has neither the router nor the
+  // upload on its path: what gave out is the proxy, or the link to it.
+  const key = report.limiter === "proxy" && report.proxyAddress ? "admin.loadtest.limiter.proxyLocal" : report.limiter ? LIMITER_KEYS[report.limiter] : undefined;
   if (!key) return undefined;
   const where = report.limiter === "disk" && report.limiterLocation ? t("admin.loadtest.limiter.diskWhere", { location: report.limiterLocation }) : "";
   return t(key, { where });
+}
+
+// remoteLines say how the viewers reached the proxy and what the line
+// carries to viewers outside, or nothing for a report from before either was
+// measured.
+export function remoteLines(t: (key: string, opts?: Record<string, unknown>) => string, report: LoadTestReport): string[] {
+  const lines: string[] = [];
+  if (report.proxyAddress) {
+    lines.push(t("admin.loadtest.remote.viaLocal", { address: report.proxyAddress }));
+  }
+  if (!report.uplinkService) return lines;
+  const service = report.uplinkService;
+  if (!report.uplinkMeasured) {
+    lines.push(t("admin.loadtest.remote.unmeasured", { service }));
+    return lines;
+  }
+  const up = formatMbps(report.uplinkBytesPerSec ?? 0);
+  const count = report.remoteViewers ?? 0;
+  if (count <= 0) {
+    lines.push(t("admin.loadtest.remote.lineOnly", { up, service }));
+  } else {
+    lines.push(t(report.remoteByLine ? "admin.loadtest.remote.byLine" : "admin.loadtest.remote.byServer", { count, up, service }));
+  }
+  return lines;
 }
 
 const ADVICE_KEYS: Record<string, string> = {

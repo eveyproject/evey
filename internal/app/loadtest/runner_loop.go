@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -47,6 +48,22 @@ func (r *Runner) run(runCtx context.Context, cfg Config) {
 		} else {
 			r.logger.Warn("loadtest: the public proxy does not answer from here; measuring the server directly", "proxy", cfg.PublicBaseURL)
 		}
+	}
+	// A proxy on the local network is reached at its local address, not by
+	// the router's turn no outside viewer takes (see skipRouterLoop).
+	proxyAddress := ""
+	if viaProxy {
+		proxyAddress = r.skipRouterLoop(runCtx, cfg.BaseURL, cfg.Token)
+		if proxyAddress != "" {
+			defer r.dialRedirect.set("", "")
+		}
+	}
+	// The line real viewers come through is not on the run's path: measure
+	// what it sends, before any viewer loads it (see measureUplink).
+	var uplink Uplink
+	if r.uplinkURL != "" {
+		uplink = measureUplink(runCtx, &http.Client{}, r.uplinkURL, uplinkProbeDuration)
+		r.logger.Info("loadtest: line upload measured", "service", uplink.Service, "measured", uplink.Measured, "mbps", uplink.BytesPerSec*8/1_000_000)
 	}
 
 	r.logger.Info("loadtest started",
@@ -698,6 +715,7 @@ runLoop:
 		stopReason = StopError
 	}
 	limiter, limiterLocation, advice := limiterOf(stopReason, stopDetail, verdictRes, diskV, viaProxy, devices)
+	remoteViewers, remoteByLine := remoteAudience(sustained, sustainedRes.ServedBytesPerSecAvg, uplink)
 	strata := ramp.strataByTier[sampleTier]
 	strataDisk, strataBand := strataSummary(strata)
 
@@ -716,6 +734,10 @@ runLoop:
 		Samples:                    len(segSamples),
 		Endpoint:                   cfg.BaseURL,
 		ViaProxy:                   viaProxy,
+		ProxyAddress:               proxyAddress,
+		Uplink:                     uplink,
+		RemoteViewers:              remoteViewers,
+		RemoteByLine:               remoteByLine,
 		Seed:                       seed,
 		ReplayedTitleViewers:       replayed,
 		DiskReadStarved:            diskReadStarved(sustainedRes),

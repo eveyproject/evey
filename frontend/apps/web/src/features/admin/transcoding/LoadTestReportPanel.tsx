@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { formatBytes } from "@evey/api";
-import { BOTTLENECK_REASONS, adviceLine, gridRows, deviceLines, formatMbps, limiterLine, mixParts, phaseKey, poolShares, servedPathLines, stopCause, stopReasonKey, verdictLine, windowStateKey } from "./loadTestHelpers";
+import { BOTTLENECK_REASONS, adviceLine, remoteLines, gridRows, deviceLines, formatMbps, limiterLine, mixParts, phaseKey, poolShares, servedPathLines, stopCause, stopReasonKey, verdictLine, windowStateKey } from "./loadTestHelpers";
 import type { LoadTestReport, LoadTestResources, LoadTestWindow } from "./loadTestTypes";
 
 // LoadTestReportPanel renders the "answer" of a finished load test run: the
@@ -28,6 +28,7 @@ export function LoadTestReportPanel({
 
   const limiter = limiterLine(t, report);
   const advice = adviceLine(t, report);
+  const remote = remoteLines(t, report);
   const grid = gridRows(report);
 
   return (
@@ -48,6 +49,11 @@ export function LoadTestReportPanel({
           {advice}
         </p>
       )}
+      {remote.map((line) => (
+        <p key={line} className="text-sm text-[var(--text)]" data-testid="load-test-remote">
+          {line}
+        </p>
+      ))}
       {/* One row per audience size measured: what it cost and whether it
           held. The repeated windows behind each row are in the details. */}
       {grid.length > 0 && (

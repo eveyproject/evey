@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { V1VideoPool } from "@evey/api";
-import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, mixParts, predictedStreams, scenarioNoun, liveElapsedMs, phaseKey, servedPathLines, stopCause, stopReasonKey, verdictLine } from "./loadTestHelpers";
+import { clientMixScenario, clientMixShares, formatElapsed, formatMbps, limiterLine, mixParts, remoteLines, predictedStreams, scenarioNoun, liveElapsedMs, phaseKey, servedPathLines, stopCause, stopReasonKey, verdictLine } from "./loadTestHelpers";
 
 // Pure formatting/reading helpers behind the load-test panel.
 describe("load test helpers", () => {
@@ -241,5 +241,40 @@ describe("running status", () => {
     expect(liveElapsedMs("57000", 1_000_000, 1_001_500)).toBe(58_500);
     expect(liveElapsedMs(57_000, 1_000_000, 1_000_000)).toBe(57_000);
     expect(liveElapsedMs(undefined, 0, 5_000)).toBe(0);
+  });
+});
+
+describe("remoteLines", () => {
+  const t = (key: string, opts?: Record<string, unknown>) => (opts ? `${key}(${Object.values(opts).join("|")})` : key);
+
+  it("says nothing for a report from before the line was measured", () => {
+    expect(remoteLines(t, { sustainedViewers: 93 })).toEqual([]);
+  });
+
+  it("names the proxy's local address, then the line and who limits", () => {
+    expect(
+      remoteLines(t, { proxyAddress: "192.168.1.201:443", uplinkService: "speed.cloudflare.com", uplinkMeasured: true, uplinkBytesPerSec: 37_500_000, remoteViewers: 44, remoteByLine: true }),
+    ).toEqual(["admin.loadtest.remote.viaLocal(192.168.1.201:443)", "admin.loadtest.remote.byLine(44|300.0 Mb/s|speed.cloudflare.com)"]);
+    expect(remoteLines(t, { uplinkService: "speed.cloudflare.com", uplinkMeasured: true, uplinkBytesPerSec: 87_500_000, remoteViewers: 93 })).toEqual([
+      "admin.loadtest.remote.byServer(93|700.0 Mb/s|speed.cloudflare.com)",
+    ]);
+  });
+
+  it("says the line could not be measured rather than printing a zero", () => {
+    expect(remoteLines(t, { uplinkService: "speed.cloudflare.com", uplinkMeasured: false })).toEqual(["admin.loadtest.remote.unmeasured(speed.cloudflare.com)"]);
+  });
+
+  it("gives the line alone when no audience held", () => {
+    expect(remoteLines(t, { uplinkService: "speed.cloudflare.com", uplinkMeasured: true, uplinkBytesPerSec: 87_500_000, remoteViewers: 0 })).toEqual([
+      "admin.loadtest.remote.lineOnly(700.0 Mb/s|speed.cloudflare.com)",
+    ]);
+  });
+});
+
+describe("limiterLine for a proxy", () => {
+  const t = (key: string) => key;
+  it("blames the proxy itself when it was reached at its local address, the public path otherwise", () => {
+    expect(limiterLine(t, { limiter: "proxy", proxyAddress: "192.168.1.201:443" })).toBe("admin.loadtest.limiter.proxyLocal");
+    expect(limiterLine(t, { limiter: "proxy" })).toBe("admin.loadtest.limiter.proxy");
   });
 });

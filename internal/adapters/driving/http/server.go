@@ -18,6 +18,7 @@ import (
 	appconfig "github.com/eveyproject/evey/internal/app/config"
 	appdlna "github.com/eveyproject/evey/internal/app/dlna"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
+	apploadtest "github.com/eveyproject/evey/internal/app/loadtest"
 	appmaintenance "github.com/eveyproject/evey/internal/app/maintenance"
 	appmedia "github.com/eveyproject/evey/internal/app/media"
 	appmetadata "github.com/eveyproject/evey/internal/app/metadata"
@@ -492,6 +493,10 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 	mux.HandleFunc("GET /api/v1/openapi.json", auth(openAPIPublicHandler()))
 
 	mux.HandleFunc("GET /api/v1/admin/fs/browse", admin(browseDirsHandler()))
+	// The load test asks, through the public address, who handed it the
+	// request: the proxy's address, which it then dials directly when it sits
+	// on the local network (see apploadtest.PeerHandler).
+	mux.HandleFunc("GET /api/v1/admin/load-test/peer", admin(apploadtest.PeerHandler))
 
 	// parentalChk gates the raw byte/decision/token stream handlers so a kids
 	// profile that knows an adult media-id out of band can't bypass the gRPC

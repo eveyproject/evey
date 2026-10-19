@@ -470,6 +470,18 @@ type Report struct {
 	// ViaProxy is true when Endpoint was the reverse proxy rather than the
 	// server's loopback.
 	ViaProxy bool
+	// ProxyAddress is the local address the proxy was reached at, when it sits
+	// on the local network and the run skipped the router's turn to reach it
+	// (see skipRouterLoop); empty when the viewers took the public address.
+	ProxyAddress string
+	// Uplink is what the line in front of the server sent to the speed-test
+	// service before the run (see measureUplink).
+	Uplink Uplink
+	// RemoteViewers is how many viewers outside the line carries and the
+	// server holds, whichever is smaller (see remoteAudience); RemoteByLine is
+	// true when the line is the smaller. Zero when the line was not measured.
+	RemoteViewers int
+	RemoteByLine  bool
 	// Seed is the title draw's seed: passing it back replays the same draw.
 	Seed uint64
 

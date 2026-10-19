@@ -1292,11 +1292,20 @@ loadtest:
     cpu: "Lo que falla primero: el procesador."
     memory: "Lo que falla primero: la memoria."
     proxy: "Lo que falla primero: la red entre este servidor y su dirección pública (el enlace Ethernet, el ancho de banda de subida de la conexión, un router o el proxy, la prueba no puede distinguirlos), no el propio servidor."
+    proxyLocal: "Lo que cede primero: el proxy, o el enlace de red hasta él, no el servidor en sí."
     server: "Lo que falla primero: el propio servidor, que respondió con errores."
     unknown: "Nada en esta máquina estaba al límite: el límite está en otra parte, la red o un almacenamiento compartido."
     none: "Nada falló antes del límite de espectadores pedido."
   advice:
     spreadTitles: "Consejo: repartir los títulos más vistos entre varios discos."
+  remote:
+    byLine_one: "Desde fuera: unos {{count}} espectador. La conexión envía {{up}} a internet (medido con {{service}}): es ella el límite."
+    byLine_other: "Desde fuera: unos {{count}} espectadores. La conexión envía {{up}} a internet (medido con {{service}}): es ella el límite."
+    byServer_one: "Desde fuera: unos {{count}} espectador. La conexión envía {{up}} a internet (medido con {{service}}), suficiente para más: el límite es el servidor."
+    byServer_other: "Desde fuera: unos {{count}} espectadores. La conexión envía {{up}} a internet (medido con {{service}}), suficiente para más: el límite es el servidor."
+    lineOnly: "La conexión envía {{up}} a internet (medido con {{service}})."
+    unmeasured: "No se pudo medir la subida de la conexión: {{service}} no respondió."
+    viaLocal: "La prueba llegó al proxy por su dirección local ({{address}}), sin el rodeo por el router que el tráfico de los espectadores de fuera no hace."
   grid:
     viewers: "Espectadores"
     cpu: "Procesador"
