@@ -83,3 +83,92 @@ func TestLibrarySample_SmallLibrary(t *testing.T) {
 		t.Fatalf("got %d titles for an empty sample", len(got))
 	}
 }
+
+// Whatever the library looks like, the sample holds the same rules: n titles
+// (or the whole library when it is smaller), none twice, each kind within one
+// title of its exact share, each bitrate decile of a kind within one title of
+// its exact share of that kind's seats, and the same seed replays it.
+func TestLibrarySample_AnyLibrary(t *testing.T) {
+	gen := func(films, episodes int, filmRate, epRate func(i int) int64) []MediaCandidate {
+		var lib []MediaCandidate
+		for i := range films {
+			lib = append(lib, MediaCandidate{ID: fmt.Sprintf("m%06d", i), Kind: "movie", BitrateBps: filmRate(i)})
+		}
+		for i := range episodes {
+			lib = append(lib, MediaCandidate{ID: fmt.Sprintf("e%06d", i), Kind: "episode", BitrateBps: epRate(i)})
+		}
+		return lib
+	}
+	spread := func(i int) int64 { return int64(1_000_000 + (i*7919)%60_000_000) }
+	same := func(int) int64 { return 8_000_000 }
+	unknown := func(int) int64 { return 0 }
+	halfUnknown := func(i int) int64 {
+		if i%2 == 0 {
+			return 0
+		}
+		return spread(i)
+	}
+	for name, lib := range map[string][]MediaCandidate{
+		"films only":                    gen(900, 0, spread, spread),
+		"episodes only":                 gen(0, 40_000, spread, spread),
+		"one film among many episodes":  gen(1, 9_000, spread, spread),
+		"a few films, few episodes":     gen(7, 12, spread, spread),
+		"every bitrate unknown":         gen(400, 4_000, unknown, unknown),
+		"half the bitrates unknown":     gen(400, 4_000, halfUnknown, halfUnknown),
+		"one bitrate for every title":   gen(400, 4_000, same, same),
+		"exactly the sample size":       gen(100, 200, spread, spread),
+		"one title more than requested": gen(100, 201, spread, spread),
+	} {
+		t.Run(name, func(t *testing.T) {
+			const n = 300
+			s := LibrarySample(lib, n, 99)
+			if want := min(n, len(lib)); len(s) != want {
+				t.Fatalf("%d titles, want %d", len(s), want)
+			}
+			seen := map[string]bool{}
+			for _, c := range s {
+				if seen[c.ID] {
+					t.Fatalf("%s drawn twice", c.ID)
+				}
+				seen[c.ID] = true
+			}
+			if !slices.EqualFunc(s, LibrarySample(lib, n, 99), func(x, y MediaCandidate) bool { return x.ID == y.ID }) {
+				t.Fatal("the same seed drew two samples")
+			}
+			if len(lib) <= n {
+				return
+			}
+			libKind, sampleKind := map[string][]MediaCandidate{}, map[string][]MediaCandidate{}
+			for _, c := range lib {
+				libKind[c.Kind] = append(libKind[c.Kind], c)
+			}
+			for _, c := range s {
+				sampleKind[c.Kind] = append(sampleKind[c.Kind], c)
+			}
+			for kind, titles := range libKind {
+				exact := float64(n) * float64(len(titles)) / float64(len(lib))
+				seats := len(sampleKind[kind])
+				if float64(seats) < exact-1 || float64(seats) > exact+1 {
+					t.Errorf("%s: %d titles, want %.1f (its share of the library)", kind, seats, exact)
+				}
+				bands, _ := bitrateQuantiles(titles, librarySampleBands)
+				bandOf := map[string]string{}
+				perBand := map[string]int{}
+				for i, c := range titles {
+					bandOf[c.ID] = bands[i]
+					perBand[bands[i]]++
+				}
+				drawn := map[string]int{}
+				for _, c := range sampleKind[kind] {
+					drawn[bandOf[c.ID]]++
+				}
+				for b, count := range perBand {
+					exact := float64(seats) * float64(count) / float64(len(titles))
+					if float64(drawn[b]) < exact-1 || float64(drawn[b]) > exact+1 {
+						t.Errorf("%s band %s: %d titles, want %.1f", kind, b, drawn[b], exact)
+					}
+				}
+			}
+		})
+	}
+}

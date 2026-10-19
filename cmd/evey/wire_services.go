@@ -367,29 +367,9 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 			// kind and bitrate decile in its share (apploadtest.LibrarySample):
 			// the same seed lists the same titles as long as the library has not
 			// changed, which is what makes a run replayable.
-			items, err := playableLibrary(ctx, libQuerySvc.ListMediaItems, loadTestMinTitleDuration)
+			all, err := playableLibrary(ctx, libQuerySvc.ListMediaItems, loadTestMinTitleDuration)
 			if err != nil {
 				return nil, err
-			}
-			all := make([]apploadtest.MediaCandidate, 0, len(items))
-			for _, it := range items {
-				// The probed bitrate, else the file's own average (size over
-				// duration): what a direct-play viewer of it pulls.
-				bitrate := it.File.Bitrate
-				if secs := int64(it.File.Duration.Seconds()); bitrate <= 0 && secs > 0 {
-					bitrate = it.File.Size * 8 / secs
-				}
-				all = append(all, apploadtest.MediaCandidate{
-					ID:          string(it.ID),
-					DurationSec: int(it.File.Duration.Seconds()),
-					Kind:        string(it.Type),
-					BitrateBps:  bitrate,
-					// The path lets the run measure how fast this box READS its
-					// media - the ceiling that actually decides a direct-play
-					// server's capacity, and the one the kernel cannot report when
-					// the library sits on a network share or a 9p/virtiofs mount.
-					Path: it.File.Path,
-				})
 			}
 			out := apploadtest.LibrarySample(all, limit, seed)
 			// The source codec+height decide what a viewer actually costs, so a
@@ -563,8 +543,11 @@ const loadTestLibraryPage = 1000
 // playableLibrary walks every film and episode of the library in id order and
 // keeps those with a file a viewer can play for at least minDuration: a
 // shorter title loops back on itself and is then served from the page cache.
-func playableLibrary(ctx context.Context, list func(context.Context, library.ListMediaItemsFilter) ([]*library.MediaItem, error), minDuration time.Duration) ([]*library.MediaItem, error) {
-	var out []*library.MediaItem
+// Each page is cut down to what the draw needs before the next is read, so a
+// library of a hundred thousand episodes costs a few megabytes, not every
+// row's synopsis and ratings.
+func playableLibrary(ctx context.Context, list func(context.Context, library.ListMediaItemsFilter) ([]*library.MediaItem, error), minDuration time.Duration) ([]apploadtest.MediaCandidate, error) {
+	var out []apploadtest.MediaCandidate
 	for _, typ := range []library.MediaItemType{library.MovieItem, library.Episode} {
 		t := string(typ)
 		after := ""
@@ -574,15 +557,39 @@ func playableLibrary(ctx context.Context, list func(context.Context, library.Lis
 				return nil, err
 			}
 			for _, it := range page {
-				if it != nil && it.File != nil && it.File.Duration.Milliseconds() >= minDuration.Milliseconds() {
-					out = append(out, it)
+				if it == nil {
+					continue
+				}
+				after = string(it.ID)
+				if it.File != nil && it.File.Duration.Milliseconds() >= minDuration.Milliseconds() {
+					out = append(out, loadTestCandidate(it))
 				}
 			}
-			if len(page) < loadTestLibraryPage || page[len(page)-1] == nil {
+			if len(page) < loadTestLibraryPage {
 				break
 			}
-			after = string(page[len(page)-1].ID)
 		}
 	}
 	return out, nil
+}
+
+// loadTestCandidate is what the draw keeps of a playable title.
+func loadTestCandidate(it *library.MediaItem) apploadtest.MediaCandidate {
+	// The probed bitrate, else the file's own average (size over duration):
+	// what a direct-play viewer of it pulls.
+	bitrate := it.File.Bitrate
+	if secs := int64(it.File.Duration.Seconds()); bitrate <= 0 && secs > 0 {
+		bitrate = it.File.Size * 8 / secs
+	}
+	return apploadtest.MediaCandidate{
+		ID:          string(it.ID),
+		DurationSec: int(it.File.Duration.Seconds()),
+		Kind:        string(it.Type),
+		BitrateBps:  bitrate,
+		// The path lets the run measure how fast this box READS its media -
+		// the ceiling that actually decides a direct-play server's capacity,
+		// and the one the kernel cannot report when the library sits on a
+		// network share or a 9p/virtiofs mount.
+		Path: it.File.Path,
+	}
 }
