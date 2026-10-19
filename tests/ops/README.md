@@ -22,7 +22,7 @@ leaves it up. Logs land in `tests/ops/test-results/` (gitignored):
 
 | Step | What it proves |
 | --- | --- |
-| `clip` | the image's ffmpeg makes a 30 s, two-audio test file |
+| `clip` | the image's ffmpeg makes a 120 s, two-audio test file |
 | `boot` | empty `/data` to healthy, embedded Postgres + migrations, commit on `/healthz` |
 | `setup_scan` | first admin, one library, one scan finds the file |
 | `direct_play` | master playlist and first segment serve |

@@ -22,12 +22,12 @@ report() {
     case "$1" in FAIL|XPASS) FAILED=1 ;; esac
 }
 
-# make_clip DIR IMG - 30 s test clip with two audio tracks, made by the image's own
+# make_clip DIR IMG - 120 s test clip with two audio tracks, made by the image's own
 # ffmpeg, owned by the caller, mtime pushed back so a scan does not wait for it to settle.
 make_clip() {
     docker run --rm --user "$(id -u):$(id -g)" -v "$1:/out" --entrypoint ffmpeg "$2" -loglevel error -y \
         -f lavfi -i testsrc2=size=640x360:rate=25 -f lavfi -i sine=frequency=440 -f lavfi -i sine=frequency=660 \
-        -t 30 -map 0:v -map 1:a -map 2:a -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac \
+        -t 120 -map 0:v -map 1:a -map 2:a -c:v libx264 -preset ultrafast -pix_fmt yuv420p -c:a aac \
         -metadata:s:a:0 language=eng -metadata:s:a:1 language=fra "/out/$CLIP" \
     && touch -d '-1 hour' "$1/$CLIP"
 }
