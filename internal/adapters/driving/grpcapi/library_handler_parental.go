@@ -113,15 +113,25 @@ func mediaItemBlockedByParental(pf parentalFilter, item *library.MediaItem) bool
 	return parentalRuleBlocks(*pf.rule(), item)
 }
 
-// parentalRuleBlocks applies ratings.Blocks to an item under rule.
+// parentalRuleBlocks applies ratings.Blocks to an item under rule, a season
+// or an episode with what it inherits from its series.
 func parentalRuleBlocks(rule library.ParentalRule, item *library.MediaItem) bool {
-	var certByCountry map[string]string
-	var officialRating string
+	own, series := ratedForParental(item)
+	return ratings.Blocks(rule.MaxAge, rule.Region, rule.BlockedTags, own, series)
+}
+
+// ratedForParental is what ratings.Blocks reads off an item and, for a season
+// or an episode, off its series (nil otherwise).
+func ratedForParental(item *library.MediaItem) (ratings.Rated, *ratings.Rated) {
+	own := ratings.Rated{Tags: itemTags(item)}
 	if item.Classification != nil {
-		certByCountry = item.Classification.CertificationsByCountry
-		officialRating = item.Classification.OfficialRating
+		own.OfficialRating = item.Classification.OfficialRating
+		own.Certifications = item.Classification.CertificationsByCountry
 	}
-	return ratings.Blocks(rule.MaxAge, rule.Region, rule.BlockedTags, officialRating, certByCountry, itemTags(item))
+	if sp := item.SeriesParental; sp != nil {
+		return own, &ratings.Rated{OfficialRating: sp.OfficialRating, Certifications: sp.CertificationsByCountry, Tags: sp.Tags}
+	}
+	return own, nil
 }
 
 // rule is the filter as a list query applies it (ListMediaItemsFilter.Parental).

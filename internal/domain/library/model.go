@@ -164,6 +164,12 @@ type MediaItem struct {
 	// the scan created but enrichment never touched.
 	Catalog *MediaCatalog
 
+	// SeriesParental is what a season or an episode inherits from its series
+	// for the parental rule: an episode carries no rating of its own, and is
+	// as old as its series. Read with the item; nil for any other item, or
+	// when the series has neither rating nor tags.
+	SeriesParental *SeriesParental
+
 	Trailers []Trailer
 	// Translations is a carry-along of the item's per-locale titles/overviews,
 	// NOT loaded by the default row scan (it lives in a separate table). The
@@ -207,6 +213,14 @@ type MediaCatalog struct {
 // (community), the editorial certification (official + per-country) and
 // the per-provider critic scores. Distinct from per-user ratings, which
 // live in the media_ratings table.
+// SeriesParental is a series' ratings and tags, as its seasons and episodes
+// inherit them (MediaItem.SeriesParental).
+type SeriesParental struct {
+	OfficialRating          string
+	CertificationsByCountry map[string]string
+	Tags                    []string
+}
+
 type MediaClassification struct {
 	CommunityRating         *float64
 	OfficialRating          string

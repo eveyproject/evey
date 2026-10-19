@@ -61,24 +61,26 @@ func (c *profileParentalChecker) BlockedByParental(ctx context.Context, profileI
 	if ps == nil {
 		return false
 	}
+	// The gRPC side's rule (ratings.Blocks): worst case across the item and,
+	// for a season or an episode, its series; an unresolvable rating is
+	// blocked for a kids profile.
+	maxAge := -1
 	if ps.MaxAge != nil {
-		reg := region.Resolve(profile.Region, "", profile.Locale)
-		officialRating := ""
-		var certByCountry map[string]string
-		if item.Classification != nil {
-			officialRating = item.Classification.OfficialRating
-			certByCountry = item.Classification.CertificationsByCountry
-		}
-		worst := ratings.WorstCaseMinAge(reg, officialRating, certByCountry)
-		// Fail closed: an unresolvable rating is blocked for a kids profile.
-		if worst < 0 || worst > *ps.MaxAge {
-			return true
-		}
+		maxAge = *ps.MaxAge
 	}
-	if item.Catalog != nil && ratings.HasBlockedTag(item.Catalog.Tags, ps.BlockedTags) {
-		return true
+	own := ratings.Rated{}
+	if item.Classification != nil {
+		own.OfficialRating = item.Classification.OfficialRating
+		own.Certifications = item.Classification.CertificationsByCountry
 	}
-	return false
+	if item.Catalog != nil {
+		own.Tags = item.Catalog.Tags
+	}
+	var series *ratings.Rated
+	if sp := item.SeriesParental; sp != nil {
+		series = &ratings.Rated{OfficialRating: sp.OfficialRating, Certifications: sp.CertificationsByCountry, Tags: sp.Tags}
+	}
+	return ratings.Blocks(maxAge, region.Resolve(profile.Region, "", profile.Locale), ps.BlockedTags, own, series)
 }
 
 // checkParental writes a 404 and returns false when the active profile may not
