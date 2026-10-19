@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 
@@ -779,5 +781,25 @@ func TestRegisterSubtitleRoutes_ProviderRoutesAreRateLimited(t *testing.T) {
 	// The local list route spends no provider quota and must stay open.
 	if got := status(http.MethodGet, "/api/v1/media/mi-1/subtitles"); got == http.StatusTooManyRequests {
 		t.Error("list is a local read and must not be rate-limited")
+	}
+}
+
+// An indexed read that fails after writing cues must leave nothing behind:
+// the walk that follows writes the whole track, and the cues of the failed
+// read before it would show twice.
+func TestWholeOrNothing_FailedAttemptLeavesTheWriterUntouched(t *testing.T) {
+	var out bytes.Buffer
+	failed := wholeOrNothing(&out, func(part io.Writer) error {
+		_, _ = io.WriteString(part, "WEBVTT\n\n00:00.000 --> 00:01.000\npartial\n")
+		return errors.New("read cut short")
+	})
+	if failed == nil || out.Len() != 0 {
+		t.Fatalf("failed attempt: err=%v, writer holds %q", failed, out.String())
+	}
+	if err := wholeOrNothing(&out, func(part io.Writer) error {
+		_, err := io.WriteString(part, "WEBVTT\n")
+		return err
+	}); err != nil || out.String() != "WEBVTT\n" {
+		t.Fatalf("successful attempt: err=%v, writer holds %q", err, out.String())
 	}
 }
