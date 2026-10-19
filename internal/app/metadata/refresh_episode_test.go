@@ -81,3 +81,37 @@ func TestRefreshItemMetadata_EpisodeGoesThroughItsSeries(t *testing.T) {
 	defer provider.mu.Unlock()
 	assert.Empty(t, provider.byID, "the episode's own id must never be looked up as a series id")
 }
+
+// A refresh no provider can answer is an error, and nothing is announced as
+// refreshed: the admin refresh of an episode answered OK and published
+// MetadataRefreshed whatever happened.
+func TestRefreshItemMetadata_AnEpisodeNoProviderHasIsAnError(t *testing.T) {
+	provider := metafakes.NewFakeMetadataProvider("tmdb") // no episode details at all
+	mediaRepo := libfakes.NewFakeMediaItemStore()
+	enricher := appmetadata.NewEnricher(metafakes.NewFakeArtworkRepository(), libfakes.NewFakePersonRepository(),
+		libfakes.NewFakeMediaPersonRepository(), mediaRepo, mediaRepo, libfakes.NewFakeSearchIndex(), provider, nil, nil, nil)
+	bus := sharedfakes.NewFakeEventBus()
+	cmdSvc := appmetadata.NewCommandService(
+		metafakes.NewFakeMetadataOverrideRepository(), metafakes.NewFakeArtworkRepository(), metafakes.NewFakeArtworkDownloader(),
+		bus, []domainmetadata.MetadataProvider{provider},
+	)
+	appmetadata.WithEnricher(enricher, mediaRepo, mediaRepo)(cmdSvc)
+
+	ctx := context.Background()
+	season, episode := 1, 2
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: shared.MediaItemID("s1"), Type: library.Series, Title: "Show", Overview: "a show",
+		Catalog: &library.MediaCatalog{ProviderIDs: map[string]string{"tmdb": "100"}},
+	}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: shared.MediaItemID("se1"), ParentID: "s1", Type: library.Season, Title: "Season 1", IndexNumber: &season,
+	}))
+	require.NoError(t, mediaRepo.Create(ctx, &library.MediaItem{
+		ID: shared.MediaItemID("e1"), ParentID: "se1", Type: library.Episode, Title: "Stale", IndexNumber: &episode,
+	}))
+
+	require.Error(t, cmdSvc.RefreshItemMetadata(ctx, "e1", "5555", "tv"))
+	for _, evt := range bus.PublishedEvents() {
+		assert.NotEqual(t, "metadata.refreshed", evt.EventName(), "a refresh that found nothing must not be announced")
+	}
+}
