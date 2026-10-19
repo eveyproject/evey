@@ -85,6 +85,7 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 	// their fMP4 timestamps to the plan's absolute StartSec and atomically
 	// renames into the cache dir - the rename is the publish point
 	// SegmentCache.IsReady observes, so readers never see a pre-rebase file.
+	opts = backOffToVideo(ctx, opts)
 	pubDir := opts.OutputDir
 	rebase := needsFMP4Rebase(opts)
 	if rebase {
