@@ -207,6 +207,20 @@ describe("verdictLine", () => {
     expect(verdictLine(t, report)).toBe("admin.loadtest.stopReason.error");
   });
 
+  // Prod 2026-10-19: 91 held a full window, then the run ran out its twenty
+  // minutes; the headline said "Cancelled." over a table proving 91.
+  it("keeps a count a full window proved when the run was cut short", () => {
+    for (const stopReason of ["cancelled", "library_limit"] as const) {
+      const report = { stopReason, sustainedViewers: 91, grid: [{ viewers: 81, held: true }, { viewers: 91, held: true }, { viewers: 101, held: false }] };
+      expect(verdictLine(t, report)).toBe("admin.loadtest.verdict:91");
+    }
+  });
+
+  it("states no count for a run cut short before any window held it", () => {
+    const report = { stopReason: "cancelled" as const, sustainedViewers: 30, grid: [{ viewers: 21, held: true }] };
+    expect(verdictLine(t, report)).toBe("admin.loadtest.stopReason.cancelled");
+  });
+
   it("keeps the count for a run that measured a capacity", () => {
     expect(verdictLine(t, { stopReason: "slo_breach" as const, sustainedViewers: 12 })).toMatch(/^admin\.loadtest\.verdict.*:12$/);
   });

@@ -413,11 +413,7 @@ runLoop:
 			// cancelled during its very first tier has proven nothing yet - it
 			// would report zero viewers while several were happily watching.
 			stopReason, stopDetail, sustained = r.cancelVerdict(runCtx, isEndurance, ramp.tier, cfg)
-			// A run cut short in a measured phase already judged sizes: the
-			// answer is what they say, not whatever was streaming.
-			if cl.phase != phaseFast && cl.lo > 0 && !isEndurance {
-				sustained = cl.lo
-			}
+			sustained = cutShortAnswer(cl, isEndurance, sustained)
 			break runLoop
 
 		case <-resTicker.C:
@@ -849,6 +845,18 @@ func (r *Runner) cancelVerdict(runCtx context.Context, isEndurance bool, tier in
 		detail = "max duration reached"
 	}
 	return StopCancelled, detail, tier
+}
+
+// cutShortAnswer is the count a run cut short stands behind. In a measured
+// phase the sizes already judged say it, and only a full window proves one:
+// lo can still be a FAST hold there (bisecting from a FAST break, settling a
+// FAST answer), and a join burst is not a regime. streaming is what was
+// playing when the run stopped, the answer of a run that judged nothing yet.
+func cutShortAnswer(cl *climb, isEndurance bool, streaming int) int {
+	if cl.phase != phaseFast && cl.measuredLo > 0 && !isEndurance {
+		return cl.measuredLo
+	}
+	return streaming
 }
 
 // handleViewerEvent processes one event a viewer goroutine sent back to the
