@@ -95,6 +95,12 @@ func (p *ProxyTrust) ResolveClientIP(r *http.Request) string {
 func (p *ProxyTrust) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		clientIP := p.ResolveClientIP(r)
+		// The connection's own peer is kept apart before RemoteAddr becomes
+		// the client: the load test asks who handed it a request (the proxy),
+		// not who sent it.
+		if peer := net.ParseIP(extractIP(r.RemoteAddr)); peer != nil {
+			r = r.WithContext(WithPeerIP(r.Context(), peer))
+		}
 		r.RemoteAddr = clientIP + ":0"
 
 		// Collapse X-Forwarded-For to the single authoritative client IP.

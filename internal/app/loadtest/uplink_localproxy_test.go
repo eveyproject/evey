@@ -12,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/eveyproject/evey/internal/pkg/network"
 )
 
 // The probe counts what the line actually sent, cut-off streams included, and
@@ -81,6 +83,26 @@ func TestPeerHandler(t *testing.T) {
 	var body struct{ Peer string }
 	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil || body.Peer != "192.168.1.201" {
 		t.Fatalf("peer = %q (err %v), want 192.168.1.201", body.Peer, err)
+	}
+}
+
+// Behind the trusted-proxy middleware the route still names the proxy: prod
+// 2026-10-19, the request came through the router's turn, Caddy forwarded the
+// router as the client, the middleware made that the RemoteAddr, and the run
+// dialed the router.
+func TestPeerHandler_BehindTheTrustedProxyMiddleware(t *testing.T) {
+	trust, err := network.NewProxyTrust([]string{"192.168.1.0/24"}, "X-Forwarded-For", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, LoadTestPeerPath, nil)
+	req.RemoteAddr = "192.168.1.201:51234"
+	req.Header.Set("X-Forwarded-For", "192.168.1.254")
+	rec := httptest.NewRecorder()
+	trust.Middleware(http.HandlerFunc(PeerHandler)).ServeHTTP(rec, req)
+	var body struct{ Peer string }
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil || body.Peer != "192.168.1.201" {
+		t.Fatalf("peer = %q (err %v), want the proxy 192.168.1.201, not the client it forwarded", body.Peer, err)
 	}
 }
 

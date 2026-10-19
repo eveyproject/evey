@@ -33,6 +33,24 @@ func ClientIPFromContext(ctx context.Context) net.IP {
 	return ip
 }
 
+// peerKey carries the address the connection came from (the proxy's, when
+// the request came through one), before ProxyTrust.Middleware rewrites
+// RemoteAddr to the client behind it.
+type peerKey struct{}
+
+// WithPeerIP records the connection's own peer. Called by
+// ProxyTrust.Middleware.
+func WithPeerIP(ctx context.Context, ip net.IP) context.Context {
+	return context.WithValue(ctx, peerKey{}, ip)
+}
+
+// PeerIPFromContext returns the IP WithPeerIP stored, or nil when the request
+// never crossed the trusted boundary (RemoteAddr is then the peer).
+func PeerIPFromContext(ctx context.Context) net.IP {
+	ip, _ := ctx.Value(peerKey{}).(net.IP)
+	return ip
+}
+
 type Detector struct {
 	lanNets []*net.IPNet
 }
