@@ -1569,6 +1569,7 @@ seekIndex:
   purgeAllConfirm_other: "{{count}} Sicherungsdateien (.mkvgobak) endgültig löschen? Zuerst zurücksetzen, falls eine reparierte Datei Probleme macht - danach gibt es kein Zurück."
   purgeStarted: "Sicherungsbereinigung gestartet"
   deleteBackup: "Sicherung löschen"
+  deleteBackupConfirm: "Bestätigen: diese Sicherung löschen"
   backupDeleted: "Sicherung gelöscht"
   audioOffsetBadge: "Ton bei +{{sec}} s"
   audioOffsetHint: "Eine Tonspur beginnt nach dem Bild. Genau so wird eine Synchronfassung auf einen Schnitt gelegt, und jeder Player folgt dem - hier ist nichts zu reparieren."

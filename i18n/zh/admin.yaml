@@ -1569,6 +1569,7 @@ seekIndex:
   purgeAllConfirm_other: "永久删除 {{count}} 个备份文件（.mkvgobak）？如果修复后的文件有问题请先回滚 - 此操作无法撤销。"
   purgeStarted: "备份清理已开始"
   deleteBackup: "删除备份"
+  deleteBackupConfirm: "确认：删除此备份"
   backupDeleted: "备份已删除"
   audioOffsetBadge: "音轨从 +{{sec}} 秒开始"
   audioOffsetHint: "某条音轨在画面之后开始。配音就是这样对齐剪辑版本的，所有播放器都会遵循它 - 无需修复。"
