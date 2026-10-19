@@ -52,6 +52,9 @@ type MediaCandidate struct {
 	// a tone map or a Dolby Vision profile 5 costs an encode several times
 	// what an SDR source of the same height does. Empty when unprobed.
 	VideoRange string
+	// Kind is the library's own kind of the title ("movie", "episode"): a
+	// sample of the library keeps each kind's share of it.
+	Kind string
 	// BitrateBps is the file's overall bitrate: what a direct-play viewer of
 	// this title pulls from the disk and the network. 0 when unknown.
 	BitrateBps int64
@@ -75,8 +78,8 @@ const (
 // MediaLister supplies the pool of media the load test can pick viewers'
 // streams from. The parent wires this to its media query service.
 type MediaLister interface {
-	// ListLoadTestCandidates returns up to limit titles, a random slice of the
-	// library decided by seed: the same seed lists the same titles.
+	// ListLoadTestCandidates returns up to limit titles drawn from the whole
+	// library by LibrarySample: the same seed lists the same titles.
 	ListLoadTestCandidates(ctx context.Context, limit int, seed uint64) ([]MediaCandidate, error)
 }
 

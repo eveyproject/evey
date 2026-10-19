@@ -3,10 +3,8 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/binary"
 	"fmt"
 	"log/slog"
-	mathrand "math/rand/v2"
 	"net/http"
 	"os"
 	"strconv"
@@ -365,62 +363,26 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 			},
 		},
 		loadTestMediaListerFunc(func(ctx context.Context, limit int, seed uint64) ([]apploadtest.MediaCandidate, error) {
-			// Over-fetch: rows without a playable file (series, seasons) and
-			// clips too short to pace against are both dropped below, and the
-			// runner wants a deep pool - it reuses a title at a fresh start
-			// position rather than ever stopping on "no more titles", so a
-			// generous list is what keeps the LIBRARY from being the verdict.
-			//
-			// A RANDOM slice of the library, not its first rows: the default
-			// listing is in title order, and a pool made of whatever sorts first
-			// loads the disks those titles happen to sit on instead of the
-			// library as an audience would.
-			// The slice of the library starts at a point the run's seed decides:
-			// the same seed lists the same titles (as long as the library has
-			// not changed), which is what makes a run replayable.
-			items, err := filmsAndEpisodes(ctx, libQuerySvc.ListMediaItems, limit*3, seededItemIDs(seed))
+			// The whole playable library, then a sample of it that keeps each
+			// kind and bitrate decile in its share (apploadtest.LibrarySample):
+			// the same seed lists the same titles as long as the library has not
+			// changed, which is what makes a run replayable.
+			items, err := playableLibrary(ctx, libQuerySvc.ListMediaItems, loadTestMinTitleDuration)
 			if err != nil {
 				return nil, err
 			}
-			out := make([]apploadtest.MediaCandidate, 0, limit)
-			// The source codec+height decide what a viewer actually costs, so a
-			// run that cannot name what it drew cannot be read. Batched in one
-			// query; a failure only costs the breakdown, never the run.
-			ids := make([]string, 0, len(items))
+			all := make([]apploadtest.MediaCandidate, 0, len(items))
 			for _, it := range items {
-				if it != nil && it.File != nil {
-					ids = append(ids, string(it.ID))
-				}
-			}
-			streamsByItem, err := libQuerySvc.GetStreamsForItems(ctx, ids)
-			if err != nil {
-				slog.WarnContext(ctx, "loadtest: could not resolve candidate source codecs, the run will not be able to name what it served",
-					slog.Any("err", err))
-			}
-			for _, it := range items {
-				if it == nil || it.File == nil {
-					continue
-				}
-				// A viewer plays in real time for the whole run, so a title
-				// shorter than a few minutes would loop back on itself and be
-				// served from the page cache. The runner applies the run's own
-				// duration on top of this floor (see usableFraction).
-				if it.File.Duration.Milliseconds() < loadTestMinTitleDuration.Milliseconds() {
-					continue
-				}
-				codec, height, videoRange := loadTestSourceClass(streamsByItem[string(it.ID)])
 				// The probed bitrate, else the file's own average (size over
 				// duration): what a direct-play viewer of it pulls.
 				bitrate := it.File.Bitrate
 				if secs := int64(it.File.Duration.Seconds()); bitrate <= 0 && secs > 0 {
 					bitrate = it.File.Size * 8 / secs
 				}
-				out = append(out, apploadtest.MediaCandidate{
+				all = append(all, apploadtest.MediaCandidate{
 					ID:          string(it.ID),
 					DurationSec: int(it.File.Duration.Seconds()),
-					VideoCodec:  codec,
-					VideoHeight: height,
-					VideoRange:  videoRange,
+					Kind:        string(it.Type),
 					BitrateBps:  bitrate,
 					// The path lets the run measure how fast this box READS its
 					// media - the ceiling that actually decides a direct-play
@@ -428,10 +390,32 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 					// the library sits on a network share or a 9p/virtiofs mount.
 					Path: it.File.Path,
 				})
-				if len(out) >= limit {
-					break
-				}
 			}
+			out := apploadtest.LibrarySample(all, limit, seed)
+			// The source codec+height decide what a viewer actually costs, so a
+			// run that cannot name what it drew cannot be read. Batched in one
+			// query over the sample; a failure only costs the breakdown, never
+			// the run.
+			ids := make([]string, 0, len(out))
+			for _, c := range out {
+				ids = append(ids, c.ID)
+			}
+			streamsByItem, err := libQuerySvc.GetStreamsForItems(ctx, ids)
+			if err != nil {
+				slog.WarnContext(ctx, "loadtest: could not resolve candidate source codecs, the run will not be able to name what it served",
+					slog.Any("err", err))
+			}
+			for i := range out {
+				out[i].VideoCodec, out[i].VideoHeight, out[i].VideoRange = loadTestSourceClass(streamsByItem[out[i].ID])
+			}
+			kinds := map[string]int{}
+			for _, c := range all {
+				kinds["library_"+c.Kind]++
+			}
+			for _, c := range out {
+				kinds["sample_"+c.Kind]++
+			}
+			slog.InfoContext(ctx, "loadtest: library sampled", slog.Int("playable", len(all)), slog.Int("sampled", len(out)), slog.Any("kinds", kinds))
 			return out, nil
 		}),
 		hlsVODRemover.ActivePlaybackCount,
@@ -573,78 +557,32 @@ func loadTestVideoRange(st *library.MediaStream) string {
 	return apploadtest.RangeSDR
 }
 
-// filmsAndEpisodes draws films and episodes in equal parts, each a random slice
-// of its own kind. A draw over every item is mostly episodes (a season holds
-// ten of them, a film one), so the run loaded the disks the series sit on and
-// left the films' disks idle. When one kind runs short, the other fills in.
-func filmsAndEpisodes(ctx context.Context, list func(context.Context, library.ListMediaItemsFilter) ([]*library.MediaItem, error), want int, start func() string) ([]*library.MediaItem, error) {
-	var kinds [2][]*library.MediaItem
-	for i, typ := range []library.MediaItemType{library.MovieItem, library.Episode} {
+// loadTestLibraryPage is how many rows one query of the library walk returns.
+const loadTestLibraryPage = 1000
+
+// playableLibrary walks every film and episode of the library in id order and
+// keeps those with a file a viewer can play for at least minDuration: a
+// shorter title loops back on itself and is then served from the page cache.
+func playableLibrary(ctx context.Context, list func(context.Context, library.ListMediaItemsFilter) ([]*library.MediaItem, error), minDuration time.Duration) ([]*library.MediaItem, error) {
+	var out []*library.MediaItem
+	for _, typ := range []library.MediaItemType{library.MovieItem, library.Episode} {
 		t := string(typ)
-		ofKind := func(ctx context.Context, f library.ListMediaItemsFilter) ([]*library.MediaItem, error) {
-			f.Type = &t
-			return list(ctx, f)
-		}
-		items, err := randomLibrarySlice(ctx, ofKind, want, start())
-		if err != nil {
-			return nil, err
-		}
-		kinds[i] = items
-	}
-	out := make([]*library.MediaItem, 0, want)
-	for i := 0; len(out) < want && (i < len(kinds[0]) || i < len(kinds[1])); i++ {
-		for _, k := range kinds {
-			if i < len(k) && len(out) < want {
-				out = append(out, k[i])
+		after := ""
+		for {
+			page, err := list(ctx, library.ListMediaItemsFilter{Type: &t, AfterID: after, KeysetByID: true, Limit: loadTestLibraryPage})
+			if err != nil {
+				return nil, err
 			}
+			for _, it := range page {
+				if it != nil && it.File != nil && it.File.Duration.Milliseconds() >= minDuration.Milliseconds() {
+					out = append(out, it)
+				}
+			}
+			if len(page) < loadTestLibraryPage || page[len(page)-1] == nil {
+				break
+			}
+			after = string(page[len(page)-1].ID)
 		}
 	}
 	return out, nil
-}
-
-// seededItemIDs returns successive points in the id space (media ids are
-// random UUIDs), derived from seed: one per kind of title asked for, the same
-// points for the same seed.
-func seededItemIDs(seed uint64) func() string {
-	gen := mathrand.New(mathrand.NewPCG(seed, seed^0x5851f42d4c957f2d)) //nolint:gosec // a replayable slice of the library, not a secret
-	return func() string {
-		var b [16]byte
-		for i := 0; i < 16; i += 8 {
-			binary.LittleEndian.PutUint64(b[i:], gen.Uint64())
-		}
-		b[6] = b[6]&0x0f | 0x40
-		b[8] = b[8]&0x3f | 0x80
-		return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-	}
-}
-
-// randomLibrarySlice returns up to want items starting just after a random id
-// and wrapping round to the lowest ids when the end of the table comes first.
-// Ids are random, so a run of consecutive ids is a random sample of the
-// library - by title, by age and by disk - for the price of one indexed query,
-// two at the wrap.
-func randomLibrarySlice(ctx context.Context, list func(context.Context, library.ListMediaItemsFilter) ([]*library.MediaItem, error), want int, start string) ([]*library.MediaItem, error) {
-	items, err := list(ctx, library.ListMediaItemsFilter{AfterID: start, KeysetByID: true, Limit: want})
-	if err != nil {
-		return nil, err
-	}
-	if len(items) >= want {
-		return items, nil
-	}
-	head, err := list(ctx, library.ListMediaItemsFilter{KeysetByID: true, Limit: want - len(items)})
-	if err != nil {
-		return items, nil //nolint:nilerr // the tail alone is still a usable pool
-	}
-	seen := make(map[shared.MediaItemID]bool, len(items))
-	for _, it := range items {
-		if it != nil {
-			seen[it.ID] = true
-		}
-	}
-	for _, it := range head {
-		if it != nil && !seen[it.ID] {
-			items = append(items, it)
-		}
-	}
-	return items, nil
 }
