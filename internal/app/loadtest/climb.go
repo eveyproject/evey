@@ -162,6 +162,9 @@ type climb struct {
 	// a FAST hold alone - a join burst is not a regime - so a verdict landing on
 	// an unmeasured lo first routes through phaseSettle.
 	loMeasured bool
+	// measuredLo is the highest count that held under a full measurement
+	// window: what a failed settle falls back to.
+	measuredLo int
 
 	// cur is the measured candidate being judged, steps every one judged so
 	// far in order (the report's table); sameTier is true when next() kept the
@@ -349,6 +352,7 @@ func (c *climb) next(maxViewers int, load float64) (climbOutcome, StopReason, st
 		if held {
 			c.lo = c.target
 			c.loMeasured = true // it held under a full measurement window
+			c.measuredLo = c.lo
 		} else {
 			c.hi, c.hiReason, c.hiDetail = c.target, brokeReason, brokeDetail
 			c.hiJudgedProperly = true // it broke under a full measurement window
@@ -383,6 +387,7 @@ func (c *climb) next(maxViewers int, load float64) (climbOutcome, StopReason, st
 		// worlds.
 		c.lo = c.hi
 		c.loMeasured = true // the confirmation pass IS a full window
+		c.measuredLo = c.lo
 		if maxViewers > 0 && c.lo >= maxViewers {
 			return c.finish(StopMaxViewers, fmt.Sprintf("reached the configured ceiling of %d viewers with room to spare", c.lo))
 		}
@@ -400,16 +405,19 @@ func (c *climb) next(maxViewers int, load float64) (climbOutcome, StopReason, st
 			// it now come from a real window, and the verdict found earlier
 			// stands.
 			c.loMeasured = true
+			c.measuredLo = c.lo
 			return climbDone, c.pendingReason, c.pendingDetail
 		}
 		// The answer BROKE under the very window that was meant to back it: it
-		// was never the answer. Resume the search below it - everything under
-		// this tier is unproven again, so the bisection restarts from zero. This
-		// is rare (the tier held a FAST hold moments ago) and it terminates:
-		// each settle failure strictly lowers hi.
+		// was never the answer. Resume the search below it, from the highest
+		// count a full window proved: what only FAST holds showed above that is
+		// unproven again, what a full window proved is not (prod 2026-10-19:
+		// a restart from zero threw away a measured 91 and ran out the clock).
+		// It terminates: each settle failure strictly lowers hi, and measuredLo
+		// sits below it.
 		c.hi, c.hiReason, c.hiDetail = c.target, brokeReason, brokeDetail
 		c.hiJudgedProperly = true
-		c.lo, c.loMeasured = 0, false
+		c.lo, c.loMeasured = c.measuredLo, c.measuredLo > 0
 		if c.converged() {
 			return c.finish(brokeReason, brokeDetail)
 		}
