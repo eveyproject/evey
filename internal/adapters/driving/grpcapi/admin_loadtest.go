@@ -186,6 +186,12 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			Strata:                        loadTestStrataToProto(r.Strata),
 			StrataByDisk:                  loadTestStrataToProto(r.StrataByDisk),
 			StrataByBand:                  loadTestStrataToProto(r.StrataByBand),
+			ProxyAddress:                  r.ProxyAddress,
+			UplinkBytesPerSec:             r.Uplink.BytesPerSec,
+			UplinkMeasured:                r.Uplink.Measured,
+			UplinkService:                 r.Uplink.Service,
+			RemoteViewers:                 int32(r.RemoteViewers),
+			RemoteByLine:                  r.RemoteByLine,
 		}
 		for _, g := range r.Grid {
 			out.LastReport.Grid = append(out.LastReport.Grid, &eveyv1.LoadTestGridTier{

@@ -76,6 +76,12 @@ type Runner struct {
 	// clientHistory counts the recent playbacks by recorded device type (see
 	// WithClientHistory).
 	clientHistory func(ctx context.Context) (map[PlaybackDevice]int, error)
+	// dialRedirect points the run's connections to the public address at the
+	// proxy's local address (see WithDialRedirect). nil: the public path.
+	dialRedirect *DialRedirect
+	// uplinkURL is where the line's upload is measured (see WithUplinkProbe).
+	// Empty: not measured.
+	uplinkURL string
 
 	// servedBytes is the running total of bytes every viewer has pulled this
 	// run - which is exactly what the server had to push. It is the honest
@@ -223,6 +229,23 @@ func (r *Runner) WithPlaybackForget(forget func(mediaIDs []string)) *Runner {
 // a run falls back to DefaultClientMix.
 func (r *Runner) WithClientHistory(read func(ctx context.Context) (map[PlaybackDevice]int, error)) *Runner {
 	r.clientHistory = read
+	return r
+}
+
+// WithDialRedirect hands the run the redirect its HTTP client's dialer goes
+// through, so a run can reach a proxy on the local network at its local
+// address instead of the router's public one (see skipRouterLoop). The client
+// must dial through d.Wrap.
+func (r *Runner) WithDialRedirect(d *DialRedirect) *Runner {
+	r.dialRedirect = d
+	return r
+}
+
+// WithUplinkProbe makes every run measure the upload of the line in front of
+// the server against probeURL before its viewers start (see measureUplink),
+// and report how many viewers outside it carries.
+func (r *Runner) WithUplinkProbe(probeURL string) *Runner {
+	r.uplinkURL = probeURL
 	return r
 }
 

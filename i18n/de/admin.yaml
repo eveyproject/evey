@@ -1292,11 +1292,20 @@ loadtest:
     cpu: "Was zuerst nachgibt: der Prozessor."
     memory: "Was zuerst nachgibt: der Arbeitsspeicher."
     proxy: "Was zuerst nachgibt: das Netzwerk zwischen diesem Server und seiner öffentlichen Adresse (die Ethernet-Verbindung, die Upload-Bandbreite des Anschlusses, ein Router oder der Proxy, der Test kann sie nicht unterscheiden), nicht der Server selbst."
+    proxyLocal: "Was zuerst nachgibt: der Proxy oder die Netzwerkverbindung zu ihm, nicht der Server selbst."
     server: "Was zuerst nachgibt: der Server selbst, er hat mit Fehlern geantwortet."
     unknown: "Nichts auf dieser Maschine war am Limit: die Grenze liegt woanders, im Netzwerk oder in einem geteilten Speicher."
     none: "Nichts hat vor der gewünschten Zuschauergrenze nachgegeben."
   advice:
     spreadTitles: "Tipp: die meistgesehenen Titel auf mehrere Festplatten verteilen."
+  remote:
+    byLine_one: "Von außen: etwa {{count}} Zuschauer. Die Verbindung sendet {{up}} ins Internet (gemessen gegen {{service}}): Sie ist die Grenze."
+    byLine_other: "Von außen: etwa {{count}} Zuschauer. Die Verbindung sendet {{up}} ins Internet (gemessen gegen {{service}}): Sie ist die Grenze."
+    byServer_one: "Von außen: etwa {{count}} Zuschauer. Die Verbindung sendet {{up}} ins Internet (gemessen gegen {{service}}), genug für mehr: Der Server ist die Grenze."
+    byServer_other: "Von außen: etwa {{count}} Zuschauer. Die Verbindung sendet {{up}} ins Internet (gemessen gegen {{service}}), genug für mehr: Der Server ist die Grenze."
+    lineOnly: "Die Verbindung sendet {{up}} ins Internet (gemessen gegen {{service}})."
+    unmeasured: "Der Upload der Verbindung konnte nicht gemessen werden: {{service}} hat nicht geantwortet."
+    viaLocal: "Der Test hat den Proxy unter seiner lokalen Adresse ({{address}}) erreicht, ohne den Umweg über den Router, den der Verkehr von Zuschauern außerhalb nicht nimmt."
   grid:
     viewers: "Zuschauer"
     cpu: "Prozessor"

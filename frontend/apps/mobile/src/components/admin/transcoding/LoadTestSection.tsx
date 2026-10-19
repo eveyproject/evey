@@ -20,6 +20,7 @@ import {
   deviceLines,
   limiterLine,
   adviceLine,
+  remoteLines,
   verdictLine,
   gridRows,
   clientMixScenario,
@@ -253,6 +254,11 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
         <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>{limiterLine(t, report)}</Text>
       ) : null}
       {adviceLine(t, report) ? <Text style={{ color: theme.colors.text, fontSize: 14 }}>{adviceLine(t, report)}</Text> : null}
+      {remoteLines(t, report).map((line) => (
+        <Text key={line} style={{ color: theme.colors.text, fontSize: 14 }}>
+          {line}
+        </Text>
+      ))}
       {(report.grid?.length ?? 0) > 0 && (
         <View style={{ marginTop: 6 }}>
           <View style={[s.tierRow, { borderBottomColor: theme.colors.border }]}>

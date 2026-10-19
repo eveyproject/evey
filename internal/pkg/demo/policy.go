@@ -373,6 +373,7 @@ var LockedRoutes = map[string]string{ //nolint:gosec // G101: RPC and route name
 	"GET /api/v1/admin/logs/stream":             "host logs, live, with the addresses of other guests",
 	"GET /api/v1/admin/backups/{id}":            "downloads the database dump - every hash and every setting",
 	"GET /api/v1/admin/network-info":            "discloses the host's interfaces and addresses",
+	"GET /api/v1/admin/load-test/peer":          "discloses the proxy's address on the host's network",
 	"GET /api/v1/admin/media/{id}/sync-preview": "transcodes on every call",
 	// Every visitor's browser and phone is a device of the one shared account:
 	// "Play on" reached another visitor's screen, the same harm as

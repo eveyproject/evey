@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -344,6 +345,10 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 	// loadTestMaxConns sizes the harness's own connection pool. It must exceed
 	// any audience the climb can reach, or the test throttles itself.
 	const loadTestMaxConns = 2048
+	// A proxy on the local network is dialed at its local address rather than
+	// through the router's public one (see apploadtest.DialRedirect).
+	loadTestRedirect := &apploadtest.DialRedirect{}
+	loadTestDialer := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
 	loadTestRunner := apploadtest.New(
 		&http.Client{
 			Timeout: 30 * time.Second,
@@ -356,6 +361,7 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 			// are what reproduces that.
 			Transport: &http.Transport{
 				Proxy:               http.ProxyFromEnvironment,
+				DialContext:         loadTestRedirect.Wrap(loadTestDialer.DialContext),
 				MaxIdleConns:        loadTestMaxConns,
 				MaxIdleConnsPerHost: loadTestMaxConns,
 				MaxConnsPerHost:     0, // never queue a viewer behind another
@@ -406,6 +412,7 @@ func buildLoadTestRunner(cfg *config.Config, libQuerySvc *applibrary.QueryServic
 	// admission slot. The runner reaps its own leftovers between tiers and at
 	// the end of a run; it never runs over real traffic (Start refuses), so
 	// every live session is its own to kill.
+	loadTestRunner.WithDialRedirect(loadTestRedirect).WithUplinkProbe(apploadtest.UplinkProbeURL)
 	loadTestRunner.WithSessionReaper(func(mediaIDs []string) {
 		for _, id := range mediaIDs {
 			hlsVODRemover.RemoveSession(id)

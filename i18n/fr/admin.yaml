@@ -1258,11 +1258,20 @@ loadtest:
     cpu: "Ce qui lâche en premier : le processeur."
     memory: "Ce qui lâche en premier : la mémoire."
     proxy: "Ce qui lâche en premier : le réseau entre ce serveur et son adresse publique (la liaison Ethernet, le débit montant de la connexion, un routeur ou le proxy, le test ne peut pas les distinguer), pas le serveur lui-même."
+    proxyLocal: "Ce qui lâche en premier : le proxy, ou la liaison réseau jusqu'à lui, pas le serveur lui-même."
     server: "Ce qui lâche en premier : le serveur lui-même, qui a répondu par des erreurs."
     unknown: "Rien sur cette machine n'était à bout : la limite vient d'ailleurs, le réseau ou un stockage partagé."
     none: "Rien n'a lâché avant la limite de spectateurs demandée."
   advice:
     spreadTitles: "Conseil : répartir les titres les plus regardés sur plusieurs disques."
+  remote:
+    byLine_one: "Depuis l'extérieur : environ {{count}} spectateur. La connexion envoie {{up}} vers internet (mesuré auprès de {{service}}) : c'est elle qui limite."
+    byLine_other: "Depuis l'extérieur : environ {{count}} spectateurs. La connexion envoie {{up}} vers internet (mesuré auprès de {{service}}) : c'est elle qui limite."
+    byServer_one: "Depuis l'extérieur : environ {{count}} spectateur. La connexion envoie {{up}} vers internet (mesuré auprès de {{service}}), assez pour davantage : c'est le serveur qui limite."
+    byServer_other: "Depuis l'extérieur : environ {{count}} spectateurs. La connexion envoie {{up}} vers internet (mesuré auprès de {{service}}), assez pour davantage : c'est le serveur qui limite."
+    lineOnly: "La connexion envoie {{up}} vers internet (mesuré auprès de {{service}})."
+    unmeasured: "Le débit montant de la connexion n'a pas pu être mesuré : {{service}} n'a pas répondu."
+    viaLocal: "Le test a joint le proxy à son adresse locale ({{address}}), sans le détour par le routeur que le trafic des spectateurs extérieurs ne fait pas."
   grid:
     viewers: "Spectateurs"
     cpu: "Processeur"

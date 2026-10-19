@@ -1259,11 +1259,20 @@ loadtest:
     cpu: "What gives out first: the processor."
     memory: "What gives out first: the memory."
     proxy: "What gives out first: the network between this server and its public address (the Ethernet link, the connection's upload bandwidth, a router or the proxy, the test cannot tell them apart), not the server itself."
+    proxyLocal: "What gives out first: the proxy, or the network link to it, not the server itself."
     server: "What gives out first: the server itself, which answered with errors."
     unknown: "Nothing on this machine was at its limit: the limit is elsewhere, the network or shared storage."
     none: "Nothing gave out before the requested viewer limit."
   advice:
     spreadTitles: "Advice: spread the most watched titles over several disks."
+  remote:
+    byLine_one: "From outside: about {{count}} viewer. The connection sends {{up}} to the internet (measured against {{service}}): it is the limit."
+    byLine_other: "From outside: about {{count}} viewers. The connection sends {{up}} to the internet (measured against {{service}}): it is the limit."
+    byServer_one: "From outside: about {{count}} viewer. The connection sends {{up}} to the internet (measured against {{service}}), enough for more: the server is the limit."
+    byServer_other: "From outside: about {{count}} viewers. The connection sends {{up}} to the internet (measured against {{service}}), enough for more: the server is the limit."
+    lineOnly: "The connection sends {{up}} to the internet (measured against {{service}})."
+    unmeasured: "The connection's upload could not be measured: {{service}} did not answer."
+    viaLocal: "The test reached the proxy at its local address ({{address}}), without the turn through the router that outside viewers' traffic does not take."
   grid:
     viewers: "Viewers"
     cpu: "Processor"

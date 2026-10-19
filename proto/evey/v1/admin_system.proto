@@ -636,6 +636,24 @@ message LoadTestReport {
   repeated LoadTestStratum strata = 63;
   repeated LoadTestStratum strata_by_disk = 64;
   repeated LoadTestStratum strata_by_band = 65;
+  // proxy_address is the local address the proxy was reached at when it sits
+  // on the server's network: the run dials it there instead of turning
+  // through the router's public address, which no outside viewer does. Empty
+  // when the viewers took the public address.
+  string proxy_address = 66;
+  // uplink_* is what the line in front of the server sent to a speed-test
+  // service (uplink_service, served from its nearest point of presence)
+  // before the run: the upload real viewers come through, which the run's
+  // own viewers never cross.
+  int64 uplink_bytes_per_sec = 67;
+  bool uplink_measured = 68;
+  string uplink_service = 69;
+  // remote_viewers is how many viewers outside the line carries (at what one
+  // viewer of this run pulled, 80 % of the line) and the server holds,
+  // whichever is smaller; remote_by_line is true when the line is the
+  // smaller. Zero when the line was not measured.
+  int32 remote_viewers = 70;
+  bool remote_by_line = 71;
 }
 
 // LoadTestGridTier is one audience size of the grid and how its windows went.
