@@ -3,9 +3,12 @@ package ffmpeg
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
 
 // A 4K film, 24000/1001, Matroska millisecond timestamps around a
@@ -153,5 +156,61 @@ func TestTranscodeSeekLandingUs_ProbesOncePerFileAndTarget(t *testing.T) {
 	}
 	if calls != 5 {
 		t.Fatalf("failures probed %d times, want each one retried", calls-3)
+	}
+}
+
+// A transcode seek that starts past the last frame of the picture starts
+// where a frame remains (the ops clip: 750 frames at 25 fps, an audio tail
+// to 30.023 s, segment 10 at 30.000 declared and never produced); a seek
+// that lands on a frame, a copy session and a probe that cannot answer keep
+// their target.
+func TestBackOffToVideo(t *testing.T) {
+	grid := transcoding.GridForFrameRate(25)
+	orig := seekLandingProbe
+	t.Cleanup(func() { seekLandingProbe = orig })
+	for _, tc := range []struct {
+		name            string
+		lastFrame       float64 // the picture's last frame; packets stop there
+		probeErr        error
+		decision        string
+		startSeg        int
+		wantSeg, probes int
+	}{
+		{"tail segment after the last frame", 29.96, nil, "transcode", 10, 9, 2},
+		{"audio tail longer than a segment", 23.5, nil, "transcode", 10, 7, 4},
+		{"picture ends in the first segment", 1.2, nil, "transcode", 2, 0, 2},
+		{"a frame at the target", 29.96, nil, "transcode", 9, 9, 1},
+		{"copy session", 29.96, nil, "copy", 10, 10, 0},
+		{"probe failed", 29.96, errors.New("ffprobe: exit status 1"), "transcode", 10, 10, 1},
+		{"beyond a minute of tail", 0.5, nil, "transcode", 40, 40, 1 + seekBackoffMaxSegments},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "a.mkv")
+			if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			probes := 0
+			seekLandingProbe = func(_ context.Context, _ string, startSec float64) (int64, error) {
+				probes++
+				if tc.probeErr != nil {
+					return 0, tc.probeErr
+				}
+				if startSec > tc.lastFrame {
+					return 0, fmt.Errorf("seek landing probe: %w at or after %.3f s", errNoVideoPacket, startSec)
+				}
+				return int64(startSec * 1e6), nil
+			}
+			opts := transcoding.HLSProcessOpts{
+				FilePath: path, VideoDecision: tc.decision, Grid: grid, DeclaredDurationMs: 30023 + int64(max(tc.startSeg-10, 0))*3000,
+				StartSec: grid.SegmentStartSeconds(tc.startSeg), StartNumber: tc.startSeg,
+			}
+			got := backOffToVideo(context.Background(), opts)
+			if startNumberFor(got) != tc.wantSeg || got.StartNumber != tc.wantSeg || got.StartSec != grid.SegmentStartSeconds(tc.wantSeg) {
+				t.Errorf("session starts at segment %d (StartNumber %d, %.3f s), want %d", startNumberFor(got), got.StartNumber, got.StartSec, tc.wantSeg)
+			}
+			if probes != tc.probes {
+				t.Errorf("%d probes, want %d", probes, tc.probes)
+			}
+		})
 	}
 }

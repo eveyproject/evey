@@ -20,6 +20,7 @@ package ffmpeg
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -28,6 +29,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/eveyproject/evey/internal/domain/transcoding"
 	"github.com/eveyproject/evey/internal/pkg/procfork"
 )
 
@@ -144,9 +146,56 @@ func probeTranscodeSeekLandingUs(ctx context.Context, filePath string, startSec 
 	}
 	us, ok := seekLandingFromPackets(pts, startSec, fpsNum, fpsDen)
 	if !ok {
-		return 0, fmt.Errorf("seek landing probe: no video packet at or after %.3f s in a %.0f s window", startSec, seekLandingWindowSec)
+		return 0, fmt.Errorf("seek landing probe: %w at or after %.3f s in a %.0f s window", errNoVideoPacket, startSec, seekLandingWindowSec)
 	}
 	return us, nil
+}
+
+// errNoVideoPacket is the probe finding the source holds no video frame in
+// the window after the target: past the end of the picture, where the audio
+// outlasts it, or in a gap of more than the window.
+var errNoVideoPacket = errors.New("no video packet")
+
+// seekBackoffMaxSegments bounds how far before its target a transcode seek
+// looks for a frame: a minute of 3 s segments covers any audio tail a real
+// file carries past its picture.
+const seekBackoffMaxSegments = 20
+
+// backOffToVideo moves a transcode seek that starts after the last frame of
+// the picture back to the segment that still holds a frame. The manifests
+// count the frames of the container duration, which counts the audio that
+// outlasts the picture, and the frame tail (eosPadFilter) clones the last
+// decoded frame; a session whose -ss lies past that frame decodes nothing,
+// has nothing to clone, and writes a segment without a sample (ops harness
+// 2026-10-19: the 30 s clip's segment 10 at -ss 30.000, a 55 s wait, a new
+// ffmpeg, for ever). Started from an earlier segment, the session produces
+// the tail exactly as the cold session does. A probe that cannot answer
+// keeps the target: only a measured absence moves it.
+func backOffToVideo(ctx context.Context, opts transcoding.HLSProcessOpts) transcoding.HLSProcessOpts {
+	if opts.StartSec <= 0 || eosFrames(opts) <= 0 {
+		return opts
+	}
+	n := startNumberFor(opts)
+	_, err := transcodeSeekLandingUs(ctx, opts.FilePath, opts.StartSec)
+	if !errors.Is(err, errNoVideoPacket) {
+		return opts
+	}
+	for back := n - 1; back >= max(n-seekBackoffMaxSegments, 0); back-- {
+		start := opts.Grid.SegmentStartSeconds(back)
+		if back > 0 {
+			if _, err := transcodeSeekLandingUs(ctx, opts.FilePath, start); err != nil {
+				if errors.Is(err, errNoVideoPacket) {
+					continue
+				}
+				return opts
+			}
+		}
+		slog.InfoContext(ctx, "hls: transcode seek past the last video frame, starting the session where a frame remains",
+			slog.String("media_path", opts.FilePath), slog.Int("requested_segment", n), slog.Int("start_segment", back))
+		opts.StartSec, opts.StartNumber = start, back
+		return opts
+	}
+	return opts
 }
 
 // seekLandingFromPackets is the pure core of transcodeSeekLandingUs: among the

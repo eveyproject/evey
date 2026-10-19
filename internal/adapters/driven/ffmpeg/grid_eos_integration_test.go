@@ -115,6 +115,22 @@ func TestGridEOSIntegration(t *testing.T) {
 			if res, verr := cmafparity.Verify(ctx, sdir, "stream_0", false, decl, 0); verr != nil || !res.OK() || len(res.Extra) != 0 || len(res.Indices) != 2 {
 				t.Errorf("seek session to segment %d off the declared end: %v %+v", declared-2, verr, res)
 			}
+			// A seek session to the last segment, which starts where the picture
+			// ends: no source frame at or after its start, nothing for the tail to
+			// clone (ops harness 2026-10-19: no fragment, a 55 s wait, a respawn).
+			tdir := t.TempDir()
+			topts := sopts
+			topts.OutputDir, topts.StartSec, topts.StartNumber = tdir, grid.SegmentStartSeconds(declared-1), declared-1
+			th, tailErr := NewHLSTranscoder().Start(ctx, topts)
+			if tailErr != nil {
+				t.Fatalf("tail seek session: %v", tailErr)
+			}
+			awaitSegmentFile(t, ctx, filepath.Join(tdir, fmt.Sprintf("stream_0_%03d.m4s", declared-1)), 30*time.Second)
+			<-th.Done()
+			_ = th.Stop()
+			if res, verr := cmafparity.Verify(ctx, tdir, "stream_0", false, decl, 0); verr != nil || !res.OK() || len(res.Extra) != 0 {
+				t.Errorf("seek session to the last segment %d off the declared end: %v %+v", declared-1, verr, res)
+			}
 			ldir := t.TempDir()
 			largs := BuildFFmpegArgs(transcoding.HLSProcessOpts{
 				FilePath: src, OutputDir: ldir, VideoDecision: "transcode", AudioDecision: "transcode",
