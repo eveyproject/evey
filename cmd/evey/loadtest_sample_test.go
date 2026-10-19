@@ -25,7 +25,7 @@ func TestPlayableLibrary(t *testing.T) {
 		byKind["episode"] = append(byKind["episode"], &library.MediaItem{ID: shared.MediaItemID(fmt.Sprintf("e%05d", i)), File: &library.MediaFile{Duration: dur(40 * time.Minute)}})
 	}
 	byKind["movie"] = []*library.MediaItem{
-		{ID: "m1", File: &library.MediaFile{Duration: dur(2 * time.Hour)}},
+		{ID: "m1", Type: library.MovieItem, File: &library.MediaFile{Duration: dur(2 * time.Hour), Size: 900_000_000}},
 		{ID: "m2", File: &library.MediaFile{Duration: dur(3 * time.Minute)}},
 		{ID: "m3"},
 	}
@@ -47,8 +47,8 @@ func TestPlayableLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1+2*loadTestLibraryPage+3 || got[0].ID != "m1" {
-		t.Fatalf("got %d titles starting %v, want m1 and every episode, without the short film or the film with no file", len(got), got[0].ID)
+	if len(got) != 1+2*loadTestLibraryPage+3 || got[0].ID != "m1" || got[0].Kind != "movie" || got[0].DurationSec != 7200 || got[0].BitrateBps != 1_000_000 {
+		t.Fatalf("got %d titles starting %v, want m1 (a movie of 2 h at 1 Mb/s by its size) and every episode, without the short film or the film with no file", len(got), got[0].ID)
 	}
 	if len(calls) != 4 {
 		t.Fatalf("%d queries, want 1 for the films and 3 pages of episodes", len(calls))
