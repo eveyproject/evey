@@ -608,20 +608,20 @@ func TestResourceState_ARegimeThatNeverResumesIsMeasuredAnyway(t *testing.T) {
 		at = at.Add(2 * time.Second)
 	}
 
-	// Tier 31 genuinely cannot feed its viewers: throughput stays at a tenth of
+	// Tier 32 genuinely cannot feed its viewers: throughput stays at a tenth of
 	// the regime, forever.
 	t2 := at
-	rs.startTier(31, t2, true, "test")
+	rs.startTier(32, t2, true, "test")
 	at = t2.Add(11 * time.Second)
 	for range 20 { // well past any reasonable cap
-		rs.observe(31, ResourceSample{ServedBytesPerSec: 21 * perViewer / 10, DiskReadBytesPerSec: 21 * perViewer / 10}, at)
+		rs.observe(32, ResourceSample{ServedBytesPerSec: 21 * perViewer / 10, DiskReadBytesPerSec: 21 * perViewer / 10}, at)
 		at = at.Add(2 * time.Second)
 	}
-	if rs.stats(31).Samples == 0 {
+	if rs.stats(32).Samples == 0 {
 		t.Fatalf("a tier whose audience never regains its regime must still be measured past the cap - that failure IS the evidence")
 	}
-	if plateaued, _ := rs.throughputPlateaued(31); !plateaued {
-		t.Fatalf("31 viewers moving a tenth of 21's bytes, disk visibly delivering: the plateau must still be caught")
+	if plateaued, _ := rs.throughputPlateaued(32); !plateaued {
+		t.Fatalf("32 viewers moving a tenth of 21's bytes, disk visibly delivering: the plateau must still be caught")
 	}
 }
 
@@ -1002,13 +1002,45 @@ func TestResourceState_NoPlateauVerdictBetweenNeighbouringSizes(t *testing.T) {
 		t.Fatalf("67 against 65 viewers: a flat curve between neighbours is noise, not the storage ceiling")
 	}
 	// Against a size far enough below, the same flat curve is the ceiling.
-	rs.startTier(80, at, true, "test")
+	rs.startTier(100, at, true, "test")
 	for range 5 {
 		at = at.Add(time.Second)
-		rs.observe(80, ResourceSample{ServedBytesPerSec: 40 << 20, DiskReadBytesPerSec: 40 << 20}, at)
+		rs.observe(100, ResourceSample{ServedBytesPerSec: 40 << 20, DiskReadBytesPerSec: 40 << 20}, at)
 	}
-	if plateaued, _ := rs.throughputPlateaued(80); !plateaued {
-		t.Fatalf("80 viewers pushing what 65 did: that is the ceiling")
+	if plateaued, _ := rs.throughputPlateaued(100); !plateaued {
+		t.Fatalf("100 viewers pushing what 65 did: that is the ceiling")
+	}
+}
+
+// THE 2026-10-19 REGRESSION. Prod, through the proxy: 51 viewers held four
+// windows at 222, 280, 263 and 279 Mb/s, one size moving 16 % between two of
+// its own windows. The first window at 59 moved 267 Mb/s and was condemned
+// "throughput flat at 263 Mb/s: the server cannot read the media any faster"
+// with every disk 1-12 % busy; the next four windows at 59 moved 307-329. A
+// single window against a size 16 % smaller expects 8 % more bytes, half the
+// spread of one window: the verdict needs a reference far enough below that
+// the gain it demands clears the spread.
+func TestResourceState_OneNoisyWindowAboveANearbySizeIsNotAPlateau(t *testing.T) {
+	rs := newResourceState(0, time.Now())
+	at := time.Now()
+	const mbps = 1e6 / 8
+	rs.startTier(51, at, true, "test")
+	for i, served := range []float64{222, 280, 263, 279} {
+		if i > 0 {
+			rs.nextWindow(51, at, "test")
+		}
+		for range 5 {
+			at = at.Add(time.Second)
+			rs.observe(51, ResourceSample{ServedBytesPerSec: int64(served * mbps), DiskReadBytesPerSec: 35 << 20, DiskReadMeasured: true}, at)
+		}
+	}
+	rs.startTier(59, at, true, "test")
+	for range 5 {
+		at = at.Add(time.Second)
+		rs.observe(59, ResourceSample{ServedBytesPerSec: int64(267 * mbps), DiskReadBytesPerSec: 35 << 20, DiskReadMeasured: true}, at)
+	}
+	if plateaued, ceiling := rs.throughputPlateaued(59); plateaued {
+		t.Fatalf("59 viewers condemned against 51's %d Mb/s on one window inside 51's own spread", ceiling*8/1e6)
 	}
 }
 
