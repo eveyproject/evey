@@ -84,6 +84,18 @@ func TestResolveDelivery_Table(t *testing.T) {
 	}
 }
 
+// A copy keeps the source rate, so the packager carries only tracks at
+// 48 kHz or below: a 96 kHz AAC beside the selected 48 kHz one was served
+// verbatim as a rendition, the rate the decision refuses to copy for the
+// selected track ("audio_samplerate_exceeded").
+func TestResolveDelivery_ATrackAbove48kHzIsNotPackagedVerbatim(t *testing.T) {
+	streams := deliveryStreams("aac", "aac")
+	streams[1].SampleRate, streams[2].SampleRate = new(48000), new(96000)
+	route := ResolvedRoute{Copy: true}
+	got := deliveryResolver(true, false, true).resolveDelivery(context.Background(), PlaybackRequest{Streams: streams, AudioTrack: 0}, copyBoth, route)
+	assert.Equal(t, DeliveryStrategy{Video: EngineMkvgo, Audio: EngineMkvgo, AudioTrimmed: true}, got)
+}
+
 // Loudnorm re-encodes every track: the audio leaves the packager (hybrid
 // master), trimmed or not.
 func TestResolveDelivery_LoudnormLeavesThePackagerAudio(t *testing.T) {

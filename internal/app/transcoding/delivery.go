@@ -149,11 +149,22 @@ func (pr *PlanResolver) audioAllCarriable(ctx context.Context, decision transcod
 		return false
 	}
 	for _, s := range streams {
-		if s != nil && s.StreamType == library.StreamTypeAudio && !AudioCopyCodecAllowed(strings.ToLower(s.Codec)) {
+		if s != nil && s.StreamType == library.StreamTypeAudio && !audioTrackPackagedVerbatim(s) {
 			return false
 		}
 	}
 	return true // no audio track is fine too: the packager packages video-only
+}
+
+// audioTrackPackagedVerbatim: the packager carries the track as stored, so
+// its codec must be CMAF-carriable and its rate one the decision would copy
+// (evaluateAudio's maxCopiedAudioSampleRate); a 96 kHz track beside the
+// selected one was served at 96 kHz as a rendition.
+func audioTrackPackagedVerbatim(s *library.MediaStream) bool {
+	if s.SampleRate != nil && *s.SampleRate > maxCopiedAudioSampleRate {
+		return false
+	}
+	return AudioCopyCodecAllowed(strings.ToLower(s.Codec))
 }
 
 // audioTrimUnlocksCopy: the SELECTED track is carriable verbatim while some
