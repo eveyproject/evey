@@ -503,3 +503,29 @@ func TestClimb_StepReportAndRange(t *testing.T) {
 		t.Fatalf("range [%d, %d], want [lo=%d, hi=%d]", low, high, c.lo, c.hi)
 	}
 }
+
+// A run cut short in a measured phase answers with the highest count a full
+// window proved, never a FAST hold still standing as lo (bisecting from a
+// FAST break, settling a FAST answer); a run that judged nothing answers
+// with what was streaming.
+func TestCutShortAnswer(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		phase      climbPhase
+		lo         int
+		measuredLo int
+		endurance  bool
+		want       int
+	}{
+		{"settling a FAST answer over a measured 91", phaseSettle, 101, 91, false, 91},
+		{"bisecting from a FAST break, nothing measured yet", phaseBisect, 61, 0, false, 64},
+		{"bisecting above a measured lo", phaseBisect, 81, 81, false, 81},
+		{"still hunting FAST", phaseFast, 41, 0, false, 64},
+		{"endurance keeps what streamed", phaseSettle, 101, 91, true, 64},
+	} {
+		cl := &climb{phase: tc.phase, lo: tc.lo, measuredLo: tc.measuredLo}
+		if got := cutShortAnswer(cl, tc.endurance, 64); got != tc.want {
+			t.Errorf("%s: answer %d, want %d", tc.name, got, tc.want)
+		}
+	}
+}
