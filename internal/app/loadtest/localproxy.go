@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+
+	"github.com/eveyproject/evey/internal/pkg/network"
 )
 
 // localproxy.go - reaching the reverse proxy the way an outside viewer's
@@ -31,11 +33,18 @@ import (
 // one.
 const LoadTestPeerPath = "/api/v1/admin/load-test/peer"
 
-// PeerHandler answers LoadTestPeerPath: the immediate peer of the request,
-// never a forwarded header - the proxy, not the client behind it.
+// PeerHandler answers LoadTestPeerPath: the connection's own peer, never a
+// forwarded header - the proxy, not the client behind it. The trusted-proxy
+// middleware rewrites RemoteAddr to that client and keeps the peer in the
+// context (prod 2026-10-19: RemoteAddr named the router, which the proxy saw
+// as the client of the router's turn).
 func PeerHandler(w http.ResponseWriter, r *http.Request) {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
+	var host string
+	if ip := network.PeerIPFromContext(r.Context()); ip != nil {
+		host = ip.String()
+	} else if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		host = h
+	} else {
 		host = r.RemoteAddr
 	}
 	w.Header().Set("Content-Type", "application/json")

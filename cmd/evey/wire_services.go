@@ -563,6 +563,7 @@ func playableLibrary(ctx context.Context, list func(context.Context, library.Lis
 			if err != nil {
 				return nil, err
 			}
+			prev := after
 			for _, it := range page {
 				if it == nil {
 					continue
@@ -572,7 +573,10 @@ func playableLibrary(ctx context.Context, list func(context.Context, library.Lis
 					out = append(out, loadTestCandidate(it))
 				}
 			}
-			if len(page) < loadTestLibraryPage {
+			// An empty page is the end: a page shorter than asked is not, the
+			// repository caps every page (500 rows on prod 2026-10-19, which
+			// stopped the walk at 500 films and 500 episodes).
+			if len(page) == 0 || after == prev {
 				break
 			}
 		}

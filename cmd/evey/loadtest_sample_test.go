@@ -35,9 +35,10 @@ func TestPlayableLibrary(t *testing.T) {
 		if f.Type == nil || !f.KeysetByID {
 			t.Fatal("the walk must go by kind, in id order")
 		}
+		// The repository caps every page at 500 rows whatever the limit asked.
 		var out []*library.MediaItem
 		for _, it := range byKind[*f.Type] {
-			if string(it.ID) > f.AfterID && len(out) < f.Limit {
+			if string(it.ID) > f.AfterID && len(out) < min(f.Limit, 500) {
 				out = append(out, it)
 			}
 		}
@@ -50,8 +51,10 @@ func TestPlayableLibrary(t *testing.T) {
 	if len(got) != 1+2*loadTestLibraryPage+3 || got[0].ID != "m1" || got[0].Kind != "movie" || got[0].DurationSec != 7200 || got[0].BitrateBps != 1_000_000 {
 		t.Fatalf("got %d titles starting %v, want m1 (a movie of 2 h at 1 Mb/s by its size) and every episode, without the short film or the film with no file", len(got), got[0].ID)
 	}
-	if len(calls) != 4 {
-		t.Fatalf("%d queries, want 1 for the films and 3 pages of episodes", len(calls))
+	// Pages are cut at 500 rows: 2003 episodes take five pages, and each kind
+	// ends on an empty page.
+	if len(calls) != 2+6 {
+		t.Fatalf("%d queries, want 2 for the films and 6 for the episodes", len(calls))
 	}
 
 	boom := errors.New("db down")
