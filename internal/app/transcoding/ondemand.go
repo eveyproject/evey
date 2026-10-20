@@ -38,6 +38,18 @@ var ErrSourceChanged = errors.New("on-demand: the source changed since the plan 
 // replacing or repairing, rebuilding the plan changes nothing.
 var ErrSourceDamaged = errors.New("on-demand: the source is damaged there")
 
+// ErrNoResource is a plan's answer for a name it does not serve: an unknown
+// name, a segment or a rendition out of range. A 404, and nothing failed.
+var ErrNoResource = errors.New("on-demand: no such resource")
+
+// OnDemandStater says what Open would hand out under a name - its size, ETag
+// and content type - without opening it (mkvgo 0.56): nothing is counted
+// served and no segment a window walk kept is taken, so a HEAD or a
+// revalidation costs the plan nothing. ok is false where only Open can tell.
+type OnDemandStater interface {
+	Stat(ctx context.Context, name string) (size int64, etag, contentType string, ok bool, err error)
+}
+
 // OnDemandOpener is the streaming side of a plan: a media segment is written
 // from the source as it goes out, through one small buffer, instead of being
 // assembled whole in memory first. A plan that can stream implements it

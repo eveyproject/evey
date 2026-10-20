@@ -49,7 +49,7 @@ func (p *fakeOnDemandPlan) Resource(_ context.Context, name string) ([]byte, str
 	if d, ok := p.resources[name]; ok {
 		return d, "application/vnd.apple.mpegurl", nil
 	}
-	return nil, "", fmt.Errorf("fake: no resource %q", name)
+	return nil, "", fmt.Errorf("fake: no resource %q: %w", name, apptranscoding.ErrNoResource)
 }
 func (p *fakeOnDemandPlan) Resources() []string { return []string{"master.m3u8"} }
 func (p *fakeOnDemandPlan) NumSegments() int    { return 1 }

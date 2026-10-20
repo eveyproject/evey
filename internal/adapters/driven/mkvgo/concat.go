@@ -110,7 +110,8 @@ func concatCacheKey(sources []string, opts apptranscoding.ConcatOptions) string 
 type concatPlan struct{ plan *mp4.ConcatPlan }
 
 func (p *concatPlan) Resource(ctx context.Context, name string) ([]byte, string, error) {
-	return p.plan.Resource(ctx, strings.ReplaceAll(name, concatPathSep, "/"))
+	data, ct, err := p.plan.Resource(ctx, strings.ReplaceAll(name, concatPathSep, "/"))
+	return data, ct, sourceChangedErr(err)
 }
 
 // Open is apptranscoding.OnDemandOpener (mkvgo 0.51): a part's media segment
@@ -119,9 +120,15 @@ func (p *concatPlan) Resource(ctx context.Context, name string) ([]byte, string,
 func (p *concatPlan) Open(ctx context.Context, name string) (apptranscoding.OnDemandResource, error) {
 	h, err := p.plan.Open(ctx, strings.ReplaceAll(name, concatPathSep, "/"))
 	if err != nil {
-		return nil, err
+		return nil, sourceChangedErr(err)
 	}
 	return h, nil
+}
+
+// Stat is apptranscoding.OnDemandStater (mkvgo 0.56).
+func (p *concatPlan) Stat(ctx context.Context, name string) (size int64, etag, contentType string, ok bool, err error) {
+	size, etag, contentType, ok, err = p.plan.Stat(ctx, strings.ReplaceAll(name, concatPathSep, "/"))
+	return size, etag, contentType, ok, sourceChangedErr(err)
 }
 
 func (p *concatPlan) Resources() []string { return p.plan.Resources() }

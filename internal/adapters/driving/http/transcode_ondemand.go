@@ -657,6 +657,15 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	// aborts mid-segment is still a client that is watching.
 	h.playbackActivity.Touch(mediaID)
 
+	// A HEAD or a matching revalidation is answered from the plan's Stat,
+	// without opening the resource; a URL naming a replaced source goes on to
+	// its 410 below.
+	if want := r.URL.Query().Get(planSourceParam); want == "" || want == planStamp(plan.SourceID(), keep) || want == plan.SourceID() {
+		if answerPlanResourceByStat(w, r, plan, name, "mkvgo") {
+			return
+		}
+	}
+
 	if h.encryptedSegments != nil && isPlanMediaSegment(name) && (h.loadTestActive == nil || !h.loadTestActive()) {
 		key := streamingRateLimitKey(r)
 		release, ok := h.encryptedSegments.acquire(key)
@@ -728,7 +737,11 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil {
 			cast = st.Cast
 		}
-		if err != nil {
+		if errors.Is(err, apptranscoding.ErrNoResource) {
+			// A name the plan does not serve: a client's mistake, not a failure.
+			slog.DebugContext(r.Context(), "hls-vod: on-demand resource not in the plan",
+				slog.String("media_id", mediaID), slog.String("resource", name), slog.Any("err", err))
+		} else if err != nil {
 			slog.WarnContext(r.Context(), "hls-vod: on-demand resource refused",
 				slog.String("media_id", mediaID),
 				slog.String("resource", name),
@@ -751,7 +764,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "on-demand resource")
-		http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
+		writePlanResourceError(w, err)
 		return
 	}
 	if streamed != nil {

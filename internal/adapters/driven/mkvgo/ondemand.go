@@ -714,12 +714,19 @@ func (p *ondemandPlan) Open(ctx context.Context, name string) (apptranscoding.On
 	return &countedResource{OnDemandResource: h, plan: p}, nil
 }
 
+// Stat is apptranscoding.OnDemandStater (mkvgo 0.56).
+func (p *ondemandPlan) Stat(ctx context.Context, name string) (size int64, etag, contentType string, ok bool, err error) {
+	size, etag, contentType, ok, err = p.plan.Stat(ctx, name)
+	return size, etag, contentType, ok, sourceChangedErr(err)
+}
+
 func (p *ondemandPlan) SourceID() string { return p.plan.SourceID() }
 
 // sourceChangedErr makes mkvgo's refusal of a replaced source the port's
-// apptranscoding.ErrSourceChanged, and its refusal of a window inside a long
-// damaged region apptranscoding.ErrSourceDamaged, keeping mkvgo's error (the
-// offset, the repair) in the chain.
+// apptranscoding.ErrSourceChanged, its refusal of a window inside a long
+// damaged region apptranscoding.ErrSourceDamaged, and a name the plan does not
+// serve apptranscoding.ErrNoResource, keeping mkvgo's error (the offset, the
+// repair) in the chain.
 func sourceChangedErr(err error) error {
 	switch {
 	case err == nil:
@@ -728,6 +735,8 @@ func sourceChangedErr(err error) error {
 		return fmt.Errorf("%w: %w", apptranscoding.ErrSourceChanged, err)
 	case errors.Is(err, reader.ErrDamagedRegion):
 		return fmt.Errorf("%w: %w", apptranscoding.ErrSourceDamaged, err)
+	case errors.Is(err, mp4.ErrNoResource):
+		return fmt.Errorf("%w: %w", apptranscoding.ErrNoResource, err)
 	}
 	return err
 }
