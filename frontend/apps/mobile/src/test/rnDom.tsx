@@ -31,9 +31,23 @@ function a11y(p: AnyProps): AnyProps {
   return out;
 }
 
-const View = React.forwardRef<HTMLDivElement, AnyProps>(({ children, ...p }, ref) =>
-  React.createElement("div", { ref, ...a11y(p) }, children),
-);
+// The width a measured View reports (onLayout), a 390 px phone minus its
+// gutters. A test may change it before rendering.
+export const layout = { width: 358 };
+
+// Fires once, like the first native layout pass.
+function useFakeLayout(onLayout: unknown) {
+  const cb = React.useRef(onLayout);
+  cb.current = onLayout;
+  React.useLayoutEffect(() => {
+    if (typeof cb.current === "function") cb.current({ nativeEvent: { layout: { x: 0, y: 0, width: layout.width, height: 40 } } });
+  }, []);
+}
+
+const View = React.forwardRef<HTMLDivElement, AnyProps>(({ children, onLayout, ...p }, ref) => {
+  useFakeLayout(onLayout);
+  return React.createElement("div", { ref, ...a11y(p) }, children);
+});
 const Text = ({ children, ...p }: AnyProps) => React.createElement("span", a11y(p), children);
 const Pressable = React.forwardRef<HTMLButtonElement, AnyProps>(({ children, onPress, disabled, ...p }, ref) =>
   React.createElement(
@@ -63,19 +77,26 @@ const Switch = ({ value, onValueChange, disabled, ...p }: AnyProps) =>
     ...a11y(p),
   });
 const Modal = ({ visible, children }: AnyProps) => (visible ? React.createElement("div", { role: "dialog" }, children) : null);
+// Every scrollTo a ScrollView was asked for, in order.
+export const scrollLog: unknown[] = [];
 const ScrollView = React.forwardRef<HTMLDivElement, AnyProps>(({ children, ...p }, ref) => {
-  React.useImperativeHandle(ref, () => ({ scrollTo: () => {} }) as any);
+  React.useImperativeHandle(ref, () => ({ scrollTo: (o: unknown) => scrollLog.push(o) }) as any);
   return React.createElement("div", a11y(p), children);
 });
-const FlatList = ({ data, renderItem, keyExtractor, ListEmptyComponent, ...p }: AnyProps) =>
+function node(c: unknown) {
+  return typeof c === "function" ? React.createElement(c as React.ComponentType) : (c as React.ReactNode);
+}
+const FlatList = ({ data, renderItem, keyExtractor, ListHeaderComponent, ListEmptyComponent, ListFooterComponent, ...p }: AnyProps) =>
   React.createElement(
     "div",
     a11y(p),
-    (data ?? []).length === 0 && ListEmptyComponent
-      ? typeof ListEmptyComponent === "function" ? React.createElement(ListEmptyComponent) : ListEmptyComponent
+    node(ListHeaderComponent),
+    (data ?? []).length === 0
+      ? node(ListEmptyComponent)
       : (data ?? []).map((item: unknown, index: number) =>
           React.createElement(React.Fragment, { key: keyExtractor ? keyExtractor(item, index) : index }, renderItem({ item, index })),
         ),
+    node(ListFooterComponent),
   );
 const ActivityIndicator = () => React.createElement("div", { "data-testid": "spinner" });
 const RefreshControl = () => null;
@@ -93,7 +114,7 @@ export const rnDom = {
   ActivityIndicator,
   RefreshControl,
   StyleSheet: { create: <T,>(s: T) => s, hairlineWidth: 1, absoluteFillObject: {}, flatten: flatStyle },
-  AccessibilityInfo: { setAccessibilityFocus: () => {} },
+  AccessibilityInfo: { setAccessibilityFocus: () => {}, sendAccessibilityEvent: () => {} },
   findNodeHandle: () => null,
   Platform: { OS: "android", select: (o: Record<string, unknown>) => o.android },
   Alert: { alert: () => {} },

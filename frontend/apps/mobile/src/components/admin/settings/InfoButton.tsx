@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { AccessibilityInfo, Modal, Pressable, ScrollView, StyleSheet, Text, View, findNodeHandle } from "react-native";
+import { AccessibilityInfo, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { FONT_SIZE } from "@evey/theme";
@@ -15,8 +15,8 @@ interface InfoButtonProps {
 
 // InfoButton is the "i" next to a setting: a tap opens a sheet with the
 // explanation in plain words, closed by its button, the backdrop or the
-// system back gesture. On close the screen reader focus goes back to the "i"
-// it came from, so a TalkBack / VoiceOver user does not land at the top of
+// system back gesture. Once it is gone the screen reader focus goes back to
+// the "i" it came from, so a TalkBack / VoiceOver user does not land at the top of
 // the screen after each explanation.
 export function InfoButton({ label, info, testID }: InfoButtonProps) {
   const theme = useTheme();
@@ -25,11 +25,16 @@ export function InfoButton({ label, info, testID }: InfoButtonProps) {
   const anchor = useRef<View>(null);
   const name = t("admin.settingsLayout.moreInfo", { label });
 
+  // The focus goes back once the sheet is really gone: while the modal is up
+  // the "i" is outside the accessible tree. iOS says so through onDismiss;
+  // Android has no such event, so it waits out the fade.
+  function refocus() {
+    if (anchor.current) AccessibilityInfo.sendAccessibilityEvent?.(anchor.current, "focus");
+  }
+
   function close() {
     setOpen(false);
-    // The node exists once the sheet is gone; a test double has neither API.
-    const node = anchor.current ? findNodeHandle?.(anchor.current) : null;
-    if (node) AccessibilityInfo?.setAccessibilityFocus?.(node);
+    if (Platform.OS !== "ios") setTimeout(refocus, 350);
   }
 
   return (
@@ -46,7 +51,7 @@ export function InfoButton({ label, info, testID }: InfoButtonProps) {
       >
         <Ionicons name="information-circle-outline" size={18} color={theme.colors.textMuted} />
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={close}>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={close} onDismiss={Platform.OS === "ios" ? refocus : undefined}>
         <View style={[styles.backdrop, { backgroundColor: theme.colors.overlay }]}>
           <Pressable
             style={StyleSheet.absoluteFillObject}

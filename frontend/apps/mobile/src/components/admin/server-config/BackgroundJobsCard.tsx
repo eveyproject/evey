@@ -77,7 +77,7 @@ export function BackgroundJobsCard({ entries, saveEntry, deleteEntry, quietSaveE
               accessibilityLabel={t(field.labelKey)}
               style={[
                 styles.input,
-                { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border },
+                { backgroundColor: theme.colors.surfaceRaised, color: theme.colors.text, borderColor: theme.colors.border },
               ]}
               value={rateDrafts[field.key] ?? ""}
               onChangeText={(v) => setRate(field.key, v)}

@@ -19,6 +19,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@evey/store", async (importOriginal) => ({ ...(await importOriginal<typeof import("@evey/store")>()), toast }));
 
+import { AccessibilityInfo } from "react-native";
 import { InfoButton } from "./InfoButton";
 import { SettingRow } from "./SettingRow";
 import { OptionGroup, optionGroupLayout } from "./OptionGroup";
@@ -42,6 +43,21 @@ describe("InfoButton", () => {
     expect(text(dialog)).toContain("The name people see.");
     fireEvent.click(within(dialog).getByTestId("setting-info-close"));
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("gives the focus back to the 'i' once the sheet is gone", () => {
+    vi.useFakeTimers();
+    const send = vi.spyOn(AccessibilityInfo, "sendAccessibilityEvent");
+    try {
+      render(<InfoButton label="Server name" info="The name people see." />);
+      fireEvent.click(screen.getByTestId("setting-info-button"));
+      fireEvent.click(screen.getByTestId("setting-info-close"));
+      expect(send).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(400);
+      expect(send).toHaveBeenCalledWith(screen.getByTestId("setting-info-button"), "focus");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -67,6 +83,8 @@ describe("SettingRow", () => {
       </SettingRow>,
     );
     expect(screen.queryByRole("button", { name: /moreInfo/ })).toBeNull();
+    // The Reset link names the setting it resets.
+    expect(screen.getByTestId("setting-reset").getAttribute("aria-label")).toBe("admin.serverSettings.reset Bare");
     fireEvent.click(screen.getByTestId("setting-reset"));
     expect(onReset).toHaveBeenCalled();
   });
@@ -81,6 +99,8 @@ describe("OptionGroup", () => {
 
   it("keeps short labels in one row and long ones one per line, never a ragged grid", () => {
     expect(optionGroupLayout(358, ["Auto", "Normal", "Low"])).toBe("row");
+    // Not measured yet: one per line, never a squeezed row for a frame.
+    expect(optionGroupLayout(0, ["Auto", "Normal", "Low"])).toBe("column");
     expect(optionGroupLayout(358, ["Auto (recommended)", "Normal", "Low"])).toBe("column");
     expect(optionGroupLayout(358, ["Auto (measured)", "480p", "720p", "1080p", "1440p", "2160p"])).toBe("column");
     // A label seen wrapping at this width wins over the estimate; a new width tries again.

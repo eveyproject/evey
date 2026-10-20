@@ -188,7 +188,7 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
 
 const styles = (t: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
-    input: { backgroundColor: t.colors.surface, color: t.colors.text, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+    input: { backgroundColor: t.colors.surfaceRaised, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, color: t.colors.text, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     showBtn: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, backgroundColor: t.colors.surfaceRaised },
     testBtn: { borderRadius: t.radii.md, paddingVertical: 14, alignItems: "center", marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, backgroundColor: t.colors.surfaceRaised },
     hint: { color: t.colors.textMuted, fontSize: 12, marginTop: 8, marginBottom: 4 },
