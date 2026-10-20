@@ -28,13 +28,18 @@ vi.mock("@evey/theme", () => ({ FONT_SIZE: { xs: 10, base: 14 } }));
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 
 function state(over: Record<string, unknown> = {}) {
-  return { nextEpisode: { id: "e2", title: "Second", indexNumber: 2 }, ended: false, countdown: 5, playNow: vi.fn(), cancel: vi.fn(), ...over } as any;
+  return { nextEpisode: { id: "e2", title: "Second", indexNumber: 2, seasonIndexNumber: 1 }, ended: false, countdown: 5, playNow: vi.fn(), cancel: vi.fn(), ...over } as any;
 }
 
 // Before the credits end the card only says "up next" (polite); once ended
 // it counts down assertively - a screen reader must interrupt because the
 // action fires without the user - and fills a bar as the seconds run out.
 describe("NextEpisodeOverlay (mobile)", () => {
+  it("falls back to the localized episode number when the label would be empty", () => {
+    render(<NextEpisodeOverlay nextEp={state({ nextEpisode: { id: "e0", indexNumber: 0 } })} />);
+    expect(screen.getByText("Episode 0")).toBeTruthy();
+  });
+
   it("hides without a next episode and sits at the caller's offset", () => {
     const { container } = render(<NextEpisodeOverlay nextEp={state({ nextEpisode: null })} />);
     expect(container.innerHTML).toBe("");
@@ -46,7 +51,7 @@ describe("NextEpisodeOverlay (mobile)", () => {
     const s = state();
     const { rerender } = render(<NextEpisodeOverlay nextEp={s} />);
     expect(screen.getByText("player.nextEpisodeOverlay.upNext").getAttribute("data-live")).toBe("polite");
-    expect(screen.getByText("Episode 2 - Second")).toBeTruthy();
+    expect(screen.getByText("S01E02 · Second")).toBeTruthy();
     expect(document.querySelector("[data-w]")).toBeNull();
     fireEvent.click(screen.getByLabelText("player.nextEpisodeOverlay.playNow"));
     expect(s.playNow).toHaveBeenCalled();

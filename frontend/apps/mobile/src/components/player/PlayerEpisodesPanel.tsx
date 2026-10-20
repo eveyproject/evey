@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
-import { seasonLabel } from "@evey/api";
+import { episodeCode, seasonLabel } from "@evey/api";
 
 export interface EpisodeNavItem {
   id: string;
@@ -78,7 +78,7 @@ export function PlayerEpisodesPanel({
             style={[styles.episodeRow, { borderBottomColor: theme.colors.border }]}
             onPress={() => onEpisodeChange(ep.id)}
             accessible={true}
-            accessibilityLabel={ep.title || `E${ep.indexNumber ?? "?"}`}
+            accessibilityLabel={ep.title || episodeCode(undefined, ep.indexNumber) || "?"}
             accessibilityRole="button"
             accessibilityState={{ selected: isActive }}
           >
