@@ -113,7 +113,7 @@ func TestAuditLogRepo_List_EpisodeLabel(t *testing.T) {
 	for i, id := range []string{f.episodeID, f.movieID} {
 		require.NoError(t, repo.Create(ctx, &activity.AuditLogEntry{
 			ID: "lbl3-al-" + string(rune('a'+i)), UserID: "lbl3-u", Action: "edit",
-			ResourceType: "media", ResourceID: ptrStr(id), Details: map[string]any{},
+			ResourceType: "media", ResourceID: new(id), Details: map[string]any{},
 			CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
 		}))
 	}
