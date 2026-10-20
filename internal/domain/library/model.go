@@ -296,7 +296,13 @@ type MediaFile struct {
 //	   dropped), AMR mono and MPEG-H channels from the mhaC, and every MP4
 //	   track described (PCM, encrypted, unknown codecs) instead of an error
 //	   that sent the file to ffprobe.
-const StreamProbeVersion = 3
+//	4: mkvgo 0.56 - a variable-frame-rate MP4 video's rate is the one most of
+//	   its frames play at (a screen recording read as 2 fps), a compressed
+//	   Matroska CodecPrivate is inflated before its codec parameters are read,
+//	   a MOV's QuickTime title is read, a long LPCM track and an MP4 cut short
+//	   are described instead of refused, and an empty DisplayWidth or
+//	   DisplayHeight means square pixels.
+const StreamProbeVersion = 4
 
 // LevelProbeVersion is the current revision of the video level backfill's
 // probe. media_streams.level_probe_version records the revision at which a
