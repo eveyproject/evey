@@ -74,6 +74,7 @@ export function SettingRow({ label, info, hint, restart = false, reset, error, k
             disabled={reset.disabled}
             hitSlop={8}
             accessibilityRole="button"
+            accessibilityLabel={`${t("admin.serverSettings.reset")} ${label}`}
             accessibilityState={{ disabled: !!reset.disabled }}
             style={[styles.resetBtn, { opacity: reset.disabled ? 0.5 : 1 }]}
             testID="setting-reset"

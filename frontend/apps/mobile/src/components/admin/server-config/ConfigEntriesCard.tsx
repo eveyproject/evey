@@ -72,7 +72,9 @@ export function ConfigEntriesCard({ entries, saveEntry, deleteEntry, saving }: C
         <View
           key={entry.key}
           style={{
-            backgroundColor: theme.colors.surface,
+            backgroundColor: theme.colors.surfaceRaised,
+            borderWidth: StyleSheet.hairlineWidth,
+            borderColor: theme.colors.border,
             borderRadius: theme.radii.sm,
             padding: 10,
             gap: 6,

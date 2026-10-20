@@ -196,7 +196,7 @@ export function LocaleSettingsCard({ getEntryValue, saveEntry, saving }: LocaleS
 
 const styles = (t: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
-    pickerBtn: { backgroundColor: t.colors.surface, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12 },
+    pickerBtn: { backgroundColor: t.colors.surfaceRaised, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12 },
     searchInput: { margin: 16, padding: 12, borderRadius: t.radii.md, backgroundColor: t.colors.surface, color: t.colors.text },
     regionRow: {
       flexDirection: "row",

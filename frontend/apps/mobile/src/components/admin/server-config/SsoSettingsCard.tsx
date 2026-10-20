@@ -289,12 +289,12 @@ export function SsoSettingsCard() {
 const styles = (t: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     label: { color: t.colors.textMuted, fontSize: 12, fontWeight: "600", textTransform: "uppercase", marginTop: 16, marginBottom: 6 },
-    input: { backgroundColor: t.colors.surface, color: t.colors.text, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
+    input: { backgroundColor: t.colors.surfaceRaised, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, color: t.colors.text, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     hint: { color: t.colors.textMuted, fontSize: 12, marginTop: 6 },
     badge: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
     divider: { height: StyleSheet.hairlineWidth, backgroundColor: t.colors.border, marginTop: 20, marginBottom: 4 },
     code: { backgroundColor: t.colors.surfaceRaised, color: t.colors.text, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, fontFamily: "monospace" },
-    libraryBox: { marginTop: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, borderRadius: t.radii.md, padding: 6, backgroundColor: t.colors.surface },
+    libraryBox: { marginTop: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, borderRadius: t.radii.md, padding: 6, backgroundColor: t.colors.surfaceRaised },
     libraryRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, paddingVertical: 8 },
     checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
     testBtn: { borderRadius: t.radii.md, paddingVertical: 14, alignItems: "center", marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, backgroundColor: t.colors.surfaceRaised },

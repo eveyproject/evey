@@ -35,7 +35,9 @@ export type OptionGroupLayout = "row" | "column";
 // otherwise one option per line at full width. Never a ragged 2+1 grid.
 // `wrappedAt` is the width at which a label was seen wrapping in the row.
 export function optionGroupLayout(width: number, labels: string[], wrappedAt: number | null = null): OptionGroupLayout {
-  if (labels.length <= 1 || width <= 0) return "row";
+  if (labels.length <= 1) return "row";
+  // Before the first measure, one per line: squeezed cells would flash.
+  if (width <= 0) return "column";
   if (wrappedAt !== null && wrappedAt === width) return "column";
   const cell = (width - GAP * (labels.length - 1)) / labels.length;
   const longest = Math.max(...labels.map((l) => l.length));
