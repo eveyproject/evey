@@ -2,7 +2,7 @@
   "expo": {
     "name": "Evey",
     "slug": "evey",
-    "version": "0.0.1-beta.82",
+    "version": "0.0.1-beta.83",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "scheme": "evey",
@@ -27,7 +27,7 @@
     },
     "android": {
       "package": "com.evey.app",
-      "versionCode": 91,
+      "versionCode": 92,
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
