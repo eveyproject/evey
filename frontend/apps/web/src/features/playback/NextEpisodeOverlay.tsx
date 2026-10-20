@@ -1,9 +1,10 @@
 import { useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { episodeLabel } from "@evey/api";
 import { COUNTDOWN_SEC, useUpNextCountdown } from "@evey/client";
 
 interface NextEpisodeOverlayProps {
-  nextEpisode: { id: string; title?: string; indexNumber?: number } | null;
+  nextEpisode: { id: string; title?: string; indexNumber?: number; seasonIndexNumber?: number } | null;
   currentTime: number;
   duration: number;
   onPlayNow: (id: string) => void;
@@ -56,9 +57,10 @@ export function NextEpisodeOverlay({
 
   if (!visible || !nextEpisode) return null;
 
-  const label = nextEpisode.indexNumber != null
-    ? t("player.nextEpisodeOverlay.episode", { number: nextEpisode.indexNumber })
-    : t("player.nextEpisodeOverlay.nextEpisode");
+  // The series is obvious while its next episode is announced: code and title.
+  const line = nextEpisode.indexNumber != null
+    ? episodeLabel({ seasonNumber: nextEpisode.seasonIndexNumber, episodeNumber: nextEpisode.indexNumber, title: nextEpisode.title })
+    : [t("player.nextEpisodeOverlay.nextEpisode"), nextEpisode.title].filter(Boolean).join(" · ");
 
   return (
     <div className="absolute bottom-24 right-4 z-float rounded-lg p-4 max-w-xs animate-in fade-in slide-in-from-right bg-[var(--overlay-scrim)] border border-[var(--border)]"
@@ -69,7 +71,7 @@ export function NextEpisodeOverlay({
           : counting ? t("player.nextEpisodeOverlay.nextIn", { seconds: Math.max(countdown, 0) }) : t("player.nextEpisodeOverlay.upNext")}
       </p>
       <p className="text-sm font-medium text-white mb-3 truncate">
-        {label}{nextEpisode.title ? ` - ${nextEpisode.title}` : ""}
+        {line}
       </p>
       <div className="flex gap-2">
         <button

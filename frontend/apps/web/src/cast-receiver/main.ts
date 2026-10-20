@@ -534,7 +534,7 @@ async function autoAdvance(): Promise<void> {
     request.media.hlsSegmentFormat = cast.framework.messages.HlsSegmentFormat.FMP4;
     request.media.hlsVideoSegmentFormat = cast.framework.messages.HlsVideoSegmentFormat.FMP4;
     request.media.metadata = new cast.framework.messages.GenericMediaMetadata();
-    request.media.metadata.title = info.title || label.title;
+    request.media.metadata.title = label.title || info.title;
     request.autoplay = true;
     playerManager.load(request).catch((e: unknown) => reportFallbackFailure("episode suivant", e));
   }, 1_000);

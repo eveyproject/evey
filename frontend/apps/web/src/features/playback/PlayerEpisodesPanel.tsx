@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { seasonLabel } from "@evey/api";
 import { Select } from "@/components/ui/Select";
 
-export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number }
+export interface EpisodeNavItem { id: string; title?: string; indexNumber?: number; seasonIndexNumber?: number }
 export interface SeasonNavItem { id: string; title?: string; indexNumber?: number }
 
 export interface EpisodesPanelProps {

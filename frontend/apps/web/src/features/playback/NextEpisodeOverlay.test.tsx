@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { noteAutoAdvance, resetStillWatchingForTests, setStillWatchingLimit } from "@evey/client";
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 
-const nextEpisode = { id: "ep-2", title: "The Reckoning", indexNumber: 2 };
+const nextEpisode = { id: "ep-2", title: "The Reckoning", indexNumber: 2, seasonIndexNumber: 1 };
 
 function creditsProps(overrides: Record<string, unknown> = {}) {
   return {
@@ -39,8 +39,7 @@ describe("NextEpisodeOverlay", () => {
     render(<NextEpisodeOverlay {...creditsProps()} />);
 
     expect(screen.getByText("Up Next")).toBeInTheDocument();
-    expect(screen.getByText(/Episode 2/)).toBeInTheDocument();
-    expect(screen.getByText(/The Reckoning/)).toBeInTheDocument();
+    expect(screen.getByText("S01E02 · The Reckoning")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Play Now" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
