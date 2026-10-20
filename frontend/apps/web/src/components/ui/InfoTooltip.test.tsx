@@ -4,7 +4,7 @@ import { InfoTooltip } from "./InfoTooltip";
 
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
-// The "?" opens a dialog carrying the detail; the X, the backdrop and a
+// The "i" opens a dialog carrying the detail; the X, the backdrop and a
 // second press close it; none of those clicks leak to a clickable parent
 // (a collapsible header would otherwise toggle along).
 describe("InfoTooltip", () => {
@@ -28,6 +28,34 @@ describe("InfoTooltip", () => {
     fireEvent.click(trigger);
     fireEvent.click(trigger);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("shows an 'i' icon, not a question mark", () => {
+    const { container } = render(<InfoTooltip label="More info">Detail</InfoTooltip>);
+    expect(container.querySelector("svg.lucide-info")).not.toBeNull();
+    expect(container.querySelector("svg.lucide-circle-help, svg.lucide-help-circle")).toBeNull();
+  });
+
+  it("opens from the keyboard and closes on Escape", () => {
+    render(<InfoTooltip label="More info">Detail</InfoTooltip>);
+    const trigger = screen.getByRole("button", { name: "More info" });
+    expect(trigger).toHaveAttribute("tabindex", "0");
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByRole("dialog", { name: "More info" })).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.keyDown(trigger, { key: " " });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("still opens inside a disabled fieldset (the demo's read-only pages)", () => {
+    render(
+      <fieldset disabled>
+        <InfoTooltip label="More info">Detail</InfoTooltip>
+      </fieldset>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "More info" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Detail");
   });
 
   it("never lets a click reach a clickable parent", () => {
