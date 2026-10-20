@@ -98,14 +98,15 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
   const bandwidthBps = parseInt(session.bandwidthBps ?? "0");
   const remaining = durationMs > 0 ? formatTimeMs(Math.max(0, durationMs - positionMs)) : null;
 
-  const mediaLabel = session.seriesTitle
-    ? episodeLabel({
-        seriesTitle: session.seriesTitle,
-        seasonNumber: session.seasonNumber,
-        episodeNumber: session.episodeNumber,
-        title: session.mediaTitle,
-      })
-    : session.mediaTitle;
+  const mediaLabel =
+    session.mediaType === "episode"
+      ? episodeLabel({
+          seriesTitle: session.seriesTitle,
+          seasonNumber: session.seasonNumber,
+          episodeNumber: session.episodeNumber,
+          title: session.mediaTitle,
+        })
+      : session.mediaTitle;
 
   // A track has no media page of its own; everything else opens its page.
   const mediaLink = session.mediaItemId && session.mediaType !== "track" ? `/media/${session.mediaItemId}` : null;

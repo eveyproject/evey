@@ -33,7 +33,7 @@ const session = {
   sessionId: "s1", mediaItemId: "m1", mediaTitle: "Some Movie", profileName: "alice", deviceName: "Firefox", deviceType: "web",
   playMethod: "transcode", resolution: "1080p", videoCodec: "hevc", audioCodec: "aac", bandwidthBps: "8000000",
   durationMs: "6000000", positionMs: "1500000", progress: 25, isPaused: false,
-  seriesTitle: "Show", seasonNumber: 1, episodeNumber: 7, castDeviceName: "Salon TV",
+  mediaType: "episode", seriesTitle: "Show", seasonNumber: 1, episodeNumber: 7, castDeviceName: "Salon TV",
 } as any;
 
 describe("SessionCard helpers", () => {

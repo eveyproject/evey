@@ -17,10 +17,6 @@ export type MediaLabelIndex = ReadonlyMap<string, MediaLabel>;
 
 export const EMPTY_MEDIA_LABELS: MediaLabelIndex = new Map();
 
-function pad2(n: number | undefined): string {
-  return String(n ?? 0).padStart(2, "0");
-}
-
 function kindOf(type: string | undefined): MediaLabel["kind"] {
   switch (type) {
     case "MEDIA_ITEM_TYPE_MOVIE":
@@ -77,7 +73,7 @@ export async function resolveMediaLabel(
     }
     case "season": {
       const series = await safe(item.parentId);
-      return { kind, label: `${series?.title ?? title} S${pad2(item.indexNumber)}` };
+      return { kind, label: episodeLabel({ seriesTitle: series?.title ?? title, seasonNumber: item.indexNumber }) };
     }
     default:
       return { kind, label: title };

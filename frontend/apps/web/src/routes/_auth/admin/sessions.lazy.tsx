@@ -69,14 +69,15 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
   // Cast-resurrected and music sessions carry no play_method; an empty label
   // must drop the badge entirely, not render a blank green pill.
   const methodLabel = playMethodLabel(session);
-  const label = session.seriesTitle
-    ? episodeLabel({
-        seriesTitle: session.seriesTitle,
-        seasonNumber: session.seasonNumber,
-        episodeNumber: session.episodeNumber,
-        title: session.mediaTitle,
-      })
-    : session.mediaTitle;
+  const label =
+    session.mediaType === "episode"
+      ? episodeLabel({
+          seriesTitle: session.seriesTitle,
+          seasonNumber: session.seasonNumber,
+          episodeNumber: session.episodeNumber,
+          title: session.mediaTitle,
+        })
+      : session.mediaTitle;
   const [confirming, setConfirming] = useState(false);
 
   const progress = Math.min(100, Math.max(0, session.progress ?? 0));
