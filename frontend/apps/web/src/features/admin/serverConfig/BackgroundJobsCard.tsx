@@ -4,9 +4,21 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Switch } from "@/components/ui/Switch";
+import { SettingRow } from "@/components/ui/SettingRow";
 import { BACKGROUND_JOB_RATES, BACKGROUND_JOB_TOGGLES, useBackgroundJobsForm } from "@evey/client";
 import { useSetConfigEntry, useDeleteConfigEntry, type ConfigEntry } from "./hooks";
 
+// paceInfoKey picks the explanation of a pacing field by what it measures:
+// the batch size, the pause between batches, or the wait once caught up.
+function paceInfoKey(key: string): string {
+  if (key.endsWith("_batch")) return "admin.settingsHelp.paceBatch";
+  if (key.endsWith("_pause_ms")) return "admin.settingsHelp.pacePause";
+  return "admin.settingsHelp.paceIdle";
+}
+
+// BackgroundJobsCard holds the background workers' switches, each read at
+// boot (hence the restart badge on every row), and their pacing numbers
+// tucked behind an "Advanced" disclosure: most servers never touch them.
 export function BackgroundJobsCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const { t } = useTranslation();
   const setEntry = useSetConfigEntry();
@@ -25,58 +37,51 @@ export function BackgroundJobsCard({ entries }: { entries: ConfigEntry[] | undef
   });
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-[var(--radius-md)] border border-[color-mix(in_srgb,var(--color-warning)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-warning)_5%,transparent)] p-3">
-        <p className="text-sm font-medium text-[var(--color-warning)]">
-          {t("admin.serverConfig.backgroundJobs.restartWarning")}
-        </p>
-      </div>
+    <div className="flex flex-col divide-y divide-[var(--border)]">
+      <p className="pb-3 text-xs text-[var(--text-muted)]">{t("admin.serverConfig.backgroundJobs.restartWarning")}</p>
 
-      <div className="flex flex-col gap-3">
-        {BACKGROUND_JOB_TOGGLES.map((field) => (
-          <div key={field.key} className="flex flex-col gap-1">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-[var(--text)]">{t(field.labelKey)}</span>
-              <Switch
-                label={t(field.labelKey)}
-                checked={isEnabled(field.key)}
-                onChange={() => toggle(field.key, !isEnabled(field.key))}
-                disabled={setEntry.isPending || deleteEntry.isPending}
-              />
-            </div>
-            <p className="text-xs text-[var(--text-muted)]">{t(field.descKey)}</p>
-          </div>
-        ))}
-      </div>
+      {BACKGROUND_JOB_TOGGLES.map((field) => (
+        <SettingRow key={field.key} label={t(field.labelKey)} info={t(field.descKey)} restart kind="toggle">
+          <Switch
+            label={t(field.labelKey)}
+            checked={isEnabled(field.key)}
+            onChange={() => toggle(field.key, !isEnabled(field.key))}
+            disabled={setEntry.isPending || deleteEntry.isPending}
+          />
+        </SettingRow>
+      ))}
 
-      <div className="flex flex-col gap-3 pt-2 border-t border-[var(--border)]">
-        <p className="text-sm font-medium text-[var(--text)]">
-          {t("admin.serverConfig.backgroundJobs.paceTitle")}
-        </p>
-        <p className="text-xs text-[var(--text-muted)]">
-          {t("admin.serverConfig.backgroundJobs.paceDesc")}
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {BACKGROUND_JOB_RATES.map((field) => (
-            <Input
-              key={field.key}
-              label={t(field.labelKey)}
-              type="number"
-              min={0}
-              placeholder={t("admin.serverConfig.backgroundJobs.paceDefaultPlaceholder")}
-              value={rateDrafts[field.key] ?? ""}
-              onChange={(e) => setRate(field.key, e.target.value)}
-            />
-          ))}
+      <details className="group py-3 last:pb-0" data-testid="background-pacing">
+        <summary className="cursor-pointer select-none text-sm font-medium text-[var(--text)]">
+          {t("admin.settingsLayout.advancedPacing")}
+        </summary>
+        <p className="mt-2 text-xs text-[var(--text-muted)]">{t("admin.serverConfig.backgroundJobs.paceDesc")}</p>
+        <div className="mt-3 flex flex-col divide-y divide-[var(--border)]">
+          {BACKGROUND_JOB_RATES.map((field) => {
+            const id = `pace-${field.key}`;
+            return (
+              <SettingRow key={field.key} label={t(field.labelKey)} htmlFor={id} info={t(paceInfoKey(field.key))} restart>
+                <Input
+                  id={id}
+                  className="w-full"
+                  type="number"
+                  min={0}
+                  placeholder={t("admin.serverConfig.backgroundJobs.paceDefaultPlaceholder")}
+                  value={rateDrafts[field.key] ?? ""}
+                  onChange={(e) => setRate(field.key, e.target.value)}
+                />
+              </SettingRow>
+            );
+          })}
         </div>
-        <div className="flex justify-end">
+        <div className="flex justify-end pt-3">
           <Button onClick={saveRates} loading={quietSet.isPending || quietDelete.isPending} disabled={!rateDirty}>
             {t("common.save")}
           </Button>
         </div>
-      </div>
+      </details>
 
-      {(setEntry.isPending || deleteEntry.isPending) && <Spinner size="sm" />}
+      {(setEntry.isPending || deleteEntry.isPending) && <div className="pt-3"><Spinner size="sm" /></div>}
     </div>
   );
 }

@@ -1,184 +1,85 @@
-import { Folder } from "lucide-react";
+import { useEffect, useState } from "react";
 import { createLazyFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Spinner } from "@/components/ui/Spinner";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
-import { FeedConfigCard } from "@/features/admin/FeedConfigCard";
+import { Tabs, tabId, tabPanelId } from "@/components/ui/Tabs";
 import { useServerConfig } from "@/features/admin/serverConfig/hooks";
-import { ConfigRow, AddEntryRow } from "@/features/admin/serverConfig/ConfigEntriesTable";
-import { LocaleSettingsCard } from "@/features/admin/serverConfig/LocaleSettingsCard";
-import { MemoryProfileCard } from "@/features/admin/serverConfig/MemoryProfileCard";
-import { MkvgoCard } from "@/features/admin/serverConfig/MkvgoCard";
-import { BackgroundJobsCard } from "@/features/admin/serverConfig/BackgroundJobsCard";
-import { CpuBudgetCard } from "@/features/admin/serverConfig/CpuBudgetCard";
-import { ApiKeysCard } from "@/features/admin/serverConfig/ApiKeysCard";
-import { SmtpSettingsCard } from "@/features/admin/serverConfig/SmtpSettingsCard";
-import { SsoSettingsCard } from "@/features/admin/serverConfig/SsoSettingsCard";
-import { ArtworkSettingsCard } from "@/features/admin/serverConfig/ArtworkSettingsCard";
-import { TrickplaySettingsCard } from "@/features/admin/serverConfig/TrickplaySettingsCard";
-import { IntroDetectionSettingsCard } from "@/features/admin/serverConfig/IntroDetectionSettingsCard";
-import { ParserTokensCard } from "@/features/admin/serverConfig/ParserTokensCard";
-import { ServerSettingsCard } from "@/features/admin/serverConfig/ServerSettingsCard";
-import { UpdateCheckCard } from "@/features/admin/serverConfig/UpdateCheckCard";
+import {
+  SERVER_CONFIG_SECTIONS,
+  ServerConfigSection,
+  type ServerConfigSectionId,
+} from "@/features/admin/serverConfig/ServerConfigSections";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/server-config")({
-  // Every control here is an operator write the demo refuses (DemoReadOnly).
-  component: () => (
-    <DemoReadOnly>
-      <ServerConfigPage />
-    </DemoReadOnly>
-  ),
+  component: ServerConfigPage,
 });
 
+const TABS_ID = "server-config";
+
+function isSection(v: string): v is ServerConfigSectionId {
+  return (SERVER_CONFIG_SECTIONS as readonly string[]).includes(v);
+}
+
+// sectionFromHash reads the open section from the address (#accounts), so a
+// link or a reload lands on the section it named.
+function sectionFromHash(): ServerConfigSectionId {
+  if (typeof window === "undefined") return "general";
+  const h = window.location.hash.replace(/^#/, "");
+  return isSection(h) ? h : "general";
+}
+
+// ServerConfigPage splits the server settings into sections behind a tab
+// menu. Every section stays mounted (only hidden), so an edit typed in one
+// section survives a look at another before its Save.
 function ServerConfigPage() {
   const { t } = useTranslation();
   const { data: entries, isLoading } = useServerConfig();
+  const [section, setSection] = useState<ServerConfigSectionId>(sectionFromHash);
+
+  useEffect(() => {
+    const onHash = () => setSection(sectionFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
+
+  function open(id: string) {
+    if (!isSection(id)) return;
+    setSection(id);
+    try {
+      window.history.replaceState(window.history.state, "", `#${id}`);
+    } catch {
+      // A sandboxed frame may refuse; the tab still switches.
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("admin.serverConfig.title")} subtitle={t("admin.serverConfig.subtitle")} />
+      <PageHeader title={t("admin.serverConfig.title")} subtitle={t("admin.settingsLayout.pageSubtitle")} />
 
-      <CollapsibleCard
-        title={t("admin.serverSettings.title")}
-        alwaysOpen
-      >
-        <ServerSettingsCard />
-      </CollapsibleCard>
+      {/* The menu sits outside DemoReadOnly: switching sections is reading,
+          and the demo's disabled fieldset would freeze the tabs. */}
+      <Tabs
+        label={t("admin.settingsLayout.sectionsLabel")}
+        idPrefix={TABS_ID}
+        value={section}
+        onChange={open}
+        tabs={SERVER_CONFIG_SECTIONS.map((id) => ({ id, label: t(`admin.settingsLayout.sections.${id}.title`) }))}
+      />
 
-      <CollapsibleCard
-        title={t("admin.update.title")}
-        subtitle={t("admin.update.desc")}
-      >
-        <UpdateCheckCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.languageRegion")}
-        subtitle={t("admin.serverConfig.languageRegionDesc")}
-      >
-        <LocaleSettingsCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.memoryProfileTitle")}
-        subtitle={t("admin.serverConfig.memoryProfileSubtitle")}
-      >
-        <MemoryProfileCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.mkvgoTitle")}
-        subtitle={t("admin.serverConfig.mkvgoSubtitle")}
-      >
-        <MkvgoCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.cpuBudget.title")}
-        subtitle={t("admin.serverConfig.cpuBudget.subtitle")}
-      >
-        <CpuBudgetCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.backgroundJobs.title")}
-        subtitle={t("admin.serverConfig.backgroundJobs.subtitle")}
-      >
-        <BackgroundJobsCard entries={entries} />
-        {/* The timeline thumbnails are background work too: their switch
-            lives with the others instead of a card of its own. */}
-        <section className="mt-6 border-t border-[var(--border)] pt-4" data-testid="trickplay-settings">
-          <h4 className="text-sm font-semibold text-[var(--text)]">{t("admin.serverConfig.trickplayTitle")}</h4>
-          <p className="mb-3 text-xs text-[var(--text-muted)]">{t("admin.serverConfig.trickplayDesc")}</p>
-          <TrickplaySettingsCard entries={entries} />
-        </section>
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.feedConfig.title")}
-        subtitle={t("admin.serverConfig.feedConfig.subtitle")}
-      >
-        <FeedConfigCard />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.sso.title")}
-        subtitle={t("admin.sso.subtitle")}
-      >
-        <SsoSettingsCard />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.apiKeys.title")}
-        subtitle={t("admin.serverConfig.apiKeys.description")}
-      >
-        <ApiKeysCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.emailSmtp")}
-        subtitle={t("admin.serverConfig.emailSmtpDesc")}
-      >
-        <SmtpSettingsCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.artworkTitle")}
-        subtitle={t("admin.serverConfig.artworkDesc")}
-        info={t("admin.serverConfig.artworkInfo")}
-      >
-        <ArtworkSettingsCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.introProvidersTitle")}
-        subtitle={t("admin.serverConfig.introProvidersDesc")}
-        info={t("admin.serverConfig.introProvidersInfo")}
-      >
-        <IntroDetectionSettingsCard entries={entries} />
-      </CollapsibleCard>
-
-      <CollapsibleCard
-        title={t("admin.serverConfig.parserTokensTitle", "Parser tokens")}
-        subtitle={t(
-          "admin.serverConfig.parserTokensDesc",
-          "Extra release tags the filename parser recognises beyond its baseline list.",
-        )}
-        info={t("admin.serverConfig.parserTokensInfo")}
-      >
-        <ParserTokensCard entries={entries} />
-      </CollapsibleCard>
-
-      {isLoading ? (
-        <div className="flex justify-center py-16"><Spinner size="lg" /></div>
-      ) : (
-        <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)]">
-          <table className="w-full text-sm table-cards">
-            <thead>
-              <tr className="bg-[var(--surface)] border-b border-[var(--border)]">
-                {[t("admin.serverConfig.tableHeaders.key"), t("admin.serverConfig.tableHeaders.value"), t("admin.serverConfig.tableHeaders.updated"), t("admin.serverConfig.tableHeaders.actions")].map((h) => (
-                  <th key={h} className="px-4 py-2 text-left font-medium text-[var(--text-muted)]">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {entries && entries.length === 0 ? (
-                <tr>
-                  <td colSpan={4}>
-                    <EmptyState icon={<Folder size={48} strokeWidth={1.5} />} title={t("admin.serverConfig.noEntries")} description={t("admin.serverConfig.noEntriesDesc")} />
-                  </td>
-                </tr>
-              ) : (
-                entries?.map((e) => <ConfigRow key={e.key} entry={e} />)
-              )}
-              <AddEntryRow />
-            </tbody>
-          </table>
-        </div>
-      )}
+      <DemoReadOnly>
+        {SERVER_CONFIG_SECTIONS.map((id) => (
+          <div
+            key={id}
+            role="tabpanel"
+            id={tabPanelId(TABS_ID, id)}
+            aria-labelledby={tabId(TABS_ID, id)}
+            hidden={id !== section}
+          >
+            <ServerConfigSection id={id} entries={entries} entriesLoading={isLoading} />
+          </div>
+        ))}
+      </DemoReadOnly>
     </div>
   );
 }

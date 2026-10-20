@@ -12,7 +12,7 @@ beforeEach(() => {
   setEntry.isPending = false;
 });
 
-const box = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
+const box = (label: string) => screen.getByLabelText(label) as HTMLElement;
 
 // Each toggle writes its own config key as the strings "true"/"false"; the
 // provider status block (and the TIDB submit toggle, which needs a key)
@@ -22,7 +22,7 @@ describe("IntroDetectionSettingsCard", () => {
   it("writes each toggle to its own key and hides the provider block when off", () => {
     render(<IntroDetectionSettingsCard entries={[]} />);
     expect(screen.queryByLabelText("admin.serverConfig.introDetectionUseAllCores")).toBeNull();
-    expect(box("admin.serverConfig.introProvidersEnabled").checked).toBe(false);
+    expect(box("admin.serverConfig.introProvidersEnabled")).toHaveAttribute("aria-checked", "false");
     expect(screen.queryByText("admin.serverConfig.introProvidersTidbStatus")).toBeNull();
 
     fireEvent.click(box("admin.serverConfig.introProvidersEnabled"));
@@ -49,7 +49,7 @@ describe("IntroDetectionSettingsCard", () => {
     );
     expect(screen.getByText("admin.serverConfig.introProvidersTidbAuthed")).toBeInTheDocument();
     const submit = box("admin.serverConfig.introProvidersTidbSubmit");
-    expect(submit.checked).toBe(true);
+    expect(submit).toHaveAttribute("aria-checked", "true");
     fireEvent.click(submit);
     expect(setEntry.mutate).toHaveBeenLastCalledWith({ key: "intro_providers.tidb_submit_enabled", value: "false" });
   });
@@ -58,7 +58,7 @@ describe("IntroDetectionSettingsCard", () => {
     setEntry.isPending = true;
     render(<IntroDetectionSettingsCard entries={[{ key: "intro_providers.enabled", value: "true" }, { key: "api.tidb_key", value: "k" }]} />);
     expect(screen.getByTestId("spinner")).toBeInTheDocument();
-    for (const cb of screen.getAllByRole("checkbox") as HTMLInputElement[]) expect(cb.disabled).toBe(true);
-    expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+    for (const sw of screen.getAllByRole("switch")) expect(sw).toBeDisabled();
+    expect(screen.getAllByRole("switch")).toHaveLength(2);
   });
 });

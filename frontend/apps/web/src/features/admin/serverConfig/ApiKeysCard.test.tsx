@@ -19,7 +19,7 @@ beforeEach(() => vi.clearAllMocks());
 // "show" a value it does not hold.
 describe("ApiKeysCard", () => {
   function tmdbRow() {
-    return screen.getByText("admin.serverConfig.apiKeys.tmdb").closest("div")!.parentElement as HTMLElement;
+    return screen.getByTestId("api-key-row-api.tmdb_key");
   }
 
   it("a masked key: custom badge, no reveal button, reset available on the key with a default", () => {
@@ -63,10 +63,20 @@ describe("ApiKeysCard", () => {
 
   it("a legacy unmasked value can be revealed, and a key without a default shows no reset", () => {
     render(<ApiKeysCard entries={[{ key: "api.omdb_key", value: "abcd1234efgh5678" }]} />);
-    const row = screen.getByText("admin.serverConfig.apiKeys.omdb").closest("div")!.parentElement as HTMLElement;
+    const row = screen.getByTestId("api-key-row-api.omdb_key");
     expect(within(row).getByText("abcd••••••5678")).toBeInTheDocument();
     fireEvent.click(within(row).getByRole("button", { name: "admin.serverConfig.show" }));
     expect(within(row).getByText("abcd1234efgh5678")).toBeInTheDocument();
     expect(within(row).queryByRole("button", { name: "admin.serverConfig.apiKeys.resetToDefault" })).toBeNull();
+  });
+});
+
+describe("ApiKeysCard explanations", () => {
+  it("gives every key an 'i' explaining what the service is for", () => {
+    render(<ApiKeysCard entries={[]} />);
+    const infos = screen.getAllByRole("button", { name: "admin.settingsLayout.moreInfo" });
+    expect(infos).toHaveLength(4);
+    fireEvent.click(infos[0]);
+    expect(screen.getByRole("dialog")).toHaveTextContent("admin.settingsHelp.apiKeyTmdb");
   });
 });

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast, useLocaleStore } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Select } from "@/components/ui/Select";
+import { SettingRow } from "@/components/ui/SettingRow";
 import { configDefaultsKey, defaultRegionForLocale, getConfigDefaults } from "@evey/api";
 import { timeZoneOptions, useServerClock } from "@evey/client";
 import { ISO_REGIONS } from "@/features/user/regionList";
@@ -98,18 +99,18 @@ export function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undef
     value ? t("admin.serverConfig.defaultValue", { value }) : t("admin.serverConfig.envDefault");
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="flex flex-col divide-y divide-[var(--border)]">
+      <SettingRow label={t("admin.serverConfig.serverLanguage")} htmlFor="server-lang" info={t("admin.settingsHelp.serverLanguage")}>
         <Select
           id="server-lang"
-          label={t("admin.serverConfig.serverLanguage")}
           value={serverLang}
           onChange={handleServerLang}
           options={[{ label: defaultLabel(langName(defaults?.["server.language"])), value: "" }, ...LOCALE_OPTIONS]}
         />
+      </SettingRow>
+      <SettingRow label={t("admin.serverConfig.serverRegion")} htmlFor="server-region" info={t("admin.settingsHelp.serverRegion")}>
         <Select
           id="server-region"
-          label={t("admin.serverConfig.serverRegion")}
           value={serverRegion}
           onChange={handleServerRegion}
           options={[
@@ -117,30 +118,35 @@ export function LocaleSettingsCard({ entries }: { entries: ConfigEntry[] | undef
             ...regionOptions,
           ]}
         />
+      </SettingRow>
+      <SettingRow label={t("admin.serverConfig.metadataLanguage")} htmlFor="metadata-lang" info={t("admin.settingsHelp.metadataLanguage")}>
         <Select
           id="metadata-lang"
-          label={t("admin.serverConfig.metadataLanguage")}
           value={metaLang}
           onChange={handleMetaLang}
           options={[{ label: defaultLabel(langName(effectiveLang)), value: "" }, ...LOCALE_OPTIONS]}
         />
-        <div className="flex flex-col gap-1">
-          <Select
-            id="server-timezone"
-            label={t("admin.serverConfig.timezone")}
-            value={serverTz}
-            onChange={handleServerTz}
-            options={[{ label: defaultLabel(defaults?.["server.timezone"]?.replace(/_/g, " ")), value: "" }, ...tzOptions]}
-          />
-          {serverTime && (
-            <p className="text-sm font-medium text-[var(--text)]" data-testid="server-time">
+      </SettingRow>
+      <SettingRow
+        label={t("admin.serverConfig.timezone")}
+        htmlFor="server-timezone"
+        info={t("admin.serverConfig.timezoneHint")}
+        hint={
+          serverTime ? (
+            <span className="font-medium text-[var(--text)]" data-testid="server-time">
               {t("admin.serverConfig.timezoneNow", { time: serverTime })}
-            </p>
-          )}
-          <p className="text-xs text-[var(--text-muted)]">{t("admin.serverConfig.timezoneHint")}</p>
-        </div>
-      </div>
-      {setEntry.isPending && <div><Spinner size="sm" /></div>}
+            </span>
+          ) : undefined
+        }
+      >
+        <Select
+          id="server-timezone"
+          value={serverTz}
+          onChange={handleServerTz}
+          options={[{ label: defaultLabel(defaults?.["server.timezone"]?.replace(/_/g, " ")), value: "" }, ...tzOptions]}
+        />
+      </SettingRow>
+      {setEntry.isPending && <div className="pt-3"><Spinner size="sm" /></div>}
     </div>
   );
 }

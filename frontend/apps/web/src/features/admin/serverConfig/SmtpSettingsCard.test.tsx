@@ -38,7 +38,7 @@ describe("SmtpSettingsCard", () => {
     expect((screen.getByLabelText("admin.serverConfig.port") as HTMLInputElement).value).toBe("587");
     rerender(<SmtpSettingsCard entries={stored} />);
     expect(host.value).toBe("mail.example.test");
-    expect((screen.getByLabelText("admin.serverConfig.tlsMode") as HTMLSelectElement).value).toBe("ssl");
+    expect(screen.getByRole("radio", { name: "SSL/TLS" })).toHaveAttribute("aria-checked", "true");
     fireEvent.change(host, { target: { value: "smtp.new.test" } });
     rerender(<SmtpSettingsCard entries={[...stored, { key: "smtp.host", value: "refetched" }]} />);
     expect(host.value).toBe("smtp.new.test");
