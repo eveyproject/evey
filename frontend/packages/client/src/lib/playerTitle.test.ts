@@ -9,7 +9,16 @@ describe("playerTitle", () => {
   it("leads with the show for an episode", () => {
     expect(
       playerTitle({ title: "Some Episode", type: "MEDIA_ITEM_TYPE_EPISODE" }, "Some Series"),
-    ).toBe("Some Series - Some Episode");
+    ).toBe("Some Series · Some Episode");
+  });
+
+  it("adds the season and episode code", () => {
+    expect(
+      playerTitle({ title: "Some Episode", type: "MEDIA_ITEM_TYPE_EPISODE", indexNumber: 3 }, "Some Series", 1),
+    ).toBe("Some Series · S01E03 · Some Episode");
+    expect(
+      playerTitle({ title: "Some Episode", type: "MEDIA_ITEM_TYPE_EPISODE", indexNumber: 3 }, "Some Series"),
+    ).toBe("Some Series · E03 · Some Episode");
   });
 
   // The show's name arrives in a second request; until then the bar must read
