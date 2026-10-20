@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { nominalQualityTier, playerCloseTarget, playerExit, resolveStartPositionMs } from "./playerUtils";
+import { nominalQualityTier, playerCloseTarget, playerExit, resolveStartPositionMs, toEpisodeNavItem } from "./playerUtils";
 
 describe("nominalQualityTier", () => {
   it("rounds a widescreen height to the nearest standard tier", () => {
@@ -100,5 +100,21 @@ describe("playerCloseTarget", () => {
   it("falls back to the played id when the item is unknown or has no parent", () => {
     expect(playerCloseTarget("ep-9", undefined)).toBe("ep-9");
     expect(playerCloseTarget("ep-9", { type: "MEDIA_ITEM_TYPE_EPISODE" })).toBe("ep-9");
+  });
+});
+
+describe("toEpisodeNavItem", () => {
+  it("keeps the season number the server stamped on the episode", () => {
+    expect(toEpisodeNavItem({ id: "e2", title: "Two", indexNumber: 2, seasonIndexNumber: 3 }, 1)).toEqual({
+      id: "e2", title: "Two", indexNumber: 2, seasonIndexNumber: 3,
+    });
+  });
+
+  it("falls back to the fetched season's number", () => {
+    expect(toEpisodeNavItem({ id: "e2", title: "Two", indexNumber: 2 }, 4).seasonIndexNumber).toBe(4);
+  });
+
+  it("names an untitled episode by its number", () => {
+    expect(toEpisodeNavItem({ id: "e2", indexNumber: 2 }).title).toBe("Episode 2");
   });
 });

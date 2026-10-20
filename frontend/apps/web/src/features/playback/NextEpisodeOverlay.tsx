@@ -59,7 +59,8 @@ export function NextEpisodeOverlay({
 
   // The series is obvious while its next episode is announced: code and title.
   const line = nextEpisode.indexNumber != null
-    ? episodeLabel({ seasonNumber: nextEpisode.seasonIndexNumber, episodeNumber: nextEpisode.indexNumber, title: nextEpisode.title })
+    ? episodeLabel({ seasonNumber: nextEpisode.seasonIndexNumber, episodeNumber: nextEpisode.indexNumber, title: nextEpisode.title }) ||
+      t("player.nextEpisodeOverlay.episode", { number: nextEpisode.indexNumber })
     : [t("player.nextEpisodeOverlay.nextEpisode"), nextEpisode.title].filter(Boolean).join(" · ");
 
   return (

@@ -12,3 +12,17 @@ export { playerCloseTarget, playerExit, type PlayerExit } from "@evey/client";
 // (packages/client/src/lib/resumePosition.ts).
 export { resolveStartPositionMs } from "@evey/client";
 
+
+/** One entry of the player's episode list; keeps the season number so the
+ *  prev/next tooltips and the next-episode card can print "S01E04". */
+export function toEpisodeNavItem(
+  ep: { id?: string; title?: string; indexNumber?: number; seasonIndexNumber?: number },
+  fallbackSeasonNumber?: number,
+) {
+  return {
+    id: ep.id!,
+    title: ep.title ?? `Episode ${ep.indexNumber}`,
+    indexNumber: ep.indexNumber,
+    seasonIndexNumber: ep.seasonIndexNumber || fallbackSeasonNumber,
+  };
+}
