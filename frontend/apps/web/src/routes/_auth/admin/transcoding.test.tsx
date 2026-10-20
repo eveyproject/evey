@@ -113,8 +113,7 @@ describe("TranscodingConfigPage capacity", () => {
     // the playback cap for the job-queue cap.
     expect(screen.getByText(/live playback capacity/i)).toBeTruthy();
     expect(screen.getByTestId("max-video-sessions-row")).toHaveTextContent(/limit simultaneous video streams/i);
-    expect(screen.getByTestId("background-transcodes-row")).toHaveTextContent(/background conversions at the same time/i);
-    expect(screen.getByTestId("background-transcodes-row")).toHaveTextContent(/not the playback path/i);
+    expect(screen.getByTestId("setting-row-maxConcurrentTranscodes")).toHaveTextContent(/background conversions at the same time/i);
   });
 
   it("warns when the benchmark could not measure a capacity", async () => {
@@ -281,7 +280,7 @@ describe("TranscodingConfigPage capacity", () => {
     expect(input.value).toBe("2");
 
     fireEvent.change(input, { target: { value: "1" } });
-    fireEvent.click(screen.getByTestId("max-video-sessions-save-btn"));
+    fireEvent.click(screen.getByTestId("capacity-save-btn"));
     await waitFor(() =>
       expect(mockSetConfigEntry).toHaveBeenCalledWith("transcoding.max_video_sessions", { value: "1" }),
     );
@@ -791,8 +790,8 @@ describe("TranscodingConfigPage advanced limits", () => {
   it("exposes the five formerly env-only knobs", async () => {
     await openAdvanced();
     expect(screen.getByTestId("max-sessions-input")).toBeInTheDocument();
-    expect(screen.getByTestId("software-max-height-input")).toBeInTheDocument();
-    expect(screen.getByTestId("software-hdr-max-height-input")).toBeInTheDocument();
+    expect(screen.getByTestId("software-max-height")).toBeInTheDocument();
+    expect(screen.getByTestId("software-hdr-max-height")).toBeInTheDocument();
     expect(screen.getByTestId("single-variant-toggle")).toBeInTheDocument();
     expect(screen.getByTestId("hw-per-variant-toggle")).toBeInTheDocument();
   });
@@ -821,7 +820,7 @@ describe("TranscodingConfigPage advanced limits", () => {
     // Pre-filling would turn every save into an override of a value the
     // operator never chose.
     await openAdvanced();
-    expect(screen.getByTestId("software-hdr-max-height-input")).toHaveValue(null);
+    expect(within(screen.getByTestId("software-hdr-max-height")).getByRole("radio", { checked: true })).toHaveAttribute("data-value", "");
   });
 
   it("shows an overridden value and saves it back", async () => {
@@ -834,16 +833,16 @@ describe("TranscodingConfigPage advanced limits", () => {
       softwareHDRMaxHeight: { value: 1080, default: 0, source: "override", requiresRestart: true },
     };
     await openAdvanced();
-    expect(screen.getByTestId("software-hdr-max-height-input")).toHaveValue(1080);
+    expect(within(screen.getByTestId("software-hdr-max-height")).getByRole("radio", { checked: true })).toHaveAttribute("data-value", "1080");
 
-    fireEvent.change(screen.getByTestId("software-hdr-max-height-input"), { target: { value: "720" } });
+    fireEvent.click(within(screen.getByTestId("software-hdr-max-height")).getByRole("radio", { name: "720p" }));
     fireEvent.click(screen.getByTestId("advanced-transcoding-save-btn"));
 
     await waitFor(() => {
       expect(mockEveyFetch).toHaveBeenCalledWith(expect.objectContaining({
         url: "/api/v1/admin/server-settings",
         method: "PUT",
-        data: expect.objectContaining({ softwareHDRMaxHeight: 720 }),
+        data: { softwareHDRMaxHeight: 720 },
       }));
     });
   });
@@ -890,7 +889,7 @@ describe("TranscodingConfigPage layout", () => {
     // (moved here from the server configuration) and the advanced limits.
     expect(within(settings).getByText("encode settings")).toBeInTheDocument();
     expect(within(settings).getByTestId("max-video-sessions-row")).toBeInTheDocument();
-    expect(within(settings).getByTestId("background-transcodes-row")).toBeInTheDocument();
+    expect(within(settings).getByTestId("setting-row-maxConcurrentTranscodes")).toBeInTheDocument();
     const cache = within(settings).getByTestId("setting-row-transcodeCacheMaxGB");
     expect(within(cache).getByTestId("cache-budget-input")).toBeInTheDocument();
     expect(within(cache).getByTestId("setting-restart-badge")).toBeInTheDocument();
@@ -906,9 +905,9 @@ describe("TranscodingConfigPage layout", () => {
   it("keeps the advanced limits collapsed, then shows them with the AV1 software ceiling", async () => {
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
-    expect(screen.queryByTestId("software-av1-row")).toBeNull();
+    expect(screen.queryByTestId("setting-row-softwareAV1MaxHeight")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /advanced limits/i }));
-    expect(screen.getByTestId("software-av1-row")).toBeInTheDocument();
+    expect(screen.getByTestId("setting-row-softwareAV1MaxHeight")).toBeInTheDocument();
     expect(screen.getByTestId("max-sessions-input")).toBeInTheDocument();
   });
 });

@@ -4,9 +4,9 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { CollapsibleCard } from "@/components/ui/CollapsibleCard";
 import { SettingsGroup } from "@/components/ui/SettingsGroup";
 import { EncodeCalibrationCard, EncodeSettingsCard } from "@/features/admin/EncodeCalibrationCard";
-import { MaxVideoSessionsSetting, VideoSessionsCard } from "@/features/admin/transcoding/VideoSessionsCard";
+import { VideoSessionsCard } from "@/features/admin/transcoding/VideoSessionsCard";
 import { LoadTestCard } from "@/features/admin/transcoding/LoadTestCard";
-import { ConcurrencyCard } from "@/features/admin/transcoding/ConcurrencyCard";
+import { CapacitySettingsGroup } from "@/features/admin/transcoding/CapacitySettingsGroup";
 import { AdvancedTranscodingCard } from "@/features/admin/transcoding/AdvancedTranscodingCard";
 import { ServerSettingsGroup } from "@/features/admin/serverConfig/serverSettings";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
@@ -51,10 +51,7 @@ function TranscodingConfigPage() {
           <EncodeSettingsCard />
         </SettingsGroup>
 
-        <SettingsGroup title={t("admin.settingsLayout.groupCapacity")} description={t("admin.settingsLayout.groupCapacityDesc")} data-testid="group-capacity">
-          <MaxVideoSessionsSetting />
-          <ConcurrencyCard />
-        </SettingsGroup>
+        <CapacitySettingsGroup />
 
         <ServerSettingsGroup
           title={t("admin.settingsLayout.groupCache")}
@@ -65,7 +62,7 @@ function TranscodingConfigPage() {
         />
 
         {/* Collapsed by default: these are expert knobs most hosts never touch,
-            and most of them need a restart. */}
+            and most of them apply on restart. */}
         <CollapsibleCard
           title={t("admin.transcoding.advancedTitle", "Advanced limits")}
           subtitle={t("admin.transcoding.advancedSubtitle", "Session and resolution ceilings for weak hardware. Applied on restart.")}
