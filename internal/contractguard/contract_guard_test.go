@@ -235,17 +235,24 @@ func isClientSource(path string) bool {
 	return strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx")
 }
 
-// quotedStringRe matches a single- or double-quoted string literal on one
-// line. Template literals are left alone: their ${...} hold real reads.
-var quotedStringRe = regexp.MustCompile(`"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'`)
+// clientStringRe matches, left to right, a template literal or a single- or
+// double-quoted string literal on one line. Template literals come first so a
+// quote inside one (`"${lib.name}"`) is part of the template, not a string.
+var clientStringRe = regexp.MustCompile("`(?:[^`\\\\]|\\\\.)*`" + `|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'`)
 
 // clientPropertyReads is every `.name` the client code reads, by name. Quoted
 // strings are blanked first: a dotted i18n key such as
 // t("admin.settingsHelp.hwAccel") names no field, and counted as a read it
-// failed the guard for TranscodeProfile.hw_accel (2026-10-21).
+// failed the guard for TranscodeProfile.hw_accel (2026-10-21). Template
+// literals are kept whole: their ${...} hold real reads.
 func clientPropertyReads(corpus string) map[string]bool {
 	props := map[string]bool{}
-	code := quotedStringRe.ReplaceAllString(corpus, `""`)
+	code := clientStringRe.ReplaceAllStringFunc(corpus, func(lit string) string {
+		if strings.HasPrefix(lit, "`") {
+			return lit
+		}
+		return `""`
+	})
 	for _, m := range regexp.MustCompile(`\.(\w+)\b`).FindAllStringSubmatch(code, -1) {
 		props[m[1]] = true
 	}
@@ -340,8 +347,8 @@ func TestNoClientReadOfAFieldTheServerNeverWrites(t *testing.T) {
 }
 
 func TestClientPropertyReadsIgnoresQuotedStrings(t *testing.T) {
-	got := clientPropertyReads("info={t(\"admin.settingsHelp.hwAccel\")} x = cfg.maxBitrate; y = `${p.seasonIndexNumber}`; z = 'a.quoted'")
-	for _, want := range []string{"maxBitrate", "seasonIndexNumber"} {
+	got := clientPropertyReads("info={t(\"admin.settingsHelp.hwAccel\")} x = cfg.maxBitrate; y = `${p.seasonIndexNumber}`; z = 'a.quoted'; w = `\"${lib.libraryName}\"`")
+	for _, want := range []string{"maxBitrate", "seasonIndexNumber", "libraryName"} {
 		if !got[want] {
 			t.Errorf("read %q not found in %v", want, got)
 		}

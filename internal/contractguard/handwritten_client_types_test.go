@@ -132,16 +132,39 @@ func protoResponseFields(t *testing.T, dir string) map[string]map[string]bool {
 	return out
 }
 
+// tsTypeBody is the text between the braces of interface or type alias name
+// in src, found by counting braces. A regex up to the next "\n}" ran past a
+// type written on one line into the code after it (2026-10-21: a one-line
+// EntriesResponse took useConfigEntryOps' body for its fields).
+func tsTypeBody(src, name string) (string, bool) {
+	loc := regexp.MustCompile(`(?:interface|type)\s+` + regexp.QuoteMeta(name) + `\b[^{=;]*=?\s*\{`).FindStringIndex(src)
+	if loc == nil {
+		return "", false
+	}
+	depth := 1
+	for i := loc[1]; i < len(src); i++ {
+		switch src[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return src[loc[1]:i], true
+			}
+		}
+	}
+	return "", false
+}
+
 // tsInterfaceFields reads the field names of a TS interface or type alias
 // declared in src.
 func tsInterfaceFields(src, name string) ([]string, bool) {
-	re := regexp.MustCompile(`(?s)(?:interface|type)\s+` + regexp.QuoteMeta(name) + `\s*=?\s*\{(.*?)\n\}`)
-	m := re.FindStringSubmatch(src)
-	if m == nil {
+	body, ok := tsTypeBody(src, name)
+	if !ok {
 		return nil, false
 	}
 	var out []string
-	for _, f := range tsFieldRe.FindAllStringSubmatch(m[1], -1) {
+	for _, f := range tsFieldRe.FindAllStringSubmatch(body, -1) {
 		out = append(out, f[1])
 	}
 	return out, true
@@ -204,13 +227,12 @@ var (
 // tsNestedRefs maps each field of a TS interface to the interface its type
 // names, when it names one.
 func tsNestedRefs(src, name string) map[string]string {
-	re := regexp.MustCompile(`(?s)(?:interface|type)\s+` + regexp.QuoteMeta(name) + `\s*=?\s*\{(.*?)\n\}`)
-	m := re.FindStringSubmatch(src)
-	if m == nil {
+	body, ok := tsTypeBody(src, name)
+	if !ok {
 		return nil
 	}
 	out := map[string]string{}
-	for _, f := range tsFieldTypeRe.FindAllStringSubmatch(m[1], -1) {
+	for _, f := range tsFieldTypeRe.FindAllStringSubmatch(body, -1) {
 		if tm := tsNamedTypeRe.FindStringSubmatch(strings.TrimSpace(f[2])); tm != nil {
 			ref := tm[1]
 			if ref == "" {
@@ -489,4 +511,21 @@ func TestHandWrittenClientTypesMatchTheEndpointTheyCall(t *testing.T) {
 			strings.Join(findings, "\n  "))
 	}
 	t.Logf("checked %d hand-written response types, %d nested interfaces", checked, nested)
+}
+
+func TestTsTypeBodyStopsAtTheMatchingBrace(t *testing.T) {
+	src := "type EntriesResponse = { entries?: { key?: string; value?: string }[] };\nfunction f() {\n  const queryKey = 1;\n}\n" +
+		"interface Multi {\n  a: string;\n  b?: { c: number };\n}\n"
+	body, ok := tsTypeBody(src, "EntriesResponse")
+	if !ok || strings.Contains(body, "queryKey") {
+		t.Fatalf("one-line type body = %q (ok=%v): it must stop at its own closing brace", body, ok)
+	}
+	fields, _ := tsInterfaceFields(src, "EntriesResponse")
+	if len(fields) != 1 || fields[0] != "entries" {
+		t.Errorf("EntriesResponse fields = %v, want [entries]", fields)
+	}
+	fields, _ = tsInterfaceFields(src, "Multi")
+	if strings.Join(fields, ",") != "a,b" {
+		t.Errorf("Multi fields = %v, want [a b]", fields)
+	}
 }
