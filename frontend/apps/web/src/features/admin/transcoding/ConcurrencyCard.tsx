@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
 import { Spinner } from "@/components/ui/Spinner";
+import { SettingRow } from "@/components/ui/SettingRow";
 import { SETTINGS_KEY, useTranscodingServerSettings, type ServerSettings } from "./hooks";
 
 // ConcurrencyCard owns the max-simultaneous-transcodes policy: Auto (no
@@ -39,38 +40,47 @@ export function ConcurrencyCard() {
 
   const defaultVal = data.maxConcurrentTranscodes.default;
 
+  const autoLabel = t("admin.transcoding.concurrencyAuto", "Detect automatically");
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-[var(--text)]">
-          {t("admin.transcoding.concurrencyAuto", "Detect automatically")}
-        </label>
-        <Switch
-          checked={auto}
-          onChange={() => setAuto((v) => !v)}
-          label={t("admin.transcoding.concurrencyAuto", "Detect automatically")}
-          data-testid="max-concurrent-auto-toggle"
-        />
-        <span className="text-xs text-[var(--text-muted)]">
-          {auto
-            ? t("admin.transcoding.concurrencyAutoHint", "Server default ({{n}})", { n: defaultVal })
-            : t("admin.transcoding.concurrencyManualHint", "Cap concurrent transcodes")}
-        </span>
-      </div>
+    <div className="flex flex-col divide-y divide-[var(--border)]">
+      <SettingRow
+        label={t("admin.settingsLayout.backgroundTranscodes")}
+        info={t("admin.settingsHelp.backgroundTranscodes")}
+        hint={t("admin.transcoding.jobConcurrencySubtitle")}
+        kind="toggle"
+        data-testid="background-transcodes-row"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[var(--text-muted)]">
+            {auto
+              ? t("admin.transcoding.concurrencyAutoHint", "Server default ({{n}})", { n: defaultVal })
+              : t("admin.transcoding.concurrencyManualHint", "Cap concurrent transcodes")}
+          </span>
+          <Switch
+            checked={auto}
+            onChange={() => setAuto((v) => !v)}
+            label={autoLabel}
+            data-testid="max-concurrent-auto-toggle"
+          />
+        </div>
+      </SettingRow>
 
       {!auto && (
-        <Input
-          label={t("admin.serverSettings.maxConcurrentTranscodes", "Max simultaneous transcodes")}
-          type="number"
-          min={1}
-          placeholder={String(defaultVal)}
-          value={manual}
-          onChange={(e) => setManual(e.target.value)}
-          data-testid="max-concurrent-input"
-        />
+        <SettingRow label={t("admin.serverSettings.maxConcurrentTranscodes", "Max simultaneous transcodes")} htmlFor="max-concurrent-input">
+          <Input
+            id="max-concurrent-input"
+            className="w-full"
+            type="number"
+            min={1}
+            placeholder={String(defaultVal)}
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            data-testid="max-concurrent-input"
+          />
+        </SettingRow>
       )}
 
-      <div className="flex justify-end">
+      <div className="flex justify-end pt-3">
         <Button
           data-testid="concurrency-save-btn"
           loading={save.isPending}

@@ -3,7 +3,7 @@ import { eveyFetch } from "@evey/api";
 
 export const SETTINGS_KEY = ["/api/v1/admin/server-settings"];
 
-export type SettingValue<T> = { value: T; default: T; source: string; requiresRestart?: boolean };
+export type SettingValue<T> = { value: T; default: T; source: string; requiresRestart?: boolean; locked?: boolean };
 export interface ServerSettings {
   maxConcurrentTranscodes: SettingValue<number>;
   transcodeMaxSessions?: SettingValue<number>;
@@ -11,6 +11,7 @@ export interface ServerSettings {
   transcodeHWPerVariant?: SettingValue<boolean>;
   softwareMaxHeight?: SettingValue<number>;
   softwareHDRMaxHeight?: SettingValue<number>;
+  softwareAV1MaxHeight?: SettingValue<number>;
 }
 
 // useTranscodingServerSettings is shared by ConcurrencyCard and

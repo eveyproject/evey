@@ -22,11 +22,11 @@ vi.mock("@/components/ui/Button", () => ({
   Button: ({ children, onClick, disabled, loading, ...p }: any) => React.createElement("button", { onClick, disabled: disabled || loading, "data-testid": p["data-testid"] }, children),
 }));
 
-import { VideoSessionsCard } from "./VideoSessionsCard";
+import { MaxVideoSessionsSetting, VideoSessionsCard } from "./VideoSessionsCard";
 
-function mount() {
+function mount(component: React.ComponentType = VideoSessionsCard) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  render(React.createElement(QueryClientProvider, { client: qc }, React.createElement(VideoSessionsCard)));
+  render(React.createElement(QueryClientProvider, { client: qc }, React.createElement(component)));
 }
 
 beforeEach(() => {
@@ -87,7 +87,9 @@ describe("VideoSessionsCard", () => {
 
   it("the cap control seeds from the stored row and saves the trimmed value", async () => {
     api.entries = [{ key: "transcoding.max_video_sessions", value: "4" }];
-    mount();
+    // The cap is a setting: it sits on the settings side of the page, apart
+    // from the measured readout.
+    mount(MaxVideoSessionsSetting);
     const input = screen.getByLabelText("admin.transcoding.maxVideoSessionsLabel") as HTMLInputElement;
     expect(input.value).toBe("4");
     const save = screen.getByTestId("max-video-sessions-save-btn") as HTMLButtonElement;

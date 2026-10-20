@@ -8,7 +8,7 @@ vi.mock("@evey/api", () => ({ eveyFetch: (...a: unknown[]) => eveyFetchMock(...a
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@evey/store", () => ({ toast }));
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (k: string, d?: string, o?: Record<string, unknown>) => (d ?? k).replace("{{n}}", String(o?.n)) }),
+  useTranslation: () => ({ t: (k: string, d?: unknown, o?: Record<string, unknown>) => (typeof d === "string" ? d : k).replace("{{n}}", String(o?.n)) }),
 }));
 const settings = vi.hoisted(() => ({ data: undefined as unknown, isLoading: false }));
 vi.mock("./hooks", () => ({ SETTINGS_KEY: ["settings"], useTranscodingServerSettings: () => settings }));
