@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -7,124 +7,103 @@ const eveyFetchMock = vi.hoisted(() => vi.fn());
 vi.mock("@evey/api", () => ({ eveyFetch: (...a: unknown[]) => eveyFetchMock(...a), apiErrorMessage: (e: Error) => e.message }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@evey/store", () => ({ toast }));
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, d?: unknown) => (typeof d === "string" ? d : k) }) }));
-const settings = vi.hoisted(() => ({ data: undefined as unknown, isLoading: false }));
-vi.mock("./hooks", () => ({ SETTINGS_KEY: ["settings"], useTranscodingServerSettings: () => settings }));
-vi.mock("@/components/ui/Spinner", () => ({ Spinner: () => React.createElement("div", { "data-testid": "spinner" }) }));
-vi.mock("@/components/ui/Input", () => ({
-  Input: ({ label, value, onChange, placeholder, ...p }: any) => React.createElement("input", { "aria-label": label, value, onChange, placeholder, "data-testid": p["data-testid"] }),
-}));
-vi.mock("@/components/ui/Button", () => ({
-  Button: ({ children, onClick, disabled, loading, ...p }: any) => React.createElement("button", { onClick, disabled: disabled || loading, "data-testid": p["data-testid"] }, children),
-}));
-vi.mock("@/components/ui/Switch", () => ({
-  Switch: ({ checked, onChange, label, ...p }: any) => React.createElement("button", { role: "switch", "aria-checked": checked, "aria-label": label, onClick: onChange, "data-testid": p["data-testid"] }),
-}));
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 
 import { AdvancedTranscodingCard } from "./AdvancedTranscodingCard";
 
 const sv = (value: unknown, def: unknown, source: "override" | "default" = "default", requiresRestart = true) => ({ value, default: def, source, requiresRestart });
 
+let current: Record<string, unknown>;
+function settings(overrides: Record<string, unknown> = {}) {
+  return {
+    transcodeMaxSessions: sv(0, 0),
+    softwareMaxHeight: sv(1080, 0, "override"),
+    softwareHDRMaxHeight: sv(0, 0),
+    softwareAV1MaxHeight: sv(0, 0, "default", false),
+    transcodeSingleVariant: sv(true, true),
+    transcodeHWPerVariant: sv(false, false),
+    ...overrides,
+  };
+}
+
 function mount() {
+  eveyFetchMock.mockImplementation((o: { method: string }) => Promise.resolve(o.method === "GET" ? current : {}));
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(React.createElement(QueryClientProvider, { client: qc }, React.createElement(AdvancedTranscodingCard)));
 }
 
+const puts = () =>
+  eveyFetchMock.mock.calls.map((c) => c[0] as { method: string; data: unknown }).filter((c) => c.method === "PUT").map((c) => c.data);
+const checked = (testId: string) => within(screen.getByTestId(testId)).getByRole("radio", { checked: true }).getAttribute("data-value");
+
 beforeEach(() => {
   vi.clearAllMocks();
-  eveyFetchMock.mockResolvedValue({});
-  settings.isLoading = false;
-  settings.data = {
-    transcodeMaxSessions: sv(0, 0),
-    softwareMaxHeight: sv(1080, 0, "override"),
-    softwareHDRMaxHeight: sv(0, 0),
-    transcodeSingleVariant: sv(false, false),
-    transcodeHWPerVariant: sv(true, false),
-  };
+  current = settings();
 });
 
-// A blank field is "no override" and is sent as an explicit null (the reset
-// path), never as 0 - which is a real value here; an override seeds its
-// field; the toggles always travel; the restart hint follows the server's
-// own flag rather than a hardcoded assumption.
+// The expert limits send only what the admin changed (an untouched switch
+// never becomes a stored override), a cleared choice as an explicit null,
+// and a height only from the ladder the server accepts. A refetch caused by
+// another card on the page never blanks a row being edited.
 describe("AdvancedTranscodingCard", () => {
-  it("seeds only overrides, sends blanks as null and numbers as numbers", async () => {
+  it("seeds only overrides and sends only the touched rows", async () => {
     mount();
-    expect(screen.getByTestId("advanced-restart-hint")).toBeInTheDocument();
+    expect(await screen.findByTestId("advanced-restart-hint")).toBeInTheDocument();
     expect((screen.getByTestId("max-sessions-input") as HTMLInputElement).value).toBe("");
-    expect((screen.getByTestId("software-max-height-input") as HTMLInputElement).value).toBe("1080");
-    expect(screen.getByTestId("hw-per-variant-toggle").getAttribute("aria-checked")).toBe("true");
-    const save = screen.getByTestId("advanced-transcoding-save-btn") as HTMLButtonElement;
-    expect(save.disabled).toBe(true);
+    expect(checked("software-max-height")).toBe("1080");
+    expect(checked("software-hdr-max-height")).toBe("");
+    expect(screen.getByTestId("single-variant-toggle")).toHaveAttribute("aria-checked", "true");
+    const save = screen.getByTestId("advanced-transcoding-save-btn");
+    expect(save).toBeDisabled();
 
-    fireEvent.change(screen.getByTestId("max-sessions-input"), { target: { value: "0" } });
-    fireEvent.change(screen.getByTestId("software-max-height-input"), { target: { value: "" } });
-    fireEvent.click(screen.getByTestId("single-variant-toggle"));
+    fireEvent.change(screen.getByTestId("max-sessions-input"), { target: { value: "2" } });
+    fireEvent.click(within(screen.getByTestId("software-max-height")).getByRole("radio", { name: "admin.settingsLayout.autoMeasured" }));
     fireEvent.click(save);
-    await waitFor(() => expect(eveyFetchMock).toHaveBeenCalledWith({
-      url: "/api/v1/admin/server-settings",
-      method: "PUT",
-      data: { transcodeMaxSessions: 0, softwareMaxHeight: null, softwareHDRMaxHeight: null, transcodeSingleVariant: true, transcodeHWPerVariant: true },
-    }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    expect(save.disabled).toBe(true);
+    await waitFor(() => expect(puts()).toEqual([{ transcodeMaxSessions: 2, softwareMaxHeight: null }]));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("admin.transcoding.savedRestart"));
+    await waitFor(() => expect(save).toBeDisabled());
   });
 
-  it("drops the restart hint once no knob needs a restart, and shows a spinner while loading", () => {
-    settings.data = { transcodeMaxSessions: sv(0, 0, "default", false), softwareMaxHeight: sv(0, 0, "default", false) };
+  it("offers the software heights the server accepts, and shows an off-ladder stored value", async () => {
+    current = settings({ softwareHDRMaxHeight: sv(900, 0, "override") });
     mount();
-    expect(screen.queryByTestId("advanced-restart-hint")).toBeNull();
-    settings.isLoading = true;
-    mount();
-    expect(screen.getByTestId("spinner")).toBeInTheDocument();
+    const sdr = await screen.findByTestId("software-max-height");
+    expect(within(sdr).getAllByRole("radio").map((r) => r.getAttribute("data-value"))).toEqual(["", "480", "720", "1080", "1440", "2160"]);
+    expect(checked("software-hdr-max-height")).toBe("900");
+    expect(within(screen.getByTestId("software-hdr-max-height")).getByRole("radio", { checked: true })).toHaveTextContent("900p");
   });
-});
 
-// The AV1 software ceiling was accepted by the server but offered nowhere.
-// It is a segmented choice of the heights the server accepts; Auto is the
-// default, so picking it clears the override (null). It is read live: no
-// restart badge, and saving only it does not ask for a restart.
-describe("AdvancedTranscodingCard - AV1 software ceiling", () => {
-  it("offers the accepted heights, sends the pick, and Auto as a reset", async () => {
-    settings.data = { ...(settings.data as object), softwareAV1MaxHeight: sv(0, 0, "default", false) };
+  it("the AV1 software ceiling applies live: no restart badge, plain 'Saved', Auto clears it", async () => {
+    current = settings({ softwareAV1MaxHeight: sv(1080, 0, "override", false) });
     mount();
-    const group = screen.getByRole("radiogroup", { name: "admin.serverSettings.softwareAV1MaxHeight" });
-    const radios = Array.from(group.querySelectorAll("[role=radio]"));
-    expect(radios.map((r) => r.getAttribute("data-value"))).toEqual(["0", "480", "720", "1080", "1440"]);
-    expect(group.querySelector("[aria-checked=true]")?.getAttribute("data-value")).toBe("0");
-    expect(screen.getByTestId("software-av1-row").querySelector("[data-testid=setting-restart-badge]")).toBeNull();
-
-    fireEvent.click(screen.getByRole("radio", { name: "720p" }));
+    const row = await screen.findByTestId("setting-row-softwareAV1MaxHeight");
+    expect(within(row).queryByTestId("setting-restart-badge")).toBeNull();
+    expect(checked("software-av1-max-height")).toBe("1080");
+    fireEvent.click(within(row).getByRole("radio", { name: "admin.settingsLayout.autoPlain" }));
     fireEvent.click(screen.getByTestId("advanced-transcoding-save-btn"));
-    await waitFor(() => expect(eveyFetchMock).toHaveBeenCalled());
-    const body = (eveyFetchMock.mock.calls[0][0] as { data: Record<string, unknown> }).data;
-    expect(body.softwareAV1MaxHeight).toBe(720);
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Saved"));
+    await waitFor(() => expect(puts()).toEqual([{ softwareAV1MaxHeight: null }]));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("admin.serverSettings.saved"));
   });
 
-  it("seeds a stored ceiling and clears it with Auto", async () => {
-    settings.data = { ...(settings.data as object), softwareAV1MaxHeight: sv(1080, 0, "override", false) };
+  it("refuses a session count that is not a whole number, without a request", async () => {
     mount();
-    expect(screen.getByRole("radio", { name: "1080p" })).toHaveAttribute("aria-checked", "true");
-    fireEvent.click(screen.getByRole("radio", { name: "admin.serverSettings.softwareAV1Auto" }));
+    fireEvent.change(await screen.findByTestId("max-sessions-input"), { target: { value: "-1" } });
     fireEvent.click(screen.getByTestId("advanced-transcoding-save-btn"));
-    await waitFor(() => expect(eveyFetchMock).toHaveBeenCalled());
-    expect((eveyFetchMock.mock.calls[0][0] as { data: Record<string, unknown> }).data.softwareAV1MaxHeight).toBeNull();
+    expect(await screen.findByTestId("setting-error")).toHaveTextContent("admin.settingsLayout.errorNumber");
+    expect(puts()).toEqual([]);
   });
 
-  it("leaves the AV1 ceiling out of a save that did not touch it, and badges the boot-time rows", async () => {
-    settings.data = { ...(settings.data as object), softwareAV1MaxHeight: sv(720, 0, "override", false) };
+  it("explains every limit behind an 'i' and badges the rows read at boot", async () => {
     mount();
-    expect(screen.getAllByTestId("setting-restart-badge")).toHaveLength(5);
-    fireEvent.click(screen.getByTestId("single-variant-toggle"));
-    fireEvent.click(screen.getByTestId("advanced-transcoding-save-btn"));
-    await waitFor(() => expect(eveyFetchMock).toHaveBeenCalled());
-    expect((eveyFetchMock.mock.calls[0][0] as { data: Record<string, unknown> }).data).not.toHaveProperty("softwareAV1MaxHeight");
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Saved - restart the server to apply"));
-  });
-
-  it("explains every limit behind an 'i'", () => {
-    mount();
+    await screen.findByTestId("advanced-restart-hint");
     expect(screen.getAllByRole("button", { name: "admin.settingsLayout.moreInfo" })).toHaveLength(6);
+    expect(screen.getAllByTestId("setting-restart-badge")).toHaveLength(5);
+  });
+
+  it("drops the restart hint once no knob needs a restart", async () => {
+    current = { transcodeMaxSessions: sv(0, 0, "default", false), softwareMaxHeight: sv(0, 0, "default", false) };
+    mount();
+    await screen.findByTestId("max-sessions-input");
+    expect(screen.queryByTestId("advanced-restart-hint")).toBeNull();
   });
 });

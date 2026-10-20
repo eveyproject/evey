@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Switch } from "@/components/ui/Switch";
 import { SettingRow } from "@/components/ui/SettingRow";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { SERVER_SETTINGS_KEY, useServerSettings } from "@/features/admin/serverConfig/serverSettings";
 
 // EncodeCapability is the JSON shape served by the backend at
 // /api/v1/admin/transcode/calibration. Mirrors the Go domain struct.
@@ -89,15 +90,14 @@ export function gpuPipelineSummary(
   );
   return out;
 }
-const SETTINGS_QK = ["/api/v1/admin/server-settings"] as const;
+const SETTINGS_QK = SERVER_SETTINGS_KEY;
 
-type EncodeSettings = {
-  av1Enabled?: { value: boolean };
-  av1MaxHeight?: { value: number };
-  hwLowPowerEnabled?: { value: boolean };
-  maxVideoBitrateKbps?: { value: number };
-  maxVideoBitrateRemoteKbps?: { value: number };
-};
+// bitrateOptions lists the offered ceilings plus the stored one when it is
+// off the list (set through the API or an older panel): a select must show
+// what is in force rather than silently display the first choice.
+function bitrateOptions(offered: number[], current: number): number[] {
+  return offered.includes(current) ? offered : [...offered, current].sort((a, b) => a - b);
+}
 
 function useCalibration() {
   return useQuery<EncodeCapability>({
@@ -131,18 +131,15 @@ export function EncodeSettingsCard() {
   const { data, isLoading, isError } = useCalibration();
 
   // Server settings carry the AV1 output opt-in + height cap.
-  const { data: settings } = useQuery<EncodeSettings>({
-    queryKey: SETTINGS_QK,
-    queryFn: () => eveyFetch({ url: "/api/v1/admin/server-settings", method: "GET" }),
-  });
-  const av1Enabled = settings?.av1Enabled?.value ?? false;
-  const av1MaxHeight = settings?.av1MaxHeight?.value ?? 0;
-  const hwLowPowerEnabled = settings?.hwLowPowerEnabled?.value ?? false;
-  const maxVideoBitrateKbps = settings?.maxVideoBitrateKbps?.value ?? 0;
+  const { data: settings } = useServerSettings();
+  const av1Enabled = Boolean(settings?.av1Enabled?.value ?? false);
+  const av1MaxHeight = Number(settings?.av1MaxHeight?.value ?? 0);
+  const hwLowPowerEnabled = Boolean(settings?.hwLowPowerEnabled?.value ?? false);
+  const maxVideoBitrateKbps = Number(settings?.maxVideoBitrateKbps?.value ?? 0);
   // Absent = follow the LAN (0), matching the backend default. Never fall back
   // to 20 000: that would show "20 Mb/s" and a save would silently persist it,
   // turning an unset (follow-LAN) server into a 20 Mb/s-capped one.
-  const maxVideoBitrateRemoteKbps = settings?.maxVideoBitrateRemoteKbps?.value ?? 0;
+  const maxVideoBitrateRemoteKbps = Number(settings?.maxVideoBitrateRemoteKbps?.value ?? 0);
 
   const setAV1 = useMutation({
     mutationFn: (patch: { av1Enabled?: boolean; av1MaxHeight?: number }) =>
@@ -293,10 +290,9 @@ export function EncodeSettingsCard() {
           className={SELECT_CLASS}
         >
           <option value="0">{t("admin.calibration.maxBitrateSource", "Follow the source")}</option>
-          <option value="20000">20 Mb/s</option>
-          <option value="40000">40 Mb/s</option>
-          <option value="60000">60 Mb/s</option>
-          <option value="80000">80 Mb/s</option>
+          {bitrateOptions([20000, 40000, 60000, 80000], maxVideoBitrateKbps).filter((k) => k > 0).map((k) => (
+            <option key={k} value={String(k)}>{k / 1000} Mb/s</option>
+          ))}
         </select>
       </SettingRow>
 
@@ -314,10 +310,9 @@ export function EncodeSettingsCard() {
           className={SELECT_CLASS}
         >
           <option value="0">{t("admin.calibration.maxBitrateRemoteNone", "Follow the LAN (no extra remote cap)")}</option>
-          <option value="8000">8 Mb/s</option>
-          <option value="12000">12 Mb/s</option>
-          <option value="20000">20 Mb/s</option>
-          <option value="40000">40 Mb/s</option>
+          {bitrateOptions([8000, 12000, 20000, 40000], maxVideoBitrateRemoteKbps).filter((k) => k > 0).map((k) => (
+            <option key={k} value={String(k)}>{k / 1000} Mb/s</option>
+          ))}
         </select>
       </SettingRow>
 
@@ -343,10 +338,14 @@ export function EncodeSettingsCard() {
       )}
 
       {hwEnabled && av1Enabled && (
-        <SettingRow label={av1MaxLabel} info={t("admin.settingsHelp.av1MaxHeight")} kind="wide">
+        <SettingRow label={av1MaxLabel} labelId="av1-max-height-label" info={t("admin.settingsHelp.av1MaxHeight")} kind="wide">
+          {/* Saved on pick: the arrows only move, Space/Enter picks. */}
           <SegmentedControl
             id="av1-max-height"
             label={av1MaxLabel}
+            labelledBy="av1-max-height-label"
+            activation="manual"
+            formatUnknown={(v) => `${v}p`}
             data-testid="av1-max-height-select"
             value={String(av1MaxHeight)}
             disabled={setAV1.isPending}

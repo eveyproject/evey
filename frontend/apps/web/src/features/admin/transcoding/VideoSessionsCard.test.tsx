@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -22,7 +22,7 @@ vi.mock("@/components/ui/Button", () => ({
   Button: ({ children, onClick, disabled, loading, ...p }: any) => React.createElement("button", { onClick, disabled: disabled || loading, "data-testid": p["data-testid"] }, children),
 }));
 
-import { MaxVideoSessionsSetting, VideoSessionsCard } from "./VideoSessionsCard";
+import { VideoSessionsCard } from "./VideoSessionsCard";
 
 function mount(component: React.ComponentType = VideoSessionsCard) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -85,20 +85,4 @@ describe("VideoSessionsCard", () => {
     expect(screen.getByText("admin.transcoding.videoSessionsNotMeasured")).toBeInTheDocument();
   });
 
-  it("the cap control seeds from the stored row and saves the trimmed value", async () => {
-    api.entries = [{ key: "transcoding.max_video_sessions", value: "4" }];
-    // The cap is a setting: it sits on the settings side of the page, apart
-    // from the measured readout.
-    mount(MaxVideoSessionsSetting);
-    const input = screen.getByLabelText("admin.transcoding.maxVideoSessionsLabel") as HTMLInputElement;
-    expect(input.value).toBe("4");
-    const save = screen.getByTestId("max-video-sessions-save-btn") as HTMLButtonElement;
-    expect(save.disabled).toBe(true);
-    fireEvent.change(input, { target: { value: " 2 " } });
-    expect(save.disabled).toBe(false);
-    fireEvent.click(save);
-    await waitFor(() => expect(api.setEntry).toHaveBeenCalledWith("transcoding.max_video_sessions", { value: "2" }));
-    await waitFor(() => expect(toast.success).toHaveBeenCalled());
-    expect(save.disabled).toBe(true);
-  });
 });

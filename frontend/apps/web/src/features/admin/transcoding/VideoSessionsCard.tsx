@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,7 +12,6 @@ import {
 } from "@evey/api";
 import { toast } from "@evey/store";
 import { Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/Button";
 import { SettingRow } from "@/components/ui/SettingRow";
 
 const MAX_VIDEO_SESSIONS_KEY = "transcoding.max_video_sessions";
@@ -196,10 +195,12 @@ export function VideoSessionsCard() {
   );
 }
 
-// MaxVideoSessionsSetting is the one control over live playback capacity:
+// useMaxVideoSessionsField is the one control over live playback capacity:
 // lower the measured number of simultaneous video streams. Blank keeps the
 // measured value ("Auto"); the server never lets it go above the measure.
-export function MaxVideoSessionsSetting() {
+// It returns its row and its save, so the Capacity group offers one Save for
+// both of its limits.
+export function useMaxVideoSessionsField(): { row: ReactNode; dirty: boolean; submit: () => Promise<boolean> } {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { data: entries } = useServerConfigServiceListServerConfigEntries({
@@ -209,13 +210,14 @@ export function MaxVideoSessionsSetting() {
   const stored = entries?.find((e) => e.key === MAX_VIDEO_SESSIONS_KEY)?.value ?? "";
   const [value, setValue] = useState(stored);
   const [dirty, setDirty] = useState(false);
+  const [error, setError] = useState<string | undefined>();
 
   useEffect(() => {
     if (!dirty) setValue(stored);
   }, [stored, dirty]);
 
   const save = useMutation({
-    mutationFn: () => serverConfigServiceSetServerConfigEntry(MAX_VIDEO_SESSIONS_KEY, { value: value.trim() }),
+    mutationFn: (v: string) => serverConfigServiceSetServerConfigEntry(MAX_VIDEO_SESSIONS_KEY, { value: v }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: CONFIG_QUERY_KEY });
       setDirty(false);
@@ -224,38 +226,45 @@ export function MaxVideoSessionsSetting() {
     onError: () => toast.error(t("admin.transcoding.videoSessionsFailed", "Could not update the capacity")),
   });
 
-  return (
+  async function submit(): Promise<boolean> {
+    if (!dirty) return true;
+    const v = value.trim();
+    if (v !== "" && (!/^\d+$/.test(v) || parseInt(v, 10) < 1)) {
+      setError(t("admin.settingsLayout.errorNumber", { min: 1 }));
+      return false;
+    }
+    try {
+      await save.mutateAsync(v);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const row = (
     <SettingRow
+      key="max-video-sessions"
       label={t("admin.transcoding.maxVideoSessionsLabel")}
       htmlFor="max-video-sessions"
       info={t("admin.transcoding.maxVideoSessionsDesc")}
+      error={error}
       data-testid="max-video-sessions-row"
     >
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <Input
-            id="max-video-sessions"
-            type="number"
-            min={1}
-            placeholder={t("admin.transcoding.maxVideoSessionsAuto")}
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value);
-              setDirty(true);
-            }}
-            className="w-full"
-          />
-        </div>
-        <Button
-          variant="secondary"
-          onClick={() => save.mutate()}
-          loading={save.isPending}
-          disabled={!dirty}
-          data-testid="max-video-sessions-save-btn"
-        >
-          {t("common.save")}
-        </Button>
-      </div>
+      <Input
+        id="max-video-sessions"
+        type="number"
+        inputMode="numeric"
+        min={1}
+        placeholder={t("admin.transcoding.maxVideoSessionsAuto")}
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setDirty(true);
+          setError(undefined);
+        }}
+        className="w-full"
+      />
     </SettingRow>
   );
+  return { row, dirty, submit };
 }
