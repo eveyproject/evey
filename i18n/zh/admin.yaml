@@ -1892,3 +1892,109 @@ shareLinks:
   failedRevoke: "无法撤销分享链接"
   expired: "已过期"
   unlimited: "无限"
+
+settingsLayout:
+  pageSubtitle: 服务器自行完成的所有工作，按主题归类。点击设置旁的“i”即可了解它的作用。
+  sectionsLabel: 设置分区
+  moreInfo: 详细说明：{{label}}
+  'on': 开
+  'off': 关
+  nextSweepHint: 在下一次每日清理时生效，无需重启。
+  runNow: 立即运行
+  advancedPacing: 高级：后台任务的节奏
+  commaSeparated: 多个条目请用逗号分隔。
+  tlsNone: 无
+  backgroundTranscodes: 同时进行的后台转换
+  rawEntriesWarning: 专家区域：这里是其他分区的设置实际保存的原始值。错误的键或值可能导致某项功能失效。请尽量使用其他分区。
+  groupServer: 服务器
+  groupScanning: 媒体库扫描
+  groupScanningDesc: Evey 如何发现新增、修改或删除的文件。
+  groupSkipping: 片头与预告
+  groupSkippingDesc: 播放器如何处理 Evey 找到的片头、前情回顾和预告。
+  groupSignIn: 登录与防护
+  groupSignInDesc: 找回密码，以及用来减缓猜测密码和滥用行为的限制。
+  groupMediaAnalysis: 媒体文件分析
+  groupRetention: 历史记录保留多久
+  groupRetentionDesc: 较早的历史记录会自动删除。0 表示永久保留。
+  groupBackups: 备份
+  groupEncoding: 编码
+  groupEncodingDesc: 当设备无法直接播放某个文件时，视频如何转换。
+  groupCapacity: 容量
+  groupCapacityDesc: 可以同时进行多少个转换。
+  groupCache: 缓存
+  groupCacheDesc: 为已转换的视频保留的磁盘空间，再次播放时无需重新转换。
+  transcodingSettings: 设置
+  transcodingSettingsDesc: 由您决定的内容。修改保存后立即生效，除非标有“重启后生效”。
+  transcodingDiagnostics: 诊断
+  transcodingDiagnosticsDesc: 服务器对自身的测量结果。只读，重新测量和负载测试除外。
+  sections:
+    general:
+      title: 常规
+      desc: 服务器名称、语言、地区、时区、更新和日志。
+    libraries:
+      title: 媒体库
+      desc: 扫描、片头、图片、时间轴缩略图以及文件名识别。
+    services:
+      title: 外部服务
+      desc: Evey 获取信息所用在线服务的密钥。
+    accounts:
+      title: 账户与安全
+      desc: 登录、找回密码、单点登录和电子邮件。
+    performance:
+      title: 性能
+      desc: 后台工作可以占用机器多少资源。
+    data:
+      title: 数据与保留
+      desc: 历史记录保留多久，以及备份包含哪些内容。
+    home:
+      title: 首页
+      desc: 所有人在首页上看到的内容行。
+    advanced:
+      title: 高级
+      desc: 原始配置值，供专家使用。
+settingsHelp:
+  serverName: 在应用中、登录页面上以及选择服务器时显示的名称。如果您运行多台服务器，或只是想要一个更好认的名字，可以修改它。默认：Evey。
+  logLevel: 服务器在日志中记录的详细程度。日常使用选“info”即可。只在排查问题时切换到“debug”，因为它会写入大量内容，排查完再改回来。“warn”和“error”只记录问题。
+  serverLanguage: 所有未自行选择语言的账户以及电子邮件所用的语言。每个人仍可在个人资料中选择自己的语言。
+  serverRegion: 用于年龄分级（影片显示哪种分级）以及上映日期等地区信息的国家或地区。默认：与服务器语言对应的地区。
+  metadataLanguage: Evey 在线获取标题、简介和海报时请求的语言。没有对应翻译时使用原文。默认：服务器语言。
+  libraryWatcher: 让 Evey 在媒体库文件夹中有文件被添加、重命名或删除时立即察觉。建议保持开启。只有当文件位于网络共享上、监视不起作用或给服务器带来过大负担时才关闭：此时定期扫描会补上这些变化。
+  periodicScanInterval: Evey 多久检查一次媒体库文件夹，以补上可能漏掉的变化。请填写数字加单位：30s、2m、1h。间隔越短，变化显示得越快，但磁盘也越忙。默认：2m。
+  loginRateLimit: 同一地址每分钟允许的登录尝试次数，可减缓猜测密码的行为。只有当很多人同时从同一地址登录时才需要调高，例如全家共用一个路由器。默认：10。
+  globalRateLimit: 同一地址每分钟可以向服务器发送的请求数，用于防止服务器被大量请求冲垮。如果正常使用时应用出现“请求过多”错误，请调高。默认：300。
+  auditRetentionDays: 审计日志的保留时间：即管理操作的记录，例如谁修改了设置、谁创建了账户。0 表示永久保留。
+  metricsRetentionDays: 服务器健康历史的保留时间：处理器、内存、磁盘和网络随时间的变化，即“系统健康”页面上的图表。调低可节省数据库空间。默认：90 天。
+  qoeRetentionDays: 播放质量报告的保留时间：播放器上报的缓冲、画质切换和错误。它们有助于弄清某次播放为何卡顿。默认：30 天。
+  playSessionRetentionDays: 每次播放详细记录的保留时间：谁在哪台设备上看了什么，以及视频是如何传送的。统计和活动页面会读取这些记录。0 表示永久保留。
+  transcodeCacheMaxGB: 转换后的视频最多可占用的磁盘空间。缓存满后，最旧的部分最先删除。缓存越大，再次观看时需要重新转换的就越少。默认：10 GB。
+  trickplay: 生成在视频时间轴上拖动时出现的小图。它在扫描后于后台运行，会占用一些处理器时间和磁盘空间。在性能很弱的机器上可以关闭。
+  apiKeyTmdb: TMDB 提供标题、简介、海报、演职人员和评分。Evey 自带一个共享密钥，因此开箱即用。如果出现与配额限制相关的错误，请添加您自己的免费密钥。
+  apiKeyOmdb: OMDb 提供额外评分，例如 IMDb 和烂番茄的评分。可选：没有密钥时只是不显示这些额外评分。
+  apiKeyOpenSubtitles: OpenSubtitles 让用户可以在播放器中搜索并下载字幕。可选：没有密钥时，只提供文件中已有的字幕。
+  apiKeyTidb: TheIntroDB 共享其他人找到的片头和片尾的起止时间，这样 Evey 无需自己检测。使用免费密钥后，每日查询次数从 100 提高到 500。
+  ssoEnabled: 添加一个登录按钮，将用户引导到您的身份提供方，例如公司或家庭账户。使用密码的账户仍可正常登录。请先填写下方各项，再开启此选项。
+  ssoClientId: 您在身份提供方那里为 Evey 创建的应用的标识。请从身份提供方的设置中原样复制。
+  ssoDefaultAccess: 通过单点登录创建的账户最初可以看到哪些媒体库。之后可以在“用户”中修改每个人的访问权限。
+  smtpHost: 负责发送 Evey 邮件的邮件服务器地址，由您的邮件服务商提供（例如 smtp.gmail.com）。不填写时 Evey 不会发送任何邮件，找回密码功能也就无法使用。
+  smtpPort: 邮件服务器的端口，由邮件服务商提供。通常 STARTTLS 使用 587，SSL/TLS 使用 465。
+  smtpTls: 与邮件服务器之间的连接如何加密。请按邮件服务商的说明选择：STARTTLS（通常端口 587）或 SSL/TLS（通常端口 465）。“无”表示全部以明文发送：仅适用于您自己网络内的邮件服务器。
+  smtpUsername: 用于登录邮件服务器的账户，通常是完整的邮箱地址。如果服务器不要求，请留空。
+  smtpPassword: 该账户的密码。有些服务商（例如 Gmail）要求使用在账户安全设置中创建的“应用专用密码”，而不是平时的密码。
+  smtpFrom: Evey 所发邮件上显示的发件人，例如：Evey <noreply@example.com>。很多服务商只接受属于您账户的地址。
+  paceBatch: 后台任务每处理多少个文件后休息一次。数值越小对磁盘越友好，越大完成得越快。留空则使用内置值。
+  pacePause: 两批之间休息多长时间，单位为毫秒。休息越长，留给其他工作的余地越多。0 表示不休息。留空则使用内置值。
+  paceIdle: 全部处理完后，等待多久再重新检查，单位为秒。留空则使用内置值。
+  parserQualities: 文件名中出现的额外画质或片源标记，例如 hdrip 或 web-dl。Evey 在搜索影片或剧集之前会把它们从名称中去掉，以便找到正确的条目。只有当某个文件因此无法识别时才添加。每个条目一个词。
+  parserEditions: 文件名中出现的额外版本名称，例如 director's cut 或 imax。Evey 在搜索之前会将其去掉，名称可以由多个词组成。只有当某个文件因此无法识别时才添加。
+  homeFeeds: 选择首页显示哪些内容行、它们的顺序以及每行显示多少项。在这里关闭的内容行对所有人隐藏。
+  rawEntries: 本页的每项设置都以“键”和“值”的形式保存。此表列出全部条目，包括一些没有专门控件的专家开关。只有在文档或技术支持要求时才在这里修改。
+  hwAccel: 使用图形芯片（GPU）而不是处理器来转换视频。速度快得多，可以让更多人同时观看。建议保持开启：Evey 会检测芯片的能力，必要时自动退回到处理器。
+  hwBackend: 使用哪种图形技术。“自动”会选择检测到的最佳方案，几乎适合所有人。只有当机器有多个图形芯片或技术支持要求时才手动选择。
+  av1MaxHeight: 以 AV1 编码的最高画质。“自动”最高可达原始画质。如果图形芯片在高分辨率下处理 AV1 吃力，请调低。
+  backgroundTranscodes: 可以同时进行多少个预先准备的转换（不是实时播放）。“自动检测”由服务器决定。在性能较弱的机器上请设为较小的数字，以免这些任务拖慢其他一切。
+  transcodeMaxSessions: 服务器同时进行的实时视频转换总数。留空表示每个处理器核心一个。在勉强能转换一部 4K 影片的弱机器上，请设为 1 或 2，以免观众之间互相拖慢。
+  softwareMaxHeight: 在没有图形芯片时，处理器最多可转换到的分辨率，例如 720 或 1080。留空则使用校准测得的值。如果转换卡顿，请调低。
+  softwareHDRMaxHeight: HDR 视频的同类上限，HDR 对处理器来说转换负担重得多。留空则使用测得的值。如果 HDR 影片卡顿而其他影片流畅，请调低。
+  softwareAV1MaxHeight: AV1 是一种现代、紧凑的视频格式，但用处理器生成非常吃力。“自动”只在支持 AV1 的图形芯片上使用它，这是稳妥的选择。选择某个分辨率会强制处理器生成该高度以内的 AV1：仅适用于性能强劲的机器。立即生效。
+  singleVariant: 只转换观众正在观看的画质，而不是同时转换所有画质。所需算力少得多。除非技术支持另有要求，请保持开启。默认：开。
+  hwPerVariant: 为每种画质单独运行一个图形芯片进程，而不是用一个进程处理全部画质。对某些同时输出多种画质时会崩溃的显卡驱动有帮助，但会占用更多内存。默认：关。

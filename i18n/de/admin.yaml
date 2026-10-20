@@ -1892,3 +1892,109 @@ shareLinks:
   failedRevoke: "Freigabelink konnte nicht widerrufen werden"
   expired: "abgelaufen"
   unlimited: "unbegrenzt"
+
+settingsLayout:
+  pageSubtitle: Alles, was der Server selbstständig erledigt, nach Themen geordnet. Klicken Sie auf das „i“ neben einer Einstellung, um zu erfahren, wofür sie da ist.
+  sectionsLabel: Bereiche der Einstellungen
+  moreInfo: 'Mehr dazu: {{label}}'
+  'on': An
+  'off': Aus
+  nextSweepHint: Gilt ab der nächsten täglichen Bereinigung, ohne Neustart.
+  runNow: Jetzt ausführen
+  advancedPacing: 'Erweitert: Tempo der Hintergrunddurchläufe'
+  commaSeparated: Einträge durch Kommas trennen.
+  tlsNone: Keine
+  backgroundTranscodes: Gleichzeitige Umwandlungen im Hintergrund
+  rawEntriesWarning: 'Expertenbereich: Das sind die Rohwerte, in denen die Einstellungen der anderen Bereiche gespeichert sind. Ein falscher Schlüssel oder Wert kann eine Funktion lahmlegen. Nutzen Sie wann immer möglich die anderen Bereiche.'
+  groupServer: Server
+  groupScanning: Bibliotheken durchsuchen
+  groupScanningDesc: Wie Evey neue, geänderte oder gelöschte Dateien bemerkt.
+  groupSkipping: Vorspänne und Vorschauen
+  groupSkippingDesc: Was die Player mit den Vorspännen, Rückblicken und Vorschauen machen, die Evey gefunden hat.
+  groupSignIn: Anmeldung und Schutz
+  groupSignInDesc: Passwort-Wiederherstellung und die Grenzen, die das Erraten von Passwörtern und Missbrauch bremsen.
+  groupMediaAnalysis: Analyse der Mediendateien
+  groupRetention: Wie lange der Verlauf aufbewahrt wird
+  groupRetentionDesc: Älterer Verlauf wird automatisch gelöscht. 0 bewahrt alles unbegrenzt auf.
+  groupBackups: Sicherungen
+  groupEncoding: Kodierung
+  groupEncodingDesc: Wie Video umgewandelt wird, wenn ein Gerät eine Datei nicht direkt abspielen kann.
+  groupCapacity: Kapazität
+  groupCapacityDesc: Wie viele Umwandlungen gleichzeitig laufen dürfen.
+  groupCache: Zwischenspeicher
+  groupCacheDesc: Speicherplatz für bereits umgewandeltes Video, damit es beim nächsten Abspielen nicht erneut umgewandelt wird.
+  transcodingSettings: Einstellungen
+  transcodingSettingsDesc: Was Sie festlegen. Eine Änderung gilt, sobald sie gespeichert ist, außer sie ist mit „wird beim Neustart angewendet“ markiert.
+  transcodingDiagnostics: Diagnose
+  transcodingDiagnosticsDesc: Was der Server an sich selbst gemessen hat. Nur zum Lesen, abgesehen vom erneuten Messen und dem Lasttest.
+  sections:
+    general:
+      title: Allgemein
+      desc: Servername, Sprache, Region, Zeitzone, Updates und Protokolle.
+    libraries:
+      title: Bibliotheken
+      desc: Durchsuchen, Vorspänne, Bilder, Vorschaubilder der Zeitleiste und Erkennung von Dateinamen.
+    services:
+      title: Externe Dienste
+      desc: Schlüssel für die Onlinedienste, von denen Evey seine Informationen bezieht.
+    accounts:
+      title: Konten & Sicherheit
+      desc: Anmeldung, Passwort-Wiederherstellung, Single Sign-On und E-Mail.
+    performance:
+      title: Leistung
+      desc: Wie viel des Rechners die Hintergrundarbeit nutzen darf.
+    data:
+      title: Daten & Aufbewahrung
+      desc: Wie lange der Verlauf aufbewahrt wird und was Sicherungen enthalten.
+    home:
+      title: Startseite
+      desc: Die Reihen, die alle auf der Startseite sehen.
+    advanced:
+      title: Erweitert
+      desc: Rohe Konfigurationswerte, für Fachleute.
+settingsHelp:
+  serverName: 'Der Name, der in den Apps, auf der Anmeldeseite und bei der Serverauswahl erscheint. Ändern Sie ihn, wenn Sie mehrere Server betreiben oder einfach einen sprechenderen Namen möchten. Standard: Evey.'
+  logLevel: Wie ausführlich der Server in seine Protokolle schreibt. „info“ passt für den Alltag. Wechseln Sie nur zur Fehlersuche auf „debug“, weil dann sehr viel geschrieben wird, und danach wieder zurück. „warn“ und „error“ behalten nur Probleme.
+  serverLanguage: Die Sprache für alle Konten, die keine eigene gewählt haben, und für E-Mails. Jede Person kann in ihrem Profil weiterhin eine eigene Sprache wählen.
+  serverRegion: 'Das Land für Altersfreigaben (welche Freigabe ein Film zeigt) und regionale Angaben wie Erscheinungsdaten. Standard: die Region, die zur Serversprache passt.'
+  metadataLanguage: 'Die Sprache, in der Evey Titel, Beschreibungen und Poster online abruft. Gibt es keine Übersetzung, wird das Original verwendet. Standard: die Serversprache.'
+  libraryWatcher: 'Lässt Evey sofort bemerken, wenn eine Datei in einem Bibliotheksordner hinzugefügt, umbenannt oder gelöscht wird. Lassen Sie das eingeschaltet. Schalten Sie es nur aus, wenn Ihre Dateien auf einer Netzwerkfreigabe liegen, auf der die Überwachung nicht funktioniert oder den Server zu stark belastet: Die regelmäßige Suche holt die Änderungen dann nach.'
+  periodicScanInterval: 'Wie oft Evey die Bibliotheksordner auf verpasste Änderungen prüft. Geben Sie eine Zahl mit Einheit ein: 30s, 2m, 1h. Kürzer zeigt Änderungen früher, beschäftigt aber die Festplatten mehr. Standard: 2m.'
+  loginRateLimit: 'Wie viele Anmeldeversuche eine Adresse pro Minute machen darf. Das bremst jeden, der Passwörter zu erraten versucht. Erhöhen Sie den Wert nur, wenn sich viele Personen gleichzeitig von derselben Adresse anmelden, etwa ein ganzer Haushalt hinter einem Router. Standard: 10.'
+  globalRateLimit: 'Wie viele Anfragen eine Adresse pro Minute an den Server senden darf. Das schützt den Server vor einer Flut. Erhöhen Sie den Wert, wenn die Apps bei normaler Nutzung Fehler wie „zu viele Anfragen“ zeigen. Standard: 300.'
+  auditRetentionDays: 'Wie lange das Prüfprotokoll aufbewahrt wird: die Aufzeichnung der Verwaltungsaktionen, etwa wer eine Einstellung geändert oder ein Konto angelegt hat. 0 bewahrt alles unbegrenzt auf.'
+  metricsRetentionDays: 'Wie lange der Gesundheitsverlauf des Servers aufbewahrt wird: Prozessor, Arbeitsspeicher, Festplatten und Netzwerk über die Zeit, wie auf der Seite Systemzustand dargestellt. Senken Sie den Wert, um Platz in der Datenbank zu sparen. Standard: 90 Tage.'
+  qoeRetentionDays: 'Wie lange die Berichte zur Wiedergabequalität aufbewahrt werden: Pufferungen, Qualitätswechsel und Fehler, die die Player melden. Sie helfen zu verstehen, warum eine Wiedergabe gestockt hat. Standard: 30 Tage.'
+  playSessionRetentionDays: 'Wie lange die Einzelheiten jeder Wiedergabe aufbewahrt werden: wer was auf welchem Gerät angesehen hat und wie das Video geliefert wurde. Die Statistik- und Aktivitätsseiten lesen sie. 0 bewahrt alles unbegrenzt auf.'
+  transcodeCacheMaxGB: 'Wie viel Speicherplatz umgewandeltes Video belegen darf. Ist der Zwischenspeicher voll, wird das Älteste zuerst entfernt. Ein größerer Zwischenspeicher erspart erneute Umwandlungen, wenn etwas noch einmal angesehen wird. Standard: 10 GB.'
+  trickplay: Erstellt die kleinen Bilder, die erscheinen, wenn man sich auf der Zeitleiste eines Videos bewegt. Das läuft nach einer Suche im Hintergrund und kostet etwas Prozessorzeit und Speicherplatz. Schalten Sie es auf einem sehr schwachen Rechner aus.
+  apiKeyTmdb: TMDB liefert Titel, Beschreibungen, Poster, Besetzung und Bewertungen. Evey bringt einen gemeinsamen Schlüssel mit, daher funktioniert das sofort. Hinterlegen Sie Ihren eigenen kostenlosen Schlüssel, wenn Fehler wegen Limits auftreten.
+  apiKeyOmdb: 'OMDb ergänzt weitere Bewertungen, etwa von IMDb und Rotten Tomatoes. Optional: Ohne Schlüssel fehlen diese zusätzlichen Bewertungen einfach.'
+  apiKeyOpenSubtitles: 'OpenSubtitles erlaubt es, im Player Untertitel zu suchen und herunterzuladen. Optional: Ohne Schlüssel werden nur die Untertitel angeboten, die schon in Ihren Dateien stecken.'
+  apiKeyTidb: TheIntroDB teilt Anfang und Ende von Vor- und Abspännen, die andere gefunden haben, sodass Evey sie nicht selbst erkennen muss. Ein kostenloser Schlüssel erhöht die täglichen Abfragen von 100 auf 500.
+  ssoEnabled: Fügt eine Anmeldeschaltfläche hinzu, die zu Ihrem Identitätsanbieter führt, etwa einem Firmen- oder Familienkonto. Konten mit Passwort funktionieren weiter. Füllen Sie zuerst die Felder unten aus und schalten Sie es dann ein.
+  ssoClientId: Die Kennung der Anwendung, die Sie für Evey bei Ihrem Identitätsanbieter angelegt haben. Kopieren Sie sie genau so aus den Einstellungen des Anbieters.
+  ssoDefaultAccess: Welche Bibliotheken ein per Single Sign-On angelegtes Konto zu Beginn sehen darf. Den Zugriff jeder Person können Sie später unter Benutzer ändern.
+  smtpHost: Die Adresse des Mailservers, der Eveys E-Mails verschickt, angegeben von Ihrem E-Mail-Anbieter (zum Beispiel smtp.gmail.com). Ohne sie verschickt Evey keine E-Mails, und die Passwort-Wiederherstellung kann nicht funktionieren.
+  smtpPort: Der Port des Mailservers, angegeben von Ihrem Anbieter. Meist 587 mit STARTTLS oder 465 mit SSL/TLS.
+  smtpTls: 'Wie die Verbindung zum Mailserver geschützt wird. Halten Sie sich an die Angaben Ihres Anbieters: STARTTLS (meist Port 587) oder SSL/TLS (meist Port 465). „Keine“ überträgt alles unverschlüsselt: nur für einen Mailserver im eigenen Netz.'
+  smtpUsername: Das Konto für die Anmeldung am Mailserver, oft Ihre vollständige E-Mail-Adresse. Lassen Sie es leer, wenn der Server keines verlangt.
+  smtpPassword: Das Passwort dieses Kontos. Manche Anbieter wie Gmail verlangen ein „App-Passwort“, das in den Sicherheitseinstellungen des Kontos erstellt wird, statt Ihres üblichen Passworts.
+  smtpFrom: 'Der Absender, der auf Eveys E-Mails steht, zum Beispiel: Evey <noreply@example.com>. Viele Anbieter akzeptieren nur eine Adresse, die zu Ihrem Konto gehört.'
+  paceBatch: Wie viele Dateien ein Hintergrunddurchlauf bearbeitet, bevor er eine Pause macht. Kleiner schont die Festplatten, größer ist schneller fertig. Leer lassen für den eingebauten Wert.
+  pacePause: Wie lange der Durchlauf zwischen zwei Stapeln pausiert, in Millisekunden. Eine längere Pause lässt mehr Raum für alles andere. 0 bedeutet keine Pause. Leer lassen für den eingebauten Wert.
+  paceIdle: Wie lange der Durchlauf wartet, bevor er erneut nachsieht, sobald alles erledigt ist, in Sekunden. Leer lassen für den eingebauten Wert.
+  parserQualities: Zusätzliche Qualitäts- oder Quellenangaben in Ihren Dateinamen, etwa hdrip oder web-dl. Evey entfernt sie aus dem Namen, bevor nach dem Film oder der Serie gesucht wird, damit der richtige Titel gefunden wird. Fügen Sie eine nur hinzu, wenn eine Datei deswegen nicht erkannt wird. Ein Wort pro Eintrag.
+  parserEditions: Zusätzliche Editionsnamen in Ihren Dateinamen, etwa director's cut oder imax. Evey entfernt sie vor der Suche, und sie dürfen aus mehreren Wörtern bestehen. Fügen Sie einen nur hinzu, wenn eine Datei deswegen nicht erkannt wird.
+  homeFeeds: Wählen Sie die Reihen der Startseite, ihre Reihenfolge und wie viele Einträge jede zeigt. Eine hier ausgeschaltete Reihe ist für alle ausgeblendet.
+  rawEntries: Jede Einstellung dieser Seite wird als Schlüssel und Wert gespeichert. Diese Tabelle listet sie alle auf, auch einige Expertenschalter ohne eigenes Bedienelement. Ändern Sie hier nur etwas, wenn die Dokumentation oder der Support dazu rät.
+  hwAccel: 'Nutzt den Grafikchip (GPU) statt des Prozessors, um Video umzuwandeln. Das ist viel schneller und erlaubt mehr gleichzeitige Zuschauer. Lassen Sie es eingeschaltet: Evey prüft, was der Chip kann, und weicht bei Bedarf selbst auf den Prozessor aus.'
+  hwBackend: Welche Grafiktechnik verwendet wird. „Auto“ wählt die beste gefundene, was für fast alle passt. Wählen Sie nur von Hand, wenn der Rechner mehrere Grafikchips hat oder der Support darum bittet.
+  av1MaxHeight: Die höchste Bildqualität, die in AV1 kodiert wird. „Automatisch“ geht bis zur Qualität des Originals. Senken Sie den Wert, wenn der Grafikchip mit AV1 bei hohen Auflösungen zu kämpfen hat.
+  backgroundTranscodes: Wie viele im Voraus vorbereitete Umwandlungen (nicht die Live-Wiedergabe) gleichzeitig laufen dürfen. „Automatisch erkennen“ lässt den Server entscheiden. Setzen Sie auf einem schwachen Rechner eine kleine Zahl, damit diese Aufgaben nicht alles andere bremsen.
+  transcodeMaxSessions: Die Gesamtzahl der Live-Umwandlungen, die der Server gleichzeitig ausführt. Leer bedeutet eine pro Prozessorkern. Auf einem schwachen Rechner, der kaum einen 4K-Film umwandeln kann, setzen Sie 1 oder 2, damit sich die Zuschauer nicht gegenseitig ausbremsen.
+  softwareMaxHeight: Die höchste Auflösung, in die der Prozessor ohne Grafikchip umwandeln darf, etwa 720 oder 1080. Leer übernimmt den von der Kalibrierung gemessenen Wert. Senken Sie ihn, wenn Umwandlungen stocken.
+  softwareHDRMaxHeight: Dieselbe Obergrenze für HDR-Video, das für den Prozessor viel aufwendiger umzuwandeln ist. Leer übernimmt den gemessenen Wert. Senken Sie ihn, wenn HDR-Filme stocken, andere aber flüssig laufen.
+  softwareAV1MaxHeight: 'AV1 ist ein modernes, kompaktes Videoformat, für den Prozessor aber sehr aufwendig zu erzeugen. „Auto“ nutzt AV1 nur mit Grafikchips, die es unterstützen, und ist die sichere Wahl. Eine gewählte Auflösung erzwingt AV1 auf dem Prozessor bis zu dieser Höhe: nur für einen leistungsstarken Rechner. Gilt sofort.'
+  singleVariant: 'Wandelt nur die Qualität um, die gerade angesehen wird, statt alle Qualitäten gleichzeitig. Das braucht viel weniger Rechenleistung. Lassen Sie es eingeschaltet, sofern der Support nichts anderes sagt. Standard: an.'
+  hwPerVariant: 'Startet für jede Qualität einen eigenen Grafikprozess statt eines gemeinsamen. Das hilft bei manchen Grafiktreibern, die abstürzen, wenn sie mehrere Qualitäten gleichzeitig erzeugen, braucht aber mehr Speicher. Standard: aus.'
