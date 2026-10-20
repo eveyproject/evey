@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 
 export interface TabItem {
   id: string;
@@ -25,6 +25,13 @@ export const tabPanelId = (prefix: string, id: string) => `${prefix}-panel-${id}
 // stays on one line with its neighbours.
 export function Tabs({ label, tabs, value, onChange, idPrefix }: TabsProps) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const active = tabs.findIndex((tab) => tab.id === value);
+
+  // On a phone the row scrolls sideways: bring the open tab into view when
+  // the page opens on it (#performance) and whenever it changes.
+  useEffect(() => {
+    refs.current[active]?.scrollIntoView?.({ block: "nearest", inline: "center" });
+  }, [active]);
 
   function move(e: KeyboardEvent<HTMLButtonElement>, from: number) {
     let next: number | undefined;

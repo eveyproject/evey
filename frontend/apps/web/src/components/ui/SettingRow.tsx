@@ -17,6 +17,8 @@ interface SettingRowProps {
   /** id of the control, so the label is a real <label for>. Leave it out for
       controls that carry their own accessible name (Switch, SegmentedControl). */
   htmlFor?: string;
+  /** id put on the label, for a control named through aria-labelledby (SegmentedControl). */
+  labelId?: string;
   /** Plain-language explanation, shown behind the "i" button next to the label. */
   info?: ReactNode;
   /** One short line under the label, always visible. */
@@ -25,6 +27,8 @@ interface SettingRowProps {
   restart?: boolean;
   /** Default / reset line under the label. */
   reset?: SettingRowReset;
+  /** A validation message, shown under the label in the danger colour. */
+  error?: string;
   /**
    * How the control sits next to the label:
    * - "toggle": a switch, right-aligned on wide screens;
@@ -50,10 +54,12 @@ const CONTROL_CLASS: Record<NonNullable<SettingRowProps["kind"]>, string> = {
 export function SettingRow({
   label,
   htmlFor,
+  labelId,
   info,
   hint,
   restart = false,
   reset,
+  error,
   kind = "field",
   children,
   "data-testid": testId,
@@ -70,7 +76,7 @@ export function SettingRow({
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-          <LabelTag {...(htmlFor ? { htmlFor } : {})} className="text-sm font-medium text-[var(--text)]">
+          <LabelTag {...(htmlFor ? { htmlFor } : {})} id={labelId} className="text-sm font-medium text-[var(--text)]">
             {label}
           </LabelTag>
           {info && (
@@ -85,6 +91,11 @@ export function SettingRow({
           )}
         </div>
         {hint && <p className="mt-0.5 text-xs text-[var(--text-muted)]">{hint}</p>}
+        {error && (
+          <p className="mt-0.5 text-xs text-[var(--color-danger)]" role="alert" data-testid="setting-error">
+            {error}
+          </p>
+        )}
         {reset && (
           <p className="mt-0.5 text-xs">
             {reset.overridden ? (

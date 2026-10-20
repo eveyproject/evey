@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { Card } from "./Card";
 import { InfoTooltip } from "./InfoTooltip";
 import { ICON } from "@/constants/iconSizes";
 
@@ -50,7 +49,9 @@ export function CollapsibleCard({
       };
 
   return (
-    <Card className="p-0">
+    // Not <Card className="p-0">: Card's own p-4 and the override land in the
+    // same CSS layer, and p-4 won, insetting the header by 16px.
+    <div className="bg-[var(--surface)] rounded-[var(--radius-lg)] border border-[var(--border)]">
       <div
         {...headerProps}
         className={`flex items-center gap-3 p-4 ${alwaysOpen ? "" : "cursor-pointer select-none hover:bg-[var(--surface-hover)]"}`}
@@ -66,10 +67,10 @@ export function CollapsibleCard({
           </span>
         )}
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-[var(--text)] truncate flex items-center gap-1.5">
-            {title}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <h3 className="text-base font-semibold text-[var(--text)] truncate">{title}</h3>
             {info && <InfoTooltip label={title}>{info}</InfoTooltip>}
-          </h3>
+          </div>
           {subtitle && (
             <p className="text-xs text-[var(--text-muted)] mt-0.5 truncate">{subtitle}</p>
           )}
@@ -78,6 +79,6 @@ export function CollapsibleCard({
       {isOpen && (
         <div className="border-t border-[var(--border)] p-4">{children}</div>
       )}
-    </Card>
+    </div>
   );
 }
