@@ -66,6 +66,9 @@ func stampAncestorTitles(items []*eveyv1.MediaItem, seasonOrSeriesParents, serie
 		case eveyv1.MediaItemType_MEDIA_ITEM_TYPE_EPISODE:
 			if season := seasonOrSeriesParents[it.ParentId]; season != nil {
 				it.SeasonTitle = season.Title
+				if season.IndexNumber != nil {
+					it.SeasonIndexNumber = int32(*season.IndexNumber) //nolint:gosec // season numbers are small
+				}
 				if sr := series[season.ParentID]; sr != nil {
 					it.SeriesTitle = sr.Title
 				}
