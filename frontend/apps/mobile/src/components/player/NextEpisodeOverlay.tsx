@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
+import { episodeLabel } from "@evey/api";
 import { useTheme } from "../../providers/ThemeProvider";
 import { useNextEpisode, COUNTDOWN_SEC } from "../../hooks/useNextEpisode";
 import { FONT_SIZE } from "@evey/theme";
@@ -16,6 +17,13 @@ export function NextEpisodeOverlay({ nextEp, bottomOffset = 80 }: NextEpisodeOve
   const theme = useTheme();
   const { t } = useTranslation();
   if (!nextEp.nextEpisode) return null;
+  const next = nextEp.nextEpisode;
+  // The series is obvious while its next episode is announced: code and title.
+  const nextLine = next.indexNumber != null
+    ? episodeLabel({ seasonNumber: next.seasonIndexNumber, episodeNumber: next.indexNumber, title: next.title }) ||
+      t("player.nextEpisodeOverlay.episode", { number: next.indexNumber })
+    : [t("player.nextEpisodeOverlay.nextEpisode"), next.title].filter(Boolean).join(" · ");
+
   return (
     <View style={[styles.nextEpOverlay, { bottom: bottomOffset }]}>
       <Text
@@ -33,10 +41,7 @@ export function NextEpisodeOverlay({ nextEp, bottomOffset = 80 }: NextEpisodeOve
             : t("player.nextEpisodeOverlay.upNext")}
       </Text>
       <Text style={styles.nextEpTitle} numberOfLines={1}>
-        {nextEp.nextEpisode.indexNumber != null
-          ? t("player.nextEpisodeOverlay.episode", { number: nextEp.nextEpisode.indexNumber })
-          : t("player.nextEpisodeOverlay.nextEpisode")}
-        {nextEp.nextEpisode.title ? ` - ${nextEp.nextEpisode.title}` : ""}
+        {nextLine}
       </Text>
       <View style={styles.nextEpButtons}>
         <Pressable
