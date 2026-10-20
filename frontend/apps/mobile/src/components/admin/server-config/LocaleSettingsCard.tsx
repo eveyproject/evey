@@ -7,6 +7,7 @@ import { timeZoneOptions, useServerClock } from "@evey/client";
 import { useTheme } from "../../../providers/ThemeProvider";
 import { regionOptions } from "../../../lib/regionOptions";
 import { supportedLanguages } from "../../../i18n";
+import { SettingRow } from "../settings/SettingRow";
 import { ChipSelect } from "./ChipSelect";
 import type { SaveEntry } from "./types";
 
@@ -88,51 +89,55 @@ export function LocaleSettingsCard({ getEntryValue, saveEntry, saving }: LocaleS
 
   const s = styles(theme);
 
+  const langLabel = t("admin.serverConfig.serverLanguage", "Server language");
+  const regionRowLabel = t("admin.serverConfig.serverRegion", "Server region");
+  const metaLabel = t("admin.serverConfig.metadataLanguage", "Metadata language");
+  const tzLabel = t("admin.serverConfig.timezone", "Server time zone");
+
   return (
     <View>
-      <Text style={s.label}>{t("admin.serverConfig.serverLanguage", "Server language")}</Text>
-      <ChipSelect
-        value={serverLang}
-        onChange={(v) => saveEntry({ key: SERVER_LANG_KEY, value: v })}
-        disabled={saving}
-        options={[{ value: "", label: defaultLabel(langName(defaults?.["server.language"])) }, ...LANGUAGE_OPTIONS]}
-      />
+      <SettingRow label={langLabel} info={t("admin.settingsHelp.serverLanguage")} kind="wide" testID="setting-row-server-language">
+        <ChipSelect
+          label={langLabel}
+          value={serverLang}
+          onChange={(v) => saveEntry({ key: SERVER_LANG_KEY, value: v })}
+          disabled={saving}
+          options={[{ value: "", label: defaultLabel(langName(defaults?.["server.language"])) }, ...LANGUAGE_OPTIONS]}
+        />
+      </SettingRow>
 
-      <Text style={[s.label, { marginTop: 16 }]}>{t("admin.serverConfig.serverRegion", "Server region")}</Text>
-      <Pressable
-        onPress={() => setRegionPickerOpen(true)}
-        style={s.pickerBtn}
-        accessibilityRole="button"
-        accessibilityLabel={t("admin.serverConfig.serverRegion", "Server region")}
+      <SettingRow label={regionRowLabel} info={t("admin.settingsHelp.serverRegion")} testID="setting-row-server-region">
+        <Pressable onPress={() => setRegionPickerOpen(true)} style={s.pickerBtn} accessibilityRole="button" accessibilityLabel={regionRowLabel}>
+          <Text style={{ color: theme.colors.text, fontSize: 15 }}>{regionLabel}</Text>
+        </Pressable>
+      </SettingRow>
+
+      <SettingRow label={metaLabel} info={t("admin.settingsHelp.metadataLanguage")} kind="wide" testID="setting-row-metadata-language">
+        <ChipSelect
+          label={metaLabel}
+          value={metaLang}
+          onChange={(v) => saveEntry({ key: METADATA_LANG_KEY, value: v })}
+          disabled={saving}
+          options={[{ value: "", label: defaultLabel(langName(effectiveLang || undefined)) }, ...LANGUAGE_OPTIONS]}
+        />
+      </SettingRow>
+
+      <SettingRow
+        label={tzLabel}
+        info={t("admin.serverConfig.timezoneHint", "Kids profiles' opening hours are read in this zone, whatever the device's clock says.")}
+        hint={
+          serverTime ? (
+            <Text style={{ color: theme.colors.text, fontWeight: "600" }} testID="server-time">
+              {t("admin.serverConfig.timezoneNow", "Server time: {{time}}", { time: serverTime })}
+            </Text>
+          ) : undefined
+        }
+        testID="setting-row-server-timezone"
       >
-        <Text style={{ color: theme.colors.text, fontSize: 15 }}>{regionLabel}</Text>
-      </Pressable>
-
-      <Text style={[s.label, { marginTop: 16 }]}>{t("admin.serverConfig.metadataLanguage", "Metadata language")}</Text>
-      <ChipSelect
-        value={metaLang}
-        onChange={(v) => saveEntry({ key: METADATA_LANG_KEY, value: v })}
-        disabled={saving}
-        options={[{ value: "", label: defaultLabel(langName(effectiveLang || undefined)) }, ...LANGUAGE_OPTIONS]}
-      />
-
-      <Text style={[s.label, { marginTop: 16 }]}>{t("admin.serverConfig.timezone", "Server time zone")}</Text>
-      <Pressable
-        onPress={() => setTzPickerOpen(true)}
-        style={s.pickerBtn}
-        accessibilityRole="button"
-        accessibilityLabel={t("admin.serverConfig.timezone", "Server time zone")}
-      >
-        <Text style={{ color: theme.colors.text, fontSize: 15 }}>{serverTz ? serverTz.replace(/_/g, " ") : tzDefaultLabel}</Text>
-      </Pressable>
-      {serverTime && (
-        <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600", marginTop: 6 }}>
-          {t("admin.serverConfig.timezoneNow", "Server time: {{time}}", { time: serverTime })}
-        </Text>
-      )}
-      <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 4 }}>
-        {t("admin.serverConfig.timezoneHint", "Kids profiles' opening hours are read in this zone, whatever the device's clock says.")}
-      </Text>
+        <Pressable onPress={() => setTzPickerOpen(true)} style={s.pickerBtn} accessibilityRole="button" accessibilityLabel={tzLabel}>
+          <Text style={{ color: theme.colors.text, fontSize: 15 }}>{serverTz ? serverTz.replace(/_/g, " ") : tzDefaultLabel}</Text>
+        </Pressable>
+      </SettingRow>
 
       <Modal visible={tzPickerOpen} animationType="slide" onRequestClose={() => setTzPickerOpen(false)}>
         <View style={{ flex: 1, backgroundColor: theme.colors.bg, paddingTop: 48 }}>
@@ -191,7 +196,6 @@ export function LocaleSettingsCard({ getEntryValue, saveEntry, saving }: LocaleS
 
 const styles = (t: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
-    label: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", marginBottom: 6, color: t.colors.textMuted },
     pickerBtn: { backgroundColor: t.colors.surface, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12 },
     searchInput: { margin: 16, padding: 12, borderRadius: t.radii.md, backgroundColor: t.colors.surface, color: t.colors.text },
     regionRow: {

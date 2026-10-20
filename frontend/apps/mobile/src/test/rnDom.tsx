@@ -67,6 +67,16 @@ const ScrollView = React.forwardRef<HTMLDivElement, AnyProps>(({ children, ...p 
   React.useImperativeHandle(ref, () => ({ scrollTo: () => {} }) as any);
   return React.createElement("div", a11y(p), children);
 });
+const FlatList = ({ data, renderItem, keyExtractor, ListEmptyComponent, ...p }: AnyProps) =>
+  React.createElement(
+    "div",
+    a11y(p),
+    (data ?? []).length === 0 && ListEmptyComponent
+      ? typeof ListEmptyComponent === "function" ? React.createElement(ListEmptyComponent) : ListEmptyComponent
+      : (data ?? []).map((item: unknown, index: number) =>
+          React.createElement(React.Fragment, { key: keyExtractor ? keyExtractor(item, index) : index }, renderItem({ item, index })),
+        ),
+  );
 const ActivityIndicator = () => React.createElement("div", { "data-testid": "spinner" });
 const RefreshControl = () => null;
 
@@ -79,6 +89,7 @@ export const rnDom = {
   Switch,
   Modal,
   ScrollView,
+  FlatList,
   ActivityIndicator,
   RefreshControl,
   StyleSheet: { create: <T,>(s: T) => s, hairlineWidth: 1, absoluteFillObject: {}, flatten: flatStyle },
@@ -86,4 +97,5 @@ export const rnDom = {
   findNodeHandle: () => null,
   Platform: { OS: "android", select: (o: Record<string, unknown>) => o.android },
   Alert: { alert: () => {} },
+  Linking: { openURL: () => Promise.resolve() },
 };

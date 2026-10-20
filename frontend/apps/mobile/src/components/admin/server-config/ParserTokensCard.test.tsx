@@ -2,33 +2,23 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
-vi.mock("react-native", () => ({
-  View: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Text: ({ children, ...p }: any) => React.createElement("span", p, children),
-  TextInput: ({ onChangeText, value, testID, ...p }: any) =>
-    React.createElement("input", {
-      "data-testid": testID,
-      value: value ?? "",
-      onChange: (e: any) => onChangeText?.(e.target.value),
-      ...p,
-    }),
-  TouchableOpacity: ({ children, onPress, disabled, testID, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, disabled, "data-testid": testID, ...p }, children),
-  StyleSheet: { create: (s: any) => s },
-}));
-
+vi.mock("react-native", async () => (await import("../../../test/rnDom")).rnDom);
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
-}));
-
-vi.mock("../../../providers/ThemeProvider", () => ({
-  useTheme: () => ({
-    colors: { border: "#333", surface: "#111", surfaceRaised: "#222", accent: "#f00", onAccent: "#fff", text: "#fff", textMuted: "#888" },
-    radii: { sm: 4 },
+  useTranslation: () => ({
+    t: (key: string, o?: unknown) => {
+      if (typeof o === "string") return o;
+      if (o && typeof o === "object" && "label" in o) return `${key}:${String((o as { label: unknown }).label)}`;
+      return key;
+    },
   }),
+}));
+vi.mock("../../../providers/ThemeProvider", () => ({
+  useTheme: () => ({ colors: new Proxy({}, { get: () => "#000" }), radii: { sm: 4, md: 8, lg: 12 } }),
 }));
 
 import { ParserTokensCard } from "./ParserTokensCard";
+
+const infoButtons = (root: HTMLElement) => root.querySelectorAll('[data-testid="setting-info-button"]');
 
 const saveEntry = vi.fn();
 beforeEach(() => saveEntry.mockClear());
@@ -64,5 +54,15 @@ describe("ParserTokensCard", () => {
     render(<ParserTokensCard entries={[]} saveEntry={saveEntry} saving={false} />);
     fireEvent.click(screen.getByTestId("parser-tokens-save-btn"));
     expect(saveEntry).not.toHaveBeenCalled();
+  });
+
+  it("gives the qualities and editions rows exactly one 'i' button each, explained by the settings help", () => {
+    const { container } = render(<ParserTokensCard entries={[]} saveEntry={saveEntry} saving={false} />);
+    expect(infoButtons(container).length).toBe(2);
+    fireEvent.click(screen.getByRole("button", { name: "admin.settingsLayout.moreInfo:Extra quality tokens" }));
+    expect(screen.getByRole("dialog").textContent).toContain("admin.settingsHelp.parserQualities");
+    fireEvent.click(screen.getByTestId("setting-info-close"));
+    fireEvent.click(screen.getByRole("button", { name: "admin.settingsLayout.moreInfo:Extra edition suffixes" }));
+    expect(screen.getByRole("dialog").textContent).toContain("admin.settingsHelp.parserEditions");
   });
 });

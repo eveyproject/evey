@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import { View, TextInput, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../providers/ThemeProvider";
+import { SettingRow } from "../settings/SettingRow";
+import { SaveButton } from "../settings/SaveButton";
 import type { ConfigEntry, SaveEntry } from "./types";
 
 const PARSER_CONFIG_KEY = "parser.config";
@@ -66,15 +68,15 @@ export function ParserTokensCard({ entries, saveEntry, saving }: { entries: Conf
     { backgroundColor: theme.colors.surfaceRaised, color: theme.colors.text, borderColor: theme.colors.border },
   ];
 
+  const qualitiesLabel = t("admin.serverConfig.parserTokensQualities", "Extra quality tokens");
+  const editionsLabel = t("admin.serverConfig.parserTokensEditions", "Extra edition suffixes");
+
   return (
-    <View style={{ gap: 14 }}>
-      <View style={{ gap: 4 }}>
-        <Text style={{ color: theme.colors.text, fontSize: 14 }}>
-          {t("admin.serverConfig.parserTokensQualities", "Extra quality tokens")}
-        </Text>
+    <View>
+      <SettingRow label={qualitiesLabel} info={t("admin.settingsHelp.parserQualities")} hint={t("admin.settingsLayout.commaSeparated")}>
         <TextInput
           testID="parser-tokens-qualities"
-          accessibilityLabel={t("admin.serverConfig.parserTokensQualities", "Extra quality tokens")}
+          accessibilityLabel={qualitiesLabel}
           style={inputStyle}
           value={qualities}
           onChangeText={(v) => {
@@ -87,20 +89,11 @@ export function ParserTokensCard({ entries, saveEntry, saving }: { entries: Conf
           autoCorrect={false}
           multiline
         />
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-          {t(
-            "admin.serverConfig.parserTokensQualitiesHint",
-            "Comma-separated, single-word tokens (lowercased). The parser splits filenames on '.', '_', '-' and space.",
-          )}
-        </Text>
-      </View>
-      <View style={{ gap: 4 }}>
-        <Text style={{ color: theme.colors.text, fontSize: 14 }}>
-          {t("admin.serverConfig.parserTokensEditions", "Extra edition suffixes")}
-        </Text>
+      </SettingRow>
+      <SettingRow label={editionsLabel} info={t("admin.settingsHelp.parserEditions")} hint={t("admin.settingsLayout.commaSeparated")}>
         <TextInput
           testID="parser-tokens-editions"
-          accessibilityLabel={t("admin.serverConfig.parserTokensEditions", "Extra edition suffixes")}
+          accessibilityLabel={editionsLabel}
           style={inputStyle}
           value={editions}
           onChangeText={(v) => {
@@ -113,27 +106,8 @@ export function ParserTokensCard({ entries, saveEntry, saving }: { entries: Conf
           autoCorrect={false}
           multiline
         />
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-          {t(
-            "admin.serverConfig.parserTokensEditionsHint",
-            "Comma-separated, can span multiple words (regex pre-tokenisation). Stripped from the title before TMDB lookup.",
-          )}
-        </Text>
-      </View>
-      <TouchableOpacity
-        testID="parser-tokens-save-btn"
-        onPress={handleSave}
-        disabled={!dirty || saving}
-        style={{
-          backgroundColor: theme.colors.accent,
-          borderRadius: theme.radii.sm,
-          paddingVertical: 10,
-          alignItems: "center",
-          opacity: !dirty || saving ? 0.5 : 1,
-        }}
-      >
-        <Text style={{ color: theme.colors.onAccent, fontSize: 14, fontWeight: "600" }}>{t("common.save", "Save")}</Text>
-      </TouchableOpacity>
+      </SettingRow>
+      <SaveButton testID="parser-tokens-save-btn" onPress={handleSave} disabled={!dirty || saving} />
     </View>
   );
 }

@@ -2,39 +2,26 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
-const alertMock = vi.fn();
+const alertMock = vi.hoisted(() => vi.fn());
 
-vi.mock("react-native", () => ({
-  View: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Text: ({ children, ...p }: any) => React.createElement("span", p, children),
-  TextInput: ({ onChangeText, value, testID, ...p }: any) =>
-    React.createElement("input", {
-      "data-testid": testID,
-      value: value ?? "",
-      onChange: (e: any) => onChangeText?.(e.target.value),
-      ...p,
-    }),
-  TouchableOpacity: ({ children, onPress, disabled, testID, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, disabled, "data-testid": testID, ...p }, children),
-  Pressable: ({ children, onPress, testID, accessibilityLabel, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, "data-testid": testID, "aria-label": accessibilityLabel, ...p }, children),
+vi.mock("react-native", async () => ({
+  ...(await import("../../../test/rnDom")).rnDom,
   Alert: { alert: (...a: unknown[]) => alertMock(...a) },
-  StyleSheet: { create: (s: any) => s },
 }));
-
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, o?: unknown) => {
+      if (typeof o === "string") return o;
+      if (o && typeof o === "object" && "label" in o) return `${key}:${String((o as { label: unknown }).label)}`;
+      return key;
+    },
+  }),
+}));
+vi.mock("../../../providers/ThemeProvider", () => ({
+  useTheme: () => ({ colors: new Proxy({}, { get: () => "#000" }), radii: { sm: 4, md: 8, lg: 12 } }),
+}));
 vi.mock("@expo/vector-icons/Ionicons", () => ({
   default: ({ name }: any) => React.createElement("span", { "data-testid": `icon-${name}` }),
-}));
-
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
-}));
-
-vi.mock("../../../providers/ThemeProvider", () => ({
-  useTheme: () => ({
-    colors: { border: "#333", surface: "#111", surfaceRaised: "#222", accent: "#f00", onAccent: "#fff", text: "#fff", textMuted: "#888", error: "#f33" },
-    radii: { sm: 4 },
-  }),
 }));
 
 import { ConfigEntriesCard } from "./ConfigEntriesCard";

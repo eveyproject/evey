@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { eveyFetch } from "@evey/api";
 import { useTheme } from "../../../providers/ThemeProvider";
+import { SettingRow } from "../settings/SettingRow";
+import { SaveButton } from "../settings/SaveButton";
 import { ChipSelect } from "./ChipSelect";
 import type { ConfigEntry, SaveEntryAsync } from "./types";
 
@@ -96,85 +98,73 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
   const s = styles(theme);
   const busy = saving || submitting;
 
+  const input = (label: string, value: string, onChangeText: (v: string) => void, placeholder: string, extra: Record<string, unknown> = {}) => (
+    <TextInput
+      accessibilityLabel={label}
+      value={value}
+      onChangeText={onChangeText}
+      style={s.input}
+      placeholderTextColor={theme.colors.textMuted}
+      placeholder={placeholder}
+      autoCapitalize="none"
+      {...extra}
+    />
+  );
+  const tlsLabel = t("admin.serverConfig.tlsMode", "TLS Mode");
+  const passwordLabel = t("admin.serverConfig.smtpPassword", "Password");
+  const showLabel = showPassword ? t("admin.serverConfig.hide", "Hide") : t("admin.serverConfig.show", "Show");
+
   return (
     <View>
-      <Text style={s.label}>{t("admin.serverConfig.smtpHost", "SMTP Host")}</Text>
-      <TextInput
-        value={host}
-        onChangeText={setHost}
-        style={s.input}
-        placeholderTextColor={theme.colors.textMuted}
-        placeholder="smtp.example.com"
-        autoCapitalize="none"
-      />
+      <Text style={s.hint}>{t("admin.serverConfig.smtpEnvHint")}</Text>
 
-      <Text style={s.label}>{t("admin.serverConfig.port", "Port")}</Text>
-      <TextInput
-        value={port}
-        onChangeText={setPort}
-        style={s.input}
-        placeholderTextColor={theme.colors.textMuted}
-        placeholder="587"
-        keyboardType="numeric"
-      />
+      <SettingRow label={t("admin.serverConfig.smtpHost", "SMTP Host")} info={t("admin.settingsHelp.smtpHost")} testID="setting-row-smtp-host">
+        {input(t("admin.serverConfig.smtpHost", "SMTP Host"), host, setHost, "smtp.example.com")}
+      </SettingRow>
 
-      <Text style={s.label}>{t("admin.serverConfig.smtpUsername", "Username")}</Text>
-      <TextInput
-        value={username}
-        onChangeText={setUsername}
-        style={s.input}
-        placeholderTextColor={theme.colors.textMuted}
-        placeholder="user@example.com"
-        autoCapitalize="none"
-      />
+      <SettingRow label={t("admin.serverConfig.port", "Port")} info={t("admin.settingsHelp.smtpPort")} testID="setting-row-smtp-port">
+        {input(t("admin.serverConfig.port", "Port"), port, setPort, "587", { keyboardType: "numeric" })}
+      </SettingRow>
 
-      <Text style={s.label}>{t("admin.serverConfig.smtpPassword", "Password")}</Text>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <TextInput
-          value={password}
-          onChangeText={setPassword}
-          style={[s.input, { flex: 1 }]}
-          placeholderTextColor={theme.colors.textMuted}
-          placeholder="••••••••"
-          secureTextEntry={!showPassword}
-          autoCapitalize="none"
-          autoCorrect={false}
+      <SettingRow label={tlsLabel} info={t("admin.settingsHelp.smtpTls")} kind="wide" testID="setting-row-smtp-tls">
+        <ChipSelect
+          label={tlsLabel}
+          value={tls}
+          onChange={setTls}
+          options={TLS_OPTIONS.map((o) => (o.value === "none" ? { ...o, label: t("admin.settingsLayout.tlsNone", o.label) } : o))}
         />
-        <Pressable
-          onPress={() => setShowPassword((v) => !v)}
-          style={s.showBtn}
-          hitSlop={8}
-          accessibilityRole="button"
-          accessibilityLabel={showPassword ? t("admin.serverConfig.hide", "Hide") : t("admin.serverConfig.show", "Show")}
-        >
-          <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>
-            {showPassword ? t("admin.serverConfig.hide", "Hide") : t("admin.serverConfig.show", "Show")}
-          </Text>
-        </Pressable>
+      </SettingRow>
+
+      <SettingRow label={t("admin.serverConfig.smtpUsername", "Username")} info={t("admin.settingsHelp.smtpUsername")} testID="setting-row-smtp-username">
+        {input(t("admin.serverConfig.smtpUsername", "Username"), username, setUsername, "user@example.com")}
+      </SettingRow>
+
+      <SettingRow label={passwordLabel} info={t("admin.settingsHelp.smtpPassword")} testID="setting-row-smtp-password">
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <TextInput
+            value={password}
+            onChangeText={setPassword}
+            accessibilityLabel={passwordLabel}
+            style={[s.input, { flex: 1 }]}
+            placeholderTextColor={theme.colors.textMuted}
+            placeholder="••••••••"
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Pressable onPress={() => setShowPassword((v) => !v)} style={s.showBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={showLabel}>
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>{showLabel}</Text>
+          </Pressable>
+        </View>
+      </SettingRow>
+
+      <SettingRow label={t("admin.serverConfig.fromAddress", "From Address")} info={t("admin.settingsHelp.smtpFrom")} testID="setting-row-smtp-from">
+        {input(t("admin.serverConfig.fromAddress", "From Address"), from, setFrom, "Evey <noreply@example.com>")}
+      </SettingRow>
+
+      <View style={{ marginTop: 12 }}>
+        <SaveButton onPress={handleSave} loading={busy} label={t("admin.serverConfig.saveSmtp", "Save SMTP Settings")} testID="smtp-save-btn" />
       </View>
-
-      <Text style={s.label}>{t("admin.serverConfig.fromAddress", "From Address")}</Text>
-      <TextInput
-        value={from}
-        onChangeText={setFrom}
-        style={s.input}
-        placeholderTextColor={theme.colors.textMuted}
-        placeholder="Evey <noreply@example.com>"
-        autoCapitalize="none"
-      />
-
-      <Text style={s.label}>{t("admin.serverConfig.tlsMode", "TLS Mode")}</Text>
-      <ChipSelect value={tls} onChange={setTls} options={TLS_OPTIONS} />
-
-      <Pressable onPress={handleSave} disabled={busy} style={[s.saveBtn, { opacity: busy ? 0.5 : 1 }]}>
-        {busy ? (
-          <ActivityIndicator size="small" color={theme.colors.onAccent} />
-        ) : (
-          <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>
-            {t("admin.serverConfig.saveSmtp", "Save SMTP Settings")}
-          </Text>
-        )}
-      </Pressable>
 
       <Pressable
         onPress={handleTest}
@@ -192,17 +182,14 @@ export function SmtpSettingsCard({ entries, saveEntry, saving }: SmtpSettingsCar
         )}
       </Pressable>
       <Text style={s.hint}>{t("admin.serverConfig.testEmailHint")}</Text>
-      <Text style={s.hint}>{t("admin.serverConfig.smtpEnvHint")}</Text>
     </View>
   );
 }
 
 const styles = (t: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
-    label: { color: t.colors.textMuted, fontSize: 12, fontWeight: "600", textTransform: "uppercase", marginTop: 16, marginBottom: 6 },
     input: { backgroundColor: t.colors.surface, color: t.colors.text, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     showBtn: { paddingHorizontal: 10, paddingVertical: 10, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, backgroundColor: t.colors.surfaceRaised },
-    saveBtn: { backgroundColor: t.colors.accent, borderRadius: t.radii.md, paddingVertical: 14, alignItems: "center", marginTop: 24 },
     testBtn: { borderRadius: t.radii.md, paddingVertical: 14, alignItems: "center", marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, backgroundColor: t.colors.surfaceRaised },
-    hint: { color: t.colors.textMuted, fontSize: 12, marginTop: 8 },
+    hint: { color: t.colors.textMuted, fontSize: 12, marginTop: 8, marginBottom: 4 },
   });

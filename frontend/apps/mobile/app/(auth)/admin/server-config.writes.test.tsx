@@ -8,22 +8,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // call only, so a per-call counter never reached zero (no "SMTP saved", a
 // pacing Save that stayed enabled) while the hook-level onSuccess toasted
 // "Config saved" six times.
-vi.mock("react-native", () => ({
-  View: ({ children }: any) => React.createElement("div", null, children),
-  ScrollView: ({ children }: any) => React.createElement("div", null, children),
-  Text: ({ children }: any) => React.createElement("span", null, children),
-  ActivityIndicator: () => React.createElement("div", { "data-testid": "spinner" }),
-  RefreshControl: () => null,
-  TextInput: ({ value, onChangeText, accessibilityLabel, placeholder, testID }: any) =>
-    React.createElement("input", { value: value ?? "", "aria-label": accessibilityLabel ?? placeholder, "data-testid": testID, onChange: (e: any) => onChangeText(e.target.value) }),
-  Switch: ({ value, onValueChange, accessibilityLabel }: any) =>
-    React.createElement("input", { type: "checkbox", role: "switch", "aria-label": accessibilityLabel, checked: value, onChange: (e: any) => onValueChange(e.target.checked) }),
-  Pressable: ({ children, onPress, disabled }: any) => React.createElement("button", { onClick: onPress, disabled }, children),
-  TouchableOpacity: ({ children, onPress, disabled, testID }: any) =>
-    React.createElement("button", { onClick: onPress, disabled, "data-testid": testID }, children),
-  StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
-}));
-vi.mock("expo-router", () => ({ Stack: { Screen: () => null } }));
+vi.mock("react-native", async () => (await import("../../../src/test/rnDom")).rnDom);
+vi.mock("expo-router", () => ({ Stack: { Screen: () => null }, useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, fallback?: string) => (typeof fallback === "string" ? fallback : k) }) }));
 const eveyFetch = vi.hoisted(() => vi.fn());
 vi.mock("@evey/api", () => ({ eveyFetch: (...a: unknown[]) => eveyFetch(...a), apiErrorMessage: () => "error" }));
@@ -36,7 +22,7 @@ vi.mock("@evey/client", async (importOriginal) => ({
   useUpdateStatus: () => ({ data: undefined }),
 }));
 vi.mock("../../../src/providers/ThemeProvider", () => ({
-  useTheme: () => ({ colors: new Proxy({}, { get: () => "#000" }), radii: { md: 8 } }),
+  useTheme: () => ({ colors: new Proxy({}, { get: () => "#000" }), radii: { sm: 4, md: 8, lg: 12 } }),
 }));
 for (const card of ["LocaleSettingsCard", "MemoryProfileCard", "MkvgoCard", "SsoSettingsCard", "CpuBudgetCard", "ParserTokensCard", "ConfigEntriesCard"]) {
   vi.doMock(`../../../src/components/admin/server-config/${card}`, () => ({ [card]: () => null }));

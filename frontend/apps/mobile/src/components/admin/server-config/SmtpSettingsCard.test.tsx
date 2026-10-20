@@ -1,21 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import React from "react";
 
-vi.mock("react-native", () => ({
-  View: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Text: ({ children, ...p }: any) => React.createElement("span", p, children),
-  Pressable: ({ children, onPress, disabled, accessibilityLabel, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, disabled, "aria-label": accessibilityLabel, ...p }, children),
-  TextInput: ({ value, onChangeText, placeholder }: any) =>
-    React.createElement("input", {
-      "aria-label": placeholder,
-      value: value ?? "",
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChangeText?.(e.target.value),
-    }),
-  ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "loading", ...p }),
-  StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
-}));
+vi.mock("react-native", async () => (await import("../../../test/rnDom")).rnDom);
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
@@ -24,7 +11,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("../../../providers/ThemeProvider", () => ({
   useTheme: () => ({
     colors: { border: "#333", surface: "#111", surfaceRaised: "#222", accent: "#f00", onAccent: "#fff", text: "#fff", textMuted: "#888" },
-    radii: { md: 8 },
+    radii: { sm: 4, md: 8, lg: 12 },
   }),
 }));
 
@@ -79,7 +66,7 @@ describe("SmtpSettingsCard", () => {
 
   it("disables the save button while saving", () => {
     render(<SmtpSettingsCard entries={[]} saveEntry={vi.fn()} saving />);
-    expect(screen.getByTestId("loading")).toBeTruthy();
+    expect(screen.getByTestId("spinner")).toBeTruthy();
   });
 });
 
@@ -97,5 +84,33 @@ describe("SmtpSettingsCard test e-mail", () => {
     render(<SmtpSettingsCard entries={[]} saveEntry={vi.fn()} saving={false} />);
     fireEvent.click(screen.getByText("Send test email"));
     await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith("admin.serverConfig.testEmailNotConfigured"));
+  });
+});
+
+describe("SmtpSettingsCard rows", () => {
+  it("gives each of the six settings exactly one info button", () => {
+    render(<SmtpSettingsCard entries={[]} saveEntry={vi.fn()} saving={false} />);
+    const rows = ["host", "port", "tls", "username", "password", "from"];
+    for (const id of rows) {
+      const row = screen.getByTestId(`setting-row-smtp-${id}`);
+      expect(within(row).getAllByTestId("setting-info-button")).toHaveLength(1);
+    }
+    expect(screen.getAllByTestId("setting-info-button")).toHaveLength(rows.length);
+  });
+
+  it("reveals the password on demand", () => {
+    render(<SmtpSettingsCard entries={[{ key: "smtp.password", value: "s3cret" }]} saveEntry={vi.fn()} saving={false} />);
+    expect((screen.getByDisplayValue("s3cret") as HTMLInputElement).type).toBe("password");
+    fireEvent.click(screen.getByLabelText("Show"));
+    expect((screen.getByDisplayValue("s3cret") as HTMLInputElement).type).toBe("text");
+  });
+
+  it("saves the picked TLS mode with the six writes", async () => {
+    const saveEntry = vi.fn(async (_vars: { key: string; value: string }) => ({}));
+    render(<SmtpSettingsCard entries={[]} saveEntry={saveEntry} saving={false} />);
+    fireEvent.click(screen.getByText("SSL/TLS"));
+    fireEvent.click(screen.getByTestId("smtp-save-btn"));
+    await vi.waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
+    expect(saveEntry).toHaveBeenCalledWith({ key: "smtp.tls", value: "ssl" });
   });
 });
