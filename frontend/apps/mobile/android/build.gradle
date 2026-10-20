@@ -3,7 +3,7 @@
 buildscript {
 // @generated begin react-native-google-cast-version-import - expo prebuild (DO NOT MODIFY) sync-751dea5919495636a44001495c681e3442af2777
   ext {
-        castFrameworkVersion = "+"
+        castFrameworkVersion = "22.3.1" // "+" took 23.0.0 (20-10), which needs compileSdk 37 and AGP 9.1
   }
 // @generated end react-native-google-cast-version-import
   repositories {
