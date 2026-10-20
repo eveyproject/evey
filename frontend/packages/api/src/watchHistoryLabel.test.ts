@@ -19,7 +19,7 @@ describe("watchHistoryLabel", () => {
   });
 
   it("falls back to E<n> when the season number is missing", () => {
-    expect(watchHistoryLabel({ mediaType: "episode", seriesTitle: "GIGN", indexNumber: 5 })).toBe("GIGN · E5");
+    expect(watchHistoryLabel({ mediaType: "episode", seriesTitle: "GIGN", indexNumber: 5 })).toBe("GIGN · E05");
   });
 
   // A resolved-but-partial episode must still beat the raw id: the whole point
