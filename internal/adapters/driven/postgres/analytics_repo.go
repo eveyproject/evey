@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
@@ -130,14 +131,7 @@ func (r *AnalyticsReader) safeRun(ctx context.Context, wg *sync.WaitGroup, label
 func (r *AnalyticsReader) fetchTopMedia(ctx context.Context) ([]activity.TopMediaItem, error) {
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
 		SELECT ps.media_item_id,
-		       CASE
-		         WHEN mi.type = 'episode' THEN
-		           COALESCE(series.title, '') || ' - S' ||
-		           LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
-		           LPAD(COALESCE(mi.index_number, 0)::text, 2, '0') ||
-		           CASE WHEN mi.title != '' THEN ' - ' || mi.title ELSE '' END
-		         ELSE mi.title
-		       END AS display_title,
+		       mi.title, mi.type, COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0),
 		       COUNT(*) AS play_count,
 		       COALESCE(SUM(COALESCE(ps.position_ms, ps.duration_ms, 0))::bigint / 1000, 0) AS total_duration_seconds
 		FROM play_sessions ps
@@ -155,8 +149,13 @@ func (r *AnalyticsReader) fetchTopMedia(ctx context.Context) ([]activity.TopMedi
 	var items []activity.TopMediaItem
 	for rows.Next() {
 		var item activity.TopMediaItem
-		if err := rows.Scan(&item.MediaItemID, &item.Title, &item.PlayCount, &item.TotalDurationSeconds); err != nil {
+		var mediaType, seriesTitle string
+		var seasonNum, episodeNum int
+		if err := rows.Scan(&item.MediaItemID, &item.Title, &mediaType, &seriesTitle, &seasonNum, &episodeNum, &item.PlayCount, &item.TotalDurationSeconds); err != nil {
 			return nil, err
+		}
+		if mediaType == "episode" {
+			item.Title = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, item.Title)
 		}
 		items = append(items, item)
 	}
@@ -165,11 +164,14 @@ func (r *AnalyticsReader) fetchTopMedia(ctx context.Context) ([]activity.TopMedi
 
 func (r *AnalyticsReader) fetchRecentActivity(ctx context.Context) ([]activity.RecentActivityEntry, error) {
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
-		SELECT u.id, u.username, mi.title, ps.started_at
+		SELECT u.id, u.username, mi.title, ps.started_at,
+		       mi.type, COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0)
 		FROM play_sessions ps
 		INNER JOIN profiles p ON p.id = ps.profile_id
 		INNER JOIN users u ON u.id = p.user_id
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		LEFT JOIN media_items season ON season.id = mi.parent_id AND mi.type = 'episode'
+		LEFT JOIN media_items series ON series.id = season.parent_id AND mi.type = 'episode'
 		ORDER BY ps.started_at DESC
 		LIMIT 20`)
 	if err != nil {
@@ -179,8 +181,13 @@ func (r *AnalyticsReader) fetchRecentActivity(ctx context.Context) ([]activity.R
 	var entries []activity.RecentActivityEntry
 	for rows.Next() {
 		var entry activity.RecentActivityEntry
-		if err := rows.Scan(&entry.UserID, &entry.Username, &entry.MediaTitle, &entry.PlayedAt); err != nil {
+		var mediaType, seriesTitle string
+		var seasonNum, episodeNum int
+		if err := rows.Scan(&entry.UserID, &entry.Username, &entry.MediaTitle, &entry.PlayedAt, &mediaType, &seriesTitle, &seasonNum, &episodeNum); err != nil {
 			return nil, err
+		}
+		if mediaType == "episode" {
+			entry.MediaTitle = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, entry.MediaTitle)
 		}
 		entries = append(entries, entry)
 	}

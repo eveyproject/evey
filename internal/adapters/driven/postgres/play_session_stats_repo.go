@@ -12,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -73,13 +74,18 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 		ORDER BY total_ms DESC
 	),
 	most_played AS (
-		SELECT ps.media_item_id, mi.title,
+		SELECT ps.media_item_id, mi.title, mi.type,
+		       COALESCE(series.title, '') AS series_title,
+		       COALESCE(season.index_number, 0) AS season_number,
+		       COALESCE(mi.index_number, 0) AS episode_number,
 		       COUNT(*) AS play_count,
 		       MAX(COALESCE(ps.position_ms, ps.duration_ms, 0)) AS total_ms
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		LEFT JOIN media_items season ON season.id = mi.parent_id AND mi.type = 'episode'
+		LEFT JOIN media_items series ON series.id = season.parent_id AND mi.type = 'episode'
 		WHERE ps.profile_id = $1
-		GROUP BY ps.media_item_id, mi.title
+		GROUP BY ps.media_item_id, mi.title, mi.type, series.title, season.index_number, mi.index_number
 		ORDER BY play_count DESC
 		LIMIT 10
 	),
@@ -95,7 +101,10 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 	UNION ALL
 	SELECT 'G', genre, total_ms::TEXT, play_count::TEXT FROM genres
 	UNION ALL
-	SELECT 'P', media_item_id, title, play_count::TEXT || ':' || total_ms::TEXT FROM most_played
+	-- The series title goes last: it may itself contain ':'.
+	SELECT 'P', media_item_id, title,
+	       play_count::TEXT || ':' || total_ms::TEXT || ':' || type || ':' || season_number::TEXT || ':' || episode_number::TEXT || ':' || series_title
+	FROM most_played
 	UNION ALL
 	SELECT 'M', month, cnt::TEXT, total_ms::TEXT FROM monthly`
 
@@ -128,14 +137,21 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 		case "P":
 			var cnt int
 			var totalMs int64
-			parts := strings.SplitN(col3, ":", 2)
+			title := col2
+			parts := strings.SplitN(col3, ":", 6)
 			fmt.Sscan(parts[0], &cnt)
 			if len(parts) > 1 {
 				fmt.Sscan(parts[1], &totalMs)
 			}
+			if len(parts) == 6 && parts[2] == "episode" {
+				var seasonNum, episodeNum int
+				fmt.Sscan(parts[3], &seasonNum)
+				fmt.Sscan(parts[4], &episodeNum)
+				title = library.EpisodeLabel(parts[5], seasonNum, episodeNum, col2)
+			}
 			stats.MostPlayedItems = append(stats.MostPlayedItems, activity.MediaPlayCount{
 				MediaItemID: shared.MediaItemID(col1),
-				Title:       col2,
+				Title:       title,
 				PlayCount:   cnt,
 				TotalTimeMs: totalMs,
 			})
@@ -237,11 +253,14 @@ func (r *PlaySessionStatsReader) liveCounters(ctx context.Context, stats *activi
 func (r *PlaySessionStatsReader) popularMediaRollup(ctx context.Context) ([]activity.ServerPopularMedia, error) {
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
 		`SELECT ps.media_item_id, mi.title, mi.type,
-		        COUNT(*) AS plays, COUNT(DISTINCT ps.profile_id) AS viewers
+		        COUNT(*) AS plays, COUNT(DISTINCT ps.profile_id) AS viewers,
+		        COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0)
 		 FROM play_sessions ps
 		 INNER JOIN media_items mi ON mi.id = ps.media_item_id
+		 LEFT JOIN media_items season ON season.id = mi.parent_id AND mi.type = 'episode'
+		 LEFT JOIN media_items series ON series.id = season.parent_id AND mi.type = 'episode'
 		 WHERE ps.started_at >= NOW() - INTERVAL '90 days'
-		 GROUP BY ps.media_item_id, mi.title, mi.type
+		 GROUP BY ps.media_item_id, mi.title, mi.type, series.title, season.index_number, mi.index_number
 		 ORDER BY plays DESC, mi.title
 		 LIMIT 5`)
 	if err != nil {
@@ -251,8 +270,13 @@ func (r *PlaySessionStatsReader) popularMediaRollup(ctx context.Context) ([]acti
 	var out []activity.ServerPopularMedia
 	for rows.Next() {
 		var m activity.ServerPopularMedia
-		if err := rows.Scan(&m.MediaItemID, &m.Title, &m.Type, &m.PlayCount, &m.UniqueViewers); err != nil {
+		var seriesTitle string
+		var seasonNum, episodeNum int
+		if err := rows.Scan(&m.MediaItemID, &m.Title, &m.Type, &m.PlayCount, &m.UniqueViewers, &seriesTitle, &seasonNum, &episodeNum); err != nil {
 			return nil, err
+		}
+		if m.Type == "episode" {
+			m.Title = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, m.Title)
 		}
 		out = append(out, m)
 	}

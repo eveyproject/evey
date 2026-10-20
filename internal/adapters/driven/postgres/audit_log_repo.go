@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
@@ -92,20 +93,12 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	           COALESCE(
 	             CASE a.resource_type
 	               WHEN 'user' THEN ru.username
-	               WHEN 'media' THEN CASE rm.type
-	                 WHEN 'episode' THEN
-	                   COALESCE(series.title, '') || ' - S' ||
-	                   LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
-	                   LPAD(COALESCE(rm.index_number, 0)::text, 2, '0')
-	                 ELSE rm.title END
-	               WHEN 'media_item' THEN CASE rm.type
-	                 WHEN 'episode' THEN
-	                   COALESCE(series.title, '') || ' - S' ||
-	                   LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
-	                   LPAD(COALESCE(rm.index_number, 0)::text, 2, '0')
-	                 ELSE rm.title END
+	               WHEN 'media' THEN rm.title
+	               WHEN 'media_item' THEN rm.title
 	               WHEN 'transcode_profile' THEN tp.name
 	             END, '') AS resource_name,
+	           COALESCE(rm.type, '') AS media_type, COALESCE(series.title, '') AS series_title,
+	           COALESCE(season.index_number, 0) AS season_number, COALESCE(rm.index_number, 0) AS episode_number,
 	           a.details, a.client_ip, a.user_agent, a.device_name, a.created_at
 	           FROM audit_log a
 	           LEFT JOIN users u ON u.id = a.user_id
@@ -141,10 +134,15 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 	for rows.Next() {
 		e := &activity.AuditLogEntry{}
 		var detailsJSON []byte
-		if err := rows.Scan(&e.ID, &e.UserID, &e.Username, &e.ProfileID, &e.ProfileName, &e.Action, &e.ResourceType, &e.ResourceID, &e.ResourceName, &detailsJSON, &e.ClientIP, &e.UserAgent, &e.DeviceName, &e.CreatedAt); err != nil {
+		var mediaType, seriesTitle string
+		var seasonNum, episodeNum int
+		if err := rows.Scan(&e.ID, &e.UserID, &e.Username, &e.ProfileID, &e.ProfileName, &e.Action, &e.ResourceType, &e.ResourceID, &e.ResourceName, &mediaType, &seriesTitle, &seasonNum, &episodeNum, &detailsJSON, &e.ClientIP, &e.UserAgent, &e.DeviceName, &e.CreatedAt); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
+		}
+		if mediaType == "episode" && (e.ResourceType == "media" || e.ResourceType == "media_item") {
+			e.ResourceName = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, e.ResourceName)
 		}
 		if err := json.Unmarshal(detailsJSON, &e.Details); err != nil {
 			slog.Warn("json unmarshal", slog.String("field", "details"), slog.Any("err", err))

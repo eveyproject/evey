@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 
 	"github.com/eveyproject/evey/internal/domain/activity"
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -30,17 +31,14 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	// inside that window must still list the row rather than drop it.
 	query := `
 		SELECT ps.id, ps.profile_id, ps.media_item_id,
-		       CASE WHEN mi.type = 'episode' THEN
-		         COALESCE(series.title, '') || ' - S' ||
-		         LPAD(COALESCE(season.index_number, 0)::text, 2, '0') || 'E' ||
-		         LPAD(COALESCE(mi.index_number, 0)::text, 2, '0')
-		       ELSE mi.title END,
+		       mi.title,
 		       mi.type,
 		       COALESCE(mf.duration_ms, 0), COALESCE(ps.position_ms, 0),
 		       COALESCE(wp.completed, false),
 		       ps.device_name, ps.device_type, ps.play_method,
 		       ps.started_at, ps.ended_at,
-		       COALESCE(p.name, ''), COALESCE(p.user_id, ''), COALESCE(u.username, '')
+		       COALESCE(p.name, ''), COALESCE(p.user_id, ''), COALESCE(u.username, ''),
+		       COALESCE(series.title, ''), COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0)
 		FROM play_sessions ps
 		INNER JOIN media_items mi ON mi.id = ps.media_item_id
 		-- An episode reads as its series and code, as in the audit log.
@@ -112,6 +110,8 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 	for rows.Next() {
 		e := &activity.PlayHistoryEntry{}
 		var rawDurationMs, rawPositionMs int64
+		var seriesTitle string
+		var seasonNum, episodeNum int
 		if err := rows.Scan(
 			&e.ID, &e.ProfileID, &e.MediaItemID,
 			&e.MediaTitle, &e.MediaType,
@@ -120,10 +120,14 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 			&e.DeviceName, &e.ClientName, &e.PlayMethod,
 			&e.StartedAt, &e.EndedAt,
 			&e.ProfileName, &e.UserID, &e.Username,
+			&seriesTitle, &seasonNum, &episodeNum,
 		); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
+		}
+		if e.MediaType == "episode" {
+			e.MediaTitle = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, e.MediaTitle)
 		}
 		if d, err := shared.NewDurationMs(rawPositionMs); err == nil {
 			e.Position = d

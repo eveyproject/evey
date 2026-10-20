@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
@@ -120,9 +121,13 @@ func (r *PlaybackQoEReader) GetTopStarvedTitles(ctx context.Context, window time
 			COALESCE(mf.file_path, '') AS file_path,
 			a.starved,
 			a.total,
-			a.last_starved_at
+			a.last_starved_at,
+			COALESCE(mi.type, ''), COALESCE(series.title, ''),
+			COALESCE(season.index_number, 0), COALESCE(mi.index_number, 0)
 		FROM agg a
 		LEFT JOIN media_items mi ON mi.id = a.media_item_id
+		LEFT JOIN media_items season ON season.id = mi.parent_id AND mi.type = 'episode'
+		LEFT JOIN media_items series ON series.id = season.parent_id AND mi.type = 'episode'
 		LEFT JOIN media_files mf ON mf.media_item_id = a.media_item_id
 		ORDER BY (a.starved)::float / NULLIF(a.total, 0) DESC, a.starved DESC
 		LIMIT $2`
@@ -136,8 +141,13 @@ func (r *PlaybackQoEReader) GetTopStarvedTitles(ctx context.Context, window time
 	for rows.Next() {
 		var r QoEStarvedTitle
 		var lastStarvedAt sql.NullTime
-		if err := rows.Scan(&r.MediaItemID, &r.Title, &r.FilePath, &r.StarvedEvents, &r.TotalEvents, &lastStarvedAt); err != nil {
+		var mediaType, seriesTitle string
+		var seasonNum, episodeNum int
+		if err := rows.Scan(&r.MediaItemID, &r.Title, &r.FilePath, &r.StarvedEvents, &r.TotalEvents, &lastStarvedAt, &mediaType, &seriesTitle, &seasonNum, &episodeNum); err != nil {
 			return nil, fmt.Errorf("qoe top starved scan: %w", err)
+		}
+		if mediaType == "episode" {
+			r.Title = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, r.Title)
 		}
 		if lastStarvedAt.Valid {
 			r.LastStarvedAt = lastStarvedAt.Time
