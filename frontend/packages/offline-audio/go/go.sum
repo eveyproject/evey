@@ -1,4 +1,4 @@
 github.com/gravity-zero/ac3go v0.0.0-20261004222713-cf27ec014885 h1:4ySk6dqkvJU35+RQxcmyKDg2jInrQKJzJ+BgKl8/RdQ=
 github.com/gravity-zero/ac3go v0.0.0-20261004222713-cf27ec014885/go.mod h1:UXGxHHqfqZN5tAZ14pJHh0zzEIS4bcWrs/hRGvKhxas=
-github.com/gravity-zero/mkvgo v0.56.0 h1:UIOEpr/RvwZjUbNS1XhffvUG08X783GLWwGIlwOu64Y=
-github.com/gravity-zero/mkvgo v0.56.0/go.mod h1:JTwZ3N+Ryj5s0ZDDM41ox0zhE95KL+pRZ0frqAgx8D4=
+github.com/gravity-zero/mkvgo v0.56.1 h1:/Sv5S/eM0wsaROJBx1FEG9vKhkU/TLQd4sDeqRZfKpg=
+github.com/gravity-zero/mkvgo v0.56.1/go.mod h1:JTwZ3N+Ryj5s0ZDDM41ox0zhE95KL+pRZ0frqAgx8D4=
