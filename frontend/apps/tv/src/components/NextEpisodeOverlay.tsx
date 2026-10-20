@@ -29,7 +29,7 @@ export function NextEpisodeOverlay({ visible, ended, countdown, stillWatching = 
           seasonNumber: nextEpisode.seasonIndexNumber,
           episodeNumber: nextEpisode.indexNumber,
           title: nextEpisode.title,
-        })
+        }) || t("player.nextEpisodeOverlay.episode", { number: nextEpisode.indexNumber })
       : [t("player.nextEpisodeOverlay.nextEpisode", "Next episode"), nextEpisode.title].filter(Boolean).join(" · ");
 
   return (
