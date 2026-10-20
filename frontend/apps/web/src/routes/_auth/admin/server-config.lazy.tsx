@@ -74,6 +74,7 @@ function ServerConfigPage() {
             role="tabpanel"
             id={tabPanelId(TABS_ID, id)}
             aria-labelledby={tabId(TABS_ID, id)}
+            tabIndex={0}
             hidden={id !== section}
           >
             <ServerConfigSection id={id} entries={entries} entriesLoading={isLoading} />

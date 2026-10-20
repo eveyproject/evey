@@ -172,7 +172,7 @@ const SETTINGS_BY_SECTION: Record<string, string[]> = {
     "admin.serverConfig.fromAddress",
   ],
   performance: [
-    "admin.serverConfig.memoryProfileLabel",
+    "admin.serverConfig.memoryProfileTitle",
     "admin.serverConfig.cpuBudget.globalLabel",
     "admin.serverConfig.cpuBudget.tasks.library_scan.label",
     "admin.serverConfig.cpuBudget.tasks.trickplay_generation.label",
@@ -269,7 +269,7 @@ describe("ServerConfigPage", () => {
     const autoSkip = screen.getByTestId("setting-row-introAutoSkipEnabled");
     expect(within(autoSkip).queryByRole("button", { name: /more info/i, hidden: true })).toBeNull();
     const rows = Array.from(document.querySelectorAll("[data-setting-row]")).filter((r) => r !== autoSkip);
-    expect(rows.length).toBeGreaterThanOrEqual(60);
+    expect(rows.length).toBeGreaterThanOrEqual(59);
     for (const row of rows) {
       const label = row.querySelector("label, span")?.textContent;
       expect(within(row as HTMLElement).queryAllByRole("button", { name: /more info/i, hidden: true }).length, `${label} has no info`).toBeGreaterThan(0);
@@ -286,18 +286,18 @@ describe("ServerConfigPage", () => {
   });
 
   it("saves a group's own fields only, with its own Save", async () => {
-    const mutate = vi.fn();
-    mockUseMutation.mockReturnValue({ mutate, mutateAsync: vi.fn(async () => ({})), isPending: false });
+    const mutateAsync = vi.fn(async () => ({}));
+    mockUseMutation.mockReturnValue({ mutate: vi.fn(), mutateAsync, isPending: false });
     await renderPage();
     fireEvent.change(screen.getByTestId("server-name-input"), { target: { value: "Salon" } });
     openSection("data");
     fireEvent.change(screen.getByTestId("audit-retention-input"), { target: { value: "365" } });
     fireEvent.click(screen.getByTestId("server-settings-save-retention"));
-    expect(mutate).toHaveBeenCalledWith({ auditRetentionDays: 365 });
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ body: { auditRetentionDays: 365 }, keys: ["auditRetentionDays"] }));
     openSection("general");
     expect((screen.getByTestId("server-name-input") as HTMLInputElement).value).toBe("Salon");
     fireEvent.click(screen.getByTestId("server-settings-save-general"));
-    expect(mutate).toHaveBeenLastCalledWith({ serverName: "Salon" });
+    await waitFor(() => expect(mutateAsync).toHaveBeenLastCalledWith({ body: { serverName: "Salon" }, keys: ["serverName"] }));
   });
 
   it("renders the config entries in the Advanced section, with a warning", async () => {

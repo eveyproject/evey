@@ -102,10 +102,11 @@ export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefin
         <Input id="smtp-host" className="w-full" placeholder="smtp.example.com" value={host} onChange={(e) => setHost(e.target.value)} />)}
       {row("smtp-port", "admin.serverConfig.port", "admin.settingsHelp.smtpPort",
         <Input id="smtp-port" className="w-full" type="number" placeholder="587" value={port} onChange={(e) => setPort(e.target.value)} />)}
-      <SettingRow label={t("admin.serverConfig.tlsMode")} info={t("admin.settingsHelp.smtpTls")} kind="wide">
+      <SettingRow label={t("admin.serverConfig.tlsMode")} labelId="smtp-tls-label" info={t("admin.settingsHelp.smtpTls")} kind="wide">
         <SegmentedControl
           id="smtp-tls"
           label={t("admin.serverConfig.tlsMode")}
+          labelledBy="smtp-tls-label"
           value={tls}
           onChange={setTls}
           options={TLS_OPTIONS.map((o) => ({ ...o, label: o.value === "none" ? t("admin.settingsLayout.tlsNone") : o.label }))}
@@ -114,7 +115,7 @@ export function SmtpSettingsCard({ entries }: { entries: ConfigEntry[] | undefin
       {row("smtp-username", "admin.serverConfig.smtpUsername", "admin.settingsHelp.smtpUsername",
         <Input id="smtp-username" className="w-full" placeholder="user@example.com" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="off" />)}
       {row("smtp-password", "admin.serverConfig.smtpPassword", "admin.settingsHelp.smtpPassword",
-        <Input id="smtp-password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />)}
+        <Input id="smtp-password" className="w-full" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />)}
       {row("smtp-from", "admin.serverConfig.fromAddress", "admin.settingsHelp.smtpFrom",
         <Input id="smtp-from" className="w-full" placeholder="Evey <noreply@example.com>" value={from} onChange={(e) => setFrom(e.target.value)} />)}
 

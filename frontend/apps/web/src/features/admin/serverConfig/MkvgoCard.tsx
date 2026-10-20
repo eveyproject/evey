@@ -24,10 +24,12 @@ export function MkvgoCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const shadowLabel = t("admin.serverConfig.playabilityShadowLabel");
   return (
     <div className="flex flex-col divide-y divide-[var(--border)]">
-      <SettingRow label={ingestLabel} info={t("admin.serverConfig.ingestServingPlanDesc")} kind="wide">
+      <SettingRow label={ingestLabel} labelId="ingest-serving-plan-label" info={t("admin.serverConfig.ingestServingPlanDesc")} kind="wide">
         <SegmentedControl
           id="ingest-serving-plan"
           label={ingestLabel}
+          labelledBy="ingest-serving-plan-label"
+          activation="manual"
           value={ingestPlan}
           onChange={(v) => write(INGEST_SERVING_PLAN_KEY, v)}
           disabled={setEntry.isPending}
@@ -38,10 +40,12 @@ export function MkvgoCard({ entries }: { entries: ConfigEntry[] | undefined }) {
           ]}
         />
       </SettingRow>
-      <SettingRow label={shadowLabel} info={t("admin.serverConfig.playabilityShadowDesc")} kind="wide">
+      <SettingRow label={shadowLabel} labelId="playability-shadow-label" info={t("admin.serverConfig.playabilityShadowDesc")} kind="wide">
         <SegmentedControl
           id="playability-shadow"
           label={shadowLabel}
+          labelledBy="playability-shadow-label"
+          activation="manual"
           value={playabilityShadow}
           onChange={(v) => write(PLAYABILITY_SHADOW_KEY, v)}
           disabled={setEntry.isPending}
