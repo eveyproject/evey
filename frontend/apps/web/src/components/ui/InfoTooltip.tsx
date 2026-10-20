@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Info, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -32,6 +32,19 @@ function activateOnKey(e: KeyboardEvent<HTMLElement>, action: () => void) {
 export function InfoTooltip({ label, children }: InfoTooltipProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const panelRef = useRef<HTMLSpanElement>(null);
+
+  // The panel is a non-modal dialog: opening moves the focus into it (so a
+  // screen reader reads it at once), closing gives the focus back to the "i".
+  useEffect(() => {
+    if (open) panelRef.current?.focus();
+  }, [open]);
+  function close() {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
 
   return (
     <span
@@ -39,13 +52,15 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
       onKeyDown={(e) => {
         if (open && e.key === "Escape") {
           e.stopPropagation();
-          setOpen(false);
+          close();
         }
       }}
     >
       <span
+        ref={triggerRef}
         role="button"
         tabIndex={0}
+        aria-controls={open ? panelId : undefined}
         onClick={(e) => {
           // Stop propagation so the tooltip on a clickable header (e.g.
           // CollapsibleCard) doesn't accidentally toggle the parent.
@@ -68,14 +83,17 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
             className="fixed inset-0 z-40"
             onClick={(e) => {
               e.stopPropagation();
-              setOpen(false);
+              close();
             }}
           />
           <span
+            ref={panelRef}
+            id={panelId}
             role="dialog"
+            tabIndex={-1}
             aria-label={label}
             onClick={(e) => e.stopPropagation()}
-            className="absolute left-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-2rem)] p-3 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-lg text-sm font-normal normal-case tracking-normal leading-relaxed text-[var(--text)] block whitespace-normal text-left"
+            className="absolute left-0 top-full mt-2 z-50 w-80 max-w-[calc(100vw-2rem)] p-3 bg-[var(--surface)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-lg outline-none text-sm font-normal normal-case tracking-normal leading-relaxed text-[var(--text)] block whitespace-normal text-left"
           >
             <span className="flex items-start justify-between gap-2">
               <span className="flex-1 block">{children}</span>
@@ -84,9 +102,9 @@ export function InfoTooltip({ label, children }: InfoTooltipProps) {
                 tabIndex={0}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setOpen(false);
+                  close();
                 }}
-                onKeyDown={(e) => activateOnKey(e, () => setOpen(false))}
+                onKeyDown={(e) => activateOnKey(e, close)}
                 aria-label={t("common.aria.close")}
                 className="inline-flex cursor-pointer p-0.5 -m-0.5 rounded text-[var(--text-muted)] hover:text-[var(--text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
               >

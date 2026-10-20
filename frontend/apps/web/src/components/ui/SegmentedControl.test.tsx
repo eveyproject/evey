@@ -24,15 +24,15 @@ describe("SegmentedControl", () => {
     expect(radios.map((r) => r.tabIndex)).toEqual([-1, -1, 0, -1]);
   });
 
-  it("gives every option the same width: equal grid columns that wrap", () => {
+  it("gives every option the width of the longest label on wide screens and stacks them on a phone", () => {
     render(<SegmentedControl label="Share" options={options} value="" onChange={() => {}} />);
     const group = screen.getByRole("radiogroup");
-    expect(group.className).toContain("grid");
-    expect(group.style.gridTemplateColumns).toBe("repeat(auto-fit, minmax(min(100%, 7rem), 1fr))");
-    for (const r of within(group).getAllByRole("radio")) {
-      expect(r.className).toContain("min-w-0");
-      expect(r.className).toContain("text-center");
+    // Phone: one option per row, full width. Wide: equal columns (1fr) in a
+    // content-sized grid, so every column is as wide as the longest label.
+    for (const c of ["grid", "w-full", "grid-flow-row", "sm:inline-grid", "sm:w-auto", "sm:grid-flow-col", "sm:auto-cols-fr"]) {
+      expect(group.className.split(" ")).toContain(c);
     }
+    for (const r of within(group).getAllByRole("radio")) expect(r.className).toContain("text-center");
   });
 
   it("picks on click, and moves with the arrow keys, Home and End", () => {
@@ -54,8 +54,41 @@ describe("SegmentedControl", () => {
     expect(onChange).toHaveBeenLastCalledWith("");
   });
 
-  it("disables every option when disabled", () => {
-    render(<SegmentedControl label="Share" options={options} value="" onChange={() => {}} disabled />);
-    for (const r of screen.getAllByRole("radio")) expect(r).toBeDisabled();
+  it("while disabled, refuses picks but keeps the focus (aria-disabled, not disabled)", () => {
+    const onChange = vi.fn();
+    render(<SegmentedControl label="Share" options={options} value="" onChange={onChange} disabled />);
+    for (const r of screen.getAllByRole("radio")) {
+      expect(r).toHaveAttribute("aria-disabled", "true");
+      expect(r).not.toBeDisabled();
+    }
+    fireEvent.click(screen.getByRole("radio", { name: "50 %" }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("in manual activation the arrows only move the focus; Space or Enter (a click) picks", () => {
+    const onChange = vi.fn();
+    render(<SegmentedControl label="Share" options={options} value="25" onChange={onChange} activation="manual" />);
+    const current = screen.getByRole("radio", { name: "25 %" });
+    current.focus();
+    fireEvent.keyDown(current, { key: "ArrowRight" });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByRole("radio", { name: "50 %" }));
+    fireEvent.click(document.activeElement as HTMLElement);
+    expect(onChange).toHaveBeenCalledWith("50");
+  });
+
+  it("is named by its visible label when linked", () => {
+    render(
+      <>
+        <span id="lbl">Memory profile</span>
+        <SegmentedControl label="fallback" labelledBy="lbl" options={options} value="" onChange={() => {}} />
+      </>,
+    );
+    expect(screen.getByRole("radiogroup", { name: "Memory profile" })).toBeInTheDocument();
+  });
+
+  it("shows a stored value no option offers instead of checking nothing", () => {
+    render(<SegmentedControl label="Height" options={[{ value: "", label: "Auto" }, { value: "720", label: "720p" }]} value="900" onChange={() => {}} formatUnknown={(v) => `${v}p`} />);
+    expect(screen.getByRole("radio", { checked: true })).toHaveTextContent("900p");
   });
 });

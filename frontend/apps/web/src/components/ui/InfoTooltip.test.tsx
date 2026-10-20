@@ -48,6 +48,23 @@ describe("InfoTooltip", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  it("moves the focus into the panel and gives it back to the 'i' on close", () => {
+    render(<InfoTooltip label="More info">Detail</InfoTooltip>);
+    const trigger = screen.getByRole("button", { name: "More info" });
+    expect(trigger).not.toHaveAttribute("aria-controls");
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog");
+    expect(trigger.getAttribute("aria-controls")).toBe(dialog.id);
+    expect(document.activeElement).toBe(dialog);
+    fireEvent.keyDown(dialog, { key: "Escape" });
+    expect(document.activeElement).toBe(trigger);
+
+    fireEvent.click(trigger);
+    fireEvent.click(screen.getByRole("button", { name: "common.aria.close" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("still opens inside a disabled fieldset (the demo's read-only pages)", () => {
     render(
       <fieldset disabled>
