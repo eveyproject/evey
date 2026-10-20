@@ -17,6 +17,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("../../../providers/ThemeProvider", () => ({
   useTheme: () => ({
     colors: { border: "#333", surface: "#111", accent: "#f00", onAccent: "#fff", text: "#fff", textMuted: "#888" },
+    radii: { sm: 4, md: 8, lg: 12 },
   }),
 }));
 
