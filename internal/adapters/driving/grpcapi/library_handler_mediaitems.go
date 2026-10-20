@@ -82,7 +82,7 @@ func (h *libraryHandler) GetMediaItem(ctx context.Context, req *eveyv1.GetMediaI
 		}
 	}
 	pb := mediaItemToProto(item, ctxIsAdmin(ctx))
-	fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, []*eveyv1.MediaItem{pb})
+	fillAncestorTitles(ctx, h.overlaidItemsFetch, []*eveyv1.MediaItem{pb})
 	// Artwork/cast/streams are best-effort enrichments: a failure on one must
 	// not fail the whole detail response. But the errors were being swallowed
 	// silently, which hides real problems (e.g. streams empty in the DB or a
@@ -225,6 +225,20 @@ func (h *libraryHandler) applyMediaItemsPagination(ctx context.Context, span tra
 // onto items in place, so the grid matches the language the detail page
 // already uses. Best-effort: base values stay when no translation exists; a
 // fetch error is logged, not fatal.
+// overlaidItemsFetch is GetMediaItemsByIDs with the viewer's locale and the
+// admin overrides applied, so the series/season titles stamped on an episode
+// read in the same language as the episode title itself. Still two batched
+// lookups per ancestor level, no per-item query.
+func (h *libraryHandler) overlaidItemsFetch(ctx context.Context, ids []string) ([]*library.MediaItem, error) {
+	items, err := h.query.GetMediaItemsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	h.overlayMediaItemsLocale(ctx, ids, items)
+	h.overlayMediaItemsOverrides(ctx, ids, items)
+	return items, nil
+}
+
 func (h *libraryHandler) overlayMediaItemsLocale(ctx context.Context, ids []string, items []*library.MediaItem) {
 	overlayItemsLocale(ctx, h.query, ids, items)
 }
@@ -366,7 +380,7 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	castMap := h.fetchMediaItemsCast(ctx, req, ids)
 	streamsMap := h.fetchMediaItemsStreams(ctx, ids)
 	resp.Items = mediaItemsToProto(ctx, items, pf, artworkMap, castMap, streamsMap)
-	fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, resp.Items)
+	fillAncestorTitles(ctx, h.overlaidItemsFetch, resp.Items)
 	return resp, nil
 }
 
@@ -536,7 +550,7 @@ func (h *libraryHandler) FilterMediaItems(ctx context.Context, req *eveyv1.Filte
 	artworkMap := h.fetchMediaItemsArtwork(ctx, ids)
 	streamsMap := h.fetchMediaItemsStreams(ctx, ids)
 	resp.Items = mediaItemsToProto(ctx, items, pf, artworkMap, nil, streamsMap)
-	fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, resp.Items)
+	fillAncestorTitles(ctx, h.overlaidItemsFetch, resp.Items)
 	return resp, nil
 }
 
