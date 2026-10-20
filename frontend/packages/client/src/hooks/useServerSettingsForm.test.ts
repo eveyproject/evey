@@ -120,6 +120,40 @@ describe("useServerSettingsFormState", () => {
     expect(result.current.field("loginRateLimit").draft).toBe("5");
   });
 
+  // The "Default (info)" option of a choice is the reset itself: with a stored
+  // override, picking it must send null, not leave the override in place.
+  it("resets a choice when its Default option is picked over an override", async () => {
+    current = { ...current, logLevel: sv("debug", "info", "override") };
+    const { result } = mount(["logLevel"]);
+    await waitFor(() => expect(result.current.field("logLevel").draft).toBe("debug"));
+    act(() => result.current.field("logLevel").onChange(""));
+    let ok = false;
+    await act(async () => {
+      ok = await result.current.submit();
+    });
+    expect(ok).toBe(true);
+    expect(puts()).toEqual([{ logLevel: null }]);
+    expect(toast.success).toHaveBeenCalledWith("admin.serverSettings.saved");
+  });
+
+  it("sends null for the Default / Auto pick of every choice field", async () => {
+    const choices = (Object.keys(SERVER_SETTING_FIELDS) as ServerSettingField[]).filter((k) => {
+      const kind = SERVER_SETTING_FIELDS[k].kind;
+      return kind === "select" || kind === "segmented";
+    });
+    expect(choices.length).toBeGreaterThanOrEqual(4);
+    for (const key of choices) current = { ...current, [key]: sv(key === "logLevel" ? "warn" : 720, key === "logLevel" ? "info" : 0, "override") };
+    const { result } = mount(choices);
+    await waitFor(() => expect(result.current.field(choices[0]).draft).not.toBe(""));
+    act(() => {
+      for (const key of choices) result.current.field(key).onChange("");
+    });
+    await act(async () => {
+      await result.current.submit();
+    });
+    expect(puts()).toEqual([Object.fromEntries(choices.map((k) => [k, null]))]);
+  });
+
   it("names a restart in the toast when a boot-time setting was saved", async () => {
     const { result } = mount(["periodicScanInterval"]);
     await waitFor(() => expect(result.current.data).toBeDefined());
