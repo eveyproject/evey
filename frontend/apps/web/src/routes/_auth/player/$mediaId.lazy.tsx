@@ -7,7 +7,7 @@ import { episodeLabel, libraryServiceGetMediaItem, libraryServiceListMediaItems,
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
-import { playerExit, resolveStartPositionMs } from "@/features/playback/playerUtils";
+import { playerExit, resolveStartPositionMs, toEpisodeNavItem } from "@/features/playback/playerUtils";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import type { AudioStream, SubtitleStream } from "@/features/playback/HLSPlayer";
@@ -297,8 +297,8 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     () =>
       [...(episodesData?.items ?? [])]
         .sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0))
-        .map((ep) => ({ id: ep.id!, title: ep.title ?? `Episode ${ep.indexNumber}`, indexNumber: ep.indexNumber })),
-    [episodesData?.items],
+        .map((ep) => toEpisodeNavItem(ep, season?.indexNumber)),
+    [episodesData?.items, season?.indexNumber],
   );
 
   const handleEpisodeChange = useCallback(
