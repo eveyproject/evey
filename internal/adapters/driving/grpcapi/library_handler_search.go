@@ -183,7 +183,7 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 				inShowByID[id].IndexNumber = int32(*full.IndexNumber)
 			}
 		}
-		fillAncestorTitles(ctx, h.query.GetMediaItemsByIDs, resp.Items)
+		fillAncestorTitles(ctx, h.overlaidItemsFetch, resp.Items)
 	}
 	// TotalHits is the backend's unfiltered tally, so on its own it announces
 	// matches in libraries the caller cannot see (or that parental blocks):

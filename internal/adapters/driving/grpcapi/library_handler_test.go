@@ -1041,3 +1041,34 @@ func TestLibraryHandler_FilterMediaItems_KidsPageShortenedByParentalPass_KeepsPa
 	assert.Equal(t, int32(3), second.NextOffset)
 	assert.False(t, second.HasMore)
 }
+
+// The series name stamped on an episode goes through the same locale and
+// override overlays as the episode title, or the label reads "raw series ·
+// S01E03 · translated title".
+func TestLibraryHandler_GetMediaItem_StampsOverlaidAncestorTitles(t *testing.T) {
+	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
+	mediaQueryRepo := libfakes.NewFakeMediaItemQueryRepo()
+	trans := &stubMediaTranslations{byID: map[string]*library.MediaItemTranslation{
+		"mi-season": {MediaItemID: "mi-season", Locale: "fr", Title: "Saison traduite"},
+	}}
+	querySvc := applibrary.NewQueryService(
+		libQueryRepo, mediaQueryRepo,
+		libfakes.NewFakeMediaStreamRepository(), libfakes.NewFakeSearchIndex(),
+		applibrary.WithTranslations(trans, nil),
+	)
+	overrideRepo := metafakes.NewFakeMetadataOverrideRepository()
+	metaSvc := metadata.NewQueryService(overrideRepo, metafakes.NewFakeArtworkRepository(), nil)
+	h := &libraryHandler{query: querySvc, metadataSvc: metaSvc}
+
+	seedShow(mediaQueryRepo.Seed)
+	ctx := eveyi18n.ContextWithLocale(adminCtx(), "fr")
+	overrideRepo.Set(ctx, &domainmetadata.MetadataOverride{
+		ID: "mo-series", MediaItemID: "mi-series", FieldName: "title", CustomValue: "Serie corrigee",
+	})
+
+	resp, err := h.GetMediaItem(ctx, &eveyv1.GetMediaItemRequest{Id: "mi-episode"})
+	require.NoError(t, err)
+	assert.Equal(t, "Serie corrigee", resp.SeriesTitle)
+	assert.Equal(t, "Saison traduite", resp.SeasonTitle)
+	assert.Equal(t, int32(1), resp.SeasonIndexNumber)
+}
