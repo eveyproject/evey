@@ -52,14 +52,13 @@ describe("SessionCard", () => {
   it("opens the media page from the title", () => {
     pushMock.mockClear();
     render(<SessionCard session={session} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
-    fireEvent.click(screen.getByText("Some Movie"));
+    fireEvent.click(screen.getByText("Show · S01E07 · Some Movie"));
     expect(pushMock).toHaveBeenCalledWith("/media/m1");
   });
 
   it("shows what is playing, for whom, how, and the time left", () => {
     render(<SessionCard session={session} theme={theme} t={t} onKill={vi.fn()} onCommand={vi.fn()} />);
-    expect(screen.getByText("Some Movie")).toBeTruthy();
-    expect(screen.getByText("Show - S01E07")).toBeTruthy();
+    expect(screen.getByText("Show · S01E07 · Some Movie")).toBeTruthy();
     expect(screen.getByText("alice")).toBeTruthy();
     expect(screen.getByText("Firefox (web)")).toBeTruthy();
     expect(screen.getByText("8.0 Mbps")).toBeTruthy();

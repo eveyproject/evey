@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { View, Text, Pressable, TextInput, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { formatTimeMs, sessionTrackLines, type V1ActiveSession } from "@evey/api";
+import { episodeLabel, formatTimeMs, sessionTrackLines, type V1ActiveSession } from "@evey/api";
 import { router } from "expo-router";
 import { useTheme } from "../../providers/ThemeProvider";
 import { TrickplayPreview } from "../TrickplayPreview";
@@ -98,10 +98,14 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
   const bandwidthBps = parseInt(session.bandwidthBps ?? "0");
   const remaining = durationMs > 0 ? formatTimeMs(Math.max(0, durationMs - positionMs)) : null;
 
-  const hasSeriesInfo = session.seriesTitle && session.seasonNumber && session.episodeNumber;
-  const seriesLabel = hasSeriesInfo
-    ? `S${String(session.seasonNumber).padStart(2, "0")}E${String(session.episodeNumber).padStart(2, "0")}`
-    : null;
+  const mediaLabel = session.seriesTitle
+    ? episodeLabel({
+        seriesTitle: session.seriesTitle,
+        seasonNumber: session.seasonNumber,
+        episodeNumber: session.episodeNumber,
+        title: session.mediaTitle,
+      })
+    : session.mediaTitle;
 
   // A track has no media page of its own; everything else opens its page.
   const mediaLink = session.mediaItemId && session.mediaType !== "track" ? `/media/${session.mediaItemId}` : null;
@@ -134,14 +138,9 @@ export function SessionCard({ session, theme, t, onKill, onCommand }: {
           accessibilityRole={mediaLink ? "link" : undefined}
           testID="session-media-link"
         >
-          <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600", textDecorationLine: mediaLink ? "underline" : "none" }} numberOfLines={1}>
-            {session.mediaTitle || t("common.unknown", "Unknown")}
+          <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600", textDecorationLine: mediaLink ? "underline" : "none" }} numberOfLines={2}>
+            {mediaLabel || t("common.unknown", "Unknown")}
           </Text>
-          {hasSeriesInfo && (
-            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginTop: 1 }} numberOfLines={1}>
-              {session.seriesTitle} - {seriesLabel}
-            </Text>
-          )}
         </Pressable>
       </View>
 
