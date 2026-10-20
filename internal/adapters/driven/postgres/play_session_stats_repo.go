@@ -125,8 +125,8 @@ func (r *PlaySessionStatsReader) GetUserStats(ctx context.Context, profileID sha
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
+	if closeErr := rows.Close(); closeErr != nil {
+		return nil, closeErr
 	}
 
 	most, err := r.mostPlayedItems(ctx, profileID)
