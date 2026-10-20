@@ -15,6 +15,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -162,6 +163,67 @@ func weakETagMatches(header, etag string) bool {
 		}
 	}
 	return false
+}
+
+// answerPlanResourceByStat answers a HEAD or a revalidation of a segment or an
+// init from the plan's Stat (mkvgo 0.56) instead of opening it: Open counts
+// the resource served and can take a segment a window walk kept for a viewer
+// who has yet to ask for it. Reports whether it answered. It leaves to the
+// normal path a plan without Stat, a playlist or a subtitle (Evey rewrites
+// those before sending, so the plan's size is not theirs), a HEAD with a
+// Range, a revalidation that does not match, and what only Open can size.
+func answerPlanResourceByStat(w http.ResponseWriter, r *http.Request, plan any, name, servedBy string) bool {
+	inm := r.Header.Get("If-None-Match")
+	head := r.Method == http.MethodHead && r.Header.Get("Range") == ""
+	if (!head && inm == "") || isPlanPlaylist(name) || strings.HasSuffix(name, ".vtt") {
+		return false
+	}
+	st, ok := plan.(apptranscoding.OnDemandStater)
+	if !ok {
+		return false
+	}
+	size, etag, contentType, known, err := st.Stat(r.Context(), name)
+	if err != nil || !known {
+		return false
+	}
+	notModified := inm != "" && weakETagMatches(inm, etag)
+	if !notModified && !head {
+		return false
+	}
+	setCORSHeaders(w, r, "")
+	w.Header().Set("X-Evey-Served-By", servedBy)
+	w.Header().Set("ETag", etag)
+	w.Header().Set("Accept-Ranges", "bytes")
+	w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+	if notModified {
+		w.WriteHeader(http.StatusNotModified)
+		return true
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+	w.WriteHeader(http.StatusOK)
+	return true
+}
+
+// planResourceErrorStatus is the status of a plan's refusal: a name it does not
+// serve, a window inside a damaged region and a source replaced again after
+// the replay are 404 (asking again changes nothing), anything else - a read of
+// the source that failed - is a 502 a player retries.
+func planResourceErrorStatus(err error) int {
+	if errors.Is(err, apptranscoding.ErrNoResource) || errors.Is(err, apptranscoding.ErrSourceDamaged) ||
+		errors.Is(err, apptranscoding.ErrSourceChanged) {
+		return http.StatusNotFound
+	}
+	return http.StatusBadGateway
+}
+
+// writePlanResourceError answers a plan's refusal with planResourceErrorStatus.
+func writePlanResourceError(w http.ResponseWriter, err error) {
+	if status := planResourceErrorStatus(err); status != http.StatusNotFound {
+		http.Error(w, `{"message":"the source could not be read"}`, status)
+		return
+	}
+	http.Error(w, `{"message":"not found"}`, http.StatusNotFound)
 }
 
 // closePlanResource releases a handle; mkvgo holds nothing open between

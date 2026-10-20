@@ -80,17 +80,18 @@ func TestServePlanResourceData_UnreadableSubtitleSegmentIsAnEmptyWindow(t *testi
 	w, _ = serveSub(t, plan, "sub2_00050.vtt")
 	assert.NotEqual(t, http.StatusOK, w.Code)
 
-	// A video segment is not a subtitle: its error stays an error.
+	// A video segment is not a subtitle: its error stays an error, a source
+	// that could not be read, which a player retries (502), not a 404.
 	plan = &flakyPlan{sourceID: "s1", resources: map[string][]byte{}, fails: 9, err: readErr}
 	w, _ = serveSub(t, plan, "seg00050.m4s")
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusBadGateway, w.Code)
 }
 
 // A name the plan refuses is not a read error: a track or a segment out of
 // range stays a 404, read once, with no "unreadable" warning.
 func TestServePlanResourceData_OutOfRangeSubtitleStaysA404(t *testing.T) {
 	plan := &flakyPlan{sourceID: "s1", resources: map[string][]byte{}, fails: 9,
-		err: errors.New("mp4: subtitle rendition 9 out of range (0..2)")}
+		err: fmt.Errorf("mp4: subtitle rendition 9 out of range (0..2): %w", apptranscoding.ErrNoResource)}
 	w, logs := serveSub(t, plan, "sub9_00001.vtt")
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	assert.Equal(t, 1, plan.reads)
@@ -125,7 +126,7 @@ func TestServePlanResourceData_SegmentOfAViewerThatLeftIsNoWarning(t *testing.T)
 	for _, err := range []error{context.Canceled, context.DeadlineExceeded} {
 		plan = &flakyPlan{sourceID: "s1", resources: map[string][]byte{}, fails: 9, err: err}
 		w, logs = serveSubCtx(t, context.Background(), plan, "seg00003.m4s")
-		assert.Equal(t, http.StatusNotFound, w.Code, "%v while the viewer is there", err)
+		assert.Equal(t, http.StatusBadGateway, w.Code, "%v while the viewer is there", err)
 		assert.Contains(t, logs, "level=WARN")
 		assert.Contains(t, logs, "on-demand resource refused")
 	}
