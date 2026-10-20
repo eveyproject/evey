@@ -1,5 +1,4 @@
 import { useTranslation } from "react-i18next";
-import { SettingRow } from "../settings/SettingRow";
 import { ChipSelect } from "./ChipSelect";
 import type { SaveEntry } from "./types";
 
@@ -11,24 +10,40 @@ interface MemoryProfileCardProps {
   saving: boolean;
 }
 
-export function MemoryProfileCard({ getEntryValue, saveEntry, saving }: MemoryProfileCardProps) {
+export function MemoryProfileCard({
+  getEntryValue,
+  saveEntry,
+  saving,
+}: MemoryProfileCardProps) {
   const { t } = useTranslation();
   const value = getEntryValue(MEMORY_PROFILE_KEY);
   const label = t("admin.serverConfig.memoryProfileLabel", "Memory profile");
 
+  // The group's title names the choice and carries its "i": a row label
+  // would only repeat it (as on the web).
   return (
-    <SettingRow label={label} info={t("admin.serverConfig.memoryProfileDesc")} kind="wide">
-      <ChipSelect
-        label={label}
-        value={value}
-        onChange={(v) => saveEntry({ key: MEMORY_PROFILE_KEY, value: v })}
-        disabled={saving}
-        options={[
-          { value: "", label: t("admin.serverConfig.memoryProfileAuto", "Auto (recommended)") },
-          { value: "normal", label: t("admin.serverConfig.memoryProfileNormal", "Normal") },
-          { value: "low", label: t("admin.serverConfig.memoryProfileLow", "Low") },
-        ]}
-      />
-    </SettingRow>
+    <ChipSelect
+      label={label}
+      value={value}
+      onChange={(v) => saveEntry({ key: MEMORY_PROFILE_KEY, value: v })}
+      disabled={saving}
+      options={[
+        {
+          value: "",
+          label: t(
+            "admin.serverConfig.memoryProfileAuto",
+            "Auto (recommended)",
+          ),
+        },
+        {
+          value: "normal",
+          label: t("admin.serverConfig.memoryProfileNormal", "Normal"),
+        },
+        {
+          value: "low",
+          label: t("admin.serverConfig.memoryProfileLow", "Low"),
+        },
+      ]}
+    />
   );
 }

@@ -319,6 +319,7 @@ function PerformanceSection({ ops }: SectionProps) {
       <SettingsGroup
         title={t("admin.serverConfig.memoryProfileTitle")}
         description={t("admin.serverConfig.memoryProfileSubtitle")}
+        info={t("admin.serverConfig.memoryProfileDesc")}
         testID="group-memory"
       >
         <MemoryProfileCard getEntryValue={ops.getEntryValue} saveEntry={ops.saveEntry} saving={ops.savePending} />

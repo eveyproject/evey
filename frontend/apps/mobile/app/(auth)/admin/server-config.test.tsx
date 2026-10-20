@@ -135,7 +135,7 @@ const PLACEMENT: Record<string, string> = {
   "admin.serverSettings.globalRateLimit": "accounts",
   "admin.sso.enabled": "accounts",
   "admin.serverConfig.smtpHost": "accounts",
-  "admin.serverConfig.memoryProfileLabel": "performance",
+  "admin.serverConfig.memoryProfileTitle": "performance",
   "admin.serverConfig.cpuBudget.globalLabel": "performance",
   "admin.serverConfig.ingestServingPlanLabel": "performance",
   "admin.serverConfig.playabilityShadowLabel": "performance",

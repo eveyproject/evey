@@ -33,9 +33,9 @@ describe("MemoryProfileCard", () => {
     expect(saveEntry).toHaveBeenCalledWith({ key: "server.memory_profile", value: "low" });
   });
 
-  it("gives the one setting row exactly one 'i' button, named after the setting", () => {
+  it("leaves the 'i' and the name to its group title, and keeps the choice named for screen readers", () => {
     const { container } = render(<MemoryProfileCard getEntryValue={() => ""} saveEntry={vi.fn()} saving={false} />);
-    expect(infoButtons(container).length).toBe(1);
-    expect(screen.getByRole("button", { name: "admin.settingsLayout.moreInfo:Memory profile" })).toBeTruthy();
+    expect(infoButtons(container).length).toBe(0);
+    expect(screen.getByRole("radiogroup", { name: "Memory profile" })).toBeTruthy();
   });
 });
