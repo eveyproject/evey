@@ -6,10 +6,12 @@
   },
   "tags": [
     {
-      "name": "MediaRequestService"
+      "name": "MediaRequestService",
+      "description": "MediaRequestService is the requester-facing surface. Every method is scoped\nto the caller's own profile via the JWT claims - profile ids are never read\nfrom the request body (no IDOR)."
     },
     {
-      "name": "AdminMediaRequestService"
+      "name": "AdminMediaRequestService",
+      "description": "AdminMediaRequestService is the operator moderation surface (admin only)."
     }
   ],
   "consumes": [

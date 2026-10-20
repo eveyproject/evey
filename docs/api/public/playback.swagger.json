@@ -891,6 +891,11 @@
         },
         "seasonTitle": {
           "type": "string"
+        },
+        "seasonIndexNumber": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Season number of an episode's season (0 elsewhere), so a client can build\nthe S01E03 code without fetching the season."
         }
       }
     },

@@ -6,7 +6,8 @@
   },
   "tags": [
     {
-      "name": "PluginUserDataService"
+      "name": "PluginUserDataService",
+      "description": "PluginUserDataService is the iframe-facing surface for a plugin to read and\nwrite the CURRENT user's preferences in the plugin's own namespace. The\nplugin id and user id are taken from the scoped plugin token, never from the\nrequest, so a plugin can only ever touch (its-own-plugin, the-current-user)\ndata. Requires the `prefs` scope; rows live in plugin_data (user-scoped) and\ncascade-delete with the plugin or the user."
     }
   ],
   "consumes": [

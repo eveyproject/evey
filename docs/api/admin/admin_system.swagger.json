@@ -950,6 +950,29 @@
             "type": "object",
             "$ref": "#/definitions/v1LoadTestStratum"
           }
+        },
+        "proxyAddress": {
+          "type": "string",
+          "description": "proxy_address is the local address the proxy was reached at when it sits\non the server's network: the run dials it there instead of turning\nthrough the router's public address, which no outside viewer does. Empty\nwhen the viewers took the public address."
+        },
+        "uplinkBytesPerSec": {
+          "type": "string",
+          "format": "int64",
+          "description": "uplink_* is what the line in front of the server sent to a speed-test\nservice (uplink_service, served from its nearest point of presence)\nbefore the run: the upload real viewers come through, which the run's\nown viewers never cross."
+        },
+        "uplinkMeasured": {
+          "type": "boolean"
+        },
+        "uplinkService": {
+          "type": "string"
+        },
+        "remoteViewers": {
+          "type": "integer",
+          "format": "int32",
+          "description": "remote_viewers is how many viewers outside the line carries (at what one\nviewer of this run pulled, 80 % of the line) and the server holds,\nwhichever is smaller; remote_by_line is true when the line is the\nsmaller. Zero when the line was not measured."
+        },
+        "remoteByLine": {
+          "type": "boolean"
         }
       },
       "description": "LoadTestReport is what the box MEASURED, next to what the admission model\npredicted - the panel shows both so the operator sees promises kept."

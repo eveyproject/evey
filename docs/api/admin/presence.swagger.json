@@ -6,7 +6,8 @@
   },
   "tags": [
     {
-      "name": "PresenceService"
+      "name": "PresenceService",
+      "description": "PresenceService tracks who is currently connected to the server in real time.\nPresence is heartbeat-driven and in-memory (never persisted): any client pings\nHeartbeat periodically while it is open, and admins read ListOnline."
     }
   ],
   "consumes": [
