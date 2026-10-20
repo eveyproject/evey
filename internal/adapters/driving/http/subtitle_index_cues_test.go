@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -206,5 +207,40 @@ func TestEstimateCuedSubtitleExtraction(t *testing.T) {
 	}
 	if estimateCuedSubtitleExtraction(nil, 2) != 0 {
 		t.Fatal("nil index must estimate 0")
+	}
+}
+
+// A source cut before its declared end (a download still running) yields the
+// cues it holds, once, flagged incomplete so nothing caches them; no attempt
+// falls through to a second read of the same cut file.
+func TestExtractSubtitleVTT_TruncatedSourceServesItsCuesUncached(t *testing.T) {
+	dir := t.TempDir()
+	prev := subtitleIndexes
+	subtitleIndexes = newSubtitleIndexCache(dir)
+	t.Cleanup(func() { subtitleIndexes = prev })
+	film := cuedFixture(t, dir, "film.mkv", 2, 3)
+	st, err := os.Stat(film)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Truncate(film, st.Size()*6/10); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	err = extractMkvgoSubtitleWebVTT(context.Background(), ".mkv", film, 2, &out)
+	if !errors.Is(err, matroska.ErrSourceTruncated) {
+		t.Fatalf("want ErrSourceTruncated, got %v", err)
+	}
+	if got := strings.Count(out.String(), "track 2 cue A"); got != 1 {
+		t.Fatalf("the first cue must be there exactly once, found %d times:\n%s", got, out.String())
+	}
+	if strings.Contains(out.String(), "track 2 cue F") {
+		t.Fatalf("a cue past the cut cannot be there:\n%s", out.String())
+	}
+
+	data, err := extractSubtitleVTT(context.Background(), film, 0, "subrip", "")
+	if !errors.Is(err, errSubtitleIncomplete) || !strings.Contains(string(data), "track 2 cue A") {
+		t.Fatalf("want the held cues with errSubtitleIncomplete, got err=%v:\n%s", err, data)
 	}
 }

@@ -24,6 +24,7 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
@@ -255,6 +256,10 @@ func (p *subtitlePrewarmer) run(ctx context.Context, job prewarmJob) {
 				data, perr = p.extractBitmap(ctx, job, t.index)
 			} else {
 				data, perr = extractSubtitleVTT(ctx, job.filePath, t.index, t.codec, t.language)
+			}
+			if errors.Is(perr, errSubtitleIncomplete) {
+				// A file still arriving: nothing to keep, nothing to remember.
+				return data, nil
 			}
 			if perr != nil {
 				if ferr := p.cache.putFailure(key, perr); ferr != nil {
