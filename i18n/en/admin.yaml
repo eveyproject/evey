@@ -1088,7 +1088,7 @@ transcoding:
   jobConcurrencyTitle: "Background transcode jobs"
   jobConcurrencySubtitle: "How many queued transcode jobs may run at once (not the playback path above)"
   advancedTitle: "Advanced limits"
-  advancedSubtitle: "Session and resolution ceilings for weak hardware. Applied on restart."
+  advancedSubtitle: Session and resolution ceilings for weak hardware. Most of them apply on restart.
   advancedRestartHint: "These are read when the server starts: saving stores your choice, restarting applies it."
   savedRestart: "Saved - restart the server to apply"
   maxSessions: "Max concurrent HLS sessions (blank = no limit)"
@@ -1894,7 +1894,7 @@ shareLinks:
   unlimited: "unlimited"
 
 settingsLayout:
-  pageSubtitle: Everything the server does on its own, grouped by topic. Click the "i" next to a setting to learn what it does.
+  pageSubtitle: Every server setting, grouped by topic. Click the "i" next to a setting to learn what it does.
   sectionsLabel: Settings sections
   moreInfo: 'More info: {{label}}'
   'on': 'On'
@@ -1904,10 +1904,21 @@ settingsLayout:
   advancedPacing: 'Advanced: pace of the background passes'
   commaSeparated: Separate entries with commas.
   tlsNone: None
+  liveSweepHint: Applies within seconds, no restart needed.
+  defaultOption: Default ({{value}})
+  autoDefault: Automatic ({{value}})
+  perCorePlaceholder: One per processor core
+  maxSessionsLabel: Live conversions at the same time
+  softwareMaxHeightLabel: Highest resolution converted by the processor
+  softwareHDRMaxHeightLabel: Highest HDR resolution converted by the processor
+  autoMeasured: Auto (measured)
+  autoPlain: Auto
+  errorNumber: Enter a whole number, {{min}} or more.
+  errorDuration: Enter a duration such as 30s, 2m or 1h.
   backgroundTranscodes: Background conversions at the same time
   rawEntriesWarning: 'Expert area: these are the raw values the settings of the other sections are stored in. A wrong key or value can break a feature. Use the other sections whenever you can.'
   groupServer: Server
-  groupScanning: Library scanning
+  groupScanning: Change detection
   groupScanningDesc: How Evey notices new, changed or deleted files.
   groupSkipping: Intros and previews
   groupSkippingDesc: What the players do with the intros, recaps and previews Evey has found.
@@ -1968,7 +1979,7 @@ settingsHelp:
   playSessionRetentionDays: 'How long the detailed record of each playback is kept: who watched what, on which device and how it was delivered. The statistics and activity pages read it. 0 keeps everything forever.'
   transcodeCacheMaxGB: 'How much disk space converted video may take. When the cache is full, the oldest pieces go first. A bigger cache means fewer conversions when something is watched again. Default: 10 GB.'
   trickplay: Creates the small pictures that appear when you move along the timeline of a video. It runs in the background after a scan and takes some processor time and disk space. Turn it off on a very weak machine.
-  apiKeyTmdb: TMDB provides titles, summaries, posters, cast and ratings. Evey comes with a shared key, so this works out of the box. Add your own free key if you see errors about limits.
+  apiKeyTmdb: TMDB provides titles, summaries, posters, cast and ratings. Evey comes with a shared key, so this works out of the box. Add your own free key if quota errors appear.
   apiKeyOmdb: 'OMDb adds extra ratings, such as IMDb and Rotten Tomatoes scores. Optional: without a key, these extra ratings are simply missing.'
   apiKeyOpenSubtitles: 'OpenSubtitles lets people search for and download subtitles from the player. Optional: without a key, only the subtitles already in your files are offered.'
   apiKeyTidb: TheIntroDB shares the start and end of intros and credits that other people found, so Evey does not have to detect them itself. A free key raises the daily lookups from 100 to 500.
@@ -1991,10 +2002,10 @@ settingsHelp:
   hwAccel: 'Uses the graphics chip (GPU) to convert video instead of the processor. It is much faster and lets more people watch at the same time. Leave it on: Evey checks what the chip can do and falls back to the processor by itself when needed.'
   hwBackend: Which graphics technology to use. "Auto" picks the best one found, which suits almost everyone. Choose one by hand only if the machine has several graphics chips or support asks you to.
   av1MaxHeight: The highest picture quality encoded in AV1. "Auto" goes up to the quality of the original. Lower it if the graphics chip struggles with AV1 at high resolutions.
-  backgroundTranscodes: How many conversions prepared in advance (not live playback) may run at once. "Detect automatically" lets the server decide. Set a small number on a weak machine so these jobs do not slow everything else down.
-  transcodeMaxSessions: The total number of live video conversions the server runs at the same time. Blank means one per processor core. On a weak machine that can barely convert one 4K film, set 1 or 2 so viewers do not slow each other down.
-  softwareMaxHeight: The highest resolution the processor may convert to without a graphics chip, for example 720 or 1080. Blank uses the value the calibration measured. Lower it if conversions stutter.
-  softwareHDRMaxHeight: The same ceiling for HDR video, which is much heavier for the processor to convert. Blank uses the measured value. Lower it if HDR films stutter while others play fine.
-  softwareAV1MaxHeight: 'AV1 is a modern, compact video format, but very heavy to produce on the processor. "Auto" keeps AV1 for graphics chips that support it, which is the safe choice. Picking a resolution forces AV1 on the processor up to that height: only for a powerful machine. Applies at once.'
+  backgroundTranscodes: 'How many conversions prepared in advance (not live playback) may run at once. Left blank, the built-in default of 2 applies: it is not measured on your machine. Set 1 on a weak machine so these jobs do not slow everything else down.'
+  transcodeMaxSessions: 'The total number of live video conversions the server runs at the same time. Left blank: one per processor core. On a weak machine that can barely convert one 4K film, set 1 or 2 so viewers do not slow each other down.'
+  softwareMaxHeight: 'The highest resolution the processor converts to when no graphics chip does the work. On Auto, the value the calibration measured applies. Lower it if conversions stutter; raise it with care if the measure was too cautious for your machine. Possible values: 480, 720, 1080, 1440 and 2160.'
+  softwareHDRMaxHeight: 'The same ceiling for HDR video, which is much heavier for the processor to convert. On Auto, the measured value applies. Lower it if HDR films stutter while others play fine; raise it with care if the measure was too cautious. Possible values: 480, 720, 1080, 1440 and 2160.'
+  softwareAV1MaxHeight: 'The highest resolution of AV1 encoded by the processor. Today live playback never encodes AV1 on the processor: AV1 output needs a graphics chip that supports it (see "AV1 output"). Auto follows the calibration, which allows AV1 on the processor only where it measured it viable. Leave it on Auto unless support asks otherwise. Applies at once.'
   singleVariant: 'Converts only the quality the viewer is watching, instead of every quality at once. It needs far less processing power. Leave it on unless support asks otherwise. Default: on.'
-  hwPerVariant: 'Runs a separate graphics-chip process for each quality instead of one process for all of them. It helps with some graphics drivers that crash when producing several qualities at once, but uses more memory. Default: off.'
+  hwPerVariant: 'Runs a separate encoding process on the graphics chip for each quality instead of one process for all of them. It helps with some graphics drivers that crash when producing several qualities at once, but uses more memory. Default: off.'
