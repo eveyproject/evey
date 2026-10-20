@@ -1,3 +1,4 @@
+import { episodeCode } from "@evey/api";
 import type { DownloadDisplay } from "./downloads";
 
 /**
@@ -12,19 +13,12 @@ import type { DownloadDisplay } from "./downloads";
 export interface DownloadLabel {
   /** Line 1: the series when known, the item's own title otherwise. */
   primary: string;
-  /** Line 2: "S1E5 · Episode title", "S1E5", or nothing. */
+  /** Line 2: "S01E05 · Episode title", "S01E05", or nothing. */
   secondary?: string;
 }
 
-function episodeCode(season?: number, episode?: number): string | undefined {
-  if (season != null && season > 0 && episode != null && episode > 0) return `S${season}E${episode}`;
-  if (episode != null && episode > 0) return `E${episode}`;
-  if (season != null && season > 0) return `S${season}`;
-  return undefined;
-}
-
 export function downloadLabel(item: DownloadDisplay & { title: string }): DownloadLabel {
-  const code = episodeCode(item.seasonNumber, item.episodeNumber);
+  const code = episodeCode(item.seasonNumber, item.episodeNumber) || undefined;
   if (!item.seriesTitle) {
     // A film (or a pre-capture entry): the title is already the whole answer.
     return code ? { primary: item.title, secondary: code } : { primary: item.title };

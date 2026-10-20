@@ -49,6 +49,7 @@ import {
   parseTrackPick,
   parseVttCues,
   playbackServiceReportProgress,
+  episodeLabel as sharedEpisodeLabel,
   type SubtitleCue,
 } from "@evey/api";
 import { usePlaySession } from "../../../src/hooks/usePlaySession";
@@ -184,15 +185,16 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     media?.parentId ?? "",
     { query: { enabled: !!media?.parentId && isEpisode } } as never,
   );
-  const episodeLabel = useMemo(() => {
-    if (!isEpisode) return null;
-    const s = parentItem?.indexNumber ?? 0;
-    const e = media?.indexNumber ?? 0;
-    if (s > 0 && e > 0) return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
-    if (e > 0) return `E${String(e).padStart(2, "0")}`;
-    return null;
-  }, [isEpisode, parentItem?.indexNumber, media?.indexNumber]);
-  const playerTitle = episodeLabel ? `${episodeLabel} - ${media?.title ?? ""}` : (media?.title ?? "");
+  // "Series · S01E03 · Title" for an episode, the title alone for a film.
+  const playerTitle = useMemo(() => {
+    if (!isEpisode) return media?.title ?? "";
+    return sharedEpisodeLabel({
+      seriesTitle: media?.seriesTitle,
+      seasonNumber: parentItem?.indexNumber || media?.seasonIndexNumber,
+      episodeNumber: media?.indexNumber,
+      title: media?.title,
+    });
+  }, [isEpisode, media?.seriesTitle, media?.seasonIndexNumber, media?.indexNumber, media?.title, parentItem?.indexNumber]);
 
   // Sibling episodes of the same season, for the previous/next episode
   // buttons of the transport bar (web player parity).
@@ -813,7 +815,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     restoreLocalVolume,
     streamUrl,
     mediaId,
-    title: media?.title,
+    title: playerTitle,
     currentTime,
     fallbackDurationSec: media?.durationMs ? Number(media.durationMs) / 1000 : 0,
     streamInfo,

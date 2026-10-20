@@ -5,7 +5,7 @@ describe("downloadLabel", () => {
   it("names the series first and puts the code with the episode title", () => {
     expect(downloadLabel({ title: "Some Episode", seriesTitle: "Some Series", seasonNumber: 1, episodeNumber: 5 })).toEqual({
       primary: "Some Series",
-      secondary: "S1E5 · Some Episode",
+      secondary: "S01E05 · Some Episode",
     });
   });
 
@@ -22,7 +22,7 @@ describe("downloadLabel", () => {
   it("handles a partial code without inventing the missing half", () => {
     expect(downloadLabel({ title: "Some Episode", seriesTitle: "Some Series", episodeNumber: 5 })).toEqual({
       primary: "Some Series",
-      secondary: "E5 · Some Episode",
+      secondary: "E05 · Some Episode",
     });
     expect(downloadLabel({ title: "Some Episode", seriesTitle: "Some Series" })).toEqual({
       primary: "Some Series",
