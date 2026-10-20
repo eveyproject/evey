@@ -15,7 +15,7 @@ import type { ServedVariant } from "@evey/client";
 import { usePlayerContext, usePlayerTimeRef } from "./PlayerContext";
 import { LiveProgressBar, LiveTimeLabel, LiveChaptersPanel, useActiveChapterIndex } from "./PlayerLiveControls";
 import { useDocumentPiP } from "./hooks/useDocumentPiP";
-import type { V1StreamInfo } from "@evey/api";
+import { episodeLabel, type V1StreamInfo } from "@evey/api";
 import { ICON } from "@/constants/iconSizes";
 
 export type { EpisodeNavItem, SeasonNavItem };
@@ -579,7 +579,7 @@ function PlayerControlsInner({
               onClick={() => onEpisodeChange(prevEpisode.id)}
               aria-label={t("player.controls.previousEpisode")}
               className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
-              title={prevEpisode.title ? `E${prevEpisode.indexNumber} - ${prevEpisode.title}` : undefined}
+              title={prevEpisode.title ? episodeLabel({ seasonNumber: prevEpisode.seasonIndexNumber, episodeNumber: prevEpisode.indexNumber, title: prevEpisode.title }) : undefined}
             >
               <SkipBack size={ICON.xl} fill="currentColor"  aria-hidden="true" />
             </button>
@@ -657,7 +657,7 @@ function PlayerControlsInner({
                 onClick={() => onEpisodeChange(next.id)}
                 aria-label={t("player.controls.nextEpisode")}
                 className="text-[var(--overlay-text)] hover:text-[var(--accent)] transition-colors-fast p-1 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-1 rounded"
-                title={next.title ? `E${next.indexNumber} - ${next.title}` : undefined}
+                title={next.title ? episodeLabel({ seasonNumber: next.seasonIndexNumber, episodeNumber: next.indexNumber, title: next.title }) : undefined}
               >
                 <SkipForward size={ICON.xl} fill="currentColor"  aria-hidden="true" />
               </button>

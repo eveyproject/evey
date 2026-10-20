@@ -7,6 +7,8 @@
 // episode. main.ts owns the timers and the CAF calls; everything decidable
 // is here, injected and unit-tested like the rest of receiverLogic.
 
+import { episodeLabel } from "@evey/api";
+
 export interface CastNextInfo {
   nextMediaItemId: string;
   token: string;
@@ -91,12 +93,13 @@ export function shouldFetchNext(posSec: number, durationSec: number, alreadyFetc
 // static word, the rest is data.
 export function upNextLabel(info: CastNextInfo, lang: string): { heading: string; title: string } {
   const heading = lang.toLowerCase().startsWith("fr") ? "À suivre" : "Up next";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const se = info.seasonNumber > 0 && info.episodeNumber > 0
-    ? `S${pad(info.seasonNumber)}E${pad(info.episodeNumber)}`
-    : info.episodeNumber > 0
-      ? `E${pad(info.episodeNumber)}`
-      : "";
-  const parts = [info.seriesTitle, se, info.title].filter(Boolean);
-  return { heading, title: parts.join(" · ") };
+  return {
+    heading,
+    title: episodeLabel({
+      seriesTitle: info.seriesTitle,
+      seasonNumber: info.seasonNumber,
+      episodeNumber: info.episodeNumber,
+      title: info.title,
+    }),
+  };
 }

@@ -3,7 +3,7 @@ import { createLazyFileRoute, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
-import { libraryServiceGetMediaItem, libraryServiceListMediaItems, playerAudioStreams, playerSubtitleStreams } from "@evey/api";
+import { episodeLabel, libraryServiceGetMediaItem, libraryServiceListMediaItems, playerAudioStreams, playerSubtitleStreams } from "@evey/api";
 import { usePlaySession } from "@/hooks/usePlaySession";
 import { useChapters } from "@/hooks/useChapters";
 import { HLSPlayer } from "@/features/playback/HLSPlayer";
@@ -210,10 +210,6 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     enabled: !!mediaId,
   });
 
-  useEffect(() => {
-    if (mediaItem?.title) usePlayerStore.getState().play(mediaId, mediaItem.title);
-  }, [mediaItem?.title, mediaId]);
-
   const handleClose = useCallback(() => {
     usePlayerStore.getState().stop();
     // Closing POPS the player's entry. Navigating forward to the media page
@@ -251,6 +247,19 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
     queryFn: ({ signal }) => libraryServiceGetMediaItem(seasonId, signal),
     enabled: !!seasonId,
   });
+  // "Series · S01E03 · Title" for an episode, the title alone for a film.
+  const playerLabel = isEpisode
+    ? episodeLabel({
+        seriesTitle: mediaItem?.seriesTitle,
+        seasonNumber: mediaItem?.seasonIndexNumber || season?.indexNumber,
+        episodeNumber: mediaItem?.indexNumber,
+        title: mediaItem?.title,
+      })
+    : mediaItem?.title;
+
+  useEffect(() => {
+    if (playerLabel) usePlayerStore.getState().play(mediaId, playerLabel);
+  }, [playerLabel, mediaId]);
   const seriesId = season?.parentId ?? "";
 
   const { data: seasonsData } = useQuery({
@@ -379,7 +388,7 @@ function PlayerPageInner({ mediaId }: { mediaId: string }) {
             initialAudioIndex={pickedAudio}
             onAudioStreamChange={selectAudioStream}
             initialSubtitle={pickedSubtitle}
-            title={mediaItem?.title}
+            title={playerLabel}
             onClose={handleClose}
             onEnded={handleEnded}
             seasons={isEpisode ? seasons : undefined}
