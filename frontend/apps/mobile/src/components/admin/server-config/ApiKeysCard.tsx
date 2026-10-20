@@ -32,12 +32,12 @@ export function ApiKeysCard({ getEntryValue, saveEntry, deleteEntry, saving }: A
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [shown, setShown] = useState<Record<string, boolean>>({});
 
-  function save(dbKey: string, draft: string) {
-    // An untouched field on a configured key holds the mask, and an emptied
-    // one would wipe a credential nobody can read back: neither is a write.
-    // Removing a key is what Reset is for.
-    if (draft === "" || draft === SECRET_MASK) return;
-    saveEntry({ key: dbKey, value: draft });
+  // An untouched field on a configured key holds the mask, and an emptied
+  // one would wipe a credential nobody can read back: neither is a write, so
+  // Save stays greyed until a new key is typed. Going back to the shared
+  // TMDB key is what Reset is for (the web's rule: only TMDB has a default).
+  function savable(draft: string, current: string) {
+    return draft !== "" && draft !== SECRET_MASK && draft !== current;
   }
 
   return (
@@ -47,6 +47,7 @@ export function ApiKeysCard({ getEntryValue, saveEntry, deleteEntry, saving }: A
         const draft = drafts[field.dbKey] ?? current;
         const isShown = shown[field.dbKey] ?? false;
         const label = t(field.labelKey);
+        const canSave = savable(draft, current);
         return (
           <SettingRow
             key={field.dbKey}
@@ -100,16 +101,17 @@ export function ApiKeysCard({ getEntryValue, saveEntry, deleteEntry, saving }: A
             </View>
             <View style={styles.actions}>
               <Pressable
-                onPress={() => save(field.dbKey, draft)}
-                disabled={saving}
+                onPress={() => saveEntry({ key: field.dbKey, value: draft })}
+                disabled={saving || !canSave}
                 accessibilityRole="button"
                 accessibilityLabel={`${t("common.save")} ${label}`}
+                accessibilityState={{ disabled: saving || !canSave }}
                 testID={`api-key-save-${field.dbKey}`}
-                style={[styles.action, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: saving ? 0.5 : 1 }]}
+                style={[styles.action, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: saving || !canSave ? 0.5 : 1 }]}
               >
                 <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: FONT_SIZE.xs }}>{t("common.save")}</Text>
               </Pressable>
-              {current ? (
+              {field.hasDefault && current ? (
                 <Pressable
                   onPress={() => {
                     deleteEntry(field.dbKey);
@@ -117,11 +119,11 @@ export function ApiKeysCard({ getEntryValue, saveEntry, deleteEntry, saving }: A
                   }}
                   disabled={saving}
                   accessibilityRole="button"
-                  accessibilityLabel={`${t("admin.serverSettings.reset")} ${label}`}
+                  accessibilityLabel={`${t("admin.serverConfig.apiKeys.resetToDefault")} ${label}`}
                   testID={`api-key-reset-${field.dbKey}`}
                   style={[styles.action, { backgroundColor: theme.colors.border, borderRadius: theme.radii.md, opacity: saving ? 0.5 : 1 }]}
                 >
-                  <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: FONT_SIZE.xs }}>{t("admin.serverSettings.reset")}</Text>
+                  <Text style={{ color: theme.colors.text, fontWeight: "600", fontSize: FONT_SIZE.xs }}>{t("admin.serverConfig.apiKeys.resetToDefault")}</Text>
                 </Pressable>
               ) : null}
             </View>
