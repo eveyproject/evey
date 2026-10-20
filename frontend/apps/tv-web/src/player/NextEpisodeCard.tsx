@@ -26,7 +26,7 @@ export function NextEpisodeCard({ nextEp }: { nextEp: NextEpisode }) {
               seasonNumber: nextEp.nextEpisode.seasonIndexNumber,
               episodeNumber: nextEp.nextEpisode.indexNumber,
               title: nextEp.nextEpisode.title,
-            })
+            }) || t("player.nextEpisodeOverlay.episode", { number: nextEp.nextEpisode.indexNumber })
           : [t("player.nextEpisodeOverlay.nextEpisode", "Next episode"), nextEp.nextEpisode.title].filter(Boolean).join(" · ")}
       </div>
       <div className="nextep-actions">
