@@ -13,7 +13,7 @@ import {
   apiErrorMessage,
 } from "@evey/api";
 import type { V1ActiveSession } from "@evey/api";
-import { formatTimeMs, isRealTranscode } from "@evey/api";
+import { episodeLabel, formatTimeMs, isRealTranscode } from "@evey/api";
 import { useSessionPlayMethodLabel } from "./playMethodLabel";
 import { toast, useAuthStore } from "@evey/store";
 import { Badge } from "@/components/ui/Badge";
@@ -26,15 +26,6 @@ import { coverArtSrc } from "../../lib/coverArtSrc";
 
 function ProfileAvatar({ profileName, size = 28 }: { profileName?: string; size?: number }) {
   return <Avatar initial={(profileName ?? "?").charAt(0).toUpperCase()} size={size} />;
-}
-
-function formatEpisodeLabel(session: V1ActiveSession): string | null {
-  if (!session.seriesTitle) return null;
-  const s = session.seasonNumber ?? 0;
-  const e = session.episodeNumber ?? 0;
-  if (s > 0 && e > 0) return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
-  if (e > 0) return `E${String(e).padStart(2, "0")}`;
-  return null;
 }
 
 function formatBandwidth(bps: number): string {
@@ -102,7 +93,14 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
   const positionMs = parseInt(session.positionMs ?? "0");
   const durationMs = parseInt(session.durationMs ?? "0");
   const remaining = durationMs > 0 ? formatTimeMs(Math.max(0, durationMs - positionMs)) : null;
-  const epLabel = formatEpisodeLabel(session);
+  const label = session.seriesTitle
+    ? episodeLabel({
+        seriesTitle: session.seriesTitle,
+        seasonNumber: session.seasonNumber,
+        episodeNumber: session.episodeNumber,
+        title: session.mediaTitle,
+      })
+    : session.mediaTitle;
   const bandwidthBps = parseInt(session.bandwidthBps ?? "0");
 
   return (
@@ -210,22 +208,14 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
             className="block min-w-0 hover:underline"
             data-testid="now-playing-media-link"
           >
-            {session.seriesTitle && (
-              <p className="text-xs font-medium text-[var(--accent)] truncate">{session.seriesTitle}</p>
-            )}
-            <p className="text-sm font-semibold truncate text-[var(--text)]">
-              {epLabel && <span className="text-[var(--text-muted)] mr-1">{epLabel}</span>}
-              {session.mediaTitle}
+            <p className="text-sm font-semibold line-clamp-2 text-[var(--text)]" title={label}>
+              {label}
             </p>
           </Link>
         ) : (
           <div>
-            {session.seriesTitle && (
-              <p className="text-xs font-medium text-[var(--accent)] truncate">{session.seriesTitle}</p>
-            )}
-            <p className="text-sm font-semibold truncate text-[var(--text)]">
-              {epLabel && <span className="text-[var(--text-muted)] mr-1">{epLabel}</span>}
-              {session.mediaTitle}
+            <p className="text-sm font-semibold line-clamp-2 text-[var(--text)]" title={label}>
+              {label}
             </p>
           </div>
         )}

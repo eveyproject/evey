@@ -185,26 +185,26 @@ describe("NowPlaying", () => {
     mockSessions = [SESSION_MOVIE, SESSION_EPISODE];
     renderNowPlaying();
     expect(screen.getByText("Nova")).toBeInTheDocument();
-    expect(screen.getByText("Pilot")).toBeInTheDocument();
+    expect(screen.getByText("Some Series · S01E01 · Pilot")).toBeInTheDocument();
   });
 
   it("renders series title for an episode session", () => {
     mockSessions = [SESSION_EPISODE];
     renderNowPlaying();
-    expect(screen.getByText("Some Series")).toBeInTheDocument();
+    expect(screen.getByText("Some Series · S01E01 · Pilot")).toBeInTheDocument();
   });
 
   it("renders S01E01 episode label for a series session with season+episode numbers", () => {
     mockSessions = [SESSION_EPISODE];
     renderNowPlaying();
-    expect(screen.getByText("S01E01")).toBeInTheDocument();
+    expect(screen.getByText(/S01E01/)).toBeInTheDocument();
   });
 
   it("renders episode-only label (no season) when seasonNumber is 0", () => {
     const epNoSeason = { ...SESSION_EPISODE, seasonNumber: 0, episodeNumber: 3 };
     mockSessions = [epNoSeason];
     renderNowPlaying();
-    expect(screen.getByText("E03")).toBeInTheDocument();
+    expect(screen.getByText("Some Series · E03 · Pilot")).toBeInTheDocument();
   });
 
   it("does not render episode label for a movie session", () => {
