@@ -33,11 +33,11 @@ func TestTryMKVGoSubtitle_MP4TimedTextUnderEitherCodecName(t *testing.T) {
 	}
 	ctx := context.Background()
 
-	legacy, ok := tryMKVGoSubtitleBytes(ctx, ".mp4", mp4, 0, "subrip", "")
+	legacy, ok, _ := tryMKVGoSubtitleBytes(ctx, ".mp4", mp4, 0, "subrip", "")
 	if !ok {
 		t.Fatal(`stored "subrip": the mkvgo extraction refused the track`)
 	}
-	current, ok := tryMKVGoSubtitleBytes(ctx, ".mp4", mp4, 0, "mov_text", "")
+	current, ok, _ := tryMKVGoSubtitleBytes(ctx, ".mp4", mp4, 0, "mov_text", "")
 	if !ok {
 		t.Fatal(`stored "mov_text": the mkvgo extraction refused the track`)
 	}
@@ -45,7 +45,7 @@ func TestTryMKVGoSubtitle_MP4TimedTextUnderEitherCodecName(t *testing.T) {
 		t.Fatalf("the two names served different subtitles:\n%s\n---\n%s", legacy, current)
 	}
 	// Another codec on record is a drifted ordinal: not served from mkvgo.
-	if _, ok := tryMKVGoSubtitleBytes(ctx, ".mp4", mp4, 0, "ass", ""); ok {
+	if _, ok, _ := tryMKVGoSubtitleBytes(ctx, ".mp4", mp4, 0, "ass", ""); ok {
 		t.Fatal(`stored "ass": a mismatched codec was served`)
 	}
 }

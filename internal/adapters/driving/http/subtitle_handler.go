@@ -175,6 +175,11 @@ func subtitleHandler(libSvc MediaStreamsGetter, baseURL string, libraryAccess Li
 				return data, nil
 			}
 			data, perr := extractSubtitleVTT(ctx, filePath, trackIndex, matchedCodec, matchedLanguage)
+			if errors.Is(perr, errSubtitleIncomplete) {
+				// Served as it is, neither cached nor remembered as a failure:
+				// the finished file has another size, hence another key.
+				return data, nil
+			}
 			if perr != nil {
 				if ferr := cache.putFailure(cacheKey, perr); ferr != nil {
 					slog.WarnContext(ctx, "subtitle: failure memo store failed",
@@ -261,14 +266,22 @@ func writeSubtitleVTT(w http.ResponseWriter, r *http.Request, baseURL string, da
 	}
 }
 
+// errSubtitleIncomplete comes with the WebVTT of a source that stops before its
+// declared end, a download still running: the cues it holds, to serve but not
+// to cache, since the finished file holds more under another key.
+var errSubtitleIncomplete = errors.New("subtitle: the source stops before its declared end")
+
 // extractSubtitleVTT produces the WebVTT for one embedded track, mkvgo first and
 // ffmpeg as the fallback. Buffered, never streamed: a failed extraction must
 // leave no partial response, and the result has to be whole before it can be
-// cached.
+// cached. A truncated source returns its cues with errSubtitleIncomplete.
 func extractSubtitleVTT(ctx context.Context, filePath string, trackIndex int, matchedCodec, matchedLanguage string) ([]byte, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	if isMkvgoSubtitleFastPath(ext) {
-		if data, ok := tryMKVGoSubtitleBytes(ctx, ext, filePath, trackIndex, matchedCodec, matchedLanguage); ok {
+		if data, ok, partial := tryMKVGoSubtitleBytes(ctx, ext, filePath, trackIndex, matchedCodec, matchedLanguage); ok {
+			if partial {
+				return sanitizeSubtitleVTT(data), errSubtitleIncomplete
+			}
 			return sanitizeSubtitleVTT(data), nil
 		}
 	}
@@ -357,12 +370,13 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 	opts := subtitleReadOptions(ctx, filePath)
 	// Each indexed read writes into its own buffer: one that fails partway has
 	// already written cues, and the walk after it would append the whole track
-	// to them.
+	// to them. A truncated source is the exception: its cues are all there is,
+	// and the walk would only read the same file again to find the same end.
 	if ix, ok := subtitleIndexes.get(filePath); ok {
 		if err := wholeOrNothing(w, func(part io.Writer) error {
 			return matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, ix, part, opts...)
-		}); err == nil {
-			return nil
+		}); err == nil || errors.Is(err, matroska.ErrSourceTruncated) {
+			return err
 		}
 	} else if cix, verified, cErr := subtitleIndexes.fromCues(ctx, filePath); cErr == nil && cix != nil && verified[trackID] {
 		// No stored index yet: the Cues vouch for this track, so resolve them
@@ -371,8 +385,8 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 		if resolved, rErr := subtitleIndexes.resolveAndStore(ctx, filePath, cix); rErr == nil {
 			if err := wholeOrNothing(w, func(part io.Writer) error {
 				return matroska.ExtractSubtitleWebVTTFrom(ctx, filePath, trackID, resolved, part, opts...)
-			}); err == nil {
-				return nil
+			}); err == nil || errors.Is(err, matroska.ErrSourceTruncated) {
+				return err
 			}
 		} else {
 			slog.WarnContext(ctx, "subtitle: cues index resolve failed, walking", slog.Any("err", rErr))
@@ -383,13 +397,17 @@ func extractMkvgoSubtitleWebVTT(ctx context.Context, ext, filePath string, track
 
 // wholeOrNothing runs extract into a buffer of its own and hands w the result
 // only when extract succeeds, so the attempt that follows a failed one starts
-// from an untouched w.
+// from an untouched w. A truncated source (matroska.ErrSourceTruncated) hands
+// w the cues it holds and returns the error with them.
 func wholeOrNothing(w io.Writer, extract func(io.Writer) error) error {
 	var part bytes.Buffer
-	if err := extract(&part); err != nil {
+	err := extract(&part)
+	if err != nil && !errors.Is(err, matroska.ErrSourceTruncated) {
 		return err
 	}
-	_, err := w.Write(part.Bytes())
+	if _, werr := w.Write(part.Bytes()); werr != nil {
+		return werr
+	}
 	return err
 }
 
@@ -463,13 +481,13 @@ func splitLangTag(tag string) (primary, rest string) {
 // mkvgo FFprobeCodecName) ensures we never serve a track whose identity has
 // drifted from the DB record.
 func tryMKVGoSubtitleBytes(ctx context.Context,
-	ext, filePath string, trackIndex int, matchedCodec, matchedLanguage string) ([]byte, bool) {
+	ext, filePath string, trackIndex int, matchedCodec, matchedLanguage string) (data []byte, ok, partial bool) {
 
 	c, err := openMkvgoSubtitleContainer(ctx, ext, filePath)
 	if err != nil {
 		slog.WarnContext(ctx, "subtitle: mkvgo open failed, falling back to ffmpeg",
 			slog.String("path", filePath), slog.Any("err", err))
-		return nil, false
+		return nil, false, false
 	}
 
 	// Enumerate subtitle tracks in declaration order; pick the trackIndex-th.
@@ -488,7 +506,7 @@ func tryMKVGoSubtitleBytes(ctx context.Context,
 	if mkvTrack == nil {
 		slog.WarnContext(ctx, "subtitle: mkvgo subtitle track index out of range, falling back to ffmpeg",
 			slog.String("path", filePath), slog.Int("track_index", trackIndex))
-		return nil, false
+		return nil, false, false
 	}
 
 	// Codec guard: the DB stores the ffprobe codec_name; mkvgo uses its own short
@@ -504,7 +522,7 @@ func tryMKVGoSubtitleBytes(ctx context.Context,
 			slog.String("path", filePath),
 			slog.String("db_codec", matchedCodec),
 			slog.String("mkvgo_codec", mkvCodec))
-		return nil, false
+		return nil, false, false
 	}
 
 	// Language guard: only enforced when both sides carry a non-empty tag.
@@ -514,19 +532,25 @@ func tryMKVGoSubtitleBytes(ctx context.Context,
 			slog.String("path", filePath),
 			slog.String("db_lang", matchedLanguage),
 			slog.String("mkvgo_lang", mkvTrack.Language))
-		return nil, false
+		return nil, false, false
 	}
 
 	// Buffer-first: populate a local buffer before touching w. A failed extraction
 	// therefore produces no partial response.
 	var buf bytes.Buffer
 	if err := extractMkvgoSubtitleWebVTT(ctx, ext, filePath, mkvTrack.ID, &buf); err != nil {
+		if errors.Is(err, matroska.ErrSourceTruncated) && buf.Len() > 0 {
+			// ffmpeg would read the same cut file to the same end.
+			slog.InfoContext(ctx, "subtitle: source cut short, serving the cues it holds",
+				slog.String("path", filePath), slog.Any("err", err))
+			return buf.Bytes(), true, true
+		}
 		slog.WarnContext(ctx, "subtitle: mkvgo WebVTT extraction failed, falling back to ffmpeg",
 			slog.String("path", filePath), slog.Any("err", err))
-		return nil, false
+		return nil, false, false
 	}
 
-	return buf.Bytes(), true
+	return buf.Bytes(), true, false
 }
 
 func serveExternalSubtitle(w http.ResponseWriter, r *http.Request, path, baseDir, baseURL string) {

@@ -145,8 +145,16 @@ func newSubtitleCache(dataDir string) subtitleCache {
 // keeps its name, and serving the old subtitle for the new film would be worse
 // than a slow extraction. Changing either invalidates the entry by construction,
 // with nothing to invalidate by hand.
+//
+// So does the mkvgo version that extracted it. mkvgo 0.56 ends a cue that
+// states no duration once it is read, where earlier releases gave every SRT or
+// ASS cue 3 s, over the next one: an entry kept across that upgrade would have
+// served the overlapping cues for good. The entries of the previous version are
+// never read again; the admin purge frees their space.
 func (c subtitleCache) key(filePath string, trackIndex int, size int64, modUnix int64) string {
 	h := sha256.New()
+	_, _ = h.Write([]byte(packagerVersion()))
+	_, _ = h.Write([]byte{0})
 	_, _ = h.Write([]byte(filePath))
 	_, _ = h.Write([]byte{0})
 	_, _ = h.Write([]byte(strconv.FormatInt(size, 10)))
