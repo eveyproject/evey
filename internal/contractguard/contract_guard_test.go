@@ -235,6 +235,23 @@ func isClientSource(path string) bool {
 	return strings.HasSuffix(path, ".ts") || strings.HasSuffix(path, ".tsx")
 }
 
+// quotedStringRe matches a single- or double-quoted string literal on one
+// line. Template literals are left alone: their ${...} hold real reads.
+var quotedStringRe = regexp.MustCompile(`"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'`)
+
+// clientPropertyReads is every `.name` the client code reads, by name. Quoted
+// strings are blanked first: a dotted i18n key such as
+// t("admin.settingsHelp.hwAccel") names no field, and counted as a read it
+// failed the guard for TranscodeProfile.hw_accel (2026-10-21).
+func clientPropertyReads(corpus string) map[string]bool {
+	props := map[string]bool{}
+	code := quotedStringRe.ReplaceAllString(corpus, `""`)
+	for _, m := range regexp.MustCompile(`\.(\w+)\b`).FindAllStringSubmatch(code, -1) {
+		props[m[1]] = true
+	}
+	return props
+}
+
 // deadFields is the verdict: "Message.snake_field" entries whose JSON name a
 // client reads while no server code ever writes that field of THAT message.
 // The corpora are tokenized ONCE into sets so the per-field check is a lookup
@@ -255,10 +272,7 @@ func deadFields(t *testing.T, fields []protoField, server []goSource, clientCorp
 		messages[msgKey(f.Message)] = true
 	}
 	idx := indexServerWrites(t, server, messages)
-	clientProps := map[string]bool{}
-	for _, m := range regexp.MustCompile(`\.(\w+)\b`).FindAllStringSubmatch(clientCorpus, -1) {
-		clientProps[m[1]] = true
-	}
+	clientProps := clientPropertyReads(clientCorpus)
 
 	seen := map[string]bool{}
 	var out []string
@@ -322,5 +336,19 @@ func TestNoClientReadOfAFieldTheServerNeverWrites(t *testing.T) {
 		}
 		t.Errorf("proto field %q is read by a client but written by no server code - "+
 			"either wire it up (see applyMediaDuration for the last one) or add it to neverWrittenByMessage with a reason", f)
+	}
+}
+
+func TestClientPropertyReadsIgnoresQuotedStrings(t *testing.T) {
+	got := clientPropertyReads("info={t(\"admin.settingsHelp.hwAccel\")} x = cfg.maxBitrate; y = `${p.seasonIndexNumber}`; z = 'a.quoted'")
+	for _, want := range []string{"maxBitrate", "seasonIndexNumber"} {
+		if !got[want] {
+			t.Errorf("read %q not found in %v", want, got)
+		}
+	}
+	for _, not := range []string{"hwAccel", "settingsHelp", "quoted"} {
+		if got[not] {
+			t.Errorf("%q is inside a quoted string, not a read", not)
+		}
 	}
 }
