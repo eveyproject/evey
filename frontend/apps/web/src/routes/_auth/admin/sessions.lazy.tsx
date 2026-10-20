@@ -10,7 +10,7 @@ import {
   apiErrorMessage,
 } from "@evey/api";
 import type { V1ActiveSession } from "@evey/api";
-import { formatTimeMs, isRealTranscode } from "@evey/api";
+import { episodeLabel, formatTimeMs, isRealTranscode } from "@evey/api";
 import { useSessionPlayMethodLabel } from "@/features/admin/playMethodLabel";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
@@ -69,6 +69,14 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
   // Cast-resurrected and music sessions carry no play_method; an empty label
   // must drop the badge entirely, not render a blank green pill.
   const methodLabel = playMethodLabel(session);
+  const label = session.seriesTitle
+    ? episodeLabel({
+        seriesTitle: session.seriesTitle,
+        seasonNumber: session.seasonNumber,
+        episodeNumber: session.episodeNumber,
+        title: session.mediaTitle,
+      })
+    : session.mediaTitle;
   const [confirming, setConfirming] = useState(false);
 
   const progress = Math.min(100, Math.max(0, session.progress ?? 0));
@@ -106,8 +114,8 @@ function SessionCard({ session }: { session: V1ActiveSession }) {
 
       <div className="px-4 pb-4 flex flex-col gap-3">
         <div>
-          <p className="text-sm font-semibold truncate text-[var(--text)]">
-            {session.mediaTitle}
+          <p className="text-sm font-semibold line-clamp-2 text-[var(--text)]" title={label}>
+            {label}
           </p>
           {methodLabel && (
             <div className="flex items-center gap-2 flex-wrap mt-1">
