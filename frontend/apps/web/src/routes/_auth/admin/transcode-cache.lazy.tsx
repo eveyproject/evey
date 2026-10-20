@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Film } from "lucide-react";
 import { createLazyFileRoute, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
-import { formatBytes, eveyFetch } from "@evey/api";
+import { formatBytes } from "@evey/api";
 import {
   useTranscodeCacheServiceGetTranscodeCache,
   clearTranscodeCacheUnbounded,
@@ -15,13 +15,12 @@ import {
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
-import { SERVER_SETTINGS_KEY, useServerSettings } from "@/features/admin/serverConfig/serverSettings";
+import { ServerSettingsGroup } from "@/features/admin/serverConfig/serverSettings";
 
 export const Route = createLazyFileRoute("/_auth/admin/transcode-cache")({
   // Every control here is an operator write the demo refuses (DemoReadOnly).
@@ -38,72 +37,27 @@ function formatDate(d: string | undefined): string {
   return d ? new Date(d).toLocaleString() : "";
 }
 
-// The cap goes through /admin/server-settings, which applies it to the running
-// transcoder; the raw server-config key was only read back at the next start.
+// The background-conversion cap through the shared server-settings form, the
+// same field as Transcoding > Capacity: seeded with the stored override only
+// (blank = the server default), a refetch never overwrites a typed edit, an
+// emptied field clears the override and a value below 1 is refused inline.
 function TranscodingSettings() {
   const { t } = useTranslation();
-  const qc = useQueryClient();
-  const { data: settings, isLoading } = useServerSettings();
-
-  const [maxConcurrent, setMaxConcurrent] = useState("2");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (settings?.maxConcurrentTranscodes) setMaxConcurrent(String(settings.maxConcurrentTranscodes.value));
-  }, [settings]);
-
-  const handleSave = useCallback(async () => {
-    setSaving(true);
-    try {
-      // An empty field is an explicit null: the server drops the override.
-      await eveyFetch({
-        url: "/api/v1/admin/server-settings",
-        method: "PUT",
-        data: { maxConcurrentTranscodes: maxConcurrent === "" ? null : parseInt(maxConcurrent, 10) },
-      });
-      await qc.invalidateQueries({ queryKey: SERVER_SETTINGS_KEY });
-      toast.success(t("admin.transcodeCache.settingsSaved") || "Transcoding settings saved");
-    } catch {
-      toast.error(t("admin.transcodeCache.settingsSaveFailed"));
-    }
-    setSaving(false);
-  }, [maxConcurrent, qc, t]);
-
-  if (isLoading) return <div className="flex justify-center py-8"><Spinner size="md" /></div>;
-
   return (
-    <Card>
-      <div className="p-5 flex flex-col gap-5">
-        <h3 className="text-sm font-semibold text-[var(--text)]">
-          {t("admin.transcodeCache.transcodingSettings")}
-        </h3>
-
-        <p className="text-xs text-[var(--text-muted)]">
+    <ServerSettingsGroup
+      title={t("admin.transcodeCache.transcodingSettings")}
+      fields={["maxConcurrentTranscodes"]}
+      saveTestId="transcode-cache-settings-save"
+      data-testid="group-transcode-cache-settings"
+      before={
+        <p className="pb-3 text-xs text-[var(--text-muted)]">
           {t("admin.transcodeCache.hwAccelNote")}{" "}
-          <Link
-            to="/admin/transcoding"
-            className="underline text-[var(--accent)] hover:opacity-80"
-          >
+          <Link to="/admin/transcoding" className="underline text-[var(--accent)] hover:opacity-80">
             {t("admin.transcodeCache.hwAccelNoteLink")}
           </Link>
         </p>
-
-        <Input
-          label={t("admin.transcodeCache.maxConcurrent")}
-          type="number"
-          min={1}
-          max={16}
-          value={maxConcurrent}
-          onChange={(e) => setMaxConcurrent(e.target.value)}
-        />
-
-        <div className="pt-2">
-          <Button onClick={handleSave} loading={saving}>
-            {t("common.save")}
-          </Button>
-        </div>
-      </div>
-    </Card>
+      }
+    />
   );
 }
 

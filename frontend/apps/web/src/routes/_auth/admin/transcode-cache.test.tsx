@@ -152,16 +152,19 @@ describe("TranscodeCachePage", () => {
 
   // transcoding.throttle had no reader on the server, and
   // transcoding.max_concurrent was only read at startup: the cap must go
-  // through /server-settings, which applies it to the running transcoder.
+  // through /server-settings, which applies it to the running transcoder. It
+  // is the shared server-settings field (the same as Transcoding > Capacity):
+  // seeded with the stored override only, sent alone, never to server-config.
   it("saves the concurrency cap through /server-settings, never server-config", async () => {
     mockEveyFetch.mockResolvedValue(undefined);
     const TranscodeCachePage = await getTranscodeCachePage();
     render(React.createElement(TranscodeCachePage), { wrapper: createWrapper() });
-    const input = screen.getByLabelText(/Max Concurrent/i) as HTMLInputElement;
+    const input = (await screen.findByTestId("max-concurrent-input")) as HTMLInputElement;
     await waitFor(() => expect(input.value).toBe("3"));
     expect(screen.queryByText(/Throttle transcodes/i)).not.toBeInTheDocument();
+    expect(screen.getByTestId("transcode-cache-settings-save")).toBeDisabled();
     fireEvent.change(input, { target: { value: "5" } });
-    fireEvent.click(screen.getByRole("button", { name: /^Save$/i }));
+    fireEvent.click(screen.getByTestId("transcode-cache-settings-save"));
     await waitFor(() => expect(mockEveyFetch).toHaveBeenCalledWith({
       url: "/api/v1/admin/server-settings",
       method: "PUT",
@@ -169,6 +172,47 @@ describe("TranscodeCachePage", () => {
     }));
     expect(mockSetServerConfigEntry).not.toHaveBeenCalled();
     expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["/api/v1/admin/server-settings"] });
+  });
+
+  it("never pre-fills the default, so a save cannot turn it into an override", async () => {
+    mockSettings.data = { maxConcurrentTranscodes: { value: 2, default: 2, source: "default" } };
+    try {
+      const TranscodeCachePage = await getTranscodeCachePage();
+      render(React.createElement(TranscodeCachePage), { wrapper: createWrapper() });
+      const input = (await screen.findByTestId("max-concurrent-input")) as HTMLInputElement;
+      expect(input.value).toBe("");
+      expect(screen.getByTestId("transcode-cache-settings-save")).toBeDisabled();
+    } finally {
+      mockSettings.data = { maxConcurrentTranscodes: { value: 3, default: 2, source: "override" } };
+    }
+  });
+
+  it("clears the override when the field is emptied", async () => {
+    mockEveyFetch.mockResolvedValue(undefined);
+    const TranscodeCachePage = await getTranscodeCachePage();
+    render(React.createElement(TranscodeCachePage), { wrapper: createWrapper() });
+    const input = (await screen.findByTestId("max-concurrent-input")) as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe("3"));
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("transcode-cache-settings-save"));
+    await waitFor(() => expect(mockEveyFetch).toHaveBeenCalledWith({
+      url: "/api/v1/admin/server-settings",
+      method: "PUT",
+      data: { maxConcurrentTranscodes: null },
+    }));
+  });
+
+  it("refuses a cap below 1 inline and sends nothing", async () => {
+    const TranscodeCachePage = await getTranscodeCachePage();
+    render(React.createElement(TranscodeCachePage), { wrapper: createWrapper() });
+    const input = await screen.findByTestId("max-concurrent-input");
+    for (const value of ["0", "-1", "1.5"]) {
+      mockEveyFetch.mockClear();
+      fireEvent.change(input, { target: { value } });
+      fireEvent.click(screen.getByTestId("transcode-cache-settings-save"));
+      expect(await screen.findByTestId("setting-error")).toBeInTheDocument();
+      expect(mockEveyFetch).not.toHaveBeenCalledWith(expect.objectContaining({ method: "PUT" }));
+    }
   });
 
   it("each file row has a Delete button", async () => {
