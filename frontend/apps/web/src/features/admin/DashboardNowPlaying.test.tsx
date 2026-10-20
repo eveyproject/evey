@@ -104,7 +104,7 @@ const SESSION_MOVIE = {
   durationMs: "7200000",    // 2h
   isPaused: false,
   bandwidthBps: "5000000",  // 5 Mbps
-  mediaType: "MEDIA_ITEM_TYPE_MOVIE",
+  mediaType: "movie",
 };
 
 const SESSION_EPISODE = {
@@ -123,7 +123,7 @@ const SESSION_EPISODE = {
   durationMs: "3600000",   // 1h
   isPaused: true,
   bandwidthBps: "0",
-  mediaType: "MEDIA_ITEM_TYPE_EPISODE",
+  mediaType: "episode",
 };
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -194,10 +194,10 @@ describe("NowPlaying", () => {
     expect(screen.getByText("Some Series · S01E01 · Pilot")).toBeInTheDocument();
   });
 
-  it("renders S01E01 episode label for a series session with season+episode numbers", () => {
-    mockSessions = [SESSION_EPISODE];
+  it("reads an orphan episode (no series title) as its code and title", () => {
+    mockSessions = [{ ...SESSION_EPISODE, seriesTitle: undefined }];
     renderNowPlaying();
-    expect(screen.getByText(/S01E01/)).toBeInTheDocument();
+    expect(screen.getByText("S01E01 · Pilot")).toBeInTheDocument();
   });
 
   it("renders episode-only label (no season) when seasonNumber is 0", () => {
@@ -210,7 +210,8 @@ describe("NowPlaying", () => {
   it("does not render episode label for a movie session", () => {
     mockSessions = [SESSION_MOVIE];
     renderNowPlaying();
-    expect(screen.queryByText(/^S\d{2}E\d{2}$/)).toBeNull();
+    expect(screen.getByText("Nova")).toBeInTheDocument();
+    expect(screen.queryByText(/S\d{2}E\d{2}/)).toBeNull();
   });
 
   it("renders the resolution for a session that has one", () => {

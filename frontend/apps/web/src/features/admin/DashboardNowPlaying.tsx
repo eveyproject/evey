@@ -93,14 +93,15 @@ function NowPlayingCard({ session }: { session: V1ActiveSession }) {
   const positionMs = parseInt(session.positionMs ?? "0");
   const durationMs = parseInt(session.durationMs ?? "0");
   const remaining = durationMs > 0 ? formatTimeMs(Math.max(0, durationMs - positionMs)) : null;
-  const label = session.seriesTitle
-    ? episodeLabel({
-        seriesTitle: session.seriesTitle,
-        seasonNumber: session.seasonNumber,
-        episodeNumber: session.episodeNumber,
-        title: session.mediaTitle,
-      })
-    : session.mediaTitle;
+  const label =
+    session.mediaType === "episode"
+      ? episodeLabel({
+          seriesTitle: session.seriesTitle,
+          seasonNumber: session.seasonNumber,
+          episodeNumber: session.episodeNumber,
+          title: session.mediaTitle,
+        })
+      : session.mediaTitle;
   const bandwidthBps = parseInt(session.bandwidthBps ?? "0");
 
   return (

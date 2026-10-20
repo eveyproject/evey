@@ -21,11 +21,10 @@ const identityState = vi.hoisted(() => ({
   profiles: [{ id: "prf-77aa", userId: "usr-ddcb76cd509e05d0aa289796", name: "Salon" }],
 }));
 
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: (...args: unknown[]) => mockFetch(...args),
   getBaseURL: () => "",
-  episodeLabel: (p: { seriesTitle?: string; seasonNumber?: number; episodeNumber?: number; title?: string }) =>
-    [p.seriesTitle, `S${String(p.seasonNumber).padStart(2, "0")}E${String(p.episodeNumber).padStart(2, "0")}`, p.title].join(" · "),
   // The title behind a media id: one series, one season, one episode.
   libraryServiceGetMediaItem: (id: string) => {
     const items: Record<string, unknown> = {

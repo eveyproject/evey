@@ -27,7 +27,7 @@ describe("resolveMediaLabel", () => {
   });
 
   it("names a season under its series", async () => {
-    await expect(resolveMediaLabel("mi-season", fetchItem)).resolves.toEqual({ kind: "season", label: "Some Series S01" });
+    await expect(resolveMediaLabel("mi-season", fetchItem)).resolves.toEqual({ kind: "season", label: "Some Series · S01" });
   });
 
   it("degrades to what it knows when a parent is gone", async () => {
