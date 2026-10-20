@@ -126,7 +126,7 @@ func (r *PlayHistoryRepository) List(ctx context.Context, filter activity.PlayHi
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
-		if e.MediaType == "episode" {
+		if e.MediaType == string(library.Episode) {
 			e.MediaTitle = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, e.MediaTitle)
 		}
 		if d, err := shared.NewDurationMs(rawPositionMs); err == nil {

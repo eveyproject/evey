@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/eveyproject/evey/internal/domain/shared"
 )
 
-const wantEpisodeLabel = "Dark Show · S02E03 · The Reveal"
+const wantEpisodeLabel = "Dark: Show: Part 2 · S02E03 · The Reveal"
 
 type labelFixture struct {
 	episodeID string
@@ -43,7 +44,7 @@ func seedLabelFixture(t *testing.T, db *sql.DB, prefix string) labelFixture {
 	require.NoError(t, libRepo.Create(ctx, lib))
 
 	series := newTestMediaItem(prefix+"-series", lib.ID)
-	series.Type, series.Title = library.Series, "Dark Show"
+	series.Type, series.Title = library.Series, "Dark: Show: Part 2"
 	require.NoError(t, itemRepo.Create(ctx, series))
 
 	two, three := 2, 3
@@ -136,6 +137,62 @@ func TestPlaySessionStatsReader_MostPlayed_EpisodeLabel(t *testing.T) {
 	var titles []string
 	for _, m := range stats.MostPlayedItems {
 		titles = append(titles, m.Title)
+	}
+	assert.ElementsMatch(t, []string{wantEpisodeLabel, "Plain Movie"}, titles)
+}
+
+func TestPlaySessionStatsReader_GetServerStats_PopularMedia_EpisodeLabel(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	seedLabelFixture(t, db, "lbl5")
+
+	stats, err := postgres.NewPlaySessionStatsReader(db).GetServerStats(context.Background())
+	require.NoError(t, err)
+	var titles []string
+	for _, m := range stats.PopularMedia {
+		titles = append(titles, m.Title)
+	}
+	assert.ElementsMatch(t, []string{wantEpisodeLabel, "Plain Movie"}, titles)
+}
+
+func TestPlaybackQoEReader_GetTopStarvedTitles_EpisodeLabel(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	itemRepo := postgres.NewMediaItemRepository(db)
+
+	lib := newTestLibrary("lbl6-lib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	series := newTestMediaItem(uuid.NewString(), lib.ID)
+	series.Type, series.Title = library.Series, "Dark: Show: Part 2"
+	require.NoError(t, itemRepo.Create(ctx, series))
+	two, three := 2, 3
+	season := newTestMediaItem(uuid.NewString(), lib.ID)
+	season.Type, season.Title, season.ParentID, season.IndexNumber = library.Season, "Season 2", string(series.ID), &two
+	require.NoError(t, itemRepo.Create(ctx, season))
+	ep := newTestMediaItem(uuid.NewString(), lib.ID)
+	ep.Type, ep.Title, ep.ParentID, ep.IndexNumber = library.Episode, "The Reveal", string(season.ID), &three
+	require.NoError(t, itemRepo.Create(ctx, ep))
+	movie := newTestMediaItem(uuid.NewString(), lib.ID)
+	movie.Title = "Plain Movie"
+	require.NoError(t, itemRepo.Create(ctx, movie))
+
+	repo := postgres.NewPlaybackQoERepo(db)
+	for _, id := range []string{string(ep.ID), string(movie.ID)} {
+		for range 60 {
+			mediaID, buf, kbps := id, 2000, 6000
+			require.NoError(t, repo.Insert(ctx, postgres.QoEEventRow{
+				MediaItemID: &mediaID, SessionID: "s", ContentID: mediaID, ObjectType: "v", StreamingFormat: "h", StreamType: "v",
+				BufferStarved: true, BufferLengthMs: &buf, EncodedKbps: &kbps, DeviceClass: "tv", Raw: map[string]string{},
+			}))
+		}
+	}
+
+	top, err := postgres.NewPlaybackQoEReader(db).GetTopStarvedTitles(ctx, 24*time.Hour, 10)
+	require.NoError(t, err)
+	var titles []string
+	for _, r := range top {
+		titles = append(titles, r.Title)
 	}
 	assert.ElementsMatch(t, []string{wantEpisodeLabel, "Plain Movie"}, titles)
 }
