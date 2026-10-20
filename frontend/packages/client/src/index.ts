@@ -22,6 +22,7 @@ export * from "./hooks/useBackgroundTasks";
 export * from "./hooks/useUpdateStatus";
 export * from "./hooks/useBackgroundJobsForm";
 export * from "./hooks/useCpuBudgetForm";
+export * from "./hooks/useServerSettingsForm";
 export * from "./hooks/useParentalGate";
 export * from "./hooks/useWatchedMap";
 export * from "./hooks/useActiveProfile";
