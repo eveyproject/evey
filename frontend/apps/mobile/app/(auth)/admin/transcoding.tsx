@@ -178,6 +178,9 @@ export default function AdminTranscodingScreen() {
   return (
     <ScrollView
       keyboardShouldPersistTaps="handled"
+      // iOS: the scroll insets follow the keyboard and a focused field is
+      // scrolled above it (Android resizes the window itself).
+      automaticallyAdjustKeyboardInsets
       style={{ flex: 1, backgroundColor: theme.colors.bg }}
       contentContainerStyle={{ paddingBottom: 40 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}

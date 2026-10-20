@@ -1,12 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within, act } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // The server configuration screen: the web's eight sections behind a tab
 // row, every setting in exactly one of them, an "i" on every setting row but
 // the auto-skip intro switch, and saves that send only what a group changed.
-vi.mock("react-native", async () => (await import("../../../src/test/rnDom")).rnDom);
+// The pull-to-refresh handler the screen hands its ScrollView.
+const refreshProps = vi.hoisted(() => ({ onRefresh: async () => {} }));
+vi.mock("react-native", async () => {
+  const rn = (await import("../../../src/test/rnDom")).rnDom;
+  const ScrollView = React.forwardRef((p: any, ref) => {
+    if (p.refreshControl) refreshProps.onRefresh = p.refreshControl.props.onRefresh;
+    return React.createElement(rn.ScrollView, { ...p, ref });
+  });
+  return { ...rn, ScrollView };
+});
 const push = vi.hoisted(() => vi.fn());
 vi.mock("expo-router", () => ({ Stack: { Screen: () => null }, useRouter: () => ({ push }) }));
 vi.mock("react-i18next", () => ({
@@ -33,6 +42,7 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 }));
 
 import Screen from "./server-config";
+import { scrollLog } from "../../../src/test/rnDom";
 
 const sv = <T,>(value: T, def: T, source: "override" | "default" = "default", extra: Record<string, unknown> = {}) => ({ value, default: def, source, ...extra });
 
@@ -152,6 +162,8 @@ describe("admin server config (mobile)", () => {
     expect(screen.getByTestId("section-tab-accounts").getAttribute("aria-selected")).toBe("true");
     expect(isHidden(section("accounts"))).toBe(false);
     expect(isHidden(section("general"))).toBe(true);
+    // The new section opens at its top, not at the depth the last was read to.
+    expect(scrollLog).toContainEqual({ y: 0, animated: false });
   });
 
   it("places every setting in exactly one section, and the transcoding ones nowhere", async () => {
@@ -245,6 +257,19 @@ describe("admin server config (mobile)", () => {
     current = settings({ serverName: sv("Evey", "Evey", "default", { locked: true }) });
     mount();
     expect(((await screen.findByTestId("server-name-input")) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("refreshes every section's data on pull", async () => {
+    mount();
+    await screen.findByTestId("sso-settings");
+    const gets = () => eveyFetch.mock.calls.map((c) => c[0]).filter((r) => r.method === "GET").map((r) => r.url);
+    const before = gets();
+    expect(before.filter((u) => u === "/api/v1/admin/sso")).toHaveLength(1);
+    await act(async () => {
+      await refreshProps.onRefresh();
+    });
+    const after = gets().slice(before.length);
+    for (const url of ["/api/v1/admin/server-settings", "/api/v1/admin/server-config", "/api/v1/admin/sso"]) expect(after, url).toContain(url);
   });
 
   it("puts the raw entries in Advanced with a warning, and opens the home rows screen", async () => {

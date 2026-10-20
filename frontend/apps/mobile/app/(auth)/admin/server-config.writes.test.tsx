@@ -12,7 +12,11 @@ vi.mock("react-native", async () => (await import("../../../src/test/rnDom")).rn
 vi.mock("expo-router", () => ({ Stack: { Screen: () => null }, useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, fallback?: string) => (typeof fallback === "string" ? fallback : k) }) }));
 const eveyFetch = vi.hoisted(() => vi.fn());
-vi.mock("@evey/api", () => ({ eveyFetch: (...a: unknown[]) => eveyFetch(...a), apiErrorMessage: () => "error" }));
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
+  eveyFetch: (...a: unknown[]) => eveyFetch(...a),
+  apiErrorMessage: () => "error",
+}));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@evey/store", () => ({ toast }));
 vi.mock("@evey/client", async (importOriginal) => ({
