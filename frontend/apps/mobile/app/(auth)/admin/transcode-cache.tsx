@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { eveyFetch, useAdminSystemServiceGetSystemInfo, formatBytes, apiErrorMessage } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
+import { SERVER_SETTINGS_KEY } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 interface CacheFile {
@@ -29,8 +30,9 @@ interface TranscodeServerSettings {
 }
 
 const CACHE_KEY = ["admin", "transcode-cache"];
-// Same key as the Transcoding screen, so a save here refreshes it too.
-const SETTINGS_KEY = ["admin", "transcoding-settings"];
+// The one server-settings query key (@evey/client), so a save here refreshes
+// the Transcoding and Server configuration screens too.
+const SETTINGS_KEY = SERVER_SETTINGS_KEY;
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleString();
