@@ -4,7 +4,8 @@ import { eveyFetch, apiErrorMessage } from "@evey/api";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Switch } from "@/components/ui/Switch";
+import { SettingRow } from "@/components/ui/SettingRow";
 import { useSetConfigEntry, type ConfigEntry } from "./hooks";
 
 const ARTWORK_AUTO_DOWNLOAD_KEY = "artwork.auto_download";
@@ -36,29 +37,22 @@ export function ArtworkSettingsCard({ entries }: { entries: ConfigEntry[] | unde
   });
 
   return (
-    <div className="flex flex-col gap-3">
-        <Checkbox
+    <div className="flex flex-col divide-y divide-[var(--border)]">
+      <SettingRow label={t("admin.serverConfig.artworkAutoDownload")} info={t("admin.serverConfig.artworkInfo")} hint={t("admin.serverConfig.artworkDesc")} kind="toggle">
+        <Switch
           label={t("admin.serverConfig.artworkAutoDownload")}
           checked={enabled}
-          onChange={(v) =>
-            setEntry.mutate({ key: ARTWORK_AUTO_DOWNLOAD_KEY, value: v ? "true" : "false" })
-          }
+          onChange={() => setEntry.mutate({ key: ARTWORK_AUTO_DOWNLOAD_KEY, value: enabled ? "false" : "true" })}
           disabled={setEntry.isPending}
+          data-testid="artwork-auto-download-toggle"
         />
-        <div className="flex items-center gap-3 mt-1">
-          <Button
-            variant="secondary"
-            onClick={() => retry.mutate()}
-            loading={retry.isPending}
-            className="text-xs"
-          >
-            {t("admin.serverConfig.artworkRetryNow")}
-          </Button>
-          <span className="text-xs text-[var(--text-muted)]">
-            {t("admin.serverConfig.artworkRetryDesc")}
-          </span>
-        </div>
-        {setEntry.isPending && <Spinner size="sm" />}
+      </SettingRow>
+      <SettingRow label={t("admin.serverConfig.artworkRetryNow")} info={t("admin.serverConfig.artworkRetryDesc")} kind="toggle">
+        <Button variant="secondary" onClick={() => retry.mutate()} loading={retry.isPending} className="text-xs">
+          {t("admin.settingsLayout.runNow")}
+        </Button>
+      </SettingRow>
+      {setEntry.isPending && <div className="pt-3"><Spinner size="sm" /></div>}
     </div>
   );
 }

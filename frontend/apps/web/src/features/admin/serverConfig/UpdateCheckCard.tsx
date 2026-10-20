@@ -2,7 +2,8 @@ import { useTranslation } from "react-i18next";
 import { RefreshCw } from "lucide-react";
 import { latestLabel, useCheckUpdateNow, useUpdateStatus, type UpdateStatus } from "@evey/client";
 import { Button } from "@/components/ui/Button";
-import { Checkbox } from "@/components/ui/Checkbox";
+import { Switch } from "@/components/ui/Switch";
+import { SettingRow } from "@/components/ui/SettingRow";
 import { ICON } from "@/constants/iconSizes";
 import { useSetConfigEntry, type ConfigEntry } from "./hooks";
 
@@ -34,22 +35,24 @@ export function UpdateCheckCard({ entries }: { entries: ConfigEntry[] | undefine
   const enabled = entries?.find((e) => e.key === ENABLED_KEY)?.value !== "false";
 
   return (
-    <div className="flex flex-col gap-3" data-testid="update-check-card">
-      <Checkbox
-        label={t("admin.update.enabled")}
-        checked={enabled}
-        onChange={(v) => setEntry.mutate({ key: ENABLED_KEY, value: v ? "true" : "false" })}
-        disabled={setEntry.isPending}
-      />
-      <p className="text-xs text-[var(--text-muted)]">{t("admin.update.noAuto")}</p>
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-col divide-y divide-[var(--border)]" data-testid="update-check-card">
+      <SettingRow label={t("admin.update.enabled")} info={t("admin.update.noAuto")} hint={t("admin.update.desc")} kind="toggle">
+        <Switch
+          label={t("admin.update.enabled")}
+          checked={enabled}
+          onChange={() => setEntry.mutate({ key: ENABLED_KEY, value: enabled ? "false" : "true" })}
+          disabled={setEntry.isPending}
+          data-testid="update-check-toggle"
+        />
+      </SettingRow>
+      <div className="flex flex-wrap items-center gap-3 py-3 last:pb-0">
         <span className="text-sm text-[var(--text)]" data-testid="update-status-line">{updateStatusLine(data, t)}</span>
         {data?.checkedAt && (
           <span className="text-xs text-[var(--text-muted)]">
             {t("admin.update.checkedAt", { when: new Date(data.checkedAt).toLocaleString() })}
           </span>
         )}
-        <Button variant="secondary" loading={checkNow.isPending} disabled={!enabled} onClick={() => checkNow.mutate()}>
+        <Button variant="secondary" loading={checkNow.isPending} disabled={!enabled} onClick={() => checkNow.mutate()} className="sm:ml-auto">
           <RefreshCw size={ICON.xs} aria-hidden="true" />
           {t("admin.update.checkNow")}
         </Button>

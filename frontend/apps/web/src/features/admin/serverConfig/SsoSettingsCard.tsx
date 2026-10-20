@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/Input";
 import { Switch } from "@/components/ui/Switch";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
+import { SettingRow } from "@/components/ui/SettingRow";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { useDemoLock } from "@/hooks/useDemoMode";
 
 // SsoSettingsCard configures OpenID Connect sign-in. The server reads these
@@ -166,76 +168,63 @@ export function SsoSettingsCard() {
       )}
       {data.source === "env" && <p className="text-xs text-[var(--text-muted)]">{t("admin.sso.sourceEnv")}</p>}
 
-      <div className="flex items-center gap-3">
-        <Switch checked={enabled} onChange={() => setEnabled((v) => !v)} label={t("admin.sso.enabled")} data-testid="sso-enabled" />
-        <span className="text-sm text-[var(--text)]">{t("admin.sso.enabled")}</span>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-1 sm:col-span-2">
-          <Input id="sso-issuer" label={t("admin.sso.issuer")} placeholder="https://auth.example.com/realms/home" value={issuer} onChange={(e) => setIssuer(e.target.value)} />
-          <p className="text-xs text-[var(--text-muted)]">{t("admin.sso.issuerHint")}</p>
-        </div>
-        <Input id="sso-client-id" label={t("admin.sso.clientId")} value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
-        <div className="flex flex-col gap-1">
-          <Input id="sso-client-secret" label={t("admin.sso.clientSecret")} type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
-          <p className="text-xs text-[var(--text-muted)]">{t("admin.sso.clientSecretHint")}</p>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Input id="sso-domains" label={t("admin.sso.allowedDomains")} placeholder="example.com" value={domains} onChange={(e) => setDomains(e.target.value)} />
-          <p className="text-xs text-[var(--text-muted)]">{t("admin.sso.allowedDomainsHint")}</p>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Input id="sso-label" label={t("admin.sso.buttonLabel")} placeholder={t("auth.login.signInWithSSO")} value={buttonLabel} maxLength={64} onChange={(e) => setButtonLabel(e.target.value)} />
-          <p className="text-xs text-[var(--text-muted)]">{t("admin.sso.buttonLabelHint")}</p>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-4 border-t border-[var(--border)] pt-4">
-        <div className="flex items-start gap-3">
+      <div className="flex flex-col divide-y divide-[var(--border)] border-t border-[var(--border)] pt-3">
+        <SettingRow label={t("admin.sso.enabled")} info={t("admin.settingsHelp.ssoEnabled")} kind="toggle">
+          <Switch checked={enabled} onChange={() => setEnabled((v) => !v)} label={t("admin.sso.enabled")} data-testid="sso-enabled" />
+        </SettingRow>
+        <SettingRow label={t("admin.sso.issuer")} htmlFor="sso-issuer" info={t("admin.sso.issuerHint")} kind="wide">
+          <Input id="sso-issuer" className="w-full" placeholder="https://auth.example.com/realms/home" value={issuer} onChange={(e) => setIssuer(e.target.value)} />
+        </SettingRow>
+        <SettingRow label={t("admin.sso.clientId")} htmlFor="sso-client-id" info={t("admin.settingsHelp.ssoClientId")}>
+          <Input id="sso-client-id" className="w-full" value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
+        </SettingRow>
+        <SettingRow label={t("admin.sso.clientSecret")} htmlFor="sso-client-secret" info={t("admin.sso.clientSecretHint")}>
+          <Input id="sso-client-secret" type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} autoComplete="new-password" />
+        </SettingRow>
+        <SettingRow label={t("admin.sso.allowedDomains")} htmlFor="sso-domains" info={t("admin.sso.allowedDomainsHint")}>
+          <Input id="sso-domains" className="w-full" placeholder="example.com" value={domains} onChange={(e) => setDomains(e.target.value)} />
+        </SettingRow>
+        <SettingRow label={t("admin.sso.buttonLabel")} htmlFor="sso-label" info={t("admin.sso.buttonLabelHint")}>
+          <Input id="sso-label" className="w-full" placeholder={t("auth.login.signInWithSSO")} value={buttonLabel} maxLength={64} onChange={(e) => setButtonLabel(e.target.value)} />
+        </SettingRow>
+        <SettingRow label={t("admin.sso.linkByEmail")} info={t("admin.sso.linkByEmailHint")} kind="toggle">
           <Switch checked={linkByEmail} onChange={() => setLinkByEmail((v) => !v)} label={t("admin.sso.linkByEmail")} data-testid="sso-link" />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-sm text-[var(--text)]">{t("admin.sso.linkByEmail")}</span>
-            <span className="text-xs text-[var(--text-muted)]">{t("admin.sso.linkByEmailHint")}</span>
-          </div>
-        </div>
-        <div className="flex items-start gap-3">
+        </SettingRow>
+        <SettingRow label={t("admin.sso.allowSignup")} info={t("admin.sso.allowSignupHint")} kind="toggle">
           <Switch checked={allowSignup} onChange={() => setAllowSignup((v) => !v)} label={t("admin.sso.allowSignup")} data-testid="sso-signup" />
-          <div className="flex flex-col gap-0.5">
-            <span className="text-sm text-[var(--text)]">{t("admin.sso.allowSignup")}</span>
-            <span className="text-xs text-[var(--text-muted)]">{t("admin.sso.allowSignupHint")}</span>
-          </div>
-        </div>
+        </SettingRow>
         {allowSignup && (
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-medium text-[var(--text)] mb-1">{t("admin.sso.defaultAccess")}</legend>
-            <label className="flex items-center gap-2 text-sm text-[var(--text)] cursor-pointer">
-              <input type="radio" name="sso-access" checked={!restrictLibraries} onChange={() => setRestrictLibraries(false)} />
-              {t("admin.sso.defaultAccessAll")}
-            </label>
-            <label className="flex items-center gap-2 text-sm text-[var(--text)] cursor-pointer">
-              <input type="radio" name="sso-access" checked={restrictLibraries} onChange={() => setRestrictLibraries(true)} data-testid="sso-access-selected" />
-              {t("admin.sso.defaultAccessSelected")}
-            </label>
-            {restrictLibraries && (
-              <div className="flex flex-col gap-1 max-h-48 overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--border)] p-2 bg-[var(--surface)]">
-                {libraries.map((lib) => {
-                  const id = lib.id ?? "";
-                  return (
-                    <label key={id} className="flex items-center gap-2 text-sm text-[var(--text)] cursor-pointer px-2 py-1 rounded hover:bg-[var(--surface-raised)]">
-                      <input
-                        type="checkbox"
-                        checked={libraryIds.includes(id)}
-                        onChange={() => setLibraryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))}
-                      />
-                      <span className="truncate">{lib.name ?? id}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-            {selectionMissing && <p className="text-xs text-[var(--color-danger)]">{t("admin.sso.defaultAccessNone")}</p>}
-          </fieldset>
+          <SettingRow label={t("admin.sso.defaultAccess")} info={t("admin.settingsHelp.ssoDefaultAccess")} kind="wide">
+            <div className="flex flex-col gap-2">
+              <SegmentedControl
+                label={t("admin.sso.defaultAccess")}
+                value={restrictLibraries ? "selected" : "all"}
+                onChange={(v) => setRestrictLibraries(v === "selected")}
+                options={[
+                  { value: "all", label: t("admin.sso.defaultAccessAll") },
+                  { value: "selected", label: t("admin.sso.defaultAccessSelected"), "data-testid": "sso-access-selected" },
+                ]}
+              />
+              {restrictLibraries && (
+                <div className="flex flex-col gap-1 max-h-48 overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--border)] p-2 bg-[var(--surface)]">
+                  {libraries.map((lib) => {
+                    const id = lib.id ?? "";
+                    return (
+                      <label key={id} className="flex items-center gap-2 text-sm text-[var(--text)] cursor-pointer px-2 py-1 rounded hover:bg-[var(--surface-raised)]">
+                        <input
+                          type="checkbox"
+                          checked={libraryIds.includes(id)}
+                          onChange={() => setLibraryIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))}
+                        />
+                        <span className="truncate">{lib.name ?? id}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+              {selectionMissing && <p className="text-xs text-[var(--color-danger)]">{t("admin.sso.defaultAccessNone")}</p>}
+            </div>
+          </SettingRow>
         )}
       </div>
 

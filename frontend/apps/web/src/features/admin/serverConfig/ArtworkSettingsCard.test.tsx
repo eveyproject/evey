@@ -27,7 +27,7 @@ beforeEach(() => {
   eveyFetchMock.mockResolvedValue({ jobId: "j1", total: 4 });
 });
 
-const box = () => screen.getByLabelText("admin.serverConfig.artworkAutoDownload") as HTMLInputElement;
+const box = () => screen.getByLabelText("admin.serverConfig.artworkAutoDownload") as HTMLElement;
 
 // Auto-download is ON unless the stored value is exactly "false" (the server's
 // own default rule); the toggle writes "true"/"false"; "retry now" posts the
@@ -35,38 +35,38 @@ const box = () => screen.getByLabelText("admin.serverConfig.artworkAutoDownload"
 describe("ArtworkSettingsCard", () => {
   it("defaults to on and only an explicit false disables", () => {
     mount(undefined);
-    expect(box().checked).toBe(true);
+    expect(box()).toHaveAttribute("aria-checked", "true");
   });
 
   it("reads false, writes the flipped value", () => {
     mount([{ key: "artwork.auto_download", value: "false" }]);
-    expect(box().checked).toBe(false);
+    expect(box()).toHaveAttribute("aria-checked", "false");
     fireEvent.click(box());
     expect(setEntry.mutate).toHaveBeenCalledWith({ key: "artwork.auto_download", value: "true" });
   });
 
   it("any other stored value still means on", () => {
     mount([{ key: "artwork.auto_download", value: "yes" }]);
-    expect(box().checked).toBe(true);
+    expect(box()).toHaveAttribute("aria-checked", "true");
     fireEvent.click(box());
     expect(setEntry.mutate).toHaveBeenCalledWith({ key: "artwork.auto_download", value: "false" });
   });
 
   it("retry now posts the backfill and confirms it started, or reports the refusal", async () => {
     mount([]);
-    fireEvent.click(screen.getByText("admin.serverConfig.artworkRetryNow"));
+    fireEvent.click(screen.getByText("admin.settingsLayout.runNow"));
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("admin.serverConfig.artworkRetryStarted"));
     expect(eveyFetchMock).toHaveBeenCalledWith({ url: "/api/v1/admin/artworks/retry-missing", method: "POST" });
 
     eveyFetchMock.mockRejectedValueOnce(new Error("busy"));
-    fireEvent.click(screen.getByText("admin.serverConfig.artworkRetryNow"));
+    fireEvent.click(screen.getByText("admin.settingsLayout.runNow"));
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("busy"));
   });
 
   it("freezes the toggle while a write is in flight", () => {
     setEntry.isPending = true;
     mount([]);
-    expect(box().disabled).toBe(true);
+    expect(box()).toBeDisabled();
     expect(screen.getByTestId("spinner")).toBeInTheDocument();
   });
 });

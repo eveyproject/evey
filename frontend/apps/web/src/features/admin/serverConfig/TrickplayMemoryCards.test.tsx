@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { TrickplaySettingsCard } from "./TrickplaySettingsCard";
 import { MemoryProfileCard } from "./MemoryProfileCard";
 
@@ -15,14 +15,14 @@ beforeEach(() => {
   setEntry.isPending = false;
 });
 
-const box = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
+const box = (label: string) => screen.getByLabelText(label) as HTMLElement;
 
 // The flag defaults to ON (only an explicit "false" turns it off) and writes
 // its own key; the CPU share lives in the CPU budget card.
 describe("TrickplaySettingsCard", () => {
   it("defaults on and writes the key", () => {
     render(<TrickplaySettingsCard entries={undefined} />);
-    expect(box("admin.serverConfig.trickplayEnabled").checked).toBe(true);
+    expect(box("admin.serverConfig.trickplayEnabled")).toHaveAttribute("aria-checked", "true");
     expect(screen.queryByLabelText("admin.serverConfig.trickplayAdaptiveCpu")).toBeNull();
     fireEvent.click(box("admin.serverConfig.trickplayEnabled"));
     expect(setEntry.mutate).toHaveBeenLastCalledWith({ key: "trickplay.enabled", value: "false" });
@@ -30,33 +30,35 @@ describe("TrickplaySettingsCard", () => {
 
   it("reads an explicit off and turns it back on", () => {
     render(<TrickplaySettingsCard entries={[{ key: "trickplay.enabled", value: "false" }]} />);
-    expect(box("admin.serverConfig.trickplayEnabled").checked).toBe(false);
+    expect(box("admin.serverConfig.trickplayEnabled")).toHaveAttribute("aria-checked", "false");
     fireEvent.click(box("admin.serverConfig.trickplayEnabled"));
     expect(setEntry.mutate).toHaveBeenLastCalledWith({ key: "trickplay.enabled", value: "true" });
   });
 
-  it("shows the spinner and disables the toggle during a write", () => {
+  it("disables the toggle during a write", () => {
     setEntry.isPending = true;
     render(<TrickplaySettingsCard entries={[]} />);
-    expect(screen.getByTestId("spinner")).toBeInTheDocument();
-    expect(box("admin.serverConfig.trickplayEnabled").disabled).toBe(true);
+    expect(box("admin.serverConfig.trickplayEnabled")).toBeDisabled();
   });
 });
+
+const checkedValue = (label: string) =>
+  within(screen.getByRole("radiogroup", { name: label })).getByRole("radio", { checked: true }).getAttribute("data-value");
 
 // Absent = Auto (empty value); a change writes the profile and confirms
 // once the server acknowledged it.
 describe("MemoryProfileCard", () => {
   it("reads Auto by default and the stored profile otherwise", () => {
     const { unmount } = render(<MemoryProfileCard entries={[]} />);
-    expect((screen.getByLabelText("admin.serverConfig.memoryProfileLabel") as HTMLSelectElement).value).toBe("");
+    expect(checkedValue("admin.serverConfig.memoryProfileLabel")).toBe("");
     unmount();
     render(<MemoryProfileCard entries={[{ key: "server.memory_profile", value: "low" }]} />);
-    expect((screen.getByLabelText("admin.serverConfig.memoryProfileLabel") as HTMLSelectElement).value).toBe("low");
+    expect(checkedValue("admin.serverConfig.memoryProfileLabel")).toBe("low");
   });
 
   it("writes the picked profile and toasts on success", () => {
     render(<MemoryProfileCard entries={[]} />);
-    fireEvent.change(screen.getByLabelText("admin.serverConfig.memoryProfileLabel"), { target: { value: "normal" } });
+    fireEvent.click(screen.getByRole("radio", { name: "admin.serverConfig.memoryProfileNormal" }));
     expect(setEntry.mutate).toHaveBeenCalledWith({ key: "server.memory_profile", value: "normal" }, expect.any(Object));
     setEntry.mutate.mock.calls[0][1].onSuccess();
     expect(toast.success).toHaveBeenCalledWith("admin.serverConfig.configUpdated");

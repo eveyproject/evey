@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
+import { SettingRow } from "@/components/ui/SettingRow";
 import { useSetConfigEntry, useDeleteConfigEntry, type ConfigEntry } from "./hooks";
 
 const API_KEY_FIELDS = [
@@ -9,6 +10,7 @@ const API_KEY_FIELDS = [
     dbKey: "api.tmdb_key",
     labelKey: "admin.serverConfig.apiKeys.tmdb",
     linkKey: "admin.serverConfig.apiKeys.tmdbLink",
+    infoKey: "admin.settingsHelp.apiKeyTmdb",
     linkUrl: "https://www.themoviedb.org/settings/api",
     hasDefault: true,
   },
@@ -16,6 +18,7 @@ const API_KEY_FIELDS = [
     dbKey: "api.omdb_key",
     labelKey: "admin.serverConfig.apiKeys.omdb",
     linkKey: "admin.serverConfig.apiKeys.omdbLink",
+    infoKey: "admin.settingsHelp.apiKeyOmdb",
     linkUrl: "https://www.omdbapi.com/apikey.aspx",
     hasDefault: false,
   },
@@ -23,6 +26,7 @@ const API_KEY_FIELDS = [
     dbKey: "api.opensubtitles_key",
     labelKey: "admin.serverConfig.apiKeys.opensubtitles",
     linkKey: "admin.serverConfig.apiKeys.opensubtitlesLink",
+    infoKey: "admin.settingsHelp.apiKeyOpenSubtitles",
     linkUrl: "https://www.opensubtitles.com/en/consumers",
     hasDefault: false,
   },
@@ -30,6 +34,7 @@ const API_KEY_FIELDS = [
     dbKey: "api.tidb_key",
     labelKey: "admin.serverConfig.apiKeys.tidb",
     linkKey: "admin.serverConfig.apiKeys.tidbLink",
+    infoKey: "admin.settingsHelp.apiKeyTidb",
     linkUrl: "https://theintrodb.org/account",
     hasDefault: false,
   },
@@ -86,23 +91,32 @@ export function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined })
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <p className="text-sm text-[var(--text-muted)]">
+    <div className="flex flex-col divide-y divide-[var(--border)]">
+      <p className="pb-3 text-xs text-[var(--text-muted)]">
         {t("admin.serverConfig.apiKeys.description")}
       </p>
 
-      <div className="flex flex-col gap-4">
-        {API_KEY_FIELDS.map((field) => {
-          const current = val(field.dbKey);
-          const isEditing = editing[field.dbKey] ?? false;
-          const isShown = showValue[field.dbKey] ?? false;
+      {API_KEY_FIELDS.map((field) => {
+        const current = val(field.dbKey);
+        const isEditing = editing[field.dbKey] ?? false;
+        const isShown = showValue[field.dbKey] ?? false;
 
-          return (
-            <div key={field.dbKey} className="flex flex-col gap-1.5">
-              <div className="flex items-center gap-2">
-                <label htmlFor={field.dbKey} className="text-sm font-medium text-[var(--text)]">
-                  {t(field.labelKey)}
-                </label>
+        return (
+          <SettingRow
+            key={field.dbKey}
+            label={t(field.labelKey)}
+            htmlFor={isEditing ? field.dbKey : undefined}
+            info={t(field.infoKey)}
+            hint={
+              <a href={field.linkUrl} target="_blank" rel="noopener noreferrer" className="underline text-[var(--accent)]">
+                {t(field.linkKey)}
+              </a>
+            }
+            kind="wide"
+            data-testid={`api-key-row-${field.dbKey}`}
+          >
+            <div className="flex flex-col gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
                 {field.hasDefault && !current && (
                   <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--surface-raised)] text-[var(--text-muted)]">
                     {t("admin.serverConfig.apiKeys.usingDefault")}
@@ -116,10 +130,10 @@ export function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined })
               </div>
 
               {isEditing ? (
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <input
                     id={field.dbKey}
-                    className="px-3 py-1.5 rounded text-sm flex-1 font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
+                    className="min-w-0 flex-1 px-3 py-1.5 rounded-[var(--radius-md)] text-sm font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
                     type="text"
                     value={drafts[field.dbKey] ?? ""}
                     placeholder={current ? t("admin.serverConfig.apiKeys.keepCurrent") : ""}
@@ -138,7 +152,7 @@ export function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined })
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {current ? (
                     <span className="font-mono text-xs text-[var(--text-muted)]">
                       {isShown ? current : maskKey(current)}
@@ -168,19 +182,10 @@ export function ApiKeysCard({ entries }: { entries: ConfigEntry[] | undefined })
                   )}
                 </div>
               )}
-
-              <a
-                href={field.linkUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs underline text-[var(--accent)]"
-              >
-                {t(field.linkKey)}
-              </a>
             </div>
-          );
-        })}
-      </div>
+          </SettingRow>
+        );
+      })}
     </div>
   );
 }

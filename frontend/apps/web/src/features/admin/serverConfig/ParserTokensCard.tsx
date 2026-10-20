@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/Button";
+import { SettingRow } from "@/components/ui/SettingRow";
 import { useSetConfigEntry, type ConfigEntry } from "./hooks";
 
 const PARSER_CONFIG_KEY = "parser.config";
@@ -60,56 +61,54 @@ export function ParserTokensCard({ entries }: { entries: ConfigEntry[] | undefin
     setDirty(false);
   }
 
+  const textareaClass =
+    "w-full px-3 py-2 rounded-[var(--radius-md)] text-sm font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]";
   return (
-    <div className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-[var(--text)]">
-            {t("admin.serverConfig.parserTokensQualities", "Extra quality tokens")}
-          </label>
-          <textarea
-            data-testid="parser-tokens-qualities"
-            value={qualities}
-            onChange={(e) => { setQualities(e.target.value); setDirty(true); }}
-            rows={2}
-            className="w-full px-2 py-1 rounded text-sm font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
-            placeholder="hdrip, hdr, web-dl"
-          />
-          <p className="text-xs text-[var(--text-muted)]">
-            {t(
-              "admin.serverConfig.parserTokensQualitiesHint",
-              "Comma-separated, single-word tokens (lowercased). The parser splits filenames on '.', '_', '-' and space.",
-            )}
-          </p>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-[var(--text)]">
-            {t("admin.serverConfig.parserTokensEditions", "Extra edition suffixes")}
-          </label>
-          <textarea
-            data-testid="parser-tokens-editions"
-            value={editions}
-            onChange={(e) => { setEditions(e.target.value); setDirty(true); }}
-            rows={2}
-            className="w-full px-2 py-1 rounded text-sm font-mono bg-[var(--surface-raised)] border border-[var(--border)] text-[var(--text)]"
-            placeholder="distributor cut, anniversary edition, imax"
-          />
-          <p className="text-xs text-[var(--text-muted)]">
-            {t(
-              "admin.serverConfig.parserTokensEditionsHint",
-              "Comma-separated, can span multiple words (regex pre-tokenisation). Stripped from the title before TMDB lookup.",
-            )}
-          </p>
-        </div>
-        <div className="flex justify-end pt-1">
-          <Button
-            onClick={handleSave}
-            loading={setEntry.isPending}
-            disabled={!dirty}
-            data-testid="parser-tokens-save-btn"
-          >
-            {t("common.save")}
-          </Button>
-        </div>
+    <div className="flex flex-col divide-y divide-[var(--border)]">
+      <SettingRow
+        label={t("admin.serverConfig.parserTokensQualities", "Extra quality tokens")}
+        htmlFor="parser-tokens-qualities"
+        info={t("admin.settingsHelp.parserQualities")}
+        hint={t("admin.settingsLayout.commaSeparated")}
+        kind="wide"
+      >
+        <textarea
+          id="parser-tokens-qualities"
+          data-testid="parser-tokens-qualities"
+          value={qualities}
+          onChange={(e) => { setQualities(e.target.value); setDirty(true); }}
+          rows={2}
+          className={textareaClass}
+          placeholder="hdrip, hdr, web-dl"
+        />
+      </SettingRow>
+      <SettingRow
+        label={t("admin.serverConfig.parserTokensEditions", "Extra edition suffixes")}
+        htmlFor="parser-tokens-editions"
+        info={t("admin.settingsHelp.parserEditions")}
+        hint={t("admin.settingsLayout.commaSeparated")}
+        kind="wide"
+      >
+        <textarea
+          id="parser-tokens-editions"
+          data-testid="parser-tokens-editions"
+          value={editions}
+          onChange={(e) => { setEditions(e.target.value); setDirty(true); }}
+          rows={2}
+          className={textareaClass}
+          placeholder="distributor cut, anniversary edition, imax"
+        />
+      </SettingRow>
+      <div className="flex justify-end pt-3">
+        <Button
+          onClick={handleSave}
+          loading={setEntry.isPending}
+          disabled={!dirty}
+          data-testid="parser-tokens-save-btn"
+        >
+          {t("common.save")}
+        </Button>
+      </div>
     </div>
   );
 }

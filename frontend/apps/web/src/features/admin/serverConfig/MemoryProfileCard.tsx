@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
-import { Select } from "@/components/ui/Select";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import { SettingRow } from "@/components/ui/SettingRow";
 import { useSetConfigEntry, type ConfigEntry } from "./hooks";
 
 const MEMORY_PROFILE_KEY = "server.memory_profile";
@@ -19,23 +20,22 @@ export function MemoryProfileCard({ entries }: { entries: ConfigEntry[] | undefi
     );
   }
 
+  const label = t("admin.serverConfig.memoryProfileLabel");
   return (
-    <div className="flex flex-col gap-1">
-      <Select
+    <SettingRow label={label} info={t("admin.serverConfig.memoryProfileDesc")} hint={t("admin.serverConfig.memoryProfileSubtitle")} kind="wide" data-testid="memory-profile-row">
+      <SegmentedControl
         id="memory-profile"
-        label={t("admin.serverConfig.memoryProfileLabel")}
+        label={label}
         value={value}
         onChange={handleChange}
+        disabled={setEntry.isPending}
         options={[
           { label: t("admin.serverConfig.memoryProfileAuto"), value: "" },
           { label: t("admin.serverConfig.memoryProfileNormal"), value: "normal" },
           { label: t("admin.serverConfig.memoryProfileLow"), value: "low" },
         ]}
       />
-      <p className="text-xs text-[var(--text-muted)]">
-        {t("admin.serverConfig.memoryProfileDesc")}
-      </p>
       {setEntry.isPending && <Spinner size="sm" />}
-    </div>
+    </SettingRow>
   );
 }
