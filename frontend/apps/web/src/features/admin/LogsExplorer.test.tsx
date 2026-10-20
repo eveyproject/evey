@@ -24,6 +24,8 @@ const identityState = vi.hoisted(() => ({
 vi.mock("@evey/api", () => ({
   eveyFetch: (...args: unknown[]) => mockFetch(...args),
   getBaseURL: () => "",
+  episodeLabel: (p: { seriesTitle?: string; seasonNumber?: number; episodeNumber?: number; title?: string }) =>
+    [p.seriesTitle, `S${String(p.seasonNumber).padStart(2, "0")}E${String(p.episodeNumber).padStart(2, "0")}`, p.title].join(" · "),
   // The title behind a media id: one series, one season, one episode.
   libraryServiceGetMediaItem: (id: string) => {
     const items: Record<string, unknown> = {
@@ -483,6 +485,6 @@ describe("LogsExplorer", () => {
     // every series has. The row must say whose.
     await renderExplorerOnHistory();
     expect(await screen.findByText("hls: ffmpeg exited with error")).toBeInTheDocument();
-    expect(await screen.findByTestId("log-media-label")).toHaveTextContent("Some Series S01E01 - Pilot");
+    expect(await screen.findByTestId("log-media-label")).toHaveTextContent("Some Series · S01E01 · Pilot");
   });
 });

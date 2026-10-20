@@ -19,7 +19,7 @@ const fetchItem = async (id: string): Promise<V1MediaItem> => {
 describe("resolveMediaLabel", () => {
   it("names an episode by its series, season and number, not just 'Pilot'", async () => {
     // "Pilot" is every series' first episode: the label must carry the series.
-    await expect(resolveMediaLabel("mi-ep", fetchItem)).resolves.toEqual({ kind: "episode", label: "Some Series S01E01 - Pilot" });
+    await expect(resolveMediaLabel("mi-ep", fetchItem)).resolves.toEqual({ kind: "episode", label: "Some Series · S01E01 · Pilot" });
   });
 
   it("names a movie with its year", async () => {
@@ -31,6 +31,6 @@ describe("resolveMediaLabel", () => {
   });
 
   it("degrades to what it knows when a parent is gone", async () => {
-    await expect(resolveMediaLabel("mi-orphan", fetchItem)).resolves.toEqual({ kind: "episode", label: "S00E03 - Some Episode" });
+    await expect(resolveMediaLabel("mi-orphan", fetchItem)).resolves.toEqual({ kind: "episode", label: "E03 · Some Episode" });
   });
 });

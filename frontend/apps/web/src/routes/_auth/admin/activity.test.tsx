@@ -58,7 +58,7 @@ async function getActivityPage() {
 
 const mockPlayEntry = {
   id: "pe-1",
-  mediaTitle: "Some Series S01E01",
+  mediaTitle: "Some Series · S01E01 · Pilot",
   deviceName: "Chrome",
   positionMs: "1800000",
   durationMs: "3600000",
@@ -99,7 +99,7 @@ describe("ActivityPage", () => {
     mockGetPlayHistory.mockResolvedValue({ entries: [mockPlayEntry], pagination: { totalItems: 1 } });
     const ActivityPage = await getActivityPage();
     render(React.createElement(ActivityPage), { wrapper: createWrapper() });
-    expect(await screen.findByText("Some Series S01E01")).toBeInTheDocument();
+    expect(await screen.findByText("Some Series · S01E01 · Pilot")).toBeInTheDocument();
     expect(screen.getByText("Chrome")).toBeInTheDocument();
   });
 
