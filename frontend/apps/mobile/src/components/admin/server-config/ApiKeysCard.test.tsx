@@ -35,14 +35,25 @@ describe("ApiKeysCard (mobile)", () => {
   });
 
   // The server returns a configured key as the mask: saving it back, or an
-  // emptied field, would wipe a credential nobody can read back.
-  it("never writes the mask or an empty field; Reset removes the key", () => {
+  // emptied field, would wipe a credential nobody can read back. Save stays
+  // greyed until a new key is typed.
+  it("keeps Save greyed on the mask or an empty field", () => {
     mount({ "api.tidb_key": "••••••••" });
-    fireEvent.click(screen.getByTestId("api-key-save-api.tidb_key"));
+    const save = screen.getByTestId("api-key-save-api.tidb_key") as HTMLButtonElement;
+    expect(save.disabled).toBe(true);
     fireEvent.change(screen.getByTestId("api-key-input-api.tidb_key"), { target: { value: "" } });
-    fireEvent.click(screen.getByTestId("api-key-save-api.tidb_key"));
+    expect(save.disabled).toBe(true);
+    fireEvent.click(save);
     expect(saveEntry).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("api-key-reset-api.tidb_key"));
-    expect(deleteEntry).toHaveBeenCalledWith("api.tidb_key");
+    fireEvent.change(screen.getByTestId("api-key-input-api.tidb_key"), { target: { value: "new-key" } });
+    expect(save.disabled).toBe(false);
+  });
+
+  // Like the web: only TMDB has a shared key to go back to.
+  it("offers Reset to default for a custom TMDB key only", () => {
+    mount({ "api.tmdb_key": "••••••••", "api.tidb_key": "••••••••" });
+    expect(screen.queryByTestId("api-key-reset-api.tidb_key")).toBeNull();
+    fireEvent.click(screen.getByTestId("api-key-reset-api.tmdb_key"));
+    expect(deleteEntry).toHaveBeenCalledWith("api.tmdb_key");
   });
 });
