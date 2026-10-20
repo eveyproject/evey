@@ -1121,7 +1121,7 @@ transcoding:
   jobConcurrencyTitle: "后台转码任务"
   jobConcurrencySubtitle: "排队的转码任务最多可同时运行多少个（与上面的播放路径无关）"
   advancedTitle: "高级限制"
-  advancedSubtitle: "为性能较弱的硬件设置会话与分辨率上限。重启后生效。"
+  advancedSubtitle: 为性能较弱的硬件设置会话与分辨率上限。其中大多数在重启后生效。
   advancedRestartHint: "这些设置在服务器启动时读取：保存会记录您的选择，重启才会生效。"
   savedRestart: "已保存 - 请重启服务器以生效"
   maxSessions: "最大并发 HLS 会话数（留空 = 不限制）"
@@ -1894,7 +1894,7 @@ shareLinks:
   unlimited: "无限"
 
 settingsLayout:
-  pageSubtitle: 服务器自行完成的所有工作，按主题归类。点击设置旁的“i”即可了解它的作用。
+  pageSubtitle: 服务器的全部设置，按主题归类。点击设置旁的“i”即可了解它的作用。
   sectionsLabel: 设置分区
   moreInfo: 详细说明：{{label}}
   'on': 开
@@ -1904,10 +1904,21 @@ settingsLayout:
   advancedPacing: 高级：后台任务的节奏
   commaSeparated: 多个条目请用逗号分隔。
   tlsNone: 无
+  liveSweepHint: 几秒内生效，无需重启。
+  defaultOption: 默认（{{value}}）
+  autoDefault: 自动（{{value}}）
+  perCorePlaceholder: 每个处理器核心一个
+  maxSessionsLabel: 同时进行的实时转换
+  softwareMaxHeightLabel: 处理器转换的最高分辨率
+  softwareHDRMaxHeightLabel: 处理器转换的最高 HDR 分辨率
+  autoMeasured: 自动（实测）
+  autoPlain: 自动
+  errorNumber: 请输入不小于 {{min}} 的整数。
+  errorDuration: 请输入类似 30s、2m 或 1h 的时长。
   backgroundTranscodes: 同时进行的后台转换
   rawEntriesWarning: 专家区域：这里是其他分区的设置实际保存的原始值。错误的键或值可能导致某项功能失效。请尽量使用其他分区。
   groupServer: 服务器
-  groupScanning: 媒体库扫描
+  groupScanning: 变更检测
   groupScanningDesc: Evey 如何发现新增、修改或删除的文件。
   groupSkipping: 片头与预告
   groupSkippingDesc: 播放器如何处理 Evey 找到的片头、前情回顾和预告。
@@ -1968,7 +1979,7 @@ settingsHelp:
   playSessionRetentionDays: 每次播放详细记录的保留时间：谁在哪台设备上看了什么，以及视频是如何传送的。统计和活动页面会读取这些记录。0 表示永久保留。
   transcodeCacheMaxGB: 转换后的视频最多可占用的磁盘空间。缓存满后，最旧的部分最先删除。缓存越大，再次观看时需要重新转换的就越少。默认：10 GB。
   trickplay: 生成在视频时间轴上拖动时出现的小图。它在扫描后于后台运行，会占用一些处理器时间和磁盘空间。在性能很弱的机器上可以关闭。
-  apiKeyTmdb: TMDB 提供标题、简介、海报、演职人员和评分。Evey 自带一个共享密钥，因此开箱即用。如果出现与配额限制相关的错误，请添加您自己的免费密钥。
+  apiKeyTmdb: TMDB 提供标题、简介、海报、演职人员和评分。Evey 自带一个共享密钥，因此开箱即用。如果出现配额错误，请添加您自己的免费密钥。
   apiKeyOmdb: OMDb 提供额外评分，例如 IMDb 和烂番茄的评分。可选：没有密钥时只是不显示这些额外评分。
   apiKeyOpenSubtitles: OpenSubtitles 让用户可以在播放器中搜索并下载字幕。可选：没有密钥时，只提供文件中已有的字幕。
   apiKeyTidb: TheIntroDB 共享其他人找到的片头和片尾的起止时间，这样 Evey 无需自己检测。使用免费密钥后，每日查询次数从 100 提高到 500。
@@ -1991,10 +2002,10 @@ settingsHelp:
   hwAccel: 使用图形芯片（GPU）而不是处理器来转换视频。速度快得多，可以让更多人同时观看。建议保持开启：Evey 会检测芯片的能力，必要时自动退回到处理器。
   hwBackend: 使用哪种图形技术。“自动”会选择检测到的最佳方案，几乎适合所有人。只有当机器有多个图形芯片或技术支持要求时才手动选择。
   av1MaxHeight: 以 AV1 编码的最高画质。“自动”最高可达原始画质。如果图形芯片在高分辨率下处理 AV1 吃力，请调低。
-  backgroundTranscodes: 可以同时进行多少个预先准备的转换（不是实时播放）。“自动检测”由服务器决定。在性能较弱的机器上请设为较小的数字，以免这些任务拖慢其他一切。
-  transcodeMaxSessions: 服务器同时进行的实时视频转换总数。留空表示每个处理器核心一个。在勉强能转换一部 4K 影片的弱机器上，请设为 1 或 2，以免观众之间互相拖慢。
-  softwareMaxHeight: 在没有图形芯片时，处理器最多可转换到的分辨率，例如 720 或 1080。留空则使用校准测得的值。如果转换卡顿，请调低。
-  softwareHDRMaxHeight: HDR 视频的同类上限，HDR 对处理器来说转换负担重得多。留空则使用测得的值。如果 HDR 影片卡顿而其他影片流畅，请调低。
-  softwareAV1MaxHeight: AV1 是一种现代、紧凑的视频格式，但用处理器生成非常吃力。“自动”只在支持 AV1 的图形芯片上使用它，这是稳妥的选择。选择某个分辨率会强制处理器生成该高度以内的 AV1：仅适用于性能强劲的机器。立即生效。
+  backgroundTranscodes: 可以同时进行多少个预先准备的转换（不是实时播放）。留空时使用内置默认值 2：它不会在您的机器上测量。在性能较弱的机器上请设为 1，以免这些任务拖慢其他一切。
+  transcodeMaxSessions: 服务器同时进行的实时视频转换总数。留空：每个处理器核心一个。在勉强能转换一部 4K 影片的弱机器上，请设为 1 或 2，以免观众之间互相拖慢。
+  softwareMaxHeight: 没有图形芯片承担转换时，处理器最多转换到的分辨率。选择“自动”时使用校准测得的值。如果转换卡顿，请调低；如果测量对您的机器过于保守，可谨慎调高。可选值：480、720、1080、1440 和 2160。
+  softwareHDRMaxHeight: HDR 视频的同类上限，HDR 对处理器来说转换负担重得多。选择“自动”时使用测得的值。如果 HDR 影片卡顿而其他影片流畅，请调低；如果测量过于保守，可谨慎调高。可选值：480、720、1080、1440 和 2160。
+  softwareAV1MaxHeight: 处理器编码 AV1 时的最高分辨率。目前实时播放从不在处理器上编码 AV1：AV1 输出需要支持它的图形芯片（见“AV1 输出”）。“自动”遵循校准结果，只在测得可行时才允许处理器编码 AV1。除非技术支持另有要求，请保持“自动”。立即生效。
   singleVariant: 只转换观众正在观看的画质，而不是同时转换所有画质。所需算力少得多。除非技术支持另有要求，请保持开启。默认：开。
-  hwPerVariant: 为每种画质单独运行一个图形芯片进程，而不是用一个进程处理全部画质。对某些同时输出多种画质时会崩溃的显卡驱动有帮助，但会占用更多内存。默认：关。
+  hwPerVariant: 为每种画质在图形芯片上单独运行一个编码进程，而不是用一个进程处理全部画质。对某些同时输出多种画质时会崩溃的显卡驱动有帮助，但会占用更多内存。默认：关。

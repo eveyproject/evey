@@ -1121,7 +1121,7 @@ transcoding:
   jobConcurrencyTitle: "Tareas de transcodificación en segundo plano"
   jobConcurrencySubtitle: "Cuántas tareas de transcodificación en cola pueden ejecutarse a la vez (no la reproducción de arriba)"
   advancedTitle: "Límites avanzados"
-  advancedSubtitle: "Topes de sesiones y resolución para hardware modesto. Se aplican al reiniciar."
+  advancedSubtitle: Topes de sesiones y resolución para hardware modesto. La mayoría se aplica al reiniciar.
   advancedRestartHint: "Estos ajustes se leen al arrancar el servidor: guardar conserva tu elección, reiniciar la aplica."
   savedRestart: "Guardado - reinicia el servidor para aplicarlo"
   maxSessions: "Sesiones HLS simultáneas máximas (vacío = sin límite)"
@@ -1894,7 +1894,7 @@ shareLinks:
   unlimited: "ilimitado"
 
 settingsLayout:
-  pageSubtitle: Todo lo que el servidor hace por su cuenta, ordenado por temas. Pulsa la «i» junto a un ajuste para saber para qué sirve.
+  pageSubtitle: Todos los ajustes del servidor, ordenados por temas. Pulsa la «i» junto a un ajuste para saber para qué sirve.
   sectionsLabel: Secciones de ajustes
   moreInfo: 'Más información: {{label}}'
   'on': Activado
@@ -1904,10 +1904,21 @@ settingsLayout:
   advancedPacing: 'Avanzado: ritmo de las pasadas en segundo plano'
   commaSeparated: Separa las entradas con comas.
   tlsNone: Ninguno
+  liveSweepHint: Se aplica en pocos segundos, sin reiniciar.
+  defaultOption: Por defecto ({{value}})
+  autoDefault: Automático ({{value}})
+  perCorePlaceholder: Una por núcleo del procesador
+  maxSessionsLabel: Conversiones en directo a la vez
+  softwareMaxHeightLabel: Resolución máxima que convierte el procesador
+  softwareHDRMaxHeightLabel: Resolución HDR máxima que convierte el procesador
+  autoMeasured: Auto (medida)
+  autoPlain: Auto
+  errorNumber: Escribe un número entero, {{min}} o más.
+  errorDuration: Escribe una duración como 30s, 2m o 1h.
   backgroundTranscodes: Conversiones en segundo plano a la vez
   rawEntriesWarning: 'Zona para expertos: estos son los valores en bruto en los que se guardan los ajustes de las demás secciones. Una clave o un valor erróneo puede romper una función. Usa las demás secciones siempre que puedas.'
   groupServer: Servidor
-  groupScanning: Análisis de bibliotecas
+  groupScanning: Detección de cambios
   groupScanningDesc: Cómo detecta Evey los archivos nuevos, modificados o eliminados.
   groupSkipping: Intros y avances
   groupSkippingDesc: Qué hacen los reproductores con las intros, resúmenes y avances que Evey ha encontrado.
@@ -1968,7 +1979,7 @@ settingsHelp:
   playSessionRetentionDays: 'Cuánto tiempo se guarda el detalle de cada reproducción: quién vio qué, en qué dispositivo y cómo se envió el vídeo. Lo usan las páginas de estadísticas y de actividad. 0 lo guarda todo para siempre.'
   transcodeCacheMaxGB: 'Cuánto espacio en disco puede ocupar el vídeo convertido. Cuando la caché se llena, se borra primero lo más antiguo. Una caché mayor evita volver a convertir lo que se vuelve a ver. Por defecto: 10 GB.'
   trickplay: Crea las pequeñas imágenes que aparecen al moverse por la línea de tiempo de un vídeo. Se generan en segundo plano después de un análisis y consumen algo de procesador y de espacio en disco. Desactívalo en una máquina muy modesta.
-  apiKeyTmdb: TMDB aporta títulos, sinopsis, carteles, reparto y valoraciones. Evey incluye una clave compartida, así que funciona desde el principio. Añade tu propia clave gratuita si ves errores de límite.
+  apiKeyTmdb: TMDB aporta títulos, sinopsis, carteles, reparto y valoraciones. Evey incluye una clave compartida, así que funciona desde el principio. Añade tu propia clave gratuita si aparecen errores de cuota.
   apiKeyOmdb: 'OMDb añade valoraciones extra, como las de IMDb y Rotten Tomatoes. Opcional: sin clave, esas valoraciones extra simplemente no aparecen.'
   apiKeyOpenSubtitles: 'OpenSubtitles permite buscar y descargar subtítulos desde el reproductor. Opcional: sin clave, solo se ofrecen los subtítulos que ya están en tus archivos.'
   apiKeyTidb: TheIntroDB comparte el inicio y el final de las intros y los créditos que han encontrado otras personas, así Evey no tiene que detectarlos por sí mismo. Una clave gratuita sube las consultas diarias de 100 a 500.
@@ -1991,10 +2002,10 @@ settingsHelp:
   hwAccel: 'Usa el chip gráfico (GPU) en lugar del procesador para convertir el vídeo. Es mucho más rápido y permite que más personas vean a la vez. Déjalo activado: Evey comprueba lo que sabe hacer el chip y vuelve solo al procesador cuando hace falta.'
   hwBackend: Qué tecnología gráfica usar. «Auto» elige la mejor que encuentre, lo que conviene a casi todo el mundo. Elige una a mano solo si la máquina tiene varios chips gráficos o si el soporte te lo pide.
   av1MaxHeight: La calidad de imagen más alta que se codifica en AV1. «Automático» llega hasta la calidad del original. Bájala si el chip gráfico tiene problemas con AV1 en resoluciones altas.
-  backgroundTranscodes: Cuántas conversiones preparadas de antemano (no la reproducción en directo) pueden ejecutarse a la vez. «Detectar automáticamente» deja decidir al servidor. Pon un número pequeño en una máquina modesta para que estas tareas no frenen todo lo demás.
-  transcodeMaxSessions: El número total de conversiones de vídeo en directo que el servidor ejecuta a la vez. Vacío significa una por núcleo del procesador. En una máquina modesta que apenas convierte una película 4K, pon 1 o 2 para que los espectadores no se frenen entre sí.
-  softwareMaxHeight: La resolución más alta a la que puede convertir el procesador sin chip gráfico, por ejemplo 720 o 1080. Vacío usa el valor medido por la calibración. Bájala si las conversiones se entrecortan.
-  softwareHDRMaxHeight: El mismo límite para el vídeo HDR, mucho más pesado de convertir para el procesador. Vacío usa el valor medido. Bájalo si las películas HDR se entrecortan mientras las demás van bien.
-  softwareAV1MaxHeight: 'AV1 es un formato de vídeo moderno y compacto, pero muy pesado de producir para el procesador. «Auto» reserva AV1 a los chips gráficos que lo admiten, que es la opción segura. Elegir una resolución fuerza AV1 en el procesador hasta esa altura: solo para una máquina potente. Se aplica al instante.'
+  backgroundTranscodes: 'Cuántas conversiones preparadas de antemano (no la reproducción en directo) pueden ejecutarse a la vez. Si lo dejas vacío, se aplica el valor integrado de 2: no se mide en tu máquina. Pon 1 en una máquina modesta para que estas tareas no frenen todo lo demás.'
+  transcodeMaxSessions: 'El número total de conversiones de vídeo en directo que el servidor ejecuta a la vez. Si lo dejas vacío: una por núcleo del procesador. En una máquina modesta que apenas convierte una película 4K, pon 1 o 2 para que los espectadores no se frenen entre sí.'
+  softwareMaxHeight: 'La resolución más alta a la que convierte el procesador cuando ningún chip gráfico se encarga. En Auto se aplica el valor medido por la calibración. Bájala si las conversiones se entrecortan; súbela con cuidado si la medición fue demasiado prudente para tu máquina. Valores posibles: 480, 720, 1080, 1440 y 2160.'
+  softwareHDRMaxHeight: 'El mismo límite para el vídeo HDR, mucho más pesado de convertir para el procesador. En Auto se aplica el valor medido. Bájalo si las películas HDR se entrecortan mientras las demás van bien; súbelo con cuidado si la medición fue demasiado prudente. Valores posibles: 480, 720, 1080, 1440 y 2160.'
+  softwareAV1MaxHeight: 'La resolución más alta del AV1 que codifica el procesador. Hoy la reproducción en directo nunca codifica AV1 en el procesador: la salida AV1 necesita un chip gráfico que lo admita (ver «Salida AV1»). Auto sigue la calibración, que solo permite AV1 en el procesador donde lo midió viable. Déjalo en Auto salvo que el soporte indique lo contrario. Se aplica al instante.'
   singleVariant: 'Convierte solo la calidad que se está viendo, en lugar de todas a la vez. Necesita mucha menos potencia. Déjalo activado salvo que el soporte indique lo contrario. Por defecto: activado.'
-  hwPerVariant: 'Lanza un proceso gráfico separado para cada calidad en lugar de uno solo para todas. Ayuda con algunos controladores gráficos que fallan al producir varias calidades a la vez, pero usa más memoria. Por defecto: desactivado.'
+  hwPerVariant: 'Lanza un proceso de codificación separado en el chip gráfico para cada calidad en lugar de uno solo para todas. Ayuda con algunos controladores gráficos que fallan al producir varias calidades a la vez, pero usa más memoria. Por defecto: desactivado.'

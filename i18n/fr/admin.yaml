@@ -1087,7 +1087,7 @@ transcoding:
   jobConcurrencyTitle: "Tâches de transcodage en arrière-plan"
   jobConcurrencySubtitle: "Combien de tâches de transcodage en file peuvent tourner à la fois (rien à voir avec la lecture ci-dessus)"
   advancedTitle: "Limites avancées"
-  advancedSubtitle: "Plafonds de sessions et de résolution pour matériel modeste. Appliqués au redémarrage."
+  advancedSubtitle: Plafonds de sessions et de résolution pour matériel modeste. La plupart s'appliquent au redémarrage.
   advancedRestartHint: "Ces réglages sont lus au démarrage du serveur : enregistrer conserve votre choix, redémarrer l'applique."
   savedRestart: "Enregistré - redémarrez le serveur pour appliquer"
   maxSessions: "Sessions HLS simultanées maximum (vide = sans limite)"
@@ -1893,7 +1893,7 @@ shareLinks:
   unlimited: "illimité"
 
 settingsLayout:
-  pageSubtitle: Tout ce que le serveur fait de lui-même, rangé par thème. Cliquez sur le « i » à côté d'un réglage pour savoir à quoi il sert.
+  pageSubtitle: Tous les réglages du serveur, rangés par thème. Cliquez sur le « i » à côté d'un réglage pour savoir à quoi il sert.
   sectionsLabel: Rubriques des réglages
   moreInfo: 'En savoir plus : {{label}}'
   'on': Activé
@@ -1903,15 +1903,26 @@ settingsLayout:
   advancedPacing: 'Avancé : rythme des passes en arrière-plan'
   commaSeparated: Séparez les entrées par des virgules.
   tlsNone: Aucun
+  liveSweepHint: S'applique en quelques secondes, sans redémarrage.
+  defaultOption: Par défaut ({{value}})
+  autoDefault: Automatique ({{value}})
+  perCorePlaceholder: Une par cœur de processeur
+  maxSessionsLabel: Conversions en direct simultanées
+  softwareMaxHeightLabel: Résolution maximale convertie par le processeur
+  softwareHDRMaxHeightLabel: Résolution HDR maximale convertie par le processeur
+  autoMeasured: Auto (mesurée)
+  autoPlain: Auto
+  errorNumber: Saisissez un nombre entier, au moins {{min}}.
+  errorDuration: Saisissez une durée comme 30s, 2m ou 1h.
   backgroundTranscodes: Conversions en arrière-plan simultanées
-  rawEntriesWarning: 'Zone experte : ce sont les valeurs brutes dans lesquelles les réglages des autres rubriques sont enregistrés. Une clé ou une valeur erronée peut casser une fonction. Passez par les autres rubriques chaque fois que c''est possible.'
+  rawEntriesWarning: 'Réservé aux experts : ce sont les valeurs brutes dans lesquelles les réglages des autres rubriques sont enregistrés. Une clé ou une valeur erronée peut rendre une fonction inutilisable. Passez par les autres rubriques chaque fois que c''est possible.'
   groupServer: Serveur
-  groupScanning: Analyse des bibliothèques
+  groupScanning: Détection des changements
   groupScanningDesc: Comment Evey repère les fichiers ajoutés, modifiés ou supprimés.
   groupSkipping: Génériques et aperçus
-  groupSkippingDesc: Ce que font les lecteurs des génériques, résumés et aperçus repérés par Evey.
+  groupSkippingDesc: Ce que font les lecteurs avec les génériques, résumés et aperçus repérés par Evey.
   groupSignIn: Connexion et protection
-  groupSignInDesc: La récupération du mot de passe, et les limites qui freinent les tentatives de deviner un mot de passe ou les abus.
+  groupSignInDesc: La récupération du mot de passe, et les limites qui freinent les essais de mots de passe et les abus.
   groupMediaAnalysis: Analyse des fichiers médias
   groupRetention: Durée de conservation de l'historique
   groupRetentionDesc: L'historique plus ancien est supprimé automatiquement. 0 garde tout, sans limite.
@@ -1967,7 +1978,7 @@ settingsHelp:
   playSessionRetentionDays: 'La durée de conservation du détail de chaque lecture : qui a regardé quoi, sur quel appareil et comment la vidéo a été envoyée. Les pages de statistiques et d''activité s''en servent. 0 garde tout, sans limite.'
   transcodeCacheMaxGB: 'L''espace disque que peut occuper la vidéo convertie. Quand le cache est plein, les morceaux les plus anciens partent en premier. Un cache plus grand évite de reconvertir ce qui est regardé à nouveau. Par défaut : 10 Go.'
   trickplay: Crée les petites images qui s'affichent quand on se déplace sur la barre de lecture d'une vidéo. La création tourne en arrière-plan après une analyse et prend un peu de processeur et d'espace disque. Désactivez-la sur une machine très modeste.
-  apiKeyTmdb: TMDB fournit les titres, résumés, affiches, distributions et notes. Evey est livré avec une clé partagée, donc cela fonctionne d'emblée. Ajoutez votre propre clé gratuite si vous voyez des erreurs de limite.
+  apiKeyTmdb: TMDB fournit les titres, résumés, affiches, distributions et notes. Evey est livré avec une clé partagée, donc cela fonctionne d'emblée. Ajoutez votre propre clé gratuite si des erreurs de quota apparaissent.
   apiKeyOmdb: 'OMDb ajoute des notes supplémentaires, comme celles d''IMDb et de Rotten Tomatoes. Facultatif : sans clé, ces notes supplémentaires sont simplement absentes.'
   apiKeyOpenSubtitles: 'OpenSubtitles permet de chercher et de télécharger des sous-titres depuis le lecteur. Facultatif : sans clé, seuls les sous-titres déjà présents dans vos fichiers sont proposés.'
   apiKeyTidb: TheIntroDB partage le début et la fin des génériques repérés par d'autres utilisateurs, ce qui évite à Evey de les détecter lui-même. Une clé gratuite fait passer les recherches quotidiennes de 100 à 500.
@@ -1980,9 +1991,9 @@ settingsHelp:
   smtpUsername: Le compte utilisé pour se connecter au serveur d'envoi, souvent votre adresse e-mail complète. Laissez vide si le serveur n'en demande pas.
   smtpPassword: Le mot de passe de ce compte. Certaines messageries, comme Gmail, exigent un « mot de passe d'application » créé dans les réglages de sécurité du compte, et non votre mot de passe habituel.
   smtpFrom: 'L''expéditeur affiché sur les e-mails envoyés par Evey, par exemple : Evey <noreply@example.com>. Beaucoup de messageries n''acceptent qu''une adresse qui appartient à votre compte.'
-  paceBatch: Le nombre de fichiers qu'une passe en arrière-plan traite avant de faire une pause. Plus petit ménage les disques, plus grand termine plus vite. Laissez vide pour la valeur intégrée.
+  paceBatch: Le nombre de fichiers qu'une passe en arrière-plan traite avant de faire une pause. Une valeur plus petite ménage les disques, une plus grande finit plus vite. Laissez vide pour la valeur intégrée.
   pacePause: La durée de la pause entre deux lots, en millisecondes. Une pause plus longue laisse plus de place au reste. 0 signifie aucune pause. Laissez vide pour la valeur intégrée.
-  paceIdle: Le temps d'attente avant de vérifier à nouveau une fois tout traité, en secondes. Laissez vide pour la valeur intégrée.
+  paceIdle: Une fois tout traité, le temps d'attente avant de vérifier à nouveau, en secondes. Laissez vide pour la valeur intégrée.
   parserQualities: Des mentions de qualité ou de source présentes dans vos noms de fichiers, comme hdrip ou web-dl. Evey les retire du nom avant de chercher le film ou la série, pour que la recherche trouve le bon titre. N'en ajoutez une que si un fichier n'est pas reconnu à cause d'elle. Un seul mot par entrée.
   parserEditions: Des noms d'édition présents dans vos noms de fichiers, comme director's cut ou imax. Evey les retire avant de chercher, et ils peuvent faire plusieurs mots. N'en ajoutez un que si un fichier n'est pas reconnu à cause de lui.
   homeFeeds: Choisissez les rangées affichées sur la page d'accueil, leur ordre et le nombre d'éléments de chacune. Une rangée désactivée ici est masquée pour tout le monde.
@@ -1990,10 +2001,10 @@ settingsHelp:
   hwAccel: 'Utilise la puce graphique (GPU) pour convertir la vidéo à la place du processeur. C''est bien plus rapide et cela permet à plus de personnes de regarder en même temps. Laissez-la activée : Evey vérifie ce dont la puce est capable et revient tout seul au processeur si besoin.'
   hwBackend: La technologie graphique à utiliser. « Auto » choisit la meilleure trouvée, ce qui convient à presque tout le monde. N'en choisissez une à la main que si la machine a plusieurs puces graphiques ou si l'assistance vous le demande.
   av1MaxHeight: La qualité d'image la plus haute encodée en AV1. « Auto » monte jusqu'à la qualité de l'original. Baissez-la si la puce graphique peine en AV1 aux hautes résolutions.
-  backgroundTranscodes: Le nombre de conversions préparées à l'avance (pas la lecture en direct) qui peuvent tourner en même temps. « Détecter automatiquement » laisse le serveur décider. Mettez un petit nombre sur une machine modeste pour que ces tâches ne ralentissent pas tout le reste.
-  transcodeMaxSessions: Le nombre total de conversions vidéo en direct que le serveur mène en même temps. Vide signifie une par cœur de processeur. Sur une machine modeste qui convertit à peine un film 4K, mettez 1 ou 2 pour que les spectateurs ne se ralentissent pas entre eux.
-  softwareMaxHeight: La résolution la plus haute vers laquelle le processeur peut convertir sans puce graphique, par exemple 720 ou 1080. Vide reprend la valeur mesurée par la calibration. Baissez-la si les conversions saccadent.
-  softwareHDRMaxHeight: Le même plafond pour la vidéo HDR, bien plus lourde à convertir pour le processeur. Vide reprend la valeur mesurée. Baissez-le si les films HDR saccadent alors que les autres passent bien.
-  softwareAV1MaxHeight: 'L''AV1 est un format vidéo moderne et compact, mais très lourd à produire pour le processeur. « Auto » réserve l''AV1 aux puces graphiques qui le gèrent, c''est le choix sûr. Choisir une résolution force l''AV1 sur le processeur jusqu''à cette hauteur : uniquement pour une machine puissante. S''applique tout de suite.'
+  backgroundTranscodes: 'Le nombre de conversions préparées à l''avance (pas la lecture en direct) qui peuvent tourner en même temps. Laissé vide, la valeur intégrée de 2 s''applique : elle n''est pas mesurée sur votre machine. Mettez 1 sur une machine modeste pour que ces tâches ne ralentissent pas tout le reste.'
+  transcodeMaxSessions: 'Le nombre total de conversions vidéo en direct que le serveur mène en même temps. Laissé vide : une par cœur de processeur. Sur une machine modeste qui convertit à peine un film 4K, mettez 1 ou 2 pour que les spectateurs ne se ralentissent pas entre eux.'
+  softwareMaxHeight: 'La résolution la plus haute vers laquelle le processeur convertit quand aucune puce graphique ne s''en charge. En Auto, la valeur mesurée par la calibration s''applique. Baissez-la si les conversions saccadent ; montez-la avec précaution si la mesure s''est montrée trop prudente pour votre machine. Valeurs possibles : 480, 720, 1080, 1440 et 2160.'
+  softwareHDRMaxHeight: 'Le même plafond pour la vidéo HDR, bien plus lourde à convertir pour le processeur. En Auto, la valeur mesurée s''applique. Baissez-le si les films HDR saccadent alors que les autres passent bien ; montez-le avec précaution si la mesure s''est montrée trop prudente. Valeurs possibles : 480, 720, 1080, 1440 et 2160.'
+  softwareAV1MaxHeight: 'La résolution la plus haute de l''AV1 encodé par le processeur. Aujourd''hui, la lecture en direct n''encode jamais d''AV1 sur le processeur : la sortie AV1 demande une puce graphique qui le gère (voir « Sortie AV1 »). Auto suit la calibration, qui n''autorise l''AV1 sur le processeur que là où elle l''a mesuré viable. Laissez Auto sauf demande de l''assistance. S''applique tout de suite.'
   singleVariant: 'Ne convertit que la qualité que le spectateur regarde, au lieu de toutes les qualités à la fois. Cela demande bien moins de puissance. Laissez-le activé sauf demande de l''assistance. Par défaut : activé.'
-  hwPerVariant: 'Lance un processus graphique séparé pour chaque qualité au lieu d''un seul pour toutes. Cela aide avec certains pilotes graphiques qui plantent quand ils produisent plusieurs qualités à la fois, mais consomme plus de mémoire. Par défaut : désactivé.'
+  hwPerVariant: 'Lance un processus d''encodage séparé sur la puce graphique pour chaque qualité au lieu d''un seul pour toutes. Cela aide avec certains pilotes graphiques qui plantent quand ils produisent plusieurs qualités à la fois, mais consomme plus de mémoire. Par défaut : désactivé.'
