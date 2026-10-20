@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
-import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet, TextInput } from "react-native";
+import { useState, useCallback } from "react";
+import { View, Text, FlatList, Pressable, Alert, ActivityIndicator, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { eveyFetch, useAdminSystemServiceGetSystemInfo, formatBytes, apiErrorMessage } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
-import { SERVER_SETTINGS_KEY } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
+import { ServerSettingsGroup } from "../../../src/components/admin/settings/ServerSettingsGroup";
 
 interface CacheFile {
   name: string;
@@ -25,107 +25,25 @@ interface CacheInfo {
   activeEncodingSessions?: number;
 }
 
-interface TranscodeServerSettings {
-  maxConcurrentTranscodes: { value: number; default: number; source: string };
-}
-
 const CACHE_KEY = ["admin", "transcode-cache"];
-// The one server-settings query key (@evey/client), so a save here refreshes
-// the Transcoding and Server configuration screens too.
-const SETTINGS_KEY = SERVER_SETTINGS_KEY;
 
 function formatDate(d: string): string {
   return new Date(d).toLocaleString();
 }
 
+// The background-conversion cap through the shared server-settings form, the
+// same field as Transcoding > Capacity: seeded with the stored override only
+// (blank = the server default), a refetch never overwrites a typed edit, an
+// emptied field clears the override and a value below 1 is refused inline.
 function TranscodingSettings() {
-  const theme = useTheme();
   const { t } = useTranslation();
-  const qc = useQueryClient();
-
-  // The cap goes through /admin/server-settings, which applies it to the
-  // running transcoder; the raw server-config key was only read at startup.
-  const { data: settings, isLoading } = useQuery<TranscodeServerSettings>({
-    queryKey: SETTINGS_KEY,
-    queryFn: () => eveyFetch<TranscodeServerSettings>({ url: "/api/v1/admin/server-settings", method: "GET" }),
-  });
-
-  const [maxConcurrent, setMaxConcurrent] = useState("2");
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (settings) setMaxConcurrent(String(settings.maxConcurrentTranscodes.value));
-  }, [settings]);
-
-  const handleSave = useCallback(async () => {
-    // An empty field is an explicit null: the server drops the override. Any
-    // other text must be a cap of at least 1: the numeric keyboard offers "-"
-    // and ".", parseInt made NaN of them, and JSON sent NaN as that same null,
-    // so a stray key cleared the cap under a "saved" toast.
-    const cap = maxConcurrent.trim() === "" ? null : Number(maxConcurrent);
-    if (cap !== null && !(Number.isInteger(cap) && cap >= 1)) {
-      toast.error(t("admin.transcodeCache.maxConcurrentInvalid", "Saisissez un nombre entier d'au moins 1, ou laissez le champ vide pour la valeur par défaut du serveur."));
-      return;
-    }
-    setSaving(true);
-    try {
-      await eveyFetch({
-        url: "/api/v1/admin/server-settings",
-        method: "PUT",
-        data: { maxConcurrentTranscodes: cap },
-      });
-      await qc.invalidateQueries({ queryKey: SETTINGS_KEY });
-      toast.success(t("admin.transcodeCache.settingsSaved", "Réglages de transcodage enregistrés"));
-    } catch {
-      toast.error(t("admin.transcodeCache.settingsSaveFailed", "Échec de l'enregistrement"));
-    }
-    setSaving(false);
-  }, [maxConcurrent, qc, t]);
-
-  if (isLoading) {
-    return (
-      <View style={[styles.section, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, alignItems: "center" }]}>
-        <ActivityIndicator color={theme.colors.accent} />
-      </View>
-    );
-  }
-
   return (
-    <View style={[styles.section, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md, gap: 12 }]}>
-      <Text style={{ color: theme.colors.text, fontSize: 14, fontWeight: "600" }}>
-        {t("admin.transcodeCache.transcodingSettings", "Réglages de transcodage")}
-      </Text>
-
-      <View style={{ gap: 4 }}>
-        <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
-          {t("admin.transcodeCache.maxConcurrent", "Transcodages simultanés max")}
-        </Text>
-        <TextInput
-          accessibilityLabel={t("admin.transcodeCache.maxConcurrent", "Transcodages simultanés max")}
-          value={maxConcurrent}
-          onChangeText={setMaxConcurrent}
-          keyboardType="numeric"
-          maxLength={2}
-          style={[styles.configInput, {
-            color: theme.colors.text,
-            borderColor: theme.colors.border,
-            backgroundColor: theme.colors.bg,
-          }]}
-        />
-      </View>
-
-      <Pressable
-        onPress={handleSave}
-        disabled={saving}
-        style={[styles.saveBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.sm, opacity: saving ? 0.5 : 1 }]}
-      >
-        {saving ? (
-          <ActivityIndicator size="small" color={theme.colors.onAccent} />
-        ) : (
-          <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 13 }}>{t("common.save", "Enregistrer")}</Text>
-        )}
-      </Pressable>
-    </View>
+    <ServerSettingsGroup
+      title={t("admin.transcodeCache.transcodingSettings", "Réglages de transcodage")}
+      fields={["maxConcurrentTranscodes"]}
+      saveTestID="transcode-cache-settings-save"
+      testID="group-transcode-cache-settings"
+    />
   );
 }
 
@@ -232,6 +150,8 @@ export default function AdminTranscodeCacheScreen() {
         </View>
       ) : (
         <FlatList
+          automaticallyAdjustKeyboardInsets
+          keyboardShouldPersistTaps="handled"
           data={files}
           keyExtractor={(item) => item.name}
           renderItem={renderFile}
@@ -315,13 +235,4 @@ const styles = StyleSheet.create({
   section: { padding: 16 },
   fileRow: { flexDirection: "row", alignItems: "center", paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth },
   dangerBtn: { paddingVertical: 14, alignItems: "center", justifyContent: "center", flexDirection: "row" },
-  configInput: {
-    width: 64,
-    fontSize: 14,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 6,
-  },
-  saveBtn: { paddingVertical: 10, alignItems: "center", justifyContent: "center" },
 });

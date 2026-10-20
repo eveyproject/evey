@@ -9,20 +9,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 // to /admin/server-settings, the endpoint that applies it to the running
 // transcoder, never to the server-config keys only read at startup.
 const alerts = vi.hoisted(() => ({ last: null as any }));
-vi.mock("react-native", () => ({
-  View: ({ children }: any) => React.createElement("div", null, children),
-  Text: ({ children }: any) => React.createElement("span", null, children),
-  ActivityIndicator: () => React.createElement("div", { "data-testid": "spinner" }),
-  TextInput: ({ value, onChangeText, accessibilityLabel }: any) =>
-    React.createElement("input", { value, "aria-label": accessibilityLabel, onChange: (e: any) => onChangeText(e.target.value) }),
-  Switch: ({ value, onValueChange }: any) =>
-    React.createElement("input", { type: "checkbox", role: "switch", checked: value, onChange: () => onValueChange(!value) }),
-  FlatList: ({ data, renderItem, keyExtractor, ListHeaderComponent, ListEmptyComponent, ListFooterComponent }: any) =>
-    React.createElement("div", null, ListHeaderComponent, (data ?? []).length === 0 ? ListEmptyComponent : (data as any[]).map((item) => React.createElement(React.Fragment, { key: keyExtractor(item) }, renderItem({ item }))), ListFooterComponent),
-  Pressable: ({ children, onPress, disabled, accessibilityRole, accessibilityLabel }: any) =>
-    React.createElement("button", { onClick: onPress, disabled, role: accessibilityRole, "aria-label": accessibilityLabel }, children),
+vi.mock("react-native", async () => ({
+  ...(await import("../../../src/test/rnDom")).rnDom,
   Alert: { alert: (title: string, message: string, buttons: any[]) => { alerts.last = { title, message, buttons }; } },
-  StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
 }));
 vi.mock("@expo/vector-icons/Ionicons", () => ({ default: () => null }));
 vi.mock("expo-router", () => ({ Stack: { Screen: () => null } }));
@@ -32,16 +21,17 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 const eveyFetch = vi.hoisted(() => vi.fn());
-vi.mock("@evey/api", () => ({
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
   eveyFetch: (...a: unknown[]) => eveyFetch(...a),
   useAdminSystemServiceGetSystemInfo: () => ({ data: { hwDevices: [] } }),
   formatBytes: (n: number) => `${n}B`,
   apiErrorMessage: (e: Error) => e.message,
 }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
-vi.mock("@evey/store", () => ({ toast }));
+vi.mock("@evey/store", async (importOriginal) => ({ ...(await importOriginal<typeof import("@evey/store")>()), toast }));
 vi.mock("../../../src/providers/ThemeProvider", () => ({
-  useTheme: () => ({ colors: { bg: "#000", surface: "#111", surfaceRaised: "#222", text: "#fff", textMuted: "#888", accent: "#f00", onAccent: "#000", border: "#333", danger: "#f33", error: "#f33" }, radii: { md: 8, sm: 4 } }),
+  useTheme: () => ({ colors: { bg: "#000", surface: "#111", surfaceRaised: "#222", text: "#fff", textMuted: "#888", accent: "#f00", onAccent: "#000", border: "#333", danger: "#f33", error: "#f33" }, radii: { md: 8, sm: 4, lg: 12 } }),
 }));
 
 import AdminTranscodeCacheScreen from "./transcode-cache";
@@ -91,34 +81,41 @@ describe("admin transcode cache screen (mobile)", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Deleted"));
   });
 
-  it("seeds the cap from /server-settings and saves it there, never to server-config", async () => {
+  // The cap is the shared server-settings field (the same as Transcoding >
+  // Capacity): seeded with the stored override only, written to
+  // /admin/server-settings, never to the server-config keys read at startup.
+  it("seeds the cap from /server-settings and saves only it there, never to server-config", async () => {
     mount();
-    const max = await screen.findByLabelText("Transcodages simultanés max") as HTMLInputElement;
+    const max = (await screen.findByTestId("max-concurrent-input")) as HTMLInputElement;
     await waitFor(() => expect(max.value).toBe("3"));
     // The throttle switch wrote a key no server code reads.
     expect(screen.queryByRole("switch")).toBeNull();
     fireEvent.change(max, { target: { value: "5" } });
-    fireEvent.click(screen.getByText("Enregistrer"));
-    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Réglages de transcodage enregistrés"));
+    fireEvent.click(screen.getByTestId("transcode-cache-settings-save"));
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("admin.serverSettings.saved"));
     expect(eveyFetch).toHaveBeenCalledWith({ url: "/api/v1/admin/server-settings", method: "PUT", data: { maxConcurrentTranscodes: 5 } });
     expect(eveyFetch).not.toHaveBeenCalledWith(expect.objectContaining({ url: expect.stringContaining("/server-config") }));
+  });
 
-    eveyFetch.mockImplementationOnce(async () => { throw new Error("403"); });
-    fireEvent.click(screen.getByText("Enregistrer"));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Échec de l'enregistrement"));
+  it("clears the override when the field is emptied", async () => {
+    mount();
+    const max = (await screen.findByTestId("max-concurrent-input")) as HTMLInputElement;
+    await waitFor(() => expect(max.value).toBe("3"));
+    fireEvent.change(max, { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("transcode-cache-settings-save"));
+    await waitFor(() => expect(eveyFetch).toHaveBeenCalledWith({ url: "/api/v1/admin/server-settings", method: "PUT", data: { maxConcurrentTranscodes: null } }));
   });
 
   // The numeric keyboard offers "-": parseInt made NaN of it, JSON sent null,
   // and the server dropped the cap under a "saved" toast.
   it("refuses a cap that is not a whole number of at least 1 and sends nothing", async () => {
     mount();
-    const max = await screen.findByLabelText("Transcodages simultanés max");
+    const max = await screen.findByTestId("max-concurrent-input");
     for (const value of ["-", "0", "1.5"]) {
       vi.mocked(eveyFetch).mockClear();
-      vi.mocked(toast.error).mockClear();
       fireEvent.change(max, { target: { value } });
-      fireEvent.click(screen.getByText("Enregistrer"));
-      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      fireEvent.click(screen.getByTestId("transcode-cache-settings-save"));
+      await waitFor(() => expect(screen.getByTestId("setting-error").textContent).toBe("admin.settingsLayout.errorNumber"));
       expect(eveyFetch).not.toHaveBeenCalledWith(expect.objectContaining({ method: "PUT" }));
     }
   });
