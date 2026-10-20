@@ -8,7 +8,7 @@ interface CollapsibleCardProps {
   title: string;
   subtitle?: string;
   icon?: ReactNode;
-  /** Optional long-form explanation. Renders a "?" button next to the title;
+  /** Optional long-form explanation. Renders an "i" button next to the title;
       content shows in a popover on click. Use when the subtitle would be too
       long but the operator still benefits from on-demand detail. */
   info?: ReactNode;
