@@ -1,27 +1,19 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import React from "react";
 
-vi.mock("react-native", () => ({
-  View: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Text: ({ children, ...p }: any) => React.createElement("span", p, children),
-  Pressable: ({ children, onPress, disabled, accessibilityLabel, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, disabled, "aria-label": accessibilityLabel, ...p }, children),
-  TextInput: ({ value, onChangeText, placeholder }: any) =>
-    React.createElement("input", {
-      "aria-label": placeholder,
-      value: value ?? "",
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChangeText?.(e.target.value),
-    }),
-  Modal: ({ children, visible }: any) => (visible ? React.createElement("div", { "data-testid": "region-modal" }, children) : null),
-  FlatList: ({ data, renderItem, keyExtractor }: any) =>
-    React.createElement(
-      "div",
-      { "data-testid": "region-list" },
-      (data ?? []).map((item: any) => React.createElement(React.Fragment, { key: keyExtractor(item) }, renderItem({ item }))),
-    ),
-  StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
-}));
+vi.mock("react-native", async () => {
+  const { rnDom } = await import("../../../test/rnDom");
+  return {
+    ...rnDom,
+    FlatList: ({ data, renderItem, keyExtractor }: any) =>
+      React.createElement(
+        "div",
+        { "data-testid": "region-list" },
+        (data ?? []).map((item: any) => React.createElement(React.Fragment, { key: keyExtractor(item) }, renderItem({ item }))),
+      ),
+  };
+});
 
 // The defaults the server reports for empty settings.
 vi.mock("@tanstack/react-query", () => ({
@@ -37,7 +29,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("../../../providers/ThemeProvider", () => ({
   useTheme: () => ({
     colors: { border: "#333", surface: "#111", accent: "#f00", onAccent: "#fff", text: "#fff", textMuted: "#888", bg: "#000" },
-    radii: { md: 8 },
+    radii: { sm: 4, md: 8, lg: 12 },
   }),
 }));
 
@@ -78,9 +70,9 @@ describe("LocaleSettingsCard", () => {
     const saveEntry = vi.fn();
     render(<LocaleSettingsCard getEntryValue={() => ""} saveEntry={saveEntry} saving={false} />);
 
-    expect(screen.queryByTestId("region-modal")).toBeNull();
+    expect(screen.queryByTestId("region-list")).toBeNull();
     fireEvent.click(screen.getByLabelText("Server region"));
-    expect(screen.getByTestId("region-modal")).toBeTruthy();
+    expect(screen.getByTestId("region-list")).toBeTruthy();
 
     fireEvent.click(screen.getAllByText("FR")[0]);
     expect(saveEntry).toHaveBeenCalledWith({ key: "server.region", value: "FR" });
@@ -96,5 +88,15 @@ describe("LocaleSettingsCard", () => {
     render(<LocaleSettingsCard getEntryValue={() => ""} saveEntry={saveEntry} saving={false} />);
     fireEvent.click(screen.getAllByText("Français")[0]);
     expect(saveEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives each of the four settings exactly one info button", () => {
+    render(<LocaleSettingsCard getEntryValue={() => ""} saveEntry={vi.fn()} saving={false} />);
+    const rows = ["server-language", "server-region", "metadata-language", "server-timezone"];
+    for (const id of rows) {
+      const row = screen.getByTestId(`setting-row-${id}`);
+      expect(within(row).getAllByTestId("setting-info-button")).toHaveLength(1);
+    }
+    expect(screen.getAllByTestId("setting-info-button")).toHaveLength(rows.length);
   });
 });

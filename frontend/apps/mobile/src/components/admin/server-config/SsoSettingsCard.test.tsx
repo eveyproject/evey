@@ -1,30 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-vi.mock("react-native", () => ({
-  View: ({ children, testID, ...p }: any) => React.createElement("div", { "data-testid": testID, style: p.style }, children),
-  Text: ({ children, testID }: any) => React.createElement("span", { "data-testid": testID }, children),
-  Pressable: ({ children, onPress, disabled, accessibilityLabel, testID }: any) =>
-    React.createElement("button", { onClick: onPress, disabled, "aria-label": accessibilityLabel, "data-testid": testID }, children),
-  TextInput: ({ value, onChangeText, placeholder, accessibilityLabel }: any) =>
-    React.createElement("input", {
-      "aria-label": accessibilityLabel ?? placeholder,
-      value: value ?? "",
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => onChangeText?.(e.target.value),
-    }),
-  Switch: ({ value, onValueChange, accessibilityLabel, testID }: any) =>
-    React.createElement("input", {
-      type: "checkbox",
-      checked: !!value,
-      "aria-label": accessibilityLabel,
-      "data-testid": testID,
-      onChange: () => onValueChange?.(!value),
-    }),
-  ActivityIndicator: () => React.createElement("div", { "data-testid": "loading" }),
-  StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
-}));
+vi.mock("react-native", async () => (await import("../../../test/rnDom")).rnDom);
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -39,7 +18,7 @@ vi.mock("../../../providers/ThemeProvider", () => ({
       border: "#333", surface: "#111", surfaceRaised: "#222", accent: "#f00", onAccent: "#fff", text: "#fff", textMuted: "#888",
       success: "#0f0", danger: "#f00", warning: "#ff0",
     },
-    radii: { md: 8 },
+    radii: { sm: 4, md: 8, lg: 12 },
   }),
 }));
 
@@ -158,5 +137,16 @@ describe("SsoSettingsCard", () => {
     fireEvent.click(screen.getByTestId("sso-test"));
     expect((await screen.findByTestId("sso-test-result")).textContent).toBe("admin.sso.testFailed(no such host)");
     expect(fetchMock).toHaveBeenCalledWith({ url: "/api/v1/admin/sso/test", method: "POST", data: { issuer: "https://other.example" } });
+  });
+
+  it("gives every setting row exactly one info button", async () => {
+    renderCard();
+    await screen.findByTestId("sso-status");
+    const rows = ["sso-enabled", "sso-issuer", "sso-client-id", "sso-client-secret", "sso-domains", "sso-label", "sso-link", "sso-signup", "sso-default-access"];
+    for (const id of rows) {
+      const row = screen.getByTestId(`setting-row-${id}`);
+      expect(within(row).getAllByTestId("setting-info-button")).toHaveLength(1);
+    }
+    expect(screen.getAllByTestId("setting-info-button")).toHaveLength(rows.length);
   });
 });

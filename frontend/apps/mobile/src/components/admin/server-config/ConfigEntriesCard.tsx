@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Pressable, Alert, StyleSheet }
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../providers/ThemeProvider";
+import { SaveButton } from "../settings/SaveButton";
 import type { ConfigEntry, SaveEntry } from "./types";
 
 interface ConfigEntriesCardProps {
@@ -77,7 +78,7 @@ export function ConfigEntriesCard({ entries, saveEntry, deleteEntry, saving }: C
             gap: 6,
           }}
         >
-          <Text style={{ color: theme.colors.text, fontSize: 13, fontFamily: "monospace" }}>{entry.key}</Text>
+          <Text style={{ color: theme.colors.text, fontSize: 13, fontFamily: "monospace", flexShrink: 1 }}>{entry.key}</Text>
           {editingKey === entry.key ? (
             <View style={{ gap: 8 }}>
               <TextInput
@@ -100,30 +101,30 @@ export function ConfigEntriesCard({ entries, saveEntry, deleteEntry, saving }: C
               </View>
             </View>
           ) : (
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12, flex: 1, fontFamily: "monospace" }} numberOfLines={2}>
-                {entry.value}
-              </Text>
-              <Pressable
-                testID={`entry-editbtn-${entry.key}`}
-                onPress={() => startEdit(entry)}
-                hitSlop={8}
-                accessible={true}
-                accessibilityLabel={`${t("common.edit", "Edit")} ${entry.key}`}
-                accessibilityRole="button"
-              >
-                <Ionicons name="pencil-outline" size={18} color={theme.colors.accent} />
-              </Pressable>
-              <Pressable
-                testID={`entry-delete-${entry.key}`}
-                onPress={() => handleDelete(entry.key)}
-                hitSlop={8}
-                accessible={true}
-                accessibilityLabel={`${t("common.delete", "Delete")} ${entry.key}`}
-                accessibilityRole="button"
-              >
-                <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
-              </Pressable>
+            <View style={{ gap: 6 }}>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontFamily: "monospace" }}>{entry.value}</Text>
+              <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 16 }}>
+                <Pressable
+                  testID={`entry-editbtn-${entry.key}`}
+                  onPress={() => startEdit(entry)}
+                  hitSlop={12}
+                  accessible={true}
+                  accessibilityLabel={`${t("common.edit", "Edit")} ${entry.key}`}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="pencil-outline" size={18} color={theme.colors.accent} />
+                </Pressable>
+                <Pressable
+                  testID={`entry-delete-${entry.key}`}
+                  onPress={() => handleDelete(entry.key)}
+                  hitSlop={12}
+                  accessible={true}
+                  accessibilityLabel={`${t("common.delete", "Delete")} ${entry.key}`}
+                  accessibilityRole="button"
+                >
+                  <Ionicons name="trash-outline" size={18} color={theme.colors.error} />
+                </Pressable>
+              </View>
             </View>
           )}
         </View>
@@ -150,20 +151,7 @@ export function ConfigEntriesCard({ entries, saveEntry, deleteEntry, saving }: C
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <TouchableOpacity
-          testID="entry-add"
-          onPress={handleAdd}
-          disabled={!newKey.trim() || saving}
-          style={{
-            backgroundColor: theme.colors.accent,
-            borderRadius: theme.radii.sm,
-            paddingVertical: 10,
-            alignItems: "center",
-            opacity: !newKey.trim() || saving ? 0.5 : 1,
-          }}
-        >
-          <Text style={{ color: theme.colors.onAccent, fontSize: 14, fontWeight: "600" }}>{t("common.add", "Add")}</Text>
-        </TouchableOpacity>
+        <SaveButton testID="entry-add" label={t("common.add", "Add")} onPress={handleAdd} disabled={!newKey.trim() || saving} />
       </View>
     </View>
   );

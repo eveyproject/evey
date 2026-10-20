@@ -2,44 +2,24 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
-vi.mock("react-native", () => ({
-  View: ({ children, ...p }: any) => React.createElement("div", p, children),
-  Text: ({ children, ...p }: any) => React.createElement("span", p, children),
-  TextInput: ({ onChangeText, value, testID, ...p }: any) =>
-    React.createElement("input", {
-      "data-testid": testID,
-      value: value ?? "",
-      onChange: (e: any) => onChangeText?.(e.target.value),
-      ...p,
-    }),
-  Switch: ({ value, onValueChange, testID, disabled }: any) =>
-    React.createElement("input", {
-      type: "checkbox",
-      "data-testid": testID,
-      checked: !!value,
-      disabled,
-      onChange: () => onValueChange?.(!value),
-    }),
-  TouchableOpacity: ({ children, onPress, disabled, testID, ...p }: any) =>
-    React.createElement("button", { onClick: onPress, disabled, "data-testid": testID, ...p }, children),
-  StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
-}));
-
+vi.mock("react-native", async () => (await import("../../../test/rnDom")).rnDom);
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key) }),
-}));
-
-vi.mock("../../../providers/ThemeProvider", () => ({
-  useTheme: () => ({
-    colors: {
-      border: "#333", surface: "#111", surfaceRaised: "#222", accent: "#f00",
-      onAccent: "#fff", text: "#fff", textMuted: "#888", warning: "#fa0",
+  useTranslation: () => ({
+    t: (key: string, o?: unknown) => {
+      if (typeof o === "string") return o;
+      if (o && typeof o === "object" && "label" in o) return `${key}:${String((o as { label: unknown }).label)}`;
+      return key;
     },
-    radii: { sm: 4 },
   }),
+}));
+vi.mock("../../../providers/ThemeProvider", () => ({
+  useTheme: () => ({ colors: new Proxy({}, { get: () => "#000" }), radii: { sm: 4, md: 8, lg: 12 } }),
 }));
 
 import { BackgroundJobsCard } from "./BackgroundJobsCard";
+import { BACKGROUND_JOB_RATES, BACKGROUND_JOB_TOGGLES } from "@evey/client";
+
+const infoButtons = (root: HTMLElement) => root.querySelectorAll('[data-testid="setting-info-button"]');
 
 const saveEntry = vi.fn(async (_vars: { key: string; value: string }) => ({}));
 const deleteEntry = vi.fn(async (_key: string) => ({}));
@@ -102,5 +82,19 @@ describe("BackgroundJobsCard", () => {
     fireEvent.click(screen.getByTestId("bg-rates-save"));
     expect(quietSave).not.toHaveBeenCalled();
     expect(quietDelete).not.toHaveBeenCalled();
+  });
+
+  it("gives every toggle and pacing row exactly one 'i' button and a restart badge", () => {
+    const { container } = render(<BackgroundJobsCard entries={[]} saveEntry={saveEntry} deleteEntry={deleteEntry} quietSaveEntry={quietSave} quietDeleteEntry={quietDelete} saving={false} />);
+    const rows = BACKGROUND_JOB_TOGGLES.length + BACKGROUND_JOB_RATES.length;
+    expect(infoButtons(container).length).toBe(rows);
+    expect(container.querySelectorAll('[data-testid="setting-restart-badge"]').length).toBe(rows);
+  });
+
+  it("explains each pacing field by what it measures", () => {
+    render(<BackgroundJobsCard entries={[]} saveEntry={saveEntry} deleteEntry={deleteEntry} quietSaveEntry={quietSave} quietDeleteEntry={quietDelete} saving={false} />);
+    const batch = BACKGROUND_JOB_RATES.find((f) => f.key.endsWith("_batch"))!;
+    fireEvent.click(screen.getByRole("button", { name: `admin.settingsLayout.moreInfo:${batch.labelKey}` }));
+    expect(screen.getByRole("dialog").textContent).toContain("admin.settingsHelp.paceBatch");
   });
 });

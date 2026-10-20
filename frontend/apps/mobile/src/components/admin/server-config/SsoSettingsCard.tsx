@@ -5,6 +5,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch, apiErrorMessage, useLibraryServiceListLibraries } from "@evey/api";
 import { toast } from "@evey/store";
 import { useTheme } from "../../../providers/ThemeProvider";
+import { SettingRow } from "../settings/SettingRow";
+import { SaveButton } from "../settings/SaveButton";
 import { ChipSelect } from "./ChipSelect";
 import { LoadFailed } from "../../LoadFailed";
 
@@ -122,9 +124,16 @@ export function SsoSettingsCard() {
   }[status.state];
   const switchColors = { trackColor: { false: theme.colors.border, true: theme.colors.accent } };
 
-  const field = (label: string, value: string, onChange: (v: string) => void, opts: Partial<ComponentProps<typeof TextInput>> = {}, hint?: string) => (
-    <>
-      <Text style={s.label}>{label}</Text>
+  const field = (
+    label: string,
+    info: string,
+    value: string,
+    onChange: (v: string) => void,
+    id: string,
+    opts: Partial<ComponentProps<typeof TextInput>> = {},
+    kind: "field" | "wide" = "field",
+  ) => (
+    <SettingRow label={label} info={info} kind={kind} testID={`setting-row-${id}`}>
       <TextInput
         value={value}
         onChangeText={onChange}
@@ -135,18 +144,13 @@ export function SsoSettingsCard() {
         autoCorrect={false}
         {...opts}
       />
-      {hint ? <Text style={s.hint}>{hint}</Text> : null}
-    </>
+    </SettingRow>
   );
 
-  const switchRow = (label: string, value: boolean, onChange: (v: boolean) => void, testID: string, hint?: string) => (
-    <View style={s.switchRow}>
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: theme.colors.text, fontSize: 14 }}>{label}</Text>
-        {hint ? <Text style={s.hint}>{hint}</Text> : null}
-      </View>
+  const switchRow = (label: string, info: string, value: boolean, onChange: (v: boolean) => void, testID: string, id: string) => (
+    <SettingRow label={label} info={info} kind="toggle" testID={`setting-row-${id}`}>
       <Switch value={value} onValueChange={onChange} accessibilityLabel={label} testID={testID} {...switchColors} />
-    </View>
+    </SettingRow>
   );
 
   const uri = (label: string, value: string) => (
@@ -177,21 +181,23 @@ export function SsoSettingsCard() {
       ) : null}
       {data.source === "env" ? <Text style={s.hint}>{t("admin.sso.sourceEnv")}</Text> : null}
 
-      {switchRow(t("admin.sso.enabled"), enabled, setEnabled, "sso-enabled")}
-
-      {field(t("admin.sso.issuer"), issuer, setIssuer, { placeholder: "https://auth.example.com/realms/home", keyboardType: "url" }, t("admin.sso.issuerHint"))}
-      {field(t("admin.sso.clientId"), clientId, setClientId)}
-      {field(t("admin.sso.clientSecret"), clientSecret, setClientSecret, { secureTextEntry: true }, t("admin.sso.clientSecretHint"))}
-      {field(t("admin.sso.allowedDomains"), domains, setDomains, { placeholder: "example.com" }, t("admin.sso.allowedDomainsHint"))}
-      {field(t("admin.sso.buttonLabel"), buttonLabel, setButtonLabel, { placeholder: t("auth.login.signInWithSSO"), maxLength: 64, autoCapitalize: "sentences" }, t("admin.sso.buttonLabelHint"))}
-
       <View style={s.divider} />
-      {switchRow(t("admin.sso.linkByEmail"), linkByEmail, setLinkByEmail, "sso-link", t("admin.sso.linkByEmailHint"))}
-      {switchRow(t("admin.sso.allowSignup"), allowSignup, setAllowSignup, "sso-signup", t("admin.sso.allowSignupHint"))}
+      {switchRow(t("admin.sso.enabled"), t("admin.settingsHelp.ssoEnabled"), enabled, setEnabled, "sso-enabled", "sso-enabled")}
+      {field(t("admin.sso.issuer"), t("admin.sso.issuerHint"), issuer, setIssuer, "sso-issuer", { placeholder: "https://auth.example.com/realms/home", keyboardType: "url" }, "wide")}
+      {field(t("admin.sso.clientId"), t("admin.settingsHelp.ssoClientId"), clientId, setClientId, "sso-client-id")}
+      {field(t("admin.sso.clientSecret"), t("admin.sso.clientSecretHint"), clientSecret, setClientSecret, "sso-client-secret", { secureTextEntry: true })}
+      {field(t("admin.sso.allowedDomains"), t("admin.sso.allowedDomainsHint"), domains, setDomains, "sso-domains", { placeholder: "example.com" })}
+      {field(t("admin.sso.buttonLabel"), t("admin.sso.buttonLabelHint"), buttonLabel, setButtonLabel, "sso-label", {
+        placeholder: t("auth.login.signInWithSSO"),
+        maxLength: 64,
+        autoCapitalize: "sentences",
+      })}
+      {switchRow(t("admin.sso.linkByEmail"), t("admin.sso.linkByEmailHint"), linkByEmail, setLinkByEmail, "sso-link", "sso-link")}
+      {switchRow(t("admin.sso.allowSignup"), t("admin.sso.allowSignupHint"), allowSignup, setAllowSignup, "sso-signup", "sso-signup")}
       {allowSignup ? (
-        <View>
-          <Text style={s.label}>{t("admin.sso.defaultAccess")}</Text>
+        <SettingRow label={t("admin.sso.defaultAccess")} info={t("admin.settingsHelp.ssoDefaultAccess")} kind="wide" testID="setting-row-sso-default-access">
           <ChipSelect
+            label={t("admin.sso.defaultAccess")}
             value={restrictLibraries ? "selected" : "all"}
             onChange={(v) => setRestrictLibraries(v === "selected")}
             options={[
@@ -225,7 +231,7 @@ export function SsoSettingsCard() {
             </View>
           ) : null}
           {selectionMissing ? <Text style={[s.hint, { color: theme.colors.danger }]}>{t("admin.sso.defaultAccessNone")}</Text> : null}
-        </View>
+        </SettingRow>
       ) : null}
 
       <View style={s.divider} />
@@ -243,7 +249,7 @@ export function SsoSettingsCard() {
         </Text>
       ) : null}
 
-      <Pressable
+      <SaveButton
         onPress={() =>
           save.mutate({
             enabled,
@@ -257,17 +263,11 @@ export function SsoSettingsCard() {
             defaultLibraryIds: restrictLibraries ? libraryIds : [],
           })
         }
-        disabled={selectionMissing || save.isPending}
-        style={[s.saveBtn, { opacity: selectionMissing || save.isPending ? 0.5 : 1 }]}
-        accessibilityRole="button"
+        disabled={selectionMissing}
+        loading={save.isPending}
+        label={t("admin.sso.save")}
         testID="sso-save"
-      >
-        {save.isPending ? (
-          <ActivityIndicator size="small" color={theme.colors.onAccent} />
-        ) : (
-          <Text style={{ color: theme.colors.onAccent, fontWeight: "600", fontSize: 15 }}>{t("admin.sso.save")}</Text>
-        )}
-      </Pressable>
+      />
 
       <Pressable
         onPress={() => test.mutate(issuer)}
@@ -292,12 +292,10 @@ const styles = (t: ReturnType<typeof useTheme>) =>
     input: { backgroundColor: t.colors.surface, color: t.colors.text, borderRadius: t.radii.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
     hint: { color: t.colors.textMuted, fontSize: 12, marginTop: 6 },
     badge: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-    switchRow: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 16 },
     divider: { height: StyleSheet.hairlineWidth, backgroundColor: t.colors.border, marginTop: 20, marginBottom: 4 },
     code: { backgroundColor: t.colors.surfaceRaised, color: t.colors.text, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 6, fontSize: 12, fontFamily: "monospace" },
     libraryBox: { marginTop: 10, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, borderRadius: t.radii.md, padding: 6, backgroundColor: t.colors.surface },
     libraryRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 8, paddingVertical: 8 },
     checkbox: { width: 20, height: 20, borderRadius: 4, borderWidth: 1.5, alignItems: "center", justifyContent: "center" },
-    saveBtn: { backgroundColor: t.colors.accent, borderRadius: t.radii.md, paddingVertical: 14, alignItems: "center", marginTop: 24 },
     testBtn: { borderRadius: t.radii.md, paddingVertical: 14, alignItems: "center", marginTop: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: t.colors.border, backgroundColor: t.colors.surfaceRaised },
   });

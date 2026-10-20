@@ -47,7 +47,8 @@ export function SettingRow({ label, info, hint, restart = false, reset, error, k
   const toggle = kind === "toggle";
 
   const heading = (
-    <View style={styles.heading}>
+    // testID: a test finds every row's label and its "i" through it.
+    <View style={styles.heading} testID="setting-heading">
       <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
       {info ? <InfoButton label={label} info={info} /> : null}
       {restart ? (

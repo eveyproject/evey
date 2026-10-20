@@ -1,117 +1,245 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-// The settings Save sends what the admin changed. It used to send hwMode on
-// every save, which turned a backend pinned on the web (nvenc, vaapi, qsv)
-// back to "auto" and started a new HW bench each time.
-vi.mock("react-native", () => ({
-  View: ({ children }: any) => React.createElement("div", null, children),
-  ScrollView: ({ children }: any) => React.createElement("div", null, children),
-  Text: ({ children }: any) => React.createElement("span", null, children),
-  ActivityIndicator: () => React.createElement("div", { "data-testid": "spinner" }),
-  RefreshControl: () => null,
-  TextInput: ({ value, onChangeText, accessibilityLabel }: any) =>
-    React.createElement("input", { value, "aria-label": accessibilityLabel, onChange: (e: any) => onChangeText(e.target.value) }),
-  Switch: ({ value, onValueChange, accessibilityLabel }: any) =>
-    React.createElement("input", { type: "checkbox", role: "switch", "aria-label": accessibilityLabel, checked: value, onChange: (e: any) => onValueChange(e.target.checked) }),
-  Pressable: ({ children, onPress, disabled }: any) => React.createElement("button", { onClick: onPress, disabled }, children),
-  StyleSheet: { create: (s: any) => s, hairlineWidth: 1 },
+// The server configuration screen: the web's eight sections behind a tab
+// row, every setting in exactly one of them, an "i" on every setting row but
+// the auto-skip intro switch, and saves that send only what a group changed.
+vi.mock("react-native", async () => (await import("../../../src/test/rnDom")).rnDom);
+const push = vi.hoisted(() => vi.fn());
+vi.mock("expo-router", () => ({ Stack: { Screen: () => null }, useRouter: () => ({ push }) }));
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (k: string) => k, i18n: { language: "en" } }),
 }));
-vi.mock("expo-router", () => ({ Stack: { Screen: () => null } }));
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, fallback?: string) => (typeof fallback === "string" ? fallback : k) }) }));
 const eveyFetch = vi.hoisted(() => vi.fn());
-vi.mock("@evey/api", () => ({ eveyFetch: (...a: unknown[]) => eveyFetch(...a), apiErrorMessage: () => "error" }));
+vi.mock("@evey/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/api")>()),
+  eveyFetch: (...a: unknown[]) => eveyFetch(...a),
+  apiErrorMessage: () => "error",
+  getConfigDefaults: () => Promise.resolve({}),
+  useLibraryServiceListLibraries: () => ({ data: { libraries: [] }, isLoading: false }),
+}));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
-vi.mock("@evey/store", () => ({ toast }));
-vi.mock("@evey/client", () => ({
-  latestLabel: () => "",
+vi.mock("@evey/store", async (importOriginal) => ({ ...(await importOriginal<typeof import("@evey/store")>()), toast }));
+vi.mock("@evey/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/client")>()),
   useCheckUpdateNow: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateStatus: () => ({ data: undefined }),
+  useServerClock: () => null,
 }));
 vi.mock("../../../src/providers/ThemeProvider", () => ({
-  useTheme: () => ({ colors: new Proxy({}, { get: () => "#000" }), radii: { md: 8 } }),
+  useTheme: () => ({ colors: new Proxy({}, { get: () => "#000" }), radii: { sm: 4, md: 8, lg: 12 } }),
 }));
-for (const card of ["LocaleSettingsCard", "MemoryProfileCard", "MkvgoCard", "SmtpSettingsCard", "SsoSettingsCard", "BackgroundJobsCard", "CpuBudgetCard", "ParserTokensCard", "ConfigEntriesCard"]) {
-  vi.doMock(`../../../src/components/admin/server-config/${card}`, () => ({ [card]: () => null }));
-}
 
-const setting = <T,>(value: T, def: T, source: "override" | "default" = "default") => ({ value, default: def, source });
+import Screen from "./server-config";
+
+const sv = <T,>(value: T, def: T, source: "override" | "default" = "default", extra: Record<string, unknown> = {}) => ({ value, default: def, source, ...extra });
 
 function settings(over: Record<string, unknown> = {}) {
   return {
-    serverName: setting("Evey", "Evey"),
-    maxConcurrentTranscodes: setting(2, 2),
-    hwAccelEnabled: setting(true, true, "override"),
-    loginRateLimit: setting(10, 10),
-    globalRateLimit: setting(300, 300),
-    logLevel: setting("info", "info"),
-    libraryWatcherEnabled: setting(true, true),
-    periodicScanInterval: setting("", ""),
-    skipPreviewEnabled: setting(false, false),
-    introAutoSkipEnabled: setting(false, false),
-    passwordRecoveryEnabled: setting(false, false),
-    auditRetentionDays: setting(90, 90),
-    metricsRetentionDays: setting(30, 30),
-    qoeRetentionDays: setting(30, 30),
-    playSessionRetentionDays: setting(90, 90),
-    transcodeCacheMaxGB: setting(50, 50),
+    serverName: sv("Evey", "Evey"),
+    logLevel: sv("info", "info"),
+    loginRateLimit: sv(10, 10),
+    globalRateLimit: sv(300, 300),
+    libraryWatcherEnabled: sv(true, true, "default", { requiresRestart: true }),
+    periodicScanInterval: sv("2m", "2m", "default", { requiresRestart: true }),
+    skipPreviewEnabled: sv(false, false),
+    introAutoSkipEnabled: sv(false, false),
+    passwordRecoveryEnabled: sv(false, false),
+    auditRetentionDays: sv(0, 0),
+    metricsRetentionDays: sv(90, 90),
+    qoeRetentionDays: sv(30, 30),
+    playSessionRetentionDays: sv(0, 0),
+    backupIncludeTelemetry: sv(false, false),
+    transcodeCacheMaxGB: sv(10, 10),
+    maxConcurrentTranscodes: sv(2, 2),
+    hwAccelEnabled: sv(true, true),
     ...over,
   };
 }
 
+const sso = {
+  enabled: false, issuer: "", clientId: "", clientSecret: "", allowedEmailDomains: [], buttonLabel: "",
+  linkByEmail: true, allowSignup: true, allowSignupDefault: false, defaultLibraryIds: [],
+  redirectUri: "https://evey.example/cb", postLogoutRedirectUri: "https://evey.example/login", source: "none", status: { state: "disabled" },
+};
+
+// Every entry the cards read, so the conditional rows show too (the TIDB
+// submit switch needs the providers on and a TIDB key).
+const entries = [
+  { key: "intro_providers.enabled", value: "true" },
+  { key: "api.tidb_key", value: "••••••••" },
+];
+
 let current = settings();
 
-async function mount() {
-  const { default: Screen } = await import("./server-config");
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function mount() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   render(<QueryClientProvider client={qc}><Screen /></QueryClientProvider>);
-  await screen.findByText("debug");
 }
 
-function savedBody(): Record<string, unknown> {
-  const put = eveyFetch.mock.calls.map((c) => c[0]).find((r) => r.method === "PUT" && r.url === "/api/v1/admin/server-settings");
-  expect(put).toBeDefined();
-  return put.data;
-}
-
-async function saveSettings() {
-  const saves = screen.getAllByText("common.save");
-  fireEvent.click(saves[saves.length - 1]);
-  await waitFor(() => expect(toast.success).toHaveBeenCalled());
-}
+const section = (id: string) => screen.getByTestId(`section-${id}`);
+const isHidden = (el: HTMLElement) => JSON.parse(el.parentElement?.getAttribute("data-style") ?? "{}").display === "none";
+const puts = () => eveyFetch.mock.calls.map((c) => c[0]).filter((r) => r.method === "PUT" && r.url === "/api/v1/admin/server-settings").map((r) => r.data);
 
 beforeEach(() => {
   vi.clearAllMocks();
   current = settings();
   eveyFetch.mockImplementation(async (req: { url: string; method: string }) => {
-    if (req.url === "/api/v1/admin/server-config") return { entries: [] };
-    return current;
+    if (req.url === "/api/v1/admin/server-config") return { entries };
+    if (req.url === "/api/v1/admin/sso") return sso;
+    if (req.url === "/api/v1/admin/server-settings") return req.method === "GET" ? current : {};
+    return {};
   });
 });
 
-describe("admin server config (mobile): settings save", () => {
-  it("leaves the HW mode alone when the admin only changed the log level", async () => {
-    await mount();
-    fireEvent.click(screen.getByText("debug"));
-    await saveSettings();
-    expect(savedBody()).toMatchObject({ logLevel: "debug" });
-    expect(savedBody()).not.toHaveProperty("hwMode");
+// Each setting the old flat screen offered, by its label key, with the
+// section it now lives in. hwAccelEnabled, maxConcurrentTranscodes and
+// transcodeCacheMaxGB moved to the Transcoding screen, like on the web.
+const PLACEMENT: Record<string, string> = {
+  "admin.serverSettings.serverName": "general",
+  "admin.serverSettings.logLevel": "general",
+  "admin.serverConfig.serverLanguage": "general",
+  "admin.serverConfig.serverRegion": "general",
+  "admin.serverConfig.metadataLanguage": "general",
+  "admin.serverConfig.timezone": "general",
+  "admin.update.enabled": "general",
+  "admin.serverSettings.libraryWatcher": "libraries",
+  "admin.serverSettings.periodicScanInterval": "libraries",
+  "admin.serverSettings.skipPreview": "libraries",
+  "admin.serverSettings.introAutoSkip": "libraries",
+  "admin.serverConfig.introProvidersEnabled": "libraries",
+  "admin.serverConfig.introProvidersTidbSubmit": "libraries",
+  "admin.serverConfig.artworkAutoDownload": "libraries",
+  "admin.serverConfig.artworkRetryNow": "libraries",
+  "admin.serverConfig.trickplayEnabled": "libraries",
+  "admin.serverConfig.parserTokensQualities": "libraries",
+  "admin.serverConfig.parserTokensEditions": "libraries",
+  "admin.serverConfig.apiKeys.tmdb": "services",
+  "admin.serverConfig.apiKeys.omdb": "services",
+  "admin.serverConfig.apiKeys.opensubtitles": "services",
+  "admin.serverConfig.apiKeys.tidb": "services",
+  "admin.serverSettings.passwordRecovery": "accounts",
+  "admin.serverSettings.loginRateLimit": "accounts",
+  "admin.serverSettings.globalRateLimit": "accounts",
+  "admin.sso.enabled": "accounts",
+  "admin.serverConfig.smtpHost": "accounts",
+  "admin.serverConfig.memoryProfileLabel": "performance",
+  "admin.serverConfig.cpuBudget.globalLabel": "performance",
+  "admin.serverConfig.ingestServingPlanLabel": "performance",
+  "admin.serverConfig.playabilityShadowLabel": "performance",
+  "admin.serverSettings.auditRetentionDays": "data",
+  "admin.serverSettings.metricsRetentionDays": "data",
+  "admin.serverSettings.qoeRetentionDays": "data",
+  "admin.serverSettings.playSessionRetentionDays": "data",
+  "admin.serverSettings.backupTelemetry": "data",
+  "admin.serverConfig.feedConfig.title": "home",
+};
+
+const SECTIONS = ["general", "libraries", "services", "accounts", "performance", "data", "home", "advanced"];
+
+describe("admin server config (mobile)", () => {
+  it("offers the eight sections as tabs, General open, the others mounted but hidden", async () => {
+    mount();
+    await screen.findByTestId("server-name-input");
+    const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(SECTIONS.map((id) => `admin.settingsLayout.sections.${id}.title`));
+    expect(tabs[0].getAttribute("aria-selected")).toBe("true");
+    expect(isHidden(section("general"))).toBe(false);
+    expect(isHidden(section("accounts"))).toBe(true);
+    fireEvent.click(screen.getByTestId("section-tab-accounts"));
+    expect(screen.getByTestId("section-tab-accounts").getAttribute("aria-selected")).toBe("true");
+    expect(isHidden(section("accounts"))).toBe(false);
+    expect(isHidden(section("general"))).toBe(true);
   });
 
-  it("sends the HW mode once the switch is flipped", async () => {
-    await mount();
-    fireEvent.click(screen.getByLabelText("admin.serverSettings.hwAccelEnabled"));
-    await saveSettings();
-    expect(savedBody()).toMatchObject({ hwMode: "off" });
+  it("places every setting in exactly one section, and the transcoding ones nowhere", async () => {
+    mount();
+    await screen.findByTestId("intro-tidb-submit-toggle");
+    await screen.findByTestId("sso-settings");
+    for (const [label, id] of Object.entries(PLACEMENT)) {
+      for (const other of SECTIONS) {
+        const n = within(section(other)).queryAllByText(label, { exact: true }).length;
+        if (other === id) expect(n, `${label} in ${id}`).toBeGreaterThan(0);
+        else expect(n, `${label} also in ${other}`).toBe(0);
+      }
+    }
+    expect(screen.queryByTestId("max-concurrent-input")).toBeNull();
+    expect(screen.queryByTestId("cache-budget-input")).toBeNull();
+    expect(screen.queryByText("admin.serverSettings.hwAccelEnabled")).toBeNull();
   });
 
-  it("sends a reset when the env default chip replaces an override", async () => {
-    current = settings({ logLevel: setting("debug", "info", "override") });
-    await mount();
-    fireEvent.click(screen.getByText(/Défaut env/));
-    await saveSettings();
-    expect(savedBody()).toMatchObject({ logLevel: null });
+  it("gives every setting row an 'i', except the auto-skip intro switch", async () => {
+    mount();
+    await screen.findByTestId("intro-tidb-submit-toggle");
+    await screen.findByTestId("sso-settings");
+    await screen.findByTestId("setting-row-backupIncludeTelemetry");
+    const headings = screen.getAllByTestId("setting-heading");
+    expect(headings.length).toBeGreaterThanOrEqual(50);
+    let bare = 0;
+    for (const h of headings) {
+      const label = h.firstElementChild?.textContent ?? "";
+      const infos = within(h).queryAllByTestId("setting-info-button").length;
+      if (label === "admin.serverSettings.introAutoSkip") {
+        bare++;
+        expect(infos).toBe(0);
+      } else {
+        expect(infos, `${label} has no "i"`).toBe(1);
+      }
+    }
+    expect(bare).toBe(1);
+  });
+
+  it("explains a setting in plain words behind its 'i' and shows its restart badge", async () => {
+    mount();
+    const row = await screen.findByTestId("setting-row-libraryWatcherEnabled");
+    fireEvent.click(within(row).getByTestId("setting-info-button"));
+    expect(within(row).getByRole("dialog").textContent).toContain("admin.settingsHelp.libraryWatcher");
+    expect(within(row).getByTestId("setting-restart-badge").textContent).toBe("admin.serverConfig.appliedOnRestart");
+  });
+
+  it("saves a group's own changed fields only, with its own Save", async () => {
+    mount();
+    fireEvent.change(await screen.findByTestId("metrics-retention-input"), { target: { value: "120" } });
+    fireEvent.change(screen.getByTestId("server-name-input"), { target: { value: "Salon" } });
+    fireEvent.click(screen.getByTestId("server-settings-save-retention"));
+    await waitFor(() => expect(puts()).toEqual([{ metricsRetentionDays: 120 }]));
+    // The general group's edit is still pending, untouched by the refetch.
+    expect((screen.getByTestId("server-name-input") as HTMLInputElement).value).toBe("Salon");
+    fireEvent.click(screen.getByTestId("server-settings-save-general"));
+    await waitFor(() => expect(puts()).toEqual([{ metricsRetentionDays: 120 }, { serverName: "Salon" }]));
+  });
+
+  it("refuses an invalid value inline and sends nothing", async () => {
+    mount();
+    fireEvent.change(await screen.findByTestId("login-rate-limit-input"), { target: { value: "-1" } });
+    fireEvent.click(screen.getByTestId("server-settings-save-sign-in"));
+    const row = screen.getByTestId("setting-row-loginRateLimit");
+    expect((await within(row).findByTestId("setting-error")).textContent).toBe("admin.settingsLayout.errorNumber");
+    expect(puts()).toEqual([]);
+  });
+
+  it("resets the log level to the default with an explicit null", async () => {
+    current = settings({ logLevel: sv("debug", "info", "override") });
+    mount();
+    const row = await screen.findByTestId("setting-row-logLevel");
+    await waitFor(() => expect(within(row).getByRole("radio", { checked: true }).textContent).toBe("debug"));
+    fireEvent.click(within(row).getByTestId("setting-reset"));
+    await waitFor(() => expect(puts()).toEqual([{ logLevel: null }]));
+  });
+
+  it("greys a setting the demo locks", async () => {
+    current = settings({ serverName: sv("Evey", "Evey", "default", { locked: true }) });
+    mount();
+    expect(((await screen.findByTestId("server-name-input")) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("puts the raw entries in Advanced with a warning, and opens the home rows screen", async () => {
+    mount();
+    await screen.findByTestId("server-name-input");
+    expect(within(section("advanced")).getByTestId("raw-entries-warning").textContent).toBe("admin.settingsLayout.rawEntriesWarning");
+    fireEvent.click(within(section("home")).getByTestId("home-feeds-open"));
+    expect(push).toHaveBeenCalledWith("/admin/feeds");
   });
 });
