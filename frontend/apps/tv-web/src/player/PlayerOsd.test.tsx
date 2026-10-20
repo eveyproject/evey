@@ -69,9 +69,9 @@ describe("PlayerOsd (tv-web)", () => {
 describe("NextEpisodeCard (tv-web)", () => {
   it("names the next episode and plays it on Play now", () => {
     const playNow = vi.fn();
-    const nextEp = { nextEpisode: { indexNumber: 4, title: "The box" }, ended: false, countdown: 10, playNow, cancel: vi.fn() };
+    const nextEp = { nextEpisode: { indexNumber: 4, seasonIndexNumber: 2, title: "The box" }, ended: false, countdown: 10, playNow, cancel: vi.fn() };
     render(<NextEpisodeCard nextEp={nextEp as never} />);
-    expect(screen.getByText("player.nextEpisodeOverlay.episode - The box")).toBeTruthy();
+    expect(screen.getByText("S02E04 · The box")).toBeTruthy();
     fireEvent.click(screen.getByText("Play now"));
     expect(playNow).toHaveBeenCalled();
   });

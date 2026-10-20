@@ -114,6 +114,7 @@ export default function PlayerScreen() {
   const { data: series } = useLibraryServiceGetMediaItem(season?.parentId ?? "", {
     query: { enabled: isEpisodePlaying && !!season?.parentId },
   });
+  const seasonNumber = season?.indexNumber || media?.seasonIndexNumber || undefined;
 
   // A series or a season has no file of its own: asking the server to stream
   // one can only 404, and the player would then blame the stream. It happened
@@ -561,7 +562,7 @@ export default function PlayerScreen() {
     enabled: !roomId,
     mediaId,
     profileId,
-    title: playerTitle(media, series?.title ?? (season ? itemLabel(season, t) : undefined)),
+    title: playerTitle(media, series?.title ?? media?.seriesTitle ?? (season ? itemLabel(season, t) : undefined), seasonNumber),
     isPlaying,
     getPositionMs: () => currentTimeRef.current * 1000,
     getPick: () => ({
@@ -810,7 +811,7 @@ export default function PlayerScreen() {
   // commands back into the same handlers a keypress uses.
   useCastConnectBridge({
     // Same title the top bar shows: the show's name leads for an episode.
-    title: playerTitle(media, series?.title ?? (season ? itemLabel(season, t) : undefined)),
+    title: playerTitle(media, series?.title ?? media?.seriesTitle ?? (season ? itemLabel(season, t) : undefined), seasonNumber),
     currentTime,
     duration,
     isPlaying,
@@ -1543,7 +1544,7 @@ export default function PlayerScreen() {
           <View style={styles.topBar}>
             <PlayerScrim edge="top" />
             <Text style={styles.mediaTitle} numberOfLines={1}>
-              {playerTitle(media, series?.title ?? (season ? itemLabel(season, t) : undefined))}
+              {playerTitle(media, series?.title ?? media?.seriesTitle ?? (season ? itemLabel(season, t) : undefined), seasonNumber)}
             </Text>
             <View style={styles.badgeRow}>
               <SyncplaySessionBadge

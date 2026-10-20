@@ -27,7 +27,7 @@ vi.mock("@evey/theme", () => ({ FONT_SIZE: { sm: 12, base: 14, xl: 22 } }));
 
 import { NextEpisodeOverlay } from "./NextEpisodeOverlay";
 
-const next = { id: "e2", title: "The Second One", indexNumber: 2 } as any;
+const next = { id: "e2", title: "The Second One", indexNumber: 2, seasonIndexNumber: 1 } as any;
 
 // Before the credits end the card says "up next"; once the episode has ended
 // it counts down (never below zero), the focus lands on "play now", and a
@@ -45,7 +45,7 @@ describe("NextEpisodeOverlay", () => {
     const onCancel = vi.fn();
     const { rerender } = render(<NextEpisodeOverlay visible ended={false} countdown={5} nextEpisode={next} onPlayNow={onPlayNow} onCancel={onCancel} />);
     expect(screen.getByText("Up next")).toBeTruthy();
-    expect(screen.getByText("Episode 2 - The Second One")).toBeTruthy();
+    expect(screen.getByText("S01E02 · The Second One")).toBeTruthy();
     expect(screen.getByLabelText("Play now").getAttribute("data-preferred")).toBe("true");
     fireEvent.click(screen.getByLabelText("Play now"));
     expect(onPlayNow).toHaveBeenCalled();
@@ -60,6 +60,6 @@ describe("NextEpisodeOverlay", () => {
 
   it("labels an unnumbered next episode by its title alone", () => {
     render(<NextEpisodeOverlay visible ended={false} countdown={5} nextEpisode={{ id: "e9", title: "Special" } as any} onPlayNow={vi.fn()} onCancel={vi.fn()} />);
-    expect(screen.getByText("Next episode - Special")).toBeTruthy();
+    expect(screen.getByText("Next episode · Special")).toBeTruthy();
   });
 });

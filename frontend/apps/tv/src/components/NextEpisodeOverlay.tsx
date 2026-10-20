@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
-import type { V1MediaItem } from "@evey/api";
+import { episodeLabel as sharedEpisodeLabel, type V1MediaItem } from "@evey/api";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
 import { FONT_SIZE } from "@evey/theme";
@@ -22,11 +22,15 @@ export function NextEpisodeOverlay({ visible, ended, countdown, stillWatching = 
 
   if (!visible || !nextEpisode) return null;
 
-  const episodeLabel =
+  // The series is obvious while its next episode is announced: code and title.
+  const episodeLine =
     nextEpisode.indexNumber != null
-      ? t("player.nextEpisodeOverlay.episode", { number: nextEpisode.indexNumber })
-      : t("player.nextEpisodeOverlay.nextEpisode", "Next episode");
-  const episodeLine = [episodeLabel, nextEpisode.title].filter(Boolean).join(" - ");
+      ? sharedEpisodeLabel({
+          seasonNumber: nextEpisode.seasonIndexNumber,
+          episodeNumber: nextEpisode.indexNumber,
+          title: nextEpisode.title,
+        })
+      : [t("player.nextEpisodeOverlay.nextEpisode", "Next episode"), nextEpisode.title].filter(Boolean).join(" · ");
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>

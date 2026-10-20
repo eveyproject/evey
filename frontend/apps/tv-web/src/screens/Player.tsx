@@ -795,7 +795,7 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
       {barVisible ? (
         <PlayerOsd
           mediaId={mediaId}
-          title={media ? playerTitle(media, media.seriesTitle) : ""}
+          title={media ? playerTitle(media, media.seriesTitle, media.seasonIndexNumber) : ""}
           roomId={roomId}
           syncConnected={syncplay.state.connected}
           quality={quality}
