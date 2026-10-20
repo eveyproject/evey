@@ -48,7 +48,7 @@ export interface ServerSettingFieldSpec {
   autoKey?: string;
   /** Placeholder of a blank number field (i18n key, {{value}} = the default). */
   placeholderKey?: string;
-  /** What an emptied field means on Save: keep the stored value (default) or clear the override (null). */
+  /** What an emptied text field means on Save: keep the stored value (default) or clear the override (null). A choice's "" option always resets. */
   blank?: "keep" | "reset";
   /** 0 means "no override" on the server: show it as the default (""). */
   zeroIsDefault?: boolean;
@@ -66,7 +66,7 @@ const SOFTWARE_AV1_HEIGHTS = ["", "480", "720", "1080", "1440"];
 // copy. A page picks fields from here by key; a field belongs to one group.
 export const SERVER_SETTING_FIELDS = {
   serverName: { kind: "text", labelKey: "admin.serverSettings.serverName", infoKey: "admin.settingsHelp.serverName", testId: "server-name-input", fallbackDefault: "Evey" },
-  logLevel: { kind: "select", labelKey: "admin.serverSettings.logLevel", infoKey: "admin.settingsHelp.logLevel", testId: "log-level-select", fallbackDefault: "info", options: ["debug", "info", "warn", "error"] },
+  logLevel: { kind: "select", labelKey: "admin.serverSettings.logLevel", infoKey: "admin.settingsHelp.logLevel", testId: "log-level-select", fallbackDefault: "info", options: ["debug", "info", "warn", "error"], blank: "reset" },
   libraryWatcherEnabled: { kind: "toggle", labelKey: "admin.serverSettings.libraryWatcher", infoKey: "admin.settingsHelp.libraryWatcher", testId: "library-watcher-toggle", fallbackDefault: true },
   periodicScanInterval: { kind: "text", labelKey: "admin.serverSettings.periodicScanInterval", infoKey: "admin.settingsHelp.periodicScanInterval", testId: "scan-interval-input", fallbackDefault: "2m", duration: true },
   skipPreviewEnabled: { kind: "toggle", labelKey: "admin.serverSettings.skipPreview", infoKey: "admin.serverSettings.skipPreviewInfo", testId: "skip-preview-toggle", fallbackDefault: false },
@@ -135,6 +135,15 @@ export function serverSettingError(f: ServerSettingFieldSpec, v: ServerSettingDr
   }
   if (f.duration && !isPositiveGoDuration(v.trim())) return t("admin.settingsLayout.errorDuration");
   return null;
+}
+
+// blankRule says what an emptied field means on Save. On a choice ("select"
+// or "segmented") the "" option is the Default / Auto pick itself, so it can
+// only mean "clear the override": keeping the stored value would make that
+// pick a silent no-op.
+function blankRule(f: ServerSettingFieldSpec): "keep" | "reset" {
+  if (f.kind === "select" || f.kind === "segmented") return "reset";
+  return f.blank ?? "keep";
 }
 
 function bodyValue(f: ServerSettingFieldSpec, v: ServerSettingDraft | undefined): unknown {
@@ -277,7 +286,7 @@ export function useServerSettingsFormState(fields: ServerSettingField[], t: Serv
       const f = spec(k);
       // An emptied "keep" field means "leave what is there": clearing an
       // override is the Reset link's job. Show what is in force again.
-      if (f.kind !== "toggle" && String(drafts[k] ?? "").trim() === "" && (f.blank ?? "keep") === "keep") kept.push(k);
+      if (f.kind !== "toggle" && String(drafts[k] ?? "").trim() === "" && blankRule(f) === "keep") kept.push(k);
       else body[k] = bodyValue(f, drafts[k]);
     }
     if (kept.length > 0) {

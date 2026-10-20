@@ -185,4 +185,15 @@ describe("ServerSettingsGroup", () => {
     const select = (await screen.findByTestId("log-level-select")) as HTMLSelectElement;
     expect(select.options[0].text).toBe("admin.settingsLayout.defaultOption");
   });
+
+  // Picking "Default" over a stored override is a reset: it used to send
+  // nothing, report success and snap back to the override.
+  it("sends a reset when the Default option replaces a stored log level", async () => {
+    mount(settings({ logLevel: sv("debug", "info", "override") }), [{ fields: ["serverName", "logLevel"], save: "save-general" }]);
+    const select = (await screen.findByTestId("log-level-select")) as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe("debug"));
+    fireEvent.change(select, { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("save-general"));
+    await waitFor(() => expect(puts()).toEqual([{ logLevel: null }]));
+  });
 });

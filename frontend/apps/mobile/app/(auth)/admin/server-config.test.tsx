@@ -229,6 +229,18 @@ describe("admin server config (mobile)", () => {
     await waitFor(() => expect(puts()).toEqual([{ logLevel: null }]));
   });
 
+  // The old screen's "env default chip replaces an override" case: picking the
+  // Default option and saving clears the stored log level.
+  it("sends a reset when the Default option replaces a stored log level", async () => {
+    current = settings({ logLevel: sv("debug", "info", "override") });
+    mount();
+    const row = await screen.findByTestId("setting-row-logLevel");
+    await waitFor(() => expect(within(row).getByRole("radio", { checked: true }).textContent).toBe("debug"));
+    fireEvent.click(within(row).getByText("admin.settingsLayout.defaultOption"));
+    fireEvent.click(screen.getByTestId("server-settings-save-general"));
+    await waitFor(() => expect(puts()).toEqual([{ logLevel: null }]));
+  });
+
   it("greys a setting the demo locks", async () => {
     current = settings({ serverName: sv("Evey", "Evey", "default", { locked: true }) });
     mount();
