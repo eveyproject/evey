@@ -737,18 +737,19 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 		if st, ok := StreamTokenFromContext(r.Context()); ok && st != nil {
 			cast = st.Cast
 		}
-		if errors.Is(err, apptranscoding.ErrNoResource) {
+		switch {
+		case errors.Is(err, apptranscoding.ErrNoResource):
 			// A name the plan does not serve: a client's mistake, not a failure.
 			slog.DebugContext(r.Context(), "hls-vod: on-demand resource not in the plan",
 				slog.String("media_id", mediaID), slog.String("resource", name), slog.Any("err", err))
-		} else if err != nil {
+		case err != nil:
 			slog.WarnContext(r.Context(), "hls-vod: on-demand resource refused",
 				slog.String("media_id", mediaID),
 				slog.String("resource", name),
 				slog.Bool("cast", cast),
 				slog.Bool("damaged", errors.Is(err, apptranscoding.ErrSourceDamaged)),
 				slog.Any("err", err))
-		} else {
+		default:
 			size := int64(len(data))
 			if streamed != nil {
 				size = streamed.Size()

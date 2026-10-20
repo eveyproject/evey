@@ -223,7 +223,7 @@ func TestExtractSubtitleVTT_TruncatedSourceServesItsCuesUncached(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Truncate(film, st.Size()*6/10); err != nil {
+	if err = os.Truncate(film, st.Size()*6/10); err != nil {
 		t.Fatal(err)
 	}
 
