@@ -24,7 +24,7 @@ func seedShow(seed func(*library.MediaItem)) {
 func TestFillAncestorTitles(t *testing.T) {
 	byID := map[string]*library.MediaItem{
 		"mi-series": {ID: "mi-series", Title: "Some Series", Type: library.Series},
-		"mi-season": {ID: "mi-season", Title: "Season 1", Type: library.Season, ParentID: "mi-series"},
+		"mi-season": {ID: "mi-season", Title: "Season 1", Type: library.Season, ParentID: "mi-series", IndexNumber: new(2)},
 	}
 	fetch := func(_ context.Context, ids []string) ([]*library.MediaItem, error) {
 		out := make([]*library.MediaItem, 0, len(ids))
@@ -43,6 +43,8 @@ func TestFillAncestorTitles(t *testing.T) {
 
 	assert.Equal(t, "Some Series", episode.SeriesTitle)
 	assert.Equal(t, "Season 1", episode.SeasonTitle)
+	assert.Equal(t, int32(2), episode.SeasonIndexNumber)
+	assert.Zero(t, season.SeasonIndexNumber)
 	assert.Equal(t, "Some Series", season.SeriesTitle)
 	assert.Empty(t, season.SeasonTitle)
 	assert.Empty(t, movie.SeriesTitle)

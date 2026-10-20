@@ -208,6 +208,9 @@ message MediaItem {
   // episode with its series without one round-trip per card.
   string series_title = 32;
   string season_title = 33;
+  // Season number of an episode's season (0 elsewhere), so a client can build
+  // the S01E03 code without fetching the season.
+  int32 season_index_number = 34;
 }
 
 message Rating {
