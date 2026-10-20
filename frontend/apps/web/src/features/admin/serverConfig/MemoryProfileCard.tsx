@@ -2,12 +2,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
 import { Spinner } from "@/components/ui/Spinner";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { SettingRow } from "@/components/ui/SettingRow";
 import { useSetConfigEntry, type ConfigEntry } from "./hooks";
 
 const MEMORY_PROFILE_KEY = "server.memory_profile";
 
-export function MemoryProfileCard({ entries }: { entries: ConfigEntry[] | undefined }) {
+export function MemoryProfileCard({ entries, labelledBy }: { entries: ConfigEntry[] | undefined; labelledBy?: string }) {
   const { t } = useTranslation();
   const setEntry = useSetConfigEntry();
 
@@ -20,12 +19,15 @@ export function MemoryProfileCard({ entries }: { entries: ConfigEntry[] | undefi
     );
   }
 
-  const label = t("admin.serverConfig.memoryProfileLabel");
   return (
-    <SettingRow label={label} info={t("admin.serverConfig.memoryProfileDesc")} hint={t("admin.serverConfig.memoryProfileSubtitle")} kind="wide" data-testid="memory-profile-row">
+    <div className="flex flex-col items-start gap-2" data-testid="memory-profile-row">
+      {/* The group's title names the choice (labelledBy): a row label would
+          only repeat it. Saved on pick: the arrows only move. */}
       <SegmentedControl
         id="memory-profile"
-        label={label}
+        label={t("admin.serverConfig.memoryProfileLabel")}
+        labelledBy={labelledBy}
+        activation="manual"
         value={value}
         onChange={handleChange}
         disabled={setEntry.isPending}
@@ -36,6 +38,6 @@ export function MemoryProfileCard({ entries }: { entries: ConfigEntry[] | undefi
         ]}
       />
       {setEntry.isPending && <Spinner size="sm" />}
-    </SettingRow>
+    </div>
   );
 }

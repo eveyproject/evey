@@ -53,7 +53,9 @@ function mount(data: Record<string, unknown>, groups: { fields: ServerSettingFie
 const puts = () =>
   eveyFetchMock.mock.calls.map((c) => c[0] as { method: string; data: unknown }).filter((c) => c.method === "PUT").map((c) => c.data);
 
-beforeEach(() => eveyFetchMock.mockReset());
+beforeEach(() => {
+  eveyFetchMock.mockReset();
+});
 
 // The server-settings resource is split across sections: each group sends a
 // partial object with only the fields the admin changed in it (the server
@@ -133,5 +135,54 @@ describe("ServerSettingsGroup", () => {
     const autoSkip = screen.getByTestId("setting-row-introAutoSkipEnabled");
     expect(within(autoSkip).queryByRole("button", { name: "admin.settingsLayout.moreInfo" })).toBeNull();
     expect(within(autoSkip).getByRole("switch", { name: "admin.serverSettings.introAutoSkip" })).toBeInTheDocument();
+  });
+
+  it("refuses an interval the server cannot read, inline and without a request", async () => {
+    mount(settings(), [{ fields: ["periodicScanInterval", "auditRetentionDays"], save: "save-scanning" }]);
+    fireEvent.change(await screen.findByTestId("scan-interval-input"), { target: { value: "2 minutes" } });
+    fireEvent.change(screen.getByTestId("audit-retention-input"), { target: { value: "-3" } });
+    fireEvent.click(screen.getByTestId("save-scanning"));
+    expect(await screen.findAllByTestId("setting-error")).toHaveLength(2);
+    expect(within(screen.getByTestId("setting-row-periodicScanInterval")).getByRole("alert")).toHaveTextContent("admin.settingsLayout.errorDuration");
+    expect(puts()).toEqual([]);
+    fireEvent.change(screen.getByTestId("scan-interval-input"), { target: { value: "1h30m" } });
+    fireEvent.change(screen.getByTestId("audit-retention-input"), { target: { value: "365" } });
+    expect(screen.queryByTestId("setting-error")).toBeNull();
+    fireEvent.click(screen.getByTestId("save-scanning"));
+    await waitFor(() => expect(puts()).toEqual([{ periodicScanInterval: "1h30m", auditRetentionDays: 365 }]));
+  });
+
+  it("an emptied override is not sent and shows the value in force again", async () => {
+    mount(settings({ loginRateLimit: sv(5, 10, "override") }), [{ fields: ["loginRateLimit"], save: "save-sign-in" }]);
+    const input = (await screen.findByTestId("login-rate-limit-input")) as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe("5"));
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("save-sign-in"));
+    await waitFor(() => expect(input.value).toBe("5"));
+    expect(puts()).toEqual([]);
+    expect(screen.getByTestId("save-sign-in")).toBeDisabled();
+  });
+
+  it("a save clears only the fields it sent: an edit made meanwhile stays pending", async () => {
+    let release: (v: unknown) => void = () => {};
+    mount(settings(), [{ fields: ["serverName", "logLevel"], save: "save-general" }]);
+    const name = await screen.findByTestId("server-name-input");
+    eveyFetchMock.mockImplementation((opts?: { method?: string }) =>
+      opts?.method === "GET" ? Promise.resolve(settings()) : new Promise((r) => { release = r; }),
+    );
+    fireEvent.change(name, { target: { value: "Salon" } });
+    fireEvent.click(screen.getByTestId("save-general"));
+    await waitFor(() => expect(puts()).toEqual([{ serverName: "Salon" }]));
+    // Typed while the first save is in flight.
+    fireEvent.change(screen.getByTestId("log-level-select"), { target: { value: "debug" } });
+    release({});
+    await waitFor(() => expect(screen.getByTestId("save-general")).toBeEnabled());
+    expect((screen.getByTestId("log-level-select") as HTMLSelectElement).value).toBe("debug");
+  });
+
+  it("names the default log level briefly, so the select never truncates it", async () => {
+    mount(settings(), [{ fields: ["logLevel"], save: "save-general" }]);
+    const select = (await screen.findByTestId("log-level-select")) as HTMLSelectElement;
+    expect(select.options[0].text).toBe("admin.settingsLayout.defaultOption");
   });
 });

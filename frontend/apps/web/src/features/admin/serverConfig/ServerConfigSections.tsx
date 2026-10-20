@@ -137,8 +137,14 @@ function PerformanceSection({ entries }: SectionProps) {
   return (
     <>
       <p className="text-xs text-[var(--text-muted)]">{t("admin.serverSettings.transcodeMovedHint")}</p>
-      <SettingsGroup title={t("admin.serverConfig.memoryProfileTitle")} data-testid="group-memory">
-        <MemoryProfileCard entries={entries} />
+      <SettingsGroup
+        title={t("admin.serverConfig.memoryProfileTitle")}
+        titleId="memory-profile-title"
+        description={t("admin.serverConfig.memoryProfileSubtitle")}
+        info={t("admin.serverConfig.memoryProfileDesc")}
+        data-testid="group-memory"
+      >
+        <MemoryProfileCard entries={entries} labelledBy="memory-profile-title" />
       </SettingsGroup>
       <SettingsGroup title={t("admin.serverConfig.cpuBudget.title")} description={t("admin.serverConfig.cpuBudget.subtitle")} data-testid="group-cpu">
         <CpuBudgetCard entries={entries} />

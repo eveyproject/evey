@@ -66,6 +66,6 @@ describe("CpuBudgetCard", () => {
     render(<CpuBudgetCard entries={[]} />);
     expect(screen.getByTestId("spinner")).toBeInTheDocument();
     expect(screen.getAllByRole("radiogroup")).toHaveLength(5);
-    for (const r of screen.getAllByRole("radio")) expect(r).toBeDisabled();
+    for (const r of screen.getAllByRole("radio")) expect(r).toHaveAttribute("aria-disabled", "true");
   });
 });

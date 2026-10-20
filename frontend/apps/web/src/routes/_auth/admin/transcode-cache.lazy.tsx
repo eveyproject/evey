@@ -21,7 +21,7 @@ import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
-import { SETTINGS_KEY, useTranscodingServerSettings } from "@/features/admin/transcoding/hooks";
+import { SERVER_SETTINGS_KEY, useServerSettings } from "@/features/admin/serverConfig/serverSettings";
 
 export const Route = createLazyFileRoute("/_auth/admin/transcode-cache")({
   // Every control here is an operator write the demo refuses (DemoReadOnly).
@@ -43,13 +43,13 @@ function formatDate(d: string | undefined): string {
 function TranscodingSettings() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const { data: settings, isLoading } = useTranscodingServerSettings();
+  const { data: settings, isLoading } = useServerSettings();
 
   const [maxConcurrent, setMaxConcurrent] = useState("2");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (settings) setMaxConcurrent(String(settings.maxConcurrentTranscodes.value));
+    if (settings?.maxConcurrentTranscodes) setMaxConcurrent(String(settings.maxConcurrentTranscodes.value));
   }, [settings]);
 
   const handleSave = useCallback(async () => {
@@ -61,7 +61,7 @@ function TranscodingSettings() {
         method: "PUT",
         data: { maxConcurrentTranscodes: maxConcurrent === "" ? null : parseInt(maxConcurrent, 10) },
       });
-      await qc.invalidateQueries({ queryKey: SETTINGS_KEY });
+      await qc.invalidateQueries({ queryKey: SERVER_SETTINGS_KEY });
       toast.success(t("admin.transcodeCache.settingsSaved") || "Transcoding settings saved");
     } catch {
       toast.error(t("admin.transcodeCache.settingsSaveFailed"));

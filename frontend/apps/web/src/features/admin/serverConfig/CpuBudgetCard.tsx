@@ -16,7 +16,8 @@ import { useSetConfigEntry, useDeleteConfigEntry, type ConfigEntry } from "./hoo
 // @evey/client's (useCpuBudgetForm), shared with the phone.
 //
 // Every choice is a segmented control of equal cells: "follow the global
-// share" and "25 %" take the same width, so the rows line up.
+// share" and "25 %" take the same width, so the rows line up. A pick saves at
+// once, so the arrows only move the focus and Space/Enter picks.
 export function CpuBudgetCard({ entries }: { entries: ConfigEntry[] | undefined }) {
   const { t } = useTranslation();
   const setEntry = useSetConfigEntry();
@@ -30,10 +31,12 @@ export function CpuBudgetCard({ entries }: { entries: ConfigEntry[] | undefined 
 
   return (
     <div className="flex flex-col divide-y divide-[var(--border)]">
-      <SettingRow label={globalLabel} info={t("admin.serverConfig.cpuBudget.globalDesc")} hint={t("admin.serverConfig.cpuBudget.applyHint")} kind="wide">
+      <SettingRow label={globalLabel} labelId="cpu-budget-global-label" info={t("admin.serverConfig.cpuBudget.globalDesc")} hint={t("admin.serverConfig.cpuBudget.applyHint")} kind="wide">
         <SegmentedControl
           id="cpu-budget-global"
           label={globalLabel}
+          labelledBy="cpu-budget-global-label"
+          activation="manual"
           value={String(globalPercent)}
           onChange={(v) => setGlobal(Number(v))}
           disabled={busy}
@@ -53,10 +56,12 @@ export function CpuBudgetCard({ entries }: { entries: ConfigEntry[] | undefined 
       {CPU_BUDGET_TASKS.map((field) => {
         const label = t(field.labelKey);
         return (
-          <SettingRow key={field.task} label={label} info={t(field.descKey)} kind="wide" data-testid={`cpu-budget-row-${field.task}`}>
+          <SettingRow key={field.task} label={label} labelId={`cpu-budget-${field.task}-label`} info={t(field.descKey)} kind="wide" data-testid={`cpu-budget-row-${field.task}`}>
             <SegmentedControl
               id={`cpu-budget-${field.task}`}
               label={label}
+              labelledBy={`cpu-budget-${field.task}-label`}
+              activation="manual"
               value={taskPercent[field.task] === null ? "" : String(taskPercent[field.task])}
               onChange={(v) => setTask(field.task, v === "" ? null : Number(v))}
               disabled={busy}

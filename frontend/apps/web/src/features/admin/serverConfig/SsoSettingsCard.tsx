@@ -194,10 +194,11 @@ export function SsoSettingsCard() {
           <Switch checked={allowSignup} onChange={() => setAllowSignup((v) => !v)} label={t("admin.sso.allowSignup")} data-testid="sso-signup" />
         </SettingRow>
         {allowSignup && (
-          <SettingRow label={t("admin.sso.defaultAccess")} info={t("admin.settingsHelp.ssoDefaultAccess")} kind="wide">
+          <SettingRow label={t("admin.sso.defaultAccess")} labelId="sso-default-access-label" info={t("admin.settingsHelp.ssoDefaultAccess")} kind="wide">
             <div className="flex flex-col gap-2">
               <SegmentedControl
                 label={t("admin.sso.defaultAccess")}
+                labelledBy="sso-default-access-label"
                 value={restrictLibraries ? "selected" : "all"}
                 onChange={(v) => setRestrictLibraries(v === "selected")}
                 options={[
