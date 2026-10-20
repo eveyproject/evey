@@ -146,7 +146,7 @@ func (r *PlaybackQoEReader) GetTopStarvedTitles(ctx context.Context, window time
 		if err := rows.Scan(&r.MediaItemID, &r.Title, &r.FilePath, &r.StarvedEvents, &r.TotalEvents, &lastStarvedAt, &mediaType, &seriesTitle, &seasonNum, &episodeNum); err != nil {
 			return nil, fmt.Errorf("qoe top starved scan: %w", err)
 		}
-		if mediaType == "episode" {
+		if mediaType == string(library.Episode) {
 			r.Title = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, r.Title)
 		}
 		if lastStarvedAt.Valid {

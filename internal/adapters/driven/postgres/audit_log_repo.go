@@ -141,7 +141,7 @@ func (r *AuditLogRepository) List(ctx context.Context, f activity.AuditLogFilter
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
-		if mediaType == "episode" && (e.ResourceType == "media" || e.ResourceType == "media_item") {
+		if mediaType == string(library.Episode) && (e.ResourceType == "media" || e.ResourceType == "media_item") {
 			e.ResourceName = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, e.ResourceName)
 		}
 		if err := json.Unmarshal(detailsJSON, &e.Details); err != nil {

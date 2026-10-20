@@ -154,7 +154,7 @@ func (r *AnalyticsReader) fetchTopMedia(ctx context.Context) ([]activity.TopMedi
 		if err := rows.Scan(&item.MediaItemID, &item.Title, &mediaType, &seriesTitle, &seasonNum, &episodeNum, &item.PlayCount, &item.TotalDurationSeconds); err != nil {
 			return nil, err
 		}
-		if mediaType == "episode" {
+		if mediaType == string(library.Episode) {
 			item.Title = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, item.Title)
 		}
 		items = append(items, item)
@@ -186,7 +186,7 @@ func (r *AnalyticsReader) fetchRecentActivity(ctx context.Context) ([]activity.R
 		if err := rows.Scan(&entry.UserID, &entry.Username, &entry.MediaTitle, &entry.PlayedAt, &mediaType, &seriesTitle, &seasonNum, &episodeNum); err != nil {
 			return nil, err
 		}
-		if mediaType == "episode" {
+		if mediaType == string(library.Episode) {
 			entry.MediaTitle = library.EpisodeLabel(seriesTitle, seasonNum, episodeNum, entry.MediaTitle)
 		}
 		entries = append(entries, entry)
