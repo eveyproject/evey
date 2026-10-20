@@ -1,7 +1,7 @@
 import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { EncodeCalibrationCard } from "./EncodeCalibrationCard";
+import { EncodeCalibrationCard, EncodeSettingsCard } from "./EncodeCalibrationCard";
 
 // ── Mutable mock state ─────────────────────────────────────────────────────────
 
@@ -89,7 +89,16 @@ function createWrapper() {
 }
 
 function renderCard() {
-  return render(<EncodeCalibrationCard />, { wrapper: createWrapper() });
+  // The settings (hardware, bitrate, AV1) and the diagnostics (measured
+  // ceilings, recalibrate) are two cards on the page; render them together
+  // as the page does.
+  return render(
+    <>
+      <EncodeSettingsCard />
+      <EncodeCalibrationCard />
+    </>,
+    { wrapper: createWrapper() },
+  );
 }
 
 // ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -597,5 +606,59 @@ describe("EncodeCalibrationCard - remote bitrate ceiling", () => {
     renderCard();
     const sel = screen.getByTestId("max-video-bitrate-remote-select") as HTMLSelectElement;
     expect(sel.value).toBe("20000");
+  });
+});
+
+// Settings and diagnostics are two cards: what the admin chooses (hardware,
+// ceilings, AV1) apart from what the host measured (caps, codec support,
+// recalibrate).
+describe("EncodeSettingsCard / EncodeCalibrationCard split", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalibrationIsLoading = false;
+    mockRecalibrateIsPending = false;
+    mockSetModeIsPending = false;
+    mockCalibrationData = HW_NVENC_DATA;
+    mockSettingsData = { av1Enabled: { value: true }, av1MaxHeight: { value: 1080 } };
+  });
+
+  it("the settings card holds the choices and no measurement", () => {
+    render(<EncodeSettingsCard />, { wrapper: createWrapper() });
+    expect(screen.getByTestId("hw-enable-toggle")).toBeInTheDocument();
+    expect(screen.getByTestId("max-video-bitrate-select")).toBeInTheDocument();
+    expect(screen.queryByTestId("recalibrate-btn")).toBeNull();
+    expect(screen.queryByText(/Software encode cap/i)).toBeNull();
+  });
+
+  it("the diagnostics card holds the measurements and no choice", () => {
+    render(<EncodeCalibrationCard />, { wrapper: createWrapper() });
+    expect(screen.getByTestId("recalibrate-btn")).toBeInTheDocument();
+    expect(screen.getByText(/Software encode cap/i)).toBeInTheDocument();
+    expect(screen.queryByTestId("hw-enable-toggle")).toBeNull();
+    expect(screen.queryByTestId("max-video-bitrate-select")).toBeNull();
+  });
+
+  it("keeps the bitrate ceilings reachable with hardware acceleration off: they cap software encodes too", () => {
+    mockCalibrationData = SW_ONLY_DATA;
+    render(<EncodeSettingsCard />, { wrapper: createWrapper() });
+    expect(screen.getByTestId("max-video-bitrate-select")).toBeInTheDocument();
+    expect(screen.getByTestId("max-video-bitrate-remote-select")).toBeInTheDocument();
+    expect(screen.queryByTestId("av1-enable-toggle")).toBeNull();
+  });
+
+  it("offers the AV1 max quality as equal options and sends the pick", () => {
+    render(<EncodeSettingsCard />, { wrapper: createWrapper() });
+    const group = screen.getByRole("radiogroup", { name: "AV1 max quality" });
+    expect(Array.from(group.querySelectorAll("[role=radio]")).map((r) => r.getAttribute("data-value"))).toEqual(["0", "720", "1080", "1440", "2160"]);
+    expect(screen.getByRole("radio", { name: "1080p" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("radio", { name: "1440p" }));
+    expect(mockSetModeMutate).toHaveBeenCalledWith({ av1MaxHeight: 1440 });
+  });
+
+  it("explains every encoding choice behind an 'i'", () => {
+    render(<EncodeSettingsCard />, { wrapper: createWrapper() });
+    for (const label of ["Hardware acceleration", "Backend", "Video bitrate ceiling", "Video bitrate ceiling, remote viewers", "AV1 output", "AV1 max quality"]) {
+      expect(screen.getByRole("button", { name: `More info: ${label}` })).toBeInTheDocument();
+    }
   });
 });

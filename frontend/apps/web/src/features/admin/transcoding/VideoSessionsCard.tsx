@@ -13,6 +13,7 @@ import {
 import { toast } from "@evey/store";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { SettingRow } from "@/components/ui/SettingRow";
 
 const MAX_VIDEO_SESSIONS_KEY = "transcoding.max_video_sessions";
 const CONFIG_QUERY_KEY = getServerConfigServiceListServerConfigEntriesQueryKey();
@@ -58,30 +59,7 @@ function codecLabel(codec?: string): string {
 // consumes a slot, and one viewer switching quality holds a single slot.
 export function VideoSessionsCard() {
   const { t } = useTranslation();
-  const qc = useQueryClient();
   const { data: sysData } = useAdminSystemServiceGetSystemInfo();
-  const { data: entries } = useServerConfigServiceListServerConfigEntries({
-    query: { select: (d) => d.entries ?? [] },
-  });
-
-  const stored = entries?.find((e) => e.key === MAX_VIDEO_SESSIONS_KEY)?.value ?? "";
-  const [value, setValue] = useState(stored);
-  const [dirty, setDirty] = useState(false);
-
-  useEffect(() => {
-    if (!dirty) setValue(stored);
-  }, [stored, dirty]);
-
-  const save = useMutation({
-    mutationFn: () => serverConfigServiceSetServerConfigEntry(MAX_VIDEO_SESSIONS_KEY, { value: value.trim() }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: CONFIG_QUERY_KEY });
-      setDirty(false);
-      toast.success(t("admin.transcoding.videoSessionsSaved", "Video transcode capacity updated"));
-    },
-    onError: () => toast.error(t("admin.transcoding.videoSessionsFailed", "Could not update the capacity")),
-  });
-
   const vs = sysData?.videoSessions;
   const ev = vs?.evidence;
   const pools = vs?.pools ?? [];
@@ -214,33 +192,70 @@ export function VideoSessionsCard() {
         </>
       )}
 
-      <div className="flex flex-col gap-1 pt-2 mt-1 border-t border-[var(--border)]">
-        <Input
-          id="max-video-sessions"
-          label={t("admin.transcoding.maxVideoSessionsLabel")}
-          type="number"
-          min={1}
-          placeholder={t("admin.transcoding.maxVideoSessionsAuto")}
-          value={value}
-          onChange={(e) => {
-            setValue(e.target.value);
-            setDirty(true);
-          }}
-          className="max-w-[12rem]"
-        />
-        <p className="text-xs text-[var(--text-muted)]">{t("admin.transcoding.maxVideoSessionsDesc")}</p>
-        <div className="flex justify-end pt-1">
-          <Button
-            variant="ghost"
-            onClick={() => save.mutate()}
-            loading={save.isPending}
-            disabled={!dirty}
-            data-testid="max-video-sessions-save-btn"
-          >
-            {t("common.save")}
-          </Button>
-        </div>
-      </div>
     </div>
+  );
+}
+
+// MaxVideoSessionsSetting is the one control over live playback capacity:
+// lower the measured number of simultaneous video streams. Blank keeps the
+// measured value ("Auto"); the server never lets it go above the measure.
+export function MaxVideoSessionsSetting() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { data: entries } = useServerConfigServiceListServerConfigEntries({
+    query: { select: (d) => d.entries ?? [] },
+  });
+
+  const stored = entries?.find((e) => e.key === MAX_VIDEO_SESSIONS_KEY)?.value ?? "";
+  const [value, setValue] = useState(stored);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    if (!dirty) setValue(stored);
+  }, [stored, dirty]);
+
+  const save = useMutation({
+    mutationFn: () => serverConfigServiceSetServerConfigEntry(MAX_VIDEO_SESSIONS_KEY, { value: value.trim() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CONFIG_QUERY_KEY });
+      setDirty(false);
+      toast.success(t("admin.transcoding.videoSessionsSaved", "Video transcode capacity updated"));
+    },
+    onError: () => toast.error(t("admin.transcoding.videoSessionsFailed", "Could not update the capacity")),
+  });
+
+  return (
+    <SettingRow
+      label={t("admin.transcoding.maxVideoSessionsLabel")}
+      htmlFor="max-video-sessions"
+      info={t("admin.transcoding.maxVideoSessionsDesc")}
+      data-testid="max-video-sessions-row"
+    >
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <Input
+            id="max-video-sessions"
+            type="number"
+            min={1}
+            placeholder={t("admin.transcoding.maxVideoSessionsAuto")}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setDirty(true);
+            }}
+            className="w-full"
+          />
+        </div>
+        <Button
+          variant="secondary"
+          onClick={() => save.mutate()}
+          loading={save.isPending}
+          disabled={!dirty}
+          data-testid="max-video-sessions-save-btn"
+        >
+          {t("common.save")}
+        </Button>
+      </div>
+    </SettingRow>
   );
 }

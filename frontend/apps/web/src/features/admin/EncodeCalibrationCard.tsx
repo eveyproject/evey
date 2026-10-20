@@ -7,6 +7,8 @@ import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Switch } from "@/components/ui/Switch";
+import { SettingRow } from "@/components/ui/SettingRow";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 
 // EncodeCapability is the JSON shape served by the backend at
 // /api/v1/admin/transcode/calibration. Mirrors the Go domain struct.
@@ -89,21 +91,47 @@ export function gpuPipelineSummary(
 }
 const SETTINGS_QK = ["/api/v1/admin/server-settings"] as const;
 
-// EncodeCalibrationCard surfaces the host's measured encode ceiling and
-// exposes the "Recalibrate" button that triggers a fresh benchmark.
-// Read-only block above + action button below - kept small because the
-// data is just a few lines (cap + last-bench timestamp).
-export function EncodeCalibrationCard() {
-  const { t, i18n } = useTranslation();
-  const qc = useQueryClient();
+type EncodeSettings = {
+  av1Enabled?: { value: boolean };
+  av1MaxHeight?: { value: number };
+  hwLowPowerEnabled?: { value: boolean };
+  maxVideoBitrateKbps?: { value: number };
+  maxVideoBitrateRemoteKbps?: { value: number };
+};
 
-  const { data, isLoading, isError } = useQuery<EncodeCapability>({
+function useCalibration() {
+  return useQuery<EncodeCapability>({
     queryKey: QK_CALIBRATION,
     queryFn: () => eveyFetch<EncodeCapability>({ url: "/api/v1/admin/transcode/calibration", method: "GET" }),
   });
+}
+
+function CalibrationState({ isLoading }: { isLoading: boolean }) {
+  const { t } = useTranslation();
+  if (isLoading) return <div className="animate-shimmer h-32 rounded-[var(--radius-md)]" />;
+  return (
+    <EmptyState
+      icon={<TriangleAlert size={32} />}
+      title={t("common.errorBoundary.title")}
+      description={t("common.errorBoundary.description")}
+    />
+  );
+}
+
+const SELECT_CLASS =
+  "w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-raised)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60";
+
+// EncodeSettingsCard holds the encoding SETTINGS: hardware acceleration and
+// its backend, the bitrate ceilings, AV1 output and the low-power encoder.
+// Each applies live (a toggle or a pick saves at once). What the host
+// measured lives in EncodeCalibrationCard, on the diagnostics side of the page.
+export function EncodeSettingsCard() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useCalibration();
 
   // Server settings carry the AV1 output opt-in + height cap.
-  const { data: settings } = useQuery<{ av1Enabled: { value: boolean }; av1MaxHeight: { value: number }; hwLowPowerEnabled: { value: boolean }; maxVideoBitrateKbps: { value: number }; maxVideoBitrateRemoteKbps: { value: number } }>({
+  const { data: settings } = useQuery<EncodeSettings>({
     queryKey: SETTINGS_QK,
     queryFn: () => eveyFetch({ url: "/api/v1/admin/server-settings", method: "GET" }),
   });
@@ -143,9 +171,6 @@ export function EncodeCalibrationCard() {
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
-  const lowPowerCodecs = (data?.hw_features ?? [])
-    .filter((f) => f.startsWith("low_power_"))
-    .map((f) => f.slice("low_power_".length));
 
   // Local mirror of the active mode so the <select> stays responsive while the
   // detached re-bench runs server-side (the query refetches a few seconds later).
@@ -170,6 +195,201 @@ export function EncodeCalibrationCard() {
     },
     onError: (err: Error) => toast.error(apiErrorMessage(err, t, t("common.error"))),
   });
+
+  if (isLoading || isError || !data) return <CalibrationState isLoading={isLoading} />;
+
+  const lowPowerCodecs = (data.hw_features ?? [])
+    .filter((f) => f.startsWith("low_power_"))
+    .map((f) => f.slice("low_power_".length));
+  const detected = data.detected_backends ?? [];
+  const isWsl = data.is_wsl ?? false;
+  const hwEnabled = hwMode !== "off";
+  // Forceable backends = detected ones, plus the current pin even if detection
+  // now reports it absent (so a forced mode is never silently dropped). VAAPI/QSV
+  // run through Mesa's d3d12 driver on WSL, which can't sustain our multi-variant
+  // encode, so they're disabled there.
+  const forceable = Array.from(
+    new Set([...detected, ["nvenc", "vaapi", "qsv", "rkmpp"].includes(hwMode) ? hwMode : ""].filter(Boolean)),
+  );
+  const wslBlocked = (b: string) => isWsl && (b === "vaapi" || b === "qsv");
+  const hwLabel = t("admin.calibration.hwEnableLabel", "Hardware acceleration");
+  const av1Label = t("admin.calibration.av1Label", "AV1 output");
+  const av1MaxLabel = t("admin.calibration.av1MaxLabel", "AV1 max quality");
+  const lowPowerLabel = t("admin.calibration.lowPowerLabel", "Low-power encoder");
+
+  return (
+    <div className="flex flex-col divide-y divide-[var(--border)]">
+      {/* Master enable: off = software only, on = hardware (then pick a backend). */}
+      <SettingRow
+        label={hwLabel}
+        info={t("admin.settingsHelp.hwAccel")}
+        hint={hwEnabled
+          ? t("admin.calibration.hwEnabledHint", "Encoding on the GPU when possible")
+          : t("admin.calibration.hwDisabledHint", "Software only (CPU)")}
+        kind="toggle"
+      >
+        <Switch
+          checked={hwEnabled}
+          onChange={() => setMode.mutate(hwEnabled ? "off" : "auto")}
+          label={hwLabel}
+          disabled={setMode.isPending}
+          data-testid="hw-enable-toggle"
+        />
+      </SettingRow>
+
+      {hwEnabled && (
+        <SettingRow
+          label={t("admin.calibration.hwBackendLabel", "Backend")}
+          htmlFor="hw-mode-select"
+          info={t("admin.settingsHelp.hwBackend")}
+          hint={
+            <>
+              {detected.length > 0
+                ? t("admin.calibration.detected", "Detected: {{list}}", { list: detected.join(", ") })
+                : t("admin.calibration.detectedNone", "No GPU accelerator detected")}
+              {isWsl && (
+                <span className="mt-1 block text-[var(--color-warning)]">
+                  {t(
+                    "admin.calibration.wslVaapiNote",
+                    "VAAPI/QSV go through Mesa's d3d12 driver on WSL and can't sustain transcoding here - use NVENC, or validate VAAPI on a native Linux host.",
+                  )}
+                </span>
+              )}
+            </>
+          }
+        >
+          <select
+            id="hw-mode-select"
+            data-testid="hw-mode-select"
+            value={hwMode}
+            disabled={setMode.isPending}
+            onChange={(e) => setMode.mutate(e.target.value)}
+            className={SELECT_CLASS}
+          >
+            <option value="auto">{t("admin.calibration.hwModeAuto", "Auto (best available)")}</option>
+            {forceable.map((b) => (
+              <option key={b} value={b} disabled={wslBlocked(b)}>
+                {b.toUpperCase()}
+                {wslBlocked(b) ? ` - ${t("admin.calibration.wslUnsupported", "not supported on WSL")}` : ""}
+              </option>
+            ))}
+          </select>
+        </SettingRow>
+      )}
+
+      {/* The served bitrate follows the source; these are ceilings. They apply
+          to software and hardware encodes alike. */}
+      <SettingRow
+        label={t("admin.calibration.maxBitrateLabel", "Video bitrate ceiling")}
+        htmlFor="max-video-bitrate"
+        info={t("admin.calibration.maxBitrateHint", "Each rung is encoded at the source bitrate scaled to its resolution, never below the ladder's floor. Set a ceiling if remote viewers buffer.")}
+      >
+        <select
+          id="max-video-bitrate"
+          data-testid="max-video-bitrate-select"
+          value={String(maxVideoBitrateKbps)}
+          disabled={setMaxBitrate.isPending}
+          onChange={(e) => setMaxBitrate.mutate({ maxVideoBitrateKbps: parseInt(e.target.value, 10) })}
+          className={SELECT_CLASS}
+        >
+          <option value="0">{t("admin.calibration.maxBitrateSource", "Follow the source")}</option>
+          <option value="20000">20 Mb/s</option>
+          <option value="40000">40 Mb/s</option>
+          <option value="60000">60 Mb/s</option>
+          <option value="80000">80 Mb/s</option>
+        </select>
+      </SettingRow>
+
+      <SettingRow
+        label={t("admin.calibration.maxBitrateRemoteLabel", "Video bitrate ceiling, remote viewers")}
+        htmlFor="max-video-bitrate-remote"
+        info={t("admin.calibration.maxBitrateRemoteHint", "Applied to clients outside your private network. \"Follow the LAN\" adds no remote-specific cap, so a high-bitrate remux can go out unless another limit applies. A per-user limit stays the tightest one.")}
+      >
+        <select
+          id="max-video-bitrate-remote"
+          data-testid="max-video-bitrate-remote-select"
+          value={String(maxVideoBitrateRemoteKbps)}
+          disabled={setMaxBitrate.isPending}
+          onChange={(e) => setMaxBitrate.mutate({ maxVideoBitrateRemoteKbps: parseInt(e.target.value, 10) })}
+          className={SELECT_CLASS}
+        >
+          <option value="0">{t("admin.calibration.maxBitrateRemoteNone", "Follow the LAN (no extra remote cap)")}</option>
+          <option value="8000">8 Mb/s</option>
+          <option value="12000">12 Mb/s</option>
+          <option value="20000">20 Mb/s</option>
+          <option value="40000">40 Mb/s</option>
+        </select>
+      </SettingRow>
+
+      {/* AV1 output - hardware-only, opt-in. Shown only with HW on because
+          software AV1 is never used for streaming. */}
+      {hwEnabled && (
+        <SettingRow
+          label={av1Label}
+          info={t("admin.calibration.av1Hint", "Encode to AV1 when a client supports it - better compression. Hardware-only; software AV1 is never used for streaming.")}
+          hint={(data.hw_codecs ?? []).includes("av1")
+            ? undefined
+            : <span className="text-[var(--color-warning)]">{t("admin.calibration.av1NoHw", "No AV1 hardware encoder detected - turning this on has no effect (streams stay H.264).")}</span>}
+          kind="toggle"
+        >
+          <Switch
+            checked={av1Enabled}
+            onChange={() => setAV1.mutate({ av1Enabled: !av1Enabled })}
+            label={av1Label}
+            disabled={setAV1.isPending}
+            data-testid="av1-enable-toggle"
+          />
+        </SettingRow>
+      )}
+
+      {hwEnabled && av1Enabled && (
+        <SettingRow label={av1MaxLabel} info={t("admin.settingsHelp.av1MaxHeight")} kind="wide">
+          <SegmentedControl
+            id="av1-max-height"
+            label={av1MaxLabel}
+            data-testid="av1-max-height-select"
+            value={String(av1MaxHeight)}
+            disabled={setAV1.isPending}
+            onChange={(v) => setAV1.mutate({ av1MaxHeight: parseInt(v, 10) })}
+            options={[
+              { value: "0", label: t("admin.calibration.av1MaxAuto", "Auto (up to source)") },
+              { value: "720", label: "720p" },
+              { value: "1080", label: "1080p" },
+              { value: "1440", label: "1440p" },
+              { value: "2160", label: "2160p" },
+            ]}
+          />
+        </SettingRow>
+      )}
+
+      {/* Intel low-power (VDEnc) encoder: opt-in, quality per bit is lower. */}
+      {hwEnabled && lowPowerCodecs.length > 0 && (
+        <SettingRow
+          label={lowPowerLabel}
+          info={t("admin.calibration.lowPowerHint", "Intel's fixed-function encoder (VDEnc): less GPU load and power, but no B-frames on older iGPUs and a simpler rate control, so slightly lower quality at the same bitrate. Leave it off unless the GPU is saturated.")}
+          hint={`(${lowPowerCodecs.join(", ")})`}
+          kind="toggle"
+        >
+          <Switch
+            checked={hwLowPowerEnabled}
+            onChange={() => setLowPower.mutate(!hwLowPowerEnabled)}
+            label={lowPowerLabel}
+            disabled={setLowPower.isPending}
+            data-testid="low-power-toggle"
+          />
+        </SettingRow>
+      )}
+    </div>
+  );
+}
+
+// EncodeCalibrationCard is the read-only DIAGNOSTICS of encoding: what the
+// host measured (the encode ceilings), how it got there, which codecs the GPU
+// handles, recent hardware fallbacks, and the "Recalibrate" button.
+export function EncodeCalibrationCard() {
+  const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
+  const { data, isLoading, isError } = useCalibration();
 
   const recalibrate = useMutation({
     mutationFn: () =>
@@ -201,19 +421,7 @@ export function EncodeCalibrationCard() {
     },
   });
 
-  if (isLoading) {
-    return <div className="animate-shimmer h-32 rounded-[var(--radius-md)]" />;
-  }
-
-  if (isError || !data) {
-    return (
-      <EmptyState
-        icon={<TriangleAlert size={32} />}
-        title={t("common.errorBoundary.title")}
-        description={t("common.errorBoundary.description")}
-      />
-    );
-  }
+  if (isLoading || isError || !data) return <CalibrationState isLoading={isLoading} />;
 
   const fmtDate = (iso: string) => {
     try {
@@ -237,191 +445,10 @@ export function EncodeCalibrationCard() {
   };
 
   const fallbacks = data.hw_fallbacks ?? [];
-  const detected = data.detected_backends ?? [];
-  const isWsl = data.is_wsl ?? false;
-  const hwEnabled = hwMode !== "off";
-  // Forceable backends = detected ones, plus the current pin even if detection
-  // now reports it absent (so a forced mode is never silently dropped). VAAPI/QSV
-  // run through Mesa's d3d12 driver on WSL, which can't sustain our multi-variant
-  // encode, so they're disabled there.
-  const forceable = Array.from(
-    new Set([...detected, ["nvenc", "vaapi", "qsv", "rkmpp"].includes(hwMode) ? hwMode : ""].filter(Boolean)),
-  );
-  const wslBlocked = (b: string) => isWsl && (b === "vaapi" || b === "qsv");
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-2">
-        {/* Master enable: off = software only, on = hardware (then pick a backend). */}
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-[var(--text)]">
-            {t("admin.calibration.hwEnableLabel", "Hardware acceleration")}
-          </label>
-          <Switch
-            checked={hwEnabled}
-            onChange={() => setMode.mutate(hwEnabled ? "off" : "auto")}
-            label={t("admin.calibration.hwEnableLabel", "Hardware acceleration")}
-            disabled={setMode.isPending}
-            data-testid="hw-enable-toggle"
-          />
-          <span className="text-xs text-[var(--text-muted)]">
-            {hwEnabled
-              ? t("admin.calibration.hwEnabledHint", "Encoding on the GPU when possible")
-              : t("admin.calibration.hwDisabledHint", "Software only (CPU)")}
-          </span>
-        </div>
-
-        {hwEnabled && (
-          <div className="flex flex-col gap-1">
-            <label htmlFor="hw-mode-select" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
-              {t("admin.calibration.hwBackendLabel", "Backend")}
-            </label>
-            <select
-              id="hw-mode-select"
-              data-testid="hw-mode-select"
-              value={hwMode}
-              disabled={setMode.isPending}
-              onChange={(e) => setMode.mutate(e.target.value)}
-              className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
-            >
-              <option value="auto">{t("admin.calibration.hwModeAuto", "Auto (best available)")}</option>
-              {forceable.map((b) => (
-                <option key={b} value={b} disabled={wslBlocked(b)}>
-                  {b.toUpperCase()}
-                  {wslBlocked(b) ? ` - ${t("admin.calibration.wslUnsupported", "not supported on WSL")}` : ""}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-[var(--text-muted)]">
-              {detected.length > 0
-                ? t("admin.calibration.detected", "Detected: {{list}}", { list: detected.join(", ") })
-                : t("admin.calibration.detectedNone", "No GPU accelerator detected")}
-            </p>
-            {isWsl && (
-              <p className="text-xs text-[var(--color-warning)]">
-                {t(
-                  "admin.calibration.wslVaapiNote",
-                  "VAAPI/QSV go through Mesa's d3d12 driver on WSL and can't sustain transcoding here - use NVENC, or validate VAAPI on a native Linux host.",
-                )}
-              </p>
-            )}
-
-            {/* Served video bitrate follows the source; this is the ceiling. */}
-            <div className="mt-2 flex flex-col gap-1">
-              <label htmlFor="max-video-bitrate" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
-                {t("admin.calibration.maxBitrateLabel", "Video bitrate ceiling")}
-              </label>
-              <select
-                id="max-video-bitrate"
-                data-testid="max-video-bitrate-select"
-                value={String(maxVideoBitrateKbps)}
-                disabled={setMaxBitrate.isPending}
-                onChange={(e) => setMaxBitrate.mutate({ maxVideoBitrateKbps: parseInt(e.target.value, 10) })}
-                className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
-              >
-                <option value="0">{t("admin.calibration.maxBitrateSource", "Follow the source")}</option>
-                <option value="20000">20 Mb/s</option>
-                <option value="40000">40 Mb/s</option>
-                <option value="60000">60 Mb/s</option>
-                <option value="80000">80 Mb/s</option>
-              </select>
-              <p className="text-xs text-[var(--text-muted)]">
-                {t("admin.calibration.maxBitrateHint", "Each rung is encoded at the source bitrate scaled to its resolution, never below the ladder's floor. Set a ceiling if remote viewers buffer.")}
-              </p>
-            </div>
-
-            {/* Same ceiling for viewers outside the LAN. */}
-            <div className="mt-2 flex flex-col gap-1">
-              <label htmlFor="max-video-bitrate-remote" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
-                {t("admin.calibration.maxBitrateRemoteLabel", "Video bitrate ceiling, remote viewers")}
-              </label>
-              <select
-                id="max-video-bitrate-remote"
-                data-testid="max-video-bitrate-remote-select"
-                value={String(maxVideoBitrateRemoteKbps)}
-                disabled={setMaxBitrate.isPending}
-                onChange={(e) => setMaxBitrate.mutate({ maxVideoBitrateRemoteKbps: parseInt(e.target.value, 10) })}
-                className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
-              >
-                <option value="0">{t("admin.calibration.maxBitrateRemoteNone", "Follow the LAN (no extra remote cap)")}</option>
-                <option value="8000">8 Mb/s</option>
-                <option value="12000">12 Mb/s</option>
-                <option value="20000">20 Mb/s</option>
-                <option value="40000">40 Mb/s</option>
-              </select>
-              <p className="text-xs text-[var(--text-muted)]">
-                {t("admin.calibration.maxBitrateRemoteHint", "Applied to clients outside your private network. \"Follow the LAN\" adds no remote-specific cap, so a high-bitrate remux can go out unless another limit applies. A per-user limit stays the tightest one.")}
-              </p>
-            </div>
-
-            {/* AV1 output - hardware-only, opt-in. Shown only with HW on (this
-                block) because software AV1 is never used for streaming. */}
-            <div className="mt-2 flex items-center gap-3">
-              <label className="text-sm font-medium text-[var(--text)]">
-                {t("admin.calibration.av1Label", "AV1 output")}
-              </label>
-              <Switch
-                checked={av1Enabled}
-                onChange={() => setAV1.mutate({ av1Enabled: !av1Enabled })}
-                label={t("admin.calibration.av1Label", "AV1 output")}
-                disabled={setAV1.isPending}
-                data-testid="av1-enable-toggle"
-              />
-            </div>
-            <p className="text-xs text-[var(--text-muted)]">
-              {(data.hw_codecs ?? []).includes("av1")
-                ? t("admin.calibration.av1Hint", "Encode to AV1 when a client supports it - better compression. Hardware-only; software AV1 is never used for streaming.")
-                : t("admin.calibration.av1NoHw", "No AV1 hardware encoder detected - turning this on has no effect (streams stay H.264).")}
-            </p>
-
-            {/* Intel low-power (VDEnc) encoder: opt-in, quality per bit is lower. */}
-            {lowPowerCodecs.length > 0 && (
-              <>
-                <div className="mt-2 flex items-center gap-3">
-                  <label className="text-sm font-medium text-[var(--text)]">
-                    {t("admin.calibration.lowPowerLabel", "Low-power encoder")}
-                  </label>
-                  <Switch
-                    checked={hwLowPowerEnabled}
-                    onChange={() => setLowPower.mutate(!hwLowPowerEnabled)}
-                    label={t("admin.calibration.lowPowerLabel", "Low-power encoder")}
-                    disabled={setLowPower.isPending}
-                    data-testid="low-power-toggle"
-                  />
-                </div>
-                <p className="text-xs text-[var(--text-muted)]">
-                  {t("admin.calibration.lowPowerHint", "Intel's fixed-function encoder (VDEnc): less GPU load and power, but no B-frames on older iGPUs and a simpler rate control, so slightly lower quality at the same bitrate. Leave it off unless the GPU is saturated.")}
-                  {" "}({lowPowerCodecs.join(", ")})
-                </p>
-              </>
-            )}
-
-            {av1Enabled && (
-              <div className="flex flex-col gap-1">
-                <label htmlFor="av1-max-height" className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
-                  {t("admin.calibration.av1MaxLabel", "AV1 max quality")}
-                </label>
-                <select
-                  id="av1-max-height"
-                  data-testid="av1-max-height-select"
-                  value={String(av1MaxHeight)}
-                  disabled={setAV1.isPending}
-                  onChange={(e) => setAV1.mutate({ av1MaxHeight: parseInt(e.target.value, 10) })}
-                  className="w-full max-w-xs rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] disabled:opacity-60"
-                >
-                  <option value="0">{t("admin.calibration.av1MaxAuto", "Auto (up to source)")}</option>
-                  <option value="720">720p</option>
-                  <option value="1080">1080p</option>
-                  <option value="1440">1440p</option>
-                  <option value="2160">2160p</option>
-                </select>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 text-sm">
+      <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <Row label={t("admin.calibration.softwareMax", "Software encode cap")}>
           <strong className="text-[var(--text)]">{data.software_max_height}p</strong>
           <span className="text-[var(--text-muted)]"> ({t("admin.calibration.libx264", "libx264 veryfast")})</span>

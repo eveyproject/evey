@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
@@ -53,6 +53,7 @@ vi.mock("@tanstack/react-query", async () => {
 
 vi.mock("@/features/admin/EncodeCalibrationCard", () => ({
   EncodeCalibrationCard: () => React.createElement("div", null, "calibration"),
+  EncodeSettingsCard: () => React.createElement("div", null, "encode settings"),
 }));
 
 function createWrapper() {
@@ -111,7 +112,9 @@ describe("TranscodingConfigPage capacity", () => {
     // The whole point of moving this card here: an operator must not mistake
     // the playback cap for the job-queue cap.
     expect(screen.getByText(/live playback capacity/i)).toBeTruthy();
-    expect(screen.getByText(/background transcode jobs/i)).toBeTruthy();
+    expect(screen.getByTestId("max-video-sessions-row")).toHaveTextContent(/limit simultaneous video streams/i);
+    expect(screen.getByTestId("background-transcodes-row")).toHaveTextContent(/background conversions at the same time/i);
+    expect(screen.getByTestId("background-transcodes-row")).toHaveTextContent(/not the playback path/i);
   });
 
   it("warns when the benchmark could not measure a capacity", async () => {
@@ -266,7 +269,7 @@ describe("TranscodingConfigPage capacity", () => {
     // The auto-adjusts statement and the input both render - the control
     // itself must never be removed, just de-emphasised.
     expect(screen.getByText(/adjusts automatically/i)).toBeTruthy();
-    expect(screen.getByLabelText(/limit simultaneous video streams/i)).toBeTruthy();
+    expect(screen.getByLabelText(/^limit simultaneous video streams$/i)).toBeTruthy();
   });
 
   it("reflects a stored reduction and saves it under the right key", async () => {
@@ -274,7 +277,7 @@ describe("TranscodingConfigPage capacity", () => {
     const Page = await getPage();
     render(React.createElement(Page), { wrapper: createWrapper() });
 
-    const input = (await screen.findByLabelText(/limit simultaneous video streams/i)) as HTMLInputElement;
+    const input = (await screen.findByLabelText(/^limit simultaneous video streams$/i)) as HTMLInputElement;
     expect(input.value).toBe("2");
 
     fireEvent.change(input, { target: { value: "1" } });
@@ -864,5 +867,48 @@ describe("TranscodingConfigPage advanced limits", () => {
         data: expect.objectContaining({ transcodeMaxSessions: null }),
       }));
     });
+  });
+});
+
+// What the admin sets sits apart from what the server measured: settings
+// first (encoding, capacity, cache, advanced limits), diagnostics below
+// (calibration readout, live capacity numbers, load test).
+describe("TranscodingConfigPage layout", () => {
+  it("puts the settings and the diagnostics in two titled sections", async () => {
+    mockServerSettings = {
+      ...(mockServerSettings as object),
+      transcodeCacheMaxGB: { value: 10, default: 10, source: "default", requiresRestart: true },
+    };
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+
+    const settings = screen.getByTestId("transcoding-settings");
+    const diagnostics = screen.getByTestId("transcoding-diagnostics");
+    expect(settings.compareDocumentPosition(diagnostics) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // Settings: encoding choices, both capacity limits, the cache budget
+    // (moved here from the server configuration) and the advanced limits.
+    expect(within(settings).getByText("encode settings")).toBeInTheDocument();
+    expect(within(settings).getByTestId("max-video-sessions-row")).toBeInTheDocument();
+    expect(within(settings).getByTestId("background-transcodes-row")).toBeInTheDocument();
+    const cache = within(settings).getByTestId("setting-row-transcodeCacheMaxGB");
+    expect(within(cache).getByTestId("cache-budget-input")).toBeInTheDocument();
+    expect(within(cache).getByTestId("setting-restart-badge")).toBeInTheDocument();
+    expect(within(cache).getByRole("button", { name: /more info/i })).toBeInTheDocument();
+    expect(within(settings).getByText(/advanced limits/i)).toBeInTheDocument();
+
+    // Diagnostics: the measured readout, the live capacity and the load test.
+    expect(within(diagnostics).getByText("calibration")).toBeInTheDocument();
+    expect(within(diagnostics).getByTestId("video-sessions-card")).toBeInTheDocument();
+    expect(within(diagnostics).queryByTestId("max-video-sessions-row")).toBeNull();
+  });
+
+  it("keeps the advanced limits collapsed, then shows them with the AV1 software ceiling", async () => {
+    const Page = await getPage();
+    render(React.createElement(Page), { wrapper: createWrapper() });
+    expect(screen.queryByTestId("software-av1-row")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /advanced limits/i }));
+    expect(screen.getByTestId("software-av1-row")).toBeInTheDocument();
+    expect(screen.getByTestId("max-sessions-input")).toBeInTheDocument();
   });
 });
