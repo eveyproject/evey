@@ -120,6 +120,10 @@ func (c *CachedMediaItemQueryRepo) GetCastForItems(ctx context.Context, mediaIte
 	return c.inner.GetCastForItems(ctx, mediaItemIDs)
 }
 
+func (c *CachedMediaItemQueryRepo) DescendantIDs(ctx context.Context, id shared.MediaItemID) ([]shared.MediaItemID, error) {
+	return c.inner.DescendantIDs(ctx, id)
+}
+
 func (c *CachedMediaItemQueryRepo) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
 	return c.inner.SeriesAggregate(ctx, seriesID)
 }

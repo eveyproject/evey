@@ -54,6 +54,8 @@ logs:
   truncated: Ergebnisse gekürzt - Suche eingrenzen für eine vollständige Ansicht.
   resultCount_one: "{{count}} Eintrag"
   resultCount_other: "{{count}} Einträge"
+  resultCountAtLeast_one: "{{count}}+ Einträge"
+  resultCountAtLeast_other: "{{count}}+ Einträge"
   liveCount_one: "{{count}} Live-Eintrag"
   liveCount_other: "{{count}} Live-Einträge"
   accessLog: "gRPC-Zugriffsprotokoll"
@@ -70,7 +72,11 @@ logs:
   liveUnavailableMobile: Live-Verfolgung ist auf Mobilgeräten noch nicht verfügbar - nutze die Suche unten.
   sessionId: Sitzungs-ID
   userId: Benutzer-ID
-  mediaId: Medien-ID
+  mediaId: "Medium (Titel oder ID)"
+  mediaNotFound: "Kein Medium trägt diesen Titel"
+  mediaResolved: "{{title}} ({{kind}})"
+  mediaResolvedWithItems_one: "{{title}} ({{kind}}, {{count}} verknüpftes Element)"
+  mediaResolvedWithItems_other: "{{title}} ({{kind}}, {{count}} verknüpfte Elemente)"
   level:
     label: Stufe
   where:

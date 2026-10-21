@@ -138,6 +138,19 @@ func (h *adminHandler) handleSearchLogs(w http.ResponseWriter, r *http.Request) 
 	defer span.End()
 
 	f := parseLogSearchFilter(r)
+	if raw := r.URL.Query().Get("media"); strings.TrimSpace(raw) != "" {
+		m, err := resolveLogMedia(r.Context(), h.mediaLookup, raw)
+		if err != nil {
+			span.RecordError(err)
+			slog.WarnContext(r.Context(), "admin logs: media lookup failed", slog.Any("err", err))
+			http.Error(w, `{"message":"media lookup failed"}`, http.StatusBadGateway)
+			return
+		}
+		f.MediaIDs = make(map[string]bool, len(m.IDs))
+		for _, id := range m.IDs {
+			f.MediaIDs[id] = true
+		}
+	}
 	res, err := searchLogs(h.logDir, f)
 	if err != nil {
 		span.RecordError(err)

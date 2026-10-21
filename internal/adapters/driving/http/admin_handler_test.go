@@ -61,7 +61,7 @@ func newAdminTestMux(t *testing.T) (mux *http.ServeMux, adminToken, userToken st
 	if err := os.WriteFile(filepath.Join(logDir, "evey-2026-05-16.log"), []byte("log line 1\nlog line 2\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	registerLogsRoute(mux, logDir, gen)
+	registerLogsRoute(mux, logDir, gen, nil)
 	return mux, adminToken, userToken
 }
 

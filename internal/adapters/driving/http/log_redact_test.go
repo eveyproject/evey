@@ -54,7 +54,7 @@ func TestLogRoutes_RedactCredentials(t *testing.T) {
 	}
 	gen, adminTok, _ := genTokens(t)
 	mux := http.NewServeMux()
-	registerLogsRoute(mux, dir, gen)
+	registerLogsRoute(mux, dir, gen, nil)
 
 	get := func(path string) string {
 		req := httptest.NewRequest(http.MethodGet, path, nil)

@@ -2,10 +2,12 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -304,8 +306,10 @@ func TestSearchLogs_DeepOffsetIsReachable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res.Total != n {
-		t.Fatalf("total = %d, want %d", res.Total, n)
+	// The scan stops once the page is settled: the total is then a lower
+	// bound, and hasMore says older matches remain.
+	if res.Total < logRetainCap+150 || !res.HasMore {
+		t.Fatalf("total = %d, hasMore = %v: want at least %d and more to come", res.Total, res.HasMore, logRetainCap+150)
 	}
 	if len(res.Entries) != 50 {
 		t.Fatalf("deep page came back with %d entries, want 50 - offsets past the retain cap are unreachable", len(res.Entries))
@@ -388,7 +392,9 @@ func TestSearchLogs_TruncatedStillRisesOnScanBudget(t *testing.T) {
 	dir := t.TempDir()
 	writeLog(t, dir, "evey-2026-07-01.log", buildLogLines(logScanLineBudget+10)...)
 
-	res, err := searchLogs(dir, logSearchFilter{Q: "needle", Limit: 100})
+	// A filter nothing matches: the page never fills, so the scan runs to the
+	// budget instead of stopping early.
+	res, err := searchLogs(dir, logSearchFilter{Q: "absent", Limit: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -459,5 +465,115 @@ func TestSearchLogs_NoMatchEncodesAnEmptyArray(t *testing.T) {
 	}
 	if !strings.Contains(string(b), `"entries":[]`) {
 		t.Fatalf("a miss must encode an empty array, got %s", b)
+	}
+}
+
+// The early stop must return exactly what a full scan would, page by page:
+// three rotated files whose boundaries overlap, lines a few milliseconds out
+// of order inside a file (two loggers racing for the writer), every filter the
+// explorer sends. A complete answer (no hasMore, no truncation) carries the
+// exact total.
+func TestSearchLogs_EarlyStopMatchesAFullScan(t *testing.T) {
+	dir := t.TempDir()
+	base, _ := time.Parse(time.RFC3339, "2026-07-01T00:00:00Z")
+	levels := []string{"INFO", "INFO", "INFO", "WARN", "DEBUG", "ERROR"}
+	var all []string
+	for fi := range 3 {
+		var lines []string
+		// Each file starts 30 s before the previous one ended: the rotation
+		// overlap the keeper already copes with.
+		start := 300 + fi*3700
+		for i := range 4000 {
+			n := start + i
+			ts := base.Add(time.Duration(n) * 100 * time.Millisecond)
+			if i%7 == 3 {
+				ts = ts.Add(-170 * time.Millisecond) // written after a newer line
+			}
+			if i%10 == 4 || i%10 == 5 {
+				// Two lines in a row written after a newer one: the page can
+				// settle on the second while the line above both still
+				// belongs in it.
+				ts = ts.Add(-350 * time.Millisecond)
+			}
+			msg, status := "app event", ""
+			if n%5 == 0 {
+				msg, status = "grpc unary", `,"status":"OK"`
+			}
+			lines = append(lines, fmt.Sprintf(`{"time":%q,"level":%q,"msg":%q,"media_id":"m%d"%s}`,
+				ts.Format(time.RFC3339Nano), levels[n%len(levels)], msg, n%13, status))
+		}
+		p := writeLog(t, dir, fmt.Sprintf("evey-%d.log", fi), lines...)
+		mt := base.Add(time.Duration(start+4000) * 100 * time.Millisecond)
+		if err := os.Chtimes(p, mt, mt); err != nil {
+			t.Fatal(err)
+		}
+		all = append(all, lines...)
+	}
+	full := func(f logSearchFilter) []logSearchEntry {
+		var out []logSearchEntry
+		for _, l := range all {
+			if e, ok := parseLogLine(l); ok && matchLog(e, f) {
+				out = append(out, e)
+			}
+		}
+		sort.SliceStable(out, func(i, j int) bool {
+			ti, _ := time.Parse(time.RFC3339Nano, out[i].Time)
+			tj, _ := time.Parse(time.RFC3339Nano, out[j].Time)
+			return ti.After(tj)
+		})
+		return out
+	}
+	for _, f := range []logSearchFilter{
+		{},
+		{HideAccess: true},
+		{Levels: map[string]bool{"ERROR": true}},
+		{Levels: map[string]bool{"WARN": true, "ERROR": true}, HideAccess: true},
+		{MediaID: "m7"},
+	} {
+		want := full(f)
+		// Small pages at every offset put the page boundary on each kind of
+		// line, the late-written ones included; large ones cross the files.
+		type page struct{ off, limit int }
+		var pages []page
+		for off := range 40 {
+			pages = append(pages, page{off, 3})
+		}
+		for _, off := range []int{0, 100, 250, 3900, 11000} {
+			pages = append(pages, page{off, 100})
+		}
+		for _, pg := range pages {
+			off := pg.off
+			f.Offset, f.Limit = off, pg.limit
+			res, err := searchLogs(dir, f)
+			if err != nil {
+				t.Fatal(err)
+			}
+			lo, hi := min(off, len(want)), min(off+pg.limit, len(want))
+			if len(res.Entries) != hi-lo {
+				t.Fatalf("%+v: %d entries, want %d", f, len(res.Entries), hi-lo)
+			}
+			for i, e := range res.Entries {
+				if e.Raw != want[lo+i].Raw {
+					t.Fatalf("%+v: entry %d = %s, want %s", f, i, e.Time, want[lo+i].Time)
+				}
+			}
+			if !res.HasMore && !res.Truncated && res.Total != len(want) {
+				t.Fatalf("%+v: complete answer with total %d, want %d", f, res.Total, len(want))
+			}
+			if res.HasMore && hi == len(want) && res.Total > len(want) {
+				t.Fatalf("%+v: total %d past the %d matches", f, res.Total, len(want))
+			}
+		}
+	}
+}
+
+// The level is read off the raw line before the JSON parse, upper-cased as
+// parseLogLine sets it, so a rare level is not starved by the scan budget.
+func TestLogLineLevel(t *testing.T) {
+	if lv, ok := logLineLevel(`{"time":"x","level":"warn","msg":"m"}`); !ok || lv != "WARN" {
+		t.Fatalf("got %q %v", lv, ok)
+	}
+	if _, ok := logLineLevel(`{"time":"x","msg":"m"}`); ok {
+		t.Fatal("a line without a level must be left to the parse")
 	}
 }

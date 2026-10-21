@@ -1,5 +1,5 @@
 import { memo, useState, useEffect, useLayoutEffect, useMemo, useCallback, useRef } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTranslation } from "react-i18next";
 import { Search, Radio, ChevronRight, Copy, SlidersHorizontal, AlertTriangle, ArrowUp } from "lucide-react";
@@ -17,6 +17,7 @@ import { useMediaLabels, type MediaLabelIndex } from "@evey/client";
 import {
   type LogEntry,
   type LogSearchResponse,
+  type LogMediaResolution,
   WHERE_VALUES,
   SOURCE_VALUES,
   parseLogLine,
@@ -37,7 +38,11 @@ interface FilterParams {
   q: string;
   sessionId: string;
   userId: string;
-  mediaId: string;
+  // media is what the operator typed, a title or an id; the server resolves
+  // it (Meilisearch, then everything under the item found). mediaIds is that
+  // resolution, for the live tail, which filters here.
+  media: string;
+  mediaIds?: ReadonlySet<string>;
   // Show the gRPC interceptor's per-call access lines of SUCCESSFUL calls.
   // Off by default: on a live server they are four lines in five (heartbeats,
   // dashboard polls) and were all the operator saw in the live tail. Picking
@@ -91,7 +96,7 @@ function buildSearchQS(f: FilterParams, limit: number, offset: number): string {
   if (f.q) p.set("q", f.q);
   if (f.sessionId) p.set("session_id", f.sessionId);
   if (f.userId) p.set("user_id", f.userId);
-  if (f.mediaId) p.set("media_id", f.mediaId);
+  if (f.media) p.set("media", f.media);
   if (hidesAccess(f)) p.set("hide_access", "1");
   p.set("limit", String(limit));
   p.set("offset", String(offset));
@@ -106,7 +111,7 @@ function matchClient(e: LogEntry, f: FilterParams): boolean {
   if (f.source && e.source !== f.source) return false;
   if (f.sessionId && e.sessionId !== f.sessionId) return false;
   if (f.userId && e.userId !== f.userId) return false;
-  if (f.mediaId && e.mediaId !== f.mediaId) return false;
+  if (f.media && !f.mediaIds?.has(e.mediaId ?? "")) return false;
   if (f.q && !e.raw.toLowerCase().includes(f.q.toLowerCase())) return false;
   if (hidesAccess(f) && isAccessLog(e)) return false;
   return true;
@@ -256,7 +261,8 @@ export function LogsExplorer() {
   const [q, setQ] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [userId, setUserId] = useState("");
-  const [mediaId, setMediaId] = useState("");
+  const [mediaInput, setMediaInput] = useState("");
+  const [media, setMedia] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   // Live tail on by default: the operator opening Logs & Debug is almost
   // always chasing something happening NOW - land on the stream, not on a
@@ -287,6 +293,22 @@ export function LogsExplorer() {
     const id = setTimeout(() => setQ(qInput.trim()), 300);
     return () => clearTimeout(id);
   }, [qInput]);
+  // The media box too: a title is looked up on the server at every change.
+  useEffect(() => {
+    const id = setTimeout(() => setMedia(mediaInput.trim()), 300);
+    return () => clearTimeout(id);
+  }, [mediaInput]);
+
+  // What the media box stands for: the ids the live tail matches, and the
+  // title(s) shown under the box so the operator sees what was understood.
+  const { data: mediaMatch } = useQuery({
+    queryKey: ["admin-logs-media", media],
+    enabled: media !== "",
+    staleTime: 60_000,
+    queryFn: ({ signal }) =>
+      eveyFetch<LogMediaResolution>({ url: `/api/v1/admin/logs/media?q=${encodeURIComponent(media)}`, method: "GET", signal }),
+  });
+  const mediaIds = useMemo(() => (mediaMatch ? new Set(mediaMatch.ids) : undefined), [mediaMatch]);
 
   // Names for the ids the lines carry, from the admin listings this page
   // already has the right to read. Missing data (still loading, RPC down) just
@@ -301,10 +323,11 @@ export function LogsExplorer() {
       levels, where, source, q,
       sessionId: sessionId.trim(),
       userId: resolveUserFilter(users, userId),
-      mediaId: mediaId.trim(),
+      media,
+      mediaIds,
       showAccess,
     }),
-    [levels, where, source, q, sessionId, userId, mediaId, users, showAccess],
+    [levels, where, source, q, sessionId, userId, media, mediaIds, users, showAccess],
   );
 
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
@@ -325,7 +348,7 @@ export function LogsExplorer() {
       // reached (the count never grows, so the condition never flips).
       if (last.entries.length === 0) return undefined;
       const fetched = all.reduce((n, p) => n + p.entries.length, 0);
-      return fetched < last.total ? fetched : undefined;
+      return last.hasMore || fetched < last.total ? fetched : undefined;
     },
   });
 
@@ -391,8 +414,11 @@ export function LogsExplorer() {
     [data],
   );
   const entries = live ? liveEntries : searchEntries;
-  const total = live ? liveEntries.length : (data?.pages[0]?.total ?? 0);
-  const truncated = !live && (data?.pages[0]?.truncated ?? false);
+  // The last page knows the most: each scan counts further than the one before.
+  const lastPage = data?.pages[data.pages.length - 1];
+  const total = live ? liveEntries.length : (lastPage?.total ?? 0);
+  const hasMore = !live && (lastPage?.hasMore ?? false);
+  const truncated = !live && (lastPage?.truncated ?? false);
 
   // The entry list is virtualized (long searches keep every page mounted in
   // the DOM otherwise), so infinite scroll can no longer rely on a sentinel
@@ -552,14 +578,37 @@ export function LogsExplorer() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
             <Input label={t("admin.logs.sessionId")} value={sessionId} onChange={(e) => setSessionId(e.target.value)} placeholder="ps-..." />
             <Input label={t("admin.logs.userId")} value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="alice, usr-..." />
-            <Input label={t("admin.logs.mediaId")} value={mediaId} onChange={(e) => setMediaId(e.target.value)} placeholder="mi-..." />
+            <div className="flex flex-col gap-1">
+              <Input
+                label={t("admin.logs.mediaId")}
+                value={mediaInput}
+                onChange={(e) => setMediaInput(e.target.value)}
+                placeholder="Dune, 1b32b3f8-..."
+                error={media && mediaMatch?.ids.length === 0 ? t("admin.logs.mediaNotFound") : undefined}
+              />
+              {media !== "" && mediaMatch && mediaMatch.media.length > 0 && (
+                <p className="text-xs text-[var(--text-muted)]">
+                  {mediaMatch.media
+                    .map((m) =>
+                      m.descendants > 0
+                        ? t("admin.logs.mediaResolvedWithItems", { title: m.title, kind: t(`admin.logs.mediaKind.${m.type}`), count: m.descendants })
+                        : t("admin.logs.mediaResolved", { title: m.title, kind: t(`admin.logs.mediaKind.${m.type}`) }),
+                    )
+                    .join(" · ")}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       {/* Result meta */}
       <div className="flex flex-wrap items-center gap-3 text-sm text-[var(--text-muted)]">
-        <span>{live ? t("admin.logs.liveCount", { count: total }) : t("admin.logs.resultCount", { count: total })}</span>
+        <span>
+          {live
+            ? t("admin.logs.liveCount", { count: total })
+            : t(hasMore ? "admin.logs.resultCountAtLeast" : "admin.logs.resultCount", { count: total })}
+        </span>
         {truncated && (
           <span className="flex items-center gap-1 text-[var(--badge-warning-text,#fde047)]">
             <AlertTriangle size={13} aria-hidden="true" />

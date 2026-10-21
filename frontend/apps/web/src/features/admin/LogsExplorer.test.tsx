@@ -236,6 +236,34 @@ describe("LogsExplorer", () => {
     });
   });
 
+  // A title in the media box: the search sends it for the server to resolve,
+  // and the box says what it was understood as (or that nothing has it).
+  it("searches by a media title and names what the title resolved to", async () => {
+    mockFetch.mockImplementation((req: { url: string }) =>
+      Promise.resolve(
+        req.url.includes("/logs/media?q=Stranger")
+          ? { media: [{ id: "ser-1", title: "Stranger Things", type: "series", descendants: 38 }], ids: ["ser-1", "ep-1"] }
+          : req.url.includes("/logs/media?q=")
+            ? { media: [], ids: [] }
+            : resp([sampleEntry]),
+      ),
+    );
+    await renderExplorerOnHistory();
+    await screen.findByText("hls: ffmpeg exited with error");
+    await userEvent.click(screen.getByRole("button", { name: /advanced/i }));
+    await userEvent.type(screen.getByLabelText(/media \(title or id\)/i), "Stranger Things");
+
+    await waitFor(() => {
+      const urls = mockFetch.mock.calls.map((c) => (c[0] as { url: string }).url);
+      expect(urls.some((u) => u.includes("/logs/search?") && u.includes("media=Stranger+Things"))).toBe(true);
+    });
+    expect(await screen.findByText("Stranger Things (series, 38 related items)")).toBeInTheDocument();
+
+    await userEvent.clear(screen.getByLabelText(/media \(title or id\)/i));
+    await userEvent.type(screen.getByLabelText(/media \(title or id\)/i), "Nothing");
+    expect(await screen.findByText("No media has this title")).toBeInTheDocument();
+  });
+
   it("expands a row to reveal fields and raw copy", async () => {
     mockFetch.mockResolvedValue(
       resp([{ ...sampleEntry, fields: { variant: 2, media_path: "/media/x.mkv" } }]),
@@ -294,6 +322,26 @@ describe("LogsExplorer", () => {
 
     // Now move the window so its last visible row IS the last entry (49) -
     // this is what "scrolled to the bottom" looks like to the virtualizer.
+    virtualMockState.windowStart = 45;
+    view.rerender();
+    await waitFor(() => {
+      const urls = mockFetch.mock.calls.map((c) => (c[0] as { url: string }).url);
+      expect(urls.some((u) => u.includes("offset=50"))).toBe(true);
+    });
+  });
+
+  // The server stops scanning once the page is settled: its total is then a
+  // lower bound (hasMore). The count says so, and the next page is still asked
+  // for although the total does not exceed what was fetched.
+  it("reads a hasMore answer as a lower bound and keeps paging", async () => {
+    const page1 = Array.from({ length: 50 }, (_, i) => ({ ...sampleEntry, msg: `row-${i}`, raw: `row-${i}` }));
+    mockFetch.mockResolvedValueOnce(resp(page1, { total: 50, hasMore: true }));
+    mockFetch.mockResolvedValue(resp([]));
+
+    const view = await renderExplorerOnHistory();
+    await screen.findByText("row-0");
+    expect(screen.getByText("50+ entries")).toBeInTheDocument();
+
     virtualMockState.windowStart = 45;
     view.rerender();
     await waitFor(() => {

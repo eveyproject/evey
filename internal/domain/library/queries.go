@@ -39,6 +39,9 @@ type MediaItemQueryRepo interface {
 	// GetCastForItems fetches cast for multiple media items in one query (batch to avoid N+1).
 	GetCastForItems(ctx context.Context, mediaItemIDs []shared.MediaItemID) (map[shared.MediaItemID][]CastMember, error)
 	SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (SeriesAggregate, error)
+	// DescendantIDs lists every item under id in the parent_id tree (a
+	// series' seasons and episodes, a season's episodes), id itself excluded.
+	DescendantIDs(ctx context.Context, id shared.MediaItemID) ([]shared.MediaItemID, error)
 	// NextEpisodeOf returns the next episode in the same series as the
 	// given episode (next in same season, or first of next season if
 	// current is the last of its season). Returns nil with no error when

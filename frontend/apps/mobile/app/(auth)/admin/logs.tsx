@@ -35,6 +35,8 @@ interface LogSearchResponse {
   total: number;
   scanned: number;
   truncated: boolean;
+  // Total is a lower bound, older matches may remain (servers from 2026-10-21).
+  hasMore?: boolean;
 }
 
 const LEVELS = ["ERROR", "WARN", "INFO", "DEBUG"] as const;
@@ -74,7 +76,9 @@ function buildSearchQS(f: FilterParams, limit: number, offset: number): string {
   if (f.q) p.set("q", f.q);
   if (f.sessionId) p.set("session_id", f.sessionId);
   if (f.userId) p.set("user_id", f.userId);
-  if (f.mediaId) p.set("media_id", f.mediaId);
+  // A title or an id: the server resolves a title (Meilisearch, then
+  // everything under the item found, a series' episodes).
+  if (f.mediaId) p.set("media", f.mediaId);
   // Successful gRPC access lines (heartbeats, polls) are four lines in five
   // on a live server and bury what the operator is looking for. Hidden unless
   // the grpc source is picked, or the access-log toggle asks for them.
@@ -280,8 +284,9 @@ function AdminLogsContent() {
         // An older server answered a search that matched nothing with entries: null.
       }).then((res) => ({ ...res, entries: res.entries ?? [] })),
     getNextPageParam: (last, all) => {
+      if (last.entries.length === 0) return undefined;
       const fetched = all.reduce((n, p) => n + p.entries.length, 0);
-      return fetched < last.total ? fetched : undefined;
+      return last.hasMore || fetched < last.total ? fetched : undefined;
     },
     refetchInterval: live ? 2500 : false,
     refetchIntervalInBackground: false,
@@ -294,8 +299,11 @@ function AdminLogsContent() {
       ) ?? [],
     [data],
   );
-  const total = data?.pages[0]?.total ?? 0;
-  const truncated = data?.pages[0]?.truncated ?? false;
+  // The last page knows the most: each scan counts further than the one before.
+  const lastPage = data?.pages[data.pages.length - 1];
+  const total = lastPage?.total ?? 0;
+  const hasMore = lastPage?.hasMore ?? false;
+  const truncated = lastPage?.truncated ?? false;
 
   const toggleLevel = useCallback((l: string) => {
     setLevels((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]));
@@ -391,7 +399,7 @@ function AdminLogsContent() {
                 {[
                   { label: t("admin.logs.sessionId"), value: sessionId, onChangeText: setSessionId, placeholder: "ps-..." },
                   { label: t("admin.logs.userId"), value: userId, onChangeText: setUserId, placeholder: "usr-..." },
-                  { label: t("admin.logs.mediaId"), value: mediaId, onChangeText: setMediaId, placeholder: "mi-..." },
+                  { label: t("admin.logs.mediaId"), value: mediaId, onChangeText: setMediaId, placeholder: "Dune, 1b32b3f8-..." },
                 ].map((f) => (
                   <View key={f.label} style={{ gap: 4 }}>
                     <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>{f.label}</Text>
@@ -438,7 +446,7 @@ function AdminLogsContent() {
             </Pressable>
 
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t("admin.logs.resultCount", { count: total })}</Text>
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>{t(hasMore ? "admin.logs.resultCountAtLeast" : "admin.logs.resultCount", { count: total })}</Text>
               {truncated && (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   <Ionicons name="alert-circle-outline" size={13} color={theme.colors.warning} />

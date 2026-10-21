@@ -857,7 +857,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		}))
 	}
 	// Ratings, popular, analytics, filter → gRPC (grpcapi/rating_handler, activity_handler, library_handler)
-	registerLogsRoute(mux, s.LogDir, s.TokenGen)
+	registerLogsRoute(mux, s.LogDir, s.TokenGen, s.LibQuerySvc)
 	registerAvailableRuntimesRoute(mux, s.TokenGen)
 	musicOpts := []musicRouteOption{}
 	if s.PhotoCacheDir != "" {

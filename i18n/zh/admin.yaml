@@ -54,6 +54,8 @@ logs:
   truncated: "结果已截断 - 缩小搜索范围以查看完整结果。"
   resultCount_one: "{{count}} 条记录"
   resultCount_other: "{{count}} 条记录"
+  resultCountAtLeast_one: "{{count}}+ 条记录"
+  resultCountAtLeast_other: "{{count}}+ 条记录"
   liveCount_one: "{{count}} 条实时记录"
   liveCount_other: "{{count}} 条实时记录"
   accessLog: "gRPC 访问日志"
@@ -70,7 +72,11 @@ logs:
   liveUnavailableMobile: "移动端暂不支持实时跟踪 - 请使用下方的搜索。"
   sessionId: "会话 ID"
   userId: "用户 ID"
-  mediaId: "媒体 ID"
+  mediaId: "媒体（标题或 ID）"
+  mediaNotFound: "没有媒体使用此标题"
+  mediaResolved: "{{title}}（{{kind}}）"
+  mediaResolvedWithItems_one: "{{title}}（{{kind}}，{{count}} 个相关项）"
+  mediaResolvedWithItems_other: "{{title}}（{{kind}}，{{count}} 个相关项）"
   level:
     label: "级别"
   where:

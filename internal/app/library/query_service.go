@@ -256,6 +256,23 @@ func (s *QueryService) GetCastForItems(ctx context.Context, mediaItemIDs []strin
 	return out, nil
 }
 
+// MediaDescendantIDs lists every item under id (a series' seasons and
+// episodes): the admin log search matches a title against the ids log lines
+// carry, which are those of the episode played.
+func (s *QueryService) MediaDescendantIDs(ctx context.Context, id string) ([]string, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.library.MediaDescendantIDs")
+	defer span.End()
+	ids, err := s.mediaItems.DescendantIDs(ctx, shared.MediaItemID(id))
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(ids))
+	for i, d := range ids {
+		out[i] = string(d)
+	}
+	return out, nil
+}
+
 func (s *QueryService) GetSeriesAggregate(ctx context.Context, seriesID string) (library.SeriesAggregate, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.GetSeriesAggregate")
 	defer span.End()

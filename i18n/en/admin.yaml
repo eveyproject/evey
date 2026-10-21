@@ -54,6 +54,8 @@ logs:
   truncated: Results truncated - narrow the search for a complete view.
   resultCount_one: "{{count}} entry"
   resultCount_other: "{{count}} entries"
+  resultCountAtLeast_one: "{{count}}+ entries"
+  resultCountAtLeast_other: "{{count}}+ entries"
   liveCount_one: "{{count}} live entry"
   liveCount_other: "{{count}} live entries"
   accessLog: "gRPC access log"
@@ -70,7 +72,11 @@ logs:
   liveUnavailableMobile: "Live tail isn't available on mobile yet - use the search below."
   sessionId: Session ID
   userId: User (name or ID)
-  mediaId: Media ID
+  mediaId: "Media (title or ID)"
+  mediaNotFound: "No media has this title"
+  mediaResolved: "{{title}} ({{kind}})"
+  mediaResolvedWithItems_one: "{{title}} ({{kind}}, {{count}} related item)"
+  mediaResolvedWithItems_other: "{{title}} ({{kind}}, {{count}} related items)"
   level:
     label: Level
   where:

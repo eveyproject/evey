@@ -370,6 +370,7 @@ var LockedRoutes = map[string]string{ //nolint:gosec // G101: RPC and route name
 	"GET /api/v1/admin/fs/browse":               "browses the host filesystem",
 	"GET /api/v1/admin/logs":                    "host logs carry other visitors' addresses even after redaction",
 	"GET /api/v1/admin/logs/search":             "host logs carry the addresses of other guests",
+	"GET /api/v1/admin/logs/media":              "the media filter of the log search, locked with it",
 	"GET /api/v1/admin/logs/stream":             "host logs, live, with the addresses of other guests",
 	"GET /api/v1/admin/backups/{id}":            "downloads the database dump - every hash and every setting",
 	"GET /api/v1/admin/network-info":            "discloses the host's interfaces and addresses",
@@ -510,6 +511,7 @@ var ExtendedStaysLockedRPCs = map[string]string{ //nolint:gosec // G101: RPC nam
 var ExtendedStaysLockedRoutes = map[string]string{ //nolint:gosec // G101: route names with their reasons, no credential
 	"GET /api/v1/admin/logs":         "host logs carry the addresses of other guests",
 	"GET /api/v1/admin/logs/search":  "host logs carry the addresses of other guests",
+	"GET /api/v1/admin/logs/media":   "the media filter of the log search, locked with it",
 	"GET /api/v1/admin/logs/stream":  "host logs, live, with the addresses of other guests",
 	"GET /api/v1/admin/network-info": "discloses the host's interfaces and addresses",
 	"GET /metrics":                   "process and host telemetry",
