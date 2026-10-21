@@ -58,7 +58,10 @@ func TestReadRatio_RealPlanCountsWhatItServed(t *testing.T) {
 	require.Equal(t, want, st["served_to_clients_bytes"], "%v", st)
 	require.Positive(t, st["source_read_bytes"], "%v", st)
 	require.Zero(t, st["plans_read_over_ratio"], "%v", st)
-	require.False(t, plan.(*ondemandPlan).watch.network, "a file in the test's temp dir is a local source")
-	t.Logf("served %d, read %d (%.2fx), stats %v", want, st["source_read_bytes"],
-		float64(st["source_read_bytes"])/float64(want), st)
+	// mkvgo 0.58 splits the total: the walks read a little more than what went
+	// out, the segment copies about what went out again (from the page cache).
+	require.Equal(t, st["source_read_bytes"], st["walk_read_bytes"]+st["copy_read_bytes"], "%v", st)
+	require.Less(t, st["walk_read_bytes"], int64(readRatioFlag)*want, "%v", st)
+	t.Logf("served %d, read %d (%.2fx), walked %d (%.2fx), stats %v", want, st["source_read_bytes"],
+		float64(st["source_read_bytes"])/float64(want), st["walk_read_bytes"], float64(st["walk_read_bytes"])/float64(want), st)
 }

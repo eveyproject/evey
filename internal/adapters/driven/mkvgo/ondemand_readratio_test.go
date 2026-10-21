@@ -23,7 +23,7 @@ type reported struct {
 
 // served is a plan's counters having served n bytes through Resource.
 func served(n, read int64) mp4.HLSPlanStats {
-	return mp4.HLSPlanStats{ServedBytes: n, SourceReadBytes: read}
+	return mp4.HLSPlanStats{ServedBytes: n, WalkReadBytes: read, SourceReadBytes: read}
 }
 
 // A plan reading over three times what it served is reported once while in
@@ -31,7 +31,7 @@ func served(n, read int64) mp4.HLSPlanStats {
 // again with its final figures when it leaves the cache. The ratio is read on
 // mkvgo's own count, Resource and Open together.
 func TestServedWatch_NamesAPlanReadingOverTheBarOnce(t *testing.T) {
-	w := servedWatch{network: true}
+	w := servedWatch{}
 	st := mp4.HLSPlanStats{}
 	stats := func() mp4.HLSPlanStats { return st }
 	var got, damaged []reported
@@ -58,7 +58,7 @@ func TestServedWatch_NamesAPlanReadingOverTheBarOnce(t *testing.T) {
 		t.Fatalf("named twice while in use: %+v", got)
 	}
 	// Leaving the cache: the final figures, even back under the bar.
-	st.SourceReadBytes = 2 * readRatioMinServed
+	st.WalkReadBytes = 2 * readRatioMinServed
 	w.final(stats, report, damage)
 	if len(got) != 2 || planServed(got[1].st) != 2*readRatioMinServed {
 		t.Fatalf("final = %+v", got)
@@ -71,39 +71,39 @@ func TestServedWatch_NamesAPlanReadingOverTheBarOnce(t *testing.T) {
 // A plan at three times or under is never named, nor is one that served
 // nothing when it leaves.
 func TestServedWatch_AtOrUnderTheBarStaysQuiet(t *testing.T) {
-	w := servedWatch{network: true}
+	w := servedWatch{}
 	st := served(readRatioMinServed, readRatioFlag*readRatioMinServed)
 	stats := func() mp4.HLSPlanStats { return st }
 	n := 0
 	report := func(mp4.HLSPlanStats, int64) { n++ }
 	w.count(readRatioMinServed, stats, report, report)
 	w.final(stats, report, report)
-	idle := servedWatch{network: true}
-	idle.final(func() mp4.HLSPlanStats { return mp4.HLSPlanStats{SourceReadBytes: 1 << 30, DamageSkips: 1} }, report, report)
+	idle := servedWatch{}
+	idle.final(func() mp4.HLSPlanStats { return mp4.HLSPlanStats{WalkReadBytes: 1 << 30, DamageSkips: 1} }, report, report)
 	if n != 0 {
 		t.Fatalf("%d reports for a plan at the bar or idle", n)
 	}
 }
 
-// A local source is never named nor counted over the bar, however much it
-// read: since mkvgo 0.57 its walks keep nothing and its segments are copied
-// from the file again, so SourceReadBytes climbs while the disk reads the
-// same. Its damaged regions are still named.
-func TestServedWatch_LocalSourceRatioIsNotRead(t *testing.T) {
+// The ratio is read on the walks: a plan whose segments were copied again from
+// the page cache (a local file since mkvgo 0.57, CopyReadBytes) is neither
+// named nor counted over the bar, however much the total says it read. Its
+// damaged regions are still named.
+func TestServedWatch_SegmentCopiesDoNotCount(t *testing.T) {
 	var w servedWatch
-	st := served(readRatioMinServed, 10*readRatioMinServed)
-	st.DamageSkips = 1
+	st := mp4.HLSPlanStats{ServedBytes: readRatioMinServed, WalkReadBytes: readRatioMinServed + readRatioMinServed/3,
+		CopyReadBytes: 10 * readRatioMinServed, SourceReadBytes: 11*readRatioMinServed + readRatioMinServed/3, DamageSkips: 1}
 	stats := func() mp4.HLSPlanStats { return st }
 	n, damaged := 0, 0
 	report := func(mp4.HLSPlanStats, int64) { n++ }
 	damage := func(mp4.HLSPlanStats, int64) { damaged++ }
 	w.count(readRatioMinServed, stats, report, damage)
 	w.final(stats, report, damage)
-	if n != 0 || w.countedOver(w.overRead(st)) {
-		t.Fatalf("a local plan reading 10x was named %d times or counted over the bar", n)
+	if n != 0 || w.countedOver(overRead(st)) {
+		t.Fatalf("a plan walking 1.33x its output was named %d times or counted over the bar", n)
 	}
 	if damaged != 1 {
-		t.Fatalf("a local plan's damaged region named %d times, want once", damaged)
+		t.Fatalf("its damaged region named %d times, want once", damaged)
 	}
 }
 
@@ -145,13 +145,13 @@ func TestServedWatch_NamesADamagedPlanOnce(t *testing.T) {
 func TestLogOverRead_CarriesTheCase(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
-	st := mp4.HLSPlanStats{SourceReadBytes: 400, ServedBytes: 60, StreamedBytes: 40, ServedSegments: 35, WindowBuilds: 7, FarLookups: 5, FarHits: 4, KeptSegments: 30, KeptFallbacks: 1, StreamedSegments: 2, StreamFallbacks: 3}
+	st := mp4.HLSPlanStats{SourceReadBytes: 900, WalkReadBytes: 400, CopyReadBytes: 500, ServedBytes: 60, StreamedBytes: 40, ServedSegments: 35, WindowBuilds: 7, FarLookups: 5, FarHits: 4, KeptSegments: 30, KeptFallbacks: 1, StreamedSegments: 2, StreamFallbacks: 3}
 	logOverRead(logger, "/media/a.mkv", st, 12, true)
 	var line map[string]any
 	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]any{"path": "/media/a.mkv", "read_bytes": 400.0, "served_bytes": 100.0, "read_ratio_pct": 400.0,
+	want := map[string]any{"path": "/media/a.mkv", "walk_read_bytes": 400.0, "copy_read_bytes": 500.0, "served_bytes": 100.0, "read_ratio_pct": 400.0,
 		"resources_served": 12.0, "segments_opened": 35.0, "window_builds": 7.0, "far_lookups": 5.0, "far_hits": 4.0,
 		"kept_segments": 30.0, "kept_fallbacks": 1.0, "final": true}
 	for k, v := range want {
