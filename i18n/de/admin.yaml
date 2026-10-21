@@ -1269,7 +1269,8 @@ loadtest:
   deviceUnresolvedLine: "{{location}}: keine Platte dieser Maschine"
   replayedTitlesLine_one: "{{count}} Zuschauer der gehaltenen Stufe spielte einen Titel erneut, den ein anderer bereits las, an anderer Stelle (kein Cache: jedes Segment wird aus der Quelle gebaut)."
   replayedTitlesLine_other: "{{count}} Zuschauer der gehaltenen Stufe spielten einen Titel erneut, den ein anderer bereits las, an anderer Stelle (kein Cache: jedes Segment wird aus der Quelle gebaut)."
-  appReadLine: "Lesezugriffe des Packagers auf seine Quellen: {{rate}}, das {{ratio}}-Fache des gelieferten Durchsatzes (Zähler im Prozess)."
+  appReadLine: "Lesezugriffe des Packagers auf seine Quellen, Fensterdurchläufe: {{rate}}, das {{ratio}}-Fache des gelieferten Durchsatzes (Zähler im Prozess)."
+  appCopyReadLine: "Erneut gelesen, um Segmente auszugeben: {{rate}}, das {{ratio}}-Fache des gelieferten Durchsatzes. Bei einer lokalen Datei kommt diese Kopie aus dem Speicher-Cache, den der Durchlauf gerade gefüllt hat, nicht von der Platte."
   appReadUnmeasuredLine: "Lesezugriffe des Packagers auf seine Quellen: nicht gemessen (kein Zähler im Prozess in dieser Version)."
   window:
     held: "gehalten"

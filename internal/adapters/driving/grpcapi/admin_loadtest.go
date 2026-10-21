@@ -160,6 +160,7 @@ func loadTestStatusToProto(s apploadtest.Status) *eveyv1.LoadTestStatus {
 			StorageCollapsesAtReaders:     int32(r.StorageCollapsesAtReaders),
 			ReadAmplification:             r.ReadAmplification,
 			AppReadAmplification:          r.AppReadAmplification,
+			AppCopyReadAmplification:      r.AppCopyReadAmplification,
 			DiskCeilingAtReaders:          int32(r.DiskCeilingAtReaders), //nolint:gosec // a concurrency width, bounded by the probe sweep
 			DiskReadAtAudienceBytesPerSec: r.DiskReadBytesPerSecAtAudience,
 			HarnessCpuFraction:            r.HarnessCPUFraction,
@@ -294,6 +295,7 @@ func loadTestResourcesToProto(s apploadtest.ResourceStats) *eveyv1.LoadTestResou
 		DiskReadBytesPerSec:      s.DiskReadBytesPerSecAvg,
 		DiskReadMeasured:         s.DiskReadMeasured,
 		AppReadBytesPerSec:       s.AppReadBytesPerSecAvg,
+		AppCopyReadBytesPerSec:   s.AppCopyBytesPerSecAvg,
 		AppReadMeasured:          s.AppReadMeasured,
 		ServedBytesPerSec:        s.ServedBytesPerSecAvg,
 		Samples:                  int32(s.Samples), //nolint:gosec // a sample count

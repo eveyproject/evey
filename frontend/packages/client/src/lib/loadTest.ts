@@ -93,6 +93,8 @@ export interface LoadTestResources {
   diskReadMeasured?: boolean;
   appReadBytesPerSec?: number;
   appReadMeasured?: boolean;
+  // appCopyReadBytesPerSec: read again to copy segments out; 0 when not counted.
+  appCopyReadBytesPerSec?: number;
   servedBytesPerSec?: number;
   samples?: number;
   // The server's own Go runtime over the tier: reachable heap, GOMEMLIMIT (0 =
@@ -318,6 +320,9 @@ export interface LoadTestReport {
   // readAmplification (what the DISK delivered), it says whether the code is
   // greedy or the kernel is reading ahead - two problems with different fixes.
   appReadAmplification?: number;
+  // appCopyReadAmplification: what the packager read AGAIN per byte served, to
+  // copy its segments out (a local file's copies come from the page cache).
+  appCopyReadAmplification?: number;
   // servedPaths: what the server decided for each viewer type over the whole
   // run, counted once per viewer by the path its first segment came from.
   servedPaths?: { viewerType?: string; path?: string; viewers?: number }[];

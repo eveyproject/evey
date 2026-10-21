@@ -429,6 +429,15 @@ export function LoadTestReportPanel({
                 : t("admin.loadtest.appReadUnmeasuredLine")}
             </p>
           )}
+          {/* What it read again to copy segments out, apart from the walks. */}
+          {res && (report.appCopyReadAmplification ?? 0) > 0 && (
+            <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-app-copy-read">
+              {t("admin.loadtest.appCopyReadLine", {
+                rate: formatMbps(res.appCopyReadBytesPerSec ?? 0),
+                ratio: (report.appCopyReadAmplification ?? 0).toFixed(2),
+              })}
+            </p>
+          )}
           {report.harnessCpuMeasured && (
             <p className="text-xs text-[var(--text-muted)]" data-testid="load-test-harness-cpu">
               {t("admin.loadtest.harnessCpuLine", {

@@ -1269,7 +1269,8 @@ loadtest:
   deviceUnresolvedLine: "{{location}}：本机无对应磁盘"
   replayedTitlesLine_one: "保持档位中有 {{count}} 位观众在重播另一位观众已在读取的标题（不同位置；无缓存：每个分段都从源文件构建）。"
   replayedTitlesLine_other: "保持档位中有 {{count}} 位观众在重播另一位观众已在读取的标题（不同位置；无缓存：每个分段都从源文件构建）。"
-  appReadLine: "打包器从源文件的读取：{{rate}}，为所服务吞吐的 {{ratio}} 倍（进程内计数器）。"
+  appReadLine: "打包器从源文件的读取（窗口遍历）：{{rate}}，为所服务吞吐的 {{ratio}} 倍（进程内计数器）。"
+  appCopyReadLine: "为复制分段而再次读取：{{rate}}，为所服务吞吐的 {{ratio}} 倍。对本地文件来说，这些复制来自遍历刚刚填满的内存缓存，而不是磁盘。"
   appReadUnmeasuredLine: "打包器从源文件的读取：未测量（此版本没有进程内计数器）。"
   window:
     held: "保持"
