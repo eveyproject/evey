@@ -334,7 +334,6 @@ func (p *OnDemandPackager) flyOnce(ctx context.Context, key string, f *planFligh
 	}
 	if op, ok := pl.(*ondemandPlan); ok {
 		op.pkg, op.key, op.srcPath, op.opts = p, key, srcPath, opts
-		op.watch.network = sourceOnNetwork(srcPath)
 	}
 	p.plans.Set(key, pl, p.ttl)
 	return pl, nil
@@ -420,6 +419,11 @@ func addWindowStats(out map[string]int64, st mp4.HLSPlanStats) {
 	// mkvgo 0.53: the bytes the plan read from its source since it was built
 	// (the build itself not counted) - the in-process "app read" of the load test.
 	out["source_read_bytes"] += st.SourceReadBytes
+	// mkvgo 0.58: that total split between the window walks and the segment
+	// copies (a local file's segments are copied from the page cache the walk
+	// just filled); walk + copy = source.
+	out["walk_read_bytes"] += st.WalkReadBytes
+	out["copy_read_bytes"] += st.CopyReadBytes
 	// mkvgo 0.54: the segments served from the bytes their window's walk had
 	// already read, the tables that fell back to copying from the source, and
 	// the walks that looked for a track stored apart from the video in the
