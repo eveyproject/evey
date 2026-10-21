@@ -11,6 +11,13 @@ package mkvgo
 // shows nowhere but in the disk's load, so each plan says when its ratio
 // crosses readRatioFlag, with what mkvgo needs to take the case up. Nothing is
 // done to the plan.
+//
+// Only a network source's ratio is read. Since mkvgo 0.57 a local file's walk
+// keeps nothing: its segments are copied from the file again, out of the page
+// cache the walk just filled, so SourceReadBytes climbs while the disk reads
+// the same (1,387 MiB either way on mkvgo's bench) and every local plan would
+// cross the bar. KeptSegments is 0 there, KeptFallbacks counts only a network
+// source's windows the budget refused.
 
 import (
 	"context"
@@ -49,6 +56,10 @@ type servedWatch struct {
 	// counted is set the first time WindowStats counts the plan over the bar,
 	// see countedOver.
 	counted atomic.Bool
+	// network is what mkvgo's SourceAuto decides for the plan's source
+	// (SourceAccessOf), set before the plan is shared: a local source's ratio
+	// is never read.
+	network bool
 }
 
 // countedOver latches the plan's place in "plans_read_over_ratio": a plan
@@ -77,7 +88,7 @@ func (w *servedWatch) count(n int64, stats func() mp4.HLSPlanStats, report, dama
 		return
 	}
 	st := stats()
-	if overRead(st) && w.flagged.CompareAndSwap(false, true) {
+	if w.overRead(st) && w.flagged.CompareAndSwap(false, true) {
 		report(st, resources)
 	}
 	if st.DamageSkips+st.DamageRefusals > 0 && w.damaged.CompareAndSwap(false, true) {
@@ -93,7 +104,7 @@ func (w *servedWatch) final(stats func() mp4.HLSPlanStats, report, damaged planR
 		return
 	}
 	st := stats()
-	if overRead(st) || w.flagged.Load() {
+	if w.overRead(st) || w.flagged.Load() {
 		report(st, w.resources.Load())
 	}
 	if st.DamageSkips+st.DamageRefusals > 0 && w.damaged.CompareAndSwap(false, true) {
@@ -106,11 +117,12 @@ func (w *servedWatch) final(stats func() mp4.HLSPlanStats, report, damaged planR
 // beside them, streamed or kept.
 func planServed(st mp4.HLSPlanStats) int64 { return st.ServedBytes + st.StreamedBytes }
 
-// overRead reports whether a plan that served at least readRatioMinServed
-// read more than readRatioFlag times what it served from its source.
-func overRead(st mp4.HLSPlanStats) bool {
+// overRead reports whether a plan over a network source that served at least
+// readRatioMinServed read more than readRatioFlag times what it served from
+// its source.
+func (w *servedWatch) overRead(st mp4.HLSPlanStats) bool {
 	served := planServed(st)
-	return served >= readRatioMinServed && st.SourceReadBytes > readRatioFlag*served
+	return w.network && served >= readRatioMinServed && st.SourceReadBytes > readRatioFlag*served
 }
 
 // logOverRead names the file and what mkvgo needs to take the case up: the
@@ -176,7 +188,7 @@ func (p *ondemandPlan) logger() *slog.Logger {
 // it served, and whether it read over the bar.
 func (p *ondemandPlan) servedStats() (served int64, overBar bool) {
 	st := p.Stats()
-	return planServed(st), p.watch.countedOver(overRead(st))
+	return planServed(st), p.watch.countedOver(p.watch.overRead(st))
 }
 
 // countedResource counts what a streamed resource wrote to its client.
