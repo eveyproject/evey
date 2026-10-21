@@ -72,6 +72,9 @@ browser, not by recognising it. A surround track is decoded in the page only
 when the profile's **Max Audio Channels** allows it: a profile set to stereo
 gets the AAC re-encode instead, which can fold the channels.
 
+How the page decodes it, and what happens when it cannot:
+[ac3go in Evey](ac3go.md).
+
 !!! warning
     A reverse proxy that sets its own Content-Security-Policy must allow
     `'wasm-unsafe-eval'` in `script-src`, otherwise the decoder cannot start
