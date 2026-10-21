@@ -11,6 +11,8 @@
       typeof Symbol !== "undefined" && typeof Map !== "undefined" &&
       !!(window.MediaSource || window.ManagedMediaSource) &&
       "noModule" in document.createElement("script");
+  // ES5 has no catch without a binding (ES2019), and this file must parse there.
+  // eslint-disable-next-line no-unused-vars
   } catch (e) { ok = false; }
   if (!ok) {
     window.__eveyTooOld = true;
