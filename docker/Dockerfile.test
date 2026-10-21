@@ -1,7 +1,7 @@
 # Debian base (NOT Alpine): evey uses jellyfin-ffmpeg everywhere (tonemapx + HLS
 # patches, parity with prod), and jellyfin-ffmpeg7 ships ONLY as a Debian package.
 # Debian glibc also matches prod for the CGO_ENABLED=1 test build.
-FROM golang:1.27.2-trixie
+FROM golang:1.27.3-trixie
 
 # No docker CLI: the testcontainers-based tests talk to the mounted docker.sock
 # via the Go SDK, and nothing shells out to a `docker` binary. Debian's docker.io
