@@ -169,12 +169,12 @@ func TestTrickplaySettle_ShortCoverageIsRefused(t *testing.T) {
 
 func TestCheckTrickplayCoverage(t *testing.T) {
 	const minute = int64(60_000)
-	assert.NoError(t, checkTrickplayCoverage([]int64{0, 54 * minute}, 55*minute), "a minute short of the end is complete")
-	assert.Error(t, checkTrickplayCoverage([]int64{0, 9 * minute}, 44*minute), "Raised by Wolves S02E04: 8:56 of 43:48")
-	assert.Error(t, checkTrickplayCoverage(nil, 44*minute), "no thumbnail at all")
-	assert.NoError(t, checkTrickplayCoverage([]int64{0}, 0), "an unknown duration is not judged")
+	require.NoError(t, checkTrickplayCoverage([]int64{0, 54 * minute}, 55*minute), "a minute short of the end is complete")
+	require.Error(t, checkTrickplayCoverage([]int64{0, 9 * minute}, 44*minute), "Raised by Wolves S02E04: 8:56 of 43:48")
+	require.Error(t, checkTrickplayCoverage(nil, 44*minute), "no thumbnail at all")
+	require.NoError(t, checkTrickplayCoverage([]int64{0}, 0), "an unknown duration is not judged")
 	// Past twenty minutes, the allowance is a tenth of the media: 18 min on a
 	// 3 h film.
-	assert.NoError(t, checkTrickplayCoverage([]int64{0, 165 * minute}, 180*minute))
-	assert.Error(t, checkTrickplayCoverage([]int64{0, 125 * minute}, 156*minute), "Tron: 125 of 156 min")
+	require.NoError(t, checkTrickplayCoverage([]int64{0, 165 * minute}, 180*minute))
+	require.Error(t, checkTrickplayCoverage([]int64{0, 125 * minute}, 156*minute), "Tron: 125 of 156 min")
 }
