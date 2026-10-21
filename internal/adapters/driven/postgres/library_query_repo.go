@@ -359,6 +359,18 @@ func (r *MediaItemQueryRepoAdapter) CountPerLibrary(ctx context.Context, filter 
 	return counts, nil
 }
 
+func (r *MediaItemQueryRepoAdapter) DescendantIDs(ctx context.Context, id shared.MediaItemID) ([]shared.MediaItemID, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.DescendantIDs")
+	defer span.End()
+	ids, err := r.items.DescendantIDs(ctx, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return ids, nil
+}
+
 func (r *MediaItemQueryRepoAdapter) SeriesAggregate(ctx context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.libraryquery.SeriesAggregate")
 	defer span.End()

@@ -366,6 +366,24 @@ func TestMediaItemQueryRepoAdapter_NextEpisodeOf_AndSeriesAggregate(t *testing.T
 	empty, err := queryRepo.SeriesAggregate(ctx, "ghost")
 	require.NoError(t, err)
 	assert.Zero(t, empty.EpisodeCount)
+
+	// DescendantIDs walks the same tree: both seasons and every episode, the
+	// series itself left out; a season brings its own episodes only.
+	under, err := queryRepo.DescendantIDs(ctx, shared.MediaItemID(seriesID))
+	require.NoError(t, err)
+	want := []string{"nx-s1", "nx-s2", "nx-s2e1", "nx-s2e2", "nx-special"}
+	want = append(want, s1...)
+	got := make([]string, len(under))
+	for i, id := range under {
+		got[i] = string(id)
+	}
+	assert.ElementsMatch(t, want, got)
+	under, err = queryRepo.DescendantIDs(ctx, s2.ID)
+	require.NoError(t, err)
+	assert.Len(t, under, 3)
+	under, err = queryRepo.DescendantIDs(ctx, "ghost")
+	require.NoError(t, err)
+	assert.Empty(t, under)
 }
 
 // RefreshFileState is the "file unchanged" fast path of a repair: it stamps

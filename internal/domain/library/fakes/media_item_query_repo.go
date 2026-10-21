@@ -468,6 +468,30 @@ func (r *FakeMediaItemQueryRepo) CountPerLibrary(ctx context.Context, filter lib
 	return counts, nil
 }
 
+func (r *FakeMediaItemQueryRepo) DescendantIDs(_ context.Context, id shared.MediaItemID) ([]shared.MediaItemID, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []shared.MediaItemID
+	queue := []string{string(id)}
+	visited := map[string]bool{string(id): true}
+	for len(queue) > 0 {
+		parent := queue[0]
+		queue = queue[1:]
+		for _, item := range r.items {
+			if item.ParentID != parent || visited[string(item.ID)] {
+				continue
+			}
+			visited[string(item.ID)] = true
+			queue = append(queue, string(item.ID))
+			out = append(out, item.ID)
+		}
+	}
+	return out, nil
+}
+
 func (r *FakeMediaItemQueryRepo) SeriesAggregate(_ context.Context, seriesID shared.MediaItemID) (library.SeriesAggregate, error) {
 	if r.Err != nil {
 		return library.SeriesAggregate{}, r.Err

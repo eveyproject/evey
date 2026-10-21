@@ -511,6 +511,39 @@ func (r *MediaItemRepository) SeriesAggregate(ctx context.Context, seriesID shar
 	return agg, nil
 }
 
+// DescendantIDs walks the parent_id tree under id with the same recursive
+// CTE as SeriesAggregate and returns every item it reaches, id excluded.
+func (r *MediaItemRepository) DescendantIDs(ctx context.Context, id shared.MediaItemID) ([]shared.MediaItemID, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.DescendantIDs")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		WITH RECURSIVE descendants AS (
+		  SELECT id FROM media_items WHERE parent_id = $1
+		  UNION ALL
+		  SELECT m.id FROM media_items m
+		  INNER JOIN descendants d ON m.parent_id = d.id
+		)
+		SELECT id FROM descendants`, string(id))
+	if err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.DescendantIDs: %w", err)
+	}
+	defer rows.Close()
+	var out []shared.MediaItemID
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			return nil, fmt.Errorf("MediaItemRepo.DescendantIDs scan: %w", err)
+		}
+		out = append(out, shared.MediaItemID(d))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("MediaItemRepo.DescendantIDs rows: %w", err)
+	}
+	return out, nil
+}
+
 func (r *MediaItemRepository) ListContainerInfo(ctx context.Context, libraryID shared.LibraryID) ([]library.MediaItemContainerRow, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.mediaitem.ListContainerInfo")
 	defer span.End()

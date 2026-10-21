@@ -25,7 +25,10 @@ type adminHandler struct {
 	heavyRL        *ratelimit.Limiter
 	activityCmdSvc *appactivity.CommandService
 	logDir         string
-	serverCtx      context.Context
+	// mediaLookup resolves a title typed in the log search's media filter
+	// (log_media.go); nil leaves the filter matching ids only.
+	mediaLookup logMediaLookup
+	serverCtx   context.Context
 }
 
 func (h *adminHandler) audit(r *http.Request, action, resourceType string, resourceID *string, details map[string]any) {
@@ -57,7 +60,7 @@ func (h *adminHandler) audit(r *http.Request, action, resourceType string, resou
 
 func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService, metaQuery *appmetadata.QueryService, tokenGen domainuser.TokenGenerator, heavyRL, writeRL *ratelimit.Limiter, serverCtx context.Context, actCmdSvc *appactivity.CommandService) {
 	admin := httpAdminMiddleware(tokenGen)
-	//nolint:exhaustruct_v5 // adminHandler is shared by two route groups; this one serves the metadata routes and deliberately omits logDir (set by registerLogsRoute).
+	//nolint:exhaustruct_v5 // adminHandler is shared by two route groups; this one serves the metadata routes and deliberately omits logDir and mediaLookup (set by registerLogsRoute).
 	h := &adminHandler{tokenGen: tokenGen, metaCmd: metaCmd, metaQuery: metaQuery, heavyRL: heavyRL, serverCtx: serverCtx, activityCmdSvc: actCmdSvc}
 	// Explicit method+path routes (Go 1.22+ mux): without them, the default
 	// catch-all falls through to the gRPC gateway and every call 404s. A
@@ -73,13 +76,14 @@ func registerAdminRoutes(mux *http.ServeMux, metaCmd *appmetadata.CommandService
 	mux.HandleFunc("POST /api/v1/admin/metadata/refresh-all", ratelimit.MiddlewareFunc(writeRL, admin(h.handleRefreshAll)))
 }
 
-func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen domainuser.TokenGenerator) {
+func registerLogsRoute(mux *http.ServeMux, logDir string, tokenGen domainuser.TokenGenerator, mediaLookup logMediaLookup) {
 	admin := httpAdminMiddleware(tokenGen)
 	//nolint:exhaustruct_v5 // adminHandler is shared by two route groups; this one serves the logs routes and deliberately omits the metadata services (set by registerAdminRoutes).
-	h := &adminHandler{tokenGen: tokenGen, logDir: logDir}
+	h := &adminHandler{tokenGen: tokenGen, logDir: logDir, mediaLookup: mediaLookup}
 	mux.HandleFunc("GET /api/v1/admin/logs", admin(h.handleGetLogs))
 	mux.HandleFunc("GET /api/v1/admin/logs/search", admin(h.handleSearchLogs))
 	mux.HandleFunc("GET /api/v1/admin/logs/stream", admin(h.handleStreamLogs))
+	mux.HandleFunc("GET /api/v1/admin/logs/media", admin(h.handleResolveLogMedia))
 }
 
 func registerAvailableRuntimesRoute(mux *http.ServeMux, tokenGen domainuser.TokenGenerator) {

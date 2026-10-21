@@ -30,6 +30,10 @@ type logSearchEntry struct {
 	UserID    string         `json:"userId,omitempty"`
 	Fields    map[string]any `json:"fields,omitempty"`
 	Raw       string         `json:"raw"`
+	// at is Time parsed, what the ordering compares: slog trims the trailing
+	// zeros of the nanoseconds, so the strings do not sort ("…:29Z" after
+	// "…:29.9Z", ".123Z" after ".1234Z"). Zero when Time does not parse.
+	at time.Time
 }
 
 // logSearchFilter is the parsed, validated query. Zero values mean "unset"
@@ -42,6 +46,10 @@ type logSearchFilter struct {
 	SessionID string
 	UserID    string
 	MediaID   string
+	// MediaIDs, when not nil, is the set a line's media id must belong to:
+	// what a title in the media filter resolved to (log_media.go). Empty
+	// matches nothing - the title named no item.
+	MediaIDs  map[string]bool
 	RequestID string
 	Since     time.Time // zero = unbounded
 	Until     time.Time // zero = unbounded
@@ -59,6 +67,10 @@ type logSearchResult struct {
 	Total     int              `json:"total"`
 	Scanned   int              `json:"scanned"`
 	Truncated bool             `json:"truncated"`
+	// HasMore says the scan stopped once the page asked for was settled, so
+	// older matches may remain: Total is then a lower bound, and the next page
+	// is worth asking for even when it does not exceed what was fetched.
+	HasMore bool `json:"hasMore"`
 }
 
 // Scan/retain budgets keep a search bounded on a busy instance with large
@@ -88,12 +100,25 @@ const (
 	logRetainCap      = 5_000
 	logRetainCapMax   = 50_000
 	logScannerMaxLine = 2 << 20 // 2 MiB: ffmpeg arg lines can be long
+	// logOrderSlack is how far out of time order lines of one file may be: a
+	// record is stamped before its goroutine takes the writer, so two loggers
+	// racing can land a few milliseconds apart in the wrong order. The scan
+	// only stops on a line older than the page by more than this.
+	logOrderSlack = 5 * time.Second
 )
 
 // searchLogs scans the rotating evey-*.log files in dir (newest first),
 // parses each line as a slog JSON record, applies the filter and returns the
 // matches sorted newest-first with offset/limit applied. Total counts every
 // match found within the scan budget (a lower bound when Truncated is true).
+//
+// The scan stops as soon as the page is settled: once offset+limit matches
+// are retained, a line older than the oldest of them can no longer enter the
+// page. A file's lines are written in time order (within logOrderSlack), so
+// the rest of that file is older still, and so is every file last written
+// before that entry. Without
+// this, every page - the first one included - read the whole scan budget
+// (300,000 lines, 9 s on the NAS, 2026-10-21) only to count the total.
 func searchLogs(dir string, f logSearchFilter) (logSearchResult, error) {
 	files, err := logFilesNewestFirst(dir)
 	if err != nil {
@@ -106,6 +131,7 @@ func searchLogs(dir string, f logSearchFilter) (logSearchResult, error) {
 		scanned int
 		read    int
 		trunc   bool
+		more    bool
 	)
 	windowed := !f.Since.IsZero() || !f.Until.IsZero()
 
@@ -117,8 +143,13 @@ scan:
 		// A file last written before Since holds nothing the window wants.
 		// An unreadable mtime is never a reason to skip: fall through and
 		// let the line filter decide.
-		if mt, ok := fileModTime(path); ok && !f.Since.IsZero() && mt.Before(f.Since) {
+		mt, mtOK := fileModTime(path)
+		if mtOK && !f.Since.IsZero() && mt.Before(f.Since) {
 			continue
+		}
+		if oldest, full := keep.oldestTime(); full && mtOK && mt.Before(oldest.Add(-logOrderSlack)) {
+			more = true
+			break
 		}
 		lines, err := readFileLines(path)
 		if err != nil {
@@ -138,10 +169,22 @@ scan:
 			if line == "" {
 				continue
 			}
-			// Out-of-window lines cost nothing but the read budget, so a
-			// verbose recent stretch can't starve an older window.
+			if oldest, full := keep.oldestTime(); full {
+				if ts, ok := logLineTime(line); ok && ts.Before(oldest.Add(-logOrderSlack)) {
+					more = true
+					break
+				}
+			}
+			// Out-of-window lines, and lines of a level not asked for, cost
+			// nothing but the read budget, so a verbose recent stretch can't
+			// starve an older window or a rare level.
 			if windowed && !lineInWindow(line, f) {
 				continue
+			}
+			if len(f.Levels) > 0 {
+				if lv, ok := logLineLevel(line); ok && !f.Levels[lv] {
+					continue
+				}
 			}
 			scanned++
 			entry, ok := parseLogLine(line)
@@ -156,10 +199,10 @@ scan:
 		}
 	}
 
-	// Newest first: slog "time" is RFC3339Nano and lexicographically sortable.
+	// Newest first, on the parsed times (see logSearchEntry.at).
 	matches := keep.entries
 	sort.SliceStable(matches, func(i, j int) bool {
-		return matches[i].Time > matches[j].Time
+		return matches[i].at.After(matches[j].at)
 	})
 
 	lo := min(f.Offset, len(matches))
@@ -179,6 +222,7 @@ scan:
 		Total:     total,
 		Scanned:   scanned,
 		Truncated: trunc,
+		HasMore:   more,
 	}, nil
 }
 
@@ -215,17 +259,26 @@ func (k *newestKeeper) add(e logSearchEntry) {
 		}
 		return
 	}
-	if e.Time <= k.entries[k.oldest].Time {
+	if !e.at.After(k.entries[k.oldest].at) {
 		return
 	}
 	k.entries[k.oldest] = e
 	k.reindexOldest()
 }
 
+// oldestTime is the time of the oldest retained entry once the keeper is
+// full; full is false before, or when that time did not parse.
+func (k *newestKeeper) oldestTime() (t time.Time, full bool) {
+	if len(k.entries) < k.cap || k.entries[k.oldest].at.IsZero() {
+		return time.Time{}, false
+	}
+	return k.entries[k.oldest].at, true
+}
+
 func (k *newestKeeper) reindexOldest() {
 	k.oldest = 0
 	for i := 1; i < len(k.entries); i++ {
-		if k.entries[i].Time < k.entries[k.oldest].Time {
+		if k.entries[i].at.Before(k.entries[k.oldest].at) {
 			k.oldest = i
 		}
 	}
@@ -294,6 +347,9 @@ func parseLogLine(line string) (logSearchEntry, bool) {
 
 	e := logSearchEntry{Raw: line, Origin: "server"}
 	e.Time = strField(rec, "time")
+	if at, err := time.Parse(time.RFC3339Nano, e.Time); err == nil {
+		e.at = at // an unreadable stamp leaves it zero: sorted oldest
+	}
 	e.Level = strings.ToUpper(strField(rec, "level"))
 	e.Msg = strField(rec, "msg")
 	e.Component = strField(rec, "component")
@@ -379,6 +435,20 @@ func logLineTime(line string) (time.Time, bool) {
 	return ts, true
 }
 
+// logLineLevel pulls the upper-cased "level" value out of a raw slog JSON
+// line without unmarshalling it, as parseLogLine would set it.
+func logLineLevel(line string) (string, bool) {
+	_, rest, found := strings.Cut(line, `"level":"`)
+	if !found {
+		return "", false
+	}
+	raw, _, found := strings.Cut(rest, `"`)
+	if !found {
+		return "", false
+	}
+	return strings.ToUpper(raw), true
+}
+
 // fileModTime is the file's last write; ok is false when it can't be stat'd,
 // so callers keep the file rather than skip it on a missing mtime.
 func fileModTime(path string) (time.Time, bool) {
@@ -420,6 +490,9 @@ func matchLog(e logSearchEntry, f logSearchFilter) bool {
 		return false
 	}
 	if f.MediaID != "" && e.MediaID != f.MediaID {
+		return false
+	}
+	if f.MediaIDs != nil && !f.MediaIDs[e.MediaID] {
 		return false
 	}
 	if f.RequestID != "" && e.RequestID != f.RequestID {

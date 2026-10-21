@@ -54,6 +54,8 @@ logs:
   truncated: Résultats tronqués - affine la recherche pour une vue complète.
   resultCount_one: "{{count}} entrée"
   resultCount_other: "{{count}} entrées"
+  resultCountAtLeast_one: "{{count}}+ entrées"
+  resultCountAtLeast_other: "{{count}}+ entrées"
   liveCount_one: "{{count}} entrée en direct"
   liveCount_other: "{{count}} entrées en direct"
   accessLog: "Journal d'accès gRPC"
@@ -70,7 +72,11 @@ logs:
   liveUnavailableMobile: "Le suivi en direct n'est pas encore disponible sur mobile - utilise la recherche ci-dessous."
   sessionId: ID de session
   userId: Utilisateur (nom ou ID)
-  mediaId: ID média
+  mediaId: "Média (titre ou ID)"
+  mediaNotFound: "Aucun média ne porte ce titre"
+  mediaResolved: "{{title}} ({{kind}})"
+  mediaResolvedWithItems_one: "{{title}} ({{kind}}, {{count}} élément lié)"
+  mediaResolvedWithItems_other: "{{title}} ({{kind}}, {{count}} éléments liés)"
   level:
     label: Niveau
   where:

@@ -54,6 +54,8 @@ logs:
   truncated: "परिणाम छोटे किए गए - पूर्ण दृश्य के लिए खोज सीमित करें।"
   resultCount_one: "{{count}} प्रविष्टि"
   resultCount_other: "{{count}} प्रविष्टियां"
+  resultCountAtLeast_one: "{{count}}+ प्रविष्टियां"
+  resultCountAtLeast_other: "{{count}}+ प्रविष्टियां"
   liveCount_one: "{{count}} लाइव प्रविष्टि"
   liveCount_other: "{{count}} लाइव प्रविष्टियां"
   accessLog: "gRPC एक्सेस लॉग"
@@ -70,7 +72,11 @@ logs:
   liveUnavailableMobile: "मोबाइल पर लाइव ट्रैकिंग अभी उपलब्ध नहीं है - नीचे दी गई खोज का उपयोग करें।"
   sessionId: "सत्र ID"
   userId: "उपयोगकर्ता ID"
-  mediaId: "मीडिया ID"
+  mediaId: "मीडिया (शीर्षक या ID)"
+  mediaNotFound: "इस शीर्षक का कोई मीडिया नहीं है"
+  mediaResolved: "{{title}} ({{kind}})"
+  mediaResolvedWithItems_one: "{{title}} ({{kind}}, {{count}} संबंधित आइटम)"
+  mediaResolvedWithItems_other: "{{title}} ({{kind}}, {{count}} संबंधित आइटम)"
   level:
     label: "स्तर"
   where:

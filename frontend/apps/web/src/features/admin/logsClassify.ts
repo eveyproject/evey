@@ -30,6 +30,17 @@ export interface LogSearchResponse {
   total: number;
   scanned: number;
   truncated: boolean;
+  // The server stopped once the page was settled: total is a lower bound and
+  // older matches may remain. Absent from servers before 2026-10-21.
+  hasMore?: boolean;
+}
+
+// What the media filter resolved to (GET /api/v1/admin/logs/media): ids is
+// every media id a line may carry to match, media the items a title named
+// (empty for an id, or when nothing matched - ids is then empty too).
+export interface LogMediaResolution {
+  media: { id: string; title: string; type: string; descendants: number }[];
+  ids: string[];
 }
 
 export const WHERE_VALUES = [
