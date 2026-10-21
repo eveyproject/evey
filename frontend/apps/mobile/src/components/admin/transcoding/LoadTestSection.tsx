@@ -504,6 +504,11 @@ function ReportPanel({ report, predicted }: { report: LoadTestReport; predicted:
                 : t("admin.loadtest.appReadUnmeasuredLine")}
             </Text>
           ) : null}
+          {res && (report.appCopyReadAmplification ?? 0) > 0 ? (
+            <Text style={s.hint}>
+              {t("admin.loadtest.appCopyReadLine", { rate: formatMbps(res.appCopyReadBytesPerSec ?? 0), ratio: (report.appCopyReadAmplification ?? 0).toFixed(2) })}
+            </Text>
+          ) : null}
           {(report.skippedCandidates ?? 0) > 0 && (
             <Text style={s.hint}>{t("admin.loadtest.skippedCandidatesLine", { count: report.skippedCandidates })}</Text>
           )}

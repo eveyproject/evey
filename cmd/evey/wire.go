@@ -947,10 +947,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	loadTestRunner.WithPlaybackForget(func(ids []string) { playbackActivity.Forget(ids...) })
 	// The run logs what it cost the packager in window reads, rebuilds apart.
 	loadTestRunner.WithWindowStats(infra.onDemandPackager.WindowStats)
-	// The bytes the packager read from its sources, counted in-process: the
-	// "app read" figure /proc/self/io would give if the server could read it
-	// (it is non-dumpable).
-	loadTestRunner.WithAppReadCounter(func() int64 { return infra.onDemandPackager.WindowStats()["source_read_bytes"] })
+	// The bytes the packager's window walks read from its sources, counted
+	// in-process: the "app read" figure /proc/self/io would give if the server
+	// could read it (it is non-dumpable). Since mkvgo 0.57 a local file's
+	// segments are copied again from the page cache the walk filled; those
+	// copies are counted apart (mkvgo 0.58: walk + copy = source).
+	loadTestRunner.WithAppReadCounter(func() int64 { return infra.onDemandPackager.WindowStats()["walk_read_bytes"] })
+	loadTestRunner.WithAppCopyCounter(func() int64 { return infra.onDemandPackager.WindowStats()["copy_read_bytes"] })
 	// And what it served, the bytes those reads were for.
 	loadTestRunner.WithAppServedCounter(func() int64 { return infra.onDemandPackager.WindowStats()["served_to_clients_bytes"] })
 	// A "clients:history" run plays the mix of the last 30 days' playbacks.

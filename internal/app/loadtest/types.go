@@ -567,7 +567,8 @@ type Report struct {
 	// share or a 9p/virtiofs mount, where per-cgroup I/O accounting is blind).
 	ReadAmplification float64
 	// AppReadAmplification is how many bytes the SERVER ASKED FOR for every byte
-	// served - the packager's own appetite, page cache or not.
+	// served - the packager's own appetite, page cache or not: its window walks
+	// (mkvgo 0.58 WalkReadBytes); its segment copies are AppCopyReadAmplification.
 	//
 	// The two together name the culprit, and they have entirely different fixes:
 	//
@@ -582,6 +583,12 @@ type Report struct {
 	// and leaves an operator - or a packager author - guessing which of the two
 	// they are looking at.
 	AppReadAmplification float64
+	// AppCopyReadAmplification is what the packager read AGAIN per byte it
+	// served, to copy its segments out (mkvgo 0.58 CopyReadBytes). A local
+	// file's segments are copied from the page cache its window walk just
+	// filled, so this costs no disk: it is shown apart, not added to the app
+	// figure above, which is the walks alone.
+	AppCopyReadAmplification float64
 
 	// ThroughputCeilingBytesPerSec is the byte rate the server could not exceed,
 	// set when StopThroughputSaturated. It is the number an operator acts on:

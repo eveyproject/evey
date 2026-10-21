@@ -973,6 +973,11 @@
         },
         "remoteByLine": {
           "type": "boolean"
+        },
+        "appCopyReadAmplification": {
+          "type": "number",
+          "format": "double",
+          "description": "app_copy_read_amplification is what the packager read AGAIN per byte\nserved, to copy its segments out (mkvgo CopyReadBytes). A local file's\nsegments are copied from the page cache its window walk just filled: it\ncosts no disk, and is kept apart from app_read_amplification, the walks."
         }
       },
       "description": "LoadTestReport is what the box MEASURED, next to what the admission model\npredicted - the panel shows both so the operator sees promises kept."
@@ -1069,6 +1074,11 @@
         },
         "diskReadMeasured": {
           "type": "boolean"
+        },
+        "appCopyReadBytesPerSec": {
+          "type": "string",
+          "format": "int64",
+          "description": "What the packager read again to copy its segments out; 0 when nothing\ncounts it."
         }
       },
       "description": "LoadTestResources is what the box was actually spending. The figures come\nfrom the server's own cgroup, so every ffmpeg it spawned is already counted;\nserved_bytes_per_sec is tallied by the viewers themselves (they reach the\nserver over loopback, where no NIC counter would see the traffic)."

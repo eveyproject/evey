@@ -654,6 +654,11 @@ message LoadTestReport {
   // smaller. Zero when the line was not measured.
   int32 remote_viewers = 70;
   bool remote_by_line = 71;
+  // app_copy_read_amplification is what the packager read AGAIN per byte
+  // served, to copy its segments out (mkvgo CopyReadBytes). A local file's
+  // segments are copied from the page cache its window walk just filled: it
+  // costs no disk, and is kept apart from app_read_amplification, the walks.
+  double app_copy_read_amplification = 72;
 }
 
 // LoadTestGridTier is one audience size of the grid and how its windows went.
@@ -820,4 +825,7 @@ message LoadTestResources {
   int64 app_read_bytes_per_sec = 20;
   bool app_read_measured = 21;
   bool disk_read_measured = 22;
+  // What the packager read again to copy its segments out; 0 when nothing
+  // counts it.
+  int64 app_copy_read_bytes_per_sec = 23;
 }

@@ -99,6 +99,9 @@ type Runner struct {
 	// appServedBytes counts what the packager served so far, the denominator
 	// of its read amplification (see WithAppServedCounter). nil: not measured.
 	appServedBytes func() int64
+	// appCopyBytes counts what the packager read again to copy segments out
+	// (see WithAppCopyCounter). nil: not measured.
+	appCopyBytes func() int64
 	// forgetPlayback clears the "someone is watching" signal for these media
 	// (see WithPlaybackForget). nil: not wired.
 	forgetPlayback func(mediaIDs []string)
@@ -211,6 +214,15 @@ func (r *Runner) WithAppReadCounter(read func() int64) *Runner {
 // than over every viewer's, ffmpeg ones included.
 func (r *Runner) WithAppServedCounter(served func() int64) *Runner {
 	r.appServedBytes = served
+	return r
+}
+
+// WithAppCopyCounter wires the in-process count of the bytes the packager read
+// again to copy its segments out, apart from its window walks (the read
+// counter): a local file's copies come from the page cache, so the report
+// shows them beside the reads instead of inside them.
+func (r *Runner) WithAppCopyCounter(copied func() int64) *Runner {
+	r.appCopyBytes = copied
 	return r
 }
 
@@ -471,6 +483,7 @@ func (r *Runner) finish(report Report) {
 		// them is the kernel reading ahead, not a greedy packager.
 		"read_amplification_disk", report.ReadAmplification,
 		"read_amplification_app", report.AppReadAmplification,
+		"read_amplification_app_copy", report.AppCopyReadAmplification,
 		"app_read_mib_per_sec", report.Resources.AppReadBytesPerSecAvg / (1 << 20),
 		"app_read_measured", report.AppReadMeasured,
 		// The disk figure is the machine's block counters summed over the devices

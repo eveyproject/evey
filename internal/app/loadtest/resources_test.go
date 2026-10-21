@@ -1109,7 +1109,7 @@ func TestResourceSampler_RatesThePackagersServedBytes(t *testing.T) {
 	}
 }
 
-type appServedFakeSource struct{ read, served int64 }
+type appServedFakeSource struct{ read, served, copied int64 }
 
 func (f *appServedFakeSource) cpuUsageUsec() int64                { return 0 }
 func (f *appServedFakeSource) memory() (used, cache, limit int64) { return 0, 0, 0 }
@@ -1117,3 +1117,31 @@ func (f *appServedFakeSource) diskReadBytes() (int64, bool)       { return 0, fa
 func (f *appServedFakeSource) appReadBytes() int64                { return f.read }
 func (f *appServedFakeSource) cpuAllowance() float64              { return 1 }
 func (f *appServedFakeSource) appServedBytes() int64              { return f.served }
+func (f *appServedFakeSource) appCopyBytes() int64                { return f.copied }
+
+// The packager's segment copies (mkvgo 0.58 CopyReadBytes) are rated apart
+// from its window walks: a local file's copies come from the page cache, and
+// counted inside the reads they made the app figure 3.35 where the walks were
+// 1.37.
+func TestResourceSampler_RatesTheSegmentCopiesApart(t *testing.T) {
+	src := &appServedFakeSource{}
+	s := newResourceSampler(src)
+	t0 := time.Unix(1000, 0)
+	src.read, src.served, src.copied = 1, 1, 1
+	s.sample(1, t0)
+	src.read, src.served, src.copied = 1+(13<<20), 1+(10<<20), 1+(20<<20)
+	out, ok := s.sample(1+(10<<20), t0.Add(time.Second))
+	if !ok {
+		t.Fatal("second sample must report rates")
+	}
+	if out.AppReadBytesPerSec != 13<<20 || out.AppCopyBytesPerSec != 20<<20 {
+		t.Fatalf("walks %d, copies %d: want %d and %d, apart", out.AppReadBytesPerSec, out.AppCopyBytesPerSec, 13<<20, 20<<20)
+	}
+	stats := statsOf([]ResourceSample{out})
+	if a := appReadAmplification(stats); a < 1.25 || a > 1.35 {
+		t.Fatalf("app amplification = %.2f, want 1.3: the walks alone", a)
+	}
+	if c := appCopyReadAmplification(stats); c < 1.95 || c > 2.05 {
+		t.Fatalf("copy amplification = %.2f, want 2.0", c)
+	}
+}

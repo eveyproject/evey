@@ -101,9 +101,15 @@ type ResourceSample struct {
 	// AppReadBytesPerSec is what the server ASKED the filesystem for, as opposed
 	// to what the disk delivered (DiskReadBytesPerSec). The difference is the
 	// kernel's readahead. AppReadMeasured is false when nothing counts those
-	// reads in-process.
+	// reads in-process. It is the packager's window walks; its segment copies
+	// are AppCopyBytesPerSec.
 	AppReadBytesPerSec int64
 	AppReadMeasured    bool
+	// AppCopyBytesPerSec is what the packager read again to copy segments out
+	// (mkvgo 0.58 CopyReadBytes): a local file's segments come from the page
+	// cache the walk just filled, so the disk does not pay it twice. Zero when
+	// nothing counts it.
+	AppCopyBytesPerSec int64
 	ServedBytesPerSec  int64
 	// AppServedBytesPerSec is what the packager itself served, the bytes its
 	// reads were for: the denominator of AppReadAmplification. ServedBytesPerSec
@@ -137,6 +143,7 @@ type ResourceStats struct {
 	AppReadBytesPerSecAvg                             int64
 	AppReadMeasured                                   bool
 	AppServedBytesPerSecAvg                           int64
+	AppCopyBytesPerSecAvg                             int64
 	ServedBytesPerSecAvg                              int64
 	Samples                                           int
 	// Disks is what each physical drive did over the tier, busiest first.
@@ -198,6 +205,7 @@ type resourceSampler struct {
 	lastDiskRead  int64
 	lastAppRead   int64
 	lastAppServed int64
+	lastAppCopy   int64
 	lastServed    int64
 	hasPrevSample bool
 	lastDisks     map[string]diskCounters
@@ -221,6 +229,10 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	if as, ok := s.src.(appServedSource); ok {
 		appServed = as.appServedBytes()
 	}
+	var appCopy int64
+	if ac, ok := s.src.(appCopySource); ok {
+		appCopy = ac.appCopyBytes()
+	}
 	memUsed, memCache, memLimit := s.src.memory()
 	var disks map[string]diskCounters
 	if ds, ok := s.src.(diskActivitySource); ok {
@@ -241,11 +253,11 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	s.lastGo = goNow
 
 	prevAt, prevCPU, prevDisk, prevServed := s.lastAt, s.lastCPUUsec, s.lastDiskRead, s.lastServed
-	prevApp, prevAppServed := s.lastAppRead, s.lastAppServed
+	prevApp, prevAppServed, prevAppCopy := s.lastAppRead, s.lastAppServed, s.lastAppCopy
 	had := s.hasPrevSample
 
 	s.lastAt, s.lastCPUUsec, s.lastDiskRead, s.lastServed = now, cpuUsec, diskRead, servedTotal
-	s.lastAppRead, s.lastAppServed = appRead, appServed
+	s.lastAppRead, s.lastAppServed, s.lastAppCopy = appRead, appServed, appCopy
 	s.hasPrevSample = true
 
 	if !had {
@@ -286,6 +298,9 @@ func (s *resourceSampler) sample(servedTotal int64, now time.Time) (ResourceSamp
 	}
 	if appServed > 0 && prevAppServed > 0 && appServed >= prevAppServed {
 		out.AppServedBytesPerSec = int64(float64(appServed-prevAppServed) / elapsed)
+	}
+	if appCopy > 0 && prevAppCopy > 0 && appCopy >= prevAppCopy {
+		out.AppCopyBytesPerSec = int64(float64(appCopy-prevAppCopy) / elapsed)
 	}
 	out.Disks = diskDeltas(prevDisks, disks, elapsed)
 	out.GoHeapLiveBytes = goNow.heapLiveBytes
@@ -777,7 +792,7 @@ func statsOf(samples []ResourceSample) ResourceStats {
 		return ResourceStats{}
 	}
 	var out ResourceStats
-	var cpuSum, memSum, cacheSum, diskSum, appSum, appServedSum, servedSum, heapSum, gcSum float64
+	var cpuSum, memSum, cacheSum, diskSum, appSum, appServedSum, appCopySum, servedSum, heapSum, gcSum float64
 	var machineSum, iowaitSum, rssSum float64
 	for _, s := range samples {
 		machineSum += s.MachineCPUPercent
@@ -799,6 +814,7 @@ func statsOf(samples []ResourceSample) ResourceStats {
 		diskSum += float64(s.DiskReadBytesPerSec)
 		appSum += float64(s.AppReadBytesPerSec)
 		appServedSum += float64(s.AppServedBytesPerSec)
+		appCopySum += float64(s.AppCopyBytesPerSec)
 		servedSum += float64(s.ServedBytesPerSec)
 		out.CPUPercentPeak = max(out.CPUPercentPeak, s.CPUPercent)
 		out.MemUsedBytesMax = max(out.MemUsedBytesMax, s.MemUsedBytes)
@@ -814,6 +830,7 @@ func statsOf(samples []ResourceSample) ResourceStats {
 	out.DiskReadBytesPerSecAvg = int64(diskSum / n)
 	out.AppReadBytesPerSecAvg = int64(appSum / n)
 	out.AppServedBytesPerSecAvg = int64(appServedSum / n)
+	out.AppCopyBytesPerSecAvg = int64(appCopySum / n)
 	out.ServedBytesPerSecAvg = int64(servedSum / n)
 	out.Samples = len(samples)
 	out.Disks = aggregateDisks(samples)
@@ -881,6 +898,13 @@ type cgroupSource struct {
 	devices   []string
 	appRead   func() int64
 	appServed func() int64
+	appCopy   func() int64
+}
+
+// appCopySource is a counterSource that also counts what the packager read
+// again to copy segments out (see AppCopyBytesPerSec). Optional.
+type appCopySource interface {
+	appCopyBytes() int64
 }
 
 // appServedSource is a counterSource that also counts what the packager
@@ -913,6 +937,12 @@ func (c cgroupSource) appServedBytes() int64 {
 		return 0
 	}
 	return c.appServed()
+}
+func (c cgroupSource) appCopyBytes() int64 {
+	if c.appCopy == nil {
+		return 0
+	}
+	return c.appCopy()
 }
 func (c cgroupSource) memory() (used, cache, limit int64) { return readMemory(c.fsRoot) }
 func (c cgroupSource) cpuAllowance() float64              { return cpuAllowance(c.fsRoot) }

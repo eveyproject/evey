@@ -1236,7 +1236,8 @@ loadtest:
   deviceUnresolvedLine: "{{location}}: no disk of this machine"
   replayedTitlesLine_one: "{{count}} viewer of the retained tier was replaying a title another viewer already read, at another position (no cache: every segment is built from the source)."
   replayedTitlesLine_other: "{{count}} viewers of the retained tier were replaying a title another viewer already read, at another position (no cache: every segment is built from the source)."
-  appReadLine: "Packager reads from its sources: {{rate}}, {{ratio}}x the served throughput (in-process counter)."
+  appReadLine: "Packager reads from its sources, window walks: {{rate}}, {{ratio}}x the served throughput (in-process counter)."
+  appCopyReadLine: "Read again to copy segments out: {{rate}}, {{ratio}}x the served throughput. A local file's copies come from the memory cache the walk just filled, not from the disk."
   appReadUnmeasuredLine: "Packager reads from its sources: not measured (no in-process counter in this version)."
   window:
     held: "held"

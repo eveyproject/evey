@@ -121,6 +121,19 @@ func readAmplification(s ResourceStats) float64 {
 // the "kernel readahead" signature - for I/O that was ffmpeg's. The bytes all
 // viewers pulled remain the denominator only when nothing counts the
 // packager's own.
+// appCopyReadAmplification is the packager's segment copies per byte it
+// served, on the same denominator as appReadAmplification.
+func appCopyReadAmplification(s ResourceStats) float64 {
+	served := s.AppServedBytesPerSecAvg
+	if served <= 0 {
+		served = s.ServedBytesPerSecAvg
+	}
+	if s.Samples == 0 || served <= 0 || s.AppCopyBytesPerSecAvg <= 0 {
+		return 0
+	}
+	return float64(s.AppCopyBytesPerSecAvg) / float64(served)
+}
+
 func appReadAmplification(s ResourceStats) float64 {
 	served := s.AppServedBytesPerSecAvg
 	if served <= 0 {

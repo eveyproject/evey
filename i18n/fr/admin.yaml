@@ -1235,7 +1235,8 @@ loadtest:
   deviceUnresolvedLine: "{{location}} : aucun disque de cette machine"
   replayedTitlesLine_one: "{{count}} spectateur du palier retenu rejouait un titre déjà lu par un autre, à une autre position (aucun cache : chaque segment est construit depuis la source)."
   replayedTitlesLine_other: "{{count}} spectateurs du palier retenu rejouaient un titre déjà lu par un autre, à une autre position (aucun cache : chaque segment est construit depuis la source)."
-  appReadLine: "Lectures du packager dans ses sources : {{rate}}, soit {{ratio}} fois le débit servi (compteur en process)."
+  appReadLine: "Lectures du packager dans ses sources, parcours des fenêtres : {{rate}}, soit {{ratio}} fois le débit servi (compteur en process)."
+  appCopyReadLine: "Relu pour recopier les segments : {{rate}}, soit {{ratio}} fois le débit servi. Pour un fichier local, la recopie vient du cache mémoire que le parcours vient de remplir, pas du disque."
   appReadUnmeasuredLine: "Lectures du packager dans ses sources : non mesurées (aucun compteur en process dans cette version)."
   window:
     held: "tenu"

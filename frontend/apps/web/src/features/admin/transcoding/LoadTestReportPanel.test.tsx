@@ -155,6 +155,27 @@ describe("LoadTestReportPanel", () => {
     expect(screen.getByTestId("load-test-app-read")).toHaveTextContent("appReadUnmeasuredLine");
   });
 
+  // mkvgo 0.58 splits what the packager read: its window walks (the app line)
+  // and the segment copies it read again, shown apart and only when counted.
+  it("shows the segment copies apart from the window walks", () => {
+    const report = {
+      scenario: "mkvgo",
+      sustainedViewers: 40,
+      appReadMeasured: true,
+      appReadAmplification: 1.37,
+      appCopyReadAmplification: 1.98,
+      resources: { samples: 6, appReadBytesPerSec: 137_000_000, appCopyReadBytesPerSec: 198_000_000 },
+    } as LoadTestReport;
+    render(<LoadTestReportPanel report={report} predicted={undefined} />);
+    expect(screen.getByTestId("load-test-app-read")).toHaveTextContent("ratio=1.37");
+    expect(screen.getByTestId("load-test-app-copy-read")).toHaveTextContent("admin.loadtest.appCopyReadLine(");
+    expect(screen.getByTestId("load-test-app-copy-read")).toHaveTextContent("ratio=1.98");
+
+    const before = { ...report, appCopyReadAmplification: undefined } as LoadTestReport;
+    render(<LoadTestReportPanel report={before} predicted={undefined} />);
+    expect(screen.getAllByTestId("load-test-app-copy-read")).toHaveLength(1);
+  });
+
   it("a pooled run says where the audience sat and what each disk did, busiest first", () => {
     const report = {
       scenario: "mkvgo",
