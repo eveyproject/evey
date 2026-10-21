@@ -137,6 +137,7 @@ plugins:
             How playback is decided: Comment Evey choisit le mode de lecture
             Transcoding and server capacity: Transcodage et capacité du serveur
             MKVGo in Evey: MKVGo dans Evey
+            ac3go in Evey: ac3go dans Evey
             HDR and Dolby Vision: HDR et Dolby Vision
             Audio: Audio
             Subtitles: Sous-titres
@@ -208,6 +209,7 @@ plugins:
             How playback is decided: Wie Evey die Wiedergabeart wählt
             Transcoding and server capacity: Transkodierung und Serverkapazität
             MKVGo in Evey: MKVGo in Evey
+            ac3go in Evey: ac3go in Evey
             HDR and Dolby Vision: HDR und Dolby Vision
             Audio: Audio
             Subtitles: Untertitel
@@ -279,6 +281,7 @@ plugins:
             How playback is decided: Cómo elige Evey el modo de reproducción
             Transcoding and server capacity: Transcodificación y capacidad del servidor
             MKVGo in Evey: MKVGo en Evey
+            ac3go in Evey: ac3go en Evey
             HDR and Dolby Vision: HDR y Dolby Vision
             Audio: Audio
             Subtitles: Subtítulos
@@ -350,6 +353,7 @@ plugins:
             How playback is decided: Evey प्लेबैक का तरीका कैसे चुनता है
             Transcoding and server capacity: ट्रांसकोडिंग और सर्वर की क्षमता
             MKVGo in Evey: Evey में MKVGo
+            ac3go in Evey: Evey में ac3go
             HDR and Dolby Vision: HDR और Dolby Vision
             Audio: ऑडियो
             Subtitles: सबटाइटल
@@ -421,6 +425,7 @@ plugins:
             How playback is decided: Evey 如何选择播放方式
             Transcoding and server capacity: 转码与服务器容量
             MKVGo in Evey: Evey 中的 MKVGo
+            ac3go in Evey: Evey 中的 ac3go
             HDR and Dolby Vision: HDR 与杜比视界
             Audio: 音频
             Subtitles: 字幕
@@ -540,6 +545,7 @@ nav:
       - How playback is decided: playback/how-playback-is-decided.md
       - Transcoding and server capacity: playback/transcoding.md
       - MKVGo in Evey: playback/mkvgo.md
+      - ac3go in Evey: playback/ac3go.md
       - HDR and Dolby Vision: playback/hdr.md
       - Audio: playback/audio.md
       - Subtitles: playback/subtitles.md

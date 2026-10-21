@@ -1,5 +1,5 @@
 ---
-source_sha: 87e08f341b329e7354b9d42ef5972fac5cb564784a1488786bff878e7d74ba8a
+source_sha: c8146d533df94a1909ae91a9bbceb788ab4d86f1860b721414c4dadf8791cff9
 reviewed: true
 ---
 # 音频
@@ -42,6 +42,8 @@ Android 应用会在每次开始播放时检测输出：插上耳机后，从下
 ## 浏览器里的杜比数字
 
 大多数浏览器不能解码 AC-3 或 E-AC-3。网页播放器不让服务器重新编码这条音轨，而是用一个在网页里运行的解码器自己解码：音轨原样发送，流信息显示它为**客户端解码**。能原生解码杜比数字的浏览器（例如 Safari）会把它当作普通音轨接收；选择哪种方式，是通过测试浏览器来决定的，而不是依据浏览器的类型。环绕声音轨只有在个人资料的**最大音频声道**允许时，才会在网页里解码：设为立体声的个人资料会改为收到重新编码的 AAC，它可以把声道混缩。
+
+网页如何解码，以及无法解码时会发生什么：[Evey 中的 ac3go](ac3go.md)。
 
 !!! warning
     如果反向代理设置了自己的 Content-Security-Policy，就必须在 `script-src` 里允许 `'wasm-unsafe-eval'`，否则解码器无法启动，电影会没有声音。见[反向代理配置](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own)。

@@ -1,5 +1,5 @@
 ---
-source_sha: 87e08f341b329e7354b9d42ef5972fac5cb564784a1488786bff878e7d74ba8a
+source_sha: c8146d533df94a1909ae91a9bbceb788ab4d86f1860b721414c4dadf8791cff9
 reviewed: true
 ---
 # Audio
@@ -80,6 +80,9 @@ navigateur, pas en le reconnaissant. Une piste surround n'est décodée dans la
 page que si les **Canaux audio maximum** du profil l'autorisent : un profil
 réglé en stéréo reçoit le réencodage AAC à la place, qui peut réduire le nombre
 de canaux.
+
+Comment la page décode le Dolby Digital, et ce qui se passe quand elle ne le peut pas :
+[ac3go dans Evey](ac3go.md).
 
 !!! warning
     Un reverse proxy qui impose sa propre Content-Security-Policy doit

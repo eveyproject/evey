@@ -1,5 +1,5 @@
 ---
-source_sha: 87e08f341b329e7354b9d42ef5972fac5cb564784a1488786bff878e7d74ba8a
+source_sha: c8146d533df94a1909ae91a9bbceb788ab4d86f1860b721414c4dadf8791cff9
 reviewed: true
 ---
 # Audio
@@ -80,6 +80,9 @@ mit Raumklang wird nur dann in der Seite dekodiert, wenn **Maximale
 Audio-Kanäle** im Profil es erlaubt: Ein Profil, das auf Stereo steht,
 bekommt stattdessen die Neukodierung in AAC, die die Kanäle heruntermischen
 kann.
+
+Wie die Seite sie dekodiert und was passiert, wenn sie es nicht kann:
+[ac3go in Evey](ac3go.md).
 
 !!! warning "Achtung"
     Ein Reverse Proxy, der seine eigene Content-Security-Policy setzt, muss

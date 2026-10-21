@@ -1,5 +1,5 @@
 ---
-source_sha: 87e08f341b329e7354b9d42ef5972fac5cb564784a1488786bff878e7d74ba8a
+source_sha: c8146d533df94a1909ae91a9bbceb788ab4d86f1860b721414c4dadf8791cff9
 reviewed: true
 ---
 # Audio
@@ -80,6 +80,9 @@ hace probando el navegador, no reconociéndolo. Una pista envolvente solo se
 descodifica en la página cuando los **Canales de audio máximos** del perfil
 lo permiten: un perfil en estéreo recibe en su lugar la versión en AAC, que
 puede reducir los canales.
+
+Cómo la descodifica la página y qué pasa cuando no puede:
+[ac3go en Evey](ac3go.md).
 
 !!! warning
     Un proxy inverso que pone su propia Content-Security-Policy debe
