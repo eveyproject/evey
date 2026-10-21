@@ -12,29 +12,7 @@
       #too-old { display: none; padding: 8vh 10vw; font-size: 2.2vw; line-height: 1.5; }
       #too-old h1 { font-size: 3vw; margin: 0 0 1em; }
     </style>
-    <script>
-      // Feature probe, not a user-agent table: a television browser that
-      // lacks any of these cannot run the app, whatever its brand. Runs
-      // before the module script so an ancient engine that cannot even
-      // parse the bundle still shows a readable screen. Kept in ES5 for the
-      // same reason.
-      (function () {
-        var ok = true;
-        try {
-          ok = typeof Promise !== "undefined" && typeof fetch !== "undefined" &&
-            typeof Symbol !== "undefined" && typeof Map !== "undefined" &&
-            !!(window.MediaSource || window.ManagedMediaSource) &&
-            "noModule" in document.createElement("script");
-        } catch (e) { ok = false; }
-        if (!ok) {
-          window.__eveyTooOld = true;
-          document.addEventListener("DOMContentLoaded", function () {
-            var el = document.getElementById("too-old");
-            if (el) el.style.display = "block";
-          });
-        }
-      })();
-    </script>
+    <script src="./feature-probe.js"></script>
   </head>
   <body>
     <div id="too-old">
