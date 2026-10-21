@@ -10,7 +10,8 @@ import (
 // a library file: read as from a local disk (read-ahead asked for) or across a
 // network (no read-ahead, audio reads sent together). mkvgo v0.52.0 exports no
 // way to ask it, so its rule is copied here (mp4/prefetch_linux.go,
-// mp4/mountinfo.go) for the startup log only; Evey leaves SourceAuto as is.
+// mp4/mountinfo.go) for the startup log and the read-ratio journal
+// (ondemand_readratio.go); Evey leaves SourceAuto as is.
 
 // networkFUSE are the FUSE subtypes mkvgo takes as network mounts; any other
 // FUSE mount, mergerfs first among them, is local.
@@ -69,4 +70,11 @@ func decideSourceAccess(magic int64, fsType string) bool {
 		return ok && networkFUSE[sub]
 	}
 	return networkStatfs[magic]
+}
+
+// sourceOnNetwork is what SourceAuto decides for path; a file that cannot be
+// opened is a network source, as mkvgo takes it.
+func sourceOnNetwork(path string) bool {
+	a, err := SourceAccessOf(path)
+	return err != nil || a.Network
 }

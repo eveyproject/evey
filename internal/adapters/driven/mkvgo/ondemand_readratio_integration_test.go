@@ -58,6 +58,7 @@ func TestReadRatio_RealPlanCountsWhatItServed(t *testing.T) {
 	require.Equal(t, want, st["served_to_clients_bytes"], "%v", st)
 	require.Positive(t, st["source_read_bytes"], "%v", st)
 	require.Zero(t, st["plans_read_over_ratio"], "%v", st)
+	require.False(t, plan.(*ondemandPlan).watch.network, "a file in the test's temp dir is a local source")
 	t.Logf("served %d, read %d (%.2fx), stats %v", want, st["source_read_bytes"],
 		float64(st["source_read_bytes"])/float64(want), st)
 }

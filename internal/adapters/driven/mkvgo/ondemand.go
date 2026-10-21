@@ -334,6 +334,7 @@ func (p *OnDemandPackager) flyOnce(ctx context.Context, key string, f *planFligh
 	}
 	if op, ok := pl.(*ondemandPlan); ok {
 		op.pkg, op.key, op.srcPath, op.opts = p, key, srcPath, opts
+		op.watch.network = sourceOnNetwork(srcPath)
 	}
 	p.plans.Set(key, pl, p.ttl)
 	return pl, nil

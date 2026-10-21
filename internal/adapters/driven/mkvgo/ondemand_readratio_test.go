@@ -31,7 +31,7 @@ func served(n, read int64) mp4.HLSPlanStats {
 // again with its final figures when it leaves the cache. The ratio is read on
 // mkvgo's own count, Resource and Open together.
 func TestServedWatch_NamesAPlanReadingOverTheBarOnce(t *testing.T) {
-	var w servedWatch
+	w := servedWatch{network: true}
 	st := mp4.HLSPlanStats{}
 	stats := func() mp4.HLSPlanStats { return st }
 	var got, damaged []reported
@@ -71,17 +71,39 @@ func TestServedWatch_NamesAPlanReadingOverTheBarOnce(t *testing.T) {
 // A plan at three times or under is never named, nor is one that served
 // nothing when it leaves.
 func TestServedWatch_AtOrUnderTheBarStaysQuiet(t *testing.T) {
-	var w servedWatch
+	w := servedWatch{network: true}
 	st := served(readRatioMinServed, readRatioFlag*readRatioMinServed)
 	stats := func() mp4.HLSPlanStats { return st }
 	n := 0
 	report := func(mp4.HLSPlanStats, int64) { n++ }
 	w.count(readRatioMinServed, stats, report, report)
 	w.final(stats, report, report)
-	var idle servedWatch
+	idle := servedWatch{network: true}
 	idle.final(func() mp4.HLSPlanStats { return mp4.HLSPlanStats{SourceReadBytes: 1 << 30, DamageSkips: 1} }, report, report)
 	if n != 0 {
 		t.Fatalf("%d reports for a plan at the bar or idle", n)
+	}
+}
+
+// A local source is never named nor counted over the bar, however much it
+// read: since mkvgo 0.57 its walks keep nothing and its segments are copied
+// from the file again, so SourceReadBytes climbs while the disk reads the
+// same. Its damaged regions are still named.
+func TestServedWatch_LocalSourceRatioIsNotRead(t *testing.T) {
+	var w servedWatch
+	st := served(readRatioMinServed, 10*readRatioMinServed)
+	st.DamageSkips = 1
+	stats := func() mp4.HLSPlanStats { return st }
+	n, damaged := 0, 0
+	report := func(mp4.HLSPlanStats, int64) { n++ }
+	damage := func(mp4.HLSPlanStats, int64) { damaged++ }
+	w.count(readRatioMinServed, stats, report, damage)
+	w.final(stats, report, damage)
+	if n != 0 || w.countedOver(w.overRead(st)) {
+		t.Fatalf("a local plan reading 10x was named %d times or counted over the bar", n)
+	}
+	if damaged != 1 {
+		t.Fatalf("a local plan's damaged region named %d times, want once", damaged)
 	}
 }
 
