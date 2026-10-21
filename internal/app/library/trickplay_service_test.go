@@ -237,30 +237,40 @@ func TestTrickplay_GenerateAllMissingTrickplays_ContinuesAfterItemError(t *testi
 
 // --- GenerateTrickplay failure persistence ---
 
+// settledFile is a file on disk the library knows as it is: its size, and a
+// last write long past, so the completeness check lets the generation run.
+func settledFile(t *testing.T) (string, time.Time) {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
+	require.NoError(t, err)
+	require.NoError(t, f.Close())
+	mod := time.Date(2026, 7, 26, 10, 0, 0, 0, time.UTC)
+	require.NoError(t, os.Chtimes(f.Name(), mod, mod))
+	return f.Name(), mod
+}
+
 func TestTrickplay_GenerateTrickplay_PermanentFailureIsRecorded(t *testing.T) {
 	t.Parallel()
 	// The file is present on disk and the generator still failed (the prod
 	// 2026-07-26 case: ffprobe exit 1 on the same two files at every boot).
 	// The failure must be recorded against the file's size+mod time so the
 	// missing-list stops re-serving it.
-	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
+	path, mod := settledFile(t)
 
 	repo := newMissingIDsRepo(nil)
-	gen := &countingGen{failOn: map[string]error{f.Name(): errors.New("ffprobe: exit status 1")}}
+	gen := &countingGen{failOn: map[string]error{path: errors.New("ffprobe: exit status 1")}}
 	media := libfakes.NewFakeMediaItemCommandRepo()
-	mod := time.Date(2026, 7, 26, 10, 0, 0, 0, time.UTC)
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", File: &library.MediaFile{Path: f.Name(), Size: 12345, ModTime: mod}, Title: "A",
+		ID: "m1", File: &library.MediaFile{Path: path, Size: 0, ModTime: mod}, Title: "A",
 	}))
 	svc := applib.NewTrickplayService(repo, gen, t.TempDir(), media, sharedfakes.NewFakeEventBus(), nil)
+	svc.SetTrickplaySettleForTest(0, time.Hour)
 
 	require.Error(t, svc.GenerateTrickplay(context.Background(), "m1"))
 	failures := repo.Failures()
 	require.Len(t, failures, 1, "a permanent generation failure must be recorded")
 	assert.Equal(t, shared.MediaItemID("m1"), failures[0].MediaItemID)
-	assert.Equal(t, int64(12345), failures[0].FileSize)
+	assert.Equal(t, int64(0), failures[0].FileSize)
 	assert.Equal(t, mod, failures[0].ModTime)
 	assert.Contains(t, failures[0].Reason, "ffprobe")
 }
@@ -287,17 +297,16 @@ func TestTrickplay_GenerateTrickplay_StoppedSweepNotRecorded(t *testing.T) {
 	// generator then reports "signal: killed", a plain error that does not
 	// wrap context.Canceled. The context says what happened; the file must not
 	// be blacklisted for it.
-	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
+	path, mod := settledFile(t)
 
 	repo := newMissingIDsRepo(nil)
-	gen := &countingGen{failOn: map[string]error{f.Name(): errors.New("ffmpeg trickplay single-pass: signal: killed")}}
+	gen := &countingGen{failOn: map[string]error{path: errors.New("ffmpeg trickplay single-pass: signal: killed")}}
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", File: &library.MediaFile{Path: f.Name(), Size: 1}, Title: "A",
+		ID: "m1", File: &library.MediaFile{Path: path, ModTime: mod}, Title: "A",
 	}))
 	svc := applib.NewTrickplayService(repo, gen, t.TempDir(), media, sharedfakes.NewFakeEventBus(), nil)
+	svc.SetTrickplaySettleForTest(0, time.Hour)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -310,17 +319,16 @@ func TestTrickplay_GenerateTrickplay_ContextErrorNotRecorded(t *testing.T) {
 	// A cancelled/timed-out generation says nothing about the file: a shutdown
 	// mid-batch or a 30-min budget blown by a busy NAS must not permanently
 	// blacklist a healthy item.
-	f, err := os.CreateTemp(t.TempDir(), "*.mkv")
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
+	path, mod := settledFile(t)
 
 	repo := newMissingIDsRepo(nil)
-	gen := &countingGen{failOn: map[string]error{f.Name(): fmt.Errorf("ffmpeg: %w", context.Canceled)}}
+	gen := &countingGen{failOn: map[string]error{path: fmt.Errorf("ffmpeg: %w", context.Canceled)}}
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
-		ID: "m1", File: &library.MediaFile{Path: f.Name(), Size: 1}, Title: "A",
+		ID: "m1", File: &library.MediaFile{Path: path, ModTime: mod}, Title: "A",
 	}))
 	svc := applib.NewTrickplayService(repo, gen, t.TempDir(), media, sharedfakes.NewFakeEventBus(), nil)
+	svc.SetTrickplaySettleForTest(0, time.Hour)
 
 	require.Error(t, svc.GenerateTrickplay(context.Background(), "m1"))
 	assert.Empty(t, repo.Failures(), "a context error is never a verdict on the file")

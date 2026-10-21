@@ -74,6 +74,9 @@ type TrickplayService struct {
 	// requeue hands an item back to the worker's queue (StartTrickplayWorker
 	// sets it); nil before the worker runs, when the next sweep lists it.
 	requeue atomic.Pointer[func(mediaItemID string)]
+
+	// settle paces the completeness check (trickplay_settle.go).
+	settle trickplaySettle
 }
 
 // claimGeneration marks mediaItemID as generating and returns true. It returns
@@ -114,6 +117,7 @@ func NewTrickplayService(
 		mediaItems:        mediaItems,
 		events:            events,
 		configRepo:        configRepo,
+		settle:            trickplaySettle{probe: trickplaySizeProbe, retry: trickplayRetryDelay},
 	}
 }
 
@@ -214,7 +218,28 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 
 	outputDir := fmt.Sprintf("%s/%s", s.trickplayCacheDir, mediaItemID)
 
+	// Sprites are made from the complete file only (trickplay_settle.go).
+	why, before := fileIncomplete(ctx, item.File, time.Now(), s.settle.probe)
+	if why != "" {
+		slog.InfoContext(ctx, "trickplay: the file is not complete yet, generation postponed",
+			slog.String("media_id", mediaItemID), slog.String("path", item.File.Path), slog.String("why", why))
+		s.retryLater(mediaItemID)
+		return nil
+	}
+
 	result, err := s.trickplayGen.Generate(ctx, item.File.Path, outputDir, interval, width, tileWidth, tileHeight, s.decoderThreads(), item.File.Duration.Milliseconds())
+	if err == nil && fileChangedSince(item.File.Path, before) {
+		slog.InfoContext(ctx, "trickplay: the file changed on disk during its generation, discarded and postponed",
+			slog.String("media_id", mediaItemID), slog.String("path", item.File.Path))
+		_ = os.RemoveAll(outputDir)
+		s.retryLater(mediaItemID)
+		return nil
+	}
+	if err == nil {
+		if err = checkTrickplayCoverage(result.FrameTimestampsMs, item.File.Duration.Milliseconds()); err != nil {
+			_ = os.RemoveAll(outputDir)
+		}
+	}
 	if err != nil {
 		s.recordGenerationFailure(ctx, mediaItemID, item.File, err)
 		replacedMeanwhile = ctx.Err() == nil && s.fileReplacedSince(ctx, item)
