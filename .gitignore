@@ -123,6 +123,8 @@ scripts/*
 !scripts/client-release-ldflags.sh
 !scripts/dash-harness/
 !scripts/dash-harness/*
+# Cuts the fixtures ac3Worker.real.test.ts reads (named in its header).
+!scripts/real-audio-fixtures.sh
 !scripts/directplay-harness/
 !scripts/directplay-harness/*
 # The demo host's hourly restore (ADR-0031).
