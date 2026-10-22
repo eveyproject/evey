@@ -42,4 +42,15 @@ describe("playbackSnapshot", () => {
     unregister();
     expect(playbackSnapshot(video)).not.toContain("wasm=");
   });
+
+  it("reports the median drift with the anchor's age, to read a slope from", () => {
+    const video = fakeVideo({ ct: 5, ranges: [[0, 20]] });
+    const unregister = registerEngineStats(video, () => ({ mode: "wasm", anchored: true, driftMs: 12, driftMedianMs: 38.4, anchorAgeSec: 301.6 }));
+    expect(playbackSnapshot(video)).toContain("drift=12ms dmed=38ms age=302s");
+    expect(playbackSnapshot(video)).not.toContain("corr=");
+    unregister();
+    const again = registerEngineStats(video, () => ({ mode: "wasm", anchored: true, driftMedianMs: 41, anchorAgeSec: 400, driftCorrection: 1, driftCorrections: 3 }));
+    expect(playbackSnapshot(video)).toContain("dmed=41ms age=400s corr=+/3");
+    again();
+  });
 });

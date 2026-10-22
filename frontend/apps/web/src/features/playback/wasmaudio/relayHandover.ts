@@ -16,6 +16,38 @@ export interface Segment {
   trimSec?: number;
 }
 
+// TFDT_TRUST_SEC bounds how far a segment's own decode time may sit from its
+// playlist slot and still be believed. The AC-3 copy cuts on the codec's 32 ms
+// frames, so its real start lands up to a frame after the slot; a timeline
+// with its own origin (an ffmpeg copy starting at 1.4 s) is not that, and
+// keeps the playlist's placement.
+const TFDT_TRUST_SEC = 0.25;
+
+// pcmPlacement says where a decoded PCM segment goes on the media timeline:
+// from which media time it plays (startMedia), at which offset into the buffer
+// (bufferOffset), and for how long (playSec). contentStartSec is the media
+// time of the buffer's first sample, from the segment's tfdt.
+//
+// Placing the buffer at its slot instead (n x 6.006 s) played the sound up to
+// 30 ms early, 15 ms on average, and every boundary either repeated 10 ms or
+// left a 22 ms hole: the 188- or 187-frame segments last 6.016 or 5.984 s,
+// not 6.006 (prod, The Terminal List S02E02, 2026-10-22). At their own start
+// the buffers are contiguous, so each one plays out in full.
+export function pcmPlacement(
+  seg: Segment,
+  bufferSec: number,
+  contentStartSec: number | undefined,
+): { startMedia: number; bufferOffset: number; playSec: number } {
+  const trim = seg.trimSec ?? 0;
+  const slotStart = seg.start + trim;
+  if (contentStartSec === undefined || Math.abs(contentStartSec - seg.start) > TFDT_TRUST_SEC) {
+    return { startMedia: slotStart, bufferOffset: trim, playSec: seg.dur - trim };
+  }
+  const startMedia = Math.max(slotStart, contentStartSec);
+  const bufferOffset = startMedia - contentStartSec;
+  return { startMedia, bufferOffset, playSec: bufferSec - bufferOffset };
+}
+
 // planRelayHandover computes the AAC->AC-3 hand-over as pure data: which
 // native segments to keep (a prefix - live/scheduled audio is never
 // un-scheduled) and the AC-3 tail, its first segment trimmed to the boundary.

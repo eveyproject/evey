@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { extractAudioURI, injectToken } from "./useWasmAudioPlayback";
 import { outputMix, FOLD_GAIN } from "./channelMix";
 import { isWasmDecodableAudioCodec } from "@/utils/codec";
-import { fillAudioBuffer, mayResumeAudioContext, type PcmDecoded } from "./WasmAudioEngine";
+import { fillAudioBuffer, mayResumeAudioContext, medianOf, type PcmDecoded } from "./WasmAudioEngine";
 
 describe("extractAudioURI", () => {
   it("pulls the quoted rendition URI out of the master", () => {
@@ -247,5 +247,13 @@ describe("mayResumeAudioContext", () => {
   it("stays disarmed after a refused resume, and ignores a running context", () => {
     expect(mayResumeAudioContext({ state: "suspended", armed: false, videoPaused: false })).toBe(false);
     expect(mayResumeAudioContext({ state: "running", armed: true, videoPaused: false })).toBe(false);
+  });
+});
+
+describe("medianOf", () => {
+  it("takes the middle sample, so a stray tick does not move the drift", () => {
+    expect(medianOf([0.01, 0.012, 0.3, 0.011, 0.009])).toBe(0.011);
+    expect(medianOf([1, 3])).toBe(2);
+    expect(medianOf([])).toBeNaN();
   });
 });
