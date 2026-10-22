@@ -15,9 +15,10 @@
 //
 // Gated on EVEY_REAL_AUDIO_DIR because it needs the fixtures (cut from the
 // library, never committed) and the Playwright browsers. Layout:
-//   $EVEY_REAL_AUDIO_DIR/<case>/a_000.m4s a_001.m4s ... ref.f32
-// where ref.f32 is `ffmpeg -map 0:<track> -c:a pcm_f32le -f f32le` of the
-// same span, i.e. float32 interleaved in ffmpeg's native channel order.
+//   $EVEY_REAL_AUDIO_DIR/<case>/a_000.m4s a_001.m4s ... ref.f32 ref_drc.f32
+// cut by scripts/real-audio-fixtures.sh: the references are ffmpeg's decode of
+// the same span, float32 interleaved in ffmpeg's native channel order, from a
+// session that starts at the film's first frame (that script says why).
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createRequire } from "node:module";
 import { createServer, type Server } from "node:http";
@@ -161,6 +162,13 @@ function concat(parts: Float32Array[]): Float32Array {
   return out;
 }
 
+// A reference channel that never exceeds this is quiet: about 3 LSB of 16-bit
+// audio (-80 dBFS), where two decoders' rounding and noise ARE the signal.
+// Avatar: Fire and Ash's 7.1 LFE peaks at 3.2e-5 over its window, and read as
+// a channel it scored corr 0.81 and -0.8 dB below 1 kHz against ffmpeg, which
+// says nothing about the decoder (2026-10-22).
+const QUIET_PEAK = 1e-4;
+
 // Least-squares gain, peak residual and RMS error between two signals over
 // their overlap. A wrong channel gives a near-zero correlation, and a wrong
 // fold gain gives a gain that is not the same on every channel - those are the
@@ -169,13 +177,14 @@ function concat(parts: Float32Array[]): Float32Array {
 // this test is about and not something this code can change.
 function compare(a: Float32Array, b: Float32Array, lag: number) {
   const n = Math.min(a.length, b.length) - Math.abs(lag) - 4096;
-  let saa = 0, sbb = 0, sab = 0;
+  let saa = 0, sbb = 0, sab = 0, refPeak = 0;
   for (let i = 0; i < n; i++) {
     const x = a[i + Math.max(0, lag)];
     const y = b[i + Math.max(0, -lag)];
     saa += x * x; sbb += y * y; sab += x * y;
+    if (Math.abs(y) > refPeak) refPeak = Math.abs(y);
   }
-  if (saa === 0 || sbb === 0) return { corr: saa === sbb ? 1 : 0, gain: 1, peak: 0, rms: 0, silent: true };
+  if (saa === 0 || sbb === 0 || refPeak < QUIET_PEAK) return { corr: saa === sbb ? 1 : 0, gain: 1, peak: 0, rms: 0, silent: true };
   const corr = sab / Math.sqrt(saa * sbb);
   const gain = sab / sbb; // a ~= gain * b
   let peak = 0, sdd = 0;
@@ -299,12 +308,12 @@ describe.skipIf(!REAL_DIR)("ac3Worker on real films, in real browsers", () => {
             expect(best, "no reference decode found in the fixture directory").not.toBeNull();
             const rows = best!.rows;
             const table = [`${c.name} (${browserName}) vs ffmpeg ${best!.label}:`]
-              .concat(rows.map((r) => `  ch${r.co}: corr=${r.corr.toFixed(5)} gain=${r.gain.toFixed(4)} rms=${(r.rms * 100).toFixed(2)}% peak=${r.peak.toExponential(2)} lag=${r.lag}${r.silent ? " (silent)" : ""}`))
+              .concat(rows.map((r) => `  ch${r.co}: corr=${r.corr.toFixed(5)} gain=${r.gain.toFixed(4)} rms=${(r.rms * 100).toFixed(2)}% peak=${r.peak.toExponential(2)} lag=${r.lag}${r.silent ? " (silent or quiet)" : ""}`))
               .join("\n");
             // eslint-disable-next-line no-console
             console.log(table);
             for (const r of rows) {
-              if (r.silent) continue; // an all-silent channel proves nothing either way
+              if (r.silent) continue; // a silent or quiet channel proves nothing either way
               // Mapping: the right source channel is on this output. A swapped or
               // dropped channel correlates near zero, not near one.
               expect(r.corr, `${c.name} channel ${r.co} does not carry the expected source\n${table}`).toBeGreaterThan(0.99);
@@ -579,7 +588,7 @@ describe.skipIf(!REAL_DIR)("ac3Worker vs ffmpeg: level per band, and waveform be
             const cOff = bandCoherence(noDither[co].subarray(0, n), want.subarray(0, n), c.sampleRate, edges);
             const cSelf = bandCoherence(withDither[co].subarray(0, n), noDither[co].subarray(0, n), c.sampleRate, edges);
             const total = eRef.reduce((a, v) => a + v, 0);
-            if (total === 0) continue;
+            if (total === 0 || want.subarray(0, n).every((v) => Math.abs(v) < QUIET_PEAK)) continue;
             for (let b = 0; b < edges.length - 1; b++) {
               // Bands 60 dB under the channel's total carry nothing to judge.
               if (eRef[b] < total * 1e-6) continue;
