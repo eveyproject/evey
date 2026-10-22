@@ -14,11 +14,13 @@ vi.mock("@tanstack/react-router", () => ({
 
 const mockListMediaItems = vi.fn();
 const mockGetMediaItem = vi.fn();
+const mockWatchHistory = vi.fn(() => ({ data: { items: [] } }));
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListMediaItems: (...args: unknown[]) => mockListMediaItems(...args),
   useLibraryServiceGetMediaItem: (...args: unknown[]) => mockGetMediaItem(...args),
+  usePlaybackServiceGetWatchHistory: () => mockWatchHistory(),
 }));
 
 const mockPlayTarget = vi.fn();
@@ -218,6 +220,40 @@ describe("SeasonEpisodesSection", () => {
 // episodes the page therefore held the alphabetically-first 50, and
 // PlaySeasonButton - which sorts by index and takes [0] - started playback on
 // whichever episode sorted first by TITLE rather than on episode 1.
+// The progress the mobile rows always showed: a bar for an episode left
+// mid-way, a check for one seen in full (its percent is reset to 0 then), and
+// nothing on an unstarted one.
+describe("SeasonEpisodesSection progress", () => {
+  it("shows a bar on a started episode and a check on a watched one", () => {
+    mockListMediaItems.mockReturnValue({
+      data: {
+        items: [
+          { id: "ep1", indexNumber: 1, title: "Pilot" },
+          { id: "ep2", indexNumber: 2, title: "Second" },
+          { id: "ep3", indexNumber: 3, title: "Third" },
+        ],
+      },
+    });
+    mockWatchHistory.mockReturnValue({
+      data: {
+        items: [
+          { mediaItemId: "ep1", played: true, percentComplete: 0 },
+          { mediaItemId: "ep2", played: false, percentComplete: 42 },
+        ],
+      },
+    });
+    render(
+      <SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />,
+      { wrapper: Wrapper },
+    );
+    expect(screen.getAllByTestId("episode-watched")).toHaveLength(1);
+    const bars = screen.getAllByTestId("episode-progress");
+    expect(bars).toHaveLength(1);
+    expect(bars[0]).toHaveAttribute("aria-valuenow", "42");
+    mockWatchHistory.mockReturnValue({ data: { items: [] } });
+  });
+});
+
 describe("season episode queries ask for the whole season", () => {
   beforeEach(() => {
     mockListMediaItems.mockReturnValue({ data: { items: [] } });
