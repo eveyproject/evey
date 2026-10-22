@@ -236,8 +236,14 @@ func (s *TrickplayService) GenerateTrickplay(ctx context.Context, mediaItemID st
 		return nil
 	}
 	if err == nil {
-		if err = checkTrickplayCoverage(result.FrameTimestampsMs, item.File.Duration.Milliseconds()); err != nil {
-			_ = os.RemoveAll(outputDir)
+		if short := checkTrickplayCoverage(result.FrameTimestampsMs, item.File.Duration.Milliseconds()); short != nil {
+			// Kept: the copies in progress are refused above, on the disk. What
+			// remains is a file whose picture ends before its announced
+			// duration - an incomplete download, or a container saying more
+			// than its video holds (prod Tron: credits at 120 min, no picture
+			// at 130, 156.5 min announced). Its thumbnails are right.
+			slog.WarnContext(ctx, "trickplay: the thumbnails stop well before the announced duration",
+				slog.String("media_id", mediaItemID), slog.String("path", item.File.Path), slog.String("coverage", short.Error()))
 		}
 	}
 	if err != nil {
