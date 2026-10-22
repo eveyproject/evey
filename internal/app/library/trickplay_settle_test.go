@@ -155,16 +155,15 @@ func TestTrickplaySettle_ChangedDuringGenerationIsDiscarded(t *testing.T) {
 	assert.Empty(t, f.repo.Failures())
 }
 
-// Thumbnails that stop well before the end are refused and recorded as a
-// failure of this file, with the point where they stop.
-func TestTrickplaySettle_ShortCoverageIsRefused(t *testing.T) {
+// Thumbnails that stop well before the announced end of a complete file are
+// kept, not refused: the picture can end there (prod Tron announces 156.5 min,
+// its picture ends near 125, and refusing left it with no preview).
+func TestTrickplaySettle_ShortCoverageOfACompleteFileIsKept(t *testing.T) {
 	f := newSettleFixture(t, 0, time.Hour)
 	f.gen.Results[f.path] = &library.TrickplayResult{ImageCount: 1, FrameTimestampsMs: []int64{0, 7000, 14000, 120000}}
-	require.Error(t, f.svc.GenerateTrickplay(context.Background(), "m1"))
-	assert.Nil(t, f.manifest())
-	failures := f.repo.Failures()
-	require.Len(t, failures, 1)
-	assert.Contains(t, failures[0].Reason, "the thumbnails stop at 2m0s of 10m0s")
+	require.NoError(t, f.svc.GenerateTrickplay(context.Background(), "m1"))
+	assert.NotNil(t, f.manifest())
+	assert.Empty(t, f.repo.Failures())
 }
 
 func TestCheckTrickplayCoverage(t *testing.T) {
