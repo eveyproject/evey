@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { adtsFromFrames, extractAacFrames, parseAacConfig, type AacConfig } from "./fmp4Adts";
+import { adtsFromFrames, extractAacFrames, parseAacConfig, parseSegmentDecodeTime, parseTrackTimescale, type AacConfig } from "./fmp4Adts";
 
 // Box builders: minimal but structurally exact MP4, the same shapes ffmpeg's
 // hls muxer emits (validated against real ffmpeg output in the 2026-07-29
@@ -139,5 +139,39 @@ describe("adtsFromFrames", () => {
     expect(out.length).toBe(8 + 9);
     expect(out[0]).toBe(0xff);
     expect(out[8]).toBe(0xff); // second header right after the first frame
+  });
+});
+
+// The two clocks the AC-3 placement reads: the track's timescale from the
+// init, the segment's first decode time from its tfdt. Shapes as mkvgo's
+// audio renditions carry them (mdhd v0, tfdt v1).
+describe("parseTrackTimescale / parseSegmentDecodeTime", () => {
+  const mdhd = (version: number, timescale: number): Uint8Array =>
+    version === 1
+      ? box("mdhd", bytes(1, 0, 0, 0), new Uint8Array(16), u32(timescale), new Uint8Array(12))
+      : box("mdhd", u32(0), new Uint8Array(8), u32(timescale), new Uint8Array(8));
+  const init = (m: Uint8Array): Uint8Array => box("moov", box("trak", box("mdia", m)));
+
+  it("reads the timescale of a v0 and a v1 mdhd", () => {
+    expect(parseTrackTimescale(init(mdhd(0, 48000)))).toBe(48000);
+    expect(parseTrackTimescale(init(mdhd(1, 44100)))).toBe(44100);
+  });
+
+  it("refuses an init without one", () => {
+    expect(parseTrackTimescale(box("moov", box("trak")))).toBeNull();
+    expect(parseTrackTimescale(init(mdhd(0, 0)))).toBeNull();
+  });
+
+  it("reads the decode time of a v1 and a v0 tfdt", () => {
+    const v1 = new Uint8Array(12);
+    v1[0] = 1;
+    new DataView(v1.buffer).setBigUint64(4, 34306560n); // prod, S02E02 segment 120
+    expect(parseSegmentDecodeTime(box("moof", box("traf", box("tfdt", v1))))).toBe(34306560);
+    expect(parseSegmentDecodeTime(box("moof", box("traf", box("tfdt", u32(0), u32(288768)))))).toBe(288768);
+  });
+
+  it("refuses a segment without a tfdt, or one cut short", () => {
+    expect(parseSegmentDecodeTime(box("moof", box("traf")))).toBeNull();
+    expect(parseSegmentDecodeTime(box("moof", box("traf", box("tfdt", bytes(1, 0, 0, 0), u32(1)))))).toBeNull();
   });
 });

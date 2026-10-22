@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planRelayHandover, type Segment } from "./relayHandover";
+import { pcmPlacement, planRelayHandover, type Segment } from "./relayHandover";
 import { extractAacAudioURI } from "./wasmAudioShared";
 
 const seg = (start: number, dur: number, extra: Partial<Segment> = {}): Segment => ({
@@ -83,5 +83,47 @@ describe("extractAacAudioURI", () => {
   it("returns null when the server does not offer the relay", () => {
     const master = '#EXTM3U\n#EVEY-AUDIO-URI:"od_audio1.m3u8"\nstream_0.m3u8';
     expect(extractAacAudioURI(master)).toBeNull();
+  });
+});
+
+// The decode times of prod segments 110-129 (The Terminal List S02E02, VFF),
+// in 32 ms E-AC-3 frames: each one starts on the first frame at or after its
+// 6.006 s playlist slot, and holds 188 or 187 frames.
+describe("pcmPlacement", () => {
+  const FRAME = 1536 / 48000;
+  const slots = Array.from({ length: 20 }, (_, k) => ({ url: `s${k}`, start: (109 + k) * 6.006, dur: 6.006 }));
+  const starts = slots.map((s) => Math.ceil(Number((s.start / FRAME).toFixed(6))) * FRAME);
+
+  it("plays each segment from its own decode time, not its slot", () => {
+    const at = pcmPlacement(slots[10], 188 * FRAME, starts[10]); // segment 120
+    expect(slots[10].start * 1000).toBeCloseTo(714714, 3);
+    expect(at.startMedia * 1000).toBeCloseTo(714720, 3); // its tfdt, measured on prod
+    expect(at.bufferOffset).toBe(0);
+    expect(at.playSec).toBeCloseTo(188 * FRAME, 9);
+  });
+
+  it("lays consecutive segments end to end, with no repeat and no hole", () => {
+    for (let k = 0; k + 1 < slots.length; k++) {
+      const frames = Math.round((starts[k + 1] - starts[k]) / FRAME);
+      expect([187, 188]).toContain(frames);
+      const at = pcmPlacement(slots[k], frames * FRAME, starts[k]);
+      expect(at.startMedia + at.playSec).toBeCloseTo(starts[k + 1], 9);
+      // The old placement: slot start, the whole buffer - 10 ms twice or a 22 ms hole.
+      const oldEnd = slots[k].start + frames * FRAME;
+      expect(Math.abs(oldEnd - slots[k + 1].start)).toBeGreaterThan(0.009);
+    }
+  });
+
+  it("keeps the slot without a decode time, or with one on another timeline", () => {
+    expect(pcmPlacement(slots[0], 6.016, undefined)).toEqual({ startMedia: slots[0].start, bufferOffset: 0, playSec: 6.006 });
+    expect(pcmPlacement(slots[0], 6.016, slots[0].start + 1.4).startMedia).toBe(slots[0].start);
+  });
+
+  it("starts a hand-over segment at the boundary, inside its buffer", () => {
+    const s = { ...slots[11], trimSec: 2 };
+    const at = pcmPlacement(s, 188 * FRAME, starts[11]);
+    expect(at.startMedia).toBeCloseTo(slots[11].start + 2, 9);
+    expect(at.bufferOffset).toBeCloseTo(slots[11].start + 2 - starts[11], 9);
+    expect(at.startMedia + at.playSec).toBeCloseTo(starts[11] + 188 * FRAME, 9);
   });
 });

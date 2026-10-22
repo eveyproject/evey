@@ -21,6 +21,14 @@ export interface EngineStats {
   // Audio-output heals attempted this session (audioHealth.ts); omitted from
   // the line while zero, so a healthy session's snapshot reads as before.
   heals?: number;
+  // Median drift over the last seconds and the anchor's age: drift that grows
+  // with the age is a clock running away from the picture, not an offset.
+  driftMedianMs?: number;
+  anchorAgeSec?: number;
+  // The soft correction in force (+1 sound sped up, -1 slowed down) and how
+  // many it has taken; omitted while none has.
+  driftCorrection?: number;
+  driftCorrections?: number;
 }
 
 // Engine stats are registered per <video> element by the wasm audio hook, so
@@ -91,6 +99,9 @@ export function playbackSnapshot(video: HTMLVideoElement, engine?: EngineStats |
   if (engine) {
     parts.push(`wasm=${engine.mode ?? "?"}/${engine.ctxState ?? "?"}/${engine.anchored ? "anch" : "free"}/src${engine.activeSources ?? 0}/dec${engine.decoded ?? 0}`);
     if (engine.driftMs != null && Number.isFinite(engine.driftMs)) parts.push(`drift=${Math.round(engine.driftMs)}ms`);
+    if (engine.driftMedianMs != null && Number.isFinite(engine.driftMedianMs)) parts.push(`dmed=${Math.round(engine.driftMedianMs)}ms`);
+    if (engine.anchorAgeSec != null && Number.isFinite(engine.anchorAgeSec)) parts.push(`age=${Math.round(engine.anchorAgeSec)}s`);
+    if (engine.driftCorrections) parts.push(`corr=${engine.driftCorrection && engine.driftCorrection > 0 ? "+" : engine.driftCorrection ? "-" : "0"}/${engine.driftCorrections}`);
     // The delay the schedule adds (measured or base) and the sink's own
     // latency: a viewer's "audio late" report reads against these, not drift.
     if (engine.leadMs != null && Number.isFinite(engine.leadMs)) parts.push(`lead=${Math.round(engine.leadMs)}ms${engine.leadMeasured ? "" : "*"}`);

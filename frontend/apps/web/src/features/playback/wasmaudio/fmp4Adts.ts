@@ -93,6 +93,33 @@ export function parseAacConfig(init: Uint8Array): AacConfig | null {
   return null;
 }
 
+// parseTrackTimescale reads the media timescale (ticks per second) of the init
+// segment's first track, moov/trak/mdia/mdhd. Null on any other shape.
+export function parseTrackTimescale(init: Uint8Array): number | null {
+  const mdhd = findBox(init, ["moov", "trak", "mdia", "mdhd"], 0, init.length);
+  if (!mdhd) return null;
+  const body = mdhd.start + mdhd.hdrSize;
+  const version = init[body];
+  // version 1: 8-byte creation and modification times before the timescale.
+  const at = body + (version === 1 ? 20 : 12);
+  if (at + 4 > mdhd.start + mdhd.size) return null;
+  const ts = new DataView(init.buffer, init.byteOffset + at, 4).getUint32(0);
+  return ts > 0 ? ts : null;
+}
+
+// parseSegmentDecodeTime reads the first moof/traf/tfdt of an fMP4 media
+// segment: when its first sample starts, in timescale ticks. Null without one.
+export function parseSegmentDecodeTime(seg: Uint8Array): number | null {
+  const tfdt = findBox(seg, ["moof", "traf", "tfdt"], 0, seg.length);
+  if (!tfdt) return null;
+  const body = tfdt.start + tfdt.hdrSize;
+  const version = seg[body];
+  const len = version === 1 ? 8 : 4;
+  if (body + 4 + len > tfdt.start + tfdt.size) return null;
+  const dv = new DataView(seg.buffer, seg.byteOffset + body + 4, len);
+  return version === 1 ? Number(dv.getBigUint64(0)) : dv.getUint32(0);
+}
+
 // extractAacFrames returns the raw AAC access units of an fMP4 media segment,
 // one Uint8Array per frame, walking every moof/mdat pair and every trun.
 // Sample sizes come from each trun (or the tfhd default); payload is read

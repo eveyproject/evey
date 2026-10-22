@@ -20,9 +20,18 @@
 import { AVLatencyEstimator } from "./avLatencyEstimator";
 import { shouldHandover, isStarved, owedSince, type HandoverVerdict } from "./relayGuard";
 import { AUDIO_STUCK_MS, audioClockFrozen, healBackoffMs, stuckFor, type ClockSample } from "./audioHealth";
-import { AAC_SAMPLES_PER_FRAME, adtsFromFrames, extractAacFrames, parseAacConfig, type AacConfig } from "./fmp4Adts";
+import {
+  AAC_SAMPLES_PER_FRAME,
+  adtsFromFrames,
+  extractAacFrames,
+  parseAacConfig,
+  parseSegmentDecodeTime,
+  parseTrackTimescale,
+  type AacConfig,
+} from "./fmp4Adts";
 import { outputMix } from "./channelMix";
-import { planRelayHandover, type Segment } from "./relayHandover";
+import { pcmPlacement, planRelayHandover, type Segment } from "./relayHandover";
+import { ClockMap, DRIFT_SOFT_RATE, driftCorrection } from "./clockMap";
 import { SegmentRetryTracker } from "./segmentRetry";
 import { pcmIsSilent, SilenceRun } from "./silenceWatch";
 
@@ -44,6 +53,10 @@ const EVICT_AHEAD_MARGIN_SEC = 30;
 // Well above the natural ~0.1 ms/s drift (measured negligible) so only a seek or
 // a stall recovery trips it - a re-anchor is a brief audio reset, not for free.
 const RESYNC_THRESHOLD_SEC = 0.3;
+// Drift samples the median is taken over: 5 s of 100 ms ticks.
+const DRIFT_WINDOW_TICKS = 50;
+// Samples a soft correction needs before it may act: 2 s after an anchor.
+const DRIFT_MIN_SAMPLES = 20;
 // Constant lead compensation: the audio otherwise starts ~100 ms ahead of the
 // picture (decoder has no output latency; the display + hls.js pipeline does).
 // Delaying the audio by roughly the output latency lines them up. Tunable.
@@ -69,10 +82,12 @@ const SCHEDULE_PER_TICK = 2;
 //   - interleaved `pcm`: a cached old ac3Worker.js served against a fresh
 //     page (see that file's protocol comment). De-interleaved here.
 // All three are kept because the worker is a static file the browser caches
-// on its own schedule.
-export type PcmDecoded =
+// on its own schedule. startSec is the media time of the first sample, read
+// from the segment's tfdt (see pcmPlacement); absent, the playlist slot rules.
+export type PcmDecoded = { startSec?: number } & (
   | { kind: "pcm"; channels: number; sampleRate: number; frames: number; planar: Float32Array<ArrayBuffer>[]; mixed?: boolean }
-  | { kind: "pcm"; channels: number; sampleRate: number; frames: number; pcm: Float32Array };
+  | { kind: "pcm"; channels: number; sampleRate: number; frames: number; pcm: Float32Array }
+);
 
 // workerMixTable is what the worker needs to hand back OUTPUT channels: the
 // same outputMix, for every layout the decoder can produce, keyed by source
@@ -98,6 +113,14 @@ class SegmentHttpError extends Error {
 
 function isAuthStatus(err: unknown): boolean {
   return err instanceof SegmentHttpError && (err.status === 401 || err.status === 403);
+}
+
+// medianOf is the median of a sample list, NaN when empty.
+export function medianOf(xs: readonly number[]): number {
+  if (xs.length === 0) return NaN;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
 // mayResumeAudioContext answers "is now a moment where this suspended context
@@ -267,6 +290,9 @@ export class WasmAudioEngine {
   private nativeState: "off" | "active" | "failed" = "off";
   private wasmState: "pending" | "ready" | "failed" = "pending";
   private aacCfg: AacConfig | null = null;
+  // The AC-3 track's timescale, from its init segment: what turns a segment's
+  // tfdt into seconds. Null (init unreadable) keeps the playlist placement.
+  private ac3Timescale: number | null = null;
   private ac3Segments: Segment[] = [];
   // nativeSegments is the UNMERGED AAC timeline, kept for the whole session:
   // after the hand-over this.segments is a merged array, so the starvation
@@ -303,9 +329,22 @@ export class WasmAudioEngine {
   private firstAudioFired = false;
 
   private anchored = false;
-  private anchorCtx = 0;
-  private anchorMedia = 0;
-  private anchorRate = 1;
+  // Media time <-> context time, in pieces once a soft drift correction has
+  // bent it (clockMap.ts). baseRate is the picture's own rate; correction the
+  // soft correction in force (+1 sound sped up, -1 slowed down).
+  private readonly clock = new ClockMap();
+  private baseRate = 1;
+  private correction: -1 | 0 | 1 = 0;
+  private driftCorrections = 0;
+  // Media time where the last scheduled source ends: a bend starts there, so
+  // nothing already scheduled is played against a mapping it was not placed by.
+  private scheduledEndMedia = -Infinity;
+  // When the current anchor was taken (Date.now()), and the drift it has
+  // gathered since, one sample per running tick: what tells a clock drifting
+  // away from the picture apart from a constant offset. A single drift sample
+  // is a frame of noise; the beacons report the median of the last few seconds.
+  private anchoredAt = 0;
+  private readonly driftSamples: number[] = [];
 
   // Decode is DECOUPLED from scheduling: pump() decodes segments ahead into
   // decodedCache (even while the video is still buffering its first frames), so
@@ -399,8 +438,9 @@ export class WasmAudioEngine {
         // up before scheduling starts.
         await this.initWorker();
         if (this.destroyed) return;
-        const { segs } = await this.loadPlaylist(this.playlistUrl);
+        const { segs, mapUri } = await this.loadPlaylist(this.playlistUrl);
         this.segments = segs;
+        await this.loadAc3Timescale(mapUri);
         this.wasmState = "ready";
       }
       if (this.destroyed) return;
@@ -486,6 +526,20 @@ export class WasmAudioEngine {
     }
   }
 
+  // loadAc3Timescale reads the AC-3 track's timescale from its init segment.
+  // Best effort: the decoder does not need the init, so a missing or
+  // unreadable one only costs the tfdt placement, never the sound.
+  private async loadAc3Timescale(mapUri: string | null): Promise<void> {
+    if (!mapUri) return;
+    try {
+      const r = await fetch(this.resolve(mapUri), { credentials: this.opts.credentials ?? "include" });
+      if (!r.ok) return;
+      this.ac3Timescale = parseTrackTimescale(new Uint8Array(await r.arrayBuffer()));
+    } catch {
+      /* placement falls back to the playlist slots */
+    }
+  }
+
   // bootWasmLeg brings the wasm worker + AC-3 playlist up WHILE the native leg
   // plays, then plans the hand-over. Failure latches the native leg as the
   // sole source - strictly better than dying.
@@ -493,9 +547,11 @@ export class WasmAudioEngine {
     try {
       await this.initWorker();
       if (this.destroyed) return;
-      const { segs } = await this.loadPlaylist(this.playlistUrl);
+      const { segs, mapUri } = await this.loadPlaylist(this.playlistUrl);
       if (this.destroyed) return;
       this.ac3Segments = segs;
+      await this.loadAc3Timescale(mapUri);
+      if (this.destroyed) return;
       // "Ready" is not "fast enough". Probe ONE real segment before handing the
       // film over: on a weak box the decoder can be up and still be unable to
       // sustain real time, which produces a silent picture and, a couple of
@@ -744,7 +800,13 @@ export class WasmAudioEngine {
         })
         .then((buf) => {
           const id = ++this.decodeSeq;
-          this.pendingDecodes.set(id, { resolve, reject });
+          // Read before the bytes are transferred to the worker.
+          const tfdt = this.ac3Timescale ? parseSegmentDecodeTime(new Uint8Array(buf)) : null;
+          const startSec = tfdt !== null && this.ac3Timescale ? tfdt / this.ac3Timescale : undefined;
+          this.pendingDecodes.set(id, {
+            resolve: (d) => resolve(d.kind === "pcm" && startSec !== undefined ? { ...d, startSec } : d),
+            reject,
+          });
           // Downmix decision is deliberately absent: we decode the full layout
           // and let Web Audio downmix to the output device, so a 5.1 output gets
           // discrete channels while a stereo one gets a proper fold-down.
@@ -901,15 +963,18 @@ export class WasmAudioEngine {
   // clock), so the media delta is divided by the rate; the buffer sources are
   // sped up to match (scheduleDecoded), pitch-shifting like ordinary fast play.
   private ctxForMedia(mediaTime: number): number {
-    return this.anchorCtx + (mediaTime - this.anchorMedia) / this.anchorRate;
+    return this.clock.ctxForMedia(mediaTime);
   }
 
   private reanchor(ct: number): void {
     if (!this.ctx) return;
-    this.anchorCtx = this.ctx.currentTime;
-    this.anchorMedia = ct;
-    this.anchorRate = this.video.playbackRate || 1;
+    this.baseRate = this.video.playbackRate || 1;
+    this.clock.reset(this.ctx.currentTime, ct, this.baseRate);
+    this.correction = 0;
+    this.scheduledEndMedia = -Infinity;
     this.anchored = true;
+    this.anchoredAt = Date.now();
+    this.driftSamples.length = 0;
   }
 
   // resync drops the current schedule and unanchors; the next advancing tick
@@ -919,6 +984,22 @@ export class WasmAudioEngine {
     if (this.destroyed) return;
     this.clearScheduled();
     this.anchored = false;
+  }
+
+  // steerDrift is the soft correction: when the median drift asks for it
+  // (driftCorrection), the clock bends at the end of what is scheduled, so
+  // the sound speeds up or slows down by DRIFT_SOFT_RATE from there with no
+  // cut. One bend at a time: the next waits until this one plays.
+  private steerDrift(now: number, ct: number): void {
+    if (this.driftSamples.length < DRIFT_MIN_SAMPLES || this.clock.pendingAt(now)) return;
+    const median = medianOf(this.driftSamples);
+    const next = driftCorrection(median, this.correction);
+    if (next === this.correction) return;
+    this.clock.bendFrom(Math.max(ct, this.scheduledEndMedia), this.baseRate * (1 + next * DRIFT_SOFT_RATE));
+    this.correction = next;
+    this.driftCorrections++;
+    const what = next === 0 ? "drift taken back, sound at its own rate" : next > 0 ? "sound behind the picture, sped up" : "sound ahead of the picture, slowed down";
+    this.opts.onDiagnostic?.(`${what} (dmed=${Math.round(median * 1000)}ms, correction #${this.driftCorrections})`);
   }
 
   private segmentIndexAt(mediaTime: number): number {
@@ -1087,11 +1168,16 @@ export class WasmAudioEngine {
     } else {
       // Drift watchdog: only a seek/stall exceeds the threshold; natural drift is
       // negligible and left alone (a re-anchor is audible).
-      const audioMedia = this.anchorMedia + (this.ctx.currentTime - this.anchorCtx) * this.anchorRate;
+      const now = this.ctx.currentTime;
+      const audioMedia = this.clock.mediaAtCtx(now);
       if (Math.abs(ct - audioMedia) > RESYNC_THRESHOLD_SEC) {
         this.resync();
         return;
       }
+      this.driftSamples.push(ct - audioMedia);
+      if (this.driftSamples.length > DRIFT_WINDOW_TICKS) this.driftSamples.shift();
+      this.clock.prune(now);
+      this.steerDrift(now, ct);
     }
     this.scheduleWindow(ct);
   }
@@ -1242,29 +1328,36 @@ export class WasmAudioEngine {
     // baseOffset positions the playable content inside the buffer: the native
     // leg's preroll samples, plus the hand-over trim on the first AC-3 segment.
     let baseOffset = seg.trimSec ?? 0;
+    // startMedia is the media time the source starts covering, effDur how long
+    // it may occupy. A PCM segment goes at its own tfdt (pcmPlacement).
+    let startMedia = seg.start + baseOffset;
+    let effDur = seg.dur - baseOffset;
     if (d.kind === "pcm") {
       const mix = outputMix(d.channels);
       // The output layout is the mix's; a mixed planar reply already has
       // exactly that many channels.
       buffer = ctx.createBuffer(mix.length, d.frames, d.sampleRate);
       fillAudioBuffer(buffer, d, mix);
+      const at = pcmPlacement(seg, d.frames / d.sampleRate, d.startSec);
+      startMedia = at.startMedia;
+      baseOffset = at.bufferOffset;
+      effDur = at.playSec;
     } else {
       // decodeAudioData output is already in the browser's channel order.
       buffer = d.audioBuffer;
       baseOffset += d.offsetSec;
     }
-    const trim = seg.trimSec ?? 0;
-    const effDur = seg.dur - trim; // media seconds this source may occupy
     if (effDur <= 0) {
       this.scheduledIdx.add(idx);
       return;
     }
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.playbackRate.value = this.anchorRate;
+    const rate = this.clock.rateForMedia(startMedia);
+    source.playbackRate.value = rate;
     source.connect(this.gain);
 
-    const startAt = this.ctxForMedia(seg.start + trim) + this.leadComp + this.userOffsetSec;
+    const startAt = this.ctxForMedia(startMedia) + this.leadComp + this.userOffsetSec;
     const now = ctx.currentTime;
     let late = 0;
     if (startAt >= now) {
@@ -1274,7 +1367,7 @@ export class WasmAudioEngine {
       // lagged): start immediately, offset into the buffer so the sample under
       // the playhead plays now. The buffer offset is in media seconds, so the
       // wall-clock lateness is scaled back up by the rate.
-      late = (now - startAt) * this.anchorRate;
+      late = (now - startAt) * rate;
       if (late >= effDur) {
         return; // wholly in the past
       }
@@ -1284,10 +1377,11 @@ export class WasmAudioEngine {
       // A natively decoded buffer can run a hair longer than its EXTINF
       // (preroll rounding, encoder tail): stop it AT the boundary so it can
       // never talk over the next segment's scheduled start.
-      source.stop(Math.max(startAt, now) + (effDur - late) / this.anchorRate);
+      source.stop(Math.max(startAt, now) + (effDur - late) / rate);
     }
     this.activeSources.add(source);
     this.scheduledIdx.add(idx);
+    this.scheduledEndMedia = Math.max(this.scheduledEndMedia, startMedia + effDur);
     this.everScheduled = true;
     source.onended = () => {
       this.activeSources.delete(source);
@@ -1314,10 +1408,12 @@ export class WasmAudioEngine {
     decoded: number;
     mode: string;
     heals: number;
+    driftMedianMs: number;
+    anchorAgeSec: number;
+    driftCorrection: number;
+    driftCorrections: number;
   } {
-    const audioMediaTime = this.anchored
-      ? this.anchorMedia + ((this.ctx?.currentTime ?? 0) - this.anchorCtx) * this.anchorRate
-      : NaN;
+    const audioMediaTime = this.anchored && this.clock.anchored ? this.clock.mediaAtCtx(this.ctx?.currentTime ?? 0) : NaN;
     const ctx = this.ctx as (AudioContext & { outputLatency?: number }) | null;
     return {
       videoTime: this.video.currentTime,
@@ -1334,6 +1430,10 @@ export class WasmAudioEngine {
       decoded: this.decodedCache.size,
       mode: this.mode(),
       heals: this.heals,
+      driftMedianMs: this.anchored ? medianOf(this.driftSamples) * 1000 : NaN,
+      anchorAgeSec: this.anchored ? (Date.now() - this.anchoredAt) / 1000 : NaN,
+      driftCorrection: this.correction,
+      driftCorrections: this.driftCorrections,
     };
   }
 

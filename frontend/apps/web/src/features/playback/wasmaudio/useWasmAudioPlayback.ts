@@ -8,6 +8,11 @@ import { extractAacAudioURI, extractAudioURI, injectToken } from "./wasmAudioSha
 // Two steady-state sync beacons per session: after the relay hand-over has
 // settled, and well into continuous playback.
 const SYNC_SAMPLE_AFTER_MS = [20_000, 120_000];
+// Then one a minute while the picture runs. Two samples could not tell a
+// clock drifting away from the picture from a constant offset (a "slight
+// desync that a long pause cures", 2026-10-22): the drift's slope against the
+// anchor's age can.
+const SYNC_SAMPLE_EVERY_MS = 60_000;
 
 // Compatibility re-export: the pure helpers live in wasmAudioShared
 // (shared with the Cast Web Receiver, which must not pull in React/hls.js).
@@ -98,6 +103,7 @@ export function useWasmAudioPlayback({
     let cancelled = false;
     let unregisterStats: (() => void) | null = null;
     const syncTimers: ReturnType<typeof setTimeout>[] = [];
+    let syncInterval: ReturnType<typeof setInterval> | null = null;
     // posSec is the picture's clock at the moment of the event: it is what
     // lets an operator line a mode change up with the server's segment lines.
     const report = (type: string, details: string, fatal = false): void =>
@@ -179,6 +185,14 @@ export function useWasmAudioPlayback({
             if (!cancelled && !video.paused) report("wasm_audio_sync", `t=${Math.round(afterMs / 1000)}s`);
           }, afterMs));
         }
+        const lastFixed = SYNC_SAMPLE_AFTER_MS[SYNC_SAMPLE_AFTER_MS.length - 1];
+        syncTimers.push(setTimeout(() => {
+          let afterMs = lastFixed;
+          syncInterval = setInterval(() => {
+            afterMs += SYNC_SAMPLE_EVERY_MS;
+            if (!cancelled && !video.paused) report("wasm_audio_sync", `t=${Math.round(afterMs / 1000)}s`);
+          }, SYNC_SAMPLE_EVERY_MS);
+        }, lastFixed));
         await engine.start();
       } catch (err) {
         if (cancelled) return;
@@ -191,6 +205,7 @@ export function useWasmAudioPlayback({
     return () => {
       cancelled = true;
       for (const t of syncTimers) clearTimeout(t);
+      if (syncInterval) clearInterval(syncInterval);
       unregisterStats?.();
       engineRef.current?.destroy();
       engineRef.current = null;
