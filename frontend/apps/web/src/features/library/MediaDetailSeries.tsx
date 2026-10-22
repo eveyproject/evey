@@ -1,5 +1,5 @@
 import { ICON } from "@/constants/iconSizes";
-import { Play } from "lucide-react";
+import { Check, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import type { V1MediaItem } from "@evey/api";
@@ -7,7 +7,7 @@ import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "
 import { Button } from "@/components/ui/Button";
 import { formatDurationMs, seasonLabel } from "@evey/api";
 import { artworkUrl } from "./artworkUrl";
-import { useSeriesPlayTarget } from "@evey/client";
+import { useSeriesPlayTarget, useWatchProgressMaps } from "@evey/client";
 import { DownloadButton } from "@/features/playback/DownloadButton";
 import { useStreamToken } from "@/hooks/useStreamToken";
 
@@ -22,7 +22,11 @@ function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
 // existed but had nothing an episode needs that isn't already here - the
 // synopsis and the actions now live on the row itself - so it was one click of
 // dead weight between the viewer and playback. Seasons keep their own page.
-function EpisodeRow({ ep }: { ep: V1MediaItem }) {
+//
+// The progress comes from the section's one watch-history fetch, as on mobile.
+// A fully watched episode has its resume position reset, so its percent says
+// nothing: played gets the check, the bar is for an episode left mid-way.
+function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number; watched: boolean }) {
   const { t } = useTranslation();
   const { fetchStreamToken } = useStreamToken();
   const stillUrl = ep.id ? artworkUrl(ep.id, "backdrop", ep) : undefined;
@@ -55,6 +59,28 @@ function EpisodeRow({ ep }: { ep: V1MediaItem }) {
         <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity-fast">
           <Play size={ICON["2xl"]} fill="currentColor" className="text-white" />
         </span>
+        {watched && (
+          <span
+            data-testid="episode-watched"
+            title={t("common.watched")}
+            aria-label={t("common.watched")}
+            className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full flex items-center justify-center bg-[var(--color-success)] text-white"
+          >
+            <Check size={ICON.sm} strokeWidth={3} aria-hidden="true" />
+          </span>
+        )}
+        {!watched && percent > 0 && (
+          <span
+            data-testid="episode-progress"
+            role="progressbar"
+            aria-valuenow={Math.round(percent)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            className="absolute bottom-0 left-0 right-0 h-1.5 bg-[var(--overlay-bg)]"
+          >
+            <span className="block h-full bg-[var(--accent)]" style={{ width: `${percent}%` }} />
+          </span>
+        )}
       </Link>
 
       <div className="flex-1 min-w-0">
@@ -246,6 +272,7 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
   const { t } = useTranslation();
   const { data: episodesData } = useLibraryServiceListMediaItems({ parentId: item.id ?? "", "pagination.pageSize": SEASON_EPISODES_PAGE_SIZE });
   const episodes = sortByIndex(episodesData?.items ?? []);
+  const { watchedMap, percentMap } = useWatchProgressMaps();
   if (!episodes.length) return null;
 
   return (
@@ -259,7 +286,9 @@ export function SeasonEpisodesSection({ item }: { item: V1MediaItem }) {
           the content it acts on. Capped, the still, the text and the action read
           as one object. */}
       <div className="grid xl:grid-cols-2 gap-x-6 [&>*]:border-b [&>*]:border-[var(--border)] border-t border-[var(--border)]">
-        {episodes.map((ep) => (ep.id ? <EpisodeRow key={ep.id} ep={ep} /> : null))}
+        {episodes.map((ep) => (ep.id ? (
+          <EpisodeRow key={ep.id} ep={ep} percent={percentMap.get(ep.id) ?? 0} watched={watchedMap.get(ep.id) === true} />
+        ) : null))}
       </div>
     </div>
   );
