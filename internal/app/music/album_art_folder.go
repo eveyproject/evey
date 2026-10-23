@@ -13,7 +13,7 @@ import (
 )
 
 // folderCoverNames are the files a music folder conventionally keeps its album
-// art in (what rippers, Jellyfin and Plex write), tried in this order.
+// art in (what rippers and media servers write), tried in this order.
 var folderCoverNames = []string{
 	"cover.jpg", "Cover.jpg", "folder.jpg", "Folder.jpg", "front.jpg", "Front.jpg",
 	"cover.jpeg", "folder.jpeg", "front.jpeg",

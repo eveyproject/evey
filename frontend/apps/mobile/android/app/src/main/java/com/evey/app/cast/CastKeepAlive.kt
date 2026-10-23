@@ -9,7 +9,7 @@ import com.google.android.gms.cast.framework.CastSession
 import com.google.android.gms.cast.framework.SessionManagerListener
 
 /**
- * Transposition du mecanisme de jellyfin-android (RemotePlayerService.kt) a la
+ * Transposition du mecanisme d'un client Android Cast tres repandu a la
  * stack react-native-google-cast d'Evey.
  *
  * Le FGS MediaNotificationService (beta.15) empeche le gel et le kill du
@@ -18,7 +18,7 @@ import com.google.android.gms.cast.framework.SessionManagerListener
  * partent plus, la box ferme la socket sender, puis demonte le recepteur quand
  * son dernier sender disparait. Mesure prod du 2026-07-28, deux runs : le
  * telephone se tait 5 s apres le chargement, la TV meurt 3 min 35 puis 3 min 45
- * plus tard. Jellyfin tient un PARTIAL_WAKE_LOCK pendant toute la lecture
+ * plus tard. Ce client tient un PARTIAL_WAKE_LOCK pendant toute la lecture
  * distante ; RNGC 4.9.1 n'en tient aucun (zero occurrence dans le paquet).
  *
  * Aucun pont JS : le listener est branche sur le SessionManager du SDK, donc
@@ -33,7 +33,7 @@ object CastKeepAlive : SessionManagerListener<CastSession> {
 
     private const val TAG = "CastKeepAlive"
 
-    // Meme garde-fou que Jellyfin : 4 h max. Non-refcounted, donc un acquire()
+    // Meme garde-fou que ce client : 4 h max. Non-refcounted, donc un acquire()
     // alors que le verrou est deja tenu ne fait que reprolonger le delai.
     private const val TIMEOUT_MS = 4L * 60L * 60L * 1000L
 
@@ -52,7 +52,7 @@ object CastKeepAlive : SessionManagerListener<CastSession> {
             // l'ecran allume - exactement l'inverse du cas qu'on repare. Il
             // serait sans effet la ou on en a besoin. HIGH_PERF est deprecie
             // mais reste le seul a porter ecran eteint. De toute facon le
-            // wakelock est la piece porteuse (Jellyfin n'a que lui) ; ce
+            // wakelock est la piece porteuse (ce client n'a que lui) ; ce
             // verrou Wi-Fi est une ceinture en plus, best-effort.
             @Suppress("DEPRECATION")
             val mode = WifiManager.WIFI_MODE_FULL_HIGH_PERF

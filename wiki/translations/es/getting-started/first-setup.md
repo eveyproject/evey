@@ -1,8 +1,8 @@
 ---
-source_sha: b4191f540d085ea0277060a8db185c9e7db7b6abddd74978662d0cbc16c8bc85
+source_sha: 48225cad93d795d54f36c6e4db0c828700357d5e317bec3f404927fba2c1cdf4
 reviewed: true
 ---
-# Primera configuración
+# Primera configuración { #first-setup }
 
 Evey está funcionando y has abierto su dirección en un navegador, por
 ejemplo `http://192.168.1.20:9091` (si no sabes qué dirección es:
@@ -19,13 +19,13 @@ Quedan cuatro pasos antes de que en casa se pueda ver algo:
 4. [Conectar las aplicaciones](#4-connect-the-apps): teléfonos, tablets y
    televisores.
 
-## 1. El asistente de configuración
+## 1. El asistente de configuración { #1-the-setup-wizard }
 
 Mientras el servidor no tenga administrador, su dirección siempre abre el
 asistente. Arriba muestra **Paso 1 de 4 - Idioma**, y cuatro puntos que se
 van rellenando a medida que avanzas.
 
-### Paso 1 de 4 - Idioma
+### Paso 1 de 4 - Idioma { #step-1-of-4---language }
 
 La tarjeta dice **Elige el idioma del servidor**. Elige:
 
@@ -38,7 +38,7 @@ La tarjeta dice **Elige el idioma del servidor**. Elige:
 Puedes cambiar las dos cosas más adelante en el panel de administración.
 Pulsa **Continuar**.
 
-### Paso 2 de 4 - Bienvenida
+### Paso 2 de 4 - Bienvenida { #step-2-of-4---welcome }
 
 No hay nada que rellenar. Pulsa **Comenzar**.
 
@@ -56,7 +56,7 @@ No hay nada que rellenar. Pulsa **Comenzar**.
 
 </div>
 
-### Paso 3 de 4 - Cuenta de administrador
+### Paso 3 de 4 - Cuenta de administrador { #step-3-of-4---admin-account }
 
 La tarjeta dice **Crear cuenta de administrador**. Es tu propia cuenta, la
 que gestiona el servidor.
@@ -71,7 +71,7 @@ que gestiona el servidor.
 Pulsa **Continuar**. Evey crea la cuenta y te deja con la sesión iniciada.
 El asistente no volverá a aparecer.
 
-### Paso 4 de 4 - Primera biblioteca
+### Paso 4 de 4 - Primera biblioteca { #step-4-of-4---first-library }
 
 La tarjeta dice **Añade tu primera biblioteca**. Una biblioteca es un tipo de
 contenido guardado en una o varias carpetas, por ejemplo «Películas».
@@ -112,7 +112,7 @@ página de inicio.
   <figcaption>El panel de administración una vez iniciada la sesión: el panel principal y todas las secciones en el menú lateral (interfaz en inglés).</figcaption>
 </figure>
 
-## 2. Añadir tus bibliotecas
+## 2. Añadir tus bibliotecas { #2-add-your-libraries }
 
 Ve a **Administración → Bibliotecas → Añadir biblioteca**. Pon un nombre, un
 tipo (Películas, Series, Música o Fotos) y una o varias carpetas.
@@ -131,7 +131,7 @@ solos.
 [Bibliotecas y metadatos](../administration/libraries.md): cómo nombrar los
 archivos y cómo corregir un título mal reconocido.
 
-## 3. Invitar a las personas de tu casa
+## 3. Invitar a las personas de tu casa { #3-invite-your-household }
 
 Hay dos formas de darle una cuenta a alguien, las dos en
 **Administración → Usuarios**.
@@ -169,7 +169,7 @@ Más opciones (límites por cuenta, horarios permitidos, PIN, límites de
 edad):
 [Usuarios, perfiles y control parental](../administration/users.md).
 
-## 4. Conectar las aplicaciones
+## 4. Conectar las aplicaciones { #4-connect-the-apps }
 
 - **En un navegador** no hay nada que instalar: es la dirección que ya has
   abierto.
@@ -183,7 +183,7 @@ edad):
 Paso a paso, y qué significa cada mensaje de error:
 [Conectar las aplicaciones](apps.md#the-server-address-to-enter).
 
-## Lo que el servidor hace solo
+## Lo que el servidor hace solo { #what-the-server-does-by-itself }
 
 No tienes que configurar nada de esto:
 
@@ -205,7 +205,7 @@ No tienes que configurar nada de esto:
   que la modifica. Para tener copias periódicas basta con un ajuste:
   [Copias de seguridad y actualizaciones](../backups.md).
 
-## Antes de compartir la dirección fuera de casa
+## Antes de compartir la dirección fuera de casa { #before-you-share-the-address-outside-your-home }
 
 1. Pon el servidor detrás de HTTPS. Evey solo usa HTTP simple, que sirve en
    casa pero no por internet.

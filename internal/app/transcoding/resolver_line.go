@@ -9,7 +9,7 @@ import (
 //
 // A cast receiver measures its own throughput before asking for a master
 // (?maxKbps=) and reloads on the floor when it starves (?abr=floor): old
-// cast runtimes never dive onto an advertised rung by themselves (Bouygtel4K,
+// cast runtimes never dive onto an advertised rung by themselves (an operator box,
 // 2026-08-03, a variant pinned through nine minutes of freeze), so the
 // descent is the server's, deterministic and mono-variant. This used to be
 // the HTTP adapter re-pinning the request to a transcode on the receiver's

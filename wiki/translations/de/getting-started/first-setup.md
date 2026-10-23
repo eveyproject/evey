@@ -1,8 +1,8 @@
 ---
-source_sha: b4191f540d085ea0277060a8db185c9e7db7b6abddd74978662d0cbc16c8bc85
+source_sha: 48225cad93d795d54f36c6e4db0c828700357d5e317bec3f404927fba2c1cdf4
 reviewed: true
 ---
-# Ersteinrichtung
+# Ersteinrichtung { #first-setup }
 
 Evey läuft, und Sie haben seine Adresse im Browser geöffnet, zum Beispiel
 `http://192.168.1.20:9091` (welche Adresse? Siehe
@@ -17,13 +17,13 @@ Es bleiben vier Schritte, bis Ihr Haushalt schauen kann:
    Person, oder ein gemeinsames Konto mit einem Profil pro Person.
 4. [Die Apps verbinden](#4-connect-the-apps): Handys, Tablets und Fernseher.
 
-## 1. Der Einrichtungsassistent
+## 1. Der Einrichtungsassistent { #1-the-setup-wizard }
 
 Solange der Server keinen Administrator hat, öffnet seine Adresse immer den
 Assistenten. Oben steht **Schritt 1 von 4 - Sprache**, dazu vier Punkte, die
 sich nach und nach füllen.
 
-### Schritt 1 von 4 - Sprache
+### Schritt 1 von 4 - Sprache { #step-1-of-4---language }
 
 Die Karte zeigt **Wählen Sie die Serversprache**. Wählen Sie:
 
@@ -36,7 +36,7 @@ Die Karte zeigt **Wählen Sie die Serversprache**. Wählen Sie:
 Beides können Sie später im Verwaltungsbereich ändern. Drücken Sie auf
 **Weiter**.
 
-### Schritt 2 von 4 - Willkommen
+### Schritt 2 von 4 - Willkommen { #step-2-of-4---welcome }
 
 Nichts auszufüllen. Drücken Sie auf **Loslegen**.
 
@@ -54,7 +54,7 @@ Nichts auszufüllen. Drücken Sie auf **Loslegen**.
 
 </div>
 
-### Schritt 3 von 4 - Admin-Konto
+### Schritt 3 von 4 - Admin-Konto { #step-3-of-4---admin-account }
 
 Die Karte zeigt **Admin-Konto erstellen**. Das ist Ihr eigenes Konto, mit dem
 Sie den Server verwalten.
@@ -69,7 +69,7 @@ Sie den Server verwalten.
 Drücken Sie auf **Weiter**. Evey legt das Konto an und meldet Sie an. Der
 Assistent erscheint nicht mehr.
 
-### Schritt 4 von 4 - Erste Bibliothek
+### Schritt 4 von 4 - Erste Bibliothek { #step-4-of-4---first-library }
 
 Die Karte zeigt **Erste Bibliothek hinzufügen**. Eine Bibliothek ist eine Art
 von Medien in einem oder mehreren Ordnern, zum Beispiel „Filme“.
@@ -110,7 +110,7 @@ Beides führt Sie zur Startseite.
   <figcaption>Der Verwaltungsbereich nach der Anmeldung: das Dashboard und alle Bereiche im Seitenmenü (Oberfläche auf Englisch).</figcaption>
 </figure>
 
-## 2. Ihre Bibliotheken hinzufügen
+## 2. Ihre Bibliotheken hinzufügen { #2-add-your-libraries }
 
 Gehen Sie zu **Verwaltung → Bibliotheken → Bibliothek hinzufügen**. Geben Sie
 einen Namen, einen Typ (Filme, Serien, Musik oder Fotos) und einen oder
@@ -130,7 +130,7 @@ Ihre Titel tauchen nicht auf, oder sie zeigen das falsche Poster? Siehe
 [Bibliotheken und Metadaten](../administration/libraries.md): wie Sie Dateien
 benennen und wie Sie eine falsche Zuordnung korrigieren.
 
-## 3. Ihren Haushalt einladen
+## 3. Ihren Haushalt einladen { #3-invite-your-household }
 
 Es gibt zwei Wege, jemandem ein Konto zu geben, beide unter **Verwaltung →
 Benutzer**.
@@ -169,7 +169,7 @@ Weitere Möglichkeiten (Grenzen pro Konto, Nutzungszeiten, PINs,
 Altersgrenzen):
 [Benutzer, Profile und Kindersicherung](../administration/users.md).
 
-## 4. Die Apps verbinden
+## 4. Die Apps verbinden { #4-connect-the-apps }
 
 - **Im Browser** gibt es nichts zu installieren: Es ist die Adresse, die Sie
   schon geöffnet haben.
@@ -184,7 +184,7 @@ Altersgrenzen):
 Schritt für Schritt, und was jede Fehlermeldung bedeutet:
 [Apps verbinden](apps.md#the-server-address-to-enter).
 
-## Was der Server von selbst erledigt
+## Was der Server von selbst erledigt { #what-the-server-does-by-itself }
 
 Nichts davon müssen Sie einstellen:
 
@@ -206,7 +206,7 @@ Nichts davon müssen Sie einstellen:
   Regelmäßige Sicherungen richten Sie mit einer einzigen Einstellung ein:
   [Sicherungen und Updates](../backups.md).
 
-## Bevor Sie die Adresse außerhalb Ihres Zuhauses weitergeben
+## Bevor Sie die Adresse außerhalb Ihres Zuhauses weitergeben { #before-you-share-the-address-outside-your-home }
 
 1. Stellen Sie den Server hinter HTTPS. Evey selbst verwendet nur einfaches
    HTTP, was zu Hause in Ordnung ist, im Internet aber nicht.

@@ -122,7 +122,7 @@ func codecLevelArgs(opts transcoding.HLSProcessOpts, encoder string, variantIdx 
 // resolution and CRF; +3% on decode-bound 4K HEVC, where the decoder is the wall.
 //
 // Tradeoff: subme=0 costs some quality per bit. We encode at CRF 20 where the
-// reference for these options (Jellyfin) uses 23, so rate control has more bits
+// reference for these options (a widely used media server) uses 23, so rate control has more bits
 // to spend. One constant, so the tradeoff has one place to be revisited.
 const x264SpeedTuning = "subme=0:me_range=16:rc_lookahead=10:me=hex:open_gop=0"
 
@@ -202,7 +202,7 @@ const NativeAACEncoder = "aac"
 //	8-16 kHz   14.2 dB      16.0 dB
 //
 // Same bitrate, same fold, +2 to +3 dB across the band the complaint was about.
-// It is also what Jellyfin uses on this very box, which is the A/B the user
+// It is also what another media server uses on this very box, which is the A/B the user
 // keeps making.
 const PreferredAACEncoder = "libfdk_aac"
 

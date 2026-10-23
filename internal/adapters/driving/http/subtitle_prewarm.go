@@ -10,7 +10,7 @@ package httpapi
 //
 // So the work moves off the viewer's request and onto playback start: by the
 // time anyone opens the subtitle menu, the tracks are already on disk. This is
-// what makes Jellyfin look fast at this - not a quicker extractor (ffmpeg takes
+// what makes another media server look fast at this - not a quicker extractor (ffmpeg takes
 // 79s where mkvgo takes 89s on the same file), but extracting earlier.
 //
 // Two rules govern it, both from the operator of a weak NAS:

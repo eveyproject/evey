@@ -204,7 +204,7 @@ apps ask for the address: frontend/apps/mobile/app/server-connect.tsx ; frontend
 calibration at quiet moment, wait: internal/app/transcoding/calibration_service.go
 remote access inference: docs/adr/0026-remote-access-inferred-from-a-published-url.md
 pre-migration dump: internal/adapters/driven/postgres/migrate.go
-server name in admin: frontend/apps/web/src/features/admin/serverConfig/ServerSettingsCard.tsx ; i18n admin.nav.serverConfig, admin.serverSettings.serverName
+server name in admin: frontend/apps/web/src/features/admin/serverConfig/ServerConfigSections.tsx ; i18n admin.nav.serverConfig, admin.serverSettings.serverName
 invite link built from the admin's browser address: frontend/apps/web/src/features/admin/InviteLinkRow.tsx - inviteUrl (window.location.origin) ; i18n admin.users.createInviteLink, expiresAtLabel, maxUsesLabel, inviteLibraries, inviteLinks, copyLink, createUser
 invite page, password 8 chars, signed in after: frontend/apps/web/src/routes/register.tsx - handleSubmit ; i18n auth.register.invitedMessage, passwordMin
 first profile named after the username: internal/app/user/user_service.go, internal/app/user/access_service.go - RegisterWithInvite (NewProfile with u.Username)

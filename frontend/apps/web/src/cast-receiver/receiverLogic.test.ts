@@ -179,7 +179,7 @@ describe("rewriteCastMasterUrl - negotiation happens on the REAL caps", () => {
 
   // Prod 2026-08-04: nothing declared a channel ceiling, the server applied
   // its 5.1 web default and emitted `-ac 6`; the Chromecast HD refused the
-  // stream and the title never started. Jellyfin played the same file on the
+  // stream and the title never started. Another media server played the same file on the
   // same TV that evening with `-ac 2`.
   it("always declares the channel ceiling the device answered", () => {
     expect(new URL(rewriteCastMasterUrl(MASTER, floorSdr, false)!.url).searchParams.get("maxAudioChannels")).toBe("2");

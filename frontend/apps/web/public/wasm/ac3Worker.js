@@ -67,7 +67,7 @@ self.eveyWorkerTestHooks = { mixPlanar };
  * figure for this decoder: performance.memory (the receiver's mem= beacon)
  * reports the JS heap, which a growing WebAssembly.Memory never appears in.
  * A cast that dies with a flat heap beacon was therefore unexplained - see
- * the 2026-07-30 Bouygtel4K incident. */
+ * the 2026-07-30 operator-box incident. */
 let wasmMemory = null;
 function wasmMemMB() {
   try {

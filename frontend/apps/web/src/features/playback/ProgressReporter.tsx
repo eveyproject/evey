@@ -47,7 +47,7 @@ interface ProgressReporterProps {
   remoteActive?: boolean;
 }
 
-// 0.85 = trigger at ~85 % of duration. Sweet spot per Lumen / Netflix
+// 0.85 = trigger at ~85 % of duration. Sweet spot per streaming-service
 // prefetching literature: enough head-time for ffmpeg to land a few
 // segments before the autoplay handoff, late enough that we don't waste
 // transcode budget on abandoned plays.

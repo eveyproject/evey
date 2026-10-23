@@ -4,7 +4,7 @@
 // (E-AC-3 "Dolby certified" that the cast runtime does not actually play,
 // prod 2026-07-25); a local probe cannot.
 //
-// Audio policy, aligned with Jellyfin's evidence (their receiver hardcodes
+// Audio policy, aligned with the evidence of another receiver (it hardcodes
 // EAC3/AC3 to false on HLS) AND our incident: Dolby passthrough is only
 // attempted if the device itself probes true; otherwise audio is either
 // transcoded AAC by the server, or decoded ON THE TV by ac3go wasm
@@ -83,8 +83,8 @@ export async function probeMaxAudioChannels(probe: AudioProbe): Promise<number> 
   return decodes6 ? 6 : 2;
 }
 
-// Probe codec strings - same shapes as jellyfin-chromecast's
-// codecSupportHelper: h264 High L4.0, HEVC Main10 L5.1, VP9 profile 2 10-bit.
+// Probe codec strings - same shapes as another open-source receiver's
+// codec-support helper: h264 High L4.0, HEVC Main10 L5.1, VP9 profile 2 10-bit.
 const PROBE_H264 = ["video/mp4", "avc1.640028"] as const;
 // H.264 High profile at 5.1, 4.2 and 4.1, probed highest first; the 4.0 floor
 // probe above is what every receiver answers yes to.
@@ -122,7 +122,7 @@ export function probeReceiverCaps(
   const hdr = systemHdr || canDisplayType(PROBE_HDR[0], PROBE_HDR[1]);
 
   // Dolby passthrough: only if the device itself probes true (EDID /
-  // Google Home setting). This is the probe Jellyfin wrote then commented out;
+  // Google Home setting). This is the probe another receiver wrote then commented out;
   // our own fallback if it lies is the reload without wasm/dolby on the receiver side.
   const nativeDolby =
     canDisplayType("audio/mp4", "ec-3") && canDisplayType("audio/mp4", "ac-3");
@@ -217,7 +217,7 @@ export function rewriteCastMasterUrl(
   // cannot open multichannel AAC refuses the stream in its SourceBuffer - the
   // title then never starts at all. That is the Chromecast HD of 2026-08-04:
   // name on screen, spinner for ever, `cast_receiver_finished reason=ERROR`
-  // 200ms in, while Jellyfin played the same file on the same TV with `-ac 2`.
+  // 200ms in, while another media server played the same file on the same TV with `-ac 2`.
   u.searchParams.set("maxAudioChannels", String(caps.maxAudioChannels));
   if (wasmAudio) u.searchParams.set("wasmAudio", "1");
   else u.searchParams.delete("wasmAudio");
@@ -517,7 +517,7 @@ export function planFloorRescue(
 
 // createStarvationWatch names a starving playback from the only two signals
 // the receiver has: the playhead and the player state. Born 2026-08-03: a
-// Bouygtel4K sat frozen for NINE minutes on a collapsed link, heartbeats
+// An operator box sat frozen for NINE minutes on a collapsed link, heartbeats
 // alive, while the master advertised a rescue rung CAF never dove onto by
 // itself - the descent has to be ours, and it starts with naming the famine.
 //

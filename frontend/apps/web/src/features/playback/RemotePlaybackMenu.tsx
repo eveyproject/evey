@@ -41,7 +41,7 @@ function iconFor(type: string) {
 // picker (works in any browser, targets Evey's own TV/mobile clients). Two
 // buttons for "send elsewhere" was confusing about which one reaches which
 // device, so this merges them into one menu, sections grouped by device
-// nature - the Jellyfin model. It reimplements neither transport: Chromecast
+// nature - the model of other media servers. It reimplements neither transport: Chromecast
 // still goes through the caller-supplied onCastTrigger, Evey devices still go
 // through usePlayOnCommand exactly as the old PlayOnPicker did.
 export function RemotePlaybackMenu({

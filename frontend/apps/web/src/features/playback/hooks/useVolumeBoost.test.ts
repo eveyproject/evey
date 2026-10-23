@@ -147,7 +147,7 @@ describe("useVolumeBoost", () => {
 // it wired at unity gain compresses ordinary programme material at 12:1 with a
 // 250 ms release - heard as "the levels jump around and it distorts", and it
 // survived every later playback because createMediaElementSource captures the
-// element for good (preprod report, 2026-09-02: distortion vs Jellyfin on a
+// element for good (preprod report, 2026-09-02: distortion vs another media server on a
 // plain stereo AAC file the server was copying byte for byte).
 describe("useVolumeBoost - limiter routing", () => {
   // Same fixture as the suite above: a sibling describe does not inherit its

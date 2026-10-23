@@ -70,7 +70,7 @@ function appendDebug(text: string): void {
 // Flip back ONLY together with the server's castWasmAudioEnabled setting.
 const CAST_WASM_ENABLED = false;
 
-// Shaka for HLS (what jellyfin-chromecast ships): eviction, buffer goal and
+// Shaka for HLS (what another open-source receiver ships): eviction, buffer goal and
 // gap jumping are native there; MPL raises no ERROR, wedges on skipped
 // segments and has no buffer control. false = back to MPL.
 const CAST_USE_SHAKA_FOR_HLS = true;
@@ -339,7 +339,7 @@ const aliveHeartbeat = createAliveHeartbeat(() => {
 });
 
 // Starvation rescue: the master advertises a low rung, but CAF never dives
-// onto it by itself (Bouygtel4K 2026-08-03: variant pinned through nine
+// onto it by itself (an operator box, 2026-08-03: variant pinned through nine
 // minutes of freeze). This watch samples the playhead every 5s and, on
 // sustained famine, reloads the SAME position on the ?abr=floor master - the
 // server answers with only the lowest transcoded rung. Latched: the floored
@@ -957,7 +957,7 @@ function interceptLoad(request: any): any {
       systemHdr,
       stereoForced ? 2 : probedAudioChannels,
     );
-    // v1: ZERO Dolby passthrough, even if the probe says yes - Jellyfin's
+    // v1: ZERO Dolby passthrough, even if the probe says yes - another receiver's
     // position (hasEAC3Support hardcoded false, "problems getting it to work
     // with HLS"), confirmed on the evening of 07-25: the Mi TV probes itself
     // Dolby-capable via EDID and the CAF player still fails the LOAD (code
@@ -965,7 +965,7 @@ function interceptLoad(request: any): any {
     // the server's AAC transcode.
     const caps = { ...probed, nativeDolby: false };
     // wasm off on cast (2026-07-28): every wasm cast memory-died at 3-4 min
-    // on 1-2GB TV boxes. Jellyfin policy instead - the TV only gets codecs it
+    // on 1-2GB TV boxes. Same policy as that receiver instead - the TV only gets codecs it
     // decodes natively, audio rides the server's AAC rendition.
     const wasmCapable = CAST_WASM_ENABLED && typeof WebAssembly !== "undefined" && !wasmDisabled;
     // window.location.protocol: an http: instance on the LAN is not allowed
@@ -1106,7 +1106,7 @@ if (typeof window !== "undefined") {
 // - maxInactivity 1800s: a FROZEN sender (OEM freeze, WiFi asleep) stops
 //   heartbeating without closing its socket; the default (10s) then reports
 //   the sender lost within seconds and arms whatever teardown follows.
-//   Jellyfin's own receiver documents the effect ("it quits once the client
+//   Another receiver documents the effect ("it quits once the client
 //   closes the connection").
 // - disableIdleTimeout: if playback silently IDLEs, stay up (with the debug
 //   overlay + telemetry) instead of a silent teardown minutes later. A

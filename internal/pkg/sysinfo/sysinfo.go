@@ -28,7 +28,7 @@ type Stats struct {
 	// EveyCPUPercent is the share of the same host capacity taken by this
 	// server, every process it forked (ffmpeg, plugins) and the embedded
 	// Postgres and Meilisearch, so an admin can tell Evey's load from a
-	// neighbour's (Jellyfin on the same VM, a file copy).
+	// neighbour's (another media server on the same VM, a file copy).
 	EveyCPUPercent float64
 	MemoryPercent  float64
 	MemUsedBytes   int64

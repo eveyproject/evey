@@ -56,6 +56,6 @@ func WarnIfNoAV1Decoder(ctx context.Context, ffmpegPath string, logger *slog.Log
 		return
 	}
 	if !hasAV1Decoder(string(out)) {
-		logger.Warn("no AV1 decoder found in this ffmpeg build (-decoders lists none of dav1d/aom/cuvid/qsv); AV1 source files will fail to play. Deploy a jellyfin-ffmpeg or ffmpeg build with libdav1d.")
+		logger.Warn("no AV1 decoder found in this ffmpeg build (-decoders lists none of dav1d/aom/cuvid/qsv); AV1 source files will fail to play. Deploy an ffmpeg build with libdav1d.")
 	}
 }

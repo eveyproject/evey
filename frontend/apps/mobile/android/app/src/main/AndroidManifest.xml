@@ -18,7 +18,7 @@
        ne partent plus, la box ferme la socket sender et demonte le recepteur
        (mesure prod 2026-07-28 : mort de la TV 3 min 40 apres le silence du
        telephone). Le wakelock partiel est la piece porteuse, c'est ce que
-       tient jellyfin-android ; le WifiLock est la ceinture en plus. -->
+       tient un client Android Cast tres repandu ; le WifiLock est la ceinture en plus. -->
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
   <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" tools:replace="android:maxSdkVersion"/>
