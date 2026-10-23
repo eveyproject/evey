@@ -58,7 +58,8 @@ It does **not** contain:
 - the video cache (it fills up again by itself);
 - the search index (rebuilt from the database);
 - the keys kept in `./evey-data`: `jwt.key`, which protects every sign-in,
-  and the `keys` folder (database password, search key);
+  the `keys` folder (database password, search key), and `hls_aes.key`, the
+  key that encrypts streaming segments (created at first boot, mode 0600);
 - the installed plugin files.
 
 **So keep a copy of the whole `./evey-data` folder too.** A database backup

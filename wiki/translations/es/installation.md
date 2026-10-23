@@ -1,5 +1,5 @@
 ---
-source_sha: 0b2670e7a74f2a0cdbc172c1bb7ef216fa53371cf55248071c00cba27a64c162
+source_sha: 2bab08ea37b694ae604bd4a44524da605fe82d30c8a8999099eafb428e15f45e
 reviewed: true
 ---
 # Instalación { #install }
@@ -156,6 +156,10 @@ Cada uno de estos cambios ocupa unas pocas líneas en el mismo archivo.
 
 **Una segunda carpeta de archivos.** Añade `- /other/path:/media2` debajo de
 `volumes:`. Una tercera sería `/media3`, y así sucesivamente.
+
+**Un segundo Evey en la misma máquina.** Dale otro `container_name` y otros
+puertos del anfitrión; si no, `docker compose up` se niega a arrancar (el
+nombre ya está en uso).
 
 **Otro puerto.** Cambia solo el número de la izquierda, por ejemplo
 `"8080:9091"`. Después escribe `:8080` en el navegador y en las apps.

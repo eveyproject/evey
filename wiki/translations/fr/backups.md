@@ -1,5 +1,5 @@
 ---
-source_sha: 4c2c4ddb62e95803c8e25fd785e009178d7130e67e3125dea06c41c6cf77527b
+source_sha: 00ac3f52637e817e4e294aad7fa5cbaf5e77c3c6a343d1ffc784da076a90fe56
 reviewed: true
 ---
 # Sauvegardes et mises à jour { #backups-and-updates }
@@ -68,8 +68,9 @@ Elle ne contient **pas** :
 - le cache vidéo (il se reconstitue automatiquement) ;
 - l'index de recherche (reconstruit à partir de la base de données) ;
 - les clés gardées dans `./evey-data` : `jwt.key`, qui protège toutes les
-  connexions, et le dossier `keys` (mot de passe de la base de données, clé
-  de recherche) ;
+  connexions, le dossier `keys` (mot de passe de la base de données, clé de
+  recherche), et `hls_aes.key`, la clé qui chiffre les segments de diffusion
+  (créée au premier démarrage, droits 0600) ;
 - les fichiers des plugins installés.
 
 **Gardez donc aussi une copie de tout le dossier `./evey-data`.** Une

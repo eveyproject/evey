@@ -1,5 +1,5 @@
 ---
-source_sha: 4c2c4ddb62e95803c8e25fd785e009178d7130e67e3125dea06c41c6cf77527b
+source_sha: 00ac3f52637e817e4e294aad7fa5cbaf5e77c3c6a343d1ffc784da076a90fe56
 reviewed: true
 ---
 # Sicherungen und Updates { #backups-and-updates }
@@ -68,7 +68,9 @@ Sie enthält **nicht**:
 - den Video-Cache (er füllt sich von selbst wieder);
 - den Suchindex (er wird aus der Datenbank neu aufgebaut);
 - die Schlüssel in `./evey-data`: `jwt.key`, der jede Anmeldung schützt, und
-  den Ordner `keys` (Datenbankpasswort, Suchschlüssel);
+  den Ordner `keys` (Datenbankpasswort, Suchschlüssel) und `hls_aes.key`, den
+  Schlüssel, der die Streaming-Segmente verschlüsselt (beim ersten Start
+  angelegt, Modus 0600);
 - die Dateien der installierten Plugins.
 
 **Bewahren Sie deshalb auch eine Kopie des ganzen Ordners `./evey-data`

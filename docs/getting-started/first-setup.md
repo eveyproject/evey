@@ -73,7 +73,8 @@ one or more folders, for example "Films".
   starting with `/media`. To type a path such as `/media/movies`, choose
   **Enter custom path...**.
 
-Press **Create**: Evey starts reading the folder. Or press **Skip** and add
+Press **Create**: Evey starts reading the folder, and titles appear as the
+scan goes (a large folder takes a few minutes). Or press **Skip** and add
 libraries later. Both take you to the home page.
 
 <div class="evey-shot-pair" markdown>
@@ -112,7 +113,8 @@ With the compose file from [Install](../installation.md#the-compose-file),
 your media folder is `/media`. So a folder `/srv/media/films` on your
 computer is `/media/films` in Evey.
 
-Evey starts reading the folder by itself. Posters, summaries and cast arrive
+Evey starts reading the folder by itself, and titles appear as the scan
+goes. Posters, summaries and cast arrive
 in the background, so a large library fills in over a few minutes. New files
 you add later appear on their own.
 

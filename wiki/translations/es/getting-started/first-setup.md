@@ -1,5 +1,5 @@
 ---
-source_sha: 48225cad93d795d54f36c6e4db0c828700357d5e317bec3f404927fba2c1cdf4
+source_sha: f0478ec26ab0b9d817c4a2fa786f673cb92219628c9b8b18dc92835e4f9ff361
 reviewed: true
 ---
 # Primera configuración { #first-setup }
@@ -82,7 +82,7 @@ contenido guardado en una o varias carpetas, por ejemplo «Películas».
   puede ver, empezando por `/media`. Para escribir una ruta como
   `/media/movies`, elige **Introducir ruta personalizada...**.
 
-Pulsa **Crear**: Evey empieza a leer la carpeta. También puedes pulsar
+Pulsa **Crear**: Evey empieza a leer la carpeta, y los títulos aparecen a medida que avanza el escaneo (una carpeta grande tarda unos minutos). También puedes pulsar
 **Omitir** y añadir las bibliotecas más tarde. En los dos casos llegas a la
 página de inicio.
 
@@ -122,7 +122,7 @@ el archivo compose de la [instalación](../installation.md#the-compose-file),
 tu carpeta de archivos es `/media`. Así que una carpeta `/srv/media/films` de
 tu ordenador es `/media/films` en Evey.
 
-Evey empieza a leer la carpeta por su cuenta. Los pósteres, los resúmenes y
+Evey empieza a leer la carpeta por su cuenta, y los títulos aparecen a medida que avanza el escaneo. Los pósteres, los resúmenes y
 el reparto llegan en segundo plano, así que una biblioteca grande se va
 llenando en unos minutos. Los archivos nuevos que añadas más tarde aparecen
 solos.
