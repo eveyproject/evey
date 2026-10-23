@@ -9,9 +9,12 @@ import (
 )
 
 type FakeLibraryCommandRepo struct {
-	mu    sync.RWMutex
-	items map[string]*library.Library
-	Err   error
+	// OnCreate, when set, sees every library Create stores: a test can mirror
+	// it into the query fake, as one database would.
+	OnCreate func(lib *library.Library)
+	mu       sync.RWMutex
+	items    map[string]*library.Library
+	Err      error
 }
 
 func NewFakeLibraryCommandRepo() *FakeLibraryCommandRepo {
@@ -34,6 +37,9 @@ func (r *FakeLibraryCommandRepo) Create(_ context.Context, lib *library.Library)
 		return r.Err
 	}
 	r.items[string(lib.ID)] = lib
+	if r.OnCreate != nil {
+		r.OnCreate(lib)
+	}
 	return nil
 }
 
