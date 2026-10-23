@@ -279,6 +279,11 @@ describe("SettingsScreen (TV) profile menu parity", () => {
     expect(screen.getByText("https://eveyproject.org/privacy/")).toBeTruthy();
   });
 
+  it("credits TMDB as plain text", () => {
+    render(<SettingsScreen />);
+    expect(screen.getByText("This product uses the TMDB API but is not endorsed or certified by TMDB.")).toBeTruthy();
+  });
+
   it("offers my statistics, and opens the screen", () => {
     render(<SettingsScreen />);
     fireEvent.click(screen.getByLabelText("My statistics"));

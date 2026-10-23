@@ -9,6 +9,7 @@ import { eveyFetchRaw } from "@evey/api";
 import { useMutation } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@evey/store";
+import { wikiUrl } from "@evey/client";
 import { useTranslation } from "react-i18next";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 import { Card } from "@/components/ui/Card";
@@ -266,7 +267,7 @@ function ProfileCard() {
 }
 
 function SettingsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [tab, setTab] = useState<Tab>("appearance");
   const { data: requestPolicy } = useMediaRequestServiceGetRequestPolicy();
   // Plugins that ship their own per-profile settings UI. Nothing installed
@@ -376,6 +377,15 @@ function SettingsPage() {
         </div>
       </Card>
       </div>
+
+      <p className="text-xs text-[var(--text-muted)] flex flex-col gap-1">
+        <a href={wikiUrl(i18n.language, "privacy/")} target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--text)]">
+          {t("mobile.settings.privacyPolicy", "Privacy policy")}
+        </a>
+        <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer" className="underline hover:text-[var(--text)]">
+          {t("common.attribution.tmdb", "This product uses the TMDB API but is not endorsed or certified by TMDB.")}
+        </a>
+      </p>
     </div>
   );
 }

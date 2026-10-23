@@ -269,3 +269,5 @@ demo:
   credentials: "Connectez-vous avec demo / demo"
   locked: "Verrouillé sur la démo"
   readOnly: "Lecture seule sur la démo : les réglages sont affichés, pas modifiables."
+attribution:
+  tmdb: "Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB."

@@ -162,6 +162,14 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Settings")).toBeInTheDocument();
   });
 
+  it("credits TMDB and links the privacy policy", async () => {
+    const SettingsPage = await getSettingsPage();
+    render(React.createElement(SettingsPage), { wrapper: createWrapper() });
+    const credit = screen.getByText("This product uses the TMDB API but is not endorsed or certified by TMDB.");
+    expect(credit.closest("a")).toHaveAttribute("href", "https://www.themoviedb.org/");
+    expect(document.querySelector('a[href$="/privacy/"]')).not.toBeNull();
+  });
+
   it("renders all tab buttons", async () => {
     const SettingsPage = await getSettingsPage();
     render(React.createElement(SettingsPage), { wrapper: createWrapper() });

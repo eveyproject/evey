@@ -1,8 +1,8 @@
 ---
-source_sha: 632dddb3ad048221e832d8c1f63008289641932b655a32564877f6dcc316bb04
+source_sha: 6731543d05eba23817144ccd5d21f648ca65b14ec0dfd93bf782752067af1ad1
 reviewed: true
 ---
-# 隐私政策
+# 隐私政策 { #privacy-policy }
 
 最后更新：2026-10-04。
 
@@ -10,7 +10,7 @@ reviewed: true
 
 简单来说：Evey 项目不运行任何接收您数据的服务。不需要在我们这里注册账户，没有使用统计，没有广告，也不会向我们发送崩溃报告。应用只和 Evey 服务器通信，这台服务器由您自己，或者邀请您的人安装和运行。
 
-## 应用发送什么，发给谁
+## 应用发送什么，发给谁 { #what-the-apps-send-and-to-whom }
 
 **发给您的 Evey 服务器，不发给我们运营的任何其他服务**。应用只发送一个媒体播放器正常工作所需的内容：
 
@@ -30,11 +30,11 @@ reviewed: true
 - **您打开的链接。** 预告片、The Movie Database 或 IMDb 的页面，或者用于更新的 Play 商店页面，会在相应的应用或浏览器中打开，适用该服务自己的政策。
 - **插件。** 插件由服务器管理员安装。插件可能会显示来自外部服务的内容（比如天气插件）。
 
-## 留在设备上的内容
+## 留在设备上的内容 { #what-stays-on-the-device }
 
 服务器地址、您的会话令牌（保存在 Android 的加密存储中）、您的偏好设置，以及您下载用于离线观看的电影和音乐。卸载应用会把它们一起删除。生物识别解锁（指纹或人脸）在您开启后由 Android 处理：应用只知道验证是否成功。
 
-## 权限
+## 权限 { #permissions }
 
 | 权限 | 用途 |
 | --- | --- |
@@ -45,15 +45,19 @@ reviewed: true
 
 手机应用没有麦克风权限。
 
-## 本网站
+## 本网站 { #this-website }
 
 `eveyproject.org` 托管在 GitHub Pages 上，GitHub Pages 能看到访客的 IP 地址。本网站自己提供字体和脚本，所以浏览器不会连接其他任何服务。网站不设置自己的 Cookie，也没有访问统计。
 
-## 儿童
+## 第三方服务 { #third-party-services }
+
+本产品使用 TMDB API，但未经 TMDB 认可或认证。图片和元数据来自 [TMDB](https://www.themoviedb.org/)。
+
+## 儿童 { #children }
 
 这些应用不是面向儿童设计的。儿童个人资料由服务器的运营者创建，相关数据也由运营者保管。
 
-## 联系方式
+## 联系方式 { #contact }
 
 关于本政策的问题：[contact@eveyproject.org](mailto:contact@eveyproject.org)。关于 Evey 服务器上保存的数据，请联系运行这台服务器的人。
 

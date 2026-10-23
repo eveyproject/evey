@@ -1,8 +1,8 @@
 ---
-source_sha: 632dddb3ad048221e832d8c1f63008289641932b655a32564877f6dcc316bb04
+source_sha: 6731543d05eba23817144ccd5d21f648ca65b14ec0dfd93bf782752067af1ad1
 reviewed: true
 ---
-# Règles de confidentialité
+# Règles de confidentialité { #privacy-policy }
 
 Dernière mise à jour : 2026-10-04.
 
@@ -14,7 +14,7 @@ rapports de plantage envoyés chez nous. Les applications communiquent avec le s
 Evey que vous, ou la personne qui vous a invité, avez installé et faites
 tourner.
 
-## Ce que les applications envoient, et à qui
+## Ce que les applications envoient, et à qui { #what-the-apps-send-and-to-whom }
 
 **À votre serveur Evey, et à rien d'autre que nous gérons.** Les applications
 envoient ce dont un lecteur de médias a besoin pour fonctionner :
@@ -59,7 +59,7 @@ projet Evey n'y a pas accès.
   plugin peut afficher du contenu qui vient d'un service extérieur (un plugin
   météo, par exemple).
 
-## Ce qui reste sur l'appareil
+## Ce qui reste sur l'appareil { #what-stays-on-the-device }
 
 L'adresse du serveur, votre jeton de session (dans le stockage chiffré
 d'Android), vos préférences, et les films et la musique que vous téléchargez
@@ -67,7 +67,7 @@ pour les regarder ou les écouter sans connexion. Désinstaller l'application
 les supprime. Le déverrouillage par empreinte ou par visage, quand vous
 l'activez, est géré par Android : l'application sait seulement s'il a réussi.
 
-## Autorisations
+## Autorisations { #permissions }
 
 | Autorisation | Pourquoi |
 | --- | --- |
@@ -78,20 +78,24 @@ l'activez, est géré par Android : l'application sait seulement s'il a réussi.
 
 L'application pour téléphone n'a pas l'autorisation d'utiliser le micro.
 
-## Ce site
+## Ce site { #this-website }
 
 `eveyproject.org` est hébergé par GitHub Pages, qui voit l'adresse IP du
 visiteur. Le site fournit lui-même ses polices et ses scripts : le navigateur
 ne contacte aucun autre service. Il ne dépose aucun cookie propre et ne fait
 pas de statistiques de visite.
 
-## Enfants
+## Services tiers { #third-party-services }
+
+Ce produit utilise l'API TMDB mais n'est ni approuvé ni certifié par TMDB. Les visuels et métadonnées proviennent de [TMDB](https://www.themoviedb.org/).
+
+## Enfants { #children }
 
 Les applications ne sont pas destinées aux enfants. Les profils enfant sont
 créés par la personne qui gère le serveur, et c'est elle qui détient ces
 données.
 
-## Contact
+## Contact { #contact }
 
 Questions sur ces règles : [contact@eveyproject.org](mailto:contact@eveyproject.org).
 Pour les données gardées sur un serveur Evey, adressez-vous à la personne qui

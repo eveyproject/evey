@@ -72,6 +72,10 @@ The phone app does not have the microphone permission.
 address. The site serves its own fonts and scripts, so the browser contacts no
 other service. It sets no cookie of its own and has no analytics.
 
+## Third-party services
+
+This product uses the TMDB API but is not endorsed or certified by TMDB. Artwork and metadata come from [TMDB](https://www.themoviedb.org/).
+
 ## Children
 
 The apps are not aimed at children. Kids profiles are set up by the server's

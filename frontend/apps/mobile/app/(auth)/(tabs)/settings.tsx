@@ -233,6 +233,7 @@ export default function SettingsScreen() {
     ? new Date(user.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "long" })
     : null;
   const appVersion = Constants.expoConfig?.version ?? "1.0.0";
+  const tmdbAttribution = t("common.attribution.tmdb", "This product uses the TMDB API but is not endorsed or certified by TMDB.");
   const currentLang = i18n.language;
   const s = sStyles(theme);
 
@@ -517,6 +518,7 @@ export default function SettingsScreen() {
         <View style={s.row}><Text style={s.label}>{t("mobile.settings.appVersion")}</Text><Text style={s.value}>{appVersion}</Text></View>
         {/* The store listing and the app both have to point at the policy. */}
         <Pressable style={s.row} onPress={() => { Linking.openURL(wikiUrl(i18n.language, "privacy/")).catch(() => {}); }} accessible={true} accessibilityLabel={t("mobile.settings.privacyPolicy")} accessibilityRole="link"><Text style={s.label}>{t("mobile.settings.privacyPolicy")}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
+        <Pressable style={s.row} onPress={() => { Linking.openURL("https://www.themoviedb.org/").catch(() => {}); }} accessible={true} accessibilityRole="link"><Text style={[s.label, { flex: 1 }]}>{tmdbAttribution}</Text><ChevronRight color={theme.colors.textMuted} /></Pressable>
       </View>
     </ScrollView>
   );
