@@ -90,12 +90,12 @@ library: **Awaiting** is the to-do list.
 
 ## Scans
 
-A scan reads the head of each file (a few kilobytes) and reuses the previous
+A scan reads three small zones of each file (the head, the index near the end and the tail) and reuses the previous
 answer for a file that has not changed. **Disk use** sets the pace:
 
 - **Discreet**: one file at a time, then a pause as long as the read took. The
   disks stay free about half the time, so someone can keep watching.
-- **Fast**: several files at once, no pause. About three times quicker on a
+- **Fast**: several files at once, no pause. Noticeably quicker on a
   library spread over several disks, but playback may stutter meanwhile.
 
 Two things make a scan diagnose everything again: a file that changed, and a

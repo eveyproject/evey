@@ -35,7 +35,9 @@ you.
 
     - The files are in `./evey-data/logs/`, next to your compose file
       (`/data/logs/evey-YYYY-MM-DD.log` inside the container). One file per
-      day, in JSON, kept 90 days by default (`EVEY_LOG_RETENTION_DAYS`).
+      day, in JSON, plus an hour-suffixed file (`evey-YYYY-MM-DD-HH.log`) when a
+      file passes 50 MB (`EVEY_LOG_MAX_SIZE_MB`), kept 90 days by default
+      (`EVEY_LOG_RETENTION_DAYS`).
     - `docker compose logs evey` shows something else: what the container
       prints while it starts (the start-up script's `evey:` lines, the
       database, the banner). Read it when the server does not come up. Once

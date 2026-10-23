@@ -25,7 +25,8 @@ docker exec -it evey-server sh -c \
 
 **Logs.** The same stream exists twice: the daily file
 `./evey-data/logs/evey-YYYY-MM-DD.log` (`EVEY_LOG_DIR`, `/data/logs` inside
-the image) and `docker logs evey-server`. The file is authoritative: Docker's
+the image; a file past 50 MB, `EVEY_LOG_MAX_SIZE_MB`, continues in
+`evey-YYYY-MM-DD-HH.log`) and `docker logs evey-server`. The file is authoritative: Docker's
 json-file driver rotates `docker logs`, and after a rotation the command can
 stop hours before the container did. When the two disagree, read the file.
 The admin panel's **Logs & Debug** page searches the same stream
@@ -154,11 +155,11 @@ client hung up, not that the server timed out.
 # Why a segment request reused an encoder or spawned one, and what it cost
 # the player. Logged only when it costs something. `over_client_patience:
 # true` is the smoking gun.
-docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F).log | tail -40
+docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F)*.log | tail -40
 
 # The encoders themselves: spawns, kills and their reason.
 docker exec evey-server grep -E '"software: session (started|killed)"|per-hash cap' \
-  /data/logs/evey-$(date +%F).log | tail -40
+  /data/logs/evey-$(date +%F)*.log | tail -40
 ```
 
 Those lines say what the server decided. To see what ffmpeg achieved second
@@ -312,8 +313,8 @@ docker volume inspect evey_evey-cache   # the compose prefix may differ
   ```sh
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
-- Lower the **Transcode cache budget (GB)** in **Admin -> Server Config ->
-  Server Settings** (default `10`) if the host volume is tight. Whatever the
+- Lower the **Transcode cache budget (GB)** in **Admin ->
+  Transcoding** (default `10`) if the host volume is tight. Whatever the
   budget, the sweeper keeps 2 GiB free on the cache volume.
 
 ## A plugin crashed
@@ -357,7 +358,7 @@ event reported` line with `type=` and a `details=` string.
    is a new LOAD replacing the running one (look for a `StartStream` a few
    seconds earlier), `reason=ERROR` carries the player error. No `finished`
    after the last `alive` means the receiver process disappeared, most often
-   a Chromecast HD killed for memory on a 20+ Mbps copy master.
+   a Chromecast HD killed for memory on a high-bitrate copy master (as observed).
 3. **What did the phone see?** Search `cast_sender_stall`: the sender posts
    `state=playing frozen=<n>s pos=<p>` when the Cast SDK still says PLAYING
    but the position has not moved for 20 s, and `state=idle reason=<r>` when
@@ -373,7 +374,7 @@ event reported` line with `type=` and a `details=` string.
    rung` (the copy master's peak bitrate) and `plan fitted to the client's
    line` (the receiver's `maxKbps` measure or its `abr=floor` rescue; the
    transcode master that follows carries the reason `client_line_exceeded`
-   or `abr_floor_requested`). A session that started on a 20+ Mbps copy
+   or `abr_floor_requested`). A session that started on a high-bitrate copy
    master and fell to a fitted 1080p rung after a few seconds is the rescue
    doing its job; a re-LOAD that starts again on the copy master is the
    pattern that kills a Chromecast HD.

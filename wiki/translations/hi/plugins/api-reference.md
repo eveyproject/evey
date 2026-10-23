@@ -1,8 +1,8 @@
 ---
-source_sha: 4f36e08eb2ed47e2b70b77f7f85f7caa2a9229e3bb755c85c2d54804d13c4031
+source_sha: 5e96cbd1483c320ab2ab021a2d894797d1cd5b0958ba8303a940db6026044ccb
 reviewed: true
 ---
-# प्लगइन API संदर्भ
+# प्लगइन API संदर्भ { #plugin-api-reference }
 
 वह अनुबंध जिसके हिसाब से प्लगइन लिखा जाता है: `plugin.yaml` के फ़ील्ड, वे दो gRPC
 सर्विस जिनसे बैकएंड और सर्वर आपस में संवाद करते हैं, और `window.evey` bridge, जो
@@ -10,7 +10,7 @@ reviewed: true
 [प्लगइन लिखना](dev-setup.md) में है; हर अनुमति क्या करने देती है और इंस्टॉलर क्या
 मना करता है, यह [अनुमतियाँ और स्लॉट](security-model.md) में है।
 
-## Manifest
+## Manifest { #manifest }
 
 हर ZIP के root फ़ोल्डर में एक `plugin.yaml` (या `plugin.yml`) होता है, ज़्यादा से ज़्यादा
 1 MB का।
@@ -24,7 +24,7 @@ entrypoint: node index.js    # प्लगइन के लिए ज़रू�
 
 description: "..."           # वैकल्पिक
 author: "..."                # वैकल्पिक
-min_evey_version: "1.0.0"    # वैकल्पिक; दर्ज होता है, आज लागू नहीं होता
+min_evey_version: "1.0.0"    # वैकल्पिक; स्वीकार होता है और अनदेखा किया जाता है
 
 permissions:                 # बैकएंड और इंटरफ़ेस क्या कॉल कर सकते हैं
   - network
@@ -42,7 +42,7 @@ frontend:
 config_schema:               # प्लगइन के कार्ड पर कॉन्फ़िग पैनल के फ़ील्ड
   api_key:
     type: password           # किसी भी क्लाइंट को कभी वापस नहीं भेजा जाता
-    label: API key
+    label: API key           # दिखाया नहीं जाता: पैनल फ़ील्ड को उनकी key से नाम देता है
     required: true
   city:
     type: string
@@ -56,11 +56,11 @@ config_schema:               # प्लगइन के कार्ड पर 
 | `language` | `kind: plugin` के लिए ज़रूरी: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` या `go`। इससे तय होता है कि कौन सा runtime जाँचा जाए और कौन से stub entrypoint के बगल में कॉपी हों; यह कुछ शुरू नहीं करता। |
 | `entrypoint` | `kind: plugin` के लिए ज़रूरी। पहला शब्द interpreter है (या `native-binary` के साथ binary), बाकी उसके arguments; प्रोसेस प्लगइन के फ़ोल्डर में चलता है। |
 | `permissions` | हर मान [अनुमतियों की सूची](security-model.md#permissions-catalog) में होना चाहिए। `network` के लिए `external_fetch` खाली नहीं होना चाहिए। |
-| `external_fetch` | सिर्फ़ होस्ट के नाम। scheme स्वीकार किया जाता है और हटा दिया जाता है; wildcard या IP लिखने पर इंस्टॉल मना होता है ([नियम](security-model.md#external-fetch-rules))। |
+| `external_fetch` | होस्ट के नाम। scheme और अंत का path पार्स के समय हटा दिए जाते हैं; होस्ट ठीक-ठीक मिलने चाहिए, `*.example.com` जैसा wildcard इंस्टॉल पर मना हो जाता है और port का suffix अनदेखा किया जाता है; IP लिखने पर इंस्टॉल मना होता है ([नियम](security-model.md#external-fetch-rules))। |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` या `notification.sender`; बाकी सब मना है। थीम कोई क्षमता नहीं बता सकती। |
 | `web_root` | `frontend` खाली न हो तो ज़रूरी; relative, बिना `..`, बिना backslash। `.` प्लगइन का पूरा फ़ोल्डर देता है और सिर्फ़ एक चेतावनी लॉग करता है। |
 | `frontend[]` | `slot` [स्लॉट की सूची](#slots) में होना चाहिए; `src` `web_root` के अंदर होना चाहिए। |
-| `config_schema` | फ़ील्ड के नाम से `{type, label, description, required, default, min, max, options}` तक का map। टाइप: `string`, `text`, `password`, `boolean`, `integer`, `number`, `select` (`options: [{value, label}]` के साथ)। |
+| `config_schema` | फ़ील्ड के नाम से `{type, label, description, required, default, min, max, options}` तक का map; `label` दिखाया नहीं जाता, पैनल फ़ील्ड को उनकी key से नाम देता है। टाइप: `string`, `text`, `password`, `boolean`, `integer`, `number`, `select` (`options: [{value, label}]` के साथ)। |
 
 थीम (`kind: theme`) `language`, `entrypoint`, `permissions` या `capabilities` नहीं
 बता सकती; उसका फ़ॉर्मैट [थीम](../themes.md) में है।
@@ -71,7 +71,7 @@ config_schema:               # प्लगइन के कार्ड पर 
 सहेजने पर सहेजा हुआ मान बना रहता है, इसलिए किसी दूसरे फ़ील्ड को बदलने से secret
 कभी नहीं मिटता।
 
-## बैकएंड: दो सर्विस
+## बैकएंड: दो सर्विस { #backend-the-two-services }
 
 बैकएंड प्रोसेस और सर्वर दो Unix socket पर gRPC से संवाद करते हैं, जिनके रास्ते
 environment में मिलते हैं:
@@ -88,7 +88,7 @@ EVEY_HOST_SOCK=<path>     # आपका प्रोसेस HostService क�
 वाली भाषाओं के stub प्लगइन शुरू होने पर entrypoint के बगल में कॉपी हो जाते हैं
 ([पहले से क्या चाहिए](dev-setup.md#1-prerequisites))।
 
-### PluginService: सर्वर क्या कॉल करता है
+### PluginService: सर्वर क्या कॉल करता है { #pluginservice-what-the-server-calls }
 
 | Method | कब |
 |---|---|
@@ -98,7 +98,7 @@ EVEY_HOST_SOCK=<path>     # आपका प्रोसेस HostService क�
 | `OnEvent(event_type, payload, source)` | अनुबंध में है, पर सर्वर आज प्लगइन को कोई event नहीं भेजता: इसे `handled: true` लौटाने के लिए लागू करें, और कोई कॉल न आने की उम्मीद रखें। |
 | `GetCapabilities()` | अनुबंध में है; सर्वर आज इसे कॉल नहीं करता। |
 
-### HostService: प्लगइन क्या कॉल कर सकता है
+### HostService: प्लगइन क्या कॉल कर सकता है { #hostservice-what-the-plugin-can-call }
 
 जिस कॉल की अनुमति manifest में नहीं बताई गई, वह `PermissionDenied` के साथ मना हो
 जाती है। *दिया नहीं जाता* वाले method `Unimplemented` लौटाते हैं; वे आगे के किसी
@@ -118,7 +118,7 @@ EVEY_HOST_SOCK=<path>     # आपका प्रोसेस HostService क�
 | `GetUserPreferences` | `api.user` | *दिया नहीं जाता।* |
 | `SendNotification` | `notification.sender` | *दिया नहीं जाता।* |
 
-### डेटा स्टोर
+### डेटा स्टोर { #data-store }
 
 हर प्लगइन के पास एक स्थायी key/value स्टोर होता है, बिना कोई अनुमति बताए: cursor,
 cache, आखिरी sync का समय, कुछ भी जो restart के बाद भी याद रखना हो। मान ऐसी
@@ -136,7 +136,7 @@ string हैं जिन्हें सर्वर नहीं पढ़त
 यह स्टोर पूरे प्लगइन के लिए एक है। **हर उपयोगकर्ता का** डेटा (विजेट देखने वाले
 व्यक्ति की कोई पसंद) इंटरफ़ेस की तरफ़ रहता है, नीचे दी गई `prefs` अनुमति के ज़रिए।
 
-## Frontend API
+## Frontend API { #frontend-api }
 
 इंटरफ़ेस मॉड्यूल एक opaque origin वाले फ़्रेम में चलता है, `default-src 'none'` नीति
 के साथ: होस्ट पेज, उसकी कुकी या उसके स्टोरेज तक कोई पहुँच नहीं, कोई फ़ॉर्म नहीं,
@@ -144,35 +144,36 @@ string हैं जिन्हें सर्वर नहीं पढ़त
 सीमित। बाकी सब `window.evey` से होकर जाता है, जो मॉड्यूल चलने से पहले डाला जाता
 है। वही मॉड्यूल बिना बदले वेब ऐप में और मोबाइल और टीवी ऐप में चलता है।
 
-### `evey.onInit(callback)`
+### `evey.onInit(callback)` { #eveyoninitcallback }
 
 होस्ट जो context भेजता है, उसके साथ एक बार कॉल होता है; context आने के बाद
 रजिस्टर किया गया callback तुरंत कॉल होता है।
 
 ```js
 evey.onInit(function (data) {
-  // data.context         - प्लगइन के कॉन्फ़िगरेशन मान (config_schema)
+  // data.config          - प्लगइन के कॉन्फ़िगरेशन मान (config_schema)
+  // data.context         - होस्ट का संदर्भ
   // data.locale          - चालू भाषा, जैसे "en-US"
-  // data.theme           - चालू थीम की id
+  // data.theme           - "dark" या "light"
   // data.surface         - "web", "mobile" या "tv"
   // data.suggestedHeight - सिर्फ़ home.section: होस्ट की सुझाई ऊँचाई (px)
   // data.viewportHeight  - सिर्फ़ tv: पैनल की ऊँचाई, dp में
 });
 ```
 
-### `evey.navigate(path)`
+### `evey.navigate(path)` { #eveynavigatepath }
 
 होस्ट ऐप्लिकेशन को `path` पर ले जाता है। सिर्फ़ `/home`, `/library`, `/media`,
 `/player`, `/settings` और `/search` से शुरू होने वाले रास्ते माने जाते हैं; बाकी
 सब (एडमिन वाला हिस्सा, साइन-इन, पूरा URL) चुपचाप छोड़ दिया जाता है।
 
-### `evey.toast(level, message)`
+### `evey.toast(level, message)` { #eveytoastlevel-message }
 
 होस्ट इंटरफ़ेस में एक toast दिखाता है। `level` `"success"`, `"error"` या `"info"`
 है; `message` सादा टेक्स्ट है, 200 अक्षरों पर काटा जाता है; एक सेकंड में ज़्यादा
 से ज़्यादा 3 toast दिखते हैं।
 
-### `evey.resize(height)`
+### `evey.resize(height)` { #eveyresizeheight }
 
 स्लॉट को `height` पिक्सेल ऊँचा करने को कहता है, 50 और 800 के बीच रखा जाता है।
 `0` स्लॉट को समेट देता है: जिस विजेट के पास दिखाने को कुछ नहीं, वह जगह नहीं
@@ -181,7 +182,7 @@ evey.onInit(function (data) {
 सुझाता है, ताकि हर विजेट एक ही आकार में दिखे। आकार तभी बदलें जब आपके पास इससे
 बेहतर जानकारी हो।
 
-### `evey.prefs.*` (अनुमति `prefs`)
+### `evey.prefs.*` (अनुमति `prefs`) { #eveyprefs-permission-prefs }
 
 मौजूदा उपयोगकर्ता की पसंद, प्लगइन के अपने हिस्से में, उस token के ज़रिए (यह प्लगइन, यह
 उपयोगकर्ता) से जुड़ी हुई जो होस्ट फ़्रेम के लिए रखता है। हर कॉल एक promise
@@ -194,7 +195,7 @@ const all = await evey.prefs.list();        // [{ key, value }]
 await evey.prefs.delete("units");
 ```
 
-### `evey.media.*` (अनुमति `public`)
+### `evey.media.*` (अनुमति `public`) { #eveymedia-permission-public }
 
 मीडिया आइटम की एक सुरक्षित झलक: id, टाइटल, टाइप, साल, सारांश, पोस्टर का URL।
 कभी फ़ाइल का रास्ता, आकार, provider id या stream नहीं।
@@ -208,13 +209,13 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
 `poster` एक `data:` URL लौटाता है, क्योंकि फ़्रेम की नीति सर्वर से सीधे तस्वीर
 लोड करने से मना करती है; इसे `<img>` के स्रोत या texture की तरह इस्तेमाल करें।
 
-### `evey.assets.read(path)`
+### `evey.assets.read(path)` { #eveyassetsreadpath }
 
 प्लगइन की अपनी `web_root` की कोई फ़ाइल, relative रास्ते से, `data:` URL के रूप
 में पढ़ता है: जो फ़ाइल बैकएंड ने चलते समय लिखी, वह cross-origin की चिंता के बिना
 फ़्रेम में इस्तेमाल हो सकती है। सिर्फ़ प्लगइन की अपनी फ़ाइलें पहुँच में हैं।
 
-### टीवी पर
+### टीवी पर { #on-a-television }
 
 टीवी ऐप मॉड्यूल को एक WebView में चलाता है, और कुछ बातें जो ब्राउज़र में सच हैं,
 वहाँ सच नहीं रहतीं:
@@ -230,7 +231,7 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
   आपके कंप्यूटर पर नहीं; noise के coordinates सीमित रखें।
   `tests/plugins/weather-v2` ऊपर की सभी बातों के लिए नमूने वाला विजेट है।
 
-## स्लॉट
+## स्लॉट { #slots }
 
 | स्लॉट | कहाँ दिखता है |
 |---|---|
@@ -249,7 +250,7 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
 वाले फ़र्क में दिखता है। बाकी हर `admin.*`, `login.*`, `setup.*` और
 `profile.security.*` स्लॉट इंस्टॉल के समय मना होता है।
 
-## क्षमताएँ
+## क्षमताएँ { #capabilities }
 
 क्षमता वह भूमिका बताती है जो प्लगइन निभाने का दावा करता है: `metadata.provider`,
 `media.read`, `media.write`, `webhook.receiver` या `notification.sender`। इंस्टॉलर
@@ -259,27 +260,27 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
 `webhook.receiver` को कोई आने वाला request नहीं मिलता। प्लगइन असल में क्या कर
 सकता है, यह उसकी **अनुमतियाँ** तय करती हैं।
 
-## इंटरफ़ेस की अनुमतियाँ
+## इंटरफ़ेस की अनुमतियाँ { #permissions-of-the-interface }
 
 `public` और `prefs` बाकी अनुमतियों की तरह `permissions` में बताई जाती हैं। ये
 बैकएंड प्रोसेस को कुछ नहीं देतीं; ये फ़्रेम में `evey.media.*` और `evey.prefs.*`
 खोलती हैं। फ़्रेम के पास कभी token नहीं होता: होस्ट (प्लगइन, उपयोगकर्ता) तक
 सीमित पाँच मिनट का एक token बनाता है और कॉल आगे भेजता है, और सर्वर डिफ़ॉल्ट रूप
 से हर वह method मना करता है जिसका नाम token के दायरे में नहीं है
-([ADR-0012](../adr/0012-plugin-token-deny-by-default.md))।
+([ADR-0012](https://github.com/eveyproject/evey/blob/master/docs/adr/0012-plugin-token-deny-by-default.md))।
 
 !!! note "प्लगइन कभी क्या नहीं माँग सकता"
     `admin.*`, `auth.*`, `system.*`, `user.write` और `library.write` पूरी तरह बंद
     हैं: इनका नाम लेने वाला manifest मना होता है, कोई token इन्हें कभी नहीं ले
     जा सकता, और एडमिन method प्लगइन token को मना करते हैं, उसका दायरा कुछ भी हो।
 
-## उदाहरण
+## उदाहरण { #examples }
 
 `examples/plugins/` में मौजूदा manifest फ़ॉर्मैट वाले चलते प्लगइन हैं: Node.js
 और Python में शुरुआती प्लगइन (`nodejs-example`, `python-example`), एक मेटाडेटा
 provider (`metadata-example`), एक वेबहुक receiver (`webhook-receiver`), build
 step वाला एक होम विजेट (`weather`), `public` और `prefs` अनुमतियों और `admin.nav`
-स्लॉट के साथ डेटा स्टोर (`data-demo`), `config_schema` के हर फ़ील्ड टाइप का उदाहरण
+स्लॉट के साथ डेटा स्टोर (`data-demo`), `config_schema` के हर फ़ील्ड टाइप का उदाहरण, `admin.nav` पेज के साथ
 (`config-demo`), और दो थीम (`theme-dark-blue`, `open-workshop`)। `make plugin-zips`
 इन सबको पैक करता है।
 
@@ -292,7 +293,7 @@ env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go
 peer auth, rate limit: internal/adapters/driving/pluginhost/host_server.go - makePluginAuthInterceptor, pluginRPCRatePerMin ; peer_creds.go
 host RPCs and permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; pluginhost/host_server.go - Log, GetConfig, SetConfig (maxConfigKeys, maxConfigKeyLen, maxConfigValueLen), EmitEvent (pluginEmittedEvent.EventName), GetMediaItem, ListMediaItems, mediaItemToProto, UpdateMetadata, GetUserPreferences (Unimplemented), UnimplementedHostServiceServer ; fetch.go - Fetch, maxFetchBytes, fetchTimeout
 proto: proto/plugin/v1/plugin_api.proto - PluginService, HostService, InitRequest, FetchRequest, FetchResponse, MediaItem
-frame policy: internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy ; frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc, ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, clampSlotHeight, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; web/PluginIframe.tsx - MIN_SLOT_HEIGHT, suggestedSlotHeight ; native/PluginWebView.tsx (surface)
+frame policy: internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy ; frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc, ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, clampSlotHeight, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT, suggestedSlotHeight ; frontend/packages/client/src/native/PluginWebView.tsx (surface)
 bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge ; pluginRpc.ts - pluginRequestFor
 slots: internal/domain/plugin/slots.go - AllowedSlots
 token, deny by default: internal/app/plugin/token_service.go - PluginTokenTTL ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes, forbiddenPrefix ; docs/adr/0003-plugin-scoped-tokens.md ; docs/adr/0012-plugin-token-deny-by-default.md

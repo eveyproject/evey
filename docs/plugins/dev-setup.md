@@ -43,13 +43,14 @@ interpreter in the image, `go` ships a compiled binary and needs the
 manifest that names a runtime the image lacks is refused at install, with the
 list of the runtimes available.
 
-The gRPC contract is one file, `proto/plugin/v1/plugin_api.proto`. Stubs are
-generated for Python, Node.js, PHP, Ruby, Dart, Java and Swift under
-`sdk/<language>/`, and the server copies the stubs of your language next to
-your entrypoint when the plugin starts, so a Node.js or Python plugin has
-nothing to vendor: the image provides `@grpc/grpc-js` and `@grpc/proto-loader`
-to Node.js plugins and `grpcio` to Python ones. For another language, generate
-stubs with `protoc` and ship them in the ZIP:
+The gRPC contract is one file, `proto/plugin/v1/plugin_api.proto`. Only
+the Python SDK ships generated stubs; the other languages under
+`sdk/<language>/` hold the `.proto`. The server copies the files of your
+language next to your entrypoint when the plugin starts. The image provides
+`grpcio` to Python plugins, so a Python plugin has nothing to vendor. A
+Node.js plugin must vendor its `node_modules` (`@grpc/grpc-js` and
+`@grpc/proto-loader`) in the package. For another language, generate stubs
+with `protoc` and ship them in the ZIP:
 
 ```bash
 protoc --proto_path=proto \
@@ -124,7 +125,7 @@ when the server starts it. We copy it, change one thing, and install it.
    sub-directory:
 
     ```sh
-    zip -r ../hello-plugin.zip . -x ".*" "node_modules/*"
+    zip -r ../hello-plugin.zip . -x ".*"
     ```
 
 5. **Install it.** In **Admin → Plugins**, **Install Plugin**, choose the ZIP
@@ -193,7 +194,8 @@ The bridge and the slots are described in the
 
 ## 6. Reach the outside world
 
-A plugin process can open no socket to the internet, in any sandbox mode. The
+A plugin process can open no socket to the internet, in every mode where the
+launcher runs (`basic` without the launcher only denies `execve`). The
 only way out is the `Fetch` call of `HostService`: the server checks the
 target against the manifest, then performs the request itself.
 
@@ -212,8 +214,8 @@ redirect. The frame of the interface gets the same host list as its
 rules are in [Permissions and slots](security-model.md#external-fetch-rules).
 
 !!! note "Hosts are a contract with the administrator"
-    The administrator sees the host list at install and must approve any
-    addition at update. Keep it to what the plugin needs, and say in your
+    The administrator sees the host list at update and on the Security
+    Dashboard, and must approve any addition at update. Keep it to what the plugin needs, and say in your
     README what each host receives.
 
 ## 7. Sign your plugin
@@ -271,8 +273,8 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # or "enforce" to refuse what does not verify
 
 Then, in **Admin → Plugins**, they choose the ZIP and, in **Signature file
 (.zip.sig, optional)**, its `.zip.sig`; through the API, the signature is the
-`sig` field of the upload. The preview shows **Signed** or an invalid
-signature, and the Security Dashboard keeps the result.
+`sig` field of the upload. **Signed** or an invalid signature is shown at update, and the Security
+Dashboard keeps the result.
 
 Things that trip people up:
 
@@ -320,8 +322,8 @@ server log carries the detail.
    row is written, and the process is started.
 
 What the analysis looks for is listed in
-[Plugin sandbox and threat model](../SECURITY.md#static-analysis). It also
-reads comments: a `# pip install foo` line in a comment is reported like code.
+[Plugin sandbox and threat model](../SECURITY.md#static-analysis). Comments
+are stripped before the analysis, so a commented-out line is not reported.
 
 ## 9. What your process runs under
 
@@ -332,8 +334,9 @@ processes and 100 MiB, adjustable by the administrator in **Admin → Plugins �
 Resource limits**. Without the `subprocess` permission, the process cannot
 spawn children, whatever the language; threads work.
 
-The sandbox confines the filesystem to the plugin's directory and cuts every
-network socket, unconditionally. Which mode is in force depends on the host,
+In every mode where the launcher runs, the sandbox confines the filesystem to
+the plugin's directory and cuts every network socket (`basic` without the
+launcher only denies `execve`). Which mode is in force depends on the host,
 not on the plugin: [Plugin sandbox and threat model](../SECURITY.md#sandbox-modes)
 describes them, and [Plugin sandbox setup](sandbox-deployment.md) tells an
 administrator which to pick.
@@ -346,7 +349,8 @@ on a forge, your own site).
 
 - Ship the ZIP, its `.sig` and your `cosign.pub` together (section 7).
 - State the permissions and the `external_fetch` hosts in your README: the
-  administrator sees them at install and has to approve them; a surprise
+  administrator sees the permissions at install and the hosts at update and on
+  the Security Dashboard, and has to approve them; a surprise
   there is the first reason an install is refused.
 - To have your plugin listed with the bundled examples, open a pull request
   against `examples/plugins/` with the source and a README. Examples are

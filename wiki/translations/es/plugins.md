@@ -1,5 +1,5 @@
 ---
-source_sha: da3584e40d3503957cd0eadd6a4ed24be78e334a6bd7593cd3ff4540f844ecbd
+source_sha: f58b5dccd7a97d42b2fc6bf6a3137cd005cca7f7658e3dc3f906106cce0d7132
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -39,10 +39,9 @@ página.
    compruebe la descarga.
 2. **Vista previa e instalar** analiza el paquete sin instalarlo. La vista
    previa muestra los **Permisos** y las **Capacidades** que pide el plugin,
-   los huecos de la interfaz (slots) en los que quiere aparecer, los
-   servidores con los que va a contactar, el resultado del **Análisis
-   estático** y, si el servidor comprueba las firmas, si el paquete está
-   **Firmado**.
+   y el resultado del **Análisis estático**. Los huecos (slots), los
+   servidores y la firma se muestran en la actualización y en el **Panel de
+   seguridad**.
 3. Lee esa lista como un contrato: es lo único que el plugin podrá hacer.
    Confirma y el plugin arranca.
 
@@ -111,8 +110,8 @@ entorno los define mientras el panel no se haya guardado nunca.
 
 La memoria, los procesos y el disco se aplican en la siguiente revisión del
 monitor, que detiene un plugin que los supere; la prioridad de CPU y el modo
-de sandbox se aplican a los plugins que arranquen después. `0` desactiva un
-límite de memoria, de procesos o de disco.
+de sandbox se aplican a los plugins que arranquen después. `0` restablece el
+valor por defecto para la memoria y los procesos; solo el límite de disco trata `0` como desactivado.
 
 El **Panel de seguridad** guarda, para cada plugin, lo que encontró el
 análisis, el resultado de la firma y el último error. Su línea **Sandbox del

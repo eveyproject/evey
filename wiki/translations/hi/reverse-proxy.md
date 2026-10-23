@@ -1,5 +1,5 @@
 ---
-source_sha: 882540a1c223edaceac62b6090fc29c8d6391b2bdbb9f156d5cd7015f46e2bc2
+source_sha: 987860a30ec28609fee02ff92f64e4147a49477033de9aa0ea2a0f1ecdc3ef0f
 reviewed: true
 ---
 # रिवर्स प्रॉक्सी कॉन्फ़िगरेशन { #reverse-proxy-configurations }
@@ -237,8 +237,8 @@ Manager वाले सेक्शन ठीक-ठीक लाइनें �
 
 Evey अपनी डिफ़ॉल्ट सेटिंग पर छोड़े गए रिवर्स प्रॉक्सी के पीछे काम करता है: हर
 लंबा चलने वाला जवाब या तो लगातार बाइट भेजता है (HLS segments, direct play,
-ट्रांसकोड का आउटपुट), या हर 30 सेकंड में क्लाइंट को ping करता है (event
-streams), इसलिए डिफ़ॉल्ट read timeout कभी नहीं लगता। फिर भी दो बातें जानना
+ट्रांसकोड का आउटपुट), या कनेक्शन को जीवित रखता है (event
+streams keep-alive भेजते हैं), इसलिए डिफ़ॉल्ट read timeout कभी नहीं लगता। फिर भी दो बातें जानना
 अच्छा है:
 
 - **बफ़रिंग।** जो प्रॉक्सी जवाबों को बफ़र करता है (nginx डिफ़ॉल्ट रूप से
@@ -364,7 +364,7 @@ one port for API and UI, https mode from the scheme: internal/config/config.go (
 bundled Caddy: docker/Caddyfile (streaming matcher, @ownPolicy, header_down CSP) ; docker/Dockerfile.caddy ; docker-compose.yml caddy service
 nginx: examples/nginx/evey.conf.template ; examples/nginx/docker-compose.nginx.yml (nginx-certs volume, no ACME)
 traefik: examples/traefik/docker-compose.traefik.yml (labels + proxy network only)
-streaming paths: cmd/evey/gateway.go ; event streams ping 30 s ; scan progress stream
+streaming paths: cmd/evey/gateway.go ; event streams keep-alive ; scan progress stream
 csp and own-policy pages: internal/adapters/driving/http/helpers.go - securityHeadersMiddleware ; /plugin-frame.html ; /cast-receiver.html
 trusted proxies, catch-all refused, doctor: internal/config/trusted_proxies.go ; cmd/evey/admin_ops.go - checkTrustedProxies
 remote access inferred: docs/adr/0026-remote-access-inferred-from-a-published-url.md

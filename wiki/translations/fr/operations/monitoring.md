@@ -1,5 +1,5 @@
 ---
-source_sha: af969a3c2ee02e3c968a79874fba9fc3a2e1b7c9925fd9888aacdf51fcda149b
+source_sha: 8225f3cc5ff5a9bf19187b30ea0a5cd214bea962f504708f3de910c38a198b9a
 reviewed: true
 ---
 # Supervision et logs { #monitoring-and-logs }
@@ -20,7 +20,7 @@ La carte **Qui est en ligne** du tableau de bord liste qui est connecté en ce
 moment, par profil, avec l'ancienneté du dernier signal de chaque application.
 Un Chromecast dont la TV garde le récepteur d'Evey chargé reste listé après la
 fin de sa lecture, une fois sorti de **En cours de lecture** ; **Arrêter ce
-Chromecast** lui envoie un ordre d'arrêt, que la TV applique sous 30 secondes.
+Chromecast** lui envoie un ordre d'arrêt, que la TV applique en 30 secondes environ.
 
 **Administration → Santé du système** montre le processeur, la mémoire, la bande
 passante, le stockage, et la part de la capacité de transcodage utilisée. Elle
@@ -58,8 +58,9 @@ authentification, infrastructure...). C'est le premier endroit où regarder
 quand un utilisateur signale un problème.
 
 Le même journal est sur le disque, un fichier JSON par jour dans
-`./evey-data/logs/` (`/data/logs/evey-AAAA-MM-JJ.log` dans le conteneur),
-conservé 90 jours par défaut. `docker compose logs evey` ne montre que ce que
+`./evey-data/logs/` (`/data/logs/evey-AAAA-MM-JJ.log` dans le conteneur), plus
+un fichier suffixé par l'heure (`evey-AAAA-MM-JJ-HH.log`) quand un fichier
+dépasse 50 Mo (`EVEY_LOG_MAX_SIZE_MB`), conservé 90 jours par défaut. `docker compose logs evey` ne montre que ce que
 le conteneur affiche pendant qu'il démarre, ce qu'il faut lire quand le
 serveur ne se lance pas. Voir [Dépannage](troubleshooting.md#the-logs).
 
@@ -85,17 +86,18 @@ raison et leur échéance ; **Réinitialiser** en supprime une immédiatement.
   d'administration, et les tâches de fond en cours.
 
 La durée de conservation de chaque historique se règle dans **Administration →
-Configuration du serveur → Paramètres du serveur** (sessions de lecture,
+Configuration du serveur → Données et conservation** (sessions de lecture,
 journal d'audit, métriques du serveur, qualité de streaming). Un changement
 s'applique au nettoyage quotidien suivant.
 
 ## Métriques Prometheus { #prometheus-metrics }
 
 `GET /metrics` sert les compteurs du serveur au format texte de Prometheus,
-tous nommés `evey_...`. Il répond à une session administrateur, ou à un jeton
-fixe défini dans `EVEY_METRICS_SCRAPE_TOKEN` et envoyé en
-`Authorization: Bearer <jeton>`, pour que Prometheus ou Grafana puissent
-collecter sans se reconnecter
+tous nommés `evey_...`. Il répond à un jeton fixe défini dans
+`EVEY_METRICS_SCRAPE_TOKEN` et envoyé en `Authorization: Bearer <jeton>`, pour
+que Prometheus ou Grafana puissent collecter de n'importe où sans se
+connecter ; une session administrateur n'est acceptée que depuis la boucle
+locale du conteneur
 ([Sauvegardes, logs et supervision](../environment/logs-monitoring.md)).
 Les familles qui méritent un premier graphique :
 

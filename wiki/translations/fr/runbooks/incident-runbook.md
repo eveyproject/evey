@@ -1,8 +1,8 @@
 ---
-source_sha: 95bca5df52c2505d699a3857e7d305e19067387a32df91af30da948dfa493ae0
+source_sha: 516b8642fffb6e38095ed3717e312f92a272b9c0f020b7accc2c86330c45dbf2
 reviewed: true
 ---
-# Réponse aux incidents
+# Réponse aux incidents { #incident-runbook }
 
 Les premiers gestes face aux pannes courantes d'Evey, pour l'opérateur
 d'astreinte. Trouvez la section qui correspond au symptôme, lancez ses
@@ -10,7 +10,7 @@ vérifications, appliquez la correction qui correspond à ce que vous avez
 trouvé. Chaque section a la même forme : **Symptôme**, **Diagnostic**,
 **Correction**.
 
-## Avant de commencer
+## Avant de commencer { #before-you-start }
 
 Les commandes visent l'installation standard : un seul conteneur,
 `evey-server`, dans lequel tournent Postgres et Meilisearch. Leurs lignes
@@ -31,8 +31,7 @@ docker exec -it evey-server sh -c \
 ```
 
 **Journaux.** Le même flux existe en deux exemplaires : le fichier quotidien
-`./evey-data/logs/evey-AAAA-MM-JJ.log` (`EVEY_LOG_DIR`, `/data/logs` dans
-l'image) et `docker logs evey-server`. Le fichier fait foi : le pilote
+`./evey-data/logs/evey-AAAA-MM-JJ.log` (`EVEY_LOG_DIR`, `/data/logs` dans l'image ; un fichier qui dépasse 50 Mo, `EVEY_LOG_MAX_SIZE_MB`, continue dans `evey-AAAA-MM-JJ-HH.log`) et `docker logs evey-server`. Le fichier fait foi : le pilote
 json-file de Docker fait tourner `docker logs`, et après une rotation la
 commande peut s'arrêter des heures avant le conteneur. Quand les deux
 divergent, lisez le fichier. La page **Logs & Debug** du panneau d'admin
@@ -40,7 +39,7 @@ cherche dans le même flux (`GET /api/v1/admin/logs/search?q=<terme>&limit=200`)
 les bearers, JWT et valeurs `token=` / `password=` y apparaissent en
 `[redacted]`, donc cherchez un identifiant de média, jamais un jeton.
 
-## Le serveur ne répond pas
+## Le serveur ne répond pas { #the-server-does-not-answer }
 
 **Symptôme** : les clients n'arrivent pas à se connecter ;
 `curl http://localhost:9091/healthz` expire ou est refusé.
@@ -68,7 +67,7 @@ curl -v http://localhost:9091/healthz
   `docker logs evey-caddy`, vérifiez `EVEY_DOMAIN` et que le healthcheck de
   `evey` est vert, puisque Caddy l'attend.
 
-## Toutes les connexions renvoient 401
+## Toutes les connexions renvoient 401 { #every-login-returns-401 }
 
 **Symptôme** : chaque utilisateur, administrateurs compris, reçoit 401 sur
 `/api/v1/auth/*`.
@@ -115,7 +114,7 @@ d'époque. Le compteur Prometheus est
 - **Dérive d'horloge** entre le serveur et les clients : `date -u` sur
   l'hôte.
 
-## La lecture transcodée échoue
+## La lecture transcodée échoue { #transcoded-playback-fails }
 
 **Symptôme** : la lecture directe fonctionne, la lecture qui demande un
 transcodage échoue ; le lecteur affiche une erreur et le journal du serveur
@@ -155,7 +154,7 @@ docker exec evey-server touch /cache/transcode/.write-test && \
   Cache de transcodage**) ne couvre que les tâches de transcodage hors
   lecture en direct.
 
-### La lecture se met en mémoire tampon ou se coupe, et le journal n'indique pas pourquoi
+### La lecture se met en mémoire tampon ou se coupe, et le journal n'indique pas pourquoi { #it-buffers-or-cuts-out-and-the-log-does-not-say-why }
 
 **Symptôme** : un spectateur signale des blocages sur un titre transcodé ; le
 journal montre `hls-vod: segment timeout` avec `err:"context canceled"`, ce
@@ -168,11 +167,11 @@ ne coûte rien :
 # Pourquoi une requête de segment a réutilisé un encodeur ou en a lancé un,
 # et ce que cela a coûté au lecteur. Journalisé seulement quand cela coûte
 # quelque chose. `over_client_patience: true` est la preuve flagrante.
-docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F).log | tail -40
+docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F)*.log | tail -40
 
 # Les encodeurs eux-mêmes : lancements, arrêts et leur raison.
 docker exec evey-server grep -E '"software: session (started|killed)"|per-hash cap' \
-  /data/logs/evey-$(date +%F).log | tail -40
+  /data/logs/evey-$(date +%F)*.log | tail -40
 ```
 
 Ces lignes indiquent ce que le serveur a décidé. Pour voir ce que ffmpeg a
@@ -216,7 +215,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
   ligne `reach decision` avec `over_client_patience: true` signifie que le
   serveur allait demander une attente qu'aucun lecteur ne supporte.
 
-### Des 410 `stale_rendition`, le lecteur recharge son master en pleine lecture
+### Des 410 `stale_rendition`, le lecteur recharge son master en pleine lecture { #stale_rendition-410s-the-player-refetches-its-master-mid-play }
 
 **Symptôme** : le lecteur se bloque brièvement puis reprend ; le journal
 montre `hls-vod: stale rendition URL refused (the ladder moved under a live
@@ -244,7 +243,7 @@ média.
   vieille version d'application, un proxy qui met les `.m3u8` en cache). Le
   proxy doit laisser passer `Cache-Control: no-cache`.
 
-## Erreurs de base de données
+## Erreurs de base de données { #database-errors }
 
 **Symptôme** : le journal contient `dial tcp ... connect: connection
 refused`, `pq: ...`, ou des requêtes expirent.
@@ -279,7 +278,7 @@ df -h ./evey-data
   `EVEY_DB_USER` / `EVEY_DB_PASSWORD` / `EVEY_DB_NAME` du serveur doivent
   correspondre au service `postgres`.
 
-## La recherche est dégradée
+## La recherche est dégradée { #search-is-degraded }
 
 **Symptôme** : la recherche renvoie des résultats moins bons ; le journal
 montre `meilisearch unavailable, using SQL search fallback`.
@@ -306,7 +305,7 @@ docker logs --tail=300 evey-server | grep -i meili
   ```
   La reconstruction est une commande, pas une action du panneau.
 
-## Le disque de cache est plein
+## Le disque de cache est plein { #the-cache-disk-is-full }
 
 **Symptôme** : les transcodages échouent avec `no space left on device` ; le
 healthcheck oscille.
@@ -334,11 +333,11 @@ docker volume inspect evey_evey-cache   # le préfixe du compose peut différer
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
 - Baissez le **Budget du cache de transcodage (Go)** dans **Administration →
-  Configuration du serveur → Paramètres du serveur** (`10` par défaut) si
+  Transcodage** (`10` par défaut) si
   le volume de l'hôte manque de place. Quel que soit le budget, le balayeur garde
   2 Gio libres sur le volume de cache.
 
-## Un plugin a planté
+## Un plugin a planté { #a-plugin-crashed }
 
 **Symptôme** : un plugin ne répond plus ; le journal montre des panics du
 lanceur de plugins.
@@ -363,7 +362,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
    redémarrez.
 5. Envoyez la trace du panic et l'identifiant du plugin à son auteur.
 
-## Une diffusion s'est figée, est devenue muette, ou le téléphone reste en chargement
+## Une diffusion s'est figée, est devenue muette, ou le téléphone reste en chargement { #a-cast-froze-went-silent-or-the-phone-keeps-spinning }
 
 Tout ce qui suit se lit depuis **Administration → Logs & Debug** ; aucun shell sur la
 machine n'est nécessaire. Les heures sont en UTC. Chaque balise est une ligne
@@ -383,7 +382,7 @@ machine n'est nécessaire. Les heures sont en UTC. Chaque balise est une ligne
    (cherchez un `StartStream` quelques secondes avant), `reason=ERROR` porte
    l'erreur du lecteur. Aucun `finished` après le dernier `alive` signifie
    que le processus du récepteur a disparu, le plus souvent un Chromecast HD
-   arrêté faute de mémoire sur un master copie à 20 Mbps ou plus.
+   arrêté faute de mémoire sur un master copie à haut débit (constaté).
 3. **Qu'a vu le téléphone ?** Cherchez `cast_sender_stall` : l'émetteur
    envoie `state=playing frozen=<n>s pos=<p>` quand le SDK Cast indique encore
    PLAYING mais que la position n'a pas bougé depuis 20 s, et `state=idle
@@ -400,7 +399,7 @@ machine n'est nécessaire. Les heures sont en UTC. Chaque balise est une ligne
    client's line` (la mesure `maxKbps` du récepteur ou son repli
    `abr=floor` ; le master transcodé qui suit porte la raison
    `client_line_exceeded` ou `abr_floor_requested`). Une session partie sur un
-   master copie à 20 Mbps ou plus et retombée sur un palier 1080p ajusté
+   master copie à haut débit et retombée sur un palier 1080p ajusté
    après quelques secondes est le repli qui fonctionne comme prévu ; un re-LOAD
    qui repart sur le master copie est le scénario qui fait planter un Chromecast HD.
 6. **Manque de ressources côté serveur ?** Cherchez `on-demand resource refused` : une
@@ -413,7 +412,7 @@ problème est dans la session Cast du téléphone (le SDK, le réseau vers le
 téléviseur). Si les balises du récepteur s'arrêtent en premier, regardez le
 téléviseur : mémoire, codec, débit du flux.
 
-## Arrêter une session ou un appareil compromis
+## Arrêter une session ou un appareil compromis { #stop-a-session-or-a-compromised-device }
 
 **Symptôme** : un appareil inattendu dans **Administration → En cours de lecture**,
 ou un utilisateur signale un appareil inconnu dans sa liste de sessions.
@@ -444,7 +443,7 @@ ou un utilisateur signale un appareil inconnu dans sa liste de sessions.
    [Récupération](recovery.md#give-a-user-a-new-password)), puis **Activer**
    le compte à nouveau.
 
-## Un scan de bibliothèque est bloqué
+## Un scan de bibliothèque est bloqué { #a-library-scan-is-stuck }
 
 **Symptôme** : un scan s'affiche en cours depuis des heures sans progression
 de fichier dans le journal.
@@ -468,7 +467,7 @@ de fichier dans le journal.
    sudo sysctl -p
    ```
 
-## Aide-mémoire
+## Aide-mémoire { #cheatsheet }
 
 ```sh
 # État de tout

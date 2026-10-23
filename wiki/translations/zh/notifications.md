@@ -1,5 +1,5 @@
 ---
-source_sha: 8d9681876fde4e364272e6256089c42f068178b9ea4848f17733c827d82a157f
+source_sha: faa0ef0aa6b7e0d5694320b07792f4f14f19fdd79e035ec57246a43c7954ffb8
 reviewed: true
 ---
 # 邮件和通知 { #e-mail-and-notifications }
@@ -78,7 +78,7 @@ Evey 通过一个您已有账户的邮件服务器发送邮件：您的邮件服
 ## 让用户自行重置密码 { #let-people-reset-their-password }
 
 1. 设置好邮件（见上文）。
-2. 在**管理 → 服务器配置 → 服务器设置**里开启**密码找回**。它会立即生效。
+2. 在**管理 → 服务器配置 → 账户与安全 → 登录与防护**里开启**密码找回**。它会立即生效。
 3. 登录页上现在会显示**忘记密码？**。它会用邮件发送一个链接，用来设置新密码。
 
 没有邮件服务器时，即使开启了这个选项，链接也保持隐藏。
@@ -90,7 +90,7 @@ retention 30 d: internal/app/notification/service.go defaultRetentionDays ; grou
 list filtered by library access: internal/adapters/driving/grpcapi/notification_handler.go allowedLibraryIDs
 bell on TV and mobile: frontend/apps/tv/src/components/TopHeader.tsx ; frontend/apps/mobile/app/(auth)/settings/notifications.tsx
 levels: batching.go shouldNotify (relevant == highly_relevant) + fetchFavoriteGenres (GetFavoriteGenresBatch minCount 3, window 200 sessions: watch_history_analyzer.go)
-defaults all: migrations/000005_notifications.up.sql (notification_settings_global) ; UI: frontend/apps/web/src/features/user/NotificationSettings.tsx ; i18n notificationSettings.level*
+defaults all: internal/adapters/driven/postgres/migrations/000005_notifications.up.sql (notification_settings_global) ; UI: frontend/apps/web/src/features/user/NotificationSettings.tsx ; i18n notificationSettings.level*
 email: internal/adapters/driven/email/notification_emailer.go (push title key, recipient locale, one per account per FanoutID, base URL link)
 SMTP live from the card, env fallback, panel host = panel only, defaults 587/starttls: internal/app/config/smtp.go (ResolveSMTPSettings, LiveSMTP) ; test send: internal/adapters/driving/http/smtp_test_handler.go
 labels: i18n admin.serverConfig emailSmtp, smtpHost, port, smtpUsername, smtpPassword, fromAddress, tlsMode, saveSmtp, sendTestEmail

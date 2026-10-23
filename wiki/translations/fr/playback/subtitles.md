@@ -1,8 +1,8 @@
 ---
-source_sha: 0df87f23e8ea13dc773d22a1984be991c45751df70cc5c7cfc5cad5238cb7d7b
+source_sha: feb83bccbedf5e609e034ecb346fbbf9b07ec032d4617b4107dafff242d4fda0
 reviewed: true
 ---
-# Sous-titres
+# Sous-titres { #subtitles }
 
 **Pour activer les sous-titres**, ouvrez le menu des réglages dans le lecteur
 et choisissez **Sous-titres**. Pour les avoir dans votre langue à chaque fois,
@@ -28,7 +28,7 @@ différents :
 La suite de cette page explique chaque format de sous-titres et ce qu'il
 change pour le serveur.
 
-## Ce que chaque format fait à la vidéo
+## Ce que chaque format fait à la vidéo { #what-each-format-does-to-the-video }
 
 | Format | Exemples | Affichage | Effet sur la vidéo |
 | --- | --- | --- | --- |
@@ -47,7 +47,7 @@ Un sous-titre image n'est incrusté que si vous le sélectionnez réellement. Un
 fichier qui se contente d'en contenir un, ou de le marquer par défaut, garde
 sa lecture directe.
 
-## Incrustation des sous-titres
+## Incrustation des sous-titres { #subtitle-burn-in }
 
 Le réglage de profil **Incrustation des sous-titres** (**Paramètres →
 Lecture**) s'applique aux formats de la dernière ligne :
@@ -58,15 +58,14 @@ Lecture**) s'applique aux formats de la dernière ligne :
 | **Toujours incruster** | Comme Auto. | Dessinés par le lecteur : le texte n'est jamais incrusté, quel que soit le réglage. |
 | **Jamais incruster** | Ne peut pas s'afficher : la vidéo n'est jamais réencodée pour un sous-titre. | Dessinés par le lecteur. |
 
-## La première fois qu'un sous-titre s'affiche
+## La première fois qu'un sous-titre s'affiche { #the-first-time-a-subtitle-is-shown }
 
 Un sous-titre contenu dans le fichier (texte ou PGS) est extrait par le
 serveur la première fois que quelqu'un le choisit, puis conservé : tous les
 visionnages suivants, par n'importe qui, l'obtiennent aussitôt. Quand l'index
 du fichier couvre la piste, le serveur ne lit que les blocs du sous-titre et
 cela prend quelques secondes. Sans cet index, il lit tout le fichier :
-plusieurs minutes pour un gros film (environ cinq pour un remux UHD de 85 Go
-sur un disque local, davantage quand le même serveur diffuse en parallèle).
+plusieurs minutes pour un gros film (quelques minutes pour un très gros fichier, davantage quand le même serveur diffuse en parallèle).
 
 Pendant ce temps, le lecteur affiche **Sous-titres en préparation…** à
 l'endroit des sous-titres, revérifie de lui-même et les affiche dès qu'ils sont
@@ -78,7 +77,7 @@ mémorisé : la choisir de nouveau ne relance pas une lecture complète ; une
 mise à jour de MKVGo, la bibliothèque qui l'extrait, retente. Voir
 [MKVGo dans Evey](mkvgo.md#what-mkvgo-does) pour ce qui est lu et quand.
 
-## Choisir et ajuster
+## Choisir et ajuster { #choosing-and-adjusting }
 
 - Les lecteurs sélectionnent le sous-titre de la **Langue des sous-titres par
   défaut** du profil, puis la piste que le fichier marque par défaut (une

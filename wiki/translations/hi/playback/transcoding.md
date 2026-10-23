@@ -1,8 +1,8 @@
 ---
-source_sha: 8dce7b245de8c61f7635ccfc84431db9870d2376b17d9a0280028477af945f80
+source_sha: e039606b33ab2207d3774f9bacb71ee3d18f0d12f52d9dc02bec1e9817e1c91e
 reviewed: true
 ---
-# ट्रांसकोडिंग और सर्वर की क्षमता
+# ट्रांसकोडिंग और सर्वर की क्षमता { #transcoding-and-server-capacity }
 
 **कम शब्दों में:**
 
@@ -25,7 +25,7 @@ reviewed: true
 नापता है कि वह क्या एन्कोड कर सकता है, वह इस क्षमता को कैसे बाँटता है, और भर
 जाने पर दर्शक को क्या दिखता है।
 
-## सर्वर खुद को नापता है
+## सर्वर खुद को नापता है { #the-server-measures-itself }
 
 क्षमता कोई सेटिंग नहीं है जिसका आप अंदाज़ा लगाएँ। सर्वर उसे नापता है:
 
@@ -39,15 +39,14 @@ reviewed: true
   है। नतीजा है हर एक का सबसे ऊँचा रिज़ॉल्यूशन जिसे वह रियल टाइम में लगातार दे
   सके, और हर तरह की स्ट्रीम की लागत।
 - **दोबारा।** हार्डवेयर बदलने के बाद, या **एडमिन → ट्रांसकोडिंग → एनकोड
-  कैलिब्रेशन** में **फिर से कैलिब्रेट करें** दबाने पर। यह बटन तब तक रुकता है
-  जब तक कोई देख न रहा हो।
+  कैलिब्रेशन** में **फिर से कैलिब्रेट करें** दबाने पर। जब कोई देख रहा हो तो यह बटन मना कर देता है; सिर्फ़ अपने-आप होने वाला दोबारा माप सर्वर के खाली होने का इंतज़ार करता है।
 
 जब माप चल रहा हो, तो जिस प्लेबैक को ट्रांसकोड की ज़रूरत है वह **सर्वर खुद को
 कैलिब्रेट कर रहा है** दिखाता है, और उससे थोड़ी देर बाद फिर कोशिश करने को कहा
 जाता है। सीधे प्लेबैक और रीमक्स पर कोई असर नहीं होता।
 
 अगर प्रोसेसर इनमें से कोई भी रिज़ॉल्यूशन लगातार नहीं दे पाता, तब भी सर्वर
-720p (SDR) और 480p (HDR) देता है, एक बार में एक स्ट्रीम।
+720p (SDR) और 480p (HDR) देता है; एक साथ कितनी स्ट्रीम चलेंगी, यह वीडियो सेशन लिमिटर के बजट से तय होता है।
 
 माप के लिए इस क्रम में क्लिप ली जाती है: आपकी दी हुई क्लिप, या एक बार डाउनलोड
 की गई और SHA256 से जाँची गई एक संदर्भ क्लिप, या उसी समय बनाई गई एक नकली
@@ -62,7 +61,7 @@ services:
       EVEY_BENCH_SDR_SAMPLE: /data/bench/my-4k-sdr.hevc
 ```
 
-## क्षमता बाँटना
+## क्षमता बाँटना { #sharing-the-capacity }
 
 **लाइव प्लेबैक क्षमता** (**एडमिन → ट्रांसकोडिंग**) उन वीडियो स्ट्रीम की
 संख्या है जो एक ही समय पर एन्कोड हो सकती हैं। यह माप से निकलती है और हार्डवेयर
@@ -106,11 +105,11 @@ services:
 देता है। देखें
 [निगरानी और लॉग](../operations/monitoring.md#how-playback-actually-went)।
 
-## क्या एन्कोड होता है
+## क्या एन्कोड होता है { #what-is-encoded }
 
 | | डिफ़ॉल्ट |
 | --- | --- |
-| वीडियो कोडेक | H.264। HEVC तब, जब प्लेयर उसे डिकोड करता हो और कोई ग्राफ़िक्स कार्ड उसे एन्कोड करता हो, या जब प्रोफ़ाइल का **पसंदीदा वीडियो कोडेक** यह माँगे; AV1 तब, जब यह चालू हो (**AV1 आउटपुट**, सिर्फ़ हार्डवेयर पर) और प्लेयर उसे डिकोड करता हो। |
+| वीडियो कोडेक | H.264। HEVC आउटपुट तब, जब कोई नापा हुआ रूट इसे साबित करे और प्लेयर उसे डिकोड करता हो (HDR पासथ्रू रूट, या जब प्रोफ़ाइल का **पसंदीदा वीडियो कोडेक** यह माँगे); AV1 तब, जब यह चालू हो (**AV1 आउटपुट**, सिर्फ़ हार्डवेयर पर) और प्लेयर उसे डिकोड करता हो। |
 | रिज़ॉल्यूशन | सोर्स वाला, जब तक कोई सीमा न लगे: प्लेयर की सबसे ऊँची सीमा, बिटरेट की सीमा, या जो सर्वर रियल टाइम में एन्कोड कर सके। |
 | बिटरेट | सोर्स के हिसाब से, रिज़ॉल्यूशन के अनुपात में। **वीडियो बिटरेट सीमा** इसे सीमित करती है; **वीडियो बिटरेट सीमा, दूरस्थ दर्शक** लोकल नेटवर्क के बाहर इसे और कम रखती है। |
 | ऑडियो | AAC। देखें [ऑडियो](audio.md)। |
@@ -121,13 +120,12 @@ services:
   <figcaption><strong>एडमिन → ट्रांसकोडिंग</strong> की दो सीमाएँ: हर दर्शक के लिए, और लोकल नेटवर्क के बाहर के दर्शकों के लिए (स्क्रीन अंग्रेज़ी में)।</figcaption>
 </figure>
 
-## ट्रांसकोडिंग कैश
+## ट्रांसकोडिंग कैश { #the-transcoding-cache }
 
 एन्कोड हुए सेगमेंट डिस्क पर `evey-cache` वॉल्यूम में रखे जाते हैं, और जब कोई
 दूसरा दर्शक, या वही दर्शक बाद में, वही टाइटल उसी फ़ैसले के साथ चलाता है तो
 दोबारा इस्तेमाल होते हैं। **एडमिन → ट्रांसकोड कैश** उसका साइज़ दिखाता है और उसे
-खाली करता है; **ट्रांसकोड कैश बजट** (**एडमिन → सर्वर कॉन्फ़िग → सर्वर
-सेटिंग्स**) उसकी सीमा तय करता है। **सभी साफ़ करें** आपकी फ़ाइलों से निकाले गए
+खाली करता है; **ट्रांसकोड कैश बजट** (**एडमिन → ट्रांसकोडिंग**) उसकी सीमा तय करता है। **सभी साफ़ करें** आपकी फ़ाइलों से निकाले गए
 उपशीर्षक भी हटा देता है, जो `./evey-data/subtitles` में रखे होते हैं: माँगने पर
 वे फिर से निकाले जाते हैं।
 
@@ -148,7 +146,7 @@ services:
     है, ताकि किसी को पिछले वर्ज़न के सेगमेंट न मिलें। कोई देख रहा हो तब कैश
     खाली करने पर उसकी स्ट्रीम एक बार बफ़र होती है, फिर चलने लगती है।
 
-## क्या हो रहा है, यह जाँचना
+## क्या हो रहा है, यह जाँचना { #checking-what-happens }
 
 - **एडमिन → अभी चल रहा है**: हर स्ट्रीम, हर ट्रैक का तरीका, और उसे एन्कोड
   करने वाला बैकएंड।
@@ -164,7 +162,7 @@ clear all empties extracted subtitles: internal/app/transcoding/service.go - Wit
 calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - swBenchLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
 capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability
 busy: i18n errors max_concurrent_reached
-output codec: internal/app/transcoding/resolver_route.go - outputCodecFor, codecWithPassthrough ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
+output codec: internal/app/transcoding/resolver_route.go ; internal/app/transcoding/decision.go ; internal/app/transcoding/testdata/route_golden.txt ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
 single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT, default on)
 bench samples: internal/config/config.go (EVEY_BENCH_{SDR,HDR}_SAMPLE{,_URL,_SHA256})
 cache budget, clear while live: i18n admin.serverSettings.transcodeCacheMaxGB, admin.transcodeCache.clearConfirmLiveSessions ; automatic limits: admin.qoe.overrides.*

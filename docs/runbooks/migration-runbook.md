@@ -159,5 +159,5 @@ migrations: internal/adapters/driven/postgres/migrate.go - RunMigrations, Rollba
 cli: cmd/evey/admin.go - adminMigrate, adminMigrateUsage ; cmd/evey/admin_ops.go - adminRollback
 embedded database and healthcheck start period: docker/entrypoint.sh (postgres.password, EVEY_DB_PASSWORD_FILE) ; Dockerfile - HEALTHCHECK --start-period
 backup route: internal/adapters/driving/http/backup_handler.go (POST /api/v1/admin/backups)
-labels: i18n/en/admin.yaml - sidebar.backupRestore, backup.schedule.runNow, transcodeCache.clearAll
+labels: i18n/en/admin.yaml - nav.backupRestore, backup.schedule.runNow, transcodeCache.clearAll
 -->

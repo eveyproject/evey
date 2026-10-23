@@ -1,8 +1,8 @@
 ---
-source_sha: 0bcab9ec2d5eb546c48ee32a751bbd41320d9cb2c60cab549b010ec73e26f367
+source_sha: e3b24610d4942cf71d19babf82add41a0f2e47fd513b1cc840fba554421a75e9
 reviewed: true
 ---
-# Bibliotheken und Metadaten
+# Bibliotheken und Metadaten { #libraries-and-metadata }
 
 Die Variablen hinter dem Scannen, den Metadatenquellen und der
 Intro-Erkennung. Die meisten haben ein Feld im Verwaltungsbereich, das
@@ -10,16 +10,16 @@ Vorrang hat, sobald dort ein Wert gespeichert ist. Die Seite des
 Verwaltungsbereichs ist unter
 [Bibliotheken und Metadaten](../administration/libraries.md) beschrieben.
 
-## Scannen
+## Scannen { #scanning }
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | Überwachung der Dateien in Echtzeit. | Serverkonfiguration → Servereinstellungen → **Bibliotheks-Dateiüberwachung**, Neustart |
-| `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | Wie oft die Ordner auf das geprüft werden, was der Überwachung entgangen ist (Netzwerkfreigaben). | Serverkonfiguration → Servereinstellungen → **Intervall für periodischen Scan**, Neustart |
+| `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | Überwachung der Dateien in Echtzeit. | Serverkonfiguration → Bibliotheken → **Bibliotheks-Dateiüberwachung**, Neustart |
+| `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | Wie oft die Ordner auf das geprüft werden, was der Überwachung entgangen ist (Netzwerkfreigaben). | Serverkonfiguration → Bibliotheken → **Intervall für periodischen Scan**, Neustart |
 | `EVEY_LIBRARY_SCAN_WORKERS` | aus dem CPU-Anteil | Dateien, die bei einem Scan gleichzeitig analysiert werden. Von Hand gesetzt, umgeht der Wert für Scans den Anteil unter **Zugeteilte Rechenleistung**. | keine |
 | `EVEY_SEEKINDEX_STATE_DIR` | `/data/seek-index` | Wo der Scan unter Medienzustand seine Ergebnisse und seinen laufenden Auftrag über Neustarts hinweg aufbewahrt. Leer: wird nicht aufbewahrt. | keine |
 
-## Metadaten
+## Metadaten { #metadata }
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
@@ -29,14 +29,14 @@ Verwaltungsbereichs ist unter
 | `EVEY_OPENSUBTITLES_API_KEY` | leer | Ein OpenSubtitles-Schlüssel, für die Suche nach Untertiteln über die API. | Serverkonfiguration → API-Schlüssel → **OpenSubtitles API-Schlüssel**, Neustart |
 | `EVEY_OPENSUBTITLES_USERNAME`, `EVEY_OPENSUBTITLES_PASSWORD` | leer | Ein OpenSubtitles-Konto, mit dem Evey sich bei der API anmeldet. | keine |
 
-## Intro, Rückblick und Abspann
+## Intro, Rückblick und Abspann { #intro-recap-and-credits }
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
 | `EVEY_INTRO_PROVIDERS_ENABLED` | `false` | Nutzt die Community-Datenbanken (TheIntroDB, dann IntroDB) vor der eigenen Erkennung des Servers. | Serverkonfiguration → Intro-Skip-Anbieter → **Externe Intro-Skip-Anbieter aktivieren**, Neustart |
 | `EVEY_INTRO_TIDB_API_KEY` | leer | Ein TheIntroDB-Schlüssel: 500 Abfragen pro Tag statt 100. | Serverkonfiguration → API-Schlüssel → **TheIntroDB API-Schlüssel**, Neustart |
-| `EVEY_INTRO_AUTO_SKIP_ENABLED` | `false` | Jeder Player überspringt erkannte Intros von selbst. | Serverkonfiguration → Servereinstellungen → **Intros automatisch überspringen**, sofort |
-| `EVEY_INTRO_SKIP_PREVIEW_ENABLED` | `false` | Bietet auch an, die Vorschau auf die nächste Folge zu überspringen. | Serverkonfiguration → Servereinstellungen → **Vorschau-Segmente überspringen**, sofort |
+| `EVEY_INTRO_AUTO_SKIP_ENABLED` | `false` | Jeder Player überspringt erkannte Intros von selbst. | Serverkonfiguration → Bibliotheken → **Intros automatisch überspringen**, sofort |
+| `EVEY_INTRO_SKIP_PREVIEW_ENABLED` | `false` | Bietet auch an, die Vorschau auf die nächste Folge zu überspringen. | Serverkonfiguration → Bibliotheken → **Vorschau-Segmente überspringen**, sofort |
 | `EVEY_INTRO_DETECTION_MAX_PARALLEL` | aus dem CPU-Anteil | Titel, die gleichzeitig analysiert werden. Von Hand gesetzt, umgeht der Wert für diese Aufgabe den Anteil unter **Zugeteilte Rechenleistung**. | keine |
 | `EVEY_INTRO_FFMPEG_THREADS` | `1` | Threads pro ffmpeg-Prozess während der Erkennung (1 bis 16). | keine |
 

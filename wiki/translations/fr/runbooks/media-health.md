@@ -1,8 +1,8 @@
 ---
-source_sha: 181fd5fb4e9492dc7feeae765f9c469162e43e7a56a39a6399be584d8e660049
+source_sha: 62df894506621ac2b76e3b103c93c675fdf1c4c85203b1ce7599afdc157bbca8
 reviewed: true
 ---
-# Santé des médias
+# Santé des médias { #media-health }
 
 Un titre se déplace lentement, cale toujours au même endroit, ou son audio
 se décale peu à peu : **Administration → Santé des médias** lit chaque fichier MKV/WebM de vos
@@ -15,7 +15,7 @@ signalé une fois et peut être marqué comme vu.
   <figcaption>Une analyse avec un fichier qu'Evey sait réparer (son index de lecture manque) et une remarque (des octets en trop après la fin du fichier, sans conséquence) (interface en anglais).</figcaption>
 </figure>
 
-## Deux verdicts
+## Deux verdicts { #two-verdicts }
 
 Un fichier qui n'est pas **Sain** (index, conteneur, tailles et calage de
 l'audio corrects) reçoit l'une de deux réponses, et volontairement deux
@@ -30,7 +30,7 @@ Aucune des deux ne vous laisse de tâche manuelle. Une mesure sur laquelle Evey 
 peut pas agir reste une remarque, et une mesure peut se tromper : si le
 fichier se lit correctement, il n'y a rien à faire.
 
-### Réparable
+### Réparable { #repairable }
 
 - **Sans index de lecture**, ou avec un index inutilisable. Le symptôme : un déplacement
   dans la lecture ou une reprise lents. L'index est reconstruit dans une copie
@@ -50,7 +50,7 @@ fichier se lit correctement, il n'y a rien à faire.
   **Ré-entrelacer les pistes** les réécrit côte à côte sans réencodage et vérifie
   que chaque paquet a été conservé avant de remplacer le fichier.
 
-### Info
+### Info { #info }
 
 - **Téléchargement incomplet** : la fin du fichier n'est jamais arrivée. Il se
   lit jusqu'à la coupure. Aucun outil ne récupère la partie manquante ; seule la
@@ -76,7 +76,7 @@ fichier se lit correctement, il n'y a rien à faire.
 - **Illisible** : l'analyse n'a pas pu lire le fichier (absent, illisible, ou un
   conteneur refusé par l'analyseur). Vérifiez le montage ou la source.
 
-## Vérifier la synchro à l'œil
+## Vérifier la synchro à l'œil { #checking-the-sync-by-eye }
 
 Pour les trois remarques sur l'audio, **Vérifier la synchro**, sur la ligne du
 fichier, fabrique un court extrait sur le serveur : choisissez un moment, une
@@ -88,7 +88,7 @@ visionnage tranche.
 enregistrée comme votre jugement, pas comme une mesure, et **Historique** peut
 l'annuler.
 
-## Marquer comme vu
+## Marquer comme vu { #marking-as-seen }
 
 **Vu, ne plus signaler** (un fichier) et **Tout marquer comme vu** (un groupe)
 retirent une remarque Info de la vue **En attente**. Seules les remarques
@@ -100,16 +100,16 @@ Les vues au-dessus du tableau (**En attente**, **Réparable**, **Info**,
 **Vus**, **Sauvegardes**, **Tous**) et la zone de recherche servent à traiter une
 grande bibliothèque : **En attente** est la liste des choses à faire.
 
-## Analyses
+## Analyses { #scans }
 
-Une analyse lit le début de chaque fichier (quelques kilo-octets) et reprend la
+Une analyse lit trois petites zones de chaque fichier (le début, l'index près de la fin et la fin) et reprend la
 réponse précédente pour un fichier qui n'a pas changé. **Usage des disques** règle
 le rythme :
 
 - **Discret** : un fichier à la fois, puis une pause aussi longue que la lecture.
   Les disques restent libres environ la moitié du temps, et quelqu'un peut
   continuer à regarder.
-- **Rapide** : plusieurs fichiers à la fois, sans pause. Environ trois fois plus
+- **Rapide** : plusieurs fichiers à la fois, sans pause. Nettement plus
   rapide sur une bibliothèque répartie sur plusieurs disques, mais la lecture
   peut saccader pendant ce temps.
 
@@ -118,7 +118,7 @@ une nouvelle version d'Evey dont les contrôles ont changé. La première analys
 après une telle mise à jour est donc longue sur une grande bibliothèque ; les
 suivantes redeviennent rapides.
 
-## Sauvegardes, historique et annulation
+## Sauvegardes, historique et annulation { #backups-history-and-undo }
 
 **Conserver les sauvegardes** est activé par défaut : chaque fichier réécrit garde
 son original en `.mkvgobak` à côté de lui. **Restaurer** remet un fichier, **Tout
@@ -150,7 +150,7 @@ lecture-écriture dans le conteneur (pas de `:ro` sur le volume) ; après une pa
 qui a rencontré un volume en lecture seule, la page le signale. L'analyse
 fonctionne dans les deux cas.
 
-## En ligne de commande
+## En ligne de commande { #from-the-command-line }
 
 Le même moteur est disponible dans la CLI d'exploitation, voir
 [Ligne de commande](cli.md#media-maintenance) :

@@ -1,8 +1,8 @@
 ---
-source_sha: 181fd5fb4e9492dc7feeae765f9c469162e43e7a56a39a6399be584d8e660049
+source_sha: 62df894506621ac2b76e3b103c93c675fdf1c4c85203b1ce7599afdc157bbca8
 reviewed: true
 ---
-# Medienzustand
+# Medienzustand { #media-health }
 
 Bei einem Titel dauert das Springen lange, die Wiedergabe bleibt an einer
 Stelle hängen, oder der Ton verschiebt sich: **Verwaltung → Medienzustand** liest jede MKV/WebM-Datei
@@ -15,7 +15,7 @@ Rest wird einmal erwähnt und kann als gesehen markiert werden.
   <figcaption>Ein Scan mit einer Datei, die Evey reparieren kann (ihr Seek-Index fehlt), und einem Hinweis (überschüssige Bytes nach dem Ende der Datei, harmlos) (Oberfläche auf Englisch).</figcaption>
 </figure>
 
-## Zwei Urteile
+## Zwei Urteile { #two-verdicts }
 
 Eine Datei, die nicht **Gesund** ist (Index, Container, Größen und das Timing
 des Tons stimmen), bekommt eine von zwei Antworten, und mit Absicht nur zwei:
@@ -29,7 +29,7 @@ Keines der beiden Urteile verlangt manuelle Arbeit von Ihnen. Eine Messung,
 mit der Evey nichts anfangen kann, ist nur ein Hinweis, und eine Messung kann
 falsch sein: Läuft die Datei korrekt, ist nichts zu tun.
 
-### Reparierbar
+### Reparierbar { #repairable }
 
 - **Ohne Seek-Index**, oder mit einem, der nicht nutzbar ist. Man merkt es an
   langsamem Springen oder langsamem Fortsetzen. Der Index wird in einer
@@ -51,7 +51,7 @@ falsch sein: Läuft die Datei korrekt, ist nichts zu tun.
   **Spuren neu verschachteln** schreibt sie ohne Neukodierung nebeneinander
   und prüft, dass jedes Paket angekommen ist, bevor die Datei ersetzt wird.
 
-### Info
+### Info { #info }
 
 - **Unvollständiger Download**: Das Ende der Datei ist nie angekommen. Sie
   läuft bis zu der Stelle, an der sie abbricht. Kein Werkzeug holt den
@@ -79,7 +79,7 @@ falsch sein: Läuft die Datei korrekt, ist nichts zu tun.
   lesbar, oder ihr Container wurde vom Parser abgelehnt). Prüfen Sie die
   Einbindung des Laufwerks oder die Quelle.
 
-## Die Synchronität mit dem Auge prüfen
+## Die Synchronität mit dem Auge prüfen { #checking-the-sync-by-eye }
 
 Für die drei Hinweise zum Ton baut **Synchronität prüfen** in der Zeile der
 Datei einen kurzen Clip auf dem Server: Wählen Sie einen Moment, eine Spur und
@@ -91,7 +91,7 @@ Bild passt; das entscheidet nur das Hinschauen.
 Versatz. Die Änderung wird als Ihr Urteil gespeichert, nicht als Messung, und
 **Verlauf** kann sie rückgängig machen.
 
-## Als gesehen markieren
+## Als gesehen markieren { #marking-as-seen }
 
 **Gesehen, nicht mehr melden** (eine Datei) und **Alle als gesehen
 markieren** (eine Gruppe) nehmen einen Info-Hinweis aus der Ansicht
@@ -104,16 +104,16 @@ Mit den Ansichten über der Tabelle (**Wartend**, **Reparierbar**, **Info**,
 **Gesehen**, **Sicherungen**, **Alle**) und dem Suchfeld arbeiten Sie sich
 durch eine große Bibliothek: **Wartend** ist die Liste der offenen Punkte.
 
-## Scans
+## Scans { #scans }
 
-Ein Scan liest den Anfang jeder Datei (einige Kilobyte). Für eine Datei, die
+Ein Scan liest drei kleine Bereiche jeder Datei (den Anfang, den Index nahe dem Ende und das Ende). Für eine Datei, die
 sich nicht geändert hat, übernimmt er die vorherige Antwort.
 **Festplattennutzung** legt das Tempo fest:
 
 - **Zurückhaltend**: eine Datei nach der anderen, dann eine Pause, so lang wie
   das Lesen gedauert hat. Die Festplatten bleiben etwa die Hälfte der Zeit
   frei, so dass jemand weiterschauen kann.
-- **Schnell**: mehrere Dateien gleichzeitig, ohne Pause. Etwa dreimal
+- **Schnell**: mehrere Dateien gleichzeitig, ohne Pause. Spürbar
   schneller, wenn die Bibliothek auf mehreren Festplatten liegt, aber die
   Wiedergabe kann währenddessen ruckeln.
 
@@ -122,7 +122,7 @@ geändert hat, und eine neue Version von Evey, deren Prüfungen sich geändert
 haben. Der erste Scan nach einem solchen Update dauert bei einer großen
 Bibliothek daher lange; die folgenden sind wieder schnell.
 
-## Sicherungen, Verlauf und Rückgängigmachen
+## Sicherungen, Verlauf und Rückgängigmachen { #backups-history-and-undo }
 
 **Sicherungen behalten** ist standardmäßig an: Jede umgeschriebene Datei
 behält ihr Original als `.mkvgobak` daneben. **Wiederherstellen** stellt eine
@@ -155,7 +155,7 @@ Schreibrecht eingebunden sein (kein `:ro` am Volume). Ist ein Lauf auf ein
 schreibgeschütztes Volume gestoßen, sagt die Seite das. Scannen funktioniert
 in beiden Fällen.
 
-## Von der Kommandozeile
+## Von der Kommandozeile { #from-the-command-line }
 
 Dieselbe Technik gibt es in der Kommandozeile für Betreiber, siehe
 [Kommandozeile](cli.md#media-maintenance):

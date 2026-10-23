@@ -11,4 +11,4 @@ import plugin_api_pb2 as pb
 import plugin_api_pb2_grpc as rpc
 ```
 
-Requires `grpcio` at runtime (pre-installed in Evey container).
+Requires `grpcio` at runtime (provided by the Evey image).

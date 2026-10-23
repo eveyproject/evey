@@ -1,8 +1,8 @@
 ---
-source_sha: 1632ea5df6d8e43d0a8895c8efa853e83316a37433cb8b556d00d317a9ee4951
+source_sha: f625c3059af6349cfcff4f14c85f17c7a0a8c26cfeb5772eca562bc3b66c1047
 reviewed: true
 ---
-# Serveur et réseau
+# Serveur et réseau { #server-and-network }
 
 Les variables qui indiquent où le serveur est publié, à quels proxys il fait confiance, qui
 peut le joindre de l'extérieur et combien de requêtes il accepte. La plupart
@@ -10,16 +10,16 @@ se définissent une fois dans le fichier compose ; ce que **Administration → A
 distant** enregistre ensuite l'emporte sur elles, comme l'explique la
 [Référence de configuration](../configuration.md).
 
-## Adresse et ports
+## Adresse et ports { #address-and-ports }
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
 | `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | L'adresse publique. Une adresse en `https://` active les cookies `Secure`, HSTS et la confiance dans `X-Forwarded-Proto`. Les liens des e-mails, les redirections d'authentification unique et les URL de diffusion en sont dérivés. | Accès distant → **URL externe** l'emporte quand elle est renseignée, immédiat ; une URL externe en `https://` active aussi le HTTPS |
 | `EVEY_SERVER_PORT` | `9090` | Le port gRPC interne. L'API HTTP et l'interface web écoutent sur ce port plus un (`9091`). | aucun |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | L'adresse d'écoute du port gRPC. Le contrôle d'accès distant ne couvre pas gRPC : l'élargir (`0.0.0.0`) affiche un avertissement, et le filtrer devient votre responsabilité. | aucun |
-| `EVEY_SERVER_NAME` | `Evey` | Le nom affiché sur la page de connexion, dans la liste des serveurs des applications et dans les e-mails. | Configuration du serveur → Paramètres du serveur → **Nom du serveur**, immédiat |
+| `EVEY_SERVER_NAME` | `Evey` | Le nom affiché sur la page de connexion, dans la liste des serveurs des applications et dans les e-mails. | Configuration du serveur → Général → **Nom du serveur**, immédiat |
 
-## Reverse proxy
+## Reverse proxy { #reverse-proxy }
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
@@ -29,7 +29,7 @@ distant** enregistre ensuite l'emporte sur elles, comme l'explique la
 
 Les réglages du proxy qui comptent pour la diffusion : [Configurations de reverse proxy](../reverse-proxy.md).
 
-## Accès distant
+## Accès distant { #remote-access }
 
 Ces variables servent au premier démarrage ; **Administration → Accès distant**
 enregistre ensuite ses propres valeurs et les applique sans redémarrage. La
@@ -43,14 +43,14 @@ façon dont le contrôle décide :
 | `EVEY_REMOTE_ACCESS_LAN_NETWORKS` | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` | Les réseaux considérés comme le réseau domestique. Ajoutez une plage de VPN ou de CGNAT (`100.64.0.0/10`) dont les clients doivent compter comme locaux. | Accès distant → **Réseaux LAN**, immédiat |
 | `EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS` | `0` | Un plafond de débit pour les clients hors du réseau domestique, en kbit/s ; `0` = aucun. Une adresse privée n'est jamais plafonnée. | Accès distant → **Débit distant maximal**, immédiat |
 
-## Limites de requêtes
+## Limites de requêtes { #request-limits }
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Tentatives de connexion par adresse et par minute. | Configuration du serveur → Paramètres du serveur → **Limite connexion**, immédiat |
-| `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Requêtes par adresse et par minute sur l'API. | Configuration du serveur → Paramètres du serveur → **Limite globale**, immédiat |
+| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Tentatives de connexion par adresse et par minute. | Configuration du serveur → Comptes et sécurité → **Limite connexion**, immédiat |
+| `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Requêtes par adresse et par minute sur l'API. | Configuration du serveur → Comptes et sécurité → **Limite globale**, immédiat |
 
-## Utilisateur du conteneur
+## Utilisateur du conteneur { #container-user }
 
 Lues par l'entrypoint, pas par le serveur.
 
@@ -58,7 +58,7 @@ Lues par l'entrypoint, pas par le serveur.
 | --- | --- | --- | --- |
 | `PUID`, `PGID` | propriétaire des montages `/media` | L'utilisateur et le groupe sous lesquels tourne le serveur. `1001` est refusé (réservé aux plugins). Détails dans la [Référence de configuration](../configuration.md#file-ownership-puid-and-pgid). | aucun |
 
-## Démo publique
+## Démo publique { #public-demo }
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |

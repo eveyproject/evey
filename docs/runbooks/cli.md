@@ -59,7 +59,9 @@ evey admin restore-backup <path-to-dump.sql.gz>
                                              Restore the database from a pg_dump.gz file, in a single
                                              transaction. The whole file is checked first: a truncated
                                              or corrupt dump is refused before anything is dropped.
-                                             Existing rows are OVERWRITTEN; waits 5 s for a Ctrl-C
+                                             The dump drops and recreates each table before loading
+                                             it, so it can be restored onto a populated database;
+                                             waits 5 s for a Ctrl-C
                                              before it starts. The .sql.gz suffix is required (not the
                                              panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]
@@ -150,11 +152,17 @@ evey admin rollback                          Read-only advisor: running version,
 evey admin route-bench [--backend nvenc|vaapi|qsv|none] [--heights 1080,2160] [--fps 24,30,50,60] [--out rows.csv] [--json run.json] [<file>...]
                                              Measure what a session of each transcode route costs on
                                              this host against the calibration and the cost model.
-                                             Minutes of full load; never while serving.
+                                             Minutes of full load; never while serving. More flags
+                                             (--device --routes --classes --duration --workdir
+                                             --capability): the full list is in
+                                             `evey admin route-bench --help`.
 evey admin ladder-bench [--scenes 3] [--window 8] [--heights 1080,720] [--crf 18,23,28] [--out rows.csv] [--efficiency --mode full|fast|incremental] <file>...
                                              Encode a few scenes of each title at fixed CRFs and
                                              score encode cost against the ladder's complexity
                                              features. Runs ffmpeg for minutes; never while serving.
+                                             More flags (--preset --ref-height --ref-crf --cache
+                                             --encoders --device): the full list is in
+                                             `evey admin ladder-bench --help`.
 evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Run the per-title probe on the given files: probe time,
                                              early-stop rate and points. Reads and encodes only.
@@ -229,7 +237,7 @@ dispatch and top-level commands: cmd/evey/cli.go - runCLI (version, help, comple
 subcommand table, groups, --help text: cmd/evey/admin_commands.go - adminCommands, adminGroups, printAdminUsage, adminUsage (exit 1 without subcommand) ; drift test cmd/evey/admin_cli_test.go
 sessions ended: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL internal/app/user/token_epoch.go
 backup and restore: cmd/evey/admin_backup.go - adminBackup ; cmd/evey/admin.go - adminRestoreBackup, verifyDumpComplete
-container: Dockerfile (EVEY_DB_PASSWORD_FILE, EVEY_BACKUP_DIR=/data/backups, completion at build time) ; docker/evey-shell.sh - man()
+container: Dockerfile (EVEY_DB_PASSWORD_FILE, completion at build time) ; internal/config/config.go (EVEY_BACKUP_DIR default /data/backups) ; docker/evey-shell.sh - man()
 makefile: Makefile migrate-up / migrate-down / migrate-version
 standalone programs: cmd/intro-backfill, cmd/intro-diag, cmd/trickplay-verify
 -->

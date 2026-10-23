@@ -1,8 +1,8 @@
 ---
-source_sha: 6bbcf7c54732dc7eb7955206675ddd1923616486ecdec3c988c6ad0463cf8a04
+source_sha: 11f247e9600d2a9954d2efb9c3e83b1b5c383eeff81aea6c581b95520eafccc1
 reviewed: true
 ---
-# Transcodage et matériel
+# Transcodage et matériel { #transcoding-and-hardware }
 
 Les variables qui règlent la capacité, la carte graphique, les limites de
 qualité et le cache de transcodage. La plupart des installations n'en
@@ -12,7 +12,7 @@ matériel, comme l'explique
 réglage existe dans **Administration → Configuration transcodage**, la valeur
 enregistrée l'emporte.
 
-## Accélération matérielle
+## Accélération matérielle { #hardware-acceleration }
 
 Donner le GPU au conteneur :
 [Accélération matérielle](../administration/hardware-acceleration.md).
@@ -31,7 +31,7 @@ L'encodeur Intel basse consommation et la sortie AV1 (interrupteur et
 plafond) n'ont pas de variable : ils se règlent uniquement dans **Administration →
 Configuration transcodage**.
 
-## Capacité et limites
+## Capacité et limites { #capacity-and-limits }
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
@@ -44,16 +44,16 @@ Configuration transcodage**.
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS` | `0` (suit la source) | Un plafond sur le débit de la vidéo transcodée. | Configuration transcodage → **Plafond de débit vidéo**, immédiat |
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS` | `0` (aucun) | Le même plafond pour les clients hors du réseau domestique. | Configuration transcodage → **Plafond de débit vidéo, spectateurs distants**, immédiat |
 
-## Cache
+## Cache { #cache }
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | La taille de tout le cache de transcodage (segments, remux, téléchargements préparés), les éléments les moins récemment utilisés partant en premier. | Configuration du serveur → Paramètres du serveur → **Budget du cache de transcodage**, redémarrage |
+| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | La taille de tout le cache de transcodage (segments, remux, téléchargements préparés), les éléments les moins récemment utilisés partant en premier. | Transcodage → **Budget du cache de transcodage**, redémarrage |
 | `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | L'espace libre gardé sur le disque du cache. En dessous, les segments inutilisés sont évincés, puis les nouveaux segments sont refusés plutôt qu'écrits ; les sous-titres extraits ne sont plus conservés et les administrateurs sont prévenus. `0` désactive cette marge. Voir [Le cache de transcodage](../playback/transcoding.md#the-transcoding-cache). | aucun |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Son emplacement. Définie par l'image. | aucun |
 | `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | L'emplacement des miniatures de la barre de lecture. Définie par l'image : elles coûtent cher à régénérer, elles restent donc dans `/data`. | aucun |
 
-## Extrait de calibrage
+## Extrait de calibrage { #calibration-clip }
 
 La mesure encode un extrait 4K. Par ordre de préférence : votre fichier, un
 extrait téléchargé une fois et vérifié par son empreinte, ou un extrait

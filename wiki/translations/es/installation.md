@@ -1,5 +1,5 @@
 ---
-source_sha: 2bab08ea37b694ae604bd4a44524da605fe82d30c8a8999099eafb428e15f45e
+source_sha: d6466c24262a137d7107741ff21ca1ce685f8aa99221f04a4c6f8b6ddfcb6a27
 reviewed: true
 ---
 # Instalación { #install }
@@ -78,8 +78,10 @@ volumes:
 3. Los datos de Evey: base de datos, claves, contraseñas generadas, índice de
    búsqueda, imágenes, registros, copias de seguridad, plugins. **Esta es la
    carpeta de la que hay que hacer copia de seguridad.**
-4. Una caché de vídeo convertido y de fotos y portadas redimensionadas. Se
-   puede borrar cuando quieras y se vuelve a llenar sola.
+4. Una caché de vídeo convertido, de fotos y de portadas de música
+   redimensionadas. Se puede borrar cuando quieras y se vuelve a llenar sola.
+   Las variantes de los pósters no están en ella: viven en
+   `evey-data/artworks`.
 5. Tus archivos. Cambia `/path/to/your/media` por la carpeta real. Dentro de
    Evey, esta carpeta se llama `/media`. Evey puede escribir en ella, y es a
    propósito: así [Salud de medios](runbooks/media-health.md) puede reparar

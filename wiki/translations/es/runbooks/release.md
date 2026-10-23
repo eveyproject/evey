@@ -10,14 +10,18 @@ un procedimiento en lugar de inventarlo.
 
 ## Qué hace la CI con una etiqueta (léelo antes de etiquetar)
 
-`.github/workflows/ci.yml` construye y publica imágenes en cada push y en cada
-etiqueta `v*.*.*`, en tres variantes del entorno de ejecución de los plugins
-(`` (completa, por defecto), `-nodejs`, `-lean`), en `docker.io/eveyproject/evey` y
-`ghcr.io/eveyproject/evey`:
+`.github/workflows/ci.yml` construye y publica imágenes en cada push a
+`main`, `master`, `beta-*` y `alpha-*` (un push que solo toca la documentación
+no construye nada) y en cada etiqueta `v*.*.*`, en `docker.io/eveyproject/evey`.
+Las etiquetas de versión y de versión previa y las ejecuciones manuales publican
+tres variantes del entorno de ejecución de los plugins (completa, por defecto,
+luego `-nodejs` y `-lean`); un push de rama publica solo la imagen por defecto
+(completa). `ghcr.io/eveyproject/evey` es un espejo de mejor esfuerzo: la
+referencia es Docker Hub:
 
-| Lo que haces push | Etiquetas de imagen publicadas (cada una también `-lean` / `-nodejs`) |
+| Lo que haces push | Etiquetas de imagen publicadas (etiquetas y ejecuciones manuales: cada una también `-lean` / `-nodejs`) |
 |---|---|
-| una rama (por ejemplo `master`) | `master`, `sha-<short>` |
+| una rama (por ejemplo `master`) | `master`, `sha-<short>` (solo la imagen por defecto) |
 | la etiqueta `v0.2.0-rc.1` (versión previa: lleva un guion) | `0.2.0-rc.1`, `sha-<short>` |
 | la etiqueta `v0.2.0` (estable) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
@@ -45,7 +49,7 @@ se puede saber qué código se ejecuta sin fiarse de una etiqueta.
 ## Publicar una versión previa (beta cerrada)
 
 1. **Comprobaciones superadas en el commit exacto**: `make pre-push` en local.
-   La CI ejecuta las mismas comprobaciones al hacer push.
+   La CI ejecuta las comprobaciones equivalentes al hacer push.
 2. **Probada antes en una instalación real.** El commit tiene que haberse
    ejecutado ya en el despliegue de referencia como etiqueta `sha-<short>`,
    actualizado con `scripts/evey-update.sh --tag sha-<short> --apply` y
@@ -77,8 +81,9 @@ nunca muevas una etiqueta.
 Los mismos pasos, con una etiqueta `vX.Y.Z` sin sufijo. Hay que comprobar algo
 que una versión previa no necesita: la versión mayor de Postgres que incluye la
 imagen debe figurar en el changelog, porque un operador con la base de datos
-integrada tiene que seguir la sección de actualización de
-[installation.md](../installation.md) cuando cambia.
+integrada tiene que seguir la sección «Pasar a una versión mayor más reciente de Postgres» de
+[advanced-deployments.md](../operations/advanced-deployments.md#move-to-a-newer-postgres-major)
+cuando cambia.
 
 ## Volver atrás una versión
 

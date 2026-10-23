@@ -1,8 +1,8 @@
 ---
-source_sha: 4da6d87a4495603598041edc6216fa889229d188f8579a3799818f7ddbf73246
+source_sha: 80ee38697d8d389ccbe3deabdb838a6d8be5fa0af92f9832ad8d150b574bdcb2
 reviewed: true
 ---
-# कमांड लाइन
+# कमांड लाइन { #command-line }
 
 सर्वर का प्रोग्राम ही ऑपरेटर की कमांड लाइन का काम भी करता है: `evey admin
 <subcommand>` रखरखाव या रिकवरी का एक टूल चलाता है, उसी कॉन्फ़िगरेशन और डेटाबेस
@@ -10,7 +10,7 @@ reviewed: true
 और बताता है कि उन्हें कंटेनर में कैसे चलाएँ; रोज़ के काम (भूला हुआ पासवर्ड, कुंजी
 बदलना, बैकअप से वापस लाना) [रिकवरी](recovery.md) में हैं।
 
-## कमांड चलाना
+## कमांड चलाना { #running-a-command }
 
 आम इंस्टॉलेशन में कमांड कंटेनर के अंदर चलती हैं, जिसमें डेटाबेस का पासवर्ड और
 `EVEY_*` कॉन्फ़िगरेशन पहले से होते हैं:
@@ -39,12 +39,12 @@ Docker के बिना वाले इंस्टॉल पर प्र�
 कोई भी दूसरा पहला आर्ग्युमेंट मना कर दिया जाता है (exit 1), बजाय इसके कि सर्वर
 चुपचाप शुरू हो जाए।
 
-## कमांड
+## कमांड { #the-commands }
 
 नीचे की सूची प्रोग्राम का अपना `--help` टेक्स्ट है, उन्हीं समूहों में जैसे
 `evey admin` उसे छापता है। बिना सबकमांड के `evey admin` हमेशा मौजूदा सूची देता है।
 
-### रिकवरी
+### रिकवरी { #recovery }
 
 ```
 evey admin reset-password --user <email>     Generate a new password for the user, print it once.
@@ -63,7 +63,9 @@ evey admin restore-backup <path-to-dump.sql.gz>
                                              Restore the database from a pg_dump.gz file, in a single
                                              transaction. The whole file is checked first: a truncated
                                              or corrupt dump is refused before anything is dropped.
-                                             Existing rows are OVERWRITTEN; waits 5 s for a Ctrl-C
+                                             The dump drops and recreates each table before loading
+                                             it, so it can be restored onto a populated database;
+                                             waits 5 s for a Ctrl-C
                                              before it starts. The .sql.gz suffix is required (not the
                                              panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]
@@ -82,7 +84,7 @@ evey admin demo-seed [--apply] [--media]     Run the demo bootstrap by hand: the
 उपयोगकर्ता के, दूसरा सबके। खुले ऐप लगभग 30 सेकंड के अंदर इसका पता लगा लेते हैं और
 फिर से साइन इन करने को कहते हैं। पूरे तरीके [रिकवरी](recovery.md) में हैं।
 
-### स्कीमा
+### स्कीमा { #schema }
 
 ```
 evey admin migrate up [--no-backup]          Apply every pending migration.
@@ -99,7 +101,7 @@ evey admin migrate version                   Print the current schema version; e
 को `make migrate-up`, `make migrate-down` और `make migrate-version` के रूप में
 चलाता है, `evey-server` डेव कंटेनर में।
 
-### मीडिया का रखरखाव
+### मीडिया का रखरखाव { #media-maintenance }
 
 ```
 evey admin reindex-no-cue --root <dir> [--apply] [--limit N] [--mode auto|inplace|rewrite] [--deep-verify] [--resync] [--keep-backup=false]
@@ -130,7 +132,7 @@ evey admin artwork-gc [--root <dir>] [--apply]
 यही इंजन **एडमिन → मीडिया स्वास्थ्य** के पीछे भी चलता है, जो किसी लाइब्रेरी की
 मरम्मत का आसान तरीका है: देखें [मीडिया स्वास्थ्य](media-health.md)।
 
-### हर टाइटल की एन्कोडिंग
+### हर टाइटल की एन्कोडिंग { #per-title-encoding }
 
 ```
 evey admin reclassify <media-id>             Force-recompute the complexity class of one media item.
@@ -138,7 +140,7 @@ evey admin reclassify --all                  Wipe every classified row; the back
                                              re-classifies the whole library at its background pace.
 ```
 
-### जाँच
+### जाँच { #diagnostics }
 
 ```
 evey admin doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch (plus
@@ -155,17 +157,23 @@ evey admin rollback                          Read-only advisor: running version,
 evey admin route-bench [--backend nvenc|vaapi|qsv|none] [--heights 1080,2160] [--fps 24,30,50,60] [--out rows.csv] [--json run.json] [<file>...]
                                              Measure what a session of each transcode route costs on
                                              this host against the calibration and the cost model.
-                                             Minutes of full load; never while serving.
+                                             Minutes of full load; never while serving. More flags
+                                             (--device --routes --classes --duration --workdir
+                                             --capability): the full list is in
+                                             `evey admin route-bench --help`.
 evey admin ladder-bench [--scenes 3] [--window 8] [--heights 1080,720] [--crf 18,23,28] [--out rows.csv] [--efficiency --mode full|fast|incremental] <file>...
                                              Encode a few scenes of each title at fixed CRFs and
                                              score encode cost against the ladder's complexity
                                              features. Runs ffmpeg for minutes; never while serving.
+                                             More flags (--preset --ref-height --ref-crf --cache
+                                             --encoders --device): the full list is in
+                                             `evey admin ladder-bench --help`.
 evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Run the per-title probe on the given files: probe time,
                                              early-stop rate and points. Reads and encodes only.
 ```
 
-### क्षमता
+### क्षमता { #capacity }
 
 ```
 evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S] [--cold-cache]
@@ -183,14 +191,14 @@ evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max
                                              load-test --scenario balanced --max-viewers 4
 ```
 
-### कम्प्लीशन के सोर्स
+### कम्प्लीशन के सोर्स { #completion-sources }
 
 ```
 evey admin list-users                        Print user emails, one per line (drives --user completion).
 evey admin list-libraries                    Print every library root path, one per line (drives --root completion).
 ```
 
-## टैब-कम्प्लीशन और मैनुअल
+## टैब-कम्प्लीशन और मैनुअल { #tab-completion-and-the-manual }
 
 प्रोग्राम में अपनी bash कम्प्लीशन और अपना मैनुअल होता है, इसलिए दोनों हमेशा उन
 सबकमांड से मेल खाते हैं जो उसमें हैं:
@@ -212,7 +220,7 @@ Docker इमेज बिल्ड के समय कम्प्लीशन
 (`docker exec -it evey-server bash`) `man evey` का जवाब `evey man --text` को
 पेज-दर-पेज दिखाकर देता है, क्योंकि इमेज में `man` प्रोग्राम नहीं है।
 
-## `evey admin` में क्या नहीं है
+## `evey admin` में क्या नहीं है { #what-is-not-in-evey-admin }
 
 सोर्स कोड में सर्वर के बगल में तीन अलग प्रोग्राम हैं। ये डेवलपर और QA के टूल हैं,
 ऑपरेटर की कमांड नहीं, और Docker इमेज में ये नहीं आते:
@@ -223,7 +231,7 @@ Docker इमेज बिल्ड के समय कम्प्लीशन
 | `cmd/intro-diag` | डिस्क पर रखे trickplay स्प्राइट से समझाना कि किसी एक सीरीज़ पर इंट्रो की पहचान क्यों मिली, या क्यों नहीं मिली। |
 | `cmd/trickplay-verify` | जाँचना कि हर trickplay टाइल अपने दर्ज समय वाला फ़्रेम दिखाती है, ffmpeg से सोर्स फ़्रेम फिर से निकालकर। |
 
-## संबंधित रनबुक
+## संबंधित रनबुक { #related-runbooks }
 
 - [रिकवरी](recovery.md): पासवर्ड रीसेट, JWT कुंजी बदलना, बैकअप से वापस लाना।
 - [डेटाबेस माइग्रेशन](migration-runbook.md): स्कीमा डिप्लॉय, रोलबैक, dirty हालत से निकलना।
@@ -234,7 +242,7 @@ dispatch and top-level commands: cmd/evey/cli.go - runCLI (version, help, comple
 subcommand table, groups, --help text: cmd/evey/admin_commands.go - adminCommands, adminGroups, printAdminUsage, adminUsage (exit 1 without subcommand) ; drift test cmd/evey/admin_cli_test.go
 sessions ended: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL internal/app/user/token_epoch.go
 backup and restore: cmd/evey/admin_backup.go - adminBackup ; cmd/evey/admin.go - adminRestoreBackup, verifyDumpComplete
-container: Dockerfile (EVEY_DB_PASSWORD_FILE, EVEY_BACKUP_DIR=/data/backups, completion at build time) ; docker/evey-shell.sh - man()
+container: Dockerfile (EVEY_DB_PASSWORD_FILE, completion at build time) ; internal/config/config.go (EVEY_BACKUP_DIR default /data/backups) ; docker/evey-shell.sh - man()
 makefile: Makefile migrate-up / migrate-down / migrate-version
 standalone programs: cmd/intro-backfill, cmd/intro-diag, cmd/trickplay-verify
 -->

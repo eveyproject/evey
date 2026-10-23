@@ -1,8 +1,8 @@
 ---
-source_sha: af1b54b0c0e4fe2e86f3015114ce2667b287b7a2ec114f06ab77d2dc7f0de872
+source_sha: d3516f7424f33931631da9e552219eb09b706908443cd9b654577b22f6864c37
 reviewed: true
 ---
-# Wie Evey die Wiedergabeart wählt
+# Wie Evey die Wiedergabeart wählt { #how-playback-is-decided }
 
 Warum läuft ein Film auf dem Fernseher unverändert, wird auf dem Handy aber
 umgewandelt?
@@ -26,7 +26,7 @@ Zuerst kommen die drei Wege und wie man **Stream-Info** liest. Danach folgen
 die genauen Regeln des Servers, für alle, die sie verstehen oder anpassen
 möchten.
 
-## Die drei Ergebnisse
+## Die drei Ergebnisse { #the-three-outcomes }
 
 | In Stream-Info | Was der Player erhält | Was es den Server kostet |
 | --- | --- | --- |
@@ -37,7 +37,7 @@ möchten.
 Der Server versucht sie in dieser Reihenfolge. Bei einer Transkodierung
 kodiert er nur die Spuren neu, bei denen es nötig ist.
 
-## Stream-Info lesen
+## Stream-Info lesen { #reading-stream-info }
 
 **Stream-Info** (die Informationstaste (i) in den Bedienelementen des Players;
 auf dem Fernseher im Optionsmenü des Players) zeigt die **Methode**. Darunter
@@ -57,7 +57,7 @@ Die Gründe fallen in vier Gruppen:
 | Der Player kann die Spur nicht so nutzen, wie sie ist | Videocodec, den dieser Player nicht dekodieren kann · Audiocodec, den dieser Player nicht dekodieren kann · Auflösung über dem Limit des Players · Mehr Audiokanäle, als dieser Player unterstützt · Pixelformat, das der Player nicht decodiert (10-Bit-H.264, 4:2:2) · Container nicht direkt abspielbar (zu HLS umverpackt) |
 | Eine Grenze dieser Sitzung | Bitrate über dem erlaubten Limit · Die vom Client gemessene Leitung trägt die Kopie nicht |
 | Eine Folge für Bild oder Ton | HDR nach SDR konvertiert (Tone-Mapping) · Untertitel ins Bild eingebrannt · Audio-Resynchronisation angefordert |
-| Eine Einstellung oder eine bereits getroffene Entscheidung | Direktwiedergabe im Profil deaktiviert · Remux im Profil deaktiviert · Bevorzugter Video-Codec (Profileinstellung) · Auswahl für diese Sitzung fixiert |
+| Eine Einstellung oder eine bereits getroffene Entscheidung | Bevorzugter Video-Codec (Profileinstellung) · Auswahl für diese Sitzung fixiert |
 
 Beurteilt wird nur die Tonspur, die gerade läuft. Hat eine Datei eine nicht
 gewählte Kommentarspur in DTS, wird sie deswegen nicht transkodiert.
@@ -67,7 +67,7 @@ nicht vorhersehen: eine Grafikkarte, die genau beim Start des Streams voll
 ist. Der Stream wechselt dann auf den Prozessor, und **Verwaltung → Aktuelle
 Wiedergabe** zeigt, womit tatsächlich kodiert wird.
 
-## Was jede Seite beiträgt
+## Was jede Seite beiträgt { #what-each-side-brings }
 
 **Die Datei.** Codec, Auflösung, Farbtiefe, HDR-Format, Bitrate sowie die
 Ton- und Untertitelspuren. Das alles wurde beim Scannen der Datei gelesen.
@@ -90,7 +90,7 @@ gelten (siehe unten).
 oder seinem Prozessor, und ob ein Transkodierungsplatz frei ist. Das wird
 gemessen, nicht angenommen: siehe [Transkodierung und Serverkapazität](transcoding.md).
 
-## Eine Datei, drei Ergebnisse
+## Eine Datei, drei Ergebnisse { #one-file-three-results }
 
 Ein 4K-Film in HEVC und HDR10 mit 70 Mb/s und einer Tonspur in Dolby TrueHD
 7.1. Er läuft auf einem Android TV, dessen Decoder HEVC beherrscht und dessen
@@ -112,7 +112,7 @@ Bildschirm HDR anzeigt:
 Die Datei und der Fernseher haben sich nicht geändert. Geändert haben sich die
 Grenze der Sitzung und der Zustand des Servers.
 
-## Grenzen der Sitzung
+## Grenzen der Sitzung { #limits-on-the-session }
 
 Liegt die Bitrate eines Titels (Video plus die Tonspur, die gerade läuft) über
 der niedrigsten dieser Grenzen, wird er auf diese Grenze heruntertranskodiert:
@@ -132,7 +132,7 @@ der Player meldet oder als die **Maximale Audio-Kanäle** des Profils erlauben.
 Eine neu kodierte Spur behält bis zu 5.1 Kanäle, nie mehr: siehe
 [Audio](audio.md).
 
-## Einschränkungen, die der Server selbst anwendet
+## Einschränkungen, die der Server selbst anwendet { #constraints-the-server-applies-itself }
 
 Einige Grenzen melden die Player heute nicht. Der Server wendet sie als
 vorsichtige Regel für die Kompatibilität an, gleich für jeden Player: H.264
@@ -141,30 +141,30 @@ HEVC, VP9 und AV1 bis 10 Bit 4:2:0 hängen dagegen davon ab, welche Codecs der
 Player unterstützt. Dolby Vision bleibt nur in einer Form erhalten, die der
 Player richtig anzeigen kann: siehe [HDR und Dolby Vision](hdr.md).
 
-## Warum sich die Methode mitten im Film selten ändert
+## Warum sich die Methode mitten im Film selten ändert { #why-the-method-rarely-changes-mid-film }
 
 Die Entscheidung fällt beim Start der Wiedergabe und gilt für die ganze
 Sitzung. So erhält der Player nie Segmente aus zwei verschiedenen Kodierungen.
 Eine neue Entscheidung gibt es, wenn Sie die Ton- oder Untertitelspur so
 wechseln, dass es nötig ist, oder wenn Sie den Titel neu starten.
 
-## Eine Methode erzwingen
+## Eine Methode erzwingen { #forcing-a-method }
 
-**Einstellungen → Wiedergabe** bietet pro Profil **Direktwiedergabe
-erlauben**, **Remux erlauben** und **Transkodierung erlauben**. Schalten Sie
-eine davon aus, überspringt der Server diese Methode, und Stream-Info zeigt den
-Grund.
-
-!!! note "Hinweis"
-    Das ist ein Werkzeug zur Diagnose, keine Qualitätseinstellung: Eine
-    erzwungene Transkodierung ist nie besser als das Original.
+Eine Methode lässt sich nicht erzwingen: Der Server wählt sie immer anhand der
+Datei und des Players. Begrenzen können Sie die Qualität, pro Gerät, mit
+**Einstellungen → Wiedergabe → Datensparmodus (dieses Gerät)**. Er begrenzt den
+Stream nur auf diesem Gerät; die anderen Geräte des Kontos behalten ihre eigene
+Einstellung. **Aus** setzt keine Grenze. **Sparsam** fordert höchstens 720p,
+3 Mbit/s und Stereoton. **Reise / wenig Daten** fordert höchstens 480p,
+1 Mbit/s und Stereoton. Ein Titel über der Grenze wird bis auf sie herunter
+transkodiert, und Stream-Info nennt die Grenze als Grund.
 
 **Qualität** in den Einstellungen des Players ist etwas anderes: Damit wählen
 Sie zwischen den Qualitäten eines transkodierten Streams. **Auto** folgt der
 Verbindung; eine Bildhöhe (1080p, 720p...) hält diese Qualität; **Original**
 hebt die Begrenzung der Bildhöhe auf, die der Player sonst anfordern würde.
 
-## Weiterführend
+## Weiterführend { #going-further }
 
 - Die Kriterien im Detail: [HDR und Dolby Vision](hdr.md) · [Audio](audio.md) ·
   [Untertitel](subtitles.md) · [Streamen auf Chromecast](casting.md)
@@ -173,7 +173,8 @@ hebt die Begrenzung der Bildhöhe auf, die der Player sonst anfordern würde.
 - Die Umsetzung: [Wiedergabekette](../playback-serving.md)
 
 <!-- sources
-decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels), applyDirectPlayPrefs
+decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels)
+
 session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked)
 remote cap: internal/adapters/driving/grpcapi/playback_handler.go - resolvePlaybackPrefs ; internal/config/config.go - RemoteBitrateCapKbps
 client caps: internal/domain/transcoding/playback_decision.go - ClientProfile ; frontend/packages/client/src/web/codec.ts ; frontend/packages/media-caps/src/castUrl.ts

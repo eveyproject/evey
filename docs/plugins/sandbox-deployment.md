@@ -143,7 +143,7 @@ an unprivileged container) shows up as errored: switch back.
 docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
 # which user a running plugin runs as (evey = shared with the server,
-# evey-plugin = separated); the image has no ps, so ask Docker
+# evey-plugin = separated); the image has ps, so `docker exec evey-server ps` also works
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 

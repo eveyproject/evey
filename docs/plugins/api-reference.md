@@ -20,7 +20,7 @@ entrypoint: node index.js    # required for a plugin; the command line the serve
 
 description: "..."           # optional
 author: "..."                # optional
-min_evey_version: "1.0.0"    # optional; recorded, not enforced today
+min_evey_version: "1.0.0"    # optional; accepted and ignored
 
 permissions:                 # what the backend and the interface may call
   - network
@@ -38,7 +38,7 @@ frontend:
 config_schema:               # the fields of the Config panel on the plugin's card
   api_key:
     type: password           # never sent back to any client
-    label: API key
+    label: API key           # not rendered: the panel labels fields by key
     required: true
   city:
     type: string
@@ -52,11 +52,11 @@ config_schema:               # the fields of the Config panel on the plugin's ca
 | `language` | Required for `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` or `go`. It picks the runtime check and the stubs copied next to the entrypoint; it does not launch anything. |
 | `entrypoint` | Required for `kind: plugin`. The first token is the interpreter (or the binary, with `native-binary`), the rest its arguments; the process runs in the plugin's directory. |
 | `permissions` | Each value must be in the [permissions catalog](security-model.md#permissions-catalog). `network` requires a non-empty `external_fetch`. |
-| `external_fetch` | Bare hostnames. A scheme is tolerated and dropped; a wildcard or an IP literal refuses the install ([rules](security-model.md#external-fetch-rules)). |
+| `external_fetch` | Hostnames. A scheme and a trailing path are dropped at parse; hosts match exactly, a `*.example.com` wildcard is refused at install and a port suffix is ignored; an IP literal refuses the install ([rules](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` or `notification.sender`; anything else is refused. A theme may declare none. |
 | `web_root` | Required when `frontend` is non-empty; relative, no `..`, no backslash. `.` serves the whole plugin directory and only logs a warning. |
 | `frontend[]` | `slot` must be in the [slot list](#slots); `src` must be under `web_root`. |
-| `config_schema` | A map of field name to `{type, label, description, required, default, min, max, options}`. Types: `string`, `text`, `password`, `boolean`, `integer`, `number`, `select` (with `options: [{value, label}]`). |
+| `config_schema` | A map of field name to `{type, label, description, required, default, min, max, options}`; `label` is not rendered, the panel labels fields by key. Types: `string`, `text`, `password`, `boolean`, `integer`, `number`, `select` (with `options: [{value, label}]`). |
 
 A theme (`kind: theme`) must not declare `language`, `entrypoint`,
 `permissions` or `capabilities`; its format is in [Themes](../themes.md).
@@ -149,9 +149,10 @@ context arrived is called immediately.
 
 ```js
 evey.onInit(function (data) {
-  // data.context         - the plugin's config values (config_schema)
+  // data.config          - the plugin's config values (config_schema)
+  // data.context         - the host context
   // data.locale          - the active locale, e.g. "en-US"
-  // data.theme           - the active theme id
+  // data.theme           - "dark" or "light"
   // data.surface         - "web", "mobile" or "tv"
   // data.suggestedHeight - home.section only: the height (px) the host recommends
   // data.viewportHeight  - tv only: the panel height in dp
@@ -280,7 +281,8 @@ starters in Node.js and Python (`nodejs-example`, `python-example`), a
 metadata provider (`metadata-example`), a webhook receiver
 (`webhook-receiver`), a home widget with a build step (`weather`), the data
 store with the `public` and `prefs` permissions and the `admin.nav` slot
-(`data-demo`), a tour of every `config_schema` field type (`config-demo`),
+(`data-demo`), a tour of every `config_schema` field type, with an `admin.nav` page
+(`config-demo`),
 and two themes (`theme-dark-blue`, `open-workshop`). `make plugin-zips`
 packages them all.
 
@@ -293,7 +295,7 @@ env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go
 peer auth, rate limit: internal/adapters/driving/pluginhost/host_server.go - makePluginAuthInterceptor, pluginRPCRatePerMin ; peer_creds.go
 host RPCs and permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; pluginhost/host_server.go - Log, GetConfig, SetConfig (maxConfigKeys, maxConfigKeyLen, maxConfigValueLen), EmitEvent (pluginEmittedEvent.EventName), GetMediaItem, ListMediaItems, mediaItemToProto, UpdateMetadata, GetUserPreferences (Unimplemented), UnimplementedHostServiceServer ; fetch.go - Fetch, maxFetchBytes, fetchTimeout
 proto: proto/plugin/v1/plugin_api.proto - PluginService, HostService, InitRequest, FetchRequest, FetchResponse, MediaItem
-frame policy: internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy ; frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc, ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, clampSlotHeight, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; web/PluginIframe.tsx - MIN_SLOT_HEIGHT, suggestedSlotHeight ; native/PluginWebView.tsx (surface)
+frame policy: internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy ; frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc, ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, clampSlotHeight, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT, suggestedSlotHeight ; frontend/packages/client/src/native/PluginWebView.tsx (surface)
 bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge ; pluginRpc.ts - pluginRequestFor
 slots: internal/domain/plugin/slots.go - AllowedSlots
 token, deny by default: internal/app/plugin/token_service.go - PluginTokenTTL ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes, forbiddenPrefix ; docs/adr/0003-plugin-scoped-tokens.md ; docs/adr/0012-plugin-token-deny-by-default.md

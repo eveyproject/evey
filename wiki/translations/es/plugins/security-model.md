@@ -1,8 +1,8 @@
 ---
-source_sha: 9f40858672d5badb8f1ffd97cf815109f93c3034126c5d4e6841092d5caf818a
+source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
 reviewed: true
 ---
-# Permisos y slots
+# Permisos y slots { #permissions-and-slots }
 
 Para quien crea plugins: lo que puede declarar un manifiesto, lo que
 comprueba el instalador y las reglas que se aplican a un plugin mientras
@@ -10,7 +10,7 @@ funciona. El catálogo de abajo es la lista entre la que elegir; cómo aísla
 el servidor a un plugin, y lo que ese aislamiento no puede impedir, se explica en
 [Sandbox de plugins y modelo de amenazas](../SECURITY.md).
 
-## Lo que se comprueba al instalar
+## Lo que se comprueba al instalar { #what-is-checked-at-install }
 
 Un plugin se rechaza al instalarlo cuando:
 
@@ -29,16 +29,16 @@ Un plugin se rechaza al instalarlo cuando:
   binarios compilados, los archivos comprimidos incrustados y el código nativo
   se rechazan salvo que el manifiesto declare `native-binary`.
 
-El análisis también lee los comentarios: una línea `# pip install foo` en un
-comentario se señala igual que si fuera código real. Quita esas líneas antes
-de publicar. Las categorías están en
+Los comentarios se eliminan antes del análisis, así que una línea comentada no
+se señala. Las categorías están en
 [Sandbox de plugins y modelo de amenazas](../SECURITY.md#static-analysis).
 
-Antes de instalar, el administrador ve los permisos, los slots y los hosts
-declarados, y lo que ha encontrado el análisis. Nada de lo que declara un
+Antes de instalar, el administrador ve los permisos y las capacidades
+declarados, y lo que ha encontrado el análisis; los slots, los hosts y la
+firma se muestran al actualizar y en el Panel de seguridad. Nada de lo que declara un
 plugin se concede sin avisar.
 
-## Las condiciones en las que funciona el plugin
+## Las condiciones en las que funciona el plugin { #what-the-plugin-runs-under }
 
 Declare lo que declare el manifiesto:
 
@@ -55,7 +55,7 @@ Firmar es opcional mientras desarrollas. Cómo firmar un plugin, y la política
 de firmas que puede imponer un servidor:
 [Escribir un plugin](dev-setup.md#7-sign-your-plugin).
 
-## Catálogo de permisos
+## Catálogo de permisos { #permissions-catalog }
 
 Un permiso se declara en `permissions`; cualquier otro valor hace que se
 rechace la instalación. Recibir webhooks (`webhook.receiver`) y aportar
@@ -77,23 +77,24 @@ metadatos (`metadata.provider`) son capacidades, que se declaran en
 | `notification.sender` | Reservado para `SendNotification`, que hoy no se sirve. |
 | `public` | La interfaz puede leer una versión segura de los elementos multimedia (id, título, tipo, año, resumen, póster), nunca rutas ni flujos. Consulta [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `prefs` | La interfaz puede leer y escribir las preferencias del usuario actual en el espacio de nombres propio del plugin. Consulta [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |
-| `hardware.gpu` | El proceso recibe el nodo de renderizado DRM del servidor (el `renderD1xx` real, nunca un nodo card). Es una superficie de ataque del controlador del núcleo y una frontera de memoria de la GPU compartida con el transcodificador: una GPU bloqueada puede atascar la transcodificación. Sin él, los nodos de la GPU quedan totalmente fuera de la lista permitida de Landlock; con él, el lanzador añade una regla `IOCTL_DEV` limitada a ese único archivo (Landlock ABI 5 o posterior; en núcleos más antiguos, el acceso en lectura y escritura basta para enviar comandos). La vista previa muestra un aviso crítico. Concédelo solo a plugins que ejecutarías fuera de un sandbox. |
+| `hardware.gpu` | El proceso recibe el nodo de renderizado DRM del servidor (el `renderD1xx` real, nunca un nodo card). Es una superficie de ataque del controlador del núcleo y una frontera de memoria de la GPU compartida con el transcodificador: una GPU bloqueada puede atascar la transcodificación. Sin él, los nodos de la GPU quedan totalmente fuera de la lista permitida de Landlock; con él, el lanzador añade una regla `IOCTL_DEV` limitada a ese único archivo (Landlock ABI 5 o posterior; en núcleos más antiguos, el acceso en lectura y escritura basta para enviar comandos). El Panel de seguridad muestra un aviso crítico una vez instalado el plugin. Concédelo solo a plugins que ejecutarías fuera de un sandbox. |
 
-## Reglas de las peticiones externas
+## Reglas de las peticiones externas { #external-fetch-rules }
 
 Se declaran en `external_fetch: [...]` y se comprueban al instalar
 (`validateExternalFetch`). Es todo o nada: una sola entrada no válida hace
 que se rechace toda la instalación.
 
-Una entrada es un **nombre de host a secas**. Un prefijo de esquema se
-tolera y se descarta; solo se guarda el nombre de host.
+Una entrada es un **nombre de host**. Un prefijo de esquema y una ruta final se
+descartan al analizar; solo se guarda el nombre de host. Los hosts coinciden
+exactamente, un comodín `*.example.com` se rechaza en la instalación y un sufijo de puerto se ignora.
 
 | Entrada | Válida | Motivo |
 |---|---|---|
 | `api.tmdb.org` | Sí | Nombre de host exacto, la forma normal |
-| `https://api.tmdb.org` | Sí | El esquema se lee y se descarta, se guarda el nombre de host |
-| `*.tmdb.org` | No | Los comodines se rechazan: enumera cada subdominio que necesites |
-| `*` | No | La misma regla |
+| `https://api.tmdb.org` | Sí | El esquema y la ruta se descartan al analizar, se guarda el nombre de host |
+| `*.tmdb.org` | No | Los comodines se rechazan en la instalación; lista cada host |
+| `*` | No | Un comodín solo se rechaza |
 | `192.168.1.1`, `::1` | No | Las direcciones IP literales se rechazan, en las dos familias |
 
 Mientras funciona, el intermediario del servidor añade sus propios límites,
@@ -108,7 +109,7 @@ La misma lista de hosts es el `connect-src` del marco del plugin, con el
 prefijo `https://`: un widget puede llamar directamente a esos hosts, solo por
 `https`.
 
-## Lista de slots permitidos
+## Lista de slots permitidos { #slot-whitelist }
 
 Los plugins solo pueden inyectar interfaz en los slots permitidos de forma
 explícita. Las rutas críticas no están, a propósito.
@@ -143,7 +144,7 @@ anfitriona emite un token de cinco minutos limitado a (plugin, usuario) para
 las llamadas `public` y `prefs`, y el servidor rechaza por defecto cualquier
 método que ese token no nombre.
 
-## Proceso de actualización
+## Proceso de actualización { #update-workflow }
 
 1. El administrador sube un ZIP nuevo. `PreviewPluginUpdate` ejecuta el
    análisis estático y la comprobación de la firma, y devuelve la diferencia
@@ -160,7 +161,7 @@ método que ese token no nombre.
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
-analysis reads comments: docs/SECURITY.md (Static analysis)
+comments stripped before analysis: docs/SECURITY.md (Static analysis) ; internal/adapters/driven/pluginrunner/analyzer_normalize.go
 subprocess, deny-fork, deny-inet, render-dev: cmd/evey-plugin-launcher/main.go ; i18n admin.plugins.subprocessWarning
 resource defaults: internal/config/config.go - Plugins
 permission per RPC: internal/adapters/driving/grpcapi/plugin_interceptor.go ; served or not: internal/adapters/driving/pluginhost/host_server.go

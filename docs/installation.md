@@ -68,8 +68,9 @@ volumes:
    and in the apps. Keep `9091` unless another program already uses it.
 3. Evey's own data: database, keys, generated passwords, search index,
    artwork, logs, backups, plugins. **This is the folder to back up.**
-4. A cache of converted video, resized photos and covers. It can be deleted
-   at any time and fills up again by itself.
+4. A cache of converted video, resized photos and music covers. It can be
+   deleted at any time and fills up again by itself. The poster variants are
+   not in it: they live under `evey-data/artworks`.
 5. Your media. Replace `/path/to/your/media` with the real folder. Inside
    Evey, this folder is called `/media`. It is writable on purpose, so that
    [Media health](runbooks/media-health.md) can repair a file when you ask.
@@ -124,7 +125,7 @@ wizard is done, the same address opens the sign-in page.
 | Location | What it holds | Can you delete it? |
 | --- | --- | --- |
 | `./evey-data` | Database, keys, generated passwords, search index, timeline thumbnails, artwork, logs, backups, plugins | **No.** Losing it loses every account, watch history and setting. The only exception is `meili/` inside it, the search index: the command `evey admin reindex-search` rebuilds it from the database. |
-| `evey-cache` volume | Converted video, resized photos and covers | Yes. It fills up again by itself. |
+| `evey-cache` volume | Converted video, resized photos and music covers (poster variants are in `evey-data/artworks`) | Yes. It fills up again by itself. |
 | Your media folders | Your files | Evey never deletes them. Removing a title in Evey removes it from the library, not from the disk. |
 
 Evey writes into your media folders in three cases only:

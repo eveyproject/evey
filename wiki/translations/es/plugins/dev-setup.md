@@ -1,5 +1,5 @@
 ---
-source_sha: da65fca181dde1325e9e1ed9a14213c8008dd3d87fd749779b7c965baa24a1fa
+source_sha: 285bdd60357aba1d3d0a25ee9fb2cbf8e882085af6ffee596e41d15bab4c8465
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -49,13 +49,13 @@ permiso `native-binary`. La imagen por defecto lleva Python, Node.js, PHP, Ruby 
 manifiesto que nombra un runtime que la imagen no tiene se rechaza al
 instalar, con la lista de los runtimes disponibles.
 
-El contrato gRPC es un solo archivo, `proto/plugin/v1/plugin_api.proto`. Los
-stubs se generan para Python, Node.js, PHP, Ruby, Dart, Java y Swift en
-`sdk/<language>/`, y el servidor copia los stubs de tu lenguaje junto a tu
-entrypoint cuando arranca el plugin, así que un plugin en Node.js o Python no
-tiene que incluir nada: la imagen aporta `@grpc/grpc-js` y
-`@grpc/proto-loader` a los plugins Node.js y `grpcio` a los de Python. Para
-otro lenguaje, genera los stubs con `protoc` e inclúyelos en el ZIP:
+El contrato gRPC es un solo archivo, `proto/plugin/v1/plugin_api.proto`. Solo
+el SDK de Python incluye stubs generados; los demás lenguajes en
+`sdk/<language>/` contienen el `.proto`. El servidor copia los archivos de tu
+lenguaje junto a tu entrypoint cuando arranca el plugin. La imagen aporta
+`grpcio` a los plugins de Python, que no tienen que incluir nada. Un plugin
+Node.js debe incluir su `node_modules` (`@grpc/grpc-js` y
+`@grpc/proto-loader`) en el paquete. Para otro lenguaje, genera los stubs con `protoc` e inclúyelos en el ZIP:
 
 ```bash
 protoc --proto_path=proto \
@@ -133,7 +133,7 @@ una cosa y lo instalamos.
    archivo, no en una subcarpeta:
 
     ```sh
-    zip -r ../hello-plugin.zip . -x ".*" "node_modules/*"
+    zip -r ../hello-plugin.zip . -x ".*"
     ```
 
 5. **Instálalo.** En **Administración → Plugins**, **Instalar plugin**, elige
@@ -205,8 +205,8 @@ El puente y los slots se describen en la
 
 ## 6. Llegar al exterior { #6-reach-the-outside-world }
 
-Un proceso de plugin no puede abrir ningún socket hacia internet, en ningún
-modo de sandbox. La única salida es la llamada `Fetch` de `HostService`: el
+Un proceso de plugin no puede abrir ningún socket hacia internet, en todos
+los modos en los que el launcher se ejecuta (`basic` sin el launcher solo prohíbe `execve`). La única salida es la llamada `Fetch` de `HostService`: el
 servidor comprueba el destino con el manifiesto y después hace la petición él
 mismo.
 
@@ -226,7 +226,7 @@ directamente a esos hosts por `https`. Las reglas están en
 [Permisos y slots](security-model.md#external-fetch-rules).
 
 !!! note "Los hosts son un contrato con el administrador"
-    El administrador ve la lista de hosts al instalar y tiene que aprobar
+    El administrador ve la lista de hosts al actualizar y en el Panel de seguridad, y tiene que aprobar
     cualquier añadido al actualizar. Limítala a lo que necesita el plugin, y
     explica en tu README lo que recibe cada host.
 
@@ -287,8 +287,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # o "enforce" para rechazar lo que no se verif
 
 Después, en **Administración → Plugins**, elige el ZIP y, en **Archivo de
 firma (.zip.sig, opcional)**, su `.zip.sig`; por la API, la firma es el campo
-`sig` de la subida. La vista previa muestra **Firmado** o una firma no
-válida, y el Panel de seguridad guarda el resultado.
+`sig` de la subida. **Firmado** o una firma no válida se muestra al actualizar, y el Panel de seguridad guarda el resultado.
 
 Errores habituales:
 
@@ -341,8 +340,8 @@ registro del servidor tiene el detalle.
 
 Lo que busca el análisis está en
 [Sandbox de plugins y modelo de amenazas](../SECURITY.md#static-analysis).
-También lee los comentarios: una línea `# pip install foo` en un comentario
-se señala como si fuera código.
+Los comentarios se eliminan antes del análisis, así que una línea comentada
+no se señala.
 
 ## 9. Las condiciones en las que funciona tu proceso { #9-what-your-process-runs-under }
 
@@ -354,8 +353,8 @@ un vigilante detiene un plugin que los supera. Los valores por defecto son
 `subprocess`, el proceso no puede lanzar procesos hijos, sea cual sea el
 lenguaje; los hilos sí funcionan.
 
-El sandbox limita el sistema de archivos a la carpeta del plugin y corta
-todos los sockets de red, sin excepción. El modo que se aplica depende del
+En todos los modos en los que el launcher se ejecuta, el sandbox limita el sistema de archivos a la carpeta del plugin y corta
+todos los sockets de red (`basic` sin el launcher solo prohíbe `execve`). El modo que se aplica depende del
 servidor, no del plugin:
 [Sandbox de plugins y modelo de amenazas](../SECURITY.md#sandbox-modes) los
 describe, y [Configurar el sandbox de plugins](sandbox-deployment.md) le dice
@@ -369,7 +368,7 @@ versión en una forja, tu propia web).
 
 - Publica juntos el ZIP, su `.sig` y tu `cosign.pub` (sección 7).
 - Indica los permisos y los hosts de `external_fetch` en tu README: el
-  administrador los ve al instalar y tiene que aprobarlos; algo inesperado ahí
+  administrador ve los permisos al instalar y los hosts al actualizar y en el Panel de seguridad, y tiene que aprobarlos; algo inesperado ahí
   es el primer motivo por el que se rechaza una instalación.
 - Para que tu plugin aparezca con los ejemplos incluidos, abre una pull
   request contra `examples/plugins/` con el código fuente y un README. Los

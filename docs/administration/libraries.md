@@ -106,17 +106,18 @@ To force it, or to add a regular full scan, use the library's row:
 ??? info "How the server checks the folders"
 
     - The server reads every library at each start, then every 2 minutes
-      (**Admin → Server Config → Server Settings → Periodic scan interval**,
+      (**Admin → Server Config → Libraries → Periodic scan interval**,
       applied on restart). While something is playing, it waits 15 minutes
       between reads, so that it does not slow playback down.
     - It can also be told by the system when a file changes (**Admin →
-      Server Config → Server Settings → Library file watcher**), for the
+      Server Config → Libraries → Library file watcher**), for the
       libraries whose realtime monitoring is on. To check that this still
       works, it writes a small test file into the folder for a few seconds.
       A library where this is proven to work is read once an hour instead of
       every 2 minutes.
-    - Libraries created from the panel do not use the file watcher: the
-      reads every 2 minutes pick up their files.
+    - Libraries created from the web panel do not use the file watcher: the
+      reads every 2 minutes pick up their files. The phone app's admin form
+      for a library has a **Realtime monitoring** switch.
 
 !!! note "Network shares"
     On an NFS or SMB share, a file written by another machine sends no
@@ -189,7 +190,7 @@ the server works them out by analysing the files. An administrator can
 adjust them by hand for a title, or run the detection again.
 
 Players show **Skip Intro**, **Skip Recap** and **Skip Credits** buttons by
-default. **Auto-skip intros** (**Admin → Server Config → Server Settings**, off
+default. **Auto-skip intros** (**Admin → Server Config → Libraries**, off
 by default) makes every player skip them on its own.
 
 <!-- sources

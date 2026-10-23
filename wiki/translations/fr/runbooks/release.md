@@ -10,14 +10,18 @@ que la première suive une procédure au lieu de l'inventer.
 
 ## Ce que la CI fait d'une étiquette (à lire avant d'étiqueter)
 
-`.github/workflows/ci.yml` construit et publie des images à chaque poussée et à
-chaque étiquette `v*.*.*`, en trois variantes d'environnement d'exécution des
-plugins (`` (complète, par défaut), `-nodejs`, `-lean`), vers `docker.io/eveyproject/evey`
-et `ghcr.io/eveyproject/evey` :
+`.github/workflows/ci.yml` construit et publie des images à chaque poussée sur
+`main`, `master`, `beta-*` et `alpha-*` (une poussée qui ne touche que la
+documentation ne construit rien) et à chaque étiquette `v*.*.*`, vers
+`docker.io/eveyproject/evey`. Les étiquettes de version et de préversion et les
+lancements manuels publient trois variantes d'environnement d'exécution des
+plugins (complète, par défaut, puis `-nodejs` et `-lean`) ; la poussée d'une
+branche ne publie que l'image par défaut (complète).
+`ghcr.io/eveyproject/evey` est un miroir au mieux : Docker Hub fait référence.
 
-| Ce que vous poussez | Étiquettes d'image publiées (chacune aussi en `-lean` / `-nodejs`) |
+| Ce que vous poussez | Étiquettes d'image publiées (étiquettes et lancements manuels : chacune aussi en `-lean` / `-nodejs`) |
 |---|---|
-| une branche (par exemple `master`) | `master`, `sha-<short>` |
+| une branche (par exemple `master`) | `master`, `sha-<short>` (image par défaut uniquement) |
 | l'étiquette `v0.2.0-rc.1` (préversion : elle contient un tiret) | `0.2.0-rc.1`, `sha-<short>` |
 | l'étiquette `v0.2.0` (stable) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
@@ -46,7 +50,7 @@ savoir quel code tourne sans faire confiance à une étiquette.
 ## Publier une préversion (bêta fermée)
 
 1. **Contrôles réussis sur le commit exact** : `make pre-push` en local. La CI
-   exécute les mêmes contrôles à la poussée.
+   exécute les contrôles équivalents à la poussée.
 2. **Vérifiée d'abord sur une vraie installation.** Le commit doit déjà avoir
    tourné sur le déploiement de référence sous une étiquette `sha-<short>`, mis
    à jour avec `scripts/evey-update.sh --tag sha-<short> --apply` et vérifié
@@ -78,8 +82,10 @@ suivante ; on ne déplace jamais une étiquette.
 Mêmes étapes, avec une étiquette `vX.Y.Z` sans suffixe. Un point à vérifier
 dont une préversion se passe : la version majeure de Postgres intégrée à
 l'image doit figurer dans le changelog, car un administrateur qui utilise la
-base intégrée doit suivre la section de mise à niveau de
-[installation.md](../installation.md) quand elle change.
+base intégrée doit suivre la section « Passer à une version majeure plus récente de
+Postgres » de
+[advanced-deployments.md](../operations/advanced-deployments.md#move-to-a-newer-postgres-major)
+quand elle change.
 
 ## Revenir à une version précédente
 

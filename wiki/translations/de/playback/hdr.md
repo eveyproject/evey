@@ -1,8 +1,8 @@
 ---
-source_sha: a631c73d13e67b6253b0aa9e7c5c362475b1e0fcb6153effecea88bd092feca5
+source_sha: b13886b3c7cb855952109b4bf5bdeae9ee280eefbef1cd5d102784c95b2a0863
 reviewed: true
 ---
-# HDR und Dolby Vision
+# HDR und Dolby Vision { #hdr-and-dolby-vision }
 
 **Kurz gesagt:**
 
@@ -12,9 +12,11 @@ reviewed: true
 - Auf einem HDR-Bildschirm mit der App für Android oder Android TV (und einem
   Gerät, das HEVC dekodiert) bekommen Sie das originale HDR-Bild, solange
   nichts anderes eine Umwandlung erzwingt.
-- In einem Webbrowser und auf jedem Bildschirm ohne HDR wandelt der Server das
-  Bild in SDR um. Das ist Absicht: HDR auf einem SDR-Bildschirm sieht grau und
-  ausgewaschen aus.
+- Auf jedem Bildschirm ohne HDR wandelt der Server das Bild in SDR um. Das ist
+  Absicht: HDR auf einem SDR-Bildschirm sieht grau und ausgewaschen aus. Ein
+  Webbrowser an einer SDR-Anzeige bekommt SDR; einer, der eine HDR-Anzeige
+  meldet und HEVC dekodiert, behält HDR10 und HLG. Dolby Vision wird weiterhin
+  umgewandelt.
 - HDR in SDR umzuwandeln ist die aufwendigste Arbeit, die der Prozessor leisten
   kann. Eine Grafikkarte hilft: siehe
   [Hardware-Beschleunigung](../administration/hardware-acceleration.md).
@@ -24,12 +26,12 @@ Neukodierung, die das HDR behält, oder eine Umwandlung in SDR. Die allgemeinen
 Regeln der Wiedergabe stehen unter
 [Wie Evey die Wiedergabeart wählt](how-playback-is-decided.md).
 
-## Was Sie sehen, je nach Gerät
+## Was Sie sehen, je nach Gerät { #what-you-will-see-by-device }
 
 | Ihr Bildschirm | Was ankommt |
 | --- | --- |
 | Ein HDR-Bildschirm mit Android TV oder einem Android-Handy, mit einem HEVC-Decoder | Das HDR10- oder HLG-Original, unverändert, außer etwas anderes (Bitrate, Auflösung, ein eingebrannter Untertitel) erzwingt eine Neukodierung. |
-| Ein Browser | Immer eine Umwandlung in SDR: Der Web-Player meldet keinen HDR-Bildschirm, also rechnet der Server das Bild per Tone-Mapping für ihn um. |
+| Ein Browser | Eine Umwandlung in SDR an einer SDR-Anzeige. Meldet der Browser eine HDR-Anzeige (`dynamic-range: high`) und dekodiert HEVC, bleiben HDR10 und HLG erhalten; Dolby Vision wird weiterhin umgewandelt. |
 | Ein Cast-Empfänger | Was der Empfänger über seinen eigenen Bildschirm gemeldet hat: siehe [Streamen auf Chromecast](casting.md). |
 | Ein SDR-Bildschirm, egal wo | Eine Umwandlung in SDR. |
 
@@ -39,14 +41,14 @@ bei jedem Start einer Wiedergabe, nicht einmal bei der Installation: Schließen
 Sie einen HDR-Fernseher an eine Box an, wirkt das beim nächsten Titel, beim
 nächsten Spurwechsel oder bei der nächsten Änderung der Qualität.
 
-## Wann das Original erhalten bleibt
+## Wann das Original erhalten bleibt { #when-the-original-is-kept }
 
 Das HDR10- oder HLG-Video wird so gesendet, wie es ist, wenn drei Dinge
 zutreffen: Der Player meldet, dass sein Bildschirm HDR anzeigt, er dekodiert
 den Codec, und kein anderer Grund (Bitrate, Auflösung, Container) verlangt
 eine Neukodierung.
 
-## Wenn das Video trotzdem neu kodiert werden muss
+## Wenn das Video trotzdem neu kodiert werden muss { #when-the-video-must-be-re-encoded-anyway }
 
 Eine Grenze für die Bitrate oder die Auflösung oder ein Untertitel, der ins
 Bild eingebrannt werden soll, kann eine HDR-Quelle zur Neukodierung zwingen.
@@ -72,7 +74,7 @@ aufgebaut wird). Dann wird das Video auf einer solchen Karte neu kodiert, mit
 erhaltenem HDR, und Stream-Info zeigt **Kopie nicht verfügbar, HDR beim
 Neukodieren erhalten**.
 
-## Wenn der Bildschirm SDR ist
+## Wenn der Bildschirm SDR ist { #when-the-screen-is-sdr }
 
 Ein Player, der keinen HDR-Bildschirm meldet, erhält ein SDR-Bild, das per
 Tone-Mapping umgerechnet wurde. Das Tone-Mapping läuft auf der Grafikkarte,
@@ -87,7 +89,7 @@ ffmpeg-Build ihn mitbringt, sonst mit einer portablen Kette von Filtern.
     niedrigeren Auflösung umgewandelt werden als ein SDR-Titel. Siehe
     [Transkodierung](transcoding.md#the-server-measures-itself).
 
-## Dolby Vision
+## Dolby Vision { #dolby-vision }
 
 Die Meldung eines Players sagt, ob sein Bildschirm HDR anzeigt, nicht, ob er
 Dolby Vision unterstützt. Evey schließt nie von HDR auf Dolby Vision: Dolby
@@ -101,7 +103,7 @@ jede Dekodierung von Dolby Vision richtig angezeigt wird:
 | **7** (UHD Blu-ray) | Die HDR10-Basisschicht wird als HEVC 10 Bit neu kodiert, das HDR bleibt erhalten. Stream-Info: **Dolby-Vision-Basisschicht neu kodiert (HDR bleibt)**. | Per Tone-Mapping auf SDR umgerechnet. |
 | **5** (keine HDR10-Basisschicht) | Per Tone-Mapping auf SDR umgerechnet. | Per Tone-Mapping auf SDR umgerechnet. |
 
-## Prüfen, was passiert ist
+## Prüfen, was passiert ist { #checking-what-happened }
 
 **Stream-Info** zeigt die Entscheidung für das Video und unter den Gründen
 das Tone-Mapping oder das erhaltene HDR. Jeder Weg mit Tone-Mapping meldet es
@@ -115,7 +117,7 @@ decision: internal/app/transcoding/decision.go - evaluateVideo (hdr_tonemapping_
 re-encode with HDR kept, copy unavailable: internal/app/transcoding/playback_plan_resolver.go - Decide (hdr_copy_unavailable) ; internal/app/transcoding/resolver_route.go - naturalRoute, passthroughWanted, hwTonemapWanted
 hdr signalling carried: internal/adapters/driven/ffmpeg/hls_args_hw.go - hwHDRPassthroughArgs (no HDR10+ metadata)
 dovi copy rule: internal/app/transcoding/copy_eligibility.go (dovi_profile, DoViBLCompat)
-who declares an HDR screen: frontend/packages/client/src/native/displayHdr.ts - probeDisplayHdr ; frontend/packages/client/src/native/playSession.ts (supportsHdr) ; frontend/apps/web/src/cast-receiver/receiverLogic.ts (hdr=1) ; the web player sends no hdr parameter
+who declares an HDR screen: frontend/packages/client/src/native/displayHdr.ts - probeDisplayHdr ; frontend/packages/client/src/native/playSession.ts (supportsHdr) ; frontend/apps/web/src/cast-receiver/receiverLogic.ts (hdr=1) ; frontend/packages/client/src/web/codec.ts - canDisplayHdr (dynamic-range: high)
 tonemapx, software HDR ceiling: internal/adapters/driven/ffmpeg/tonemapx.go ; internal/pkg/hdr/hdr.go ; docs/adr/0017-software-hdr-tonemap-delivery-resolution.md
 tests: internal/app/transcoding/route_golden_test.go ; internal/app/transcoding/route_tonemap_report_test.go
 labels: i18n player.streamInfo.reason.* ; admin.nowPlaying

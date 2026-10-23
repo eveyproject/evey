@@ -10,14 +10,18 @@ damit die erste einem festgelegten Ablauf folgt, statt ihn zu erfinden.
 
 ## Was die CI mit einem Tag macht (vor dem Taggen lesen)
 
-`.github/workflows/ci.yml` baut und veröffentlicht Images bei jedem Push und bei
-jedem `v*.*.*`-Tag, in drei Varianten der Plugin-Laufzeiten (`` (vollständig, Standard),
-`-nodejs`, `-lean`), nach `docker.io/eveyproject/evey` und
-`ghcr.io/eveyproject/evey`:
+`.github/workflows/ci.yml` baut und veröffentlicht Images bei jedem Push auf
+`main`, `master`, `beta-*` und `alpha-*` (ein Push, der nur die Dokumentation
+berührt, baut nichts) und bei jedem `v*.*.*`-Tag, nach
+`docker.io/eveyproject/evey`. Release- und Vorabversions-Tags sowie manuelle
+Läufe veröffentlichen drei Varianten der Plugin-Laufzeiten (vollständig,
+Standard, dann `-nodejs` und `-lean`); ein Branch-Push veröffentlicht nur das
+Standard-Image (vollständig). `ghcr.io/eveyproject/evey` ist ein Spiegel nach
+bestem Bemühen: Maßgeblich ist Docker Hub.
 
-| Sie pushen | Veröffentlichte Image-Tags (jeweils auch `-lean` / `-nodejs`) |
+| Sie pushen | Veröffentlichte Image-Tags (bei Tags und manuellen Läufen jeweils auch `-lean` / `-nodejs`) |
 |---|---|
-| einen Branch (z. B. `master`) | `master`, `sha-<short>` |
+| einen Branch (z. B. `master`) | `master`, `sha-<short>` (nur das Standard-Image) |
 | das Tag `v0.2.0-rc.1` (Vorabversion: enthält einen Bindestrich) | `0.2.0-rc.1`, `sha-<short>` |
 | das Tag `v0.2.0` (stabil) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
@@ -45,7 +49,7 @@ feststellen, welcher Code läuft, ohne sich auf ein Tag zu verlassen.
 ## Eine Vorabversion erstellen (geschlossene Beta)
 
 1. **Prüfungen bestanden auf genau diesem Commit**: `make pre-push` lokal. Die
-   CI führt beim Push dieselben Prüfungen aus.
+   CI führt beim Push die gleichwertigen Prüfungen aus.
 2. **Zuerst auf einer echten Installation geprüft.** Der Commit muss bereits
    als `sha-<short>`-Tag auf dem Referenz-Deployment gelaufen sein, aktualisiert
    mit `scripts/evey-update.sh --tag sha-<short> --apply` und geprüft mit
@@ -78,8 +82,9 @@ Sie die nächste; verschieben Sie nie ein Tag.
 Dieselben Schritte, mit einem Tag `vX.Y.Z` ohne Suffix. Ein Punkt, den eine
 Vorabversion nicht braucht: Die Postgres-Hauptversion, die das Image enthält,
 muss im Changelog stehen, denn ein Betreiber mit der eingebetteten Datenbank
-muss bei einem Wechsel dem Upgrade-Abschnitt von
-[installation.md](../installation.md) folgen.
+muss bei einem Wechsel dem Abschnitt „Auf eine neuere Postgres-Hauptversion wechseln“ von
+[advanced-deployments.md](../operations/advanced-deployments.md#move-to-a-newer-postgres-major)
+folgen.
 
 ## Eine Version zurückrollen
 

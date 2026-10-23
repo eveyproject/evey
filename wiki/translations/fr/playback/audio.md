@@ -1,8 +1,8 @@
 ---
-source_sha: c8146d533df94a1909ae91a9bbceb788ab4d86f1860b721414c4dadf8791cff9
+source_sha: 318633ab461ab7429280d1503d8bccfc464413f5ccc3377a7588c10f3d316c75
 reviewed: true
 ---
-# Audio
+# Audio { #audio }
 
 **En bref :**
 
@@ -23,7 +23,7 @@ Le reste de cette page explique quelle piste est lue, quand elle est copiée
 ou convertie, et avec combien de canaux. Les réglages de profil cités ici
 sont dans **Paramètres → Lecture**.
 
-## Ce que vous entendrez, selon l'appareil
+## Ce que vous entendrez, selon l'appareil { #what-you-will-hear-by-device }
 
 | Votre appareil | Ce qui arrive |
 | --- | --- |
@@ -36,7 +36,7 @@ Les applications Android sondent la sortie à chaque début de lecture :
 brancher un casque prend effet au titre suivant, au changement de piste ou de
 qualité, pas au milieu d'une scène.
 
-## Quelle piste est jouée
+## Quelle piste est jouée { #which-track-plays }
 
 Une piste choisie à la main, sur la fiche du titre ou dans le lecteur, prime
 toujours. Sinon, les lecteurs suivent la **Langue audio par défaut** du
@@ -47,7 +47,7 @@ quand le fichier contient les deux.
 Seule la piste écoutée est évaluée : une piste DTS que vous n'écoutez pas ne
 provoque jamais de transcodage.
 
-## Copiée ou réencodée
+## Copiée ou réencodée { #copied-or-re-encoded }
 
 La piste est copiée quand le lecteur décode son codec et que sa sortie
 restitue assez de canaux, dans la limite des **Canaux audio maximum** du
@@ -57,8 +57,9 @@ elle est réencodée en AAC :
 - avec autant de canaux que la source, l'appareil et le profil le
   permettent, jusqu'à 5.1 (une source 7.1 est ramenée en 5.1, que tous les
   lecteurs décodent ; une source stéréo reste en stéréo) ;
-- quelle que soit la fréquence d'échantillonnage, qui n'est jamais à elle
-  seule une raison de réencoder.
+- à 48 kHz au plus : une piste au-dessus de 48 kHz est réencodée pour cette
+  seule raison (`audio_samplerate_exceeded`) ; à 48 kHz ou moins, la fréquence
+  d'échantillonnage n'est pas une raison.
 
 Une piste copiée à l'intérieur d'un flux transcodé ou remuxé doit aussi être
 dans un format que le lecteur accepte au sein des segments du flux. L'AAC,
@@ -68,7 +69,7 @@ affichent **Piste audio non transmissible telle quelle dans le flux** : un
 lecteur peut décoder du MP3 dans un fichier et le refuser malgré tout dans un
 flux.
 
-## Dolby Digital dans un navigateur
+## Dolby Digital dans un navigateur { #dolby-digital-in-a-browser }
 
 La plupart des navigateurs ne savent pas décoder l'AC-3 ni l'E-AC-3. Plutôt
 que de réencoder la piste sur le serveur, le lecteur web la décode lui-même,
@@ -90,7 +91,7 @@ Comment la page décode le Dolby Digital, et ce qui se passe quand elle ne le pe
     décodeur ne peut pas démarrer et le film se lit sans le son. Voir
     [Configurations de reverse proxy](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own).
 
-## Son désynchronisé
+## Son désynchronisé { #sound-out-of-sync }
 
 **Synchro audio**, dans le lecteur, décale le son du titre en cours (une
 valeur positive le joue plus tard). Le réglage est proposé quand le flux vient

@@ -177,10 +177,11 @@ The image is `eveyproject/evey`.
 | Tag | Published by | Notes |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | a release tag `vX.Y.Z` | `latest` is always the most recent stable release |
-| a pre-release tag (with a hyphen) | a pre-release tag | publishes only its own tag, never moves `latest` |
-| a branch name, `sha-<commit>` | a branch build | amd64 only |
+| a pre-release tag (with a hyphen) | a pre-release tag | publishes its own tag and `sha-<commit>`, never `latest` |
+| a branch name, `sha-<commit>` | a branch build | the default image only, amd64 only (normally) |
 
-Every tag exists in three variants: the default ships every plugin runtime
+Release and pre-release tags come in three variants (a branch build publishes
+the default image only): the default ships every plugin runtime
 (Python 3, Node.js, PHP, Ruby and Lua), `-nodejs` keeps Python and Node.js,
 `-lean` keeps Python only (for example `latest-lean`). Pick a slimmer variant
 only when image size matters: the installer refuses a plugin whose declared

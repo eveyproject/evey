@@ -32,10 +32,9 @@ when it has one, runs in an isolated frame of the page.
    (.zip.sig, optional)**. The **From URL** tab installs from a link instead;
    append `#sha256:<hash>` to the URL to have the download checked.
 2. **Preview & Install** analyses the package without installing it. The
-   preview shows the **Permissions** and **Capabilities** the plugin asks for,
-   the slots of the interface it wants to appear in, the hosts it will
-   contact, the result of the **Static Analysis** and, when the server checks
-   signatures, whether the package is **Signed**.
+   preview shows the **Permissions** and **Capabilities** the plugin asks for
+   and the result of the **Static Analysis**. The slots, the hosts and the
+   signature are shown at update and on the **Security Dashboard**.
 3. Read that list as the contract: those are the only things the plugin will
    be able to do. Confirm, and the plugin starts.
 
@@ -101,7 +100,8 @@ the panel has never been saved.
 
 Memory, processes and disk apply at the next sweep of the monitor, which stops
 a plugin that exceeds them; the CPU priority and the sandbox mode apply to
-plugins started afterwards. `0` disables a memory, process or disk limit.
+plugins started afterwards. `0` restores the default for memory and processes; only the disk limit treats
+`0` as off.
 
 The **Security Dashboard** keeps, per plugin, the findings of the analysis, the
 signature result and the last error. Its **Host sandbox** line shows the

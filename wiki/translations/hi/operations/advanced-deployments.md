@@ -1,5 +1,5 @@
 ---
-source_sha: f0e5f75d4befda29fbffbe7da80a4cc45e7a86e9429753abdee557b19bc5a40b
+source_sha: f2e1240c1750c81d4a4d422aadadd53ecf86ab53d63aed2fc0a82c56e43e1d1f
 reviewed: true
 ---
 # एडवांस्ड डिप्लॉयमेंट { #advanced-deployments }
@@ -180,10 +180,10 @@ docker exec evey-server evey admin reindex-search
 | Tag | किससे प्रकाशित होता है | टिप्पणी |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | एक release tag `vX.Y.Z` | `latest` हमेशा सबसे नई स्थिर release है |
-| एक pre-release tag (हाइफ़न वाला) | एक pre-release tag | सिर्फ़ अपना tag प्रकाशित करता है, `latest` को कभी नहीं बदलता |
-| branch का नाम, `sha-<commit>` | branch से बनी इमेज | सिर्फ़ amd64 |
+| एक pre-release tag (हाइफ़न वाला) | एक pre-release tag | अपना tag और `sha-<commit>` प्रकाशित करता है, `latest` कभी नहीं |
+| branch का नाम, `sha-<commit>` | branch से बनी इमेज | सिर्फ़ डिफ़ॉल्ट इमेज, सामान्यतः सिर्फ़ amd64 |
 
-हर tag तीन रूपों में आता है: डिफ़ॉल्ट रूप में प्लगइन के सभी रनटाइम होते हैं
+release और pre-release tag तीन रूपों में आते हैं (branch से बनी इमेज सिर्फ़ डिफ़ॉल्ट इमेज प्रकाशित करती है): डिफ़ॉल्ट रूप में प्लगइन के सभी रनटाइम होते हैं
 (Python 3, Node.js, PHP, Ruby और Lua), `-nodejs` में Python और Node.js रहते हैं,
 `-lean` में सिर्फ़ Python रहता है (जैसे `latest-lean`)। हल्का रूप सिर्फ़ तब चुनें
 जब इमेज का आकार मायने रखता हो: installer उस प्लगइन को मना कर देता है जिसकी

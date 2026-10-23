@@ -228,7 +228,7 @@ are set.
 
 Evey works behind a reverse proxy left on its defaults: every long-lived
 response either sends bytes continuously (HLS segments, direct play,
-transcode output) or pings the client every 30 s (the event streams), so a
+transcode output) or keeps the connection alive (the event streams send a keep-alive), so a
 default read timeout never fires. Two things are still worth knowing:
 
 - **Buffering.** A proxy that buffers responses (nginx does by default) reads
@@ -348,7 +348,7 @@ one port for API and UI, https mode from the scheme: internal/config/config.go (
 bundled Caddy: docker/Caddyfile (streaming matcher, @ownPolicy, header_down CSP) ; docker/Dockerfile.caddy ; docker-compose.yml caddy service
 nginx: examples/nginx/evey.conf.template ; examples/nginx/docker-compose.nginx.yml (nginx-certs volume, no ACME)
 traefik: examples/traefik/docker-compose.traefik.yml (labels + proxy network only)
-streaming paths: cmd/evey/gateway.go ; event streams ping 30 s ; scan progress stream
+streaming paths: cmd/evey/gateway.go ; event streams keep-alive ; scan progress stream
 csp and own-policy pages: internal/adapters/driving/http/helpers.go - securityHeadersMiddleware ; /plugin-frame.html ; /cast-receiver.html
 trusted proxies, catch-all refused, doctor: internal/config/trusted_proxies.go ; cmd/evey/admin_ops.go - checkTrustedProxies
 remote access inferred: docs/adr/0026-remote-access-inferred-from-a-published-url.md

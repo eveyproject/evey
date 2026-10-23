@@ -8,13 +8,13 @@ source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 
 ## CI 如何处理标签（打标签前请阅读）
 
-`.github/workflows/ci.yml` 在每次 push 和每个 `v*.*.*` 标签时构建并发布镜像，共三种插件
-运行时变体（`` (完整，默认)、`-nodejs`、`-lean`），发布到 `docker.io/eveyproject/evey` 和
-`ghcr.io/eveyproject/evey`：
+`.github/workflows/ci.yml` 在每次推送到 `main`、`master`、`beta-*` 和 `alpha-*`（只改动文档的推送不构建任何东西）以及每个 `v*.*.*` 标签时构建镜像，并发布到 `docker.io/eveyproject/evey`。
+发布标签、预发布标签和手动运行会发布三种插件运行时变体（完整，默认；然后是 `-nodejs` 和 `-lean`）；分支推送只发布默认（完整）镜像。
+`ghcr.io/eveyproject/evey` 是尽力而为的镜像站：以 Docker Hub 为准。
 
-| 您推送的内容 | 发布的镜像标签（每个标签另有 `-lean` / `-nodejs` 版本） |
+| 您推送的内容 | 发布的镜像标签（标签和手动运行：每个标签另有 `-lean` / `-nodejs` 版本） |
 |---|---|
-| 一个分支（例如 `master`） | `master`、`sha-<short>` |
+| 一个分支（例如 `master`） | `master`、`sha-<short>`（只有默认镜像） |
 | 标签 `v0.2.0-rc.1`（预发布版：带连字符） | `0.2.0-rc.1`、`sha-<short>` |
 | 标签 `v0.2.0`（稳定版） | `0.2.0`、`0.2`、`0`、`latest`、`sha-<short>` |
 
@@ -35,7 +35,7 @@ source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 
 ## 发布预发布版（封闭测试）
 
-1. **在该提交上所有检查通过**：在本地运行 `make pre-push`。push 时 CI 也会运行相同的检查。
+1. **在该提交上所有检查通过**：在本地运行 `make pre-push`。push 时 CI 也会运行等效的检查。
 2. **先在真实安装上验证。** 该提交必须已经以 `sha-<short>` 标签在参考部署上运行过，用
    `scripts/evey-update.sh --tag sha-<short> --apply` 更新，并用 `--commit <sha>` 验证。
    标签是对其他运维者的承诺；应在验证之后打标签，而不是之前。
@@ -58,7 +58,7 @@ source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 
 步骤相同，标签使用不带后缀的 `vX.Y.Z`。有一项预发布版不需要的检查：镜像内置的 Postgres
 主版本必须记录在 changelog 中，因为使用内置数据库的运维者在该版本变化时必须按照
-[installation.md](../installation.md) 的升级章节操作。
+[advanced-deployments.md](../operations/advanced-deployments.md#move-to-a-newer-postgres-major) 中“升级 Postgres 大版本”一节操作。
 
 ## 回滚版本
 

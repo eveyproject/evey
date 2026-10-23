@@ -7,7 +7,7 @@ Operational playbooks for running Evey in production (or a serious home lab).
 - [cli.md](cli.md) - `evey admin` operator CLI reference (migrate, reset-password, rotate-jwt-key, restore-backup, reindex-search) + standalone dev/QA binaries.
 - [media-health.md](media-health.md) - the admin Media health page: the two verdicts (repairable here / information), what Repair all does and asks, checking audio sync by eye, marking remarks as seen, why the first scan after an upgrade is long, backups, the repair journal and undo.
 - [migration-runbook.md](migration-runbook.md) - applying, rolling back, and recovering from database migrations.
-- [incident-runbook.md](incident-runbook.md) - first-response diagnostics for common outages (server down, auth broken, transcode fail, DB/Meili issues, cache full, plugin crash, WSL git corruption).
+- [incident-runbook.md](incident-runbook.md) - first-response diagnostics for common outages (server down, auth broken, transcode fail, DB/Meili issues, cache full, plugin crash).
 - [release.md](release.md) - what CI publishes for a branch, a pre-release tag and a stable tag; how to cut one; why operators pin `sha-`/release tags, never a branch.
 - `scripts/evey-update.sh` / `scripts/evey-rollback.sh` - host-side update and rollback, dry-run by default (see [release.md](release.md); a compose install updates as in [Updating Evey](../backups.md#updating-evey)).
 

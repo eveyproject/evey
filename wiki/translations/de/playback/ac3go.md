@@ -1,8 +1,8 @@
 ---
-source_sha: bb59efb19b44f714d153c63f29645a30745cd729e75bb9e92bae2127c34c3296
+source_sha: ca7f6846927d60865945e4118a9694b18e3af43247d9c41ac5110cf6c4c12f46
 reviewed: true
 ---
-# ac3go in Evey
+# ac3go in Evey { #ac3go-in-evey }
 
 **Kurz gesagt:**
 
@@ -26,7 +26,7 @@ wird, steht unter [Audio](audio.md).
 ac3go wird als eigene Bibliothek entwickelt, in Go geschrieben und ohne
 Abhängigkeiten: [github.com/gravity-zero/ac3go](https://github.com/gravity-zero/ac3go).
 
-## Wann der Browser den Ton selbst dekodiert
+## Wann der Browser den Ton selbst dekodiert { #when-the-browser-decodes-the-sound-itself }
 
 Alle diese Bedingungen müssen erfüllt sein:
 
@@ -37,9 +37,9 @@ Alle diese Bedingungen müssen erfüllt sein:
 | Die Spur hat höchstens sechs Kanäle (5.1) und nicht mehr als **Maximale Audio-Kanäle** im Profil erlaubt. Dieser Weg gibt die Spur so weiter, wie sie in der Datei steht, und kann die Kanäle deshalb nicht heruntermischen. | Der Server wandelt die Spur in AAC um, das die Kanäle für ein Stereo-Profil heruntermischen kann. Eine E-AC-3-Spur in 7.1 wird immer umgewandelt. |
 | Der Film läuft über den Stream des Servers (Remux oder Transkodierung), nicht als direkt gelesene Datei. | Die Spur folgt der Entscheidung für diese Wiedergabe. |
 
-## Wie die Wiedergabe abläuft
+## Wie die Wiedergabe abläuft { #how-it-plays }
 
-Das Bild läuft stumm über den üblichen Player des Browsers. Der Ton kommt aus
+Das Bild läuft über den üblichen Player des Browsers; sein Stream enthält keine Tonspur, und Lautstärke und Stummschaltung des Players steuern stattdessen die Verstärkung der Klang-Engine. Der Ton kommt aus
 einem eigenen Audio-Stream, den der Server in der Playlist nennt: die Spur so,
 wie sie in der Datei steht, verpackt von [MKVGo](mkvgo.md), wenn es geht,
 sonst von FFmpeg kopiert. Keiner der beiden dekodiert sie.
@@ -61,7 +61,7 @@ Moments, und ac3go übernimmt, sobald er bereit ist. Der Browser lädt den
 Decoder nur einmal herunter und prüft ihn bei jeder Nutzung erneut. So mischt
 ein Server-Update nie eine alte und eine neue Fassung.
 
-## Wenn ac3go nicht laufen kann
+## Wenn ac3go nicht laufen kann { #if-ac3go-cannot-run }
 
 Lädt der Decoder nicht, scheitert er an einem Segment oder hat der Server ihm
 keinen Audio-Stream genannt, verwendet der Player ihn für den Rest des Titels
@@ -76,7 +76,7 @@ Umwandlung statt *clientseitig dekodiert*.
     Rest der Web-App ausliefern. Siehe
     [Reverse-Proxy-Konfigurationen](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own).
 
-## Auf einem Cast-Empfänger
+## Auf einem Cast-Empfänger { #on-a-cast-receiver }
 
 Der Chromecast-Empfänger von Evey verwendet ac3go nicht. Auf TV-Boxen mit
 wenig Speicher hörten Empfänger, die den Ton so dekodierten, nach einigen
@@ -84,7 +84,7 @@ Minuten Wiedergabe auf. Der Fernseher bekommt Dolby Digital unverändert, wenn
 sein Empfänger meldet, dass er es durchreicht, und sonst das AAC des Servers:
 siehe [Streamen auf Chromecast](casting.md).
 
-## Die Bibliothek und ihre Lizenz
+## Die Bibliothek und ihre Lizenz { #the-library-and-its-licence }
 
 ac3go steht wie Evey unter der GNU AGPLv3. Es wird beim Bau des Evey-Images
 aus den Quellen erstellt (mit den Go-Werkzeugen zu WebAssembly kompiliert),

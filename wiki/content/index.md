@@ -147,7 +147,8 @@ repair you asked for, a subtitle fetched through the API, and a small test
 file that checks Evey still sees new files arrive. Mount your media read-only
 and none of that happens. **Media Health** checks your MKV and WebM files and
 lists the problems it finds. It repairs a file only when you ask, works on a
-copy that is checked in full before it replaces the file, keeps the original
+copy that is checked before it replaces the file (read in full when you ask,
+and always when no backup is kept), keeps the original
 by default, and records every change. What cannot be repaired is reported
 and left alone.
 [Media health](runbooks/media-health.md)
@@ -155,8 +156,8 @@ and left alone.
 **Your data.** The project runs no service that receives it: no account with
 us, no analytics, no crash reports. The apps talk to your server and to
 nothing else we operate. What leaves your network: the server fetches
-artwork and descriptions from outside services (The Movie Database, and cover
-art sources for music), and from time to time asks whether a newer version
+artwork and descriptions from outside services (The Movie Database, TVmaze, an IMDb API,
+OMDb when a key is set, MusicBrainz and cover art sources for music), and from time to time asks whether a newer version
 exists, which you can switch off. The database is saved before every update
 that changes it.
 [Privacy policy](privacy.md) · [Backups and updates](backups.md)

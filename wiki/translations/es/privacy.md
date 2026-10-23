@@ -1,5 +1,5 @@
 ---
-source_sha: 6731543d05eba23817144ccd5d21f648ca65b14ec0dfd93bf782752067af1ad1
+source_sha: e527433cfc41c2cba1cfcb773095634c496390297f79ac7e7b368fa36d27d047
 reviewed: true
 ---
 # Política de privacidad { #privacy-policy }
@@ -60,8 +60,7 @@ proyecto Evey no tiene acceso a ellos.
 
 ## Lo que se queda en el dispositivo { #what-stays-on-the-device }
 
-La dirección del servidor, tu token de sesión (en el almacenamiento cifrado
-de Android), tus preferencias, y las películas y la música que descargas para
+La dirección del servidor, tu token de sesión y, si marcas recordarme, tu nombre de usuario y tu contraseña (en el almacenamiento cifrado de Android, el keystore de Android), tus preferencias, y las películas y la música que descargas para
 verlas o escucharlas sin conexión. Si desinstalas la app, se borran. El
 desbloqueo biométrico (huella o cara), cuando lo activas, lo gestiona
 Android: la app solo sabe si ha funcionado o no.
@@ -74,6 +73,10 @@ Android: la app solo sabe si ha funcionado o no.
 | Cámara | Escanear un código QR de la Conexión rápida. No se graba ni se envía nada. |
 | Notificaciones, servicio en primer plano | Mostrar el avance de la reproducción y de las descargas, seguir reproduciendo con la pantalla apagada. |
 | Biometría | Bloqueo opcional de la app. |
+| Modificar la configuración de audio | Ajustar el audio de la reproducción (gestión del volumen) mientras se ve una película. |
+| Mantener activo (wake lock) | Evitar que el dispositivo se suspenda durante la reproducción. |
+| Vibración | Respuesta háptica en la app. |
+| Leer y escribir almacenamiento externo (solo Android 12 y anteriores) | Guardar y leer tus descargas sin conexión en esas versiones de Android. |
 
 La app para teléfono no tiene permiso para usar el micrófono.
 

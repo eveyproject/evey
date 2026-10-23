@@ -9,13 +9,16 @@ Evey का कोई संस्करण एक branch से उस स्�
 
 ## CI किसी टैग के साथ क्या करता है (टैग करने से पहले पढ़ें)
 
-`.github/workflows/ci.yml` हर push पर और हर `v*.*.*` टैग पर इमेज बनाता और प्रकाशित
-करता है, प्लगइन रनटाइम के तीन रूपों में (`` (पूर्ण, डिफ़ॉल्ट), `-nodejs`, `-lean`),
-`docker.io/eveyproject/evey` और `ghcr.io/eveyproject/evey` पर:
+`.github/workflows/ci.yml` `main`, `master`, `beta-*` और `alpha-*` पर हर push पर (जो push सिर्फ़ दस्तावेज़
+छूता है वह कुछ नहीं बनाता) और हर `v*.*.*` टैग पर इमेज बनाता और
+`docker.io/eveyproject/evey` पर प्रकाशित करता है। release और pre-release टैग और
+मैन्युअल रन प्लगइन रनटाइम के तीन रूप प्रकाशित करते हैं (पूर्ण, डिफ़ॉल्ट, फिर
+`-nodejs` और `-lean`); branch का push सिर्फ़ डिफ़ॉल्ट (पूर्ण) इमेज प्रकाशित करता है।
+`ghcr.io/eveyproject/evey` सर्वोत्तम-प्रयास वाला मिरर है: संदर्भ Docker Hub है:
 
-| आप push करते हैं | प्रकाशित इमेज टैग (हर एक `-lean` / `-nodejs` के साथ भी) |
+| आप push करते हैं | प्रकाशित इमेज टैग (टैग और मैन्युअल रन: हर एक `-lean` / `-nodejs` के साथ भी) |
 |---|---|
-| एक branch (जैसे `master`) | `master`, `sha-<short>` |
+| एक branch (जैसे `master`) | `master`, `sha-<short>` (सिर्फ़ डिफ़ॉल्ट इमेज) |
 | टैग `v0.2.0-rc.1` (प्री-रिलीज़: इसमें हाइफ़न है) | `0.2.0-rc.1`, `sha-<short>` |
 | टैग `v0.2.0` (स्थिर) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
@@ -42,7 +45,7 @@ commit बाइनरी में (`evey version`, `/healthz`) और इम�
 ## प्री-रिलीज़ जारी करना (बंद बीटा)
 
 1. **ठीक उसी commit पर सभी जाँचें सफल**: स्थानीय रूप से `make pre-push`। push पर CI
-   भी यही जाँचें चलाता है।
+   भी समकक्ष जाँचें चलाता है।
 2. **पहले किसी वास्तविक इंस्टॉलेशन पर प्रमाणित।** commit पहले से संदर्भ तैनाती पर
    `sha-<short>` टैग के रूप में चल चुका होना चाहिए,
    `scripts/evey-update.sh --tag sha-<short> --apply` से अपडेट किया हुआ और
@@ -70,7 +73,8 @@ commit बाइनरी में (`evey version`, `/healthz`) और इम�
 वही चरण, बिना suffix वाला टैग `vX.Y.Z`। एक जाँच जिसकी प्री-रिलीज़ को ज़रूरत नहीं:
 इमेज में शामिल Postgres का major संस्करण changelog में दर्ज होना चाहिए, क्योंकि
 embedded डेटाबेस वाले संचालक को उसके बदलने पर
-[installation.md](../installation.md) के upgrade खंड का पालन करना होता है।
+[advanced-deployments.md](../operations/advanced-deployments.md#move-to-a-newer-postgres-major) के
+"Postgres के नए major वर्ज़न पर जाना" खंड का पालन करना होता है।
 
 ## रिलीज़ को वापस लेना
 

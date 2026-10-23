@@ -1,8 +1,8 @@
 ---
-source_sha: 4da6d87a4495603598041edc6216fa889229d188f8579a3799818f7ddbf73246
+source_sha: 80ee38697d8d389ccbe3deabdb838a6d8be5fa0af92f9832ad8d150b574bdcb2
 reviewed: true
 ---
-# Kommandozeile
+# Kommandozeile { #command-line }
 
 Das Programm des Servers ist zugleich die Kommandozeile für den Betreiber:
 `evey admin <subcommand>` führt ein Wartungs- oder Wiederherstellungswerkzeug
@@ -12,7 +12,7 @@ im Container ausführen. Die Abläufe für den Alltag (Passwort vergessen,
 Schlüssel wechseln, Wiederherstellen) stehen unter
 [Wiederherstellung](recovery.md).
 
-## Einen Befehl ausführen
+## Einen Befehl ausführen { #running-a-command }
 
 In der Standardinstallation laufen die Befehle im Container. Dort sind das
 Datenbankpasswort und die `EVEY_*`-Konfiguration schon vorhanden:
@@ -41,13 +41,13 @@ gefahrlos ausführen, während er gestoppt ist.
 Jedes andere erste Argument wird abgelehnt (Code 1), statt stillschweigend
 den Server zu starten.
 
-## Die Befehle
+## Die Befehle { #the-commands }
 
 Die Liste unten ist der `--help`-Text des Programms selbst, so gruppiert, wie
 `evey admin` ihn ausgibt. `evey admin` ohne Unterbefehl zeigt immer die
 aktuelle Liste.
 
-### Wiederherstellung
+### Wiederherstellung { #recovery }
 
 ```
 evey admin reset-password --user <email>     Generate a new password for the user, print it once.
@@ -66,7 +66,9 @@ evey admin restore-backup <path-to-dump.sql.gz>
                                              Restore the database from a pg_dump.gz file, in a single
                                              transaction. The whole file is checked first: a truncated
                                              or corrupt dump is refused before anything is dropped.
-                                             Existing rows are OVERWRITTEN; waits 5 s for a Ctrl-C
+                                             The dump drops and recreates each table before loading
+                                             it, so it can be restored onto a populated database;
+                                             waits 5 s for a Ctrl-C
                                              before it starts. The .sql.gz suffix is required (not the
                                              panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]
@@ -86,7 +88,7 @@ des betroffenen Nutzers, der zweite die aller Nutzer. Offene Apps merken das
 innerhalb von etwa 30 Sekunden und bitten um eine neue Anmeldung. Die
 vollständigen Abläufe stehen unter [Wiederherstellung](recovery.md).
 
-### Schema
+### Schema { #schema }
 
 ```
 evey admin migrate up [--no-backup]          Apply every pending migration.
@@ -104,7 +106,7 @@ verpackt das Makefile diese drei Befehle als `make migrate-up`,
 `make migrate-down` und `make migrate-version`; sie laufen im
 Entwicklungscontainer `evey-server`.
 
-### Medienwartung
+### Medienwartung { #media-maintenance }
 
 ```
 evey admin reindex-no-cue --root <dir> [--apply] [--limit N] [--mode auto|inplace|rewrite] [--deep-verify] [--resync] [--keep-backup=false]
@@ -136,7 +138,7 @@ Dieselbe Technik steckt hinter **Verwaltung → Medienzustand**. Das ist der
 einfachere Weg, eine Bibliothek zu reparieren: siehe
 [Medienzustand](media-health.md).
 
-### Kodierung pro Titel
+### Kodierung pro Titel { #per-title-encoding }
 
 ```
 evey admin reclassify <media-id>             Force-recompute the complexity class of one media item.
@@ -144,7 +146,7 @@ evey admin reclassify --all                  Wipe every classified row; the back
                                              re-classifies the whole library at its background pace.
 ```
 
-### Diagnose
+### Diagnose { #diagnostics }
 
 ```
 evey admin doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch (plus
@@ -161,17 +163,23 @@ evey admin rollback                          Read-only advisor: running version,
 evey admin route-bench [--backend nvenc|vaapi|qsv|none] [--heights 1080,2160] [--fps 24,30,50,60] [--out rows.csv] [--json run.json] [<file>...]
                                              Measure what a session of each transcode route costs on
                                              this host against the calibration and the cost model.
-                                             Minutes of full load; never while serving.
+                                             Minutes of full load; never while serving. More flags
+                                             (--device --routes --classes --duration --workdir
+                                             --capability): the full list is in
+                                             `evey admin route-bench --help`.
 evey admin ladder-bench [--scenes 3] [--window 8] [--heights 1080,720] [--crf 18,23,28] [--out rows.csv] [--efficiency --mode full|fast|incremental] <file>...
                                              Encode a few scenes of each title at fixed CRFs and
                                              score encode cost against the ladder's complexity
                                              features. Runs ffmpeg for minutes; never while serving.
+                                             More flags (--preset --ref-height --ref-crf --cache
+                                             --encoders --device): the full list is in
+                                             `evey admin ladder-bench --help`.
 evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Run the per-title probe on the given files: probe time,
                                              early-stop rate and points. Reads and encodes only.
 ```
 
-### Kapazität
+### Kapazität { #capacity }
 
 ```
 evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S] [--cold-cache]
@@ -189,14 +197,14 @@ evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max
                                              load-test --scenario balanced --max-viewers 4
 ```
 
-### Quellen für die Vervollständigung
+### Quellen für die Vervollständigung { #completion-sources }
 
 ```
 evey admin list-users                        Print user emails, one per line (drives --user completion).
 evey admin list-libraries                    Print every library root path, one per line (drives --root completion).
 ```
 
-## Tab-Vervollständigung und Handbuch
+## Tab-Vervollständigung und Handbuch { #tab-completion-and-the-manual }
 
 Das Programm bringt seine eigene bash-Vervollständigung und sein eigenes
 Handbuch mit. Beide passen daher immer zu den Unterbefehlen, die es enthält:
@@ -219,7 +227,7 @@ Admin-Shell (`docker exec -it evey-server bash`) beantwortet `man evey`, indem
 sie `evey man --text` seitenweise anzeigt, denn das Image enthält kein
 `man`-Programm.
 
-## Was nicht in `evey admin` steckt
+## Was nicht in `evey admin` steckt { #what-is-not-in-evey-admin }
 
 Drei eigenständige Programme liegen im Quellcode neben dem Server. Sie sind
 Werkzeuge für Entwicklung und Tests, keine Befehle für den Betreiber, und das
@@ -231,7 +239,7 @@ Docker-Image enthält sie nicht:
 | `cmd/intro-diag` | Erklären, warum die Intro-Erkennung bei einer Serie ein Intro gefunden hat oder nicht, anhand der Trickplay-Sprites auf der Festplatte. |
 | `cmd/trickplay-verify` | Prüfen, dass jede Trickplay-Kachel das Bild zum gespeicherten Zeitpunkt zeigt, indem das Bild der Quelle mit ffmpeg erneut extrahiert wird. |
 
-## Verwandte Runbooks
+## Verwandte Runbooks { #related-runbooks }
 
 - [Wiederherstellung](recovery.md): Passwort zurücksetzen, JWT-Schlüssel wechseln, Sicherung wiederherstellen.
 - [Datenbankmigrationen](migration-runbook.md): Schema ausrollen, zurückrollen, einen „dirty“-Zustand beheben.
@@ -242,7 +250,7 @@ dispatch and top-level commands: cmd/evey/cli.go - runCLI (version, help, comple
 subcommand table, groups, --help text: cmd/evey/admin_commands.go - adminCommands, adminGroups, printAdminUsage, adminUsage (exit 1 without subcommand) ; drift test cmd/evey/admin_cli_test.go
 sessions ended: cmd/evey/admin.go - adminResetPassword (DeleteByUserID + BumpTokenEpoch), adminRotateJWTKey, endAllSessions ; epoch cache TTL internal/app/user/token_epoch.go
 backup and restore: cmd/evey/admin_backup.go - adminBackup ; cmd/evey/admin.go - adminRestoreBackup, verifyDumpComplete
-container: Dockerfile (EVEY_DB_PASSWORD_FILE, EVEY_BACKUP_DIR=/data/backups, completion at build time) ; docker/evey-shell.sh - man()
+container: Dockerfile (EVEY_DB_PASSWORD_FILE, completion at build time) ; internal/config/config.go (EVEY_BACKUP_DIR default /data/backups) ; docker/evey-shell.sh - man()
 makefile: Makefile migrate-up / migrate-down / migrate-version
 standalone programs: cmd/intro-backfill, cmd/intro-diag, cmd/trickplay-verify
 -->

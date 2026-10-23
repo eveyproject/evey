@@ -1,5 +1,5 @@
 ---
-source_sha: af969a3c2ee02e3c968a79874fba9fc3a2e1b7c9925fd9888aacdf51fcda149b
+source_sha: 8225f3cc5ff5a9bf19187b30ea0a5cd214bea962f504708f3de910c38a198b9a
 reviewed: true
 ---
 # Überwachung und Protokolle { #monitoring-and-logs }
@@ -22,7 +22,7 @@ ist, nach Profil, und wie lange es her ist, dass sich jede App zuletzt
 gemeldet hat. Ein Chromecast, dessen Fernseher Eveys Empfänger geladen hält,
 bleibt in der Liste, auch wenn seine Wiedergabe beendet ist und aus
 **Aktuelle Wiedergabe** verschwunden ist; **Diesen Chromecast stoppen**
-schickt ihm einen Stopp-Befehl, den der Fernseher innerhalb von 30 Sekunden
+schickt ihm einen Stopp-Befehl, den der Fernseher in etwa 30 Sekunden
 ausführt.
 
 **Verwaltung → Systemzustand** zeigt Prozessor, Arbeitsspeicher, Bandbreite
@@ -65,7 +65,8 @@ ein Benutzer ein Problem meldet.
 
 Dasselbe Protokoll liegt auf der Festplatte, eine JSON-Datei pro Tag in
 `./evey-data/logs/` (`/data/logs/evey-YYYY-MM-DD.log` im Container),
-standardmäßig 90 Tage aufbewahrt. `docker compose logs evey` zeigt nur, was
+dazu eine Datei mit Stundensuffix (`evey-YYYY-MM-DD-HH.log`), sobald eine Datei
+50 MB überschreitet (`EVEY_LOG_MAX_SIZE_MB`), standardmäßig 90 Tage aufbewahrt. `docker compose logs evey` zeigt nur, was
 der Container beim Start ausgibt. Das lesen Sie, wenn der Server nicht
 startet. Siehe [Fehlerbehebung](troubleshooting.md#the-logs).
 
@@ -91,17 +92,18 @@ hebt eine sofort auf.
   Verwaltungsaktionen sowie die laufenden Hintergrundarbeiten.
 
 Wie lange jede Art von Verlauf aufbewahrt wird, legen Sie unter **Verwaltung
-→ Serverkonfiguration → Servereinstellungen** fest (Wiedergabesitzungen,
+→ Serverkonfiguration → Daten & Aufbewahrung** fest (Wiedergabesitzungen,
 Audit-Protokoll, Servermesswerte, Streaming-Qualität). Eine Änderung gilt ab
 der nächsten täglichen Bereinigung.
 
 ## Prometheus-Metriken { #prometheus-metrics }
 
 `GET /metrics` liefert die Zähler des Servers im Textformat von Prometheus,
-alle mit Namen `evey_...`. Es antwortet einer Administratorsitzung oder einem
-festen Token, das in `EVEY_METRICS_SCRAPE_TOKEN` gesetzt und als
-`Authorization: Bearer <token>` gesendet wird, damit Prometheus oder Grafana
-die Werte abrufen können, ohne sich neu anzumelden
+alle mit Namen `evey_...`. Es antwortet einem festen Token, das in
+`EVEY_METRICS_SCRAPE_TOKEN` gesetzt und als `Authorization: Bearer <token>`
+gesendet wird, damit Prometheus oder Grafana die Werte von überall abrufen
+können, ohne sich anzumelden; eine Administratorsitzung wird nur vom eigenen
+Loopback des Containers akzeptiert
 ([Sicherungen, Protokolle und Überwachung](../environment/logs-monitoring.md)).
 Die Gruppen, die sich für ein erstes Diagramm lohnen:
 

@@ -1,12 +1,12 @@
 ---
-source_sha: fad8d9ff7aa0e8e4c14508e1eb2fe716e13c05c66eca9acb763084c56aec898f
+source_sha: e42888fc562d4048501a959c02c07cd4a45986308799bd171bf193880d6a12ee
 reviewed: true
 ---
-# 数据库迁移
+# 数据库迁移 { #database-migrations }
 
 本页说明 Evey 在更新时如何改变数据库结构、前后要检查什么，以及迁移中途停止时如何恢复。它写给使用标准安装的运维人员，标准安装中数据库运行在 `evey-server` 容器里；编写迁移的贡献者可以在最后找到相关规则。
 
-## 迁移如何运行
+## 迁移如何运行 { #how-migrations-run }
 
 迁移内置在程序里，服务器启动时由 `golang-migrate` 应用。状态记录在 `schema_migrations` 表里，只有一行 `{version, dirty}`。在应用任何迁移之前，服务器会把完整的转储写到 `EVEY_BACKUP_DIR`（`/data/backups`，也就是主机上的 `./evey-data/backups`），文件名为 `pre-migration-<version>-<UTC timestamp>.sql.gz`；最近 3 个数据库结构版本中，每个版本保留最新的一份转储。
 
@@ -25,7 +25,7 @@ docker exec -it evey-server sh -c \
   'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-## 安全地更新
+## 安全地更新 { #update-safely }
 
 1. **先做一次备份**：在**管理 → 数据库备份**里（**立即运行**），或者用脚本：
    ```sh
@@ -60,7 +60,7 @@ docker exec -it evey-server sh -c \
    ```
    如果这个版本改变了视频的编码方式，请清空转码缓存（**管理 → 转码缓存 → 清除全部**）。
 
-## 回到上一个版本
+## 回到上一个版本 { #go-back-to-the-previous-version }
 
 `docker exec evey-server evey admin rollback` 会输出正在运行的版本、数据库结构版本、最新的迁移前转储，以及要在主机上运行的准确命令。它不会改动任何东西：容器没有访问 Docker 的权限。
 
@@ -69,7 +69,7 @@ docker exec -it evey-server sh -c \
 !!! warning
     除了清除“脏”状态（见下文），不要手动修改 `schema_migrations`，而且修改之前要先做一次转储。
 
-## 迁移中途停止
+## 迁移中途停止 { #a-migration-that-stopped-halfway }
 
 如果日志显示 `Dirty database version N. Fix and force version.`，说明某个迁移在中途崩溃了，`golang-migrate` 拒绝继续。请先把数据库结构调整到您想要的状态，然后清除这个标记：
 
@@ -83,7 +83,7 @@ UPDATE schema_migrations SET version = <N>, dirty = false;
 
 重启容器；迁移会从那里继续。另一种恢复办法是恢复迁移前的转储（[恢复](recovery.md#restore-a-pre-migration-dump)）。
 
-## 编写迁移
+## 编写迁移 { #writing-a-migration }
 
 写给贡献者。迁移文件位于 `internal/adapters/driven/postgres/migrations/NNNNNN_<name>.{up,down}.sql`。已经发布的例子：
 
@@ -107,5 +107,5 @@ migrations: internal/adapters/driven/postgres/migrate.go - RunMigrations, Rollba
 cli: cmd/evey/admin.go - adminMigrate, adminMigrateUsage ; cmd/evey/admin_ops.go - adminRollback
 embedded database and healthcheck start period: docker/entrypoint.sh (postgres.password, EVEY_DB_PASSWORD_FILE) ; Dockerfile - HEALTHCHECK --start-period
 backup route: internal/adapters/driving/http/backup_handler.go (POST /api/v1/admin/backups)
-labels: i18n/en/admin.yaml - sidebar.backupRestore, backup.schedule.runNow, transcodeCache.clearAll
+labels: i18n/en/admin.yaml - nav.backupRestore, backup.schedule.runNow, transcodeCache.clearAll
 -->

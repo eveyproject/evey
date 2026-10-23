@@ -49,7 +49,7 @@ The reasons fall into four groups:
 | The player cannot use the track as it is | Video codec this player cannot decode · Audio codec this player cannot decode · Resolution above the player's limit · More audio channels than this player supports · Pixel format the player cannot decode (10-bit H.264, 4:2:2) · Container not playable as-is (repackaged to HLS) |
 | A limit on this session | Bitrate above the allowed limit · The line the client measured cannot carry the copy |
 | A consequence for the picture or the sound | HDR converted to SDR (tone-mapping) · Subtitles burned into the picture · Audio resync requested |
-| A setting or a decision already taken | Direct Play turned off in the profile · Remux turned off in the profile · Preferred video codec (profile setting) · Choice pinned for this session |
+| A setting or a decision already taken | Preferred video codec (profile setting) · Choice pinned for this session |
 
 Only the audio track being played is judged. A file whose unselected
 commentary track is in DTS is not transcoded because of it.
@@ -136,13 +136,13 @@ a new decision.
 
 ## Forcing a method
 
-**Settings → Playback** has **Allow direct play**, **Allow remux** and **Allow
-transcoding** per profile. Turning one off makes the server skip that method,
-and Stream info shows why.
-
-!!! note
-    This is a diagnostic tool, not a quality setting: a forced transcode is
-    never better than the original.
+You cannot force a method: the server always picks it from the file and the
+player. What you can hold down is quality, per device, with **Settings →
+Playback → Data saver (this device)**. It caps the stream on that device only;
+the account's other devices keep their own setting. **Off** sets no cap.
+**Saver** asks for at most 720p, 3 Mbps and stereo sound. **Travel / low data**
+asks for at most 480p, 1 Mbps and stereo sound. A title above the cap is
+transcoded down to it, and Stream info shows the limit as the reason.
 
 **Quality**, in the player's settings, is different: it chooses among the
 qualities of a transcoded stream. **Auto** follows the connection; a height
@@ -158,7 +158,8 @@ the player would otherwise ask for.
 - The implementation: [Playback pipeline](../playback-serving.md)
 
 <!-- sources
-decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels), applyDirectPlayPrefs
+decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels)
+
 session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked)
 remote cap: internal/adapters/driving/grpcapi/playback_handler.go - resolvePlaybackPrefs ; internal/config/config.go - RemoteBitrateCapKbps
 client caps: internal/domain/transcoding/playback_decision.go - ClientProfile ; frontend/packages/client/src/web/codec.ts ; frontend/packages/media-caps/src/castUrl.ts

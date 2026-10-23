@@ -1,8 +1,8 @@
 ---
-source_sha: 423abcebbc76e4563928da41b2a7c832f1c58ae0ac12a6c3ca307b8a59582cb1
+source_sha: 0bab686b9f686329111402f3fd66ecca742fbcfae479769927962bdcf8eeadcd
 reviewed: true
 ---
-# Copias de seguridad, registros y supervisión
+# Copias de seguridad, registros y supervisión { #backups-logs-and-monitoring }
 
 Las variables que hay detrás de las copias de seguridad de la base de datos,
 del registro del servidor, del tiempo que se conserva el historial y de los
@@ -10,7 +10,7 @@ puntos de acceso para un sistema de supervisión externo. El uso diario está
 en [Copias de seguridad y actualizaciones](../backups.md) y en
 [Supervisión y registros](../operations/monitoring.md).
 
-## Copias de seguridad
+## Copias de seguridad { #backups }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
@@ -18,30 +18,29 @@ en [Copias de seguridad y actualizaciones](../backups.md) y en
 | `EVEY_BACKUP_INTERVAL_HOURS` | `0` (desactivado) | Una copia cada N horas, independiente de la programación del panel, que es la forma habitual. | Copia de seguridad y restauración → **Programación** (expresión cron), inmediato |
 | `EVEY_BACKUP_RETENTION_DAYS` | `30` | Las copias más antiguas se borran cuando el intervalo anterior está definido, al arrancar y después de cada ejecución. La programación del panel tiene su propia **Retención**. | Copia de seguridad y restauración → Programación → **Retención**, inmediato |
 
-## Registro
+## Registro { #log }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_LOG_LEVEL` | `info` | `debug`, `info`, `warn` o `error`. | Configuración del servidor → Ajustes del servidor → **Nivel de registro**, inmediato |
+| `EVEY_LOG_LEVEL` | `info` | `debug`, `info`, `warn` o `error`. | Configuración del servidor → General → **Nivel de registro**, inmediato |
 | `EVEY_LOG_DIR` | `/data/logs` | Dónde se escribe el archivo de registro diario `evey-YYYY-MM-DD.log`. La define la imagen. Este archivo es la referencia: `docker logs` muestra el mismo flujo, pero Docker lo rota. | ninguno |
 | `EVEY_LOG_MAX_SIZE_MB` | `50` | Tamaño de un archivo de registro antes de rotarlo. | ninguno |
 | `EVEY_LOG_RETENTION_DAYS` | `90` | Días que se conservan los archivos de registro. | ninguno |
 
-## Conservación del historial
+## Conservación del historial { #history-retention }
 
 Cada limpieza diaria vuelve a leer los plazos de conservación, así que un
-valor guardado en **Administración → Configuración del servidor →
-Configuración del servidor** se aplica en la siguiente limpieza.
+valor guardado en **Administración → Configuración del servidor → Datos y conservación** se aplica en la siguiente limpieza.
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_PLAY_SESSION_RETENTION_DAYS` | `0` (siempre) | Las sesiones de reproducción terminadas del historial. | Configuración del servidor → **Retención del historial de sesiones**, en la siguiente limpieza |
-| `EVEY_AUDIT_LOG_RETENTION_DAYS` | `0` (siempre) | El registro de auditoría de las acciones de administración. | Configuración del servidor → **Retención del registro de auditoría**, en la siguiente limpieza |
-| `EVEY_METRICS_RETENTION_DAYS` | `90` | Las muestras de recursos del servidor (procesador, memoria, ancho de banda). | Configuración del servidor → **Retención de métricas del servidor**, en la siguiente limpieza |
-| `EVEY_QOE_RETENTION_DAYS` | `30` | Los informes de calidad de reproducción de los reproductores. | Configuración del servidor → **Retención de calidad de reproducción (QoE)**, en la siguiente limpieza |
+| `EVEY_PLAY_SESSION_RETENTION_DAYS` | `0` (siempre) | Las sesiones de reproducción terminadas del historial. | Configuración del servidor → Datos y conservación → **Retención del historial de sesiones**, en la siguiente limpieza |
+| `EVEY_AUDIT_LOG_RETENTION_DAYS` | `0` (siempre) | El registro de auditoría de las acciones de administración. | Configuración del servidor → Datos y conservación → **Retención del registro de auditoría**, en la siguiente limpieza |
+| `EVEY_METRICS_RETENTION_DAYS` | `90` | Las muestras de recursos del servidor (procesador, memoria, ancho de banda). | Configuración del servidor → Datos y conservación → **Retención de métricas del servidor**, en la siguiente limpieza |
+| `EVEY_QOE_RETENTION_DAYS` | `30` | Los informes de calidad de reproducción de los reproductores. | Configuración del servidor → Datos y conservación → **Retención de calidad de reproducción (QoE)**, en la siguiente limpieza |
 | `EVEY_METRICS_SAMPLE_INTERVAL_SEC` | `60` | Cada cuánto se toman esas muestras de recursos. | ninguno |
 
-## Supervisión externa
+## Supervisión externa { #external-monitoring }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
@@ -50,7 +49,7 @@ Configuración del servidor** se aplica en la siguiente limpieza.
 | `EVEY_TRACING_SERVICE_NAME` | `evey` | El nombre del servicio en las trazas. | ninguno |
 | `EVEY_TRACING_SAMPLE_RATIO` | `0` | La proporción de peticiones trazadas, de 0 a 1 (una proporción, no un porcentaje). | ninguno |
 
-## Solo para desarrollo
+## Solo para desarrollo { #development-only }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |

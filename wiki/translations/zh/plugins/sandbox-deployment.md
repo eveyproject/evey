@@ -1,5 +1,5 @@
 ---
-source_sha: 4bdba6d5067098c1afe18961724efcb0456688185654b46271045220a6665f03
+source_sha: 9c17a56bd4379a8c15fd8d637fe0c4914e9b9cf848503ddd72e806f574506caa
 reviewed: true
 ---
 # 插件沙箱设置 { #plugin-sandbox-setup }
@@ -116,7 +116,7 @@ EVEY_PLUGINS_CPU_NICE=10                # 调度优先级 0-19（越大越谦让
 docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
 # 正在运行的插件以哪个用户运行（evey = 和服务器共用，
-# evey-plugin = 已分离）；镜像里没有 ps，因此通过 Docker 查询
+# evey-plugin = 已分离）；镜像里有 ps，所以 `docker exec evey-server ps` 也可以
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 

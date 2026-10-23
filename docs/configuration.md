@@ -39,7 +39,8 @@ database on first use so the panel can display that a custom key is in use.
 - The panel marks the settings that are **read at startup** with *applies
   on restart*: the library watcher and scan interval, the transcode cache
   budget, the **Advanced limits** card of Transcoding, the intro providers,
-  and every **Config entries** row. Saving stores the choice, restarting
+  and the known operator flags among the **Config entries** rows (a row for
+  any other key shows no hint). Saving stores the choice, restarting
   applies it.
 
 Each table in the topic pages has a **Panel** column: the path to the field
@@ -95,7 +96,7 @@ Lines often carried over from older setups, and why they change nothing:
 | `EVEY_KEYFRAME_BACKFILL=on` | Anything other than `off` enables it, including absent. |
 | `LIBVA_DRIVER_NAME` | libva picks the driver from the GPU's PCI id. Force it only if your card needs a driver libva does not choose (verify with `docker exec evey-server vainfo`). |
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` picks the strongest confinement your host supports. Set it explicitly only when you want a *fail-closed* guarantee - `landlock` refuses to run a plugin it cannot confine, where `auto` degrades with a warning. |
-| a `group_add` for `/dev/dri/card0` | Evey only ever opens `renderD128`. Check with `ls -ln /dev/dri` and add that group alone. |
+| a `group_add` for `/dev/dri/card0` | Evey opens only render nodes (`/dev/dri/renderD*`, whichever the host has), never `card*`. Check with `ls -ln /dev/dri` and add the group of the render node alone. |
 
 ## File ownership (PUID and PGID)
 
@@ -119,8 +120,8 @@ server adopts the user owning the most mounts and joins the other mounts'
 groups as supplementary groups, so repairs on those mounts work when their
 files are group-writable (the startup warning lists which mounts may still
 refuse writes). Auto-detection only steps aside entirely (falls back to
-`1000:1000` with a warning) when every media mount is owned by root or by
-the reserved uid `1001` - chown your media to a regular user, or set
+`1000:1000` with a warning) when every media mount is owned by root, or by
+the reserved uid `1001` while plugins are enabled - chown your media to a regular user, or set
 `PUID`/`PGID` explicitly, under `environment:` in the compose file:
 
 ```yaml title="docker-compose.yml"
@@ -147,7 +148,7 @@ media-owner detection) - you then own keeping `./evey-data` writable by that
 UID yourself.
 
 !!! note
-    `PUID=1001` is refused: it is the internal `evey-plugin` user, kept
+    `PUID=1001` is refused while plugins are enabled: it is the internal `evey-plugin` user, kept
     distinct so plugins can never share the server's identity. Media is
     mounted read-write by default so repairs work natively; append `:ro` to
     the media volume if you prefer a read-only library (repairs then fail
@@ -159,7 +160,8 @@ Some variables appear in compose files without being read by the server:
 
 - `EVEY_HTTP_PORT`, `EVEY_DOMAIN`, `MEDIA_DIR`: used by the repository's own
   `docker-compose.yml` (published port, the bundled Caddy's domain, the media
-  path), not by Evey. `EVEY_VERSION` is the image tag there; the server only
+  path), not by Evey. `EVEY_HTTP_PORT` is the host port only: the container
+  always listens on 9091 and the compose maps `${EVEY_HTTP_PORT:-9091}:9091`. `EVEY_VERSION` is the image tag there; the server only
   shows it on `/healthz` when its binary carries no version.
 - `EVEY_WEB_DIR` (`/srv`, where the web interface files are), and
   `EVEY_DB_PASSWORD_FILE`, `MEILI_MASTER_KEY_FILE`, `EVEY_IMAGE_REPO`,

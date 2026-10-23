@@ -1,5 +1,5 @@
 ---
-source_sha: bcd1fe92a6c6837ce30d66edf387d4539752382b0a9f6038a14c15967da4eb32
+source_sha: 822f2e4e87b78c5d8f5b5509badc1a7c70b7d5fe0c6a2b84d574662a66b8ba95
 reviewed: true
 ---
 # Référence de configuration { #configuration-reference }
@@ -53,8 +53,9 @@ indiquer qu'une clé personnalisée est en service.
 - Le panneau signale par *appliqué au redémarrage* les réglages **lus au
   démarrage** : la surveillance des fichiers et l'intervalle d'analyse, le
   budget du cache de transcodage, la carte **Limites avancées** du
-  transcodage, les sources de détection des intros, et chaque ligne des
-  **Entrées de configuration**. Enregistrer conserve le choix, redémarrer
+  transcodage, les sources de détection des intros, et les options
+  d'opérateur connues parmi les lignes des **Entrées de configuration** (une
+  ligne pour toute autre clé n'affiche pas ce repère). Enregistrer conserve le choix, redémarrer
   l'applique.
 
 Chaque tableau des pages par thème a une colonne **Panneau** : le chemin du
@@ -113,7 +114,7 @@ changent rien :
 | `EVEY_KEYFRAME_BACKFILL=on` | Toute valeur autre que `off` l'active, y compris l'absence de valeur. |
 | `LIBVA_DRIVER_NAME` | libva choisit le pilote d'après l'identifiant PCI du GPU. Ne l'imposez que si votre carte a besoin d'un pilote que libva ne choisit pas (vérifiez avec `docker exec evey-server vainfo`). |
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` choisit le confinement le plus robuste que permet la machine. Ne la définissez explicitement que pour une garantie stricte : `landlock` refuse de lancer un plugin qu'il ne peut pas confiner, là où `auto` passe à un mode moins strict avec un avertissement. |
-| un `group_add` pour `/dev/dri/card0` | Evey n'ouvre que `renderD128`. Vérifiez avec `ls -ln /dev/dri` et n'ajoutez que ce groupe. |
+| un `group_add` pour `/dev/dri/card0` | Evey n'ouvre que des nœuds de rendu (`/dev/dri/renderD*`, quel que soit celui de l'hôte), jamais `card*`. Vérifiez avec `ls -ln /dev/dri` et n'ajoutez que le groupe du nœud de rendu. |
 
 ## Propriétaire des fichiers (PUID et PGID) { #file-ownership-puid-and-pgid }
 
@@ -141,7 +142,7 @@ que les réparations y fonctionnent si leurs fichiers sont modifiables par le
 groupe (l'avertissement de démarrage liste les montages qui pourraient encore
 refuser l'écriture). La détection automatique n'est abandonnée (repli sur
 `1000:1000` avec un avertissement) que si tous les montages appartiennent à
-root ou à l'uid réservé `1001` : attribuez vos médias à un utilisateur
+root, ou à l'uid réservé `1001` tant que les plugins sont activés : attribuez vos médias à un utilisateur
 ordinaire, ou définissez `PUID`/`PGID` explicitement, sous `environment:`
 dans le fichier compose :
 
@@ -169,7 +170,7 @@ compris la détection du propriétaire des médias) : c'est alors à vous de
 garder `./evey-data` modifiable par cet uid.
 
 !!! note
-    `PUID=1001` est refusé : c'est l'utilisateur interne `evey-plugin`,
+    `PUID=1001` est refusé tant que les plugins sont activés : c'est l'utilisateur interne `evey-plugin`,
     séparé pour que les plugins ne partagent jamais l'identité du serveur.
     Les médias sont montés en lecture-écriture par défaut pour que les
     réparations fonctionnent ; ajoutez `:ro` au volume si vous préférez une
@@ -183,7 +184,9 @@ serveur :
 
 - `EVEY_HTTP_PORT`, `EVEY_DOMAIN`, `MEDIA_DIR` : utilisées par le
   `docker-compose.yml` du dépôt (port publié, domaine du Caddy intégré, chemin
-  des médias), pas par Evey. `EVEY_VERSION` y est le tag de l'image ; le
+  des médias), pas par Evey. `EVEY_HTTP_PORT` est uniquement le port de l'hôte :
+  le conteneur écoute toujours sur 9091 et le compose publie
+  `${EVEY_HTTP_PORT:-9091}:9091`. `EVEY_VERSION` y est le tag de l'image ; le
   serveur ne l'affiche sur `/healthz` que si son binaire ne porte pas de
   version.
 - `EVEY_WEB_DIR` (`/srv`, l'emplacement des fichiers de l'interface web), ainsi

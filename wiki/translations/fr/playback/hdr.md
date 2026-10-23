@@ -1,8 +1,8 @@
 ---
-source_sha: a631c73d13e67b6253b0aa9e7c5c362475b1e0fcb6153effecea88bd092feca5
+source_sha: b13886b3c7cb855952109b4bf5bdeae9ee280eefbef1cd5d102784c95b2a0863
 reviewed: true
 ---
-# HDR et Dolby Vision
+# HDR et Dolby Vision { #hdr-and-dolby-vision }
 
 **En bref :**
 
@@ -12,9 +12,11 @@ reviewed: true
 - Sur un écran HDR avec l'application Android ou Android TV (et un appareil
   qui décode le HEVC), vous avez l'image HDR d'origine, tant que rien d'autre
   n'oblige à convertir.
-- Dans un navigateur web, et sur tout écran qui n'est pas HDR, le serveur
-  convertit l'image en SDR. C'est voulu : du HDR affiché sur un écran SDR
-  paraît gris et délavé.
+- Sur tout écran qui n'est pas HDR, le serveur convertit l'image en SDR.
+  C'est voulu : du HDR affiché sur un écran SDR paraît gris et délavé. Un
+  navigateur web sur un affichage SDR reçoit du SDR ; un navigateur qui
+  signale un affichage HDR et décode le HEVC garde le HDR10 et le HLG. Dolby
+  Vision est toujours converti.
 - Convertir du HDR en SDR est le travail le plus lourd que puisse faire le
   processeur. Une carte graphique aide : voir
   [Accélération matérielle](../administration/hardware-acceleration.md).
@@ -24,12 +26,12 @@ réencodage qui garde le HDR, ou une conversion en SDR. Les règles générales
 de lecture sont dans
 [Comment Evey choisit le mode de lecture](how-playback-is-decided.md).
 
-## Ce que vous verrez, selon l'appareil
+## Ce que vous verrez, selon l'appareil { #what-you-will-see-by-device }
 
 | Votre écran | Ce qui arrive |
 | --- | --- |
 | Un écran HDR sur Android TV ou sur un téléphone Android, avec un décodeur HEVC | L'original HDR10 ou HLG, intact, sauf si autre chose (débit, résolution, sous-titre incrusté) impose un réencodage. |
-| Un navigateur | Une conversion en SDR, toujours : le lecteur web ne déclare pas d'écran HDR, le serveur convertit donc pour lui. |
+| Un navigateur | Une conversion en SDR sur un affichage SDR. Quand le navigateur signale un affichage HDR (`dynamic-range: high`) et décode le HEVC, le HDR10 et le HLG sont conservés ; Dolby Vision est toujours converti. |
 | Un récepteur de diffusion | Ce que le récepteur a déclaré sur son propre écran : voir [Diffusion](casting.md). |
 | Un écran SDR, où que ce soit | Une conversion en SDR. |
 
@@ -39,13 +41,13 @@ Android sondent l'écran à chaque début de lecture, pas une fois pour toutes �
 l'installation : brancher un téléviseur HDR sur un boîtier prend effet au
 titre suivant, au changement de piste ou de qualité.
 
-## Quand l'original est conservé
+## Quand l'original est conservé { #when-the-original-is-kept }
 
 La vidéo HDR10 ou HLG est envoyée telle quelle quand le lecteur déclare un
 écran HDR et décode le codec, et qu'aucune autre raison (débit, résolution,
 conteneur) n'impose un réencodage.
 
-## Quand la vidéo doit de toute façon être réencodée
+## Quand la vidéo doit de toute façon être réencodée { #when-the-video-must-be-re-encoded-anyway }
 
 Une limite de débit, une limite de résolution ou un sous-titre à incruster
 peuvent imposer le réencodage d'une source HDR. Le HDR est alors conservé si
@@ -70,7 +72,7 @@ exemple), la vidéo est réencodée en conservant le HDR sur une telle carte, et
 les Infos du flux affichent **Copie indisponible, HDR conservé au
 réencodage**.
 
-## Quand l'écran est SDR
+## Quand l'écran est SDR { #when-the-screen-is-sdr }
 
 Un lecteur qui ne déclare pas d'écran HDR reçoit une image convertie en SDR.
 Le tone mapping s'exécute sur la carte graphique quand elle a prouvé qu'elle
@@ -85,7 +87,7 @@ avec une chaîne de filtres portable sinon.
     résolution inférieure à celle d'un titre SDR sur la même machine. Voir
     [Transcodage](transcoding.md#the-server-measures-itself).
 
-## Dolby Vision
+## Dolby Vision { #dolby-vision }
 
 La déclaration d'un lecteur dit si son écran affiche le HDR, pas s'il prend en
 charge le Dolby Vision, et Evey ne déduit jamais la prise en charge du Dolby
@@ -99,7 +101,7 @@ de base qui s'affiche correctement sans aucun décodage Dolby Vision :
 | **7** (Blu-ray UHD) | La couche de base HDR10 est réencodée en HEVC 10 bits avec HDR conservé. Infos du flux : **Couche de base Dolby Vision réencodée (HDR conservé)**. | Converti en SDR. |
 | **5** (sans couche de base HDR10) | Converti en SDR. | Converti en SDR. |
 
-## Vérifier ce qui s'est passé
+## Vérifier ce qui s'est passé { #checking-what-happened }
 
 Les **Infos du flux** montrent la décision vidéo et, parmi les raisons, le
 tone mapping ou le HDR conservé. Toutes les voies qui font du tone mapping

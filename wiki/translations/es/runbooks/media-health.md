@@ -1,8 +1,8 @@
 ---
-source_sha: 181fd5fb4e9492dc7feeae765f9c469162e43e7a56a39a6399be584d8e660049
+source_sha: 62df894506621ac2b76e3b103c93c675fdf1c4c85203b1ce7599afdc157bbca8
 reviewed: true
 ---
-# Salud de medios
+# Salud de medios { #media-health }
 
 Un título tarda en saltar, se queda parado en un punto, o su sonido se
 desfasa: **Administración → Salud de medios** lee todos los archivos MKV/WebM
@@ -15,7 +15,7 @@ todo**); lo demás se menciona una vez y se puede marcar como visto.
   <figcaption>Un escaneo con un archivo que Evey puede reparar (le falta el índice de posicionamiento) y una observación (bytes sobrantes después del final del archivo, sin consecuencias) (interfaz en inglés).</figcaption>
 </figure>
 
-## Dos veredictos
+## Dos veredictos { #two-verdicts }
 
 Un archivo que no está **Sano** (el índice, el contenedor, los tamaños y el
 tiempo del audio están bien) recibe una de dos respuestas, y a propósito solo
@@ -30,7 +30,7 @@ Ninguno de los dos te pide trabajo manual. Una medida sobre la que Evey no
 puede actuar es solo una observación, y una medida puede equivocarse: si el
 archivo se reproduce correctamente, no hay nada que hacer.
 
-### Reparable
+### Reparable { #repairable }
 
 - **Sin índice de posicionamiento**, o con uno que no se puede usar. El
   síntoma es un salto lento o una reanudación lenta. El índice se reconstruye
@@ -50,7 +50,7 @@ archivo se reproduce correctamente, no hay nada que hacer.
   a intercalar las pistas** las reescribe juntas sin volver a codificar, y
   comprueba que no falta ningún paquete antes de sustituir el archivo.
 
-### Info
+### Info { #info }
 
 - **Descarga incompleta**: el final del archivo nunca llegó. Se reproduce
   hasta el corte. Ninguna herramienta recupera la parte que falta; solo la
@@ -77,7 +77,7 @@ archivo se reproduce correctamente, no hay nada que hacer.
   leer, o es un contenedor que el analizador ha rechazado). Revisa el punto
   de montaje o la fuente.
 
-## Comprobar la sincronía a ojo
+## Comprobar la sincronía a ojo { #checking-the-sync-by-eye }
 
 Para las tres observaciones de audio, **Comprobar sincronía**, en la fila del
 archivo, prepara un clip corto en el servidor: eliges un momento, una pista y
@@ -89,7 +89,7 @@ lo resuelve.
 queda registrado como tu criterio, no como una medida, y **Historial** puede
 deshacerlo.
 
-## Marcar como visto
+## Marcar como visto { #marking-as-seen }
 
 **Visto, dejar de avisar** (un archivo) y **Marcar todo como visto** (un
 grupo) sacan una observación Info de la vista **En espera**. Solo se pueden
@@ -101,16 +101,16 @@ Las vistas encima de la tabla (**En espera**, **Reparable**, **Info**,
 **Vistos**, **Copias**, **Todos**) y el cuadro de búsqueda sirven para
 recorrer una biblioteca grande: **En espera** es la lista de tareas.
 
-## Escaneos
+## Escaneos { #scans }
 
-Un escaneo lee el principio de cada archivo (unos pocos kilobytes) y
+Un escaneo lee tres zonas pequeñas de cada archivo (el principio, el índice cerca del final y el final) y
 reutiliza la respuesta anterior para un archivo que no ha cambiado. **Uso de
 los discos** marca el ritmo:
 
 - **Discreto**: un archivo cada vez, y después una pausa tan larga como la
   lectura. Los discos quedan libres más o menos la mitad del tiempo, así que
   alguien puede seguir viendo algo.
-- **Rápido**: varios archivos a la vez, sin pausa. Unas tres veces más rápido
+- **Rápido**: varios archivos a la vez, sin pausa. Bastante más rápido
   en una biblioteca repartida en varios discos, pero mientras tanto la
   reproducción puede ir a tirones.
 
@@ -119,7 +119,7 @@ ha cambiado, y una nueva versión de Evey cuyas comprobaciones han cambiado.
 Por eso, el primer escaneo después de una actualización así es largo en una
 biblioteca grande; los siguientes vuelven a ser rápidos.
 
-## Copias de seguridad, historial y deshacer
+## Copias de seguridad, historial y deshacer { #backups-history-and-undo }
 
 **Conservar copias de seguridad** está activado por defecto: cada archivo
 reescrito guarda su original como un `.mkvgobak` a su lado. **Restaurar**
@@ -152,7 +152,7 @@ montadas en lectura y escritura en el contenedor (sin `:ro` en el volumen);
 después de una pasada que se ha encontrado un volumen de solo lectura, la
 página lo indica. El escaneo funciona en los dos casos.
 
-## Desde la línea de comandos
+## Desde la línea de comandos { #from-the-command-line }
 
 El mismo motor está disponible desde la CLI del operador, consulta
 [Línea de comandos](cli.md#media-maintenance):

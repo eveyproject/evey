@@ -1,8 +1,8 @@
 ---
-source_sha: 1c1f263382d37fa80c540dd5129e11b0ecffa890475ab9305d76db4d94571396
+source_sha: a4932bd9b417f0f18be610734a595c186387167b23522b0dbd34267c0fc17fc7
 reviewed: true
 ---
-# Benutzer, Profile und Kindersicherung
+# Benutzer, Profile und Kindersicherung { #users-profiles-and-parental-control }
 
 Zwei Wörter sind auf dieser Seite wichtig:
 
@@ -20,14 +20,14 @@ Diese Seite beginnt mit den häufigen Aufgaben: jemanden hinzufügen, ein Kind
 hinzufügen. Die feineren Einstellungen (Grenzen pro Konto, Nutzungszeiten,
 Anfragen, die Startseite, Download-Links) folgen danach.
 
-## Konten und Profile
+## Konten und Profile { #accounts-and-profiles }
 
 Ein Konto hat einen Benutzernamen und ein Passwort, oder es meldet sich über
 Single Sign-on an (siehe [OIDC](../oidc.md)). Es ist entweder ein
 Administrator- oder ein normales Konto. Jedes neue Konto beginnt mit einem
 Profil, das wie sein Benutzername heißt.
 
-## Ein Konto anlegen
+## Ein Konto anlegen { #create-an-account }
 
 <figure class="evey-shot" markdown="span">
   ![Verwaltung → Benutzer auf dem Demo-Server](../images/admin-users.webp){ loading=lazy }
@@ -65,7 +65,7 @@ In der Zeile eines Kontos:
   **Aktivieren** erlaubt wieder Anmeldungen.
 - **Löschen** entfernt das Konto und seine Profile.
 
-## Profile, Kinderprofile und die PIN
+## Profile, Kinderprofile und die PIN { #profiles-kids-profiles-and-the-pin }
 
 **Ein Profil hinzufügen**: Gehen Sie in diesem Konto zu **Einstellungen →
 Profile → Profil erstellen**. Ein Administrator kann auch jedem Konto ein
@@ -99,7 +99,7 @@ Was das Kind dann sieht:
     - Das Konto eines Administrators kann kein Kinderprofil haben: Die Grenze
       würde einen Teil der eigenen Bibliothek des Administrators verbergen.
 
-## Altersgrenzen
+## Altersgrenzen { #age-limits }
 
 Der Server wendet die Altersgrenze an, nicht die App. Ein Titel über der
 Grenze wird nicht nur auf dem Bildschirm versteckt: Er wird nie an das
@@ -121,7 +121,7 @@ Wiedergabe und bei Downloads.
 
 Für Administratoren gelten keine Profilgrenzen.
 
-## Was ein Administrator pro Konto einschränken kann
+## Was ein Administrator pro Konto einschränken kann { #what-an-administrator-can-restrict-per-account }
 
 Diese Einstellungen finden Sie unter **Benutzer erstellen** und **Benutzer
 bearbeiten** sowie in der Zeile des Kontos unter **Verwaltung → Benutzer**.
@@ -129,7 +129,7 @@ bearbeiten** sowie in der Zeile des Kontos unter **Verwaltung → Benutzer**.
 | Einstellung | Was sie bewirkt |
 | --- | --- |
 | **Bibliothekszugriff** (die Schaltfläche **Bibliotheken** in der Zeile) | Die Bibliotheken, die das Konto sieht. Die anderen tauchen für dieses Konto nirgends auf: nicht in der Suche, nicht auf seiner Startseite. Ein Administrator sieht immer alles. |
-| **Maximale Bitrate** (die Schaltfläche **Bitrate**) | Begrenzt die Videoqualität, die das Konto bekommt, von 1 bis 40 Mbit/s (0 = keine Grenze). Ein Titel darüber wird auf diesen Wert heruntergerechnet. |
+| **Maximale Bitrate** (die Schaltfläche **Bitrate**) | Begrenzt die Videoqualität, die das Konto bekommt, eine von sechs Voreinstellungen von 1 bis 40 Mbit/s oder Unbegrenzt. Ein Titel darüber wird auf diesen Wert heruntergerechnet. |
 | **Max. Profile** | Wie viele Profile das Konto anlegen darf (0 = keine Grenze). |
 | **Max. Geräte pro Profil** | Wie viele Videos jedes Profil gleichzeitig abspielen darf, über alle seine Geräte (0 = keine Grenze). Ein weiteres wird beim Start abgelehnt. |
 
@@ -138,7 +138,7 @@ Nutzen Sie das, um eine Einschränkung zu prüfen oder ein Problem selbst zu
 sehen. Ein Banner bleibt auf dem Bildschirm, und **Beenden** bringt Sie zurück
 zu Ihrem eigenen Konto.
 
-## Nutzungszeiten
+## Nutzungszeiten { #opening-hours }
 
 Sie können ein Kinderprofil nur zu bestimmten Zeiten schauen lassen.
 
@@ -181,7 +181,7 @@ Was passiert:
     - Ein heruntergeladener Film, der ohne Verbindung abgespielt wird,
       erreicht den Server nie. Für ihn gelten die Zeiten also nicht.
 
-## Anfragen
+## Anfragen { #requests }
 
 Man kann einen Film, eine Serie oder einen Künstler anfragen, den Sie noch
 nicht haben. Diese Anfragen erscheinen unter **Verwaltung → Medienanfragen**.
@@ -193,7 +193,7 @@ Um festzulegen, wer anfragen darf, öffnen Sie den Reiter **Zugriff**:
 **Anfragen standardmäßig für alle Benutzer erlauben**, dann **Sonderregelungen
 pro Benutzer** für Ausnahmen.
 
-## Die Startseite
+## Die Startseite { #the-home-page }
 
 Die Startseite besteht aus Reihen, die untereinander stehen. Eine Reihe, die nichts zu zeigen
 hat, wird ausgeblendet.
@@ -224,7 +224,7 @@ gesehen ist. Plugins können eigene Reihen hinzufügen.
 - Ein Profil kann eine Reihe zeigen, die Sie ausgeblendet haben, außer der
   Reihe eines Plugins: Dort gilt Ihre Entscheidung.
 
-## Öffentliche Download-Links
+## Öffentliche Download-Links { #public-download-links }
 
 Auf der Seite eines Films oder einer Folge kann ein Administrator einen
 **Öffentlicher Download-Link** erstellen (Web- und Android-Apps). Jeder, der

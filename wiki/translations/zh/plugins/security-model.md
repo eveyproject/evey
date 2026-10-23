@@ -1,14 +1,14 @@
 ---
-source_sha: 9f40858672d5badb8f1ffd97cf815109f93c3034126c5d4e6841092d5caf818a
+source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
 reviewed: true
 ---
-# 权限与插槽
+# 权限与插槽 { #permissions-and-slots }
 
 写给插件作者：清单里可以声明什么，安装程序会检查什么，以及插件运行时要遵守哪些规则。
 下面的目录列出了可供选择的项；服务器如何隔离插件、这种隔离无法阻止什么，请看
 [插件沙箱与威胁模型](../SECURITY.md)。
 
-## 安装时检查什么
+## 安装时检查什么 { #what-is-checked-at-install }
 
 出现以下情况时，插件会在安装时被拒绝：
 
@@ -21,12 +21,12 @@ reviewed: true
 - 静态分析发现了严重的模式，或者安装程序按严重处理的警告（不安全的反序列化、代码混淆）。
   编译好的二进制文件、内嵌的压缩包和原生代码都会被拒绝，除非清单声明了 `native-binary`。
 
-分析也会读注释：注释里的一行 `# pip install foo` 会和真正的代码一样被报告出来。发布之前请删掉这类行。
+分析之前会先去掉注释，所以被注释掉的行不会被报告。
 各个类别列在[插件沙箱与威胁模型](../SECURITY.md#static-analysis)里。
 
-安装之前，管理员会看到插件声明的权限、插槽和主机，以及分析发现了什么。插件声明的任何内容都不会在管理员不知情的情况下被授予。
+安装之前，管理员会看到插件声明的权限和能力，以及分析发现了什么；插槽、主机和签名会在更新时以及安全仪表板里显示。插件声明的任何内容都不会在管理员不知情的情况下被授予。
 
-## 插件在什么条件下运行
+## 插件在什么条件下运行 { #what-the-plugin-runs-under }
 
 无论清单里声明了什么：
 
@@ -37,7 +37,7 @@ reviewed: true
 
 开发期间签名是可选的。怎样给插件签名，以及服务器可以强制执行的签名策略，请看[编写插件](dev-setup.md#7-sign-your-plugin)。
 
-## 权限目录
+## 权限目录 { #permissions-catalog }
 
 权限写在 `permissions` 下；任何不在表里的值都会导致安装被拒绝。接收 Webhook（`webhook.receiver`）和提供元数据
 （`metadata.provider`）是能力，写在 `capabilities` 下：请看[插件 API 参考](api-reference.md#capabilities)。
@@ -56,20 +56,20 @@ reviewed: true
 | `notification.sender` | 为 `SendNotification` 预留，目前还没有提供。 |
 | `public` | 插件界面可以读取媒体条目的一个安全投影（id、标题、类型、年份、简介、海报），永远读不到路径或流。请看 [`evey.media.*`](api-reference.md#eveymedia-permission-public)。 |
 | `prefs` | 插件界面可以在插件自己的命名空间里读写当前用户的偏好。请看 [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs)。 |
-| `hardware.gpu` | 进程会拿到宿主的 DRM 渲染节点（真实的 `renderD1xx`，绝不会是 card 节点）。这会暴露内核驱动的攻击面，而且显存的边界和转码器共用：GPU 一旦挂起，转码也可能停滞。没有这个权限时，GPU 节点完全不在 Landlock 允许列表里；有了它，启动器会添加一条只针对这一个文件的 `IOCTL_DEV` 规则（需要 Landlock ABI 5 或更高；在更旧的内核上，仅有读写权限就足以提交命令）。预览会显示一条严重警告。只把它授予那些您愿意在沙箱外运行的插件。 |
+| `hardware.gpu` | 进程会拿到宿主的 DRM 渲染节点（真实的 `renderD1xx`，绝不会是 card 节点）。这会暴露内核驱动的攻击面，而且显存的边界和转码器共用：GPU 一旦挂起，转码也可能停滞。没有这个权限时，GPU 节点完全不在 Landlock 允许列表里；有了它，启动器会添加一条只针对这一个文件的 `IOCTL_DEV` 规则（需要 Landlock ABI 5 或更高；在更旧的内核上，仅有读写权限就足以提交命令）。插件安装后，安全仪表板会显示一条严重警告。只把它授予那些您愿意在沙箱外运行的插件。 |
 
-## 外部请求规则
+## 外部请求规则 { #external-fetch-rules }
 
 写在 `external_fetch: [...]` 里，安装时检查（`validateExternalFetch`）。要么全部通过，要么全部不通过：只要有一条无效，整个安装就会被拒绝。
 
-每一条是一个**纯主机名**。带上协议前缀也可以，但前缀会被丢弃，只保留主机名。
+每一条是一个**主机名**。协议前缀和末尾的路径在解析时会被丢弃，只保留主机名。主机必须完全匹配，`*.example.com` 这样的通配符在安装时会被拒绝，端口后缀会被忽略。
 
 | 条目 | 是否有效 | 原因 |
 |---|---|---|
 | `api.tmdb.org` | 是 | 精确的主机名，标准写法 |
-| `https://api.tmdb.org` | 是 | 协议被解析后丢弃，保留主机名 |
-| `*.tmdb.org` | 否 | 不接受通配符：请把需要的每个子域名都列出来 |
-| `*` | 否 | 同一条规则 |
+| `https://api.tmdb.org` | 是 | 协议和路径在解析时被丢弃，保留主机名 |
+| `*.tmdb.org` | 否 | 通配符在安装时会被拒绝；请逐个列出主机 |
+| `*` | 否 | 单独的通配符会被拒绝 |
 | `192.168.1.1`、`::1` | 否 | 不接受 IP 地址，IPv4 和 IPv6 都不行 |
 
 运行时，宿主的代理还会加上自己的限制，清单无法放宽这些限制：只允许 `http` 和 `https`，只允许 `GET` 和 `HEAD`；
@@ -78,7 +78,7 @@ reviewed: true
 
 同一份主机列表，加上 `https://` 前缀，也就是插件框架的 `connect-src`：小组件可以直接调用这些主机，但只能走 `https`。
 
-## 插槽白名单
+## 插槽白名单 { #slot-whitelist }
 
 插件只能在明确允许的插槽里注入界面。关键的路径有意不在其中。
 
@@ -104,7 +104,7 @@ reviewed: true
 框架本身不持有令牌：宿主为 `public` 和 `prefs` 调用签发一个限定于（插件，用户）、有效期五分钟的令牌，
 而服务器默认拒绝这个令牌没有列出的所有方法。
 
-## 更新流程
+## 更新流程 { #update-workflow }
 
 1. 管理员上传新的 ZIP 包。`PreviewPluginUpdate` 会运行静态分析和签名检查，并返回与已安装版本相比，
    权限、能力、插槽和 `external_fetch` 有哪些不同。
@@ -115,7 +115,7 @@ reviewed: true
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
-analysis reads comments: docs/SECURITY.md (Static analysis)
+comments stripped before analysis: docs/SECURITY.md (Static analysis) ; internal/adapters/driven/pluginrunner/analyzer_normalize.go
 subprocess, deny-fork, deny-inet, render-dev: cmd/evey-plugin-launcher/main.go ; i18n admin.plugins.subprocessWarning
 resource defaults: internal/config/config.go - Plugins
 permission per RPC: internal/adapters/driving/grpcapi/plugin_interceptor.go ; served or not: internal/adapters/driving/pluginhost/host_server.go

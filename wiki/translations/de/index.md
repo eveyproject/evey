@@ -1,5 +1,5 @@
 ---
-source_sha: abd1d63a9decd2ea9551be20491d9c39884d9ac4d33c79ea324f1b112429b298
+source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
 reviewed: true
 hide:
 - navigation
@@ -159,7 +159,7 @@ Testdatei, die prüft, ob Evey neue Dateien noch bemerkt. Binden Sie Ihre
 Medien schreibgeschützt ein, dann passiert nichts davon. **Medienzustand**
 prüft Ihre MKV- und WebM-Dateien und listet die gefundenen Probleme auf. Er
 repariert eine Datei nur, wenn Sie es wollen. Er arbeitet an einer Kopie, die
-vollständig geprüft wird, bevor sie die Datei ersetzt, behält standardmäßig
+geprüft wird, bevor sie die Datei ersetzt (vollständig gelesen, wenn Sie es verlangen, und immer, wenn keine Sicherung behalten wird), behält standardmäßig
 das Original und protokolliert jede Änderung. Was sich nicht reparieren lässt,
 wird gemeldet und in Ruhe gelassen.
 [Medienzustand](runbooks/media-health.md)
@@ -168,7 +168,7 @@ wird gemeldet und in Ruhe gelassen.
 Konto bei uns, keine Nutzungsstatistik, keine Absturzberichte. Die Apps
 kommunizieren mit Ihrem Server und mit nichts anderem, das wir betreiben. Was Ihr
 Netzwerk verlässt: Der Server holt Bilder und Beschreibungen von externen
-Diensten (The Movie Database, und Quellen für Musik-Cover). Ab und zu fragt er
+Diensten (The Movie Database, TVmaze, eine IMDb-API, OMDb, wenn ein Schlüssel gesetzt ist, MusicBrainz und Quellen für Musik-Cover). Ab und zu fragt er
 außerdem nach, ob es eine neuere Version gibt, was Sie abschalten können. Die
 Datenbank wird vor jedem Update gesichert, das sie verändert.
 [Datenschutzerklärung](privacy.md) · [Sicherungen und Updates](backups.md)

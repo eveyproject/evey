@@ -55,8 +55,8 @@ A subtitle carried inside the file (text or PGS) is extracted by the server the
 first time someone selects it, then kept: every later viewing, by anyone, gets
 it at once. When the file's own index covers the track, the server reads only
 the subtitle's blocks and it takes seconds. Without that index it reads the
-whole file: several minutes for a large film (about five for an 85 GB UHD
-remux on a local disk, longer while the same server is streaming).
+whole file: several minutes for a large film (a few minutes for a very
+large file, longer while the same server is streaming).
 
 Meanwhile the player shows **Subtitles are being prepared…** where the
 subtitles appear, checks back on its own and shows them as soon as they are

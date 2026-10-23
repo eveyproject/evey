@@ -1,8 +1,8 @@
 ---
-source_sha: ed64eaf04c09d740775060639c8ba122fb90d8ee17950d66a387a572c3fea16d
+source_sha: c6c0a67f7b17b0139429ba630a95b355b5cc39888b5eb6a2bfd603d38ca8cead
 reviewed: true
 ---
-# Bibliotheken und Metadaten
+# Bibliotheken und Metadaten { #libraries-and-metadata }
 
 Eine **Bibliothek** ist eine Art von Medien (Filme, Serien, Musik oder Fotos)
 in einem oder mehreren Ordnern. Evey liest die Ordner, erkennt jede Datei an
@@ -21,7 +21,7 @@ Sammlungen und die Quellen der Metadaten.
   <figcaption><strong>Verwaltung → Bibliotheken</strong>: eine Zeile pro Bibliothek, mit ihren Ordnern, der Zahl ihrer Einträge und ihrem letzten Scan (Oberfläche auf Englisch).</figcaption>
 </figure>
 
-## Eine Bibliothek hinzufügen
+## Eine Bibliothek hinzufügen { #add-a-library }
 
 1. **Verwaltung → Bibliotheken → Bibliothek hinzufügen**.
 2. Geben Sie ihr einen **Name** und einen **Typ**. Halten Sie Filme und
@@ -50,7 +50,7 @@ Sammlungen und die Quellen der Metadaten.
     Computer ist also `/media/films` in Evey. Ein zweiter Medienordner
     (`/media2`) funktioniert genauso.
 
-## Dateien so benennen, dass sie erkannt werden
+## Dateien so benennen, dass sie erkannt werden { #name-files-so-they-are-recognised }
 
 Der Scanner erkennt Namen wie diese:
 
@@ -74,7 +74,7 @@ unter **Verwaltung → Serverkonfiguration → Parser-Tokens** hinzu: unter
 **Zusätzliche Editions-Suffixe** für Wortgruppen. Das gilt ab dem nächsten
 Scan.
 
-## Einen falschen oder fehlenden Titel korrigieren
+## Einen falschen oder fehlenden Titel korrigieren { #fix-a-wrong-or-missing-title }
 
 Ein Film zeigt das Poster eines anderen Films mit demselben Namen? So geht es
 am schnellsten:
@@ -105,7 +105,7 @@ Für eine ganze Bibliothek bietet die Zeile unter **Verwaltung → Bibliotheken*
   ihrer Filmreihe zu, wenn die anderen Filme der Reihe schon in der Bibliothek
   sind.
 
-## Wie neue Dateien gefunden werden
+## Wie neue Dateien gefunden werden { #how-new-files-are-picked-up }
 
 Sie müssen nichts tun: Eine neue, umbenannte oder gelöschte Datei erscheint
 innerhalb weniger Minuten in Evey.
@@ -121,28 +121,29 @@ nutzen Sie die Zeile der Bibliothek:
 ??? info "Wie der Server die Ordner prüft"
 
     - Der Server liest jede Bibliothek bei jedem Start, danach alle 2 Minuten
-      (**Verwaltung → Serverkonfiguration → Servereinstellungen → Intervall
+      (**Verwaltung → Serverkonfiguration → Bibliotheken → Intervall
       für periodischen Scan**, wirksam nach einem Neustart). Solange etwas
       abgespielt wird, wartet er 15 Minuten zwischen zwei Durchgängen, damit
       er die Wiedergabe nicht bremst.
     - Das System kann ihm auch melden, wenn sich eine Datei ändert
-      (**Verwaltung → Serverkonfiguration → Servereinstellungen →
+      (**Verwaltung → Serverkonfiguration → Bibliotheken →
       Bibliotheks-Dateiüberwachung**), und zwar für die Bibliotheken, bei
       denen die Echtzeitüberwachung eingeschaltet ist. Um zu prüfen, dass das
       noch funktioniert, schreibt er für ein paar Sekunden eine kleine
       Testdatei in den Ordner. Eine Bibliothek, bei der das nachweislich
       funktioniert, wird nur noch einmal pro Stunde gelesen statt alle
       2 Minuten.
-    - Bibliotheken, die im Verwaltungsbereich angelegt wurden, nutzen die
+    - Bibliotheken, die im Web-Verwaltungsbereich angelegt wurden, nutzen die
       Dateiüberwachung nicht: Die Durchgänge alle 2 Minuten finden ihre
-      Dateien.
+      Dateien. Das Verwaltungsformular der Handy-App hat für eine Bibliothek
+      einen Schalter **Echtzeit-Überwachung**.
 
 !!! note "Netzwerkfreigaben"
     Auf einer NFS- oder SMB-Freigabe schickt eine Datei, die ein anderer
     Rechner geschrieben hat, kein Signal an den Server. Die regelmäßigen
     Durchgänge finden sie.
 
-## Musikbibliotheken
+## Musikbibliotheken { #music-libraries }
 
 Der Scanner liest MP3-, FLAC-, M4A-, OGG-, Opus-, WAV- und AAC-Dateien und
 entnimmt jeden Titel seinen Tags: Titel (der Dateiname, wenn er fehlt),
@@ -162,7 +163,7 @@ Das Cover ist das Bild, das in den Dateien steckt. Sonst ist es ein Bild im
 Albumordner (`cover.jpg`, `folder.jpg` oder `front.jpg`), sonst kommt es von
 Cover Art Archive (gefunden über MusicBrainz), sonst von iTunes.
 
-## Fotobibliotheken
+## Fotobibliotheken { #photo-libraries }
 
 Der Scanner liest JPEG-, PNG-, HEIC-, WebP-, GIF-, TIFF- und BMP-Dateien. Das
 Album eines Fotos ist sein Ordner, gesehen vom Ordner der Bibliothek aus. Ein
@@ -172,7 +173,7 @@ Aufnahmedatum und Kameramodell kommen aus den EXIF-Daten von JPEG-Dateien; die
 anderen Formate werden ohne diese Angaben aufgeführt. Vorschaubilder werden auf
 dem Server verkleinert und im Transkodierungs-Cache aufbewahrt.
 
-## Sammlungen
+## Sammlungen { #collections }
 
 **Sammlungen** fasst Titel unter einem Namen zusammen, für alle Konten. Es gibt
 drei Arten:
@@ -193,7 +194,7 @@ durchsehen. **Sammlung herunterladen** im Web lädt die Originaldateien als eine
 ZIP-Datei herunter (bis zu 1000 Titel). Was der Bibliothekszugriff oder die
 Altersgrenze des Kontos verbirgt, wird nicht aufgenommen.
 
-## Metadaten-Schlüssel
+## Metadaten-Schlüssel { #metadata-keys }
 
 Evey bringt einen TMDB-Schlüssel mit, Metadaten funktionieren also ohne
 Einrichtung. Andere Quellen sind freiwillig. Um sie zu nutzen, holen Sie sich
@@ -209,7 +210,7 @@ eingetragener Schlüssel hat Vorrang vor demselben Schlüssel aus der Umgebung
 | OpenSubtitles | Suchen und Herunterladen von Untertiteln, die eine Datei nicht mitbringt, über die API des Servers (die Apps bieten das noch nicht an). Siehe [Untertitel](../playback/subtitles.md). |
 | TheIntroDB | Zeitmarken für Intro, Rückblick und Abspann aus einer Community-Datenbank: 500 Abfragen pro Tag mit Schlüssel statt 100 ohne. |
 
-## Intro, Rückblick und Abspann
+## Intro, Rückblick und Abspann { #intro-recap-and-credits }
 
 Evey findet Intro, Rückblick und Abspann von Folgen und Filmen, damit die
 Player anbieten können, sie zu überspringen. Die Zeitmarken kommen aus
@@ -220,7 +221,7 @@ starten.
 
 Die Player zeigen standardmäßig die Schaltflächen **Intro überspringen**,
 **Rückblick überspringen** und **Abspann überspringen**. **Intros automatisch
-überspringen** (**Verwaltung → Serverkonfiguration → Servereinstellungen**,
+überspringen** (**Verwaltung → Serverkonfiguration → Bibliotheken**,
 standardmäßig aus) lässt jeden Player sie von selbst überspringen.
 
 <!-- sources

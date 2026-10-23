@@ -1,5 +1,5 @@
 ---
-source_sha: 6731543d05eba23817144ccd5d21f648ca65b14ec0dfd93bf782752067af1ad1
+source_sha: e527433cfc41c2cba1cfcb773095634c496390297f79ac7e7b368fa36d27d047
 reviewed: true
 ---
 # Datenschutzerklärung { #privacy-policy }
@@ -59,8 +59,7 @@ betreibt. Das Evey-Projekt hat keinen Zugriff darauf.
 
 ## Was auf dem Gerät bleibt { #what-stays-on-the-device }
 
-Die Serveradresse, Ihr Sitzungstoken (im verschlüsselten Speicher von
-Android), Ihre Einstellungen und die Filme und die Musik, die Sie zum Schauen
+Die Serveradresse, Ihr Sitzungstoken und, wenn Sie „Angemeldet bleiben“ ankreuzen, Ihr Benutzername und Ihr Passwort (im verschlüsselten Speicher von Android, dem Android-Keystore), Ihre Einstellungen und die Filme und die Musik, die Sie zum Schauen
 oder Hören ohne Internet herunterladen. Wenn Sie die App entfernen, wird all
 das gelöscht. Das Entsperren per Fingerabdruck oder Gesicht, wenn Sie es
 einschalten, übernimmt Android: Die App erfährt nur, ob es erfolgreich war.
@@ -73,6 +72,10 @@ einschalten, übernimmt Android: Die App erfährt nur, ob es erfolgreich war.
 | Kamera | Den QR-Code der Schnellverbindung scannen. Nichts wird aufgenommen oder gesendet. |
 | Benachrichtigungen, Vordergrunddienst | Den Fortschritt von Wiedergabe und Downloads zeigen, bei ausgeschaltetem Bildschirm weiterspielen. |
 | Biometrie | Optionale App-Sperre. |
+| Audioeinstellungen ändern | Die Tonwiedergabe (Lautstärkeverwaltung) während eines Films anpassen. |
+| Wachhalten (Wake Lock) | Verhindern, dass das Gerät während der Wiedergabe in den Ruhezustand geht. |
+| Vibration | Haptische Rückmeldung in der App. |
+| Externen Speicher lesen und schreiben (nur Android 12 und älter) | Ihre Offline-Downloads auf diesen Android-Versionen speichern und lesen. |
 
 Die Handy-App hat keine Berechtigung für das Mikrofon.
 

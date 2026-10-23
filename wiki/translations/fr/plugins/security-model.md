@@ -1,8 +1,8 @@
 ---
-source_sha: 9f40858672d5badb8f1ffd97cf815109f93c3034126c5d4e6841092d5caf818a
+source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
 reviewed: true
 ---
-# Permissions et emplacements
+# Permissions et emplacements { #permissions-and-slots }
 
 Pour les auteurs de plugins : ce qu'un manifeste peut déclarer, ce que
 l'installateur vérifie, et les règles qui s'appliquent à un plugin pendant
@@ -11,7 +11,7 @@ la façon dont le serveur confine un plugin, et ce que ce confinement ne peut
 pas empêcher, est décrite dans
 [Sandbox des plugins et modèle de menace](../SECURITY.md).
 
-## Ce qui est vérifié à l'installation
+## Ce qui est vérifié à l'installation { #what-is-checked-at-install }
 
 Un plugin est refusé à l'installation quand :
 
@@ -31,16 +31,16 @@ Un plugin est refusé à l'installation quand :
   Les binaires compilés, les archives embarquées et le code natif sont
   refusés sauf si le manifeste déclare `native-binary`.
 
-L'analyse lit aussi les commentaires : une ligne `# pip install foo` dans un
-commentaire est signalée comme du vrai code. Retirez ce genre de ligne avant
-de publier. Les catégories sont listées dans
+Les commentaires sont retirés avant l'analyse : une ligne mise en commentaire
+n'est pas signalée. Les catégories sont listées dans
 [Sandbox des plugins et modèle de menace](../SECURITY.md#static-analysis).
 
-Avant l'installation, l'administrateur voit les permissions, les emplacements
-et les hôtes déclarés, et ce que l'analyse a trouvé. Rien de ce qu'un plugin
+Avant l'installation, l'administrateur voit les permissions et les capacités
+déclarées, et ce que l'analyse a trouvé ; les emplacements, les hôtes et la
+signature sont montrés à la mise à jour et dans le Tableau de bord sécurité. Rien de ce qu'un plugin
 déclare n'est accordé en silence.
 
-## Dans quelles conditions le plugin s'exécute
+## Dans quelles conditions le plugin s'exécute { #what-the-plugin-runs-under }
 
 Quoi que déclare le manifeste :
 
@@ -58,7 +58,7 @@ La signature est facultative pendant le développement. Comment signer un
 plugin, et la politique de signature qu'un serveur peut imposer :
 [Écrire un plugin](dev-setup.md#7-sign-your-plugin).
 
-## Catalogue des permissions
+## Catalogue des permissions { #permissions-catalog }
 
 Une permission se déclare sous `permissions` ; toute autre valeur fait refuser
 l'installation. Recevoir des webhooks (`webhook.receiver`) et fournir des
@@ -80,23 +80,24 @@ métadonnées (`metadata.provider`) sont des capacités, déclarées sous
 | `notification.sender` | Réservée à `SendNotification`, non servi aujourd'hui. |
 | `public` | L'interface peut lire une projection sûre des médias (identifiant, titre, type, année, résumé, affiche), jamais les chemins ni les flux. Voir [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `prefs` | L'interface peut lire et écrire les préférences de l'utilisateur courant dans l'espace propre du plugin. Voir [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |
-| `hardware.gpu` | Le processus reçoit le noeud de rendu DRM de l'hôte (le vrai `renderD1xx`, jamais un noeud carte). Une surface d'attaque sur le pilote noyau et une frontière de mémoire GPU partagée avec le transcodeur : un GPU bloqué peut figer le transcodage. Sans elle, les noeuds GPU sont entièrement exclus de la liste Landlock ; avec elle, le lanceur ajoute une règle `IOCTL_DEV` limitée à ce seul fichier (Landlock ABI 5 ou plus ; sur un noyau plus ancien, l'accès en lecture et écriture suffit déjà à soumettre des commandes). L'aperçu affiche un avertissement critique. Ne l'accordez qu'à un plugin que vous feriez tourner hors sandbox. |
+| `hardware.gpu` | Le processus reçoit le noeud de rendu DRM de l'hôte (le vrai `renderD1xx`, jamais un noeud carte). Une surface d'attaque sur le pilote noyau et une frontière de mémoire GPU partagée avec le transcodeur : un GPU bloqué peut figer le transcodage. Sans elle, les noeuds GPU sont entièrement exclus de la liste Landlock ; avec elle, le lanceur ajoute une règle `IOCTL_DEV` limitée à ce seul fichier (Landlock ABI 5 ou plus ; sur un noyau plus ancien, l'accès en lecture et écriture suffit déjà à soumettre des commandes). Le Tableau de bord sécurité affiche un avertissement critique une fois le plugin installé. Ne l'accordez qu'à un plugin que vous feriez tourner hors sandbox. |
 
-## Règles d'accès externe
+## Règles d'accès externe { #external-fetch-rules }
 
 Déclarées dans `external_fetch: [...]` et vérifiées à l'installation
 (`validateExternalFetch`). Tout ou rien : une seule entrée invalide refuse
 toute l'installation.
 
-Une entrée est un **nom d'hôte nu**. Un préfixe de schéma est toléré et
-retiré ; seul le nom d'hôte est conservé.
+Une entrée est un **nom d'hôte**. Un préfixe de schéma et un chemin final sont
+retirés à l'analyse ; seul le nom d'hôte est conservé. Les hôtes correspondent
+exactement, un joker `*.example.com` est refusé à l'installation et un suffixe de port est ignoré.
 
 | Entrée | Valide | Raison |
 |---|---|---|
 | `api.tmdb.org` | Oui | Nom d'hôte exact, la forme normale |
-| `https://api.tmdb.org` | Oui | Schéma lu puis retiré, nom d'hôte conservé |
-| `*.tmdb.org` | Non | Les jokers sont refusés : listez chaque sous-domaine nécessaire |
-| `*` | Non | Même règle |
+| `https://api.tmdb.org` | Oui | Schéma et chemin retirés à l'analyse, nom d'hôte conservé |
+| `*.tmdb.org` | Non | Les jokers sont refusés à l'installation ; listez chaque hôte |
+| `*` | Non | Un joker seul est refusé |
 | `192.168.1.1`, `::1` | Non | Les adresses IP sont refusées, dans les deux familles |
 
 À l'exécution, le courtier de l'hôte ajoute ses propres limites, que le
@@ -111,7 +112,7 @@ La même liste d'hôtes est le `connect-src` du cadre du plugin, préfixée de
 `https://` : un widget peut appeler ces hôtes directement, en `https`
 seulement.
 
-## Liste des emplacements
+## Liste des emplacements { #slot-whitelist }
 
 Les plugins ne peuvent injecter des éléments d'interface que dans des emplacements
 explicitement autorisés. Les chemins critiques en sont volontairement
@@ -147,7 +148,7 @@ Le pont limite ce qu'un cadre peut demander à la page : `evey.toast` au plus
 `public` et `prefs`, et le serveur refuse par défaut toute méthode que ce
 jeton ne nomme pas.
 
-## Déroulement d'une mise à jour
+## Déroulement d'une mise à jour { #update-workflow }
 
 1. L'administrateur envoie un nouveau ZIP. `PreviewPluginUpdate` lance
    l'analyse statique et la vérification de signature, et renvoie la
@@ -164,7 +165,7 @@ jeton ne nomme pas.
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
-analysis reads comments: docs/SECURITY.md (Static analysis)
+comments stripped before analysis: docs/SECURITY.md (Static analysis) ; internal/adapters/driven/pluginrunner/analyzer_normalize.go
 subprocess, deny-fork, deny-inet, render-dev: cmd/evey-plugin-launcher/main.go ; i18n admin.plugins.subprocessWarning
 resource defaults: internal/config/config.go - Plugins
 permission per RPC: internal/adapters/driving/grpcapi/plugin_interceptor.go ; served or not: internal/adapters/driving/pluginhost/host_server.go

@@ -1,5 +1,5 @@
 ---
-source_sha: abd1d63a9decd2ea9551be20491d9c39884d9ac4d33c79ea324f1b112429b298
+source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
 reviewed: true
 hide:
 - navigation
@@ -158,7 +158,7 @@ et un petit fichier de test qui vérifie qu'Evey détecte toujours les
 nouveaux fichiers. Montez vos médias en lecture seule et rien de tout cela
 n'arrive. **Santé des médias** vérifie vos fichiers MKV et WebM et liste les
 problèmes trouvés. Elle ne répare un fichier que si vous le demandez. Elle
-travaille sur une copie, vérifiée en entier avant de remplacer le fichier,
+travaille sur une copie, vérifiée avant de remplacer le fichier (lue en entier quand vous le demandez, et toujours quand aucune sauvegarde n'est gardée),
 garde l'original par défaut, et note chaque changement. Ce qui ne peut pas
 être réparé est signalé et laissé tel quel.
 [Santé des médias](runbooks/media-health.md)
@@ -167,8 +167,8 @@ garde l'original par défaut, et note chaque changement. Ce qui ne peut pas
 de compte chez nous, pas de statistiques d'usage, pas de rapports de
 plantage. Les applications communiquent avec votre serveur, et avec aucun
 service que nous gérons. Ce qui sort de votre réseau : le serveur va chercher les images
-et les descriptions sur des services extérieurs (The Movie Database, et des
-sources de pochettes pour la musique). De temps en temps, il demande aussi
+et les descriptions sur des services extérieurs (The Movie Database, TVmaze, une API IMDb,
+OMDb quand une clé est définie, MusicBrainz et des sources de pochettes pour la musique). De temps en temps, il demande aussi
 s'il existe une version plus récente, ce que vous pouvez désactiver. La base de
 données est sauvegardée avant chaque mise à jour qui la modifie.
 [Règles de confidentialité](privacy.md) · [Sauvegardes et mises à jour](backups.md)

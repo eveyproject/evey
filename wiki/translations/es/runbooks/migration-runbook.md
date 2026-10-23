@@ -1,8 +1,8 @@
 ---
-source_sha: fad8d9ff7aa0e8e4c14508e1eb2fe716e13c05c66eca9acb763084c56aec898f
+source_sha: e42888fc562d4048501a959c02c07cd4a45986308799bd171bf193880d6a12ee
 reviewed: true
 ---
-# Migraciones de la base de datos
+# Migraciones de la base de datos { #database-migrations }
 
 Cómo cambia Evey el esquema de su base de datos durante una actualización,
 qué comprobar antes y después, y qué hacer cuando una migración se queda a
@@ -10,7 +10,7 @@ medias. Para quien administra la instalación estándar, donde la base de datos
 funciona dentro del contenedor `evey-server`; quien contribuya escribiendo
 una migración encontrará las reglas al final.
 
-## Cómo se aplican las migraciones
+## Cómo se aplican las migraciones { #how-migrations-run }
 
 Las migraciones van dentro del programa y las aplica `golang-migrate` cuando
 arranca el servidor. El estado está en la tabla `schema_migrations`, una fila
@@ -36,7 +36,7 @@ docker exec -it evey-server sh -c \
   'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-## Actualizar sin riesgo
+## Actualizar sin riesgo { #update-safely }
 
 1. **Haz una copia de seguridad** en **Administración → Copia de seguridad y
    restauración** (**Ejecutar ahora**), o desde un script:
@@ -83,7 +83,7 @@ docker exec -it evey-server sh -c \
    transcodificación → Borrar todo**) si la versión ha cambiado la forma de
    codificar los vídeos.
 
-## Volver a la versión anterior
+## Volver a la versión anterior { #go-back-to-the-previous-version }
 
 `docker exec evey-server evey admin rollback` muestra la versión en marcha,
 la versión del esquema, la copia más reciente anterior a una migración y los
@@ -101,7 +101,7 @@ cuando el `.down.sql` de ese paso basta.
     No modifiques `schema_migrations` a mano salvo para quitar un estado
     «dirty» (más abajo), y haz antes una copia.
 
-## Una migración que se ha quedado a medias
+## Una migración que se ha quedado a medias { #a-migration-that-stopped-halfway }
 
 Cuando el registro muestra `Dirty database version N. Fix and force version.`,
 una migración se ha interrumpido a mitad y `golang-migrate` se niega a
@@ -119,7 +119,7 @@ Reinicia el contenedor; las migraciones siguen desde ahí. Restaurar la copia
 anterior a la migración ([Recuperación](recovery.md#restore-a-pre-migration-dump))
 es la otra opción.
 
-## Escribir una migración
+## Escribir una migración { #writing-a-migration }
 
 Para quien contribuye. Los archivos están en
 `internal/adapters/driven/postgres/migrations/NNNNNN_<name>.{up,down}.sql`.
@@ -174,5 +174,5 @@ migrations: internal/adapters/driven/postgres/migrate.go - RunMigrations, Rollba
 cli: cmd/evey/admin.go - adminMigrate, adminMigrateUsage ; cmd/evey/admin_ops.go - adminRollback
 embedded database and healthcheck start period: docker/entrypoint.sh (postgres.password, EVEY_DB_PASSWORD_FILE) ; Dockerfile - HEALTHCHECK --start-period
 backup route: internal/adapters/driving/http/backup_handler.go (POST /api/v1/admin/backups)
-labels: i18n/en/admin.yaml - sidebar.backupRestore, backup.schedule.runNow, transcodeCache.clearAll
+labels: i18n/en/admin.yaml - nav.backupRestore, backup.schedule.runNow, transcodeCache.clearAll
 -->

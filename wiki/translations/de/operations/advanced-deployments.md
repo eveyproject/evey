@@ -1,5 +1,5 @@
 ---
-source_sha: f0e5f75d4befda29fbffbe7da80a4cc45e7a86e9429753abdee557b19bc5a40b
+source_sha: f2e1240c1750c81d4a4d422aadadd53ecf86ab53d63aed2fc0a82c56e43e1d1f
 reviewed: true
 ---
 # Erweiterte Bereitstellungen { #advanced-deployments }
@@ -188,10 +188,10 @@ Das Image heißt `eveyproject/evey`.
 | Tag | Veröffentlicht durch | Hinweise |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | ein Release-Tag `vX.Y.Z` | `latest` ist immer die neueste stabile Version |
-| ein Vorabversions-Tag (mit Bindestrich) | ein Vorabversions-Tag | veröffentlicht nur sein eigenes Tag, verschiebt nie `latest` |
-| ein Branch-Name, `sha-<commit>` | ein Branch-Build | nur amd64 |
+| ein Vorabversions-Tag (mit Bindestrich) | ein Vorabversions-Tag | veröffentlicht sein eigenes Tag und `sha-<commit>`, nie `latest` |
+| ein Branch-Name, `sha-<commit>` | ein Branch-Build | nur das Standard-Image, nur amd64 (normalerweise) |
 
-Jedes Tag gibt es in drei Varianten: Die Standardvariante bringt alle
+Release- und Vorabversions-Tags gibt es in drei Varianten (ein Branch-Build veröffentlicht nur das Standard-Image): Die Standardvariante bringt alle
 Plugin-Laufzeiten mit (Python 3, Node.js, PHP, Ruby und Lua), `-nodejs` behält
 Python und Node.js, `-lean` nur Python (zum Beispiel `latest-lean`). Nehmen Sie
 eine schlankere Variante nur, wenn die Image-Größe zählt: Das

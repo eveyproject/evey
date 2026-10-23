@@ -1,8 +1,8 @@
 ---
-source_sha: 6bbcf7c54732dc7eb7955206675ddd1923616486ecdec3c988c6ad0463cf8a04
+source_sha: 11f247e9600d2a9954d2efb9c3e83b1b5c383eeff81aea6c581b95520eafccc1
 reviewed: true
 ---
-# Transkodierung und Hardware
+# Transkodierung und Hardware { #transcoding-and-hardware }
 
 Die Variablen hinter der Kapazität, der Grafikkarte, den Qualitätsgrenzen und
 dem Transkodierungs-Cache. Die meisten Installationen setzen keine davon: Der
@@ -11,7 +11,7 @@ Server misst die Maschine und wählt die Hardware selbst, wie unter
 Gibt es eine Einstellung unter **Verwaltung → Transkodierung**, hat der
 dort gespeicherte Wert Vorrang.
 
-## Hardwarebeschleunigung
+## Hardwarebeschleunigung { #hardware-acceleration }
 
 Wie Sie die GPU für den Container freigeben:
 [Hardwarebeschleunigung](../administration/hardware-acceleration.md).
@@ -30,7 +30,7 @@ Der stromsparende Intel-Encoder und die AV1-Ausgabe (Schalter und Obergrenze)
 haben keine Variable: Sie werden nur unter **Verwaltung → Transkodierung**
 eingestellt.
 
-## Kapazität und Grenzen
+## Kapazität und Grenzen { #capacity-and-limits }
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
@@ -43,16 +43,16 @@ eingestellt.
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS` | `0` (folgt der Quelle) | Eine Obergrenze für die Bitrate des transkodierten Videos. | Transkodierung → **Obergrenze Videobitrate**, sofort |
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS` | `0` (keine) | Dieselbe Obergrenze für Clients außerhalb des Heimnetzes. | Transkodierung → **Video-Bitratenobergrenze, entfernte Zuschauer**, sofort |
 
-## Cache
+## Cache { #cache }
 
 | Variable | Standard | Wirkung | Verwaltungsbereich |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | Die Größe des gesamten Transkodierungs-Caches (Segmente, Remux-Dateien, vorbereitete Downloads). Was am längsten nicht benutzt wurde, wird zuerst entfernt. | Serverkonfiguration → Servereinstellungen → **Budget des Transkodierungs-Caches (GB)**, Neustart |
+| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | Die Größe des gesamten Transkodierungs-Caches (Segmente, Remux-Dateien, vorbereitete Downloads). Was am längsten nicht benutzt wurde, wird zuerst entfernt. | Transkodierung → **Budget des Transkodierungs-Caches (GB)**, Neustart |
 | `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | Freier Platz, der auf dem Laufwerk des Caches frei bleibt. Darunter werden ungenutzte Segmente entfernt, dann werden neue Segmente abgelehnt statt geschrieben; extrahierte Untertitel werden nicht mehr gespeichert, und die Administratoren werden benachrichtigt. `0` schaltet diese Reserve ab. Siehe [Der Transkodierungs-Cache](../playback/transcoding.md#the-transcoding-cache). | keine |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Wo er liegt. Vom Image gesetzt. | keine |
 | `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Wo die Vorschaubilder der Zeitleiste liegen. Vom Image gesetzt: Sie neu zu erzeugen ist aufwendig, deshalb bleiben sie in `/data`. | keine |
 
-## Kalibrierungsclip
+## Kalibrierungsclip { #calibration-clip }
 
 Die Messung kodiert einen 4K-Clip. In dieser Reihenfolge: Ihre Datei, ein
 Clip, der einmal heruntergeladen und anhand seines Hashwerts geprüft wird,

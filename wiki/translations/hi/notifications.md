@@ -1,5 +1,5 @@
 ---
-source_sha: 8d9681876fde4e364272e6256089c42f068178b9ea4848f17733c827d82a157f
+source_sha: faa0ef0aa6b7e0d5694320b07792f4f14f19fdd79e035ec57246a43c7954ffb8
 reviewed: true
 ---
 # ई-मेल और सूचनाएँ { #e-mail-and-notifications }
@@ -105,7 +105,7 @@ Evey ऐसे मेल सर्वर से ई-मेल भेजता �
 ## लोगों को अपना पासवर्ड रीसेट करने दें { #let-people-reset-their-password }
 
 1. ई-मेल सेट करें (ऊपर देखें)।
-2. **एडमिन → सर्वर कॉन्फ़िग → सर्वर सेटिंग्स** में **पासवर्ड
+2. **एडमिन → सर्वर कॉन्फ़िग → खाते और सुरक्षा → साइन-इन और सुरक्षा** में **पासवर्ड
    पुनर्प्राप्ति** चालू करें। यह तुरंत लागू होता है।
 3. अब साइन-इन पेज पर **पासवर्ड भूल गए?** दिखता है। यह नया पासवर्ड चुनने का
    लिंक ई-मेल से भेजता है।
@@ -119,7 +119,7 @@ retention 30 d: internal/app/notification/service.go defaultRetentionDays ; grou
 list filtered by library access: internal/adapters/driving/grpcapi/notification_handler.go allowedLibraryIDs
 bell on TV and mobile: frontend/apps/tv/src/components/TopHeader.tsx ; frontend/apps/mobile/app/(auth)/settings/notifications.tsx
 levels: batching.go shouldNotify (relevant == highly_relevant) + fetchFavoriteGenres (GetFavoriteGenresBatch minCount 3, window 200 sessions: watch_history_analyzer.go)
-defaults all: migrations/000005_notifications.up.sql (notification_settings_global) ; UI: frontend/apps/web/src/features/user/NotificationSettings.tsx ; i18n notificationSettings.level*
+defaults all: internal/adapters/driven/postgres/migrations/000005_notifications.up.sql (notification_settings_global) ; UI: frontend/apps/web/src/features/user/NotificationSettings.tsx ; i18n notificationSettings.level*
 email: internal/adapters/driven/email/notification_emailer.go (push title key, recipient locale, one per account per FanoutID, base URL link)
 SMTP live from the card, env fallback, panel host = panel only, defaults 587/starttls: internal/app/config/smtp.go (ResolveSMTPSettings, LiveSMTP) ; test send: internal/adapters/driving/http/smtp_test_handler.go
 labels: i18n admin.serverConfig emailSmtp, smtpHost, port, smtpUsername, smtpPassword, fromAddress, tlsMode, saveSmtp, sendTestEmail

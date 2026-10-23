@@ -1,15 +1,15 @@
 ---
-source_sha: fad8d9ff7aa0e8e4c14508e1eb2fe716e13c05c66eca9acb763084c56aec898f
+source_sha: e42888fc562d4048501a959c02c07cd4a45986308799bd171bf193880d6a12ee
 reviewed: true
 ---
-# डेटाबेस माइग्रेशन
+# डेटाबेस माइग्रेशन { #database-migrations }
 
 अपडेट के दौरान Evey अपने डेटाबेस का स्कीमा कैसे बदलता है, पहले और बाद में क्या
 जाँचना है, और जब कोई माइग्रेशन आधे रास्ते में रुक जाए तो क्या करें। यह
 आम इंस्टॉल चलाने वाले ऑपरेटरों के लिए है, जहाँ डेटाबेस `evey-server` कंटेनर के
 अंदर चलता है; माइग्रेशन लिखने वाले योगदानकर्ताओं के लिए नियम आखिर में हैं।
 
-## माइग्रेशन कैसे चलते हैं
+## माइग्रेशन कैसे चलते हैं { #how-migrations-run }
 
 माइग्रेशन binary के अंदर ही शामिल होते हैं और सर्वर शुरू होने पर `golang-migrate`
 उन्हें लागू करता है। स्थिति `schema_migrations` टेबल में दर्ज रहती है, जिसमें एक पंक्ति
@@ -34,7 +34,7 @@ docker exec -it evey-server sh -c \
   'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-## सुरक्षित तरीके से अपडेट करना
+## सुरक्षित तरीके से अपडेट करना { #update-safely }
 
 1. **बैकअप लें**, **एडमिन → डेटाबेस बैकअप** में (**अभी चलाएं**), या
    किसी स्क्रिप्ट से:
@@ -79,7 +79,7 @@ docker exec -it evey-server sh -c \
    अगर इस रिलीज़ ने वीडियो एन्कोड होने का तरीका बदला है, तो ट्रांसकोडिंग कैश
    खाली करें (**एडमिन → ट्रांसकोड कैश → सभी साफ़ करें**)।
 
-## पिछले वर्ज़न पर वापस जाना
+## पिछले वर्ज़न पर वापस जाना { #go-back-to-the-previous-version }
 
 `docker exec evey-server evey admin rollback` चल रहा वर्ज़न, स्कीमा वर्ज़न,
 माइग्रेशन से पहले का सबसे नया डंप, और होस्ट पर चलाने वाली सटीक कमांड छापता है। यह
@@ -95,7 +95,7 @@ docker exec -it evey-server sh -c \
     `schema_migrations` को हाथ से न बदलें, सिवाय dirty हालत हटाने के (नीचे
     देखें), और पहले एक डंप ले लें।
 
-## आधे रास्ते में रुका माइग्रेशन
+## आधे रास्ते में रुका माइग्रेशन { #a-migration-that-stopped-halfway }
 
 जब लॉग में `Dirty database version N. Fix and force version.` दिखे, तो इसका मतलब
 है कि कोई माइग्रेशन बीच में क्रैश हो गया और `golang-migrate` आगे बढ़ने से मना कर
@@ -113,7 +113,7 @@ UPDATE schema_migrations SET version = <N>, dirty = false;
 वापस लाना ([रिकवरी](recovery.md#restore-a-pre-migration-dump)) दूसरा
 उपाय है।
 
-## माइग्रेशन लिखना
+## माइग्रेशन लिखना { #writing-a-migration }
 
 योगदानकर्ताओं के लिए। फ़ाइलें
 `internal/adapters/driven/postgres/migrations/NNNNNN_<name>.{up,down}.sql` में
@@ -162,5 +162,5 @@ migrations: internal/adapters/driven/postgres/migrate.go - RunMigrations, Rollba
 cli: cmd/evey/admin.go - adminMigrate, adminMigrateUsage ; cmd/evey/admin_ops.go - adminRollback
 embedded database and healthcheck start period: docker/entrypoint.sh (postgres.password, EVEY_DB_PASSWORD_FILE) ; Dockerfile - HEALTHCHECK --start-period
 backup route: internal/adapters/driving/http/backup_handler.go (POST /api/v1/admin/backups)
-labels: i18n/en/admin.yaml - sidebar.backupRestore, backup.schedule.runNow, transcodeCache.clearAll
+labels: i18n/en/admin.yaml - nav.backupRestore, backup.schedule.runNow, transcodeCache.clearAll
 -->

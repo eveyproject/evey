@@ -1,5 +1,5 @@
 ---
-source_sha: f0e5f75d4befda29fbffbe7da80a4cc45e7a86e9429753abdee557b19bc5a40b
+source_sha: f2e1240c1750c81d4a4d422aadadd53ecf86ab53d63aed2fc0a82c56e43e1d1f
 reviewed: true
 ---
 # 高级部署 { #advanced-deployments }
@@ -159,10 +159,10 @@ Docker 会自动选择对应的架构。分支标签只有 amd64：在 ARM 主�
 | 标签 | 由什么发布 | 说明 |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | 发布标签 `vX.Y.Z` | `latest` 永远是最新的稳定版 |
-| 预发布标签（带连字符） | 预发布标签 | 只发布它自己的标签，从不改动 `latest` |
-| 分支名，`sha-<commit>` | 分支构建 | 只有 amd64 |
+| 预发布标签（带连字符） | 预发布标签 | 发布它自己的标签和 `sha-<commit>`，从不发布 `latest` |
+| 分支名，`sha-<commit>` | 分支构建 | 只有默认镜像，通常只有 amd64 |
 
-每个标签都有三种变体：默认的变体带有全部插件运行时（Python 3、Node.js、PHP、Ruby 和 Lua），`-nodejs` 保留 Python 和 Node.js，`-lean` 只保留 Python
+发布标签和预发布标签都有三种变体（分支构建只发布默认镜像）：默认的变体带有全部插件运行时（Python 3、Node.js、PHP、Ruby 和 Lua），`-nodejs` 保留 Python 和 Node.js，`-lean` 只保留 Python
 （例如 `latest-lean`）。只有在镜像体积要紧时才选用更精简的变体：如果插件声明的语言在镜像里没有，安装程序会拒绝它，并在提示里写明该用默认镜像。
 
 发布的镜像带有所有受支持的 Intel 和 AMD 显卡世代的驱动。自己构建镜像时，可以只保留一个系列：
