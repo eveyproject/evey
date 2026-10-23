@@ -1,3 +1,4 @@
+import type { PluginSignatureInfo } from "./pluginSignature";
 // Pure helpers of the admin plugins screen (mirrors
 // apps/web/src/routes/_auth/admin/plugins.lazy.tsx) - extracted here so the
 // escalation parsing can be unit tested without mounting the screen. The
@@ -57,6 +58,8 @@ export interface InstallPreview {
   permissions?: string[];
   capabilities?: string[];
   source_hash?: string;
+  // Present when a signature was provided with the package.
+  signature?: PluginSignatureInfo;
   analysis?: { safe?: boolean; total_files_scanned?: number; issues?: string[]; urls?: string[] };
 }
 

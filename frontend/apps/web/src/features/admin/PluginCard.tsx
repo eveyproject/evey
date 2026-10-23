@@ -23,6 +23,7 @@ import type { V1Plugin, V1PluginState } from "@evey/api";
 import { PluginUpdateDialog } from "./PluginUpdateDialog";
 import { useDemoLock, useDemoLockFor } from "@/hooks/useDemoMode";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
+import { PluginSignatureBadge } from "./PluginSignatureBadge";
 
 type PluginWithPermissions = V1Plugin & {
   permissions?: string[];
@@ -372,6 +373,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
           {plugin.language !== "css" && !plugin.permissions?.includes("subprocess") && (
             <Badge variant="success">{t("admin.plugin.sandboxed")}</Badge>
           )}
+          <PluginSignatureBadge signature={plugin.signature} />
         </div>
       </div>
 

@@ -265,4 +265,49 @@ describe("PluginUpdateDialog", () => {
     await userEvent.click(screen.getByText("Cancel"));
     expect(onClose).toHaveBeenCalledOnce();
   });
+
+  it("requires the publisher checkbox when the key changed and sends accept_new_publisher", async () => {
+    mockEveyFetch.mockResolvedValueOnce({
+      ...safePreview,
+      signatureStatus: "publisher-changed",
+      requiresAck: true,
+      signature: { verified: true, trusted: false, keyFingerprint: "sha256:aaaa", continuity: "changed" },
+    });
+    mockEveyFetch.mockResolvedValueOnce({});
+    render(
+      <PluginUpdateDialog
+        pluginId="p1"
+        pluginName="My Plugin"
+        source="/path/to/plugin.zip"
+        onClose={vi.fn()}
+        onApplied={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("apply-button")).toBeInTheDocument());
+    expect(screen.getByTestId("banner-publisher")).toBeInTheDocument();
+    expect(screen.queryByTestId("ack-checkbox")).not.toBeInTheDocument();
+    expect(screen.getByTestId("apply-button")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("publisher-ack-checkbox"));
+    expect(screen.getByTestId("apply-button")).not.toBeDisabled();
+    await userEvent.click(screen.getByTestId("apply-button"));
+    await waitFor(() => expect(mockEveyFetch).toHaveBeenCalledTimes(2));
+    expect(mockEveyFetch).toHaveBeenLastCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ accept_new_publisher: true }) }),
+    );
+  });
+
+  it("does not show the publisher checkbox on a plain update", async () => {
+    mockEveyFetch.mockResolvedValueOnce(safePreview);
+    render(
+      <PluginUpdateDialog
+        pluginId="p1"
+        pluginName="My Plugin"
+        source="/path/to/plugin.zip"
+        onClose={vi.fn()}
+        onApplied={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId("apply-button")).toBeInTheDocument());
+    expect(screen.queryByTestId("publisher-ack-checkbox")).not.toBeInTheDocument();
+  });
 });

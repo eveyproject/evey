@@ -34,6 +34,11 @@ vi.mock("@evey/api", () => ({
   useAdminPluginServiceGetPluginResourceLimits: vi.fn(() => ({ data: undefined, isLoading: false })),
   useAdminPluginServiceUpdatePluginResourceLimits: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
   getAdminPluginServiceGetPluginResourceLimitsQueryKey: vi.fn(() => ["plugin-resource-limits"]),
+  useAdminPluginServiceListTrustedPublishers: vi.fn(() => ({ data: { publishers: [] }, isLoading: false })),
+  useAdminPluginServiceAddTrustedPublisher: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  useAdminPluginServiceRemoveTrustedPublisher: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
+  getAdminPluginServiceListTrustedPublishersQueryKey: vi.fn(() => ["trusted-publishers"]),
+  getAdminPluginServiceListPluginsQueryKey: vi.fn(() => ["plugins"]),
 }));
 
 vi.mock("@evey/store", () => ({

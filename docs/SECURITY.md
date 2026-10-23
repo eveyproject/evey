@@ -115,16 +115,32 @@ and `embedded_archive` refuse it unless the manifest declares `native-binary`.
 
 ### Signature
 
-A package can be signed with cosign. `EVEY_PLUGINS_COSIGN_POLICY` sets what a
-failed verification does (`pluginrunner/cosign.go`):
+A package can be signed with cosign (`cosign sign-blob --key`, ECDSA P-256
+over the SHA-256 of the ZIP). The author's public key travels inside the
+package as `cosign.pub`; Evey verifies the detached `.sig` against it, in
+process and offline (`pluginrunner/cosign.go`), and computes the key's
+fingerprint (`sha256:` over the DER public key). Three facts follow from it:
+
+- **Trust**: the fingerprint is, or is not, in the instance's **Trusted
+  publishers** list (`Admin → Plugins`, or seeded by
+  `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` at boot). A trusted key shows the
+  publisher's name; an unknown one shows its fingerprint and a **Trust this
+  key** action.
+- **Continuity**: the fingerprint is pinned to the plugin at install. An
+  update signed by another key (`publisher-changed`) or no longer signed
+  (`signature-lost`) is refused, whatever the policy, until the administrator
+  accepts the new publisher in the update dialog (`accept_new_publisher`).
+- **Policy**: `EVEY_PLUGINS_COSIGN_POLICY` sets what the verdict does.
 
 | Policy | Effect |
 |---|---|
-| `off` | The signature is not checked. |
-| `warn` (default) | A failure is recorded and shown to the administrator, without blocking. With no public key configured, nothing is verified. |
-| `enforce` | A failure refuses the install or the update. |
+| `off` | The signature is not checked and nothing is recorded. |
+| `warn` (default) | The verdict is recorded and shown; unsigned, untrusted and invalid packages install. |
+| `enforce` | Only a package signed by a trusted publisher installs or updates. |
 
-The public key is given by `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`.
+What a signature proves is that the package is the one its publisher
+released, and that an update comes from the same publisher. It says nothing
+about the code, which the analysis, the permissions and the sandbox judge.
 
 ### Administrator preview
 
@@ -403,7 +419,7 @@ included.
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` or `basic`. Also editable in **Admin → Plugins**. |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` or `off`. Incompatible with `no_new_privs` on the container. |
 | `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` or `enforce`. |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | none | The key signatures are checked against. |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | none | Optional: a PEM public key added to the trusted publishers at boot. |
 | `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Boot defaults of the resource limits; the panel overrides them, for every plugin at once. |
 
 The official image ships `evey-plugin-launcher` (Landlock and the kernel

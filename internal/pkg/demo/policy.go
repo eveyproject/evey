@@ -63,6 +63,7 @@ var OpenAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC and route nam
 
 	"/evey.v1.AdminPluginService/ListPluginRuntimes":      "read of the runtimes; adding or removing one is locked",
 	"/evey.v1.AdminPluginService/ListPlugins":             "the catalogue stays browsable, that is the part worth showing",
+	"/evey.v1.AdminPluginService/ListTrustedPublishers":   "read of public keys and their names, nothing about the host",
 	"/evey.v1.AdminPluginService/GetPluginConfig":         "read; secret fields are masked by the handler",
 	"/evey.v1.AdminPluginService/GetPluginLogs":           "plugin-scoped logs of the seeded plugin, redacted at write time",
 	"/evey.v1.AdminPluginService/GetPluginResourceLimits": "read of the sandbox limits; changing them is locked",
@@ -143,6 +144,8 @@ var LockedAdminRPCs = map[string]string{ //nolint:gosec // G101: RPC names with 
 
 	"/evey.v1.AdminPluginService/AddPluginRuntime":           "installs a language runtime on the host",
 	"/evey.v1.AdminPluginService/RemovePluginRuntime":        "removes one",
+	"/evey.v1.AdminPluginService/AddTrustedPublisher":        "decides whose plugin code the shared instance trusts, for every visitor",
+	"/evey.v1.AdminPluginService/RemoveTrustedPublisher":     "withdraws that trust for every visitor",
 	"/evey.v1.AdminPluginService/InstallPlugin":              "runs third-party code on the host",
 	"/evey.v1.AdminPluginService/UninstallPlugin":            "removes the seeded plugin for everyone",
 	"/evey.v1.AdminPluginService/PreviewPluginUpdate":        "downloads a caller-supplied URL (SSRF)",

@@ -3,6 +3,7 @@ package postgres_test
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"testing"
 	"time"
 
@@ -310,3 +311,57 @@ func TestPluginRepo_SecurityColumns_RoundTrip(t *testing.T) {
 	assert.True(t, again.AnalysisReport.Safe)
 	assert.Empty(t, again.AnalysisReport.Issues)
 }
+
+// The pinned publisher key and the continuity verdict survive Create, Update
+// and List; a plugin that never had a key reads back with empty strings (NULL
+// columns), and Update clears a pin the new version no longer has.
+func TestPluginRepo_PublisherKey_RoundTrip(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	repo := postgres.NewPluginRepository(db)
+	ctx := context.Background()
+
+	bare := newTestPlugin("plkey-bare")
+	require.NoError(t, repo.Create(ctx, bare))
+	got, err := repo.GetByID(ctx, bare.ID)
+	require.NoError(t, err)
+	assert.Empty(t, got.PublisherKeyFingerprint)
+	assert.Empty(t, got.PublisherKeyPEM)
+
+	signed := newTestPlugin("plkey-signed")
+	signed.PublisherKeyFingerprint = "sha256:" + strings.Repeat("ab", 32)
+	signed.PublisherKeyPEM = "-----BEGIN PUBLIC KEY-----\nAAAA\n-----END PUBLIC KEY-----\n"
+	signed.Signature = &plugin.SignatureStatus{
+		Verified: true, VerifiedBy: signed.PublisherKeyFingerprint, KeyFingerprint: signed.PublisherKeyFingerprint,
+		Publisher: "Acme", Trusted: true, Continuity: plugin.ContinuitySame, KeyPEM: "never persisted in the JSON",
+	}
+	require.NoError(t, repo.Create(ctx, signed))
+	got, err = repo.GetByID(ctx, signed.ID)
+	require.NoError(t, err)
+	assert.Equal(t, signed.PublisherKeyFingerprint, got.PublisherKeyFingerprint)
+	assert.Equal(t, signed.PublisherKeyPEM, got.PublisherKeyPEM)
+	require.NotNil(t, got.Signature)
+	assert.Equal(t, signed.PublisherKeyFingerprint, got.Signature.KeyFingerprint)
+	assert.Equal(t, "Acme", got.Signature.Publisher)
+	assert.True(t, got.Signature.Trusted)
+	assert.Equal(t, plugin.ContinuitySame, got.Signature.Continuity)
+	assert.Empty(t, got.Signature.KeyPEM, "the PEM lives in its own column, not in the signature JSON")
+
+	list, err := repo.List(ctx)
+	require.NoError(t, err)
+	byID := map[string]*plugin.Plugin{}
+	for _, p := range list {
+		byID[p.ID] = p
+	}
+	assert.Equal(t, signed.PublisherKeyFingerprint, byName(byID, "plkey-signed").PublisherKeyFingerprint)
+	assert.Empty(t, byName(byID, "plkey-bare").PublisherKeyFingerprint)
+
+	got.PublisherKeyFingerprint, got.PublisherKeyPEM = "", ""
+	require.NoError(t, repo.Update(ctx, got))
+	again, err := repo.GetByID(ctx, signed.ID)
+	require.NoError(t, err)
+	assert.Empty(t, again.PublisherKeyFingerprint)
+	assert.Empty(t, again.PublisherKeyPEM)
+}
+
+func byName(byID map[string]*plugin.Plugin, id string) *plugin.Plugin { return byID[id] }

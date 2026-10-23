@@ -26,6 +26,9 @@ import { PluginCard } from "@/features/admin/PluginCard";
 import { PluginSecurityDashboard } from "@/features/admin/PluginSecurityDashboard";
 import { uploadRefusalMessage } from "@/features/plugins/uploadRefusal";
 import { PluginResourceLimits } from "@/features/admin/PluginResourceLimits";
+import { TrustedPublishers } from "@/features/admin/TrustedPublishers";
+import { PluginSignatureBadge } from "@/features/admin/PluginSignatureBadge";
+import type { PluginSignature } from "@/features/admin/pluginSignature";
 import { useDemoLockFor } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/plugins")({
@@ -60,6 +63,9 @@ interface PluginPreview {
   language: string;
   permissions: string[];
   capabilities: string[];
+  // Present when a .sig was provided with the package.
+  signature?: PluginSignature;
+  signatureStatus?: string;
   analysis?: {
     safe: boolean;
     issues: string[];
@@ -157,6 +163,22 @@ function PreviewPanel({
       )}
 
       {preview.permissions?.includes("subprocess") && <SubprocessWarning />}
+
+      {preview.signature && (
+        <div className="flex flex-col gap-2" data-testid="preview-signature">
+          <span className="text-xs font-semibold text-[var(--text-muted)]">
+            {t("admin.plugin.signature.installHeading")}
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <PluginSignatureBadge signature={preview.signature} canTrust={false} />
+          </div>
+          {preview.signature.keyFingerprint && (
+            <span className="font-mono text-xs break-all text-[var(--text-muted)]">
+              {preview.signature.keyFingerprint}
+            </span>
+          )}
+        </div>
+      )}
 
       {preview.analysis?.issues && preview.analysis.issues.length > 0 && (
         <div className="flex flex-col gap-1.5 text-xs">
@@ -274,6 +296,7 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
     try {
       const formData = new FormData();
       formData.append("plugin", file);
+      if (selectedSigFile) formData.append("sig", selectedSigFile);
       const res = await eveyFetchRaw({ url: "/api/v1/admin/plugins/preview", method: "POST", body: formData });
       const data = (await res.json()) as PluginPreview;
       setPreview(data);
@@ -682,6 +705,8 @@ function PluginsPage() {
       )}
 
       <PluginResourceLimits />
+
+      <TrustedPublishers />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

@@ -16,6 +16,90 @@
     "application/json"
   ],
   "paths": {
+    "/api/v1/admin/plugin-publishers": {
+      "get": {
+        "summary": "Trusted publishers are the plugin signing keys this instance accepts: a\nplugin signed by one of them shows its publisher's name, an unknown key\nshows its fingerprint, and the enforce policy admits trusted keys only.",
+        "operationId": "AdminPluginService_ListTrustedPublishers",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1ListTrustedPublishersResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "tags": [
+          "AdminPluginService"
+        ]
+      },
+      "post": {
+        "summary": "AddTrustedPublisher registers a key by its PEM public key, or by the\nfingerprint an installed plugin already carries.",
+        "operationId": "AdminPluginService_AddTrustedPublisher",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1TrustedPublisher"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/v1AddTrustedPublisherRequest"
+            }
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
+    },
+    "/api/v1/admin/plugin-publishers/{fingerprint}": {
+      "delete": {
+        "operationId": "AdminPluginService_RemoveTrustedPublisher",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/v1RemoveTrustedPublisherResponse"
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/rpcStatus"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "fingerprint",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "AdminPluginService"
+        ]
+      }
+    },
     "/api/v1/admin/plugin-resource-limits": {
       "get": {
         "summary": "GetPluginResourceLimits returns the effective per-plugin resource caps the\nrunner is enforcing (env defaults overlaid with admin overrides).",
@@ -541,6 +625,10 @@
         "acknowledgedHash": {
           "type": "string",
           "description": "acknowledged_hash must match the source_hash returned by PreviewPluginUpdate.\nEnsures the admin acknowledged exactly the candidate that was previewed."
+        },
+        "acceptNewPublisher": {
+          "type": "boolean",
+          "description": "accept_new_publisher lets an update signed by another key than the\ninstalled version (or no longer signed) through; refused without it."
         }
       }
     },
@@ -607,6 +695,21 @@
           "type": "string"
         },
         "binaryPath": {
+          "type": "string"
+        }
+      }
+    },
+    "v1AddTrustedPublisherRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "publicKeyPem": {
+          "type": "string",
+          "description": "One of the two: a PEM public key, or the fingerprint of a key an\ninstalled plugin carries (the server already holds that key)."
+        },
+        "fingerprint": {
           "type": "string"
         }
       }
@@ -695,6 +798,18 @@
         }
       }
     },
+    "v1ListTrustedPublishersResponse": {
+      "type": "object",
+      "properties": {
+        "publishers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "$ref": "#/definitions/v1TrustedPublisher"
+          }
+        }
+      }
+    },
     "v1Plugin": {
       "type": "object",
       "properties": {
@@ -768,6 +883,10 @@
         },
         "webRoot": {
           "type": "string"
+        },
+        "signature": {
+          "$ref": "#/definitions/v1PluginSignature",
+          "description": "signature is the install-time verdict; null when the policy is off."
         }
       }
     },
@@ -903,6 +1022,34 @@
         }
       }
     },
+    "v1PluginSignature": {
+      "type": "object",
+      "properties": {
+        "verified": {
+          "type": "boolean",
+          "description": "verified says the detached signature matches the package and its key."
+        },
+        "keyFingerprint": {
+          "type": "string",
+          "description": "key_fingerprint is \"sha256:\u003chex\u003e\" of the signing public key, empty when\nthe package carries no key."
+        },
+        "publisher": {
+          "type": "string",
+          "description": "publisher is the trusted publisher's name when the key is in the\ninstance's list, empty otherwise."
+        },
+        "trusted": {
+          "type": "boolean"
+        },
+        "continuity": {
+          "type": "string",
+          "description": "continuity against the installed version: \"\" (first install or the\ninstalled version was unsigned), \"same\", \"changed\" (another key),\n\"lost\" (the installed version was signed, this one is not)."
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "description": "PluginSignature is the verdict on a plugin package's cosign signature. The\nkey travels with the package (cosign.pub at the ZIP root); its fingerprint\nis pinned at install so a later update signed by another key is caught."
+    },
     "v1PluginState": {
       "type": "string",
       "enum": [
@@ -980,17 +1127,24 @@
           }
         },
         "signatureStatus": {
-          "type": "string"
+          "type": "string",
+          "description": "signature_status: \"signed\", \"signed-untrusted\", \"unsigned\", \"invalid\",\n\"publisher-changed\" or \"signature-lost\" (the last two set requires_ack)."
         },
         "requiresAck": {
           "type": "boolean"
         },
         "sourceHash": {
           "type": "string"
+        },
+        "signature": {
+          "$ref": "#/definitions/v1PluginSignature"
         }
       }
     },
     "v1RemovePluginRuntimeResponse": {
+      "type": "object"
+    },
+    "v1RemoveTrustedPublisherResponse": {
       "type": "object"
     },
     "v1SecurityFinding": {
@@ -1011,6 +1165,27 @@
         },
         "description": {
           "type": "string"
+        }
+      }
+    },
+    "v1TrustedPublisher": {
+      "type": "object",
+      "properties": {
+        "fingerprint": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "publicKeyPem": {
+          "type": "string"
+        },
+        "addedAt": {
+          "type": "string"
+        },
+        "seeded": {
+          "type": "boolean",
+          "description": "seeded says the key came from EVEY_PLUGINS_COSIGN_PUBLIC_KEY at boot and\ncannot be removed from the panel."
         }
       }
     },

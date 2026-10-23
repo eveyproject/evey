@@ -126,7 +126,81 @@ service AdminPluginService {
       body: "*"
     };
   }
+
+  // Trusted publishers are the plugin signing keys this instance accepts: a
+  // plugin signed by one of them shows its publisher's name, an unknown key
+  // shows its fingerprint, and the enforce policy admits trusted keys only.
+  rpc ListTrustedPublishers(ListTrustedPublishersRequest) returns (ListTrustedPublishersResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/plugin-publishers"
+    };
+  }
+
+  // AddTrustedPublisher registers a key by its PEM public key, or by the
+  // fingerprint an installed plugin already carries.
+  rpc AddTrustedPublisher(AddTrustedPublisherRequest) returns (TrustedPublisher) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/plugin-publishers"
+      body: "*"
+    };
+  }
+
+  rpc RemoveTrustedPublisher(RemoveTrustedPublisherRequest) returns (RemoveTrustedPublisherResponse) {
+    option (google.api.http) = {
+      delete: "/api/v1/admin/plugin-publishers/{fingerprint}"
+    };
+  }
 }
+
+// PluginSignature is the verdict on a plugin package's cosign signature. The
+// key travels with the package (cosign.pub at the ZIP root); its fingerprint
+// is pinned at install so a later update signed by another key is caught.
+message PluginSignature {
+  // verified says the detached signature matches the package and its key.
+  bool verified = 1;
+  // key_fingerprint is "sha256:<hex>" of the signing public key, empty when
+  // the package carries no key.
+  string key_fingerprint = 2;
+  // publisher is the trusted publisher's name when the key is in the
+  // instance's list, empty otherwise.
+  string publisher = 3;
+  bool trusted = 4;
+  // continuity against the installed version: "" (first install or the
+  // installed version was unsigned), "same", "changed" (another key),
+  // "lost" (the installed version was signed, this one is not).
+  string continuity = 5;
+  string error = 6;
+}
+
+message TrustedPublisher {
+  string fingerprint = 1;
+  string name = 2;
+  string public_key_pem = 3;
+  string added_at = 4;
+  // seeded says the key came from EVEY_PLUGINS_COSIGN_PUBLIC_KEY at boot and
+  // cannot be removed from the panel.
+  bool seeded = 5;
+}
+
+message ListTrustedPublishersRequest {}
+
+message ListTrustedPublishersResponse {
+  repeated TrustedPublisher publishers = 1;
+}
+
+message AddTrustedPublisherRequest {
+  string name = 1;
+  // One of the two: a PEM public key, or the fingerprint of a key an
+  // installed plugin carries (the server already holds that key).
+  string public_key_pem = 2;
+  string fingerprint = 3;
+}
+
+message RemoveTrustedPublisherRequest {
+  string fingerprint = 1;
+}
+
+message RemoveTrustedPublisherResponse {}
 
 message IssuePluginTokenRequest {
   string plugin_id = 1;
@@ -172,6 +246,8 @@ message Plugin {
   repeated FrontModule frontend = 17;
   repeated string external_fetch = 18;
   string web_root = 19;
+  // signature is the install-time verdict; null when the policy is off.
+  PluginSignature signature = 20;
 }
 
 // PluginAnalysisReport exposes the static-analysis warnings recorded at
@@ -321,9 +397,12 @@ message PreviewPluginUpdateResponse {
   repeated string external_fetch_added = 9;
   repeated string external_fetch_removed = 10;
   repeated SecurityFinding new_findings = 11;
+  // signature_status: "signed", "signed-untrusted", "unsigned", "invalid",
+  // "publisher-changed" or "signature-lost" (the last two set requires_ack).
   string signature_status = 12;
   bool requires_ack = 13;
   string source_hash = 14;
+  PluginSignature signature = 15;
 }
 
 message ApplyPluginUpdateRequest {
@@ -332,4 +411,7 @@ message ApplyPluginUpdateRequest {
   // acknowledged_hash must match the source_hash returned by PreviewPluginUpdate.
   // Ensures the admin acknowledged exactly the candidate that was previewed.
   string acknowledged_hash = 3;
+  // accept_new_publisher lets an update signed by another key than the
+  // installed version (or no longer signed) through; refused without it.
+  bool accept_new_publisher = 4;
 }

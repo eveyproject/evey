@@ -454,6 +454,7 @@ func buildPluginSubsystem(ctx context.Context, infra *infraDeps, rootLog *slog.L
 		appplugin.InstallerWithInstaller(infra.pluginInstaller),
 		appplugin.InstallerWithAnalyzer(infra.pluginAnalyzer),
 		appplugin.InstallerWithSignatureVerifier(infra.pluginSigVerifier),
+		appplugin.InstallerWithTrustedPublishers(infra.pluginPublishers),
 		appplugin.InstallerWithPermissionChecker(permChecker),
 		appplugin.InstallerWithFileSystem(pluginFS),
 		appplugin.InstallerWithCSSSanitizer(cssSanitizer),
@@ -474,6 +475,7 @@ func buildPluginSubsystem(ctx context.Context, infra *infraDeps, rootLog *slog.L
 	pluginQuerySvc := appplugin.NewQueryService(r.Plugin, r.PluginRuntime)
 	pluginTokenSvc := appplugin.NewTokenService(r.Plugin, infra.tokenGen)
 	pluginSecurityDashboardSvc := appplugin.NewSecurityDashboardService(r.Plugin, bus, infra.pluginRunner.EffectiveSandboxMode).
+		WithKeyLookup(infra.pluginPublishers.Lookup).
 		WithSandboxStatus(func() appplugin.SandboxStatus {
 			return appplugin.SandboxStatus(infra.pluginRunner.SandboxStatus())
 		})

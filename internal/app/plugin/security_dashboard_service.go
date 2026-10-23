@@ -37,12 +37,20 @@ type SandboxStatus struct {
 // since the domain has no persistent error-log repository.
 type SecurityDashboardService struct {
 	plugins         domainplugin.PluginRepository
-	sandboxModeFn   func() string        // returns the effective sandbox mode in force (resolves "auto")
-	sandboxStatusFn func() SandboxStatus // optional richer host diagnosis (see WithSandboxStatus)
+	sandboxModeFn   func() string          // returns the effective sandbox mode in force (resolves "auto")
+	sandboxStatusFn func() SandboxStatus   // optional richer host diagnosis (see WithSandboxStatus)
+	keyLookup       domainplugin.KeyLookup // optional: live trust for the install-time signature verdict
 
 	mu            sync.RWMutex
 	lastErrors    map[string]*domainplugin.PluginLastError // pluginID → last error
 	lastStartedAt map[string]time.Time                     // pluginID → last started timestamp
+}
+
+// WithKeyLookup makes the snapshot's signature verdict carry the live
+// trusted-publisher answer (name, trusted) instead of the install-time one.
+func (s *SecurityDashboardService) WithKeyLookup(lookup domainplugin.KeyLookup) *SecurityDashboardService {
+	s.keyLookup = lookup
+	return s
 }
 
 // NewSecurityDashboardService creates the service and subscribes to plugin events on bus.
@@ -145,7 +153,9 @@ func (s *SecurityDashboardService) GetSecurityDashboard(ctx context.Context) ([]
 
 		// Signature status from cosign verification AT INSTALL TIME - never
 		// re-verified at start. See the SourceSHA256 note above.
-		snap.Signature = p.Signature
+		// Only who is TRUSTED is read live from the keyring, so trusting a key
+		// shows without a reinstall.
+		snap.Signature = RefreshTrust(ctx, p.Signature, s.keyLookup)
 
 		// Last error from in-memory cache.
 		if le, ok := s.lastErrors[p.ID]; ok {

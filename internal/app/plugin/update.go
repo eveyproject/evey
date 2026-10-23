@@ -35,11 +35,35 @@ func allowPermissionEscalation(ctx context.Context) bool {
 	return v
 }
 
+// ErrPublisherChanged and ErrSignatureLost are returned when an update is signed
+// by another key than the installed version, or is no longer validly signed.
+// Only an admin who read the verdict (accept_new_publisher) may take it; the
+// key pinned at the first install is what stops a hijacked source URL from
+// swapping in code signed by someone else.
+var (
+	ErrPublisherChanged = errors.New("plugin update is signed by a different publisher key than the installed version")
+	ErrSignatureLost    = errors.New("plugin update is no longer validly signed, the installed version was")
+)
+
+type acceptPublisherCtxKey struct{}
+
+// WithAcceptNewPublisher returns a child context that lets an update change or
+// drop the publisher key pinned on the installed version. Call this only after
+// the admin has explicitly accepted the new key.
+func WithAcceptNewPublisher(ctx context.Context) context.Context {
+	return context.WithValue(ctx, acceptPublisherCtxKey{}, true)
+}
+
+func acceptNewPublisher(ctx context.Context) bool {
+	v, _ := ctx.Value(acceptPublisherCtxKey{}).(bool)
+	return v
+}
+
 // ApplyUpdate applies a previously previewed update. It downloads (or reads) the
 // candidate ONCE, checks its hash against acknowledged_hash, then installs that
 // same file through the full install pipeline (TOCTOU: a second fetch could serve
 // other bytes), with WithAllowPermissionEscalation to honour the admin's ack.
-func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, acknowledgedHash string) (*plugin.Plugin, error) {
+func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, acknowledgedHash string, acceptPublisher bool) (*plugin.Plugin, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.plugin.ApplyUpdate")
 	defer span.End()
 	// Verify the plugin exists before going further.
@@ -66,6 +90,9 @@ func (s *InstallerService) ApplyUpdate(ctx context.Context, pluginID, source, ac
 	// Permission escalation is explicitly authorised because the admin has
 	// reviewed and acknowledged the diff in the preview step.
 	ctx = WithAllowPermissionEscalation(ctx)
+	if acceptPublisher {
+		ctx = WithAcceptNewPublisher(ctx)
+	}
 	if fragmentHash == "" {
 		fragmentHash = acknowledgedHash
 	}

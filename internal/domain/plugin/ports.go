@@ -111,10 +111,30 @@ type PluginFileSystem interface {
 	ChownPluginDir(dir string)
 }
 
-// SignatureVerifier checks the cosign signature of a plugin ZIP.
+// KeyLookup resolves a key fingerprint against the trusted-publisher list.
+type KeyLookup func(ctx context.Context, fingerprint string) (name string, trusted bool)
+
+// TrustedPublisherRepository stores the signing keys an instance accepts.
+type TrustedPublisherRepository interface {
+	List(ctx context.Context) ([]TrustedPublisher, error)
+	// Get returns shared.ErrNotFound for an unknown fingerprint.
+	Get(ctx context.Context, fingerprint string) (*TrustedPublisher, error)
+	// Upsert inserts or renames a key. An existing row keeps its AddedAt and
+	// never loses Seeded.
+	Upsert(ctx context.Context, p TrustedPublisher) error
+	// Delete returns shared.ErrNotFound for an unknown fingerprint and
+	// ErrSeededPublisher for a seeded one.
+	Delete(ctx context.Context, fingerprint string) error
+	// PruneSeeded deletes the seeded rows whose fingerprint is not in keep, so a
+	// key the operator removed from the configuration stops being trusted.
+	PruneSeeded(ctx context.Context, keep []string) error
+}
+
+// SignatureVerifier checks the cosign signature of a plugin ZIP against the
+// key the ZIP carries (cosign.pub at its root).
 // zipPath is the local path to the ZIP file.
 // sigPath is the path to the detached signature file (empty = zipPath+".sig").
-// Returns (nil, nil) when verification is disabled (policy="off" or no key configured).
+// Returns (nil, nil) when verification is disabled (policy="off").
 type SignatureVerifier interface {
 	VerifySignature(ctx context.Context, zipPath, sigPath string) (*SignatureStatus, error)
 }

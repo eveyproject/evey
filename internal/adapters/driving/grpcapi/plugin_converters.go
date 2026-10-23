@@ -1,6 +1,8 @@
 package grpcapi
 
 import (
+	"time"
+
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/domain/plugin"
 )
@@ -50,7 +52,33 @@ func pluginToProto(p *plugin.Plugin) *eveyv1.Plugin {
 		}
 		pb.AnalysisReport = rep
 	}
+	pb.Signature = signatureToProto(p.Signature)
 	return pb
+}
+
+// signatureToProto maps a signature verdict; nil (policy off) stays nil.
+func signatureToProto(s *plugin.SignatureStatus) *eveyv1.PluginSignature {
+	if s == nil {
+		return nil
+	}
+	return &eveyv1.PluginSignature{
+		Verified:       s.Verified,
+		KeyFingerprint: s.KeyFingerprint,
+		Publisher:      s.Publisher,
+		Trusted:        s.Trusted,
+		Continuity:     s.Continuity,
+		Error:          s.Error,
+	}
+}
+
+func trustedPublisherToProto(p *plugin.TrustedPublisher) *eveyv1.TrustedPublisher {
+	return &eveyv1.TrustedPublisher{
+		Fingerprint:  p.Fingerprint,
+		Name:         p.Name,
+		PublicKeyPem: p.PublicKeyPEM,
+		AddedAt:      p.AddedAt.UTC().Format(time.RFC3339),
+		Seeded:       p.Seeded,
+	}
 }
 
 func pluginRuntimeToProto(rt *plugin.PluginRuntime) *eveyv1.PluginRuntime {

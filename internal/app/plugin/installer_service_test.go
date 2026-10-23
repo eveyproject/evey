@@ -1100,7 +1100,7 @@ func TestApplyUpdate_HashMismatch(t *testing.T) {
 	zip2 := tmpZip(t, "v2")
 
 	// Pass a wrong hash.
-	_, err = svc.ApplyUpdate(ctx, p.ID, zip2, strings.Repeat("0", 64))
+	_, err = svc.ApplyUpdate(ctx, p.ID, zip2, strings.Repeat("0", 64), false)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, appplugin.ErrCandidateChanged)
 }
@@ -1125,7 +1125,7 @@ func TestApplyUpdate_RequiresAckWhenPermsAdded(t *testing.T) {
 	assert.True(t, preview.RequiresAck)
 
 	// ApplyUpdate with the correct acknowledged_hash succeeds.
-	p2, err := svc.ApplyUpdate(ctx, p.ID, zip2, preview.SourceHash)
+	p2, err := svc.ApplyUpdate(ctx, p.ID, zip2, preview.SourceHash, false)
 	require.NoError(t, err)
 	assert.Equal(t, "2.0.0", p2.Version)
 
@@ -1136,7 +1136,7 @@ func TestApplyUpdate_RequiresAckWhenPermsAdded(t *testing.T) {
 
 func TestApplyUpdate_PluginNotFound(t *testing.T) {
 	svc, _, _, _, _, _ := newTestInstallerService()
-	_, err := svc.ApplyUpdate(context.Background(), "plg-ghost", tmpZip(t, "v1"), strings.Repeat("0", 64))
+	_, err := svc.ApplyUpdate(context.Background(), "plg-ghost", tmpZip(t, "v1"), strings.Repeat("0", 64), false)
 	assert.ErrorIs(t, err, appplugin.ErrPluginNotFound)
 }
 

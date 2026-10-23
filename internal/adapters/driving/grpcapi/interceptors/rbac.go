@@ -71,6 +71,9 @@ func DefaultRBACConfig() RBACConfig {
 			"/evey.v1.AdminPluginService/GetPluginLogs":              RoleAdmin,
 			"/evey.v1.AdminPluginService/GetPluginResourceLimits":    RoleAdmin,
 			"/evey.v1.AdminPluginService/UpdatePluginResourceLimits": RoleAdmin,
+			"/evey.v1.AdminPluginService/ListTrustedPublishers":      RoleAdmin,
+			"/evey.v1.AdminPluginService/AddTrustedPublisher":        RoleAdmin,
+			"/evey.v1.AdminPluginService/RemoveTrustedPublisher":     RoleAdmin,
 			// Note: IssuePluginToken intentionally absent from MethodRoles -
 			// it resolves to the default RoleUser since iframe plugin consumers
 			// (any authenticated user) need to mint tokens. Scopes are filtered

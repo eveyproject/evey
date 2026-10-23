@@ -68,6 +68,11 @@ type Plugin struct {
 	// Signature holds the cosign verification result from install time.
 	// Nil when CosignPolicy is "off" or no key is configured.
 	Signature *SignatureStatus
+	// PublisherKeyFingerprint pins the key that signed the installed version, so
+	// an update must carry the same key. Empty when the installed version is
+	// unsigned or invalid. PublisherKeyPEM is that key, kept to trust it offline.
+	PublisherKeyFingerprint string
+	PublisherKeyPEM         string
 }
 
 // IsTheme returns true when the plugin is a pure front-end theme (no backend runtime).
