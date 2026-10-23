@@ -18,6 +18,9 @@ type FakeFileScanner struct {
 	// file gone); a test sets a path true to simulate a size+mtime collision.
 	ExistingPaths map[string]bool
 	Err           error
+	// OnScan, when set, is told every path Scan is asked for: a test can see
+	// that a scan ran (and for which folder) without a result to look at.
+	OnScan func(path string)
 }
 
 func NewFakeFileScanner() *FakeFileScanner {
@@ -28,6 +31,9 @@ func NewFakeFileScanner() *FakeFileScanner {
 }
 
 func (s *FakeFileScanner) Scan(_ context.Context, path string) ([]library.ScannedFile, error) {
+	if s.OnScan != nil {
+		s.OnScan(path)
+	}
 	if s.Err != nil {
 		return nil, s.Err
 	}

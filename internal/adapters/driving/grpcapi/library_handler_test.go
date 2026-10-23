@@ -28,6 +28,13 @@ import (
 )
 
 func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeMediaItemQueryRepo, *libfakes.FakeSearchIndex, *userfakes.FakeLibraryAccessRepository, *userfakes.FakeProfileRepository, *libfakes.FakeMediaStreamRepository) {
+	h, libQueryRepo, mediaQueryRepo, searchIdx, libraryAccess, profiles, streamRepo, _ := newTestLibraryHandlerWithScanner()
+	return h, libQueryRepo, mediaQueryRepo, searchIdx, libraryAccess, profiles, streamRepo
+}
+
+// newTestLibraryHandlerWithScanner also hands back the fake file scanner, for
+// the tests that watch a scan happen.
+func newTestLibraryHandlerWithScanner() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *libfakes.FakeMediaItemQueryRepo, *libfakes.FakeSearchIndex, *userfakes.FakeLibraryAccessRepository, *userfakes.FakeProfileRepository, *libfakes.FakeMediaStreamRepository, *libfakes.FakeFileScanner) {
 	libCmdRepo := libfakes.NewFakeLibraryCommandRepo()
 	libQueryRepo := libfakes.NewFakeLibraryQueryRepo()
 	mediaCmdRepo := libfakes.NewFakeMediaItemCommandRepo()
@@ -36,6 +43,9 @@ func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *
 	streamRepo := libfakes.NewFakeMediaStreamRepository()
 	personRepo := libfakes.NewFakePersonRepository()
 	mediaPersonRepo := libfakes.NewFakeMediaPersonRepository()
+	// A created library is visible to the readers at once, as with one
+	// database: the first scan of a new library looks it up right away.
+	libCmdRepo.OnCreate = libQueryRepo.Seed
 	scanner := libfakes.NewFakeFileScanner()
 	prober := libfakes.NewFakeStreamProber()
 	searchIdx := libfakes.NewFakeSearchIndex()
@@ -73,7 +83,7 @@ func newTestLibraryHandler() (*libraryHandler, *libfakes.FakeLibraryQueryRepo, *
 	// non-parental tests need the default claimed profile to exist. Kids
 	// tests overwrite it with their own settings.
 	_ = profiles.Create(context.Background(), &user.Profile{ID: "profile-2", UserID: "user-2", Name: "Adult"})
-	return h, libQueryRepo, mediaQueryRepo, searchIdx, libraryAccess, profiles, streamRepo
+	return h, libQueryRepo, mediaQueryRepo, searchIdx, libraryAccess, profiles, streamRepo, scanner
 }
 
 func adminCtx() context.Context {
@@ -112,9 +122,9 @@ func TestLibraryHandler_CreateLibrary(t *testing.T) {
 }
 
 func TestLibraryHandler_CreateLibrary_StartsOneScanOfTheNewLibrary(t *testing.T) {
-	h, _, _, _, _, _, _ := newTestLibraryHandler()
+	h, _, _, _, _, _, _, scanner := newTestLibraryHandlerWithScanner()
 	scanned := make(chan string, 2)
-	h.scanTrigger = func(_ context.Context, id string) { scanned <- id }
+	scanner.OnScan = func(path string) { scanned <- path }
 
 	resp, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
 		Name:  "Movies",
@@ -123,24 +133,25 @@ func TestLibraryHandler_CreateLibrary_StartsOneScanOfTheNewLibrary(t *testing.T)
 	})
 	require.NoError(t, err)
 
+	require.NotEmpty(t, resp.Id)
 	select {
-	case id := <-scanned:
-		assert.Equal(t, resp.Id, id)
+	case path := <-scanned:
+		assert.Equal(t, "/media/movies", path)
 	case <-time.After(2 * time.Second):
 		t.Fatal("no scan was triggered for the new library")
 	}
 	select {
-	case id := <-scanned:
-		t.Fatalf("scan triggered twice (second: %s)", id)
+	case path := <-scanned:
+		t.Fatalf("scan triggered twice (second: %s)", path)
 	case <-time.After(50 * time.Millisecond):
 	}
 }
 
 func TestLibraryHandler_CreateLibrary_InvalidDoesNotScan(t *testing.T) {
-	h, _, _, _, _, _, _ := newTestLibraryHandler()
+	h, _, _, _, _, _, _, scanner := newTestLibraryHandlerWithScanner()
 	h.translator = eveyi18n.NewEmpty()
 	called := make(chan struct{}, 1)
-	h.scanTrigger = func(context.Context, string) { called <- struct{}{} }
+	scanner.OnScan = func(string) { called <- struct{}{} }
 
 	_, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES})
 	require.Error(t, err)
