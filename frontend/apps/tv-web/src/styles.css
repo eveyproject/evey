@@ -2042,6 +2042,50 @@ body.music-on .deep-screen {
 .episode-row.focused {
   transform: none;
 }
+.episode-line {
+  display: flex;
+  align-items: center;
+}
+.episode-line > .episode-row {
+  flex: 1;
+  min-width: 0;
+}
+.episode-thumb {
+  position: relative;
+}
+.episode-watched-badge {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--success);
+  color: var(--on-success, #fff);
+}
+.episode-watched-toggle {
+  flex: none;
+  width: 5.6rem;
+  height: 5.6rem;
+  margin: 0 1.6rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.2rem solid var(--border);
+  color: var(--text-muted);
+}
+.episode-watched-toggle.on {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--on-success, #fff);
+}
+.episode-watched-toggle.dim {
+  opacity: 0.5;
+}
 .episode-row.more {
   justify-content: center;
   color: var(--accent);

@@ -202,6 +202,16 @@ const watchProgressCalls: string[] = [];
 // The server's answer to "which episode does Play start", by series id.
 const seriesTargets: Record<string, { item?: { id: string }; started?: boolean }> = {};
 const historyCalls = { n: 0 };
+let historyAnswer: { items: unknown; data: unknown } = { items: undefined, data: undefined };
+// The mark mutations: mutate records the call and runs the caller's
+// onSuccess with the variables, as a successful request would.
+const markWatchedCalls: unknown[] = [];
+const markUnwatchedCalls: unknown[] = [];
+type MarkOpts = { mutation?: { onSuccess?: (d: unknown, v: any) => void } };
+const markHook = (calls: unknown[]) => (opts?: MarkOpts) => ({
+  isPending: false,
+  mutate: (vars: unknown) => { calls.push(vars); opts?.mutation?.onSuccess?.({}, vars); },
+});
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
@@ -221,11 +231,14 @@ vi.mock("@evey/api", async (importOriginal) => ({
   },
   usePlaybackServiceGetWatchHistory: () => {
     historyCalls.n++;
-    return { data: { items: historyItems } };
+    // One answer per history, like the query cache: a fresh object on every
+    // render would read as a refetch each time.
+    if (historyAnswer.items !== historyItems) historyAnswer = { items: historyItems, data: { items: historyItems } };
+    return { data: historyAnswer.data };
   },
   usePlaybackServiceGetSeriesPlayTarget: (seriesId: string) => ({ data: seriesTargets[seriesId], isLoading: false }),
-  usePlaybackServiceMarkAsWatched: () => ({ mutate: vi.fn(), isPending: false }),
-  usePlaybackServiceMarkAsUnwatched: () => ({ mutate: vi.fn(), isPending: false }),
+  usePlaybackServiceMarkAsWatched: (o?: MarkOpts) => markHook(markWatchedCalls)(o),
+  usePlaybackServiceMarkAsUnwatched: (o?: MarkOpts) => markHook(markUnwatchedCalls)(o),
   useFeedServiceSimilarItems: () => ({ data: { items: [] } }),
   useUserServiceGetCurrentUser: () => ({ data: { id: "user-1" } }),
   useUserServiceListProfiles: () => ({ data: { profiles: [{ id: "profile-1", isDefault: true, region: "US" }] } }),
@@ -253,6 +266,8 @@ beforeEach(() => {
   historyItems = [];
   watchProgressCalls.length = 0;
   historyCalls.n = 0;
+  markWatchedCalls.length = 0;
+  markUnwatchedCalls.length = 0;
   for (const k of Object.keys(extraItems)) delete extraItems[k];
   for (const k of Object.keys(seriesTargets)) delete seriesTargets[k];
 });
@@ -484,5 +499,29 @@ describe("MediaDetailScreen series Play", () => {
     render(React.createElement(MediaDetailScreen), { wrapper: makeWrapper() });
     fireEvent.click(document.querySelector('button[accessibilitylabel="media.detail.play"]')!);
     expect(router.push).toHaveBeenCalledWith("/(auth)/player/ep-1");
+  });
+});
+
+// Each season row marks its own episode both ways, for the active profile,
+// and its check follows at once.
+describe("MediaDetailScreen episode watched toggle", () => {
+  function toggles(): HTMLElement[] {
+    return Array.from(document.querySelectorAll('button[testid="episode-watched-toggle"]'));
+  }
+
+  it("marks a watched episode unwatched and an unwatched one watched", () => {
+    const [first, second] = allEpisodes;
+    historyItems = [{ mediaItemId: first.id!, played: true }];
+    render(<MediaDetailScreen />, { wrapper: makeWrapper() });
+    expect(toggles()[0].getAttribute("accessibilitylabel")).toBe("media.detail.markUnwatched");
+    expect(toggles()[1].getAttribute("accessibilitylabel")).toBe("media.detail.markWatched");
+
+    fireEvent.click(toggles()[0]);
+    expect(markUnwatchedCalls).toEqual([{ mediaItemId: first.id, params: { profileId: "profile-1" } }]);
+    expect(toggles()[0].getAttribute("accessibilitylabel")).toBe("media.detail.markWatched");
+
+    fireEvent.click(toggles()[1]);
+    expect(markWatchedCalls).toEqual([{ mediaItemId: second.id, params: { profileId: "profile-1" } }]);
+    expect(toggles()[1].getAttribute("accessibilitylabel")).toBe("media.detail.markUnwatched");
   });
 });

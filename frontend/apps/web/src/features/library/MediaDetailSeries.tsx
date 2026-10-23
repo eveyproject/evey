@@ -1,22 +1,81 @@
+import { useEffect, useState } from "react";
 import { ICON } from "@/constants/iconSizes";
 import { Check, Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import type { V1MediaItem } from "@evey/api";
-import { useLibraryServiceGetMediaItem, useLibraryServiceListMediaItems } from "@evey/api";
+import {
+  useLibraryServiceGetMediaItem,
+  useLibraryServiceListMediaItems,
+  usePlaybackServiceMarkAsUnwatched,
+  usePlaybackServiceMarkAsWatched,
+} from "@evey/api";
+import { toast, useAuthStore } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { formatDurationMs, seasonLabel } from "@evey/api";
 import { artworkUrl } from "./artworkUrl";
 import { useSeriesPlayTarget, useWatchProgressMaps } from "@evey/client";
 import { DownloadButton } from "@/features/playback/DownloadButton";
 import { useStreamToken } from "@/hooks/useStreamToken";
+import { useDemoLock } from "@/hooks/useDemoMode";
+import { invalidateWatchedState } from "@/lib/invalidateWatchedState";
 
 function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
   return [...items].sort((a, b) => (a.indexNumber ?? 0) - (b.indexNumber ?? 0));
 }
 
+// EpisodeWatchedToggle marks one episode watched or unwatched from the season
+// list, the way the card's badge does for a film. onMarked shows the answer at
+// once; the shared invalidation then refreshes the history map the row reads,
+// the series' Play target and the home rows.
+function EpisodeWatchedToggle({ ep, isWatched, onMarked }: { ep: V1MediaItem; isWatched: boolean; onMarked: (watched: boolean) => void }) {
+  const { t } = useTranslation();
+  const { lock } = useDemoLock();
+  const qc = useQueryClient();
+  const profileId = useAuthStore((s) => s.profileId);
+  const done = (next: boolean) => () => {
+    onMarked(next);
+    toast.success(t(next ? "media.contextMenu.markedWatched" : "media.contextMenu.markedUnwatched"));
+    invalidateWatchedState(qc, ep.id);
+  };
+  const markWatched = usePlaybackServiceMarkAsWatched({ mutation: { onSuccess: done(true) } });
+  const markUnwatched = usePlaybackServiceMarkAsUnwatched({ mutation: { onSuccess: done(false) } });
+  const label = t(isWatched ? "media.contextMenu.markUnwatched" : "media.contextMenu.markWatched");
+
+  return (
+    <button
+      type="button"
+      {...lock}
+      title={lock.title ?? label}
+      aria-label={label}
+      aria-pressed={isWatched}
+      data-testid="episode-watched-toggle"
+      disabled={lock.disabled || markWatched.isPending || markUnwatched.isPending}
+      onClick={() => {
+        if (!ep.id) return;
+        if (!profileId) {
+          toast.error(t("media.detail.noProfileSelected"));
+          return;
+        }
+        const vars = { mediaItemId: ep.id, params: { profileId } };
+        if (isWatched) markUnwatched.mutate(vars);
+        else markWatched.mutate(vars);
+      }}
+      className={`tap-hit w-9 h-9 rounded-full flex items-center justify-center transition-colors-fast cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 ${
+        isWatched
+          ? "bg-[var(--color-success)] text-white"
+          : "border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-[var(--surface-raised)]"
+      }`}
+    >
+      <Check size={ICON.md} strokeWidth={3} aria-hidden="true" />
+    </button>
+  );
+}
+
 // EpisodeRow shows the episode as a card: still, number + title, synopsis, a
-// play control layered on the image, and a download on the right.
+// play control layered on the image, and the watched toggle and download on
+// the right.
 //
 // The row deliberately no longer links to a per-episode detail page. That page
 // existed but had nothing an episode needs that isn't already here - the
@@ -29,6 +88,11 @@ function sortByIndex(items: V1MediaItem[]): V1MediaItem[] {
 function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number; watched: boolean }) {
   const { t } = useTranslation();
   const { fetchStreamToken } = useStreamToken();
+  // A mark from the toggle, shown before the history map refetches; the
+  // server's value takes over again as soon as it changes.
+  const [marked, setMarked] = useState<boolean | null>(null);
+  useEffect(() => setMarked(null), [watched]);
+  const isWatched = marked ?? watched;
   const stillUrl = ep.id ? artworkUrl(ep.id, "backdrop", ep) : undefined;
   const stillSrcSet = stillUrl
     ? `${stillUrl}${stillUrl.includes("?") ? "&" : "?"}w=342 342w, ${stillUrl}${stillUrl.includes("?") ? "&" : "?"}w=500 500w`
@@ -59,7 +123,7 @@ function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number
         <span className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity-fast">
           <Play size={ICON["2xl"]} fill="currentColor" className="text-white" />
         </span>
-        {watched && (
+        {isWatched && (
           <span
             data-testid="episode-watched"
             title={t("common.watched")}
@@ -69,7 +133,7 @@ function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number
             <Check size={ICON.sm} strokeWidth={3} aria-hidden="true" />
           </span>
         )}
-        {!watched && percent > 0 && (
+        {!isWatched && percent > 0 && (
           <span
             data-testid="episode-progress"
             role="progressbar"
@@ -98,7 +162,8 @@ function EpisodeRow({ ep, percent, watched }: { ep: V1MediaItem; percent: number
         )}
       </div>
 
-      <div className="flex-shrink-0 self-center">
+      <div className="flex-shrink-0 self-center flex items-center gap-2">
+        <EpisodeWatchedToggle ep={ep} isWatched={isWatched} onMarked={setMarked} />
         {/* Mints its own media-scoped token at click time, like the season and
             series ZIP buttons: the account JWT must never ride in a URL. */}
         <DownloadButton

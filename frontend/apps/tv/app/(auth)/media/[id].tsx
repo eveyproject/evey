@@ -8,6 +8,7 @@ import { useLocalSearchParams, router } from "expo-router";
 import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
+  usePlaybackServiceGetWatchHistory,
   usePlaybackServiceGetWatchProgress,
   usePlaybackServiceMarkAsWatched,
   usePlaybackServiceMarkAsUnwatched,
@@ -15,13 +16,14 @@ import {
   useRatingServiceGetMyThumbRating,
   ratingServicePutThumbRating,
   getRatingServiceGetMyThumbRatingQueryKey,
+  WATCH_HISTORY_OVERLAY_LIMIT,
 } from "@evey/api";
 import type { V1MediaItem, V1MediaPerson, V1Trailer } from "@evey/api";
 import { useMutation } from "@tanstack/react-query";
 import { useAuthStore, useDemoStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { RESUME_PROGRESS_QUERY, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
+import { RESUME_PROGRESS_QUERY, buildWatchProgressMaps, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite";
@@ -322,6 +324,44 @@ export default function MediaDetailScreen() {
     () => sortByIndexNumber(isSeason ? children : (episodesData?.items ?? [])),
     [isSeason, children, episodesData?.items],
   );
+
+  // Which episodes of the season are seen, from one history fetch (as on the
+  // phone), plus the marks made from the rows before that history refetches.
+  const { data: episodeHistory } = usePlaybackServiceGetWatchHistory(
+    { limit: WATCH_HISTORY_OVERLAY_LIMIT },
+    { query: { staleTime: 30_000, enabled: isSeason } },
+  );
+  const [episodeMarks, setEpisodeMarks] = useState<ReadonlyMap<string, boolean>>(new Map());
+  // Same map back when there is nothing to drop, so a re-render is not one.
+  useEffect(() => setEpisodeMarks((m) => (m.size === 0 ? m : new Map())), [episodeHistory]);
+  const episodeWatched = useMemo(() => {
+    const { watchedMap } = buildWatchProgressMaps(episodeHistory?.items ?? []);
+    for (const [epId, played] of episodeMarks) watchedMap.set(epId, played);
+    return watchedMap;
+  }, [episodeHistory, episodeMarks]);
+  const onEpisodeMarked = useCallback((epId: string, played: boolean) => {
+    setEpisodeMarks((m) => new Map(m).set(epId, played));
+    invalidateWatchedState(qc, epId);
+  }, [qc]);
+  const markEpisodeWatched = usePlaybackServiceMarkAsWatched({
+    mutation: {
+      onSuccess: (_d, vars) => onEpisodeMarked(vars.mediaItemId, true),
+      onError: () => toast.error(t("media.detail.markWatchedFailed", "Could not mark as watched")),
+    },
+  });
+  const markEpisodeUnwatched = usePlaybackServiceMarkAsUnwatched({
+    mutation: {
+      onSuccess: (_d, vars) => onEpisodeMarked(vars.mediaItemId, false),
+      onError: () => toast.error(t("media.detail.markUnwatchedFailed", "Could not mark as unwatched")),
+    },
+  });
+  const episodeMarkPending = markEpisodeWatched.isPending || markEpisodeUnwatched.isPending;
+  const toggleEpisodeWatched = (ep: V1MediaItem) => {
+    if (!ep.id || !profileId) return;
+    const vars = { mediaItemId: ep.id, params: { profileId } };
+    if (episodeWatched.get(ep.id)) markEpisodeUnwatched.mutate(vars);
+    else markEpisodeWatched.mutate(vars);
+  };
   const seasons = useMemo(() => (isSeries ? sortByIndexNumber(children) : []), [isSeries, children]);
 
   // A series plays where the profile is in it (the server's answer); the
@@ -797,13 +837,16 @@ export default function MediaDetailScreen() {
               {t("media.detail.episodeCount", { count: episodes.length })}
             </Text>
           </View>
-          {episodes.slice(0, visibleEpisodeCount).map((ep) => (
+          {episodes.slice(0, visibleEpisodeCount).map((ep) => {
+            const watched = ep.id ? episodeWatched.get(ep.id) === true : false;
+            return (
+            <View key={ep.id} style={{ flexDirection: "row", alignItems: "center" }}>
             <FocusableCard
-              key={ep.id}
               onPress={() => router.push(`/(auth)/media/${ep.id}`)}
-              style={[styles.episodeRow, { borderBottomColor: theme.colors.border }]}
+              style={[styles.episodeRow, { flex: 1, borderBottomColor: theme.colors.border }]}
               accessibilityLabel={ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : ep.title}
             >
+              <View>
               <Image
                 source={{ uri: artworkUrl(serverUrl, ep.id ?? "", "backdrop", EPISODE_THUMB_WIDTH * 2, ep), headers: authHeaders }}
                 style={{
@@ -815,6 +858,12 @@ export default function MediaDetailScreen() {
                 contentFit="cover"
                 transition={200}
               />
+              {watched ? (
+                <View style={[styles.episodeWatchedBadge, { backgroundColor: theme.colors.success }]}>
+                  <Ionicons name="checkmark" size={16} color={theme.colors.onSuccess} />
+                </View>
+              ) : null}
+              </View>
               <View style={{ flex: 1, marginLeft: 20 }}>
                 <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "600" }} numberOfLines={1}>
                   {ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}{ep.title}
@@ -831,7 +880,27 @@ export default function MediaDetailScreen() {
                 ) : null}
               </View>
             </FocusableCard>
-          ))}
+            {/* Its own stop for the remote, right of the row: a press on the
+                row opens the episode, this one only marks it. */}
+            {demo ? null : (
+              <FocusableCard
+                onPress={() => toggleEpisodeWatched(ep)}
+                disabled={episodeMarkPending}
+                style={styles.episodeWatchedToggle}
+                // Names the episode: every row's stop says the same action.
+                accessibilityLabel={`${watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}: ${ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}${ep.title ?? ""}`}
+                accessibilityState={{ checked: watched }}
+              >
+                <Ionicons
+                  name={watched ? "checkmark-circle" : "checkmark-circle-outline"}
+                  size={34}
+                  color={watched ? theme.colors.success : theme.colors.textMuted}
+                />
+              </FocusableCard>
+            )}
+            </View>
+            );
+          })}
           {episodes.length > visibleEpisodeCount ? (
             <FocusableCard
               onPress={() => setVisibleEpisodeCount((c) => c + EPISODE_PAGE_SIZE)}
@@ -1027,6 +1096,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  episodeWatchedBadge: {
+    position: "absolute", top: 6, right: 6,
+    width: 26, height: 26, borderRadius: 13,
+    alignItems: "center", justifyContent: "center",
+  },
+  episodeWatchedToggle: { padding: 12, marginLeft: 12 },
   ratingLine: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
   castCard: { width: 120, alignItems: "center" },
   castAvatar: { width: 80, height: 80, borderRadius: 40, justifyContent: "center", alignItems: "center" },

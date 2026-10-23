@@ -37,8 +37,11 @@ vi.mock("@evey/api", async (importOriginal) => ({
     watchProgressArgs = args;
     return { data: { positionMs: "0" } };
   },
-  usePlaybackServiceMarkAsWatched: () => ({ mutate: markWatched, isPending: false }),
-  usePlaybackServiceMarkAsUnwatched: () => ({ mutate: markUnwatched, isPending: false }),
+  // mutate records the call and runs the caller's onSuccess, as a successful
+  // request would.
+  usePlaybackServiceMarkAsWatched: (o?: any) => ({ mutate: (v: unknown) => { markWatched(v); o?.mutation?.onSuccess?.({}, v); }, isPending: false }),
+  usePlaybackServiceMarkAsUnwatched: (o?: any) => ({ mutate: (v: unknown) => { markUnwatched(v); o?.mutation?.onSuccess?.({}, v); }, isPending: false }),
+  usePlaybackServiceGetWatchHistory: () => watchHistory,
   useFeedServiceSimilarItems: () => ({ data: { items: [] } }),
   useRatingServiceGetMyThumbRating: () => ({ data: 0 }),
   ratingServicePutThumbRating: vi.fn(),
@@ -75,6 +78,7 @@ beforeEach(() => {
 });
 
 let watchProgressArgs: unknown[] = [];
+let watchHistory: { data: { items: { mediaItemId: string; played: boolean }[] } } = { data: { items: [] } };
 
 describe("the title page", () => {
   // 27-09: a Resume label served from cache outlived the autoplay that moved
@@ -173,5 +177,41 @@ describe("the title page", () => {
     render(<MediaDetailScreen mediaId="m-1" />);
     fireEvent.click(screen.getByText("media.detail.markWatched"));
     expect(markWatched).toHaveBeenCalledWith({ mediaItemId: "m-1", params: { profileId: "prf-1" } });
+  });
+});
+
+// The season list marks each episode both ways from its own stop on the
+// remote, for the active profile, and the row's check follows at once.
+describe("the season's episode watched toggle", () => {
+  const SEASON = { id: "se-1", title: "Season 1", type: "MEDIA_ITEM_TYPE_SEASON", streams: [] };
+  beforeEach(() => {
+    markWatched.mockReset();
+    markUnwatched.mockReset();
+    getMediaItem.mockReturnValue({ data: SEASON, isLoading: false, isError: false });
+    listMediaItems.mockReturnValue({
+      data: { items: [{ id: "ep-1", indexNumber: 1, title: "Pilot" }, { id: "ep-2", indexNumber: 2, title: "Second" }] },
+    });
+    watchHistory = { data: { items: [{ mediaItemId: "ep-1", played: true }] } };
+  });
+
+  it("marks a watched episode unwatched and an unwatched one watched", () => {
+    render(<MediaDetailScreen mediaId="se-1" />);
+    fireEvent.click(screen.getByLabelText("media.detail.markUnwatched: 1. Pilot"));
+    expect(markUnwatched).toHaveBeenCalledWith({ mediaItemId: "ep-1", params: { profileId: "prf-1" } });
+    expect(screen.getByLabelText("media.detail.markWatched: 1. Pilot")).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText("media.detail.markWatched: 2. Second"));
+    expect(markWatched).toHaveBeenCalledWith({ mediaItemId: "ep-2", params: { profileId: "prf-1" } });
+    expect(screen.getByLabelText("media.detail.markUnwatched: 2. Second")).toBeTruthy();
+  });
+
+  it("offers no toggle on the demo", () => {
+    demoState.demoMode = true;
+    try {
+      render(<MediaDetailScreen mediaId="se-1" />);
+      expect(screen.queryByLabelText("media.detail.markUnwatched: 1. Pilot")).toBeNull();
+    } finally {
+      demoState.demoMode = false;
+    }
   });
 });
