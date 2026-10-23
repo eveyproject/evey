@@ -1,5 +1,5 @@
 ---
-source_sha: 0b2670e7a74f2a0cdbc172c1bb7ef216fa53371cf55248071c00cba27a64c162
+source_sha: 2bab08ea37b694ae604bd4a44524da605fe82d30c8a8999099eafb428e15f45e
 reviewed: true
 ---
 # 安装 { #install }
@@ -105,6 +105,8 @@ Evey 只在三种情况下向您的媒体文件夹写入内容：
 下面每一项都只是在同一个文件里改几行。
 
 **第二个媒体文件夹。** 在 `volumes:` 下面加一行 `- /other/path:/media2`。第三个就是 `/media3`，以此类推。
+
+**同一台机器上再跑一个 Evey。** 请给它另一个 `container_name` 和另外的主机端口，否则 `docker compose up` 会拒绝启动（名称已被占用）。
 
 **换个端口。** 只改左边的数字，比如 `"8080:9091"`。之后在浏览器和应用里输入 `:8080`。
 

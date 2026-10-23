@@ -1,5 +1,5 @@
 ---
-source_sha: 48225cad93d795d54f36c6e4db0c828700357d5e317bec3f404927fba2c1cdf4
+source_sha: f0478ec26ab0b9d817c4a2fa786f673cb92219628c9b8b18dc92835e4f9ff361
 reviewed: true
 ---
 # Première configuration { #first-setup }
@@ -82,7 +82,8 @@ c'est un type de média rangé dans un ou plusieurs dossiers, par exemple
   qu'Evey peut voir, en commençant par `/media`. Pour saisir un chemin comme
   `/media/movies`, choisissez **Entrer un chemin personnalisé...**.
 
-Appuyez sur **Créer** : Evey commence à lire le dossier. Vous pouvez aussi
+Appuyez sur **Créer** : Evey commence à lire le dossier, et les titres
+apparaissent au fil du scan (un gros dossier prend quelques minutes). Vous pouvez aussi
 appuyer sur **Passer** et ajouter des bibliothèques plus tard. Dans les deux
 cas, vous arrivez sur la page d'accueil.
 
@@ -124,7 +125,7 @@ l'[installation](../installation.md#the-compose-file), votre dossier de médias
 s'appelle `/media`. Un dossier `/srv/media/films` sur votre ordinateur devient
 donc `/media/films` dans Evey.
 
-Evey commence automatiquement à lire le dossier. Les affiches, les résumés et la
+Evey commence automatiquement à lire le dossier, et les titres apparaissent au fil du scan. Les affiches, les résumés et la
 distribution arrivent en arrière-plan : une grosse bibliothèque se remplit en
 quelques minutes. Les nouveaux fichiers que vous ajoutez plus tard
 apparaissent d'eux-mêmes.

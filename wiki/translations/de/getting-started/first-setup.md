@@ -1,5 +1,5 @@
 ---
-source_sha: 48225cad93d795d54f36c6e4db0c828700357d5e317bec3f404927fba2c1cdf4
+source_sha: f0478ec26ab0b9d817c4a2fa786f673cb92219628c9b8b18dc92835e4f9ff361
 reviewed: true
 ---
 # Ersteinrichtung { #first-setup }
@@ -80,7 +80,7 @@ von Medien in einem oder mehreren Ordnern, zum Beispiel „Filme“.
   Evey sehen kann, angefangen mit `/media`. Um einen Pfad wie `/media/movies`
   einzutippen, wählen Sie **Benutzerdefinierten Pfad eingeben...**.
 
-Drücken Sie auf **Erstellen**: Evey beginnt, den Ordner zu lesen. Oder
+Drücken Sie auf **Erstellen**: Evey beginnt, den Ordner zu lesen, und die Titel erscheinen im Lauf des Scans (ein großer Ordner braucht ein paar Minuten). Oder
 drücken Sie auf **Überspringen** und fügen Sie Bibliotheken später hinzu.
 Beides führt Sie zur Startseite.
 
@@ -121,7 +121,7 @@ Mit der Compose-Datei aus der [Installation](../installation.md#the-compose-file
 ist Ihr Medienordner `/media`. Ein Ordner `/srv/media/films` auf Ihrem
 Computer ist in Evey also `/media/films`.
 
-Evey beginnt von selbst, den Ordner zu lesen. Poster, Inhaltsangaben und
+Evey beginnt von selbst, den Ordner zu lesen, und die Titel erscheinen im Lauf des Scans. Poster, Inhaltsangaben und
 Besetzung kommen im Hintergrund dazu, eine große Bibliothek füllt sich also
 im Lauf einiger Minuten. Neue Dateien, die Sie später hinzufügen, erscheinen
 von selbst.

@@ -1,5 +1,5 @@
 ---
-source_sha: 4c2c4ddb62e95803c8e25fd785e009178d7130e67e3125dea06c41c6cf77527b
+source_sha: 00ac3f52637e817e4e294aad7fa5cbaf5e77c3c6a343d1ffc784da076a90fe56
 reviewed: true
 ---
 # Copias de seguridad y actualizaciones { #backups-and-updates }
@@ -68,8 +68,9 @@ auditoría.
 - la caché de vídeo (se vuelve a llenar sola);
 - el índice de búsqueda (se reconstruye a partir de la base de datos);
 - las claves guardadas en `./evey-data`: `jwt.key`, que protege todos los
-  inicios de sesión, y la carpeta `keys` (contraseña de la base de datos,
-  clave de búsqueda);
+  inicios de sesión, la carpeta `keys` (contraseña de la base de datos,
+  clave de búsqueda) y `hls_aes.key`, la clave que cifra los segmentos de
+  streaming (se crea en el primer arranque, permisos 0600);
 - los archivos de los plugins instalados.
 
 **Así que guarda también una copia de toda la carpeta `./evey-data`.** Una

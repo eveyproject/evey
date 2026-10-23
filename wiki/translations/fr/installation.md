@@ -1,5 +1,5 @@
 ---
-source_sha: 0b2670e7a74f2a0cdbc172c1bb7ef216fa53371cf55248071c00cba27a64c162
+source_sha: 2bab08ea37b694ae604bd4a44524da605fe82d30c8a8999099eafb428e15f45e
 reviewed: true
 ---
 # Installation { #install }
@@ -157,6 +157,10 @@ Chacun tient en quelques lignes dans le même fichier.
 
 **Un deuxième dossier de médias.** Ajoutez `- /other/path:/media2` sous
 `volumes:`. Un troisième devient `/media3`, et ainsi de suite.
+
+**Une deuxième instance d'Evey sur la même machine.** Donnez-lui un autre
+`container_name` et d'autres ports côté hôte, sinon `docker compose up`
+refuse de démarrer (le nom est déjà utilisé).
 
 **Un autre port.** Changez seulement le nombre de gauche, par exemple
 `"8080:9091"`. Saisissez ensuite `:8080` dans le navigateur et dans les

@@ -143,6 +143,10 @@ Each of these is a few lines in the same file.
 **A second media folder.** Add `- /other/path:/media2` under `volumes:`. A
 third one is `/media3`, and so on.
 
+**A second Evey on the same host.** Give it another `container_name` and
+other host ports, otherwise `docker compose up` refuses to start (the name
+is already in use).
+
 **Another port.** Change only the number on the left, for example
 `"8080:9091"`. Then type `:8080` in the browser and in the apps.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 0b2670e7a74f2a0cdbc172c1bb7ef216fa53371cf55248071c00cba27a64c162
+source_sha: 2bab08ea37b694ae604bd4a44524da605fe82d30c8a8999099eafb428e15f45e
 reviewed: true
 ---
 # Installation { #install }
@@ -156,6 +156,10 @@ Jede davon braucht nur ein paar Zeilen in derselben Datei.
 
 **Ein zweiter Medienordner.** Fügen Sie `- /other/path:/media2` unter
 `volumes:` hinzu. Ein dritter wird `/media3`, und so weiter.
+
+**Ein zweites Evey auf demselben Rechner.** Geben Sie ihm einen anderen
+`container_name` und andere Host-Ports, sonst weigert sich `docker compose up`
+zu starten (der Name ist schon vergeben).
 
 **Ein anderer Port.** Ändern Sie nur die linke Zahl, zum Beispiel
 `"8080:9091"`. Tippen Sie dann `:8080` im Browser und in den Apps.

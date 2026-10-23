@@ -1,5 +1,5 @@
 ---
-source_sha: 4c2c4ddb62e95803c8e25fd785e009178d7130e67e3125dea06c41c6cf77527b
+source_sha: 00ac3f52637e817e4e294aad7fa5cbaf5e77c3c6a343d1ffc784da076a90fe56
 reviewed: true
 ---
 # 备份和更新 { #backups-and-updates }
@@ -48,7 +48,7 @@ reviewed: true
 - 您的媒体文件；
 - 视频缓存（它会自动重新生成）；
 - 搜索索引（会根据数据库重建）；
-- 保存在 `./evey-data` 里的密钥：保护每次登录的 `jwt.key`，以及 `keys` 文件夹（数据库密码、搜索密钥）；
+- 保存在 `./evey-data` 里的密钥：保护每次登录的 `jwt.key`，`keys` 文件夹（数据库密码、搜索密钥），以及 `hls_aes.key`（加密流媒体分段的密钥，首次启动时创建，权限 0600）；
 - 已安装的插件文件。
 
 **所以，也请保留整个 `./evey-data` 文件夹的副本。** 数据库备份可以在同一套安装上恢复 Evey。要从零重建一台机器，您需要这个文件夹。
