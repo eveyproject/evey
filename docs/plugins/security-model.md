@@ -23,12 +23,12 @@ A plugin is refused at install when:
   embedded archives and native code are refused unless the manifest declares
   `native-binary`.
 
-The analysis also reads comments: a `# pip install foo` line in a comment is
-reported like real code. Remove such lines before publishing. The categories
-are listed in [Plugin sandbox and threat model](../SECURITY.md#static-analysis).
+Comments are stripped before the analysis, so a commented-out line is not
+reported. The categories are listed in [Plugin sandbox and threat model](../SECURITY.md#static-analysis).
 
-Before installing, the administrator sees the declared permissions, slots and
-hosts, and what the analysis found. Nothing a plugin declares is granted
+Before installing, the administrator sees the declared permissions and
+capabilities, and what the analysis found; slots, hosts and the signature are
+shown at update and on the Security Dashboard. Nothing a plugin declares is granted
 silently.
 
 ## What the plugin runs under
@@ -68,7 +68,7 @@ install. Receiving webhooks (`webhook.receiver`) and providing metadata
 | `notification.sender` | Reserved for `SendNotification`, not served today. |
 | `public` | The interface may read a safe projection of media items (id, title, type, year, overview, poster), never paths or streams. See [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `prefs` | The interface may read and write the current user's preferences in the plugin's own namespace. See [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |
-| `hardware.gpu` | The process gets the host's DRM render node (the real `renderD1xx`, never a card node). A kernel-driver attack surface and a GPU-memory boundary shared with the transcoder: a hung GPU can stall transcoding. Without it, GPU nodes are excluded from the Landlock allowlist entirely; with it, the launcher adds an `IOCTL_DEV` rule scoped to that one file (Landlock ABI 5 or later; on older kernels, read and write access alone permits command submission). The preview shows a critical warning. Grant it only to plugins you would run outside a sandbox. |
+| `hardware.gpu` | The process gets the host's DRM render node (the real `renderD1xx`, never a card node). A kernel-driver attack surface and a GPU-memory boundary shared with the transcoder: a hung GPU can stall transcoding. Without it, GPU nodes are excluded from the Landlock allowlist entirely; with it, the launcher adds an `IOCTL_DEV` rule scoped to that one file (Landlock ABI 5 or later; on older kernels, read and write access alone permits command submission). The Security Dashboard shows a critical warning once the plugin is installed. Grant it only to plugins you would run outside a sandbox. |
 
 ## External fetch rules
 
@@ -76,15 +76,17 @@ Declared in `external_fetch: [...]` and checked at install
 (`validateExternalFetch`). All-or-nothing: one invalid entry refuses the
 whole install.
 
-An entry is a **bare hostname**. A scheme prefix is tolerated and discarded;
-only the hostname is kept.
+An entry is a **hostname**. A scheme prefix and a trailing path are dropped at
+parse; only the hostname is kept. Hosts match exactly, a `*.example.com`
+wildcard is refused at install and a port suffix is
+ignored.
 
 | Entry | Valid | Reason |
 |---|---|---|
 | `api.tmdb.org` | Yes | Exact hostname, the normal form |
-| `https://api.tmdb.org` | Yes | Scheme parsed and dropped, hostname kept |
-| `*.tmdb.org` | No | Wildcards are refused: list every subdomain you need |
-| `*` | No | Same rule |
+| `https://api.tmdb.org` | Yes | Scheme and path dropped at parse, hostname kept |
+| `*.tmdb.org` | No | Wildcards are refused at install; list each host |
+| `*` | No | A bare wildcard is refused |
 | `192.168.1.1`, `::1` | No | IP literals are refused, both families |
 
 At run time the host broker adds its own limits, which the manifest cannot
@@ -146,7 +148,7 @@ server refuses by default every method that token does not name.
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
-analysis reads comments: docs/SECURITY.md (Static analysis)
+comments stripped before analysis: docs/SECURITY.md (Static analysis) ; internal/adapters/driven/pluginrunner/analyzer_normalize.go
 subprocess, deny-fork, deny-inet, render-dev: cmd/evey-plugin-launcher/main.go ; i18n admin.plugins.subprocessWarning
 resource defaults: internal/config/config.go - Plugins
 permission per RPC: internal/adapters/driving/grpcapi/plugin_interceptor.go ; served or not: internal/adapters/driving/pluginhost/host_server.go

@@ -1,8 +1,8 @@
 ---
-source_sha: 95bca5df52c2505d699a3857e7d305e19067387a32df91af30da948dfa493ae0
+source_sha: 516b8642fffb6e38095ed3717e312f92a272b9c0f020b7accc2c86330c45dbf2
 reviewed: true
 ---
-# Störungshandbuch
+# Störungshandbuch { #incident-runbook }
 
 Die ersten Schritte bei den häufigen Ausfällen von Evey, für den Betreiber im
 Bereitschaftsdienst. Suchen Sie den Abschnitt, der zum Anzeichen passt,
@@ -10,7 +10,7 @@ führen Sie seine Prüfungen aus und wenden Sie die Lösung an, die zu Ihrem
 Befund passt. Jeder Abschnitt ist gleich aufgebaut: **Symptom**,
 **Diagnose**, **Lösung**.
 
-## Bevor Sie beginnen
+## Bevor Sie beginnen { #before-you-start }
 
 Die Befehle gehen von der Standardinstallation aus: ein Container,
 `evey-server`, in dem Postgres und Meilisearch laufen. Deren Zeilen stehen im
@@ -32,7 +32,7 @@ docker exec -it evey-server sh -c \
 
 **Protokolle.** Dieselben Zeilen gibt es zweimal: in der Tagesdatei
 `./evey-data/logs/evey-YYYY-MM-DD.log` (`EVEY_LOG_DIR`, `/data/logs` im
-Image) und in `docker logs evey-server`. Maßgeblich ist die Datei: Der
+Image; eine Datei über 50 MB, `EVEY_LOG_MAX_SIZE_MB`, wird in `evey-YYYY-MM-DD-HH.log` fortgesetzt) und in `docker logs evey-server`. Maßgeblich ist die Datei: Der
 json-file-Treiber von Docker rotiert `docker logs`, und nach einer Rotation
 kann die Ausgabe des Befehls um Stunden hinter dem Container zurückliegen. Widersprechen sich die
 beiden, lesen Sie die Datei. Die Seite **Protokolle & Debug** im
@@ -41,7 +41,7 @@ Verwaltungsbereich durchsucht dieselben Zeilen
 Werte von `token=` / `password=` stehen dort als `[redacted]`. Suchen Sie
 also nach einer Medien-ID, nie nach einem Token.
 
-## Der Server antwortet nicht
+## Der Server antwortet nicht { #the-server-does-not-answer }
 
 **Symptom**: Clients können sich nicht verbinden;
 `curl http://localhost:9091/healthz` läuft in eine Zeitüberschreitung oder
@@ -70,7 +70,7 @@ curl -v http://localhost:9091/healthz
   `docker logs evey-caddy`, prüfen Sie `EVEY_DOMAIN` und ob die
   Gesundheitsprüfung von `evey` erfolgreich ist, denn Caddy wartet auf sie.
 
-## Jede Anmeldung liefert 401
+## Jede Anmeldung liefert 401 { #every-login-returns-401 }
 
 **Symptom**: Jeder Benutzer, auch Administratoren, bekommt 401 von
 `/api/v1/auth/*`.
@@ -119,7 +119,7 @@ aber die Abfrage der Epoche nicht aus. Der Prometheus-Zähler ist
 - **Abweichende Uhrzeit** zwischen Server und Clients: `date -u` auf dem
   Rechner.
 
-## Die Transkodierung schlägt fehl
+## Die Transkodierung schlägt fehl { #transcoded-playback-fails }
 
 **Symptom**: Die Direktwiedergabe funktioniert, eine Wiedergabe mit
 Transkodierung schlägt fehl; der Player meldet einen Fehler, und das
@@ -160,7 +160,7 @@ docker exec evey-server touch /cache/transcode/.write-test && \
   **Verwaltung → Transkodierungs-Cache**) gilt nur für
   Transkodierungsaufträge außerhalb der laufenden Wiedergabe.
 
-### Es puffert oder bricht ab, und das Protokoll sagt nicht warum
+### Es puffert oder bricht ab, und das Protokoll sagt nicht warum { #it-buffers-or-cuts-out-and-the-log-does-not-say-why }
 
 **Symptom**: Ein Zuschauer meldet Unterbrechungen bei einem transkodierten Titel; das
 Protokoll zeigt `hls-vod: segment timeout` mit `err:"context canceled"`. Das
@@ -173,11 +173,11 @@ das erfordert keinen zusätzlichen Aufwand:
 # Warum eine Segmentanfrage einen Encoder wiederverwendet oder einen neuen
 # gestartet hat, und was das den Player gekostet hat. Nur protokolliert, wenn
 # es etwas kostet. `over_client_patience: true` ist der klare Beweis.
-docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F).log | tail -40
+docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F)*.log | tail -40
 
 # Die Encoder selbst: Starts, Abbrüche und ihr Grund.
 docker exec evey-server grep -E '"software: session (started|killed)"|per-hash cap' \
-  /data/logs/evey-$(date +%F).log | tail -40
+  /data/logs/evey-$(date +%F)*.log | tail -40
 ```
 
 Diese Zeilen sagen, was der Server entschieden hat. Um Sekunde für Sekunde
@@ -223,7 +223,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
   `over_client_patience: true` bedeutet: Der Server war dabei, eine Wartezeit
   zu verlangen, die kein Player abwartet.
 
-### `stale_rendition`-410er, der Player lädt seinen Master mitten in der Wiedergabe neu
+### `stale_rendition`-410er, der Player lädt seinen Master mitten in der Wiedergabe neu { #stale_rendition-410s-the-player-refetches-its-master-mid-play }
 
 **Symptom**: Der Player stockt kurz und läuft dann weiter; das Protokoll zeigt
 `hls-vod: stale rendition URL refused (the ladder moved under a live player)`
@@ -253,7 +253,7 @@ Medien-ID.
   zwischengespeicherten Master (eine alte App-Version, ein Proxy, der
   `.m3u8` cacht). Der Proxy muss `Cache-Control: no-cache` durchreichen.
 
-## Datenbankfehler
+## Datenbankfehler { #database-errors }
 
 **Symptom**: Das Protokoll enthält `dial tcp ... connect: connection refused`,
 `pq: ...`, oder Abfragen laufen in eine Zeitüberschreitung.
@@ -289,7 +289,7 @@ df -h ./evey-data
   `EVEY_DB_PASSWORD` / `EVEY_DB_NAME` des Servers müssen zum Dienst
   `postgres` passen.
 
-## Die Suche ist eingeschränkt
+## Die Suche ist eingeschränkt { #search-is-degraded }
 
 **Symptom**: Die Suche liefert schlechtere Ergebnisse; das Protokoll zeigt
 `meilisearch unavailable, using SQL search fallback`.
@@ -316,7 +316,7 @@ docker logs --tail=300 evey-server | grep -i meili
   ```
   Der Neuaufbau ist ein Befehl, keine Aktion im Verwaltungsbereich.
 
-## Die Cache-Festplatte ist voll
+## Die Cache-Festplatte ist voll { #the-cache-disk-is-full }
 
 **Symptom**: Transkodierungen schlagen mit `no space left on device` fehl;
 die Gesundheitsprüfung wechselt ständig zwischen Erfolg und Fehler.
@@ -344,12 +344,11 @@ docker volume inspect evey_evey-cache   # das Compose-Präfix kann abweichen
   ```sh
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
-- Senken Sie **Budget des Transkodierungs-Caches (GB)** unter **Verwaltung →
-  Serverkonfiguration → Servereinstellungen** (Standard `10`), wenn das
+- Senken Sie **Budget des Transkodierungs-Caches (GB)** unter **Verwaltung → Transkodierung** (Standard `10`), wenn das
   Volume auf dem Rechner knapp ist. Unabhängig vom Budget hält die
   Aufräumfunktion 2 GiB auf dem Cache-Volume frei.
 
-## Ein Plugin ist abgestürzt
+## Ein Plugin ist abgestürzt { #a-plugin-crashed }
 
 **Symptom**: Ein Plugin antwortet nicht mehr; das Protokoll zeigt Panics aus
 dem Plugin-Runner.
@@ -375,7 +374,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
    Ordner des defekten Plugins und starten Sie neu.
 5. Schicken Sie den Panic-Trace und die ID des Plugins an seinen Autor.
 
-## Ein Cast ist eingefroren, stumm geworden, oder das Handy lädt endlos
+## Ein Cast ist eingefroren, stumm geworden, oder das Handy lädt endlos { #a-cast-froze-went-silent-or-the-phone-keeps-spinning }
 
 Alles hier lässt sich unter **Verwaltung → Protokolle & Debug** lesen; Sie
 brauchen keine Shell auf dem Rechner. Die Zeiten sind in UTC. Jedes Signal
@@ -395,7 +394,7 @@ Zeichenkette `details=`.
    Sie nach einem `StartStream` einige Sekunden vorher), `reason=ERROR`
    enthält den Fehler des Players. Kein `finished` nach dem letzten `alive`
    heißt, dass der Prozess des Empfängers verschwunden ist, meist ein
-   Chromecast HD, der bei einem Kopie-Master mit über 20 Mbps wegen
+   Chromecast HD, der bei einem Kopie-Master mit hoher Bitrate (so beobachtet) wegen
    Speichermangels beendet wurde.
 3. **Was hat das Handy gesehen?** Suchen Sie `cast_sender_stall`: Der Sender
    meldet `state=playing frozen=<n>s pos=<p>`, wenn das Cast-SDK noch
@@ -414,7 +413,7 @@ Zeichenkette `details=`.
    the client's line` (die Messung `maxKbps` des Empfängers oder seine
    Rückfallstufe `abr=floor`; der Transkodierungs-Master, der folgt, trägt den
    Grund `client_line_exceeded` oder `abr_floor_requested`). Eine Sitzung,
-   die mit einem Kopie-Master über 20 Mbps begann und nach wenigen Sekunden
+   die mit einem Kopie-Master mit hoher Bitrate begann und nach wenigen Sekunden
    auf eine angepasste 1080p-Stufe wechselte, ist die Rückfallstufe, die wie
    vorgesehen greift; ein erneutes LOAD, das wieder mit dem Kopie-Master beginnt, ist das
    Muster, das einen Chromecast HD zum Absturz bringt.
@@ -429,7 +428,7 @@ liegt das Problem in der Cast-Sitzung des Handys (das SDK, das Netzwerk zum
 Fernseher). Hören die Signale des Empfängers zuerst auf, prüfen Sie den
 Fernseher: Speicher, Codec, die Bitrate des Streams.
 
-## Eine Sitzung oder ein kompromittiertes Gerät stoppen
+## Eine Sitzung oder ein kompromittiertes Gerät stoppen { #stop-a-session-or-a-compromised-device }
 
 **Symptom**: Ein unerwartetes Gerät unter **Verwaltung → Aktuelle
 Wiedergabe**, oder ein Benutzer meldet ein unbekanntes Gerät in seiner Liste
@@ -461,7 +460,7 @@ der Sitzungen.
    [Wiederherstellung](recovery.md#give-a-user-a-new-password)) und
    **Aktivieren** Sie das Konto dann wieder.
 
-## Ein Bibliotheksscan hängt
+## Ein Bibliotheksscan hängt { #a-library-scan-is-stuck }
 
 **Symptom**: Ein Scan läuft seit Stunden, ohne dass im Protokoll Fortschritt
 bei den Dateien zu sehen ist.
@@ -484,7 +483,7 @@ bei den Dateien zu sehen ist.
    sudo sysctl -p
    ```
 
-## Kurzübersicht
+## Kurzübersicht { #cheatsheet }
 
 ```sh
 # Status von allem

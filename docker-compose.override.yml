@@ -134,7 +134,7 @@ services:
       dockerfile: docker/Dockerfile.web.dev
     user: "${UID:-1000}:${GID:-1000}"
     ports:
-      - "${WEB_PORT:-5173}:${WEB_PORT:-5173}"
+      - "${WEB_PORT:-5173}:5173"
     environment:
       VITE_API_TARGET: "http://evey:9091"
       VITE_HMR_HOST: evey.test
@@ -145,7 +145,7 @@ services:
       - ./frontend:/app
       - ./gen:/gen:ro
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:${WEB_PORT:-5173}"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5173"]
       interval: 10s
       timeout: 3s
       retries: 5

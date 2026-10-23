@@ -1,8 +1,8 @@
 ---
-source_sha: 8dce7b245de8c61f7635ccfc84431db9870d2376b17d9a0280028477af945f80
+source_sha: e039606b33ab2207d3774f9bacb71ee3d18f0d12f52d9dc02bec1e9817e1c91e
 reviewed: true
 ---
-# Transcodage et capacité du serveur
+# Transcodage et capacité du serveur { #transcoding-and-server-capacity }
 
 **En bref :**
 
@@ -27,7 +27,7 @@ Le reste de cette page s'adresse à l'administrateur qui veut les détails :
 comment le serveur mesure ce qu'il sait encoder, comment il partage cette
 capacité, et ce que voit un spectateur quand elle est épuisée.
 
-## Le serveur se mesure lui-même
+## Le serveur se mesure lui-même { #the-server-measures-itself }
 
 La capacité n'est pas un réglage à estimer. Le serveur la mesure :
 
@@ -43,14 +43,14 @@ La capacité n'est pas un réglage à estimer. Le serveur la mesure :
   en temps réel, et le coût de chaque type de flux.
 - **De nouveau.** Après un changement de matériel, ou avec **Recalibrer**
   dans **Administration → Configuration transcodage → Calibrage de l'encodage**. Le
-  bouton attend que plus personne ne regarde.
+  bouton refuse tant que quelqu'un regarde ; seul le nouveau calibrage automatique attend que le serveur soit au repos.
 
 Pendant la mesure, une lecture qui a besoin d'un transcodage affiche **Le
 serveur se calibre** et demande de réessayer un peu plus tard. La lecture
 directe et le remux ne sont pas concernés.
 
 Sur un processeur qui ne soutient aucune des résolutions, le serveur propose
-malgré tout du 720p (SDR) et du 480p (HDR), un flux à la fois.
+malgré tout du 720p (SDR) et du 480p (HDR) ; le nombre de flux que cela permet en même temps vient du budget du limiteur de sessions vidéo.
 
 La mesure utilise, dans cet ordre, un extrait que vous fournissez, un extrait
 de référence téléchargé une fois et vérifié par son empreinte SHA256, ou un
@@ -66,7 +66,7 @@ services:
       EVEY_BENCH_SDR_SAMPLE: /data/bench/mon-extrait-4k-sdr.hevc
 ```
 
-## Partage de la capacité
+## Partage de la capacité { #sharing-the-capacity }
 
 La **Capacité de lecture en direct** (**Administration → Configuration transcodage**)
 est le nombre de flux vidéo qui peuvent être encodés en même temps. Elle
@@ -112,11 +112,11 @@ spectateurs, le serveur abaisse temporairement sa qualité maximale, puis lève
 cette limite de lui-même. Voir
 [Supervision et logs](../operations/monitoring.md#how-playback-actually-went).
 
-## Ce qui est encodé
+## Ce qui est encodé { #what-is-encoded }
 
 | | Par défaut |
 | --- | --- |
-| Codec vidéo | H.264. HEVC quand le lecteur le décode et qu'une carte graphique l'encode, ou quand le **Codec vidéo préféré** du profil le demande ; AV1 quand il est activé (**Sortie AV1**, matériel uniquement) et que le lecteur le décode. |
+| Codec vidéo | H.264. Sortie HEVC quand une route mesurée le prouve et que le lecteur le décode (la route de passthrough HDR, ou quand le **Codec vidéo préféré** du profil le demande) ; AV1 quand il est activé (**Sortie AV1**, matériel uniquement) et que le lecteur le décode. |
 | Résolution | Celle de la source, sauf limite : le maximum du lecteur, la limite de débit, ou ce que le serveur peut encoder en temps réel. |
 | Débit | Suit la source, proportionnellement à la résolution. **Plafond de débit vidéo** le limite ; **Plafond de débit vidéo, spectateurs distants** le limite plus bas hors des réseaux locaux. |
 | Audio | AAC. Voir [Audio](audio.md). |
@@ -127,13 +127,13 @@ cette limite de lui-même. Voir
   <figcaption>Les deux plafonds de <strong>Administration → Configuration transcodage</strong> : pour tous les spectateurs, et pour ceux hors des réseaux locaux.</figcaption>
 </figure>
 
-## Le cache de transcodage
+## Le cache de transcodage { #the-transcoding-cache }
 
 Les segments encodés sont gardés sur disque dans le volume `evey-cache` et
 réutilisés quand un autre spectateur, ou le même plus tard, lit le même titre
 avec la même décision. **Administration → Cache de transcodage** affiche sa taille et
 permet de le vider ; le **Budget du cache de transcodage** (**Administration →
-Configuration du serveur → Paramètres du serveur**) le plafonne. **Tout
+Transcodage**) le plafonne. **Tout
 vider** supprime aussi les sous-titres extraits de vos fichiers, gardés dans
 `./evey-data/subtitles` : ils sont extraits de nouveau à la demande.
 
@@ -156,7 +156,7 @@ plein** (au plus une fois par heure, envoyé aussi aux webhooks sous
     précédente. Le vider pendant qu'une personne regarde fait remettre son
     flux en mémoire tampon une fois, puis la lecture reprend.
 
-## Vérifier ce qui se passe
+## Vérifier ce qui se passe { #checking-what-happens }
 
 - **Administration → En cours de lecture** : chaque flux, son mode de lecture piste par
   piste, et le backend qui l'encode.

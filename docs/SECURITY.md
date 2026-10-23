@@ -82,10 +82,10 @@ concatenation, f-strings):
 
 | Category | Severity | Examples |
 |---|---|---|
-| `shell_exec` | CRITICAL | `os.system`, `subprocess.run`, `child_process.exec`, PHP `system()`/`shell_exec()`/`proc_open()`, `preg_replace /e`, Ruby backticks, `open('\|cmd')` |
+| `shell_exec` | WARNING / CRITICAL | `os.system`, `subprocess.run`, `child_process.exec`, PHP `system()`/`shell_exec()`/`proc_open()`, `preg_replace /e`, Ruby `Kernel.exec`/`system`, `open('\|cmd')` (CRITICAL); Ruby backticks (WARNING) |
 | `network` | WARNING / CRITICAL | `requests.get`, `fetch`, reverse and bind shells |
 | `filesystem` | WARNING / CRITICAL | `/etc/passwd`, `.ssh/`, `rm -rf`, symlink operations |
-| `obfuscation` | CRITICAL | `eval`, base64 decoding, hex sequences, `__builtins__`, `base64 -d \| bash` |
+| `obfuscation` | WARNING / CRITICAL | `eval`, `__builtins__`, `base64 -d \| bash` and other decode-pipe-to-shell forms (CRITICAL); base64 decoding, hex sequences (WARNING) |
 | `privilege` | CRITICAL | `setuid`, `chmod 4777`, `sudo`, signalling PID 1 |
 | `cryptomining` | CRITICAL | `stratum+tcp`, `xmrig`, `cryptonight` |
 | `runtime_install` | CRITICAL | `pip install`, `npm install`, `curl ... \| sh` |
@@ -108,8 +108,7 @@ and `embedded_archive` refuse it unless the manifest declares `native-binary`.
     `Function.constructor` escapes), each with a regression fixture in
     `tests/fixtures/plugins/malicious/`, but it cannot follow every
     transformation done at run time (`strrev("metsys")`, decoding a payload
-    read from a file). It also matches inside comments: a `# pip install foo`
-    comment triggers `runtime_install`. **The enforcement boundary is the
+    read from a file). Comments are stripped before the analysis. **The enforcement boundary is the
     run-time sandbox, not the analysis**: a plugin that slips a pattern past
     it still cannot read the server's data, call a denied system call, exceed
     its resource limits, or call a host method it has no permission for.
@@ -132,7 +131,8 @@ The public key is given by `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`.
 `POST /api/v1/admin/plugins/preview` runs the analysis without installing.
 The administrator sees the requested permissions, every finding with its
 file, line and category, the URLs found in the code, and the SHA256 of the
-package; the same hash is checked when the install is applied, so the package
+package; the hash the administrator acknowledged is checked on update, and a first
+install can be pinned by a `#sha256:` fragment on the URL, so the package
 analysed is the package installed. An update shows the difference in
 permissions, slots and hosts, and a new permission requires an explicit
 acknowledgement.
@@ -161,7 +161,7 @@ namespace in `bubblewrap` and `strict`). A plugin with the `network`
 permission calls the host's `Fetch` method over its Unix socket. The host, in
 `internal/adapters/driving/pluginhost/fetch.go`:
 
-- checks the target against the plugin's `external_fetch` list (exact hosts, case-insensitive);
+- checks the target against the plugin's `external_fetch` list (exact hosts, case-insensitive; a `*.example.com` wildcard is refused at install; a port suffix is ignored);
 - allows only `http` and `https`, and only `GET` and `HEAD`;
 - connects through an SSRF-safe client (`internal/pkg/ssrf`) that refuses
   private, reserved and link-local addresses after DNS resolution, so DNS
@@ -267,14 +267,14 @@ exceeds a limit ([ADR-0013](adr/0013-userspace-plugin-resource-monitor.md)):
 | Limit | Default | Checked |
 |---|---|---|
 | memory (RSS) | 256 MiB | every sweep |
-| processes and threads | 64 | every sweep |
+| processes and threads | 64 | every sweep (the main process's thread count only) |
 | disk used by its directory | 100 MiB | every 15th sweep, about 30 s |
 | CPU priority | `nice` 10, applied at start | - |
 
 The same sweep flags a plugin that keeps a CPU pegged above 90% for about
 30 s, and stops a plugin granted `hardware.gpu` that keeps a graphics engine
-pegged the same way. The limits are set per plugin in **Admin → Plugins →
-Resource limits**; the environment variables `EVEY_PLUGINS_MEMORY_MB`,
+pegged the same way. One set of resource limits, set in **Admin → Plugins →
+Resource limits**, applies to every plugin; the environment variables `EVEY_PLUGINS_MEMORY_MB`,
 `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB` and
 `EVEY_PLUGINS_CPU_NICE` set the boot defaults.
 
@@ -287,7 +287,7 @@ allows connections only to its `external_fetch` hosts. The bridge
 ask of the page: `toast` at most 3 per second, 200 characters, no HTML;
 `navigate` accepts only `/home`, `/library`, `/media`, `/player`,
 `/settings` and `/search`; `resize` between 50 px (60 on mobile and TV) and
-800 px. Slots are checked at install and again at render.
+800 px. Slots are checked at install.
 
 ### Server hardening
 
@@ -404,7 +404,7 @@ included.
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` or `off`. Incompatible with `no_new_privs` on the container. |
 | `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` or `enforce`. |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | none | The key signatures are checked against. |
-| `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Boot defaults of the resource limits; the panel overrides them per plugin. |
+| `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Boot defaults of the resource limits; the panel overrides them, for every plugin at once. |
 
 The official image ships `evey-plugin-launcher` (Landlock and the kernel
 filter) and `bubblewrap`. bubblewrap also needs unprivileged user namespaces
@@ -416,7 +416,7 @@ on the host. Which setup fits which machine, in plain terms:
 | Limit | Impact | What limits it today |
 |---|---|---|
 | No per-path confinement in `basic` on a kernel without Landlock | A plugin can read non-sensitive world-readable files and other plugins' directories | Secrets protected by the separate user and `PR_SET_DUMPABLE`; `auto` prefers Landlock or bubblewrap |
-| All plugins share user 1001 | A plugin can signal its siblings (signalling the server is refused) | `PR_SET_DUMPABLE` blocks reading other processes through `/proc`; Landlock and bubblewrap isolate plugin directories |
+| All plugins share user 1001 | In `basic` mode, a plugin can read files its siblings own | Signalling other processes is blocked (seccomp, `LD_PRELOAD` and bubblewrap all block it); `PR_SET_DUMPABLE` blocks reading other processes through `/proc`; Landlock and bubblewrap isolate plugin directories |
 | Seccomp is a denylist | File and Unix socket calls stay allowed | Paths are confined by Landlock or bubblewrap; IP sockets are refused |
 | The broker moves the SSRF surface to the host | A flaw in the broker's validation could reach an internal address | Allowlist and SSRF-safe client in Go; an egress rule on the container as an independent layer |
 | The broker controls where a call goes, not what it carries | Data can leave towards a host on the plugin's list | Allow only hosts you trust with that data |

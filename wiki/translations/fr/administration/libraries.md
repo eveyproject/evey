@@ -1,8 +1,8 @@
 ---
-source_sha: ed64eaf04c09d740775060639c8ba122fb90d8ee17950d66a387a572c3fea16d
+source_sha: c6c0a67f7b17b0139429ba630a95b355b5cc39888b5eb6a2bfd603d38ca8cead
 reviewed: true
 ---
-# Bibliothèques et métadonnées
+# Bibliothèques et métadonnées { #libraries-and-metadata }
 
 Une **bibliothèque**, c'est un type de média (films, séries, musique ou
 photos) rangé dans un ou plusieurs dossiers. Evey lit les dossiers, reconnaît
@@ -21,7 +21,7 @@ collections et les sources de métadonnées viennent ensuite.
   <figcaption><strong>Administration → Bibliothèques</strong> : une ligne par bibliothèque, avec ses dossiers, son nombre d'éléments et son dernier scan.</figcaption>
 </figure>
 
-## Ajouter une bibliothèque
+## Ajouter une bibliothèque { #add-a-library }
 
 1. **Administration → Bibliothèques → Ajouter une bibliothèque**.
 2. Donnez-lui un **Nom** et un **Type**. Gardez les films et les séries dans
@@ -50,7 +50,7 @@ collections et les sources de métadonnées viennent ensuite.
     votre ordinateur devient donc `/media/films` dans Evey. Un deuxième
     dossier de médias (`/media2`) fonctionne de la même façon.
 
-## Nommer les fichiers pour qu'ils soient reconnus
+## Nommer les fichiers pour qu'ils soient reconnus { #name-files-so-they-are-recognised }
 
 Le scanner reconnaît des noms comme ceux-ci :
 
@@ -74,7 +74,7 @@ de qualité supplémentaires** pour un mot seul (`HDRIP`), **Suffixes
 d'édition supplémentaires** pour une expression. Cela s'applique dès le scan
 suivant.
 
-## Corriger un titre faux ou manquant
+## Corriger un titre faux ou manquant { #fix-a-wrong-or-missing-title }
 
 Un film montre l'affiche d'un autre film du même nom ? La correction la plus
 rapide :
@@ -107,7 +107,7 @@ Bibliothèques** propose :
   aucune collection, quand les autres films de la saga sont déjà dans la
   bibliothèque.
 
-## Prise en compte des nouveaux fichiers
+## Prise en compte des nouveaux fichiers { #how-new-files-are-picked-up }
 
 Vous n'avez rien à faire : un fichier nouveau, renommé ou supprimé apparaît
 dans Evey en quelques minutes.
@@ -123,27 +123,28 @@ la ligne de la bibliothèque :
 ??? info "Comment le serveur vérifie les dossiers"
 
     - Le serveur lit chaque bibliothèque à chaque démarrage, puis toutes les
-      2 minutes (**Administration → Configuration du serveur → Paramètres du
-      serveur → Intervalle d'analyse périodique**, appliqué au
+      2 minutes (**Administration → Configuration du serveur → Bibliothèques → Intervalle d'analyse périodique**, appliqué au
       redémarrage). Pendant une lecture, il attend 15 minutes entre deux
       lectures des dossiers, pour ne pas ralentir la vidéo.
     - Le système peut aussi le prévenir quand un fichier change
-      (**Administration → Configuration du serveur → Paramètres du serveur →
+      (**Administration → Configuration du serveur → Bibliothèques →
       Surveillance des fichiers de la bibliothèque**), pour les
       bibliothèques dont la surveillance en temps réel est activée. Pour
       vérifier que cela fonctionne toujours, il écrit un petit fichier de test
       dans le dossier pendant quelques secondes. Une bibliothèque où cela
       fonctionne n'est lue qu'une fois par heure au lieu de toutes les
       2 minutes.
-    - Les bibliothèques créées depuis le panneau n'utilisent pas cette
+    - Les bibliothèques créées depuis le panneau web n'utilisent pas cette
       surveillance : la lecture toutes les 2 minutes trouve leurs fichiers.
+      Le formulaire d'administration de l'application mobile propose, pour une
+      bibliothèque, un interrupteur **Surveillance en temps réel**.
 
 !!! note "Partages réseau"
     Sur un partage NFS ou SMB, un fichier écrit par une autre machine
     n'envoie aucun signal au serveur. C'est la lecture régulière des
     dossiers qui le trouve.
 
-## Bibliothèques de musique
+## Bibliothèques de musique { #music-libraries }
 
 Le scanner lit les fichiers MP3, FLAC, M4A, OGG, Opus, WAV et AAC, et prend
 chaque morceau dans ses tags : titre (le nom du fichier s'il manque),
@@ -162,7 +163,7 @@ La pochette est l'image intégrée aux fichiers, sinon une image du dossier de
 l'album (`cover.jpg`, `folder.jpg` ou `front.jpg`), sinon Cover Art Archive
 (trouvé via MusicBrainz), sinon iTunes.
 
-## Bibliothèques de photos
+## Bibliothèques de photos { #photo-libraries }
 
 Le scanner lit les fichiers JPEG, PNG, HEIC, WebP, GIF, TIFF et BMP.
 L'album d'une photo est son dossier, à partir du dossier de la
@@ -172,7 +173,7 @@ prise de vue et le modèle d'appareil viennent des données EXIF des fichiers
 JPEG ; les autres formats sont listés sans. Les miniatures sont
 redimensionnées sur le serveur et gardées dans le cache de transcodage.
 
-## Collections
+## Collections { #collections }
 
 **Collections** regroupe des titres sous un même nom, pour tous les comptes.
 Il y en a trois sortes :
@@ -193,7 +194,7 @@ peut les parcourir, et **Télécharger la collection** sur le web récupère les
 fichiers d'origine dans un seul ZIP (jusqu'à 1000 titres), sauf ce que
 l'accès aux bibliothèques ou la limite d'âge du compte masquent.
 
-## Clés de métadonnées
+## Clés de métadonnées { #metadata-keys }
 
 Evey est livré avec une clé TMDB : les métadonnées fonctionnent sans rien
 régler. Les autres sources sont facultatives. Pour les utiliser, vous
@@ -209,7 +210,7 @@ réglée là passe avant la même clé donnée dans l'environnement (voir
 | OpenSubtitles | Chercher et télécharger des sous-titres qu'un fichier n'a pas, par l'API du serveur (les applications ne le proposent pas encore). Voir [Sous-titres](../playback/subtitles.md). |
 | TheIntroDB | Les moments d'intro, de résumé et de générique tirés d'une base communautaire : 500 recherches par jour avec une clé, au lieu de 100 sans. |
 
-## Intro, résumé et générique
+## Intro, résumé et générique { #intro-recap-and-credits }
 
 Evey repère l'intro, le résumé des épisodes précédents et le générique des
 épisodes et des films, pour que les lecteurs proposent de les passer. Les
@@ -220,6 +221,6 @@ relancer la détection.
 
 Par défaut, les lecteurs affichent les boutons **Passer l'intro**, **Passer
 le résumé** et **Passer le générique**. **Saut automatique des intros**
-(**Administration → Configuration du serveur → Paramètres du serveur**,
+(**Administration → Configuration du serveur → Bibliothèques**,
 désactivé par défaut) fait passer automatiquement les intros dans tous
 les lecteurs.

@@ -1,5 +1,5 @@
 ---
-source_sha: f0e5f75d4befda29fbffbe7da80a4cc45e7a86e9429753abdee557b19bc5a40b
+source_sha: f2e1240c1750c81d4a4d422aadadd53ecf86ab53d63aed2fc0a82c56e43e1d1f
 reviewed: true
 ---
 # Despliegues avanzados { #advanced-deployments }
@@ -190,10 +190,10 @@ La imagen es `eveyproject/evey`.
 | Etiqueta | Publicada por | Notas |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | una etiqueta de versión `vX.Y.Z` | `latest` es siempre la versión estable más reciente |
-| una etiqueta de versión previa (con guion) | una etiqueta de versión previa | solo publica su propia etiqueta, nunca mueve `latest` |
-| un nombre de rama, `sha-<commit>` | una compilación de rama | solo amd64 |
+| una etiqueta de versión previa (con guion) | una etiqueta de versión previa | publica su propia etiqueta y `sha-<commit>`, nunca `latest` |
+| un nombre de rama, `sha-<commit>` | una compilación de rama | solo la imagen por defecto, solo amd64 (normalmente) |
 
-Cada etiqueta existe en tres variantes: la variante por defecto incluye
+Las etiquetas de versión y de versión previa existen en tres variantes (una compilación de rama publica solo la imagen por defecto): la variante por defecto incluye
 todos los entornos de ejecución de plugins (Python 3, Node.js, PHP, Ruby y
 Lua), `-nodejs` conserva Python y Node.js y `-lean` solo Python (por ejemplo
 `latest-lean`). Elige una variante más ligera solo si el tamaño de la imagen

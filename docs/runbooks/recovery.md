@@ -75,7 +75,8 @@ lost. The command feeds a `.sql.gz` dump through `gunzip | psql` into the
 configured database.
 
 !!! warning
-    The restore overwrites the current rows. Take a backup of the current
+    The restore drops and recreates each table before loading it, so the
+    current rows are replaced. Take a backup of the current
     state first (**Admin -> Database Backup -> Run now**) if there is any
     chance you need it back.
 
@@ -100,8 +101,9 @@ Requirements:
 
 - The file name must end in `.sql.gz`. The `.tar.gz` archives of **Admin ->
   Database Backup** are restored from the panel, not by this command.
-- The target database must exist; the dump drops and recreates tables, not
-  the database.
+- The target database must exist; the dump drops and recreates each table
+  before loading it, so it can be restored onto a populated database, but it
+  does not create the database.
 - `psql` and `gunzip` must be on the PATH, which the image guarantees.
 
 Pre-migration dumps are written automatically before each schema change,

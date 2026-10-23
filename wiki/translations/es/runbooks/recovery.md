@@ -1,8 +1,8 @@
 ---
-source_sha: 15f4243e2aa41d1a370efb30c5607eb485799cf11a0be191ea0b7489684f4485
+source_sha: b5e748f389e0659b78085aa23f5f39cca600299c69e8ea3f206609f753a37861
 reviewed: true
 ---
-# Recuperación
+# Recuperación { #recovery }
 
 Abre esta página cuando ya nadie puede iniciar sesión, cuando la clave que
 firma los tokens de acceso puede haberse filtrado, o cuando la base de datos
@@ -10,7 +10,7 @@ tiene que volver a una copia anterior a una migración. Cada procedimiento es
 un comando `evey admin` que se ejecuta dentro del contenedor; la página
 [Línea de comandos](cli.md) enumera los demás subcomandos.
 
-## Antes de empezar
+## Antes de empezar { #before-you-start }
 
 Los comandos leen la misma configuración `EVEY_*` que el servidor, así que
 ejecutarlos en el contenedor del servidor no necesita nada más:
@@ -23,7 +23,7 @@ docker compose run --rm evey admin <subcommand>        # contenedor parado
 La segunda forma arranca primero la base de datos integrada, después ejecuta
 el comando y termina. Ninguno de estos comandos arranca el servidor.
 
-## Dar una contraseña nueva a un usuario
+## Dar una contraseña nueva a un usuario { #give-a-user-a-new-password }
 
 Úsalo cuando un usuario no puede entrar en su cuenta, o justo después de
 sospechar que una cuenta ha sido comprometida. La contraseña nueva se muestra
@@ -50,7 +50,7 @@ renovación se borran y los tokens de acceso se revocan. Una app que esté
 abierta lo nota en unos 30 segundos y pide volver a iniciar sesión. Si
 pierdes lo que ha mostrado el comando, vuelve a ejecutarlo.
 
-## Cambiar la clave que firma los tokens de acceso
+## Cambiar la clave que firma los tokens de acceso { #rotate-the-key-that-signs-access-tokens }
 
 Úsalo cuando el archivo de la clave puede haberse filtrado, o para cerrar la
 sesión de todos los usuarios a la vez. Para una sola cuenta, basta con
@@ -76,14 +76,14 @@ use la clave nueva. Si no se ha podido llegar a la base de datos, la clave se
 aparta igualmente y el comando dice `key rotated, but sessions could not be
 ended (restart the server, then run this again)`: haz exactamente eso.
 
-## Restaurar una copia anterior a una migración
+## Restaurar una copia anterior a una migración { #restore-a-pre-migration-dump }
 
 Úsalo cuando hay que deshacer una actualización y se pueden perder los datos
 escritos desde entonces. El comando pasa una copia `.sql.gz` por
 `gunzip | psql` hacia la base de datos configurada.
 
 !!! warning
-    La restauración sobrescribe las filas actuales. Haz antes una copia de
+    La restauración borra y vuelve a crear cada tabla antes de cargarla, así que las filas actuales se sustituyen. Haz antes una copia de
     seguridad del estado actual (**Administración → Copia de seguridad y
     restauración → Ejecutar ahora**) si hay alguna posibilidad de que lo
     necesites.
@@ -111,7 +111,8 @@ Requisitos:
   `.tar.gz` de **Administración → Copia de seguridad y restauración** se
   restauran desde el panel, no con este comando.
 - La base de datos de destino tiene que existir; la copia borra y vuelve a
-  crear las tablas, no la base de datos.
+  crear cada tabla antes de cargarla, así que se puede restaurar sobre una base
+  de datos con datos, pero no crea la base de datos.
 - `psql` y `gunzip` tienen que estar en el PATH, cosa que garantiza la
   imagen.
 

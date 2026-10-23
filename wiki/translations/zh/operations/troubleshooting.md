@@ -1,12 +1,12 @@
 ---
-source_sha: 58ae53ccc12bc8dbe6e691e81203c38189833f7fe97b8f072c82a6641ae48c30
+source_sha: e679166aebb377eab1f02f6459bcb9daf6480843df9d2b438037f5909294a541
 reviewed: true
 ---
-# 故障排除
+# 故障排除 { #troubleshooting }
 
 遇到问题？请在下表里找到您看到的情况。中间一列告诉您先看哪里，最后一列指向解决办法。如果还不够，日志和 `evey admin doctor`（见下文）会提供更多信息。
 
-## 按症状查找该看哪里
+## 按症状查找该看哪里 { #where-to-look-by-symptom }
 
 | 您看到的情况 | 先看 | 然后 |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ reviewed: true
 | 投屏卡住或没有声音 | **管理 → 正在播放**：这次播放还在列表里吗？ | [投屏卡住、没有声音，或者手机一直显示加载中](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
 | 磁盘被占满 | **管理 → 转码缓存** | [缓存磁盘已满](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
 
-## 日志
+## 日志 { #the-logs }
 
 日志记录服务器的运行情况：每个错误都会连同时间一起记录在其中。
 
@@ -31,10 +31,10 @@ reviewed: true
 
 ??? info "日志文件在哪里"
 
-    - 文件位于 `./evey-data/logs/`，就在您的 compose 文件旁边（容器里是 `/data/logs/evey-YYYY-MM-DD.log`）。每天一个文件，JSON 格式，默认保留 90 天（`EVEY_LOG_RETENTION_DAYS`）。
+    - 文件位于 `./evey-data/logs/`，就在您的 compose 文件旁边（容器里是 `/data/logs/evey-YYYY-MM-DD.log`）。每天一个文件，JSON 格式，当某个文件超过 50 MB（`EVEY_LOG_MAX_SIZE_MB`）时，还会有一个带小时后缀的文件（`evey-YYYY-MM-DD-HH.log`），默认保留 90 天（`EVEY_LOG_RETENTION_DAYS`）。
     - `docker compose logs evey` 显示的是另一类内容：容器在启动过程中输出的内容（启动脚本的 `evey:` 行、数据库、启动横幅）。服务器无法启动时，请查看它。服务器运行起来以后，日志就在文件和管理面板里。
 
-## `evey admin doctor`
+## `evey admin doctor` { #evey-admin-doctor }
 
 一条命令就能检查整个服务器。每项检查输出一行，`ok`、`WARN` 或 `FAIL`，并说明该怎么做：
 
@@ -46,7 +46,7 @@ docker exec evey-server evey admin doctor
 
     数据库及其结构、签名密钥、搜索索引（以及它是否与数据库一致）、媒体文件夹（包括 Evey 能否在每个媒体库里写入）、缓存和日志文件夹、`ffmpeg` 和 `mkvgo`、受信任的代理、远程访问，以及剩余磁盘空间。`--repair` 只执行安全的修复（创建缺失的文件夹并设置正确的所有者）。有检查失败时，它会以错误码退出。其他命令见[命令行](../runbooks/cli.md)。
 
-## 服务器无法启动
+## 服务器无法启动 { #the-server-does-not-start }
 
 | `docker compose logs evey` 显示的内容 | 含义 |
 | --- | --- |
@@ -56,7 +56,7 @@ docker exec evey-server evey admin doctor
 
 管理员密码丢失、签名密钥泄露或数据库损坏：见[恢复](../runbooks/recovery.md)。
 
-## 所有人都无法登录
+## 所有人都无法登录 { #nobody-can-sign-in }
 
 两个常见原因：
 
@@ -70,7 +70,7 @@ docker exec evey-server evey admin doctor
 
 服务器在家里有应答，在别处却没有，或者应用说远程访问已禁用：见[远程访问和 HTTPS](../administration/remote-access.md)。如果服务器能从互联网访问，而远程访问却是关闭的，**管理 → 远程访问**会用红字提示。
 
-### SSO 登录失败
+### SSO 登录失败 { #sso-sign-in-fails }
 
 登录页会写明原因：
 
@@ -82,11 +82,11 @@ docker exec evey-server evey admin doctor
 
 如果是提供方自己显示的错误页面，通常说明在那里登记的重定向 URI 与卡片上显示的不一致。见 [OIDC / SSO](../oidc.md)。
 
-## 收不到邮件
+## 收不到邮件 { #e-mails-do-not-arrive }
 
 **管理 → 服务器配置 → 邮件 / SMTP**里的**发送测试邮件**会用已保存的设置给您自己的地址发一封邮件，失败时显示邮件服务器的回复。常见的错误是 TLS 模式与端口不匹配（`starttls` 配 587，`ssl` 配 465）。卡片里保存的主机会取代所有 `EVEY_SMTP_*` 变量。发送失败的通知会在日志里记为 `email: send notification`。见[通知](../notifications.md)。
 
-## 播放问题
+## 播放问题 { #playback-problems }
 
 先看播放器里的**流信息**。它会逐条音视频轨说明电影是怎么发送的（原样发送、复制到另一种格式，还是转换），以及原因。如果您以为某个影片会原样播放，它却被转换了：见[播放方式是如何决定的](../playback/how-playback-is-decided.md)。
 
@@ -100,7 +100,7 @@ docker exec evey-server evey admin doctor
 - **字幕准备中…**持续好几分钟：文件里没有这条字幕轨的索引，服务器要把它从头到尾读一遍，只读一次。见[字幕第一次显示时](../playback/subtitles.md#the-first-time-a-subtitle-is-shown)。
 - 需要转码的影片无法开始或卡住，而已经播放过的影片仍然正常，或者管理员收到**字幕缓存已满**：磁盘的剩余空间低于预留值。见[转码缓存](../playback/transcoding.md#the-transcoding-cache)。
 
-## 媒体库和海报
+## 媒体库和海报 { #library-and-posters }
 
 海报和背景图会在扫描时复制到服务器上的 `./evey-data/artworks` 里，缺失的每小时重试一次。**管理 → 图片缓存**显示还有多少张没有本地副本；**下载缺失图片**会马上获取它们；**清理损坏的变体**会删除缩放失败而留下的空白海报，之后需要时会重新生成。
 
@@ -112,7 +112,7 @@ docker exec evey-server evey admin doctor
 
 搜索什么都找不到：用 `docker exec evey-server evey admin reindex-search` 根据数据库重建搜索索引。不会丢失任何东西：索引随时都可以重建。
 
-## 报告问题
+## 报告问题 { #reporting-a-problem }
 
 请写信到 **contact@eveyproject.org**。一份可以据此处理的报告应该写明：
 

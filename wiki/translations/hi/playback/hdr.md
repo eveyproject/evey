@@ -1,8 +1,8 @@
 ---
-source_sha: a631c73d13e67b6253b0aa9e7c5c362475b1e0fcb6153effecea88bd092feca5
+source_sha: b13886b3c7cb855952109b4bf5bdeae9ee280eefbef1cd5d102784c95b2a0863
 reviewed: true
 ---
-# HDR और Dolby Vision
+# HDR और Dolby Vision { #hdr-and-dolby-vision }
 
 **कम शब्दों में:**
 
@@ -12,9 +12,10 @@ reviewed: true
 - HDR स्क्रीन पर, Android या Android TV ऐप के साथ (और ऐसे डिवाइस पर जो HEVC
   डिकोड करता हो), आपको असली HDR तस्वीर मिलती है, जब तक कोई और चीज़ बदलाव को
   मजबूर न करे।
-- वेब ब्राउज़र में, और किसी भी ऐसी स्क्रीन पर जो HDR नहीं है, सर्वर तस्वीर को
-  SDR में बदल देता है। यह जानबूझकर है: SDR स्क्रीन पर दिखाया गया HDR धूसर और
-  फीका दिखता है।
+- किसी भी ऐसी स्क्रीन पर जो HDR नहीं है, सर्वर तस्वीर को SDR में बदल देता है। यह
+  जानबूझकर है: SDR स्क्रीन पर दिखाया गया HDR धूसर और फीका दिखता है। SDR डिस्प्ले
+  पर वेब ब्राउज़र को SDR मिलता है; जो ब्राउज़र HDR डिस्प्ले बताता है और HEVC डिकोड
+  करता है, वह HDR10 और HLG रखता है। Dolby Vision अब भी बदला जाता है।
 - HDR को SDR में बदलना वह सबसे भारी काम है जो प्रोसेसर कर सकता है। ग्राफ़िक्स
   कार्ड मदद करता है: देखें
   [हार्डवेयर एक्सेलेरेशन](../administration/hardware-acceleration.md)।
@@ -23,12 +24,12 @@ reviewed: true
 HDR रखता है, या SDR में बदलाव। प्लेबैक के आम नियम
 [Evey प्लेबैक का तरीका कैसे चुनता है](how-playback-is-decided.md) में हैं।
 
-## हर डिवाइस पर आपको क्या दिखेगा
+## हर डिवाइस पर आपको क्या दिखेगा { #what-you-will-see-by-device }
 
 | आपकी स्क्रीन | क्या पहुँचता है |
 | --- | --- |
 | Android TV या Android फ़ोन पर HDR स्क्रीन, HEVC डिकोडर के साथ | असली HDR10 या HLG, बिना बदले, जब तक कोई और चीज़ (बिटरेट, रिज़ॉल्यूशन, तस्वीर में जोड़ा गया उपशीर्षक) दोबारा एन्कोड को मजबूर न करे। |
-| एक ब्राउज़र | हमेशा SDR में बदली हुई तस्वीर: वेब प्लेयर HDR स्क्रीन होने की बात नहीं बताता, इसलिए सर्वर उसके लिए टोन-मैप करता है। |
+| एक ब्राउज़र | SDR डिस्प्ले पर SDR में बदली हुई तस्वीर। जब ब्राउज़र HDR डिस्प्ले बताता है (`dynamic-range: high`) और HEVC डिकोड करता है, तो HDR10 और HLG रखे जाते हैं; Dolby Vision अब भी बदला जाता है। |
 | एक कास्ट रिसीवर | वही, जो रिसीवर ने अपनी स्क्रीन के बारे में बताया: देखें [Chromecast पर कास्ट करना](casting.md)। |
 | कहीं भी SDR स्क्रीन | SDR में बदली हुई तस्वीर। |
 
@@ -37,13 +38,13 @@ SDR स्क्रीन पर HDR को बिना बदले दिख�
 सिर्फ़ इंस्टॉल के समय एक बार नहीं: किसी बॉक्स में HDR टेलीविज़न लगाने का असर अगले
 टाइटल, ट्रैक बदलने या क्वालिटी बदलने पर होता है।
 
-## असली तस्वीर कब रखी जाती है
+## असली तस्वीर कब रखी जाती है { #when-the-original-is-kept }
 
 HDR10 या HLG वीडियो जैसा है वैसा तब भेजा जाता है जब प्लेयर बताए कि उसकी स्क्रीन
 HDR दिखाती है और वह कोडेक डिकोड करता है, और कोई दूसरा कारण (बिटरेट,
 रिज़ॉल्यूशन, कंटेनर) दोबारा एन्कोड की माँग न करे।
 
-## जब वीडियो को फिर भी दोबारा एन्कोड करना पड़े
+## जब वीडियो को फिर भी दोबारा एन्कोड करना पड़े { #when-the-video-must-be-re-encoded-anyway }
 
 बिटरेट की सीमा, रिज़ॉल्यूशन की सीमा, या तस्वीर में जोड़ना पड़ने वाला उपशीर्षक,
 किसी HDR सोर्स को दोबारा एन्कोड करने पर मजबूर कर सकता है। तब HDR रखा जाता है,
@@ -67,7 +68,7 @@ SDR में बदला गया (टोन-मैपिंग)** दिख�
 हुए दोबारा एन्कोड होता है, और स्ट्रीम जानकारी में **कॉपी उपलब्ध नहीं, री-एन्कोड
 में HDR बरकरार** दिखता है।
 
-## जब स्क्रीन SDR हो
+## जब स्क्रीन SDR हो { #when-the-screen-is-sdr }
 
 जो प्लेयर HDR स्क्रीन नहीं बताता, उसे टोन-मैप की हुई SDR तस्वीर मिलती है। टोन
 मैपिंग ग्राफ़िक्स कार्ड पर चलती है अगर उसने साबित किया हो कि वह यह कर सकता है
@@ -80,7 +81,7 @@ SDR में बदला गया (टोन-मैपिंग)** दिख�
     मशीन पर HDR टाइटल, SDR टाइटल से कम रिज़ॉल्यूशन पर बदला जा सकता है। देखें
     [ट्रांसकोडिंग](transcoding.md#the-server-measures-itself)।
 
-## Dolby Vision
+## Dolby Vision { #dolby-vision }
 
 प्लेयर की रिपोर्ट बताती है कि उसकी स्क्रीन HDR दिखाती है या नहीं, यह नहीं कि वह
 Dolby Vision सपोर्ट करती है या नहीं, और Evey कभी HDR सपोर्ट से Dolby Vision
@@ -94,7 +95,7 @@ Vision भेजने से रंग गलत आते हैं। स्�
 | **7** (UHD Blu-ray) | HDR10 बेस लेयर को HEVC 10-बिट में HDR रखते हुए दोबारा एन्कोड किया जाता है। स्ट्रीम जानकारी: **Dolby Vision बेस लेयर पुनः एन्कोड (HDR बरकरार)**। | टोन-मैप करके SDR में। |
 | **5** (कोई HDR10 बेस लेयर नहीं) | टोन-मैप करके SDR में। | टोन-मैप करके SDR में। |
 
-## क्या हुआ, यह जाँचना
+## क्या हुआ, यह जाँचना { #checking-what-happened }
 
 **स्ट्रीम जानकारी** वीडियो का फ़ैसला दिखाती है और, कारणों में, टोन मैपिंग या रखा
 गया HDR। टोन-मैप करने वाला हर रास्ता इसे वहाँ दिखाता है, एक अपवाद के साथ: जब
@@ -107,7 +108,7 @@ decision: internal/app/transcoding/decision.go - evaluateVideo (hdr_tonemapping_
 re-encode with HDR kept, copy unavailable: internal/app/transcoding/playback_plan_resolver.go - Decide (hdr_copy_unavailable) ; internal/app/transcoding/resolver_route.go - naturalRoute, passthroughWanted, hwTonemapWanted
 hdr signalling carried: internal/adapters/driven/ffmpeg/hls_args_hw.go - hwHDRPassthroughArgs (no HDR10+ metadata)
 dovi copy rule: internal/app/transcoding/copy_eligibility.go (dovi_profile, DoViBLCompat)
-who declares an HDR screen: frontend/packages/client/src/native/displayHdr.ts - probeDisplayHdr ; frontend/packages/client/src/native/playSession.ts (supportsHdr) ; frontend/apps/web/src/cast-receiver/receiverLogic.ts (hdr=1) ; the web player sends no hdr parameter
+who declares an HDR screen: frontend/packages/client/src/native/displayHdr.ts - probeDisplayHdr ; frontend/packages/client/src/native/playSession.ts (supportsHdr) ; frontend/apps/web/src/cast-receiver/receiverLogic.ts (hdr=1) ; frontend/packages/client/src/web/codec.ts - canDisplayHdr (dynamic-range: high)
 tonemapx, software HDR ceiling: internal/adapters/driven/ffmpeg/tonemapx.go ; internal/pkg/hdr/hdr.go ; docs/adr/0017-software-hdr-tonemap-delivery-resolution.md
 tests: internal/app/transcoding/route_golden_test.go ; internal/app/transcoding/route_tonemap_report_test.go
 labels: i18n player.streamInfo.reason.* ; admin.nowPlaying

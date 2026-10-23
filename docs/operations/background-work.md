@@ -17,7 +17,9 @@ for that task; shares never stack. A change applies to the next item
 processed, no restart needed.
 
 Whatever the share, a background task pauses while someone is watching, and
-resumes afterwards. On a new library, thumbnails and intro markers therefore
+resumes afterwards. This is the default: the **Pause background jobs during
+playback** switch of the **Background work** card in **Server Config** turns it
+off (a restart is needed). On a new library, thumbnails and intro markers therefore
 arrive over hours rather than minutes if the server is in use.
 
 ## What runs in the background
@@ -27,7 +29,7 @@ arrive over hours rather than minutes if the server is in use.
 | Library scan | New, changed and removed files | On file changes, on schedule, at startup if enabled. See [Libraries and metadata](../administration/libraries.md). |
 | Artwork download | Posters and backdrops kept on the server, in WebP | During the scan; missing ones are retried hourly. Off: images are loaded from the internet by the browser, which some browsers block. |
 | Seek bar thumbnails | The previews shown while dragging the seek bar (one image every 7 seconds) | When a title is added, and at startup for those without. **Enable trickplay thumbnails** in **Server Config** turns them off. |
-| Intro and credits detection | The **Skip** buttons | Continuously, for titles community databases do not cover |
+| Intro and credits detection | The **Skip** buttons | Continuously, over every series; community timestamps are hints, not a reason to skip a title |
 | Keyframe index and codec levels | Direct Play and copy without re-encoding, correct colours | Continuously, on files scanned before the information was collected |
 
 ## Memory

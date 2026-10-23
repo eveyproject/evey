@@ -1,8 +1,8 @@
 ---
-source_sha: 1c1f263382d37fa80c540dd5129e11b0ecffa890475ab9305d76db4d94571396
+source_sha: a4932bd9b417f0f18be610734a595c186387167b23522b0dbd34267c0fc17fc7
 reviewed: true
 ---
-# Utilisateurs, profils et contrôle parental
+# Utilisateurs, profils et contrôle parental { #users-profiles-and-parental-control }
 
 Deux mots comptent sur cette page :
 
@@ -20,14 +20,14 @@ Cette page commence par les tâches courantes : ajouter quelqu'un, ajouter un
 enfant. Les réglages plus fins (limites par compte, horaires d'ouverture,
 demandes, page d'accueil, liens de téléchargement) viennent ensuite.
 
-## Comptes et profils
+## Comptes et profils { #accounts-and-profiles }
 
 Un compte a un nom d'utilisateur et un mot de passe, ou se connecte par
 authentification unique (voir [OIDC](../oidc.md)). C'est soit un compte
 administrateur, soit un compte normal. Chaque nouveau compte commence avec un
 profil, qui porte son nom d'utilisateur.
 
-## Créer un compte
+## Créer un compte { #create-an-account }
 
 <figure class="evey-shot" markdown="span">
   ![Administration → Utilisateurs sur le serveur de démo](../images/admin-users.webp){ loading=lazy }
@@ -65,7 +65,7 @@ Sur la ligne d'un compte :
   ses connexions.
 - **Supprimer** retire le compte et ses profils.
 
-## Profils, profils enfant et code PIN
+## Profils, profils enfant et code PIN { #profiles-kids-profiles-and-the-pin }
 
 **Pour ajouter un profil** : depuis ce compte, allez dans **Paramètres →
 Profils → Créer un profil**. Un administrateur peut aussi en ajouter un à
@@ -99,7 +99,7 @@ Ce que l'enfant voit ensuite :
       limite cacherait une partie de la bibliothèque de l'administrateur
       lui-même.
 
-## Limites d'âge
+## Limites d'âge { #age-limits }
 
 C'est le serveur, pas l'application, qui applique la limite d'âge. Un titre
 au-dessus de la limite n'est pas seulement caché à l'écran : il n'est jamais
@@ -121,7 +121,7 @@ lecture et les téléchargements.
 
 Les administrateurs ne sont pas soumis aux limites des profils.
 
-## Ce qu'un administrateur peut restreindre par compte
+## Ce qu'un administrateur peut restreindre par compte { #what-an-administrator-can-restrict-per-account }
 
 Ces réglages sont dans **Créer un utilisateur** et **Modifier
 l'utilisateur**, et sur la ligne du compte dans **Administration →
@@ -130,7 +130,7 @@ Utilisateurs**.
 | Réglage | Ce qu'il fait |
 | --- | --- |
 | **Accès aux bibliothèques** (le bouton **Bibliothèques** de la ligne) | Les bibliothèques que le compte voit. Les autres n'apparaissent nulle part pour lui : ni dans la recherche, ni sur sa page d'accueil. Un administrateur voit toujours tout. |
-| **Débit maximal** (le bouton **Débit**) | Limite la qualité vidéo que reçoit le compte, de 1 à 40 Mbps (0 = pas de limite). Un titre au-dessus est converti pour descendre à cette limite. |
+| **Débit maximal** (le bouton **Débit**) | Limite la qualité vidéo que reçoit le compte, un des six préréglages de 1 à 40 Mbps, ou Illimité. Un titre au-dessus est converti pour descendre à cette limite. |
 | **Profils max** | Combien de profils le compte peut créer (0 = pas de limite). |
 | **Appareils max par profil** | Combien de vidéos chaque profil peut lire en même temps, tous appareils confondus (0 = pas de limite). Une vidéo de plus est refusée au démarrage. |
 
@@ -139,7 +139,7 @@ utilisateur le voit. Servez-vous-en pour vérifier une restriction ou pour
 voir un problème par vous-même. Un bandeau reste à l'écran, et **Quitter**
 vous ramène à votre propre compte.
 
-## Horaires d'ouverture
+## Horaires d'ouverture { #opening-hours }
 
 Vous pouvez autoriser un profil enfant à regarder seulement à certaines
 heures.
@@ -182,7 +182,7 @@ Ce qui se passe :
     - Un film téléchargé et lu sans connexion ne passe jamais par le
       serveur : les horaires ne s'y appliquent donc pas.
 
-## Demandes
+## Demandes { #requests }
 
 Les utilisateurs peuvent demander un film, une série ou un artiste que vous n'avez
 pas encore. Leurs demandes arrivent dans **Administration → Demandes de
@@ -194,7 +194,7 @@ Pour choisir qui peut demander, ouvrez l'onglet **Accès** : **Autoriser les
 demandes par défaut pour tous les utilisateurs**, puis **Dérogations par
 utilisateur** pour les exceptions.
 
-## La page d'accueil
+## La page d'accueil { #the-home-page }
 
 La page d'accueil est une suite de rangées. Une rangée qui n'a rien à montrer
 est cachée.
@@ -226,7 +226,7 @@ le profil a déjà terminé. Une série compte comme terminée une fois tous ses
 - Un profil peut afficher une rangée que vous avez cachée, sauf la rangée
   d'un plugin : là, votre choix est définitif.
 
-## Liens de téléchargement publics
+## Liens de téléchargement publics { #public-download-links }
 
 Sur la page d'un film ou d'un épisode, un administrateur peut créer un
 **Lien de téléchargement public** (applications web et Android). Toute

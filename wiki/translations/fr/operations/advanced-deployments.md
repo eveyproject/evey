@@ -1,5 +1,5 @@
 ---
-source_sha: f0e5f75d4befda29fbffbe7da80a4cc45e7a86e9429753abdee557b19bc5a40b
+source_sha: f2e1240c1750c81d4a4d422aadadd53ecf86ab53d63aed2fc0a82c56e43e1d1f
 reviewed: true
 ---
 # Déploiements avancés { #advanced-deployments }
@@ -186,10 +186,10 @@ L'image est `eveyproject/evey`.
 | Tag | Publié par | Notes |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | un tag de version `vX.Y.Z` | `latest` est toujours la version stable la plus récente |
-| un tag de préversion (avec un tiret) | un tag de préversion | ne publie que son propre tag, ne déplace jamais `latest` |
-| un nom de branche, `sha-<commit>` | une construction de branche | amd64 uniquement |
+| un tag de préversion (avec un tiret) | un tag de préversion | publie son propre tag et `sha-<commit>`, jamais `latest` |
+| un nom de branche, `sha-<commit>` | une construction de branche | l'image par défaut uniquement, amd64 uniquement (normalement) |
 
-Chaque tag existe en trois variantes : celle par défaut embarque tous les
+Les tags de version et de préversion existent en trois variantes (une construction de branche ne publie que l'image par défaut) : celle par défaut embarque tous les
 environnements d'exécution de plugins (Python 3, Node.js, PHP, Ruby et Lua),
 `-nodejs` garde Python et Node.js, `-lean` ne garde que Python (par exemple
 `latest-lean`). Ne choisissez une variante plus légère que si la taille de

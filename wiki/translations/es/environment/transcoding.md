@@ -1,8 +1,8 @@
 ---
-source_sha: 6bbcf7c54732dc7eb7955206675ddd1923616486ecdec3c988c6ad0463cf8a04
+source_sha: 11f247e9600d2a9954d2efb9c3e83b1b5c383eeff81aea6c581b95520eafccc1
 reviewed: true
 ---
-# Transcodificación y hardware
+# Transcodificación y hardware { #transcoding-and-hardware }
 
 Las variables que hay detrás de la capacidad, la tarjeta gráfica, los límites
 de calidad y la caché de transcodificación. La mayoría de las instalaciones
@@ -12,7 +12,7 @@ mismo, como se explica en
 Cuando un ajuste existe en **Administración → Transcodificación**, tiene
 prioridad el valor guardado ahí.
 
-## Aceleración por hardware
+## Aceleración por hardware { #hardware-acceleration }
 
 Cómo dar acceso a la GPU al contenedor:
 [Aceleración por hardware](../administration/hardware-acceleration.md).
@@ -30,7 +30,7 @@ Cómo dar acceso a la GPU al contenedor:
 El codificador Intel de bajo consumo y la salida AV1 (interruptor y tope) no
 tienen variable: se ajustan solo en **Administración → Transcodificación**.
 
-## Capacidad y límites
+## Capacidad y límites { #capacity-and-limits }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
@@ -43,16 +43,16 @@ tienen variable: se ajustan solo en **Administración → Transcodificación**.
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS` | `0` (sigue a la fuente) | Un tope para el bitrate del vídeo transcodificado. | Transcodificación → **Techo de bitrate de vídeo**, inmediato |
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS` | `0` (ninguno) | El mismo tope para los clientes de fuera de la red de casa. | Transcodificación → **Techo de bitrate de vídeo, espectadores remotos**, inmediato |
 
-## Caché
+## Caché { #cache }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | El tamaño de toda la caché de transcodificación (segmentos, remux, descargas preparadas); lo usado hace más tiempo se borra primero. | Configuración del servidor → Ajustes del servidor → **Presupuesto de caché de transcodificación (GB)**, al reiniciar |
+| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | El tamaño de toda la caché de transcodificación (segmentos, remux, descargas preparadas); lo usado hace más tiempo se borra primero. | Transcodificación → **Presupuesto de caché de transcodificación (GB)**, al reiniciar |
 | `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | Espacio libre que se reserva en el disco de la caché. Por debajo, se expulsan los segmentos inactivos y después se rechazan los segmentos nuevos en lugar de escribirlos; los subtítulos extraídos dejan de guardarse y se avisa a los administradores. `0` desactiva este margen. Consulta [La caché de transcodificación](../playback/transcoding.md#the-transcoding-cache). | ninguno |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Dónde está. La define la imagen. | ninguno |
 | `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Dónde están las miniaturas de la barra de progreso. La define la imagen: cuesta mucho regenerarlas, así que se quedan en `/data`. | ninguno |
 
-## Clip de calibración
+## Clip de calibración { #calibration-clip }
 
 La medición codifica un clip 4K. Por orden de preferencia: tu archivo, un
 clip descargado una vez y comprobado por su hash, o un clip sintético. Un

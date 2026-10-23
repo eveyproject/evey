@@ -1,5 +1,5 @@
 ---
-source_sha: 882540a1c223edaceac62b6090fc29c8d6391b2bdbb9f156d5cd7015f46e2bc2
+source_sha: 987860a30ec28609fee02ff92f64e4147a49477033de9aa0ea2a0f1ecdc3ef0f
 reviewed: true
 ---
 # Reverse-Proxy-Konfigurationen { #reverse-proxy-configurations }
@@ -247,8 +247,8 @@ die vertrauenswürdigen Proxys eingetragen sind.
 
 Evey funktioniert hinter einem Reverse Proxy mit Standardeinstellungen: Jede
 lang laufende Antwort sendet entweder ständig Bytes (HLS-Segmente, Direct
-Play, Ausgabe der Transkodierung) oder meldet sich alle 30 s beim Client (die
-Ereignis-Streams). Ein Standard-Zeitlimit beim Lesen greift also nie. Zwei
+Play, Ausgabe der Transkodierung) oder hält die Verbindung am Leben (die
+Ereignis-Streams senden ein Keep-alive). Ein Standard-Zeitlimit beim Lesen greift also nie. Zwei
 Dinge sind trotzdem gut zu wissen:
 
 - **Pufferung.** Ein Proxy, der Antworten puffert (nginx tut das
@@ -381,7 +381,7 @@ one port for API and UI, https mode from the scheme: internal/config/config.go (
 bundled Caddy: docker/Caddyfile (streaming matcher, @ownPolicy, header_down CSP) ; docker/Dockerfile.caddy ; docker-compose.yml caddy service
 nginx: examples/nginx/evey.conf.template ; examples/nginx/docker-compose.nginx.yml (nginx-certs volume, no ACME)
 traefik: examples/traefik/docker-compose.traefik.yml (labels + proxy network only)
-streaming paths: cmd/evey/gateway.go ; event streams ping 30 s ; scan progress stream
+streaming paths: cmd/evey/gateway.go ; event streams keep-alive ; scan progress stream
 csp and own-policy pages: internal/adapters/driving/http/helpers.go - securityHeadersMiddleware ; /plugin-frame.html ; /cast-receiver.html
 trusted proxies, catch-all refused, doctor: internal/config/trusted_proxies.go ; cmd/evey/admin_ops.go - checkTrustedProxies
 remote access inferred: docs/adr/0026-remote-access-inferred-from-a-published-url.md

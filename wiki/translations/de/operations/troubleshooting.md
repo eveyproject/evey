@@ -1,15 +1,15 @@
 ---
-source_sha: 58ae53ccc12bc8dbe6e691e81203c38189833f7fe97b8f072c82a6641ae48c30
+source_sha: e679166aebb377eab1f02f6459bcb9daf6480843df9d2b438037f5909294a541
 reviewed: true
 ---
-# Fehlerbehebung
+# Fehlerbehebung { #troubleshooting }
 
 Etwas funktioniert nicht? Suchen Sie in der Tabelle unten, was Sie sehen. Die
 mittlere Spalte sagt, wo Sie zuerst nachsehen; die letzte führt zur Lösung.
 Reicht das nicht, sagen die Protokolle und `evey admin doctor` (weiter unten)
 mehr.
 
-## Wo Sie nachsehen, nach Anzeichen
+## Wo Sie nachsehen, nach Anzeichen { #where-to-look-by-symptom }
 
 | Was Sie sehen | Zuerst nachsehen | Dann |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ mehr.
 | Ein Cast ist eingefroren oder stumm geworden | **Verwaltung → Aktuelle Wiedergabe**: Steht die Wiedergabe noch in der Liste? | [Ein Cast ist eingefroren, stumm geworden, oder das Handy lädt endlos](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
 | Die Festplatte läuft voll | **Verwaltung → Transkodierungs-Cache** | [Die Cache-Festplatte ist voll](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
 
-## Die Protokolle
+## Die Protokolle { #the-logs }
 
 Das Protokoll zeichnet auf, was Evey tut: Jeder Fehler wird dort eingetragen,
 mit der Uhrzeit.
@@ -42,13 +42,15 @@ Ihnen nennt.
 
     - Die Dateien liegen in `./evey-data/logs/`, neben Ihrer Compose-Datei
       (`/data/logs/evey-YYYY-MM-DD.log` im Container). Eine Datei pro Tag, in
-      JSON, standardmäßig 90 Tage aufbewahrt (`EVEY_LOG_RETENTION_DAYS`).
+      JSON, dazu eine Datei mit Stundensuffix (`evey-YYYY-MM-DD-HH.log`), sobald
+      eine Datei 50 MB überschreitet (`EVEY_LOG_MAX_SIZE_MB`), standardmäßig 90
+      Tage aufbewahrt (`EVEY_LOG_RETENTION_DAYS`).
     - `docker compose logs evey` zeigt etwas anderes: was der Container beim
       Start ausgibt (die `evey:`-Zeilen des Startskripts, die Datenbank, das
       Banner). Lesen Sie das, wenn der Server nicht startet. Sobald er
       läuft, steht das Protokoll in den Dateien und im Verwaltungsbereich.
 
-## `evey admin doctor`
+## `evey admin doctor` { #evey-admin-doctor }
 
 Ein Befehl prüft den ganzen Server. Er gibt pro Prüfung eine Zeile aus, `ok`,
 `WARN` oder `FAIL`, mit dem, was zu tun ist:
@@ -68,7 +70,7 @@ docker exec evey-server evey admin doctor
     eine Prüfung fehl, endet der Befehl mit einem Fehlercode. Die anderen
     Befehle stehen unter [Kommandozeile](../runbooks/cli.md).
 
-## Der Server startet nicht
+## Der Server startet nicht { #the-server-does-not-start }
 
 | Was `docker compose logs evey` sagt | Was es bedeutet |
 | --- | --- |
@@ -79,7 +81,7 @@ docker exec evey-server evey admin doctor
 Ein verlorenes Administratorpasswort, ein kompromittierter Signaturschlüssel
 oder eine beschädigte Datenbank: [Wiederherstellung](../runbooks/recovery.md).
 
-## Niemand kann sich anmelden
+## Niemand kann sich anmelden { #nobody-can-sign-in }
 
 Zwei übliche Ursachen:
 
@@ -104,7 +106,7 @@ der Fernzugriff deaktiviert ist:
 **Verwaltung → Fernzugriff** zeigt in Rot an, wenn der Server aus dem
 Internet erreichbar ist, während der Fernzugriff aus ist.
 
-### Die Anmeldung über SSO schlägt fehl
+### Die Anmeldung über SSO schlägt fehl { #sso-sign-in-fails }
 
 Die Anmeldeseite nennt den Grund:
 
@@ -123,7 +125,7 @@ Eine Fehlerseite, die der Anbieter selbst anzeigt, heißt meist, dass die dort
 eingetragene Weiterleitungs-URI nicht die ist, die die Karte zeigt. Siehe
 [OIDC / SSO](../oidc.md).
 
-## E-Mails kommen nicht an
+## E-Mails kommen nicht an { #e-mails-do-not-arrive }
 
 **Test-E-Mail senden** unter **Verwaltung → Serverkonfiguration → E-Mail /
 SMTP** schickt mit den gespeicherten Einstellungen eine Nachricht an Ihre
@@ -134,7 +136,7 @@ Variable `EVEY_SMTP_*`. Fehlgeschlagene Benachrichtigungs-E-Mails werden als
 `email: send notification` protokolliert. Siehe
 [Benachrichtigungen](../notifications.md).
 
-## Probleme bei der Wiedergabe
+## Probleme bei der Wiedergabe { #playback-problems }
 
 Beginnen Sie mit **Stream-Info** im Player. Dort steht, wie der Film gesendet
 wird (unverändert, in ein anderes Format umkopiert oder umgewandelt), Spur
@@ -174,7 +176,7 @@ dass er unverändert läuft: siehe
   freiem Speicher. Siehe
   [Der Transkodierungs-Cache](../playback/transcoding.md#the-transcoding-cache).
 
-## Bibliothek und Poster
+## Bibliothek und Poster { #library-and-posters }
 
 Poster und Hintergrundbilder werden bei den Scans auf den Server kopiert, nach
 `./evey-data/artworks`, und fehlende werden jede Stunde erneut versucht.
@@ -205,7 +207,7 @@ Die Suche findet nichts: Bauen Sie den Suchindex mit
 `docker exec evey-server evey admin reindex-search` aus der Datenbank neu
 auf. Dabei geht nichts verloren: Der Index lässt sich immer neu aufbauen.
 
-## Ein Problem melden
+## Ein Problem melden { #reporting-a-problem }
 
 Schreiben Sie an **contact@eveyproject.org**. Eine Meldung, mit der man etwas
 anfangen kann, sagt:

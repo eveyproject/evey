@@ -1,5 +1,5 @@
 ---
-source_sha: abd1d63a9decd2ea9551be20491d9c39884d9ac4d33c79ea324f1b112429b298
+source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
 reviewed: true
 hide:
 - navigation
@@ -155,7 +155,7 @@ un pequeño archivo de prueba que comprueba que Evey sigue viendo llegar
 archivos nuevos. Monta tus archivos en solo lectura y no pasa nada de eso.
 **Salud de medios** revisa tus archivos MKV y WebM y lista los problemas que
 encuentra. Solo repara un archivo si se lo pides. Trabaja sobre una copia,
-que se comprueba entera antes de sustituir el archivo, guarda el original
+que se comprueba antes de sustituir el archivo (se lee entera cuando lo pides, y siempre cuando no se guarda copia de seguridad), guarda el original
 por defecto y anota cada cambio. Lo que no se puede reparar se avisa y se
 deja como está.
 [Salud de medios](runbooks/media-health.md)
@@ -164,7 +164,7 @@ deja como está.
 cuenta con nosotros, ni estadísticas de uso, ni informes de errores. Las apps
 se comunican con tu servidor y con nada más que gestionemos nosotros. Lo que sale
 de tu red: el servidor busca imágenes y descripciones en servicios externos
-(The Movie Database, y fuentes de portadas para la música). De vez en cuando
+(The Movie Database, TVmaze, una API de IMDb, OMDb cuando hay una clave configurada, MusicBrainz y fuentes de portadas para la música). De vez en cuando
 también pregunta si hay una versión más nueva, algo que puedes desactivar. La
 base de datos se guarda antes de cada actualización que la modifica.
 [Política de privacidad](privacy.md) · [Copias de seguridad y actualizaciones](backups.md)

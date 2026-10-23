@@ -1,8 +1,8 @@
 ---
-source_sha: bb59efb19b44f714d153c63f29645a30745cd729e75bb9e92bae2127c34c3296
+source_sha: ca7f6846927d60865945e4118a9694b18e3af43247d9c41ac5110cf6c4c12f46
 reviewed: true
 ---
-# ac3go en Evey
+# ac3go en Evey { #ac3go-in-evey }
 
 **En resumen:**
 
@@ -26,7 +26,7 @@ convierte en general, está en [Audio](audio.md).
 ac3go se desarrolla como una biblioteca aparte, escrita en Go y sin
 dependencias: [github.com/gravity-zero/ac3go](https://github.com/gravity-zero/ac3go).
 
-## Cuándo el navegador descodifica el sonido por sí mismo
+## Cuándo el navegador descodifica el sonido por sí mismo { #when-the-browser-decodes-the-sound-itself }
 
 Tienen que cumplirse todas estas condiciones:
 
@@ -37,9 +37,9 @@ Tienen que cumplirse todas estas condiciones:
 | La pista tiene como mucho seis canales (5.1), y no más de los **Canales de audio máximos** del perfil. Este camino entrega la pista tal como está en el archivo, así que no puede reducir los canales. | El servidor convierte la pista a AAC, que puede reducir los canales para un perfil en estéreo. Una pista E-AC-3 en 7.1 siempre se convierte. |
 | La película pasa por el flujo del servidor (Remux o transcodificación), no por la lectura directa del archivo. | La pista sigue la decisión tomada para esa reproducción. |
 
-## Cómo se reproduce
+## Cómo se reproduce { #how-it-plays }
 
-La imagen pasa por el reproductor habitual del navegador, en silencio. El
+La imagen pasa por el reproductor habitual del navegador; su flujo no lleva ninguna pista de audio, y el volumen y el silencio del reproductor controlan en su lugar la ganancia del motor de sonido. El
 sonido llega por un flujo de audio aparte, que el servidor indica en la lista
 de reproducción: la pista tal como está en el archivo, empaquetada por
 [MKVGo](mkvgo.md) cuando puede, o copiada por FFmpeg si no. Ninguno de los
@@ -63,7 +63,7 @@ navegador descarga el descodificador una sola vez y lo vuelve a comprobar en
 cada uso, así que una actualización del servidor nunca mezcla una copia
 antigua y una nueva.
 
-## Si ac3go no puede funcionar
+## Si ac3go no puede funcionar { #if-ac3go-cannot-run }
 
 Cuando el descodificador no se carga, falla en un segmento o el servidor no
 le indicó ningún flujo de audio, el reproductor deja de usarlo durante el
@@ -78,7 +78,7 @@ muestra entonces la conversión en lugar de *descodificado en el cliente*.
     en `/wasm/`, como el resto de la aplicación web. Consulta
     [Configuraciones de proxy inverso](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own).
 
-## En un receptor de Chromecast
+## En un receptor de Chromecast { #on-a-cast-receiver }
 
 El receptor de Chromecast de Evey no usa ac3go. En cajas de TV con poca
 memoria, los receptores que descodificaban el sonido de esta forma se
@@ -86,7 +86,7 @@ detenían tras unos minutos de reproducción. La TV recibe Dolby Digital tal
 cual cuando su receptor indica que lo deja pasar, y el AAC del servidor si
 no: consulta [Enviar a Chromecast](casting.md).
 
-## La biblioteca y su licencia
+## La biblioteca y su licencia { #the-library-and-its-licence }
 
 ac3go se publica bajo la GNU AGPLv3, como Evey. Se compila desde sus fuentes
 al construir la imagen de Evey (a WebAssembly, con las herramientas de Go), y

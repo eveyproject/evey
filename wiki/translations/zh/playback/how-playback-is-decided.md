@@ -1,8 +1,8 @@
 ---
-source_sha: af1b54b0c0e4fe2e86f3015114ce2667b287b7a2ec114f06ab77d2dc7f0de872
+source_sha: d3516f7424f33931631da9e552219eb09b706908443cd9b654577b22f6864c37
 reviewed: true
 ---
-# Evey 如何选择播放方式
+# Evey 如何选择播放方式 { #how-playback-is-decided }
 
 为什么同一部电影在电视上原样播放，在手机上却要经过转换？
 
@@ -15,7 +15,7 @@ reviewed: true
 
 本页先介绍这三种方式，以及如何看懂**流信息**。后面是服务器使用的具体规则，供希望了解或调整这些规则的读者参考。
 
-## 三种结果
+## 三种结果 { #the-three-outcomes }
 
 | 在流信息里 | 播放器收到什么 | 服务器要付出什么 |
 | --- | --- | --- |
@@ -25,7 +25,7 @@ reviewed: true
 
 服务器按这个顺序尝试。即使要转码，它也只重新编码需要重新编码的轨道。
 
-## 看懂流信息
+## 看懂流信息 { #reading-stream-info }
 
 **流信息**（播放器控制栏里的信息按钮 (i)；在电视上，位于播放器的选项菜单里）会先显示**方法**，然后列出每条轨道和对它的处理（**直接复制**、**已转码**，或者**客户端解码**，最后这种是指由网页播放器自己解码的音频），并在**为何无法直接播放**下面列出原因。
 
@@ -41,13 +41,13 @@ reviewed: true
 | 播放器无法原样使用这条轨道 | 此播放器无法解码的视频编码 · 此播放器无法解码的音频编码 · 分辨率超出播放器上限 · 音频声道数超出此播放器支持范围 · 播放器无法解码的像素格式（10 位 H.264、4:2:2） · 容器无法直接播放（已重新封装为 HLS） |
 | 这次播放受到的限制 | 码率超出允许上限 · 客户端测得的线路无法承载直拷 |
 | 对画面或声音的影响 | HDR 已转换为 SDR（色调映射） · 字幕已内嵌到画面 · 已请求音频重新同步 |
-| 某项设置，或者已经做出的决定 | 个人资料中已关闭直接播放 · 个人资料中已关闭重封装 · 首选视频编码（个人资料设置） · 本次会话已固定该选择 |
+| 某项设置，或者已经做出的决定 | 首选视频编码（个人资料设置） · 本次会话已固定该选择 |
 
 只看正在播放的那条音轨。如果文件里有一条没被选中的解说音轨是 DTS 格式，文件不会因此被转码。
 
 流信息是在播放开始时计算的。只有一种情况它无法预见：视频流开始的那一刻，显卡正好已满负荷。这时视频流会改由处理器处理，**管理 → 正在播放**会显示实际使用的后端。
 
-## 每一方提供什么
+## 每一方提供什么 { #what-each-side-brings }
 
 **文件。** 编码、分辨率、位深、HDR 格式、码率，以及音轨和字幕轨，这些在扫描文件时就读取好了。
 
@@ -57,7 +57,7 @@ reviewed: true
 
 **服务器。** 它能不能实时完成这次编码（用显卡或处理器），以及有没有空闲的转码名额。这是实际测量出来的，不是假设的：见[转码与服务器容量](transcoding.md)。
 
-## 同一个文件，三种结果
+## 同一个文件，三种结果 { #one-file-three-results }
 
 一部 4K HEVC 电影，HDR10，码率 70 Mb/s，带一条杜比 TrueHD 7.1 音轨，在一台 Android TV 上播放。这台电视的解码器支持 HEVC，屏幕能显示 HDR：
 
@@ -67,7 +67,7 @@ reviewed: true
 
 文件和电视都没有变。变的是这次播放的限制和服务器的状态。
 
-## 这次播放的限制
+## 这次播放的限制 { #limits-on-the-session }
 
 如果一个影片的码率（视频加上正在播放的音轨）高于下面这些限制中最低的那个，就会被转码降到这个限制：
 
@@ -78,24 +78,21 @@ reviewed: true
 
 如果正在播放的音轨的声道数多于播放器报告的数量，或多于个人资料里的**最大音频声道**，这条音轨就会被重新编码。重新编码后的音轨最多保留 5.1 声道，不会更多：见[音频](audio.md)。
 
-## 服务器自行施加的限制
+## 服务器自行施加的限制 { #constraints-the-server-applies-itself }
 
 有几项限制目前播放器不会报告，所以由服务器作为一条保守的兼容规则来执行，对所有播放器都一样：10 位 H.264，以及所有 4:2:2、4:4:4 或 12 位的视频，都会被重新编码；而 10 位及以下、4:2:0 的 HEVC、VP9 和 AV1，则看播放器是否支持这种编码。杜比视界只会以播放器能正确显示的形式保留：见[HDR 与杜比视界](hdr.md)。
 
-## 为什么播放方式很少在中途改变
+## 为什么播放方式很少在中途改变 { #why-the-method-rarely-changes-mid-film }
 
 决定在播放开始时做出，并在整个会话中保持不变，这样播放器就不会收到来自两种不同编码的片段。如果切换音轨或字幕需要改变处理方式，或者重新开始播放该影片，就会重新做一次决定。
 
-## 强制使用某种方式
+## 强制使用某种方式 { #forcing-a-method }
 
-在**设置 → 播放**里，每个个人资料都有**允许直接播放**、**允许重封装**和**允许转码**。关掉其中一项，服务器就会跳过这种方式，流信息会显示原因。
-
-!!! note
-    这是一个诊断工具，不是画质设置：强制转码的效果永远不会比原始文件更好。
+无法强制使用某种方式：服务器总是根据文件和播放器来选择。您能限制的是画质，按设备分别设置，位置在**设置 → 播放 → 省流量模式（本设备）**。它只限制这台设备上的流，账户下的其他设备保留各自的设置。**关闭**表示不设上限。**省流**最高要求 720p、3 Mbps 和立体声。**旅行 / 低流量**最高要求 480p、1 Mbps 和立体声。超过上限的片源会被转码到上限以内，流信息会把这个上限显示为原因。
 
 播放器设置里的**画质**与此不同：它是在转码后的视频流的几种画质之间做选择。**自动**会根据网络情况调整；选一个高度（1080p、720p...）就固定在这个画质；**原画质**会取消播放器本来会要求的高度限制。
 
-## 深入了解
+## 深入了解 { #going-further }
 
 - 详细标准：[HDR 与杜比视界](hdr.md) · [音频](audio.md) · [字幕](subtitles.md) · [投屏到 Chromecast](casting.md)
 - 服务器如何分配其处理能力：[转码与服务器容量](transcoding.md)
@@ -103,7 +100,8 @@ reviewed: true
 - 具体实现：[播放链路](../playback-serving.md)
 
 <!-- sources
-decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels), applyDirectPlayPrefs
+decision: internal/app/transcoding/decision.go - MakePlaybackDecisionWithPrefs, evaluateVideo, pixelFormatPlayable, evaluateAudio, selectedAudioSpec, servedBitrateBps, resolveMaxBitrate, checkBitrate, applyAudioChannelTarget (aacMaxTargetChannels)
+
 session: internal/app/transcoding/playback_plan_resolver.go - Decide, Reported, resolveDecided ; internal/app/transcoding/resolved_route.go - SpillReason (pool_full, title_blocked)
 remote cap: internal/adapters/driving/grpcapi/playback_handler.go - resolvePlaybackPrefs ; internal/config/config.go - RemoteBitrateCapKbps
 client caps: internal/domain/transcoding/playback_decision.go - ClientProfile ; frontend/packages/client/src/web/codec.ts ; frontend/packages/media-caps/src/castUrl.ts

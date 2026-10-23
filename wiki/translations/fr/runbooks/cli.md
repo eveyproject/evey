@@ -1,8 +1,8 @@
 ---
-source_sha: 4da6d87a4495603598041edc6216fa889229d188f8579a3799818f7ddbf73246
+source_sha: 80ee38697d8d389ccbe3deabdb838a6d8be5fa0af92f9832ad8d150b574bdcb2
 reviewed: true
 ---
-# Ligne de commande
+# Ligne de commande { #command-line }
 
 Le binaire du serveur sert aussi de ligne de commande d'exploitation :
 `evey admin <sous-commande>` lance un outil de maintenance ou de restauration
@@ -11,7 +11,7 @@ s'arrête. Cette page liste les commandes et la façon de les lancer dans le
 conteneur ; les procédures du quotidien (mot de passe perdu, rotation de clé,
 restauration) sont dans [Restauration](recovery.md).
 
-## Lancer une commande
+## Lancer une commande { #running-a-command }
 
 Dans l'installation standard, les commandes se lancent dans le conteneur, qui
 contient déjà le mot de passe de la base et la configuration `EVEY_*` :
@@ -40,13 +40,13 @@ peuvent tourner pendant qu'il est arrêté.
 Tout autre premier argument est refusé (code de sortie 1) plutôt que de
 démarrer le serveur en silence.
 
-## Les commandes
+## Les commandes { #the-commands }
 
 La liste ci-dessous reprend le texte `--help` du binaire lui-même, en anglais,
 groupé comme `evey admin` l'affiche. `evey admin` sans sous-commande est
 toujours la liste à jour.
 
-### Restauration
+### Restauration { #recovery }
 
 ```
 evey admin reset-password --user <email>     Generate a new password for the user, print it once.
@@ -65,7 +65,9 @@ evey admin restore-backup <path-to-dump.sql.gz>
                                              Restore the database from a pg_dump.gz file, in a single
                                              transaction. The whole file is checked first: a truncated
                                              or corrupt dump is refused before anything is dropped.
-                                             Existing rows are OVERWRITTEN; waits 5 s for a Ctrl-C
+                                             The dump drops and recreates each table before loading
+                                             it, so it can be restored onto a populated database;
+                                             waits 5 s for a Ctrl-C
                                              before it starts. The .sql.gz suffix is required (not the
                                              panel's .tar.gz backups).
 evey admin reindex-search [--library <id>] [--purge]
@@ -86,7 +88,7 @@ second. Les applications ouvertes s'en aperçoivent en 30 secondes environ et
 redemandent une connexion. Les procédures complètes sont dans
 [Restauration](recovery.md).
 
-### Schéma
+### Schéma { #schema }
 
 ```
 evey admin migrate up [--no-backup]          Apply every pending migration.
@@ -104,7 +106,7 @@ développement, le Makefile fournit ces trois commandes sous la forme `make migr
 `make migrate-down` et `make migrate-version`, exécutées dans le conteneur de
 développement `evey-server`.
 
-### Maintenance des médias
+### Maintenance des médias { #media-maintenance }
 
 ```
 evey admin reindex-no-cue --root <dir> [--apply] [--limit N] [--mode auto|inplace|rewrite] [--deep-verify] [--resync] [--keep-backup=false]
@@ -136,7 +138,7 @@ Le même moteur est utilisé par **Administration → Santé des médias**, qui 
 façon la plus simple de réparer une bibliothèque : voir
 [Santé des médias](media-health.md).
 
-### Encodage par titre
+### Encodage par titre { #per-title-encoding }
 
 ```
 evey admin reclassify <media-id>             Force-recompute the complexity class of one media item.
@@ -144,7 +146,7 @@ evey admin reclassify --all                  Wipe every classified row; the back
                                              re-classifies the whole library at its background pace.
 ```
 
-### Diagnostic
+### Diagnostic { #diagnostics }
 
 ```
 evey admin doctor [--repair]                 Health-check DB, schema, jwt.key, Meilisearch (plus
@@ -161,17 +163,23 @@ evey admin rollback                          Read-only advisor: running version,
 evey admin route-bench [--backend nvenc|vaapi|qsv|none] [--heights 1080,2160] [--fps 24,30,50,60] [--out rows.csv] [--json run.json] [<file>...]
                                              Measure what a session of each transcode route costs on
                                              this host against the calibration and the cost model.
-                                             Minutes of full load; never while serving.
+                                             Minutes of full load; never while serving. More flags
+                                             (--device --routes --classes --duration --workdir
+                                             --capability): the full list is in
+                                             `evey admin route-bench --help`.
 evey admin ladder-bench [--scenes 3] [--window 8] [--heights 1080,720] [--crf 18,23,28] [--out rows.csv] [--efficiency --mode full|fast|incremental] <file>...
                                              Encode a few scenes of each title at fixed CRFs and
                                              score encode cost against the ladder's complexity
                                              features. Runs ffmpeg for minutes; never while serving.
+                                             More flags (--preset --ref-height --ref-crf --cache
+                                             --encoders --device): the full list is in
+                                             `evey admin ladder-bench --help`.
 evey admin ladder-probe [--window 8] [--cache <dir>] [--out <dir>] <file>...
                                              Run the per-title probe on the given files: probe time,
                                              early-stop rate and points. Reads and encodes only.
 ```
 
-### Capacité
+### Capacité { #capacity }
 
 ```
 evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max-viewers N] [--duration S] [--cold-cache]
@@ -189,14 +197,14 @@ evey admin load-test [minimal|standard|max] [--scenario <s>] [--mode <m>] [--max
                                              load-test --scenario balanced --max-viewers 4
 ```
 
-### Sources de complétion
+### Sources de complétion { #completion-sources }
 
 ```
 evey admin list-users                        Print user emails, one per line (drives --user completion).
 evey admin list-libraries                    Print every library root path, one per line (drives --root completion).
 ```
 
-## Complétion et manuel
+## Complétion et manuel { #tab-completion-and-the-manual }
 
 Le binaire porte sa propre complétion bash et son propre manuel, qui
 correspondent donc toujours aux sous-commandes qu'il contient :
@@ -219,7 +227,7 @@ d'administration (`docker exec -it evey-server bash`) répond à `man evey` en
 affichant `evey man --text` page par page, puisque l'image ne contient pas de
 binaire `man`.
 
-## Ce qui n'est pas dans `evey admin`
+## Ce qui n'est pas dans `evey admin` { #what-is-not-in-evey-admin }
 
 Trois programmes autonomes se trouvent à côté du serveur dans les sources. Ce sont
 des outils de développement et de QA, pas des commandes d'exploitation, et
@@ -231,7 +239,7 @@ l'image Docker ne les contient pas :
 | `cmd/intro-diag` | Expliquer pourquoi la détection d'intro a trouvé, ou non, une correspondance sur une série, à partir des planches de miniatures sur le disque. |
 | `cmd/trickplay-verify` | Vérifier que chaque vignette de miniature montre bien l'image de l'horodatage enregistré, en réextrayant l'image source avec ffmpeg. |
 
-## Runbooks liés
+## Runbooks liés { #related-runbooks }
 
 - [Restauration](recovery.md) : réinitialisation de mot de passe, rotation de la clé JWT, restauration d'une sauvegarde.
 - [Procédures de migration](migration-runbook.md) : déploiement du schéma, retour en arrière, récupération d'un état « dirty ».

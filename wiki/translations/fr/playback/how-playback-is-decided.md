@@ -1,8 +1,8 @@
 ---
-source_sha: af1b54b0c0e4fe2e86f3015114ce2667b287b7a2ec114f06ab77d2dc7f0de872
+source_sha: d3516f7424f33931631da9e552219eb09b706908443cd9b654577b22f6864c37
 reviewed: true
 ---
-# Comment Evey choisit le mode de lecture
+# Comment Evey choisit le mode de lecture { #how-playback-is-decided }
 
 Pourquoi un film est-il lu tel quel sur la TV mais converti sur le téléphone ?
 
@@ -25,7 +25,7 @@ Les trois façons et la lecture des **Infos du flux** viennent d'abord. Les
 règles exactes que le serveur applique suivent, pour qui veut les comprendre
 ou les ajuster.
 
-## Les trois modes de lecture
+## Les trois modes de lecture { #the-three-outcomes }
 
 | Dans les Infos du flux | Ce que reçoit le lecteur | Ce que cela coûte au serveur |
 | --- | --- | --- |
@@ -36,7 +36,7 @@ ou les ajuster.
 Le serveur les essaie dans cet ordre et, quand il transcode, ne réencode que
 les pistes qui l'exigent.
 
-## Lire les Infos du flux
+## Lire les Infos du flux { #reading-stream-info }
 
 Les **Infos du flux** (le bouton d'information, (i), des contrôles du
 lecteur ; sur la TV, dans le menu d'options du lecteur) affichent la
@@ -56,7 +56,7 @@ Les raisons se répartissent en quatre catégories :
 | Le lecteur ne peut pas exploiter la piste telle quelle | Codec vidéo non lisible par ce lecteur · Codec audio non lisible par ce lecteur · Résolution au-dessus de la limite du lecteur · Trop de canaux audio pour ce lecteur · Format de pixels que le lecteur ne décode pas (H.264 10 bits, 4:2:2) · Conteneur non lisible en l'état (remis en HLS) |
 | Une limite propre à la session | Débit au-dessus de la limite autorisée · Le débit mesuré par le client ne peut pas porter la copie |
 | Une conséquence sur l'image ou le son | HDR converti en SDR (tone-mapping) · Sous-titres incrustés dans l'image · Resynchronisation audio demandée |
-| Un réglage, ou une décision déjà prise | Lecture directe désactivée dans le profil · Remux désactivé dans le profil · Codec vidéo préféré (réglage du profil) · Choix figé pour cette session |
+| Un réglage, ou une décision déjà prise | Codec vidéo préféré (réglage du profil) · Choix figé pour cette session |
 
 Seule la piste audio écoutée est prise en compte : un fichier dont la piste de
 commentaire, non sélectionnée, est en DTS ne sera pas transcodé pour autant.
@@ -66,7 +66,7 @@ Les Infos du flux sont calculées au lancement de la lecture. Un seul cas leur
 flux bascule alors sur le processeur, et **Administration → En cours de lecture**
 indique le backend réellement utilisé.
 
-## Ce qui entre dans la décision
+## Ce qui entre dans la décision { #what-each-side-brings }
 
 **Le fichier.** Codec, résolution, profondeur de couleur, format HDR, débit,
 pistes audio et sous-titres, relevés au moment du scan.
@@ -91,7 +91,7 @@ graphique ou son processeur, et la disponibilité d'un créneau de transcodage.
 Rien de tout cela n'est supposé : c'est mesuré. Voir
 [Transcodage et capacité du serveur](transcoding.md).
 
-## Un fichier, trois résultats
+## Un fichier, trois résultats { #one-file-three-results }
 
 Prenons un film 4K en HEVC HDR10 à 70 Mb/s, avec une piste Dolby TrueHD 7.1,
 lu sur une Android TV dont le décodeur gère le HEVC et dont l'écran affiche le
@@ -113,7 +113,7 @@ HDR :
 Ni le fichier ni la TV n'ont changé : seules la limite de la session et l'état
 du serveur ont varié.
 
-## Les limites de la session
+## Les limites de la session { #limits-on-the-session }
 
 Un titre dont le débit (vidéo et piste audio écoutée) dépasse la plus basse de
 ces limites est transcodé pour s'y conformer :
@@ -131,7 +131,7 @@ La piste audio écoutée est réencodée quand elle compte plus de canaux que le
 lecteur n'en déclare ou que les **Canaux audio maximum** du profil. Une piste
 réencodée garde au plus 5.1 canaux, jamais davantage : voir [Audio](audio.md).
 
-## Les contraintes que le serveur applique lui-même
+## Les contraintes que le serveur applique lui-même { #constraints-the-server-applies-itself }
 
 Certaines limites ne sont pas encore déclarées par les lecteurs. Le serveur
 les applique alors comme une règle de compatibilité prudente, identique pour
@@ -141,30 +141,29 @@ dépendent de la prise en charge du codec par le lecteur. Le Dolby Vision n'est
 conservé que sous une forme que le lecteur affiche correctement : voir
 [HDR et Dolby Vision](hdr.md).
 
-## Pourquoi le mode change rarement en cours de film
+## Pourquoi le mode change rarement en cours de film { #why-the-method-rarely-changes-mid-film }
 
 La décision est prise au lancement et conservée pendant toute la session, pour
 que le lecteur ne reçoive jamais des segments issus de deux encodages
 différents. Une nouvelle décision n'intervient que si vous changez de piste
 audio ou de sous-titres d'une façon qui l'exige, ou si vous relancez le titre.
 
-## Imposer un mode de lecture
+## Imposer un mode de lecture { #forcing-a-method }
 
-**Paramètres → Lecture** propose, pour chaque profil, **Autoriser la lecture
-directe**, **Autoriser le remux** et **Autoriser le transcodage**. Désactiver
-l'une de ces options interdit ce mode au serveur, et les Infos du flux
-indiquent pourquoi.
+Vous ne pouvez pas imposer un mode : le serveur le choisit toujours d'après le
+fichier et le lecteur. Ce que vous pouvez plafonner, c'est la qualité, appareil
+par appareil, avec **Paramètres → Lecture → Économie de données (cet appareil)**. Il limite le flux sur cet appareil seulement ; les autres appareils
+du compte gardent leur propre réglage. **Désactivée** ne pose aucun plafond.
+**Économe** demande au plus 720p, 3 Mbit/s et un son stéréo. **Voyage / bas débit** demande au plus 480p, 1 Mbit/s et un son stéréo. Un titre au-dessus du
+plafond est transcodé jusqu'à lui, et les Infos du flux indiquent la limite comme
+raison.
 
-!!! note
-    C'est un outil de diagnostic, pas un réglage de qualité : un transcodage
-    imposé n'est jamais meilleur que l'original.
-
-La **Qualité**, dans les réglages du lecteur, joue un autre rôle : elle choisit
+**Qualité**, dans les réglages du lecteur, joue un autre rôle : elle choisit
 parmi les qualités d'un flux transcodé. **Auto** s'adapte à la connexion ; une
 résolution (1080p, 720p...) fixe cette qualité ; **Original** lève le plafond
 de résolution que le lecteur demanderait sinon.
 
-## Pour aller plus loin
+## Pour aller plus loin { #going-further }
 
 - Les critères en détail : [HDR et Dolby Vision](hdr.md) · [Audio](audio.md) ·
   [Sous-titres](subtitles.md) · [Diffusion (Chromecast)](casting.md)

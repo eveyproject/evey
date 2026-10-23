@@ -1,15 +1,15 @@
 ---
-source_sha: 58ae53ccc12bc8dbe6e691e81203c38189833f7fe97b8f072c82a6641ae48c30
+source_sha: e679166aebb377eab1f02f6459bcb9daf6480843df9d2b438037f5909294a541
 reviewed: true
 ---
-# Dépannage
+# Dépannage { #troubleshooting }
 
 Quelque chose ne fonctionne pas ? Cherchez ce que vous voyez dans le tableau
 ci-dessous. La colonne du milieu indique où regarder en premier ; la dernière
 mène à la solution. Si cela ne suffit pas, les logs et `evey admin doctor`
 (plus bas) donnent plus de détails.
 
-## Où regarder, selon ce que vous voyez
+## Où regarder, selon ce que vous voyez { #where-to-look-by-symptom }
 
 | Ce que vous voyez | Regarder d'abord | Ensuite |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ mène à la solution. Si cela ne suffit pas, les logs et `evey admin doctor`
 | Une diffusion s'est figée ou est devenue muette | **Administration → En cours de lecture** : la lecture est-elle encore dans la liste ? | [Une diffusion s'est figée, est devenue muette, ou le téléphone reste en chargement](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
 | Le disque se remplit | **Administration → Cache de transcodage** | [Le disque de cache est plein](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
 
-## Les logs
+## Les logs { #the-logs }
 
 Les logs sont le journal d'Evey : chaque erreur y est notée, avec
 l'heure.
@@ -42,7 +42,9 @@ donne.
 
     - Les fichiers sont dans `./evey-data/logs/`, à côté de votre fichier
       compose (`/data/logs/evey-YYYY-MM-DD.log` dans le conteneur). Un
-      fichier par jour, en JSON, gardé 90 jours par défaut
+      fichier par jour, en JSON, plus un fichier suffixé par l'heure
+      (`evey-YYYY-MM-DD-HH.log`) quand un fichier dépasse 50 Mo
+      (`EVEY_LOG_MAX_SIZE_MB`), gardé 90 jours par défaut
       (`EVEY_LOG_RETENTION_DAYS`).
     - `docker compose logs evey` montre autre chose : ce que le conteneur
       affiche pendant qu'il démarre (les lignes `evey:` du script de
@@ -50,7 +52,7 @@ donne.
       ne démarre pas. Une fois qu'il tourne, les logs sont dans les fichiers
       et dans le panneau.
 
-## `evey admin doctor`
+## `evey admin doctor` { #evey-admin-doctor }
 
 Une seule commande vérifie tout le serveur. Elle affiche une ligne par
 vérification, `ok`, `WARN` ou `FAIL`, avec ce qu'il faut faire :
@@ -71,7 +73,7 @@ docker exec evey-server evey admin doctor
     code d'erreur quand une vérification échoue. Les autres commandes sont
     dans [Ligne de commande](../runbooks/cli.md).
 
-## Le serveur ne démarre pas
+## Le serveur ne démarre pas { #the-server-does-not-start }
 
 | Ce que dit `docker compose logs evey` | Ce que cela signifie |
 | --- | --- |
@@ -82,7 +84,7 @@ docker exec evey-server evey admin doctor
 Mot de passe administrateur perdu, clé de signature compromise ou base
 endommagée : [Restauration](../runbooks/recovery.md).
 
-## Personne ne peut se connecter
+## Personne ne peut se connecter { #nobody-can-sign-in }
 
 Deux causes habituelles :
 
@@ -107,7 +109,7 @@ applications indiquent que l'accès distant est désactivé :
 **Administration → Accès distant** signale en rouge un serveur joignable depuis Internet
 alors que l'accès distant est désactivé.
 
-### La connexion SSO échoue
+### La connexion SSO échoue { #sso-sign-in-fails }
 
 La page de connexion en donne la raison :
 
@@ -127,7 +129,7 @@ Une page d'erreur affichée par le fournisseur lui-même signifie le plus souven
 que l'URI de redirection déclarée chez lui n'est pas celle qu'affiche la carte.
 Voir [Authentification unique (OIDC)](../oidc.md).
 
-## Les e-mails n'arrivent pas
+## Les e-mails n'arrivent pas { #e-mails-do-not-arrive }
 
 **Envoyer un e-mail de test** dans **Administration → Configuration du serveur → E-mail /
 SMTP** envoie un message à votre propre adresse avec les réglages enregistrés,
@@ -137,7 +139,7 @@ habituelle. Un hôte enregistré dans la carte remplace toutes les variables
 `EVEY_SMTP_*`. Les envois de notifications qui échouent sont journalisés comme
 `email: send notification`. Voir [Notifications](../notifications.md).
 
-## Problèmes de lecture
+## Problèmes de lecture { #playback-problems }
 
 Commencez par les **Infos du flux** dans le lecteur. Elles indiquent comment le
 film est envoyé (tel quel, recopié dans un autre format, ou converti), piste
@@ -175,7 +177,7 @@ lu tel quel : voir
   sous-titres plein** : le disque est passé sous sa marge d'espace libre. Voir
   [Le cache de transcodage](../playback/transcoding.md#the-transcoding-cache).
 
-## Bibliothèque et affiches
+## Bibliothèque et affiches { #library-and-posters }
 
 Les affiches et les fonds sont copiés sur le serveur pendant les scans, dans
 `./evey-data/artworks`, et les manquants sont retentés toutes les heures.
@@ -204,7 +206,7 @@ La recherche ne renvoie rien : reconstruisez l'index de recherche à partir de
 la base de données avec `docker exec evey-server evey admin reindex-search`.
 Rien n'est perdu : l'index peut toujours être reconstruit.
 
-## Signaler un problème
+## Signaler un problème { #reporting-a-problem }
 
 Écrivez à **contact@eveyproject.org**. Un signalement exploitable indique :
 

@@ -33,7 +33,7 @@ Run it as the user who owns your media (`user: "1000:1000"` or the `PUID` / `PGI
 
 ## Hardware transcoding
 
-One image covers Intel Quick Sync (VAAPI / QSV), NVIDIA (NVENC) and, on arm64, Rockchip (RKMPP, best-effort). Pass the device (`/dev/dri`, the NVIDIA runtime, or the Rockchip MPP node) and Evey detects, probes, benchmarks and calibrates the box at boot to decide what it can encode and how many streams it can serve. Nothing to buy, nothing to unlock. Other ARM boards (Raspberry Pi, Realtek NAS) have no hardware encoder: those play direct and transcode in software.
+One image covers Intel Quick Sync (VAAPI / QSV), NVIDIA (NVENC) and, on arm64, Rockchip (RKMPP, best-effort, when the image's ffmpeg supports it). Pass the device (`/dev/dri`, the NVIDIA runtime, or the Rockchip MPP node) and Evey detects, probes, benchmarks and calibrates the box at boot to decide what it can encode and how many streams it can serve. Nothing to buy, nothing to unlock. Other ARM boards (Raspberry Pi, Realtek NAS) have no hardware encoder: those play direct and transcode in software.
 
 ## Tags
 
@@ -44,7 +44,7 @@ One image covers Intel Quick Sync (VAAPI / QSV), NVIDIA (NVENC) and, on arm64, R
 
 Variants, same app with fewer plugin runtimes: no suffix (the full image: Python, Node.js, PHP, Ruby and Lua), `-nodejs` (Python and Node.js), `-lean` (Python only).
 
-Multi-arch (`amd64` + `arm64`) on release tags. Branch builds are `amd64` only.
+Multi-arch (`amd64` + `arm64`) on release tags. Branch builds are normally `amd64` only (`[arm64]` in the commit message or a manual run adds `arm64`).
 
 ## What is in the box
 

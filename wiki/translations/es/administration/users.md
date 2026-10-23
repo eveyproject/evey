@@ -1,8 +1,8 @@
 ---
-source_sha: 1c1f263382d37fa80c540dd5129e11b0ecffa890475ab9305d76db4d94571396
+source_sha: a4932bd9b417f0f18be610734a595c186387167b23522b0dbd34267c0fc17fc7
 reviewed: true
 ---
-# Usuarios, perfiles y control parental
+# Usuarios, perfiles y control parental { #users-profiles-and-parental-control }
 
 En esta página importan dos palabras:
 
@@ -20,14 +20,14 @@ Esta página empieza por las tareas habituales: añadir a alguien, añadir a un
 niño. Los controles más finos (límites por cuenta, horario de uso,
 solicitudes, la página de inicio, enlaces de descarga) vienen después.
 
-## Cuentas y perfiles
+## Cuentas y perfiles { #accounts-and-profiles }
 
 Una cuenta tiene un nombre de usuario y una contraseña, o inicia sesión con
 inicio de sesión único (ver [OIDC](../oidc.md)). Es una cuenta de
 administrador o una cuenta normal. Cada cuenta nueva empieza con un perfil,
 que lleva el nombre de su usuario.
 
-## Crear una cuenta
+## Crear una cuenta { #create-an-account }
 
 <figure class="evey-shot" markdown="span">
   ![Administración → Usuarios en el servidor de demostración](../images/admin-users.webp){ loading=lazy }
@@ -64,7 +64,7 @@ En la fila de una cuenta:
   la deja entrar de nuevo.
 - **Eliminar** borra la cuenta y sus perfiles.
 
-## Perfiles, perfiles infantiles y el PIN
+## Perfiles, perfiles infantiles y el PIN { #profiles-kids-profiles-and-the-pin }
 
 **Para añadir un perfil**: desde esa cuenta, ve a **Ajustes → Perfiles →
 Crear perfil**. Un administrador también puede añadir uno a cualquier
@@ -97,7 +97,7 @@ Lo que ve entonces el niño:
     - La cuenta de un administrador no puede tener un perfil infantil: el
       límite ocultaría parte de la propia biblioteca del administrador.
 
-## Límites de edad
+## Límites de edad { #age-limits }
 
 Es el servidor, no la app, quien aplica el límite de edad. Un título por
 encima del límite no solo se oculta en pantalla: nunca se envía al perfil
@@ -118,7 +118,7 @@ infantil. Esto vale para navegar, buscar, reproducir y descargar.
 
 Los límites de los perfiles no se aplican a los administradores.
 
-## Lo que un administrador puede limitar en cada cuenta
+## Lo que un administrador puede limitar en cada cuenta { #what-an-administrator-can-restrict-per-account }
 
 Estos ajustes están en **Crear usuario** y **Editar usuario**, y en la fila
 de la cuenta en **Administración → Usuarios**.
@@ -126,7 +126,7 @@ de la cuenta en **Administración → Usuarios**.
 | Ajuste | Qué hace |
 | --- | --- |
 | **Acceso a bibliotecas** (el botón **Bibliotecas** de la fila) | Las bibliotecas que ve la cuenta. Las demás no le aparecen en ningún sitio: ni en la búsqueda ni en su página de inicio. Un administrador siempre lo ve todo. |
-| **Bitrate máximo** (el botón **Bitrate**) | Limita la calidad de vídeo que recibe la cuenta, de 1 a 40 Mbps (0 = sin límite). Un título que lo supera se convierte para bajar a ese valor. |
+| **Bitrate máximo** (el botón **Bitrate**) | Limita la calidad de vídeo que recibe la cuenta, uno de seis valores predefinidos de 1 a 40 Mbps, o Sin límite. Un título que lo supera se convierte para bajar a ese valor. |
 | **Máximo de perfiles** | Cuántos perfiles puede crear la cuenta (0 = sin límite). |
 | **Máximo de dispositivos por perfil** | Cuántos vídeos puede reproducir cada perfil a la vez, sumando sus dispositivos (0 = sin límite). Uno más se rechaza al empezar. |
 
@@ -135,7 +135,7 @@ de la cuenta en **Administración → Usuarios**.
 ojos. Un aviso se queda en pantalla, y **Salir** te devuelve a tu propia
 cuenta.
 
-## Horario de uso
+## Horario de uso { #opening-hours }
 
 Puedes dejar que un perfil infantil vea contenido solo a ciertas horas.
 
@@ -175,7 +175,7 @@ Lo que pasa:
     - Una película descargada que se reproduce sin conexión nunca llega al
       servidor, así que el horario no se le aplica.
 
-## Solicitudes
+## Solicitudes { #requests }
 
 Los demás pueden pedir una película, una serie o un artista que todavía no
 tienes. Sus solicitudes llegan a **Administración → Solicitudes de
@@ -186,7 +186,7 @@ Para elegir quién puede pedir, abre la pestaña **Acceso**: **Permitir
 solicitudes por defecto para todos los usuarios**, y después **Excepciones
 por usuario** para los casos especiales.
 
-## La página de inicio
+## La página de inicio { #the-home-page }
 
 La página de inicio está formada por filas. Una fila que no tiene nada que
 mostrar se oculta.
@@ -217,7 +217,7 @@ episodios. Los plugins pueden añadir sus propias filas.
 - Un perfil puede mostrar una fila que tú has ocultado, salvo la fila de un
   plugin: ahí, tu decisión es definitiva.
 
-## Enlaces de descarga públicos
+## Enlaces de descarga públicos { #public-download-links }
 
 En la página de una película o de un episodio, un administrador puede crear
 un **Enlace de descarga público** (web y app de Android). Cualquiera que

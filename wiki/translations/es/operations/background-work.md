@@ -1,8 +1,8 @@
 ---
-source_sha: 935a77e1c7b524e4df14c0a67f9ad57f4571098b770e8c3245fda5189aefc0c3
+source_sha: 1e9ed9ad1ea44e04485cba0cf8c2dd6706eaa7a3363c2b3caa4880cb24c51406
 reviewed: true
 ---
-# Trabajo en segundo plano y carga del servidor
+# Trabajo en segundo plano y carga del servidor { #background-work-and-server-load }
 
 Por qué el servidor está ocupado cuando nadie ve nada, y por qué las
 miniaturas de una biblioteca nueva tardan horas: además de la reproducción,
@@ -11,7 +11,7 @@ generar las miniaturas de la barra de progreso, detectar intros y créditos,
 analizar archivos). Esta página explica cómo reparte ese trabajo la máquina
 con las personas que están viendo algo, y dónde fijar su parte.
 
-## La reproducción va primero
+## La reproducción va primero { #playback-comes-first }
 
 Las tareas en segundo plano usan una parte del procesador, la **Cuota
 global** de **Administración → Configuración del servidor → Potencia
@@ -23,28 +23,31 @@ tarea; las cuotas nunca se suman. Un cambio se aplica al siguiente elemento
 procesado, sin reiniciar.
 
 Sea cual sea la cuota, una tarea en segundo plano se pausa mientras alguien
-está viendo algo, y se reanuda después. Por eso, en una biblioteca nueva,
+está viendo algo, y se reanuda después. Es lo que ocurre por defecto: el interruptor **Pausar las
+tareas en segundo plano durante la reproducción** de la tarjeta **Trabajos en
+segundo plano** de **Configuración del servidor** lo desactiva (hace falta
+reiniciar). Por eso, en una biblioteca nueva,
 las miniaturas y las marcas de intro llegan a lo largo de horas y no de
 minutos si el servidor está en uso.
 
-## Lo que se ejecuta en segundo plano
+## Lo que se ejecuta en segundo plano { #what-runs-in-the-background }
 
 | Trabajo | Lo que aporta | Cuándo se ejecuta |
 | --- | --- | --- |
 | Escaneo de bibliotecas | Archivos nuevos, modificados y eliminados | Cuando cambian los archivos, según la programación, y al arrancar si está activado. Ver [Bibliotecas y metadatos](../administration/libraries.md). |
 | Descarga de imágenes | Pósteres e imágenes de fondo guardados en el servidor, en WebP | Durante el escaneo; las que faltan se vuelven a intentar cada hora. Desactivada: el navegador carga las imágenes desde internet, algo que algunos navegadores bloquean. |
 | Miniaturas de la barra de progreso | Las vistas previas que aparecen al arrastrar la barra de progreso (una imagen cada 7 segundos) | Cuando se añade un título, y al arrancar para los que no las tienen. **Activar miniaturas trickplay** en **Configuración del servidor** las desactiva. |
-| Detección de intros y créditos | Los botones **Saltar** | Continuamente, para los títulos que no cubren las bases de datos comunitarias |
+| Detección de intros y créditos | Los botones **Saltar** | Continuamente, sobre todas las series; las marcas comunitarias son pistas, no un motivo para saltarse un título |
 | Índice de fotogramas clave y niveles de códec | Reproducción directa y copia sin volver a codificar, colores correctos | Continuamente, en los archivos escaneados antes de que se recogiera esa información |
 
-## Memoria
+## Memoria { #memory }
 
 **Perfil de memoria** (**Administración → Configuración del servidor**):
 **Bajo** suspende los plugins que no están haciendo nada para ahorrar
 memoria, y los reactiva cuando hacen falta. **Automático (recomendado)** elige
 Bajo en las máquinas con menos de 3 GB de memoria.
 
-## Ajustes que se leen al arrancar
+## Ajustes que se leen al arrancar { #settings-read-at-startup }
 
 Algunos ajustes se leen una sola vez, cuando arranca el servidor: al
 guardarlos se guarda tu elección, y un reinicio la aplica. El panel lo

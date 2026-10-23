@@ -16,7 +16,7 @@ The dashboard's **Who's Online** card lists who is connected right now, by
 profile, with how long ago each app was last heard from. A Chromecast whose
 television keeps Evey's receiver loaded stays listed after its playback has
 ended and left **Now Playing**; **Stop this Chromecast** sends it a stop
-command, which the television applies within 30 seconds.
+command, which the television applies in about 30 seconds.
 
 **Admin → System Health** shows the processor, memory, bandwidth and storage,
 and how much of the transcoding capacity is in use. It also lists the
@@ -51,7 +51,9 @@ index, subtitles, intro detection, Chromecast, auth, infrastructure...). It is
 the first place to look when a user reports a problem.
 
 The same log is on disk, one JSON file per day in `./evey-data/logs/`
-(`/data/logs/evey-YYYY-MM-DD.log` in the container), kept 90 days by default.
+(`/data/logs/evey-YYYY-MM-DD.log` in the container), plus an hour-suffixed
+file (`evey-YYYY-MM-DD-HH.log`) when a file passes 50 MB
+(`EVEY_LOG_MAX_SIZE_MB`), kept 90 days by default.
 `docker compose logs evey` shows only what the container prints while it
 starts, which is what to read when the server does not come up. See
 [Troubleshooting](troubleshooting.md#the-logs).
@@ -77,15 +79,16 @@ expiry; **Reset** drops one immediately.
   and the background work in progress.
 
 How long each kind of history is kept is set in **Admin → Server Config →
-Server Settings** (play sessions, audit log, server metrics, streaming
+Data & retention** (play sessions, audit log, server metrics, streaming
 quality). A change applies at the next daily cleanup.
 
 ## Prometheus metrics
 
 `GET /metrics` serves the server's counters in the Prometheus text format, all
-named `evey_...`. It answers an administrator session, or a fixed token set in
-`EVEY_METRICS_SCRAPE_TOKEN` and sent as `Authorization: Bearer <token>`, so
-that Prometheus or Grafana can scrape without signing in again
+named `evey_...`. It answers a fixed token set in `EVEY_METRICS_SCRAPE_TOKEN` and sent as
+`Authorization: Bearer <token>`, so that Prometheus or Grafana can scrape from
+anywhere without signing in; an administrator session is accepted only from
+the container's own loopback
 ([Backups, logs and monitoring](../environment/logs-monitoring.md)). The
 families worth a first chart:
 

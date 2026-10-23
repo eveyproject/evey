@@ -1,8 +1,8 @@
 ---
-source_sha: 8dce7b245de8c61f7635ccfc84431db9870d2376b17d9a0280028477af945f80
+source_sha: e039606b33ab2207d3774f9bacb71ee3d18f0d12f52d9dc02bec1e9817e1c91e
 reviewed: true
 ---
-# Transcodificación y capacidad del servidor
+# Transcodificación y capacidad del servidor { #transcoding-and-server-capacity }
 
 **En resumen:**
 
@@ -27,7 +27,7 @@ El resto de esta página es para el administrador que quiere los detalles:
 cómo mide el servidor lo que puede codificar, cómo reparte esa capacidad y
 qué ve un espectador cuando está lleno.
 
-## El servidor se mide a sí mismo
+## El servidor se mide a sí mismo { #the-server-measures-itself }
 
 La capacidad no es un ajuste que tengas que estimar tú. El servidor la
 mide:
@@ -44,7 +44,7 @@ mide:
   cada uno soporta en tiempo real, y lo que cuesta cada tipo de flujo.
 - **Otra vez.** Cuando cambia el hardware, o con **Recalibrar** en
   **Administración → Transcodificación → Calibración de codificación**. El
-  botón espera a que nadie esté viendo nada.
+  botón se niega mientras alguien está viendo algo; solo la nueva medición automática espera a que el servidor esté libre.
 
 Mientras dura la medición, una reproducción que necesita transcodificar
 muestra **El servidor se está calibrando** y se le pide que lo vuelva a
@@ -52,7 +52,7 @@ intentar en un momento. La Reproducción directa y el Remux no se ven
 afectados.
 
 En un procesador que no soporta ninguna de las resoluciones, el servidor
-sigue ofreciendo 720p (SDR) y 480p (HDR), un flujo cada vez.
+sigue ofreciendo 720p (SDR) y 480p (HDR), cuántos flujos permite a la vez sale del presupuesto del limitador de sesiones de vídeo.
 
 La medición usa, por este orden, un clip que le des tú, un clip de referencia
 que se descarga una vez y se comprueba con su SHA256, o un clip sintético
@@ -68,7 +68,7 @@ services:
       EVEY_BENCH_SDR_SAMPLE: /data/bench/my-4k-sdr.hevc
 ```
 
-## Repartir la capacidad
+## Repartir la capacidad { #sharing-the-capacity }
 
 **Capacidad de reproducción en directo** (**Administración →
 Transcodificación**) es el número de flujos de vídeo que se pueden codificar
@@ -115,11 +115,11 @@ de todo esto, el servidor baja su calidad máxima durante un tiempo, y luego
 quita el límite por sí solo. Consulta
 [Supervisión y registros](../operations/monitoring.md#how-playback-actually-went).
 
-## Lo que se codifica
+## Lo que se codifica { #what-is-encoded }
 
 | | Por defecto |
 | --- | --- |
-| Códec de vídeo | H.264. HEVC cuando el reproductor lo descodifica y una tarjeta gráfica lo codifica, o cuando lo pide el **Códec de vídeo preferido** del perfil; AV1 cuando está activado (**Salida AV1**, solo por hardware) y el reproductor lo descodifica. |
+| Códec de vídeo | H.264. Salida HEVC cuando una ruta medida lo demuestra y el reproductor lo descodifica (la ruta de passthrough HDR, o cuando lo pide el **Códec de vídeo preferido** del perfil); AV1 cuando está activado (**Salida AV1**, solo por hardware) y el reproductor lo descodifica. |
 | Resolución | La de la fuente, salvo que se aplique un límite: el máximo del reproductor, el límite de bitrate, o lo que el servidor puede codificar en tiempo real. |
 | Bitrate | Sigue al de la fuente, ajustado a la resolución. **Techo de bitrate de vídeo** lo limita; **Techo de bitrate de vídeo, espectadores remotos** lo limita aún más fuera de las redes locales. |
 | Audio | AAC. Consulta [Audio](audio.md). |
@@ -130,14 +130,13 @@ quita el límite por sí solo. Consulta
   <figcaption>Los dos topes de <strong>Administración → Transcodificación</strong>: para todos los espectadores, y para los espectadores fuera de las redes locales (interfaz en inglés).</figcaption>
 </figure>
 
-## La caché de transcodificación
+## La caché de transcodificación { #the-transcoding-cache }
 
 Los segmentos codificados se guardan en disco, en el volumen `evey-cache`, y
 se reutilizan cuando otro espectador, o el mismo más tarde, reproduce el
 mismo título con la misma decisión. **Administración → Caché de
 transcodificación** muestra su tamaño y la vacía; el **Presupuesto de caché
-de transcodificación** (**Administración → Configuración del servidor →
-Configuración del servidor**) le pone un límite. **Borrar todo** también
+de transcodificación** (**Administración → Transcodificación**) le pone un límite. **Borrar todo** también
 borra los subtítulos extraídos de tus archivos, guardados en
 `./evey-data/subtitles`: se vuelven a extraer cuando se piden.
 
@@ -160,7 +159,7 @@ llena** (como mucho una vez por hora, también enviado a los webhooks como
     anterior. Si la vacías mientras alguien ve algo, su flujo vuelve a cargar
     una vez y luego sigue.
 
-## Comprobar lo que pasa
+## Comprobar lo que pasa { #checking-what-happens }
 
 - **Administración → Reproduciendo ahora**: cada flujo, su método pista por
   pista, y el motor que lo codifica.
@@ -178,7 +177,7 @@ clear all empties extracted subtitles: internal/app/transcoding/service.go - Wit
 calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - swBenchLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
 capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability
 busy: i18n errors max_concurrent_reached
-output codec: internal/app/transcoding/resolver_route.go - outputCodecFor, codecWithPassthrough ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
+output codec: internal/app/transcoding/resolver_route.go ; internal/app/transcoding/decision.go ; internal/app/transcoding/testdata/route_golden.txt ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
 single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT, default on)
 bench samples: internal/config/config.go (EVEY_BENCH_{SDR,HDR}_SAMPLE{,_URL,_SHA256})
 cache budget, clear while live: i18n admin.serverSettings.transcodeCacheMaxGB, admin.transcodeCache.clearConfirmLiveSessions ; automatic limits: admin.qoe.overrides.*

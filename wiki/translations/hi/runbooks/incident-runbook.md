@@ -1,15 +1,15 @@
 ---
-source_sha: 95bca5df52c2505d699a3857e7d305e19067387a32df91af30da948dfa493ae0
+source_sha: 516b8642fffb6e38095ed3717e312f92a272b9c0f020b7accc2c86330c45dbf2
 reviewed: true
 ---
-# इंसिडेंट रनबुक
+# इंसिडेंट रनबुक { #incident-runbook }
 
 Evey की आम रुकावटों में सबसे पहले क्या करें, ड्यूटी पर मौजूद ऑपरेटर के लिए। वह
 हिस्सा ढूँढें जो लक्षण से मेल खाता है, उसकी जाँचें चलाएँ, और जो मिला उससे मेल
 खाने वाला उपाय लागू करें। हर हिस्से का ढाँचा एक जैसा है: **लक्षण**, **जाँच**,
 **उपाय**।
 
-## शुरू करने से पहले
+## शुरू करने से पहले { #before-you-start }
 
 कमांड आम इंस्टॉल के लिए हैं: एक कंटेनर, `evey-server`, जिसके अंदर Postgres और
 Meilisearch हैं। उनकी लाइनें सर्वर वाले लॉग में ही आती हैं (डेटाबेस के लिए
@@ -29,7 +29,7 @@ docker exec -it evey-server sh -c \
 
 **लॉग।** एक ही आउटपुट दो जगह मिलता है: रोज़ की फ़ाइल
 `./evey-data/logs/evey-YYYY-MM-DD.log` (`EVEY_LOG_DIR`, इमेज के अंदर
-`/data/logs`) और `docker logs evey-server`। फ़ाइल ही भरोसेमंद है: Docker का
+`/data/logs`; 50 MB से बड़ी फ़ाइल, `EVEY_LOG_MAX_SIZE_MB`, `evey-YYYY-MM-DD-HH.log` में जारी रहती है) और `docker logs evey-server`। फ़ाइल ही भरोसेमंद है: Docker का
 json-file ड्राइवर `docker logs` को रोटेट करता है, और रोटेशन के बाद यह कमांड
 कंटेनर से घंटों पहले ही रुक सकती है। जब दोनों में फ़र्क हो, तो फ़ाइल पढ़ें। एडमिन
 पैनल का **लॉग और डीबग** पेज इसी आउटपुट में खोजता है
@@ -37,7 +37,7 @@ json-file ड्राइवर `docker logs` को रोटेट करत�
 `token=` / `password=` के मान `[redacted]` दिखते हैं, इसलिए मीडिया id से खोजें,
 टोकन से कभी नहीं।
 
-## सर्वर जवाब नहीं देता
+## सर्वर जवाब नहीं देता { #the-server-does-not-answer }
 
 **लक्षण**: क्लाइंट कनेक्ट नहीं हो पाते; `curl http://localhost:9091/healthz`
 का समय खत्म हो जाता है या उसे मना कर दिया जाता है।
@@ -65,7 +65,7 @@ curl -v http://localhost:9091/healthz
   evey-caddy`, `EVEY_DOMAIN` जाँचें, और यह भी कि `evey` का हेल्थचेक हरा है,
   क्योंकि Caddy उसका इंतज़ार करता है।
 
-## हर लॉगिन 401 देता है
+## हर लॉगिन 401 देता है { #every-login-returns-401 }
 
 **लक्षण**: हर उपयोगकर्ता को, एडमिन समेत, `/api/v1/auth/*` से 401 मिलता है।
 
@@ -108,7 +108,7 @@ auth rejected: the token epoch could not be read, so every authenticated request
   देती है।
 - सर्वर और क्लाइंट के बीच **घड़ी का अंतर**: होस्ट पर `date -u`।
 
-## ट्रांसकोडिंग फ़ेल होती है
+## ट्रांसकोडिंग फ़ेल होती है { #transcoded-playback-fails }
 
 **लक्षण**: सीधा प्लेबैक काम करता है, जिस प्लेबैक को ट्रांसकोड चाहिए वह फ़ेल होता
 है; प्लेयर गड़बड़ी दिखाता है और सर्वर के लॉग में ffmpeg के exit कोड दिखते हैं।
@@ -145,7 +145,7 @@ docker exec evey-server touch /cache/transcode/.write-test && \
   `EVEY_TRANSCODING_MAX_CONCURRENT` (**एडमिन → ट्रांसकोड कैश** में **अधिकतम
   समवर्ती**) सिर्फ़ लाइव प्लेबैक के बाहर वाले ट्रांसकोड कामों पर लागू होता है।
 
-### प्लेबैक बफ़र होता है या कटता है, और लॉग वजह नहीं बताता
+### प्लेबैक बफ़र होता है या कटता है, और लॉग वजह नहीं बताता { #it-buffers-or-cuts-out-and-the-log-does-not-say-why }
 
 **लक्षण**: कोई दर्शक बताता है कि ट्रांसकोड हुआ टाइटल अटकता है; लॉग में
 `hls-vod: segment timeout` के साथ `err:"context canceled"` दिखता है, जिसका मतलब
@@ -157,11 +157,11 @@ docker exec evey-server touch /cache/transcode/.write-test && \
 # किसी सेगमेंट की माँग ने पुराना एन्कोडर इस्तेमाल किया या नया शुरू किया, क्यों,
 # और प्लेयर को इसकी क्या कीमत पड़ी। सिर्फ़ तभी लॉग होता है जब कोई कीमत हो।
 # `over_client_patience: true` ही असली सुराग है।
-docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F).log | tail -40
+docker exec evey-server grep '"software: reach decision"' /data/logs/evey-$(date +%F)*.log | tail -40
 
 # खुद एन्कोडर: शुरू होना, बंद किया जाना, और उसकी वजह।
 docker exec evey-server grep -E '"software: session (started|killed)"|per-hash cap' \
-  /data/logs/evey-$(date +%F).log | tail -40
+  /data/logs/evey-$(date +%F)*.log | tail -40
 ```
 
 ये लाइनें बताती हैं कि सर्वर ने क्या फ़ैसला किया। ffmpeg ने सेकंड-दर-सेकंड क्या
@@ -204,7 +204,7 @@ curl -sf -X PUT http://localhost:9091/api/v1/admin/server-config/transcode.ffmpe
   `reach decision` लाइन का मतलब है कि सर्वर ऐसा इंतज़ार माँगने वाला था जितना कोई
   प्लेयर इंतज़ार नहीं करता।
 
-### `stale_rendition` वाले 410, प्लेयर प्लेबैक के बीच अपना master फिर से लाता है
+### `stale_rendition` वाले 410, प्लेयर प्लेबैक के बीच अपना master फिर से लाता है { #stale_rendition-410s-the-player-refetches-its-master-mid-play }
 
 **लक्षण**: प्लेयर थोड़ी देर अटकता है, फिर ठीक हो जाता है; लॉग में
 `hls-vod: stale rendition URL refused (the ladder moved under a live player)`
@@ -230,7 +230,7 @@ master साफ़ तरीके से फिर से लाने पर 
   (ऐप का पुराना बिल्ड, `.m3u8` कैश करने वाला प्रॉक्सी)। प्रॉक्सी को
   `Cache-Control: no-cache` आगे भेजना चाहिए।
 
-## डेटाबेस की गड़बड़ियाँ
+## डेटाबेस की गड़बड़ियाँ { #database-errors }
 
 **लक्षण**: लॉग में `dial tcp ... connect: connection refused`, `pq: ...` है, या
 क्वेरी का समय खत्म हो जाता है।
@@ -264,7 +264,7 @@ df -h ./evey-data
   `EVEY_DB_USER` / `EVEY_DB_PASSWORD` / `EVEY_DB_NAME` को `postgres` सर्विस से
   मेल खाना चाहिए।
 
-## सर्च कमज़ोर हो गई है
+## सर्च कमज़ोर हो गई है { #search-is-degraded }
 
 **लक्षण**: सर्च के नतीजे खराब आते हैं; लॉग में `meilisearch
 unavailable, using SQL search fallback` दिखता है।
@@ -291,7 +291,7 @@ docker logs --tail=300 evey-server | grep -i meili
   ```
   फिर से बनाना एक कमांड है, पैनल का कोई बटन नहीं।
 
-## कैश वाली डिस्क भर गई है
+## कैश वाली डिस्क भर गई है { #the-cache-disk-is-full }
 
 **लक्षण**: ट्रांसकोड `no space left on device` के साथ फ़ेल होते हैं; हेल्थचेक
 बार-बार बदलता रहता है।
@@ -318,11 +318,11 @@ docker volume inspect evey_evey-cache   # compose का प्रीफ़ि�
   ```sh
   docker exec evey-server sh -c 'rm -rf /data/trickplay/*'
   ```
-- अगर होस्ट का वॉल्यूम तंग है, तो **एडमिन → सर्वर कॉन्फ़िग → सर्वर सेटिंग्स**
+- अगर होस्ट का वॉल्यूम तंग है, तो **एडमिन → ट्रांसकोडिंग**
   में **ट्रांसकोड कैश बजट (GB)** कम करें (डिफ़ॉल्ट `10`)। बजट जो भी हो, सफ़ाई
   करने वाला काम कैश वॉल्यूम पर 2 GiB खाली रखता है।
 
-## प्लगइन क्रैश हो गया
+## प्लगइन क्रैश हो गया { #a-plugin-crashed }
 
 **लक्षण**: कोई प्लगइन जवाब देना बंद कर देता है; लॉग में प्लगइन runner से panic
 दिखते हैं।
@@ -346,7 +346,7 @@ docker logs --since 30m evey-server 2>&1 | grep -iE 'plugin|pluginrunner|panic'
    `/data/plugins`)। खराब प्लगइन की डायरेक्टरी हटाएँ, रीस्टार्ट करें।
 5. panic का trace और प्लगइन का id प्लगइन बनाने वाले को भेजें।
 
-## कास्ट अटक गया, आवाज़ चली गई, या फ़ोन पर बस घूमता हुआ निशान दिखता है
+## कास्ट अटक गया, आवाज़ चली गई, या फ़ोन पर बस घूमता हुआ निशान दिखता है { #a-cast-froze-went-silent-or-the-phone-keeps-spinning }
 
 यहाँ सब कुछ **एडमिन → लॉग और डीबग** से पढ़ा जा सकता है; मशीन पर किसी शेल की
 ज़रूरत नहीं। समय UTC में हैं। हर संकेत (beacon) एक `player-client: playback
@@ -362,7 +362,7 @@ event reported` लाइन है, जिसमें `type=` और एक `d
    मतलब है कि एक नया LOAD चल रहे LOAD की जगह ले रहा है (कुछ सेकंड पहले का
    `StartStream` खोजें), `reason=ERROR` में प्लेयर की गड़बड़ी होती है। आखिरी
    `alive` के बाद कोई `finished` न होने का मतलब है कि रिसीवर का प्रोसेस गायब हो
-   गया, अक्सर एक Chromecast HD जिसे 20+ Mbps वाले copy master पर मेमोरी के लिए
+   गया, अक्सर एक Chromecast HD जिसे ऊँचे bitrate वाले copy master (जैसा देखा गया) पर मेमोरी के लिए
    बंद कर दिया गया।
 3. **फ़ोन ने क्या देखा?** `cast_sender_stall` खोजें: भेजने वाला
    `state=playing frozen=<n>s pos=<p>` भेजता है जब Cast SDK अब भी PLAYING कहता है
@@ -378,7 +378,7 @@ event reported` लाइन है, जिसमें `type=` और एक `d
    rung` (copy master का सबसे ऊँचा बिटरेट) और `plan fitted to the client's
    line` खोजें (रिसीवर का `maxKbps` माप या उसका `abr=floor` बचाव; उसके बाद आने
    वाले ट्रांसकोड master में वजह `client_line_exceeded` या `abr_floor_requested`
-   होती है)। जो सेशन 20+ Mbps वाले copy master पर शुरू हुआ और कुछ सेकंड बाद
+   होती है)। जो सेशन ऊँचे bitrate वाले copy master पर शुरू हुआ और कुछ सेकंड बाद
    फ़िट किए गए 1080p rung पर आ गया, उसमें बचाव ठीक से काम कर रहा है; copy master पर
    फिर से शुरू होने वाला re-LOAD वह पैटर्न है जो Chromecast HD को बंद कर देता है।
 6. **सर्वर की तरफ़ कमी?** `on-demand resource refused` खोजें: लगातार सेगमेंट पर
@@ -390,7 +390,7 @@ event reported` लाइन है, जिसमें `type=` और एक `d
 सेशन में है (SDK, TV तक का नेटवर्क)। अगर रिसीवर के संकेत पहले रुकते हैं, तो
 टेलीविज़न देखें: मेमोरी, कोडेक, स्ट्रीम का बिटरेट।
 
-## किसी सेशन या असुरक्षित हुए डिवाइस को रोकना
+## किसी सेशन या असुरक्षित हुए डिवाइस को रोकना { #stop-a-session-or-a-compromised-device }
 
 **लक्षण**: **एडमिन → अभी चल रहा है** में कोई अनजान डिवाइस, या कोई उपयोगकर्ता
 अपनी सेशन सूची में किसी अनजान डिवाइस की शिकायत करता है।
@@ -420,7 +420,7 @@ event reported` लाइन है, जिसमें `type=` और एक `d
    [रिकवरी](recovery.md#give-a-user-a-new-password)), फिर खाते को दोबारा **सक्षम
    करें**।
 
-## लाइब्रेरी स्कैन अटक गया है
+## लाइब्रेरी स्कैन अटक गया है { #a-library-scan-is-stuck }
 
 **लक्षण**: कोई स्कैन घंटों से चलता हुआ दिखता है, और लॉग में किसी फ़ाइल की प्रगति
 नहीं दिखती।
@@ -443,7 +443,7 @@ event reported` लाइन है, जिसमें `type=` और एक `d
    sudo sysctl -p
    ```
 
-## कमांड की संक्षिप्त सूची
+## कमांड की संक्षिप्त सूची { #cheatsheet }
 
 ```sh
 # हर चीज़ की हालत

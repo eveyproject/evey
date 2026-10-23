@@ -1,5 +1,5 @@
 ---
-source_sha: 4bdba6d5067098c1afe18961724efcb0456688185654b46271045220a6665f03
+source_sha: 9c17a56bd4379a8c15fd8d637fe0c4914e9b9cf848503ddd72e806f574506caa
 reviewed: true
 ---
 # प्लगइन सैंडबॉक्स सेटअप { #plugin-sandbox-setup }
@@ -146,7 +146,7 @@ EVEY_PLUGINS_CPU_NICE=10                # scheduling प्राथमिकत
 docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
 # कोई चल रहा प्लगइन किस उपयोगकर्ता के रूप में चलता है (evey = सर्वर के साथ साझा,
-# evey-plugin = अलग); इमेज में ps नहीं है, इसलिए Docker से पूछें
+# evey-plugin = अलग); इमेज में ps है, इसलिए `docker exec evey-server ps` भी काम करता है
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 

@@ -17,22 +17,22 @@ side is in [Backups and updates](../backups.md) and
 
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
-| `EVEY_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. | Server Config → Server Settings → **Log Level**, live |
-| `EVEY_LOG_DIR` | `/data/logs` | Where the daily log file `evey-YYYY-MM-DD.log` is written. Set by the image. This file is the reference: `docker logs` shows the same stream, but Docker rotates it. | none |
+| `EVEY_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error`. | Server Config → General → **Log Level**, live |
+| `EVEY_LOG_DIR` | `/data/logs` | Where the daily log file `evey-YYYY-MM-DD.log` is written (with an hour suffix once a file passes 50 MB). Set by the image. This file is the reference: `docker logs` shows the same stream, but Docker rotates it. | none |
 | `EVEY_LOG_MAX_SIZE_MB` | `50` | Size of a log file before it rotates. | none |
 | `EVEY_LOG_RETENTION_DAYS` | `90` | Days log files are kept. | none |
 
 ## History retention
 
 The retention windows are read again by each daily cleanup, so a value saved
-in **Admin → Server Config → Server Settings** applies at the next sweep.
+in **Admin → Server Config → Data & retention** applies at the next sweep.
 
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
-| `EVEY_PLAY_SESSION_RETENTION_DAYS` | `0` (forever) | Finished playback sessions in the history. | Server Settings → **Play session history retention**, next sweep |
-| `EVEY_AUDIT_LOG_RETENTION_DAYS` | `0` (forever) | The audit log of administrative actions. | Server Settings → **Audit log retention**, next sweep |
-| `EVEY_METRICS_RETENTION_DAYS` | `90` | The server's resource samples (processor, memory, bandwidth). | Server Settings → **Server metrics retention**, next sweep |
-| `EVEY_QOE_RETENTION_DAYS` | `30` | The streaming quality reports of the players. | Server Settings → **Playback quality (QoE) retention**, next sweep |
+| `EVEY_PLAY_SESSION_RETENTION_DAYS` | `0` (forever) | Finished playback sessions in the history. | Server Config → Data & retention → **Play session history retention**, next sweep |
+| `EVEY_AUDIT_LOG_RETENTION_DAYS` | `0` (forever) | The audit log of administrative actions. | Server Config → Data & retention → **Audit log retention**, next sweep |
+| `EVEY_METRICS_RETENTION_DAYS` | `90` | The server's resource samples (processor, memory, bandwidth). | Server Config → Data & retention → **Server metrics retention**, next sweep |
+| `EVEY_QOE_RETENTION_DAYS` | `30` | The streaming quality reports of the players. | Server Config → Data & retention → **Playback quality (QoE) retention**, next sweep |
 | `EVEY_METRICS_SAMPLE_INTERVAL_SEC` | `60` | How often those resource samples are taken. | none |
 
 ## External monitoring

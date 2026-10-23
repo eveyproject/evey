@@ -1,5 +1,5 @@
 ---
-source_sha: 4bdba6d5067098c1afe18961724efcb0456688185654b46271045220a6665f03
+source_sha: 9c17a56bd4379a8c15fd8d637fe0c4914e9b9cf848503ddd72e806f574506caa
 reviewed: true
 ---
 # Configurar el sandbox de plugins { #plugin-sandbox-setup }
@@ -153,7 +153,7 @@ aparece con error: vuelve al modo anterior.
 docker exec evey-server getcap /evey-plugin-launcher        # cap_setuid=ep
 
 # con qué usuario se ejecuta un plugin en marcha (evey = compartido con el servidor,
-# evey-plugin = separado); la imagen no tiene ps, así que pregunta a Docker
+# evey-plugin = separado); la imagen tiene ps, así que `docker exec evey-server ps` también funciona
 docker top evey-server -o user,pid,args | grep -iE "node|python"
 ```
 

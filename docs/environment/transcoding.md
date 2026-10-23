@@ -41,7 +41,7 @@ variable: they are set in **Admin → Transcoding** only.
 
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | The size of the whole transcoding cache (segments, remuxes, prepared downloads), least recently used removed first. | Server Config → Server Settings → **Transcode cache budget**, restart |
+| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | The size of the whole transcoding cache (segments, remuxes, prepared downloads), least recently used removed first. | Transcoding → **Transcode cache budget**, restart |
 | `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | Free space kept on the disk of the cache. Below it, idle segments are evicted, then new segments are refused rather than written; extracted subtitles stop being stored and administrators are notified. `0` turns the margin off. See [The transcoding cache](../playback/transcoding.md#the-transcoding-cache). | none |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | Where it lives. Set by the image. | none |
 | `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | Where the seek bar thumbnails live. Set by the image: they are expensive to regenerate, so they stay in `/data`. | none |

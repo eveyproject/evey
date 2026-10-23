@@ -1,8 +1,8 @@
 ---
-source_sha: 9f40858672d5badb8f1ffd97cf815109f93c3034126c5d4e6841092d5caf818a
+source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
 reviewed: true
 ---
-# Berechtigungen und Slots
+# Berechtigungen und Slots { #permissions-and-slots }
 
 Für Plugin-Autoren: was ein Manifest angeben darf, was der Installer prüft
 und welche Regeln für ein Plugin zur Laufzeit gelten. Der Katalog unten ist
@@ -10,7 +10,7 @@ die Liste, aus der Sie wählen. Wie der Server ein Plugin isoliert und was
 diese Isolierung nicht verhindern kann, steht in
 [Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md).
 
-## Was bei der Installation geprüft wird
+## Was bei der Installation geprüft wird { #what-is-checked-at-install }
 
 Ein Plugin wird bei der Installation abgelehnt, wenn:
 
@@ -31,16 +31,16 @@ Ein Plugin wird bei der Installation abgelehnt, wenn:
   Verschleierung). Kompilierte Binärdateien, eingebettete Archive und nativer
   Code werden abgelehnt, außer das Manifest gibt `native-binary` an.
 
-Die Analyse liest auch Kommentare: Eine Zeile `# pip install foo` in einem
-Kommentar wird wie echter Code gemeldet. Entfernen Sie solche Zeilen vor der
-Veröffentlichung. Die Kategorien stehen in
+Kommentare werden vor der Analyse entfernt, eine auskommentierte Zeile wird
+also nicht gemeldet. Die Kategorien stehen in
 [Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md#static-analysis).
 
 Vor der Installation sieht der Administrator die angegebenen
-Berechtigungen, Slots und Hosts und was die Analyse gefunden hat. Nichts, was
+Berechtigungen und Fähigkeiten und was die Analyse gefunden hat; Slots, Hosts
+und Signatur zeigen sich beim Update und im Sicherheits-Dashboard. Nichts, was
 ein Plugin angibt, wird stillschweigend gewährt.
 
-## Unter welchen Bedingungen das Plugin läuft
+## Unter welchen Bedingungen das Plugin läuft { #what-the-plugin-runs-under }
 
 Egal, was das Manifest angibt:
 
@@ -58,7 +58,7 @@ Signieren ist während der Entwicklung freiwillig. Wie Sie ein Plugin
 signieren und welche Signaturregel ein Server durchsetzen kann:
 [Ein Plugin schreiben](dev-setup.md#7-sign-your-plugin).
 
-## Katalog der Berechtigungen
+## Katalog der Berechtigungen { #permissions-catalog }
 
 Eine Berechtigung wird unter `permissions` angegeben. Jeder andere Wert
 führt zur Ablehnung der Installation. Webhooks empfangen (`webhook.receiver`)
@@ -80,23 +80,25 @@ unter `capabilities` angegeben: siehe
 | `notification.sender` | Für `SendNotification` reserviert, heute nicht bedient. |
 | `public` | Die Oberfläche darf eine sichere Projektion der Medien lesen (id, Titel, Typ, Jahr, Inhaltsangabe, Poster), nie Pfade oder Streams. Siehe [`evey.media.*`](api-reference.md#eveymedia-permission-public). |
 | `prefs` | Die Oberfläche darf die Einstellungen des aktuellen Benutzers im eigenen Namensraum des Plugins lesen und schreiben. Siehe [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs). |
-| `hardware.gpu` | Der Prozess bekommt den DRM-Render-Knoten des Hosts (den echten `renderD1xx`, nie einen Card-Knoten). Das ist eine Angriffsfläche auf den Kernel-Treiber und eine GPU-Speichergrenze, die er mit dem Transcoder teilt: Eine hängende GPU kann die Transkodierung blockieren. Ohne diese Berechtigung sind GPU-Knoten ganz aus der Landlock-Freigabeliste ausgeschlossen. Mit ihr fügt der Launcher eine `IOCTL_DEV`-Regel hinzu, die nur für diese eine Datei gilt (Landlock ABI 5 oder neuer; bei älteren Kerneln erlaubt schon der Lese- und Schreibzugriff, Befehle abzuschicken). Die Vorschau zeigt eine kritische Warnung. Gewähren Sie sie nur Plugins, die Sie auch ohne Sandbox laufen lassen würden. |
+| `hardware.gpu` | Der Prozess bekommt den DRM-Render-Knoten des Hosts (den echten `renderD1xx`, nie einen Card-Knoten). Das ist eine Angriffsfläche auf den Kernel-Treiber und eine GPU-Speichergrenze, die er mit dem Transcoder teilt: Eine hängende GPU kann die Transkodierung blockieren. Ohne diese Berechtigung sind GPU-Knoten ganz aus der Landlock-Freigabeliste ausgeschlossen. Mit ihr fügt der Launcher eine `IOCTL_DEV`-Regel hinzu, die nur für diese eine Datei gilt (Landlock ABI 5 oder neuer; bei älteren Kerneln erlaubt schon der Lese- und Schreibzugriff, Befehle abzuschicken). Das Sicherheits-Dashboard zeigt eine kritische Warnung, sobald das Plugin installiert ist. Gewähren Sie sie nur Plugins, die Sie auch ohne Sandbox laufen lassen würden. |
 
-## Regeln für externe Abrufe
+## Regeln für externe Abrufe { #external-fetch-rules }
 
 Angegeben in `external_fetch: [...]` und bei der Installation geprüft
 (`validateExternalFetch`). Alles oder nichts: Ein ungültiger Eintrag lehnt
 die ganze Installation ab.
 
-Ein Eintrag ist ein **reiner Hostname**. Ein vorangestelltes Schema wird
-geduldet und verworfen; nur der Hostname bleibt.
+Ein Eintrag ist ein **Hostname**. Ein vorangestelltes Schema und ein
+abschließender Pfad werden beim Einlesen verworfen; nur der Hostname bleibt.
+Hosts müssen exakt passen, ein Platzhalter `*.example.com` wird bei der Installation abgelehnt
+und ein Port-Suffix wird ignoriert.
 
 | Eintrag | Gültig | Grund |
 |---|---|---|
 | `api.tmdb.org` | Ja | Genauer Hostname, die normale Form |
-| `https://api.tmdb.org` | Ja | Schema erkannt und verworfen, Hostname bleibt |
-| `*.tmdb.org` | Nein | Platzhalter werden abgelehnt: Listen Sie jede Subdomain auf, die Sie brauchen |
-| `*` | Nein | Dieselbe Regel |
+| `https://api.tmdb.org` | Ja | Schema und Pfad beim Einlesen verworfen, Hostname bleibt |
+| `*.tmdb.org` | Nein | Platzhalter werden bei der Installation abgelehnt; jeden Host einzeln auflisten |
+| `*` | Nein | Ein einzelner Platzhalter wird abgelehnt |
 | `192.168.1.1`, `::1` | Nein | IP-Adressen werden abgelehnt, beide Familien |
 
 Zur Laufzeit setzt der Vermittler des Hosts eigene Grenzen, die das
@@ -111,7 +113,7 @@ Dieselbe Hostliste ist das `connect-src` des Frames des Plugins, jeweils mit
 `https://` davor: Ein Widget darf diese Hosts direkt aufrufen, nur über
 `https`.
 
-## Liste der erlaubten Slots
+## Liste der erlaubten Slots { #slot-whitelist }
 
 Plugins dürfen Oberfläche nur in ausdrücklich erlaubte Slots einfügen.
 Kritische Bereiche fehlen absichtlich.
@@ -145,7 +147,7 @@ keinen Token: Der Host stellt für die Aufrufe `public` und `prefs` einen
 Token für fünf Minuten aus, begrenzt auf (Plugin, Benutzer), und der Server
 lehnt standardmäßig jede Methode ab, die dieser Token nicht nennt.
 
-## Ablauf eines Updates
+## Ablauf eines Updates { #update-workflow }
 
 1. Der Administrator lädt ein neues ZIP hoch. `PreviewPluginUpdate` führt
    die statische Analyse und die Signaturprüfung aus und liefert den
@@ -162,7 +164,7 @@ lehnt standardmäßig jede Methode ab, die dieser Token nicht nennt.
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
-analysis reads comments: docs/SECURITY.md (Static analysis)
+comments stripped before analysis: docs/SECURITY.md (Static analysis) ; internal/adapters/driven/pluginrunner/analyzer_normalize.go
 subprocess, deny-fork, deny-inet, render-dev: cmd/evey-plugin-launcher/main.go ; i18n admin.plugins.subprocessWarning
 resource defaults: internal/config/config.go - Plugins
 permission per RPC: internal/adapters/driving/grpcapi/plugin_interceptor.go ; served or not: internal/adapters/driving/pluginhost/host_server.go

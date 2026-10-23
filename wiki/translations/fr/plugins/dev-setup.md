@@ -1,5 +1,5 @@
 ---
-source_sha: da65fca181dde1325e9e1ed9a14213c8008dd3d87fd749779b7c965baa24a1fa
+source_sha: 285bdd60357aba1d3d0a25ee9fb2cbf8e882085af6ffee596e41d15bab4c8465
 reviewed: true
 ---
 # Écrire un plugin { #writing-a-plugin }
@@ -49,13 +49,14 @@ Python, Node.js, PHP, Ruby et Lua ; l'image `-nodejs` garde Python et Node.js
 et l'image `-lean` ne garde que Python. Un manifeste qui nomme un environnement absent de l'image est refusé
 à l'installation, avec la liste des environnements disponibles.
 
-Le contrat gRPC tient dans un fichier, `proto/plugin/v1/plugin_api.proto`. Des
-stubs sont générés pour Python, Node.js, PHP, Ruby, Dart, Java et Swift sous
-`sdk/<langage>/`, et le serveur copie les stubs de votre langage à côté de
-votre point d'entrée au démarrage du plugin : un plugin Node.js ou Python n'a
-rien à embarquer, l'image fournit `@grpc/grpc-js` et `@grpc/proto-loader` aux
-plugins Node.js et `grpcio` aux plugins Python. Pour un autre langage, générez
-les stubs avec `protoc` et livrez-les dans le ZIP :
+Le contrat gRPC tient dans un fichier, `proto/plugin/v1/plugin_api.proto`. Seul
+le SDK Python livre des stubs générés ; les autres langages sous
+`sdk/<langage>/` contiennent le `.proto`. Le serveur copie les fichiers de
+votre langage à côté de votre point d'entrée au démarrage du plugin. L'image
+fournit `grpcio` aux plugins Python, qui n'ont donc rien à embarquer. Un plugin
+Node.js doit embarquer son `node_modules` (`@grpc/grpc-js` et
+`@grpc/proto-loader`) dans le paquet. Pour un autre langage, générez les stubs
+avec `protoc` et livrez-les dans le ZIP :
 
 ```bash
 protoc --proto_path=proto \
@@ -133,7 +134,7 @@ et l'installons.
    dans un sous-dossier :
 
     ```sh
-    zip -r ../hello-plugin.zip . -x ".*" "node_modules/*"
+    zip -r ../hello-plugin.zip . -x ".*"
     ```
 
 5. **Installez-le.** Dans **Administration → Plugins**, **Installer un plugin**,
@@ -206,8 +207,8 @@ de courte durée que l'hôte détient pour le cadre.
 
 ## 6. Accéder à l'extérieur { #6-reach-the-outside-world }
 
-Un processus de plugin ne peut ouvrir aucun socket vers Internet, quel que
-soit le mode de sandbox. Le seul accès possible est l'appel `Fetch` de
+Un processus de plugin ne peut ouvrir aucun socket vers Internet, dans tous
+les modes où le lanceur tourne (`basic` sans le lanceur interdit seulement `execve`). Le seul accès possible est l'appel `Fetch` de
 `HostService` : le serveur vérifie la cible contre le manifeste, puis fait la
 requête lui-même.
 
@@ -227,7 +228,7 @@ Les règles sont dans
 [Permissions et emplacements](security-model.md#external-fetch-rules).
 
 !!! note "Les hôtes sont un contrat avec l'administrateur"
-    L'administrateur voit la liste des hôtes à l'installation et doit
+    L'administrateur voit la liste des hôtes à la mise à jour et dans le Tableau de bord sécurité, et doit
     approuver tout ajout à la mise à jour. Limitez-la à ce dont le plugin a
     besoin, et indiquez dans votre README ce que chaque hôte reçoit.
 
@@ -290,8 +291,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # ou "enforce" pour refuser ce qui ne se véri
 
 Puis, dans **Administration → Plugins**, il choisit le ZIP et, dans **Fichier
 signature (.zip.sig, optionnel)**, son `.zip.sig` ; par l'API, la signature
-est le champ `sig` de l'envoi. L'aperçu affiche **Signé** ou une signature
-invalide, et le Tableau de bord sécurité conserve le résultat.
+est le champ `sig` de l'envoi. **Signé** ou une signature invalide s'affiche à la mise à jour, et le Tableau de bord sécurité conserve le résultat.
 
 Erreurs fréquentes :
 
@@ -345,8 +345,8 @@ journal du serveur contient le détail.
 
 Ce que cherche l'analyse est listé dans
 [Sandbox des plugins et modèle de menace](../SECURITY.md#static-analysis).
-Elle lit aussi les commentaires : une ligne `# pip install foo` dans un
-commentaire est signalée comme du code.
+Les commentaires sont retirés avant l'analyse : une ligne mise en commentaire
+n'est pas signalée.
 
 ## 9. Dans quelles conditions tourne votre processus { #9-what-your-process-runs-under }
 
@@ -358,8 +358,8 @@ l'administrateur dans **Administration → Plugins → Limites de ressources**. 
 permission `subprocess`, le processus ne peut pas créer d'enfants, quel que
 soit le langage ; les threads fonctionnent.
 
-La sandbox confine le système de fichiers au dossier du plugin et bloque tout
-socket réseau, sans condition. Le mode en vigueur dépend de l'hôte, pas du
+Dans tous les modes où le lanceur tourne, la sandbox confine le système de fichiers au dossier du plugin et bloque tout
+socket réseau (`basic` sans le lanceur interdit seulement `execve`). Le mode en vigueur dépend de l'hôte, pas du
 plugin : [Sandbox des plugins et modèle de menace](../SECURITY.md#sandbox-modes)
 les décrit, et [Mise en place de la sandbox des plugins](sandbox-deployment.md)
 indique à un administrateur lequel choisir.
@@ -372,7 +372,7 @@ l'endroit où vous le publiez (une release sur une forge, votre propre site).
 
 - Livrez le ZIP, son `.sig` et votre `cosign.pub` ensemble (section 7).
 - Indiquez les permissions et les hôtes `external_fetch` dans votre README :
-  l'administrateur les voit à l'installation et doit les approuver ; une
+  l'administrateur voit les permissions à l'installation, et les hôtes à la mise à jour et dans le Tableau de bord sécurité, et doit les approuver ; une
   surprise à cet endroit est la première cause de refus.
 - Pour faire figurer votre plugin parmi les exemples fournis, ouvrez une pull
   request contre `examples/plugins/` avec la source et un README. Les exemples

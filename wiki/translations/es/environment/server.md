@@ -1,8 +1,8 @@
 ---
-source_sha: 1632ea5df6d8e43d0a8895c8efa853e83316a37433cb8b556d00d317a9ee4951
+source_sha: f625c3059af6349cfcff4f14c85f17c7a0a8c26cfeb5772eca562bc3b66c1047
 reviewed: true
 ---
-# Servidor y red
+# Servidor y red { #server-and-network }
 
 Las variables que dicen dónde se publica el servidor, en qué proxies confía,
 quién puede llegar a él desde fuera y cuántas peticiones acepta. La mayoría
@@ -10,16 +10,16 @@ se definen una sola vez en el archivo compose; lo que guarda después
 **Administración → Acceso remoto** tiene prioridad sobre ellas, como explica
 la [Referencia de configuración](../configuration.md).
 
-## Dirección y puertos
+## Dirección y puertos { #address-and-ports }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
 | `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | La dirección pública. Una dirección `https://` activa las cookies `Secure`, HSTS y la confianza en `X-Forwarded-Proto`. Los enlaces de los correos, las redirecciones del inicio de sesión único y las URL de envío a Chromecast se construyen a partir de ella. | Acceso remoto → **URL externa** tiene prioridad si está definida, inmediato; una URL externa en `https://` también activa HTTPS |
 | `EVEY_SERVER_PORT` | `9090` | El puerto gRPC interno. La API HTTP y la interfaz web escuchan en este puerto más uno (`9091`). | ninguno |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | La dirección en la que escucha el puerto gRPC. El control de acceso remoto no cubre gRPC, así que abrirlo más (`0.0.0.0`) escribe un aviso en el registro y te deja a ti la tarea de protegerlo con un cortafuegos. | ninguno |
-| `EVEY_SERVER_NAME` | `Evey` | El nombre que aparece en la página de inicio de sesión, en la lista de servidores de las aplicaciones y en los correos. | Configuración del servidor → Ajustes del servidor → **Nombre del servidor**, inmediato |
+| `EVEY_SERVER_NAME` | `Evey` | El nombre que aparece en la página de inicio de sesión, en la lista de servidores de las aplicaciones y en los correos. | Configuración del servidor → General → **Nombre del servidor**, inmediato |
 
-## Proxy inverso
+## Proxy inverso { #reverse-proxy }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
@@ -30,7 +30,7 @@ la [Referencia de configuración](../configuration.md).
 Qué ajustes del proxy importan para la reproducción:
 [Configuraciones de proxy inverso](../reverse-proxy.md).
 
-## Acceso remoto
+## Acceso remoto { #remote-access }
 
 Estas variables sirven de punto de partida en el primer arranque; después,
 **Administración → Acceso remoto** guarda sus propios valores y los aplica
@@ -44,14 +44,14 @@ sin reiniciar. Cómo decide el control de acceso:
 | `EVEY_REMOTE_ACCESS_LAN_NETWORKS` | `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` | Redes que se consideran de casa. Añade un rango de VPN o de CGNAT (`100.64.0.0/10`) cuyos clientes deban contar como locales. | Acceso remoto → **Redes LAN (CIDR, separadas por comas)**, inmediato |
 | `EVEY_REMOTE_ACCESS_MAX_BITRATE_KBPS` | `0` | Un tope de bitrate para los clientes de fuera de casa, en kbit/s; `0` = sin tope. Una dirección privada nunca tiene tope. | Acceso remoto → **Bitrate remoto máximo (Kbps, 0 = ilimitado)**, inmediato |
 
-## Límites de peticiones
+## Límites de peticiones { #request-limits }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Intentos de inicio de sesión por dirección y por minuto. | Configuración del servidor → Ajustes del servidor → **Límite de inicio de sesión (sol./min)**, inmediato |
-| `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Peticiones a la API por dirección y por minuto. | Configuración del servidor → Ajustes del servidor → **Límite global (sol./min)**, inmediato |
+| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Intentos de inicio de sesión por dirección y por minuto. | Configuración del servidor → Cuentas y seguridad → **Límite de inicio de sesión (sol./min)**, inmediato |
+| `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Peticiones a la API por dirección y por minuto. | Configuración del servidor → Cuentas y seguridad → **Límite global (sol./min)**, inmediato |
 
-## Usuario del contenedor
+## Usuario del contenedor { #container-user }
 
 Las lee el punto de entrada, no el servidor.
 
@@ -59,7 +59,7 @@ Las lee el punto de entrada, no el servidor.
 | --- | --- | --- | --- |
 | `PUID`, `PGID` | propietario de los montajes `/media` | El usuario y el grupo con los que se ejecuta el servidor. `1001` se rechaza (reservado para los plugins). Detalles en la [Referencia de configuración](../configuration.md#file-ownership-puid-and-pgid). | ninguno |
 
-## Demo pública
+## Demo pública { #public-demo }
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |

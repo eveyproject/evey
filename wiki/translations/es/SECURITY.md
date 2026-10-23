@@ -1,8 +1,8 @@
 ---
-source_sha: 75cf2b4a2c51b96a797f8a84d750a9f124cdfb957c1ca9a4cfa98cba23edbab8
+source_sha: 8a52f7e82582b44f2cdf80dd9c91994d8bcde0cb532cefcb4f12e4930114a621
 reviewed: true
 ---
-# Sandbox de plugins y modelo de amenazas
+# Sandbox de plugins y modelo de amenazas { #plugin-sandbox-and-threat-model }
 
 Lo que hace el servidor para aislar a un plugin: las comprobaciones al
 instalar, las capas mientras funciona, los modos de sandbox, y lo que cada
@@ -12,14 +12,14 @@ sandbox), `cmd/evey-plugin-launcher` (Landlock y el filtro seccomp del
 núcleo), `sandbox/sandbox.c` (el filtro `LD_PRELOAD`) e
 `internal/adapters/driving/pluginhost` (la API del servidor a la que llaman
 los plugins); el diseño lo deciden
-[ADR-0012](adr/0012-plugin-token-deny-by-default.md),
-[ADR-0013](adr/0013-userspace-plugin-resource-monitor.md) y
-[ADR-0014](adr/0014-landlock-plugin-sandbox.md). Si escribes un plugin y
+[ADR-0012](https://github.com/eveyproject/evey/blob/master/docs/adr/0012-plugin-token-deny-by-default.md),
+[ADR-0013](https://github.com/eveyproject/evey/blob/master/docs/adr/0013-userspace-plugin-resource-monitor.md) y
+[ADR-0014](https://github.com/eveyproject/evey/blob/master/docs/adr/0014-landlock-plugin-sandbox.md). Si escribes un plugin y
 quieres saber qué puedes declarar y qué se rechazará, lee
 [Permisos y slots](plugins/security-model.md); para saber qué sandbox recibe
 tu máquina, lee [Configurar el sandbox de plugins](plugins/sandbox-deployment.md).
 
-## Modelo de amenazas
+## Modelo de amenazas { #threat-model }
 
 Los plugins funcionan como procesos separados que se comunican con el servidor por
 gRPC sobre sockets Unix. Por defecto, el servidor no confía en el código de
@@ -51,9 +51,9 @@ flowchart LR
     end
 ```
 
-## Al instalar
+## Al instalar { #at-install }
 
-### Extracción del ZIP
+### Extracción del ZIP { #zip-extraction }
 
 Antes de escribir ningún archivo (`pluginrunner/zip.go`):
 
@@ -64,7 +64,7 @@ Antes de escribir ningún archivo (`pluginrunner/zip.go`):
 - se rechazan los enlaces simbólicos;
 - se quitan los bits setuid, setgid y sticky.
 
-### Manifiesto y permisos
+### Manifiesto y permisos { #manifest-and-permissions }
 
 El manifiesto declara los permisos que pide un plugin. Un permiso desconocido
 hace que se rechace la instalación. Después se aplican:
@@ -77,23 +77,23 @@ hace que se rechace la instalación. Después se aplican:
 - **Los permisos de API** (`api.library`, `api.user`, `api.metadata`,
   `media.read`, `media.write`, `notification.sender`...) los comprueba en
   cada llamada al servidor
-  [`PluginPermissionInterceptor`](../internal/adapters/driving/grpcapi/plugin_interceptor.go).
+  [`PluginPermissionInterceptor`](https://github.com/eveyproject/evey/blob/master/internal/adapters/driving/grpcapi/plugin_interceptor.go).
 
 La lista completa está en [Permisos y slots](plugins/security-model.md#permissions-catalog).
 
-### Análisis estático
+### Análisis estático { #static-analysis }
 
 Cada archivo del paquete lo analiza
-[`pluginrunner.AnalyzePlugin`](../internal/adapters/driven/pluginrunner/analyzer.go),
+[`pluginrunner.AnalyzePlugin`](https://github.com/eveyproject/evey/blob/master/internal/adapters/driven/pluginrunner/analyzer.go),
 después de una pasada de normalización que deshace la ofuscación habitual
 (alias, concatenación de cadenas, f-strings):
 
 | Categoría | Gravedad | Ejemplos |
 |---|---|---|
-| `shell_exec` | CRITICAL | `os.system`, `subprocess.run`, `child_process.exec`, PHP `system()`/`shell_exec()`/`proc_open()`, `preg_replace /e`, comillas invertidas de Ruby, `open('\|cmd')` |
+| `shell_exec` | WARNING / CRITICAL | `os.system`, `subprocess.run`, `child_process.exec`, PHP `system()`/`shell_exec()`/`proc_open()`, `preg_replace /e`, Ruby `Kernel.exec`/`system`, `open('\|cmd')` (CRITICAL); comillas invertidas de Ruby (WARNING) |
 | `network` | WARNING / CRITICAL | `requests.get`, `fetch`, shells inversas y de escucha |
 | `filesystem` | WARNING / CRITICAL | `/etc/passwd`, `.ssh/`, `rm -rf`, operaciones con enlaces simbólicos |
-| `obfuscation` | CRITICAL | `eval`, decodificación base64, secuencias hexadecimales, `__builtins__`, `base64 -d \| bash` |
+| `obfuscation` | WARNING / CRITICAL | `eval`, `__builtins__`, `base64 -d \| bash` y otras decodificaciones enviadas a un shell (CRITICAL); decodificación base64, secuencias hexadecimales (WARNING) |
 | `privilege` | CRITICAL | `setuid`, `chmod 4777`, `sudo`, enviar señales al PID 1 |
 | `cryptomining` | CRITICAL | `stratum+tcp`, `xmrig`, `cryptonight` |
 | `runtime_install` | CRITICAL | `pip install`, `npm install`, `curl ... \| sh` |
@@ -118,15 +118,14 @@ manifiesto declare `native-binary`.
     `Function.constructor`), cada uno con un caso de regresión en
     `tests/fixtures/plugins/malicious/`, pero no puede seguir todas las
     transformaciones que se hacen mientras el código funciona
-    (`strrev("metsys")`, decodificar una carga leída de un archivo). También
-    busca dentro de los comentarios: un comentario `# pip install foo` dispara
-    `runtime_install`. **La frontera que se impone es el sandbox en
+    (`strrev("metsys")`, decodificar una carga leída de un archivo). Los comentarios se
+    eliminan antes del análisis. **La frontera que se impone es el sandbox en
     funcionamiento, no el análisis**: un plugin con un patrón que el
     análisis no detecta sigue sin poder leer los datos del servidor, hacer una
     llamada al sistema prohibida, superar sus límites de recursos ni llamar a
     un método del servidor para el que no tiene permiso.
 
-### Firma
+### Firma { #signature }
 
 Un paquete se puede firmar con cosign. `EVEY_PLUGINS_COSIGN_POLICY` fija lo
 que pasa cuando falla la verificación (`pluginrunner/cosign.go`):
@@ -139,12 +138,12 @@ que pasa cuando falla la verificación (`pluginrunner/cosign.go`):
 
 La clave pública la indica `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`.
 
-### Vista previa del administrador
+### Vista previa del administrador { #administrator-preview }
 
 `POST /api/v1/admin/plugins/preview` ejecuta el análisis sin instalar. El
 administrador ve los permisos pedidos, cada hallazgo con su archivo, su línea
 y su categoría, las URL encontradas en el código y el SHA256 del paquete; el
-mismo hash se comprueba cuando se aplica la instalación, así que el paquete
+hash que el administrador ha aceptado se comprueba al actualizar, y una primera instalación puede fijarse con un fragmento `#sha256:` en la URL, así que el paquete
 analizado es el paquete instalado. Una actualización muestra la diferencia de
 permisos, slots y hosts, y un permiso nuevo exige una aceptación explícita.
 
@@ -152,12 +151,12 @@ El administrador es la frontera de confianza para los permisos elevados:
 Evey muestra lo que el plugin podrá tocar, y el administrador acepta o
 rechaza.
 
-## En funcionamiento
+## En funcionamiento { #at-run-time }
 
 Seis capas se mantienen en todos los [modos de sandbox](#sandbox-modes);
 cómo se imponen las dos primeras depende del modo.
 
-### Sistema de archivos
+### Sistema de archivos { #filesystem }
 
 Un plugin ve su propia carpeta y la carpeta de su socket, y no los datos del
 servidor, gracias a una lista permitida de Landlock (`landlock`) o a una
@@ -166,7 +165,7 @@ lista blanca de montajes de bubblewrap (`bubblewrap`, `strict`). En el modo
 protege los secretos del servidor son el usuario aparte y los permisos de los
 archivos.
 
-### Red
+### Red { #network }
 
 Un plugin **no tiene acceso directo a la red**, declare lo que declare: se
 rechaza cualquier socket IP (`-deny-inet` en `landlock` y `basic`, un espacio
@@ -174,7 +173,7 @@ de nombres de red en `bubblewrap` y `strict`). Un plugin con el permiso
 `network` llama al método `Fetch` del servidor por su socket Unix. El
 servidor, en `internal/adapters/driving/pluginhost/fetch.go`:
 
-- comprueba el destino con la lista `external_fetch` del plugin (hosts exactos, sin distinguir mayúsculas de minúsculas);
+- comprueba el destino con la lista `external_fetch` del plugin (hosts exactos, sin distinguir mayúsculas de minúsculas; un comodín `*.example.com` se rechaza en la instalación; un sufijo de puerto se ignora);
 - solo permite `http` y `https`, y solo `GET` y `HEAD`;
 - se conecta con un cliente protegido contra SSRF (`internal/pkg/ssrf`) que
   rechaza las direcciones privadas, reservadas y de enlace local después de
@@ -195,17 +194,17 @@ Consulta [Límites conocidos](#known-limits).
     añade una segunda protección: bloquea `169.254.0.0/16` y limita la red interna
     a la base de datos y al servicio de búsqueda.
 
-### Llamadas al sistema
+### Llamadas al sistema { #system-calls }
 
 Dos filtros seccomp rechazan las mismas llamadas al sistema peligrosas:
 
 1. **El filtro del núcleo**, que instala
-   [`evey-plugin-launcher`](../cmd/evey-plugin-launcher) justo antes de
-   arrancar el plugin ([`seccomp_linux.go`](../cmd/evey-plugin-launcher/seccomp_linux.go)).
+   [`evey-plugin-launcher`](https://github.com/eveyproject/evey/blob/master/cmd/evey-plugin-launcher) justo antes de
+   arrancar el plugin ([`seccomp_linux.go`](https://github.com/eveyproject/evey/blob/master/cmd/evey-plugin-launcher/seccomp_linux.go)).
    Lo heredan el plugin y sus hijos y **cubre también los binarios
    compilados estáticos**. Una arquitectura que no coincide en una llamada
    al sistema mata el proceso. Se aplica en `landlock` y `basic`.
-2. **El filtro `LD_PRELOAD`**, [`sandbox/sandbox.c`](../sandbox/sandbox.c),
+2. **El filtro `LD_PRELOAD`**, [`sandbox/sandbox.c`](https://github.com/eveyproject/evey/blob/master/sandbox/sandbox.c),
    cargado en los plugins interpretados que no declaran `subprocess`.
    También rechaza `execve`/`execveat`, y marca el plugin como no volcable.
    Se aplica en `landlock`, `basic` y `strict`. Si falta la biblioteca, se
@@ -240,7 +239,7 @@ archivos, no seccomp. En `bubblewrap` no se usa el lanzador: ahí un binario
 estático no recibe ningún filtro seccomp, y lo contienen los espacios de
 nombres y la lista blanca de montajes.
 
-### Un usuario aparte
+### Un usuario aparte { #a-separate-user }
 
 Un plugin puede funcionar como el usuario 1001 (`evey-plugin`), distinto del
 servidor (1000), así que los secretos del servidor le resultan ilegibles solo
@@ -265,7 +264,7 @@ el servidor funciona, y eso se mantiene incluso con un `/data` montado desde
 el equipo anfitrión. Todos los plugins comparten el usuario 1001: los aísla
 entre sí la capa del sistema de archivos, no el usuario.
 
-### Autenticación del socket del servidor
+### Autenticación del socket del servidor { #host-socket-authentication }
 
 Cada plugin tiene su propio socket,
 `/tmp/evey/plugins/<plugin_id>/host.sock`, servido por su propio servidor
@@ -276,29 +275,29 @@ socket, nunca de una cabecera. Así que un plugin no puede hacerse pasar por
 otro, llamar al socket de otro plugin ni hacer pasar llamadas por un proceso
 hijo. Un PID que no coincide se anota como aviso.
 
-### Límites de recursos
+### Límites de recursos { #resource-limits }
 
 Un vigilante en el espacio de usuario (los cgroups no están disponibles en
 un contenedor sin privilegios) lee `/proc/<pid>` cada 2 segundos y detiene un
 plugin que supera un límite
-([ADR-0013](adr/0013-userspace-plugin-resource-monitor.md)):
+([ADR-0013](https://github.com/eveyproject/evey/blob/master/docs/adr/0013-userspace-plugin-resource-monitor.md)):
 
 | Límite | Por defecto | Se comprueba |
 |---|---|---|
 | memoria (RSS) | 256 MiB | en cada pasada |
-| procesos e hilos | 64 | en cada pasada |
+| procesos e hilos | 64 | en cada pasada (solo el número de hilos del proceso principal) |
 | disco usado por su carpeta | 100 MiB | cada 15 pasadas, unos 30 s |
 | prioridad de CPU | `nice` 10, aplicado al arrancar | - |
 
 La misma pasada señala un plugin que mantiene un núcleo de CPU por encima
 del 90 % durante unos 30 s, y detiene un plugin con `hardware.gpu` que
-mantiene igual de ocupado un motor gráfico. Los límites se fijan por plugin
-en **Administración → Plugins → Límites de recursos**; las variables de
+mantiene igual de ocupado un motor gráfico. Un único conjunto de límites de recursos, fijado
+en **Administración → Plugins → Límites de recursos**, se aplica a todos los plugins; las variables de
 entorno `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`,
 `EVEY_PLUGINS_DISK_MAX_MB` y `EVEY_PLUGINS_CPU_NICE` fijan los valores por
 defecto al arrancar.
 
-### Aislamiento de la interfaz
+### Aislamiento de la interfaz { #interface-isolation }
 
 La interfaz de un plugin funciona en un `<iframe sandbox="allow-scripts">`,
 sin acceso al mismo origen, sin formularios ni ventanas emergentes, bajo una
@@ -308,31 +307,31 @@ Content-Security-Policy que solo permite conexiones a sus hosts de
 pedir a la página: `toast` como mucho 3 por segundo, 200 caracteres, sin
 HTML; `navigate` solo acepta `/home`, `/library`, `/media`, `/player`,
 `/settings` y `/search`; `resize` entre 50 px (60 en móvil y TV) y 800 px.
-Los slots se comprueban al instalar y otra vez al mostrar la interfaz.
+Los slots se comprueban al instalar.
 
-### Refuerzo del servidor
+### Refuerzo del servidor { #server-hardening }
 
 Al arrancar, el servidor se marca como no volcable (`PR_SET_DUMPABLE=0`,
-[`hardening_linux.go`](../cmd/evey/hardening_linux.go)): un proceso que
+[`hardening_linux.go`](https://github.com/eveyproject/evey/blob/master/cmd/evey/hardening_linux.go)): un proceso que
 funciona con el mismo usuario no puede leer su memoria ni su entorno a
 través de `/proc`, lo que protege la clave de firma en memoria y las
 contraseñas de la base de datos y de la búsqueda, incluso en un núcleo sin
 Landlock.
 
-### Aviso de fallos
+### Aviso de fallos { #crash-notification }
 
 El ejecutor publica un evento `plugin.error` cuando falta la biblioteca del
 sandbox para un plugin que la necesita, o cuando un plugin termina con un
 error. El servicio de notificaciones se lo envía al administrador por los
 canales configurados, y el **Panel de seguridad** lo registra.
 
-## Modos de sandbox
+## Modos de sandbox { #sandbox-modes }
 
 El modo elige cómo se restringen el sistema de archivos y la red.
 `EVEY_PLUGINS_SANDBOX_MODE` fija el valor inicial (por defecto `auto`); se
 puede cambiar en **Administración → Plugins → Límites de recursos → Modo de
 sandbox**. El ejecutor lo aplica en
-[`applySandbox`](../internal/adapters/driven/pluginrunner/runner_sandbox.go).
+[`applySandbox`](https://github.com/eveyproject/evey/blob/master/internal/adapters/driven/pluginrunner/runner_sandbox.go).
 En todos los modos: ninguna salida IP directa, el vigilante de recursos y la
 autenticación del socket del servidor.
 
@@ -345,14 +344,14 @@ autenticación del socket del servidor.
 | Usuario aparte | con `on` | sí (`auto`) | espacio de nombres de usuario | espacio de nombres de usuario |
 | Límites de recursos | sí | sí | sí | sí |
 
-### `auto` (por defecto)
+### `auto` (por defecto) { #auto-default }
 
 Se resuelve, una vez, al arrancar el primer plugin, en el modo más fuerte
 que admite el equipo: **landlock** cuando el núcleo aplica Landlock *y* se
 encuentra el binario `evey-plugin-launcher` (junto al binario del servidor,
 en `$PATH` o en `EVEY_PLUGIN_LAUNCHER`); si no, **bubblewrap** cuando un
 sandbox de prueba se construye de verdad
-([`ProbeSandbox`](../internal/adapters/driven/pluginrunner/sandbox_probe.go)),
+([`ProbeSandbox`](https://github.com/eveyproject/evey/blob/master/internal/adapters/driven/pluginrunner/sandbox_probe.go)),
 lo que en la práctica significa sin contenedor o en un contenedor con
 privilegios; si no, **basic**. Landlock va primero porque no necesita ningún
 privilegio y funciona con el perfil de seguridad por defecto de Docker. El
@@ -365,7 +364,7 @@ host** de **Administración → Plugins → Panel de seguridad**.
 | Docker en un núcleo antiguo sin Landlock, p. ej. un NAS antiguo | `basic`: secretos protegidos y red cortada, pero los archivos legibles por todos quedan visibles. Consulta [Configurar el sandbox de plugins](plugins/sandbox-deployment.md). |
 | Sin contenedor | `bubblewrap`: el aislamiento más fuerte del sistema de archivos y de los procesos, sin filtro seccomp para los binarios estáticos. |
 
-### `landlock`
+### `landlock` { #landlock }
 
 - **Sistema de archivos:** una lista permitida de Landlock que aplica el
   lanzador. Las carpetas del sistema (`/usr`, `/lib`, `/lib64`, `/bin`,
@@ -382,7 +381,7 @@ host** de **Administración → Plugins → Panel de seguridad**.
   un equipo reciente). Un `landlock` explícito se niega a arrancar un plugin
   que no puede aislar.
 
-### `bubblewrap`
+### `bubblewrap` { #bubblewrap }
 
 - **Sistema de archivos y procesos:** seis espacios de nombres separados
   (`user`, `pid`, `uts`, `ipc`, `cgroup`, `net`) y una lista blanca de
@@ -409,11 +408,11 @@ host** de **Administración → Plugins → Panel de seguridad**.
   `mount`/`unshare`. En Docker eso exige un perfil de seguridad relajado, así
   que en la práctica es un modo para instalaciones sin contenedor.
 
-### `strict`
+### `strict` { #strict }
 
 `bubblewrap` más el filtro `LD_PRELOAD` (solo plugins interpretados).
 
-### `basic`
+### `basic` { #basic }
 
 El último recurso de `auto`: el usuario aparte, el filtro del núcleo, el
 filtro `LD_PRELOAD`, `-deny-inet` y Landlock si el núcleo lo tiene. En un
@@ -423,7 +422,7 @@ secretos del servidor siguen protegidos por el usuario aparte y
 `PR_SET_DUMPABLE`, la red está cortada y las llamadas al sistema peligrosas
 se rechazan, binarios compilados incluidos.
 
-## Configuración
+## Configuración { #configuration }
 
 | Variable | Por defecto | Efecto |
 |---|---|---|
@@ -431,7 +430,7 @@ se rechazan, binarios compilados incluidos.
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` u `off`. Incompatible con `no_new_privs` en el contenedor. |
 | `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` o `enforce`. |
 | `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | ninguna | La clave con la que se comprueban las firmas. |
-| `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Valores por defecto de los límites de recursos al arrancar; el panel los sustituye plugin por plugin. |
+| `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Valores por defecto de los límites de recursos al arrancar; el panel los sustituye, para todos los plugins a la vez. |
 
 La imagen oficial incluye `evey-plugin-launcher` (Landlock y el filtro del
 núcleo) y `bubblewrap`. bubblewrap necesita además espacios de nombres de
@@ -439,19 +438,19 @@ usuario sin privilegios en el equipo. Qué configuración va con qué máquina,
 en palabras sencillas:
 [Configurar el sandbox de plugins](plugins/sandbox-deployment.md).
 
-## Límites conocidos
+## Límites conocidos { #known-limits }
 
 | Límite | Consecuencia | Lo que lo limita hoy |
 |---|---|---|
 | Sin restricción por ruta en `basic` en un núcleo sin Landlock | Un plugin puede leer los archivos no sensibles legibles por todos y las carpetas de los otros plugins | Secretos protegidos por el usuario aparte y `PR_SET_DUMPABLE`; `auto` prefiere Landlock o bubblewrap |
-| Todos los plugins comparten el usuario 1001 | Un plugin puede enviar señales a los otros plugins (enviarlas al servidor se rechaza) | `PR_SET_DUMPABLE` impide leer otros procesos por `/proc`; Landlock y bubblewrap aíslan las carpetas de los plugins |
+| Todos los plugins comparten el usuario 1001 | En modo `basic`, un plugin puede leer archivos que pertenecen a los otros plugins | Enviar señales a otros procesos está bloqueado (seccomp, `LD_PRELOAD` y bubblewrap lo bloquean); `PR_SET_DUMPABLE` impide leer otros procesos por `/proc`; Landlock y bubblewrap aíslan las carpetas de los plugins |
 | Seccomp es una lista de bloqueo | Las llamadas de archivos y de sockets Unix siguen permitidas | Las rutas las restringen Landlock o bubblewrap; los sockets IP se rechazan |
 | El intermediario traslada al servidor la superficie SSRF | Un fallo en la validación del intermediario podría llegar a una dirección interna | Lista permitida y cliente protegido contra SSRF en Go; una regla de salida en el contenedor como capa independiente |
 | El intermediario controla adónde va una llamada, no lo que lleva | Los datos pueden salir hacia un host de la lista del plugin | Permite solo los hosts a los que confiarías esos datos |
 | El análisis funciona con patrones | Una ofuscación deliberada puede esconder código | Vista previa del administrador; la frontera es el sandbox, no el análisis |
 | `LD_PRELOAD` solo cubre los plugins dinámicos e interpretados | No cubre un binario estático en `basic` sin el lanzador | La imagen oficial siempre incluye el lanzador, cuyo filtro del núcleo cubre los binarios estáticos |
 
-## Exposición a la red (fuera del modelo de amenazas de los plugins)
+## Exposición a la red (fuera del modelo de amenazas de los plugins) { #network-exposure-outside-the-plugin-threat-model }
 
 Dos reglas fijas deciden quién puede llegar al servidor:
 
@@ -473,7 +472,7 @@ Dos reglas fijas deciden quién puede llegar al servidor:
 Consulta [Acceso remoto y HTTPS](administration/remote-access.md) y
 [Servidor y red](environment/server.md#remote-access).
 
-## Lo que pueden contener los registros
+## Lo que pueden contener los registros { #what-the-logs-may-contain }
 
 El registro del servidor alimenta **Registros y depuración**, los informes de
 errores y las copias de seguridad, así que las credenciales se borran al
@@ -486,11 +485,11 @@ código: nunca registres un valor no secreto con un nombre de clave secreto
 (se enmascarará), y añade a esa lista cualquier tipo nuevo de credencial
 antes de que llegue a registrarse.
 
-## Informar de una vulnerabilidad
+## Informar de una vulnerabilidad { #reporting-a-vulnerability }
 
 Infórmala en privado, nunca en una incidencia pública:
 `security@eveyproject.org`, la dirección de la
-[política de seguridad](../SECURITY.md) del repositorio. Cubre la
+[política de seguridad](https://github.com/eveyproject/evey/blob/master/SECURITY.md) del repositorio. Cubre la
 autenticación de los plugins, los permisos y las fugas del sandbox como
 cualquier otra cosa. No hagas pruebas contra instancias de Evey que no sean
 tuyas.

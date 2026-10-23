@@ -19,7 +19,7 @@ media player needs to work:
 - what you browse, search, play, rate, favourite or request, and your playback
   position, so you can resume on another device;
 - the name of the device (as Android reports it), so you can tell your devices
-  apart in **Play On** and in the server's list of sessions;
+  apart in **Play on** and in the server's list of sessions;
 - technical playback reports: which audio and video formats the device can
   decode, and errors met while playing, so the server can pick a stream the
   device can play;
@@ -50,8 +50,7 @@ has no access to it.
 
 ## What stays on the device
 
-The server address, your session token (in Android's encrypted storage), your
-preferences, and the films and music you download for offline viewing. Removing
+The server address, your session token and, if you tick remember me, your username and password (in Android's encrypted storage, the Android keystore), your preferences, and the films and music you download for offline viewing. Removing
 the app removes them. Biometric unlock (fingerprint or face), when you turn it
 on, is handled by Android: the app only learns whether it succeeded.
 
@@ -63,6 +62,10 @@ on, is handled by Android: the app only learns whether it succeeded.
 | Camera | Scan a Quick Connect QR code. Nothing is recorded or sent. |
 | Notifications, foreground service | Show playback and download progress, keep playing with the screen off. |
 | Biometrics | Optional app lock. |
+| Modify audio settings | Adjust playback audio (volume handling) while a film plays. |
+| Keep awake (wake lock) | Keep the device from sleeping during playback. |
+| Vibrate | Haptic feedback in the app. |
+| Read and write external storage (Android 12 and older only) | Save and read your offline downloads on those Android versions. |
 
 The phone app does not have the microphone permission.
 

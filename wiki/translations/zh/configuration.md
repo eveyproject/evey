@@ -1,5 +1,5 @@
 ---
-source_sha: bcd1fe92a6c6837ce30d66edf387d4539752382b0a9f6038a14c15967da4eb32
+source_sha: 822f2e4e87b78c5d8f5b5509badc1a7c70b7d5fe0c6a2b84d574662a66b8ba95
 reviewed: true
 ---
 # 配置参考 { #configuration-reference }
@@ -31,7 +31,7 @@ reviewed: true
 - 在**面板**里修改，大多数设置会实时生效（服务器名称、日志级别、速率限制、硬件加速、SMTP、单点登录、
   远程访问、插件限制；保留期限在下一次每日清理时生效）。
 - 面板会把**启动时读取**的设置标上*重启后生效*：媒体库文件监视和扫描间隔、转码缓存预算、
-  转码页面的**高级限制**卡片、片头跳过提供商，以及**配置条目**里的每一行。保存会记录您的选择，重启才会生效。
+  转码页面的**高级限制**卡片、片头跳过提供商，以及**配置条目**里已知的运维开关（其他键的行不显示该提示）。保存会记录您的选择，重启才会生效。
 
 各个主题页面里的每张表格都有一列**面板**：写着字段的位置（从**管理**开始），以及它是实时生效还是重启后生效；
 如果变量在面板里没有对应的设置，就写“无”。
@@ -80,7 +80,7 @@ Evey 内置了一个 TMDB 密钥。`EVEY_TMDB_API_KEY` 可以提供您自己的�
 | `EVEY_KEYFRAME_BACKFILL=on` | 除了 `off` 以外的任何值都会开启它，不设置也一样。 |
 | `LIBVA_DRIVER_NAME` | libva 根据 GPU 的 PCI id 选择驱动。只有当您的显卡需要一个 libva 不会自动选择的驱动时，才需要强制指定（用 `docker exec evey-server vainfo` 确认）。 |
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` 会选择您的主机支持的最强隔离方式。只有当您想要“无法隔离就拒绝”（*fail-closed*）的保证时，才需要明确设置：`landlock` 会拒绝运行它无法隔离的插件，而 `auto` 会降级并给出警告。 |
-| 为 `/dev/dri/card0` 添加的 `group_add` | Evey 只会打开 `renderD128`。用 `ls -ln /dev/dri` 查看，只添加那一个组。 |
+| 为 `/dev/dri/card0` 添加的 `group_add` | Evey 只会打开渲染节点（`/dev/dri/renderD*`，主机上有哪个就是哪个），从不打开 `card*`。用 `ls -ln /dev/dri` 查看，只添加渲染节点所属的组。 |
 
 ## 文件所有者（PUID 和 PGID） { #file-ownership-puid-and-pgid }
 
@@ -98,7 +98,7 @@ server as that user so write features (seek-index repair) work out of the box
 如果媒体挂载目录属于**不同的用户**，服务器会尽力处理：它采用拥有挂载目录最多的那个用户，
 并把其他挂载目录的组加为附加组，这样，只要那些挂载目录里的文件允许组写入，修复就能进行
 （启动时的警告会列出哪些挂载目录仍可能拒绝写入）。只有当所有媒体挂载目录都属于 root，
-或者属于保留的 uid `1001` 时，自动检测才会完全不生效（改用 `1000:1000`，并给出警告）。
+或者在启用插件时属于保留的 uid `1001` 时，自动检测才会完全不生效（改用 `1000:1000`，并给出警告）。
 这时，请把您的媒体 chown 给一个普通用户，或者在 compose 文件的 `environment:` 下明确设置 `PUID`/`PGID`：
 
 ```yaml title="docker-compose.yml"
@@ -121,7 +121,7 @@ services:
 这时，需要由您自己保证 `./evey-data` 对这个 UID 可写。
 
 !!! note
-    `PUID=1001` 会被拒绝：它是内部的 `evey-plugin` 用户，单独留出来，是为了让插件永远不会和服务器使用同一个身份。
+    启用插件时，`PUID=1001` 会被拒绝：它是内部的 `evey-plugin` 用户，单独留出来，是为了让插件永远不会和服务器使用同一个身份。
     媒体默认以读写方式挂载，这样修复可以直接进行；如果您希望媒体库只读，请在媒体卷后面加上 `:ro`
     （这时修复会失败，并给出明确的错误）。
 
@@ -130,7 +130,7 @@ services:
 有些变量出现在 compose 文件里，但服务器并不读取：
 
 - `EVEY_HTTP_PORT`、`EVEY_DOMAIN`、`MEDIA_DIR`：由代码仓库自带的 `docker-compose.yml` 使用
-  （对外发布的端口、随附的 Caddy 使用的域名、媒体路径），不是由 Evey 使用。`EVEY_VERSION` 在那里是镜像标签；
+  （对外发布的端口、随附的 Caddy 使用的域名、媒体路径），不是由 Evey 使用。`EVEY_HTTP_PORT` 只是主机端口：容器始终监听 9091，compose 映射为 `${EVEY_HTTP_PORT:-9091}:9091`。`EVEY_VERSION` 在那里是镜像标签；
   只有当服务器的程序本身不带版本号时，服务器才会在 `/healthz` 上显示它。
 - `EVEY_WEB_DIR`（`/srv`，网页界面文件所在的位置），以及 `EVEY_DB_PASSWORD_FILE`、`MEILI_MASTER_KEY_FILE`、
   `EVEY_IMAGE_REPO`、`EVEY_IMAGE_RUNTIMES`：与镜像的目录结构相对应。不支持修改它们。

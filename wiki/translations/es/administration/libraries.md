@@ -1,8 +1,8 @@
 ---
-source_sha: ed64eaf04c09d740775060639c8ba122fb90d8ee17950d66a387a572c3fea16d
+source_sha: c6c0a67f7b17b0139429ba630a95b355b5cc39888b5eb6a2bfd603d38ca8cead
 reviewed: true
 ---
-# Bibliotecas y metadatos
+# Bibliotecas y metadatos { #libraries-and-metadata }
 
 Una **biblioteca** es un tipo de contenido (películas, series, música o
 fotos) guardado en una o varias carpetas. Evey lee las carpetas, reconoce
@@ -21,7 +21,7 @@ colecciones y las fuentes de metadatos.
   <figcaption><strong>Administración → Bibliotecas</strong>: una fila por biblioteca, con sus carpetas, su número de elementos y su último escaneo (interfaz en inglés).</figcaption>
 </figure>
 
-## Añadir una biblioteca
+## Añadir una biblioteca { #add-a-library }
 
 1. **Administración → Bibliotecas → Añadir biblioteca**.
 2. Ponle un **Nombre** y un **Tipo**. Guarda las películas y las series en
@@ -48,7 +48,7 @@ colecciones y las fuentes de metadatos.
     Así, una carpeta `/srv/media/films` de tu ordenador es `/media/films` en
     Evey. Una segunda carpeta de contenido (`/media2`) funciona igual.
 
-## Nombrar los archivos para que se reconozcan
+## Nombrar los archivos para que se reconozcan { #name-files-so-they-are-recognised }
 
 El escáner reconoce nombres como estos:
 
@@ -72,7 +72,7 @@ Si tus archivos llevan una palabra que Evey todavía no ignora, añádela en
 de edición adicionales** para frases. Se aplica a partir del siguiente
 escaneo.
 
-## Corregir un título equivocado o que falta
+## Corregir un título equivocado o que falta { #fix-a-wrong-or-missing-title }
 
 ¿Una película muestra el póster de otra película con el mismo nombre? La
 forma más rápida de arreglarlo:
@@ -104,7 +104,7 @@ ofrece:
   ninguna colección, cuando las otras películas de la saga ya están en la
   biblioteca.
 
-## Cómo se detectan los archivos nuevos
+## Cómo se detectan los archivos nuevos { #how-new-files-are-picked-up }
 
 No tienes que hacer nada: un archivo nuevo, renombrado o borrado aparece en
 Evey en unos minutos.
@@ -120,25 +120,25 @@ biblioteca:
 ??? info "Cómo revisa el servidor las carpetas"
 
     - El servidor lee todas las bibliotecas cada vez que arranca, y después
-      cada 2 minutos (**Administración → Configuración del servidor →
-      Configuración del servidor → Intervalo de escaneo periódico**, se
+      cada 2 minutos (**Administración → Configuración del servidor → Bibliotecas → Intervalo de escaneo periódico**, se
       aplica al reiniciar). Mientras se reproduce algo, espera 15 minutos
       entre lecturas para no ralentizar la reproducción.
     - El sistema también puede avisar al servidor cuando cambia un archivo
-      (**Administración → Configuración del servidor → Configuración del
-      servidor → Monitor de archivos de biblioteca**), en las bibliotecas que
+      (**Administración → Configuración del servidor → Bibliotecas → Monitor de archivos de biblioteca**), en las bibliotecas que
       tienen activada la supervisión en tiempo real. Para comprobar que esto
       sigue funcionando, escribe un pequeño archivo de prueba en la carpeta
       durante unos segundos. Una biblioteca en la que se ha comprobado que
       funciona se lee una vez por hora en lugar de cada 2 minutos.
-    - Las bibliotecas creadas desde el panel no usan el monitor de archivos:
-      las lecturas cada 2 minutos encuentran sus archivos.
+    - Las bibliotecas creadas desde el panel web no usan el monitor de archivos:
+      las lecturas cada 2 minutos encuentran sus archivos. El formulario de
+      administración de la app del teléfono tiene, para una biblioteca, un
+      interruptor **Monitoreo en tiempo real**.
 
 !!! note "Carpetas compartidas en red"
     En una carpeta compartida NFS o SMB, un archivo escrito por otra máquina
     no envía ninguna señal al servidor. Las lecturas regulares lo encuentran.
 
-## Bibliotecas de música
+## Bibliotecas de música { #music-libraries }
 
 El escáner lee archivos MP3, FLAC, M4A, OGG, Opus, WAV y AAC, y toma los
 datos de cada pista de sus etiquetas: título (el nombre del archivo si
@@ -157,7 +157,7 @@ La portada es la imagen incluida en los archivos; si no hay, una imagen de
 la carpeta del álbum (`cover.jpg`, `folder.jpg` o `front.jpg`); si no,
 Cover Art Archive (encontrada a través de MusicBrainz); y si no, iTunes.
 
-## Bibliotecas de fotos
+## Bibliotecas de fotos { #photo-libraries }
 
 El escáner lee archivos JPEG, PNG, HEIC, WebP, GIF, TIFF y BMP. El álbum de
 una foto es su carpeta, relativa a la carpeta de la biblioteca; una foto que
@@ -167,7 +167,7 @@ modelo de cámara salen de los datos EXIF de los archivos JPEG; los demás
 formatos aparecen sin ellos. Las miniaturas se redimensionan en el servidor
 y se guardan en la caché de transcodificación.
 
-## Colecciones
+## Colecciones { #collections }
 
 **Colecciones** reúne títulos bajo un mismo nombre, para todas las cuentas.
 Hay tres tipos:
@@ -187,7 +187,7 @@ verlas, y **Descargar colección** en la web descarga los archivos originales
 en un solo ZIP (hasta 1000 títulos), sin lo que ocultan el acceso a
 bibliotecas o el límite de edad de la cuenta.
 
-## Claves de metadatos
+## Claves de metadatos { #metadata-keys }
 
 Evey trae una clave de TMDB, así que los metadatos funcionan sin configurar
 nada. Las otras fuentes son opcionales. Para usarlas, consigues una clave
@@ -203,7 +203,7 @@ puesta ahí tiene prioridad sobre la misma clave dada en el entorno (ver
 | OpenSubtitles | Buscar y descargar subtítulos que un archivo no trae, a través de la API del servidor (las apps todavía no lo ofrecen). Ver [Subtítulos](../playback/subtitles.md). |
 | TheIntroDB | Los tiempos de intro, resumen y créditos de una base de datos comunitaria: 500 consultas al día con clave en lugar de 100 sin ella. |
 
-## Intro, resumen y créditos
+## Intro, resumen y créditos { #intro-recap-and-credits }
 
 Evey encuentra la intro, el resumen y los créditos de los episodios y las
 películas, para que los reproductores ofrezcan saltarlos. Los tiempos vienen
@@ -214,8 +214,7 @@ la detección.
 
 Los reproductores muestran por defecto los botones **Saltar intro**,
 **Saltar resumen** y **Saltar créditos**. **Saltar intros automáticamente**
-(**Administración → Configuración del servidor → Configuración del
-servidor**, desactivado por defecto) hace que todos los reproductores las
+(**Administración → Configuración del servidor → Bibliotecas**, desactivado por defecto) hace que todos los reproductores las
 salten solos.
 
 <!-- sources

@@ -6,13 +6,17 @@ instead of inventing it.
 
 ## What CI does with a tag (read this before tagging)
 
-`.github/workflows/ci.yml` builds and publishes images on every push and on
-every `v*.*.*` tag, in three plugin-runtime variants (`` (full, the default),
-`-nodejs`, `-lean`), to `docker.io/eveyproject/evey` and `ghcr.io/eveyproject/evey`:
+`.github/workflows/ci.yml` builds and publishes images on every push to
+`main`, `master`, `beta-*` and `alpha-*` (a push that only touches docs builds
+nothing) and on every `v*.*.*` tag, to `docker.io/eveyproject/evey`. Release
+and pre-release tags and manual runs publish three plugin-runtime variants
+(full, the default, then `-nodejs` and `-lean`); a branch push publishes the
+default (full) image only. `ghcr.io/eveyproject/evey` is a best-effort mirror:
+Docker Hub is the reference.
 
-| You push | Image tags published (each also `-lean` / `-nodejs`) |
+| You push | Image tags published (tags and manual runs: each also `-lean` / `-nodejs`) |
 |---|---|
-| a branch (e.g. `master`) | `master`, `sha-<short>` |
+| a branch (e.g. `master`) | `master`, `sha-<short>` (default image only) |
 | tag `v0.2.0-rc.1` (pre-release: has a hyphen) | `0.2.0-rc.1`, `sha-<short>` |
 | tag `v0.2.0` (stable) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
@@ -38,7 +42,7 @@ this?" is always answerable without trusting a tag.
 ## Cutting a pre-release (closed beta)
 
 1. **Gates green on the exact commit**: `make pre-push` locally. CI runs the
-   same on push.
+   equivalent gates on push.
 2. **Proven on a real install first.** The commit must already have run on
    the reference deployment as a `sha-<short>` tag, updated with
    `scripts/evey-update.sh --tag sha-<short> --apply` and verified with
@@ -66,7 +70,9 @@ next one; never re-point a tag.
 Same steps, tag `vX.Y.Z` without a suffix. One thing to check that a
 pre-release does not need: the Postgres major the image embeds must be recorded
 in the changelog, because an operator on the embedded database has to follow the
-upgrade section of [installation.md](../installation.md) when it changes.
+"Move to a newer Postgres major" section of
+[advanced-deployments.md](../operations/advanced-deployments.md#move-to-a-newer-postgres-major) when it
+changes.
 
 ## Rolling back a release
 

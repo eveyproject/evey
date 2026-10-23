@@ -1,5 +1,5 @@
 ---
-source_sha: da3584e40d3503957cd0eadd6a4ed24be78e334a6bd7593cd3ff4540f844ecbd
+source_sha: f58b5dccd7a97d42b2fc6bf6a3137cd005cca7f7658e3dc3f906106cce0d7132
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -40,10 +40,9 @@ läuft in einem isolierten Rahmen der Seite.
    geprüft wird.
 2. **Vorschau & Installieren** analysiert das Paket, ohne es zu installieren.
    Die Vorschau zeigt die **Berechtigungen** und **Fähigkeiten**, die das
-   Plugin verlangt, die Stellen der Oberfläche (Slots), an denen es erscheinen
-   will, die Hosts, die es kontaktieren wird, das Ergebnis der **Statischen
-   Analyse** und, wenn der Server Signaturen prüft, ob das Paket
-   **Signiert** ist.
+   Plugin verlangt, und das Ergebnis der **Statischen Analyse**. Die Slots,
+   die Hosts und die Signatur zeigen sich beim Update und im
+   **Sicherheits-Dashboard**.
 3. Diese Liste ist verbindlich: Das ist alles, was das Plugin tun
    können wird. Bestätigen Sie, und das Plugin startet.
 
@@ -112,8 +111,8 @@ legt sie fest, solange im Verwaltungsbereich noch nie gespeichert wurde.
 
 Arbeitsspeicher, Prozesse und Festplatte gelten beim nächsten Durchlauf der
 Überwachung, die ein Plugin stoppt, das sie überschreitet. CPU-Priorität und
-Sandbox-Modus gelten für danach gestartete Plugins. `0` schaltet eine Grenze
-für Arbeitsspeicher, Prozesse oder Festplatte ab.
+Sandbox-Modus gelten für danach gestartete Plugins. `0` stellt für
+Arbeitsspeicher und Prozesse den Standardwert wieder her; nur die Festplattengrenze behandelt `0` als „aus“.
 
 Das **Sicherheits-Dashboard** hält pro Plugin die Befunde der Analyse, das
 Ergebnis der Signaturprüfung und den letzten Fehler fest. Seine Zeile

@@ -1,14 +1,14 @@
 ---
-source_sha: 58ae53ccc12bc8dbe6e691e81203c38189833f7fe97b8f072c82a6641ae48c30
+source_sha: e679166aebb377eab1f02f6459bcb9daf6480843df9d2b438037f5909294a541
 reviewed: true
 ---
-# Solución de problemas
+# Solución de problemas { #troubleshooting }
 
 ¿Algo no funciona? Busca lo que ves en la tabla de abajo. La columna del
 medio dice dónde mirar primero; la última lleva a la solución. Si no basta,
 los registros y `evey admin doctor` (más abajo) dan más información.
 
-## Dónde mirar, según lo que ves
+## Dónde mirar, según lo que ves { #where-to-look-by-symptom }
 
 | Lo que ves | Mira primero | Después |
 | --- | --- | --- |
@@ -25,7 +25,7 @@ los registros y `evey admin doctor` (más abajo) dan más información.
 | Un envío a la tele (cast) se ha congelado o se ha quedado sin sonido | **Administración → Reproduciendo ahora**: ¿sigue apareciendo la reproducción? | [Un envío se ha congelado, se ha quedado sin sonido, o el teléfono no deja de cargar](../runbooks/incident-runbook.md#a-cast-froze-went-silent-or-the-phone-keeps-spinning) |
 | El disco se llena | **Administración → Caché de transcodificación** | [El disco de la caché está lleno](../runbooks/incident-runbook.md#the-cache-disk-is-full) |
 
-## Los registros
+## Los registros { #the-logs }
 
 El registro (log) es el archivo donde Evey anota lo que hace: cada error
 se anota ahí, con la hora.
@@ -40,7 +40,9 @@ cuenta un problema, mira aquí primero, alrededor de la hora que te diga.
 
     - Los archivos están en `./evey-data/logs/`, junto a tu archivo compose
       (`/data/logs/evey-YYYY-MM-DD.log` dentro del contenedor). Un archivo
-      por día, en JSON, que se guarda 90 días por defecto
+      por día, en JSON, más un archivo con sufijo de hora
+      (`evey-YYYY-MM-DD-HH.log`) cuando un archivo pasa de 50 MB
+      (`EVEY_LOG_MAX_SIZE_MB`), que se guarda 90 días por defecto
       (`EVEY_LOG_RETENTION_DAYS`).
     - `docker compose logs evey` muestra otra cosa: lo que el contenedor
       escribe mientras arranca (las líneas `evey:` del script de arranque,
@@ -48,7 +50,7 @@ cuenta un problema, mira aquí primero, alrededor de la hora que te diga.
       arrancar. Una vez funcionando, el registro está en los archivos y en
       el panel.
 
-## `evey admin doctor`
+## `evey admin doctor` { #evey-admin-doctor }
 
 Un solo comando revisa todo el servidor. Muestra una línea por
 comprobación, `ok`, `WARN` o `FAIL`, con lo que hay que hacer:
@@ -69,7 +71,7 @@ docker exec evey-server evey admin doctor
     comprobación. Los demás comandos están en
     [Línea de comandos](../runbooks/cli.md).
 
-## El servidor no arranca
+## El servidor no arranca { #the-server-does-not-start }
 
 | Lo que dice `docker compose logs evey` | Qué significa |
 | --- | --- |
@@ -80,7 +82,7 @@ docker exec evey-server evey admin doctor
 Una contraseña de administrador perdida, una clave de firma comprometida o
 una base de datos dañada: [Recuperación](../runbooks/recovery.md).
 
-## Nadie puede iniciar sesión
+## Nadie puede iniciar sesión { #nobody-can-sign-in }
 
 Dos causas habituales:
 
@@ -105,7 +107,7 @@ remoto está desactivado: [Acceso remoto y HTTPS](../administration/remote-acces
 **Administración → Acceso remoto** lo dice en rojo cuando el servidor es
 accesible desde internet mientras el acceso remoto está desactivado.
 
-### Falla el inicio de sesión con SSO
+### Falla el inicio de sesión con SSO { #sso-sign-in-fails }
 
 La página de inicio de sesión indica el motivo:
 
@@ -124,7 +126,7 @@ Una página de error que muestra el propio proveedor suele significar que la
 URI de redirección registrada allí no es la que muestra la tarjeta. Ver
 [OIDC / SSO](../oidc.md).
 
-## Los correos no llegan
+## Los correos no llegan { #e-mails-do-not-arrive }
 
 **Enviar correo de prueba** en **Administración → Configuración del servidor
 → Correo / SMTP** envía un mensaje a tu propia dirección con los ajustes
@@ -135,7 +137,7 @@ variables `EVEY_SMTP_*`. Los envíos de notificaciones que fallan se anotan
 como `email: send notification`. Ver
 [Notificaciones](../notifications.md).
 
-## Problemas de reproducción
+## Problemas de reproducción { #playback-problems }
 
 Empieza por **Información del flujo** en el reproductor. Dice cómo se envía
 la película (tal cual, copiada en otro formato o convertida), pista por
@@ -175,7 +177,7 @@ reprodujera tal cual: ver
   libre. Ver
   [La caché de transcodificación](../playback/transcoding.md#the-transcoding-cache).
 
-## Biblioteca y pósteres
+## Biblioteca y pósteres { #library-and-posters }
 
 Los pósteres y las imágenes de fondo se copian al servidor durante los
 escaneos, en `./evey-data/artworks`, y los que faltan se vuelven a intentar
@@ -205,7 +207,7 @@ La búsqueda no devuelve nada: reconstruye el índice de búsqueda a partir de
 la base de datos con `docker exec evey-server evey admin reindex-search`. No
 se pierde nada: el índice siempre se puede reconstruir.
 
-## Informar de un problema
+## Informar de un problema { #reporting-a-problem }
 
 Escribe a **contact@eveyproject.org**. Un informe útil dice:
 

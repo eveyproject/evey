@@ -35,7 +35,9 @@ All of these must hold:
 
 ## How it plays
 
-The picture plays through the browser's usual player, muted. The sound comes
+The picture plays through the browser's usual player; its stream carries no
+audio track, and the player's volume and mute controls drive the gain of the
+sound engine instead. The sound comes
 from a separate audio stream that the server names in the playlist: the
 track as it is in the file, packaged by [MKVGo](mkvgo.md) when it can, by
 FFmpeg copying it otherwise. Neither decodes it.

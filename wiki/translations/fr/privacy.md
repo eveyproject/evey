@@ -1,5 +1,5 @@
 ---
-source_sha: 6731543d05eba23817144ccd5d21f648ca65b14ec0dfd93bf782752067af1ad1
+source_sha: e527433cfc41c2cba1cfcb773095634c496390297f79ac7e7b368fa36d27d047
 reviewed: true
 ---
 # Règles de confidentialité { #privacy-policy }
@@ -61,8 +61,7 @@ projet Evey n'y a pas accès.
 
 ## Ce qui reste sur l'appareil { #what-stays-on-the-device }
 
-L'adresse du serveur, votre jeton de session (dans le stockage chiffré
-d'Android), vos préférences, et les films et la musique que vous téléchargez
+L'adresse du serveur, votre jeton de session et, si vous cochez se souvenir de moi, votre nom d'utilisateur et votre mot de passe (dans le stockage chiffré d'Android, le keystore Android), vos préférences, et les films et la musique que vous téléchargez
 pour les regarder ou les écouter sans connexion. Désinstaller l'application
 les supprime. Le déverrouillage par empreinte ou par visage, quand vous
 l'activez, est géré par Android : l'application sait seulement s'il a réussi.
@@ -75,6 +74,10 @@ l'activez, est géré par Android : l'application sait seulement s'il a réussi.
 | Appareil photo | Scanner le QR code de la Connexion rapide. Rien n'est enregistré ni envoyé. |
 | Notifications, service au premier plan | Montrer où en sont la lecture et les téléchargements, continuer la lecture écran éteint. |
 | Biométrie | Verrouillage facultatif de l'application. |
+| Modifier les réglages audio | Ajuster le son de la lecture (gestion du volume) pendant un film. |
+| Maintien en éveil (wake lock) | Empêcher l'appareil de se mettre en veille pendant la lecture. |
+| Vibration | Retour haptique dans l'application. |
+| Lecture et écriture du stockage externe (Android 12 et antérieur seulement) | Enregistrer et lire vos téléchargements hors connexion sur ces versions d'Android. |
 
 L'application pour téléphone n'a pas l'autorisation d'utiliser le micro.
 

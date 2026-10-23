@@ -9,8 +9,8 @@ there; the panel side is described in
 
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
-| `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | Realtime file watching. | Server Config → Server Settings → **Library file watcher**, restart |
-| `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | How often the folders are checked for what the watcher missed (network shares). | Server Config → Server Settings → **Periodic scan interval**, restart |
+| `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | Realtime file watching. | Server Config → Libraries → **Library file watcher**, restart |
+| `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | How often the folders are checked for what the watcher missed (network shares). | Server Config → Libraries → **Periodic scan interval**, restart |
 | `EVEY_LIBRARY_SCAN_WORKERS` | from the CPU share | Files analysed in parallel during a scan. Set by hand, it bypasses the **Processing power** share for scans. | none |
 | `EVEY_SEEKINDEX_STATE_DIR` | `/data/seek-index` | Where the Media Health scan keeps its results and its running job across restarts. Empty: not kept. | none |
 
@@ -30,8 +30,8 @@ there; the panel side is described in
 | --- | --- | --- | --- |
 | `EVEY_INTRO_PROVIDERS_ENABLED` | `false` | Uses the community databases (TheIntroDB, then IntroDB) before the server's own detection. | Server Config → Intro Skip Providers → **Enable external intro skip providers**, restart |
 | `EVEY_INTRO_TIDB_API_KEY` | empty | A TheIntroDB key: 500 lookups a day instead of 100. | Server Config → API Keys → **TheIntroDB API Key**, restart |
-| `EVEY_INTRO_AUTO_SKIP_ENABLED` | `false` | Every player skips detected intros on its own. | Server Config → Server Settings → **Auto-skip intros**, live |
-| `EVEY_INTRO_SKIP_PREVIEW_ENABLED` | `false` | Also offers to skip the preview of the next episode. | Server Config → Server Settings → **Skip preview segments**, live |
+| `EVEY_INTRO_AUTO_SKIP_ENABLED` | `false` | Every player skips detected intros on its own. | Server Config → Libraries → **Auto-skip intros**, live |
+| `EVEY_INTRO_SKIP_PREVIEW_ENABLED` | `false` | Also offers to skip the preview of the next episode. | Server Config → Libraries → **Skip preview segments**, live |
 | `EVEY_INTRO_DETECTION_MAX_PARALLEL` | from the CPU share | Titles analysed at once. Set by hand, it bypasses the **Processing power** share for this task. | none |
 | `EVEY_INTRO_FFMPEG_THREADS` | `1` | Threads per ffmpeg process during detection (1 to 16). | none |
 

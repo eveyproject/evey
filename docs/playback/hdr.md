@@ -8,9 +8,10 @@
 - On an HDR screen with the Android or Android TV app (and a device that
   decodes HEVC), you get the original HDR picture, as long as nothing else
   forces a conversion.
-- In a web browser, and on any screen that is not HDR, the server converts
-  the picture to SDR. That is on purpose: HDR shown on an SDR screen looks
-  grey and washed out.
+- On any screen that is not HDR, the server converts the picture to SDR. That
+  is on purpose: HDR shown on an SDR screen looks grey and washed out. A web
+  browser on an SDR display gets SDR; one that reports an HDR display and
+  decodes HEVC keeps HDR10 and HLG. Dolby Vision is still converted.
 - Converting HDR to SDR is the heaviest work the processor can do. A
   graphics card helps: see
   [Hardware acceleration](../administration/hardware-acceleration.md).
@@ -24,7 +25,7 @@ in [How playback is decided](how-playback-is-decided.md).
 | Your screen | What arrives |
 | --- | --- |
 | An HDR screen on Android TV or an Android phone, with an HEVC decoder | The HDR10 or HLG original, untouched, unless something else (bitrate, resolution, a burned-in subtitle) forces a re-encode. |
-| A browser | An SDR conversion, always: the web player does not declare an HDR screen, so the server tone-maps for it. |
+| A browser | An SDR conversion on an SDR display. When the browser reports an HDR display (`dynamic-range: high`) and decodes HEVC, HDR10 and HLG are kept; Dolby Vision is still converted. |
 | A cast receiver | What the receiver reported about its own screen: see [Casting](casting.md). |
 | An SDR screen, anywhere | An SDR conversion. |
 
@@ -103,7 +104,7 @@ decision: internal/app/transcoding/decision.go - evaluateVideo (hdr_tonemapping_
 re-encode with HDR kept, copy unavailable: internal/app/transcoding/playback_plan_resolver.go - Decide (hdr_copy_unavailable) ; internal/app/transcoding/resolver_route.go - naturalRoute, passthroughWanted, hwTonemapWanted
 hdr signalling carried: internal/adapters/driven/ffmpeg/hls_args_hw.go - hwHDRPassthroughArgs (no HDR10+ metadata)
 dovi copy rule: internal/app/transcoding/copy_eligibility.go (dovi_profile, DoViBLCompat)
-who declares an HDR screen: frontend/packages/client/src/native/displayHdr.ts - probeDisplayHdr ; frontend/packages/client/src/native/playSession.ts (supportsHdr) ; frontend/apps/web/src/cast-receiver/receiverLogic.ts (hdr=1) ; the web player sends no hdr parameter
+who declares an HDR screen: frontend/packages/client/src/native/displayHdr.ts - probeDisplayHdr ; frontend/packages/client/src/native/playSession.ts (supportsHdr) ; frontend/apps/web/src/cast-receiver/receiverLogic.ts (hdr=1) ; frontend/packages/client/src/web/codec.ts - canDisplayHdr (dynamic-range: high)
 tonemapx, software HDR ceiling: internal/adapters/driven/ffmpeg/tonemapx.go ; internal/pkg/hdr/hdr.go ; docs/adr/0017-software-hdr-tonemap-delivery-resolution.md
 tests: internal/app/transcoding/route_golden_test.go ; internal/app/transcoding/route_tonemap_report_test.go
 labels: i18n player.streamInfo.reason.* ; admin.nowPlaying

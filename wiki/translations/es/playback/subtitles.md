@@ -1,8 +1,8 @@
 ---
-source_sha: 0df87f23e8ea13dc773d22a1984be991c45751df70cc5c7cfc5cad5238cb7d7b
+source_sha: feb83bccbedf5e609e034ecb346fbbf9b07ec032d4617b4107dafff242d4fda0
 reviewed: true
 ---
-# Subtítulos
+# Subtítulos { #subtitles }
 
 **Para activar los subtítulos**, abre el menú de ajustes del reproductor y
 elige **Subtítulos**. Para tenerlos siempre en tu idioma, configura
@@ -25,7 +25,7 @@ La mayoría de los subtítulos aparecen al momento. Hay dos casos distintos:
 El resto de la página explica cada formato de subtítulos y lo que cambia para
 el servidor.
 
-## Qué le hace cada formato al vídeo
+## Qué le hace cada formato al vídeo { #what-each-format-does-to-the-video }
 
 | Formato | Ejemplos | Cómo se muestra | Efecto en el vídeo |
 | --- | --- | --- | --- |
@@ -44,7 +44,7 @@ Un subtítulo de imagen solo se incrusta cuando lo eliges de verdad. Un
 archivo que simplemente lo lleva, o que lo marca como predeterminado, sigue
 en Reproducción directa.
 
-## Incrustar subtítulos
+## Incrustar subtítulos { #subtitle-burn-in }
 
 El ajuste de perfil **Incrustar subtítulos** (**Ajustes → Reproducción**)
 controla los formatos de la última fila:
@@ -55,15 +55,14 @@ controla los formatos de la última fila:
 | **Incrustar siempre** | Igual que Auto. | Los dibuja el reproductor: el texto nunca se incrusta, sea cual sea el ajuste. |
 | **Nunca incrustar** | No se puede mostrar: el vídeo nunca se vuelve a codificar por un subtítulo. | Los dibuja el reproductor. |
 
-## La primera vez que se muestra un subtítulo
+## La primera vez que se muestra un subtítulo { #the-first-time-a-subtitle-is-shown }
 
 Un subtítulo que va dentro del archivo (texto o PGS) lo extrae el servidor la
 primera vez que alguien lo elige, y luego lo guarda: las veces siguientes,
 sea quien sea, aparece al momento. Cuando el índice del propio archivo cubre
 la pista, el servidor lee solo los bloques del subtítulo y tarda unos
 segundos. Sin ese índice, lee el archivo entero: varios minutos para una
-película grande (unos cinco para un remux UHD de 85 GB en un disco local, más
-si el mismo servidor está emitiendo vídeo a la vez).
+película grande (unos minutos para un archivo muy grande, más si el mismo servidor está emitiendo vídeo a la vez).
 
 Mientras tanto, el reproductor muestra **Preparando subtítulos…** donde
 aparecen los subtítulos, vuelve a comprobar por su cuenta y los muestra en
@@ -76,7 +75,7 @@ actualización de MKVGo, la biblioteca que la extrae, lo vuelve a intentar.
 Consulta [MKVGo en Evey](mkvgo.md#what-mkvgo-does) para saber qué se lee y
 cuándo.
 
-## Elegir y ajustar
+## Elegir y ajustar { #choosing-and-adjusting }
 
 - Los reproductores eligen el subtítulo del **Idioma de subtítulos por
   defecto** del perfil y, si no lo hay, la pista que el archivo marca como

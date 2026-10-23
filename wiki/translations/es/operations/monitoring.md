@@ -1,5 +1,5 @@
 ---
-source_sha: af969a3c2ee02e3c968a79874fba9fc3a2e1b7c9925fd9888aacdf51fcda149b
+source_sha: 8225f3cc5ff5a9bf19187b30ea0a5cd214bea962f504708f3de910c38a198b9a
 reviewed: true
 ---
 # Supervisión y registros { #monitoring-and-logs }
@@ -22,8 +22,8 @@ conectado ahora mismo, por perfil, con el tiempo que ha pasado desde la
 última señal de cada app. Un Chromecast cuya televisión mantiene cargado el
 receptor de Evey sigue en la lista después de que su reproducción haya
 terminado y haya salido de **Reproduciendo ahora**; **Detener este
-Chromecast** le envía una orden de parada, que la televisión aplica en 30
-segundos como mucho.
+Chromecast** le envía una orden de parada, que la televisión aplica en unos 30
+segundos.
 
 **Administración → Estado del sistema** muestra el procesador, la memoria,
 el ancho de banda y el almacenamiento, y qué parte de la capacidad de
@@ -61,8 +61,9 @@ detección de intros, Chromecast, autenticación, infraestructura...). Es el
 primer sitio donde mirar cuando un usuario informa de un problema.
 
 El mismo registro está en el disco, un archivo JSON por día en
-`./evey-data/logs/` (`/data/logs/evey-YYYY-MM-DD.log` en el contenedor), y
-se guarda 90 días por defecto. `docker compose logs evey` solo muestra lo
+`./evey-data/logs/` (`/data/logs/evey-YYYY-MM-DD.log` en el contenedor), más
+un archivo con sufijo de hora (`evey-YYYY-MM-DD-HH.log`) cuando un archivo pasa de
+50 MB (`EVEY_LOG_MAX_SIZE_MB`), y se guarda 90 días por defecto. `docker compose logs evey` solo muestra lo
 que el contenedor escribe mientras arranca, que es lo que hay que leer
 cuando el servidor no llega a arrancar. Ver
 [Solución de problemas](troubleshooting.md#the-logs).
@@ -90,17 +91,18 @@ después quita el límite por sí solo. Los límites activos aparecen en
   acciones de administración, y el trabajo en segundo plano en curso.
 
 El tiempo que se guarda cada tipo de historial se fija en **Administración
-→ Configuración del servidor → Ajustes del servidor** (sesiones de
+→ Configuración del servidor → Datos y conservación** (sesiones de
 reproducción, registro de auditoría, métricas del servidor, calidad de
 streaming). Un cambio se aplica en la siguiente limpieza diaria.
 
 ## Métricas de Prometheus { #prometheus-metrics }
 
 `GET /metrics` sirve los contadores del servidor en el formato de texto de
-Prometheus, todos con nombres `evey_...`. Responde a una sesión de
-administrador, o a un token fijo puesto en `EVEY_METRICS_SCRAPE_TOKEN` y
-enviado como `Authorization: Bearer <token>`, para que Prometheus o Grafana
-puedan recogerlas sin volver a iniciar sesión
+Prometheus, todos con nombres `evey_...`. Responde a un token fijo puesto
+en `EVEY_METRICS_SCRAPE_TOKEN` y enviado como `Authorization: Bearer <token>`,
+para que Prometheus o Grafana puedan recogerlas desde cualquier sitio sin iniciar
+sesión; una sesión de administrador solo se acepta desde el propio loopback del
+contenedor
 ([Copias de seguridad, registros y supervisión](../environment/logs-monitoring.md)).
 Las familias con las que conviene empezar los gráficos:
 

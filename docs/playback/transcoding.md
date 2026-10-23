@@ -34,15 +34,16 @@ The capacity is not a setting you estimate. The server measures it:
   playback. The result is the highest resolution each one sustains in real
   time, and the cost of each kind of stream.
 - **Again.** After the hardware changes, or on **Recalibrate** in **Admin →
-  Transcoding → Encode calibration**. The button waits until nobody is
-  watching.
+  Transcoding → Encode calibration**. The button refuses while someone is watching; only the automatic
+  re-measurement waits for the server to be idle.
 
 While the measurement runs, a playback that needs a transcode shows **The
 server is calibrating itself** and is asked to try again shortly. Direct Play
 and Remux are not affected.
 
 On a processor that sustains none of the resolutions, the server still offers
-720p (SDR) and 480p (HDR), one stream at a time.
+720p (SDR) and 480p (HDR); how many streams that serves at once comes from
+the video session limiter's budget.
 
 The measurement uses, in this order, a clip you provide, a reference clip
 downloaded once and checked by its SHA256, or a synthetic clip generated on
@@ -102,7 +103,7 @@ lowers its maximum quality for a while, then lifts the limit on its own. See
 
 | | Default |
 | --- | --- |
-| Video codec | H.264. HEVC when the player decodes it and a graphics card encodes it, or when the profile's **Preferred Video Codec** asks for it; AV1 when enabled (**AV1 output**, hardware only) and the player decodes it. |
+| Video codec | H.264. HEVC output when a measured route proves it and the player decodes it (the HDR passthrough route, or when the profile's **Preferred Video Codec** asks for it); AV1 when enabled (**AV1 output**, hardware only) and the player decodes it. |
 | Resolution | The source's, unless a limit applies: the player's maximum, the bitrate limit, or what the server can encode in real time. |
 | Bitrate | Follows the source, scaled to the resolution. **Video bitrate ceiling** caps it; **Video bitrate ceiling, remote viewers** caps it lower outside the local networks. |
 | Audio | AAC. See [Audio](audio.md). |
@@ -118,7 +119,7 @@ lowers its maximum quality for a while, then lifts the limit on its own. See
 Encoded segments are kept on disk in the `evey-cache` volume and reused when
 another viewer, or the same one later, plays the same title with the same
 decision. **Admin → Transcode Cache** shows its size and clears it; the
-**Transcode cache budget** (**Admin → Server Config → Server Settings**) caps
+**Transcode cache budget** (**Admin → Transcoding**) caps
 it. **Clear All** also removes the subtitles extracted from your files,
 kept in `./evey-data/subtitles`: they are extracted again on request.
 
@@ -155,7 +156,7 @@ clear all empties extracted subtitles: internal/app/transcoding/service.go - Wit
 calibration: internal/app/transcoding/calibration_service.go - EnsureCalibrated, Recalibrate, idleProbes, idleCPUPercent ; internal/domain/transcoding/capability.go - SafeFallback ; internal/adapters/driven/ffmpeg/benchmark.go - swBenchLadderSpecs (floors 720/480), sample order (path > url+sha256 > synthetic) ; docs/adr/0029-transcoding-routes-are-measured-not-assumed.md ; i18n player.calibrating, admin.calibration.contendedLine, transcodesActiveToast
 capacity: i18n admin.transcoding.livePlaybackTitle, maxVideoSessionsDesc, videoSessionsAutoAdjusts ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper, StreamPlan ; internal/app/transcoding/video_session_limiter.go - VideoSessionLimiter (PoolCPU, PoolGPU) ; internal/app/transcoding/resolved_route.go - SpillPoolFull, SpillTitleBlocked ; internal/app/transcoding/hw_route_blocklist.go ; CalibrationService.DemoteCapability
 busy: i18n errors max_concurrent_reached
-output codec: internal/app/transcoding/resolver_route.go - outputCodecFor, codecWithPassthrough ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
+output codec: internal/app/transcoding/resolver_route.go ; internal/app/transcoding/decision.go ; internal/app/transcoding/testdata/route_golden.txt ; i18n admin.calibration.av1Label, av1Hint, maxBitrateLabel, maxBitrateRemoteLabel
 single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT, default on)
 bench samples: internal/config/config.go (EVEY_BENCH_{SDR,HDR}_SAMPLE{,_URL,_SHA256})
 cache budget, clear while live: i18n admin.serverSettings.transcodeCacheMaxGB, admin.transcodeCache.clearConfirmLiveSessions ; automatic limits: admin.qoe.overrides.*

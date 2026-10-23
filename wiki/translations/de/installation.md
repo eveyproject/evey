@@ -1,5 +1,5 @@
 ---
-source_sha: 2bab08ea37b694ae604bd4a44524da605fe82d30c8a8999099eafb428e15f45e
+source_sha: d6466c24262a137d7107741ff21ca1ce685f8aa99221f04a4c6f8b6ddfcb6a27
 reviewed: true
 ---
 # Installation { #install }
@@ -80,7 +80,9 @@ volumes:
 3. Eveys eigene Daten: Datenbank, Schlüssel, erzeugte Passwörter, Suchindex,
    Bilder, Logs, Sicherungen, Plugins. **Diesen Ordner müssen Sie sichern.**
 4. Ein Zwischenspeicher für umgewandelte Videos, verkleinerte Fotos und
-   Cover. Sie können ihn jederzeit löschen, er füllt sich von selbst wieder.
+   Musik-Cover. Sie können ihn jederzeit löschen, er füllt sich von selbst
+   wieder. Die Poster-Varianten liegen nicht darin, sondern unter
+   `evey-data/artworks`.
 5. Ihre Medien. Ersetzen Sie `/path/to/your/media` durch den echten Ordner.
    In Evey heißt dieser Ordner `/media`. Evey darf absichtlich hineinschreiben,
    damit der [Medienzustand](runbooks/media-health.md) eine Datei reparieren
@@ -138,7 +140,7 @@ Ist der Assistent fertig, öffnet dieselbe Adresse die Anmeldeseite.
 | Ort | Was er enthält | Dürfen Sie ihn löschen? |
 | --- | --- | --- |
 | `./evey-data` | Datenbank, Schlüssel, erzeugte Passwörter, Suchindex, Vorschaubilder für die Zeitleiste, Bilder, Logs, Sicherungen, Plugins | **Nein.** Wer ihn verliert, verliert alle Konten, den Wiedergabeverlauf und alle Einstellungen. Einzige Ausnahme ist `meili/` darin, der Suchindex: Der Befehl `evey admin reindex-search` baut ihn aus der Datenbank neu auf. |
-| Volume `evey-cache` | Umgewandelte Videos, verkleinerte Fotos und Cover | Ja. Er füllt sich von selbst wieder. |
+| Volume `evey-cache` | Umgewandelte Videos, verkleinerte Fotos und Musik-Cover (die Poster-Varianten liegen in `evey-data/artworks`) | Ja. Er füllt sich von selbst wieder. |
 | Ihre Medienordner | Ihre Dateien | Evey löscht sie nie. Wenn Sie einen Titel in Evey entfernen, verschwindet er aus der Bibliothek, nicht von der Festplatte. |
 
 Evey schreibt nur in drei Fällen in Ihre Medienordner:

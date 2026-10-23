@@ -1,8 +1,8 @@
 ---
-source_sha: c8146d533df94a1909ae91a9bbceb788ab4d86f1860b721414c4dadf8791cff9
+source_sha: 318633ab461ab7429280d1503d8bccfc464413f5ccc3377a7588c10f3d316c75
 reviewed: true
 ---
-# Audio
+# Audio { #audio }
 
 **En resumen:**
 
@@ -23,7 +23,7 @@ El resto de esta página explica qué pista se reproduce, cuándo se copia o se
 convierte, y con cuántos canales. Los ajustes del perfil que se mencionan
 aquí están en **Ajustes → Reproducción**.
 
-## Lo que oirás, según el dispositivo
+## Lo que oirás, según el dispositivo { #what-you-will-hear-by-device }
 
 | Tu dispositivo | Lo que llega |
 | --- | --- |
@@ -36,7 +36,7 @@ Las apps de Android comprueban la salida de audio cada vez que empieza una
 reproducción: si conectas unos auriculares, el cambio se nota en el siguiente
 título, cambio de pista o cambio de calidad, no en mitad de una escena.
 
-## Qué pista se reproduce
+## Qué pista se reproduce { #which-track-plays }
 
 Una pista elegida a mano, en la página del título o en el reproductor,
 siempre tiene prioridad. Si no, los reproductores siguen el **Idioma de audio
@@ -47,7 +47,7 @@ salta en favor de una normal cuando el archivo tiene las dos.
 Solo cuenta la pista que se está reproduciendo: una pista DTS que no estás
 escuchando nunca provoca una transcodificación.
 
-## Copiada o vuelta a codificar
+## Copiada o vuelta a codificar { #copied-or-re-encoded }
 
 La pista se copia cuando el reproductor descodifica su códec y su salida
 tiene canales suficientes, dentro de los **Canales de audio máximos** del
@@ -57,8 +57,9 @@ vuelve a codificar en AAC:
 - con tantos canales como permitan la fuente, el dispositivo y el perfil,
   hasta 5.1 (una fuente 7.1 se reduce a 5.1, que descodifican todos los
   reproductores; las fuentes estéreo siguen en estéreo);
-- sea cual sea la frecuencia de muestreo, que nunca es por sí sola un motivo
-  para volver a codificar.
+- a 48 kHz como máximo: una pista por encima de 48 kHz se vuelve a codificar
+  solo por eso (`audio_samplerate_exceeded`); a 48 kHz o menos, la frecuencia
+  de muestreo no es un motivo.
 
 Una pista copiada dentro de un flujo transcodificado o en remux también tiene
 que estar en un formato que el reproductor acepte dentro de los segmentos del
@@ -68,7 +69,7 @@ Información del flujo dice **La pista de audio no puede transmitirse sin
 cambios en el stream**: un reproductor puede descodificar MP3 en un archivo y
 aun así rechazarlo dentro de un flujo.
 
-## Dolby Digital en un navegador
+## Dolby Digital en un navegador { #dolby-digital-in-a-browser }
 
 La mayoría de los navegadores no pueden descodificar AC-3 ni E-AC-3. En lugar
 de volver a codificar la pista en el servidor, el reproductor web la
@@ -90,7 +91,7 @@ Cómo la descodifica la página y qué pasa cuando no puede:
     no puede arrancar y la película se reproduce sin sonido. Consulta
     [Configuraciones de proxy inverso](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own).
 
-## Sonido desincronizado
+## Sonido desincronizado { #sound-out-of-sync }
 
 **Sincronización de audio**, en el reproductor, adelanta o retrasa el sonido
 del título actual (los valores positivos lo retrasan). Se ofrece cuando el
@@ -114,7 +115,7 @@ copy vs aac, channels: internal/app/transcoding/decision.go - evaluateAudio, app
 device channel ceiling: frontend/packages/client/src/native/outputChannels.ts - resolveMaxOutputChannels (STEREO_ONLY_TYPES, hdmi.maxChannelCount) ; frontend/packages/client/src/native/playSession.ts - playerDecodesCopiedAudio ; internal/adapters/driving/http/client_capabilities.go - maxAudioChannelsQuery
 passthrough in segments: internal/app/transcoding/decision.go - applyPackagedAudioPassthrough ; internal/app/transcoding/source_facts.go - AudioCopyCodecAllowedFor ; internal/domain/transcoding/playback_decision.go - ClientProfile.FMP4AudioPassthrough
 wasm: internal/app/transcoding/wasm_audio.go - WasmAudioCodecSupported, WasmAudioChannelsOK ; internal/app/transcoding/decision.go - wasmAudioApplies ; frontend/packages/client/src/web/codec.ts
-sample rate: internal/app/transcoding/decision.go - evaluateAudio (no sample-rate check)
+sample rate: internal/app/transcoding/decision.go - evaluateAudio (audio_samplerate_exceeded, maxCopiedAudioSampleRate) ; internal/app/transcoding/decision_samplerate_test.go
 resync: internal/app/transcoding/playback_plan_resolver.go - Decide (audio_resync_requested) ; frontend/apps/web/src/features/playback/HLSPlayer.tsx (audioOffsetAvailable=transcodeMode) ; frontend/apps/mobile/app/(auth)/player/[id].tsx (audioOffsetAvailable)
 media health: i18n admin.syncPreview.btn ; docs/runbooks/media-health.md
 labels: i18n auth.settings.playback.maxAudioChannels, channelsStereo, channels51, channels71, audioLanguage ; player.settings.audioSync, audioSyncHint, audioSyncUnavailable ; player.streamInfo.decisionWasm, reason.audio_passthrough_unsupported, reason.audio_resync_requested

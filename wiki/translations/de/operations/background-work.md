@@ -1,8 +1,8 @@
 ---
-source_sha: 935a77e1c7b524e4df14c0a67f9ad57f4571098b770e8c3245fda5189aefc0c3
+source_sha: 1e9ed9ad1ea44e04485cba0cf8c2dd6706eaa7a3363c2b3caa4880cb24c51406
 reviewed: true
 ---
-# Hintergrundarbeiten und Serverlast
+# Hintergrundarbeiten und Serverlast { #background-work-and-server-load }
 
 Warum der Server beschäftigt ist, wenn niemand schaut, und warum die
 Vorschaubilder einer neuen Bibliothek Stunden brauchen: Neben der Wiedergabe
@@ -11,7 +11,7 @@ Vorschaubilder für die Zeitleiste erzeugen, Intros und Abspann erkennen,
 Dateien analysieren). Diese Seite sagt, wie sich diese Arbeit den Rechner mit
 den Zuschauern teilt und wo Sie ihren Anteil einstellen.
 
-## Die Wiedergabe hat Vorrang
+## Die Wiedergabe hat Vorrang { #playback-comes-first }
 
 Hintergrundaufgaben bekommen einen Anteil am Prozessor, den **Globaler
 Anteil** unter **Verwaltung → Serverkonfiguration → Zugeteilte
@@ -23,28 +23,31 @@ Aufgabe den globalen ersetzt; Anteile addieren sich nie. Eine Änderung gilt ab
 dem nächsten bearbeiteten Eintrag, ohne Neustart.
 
 Egal wie groß der Anteil ist: Eine Hintergrundaufgabe pausiert, solange
-jemand schaut, und macht danach weiter. Bei einer neuen Bibliothek kommen
+jemand schaut, und macht danach weiter. Das ist der Standard: Der Schalter
+**Hintergrundaufgaben während der Wiedergabe anhalten** in der Karte
+**Hintergrundaufgaben** der **Serverkonfiguration** schaltet es ab (ein Neustart
+ist nötig). Bei einer neuen Bibliothek kommen
 Vorschaubilder und Intro-Markierungen deshalb über Stunden statt Minuten,
 wenn der Server benutzt wird.
 
-## Was im Hintergrund läuft
+## Was im Hintergrund läuft { #what-runs-in-the-background }
 
 | Arbeit | Was sie bringt | Wann sie läuft |
 | --- | --- | --- |
 | Bibliotheks-Scan | Neue, geänderte und entfernte Dateien | Bei Dateiänderungen, nach Zeitplan, beim Start, wenn eingeschaltet. Siehe [Bibliotheken und Metadaten](../administration/libraries.md). |
 | Herunterladen der Bilder | Poster und Hintergrundbilder, auf dem Server aufbewahrt, in WebP | Während des Scans; fehlende werden stündlich erneut versucht. Ausgeschaltet: Der Browser lädt die Bilder aus dem Internet, was manche Browser blockieren. |
 | Vorschaubilder der Zeitleiste | Die Vorschauen, die beim Ziehen der Zeitleiste erscheinen (ein Bild alle 7 Sekunden) | Wenn ein Titel hinzukommt, und beim Start für die Titel ohne. **Trickplay-Vorschaubilder aktivieren** unter **Serverkonfiguration** schaltet sie ab. |
-| Erkennung von Intro und Abspann | Die Schaltflächen zum **Überspringen** | Laufend, für Titel, die Community-Datenbanken nicht abdecken |
+| Erkennung von Intro und Abspann | Die Schaltflächen zum **Überspringen** | Laufend, über alle Serien; Community-Zeitstempel sind Hinweise, kein Grund, einen Titel zu überspringen |
 | Keyframe-Index und Codec-Level | Direct Play und Kopieren ohne Neukodierung, richtige Farben | Laufend, für Dateien, die gescannt wurden, bevor diese Angaben gesammelt wurden |
 
-## Arbeitsspeicher
+## Arbeitsspeicher { #memory }
 
 **Speicherprofil** (**Verwaltung → Serverkonfiguration**): **Niedrig** versetzt
 ungenutzte Plugins in den Ruhezustand, um Arbeitsspeicher zu sparen, und startet
 sie bei Bedarf wieder. **Automatisch (empfohlen)** wählt Niedrig auf Rechnern mit weniger als
 3 GB Arbeitsspeicher.
 
-## Einstellungen, die beim Start gelesen werden
+## Einstellungen, die beim Start gelesen werden { #settings-read-at-startup }
 
 Einige Einstellungen werden nur einmal gelesen, wenn der Server startet: Beim
 Speichern wird Ihre Wahl festgehalten, ein Neustart wendet sie an. Der

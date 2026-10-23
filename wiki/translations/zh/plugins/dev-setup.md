@@ -1,5 +1,5 @@
 ---
-source_sha: da65fca181dde1325e9e1ed9a14213c8008dd3d87fd749779b7c965baa24a1fa
+source_sha: 285bdd60357aba1d3d0a25ee9fb2cbf8e882085af6ffee596e41d15bab4c8465
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -39,9 +39,9 @@ flowchart LR
 `go` 提供编译好的二进制文件，需要 `native-binary` 权限。默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua；`-nodejs` 镜像保留 Python 和 Node.js，`-lean` 镜像只保留 Python。
 如果清单写了镜像里没有的运行时，安装时就会被拒绝，并列出可用的运行时。
 
-gRPC 约定只有一个文件：`proto/plugin/v1/plugin_api.proto`。`sdk/<language>/` 下有为 Python、Node.js、PHP、Ruby、Dart、Java 和 Swift 生成的存根；
-插件启动时，服务器会把对应语言的存根复制到您的入口文件旁边，所以 Node.js 或 Python 插件不需要自带任何依赖：
-镜像为 Node.js 插件提供了 `@grpc/grpc-js` 和 `@grpc/proto-loader`，为 Python 插件提供了 `grpcio`。
+gRPC 约定只有一个文件：`proto/plugin/v1/plugin_api.proto`。只有 Python SDK 附带生成好的存根；`sdk/<language>/` 下其他语言的目录里是 `.proto`。
+插件启动时，服务器会把对应语言的文件复制到您的入口文件旁边。镜像为 Python 插件提供了 `grpcio`，所以 Python 插件不需要自带任何依赖。
+Node.js 插件必须把自己的 `node_modules`（`@grpc/grpc-js` 和 `@grpc/proto-loader`）放进包里。
 其他语言请用 `protoc` 生成存根，并放进 ZIP 包里：
 
 ```bash
@@ -108,7 +108,7 @@ make dev                        # postgres、meilisearch、服务器（Air）、
 4. **打包成 ZIP。** 清单必须位于压缩包的根目录，不能放在子目录里：
 
     ```sh
-    zip -r ../hello-plugin.zip . -x ".*" "node_modules/*"
+    zip -r ../hello-plugin.zip . -x ".*"
     ```
 
 5. **安装它。** 在**管理 → 插件**里点**安装插件**，选择 ZIP 包，再点**预览并安装**：预览会列出 `api.library` 以及静态分析的结果。
@@ -160,7 +160,7 @@ frontend:
 
 ## 6. 与外界通信 { #6-reach-the-outside-world }
 
-无论哪种沙箱模式，插件进程都不能打开通向互联网的套接字。唯一的途径是 `HostService` 的 `Fetch` 调用：
+在启动器运行的每一种模式下，插件进程都不能打开通向互联网的套接字（没有启动器的 `basic` 只拒绝 `execve`）。唯一的途径是 `HostService` 的 `Fetch` 调用：
 服务器按清单检查目标，然后由它自己发出请求。
 
 ```yaml title="plugin.yaml"
@@ -175,7 +175,7 @@ external_fetch:
 所以小组件可以通过 `https` 直接调用这些主机。规则见[权限与插槽](security-model.md#external-fetch-rules)。
 
 !!! note "主机列表是您和管理员之间的约定"
-    管理员在安装时会看到主机列表，更新时新增的任何主机都必须经过批准。只写插件真正需要的主机，
+    管理员在更新时和**安全仪表板**里会看到主机列表，更新时新增的任何主机都必须经过批准。只写插件真正需要的主机，
     并在 README 里说明每个主机会收到什么。
 
 ## 7. 给插件签名 { #7-sign-your-plugin }
@@ -225,7 +225,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 ```
 
 之后，在**管理 → 插件**里选择 ZIP 包，并在**签名文件（.zip.sig，可选）**里选择对应的 `.zip.sig`；
-通过 API 上传时，签名放在 `sig` 字段里。预览会显示**已签名**或签名无效，**安全仪表板**会保存这个结果。
+通过 API 上传时，签名放在 `sig` 字段里。**已签名**或签名无效会在更新时显示，**安全仪表板**会保存这个结果。
 
 常见问题：
 
@@ -253,7 +253,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
    `native_code`、编译好的二进制文件和内嵌的压缩包也会拒绝，除非清单声明了 `native-binary`。
 7. **保存并启动。** 临时目录被换到正式位置，写入数据库记录，然后启动进程。
 
-分析会查找什么，列在[插件沙箱与威胁模型](../SECURITY.md#static-analysis)里。它也会读注释：注释里的一行 `# pip install foo` 会和代码一样被报告。
+分析会查找什么，列在[插件沙箱与威胁模型](../SECURITY.md#static-analysis)里。分析之前会先去掉注释，所以被注释掉的行不会被报告。
 
 ## 9. 您的进程在什么条件下运行 { #9-what-your-process-runs-under }
 
@@ -261,7 +261,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 超出这些限制的插件会被监控程序停止。默认值是 256 MiB、64 个进程和 100 MiB，管理员可以在**管理 → 插件 → 资源限制**里调整。
 没有 `subprocess` 权限时，无论用什么语言，进程都不能创建子进程；线程可以正常使用。
 
-沙箱把文件系统限制在插件自己的目录里，并无条件切断所有网络套接字。生效的是哪种模式，取决于宿主机器，而不是插件：
+在启动器运行的每一种模式下，沙箱都会把文件系统限制在插件自己的目录里，并切断所有网络套接字（没有启动器的 `basic` 只拒绝 `execve`）。生效的是哪种模式，取决于宿主机器，而不是插件：
 [插件沙箱与威胁模型](../SECURITY.md#sandbox-modes)介绍了各种模式，[插件沙箱设置](sandbox-deployment.md)告诉管理员该选哪一种。
 
 ## 10. 分发插件 { #10-distribute-a-plugin }
@@ -269,7 +269,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 没有插件目录商店：管理员在管理面板里上传插件的 ZIP 包，或者粘贴它的网址，来源是您发布它的任何地方（代码托管平台上的一个 release，您自己的网站）。
 
 - 把 ZIP 包、它的 `.sig` 和您的 `cosign.pub` 放在一起发布（第 7 节）。
-- 在 README 里写明权限和 `external_fetch` 主机：管理员安装时会看到它们，并且必须批准；这里出现未预期的内容，是安装被拒绝的首要原因。
+- 在 README 里写明权限和 `external_fetch` 主机：管理员在安装时会看到权限，在更新时和**安全仪表板**里会看到主机，并且必须批准；这里出现未预期的内容，是安装被拒绝的首要原因。
 - 如果想让您的插件和自带的示例列在一起，请向 `examples/plugins/` 提交一个 pull request，附上源代码和 README。
   示例会经过审查，并从源代码构建；被列入并不代表项目背书，也不带项目的签名。
 

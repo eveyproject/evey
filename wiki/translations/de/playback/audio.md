@@ -1,8 +1,8 @@
 ---
-source_sha: c8146d533df94a1909ae91a9bbceb788ab4d86f1860b721414c4dadf8791cff9
+source_sha: 318633ab461ab7429280d1503d8bccfc464413f5ccc3377a7588c10f3d316c75
 reviewed: true
 ---
-# Audio
+# Audio { #audio }
 
 **Kurz gesagt:**
 
@@ -23,7 +23,7 @@ Der Rest dieser Seite erklärt, welche Spur läuft, wann sie kopiert oder
 umgewandelt wird und mit wie vielen Kanälen. Die Profileinstellungen, die
 hier genannt werden, finden Sie unter **Einstellungen → Wiedergabe**.
 
-## Was Sie hören, je nach Gerät
+## Was Sie hören, je nach Gerät { #what-you-will-hear-by-device }
 
 | Ihr Gerät | Was ankommt |
 | --- | --- |
@@ -37,7 +37,7 @@ Schließen Sie Kopfhörer an, wirkt das beim nächsten Titel, beim nächsten
 Spurwechsel oder bei der nächsten Änderung der Qualität, nicht mitten in
 einer Szene.
 
-## Welche Spur läuft
+## Welche Spur läuft { #which-track-plays }
 
 Eine Spur, die Sie von Hand wählen, auf der Titelseite oder im Player,
 hat immer Vorrang. Sonst folgen die Player der **Standard-Audiosprache** des
@@ -48,7 +48,7 @@ Kommentarspur übersprungen.
 Beurteilt wird nur die Spur, die gerade läuft: Eine DTS-Spur, die Sie nicht
 hören, löst nie eine Transkodierung aus.
 
-## Kopiert oder neu kodiert
+## Kopiert oder neu kodiert { #copied-or-re-encoded }
 
 Die Spur wird kopiert, wenn der Player ihren Codec dekodiert und seine
 Ausgabe genug Kanäle dafür hat, im Rahmen von **Maximale Audio-Kanäle** im
@@ -58,8 +58,9 @@ wird sie in AAC neu kodiert:
 - mit so vielen Kanälen, wie Quelle, Gerät und Profil erlauben, höchstens 5.1
   (eine 7.1-Quelle wird auf 5.1 heruntergemischt, das jeder Player dekodiert;
   Stereo-Quellen bleiben Stereo);
-- unabhängig von der Abtastrate. Sie allein ist nie ein Grund für eine
-  Neukodierung.
+- mit höchstens 48 kHz: Eine Spur über 48 kHz wird allein deshalb neu kodiert
+  (`audio_samplerate_exceeded`); bei 48 kHz oder weniger ist die Abtastrate
+  kein Grund.
 
 Eine kopierte Spur in einem transkodierten oder umverpackten Stream muss
 außerdem ein Format haben, das der Player in den Segmenten des Streams
@@ -68,7 +69,7 @@ es meldet. Sonst wird die Spur neu kodiert, und Stream-Info zeigt
 **Audiospur kann im Stream nicht unverändert übertragen werden**: Ein Player
 kann MP3 in einer Datei dekodieren und es in einem Stream trotzdem ablehnen.
 
-## Dolby Digital im Browser
+## Dolby Digital im Browser { #dolby-digital-in-a-browser }
 
 Die meisten Browser können AC-3 oder E-AC-3 nicht dekodieren. Statt die Spur
 auf dem Server neu zu kodieren, dekodiert der Web-Player sie selbst, mit einem
@@ -90,7 +91,7 @@ Wie die Seite sie dekodiert und was passiert, wenn sie es nicht kann:
     nicht starten, und der Film läuft ohne Ton. Siehe
     [Reverse-Proxy-Konfigurationen](../reverse-proxy.md#security-headers--csp---read-this-if-your-proxy-sets-its-own).
 
-## Ton nicht synchron
+## Ton nicht synchron { #sound-out-of-sync }
 
 **Audio-Synchronisation** im Player verschiebt den Ton für den aktuellen
 Titel (positive Werte spielen ihn später ab). Sie wird angeboten, wenn der
@@ -115,7 +116,7 @@ copy vs aac, channels: internal/app/transcoding/decision.go - evaluateAudio, app
 device channel ceiling: frontend/packages/client/src/native/outputChannels.ts - resolveMaxOutputChannels (STEREO_ONLY_TYPES, hdmi.maxChannelCount) ; frontend/packages/client/src/native/playSession.ts - playerDecodesCopiedAudio ; internal/adapters/driving/http/client_capabilities.go - maxAudioChannelsQuery
 passthrough in segments: internal/app/transcoding/decision.go - applyPackagedAudioPassthrough ; internal/app/transcoding/source_facts.go - AudioCopyCodecAllowedFor ; internal/domain/transcoding/playback_decision.go - ClientProfile.FMP4AudioPassthrough
 wasm: internal/app/transcoding/wasm_audio.go - WasmAudioCodecSupported, WasmAudioChannelsOK ; internal/app/transcoding/decision.go - wasmAudioApplies ; frontend/packages/client/src/web/codec.ts
-sample rate: internal/app/transcoding/decision.go - evaluateAudio (no sample-rate check)
+sample rate: internal/app/transcoding/decision.go - evaluateAudio (audio_samplerate_exceeded, maxCopiedAudioSampleRate) ; internal/app/transcoding/decision_samplerate_test.go
 resync: internal/app/transcoding/playback_plan_resolver.go - Decide (audio_resync_requested) ; frontend/apps/web/src/features/playback/HLSPlayer.tsx (audioOffsetAvailable=transcodeMode) ; frontend/apps/mobile/app/(auth)/player/[id].tsx (audioOffsetAvailable)
 media health: i18n admin.syncPreview.btn ; docs/runbooks/media-health.md
 labels: i18n auth.settings.playback.maxAudioChannels, channelsStereo, channels51, channels71, audioLanguage ; player.settings.audioSync, audioSyncHint, audioSyncUnavailable ; player.streamInfo.decisionWasm, reason.audio_passthrough_unsupported, reason.audio_resync_requested

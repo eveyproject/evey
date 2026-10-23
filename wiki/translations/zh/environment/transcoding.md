@@ -1,14 +1,14 @@
 ---
-source_sha: 6bbcf7c54732dc7eb7955206675ddd1923616486ecdec3c988c6ad0463cf8a04
+source_sha: 11f247e9600d2a9954d2efb9c3e83b1b5c383eeff81aea6c581b95520eafccc1
 reviewed: true
 ---
-# 转码与硬件
+# 转码与硬件 { #transcoding-and-hardware }
 
 这些是服务器容量、显卡、画质上限和转码缓存背后的变量。大多数安装不需要设置其中任何一个：
 服务器会自己测量这台机器，并自己选择硬件，见[转码与服务器容量](../playback/transcoding.md)。
 如果某项设置在**管理 → 转码**里也有，就以那里保存的值为准。
 
-## 硬件加速
+## 硬件加速 { #hardware-acceleration }
 
 如何让容器使用 GPU：见[硬件加速](../administration/hardware-acceleration.md)。
 
@@ -24,7 +24,7 @@ reviewed: true
 
 Intel 的低功耗编码器和 AV1 输出（开关和上限）没有对应的变量：只能在**管理 → 转码**里设置。
 
-## 容量和上限
+## 容量和上限 { #capacity-and-limits }
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
@@ -37,16 +37,16 @@ Intel 的低功耗编码器和 AV1 输出（开关和上限）没有对应的变
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_KBPS` | `0`（跟随片源） | 转码后视频的码率上限。 | 转码 → **视频码率上限**，实时生效 |
 | `EVEY_TRANSCODING_MAX_VIDEO_BITRATE_REMOTE_KBPS` | `0`（不限） | 同样的上限，针对家庭网络以外的客户端。 | 转码 → **视频码率上限（远程观众）**，实时生效 |
 
-## 缓存
+## 缓存 { #cache }
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | 整个转码缓存（片段、重封装的文件、准备好的下载）的大小，最久未使用的内容最先删除。 | 服务器配置 → 服务器设置 → **转码缓存预算**，需重启 |
+| `EVEY_TRANSCODING_CACHE_MAX_GB` | `10` | 整个转码缓存（片段、重封装的文件、准备好的下载）的大小，最久未使用的内容最先删除。 | 转码 → **转码缓存预算**，需重启 |
 | `EVEY_TRANSCODE_CACHE_MIN_FREE_MB` | `2048` | 缓存所在磁盘上保留的空闲空间。低于这个值时，先清除闲置的片段，然后拒绝新的片段，而不是把它们写入磁盘；提取出来的字幕不再保存，并通知管理员。`0` 关闭这个余量。见[转码缓存](../playback/transcoding.md#the-transcoding-cache)。 | 无 |
 | `EVEY_TRANSCODING_CACHE_DIR` | `/cache/transcode` | 缓存存放的位置。由镜像设置。 | 无 |
 | `EVEY_TRICKPLAY_CACHE_DIR` | `/data/trickplay` | 进度条缩略图存放的位置。由镜像设置：它们重新生成的代价很高，所以放在 `/data` 里。 | 无 |
 
-## 校准片段
+## 校准片段 { #calibration-clip }
 
 测量时会编码一段 4K 片段。按优先顺序：您自己的文件、一段只下载一次并用哈希值核对过的片段，或者一段合成的片段。
 真实的片段比合成的测得更准。这些变量在面板里都没有对应的设置。

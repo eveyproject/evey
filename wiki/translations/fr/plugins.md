@@ -1,5 +1,5 @@
 ---
-source_sha: da3584e40d3503957cd0eadd6a4ed24be78e334a6bd7593cd3ff4540f844ecbd
+source_sha: f58b5dccd7a97d42b2fc6bf6a3137cd005cca7f7658e3dc3f906106cce0d7132
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -38,10 +38,9 @@ de la page.
    URL** installe à partir d'un lien ; ajoutez `#sha256:<empreinte>` à l'URL
    pour faire vérifier le téléchargement.
 2. **Aperçu et installation** analyse le paquet sans l'installer. L'aperçu
-   montre les **Permissions** et les **Capacités** que demande le plugin, les
-   emplacements de l'interface où il veut apparaître, les hôtes qu'il
-   contactera, le résultat de l'**Analyse statique** et, quand le serveur
-   vérifie les signatures, si le paquet est **Signé**.
+   montre les **Permissions** et les **Capacités** que demande le plugin, et le
+   résultat de l'**Analyse statique**. Les emplacements, les hôtes et la
+   signature sont montrés à la mise à jour et dans le **Tableau de bord sécurité**.
 3. Lisez cette liste comme un contrat : ce sont les seules choses que le plugin
    pourra faire. Confirmez, et le plugin démarre.
 
@@ -110,8 +109,8 @@ les fixe tant que le panneau n'a jamais été enregistré.
 
 La mémoire, les processus et le disque s'appliquent au prochain balayage du
 moniteur, qui arrête un plugin qui les dépasse ; la priorité processeur et le
-mode sandbox s'appliquent aux plugins démarrés ensuite. `0` désactive une
-limite de mémoire, de processus ou de disque.
+mode sandbox s'appliquent aux plugins démarrés ensuite. `0` rétablit la
+valeur par défaut pour la mémoire et les processus ; seule la limite de disque traite `0` comme « désactivée ».
 
 Le **Tableau de bord sécurité** conserve, par plugin, les constats de
 l'analyse, le résultat de la signature et la dernière erreur. Sa ligne

@@ -1,8 +1,8 @@
 ---
-source_sha: 15f4243e2aa41d1a370efb30c5607eb485799cf11a0be191ea0b7489684f4485
+source_sha: b5e748f389e0659b78085aa23f5f39cca600299c69e8ea3f206609f753a37861
 reviewed: true
 ---
-# Récupération
+# Récupération { #recovery }
 
 Ouvrez cette page quand plus personne ne peut se connecter, quand la clé qui
 signe les jetons d'accès a pu fuiter, ou quand la base doit revenir à un dump
@@ -10,7 +10,7 @@ pris avant une migration. Chaque procédure tient en une commande `evey admin`
 lancée dans le conteneur ; la page [Ligne de commande](cli.md) liste les
 autres sous-commandes.
 
-## Avant de commencer
+## Avant de commencer { #before-you-start }
 
 Les commandes lisent la même configuration `EVEY_*` que le serveur : les
 lancer dans le conteneur du serveur ne demande rien de plus.
@@ -23,7 +23,7 @@ docker compose run --rm evey admin <sous-commande>        # conteneur arrêté
 La seconde forme démarre d'abord la base embarquée, exécute la commande et
 sort. Aucune de ces commandes ne démarre le serveur.
 
-## Donner un nouveau mot de passe à un utilisateur
+## Donner un nouveau mot de passe à un utilisateur { #give-a-user-a-new-password }
 
 À utiliser quand un utilisateur ne peut plus se connecter, ou juste après une
 compromission supposée de son compte. Le nouveau mot de passe est affiché une
@@ -49,7 +49,7 @@ jetons de rafraîchissement sont supprimés et ses jetons d'accès révoqués. U
 application ouverte s'en aperçoit sous une trentaine de secondes et redemande
 une connexion. Si vous perdez la sortie, relancez la commande.
 
-## Renouveler la clé qui signe les jetons d'accès
+## Renouveler la clé qui signe les jetons d'accès { #rotate-the-key-that-signs-access-tokens }
 
 À utiliser quand le fichier de clé a pu fuiter, ou pour déconnecter tout le
 monde d'un coup. Pour un seul compte, **Administration → Utilisateurs → Désactiver**
@@ -73,14 +73,14 @@ nouvelle clé soit utilisée. Si la base n'a pas pu être jointe, la clé est qu
 mise de côté et la commande l'annonce : `key rotated, but sessions could not
 be ended (restart the server, then run this again)`. Faites exactement cela.
 
-## Restaurer un dump pris avant une migration
+## Restaurer un dump pris avant une migration { #restore-a-pre-migration-dump }
 
 À utiliser quand une mise à jour doit être annulée et que les données écrites
 depuis peuvent être perdues. La commande passe un dump `.sql.gz` par
 `gunzip | psql` dans la base configurée.
 
 !!! warning
-    La restauration écrase les lignes actuelles. Prenez d'abord une
+    La restauration supprime et recrée chaque table avant de la charger, donc les lignes actuelles sont remplacées. Prenez d'abord une
     sauvegarde de l'état courant (**Administration → Sauvegarde BDD et restauration →
     Lancer maintenant**) s'il y a la moindre chance d'en avoir besoin.
 
@@ -108,8 +108,9 @@ Prérequis :
 - Le nom du fichier doit finir par `.sql.gz`. Les archives `.tar.gz` de
   **Administration → Sauvegarde BDD et restauration** se restaurent depuis le
   panneau, pas avec cette commande.
-- La base cible doit exister ; le dump supprime et recrée les tables, pas la
-  base.
+- La base cible doit exister ; le dump supprime et recrée chaque table avant de la
+  charger, ce qui permet de le restaurer sur une base déjà remplie, mais il ne
+  crée pas la base.
 - `psql` et `gunzip` doivent être dans le PATH, ce que l'image garantit.
 
 Les dumps de pré-migration sont écrits automatiquement avant chaque

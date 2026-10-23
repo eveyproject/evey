@@ -1,15 +1,15 @@
 ---
-source_sha: 9f40858672d5badb8f1ffd97cf815109f93c3034126c5d4e6841092d5caf818a
+source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
 reviewed: true
 ---
-# अनुमतियाँ और स्लॉट
+# अनुमतियाँ और स्लॉट { #permissions-and-slots }
 
 प्लगइन बनाने वालों के लिए: manifest क्या बता सकता है, इंस्टॉलर क्या जाँचता है, और
 चलते समय प्लगइन पर कौन से नियम लागू होते हैं। नीचे की सूची वह है जिसमें से आप
 चुनते हैं; सर्वर प्लगइन को कैसे सीमित रखता है, और यह सीमा क्या नहीं रोक सकती, यह
 [प्लगइन सैंडबॉक्स और ख़तरा मॉडल](../SECURITY.md) में बताया गया है।
 
-## इंस्टॉल के समय क्या जाँचा जाता है
+## इंस्टॉल के समय क्या जाँचा जाता है { #what-is-checked-at-install }
 
 प्लगइन इंस्टॉल के समय मना हो जाता है, जब:
 
@@ -26,15 +26,15 @@ reviewed: true
   binary, अंदर रखे आर्काइव और native code मना होते हैं, जब तक manifest
   `native-binary` न बताए।
 
-विश्लेषण comment भी पढ़ता है: comment में `# pip install foo` वाली लाइन असली कोड
-की तरह दर्ज होती है। प्रकाशित करने से पहले ऐसी लाइनें हटा दें। श्रेणियों की सूची
+विश्लेषण से पहले comment हटा दिए जाते हैं, इसलिए comment में बंद की गई लाइन दर्ज
+नहीं होती। श्रेणियों की सूची
 [प्लगइन सैंडबॉक्स और ख़तरा मॉडल](../SECURITY.md#static-analysis) में है।
 
-इंस्टॉल करने से पहले एडमिन बताई गई अनुमतियाँ, स्लॉट और होस्ट देखता है, और यह भी
-कि विश्लेषण में क्या मिला। प्लगइन जो भी बताता है, उसमें से कुछ भी चुपचाप नहीं
+इंस्टॉल करने से पहले एडमिन बताई गई अनुमतियाँ और क्षमताएँ देखता है, और यह भी
+कि विश्लेषण में क्या मिला; स्लॉट, होस्ट और सिग्नेचर अपडेट के समय और सुरक्षा डैशबोर्ड पर दिखते हैं। प्लगइन जो भी बताता है, उसमें से कुछ भी चुपचाप नहीं
 दिया जाता।
 
-## प्लगइन किन सीमाओं में चलता है
+## प्लगइन किन सीमाओं में चलता है { #what-the-plugin-runs-under }
 
 manifest कुछ भी बताए:
 
@@ -50,7 +50,7 @@ manifest कुछ भी बताए:
 डेवलपमेंट के दौरान सिग्नेचर वैकल्पिक है। प्लगइन पर सिग्नेचर कैसे करें, और सर्वर
 कौन सी सिग्नेचर नीति लागू कर सकता है: [प्लगइन लिखना](dev-setup.md#7-sign-your-plugin)।
 
-## अनुमतियों की सूची
+## अनुमतियों की सूची { #permissions-catalog }
 
 अनुमति `permissions` में बताई जाती है; कोई और मान इंस्टॉल मना करवा देता है।
 वेबहुक पाना (`webhook.receiver`) और मेटाडेटा देना (`metadata.provider`) क्षमताएँ
@@ -71,23 +71,24 @@ manifest कुछ भी बताए:
 | `notification.sender` | `SendNotification` के लिए आरक्षित, जो आज दिया नहीं जाता। |
 | `public` | इंटरफ़ेस मीडिया आइटम की एक सुरक्षित झलक पढ़ सकता है (id, टाइटल, टाइप, साल, सारांश, पोस्टर), कभी रास्ते या stream नहीं। देखें [`evey.media.*`](api-reference.md#eveymedia-permission-public)। |
 | `prefs` | इंटरफ़ेस मौजूदा उपयोगकर्ता की पसंद प्लगइन के अपने हिस्से में पढ़ और लिख सकता है। देखें [`evey.prefs.*`](api-reference.md#eveyprefs-permission-prefs)। |
-| `hardware.gpu` | प्रोसेस को होस्ट का DRM render node मिलता है (असली `renderD1xx`, कभी card node नहीं)। यह kernel driver पर हमले का एक रास्ता है, और transcoder के साथ बँटी GPU मेमोरी की एक सीमा: अटका हुआ GPU ट्रांसकोडिंग रोक सकता है। इसके बिना GPU node Landlock की अनुमति सूची से पूरी तरह बाहर रहते हैं; इसके साथ launcher उसी एक फ़ाइल तक सीमित एक `IOCTL_DEV` नियम जोड़ता है (Landlock ABI 5 या नया; पुराने kernel पर सिर्फ़ पढ़ने और लिखने की पहुँच से ही command भेजे जा सकते हैं)। पूर्वावलोकन एक गंभीर चेतावनी दिखाता है। यह सिर्फ़ उन प्लगइन को दें जिन्हें आप सैंडबॉक्स के बाहर भी चला लेते। |
+| `hardware.gpu` | प्रोसेस को होस्ट का DRM render node मिलता है (असली `renderD1xx`, कभी card node नहीं)। यह kernel driver पर हमले का एक रास्ता है, और transcoder के साथ बँटी GPU मेमोरी की एक सीमा: अटका हुआ GPU ट्रांसकोडिंग रोक सकता है। इसके बिना GPU node Landlock की अनुमति सूची से पूरी तरह बाहर रहते हैं; इसके साथ launcher उसी एक फ़ाइल तक सीमित एक `IOCTL_DEV` नियम जोड़ता है (Landlock ABI 5 या नया; पुराने kernel पर सिर्फ़ पढ़ने और लिखने की पहुँच से ही command भेजे जा सकते हैं)। प्लगइन इंस्टॉल होने के बाद सुरक्षा डैशबोर्ड एक गंभीर चेतावनी दिखाता है। यह सिर्फ़ उन प्लगइन को दें जिन्हें आप सैंडबॉक्स के बाहर भी चला लेते। |
 
-## External fetch के नियम
+## External fetch के नियम { #external-fetch-rules }
 
 `external_fetch: [...]` में बताए जाते हैं और इंस्टॉल के समय जाँचे जाते हैं
 (`validateExternalFetch`)। सब या कुछ नहीं: एक भी गलत एंट्री पूरा इंस्टॉल मना करवा
 देती है।
 
-एंट्री एक **सिर्फ़ होस्ट का नाम** है। आगे लगा scheme स्वीकार किया जाता है और हटा दिया
-जाता है; सिर्फ़ होस्ट का नाम रखा जाता है।
+एंट्री एक **होस्ट का नाम** है। आगे लगा scheme और अंत का path पार्स के समय हटा दिए
+जाते हैं; सिर्फ़ होस्ट का नाम रखा जाता है। होस्ट ठीक-ठीक मिलने चाहिए, `*.example.com`
+जैसा wildcard इंस्टॉल पर मना हो जाता है और port का suffix अनदेखा किया जाता है।
 
 | एंट्री | मान्य | कारण |
 |---|---|---|
 | `api.tmdb.org` | हाँ | होस्ट का पूरा नाम, सामान्य रूप |
-| `https://api.tmdb.org` | हाँ | scheme पढ़कर हटा दिया जाता है, होस्ट का नाम रहता है |
-| `*.tmdb.org` | नहीं | wildcard मना हैं: हर ज़रूरी subdomain लिखें |
-| `*` | नहीं | वही नियम |
+| `https://api.tmdb.org` | हाँ | scheme और path पार्स के समय हटा दिए जाते हैं, होस्ट का नाम रहता है |
+| `*.tmdb.org` | नहीं | wildcard इंस्टॉल पर मना हो जाते हैं; हर होस्ट अलग से लिखें |
+| `*` | नहीं | अकेला wildcard मना है |
 | `192.168.1.1`, `::1` | नहीं | IP मना हैं, दोनों तरह के |
 
 चलते समय होस्ट का broker अपनी सीमाएँ जोड़ता है, जिन्हें manifest बढ़ा नहीं सकता:
@@ -100,7 +101,7 @@ manifest कुछ भी बताए:
 वही होस्ट सूची, आगे `https://` लगाकर, प्लगइन के फ़्रेम का `connect-src` बनती है:
 विजेट उन होस्ट को सीधे कॉल कर सकता है, सिर्फ़ `https` पर।
 
-## स्लॉट की अनुमति सूची
+## स्लॉट की अनुमति सूची { #slot-whitelist }
 
 प्लगइन इंटरफ़ेस सिर्फ़ उन स्लॉट में डाल सकते हैं जिनकी साफ़ अनुमति है। संवेदनशील
 रास्ते जानबूझकर इसमें नहीं हैं।
@@ -132,7 +133,7 @@ bridge सीमित करता है कि फ़्रेम पेज �
 लिए होस्ट (प्लगइन, उपयोगकर्ता) तक सीमित पाँच मिनट का एक token बनाता है, और सर्वर
 डिफ़ॉल्ट रूप से हर वह method मना करता है जिसका नाम उस token में नहीं है।
 
-## अपडेट का तरीका
+## अपडेट का तरीका { #update-workflow }
 
 1. एडमिन एक नया ZIP अपलोड करता है। `PreviewPluginUpdate` स्थैतिक विश्लेषण और
    सिग्नेचर की जाँच चलाता है, और इंस्टॉल किए गए वर्ज़न से अनुमतियों, क्षमताओं,
@@ -147,7 +148,7 @@ bridge सीमित करता है कि फ़्रेम पेज �
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities
 escalated warnings, native-binary: internal/app/plugin/install.go - checkEscalatedWarnings, validateStagedPlugin
-analysis reads comments: docs/SECURITY.md (Static analysis)
+comments stripped before analysis: docs/SECURITY.md (Static analysis) ; internal/adapters/driven/pluginrunner/analyzer_normalize.go
 subprocess, deny-fork, deny-inet, render-dev: cmd/evey-plugin-launcher/main.go ; i18n admin.plugins.subprocessWarning
 resource defaults: internal/config/config.go - Plugins
 permission per RPC: internal/adapters/driving/grpcapi/plugin_interceptor.go ; served or not: internal/adapters/driving/pluginhost/host_server.go

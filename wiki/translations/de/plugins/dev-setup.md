@@ -1,5 +1,5 @@
 ---
-source_sha: da65fca181dde1325e9e1ed9a14213c8008dd3d87fd749779b7c965baa24a1fa
+source_sha: 285bdd60357aba1d3d0a25ee9fb2cbf8e882085af6ffee596e41d15bab4c8465
 reviewed: true
 ---
 # Ein Plugin schreiben { #writing-a-plugin }
@@ -51,12 +51,13 @@ nennt, die dem Image fehlt, wird bei der Installation abgelehnt, mit der
 Liste der verfügbaren Laufzeiten.
 
 Die gRPC-Schnittstelle ist in einer einzigen Datei definiert, `proto/plugin/v1/plugin_api.proto`.
-Stubs werden für Python, Node.js, PHP, Ruby, Dart, Java und Swift unter
-`sdk/<language>/` erzeugt. Der Server kopiert die Stubs Ihrer Sprache beim
-Start des Plugins neben Ihren Einstiegspunkt. Ein Plugin in Node.js oder
-Python muss also nichts mitliefern: Das Image stellt Node.js-Plugins
-`@grpc/grpc-js` und `@grpc/proto-loader` bereit und Python-Plugins `grpcio`.
-Für eine andere Sprache erzeugen Sie die Stubs mit `protoc` und legen sie ins
+Nur
+das Python-SDK liefert erzeugte Stubs; die anderen Sprachen unter
+`sdk/<language>/` enthalten die `.proto`. Der Server kopiert die Dateien Ihrer
+Sprache beim Start des Plugins neben Ihren Einstiegspunkt. Das Image stellt
+Python-Plugins `grpcio` bereit, sie müssen also nichts mitliefern. Ein
+Node.js-Plugin muss sein `node_modules` (`@grpc/grpc-js` und
+`@grpc/proto-loader`) im Paket mitliefern. Für eine andere Sprache erzeugen Sie die Stubs mit `protoc` und legen sie ins
 ZIP:
 
 ```bash
@@ -135,7 +136,7 @@ kopieren es, ändern eine Sache und installieren es.
    Archivs liegen, nicht in einem Unterverzeichnis:
 
     ```sh
-    zip -r ../hello-plugin.zip . -x ".*" "node_modules/*"
+    zip -r ../hello-plugin.zip . -x ".*"
     ```
 
 5. **Installieren Sie es.** Unter **Verwaltung → Plugins** wählen Sie
@@ -211,8 +212,8 @@ einen kurzlebigen Token, den der Host für den Frame verwaltet.
 
 ## 6. Externe Dienste erreichen { #6-reach-the-outside-world }
 
-Ein Plugin-Prozess kann keinen Socket ins Internet öffnen, in keinem
-Sandbox-Modus. Die einzige Verbindung nach außen ist der Aufruf `Fetch` von
+Ein Plugin-Prozess kann keinen Socket ins Internet öffnen, in allen
+Modi, in denen der Launcher läuft (`basic` ohne den Launcher verbietet nur `execve`). Die einzige Verbindung nach außen ist der Aufruf `Fetch` von
 `HostService`: Der Server prüft das Ziel gegen das Manifest und führt die
 Anfrage dann selbst aus.
 
@@ -232,7 +233,7 @@ diese Hosts also direkt über `https` aufrufen. Die Regeln stehen in
 [Berechtigungen und Slots](security-model.md#external-fetch-rules).
 
 !!! note "Die Hostliste ist eine verbindliche Zusage an den Administrator"
-    Der Administrator sieht die Hostliste bei der Installation und muss
+    Der Administrator sieht die Hostliste beim Update und im Sicherheits-Dashboard und muss
     jede Ergänzung beim Update bestätigen. Beschränken Sie sie auf das, was
     das Plugin braucht, und schreiben Sie in Ihre README, was jeder Host
     bekommt.
@@ -295,8 +296,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # oder "enforce", um abzulehnen, was die Prüf
 
 Dann wählt er unter **Verwaltung → Plugins** das ZIP und unter
 **Signaturdatei (.zip.sig, optional)** dessen `.zip.sig`. Über die API ist
-die Signatur das Feld `sig` beim Hochladen. Die Vorschau zeigt **Signiert**
-oder eine ungültige Signatur, und das Sicherheits-Dashboard behält das
+die Signatur das Feld `sig` beim Hochladen. **Signiert** oder eine ungültige Signatur wird beim Update angezeigt, und das Sicherheits-Dashboard behält das
 Ergebnis.
 
 Typische Fehlerquellen:
@@ -353,9 +353,8 @@ das Serverprotokoll enthält die Einzelheiten.
    Verzeichnis, der Datensatz geschrieben und der Prozess gestartet.
 
 Wonach die Analyse sucht, steht in
-[Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md#static-analysis). Sie
-liest auch Kommentare: Eine Zeile `# pip install foo` in einem Kommentar wird
-wie Code gemeldet.
+[Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md#static-analysis). Kommentare
+werden vor der Analyse entfernt, eine auskommentierte Zeile wird also nicht gemeldet.
 
 ## 9. Unter welchen Bedingungen Ihr Prozess läuft { #9-what-your-process-runs-under }
 
@@ -367,8 +366,8 @@ Der Administrator kann sie unter **Verwaltung → Plugins → Ressourcenlimits**
 anpassen. Ohne die Berechtigung `subprocess` kann der Prozess keine
 Kindprozesse starten, egal in welcher Sprache; Threads funktionieren.
 
-Die Sandbox beschränkt das Dateisystem auf das Verzeichnis des Plugins und
-blockiert jeden Netzwerk-Socket, ohne Ausnahme. Welcher Modus gilt, hängt vom
+In allen Modi, in denen der Launcher läuft, beschränkt die Sandbox das Dateisystem auf das Verzeichnis des Plugins und
+blockiert jeden Netzwerk-Socket (`basic` ohne den Launcher verbietet nur `execve`). Welcher Modus gilt, hängt vom
 Host ab, nicht vom Plugin:
 [Plugin-Sandbox und Bedrohungsmodell](../SECURITY.md#sandbox-modes)
 beschreibt die Modi, und [Plugin-Sandbox einrichten](sandbox-deployment.md)
@@ -384,7 +383,7 @@ Website).
 - Liefern Sie das ZIP, seine `.sig` und Ihre `cosign.pub` zusammen aus
   (Abschnitt 7).
 - Nennen Sie die Berechtigungen und die Hosts aus `external_fetch` in Ihrer
-  README: Der Administrator sieht sie bei der Installation und muss sie
+  README: Der Administrator sieht die Berechtigungen bei der Installation und die Hosts beim Update und im Sicherheits-Dashboard und muss sie
   bestätigen. Ein unerwarteter Eintrag dort ist der häufigste Grund, warum eine
   Installation abgelehnt wird.
 - Damit Ihr Plugin bei den mitgelieferten Beispielen erscheint, öffnen Sie

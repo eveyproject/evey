@@ -1,8 +1,8 @@
 ---
-source_sha: 15f4243e2aa41d1a370efb30c5607eb485799cf11a0be191ea0b7489684f4485
+source_sha: b5e748f389e0659b78085aa23f5f39cca600299c69e8ea3f206609f753a37861
 reviewed: true
 ---
-# Wiederherstellung
+# Wiederherstellung { #recovery }
 
 Öffnen Sie diese Seite, wenn sich niemand mehr anmelden kann, wenn der
 Schlüssel, der die Zugangstoken signiert, nach außen gelangt sein könnte,
@@ -11,7 +11,7 @@ werden muss.
 Jeder Ablauf ist ein einziger `evey admin`-Befehl, der im Container läuft; die
 Seite [Kommandozeile](cli.md) listet die anderen Unterbefehle auf.
 
-## Bevor Sie beginnen
+## Bevor Sie beginnen { #before-you-start }
 
 Die Befehle lesen dieselbe `EVEY_*`-Konfiguration wie der Server. Im
 Container des Servers brauchen sie daher nichts weiter:
@@ -24,7 +24,7 @@ docker compose run --rm evey admin <subcommand>        # Container gestoppt
 Die zweite Form startet zuerst die eingebaute Datenbank, führt dann den Befehl
 aus und beendet sich. Keiner dieser Befehle startet den Server.
 
-## Einem Benutzer ein neues Passwort geben
+## Einem Benutzer ein neues Passwort geben { #give-a-user-a-new-password }
 
 Nutzen Sie das, wenn ein Benutzer sich nicht mehr anmelden kann, oder sofort, wenn Sie
 vermuten, dass ein Konto übernommen wurde. Das neue Passwort wird einmal
@@ -51,7 +51,7 @@ gelöscht und die Zugangstoken widerrufen. Eine offene App merkt das innerhalb
 von etwa 30 Sekunden und bittet um eine neue Anmeldung. Haben Sie die Ausgabe
 verloren, führen Sie den Befehl einfach noch einmal aus.
 
-## Den Schlüssel wechseln, der die Zugangstoken signiert
+## Den Schlüssel wechseln, der die Zugangstoken signiert { #rotate-the-key-that-signs-access-tokens }
 
 Nutzen Sie das, wenn die Schlüsseldatei nach außen gelangt sein könnte, oder
 um alle Benutzer auf einmal abzumelden. Für ein einzelnes Konto genügt
@@ -78,14 +78,14 @@ Schlüssel trotzdem umbenannt, und der Befehl meldet `key rotated, but
 sessions could not be ended (restart the server, then run this again)`: Tun
 Sie genau das.
 
-## Einen Dump von vor einer Migration wiederherstellen
+## Einen Dump von vor einer Migration wiederherstellen { #restore-a-pre-migration-dump }
 
 Nutzen Sie das, wenn ein Update rückgängig gemacht werden muss und die Daten,
 die seitdem geschrieben wurden, verloren gehen dürfen. Der Befehl spielt einen
 `.sql.gz`-Dump über `gunzip | psql` in die konfigurierte Datenbank ein.
 
 !!! warning "Achtung"
-    Die Wiederherstellung überschreibt die aktuellen Zeilen. Legen Sie zuerst
+    Die Wiederherstellung löscht jede Tabelle und legt sie neu an, bevor sie sie lädt; die aktuellen Zeilen werden also ersetzt. Legen Sie zuerst
     eine Sicherung des aktuellen Stands an (**Verwaltung → Sicherung &
     Wiederherstellung → Jetzt ausführen**), wenn Sie ihn vielleicht noch
     einmal brauchen.
@@ -113,8 +113,9 @@ Voraussetzungen:
 - Der Dateiname muss auf `.sql.gz` enden. Die `.tar.gz`-Archive aus
   **Verwaltung → Sicherung & Wiederherstellung** werden im Verwaltungsbereich
   wiederhergestellt, nicht mit diesem Befehl.
-- Die Zieldatenbank muss existieren; der Dump löscht Tabellen und legt sie neu
-  an, nicht die Datenbank.
+- Die Zieldatenbank muss existieren; der Dump löscht und legt jede Tabelle neu an, bevor er sie
+  lädt, kann also auf eine bereits gefüllte Datenbank eingespielt werden, legt
+  aber die Datenbank nicht an.
 - `psql` und `gunzip` müssen im PATH liegen. Das Image stellt das sicher.
 
 Dumps von vor einer Migration werden vor jeder Änderung des Schemas

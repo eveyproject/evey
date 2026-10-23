@@ -13,7 +13,7 @@ stores afterwards wins over them, as explained in the
 | `EVEY_SERVER_BASE_URL` | `http://localhost:9091` | The public address. An `https://` address turns on `Secure` cookies, HSTS and trust in `X-Forwarded-Proto`. E-mail links, single sign-on redirects and cast URLs are built from it. | Remote Access → **External URL** wins when set, live; an `https://` External URL also turns HTTPS on |
 | `EVEY_SERVER_PORT` | `9090` | The internal gRPC port. The HTTP API and the web interface listen on this port plus one (`9091`). | none |
 | `EVEY_GRPC_BIND` | `127.0.0.1` | The address the gRPC port listens on. The remote-access gate does not cover gRPC, so widening it (`0.0.0.0`) logs a warning and makes firewalling it your job. | none |
-| `EVEY_SERVER_NAME` | `Evey` | The name shown on the sign-in page, in the apps' server list and in e-mails. | Server Config → Server Settings → **Server Name**, live |
+| `EVEY_SERVER_NAME` | `Evey` | The name shown on the sign-in page, in the apps' server list and in e-mails. | Server Config → General → **Server Name**, live |
 
 ## Reverse proxy
 
@@ -42,8 +42,8 @@ values and applies them without a restart. How the gate decides:
 
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
-| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Sign-in attempts per address per minute. | Server Config → Server Settings → **Login Rate Limit**, live |
-| `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Requests per address per minute on the API. | Server Config → Server Settings → **Global Rate Limit**, live |
+| `EVEY_RATELIMIT_LOGIN_MAX` | `10` | Sign-in attempts per address per minute. | Server Config → Accounts & security → **Login Rate Limit**, live |
+| `EVEY_RATELIMIT_GLOBAL_MAX` | `300` | Requests per address per minute on the API. | Server Config → Accounts & security → **Global Rate Limit**, live |
 
 ## Container user
 

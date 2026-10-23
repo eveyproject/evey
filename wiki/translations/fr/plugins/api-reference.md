@@ -1,8 +1,8 @@
 ---
-source_sha: 4f36e08eb2ed47e2b70b77f7f85f7caa2a9229e3bb755c85c2d54804d13c4031
+source_sha: 5e96cbd1483c320ab2ab021a2d894797d1cd5b0958ba8303a940db6026044ccb
 reviewed: true
 ---
-# Référence de l'API des plugins
+# Référence de l'API des plugins { #plugin-api-reference }
 
 Le contrat que doit respecter un plugin : les champs de `plugin.yaml`, les
 deux services gRPC que le backend et le serveur échangent, et le pont
@@ -11,7 +11,7 @@ les met en oeuvre est [Écrire un plugin](dev-setup.md) ; ce que chaque
 permission autorise et ce que l'installateur refuse est dans
 [Permissions et emplacements](security-model.md).
 
-## Manifeste
+## Manifeste { #manifest }
 
 Chaque ZIP porte un `plugin.yaml` (ou `plugin.yml`) à sa racine, de 1 Mo au
 plus.
@@ -25,7 +25,7 @@ entrypoint: node index.js    # obligatoire pour un plugin ; la ligne de commande
 
 description: "..."           # facultatif
 author: "..."                # facultatif
-min_evey_version: "1.0.0"    # facultatif ; enregistré, pas vérifié aujourd'hui
+min_evey_version: "1.0.0"    # facultatif ; accepté et ignoré
 
 permissions:                 # ce que le backend et l'interface peuvent appeler
   - network
@@ -43,7 +43,7 @@ frontend:
 config_schema:               # les champs du panneau Config sur la carte du plugin
   api_key:
     type: password           # jamais renvoyé à un client
-    label: Clé d'API
+    label: Clé d'API         # non affiché : le panneau nomme les champs par leur clé
     required: true
   city:
     type: string
@@ -57,11 +57,11 @@ config_schema:               # les champs du panneau Config sur la carte du plug
 | `language` | Obligatoire pour `kind: plugin` : `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` ou `go`. Il détermine la vérification de l'environnement et les stubs copiés à côté du point d'entrée ; il ne lance rien. |
 | `entrypoint` | Obligatoire pour `kind: plugin`. Le premier mot est l'interpréteur (ou le binaire, avec `native-binary`), le reste ses arguments ; le processus tourne dans le dossier du plugin. |
 | `permissions` | Chaque valeur doit figurer dans le [catalogue des permissions](security-model.md#permissions-catalog). `network` exige un `external_fetch` non vide. |
-| `external_fetch` | Des noms d'hôte nus. Un schéma est toléré et retiré ; un joker ou une adresse IP fait refuser l'installation ([règles](security-model.md#external-fetch-rules)). |
+| `external_fetch` | Des noms d'hôte. Un schéma et un chemin final sont retirés à l'analyse ; les hôtes correspondent exactement, un joker `*.example.com` est refusé à l'installation et un suffixe de port est ignoré ; une adresse IP fait refuser l'installation ([règles](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` ou `notification.sender` ; toute autre valeur est refusée. Un thème ne peut en déclarer aucune. |
 | `web_root` | Obligatoire quand `frontend` n'est pas vide ; relatif, sans `..`, sans barre oblique inverse. `.` sert tout le dossier du plugin et ne produit qu'un avertissement. |
 | `frontend[]` | `slot` doit figurer dans la [liste des emplacements](#slots) ; `src` doit être sous `web_root`. |
-| `config_schema` | Une table nom de champ vers `{type, label, description, required, default, min, max, options}`. Types : `string`, `text`, `password`, `boolean`, `integer`, `number`, `select` (avec `options: [{value, label}]`). |
+| `config_schema` | Une table nom de champ vers `{type, label, description, required, default, min, max, options}` ; `label` n'est pas affiché, le panneau nomme les champs par leur clé. Types : `string`, `text`, `password`, `boolean`, `integer`, `number`, `select` (avec `options: [{value, label}]`). |
 
 Un thème (`kind: theme`) ne doit déclarer ni `language`, ni `entrypoint`, ni
 `permissions`, ni `capabilities` ; son format est dans [Thèmes](../themes.md).
@@ -72,7 +72,7 @@ de lecture, panneau **Config** de l'administration compris. Enregistrer le
 panneau avec le masque inchangé conserve la valeur stockée : modifier un autre
 champ n'efface jamais un secret.
 
-## Backend : les deux services
+## Backend : les deux services { #backend-the-two-services }
 
 Le processus backend et le serveur communiquent en gRPC sur deux sockets Unix dont les
 chemins arrivent dans l'environnement :
@@ -89,7 +89,7 @@ limités à 600 par minute et par plugin. `proto/plugin/v1/plugin_api.proto`
 est le contrat ; les stubs des langages fournis sont copiés à côté du point
 d'entrée au démarrage du plugin ([prérequis](dev-setup.md#1-prerequisites)).
 
-### PluginService : ce que le serveur appelle
+### PluginService : ce que le serveur appelle { #pluginservice-what-the-server-calls }
 
 | Méthode | Quand |
 |---|---|
@@ -99,7 +99,7 @@ d'entrée au démarrage du plugin ([prérequis](dev-setup.md#1-prerequisites)).
 | `OnEvent(event_type, payload, source)` | Défini dans le contrat, mais le serveur ne livre aucun événement aux plugins aujourd'hui : implémentez-le pour répondre `handled: true`, et n'attendez aucun appel. |
 | `GetCapabilities()` | Défini dans le contrat ; le serveur ne l'appelle pas aujourd'hui. |
 
-### HostService : ce que le plugin peut appeler
+### HostService : ce que le plugin peut appeler { #hostservice-what-the-plugin-can-call }
 
 Un appel dont le manifeste ne déclare pas la permission est refusé avec
 `PermissionDenied`. Les méthodes marquées *non servie* répondent
@@ -119,7 +119,7 @@ sont listées pour qu'un stub ne vous induise pas en erreur.
 | `GetUserPreferences` | `api.user` | *Non servie.* |
 | `SendNotification` | `notification.sender` | *Non servie.* |
 
-### Stockage de données
+### Stockage de données { #data-store }
 
 Chaque plugin possède un stockage clé/valeur persistant, sans permission à
 déclarer : curseurs, caches, horodatage de la dernière synchronisation, tout
@@ -139,7 +139,7 @@ Ce stockage est global au plugin. Les données **par utilisateur** (une
 préférence de la personne qui regarde le widget) sont gérées côté interface, par
 la permission `prefs` ci-dessous.
 
-## API de l'interface
+## API de l'interface { #frontend-api }
 
 Un module d'interface tourne dans un cadre à origine opaque, sous une
 politique `default-src 'none'` : aucun accès à la page hôte, à ses cookies ou
@@ -149,36 +149,37 @@ passe par `window.evey`, injecté avant l'exécution du module. Le même module
 tourne sans modification dans l'application web et dans les applications
 mobile et télévision.
 
-### `evey.onInit(callback)`
+### `evey.onInit(callback)` { #eveyoninitcallback }
 
 Appelé une fois avec le contexte qu'envoie l'hôte ; un callback enregistré
 après l'arrivée du contexte est appelé immédiatement.
 
 ```js
 evey.onInit(function (data) {
-  // data.context         - les valeurs de configuration du plugin (config_schema)
+  // data.config          - les valeurs de configuration du plugin (config_schema)
+  // data.context         - le contexte de l'hôte
   // data.locale          - la langue active, par ex. "fr-FR"
-  // data.theme           - l'identifiant du thème actif
+  // data.theme           - "dark" ou "light"
   // data.surface         - "web", "mobile" ou "tv"
   // data.suggestedHeight - home.section seulement : la hauteur (px) que l'hôte recommande
   // data.viewportHeight  - tv seulement : la hauteur du panneau en dp
 });
 ```
 
-### `evey.navigate(path)`
+### `evey.navigate(path)` { #eveynavigatepath }
 
 Déplace l'application hôte vers `path`. Seuls les préfixes `/home`,
 `/library`, `/media`, `/player`, `/settings` et `/search` sont suivis ; tout
 le reste (la zone d'administration, la connexion, une URL absolue) est ignoré
 en silence.
 
-### `evey.toast(level, message)`
+### `evey.toast(level, message)` { #eveytoastlevel-message }
 
 Affiche une notification dans l'interface hôte. `level` vaut `"success"`,
 `"error"` ou `"info"` ; `message` est du texte brut, coupé à 200 caractères ;
 au plus 3 notifications par seconde sont affichées.
 
-### `evey.resize(height)`
+### `evey.resize(height)` { #eveyresizeheight }
 
 Demande une hauteur d'emplacement de `height` pixels, bornée entre 50 et
 800. `0` replie l'emplacement : un widget qui n'a rien à montrer ne prend
@@ -187,7 +188,7 @@ rien faire : l'hôte connaît la surface où il vous a placé et recommande la
 hauteur qu'un widget d'accueil y a, pour que tous les widgets aient la
 même taille. Ne redimensionnez que si vous avez une raison précise de le faire.
 
-### `evey.prefs.*` (permission `prefs`)
+### `evey.prefs.*` (permission `prefs`) { #eveyprefs-permission-prefs }
 
 Les préférences de l'utilisateur courant dans l'espace propre du plugin,
 liées à (ce plugin, cet utilisateur) par le jeton que l'hôte détient pour le
@@ -200,7 +201,7 @@ const all = await evey.prefs.list();        // [{ key, value }]
 await evey.prefs.delete("units");
 ```
 
-### `evey.media.*` (permission `public`)
+### `evey.media.*` (permission `public`) { #eveymedia-permission-public }
 
 Une projection sûre des médias : identifiant, titre, type, année, résumé, URL
 d'affiche. Jamais un chemin de fichier, une taille, un identifiant de
@@ -216,14 +217,14 @@ const data  = await evey.media.poster(id);  // l'affiche en URL data:
 charger une image depuis le serveur directement ; utilisez-la comme source
 d'un `<img>` ou comme texture.
 
-### `evey.assets.read(path)`
+### `evey.assets.read(path)` { #eveyassetsreadpath }
 
 Lit l'un des fichiers `web_root` du plugin lui-même, par chemin relatif, en
 URL `data:` : un fichier écrit par le backend à l'exécution devient utilisable
 dans le cadre sans question d'origine croisée. Seules les ressources du
 plugin sont accessibles.
 
-### Sur une télévision
+### Sur une télévision { #on-a-television }
 
 L'application télévision exécute le module dans une WebView, et quelques
 comportements habituels du navigateur n'y sont plus valables :
@@ -241,7 +242,7 @@ comportements habituels du navigateur n'y sont plus valables :
   bruit bornées. `tests/plugins/weather-v2` est le widget de référence pour
   tout ce qui précède.
 
-## Emplacements
+## Emplacements { #slots }
 
 | Emplacement | Où il apparaît |
 |---|---|
@@ -261,7 +262,7 @@ réservée aux administrateurs. Le demander apparaît dans la différence
 soumise au consentement. Tout autre emplacement `admin.*`, `login.*`,
 `setup.*` et `profile.security.*` est refusé à l'installation.
 
-## Capacités
+## Capacités { #capabilities }
 
 Une capacité déclare le rôle que le plugin dit remplir : `metadata.provider`,
 `media.read`, `media.write`, `webhook.receiver` ou `notification.sender`.
@@ -272,7 +273,7 @@ Le serveur n'oriente aujourd'hui aucun appel en fonction d'une capacité : un
 `webhook.receiver` ne reçoit aucune requête entrante. Ce qu'un plugin peut
 réellement faire est décidé par ses **permissions**.
 
-## Permissions de l'interface
+## Permissions de l'interface { #permissions-of-the-interface }
 
 `public` et `prefs` se déclarent sous `permissions` comme les autres. Elles
 n'accordent rien au processus backend ; elles donnent accès à `evey.media.*` et
@@ -280,7 +281,7 @@ n'accordent rien au processus backend ; elles donnent accès à `evey.media.*` e
 émet un jeton de cinq minutes limité à (plugin, utilisateur) et relaie les
 appels, et le serveur refuse par défaut toute méthode que les portées du
 jeton ne nomment pas
-([ADR-0012](../adr/0012-plugin-token-deny-by-default.md)).
+([ADR-0012](https://github.com/eveyproject/evey/blob/master/docs/adr/0012-plugin-token-deny-by-default.md)).
 
 !!! note "Ce qu'un plugin ne peut jamais demander"
     `admin.*`, `auth.*`, `system.*`, `user.write` et `library.write` sont
@@ -288,7 +289,7 @@ jeton ne nomment pas
     jamais les porter, et les méthodes d'administration refusent un jeton de
     plugin quelles que soient ses portées.
 
-## Exemples
+## Exemples { #examples }
 
 `examples/plugins/` contient des plugins fonctionnels au format de manifeste
 courant : des bases en Node.js et en Python (`nodejs-example`,
@@ -296,7 +297,7 @@ courant : des bases en Node.js et en Python (`nodejs-example`,
 récepteur de webhooks (`webhook-receiver`), un widget d'accueil avec une
 étape de build (`weather`), le stockage de données avec les permissions
 `public` et `prefs` et l'emplacement `admin.nav` (`data-demo`), un exemple de
-chaque type de champ de `config_schema` (`config-demo`), et deux thèmes
+chaque type de champ de `config_schema`, avec une page `admin.nav` (`config-demo`), et deux thèmes
 (`theme-dark-blue`, `open-workshop`). `make plugin-zips` les empaquette
 tous.
 
@@ -309,7 +310,7 @@ env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go
 peer auth, rate limit: internal/adapters/driving/pluginhost/host_server.go - makePluginAuthInterceptor, pluginRPCRatePerMin ; peer_creds.go
 host RPCs and permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; pluginhost/host_server.go - Log, GetConfig, SetConfig (maxConfigKeys, maxConfigKeyLen, maxConfigValueLen), EmitEvent (pluginEmittedEvent.EventName), GetMediaItem, ListMediaItems, mediaItemToProto, UpdateMetadata, GetUserPreferences (Unimplemented), UnimplementedHostServiceServer ; fetch.go - Fetch, maxFetchBytes, fetchTimeout
 proto: proto/plugin/v1/plugin_api.proto - PluginService, HostService, InitRequest, FetchRequest, FetchResponse, MediaItem
-frame policy: internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy ; frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc, ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, clampSlotHeight, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; web/PluginIframe.tsx - MIN_SLOT_HEIGHT, suggestedSlotHeight ; native/PluginWebView.tsx (surface)
+frame policy: internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy ; frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc, ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, clampSlotHeight, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT, suggestedSlotHeight ; frontend/packages/client/src/native/PluginWebView.tsx (surface)
 bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge ; pluginRpc.ts - pluginRequestFor
 slots: internal/domain/plugin/slots.go - AllowedSlots
 token, deny by default: internal/app/plugin/token_service.go - PluginTokenTTL ; internal/pkg/auth/plugin_jwt.go - AllowedPluginScopes, forbiddenPrefix ; docs/adr/0003-plugin-scoped-tokens.md ; docs/adr/0012-plugin-token-deny-by-default.md

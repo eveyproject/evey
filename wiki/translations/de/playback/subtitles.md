@@ -1,8 +1,8 @@
 ---
-source_sha: 0df87f23e8ea13dc773d22a1984be991c45751df70cc5c7cfc5cad5238cb7d7b
+source_sha: feb83bccbedf5e609e034ecb346fbbf9b07ec032d4617b4107dafff242d4fda0
 reviewed: true
 ---
-# Untertitel
+# Untertitel { #subtitles }
 
 **Um Untertitel einzuschalten**, öffnen Sie im Player das Einstellungsmenü und
 wählen **Untertitel**. Damit sie jedes Mal in Ihrer Sprache erscheinen, stellen
@@ -25,7 +25,7 @@ Die meisten Untertitel erscheinen sofort. Zwei Fälle sind anders:
 Der Rest dieser Seite erklärt jedes Untertitelformat und was es für den
 Server ändert.
 
-## Was jedes Format mit dem Video macht
+## Was jedes Format mit dem Video macht { #what-each-format-does-to-the-video }
 
 | Format | Beispiele | Wie es angezeigt wird | Wirkung auf das Video |
 | --- | --- | --- | --- |
@@ -44,7 +44,7 @@ Ein Bild-Untertitel wird nur eingebrannt, wenn Sie ihn wirklich auswählen.
 Eine Datei, die nur einen enthält oder ihn als Standard markiert, bleibt bei
 der Direktwiedergabe.
 
-## Untertitel einbrennen
+## Untertitel einbrennen { #subtitle-burn-in }
 
 Die Profileinstellung **Untertitel einbrennen** (**Einstellungen →
 Wiedergabe**) gilt für die Formate der letzten Zeile:
@@ -55,15 +55,14 @@ Wiedergabe**) gilt für die Formate der letzten Zeile:
 | **Immer einbrennen** | Wie Auto. | Vom Player dargestellt: Text wird nie eingebrannt, egal bei welcher Einstellung. |
 | **Nie einbrennen** | Kann nicht angezeigt werden: Das Video wird für einen Untertitel nie neu kodiert. | Vom Player dargestellt. |
 
-## Wenn ein Untertitel zum ersten Mal gezeigt wird
+## Wenn ein Untertitel zum ersten Mal gezeigt wird { #the-first-time-a-subtitle-is-shown }
 
 Ein Untertitel in der Datei (Text oder PGS) wird vom Server extrahiert, wenn
 ihn jemand zum ersten Mal wählt, und dann aufbewahrt: Bei jeder späteren
 Wiedergabe, egal durch wen, erscheint er sofort. Deckt der eigene Index der Datei die
 Spur ab, liest der Server nur die Blöcke des Untertitels, und das dauert
 Sekunden. Ohne diesen Index liest er die ganze Datei: einige Minuten bei
-einem großen Film (etwa fünf bei einem UHD-Remux von 85 GB auf einer lokalen
-Festplatte, länger, wenn derselbe Server gleichzeitig streamt).
+einem großen Film (einige Minuten bei einer sehr großen Datei, länger, wenn derselbe Server gleichzeitig streamt).
 
 Währenddessen zeigt der Player **Untertitel werden vorbereitet…** dort, wo
 die Untertitel erscheinen, prüft von selbst erneut und zeigt sie an, sobald
@@ -76,7 +75,7 @@ liest; ein Update von MKVGo, der Bibliothek, die die Spur extrahiert,
 versucht es erneut. Siehe [MKVGo in Evey](mkvgo.md#what-mkvgo-does), was
 wann gelesen wird.
 
-## Auswählen und anpassen
+## Auswählen und anpassen { #choosing-and-adjusting }
 
 - Die Player wählen den Untertitel der **Standard-Untertitelsprache** des
   Profils, danach die Spur, die die Datei als Standard markiert (zum Beispiel

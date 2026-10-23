@@ -116,7 +116,7 @@ account's row in **Admin → Users**.
 | Setting | What it does |
 | --- | --- |
 | **Library Access** (the **Libraries** button on the row) | The libraries the account sees. The others do not appear anywhere for it: not in search, not on its home page. An administrator always sees everything. |
-| **Max Bitrate** (the **Bitrate** button) | Limits the video quality the account receives, from 1 to 40 Mbps (0 = no limit). A title above it is converted down to it. |
+| **Max Bitrate** (the **Bitrate** button) | Limits the video quality the account receives, one of six presets from 1 to 40 Mbps, or Unlimited. A title above it is converted down to it. |
 | **Max profiles** | How many profiles the account may create (0 = no limit). |
 | **Max devices per profile** | How many videos each profile may play at the same time, across its devices (0 = no limit). One more is refused when it starts. |
 

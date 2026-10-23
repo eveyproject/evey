@@ -102,8 +102,8 @@ was just announced.
 ## Let people reset their password
 
 1. Set up e-mail (above).
-2. Turn on **Password recovery** in **Admin → Server Config → Server
-   Settings**. It applies immediately.
+2. Turn on **Password recovery** in **Admin → Server Config →
+   Accounts & security → Sign-in and protection**. It applies immediately.
 3. The sign-in page now shows **Forgot your password?**. It e-mails a link to
    choose a new password.
 
@@ -116,7 +116,7 @@ retention 30 d: internal/app/notification/service.go defaultRetentionDays ; grou
 list filtered by library access: internal/adapters/driving/grpcapi/notification_handler.go allowedLibraryIDs
 bell on TV and mobile: frontend/apps/tv/src/components/TopHeader.tsx ; frontend/apps/mobile/app/(auth)/settings/notifications.tsx
 levels: batching.go shouldNotify (relevant == highly_relevant) + fetchFavoriteGenres (GetFavoriteGenresBatch minCount 3, window 200 sessions: watch_history_analyzer.go)
-defaults all: migrations/000005_notifications.up.sql (notification_settings_global) ; UI: frontend/apps/web/src/features/user/NotificationSettings.tsx ; i18n notificationSettings.level*
+defaults all: internal/adapters/driven/postgres/migrations/000005_notifications.up.sql (notification_settings_global) ; UI: frontend/apps/web/src/features/user/NotificationSettings.tsx ; i18n notificationSettings.level*
 email: internal/adapters/driven/email/notification_emailer.go (push title key, recipient locale, one per account per FanoutID, base URL link)
 SMTP live from the card, env fallback, panel host = panel only, defaults 587/starttls: internal/app/config/smtp.go (ResolveSMTPSettings, LiveSMTP) ; test send: internal/adapters/driving/http/smtp_test_handler.go
 labels: i18n admin.serverConfig emailSmtp, smtpHost, port, smtpUsername, smtpPassword, fromAddress, tlsMode, saveSmtp, sendTestEmail

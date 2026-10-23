@@ -1,5 +1,5 @@
 ---
-source_sha: 882540a1c223edaceac62b6090fc29c8d6391b2bdbb9f156d5cd7015f46e2bc2
+source_sha: 987860a30ec28609fee02ff92f64e4147a49477033de9aa0ea2a0f1ecdc3ef0f
 reviewed: true
 ---
 # 反向代理配置 { #reverse-proxy-configurations }
@@ -164,7 +164,7 @@ networks:
 
 ## 流媒体：代理的默认设置会对它产生什么影响 { #streaming---what-a-proxys-defaults-do-to-it }
 
-即使反向代理保持默认设置，Evey 也能正常工作：每个长时间的响应要么连续发送数据（HLS 片段、直接播放、转码输出），要么每 30 秒向客户端发一次心跳（事件流），所以默认的读取超时永远不会触发。不过还有两点值得了解：
+即使反向代理保持默认设置，Evey 也能正常工作：每个长时间的响应要么连续发送数据（HLS 片段、直接播放、转码输出），要么保持连接存活（事件流会发送 keep-alive），所以默认的读取超时永远不会触发。不过还有两点值得了解：
 
 - **缓冲。** 会缓冲响应的代理（nginx 默认如此）会先把直接播放的文件读进自己的缓冲区和临时文件，客户端才能收到。这样能用，但一部几 GB 的电影就会经过代理主机的磁盘。在流媒体路径上设置 `proxy_buffering off` 可以避免这种情况。
 - **扫描。** `/api/v1/libraries/*/scan` 在整个扫描期间持续发送进度；如果代理限制响应的总时长（这种情况很少见，nginx、Caddy 和 Traefik 默认都不限制），就会把它提前切断。不过扫描本身仍然会在服务器端继续进行。
@@ -237,7 +237,7 @@ one port for API and UI, https mode from the scheme: internal/config/config.go (
 bundled Caddy: docker/Caddyfile (streaming matcher, @ownPolicy, header_down CSP) ; docker/Dockerfile.caddy ; docker-compose.yml caddy service
 nginx: examples/nginx/evey.conf.template ; examples/nginx/docker-compose.nginx.yml (nginx-certs volume, no ACME)
 traefik: examples/traefik/docker-compose.traefik.yml (labels + proxy network only)
-streaming paths: cmd/evey/gateway.go ; event streams ping 30 s ; scan progress stream
+streaming paths: cmd/evey/gateway.go ; event streams keep-alive ; scan progress stream
 csp and own-policy pages: internal/adapters/driving/http/helpers.go - securityHeadersMiddleware ; /plugin-frame.html ; /cast-receiver.html
 trusted proxies, catch-all refused, doctor: internal/config/trusted_proxies.go ; cmd/evey/admin_ops.go - checkTrustedProxies
 remote access inferred: docs/adr/0026-remote-access-inferred-from-a-published-url.md
