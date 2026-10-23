@@ -31,6 +31,16 @@ describe("AdminTrickplayThumbnail", () => {
     expect(img.style.top).toBe("-100%");
   });
 
+  it("frames every tile 16:9, a scope tile included", () => {
+    cues.list = [{ startMs: 0, endMs: 10_000, url: "/sprite.jpg", x: 0, y: 0, w: 320, h: 134 }];
+    const { container } = render(<AdminTrickplayThumbnail mediaId="m1" positionMs={5_000} mediaType="movie" fullWidth />);
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.style.aspectRatio).toBe("16 / 9");
+    const tile = container.querySelector<HTMLElement>("[data-testid=trickplay-tile]")!;
+    expect(tile.style.aspectRatio).toBe("320 / 134");
+    expect(tile.style.width).toBe("100%");
+  });
+
   it("falls back to a quantised, tokenised snapshot URL and hides on error", () => {
     const { container, rerender } = render(<AdminTrickplayThumbnail mediaId="m1" positionMs={44_999} mediaType="episode" />);
     const img = container.querySelector("img")!;

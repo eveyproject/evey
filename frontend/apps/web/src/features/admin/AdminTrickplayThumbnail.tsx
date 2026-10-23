@@ -17,35 +17,44 @@ interface Props {
 // A responsive crop of one trickplay sprite tile: the whole sprite is scaled so
 // the tile fills the box (100% width, tile aspect), positioned to the tile rect.
 // Needs the sprite's natural width, read once on load; hidden until then to
-// avoid a wrong-crop flash.
+// avoid a wrong-crop flash. The frame is 16:9 whatever the tile's shape: a
+// scope film's tile was shorter and misaligned the cards next to it.
 function TrickplayTile({ cue, fullWidth }: { cue: TrickplayCue; fullWidth?: boolean }) {
   const [natW, setNatW] = useState(0);
+  const wide = cue.w / cue.h >= 16 / 9;
   return (
     <div
-      className={fullWidth ? "w-full overflow-hidden relative" : "shrink-0 overflow-hidden relative rounded-[var(--radius)]"}
-      style={{
-        aspectRatio: `${cue.w}/${cue.h}`,
-        width: fullWidth ? undefined : 160,
-        backgroundColor: "var(--surface-raised)",
-      }}
+      className={fullWidth ? "w-full flex items-center justify-center bg-black" : "shrink-0 flex items-center justify-center bg-black rounded-[var(--radius)] overflow-hidden"}
+      style={{ aspectRatio: "16/9", width: fullWidth ? undefined : 160 }}
     >
-      <img
-        src={cue.url}
-        alt=""
-        role="presentation"
-        onLoad={(e) => setNatW(e.currentTarget.naturalWidth)}
-        style={
-          natW
-            ? {
-                position: "absolute",
-                maxWidth: "none",
-                width: `${(natW / cue.w) * 100}%`,
-                left: `${(-cue.x / cue.w) * 100}%`,
-                top: `${(-cue.y / cue.h) * 100}%`,
-              }
-            : { opacity: 0 }
-        }
-      />
+      <div
+        data-testid="trickplay-tile"
+        className="overflow-hidden relative"
+        style={{
+          aspectRatio: `${cue.w}/${cue.h}`,
+          width: wide ? "100%" : undefined,
+          height: wide ? undefined : "100%",
+          backgroundColor: "var(--surface-raised)",
+        }}
+      >
+        <img
+          src={cue.url}
+          alt=""
+          role="presentation"
+          onLoad={(e) => setNatW(e.currentTarget.naturalWidth)}
+          style={
+            natW
+              ? {
+                  position: "absolute",
+                  maxWidth: "none",
+                  width: `${(natW / cue.w) * 100}%`,
+                  left: `${(-cue.x / cue.w) * 100}%`,
+                  top: `${(-cue.y / cue.h) * 100}%`,
+                }
+              : { opacity: 0 }
+          }
+        />
+      </div>
     </div>
   );
 }
