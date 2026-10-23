@@ -17,7 +17,10 @@ vi.mock("@evey/api", async (importOriginal) => ({
   serverConfigServiceSetServerConfigEntry: (...args: unknown[]) => mockSetConfigEntry(...args),
 }));
 
-vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@evey/store", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+  useDemoStore: (fn: (s: { demoLocked: string[] }) => unknown) => fn({ demoLocked: [] }),
+}));
 
 vi.mock("@tanstack/react-router", () => ({
   createLazyFileRoute: () => (opts: { component: React.ComponentType }) => opts,

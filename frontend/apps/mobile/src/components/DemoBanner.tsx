@@ -22,6 +22,7 @@ export function DemoBanner() {
     if (setupStatus.data) {
       useDemoStore.getState().setDemoMode(demo);
       useDemoStore.getState().setExtendedDemo(setupStatus.data.demoExtended === true);
+      useDemoStore.getState().setDemoLocked(setupStatus.data.demoLocked ?? []);
     }
   }, [demo, setupStatus.data]);
   if (!demo) return null;

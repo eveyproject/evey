@@ -30,7 +30,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Modal } from "@/components/ui/Modal";
-import { useDemoLock } from "@/hooks/useDemoMode";
+import { useDemoLock, useDemoLockFor } from "@/hooks/useDemoMode";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 export const Route = createLazyFileRoute("/_auth/admin/backup")({
@@ -233,6 +233,7 @@ function useDeleteBackup() {
 function BackupRow({ backup }: { backup: Backup }) {
   const { t } = useTranslation();
   const { lock } = useDemoLock();
+  const { lock: restoreLock } = useDemoLockFor("POST /api/v1/admin/backups/restore");
   const deleteBackup = useDeleteBackup();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -303,7 +304,7 @@ function BackupRow({ backup }: { backup: Backup }) {
             loading={restoring}
             onClick={() => setConfirmRestore(true)}
             className="text-xs"
-            {...lock}
+            {...restoreLock}
           >
             {t("common.restore")}
           </Button>
@@ -427,6 +428,7 @@ function RestoreUploadModal({
 function BackupPage() {
   const { t } = useTranslation();
   const { lock } = useDemoLock();
+  const { lock: restoreLock } = useDemoLockFor("POST /api/v1/admin/backups/restore");
   const { data: backups, isLoading, isError, error, refetch } = useBackups();
   const createBackup = useCreateBackup();
   const [showRestoreUpload, setShowRestoreUpload] = useState(false);
@@ -438,7 +440,7 @@ function BackupPage() {
           <Button
             variant="secondary"
             onClick={() => setShowRestoreUpload(true)}
-            {...lock}
+            {...restoreLock}
           >
             {t("admin.backup.restoreFromFile")}
           </Button>

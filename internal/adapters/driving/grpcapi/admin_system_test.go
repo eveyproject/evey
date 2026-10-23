@@ -2,6 +2,7 @@ package grpcapi
 
 import (
 	"context"
+	"slices"
 	"testing"
 	"time"
 
@@ -749,6 +750,13 @@ func TestAdminGetSetupStatus_DemoLevels(t *testing.T) {
 		}
 		if resp.DemoMode != c.wantMode || resp.DemoExtended != c.wantExt {
 			t.Errorf("%s: demo_mode=%v demo_extended=%v, want %v %v", c.name, resp.DemoMode, resp.DemoExtended, c.wantMode, c.wantExt)
+		}
+		// The extended demo names what it still refuses, so the clients can
+		// grey it; nothing is listed anywhere else.
+		hasAudit := slices.Contains(resp.DemoLocked, "/evey.v1.AdminSessionService/GetAuditLog")
+		hasLogs := slices.Contains(resp.DemoLocked, "GET /api/v1/admin/logs")
+		if c.wantExt != hasAudit || c.wantExt != hasLogs || (!c.wantExt && len(resp.DemoLocked) > 0) {
+			t.Errorf("%s: demo_locked=%v", c.name, resp.DemoLocked)
 		}
 	}
 }

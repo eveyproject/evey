@@ -21,6 +21,7 @@ package demo
 
 import (
 	"net/http"
+	"slices"
 	"strings"
 )
 
@@ -535,6 +536,21 @@ var ExtendedProtectedUserRPCs = map[string]string{
 	"/evey.v1.UserService/UpdateUser":  "password, e-mail, username or role of the guest's account",
 	"/evey.v1.UserService/DisableUser": "locks the guest out",
 	"/evey.v1.UserService/DeleteUser":  "removes the guest's account",
+}
+
+// ExtendedLocked is what the extended demo still refuses, RPC full names and
+// route patterns together, sorted: the setup status hands it to the clients so
+// they grey or hide those controls from the policy itself, not from a copy.
+func ExtendedLocked() []string {
+	out := make([]string, 0, len(ExtendedStaysLockedRPCs)+len(ExtendedStaysLockedRoutes))
+	for k := range ExtendedStaysLockedRPCs {
+		out = append(out, k)
+	}
+	for k := range ExtendedStaysLockedRoutes {
+		out = append(out, k)
+	}
+	slices.Sort(out)
+	return out
 }
 
 // RPCLockedAt is RPCLocked at a given level.

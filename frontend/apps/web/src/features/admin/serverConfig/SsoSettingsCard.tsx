@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 import { SettingRow } from "@/components/ui/SettingRow";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { useDemoLock } from "@/hooks/useDemoMode";
+import { useDemoLockFor } from "@/hooks/useDemoMode";
 
 // SsoSettingsCard configures OpenID Connect sign-in. The server reads these
 // settings live (GET/PUT /api/v1/admin/sso): saving applies without a restart,
@@ -80,7 +80,8 @@ function CopyField({ label, value }: { label: string; value: string }) {
 export function SsoSettingsCard() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const { lock } = useDemoLock();
+  const { lock } = useDemoLockFor("PUT /api/v1/admin/sso");
+  const { lock: testLock } = useDemoLockFor("POST /api/v1/admin/sso/test");
   const { data, isLoading } = useQuery<SsoSettings>({
     queryKey: SSO_QUERY_KEY,
     queryFn: () => eveyFetch<SsoSettings>({ url: SSO_URL, method: "GET" }),
@@ -248,7 +249,7 @@ export function SsoSettingsCard() {
       )}
 
       <div className="flex flex-wrap justify-end gap-2">
-        <Button type="button" variant="secondary" onClick={() => test.mutate(issuer)} loading={test.isPending} disabled={!issuer.trim() || lock.disabled} title={lock.title}>
+        <Button type="button" variant="secondary" onClick={() => test.mutate(issuer)} loading={test.isPending} disabled={!issuer.trim() || testLock.disabled} title={testLock.title}>
           {t("admin.sso.test")}
         </Button>
         <Button type="button" onClick={() =>

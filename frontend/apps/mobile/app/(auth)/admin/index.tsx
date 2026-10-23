@@ -21,7 +21,7 @@ import {
   type V1ActiveSession,
 } from "@evey/api";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "@evey/store";
+import { toast, useDemoStore, demoLocks } from "@evey/store";
 import { scanFailedPaths } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
@@ -253,6 +253,7 @@ function QuickActionsRow({ theme }: { theme: ReturnType<typeof useTheme> }) {
     },
   });
 
+  const restartLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.AdminSystemService/RestartServer"));
   const [restartArmed, setRestartArmed] = useState(false);
   useEffect(() => {
     if (!restartArmed) return;
@@ -318,7 +319,9 @@ function QuickActionsRow({ theme }: { theme: ReturnType<typeof useTheme> }) {
         </Pressable>
         <Pressable
           onPress={onRestartPress}
-          style={[styles.quickActionBtn, { backgroundColor: restartArmed ? theme.colors.danger : theme.colors.surface, borderRadius: theme.radii.md }]}
+          disabled={restartLocked}
+          accessibilityHint={restartLocked ? t("common.demo.locked") : undefined}
+          style={[styles.quickActionBtn, { backgroundColor: restartArmed ? theme.colors.danger : theme.colors.surface, borderRadius: theme.radii.md, opacity: restartLocked ? 0.4 : 1 }]}
         >
           {restart.isPending ? (
             <ActivityIndicator size="small" color={restartArmed ? theme.colors.onAccent : theme.colors.accent} />

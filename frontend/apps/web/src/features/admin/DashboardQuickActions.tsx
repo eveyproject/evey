@@ -13,11 +13,12 @@ import { toast } from "@evey/store";
 import { scanFailedPaths } from "@evey/client";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { useDemoLock } from "@/hooks/useDemoMode";
+import { useDemoLock, useDemoLockFor } from "@/hooks/useDemoMode";
 
 export function QuickActions() {
   const { t } = useTranslation();
   const { lock } = useDemoLock();
+  const { lock: restartLock } = useDemoLockFor("/evey.v1.AdminSystemService/RestartServer");
   const queryClient = useQueryClient();
   const { data: libData } = useLibraryServiceListLibraries();
   const libraries = libData?.libraries ?? [];
@@ -126,7 +127,7 @@ export function QuickActions() {
           loading={restart.isPending}
           onClick={onRestartClick}
           title={t("admin.dashboardStats.restartHint")}
-          {...lock}
+          {...restartLock}
         >
           <Power size={16} />
           {restartArmed

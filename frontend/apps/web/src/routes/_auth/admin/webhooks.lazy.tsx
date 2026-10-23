@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
 import { WebhookForm } from "@/features/admin/WebhookForm";
-import { useDemoLock } from "@/hooks/useDemoMode";
+import { useDemoLock, useDemoLockFor } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/webhooks")({
   component: WebhooksPage,
@@ -32,7 +32,9 @@ function WebhookRow({
   onEdit: (wh: V1WebhookConfig) => void;
 }) {
   const { t } = useTranslation();
-  const { demo, lock } = useDemoLock();
+  const { lock } = useDemoLock();
+  const { locked: updateLocked, lock: updateLock } = useDemoLockFor("/evey.v1.WebhookService/UpdateWebhook");
+  const { lock: testLock } = useDemoLockFor("POST /api/v1/admin/webhooks/{id}/test");
   const queryClient = useQueryClient();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -112,8 +114,8 @@ function WebhookRow({
         <button
           type="button"
           onClick={handleToggleEnabled}
-          disabled={toggleEnabled.isPending || demo}
-          title={demo ? t("common.demo.locked") : webhook.enabled ? t("common.disable") : t("common.enable")}
+          disabled={toggleEnabled.isPending || updateLocked}
+          title={updateLocked ? t("common.demo.locked") : webhook.enabled ? t("common.disable") : t("common.enable")}
           aria-label={webhook.enabled ? t("common.disable") : t("common.enable")}
           className="cursor-pointer"
         >
@@ -129,10 +131,10 @@ function WebhookRow({
       </td>
       <td className="px-4 py-3" data-label={t("admin.webhooks.tableHeaders.actions")}>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="secondary" loading={testing} onClick={handleTest} {...lock}>
+          <Button variant="secondary" loading={testing} onClick={handleTest} {...testLock}>
             {t("common.test")}
           </Button>
-          <Button variant="secondary" onClick={() => onEdit(webhook)} {...lock}>
+          <Button variant="secondary" onClick={() => onEdit(webhook)} {...updateLock}>
             {t("common.edit")}
           </Button>
           <Button
@@ -175,7 +177,7 @@ function WebhookRow({
 
 function WebhooksPage() {
   const { t } = useTranslation();
-  const { lock } = useDemoLock();
+  const { lock } = useDemoLockFor("/evey.v1.WebhookService/CreateWebhook");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editTarget, setEditTarget] = useState<V1WebhookConfig | null>(null);
   const queryClient = useQueryClient();

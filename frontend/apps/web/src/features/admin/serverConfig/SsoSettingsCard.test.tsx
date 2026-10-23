@@ -12,7 +12,7 @@ vi.mock("@evey/api", () => ({
 }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("@evey/store", () => ({ toast }));
-vi.mock("@/hooks/useDemoMode", () => ({ useDemoLock: () => ({ demo: false, lock: {} }) }));
+vi.mock("@/hooks/useDemoMode", () => ({ useDemoLockFor: () => ({ locked: false, lock: {} }) }));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o ? `${k}(${Object.values(o).join(",")})` : k), i18n: { language: "en" } }),
 }));

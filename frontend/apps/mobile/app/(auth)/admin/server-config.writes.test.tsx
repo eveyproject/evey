@@ -18,7 +18,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   apiErrorMessage: () => "error",
 }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
-vi.mock("@evey/store", () => ({ toast }));
+vi.mock("@evey/store", () => ({ toast, useDemoStore: (sel: (s: any) => unknown) => sel({ demoMode: false, demoLocked: [] }), demoLocks: (s: any, k: string) => s.demoMode || s.demoLocked.includes(k) }));
 vi.mock("@evey/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/client")>()),
   latestLabel: () => "",

@@ -8,6 +8,10 @@ vi.mock("@evey/api", () => ({
   eveyFetch: (...a: unknown[]) => eveyFetchMock(...a),
   useAdminSystemServiceGetSystemInfo: () => ({ data: { videoSessions: { pools: [] } } }),
 }));
+const demo = vi.hoisted(() => ({ locked: [] as string[] }));
+vi.mock("@evey/store", () => ({
+  useDemoStore: (sel: (s: { demoLocked: string[] }) => unknown) => sel({ demoLocked: demo.locked }),
+}));
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o ? `${k}(${Object.values(o).join(",")})` : k) }),
 }));
@@ -30,6 +34,7 @@ function mount() {
 
 beforeEach(() => {
   eveyFetchMock.mockReset();
+  demo.locked = [];
 });
 
 // The card launches a run with the chosen scenario and cache mode and no
@@ -37,6 +42,20 @@ beforeEach(() => {
 // counters while running with a cancel, names a refusal caused by real
 // playback for what it is, and shows the last report when idle.
 describe("LoadTestCard", () => {
+  it("greys start, and cancel while running, when the server refuses them", async () => {
+    demo.locked = ["/evey.v1.AdminSystemService/StartLoadTest", "/evey.v1.AdminSystemService/CancelLoadTest"];
+    eveyFetchMock.mockResolvedValue({ running: false });
+    mount();
+    expect((await screen.findByTestId("load-test-start-btn") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("greys cancel on a running test when CancelLoadTest is refused", async () => {
+    demo.locked = ["/evey.v1.AdminSystemService/CancelLoadTest"];
+    eveyFetchMock.mockResolvedValue({ running: true, viewers: 1, phase: "climb", elapsedMs: 1000 });
+    mount();
+    expect((await screen.findByTestId("load-test-cancel-btn") as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("starts a run with the chosen scenario, no ceiling, then shows the live state and cancels", async () => {
     let running = false;
     let lastReport: unknown;

@@ -7,7 +7,11 @@ const invalidate = vi.hoisted(() => vi.fn());
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: invalidate }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string) => k }) }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
-vi.mock("@evey/store", () => ({ toast }));
+const demo = vi.hoisted(() => ({ locked: [] as string[] }));
+vi.mock("@evey/store", () => ({
+  toast,
+  useDemoStore: (sel: (s: { demoLocked: string[] }) => unknown) => sel({ demoLocked: demo.locked }),
+}));
 const api = vi.hoisted(() => ({ libs: [] as unknown[], scan: vi.fn(), restart: vi.fn(), restartOpts: null as any }));
 vi.mock("@evey/api", () => ({
   useLibraryServiceListLibraries: () => ({ data: { libraries: api.libs } }),
@@ -28,6 +32,7 @@ import { QuickActions } from "./DashboardQuickActions";
 beforeEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
+  demo.locked = [];
   api.libs = [{ id: "l1" }, { id: "l2" }, { id: "" }];
   api.scan.mockResolvedValue({});
 });
@@ -54,6 +59,13 @@ describe("QuickActions", () => {
     api.libs = [];
     render(<QuickActions />);
     expect((screen.getByText("admin.dashboardStats.scanAllLibraries") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("greys only restart when the server refuses it on the extended demo", () => {
+    demo.locked = ["/evey.v1.AdminSystemService/RestartServer"];
+    render(<QuickActions />);
+    expect((screen.getByText("admin.dashboardStats.restartServer") as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByText("admin.dashboardStats.scanAllLibraries") as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("restart arms on the first click, disarms after 4 s, fires on the second", () => {

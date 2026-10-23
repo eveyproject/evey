@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch, useAdminSystemServiceGetSystemInfo } from "@evey/api";
 import { Button } from "@/components/ui/Button";
+import { useDemoLockFor } from "@/hooks/useDemoMode";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { LoadTestReportPanel } from "./LoadTestReportPanel";
@@ -35,6 +36,8 @@ const CUSTOM_CLIENTS = "clients:custom";
 export function LoadTestCard() {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const { lock: startLock } = useDemoLockFor("/evey.v1.AdminSystemService/StartLoadTest");
+  const { lock: cancelLock } = useDemoLockFor("/evey.v1.AdminSystemService/CancelLoadTest");
   const { data: sysData } = useAdminSystemServiceGetSystemInfo();
   const pools = sysData?.videoSessions?.pools ?? [];
   // The audience's own clients answer the question that actually matters to an
@@ -121,6 +124,7 @@ export function LoadTestCard() {
               loading={cancel.isPending}
               onClick={() => cancel.mutate()}
               data-testid="load-test-cancel-btn"
+              {...cancelLock}
             >
               {t("admin.loadtest.cancelButton")}
             </Button>
@@ -187,6 +191,7 @@ export function LoadTestCard() {
                 disabled={!sentScenario}
                 onClick={() => start.mutate()}
                 data-testid="load-test-start-btn"
+                {...startLock}
               >
                 {t("admin.loadtest.startButton")}
               </Button>

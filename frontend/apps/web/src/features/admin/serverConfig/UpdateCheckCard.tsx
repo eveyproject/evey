@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Switch } from "@/components/ui/Switch";
 import { SettingRow } from "@/components/ui/SettingRow";
 import { ICON } from "@/constants/iconSizes";
+import { useDemoLockFor } from "@/hooks/useDemoMode";
 import { useSetConfigEntry, type ConfigEntry } from "./hooks";
 
 const ENABLED_KEY = "update_check.enabled";
@@ -32,6 +33,7 @@ export function UpdateCheckCard({ entries }: { entries: ConfigEntry[] | undefine
   const setEntry = useSetConfigEntry();
   const { data } = useUpdateStatus();
   const checkNow = useCheckUpdateNow();
+  const { lock } = useDemoLockFor("POST /api/v1/admin/update-status/check");
   const enabled = entries?.find((e) => e.key === ENABLED_KEY)?.value !== "false";
 
   return (
@@ -52,7 +54,7 @@ export function UpdateCheckCard({ entries }: { entries: ConfigEntry[] | undefine
             {t("admin.update.checkedAt", { when: new Date(data.checkedAt).toLocaleString() })}
           </span>
         )}
-        <Button variant="secondary" loading={checkNow.isPending} disabled={!enabled} onClick={() => checkNow.mutate()} className="sm:ml-auto">
+        <Button variant="secondary" loading={checkNow.isPending} disabled={!enabled} onClick={() => checkNow.mutate()} className="sm:ml-auto" {...lock}>
           <RefreshCw size={ICON.xs} aria-hidden="true" />
           {t("admin.update.checkNow")}
         </Button>

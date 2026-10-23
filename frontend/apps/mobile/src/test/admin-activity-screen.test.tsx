@@ -56,7 +56,12 @@ vi.mock("../components/LoadFailed", () => ({
   LoadFailed: () => React.createElement("div", { "data-testid": "load-failed" }),
 }));
 
-vi.mock("@evey/store", () => ({ toast: { error: vi.fn(), info: vi.fn() }, useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }) }));
+const demo = vi.hoisted(() => ({ locked: [] as string[] }));
+vi.mock("@evey/store", () => ({
+  toast: { error: vi.fn(), info: vi.fn() },
+  useDemoStore: (sel: (s: any) => unknown) => sel({ demoMode: false, demoLocked: demo.locked }),
+  demoLocks: (s: any, k: string) => s.demoMode || s.demoLocked.includes(k),
+}));
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: () => ({ data: undefined }),
@@ -115,6 +120,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   searchParams = {};
   failPage = 0;
+  demo.locked = [];
   served = new Map();
   playHistoryMock.mockImplementation((params: any) => {
     const p = params?.["pagination.page"] ?? 1;
@@ -190,5 +196,19 @@ describe("admin activity - deep link from the users screen", () => {
 
     await waitFor(() => expect(playHistoryMock).toHaveBeenCalled());
     expect(playHistoryMock.mock.calls[0][0]).not.toHaveProperty("profileId");
+  });
+});
+
+// The extended demo refuses GetAuditLog: the tab is not offered, so it never errors.
+describe("admin activity - audit log tab", () => {
+  it("offers the audit tab unless the server lists GetAuditLog as locked", () => {
+    const { unmount } = render(<ActivityScreen />);
+    expect(screen.getByText("Audit Log")).toBeTruthy();
+    unmount();
+
+    demo.locked = ["/evey.v1.AdminSessionService/GetAuditLog"];
+    render(<ActivityScreen />);
+    expect(screen.queryByText("Audit Log")).toBeNull();
+    expect(screen.getByText("Play History")).toBeTruthy();
   });
 });

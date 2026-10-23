@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { eveyFetch, useUserServiceListUsers, useUserServiceListAllProfiles } from "@evey/api";
 import { useMediaLabels } from "@evey/client";
-import { useDemoStore } from "@evey/store";
+import { useDemoStore, demoLocks } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 // Mirrors frontend/apps/web/src/features/admin/logsClassify.ts. The search
@@ -225,7 +225,7 @@ const LogRow = memo(function LogRow({
 // even after redaction): say so instead of asking and showing a load failure,
 // as the web does.
 export default function AdminLogsScreen() {
-  const demo = useDemoStore((s) => s.demoMode);
+  const demo = useDemoStore((s) => demoLocks(s, "GET /api/v1/admin/logs") || demoLocks(s, "GET /api/v1/admin/logs/search"));
   return demo ? <DemoLockedLogs /> : <AdminLogsContent />;
 }
 

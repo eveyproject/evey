@@ -50,7 +50,7 @@ vi.mock("../providers/ThemeProvider", () => ({
   }),
 }));
 
-vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@evey/store", () => ({ toast: { success: vi.fn(), error: vi.fn() }, useDemoStore: (sel: (s: any) => unknown) => sel({ demoMode: false, demoLocked: [] }), demoLocks: (s: any, k: string) => s.demoMode || s.demoLocked.includes(k) }));
 
 // The dashboard's Now-playing card (shared SessionCard) and Background-tasks
 // panel drive live controls through react-query directly; this test only cares

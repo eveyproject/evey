@@ -371,6 +371,12 @@ message SetupStatusResponse {
   // account behaviour must not apply, and the login screen publishes no
   // credentials. The clients use it only to keep their hands off the network settings.
   bool demo_extended = 7;
+  // demo_locked lists, on the extended demo only, what the server still
+  // refuses there: gRPC full method names ("/evey.v1.AdminSessionService/GetAuditLog")
+  // and HTTP route patterns ("GET /api/v1/admin/logs"). The clients grey or
+  // hide the matching controls from it instead of a copy of the policy that
+  // drifts; empty everywhere else.
+  repeated string demo_locked = 8;
 }
 
 message GetServerConfigRequest {}

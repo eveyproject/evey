@@ -34,7 +34,7 @@ vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (k: string, fallba
 const eveyFetch = vi.hoisted(() => vi.fn());
 vi.mock("@evey/api", () => ({ eveyFetch: (...a: unknown[]) => eveyFetch(...a) }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
-vi.mock("@evey/store", () => ({ toast, useDemoStore: (sel: (s: { demoMode: boolean }) => unknown) => sel({ demoMode: false }) }));
+vi.mock("@evey/store", () => ({ toast, useDemoStore: (sel: (s: any) => unknown) => sel({ demoMode: false, demoLocked: [] }), demoLocks: (s: any, k: string) => s.demoMode || s.demoLocked.includes(k) }));
 vi.mock("../../../src/providers/ThemeProvider", () => ({
   useTheme: () => ({ colors: { bg: "#000", surface: "#111", surfaceRaised: "#222", text: "#fff", textMuted: "#888", accent: "#f00", border: "#333", warning: "#fa0", success: "#0f0" }, radii: { md: 8 } }),
 }));

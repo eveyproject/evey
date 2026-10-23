@@ -3,6 +3,7 @@ import { View, Text, Pressable, ActivityIndicator, Switch, StyleSheet, TextInput
 import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch, formatBytes, type V1VideoPool } from "@evey/api";
+import { useDemoStore, demoLocks } from "@evey/store";
 import { useTheme } from "../../../providers/ThemeProvider";
 import {
   ACTIVE_STREAMS_STATUSES,
@@ -65,6 +66,8 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const s = styles(theme);
+  const startLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.AdminSystemService/StartLoadTest"));
+  const cancelLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.AdminSystemService/CancelLoadTest"));
 
   // The audience's own clients are the default: the question an operator has
   // is "how many of MY viewers", and the server decides each one's path.
@@ -128,8 +131,9 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
           </Text>
           <Pressable
             onPress={() => cancel.mutate()}
-            disabled={cancel.isPending}
-            style={[s.secondaryBtn, { opacity: cancel.isPending ? 0.5 : 1 }]}
+            disabled={cancel.isPending || cancelLocked}
+            style={[s.secondaryBtn, { opacity: cancel.isPending || cancelLocked ? 0.5 : 1 }]}
+            accessibilityHint={cancelLocked ? t("common.demo.locked") : undefined}
           >
             {cancel.isPending ? (
               <ActivityIndicator size="small" color={theme.colors.text} />
@@ -145,6 +149,7 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
           {report && <ReportPanel report={report} predicted={predicted} />}
 
           <View style={{ gap: 8, marginTop: 10 }}>
+            {startLocked && <Text style={s.hint}>{t("common.demo.locked")}</Text>}
             <Text style={[s.hint, { color: theme.colors.warning }]}>
               {t("admin.loadtest.idleWarning", "Arrêtez toute lecture réelle avant de lancer - le test a besoin d'un hôte au repos.")}
             </Text>
@@ -212,8 +217,9 @@ export function LoadTestSection({ pools }: { pools: V1VideoPool[] }) {
 
             <Pressable
               onPress={() => start.mutate()}
-              disabled={start.isPending || !sentScenario}
-              style={[s.primaryBtn, { opacity: start.isPending || !sentScenario ? 0.5 : 1 }]}
+              disabled={start.isPending || !sentScenario || startLocked}
+              style={[s.primaryBtn, { opacity: start.isPending || !sentScenario || startLocked ? 0.5 : 1 }]}
+              accessibilityHint={startLocked ? t("common.demo.locked") : undefined}
             >
               {start.isPending ? (
                 <ActivityIndicator size="small" color={theme.colors.onAccent} />

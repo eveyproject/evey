@@ -69,6 +69,7 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 // --- @evey/store -------------------------------------------------------------------------
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useDemoStore: (sel: (s: any) => unknown) => sel({ demoMode: false, demoLocked: [] }), demoLocks: (s: any, k: string) => s.demoMode || s.demoLocked.includes(k),
 }));
 
 // --- @tanstack/react-query -----------------------------------------------------------------

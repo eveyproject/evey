@@ -18,6 +18,7 @@ vi.mock("@evey/api", () => ({
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useDemoStore: (sel: (s: { demoLocked: string[] }) => unknown) => sel({ demoLocked: [] }),
 }));
 
 vi.mock("@tanstack/react-query", async (importActual) => {

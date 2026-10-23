@@ -28,6 +28,7 @@ vi.mock("../../../providers/ThemeProvider", () => ({
 const eveyFetchMock = vi.hoisted(() => vi.fn());
 vi.mock("@evey/api", () => ({ eveyFetch: (...a: unknown[]) => eveyFetchMock(...a), formatBytes: (n: number) => `${n}B` }));
 
+import { useDemoStore } from "@evey/store";
 import { LoadTestSection } from "./LoadTestSection";
 
 function mount() {
@@ -36,6 +37,7 @@ function mount() {
 }
 
 beforeEach(() => {
+  useDemoStore.setState({ demoMode: false, demoLocked: [] });
   eveyFetchMock.mockReset();
 });
 
@@ -115,5 +117,22 @@ describe("LoadTestSection (mobile)", () => {
     mount();
     fireEvent.click(await screen.findByText("Lancer le test"));
     await screen.findByText("Impossible de lancer : une lecture est déjà en cours.");
+  });
+
+  it("greys the launch button when StartLoadTest is locked", async () => {
+    useDemoStore.setState({ demoLocked: ["/evey.v1.AdminSystemService/StartLoadTest"] });
+    eveyFetchMock.mockResolvedValue({ running: false });
+    mount();
+    const start = (await screen.findByText("Lancer le test")).closest("button") as HTMLButtonElement;
+    expect(start.disabled).toBe(true);
+    expect(screen.getByText("common.demo.locked")).toBeTruthy();
+  });
+
+  it("greys the cancel button while a run is live and CancelLoadTest is locked", async () => {
+    useDemoStore.setState({ demoLocked: ["/evey.v1.AdminSystemService/CancelLoadTest"] });
+    eveyFetchMock.mockResolvedValue({ running: true, viewers: 2, phase: "climb", elapsedMs: 1000 });
+    mount();
+    const cancel = (await screen.findByText("Annuler")).closest("button") as HTMLButtonElement;
+    expect(cancel.disabled).toBe(true);
   });
 });

@@ -5,7 +5,7 @@ import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { eveyFetch, apiErrorMessage } from "@evey/api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast, useAuthStore } from "@evey/store";
+import { toast, useAuthStore, useDemoStore, demoLocks } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { formatBytes } from "@evey/api";
@@ -221,6 +221,7 @@ export default function AdminBackupScreen() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const accessToken = useAuthStore((s) => s.accessToken);
+  const restoreLocked = useDemoStore((s) => demoLocks(s, "POST /api/v1/admin/backups/restore"));
 
   const { data: backups, isLoading, isError, refetch } = useBackups();
 
@@ -327,7 +328,7 @@ export default function AdminBackupScreen() {
               <Ionicons name="download-outline" size={20} color={restorable ? theme.colors.text : theme.colors.textMuted} />
             )}
           </Pressable>
-          <Pressable onPress={() => handleRestore(item)} disabled={!restorable || restoring} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("common.restore")}>
+          <Pressable onPress={() => handleRestore(item)} disabled={!restorable || restoring || restoreLocked} style={{ opacity: restoreLocked ? 0.4 : 1 }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("common.restore")}>
             {restoring ? (
               <ActivityIndicator size="small" color={theme.colors.text} />
             ) : (
@@ -340,7 +341,7 @@ export default function AdminBackupScreen() {
         </View>
       </View>
     );
-  }, [theme, handleDelete, handleRestore, downloadBackup, restoreBackup, t]);
+  }, [theme, handleDelete, handleRestore, downloadBackup, restoreBackup, restoreLocked, t]);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.bg }}>
@@ -368,8 +369,9 @@ export default function AdminBackupScreen() {
 
       <Pressable
         onPress={handleRestoreFromFile}
-        disabled={restoreFromFileMut.isPending}
-        style={[styles.createBtn, { marginTop: 0, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radii.md, opacity: restoreFromFileMut.isPending ? 0.6 : 1 }]}
+        disabled={restoreFromFileMut.isPending || restoreLocked}
+        accessibilityHint={restoreLocked ? t("common.demo.locked") : undefined}
+        style={[styles.createBtn, { marginTop: 0, borderWidth: 1, borderColor: theme.colors.border, borderRadius: theme.radii.md, opacity: restoreFromFileMut.isPending || restoreLocked ? 0.4 : 1 }]}
       >
         {restoreFromFileMut.isPending ? (
           <ActivityIndicator size="small" color={theme.colors.text} />
