@@ -2,10 +2,9 @@ package pluginrunner
 
 import (
 	"context"
-	"errors"
 	"io"
-	"os/exec"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -82,7 +81,7 @@ func TestBwrapStart_PayloadIsTheSandboxedChild(t *testing.T) {
 	assert.Equal(t, bwrapPID, pgid, "the plugin must stay in the group Stop/Kill signal")
 
 	_, err = os.Readlink("/proc/" + strconv.Itoa(e.payloadPID) + "/fd/3")
-	assert.True(t, errors.Is(err, os.ErrNotExist), "bwrap's --info-fd must not reach the plugin (fd 3: %v)", err)
+	assert.ErrorIs(t, err, os.ErrNotExist, "bwrap's --info-fd must not reach the plugin (fd 3: %v)", err)
 }
 
 func TestBwrapKill_ReachesThePayload(t *testing.T) {

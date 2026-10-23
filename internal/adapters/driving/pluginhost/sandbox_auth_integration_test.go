@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -139,5 +138,5 @@ func copyExecutable(t *testing.T, dst string) {
 	_, err = io.Copy(out, src)
 	require.NoError(t, err)
 	require.NoError(t, out.Close())
-	require.False(t, strings.Contains(dst, ".."))
+	require.NotContains(t, dst, "..")
 }
