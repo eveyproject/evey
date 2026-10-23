@@ -239,6 +239,7 @@ settings:
     stillWatchingDesc: "इतने एपिसोड लगातार बिना छुए, कोई बटन दबाए या क्लिक किए चलने के बाद, अगला आपका इंतज़ार करेगा।"
     stillWatchingNever: "कभी नहीं"
     stillWatchingAfter: "{{count}} एपिसोड के बाद"
+    stillWatchingAfter_one: "1 एपिसोड के बाद"
   quickConnect:
     title: "क्विक कनेक्ट"
     description: "जिस डिवाइस में साइन इन करना है, उस पर दिखाया गया कोड दर्ज करें।"

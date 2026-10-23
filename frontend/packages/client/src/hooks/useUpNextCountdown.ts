@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { noteAutoAdvance, useStillWatchingHold } from "../lib/stillWatching";
+import { noteAutoAdvance, STILL_WATCHING_EXIT_MS, useStillWatchingHold } from "../lib/stillWatching";
 
 const CREDITS_THRESHOLD_SEC = 30;
 export const COUNTDOWN_SEC = 5;
@@ -17,6 +17,7 @@ export function useUpNextCountdown({
   onPlay,
   autoAdvance = true,
   suppress = false,
+  onStillWatchingTimeout,
 }: {
   nextEpisodeId: string | undefined;
   currentTime: number;
@@ -26,6 +27,8 @@ export function useUpNextCountdown({
   autoAdvance?: boolean;
   // Another surface (a cast session, SyncPlay) owns what plays next.
   suppress?: boolean;
+  // Nobody answered the "still watching?" card: the player leaves (stillWatching.ts).
+  onStillWatchingTimeout?: () => void;
 }) {
   const [countdown, setCountdown] = useState(COUNTDOWN_SEC);
   const [cancelled, setCancelled] = useState(false);
@@ -65,6 +68,18 @@ export function useUpNextCountdown({
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [counting]);
+
+  // Left up with nobody there, the card kept the player and its session alive
+  // until the television slept on its own (prod 2026-10-23). Past the wait the
+  // player leaves, as at the end of a film; the next episode stays first in
+  // "Continue watching".
+  const timeoutRef = useRef(onStillWatchingTimeout);
+  timeoutRef.current = onStillWatchingTimeout;
+  useEffect(() => {
+    if (!stillWatching) return;
+    const t = setTimeout(() => timeoutRef.current?.(), STILL_WATCHING_EXIT_MS);
+    return () => clearTimeout(t);
+  }, [stillWatching]);
 
   const fire = useCallback(() => {
     if (firedRef.current || !nextEpisodeId) return;

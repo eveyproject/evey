@@ -12,8 +12,10 @@ import { useSyncExternalStore } from "react";
 /** Profile preference: how many episodes may follow on their own; "0" = never ask. */
 export const STILL_WATCHING_PREF_KEY = "still_watching_after";
 export const STILL_WATCHING_DEFAULT = 3;
-/** The choices the settings offer; 0 = never ask. */
-export const STILL_WATCHING_STEPS = [0, 2, 3, 5] as const;
+/** The choices the settings offer; 0 = never ask, 1 = after every episode. */
+export const STILL_WATCHING_STEPS = [0, 1, 2, 3, 5] as const;
+/** How long the card waits for an answer before the player leaves. */
+export const STILL_WATCHING_EXIT_MS = 5 * 60_000;
 
 let autoAdvances = 0;
 let limit = STILL_WATCHING_DEFAULT;

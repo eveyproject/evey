@@ -20,6 +20,8 @@ interface NextEpisodeOverlayProps {
   /** Fires whenever the card appears or goes, so a sibling overlay (the skip
    *  button, same corner) can step aside instead of stacking on it. */
   onVisibleChange?: (visible: boolean) => void;
+  /** Nobody answered the "still watching?" card in time: leave the player. */
+  onStillWatchingTimeout?: () => void;
 }
 
 
@@ -32,6 +34,7 @@ export function NextEpisodeOverlay({
   suppressAutoAdvance = false,
   autoAdvance = true,
   onVisibleChange,
+  onStillWatchingTimeout,
 }: NextEpisodeOverlayProps) {
   const { t } = useTranslation();
   // The card's life (credits, end, countdown, a single move on) is
@@ -43,6 +46,7 @@ export function NextEpisodeOverlay({
     onPlay: onPlayNow,
     autoAdvance,
     suppress: suppressAutoAdvance,
+    onStillWatchingTimeout,
   });
   useEffect(() => {
     onVisibleChange?.(visible);

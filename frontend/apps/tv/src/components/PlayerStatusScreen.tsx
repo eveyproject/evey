@@ -1,4 +1,4 @@
-import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, ActivityIndicator, Pressable, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { FONT_SIZE } from "@evey/theme";
@@ -61,7 +61,24 @@ export function PlayerLoadingScreen() {
   );
 }
 
+// Nobody answered "still watching?": the session is closed and the screen goes
+// black until the television sleeps on its own (an app cannot put it to
+// sleep). The whole screen is one focused target, so any key wakes it.
+export function PlayerSleepScreen({ onWake }: { onWake: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Pressable
+      testID="player-sleep-screen"
+      onPress={onWake}
+      hasTVPreferredFocus
+      accessibilityLabel={t("player.nextEpisodeOverlay.stillWatching", "Still watching?")}
+      style={styles.sleep}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
+  sleep: { flex: 1, backgroundColor: "#000" },
   container: { flex: 1, justifyContent: "center", alignItems: "center", gap: 12, padding: 48, backgroundColor: "#000" },
   title: { color: "#fff", fontSize: FONT_SIZE["2xl"], fontWeight: "700", textAlign: "center", marginTop: 8 },
   body: { color: "rgba(255,255,255,0.7)", fontSize: FONT_SIZE.lg, textAlign: "center", maxWidth: 900 },

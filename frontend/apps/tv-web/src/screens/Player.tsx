@@ -208,6 +208,8 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
     duration,
     autoAdvance,
     onNavigate: (id) => replace({ name: "player", mediaId: id }),
+    // The player leaves for a black screen in its place (screens/Sleep.tsx).
+    onStillWatchingTimeout: () => replace({ name: "sleep" }),
   });
 
   // The sleep timer the television has: a number of minutes, or the end of

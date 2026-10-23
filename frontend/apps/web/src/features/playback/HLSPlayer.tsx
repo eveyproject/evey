@@ -1516,6 +1516,7 @@ export function HLSPlayer({
           suppressAutoAdvance={sleepTimer.state?.kind === "endOfEpisode"}
           autoAdvance={autoplayNext}
           onVisibleChange={setNextCardVisible}
+          onStillWatchingTimeout={onClose}
         />
       )}
       <PlayerProvider

@@ -6,6 +6,8 @@ import {
   noteViewerActivity,
   resetStillWatchingForTests,
   setStillWatchingLimit,
+  STILL_WATCHING_EXIT_MS,
+  STILL_WATCHING_STEPS,
   stillWatchingLimit,
   stillWatchingPreferences,
 } from "./stillWatching";
@@ -88,6 +90,50 @@ describe("still watching?", () => {
       unmount();
     }
     expect(onPlay).toHaveBeenCalledTimes(5);
+  });
+
+  it("asks after a single episode when the profile chose 1", () => {
+    setStillWatchingLimit(1);
+    const onPlay = vi.fn();
+    const first = endedEpisode("e2", onPlay);
+    runCountdown();
+    first.unmount();
+    const { result } = endedEpisode("e3", onPlay);
+    runCountdown();
+    expect(onPlay.mock.calls.map((c) => c[0])).toEqual(["e2"]);
+    expect(result.current.stillWatching).toBe(true);
+  });
+
+  // Nobody there: the card must not keep the player and its session up until
+  // the television sleeps on its own.
+  it("leaves the player once the card has waited unanswered", () => {
+    setStillWatchingLimit(1);
+    noteAutoAdvance();
+    const onTimeout = vi.fn();
+    const { result } = renderHook(() =>
+      useUpNextCountdown({ nextEpisodeId: "e3", currentTime: 1200, duration: 1200, onPlay: vi.fn(), onStillWatchingTimeout: onTimeout }),
+    );
+    expect(result.current.stillWatching).toBe(true);
+    act(() => { vi.advanceTimersByTime(STILL_WATCHING_EXIT_MS - 1000); });
+    expect(onTimeout).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(1000); });
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not leave when the viewer answers before the wait is over", () => {
+    setStillWatchingLimit(1);
+    noteAutoAdvance();
+    const onTimeout = vi.fn();
+    renderHook(() =>
+      useUpNextCountdown({ nextEpisodeId: "e3", currentTime: 1200, duration: 1200, onPlay: vi.fn(), onStillWatchingTimeout: onTimeout }),
+    );
+    act(() => { vi.advanceTimersByTime(60_000); noteViewerActivity(); });
+    act(() => { vi.advanceTimersByTime(STILL_WATCHING_EXIT_MS); });
+    expect(onTimeout).not.toHaveBeenCalled();
+  });
+
+  it("offers asking after every episode", () => {
+    expect(STILL_WATCHING_STEPS).toEqual([0, 1, 2, 3, 5]);
   });
 
   it("reads and writes the threshold in the profile preferences", () => {

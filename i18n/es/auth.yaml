@@ -239,6 +239,7 @@ settings:
     stillWatchingDesc: "Tras este número de episodios seguidos sin tocar, pulsar una tecla ni hacer clic, el siguiente te espera."
     stillWatchingNever: "Nunca"
     stillWatchingAfter: "Tras {{count}} episodios"
+    stillWatchingAfter_one: "Tras 1 episodio"
   quickConnect:
     title: "Conexión rápida"
     description: "Introduce el código que se muestra en el dispositivo que quieres conectar."

@@ -239,6 +239,7 @@ settings:
     stillWatchingDesc: "Nach so vielen Folgen hintereinander ohne Berührung, Taste oder Klick wartet die nächste auf Sie."
     stillWatchingNever: "Nie"
     stillWatchingAfter: "Nach {{count}} Folgen"
+    stillWatchingAfter_one: "Nach 1 Folge"
   quickConnect:
     title: Schnellverbindung
     description: Geben Sie den Code ein, der auf dem Gerät angezeigt wird, das Sie anmelden möchten.

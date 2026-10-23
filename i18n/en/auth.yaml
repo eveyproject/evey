@@ -239,6 +239,7 @@ settings:
     stillWatchingDesc: "After this many episodes in a row with no touch, key or click, the next one waits for you."
     stillWatchingNever: "Never"
     stillWatchingAfter: "After {{count}} episodes"
+    stillWatchingAfter_one: "After 1 episode"
   quickConnect:
     title: Quick Connect
     description: Enter the code displayed on the device you want to sign in to.

@@ -6,6 +6,7 @@ import { parseHash, routeToHash, type Route } from "./router";
 // navigation.
 const ROUTES: Route[] = [
   { name: "home" },
+  { name: "sleep" },
   { name: "server" },
   { name: "login" },
   { name: "quickconnect" },

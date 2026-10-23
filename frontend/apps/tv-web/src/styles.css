@@ -4333,3 +4333,11 @@ body.music-on .deep-screen {
   justify-content: flex-start;
   padding-top: 4.8rem;
 }
+
+/* Still watching? unanswered: black until the television sleeps. */
+.sleep-screen {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  cursor: none;
+}
