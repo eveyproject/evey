@@ -1,5 +1,6 @@
 controls:
   more: Plus de contrôles
+  barHint: "▼ pour les options"
   play: Lecture
   pause: Pause
   endsAt: "Fin à {{time}}"

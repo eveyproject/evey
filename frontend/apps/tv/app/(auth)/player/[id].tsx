@@ -1112,8 +1112,10 @@ export default function PlayerScreen() {
       // other binding this screen used to carry (long-OK for the menu, up for
       // speed, long-up/long-down for episodes) was invisible: the owner could
       // not work out how to drive the player at all. They live in the bar now.
-      if (showControls) setBarFocused(true);
-      else resetHideTimer();
+      // One press, hidden controls or not: a first DOWN that only woke them
+      // left the owner on a bar they could see and not reach (2026-10-24).
+      if (!showControls) resetHideTimer();
+      setBarFocused(true);
     } else if (type === "menu" || type === "back") {
       if (showControls) handleBack();
       else resetHideTimer();

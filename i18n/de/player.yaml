@@ -1,5 +1,6 @@
 controls:
   more: Weitere Steuerelemente
+  barHint: "▼ für Optionen"
   play: Abspielen
   pause: Pause
   endsAt: "Endet um {{time}}"

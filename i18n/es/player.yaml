@@ -1,5 +1,6 @@
 controls:
   more: Más controles
+  barHint: "▼ para opciones"
   play: Reproducir
   pause: Pausar
   endsAt: "Termina a las {{time}}"

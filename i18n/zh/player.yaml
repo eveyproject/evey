@@ -1,5 +1,6 @@
 controls:
   more: "更多控制"
+  barHint: "按 ▼ 打开选项"
   play: "播放"
   pause: "暂停"
   endsAt: "{{time}} 结束"
