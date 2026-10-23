@@ -80,7 +80,7 @@ func machineDeltas(prev, cur machineTicks) (busyPct, iowaitPct float64) {
 }
 
 // readProcessRSS is the resident set of THIS process - the server itself,
-// apart from whatever else the container holds (the -full image runs
+// apart from whatever else the container holds (the image runs
 // Meilisearch and Postgres beside it, and the cgroup counts them all). Read
 // from /proc/self/status, which stays readable when the process is
 // non-dumpable (/proc/self/io is not).

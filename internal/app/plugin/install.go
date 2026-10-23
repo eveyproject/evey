@@ -242,7 +242,7 @@ func (s *InstallerService) parseAndValidateManifest(zipPath string) (*plugin.Plu
 	if s.runtimes != nil && manifest.Kind != plugin.KindTheme && manifest.Language != "" {
 		if !s.runtimes.IsAvailable(manifest.Language) {
 			return nil, fmt.Errorf(
-				"plugin requires %q runtime which is not installed in this image; available runtimes: %v - install the matching image variant (e.g. evey:beta-nodejs for node, evey:beta-full for all runtimes)",
+				"plugin requires %q runtime which is not installed in this image; available runtimes: %v - the default image (no tag suffix) ships every runtime, the -lean and -nodejs variants do not",
 				manifest.Language, s.runtimes.Available(),
 			)
 		}

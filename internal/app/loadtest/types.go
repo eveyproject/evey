@@ -234,7 +234,7 @@ type TierCost struct {
 	MachineIOWaitPct  float64
 	MemUsedBytes      int64
 	// ProcessRSSBytes is the server process alone; MemUsedBytes is the whole
-	// container (Meilisearch and Postgres included in the -full image).
+	// container (Meilisearch and Postgres included in the image).
 	ProcessRSSBytes     int64
 	DiskReadBytesPerSec int64
 	ServedBytesPerSec   int64

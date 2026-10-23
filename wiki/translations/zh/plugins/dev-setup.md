@@ -1,8 +1,8 @@
 ---
-source_sha: 07f8809212342fec2288b8611c0fea43a5e011cfb97b0f8f1689f01d869f62f4
+source_sha: da65fca181dde1325e9e1ed9a14213c8008dd3d87fd749779b7c965baa24a1fa
 reviewed: true
 ---
-# 编写插件
+# 编写插件 { #writing-a-plugin }
 
 本页带开发者从克隆 Evey 开始，到让一个插件在本地服务器上运行起来，再到做出一个其他管理员也能安装的签名包。
 [第 3 节](#3-your-first-plugin-step-by-step)的教程介绍基本流程；其余部分是供以后查阅的参考资料。
@@ -27,7 +27,7 @@ flowchart LR
 这个进程在一个 Unix 套接字上提供一个简单的 gRPC 服务，再通过另一个套接字调用服务器。
 插件还可以带一个界面模块，显示在页面里一个沙箱化的框架中；它与外部通信只能经过服务器，而且只能访问它声明过的主机。
 
-## 1. 准备工作
+## 1. 准备工作 { #1-prerequisites }
 
 | 工具 | 用途 |
 |---|---|
@@ -36,7 +36,7 @@ flowchart LR
 | [cosign](https://docs.sigstore.dev/cosign/installation/) | 在分发之前给插件包签名（[第 7 节](#7-sign-your-plugin)）。开发时用不到。 |
 
 从服务器能启动的运行时里选择插件的语言：`python`、`nodejs`、`php`、`ruby`、`lua`、`bash` 和 `sh` 需要镜像里有对应的解释器；
-`go` 提供编译好的二进制文件，需要 `native-binary` 权限。默认镜像只带 Python；`-nodejs` 镜像加上了 Node.js，`-full` 镜像再加上 PHP、Ruby 和 Lua。
+`go` 提供编译好的二进制文件，需要 `native-binary` 权限。默认镜像带有 Python、Node.js、PHP、Ruby 和 Lua；`-nodejs` 镜像保留 Python 和 Node.js，`-lean` 镜像只保留 Python。
 如果清单写了镜像里没有的运行时，安装时就会被拒绝，并列出可用的运行时。
 
 gRPC 约定只有一个文件：`proto/plugin/v1/plugin_api.proto`。`sdk/<language>/` 下有为 Python、Node.js、PHP、Ruby、Dart、Java 和 Swift 生成的存根；
@@ -52,7 +52,7 @@ protoc --proto_path=proto \
 
 `make plugin-sdk` 会重新生成随附的存根；每个 `sdk/<lang>/README.md` 都写明了该语言需要哪个 gRPC 插件。
 
-## 2. 在本地启动 Evey
+## 2. 在本地启动 Evey { #2-bring-up-evey-locally }
 
 ```sh
 git clone git@github.com:eveyproject/evey.git
@@ -65,7 +65,7 @@ make dev                        # postgres、meilisearch、服务器（Air）、
 打开 `https://evey.test`。第一次启动时，设置向导会创建管理员账户，见[首次设置](../getting-started/first-setup.md)。
 插件文件放在 `./evey-data/plugins/<plugin-id>/`，在容器里挂载为 `/data/plugins`。
 
-## 3. 一步步写出第一个插件
+## 3. 一步步写出第一个插件 { #3-your-first-plugin-step-by-step }
 
 示例 `examples/plugins/nodejs-example` 是最小的完整插件：它提供 `PluginService`，连接 `HostService`，
 并在服务器启动它时往日志里写一行。我们把它复制一份，改一处，然后安装。
@@ -128,7 +128,7 @@ make dev                        # postgres、meilisearch、服务器（Air）、
 到这里，您已经掌握了全部的后端约定。接下来，插件可以朝三个方向扩展：调用服务器（`HostService`，第 4 节）、
 绘制界面（第 5 节）、与外界通信（第 6 节）。
 
-## 4. 从后端调用服务器
+## 4. 从后端调用服务器 { #4-call-the-server-from-the-backend }
 
 每个 `HostService` 调用都带着插件的身份：服务器根据 PID 检查套接字另一端的进程，一个拦截器会拒绝清单没有声明所需权限的任何调用。
 有三组调用完全不需要权限：
@@ -141,7 +141,7 @@ make dev                        # postgres、meilisearch、服务器（Air）、
 完整的表格，包括约定里已经声明但还没有提供的方法，见
 [插件 API 参考](api-reference.md#hostservice-what-the-plugin-can-call)。
 
-## 5. 添加界面
+## 5. 添加界面 { #5-add-an-interface }
 
 界面是一个 JavaScript 模块，页面把它加载到一个沙箱化的框架里，放在服务器允许的某个插槽中。声明文件在哪里、模块放在哪里：
 
@@ -158,7 +158,7 @@ frontend:
 `examples/plugins/weather` 是一个带构建步骤的完整小组件；`examples/plugins/data-demo` 演示了 `prefs`、`public` 和 `admin.nav` 插槽。
 桥接接口和插槽的说明见[插件 API 参考](api-reference.md#frontend-api)。
 
-## 6. 与外界通信
+## 6. 与外界通信 { #6-reach-the-outside-world }
 
 无论哪种沙箱模式，插件进程都不能打开通向互联网的套接字。唯一的途径是 `HostService` 的 `Fetch` 调用：
 服务器按清单检查目标，然后由它自己发出请求。
@@ -178,7 +178,7 @@ external_fetch:
     管理员在安装时会看到主机列表，更新时新增的任何主机都必须经过批准。只写插件真正需要的主机，
     并在 README 里说明每个主机会收到什么。
 
-## 7. 给插件签名
+## 7. 给插件签名 { #7-sign-your-plugin }
 
 !!! info "签名能证明什么"
     签名说明管理员安装的 ZIP 包，和**您**发布的那个逐字节相同，并且是用他们信任的密钥签的。
@@ -236,7 +236,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 - 保持默认的 `warn` 且没有配置公钥时，**什么都不会验证**；服务器只会在启动时记录一条警告。
 - 密钥不对、ZIP 被篡改、缺少 `.sig`，都会被当作签名失败：在 `enforce` 下，安装或更新会被拒绝。
 
-## 8. 安装程序依次检查什么
+## 8. 安装程序依次检查什么 { #8-what-the-installer-checks-in-order }
 
 每一步都可能拒绝这个包；管理员会看到原因，服务器日志里有详细信息。
 
@@ -255,7 +255,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 
 分析会查找什么，列在[插件沙箱与威胁模型](../SECURITY.md#static-analysis)里。它也会读注释：注释里的一行 `# pip install foo` 会和代码一样被报告。
 
-## 9. 您的进程在什么条件下运行
+## 9. 您的进程在什么条件下运行 { #9-what-your-process-runs-under }
 
 服务器以较低的 CPU 优先级启动进程，并设置内存上限、进程和线程数量上限，以及目录大小上限；
 超出这些限制的插件会被监控程序停止。默认值是 256 MiB、64 个进程和 100 MiB，管理员可以在**管理 → 插件 → 资源限制**里调整。
@@ -264,7 +264,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 沙箱把文件系统限制在插件自己的目录里，并无条件切断所有网络套接字。生效的是哪种模式，取决于宿主机器，而不是插件：
 [插件沙箱与威胁模型](../SECURITY.md#sandbox-modes)介绍了各种模式，[插件沙箱设置](sandbox-deployment.md)告诉管理员该选哪一种。
 
-## 10. 分发插件
+## 10. 分发插件 { #10-distribute-a-plugin }
 
 没有插件目录商店：管理员在管理面板里上传插件的 ZIP 包，或者粘贴它的网址，来源是您发布它的任何地方（代码托管平台上的一个 release，您自己的网站）。
 
@@ -273,11 +273,11 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的�
 - 如果想让您的插件和自带的示例列在一起，请向 `examples/plugins/` 提交一个 pull request，附上源代码和 README。
   示例会经过审查，并从源代码构建；被列入并不代表项目背书，也不带项目的签名。
 
-## 11. 故障排除
+## 11. 故障排除 { #11-troubleshooting }
 
 | 现象 | 原因 | 解决办法 |
 |---|---|---|
-| `plugin requires "nodejs" runtime which is not installed in this image` | 这个镜像版本缺少对应的解释器。 | 使用 `-nodejs` 或 `-full` 镜像，或者用 Python 编写插件。 |
+| `plugin requires "nodejs" runtime which is not installed in this image` | 这个镜像版本缺少对应的解释器。 | 使用默认镜像或 `-nodejs` 镜像，或者用 Python 编写插件。 |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | 安装时一律拒绝通配符，没有例外。 | 列出您需要的每一个主机名（`api.tmdb.org`、`image.tmdb.org`）。 |
 | `manifest: frontend slot "admin.section" not allowed` | 这个插槽不在允许列表里。 | 从[插槽列表](api-reference.md#slots)里选一个；`admin.nav` 是管理区域里唯一的插槽。 |
 | `manifest: network permission requires non-empty external_fetch` | 声明了 `network` 却没有主机。 | 加上主机，或者去掉这个权限。 |

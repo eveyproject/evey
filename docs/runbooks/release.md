@@ -7,10 +7,10 @@ instead of inventing it.
 ## What CI does with a tag (read this before tagging)
 
 `.github/workflows/ci.yml` builds and publishes images on every push and on
-every `v*.*.*` tag, in three plugin-runtime variants (`` (lean), `-nodejs`,
-`-full`), to `docker.io/eveyproject/evey` and `ghcr.io/eveyproject/evey`:
+every `v*.*.*` tag, in three plugin-runtime variants (`` (full, the default),
+`-nodejs`, `-lean`), to `docker.io/eveyproject/evey` and `ghcr.io/eveyproject/evey`:
 
-| You push | Image tags published (each also `-nodejs` / `-full`) |
+| You push | Image tags published (each also `-lean` / `-nodejs`) |
 |---|---|
 | a branch (e.g. `master`) | `master`, `sha-<short>` |
 | tag `v0.2.0-rc.1` (pre-release: has a hyphen) | `0.2.0-rc.1`, `sha-<short>` |
@@ -18,9 +18,9 @@ every `v*.*.*` tag, in three plugin-runtime variants (`` (lean), `-nodejs`,
 
 Three consequences:
 
-- **A branch tag moves.** `master-full` points at whatever was pushed
+- **A branch tag moves.** `master` points at whatever was pushed
   last; two `docker compose pull` a day apart may run different code, and a
-  rollback "to `master-full`" goes nowhere. Operators must pin a
+  rollback "to `master`" goes nowhere. Operators must pin a
   `sha-<short>` tag (or a release tag), never a branch name - that is what
   `scripts/evey-update.sh` prints at the end for them to put in `.env`.
 - **A pre-release never touches `latest`.** `latest` means the newest stable
@@ -55,7 +55,7 @@ this?" is always answerable without trusting a tag.
    deployment, `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply` - pinning
    the release tag replaces the `sha-` pin.
 6. **Announce the tag** with its changelog section. Operators pin
-   `eveyproject/evey:0.2.0-rc.1` (or `-full`) on their `image:` line.
+   `eveyproject/evey:0.2.0-rc.1` (or `-lean`) on their `image:` line.
 
 Pre-release tags are cheap: `-rc.2`, `-rc.3` as needed. What they are not
 is retractable - a published tag stays published. To undo a bad cut, cut the

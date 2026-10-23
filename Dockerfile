@@ -202,10 +202,10 @@ RUN case "$TARGETARCH" in \
 #
 # Three variants share this stage; the RUNTIMES build arg picks which plugin
 # runtimes the image ships (HW transcode is identical across all three):
-#   - lean   (default) : python3 only - covers the majority of community plugins
-#   - nodejs           : + node       - for JS plugins (theme frontends, scrapers)
-#   - full             : + node + php + ruby + lua - kitchen-sink variant
-# Build with:  docker build --build-arg RUNTIMES=full .
+#   - full   (default) : python3 + node + php + ruby + lua - what `latest` is
+#   - nodejs           : python3 + node - for JS plugins (theme frontends, scrapers)
+#   - lean             : python3 only  - the slimmest image
+# Build with:  docker build --build-arg RUNTIMES=lean .
 # The plugin installer refuses any plugin whose declared `language:` is not
 # present, with a message naming the right variant.
 FROM debian:trixie-slim AS runtime
@@ -293,7 +293,7 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
 # every layer above. RUNTIMES is declared here on purpose - a build arg joins
 # the cache key of every RUN that follows its declaration, so declared at the
 # top of the stage it forced the whole apt layer to rebuild per variant.
-ARG RUNTIMES=lean
+ARG RUNTIMES=full
 RUN case "$RUNTIMES" in \
       lean) ;; \
       nodejs|full) \

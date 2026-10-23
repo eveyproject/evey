@@ -11,11 +11,11 @@ damit die erste einem festgelegten Ablauf folgt, statt ihn zu erfinden.
 ## Was die CI mit einem Tag macht (vor dem Taggen lesen)
 
 `.github/workflows/ci.yml` baut und veröffentlicht Images bei jedem Push und bei
-jedem `v*.*.*`-Tag, in drei Varianten der Plugin-Laufzeiten (`` (schlank),
-`-nodejs`, `-full`), nach `docker.io/eveyproject/evey` und
+jedem `v*.*.*`-Tag, in drei Varianten der Plugin-Laufzeiten (`` (vollständig, Standard),
+`-nodejs`, `-lean`), nach `docker.io/eveyproject/evey` und
 `ghcr.io/eveyproject/evey`:
 
-| Sie pushen | Veröffentlichte Image-Tags (jeweils auch `-nodejs` / `-full`) |
+| Sie pushen | Veröffentlichte Image-Tags (jeweils auch `-lean` / `-nodejs`) |
 |---|---|
 | einen Branch (z. B. `master`) | `master`, `sha-<short>` |
 | das Tag `v0.2.0-rc.1` (Vorabversion: enthält einen Bindestrich) | `0.2.0-rc.1`, `sha-<short>` |
@@ -23,10 +23,10 @@ jedem `v*.*.*`-Tag, in drei Varianten der Plugin-Laufzeiten (`` (schlank),
 
 Drei Folgen:
 
-- **Ein Branch-Tag ändert sich.** `master-full` zeigt auf das, was zuletzt
+- **Ein Branch-Tag ändert sich.** `master` zeigt auf das, was zuletzt
   gepusht wurde; zwei `docker compose pull` im Abstand eines Tages können
   unterschiedlichen Code ausführen, und ein Zurückrollen „auf
-  `master-full`“ bezeichnet keine bestimmte Version. Betreiber müssen ein
+  `master`“ bezeichnet keine bestimmte Version. Betreiber müssen ein
   `sha-<short>`-Tag (oder ein Versions-Tag) festlegen, nie einen Branch-Namen:
   genau das gibt `scripts/evey-update.sh` am Ende aus, zum Eintragen in `.env`.
 - **Eine Vorabversion ändert `latest` nie.** `latest` bezeichnet die neueste
@@ -65,7 +65,7 @@ feststellen, welcher Code läuft, ohne sich auf ein Tag zu verlassen.
    `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply`: Das Versions-Tag
    ersetzt die `sha-`-Festlegung.
 6. **Kündigen Sie das Tag an**, mit seinem Abschnitt aus dem Changelog.
-   Betreiber tragen `eveyproject/evey:0.2.0-rc.1` (oder `-full`) in ihre
+   Betreiber tragen `eveyproject/evey:0.2.0-rc.1` (oder `-lean`) in ihre
    `image:`-Zeile ein.
 
 Tags für Vorabversionen kosten nichts: `-rc.2`, `-rc.3` nach Bedarf. Sie

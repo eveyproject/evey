@@ -1259,7 +1259,7 @@ loadtest:
   noBottleneckHint: "Keine Ressource war ausgelastet: Der Server schafft vermutlich mehr. Grenze anheben und erneut testen."
   endpointDirectLine: "Ziel: der Server direkt ({{endpoint}}), ohne Proxy."
   endpointProxyLine: "Ziel: über die öffentliche Adresse ({{endpoint}}). Die Grenzen dieses Netzwerkwegs (Ethernet-Verbindung, Upload-Bandbreite, Router, Proxy) sind Teil des Ergebnisses."
-  machineLine: "Auf der gehaltenen Stufe ({{tier}} Zuschauer): CPU Container {{cpu}} %, ganze Maschine {{machine}} %, Warten auf Platte (iowait) {{iowait}} %. RAM Container {{mem}} (Meilisearch und Postgres im -full-Image enthalten), evey-Prozess {{rss}}."
+  machineLine: "Auf der gehaltenen Stufe ({{tier}} Zuschauer): CPU Container {{cpu}} %, ganze Maschine {{machine}} %, Warten auf Platte (iowait) {{iowait}} %. RAM Container {{mem}} (Meilisearch und Postgres im Image enthalten), evey-Prozess {{rss}}."
   diskUnmeasuredLine: "Plattenlesen nicht messbar: keine Platte dieser Maschine konnte der Bibliothek zugeordnet werden (Netzfreigabe oder ein Mount, den dieser Kernel nicht durchschaut). Die Plattenspalten sind leer, nicht null."
   notMeasured: "nicht gemessen"
   breakCapacityLine: "Kapazität am Bruchpunkt ({{tier}} Zuschauer): {{parts}}. Die Zuschauerzahl hängt von der Ziehung ab, diese Zahl nicht."

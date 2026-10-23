@@ -1,5 +1,5 @@
 ---
-source_sha: 458502112f637df70456890a718f35fac167120f02775459773b334b689e454f
+source_sha: f0e5f75d4befda29fbffbe7da80a4cc45e7a86e9429753abdee557b19bc5a40b
 reviewed: true
 ---
 # Despliegues avanzados { #advanced-deployments }
@@ -194,10 +194,11 @@ La imagen es `eveyproject/evey`.
 | un nombre de rama, `sha-<commit>` | una compilación de rama | solo amd64 |
 
 Cada etiqueta existe en tres variantes: la variante por defecto incluye
-Python 3 para los plugins, `-nodejs` añade Node.js y `-full` añade PHP, Ruby y
-Lua (por ejemplo `latest-full`). Usa una variante solo si un plugin la
-necesita: el instalador rechaza un plugin cuyo lenguaje declarado falta en la
-imagen, con un mensaje que indica la variante correcta.
+todos los entornos de ejecución de plugins (Python 3, Node.js, PHP, Ruby y
+Lua), `-nodejs` conserva Python y Node.js y `-lean` solo Python (por ejemplo
+`latest-lean`). Elige una variante más ligera solo si el tamaño de la imagen
+importa: el instalador rechaza un plugin cuyo lenguaje declarado falta en la
+imagen, con un mensaje que indica la imagen por defecto.
 
 Las imágenes publicadas llevan los controladores de todas las generaciones
 Intel y AMD compatibles. Una imagen que construyas tú puede quedarse con una

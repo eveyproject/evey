@@ -1,5 +1,5 @@
 ---
-source_sha: 458502112f637df70456890a718f35fac167120f02775459773b334b689e454f
+source_sha: f0e5f75d4befda29fbffbe7da80a4cc45e7a86e9429753abdee557b19bc5a40b
 reviewed: true
 ---
 # 高级部署 { #advanced-deployments }
@@ -162,8 +162,8 @@ Docker 会自动选择对应的架构。分支标签只有 amd64：在 ARM 主�
 | 预发布标签（带连字符） | 预发布标签 | 只发布它自己的标签，从不改动 `latest` |
 | 分支名，`sha-<commit>` | 分支构建 | 只有 amd64 |
 
-每个标签都有三种变体：默认的变体为插件带了 Python 3，`-nodejs` 加上了 Node.js，`-full` 再加上 PHP、Ruby 和 Lua
-（例如 `latest-full`）。只有插件需要时才使用变体：如果插件声明的语言在镜像里没有，安装程序会拒绝它，并在提示里写明该用哪个变体。
+每个标签都有三种变体：默认的变体带有全部插件运行时（Python 3、Node.js、PHP、Ruby 和 Lua），`-nodejs` 保留 Python 和 Node.js，`-lean` 只保留 Python
+（例如 `latest-lean`）。只有在镜像体积要紧时才选用更精简的变体：如果插件声明的语言在镜像里没有，安装程序会拒绝它，并在提示里写明该用默认镜像。
 
 发布的镜像带有所有受支持的 Intel 和 AMD 显卡世代的驱动。自己构建镜像时，可以只保留一个系列：
 `docker build --build-arg GPU=intel-legacy .`（Intel 第 9 代到第 11 代）、`GPU=intel`（第 12 代及更新）、`GPU=amd` 或 `GPU=none`。

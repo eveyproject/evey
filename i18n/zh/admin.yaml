@@ -1259,7 +1259,7 @@ loadtest:
   noBottleneckHint: "没有任何资源被耗尽：这台服务器很可能还能承载更多。请调高上限后重新测试。"
   endpointDirectLine: "目标：直接访问服务器（{{endpoint}}），不经过代理。"
   endpointProxyLine: "目标：经由公网地址（{{endpoint}}）。这条网络路径（以太网链路、上行带宽、路由器、代理）的限制也是结果的一部分。"
-  machineLine: "在保持的档位（{{tier}} 位观众）：容器 CPU {{cpu}}%，整机 {{machine}}%，等待磁盘（iowait）{{iowait}}%。容器内存 {{mem}}（-full 镜像含 Meilisearch 和 Postgres），evey 进程 {{rss}}。"
+  machineLine: "在保持的档位（{{tier}} 位观众）：容器 CPU {{cpu}}%，整机 {{machine}}%，等待磁盘（iowait）{{iowait}}%。容器内存 {{mem}}（镜像含 Meilisearch 和 Postgres），evey 进程 {{rss}}。"
   diskUnmeasuredLine: "磁盘读取无法测量：本机没有任何磁盘能与媒体库关联（网络共享，或内核无法看穿的挂载）。磁盘列为空，而非零。"
   notMeasured: "未测量"
   breakCapacityLine: "崩溃点容量（{{tier}} 位观众）：{{parts}}。观众数取决于抽取，此数字不取决于。"

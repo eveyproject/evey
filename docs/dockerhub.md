@@ -42,7 +42,7 @@ One image covers Intel Quick Sync (VAAPI / QSV), NVIDIA (NVENC) and, on arm64, R
 | `X.Y.Z`, `X.Y`, `X`, `latest` | Stable releases. `latest` is always the newest stable release. |
 | `<branch>`, `sha-<short>` | Branch builds. `sha-` tags are immutable, pin one if you follow a branch. |
 
-Variants, same app with more plugin runtimes: no suffix (Python only), `-nodejs` (adds Node), `-full` (adds PHP, Ruby and Lua).
+Variants, same app with fewer plugin runtimes: no suffix (the full image: Python, Node.js, PHP, Ruby and Lua), `-nodejs` (Python and Node.js), `-lean` (Python only).
 
 Multi-arch (`amd64` + `arm64`) on release tags. Branch builds are `amd64` only.
 

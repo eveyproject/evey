@@ -312,19 +312,19 @@ jobs:
       #
       # Three image variants, ONE job: they share every layer but the plugin
       # runtimes (the Dockerfile's RUNTIMES arg, its own layer), so the full
-      # build does the work and the lean/nodejs builds reuse it from the
-      # builder's local cache. As a 3-job matrix each variant rebuilt Go, the
+      # build - the default, every runtime - does the work and the lean/nodejs
+      # builds reuse it from the builder's local cache. As a 3-job matrix each variant rebuilt Go, the
       # frontend and wasm from scratch: 3 x ~10 min of runner per push.
       #
       # Branch pushes build `full` only - the variant prod runs. lean and
       # nodejs cost ~7 min more per push (measured 2026-09-26, run
       # 36279088790) and ship on release tags and manual runs.
       #
-      # The variant suffix (`-nodejs`, `-full`) is applied to every tag via
-      # `flavor.suffix` so each variant gets a parallel set:
-      #   beta-0.0.1, beta-0.0.1-nodejs, beta-0.0.1-full
-      #   v1.2.3,     v1.2.3-nodejs,     v1.2.3-full
-      #   latest,     latest-nodejs,     latest-full   (release only)
+      # The variant suffix (`-lean`, `-nodejs`) is applied to every tag via
+      # `flavor.suffix`; the unsuffixed tag IS the full image:
+      #   beta-0.0.1, beta-0.0.1-lean, beta-0.0.1-nodejs
+      #   v1.2.3,     v1.2.3-lean,     v1.2.3-nodejs
+      #   latest,     latest-lean,     latest-nodejs   (release only)
       - name: Docker meta (lean)
         id: meta-lean
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -343,7 +343,7 @@ jobs:
             # never land on the operators who track `latest`.
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
           flavor: |
-            suffix=,onlatest=true
+            suffix=-lean,onlatest=true
 
       - name: Docker meta (nodejs)
         id: meta-nodejs
@@ -383,7 +383,7 @@ jobs:
             # never land on the operators who track `latest`.
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
           flavor: |
-            suffix=-full,onlatest=true
+            suffix=,onlatest=true
 
       # arm64 emulation for the multi-arch stable-release build (below). Cheap
       # to register on every run; only actually used when arm64 is a target.
@@ -416,8 +416,8 @@ jobs:
           fi
           echo "value=${value}" >> "$GITHUB_OUTPUT"
 
-      # The build pushes ONE tag, the immutable sha-<short>-full, and the boot
-      # test below runs on it. The moving tags operators pull (beta-0.0.1-full,
+      # The build pushes ONE tag, the immutable sha-<short>, and the boot
+      # test below runs on it. The moving tags operators pull (beta-0.0.1,
       # a release's version tags, latest) are pointed at it only once it has
       # booted: a non-booting image never reaches them.
       - name: Pick the immutable tag

@@ -193,7 +193,7 @@ func (s *Service) evaluate(ctx context.Context) Status {
 	return s.evaluateTrack(ctx, image)
 }
 
-// evaluateRelease: a release build (1.2.3-full, what `latest` points at)
+// evaluateRelease: a release build (1.2.3, what `latest` points at)
 // looks for a higher release of the same variant. A pre-release build also
 // hears about later pre-releases; a stable one only about stable ones.
 func (s *Service) evaluateRelease(ctx context.Context, image string, cur semver, variant string) Status {
@@ -226,7 +226,7 @@ func (s *Service) evaluateRelease(ctx context.Context, image string, cur semver,
 	return st
 }
 
-// evaluateTrack: a branch build (beta-0.0.1-full) follows its own tag, which
+// evaluateTrack: a branch build (beta-0.0.1) follows its own tag, which
 // moves with every push; a different revision published after this build is
 // a newer one.
 func (s *Service) evaluateTrack(ctx context.Context, image string) Status {
@@ -267,8 +267,10 @@ func publishedBefore(remoteCreated, localBuild string) bool {
 	return err1 == nil && err2 == nil && r.Before(l)
 }
 
-// variants are the image flavours the CI publishes as a tag suffix.
-var variants = []string{"-full", "-nodejs"}
+// variants are the image flavours the CI publishes as a tag suffix; the
+// default image has none. "-full" is the suffix the full image carried before
+// it became the default, kept so a running one still finds its own track.
+var variants = []string{"-lean", "-nodejs", "-full"}
 
 func splitVariant(tag string) (base, variant string) {
 	for _, v := range variants {

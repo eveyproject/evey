@@ -106,7 +106,7 @@ message SystemInfo {
   // commit is the git SHA the running binary was built from, build_date its
   // RFC3339 build timestamp. `version` above is a branch or tag name and so
   // cannot identify a deployment: two images months apart both report
-  // "beta-0.0.1-full". Both fields are the literal "unknown" - never blank -
+  // "beta-0.0.1". Both fields are the literal "unknown" - never blank -
   // when the build could not be stamped, so a client can tell "this server is
   // too old to answer" from "this build genuinely does not know".
   string commit = 13;
@@ -790,7 +790,7 @@ message LoadTestTierCost {
   double machine_cpu_percent = 11;
   double machine_iowait_percent = 12;
   // process_rss_bytes is the server process alone; mem_used_bytes is the whole
-  // container (Meilisearch and Postgres included in the -full image).
+  // container (Meilisearch and Postgres included in the image).
   int64 process_rss_bytes = 13;
 }
 
