@@ -40,7 +40,6 @@ playback:
   max_streams_reached: "You've reached the maximum number of concurrent streams"
   max_devices_reached: "Device limit reached for this profile. Stop playback on another device first."
   session_id_required: "A session id is required"
-  transcoding_disabled_by_prefs: "This title needs transcoding, which your playback preferences turn off"
 
 activity:
   cannot_access_other_history: "Cannot access another user's login history"

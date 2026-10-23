@@ -40,7 +40,6 @@ playback:
   max_streams_reached: "Has alcanzado el número máximo de reproducciones simultáneas"
   max_devices_reached: "Límite de dispositivos alcanzado para este perfil. Detén la reproducción en otro dispositivo primero."
   session_id_required: "Se requiere un identificador de sesión"
-  transcoding_disabled_by_prefs: "Este título necesita transcodificación, que tus preferencias de reproducción desactivan"
 
 activity:
   cannot_access_other_history: "No se puede acceder al historial de inicio de sesión de otro usuario"

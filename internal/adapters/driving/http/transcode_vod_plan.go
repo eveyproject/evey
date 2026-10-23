@@ -267,6 +267,9 @@ func (h *hlsVODServe) requestBitrateCapKbps(r *http.Request) int {
 	if h.maxVideoBitrateRemoteKbps != nil && !lanClient(r, h.lanNetworksList()) {
 		tighten(h.maxVideoBitrateRemoteKbps())
 	}
+	// The device's data saver: without it a title that transcodes for its
+	// codec alone (no bitrate_exceeded) got a ladder above the asked ceiling.
+	tighten(parseIntQuery(r, "maxBitrate", 0))
 	return cap
 }
 

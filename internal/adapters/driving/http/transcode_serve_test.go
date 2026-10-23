@@ -73,7 +73,7 @@ func TestLoadProfilePrefs_NilGetter_ReturnsDefaults(t *testing.T) {
 }
 
 func TestLoadProfilePrefs_EmptyProfileID_ReturnsDefaults(t *testing.T) {
-	getter := &fakeProfilePrefsGetter{prefs: map[string]string{"allow_direct_play": "false"}}
+	getter := &fakeProfilePrefsGetter{prefs: map[string]string{"max_audio_channels": "2"}}
 	p := loadProfilePrefs(context.Background(), getter, "")
 	def := apptranscoding.DefaultTranscodingPreferences()
 	if !reflect.DeepEqual(p, def) {
@@ -94,7 +94,6 @@ func TestLoadProfilePrefs_SuccessParses(t *testing.T) {
 	getter := &fakeProfilePrefsGetter{prefs: map[string]string{
 		"preferred_video_codec": "hevc",
 		"max_audio_channels":    "2",
-		"allow_direct_play":     "false",
 	}}
 	p := loadProfilePrefs(context.Background(), getter, "p1")
 	if p.PreferredVideoCodec != "hevc" {
@@ -102,9 +101,6 @@ func TestLoadProfilePrefs_SuccessParses(t *testing.T) {
 	}
 	if p.MaxAudioChannels != 2 {
 		t.Errorf("expected MaxAudioChannels=2, got %d", p.MaxAudioChannels)
-	}
-	if p.AllowDirectPlay {
-		t.Error("expected AllowDirectPlay=false")
 	}
 }
 

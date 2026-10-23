@@ -152,9 +152,6 @@ type TranscodingPreferences struct {
 	// without a BPS tag probes 0 per stream, and a 70 Mb/s remux then sailed
 	// under a 20 Mb/s cap as a copy. Request-scoped, injected by the caller.
 	SourceBitrateKbps      int64
-	AllowDirectPlay        bool
-	AllowDirectStream      bool
-	AllowTranscoding       bool
 	MaxBitrateKbps         int
 	MaxBitrateCellularKbps int
 	NetworkType            string // "wifi" (default) or "cellular"
@@ -167,7 +164,7 @@ type TranscodingPreferences struct {
 	Locale string
 }
 
-// DefaultTranscodingPreferences returns prefs with all flags enabled (client defaults).
+// DefaultTranscodingPreferences returns the prefs of a profile that chose nothing.
 // SubtitleBurnInTrack defaults to -1 ("no subtitle selected"): the zero value 0
 // would otherwise mean "the first subtitle track is selected" and re-introduce
 // burn-on-existence for every call site that doesn't inject an explicit selection.
@@ -175,9 +172,6 @@ func DefaultTranscodingPreferences() TranscodingPreferences {
 	return TranscodingPreferences{
 		SubtitleBurnInTrack: -1,
 		AudioTrack:          -1,
-		AllowDirectPlay:     true,
-		AllowDirectStream:   true,
-		AllowTranscoding:    true,
 	}
 }
 
@@ -204,7 +198,11 @@ func NormalizeNetworkType(raw string) string {
 }
 
 // ParseTranscodingPreferences extracts transcoding prefs from a profile.Preferences map.
-// Missing keys default to permissive values (allow_* = true, codec = auto).
+// Missing keys keep the defaults (codec = auto). The allow_direct_play,
+// allow_direct_stream and allow_transcoding keys older clients wrote are not
+// read: turning off a play method only ever broke playback (a forced full
+// transcode on a small host, or a title that could not play at all), and a
+// profile that stored "false" must not stay stuck once the toggles are gone.
 func ParseTranscodingPreferences(prefs map[string]string) TranscodingPreferences {
 	tp := DefaultTranscodingPreferences()
 	if prefs == nil {
@@ -224,15 +222,6 @@ func ParseTranscodingPreferences(prefs map[string]string) TranscodingPreferences
 	if v, ok := prefs["subtitle_burn_in"]; ok {
 		tp.SubtitleBurnIn = strings.ToLower(strings.TrimSpace(v))
 	}
-	if v, ok := prefs["allow_direct_play"]; ok {
-		tp.AllowDirectPlay = parseBool(v, true)
-	}
-	if v, ok := prefs["allow_direct_stream"]; ok {
-		tp.AllowDirectStream = parseBool(v, true)
-	}
-	if v, ok := prefs["allow_transcoding"]; ok {
-		tp.AllowTranscoding = parseBool(v, true)
-	}
 	if v, ok := prefs["max_bitrate_kbps"]; ok {
 		if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
 			tp.MaxBitrateKbps = n
@@ -244,16 +233,6 @@ func ParseTranscodingPreferences(prefs map[string]string) TranscodingPreferences
 		}
 	}
 	return tp
-}
-
-func parseBool(s string, def bool) bool {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "true", "1", "yes", "on":
-		return true
-	case "false", "0", "no", "off":
-		return false
-	}
-	return def
 }
 
 func MakePlaybackDecision(
@@ -358,7 +337,6 @@ func MakePlaybackDecisionWithPrefs(
 	checkContainer(d, containerFormat, specs, client, firstOrEmpty(sourcePath))
 	applyCodecPreferences(d, specs, client, prefs)
 	applyAudioChannelTarget(d, specs, client, prefs)
-	applyDirectPlayPrefs(d, prefs)
 	// Last word on the audio verdict, and it must stay last: it reads the
 	// reasons every pass above may have added to tell a direct play (raw file,
 	// no packaging) from a segmented session (fMP4, passthrough set applies).
@@ -878,24 +856,6 @@ func applyCodecPreferences(d *transcoding.PlaybackDecision, streams []StreamSpec
 	}
 }
 
-// applyDirectPlayPrefs forces transcode when user disabled direct_play / direct_stream.
-// allow_direct_play=false: if currently no transcode reason, we force video+audio transcode.
-// allow_direct_stream=false: if we would remux (direct_stream), force transcode too.
-func applyDirectPlayPrefs(d *transcoding.PlaybackDecision, prefs TranscodingPreferences) {
-	if !prefs.AllowDirectPlay && len(d.TranscodeReasons) == 0 {
-		d.VideoDecision = "transcode"
-		d.AudioDecision = "transcode"
-		d.TranscodeReasons = append(d.TranscodeReasons, "direct_play_disabled")
-		ensureTranscodeCodecs(d)
-	}
-	if !prefs.AllowDirectStream && isDirectStreamEligible(d) {
-		d.VideoDecision = "transcode"
-		d.AudioDecision = "transcode"
-		d.TranscodeReasons = append(d.TranscodeReasons, "direct_stream_disabled")
-		ensureTranscodeCodecs(d)
-	}
-}
-
 // isDirectStreamEligible reports that the only thing keeping this off direct
 // play is an incompatible container while both streams still copy - i.e. a pure
 // remux (direct_stream), no re-encoding.
@@ -906,17 +866,6 @@ func applyDirectPlayPrefs(d *transcoding.PlaybackDecision, prefs TranscodingPref
 func isDirectStreamEligible(d *transcoding.PlaybackDecision) bool {
 	return onlyContainerIssue(d.TranscodeReasons) &&
 		d.VideoDecision == "copy" && d.AudioDecision == "copy"
-}
-
-// ensureTranscodeCodecs fills the fallback codecs whenever a stream flipped to
-// transcode without a target codec having been chosen yet.
-func ensureTranscodeCodecs(d *transcoding.PlaybackDecision) {
-	if d.VideoCodec == "" {
-		d.VideoCodec = transcoding.DefaultVideoCodec
-	}
-	if d.AudioCodec == "" {
-		d.AudioCodec = transcoding.DefaultAudioCodec
-	}
 }
 
 // applyNeedsRemux keeps a file stored in one-track blocks off the raw-file
@@ -945,15 +894,6 @@ func resolvePlayMethod(d *transcoding.PlaybackDecision, client transcoding.Clien
 			d.Container = preferredContainer(client.Containers)
 		}
 	}
-	// Safety net: a user who disallowed transcoding but ends up needing it keeps
-	// PlayMethod="transcode" here; handlers gate on TranscodeDisallowed(decision,
-	// prefs) before starting HLS rather than this function reporting it.
-}
-
-// TranscodeDisallowed returns true when the decision requires transcoding but
-// the user pref forbids it.
-func TranscodeDisallowed(d *transcoding.PlaybackDecision, prefs TranscodingPreferences) bool {
-	return !prefs.AllowTranscoding && d.PlayMethod == "transcode"
 }
 
 // Fallback audio bitrate (kbps) when a transcode decision carries no explicit

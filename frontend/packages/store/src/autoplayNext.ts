@@ -1,7 +1,7 @@
 // Where the "auto-play the next episode" choice lives on the profile, so it
 // follows the viewer from the web to the phone to the television. Stored in
-// the profile's free-form preferences map like the other playback choices
-// (allow_direct_play, subtitle_burn_in): a string, "true" or "false".
+// the profile's free-form preferences map like the other playback choices,
+// as a string: "true" or "false".
 export const AUTOPLAY_NEXT_PREF_KEY = "autoplay_next_episode";
 
 /** Whether the next episode should start on its own. Absent = on, the

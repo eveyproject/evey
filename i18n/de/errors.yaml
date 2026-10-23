@@ -40,7 +40,6 @@ playback:
   max_streams_reached: "Maximale Anzahl gleichzeitiger Wiedergaben erreicht"
   max_devices_reached: "Gerätelimit für dieses Profil erreicht. Beenden Sie zuerst die Wiedergabe auf einem anderen Gerät."
   session_id_required: "Eine Sitzungs-ID ist erforderlich"
-  transcoding_disabled_by_prefs: "Dieser Titel muss transkodiert werden, was Ihre Wiedergabeeinstellungen deaktivieren"
 
 activity:
   cannot_access_other_history: "Anmeldeverlauf eines anderen Benutzers kann nicht aufgerufen werden"

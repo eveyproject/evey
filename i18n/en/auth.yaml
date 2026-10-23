@@ -209,6 +209,11 @@ settings:
     quickConnect: Quick Connect
     plugins: "Plugins"
   playback:
+    dataSaverTitle: "Data saver (this device)"
+    dataSaverDesc: "Caps the quality on this device only, for connections where every gigabyte counts. The account's other devices keep their own setting."
+    dataSaverOff: "Off"
+    dataSaverSaver: "Saver - {{height}}p, at most {{gb}} GB per hour"
+    dataSaverTravel: "Travel / low data - {{height}}p, at most {{gb}} GB per hour"
     bitrateTitle: Max Streaming Bitrate
     bitrateDesc: Limit the maximum bitrate when streaming. Lower values use less bandwidth.
     bitrateUnlimited: "Unlimited"
@@ -228,13 +233,6 @@ settings:
     subtitleBurnAuto: Auto
     subtitleBurnAlways: Always burn in
     subtitleBurnNever: Never burn in
-    transcodeTitle: Transcoding
-    allowDirectPlay: Allow direct play
-    allowDirectPlayDesc: Play original file when device supports it.
-    allowDirectStream: Allow remux
-    allowDirectStreamDesc: Remux container without re-encoding when possible.
-    allowTranscoding: Allow transcoding
-    allowTranscodingDesc: Fall back to transcoding when neither Direct Play nor remux is possible.
     autoplayNextTitle: "Auto-play next episode"
     autoplayNextDesc: "Start the next episode on its own when this one ends. The Next episode button stays available either way."
     stillWatchingTitle: "Ask if I am still watching"

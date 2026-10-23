@@ -11,7 +11,7 @@ import {
 } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { ScreenState } from "../../../src/components/ScreenState";
-import { useAuthStore, isDemoMode, toast } from "@evey/store";
+import { DATA_SAVER_LABEL_KEY, DATA_SAVER_LEVELS, dataSaverLabelValues, isDemoMode, toast, useAuthStore, useDataSaverStore } from "@evey/store";
 
 import {
   AUDIO_CHANNELS_OPTIONS,
@@ -31,7 +31,7 @@ export { resolveLangPref };
 
 export default function PlaybackSettingsScreen() {
   const theme = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
 
   const {
@@ -76,9 +76,9 @@ export default function PlaybackSettingsScreen() {
   const [subtitleBurn, setSubtitleBurn] = useState("auto");
   const [autoplayNext, setAutoplayNext] = useState(true);
   const [stillWatchingAfter, setStillWatchingAfter] = useState(STILL_WATCHING_DEFAULT);
-  const [allowDirectPlay, setAllowDirectPlay] = useState(true);
-  const [allowDirectStream, setAllowDirectStream] = useState(true);
-  const [allowTranscoding, setAllowTranscoding] = useState(true);
+  // Not a profile preference: it belongs to this television alone.
+  const dataSaver = useDataSaverStore((st) => st.level);
+  const setDataSaver = useDataSaverStore((st) => st.setLevel);
   const [focusedItem, setFocusedItem] = useState<string | null>(null);
 
   useEffect(() => {
@@ -92,9 +92,6 @@ export default function PlaybackSettingsScreen() {
     if (prefs.subtitle_burn_in) setSubtitleBurn(prefs.subtitle_burn_in);
     if (prefs.autoplay_next_episode !== undefined) setAutoplayNext(prefs.autoplay_next_episode !== "false");
     setStillWatchingAfter(stillWatchingLimit(prefs));
-    if (prefs.allow_direct_play !== undefined) setAllowDirectPlay(prefs.allow_direct_play !== "false");
-    if (prefs.allow_direct_stream !== undefined) setAllowDirectStream(prefs.allow_direct_stream !== "false");
-    if (prefs.allow_transcoding !== undefined) setAllowTranscoding(prefs.allow_transcoding !== "false");
   }, [editedProfile]);
 
   const updateProfile = useUserServiceUpdateProfile({
@@ -199,31 +196,6 @@ export default function PlaybackSettingsScreen() {
       // mutationErrorNet already toasted the failure
     }
   }
-  async function handleAllowDirectPlay(v: boolean) {
-    try {
-      await savePref({ allow_direct_play: v ? "true" : "false" });
-      setAllowDirectPlay(v);
-    } catch {
-      // mutationErrorNet already toasted the failure
-    }
-  }
-  async function handleAllowDirectStream(v: boolean) {
-    try {
-      await savePref({ allow_direct_stream: v ? "true" : "false" });
-      setAllowDirectStream(v);
-    } catch {
-      // mutationErrorNet already toasted the failure
-    }
-  }
-  async function handleAllowTranscoding(v: boolean) {
-    try {
-      await savePref({ allow_transcoding: v ? "true" : "false" });
-      setAllowTranscoding(v);
-    } catch {
-      // mutationErrorNet already toasted the failure
-    }
-  }
-
   const labelOf = (o: { labelKey: string; fallback: string }) =>
     o.labelKey ? t(o.labelKey, o.fallback) : o.fallback;
 
@@ -286,6 +258,26 @@ export default function PlaybackSettingsScreen() {
     >
       <Text style={[styles.header, { color: theme.colors.text }]}>{t("auth.settings.tabs.playback", "Playback")}</Text>
 
+      {/* Data saver (this device) */}
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
+        {t("auth.settings.playback.dataSaverTitle", "Data saver (this device)")}
+      </Text>
+      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
+        {t("auth.settings.playback.dataSaverDesc")}
+      </Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        {DATA_SAVER_LEVELS.map((level, i) => (
+          <OptionRow
+            key={level}
+            rowKey={`data-saver-${level}`}
+            label={t(DATA_SAVER_LABEL_KEY[level], dataSaverLabelValues(level, i18n.language))}
+            selected={dataSaver === level}
+            onPress={() => setDataSaver(level)}
+            hasTVPreferredFocus={i === 0}
+          />
+        ))}
+      </View>
+
       {/* Max Streaming Bitrate */}
       <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
         {t("auth.settings.playback.bitrateTitle", "Max Streaming Bitrate")}
@@ -294,14 +286,14 @@ export default function PlaybackSettingsScreen() {
         {t("auth.settings.playback.bitrateDesc", "Limit the maximum bitrate when streaming. Lower values use less bandwidth.")}
       </Text>
       <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-        {BITRATE_OPTIONS.map((opt, i) => (
+        {BITRATE_OPTIONS.map((opt) => (
           <OptionRow
             key={opt.value}
             rowKey={`bitrate-${opt.value}`}
             label={labelOf(opt)}
             selected={bitrate === opt.value}
             onPress={() => handleBitrate(opt.value)}
-            hasTVPreferredFocus={i === 0}
+
           />
         ))}
       </View>
@@ -448,65 +440,6 @@ export default function PlaybackSettingsScreen() {
           </View>
         </>
       )}
-
-      {/* Transcoding toggles */}
-      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>
-        {t("auth.settings.playback.transcodeTitle", "Transcoding")}
-      </Text>
-
-      <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
-        {t("auth.settings.playback.allowDirectPlay", "Allow direct play")}
-      </Text>
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
-        {t("auth.settings.playback.allowDirectPlayDesc", "Play original file when device supports it.")}
-      </Text>
-      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-        {TOGGLE_OPTIONS.map((opt) => (
-          <OptionRow
-            key={`direct-play-${String(opt.value)}`}
-            rowKey={`direct-play-${String(opt.value)}`}
-            label={t(opt.labelKey, opt.fallback)}
-            selected={allowDirectPlay === opt.value}
-            onPress={() => handleAllowDirectPlay(opt.value)}
-          />
-        ))}
-      </View>
-
-      <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
-        {t("auth.settings.playback.allowDirectStream", "Allow remux")}
-      </Text>
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
-        {t("auth.settings.playback.allowDirectStreamDesc", "Remux container without re-encoding when possible.")}
-      </Text>
-      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-        {TOGGLE_OPTIONS.map((opt) => (
-          <OptionRow
-            key={`direct-stream-${String(opt.value)}`}
-            rowKey={`direct-stream-${String(opt.value)}`}
-            label={t(opt.labelKey, opt.fallback)}
-            selected={allowDirectStream === opt.value}
-            onPress={() => handleAllowDirectStream(opt.value)}
-          />
-        ))}
-      </View>
-
-      <Text style={[styles.toggleLabel, { color: theme.colors.text }]}>
-        {t("auth.settings.playback.allowTranscoding", "Allow transcoding")}
-      </Text>
-      <Text style={[styles.hint, { color: theme.colors.textMuted }]}>
-        {t("auth.settings.playback.allowTranscodingDesc", "Fall back to transcoding when neither Direct Play nor remux is possible.")}
-      </Text>
-      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
-        {TOGGLE_OPTIONS.map((opt) => (
-          <OptionRow
-            key={`transcoding-${String(opt.value)}`}
-            rowKey={`transcoding-${String(opt.value)}`}
-            label={t(opt.labelKey, opt.fallback)}
-            selected={allowTranscoding === opt.value}
-            onPress={() => handleAllowTranscoding(opt.value)}
-          />
-        ))}
-      </View>
 
       {updateProfile.isPending && (
         <View style={{ paddingVertical: 16, alignItems: "center" }}>

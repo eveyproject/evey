@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserServiceUpdateProfile, getUserServiceListProfilesQueryKey } from "@evey/api";
 import { Select } from "@/components/ui/Select";
-import { Switch } from "@/components/ui/Switch";
+import { DATA_SAVER_LABEL_KEY, DATA_SAVER_LEVELS, dataSaverLabelValues, useDataSaverStore, type DataSaverLevel } from "@evey/store";
 import { useActiveProfile } from "@/hooks/useActiveProfile";
 
 // Per-profile playback preferences. The server reads these off the ACTIVE
@@ -13,7 +13,8 @@ import { useActiveProfile } from "@/hooks/useActiveProfile";
 // same account with different playback rules depending on where it was set.
 //
 // The cellular cap that mobile also offers is deliberately absent: a browser
-// has no notion of being on mobile data.
+// has no notion of being on mobile data. The data saver at the top is the one
+// setting that is NOT on the profile: it belongs to this browser alone.
 
 const BITRATE_VALUES = ["0", "2000", "4000", "8000", "10000", "15000", "20000", "40000"] as const;
 const VIDEO_CODECS = ["auto", "h264", "hevc", "av1"] as const;
@@ -30,10 +31,12 @@ const CODEC_LABEL: Record<string, string> = {
 };
 
 export function PlaybackSettings() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const { profile: activeProfile, userId } = useActiveProfile();
   const updateProfile = useUserServiceUpdateProfile();
+  const dataSaver = useDataSaverStore((s) => s.level);
+  const setDataSaver = useDataSaverStore((s) => s.setLevel);
 
   // Server-truth preferences mirrored in a ref: UpdateProfile REPLACES the
   // whole map, so two quick edits must merge onto each other instead of both
@@ -76,18 +79,24 @@ export function PlaybackSettings() {
     { value: "never", label: t("auth.settings.playback.subtitleBurnNever") },
   ];
 
-  // Absent means allowed: a profile that never chose keeps the behaviour the
-  // server applies by default.
-  const allowed = (key: string) => prefs[key] !== "false";
-
-  const toggles: { key: string; titleKey: string; descKey: string }[] = [
-    { key: "allow_direct_play", titleKey: "auth.settings.playback.allowDirectPlay", descKey: "auth.settings.playback.allowDirectPlayDesc" },
-    { key: "allow_direct_stream", titleKey: "auth.settings.playback.allowDirectStream", descKey: "auth.settings.playback.allowDirectStreamDesc" },
-    { key: "allow_transcoding", titleKey: "auth.settings.playback.allowTranscoding", descKey: "auth.settings.playback.allowTranscodingDesc" },
-  ];
+  const dataSaverOptions = DATA_SAVER_LEVELS.map((level) => ({
+    value: level,
+    label: t(DATA_SAVER_LABEL_KEY[level], dataSaverLabelValues(level, i18n.language)),
+  }));
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h3 className="text-sm font-semibold text-[var(--text)]">{t("auth.settings.playback.dataSaverTitle")}</h3>
+        <p className="text-xs text-[var(--text-muted)]">{t("auth.settings.playback.dataSaverDesc")}</p>
+        <Select
+          label={t("auth.settings.playback.dataSaverTitle")}
+          options={dataSaverOptions}
+          value={dataSaver}
+          onChange={(v) => setDataSaver(v as DataSaverLevel)}
+        />
+      </div>
+
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-semibold text-[var(--text)]">{t("auth.settings.playback.bitrateTitle")}</h3>
         <p className="text-xs text-[var(--text-muted)]">{t("auth.settings.playback.bitrateDesc")}</p>
@@ -134,25 +143,6 @@ export function PlaybackSettings() {
           onChange={(v) => void save({ subtitle_burn_in: v })}
           disabled={!activeProfile}
         />
-      </div>
-
-      <div className="flex flex-col gap-4 border-t border-[var(--border)] pt-6">
-        <h3 className="text-sm font-semibold text-[var(--text)]">{t("auth.settings.playback.transcodeTitle")}</h3>
-        {toggles.map((row) => (
-          <div key={row.key} className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm text-[var(--text)]">{t(row.titleKey)}</p>
-              <p className="text-xs text-[var(--text-muted)] mt-1">{t(row.descKey)}</p>
-            </div>
-            <Switch
-              checked={allowed(row.key)}
-              onChange={() => void save({ [row.key]: allowed(row.key) ? "false" : "true" })}
-              label={t(row.titleKey)}
-              disabled={!activeProfile}
-              data-testid={`playback-toggle-${row.key}`}
-            />
-          </div>
-        ))}
       </div>
     </div>
   );

@@ -8,9 +8,9 @@ import {
   playbackServiceStartStream,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
-import { useAuthStore } from "@evey/store";
+import { dataSaverLimits, tighterCeiling, useAuthStore, useDataSaverStore } from "@evey/store";
 import { getBrowserCapabilities, canWasmDecodeAC3 } from "./codec";
-import { appendCodecParams, prefersNativeHLS, getFmp4AudioPassthrough } from "./hlsCodecParams";
+import { appendCodecParams, dataSaverStreamInfoParams, prefersNativeHLS, getFmp4AudioPassthrough } from "./hlsCodecParams";
 import { getMaxOutputChannels } from "./outputChannels";
 import { useStreamToken } from "../hooks/useStreamToken";
 import { pickedAudioStream } from "../lib/pickedAudioStream";
@@ -123,33 +123,41 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
 
   const caps = useMemo(() => getBrowserCapabilities(), []);
   const initialAudio = initialAudioRef.current;
+  // A level picked on this device re-asks the verdict for the next title.
+  const dataSaverLevel = useDataSaverStore((s) => s.level);
   // No maxWidth/maxHeight: the screen size is NOT a decode capability. Sending
   // window.screen dims made the server flag resolution_exceeded and transcode
   // a 4K title for a 1366px laptop that decodes it natively (it should
   // direct-play there). The browser downscales for display at zero cost;
   // bandwidth stays governed by the profile's bitrate prefs, and the transcode
   // fallback remains codec/HDR-driven.
-  const streamInfoParams = useMemo(() => ({
-    supportedCodecs: caps.videoCodecs,
-    supportedAudioCodecs: caps.audioCodecs,
-    supportedContainers: caps.containers,
-    supportsHdr: caps.hdr,
-    // Deliberately not in supportedAudioCodecs - see canWasmDecodeAC3. Without
-    // it the server calls the audio "transcode" and serves it untouched.
-    wasmAudio: device.wasmAudio ?? canWasmDecodeAC3(),
-    // Same declaration appendCodecParams puts on the HLS master URL, so the
-    // stream-info panel describes the bytes the segments will actually carry.
-    // Sending one and not the other is how the panel came to claim a copy the
-    // packager was re-encoding (2026-09-06).
-    fmp4AudioPassthrough: getFmp4AudioPassthrough(),
-    // The output's channel ceiling, same reading as the master URL's
-    // ?maxAudioChannels: declared to one and not the other, the panel said
-    // "copy 6ch" of a track the segments carried as AAC stereo. Omitted
-    // (undefined) when the browser cannot probe its output, like the URL.
-    maxAudioChannels: getMaxOutputChannels(),
-    // Asked without it, the server judged the default track, not this one.
-    audioStreamIndex: initialAudio && initialAudio > 0 ? initialAudio : undefined,
-  }), [caps, device.wasmAudio, initialAudio]);
+  const streamInfoParams = useMemo(() => {
+    const saver = dataSaverLimits(dataSaverLevel);
+    return {
+      supportedCodecs: caps.videoCodecs,
+      supportedAudioCodecs: caps.audioCodecs,
+      supportedContainers: caps.containers,
+      supportsHdr: caps.hdr,
+      // Deliberately not in supportedAudioCodecs - see canWasmDecodeAC3. Without
+      // it the server calls the audio "transcode" and serves it untouched.
+      wasmAudio: device.wasmAudio ?? canWasmDecodeAC3(),
+      // Same declaration appendCodecParams puts on the HLS master URL, so the
+      // stream-info panel describes the bytes the segments will actually carry.
+      // Sending one and not the other is how the panel came to claim a copy the
+      // packager was re-encoding (2026-09-06).
+      fmp4AudioPassthrough: getFmp4AudioPassthrough(),
+      // The output's channel ceiling, same reading as the master URL's
+      // ?maxAudioChannels: declared to one and not the other, the panel said
+      // "copy 6ch" of a track the segments carried as AAC stereo. Omitted
+      // (undefined) when the browser cannot probe its output, like the URL.
+      maxAudioChannels: tighterCeiling(getMaxOutputChannels(), saver?.maxAudioChannels),
+      // Asked without it, the server judged the default track, not this one.
+      audioStreamIndex: initialAudio && initialAudio > 0 ? initialAudio : undefined,
+      // The device's data saver, the same ceilings appendCodecParams puts on
+      // the master URL. An explicit ceiling, unlike the screen size above.
+      ...dataSaverStreamInfoParams(saver),
+    };
+  }, [caps, device.wasmAudio, initialAudio, dataSaverLevel]);
 
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
     query: { retry: false },

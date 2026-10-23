@@ -9,7 +9,8 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { firstStartMs } from "../lib/resumePosition";
 import { getBrowserCapabilities } from "./codec";
-import { appendCodecParams } from "./hlsCodecParams";
+import { currentDataSaverLimits, tighterCeiling } from "@evey/store";
+import { appendCodecParams, dataSaverStreamInfoParams } from "./hlsCodecParams";
 import { getMaxOutputChannels } from "./outputChannels";
 import type { PlaySessionDevice } from "./usePlaySession";
 import { isShedCode, type ShedReason } from "../lib/shed";
@@ -124,6 +125,10 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
   const startStream = useCallback(async (audioStreamIndex?: number, subtitleStreamIndex?: number, maxHeight?: number) => {
     try {
       const caps = getBrowserCapabilities();
+      // The device's data saver caps the picture whatever the menu picked:
+      // the master URL's ?maxHeight below must never be looser than its own.
+      const saver = currentDataSaverLimits();
+      const ceilingHeight = tighterCeiling(maxHeight, saver?.maxHeight);
       const screenHeight = Math.round(Math.min(window.screen.height, window.screen.width) * (window.devicePixelRatio || 1));
       const [info, wp] = await Promise.all([
         playbackServiceGetStreamInfo(mediaId, {
@@ -132,12 +137,13 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
           supportedContainers: caps.containers,
           supportsHdr: caps.hdr,
           wasmAudio: device.wasmAudio ?? false,
-          maxHeight: maxHeight && maxHeight > 0 ? maxHeight : undefined,
           // The same output ceiling appendCodecParams puts on the master URL,
           // so the verdict describes the audio the segments will carry.
-          maxAudioChannels: getMaxOutputChannels(),
+          maxAudioChannels: tighterCeiling(getMaxOutputChannels(), saver?.maxAudioChannels),
           audioStreamIndex,
           subtitleStreamIndex,
+          ...dataSaverStreamInfoParams(saver),
+          maxHeight: ceilingHeight,
         }),
         eveyFetch<V1WatchProgress>({ url: `/api/v1/playback/${mediaId}/progress`, method: "GET" }).catch(() => null),
       ]);
@@ -157,7 +163,7 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
         audioTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_AUDIO", audioStreamIndex),
         subtitleTrack: typeRelativeIndex(info, "MEDIA_STREAM_TYPE_SUBTITLE", subtitleStreamIndex),
         startSec: resumeSec,
-        maxHeight,
+        maxHeight: ceilingHeight,
         screenHeight,
       });
 

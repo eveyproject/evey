@@ -196,6 +196,10 @@ type ManifestInput struct {
 	// bitrate under a master that advertised a capped ladder. Only "cellular"
 	// is baked; Wi-Fi (the default) leaves every URI as it was.
 	NetworkType string
+	// MaxBitrateKbps (?maxBitrate) is the line ceiling the client set on itself
+	// (the data saver): a segment that lost it would re-decide the uncapped
+	// copy under a master that advertised the capped ladder.
+	MaxBitrateKbps int
 
 	// MaxAudioChannels is the client's declared channel CEILING (?maxAudioChannels).
 	// A decision input on the audio-rendition path exactly like the codec lists,
@@ -1002,6 +1006,9 @@ func querySuffix(in ManifestInput) string {
 	}
 	if in.NetworkType == "cellular" {
 		q.Set("networkType", in.NetworkType)
+	}
+	if in.MaxBitrateKbps > 0 {
+		q.Set("maxBitrate", fmt.Sprintf("%d", in.MaxBitrateKbps))
 	}
 	if in.MaxAudioChannels > 0 {
 		// Audio-rendition decision input: without it the rendition falls back to

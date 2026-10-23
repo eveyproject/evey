@@ -110,6 +110,31 @@ describe("maxAudioChannels reaches the stream URL", () => {
     getAudioProbeMock.mockResolvedValue(null);
     expect(new URL(await negotiatedUrl()).searchParams.has("maxAudioChannels")).toBe(false);
   });
+
+  // The phone's data saver: the verdict and the master carry the same line,
+  // picture and channel ceilings, and a 5.1 HDMI sink still gets stereo.
+  it("carries the data saver to the verdict and the master URL", async () => {
+    const { useDataSaverStore } = await import("@evey/store");
+    useDataSaverStore.setState({ level: "saver" });
+    try {
+      getAudioProbeMock.mockResolvedValue(
+        audioProbe({ hdmi: { available: true, plugState: 1, maxChannelCount: 6 }, outputDeviceTypes: [9] }),
+      );
+      const q = new URL(await negotiatedUrl()).searchParams;
+      expect(q.get("maxBitrate")).toBe("3000");
+      expect(q.get("maxHeight")).toBe("720");
+      expect(q.get("maxAudioChannels")).toBe("2");
+      expect(getStreamInfoMock).toHaveBeenCalledWith("m1", expect.objectContaining({ maxBitrate: "3000000", maxHeight: 720 }));
+    } finally {
+      useDataSaverStore.setState({ level: "off" });
+    }
+  });
+
+  it("sends no data saver ceiling when it is off", async () => {
+    const q = new URL(await negotiatedUrl()).searchParams;
+    expect(q.has("maxBitrate")).toBe(false);
+    expect(q.has("maxHeight")).toBe(false);
+  });
 });
 
 describe("buildStreamUrl", () => {

@@ -187,8 +187,6 @@ streamInfo:
     audio_passthrough_unsupported: "Piste audio non transmissible telle quelle dans le flux"
     preferred_video_codec: "Codec vidéo préféré (réglage du profil)"
     preferred_audio_codec: "Codec audio préféré (réglage du profil)"
-    direct_play_disabled: "Lecture directe désactivée dans le profil"
-    direct_stream_disabled: "Remux désactivé dans le profil"
     video_codec_pinned: "Codec vidéo conservé pour cette session"
 jumpToChapter: "Aller au chapitre : {{chapter}}"
 cast:

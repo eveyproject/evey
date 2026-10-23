@@ -209,6 +209,11 @@ settings:
     quickConnect: Schnellverbindung
     plugins: "Plugins"
   playback:
+    dataSaverTitle: "Datensparmodus (dieses Gerät)"
+    dataSaverDesc: "Begrenzt die Qualität nur auf diesem Gerät, für Verbindungen, bei denen jedes Gigabyte zählt. Die anderen Geräte des Kontos behalten ihre eigene Einstellung."
+    dataSaverOff: "Aus"
+    dataSaverSaver: "Sparsam - {{height}}p, höchstens {{gb}} GB pro Stunde"
+    dataSaverTravel: "Reise / wenig Daten - {{height}}p, höchstens {{gb}} GB pro Stunde"
     bitrateTitle: Maximale Streaming-Bitrate
     bitrateDesc: Maximale Bitrate beim Streaming begrenzen. Niedrigere Werte verbrauchen weniger Bandbreite.
     bitrateUnlimited: "Unbegrenzt"
@@ -228,13 +233,6 @@ settings:
     subtitleBurnAuto: Auto
     subtitleBurnAlways: Immer einbrennen
     subtitleBurnNever: Nie einbrennen
-    transcodeTitle: Transkodierung
-    allowDirectPlay: Direktwiedergabe erlauben
-    allowDirectPlayDesc: Originaldatei abspielen, wenn das Gerät sie unterstützt.
-    allowDirectStream: Remux erlauben
-    allowDirectStreamDesc: Container ohne Neukodierung remuxen, wenn möglich.
-    allowTranscoding: Transkodierung erlauben
-    allowTranscodingDesc: Auf Transkodierung zurückfallen, wenn weder Direktwiedergabe noch Remux möglich ist.
     autoplayNextTitle: "Nächste Folge automatisch abspielen"
     autoplayNextDesc: "Die nächste Folge startet von selbst, wenn diese endet. Der Button Nächste Folge bleibt in jedem Fall verfügbar."
     stillWatchingTitle: "Fragen, ob ich noch schaue"

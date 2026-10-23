@@ -187,8 +187,6 @@ streamInfo:
     audio_passthrough_unsupported: "ऑडियो ट्रैक स्ट्रीम में बिना बदले नहीं भेजा जा सकता"
     preferred_video_codec: "पसंदीदा वीडियो कोडेक (प्रोफ़ाइल सेटिंग)"
     preferred_audio_codec: "पसंदीदा ऑडियो कोडेक (प्रोफ़ाइल सेटिंग)"
-    direct_play_disabled: "प्रोफ़ाइल में सीधा प्लेबैक बंद है"
-    direct_stream_disabled: "प्रोफ़ाइल में रीमक्स बंद है"
     video_codec_pinned: "इस सत्र के लिए वीडियो कोडेक बनाए रखा गया"
 jumpToChapter: "अध्याय पर जाएं: {{chapter}}"
 cast:

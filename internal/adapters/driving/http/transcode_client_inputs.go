@@ -32,4 +32,5 @@ func bakeClientInputs(r *http.Request, in *apptranscoding.ManifestInput) {
 	in.MaxH264Level = parseIntQuery(r, "maxH264Level", 0)
 	in.MaxH264Height = parseIntQuery(r, "maxH264Height", 0)
 	in.NetworkType = networkTypeQuery(r)
+	in.MaxBitrateKbps = parseIntQuery(r, "maxBitrate", 0)
 }

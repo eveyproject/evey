@@ -7,6 +7,7 @@ import {
   eveyFetch,
 } from "@evey/api";
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
+import { currentDataSaverLimits, tighterCeiling } from "@evey/store";
 import { firstStartMs } from "../lib/resumePosition";
 import { isShedCode, type ShedReason } from "../lib/shed";
 import { pickedAudioStream } from "../lib/pickedAudioStream";
@@ -105,6 +106,8 @@ export interface StreamUrlOptions {
   screenHeight?: number;
   supportsHdr?: boolean;
   networkType?: "wifi" | "cellular";
+  /** The device's data saver line ceiling (kbps), see @evey/store dataSaver. */
+  maxBitrateKbps?: number;
 }
 
 function appendCodecParams(params: URLSearchParams, opts: StreamUrlOptions): void {
@@ -169,6 +172,8 @@ export function buildStreamUrl(
   // The profile's cellular cap shapes the master's ladder too: sent to
   // GetStreamInfo alone, a phone on mobile data got the uncapped one.
   if (opts.networkType === "cellular") params.set("networkType", "cellular");
+  // The data saver's ceiling shapes the master's ladder like the cellular cap.
+  if (opts.maxBitrateKbps && opts.maxBitrateKbps > 0) params.set("maxBitrate", String(opts.maxBitrateKbps));
   return `${serverUrl}/api/v1/media/${id}/hls/master.m3u8?${params.toString()}`;
 }
 
@@ -350,7 +355,10 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         // free): declaring it to GetStreamInfo flagged resolution_exceeded and
         // transcoded titles the device plays natively. Only an explicit quality
         // pick is a ceiling; the screen rides the master URL as ?screenHeight.
-        const explicitMaxHeight = maxHeight && maxHeight > 0 ? maxHeight : undefined;
+        // The device's data saver is an explicit ceiling too: it caps the
+        // picture, the line and the channels, whatever the menu says.
+        const saver = currentDataSaverLimits();
+        const explicitMaxHeight = tighterCeiling(maxHeight, saver?.maxHeight);
 
         // The device probes run BEFORE the negotiation: GetStreamInfo has to
         // describe the same client the master URL will declare. They are local
@@ -374,6 +382,8 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           audioStreamIndex,
           subtitleStreamIndex,
           ...(networkType ? { networkType } : {}),
+          // bit/s here, kbit/s on the master URL: GetStreamInfo's own unit.
+          ...(saver ? { maxBitrate: String(saver.maxBitrateKbps * 1000) } : {}),
         };
         const [firstVerdict, wp] = await Promise.all([
           playbackServiceGetStreamInfo(mediaId, verdictParams),
@@ -393,9 +403,12 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         // verdict is asked again with it, so the panel describes the stereo
         // the segments hold and not a 6ch copy.
         let info = firstVerdict;
-        const ceiling = playerDecodesCopiedAudio(info, audioStreamIndex, getPlayerAudioCodecs())
-          ? undefined
-          : maxAudioChannels;
+        // The data saver asks for stereo even from a player that decodes the
+        // copied track itself: what it saves is the surround track's weight.
+        const ceiling = tighterCeiling(
+          playerDecodesCopiedAudio(info, audioStreamIndex, getPlayerAudioCodecs()) ? undefined : maxAudioChannels,
+          saver?.maxAudioChannels,
+        );
         if (ceilingChangesVerdict(info, audioStreamIndex, ceiling)) {
           info = await playbackServiceGetStreamInfo(mediaId, { ...verdictParams, maxAudioChannels: ceiling });
         }
@@ -422,6 +435,7 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           screenHeight: dev.screenHeight?.(),
           supportsHdr,
           networkType,
+          maxBitrateKbps: saver?.maxBitrateKbps,
         });
 
         // Direct play streams the original file with no orchestrator involved,

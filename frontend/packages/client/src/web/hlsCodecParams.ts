@@ -1,5 +1,6 @@
 import { getBrowserCapabilities } from "./codec";
 import { getMaxOutputChannels } from "./outputChannels";
+import { currentDataSaverLimits, tighterCeiling, type DataSaverLimits } from "@evey/store";
 
 // computeNativeHLSPreference is the pure decision behind prefersNativeHLS,
 // factored out so every browser can be exercised in a unit test without a real
@@ -136,6 +137,21 @@ export function appendCodecParams(params: URLSearchParams): void {
   // Channel ceiling of the OUTPUT, not of the decoder - see outputChannels.ts.
   // Omitted when the browser cannot answer, which leaves the server profile's
   // own default in place: an unknown output must not silently lose surround.
-  const channels = getMaxOutputChannels();
+  // The device's data saver: a line, picture and channel ceiling of its own,
+  // folded with the output's channels. GetStreamInfo gets the same three
+  // (dataSaverStreamInfoParams) so the verdict and the master agree.
+  const saver = currentDataSaverLimits();
+  const channels = tighterCeiling(getMaxOutputChannels(), saver?.maxAudioChannels);
   if (channels !== undefined) params.set("maxAudioChannels", String(channels));
+  if (saver) {
+    params.set("maxBitrate", String(saver.maxBitrateKbps));
+    params.set("maxHeight", String(saver.maxHeight));
+  }
+}
+
+/** The data saver's ceilings as GetStreamInfo takes them (bit/s, not kbit/s). */
+export function dataSaverStreamInfoParams(
+  saver: DataSaverLimits | null = currentDataSaverLimits(),
+): { maxBitrate?: string; maxHeight?: number } {
+  return saver ? { maxBitrate: String(saver.maxBitrateKbps * 1000), maxHeight: saver.maxHeight } : {};
 }
