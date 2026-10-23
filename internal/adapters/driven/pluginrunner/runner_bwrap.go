@@ -1,5 +1,17 @@
 package pluginrunner
 
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"time"
+)
+
+// bwrapInfoTimeout bounds the wait for bwrap to report its child's PID. It
+// writes it right after the clone, so only a wedged bwrap ever gets near it.
+const bwrapInfoTimeout = 5 * time.Second
+
 // buildBwrapCmd returns the bwrap argv prefix to wrap a plugin command.
 // pluginDir is the writable bind mount for the plugin's own directory.
 // pluginSockDir is the per-plugin sock dir on the host; it is bind-mounted
@@ -20,6 +32,10 @@ func buildBwrapCmd(pluginDir, pluginSockDir, mode string) []string {
 		"bwrap",
 		"--unshare-user",
 		"--unshare-pid",
+		// No reaper between bwrap and the plugin: the process bwrap reports on
+		// --info-fd is then the one that runs the plugin code, the PID the host
+		// socket authenticates (SO_PEERCRED) and the resource monitor samples.
+		"--as-pid-1",
 		"--unshare-uts",
 		"--unshare-ipc",
 		"--unshare-cgroup",
@@ -68,4 +84,34 @@ func buildBwrapCmd(pluginDir, pluginSockDir, mode string) []string {
 	)
 
 	return args
+}
+
+// withBwrapInfoFD inserts --info-fd before the "--" that ends a buildBwrapCmd
+// prefix, so bwrap writes its {"child-pid": N} report on fd.
+func withBwrapInfoFD(prefix []string, fd int) []string {
+	sep := len(prefix) - 1
+	out := make([]string, 0, len(prefix)+2)
+	out = append(out, prefix[:sep]...)
+	out = append(out, "--info-fd", fmt.Sprint(fd))
+	return append(out, prefix[sep:]...)
+}
+
+// readBwrapChildPID reads the PID of the sandboxed child from bwrap's
+// --info-fd report, in the server's PID namespace (the one SO_PEERCRED and
+// /proc speak). An EOF means bwrap died before cloning (setup refused).
+func readBwrapChildPID(info *os.File) (int, error) {
+	defer info.Close()
+	if err := info.SetReadDeadline(time.Now().Add(bwrapInfoTimeout)); err != nil {
+		return 0, fmt.Errorf("bwrap info deadline: %w", err)
+	}
+	var report struct {
+		ChildPID int `json:"child-pid"`
+	}
+	if err := json.NewDecoder(info).Decode(&report); err != nil {
+		return 0, fmt.Errorf("read bwrap info: %w", err)
+	}
+	if report.ChildPID <= 0 {
+		return 0, errors.New("bwrap info carries no child-pid")
+	}
+	return report.ChildPID, nil
 }

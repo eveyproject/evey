@@ -71,7 +71,7 @@ func (r *Runner) Stop(ctx context.Context, pluginID string) error {
 
 	select {
 	case <-entry.done:
-	case <-time.After(shutdownTimeout):
+	case <-time.After(entry.termGrace()):
 		signalPluginGroup(ctx, entry.cmd.Process.Pid, syscall.SIGKILL)
 		select {
 		case <-entry.done:

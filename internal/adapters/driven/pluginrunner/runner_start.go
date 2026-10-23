@@ -135,7 +135,7 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 
 	memCap, _, _ := r.limitsSnapshot()
 	cmd.Env = buildPluginEnv(p.ID, sock, hostSock, memCap.defaults().memBytes)
-	hostsCleanup, err := r.applySandbox(parentCtx, p, cmd)
+	hostsCleanup, bwrapInfo, err := r.applySandbox(parentCtx, p, cmd)
 	if err != nil {
 		r.rollbackStart(cancel, pluginSockDir, p.ID, true)
 		return err
@@ -169,28 +169,55 @@ func (r *Runner) Start(parentCtx context.Context, p *plugin.Plugin) error {
 	// memory/PID/disk caps; the low nice below prevents CPU starvation.
 	r.startResourceMonitor()
 
-	if err := cmd.Start(); err != nil {
+	startErr := cmd.Start()
+	for _, f := range cmd.ExtraFiles {
+		_ = f.Close() // the child holds its own copy; ours would mask bwrap's EOF
+	}
+	if startErr != nil {
+		if bwrapInfo != nil {
+			_ = bwrapInfo.Close()
+		}
 		r.rollbackStart(cancel, pluginSockDir, p.ID, true)
-		return fmt.Errorf("start plugin %s: %w", p.ID, err)
+		return fmt.Errorf("start plugin %s: %w", p.ID, startErr)
+	}
+
+	// The process that runs the plugin code. Under bubblewrap cmd.Process is
+	// bwrap itself and the plugin its sandboxed child (--unshare-pid): that
+	// child is the one connecting to the host socket and holding the memory.
+	payloadPID := cmd.Process.Pid
+	pidKnown := true
+	if bwrapInfo != nil {
+		childPID, infoErr := readBwrapChildPID(bwrapInfo)
+		if infoErr != nil {
+			// Fail closed: the host socket stays unbound and the plugin is
+			// killed; trackLifecycle reports bwrap's own output as the crash.
+			slog.ErrorContext(parentCtx, "bwrap did not report its child; killing plugin",
+				slog.String("plugin_id", p.ID), slog.Any("err", infoErr))
+			signalPluginGroup(parentCtx, cmd.Process.Pid, syscall.SIGKILL)
+			pidKnown = false
+		} else {
+			payloadPID = childPID
+		}
 	}
 
 	// Lower the plugin's scheduling priority so it cannot starve the server of
 	// CPU under contention (preventive; the monitor only flags sustained pegging).
-	r.applyNice(cmd.Process.Pid)
+	r.applyNice(payloadPID)
 
 	// Arm PID-based authentication on the host socket. From this point
-	// on, only RPCs originating from cmd.Process.Pid will be accepted -
+	// on, only RPCs originating from payloadPID will be accepted -
 	// SO_PEERCRED is filled in by the kernel and cannot be spoofed.
-	if r.hostRegistry != nil {
-		r.hostRegistry.SetExpectedPID(p.ID, int32(cmd.Process.Pid))
+	if r.hostRegistry != nil && pidKnown {
+		r.hostRegistry.SetExpectedPID(p.ID, int32(payloadPID)) //nolint:gosec // G115: a Linux PID fits int32 (pid_max <= 2^22)
 	}
 
 	if r.logger != nil {
-		r.logger.WriteLog(p.ID, fmt.Sprintf("[INFO] plugin process started pid=%d", cmd.Process.Pid))
+		r.logger.WriteLog(p.ID, fmt.Sprintf("[INFO] plugin process started pid=%d", payloadPID))
 	}
 
 	entry := &processEntry{
 		cmd:          cmd,
+		payloadPID:   payloadPID,
 		cancel:       cancel,
 		sockPath:     sock,
 		pluginID:     p.ID,

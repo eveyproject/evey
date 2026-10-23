@@ -26,14 +26,19 @@ import (
 //     Requires bwrap in $PATH; returns an error if absent.
 //   - "strict": bubblewrap namespaces AND LD_PRELOAD seccomp lib.
 //   - "basic": LD_PRELOAD seccomp lib + UID drop only (legacy/test fallback).
-func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) (func(), error) {
+//
+// bwrapInfo is non-nil only under bubblewrap: the read end of its --info-fd,
+// which names the sandboxed child once cmd has started (readBwrapChildPID).
+// Every other mode execs the plugin in place, so cmd.Process.Pid is the plugin.
+func (r *Runner) applySandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) (cleanup func(), bwrapInfo *os.File, err error) {
 	switch mode := r.effectiveMode(); mode {
 	case sandboxModeBubblewrap, sandboxModeStrict:
 		return r.applyBwrapSandbox(parentCtx, p, cmd, mode)
 	case sandboxModeLandlock:
-		return r.applyLandlockSandbox(parentCtx, p, cmd)
+		cleanup, err = r.applyLandlockSandbox(parentCtx, p, cmd)
+		return cleanup, nil, err
 	default:
-		return nil, r.applyBasicSandbox(parentCtx, p, cmd)
+		return nil, nil, r.applyBasicSandbox(parentCtx, p, cmd)
 	}
 }
 
@@ -137,14 +142,14 @@ func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, 
 // For "strict" mode it also applies the LD_PRELOAD seccomp lib.
 // Mutates cmd.Path and cmd.Args in-place so the exec.Cmd already built in
 // Start is reused unchanged (Env, SysProcAttr, Dir, Stdout/Stderr).
-func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd, mode string) (func(), error) {
+func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd, mode string) (func(), *os.File, error) {
 	bwrapPath, err := exec.LookPath("bwrap")
 	if err != nil {
 		slog.ErrorContext(parentCtx, "bwrap not found in PATH",
 			slog.String("plugin_id", p.ID),
 			slog.String("sandbox_mode", mode))
 		r.publishPluginError(parentCtx, p.ID, "bwrap binary missing; plugin refused start")
-		return nil, fmt.Errorf("pluginrunner: sandbox_mode=%q requires bwrap binary in $PATH (apk add bubblewrap)", mode)
+		return nil, nil, fmt.Errorf("pluginrunner: sandbox_mode=%q requires bwrap binary in $PATH (apk add bubblewrap)", mode)
 	}
 
 	pluginDir := p.InstallDir
@@ -152,7 +157,14 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 		pluginDir = defaultPluginDir
 	}
 	pluginSockDir := filepath.Join(sockDir, p.ID)
-	prefix := buildBwrapCmd(pluginDir, pluginSockDir, mode)
+	// ExtraFiles[0] is fd 3 in bwrap. The parent's write end is closed once
+	// cmd has started (Start), so a bwrap that dies early reads as EOF.
+	infoR, infoW, err := os.Pipe()
+	if err != nil {
+		return nil, nil, fmt.Errorf("bwrap info pipe: %w", err)
+	}
+	cmd.ExtraFiles = []*os.File{infoW}
+	prefix := withBwrapInfoFD(buildBwrapCmd(pluginDir, pluginSockDir, mode), 3)
 
 	// cmd.Args[0] is the program name; the original full argv is cmd.Args.
 	originalArgv := cmd.Args // e.g. ["/data/plugins/foo/plugin", "--arg"]
@@ -177,7 +189,9 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 				slog.String("plugin_id", p.ID),
 				slog.String("sandbox_lib", sandboxLibPath))
 			r.publishPluginError(parentCtx, p.ID, "sandbox library unavailable; plugin refused start (strict)")
-			return nil, fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
+			_ = infoR.Close()
+			_ = infoW.Close()
+			return nil, nil, fmt.Errorf("plugin %s: %w", p.ID, ErrSandboxUnavailable)
 		default:
 			slog.WarnContext(parentCtx, "strict mode without seccomp lib (dev override)",
 				slog.String("plugin_id", p.ID))
@@ -191,7 +205,7 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 	// No per-plugin sandbox temp state to reclaim (the /etc/hosts DNS whitelist
 	// was retired when direct plugin egress was cut in favour of the broker);
 	// the cleanup contract is kept nil-safe for callers and future use.
-	return nil, nil
+	return nil, infoR, nil
 }
 
 // Deliberately absent: an injection of the launcher's -rlimit-as/-rlimit-nproc

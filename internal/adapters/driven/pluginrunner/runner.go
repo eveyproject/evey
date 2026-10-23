@@ -36,6 +36,7 @@ const (
 
 type processEntry struct {
 	cmd          *exec.Cmd
+	payloadPID   int // runs the plugin code: cmd.Process.Pid, or bwrap's sandboxed child
 	cancel       context.CancelFunc
 	sockPath     string
 	pluginID     string
@@ -48,6 +49,33 @@ type processEntry struct {
 
 	crashMu     sync.Mutex
 	crashReason string // set by trackLifecycle on abnormal exit, read by connectIPC
+}
+
+// pid is the process running the plugin code, for the per-process /proc
+// reads; process-group signals go to cmd.Process.Pid (the pgid leader).
+func (e *processEntry) pid() int {
+	if e.payloadPID > 0 {
+		return e.payloadPID
+	}
+	return e.cmd.Process.Pid
+}
+
+// bwrapTermGrace is how long Stop waits after the SIGTERM before the SIGKILL
+// for a plugin under bubblewrap. The SIGTERM was never the plugin's graceful
+// exit there (the Shutdown RPC is): it kills bwrap, whose --die-with-parent
+// then SIGKILLs the plugin within milliseconds. What it cannot reach is a
+// plugin stopped while bwrap is still setting it up: as PID 1 of its
+// namespace (--as-pid-1) that child ignores a SIGTERM it has no handler for,
+// and its parent-death signal is not armed yet, so it outlived bwrap until the
+// full shutdownTimeout escalation (measured 2026-10-23, 6 s and counting).
+const bwrapTermGrace = time.Second
+
+// termGrace is the wait between Stop's SIGTERM and its SIGKILL.
+func (e *processEntry) termGrace() time.Duration {
+	if e.cmd != nil && e.cmd.Process != nil && e.payloadPID > 0 && e.payloadPID != e.cmd.Process.Pid {
+		return bwrapTermGrace
+	}
+	return shutdownTimeout
 }
 
 func (e *processEntry) setCrashReason(s string) {

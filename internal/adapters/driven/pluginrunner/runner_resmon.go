@@ -131,7 +131,7 @@ func (r *Runner) resourceMonitorLoop() {
 				if e.cmd == nil || e.cmd.Process == nil {
 					continue
 				}
-				pid := e.cmd.Process.Pid
+				pid := e.pid() // the plugin itself, not bwrap
 				live[pid] = true
 				r.checkResources(e, pid, cpu, sweep%resMonDiskEveryN == 0)
 			}
