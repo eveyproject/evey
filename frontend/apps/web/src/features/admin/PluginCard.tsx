@@ -21,7 +21,7 @@ import {
 import { toast } from "@evey/store";
 import type { V1Plugin, V1PluginState } from "@evey/api";
 import { PluginUpdateDialog } from "./PluginUpdateDialog";
-import { useDemoLock } from "@/hooks/useDemoMode";
+import { useDemoLock, useDemoLockFor } from "@/hooks/useDemoMode";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
 
 type PluginWithPermissions = V1Plugin & {
@@ -303,6 +303,8 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
   // The plugin's own configuration stays editable on the demo (the panel
   // above); the lifecycle - enable, disable, update, uninstall - does not.
   const { lock } = useDemoLock();
+  // Preview and apply both sit behind the update toggle.
+  const { lock: updateLock } = useDemoLockFor("/evey.v1.AdminPluginService/PreviewPluginUpdate");
   const queryClient = useQueryClient();
   const [showConfig, setShowConfig] = useState(false);
   const [showReport, setShowReport] = useState(false);
@@ -406,7 +408,7 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
           variant="secondary"
           onClick={() => setShowUpdateInput((v) => !v)}
           data-testid="plugin-update-toggle"
-          {...lock}
+          {...updateLock}
         >
           {t("admin.plugin.update", "Update from source...")}
         </Button>

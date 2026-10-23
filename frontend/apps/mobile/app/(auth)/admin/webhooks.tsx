@@ -14,7 +14,7 @@ import {
 } from "@evey/api";
 import type { V1WebhookConfig } from "@evey/api";
 import { WEBHOOK_EVENT_TYPES } from "@evey/client";
-import { toast } from "@evey/store";
+import { toast, useDemoStore, demoLocks } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 
@@ -35,6 +35,8 @@ function WebhookRow({
   const theme = useTheme();
   const { t } = useTranslation();
   const [testing, setTesting] = useState(false);
+  const testLocked = useDemoStore((st) => demoLocks(st, "POST /api/v1/admin/webhooks/{id}/test"));
+  const updateLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.WebhookService/UpdateWebhook"));
 
   async function handleTest() {
     if (!webhook.id) return;
@@ -69,11 +71,11 @@ function WebhookRow({
       </Pressable>
       <Pressable
         onPress={handleTest}
-        disabled={testing}
+        disabled={testing || testLocked}
         hitSlop={8}
         accessibilityRole="button"
         accessibilityLabel={t("common.test", "Tester")}
-        style={{ opacity: testing ? 0.5 : 1 }}
+        style={{ opacity: testing || testLocked ? 0.5 : 1 }}
       >
         {testing ? (
           <ActivityIndicator size="small" color={theme.colors.accent} />
@@ -84,6 +86,7 @@ function WebhookRow({
       <Switch
         value={webhook.enabled}
         onValueChange={() => onToggle(webhook)}
+        disabled={updateLocked}
         trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
       />
       <Pressable
@@ -104,6 +107,8 @@ export default function AdminWebhooksScreen() {
   const qc = useQueryClient();
   const { data, isLoading, isError, refetch } = useWebhookServiceListWebhooks();
   const webhooks: V1WebhookConfig[] = data?.webhooks ?? [];
+  const createLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.WebhookService/CreateWebhook"));
+  const updateLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.WebhookService/UpdateWebhook"));
 
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<V1WebhookConfig | null>(null);
@@ -137,6 +142,8 @@ export default function AdminWebhooksScreen() {
     setFormEnabled(wh.enabled ?? true);
     setShowForm(true);
   }, []);
+
+  const submitLocked = editTarget?.id ? updateLocked : createLocked;
 
   const closeForm = useCallback(() => {
     setShowForm(false);
@@ -192,6 +199,7 @@ export default function AdminWebhooksScreen() {
 
   const handleSubmit = useCallback(() => {
     if (!formUrl.trim()) return;
+    if (editTarget?.id ? updateLocked : createLocked) return;
     const events = allEvents ? ["*"] : Array.from(selectedEvents);
     const payload = {
       name: formName,
@@ -205,7 +213,7 @@ export default function AdminWebhooksScreen() {
     } else {
       createWebhook.mutate({ data: payload });
     }
-  }, [formName, formUrl, formSecret, allEvents, selectedEvents, formEnabled, editTarget, createWebhook, updateWebhook]);
+  }, [formName, formUrl, formSecret, allEvents, selectedEvents, formEnabled, editTarget, createWebhook, updateWebhook, createLocked, updateLocked]);
 
   const handleDelete = useCallback((wh: V1WebhookConfig) => {
     Alert.alert(t("common.delete"), t("admin.webhooks.deleteConfirmPlain", { name: wh.name || wh.url }), [
@@ -233,7 +241,7 @@ export default function AdminWebhooksScreen() {
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
         headerRight: () => (
-          <Pressable onPress={openCreate} style={{ marginRight: 16 }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("admin.webhooks.createWebhook")}>
+          <Pressable onPress={openCreate} disabled={createLocked} style={{ marginRight: 16, opacity: createLocked ? 0.4 : 1 }} hitSlop={8} accessibilityRole="button" accessibilityLabel={t("admin.webhooks.createWebhook")}>
             <Ionicons name="add" size={24} color={theme.colors.accent} />
           </Pressable>
         ),
@@ -358,8 +366,9 @@ export default function AdminWebhooksScreen() {
 
           <Pressable
             onPress={handleSubmit}
-            disabled={createWebhook.isPending || updateWebhook.isPending || !formUrl.trim()}
-            style={[styles.submitBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: !formUrl.trim() ? 0.5 : 1 }]}
+            disabled={createWebhook.isPending || updateWebhook.isPending || !formUrl.trim() || submitLocked}
+            accessibilityHint={submitLocked ? t("common.demo.locked") : undefined}
+            style={[styles.submitBtn, { backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: !formUrl.trim() || submitLocked ? 0.5 : 1 }]}
           >
             <Text style={{ color: theme.colors.onAccent, fontWeight: "600" }}>
               {editTarget ? t("common.save", "Save") : t("common.create", "Create")}

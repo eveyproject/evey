@@ -26,7 +26,7 @@ import { PluginCard } from "@/features/admin/PluginCard";
 import { PluginSecurityDashboard } from "@/features/admin/PluginSecurityDashboard";
 import { uploadRefusalMessage } from "@/features/plugins/uploadRefusal";
 import { PluginResourceLimits } from "@/features/admin/PluginResourceLimits";
-import { useDemoLock } from "@/hooks/useDemoMode";
+import { useDemoLockFor } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/plugins")({
   component: PluginsPage,
@@ -606,7 +606,8 @@ function InstallPluginForm({ onSuccess }: { onSuccess: () => void }) {
 
 function PluginsPage() {
   const { t } = useTranslation();
-  const { lock } = useDemoLock();
+  // Install, preview and upload are all behind this one button.
+  const { lock } = useDemoLockFor("/evey.v1.AdminPluginService/InstallPlugin");
   const [showModal, setShowModal] = useState(false);
   const [uninstallTarget, setUninstallTarget] = useState<{ id: string; name: string } | null>(null);
   const queryClient = useQueryClient();

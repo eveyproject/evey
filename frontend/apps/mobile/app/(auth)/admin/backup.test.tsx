@@ -64,6 +64,7 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   useAuthStore: (selector: (s: any) => unknown) => selector({ accessToken: "tok" }),
+  useDemoStore: (sel: (s: any) => unknown) => sel({ demoMode: false, demoLocked: [] }), demoLocks: (s: any, k: string) => s.demoMode || s.demoLocked.includes(k),
 }));
 
 // --- backup file ops (native expo-file-system I/O, irrelevant to this test) -------------

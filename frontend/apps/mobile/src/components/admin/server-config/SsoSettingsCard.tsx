@@ -3,7 +3,7 @@ import { View, Text, TextInput, Pressable, Switch, ActivityIndicator, StyleSheet
 import { useTranslation } from "react-i18next";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch, apiErrorMessage, useLibraryServiceListLibraries } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore, demoLocks } from "@evey/store";
 import { useTheme } from "../../../providers/ThemeProvider";
 import { SettingRow } from "../settings/SettingRow";
 import { SaveButton } from "../settings/SaveButton";
@@ -45,6 +45,8 @@ export function SsoSettingsCard() {
   const theme = useTheme();
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const saveLocked = useDemoStore((st) => demoLocks(st, "PUT /api/v1/admin/sso"));
+  const testLocked = useDemoStore((st) => demoLocks(st, "POST /api/v1/admin/sso/test"));
   const { data, isLoading, isError, refetch } = useQuery<SsoSettings>({
     queryKey: SSO_QUERY_KEY,
     queryFn: () => eveyFetch<SsoSettings>({ url: SSO_URL, method: "GET" }),
@@ -263,7 +265,7 @@ export function SsoSettingsCard() {
             defaultLibraryIds: restrictLibraries ? libraryIds : [],
           })
         }
-        disabled={selectionMissing}
+        disabled={selectionMissing || saveLocked}
         loading={save.isPending}
         label={t("admin.sso.save")}
         testID="sso-save"
@@ -271,8 +273,9 @@ export function SsoSettingsCard() {
 
       <Pressable
         onPress={() => test.mutate(issuer)}
-        disabled={!issuer.trim() || test.isPending}
-        style={[s.testBtn, { opacity: !issuer.trim() || test.isPending ? 0.5 : 1 }]}
+        disabled={!issuer.trim() || test.isPending || testLocked}
+        accessibilityHint={testLocked ? t("common.demo.locked") : undefined}
+        style={[s.testBtn, { opacity: !issuer.trim() || test.isPending || testLocked ? 0.5 : 1 }]}
         accessibilityRole="button"
         testID="sso-test"
       >

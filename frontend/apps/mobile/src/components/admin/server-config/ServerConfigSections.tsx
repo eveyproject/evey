@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useMutation } from "@tanstack/react-query";
 import { eveyFetch, apiErrorMessage } from "@evey/api";
-import { toast } from "@evey/store";
+import { toast, useDemoStore, demoLocks } from "@evey/store";
 import { latestLabel, useCheckUpdateNow, useUpdateStatus, type UpdateStatus } from "@evey/client";
 import { FONT_SIZE } from "@evey/theme";
 import { useTheme } from "../../../providers/ThemeProvider";
@@ -122,6 +122,7 @@ function UpdateRows({ ops }: { ops: ConfigEntryOps }) {
   const { t } = useTranslation();
   const { data } = useUpdateStatus();
   const checkNow = useCheckUpdateNow();
+  const checkLocked = useDemoStore((st) => demoLocks(st, "POST /api/v1/admin/update-status/check"));
   const enabled = ops.getEntryValue("update_check.enabled") !== "false";
   return (
     <>
@@ -137,7 +138,7 @@ function UpdateRows({ ops }: { ops: ConfigEntryOps }) {
             </Text>
           ) : null}
         </View>
-        <SecondaryButton label={t("admin.update.checkNow")} onPress={() => checkNow.mutate()} disabled={!enabled} loading={checkNow.isPending} />
+        <SecondaryButton label={t("admin.update.checkNow")} onPress={() => checkNow.mutate()} disabled={!enabled || checkLocked} loading={checkNow.isPending} />
       </View>
     </>
   );

@@ -23,7 +23,7 @@ vi.mock("../../../providers/ThemeProvider", () => ({
 }));
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
-vi.mock("@evey/store", () => ({ toast }));
+vi.mock("@evey/store", () => ({ toast, useDemoStore: (sel: (s: any) => unknown) => sel({ demoMode: false, demoLocked: [] }), demoLocks: (s: any, k: string) => s.demoMode || s.demoLocked.includes(k) }));
 
 const fetchMock = vi.hoisted(() => vi.fn());
 vi.mock("@evey/api", () => ({

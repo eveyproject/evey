@@ -5,7 +5,7 @@ import { Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { eveyFetch } from "@evey/api";
-import { toast, useDemoStore } from "@evey/store";
+import { toast, useDemoStore, demoLocks } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 
 interface RemoteAccessConfig {
@@ -39,11 +39,12 @@ export default function AdminRemoteAccessScreen() {
     queryFn: () => eveyFetch<RemoteAccessConfig>({ url: "/api/v1/admin/remote-access", method: "GET" }),
   });
 
-  // The host's interfaces are not shown on the demo (the server refuses it):
-  // not asked for there, as on the web.
-  const demo = useDemoStore((s) => s.demoMode || s.extendedDemo);
+  // The host's interfaces are not shown where the server refuses them: not
+  // asked for there, as on the web. Saving is refused the same way.
+  const netLocked = useDemoStore((s) => demoLocks(s, "GET /api/v1/admin/network-info"));
+  const saveLocked = useDemoStore((s) => demoLocks(s, "PUT /api/v1/admin/remote-access"));
   const { data: netInfo } = useQuery<{ interfaces: NetworkInterface[] }>({
-    enabled: !demo,
+    enabled: !netLocked,
     queryKey: NETWORK_KEY,
     queryFn: () => eveyFetch<{ interfaces: NetworkInterface[] }>({ url: "/api/v1/admin/network-info", method: "GET" }),
   });
@@ -113,7 +114,7 @@ export default function AdminRemoteAccessScreen() {
         title: t("admin.remoteAccess.title"),
         headerStyle: { backgroundColor: theme.colors.surface },
         headerTintColor: theme.colors.text,
-        headerRight: dirty ? () => (
+        headerRight: dirty && !saveLocked ? () => (
           <Pressable onPress={handleSave} disabled={saving} style={{ marginRight: 8 }}>
             <Text style={{ color: theme.colors.accent, fontWeight: "600", fontSize: 15, opacity: saving ? 0.5 : 1 }}>
               {saving ? t("common.loading") : t("common.save")}
@@ -144,6 +145,10 @@ export default function AdminRemoteAccessScreen() {
             </View>
           ) : null}
 
+          {saveLocked && (
+            <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 12 }}>{t("common.demo.locked")}</Text>
+          )}
+
           {/* Status badge */}
           <View style={[styles.statusBadge, { backgroundColor: enabled ? theme.colors.success + "20" : theme.colors.surfaceRaised, borderRadius: theme.radii.md }]}>
             <Ionicons name={enabled ? "globe-outline" : "lock-closed-outline"} size={20} color={enabled ? theme.colors.success : theme.colors.textMuted} />
@@ -161,6 +166,7 @@ export default function AdminRemoteAccessScreen() {
             </View>
             <Switch
               value={enabled}
+              disabled={saveLocked}
               onValueChange={(v) => { setEnabled(v); if (!v) setExternalUrl(""); setDirty(true); }}
               trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
             />
@@ -172,6 +178,7 @@ export default function AdminRemoteAccessScreen() {
             value={externalUrl}
             onChangeText={(v) => { setExternalUrl(v); setDirty(true); }}
             style={s.input}
+            editable={!saveLocked}
             accessibilityLabel={t("admin.remoteAccess.externalUrl")}
             placeholderTextColor={theme.colors.textMuted}
             placeholder={data?.serverBaseUrl || "https://evey.example.com"}
@@ -193,6 +200,7 @@ export default function AdminRemoteAccessScreen() {
             value={trustedProxies}
             onChangeText={(v) => { setTrustedProxies(v); setDirty(true); }}
             style={s.input}
+            editable={!saveLocked}
             accessibilityLabel={t("admin.remoteAccess.trustedProxies")}
             placeholderTextColor={theme.colors.textMuted}
             placeholder="172.16.0.0/12"
@@ -211,6 +219,7 @@ export default function AdminRemoteAccessScreen() {
             value={lanNetworks}
             onChangeText={(v) => { setLanNetworks(v); setDirty(true); }}
             style={s.input}
+            editable={!saveLocked}
             accessibilityLabel={t("admin.remoteAccess.lanNetworks")}
             placeholderTextColor={theme.colors.textMuted}
             placeholder="192.168.0.0/16, 10.0.0.0/8"
@@ -223,6 +232,7 @@ export default function AdminRemoteAccessScreen() {
             value={maxBitrate}
             onChangeText={(v) => { setMaxBitrate(v); setDirty(true); }}
             style={s.input}
+            editable={!saveLocked}
             keyboardType="numeric"
             accessibilityLabel={t("admin.remoteAccess.maxRemoteBitrate")}
             placeholder="0"

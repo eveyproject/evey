@@ -21,7 +21,7 @@ import {
   eveyFetch,
   apiErrorMessage,
 } from "@evey/api";
-import { toast, useAuthStore } from "@evey/store";
+import { toast, useAuthStore, useDemoStore, demoLocks } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { type ConfigFieldSchema, normaliseOptions, validateConfigField } from "@evey/client";
@@ -519,6 +519,7 @@ function PluginUpdateModal({
   onClose: () => void;
   onApplied: () => void;
 }) {
+  const applyLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.AdminPluginService/ApplyPluginUpdate"));
   const [phase, setPhase] = useState<"previewing" | "reviewing" | "applying" | "error">("previewing");
   const [preview, setPreview] = useState<UpdatePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -575,6 +576,7 @@ function PluginUpdateModal({
   }
 
   const applyDisabled =
+    applyLocked ||
     phase === "previewing" ||
     phase === "applying" ||
     (phase === "error" && !preview) ||
@@ -732,6 +734,7 @@ function PluginRow({
   onUninstall: () => void;
 }) {
   const qc = useQueryClient();
+  const updateLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.AdminPluginService/PreviewPluginUpdate") || demoLocks(st, "/evey.v1.AdminPluginService/ApplyPluginUpdate"));
   const [showConfig, setShowConfig] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [showReport, setShowReport] = useState(false);
@@ -812,7 +815,12 @@ function PluginRow({
             {showLogs ? t("admin.plugin.hideLogs", "Masquer les journaux") : t("admin.plugin.logs", "Journaux")}
           </Text>
         </Pressable>
-        <Pressable onPress={() => setShowUpdateForm((v) => !v)} style={styles.chipBtn}>
+        <Pressable
+          onPress={() => setShowUpdateForm((v) => !v)}
+          disabled={updateLocked}
+          accessibilityHint={updateLocked ? t("common.demo.locked") : undefined}
+          style={[styles.chipBtn, { opacity: updateLocked ? 0.4 : 1 }]}
+        >
           <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "600" }}>
             {t("admin.plugin.update", "Mettre à jour depuis une source...")}
           </Text>
@@ -967,6 +975,9 @@ export default function AdminPluginsScreen() {
   const [installFileUri, setInstallFileUri] = useState<string | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
   const accessToken = useAuthStore((st) => st.accessToken);
+  const installLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.AdminPluginService/InstallPlugin"));
+  const previewLocked = useDemoStore((st) => demoLocks(st, "POST /api/v1/admin/plugins/preview"));
+  const uploadLocked = useDemoStore((st) => demoLocks(st, "POST /api/v1/admin/plugins/upload") || demoLocks(st, "POST /api/v1/admin/plugins/preview"));
 
   const installPlugin = useAdminPluginServiceInstallPlugin({
     mutation: {
@@ -1124,7 +1135,9 @@ export default function AdminPluginsScreen() {
         headerRight: () => (
           <Pressable
             onPress={() => setInstallOpen(true)}
-            style={{ paddingHorizontal: 12, paddingVertical: 6 }}
+            disabled={installLocked}
+            accessibilityHint={installLocked ? t("common.demo.locked") : undefined}
+            style={{ paddingHorizontal: 12, paddingVertical: 6, opacity: installLocked ? 0.4 : 1 }}
             accessible
             accessibilityRole="button"
             accessibilityLabel={t("admin.plugins.installFromUrl", "Install from URL")}
@@ -1300,14 +1313,14 @@ export default function AdminPluginsScreen() {
                 </Pressable>
                 <Pressable
                   onPress={() => void handlePreviewInstall()}
-                  disabled={!installSource.trim() || previewing}
+                  disabled={!installSource.trim() || previewing || previewLocked}
                   style={{
                     flex: 1,
                     alignItems: "center",
                     paddingVertical: theme.spacing.sm + 2,
                     borderRadius: theme.radii.md,
                     backgroundColor: theme.colors.accent,
-                    opacity: !installSource.trim() || previewing ? 0.5 : 1,
+                    opacity: !installSource.trim() || previewing || previewLocked ? 0.5 : 1,
                   }}
                 >
                   {previewing ? (
@@ -1321,8 +1334,8 @@ export default function AdminPluginsScreen() {
               {/* Install from a picked .zip (mirror web file mode). */}
               <Pressable
                 onPress={() => void handlePickFile()}
-                disabled={previewing}
-                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: theme.spacing.sm, paddingVertical: theme.spacing.sm + 2, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border, opacity: previewing ? 0.5 : 1 }}
+                disabled={previewing || uploadLocked}
+                style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: theme.spacing.sm, paddingVertical: theme.spacing.sm + 2, borderRadius: theme.radii.md, borderWidth: 1, borderColor: theme.colors.border, opacity: previewing || uploadLocked ? 0.5 : 1 }}
               >
                 <Ionicons name="folder-open-outline" size={18} color={theme.colors.text} />
                 <Text style={{ color: theme.colors.text, fontWeight: "600" }}>{t("admin.plugins.installFromFile", "Install from file (.zip)")}</Text>

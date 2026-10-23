@@ -20,7 +20,7 @@ const DemoModeContext = createContext(false);
 const ExtendedDemoContext = createContext(false);
 
 export function DemoModeProvider({ children }: { children: ReactNode }) {
-  const { data } = useQuery<{ demoMode?: boolean; demoExtended?: boolean }>({
+  const { data } = useQuery<{ demoMode?: boolean; demoExtended?: boolean; demoLocked?: string[] }>({
     queryKey: ["setup-status"],
     queryFn: () => adminSystemServiceGetSetupStatus(),
     staleTime: 60_000,
@@ -31,7 +31,8 @@ export function DemoModeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     useDemoStore.getState().setDemoMode(demo);
     useDemoStore.getState().setExtendedDemo(data?.demoExtended === true);
-  }, [demo, data?.demoExtended]);
+    useDemoStore.getState().setDemoLocked(data?.demoLocked ?? []);
+  }, [demo, data?.demoExtended, data?.demoLocked]);
   return createElement(
     DemoModeContext.Provider,
     { value: demo },
@@ -65,5 +66,15 @@ export function useNetworkLock(): { locked: boolean; lock: { disabled?: true; ti
   const extended = useExtendedDemo();
   const { t } = useTranslation();
   const locked = demo || extended;
+  return { locked, lock: locked ? { disabled: true, title: t("common.demo.locked") } : {} };
+}
+
+// useDemoLockFor greys one control by what the server refuses: everything on
+// the public demo, the RPC or route `key` names on the extended one.
+export function useDemoLockFor(key: string): { locked: boolean; lock: { disabled?: true; title?: string } } {
+  const demo = useDemoMode();
+  const listed = useDemoStore((s) => s.demoLocked.includes(key));
+  const { t } = useTranslation();
+  const locked = demo || listed;
   return { locked, lock: locked ? { disabled: true, title: t("common.demo.locked") } : {} };
 }

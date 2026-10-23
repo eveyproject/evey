@@ -62,6 +62,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useUserServiceListAllProfiles: () => ({ data: { profiles: [] } }),
 }));
 
+import { useDemoStore } from "@evey/store";
 import LogsScreen from "../../app/(auth)/admin/logs";
 
 const entry = {
@@ -83,6 +84,7 @@ function renderScreen() {
 
 describe("Admin logs screen (mobile)", () => {
   beforeEach(() => {
+    useDemoStore.setState({ demoMode: false, demoLocked: [] });
     api.search.mockReset();
     api.getMediaItem.mockReset();
     api.getMediaItem.mockResolvedValue({ id: "mi-1", type: "MEDIA_ITEM_TYPE_MOVIE", title: "Some Movie", year: 2016 });
@@ -113,5 +115,14 @@ describe("Admin logs screen (mobile)", () => {
 
     await waitFor(() => expect(screen.getByText("admin.logs.error")).toBeTruthy());
     expect(screen.queryByText("admin.logs.empty")).toBeNull();
+  });
+
+  it("shows the locked state and never searches when the server lists the log routes as locked", async () => {
+    useDemoStore.setState({ demoLocked: ["GET /api/v1/admin/logs/search"] });
+    renderScreen();
+
+    expect(await screen.findByText("errors.demo.locked")).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(api.search).not.toHaveBeenCalled();
   });
 });

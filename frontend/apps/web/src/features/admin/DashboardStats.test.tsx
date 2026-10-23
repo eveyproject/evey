@@ -56,6 +56,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   useAuthStore: (fn: (s: { accessToken: string }) => unknown) => fn({ accessToken: "test-token" }),
+  useDemoStore: (fn: (s: { demoLocked: string[] }) => unknown) => fn({ demoLocked: [] }),
 }));
 
 function createWrapper() {

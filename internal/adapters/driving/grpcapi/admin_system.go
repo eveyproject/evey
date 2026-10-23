@@ -21,6 +21,7 @@ import (
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/config"
 	domaintranscoding "github.com/eveyproject/evey/internal/domain/transcoding"
+	"github.com/eveyproject/evey/internal/pkg/demo"
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/sysinfo"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
@@ -176,6 +177,9 @@ func (d *adminSystemHandler) GetSetupStatus(ctx context.Context, _ *eveyv1.GetSe
 		return nil, internalError(ctx, "count admins", err)
 	}
 	resp := &eveyv1.SetupStatusResponse{SetupComplete: admins > 0, ServerName: d.serverName(), DemoMode: d.cfg != nil && d.cfg.Server.Demo && !d.cfg.Server.DemoExtended, DemoExtended: d.cfg != nil && d.cfg.Server.DemoExtended}
+	if resp.DemoExtended {
+		resp.DemoLocked = demo.ExtendedLocked()
+	}
 	// Public projection of the recovery flag so the logged-out login page can
 	// show the "Forgot password?" link (mirrors GetSystemInfo). It only reads
 	// config (SMTP configured + auth.password_recovery_enabled), no auth needed.

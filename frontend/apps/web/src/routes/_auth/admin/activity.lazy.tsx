@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { AuditLogTable } from "@/features/admin/AuditLogTable";
 import { WatcherFilter, type Watcher } from "@/features/admin/WatcherFilter";
 import { useInfiniteSentinel } from "@/hooks/useInfiniteSentinel";
-import { useDemoMode } from "@/hooks/useDemoMode";
+import { useDemoLockFor } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/activity")({
   component: ActivityPage,
@@ -310,9 +310,10 @@ function ActivityPage() {
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [chosenTab, setTab] = useState<Tab>(search.tab ?? "play");
-  const demo = useDemoMode();
+  // Refused on both demos: it carries other visitors' addresses and browsers.
+  const auditLocked = useDemoLockFor("/evey.v1.AdminSessionService/GetAuditLog").locked;
   // A link to the audit tab lands on the play history on the demo.
-  const tab: Tab = demo && chosenTab === "audit" ? "play" : chosenTab;
+  const tab: Tab = auditLocked && chosenTab === "audit" ? "play" : chosenTab;
   const watcher: Watcher = { userId: search.userId, profileId: search.profileId };
   const setWatcher = (w: Watcher) =>
     void navigate({ to: "/admin/activity", search: { ...search, userId: w.userId, profileId: w.profileId } });
@@ -362,13 +363,11 @@ function ActivityPage() {
     setExporting(false);
   }, [tab, t, watcher.userId, watcher.profileId]);
 
-  // No audit tab on the demo: the server refuses the audit log there (it
-  // carries other visitors' addresses and browsers).
   const tabs: Array<{ id: Tab; label: string }> = [
     { id: "play" as Tab, label: t("admin.activity.tabs.playHistory") },
     { id: "audit" as Tab, label: t("admin.audit.title") },
     { id: "stats" as Tab, label: t("admin.activity.tabs.serverStats") },
-  ].filter((tb) => !(demo && tb.id === "audit"));
+  ].filter((tb) => !(auditLocked && tb.id === "audit"));
 
   return (
     <div className="flex flex-col gap-6">

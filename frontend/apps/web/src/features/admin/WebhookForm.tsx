@@ -6,6 +6,7 @@ import { WEBHOOK_EVENT_TYPES } from "@evey/client";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { useDemoLockFor } from "@/hooks/useDemoMode";
 
 
 interface WebhookFormProps {
@@ -35,6 +36,9 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
     mutation: { onSuccess, onError: (err: Error) => toast.error(err?.message || t("admin.webhooks.failedUpdate")) },
   });
 
+  const { locked } = useDemoLockFor(
+    existing?.id ? "/evey.v1.WebhookService/UpdateWebhook" : "/evey.v1.WebhookService/CreateWebhook",
+  );
   const isPending = createWebhook.isPending || updateWebhook.isPending;
 
   function toggleEvent(evt: string) {
@@ -125,7 +129,7 @@ export function WebhookForm({ onSuccess, existing }: WebhookFormProps) {
       </label>
 
       <div className="flex justify-end pt-2">
-        <Button type="submit" loading={isPending} disabled={!url.trim() || !name.trim()} data-testid="webhook-form-submit">
+        <Button type="submit" loading={isPending} disabled={!url.trim() || !name.trim() || locked} data-testid="webhook-form-submit">
           {existing ? t("common.save") : t("admin.webhooks.form.createWebhook")}
         </Button>
       </div>

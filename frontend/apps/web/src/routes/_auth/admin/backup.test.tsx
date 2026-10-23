@@ -33,6 +33,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
+  useDemoStore: (sel: (s: { demoLocked: string[] }) => unknown) => sel({ demoLocked: [] }),
   useAuthStore: (fn: (s: { accessToken: string }) => unknown) => fn({ accessToken: "tok" }),
 }));
 

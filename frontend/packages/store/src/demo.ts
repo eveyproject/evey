@@ -16,6 +16,10 @@ interface DemoState {
   // this only tells the few network screens to stay hands-off.
   extendedDemo: boolean;
   setExtendedDemo: (on: boolean) => void;
+  // What the extended demo still refuses (RPC names, route patterns), as the
+  // server lists it.
+  demoLocked: string[];
+  setDemoLocked: (keys: string[]) => void;
 }
 
 export const useDemoStore = create<DemoState>()((set) => ({
@@ -23,7 +27,14 @@ export const useDemoStore = create<DemoState>()((set) => ({
   setDemoMode: (demoMode) => set({ demoMode }),
   extendedDemo: false,
   setExtendedDemo: (extendedDemo) => set({ extendedDemo }),
+  demoLocked: [],
+  setDemoLocked: (demoLocked) => set({ demoLocked }),
 }));
+
+/** Refused here: anything on the public demo, the listed keys on the extended one. */
+export function demoLocks(s: Pick<DemoState, "demoMode" | "demoLocked">, key: string): boolean {
+  return s.demoMode || s.demoLocked.includes(key);
+}
 
 export function isDemoMode(): boolean {
   return useDemoStore.getState().demoMode;

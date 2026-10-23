@@ -21,6 +21,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
 
 vi.mock("@evey/store", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+  useDemoStore: (sel: (s: { demoLocked: string[] }) => unknown) => sel({ demoLocked: [] }),
 }));
 
 // PluginUpdateDialog opens a Modal via createPortal; render inline for test assertions
