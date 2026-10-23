@@ -13,11 +13,7 @@ import (
 
 func TestParseTranscodingPreferences_Empty(t *testing.T) {
 	tp := apptranscode.ParseTranscodingPreferences(nil)
-	assert.True(t, tp.AllowDirectPlay)
-	assert.True(t, tp.AllowDirectStream)
-	assert.True(t, tp.AllowTranscoding)
-	assert.Equal(t, "", tp.PreferredVideoCodec)
-	assert.Equal(t, 0, tp.MaxAudioChannels)
+	assert.Equal(t, apptranscode.DefaultTranscodingPreferences(), tp)
 }
 
 func TestParseTranscodingPreferences_Full(t *testing.T) {
@@ -26,18 +22,12 @@ func TestParseTranscodingPreferences_Full(t *testing.T) {
 		"preferred_audio_codec": "Opus",
 		"max_audio_channels":    "2",
 		"subtitle_burn_in":      "Always",
-		"allow_direct_play":     "false",
-		"allow_direct_stream":   "true",
-		"allow_transcoding":     "false",
 	}
 	tp := apptranscode.ParseTranscodingPreferences(m)
 	assert.Equal(t, "hevc", tp.PreferredVideoCodec)
 	assert.Equal(t, "opus", tp.PreferredAudioCodec)
 	assert.Equal(t, 2, tp.MaxAudioChannels)
 	assert.Equal(t, "always", tp.SubtitleBurnIn)
-	assert.False(t, tp.AllowDirectPlay)
-	assert.True(t, tp.AllowDirectStream)
-	assert.False(t, tp.AllowTranscoding)
 }
 
 func TestParseTranscodingPreferences_BadChannels_Ignored(t *testing.T) {
@@ -45,60 +35,38 @@ func TestParseTranscodingPreferences_BadChannels_Ignored(t *testing.T) {
 	assert.Equal(t, 0, tp.MaxAudioChannels)
 }
 
-// --- allow_direct_play = false forces transcode ---
+// --- the retired allow_* keys ---
 
-func TestPref_AllowDirectPlayFalse_ForcesTranscode(t *testing.T) {
-	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+// A profile that turned a play method off before the toggles were removed
+// still has "false" stored, and no client shows the switch anymore: the
+// decision must be the one an untouched profile gets, both ways - the
+// direct play stays a direct play, the title that needs a transcode gets it.
+func TestPref_RetiredAllowKeys_ChangeNothing(t *testing.T) {
+	legacy := map[string]string{
+		"allow_direct_play":   "false",
+		"allow_direct_stream": "false",
+		"allow_transcoding":   "false",
 	}
-	prefs := apptranscode.DefaultTranscodingPreferences()
-	prefs.AllowDirectPlay = false
-	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
-	assert.Equal(t, "transcode", d.PlayMethod)
-	assert.Contains(t, d.TranscodeReasons, "direct_play_disabled")
-	assert.Equal(t, "transcode", d.VideoDecision)
-	assert.Equal(t, "transcode", d.AudioDecision)
-}
+	assert.Equal(t, apptranscode.DefaultTranscodingPreferences(), apptranscode.ParseTranscodingPreferences(legacy))
 
-// --- allow_direct_stream = false: remux case upgrades to transcode ---
-
-func TestPref_AllowDirectStreamFalse_ForcesTranscode(t *testing.T) {
-	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	cases := []struct {
+		name, video, container, method string
+	}{
+		{"direct play", "h264", "mp4", "direct_play"},
+		{"remux", "h264", "matroska", "direct_stream"},
+		{"transcode", "mpeg2video", "mp4", "transcode"},
 	}
-	prefs := apptranscode.DefaultTranscodingPreferences()
-	prefs.AllowDirectStream = false
-	// matroska container not supported by default web profile -> normally direct_stream
-	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "matroska", transcoding.DefaultWebProfile, 0, prefs)
-	assert.Equal(t, "transcode", d.PlayMethod)
-	assert.Contains(t, d.TranscodeReasons, "direct_stream_disabled")
-}
-
-// --- allow_transcoding = false surfaces via TranscodeDisallowed ---
-
-func TestPref_AllowTranscodingFalse_Disallowed(t *testing.T) {
-	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "hevc", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			streams := []*library.MediaStream{
+				{StreamType: "video", Codec: tc.video, Width: new(1920), Height: new(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+				{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+			}
+			d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, tc.container, transcoding.DefaultWebProfile, 0,
+				apptranscode.ParseTranscodingPreferences(legacy))
+			assert.Equal(t, tc.method, d.PlayMethod, "reasons: %v", d.TranscodeReasons)
+		})
 	}
-	prefs := apptranscode.DefaultTranscodingPreferences()
-	prefs.AllowTranscoding = false
-	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
-	assert.True(t, apptranscode.TranscodeDisallowed(d, prefs))
-}
-
-func TestPref_AllowTranscodingFalse_NoTranscode_Allowed(t *testing.T) {
-	streams := []*library.MediaStream{
-		{StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
-	}
-	prefs := apptranscode.DefaultTranscodingPreferences()
-	prefs.AllowTranscoding = false
-	d := apptranscode.MakePlaybackDecisionWithPrefs(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0, prefs)
-	assert.Equal(t, "direct_play", d.PlayMethod)
-	assert.False(t, apptranscode.TranscodeDisallowed(d, prefs))
 }
 
 // --- preferred_video_codec ---

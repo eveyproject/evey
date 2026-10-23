@@ -263,11 +263,6 @@ func (h *playbackServe) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		SourceNeedsRemux:    item.File.NeedsRemux(),
 	})
 	decision := &decided
-	if apptranscoding.TranscodeDisallowed(decision, prefs) {
-		span.SetStatus(codes.Error, "transcoding disallowed by prefs")
-		http.Error(w, `{"message":"transcoding disabled by user preferences"}`, http.StatusUnprocessableEntity)
-		return
-	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(toPlaybackInfoDTO(decision)); err != nil {

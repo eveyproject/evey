@@ -187,8 +187,6 @@ streamInfo:
     audio_passthrough_unsupported: "Audiospur kann im Stream nicht unverändert übertragen werden"
     preferred_video_codec: "Bevorzugter Video-Codec (Profileinstellung)"
     preferred_audio_codec: "Bevorzugter Audio-Codec (Profileinstellung)"
-    direct_play_disabled: "Direktwiedergabe im Profil deaktiviert"
-    direct_stream_disabled: "Remux im Profil deaktiviert"
     video_codec_pinned: "Video-Codec für diese Sitzung beibehalten"
 jumpToChapter: "Zum Kapitel springen: {{chapter}}"
 cast:

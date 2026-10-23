@@ -36,7 +36,9 @@ vi.mock("expo-router", () => ({
 
 // --- react-i18next -----------------------------------------------------------
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string, fallback?: string) => fallback ?? key, i18n: { language: "en" } }),
+  // The second argument is a fallback string or, for an interpolated label,
+  // the values object: only a string stands in for the key.
+  useTranslation: () => ({ t: (key: string, fallback?: unknown) => (typeof fallback === "string" ? fallback : key), i18n: { language: "en" } }),
 }));
 
 // --- @tanstack/react-query ----------------------------------------------------
@@ -167,32 +169,23 @@ describe("PlaybackSettingsScreen (mobile)", () => {
     });
   });
 
-  // A boolean toggle: covers the same contract for a Switch-style row.
-  describe("allow direct play, on mutation outcome", () => {
-    it("shows the new value once the save succeeds", async () => {
-      mutateAsyncMock.mockResolvedValueOnce(undefined);
+  // The data saver is the device's own setting: it never touches the
+  // profile, and the play-method switches it replaced are gone.
+  describe("data saver", () => {
+    it("stores the level on the device without saving the profile", async () => {
+      const { useDataSaverStore } = await import("@evey/store");
+      useDataSaverStore.setState({ level: "off" });
       render(<PlaybackSettingsScreen />);
-      const directPlaySwitch = screen.getAllByRole("switch")[1];
-      expect(directPlaySwitch.getAttribute("aria-checked")).toBe("true");
-
-      await clickAndSettle(directPlaySwitch);
-
-      await waitFor(() =>
-        expect(screen.getAllByRole("switch")[1].getAttribute("aria-checked")).toBe("false"),
-      );
-      expect(mutateAsyncMock).toHaveBeenCalledWith({ allow_direct_play: "false" });
+      fireEvent.click(screen.getByText("auth.settings.playback.dataSaverTravel"));
+      expect(useDataSaverStore.getState().level).toBe("travel");
+      expect(mutateAsyncMock).not.toHaveBeenCalled();
+      useDataSaverStore.setState({ level: "off" });
     });
 
-    it("keeps the original value when the save fails", async () => {
-      mutateAsyncMock.mockRejectedValueOnce(new Error("network down"));
+    it("no longer offers the play-method switches", () => {
       render(<PlaybackSettingsScreen />);
-      const directPlaySwitch = screen.getAllByRole("switch")[1];
-
-      await clickAndSettle(directPlaySwitch);
-
-      await waitFor(() => expect(mutateAsyncMock).toHaveBeenCalled());
-      await new Promise((r) => setTimeout(r, 0));
-      expect(screen.getAllByRole("switch")[1].getAttribute("aria-checked")).toBe("true");
+      expect(screen.queryByText("Allow direct play")).toBeNull();
+      expect(screen.queryByText("Allow transcoding")).toBeNull();
     });
   });
 });

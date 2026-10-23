@@ -9,7 +9,16 @@ import {
   useUserServiceUpdateProfile,
   type V1Profile,
 } from "@evey/api";
-import { useAuthStore, useServerListStore, isDemoMode, toast } from "@evey/store";
+import {
+  DATA_SAVER_LABEL_KEY,
+  DATA_SAVER_LEVELS,
+  dataSaverLabelValues,
+  isDemoMode,
+  toast,
+  useAuthStore,
+  useDataSaverStore,
+  useServerListStore,
+} from "@evey/store";
 import {
   AUDIO_CHANNELS_OPTIONS,
   AUDIO_CODEC_OPTIONS,
@@ -38,8 +47,10 @@ interface Option<T> { value: T; labelKey: string; fallback: string }
  * household's default profile would look saved and change nothing.
  */
 export function PlaybackSettingsScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
+  const dataSaver = useDataSaverStore((s) => s.level);
+  const setDataSaver = useDataSaverStore((s) => s.setLevel);
   const user = useUserServiceGetCurrentUser();
   const profiles = useUserServiceListProfiles(user.data?.id ?? "", { query: { enabled: !!user.data?.id } });
   const activeProfileId = useAuthStore((s) => s.profileId);
@@ -73,9 +84,9 @@ export function PlaybackSettingsScreen() {
   };
   const bool = (key: string, dflt = true) => (prefs[key] === undefined ? dflt : prefs[key] !== "false");
   const label = (o: Option<unknown>) => (o.labelKey ? t(o.labelKey, o.fallback) : o.fallback);
-  const rows = <T extends string | boolean>(options: readonly Option<T>[], value: T, onPick: (v: T) => void, first?: boolean) =>
-    options.map((o, i) => (
-      <SettingsRow key={String(o.value)} label={label(o)} checked={value === o.value} autoFocus={first && i === 0} onPress={() => onPick(o.value)} />
+  const rows = <T extends string | boolean>(options: readonly Option<T>[], value: T, onPick: (v: T) => void) =>
+    options.map((o) => (
+      <SettingsRow key={String(o.value)} label={label(o)} checked={value === o.value} onPress={() => onPick(o.value)} />
     ));
   const toggle = (key: string) => (v: boolean) => void save({ [key]: v ? "true" : "false" });
 
@@ -92,8 +103,20 @@ export function PlaybackSettingsScreen() {
   return (
     <FocusRoot autoFocus className="screen set-page">
       <h1 className="set-title">{t("auth.settings.tabs.playback", "Playback")}</h1>
+      {/* This television's own setting, not the profile's: no save(), no demo lock. */}
+      <SettingsGroup title={t("auth.settings.playback.dataSaverTitle")} hint={t("auth.settings.playback.dataSaverDesc")}>
+        {DATA_SAVER_LEVELS.map((level, i) => (
+          <SettingsRow
+            key={level}
+            label={t(DATA_SAVER_LABEL_KEY[level], dataSaverLabelValues(level, i18n.language))}
+            checked={dataSaver === level}
+            autoFocus={i === 0}
+            onPress={() => setDataSaver(level)}
+          />
+        ))}
+      </SettingsGroup>
       <SettingsGroup title={t("auth.settings.playback.bitrateTitle")} hint={t("auth.settings.playback.bitrateDesc")}>
-        {rows(BITRATE_OPTIONS, prefs.max_bitrate_kbps ?? "0", (v) => void save({ max_bitrate_kbps: v }), true)}
+        {rows(BITRATE_OPTIONS, prefs.max_bitrate_kbps ?? "0", (v) => void save({ max_bitrate_kbps: v }))}
       </SettingsGroup>
       <SettingsGroup title={t("auth.settings.playback.preferredVideoCodec")}>
         {rows(VIDEO_CODEC_OPTIONS, prefs.preferred_video_codec ?? "auto", (v) => void save({ preferred_video_codec: v }))}
@@ -129,16 +152,6 @@ export function PlaybackSettingsScreen() {
           ))}
         </SettingsGroup>
       ) : null}
-      <h2 className="set-section-title">{t("auth.settings.playback.transcodeTitle", "Transcoding")}</h2>
-      <SettingsGroup label={t("auth.settings.playback.allowDirectPlay")} hint={t("auth.settings.playback.allowDirectPlayDesc")}>
-        {rows(TOGGLE_OPTIONS, bool("allow_direct_play"), toggle("allow_direct_play"))}
-      </SettingsGroup>
-      <SettingsGroup label={t("auth.settings.playback.allowDirectStream")} hint={t("auth.settings.playback.allowDirectStreamDesc")}>
-        {rows(TOGGLE_OPTIONS, bool("allow_direct_stream"), toggle("allow_direct_stream"))}
-      </SettingsGroup>
-      <SettingsGroup label={t("auth.settings.playback.allowTranscoding")} hint={t("auth.settings.playback.allowTranscodingDesc")}>
-        {rows(TOGGLE_OPTIONS, bool("allow_transcoding"), toggle("allow_transcoding"))}
-      </SettingsGroup>
       {updateProfile.isPending ? <div className="center-fill set-pending"><Spinner /></div> : null}
     </FocusRoot>
   );

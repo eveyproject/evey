@@ -82,13 +82,14 @@ func parseClientCapabilities(r *http.Request, hdrSupported bool) domaintranscodi
 		client.MaxHeight = n
 	}
 	// Width twin of ?maxHeight, same clamp shape on the width range. No shipped
-	// client sends either this or ?maxBitrate - they came from /playback-info's
-	// own parser and stay readable so that endpoint keeps its contract.
+	// client sends it - it came from /playback-info's own parser and stays
+	// readable so that endpoint keeps its contract.
 	if n := parseIntQuery(r, "maxWidth", 0); n >= 240 && n <= 15360 {
 		client.MaxWidth = n
 	}
-	// Line ceiling the caller imposes on itself (kbps). The decision folds it
-	// with the profile's own cap in resolveMaxBitrate.
+	// Line ceiling the caller imposes on itself (kbps): the device's data
+	// saver. The decision folds it with the profile's own cap in
+	// resolveMaxBitrate, and requestBitrateCapKbps with the ladder's.
 	if v := r.URL.Query().Get("maxBitrate"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
 			client.MaxBitrate = n

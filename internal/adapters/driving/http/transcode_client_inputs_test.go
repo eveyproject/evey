@@ -22,7 +22,7 @@ import (
 func TestChildURIsCarryTheClientProfile(t *testing.T) {
 	master := httptest.NewRequest(http.MethodGet,
 		"/api/v1/media/m1/hls/master.m3u8?videoCodecs=h264,vp9,av1&audioCodecs=aac,opus,ac3&containers=mp4,webm"+
-			"&fmp4AudioPassthrough=mp3,opus&pixelFormats=yuv420p,hevc:yuv420p10le&hdr=1&maxAudioChannels=6&screenHeight=1080&maxHeight=1080&maxH264Level=41&maxH264Height=1080&networkType=cellular", nil)
+			"&fmp4AudioPassthrough=mp3,opus&pixelFormats=yuv420p,hevc:yuv420p10le&hdr=1&maxAudioChannels=6&screenHeight=1080&maxHeight=1080&maxH264Level=41&maxH264Height=1080&networkType=cellular&maxBitrate=1000", nil)
 	master.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:156.0) Gecko/20100101 Firefox/156.0")
 
 	in := apptranscoding.ManifestInput{MediaID: "m1", StreamToken: "tok", AudioTrack: 0, SubtitleBurnInTrack: -1}
@@ -42,7 +42,7 @@ func TestChildURIsCarryTheClientProfile(t *testing.T) {
 	// Every capability key the request carried is on the child URI.
 	q, err := url.ParseQuery(strings.TrimPrefix(suffix, "?"))
 	require.NoError(t, err)
-	for _, key := range []string{"videoCodecs", "audioCodecs", "containers", "fmp4AudioPassthrough", "pixelFormats", "hdr", "maxAudioChannels", "screenHeight", "maxHeight", "maxH264Level", "maxH264Height", "networkType"} {
+	for _, key := range []string{"videoCodecs", "audioCodecs", "containers", "fmp4AudioPassthrough", "pixelFormats", "hdr", "maxAudioChannels", "screenHeight", "maxHeight", "maxH264Level", "maxH264Height", "networkType", "maxBitrate"} {
 		assert.NotEmptyf(t, q.Get(key), "child URI lost %q", key)
 	}
 }

@@ -40,7 +40,6 @@ playback:
   max_streams_reached: "Vous avez atteint la limite de lectures simultanées"
   max_devices_reached: "Limite d'appareils atteinte pour ce profil. Arrêtez la lecture sur un autre appareil d'abord."
   session_id_required: "Un identifiant de session est requis"
-  transcoding_disabled_by_prefs: "Ce titre doit être transcodé, ce que vos préférences de lecture désactivent"
 
 activity:
   cannot_access_other_history: "Impossible d'accéder à l'historique de connexion d'un autre utilisateur"

@@ -16,13 +16,15 @@ vi.mock("@evey/api", () => ({
 vi.mock("./codec", () => ({
   getBrowserCapabilities: () => ({ videoCodecs: ["h264"], audioCodecs: ["aac"], containers: ["mp4"], hdr: false }),
 }));
-vi.mock("./hlsCodecParams", () => ({
+vi.mock("./hlsCodecParams", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./hlsCodecParams")>()),
   appendCodecParams: (p: URLSearchParams) => p.set("videoCodecs", "h264"),
 }));
 // The browser's output ceiling (a stereo TV here) - the same reading the
 // master URL carries through appendCodecParams.
 vi.mock("./outputChannels", () => ({ getMaxOutputChannels: () => 2 }));
 
+import { useDataSaverStore } from "@evey/store";
 import { useTvPlaySession, buildTvStreamUrl } from "./useTvPlaySession";
 
 const DEVICE = { deviceId: "tv-browser", deviceName: "TV", clientName: "Evey TV", wasmAudio: false };
@@ -46,9 +48,27 @@ beforeEach(() => {
   );
   vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ status: 200, headers: new Headers() } as Response)));
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); useDataSaverStore.setState({ level: "off" }); });
 
 describe("useTvPlaySession", () => {
+  // The device's data saver reaches the verdict and the master URL alike, and
+  // a quality picked in the menu can tighten it but never loosen it.
+  it("carries the data saver to the verdict and the master, never looser than a pick", async () => {
+    useDataSaverStore.setState({ level: "travel" });
+    const { result } = renderHook(() => useTvPlaySession("m1", DEVICE));
+    await waitFor(() => expect(result.current.streamUrl).not.toBeNull());
+    expect(getStreamInfo).toHaveBeenCalledWith("m1", expect.objectContaining({ maxBitrate: "1000000", maxHeight: 480, maxAudioChannels: 2 }));
+    expect(new URL(result.current.streamUrl!).searchParams.get("maxHeight")).toBe("480");
+
+    act(() => result.current.restartWithTracks(undefined, undefined, 1080));
+    await waitFor(() => expect(getStreamInfo).toHaveBeenCalledTimes(2));
+    expect(getStreamInfo).toHaveBeenLastCalledWith("m1", expect.objectContaining({ maxHeight: 480 }));
+
+    act(() => result.current.restartWithTracks(undefined, undefined, 360));
+    await waitFor(() => expect(getStreamInfo).toHaveBeenCalledTimes(3));
+    expect(getStreamInfo).toHaveBeenLastCalledWith("m1", expect.objectContaining({ maxHeight: 360 }));
+  });
+
   it("negotiates once, opens the HLS master and starts the server session", async () => {
     const { result } = renderHook(() => useTvPlaySession("m1", DEVICE));
     await waitFor(() => expect(result.current.streamUrl).not.toBeNull());

@@ -245,6 +245,21 @@ func TestRequestBitrateCapKbps(t *testing.T) {
 	assert.Equal(t, 50000, h.requestBitrateCapKbps(withHTTPClaims(lan, &domainuser.Claims{UserID: "u1"})), "on the LAN only the user limit applies")
 }
 
+// The device's data saver (?maxBitrate) tightens like the other caps, both
+// ways: it wins when it is the lowest, and never loosens a lower one.
+func TestRequestBitrateCapKbps_DeviceDataSaver(t *testing.T) {
+	h := &hlsVODServe{maxVideoBitrateRemoteKbps: func() int { return 20000 }}
+	saver := httptest.NewRequest("GET", "/hls/master.m3u8?maxBitrate=1000", nil)
+	saver.RemoteAddr = "203.0.113.9:5000"
+	assert.Equal(t, 1000, h.requestBitrateCapKbps(saver))
+	loose := httptest.NewRequest("GET", "/hls/master.m3u8?maxBitrate=50000", nil)
+	loose.RemoteAddr = "203.0.113.9:5000"
+	assert.Equal(t, 20000, h.requestBitrateCapKbps(loose))
+	junk := httptest.NewRequest("GET", "/hls/master.m3u8?maxBitrate=-5", nil)
+	junk.RemoteAddr = "192.168.1.20:5000"
+	assert.Equal(t, 0, h.requestBitrateCapKbps(junk))
+}
+
 // A public address the admin declared in LAN Networks (a home IPv6 prefix, a
 // CGNAT range) is exempt from the remote ceiling, as Stream info reports it.
 func TestRequestBitrateCapKbps_LANNetworksExempt(t *testing.T) {

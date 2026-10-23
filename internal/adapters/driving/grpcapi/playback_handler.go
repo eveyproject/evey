@@ -330,12 +330,6 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	// (Reported), never the bare core.
 	decided := h.playbackDecider().Reported(ctx, preq)
 	decision := &decided
-	if apptranscoding.TranscodeDisallowed(decision, prefs) {
-		err := h.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.playback.transcoding_disabled_by_prefs")
-		span.RecordError(err)
-		span.SetStatus(otelcodes.Error, err.Error())
-		return nil, err
-	}
 	resp.TranscodeReasons = decision.TranscodeReasons
 	resp.VideoDecision = decision.VideoDecision
 	resp.AudioDecision = decision.AudioDecision

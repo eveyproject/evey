@@ -270,9 +270,9 @@ func TestPlaybackInfo_DecidesThroughTheBoundDecider(t *testing.T) {
 	assert.False(t, got.SourceNeedsRemux)
 }
 
-// A decider that forbids what the profile forbids: the 422 is decided on the
-// decider's verdict, not re-derived.
-func TestPlaybackInfo_DeciderTranscodeAgainstPrefs_422(t *testing.T) {
+// The retired allow_transcoding=false a profile may still carry refuses
+// nothing: the title that needs a transcode is answered like any other.
+func TestPlaybackInfo_RetiredAllowTranscodingKey_StillAnswers(t *testing.T) {
 	dec := &recordingDecider{decision: domaintranscoding.PlaybackDecision{PlayMethod: "transcode", VideoDecision: "transcode"}}
 	h := playbackInfoHandler(dec,
 		&fakeMediaStreamsGetter{item: &domainlibrary.MediaItem{ID: "m1", LibraryID: "lib1", File: &domainlibrary.MediaFile{Path: "/srv/a.mp4", ContainerFormat: "mp4"}}},
@@ -282,5 +282,5 @@ func TestPlaybackInfo_DeciderTranscodeAgainstPrefs_422(t *testing.T) {
 	req = withHTTPClaims(req, testClaims(false))
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusUnprocessableEntity, w.Code, w.Body.String())
+	assert.Equal(t, http.StatusOK, w.Code, w.Body.String())
 }

@@ -40,7 +40,6 @@ playback:
   max_streams_reached: "您已达到并发播放数上限"
   max_devices_reached: "此个人资料已达到设备上限。请先在其他设备上停止播放。"
   session_id_required: "需要会话 ID"
-  transcoding_disabled_by_prefs: "此标题需要转码，但您的播放偏好已关闭转码"
 
 activity:
   cannot_access_other_history: "无法访问其他用户的登录历史"

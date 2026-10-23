@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useDataSaverStore } from "@evey/store";
 import { PlaybackSettings } from "./PlaybackSettings";
 
 const mockMutateAsync = vi.fn().mockResolvedValue(undefined);
@@ -50,9 +51,10 @@ describe("PlaybackSettings", () => {
     for (const label of ["Max Streaming Bitrate", "Preferred Video Codec", "Preferred Audio Codec", "Max Audio Channels", "Subtitle Burn-in"]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
-    expect(screen.getByTestId("playback-toggle-allow_direct_play")).toBeInTheDocument();
-    expect(screen.getByTestId("playback-toggle-allow_direct_stream")).toBeInTheDocument();
-    expect(screen.getByTestId("playback-toggle-allow_transcoding")).toBeInTheDocument();
+    expect(screen.getByLabelText("Data saver (this device)")).toBeInTheDocument();
+    // Turning a play method off only ever broke playback: the switches are gone.
+    expect(screen.queryByTestId("playback-toggle-allow_direct_play")).toBeNull();
+    expect(screen.queryByText("Allow transcoding")).toBeNull();
   });
 
   it("reads the values off the ACTIVE profile", () => {
@@ -69,7 +71,7 @@ describe("PlaybackSettings", () => {
     renderIt();
     expect((screen.getByLabelText("Max Streaming Bitrate") as HTMLSelectElement).value).toBe("0");
     expect((screen.getByLabelText("Preferred Video Codec") as HTMLSelectElement).value).toBe("auto");
-    expect(screen.getByTestId("playback-toggle-allow_direct_play")).toHaveAttribute("aria-checked", "true");
+    expect((screen.getByLabelText("Data saver (this device)") as HTMLSelectElement).value).toBe("off");
   });
 
   it("merges the change onto the profile's other preferences", async () => {
@@ -84,14 +86,14 @@ describe("PlaybackSettings", () => {
     expect(mockInvalidateQueries).toHaveBeenCalledWith({ queryKey: ["profiles", "u1"] });
   });
 
-  it("writes 'false' when a transcoding toggle is turned off", async () => {
+  // The data saver belongs to this browser: it is stored locally and never
+  // written onto the profile the other devices share.
+  it("keeps the data saver on the device, off the profile", async () => {
     const user = userEvent.setup();
     renderIt();
-    await user.click(screen.getByTestId("playback-toggle-allow_transcoding"));
-    await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
-    expect(mockMutateAsync).toHaveBeenCalledWith({
-      id: "p2",
-      data: { preferences: { audio_languages: "fr", allow_transcoding: "false" } },
-    });
+    await user.selectOptions(screen.getByLabelText("Data saver (this device)"), "travel");
+    expect(useDataSaverStore.getState().level).toBe("travel");
+    expect(mockMutateAsync).not.toHaveBeenCalled();
+    useDataSaverStore.setState({ level: "off" });
   });
 });
