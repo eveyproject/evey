@@ -75,8 +75,12 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "create library", err)
 	}
+	// The answer is built before the scan starts: the scan updates the
+	// library record it was handed, and the response must read the one the
+	// caller created.
+	resp := libraryToProto(lib)
 	h.scanNewLibrary(ctx, string(lib.ID))
-	return libraryToProto(lib), nil
+	return resp, nil
 }
 
 func (h *libraryHandler) GetLibrary(ctx context.Context, req *eveyv1.GetLibraryRequest) (*eveyv1.Library, error) {
