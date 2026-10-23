@@ -2141,6 +2141,7 @@
   "auth.settings.playback.preferredAudioCodec": "Preferred Audio Codec",
   "auth.settings.playback.preferredVideoCodec": "Preferred Video Codec",
   "auth.settings.playback.stillWatchingAfter": "After {{count}} episodes",
+  "auth.settings.playback.stillWatchingAfter_one": "After 1 episode",
   "auth.settings.playback.stillWatchingDesc": "After this many episodes in a row with no touch, key or click, the next one waits for you.",
   "auth.settings.playback.stillWatchingNever": "Never",
   "auth.settings.playback.stillWatchingTitle": "Ask if I am still watching",

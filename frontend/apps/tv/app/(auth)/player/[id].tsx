@@ -56,7 +56,7 @@ import { PlayerBottomPanel } from "../../../src/components/PlayerBottomPanel";
 import { PlayerScrim } from "../../../src/components/PlayerScrim";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FONT_SIZE } from "@evey/theme";
-import { PlayerStatusScreen, PlayerLoadingScreen } from "../../../src/components/PlayerStatusScreen";
+import { PlayerStatusScreen, PlayerLoadingScreen, PlayerSleepScreen } from "../../../src/components/PlayerStatusScreen";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
 import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import { useSyncplay } from "../../../src/hooks/useSyncplay";
@@ -853,12 +853,28 @@ export default function PlayerScreen() {
     nextEpNavigateRef.current(episodeId);
   }, []);
 
+  // Nobody answered "still watching?": the session ends and the screen goes
+  // black (PlayerSleepScreen); the first key leaves for the media page.
+  const [asleep, setAsleep] = useState(false);
+  const wokeRef = useRef(false);
+  const fallAsleep = useCallback(() => {
+    stopSession();
+    setAsleep(true);
+  }, [stopSession]);
+  const wake = useCallback(() => {
+    // OK fires the target's onPress and the screen's "select" event both.
+    if (wokeRef.current) return;
+    wokeRef.current = true;
+    handleBack();
+  }, [handleBack]);
+
   const nextEp = useNextEpisode({
     media,
     currentTime,
     duration,
     onNavigate: forwardNextEpNavigate,
     autoAdvance: autoplayNext,
+    onStillWatchingTimeout: fallAsleep,
   });
 
   const { needsPin: nextEpNeedsPin, profileId: nextEpGateProfileId } = useParentalGate(
@@ -1017,6 +1033,10 @@ export default function PlayerScreen() {
   remoteHandlerRef.current = (evt: { eventType: string } | undefined) => {
     if (!evt) return;
     const type = evt.eventType;
+    if (asleep) {
+      if (REMOTE_KEYS.has(type)) wake();
+      return;
+    }
     // A key on the remote is the viewer saying they are still here (the
     // "still watching?" count, stillWatching.ts). Focus and blur are not: a
     // card that takes focus as it appears emits them with nobody there.
@@ -1159,6 +1179,10 @@ export default function PlayerScreen() {
   // closes and the film keeps playing.
   useEffect(() => {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (asleep) {
+        wake();
+        return true;
+      }
       if (cancelCountdownRef.current) {
         cancelCountdownRef.current();
         return true;
@@ -1187,7 +1211,7 @@ export default function PlayerScreen() {
       return false; // nothing open: the player's own exit contract runs
     });
     return () => sub.remove();
-  }, [anySubPanelOpen, anyOverlayOpen, endedOverlayOpen, cancelNextEp, barFocused, closeSubPanels, closeAllOverlays, resetHideTimer]);
+  }, [asleep, wake, anySubPanelOpen, anyOverlayOpen, endedOverlayOpen, cancelNextEp, barFocused, closeSubPanels, closeAllOverlays, resetHideTimer]);
 
   // Imperative focus reclaim: whenever no overlay/bar should own the D-pad,
   // force native focus back onto the surface - if no native view is focused
@@ -1258,6 +1282,8 @@ export default function PlayerScreen() {
   // two unrelated reasons (see usePlaySession's ShedReason doc). Calm clock
   // icon (not a red error) and copy that names neither "transcoding" nor any
   // other internal term.
+  if (asleep) return <PlayerSleepScreen onWake={wake} />;
+
   if (shedReason) {
     return (
       <PlayerStatusScreen

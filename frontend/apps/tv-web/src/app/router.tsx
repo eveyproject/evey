@@ -36,6 +36,7 @@ export type Route =
   | { name: "servers" }
   | { name: "stats" }
   | { name: "playback" }
+  | { name: "sleep" }
   | { name: "plugin-settings"; pluginId: string };
 
 export function routeToHash(route: Route): string {
@@ -162,6 +163,8 @@ export function parseHash(hash: string): Route {
       return { name: "stats" };
     case "playback":
       return { name: "playback" };
+    case "sleep":
+      return { name: "sleep" };
     case "plugin-settings":
       return parts[1] ? { name: "plugin-settings", pluginId: parts[1] } : { name: "settings" };
     case "home":

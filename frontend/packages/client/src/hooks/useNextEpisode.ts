@@ -18,6 +18,8 @@ interface UseNextEpisodeArgs {
   // episode. Defaults to true, the behaviour every player had before the
   // preference existed.
   autoAdvance?: boolean;
+  // Nobody answered the "still watching?" card in time: leave the player.
+  onStillWatchingTimeout?: () => void;
 }
 
 export function useNextEpisode({
@@ -26,6 +28,7 @@ export function useNextEpisode({
   duration,
   onNavigate,
   autoAdvance = true,
+  onStillWatchingTimeout,
 }: UseNextEpisodeArgs) {
   const isEpisode = media?.type === "MEDIA_ITEM_TYPE_EPISODE";
   const parentId = media?.parentId;
@@ -67,6 +70,7 @@ export function useNextEpisode({
     duration,
     onPlay: onNavigate,
     autoAdvance,
+    onStillWatchingTimeout,
   });
 
   const playPrevious = useCallback(() => {

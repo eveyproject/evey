@@ -220,10 +220,10 @@ vi.mock("../../../src/hooks/useSleepTimer", () => ({
 // up so tests can simulate both the auto-advance countdown and the "play
 // now" button firing, the two paths that must be PIN-gated. -------------------
 let capturedOnNavigate: ((episodeId: string) => void) | null = null;
-let capturedNextEpArgs: { currentTime: number; duration: number } | null = null;
+let capturedNextEpArgs: { currentTime: number; duration: number; onStillWatchingTimeout?: () => void } | null = null;
 const nextEpisodeStateMock = vi.fn();
 vi.mock("../../../src/hooks/useNextEpisode", () => ({
-  useNextEpisode: (args: { onNavigate: (episodeId: string) => void; currentTime: number; duration: number }) => {
+  useNextEpisode: (args: { onNavigate: (episodeId: string) => void; currentTime: number; duration: number; onStillWatchingTimeout?: () => void }) => {
     capturedOnNavigate = args.onNavigate;
     capturedNextEpArgs = args;
     return nextEpisodeStateMock();
@@ -380,6 +380,35 @@ beforeEach(() => {
     playNow: () => capturedOnNavigate?.("ep-2"),
     playPrevious: () => capturedOnNavigate?.("ep-0"),
     cancel: vi.fn(),
+  });
+});
+
+// "Still watching?" left unanswered: the session ends, the screen goes black,
+// and the first key (OK, a D-pad press or BACK) leaves for the media page once.
+function sleepTarget(): HTMLElement {
+  const el = document.querySelector<HTMLElement>('[testid="player-sleep-screen"]');
+  if (!el) throw new Error("no sleep screen");
+  return el;
+}
+
+describe("PlayerScreen still-watching sleep (TV)", () => {
+  it("ends the session and shows the black screen when nobody answers", () => {
+    render(<PlayerScreen />);
+    stopSessionMock.mockClear();
+    act(() => { capturedNextEpArgs?.onStillWatchingTimeout?.(); });
+    expect(stopSessionMock).toHaveBeenCalled();
+    expect(sleepTarget()).toBeTruthy();
+  });
+
+  it("wakes on a remote key and leaves only once", () => {
+    render(<PlayerScreen />);
+    act(() => { capturedNextEpArgs?.onStillWatchingTimeout?.(); });
+    backMock.mockClear();
+    replaceMock.mockClear();
+    act(() => { capturedTVHandler?.({ eventType: "select" }); });
+    act(() => { fireEvent.click(sleepTarget()); });
+    act(() => { capturedBackHandler?.(); });
+    expect(backMock.mock.calls.length + replaceMock.mock.calls.length).toBe(1);
   });
 });
 

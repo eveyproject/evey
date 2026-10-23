@@ -239,6 +239,7 @@ settings:
     stillWatchingDesc: "连续播放这么多集且没有任何触摸、按键或点击后，下一集会等你。"
     stillWatchingNever: "从不"
     stillWatchingAfter: "{{count}} 集后"
+    stillWatchingAfter_one: "1 集后"
   quickConnect:
     title: "快速连接"
     description: "输入您要登录的设备上显示的代码。"

@@ -17,6 +17,7 @@ import { MediaDetailScreen } from "./screens/MediaDetail";
 import { DemoBanner } from "./components/DemoBanner";
 import { ProfileLockScreen } from "./components/ProfileLockScreen";
 import { PlayerScreen } from "./screens/Player";
+import { SleepScreen } from "./screens/Sleep";
 import { SettingsScreen } from "./screens/Settings";
 import { SearchScreen } from "./screens/Search";
 import { MusicScreen, AlbumScreen, ArtistScreen } from "./screens/Music";
@@ -276,6 +277,8 @@ function renderScreen(effective: Route) {
       return <PlaybackSettingsScreen />;
     case "stats":
       return <StatsScreen />;
+    case "sleep":
+      return <SleepScreen />;
     case "servers":
       return <ServersScreen />;
     case "requests":

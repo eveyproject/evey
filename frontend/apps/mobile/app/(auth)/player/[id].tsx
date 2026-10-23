@@ -1129,6 +1129,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     duration: effectiveDuration,
     onNavigate: handleNavigateEpisode,
     autoAdvance: autoplayNext,
+    onStillWatchingTimeout: handleBack,
   });
 
   // A film, or an episode with nothing after it: leave for its page once it has
