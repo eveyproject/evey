@@ -15,12 +15,29 @@ vi.mock("@tanstack/react-router", () => ({
 const mockListMediaItems = vi.fn();
 const mockGetMediaItem = vi.fn();
 const mockWatchHistory = vi.fn(() => ({ data: { items: [] } }));
+const mockMarkWatched = vi.fn();
+const mockMarkUnwatched = vi.fn();
+// The generated mutation hooks, reduced to what the toggle uses: mutate runs
+// the caller's onSuccess, as a successful request would.
+const mutationHook = (spy: ReturnType<typeof vi.fn>) =>
+  (opts?: { mutation?: { onSuccess?: () => void } }) => ({
+    isPending: false,
+    mutate: (vars: unknown) => { spy(vars); opts?.mutation?.onSuccess?.(); },
+  });
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceListMediaItems: (...args: unknown[]) => mockListMediaItems(...args),
   useLibraryServiceGetMediaItem: (...args: unknown[]) => mockGetMediaItem(...args),
   usePlaybackServiceGetWatchHistory: () => mockWatchHistory(),
+  usePlaybackServiceMarkAsWatched: (o?: { mutation?: { onSuccess?: () => void } }) => mutationHook(mockMarkWatched)(o),
+  usePlaybackServiceMarkAsUnwatched: (o?: { mutation?: { onSuccess?: () => void } }) => mutationHook(mockMarkUnwatched)(o),
+}));
+
+const mockProfileId = { current: "p1" as string | null };
+vi.mock("@evey/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@evey/store")>()),
+  useAuthStore: (sel: (s: { profileId: string | null }) => unknown) => sel({ profileId: mockProfileId.current }),
 }));
 
 const mockPlayTarget = vi.fn();
@@ -304,5 +321,50 @@ describe("PlaySeriesButton", () => {
     expect(btn.textContent).toContain("Play");
     fireEvent.click(btn);
     expect(onPlay).toHaveBeenCalledWith("s1e1");
+  });
+});
+
+// The season list is where a viewer fixes a wrong "watched": each row marks
+// its episode both ways, for the active profile, and shows the answer at once.
+describe("SeasonEpisodesSection watched toggle", () => {
+  beforeEach(() => {
+    mockMarkWatched.mockClear();
+    mockMarkUnwatched.mockClear();
+    mockProfileId.current = "p1";
+    mockListMediaItems.mockReturnValue({
+      data: { items: [{ id: "ep1", indexNumber: 1, title: "Pilot" }, { id: "ep2", indexNumber: 2, title: "Second" }] },
+    });
+    mockWatchHistory.mockReturnValue({ data: { items: [{ mediaItemId: "ep1", played: true, percentComplete: 0 }] } });
+  });
+
+  function renderSeason() {
+    render(<SeasonEpisodesSection item={{ id: "se1", type: "MEDIA_ITEM_TYPE_SEASON" } as any} />, { wrapper: Wrapper });
+    return screen.getAllByTestId("episode-watched-toggle");
+  }
+
+  it("marks a watched episode unwatched, and the check goes", () => {
+    const [watched] = renderSeason();
+    expect(watched).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(watched);
+    expect(mockMarkUnwatched).toHaveBeenCalledWith({ mediaItemId: "ep1", params: { profileId: "p1" } });
+    expect(mockMarkWatched).not.toHaveBeenCalled();
+    expect(watched).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryAllByTestId("episode-watched")).toHaveLength(0);
+  });
+
+  it("marks an unwatched episode watched, and the check appears", () => {
+    const [, unwatched] = renderSeason();
+    expect(unwatched).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(unwatched);
+    expect(mockMarkWatched).toHaveBeenCalledWith({ mediaItemId: "ep2", params: { profileId: "p1" } });
+    expect(mockMarkUnwatched).not.toHaveBeenCalled();
+    expect(screen.getAllByTestId("episode-watched")).toHaveLength(2);
+  });
+
+  it("sends nothing without an active profile", () => {
+    mockProfileId.current = null;
+    const [watched] = renderSeason();
+    fireEvent.click(watched);
+    expect(mockMarkUnwatched).not.toHaveBeenCalled();
   });
 });

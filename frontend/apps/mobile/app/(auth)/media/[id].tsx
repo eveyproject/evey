@@ -341,14 +341,45 @@ export default function MediaDetailScreen() {
     { limit: WATCH_HISTORY_OVERLAY_LIMIT },
     { query: { staleTime: 30_000, enabled: isSeries || isSeason } },
   );
+  // An episode marked from its row, shown before the history refetches; a new
+  // history answer is the truth again and drops them.
+  const [episodeMarks, setEpisodeMarks] = useState<ReadonlyMap<string, boolean>>(new Map());
+  // Same map back when there is nothing to drop, so a re-render is not one.
+  useEffect(() => setEpisodeMarks((m) => (m.size === 0 ? m : new Map())), [episodeHistory]);
   const episodeProgressMap = useMemo(() => {
     const map = new Map<string, EpisodeProgress>();
     for (const w of episodeHistory?.items ?? []) {
       if (!w.mediaItemId) continue;
       map.set(w.mediaItemId, { percent: w.percentComplete ?? 0, played: w.played === true });
     }
+    for (const [epId, played] of episodeMarks) {
+      map.set(epId, { percent: map.get(epId)?.percent ?? 0, played });
+    }
     return map;
-  }, [episodeHistory]);
+  }, [episodeHistory, episodeMarks]);
+
+  // The season list's own marks, separate from the page item's (which feed
+  // watchedOverride): marking an episode must not flip the season's button.
+  const onEpisodeMarked = useCallback((epId: string, played: boolean) => {
+    setEpisodeMarks((m) => new Map(m).set(epId, played));
+    invalidateWatchedState(qc, epId);
+  }, [qc]);
+  const markEpisodeWatched = usePlaybackServiceMarkAsWatched({
+    mutation: { onSuccess: (_d, vars) => onEpisodeMarked(vars.mediaItemId, true) },
+  });
+  const markEpisodeUnwatched = usePlaybackServiceMarkAsUnwatched({
+    mutation: { onSuccess: (_d, vars) => onEpisodeMarked(vars.mediaItemId, false) },
+  });
+  const episodeMarkPending = markEpisodeWatched.isPending || markEpisodeUnwatched.isPending;
+  // mutate is stable across renders: the memoised rows are not re-rendered by it.
+  const { mutate: markEpisodeWatchedMutate } = markEpisodeWatched;
+  const { mutate: markEpisodeUnwatchedMutate } = markEpisodeUnwatched;
+  const handleEpisodeToggleWatched = useCallback((ep: V1MediaItem) => {
+    if (!ep.id || !profileId) return;
+    const vars = { mediaItemId: ep.id, params: { profileId } };
+    if (episodeProgressMap.get(ep.id)?.played) markEpisodeUnwatchedMutate(vars);
+    else markEpisodeWatchedMutate(vars);
+  }, [episodeProgressMap, profileId, markEpisodeWatchedMutate, markEpisodeUnwatchedMutate]);
 
   // Downloads a single episode (single-file, same server endpoint as a
   // movie). Shared by the per-episode button and the "download all" loop
@@ -1417,6 +1448,8 @@ export default function MediaDetailScreen() {
                 progress={ep.id ? episodeProgressMap.get(ep.id) : undefined}
                 onDownload={handleEpisodeDownload}
                 onPlay={handleEpisodePlay}
+                onToggleWatched={demo ? undefined : handleEpisodeToggleWatched}
+                watchedPending={episodeMarkPending}
               />
             ))}
             {episodes.length > visibleEpisodeCount ? (

@@ -15,7 +15,7 @@ export type EpisodeProgress = { percent: number; played: boolean };
 
 export const EpisodeRow = memo(function EpisodeRow({
   item, serverUrl, theme, authHeaders, downloadProgress,
-  progress, onDownload, onPlay,
+  progress, onDownload, onPlay, onToggleWatched, watchedPending,
 }: {
   item: V1MediaItem;
   serverUrl: string;
@@ -25,6 +25,11 @@ export const EpisodeRow = memo(function EpisodeRow({
   progress?: EpisodeProgress;
   onDownload?: (item: V1MediaItem) => void;
   onPlay: (item: V1MediaItem) => void;
+  // Marks the episode watched or unwatched (absent in the demo, which cannot
+  // write). The row's check follows `progress.played`, which the parent keeps
+  // current with the answer.
+  onToggleWatched?: (item: V1MediaItem) => void;
+  watchedPending?: boolean;
 }) {
   const { t } = useTranslation();
   // "backdrop", not "poster": an episode's still lives under the backdrop type
@@ -96,6 +101,25 @@ export const EpisodeRow = memo(function EpisodeRow({
           </Text>
         ) : null}
       </View>
+      {onToggleWatched ? (
+        <Pressable
+          onPress={(e) => { e.stopPropagation(); if (item.id) onToggleWatched(item); }}
+          disabled={watchedPending}
+          hitSlop={8}
+          style={{ justifyContent: "center", paddingHorizontal: theme.spacing.sm, opacity: watchedPending ? 0.5 : 1 }}
+          accessible={true}
+          accessibilityLabel={watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched")}
+          accessibilityRole="button"
+          accessibilityState={{ checked: watched, disabled: !!watchedPending }}
+          testID="episode-watched-toggle"
+        >
+          <Ionicons
+            name={watched ? "checkmark-circle" : "checkmark-circle-outline"}
+            size={22}
+            color={watched ? theme.colors.success : theme.colors.textMuted}
+          />
+        </Pressable>
+      ) : null}
       {downloadable ? (
         <Pressable
           onPress={(e) => { e.stopPropagation(); onDownload!(item); }}

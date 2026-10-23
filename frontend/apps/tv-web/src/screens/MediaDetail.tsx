@@ -14,6 +14,7 @@ import {
   useFeedServiceSimilarItems,
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
+  usePlaybackServiceGetWatchHistory,
   usePlaybackServiceGetWatchProgress,
   usePlaybackServiceMarkAsUnwatched,
   usePlaybackServiceMarkAsWatched,
@@ -22,6 +23,7 @@ import {
   type V1MediaItem,
   type V1MediaPerson,
   type V1MediaStream,
+  WATCH_HISTORY_OVERLAY_LIMIT,
 } from "@evey/api";
 import { toast, useAuthStore, useDemoStore } from "@evey/store";
 import {
@@ -29,6 +31,7 @@ import {
   CARD_WIDTH_GRID,
   POSTER_RATIO,
   RESUME_PROGRESS_QUERY,
+  buildWatchProgressMaps,
   invalidateWatchedState,
   personTypeLabelKey,
   resolvePlayTarget,
@@ -270,6 +273,44 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
     () => sortByIndexNumber(isSeason ? children : (firstSeasonEpisodes?.items ?? [])),
     [isSeason, children, firstSeasonEpisodes?.items],
   );
+
+  // Which episodes of the season are seen, from one history fetch, plus the
+  // marks made from the rows before that history refetches.
+  const { data: episodeHistory } = usePlaybackServiceGetWatchHistory(
+    { limit: WATCH_HISTORY_OVERLAY_LIMIT },
+    { query: { staleTime: 30_000, enabled: isSeason } },
+  );
+  const [episodeMarks, setEpisodeMarks] = useState<ReadonlyMap<string, boolean>>(new Map());
+  // Same map back when there is nothing to drop, so a re-render is not one.
+  useEffect(() => setEpisodeMarks((m) => (m.size === 0 ? m : new Map())), [episodeHistory]);
+  const episodeWatched = useMemo(() => {
+    const { watchedMap } = buildWatchProgressMaps(episodeHistory?.items ?? []);
+    for (const [epId, played] of episodeMarks) watchedMap.set(epId, played);
+    return watchedMap;
+  }, [episodeHistory, episodeMarks]);
+  const onEpisodeMarked = (epId: string, played: boolean) => {
+    setEpisodeMarks((m) => new Map(m).set(epId, played));
+    invalidateWatchedState(qc, epId);
+  };
+  const markEpisodeWatched = usePlaybackServiceMarkAsWatched({
+    mutation: {
+      onSuccess: (_d, vars) => onEpisodeMarked(vars.mediaItemId, true),
+      onError: () => toast.error(t("media.detail.markWatchedFailed", "Could not mark as watched")),
+    },
+  });
+  const markEpisodeUnwatched = usePlaybackServiceMarkAsUnwatched({
+    mutation: {
+      onSuccess: (_d, vars) => onEpisodeMarked(vars.mediaItemId, false),
+      onError: () => toast.error(t("media.detail.markUnwatchedFailed", "Could not mark as unwatched")),
+    },
+  });
+  const episodeMarkPending = markEpisodeWatched.isPending || markEpisodeUnwatched.isPending;
+  const toggleEpisodeWatched = (ep: V1MediaItem) => {
+    if (!ep.id || !profileId || episodeMarkPending) return;
+    const vars = { mediaItemId: ep.id, params: { profileId } };
+    if (episodeWatched.get(ep.id)) markEpisodeUnwatched.mutate(vars);
+    else markEpisodeWatched.mutate(vars);
+  };
   // A series plays where the profile is in it (the server's answer); the
   // first episode stays the fallback until that answer is in.
   const seriesTarget = useSeriesPlayTarget(isSeries ? mediaId : undefined);
@@ -408,23 +449,41 @@ export function MediaDetailScreen({ mediaId }: { mediaId: string }) {
         {isSeason && episodes.length > 0 ? (
           <Section title={t("media.detail.episodes")} count={t("media.detail.episodeCount", { count: episodes.length })}>
             <div className="episode-list">
-              {episodes.slice(0, visibleEpisodes).map((ep) => (
-                <Pressable
-                  key={ep.id}
-                  className="tv-card episode-row"
-                  label={ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : ep.title}
-                  onPress={() => ep.id && navigate({ name: "media", mediaId: ep.id })}
-                >
-                  <span className="episode-thumb" style={{ width: `${EPISODE_THUMB_WIDTH / 10}rem`, height: `${(EPISODE_THUMB_WIDTH * 9) / 160}rem` }}>
-                    <img src={posterSrc(ep.id, "backdrop", EPISODE_THUMB_WIDTH * 2)} alt="" loading="lazy" />
-                  </span>
-                  <span className="episode-text">
-                    <span className="episode-title">{ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}{ep.title}</span>
-                    {ep.durationMs ? <span className="episode-meta">{formatDurationMs(ep.durationMs)}</span> : null}
-                    {ep.overview ? <span className="episode-overview">{ep.overview}</span> : null}
-                  </span>
-                </Pressable>
-              ))}
+              {episodes.slice(0, visibleEpisodes).map((ep) => {
+                const name = ep.indexNumber != null ? `${ep.indexNumber}. ${ep.title}` : (ep.title ?? "");
+                const watched = ep.id ? episodeWatched.get(ep.id) === true : false;
+                const markLabel = watched ? t("media.detail.markUnwatched") : t("media.detail.markWatched");
+                return (
+                  <div key={ep.id} className="episode-line">
+                    <Pressable
+                      className="tv-card episode-row"
+                      label={name}
+                      onPress={() => ep.id && navigate({ name: "media", mediaId: ep.id })}
+                    >
+                      <span className="episode-thumb" style={{ width: `${EPISODE_THUMB_WIDTH / 10}rem`, height: `${(EPISODE_THUMB_WIDTH * 9) / 160}rem` }}>
+                        <img src={posterSrc(ep.id, "backdrop", EPISODE_THUMB_WIDTH * 2)} alt="" loading="lazy" />
+                        {watched ? <span className="episode-watched-badge"><Icon name="checkmark" size={16} /></span> : null}
+                      </span>
+                      <span className="episode-text">
+                        <span className="episode-title">{ep.indexNumber != null ? `${ep.indexNumber}. ` : ""}{ep.title}</span>
+                        {ep.durationMs ? <span className="episode-meta">{formatDurationMs(ep.durationMs)}</span> : null}
+                        {ep.overview ? <span className="episode-overview">{ep.overview}</span> : null}
+                      </span>
+                    </Pressable>
+                    {/* Its own stop for the remote, right of the row: a press on
+                        the row opens the episode, this one only marks it. */}
+                    {demo ? null : (
+                      <Pressable
+                        className={`tv-card episode-watched-toggle ${watched ? "on" : ""} ${episodeMarkPending ? "dim" : ""}`}
+                        label={`${markLabel}: ${name}`}
+                        onPress={() => toggleEpisodeWatched(ep)}
+                      >
+                        <Icon name="checkmark" size={28} />
+                      </Pressable>
+                    )}
+                  </div>
+                );
+              })}
               {episodes.length > visibleEpisodes ? (
                 <Pressable className="tv-card episode-row more" onPress={() => setVisibleEpisodes((c) => c + EPISODE_PAGE_SIZE)}>
                   {t("media.detail.showMoreEpisodes", "Show more")}

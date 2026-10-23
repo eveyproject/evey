@@ -114,6 +114,7 @@ const similarItemsMock = vi.fn();
 const myThumbRatingMock = vi.fn();
 const putThumbRatingMock = vi.fn();
 const seriesTargetMock = vi.fn();
+let watchHistory: { data: { items: { mediaItemId: string; played: boolean }[] } } = { data: { items: [] } };
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceGetMediaItem: (...args: unknown[]) => getMediaItemMock(...args),
@@ -125,6 +126,7 @@ vi.mock("@evey/api", async (importOriginal) => ({
   useRatingServiceGetMyThumbRating: (...args: unknown[]) => myThumbRatingMock(...args),
   ratingServicePutThumbRating: (...args: unknown[]) => putThumbRatingMock(...args),
   usePlaybackServiceGetSeriesPlayTarget: (...args: unknown[]) => seriesTargetMock(...args),
+  usePlaybackServiceGetWatchHistory: () => watchHistory,
 }));
 
 // --- local hook mocks ---------------------------------------------------------
@@ -345,5 +347,48 @@ describe("MediaDetailScreen (TV) series Play", () => {
     renderScreen();
     fireEvent.click(screen.getByLabelText("player.controls.play"));
     expect(pushMock).toHaveBeenCalledWith("/(auth)/player/ep-1");
+  });
+});
+
+// The season list marks each episode both ways from its own stop on the
+// remote, for the active profile, and the row's check follows at once.
+describe("MediaDetailScreen (TV) episode watched toggle", () => {
+  const markCalls: { watched: unknown[]; unwatched: unknown[] } = { watched: [], unwatched: [] };
+  const hook = (calls: unknown[]) => (opts?: { mutation?: { onSuccess?: (d: unknown, v: unknown) => void } }) => ({
+    isPending: false,
+    mutate: (vars: unknown) => { calls.push(vars); opts?.mutation?.onSuccess?.({}, vars); },
+  });
+
+  beforeEach(() => {
+    markCalls.watched = [];
+    markCalls.unwatched = [];
+    markWatchedMock.mockImplementation(hook(markCalls.watched));
+    markUnwatchedMock.mockImplementation(hook(markCalls.unwatched));
+    getMediaItemMock.mockReturnValue({ data: SEASON, isLoading: false, error: null, refetch: vi.fn() });
+    listMediaItemsMock.mockReturnValue({
+      data: { items: [{ id: "ep-1", indexNumber: 1, title: "Pilot" }, { id: "ep-2", indexNumber: 2, title: "Second" }] },
+    });
+    watchHistory = { data: { items: [{ mediaItemId: "ep-1", played: true }] } };
+  });
+
+  it("marks a watched episode unwatched and an unwatched one watched", () => {
+    renderScreen();
+    fireEvent.click(screen.getByLabelText("media.detail.markUnwatched: 1. Pilot"));
+    expect(markCalls.unwatched).toEqual([{ mediaItemId: "ep-1", params: { profileId: "prof-1" } }]);
+    expect(screen.getByLabelText("media.detail.markWatched: 1. Pilot")).toBeTruthy();
+
+    fireEvent.click(screen.getByLabelText("media.detail.markWatched: 2. Second"));
+    expect(markCalls.watched).toEqual([{ mediaItemId: "ep-2", params: { profileId: "prof-1" } }]);
+    expect(screen.getByLabelText("media.detail.markUnwatched: 2. Second")).toBeTruthy();
+  });
+
+  it("offers no toggle on the demo", () => {
+    demoState.demoMode = true;
+    try {
+      renderScreen();
+      expect(screen.queryByLabelText("media.detail.markUnwatched: 1. Pilot")).toBeNull();
+    } finally {
+      demoState.demoMode = false;
+    }
   });
 });
