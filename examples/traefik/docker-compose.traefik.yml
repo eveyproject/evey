@@ -14,7 +14,7 @@ services:
       - "traefik.http.routers.evey.rule=Host(`${EVEY_DOMAIN:-media.example.com}`)"
       - "traefik.http.routers.evey.entrypoints=websecure"
       - "traefik.http.routers.evey.tls.certresolver=letsencrypt"
-      - "traefik.http.services.evey.loadbalancer.server.port=${EVEY_HTTP_PORT:-9091}"
+      - "traefik.http.services.evey.loadbalancer.server.port=9091"
     networks:
       - proxy
 

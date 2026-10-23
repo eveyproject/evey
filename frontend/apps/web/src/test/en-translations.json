@@ -1406,7 +1406,7 @@
   "admin.sessions.transcode": "Transcode",
   "admin.sessions.video": "Video: {{codec}}",
   "admin.settingsHelp.apiKeyOmdb": "OMDb adds extra ratings, such as IMDb and Rotten Tomatoes scores. Optional: without a key, these extra ratings are simply missing.",
-  "admin.settingsHelp.apiKeyOpenSubtitles": "OpenSubtitles lets people search for and download subtitles from the player. Optional: without a key, only the subtitles already in your files are offered.",
+  "admin.settingsHelp.apiKeyOpenSubtitles": "OpenSubtitles lets people search for and download subtitles through the API. Optional: without a key, only the subtitles already in your files are offered.",
   "admin.settingsHelp.apiKeyTidb": "TheIntroDB shares the start and end of intros and credits that other people found, so Evey does not have to detect them itself. A free key raises the daily lookups from 100 to 500.",
   "admin.settingsHelp.apiKeyTmdb": "TMDB provides titles, summaries, posters, cast and ratings. Evey comes with a shared key, so this works out of the box. Add your own free key if quota errors appear.",
   "admin.settingsHelp.auditRetentionDays": "How long the audit log is kept: the record of administrative actions, such as who changed a setting or created an account. 0 keeps everything forever.",

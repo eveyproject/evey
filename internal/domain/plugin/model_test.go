@@ -168,6 +168,28 @@ func TestPlugin_PublicConfig(t *testing.T) {
 	})
 }
 
+func TestNewPluginFromManifest_NormalizesExternalFetch(t *testing.T) {
+	t.Parallel()
+	m := &plugin.PluginManifest{
+		Name: "my-plugin", Kind: plugin.KindPlugin, Version: "1.0.0", Description: "d",
+		Author: "a", Language: "go", Entrypoint: "main.go",
+		ExternalFetch: []string{"https://API.example.com/", "http://b.example.com/v1/x", "*.example.org", "c.example.net:8443", "  "},
+	}
+	p, err := plugin.NewPluginFromManifest("plg-1", "sha256-xxx", m)
+	if err != nil {
+		t.Fatalf("unexpected: %v", err)
+	}
+	want := []string{"api.example.com", "b.example.com", "*.example.org", "c.example.net:8443"}
+	if len(p.ExternalFetch) != len(want) {
+		t.Fatalf("got %v, want %v", p.ExternalFetch, want)
+	}
+	for i := range want {
+		if p.ExternalFetch[i] != want[i] {
+			t.Errorf("entry %d: got %q, want %q", i, p.ExternalFetch[i], want[i])
+		}
+	}
+}
+
 func TestPluginManifest_Validate(t *testing.T) {
 	t.Parallel()
 

@@ -161,7 +161,7 @@ func httpScrapeOrAdminMiddleware(verifier TokenVerifier, scrapeToken string) fun
 			if scrapeToken != "" {
 				if tok := extractBearerToken(r); tok != "" &&
 					subtle.ConstantTimeCompare([]byte(tok), []byte(scrapeToken)) == 1 {
-					next(w, r)
+					next(w, metrics.WithScrapeAuth(r))
 					return
 				}
 			}

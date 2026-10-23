@@ -196,9 +196,10 @@ func adminRestoreBackup(args []string) error {
 	}
 
 	// Verify the dump is whole BEFORE anything is dropped: a backup produced
-	// with --clean replaces the schema, so a truncated or corrupt file would
-	// drop the live tables and then fail to recreate them. verifyDumpComplete
-	// refuses up front, leaving the database untouched.
+	// with --clean --if-exists (the pre-migration dump is) replaces the schema,
+	// so a truncated or corrupt file would drop the live tables and then fail to
+	// recreate them. verifyDumpComplete refuses up front, leaving the database
+	// untouched.
 	if err := verifyDumpComplete(path); err != nil {
 		return fmt.Errorf("refusing to restore: %w", err)
 	}

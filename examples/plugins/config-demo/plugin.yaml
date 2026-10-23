@@ -7,7 +7,7 @@ language: nodejs
 entrypoint: node main.js
 web_root: .
 frontend:
-  - slot: admin.section
+  - slot: admin.nav
     src: front.js
 config_schema:
   api_key:

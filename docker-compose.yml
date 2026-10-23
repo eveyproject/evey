@@ -33,7 +33,7 @@ services:
         max-size: "100m"
         max-file: "10"
     ports:
-      - "${EVEY_HTTP_PORT:-9091}:${EVEY_HTTP_PORT:-9091}"
+      - "${EVEY_HTTP_PORT:-9091}:9091"
     # Runtime hardening: drop every Linux capability, then add back only the
     # five the boot phase needs. The container starts as root just long enough
     # to re-map uids/gids and re-own /data, then re-execs unprivileged via
@@ -132,7 +132,7 @@ services:
     #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
     # See docker-compose.gpu.yml.
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:${EVEY_HTTP_PORT:-9091}/healthz"]
+      test: ["CMD", "curl", "-sf", "http://localhost:9091/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3

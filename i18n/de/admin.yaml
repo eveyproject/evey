@@ -1988,7 +1988,7 @@ settingsHelp:
   trickplay: Erstellt die kleinen Bilder, die erscheinen, wenn man sich auf der Zeitleiste eines Videos bewegt. Das läuft nach einer Suche im Hintergrund und kostet etwas Prozessorzeit und Speicherplatz. Schalten Sie es auf einem sehr schwachen Rechner aus.
   apiKeyTmdb: TMDB liefert Titel, Beschreibungen, Poster, Besetzung und Bewertungen. Evey bringt einen gemeinsamen Schlüssel mit, daher funktioniert das sofort. Hinterlegen Sie Ihren eigenen kostenlosen Schlüssel, wenn Kontingentfehler auftreten.
   apiKeyOmdb: 'OMDb ergänzt weitere Bewertungen, etwa von IMDb und Rotten Tomatoes. Optional: Ohne Schlüssel fehlen diese zusätzlichen Bewertungen einfach.'
-  apiKeyOpenSubtitles: 'OpenSubtitles erlaubt es, im Player Untertitel zu suchen und herunterzuladen. Optional: Ohne Schlüssel werden nur die Untertitel angeboten, die schon in Ihren Dateien stecken.'
+  apiKeyOpenSubtitles: 'OpenSubtitles erlaubt es, über die API Untertitel zu suchen und herunterzuladen. Optional: Ohne Schlüssel werden nur die Untertitel angeboten, die schon in Ihren Dateien stecken.'
   apiKeyTidb: TheIntroDB teilt Anfang und Ende von Vor- und Abspännen, die andere gefunden haben, sodass Evey sie nicht selbst erkennen muss. Ein kostenloser Schlüssel erhöht die täglichen Abfragen von 100 auf 500.
   ssoEnabled: Fügt eine Anmeldeschaltfläche hinzu, die zu Ihrem Identitätsanbieter führt, etwa einem Firmen- oder Familienkonto. Konten mit Passwort funktionieren weiter. Füllen Sie zuerst die Felder unten aus und schalten Sie es dann ein.
   ssoClientId: Die Kennung der Anwendung, die Sie für Evey bei Ihrem Identitätsanbieter angelegt haben. Kopieren Sie sie genau so aus den Einstellungen des Anbieters.
