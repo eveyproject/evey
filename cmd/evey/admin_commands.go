@@ -162,7 +162,7 @@ var adminCommands = []adminCommand{
 			"create and chown the missing writable dirs. Exits 1 when a check fails.",
 	},
 	{
-		name: "rollback", group: groupDiagnostics, noFlags: true,
+		name: "rollback", group: groupRecovery, noFlags: true,
 		short: "Read-only advisor: running version, schema, newest pre-migration backup and the exact HOST commands to roll back.",
 		long: "The container has no Docker access, by design, so it cannot swap its own image: this prints what to run on the host, " +
 			"choosing the previous image tag, and the restore step to take only if the newer version applied migrations.",

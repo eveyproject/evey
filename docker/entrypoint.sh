@@ -457,6 +457,10 @@ if [ "$EVEY_EMBEDDED_MEILI" = "true" ]; then
     # writable and gets backed up together with the index.
     # The master key goes through the environment, never argv: any process
     # can read /proc/<pid>/cmdline, environ is guarded like ptrace.
+    # Meilisearch logs one INFO line per HTTP request, which drowns
+    # `docker compose logs evey`; WARN keeps errors and warnings. An operator's
+    # MEILI_LOG_LEVEL wins. (1.12 has no flag to turn its colours off.)
+    export MEILI_LOG_LEVEL="${MEILI_LOG_LEVEL:-WARN}"
     MEILI_MASTER_KEY="$meili_key" /usr/local/bin/meilisearch \
         --db-path "$MEILI_DATA_DIR" \
         --dump-dir "$MEILI_DATA_DIR/dumps" \
