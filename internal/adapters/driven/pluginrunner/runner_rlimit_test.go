@@ -56,7 +56,7 @@ func TestApplySandbox_Landlock_DoesNotInjectRlimits(t *testing.T) {
 	p := &plugin.Plugin{ID: "weather", InstallDir: "/data/plugins/weather"}
 	cmd := exec.Command("/usr/bin/node", "/data/plugins/weather/main.js")
 
-	cleanup, err := r.applySandbox(context.Background(), p, cmd)
+	cleanup, _, err := r.applySandbox(context.Background(), p, cmd)
 	require.NoError(t, err)
 	if cleanup != nil {
 		cleanup()
@@ -82,7 +82,7 @@ func TestApplySandbox_BasicWithLauncher_DoesNotInjectRlimits(t *testing.T) {
 	p := &plugin.Plugin{ID: "themer", InstallDir: "/data/plugins/themer"}
 	cmd := exec.Command("/usr/bin/node", "/data/plugins/themer/main.js")
 
-	_, err := r.applySandbox(context.Background(), p, cmd)
+	_, _, err := r.applySandbox(context.Background(), p, cmd)
 	require.NoError(t, err)
 
 	assertNoRlimitFlags(t, cmd.Args)

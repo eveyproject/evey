@@ -1,6 +1,7 @@
 package pluginrunner
 
 import (
+	"os"
 	"slices"
 	"testing"
 
@@ -131,4 +132,41 @@ func TestBuildBwrapCmd_DropsCapsKeepsSession(t *testing.T) {
 		assert.Equal(t, "ALL", args[i+1])
 		assert.NotContains(t, args, "--new-session", mode)
 	}
+}
+
+func TestBuildBwrapCmd_NoReaperBeforeThePlugin(t *testing.T) {
+	// Without --as-pid-1 bwrap forks a reaper and the plugin is its child: the
+	// PID bwrap reports would then not be the one that talks to the host socket.
+	args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", sandboxModeBubblewrap)
+	assert.Contains(t, args, "--as-pid-1")
+}
+
+func TestWithBwrapInfoFD_GoesBeforeTheSeparator(t *testing.T) {
+	prefix := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", sandboxModeBubblewrap)
+	args := withBwrapInfoFD(prefix, 3)
+	require.Len(t, args, len(prefix)+2)
+	assert.Equal(t, []string{"--info-fd", "3", "--"}, args[len(args)-3:])
+	assert.Equal(t, "--", prefix[len(prefix)-1], "the builder's own prefix must stay untouched")
+}
+
+func TestReadBwrapChildPID(t *testing.T) {
+	read := func(t *testing.T, payload string) (int, error) {
+		t.Helper()
+		r, w, err := os.Pipe()
+		require.NoError(t, err)
+		_, err = w.WriteString(payload)
+		require.NoError(t, err)
+		require.NoError(t, w.Close())
+		return readBwrapChildPID(r)
+	}
+
+	pid, err := read(t, "{\n    \"child-pid\": 4242,\n    \"cgroup-namespace\": 4026532301\n}\n")
+	require.NoError(t, err)
+	assert.Equal(t, 4242, pid)
+
+	_, err = read(t, "")
+	require.Error(t, err, "bwrap dying before the clone closes the fd with nothing written")
+
+	_, err = read(t, "{}")
+	require.Error(t, err, "a report without child-pid must not arm PID 0")
 }

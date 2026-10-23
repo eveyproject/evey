@@ -39,6 +39,7 @@ func (r *Runner) ReapStaleProcesses() int {
 	for _, e := range r.processes {
 		if e.cmd != nil && e.cmd.Process != nil {
 			owned[e.cmd.Process.Pid] = true
+			owned[e.pid()] = true // bwrap's child: its cmdline names the plugin dir too
 		}
 	}
 	r.mu.RUnlock()
