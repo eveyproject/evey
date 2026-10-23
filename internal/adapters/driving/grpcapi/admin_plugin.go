@@ -191,23 +191,26 @@ func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.Inst
 		if errors.Is(err, appplugin.ErrPluginPermissionEscalation) {
 			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		}
-		return nil, installPluginError(ctx, err)
+		return nil, d.installPluginError(ctx, err)
 	}
 	return pluginToProto(d.withLiveTrust(ctx, p)), nil
 }
 
 // installPluginError separates a refused archive (the caller's problem, said
 // with its reason - the upload route already does) from a server fault.
-func installPluginError(ctx context.Context, err error) error {
+func (d *adminPluginHandler) installPluginError(ctx context.Context, err error) error {
 	var blocked *appplugin.PluginBlockedError
 	switch {
 	case errors.As(err, &blocked), strings.Contains(err.Error(), "plugin blocked:"):
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, appplugin.ErrInvalidManifest), errors.Is(err, appplugin.ErrHashMismatch):
 		return status.Error(codes.InvalidArgument, err.Error())
-	case errors.Is(err, appplugin.ErrSourceUnavailable),
-		errors.Is(err, appplugin.ErrPublisherChanged), errors.Is(err, appplugin.ErrSignatureLost):
+	case errors.Is(err, appplugin.ErrSourceUnavailable):
 		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, appplugin.ErrPublisherChanged):
+		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.publisher_changed")
+	case errors.Is(err, appplugin.ErrSignatureLost):
+		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.signature_lost")
 	}
 	return internalError(ctx, "install plugin", err)
 }
@@ -347,7 +350,7 @@ func (d *adminPluginHandler) AddTrustedPublisher(ctx context.Context, req *eveyv
 	}
 	pub := d.publisherService()
 	if pub == nil {
-		return nil, status.Error(codes.Unimplemented, "trusted publishers are not configured")
+		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.plugin.publishers_unavailable")
 	}
 	var (
 		added *plugin.TrustedPublisher
@@ -366,11 +369,16 @@ func (d *adminPluginHandler) AddTrustedPublisher(ctx context.Context, req *eveyv
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		switch {
-		case errors.Is(err, appplugin.ErrPublisherNameRequired), errors.Is(err, appplugin.ErrPublisherNameTooLong),
-			errors.Is(err, appplugin.ErrPublisherKeyRequired), errors.Is(err, appplugin.ErrPublisherKeyInvalid):
-			return nil, status.Error(codes.InvalidArgument, err.Error())
+		case errors.Is(err, appplugin.ErrPublisherNameRequired):
+			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.publisher_name_required")
+		case errors.Is(err, appplugin.ErrPublisherNameTooLong):
+			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.publisher_name_too_long")
+		case errors.Is(err, appplugin.ErrPublisherKeyRequired):
+			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.publisher_key_required")
+		case errors.Is(err, appplugin.ErrPublisherKeyInvalid):
+			return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.publisher_key_invalid")
 		case errors.Is(err, appplugin.ErrPublisherKeyUnknown):
-			return nil, status.Error(codes.NotFound, err.Error())
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.publisher_key_unknown")
 		}
 		return nil, internalError(ctx, "add trusted publisher", err)
 	}
@@ -387,16 +395,16 @@ func (d *adminPluginHandler) RemoveTrustedPublisher(ctx context.Context, req *ev
 	}
 	pub := d.publisherService()
 	if pub == nil {
-		return nil, status.Error(codes.Unimplemented, "trusted publishers are not configured")
+		return nil, d.translator.TranslatedError(ctx, codes.Unimplemented, "errors.plugin.publishers_unavailable")
 	}
 	if err := pub.Remove(ctx, req.Fingerprint); err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
 		switch {
 		case errors.Is(err, shared.ErrNotFound):
-			return nil, status.Error(codes.NotFound, "trusted publisher not found")
+			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.publisher_not_found")
 		case errors.Is(err, plugin.ErrSeededPublisher):
-			return nil, status.Error(codes.FailedPrecondition, err.Error())
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.publisher_seeded")
 		}
 		return nil, internalError(ctx, "remove trusted publisher", err)
 	}
@@ -562,8 +570,10 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		case errors.Is(err, appplugin.ErrCandidateChanged):
 			return nil, d.translator.TranslatedError(ctx, codes.Aborted, "errors.plugin.candidate_changed")
-		case errors.Is(err, appplugin.ErrPublisherChanged), errors.Is(err, appplugin.ErrSignatureLost):
-			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		case errors.Is(err, appplugin.ErrPublisherChanged):
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.publisher_changed")
+		case errors.Is(err, appplugin.ErrSignatureLost):
+			return nil, d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.signature_lost")
 		default:
 			return nil, internalError(ctx, "apply update", err)
 		}

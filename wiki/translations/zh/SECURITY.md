@@ -1,5 +1,5 @@
 ---
-source_sha: 8a52f7e82582b44f2cdf80dd9c91994d8bcde0cb532cefcb4f12e4930114a621
+source_sha: 6363fc4fc30f333ce87a44681eb0db3e41164d111846551eb9a028b3cd37b61f
 reviewed: true
 ---
 # 插件沙箱与威胁模型 { #plugin-sandbox-and-threat-model }
@@ -99,15 +99,19 @@ flowchart LR
 
 ### 签名 { #signature }
 
-插件包可以用 cosign 签名。`EVEY_PLUGINS_COSIGN_POLICY` 决定验证失败时怎么处理（`pluginrunner/cosign.go`）：
+插件包可以用 cosign 签名（`cosign sign-blob --key`，对 ZIP 的 SHA-256 做 ECDSA P-256）。作者的公钥以 `cosign.pub` 的名字随包一起分发；Evey 用它在进程内离线验证分离的 `.sig`（`pluginrunner/cosign.go`），并计算该密钥的指纹（对 DER 公钥取 `sha256:`）。由此得到三件事：
+
+- **信任**：该指纹在不在本实例的**受信任的发布者**列表里（`管理 → 插件`，或由 `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` 在启动时预置）。受信任的密钥会显示发布者的名字；未知的密钥显示它的指纹和**信任此密钥**操作。
+- **连续性**：指纹在安装时固定在插件上。用另一把密钥签名的更新（`publisher-changed`）或不再签名的更新（`signature-lost`），无论策略如何都会被拒绝，直到管理员在更新对话框里接受新的发布者（`accept_new_publisher`）。
+- **策略**：`EVEY_PLUGINS_COSIGN_POLICY` 决定这个结论会带来什么后果。
 
 | 策略 | 效果 |
 |---|---|
-| `off` | 不检查签名。 |
-| `warn`（默认） | 失败会被记录并展示给管理员，但不阻止安装。没有配置公钥时，什么都不验证。 |
-| `enforce` | 失败会拒绝安装或更新。 |
+| `off` | 不检查签名，也不记录任何东西。 |
+| `warn`（默认） | 记录并展示结论；未签名、不受信任和无效的包照常安装。 |
+| `enforce` | 只有受信任的发布者签名的包才能安装或更新。 |
 
-公钥由 `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` 指定。
+签名证明的是：这个包就是其发布者发布的那个包，并且更新来自同一个发布者。它不说明代码本身如何，那由分析、权限和沙箱来判断。
 
 ### 管理员预览 { #administrator-preview }
 
@@ -312,7 +316,7 @@ flowchart LR
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`、`landlock`、`bubblewrap`、`strict` 或 `basic`。也可以在**管理 → 插件**里修改。 |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`、`on` 或 `off`。和容器上的 `no_new_privs` 不能同时使用。 |
 | `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`、`warn` 或 `enforce`。 |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | 无 | 用来核对签名的公钥。 |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | 无 | 可选：一把 PEM 公钥，启动时加入受信任的发布者。 |
 | `EVEY_PLUGINS_MEMORY_MB`、`EVEY_PLUGINS_PIDS_MAX`、`EVEY_PLUGINS_DISK_MAX_MB`、`EVEY_PLUGINS_CPU_NICE` | 256、64、100、10 | 资源限制在启动时的默认值；面板里可以覆盖，对所有插件一起生效。 |
 
 官方镜像自带 `evey-plugin-launcher`（Landlock 和内核过滤器）以及 `bubblewrap`。bubblewrap 还需要宿主支持无特权的用户命名空间。

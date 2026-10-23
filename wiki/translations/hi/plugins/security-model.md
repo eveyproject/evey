@@ -1,5 +1,5 @@
 ---
-source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
+source_sha: 7be5d2c69f31e5a809a830f40949f2c4242950d173dfc5bf681d26c5be44e87f
 reviewed: true
 ---
 # अनुमतियाँ और स्लॉट { #permissions-and-slots }
@@ -142,8 +142,11 @@ bridge सीमित करता है कि फ़्रेम पेज �
    होता है (`requires_ack = true`; अपलोड route से, `accept_permission_changes=true`)।
 3. पैकेज का hash पूर्वावलोकन के समय लिया जाता है और लागू करते समय जाँचा जाता है:
    जिस ZIP का विश्लेषण हुआ, वही इंस्टॉल होता है।
-4. `EVEY_PLUGINS_COSIGN_POLICY=enforce` में, लागू करने वाले कदम पर सिग्नेचर फ़ेल
-   हो तो अपडेट रुक जाता है, भले ही पूर्वावलोकन पास हो गया हो।
+4. साइनिंग कुंजी की निरंतरता जाँची जाती है: इंस्टॉल किए गए वर्ज़न से अलग कुंजी
+   से साइन किया हुआ, या अब साइन न किया हुआ अपडेट तब तक मना रहता है जब तक एडमिन
+   नया प्रकाशक स्वीकार नहीं करता। `EVEY_PLUGINS_COSIGN_POLICY=enforce` में, लागू
+   करने वाले कदम पर भरोसे से बाहर या अमान्य सिग्नेचर अपडेट रोक देता है, भले ही
+   पूर्वावलोकन पास हो गया हो।
 
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities

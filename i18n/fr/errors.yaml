@@ -189,6 +189,16 @@ plugin:
   limits_negative: "Les limites de mémoire, de processus et de disque doivent être supérieures ou égales à 0"
   cpu_nice_range: "La priorité CPU (nice) doit être comprise entre 0 et 19"
   sandbox_mode_invalid: "Le mode de bac à sable doit être l'un des suivants : {modes}"
+  publishers_unavailable: "Les éditeurs de confiance ne sont pas disponibles sur ce serveur"
+  publisher_name_required: "Un nom d'éditeur est requis"
+  publisher_name_too_long: "Le nom de l'éditeur est trop long"
+  publisher_key_required: "Indiquez soit une clé publique, soit une empreinte"
+  publisher_key_invalid: "La clé publique n'est pas valide (une clé ECDSA P-256 au format PEM est attendue)"
+  publisher_key_unknown: "Aucun plugin installé ne porte de clé avec cette empreinte"
+  publisher_not_found: "Éditeur de confiance introuvable"
+  publisher_seeded: "La clé du serveur ne peut pas être retirée des éditeurs de confiance"
+  publisher_changed: "Cette mise à jour est signée par un autre éditeur que la version installée - acceptez le nouvel éditeur pour l'appliquer"
+  signature_lost: "Cette mise à jour n'est plus signée alors que la version installée l'était - acceptez la mise à jour non signée pour l'appliquer"
 
 demo:
   locked: "Indisponible sur le serveur de démonstration"

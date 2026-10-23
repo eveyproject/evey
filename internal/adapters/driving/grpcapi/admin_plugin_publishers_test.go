@@ -204,8 +204,8 @@ func TestSignatureToProto(t *testing.T) {
 }
 
 func TestApplyPluginUpdate_PublisherChangeMapsToFailedPrecondition(t *testing.T) {
-	assert.Equal(t, codes.FailedPrecondition, status.Code(installPluginError(context.Background(), appplugin.ErrPublisherChanged)))
-	assert.Equal(t, codes.FailedPrecondition, status.Code(installPluginError(context.Background(), appplugin.ErrSignatureLost)))
+	assert.Equal(t, codes.FailedPrecondition, status.Code((&adminPluginHandler{}).installPluginError(context.Background(), appplugin.ErrPublisherChanged)))
+	assert.Equal(t, codes.FailedPrecondition, status.Code((&adminPluginHandler{}).installPluginError(context.Background(), appplugin.ErrSignatureLost)))
 }
 
 // The three RPCs are admin-only and, on the demo, only the read stays open: a

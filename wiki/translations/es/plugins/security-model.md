@@ -1,5 +1,5 @@
 ---
-source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
+source_sha: 7be5d2c69f31e5a809a830f40949f2c4242950d173dfc5bf681d26c5be44e87f
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -155,8 +155,12 @@ método que ese token no nombre.
    subida, `accept_permission_changes=true`).
 3. El hash del paquete se toma en la vista previa y se comprueba al aplicar:
    el ZIP que se analizó es el ZIP que se instala.
-4. Con `EVEY_PLUGINS_COSIGN_POLICY=enforce`, un fallo de la firma en el paso
-   de aplicar bloquea la actualización aunque la vista previa haya pasado.
+4. Se comprueba la continuidad de la clave de firma: una actualización
+   firmada con otra clave distinta de la de la versión instalada, o que ya
+   no está firmada, se rechaza hasta que el administrador acepte al nuevo
+   editor. Con `EVEY_PLUGINS_COSIGN_POLICY=enforce`, una firma no fiable o no
+   válida en el paso de aplicar bloquea la actualización aunque la vista
+   previa haya pasado.
 
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities

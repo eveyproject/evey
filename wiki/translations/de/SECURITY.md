@@ -1,5 +1,5 @@
 ---
-source_sha: 8a52f7e82582b44f2cdf80dd9c91994d8bcde0cb532cefcb4f12e4930114a621
+source_sha: 6363fc4fc30f333ce87a44681eb0db3e41164d111846551eb9a028b3cd37b61f
 reviewed: true
 ---
 # Plugin-Sandbox und Bedrohungsmodell { #plugin-sandbox-and-threat-model }
@@ -132,17 +132,35 @@ Manifest gibt `native-binary` an.
 
 ### Signatur { #signature }
 
-Ein Paket kann mit cosign signiert werden. `EVEY_PLUGINS_COSIGN_POLICY`
-legt fest, was eine fehlgeschlagene Prüfung bewirkt (`pluginrunner/cosign.go`):
+Ein Paket kann mit cosign signiert werden (`cosign sign-blob --key`, ECDSA
+P-256 über den SHA-256 des ZIP). Der öffentliche Schlüssel des Autors reist im
+Paket als `cosign.pub`; Evey prüft damit die abgetrennte `.sig`, im eigenen
+Prozess und offline (`pluginrunner/cosign.go`), und berechnet den
+Fingerabdruck des Schlüssels (`sha256:` über den öffentlichen DER-Schlüssel).
+Daraus folgen drei Dinge:
+
+- **Vertrauen**: Der Fingerabdruck steht in der Liste der **Vertrauenswürdigen
+  Herausgeber** der Instanz oder nicht (`Verwaltung → Plugins`, oder beim
+  Start über `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` befüllt). Ein vertrauter
+  Schlüssel zeigt den Namen des Herausgebers; ein unbekannter zeigt seinen
+  Fingerabdruck und die Aktion **Diesem Schlüssel vertrauen**.
+- **Kontinuität**: Der Fingerabdruck wird bei der Installation am Plugin
+  festgehalten. Ein Update, das mit einem anderen Schlüssel signiert ist
+  (`publisher-changed`) oder nicht mehr signiert ist (`signature-lost`), wird
+  unabhängig von der Regel abgelehnt, bis der Administrator im Update-Dialog
+  den neuen Herausgeber akzeptiert (`accept_new_publisher`).
+- **Regel**: `EVEY_PLUGINS_COSIGN_POLICY` legt fest, was das Urteil bewirkt.
 
 | Regel | Wirkung |
 |---|---|
-| `off` | Die Signatur wird nicht geprüft. |
-| `warn` (Standard) | Ein Fehlschlag wird festgehalten und dem Administrator angezeigt, ohne zu blockieren. Ohne konfigurierten öffentlichen Schlüssel wird nichts geprüft. |
-| `enforce` | Ein Fehlschlag lehnt die Installation oder das Update ab. |
+| `off` | Die Signatur wird nicht geprüft und nichts wird festgehalten. |
+| `warn` (Standard) | Das Urteil wird festgehalten und angezeigt; unsignierte, nicht vertraute und ungültige Pakete werden installiert. |
+| `enforce` | Nur ein Paket, das von einem vertrauenswürdigen Herausgeber signiert ist, wird installiert oder aktualisiert. |
 
-Der öffentliche Schlüssel wird mit `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`
-angegeben.
+Eine Signatur beweist, dass das Paket dasjenige ist, das sein Herausgeber
+veröffentlicht hat, und dass ein Update vom selben Herausgeber stammt. Über
+den Code sagt sie nichts; den beurteilen die Analyse, die Berechtigungen und
+die Sandbox.
 
 ### Vorschau für den Administrator { #administrator-preview }
 
@@ -439,7 +457,7 @@ Systemaufrufe werden abgelehnt, auch für kompilierte Binärdateien.
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` oder `basic`. Auch unter **Verwaltung → Plugins** änderbar. |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` oder `off`. Nicht vereinbar mit `no_new_privs` auf dem Container. |
 | `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` oder `enforce`. |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | keiner | Der Schlüssel, gegen den Signaturen geprüft werden. |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | keiner | Optional: ein öffentlicher PEM-Schlüssel, der beim Start zu den vertrauenswürdigen Herausgebern hinzugefügt wird. |
 | `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Standardwerte der Ressourcenlimits beim Start; der Verwaltungsbereich überschreibt sie, für alle Plugins zugleich. |
 
 Das offizielle Image bringt `evey-plugin-launcher` (Landlock und den

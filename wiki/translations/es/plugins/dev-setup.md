@@ -1,5 +1,5 @@
 ---
-source_sha: 285bdd60357aba1d3d0a25ee9fb2cbf8e882085af6ffee596e41d15bab4c8465
+source_sha: 4a666dfa2c12290f8a0b0b78d5751a32b7d8b3b95a89284bddb67ae767e73d4c
 reviewed: true
 ---
 # Escribir un plugin { #writing-a-plugin }
@@ -234,8 +234,11 @@ directamente a esos hosts por `https`. Las reglas están en
 
 !!! info "Lo que demuestra una firma"
     Una firma dice que el ZIP que instala el administrador es, byte a byte, el
-    que **tú** publicaste, firmado con la clave en la que confía. No dice nada
-    de lo que hace el plugin: los permisos, los hosts y el análisis de la
+    que **tú** publicaste. Tu clave pública viaja dentro del paquete
+    (`cosign.pub` en la raíz del ZIP), y Evey fija su huella en el plugin al
+    instalarlo: una actualización firmada con otra clave, o que ya no está
+    firmada, se rechaza hasta que el administrador acepte el cambio. No dice
+    nada de lo que hace el plugin: los permisos, los hosts y el análisis de la
     vista previa se siguen aplicando. Evey la comprueba sin conexión y dentro
     de su propio proceso (ECDSA P-256 sobre el SHA-256 del ZIP, el formato
     que produce `cosign sign-blob --key`): sin binario `cosign` en el
@@ -252,10 +255,11 @@ máquina.
     # -> cosign.key (privada) y cosign.pub (el archivo que repartes)
     ```
 
-2. **En cada versión: comprime y después firma** exactamente el archivo que
-   vas a distribuir.
+2. **En cada versión: pon tu clave pública en la raíz del plugin, comprime
+   y después firma** exactamente el archivo que vas a distribuir.
 
     ```sh
+    cp cosign.pub hello-plugin/cosign.pub
     cd hello-plugin && zip -r ../hello-plugin.zip . && cd ..
 
     COSIGN_PASSWORD="your-passphrase" cosign sign-blob \
@@ -272,36 +276,47 @@ máquina.
       --insecure-ignore-tlog hello-plugin.zip      # -> Verified OK
     ```
 
-4. **Publica tres archivos juntos**: `hello-plugin.zip`,
-   `hello-plugin.zip.sig` y `cosign.pub`. Pon la huella de la clave pública
-   en algún sitio donde tus usuarios puedan compararla (README, notas de la
-   versión), para que sepan que nadie ha cambiado `cosign.pub`.
+4. **Publica los dos archivos juntos**: `hello-plugin.zip` (tu clave pública
+   va dentro) y `hello-plugin.zip.sig`, uno junto al otro, para que una
+   instalación por URL encuentre la firma en `<url>.sig`. Pon la huella de la
+   clave (`sha256:...`, que Evey muestra en la tarjeta del plugin) en tu README
+   y en las notas de la versión, para que los administradores puedan
+   compararla antes de confiar en la clave.
 
-En la instancia que lo instala, el administrador configura la clave y una
-política, y reinicia el servidor:
+En la instancia que lo instala, el administrador elige el ZIP en
+**Administración → Plugins** y, en **Archivo de firma (.zip.sig, opcional)**,
+su `.zip.sig`; por la API, la firma es el campo `sig` de la subida. Evey
+verifica el paquete con la clave que lleva y muestra una de estas opciones:
 
-```sh
-EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
-EVEY_PLUGINS_COSIGN_POLICY=warn   # o "enforce" para rechazar lo que no se verifica
-```
+- **Firmado por <editor>**: la clave está en la lista de **Editores de
+  confianza** de la instancia.
+- **Firmado - clave desconocida sha256:...**: la firma es buena, pero todavía
+  no se confía en la clave. Un clic, **Confiar en esta clave**, la añade a la
+  lista con un nombre.
+- **Sin firma**, o **Firma no válida**.
 
-Después, en **Administración → Plugins**, elige el ZIP y, en **Archivo de
-firma (.zip.sig, opcional)**, su `.zip.sig`; por la API, la firma es el campo
-`sig` de la subida. **Firmado** o una firma no válida se muestra al actualizar, y el Panel de seguridad guarda el resultado.
+La política decide qué ocurre: `EVEY_PLUGINS_COSIGN_POLICY=warn` (por
+defecto) registra el veredicto y deja pasar toda instalación; `enforce` solo
+admite claves de confianza. Sea cual sea la política, una actualización cuya
+clave difiere de la versión instalada, o que abandona la firma, se rechaza
+hasta que el administrador marque **El editor cambió, acepto la nueva clave**
+en el diálogo de actualización. `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` es
+opcional: añade una clave a la lista de confianza al arrancar (marcada como
+la del operador del servidor).
 
 Errores habituales:
 
 - **Cualquier cambio en el ZIP invalida la firma**, incluso volver a comprimir
   los mismos archivos. Firma el archivo que distribuyes, y vuelve a firmar en
   cada versión.
+- **Conserva la misma clave** de una versión a la siguiente. Una clave nueva
+  es un editor nuevo para cada administrador que te instaló: se le pedirá que
+  la acepte. Cambia de clave a propósito, y dilo en las notas de la versión.
 - **Solo se aceptan claves ECDSA P-256**, que es lo que crea `cosign
   generate-key-pair`. Las firmas sin clave (keyless) y las referencias KMS no
   se verifican.
-- La clave se lee de un archivo PEM al arrancar: un archivo que falta o está
-  mal formado detiene el servidor, en lugar de hacer fallar la primera
-  instalación. Con `enforce` y sin clave, el servidor se niega a arrancar.
-- Con el valor por defecto `warn` y sin clave pública configurada, **no se
-  verifica nada**; el servidor solo anota un aviso al arrancar.
+- Un `.sig` sin `cosign.pub` en el ZIP, o al revés, cuenta como **Sin
+  firma**.
 - Una clave equivocada, un ZIP manipulado y un `.sig` que falta se leen
   todos como una firma fallida: con `enforce`, se rechaza la instalación o la
   actualización.

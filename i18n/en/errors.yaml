@@ -189,6 +189,16 @@ plugin:
   limits_negative: "Memory, process and disk limits must be 0 or more"
   cpu_nice_range: "The CPU priority (nice) must be between 0 and 19"
   sandbox_mode_invalid: "The sandbox mode must be one of: {modes}"
+  publishers_unavailable: "Trusted publishers are not available on this server"
+  publisher_name_required: "A publisher name is required"
+  publisher_name_too_long: "The publisher name is too long"
+  publisher_key_required: "Give either a public key or a fingerprint"
+  publisher_key_invalid: "The public key is not valid (an ECDSA P-256 key in PEM format is expected)"
+  publisher_key_unknown: "No installed plugin carries a key with this fingerprint"
+  publisher_not_found: "Trusted publisher not found"
+  publisher_seeded: "The server key cannot be removed from the trusted publishers"
+  publisher_changed: "This update is signed by a different publisher than the installed version - accept the new publisher to apply it"
+  signature_lost: "This update is no longer signed, the installed version was - accept the unsigned update to apply it"
 
 demo:
   locked: "Not available on the demo server"

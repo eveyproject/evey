@@ -189,6 +189,16 @@ plugin:
   limits_negative: "Los límites de memoria, procesos y disco deben ser 0 o más"
   cpu_nice_range: "La prioridad de CPU (nice) debe estar entre 0 y 19"
   sandbox_mode_invalid: "El modo sandbox debe ser uno de: {modes}"
+  publishers_unavailable: "Los editores de confianza no están disponibles en este servidor"
+  publisher_name_required: "Se requiere un nombre de editor"
+  publisher_name_too_long: "El nombre del editor es demasiado largo"
+  publisher_key_required: "Indica una clave pública o una huella, pero no ambas"
+  publisher_key_invalid: "La clave pública no es válida (se espera una clave ECDSA P-256 en formato PEM)"
+  publisher_key_unknown: "Ningún plugin instalado lleva una clave con esta huella"
+  publisher_not_found: "Editor de confianza no encontrado"
+  publisher_seeded: "La clave del servidor no se puede quitar de los editores de confianza"
+  publisher_changed: "Esta actualización está firmada por un editor distinto del de la versión instalada - acepta al nuevo editor para aplicarla"
+  signature_lost: "Esta actualización ya no está firmada y la versión instalada sí lo estaba - acepta la actualización sin firma para aplicarla"
 
 demo:
   locked: "No disponible en el servidor de demostración"
