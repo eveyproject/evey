@@ -142,6 +142,7 @@ func adminRotateJWTKey(args []string) error {
 	if err := os.Rename(path, backup); err != nil {
 		return fmt.Errorf("backup old key: %w", err)
 	}
+	handBackToOwnerOf(backup, filepath.Dir(path))
 	fmt.Printf("Old key backed up to: %s\n", backup)
 	fmt.Printf("New key will be generated on next server start.\n")
 	if err := endAllSessions(); err != nil {
@@ -431,6 +432,10 @@ func adminMigrate(args []string) error {
 	if noBackup {
 		backupOpts.Dir = ""
 	}
+
+	// Pre-migration dumps are written by this process: as root under
+	// `docker exec`, so re-own them for the server user afterwards.
+	defer handBackToDirOwner(backupOpts.Dir)
 
 	switch cmd {
 	case "up":

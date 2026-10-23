@@ -32,6 +32,26 @@ type libraryHandler struct {
 	userQuery   *appuser.QueryService
 	translator  *eveyi18n.Translator
 	scheduler   *applibrary.Scheduler
+	// scanTrigger starts the first scan of a freshly created library. Nil
+	// means the same entry point as the ScanLibrary RPC; tests inject a spy.
+	scanTrigger func(ctx context.Context, libraryID string)
+}
+
+// scanNewLibrary reads the folder of a library that was just created without
+// making the caller wait for it. The request context dies with the response,
+// so the scan keeps only its values; a failure is logged, the periodic pass
+// still catches up.
+func (h *libraryHandler) scanNewLibrary(ctx context.Context, libraryID string) {
+	scanCtx := context.WithoutCancel(ctx)
+	trigger := h.scanTrigger
+	if trigger == nil {
+		trigger = func(ctx context.Context, id string) {
+			if _, err := h.cmd.ScanLibraryReport(ctx, id); err != nil {
+				slog.WarnContext(ctx, "initial scan of new library failed", slog.String("library_id", id), slog.Any("err", err))
+			}
+		}
+	}
+	go trigger(scanCtx, libraryID)
 }
 
 func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLibraryRequest) (*eveyv1.Library, error) {
@@ -62,6 +82,7 @@ func (h *libraryHandler) CreateLibrary(ctx context.Context, req *eveyv1.CreateLi
 		span.SetStatus(otelcodes.Error, err.Error())
 		return nil, internalError(ctx, "create library", err)
 	}
+	h.scanNewLibrary(ctx, string(lib.ID))
 	return libraryToProto(lib), nil
 }
 

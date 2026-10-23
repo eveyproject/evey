@@ -5,6 +5,7 @@ import (
 	"errors"
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
@@ -108,6 +109,46 @@ func TestLibraryHandler_CreateLibrary(t *testing.T) {
 	assert.Equal(t, "Movies", resp.Name)
 	assert.Equal(t, eveyv1.LibraryType_LIBRARY_TYPE_MOVIES, resp.Type)
 	assert.Equal(t, []string{"/media/movies"}, resp.Paths)
+}
+
+func TestLibraryHandler_CreateLibrary_StartsOneScanOfTheNewLibrary(t *testing.T) {
+	h, _, _, _, _, _, _ := newTestLibraryHandler()
+	scanned := make(chan string, 2)
+	h.scanTrigger = func(_ context.Context, id string) { scanned <- id }
+
+	resp, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{
+		Name:  "Movies",
+		Type:  eveyv1.LibraryType_LIBRARY_TYPE_MOVIES,
+		Paths: []string{"/media/movies"},
+	})
+	require.NoError(t, err)
+
+	select {
+	case id := <-scanned:
+		assert.Equal(t, resp.Id, id)
+	case <-time.After(2 * time.Second):
+		t.Fatal("no scan was triggered for the new library")
+	}
+	select {
+	case id := <-scanned:
+		t.Fatalf("scan triggered twice (second: %s)", id)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestLibraryHandler_CreateLibrary_InvalidDoesNotScan(t *testing.T) {
+	h, _, _, _, _, _, _ := newTestLibraryHandler()
+	h.translator = eveyi18n.NewEmpty()
+	called := make(chan struct{}, 1)
+	h.scanTrigger = func(context.Context, string) { called <- struct{}{} }
+
+	_, err := h.CreateLibrary(adminCtx(), &eveyv1.CreateLibraryRequest{Type: eveyv1.LibraryType_LIBRARY_TYPE_MOVIES})
+	require.Error(t, err)
+	select {
+	case <-called:
+		t.Fatal("scan triggered for a library that was not created")
+	case <-time.After(50 * time.Millisecond):
+	}
 }
 
 func TestLibraryHandler_GetLibrary_Success(t *testing.T) {

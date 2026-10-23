@@ -56,6 +56,7 @@ func adminBackup(args []string) error {
 		appbackup.WithIncludeTelemetry(func() bool { return includeTelemetry }),
 	)
 	m, err := svc.CreateBackup(context.Background())
+	handBackToDirOwner(cfg.Backup.Dir)
 	if err != nil {
 		return fmt.Errorf("create backup: %w", err)
 	}

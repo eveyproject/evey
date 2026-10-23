@@ -100,31 +100,33 @@ func adminRollback(args []string) error {
 	}
 	fmt.Println()
 	fmt.Println("This container cannot roll itself back (no Docker socket, by design).")
-	fmt.Println("Run these ON THE HOST, choosing the previous image tag:")
+	fmt.Println("Run these ON THE HOST, in the folder of your docker-compose.yml:")
 	fmt.Println()
 	fmt.Println("  # 1. list the Evey images cached locally, newest first")
 	fmt.Println("  docker images 'eveyproject/evey*' --format '{{.Repository}}:{{.Tag}}\\t{{.CreatedSince}}'")
 	fmt.Println()
+	fmt.Println("  # 2. put the previous tag on the image: line of docker-compose.yml")
+	fmt.Println("  #    (if your compose interpolates EVEY_VERSION, set that variable instead)")
 	if backup == "" {
-		// EVEY_VERSION is the variable docker-compose.yml interpolates. `up -d`
-		// on its own recreates only the service whose image changed, so the
-		// database and the reverse proxy keep running: no `down` needed, and
-		// the outage is the one container restart you cannot avoid anyway.
-		fmt.Println("  # 2. relaunch on the previous tag (recreates the evey container only)")
-		fmt.Println("  EVEY_VERSION=<previous> docker compose up -d")
-	} else {
-		fmt.Println("  # 2. stop the server, leaving postgres up for the restore")
-		fmt.Println("  docker compose stop evey")
-		fmt.Println()
-		fmt.Println("  # 3. ONLY if the newer version applied migrations, restore the pre-migration DB")
-		fmt.Printf("  EVEY_VERSION=<previous> docker compose run --rm evey admin restore-backup %s\n", backup)
-		fmt.Println("  #    (or step back one migration at a time with: evey admin migrate down)")
-		fmt.Println()
-		fmt.Println("  # 4. bring the stack back up on the previous image tag")
-		fmt.Println("  EVEY_VERSION=<previous> docker compose up -d")
+		fmt.Println("  #    then recreate the container (Postgres and Meilisearch are embedded: they restart with it)")
+		fmt.Println("  docker compose up -d")
+		return nil
 	}
+	// The image embeds Postgres and the entrypoint boots it for every
+	// non-trivial invocation, `admin ...` included (docker/entrypoint.sh: only
+	// version/help/man/completion exec straight at l.29-33; the supervisor loop
+	// runs `/evey "$@"` at l.555 after the embedded Postgres is up). A run
+	// container shares /data with the running one, so the service must be
+	// stopped first or two Postgres would open the same data directory.
 	fmt.Println()
-	fmt.Println("Scripted helper (adapt the image/compose vars to your host): scripts/evey-rollback.sh")
+	fmt.Println("  # 3. ONLY if the newer version applied migrations, restore the pre-migration DB")
+	fmt.Println("  #    (stop first: the one-off container starts its own embedded Postgres on the same data)")
+	fmt.Println("  docker compose stop evey")
+	fmt.Printf("  docker compose run --rm evey admin restore-backup %s\n", backup)
+	fmt.Println("  #    (or step back one migration at a time with: evey admin migrate down)")
+	fmt.Println()
+	fmt.Println("  # 4. start the previous version")
+	fmt.Println("  docker compose up -d")
 	return nil
 }
 
