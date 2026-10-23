@@ -637,7 +637,7 @@ func TestVideoEncoderFor(t *testing.T) {
 // A burn-in must stop disqualifying the GPU once the host has probed a working
 // compositor. This is the gate that sent a whole 4K HDR session - decode,
 // tone-map and every encode - to the CPU because the container flagged a forced
-// subtitle DEFAULT (prod, 2026-09-09), while Jellyfin composited the very same
+// subtitle DEFAULT (prod, 2026-09-09), while another media server composited the very same
 // track on the very same GPU.
 func TestHWUsable_BurnInNeedsTheProbedCompositor(t *testing.T) {
 	for _, accel := range []transcoding.HWAccelType{transcoding.VAAPI, transcoding.QSV, transcoding.NVENC} {

@@ -184,7 +184,7 @@ describe("usePlayerGestures", () => {
   });
 });
 
-// --- horizontal scrub (Jellyfin-style timeline drag) -------------------------
+// --- horizontal scrub (timeline drag) -------------------------
 // The screen is mocked at 1000x500, so one full-width drag = 1000px.
 
 function scrubSetup(durationSec: number, positionSec = 0) {

@@ -1,8 +1,8 @@
 ---
-source_sha: b4191f540d085ea0277060a8db185c9e7db7b6abddd74978662d0cbc16c8bc85
+source_sha: 48225cad93d795d54f36c6e4db0c828700357d5e317bec3f404927fba2c1cdf4
 reviewed: true
 ---
-# Première configuration
+# Première configuration { #first-setup }
 
 Evey tourne, et vous avez ouvert son adresse dans un navigateur, par exemple
 `http://192.168.1.20:9091` (vous ne savez pas quelle adresse :
@@ -18,13 +18,13 @@ Il reste quatre étapes avant que votre foyer puisse regarder :
 4. [Connecter les applications](#4-connect-the-apps) : téléphones, tablettes
    et TV.
 
-## 1. L'assistant de configuration
+## 1. L'assistant de configuration { #1-the-setup-wizard }
 
 Tant que le serveur n'a pas d'administrateur, son adresse ouvre toujours
 l'assistant. En haut, il affiche **Étape 1 sur 4 - Langue**, et quatre points
 qui se remplissent au fur et à mesure.
 
-### Étape 1 sur 4 - Langue
+### Étape 1 sur 4 - Langue { #step-1-of-4---language }
 
 La carte affiche **Choisissez la langue du serveur**. Choisissez :
 
@@ -37,7 +37,7 @@ La carte affiche **Choisissez la langue du serveur**. Choisissez :
 Vous pourrez changer les deux plus tard dans le panneau d'administration.
 Appuyez sur **Continuer**.
 
-### Étape 2 sur 4 - Bienvenue
+### Étape 2 sur 4 - Bienvenue { #step-2-of-4---welcome }
 
 Rien à remplir. Appuyez sur **Commencer**.
 
@@ -55,7 +55,7 @@ Rien à remplir. Appuyez sur **Commencer**.
 
 </div>
 
-### Étape 3 sur 4 - Compte administrateur
+### Étape 3 sur 4 - Compte administrateur { #step-3-of-4---admin-account }
 
 La carte affiche **Créer un compte administrateur**. C'est votre propre
 compte, celui qui gère le serveur.
@@ -70,7 +70,7 @@ compte, celui qui gère le serveur.
 Appuyez sur **Continuer**. Evey crée le compte et vous connecte. L'assistant
 ne s'affichera plus.
 
-### Étape 4 sur 4 - Première bibliothèque
+### Étape 4 sur 4 - Première bibliothèque { #step-4-of-4---first-library }
 
 La carte affiche **Ajoutez votre première bibliothèque**. Une bibliothèque,
 c'est un type de média rangé dans un ou plusieurs dossiers, par exemple
@@ -112,7 +112,7 @@ cas, vous arrivez sur la page d'accueil.
   <figcaption>Le panneau d'administration une fois connecté : le tableau de bord, et toutes les sections dans le menu latéral (interface en anglais).</figcaption>
 </figure>
 
-## 2. Ajouter vos bibliothèques
+## 2. Ajouter vos bibliothèques { #2-add-your-libraries }
 
 Allez dans **Administration → Bibliothèques → Ajouter une bibliothèque**.
 Donnez un nom, un type (Films, Séries, Musique ou Photos) et un ou plusieurs
@@ -133,7 +133,7 @@ Vos titres n'apparaissent pas, ou ont la mauvaise affiche ? Voir
 [Bibliothèques et métadonnées](../administration/libraries.md) : comment
 nommer les fichiers, et comment corriger un titre mal reconnu.
 
-## 3. Inviter votre foyer
+## 3. Inviter votre foyer { #3-invite-your-household }
 
 Il y a deux façons de donner un compte à quelqu'un, toutes les deux dans
 **Administration → Utilisateurs**.
@@ -173,7 +173,7 @@ Plus d'options (limites par compte, horaires autorisés, codes PIN, limites
 d'âge) :
 [Utilisateurs, profils et contrôle parental](../administration/users.md).
 
-## 4. Connecter les applications
+## 4. Connecter les applications { #4-connect-the-apps }
 
 - **Dans un navigateur**, il n'y a rien à installer : c'est l'adresse que
   vous avez déjà ouverte.
@@ -188,7 +188,7 @@ d'âge) :
 Pas à pas, et ce que veut dire chaque message d'erreur :
 [Connecter les applications](apps.md#the-server-address-to-enter).
 
-## Ce que le serveur fait de lui-même
+## Ce que le serveur fait de lui-même { #what-the-server-does-by-itself }
 
 Vous n'avez rien de tout cela à régler :
 
@@ -210,7 +210,7 @@ Vous n'avez rien de tout cela à régler :
   la modifie. Des sauvegardes régulières ne demandent qu'un réglage :
   [Sauvegardes et mises à jour](../backups.md).
 
-## Avant de partager l'adresse hors de chez vous
+## Avant de partager l'adresse hors de chez vous { #before-you-share-the-address-outside-your-home }
 
 1. Placez le serveur derrière du HTTPS. Evey lui-même ne fournit que du HTTP
    simple : cela convient sur le réseau domestique, pas sur Internet.

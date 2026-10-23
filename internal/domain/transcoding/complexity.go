@@ -75,7 +75,7 @@ func (m ComplexityMetrics) CanonicalMotion() (float64, bool) {
 }
 
 // Classify returns the ContentClass that best matches the metrics, using a
-// heuristic tuned on the Mux / Netflix per-title blog numbers. Decision
+// heuristic tuned on published per-title encoding-complexity numbers. Decision
 // table (top match wins; LadderFilmNormal is the safe default):
 //
 //	source ≥ 2160p AND bitrate ≥ 15 Mbps                      → film_high_motion

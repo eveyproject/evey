@@ -6,7 +6,7 @@ package httpapi
 // library's own search and its SQL fallback), and each item found brings the
 // ids of everything under it, so "Stranger Things" matches every episode.
 // A series is named by its own title: seasons and episodes are not looked up
-// by theirs (Romain, 2026-10-21), they come along with their series.
+// by theirs (owner decision, 2026-10-21), they come along with their series.
 
 import (
 	"context"

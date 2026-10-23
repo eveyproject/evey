@@ -10,7 +10,7 @@ package transcoding_test
 //     already-lossy 128k MP3 cascades: measured coding noise under the signal at
 //     the 192k rendition was 30.6 dB on dialogue and 20.3 dB on dense music,
 //     BELOW the 26.9 dB the 128k rendition scored on a clean source in
-//     September. Jellyfin copies that track (`-codec:a:0 copy`) and adds none.
+//     September. Another media server copies that track (`-codec:a:0 copy`) and adds none.
 //  2. Nothing said so. The DECISION answered "copy", the packager refused the
 //     passthrough afterwards, and the two never reconciled: the mobile stream
 //     panel showed "Audio [copy] - MP3 - 128 kbps" over segments carrying

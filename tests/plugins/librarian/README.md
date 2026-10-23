@@ -4,7 +4,7 @@ Finds what a big collection accumulates silently:
 
 - **Probable duplicates** - the same title present several times. Same year =
   probable duplicate copy (wasted disk); different years = remake or edition,
-  flagged softer. The detection half of what the Jellyfin community runs
+  flagged softer. The detection half of what the community runs
   Merge Versions / Media Cleaner for - it never touches a file.
 - **Saga holes** - numbered series with missing episodes: you keep Rocky II
   and III but Rocky is gone. Understands arabic and roman numbering and

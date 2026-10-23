@@ -35,7 +35,7 @@ services:
     restart: unless-stopped
 
   # Override evey: local build with Air hot-reload + full HW transcode (the
-  # Jellyfin one-image model). ONE dev container, like prod - replaces the old
+  # one-image model of a typical media server). ONE dev container, like prod - replaces the old
   # Alpine-software `evey` + glibc-HW `evey-hw` split (no more shared-DB
   # capability conflict). Maps BOTH the NVIDIA GPU (Container Toolkit, for NVENC)
   # AND /dev/dri (VAAPI/QSV); the admin "Hardware acceleration" mode picks which.

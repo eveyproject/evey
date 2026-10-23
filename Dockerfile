@@ -321,7 +321,7 @@ COPY --from=meili-download /usr/local/bin/meilisearch /usr/local/bin/meilisearch
 # gap flips 4K HDR software transcode from sub-realtime (buffering, capped to 480p)
 # to playable 1080p where the portable zscale path stalls. Installed from the
 # jellyfin-ffmpeg project's OFFICIAL Debian repo (the standalone
-# jellyfin-ffmpeg7 package - leaner than vendoring the whole Jellyfin image) and
+# jellyfin-ffmpeg7 package - leaner than vendoring a whole third-party image) and
 # is the ONLY ffmpeg CLI in the image. The Debian `ffmpeg` package is deliberately
 # NOT installed: it was redundant with jellyfin-ffmpeg (shadowed on PATH) and only
 # widened the CVE surface on a binary never invoked. The libav* shared libs still
@@ -357,7 +357,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends gnupg \
 
 # Intel OpenCL runtime (amd64 only) for tonemap_opencl: the same bt2390 curve as
 # the software tone-mapper, run on the GPU, HLG and Dolby Vision RPU included.
-# Same pins as Jellyfin's image: NEO main for Gen12+, legacy1 for Gen9-11.
+# Same pins as the jellyfin-ffmpeg image: NEO main for Gen12+, legacy1 for Gen9-11.
 ARG INTEL_GMMLIB_VER=22.10.0
 ARG INTEL_IGC2_VER=2.40.13
 ARG INTEL_IGC2_BUILD=22418

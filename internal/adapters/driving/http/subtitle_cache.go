@@ -11,7 +11,7 @@ package httpapi
 // The cost is not a bug in the extractor. On the same file, mkvgo took 89s and
 // ffmpeg 79s: a subtitle track is interleaved with the video through the WHOLE
 // container, so producing one means reading the film, whatever the tool. That
-// is also why Jellyfin is not faster at it - it extracts EARLIER and once, and
+// is also why another media server is not faster at it - it extracts EARLIER and once, and
 // serves the copy afterwards. The only answer is to pay the cost once.
 //
 // On disk rather than in memory: the value survives a restart, which is when a

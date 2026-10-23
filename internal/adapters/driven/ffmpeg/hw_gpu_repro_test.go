@@ -18,7 +18,7 @@ import (
 // through the SAME Go path production takes (BuildFFmpegArgs -> HLSTranscoder
 // .Start -> handle.Failure()). Skipped unless EVEY_GPU_TEST=nvenc; meant to be
 // compiled with `go test -c` and executed inside the runtime image with the
-// GPU attached (the ffmpeg on PATH must be the bundled jellyfin build).
+// GPU attached (the ffmpeg on PATH must be the bundled ffmpeg build).
 //
 // Reproduced 2026-09-12/13 on an RTX 4070 Ti, image sha-21830e0-full:
 //   - a progressive HDR10 title on the tone-map bridge failed with the chain

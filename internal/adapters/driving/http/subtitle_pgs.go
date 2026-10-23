@@ -11,7 +11,7 @@ package httpapi
 // exactly as it already draws WebVTT cues.
 //
 // WHY THE DECODED IMAGES AND NOT THE .sup STREAM. Caching the encoded stream is
-// what Jellyfin does, and it is the most expensive of the three options
+// what another media server does, and it is the most expensive of the three options
 // measured: PGS's RLE compresses worse than PNG's deflate, and a .sup repeats
 // its palette and window segments at every display set. On two real tracks:
 // 21.0/28.6 MB as .sup, 9.4/13.4 MB as true-colour PNG, 6.3/8.8 MB as PALETTED

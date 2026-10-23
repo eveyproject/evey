@@ -744,7 +744,7 @@ func TestBuildHybridMaster_FallbackRung_FlagOff(t *testing.T) {
 }
 
 // A cast receiver never gets the rung: CAF never dives onto an in-master rung
-// by itself (Bouygtel4K 2026-08-03, variant pinned through 9 minutes of
+// by itself (an operator box, 2026-08-03, variant pinned through 9 minutes of
 // freeze - the receiver's abr=floor reload is the rescue path instead), and
 // the mux/demux-asymmetric master it creates stalls the Chromecast HD's MPL
 // before a single media fetch (2026-08-05: master fetched twice, then zero
@@ -823,7 +823,7 @@ func masterOf(t *testing.T, h *hlsVODServe, req *http.Request, item *domainlibra
 
 // ?abr=floor is the survival mode the cast receiver's starvation rescue asks
 // for: the announced rung exists but CAF never dives onto it by itself
-// (measured on the Bouygtel4K, 2026-08-03, variant pinned through 9 minutes
+// (measured on an operator box, 2026-08-03, variant pinned through 9 minutes
 // of freeze), so the receiver reloads with this param and the PLAN fits
 // itself to the lowest transcoded rung; the master the adapter renders is
 // MONO-VARIANT and the variant URI carries the rung's LADDER index.
@@ -906,7 +906,7 @@ func TestLineFit_VariantURICarriesItsQueryOnceAndResolvesTheSealedPlan(t *testin
 
 // ?maxKbps=<measured> is the receiver's own bitrate measurement (its network
 // stack included - old cast runtimes cap well under the wire speed, proven on
-// the Bouygtel4K 2026-08-03). Copy-first stays the rule: the line only bites
+// an operator box, 2026-08-03). Copy-first stays the rule: the line only bites
 // when it cannot carry the copy.
 func TestLineFit_CopyFirstWhenTheLineCarriesIt(t *testing.T) {
 	h := lineHandler(t)

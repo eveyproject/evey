@@ -775,7 +775,7 @@ function PlayerControlsInner({
 
           {/* Remote playback - single "send elsewhere" menu, unifying the
               Chromecast SDK toggle and the server-brokered Play On device
-              list (Jellyfin-style), instead of two separate affordances. */}
+              list (as other media servers do), instead of two separate affordances. */}
           {mediaId && (
             <RemotePlaybackMenu
               mediaId={mediaId}

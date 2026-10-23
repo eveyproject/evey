@@ -10,8 +10,8 @@ import (
 // rate + source bitrate + resolution). The hint maps to one of four
 // pre-tuned ABR ladders chosen so the bandwidth/quality tradeoff matches
 // the actual content - anime gets a 2-rung ladder peaking at 1.2 Mbps,
-// action 4K HDR gets up to 15 Mbps. Mux's "Instant Per-Title Encoding"
-// pattern, the simplified version of Netflix per-title that avoids the
+// action 4K HDR gets up to 15 Mbps. A published "instant per-title encoding"
+// pattern, the simplified version of per-title that avoids the
 // VMAF pre-encode pass.
 //
 // The class is purely advisory: profilesForDecision falls back to

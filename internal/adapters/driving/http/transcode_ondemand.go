@@ -211,7 +211,7 @@ func (h *hlsVODServe) copyFallbackVariant(r *http.Request, mediaID string, item 
 		return nil
 	}
 	// Never for a cast receiver. CAF's ABR does not dive onto an in-master rung
-	// (Bouygtel4K 2026-08-03: variant pinned through 9 minutes of freeze - the
+	// (an operator box, 2026-08-03: variant pinned through 9 minutes of freeze - the
 	// receiver's abr=floor reload is its rescue path), and the mux/demux
 	// asymmetry the rung creates (demuxed copy variant next to a muxed rung)
 	// stalls the Chromecast HD's MPL before a single media fetch (2026-08-05:

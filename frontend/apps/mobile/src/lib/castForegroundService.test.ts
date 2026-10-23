@@ -47,7 +47,7 @@ describe("AndroidManifest - service de premier plan Cast", () => {
 // suspendre ecran eteint. Sans wakelock les PONG du heartbeat CASTV2 cessent,
 // la box ferme la socket sender puis demonte le recepteur - mesure prod du
 // 2026-07-28 : mort de la TV 3 min 35 puis 3 min 45 apres le silence du
-// telephone. jellyfin-android tient exactement ce verrou ; RNGC 4.9.1 n'en
+// telephone. Un client Android Cast tres repandu tient exactement ce verrou ; RNGC 4.9.1 n'en
 // tient aucun.
 describe("verrou CPU/Wi-Fi de la session Cast", () => {
   const xml = readFileSync(MANIFEST, "utf8");
