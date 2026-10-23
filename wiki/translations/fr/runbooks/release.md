@@ -12,10 +12,10 @@ que la première suive une procédure au lieu de l'inventer.
 
 `.github/workflows/ci.yml` construit et publie des images à chaque poussée et à
 chaque étiquette `v*.*.*`, en trois variantes d'environnement d'exécution des
-plugins (`` (allégée), `-nodejs`, `-full`), vers `docker.io/eveyproject/evey`
+plugins (`` (complète, par défaut), `-nodejs`, `-lean`), vers `docker.io/eveyproject/evey`
 et `ghcr.io/eveyproject/evey` :
 
-| Ce que vous poussez | Étiquettes d'image publiées (chacune aussi en `-nodejs` / `-full`) |
+| Ce que vous poussez | Étiquettes d'image publiées (chacune aussi en `-lean` / `-nodejs`) |
 |---|---|
 | une branche (par exemple `master`) | `master`, `sha-<short>` |
 | l'étiquette `v0.2.0-rc.1` (préversion : elle contient un tiret) | `0.2.0-rc.1`, `sha-<short>` |
@@ -23,9 +23,9 @@ et `ghcr.io/eveyproject/evey` :
 
 Trois conséquences :
 
-- **Une étiquette de branche change.** `master-full` désigne ce qui a été
+- **Une étiquette de branche change.** `master` désigne ce qui a été
   poussé en dernier : deux `docker compose pull` à un jour d'intervalle peuvent
-  faire tourner du code différent, et un retour « à `master-full` » ne
+  faire tourner du code différent, et un retour « à `master` » ne
   désigne aucune version précise. Un administrateur doit épingler une étiquette
   `sha-<short>` (ou une étiquette de version), jamais un nom de branche : c'est
   ce que `scripts/evey-update.sh` affiche à la fin, à reporter dans `.env`.
@@ -65,7 +65,7 @@ savoir quel code tourne sans faire confiance à une étiquette.
    déploiement de référence, `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply` :
    l'étiquette de version remplace l'épinglage `sha-`.
 6. **Annoncer l'étiquette** avec sa section du changelog. Les administrateurs
-   épinglent `eveyproject/evey:0.2.0-rc.1` (ou `-full`) sur leur ligne
+   épinglent `eveyproject/evey:0.2.0-rc.1` (ou `-lean`) sur leur ligne
    `image:`.
 
 Créer des étiquettes de préversion ne coûte rien : `-rc.2`, `-rc.3` autant

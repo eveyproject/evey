@@ -9,10 +9,10 @@ source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 ## CI 如何处理标签（打标签前请阅读）
 
 `.github/workflows/ci.yml` 在每次 push 和每个 `v*.*.*` 标签时构建并发布镜像，共三种插件
-运行时变体（`` (lean)、`-nodejs`、`-full`），发布到 `docker.io/eveyproject/evey` 和
+运行时变体（`` (完整，默认)、`-nodejs`、`-lean`），发布到 `docker.io/eveyproject/evey` 和
 `ghcr.io/eveyproject/evey`：
 
-| 您推送的内容 | 发布的镜像标签（每个标签另有 `-nodejs` / `-full` 版本） |
+| 您推送的内容 | 发布的镜像标签（每个标签另有 `-lean` / `-nodejs` 版本） |
 |---|---|
 | 一个分支（例如 `master`） | `master`、`sha-<short>` |
 | 标签 `v0.2.0-rc.1`（预发布版：带连字符） | `0.2.0-rc.1`、`sha-<short>` |
@@ -20,8 +20,8 @@ source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 
 由此得出三点：
 
-- **分支标签会变动。** `master-full` 指向最后一次推送的内容；相隔一天执行的两次
-  `docker compose pull` 可能运行不同的代码，而“回滚到 `master-full`”无法回到任何确定的版本。运维者
+- **分支标签会变动。** `master` 指向最后一次推送的内容；相隔一天执行的两次
+  `docker compose pull` 可能运行不同的代码，而“回滚到 `master`”无法回到任何确定的版本。运维者
   必须固定一个 `sha-<short>` 标签（或版本标签），不能固定分支名 - `scripts/evey-update.sh`
   在结束时会打印该标签，供运维者写入 `.env`。
 - **预发布版不会影响 `latest`。** `latest` 表示最新的稳定版；跟踪 `latest` 的人不会看到封闭测试版的发布。
@@ -49,7 +49,7 @@ source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 5. **查看 CI** 是否发布了 `0.2.0-rc.1`（及各变体）。然后在参考部署上运行
    `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply` - 固定版本标签后，它将取代之前固定的 `sha-` 标签。
 6. **公布该标签**，并附上对应的 changelog 章节。运维者在 `image:` 行中固定
-   `eveyproject/evey:0.2.0-rc.1`（或 `-full`）。
+   `eveyproject/evey:0.2.0-rc.1`（或 `-lean`）。
 
 预发布标签的成本很低：需要时可以发布 `-beta.2`、`-beta.3`。但它们无法撤回 - 已发布的标签会一直保留。
 要撤销一次有问题的发布，请发布下一个版本；不要将标签重新指向其他提交。

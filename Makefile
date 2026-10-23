@@ -67,7 +67,7 @@ docker-image:
 	  --build-arg VERSION=$(VERSION) \
 	  --build-arg COMMIT=$(GIT_COMMIT) \
 	  --build-arg BUILD_DATE=$(BUILD_DATE) \
-	  --build-arg RUNTIMES=$(or $(RUNTIMES),lean) \
+	  --build-arg RUNTIMES=$(or $(RUNTIMES),full) \
 	  -t evey:$(VERSION) .
 
 # ── Operations harness ────────────────────────────────────────────

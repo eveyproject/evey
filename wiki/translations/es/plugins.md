@@ -1,8 +1,8 @@
 ---
-source_sha: 28799abda1b5a9531b81bdebfe211e4bbd56a063012a9faec636c9dc4128e730
+source_sha: da3584e40d3503957cd0eadd6a4ed24be78e334a6bd7593cd3ff4540f844ecbd
 reviewed: true
 ---
-# Plugins
+# Plugins { #plugins }
 
 Esta página es para el administrador: cómo instalar un plugin o un tema, qué
 aceptas al hacerlo y qué le deja tocar el servidor en tu equipo. Todo pasa en
@@ -30,7 +30,7 @@ página.
 
 </div>
 
-## Instalar un plugin
+## Instalar un plugin { #install-a-plugin }
 
 1. En **Administración → Plugins**, abre **Instalar plugin** y elige el
    **Archivo de plugin (.zip)**. Si el autor proporciona una firma, añádela en
@@ -54,8 +54,8 @@ página.
 Un paquete cuyo análisis encuentra un patrón crítico se rechaza, respondas lo
 que respondas. Los avisos se muestran y la decisión es tuya. El lenguaje del
 plugin tiene que estar entre los **Entornos de ejecución disponibles** del
-servidor: la imagen por defecto solo trae Python, la imagen `-nodejs` añade
-Node.js y la imagen `-full` añade PHP, Ruby y Lua.
+servidor: la imagen por defecto trae Python, Node.js, PHP, Ruby y Lua, la imagen
+`-nodejs` conserva Python y Node.js y la imagen `-lean` solo Python.
 
 !!! tip "Plugins firmados"
     El autor de un plugin puede firmar el ZIP con [cosign](https://docs.sigstore.dev/cosign/installation/),
@@ -74,7 +74,7 @@ Node.js y la imagen `-full` añade PHP, Ruby y Lua.
     necesita el binario `cosign`. Para los autores: consulta
     [Firma tu plugin](plugins/dev-setup.md#7-sign-your-plugin).
 
-## Actualizar un plugin
+## Actualizar un plugin { #update-a-plugin }
 
 En la tarjeta del plugin, **Actualizar desde origen…** acepta el nuevo ZIP
 (una ruta o una URL) y muestra la misma vista previa. Una actualización tiene
@@ -85,7 +85,7 @@ aplica nada hasta que eliges **Aprobar e instalar**. El paquete analizado es
 el paquete instalado: su hash se vuelve a comprobar cuando se aplica la
 actualización.
 
-## Gestionar los plugins instalados
+## Gestionar los plugins instalados { #manage-the-installed-plugins }
 
 Cada tarjeta muestra el estado del plugin (**Activado** o **Desactivado**) y
 ofrece:
@@ -124,7 +124,7 @@ cambiar.
 Los plugins están activados por defecto. `EVEY_PLUGINS_ENABLED=false`
 desactiva todo el sistema de plugins.
 
-## Lo que un plugin puede hacer en tu equipo
+## Lo que un plugin puede hacer en tu equipo { #what-a-plugin-can-do-on-your-host }
 
 Diga lo que diga su manifiesto, un plugin:
 
@@ -161,7 +161,7 @@ que todavía no puede impedir, está en
     lista de servidores como la lista de quienes pueden recibir los títulos
     de tu biblioteca.
 
-## Temas
+## Temas { #themes }
 
 Un tema es un paquete de tipo `kind: theme` sin proceso: una hoja de estilos
 y, opcionalmente, un script aislado en un marco oculto. Se instala desde el
@@ -169,7 +169,7 @@ mismo cuadro **Instalar plugin**; la hoja de estilos se sanea al instalarla.
 Después, cada usuario lo elige en **Ajustes → Apariencia → Tema**. Lo que
 puede contener un tema se describe en [Temas](themes.md).
 
-## Escribir un plugin
+## Escribir un plugin { #writing-a-plugin }
 
 | Página | Contenido |
 | --- | --- |

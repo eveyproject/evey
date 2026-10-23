@@ -1,8 +1,8 @@
 ---
-source_sha: 28799abda1b5a9531b81bdebfe211e4bbd56a063012a9faec636c9dc4128e730
+source_sha: da3584e40d3503957cd0eadd6a4ed24be78e334a6bd7593cd3ff4540f844ecbd
 reviewed: true
 ---
-# Plugins
+# Plugins { #plugins }
 
 Diese Seite richtet sich an Administratoren: wie Sie ein Plugin oder ein Theme
 installieren, was Sie dabei akzeptieren und was der Server ihm auf Ihrem Host
@@ -30,7 +30,7 @@ läuft in einem isolierten Rahmen der Seite.
 
 </div>
 
-## Ein Plugin installieren
+## Ein Plugin installieren { #install-a-plugin }
 
 1. Öffnen Sie unter **Verwaltung → Plugins** den Punkt **Plugin
    installieren** und wählen Sie die **Plugin-Datei (.zip)**. Liefert der
@@ -55,8 +55,8 @@ läuft in einem isolierten Rahmen der Seite.
 Ein Paket, in dem die Analyse ein kritisches Muster findet, wird abgelehnt,
 egal was Sie antworten. Warnungen werden angezeigt, die Entscheidung liegt bei
 Ihnen. Die Sprache des Plugins muss zu den **Verfügbaren Laufzeiten** des
-Servers gehören: Das Standard-Image bringt nur Python mit, das Image
-`-nodejs` fügt Node.js hinzu und das Image `-full` PHP, Ruby und Lua.
+Servers gehören: Das Standard-Image bringt Python, Node.js, PHP, Ruby und Lua mit, das Image
+`-nodejs` behält Python und Node.js und das Image `-lean` nur Python.
 
 !!! tip "Signierte Plugins"
     Ein Plugin-Autor kann das ZIP mit [cosign](https://docs.sigstore.dev/cosign/installation/)
@@ -75,7 +75,7 @@ Servers gehören: Das Standard-Image bringt nur Python mit, das Image
     geprüft, und der Server braucht kein `cosign`-Programm. Für Autoren: siehe
     [Ihr Plugin signieren](plugins/dev-setup.md#7-sign-your-plugin).
 
-## Ein Plugin aktualisieren
+## Ein Plugin aktualisieren { #update-a-plugin }
 
 Auf der Karte des Plugins nimmt **Aus Quelle aktualisieren …** das neue ZIP
 entgegen (einen Pfad oder eine URL) und zeigt dieselbe Vorschau. Ein Update
@@ -86,7 +86,7 @@ auf: Nichts wird übernommen, bevor Sie **Genehmigen und installieren**
 wählen. Das analysierte Paket ist das installierte Paket: Sein Hashwert wird
 beim Übernehmen des Updates noch einmal geprüft.
 
-## Die installierten Plugins verwalten
+## Die installierten Plugins verwalten { #manage-the-installed-plugins }
 
 Jede Karte zeigt den Zustand des Plugins (**Aktiviert** oder
 **Deaktiviert**) und bietet:
@@ -125,7 +125,7 @@ erklärt, was zu ändern ist.
 Plugins sind standardmäßig eingeschaltet. `EVEY_PLUGINS_ENABLED=false`
 schaltet das gesamte Plugin-System ab.
 
-## Was ein Plugin auf Ihrem Host tun kann
+## Was ein Plugin auf Ihrem Host tun kann { #what-a-plugin-can-do-on-your-host }
 
 Egal, was sein Manifest angibt, ein Plugin:
 
@@ -163,7 +163,7 @@ funktioniert und was sie trotzdem nicht verhindern kann, steht unter
     betrachten Sie seine Host-Liste als Liste derer, die die Titel Ihrer
     Bibliothek erhalten können.
 
-## Themes
+## Themes { #themes }
 
 Ein Theme ist ein Paket mit `kind: theme` ohne Prozess: ein Stylesheet und
 optional ein Skript, das isoliert in einem versteckten Rahmen läuft. Es wird
@@ -172,7 +172,7 @@ bei der Installation bereinigt. Jeder Benutzer wählt es dann unter
 **Einstellungen → Darstellung → Design**. Was ein Theme enthalten darf, steht
 unter [Themes](themes.md).
 
-## Ein Plugin schreiben
+## Ein Plugin schreiben { #writing-a-plugin }
 
 | Seite | Inhalt |
 | --- | --- |

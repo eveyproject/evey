@@ -1259,7 +1259,7 @@ loadtest:
   noBottleneckHint: "Ningún recurso se saturó: el servidor probablemente aguanta más. Sube el límite y vuelve a lanzarlo."
   endpointDirectLine: "Destino: el servidor directamente ({{endpoint}}), sin proxy."
   endpointProxyLine: "Destino: a través de la dirección pública ({{endpoint}}). Los límites de ese camino de red (enlace Ethernet, ancho de banda de subida, router, proxy) forman parte del resultado."
-  machineLine: "En el nivel retenido ({{tier}} espectadores): CPU del contenedor {{cpu}} %, máquina entera {{machine}} %, espera de disco (iowait) {{iowait}} %. RAM del contenedor {{mem}} (Meilisearch y Postgres incluidos en la imagen -full), proceso evey {{rss}}."
+  machineLine: "En el nivel retenido ({{tier}} espectadores): CPU del contenedor {{cpu}} %, máquina entera {{machine}} %, espera de disco (iowait) {{iowait}} %. RAM del contenedor {{mem}} (Meilisearch y Postgres incluidos en la imagen), proceso evey {{rss}}."
   diskUnmeasuredLine: "Lectura de disco no medible: ningún disco de esta máquina pudo vincularse a la biblioteca (recurso de red, o un montaje que este núcleo no ve). Las columnas de disco están vacías, no a cero."
   notMeasured: "no medido"
   breakCapacityLine: "Capacidad en el punto de ruptura ({{tier}} espectadores): {{parts}}. El número de espectadores depende del sorteo; esta cifra no."

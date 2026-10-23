@@ -180,11 +180,11 @@ The image is `eveyproject/evey`.
 | a pre-release tag (with a hyphen) | a pre-release tag | publishes only its own tag, never moves `latest` |
 | a branch name, `sha-<commit>` | a branch build | amd64 only |
 
-Every tag exists in three variants: the default bundles Python 3 for
-plugins, `-nodejs` adds Node.js, `-full` adds PHP, Ruby and Lua (for example
-`latest-full`). Use a variant only when a plugin needs it: the installer
-refuses a plugin whose declared language is missing from the image, with a
-message naming the right variant.
+Every tag exists in three variants: the default ships every plugin runtime
+(Python 3, Node.js, PHP, Ruby and Lua), `-nodejs` keeps Python and Node.js,
+`-lean` keeps Python only (for example `latest-lean`). Pick a slimmer variant
+only when image size matters: the installer refuses a plugin whose declared
+language is missing from the image, with a message naming the default image.
 
 Published images carry the drivers for every supported Intel and AMD
 generation. A self-built image can keep one family with `docker build

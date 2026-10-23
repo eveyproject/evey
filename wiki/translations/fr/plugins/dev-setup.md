@@ -1,8 +1,8 @@
 ---
-source_sha: 07f8809212342fec2288b8611c0fea43a5e011cfb97b0f8f1689f01d869f62f4
+source_sha: da65fca181dde1325e9e1ed9a14213c8008dd3d87fd749779b7c965baa24a1fa
 reviewed: true
 ---
-# Écrire un plugin
+# Écrire un plugin { #writing-a-plugin }
 
 Cette page mène un développeur d'un clone d'Evey à un plugin qui tourne sur un
 serveur local, puis à un paquet signé que d'autres administrateurs peuvent
@@ -33,7 +33,7 @@ aussi embarquer un module d'interface, affiché dans un cadre isolé de la page,
 et ne communique avec l'extérieur que par l'intermédiaire du serveur, vers
 les hôtes qu'il a déclarés.
 
-## 1. Prérequis
+## 1. Prérequis { #1-prerequisites }
 
 | Outil | Pourquoi |
 |---|---|
@@ -44,9 +44,9 @@ les hôtes qu'il a déclarés.
 Choisissez le langage de votre plugin parmi les environnements que le serveur
 sait lancer : `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` et `sh` ont
 besoin de leur interpréteur dans l'image, `go` livre un binaire compilé et
-demande la permission `native-binary`. L'image par défaut n'embarque que
-Python ; l'image `-nodejs` ajoute Node.js et l'image `-full` ajoute PHP, Ruby
-et Lua. Un manifeste qui nomme un environnement absent de l'image est refusé
+demande la permission `native-binary`. L'image par défaut embarque
+Python, Node.js, PHP, Ruby et Lua ; l'image `-nodejs` garde Python et Node.js
+et l'image `-lean` ne garde que Python. Un manifeste qui nomme un environnement absent de l'image est refusé
 à l'installation, avec la liste des environnements disponibles.
 
 Le contrat gRPC tient dans un fichier, `proto/plugin/v1/plugin_api.proto`. Des
@@ -66,7 +66,7 @@ protoc --proto_path=proto \
 `make plugin-sdk` régénère les stubs fournis ; chaque `sdk/<lang>/README.md`
 nomme le plugin gRPC dont son langage a besoin.
 
-## 2. Lancer Evey en local
+## 2. Lancer Evey en local { #2-bring-up-evey-locally }
 
 ```sh
 git clone git@github.com:eveyproject/evey.git
@@ -82,7 +82,7 @@ administrateur au premier lancement, comme décrit dans
 plugins arrivent dans `./evey-data/plugins/<id-du-plugin>/`, monté en
 `/data/plugins` dans le conteneur.
 
-## 3. Votre premier plugin, pas à pas
+## 3. Votre premier plugin, pas à pas { #3-your-first-plugin-step-by-step }
 
 L'exemple `examples/plugins/nodejs-example` est le plus petit plugin complet :
 il sert `PluginService`, se connecte à `HostService`, et écrit une ligne dans
@@ -161,7 +161,7 @@ Vous avez là tout le contrat backend. À partir d'ici, un plugin peut être
 étendu de trois façons : appeler le serveur (`HostService`, section 4),
 afficher une interface (section 5), et accéder à l'extérieur (section 6).
 
-## 4. Appeler le serveur depuis le backend
+## 4. Appeler le serveur depuis le backend { #4-call-the-server-from-the-backend }
 
 Chaque appel à `HostService` porte l'identité du plugin : le serveur vérifie
 le processus sur le socket par son PID, et un intercepteur refuse tout appel
@@ -180,7 +180,7 @@ d'aucune permission :
 dans le contrat mais pas encore servies, est dans la
 [référence de l'API](api-reference.md#hostservice-what-the-plugin-can-call).
 
-## 5. Ajouter une interface
+## 5. Ajouter une interface { #5-add-an-interface }
 
 Une interface est un module JavaScript que la page charge dans un cadre isolé,
 dans l'un des emplacements que le serveur autorise. Déclarez où sont les
@@ -204,7 +204,7 @@ de courte durée que l'hôte détient pour le cadre.
 `admin.nav`. Le pont et les emplacements sont décrits dans la
 [référence de l'API](api-reference.md#frontend-api).
 
-## 6. Accéder à l'extérieur
+## 6. Accéder à l'extérieur { #6-reach-the-outside-world }
 
 Un processus de plugin ne peut ouvrir aucun socket vers Internet, quel que
 soit le mode de sandbox. Le seul accès possible est l'appel `Fetch` de
@@ -231,7 +231,7 @@ Les règles sont dans
     approuver tout ajout à la mise à jour. Limitez-la à ce dont le plugin a
     besoin, et indiquez dans votre README ce que chaque hôte reçoit.
 
-## 7. Signer son plugin
+## 7. Signer son plugin { #7-sign-your-plugin }
 
 !!! info "Ce que prouve une signature"
     Une signature atteste que le ZIP que l'administrateur installe est, octet
@@ -310,7 +310,7 @@ Erreurs fréquentes :
   une signature en échec : sous `enforce`, l'installation ou la mise à jour
   est refusée.
 
-## 8. Ce que vérifie l'installateur, dans l'ordre
+## 8. Ce que vérifie l'installateur, dans l'ordre { #8-what-the-installer-checks-in-order }
 
 Chaque étape peut refuser le paquet ; l'administrateur voit la raison, et le
 journal du serveur contient le détail.
@@ -348,7 +348,7 @@ Ce que cherche l'analyse est listé dans
 Elle lit aussi les commentaires : une ligne `# pip install foo` dans un
 commentaire est signalée comme du code.
 
-## 9. Dans quelles conditions tourne votre processus
+## 9. Dans quelles conditions tourne votre processus { #9-what-your-process-runs-under }
 
 Le serveur démarre le processus avec une priorité processeur abaissée, un
 plafond de mémoire, une limite de processus et de threads, et une taille
@@ -364,7 +364,7 @@ plugin : [Sandbox des plugins et modèle de menace](../SECURITY.md#sandbox-modes
 les décrit, et [Mise en place de la sandbox des plugins](sandbox-deployment.md)
 indique à un administrateur lequel choisir.
 
-## 10. Distribuer un plugin
+## 10. Distribuer un plugin { #10-distribute-a-plugin }
 
 Il n'y a pas de catalogue : un administrateur installe un plugin en envoyant
 son ZIP ou en collant son URL dans le panneau d'administration, depuis
@@ -379,11 +379,11 @@ l'endroit où vous le publiez (une release sur une forge, votre propre site).
   sont relus et construits depuis la source ; une inscription n'est pas une
   recommandation et ne porte aucune signature du projet.
 
-## 11. Dépannage
+## 11. Dépannage { #11-troubleshooting }
 
 | Symptôme | Cause | Solution |
 |---|---|---|
-| `plugin requires "nodejs" runtime which is not installed in this image` | La variante d'image n'a pas l'interpréteur. | Utilisez l'image `-nodejs` ou `-full`, ou écrivez le plugin en Python. |
+| `plugin requires "nodejs" runtime which is not installed in this image` | La variante d'image n'a pas l'interpréteur. | Utilisez l'image par défaut ou `-nodejs`, ou écrivez le plugin en Python. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | Les jokers sont refusés à l'installation, sans exception. | Listez chaque nom d'hôte nécessaire (`api.tmdb.org`, `image.tmdb.org`). |
 | `manifest: frontend slot "admin.section" not allowed` | L'emplacement est hors de la liste autorisée. | Prenez un emplacement de la [liste](api-reference.md#slots) ; `admin.nav` est le seul emplacement de la zone d'administration. |
 | `manifest: network permission requires non-empty external_fetch` | `network` déclaré sans hôtes. | Ajoutez les hôtes, ou retirez la permission. |

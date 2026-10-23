@@ -1,5 +1,5 @@
 ---
-source_sha: 458502112f637df70456890a718f35fac167120f02775459773b334b689e454f
+source_sha: f0e5f75d4befda29fbffbe7da80a4cc45e7a86e9429753abdee557b19bc5a40b
 reviewed: true
 ---
 # Erweiterte Bereitstellungen { #advanced-deployments }
@@ -191,12 +191,12 @@ Das Image heißt `eveyproject/evey`.
 | ein Vorabversions-Tag (mit Bindestrich) | ein Vorabversions-Tag | veröffentlicht nur sein eigenes Tag, verschiebt nie `latest` |
 | ein Branch-Name, `sha-<commit>` | ein Branch-Build | nur amd64 |
 
-Jedes Tag gibt es in drei Varianten: Die Standardvariante bringt Python 3 für
-Plugins mit, `-nodejs` fügt Node.js hinzu, `-full` fügt PHP, Ruby und Lua
-hinzu (zum Beispiel `latest-full`). Nehmen Sie eine Variante nur, wenn ein
-Plugin sie braucht: Das Installationsprogramm lehnt ein Plugin ab, dessen
-angegebene Sprache im Image fehlt, und nennt in der Meldung die richtige
-Variante.
+Jedes Tag gibt es in drei Varianten: Die Standardvariante bringt alle
+Plugin-Laufzeiten mit (Python 3, Node.js, PHP, Ruby und Lua), `-nodejs` behält
+Python und Node.js, `-lean` nur Python (zum Beispiel `latest-lean`). Nehmen Sie
+eine schlankere Variante nur, wenn die Image-Größe zählt: Das
+Installationsprogramm lehnt ein Plugin ab, dessen angegebene Sprache im Image
+fehlt, und nennt in der Meldung das Standard-Image.
 
 Die veröffentlichten Images enthalten die Treiber für jede unterstützte
 Intel- und AMD-Generation. Ein selbst gebautes Image kann nur eine Familie

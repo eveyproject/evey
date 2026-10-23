@@ -38,8 +38,8 @@ only through the server, to the hosts it declared.
 Pick the language of your plugin from the runtimes the server can start:
 `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` and `sh` need their
 interpreter in the image, `go` ships a compiled binary and needs the
-`native-binary` permission. The default image carries Python only; the
-`-nodejs` image adds Node.js and the `-full` image adds PHP, Ruby and Lua. A
+`native-binary` permission. The default image carries Python, Node.js, PHP, Ruby and Lua; the
+`-nodejs` image keeps Python and Node.js and the `-lean` image keeps Python only. A
 manifest that names a runtime the image lacks is refused at install, with the
 list of the runtimes available.
 
@@ -357,7 +357,7 @@ on a forge, your own site).
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `plugin requires "nodejs" runtime which is not installed in this image` | The image variant lacks the interpreter. | Use the `-nodejs` or `-full` image, or write the plugin in Python. |
+| `plugin requires "nodejs" runtime which is not installed in this image` | The image variant lacks the interpreter. | Use the default or `-nodejs` image, or write the plugin in Python. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | Wildcards are refused at install, no exceptions. | List every hostname you need (`api.tmdb.org`, `image.tmdb.org`). |
 | `manifest: frontend slot "admin.section" not allowed` | The slot is outside the allowed list. | Pick a slot from the [slot list](api-reference.md#slots); `admin.nav` is the only admin-area slot. |
 | `manifest: network permission requires non-empty external_fetch` | `network` declared without hosts. | Add the hosts, or drop the permission. |

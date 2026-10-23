@@ -1226,7 +1226,7 @@ loadtest:
   noBottleneckHint: "No resource ran out: the box likely holds more. Raise the ceiling and run again."
   endpointDirectLine: "Target: the server directly ({{endpoint}}), no proxy."
   endpointProxyLine: "Target: through the public address ({{endpoint}}). The limits of that network path (Ethernet link, upload bandwidth, router, proxy) are part of the result."
-  machineLine: "At the retained tier ({{tier}} viewers): container CPU {{cpu}}%, whole machine {{machine}}%, waiting on disk (iowait) {{iowait}}%. Container memory {{mem}} (Meilisearch and Postgres included in the -full image), evey process {{rss}}."
+  machineLine: "At the retained tier ({{tier}} viewers): container CPU {{cpu}}%, whole machine {{machine}}%, waiting on disk (iowait) {{iowait}}%. Container memory {{mem}} (Meilisearch and Postgres included in the image), evey process {{rss}}."
   diskUnmeasuredLine: "Disk reads not measurable: no disk of this machine could be tied to the library (a network share, or a mount this kernel cannot see through). The disk columns are empty, not zero."
   notMeasured: "not measured"
   breakCapacityLine: "Capacity at the break ({{tier}} viewers): {{parts}}. The headcount depends on the draw; this figure does not."

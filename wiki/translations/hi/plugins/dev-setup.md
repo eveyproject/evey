@@ -1,8 +1,8 @@
 ---
-source_sha: 07f8809212342fec2288b8611c0fea43a5e011cfb97b0f8f1689f01d869f62f4
+source_sha: da65fca181dde1325e9e1ed9a14213c8008dd3d87fd749779b7c965baa24a1fa
 reviewed: true
 ---
-# प्लगइन लिखना
+# प्लगइन लिखना { #writing-a-plugin }
 
 यह पेज डेवलपर को Evey के clone से शुरू करके लोकल सर्वर पर चलते प्लगइन तक, और
 फिर एक सिग्नेचर वाले पैकेज तक ले जाता है जिसे दूसरे एडमिन इंस्टॉल कर सकें।
@@ -32,7 +32,7 @@ gRPC सर्विस देता है और दूसरे socket पर
 है। इंटरनेट से वह सिर्फ़ सर्वर के ज़रिए संपर्क करता है, और सिर्फ़ उन होस्ट से
 जो उसने बताए हैं।
 
-## 1. पहले से क्या चाहिए
+## 1. पहले से क्या चाहिए { #1-prerequisites }
 
 | टूल | क्यों |
 |---|---|
@@ -43,8 +43,8 @@ gRPC सर्विस देता है और दूसरे socket पर
 अपने प्लगइन की भाषा उन runtime में से चुनें जिन्हें सर्वर शुरू कर सकता है:
 `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` और `sh` को इमेज में अपना
 interpreter चाहिए; `go` एक compiled binary लाता है और उसे `native-binary`
-अनुमति चाहिए। डिफ़ॉल्ट इमेज में सिर्फ़ Python है; `-nodejs` इमेज Node.js जोड़ती
-है और `-full` इमेज PHP, Ruby और Lua जोड़ती है। जो manifest ऐसा runtime बताता है
+अनुमति चाहिए। डिफ़ॉल्ट इमेज में Python, Node.js, PHP, Ruby और Lua हैं; `-nodejs` इमेज में
+Python और Node.js रहते हैं और `-lean` इमेज में सिर्फ़ Python रहता है। जो manifest ऐसा runtime बताता है
 जो इमेज में नहीं है, वह इंस्टॉल के समय मना कर दिया जाता है, और उपलब्ध runtime की
 सूची दिखाई जाती है।
 
@@ -64,7 +64,7 @@ protoc --proto_path=proto \
 `make plugin-sdk` साथ आने वाले stub फिर से बनाता है; हर `sdk/<lang>/README.md`
 बताता है कि उस भाषा को कौन सा gRPC प्लगइन चाहिए।
 
-## 2. Evey को लोकल चलाएँ
+## 2. Evey को लोकल चलाएँ { #2-bring-up-evey-locally }
 
 ```sh
 git clone git@github.com:eveyproject/evey.git
@@ -79,7 +79,7 @@ make dev                        # postgres, meilisearch, सर्वर (Air), 
 फ़ाइलें `./evey-data/plugins/<plugin-id>/` में जाती हैं, जो कंटेनर में
 `/data/plugins` के रूप में mount होता है।
 
-## 3. आपका पहला प्लगइन, कदम-दर-कदम
+## 3. आपका पहला प्लगइन, कदम-दर-कदम { #3-your-first-plugin-step-by-step }
 
 उदाहरण `examples/plugins/nodejs-example` सबसे छोटा पूरा प्लगइन है: यह
 `PluginService` देता है, `HostService` से जुड़ता है, और सर्वर के शुरू करने पर
@@ -155,7 +155,7 @@ make dev                        # postgres, meilisearch, सर्वर (Air), 
 सर्वर को कॉल करना (`HostService`, सेक्शन 4), इंटरफ़ेस बनाना (सेक्शन 5), और
 इंटरनेट तक पहुँचना (सेक्शन 6)।
 
-## 4. बैकएंड से सर्वर को कॉल करें
+## 4. बैकएंड से सर्वर को कॉल करें { #4-call-the-server-from-the-backend }
 
 हर `HostService` कॉल के साथ प्लगइन की पहचान जाती है: सर्वर socket से जुड़े
 प्रोसेस को उसके PID से जाँचता है, और एक interceptor हर वह कॉल मना कर देता है
@@ -173,7 +173,7 @@ make dev                        # postgres, meilisearch, सर्वर (Air), 
 हैं पर अभी दिए नहीं जाते, [प्लगइन API संदर्भ](api-reference.md#hostservice-what-the-plugin-can-call)
 में है।
 
-## 5. इंटरफ़ेस जोड़ें
+## 5. इंटरफ़ेस जोड़ें { #5-add-an-interface }
 
 इंटरफ़ेस एक JavaScript मॉड्यूल है जिसे पेज एक सैंडबॉक्स वाले फ़्रेम में लोड करता
 है, उन स्लॉट में से किसी एक में जिनकी सर्वर अनुमति देता है। बताएँ कि फ़ाइलें कहाँ
@@ -195,7 +195,7 @@ manifest `prefs` या `public` बताता है, तो `evey.prefs.*` �
 `examples/plugins/data-demo` `prefs`, `public` और `admin.nav` स्लॉट दिखाता है। bridge
 और स्लॉट [प्लगइन API संदर्भ](api-reference.md#frontend-api) में बताए गए हैं।
 
-## 6. इंटरनेट तक पहुँचें
+## 6. इंटरनेट तक पहुँचें { #6-reach-the-outside-world }
 
 प्लगइन का प्रोसेस किसी भी सैंडबॉक्स मोड में इंटरनेट की ओर कोई socket नहीं खोल
 सकता। इंटरनेट तक पहुँचने का एकमात्र तरीका `HostService` का `Fetch` कॉल है: सर्वर लक्ष्य को
@@ -220,7 +220,7 @@ broker `http` और `https`, `GET` और `HEAD` स्वीकार कर�
     मंज़ूरी देनी होती है। सूची में सिर्फ़ वही रखें जिसकी प्लगइन को ज़रूरत है, और
     अपनी README में बताएँ कि हर होस्ट को क्या मिलता है।
 
-## 7. अपने प्लगइन पर सिग्नेचर करें
+## 7. अपने प्लगइन पर सिग्नेचर करें { #7-sign-your-plugin }
 
 !!! info "सिग्नेचर क्या साबित करता है"
     सिग्नेचर बताता है कि एडमिन जो ZIP इंस्टॉल करता है, वह बाइट-दर-बाइट वही है
@@ -292,7 +292,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # या "enforce", ताकि जो जा
 - गलत कुंजी, छेड़ा गया ZIP और न मिलने वाली `.sig`, तीनों फ़ेल सिग्नेचर माने जाते
   हैं: `enforce` में इंस्टॉल या अपडेट मना कर दिया जाता है।
 
-## 8. इंस्टॉलर क्या जाँचता है, क्रम से
+## 8. इंस्टॉलर क्या जाँचता है, क्रम से { #8-what-the-installer-checks-in-order }
 
 हर कदम पैकेज को मना कर सकता है; एडमिन को कारण दिखता है, और सर्वर के लॉग में
 विस्तार होता है।
@@ -326,7 +326,7 @@ EVEY_PLUGINS_COSIGN_POLICY=warn   # या "enforce", ताकि जो जा
 comment भी पढ़ता है: comment में `# pip install foo` वाली लाइन को कोड की तरह ही
 दर्ज किया जाता है।
 
-## 9. आपका प्रोसेस किन सीमाओं में चलता है
+## 9. आपका प्रोसेस किन सीमाओं में चलता है { #9-what-your-process-runs-under }
 
 सर्वर प्रोसेस को कम CPU प्राथमिकता के साथ शुरू करता है, मेमोरी की सीमा, प्रोसेस
 और thread की संख्या की सीमा, और उसके फ़ोल्डर के आकार की सीमा के साथ; एक
@@ -341,7 +341,7 @@ comment भी पढ़ता है: comment में `# pip install foo` व
 बताता है, और [प्लगइन सैंडबॉक्स सेटअप](sandbox-deployment.md) एडमिन को बताता है कि
 कौन सा चुनें।
 
-## 10. प्लगइन का वितरण
+## 10. प्लगइन का वितरण { #10-distribute-a-plugin }
 
 कोई कैटलॉग नहीं है: एडमिन प्लगइन इंस्टॉल करने के लिए उसका ZIP अपलोड करता है या
 एडमिन पैनल में उसका URL चिपकाता है, जहाँ भी आप उसे प्रकाशित करें (किसी forge पर
@@ -356,11 +356,11 @@ comment भी पढ़ता है: comment में `# pip install foo` व
   उदाहरणों की समीक्षा होती है और वे स्रोत से build होते हैं; सूची में होना कोई
   सिफ़ारिश नहीं है और उस पर प्रोजेक्ट का कोई सिग्नेचर नहीं होता।
 
-## 11. समस्या का हल
+## 11. समस्या का हल { #11-troubleshooting }
 
 | लक्षण | कारण | हल |
 |---|---|---|
-| `plugin requires "nodejs" runtime which is not installed in this image` | इमेज के इस रूप में interpreter नहीं है। | `-nodejs` या `-full` इमेज इस्तेमाल करें, या प्लगइन Python में लिखें। |
+| `plugin requires "nodejs" runtime which is not installed in this image` | इमेज के इस रूप में interpreter नहीं है। | डिफ़ॉल्ट या `-nodejs` इमेज इस्तेमाल करें, या प्लगइन Python में लिखें। |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | इंस्टॉल के समय wildcard मना हैं, कोई छूट नहीं। | हर ज़रूरी होस्ट का नाम लिखें (`api.tmdb.org`, `image.tmdb.org`)। |
 | `manifest: frontend slot "admin.section" not allowed` | स्लॉट अनुमति वाली सूची से बाहर है। | [स्लॉट की सूची](api-reference.md#slots) से एक स्लॉट चुनें; एडमिन वाले हिस्से में `admin.nav` ही अकेला स्लॉट है। |
 | `manifest: network permission requires non-empty external_fetch` | `network` बताया गया, पर होस्ट नहीं। | होस्ट जोड़ें, या अनुमति हटा दें। |

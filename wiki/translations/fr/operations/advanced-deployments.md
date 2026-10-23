@@ -1,5 +1,5 @@
 ---
-source_sha: 458502112f637df70456890a718f35fac167120f02775459773b334b689e454f
+source_sha: f0e5f75d4befda29fbffbe7da80a4cc45e7a86e9429753abdee557b19bc5a40b
 reviewed: true
 ---
 # Déploiements avancés { #advanced-deployments }
@@ -189,11 +189,12 @@ L'image est `eveyproject/evey`.
 | un tag de préversion (avec un tiret) | un tag de préversion | ne publie que son propre tag, ne déplace jamais `latest` |
 | un nom de branche, `sha-<commit>` | une construction de branche | amd64 uniquement |
 
-Chaque tag existe en trois variantes : celle par défaut embarque Python 3
-pour les plugins, `-nodejs` ajoute Node.js, `-full` ajoute PHP, Ruby et Lua
-(par exemple `latest-full`). N'utilisez une variante que si un plugin en a
-besoin : l'installateur refuse un plugin dont le langage déclaré manque à
-l'image, avec un message qui nomme la bonne variante.
+Chaque tag existe en trois variantes : celle par défaut embarque tous les
+environnements d'exécution de plugins (Python 3, Node.js, PHP, Ruby et Lua),
+`-nodejs` garde Python et Node.js, `-lean` ne garde que Python (par exemple
+`latest-lean`). Ne choisissez une variante plus légère que si la taille de
+l'image compte : l'installateur refuse un plugin dont le langage déclaré manque
+à l'image, avec un message qui nomme l'image par défaut.
 
 Les images publiées embarquent les pilotes de chaque génération Intel et AMD
 prise en charge. Une image construite soi-même peut ne garder qu'une famille

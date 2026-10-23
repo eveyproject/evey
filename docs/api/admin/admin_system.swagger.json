@@ -1214,7 +1214,7 @@
         "processRssBytes": {
           "type": "string",
           "format": "int64",
-          "description": "process_rss_bytes is the server process alone; mem_used_bytes is the whole\ncontainer (Meilisearch and Postgres included in the -full image)."
+          "description": "process_rss_bytes is the server process alone; mem_used_bytes is the whole\ncontainer (Meilisearch and Postgres included in the image)."
         }
       },
       "description": "LoadTestTierCost is what ONE audience size cost the server: one row of the\nreport's table. Every CPU figure is the SERVER's share - the load generator's\nown overhead has already been subtracted - and mem_used_bytes is anonymous\nmemory, never the page cache of the films being read."
@@ -1333,6 +1333,13 @@
         "demoExtended": {
           "type": "boolean",
           "description": "demo_extended says this is a private, extended demo (EVEY_DEMO=extended):\ndemo_mode is FALSE there, since the clients' read-only locks and shared-\naccount behaviour must not apply, and the login screen publishes no\ncredentials. The clients use it only to keep their hands off the network settings."
+        },
+        "demoLocked": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "demo_locked lists, on the extended demo only, what the server still\nrefuses there: gRPC full method names (\"/evey.v1.AdminSessionService/GetAuditLog\")\nand HTTP route patterns (\"GET /api/v1/admin/logs\"). The clients grey or\nhide the matching controls from it instead of a copy of the policy that\ndrifts; empty everywhere else."
         }
       }
     },
@@ -1507,7 +1514,7 @@
         },
         "commit": {
           "type": "string",
-          "description": "commit is the git SHA the running binary was built from, build_date its\nRFC3339 build timestamp. `version` above is a branch or tag name and so\ncannot identify a deployment: two images months apart both report\n\"beta-0.0.1-full\". Both fields are the literal \"unknown\" - never blank -\nwhen the build could not be stamped, so a client can tell \"this server is\ntoo old to answer\" from \"this build genuinely does not know\"."
+          "description": "commit is the git SHA the running binary was built from, build_date its\nRFC3339 build timestamp. `version` above is a branch or tag name and so\ncannot identify a deployment: two images months apart both report\n\"beta-0.0.1\". Both fields are the literal \"unknown\" - never blank -\nwhen the build could not be stamped, so a client can tell \"this server is\ntoo old to answer\" from \"this build genuinely does not know\"."
         },
         "buildDate": {
           "type": "string"

@@ -1225,7 +1225,7 @@ loadtest:
   noBottleneckHint: "Aucune ressource n'a saturé : la machine tient probablement davantage. Relancez avec un plafond plus haut."
   endpointDirectLine: "Cible : le serveur en direct ({{endpoint}}), sans proxy."
   endpointProxyLine: "Cible : via l'adresse publique ({{endpoint}}). Les limites du réseau sur ce chemin (liaison Ethernet, débit montant, routeur, proxy) font partie du résultat."
-  machineLine: "Au palier retenu ({{tier}} spectateurs) : CPU conteneur {{cpu}} %, machine entière {{machine}} %, attente disque (iowait) {{iowait}} %. RAM conteneur {{mem}} (Meilisearch et Postgres inclus dans l'image -full), processus evey {{rss}}."
+  machineLine: "Au palier retenu ({{tier}} spectateurs) : CPU conteneur {{cpu}} %, machine entière {{machine}} %, attente disque (iowait) {{iowait}} %. RAM conteneur {{mem}} (Meilisearch et Postgres inclus dans l'image), processus evey {{rss}}."
   diskUnmeasuredLine: "Lecture disque non mesurable : aucun disque de cette machine n'a pu être rattaché à la bibliothèque (partage réseau, ou montage que ce noyau ne voit pas). Les colonnes disque sont vides, pas à zéro."
   notMeasured: "non mesuré"
   breakCapacityLine: "Capacité au point de rupture ({{tier}} spectateurs) : {{parts}}. Le nombre de spectateurs dépend du tirage, ce chiffre non."

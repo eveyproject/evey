@@ -1173,7 +1173,7 @@ func TestInstallPlugin_RuntimeMissing_Refused(t *testing.T) {
 	_, err := svc.InstallPlugin(context.Background(), tmpZip(t, "fake"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `"nodejs"`)
-	assert.Contains(t, err.Error(), "evey:beta") // hint at image variants
+	assert.Contains(t, err.Error(), "default image") // hint at image variants
 	// repo must remain empty - install must not have any side effect.
 	all, _ := pluginRepo.List(context.Background())
 	assert.Empty(t, all)

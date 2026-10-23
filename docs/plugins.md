@@ -47,8 +47,8 @@ when it has one, runs in an isolated frame of the page.
 A package whose analysis finds a critical pattern is refused, whatever you
 answer. Warnings are shown and left to you. The plugin's language must be
 among the **Available Runtimes** of the server: the default image ships
-Python only, the `-nodejs` image adds Node.js and the `-full` image adds PHP,
-Ruby and Lua.
+Python, Node.js, PHP, Ruby and Lua; the `-nodejs` image keeps Python and
+Node.js and the `-lean` image keeps Python only.
 
 !!! tip "Signed plugins"
     A plugin author can sign the ZIP with [cosign](https://docs.sigstore.dev/cosign/installation/),

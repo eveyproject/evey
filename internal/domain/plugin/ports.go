@@ -126,7 +126,7 @@ type SignatureVerifier interface {
 // IsAvailable returns true for languages with a usable interpreter on PATH
 // (or compiled-only languages like "go" that need no runtime). Available
 // returns the sorted list of supported languages so the installer can
-// surface them in the error message ("install evey:beta-full to get php").
+// surface them in the error message ("the default image ships php, the -lean variant does not").
 type RuntimeAvailabilityChecker interface {
 	IsAvailable(language string) bool
 	Available() []string

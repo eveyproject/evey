@@ -12,10 +12,10 @@ un procedimiento en lugar de inventarlo.
 
 `.github/workflows/ci.yml` construye y publica imágenes en cada push y en cada
 etiqueta `v*.*.*`, en tres variantes del entorno de ejecución de los plugins
-(`` (ligera), `-nodejs`, `-full`), en `docker.io/eveyproject/evey` y
+(`` (completa, por defecto), `-nodejs`, `-lean`), en `docker.io/eveyproject/evey` y
 `ghcr.io/eveyproject/evey`:
 
-| Lo que haces push | Etiquetas de imagen publicadas (cada una también `-nodejs` / `-full`) |
+| Lo que haces push | Etiquetas de imagen publicadas (cada una también `-lean` / `-nodejs`) |
 |---|---|
 | una rama (por ejemplo `master`) | `master`, `sha-<short>` |
 | la etiqueta `v0.2.0-rc.1` (versión previa: lleva un guion) | `0.2.0-rc.1`, `sha-<short>` |
@@ -23,9 +23,9 @@ etiqueta `v*.*.*`, en tres variantes del entorno de ejecución de los plugins
 
 Tres consecuencias:
 
-- **Una etiqueta de rama cambia.** `master-full` apunta a lo último que se
+- **Una etiqueta de rama cambia.** `master` apunta a lo último que se
   hizo push; dos `docker compose pull` con un día de diferencia pueden ejecutar
-  código distinto, y volver «a `master-full`» no designa ninguna versión
+  código distinto, y volver «a `master`» no designa ninguna versión
   concreta. Los operadores deben fijar una etiqueta `sha-<short>` (o una
   etiqueta de versión), nunca un nombre de rama: es lo que
   `scripts/evey-update.sh` muestra al final para ponerlo en `.env`.
@@ -65,7 +65,7 @@ se puede saber qué código se ejecuta sin fiarse de una etiqueta.
    `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply`: la etiqueta de versión
    sustituye la fijación `sha-`.
 6. **Anuncia la etiqueta** con su sección del changelog. Los operadores fijan
-   `eveyproject/evey:0.2.0-rc.1` (o `-full`) en su línea `image:`.
+   `eveyproject/evey:0.2.0-rc.1` (o `-lean`) en su línea `image:`.
 
 Crear etiquetas de versión previa no cuesta nada: `-rc.2`, `-rc.3` según
 haga falta. Lo que no se puede es retirarlas: una etiqueta publicada sigue

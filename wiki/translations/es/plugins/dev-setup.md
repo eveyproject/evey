@@ -1,8 +1,8 @@
 ---
-source_sha: 07f8809212342fec2288b8611c0fea43a5e011cfb97b0f8f1689f01d869f62f4
+source_sha: da65fca181dde1325e9e1ed9a14213c8008dd3d87fd749779b7c965baa24a1fa
 reviewed: true
 ---
-# Escribir un plugin
+# Escribir un plugin { #writing-a-plugin }
 
 Esta página lleva a un desarrollador desde un clon de Evey hasta un plugin
 que funciona en un servidor local, y después hasta un paquete firmado que
@@ -33,7 +33,7 @@ módulo de interfaz, que se dibuja en un marco con sandbox dentro de la
 página, y solo se comunica con el exterior a través del servidor, con los hosts que
 declaró.
 
-## 1. Requisitos previos
+## 1. Requisitos previos { #1-prerequisites }
 
 | Herramienta | Para qué |
 |---|---|
@@ -44,8 +44,8 @@ declaró.
 Elige el lenguaje de tu plugin entre los runtimes que el servidor puede
 arrancar: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash` y `sh` necesitan
 su intérprete en la imagen, y `go` incluye un binario compilado y necesita el
-permiso `native-binary`. La imagen por defecto solo lleva Python; la imagen
-`-nodejs` añade Node.js y la imagen `-full` añade PHP, Ruby y Lua. Un
+permiso `native-binary`. La imagen por defecto lleva Python, Node.js, PHP, Ruby y Lua; la imagen
+`-nodejs` conserva Python y Node.js y la imagen `-lean` solo Python. Un
 manifiesto que nombra un runtime que la imagen no tiene se rechaza al
 instalar, con la lista de los runtimes disponibles.
 
@@ -66,7 +66,7 @@ protoc --proto_path=proto \
 `make plugin-sdk` regenera los stubs incluidos; cada `sdk/<lang>/README.md`
 indica el plugin gRPC que necesita su lenguaje.
 
-## 2. Arrancar Evey en local
+## 2. Arrancar Evey en local { #2-bring-up-evey-locally }
 
 ```sh
 git clone git@github.com:eveyproject/evey.git
@@ -82,7 +82,7 @@ administrador en el primer arranque, como se explica en
 los plugins van a `./evey-data/plugins/<plugin-id>/`, montado como
 `/data/plugins` en el contenedor.
 
-## 3. Tu primer plugin, paso a paso
+## 3. Tu primer plugin, paso a paso { #3-your-first-plugin-step-by-step }
 
 El ejemplo `examples/plugins/nodejs-example` es el plugin completo más
 pequeño: sirve `PluginService`, se conecta a `HostService` y escribe una
@@ -160,7 +160,7 @@ Lo que tienes es todo el contrato del backend. A partir de aquí, un plugin
 se puede ampliar de tres formas: llamar al servidor (`HostService`, sección 4),
 dibujar una interfaz (sección 5) y llegar al exterior (sección 6).
 
-## 4. Llamar al servidor desde el backend
+## 4. Llamar al servidor desde el backend { #4-call-the-server-from-the-backend }
 
 Cada llamada a `HostService` lleva la identidad del plugin: el servidor
 comprueba el proceso del socket por su PID, y un interceptor rechaza
@@ -179,7 +179,7 @@ necesitan ningún permiso:
 el contrato pero que todavía no se sirven, está en la
 [Referencia de la API de plugins](api-reference.md#hostservice-what-the-plugin-can-call).
 
-## 5. Añadir una interfaz
+## 5. Añadir una interfaz { #5-add-an-interface }
 
 Una interfaz es un módulo JavaScript que la página carga en un marco con
 sandbox, en uno de los slots que permite el servidor. Declara dónde están los
@@ -203,7 +203,7 @@ corta duración que la página anfitriona guarda para el marco.
 El puente y los slots se describen en la
 [Referencia de la API de plugins](api-reference.md#frontend-api).
 
-## 6. Llegar al exterior
+## 6. Llegar al exterior { #6-reach-the-outside-world }
 
 Un proceso de plugin no puede abrir ningún socket hacia internet, en ningún
 modo de sandbox. La única salida es la llamada `Fetch` de `HostService`: el
@@ -230,7 +230,7 @@ directamente a esos hosts por `https`. Las reglas están en
     cualquier añadido al actualizar. Limítala a lo que necesita el plugin, y
     explica en tu README lo que recibe cada host.
 
-## 7. Firma tu plugin
+## 7. Firma tu plugin { #7-sign-your-plugin }
 
 !!! info "Lo que demuestra una firma"
     Una firma dice que el ZIP que instala el administrador es, byte a byte, el
@@ -307,7 +307,7 @@ Errores habituales:
   todos como una firma fallida: con `enforce`, se rechaza la instalación o la
   actualización.
 
-## 8. Lo que comprueba el instalador, en orden
+## 8. Lo que comprueba el instalador, en orden { #8-what-the-installer-checks-in-order }
 
 Cada paso puede rechazar el paquete; el administrador ve el motivo, y el
 registro del servidor tiene el detalle.
@@ -344,7 +344,7 @@ Lo que busca el análisis está en
 También lee los comentarios: una línea `# pip install foo` en un comentario
 se señala como si fuera código.
 
-## 9. Las condiciones en las que funciona tu proceso
+## 9. Las condiciones en las que funciona tu proceso { #9-what-your-process-runs-under }
 
 El servidor arranca el proceso con una prioridad de CPU más baja, un techo de
 memoria, un límite de procesos e hilos y un límite de tamaño para su carpeta;
@@ -361,7 +361,7 @@ servidor, no del plugin:
 describe, y [Configurar el sandbox de plugins](sandbox-deployment.md) le dice
 a un administrador cuál elegir.
 
-## 10. Distribuir un plugin
+## 10. Distribuir un plugin { #10-distribute-a-plugin }
 
 No hay catálogo: un administrador instala un plugin subiendo su ZIP o
 pegando su URL en el panel de administración, desde donde lo publiques (una
@@ -376,11 +376,11 @@ versión en una forja, tu propia web).
   ejemplos se revisan y se compilan desde el código fuente; aparecer en la
   lista no es una recomendación y no lleva ninguna firma del proyecto.
 
-## 11. Solución de problemas
+## 11. Solución de problemas { #11-troubleshooting }
 
 | Síntoma | Causa | Solución |
 |---|---|---|
-| `plugin requires "nodejs" runtime which is not installed in this image` | A la variante de la imagen le falta el intérprete. | Usa la imagen `-nodejs` o `-full`, o escribe el plugin en Python. |
+| `plugin requires "nodejs" runtime which is not installed in this image` | A la variante de la imagen le falta el intérprete. | Usa la imagen por defecto o `-nodejs`, o escribe el plugin en Python. |
 | `manifest: external_fetch entry "*.tmdb.org" is a wildcard - use explicit hostnames` | Los comodines se rechazan al instalar, sin excepciones. | Enumera cada nombre de host que necesites (`api.tmdb.org`, `image.tmdb.org`). |
 | `manifest: frontend slot "admin.section" not allowed` | El slot no está en la lista permitida. | Elige un slot de la [lista de slots](api-reference.md#slots); `admin.nav` es el único slot de la zona de administración. |
 | `manifest: network permission requires non-empty external_fetch` | Se ha declarado `network` sin hosts. | Añade los hosts, o quita el permiso. |
