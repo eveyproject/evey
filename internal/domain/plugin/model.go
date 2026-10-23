@@ -173,7 +173,7 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		Permissions:   manifest.Permissions,
 		ConfigSchema:  manifest.ConfigSchema,
 		Frontend:      manifest.Frontend,
-		ExternalFetch: manifest.ExternalFetch,
+		ExternalFetch: NormalizeExternalFetch(manifest.ExternalFetch),
 		Config:        make(map[string]any),
 		SourceHash:    sourceHash,
 		Enabled:       true,
@@ -185,6 +185,34 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 		return nil, err
 	}
 	return p, nil
+}
+
+// NormalizeExternalFetch reduces each external_fetch entry to the bare host
+// (or "host:port", or "*.host" wildcard) the fetch allow-list compares against:
+// a leading http:// or https://, any path and a trailing slash are dropped and
+// the rest is lower-cased. Without it "https://api.example.com" would be stored
+// raw and never match a request host. Blank entries are removed.
+func NormalizeExternalFetch(entries []string) []string {
+	if entries == nil {
+		return nil
+	}
+	out := make([]string, 0, len(entries))
+	for _, raw := range entries {
+		e := strings.ToLower(strings.TrimSpace(raw))
+		for _, scheme := range []string{"https://", "http://"} {
+			if strings.HasPrefix(e, scheme) {
+				e = e[len(scheme):]
+				break
+			}
+		}
+		if i := strings.IndexAny(e, "/?#"); i >= 0 {
+			e = e[:i]
+		}
+		if e != "" {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 func (s PluginStatus) IsValid() bool {

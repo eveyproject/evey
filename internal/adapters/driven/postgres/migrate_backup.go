@@ -92,6 +92,11 @@ func dumpDatabase(opts BackupOpts, fromVersion uint) (dest string, err error) {
 		"--format=plain",
 		"--no-owner",
 		"--no-privileges",
+		// --clean --if-exists: restore-backup replays this onto a populated
+		// database under --single-transaction + ON_ERROR_STOP; without the DROPs
+		// the first CREATE TABLE fails "already exists" and everything rolls back.
+		"--clean",
+		"--if-exists",
 	)
 	cmd.Env = append(os.Environ(), "PGPASSWORD="+opts.Password)
 

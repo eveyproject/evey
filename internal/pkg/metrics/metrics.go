@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"net"
 	"net/http"
@@ -439,10 +440,26 @@ func init() {
 	)
 }
 
-// Handler returns the /metrics HTTP handler, restricted to loopback callers.
+type scrapeAuthKey struct{}
+
+// WithScrapeAuth marks a request as authenticated by the static scrape token,
+// which exempts it from the loopback gate: a Prometheus on another host is the
+// whole point of the token (the proxy layer rewrites RemoteAddr to the real
+// client, so the gate would otherwise refuse it every time).
+func WithScrapeAuth(r *http.Request) *http.Request {
+	return r.WithContext(context.WithValue(r.Context(), scrapeAuthKey{}, true))
+}
+
+// Handler returns the /metrics HTTP handler. Callers authenticated by the
+// scrape token (see WithScrapeAuth) are served from anywhere; everyone else
+// (admin JWT) is restricted to loopback.
 func Handler() http.Handler {
 	ph := promhttp.Handler()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if scraped, _ := r.Context().Value(scrapeAuthKey{}).(bool); scraped {
+			ph.ServeHTTP(w, r)
+			return
+		}
 		host, _, err := net.SplitHostPort(r.RemoteAddr)
 		if err != nil {
 			http.Error(w, "forbidden", http.StatusForbidden)

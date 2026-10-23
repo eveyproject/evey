@@ -263,7 +263,7 @@ RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-reco
     && grep -q '^create_main_cluster = false' /etc/postgresql-common/createcluster.conf \
     && apt-get install -y --no-install-recommends \
        ca-certificates curl bubblewrap libcap2-bin libchromaprint-tools \
-       postgresql-client-17 postgresql-17 unzip wget python3 \
+       postgresql-client-17 postgresql-17 unzip wget python3 python3-grpcio python3-protobuf \
        vainfo libva2 libva-drm2 \
     && case "$GPU" in all|amd) apt-get install -y --no-install-recommends mesa-va-drivers ;; esac \
     # Vulkan for the VAAPI -> Vulkan/libplacebo tone-map route (the Mesa/RADV

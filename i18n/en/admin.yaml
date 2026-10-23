@@ -1988,7 +1988,7 @@ settingsHelp:
   trickplay: Creates the small pictures that appear when you move along the timeline of a video. It runs in the background after a scan and takes some processor time and disk space. Turn it off on a very weak machine.
   apiKeyTmdb: TMDB provides titles, summaries, posters, cast and ratings. Evey comes with a shared key, so this works out of the box. Add your own free key if quota errors appear.
   apiKeyOmdb: 'OMDb adds extra ratings, such as IMDb and Rotten Tomatoes scores. Optional: without a key, these extra ratings are simply missing.'
-  apiKeyOpenSubtitles: 'OpenSubtitles lets people search for and download subtitles from the player. Optional: without a key, only the subtitles already in your files are offered.'
+  apiKeyOpenSubtitles: 'OpenSubtitles lets people search for and download subtitles through the API. Optional: without a key, only the subtitles already in your files are offered.'
   apiKeyTidb: TheIntroDB shares the start and end of intros and credits that other people found, so Evey does not have to detect them itself. A free key raises the daily lookups from 100 to 500.
   ssoEnabled: Adds a sign-in button that sends people to your identity provider, such as a company or family account. Accounts with a password keep working. Fill in the fields below first, then turn this on.
   ssoClientId: The identifier of the application you created for Evey at your identity provider. Copy it from the provider's settings, exactly as shown there.

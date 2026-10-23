@@ -20,6 +20,17 @@ func TestHandlerForbidsNonLoopback(t *testing.T) {
 	}
 }
 
+func TestHandlerAllowsExternalWithScrapeToken(t *testing.T) {
+	h := metrics.Handler()
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	req.RemoteAddr = "203.0.113.1:1234" // external IP
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, metrics.WithScrapeAuth(req))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+}
+
 func TestHandlerAllowsLoopback(t *testing.T) {
 	h := metrics.Handler()
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
