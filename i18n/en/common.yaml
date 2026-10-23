@@ -269,3 +269,5 @@ demo:
   credentials: "Sign in with demo / demo"
   locked: "Locked on the demo"
   readOnly: "Read-only on the demo: the settings are shown, not editable."
+attribution:
+  tmdb: "This product uses the TMDB API but is not endorsed or certified by TMDB."

@@ -509,6 +509,9 @@ export default function SettingsScreen() {
           <Text style={[styles.label, { color: theme.colors.text }]}>{t("mobile.settings.privacyPolicy")}</Text>
           <Text style={[styles.value, { color: theme.colors.textMuted }]}>{wikiUrl(i18n.language, "privacy/")}</Text>
         </View>
+        <View style={styles.infoRow}>
+          <Text style={[styles.value, { color: theme.colors.textMuted }]}>{t("common.attribution.tmdb", "This product uses the TMDB API but is not endorsed or certified by TMDB.")}</Text>
+        </View>
       </View>
 
       <View style={{ height: 64 }} />

@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAdminSystemServiceGetSystemInfo, useUserServiceGetCurrentUser, useUserServiceUpdateProfile } from "@evey/api";
 import { useAuthStore, useThemeStore, themePreferences, isDemoMode } from "@evey/store";
 import { themes } from "@evey/theme";
-import { UI_SCALE_OPTIONS, clearUnlocked, pluginThemeKey, resolveSlotEntries, useActiveProfile, usePluginList, usePluginThemes } from "@evey/client";
+import { UI_SCALE_OPTIONS, clearUnlocked, pluginThemeKey, resolveSlotEntries, useActiveProfile, usePluginList, usePluginThemes, wikiUrl } from "@evey/client";
 import { applyUiScale, storedUiScale } from "../lib/uiScale";
 import { FocusRoot, useBackHandler } from "../tv/focus";
 import { Pressable } from "../components/ui";
@@ -183,17 +183,23 @@ export function SettingsScreen() {
           </SettingsGroup>
         ) : null}
 
-        {isAdmin ? (
-          <>
-            <h2 className="set-section-title">{t("mobile.settings.about")}</h2>
-            <div className="set-section">
-              <div className="set-info">
-                <span className="set-label">{t("common.serverVersion")}</span>
-                <span className="set-value">{systemInfo?.version ?? "-"}</span>
-              </div>
+        <h2 className="set-section-title">{t("mobile.settings.about")}</h2>
+        <div className="set-section">
+          {isAdmin ? (
+            <div className="set-info">
+              <span className="set-label">{t("common.serverVersion")}</span>
+              <span className="set-value">{systemInfo?.version ?? "-"}</span>
             </div>
-          </>
-        ) : null}
+          ) : null}
+          {/* A television has no browser to open the policy in: the address is shown. */}
+          <div className="set-info">
+            <span className="set-label">{t("mobile.settings.privacyPolicy")}</span>
+            <span className="set-value">{wikiUrl(i18n.language, "privacy/")}</span>
+          </div>
+          <div className="set-info">
+            <span className="set-value">{t("common.attribution.tmdb", "This product uses the TMDB API but is not endorsed or certified by TMDB.")}</span>
+          </div>
+        </div>
       </FocusRoot>
       {confirmServer ? <ConfirmServerChange onCancel={() => setConfirmServer(false)} onConfirm={() => leave("server")} /> : null}
     </>

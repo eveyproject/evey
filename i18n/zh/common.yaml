@@ -269,3 +269,5 @@ demo:
   credentials: "使用 demo / demo 登录"
   locked: "演示中已锁定"
   readOnly: "演示中为只读：设置仅供查看，不可编辑。"
+attribution:
+  tmdb: "本产品使用 TMDB API，但未经 TMDB 认可或认证。"

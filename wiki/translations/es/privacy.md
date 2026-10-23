@@ -1,8 +1,8 @@
 ---
-source_sha: 632dddb3ad048221e832d8c1f63008289641932b655a32564877f6dcc316bb04
+source_sha: 6731543d05eba23817144ccd5d21f648ca65b14ec0dfd93bf782752067af1ad1
 reviewed: true
 ---
-# Política de privacidad
+# Política de privacidad { #privacy-policy }
 
 Última actualización: 2026-10-04.
 
@@ -13,7 +13,7 @@ No hay cuenta con nosotros, ni estadísticas de uso, ni publicidad, ni
 informes de errores que nos lleguen. Las apps se comunican con el servidor Evey
 instalado y gestionado por ti o por la persona que te invitó.
 
-## Qué envían las apps, y a quién
+## Qué envían las apps, y a quién { #what-the-apps-send-and-to-whom }
 
 **A tu servidor Evey, y a nada más que gestionemos nosotros.** Las apps
 envían lo que un reproductor multimedia necesita para funcionar:
@@ -58,7 +58,7 @@ proyecto Evey no tiene acceso a ellos.
   plugin puede mostrar contenido de un servicio externo (un plugin del
   tiempo, por ejemplo).
 
-## Lo que se queda en el dispositivo
+## Lo que se queda en el dispositivo { #what-stays-on-the-device }
 
 La dirección del servidor, tu token de sesión (en el almacenamiento cifrado
 de Android), tus preferencias, y las películas y la música que descargas para
@@ -66,7 +66,7 @@ verlas o escucharlas sin conexión. Si desinstalas la app, se borran. El
 desbloqueo biométrico (huella o cara), cuando lo activas, lo gestiona
 Android: la app solo sabe si ha funcionado o no.
 
-## Permisos
+## Permisos { #permissions }
 
 | Permiso | Para qué |
 | --- | --- |
@@ -77,19 +77,23 @@ Android: la app solo sabe si ha funcionado o no.
 
 La app para teléfono no tiene permiso para usar el micrófono.
 
-## Este sitio web
+## Este sitio web { #this-website }
 
 `eveyproject.org` está alojado en GitHub Pages, que ve la dirección IP del
 visitante. El sitio sirve sus propias fuentes y scripts, así que el navegador
 no contacta con ningún otro servicio. No pone cookies propias ni tiene
 estadísticas de visitas.
 
-## Niños
+## Servicios de terceros { #third-party-services }
+
+Este producto utiliza la API de TMDB, pero no está respaldado ni certificado por TMDB. Las imágenes y los metadatos provienen de [TMDB](https://www.themoviedb.org/).
+
+## Niños { #children }
 
 Las apps no están dirigidas a niños. Los perfiles infantiles los crea quien
 gestiona el servidor, que es quien guarda esos datos.
 
-## Contacto
+## Contacto { #contact }
 
 Preguntas sobre esta política: [contact@eveyproject.org](mailto:contact@eveyproject.org).
 Para los datos guardados en un servidor Evey, ponte en contacto con la

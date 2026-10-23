@@ -1,8 +1,8 @@
 ---
-source_sha: 632dddb3ad048221e832d8c1f63008289641932b655a32564877f6dcc316bb04
+source_sha: 6731543d05eba23817144ccd5d21f648ca65b14ec0dfd93bf782752067af1ad1
 reviewed: true
 ---
-# Datenschutzerklärung
+# Datenschutzerklärung { #privacy-policy }
 
 Zuletzt aktualisiert: 2026-10-04.
 
@@ -13,7 +13,7 @@ empfängt. Es gibt kein Konto bei uns, keine Nutzungsstatistik, keine Werbung
 und keine Absturzberichte an uns. Die Apps kommunizieren mit dem Evey-Server, den
 Sie oder die Person, die Sie eingeladen hat, installiert haben und betreiben.
 
-## Was die Apps senden, und an wen
+## Was die Apps senden, und an wen { #what-the-apps-send-and-to-whom }
 
 **An Ihren Evey-Server, und an nichts anderes, das wir betreiben.** Die Apps
 senden, was ein Mediaplayer zum Funktionieren braucht:
@@ -57,7 +57,7 @@ betreibt. Das Evey-Projekt hat keinen Zugriff darauf.
   kann Inhalte eines externen Dienstes anzeigen (zum Beispiel ein
   Wetter-Plugin).
 
-## Was auf dem Gerät bleibt
+## Was auf dem Gerät bleibt { #what-stays-on-the-device }
 
 Die Serveradresse, Ihr Sitzungstoken (im verschlüsselten Speicher von
 Android), Ihre Einstellungen und die Filme und die Musik, die Sie zum Schauen
@@ -65,7 +65,7 @@ oder Hören ohne Internet herunterladen. Wenn Sie die App entfernen, wird all
 das gelöscht. Das Entsperren per Fingerabdruck oder Gesicht, wenn Sie es
 einschalten, übernimmt Android: Die App erfährt nur, ob es erfolgreich war.
 
-## Berechtigungen
+## Berechtigungen { #permissions }
 
 | Berechtigung | Wozu |
 | --- | --- |
@@ -76,19 +76,23 @@ einschalten, übernimmt Android: Die App erfährt nur, ob es erfolgreich war.
 
 Die Handy-App hat keine Berechtigung für das Mikrofon.
 
-## Diese Website
+## Diese Website { #this-website }
 
 `eveyproject.org` liegt bei GitHub Pages, das die IP-Adresse der Besucher
 sieht. Die Seite liefert ihre Schriften und Skripte selbst aus, der Browser
 kontaktiert also keinen anderen Dienst. Sie setzt keine eigenen Cookies und
 erhebt keine Besucherstatistik.
 
-## Kinder
+## Dienste von Drittanbietern { #third-party-services }
+
+Dieses Produkt nutzt die TMDB-API, wird aber von TMDB weder unterstützt noch zertifiziert. Artwork und Metadaten stammen von [TMDB](https://www.themoviedb.org/).
+
+## Kinder { #children }
 
 Die Apps richten sich nicht an Kinder. Kinderprofile legt die Person an, die
 den Server betreibt, und sie verwaltet diese Daten.
 
-## Kontakt
+## Kontakt { #contact }
 
 Fragen zu dieser Erklärung: [contact@eveyproject.org](mailto:contact@eveyproject.org).
 Für Daten auf einem Evey-Server wenden Sie sich an die Person, die diesen

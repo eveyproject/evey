@@ -2248,6 +2248,7 @@
   "common.aria.retryPage": "Retry loading page",
   "common.aria.select": "Select",
   "common.aria.skipToContent": "Skip to content",
+  "common.attribution.tmdb": "This product uses the TMDB API but is not endorsed or certified by TMDB.",
   "common.audioLanguage": "Preferred Audio Language",
   "common.audioLanguageDesc": "Default audio track when a file has multiple languages",
   "common.back": "Back",
