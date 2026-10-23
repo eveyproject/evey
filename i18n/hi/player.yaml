@@ -1,5 +1,6 @@
 controls:
   more: "अधिक नियंत्रण"
+  barHint: "विकल्पों के लिए ▼"
   play: "चलाएं"
   pause: "रोकें"
   endsAt: "{{time}} पर समाप्त"

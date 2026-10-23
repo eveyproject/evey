@@ -1357,6 +1357,27 @@ describe("sticky action bar (TV)", () => {
     }
   });
 
+  // A first DOWN on hidden controls used to only wake them: the row was on
+  // screen and out of reach, and nothing said a second press was needed.
+  it("reaches the row in one DOWN while the controls are hidden, and says so until then", () => {
+    vi.useFakeTimers();
+    try {
+      render(<PlayerScreen />);
+      act(() => { vi.advanceTimersByTime(10000); });
+      expect(screen.queryByLabelText("player.controls.play")).toBeNull();
+
+      act(() => { capturedTVHandler?.({ eventType: "up" }); }); // wakes, row not focused
+      expect(screen.getByText("▼ for options")).toBeTruthy();
+      act(() => { vi.advanceTimersByTime(10000); });
+
+      act(() => { capturedTVHandler?.({ eventType: "down" }); });
+      expect(screen.getByLabelText("player.controls.play")).toBeTruthy();
+      expect(screen.queryByText("▼ for options")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("re-arms the hide timer once the bar loses focus, and hides after it elapses", () => {
     vi.useFakeTimers();
     try {

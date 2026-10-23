@@ -167,6 +167,11 @@ export function PlayerBottomPanel({
           />
         </View>
         <View style={styles.controlsGroup}>
+          {/* The row is out of the D-pad's reach until DOWN: said on screen,
+              or the buttons read as reachable and are not. */}
+          {!barFocused && (
+            <Text style={styles.barHintText}>{String(t("player.controls.barHint", "▼ for options"))}</Text>
+          )}
           {endsAtLabel !== null && (
             <Text style={styles.endsAtText}>{String(t("player.controls.endsAt", `Ends at ${endsAtLabel}`, { time: endsAtLabel }))}</Text>
           )}
@@ -277,6 +282,11 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.75)",
     fontSize: FONT_SIZE.base,
     fontVariant: ["tabular-nums"],
+    marginRight: 12,
+  },
+  barHintText: {
+    color: "rgba(255,255,255,0.75)",
+    fontSize: FONT_SIZE.base,
     marginRight: 12,
   },
   seekDeltaText: {
