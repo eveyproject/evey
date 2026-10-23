@@ -1,8 +1,8 @@
 ---
-source_sha: 91a46caa213d6048de832a4352bd5972b5f2d393a40a66301f693b3d908f084c
+source_sha: 9be0f9fe12d2d5606cefd03463fe0dd43f1000f645afe396700673ac2c53dcea
 reviewed: true
 ---
-# MKVGo en Evey
+# MKVGo en Evey { #mkvgo-in-evey }
 
 **En resumen:**
 
@@ -24,7 +24,7 @@ todo lo que necesita descodificarse en el servidor va a FFmpeg. Se desarrolla
 como una biblioteca Go aparte:
 [github.com/gravity-zero/mkvgo](https://github.com/gravity-zero/mkvgo).
 
-## Tres niveles de trabajo
+## Tres niveles de trabajo { #three-levels-of-work }
 
 | Nivel | Lo que pasa | Lo que le cuesta al servidor |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ disco: el segmento se construye cuando se pide, a partir del índice del
 archivo. Que un archivo vaya por este camino depende de lo que descodifica el
 reproductor: [Cómo elige Evey el modo de reproducción](how-playback-is-decided.md).
 
-## Lo que hace MKVGo
+## Lo que hace MKVGo { #what-mkvgo-does }
 
 | Trabajo | Dónde se nota | Cuando MKVGo no puede |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ reproductor: [Cómo elige Evey el modo de reproducción](how-playback-is-decided
 | **Cadenas de episodios** | El servidor puede empaquetar varios episodios como un solo flujo continuo (`?gapless=1` en la dirección del flujo). Ninguna app ofrece todavía esta opción. | Cada episodio se reproduce por separado. |
 | **Salud de medios** | El diagnóstico (índice de posicionamiento, inicio del audio, pistas guardadas en bloques), el índice reconstruido, la resincronización después de un tramo dañado, y el desplazamiento de una pista de audio. Consulta [Salud de medios](../runbooks/media-health.md). | Reorganizar las pistas guardadas en bloques lo hace FFmpeg. |
 
-## Lo que sigue haciendo FFmpeg
+## Lo que sigue haciendo FFmpeg { #what-stays-with-ffmpeg }
 
 - Cualquier recodificación, incluida la conversión de HDR a SDR
   (tone-mapping).
@@ -67,7 +67,7 @@ reproductor: [Cómo elige Evey el modo de reproducción](how-playback-is-decided
   las huellas de audio para detectar las intros.
 - Los contenedores que no son MKV/WebM ni MP4/MOV, como AVI o MPEG-TS.
 
-## Carga, archivos sustituidos y actualizaciones
+## Carga, archivos sustituidos y actualizaciones { #load-replaced-files-and-updates }
 
 **Cuánto lee a la vez.** Para construir un segmento se lee una ventana del
 archivo de origen, vídeo y audio juntos: de 6 a 10 MiB para un archivo
@@ -105,11 +105,13 @@ por `stat`. Si `walks_in_flight` se queda en su techo mientras
 procesador; `stream_fallbacks` cuenta los segmentos que han tenido que
 montarse en memoria en lugar de enviarse sobre la marcha.
 
-## Ver qué motor ha servido un flujo
+## Ver qué motor ha servido un flujo { #seeing-which-engine-served-a-stream }
 
 **Administración → Panel** y **Administración → Reproduciendo ahora** indican
 el motor de cada pista: `mkvgo` o `ffmpeg`. Un Remux puede mostrar los dos,
 por ejemplo el vídeo empaquetado por MKVGo y el audio copiado por FFmpeg.
+
+mkvgo se publica bajo la licencia MIT.
 
 <!-- sources
 in-process, no ffmpeg, no session state, no on-disk segments: internal/adapters/driven/mkvgo/ondemand.go - OnDemandPackager

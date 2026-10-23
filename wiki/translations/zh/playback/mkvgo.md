@@ -1,8 +1,8 @@
 ---
-source_sha: 91a46caa213d6048de832a4352bd5972b5f2d393a40a66301f693b3d908f084c
+source_sha: 9be0f9fe12d2d5606cefd03463fe0dd43f1000f645afe396700673ac2c53dcea
 reviewed: true
 ---
-# Evey 中的 MKVGo
+# Evey 中的 MKVGo { #mkvgo-in-evey }
 
 **简单来说：**
 
@@ -14,7 +14,7 @@ reviewed: true
 
 MKVGo 处理的是文件的结构：文件头、索引、轨道，以及轨道里的数据包。它从不解码或编码画面和声音；凡是需要在服务器上解码的工作，都交给 FFmpeg。它作为一个独立的 Go 库开发：[github.com/gravity-zero/mkvgo](https://github.com/gravity-zero/mkvgo)。
 
-## 三个层次的工作
+## 三个层次的工作 { #three-levels-of-work }
 
 | 层次 | 做了什么 | 服务器要付出什么 |
 | --- | --- | --- |
@@ -26,7 +26,7 @@ FFmpeg 的复制（`-c copy`）同样不重新编码任何东西，开销也很�
 
 开始播放和跳转时，不用等待进程启动，也不用等第一个片段写到磁盘上：片段是在请求时根据文件的索引即时生成的。一个文件会不会使用这种方式，取决于播放器能解码什么：见 [Evey 如何选择播放方式](how-playback-is-decided.md)。
 
-## MKVGo 做什么
+## MKVGo 做什么 { #what-mkvgo-does }
 
 | 工作 | 在哪里体现 | MKVGo 无法处理时 |
 | --- | --- | --- |
@@ -39,14 +39,14 @@ FFmpeg 的复制（`-c copy`）同样不重新编码任何东西，开销也很�
 | **剧集串联** | 服务器可以把几集打包成一个连续的视频流（在视频流地址后加 `?gapless=1`）。目前还没有应用提供这个开关。 | 每一集单独播放。 |
 | **媒体健康** | 诊断（跳转索引、音频起点、按块存储的轨道）、重建的索引、跳过损坏片段后的重新同步，以及按偏移量移动一条音轨。见[媒体健康](../runbooks/media-health.md)。 | 按块存储的轨道由 FFmpeg 重新封装。 |
 
-## 仍然由 FFmpeg 做的事
+## 仍然由 FFmpeg 做的事 { #what-stays-with-ffmpeg }
 
 - 所有重新编码，包括 HDR 色调映射。
 - 解码画面：进度条上的缩略图、预览图的那一帧。
 - 需要解码后数据的分析：隔行检测、用于片头检测的音频指纹。
 - MKV/WebM 和 MP4/MOV 以外的容器，例如 AVI 或 MPEG-TS。
 
-## 负载、被替换的文件和更新
+## 负载、被替换的文件和更新 { #load-replaced-files-and-updates }
 
 **一次读多少。** 生成一个片段要读取源文件的一个窗口，视频和音频一起读：1080p 文件是 6 到 10 MiB，UHD 重封装大约 15 MiB。服务器同时读取的窗口数和它的处理器数一样多；内存小的机器上会更少：所有正在读的窗口加起来，必须容纳在服务器为自身设定的内存的四分之一以内（容器限制的一半，或者主机内存的一半）。超出的请求要等空位，所以占用的内存不会随观众人数增长；在小主机上，如果很多人同时开始看，他们的第一批片段会一个接一个地到达，而不是让服务器内存耗尽。
 
@@ -56,9 +56,11 @@ FFmpeg 的复制（`-c copy`）同样不重新编码任何东西，开销也很�
 
 **监控它。** 在 `GET /metrics` 上（见[监控与日志](../operations/monitoring.md#prometheus-metrics)），`evey_mkvgo_walks_in_flight` 是此刻正在读取的窗口数，`evey_mkvgo_plan_stats` 按 `stat` 汇总打包器的各项计数。如果 `walks_in_flight` 一直停在上限，同时 `stat="slot_waits"` 不断上升，说明观众在排队等处理器；`stream_fallbacks` 统计的是无法以流式方式发送、只能先在内存中组装的片段数。
 
-## 查看是哪个引擎提供的视频流
+## 查看是哪个引擎提供的视频流 { #seeing-which-engine-served-a-stream }
 
 **管理 → 仪表盘**和**管理 → 正在播放**会标明每条轨道用的引擎：`mkvgo` 或 `ffmpeg`。一次重封装可能两个都有，例如视频由 MKVGo 打包，音频由 FFmpeg 复制。
+
+mkvgo 以 MIT 许可证发布。
 
 <!-- sources
 in-process, no ffmpeg, no session state, no on-disk segments: internal/adapters/driven/mkvgo/ondemand.go - OnDemandPackager

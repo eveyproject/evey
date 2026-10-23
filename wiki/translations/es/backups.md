@@ -1,8 +1,8 @@
 ---
-source_sha: 3529db45dbbd12f6980bca0989017583b6ccad6c3c5a3b54597887c6b09d6285
+source_sha: 4c2c4ddb62e95803c8e25fd785e009178d7130e67e3125dea06c41c6cf77527b
 reviewed: true
 ---
-# Copias de seguridad y actualizaciones
+# Copias de seguridad y actualizaciones { #backups-and-updates }
 
 Dos costumbres mantienen tu servidor a salvo:
 
@@ -15,7 +15,7 @@ Dos costumbres mantienen tu servidor a salvo:
 Esta página explica las dos cosas, y después qué contiene una copia, cómo
 restaurarla y cómo volver a una versión anterior.
 
-## Programar las copias de seguridad
+## Programar las copias de seguridad { #schedule-backups }
 
 1. Ve a **Administración → Copia de seguridad y restauración**, tarjeta
    **Programación**.
@@ -54,7 +54,7 @@ El servidor también guarda la base de datos por su cuenta antes de que una
 actualización la modifique, sea cual sea la programación (ver
 [Actualizar Evey](#updating-evey)).
 
-## Qué contiene una copia
+## Qué contiene una copia { #what-a-backup-contains }
 
 Una copia de seguridad es una copia de la **base de datos**: cuentas,
 perfiles, bibliotecas y su catálogo, historial de reproducción y puntos de
@@ -89,7 +89,7 @@ reconstruir una máquina desde cero, necesitas la carpeta.
     datos y una breve descripción con su suma de verificación (SHA256) y su
     versión de esquema.
 
-## Restaurar una copia
+## Restaurar una copia { #restore-a-backup }
 
 **Administración → Copia de seguridad y restauración** muestra la lista de
 copias. Restaura una desde la lista, o sube un archivo con **Restaurar desde
@@ -107,7 +107,7 @@ copias de seguridad hechas antes de una actualización
 (`pre-migration-*.sql.gz`), no las copias `.tar.gz` de este panel: ver
 [Recuperación](runbooks/recovery.md).
 
-## Actualizar Evey
+## Actualizar Evey { #updating-evey }
 
 En la carpeta que contiene tu archivo compose:
 
@@ -132,15 +132,13 @@ Eso es toda la actualización.
 
 ??? info "Fijar la versión exacta que usas"
 
-    Durante la beta no hay versiones numeradas ni etiqueta `latest`. La
-    etiqueta `beta-0.0.1` cambia con cada actualización. Para un servidor
-    del que dependes, pon una etiqueta fija `sha-<commit>` en la línea
+    `latest` sigue la versión publicada más reciente y cambia con cada
+    actualización. Para un servidor del que dependes, pon una etiqueta de
+    versión (`0.1.0`) o una etiqueta fija `sha-<commit>` en la línea
     `image:`, para que dos descargas con un día de diferencia ejecuten el
-    mismo código. Cuando haya versiones publicadas, `latest` seguirá la
-    versión estable más reciente, y una etiqueta de versión (`0.2.0`) la
-    fijará.
+    mismo código.
 
-### Volver atrás
+### Volver atrás { #going-back }
 
 1. Pon la etiqueta anterior en la línea `image:` de tu archivo compose.
 2. Si la versión más nueva modificó la base de datos, restaura primero su
@@ -160,6 +158,6 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
-rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (beta-0.0.1 + sha-<short>, latest gated on vX.Y.Z)
+rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

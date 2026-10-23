@@ -1,8 +1,8 @@
 ---
-source_sha: bb93a3bd66810178b6d8d2bee10c74900b625b44325eb2d0aeec62adbafc790c
+source_sha: 7f9f3de42904ab3727caa3bb692a72dede00155bd906f98e3f478738e1669309
 reviewed: true
 ---
-# Apps verbinden
+# Apps verbinden { #connect-the-apps }
 
 Ihr Handy oder Ihr Fernseher fragt nach der Adresse Ihres Evey-Servers? Diese
 Seite sagt Ihnen, was Sie eintippen, und was Sie tun, wenn es nicht funktioniert.
@@ -14,15 +14,15 @@ Server. Sie stehen Ihnen also auf jedem Ihrer Geräte zur Verfügung.
 
 - **Webbrowser**: nichts zu installieren. Öffnen Sie die Adresse des Servers.
   Der Verwaltungsbereich ist auch dort, für Administratoren.
-- **Android** (Handy, Tablet) und **Android TV**: die Evey-Apps. Sie sind in
-  der Testphase und noch nicht für alle bei Google Play.
+- **Android** (Handy, Tablet) und **Android TV**: die Evey-Apps, bei
+  [Google Play](https://play.google.com/store/apps/details?id=com.evey.app) veröffentlicht.
 - **Der Webbrowser eines Fernsehers** (LG, Samsung und andere): nichts zu
   installieren. Öffnen Sie die Adresse des Servers, gefolgt von `/tv`: siehe
   [Im Webbrowser eines Fernsehers](#on-a-televisions-web-browser).
 - **Chromecast**: keine App. Sie streamen aus dem Web-Player in Chrome oder
   aus der Android-App.
 
-## Die Serveradresse eingeben
+## Die Serveradresse eingeben { #the-server-address-to-enter }
 
 **Fragen Sie die Person, die Evey betreibt, nach der Adresse.** Sie sieht so
 aus:
@@ -88,7 +88,7 @@ Browser öffnen.**), und bietet **Wo finde ich die Adresse meines Servers?**
 an, das zu dieser Seite führt. Das Handy öffnet sie im Browser; der Fernseher
 zeigt die Adresse der Seite an, damit Sie sie auf einem anderen Gerät öffnen.
 
-### Lokales Netzwerk scannen: was es findet und was nicht
+### Lokales Netzwerk scannen: was es findet und was nicht { #scan-local-network-what-it-finds-and-what-it-does-not }
 
 **Lokales Netzwerk scannen**, unter dem Feld, sucht für Sie nach einem
 Evey-Server zu Hause. Das kann bis zu etwa zwei Minuten dauern. Jeder
@@ -111,7 +111,7 @@ Gäste-WLAN ist oder in einem anderen Netz als der Server.
     mDNS noch Bonjour und lesen den Adressbereich des Handys nicht aus: Diese
     vier Bereiche sind fest.
 
-### Wenn die Verbindung fehlschlägt
+### Wenn die Verbindung fehlschlägt { #when-the-connection-fails }
 
 Jeder Fehler öffnet ein Fenster mit dem Titel **Verbindung fehlgeschlagen**.
 Suchen Sie die Meldung in dieser Tabelle (einige Meldungen der Android-App
@@ -140,7 +140,7 @@ Fernseher steht zusätzlich **Ihr Server hat nicht geantwortet. Vielleicht
 schläft er oder ist nicht im Netzwerk.** Sobald der Server wieder läuft,
 wählen Sie ihn erneut.
 
-### Später den Server wechseln oder einen hinzufügen
+### Später den Server wechseln oder einen hinzufügen { #changing-or-adding-a-server-later }
 
 Beide Apps können sich mehrere Server merken. Der Verbindungsbildschirm
 listet sie unter **Ihre Server** auf, der aktuell genutzte ist mit
@@ -161,7 +161,7 @@ Server behält seine eigene Anmeldung.
   dieselbe Schaltfläche. Auf dem Verbindungsbildschirm benennt **Server
   verwalten** einen gespeicherten Server um oder löscht ihn.
 
-## Im Webbrowser eines Fernsehers
+## Im Webbrowser eines Fernsehers { #on-a-televisions-web-browser }
 
 Ein Fernseher ohne Android TV kann Evey trotzdem in seinem eigenen
 Webbrowser abspielen. Der Server bietet dafür eine eigene Seite, die mit der
@@ -194,7 +194,7 @@ http://192.168.1.20:9091/tv
   Browser weitergibt.
 - **Text zu klein oder zu groß.** **Einstellungen → Größe der Oberfläche**.
 
-## Schnellverbindung: einen Fernseher ohne Passwort anmelden
+## Schnellverbindung: einen Fernseher ohne Passwort anmelden { #quick-connect-signing-in-a-tv-without-typing-a-password }
 
 Ein Passwort mit der Fernbedienung einzutippen ist mühsam. Mit der
 Schnellverbindung bestätigen Sie den Fernseher stattdessen auf Ihrem Handy
@@ -219,7 +219,7 @@ oder Computer.
 Auch der Anmeldebildschirm der Android-App bietet die Schnellverbindung an,
 für ein Handy, auf dem Sie Ihr Passwort lieber nicht eintippen.
 
-## Was jede App mitbringt
+## Was jede App mitbringt { #what-each-app-adds }
 
 - **Web.** Tastenkürzel im Player (drücken Sie `?`, um sie anzuzeigen),
   Benachrichtigungen im Browser (siehe
@@ -244,7 +244,7 @@ für ein Handy, auf dem Sie Ihr Passwort lieber nicht eintippen.
 schauen, an eine andere Evey-App, die geöffnet und mit demselben Konto
 angemeldet ist. Die Wiedergabe läuft dort weiter.
 
-## Die Apps aktuell halten
+## Die Apps aktuell halten { #keeping-the-apps-up-to-date }
 
 Ist Ihre App für Android oder Android TV älter als die Version, die zu Ihrem
 Server passt, sagt sie es Ihnen:
@@ -260,7 +260,7 @@ diesen Hinweis. Ist die App aktuell, oder ist der Server älter als diese
 Funktion, wird nichts angezeigt. Die Web-App und die Seite `/tv` brauchen nie
 ein Update: Der Server liefert sie.
 
-## Welches Gerät was abspielt
+## Welches Gerät was abspielt { #which-device-plays-what }
 
 Jede App meldet dem Server, was ihr Gerät abspielen kann. Für jeden Titel
 entscheidet der Server dann, ob er die Datei so schickt, wie sie ist, oder

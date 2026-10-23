@@ -96,6 +96,10 @@ services:
       EVEY_EMBEDDED_MEILI: "true"
       MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-}
       EVEY_JWT_PRIVATE_KEY_PATH: /data/jwt.key
+      # Same values the image bakes in (the binary's own defaults are for a
+      # bare-metal run). Transcode output is expendable and lives on the
+      # prunable /cache volume; trickplay sprites are slow to regenerate and
+      # stay with /data.
       EVEY_TRANSCODING_CACHE_DIR: /cache/transcode
       EVEY_TRICKPLAY_CACHE_DIR: /data/trickplay
       EVEY_LOG_DIR: /data/logs
@@ -104,9 +108,9 @@ services:
       - path: .env
         required: false
     volumes:
-      - ./evey-data:/data          # keys, logs, backups, avatars, meili index
+      - ./evey-data:/data          # keys, logs, backups, avatars, trickplay, meili index
       - ./evey-data/plugins:/data/plugins # plugin files
-      - evey-cache:/cache           # transcode + trickplay cache (expendable)
+      - evey-cache:/cache           # transcode cache (expendable)
       # Media is mounted read-write so the repair features (seek-index reindex
       # rebuilds files in place) work natively; the server only ever writes
       # media through those operator-triggered repairs. Append `:ro` if you
@@ -138,6 +142,9 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # Time for the embedded Meilisearch (and Postgres, if you use it) to stop
+    # cleanly; Docker's default of 10 seconds is short for a large library.
+    stop_grace_period: 60s
     restart: unless-stopped
 
   # ── Database ──
@@ -183,4 +190,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  evey-cache:  # transcode + trickplay cache (safe to prune)
+  evey-cache:  # transcode cache (safe to prune)

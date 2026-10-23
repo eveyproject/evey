@@ -1,8 +1,8 @@
 ---
-source_sha: ae588b2b2b2d42902a1b916cd8e90978a81afd473115c9eb522377e95409d542
+source_sha: 0b2670e7a74f2a0cdbc172c1bb7ef216fa53371cf55248071c00cba27a64c162
 reviewed: true
 ---
-# 安装
+# 安装 { #install }
 
 本页面向要为全家运行 Evey 的人。您需要一台持续开机、装好了 Docker 的电脑或 NAS。一共三步：
 
@@ -18,7 +18,7 @@ Evey 只运行一个容器。数据库和搜索引擎都在容器里，所以不
 
     Git 仓库根目录下的 `docker-compose.yml` 是另一套配置，给开发者和高级安装用的：它需要一个 `.env` 文件，还会运行额外的服务。相关说明见[高级部署](operations/advanced-deployments.md)。
 
-## 您需要准备什么
+## 您需要准备什么 { #what-you-need }
 
 - **一台持续开机的电脑或 NAS**，处理器是 x86-64 架构（Intel 或 AMD）。ARM64 机器需要正式发布的版本标签，目前还没有：见 [ARM 主机](operations/advanced-deployments.md#arm-hosts)。
 - **带 Compose v2 的 Docker。** 命令是 `docker compose`（中间有空格），不是旧的 `docker-compose`。
@@ -34,7 +34,7 @@ Evey 只运行一个容器。数据库和搜索引擎都在容器里，所以不
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: eveyproject/evey:beta-0.0.1 # (1)!
+    image: eveyproject/evey:latest # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!
@@ -49,7 +49,7 @@ volumes:
   evey-cache:
 ```
 
-1. Evey 的版本。Evey 还在测试阶段，所以还没有 `latest` 标签：`beta-0.0.1` 跟随开发分支，每次更新都会变。如果想始终使用完全相同的代码，请改用 `sha-<commit>` 标签：见[备份与更新](backups.md#updating-evey)。
+1. Evey 的版本。`latest` 是最新的正式版本。如果想固定在某个版本，请使用 `0.1.0` 这样的版本标签，或 `sha-<commit>` 标签：见[备份与更新](backups.md#updating-evey)。
 2. 端口。左边的数字就是您以后在浏览器和应用里要输入的那个。除非已经有别的程序占用了 `9091`，否则保持不变。
 3. Evey 自己的数据：数据库、密钥、自动生成的密码、搜索索引、海报图片、日志、备份、插件。**需要备份的就是这个文件夹。**
 4. 缓存：转换过的视频、缩放过的照片和封面。随时可以删除，它会自动重新生成。
@@ -120,7 +120,7 @@ Evey 只在三种情况下向您的媒体文件夹写入内容：
     - 把 `PUID` 和 `PGID` 设成拥有媒体文件的那个 NAS 用户（通过 SSH 运行 `id <user>` 查看；Synology 上通常在 `1026` 左右，用户组 `100`）。NAS 的共享文件夹常常归 `root` 所有，而 Evey 绝不会自动使用 root 身份。
     - 带 Quick Sync 的 Intel NAS：按[硬件加速](administration/hardware-acceleration.md)里的说明，加上 `devices:` 和 `group_add:` 这几行。
 
-## Evey 自动完成的设置
+## Evey 自动完成的设置 { #what-evey-sets-up-by-itself }
 
 这些都不用您配置：
 

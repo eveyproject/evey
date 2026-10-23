@@ -1,5 +1,5 @@
 ---
-source_sha: 6e76bc51062fd0da4948dd5d4a7f4a24f632f7964d6ff25ba7c70254b1551408
+source_sha: abd1d63a9decd2ea9551be20491d9c39884d9ac4d33c79ea324f1b112429b298
 reviewed: true
 hide:
 - navigation
@@ -17,7 +17,7 @@ appuyez sur lecture, Evey s'occupe du reste.
 [Essayer la démo](https://demo.eveyproject.org){ .md-button }
 
 <p class="evey-status">
-<span>Bêta, pas encore de version numérotée</span>
+<span>Bêta publique, versions 0.x</span>
 <span>Logiciel libre, AGPL-3.0</span>
 <span>Démo : connexion automatique (<code>demo</code> / <code>demo</code>)</span>
 </p>
@@ -29,7 +29,7 @@ une commande.<br>
 <strong>Regardez</strong> dans un navigateur web, sur les téléphones et
 tablettes Android, sur Android TV, dans le navigateur web d'une télévision et sur un
 Chromecast. Les applications
-Android et Android TV sont en test et pas encore sur Google Play.
+Android et Android TV sont sur <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a> ; l'application web est fournie avec le serveur, et l'application TV du navigateur est servie sur <code>/tv</code>.
 </p>
 
 <div class="grid cards" markdown>

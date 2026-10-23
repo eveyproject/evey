@@ -1,8 +1,8 @@
 ---
-source_sha: be2352babc32903dbb0a839c8c6754b1f9c0751d295a958a65e2ab12031c037e
+source_sha: 458502112f637df70456890a718f35fac167120f02775459773b334b689e454f
 reviewed: true
 ---
-# Despliegues avanzados
+# Despliegues avanzados { #advanced-deployments }
 
 La [instalación en un solo contenedor](../installation.md) sirve para la
 mayoría de los servidores. Abre esta página si quieres la base de datos o el
@@ -11,7 +11,7 @@ una variante de la imagen, o si el sandbox de plugins indica algo distinto de
 `landlock`. Para usar Evey sin Docker, consulta
 [Sin contenedor](../deployment-bare-metal.md).
 
-## La base de datos integrada
+## La base de datos integrada { #the-embedded-database }
 
 El clúster está en `./evey-data/postgres` (Postgres 17, creado en el primer
 arranque y propiedad del usuario del servidor). Solo escucha en la interfaz
@@ -27,7 +27,7 @@ consola SQL:
 docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-### Pasar a una versión mayor más reciente de Postgres
+### Pasar a una versión mayor más reciente de Postgres { #move-to-a-newer-postgres-major }
 
 La imagen fija la versión mayor de la base de datos integrada. Una imagen que
 trae una versión mayor más reciente se niega a abrir el clúster antiguo, con
@@ -45,7 +45,7 @@ docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 docker compose restart evey
 ```
 
-## Usar Postgres como servicio aparte
+## Usar Postgres como servicio aparte { #run-postgres-as-a-separate-service }
 
 Para gestionar tú mismo el ciclo de vida de la base de datos (un Postgres gestionado,
 una versión mayor fijada, tu propia política de volcados), ejecútala como un
@@ -88,7 +88,7 @@ con la contraseña por defecto `evey`.
     EVEY_DB_PASSWORD=<strong-password>
     ```
 
-## Usar Meilisearch como servicio aparte
+## Usar Meilisearch como servicio aparte { #run-meilisearch-as-a-separate-service }
 
 El mismo principio sirve para el motor de búsqueda: desactiva el integrado,
 indícale al servidor dónde está el tuyo y comparte la clave. Un
@@ -132,7 +132,7 @@ El índice de búsqueda se reconstruye a partir de la base de datos con
 `docker exec evey-server evey admin reindex-search`, así que siempre puedes
 borrar `meili-data`.
 
-## Volver a la base de datos integrada
+## Volver a la base de datos integrada { #move-back-onto-the-embedded-database }
 
 Una instalación que usa Postgres como servicio aparte puede pasar al
 contenedor único. La base de datos integrada importa una sola vez el volcado
@@ -163,12 +163,12 @@ señala y se ignora, nunca se mezcla. Si la importación falla, el clúster nuev
 se descarta para que el siguiente arranque vuelva a intentarlo desde el
 volcado.
 
-## Equipos ARM
+## Equipos ARM { #arm-hosts }
 
-Las imágenes construidas a partir de una etiqueta de versión (`0.2.0`,
-incluidas las versiones previas como `0.2.0-beta.1`) son multiarquitectura
+Las imágenes construidas a partir de una etiqueta de versión (`0.1.0`,
+incluidas las versiones previas) son multiarquitectura
 (`linux/amd64` y `linux/arm64`): Docker elige la adecuada. Las etiquetas de rama
-como `beta-0.0.1` son solo amd64: en un equipo ARM, fija una etiqueta de
+son solo amd64: en un equipo ARM, fija una etiqueta de
 versión.
 
 - **La transcodificación por hardware en ARM** se limita a los chips Rockchip
@@ -183,15 +183,15 @@ versión.
 - **El mapeo de tonos HDR** usa el mismo filtro SIMD `tonemapx` en ARM (NEON)
   que en x86-64 (AVX2).
 
-## Etiquetas y variantes de la imagen
+## Etiquetas y variantes de la imagen { #image-tags-and-variants }
 
 La imagen es `eveyproject/evey`.
 
 | Etiqueta | Publicada por | Notas |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | una etiqueta de versión `vX.Y.Z` | `latest` es siempre la versión estable más reciente |
-| `X.Y.Z-beta.N` | una etiqueta de versión previa | solo publica su propia etiqueta, nunca mueve `latest` |
-| `beta-0.0.1`, `sha-<commit>` | una compilación de rama | solo amd64 |
+| una etiqueta de versión previa (con guion) | una etiqueta de versión previa | solo publica su propia etiqueta, nunca mueve `latest` |
+| un nombre de rama, `sha-<commit>` | una compilación de rama | solo amd64 |
 
 Cada etiqueta existe en tres variantes: la variante por defecto incluye
 Python 3 para los plugins, `-nodejs` añade Node.js y `-full` añade PHP, Ruby y
@@ -206,7 +206,7 @@ a Gen11), `GPU=intel` (Gen12 y posteriores), `GPU=amd` o `GPU=none`. NVIDIA no
 necesita variante: el NVIDIA Container Toolkit inyecta el controlador del
 equipo al ejecutar el contenedor.
 
-## El sandbox de plugins en un equipo poco habitual
+## El sandbox de plugins en un equipo poco habitual { #the-plugin-sandbox-on-an-unusual-host }
 
 La imagen contiene todo lo necesario para confinar los plugins, sin modo
 privilegiado. El modo de sandbox por defecto (`auto`) elige el mecanismo más

@@ -1,8 +1,8 @@
 ---
-source_sha: 3529db45dbbd12f6980bca0989017583b6ccad6c3c5a3b54597887c6b09d6285
+source_sha: 4c2c4ddb62e95803c8e25fd785e009178d7130e67e3125dea06c41c6cf77527b
 reviewed: true
 ---
-# बैकअप और अपडेट
+# बैकअप और अपडेट { #backups-and-updates }
 
 दो आदतें आपके सर्वर को सुरक्षित रखती हैं:
 
@@ -14,7 +14,7 @@ reviewed: true
 यह पेज दोनों दिखाता है, फिर यह कि बैकअप में क्या होता है, उसे वापस कैसे
 लाएँ, और पुराने वर्ज़न पर कैसे लौटें।
 
-## बैकअप का शेड्यूल बनाएँ
+## बैकअप का शेड्यूल बनाएँ { #schedule-backups }
 
 1. **एडमिन → डेटाबेस बैकअप** पर जाएँ, **शेड्यूल** वाला कार्ड।
 2. **क्रॉन एक्सप्रेशन** में बताएँ कि बैकअप कब चले। `0 3 * * *` का मतलब है हर
@@ -48,7 +48,7 @@ reviewed: true
 शेड्यूल चाहे जो हो, कोई अपडेट डेटाबेस बदले उससे पहले सर्वर खुद भी डेटाबेस
 सेव करता है (देखें [Evey अपडेट करना](#updating-evey))।
 
-## बैकअप में क्या होता है
+## बैकअप में क्या होता है { #what-a-backup-contains }
 
 बैकअप **डेटाबेस** की कॉपी है: खाते, प्रोफ़ाइल, लाइब्रेरी और उनका कैटलॉग, देखने
 का इतिहास और जहाँ छोड़ा था वे जगहें, संग्रह, प्लेलिस्ट और पसंदीदा, सेटिंग्स,
@@ -79,7 +79,7 @@ reviewed: true
     बैकअप एक `.tar.gz` फ़ाइल है, जिसमें डेटाबेस का dump और एक छोटा विवरण
     होता है, उसके checksum (SHA256) और उसके schema वर्ज़न के साथ।
 
-## बैकअप वापस लाएँ
+## बैकअप वापस लाएँ { #restore-a-backup }
 
 **एडमिन → डेटाबेस बैकअप** बैकअप की सूची दिखाता है। सूची से कोई बैकअप
 वापस लाएँ, या **फ़ाइल से पुनर्स्थापित करें** से एक फ़ाइल अपलोड करें। वापस लाने
@@ -95,7 +95,7 @@ reviewed: true
 कॉपियाँ (`pre-migration-*.sql.gz`) वापस ला सकती है, इस पैनल के `.tar.gz` बैकअप
 नहीं: देखें [रिकवरी](runbooks/recovery.md)।
 
-## Evey अपडेट करना
+## Evey अपडेट करना { #updating-evey }
 
 उस फ़ोल्डर में जहाँ आपकी compose फ़ाइल है:
 
@@ -118,13 +118,12 @@ docker compose logs -f evey
 
 ??? info "जो वर्ज़न आप चलाते हैं, उसे ठीक-ठीक पिन करें"
 
-    बीटा के दौरान कोई नंबर वाली रिलीज़ नहीं है और कोई `latest` टैग नहीं है।
-    `beta-0.0.1` टैग हर अपडेट के साथ बदलता है। जिस सर्वर पर आप निर्भर हैं,
-    उसके लिए `image:` लाइन पर एक तय `sha-<commit>` टैग लगाएँ, ताकि एक दिन के
-    अंतर पर किए गए दो pull वही कोड चलाएँ। रिलीज़ आने के बाद `latest` सबसे हाल
-    की स्थिर रिलीज़ को दर्शाएगा, और रिलीज़ का टैग (`0.2.0`) उसे पिन करेगा।
+    `latest` सबसे नई रिलीज़ को दर्शाता है और हर अपडेट के साथ बदलता है। जिस सर्वर
+    पर आप निर्भर हैं, उसके लिए `image:` लाइन पर रिलीज़ का टैग (`0.1.0`) या एक
+    तय `sha-<commit>` टैग लगाएँ, ताकि एक दिन के अंतर पर किए गए दो pull वही कोड
+    चलाएँ।
 
-### वापस लौटना
+### वापस लौटना { #going-back }
 
 1. अपनी compose फ़ाइल की `image:` लाइन पर पिछला टैग लगाएँ।
 2. अगर नए वर्ज़न ने डेटाबेस बदला था, तो पहले उसकी अपडेट से पहले वाली कॉपी
@@ -144,6 +143,6 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
-rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (beta-0.0.1 + sha-<short>, latest gated on vX.Y.Z)
+rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

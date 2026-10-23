@@ -1,8 +1,8 @@
 ---
-source_sha: 91a46caa213d6048de832a4352bd5972b5f2d393a40a66301f693b3d908f084c
+source_sha: 9be0f9fe12d2d5606cefd03463fe0dd43f1000f645afe396700673ac2c53dcea
 reviewed: true
 ---
-# MKVGo in Evey
+# MKVGo in Evey { #mkvgo-in-evey }
 
 **Kurz gesagt:**
 
@@ -24,7 +24,7 @@ einen Ton; alles, was auf dem Server dekodiert werden muss, geht an FFmpeg.
 MKVGo wird als eigene Go-Bibliothek entwickelt:
 [github.com/gravity-zero/mkvgo](https://github.com/gravity-zero/mkvgo).
 
-## Drei Stufen der Arbeit
+## Drei Stufen der Arbeit { #three-levels-of-work }
 
 | Stufe | Was passiert | Was es den Server kostet |
 | --- | --- | --- |
@@ -44,7 +44,7 @@ auf der Festplatte: Das Segment wird bei Anfrage aus dem Index der Datei
 gebaut. Ob eine Datei diesen Weg nimmt, hängt davon ab, was der Player
 dekodiert: [Wie Evey die Wiedergabeart wählt](how-playback-is-decided.md).
 
-## Was MKVGo erledigt
+## Was MKVGo erledigt { #what-mkvgo-does }
 
 | Arbeit | Wo man es sieht | Wenn MKVGo es nicht kann |
 | --- | --- | --- |
@@ -57,7 +57,7 @@ dekodiert: [Wie Evey die Wiedergabeart wählt](how-playback-is-decided.md).
 | **Folgen am Stück** | Der Server kann mehrere Folgen als einen durchgehenden Stream verpacken (`?gapless=1` an der Adresse des Streams). Noch bietet keine App diesen Schalter an. | Jede Folge läuft für sich. |
 | **Medienzustand** | Die Diagnose (Seek-Index, Tonstart, in Blöcken gespeicherte Spuren), der neu aufgebaute Index, das Neusynchronisieren hinter einer beschädigten Stelle und das Verschieben einer Tonspur um einen Versatz. Siehe [Medienzustand](../runbooks/media-health.md). | Das Neu-Muxen von Spuren, die in Blöcken gespeichert sind, erledigt FFmpeg. |
 
-## Was bei FFmpeg bleibt
+## Was bei FFmpeg bleibt { #what-stays-with-ffmpeg }
 
 - Jedes Neukodieren, auch das HDR-Tone-Mapping.
 - Bilder dekodieren: die Vorschaubilder der Zeitleiste, das Bild eines
@@ -66,7 +66,7 @@ dekodiert: [Wie Evey die Wiedergabeart wählt](how-playback-is-decided.md).
   (Interlacing), Audio-Fingerabdrücke für die Intro-Erkennung.
 - Andere Container als MKV/WebM und MP4/MOV, etwa AVI oder MPEG-TS.
 
-## Last, ersetzte Dateien und Updates
+## Last, ersetzte Dateien und Updates { #load-replaced-files-and-updates }
 
 **Wie viel es auf einmal liest.** Um ein Segment zu bauen, liest der Server
 einen Ausschnitt der Quelle, Video und Ton zusammen: 6 bis 10 MiB bei einer
@@ -103,11 +103,13 @@ werden, und `evey_mkvgo_plan_stats` summiert die Zähler des Verpackers nach
 `stream_fallbacks` zählt Segmente, die im Speicher zusammengesetzt werden
 mussten, statt gestreamt zu werden.
 
-## Sehen, welche Engine einen Stream ausgeliefert hat
+## Sehen, welche Engine einen Stream ausgeliefert hat { #seeing-which-engine-served-a-stream }
 
 **Verwaltung → Dashboard** und **Verwaltung → Aktuelle Wiedergabe** nennen die
 Engine jeder Spur: `mkvgo` oder `ffmpeg`. Ein Remux kann beide zeigen, zum
 Beispiel das Video von MKVGo verpackt und den Ton von FFmpeg kopiert.
+
+mkvgo steht unter der MIT-Lizenz.
 
 <!-- sources
 in-process, no ffmpeg, no session state, no on-disk segments: internal/adapters/driven/mkvgo/ondemand.go - OnDemandPackager

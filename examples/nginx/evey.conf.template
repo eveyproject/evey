@@ -4,7 +4,14 @@
 # left untouched). Set EVEY_DOMAIN in .env; certificates must exist under the
 # matching names.
 server {
-    listen 443 ssl http2;
+    listen 80;
+    server_name ${EVEY_DOMAIN};
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
     server_name ${EVEY_DOMAIN};
 
     ssl_certificate     /etc/ssl/certs/${EVEY_DOMAIN}.pem;

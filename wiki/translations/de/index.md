@@ -1,5 +1,5 @@
 ---
-source_sha: 6e76bc51062fd0da4948dd5d4a7f4a24f632f7964d6ff25ba7c70254b1551408
+source_sha: abd1d63a9decd2ea9551be20491d9c39884d9ac4d33c79ea324f1b112429b298
 reviewed: true
 hide:
 - navigation
@@ -17,7 +17,7 @@ Rest erledigt Evey.
 [Demo ausprobieren](https://demo.eveyproject.org){ .md-button }
 
 <p class="evey-status">
-<span>Beta, noch keine nummerierte Version</span>
+<span>Öffentliche Beta, Versionen 0.x</span>
 <span>Freie Software, AGPL-3.0</span>
 <span>Demo: meldet Sie selbst an (<code>demo</code> / <code>demo</code>)</span>
 </p>
@@ -28,7 +28,7 @@ Docker, und einen Ordner mit Ihren Medien. Die Installation besteht aus einer
 Datei und einem Befehl.<br>
 <strong>Schauen</strong> Sie im Webbrowser, auf Android-Handys und -Tablets,
 auf Android TV, im Webbrowser eines Fernsehers und auf einem Chromecast. Die Apps für Android und Android TV
-sind in der Testphase und noch nicht bei Google Play.
+gibt es bei <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a>; die Web-App wird mit dem Server ausgeliefert, und die TV-App für den Browser liegt unter <code>/tv</code>.
 </p>
 
 <div class="grid cards" markdown>

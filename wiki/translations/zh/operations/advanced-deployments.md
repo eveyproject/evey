@@ -1,14 +1,14 @@
 ---
-source_sha: be2352babc32903dbb0a839c8c6754b1f9c0751d295a958a65e2ab12031c037e
+source_sha: 458502112f637df70456890a718f35fac167120f02775459773b334b689e454f
 reviewed: true
 ---
-# 高级部署
+# 高级部署 { #advanced-deployments }
 
 [安装](../installation.md)页面介绍的单容器安装适合大多数服务器。在以下情况下请看这一页：
 您想把数据库或搜索引擎作为单独的服务运行，主机是 ARM，您需要某个镜像变体，或者插件沙箱报告的不是 `landlock`。
 如果想完全不用 Docker 运行 Evey，请看[不使用容器](../deployment-bare-metal.md)。
 
-## 内置数据库
+## 内置数据库 { #the-embedded-database }
 
 数据库集群放在 `./evey-data/postgres` 里（Postgres 17，第一次启动时创建，归服务器用户所有）。
 它只监听容器内部的本机回环地址，并且需要自动生成的密码，所以以其他用户运行的插件无法打开它。
@@ -20,7 +20,7 @@ reviewed: true
 docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-### 升级 Postgres 大版本
+### 升级 Postgres 大版本 { #move-to-a-newer-postgres-major }
 
 镜像固定了内置数据库的大版本。如果新镜像带的是更新的大版本，它会拒绝打开旧的集群，并给出一条指向这里的提示，
 而不是去运行一个它无法读取的数据目录。升级的办法是：用旧镜像导出（dump），再用新镜像恢复：
@@ -35,7 +35,7 @@ docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 docker compose restart evey
 ```
 
-## 把 Postgres 作为单独的服务运行
+## 把 Postgres 作为单独的服务运行 { #run-postgres-as-a-separate-service }
 
 如果您想自己管理数据库的生命周期（托管的 Postgres、固定的大版本、您自己的导出策略），
 可以把它作为单独的服务运行，并让服务器连接它。设置了 `EVEY_DB_HOST`，内置数据库就会关闭。
@@ -76,7 +76,7 @@ docker compose restart evey
     EVEY_DB_PASSWORD=<strong-password>
     ```
 
-## 把 Meilisearch 作为单独的服务运行
+## 把 Meilisearch 作为单独的服务运行 { #run-meilisearch-as-a-separate-service }
 
 搜索引擎也是同样的道理：关闭内置的那个，让服务器连接您的搜索引擎，并共用同一个密钥。
 明确设置的 `MEILI_MASTER_KEY` 优先于自动生成的 `./evey-data/keys/meili.key`。
@@ -116,7 +116,7 @@ docker compose restart evey
 
 索引可以用 `docker exec evey-server evey admin reindex-search` 根据数据库重建，所以 `meili-data` 随时都可以删除。
 
-## 改回内置数据库
+## 改回内置数据库 { #move-back-onto-the-embedded-database }
 
 把 Postgres 作为单独服务运行的安装，可以改回单容器。内置数据库会在第一次启动、服务器运行之前，
 把 `./evey-data/postgres-import.sql.gz` 里的导出文件导入到它新建的集群里，只导入一次；然后再在上面执行服务器的迁移。
@@ -141,10 +141,10 @@ docker exec evey-server evey admin reindex-search
 在检查过服务器之前，请保留 `./postgres-data`。如果已有集群旁边放着一个导出文件，它会被报告并忽略，绝不会合并进去；
 导入失败时，新建的集群会被丢弃，这样下次启动会重新从导出文件开始。
 
-## ARM 主机
+## ARM 主机 { #arm-hosts }
 
-从发布标签构建的镜像（`0.2.0`，也包括 `0.2.0-beta.1` 这样的预发布版本）支持多种架构（`linux/amd64` 和 `linux/arm64`）；
-Docker 会自动选择对应的架构。像 `beta-0.0.1` 这样的分支标签只有 amd64：在 ARM 主机上请固定使用发布标签。
+从发布标签构建的镜像（`0.1.0`，也包括预发布版本）支持多种架构（`linux/amd64` 和 `linux/arm64`）；
+Docker 会自动选择对应的架构。分支标签只有 amd64：在 ARM 主机上请固定使用发布标签。
 
 - **ARM 上的硬件转码**只支持 Rockchip 芯片（RK3588、RK3576、RK3568 这一类），通过 RKMPP 实现。
   请映射 `/dev/mpp_service`、`/dev/dri`，如果内核提供的话，再映射 `/dev/rga`；服务器在使用编码器之前，会先探测并测试它的性能。
@@ -152,15 +152,15 @@ Docker 会自动选择对应的架构。像 `beta-0.0.1` 这样的分支标签�
   这些主机依靠直接播放和软件转码，能力由和其他主机一样的校准来确定。
 - **HDR 色调映射**在 ARM 上（NEON）和在 x86-64 上（AVX2）使用同一个 SIMD `tonemapx` 滤镜。
 
-## 镜像标签和变体
+## 镜像标签和变体 { #image-tags-and-variants }
 
 镜像是 `eveyproject/evey`。
 
 | 标签 | 由什么发布 | 说明 |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | 发布标签 `vX.Y.Z` | `latest` 永远是最新的稳定版 |
-| `X.Y.Z-beta.N` | 预发布标签 | 只发布它自己的标签，从不改动 `latest` |
-| `beta-0.0.1`, `sha-<commit>` | 分支构建 | 只有 amd64 |
+| 预发布标签（带连字符） | 预发布标签 | 只发布它自己的标签，从不改动 `latest` |
+| 分支名，`sha-<commit>` | 分支构建 | 只有 amd64 |
 
 每个标签都有三种变体：默认的变体为插件带了 Python 3，`-nodejs` 加上了 Node.js，`-full` 再加上 PHP、Ruby 和 Lua
 （例如 `latest-full`）。只有插件需要时才使用变体：如果插件声明的语言在镜像里没有，安装程序会拒绝它，并在提示里写明该用哪个变体。
@@ -169,7 +169,7 @@ Docker 会自动选择对应的架构。像 `beta-0.0.1` 这样的分支标签�
 `docker build --build-arg GPU=intel-legacy .`（Intel 第 9 代到第 11 代）、`GPU=intel`（第 12 代及更新）、`GPU=amd` 或 `GPU=none`。
 NVIDIA 不需要变体：NVIDIA Container Toolkit 会在运行时注入主机的驱动。
 
-## 在特殊主机上的插件沙箱
+## 在特殊主机上的插件沙箱 { #the-plugin-sandbox-on-an-unusual-host }
 
 镜像里带有隔离插件所需的一切，不需要特权模式。默认的沙箱模式（`auto`）会选择主机允许的最强后端：
 在任何现代内核上都是 Landlock。实际生效的模式可以在**管理 → 插件**的**安全仪表板**里查看。

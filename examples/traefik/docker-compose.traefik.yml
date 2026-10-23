@@ -3,6 +3,11 @@
 #   docker compose -f docker-compose.yml -f examples/traefik/docker-compose.traefik.yml up -d
 
 services:
+  # Traefik owns 80 and 443 here: park the base file's bundled Caddy behind a
+  # profile that is never enabled.
+  caddy:
+    profiles: ["disabled"]
+
   evey:
     labels:
       - "traefik.enable=true"

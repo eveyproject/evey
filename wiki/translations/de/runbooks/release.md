@@ -17,16 +17,16 @@ jedem `v*.*.*`-Tag, in drei Varianten der Plugin-Laufzeiten (`` (schlank),
 
 | Sie pushen | Veröffentlichte Image-Tags (jeweils auch `-nodejs` / `-full`) |
 |---|---|
-| einen Branch (z. B. `beta-0.0.1`) | `beta-0.0.1`, `sha-<short>` |
-| das Tag `v0.2.0-beta.1` (Vorabversion: enthält einen Bindestrich) | `0.2.0-beta.1`, `sha-<short>` |
+| einen Branch (z. B. `master`) | `master`, `sha-<short>` |
+| das Tag `v0.2.0-rc.1` (Vorabversion: enthält einen Bindestrich) | `0.2.0-rc.1`, `sha-<short>` |
 | das Tag `v0.2.0` (stabil) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
 Drei Folgen:
 
-- **Ein Branch-Tag ändert sich.** `beta-0.0.1-full` zeigt auf das, was zuletzt
+- **Ein Branch-Tag ändert sich.** `master-full` zeigt auf das, was zuletzt
   gepusht wurde; zwei `docker compose pull` im Abstand eines Tages können
   unterschiedlichen Code ausführen, und ein Zurückrollen „auf
-  `beta-0.0.1-full`“ bezeichnet keine bestimmte Version. Betreiber müssen ein
+  `master-full`“ bezeichnet keine bestimmte Version. Betreiber müssen ein
   `sha-<short>`-Tag (oder ein Versions-Tag) festlegen, nie einen Branch-Namen:
   genau das gibt `scripts/evey-update.sh` am Ende aus, zum Eintragen in `.env`.
 - **Eine Vorabversion ändert `latest` nie.** `latest` bezeichnet die neueste
@@ -57,18 +57,18 @@ feststellen, welcher Code läuft, ohne sich auf ein Tag zu verlassen.
 4. **Taggen Sie diesen Commit** mit einem annotierten Tag und pushen Sie nur
    das Tag:
    ```bash
-   git tag -a v0.2.0-beta.1 -m "v0.2.0-beta.1"
-   git push origin v0.2.0-beta.1
+   git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1"
+   git push origin v0.2.0-rc.1
    ```
-5. **Beobachten Sie, wie die CI** `0.2.0-beta.1` (+ Varianten) veröffentlicht.
+5. **Beobachten Sie, wie die CI** `0.2.0-rc.1` (+ Varianten) veröffentlicht.
    Danach auf dem Referenz-Deployment
-   `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply`: Das Versions-Tag
+   `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply`: Das Versions-Tag
    ersetzt die `sha-`-Festlegung.
 6. **Kündigen Sie das Tag an**, mit seinem Abschnitt aus dem Changelog.
-   Betreiber tragen `eveyproject/evey:0.2.0-beta.1` (oder `-full`) in ihre
+   Betreiber tragen `eveyproject/evey:0.2.0-rc.1` (oder `-full`) in ihre
    `image:`-Zeile ein.
 
-Tags für Vorabversionen kosten nichts: `-beta.2`, `-beta.3` nach Bedarf. Sie
+Tags für Vorabversionen kosten nichts: `-rc.2`, `-rc.3` nach Bedarf. Sie
 lassen sich aber nicht zurückziehen: Ein veröffentlichtes Tag bleibt
 veröffentlicht. Um eine fehlerhafte Vorabversion zu korrigieren, veröffentlichen
 Sie die nächste; verschieben Sie nie ein Tag.
@@ -87,4 +87,4 @@ Die Images bleiben in der Registry. Ein Betreiber rollt zurück mit
 `scripts/evey-rollback.sh --tag <previous> [--restore <pre-update dump>] --apply`
 (das Update-Skript gibt genau diese Zeile aus). Auf der Veröffentlichungsseite
 ist nichts rückgängig zu machen; veröffentlichen Sie eine korrigierte
-`-beta.N+1`, sobald die Korrektur fertig ist.
+`-rc.N+1`, sobald die Korrektur fertig ist.

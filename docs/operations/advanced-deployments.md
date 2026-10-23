@@ -154,9 +154,9 @@ so that the next start retries from the dump.
 
 ## ARM hosts
 
-Images built from a release tag (`0.2.0`, pre-releases such as
-`0.2.0-beta.1` included) are multi-architecture (`linux/amd64` and
-`linux/arm64`); Docker picks the right one. Branch tags such as `beta-0.0.1`
+Images built from a release tag (`0.1.0`, pre-releases
+included) are multi-architecture (`linux/amd64` and
+`linux/arm64`); Docker picks the right one. Branch tags
 are amd64 only: pin a release tag on an ARM host.
 
 - **Hardware transcoding on ARM** is limited to Rockchip SoCs (RK3588,
@@ -177,8 +177,8 @@ The image is `eveyproject/evey`.
 | Tag | Published by | Notes |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | a release tag `vX.Y.Z` | `latest` is always the most recent stable release |
-| `X.Y.Z-beta.N` | a pre-release tag | publishes only its own tag, never moves `latest` |
-| `beta-0.0.1`, `sha-<commit>` | a branch build | amd64 only |
+| a pre-release tag (with a hyphen) | a pre-release tag | publishes only its own tag, never moves `latest` |
+| a branch name, `sha-<commit>` | a branch build | amd64 only |
 
 Every tag exists in three variants: the default bundles Python 3 for
 plugins, `-nodejs` adds Node.js, `-full` adds PHP, Ruby and Lua (for example

@@ -15,7 +15,7 @@ rest.
 [Try the demo](https://demo.eveyproject.org){ .md-button }
 
 <p class="evey-status">
-<span>Beta, no numbered release yet</span>
+<span>Public beta, versions 0.x</span>
 <span>Free software, AGPL-3.0</span>
 <span>Demo: signs you in by itself (<code>demo</code> / <code>demo</code>)</span>
 </p>
@@ -24,8 +24,9 @@ rest.
 <strong>What you need:</strong> an x86-64 computer or NAS with Docker, and a
 folder with your media. Installing is one file and one command.<br>
 <strong>Watch</strong> in a web browser, on Android phones and tablets, on
-Android TV, in a television's web browser, and on a Chromecast. The Android and Android TV apps are in
-testing and not on Google Play yet.
+Android TV, in a television's web browser, and on a Chromecast. The Android and Android TV apps are on
+<a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a>;
+the web app ships with the server, and the browser TV app is served at <code>/tv</code>.
 </p>
 
 <div class="grid cards" markdown>
@@ -228,11 +229,11 @@ Security reports: security@eveyproject.org ·
 </p>
 
 <!-- sources
-beta, no release tag: docs/installation.md (beta-0.0.1 image) ; git tag (none)
+public beta, 0.x: docs/installation.md (latest image)
 demo signs in by itself, shared admin: frontend/apps/web/src/routes/login.tsx - demoAutoLoginAllowed ; docs/adr/0031-demo-mode-is-a-boot-flag-on-the-production-binary.md
 what you need: docs/installation.md ; docker-compose.yml (EVEY_HTTP_PORT 9091) ; docs/operations/advanced-deployments.md (ARM needs a release tag)
 platforms: docs/getting-started/apps.md ; frontend/apps/mobile/app.json ; frontend/apps/tv/app.json
-apps not on Google Play: play.google.com listing for com.evey.app answers 404 (checked 2026-10-04)
+apps on Google Play: listing com.evey.app
 profiles, kids PIN, max age: docs/administration/users.md ; internal/app/user/service.go - ErrPINRequired, ErrInvalidPINFormat ; internal/domain/user/kids_pin_invariant.go
 age limit on downloads: frontend/apps/mobile/src/lib/offlineAccess.ts - isAgeExceeded
 offline 30 days: frontend/apps/mobile/src/lib/offlineAccess.ts - OFFLINE_DOWNLOAD_TTL_MS
