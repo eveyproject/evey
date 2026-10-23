@@ -1,8 +1,8 @@
 ---
-source_sha: 3529db45dbbd12f6980bca0989017583b6ccad6c3c5a3b54597887c6b09d6285
+source_sha: 4c2c4ddb62e95803c8e25fd785e009178d7130e67e3125dea06c41c6cf77527b
 reviewed: true
 ---
-# Sauvegardes et mises à jour
+# Sauvegardes et mises à jour { #backups-and-updates }
 
 Deux habitudes protègent votre serveur :
 
@@ -15,7 +15,7 @@ Deux habitudes protègent votre serveur :
 Cette page montre les deux, puis ce que contient une sauvegarde, comment en
 restaurer une, et comment revenir à une version plus ancienne.
 
-## Planifier les sauvegardes
+## Planifier les sauvegardes { #schedule-backups }
 
 1. Allez dans **Administration → Sauvegarde BDD et restauration**, carte
    **Planification**.
@@ -55,7 +55,7 @@ Le serveur sauvegarde aussi automatiquement la base de données avant qu'une mis
 jour la modifie, quelle que soit la planification (voir
 [Mettre à jour Evey](#updating-evey)).
 
-## Ce que contient une sauvegarde
+## Ce que contient une sauvegarde { #what-a-backup-contains }
 
 Une sauvegarde est une copie de la **base de données** : comptes, profils,
 bibliothèques et leur catalogue, historique de visionnage et points de
@@ -91,7 +91,7 @@ dossier.
     de données et une courte description avec son empreinte (SHA256) et sa
     version de schéma.
 
-## Restaurer une sauvegarde
+## Restaurer une sauvegarde { #restore-a-backup }
 
 **Administration → Sauvegarde BDD et restauration** liste les sauvegardes.
 Restaurez-en une depuis la liste, ou envoyez un fichier avec **Restaurer
@@ -109,7 +109,7 @@ Si le serveur ne démarre plus, la ligne de commande peut restaurer les copies
 de secours faites avant une mise à jour (`pre-migration-*.sql.gz`), pas les
 sauvegardes `.tar.gz` de ce panneau : voir [Restauration](runbooks/recovery.md).
 
-## Mettre à jour Evey
+## Mettre à jour Evey { #updating-evey }
 
 Dans le dossier qui contient votre fichier compose :
 
@@ -134,14 +134,12 @@ C'est toute la mise à jour.
 
 ??? info "Fixer exactement la version que vous faites tourner"
 
-    Pendant la bêta, il n'y a ni version numérotée ni tag `latest`. Le tag
-    `beta-0.0.1` change à chaque mise à jour. Pour un serveur sur lequel vous
-    comptez, mettez un tag fixe `sha-<commit>` sur la ligne `image:`, pour
-    que deux `pull` à un jour d'écart fassent tourner le même code. Quand des
-    versions existeront, `latest` suivra la dernière version stable, et un
-    tag de version (`0.2.0`) permettra de la fixer.
+    `latest` suit la dernière version publiée et change à chaque mise à jour.
+    Pour un serveur sur lequel vous comptez, mettez un tag de version
+    (`0.1.0`) ou un tag fixe `sha-<commit>` sur la ligne `image:`, pour que
+    deux `pull` à un jour d'écart fassent tourner le même code.
 
-### Revenir en arrière
+### Revenir en arrière { #going-back }
 
 1. Remettez le tag précédent sur la ligne `image:` de votre fichier compose.
 2. Si la version plus récente a modifié la base de données, restaurez
@@ -162,6 +160,6 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
-rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (beta-0.0.1 + sha-<short>, latest gated on vX.Y.Z)
+rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

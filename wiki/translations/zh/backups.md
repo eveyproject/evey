@@ -1,8 +1,8 @@
 ---
-source_sha: 3529db45dbbd12f6980bca0989017583b6ccad6c3c5a3b54597887c6b09d6285
+source_sha: 4c2c4ddb62e95803c8e25fd785e009178d7130e67e3125dea06c41c6cf77527b
 reviewed: true
 ---
-# 备份和更新
+# 备份和更新 { #backups-and-updates }
 
 两个习惯能让您的服务器保持安全：
 
@@ -11,7 +11,7 @@ reviewed: true
 
 本页先讲这两件事，再讲备份里有什么、如何恢复备份，以及如何退回旧版本。
 
-## 定时备份
+## 定时备份 { #schedule-backups }
 
 1. 打开**管理 → 数据库备份**中的**计划任务**卡片。
 2. 在 **Cron 表达式**里设定什么时候运行。`0 3 * * *` 表示每天凌晨 3 点。（格式依次是：分、时、日、月、星期几。）
@@ -39,7 +39,7 @@ reviewed: true
 
 无论计划如何，服务器在更新修改数据库之前，也会自动保存数据库（见[更新 Evey](#updating-evey)）。
 
-## 备份里有什么
+## 备份里有什么 { #what-a-backup-contains }
 
 备份是**数据库**的副本：账户、个人资料、媒体库及其目录、观看记录和续播位置、合集、播放列表和收藏、设置、插件记录、Webhook、API 密钥、通知和审计日志。
 
@@ -59,7 +59,7 @@ reviewed: true
 
     备份是一个 `.tar.gz` 文件，里面有数据库转储，以及一份简短说明，记录校验和（SHA256）和数据库结构版本。
 
-## 恢复备份
+## 恢复备份 { #restore-a-backup }
 
 **管理 → 数据库备份**列出所有备份。可以从列表里选一个恢复，也可以用**从文件恢复**上传一个文件。恢复会替换当前的数据库：那次备份之后的所有内容都会丢失。
 
@@ -68,7 +68,7 @@ reviewed: true
 
 如果服务器已经无法启动，命令行可以恢复更新前保存的安全副本（`pre-migration-*.sql.gz`），但不能恢复这个面板做的 `.tar.gz` 备份：见[恢复](runbooks/recovery.md)。
 
-## 更新 Evey
+## 更新 Evey { #updating-evey }
 
 在存放 compose 文件的文件夹里运行：
 
@@ -86,9 +86,9 @@ docker compose logs -f evey
 
 ??? info "锁定您运行的确切版本"
 
-    测试阶段没有带编号的正式版本，也没有 `latest` 标签。`beta-0.0.1` 标签每次更新都会变。对于您依赖的服务器，请在 `image:` 这一行使用固定的 `sha-<commit>` 标签，这样相隔一天的两次拉取运行的是同样的代码。以后有了正式版本，`latest` 会跟随最新的稳定版本，而版本标签（`0.2.0`）可以锁定它。
+    `latest` 跟随最新的正式版本，每次更新都会变。对于您依赖的服务器，请在 `image:` 这一行使用版本标签（`0.1.0`）或固定的 `sha-<commit>` 标签，这样相隔一天的两次拉取运行的是同样的代码。
 
-### 退回旧版本
+### 退回旧版本 { #going-back }
 
 1. 把 compose 文件里 `image:` 这一行改回之前的标签。
 2. 如果新版本修改过数据库，请先恢复它在更新前保存的副本：`docker exec evey-server evey admin rollback` 会列出具体步骤和文件路径。
@@ -104,6 +104,6 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
-rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (beta-0.0.1 + sha-<short>, latest gated on vX.Y.Z)
+rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

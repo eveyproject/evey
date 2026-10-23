@@ -1,8 +1,8 @@
 ---
-source_sha: be2352babc32903dbb0a839c8c6754b1f9c0751d295a958a65e2ab12031c037e
+source_sha: 458502112f637df70456890a718f35fac167120f02775459773b334b689e454f
 reviewed: true
 ---
-# Déploiements avancés
+# Déploiements avancés { #advanced-deployments }
 
 L'[installation en un conteneur](../installation.md) convient à la plupart
 des serveurs. Ouvrez cette page quand vous voulez la base ou le moteur de
@@ -11,7 +11,7 @@ une variante de l'image, ou quand la sandbox des plugins signale autre chose
 que `landlock`. Pour faire tourner Evey sans Docker du tout, voir
 [Sans conteneur](../deployment-bare-metal.md).
 
-## La base embarquée
+## La base embarquée { #the-embedded-database }
 
 Le cluster se trouve dans `./evey-data/postgres` (Postgres 17, créé au premier
 démarrage, propriété de l'utilisateur du serveur). Il n'écoute que sur la
@@ -27,7 +27,7 @@ SQL :
 docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-### Passer à une version majeure plus récente de Postgres
+### Passer à une version majeure plus récente de Postgres { #move-to-a-newer-postgres-major }
 
 L'image fige la version majeure embarquée. Une image livrant une majeure plus
 récente refuse d'ouvrir l'ancien cluster, avec un message qui renvoie ici,
@@ -45,7 +45,7 @@ docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 docker compose restart evey
 ```
 
-## Faire tourner Postgres en service séparé
+## Faire tourner Postgres en service séparé { #run-postgres-as-a-separate-service }
 
 Pour gérer vous-même le cycle de vie de la base (un Postgres managé, une
 majeure figée, votre propre politique de dumps), lancez-la comme service à
@@ -88,7 +88,7 @@ passe par défaut `evey`.
     EVEY_DB_PASSWORD=<mot-de-passe-solide>
     ```
 
-## Faire tourner Meilisearch en service séparé
+## Faire tourner Meilisearch en service séparé { #run-meilisearch-as-a-separate-service }
 
 Même principe pour le moteur de recherche : désactivez celui qui est embarqué,
 configurez le serveur pour utiliser le vôtre et partagez la clé. Un `MEILI_MASTER_KEY`
@@ -130,7 +130,7 @@ explicite l'emporte sur le `./evey-data/keys/meili.key` généré.
 L'index se reconstruit depuis la base avec `docker exec evey-server evey
 admin reindex-search`, donc `meili-data` peut toujours être supprimé.
 
-## Revenir à la base embarquée
+## Revenir à la base embarquée { #move-back-onto-the-embedded-database }
 
 Une installation qui fait tourner Postgres en service séparé peut passer au
 conteneur unique. La base embarquée importe une fois un dump trouvé dans
@@ -160,12 +160,12 @@ avoir vérifié le serveur. Un dump laissé à côté d'un cluster existant est
 signalé et ignoré, jamais fusionné ; un import échoué supprime le nouveau cluster
 pour que le démarrage suivant réessaie depuis le dump.
 
-## Hôtes ARM
+## Hôtes ARM { #arm-hosts }
 
-Les images construites depuis un tag de version (`0.2.0`, préversions comme
-`0.2.0-beta.1` comprises) sont multi-architectures (`linux/amd64` et
-`linux/arm64`) ; Docker choisit la bonne. Les tags de branche comme
-`beta-0.0.1` sont amd64 uniquement : sur un hôte ARM, utilisez un tag de
+Les images construites depuis un tag de version (`0.1.0`, préversions
+comprises) sont multi-architectures (`linux/amd64` et
+`linux/arm64`) ; Docker choisit la bonne. Les tags de branche
+sont amd64 uniquement : sur un hôte ARM, utilisez un tag de
 version.
 
 - **Le transcodage matériel sur ARM** se limite aux SoC Rockchip (classe
@@ -179,15 +179,15 @@ version.
 - **Le tone mapping HDR** utilise le même filtre SIMD `tonemapx` sur ARM
   (NEON) que sur x86-64 (AVX2).
 
-## Tags et variantes de l'image
+## Tags et variantes de l'image { #image-tags-and-variants }
 
 L'image est `eveyproject/evey`.
 
 | Tag | Publié par | Notes |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | un tag de version `vX.Y.Z` | `latest` est toujours la version stable la plus récente |
-| `X.Y.Z-beta.N` | un tag de préversion | ne publie que son propre tag, ne déplace jamais `latest` |
-| `beta-0.0.1`, `sha-<commit>` | une construction de branche | amd64 uniquement |
+| un tag de préversion (avec un tiret) | un tag de préversion | ne publie que son propre tag, ne déplace jamais `latest` |
+| un nom de branche, `sha-<commit>` | une construction de branche | amd64 uniquement |
 
 Chaque tag existe en trois variantes : celle par défaut embarque Python 3
 pour les plugins, `-nodejs` ajoute Node.js, `-full` ajoute PHP, Ruby et Lua
@@ -202,7 +202,7 @@ avec `docker build --build-arg GPU=intel-legacy .` (Intel Gen9 à Gen11),
 besoin de variante : le NVIDIA Container Toolkit injecte le pilote de l'hôte
 à l'exécution.
 
-## La sandbox des plugins sur un hôte inhabituel
+## La sandbox des plugins sur un hôte inhabituel { #the-plugin-sandbox-on-an-unusual-host }
 
 L'image contient tout ce qu'il faut pour confiner les plugins, sans mode
 privilégié. Le mode de sandbox par défaut (`auto`) choisit le moteur le plus

@@ -17,15 +17,15 @@ etiqueta `v*.*.*`, en tres variantes del entorno de ejecución de los plugins
 
 | Lo que haces push | Etiquetas de imagen publicadas (cada una también `-nodejs` / `-full`) |
 |---|---|
-| una rama (por ejemplo `beta-0.0.1`) | `beta-0.0.1`, `sha-<short>` |
-| la etiqueta `v0.2.0-beta.1` (versión previa: lleva un guion) | `0.2.0-beta.1`, `sha-<short>` |
+| una rama (por ejemplo `master`) | `master`, `sha-<short>` |
+| la etiqueta `v0.2.0-rc.1` (versión previa: lleva un guion) | `0.2.0-rc.1`, `sha-<short>` |
 | la etiqueta `v0.2.0` (estable) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
 Tres consecuencias:
 
-- **Una etiqueta de rama cambia.** `beta-0.0.1-full` apunta a lo último que se
+- **Una etiqueta de rama cambia.** `master-full` apunta a lo último que se
   hizo push; dos `docker compose pull` con un día de diferencia pueden ejecutar
-  código distinto, y volver «a `beta-0.0.1-full`» no designa ninguna versión
+  código distinto, y volver «a `master-full`» no designa ninguna versión
   concreta. Los operadores deben fijar una etiqueta `sha-<short>` (o una
   etiqueta de versión), nunca un nombre de rama: es lo que
   `scripts/evey-update.sh` muestra al final para ponerlo en `.env`.
@@ -57,17 +57,17 @@ se puede saber qué código se ejecuta sin fiarse de una etiqueta.
 4. **Etiqueta ese commit**, con una etiqueta anotada, y haz push solo de la
    etiqueta:
    ```bash
-   git tag -a v0.2.0-beta.1 -m "v0.2.0-beta.1"
-   git push origin v0.2.0-beta.1
+   git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1"
+   git push origin v0.2.0-rc.1
    ```
-5. **Vigila la CI** mientras publica `0.2.0-beta.1` (+ variantes). Después, en
+5. **Vigila la CI** mientras publica `0.2.0-rc.1` (+ variantes). Después, en
    el despliegue de referencia,
-   `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply`: la etiqueta de versión
+   `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply`: la etiqueta de versión
    sustituye la fijación `sha-`.
 6. **Anuncia la etiqueta** con su sección del changelog. Los operadores fijan
-   `eveyproject/evey:0.2.0-beta.1` (o `-full`) en su línea `image:`.
+   `eveyproject/evey:0.2.0-rc.1` (o `-full`) en su línea `image:`.
 
-Crear etiquetas de versión previa no cuesta nada: `-beta.2`, `-beta.3` según
+Crear etiquetas de versión previa no cuesta nada: `-rc.2`, `-rc.3` según
 haga falta. Lo que no se puede es retirarlas: una etiqueta publicada sigue
 publicada. Para corregir una versión previa defectuosa, publica la siguiente;
 nunca muevas una etiqueta.
@@ -85,5 +85,5 @@ integrada tiene que seguir la sección de actualización de
 Las imágenes se quedan en el registro. Un operador vuelve atrás con
 `scripts/evey-rollback.sh --tag <previous> [--restore <pre-update dump>] --apply`
 (el script de actualización muestra esa línea exacta). En el lado de la
-publicación no hay nada que deshacer; publica una `-beta.N+1` corregida cuando
+publicación no hay nada que deshacer; publica una `-rc.N+1` corregida cuando
 la corrección esté lista.

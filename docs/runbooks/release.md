@@ -12,15 +12,15 @@ every `v*.*.*` tag, in three plugin-runtime variants (`` (lean), `-nodejs`,
 
 | You push | Image tags published (each also `-nodejs` / `-full`) |
 |---|---|
-| a branch (e.g. `beta-0.0.1`) | `beta-0.0.1`, `sha-<short>` |
-| tag `v0.2.0-beta.1` (pre-release: has a hyphen) | `0.2.0-beta.1`, `sha-<short>` |
+| a branch (e.g. `master`) | `master`, `sha-<short>` |
+| tag `v0.2.0-rc.1` (pre-release: has a hyphen) | `0.2.0-rc.1`, `sha-<short>` |
 | tag `v0.2.0` (stable) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
 Three consequences:
 
-- **A branch tag moves.** `beta-0.0.1-full` points at whatever was pushed
+- **A branch tag moves.** `master-full` points at whatever was pushed
   last; two `docker compose pull` a day apart may run different code, and a
-  rollback "to `beta-0.0.1-full`" goes nowhere. Operators must pin a
+  rollback "to `master-full`" goes nowhere. Operators must pin a
   `sha-<short>` tag (or a release tag), never a branch name - that is what
   `scripts/evey-update.sh` prints at the end for them to put in `.env`.
 - **A pre-release never touches `latest`.** `latest` means the newest stable
@@ -48,16 +48,16 @@ this?" is always answerable without trusting a tag.
    with the date. Keep a Changelog format, user-facing wording only.
 4. **Tag from that commit**, annotated, and push the tag only:
    ```bash
-   git tag -a v0.2.0-beta.1 -m "v0.2.0-beta.1"
-   git push origin v0.2.0-beta.1
+   git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1"
+   git push origin v0.2.0-rc.1
    ```
-5. **Watch CI** publish `0.2.0-beta.1` (+ variants). Then, on the reference
-   deployment, `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply` - pinning
+5. **Watch CI** publish `0.2.0-rc.1` (+ variants). Then, on the reference
+   deployment, `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply` - pinning
    the release tag replaces the `sha-` pin.
 6. **Announce the tag** with its changelog section. Operators pin
-   `eveyproject/evey:0.2.0-beta.1` (or `-full`) on their `image:` line.
+   `eveyproject/evey:0.2.0-rc.1` (or `-full`) on their `image:` line.
 
-Pre-release tags are cheap: `-beta.2`, `-beta.3` as needed. What they are not
+Pre-release tags are cheap: `-rc.2`, `-rc.3` as needed. What they are not
 is retractable - a published tag stays published. To undo a bad cut, cut the
 next one; never re-point a tag.
 
@@ -73,4 +73,4 @@ upgrade section of [installation.md](../installation.md) when it changes.
 Images stay in the registry. An operator rolls back with
 `scripts/evey-rollback.sh --tag <previous> [--restore <pre-update dump>] --apply`
 (the update script prints that exact line). Nothing on the release side needs
-undoing; publish a fixed `-beta.N+1` when the fix lands.
+undoing; publish a fixed `-rc.N+1` when the fix lands.

@@ -6,6 +6,10 @@
 
 Self-hosted media server for movies, TV shows, music, and photos.
 
+[Website](https://eveyproject.org) · [Live demo](https://demo.eveyproject.org) · [Documentation](https://eveyproject.org) · [Privacy policy](https://eveyproject.org/privacy/) · [Security policy](SECURITY.md)
+
+Status: public beta, versions 0.x.
+
 Brand assets (logo, favicon, social images) live in [`evey-brand/`](evey-brand/) - see its [README](evey-brand/README.md) for usage rules.
 
 ## Install
@@ -16,7 +20,7 @@ One container, one file, no secret to invent. Save this as
 ```yaml
 services:
   evey:
-    image: eveyproject/evey:latest        # pin a tag here (e.g. 0.2.0-beta.1, sha-1a2b3c4)
+    image: eveyproject/evey:latest        # pin a tag here (e.g. 0.1, 0.1.0, sha-1a2b3c4)
     container_name: evey-server
     ports:
       - "9091:9091"
@@ -62,7 +66,7 @@ before applying a migration, and the container reports healthy once it is
 serving. To go back, put the previous tag on the `image:` line and run
 `docker compose up -d` again (`docker exec evey-server evey admin rollback`
 tells you whether the database must be restored first, and how). Pin what you
-run - a release tag (`0.2.0-beta.1`) or an immutable `sha-<short>` tag, not a
+run - a release tag (`0.1.0`) or an immutable `sha-<short>` tag, not a
 branch name, which moves with every push.
 
 ## HTTPS

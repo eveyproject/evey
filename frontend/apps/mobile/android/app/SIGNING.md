@@ -15,11 +15,6 @@ If `EVEY_UPLOAD_STORE_PASSWORD` / `EVEY_UPLOAD_KEY_PASSWORD` are not set, any Gr
 that builds a release variant (`assembleRelease`, `bundleRelease`, ...) fails immediately
 with a clear error instead of silently signing with a fallback secret.
 
-## IMPORTANT: rotate the signing key
-
-The previous `release.keystore` and its passwords (`evey2026`) were committed to this
-public git history. Even though the file has now been removed from tracking, **the
-history still contains it** and the passwords are compromised. Rotating the upload key
-is strongly recommended before the next Play Store release (this changes the app's
-signing identity, so it must be a deliberate, planned operation, not done automatically
-here).
+The upload key is the app's signing identity: keep the keystore and its passwords out of
+the repository, out of CI logs and out of screenshots. Changing it changes the identity
+Google Play knows, so a rotation is a planned operation, never a side effect of a build.

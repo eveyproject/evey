@@ -1,5 +1,5 @@
 ---
-source_sha: 6e76bc51062fd0da4948dd5d4a7f4a24f632f7964d6ff25ba7c70254b1551408
+source_sha: abd1d63a9decd2ea9551be20491d9c39884d9ac4d33c79ea324f1b112429b298
 reviewed: true
 hide:
 - navigation
@@ -17,7 +17,7 @@ del resto.
 [Probar la demo](https://demo.eveyproject.org){ .md-button }
 
 <p class="evey-status">
-<span>Beta, todavía sin versión numerada</span>
+<span>Beta pública, versiones 0.x</span>
 <span>Software libre, AGPL-3.0</span>
 <span>Demo: la sesión se inicia sola (<code>demo</code> / <code>demo</code>)</span>
 </p>
@@ -27,7 +27,7 @@ del resto.
 una carpeta con tus archivos. La instalación es un archivo y un comando.<br>
 <strong>Dónde ver:</strong> en un navegador web, en teléfonos y tablets Android, en
 Android TV, en el navegador web de un televisor y en un Chromecast. Las apps de Android y Android TV están en
-pruebas y todavía no están en Google Play.
+<a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a>; la app web viene con el servidor y la app de TV del navegador se sirve en <code>/tv</code>.
 </p>
 
 <div class="grid cards" markdown>

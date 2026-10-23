@@ -1,5 +1,5 @@
 ---
-source_sha: 6e76bc51062fd0da4948dd5d4a7f4a24f632f7964d6ff25ba7c70254b1551408
+source_sha: abd1d63a9decd2ea9551be20491d9c39884d9ac4d33c79ea324f1b112429b298
 reviewed: true
 hide:
 - navigation
@@ -17,7 +17,7 @@ Evey एक मीडिया सर्वर है जिसे आप अप
 [डेमो आज़माएँ](https://demo.eveyproject.org){ .md-button }
 
 <p class="evey-status">
-<span>बीटा, अभी कोई नंबर वाला वर्ज़न नहीं</span>
+<span>पब्लिक बीटा, वर्ज़न 0.x</span>
 <span>फ़्री सॉफ़्टवेयर, AGPL-3.0</span>
 <span>डेमो: अपने-आप साइन इन हो जाता है (<code>demo</code> / <code>demo</code>)</span>
 </p>
@@ -26,8 +26,7 @@ Evey एक मीडिया सर्वर है जिसे आप अप
 <strong>आपको क्या चाहिए:</strong> Docker वाला एक x86-64 कंप्यूटर या NAS, और
 आपके मीडिया वाला एक फ़ोल्डर। इंस्टॉल करने के लिए बस एक फ़ाइल और एक कमांड।<br>
 <strong>देखें</strong> वेब ब्राउज़र में, Android फ़ोन और टैबलेट पर, Android TV
-पर, TV के वेब ब्राउज़र में, और Chromecast पर। Android और Android TV ऐप अभी टेस्टिंग में हैं और Google
-Play पर अभी नहीं हैं।
+पर, TV के वेब ब्राउज़र में, और Chromecast पर। Android और Android TV ऐप <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a> पर हैं; वेब ऐप सर्वर के साथ आता है, और ब्राउज़र वाला TV ऐप <code>/tv</code> पर चलता है।
 </p>
 
 <div class="grid cards" markdown>

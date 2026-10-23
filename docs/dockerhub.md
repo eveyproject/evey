@@ -18,7 +18,7 @@ services:
       - "9091:9091"
     volumes:
       - ./evey-data:/data              # database, JWT key, generated secrets, search index, logs, backups
-      - evey-cache:/cache              # transcode + trickplay cache (safe to prune)
+      - evey-cache:/cache              # transcode cache (safe to prune)
       - /path/to/your/media:/media     # read-write so in-place repairs work; append :ro to refuse them
     stop_grace_period: 60s
     restart: unless-stopped
@@ -40,7 +40,6 @@ One image covers Intel Quick Sync (VAAPI / QSV), NVIDIA (NVENC) and, on arm64, R
 | Tag | Meaning |
 |---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | Stable releases. `latest` is always the newest stable release. |
-| `X.Y.Z-beta.N` | Pre-releases. Never move `latest`. |
 | `<branch>`, `sha-<short>` | Branch builds. `sha-` tags are immutable, pin one if you follow a branch. |
 
 Variants, same app with more plugin runtimes: no suffix (Python only), `-nodejs` (adds Node), `-full` (adds PHP, Ruby and Lua).

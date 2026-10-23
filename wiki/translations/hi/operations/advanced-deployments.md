@@ -1,8 +1,8 @@
 ---
-source_sha: be2352babc32903dbb0a839c8c6754b1f9c0751d295a958a65e2ab12031c037e
+source_sha: 458502112f637df70456890a718f35fac167120f02775459773b334b689e454f
 reviewed: true
 ---
-# एडवांस्ड डिप्लॉयमेंट
+# एडवांस्ड डिप्लॉयमेंट { #advanced-deployments }
 
 [एक कंटेनर वाला इंस्टॉल](../installation.md) ज़्यादातर सर्वर के लिए ठीक है। यह
 पेज तब खोलें जब आप डेटाबेस या सर्च इंजन को अलग सर्विस के रूप में चाहते हों, जब
@@ -10,7 +10,7 @@ reviewed: true
 `landlock` के अलावा कुछ और बताए। Evey को Docker के बिना ही चलाने के लिए देखें
 [बिना कंटेनर के](../deployment-bare-metal.md)।
 
-## embedded डेटाबेस
+## embedded डेटाबेस { #the-embedded-database }
 
 क्लस्टर `./evey-data/postgres` में रखा जाता है (Postgres 17, पहली बार शुरू होने पर
 बनता है, सर्वर के उपयोगकर्ता का होता है)। यह सिर्फ़ कंटेनर के loopback पर सुनता
@@ -25,7 +25,7 @@ reviewed: true
 docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-### Postgres के नए major वर्ज़न पर जाना
+### Postgres के नए major वर्ज़न पर जाना { #move-to-a-newer-postgres-major }
 
 इमेज embedded डेटाबेस का major वर्ज़न तय रखती है। जो इमेज नया major वर्ज़न
 लाती है, वह पुराना क्लस्टर खोलने से मना कर देती है, और एक संदेश इस पेज की ओर
@@ -42,7 +42,7 @@ docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 docker compose restart evey
 ```
 
-## Postgres को अलग सर्विस के रूप में चलाएँ
+## Postgres को अलग सर्विस के रूप में चलाएँ { #run-postgres-as-a-separate-service }
 
 डेटाबेस का पूरा रख-रखाव खुद करने के लिए (कोई managed Postgres, तय major वर्ज़न,
 dump का अपना तरीका), उसे अपनी अलग सर्विस के रूप में चलाएँ और सर्वर को उससे
@@ -84,7 +84,7 @@ dump का अपना तरीका), उसे अपनी अलग स�
     EVEY_DB_PASSWORD=<strong-password>
     ```
 
-## Meilisearch को अलग सर्विस के रूप में चलाएँ
+## Meilisearch को अलग सर्विस के रूप में चलाएँ { #run-meilisearch-as-a-separate-service }
 
 सर्च इंजन के लिए भी यही तरीका: embedded सर्च इंजन बंद करें, सर्वर को अपने सर्च
 इंजन से जोड़ें और कुंजी दोनों को दें। साफ़ दिया गया `MEILI_MASTER_KEY` बनाई गई
@@ -126,7 +126,7 @@ dump का अपना तरीका), उसे अपनी अलग स�
 इंडेक्स `docker exec evey-server evey admin reindex-search` से डेटाबेस से दोबारा
 बनता है, इसलिए `meili-data` को कभी भी हटाया जा सकता है।
 
-## embedded डेटाबेस पर लौटना
+## embedded डेटाबेस पर लौटना { #move-back-onto-the-embedded-database }
 
 जो इंस्टॉलेशन Postgres को अलग सर्विस के रूप में चलाता है, वह एक कंटेनर वाले
 सेटअप पर आ सकता है। embedded डेटाबेस `./evey-data/postgres-import.sql.gz` पर
@@ -155,11 +155,11 @@ docker exec evey-server evey admin reindex-search
 है, कभी मिलाया नहीं जाता; import फ़ेल हो जाए, तो नया क्लस्टर हटा दिया जाता है
 ताकि अगली बार शुरू होने पर dump से फिर कोशिश हो।
 
-## ARM होस्ट
+## ARM होस्ट { #arm-hosts }
 
-किसी release tag (`0.2.0`, `0.2.0-beta.1` जैसे pre-release भी) से बनी इमेज कई
+किसी release tag (`0.1.0`, pre-release भी) से बनी इमेज कई
 आर्किटेक्चर के लिए होती हैं (`linux/amd64` और `linux/arm64`); Docker सही वाली
-चुन लेता है। `beta-0.0.1` जैसे branch tag सिर्फ़ amd64 के लिए हैं: ARM होस्ट पर
+चुन लेता है। branch tag सिर्फ़ amd64 के लिए हैं: ARM होस्ट पर
 कोई release tag पिन करें।
 
 - **ARM पर हार्डवेयर ट्रांसकोडिंग** RKMPP के ज़रिए सिर्फ़ Rockchip SoC (RK3588,
@@ -173,15 +173,15 @@ docker exec evey-server evey admin reindex-search
 - **HDR tone mapping** ARM (NEON) पर भी वही SIMD `tonemapx` फ़िल्टर इस्तेमाल
   करता है जो x86-64 (AVX2) पर।
 
-## इमेज tag और रूप
+## इमेज tag और रूप { #image-tags-and-variants }
 
 इमेज `eveyproject/evey` है।
 
 | Tag | किससे प्रकाशित होता है | टिप्पणी |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | एक release tag `vX.Y.Z` | `latest` हमेशा सबसे नई स्थिर release है |
-| `X.Y.Z-beta.N` | एक pre-release tag | सिर्फ़ अपना tag प्रकाशित करता है, `latest` को कभी नहीं बदलता |
-| `beta-0.0.1`, `sha-<commit>` | branch से बनी इमेज | सिर्फ़ amd64 |
+| एक pre-release tag (हाइफ़न वाला) | एक pre-release tag | सिर्फ़ अपना tag प्रकाशित करता है, `latest` को कभी नहीं बदलता |
+| branch का नाम, `sha-<commit>` | branch से बनी इमेज | सिर्फ़ amd64 |
 
 हर tag तीन रूपों में आता है: डिफ़ॉल्ट रूप में प्लगइन के लिए Python 3 होता है,
 `-nodejs` में Node.js जुड़ता है, `-full` में PHP, Ruby और Lua जुड़ते हैं (जैसे
@@ -195,7 +195,7 @@ docker exec evey-server evey admin reindex-search
 `GPU=amd` या `GPU=none`। NVIDIA के लिए किसी रूप की ज़रूरत नहीं: NVIDIA
 Container Toolkit चलते समय होस्ट का ड्राइवर कंटेनर में डाल देता है।
 
-## किसी असामान्य होस्ट पर प्लगइन सैंडबॉक्स
+## किसी असामान्य होस्ट पर प्लगइन सैंडबॉक्स { #the-plugin-sandbox-on-an-unusual-host }
 
 इमेज में प्लगइन को सीमित और अलग रखने के लिए सब कुछ है, privileged मोड के बिना।
 डिफ़ॉल्ट सैंडबॉक्स मोड (`auto`) वह सबसे मज़बूत बैकएंड चुनता है जिसकी होस्ट

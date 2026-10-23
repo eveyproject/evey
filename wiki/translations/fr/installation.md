@@ -1,8 +1,8 @@
 ---
-source_sha: ae588b2b2b2d42902a1b916cd8e90978a81afd473115c9eb522377e95409d542
+source_sha: 0b2670e7a74f2a0cdbc172c1bb7ef216fa53371cf55248071c00cba27a64c162
 reviewed: true
 ---
-# Installation
+# Installation { #install }
 
 Cette page s'adresse à la personne qui va faire tourner Evey pour son foyer.
 Il vous faut un ordinateur ou un NAS qui reste allumé, avec Docker installé.
@@ -26,7 +26,7 @@ recherche sont dedans : il n'y a rien d'autre à installer, pas de fichier
     demande un fichier `.env` et lance des services en plus. Il est décrit
     dans [Déploiements avancés](operations/advanced-deployments.md).
 
-## Ce qu'il vous faut
+## Ce qu'il vous faut { #what-you-need }
 
 - **Un ordinateur ou un NAS qui reste allumé**, avec un processeur x86-64
   (Intel ou AMD). Les machines ARM64 ont besoin d'un tag de version, qui
@@ -53,7 +53,7 @@ médias (la ligne marquée 5). Par exemple, si vos films sont dans
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: eveyproject/evey:beta-0.0.1 # (1)!
+    image: eveyproject/evey:latest # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!
@@ -68,10 +68,9 @@ volumes:
   evey-cache:
 ```
 
-1. La version d'Evey. Evey est en bêta, il n'y a donc pas encore de tag
-   `latest` : `beta-0.0.1` suit la branche de développement et change à
-   chaque mise à jour. Pour garder exactement le même code, utilisez plutôt
-   un tag `sha-<commit>` : voir
+1. La version d'Evey. `latest` est la dernière version publiée. Pour rester
+   sur une version donnée, utilisez un tag de version comme `0.1.0`, ou un tag
+   `sha-<commit>` : voir
    [Sauvegardes et mises à jour](backups.md#updating-evey).
 2. Le port. Le nombre de gauche est celui que vous saisirez dans le navigateur
    et dans les applications. Gardez `9091`, sauf si un autre programme
@@ -188,7 +187,7 @@ vos services) : voir [Accès distant et HTTPS](administration/remote-access.md).
       `group_add:` décrites dans
       [Accélération matérielle](administration/hardware-acceleration.md).
 
-## Ce qu'Evey règle de lui-même
+## Ce qu'Evey règle de lui-même { #what-evey-sets-up-by-itself }
 
 Vous n'avez pas à configurer :
 

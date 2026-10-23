@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://eveyproject.org
+    about: Installation, configuration and troubleshooting guides.
+  - name: Report a vulnerability
+    url: mailto:security@eveyproject.org
+    about: Do not open a public issue for a security problem. Write to security@eveyproject.org.

@@ -17,15 +17,15 @@ et `ghcr.io/eveyproject/evey` :
 
 | Ce que vous poussez | Étiquettes d'image publiées (chacune aussi en `-nodejs` / `-full`) |
 |---|---|
-| une branche (par exemple `beta-0.0.1`) | `beta-0.0.1`, `sha-<short>` |
-| l'étiquette `v0.2.0-beta.1` (préversion : elle contient un tiret) | `0.2.0-beta.1`, `sha-<short>` |
+| une branche (par exemple `master`) | `master`, `sha-<short>` |
+| l'étiquette `v0.2.0-rc.1` (préversion : elle contient un tiret) | `0.2.0-rc.1`, `sha-<short>` |
 | l'étiquette `v0.2.0` (stable) | `0.2.0`, `0.2`, `0`, `latest`, `sha-<short>` |
 
 Trois conséquences :
 
-- **Une étiquette de branche change.** `beta-0.0.1-full` désigne ce qui a été
+- **Une étiquette de branche change.** `master-full` désigne ce qui a été
   poussé en dernier : deux `docker compose pull` à un jour d'intervalle peuvent
-  faire tourner du code différent, et un retour « à `beta-0.0.1-full` » ne
+  faire tourner du code différent, et un retour « à `master-full` » ne
   désigne aucune version précise. Un administrateur doit épingler une étiquette
   `sha-<short>` (ou une étiquette de version), jamais un nom de branche : c'est
   ce que `scripts/evey-update.sh` affiche à la fin, à reporter dans `.env`.
@@ -58,17 +58,17 @@ savoir quel code tourne sans faire confiance à une étiquette.
 4. **Étiqueter ce commit**, avec une étiquette annotée, et ne pousser que
    l'étiquette :
    ```bash
-   git tag -a v0.2.0-beta.1 -m "v0.2.0-beta.1"
-   git push origin v0.2.0-beta.1
+   git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1"
+   git push origin v0.2.0-rc.1
    ```
-5. **Surveiller la CI** qui publie `0.2.0-beta.1` (+ variantes). Puis, sur le
-   déploiement de référence, `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply` :
+5. **Surveiller la CI** qui publie `0.2.0-rc.1` (+ variantes). Puis, sur le
+   déploiement de référence, `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply` :
    l'étiquette de version remplace l'épinglage `sha-`.
 6. **Annoncer l'étiquette** avec sa section du changelog. Les administrateurs
-   épinglent `eveyproject/evey:0.2.0-beta.1` (ou `-full`) sur leur ligne
+   épinglent `eveyproject/evey:0.2.0-rc.1` (ou `-full`) sur leur ligne
    `image:`.
 
-Créer des étiquettes de préversion ne coûte rien : `-beta.2`, `-beta.3` autant
+Créer des étiquettes de préversion ne coûte rien : `-rc.2`, `-rc.3` autant
 que nécessaire. En revanche, elles ne peuvent pas être retirées : une étiquette
 publiée reste publiée. Pour corriger une mauvaise préversion, on publie la
 suivante ; on ne déplace jamais une étiquette.
@@ -86,5 +86,5 @@ base intégrée doit suivre la section de mise à niveau de
 Les images restent dans le registre. Un administrateur revient en arrière avec
 `scripts/evey-rollback.sh --tag <previous> [--restore <pre-update dump>] --apply`
 (le script de mise à jour affiche cette ligne exacte). Rien n'est à annuler
-côté publication ; on publie une `-beta.N+1` corrigée quand le correctif est
+côté publication ; on publie une `-rc.N+1` corrigée quand le correctif est
 prêt.

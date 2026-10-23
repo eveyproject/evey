@@ -1,8 +1,8 @@
 ---
-source_sha: be2352babc32903dbb0a839c8c6754b1f9c0751d295a958a65e2ab12031c037e
+source_sha: 458502112f637df70456890a718f35fac167120f02775459773b334b689e454f
 reviewed: true
 ---
-# Erweiterte Bereitstellungen
+# Erweiterte Bereitstellungen { #advanced-deployments }
 
 Die [Installation in einem einzigen Container](../installation.md) passt zu
 den meisten Servern. Öffnen Sie diese Seite, wenn Sie die Datenbank oder die
@@ -11,7 +11,7 @@ ist, wenn Sie eine Image-Variante brauchen oder wenn die Plugin-Sandbox etwas
 anderes als `landlock` meldet. Um Evey ganz ohne Docker zu betreiben, siehe
 [Ohne Container](../deployment-bare-metal.md).
 
-## Die eingebettete Datenbank
+## Die eingebettete Datenbank { #the-embedded-database }
 
 Der Cluster liegt in `./evey-data/postgres` (Postgres 17, beim ersten Start
 angelegt, im Besitz des Serverbenutzers). Er lauscht nur auf dem Loopback des
@@ -27,7 +27,7 @@ SQL-Shell:
 docker exec -it evey-server sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password) psql -h 127.0.0.1 -U evey evey'
 ```
 
-### Auf eine neuere Postgres-Hauptversion wechseln
+### Auf eine neuere Postgres-Hauptversion wechseln { #move-to-a-newer-postgres-major }
 
 Das Image legt die Hauptversion der eingebetteten Datenbank fest. Ein Image
 mit einer neueren Hauptversion weigert sich, den alten Cluster zu öffnen, und
@@ -45,7 +45,7 @@ docker compose exec -T evey sh -c 'PGPASSWORD=$(cat /data/keys/postgres.password
 docker compose restart evey
 ```
 
-## Postgres als eigenen Dienst betreiben
+## Postgres als eigenen Dienst betreiben { #run-postgres-as-a-separate-service }
 
 Wenn Sie den Lebenszyklus der Datenbank selbst steuern wollen (ein verwaltetes
 Postgres, eine fest gewählte Hauptversion, Ihre eigene Dump-Strategie),
@@ -88,7 +88,7 @@ Standardpasswort `evey` verweigert der Server den Start.
     EVEY_DB_PASSWORD=<strong-password>
     ```
 
-## Meilisearch als eigenen Dienst betreiben
+## Meilisearch als eigenen Dienst betreiben { #run-meilisearch-as-a-separate-service }
 
 Dasselbe Prinzip für die Suchmaschine: Schalten Sie die eingebettete ab,
 richten Sie den Server auf Ihre eigene und verwenden Sie auf beiden Seiten
@@ -131,7 +131,7 @@ vor dem erzeugten `./evey-data/keys/meili.key`.
 Der Index wird mit `docker exec evey-server evey admin reindex-search` aus der
 Datenbank neu aufgebaut. `meili-data` kann also jederzeit verworfen werden.
 
-## Zurück zur eingebetteten Datenbank
+## Zurück zur eingebetteten Datenbank { #move-back-onto-the-embedded-database }
 
 Eine Installation, die Postgres als eigenen Dienst betreibt, kann auf den
 einzelnen Container wechseln. Die eingebettete Datenbank importiert einmalig
@@ -162,11 +162,11 @@ Cluster liegt, wird gemeldet und ignoriert, nie zusammengeführt. Ein
 fehlgeschlagener Import verwirft den neuen Cluster, damit der nächste Start
 es erneut mit dem Dump versucht.
 
-## ARM-Hosts
+## ARM-Hosts { #arm-hosts }
 
-Images, die aus einem Release-Tag gebaut werden (`0.2.0`, auch Vorabversionen
-wie `0.2.0-beta.1`), gibt es für mehrere Architekturen (`linux/amd64` und
-`linux/arm64`); Docker wählt die passende. Branch-Tags wie `beta-0.0.1` gibt es
+Images, die aus einem Release-Tag gebaut werden (`0.1.0`, auch Vorabversionen),
+gibt es für mehrere Architekturen (`linux/amd64` und
+`linux/arm64`); Docker wählt die passende. Branch-Tags gibt es
 nur für amd64: Legen Sie auf einem ARM-Host ein Release-Tag fest.
 
 - **Hardware-Transkodierung auf ARM** ist auf Rockchip-SoCs (Klasse RK3588,
@@ -181,15 +181,15 @@ nur für amd64: Legen Sie auf einem ARM-Host ein Release-Tag fest.
 - **HDR-Tone-Mapping** nutzt auf ARM (NEON) denselben SIMD-Filter `tonemapx`
   wie auf x86-64 (AVX2).
 
-## Image-Tags und Varianten
+## Image-Tags und Varianten { #image-tags-and-variants }
 
 Das Image heißt `eveyproject/evey`.
 
 | Tag | Veröffentlicht durch | Hinweise |
 |---|---|---|
 | `X.Y.Z`, `X.Y`, `X`, `latest` | ein Release-Tag `vX.Y.Z` | `latest` ist immer die neueste stabile Version |
-| `X.Y.Z-beta.N` | ein Vorabversions-Tag | veröffentlicht nur sein eigenes Tag, verschiebt nie `latest` |
-| `beta-0.0.1`, `sha-<commit>` | ein Branch-Build | nur amd64 |
+| ein Vorabversions-Tag (mit Bindestrich) | ein Vorabversions-Tag | veröffentlicht nur sein eigenes Tag, verschiebt nie `latest` |
+| ein Branch-Name, `sha-<commit>` | ein Branch-Build | nur amd64 |
 
 Jedes Tag gibt es in drei Varianten: Die Standardvariante bringt Python 3 für
 Plugins mit, `-nodejs` fügt Node.js hinzu, `-full` fügt PHP, Ruby und Lua
@@ -205,7 +205,7 @@ Gen11), `GPU=intel` (Gen12 und neuer), `GPU=amd` oder `GPU=none`. NVIDIA
 braucht keine Variante: Das NVIDIA Container Toolkit bringt den Treiber des
 Hosts zur Laufzeit in den Container.
 
-## Die Plugin-Sandbox auf einem ungewöhnlichen Host
+## Die Plugin-Sandbox auf einem ungewöhnlichen Host { #the-plugin-sandbox-on-an-unusual-host }
 
 Das Image enthält alles, was nötig ist, um Plugins zu isolieren, ohne
 privilegierten Modus. Der Standard-Sandbox-Modus (`auto`) wählt das stärkste

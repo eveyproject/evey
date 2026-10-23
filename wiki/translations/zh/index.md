@@ -1,5 +1,5 @@
 ---
-source_sha: 6e76bc51062fd0da4948dd5d4a7f4a24f632f7964d6ff25ba7c70254b1551408
+source_sha: abd1d63a9decd2ea9551be20491d9c39884d9ac4d33c79ea324f1b112429b298
 reviewed: true
 hide:
 - navigation
@@ -14,14 +14,14 @@ Evey 是一个在您家中运行的媒体服务器。它存放您的电影、剧
 [试用演示](https://demo.eveyproject.org){ .md-button }
 
 <p class="evey-status">
-<span>测试版，还没有正式版本号</span>
+<span>公开测试版，0.x 版本</span>
 <span>自由软件，AGPL-3.0</span>
 <span>演示站会自动登录（<code>demo</code> / <code>demo</code>）</span>
 </p>
 
 <p class="evey-platforms">
 <strong>您需要：</strong>一台装了 Docker 的 x86-64 电脑或 NAS，以及一个放着您媒体文件的文件夹。安装只要一个文件和一条命令。<br>
-<strong>观看方式：</strong>网页浏览器、Android 手机和平板、Android TV、电视的网页浏览器，以及 Chromecast。Android 和 Android TV 应用还在测试中，暂时没有上架 Google Play。
+<strong>观看方式：</strong>网页浏览器、Android 手机和平板、Android TV、电视的网页浏览器，以及 Chromecast。Android 和 Android TV 应用已在 [Google Play](https://play.google.com/store/apps/details?id=com.evey.app) 上架；网页应用随服务器一起提供，电视浏览器版应用位于 `/tv`。
 </p>
 
 <div class="grid cards" markdown>

@@ -14,14 +14,14 @@ source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 
 | 您推送的内容 | 发布的镜像标签（每个标签另有 `-nodejs` / `-full` 版本） |
 |---|---|
-| 一个分支（例如 `beta-0.0.1`） | `beta-0.0.1`、`sha-<short>` |
-| 标签 `v0.2.0-beta.1`（预发布版：带连字符） | `0.2.0-beta.1`、`sha-<short>` |
+| 一个分支（例如 `master`） | `master`、`sha-<short>` |
+| 标签 `v0.2.0-rc.1`（预发布版：带连字符） | `0.2.0-rc.1`、`sha-<short>` |
 | 标签 `v0.2.0`（稳定版） | `0.2.0`、`0.2`、`0`、`latest`、`sha-<short>` |
 
 由此得出三点：
 
-- **分支标签会变动。** `beta-0.0.1-full` 指向最后一次推送的内容；相隔一天执行的两次
-  `docker compose pull` 可能运行不同的代码，而“回滚到 `beta-0.0.1-full`”无法回到任何确定的版本。运维者
+- **分支标签会变动。** `master-full` 指向最后一次推送的内容；相隔一天执行的两次
+  `docker compose pull` 可能运行不同的代码，而“回滚到 `master-full`”无法回到任何确定的版本。运维者
   必须固定一个 `sha-<short>` 标签（或版本标签），不能固定分支名 - `scripts/evey-update.sh`
   在结束时会打印该标签，供运维者写入 `.env`。
 - **预发布版不会影响 `latest`。** `latest` 表示最新的稳定版；跟踪 `latest` 的人不会看到封闭测试版的发布。
@@ -43,13 +43,13 @@ source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
    Changelog 格式，只使用面向用户的表述。
 4. **从该提交打标签**，使用附注标签，并且只推送该标签：
    ```bash
-   git tag -a v0.2.0-beta.1 -m "v0.2.0-beta.1"
-   git push origin v0.2.0-beta.1
+   git tag -a v0.2.0-rc.1 -m "v0.2.0-rc.1"
+   git push origin v0.2.0-rc.1
    ```
-5. **查看 CI** 是否发布了 `0.2.0-beta.1`（及各变体）。然后在参考部署上运行
-   `scripts/evey-update.sh --tag 0.2.0-beta.1 --apply` - 固定版本标签后，它将取代之前固定的 `sha-` 标签。
+5. **查看 CI** 是否发布了 `0.2.0-rc.1`（及各变体）。然后在参考部署上运行
+   `scripts/evey-update.sh --tag 0.2.0-rc.1 --apply` - 固定版本标签后，它将取代之前固定的 `sha-` 标签。
 6. **公布该标签**，并附上对应的 changelog 章节。运维者在 `image:` 行中固定
-   `eveyproject/evey:0.2.0-beta.1`（或 `-full`）。
+   `eveyproject/evey:0.2.0-rc.1`（或 `-full`）。
 
 预发布标签的成本很低：需要时可以发布 `-beta.2`、`-beta.3`。但它们无法撤回 - 已发布的标签会一直保留。
 要撤销一次有问题的发布，请发布下一个版本；不要将标签重新指向其他提交。
@@ -65,4 +65,4 @@ source_sha: 7e38ef34503d1582f3a4a5fc3e6171c1d2f137aa52dae78d9840504057637151
 镜像会保留在镜像仓库中。运维者使用
 `scripts/evey-rollback.sh --tag <previous> [--restore <pre-update dump>] --apply` 回滚
 （更新脚本会打印出这一行）。发布一侧不需要撤销任何操作；修复完成后，发布修正后的
-`-beta.N+1` 即可。
+`-rc.N+1` 即可。

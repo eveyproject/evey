@@ -1,8 +1,13 @@
-# Example: Evey behind Nginx with auto SSL (Let's Encrypt)
+# Example: Evey behind Nginx (you supply the certificate and key)
 # Usage:
 #   docker compose -f docker-compose.yml -f examples/nginx/docker-compose.nginx.yml up -d
 
 services:
+  # The base file's bundled Caddy also binds 80 and 443: park it behind a
+  # profile that is never enabled, so Nginx can take the ports.
+  caddy:
+    profiles: ["disabled"]
+
   nginx:
     container_name: evey-nginx
     image: nginx:alpine

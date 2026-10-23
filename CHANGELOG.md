@@ -7,6 +7,11 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+### Upgrade notes
+- An install whose `EVEY_DB_PASSWORD` is still the old default `evey` now
+  refuses to start; `changeme` only warns. Set a real database password
+  before upgrading.
+
 ### Added
 - Mobile: a banner offers the Play Store page when the server was released
   with a newer phone build (checked on start and every 6 hours against

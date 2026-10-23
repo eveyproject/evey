@@ -10,8 +10,8 @@ device to the next.
 
 - **Web browser**: nothing to install. Open the server's address. The admin
   panel is there too, for administrators.
-- **Android** (phone, tablet) and **Android TV**: the Evey apps. They are in
-  testing and not on Google Play for everyone yet.
+- **Android** (phone, tablet) and **Android TV**: the Evey apps, published on
+  [Google Play](https://play.google.com/store/apps/details?id=com.evey.app).
 - **A television's web browser** (LG, Samsung and others): nothing to
   install. Open the server's address followed by `/tv`: see
   [On a television's web browser](#on-a-televisions-web-browser).

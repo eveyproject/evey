@@ -1,8 +1,8 @@
 ---
-source_sha: 91a46caa213d6048de832a4352bd5972b5f2d393a40a66301f693b3d908f084c
+source_sha: 9be0f9fe12d2d5606cefd03463fe0dd43f1000f645afe396700673ac2c53dcea
 reviewed: true
 ---
-# MKVGo dans Evey
+# MKVGo dans Evey { #mkvgo-in-evey }
 
 **En bref :**
 
@@ -25,7 +25,7 @@ son ; tout ce qui demande un décodage côté serveur passe par FFmpeg. Elle est
 développée comme une bibliothèque Go à part :
 [github.com/gravity-zero/mkvgo](https://github.com/gravity-zero/mkvgo).
 
-## Trois niveaux de travail
+## Trois niveaux de travail { #three-levels-of-work }
 
 | Niveau | Ce qui se passe | Ce que cela coûte au serveur |
 | --- | --- | --- |
@@ -45,7 +45,7 @@ l'index du fichier. Qu'un fichier emprunte cette voie dépend de ce que le
 lecteur sait décoder :
 [Comment Evey choisit le mode de lecture](how-playback-is-decided.md).
 
-## Ce que fait MKVGo
+## Ce que fait MKVGo { #what-mkvgo-does }
 
 | Travail | Où on le voit | Quand MKVGo ne peut pas |
 | --- | --- | --- |
@@ -58,7 +58,7 @@ lecteur sait décoder :
 | **Épisodes enchaînés** | Le serveur peut empaqueter plusieurs épisodes en un seul flux continu (`?gapless=1` dans l'adresse du flux). Aucune application ne propose encore l'option. | Chaque épisode est lu séparément. |
 | **Santé des médias** | Le diagnostic (index de lecture, début de l'audio, pistes rangées par blocs), l'index reconstruit, la resynchronisation après une zone abîmée, et le décalage d'une piste audio. Voir [Santé des médias](../runbooks/media-health.md). | Le remux des pistes rangées par blocs est fait par FFmpeg. |
 
-## Ce qui reste à FFmpeg
+## Ce qui reste à FFmpeg { #what-stays-with-ffmpeg }
 
 - Tout réencodage, tone mapping HDR compris.
 - Le décodage d'images : les miniatures de navigation, l'image d'un aperçu.
@@ -66,7 +66,7 @@ lecteur sait décoder :
   l'entrelacement, empreintes audio pour la détection des génériques.
 - Les conteneurs autres que MKV/WebM et MP4/MOV, comme l'AVI ou le MPEG-TS.
 
-## Charge, fichiers remplacés et mises à jour
+## Charge, fichiers remplacés et mises à jour { #load-replaced-files-and-updates }
 
 **Ce qu'il lit à la fois.** Construire un segment lit une fenêtre de la
 source, vidéo et audio ensemble : 6 à 10 Mio pour un fichier 1080p, environ
@@ -102,8 +102,10 @@ augmente signifie que des spectateurs attendent une place sur le processeur ;
 `stream_fallbacks` compte les segments qui ont dû être assemblés en mémoire
 au lieu d'être diffusés directement.
 
-## Voir quel moteur sert un flux
+## Voir quel moteur sert un flux { #seeing-which-engine-served-a-stream }
 
 **Administration → Tableau de bord** et **Administration → En cours de lecture** indiquent le
 moteur de chaque piste : `mkvgo` ou `ffmpeg`. Un remux peut afficher les deux,
 par exemple la vidéo empaquetée par MKVGo et l'audio copié par FFmpeg.
+
+mkvgo est publié sous licence MIT.

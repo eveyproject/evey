@@ -1,8 +1,8 @@
 ---
-source_sha: bb93a3bd66810178b6d8d2bee10c74900b625b44325eb2d0aeec62adbafc790c
+source_sha: 7f9f3de42904ab3727caa3bb692a72dede00155bd906f98e3f478738e1669309
 reviewed: true
 ---
-# Conectar las aplicaciones
+# Conectar las aplicaciones { #connect-the-apps }
 
 ¿Tu teléfono o tu televisor te pide la dirección de tu servidor Evey? Esta
 página te dice qué escribir, y qué hacer cuando no funciona.
@@ -15,15 +15,15 @@ cualquiera de tus dispositivos.
 - **Navegador web**: no hay nada que instalar. Abre la dirección del
   servidor. Ahí está también el panel de administración, para los
   administradores.
-- **Android** (teléfono, tablet) y **Android TV**: las apps de Evey. Están en
-  pruebas y todavía no están en Google Play para todo el mundo.
+- **Android** (teléfono, tablet) y **Android TV**: las apps de Evey,
+  publicadas en [Google Play](https://play.google.com/store/apps/details?id=com.evey.app).
 - **El navegador web de un televisor** (LG, Samsung y otros): nada que
   instalar. Abre la dirección del servidor seguida de `/tv`: consulta
   [En el navegador web de un televisor](#on-a-televisions-web-browser).
 - **Chromecast**: sin app. Envías el vídeo desde el reproductor web en Chrome
   o desde la app de Android.
 
-## La dirección del servidor que hay que escribir
+## La dirección del servidor que hay que escribir { #the-server-address-to-enter }
 
 **Pide la dirección a la persona que gestiona Evey.** Tiene este aspecto:
 
@@ -87,7 +87,7 @@ y ofrece **¿Dónde encuentro la dirección de mi servidor?**, que lleva a esta
 página. El teléfono la abre en el navegador; el televisor escribe en pantalla
 la dirección de la página, para que la abras en otro dispositivo.
 
-### Escanear la red local: qué encuentra y qué no
+### Escanear la red local: qué encuentra y qué no { #scan-local-network-what-it-finds-and-what-it-does-not }
 
 **Escanear la red local**, debajo del campo, busca por ti un servidor Evey en
 casa. Puede tardar hasta un par de minutos. Cada servidor encontrado aparece
@@ -110,7 +110,7 @@ en una Wi-Fi de invitados o en otra red distinta de la del servidor.
     por HTTPS. Las apps no usan mDNS ni Bonjour, y no leen el rango de red
     del teléfono: estos cuatro rangos son fijos.
 
-### Cuando la conexión falla
+### Cuando la conexión falla { #when-the-connection-fails }
 
 Cada fallo abre un cuadro con el título **Conexión fallida**. Busca el
 mensaje en esta tabla (algunos mensajes de la app de Android todavía salen
@@ -138,7 +138,7 @@ esta pantalla y muestra el servidor guardado. En el televisor añade **Tu
 servidor no respondió. Puede estar en reposo o fuera de la red.** Cuando el
 servidor vuelva a estar encendido, elígelo de nuevo.
 
-### Cambiar de servidor o añadir otro más adelante
+### Cambiar de servidor o añadir otro más adelante { #changing-or-adding-a-server-later }
 
 Las dos apps pueden recordar varios servidores. La pantalla de conexión los
 muestra en **Tus servidores**, con el que está en uso marcado como **Actual**
@@ -157,7 +157,7 @@ dirección. Cada servidor guarda su propio inicio de sesión.
   sesión tiene el mismo botón. En la pantalla de conexión, **Administrar
   servidores** cambia el nombre de un servidor guardado o lo borra.
 
-## En el navegador web de un televisor
+## En el navegador web de un televisor { #on-a-televisions-web-browser }
 
 Un televisor sin Android TV también puede reproducir Evey en su propio
 navegador web. El servidor ofrece una página pensada para él, que se maneja
@@ -188,7 +188,7 @@ http://192.168.1.20:9091/tv
   televisor se las pasa al navegador.
 - **Texto demasiado pequeño o grande.** **Ajustes → Tamaño de la interfaz**.
 
-## Conexión rápida: iniciar sesión en un televisor sin escribir la contraseña
+## Conexión rápida: iniciar sesión en un televisor sin escribir la contraseña { #quick-connect-signing-in-a-tv-without-typing-a-password }
 
 Escribir una contraseña con el mando es lento. Con la Conexión rápida, en su
 lugar apruebas el televisor desde tu teléfono o tu ordenador.
@@ -214,7 +214,7 @@ La pantalla de inicio de sesión de la app de Android también ofrece la
 Conexión rápida, para un teléfono en el que prefieras no escribir tu
 contraseña.
 
-## Lo que añade cada app
+## Lo que añade cada app { #what-each-app-adds }
 
 - **Web.** Atajos de teclado en el reproductor (pulsa `?` para verlos),
   notificaciones en el navegador (consulta
@@ -238,7 +238,7 @@ contraseña.
 viendo a otra app de Evey que esté abierta y con la sesión iniciada en la
 misma cuenta. La reproducción sigue allí.
 
-## Mantener las apps al día
+## Mantener las apps al día { #keeping-the-apps-up-to-date }
 
 Cuando tu app de Android o de Android TV es más antigua que la versión que va
 con tu servidor, te avisa:
@@ -254,7 +254,7 @@ está al día, o cuando el servidor es más antiguo que esta función, no se
 muestra nada. La app web y la página `/tv` nunca necesitan
 actualizarse: las sirve el servidor.
 
-## Qué reproduce cada dispositivo
+## Qué reproduce cada dispositivo { #which-device-plays-what }
 
 Cada app le dice al servidor lo que su dispositivo puede reproducir. Para
 cada título, el servidor decide entonces si envía el archivo tal cual o si lo

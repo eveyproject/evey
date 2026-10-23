@@ -46,7 +46,7 @@ marked 5). For example, if your films are in `/srv/media`, the line becomes
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: eveyproject/evey:beta-0.0.1 # (1)!
+    image: eveyproject/evey:latest # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!
@@ -61,9 +61,8 @@ volumes:
   evey-cache:
 ```
 
-1. The version of Evey. Evey is in beta, so there is no `latest` tag yet:
-   `beta-0.0.1` follows the development branch and changes with every update.
-   To stay on exactly the same code, use a `sha-<commit>` tag instead: see
+1. The version of Evey. `latest` is the newest release. To stay on a given
+   version, use a release tag such as `0.1.0`, or a `sha-<commit>` tag: see
    [Backups and updates](backups.md#updating-evey).
 2. The port. The number on the left is the one you will type in the browser
    and in the apps. Keep `9091` unless another program already uses it.

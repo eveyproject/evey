@@ -117,11 +117,10 @@ That is the whole update.
 
 ??? info "Pin the exact version you run"
 
-    During the beta there is no numbered release and no `latest` tag. The tag
-    `beta-0.0.1` changes with every update. For a server you rely on, put a
-    fixed `sha-<commit>` tag on the `image:` line, so that two pulls a day
-    apart run the same code. Once releases exist, `latest` will follow the
-    most recent stable one, and a release tag (`0.2.0`) will pin it.
+    `latest` follows the newest release and changes with every update. For a
+    server you rely on, put a release tag (`0.1.0`) or a fixed
+    `sha-<commit>` tag on the `image:` line, so that two pulls a day apart
+    run the same code.
 
 ### Going back
 
@@ -142,6 +141,6 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
-rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (beta-0.0.1 + sha-<short>, latest gated on vX.Y.Z)
+rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

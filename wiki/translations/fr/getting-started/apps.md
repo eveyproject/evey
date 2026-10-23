@@ -1,8 +1,8 @@
 ---
-source_sha: bb93a3bd66810178b6d8d2bee10c74900b625b44325eb2d0aeec62adbafc790c
+source_sha: 7f9f3de42904ab3727caa3bb692a72dede00155bd906f98e3f478738e1669309
 reviewed: true
 ---
-# Connecter les applications
+# Connecter les applications { #connect-the-apps }
 
 Votre téléphone ou votre TV vous demande l'adresse de votre serveur Evey ?
 Cette page indique quoi saisir, et quoi faire quand cela ne fonctionne pas.
@@ -16,14 +16,14 @@ vos appareils.
 - **Navigateur web** : rien à installer. Ouvrez l'adresse du serveur. Le
   panneau d'administration est là aussi, pour les administrateurs.
 - **Android** (téléphone, tablette) et **Android TV** : les applications
-  Evey. Elles sont en test et pas encore sur Google Play pour tout le monde.
+  Evey, publiées sur [Google Play](https://play.google.com/store/apps/details?id=com.evey.app).
 - **Le navigateur web d'une télévision** (LG, Samsung et d'autres) : rien à
   installer. Ouvrez l'adresse du serveur suivie de `/tv` : voir
   [Sur le navigateur web d'une télévision](#on-a-televisions-web-browser).
 - **Chromecast** : pas d'application. Vous castez depuis le lecteur web dans
   Chrome, ou depuis l'application Android.
 
-## L'adresse du serveur à saisir
+## L'adresse du serveur à saisir { #the-server-address-to-enter }
 
 **Demandez l'adresse à la personne qui fait tourner Evey.** Elle ressemble à
 ceci :
@@ -89,7 +89,7 @@ navigateur.**) et propose **Où trouver l'adresse de mon serveur ?**, qui mène
 à cette page. Le téléphone l'ouvre dans le navigateur ; la TV affiche
 l'adresse de la page à l'écran, pour l'ouvrir sur un autre appareil.
 
-### Scanner le réseau local : ce qu'il trouve et ce qu'il ne trouve pas
+### Scanner le réseau local : ce qu'il trouve et ce qu'il ne trouve pas { #scan-local-network-what-it-finds-and-what-it-does-not }
 
 **Scanner le réseau local**, sous le champ, cherche pour vous un serveur Evey
 sur votre réseau domestique. Cela peut prendre jusqu'à deux minutes environ. Chaque serveur
@@ -112,7 +112,7 @@ sur un Wi-Fi invité, ou sur un autre réseau que le serveur.
     n'utilisent ni mDNS ni Bonjour, et ne lisent pas la plage d'adresses du
     téléphone : ces quatre plages sont fixes.
 
-### Quand la connexion échoue
+### Quand la connexion échoue { #when-the-connection-fails }
 
 Chaque échec ouvre une fenêtre titrée **Connexion échouée**. Cherchez le
 message dans ce tableau (certains messages de l'application Android
@@ -140,7 +140,7 @@ l'application revient sur cet écran et affiche le serveur enregistré. Sur la
 TV, elle ajoute **Votre serveur n'a pas répondu. Il est peut-être en veille ou
 hors du réseau.** Quand le serveur est rallumé, choisissez-le à nouveau.
 
-### Changer de serveur ou en ajouter un plus tard
+### Changer de serveur ou en ajouter un plus tard { #changing-or-adding-a-server-later }
 
 Les deux applications peuvent retenir plusieurs serveurs. L'écran de
 connexion les affiche sous **Vos serveurs**, avec celui en cours marqué
@@ -160,7 +160,7 @@ sans ressaisir l'adresse. Chaque serveur garde sa propre connexion.
   avec son mot de passe a le même bouton. Sur l'écran de connexion au
   serveur, **Gérer les serveurs** renomme ou supprime un serveur enregistré.
 
-## Sur le navigateur web d'une télévision
+## Sur le navigateur web d'une télévision { #on-a-televisions-web-browser }
 
 Une télévision sans Android TV peut quand même lire Evey dans son propre
 navigateur web. Le serveur propose une page faite pour elle, qui se pilote à
@@ -191,7 +191,7 @@ http://192.168.1.20:9091/tv
   rapide fonctionnent quand la TV les transmet au navigateur.
 - **Texte trop petit ou trop grand.** **Paramètres → Taille de l'interface**.
 
-## Connexion rapide : connecter une TV sans saisir de mot de passe
+## Connexion rapide : connecter une TV sans saisir de mot de passe { #quick-connect-signing-in-a-tv-without-typing-a-password }
 
 Saisir un mot de passe avec une télécommande est long. La Connexion rapide
 vous permet plutôt d'accepter la TV depuis votre téléphone ou votre
@@ -218,7 +218,7 @@ L'écran de connexion de l'application Android propose aussi la Connexion
 rapide, pour un téléphone sur lequel vous préférez ne pas saisir votre mot de
 passe.
 
-## Ce que chaque application ajoute
+## Ce que chaque application ajoute { #what-each-app-adds }
 
 - **Web.** Des raccourcis clavier dans le lecteur (appuyez sur `?` pour les
   voir), des notifications dans le navigateur (voir
@@ -243,7 +243,7 @@ passe.
 vers une autre application Evey ouverte et connectée au même compte. La
 lecture continue là-bas.
 
-## Garder les applications à jour
+## Garder les applications à jour { #keeping-the-apps-up-to-date }
 
 Quand votre application Android ou Android TV est plus ancienne que la
 version qui va avec votre serveur, elle vous l'indique :
@@ -260,7 +260,7 @@ serveur est plus ancien que cette fonction, rien ne s'affiche. L'application
 web et la page `/tv` n'ont jamais besoin de mise à jour : c'est le
 serveur qui les fournit.
 
-## Quel appareil lit quoi
+## Quel appareil lit quoi { #which-device-plays-what }
 
 Chaque application indique au serveur ce que son appareil sait lire. Pour chaque
 titre, le serveur décide alors d'envoyer le fichier tel quel ou de l'adapter.

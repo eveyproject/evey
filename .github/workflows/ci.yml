@@ -107,6 +107,17 @@ jobs:
           elif [ "${{ github.event.before }}" = "0000000000000000000000000000000000000000" ]; then
             echo "new branch, no previous tip to compare against - skipping"
             exit 0
+          elif [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            # master is what ships: the contract that matters there is the
+            # last release, not the previous push (the first merge of a long
+            # release branch would otherwise report every removal it ever
+            # made). Before any release nothing is out there to break.
+            last_tag="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+            if [ -z "${last_tag}" ]; then
+              echo "no release tag yet - nothing shipped to break - skipping"
+              exit 0
+            fi
+            against=".git#tag=${last_tag}"
           else
             before="${{ github.event.before }}"
             # A force-push (history rewrite) leaves `before` pointing at a

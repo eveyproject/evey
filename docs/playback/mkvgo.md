@@ -97,6 +97,8 @@ had to be assembled in memory instead of streamed.
 track: `mkvgo` or `ffmpeg`. A Remux can show both, for example the video
 packaged by MKVGo and the audio copied by FFmpeg.
 
+mkvgo is published under the MIT licence.
+
 <!-- sources
 in-process, no ffmpeg, no session state, no on-disk segments: internal/adapters/driven/mkvgo/ondemand.go - OnDemandPackager
 probe + fallback reasons: internal/adapters/driven/prober/dispatcher.go (container gate, ReadMeta error, panic) ; internal/adapters/driven/prober/mapper.go (ColourDetermined, VP9 feature metadata) ; docs/adr/0016-mkv-fastpath-prober.md

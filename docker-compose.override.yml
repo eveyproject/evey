@@ -1,5 +1,8 @@
-# Dev overrides - automatically merged by docker compose
-# Prod servers: don't include this file, or use: docker compose -f docker-compose.yml up -d
+# Dev overrides - automatically merged by docker compose. This is the developer
+# stack (needs .env.dev, builds from source); `docker compose up` in a clone
+# picks it up on its own.
+# Servers: always name the base file, so this one is left out:
+#   docker compose -f docker-compose.yml up -d
 services:
   postgres:
     ports:

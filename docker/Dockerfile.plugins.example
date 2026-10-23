@@ -1,5 +1,6 @@
 # Evey plugin runtimes - copy and customize as needed
-# Usage: replace Dockerfile.dev reference in docker-compose.yml
+# Usage: in docker-compose.override.yml, point the evey service at this file
+# instead of docker/Dockerfile.dev:
 #   build:
 #     dockerfile: docker/Dockerfile.plugins.example
 #

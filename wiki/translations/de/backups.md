@@ -1,8 +1,8 @@
 ---
-source_sha: 3529db45dbbd12f6980bca0989017583b6ccad6c3c5a3b54597887c6b09d6285
+source_sha: 4c2c4ddb62e95803c8e25fd785e009178d7130e67e3125dea06c41c6cf77527b
 reviewed: true
 ---
-# Sicherungen und Updates
+# Sicherungen und Updates { #backups-and-updates }
 
 Zwei Gewohnheiten halten Ihren Server sicher:
 
@@ -14,7 +14,7 @@ Zwei Gewohnheiten halten Ihren Server sicher:
 Diese Seite zeigt beides, danach, was eine Sicherung enthält, wie Sie eine
 Sicherung wiederherstellen und wie Sie zu einer älteren Version zurückkehren.
 
-## Sicherungen planen
+## Sicherungen planen { #schedule-backups }
 
 1. Gehen Sie zu **Verwaltung → Sicherung & Wiederherstellung**, Karte
    **Zeitplan**.
@@ -55,7 +55,7 @@ Ordner, den Sie ohnehin auf eine andere Festplatte kopieren sollten (siehe
 Der Server sichert die Datenbank außerdem von selbst, bevor ein Update sie
 verändert, unabhängig vom Zeitplan (siehe [Evey aktualisieren](#updating-evey)).
 
-## Was eine Sicherung enthält
+## Was eine Sicherung enthält { #what-a-backup-contains }
 
 Eine Sicherung ist eine Kopie der **Datenbank**: Konten, Profile, Bibliotheken
 und ihr Katalog, Wiedergabeverlauf und Fortsetzungspunkte, Sammlungen,
@@ -87,7 +87,7 @@ her. Um einen Rechner von Grund auf neu aufzubauen, brauchen Sie den Ordner.
     Eine Sicherung ist eine `.tar.gz`-Datei mit dem Datenbank-Dump und einer
     kurzen Beschreibung samt Prüfsumme (SHA256) und Schemaversion.
 
-## Eine Sicherung wiederherstellen
+## Eine Sicherung wiederherstellen { #restore-a-backup }
 
 **Verwaltung → Sicherung & Wiederherstellung** listet die Sicherungen auf.
 Stellen Sie eine aus der Liste wieder her, oder laden Sie mit **Aus Datei
@@ -105,7 +105,7 @@ wiederherstellen, die vor einem Update angelegt wurden
 (`pre-migration-*.sql.gz`), nicht die `.tar.gz`-Sicherungen aus diesem Bereich:
 siehe [Wiederherstellung](runbooks/recovery.md).
 
-## Evey aktualisieren
+## Evey aktualisieren { #updating-evey }
 
 In dem Ordner, in dem Ihre Compose-Datei liegt:
 
@@ -130,14 +130,12 @@ Das ist das ganze Update.
 
 ??? info "Die genaue Version festlegen, die Sie betreiben"
 
-    Während der Beta gibt es keine nummerierten Versionen und kein Tag
-    `latest`. Das Tag `beta-0.0.1` ändert sich mit jedem Update. Für einen
-    Server, auf den Sie sich verlassen, tragen Sie in der Zeile `image:` ein
-    festes Tag `sha-<commit>` ein. So laufen zwei Pulls im Abstand eines Tages
-    mit demselben Code. Sobald es Versionen gibt, folgt `latest` der neuesten
-    stabilen Version, und ein Versions-Tag (`0.2.0`) legt sie fest.
+    `latest` folgt der neuesten Version und ändert sich mit jedem Update. Für
+    einen Server, auf den Sie sich verlassen, tragen Sie in der Zeile `image:`
+    ein Versions-Tag (`0.1.0`) oder ein festes Tag `sha-<commit>` ein. So
+    laufen zwei Pulls im Abstand eines Tages mit demselben Code.
 
-### Zurückkehren
+### Zurückkehren { #going-back }
 
 1. Tragen Sie das vorherige Tag in die Zeile `image:` Ihrer Compose-Datei
    ein.
@@ -159,6 +157,6 @@ command-line backup: cmd/evey/admin_backup.go - adminBackup (--include-telemetry
 keys outside the dump: internal/config/config.go (EVEY_JWT_PRIVATE_KEY_PATH /data/jwt.key, /data/keys)
 pre-migration dump at boot, 3 kept: cmd/evey/database.go - RunMigrations BackupOpts Retention 3 ; internal/adapters/driven/postgres/migrate_backup.go (pre-migration-<stamp>.sql.gz, EVEY_BACKUP_DIR default /data/backups)
 update check hourly, never self-updates: internal/app/updatecheck/service.go - checkInterval, firstCheck
-rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (beta-0.0.1 + sha-<short>, latest gated on vX.Y.Z)
+rollback advisor: cmd/evey/admin_commands.go - adminRollback ; image tags: .github/workflows/ci.yml (sha-<short>, latest gated on vX.Y.Z)
 schedule card controls (Enabled, Save, Run now): frontend/apps/web/src/routes/_auth/admin/backup.lazy.tsx ; i18n admin.backup.schedule.enabledLabel, save, cronHelp
 -->

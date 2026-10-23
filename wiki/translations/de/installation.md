@@ -1,8 +1,8 @@
 ---
-source_sha: ae588b2b2b2d42902a1b916cd8e90978a81afd473115c9eb522377e95409d542
+source_sha: 0b2670e7a74f2a0cdbc172c1bb7ef216fa53371cf55248071c00cba27a64c162
 reviewed: true
 ---
-# Installation
+# Installation { #install }
 
 Diese Seite ist für die Person, die Evey für den Haushalt betreiben wird. Sie
 brauchen einen Computer oder ein NAS, das eingeschaltet bleibt, mit Docker.
@@ -27,7 +27,7 @@ einstellen.
     [Erweiterte Bereitstellungen](operations/advanced-deployments.md)
     beschrieben.
 
-## Was Sie brauchen
+## Was Sie brauchen { #what-you-need }
 
 - **Einen Computer oder ein NAS, das eingeschaltet bleibt**, mit einem
   x86-64-Prozessor (Intel oder AMD). ARM64-Geräte brauchen ein
@@ -55,7 +55,7 @@ Beispiel in `/srv/media`, wird die Zeile zu `- /srv/media:/media`.
 ```yaml title="docker-compose.yml"
 services:
   evey:
-    image: eveyproject/evey:beta-0.0.1 # (1)!
+    image: eveyproject/evey:latest # (1)!
     container_name: evey-server
     ports:
       - "9091:9091" # (2)!
@@ -70,10 +70,9 @@ volumes:
   evey-cache:
 ```
 
-1. Die Version von Evey. Evey ist in der Beta, deshalb gibt es noch kein
-   `latest`-Tag: `beta-0.0.1` folgt dem Entwicklungszweig und ändert sich mit
-   jedem Update. Um genau beim selben Code zu bleiben, nehmen Sie stattdessen
-   ein `sha-<commit>`-Tag: siehe
+1. Die Version von Evey. `latest` ist die neueste Version. Um bei einer
+   bestimmten Version zu bleiben, nehmen Sie ein Versions-Tag wie `0.1.0`
+   oder ein `sha-<commit>`-Tag: siehe
    [Sicherungen und Updates](backups.md#updating-evey).
 2. Der Port. Die Zahl links ist die, die Sie im Browser und in den Apps
    eintippen. Behalten Sie `9091`, außer ein anderes Programm nutzt ihn
@@ -188,7 +187,7 @@ Dienste setzt): siehe [Fernzugriff und HTTPS](administration/remote-access.md).
       [Hardwarebeschleunigung](administration/hardware-acceleration.md)
       beschrieben sind.
 
-## Was Evey selbst einrichtet
+## Was Evey selbst einrichtet { #what-evey-sets-up-by-itself }
 
 Das müssen Sie nicht einstellen:
 
