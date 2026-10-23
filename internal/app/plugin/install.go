@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -124,7 +125,8 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 	localPath = tmp.Name()
 	cleanup = func() {
 		tmp.Close()
-		os.Remove(localPath) //nolint:errcheck
+		os.Remove(localPath)          //nolint:errcheck
+		os.Remove(localPath + ".sig") //nolint:errcheck
 	}
 
 	const maxBytes = 100 << 20 // 100 MB
@@ -143,7 +145,49 @@ func (s *InstallerService) downloadIfURL(ctx context.Context, source string) (lo
 		return
 	}
 	tmp.Close()
+	s.fetchDetachedSignature(ctx, source, localPath+".sig")
 	return
+}
+
+// maxSignatureBytes bounds a downloaded detached signature (a base64 ECDSA
+// signature is ~100 bytes).
+const maxSignatureBytes = 64 << 10
+
+// fetchDetachedSignature downloads "<source>.sig" beside the downloaded ZIP so
+// the verifier finds it where it finds an uploaded one. Best-effort and through
+// the same SSRF-safe client as the ZIP: a 404 means "unsigned", not an error,
+// and any failure leaves no file behind.
+func (s *InstallerService) fetchDetachedSignature(ctx context.Context, source, dest string) {
+	if s.sigVerifier == nil {
+		return
+	}
+	u, err := url.Parse(source)
+	if err != nil {
+		return
+	}
+	u.Path += ".sig"
+	u.RawPath = ""
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return
+	}
+	req.Header.Set("User-Agent", "evey-plugin-installer/1.0")
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		slog.DebugContext(ctx, "plugin signature download failed, treating the plugin as unsigned", slog.Any("err", err))
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxSignatureBytes+1))
+	if err != nil || len(data) > maxSignatureBytes {
+		return
+	}
+	if err := os.WriteFile(dest, data, 0o600); err != nil {
+		slog.WarnContext(ctx, "plugin signature download could not be stored", slog.Any("err", err))
+	}
 }
 
 func (s *InstallerService) InstallPlugin(ctx context.Context, source string) (*plugin.Plugin, error) {
@@ -175,7 +219,7 @@ func (s *InstallerService) installLocalZip(ctx context.Context, zipPath, expecte
 		return nil, err
 	}
 
-	sourceHash, sigStatus, err := s.verifyPluginIntegrity(ctx, zipPath, expectedHash)
+	sourceHash, sigStatus, err := s.verifyPluginIntegrity(ctx, zipPath, expectedHash, existing)
 	if err != nil {
 		return nil, err
 	}
@@ -288,8 +332,10 @@ func (s *InstallerService) resolveExistingPlugin(ctx context.Context, manifest *
 // verifyPluginIntegrity hashes the plugin zip (checking it against
 // expectedHash when the source URL carried a "#sha256:" fragment) and runs
 // cosign signature verification. Policy controls whether a verification
-// failure blocks the install.
-func (s *InstallerService) verifyPluginIntegrity(ctx context.Context, zipPath, expectedHash string) (sourceHash string, sigStatus *plugin.SignatureStatus, err error) {
+// failure blocks the install; independently of policy, an update whose signing
+// key differs from the one pinned on the installed version (or that is no
+// longer validly signed) is refused unless the admin accepted the new publisher.
+func (s *InstallerService) verifyPluginIntegrity(ctx context.Context, zipPath, expectedHash string, existing *plugin.Plugin) (sourceHash string, sigStatus *plugin.SignatureStatus, err error) {
 	sourceHash, hashErr := hashFile(zipPath)
 	if hashErr != nil {
 		return "", nil, fmt.Errorf("hash plugin file: %w", hashErr)
@@ -303,6 +349,17 @@ func (s *InstallerService) verifyPluginIntegrity(ctx context.Context, zipPath, e
 		if err != nil {
 			// Only reached when policy is "enforce" and verification failed.
 			return "", nil, fmt.Errorf("plugin blocked: %w", err)
+		}
+	}
+	if sigStatus != nil && existing != nil {
+		sigStatus.ApplyContinuity(existing.PublisherKeyFingerprint)
+		if !acceptNewPublisher(ctx) {
+			switch sigStatus.Continuity {
+			case plugin.ContinuityChanged:
+				return "", nil, ErrPublisherChanged
+			case plugin.ContinuityLost:
+				return "", nil, ErrSignatureLost
+			}
 		}
 	}
 	return sourceHash, sigStatus, nil
@@ -330,6 +387,13 @@ func (s *InstallerService) buildPluginRecord(existing *plugin.Plugin, sourceHash
 	}
 
 	p.Signature = sigStatus
+	switch {
+	case sigStatus == nil && existing != nil:
+		// Policy off: nothing was checked, so the pin made while it was on stays.
+		p.PublisherKeyFingerprint, p.PublisherKeyPEM = existing.PublisherKeyFingerprint, existing.PublisherKeyPEM
+	case sigStatus != nil && sigStatus.Verified:
+		p.PublisherKeyFingerprint, p.PublisherKeyPEM = sigStatus.KeyFingerprint, sigStatus.KeyPEM
+	}
 
 	if existing != nil {
 		// Carry the server-level config the admin set and the enabled state

@@ -222,12 +222,15 @@ rules are in [Permissions and slots](security-model.md#external-fetch-rules).
 
 !!! info "What a signature proves"
     A signature says the ZIP the administrator installs is byte for byte the
-    one **you** published, signed with the key they trust. It says nothing
-    about what the plugin does: the permissions, the hosts and the analysis
-    of the preview still apply. Evey checks it offline and in process (ECDSA
-    P-256 over the SHA-256 of the ZIP, the format `cosign sign-blob --key`
-    produces): no `cosign` binary on the server, no network, no transparency
-    log.
+    one **you** published. Your public key travels inside the package
+    (`cosign.pub` at the ZIP root), and Evey pins its fingerprint to the
+    plugin at install: an update signed with another key, or no longer
+    signed, is refused until the administrator accepts the change. It says
+    nothing about what the plugin does: the permissions, the hosts and the
+    analysis of the preview still apply. Evey checks it offline and in
+    process (ECDSA P-256 over the SHA-256 of the ZIP, the format `cosign
+    sign-blob --key` produces): no `cosign` binary on the server, no network,
+    no transparency log.
 
 You need [cosign](https://docs.sigstore.dev/cosign/installation/) on your
 machine only.
@@ -240,9 +243,11 @@ machine only.
     # -> cosign.key (private) and cosign.pub (the file you hand out)
     ```
 
-2. **At each release: zip, then sign** the exact file you will distribute.
+2. **At each release: put your public key at the root of the plugin, zip,
+   then sign** the exact file you will distribute.
 
     ```sh
+    cp cosign.pub hello-plugin/cosign.pub
     cd hello-plugin && zip -r ../hello-plugin.zip . && cd ..
 
     COSIGN_PASSWORD="your-passphrase" cosign sign-blob \
@@ -258,36 +263,43 @@ machine only.
       --insecure-ignore-tlog hello-plugin.zip      # -> Verified OK
     ```
 
-4. **Publish three files together**: `hello-plugin.zip`,
-   `hello-plugin.zip.sig` and `cosign.pub`. Put the public key's fingerprint
-   somewhere your users can compare it (README, release notes), so they know
-   `cosign.pub` was not swapped.
+4. **Publish the two files together**: `hello-plugin.zip` (your public key is
+   inside) and `hello-plugin.zip.sig`, next to each other, so an install by
+   URL finds the signature at `<url>.sig`. Put the key's fingerprint
+   (`sha256:...`, shown by Evey on the plugin card) in your README and release
+   notes, so administrators can compare it before trusting the key.
 
-On the instance that installs it, the administrator sets the key and a policy
-and restarts the server:
+On the instance that installs it, the administrator chooses the ZIP in
+**Admin → Plugins** and, in **Signature file (.zip.sig, optional)**, its
+`.zip.sig`; through the API, the signature is the `sig` field of the upload.
+Evey verifies the package against the key it carries and shows one of:
 
-```sh
-EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
-EVEY_PLUGINS_COSIGN_POLICY=warn   # or "enforce" to refuse what does not verify
-```
+- **Signed by <publisher>**: the key is in the instance's **Trusted
+  publishers** list.
+- **Signed, unknown key sha256:...**: the signature is good, the key is not
+  trusted yet. One click, **Trust this key**, adds it to the list under a name.
+- **Unsigned**, or **Invalid signature**.
 
-Then, in **Admin → Plugins**, they choose the ZIP and, in **Signature file
-(.zip.sig, optional)**, its `.zip.sig`; through the API, the signature is the
-`sig` field of the upload. **Signed** or an invalid signature is shown at update, and the Security
-Dashboard keeps the result.
+The policy decides what happens: `EVEY_PLUGINS_COSIGN_POLICY=warn` (default)
+records the verdict and lets every install through; `enforce` admits trusted
+keys only. Whatever the policy, an update whose key differs from the installed
+version, or that drops the signature, is refused until the administrator
+ticks **The publisher changed, I accept the new key** in the update dialog.
+`EVEY_PLUGINS_COSIGN_PUBLIC_KEY` is optional: it seeds the trusted list with
+one key at boot (marked as the server operator's).
 
 Things that trip people up:
 
 - **Any change to the ZIP breaks the signature**, even re-zipping the same
   files. Sign the file you distribute, and sign again for every version.
+- **Keep the same key** from one version to the next. A new key is a new
+  publisher for every administrator who installed you: they will be asked to
+  accept it. Rotate on purpose, and say so in your release notes.
 - **Only ECDSA P-256 keys are accepted**, which is what `cosign
   generate-key-pair` makes. Keyless signing and KMS references are not
   verified.
-- The key is read from a PEM file at startup: a missing or malformed file
-  stops the server instead of failing the first install. With `enforce` and
-  no key, the server refuses to start.
-- With the default `warn` and no public key configured, **nothing is
-  verified**; the server only logs a warning at startup.
+- A `.sig` without `cosign.pub` in the ZIP, or the other way round, counts as
+  **Unsigned**.
 - A wrong key, a tampered ZIP and a missing `.sig` all read as a failed
   signature: under `enforce`, the install or the update is refused.
 

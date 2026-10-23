@@ -36,7 +36,7 @@ func TestApplyUpdate_InstallsTheHashedBytesNotARefetch(t *testing.T) {
 	parser.Result = goManifestVersioned("toctou", "2.0.0")
 	sumA := sha256.Sum256(zipA)
 	hashA := hex.EncodeToString(sumA[:])
-	p2, err := svc.ApplyUpdate(ctx, p.ID, srv.URL, hashA)
+	p2, err := svc.ApplyUpdate(ctx, p.ID, srv.URL, hashA, false)
 	require.NoError(t, err)
 	assert.Equal(t, hashA, p2.SourceHash, "installed bytes differ from the hashed ones")
 	assert.Equal(t, int32(1), gets.Load(), "candidate fetched more than once")

@@ -28,6 +28,7 @@ type InstallerService struct {
 	installer    plugin.PluginInstaller
 	analyzer     plugin.PluginAnalyzer
 	sigVerifier  plugin.SignatureVerifier
+	publishers   *TrustedPublisherService
 	runtimes     plugin.RuntimeAvailabilityChecker
 	fs           plugin.PluginFileSystem
 	cssSanitizer plugin.CSSSanitizer
@@ -72,6 +73,15 @@ func InstallerWithCSSSanitizer(cs plugin.CSSSanitizer) InstallerOption {
 func InstallerWithSignatureVerifier(v plugin.SignatureVerifier) InstallerOption {
 	return func(s *InstallerService) { s.sigVerifier = v }
 }
+
+// InstallerWithTrustedPublishers wires the trusted-publisher keyring the admin
+// RPCs manage. Without it those RPCs report the feature as unavailable.
+func InstallerWithTrustedPublishers(tp *TrustedPublisherService) InstallerOption {
+	return func(s *InstallerService) { s.publishers = tp }
+}
+
+// Publishers returns the trusted-publisher service, nil when not wired.
+func (s *InstallerService) Publishers() *TrustedPublisherService { return s.publishers }
 
 // InstallerWithRuntimeChecker wires a host-runtime detector. When set, the
 // installer refuses any plugin whose declared language is not available

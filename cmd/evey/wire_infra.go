@@ -22,6 +22,7 @@ import (
 	"github.com/eveyproject/evey/internal/adapters/driven/postgres"
 	"github.com/eveyproject/evey/internal/adapters/driven/search"
 	httpapi "github.com/eveyproject/evey/internal/adapters/driving/http"
+	appplugin "github.com/eveyproject/evey/internal/app/plugin"
 	"github.com/eveyproject/evey/internal/config"
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/music"
@@ -68,6 +69,7 @@ type infraDeps struct {
 	pluginInstaller        *pluginrunner.ZipInstaller
 	pluginAnalyzer         *pluginrunner.StaticAnalyzer
 	pluginSigVerifier      *pluginrunner.CosignVerifier
+	pluginPublishers       *appplugin.TrustedPublisherService
 	subScanner             *filesystem.SubtitleScanner
 	tmdbKey                string
 }
@@ -205,7 +207,14 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	manifestParser := pluginrunner.NewManifestParser()
 	pluginInstaller := pluginrunner.NewZipInstaller()
 	pluginAnalyzer := pluginrunner.NewStaticAnalyzer()
-	pluginSigVerifier := pluginrunner.NewCosignVerifier(cfg.Plugins.CosignPolicy, cfg.Plugins.CosignPublicKey)
+	pluginPublishers := appplugin.NewTrustedPublisherService(r.TrustedPublisher, r.Plugin)
+	// EVEY_PLUGINS_COSIGN_PUBLIC_KEY is the operator's own publisher key: seeded
+	// into the trusted list at every boot, and a seeded key the operator removed
+	// from the configuration stops being trusted.
+	if err := pluginPublishers.SeedOperatorKey(ctx, os.ReadFile, cfg.Plugins.CosignPublicKey); err != nil {
+		slog.Error("plugin trusted publishers: operator key not seeded", slog.Any("err", err))
+	}
+	pluginSigVerifier := pluginrunner.NewCosignVerifier(cfg.Plugins.CosignPolicy, pluginPublishers.Lookup)
 
 	// The path is RELATIVE, and the published image copies the catalogue to
 	// /i18n - which only resolves because the runtime stage leaves WorkingDir
@@ -278,6 +287,7 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		pluginInstaller:        pluginInstaller,
 		pluginAnalyzer:         pluginAnalyzer,
 		pluginSigVerifier:      pluginSigVerifier,
+		pluginPublishers:       pluginPublishers,
 		subScanner:             subScanner,
 		tmdbKey:                tmdbKey,
 	}, nil

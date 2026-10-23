@@ -249,4 +249,44 @@ describe("PluginCard", () => {
     // so assert the modal itself rather than a text match)
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
+
+  describe("signature states", () => {
+    const renderCard = (signature?: object) =>
+      render(
+        <PluginCard
+          plugin={{ ...basePlugin, signature } as never}
+          onEnable={vi.fn()}
+          onDisable={vi.fn()}
+          onUninstall={vi.fn()}
+        />,
+        { wrapper: Wrapper },
+      );
+    const fp = "sha256:abcd1234ef567890";
+
+    it("shows the publisher name and the full fingerprint on hover for a trusted key", () => {
+      renderCard({ verified: true, trusted: true, publisher: "Acme", keyFingerprint: fp });
+      const badge = screen.getByTestId("plugin-signature");
+      expect(badge).toHaveTextContent("Signed by Acme");
+      expect(badge).toHaveAttribute("title", fp);
+      expect(screen.queryByTestId("plugin-trust-key")).not.toBeInTheDocument();
+    });
+
+    it("offers Trust this key for a verified but unknown key", async () => {
+      renderCard({ verified: true, trusted: false, keyFingerprint: fp });
+      expect(screen.getByTestId("plugin-signature")).toHaveTextContent("Signed - unknown key sha256:abcd1234...");
+      await userEvent.click(screen.getByTestId("plugin-trust-key"));
+      expect(screen.getByTestId("plugin-trust-confirm")).toBeDisabled();
+    });
+
+    it("shows Unsigned when there is no signature", () => {
+      renderCard(undefined);
+      expect(screen.getByTestId("plugin-signature")).toHaveTextContent("Unsigned");
+      expect(screen.queryByTestId("plugin-trust-key")).not.toBeInTheDocument();
+    });
+
+    it("shows Invalid signature when the key is present and verification failed", () => {
+      renderCard({ verified: false, keyFingerprint: fp, error: "signature mismatch" });
+      expect(screen.getByTestId("plugin-signature")).toHaveTextContent("Invalid signature");
+    });
+  });
 });

@@ -480,33 +480,18 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 			return
 		}
 
-		// Optional cosign signature: save alongside the zip so the verifier
-		// can find it at <zipPath>.sig without the caller needing to know the
-		// temp file path.
-		if sigFile, _, sigErr := r.FormFile("sig"); sigErr == nil {
-			sigPath := tmpName + ".sig"
-			defer os.Remove(sigPath) //nolint:errcheck
-			if sf, createErr := os.Create(sigPath); createErr == nil {
-				// A partial write here produces a truncated .sig, and cosign
-				// then reports "signature verification failed" - which sends the
-				// admin looking for a bad signature instead of the disk problem
-				// that actually happened. Fails closed either way; the point is
-				// naming the real cause.
-				_, copyErr := io.Copy(sf, sigFile)
-				closeErr := sf.Close()
-				if copyErr != nil || closeErr != nil {
-					slog.WarnContext(ctx, "plugin signature upload could not be stored - verification will fail on a truncated file",
-						slog.Any("copy_err", copyErr), slog.Any("close_err", closeErr))
-				}
-			}
-			sigFile.Close()
-		}
+		defer saveUploadedSignature(ctx, r, tmpName)()
 
 		// accept_permission_changes=true means the admin has acknowledged the
 		// permission diff in the UI and authorizes the update to widen the set.
 		installCtx := r.Context()
 		if r.FormValue("accept_permission_changes") == "true" {
 			installCtx = appplugin.WithAllowPermissionEscalation(installCtx)
+		}
+		// accept_new_publisher=true: the admin read the verdict and accepts an
+		// update signed by another key (or no longer signed) than the installed one.
+		if r.FormValue("accept_new_publisher") == "true" {
+			installCtx = appplugin.WithAcceptNewPublisher(installCtx)
 		}
 
 		p, installErr := svc.InstallPlugin(installCtx, tmpFile.Name())
@@ -523,6 +508,22 @@ func registerPluginUploadRoute(mux *http.ServeMux, tokenGen domainuser.TokenGene
 					"new_entries":        extractEscalationEntries(installErr.Error()),
 				}); encErr != nil {
 					slog.WarnContext(ctx, "encode escalation response", slog.Any("err", encErr))
+				}
+				return
+			}
+			if errors.Is(installErr, appplugin.ErrPublisherChanged) || errors.Is(installErr, appplugin.ErrSignatureLost) {
+				continuity := domainplugin.ContinuityChanged
+				if errors.Is(installErr, appplugin.ErrSignatureLost) {
+					continuity = domainplugin.ContinuityLost
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusPreconditionRequired)
+				if encErr := json.NewEncoder(w).Encode(map[string]any{
+					"message":           installErr.Error(),
+					"publisher_changed": true,
+					"continuity":        continuity,
+				}); encErr != nil {
+					slog.WarnContext(ctx, "encode publisher change response", slog.Any("err", encErr))
 				}
 				return
 			}
@@ -660,6 +661,8 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 			return
 		}
 
+		defer saveUploadedSignature(ctx, r, tmpName)()
+
 		preview, previewErr := svc.PreviewPlugin(r.Context(), tmpName)
 		if previewErr != nil {
 			span.RecordError(previewErr)
@@ -670,6 +673,47 @@ func registerPluginPreviewRoute(mux *http.ServeMux, tokenGen domainuser.TokenGen
 		}
 		writePluginPreview(ctx, w, preview)
 	})))
+}
+
+// saveUploadedSignature stores the optional "sig" form field beside the temp
+// zip, where the verifier looks (<zip>.sig), and returns the cleanup.
+func saveUploadedSignature(ctx context.Context, r *http.Request, zipPath string) (cleanup func()) {
+	sigFile, _, sigErr := r.FormFile("sig")
+	if sigErr != nil {
+		return func() {}
+	}
+	defer sigFile.Close()
+	sigPath := zipPath + ".sig"
+	cleanup = func() { os.Remove(sigPath) } //nolint:errcheck
+	sf, createErr := os.Create(sigPath)
+	if createErr != nil {
+		return cleanup
+	}
+	// A partial write here produces a truncated .sig, and the verifier then
+	// reports a bad signature - which sends the admin looking for a bad
+	// signature instead of the disk problem that actually happened. Fails
+	// closed either way; the point is naming the real cause.
+	_, copyErr := io.Copy(sf, sigFile)
+	closeErr := sf.Close()
+	if copyErr != nil || closeErr != nil {
+		slog.WarnContext(ctx, "plugin signature upload could not be stored - verification will fail on a truncated file",
+			slog.Any("copy_err", copyErr), slog.Any("close_err", closeErr))
+	}
+	return cleanup
+}
+
+// signatureResp is the "signature" object of the install preview: the fields of
+// the PluginSignature message plus the single verdict string
+// ("signed", "signed-untrusted", "unsigned", "invalid", "publisher-changed",
+// "signature-lost"). Absent when the signature policy is off.
+type signatureResp struct {
+	SignatureStatus string `json:"signature_status"`
+	Verified        bool   `json:"verified"`
+	KeyFingerprint  string `json:"key_fingerprint"`
+	Publisher       string `json:"publisher"`
+	Trusted         bool   `json:"trusted"`
+	Continuity      string `json:"continuity"`
+	Error           string `json:"error"`
 }
 
 // writePluginPreview renders a preview as the JSON the install dialogs read,
@@ -692,16 +736,17 @@ func writePluginPreview(ctx context.Context, w http.ResponseWriter, preview *app
 	}
 
 	resp := struct {
-		Name         string        `json:"name"`
-		Version      string        `json:"version"`
-		Description  string        `json:"description"`
-		Author       string        `json:"author"`
-		Language     string        `json:"language"`
-		Entrypoint   string        `json:"entrypoint"`
-		Permissions  []string      `json:"permissions"`
-		Capabilities []string      `json:"capabilities"`
-		SourceHash   string        `json:"source_hash"`
-		Analysis     *analysisResp `json:"analysis,omitempty"`
+		Name         string         `json:"name"`
+		Version      string         `json:"version"`
+		Description  string         `json:"description"`
+		Author       string         `json:"author"`
+		Language     string         `json:"language"`
+		Entrypoint   string         `json:"entrypoint"`
+		Permissions  []string       `json:"permissions"`
+		Capabilities []string       `json:"capabilities"`
+		SourceHash   string         `json:"source_hash"`
+		Analysis     *analysisResp  `json:"analysis,omitempty"`
+		Signature    *signatureResp `json:"signature,omitempty"`
 	}{
 		Name:         preview.Name,
 		Version:      preview.Version,
@@ -712,6 +757,18 @@ func writePluginPreview(ctx context.Context, w http.ResponseWriter, preview *app
 		Permissions:  perms,
 		Capabilities: caps,
 		SourceHash:   preview.SourceHash,
+	}
+
+	if sig := preview.Signature; sig != nil {
+		resp.Signature = &signatureResp{
+			SignatureStatus: preview.SignatureState,
+			Verified:        sig.Verified,
+			KeyFingerprint:  sig.KeyFingerprint,
+			Publisher:       sig.Publisher,
+			Trusted:         sig.Trusted,
+			Continuity:      sig.Continuity,
+			Error:           sig.Error,
+		}
 	}
 
 	if preview.Analysis != nil {

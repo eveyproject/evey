@@ -142,8 +142,11 @@ server refuses by default every method that token does not name.
    route, `accept_permission_changes=true`).
 3. The hash of the package is captured at preview and verified at apply: the
    ZIP that was analysed is the ZIP that gets installed.
-4. Under `EVEY_PLUGINS_COSIGN_POLICY=enforce`, a signature failure at the
-   apply step blocks the update even if the preview passed.
+4. The signing key is checked for continuity: an update signed by another
+   key than the installed version, or no longer signed, is refused until the
+   administrator accepts the new publisher. Under
+   `EVEY_PLUGINS_COSIGN_POLICY=enforce`, an untrusted or invalid signature at
+   the apply step blocks the update even if the preview passed.
 
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities

@@ -5,6 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
+import { type PluginSignature, shortFingerprint, signatureKind } from "./pluginSignature";
 
 // SecurityFinding mirrors the proto message SecurityFinding
 interface SecurityFinding {
@@ -28,6 +29,7 @@ interface PreviewResponse {
   externalFetchRemoved?: string[];
   newFindings?: SecurityFinding[];
   signatureStatus?: string;
+  signature?: PluginSignature;
   requiresAck?: boolean;
   sourceHash?: string;
 }
@@ -81,6 +83,50 @@ function DiffList({
   );
 }
 
+function SignatureTab({ preview }: { preview: PreviewResponse }) {
+  const { t } = useTranslation();
+  const sig = preview.signature;
+  const kind = signatureKind(sig);
+  const continuityKey: Record<string, string> = {
+    same: "continuitySame",
+    changed: "continuityChanged",
+    lost: "continuityLost",
+  };
+  return (
+    <div className="py-2 flex flex-col gap-2 text-xs">
+      <div>
+        {!sig && (preview.signatureStatus === "signed" || preview.signatureStatus === "SIGNED") ? (
+          <Badge variant="success">{t("admin.plugins.security.signed")}</Badge>
+        ) : kind === "trusted" ? (
+          <Badge variant="success">{t("admin.plugin.signature.signedBy", { name: sig?.publisher })}</Badge>
+        ) : kind === "untrusted" ? (
+          <Badge variant="warning">{t("admin.plugin.signature.signedUnknown", { fp: shortFingerprint(sig?.keyFingerprint) })}</Badge>
+        ) : kind === "invalid" || preview.signatureStatus === "invalid" ? (
+          <Badge variant="error">{t("admin.plugin.updateDialog.signatureInvalid")}</Badge>
+        ) : (
+          <Badge variant="warning">{t("admin.plugins.security.unsigned")}</Badge>
+        )}
+      </div>
+      {sig?.publisher && (
+        <p className="text-[var(--text-muted)]">
+          {t("admin.plugin.signature.publisher")}: <span className="text-[var(--text)]">{sig.publisher}</span>
+        </p>
+      )}
+      {sig?.keyFingerprint && (
+        <p className="text-[var(--text-muted)]">
+          {t("admin.plugin.signature.fingerprint")}: <span className="font-mono break-all text-[var(--text)]">{sig.keyFingerprint}</span>
+        </p>
+      )}
+      <p className="text-[var(--text-muted)]">
+        {t("admin.plugin.signature.continuity")}:{" "}
+        <span className="text-[var(--text)]" data-testid="signature-continuity">
+          {t(`admin.plugin.signature.${continuityKey[sig?.continuity ?? ""] ?? "continuityNone"}`)}
+        </span>
+      </p>
+    </div>
+  );
+}
+
 export type Props = {
   pluginId: string;
   pluginName?: string;
@@ -96,6 +142,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("permissions");
   const [ackChecked, setAckChecked] = useState(false);
+  const [publisherAck, setPublisherAck] = useState(false);
 
   const tabLabels: Record<TabKey, string> = {
     permissions: t("admin.plugins.permissions"),
@@ -140,7 +187,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
       await eveyFetch<unknown>({
         url: `/api/v1/admin/plugins/${pluginId}/apply-update`,
         method: "POST",
-        data: { source, acknowledged_hash: preview.sourceHash },
+        data: { source, acknowledged_hash: preview.sourceHash, accept_new_publisher: publisherAck },
       });
       onApplied();
       onClose();
@@ -167,11 +214,19 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
       })
     : t("admin.plugin.updateDialog.title", { name: pluginName ?? pluginId });
 
+  // The continuity block is the publisher-changed / signature-lost verdict, separate from the permission ack.
+  const publisherBlock =
+    preview?.signatureStatus === "publisher-changed" || preview?.signatureStatus === "signature-lost";
+  const widens = [preview?.permissionsAdded, preview?.capabilitiesAdded, preview?.slotsAdded, preview?.externalFetchAdded]
+    .some((l) => (l?.length ?? 0) > 0) || (preview?.newFindings?.length ?? 0) > 0;
+  const needsPermAck = !!preview?.requiresAck && (!publisherBlock || widens);
+
   const applyDisabled =
     phase === "previewing" ||
     phase === "applying" ||
     phase === "error" && preview === null ||
-    (preview?.requiresAck && !ackChecked);
+    (needsPermAck && !ackChecked) ||
+    (publisherBlock && !publisherAck);
 
   return (
     <Modal open onClose={onClose} title={title} size="xl">
@@ -185,7 +240,7 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
       {(phase === "reviewing" || phase === "applying" || (phase === "error" && preview !== null)) && preview && (
         <div className="flex flex-col gap-4">
           {/* Security banner */}
-          {preview.requiresAck ? (
+          {needsPermAck ? (
             <div
               className="rounded border px-3 py-2 text-sm font-semibold"
               style={{
@@ -208,6 +263,22 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
               data-testid="banner-safe"
             >
               {t("admin.plugin.updateDialog.bannerSafe")}
+            </div>
+          )}
+
+          {publisherBlock && (
+            <div
+              className="rounded border px-3 py-2 text-sm font-semibold"
+              style={{
+                borderColor: "var(--color-danger)",
+                background: "var(--badge-error-bg, rgba(127,29,29,0.15))",
+                color: "var(--badge-error-text)",
+              }}
+              data-testid="banner-publisher"
+            >
+              {preview.signatureStatus === "signature-lost"
+                ? t("admin.plugin.signature.bannerLost")
+                : t("admin.plugin.signature.bannerChanged")}
             </div>
           )}
 
@@ -281,21 +352,11 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
                 )}
               </>
             )}
-            {activeTab === "signature" && (
-              <div className="py-2">
-                {preview.signatureStatus === "signed" || preview.signatureStatus === "SIGNED" ? (
-                  <Badge variant="success">{t("admin.plugins.security.signed")}</Badge>
-                ) : preview.signatureStatus === "invalid" || preview.signatureStatus === "INVALID" ? (
-                  <Badge variant="error">{t("admin.plugin.updateDialog.signatureInvalid")}</Badge>
-                ) : (
-                  <Badge variant="warning">{t("admin.plugins.security.unsigned")}</Badge>
-                )}
-              </div>
-            )}
+            {activeTab === "signature" && <SignatureTab preview={preview} />}
           </div>
 
           {/* Ack checkbox when required */}
-          {preview.requiresAck && (
+          {needsPermAck && (
             <label className="flex items-start gap-2 text-xs cursor-pointer select-none">
               <input
                 type="checkbox"
@@ -306,6 +367,23 @@ export function PluginUpdateDialog({ pluginId, pluginName, source, onClose, onAp
               />
               <span className="text-[var(--text)]">
                 {t("admin.plugin.updateDialog.ackLabel")}
+              </span>
+            </label>
+          )}
+
+          {publisherBlock && (
+            <label className="flex items-start gap-2 text-xs cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={publisherAck}
+                onChange={(e) => setPublisherAck(e.target.checked)}
+                className="mt-0.5 cursor-pointer"
+                data-testid="publisher-ack-checkbox"
+              />
+              <span className="font-semibold" style={{ color: "var(--badge-error-text)" }}>
+                {preview.signatureStatus === "signature-lost"
+                  ? t("admin.plugin.signature.acceptSignatureLost")
+                  : t("admin.plugin.signature.acceptNewPublisher")}
               </span>
             </label>
           )}

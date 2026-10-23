@@ -490,10 +490,10 @@ func TestWarnValidate_CosignKey_MissingFile(t *testing.T) {
 	assert.Contains(t, err.Error(), "cannot read")
 }
 
-// enforce without a key must refuse to start: the verifier would otherwise
-// degrade to a silent no-op and pass every plugin unverified while the admin
-// believes signatures are mandatory (worse than policy=off).
-func TestWarnValidate_CosignEnforce_EmptyKey_Rejected(t *testing.T) {
+// enforce without an operator key is valid: every package carries its own
+// signing key and trust comes from the trusted-publisher list, which the
+// panel fills. The env key is only one way to seed that list.
+func TestWarnValidate_CosignEnforce_EmptyKey_Accepted(t *testing.T) {
 	t.Parallel()
 	cfg := &Config{
 		DB:          DBConfig{Password: "strong-password-xyz", SSLMode: "require", Host: "localhost"},
@@ -505,9 +505,9 @@ func TestWarnValidate_CosignEnforce_EmptyKey_Rejected(t *testing.T) {
 		},
 	}
 	err := cfg.WarnValidate()
-	require.Error(t, err, "enforce + empty key must be a fatal config error (fail closed)")
-	assert.Contains(t, err.Error(), "cfg.Plugins.CosignPublicKey")
-	assert.Contains(t, err.Error(), "enforce")
+	if err != nil {
+		assert.NotContains(t, err.Error(), "cfg.Plugins.CosignPublicKey")
+	}
 }
 
 // warn without a key is tolerated (best-effort): it must NOT block startup.

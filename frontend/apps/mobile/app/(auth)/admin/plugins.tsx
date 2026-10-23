@@ -33,6 +33,9 @@ import {
 } from "../../../src/components/admin/plugins/pluginConfigUtils";
 import { PluginResourceLimitsCard } from "../../../src/components/admin/plugins/PluginResourceLimitsCard";
 import { PluginSecurityDashboard } from "../../../src/components/admin/plugins/PluginSecurityDashboard";
+import { PluginSignatureBadge } from "../../../src/components/admin/plugins/PluginSignatureBadge";
+import { TrustedPublishersCard } from "../../../src/components/admin/plugins/TrustedPublishersCard";
+import { type PluginSignatureInfo, shortFingerprint, signatureKind } from "../../../src/components/admin/plugins/pluginSignature";
 import { previewPluginFile, installPluginFile } from "../../../src/components/admin/plugins/pluginFileInstall";
 import * as DocumentPicker from "expo-document-picker";
 
@@ -66,6 +69,7 @@ interface Plugin {
   sourceHash?: string;
   errorMessage?: string;
   analysisReport?: PluginAnalysisReport;
+  signature?: PluginSignatureInfo;
 }
 
 const STATE_LABEL_KEYS: Record<string, string> = {
@@ -403,6 +407,17 @@ function InstallPreviewPanel({ preview, theme, t, installing, onCancel, onConfir
           <Text style={{ color: theme.colors.text, fontSize: 12, fontFamily: "monospace" }}>{preview.capabilities!.join(", ")}</Text>
         </View>
       ) : null}
+      {preview.signature ? (
+        <View style={{ gap: 4 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 12, fontWeight: "600" }}>{t("admin.plugin.signature.installHeading", "Signature")}</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+            <PluginSignatureBadge signature={preview.signature} canTrust={false} />
+          </View>
+          {preview.signature.keyFingerprint ? (
+            <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontFamily: "monospace" }}>{preview.signature.keyFingerprint}</Text>
+          ) : null}
+        </View>
+      ) : null}
       {issues.length > 0 ? (
         <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
           <Ionicons name="alert-circle-outline" size={20} color={theme.colors.warning} />
@@ -477,6 +492,7 @@ interface UpdatePreview {
   externalFetchRemoved?: string[];
   newFindings?: { category?: string; severity?: string; file?: string; line?: number; description?: string }[];
   signatureStatus?: string;
+  signature?: PluginSignatureInfo;
   requiresAck?: boolean;
   sourceHash?: string;
 }
@@ -502,6 +518,30 @@ function DiffRows({ theme, label, added, removed }: { theme: Theme; label: strin
   );
 }
 
+function continuityLabel(t: TFunction, c?: string): string {
+  if (c === "same") return t("admin.plugin.signature.continuitySame", "Same key as the installed version");
+  if (c === "changed") return t("admin.plugin.signature.continuityChanged", "Signed by a different key than the installed version");
+  if (c === "lost") return t("admin.plugin.signature.continuityLost", "The installed version was signed, this one is not");
+  return t("admin.plugin.signature.continuityNone", "No earlier signature to compare with");
+}
+
+// The candidate's verdict; the bare status string covers a reply without the signature object.
+function sigColor(theme: Theme, p: UpdatePreview): string {
+  const kind = signatureKind(p.signature);
+  if (kind === "trusted" || (!p.signature && /^signed$/i.test(p.signatureStatus ?? ""))) return theme.colors.success;
+  if (kind === "invalid" || /^invalid$/i.test(p.signatureStatus ?? "")) return theme.colors.error;
+  return theme.colors.warning;
+}
+
+function sigLabel(t: TFunction, p: UpdatePreview): string {
+  const kind = signatureKind(p.signature);
+  if (kind === "trusted") return t("admin.plugin.signature.signedBy", { name: p.signature?.publisher, defaultValue: "Signed by {{name}}" });
+  if (kind === "untrusted") return t("admin.plugin.signature.signedUnknown", { fp: shortFingerprint(p.signature?.keyFingerprint), defaultValue: "Signed - unknown key {{fp}}" });
+  if (!p.signature && /^signed$/i.test(p.signatureStatus ?? "")) return t("admin.plugins.security.signed", "signed");
+  if (kind === "invalid" || /^invalid$/i.test(p.signatureStatus ?? "")) return t("admin.plugin.updateDialog.signatureInvalid", "invalid signature");
+  return t("admin.plugins.security.unsigned", "unsigned");
+}
+
 function PluginUpdateModal({
   pluginId,
   pluginName,
@@ -524,6 +564,7 @@ function PluginUpdateModal({
   const [preview, setPreview] = useState<UpdatePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ack, setAck] = useState(false);
+  const [publisherAck, setPublisherAck] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -558,7 +599,7 @@ function PluginUpdateModal({
       await eveyFetch({
         url: `/api/v1/admin/plugins/${pluginId}/apply-update`,
         method: "POST",
-        data: { source, acknowledged_hash: preview.sourceHash },
+        data: { source, acknowledged_hash: preview.sourceHash, accept_new_publisher: publisherAck },
       });
       onApplied();
     } catch (err) {
@@ -575,12 +616,19 @@ function PluginUpdateModal({
     }
   }
 
+  // Publisher-changed / signature-lost is its own switch, separate from the permission ack.
+  const publisherBlock = preview?.signatureStatus === "publisher-changed" || preview?.signatureStatus === "signature-lost";
+  const widens = [preview?.permissionsAdded, preview?.capabilitiesAdded, preview?.slotsAdded, preview?.externalFetchAdded]
+    .some((l) => (l?.length ?? 0) > 0) || (preview?.newFindings?.length ?? 0) > 0;
+  const needsPermAck = !!preview?.requiresAck && (!publisherBlock || widens);
+
   const applyDisabled =
     applyLocked ||
     phase === "previewing" ||
     phase === "applying" ||
     (phase === "error" && !preview) ||
-    (!!preview?.requiresAck && !ack);
+    (needsPermAck && !ack) ||
+    (publisherBlock && !publisherAck);
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -617,7 +665,7 @@ function PluginUpdateModal({
             <Text style={{ color: theme.colors.textMuted, fontSize: 12, marginBottom: 8 }}>
               v{preview.currentVersion ?? "?"} {"->"} v{preview.candidateVersion ?? "?"}
             </Text>
-            {preview.requiresAck ? (
+            {needsPermAck ? (
               <View style={[styles.noticeBox, { borderColor: theme.colors.error }]}>
                 <Text style={{ color: theme.colors.error, fontWeight: "700", fontSize: 12 }}>
                   {t("admin.plugin.updateDialog.bannerRequiresAck", "Cette mise à jour élargit les permissions du plugin")}
@@ -661,15 +709,43 @@ function PluginUpdateModal({
               <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "700", textTransform: "uppercase" }}>
                 {t("admin.plugin.updateDialog.tabSignature", "Signature")}
               </Text>
-              <Text style={{ fontSize: 12, marginTop: 2, fontWeight: "600", color: (preview.signatureStatus === "signed" || preview.signatureStatus === "SIGNED") ? theme.colors.success : (preview.signatureStatus === "invalid" || preview.signatureStatus === "INVALID") ? theme.colors.error : theme.colors.warning }}>
-                {(preview.signatureStatus === "signed" || preview.signatureStatus === "SIGNED")
-                  ? t("admin.plugins.security.signed", "signed")
-                  : (preview.signatureStatus === "invalid" || preview.signatureStatus === "INVALID")
-                    ? t("admin.plugin.updateDialog.signatureInvalid", "invalid signature")
-                    : t("admin.plugins.security.unsigned", "unsigned")}
+              <Text style={{ fontSize: 12, marginTop: 2, fontWeight: "600", color: sigColor(theme, preview) }}>
+                {sigLabel(t, preview)}
+              </Text>
+              {preview.signature?.keyFingerprint ? (
+                <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontFamily: "monospace", marginTop: 2 }}>
+                  {t("admin.plugin.signature.fingerprint", "Fingerprint")}: {preview.signature.keyFingerprint}
+                </Text>
+              ) : null}
+              <Text style={{ color: theme.colors.textMuted, fontSize: 11, marginTop: 2 }}>
+                {t("admin.plugin.signature.continuity", "Key continuity")}: {continuityLabel(t, preview.signature?.continuity)}
               </Text>
             </View>
-            {preview.requiresAck ? (
+            {publisherBlock ? (
+              <View style={{ marginTop: 12, gap: 8 }}>
+                <View style={[styles.noticeBox, { borderColor: theme.colors.error }]}>
+                  <Text style={{ color: theme.colors.error, fontWeight: "700", fontSize: 12 }}>
+                    {preview.signatureStatus === "signature-lost"
+                      ? t("admin.plugin.signature.bannerLost", "This update is no longer signed, the installed version was")
+                      : t("admin.plugin.signature.bannerChanged", "This update is signed by a different publisher than the installed version")}
+                  </Text>
+                </View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Switch
+                    value={publisherAck}
+                    onValueChange={setPublisherAck}
+                    trackColor={{ true: theme.colors.error, false: theme.colors.surfaceRaised }}
+                    accessibilityLabel="publisher-ack"
+                  />
+                  <Text style={{ color: theme.colors.error, fontSize: 12, fontWeight: "600", flex: 1 }}>
+                    {preview.signatureStatus === "signature-lost"
+                      ? t("admin.plugin.signature.acceptSignatureLost", "The signature is gone, I accept an unsigned update")
+                      : t("admin.plugin.signature.acceptNewPublisher", "The publisher changed, I accept the new key")}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+            {needsPermAck ? (
               <Pressable onPress={() => setAck((v) => !v)} style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 }}>
                 <Ionicons name={ack ? "checkbox" : "square-outline"} size={20} color={theme.colors.accent} />
                 <Text style={{ color: theme.colors.text, fontSize: 12, flex: 1 }}>
@@ -793,6 +869,7 @@ function PluginRow({
         {isSandboxed ? (
           <StatusBadge label={t("admin.plugin.sandboxed", "Isolé (sandbox)")} color={theme.colors.success} />
         ) : null}
+        <PluginSignatureBadge signature={plugin.signature} />
       </View>
 
       {plugin.state === "PLUGIN_STATE_ERROR" && plugin.errorMessage ? (
@@ -1177,6 +1254,9 @@ export default function AdminPluginsScreen() {
                 </View>
               )}
               <PluginResourceLimitsCard />
+              <View style={{ marginTop: 12 }}>
+                <TrustedPublishersCard />
+              </View>
             </View>
           }
           ListFooterComponent={

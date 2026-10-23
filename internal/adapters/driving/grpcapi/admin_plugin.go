@@ -193,7 +193,7 @@ func (d *adminPluginHandler) InstallPlugin(ctx context.Context, req *eveyv1.Inst
 		}
 		return nil, installPluginError(ctx, err)
 	}
-	return pluginToProto(p), nil
+	return pluginToProto(d.withLiveTrust(ctx, p)), nil
 }
 
 // installPluginError separates a refused archive (the caller's problem, said
@@ -205,7 +205,8 @@ func installPluginError(ctx context.Context, err error) error {
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, appplugin.ErrInvalidManifest), errors.Is(err, appplugin.ErrHashMismatch):
 		return status.Error(codes.InvalidArgument, err.Error())
-	case errors.Is(err, appplugin.ErrSourceUnavailable):
+	case errors.Is(err, appplugin.ErrSourceUnavailable),
+		errors.Is(err, appplugin.ErrPublisherChanged), errors.Is(err, appplugin.ErrSignatureLost):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	}
 	return internalError(ctx, "install plugin", err)
@@ -291,9 +292,115 @@ func (d *adminPluginHandler) ListPlugins(ctx context.Context, _ *eveyv1.ListPlug
 	}
 	resp := &eveyv1.ListPluginsResponse{}
 	for _, p := range plugins {
-		resp.Plugins = append(resp.Plugins, pluginToProto(p))
+		resp.Plugins = append(resp.Plugins, pluginToProto(d.withLiveTrust(ctx, p)))
 	}
 	return resp, nil
+}
+
+// publisherService is the trusted-publisher keyring, nil when not wired.
+func (d *adminPluginHandler) publisherService() *appplugin.TrustedPublisherService {
+	if d.pluginInstaller == nil {
+		return nil
+	}
+	return d.pluginInstaller.Publishers()
+}
+
+// withLiveTrust returns p with its install-time signature verdict re-judged
+// against the current keyring (name, trusted). The stored plugin is not touched.
+func (d *adminPluginHandler) withLiveTrust(ctx context.Context, p *plugin.Plugin) *plugin.Plugin {
+	pub := d.publisherService()
+	if pub == nil || p.Signature == nil {
+		return p
+	}
+	cp := *p
+	cp.Signature = appplugin.RefreshTrust(ctx, p.Signature, pub.Lookup)
+	return &cp
+}
+
+func (d *adminPluginHandler) ListTrustedPublishers(ctx context.Context, _ *eveyv1.ListTrustedPublishersRequest) (*eveyv1.ListTrustedPublishersResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.ListTrustedPublishers")
+	defer span.End()
+	resp := &eveyv1.ListTrustedPublishersResponse{}
+	pub := d.publisherService()
+	if pub == nil {
+		return resp, nil
+	}
+	list, err := pub.List(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, internalError(ctx, "list trusted publishers", err)
+	}
+	for i := range list {
+		resp.Publishers = append(resp.Publishers, trustedPublisherToProto(&list[i]))
+	}
+	return resp, nil
+}
+
+func (d *adminPluginHandler) AddTrustedPublisher(ctx context.Context, req *eveyv1.AddTrustedPublisherRequest) (*eveyv1.TrustedPublisher, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.AddTrustedPublisher")
+	defer span.End()
+	if err := d.requireEnabled(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	pub := d.publisherService()
+	if pub == nil {
+		return nil, status.Error(codes.Unimplemented, "trusted publishers are not configured")
+	}
+	var (
+		added *plugin.TrustedPublisher
+		err   error
+	)
+	hasPEM, hasFP := strings.TrimSpace(req.PublicKeyPem) != "", strings.TrimSpace(req.Fingerprint) != ""
+	switch {
+	case hasPEM == hasFP:
+		err = appplugin.ErrPublisherKeyRequired
+	case hasPEM:
+		added, err = pub.AddByPEM(ctx, req.Name, req.PublicKeyPem)
+	default:
+		added, err = pub.AddByFingerprint(ctx, req.Name, req.Fingerprint)
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, appplugin.ErrPublisherNameRequired), errors.Is(err, appplugin.ErrPublisherNameTooLong),
+			errors.Is(err, appplugin.ErrPublisherKeyRequired), errors.Is(err, appplugin.ErrPublisherKeyInvalid):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		case errors.Is(err, appplugin.ErrPublisherKeyUnknown):
+			return nil, status.Error(codes.NotFound, err.Error())
+		}
+		return nil, internalError(ctx, "add trusted publisher", err)
+	}
+	return trustedPublisherToProto(added), nil
+}
+
+func (d *adminPluginHandler) RemoveTrustedPublisher(ctx context.Context, req *eveyv1.RemoveTrustedPublisherRequest) (*eveyv1.RemoveTrustedPublisherResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "grpc.admin.RemoveTrustedPublisher")
+	defer span.End()
+	if err := d.requireEnabled(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		return nil, err
+	}
+	pub := d.publisherService()
+	if pub == nil {
+		return nil, status.Error(codes.Unimplemented, "trusted publishers are not configured")
+	}
+	if err := pub.Remove(ctx, req.Fingerprint); err != nil {
+		span.RecordError(err)
+		span.SetStatus(otelcodes.Error, err.Error())
+		switch {
+		case errors.Is(err, shared.ErrNotFound):
+			return nil, status.Error(codes.NotFound, "trusted publisher not found")
+		case errors.Is(err, plugin.ErrSeededPublisher):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
+		}
+		return nil, internalError(ctx, "remove trusted publisher", err)
+	}
+	return &eveyv1.RemoveTrustedPublisherResponse{}, nil
 }
 
 func (d *adminPluginHandler) GetPluginConfig(ctx context.Context, req *eveyv1.GetPluginConfigRequest) (*eveyv1.PluginConfig, error) {
@@ -413,6 +520,7 @@ func (d *adminPluginHandler) PreviewPluginUpdate(ctx context.Context, req *eveyv
 		ExternalFetchAdded:   preview.ExternalFetchDiff.Added,
 		ExternalFetchRemoved: preview.ExternalFetchDiff.Removed,
 		SignatureStatus:      preview.SignatureStatus,
+		Signature:            signatureToProto(preview.Signature),
 		RequiresAck:          preview.RequiresAck,
 		SourceHash:           preview.SourceHash,
 	}
@@ -445,7 +553,7 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 	if req.AcknowledgedHash == "" {
 		return nil, d.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.plugin.acknowledged_hash_required")
 	}
-	p, err := d.pluginInstaller.ApplyUpdate(ctx, req.PluginId, req.Source, req.AcknowledgedHash)
+	p, err := d.pluginInstaller.ApplyUpdate(ctx, req.PluginId, req.Source, req.AcknowledgedHash, req.AcceptNewPublisher)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, err.Error())
@@ -454,11 +562,13 @@ func (d *adminPluginHandler) ApplyPluginUpdate(ctx context.Context, req *eveyv1.
 			return nil, d.translator.TranslatedError(ctx, codes.NotFound, "errors.plugin.not_found")
 		case errors.Is(err, appplugin.ErrCandidateChanged):
 			return nil, d.translator.TranslatedError(ctx, codes.Aborted, "errors.plugin.candidate_changed")
+		case errors.Is(err, appplugin.ErrPublisherChanged), errors.Is(err, appplugin.ErrSignatureLost):
+			return nil, status.Error(codes.FailedPrecondition, err.Error())
 		default:
 			return nil, internalError(ctx, "apply update", err)
 		}
 	}
-	return pluginToProto(p), nil
+	return pluginToProto(d.withLiveTrust(ctx, p)), nil
 }
 
 func (d *adminPluginHandler) GetPluginLogs(ctx context.Context, req *eveyv1.GetPluginLogsRequest) (*eveyv1.GetPluginLogsResponse, error) {

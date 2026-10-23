@@ -850,29 +850,13 @@ func (c *Config) WarnValidate() error {
 	default:
 		errs = append(errs, fmt.Sprintf("cfg.Plugins.CosignPolicy: invalid value %q (expected off|warn|enforce)", c.Plugins.CosignPolicy))
 	}
-	if c.Plugins.CosignPolicy != "off" {
-		if c.Plugins.CosignPublicKey == "" {
-			if c.Plugins.CosignPolicy == "enforce" {
-				// enforce REQUIRES a key: without one the verifier silently
-				// degrades to a no-op (see CosignVerifier.VerifySignature) and
-				// EVERY plugin install passes unverified while the admin believes
-				// signatures are mandatory. That is strictly worse than policy=off
-				// (which is at least honest). Fail closed - refuse to start rather
-				// than pretend to enforce.
-				errs = append(errs, "cfg.Plugins.CosignPublicKey: required when CosignPolicy=enforce (enforce without a public key silently disables verification - set the key or use policy=warn/off)")
-			} else {
-				// warn is best-effort by design; without a key the verifier is a
-				// no-op. Flag it so admins know they're not verifying anything.
-				slog.Warn("EVEY_PLUGINS_COSIGN_POLICY is non-off but EVEY_PLUGINS_COSIGN_PUBLIC_KEY is unset - signature verification is disabled. Set the public key to enable, or set policy=off to silence.",
-					slog.String("policy", c.Plugins.CosignPolicy))
-			}
-		} else {
-			// Fail-fast on misconfigured cosign key: in `enforce` mode every
-			// install would silently fail later; in `warn` we'd flood logs on
-			// each upload. Catch unreadable / non-PEM key files at startup.
-			if err := validateCosignPublicKey(c.Plugins.CosignPublicKey); err != nil {
-				errs = append(errs, fmt.Sprintf("cfg.Plugins.CosignPublicKey: %v", err))
-			}
+	// The signing key travels inside each package and trust comes from the
+	// trusted-publisher list, so a policy needs no key here. The optional
+	// operator key only has to be a readable PEM: catch a typo at startup
+	// rather than at the first install.
+	if c.Plugins.CosignPublicKey != "" {
+		if err := validateCosignPublicKey(c.Plugins.CosignPublicKey); err != nil {
+			errs = append(errs, fmt.Sprintf("cfg.Plugins.CosignPublicKey: %v", err))
 		}
 	}
 	if n := c.Plugins.CPUNice; n < 0 || n > 19 {

@@ -1,9 +1,9 @@
 package pluginrunner
 
 import (
+	"archive/zip"
 	"context"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -17,78 +17,146 @@ import (
 	domainplugin "github.com/eveyproject/evey/internal/domain/plugin"
 )
 
+// publisherKeyEntry is the ZIP-root file that carries the signing public key.
+// maxPublisherKeyBytes bounds it: a PEM P-256 key is ~180 bytes.
+const (
+	publisherKeyEntry    = "cosign.pub"
+	maxPublisherKeyBytes = 4 << 10
+)
+
 // CosignVerifier checks cosign-compatible detached signatures in-process: the
 // key-based flow (`cosign sign-blob --key`) is an ECDSA P-256 signature over
 // the file's SHA-256, base64-encoded. No transparency log, no binary.
+//
+// The verification key is NOT configured here: it travels inside the package
+// (cosign.pub at the ZIP root), like an Android APK carries its signing
+// certificate. The signature therefore proves "this package was signed by the
+// holder of that key"; whether the instance TRUSTS that key is the lookup's
+// answer, and whether it is the SAME key as the installed version's is the
+// installer's continuity check.
 type CosignVerifier struct {
-	policy  string // "off", "warn", "enforce"
-	keyPath string // path to PEM public key
+	policy string // "off", "warn", "enforce"
+	lookup domainplugin.KeyLookup
 }
 
-// NewCosignVerifier returns a CosignVerifier. policy must be "off", "warn",
-// or "enforce". When policy is "off" or keyPath is empty, VerifySignature
-// is a no-op that always returns (nil, nil).
-func NewCosignVerifier(policy, keyPath string) *CosignVerifier {
-	return &CosignVerifier{policy: policy, keyPath: keyPath}
+// NewCosignVerifier returns a CosignVerifier. policy must be "off", "warn" or
+// "enforce". A nil lookup trusts no key.
+func NewCosignVerifier(policy string, lookup domainplugin.KeyLookup) *CosignVerifier {
+	return &CosignVerifier{policy: policy, lookup: lookup}
 }
 
-// VerifySignature checks the cosign signature of the ZIP at zipPath.
-// sigPath is the detached .sig file (empty → zipPath+".sig" is tried).
+// VerifySignature checks the cosign signature of the ZIP at zipPath against the
+// key the ZIP carries. sigPath is the detached .sig file (empty -> zipPath+".sig").
 //
 // Behaviour by policy:
 //   - "off": returns (nil, nil) - no-op
-//   - empty keyPath under "warn": returns (nil, nil) - best-effort, can't verify
-//   - empty keyPath under "enforce": fails closed (config validation already
-//     refuses to start in this state; this is defense-in-depth so a hand-built
-//     enforce verifier without a key can never silently pass a plugin)
-//   - "warn": returns (status, nil) even on failure - caller logs
-//   - "enforce": returns (status, error) when verification fails - caller blocks
-func (v *CosignVerifier) VerifySignature(_ context.Context, zipPath, sigPath string) (*domainplugin.SignatureStatus, error) {
+//   - "warn": always returns the computed status and a nil error
+//   - "enforce": returns (status, error) unless the signature verifies AND the
+//     key is in the trusted-publisher list
+func (v *CosignVerifier) VerifySignature(ctx context.Context, zipPath, sigPath string) (*domainplugin.SignatureStatus, error) {
 	if v.policy == "off" {
-		return nil, nil
-	}
-	if v.keyPath == "" {
-		// enforce without a key = the admin asked for mandatory signatures but
-		// configured nothing to verify against. Never return a silent pass here:
-		// that would defeat enforcement entirely. warn stays a no-op (best-effort).
-		if v.policy == "enforce" {
-			return &domainplugin.SignatureStatus{
-					Verified: false,
-					Error:    "cosign enforce policy is set but no public key is configured",
-				},
-				fmt.Errorf("plugin signature verification failed: enforce policy requires a public key but none is configured")
-		}
 		return nil, nil
 	}
 	if sigPath == "" {
 		sigPath = zipPath + ".sig"
 	}
-
-	if err := verifyBlobSignature(v.keyPath, sigPath, zipPath); err != nil {
-		status := &domainplugin.SignatureStatus{Verified: false, Error: err.Error()}
-		if v.policy == "enforce" {
-			return status, fmt.Errorf("plugin signature verification failed: %w", err)
+	status := v.verify(ctx, zipPath, sigPath)
+	if v.policy == "enforce" {
+		switch {
+		case !status.Verified:
+			return status, fmt.Errorf("plugin signature verification failed: %s", status.Error)
+		case !status.Trusted:
+			return status, fmt.Errorf("plugin signature verification failed: signing key %s is not a trusted publisher", status.KeyFingerprint)
 		}
-		return status, nil
 	}
+	return status, nil
+}
 
-	return &domainplugin.SignatureStatus{
-		Verified:   true,
-		VerifiedBy: v.keyPath,
-	}, nil
+func (v *CosignVerifier) verify(ctx context.Context, zipPath, sigPath string) *domainplugin.SignatureStatus {
+	keyPEM, err := readPackageKey(zipPath)
+	if err != nil {
+		return &domainplugin.SignatureStatus{Error: err.Error()}
+	}
+	if keyPEM == nil {
+		return &domainplugin.SignatureStatus{Error: domainplugin.SigErrNoKey}
+	}
+	fingerprint, canonical, err := domainplugin.ParsePublisherKey(keyPEM)
+	if err != nil {
+		return &domainplugin.SignatureStatus{Error: err.Error()}
+	}
+	status := &domainplugin.SignatureStatus{KeyFingerprint: fingerprint, KeyPEM: canonical}
+
+	sig, err := os.ReadFile(sigPath)
+	if errors.Is(err, os.ErrNotExist) {
+		status.Error = domainplugin.SigErrNoSignature
+		return status
+	}
+	if err != nil {
+		status.Error = fmt.Sprintf("read signature: %v", err)
+		return status
+	}
+	if err := verifyBlobSignature(canonical, sig, zipPath); err != nil {
+		status.Error = err.Error()
+		return status
+	}
+	status.Verified = true
+	status.VerifiedBy = fingerprint
+	// Trust only follows a signature that verified: a forged package must not
+	// borrow a trusted publisher's name by embedding its public key.
+	if v.lookup != nil {
+		status.Publisher, status.Trusted = v.lookup(ctx, fingerprint)
+	}
+	return status
+}
+
+// readPackageKey returns the root cosign.pub of the ZIP, or nil when absent.
+// Only a root regular entry counts: a nested cosign.pub is plugin data, not
+// the package's signing key.
+func readPackageKey(zipPath string) ([]byte, error) {
+	zr, err := zip.OpenReader(zipPath)
+	if err != nil {
+		return nil, fmt.Errorf("open plugin: %w", err)
+	}
+	defer zr.Close() //nolint:errcheck // read-only handle
+	for _, f := range zr.File {
+		if f.Name != publisherKeyEntry || f.FileInfo().IsDir() {
+			continue
+		}
+		if f.UncompressedSize64 > maxPublisherKeyBytes {
+			return nil, errors.New("signing key is larger than 4 KiB")
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return nil, fmt.Errorf("read signing key: %w", err)
+		}
+		defer rc.Close()
+		data, err := io.ReadAll(io.LimitReader(rc, maxPublisherKeyBytes+1))
+		if err != nil {
+			return nil, fmt.Errorf("read signing key: %w", err)
+		}
+		if len(data) > maxPublisherKeyBytes {
+			return nil, errors.New("signing key is larger than 4 KiB")
+		}
+		return data, nil
+	}
+	return nil, nil
 }
 
 // verifyBlobSignature is `cosign verify-blob --key --insecure-ignore-tlog`
-// without the process: PKIX PEM key, P-256 only (anything else is refused, not
-// guessed), base64 DER signature over SHA-256 of the blob.
-func verifyBlobSignature(keyPath, sigPath, blobPath string) error {
-	pub, err := loadP256PublicKey(keyPath)
-	if err != nil {
-		return err
+// without the process: PKIX PEM key (already validated P-256), base64 DER
+// signature over SHA-256 of the blob.
+func verifyBlobSignature(keyPEM string, rawSig []byte, blobPath string) error {
+	block, _ := pem.Decode([]byte(keyPEM))
+	if block == nil {
+		return errors.New("public key: expected a PEM PUBLIC KEY block")
 	}
-	rawSig, err := os.ReadFile(sigPath)
+	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return fmt.Errorf("read signature: %w", err)
+		return fmt.Errorf("parse public key: %w", err)
+	}
+	pub, ok := parsed.(*ecdsa.PublicKey)
+	if !ok {
+		return errors.New("public key: only ECDSA P-256 (cosign's default) is accepted")
 	}
 	sig, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(rawSig)))
 	if err != nil {
@@ -104,27 +172,7 @@ func verifyBlobSignature(keyPath, sigPath, blobPath string) error {
 		return fmt.Errorf("hash plugin: %w", err)
 	}
 	if !ecdsa.VerifyASN1(pub, h.Sum(nil), sig) {
-		return errors.New("signature does not match the plugin or the configured key")
+		return errors.New("signature does not match the package and its signing key")
 	}
 	return nil
-}
-
-func loadP256PublicKey(path string) (*ecdsa.PublicKey, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("read public key: %w", err)
-	}
-	block, _ := pem.Decode(data)
-	if block == nil || block.Type != "PUBLIC KEY" {
-		return nil, errors.New("public key: expected a PEM PUBLIC KEY block")
-	}
-	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse public key: %w", err)
-	}
-	pub, ok := parsed.(*ecdsa.PublicKey)
-	if !ok || pub.Curve != elliptic.P256() {
-		return nil, errors.New("public key: only ECDSA P-256 (cosign's default) is accepted")
-	}
-	return pub, nil
 }

@@ -32,9 +32,10 @@ when it has one, runs in an isolated frame of the page.
    (.zip.sig, optional)**. The **From URL** tab installs from a link instead;
    append `#sha256:<hash>` to the URL to have the download checked.
 2. **Preview & Install** analyses the package without installing it. The
-   preview shows the **Permissions** and **Capabilities** the plugin asks for
-   and the result of the **Static Analysis**. The slots, the hosts and the
-   signature are shown at update and on the **Security Dashboard**.
+   preview shows the **Permissions** and **Capabilities** the plugin asks for,
+   the result of the **Static Analysis** and, when a signature was given, the
+   **Signature** verdict with the publisher. The slots and the hosts are shown
+   at update and on the **Security Dashboard**.
 3. Read that list as the contract: those are the only things the plugin will
    be able to do. Confirm, and the plugin starts.
 
@@ -50,19 +51,21 @@ Python, Node.js, PHP, Ruby and Lua; the `-nodejs` image keeps Python and
 Node.js and the `-lean` image keeps Python only.
 
 !!! tip "Signed plugins"
-    A plugin author can sign the ZIP with [cosign](https://docs.sigstore.dev/cosign/installation/),
-    and you decide what an unsigned or badly signed plugin does. To verify
-    signatures, give the server the author's public key and pick a policy:
+    A plugin author can sign the ZIP with [cosign](https://docs.sigstore.dev/cosign/installation/);
+    the author's public key travels inside the package. Evey checks the
+    signature on its own (no `cosign` binary) and tells you **Signed by
+    <publisher>** when the key is in your **Trusted publishers** list,
+    **Signed, unknown key** with its fingerprint otherwise (one click trusts
+    it), **Unsigned** or **Invalid**. An update that changes key, or drops the
+    signature, waits for your explicit acceptance. The policy decides the
+    rest:
 
     ```sh
-    EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
     EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (default) | enforce
     ```
 
-    With `warn`, a failed signature is shown in the preview and in the
-    **Security Dashboard**; with `enforce`, the install or the update is
-    refused. Nothing is verified without a public key, and the server needs no
-    `cosign` binary. Authors: see
+    With `warn`, the verdict is shown and nothing is blocked; with `enforce`,
+    only trusted publishers install. Authors: see
     [Sign your plugin](plugins/dev-setup.md#7-sign-your-plugin).
 
 ## Update a plugin

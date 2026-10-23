@@ -17,7 +17,7 @@ import (
 )
 
 const pluginColumns = `id, name, version, description, author, language, entrypoint, install_dir,
-	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch, web_root`
+	 capabilities, permissions, config_schema, config, enabled, status, error_message, installed_at, updated_at, source_hash, analysis_report, signature, kind, frontend, external_fetch, web_root, publisher_key_fingerprint, publisher_key_pem`
 
 type PluginRepository struct {
 	db *sql.DB
@@ -99,11 +99,12 @@ func (r *PluginRepository) Create(ctx context.Context, p *plugin.Plugin) error {
 	}
 	_, err = txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO plugins (`+pluginColumns+`)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)`,
+		 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)`,
 		p.ID, p.Name, p.Version, p.Description, p.Author, p.Language, p.Entrypoint, p.InstallDir,
 		capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.InstalledAt, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
 		string(kind), frontendJSON, extFetchJSON, p.WebRoot,
+		nullIfEmpty(p.PublisherKeyFingerprint), nullIfEmpty(p.PublisherKeyPEM),
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -164,14 +165,16 @@ func (r *PluginRepository) List(ctx context.Context) ([]*plugin.Plugin, error) {
 		p := &plugin.Plugin{}
 		var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON []byte
 		var kindStr string
+		var pubFP, pubPEM sql.NullString
 		if err := rows.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 			&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 			&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-			&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot); err != nil {
+			&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
+		p.PublisherKeyFingerprint, p.PublisherKeyPEM = pubFP.String, pubPEM.String
 		p.Kind = plugin.PluginKind(kindStr)
 		if p.Kind == "" {
 			if p.Language == "css" {
@@ -265,11 +268,13 @@ func (r *PluginRepository) Update(ctx context.Context, p *plugin.Plugin) error {
 		`UPDATE plugins SET name=$1, version=$2, description=$3, author=$4, language=$5,
 		 entrypoint=$6, install_dir=$7, capabilities=$8, permissions=$9, config_schema=$10, config=$11,
 		 enabled=$12, status=$13, error_message=$14, updated_at=$15, source_hash=$16, analysis_report=$17,
-		 signature=$18, kind=$19, frontend=$20, external_fetch=$21, web_root=$22 WHERE id=$23`,
+		 signature=$18, kind=$19, frontend=$20, external_fetch=$21, web_root=$22,
+		 publisher_key_fingerprint=$23, publisher_key_pem=$24 WHERE id=$25`,
 		p.Name, p.Version, p.Description, p.Author, p.Language,
 		p.Entrypoint, p.InstallDir, capJSON, permJSON, schemaJSON, configJSON,
 		p.Enabled, p.Status, p.ErrorMessage, p.UpdatedAt, p.SourceHash, reportJSON, sigJSON,
-		string(kind), frontendJSON, extFetchJSON, p.WebRoot, p.ID,
+		string(kind), frontendJSON, extFetchJSON, p.WebRoot,
+		nullIfEmpty(p.PublisherKeyFingerprint), nullIfEmpty(p.PublisherKeyPEM), p.ID,
 	)
 	if err != nil {
 		span.RecordError(err)
@@ -344,13 +349,15 @@ func (r *PluginRepository) scanPlugin(row *sql.Row) (*plugin.Plugin, error) {
 	p := &plugin.Plugin{}
 	var capJSON, permJSON, schemaJSON, configJSON, reportJSON, sigJSON, frontendJSON, extFetchJSON []byte
 	var kindStr string
+	var pubFP, pubPEM sql.NullString
 	err := row.Scan(&p.ID, &p.Name, &p.Version, &p.Description, &p.Author, &p.Language,
 		&p.Entrypoint, &p.InstallDir, &capJSON, &permJSON, &schemaJSON, &configJSON,
 		&p.Enabled, &p.Status, &p.ErrorMessage, &p.InstalledAt, &p.UpdatedAt, &p.SourceHash, &reportJSON, &sigJSON,
-		&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot)
+		&kindStr, &frontendJSON, &extFetchJSON, &p.WebRoot, &pubFP, &pubPEM)
 	if err != nil {
 		return nil, err
 	}
+	p.PublisherKeyFingerprint, p.PublisherKeyPEM = pubFP.String, pubPEM.String
 	p.Kind = plugin.PluginKind(kindStr)
 	if p.Kind == "" {
 		if p.Language == "css" {

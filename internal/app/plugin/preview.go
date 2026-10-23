@@ -25,6 +25,11 @@ type PluginPreview struct {
 	Capabilities []string
 	Analysis     *plugin.AnalysisReport
 	SourceHash   string
+	// Signature is the cosign verdict on the candidate, nil when the policy is
+	// off. SignatureState is its verdict string (plugin.SigState*), judged
+	// against the installed plugin of the same name when there is one.
+	Signature      *plugin.SignatureStatus
+	SignatureState string
 }
 
 // PluginUpdatePreview holds the diff between an installed plugin and a
@@ -42,11 +47,15 @@ type PluginUpdatePreview struct {
 	// critical-blocking (those would prevent the preview from being built).
 	NewFindings []plugin.PluginFinding
 
-	// SignatureStatus is the cosign result on the candidate. Empty string
-	// when sig verification is disabled.
+	// SignatureStatus is the cosign verdict on the candidate (plugin.SigState*).
+	// Empty string when sig verification is disabled.
 	SignatureStatus string
+	// Signature is the full verdict, with the continuity against the installed
+	// version; nil when sig verification is disabled.
+	Signature *plugin.SignatureStatus
 
-	// RequiresAck is true when any permission/capability/slot/host was added.
+	// RequiresAck is true when any permission/capability/slot/host was added,
+	// or when the signing publisher changed or was lost.
 	RequiresAck bool
 
 	// SourceHash is the SHA-256 of the candidate ZIP. Must be passed back
@@ -54,7 +63,7 @@ type PluginUpdatePreview struct {
 	SourceHash string
 }
 
-func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*PluginPreview, error) {
+func (s *InstallerService) PreviewPlugin(ctx context.Context, zipPath string) (*PluginPreview, error) {
 	manifest, err := s.parser.Parse(zipPath)
 	if err != nil {
 		return nil, fmt.Errorf("parse manifest: %w", err)
@@ -77,6 +86,14 @@ func (s *InstallerService) PreviewPlugin(_ context.Context, zipPath string) (*Pl
 		Capabilities: manifest.Capabilities,
 		SourceHash:   sourceHash,
 	}
+	// An upload under an installed plugin's name is an update: judge its key
+	// against the pinned one, as the install will.
+	existing, lookupErr := s.plugins.GetByName(ctx, manifest.Name)
+	if lookupErr != nil {
+		existing = nil
+	}
+	preview.Signature = s.candidateSignature(ctx, zipPath, existing)
+	preview.SignatureState = preview.Signature.State()
 	if s.installer != nil && s.analyzer != nil && s.fs != nil {
 		tmpDir, tmpErr := s.fs.MkdirTemp("", "evey-plugin-preview-*")
 		if tmpErr == nil {
@@ -164,20 +181,37 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 		}
 	}
 
-	// Cosign on candidate (best-effort - status recorded, not blocking).
-	if s.sigVerifier != nil {
-		sigStatus, sigErr := s.sigVerifier.VerifySignature(ctx, localPath, "")
-		switch {
-		case sigErr != nil:
-			preview.SignatureStatus = "invalid"
-		case sigStatus != nil && sigStatus.Verified:
-			preview.SignatureStatus = "signed"
-		default:
-			preview.SignatureStatus = "unsigned"
+	// Cosign on candidate (best-effort - the verdict is recorded, not blocking).
+	if sig := s.candidateSignature(ctx, localPath, existing); sig != nil {
+		preview.Signature = sig
+		preview.SignatureStatus = sig.State()
+		if sig.Continuity == plugin.ContinuityChanged || sig.Continuity == plugin.ContinuityLost {
+			preview.RequiresAck = true
 		}
 	}
 
 	return preview, nil
+}
+
+// candidateSignature verifies a candidate ZIP and sets its continuity against
+// the installed plugin (nil for a first install). Returns nil when verification
+// is disabled. An enforce-policy refusal still yields a status, so the admin
+// sees why instead of a bare error.
+func (s *InstallerService) candidateSignature(ctx context.Context, zipPath string, existing *plugin.Plugin) *plugin.SignatureStatus {
+	if s.sigVerifier == nil {
+		return nil
+	}
+	st, err := s.sigVerifier.VerifySignature(ctx, zipPath, "")
+	if st == nil {
+		if err == nil {
+			return nil
+		}
+		st = &plugin.SignatureStatus{Error: err.Error()}
+	}
+	if existing != nil {
+		st.ApplyContinuity(existing.PublisherKeyFingerprint)
+	}
+	return st
 }
 
 // PreviewSource is PreviewPlugin for an install SOURCE - a URL or a local
