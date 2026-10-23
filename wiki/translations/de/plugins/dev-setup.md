@@ -1,5 +1,5 @@
 ---
-source_sha: 285bdd60357aba1d3d0a25ee9fb2cbf8e882085af6ffee596e41d15bab4c8465
+source_sha: 4a666dfa2c12290f8a0b0b78d5751a32b7d8b3b95a89284bddb67ae767e73d4c
 reviewed: true
 ---
 # Ein Plugin schreiben { #writing-a-plugin }
@@ -242,8 +242,12 @@ diese Hosts also direkt über `https` aufrufen. Die Regeln stehen in
 
 !!! info "Was eine Signatur beweist"
     Eine Signatur belegt, dass das ZIP, das der Administrator installiert,
-    Byte für Byte das ist, das **Sie** veröffentlicht haben, signiert mit dem
-    Schlüssel, dem er vertraut. Sie sagt nichts darüber aus, was das Plugin tut:
+    Byte für Byte das ist, das **Sie** veröffentlicht haben. Ihr öffentlicher
+    Schlüssel reist im Paket (`cosign.pub` im Wurzelverzeichnis des ZIP), und
+    Evey hält seinen Fingerabdruck bei der Installation am Plugin fest: Ein
+    Update, das mit einem anderen Schlüssel signiert oder nicht mehr signiert
+    ist, wird abgelehnt, bis der Administrator die Änderung akzeptiert. Sie
+    sagt nichts darüber aus, was das Plugin tut:
     Berechtigungen, Hosts und die Analyse in der Vorschau gelten weiter.
     Evey prüft sie offline und im eigenen Prozess (ECDSA P-256 über den
     SHA-256 des ZIP, das Format, das `cosign sign-blob --key` erzeugt): kein
@@ -260,10 +264,12 @@ auf Ihrem eigenen Rechner.
     # -> cosign.key (privat) und cosign.pub (die Datei, die Sie weitergeben)
     ```
 
-2. **Bei jeder Veröffentlichung: packen, dann signieren**, und zwar genau die
-   Datei, die Sie verteilen.
+2. **Bei jeder Veröffentlichung: Ihren öffentlichen Schlüssel ins
+   Wurzelverzeichnis des Plugins legen, packen, dann signieren**, und zwar
+   genau die Datei, die Sie verteilen.
 
     ```sh
+    cp cosign.pub hello-plugin/cosign.pub
     cd hello-plugin && zip -r ../hello-plugin.zip . && cd ..
 
     COSIGN_PASSWORD="your-passphrase" cosign sign-blob \
@@ -280,40 +286,50 @@ auf Ihrem eigenen Rechner.
       --insecure-ignore-tlog hello-plugin.zip      # -> Verified OK
     ```
 
-4. **Drei Dateien zusammen veröffentlichen**: `hello-plugin.zip`,
-   `hello-plugin.zip.sig` und `cosign.pub`. Stellen Sie den Fingerabdruck
-   des öffentlichen Schlüssels an einen Ort, an dem Ihre Benutzer ihn
-   vergleichen können (README, Versionshinweise). So wissen sie, dass
-   `cosign.pub` nicht ausgetauscht wurde.
+4. **Die beiden Dateien zusammen veröffentlichen**: `hello-plugin.zip` (Ihr
+   öffentlicher Schlüssel steckt darin) und `hello-plugin.zip.sig`, nebeneinander,
+   damit eine Installation per URL die Signatur unter `<url>.sig` findet.
+   Schreiben Sie den Fingerabdruck des Schlüssels (`sha256:...`, von Evey auf
+   der Karte des Plugins angezeigt) in Ihre README und Versionshinweise, damit
+   Administratoren ihn vergleichen können, bevor sie dem Schlüssel vertrauen.
 
-Auf der Instanz, die das Plugin installiert, setzt der Administrator den
-Schlüssel und eine Regel und startet den Server neu:
+Auf der Instanz, die das Plugin installiert, wählt der Administrator das ZIP
+unter **Verwaltung → Plugins** und unter **Signaturdatei (.zip.sig,
+optional)** dessen `.zip.sig`. Über die API ist die Signatur das Feld `sig`
+beim Hochladen. Evey prüft das Paket gegen den Schlüssel, den es mitbringt,
+und zeigt eines von:
 
-```sh
-EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
-EVEY_PLUGINS_COSIGN_POLICY=warn   # oder "enforce", um abzulehnen, was die Prüfung nicht besteht
-```
+- **Signiert von <Herausgeber>**: Der Schlüssel steht in der Liste der
+  **Vertrauenswürdigen Herausgeber** der Instanz.
+- **Signiert - unbekannter Schlüssel sha256:...**: Die Signatur ist gut, dem
+  Schlüssel wird noch nicht vertraut. Ein Klick, **Diesem Schlüssel
+  vertrauen**, nimmt ihn unter einem Namen in die Liste auf.
+- **Nicht signiert** oder **Ungültige Signatur**.
 
-Dann wählt er unter **Verwaltung → Plugins** das ZIP und unter
-**Signaturdatei (.zip.sig, optional)** dessen `.zip.sig`. Über die API ist
-die Signatur das Feld `sig` beim Hochladen. **Signiert** oder eine ungültige Signatur wird beim Update angezeigt, und das Sicherheits-Dashboard behält das
-Ergebnis.
+Die Regel entscheidet, was geschieht: `EVEY_PLUGINS_COSIGN_POLICY=warn`
+(Standard) hält das Urteil fest und lässt jede Installation durch; `enforce`
+lässt nur vertraute Schlüssel zu. Unabhängig von der Regel wird ein Update,
+dessen Schlüssel von der installierten Version abweicht oder das die
+Signatur weglässt, abgelehnt, bis der Administrator im Update-Dialog **Der
+Herausgeber hat gewechselt, ich akzeptiere den neuen Schlüssel** ankreuzt.
+`EVEY_PLUGINS_COSIGN_PUBLIC_KEY` ist optional: Sie nimmt beim Start einen
+Schlüssel in die Vertrauensliste auf (als der des Serverbetreibers
+gekennzeichnet).
 
 Typische Fehlerquellen:
 
 - **Jede Änderung am ZIP macht die Signatur ungültig**, sogar dieselben
   Dateien neu zu packen. Signieren Sie die Datei, die Sie verteilen, und
   signieren Sie jede Version neu.
+- **Behalten Sie denselben Schlüssel** von einer Version zur nächsten. Ein
+  neuer Schlüssel ist für jeden Administrator, der Sie installiert hat, ein
+  neuer Herausgeber: Er wird gebeten, ihn zu akzeptieren. Wechseln Sie mit
+  Absicht und sagen Sie es in Ihren Versionshinweisen.
 - **Nur ECDSA-P-256-Schlüssel werden angenommen**, und genau die erzeugt
   `cosign generate-key-pair`. Schlüsselloses Signieren und Verweise auf ein
   KMS werden nicht geprüft.
-- Der Schlüssel wird beim Start aus einer PEM-Datei gelesen: Eine fehlende
-  oder fehlerhafte Datei verhindert den Start des Servers, statt erst bei der
-  ersten Installation einen Fehler auszulösen. Mit `enforce` und ohne Schlüssel startet der
-  Server nicht.
-- Mit dem Standard `warn` und ohne konfigurierten öffentlichen Schlüssel
-  **wird nichts geprüft**; der Server schreibt beim Start nur eine Warnung
-  ins Protokoll.
+- Eine `.sig` ohne `cosign.pub` im ZIP, oder umgekehrt, gilt als **Nicht
+  signiert**.
 - Ein falscher Schlüssel, ein manipuliertes ZIP und eine fehlende `.sig`
   gelten alle als fehlgeschlagene Signatur: Unter `enforce` wird die
   Installation oder das Update abgelehnt.

@@ -1,5 +1,5 @@
 ---
-source_sha: f58b5dccd7a97d42b2fc6bf6a3137cd005cca7f7658e3dc3f906106cce0d7132
+source_sha: 3e8706d875387de097db25bae84c18a9439cf144e791b450e09bf54c3edf978d
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -40,9 +40,10 @@ läuft in einem isolierten Rahmen der Seite.
    geprüft wird.
 2. **Vorschau & Installieren** analysiert das Paket, ohne es zu installieren.
    Die Vorschau zeigt die **Berechtigungen** und **Fähigkeiten**, die das
-   Plugin verlangt, und das Ergebnis der **Statischen Analyse**. Die Slots,
-   die Hosts und die Signatur zeigen sich beim Update und im
-   **Sicherheits-Dashboard**.
+   Plugin anfordert, das Ergebnis der **Statischen Analyse** und, wenn eine
+   Signatur mitgegeben wurde, das **Signatur**-Urteil mit dem Herausgeber. Die
+   Slots und die Hosts werden beim Update und im **Sicherheits-Dashboard**
+   angezeigt.
 3. Diese Liste ist verbindlich: Das ist alles, was das Plugin tun
    können wird. Bestätigen Sie, und das Plugin startet.
 
@@ -59,19 +60,21 @@ Servers gehören: Das Standard-Image bringt Python, Node.js, PHP, Ruby und Lua m
 
 !!! tip "Signierte Plugins"
     Ein Plugin-Autor kann das ZIP mit [cosign](https://docs.sigstore.dev/cosign/installation/)
-    signieren, und Sie entscheiden, was mit einem unsignierten oder falsch
-    signierten Plugin geschieht. Um Signaturen zu prüfen, geben Sie dem
-    Server den öffentlichen Schlüssel des Autors und wählen eine Richtlinie:
+    signieren; sein öffentlicher Schlüssel reist im Paket. Evey prüft die
+    Signatur selbst (kein `cosign`-Programm) und zeigt **Signiert von
+    <Herausgeber>**, wenn der Schlüssel in Ihrer Liste der **Vertrauenswürdigen
+    Herausgeber** steht, sonst **Signiert, unbekannter Schlüssel** mit seinem
+    Fingerabdruck (ein Klick vertraut ihm), **Nicht signiert** oder
+    **Ungültig**. Ein Update, das den Schlüssel wechselt oder die Signatur
+    weglässt, wartet auf Ihre ausdrückliche Zustimmung. Die Regel entscheidet
+    den Rest:
 
     ```sh
-    EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
     EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn (Standard) | enforce
     ```
 
-    Mit `warn` wird eine fehlgeschlagene Signatur in der Vorschau und im
-    **Sicherheits-Dashboard** angezeigt; mit `enforce` wird die Installation
-    oder das Update abgelehnt. Ohne öffentlichen Schlüssel wird nichts
-    geprüft, und der Server braucht kein `cosign`-Programm. Für Autoren: siehe
+    Mit `warn` wird das Urteil angezeigt und nichts blockiert; mit `enforce`
+    werden nur vertrauenswürdige Herausgeber installiert. Für Autoren: siehe
     [Ihr Plugin signieren](plugins/dev-setup.md#7-sign-your-plugin).
 
 ## Ein Plugin aktualisieren { #update-a-plugin }

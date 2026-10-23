@@ -189,6 +189,16 @@ plugin:
   limits_negative: "Speicher-, Prozess- und Festplattenlimits müssen 0 oder mehr betragen"
   cpu_nice_range: "Die CPU-Priorität (nice) muss zwischen 0 und 19 liegen"
   sandbox_mode_invalid: "Der Sandbox-Modus muss einer der folgenden sein: {modes}"
+  publishers_unavailable: "Vertrauenswürdige Herausgeber sind auf diesem Server nicht verfügbar"
+  publisher_name_required: "Ein Herausgebername ist erforderlich"
+  publisher_name_too_long: "Der Herausgebername ist zu lang"
+  publisher_key_required: "Geben Sie entweder einen öffentlichen Schlüssel oder einen Fingerabdruck an"
+  publisher_key_invalid: "Der öffentliche Schlüssel ist ungültig (erwartet wird ein ECDSA-P-256-Schlüssel im PEM-Format)"
+  publisher_key_unknown: "Kein installiertes Plugin enthält einen Schlüssel mit diesem Fingerabdruck"
+  publisher_not_found: "Vertrauenswürdiger Herausgeber nicht gefunden"
+  publisher_seeded: "Der Serverschlüssel kann nicht aus den vertrauenswürdigen Herausgebern entfernt werden"
+  publisher_changed: "Dieses Update ist von einem anderen Herausgeber signiert als die installierte Version - akzeptieren Sie den neuen Herausgeber, um es anzuwenden"
+  signature_lost: "Dieses Update ist nicht mehr signiert, die installierte Version war es - akzeptieren Sie das unsignierte Update, um es anzuwenden"
 
 demo:
   locked: "Auf dem Demo-Server nicht verfügbar"

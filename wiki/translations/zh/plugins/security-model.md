@@ -1,5 +1,5 @@
 ---
-source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
+source_sha: 7be5d2c69f31e5a809a830f40949f2c4242950d173dfc5bf681d26c5be44e87f
 reviewed: true
 ---
 # 权限与插槽 { #permissions-and-slots }
@@ -110,7 +110,7 @@ reviewed: true
    权限、能力、插槽和 `external_fetch` 有哪些不同。
 2. 如果有不同，管理员必须先确认，更新才会应用（`requires_ack = true`；通过上传路由时为 `accept_permission_changes=true`）。
 3. 包的哈希值在预览时记下，在应用时核对：被分析的 ZIP，就是被安装的那个 ZIP。
-4. 在 `EVEY_PLUGINS_COSIGN_POLICY=enforce` 下，即使预览通过了，只要应用这一步签名检查失败，更新就会被阻止。
+4. 签名密钥要检查连续性：用与已安装版本不同的密钥签名、或不再签名的更新会被拒绝，直到管理员接受新的发布者。在 `EVEY_PLUGINS_COSIGN_POLICY=enforce` 下，即使预览通过了，只要应用这一步的签名不受信任或无效，更新就会被阻止。
 
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities

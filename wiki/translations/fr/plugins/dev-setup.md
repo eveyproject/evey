@@ -1,5 +1,5 @@
 ---
-source_sha: 285bdd60357aba1d3d0a25ee9fb2cbf8e882085af6ffee596e41d15bab4c8465
+source_sha: 4a666dfa2c12290f8a0b0b78d5751a32b7d8b3b95a89284bddb67ae767e73d4c
 reviewed: true
 ---
 # Écrire un plugin { #writing-a-plugin }
@@ -236,8 +236,11 @@ Les règles sont dans
 
 !!! info "Ce que prouve une signature"
     Une signature atteste que le ZIP que l'administrateur installe est, octet
-    pour octet, celui que **vous** avez publié, signé avec la clé en
-    laquelle il a confiance. Elle n'indique rien de ce que fait le plugin : les
+    pour octet, celui que **vous** avez publié. Votre clé publique voyage dans
+    le paquet (`cosign.pub` à la racine du ZIP), et Evey épingle son empreinte
+    sur le plugin à l'installation : une mise à jour signée avec une autre clé,
+    ou qui n'est plus signée, est refusée tant que l'administrateur n'a pas
+    accepté le changement. Elle n'indique rien de ce que fait le plugin : les
     permissions, les hôtes et l'analyse de l'aperçu s'appliquent toujours.
     Evey la vérifie hors ligne et dans son propre processus (ECDSA P-256 sur
     le SHA-256 du ZIP, le format que produit `cosign sign-blob --key`) : pas
@@ -255,10 +258,11 @@ que sur votre machine.
     # -> cosign.key (privée) et cosign.pub (le fichier que vous distribuez)
     ```
 
-2. **À chaque version : compressez, puis signez** le fichier exact que vous
-   distribuerez.
+2. **À chaque version : placez votre clé publique à la racine du plugin,
+   compressez, puis signez** le fichier exact que vous distribuerez.
 
     ```sh
+    cp cosign.pub hello-plugin/cosign.pub
     cd hello-plugin && zip -r ../hello-plugin.zip . && cd ..
 
     COSIGN_PASSWORD="votre-phrase-de-passe" cosign sign-blob \
@@ -275,37 +279,49 @@ que sur votre machine.
       --insecure-ignore-tlog hello-plugin.zip      # -> Verified OK
     ```
 
-4. **Publiez les trois fichiers ensemble** : `hello-plugin.zip`,
-   `hello-plugin.zip.sig` et `cosign.pub`. Mettez l'empreinte de la clé
-   publique quelque part où vos utilisateurs peuvent la comparer (README,
-   notes de version), pour qu'ils sachent que `cosign.pub` n'a pas été
-   remplacée.
+4. **Publiez les deux fichiers ensemble** : `hello-plugin.zip` (votre clé
+   publique est dedans) et `hello-plugin.zip.sig`, côte à côte, pour qu'une
+   installation par URL trouve la signature à `<url>.sig`. Mettez l'empreinte
+   de la clé (`sha256:...`, affichée par Evey sur la carte du plugin) dans
+   votre README et vos notes de version, pour que les administrateurs puissent
+   la comparer avant de faire confiance à la clé.
 
-Sur l'instance qui l'installe, l'administrateur renseigne la clé et une
-politique, puis redémarre le serveur :
+Sur l'instance qui l'installe, l'administrateur choisit le ZIP dans
+**Administration → Plugins** et, dans **Fichier signature (.zip.sig,
+optionnel)**, son `.zip.sig` ; par l'API, la signature est le champ `sig` de
+l'envoi. Evey vérifie le paquet avec la clé qu'il porte et affiche l'un de :
 
-```sh
-EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
-EVEY_PLUGINS_COSIGN_POLICY=warn   # ou "enforce" pour refuser ce qui ne se vérifie pas
-```
+- **Signé par <éditeur>** : la clé est dans la liste des **Éditeurs de
+  confiance** de l'instance.
+- **Signé - clé inconnue sha256:...** : la signature est bonne, la clé n'est
+  pas encore de confiance. Un clic, **Faire confiance à cette clé**, l'ajoute
+  à la liste sous un nom.
+- **Non signé**, ou **Signature invalide**.
 
-Puis, dans **Administration → Plugins**, il choisit le ZIP et, dans **Fichier
-signature (.zip.sig, optionnel)**, son `.zip.sig` ; par l'API, la signature
-est le champ `sig` de l'envoi. **Signé** ou une signature invalide s'affiche à la mise à jour, et le Tableau de bord sécurité conserve le résultat.
+La politique décide de la suite : `EVEY_PLUGINS_COSIGN_POLICY=warn` (défaut)
+enregistre le verdict et laisse passer toute installation ; `enforce` n'admet
+que les clés de confiance. Quelle que soit la politique, une mise à jour dont
+la clé diffère de la version installée, ou qui abandonne la signature, est
+refusée tant que l'administrateur n'a pas coché **L'éditeur a changé,
+j'accepte la nouvelle clé** dans la fenêtre de mise à jour.
+`EVEY_PLUGINS_COSIGN_PUBLIC_KEY` est facultative : elle ajoute une clé à la
+liste de confiance au démarrage (marquée comme celle de l'opérateur du
+serveur).
 
 Erreurs fréquentes :
 
 - **Tout changement du ZIP invalide la signature**, même recompresser les mêmes
   fichiers. Signez le fichier que vous distribuez, et signez de nouveau à
   chaque version.
+- **Gardez la même clé** d'une version à l'autre. Une nouvelle clé est un
+  nouvel éditeur pour chaque administrateur qui vous a installé : on lui
+  demandera de l'accepter. Changez de clé volontairement, et dites-le dans vos
+  notes de version.
 - **Seules les clés ECDSA P-256 sont acceptées**, ce que produit `cosign
   generate-key-pair`. La signature sans clé et les références KMS ne sont pas
   vérifiées.
-- La clé est lue dans un fichier PEM au démarrage : un fichier manquant ou mal
-  formé arrête le serveur au lieu de faire échouer la première installation.
-  Avec `enforce` et sans clé, le serveur refuse de démarrer.
-- Avec le `warn` par défaut et sans clé publique configurée, **rien n'est
-  vérifié** ; le serveur se contente d'un avertissement au démarrage.
+- Un `.sig` sans `cosign.pub` dans le ZIP, ou l'inverse, compte comme **Non
+  signé**.
 - Une mauvaise clé, un ZIP altéré et un `.sig` manquant sont tous traités comme
   une signature en échec : sous `enforce`, l'installation ou la mise à jour
   est refusée.

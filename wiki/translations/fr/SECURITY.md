@@ -1,5 +1,5 @@
 ---
-source_sha: 8a52f7e82582b44f2cdf80dd9c91994d8bcde0cb532cefcb4f12e4930114a621
+source_sha: 6363fc4fc30f333ce87a44681eb0db3e41164d111846551eb9a028b3cd37b61f
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace { #plugin-sandbox-and-threat-model }
@@ -128,16 +128,34 @@ déclare `native-binary`.
 
 ### Signature { #signature }
 
-Un paquet peut être signé avec cosign. `EVEY_PLUGINS_COSIGN_POLICY` fixe ce
-que fait une vérification en échec (`pluginrunner/cosign.go`) :
+Un paquet peut être signé avec cosign (`cosign sign-blob --key`, ECDSA P-256
+sur le SHA-256 du ZIP). La clé publique de l'auteur voyage dans le paquet sous
+le nom `cosign.pub` ; Evey vérifie la `.sig` détachée avec elle, dans son
+propre processus et hors ligne (`pluginrunner/cosign.go`), et calcule
+l'empreinte de la clé (`sha256:` sur la clé publique DER). Trois faits en
+découlent :
+
+- **Confiance** : l'empreinte figure, ou non, dans la liste des **Éditeurs de
+  confiance** de l'instance (`Administration → Plugins`, ou alimentée au
+  démarrage par `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`). Une clé de confiance
+  affiche le nom de l'éditeur ; une clé inconnue affiche son empreinte et une
+  action **Faire confiance à cette clé**.
+- **Continuité** : l'empreinte est épinglée sur le plugin à l'installation.
+  Une mise à jour signée par une autre clé (`publisher-changed`) ou qui n'est
+  plus signée (`signature-lost`) est refusée, quelle que soit la politique,
+  tant que l'administrateur n'a pas accepté le nouvel éditeur dans la fenêtre
+  de mise à jour (`accept_new_publisher`).
+- **Politique** : `EVEY_PLUGINS_COSIGN_POLICY` fixe ce que fait le verdict.
 
 | Politique | Effet |
 |---|---|
-| `off` | La signature n'est pas vérifiée. |
-| `warn` (défaut) | Un échec est enregistré et montré à l'administrateur, sans bloquer. Sans clé publique configurée, rien n'est vérifié. |
-| `enforce` | Un échec refuse l'installation ou la mise à jour. |
+| `off` | La signature n'est pas vérifiée et rien n'est enregistré. |
+| `warn` (défaut) | Le verdict est enregistré et montré ; les paquets non signés, non fiables et invalides s'installent. |
+| `enforce` | Seul un paquet signé par un éditeur de confiance s'installe ou se met à jour. |
 
-La clé publique est donnée par `EVEY_PLUGINS_COSIGN_PUBLIC_KEY`.
+Une signature prouve que le paquet est bien celui que son éditeur a publié, et
+qu'une mise à jour vient du même éditeur. Elle ne dit rien du code, que
+l'analyse, les permissions et le bac à sable jugent.
 
 ### Aperçu administrateur { #administrator-preview }
 
@@ -429,7 +447,7 @@ refusés, binaires compilés inclus.
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` ou `basic`. Modifiable aussi dans **Administration → Plugins**. |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` ou `off`. Incompatible avec `no_new_privs` sur le conteneur. |
 | `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` ou `enforce`. |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | aucune | La clé contre laquelle les signatures sont vérifiées. |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | aucune | Facultatif : une clé publique PEM ajoutée aux éditeurs de confiance au démarrage. |
 | `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | Valeurs par défaut au démarrage des limites de ressources ; le panneau les remplace, pour tous les plugins à la fois. |
 
 L'image officielle embarque `evey-plugin-launcher` (Landlock et le filtre du

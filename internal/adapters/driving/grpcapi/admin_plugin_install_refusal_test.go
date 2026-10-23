@@ -66,10 +66,10 @@ func TestInstallPlugin_RefusalsAreNotServerFaults(t *testing.T) {
 	assert.Contains(t, status.Convert(err).Message(), "404")
 
 	blocked := &appplugin.PluginBlockedError{Issues: []string{"[CRITICAL] main.js:1 - eval"}, Categories: []string{"dynamic-eval"}}
-	assert.Equal(t, codes.PermissionDenied, status.Code(installPluginError(ctx, blocked)))
-	assert.Contains(t, status.Convert(installPluginError(ctx, blocked)).Message(), "eval")
-	assert.Equal(t, codes.PermissionDenied, status.Code(installPluginError(ctx, errors.New("plugin blocked: theme.js contains forbidden pattern: eval"))))
-	assert.Equal(t, codes.Internal, status.Code(installPluginError(ctx, errors.New("write plugin dir: disk full"))))
+	assert.Equal(t, codes.PermissionDenied, status.Code((&adminPluginHandler{}).installPluginError(ctx, blocked)))
+	assert.Contains(t, status.Convert((&adminPluginHandler{}).installPluginError(ctx, blocked)).Message(), "eval")
+	assert.Equal(t, codes.PermissionDenied, status.Code((&adminPluginHandler{}).installPluginError(ctx, errors.New("plugin blocked: theme.js contains forbidden pattern: eval"))))
+	assert.Equal(t, codes.Internal, status.Code((&adminPluginHandler{}).installPluginError(ctx, errors.New("write plugin dir: disk full"))))
 }
 
 // Removing what is already gone (a double click on the row) is NotFound, not

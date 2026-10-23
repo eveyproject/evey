@@ -189,6 +189,16 @@ plugin:
   limits_negative: "内存、进程和磁盘限制必须大于或等于 0"
   cpu_nice_range: "CPU 优先级（nice）必须介于 0 到 19 之间"
   sandbox_mode_invalid: "沙箱模式必须为以下之一：{modes}"
+  publishers_unavailable: "此服务器不提供受信任的发布者功能"
+  publisher_name_required: "需要填写发布者名称"
+  publisher_name_too_long: "发布者名称太长"
+  publisher_key_required: "请提供公钥或指纹，二选一"
+  publisher_key_invalid: "公钥无效（需要 PEM 格式的 ECDSA P-256 密钥）"
+  publisher_key_unknown: "没有已安装的插件带有此指纹的密钥"
+  publisher_not_found: "未找到受信任的发布者"
+  publisher_seeded: "服务器密钥不能从受信任的发布者中移除"
+  publisher_changed: "此更新由与已安装版本不同的发布者签名 - 请接受新的发布者后再应用"
+  signature_lost: "此更新不再签名，而已安装的版本是签名的 - 请接受未签名的更新后再应用"
 
 demo:
   locked: "演示服务器上不可用"

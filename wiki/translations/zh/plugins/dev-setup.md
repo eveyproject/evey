@@ -1,5 +1,5 @@
 ---
-source_sha: 285bdd60357aba1d3d0a25ee9fb2cbf8e882085af6ffee596e41d15bab4c8465
+source_sha: 4a666dfa2c12290f8a0b0b78d5751a32b7d8b3b95a89284bddb67ae767e73d4c
 reviewed: true
 ---
 # 编写插件 { #writing-a-plugin }
@@ -181,7 +181,7 @@ external_fetch:
 ## 7. 给插件签名 { #7-sign-your-plugin }
 
 !!! info "签名能证明什么"
-    签名说明管理员安装的 ZIP 包，和**您**发布的那个逐字节相同，并且是用他们信任的密钥签的。
+    签名说明管理员安装的 ZIP 包，和**您**发布的那个逐字节相同。您的公钥随包一起分发（ZIP 根目录下的 `cosign.pub`），Evey 在安装时把它的指纹固定在插件上：用另一把密钥签名、或不再签名的更新会被拒绝，直到管理员接受这个变化。
     它不说明插件做了什么：权限、主机列表和预览里的分析照样适用。Evey 在进程内离线检查签名
     （对 ZIP 的 SHA-256 做 ECDSA P-256 签名，也就是 `cosign sign-blob --key` 生成的格式）：
     服务器上不需要 `cosign` 程序，不联网，也不用透明日志。
@@ -196,9 +196,10 @@ external_fetch:
     # -> cosign.key（私钥）和 cosign.pub（您分发出去的文件）
     ```
 
-2. **每次发布：先打包，再签名**，签的必须是您要分发的那个文件。
+2. **每次发布：把您的公钥放在插件根目录，再打包，再签名**，签的必须是您要分发的那个文件。
 
     ```sh
+    cp cosign.pub hello-plugin/cosign.pub
     cd hello-plugin && zip -r ../hello-plugin.zip . && cd ..
 
     COSIGN_PASSWORD="your-passphrase" cosign sign-blob \
@@ -214,26 +215,23 @@ external_fetch:
       --insecure-ignore-tlog hello-plugin.zip      # -> Verified OK
     ```
 
-4. **三个文件一起发布**：`hello-plugin.zip`、`hello-plugin.zip.sig` 和 `cosign.pub`。
-   把公钥的指纹放在用户能对照的地方（README、发布说明），这样他们就知道 `cosign.pub` 没有被替换。
+4. **把两个文件一起发布**：`hello-plugin.zip`（您的公钥就在里面）和 `hello-plugin.zip.sig`，放在一起，这样通过 URL 安装时能在 `<url>.sig` 找到签名。
+   把密钥的指纹（`sha256:...`，Evey 会显示在插件卡片上）写进您的 README 和发布说明，方便管理员在信任这把密钥之前对照。
 
-在要安装插件的服务器上，管理员设置公钥和策略，然后重启服务器：
+在要安装插件的服务器上，管理员在**管理 → 插件**里选择 ZIP 包，并在**签名文件（.zip.sig，可选）**里选择对应的 `.zip.sig`；通过 API 上传时，签名放在 `sig` 字段里。Evey 用包里自带的密钥验证这个包，并显示下面几种结果之一：
 
-```sh
-EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
-EVEY_PLUGINS_COSIGN_POLICY=warn   # 或者 "enforce"，拒绝验证不通过的包
-```
+- **由 <发布者> 签名**：这把密钥在本实例的**受信任的发布者**列表里。
+- **已签名 - 未知密钥 sha256:...**：签名没问题，但这把密钥还不受信任。点一下**信任此密钥**，就能给它起个名字加进列表。
+- **未签名**，或**签名无效**。
 
-之后，在**管理 → 插件**里选择 ZIP 包，并在**签名文件（.zip.sig，可选）**里选择对应的 `.zip.sig`；
-通过 API 上传时，签名放在 `sig` 字段里。**已签名**或签名无效会在更新时显示，**安全仪表板**会保存这个结果。
+后果由策略决定：`EVEY_PLUGINS_COSIGN_POLICY=warn`（默认）只记录结论，所有安装都放行；`enforce` 只接受受信任的密钥。无论策略如何，如果更新的密钥与已安装版本不同，或者去掉了签名，就会被拒绝，直到管理员在更新对话框里勾选**发布者已更改，我接受新密钥**。`EVEY_PLUGINS_COSIGN_PUBLIC_KEY` 是可选的：它在启动时往受信任列表里加入一把密钥（标记为服务器运营者的密钥）。
 
 常见问题：
 
 - **对 ZIP 包的任何改动都会让签名失效**，哪怕只是把同样的文件重新打包。请给您分发的那个文件签名，每个版本都重新签一次。
+- **各个版本之间请使用同一把密钥。** 对每个已经安装了您的插件的管理员来说，新密钥就是新的发布者：他们会被要求接受它。换密钥要有意为之，并在发布说明里讲清楚。
 - **只接受 ECDSA P-256 密钥**，`cosign generate-key-pair` 生成的正是这种。无密钥签名和 KMS 引用不会被验证。
-- 公钥在启动时从 PEM 文件读取：文件缺失或格式错误，服务器会直接停止，而不是等到第一次安装时才失败。
-  设为 `enforce` 却没有公钥时，服务器拒绝启动。
-- 保持默认的 `warn` 且没有配置公钥时，**什么都不会验证**；服务器只会在启动时记录一条警告。
+- ZIP 里有 `.sig` 却没有 `cosign.pub`，或者反过来，都算**未签名**。
 - 密钥不对、ZIP 被篡改、缺少 `.sig`，都会被当作签名失败：在 `enforce` 下，安装或更新会被拒绝。
 
 ## 8. 安装程序依次检查什么 { #8-what-the-installer-checks-in-order }

@@ -1,5 +1,5 @@
 ---
-source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
+source_sha: 7be5d2c69f31e5a809a830f40949f2c4242950d173dfc5bf681d26c5be44e87f
 reviewed: true
 ---
 # Berechtigungen und Slots { #permissions-and-slots }
@@ -158,8 +158,12 @@ lehnt standardmäßig jede Methode ab, die dieser Token nicht nennt.
    Upload-Route `accept_permission_changes=true`).
 3. Der Hash des Pakets wird bei der Vorschau festgehalten und beim Anwenden
    geprüft: Das analysierte ZIP ist genau das ZIP, das installiert wird.
-4. Mit `EVEY_PLUGINS_COSIGN_POLICY=enforce` blockiert ein Signaturfehler beim
-   Anwenden das Update, auch wenn die Vorschau bestanden hat.
+4. Der Signaturschlüssel wird auf Kontinuität geprüft: Ein Update, das mit
+   einem anderen Schlüssel als die installierte Version signiert oder nicht
+   mehr signiert ist, wird abgelehnt, bis der Administrator den neuen
+   Herausgeber akzeptiert. Mit `EVEY_PLUGINS_COSIGN_POLICY=enforce` blockiert
+   eine nicht vertraute oder ungültige Signatur beim Anwenden das Update,
+   auch wenn die Vorschau bestanden hat.
 
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities

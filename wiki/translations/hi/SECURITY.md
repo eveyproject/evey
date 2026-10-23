@@ -1,5 +1,5 @@
 ---
-source_sha: 8a52f7e82582b44f2cdf80dd9c91994d8bcde0cb532cefcb4f12e4930114a621
+source_sha: 6363fc4fc30f333ce87a44681eb0db3e41164d111846551eb9a028b3cd37b61f
 reviewed: true
 ---
 # प्लगइन सैंडबॉक्स और ख़तरा मॉडल { #plugin-sandbox-and-threat-model }
@@ -121,16 +121,31 @@ manifest वे अनुमतियाँ बताता है जो प्
 
 ### सिग्नेचर { #signature }
 
-पैकेज पर cosign से सिग्नेचर किया जा सकता है। `EVEY_PLUGINS_COSIGN_POLICY` तय करता है
-कि जाँच फ़ेल होने पर क्या हो (`pluginrunner/cosign.go`):
+पैकेज पर cosign से सिग्नेचर किया जा सकता है (`cosign sign-blob --key`, ZIP के SHA-256
+पर ECDSA P-256)। बनाने वाले की public key पैकेज के अंदर `cosign.pub` नाम से चलती है;
+Evey उसी से अलग `.sig` को जाँचता है, अपने ही प्रोसेस में और offline
+(`pluginrunner/cosign.go`), और कुंजी का fingerprint निकालता है (DER public key पर
+`sha256:`)। इससे तीन बातें निकलती हैं:
+
+- **भरोसा**: fingerprint इंस्टेंस की **भरोसेमंद प्रकाशक** सूची में है या नहीं
+  (`एडमिन → प्लगइन`, या शुरू होते समय `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` से भरी
+  हुई)। भरोसेमंद कुंजी प्रकाशक का नाम दिखाती है; अनजानी कुंजी अपना fingerprint
+  और **इस कुंजी पर भरोसा करें** कार्रवाई दिखाती है।
+- **निरंतरता**: fingerprint इंस्टॉल के समय प्लगइन पर पिन हो जाता है। किसी और
+  कुंजी से साइन किया (`publisher-changed`) या अब साइन न किया हुआ
+  (`signature-lost`) अपडेट, नीति चाहे जो हो, तब तक मना रहता है जब तक एडमिन
+  अपडेट डायलॉग में नया प्रकाशक स्वीकार नहीं करता (`accept_new_publisher`)।
+- **नीति**: `EVEY_PLUGINS_COSIGN_POLICY` तय करती है कि फ़ैसले का क्या असर हो।
 
 | नीति | असर |
 |---|---|
-| `off` | सिग्नेचर नहीं जाँचा जाता। |
-| `warn` (डिफ़ॉल्ट) | विफलता दर्ज होती है और एडमिन को दिखाई जाती है, बिना रोके। public key सेट न हो, तो कुछ नहीं जाँचा जाता। |
-| `enforce` | विफलता इंस्टॉल या अपडेट मना करवा देती है। |
+| `off` | सिग्नेचर नहीं जाँचा जाता और कुछ दर्ज नहीं होता। |
+| `warn` (डिफ़ॉल्ट) | फ़ैसला दर्ज होता है और दिखाया जाता है; बिना सिग्नेचर, भरोसे से बाहर और अमान्य पैकेज इंस्टॉल हो जाते हैं। |
+| `enforce` | सिर्फ़ भरोसेमंद प्रकाशक का साइन किया पैकेज इंस्टॉल या अपडेट होता है। |
 
-public key `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` से दी जाती है।
+सिग्नेचर यह साबित करता है कि पैकेज वही है जो उसके प्रकाशक ने जारी किया, और कि
+अपडेट उसी प्रकाशक से आया है। कोड के बारे में यह कुछ नहीं कहता; उसे विश्लेषण,
+अनुमतियाँ और sandbox परखते हैं।
 
 ### एडमिन का पूर्वावलोकन { #administrator-preview }
 
@@ -393,7 +408,7 @@ runner एक `plugin.error` event प्रकाशित करता है 
 | `EVEY_PLUGINS_SANDBOX_MODE` | `auto` | `auto`, `landlock`, `bubblewrap`, `strict` या `basic`। **एडमिन → प्लगइन** में भी बदला जा सकता है। |
 | `EVEY_PLUGINS_UID_SEPARATION` | `auto` | `auto`, `on` या `off`। container पर `no_new_privs` के साथ नहीं चलता। |
 | `EVEY_PLUGINS_COSIGN_POLICY` | `warn` | `off`, `warn` या `enforce`। |
-| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | कोई नहीं | वह कुंजी जिससे सिग्नेचर जाँचे जाते हैं। |
+| `EVEY_PLUGINS_COSIGN_PUBLIC_KEY` | कोई नहीं | वैकल्पिक: एक PEM public key, जो शुरू होते समय भरोसेमंद प्रकाशकों में जुड़ जाती है। |
 | `EVEY_PLUGINS_MEMORY_MB`, `EVEY_PLUGINS_PIDS_MAX`, `EVEY_PLUGINS_DISK_MAX_MB`, `EVEY_PLUGINS_CPU_NICE` | 256, 64, 100, 10 | संसाधन सीमाओं के शुरुआती डिफ़ॉल्ट; पैनल इन्हें सभी प्लगइन के लिए एक साथ बदल देता है। |
 
 आधिकारिक इमेज में `evey-plugin-launcher` (Landlock और kernel फ़िल्टर) और `bubblewrap`

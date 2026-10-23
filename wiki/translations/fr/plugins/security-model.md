@@ -1,5 +1,5 @@
 ---
-source_sha: 0f18ee96515664e023b8590d02aa07d3002a27cea2916adc6076aff8ca44c115
+source_sha: 7be5d2c69f31e5a809a830f40949f2c4242950d173dfc5bf681d26c5be44e87f
 reviewed: true
 ---
 # Permissions et emplacements { #permissions-and-slots }
@@ -159,8 +159,12 @@ jeton ne nomme pas.
    route d'envoi, `accept_permission_changes=true`).
 3. L'empreinte du paquet est relevée à l'aperçu et vérifiée à l'application :
    le ZIP analysé est le ZIP installé.
-4. Sous `EVEY_PLUGINS_COSIGN_POLICY=enforce`, un échec de signature à
-   l'application bloque la mise à jour même si l'aperçu a réussi.
+4. La clé de signature est contrôlée pour la continuité : une mise à jour
+   signée par une autre clé que la version installée, ou qui n'est plus
+   signée, est refusée tant que l'administrateur n'a pas accepté le nouvel
+   éditeur. Sous `EVEY_PLUGINS_COSIGN_POLICY=enforce`, une signature non
+   fiable ou invalide à l'application bloque la mise à jour même si l'aperçu
+   a réussi.
 
 <!-- sources
 manifest validation: internal/adapters/driven/pluginrunner/manifest.go - validateManifest, validateExternalFetch ; internal/domain/plugin/model.go - Validate ; capabilities.go - KnownPermissions, KnownCapabilities

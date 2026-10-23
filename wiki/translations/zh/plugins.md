@@ -1,5 +1,5 @@
 ---
-source_sha: f58b5dccd7a97d42b2fc6bf6a3137cd005cca7f7658e3dc3f906106cce0d7132
+source_sha: 3e8706d875387de097db25bae84c18a9439cf144e791b450e09bf54c3edf978d
 reviewed: true
 ---
 # 插件 { #plugins }
@@ -31,7 +31,7 @@ reviewed: true
    把它加到**签名文件（.zip.sig，可选）**里。**从 URL 安装**选项卡则是通过链接安装；
    在 URL 后面加上 `#sha256:<hash>`，下载的文件就会被核对。
 2. **预览并安装**会分析这个安装包，但不安装它。预览显示插件请求的**权限**和**能力**、
-   以及**静态分析**的结果。插槽、主机和签名会在更新时以及**安全仪表板**里显示。
+   **静态分析**的结果，以及（如果提供了签名）带有发布者的**签名**结论。插槽和主机会在更新时以及**安全仪表板**里显示。
 3. 请把这份清单视为插件的约定范围：插件能做的事，只有这些。确认后，插件就会启动。
 
 <figure class="evey-shot" markdown="span">
@@ -45,15 +45,14 @@ reviewed: true
 
 !!! tip "签名的插件"
     插件作者可以用 [cosign](https://docs.sigstore.dev/cosign/installation/) 给 ZIP 签名，
-    而没有签名或签名有问题的插件会怎样，由您决定。要验证签名，请把作者的公钥交给服务器，并选择一种策略：
+    作者的公钥随包一起分发。Evey 自己检查签名（不需要 `cosign` 程序）：密钥在您的**受信任的发布者**列表里时显示**由 <发布者> 签名**，否则显示**已签名，未知密钥**和它的指纹（点一下即可信任），或者**未签名**、**无效**。
+    更换密钥或去掉签名的更新，要等您明确接受。其余由策略决定：
 
     ```sh
-    EVEY_PLUGINS_COSIGN_PUBLIC_KEY=/etc/evey/cosign.pub
     EVEY_PLUGINS_COSIGN_POLICY=warn      # off | warn（默认）| enforce
     ```
 
-    设为 `warn` 时，签名验证失败会显示在预览和**安全仪表板**里；设为 `enforce` 时，安装或更新会被拒绝。
-    没有公钥就什么都不验证，而且服务器不需要 `cosign` 程序。插件作者请看
+    设为 `warn` 时，只显示结论，不阻止任何东西；设为 `enforce` 时，只有受信任的发布者才能安装。插件作者请看
     [编写插件](plugins/dev-setup.md#7-sign-your-plugin)。
 
 ## 更新插件 { #update-a-plugin }
