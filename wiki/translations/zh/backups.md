@@ -1,5 +1,5 @@
 ---
-source_sha: 00ac3f52637e817e4e294aad7fa5cbaf5e77c3c6a343d1ffc784da076a90fe56
+source_sha: 183d5d31f8aa84f9a8c2422bb3ca3ca04b531e43e8bfb4f1a2c6047199ff4871
 reviewed: true
 ---
 # 备份和更新 { #backups-and-updates }
@@ -86,7 +86,7 @@ docker compose logs -f evey
 
 ??? info "锁定您运行的确切版本"
 
-    `latest` 跟随最新的正式版本，每次更新都会变。对于您依赖的服务器，请在 `image:` 这一行使用版本标签（`0.1.0`）或固定的 `sha-<commit>` 标签，这样相隔一天的两次拉取运行的是同样的代码。
+    `latest` 跟随最新的正式版本，每次更新都会变。对于您依赖的服务器，请在 `image:` 这一行使用版本标签（`0.1.0`，或只接收其修复的 `0.1`）或固定的 `sha-<commit>` 标签，这样相隔一天的两次拉取运行的是同样的代码。[安装](installation.md#common-variations)中的表格列出了每个标签能给您什么。
 
 ### 退回旧版本 { #going-back }
 

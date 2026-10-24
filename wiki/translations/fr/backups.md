@@ -1,5 +1,5 @@
 ---
-source_sha: 00ac3f52637e817e4e294aad7fa5cbaf5e77c3c6a343d1ffc784da076a90fe56
+source_sha: 183d5d31f8aa84f9a8c2422bb3ca3ca04b531e43e8bfb4f1a2c6047199ff4871
 reviewed: true
 ---
 # Sauvegardes et mises à jour { #backups-and-updates }
@@ -137,8 +137,9 @@ C'est toute la mise à jour.
 
     `latest` suit la dernière version publiée et change à chaque mise à jour.
     Pour un serveur sur lequel vous comptez, mettez un tag de version
-    (`0.1.0`) ou un tag fixe `sha-<commit>` sur la ligne `image:`, pour que
+    (`0.1.0`, ou `0.1` pour ne recevoir que ses correctifs) ou un tag fixe `sha-<commit>` sur la ligne `image:`, pour que
     deux `pull` à un jour d'écart fassent tourner le même code.
+    Le tableau de [Installation](installation.md#common-variations) indique ce que chaque tag vous apporte.
 
 ### Revenir en arrière { #going-back }
 

@@ -1,5 +1,5 @@
 ---
-source_sha: d6466c24262a137d7107741ff21ca1ce685f8aa99221f04a4c6f8b6ddfcb6a27
+source_sha: a60b9bf26b8f2185669ef22ab5ea9503766f3f95c501055727691026e718f7f9
 reviewed: true
 ---
 # 安装 { #install }
@@ -113,6 +113,18 @@ Evey 只在三种情况下向您的媒体文件夹写入内容：
 **文件归谁所有。** 默认情况下，Evey 会使用您媒体文件夹的所有者身份，这样修复时才能写入。如果想自己指定，就在 `environment:` 下面加上 `PUID` 和 `PGID`，值用 `id -u` 和 `id -g` 给出的数字。容器只是为了应用这个设置才以 root 启动；Evey 本身从不以 root 身份运行。
 
 **用显卡转换视频。** 让容器能访问显卡：见[硬件加速](administration/hardware-acceleration.md)。
+
+**您运行哪个版本。** 由 `image:` 这一行决定：
+
+| `image:` | 您得到什么 |
+|---|---|
+| `eveyproject/evey:latest` | 最新的正式版本，每次 `docker compose pull` 都会升到下一个版本 |
+| `eveyproject/evey:0.1` | 该次版本线上的最新修复（0.1.0、0.1.1、...），不会升到新的次版本 |
+| `eveyproject/evey:0.1.0` | 恰好是这个版本，直到您修改这一行 |
+| `eveyproject/evey:sha-<commit>` | 某一个确切的构建，是唯一永不变动的标签 |
+| `eveyproject/evey:master` | 开发分支，每次推送都会重新构建：用于测试，不适合您依赖的服务器 |
+
+版本号遵循[语义化版本](https://semver.org/)，从 `0.1.0` 开始；0.x 系列是公开测试版。要更换版本，修改这一行，然后运行 `docker compose pull && docker compose up -d`；您的数据仍保存在 `./evey-data`。当前运行的版本可在 **管理 → 仪表盘**、`/healthz` 以及 `docker exec evey-server evey version` 中看到。每个镜像也有 `-nodejs` 和 `-lean` 版本，是插件运行时更少的精简构建（[详情](operations/advanced-deployments.md#image-tags-and-variants)）。
 
 **您已经在用反向代理**（一个在您的服务前面加上 HTTPS 的程序）：见[远程访问与 HTTPS](administration/remote-access.md)。
 

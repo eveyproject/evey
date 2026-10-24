@@ -7,6 +7,12 @@ line - earlier history lives in git.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-24
+
+First public release: the server image `eveyproject/evey:0.1.0` (also
+`0.1` and `latest`), the Android phone app 0.1.0 and the Android TV app
+0.1.0 on Google Play. Everything below is what changed since `beta-0.0.1`.
+
 ### Upgrade notes
 - An install whose `EVEY_DB_PASSWORD` is still the old default `evey` now
   refuses to start; `changeme` only warns. Set a real database password

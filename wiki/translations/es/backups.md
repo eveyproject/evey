@@ -1,5 +1,5 @@
 ---
-source_sha: 00ac3f52637e817e4e294aad7fa5cbaf5e77c3c6a343d1ffc784da076a90fe56
+source_sha: 183d5d31f8aa84f9a8c2422bb3ca3ca04b531e43e8bfb4f1a2c6047199ff4871
 reviewed: true
 ---
 # Copias de seguridad y actualizaciones { #backups-and-updates }
@@ -135,9 +135,10 @@ Eso es toda la actualización.
 
     `latest` sigue la versión publicada más reciente y cambia con cada
     actualización. Para un servidor del que dependes, pon una etiqueta de
-    versión (`0.1.0`) o una etiqueta fija `sha-<commit>` en la línea
+    versión (`0.1.0`, o `0.1` para recibir solo sus arreglos) o una etiqueta fija `sha-<commit>` en la línea
     `image:`, para que dos descargas con un día de diferencia ejecuten el
     mismo código.
+    La tabla de [Instalación](installation.md#common-variations) indica qué te da cada etiqueta.
 
 ### Volver atrás { #going-back }
 
