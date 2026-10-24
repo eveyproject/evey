@@ -27,7 +27,7 @@ func startBwrapSleeper(t *testing.T, id string) (*Runner, *processEntry) {
 	// plugin: wait for the plugin to be the one running under that PID.
 	require.Eventually(t, func() bool {
 		cmdline, err := os.ReadFile("/proc/" + strconv.Itoa(e.payloadPID) + "/cmdline")
-		return err == nil && strings.HasSuffix(strings.Split(string(cmdline), "\x00")[0], "/sleeper")
+		return err == nil && strings.HasSuffix(strings.Split(string(cmdline), "\x00")[0], "/sleep")
 	}, 5*time.Second, 10*time.Millisecond, "bwrap's child never exec'd the plugin")
 	return r, e
 }
@@ -49,10 +49,12 @@ func startBwrapSleeperNoWait(t *testing.T, id string) (*Runner, *processEntry) {
 	require.NoError(t, os.Chmod(pluginsDir, 0o755)) //nolint:gosec // the plugin may run under evey-plugin and must traverse it
 	installDir := filepath.Join(pluginsDir, id)
 	require.NoError(t, os.MkdirAll(installDir, 0o755))
-	copyFile(t, "/bin/sleep", filepath.Join(installDir, "sleeper"))
+	// The copy keeps its name: a multi-call coreutils binary (Ubuntu's Rust
+	// coreutils) dispatches on argv[0] and refuses any other name.
+	copyFile(t, "/bin/sleep", filepath.Join(installDir, "sleep"))
 
 	r := NewRunner(pluginsDir).WithAllowMissingSandbox(true).WithSandboxMode(sandboxModeBubblewrap)
-	p := &plugin.Plugin{ID: id, Name: "sleeper", Entrypoint: "sleeper 60", InstallDir: installDir}
+	p := &plugin.Plugin{ID: id, Name: "sleeper", Entrypoint: "sleep 60", InstallDir: installDir}
 	require.NoError(t, r.Start(context.Background(), p))
 	t.Cleanup(func() { _ = r.Kill(id) })
 
