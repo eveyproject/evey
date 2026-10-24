@@ -1,5 +1,5 @@
 ---
-source_sha: 7f9f3de42904ab3727caa3bb692a72dede00155bd906f98e3f478738e1669309
+source_sha: d4f0a9db7cd2a975f63f1fae6ffe21b95537fc4e0139ac81da8e8a75c7ed3625
 reviewed: true
 ---
 # Connecter les applications { #connect-the-apps }
@@ -16,7 +16,9 @@ vos appareils.
 - **Navigateur web** : rien à installer. Ouvrez l'adresse du serveur. Le
   panneau d'administration est là aussi, pour les administrateurs.
 - **Android** (téléphone, tablette) et **Android TV** : les applications
-  Evey, publiées sur [Google Play](https://play.google.com/store/apps/details?id=com.evey.app).
+  Evey, sur [Google Play](https://play.google.com/store/apps/details?id=com.evey.app)
+  dès que la validation de la fiche publique par Google est passée (voir
+  [Limites connues](limitations.md)).
 - **Le navigateur web d'une télévision** (LG, Samsung et d'autres) : rien à
   installer. Ouvrez l'adresse du serveur suivie de `/tv` : voir
   [Sur le navigateur web d'une télévision](#on-a-televisions-web-browser).

@@ -24,8 +24,8 @@ rest.
 <strong>What you need:</strong> an x86-64 computer or NAS with Docker, and a
 folder with your media. Installing is one file and one command.<br>
 <strong>Watch</strong> in a web browser, on Android phones and tablets, on
-Android TV, in a television's web browser, and on a Chromecast. The Android and Android TV apps are on
-<a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a>;
+Android TV, in a television's web browser, and on a Chromecast. The Android and Android TV apps arrive on
+<a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a> once Google's review passes;
 the web app ships with the server, and the browser TV app is served at <code>/tv</code>.
 </p>
 
