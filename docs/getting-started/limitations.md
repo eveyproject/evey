@@ -11,12 +11,13 @@ open the server's address in the web browser.
 
 More: [Connect the apps](apps.md).
 
-## The Android apps are still in testing
+## The Android apps are waiting for Google's review
 
-The Android and Android TV apps are not on Google Play for everyone yet.
-Only the accounts invited to the test can install them. The web app and the
-`/tv` page in a television's browser need no installation and work for
-everyone.
+The Android and Android TV apps have been submitted to Google Play. Until
+the review passes, the public listing is not visible and only the accounts
+invited to the test can install them; the link on the [Apps](apps.md) page
+goes live at that moment. The web app and the `/tv` page in a television's
+browser need no installation and work for everyone.
 
 More: [Connect the apps](apps.md).
 

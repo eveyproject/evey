@@ -1,5 +1,5 @@
 ---
-source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
+source_sha: 543855e16e9508724642631a1c039508b58be691aed3393fd4e8dfa9943b5b79
 reviewed: true
 hide:
 - navigation
@@ -26,7 +26,7 @@ Evey एक मीडिया सर्वर है जिसे आप अप
 <strong>आपको क्या चाहिए:</strong> Docker वाला एक x86-64 कंप्यूटर या NAS, और
 आपके मीडिया वाला एक फ़ोल्डर। इंस्टॉल करने के लिए बस एक फ़ाइल और एक कमांड।<br>
 <strong>देखें</strong> वेब ब्राउज़र में, Android फ़ोन और टैबलेट पर, Android TV
-पर, TV के वेब ब्राउज़र में, और Chromecast पर। Android और Android TV ऐप <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a> पर हैं; वेब ऐप सर्वर के साथ आता है, और ब्राउज़र वाला TV ऐप <code>/tv</code> पर चलता है।
+पर, TV के वेब ब्राउज़र में, और Chromecast पर। Android और Android TV ऐप <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a> पर Google की समीक्षा पास होने के बाद आएँगे; वेब ऐप सर्वर के साथ आता है, और ब्राउज़र वाला TV ऐप <code>/tv</code> पर चलता है।
 </p>
 
 <div class="grid cards" markdown>

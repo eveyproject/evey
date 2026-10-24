@@ -1,5 +1,5 @@
 ---
-source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
+source_sha: 543855e16e9508724642631a1c039508b58be691aed3393fd4e8dfa9943b5b79
 reviewed: true
 hide:
 - navigation
@@ -29,7 +29,7 @@ une commande.<br>
 <strong>Regardez</strong> dans un navigateur web, sur les téléphones et
 tablettes Android, sur Android TV, dans le navigateur web d'une télévision et sur un
 Chromecast. Les applications
-Android et Android TV sont sur <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a> ; l'application web est fournie avec le serveur, et l'application TV du navigateur est servie sur <code>/tv</code>.
+Android et Android TV arrivent sur <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a> une fois la validation de Google passée ; l'application web est fournie avec le serveur, et l'application TV du navigateur est servie sur <code>/tv</code>.
 </p>
 
 <div class="grid cards" markdown>

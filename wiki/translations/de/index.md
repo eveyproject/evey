@@ -1,5 +1,5 @@
 ---
-source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
+source_sha: 543855e16e9508724642631a1c039508b58be691aed3393fd4e8dfa9943b5b79
 reviewed: true
 hide:
 - navigation
@@ -28,7 +28,7 @@ Docker, und einen Ordner mit Ihren Medien. Die Installation besteht aus einer
 Datei und einem Befehl.<br>
 <strong>Schauen</strong> Sie im Webbrowser, auf Android-Handys und -Tablets,
 auf Android TV, im Webbrowser eines Fernsehers und auf einem Chromecast. Die Apps für Android und Android TV
-gibt es bei <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a>; die Web-App wird mit dem Server ausgeliefert, und die TV-App für den Browser liegt unter <code>/tv</code>.
+kommen zu <a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a>, sobald Googles Prüfung bestanden ist; die Web-App wird mit dem Server ausgeliefert, und die TV-App für den Browser liegt unter <code>/tv</code>.
 </p>
 
 <div class="grid cards" markdown>

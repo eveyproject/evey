@@ -1,5 +1,5 @@
 ---
-source_sha: d6baa47a41fde8076da849af4ed8af176e1bd3b6895b05f75a4bc1917ddd48fa
+source_sha: 543855e16e9508724642631a1c039508b58be691aed3393fd4e8dfa9943b5b79
 reviewed: true
 hide:
 - navigation
@@ -26,8 +26,8 @@ del resto.
 <strong>Qué necesitas:</strong> un ordenador o un NAS x86-64 con Docker, y
 una carpeta con tus archivos. La instalación es un archivo y un comando.<br>
 <strong>Dónde ver:</strong> en un navegador web, en teléfonos y tablets Android, en
-Android TV, en el navegador web de un televisor y en un Chromecast. Las apps de Android y Android TV están en
-<a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a>; la app web viene con el servidor y la app de TV del navegador se sirve en <code>/tv</code>.
+Android TV, en el navegador web de un televisor y en un Chromecast. Las apps de Android y Android TV llegan a
+<a href="https://play.google.com/store/apps/details?id=com.evey.app">Google Play</a> cuando se apruebe la revisión de Google; la app web viene con el servidor y la app de TV del navegador se sirve en <code>/tv</code>.
 </p>
 
 <div class="grid cards" markdown>
