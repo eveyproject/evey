@@ -20,7 +20,7 @@ One container, one file, no secret to invent. Save this as
 ```yaml
 services:
   evey:
-    image: eveyproject/evey:latest        # pin a tag here (e.g. 0.1, 0.1.0, sha-1a2b3c4)
+    image: eveyproject/evey:latest        # the full image; pin a tag here (e.g. 0.1, 0.1.0, sha-1a2b3c4)
     container_name: evey-server
     ports:
       - "9091:9091"
@@ -67,7 +67,9 @@ serving. To go back, put the previous tag on the `image:` line and run
 `docker compose up -d` again (`docker exec evey-server evey admin rollback`
 tells you whether the database must be restored first, and how). Pin what you
 run - a release tag (`0.1.0`) or an immutable `sha-<short>` tag, not a
-branch name, which moves with every push.
+branch name, which moves with every push. A tag without a suffix is the full
+image, with every plugin runtime; `-nodejs` and `-lean` are the slimmer
+builds.
 
 ## HTTPS
 

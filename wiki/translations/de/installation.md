@@ -1,5 +1,5 @@
 ---
-source_sha: a60b9bf26b8f2185669ef22ab5ea9503766f3f95c501055727691026e718f7f9
+source_sha: 24e90e68dbbd60f7111af4c4e2e50bf061e8c287d2c22f38fa970231c0d48959
 reviewed: true
 ---
 # Installation { #install }
@@ -190,8 +190,9 @@ Versionsnummern folgen [Semantic Versioning](https://semver.org/) und beginnen b
 ändern Sie die Zeile und führen dann `docker compose pull && docker compose up -d`
 aus; Ihre Daten bleiben in `./evey-data`. Die laufende Version steht unter
 **Verwaltung → Dashboard**, unter `/healthz` und mit
-`docker exec evey-server evey version`. Jedes Image gibt es auch als `-nodejs`
-und `-lean`, schlankere Builds mit weniger Plugin-Laufzeiten
+`docker exec evey-server evey version`. Ein Tag ohne Suffix ist das
+vollständige Image mit allen Plugin-Laufzeiten (Python, Node.js, PHP, Ruby und
+Lua); `-nodejs` und `-lean` sind schlankere Builds mit weniger davon
 ([Details](operations/advanced-deployments.md#image-tags-and-variants)).
 
 **Sie betreiben schon einen Reverse Proxy** (ein Programm, das HTTPS vor Ihre

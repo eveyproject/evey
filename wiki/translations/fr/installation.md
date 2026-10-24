@@ -1,5 +1,5 @@
 ---
-source_sha: a60b9bf26b8f2185669ef22ab5ea9503766f3f95c501055727691026e718f7f9
+source_sha: 24e90e68dbbd60f7111af4c4e2e50bf061e8c287d2c22f38fa970231c0d48959
 reviewed: true
 ---
 # Installation { #install }
@@ -190,9 +190,10 @@ Les numéros de version suivent le [versionnage sémantique](https://semver.org/
 `0.1.0` ; la ligne 0.x est la bêta publique. Pour changer de version, modifiez la
 ligne, puis `docker compose pull && docker compose up -d` ; vos données restent
 dans `./evey-data`. La version en cours s'affiche dans **Administration → Tableau de bord**, sur
-`/healthz`, et avec `docker exec evey-server evey version`. Chaque image existe
-aussi en `-nodejs` et `-lean`, des builds plus légers avec moins d'environnements
-d'exécution de plugins
+`/healthz`, et avec `docker exec evey-server evey version`. Un tag sans
+suffixe est l'image complète, avec tous les environnements d'exécution de plugins
+(Python, Node.js, PHP, Ruby et Lua) ; `-nodejs` et `-lean` sont des builds plus
+légers qui en contiennent moins
 ([détails](operations/advanced-deployments.md#image-tags-and-variants)).
 
 **Vous avez déjà un reverse proxy** (un programme qui ajoute le HTTPS devant

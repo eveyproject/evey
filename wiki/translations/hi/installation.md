@@ -1,5 +1,5 @@
 ---
-source_sha: a60b9bf26b8f2185669ef22ab5ea9503766f3f95c501055727691026e718f7f9
+source_sha: 24e90e68dbbd60f7111af4c4e2e50bf061e8c287d2c22f38fa970231c0d48959
 reviewed: true
 ---
 # इंस्टॉल { #install }
@@ -179,8 +179,9 @@ Evey आपके मीडिया फ़ोल्डर में सिर�
 शुरू होते हैं; 0.x लाइन पब्लिक बीटा है। वर्ज़न बदलने के लिए लाइन बदलें, फिर
 `docker compose pull && docker compose up -d` चलाएँ; आपका डेटा `./evey-data` में
 ही रहता है। चल रहा वर्ज़न **एडमिन → डैशबोर्ड** में, `/healthz` पर, और
-`docker exec evey-server evey version` से दिखता है। हर इमेज `-nodejs` और `-lean`
-रूप में भी मिलती है, जो कम प्लगइन रनटाइम वाले हल्के बिल्ड हैं
+`docker exec evey-server evey version` से दिखता है। बिना प्रत्यय वाला टैग पूरी इमेज है, जिसमें सभी प्लगइन रनटाइम
+(Python, Node.js, PHP, Ruby और Lua) होते हैं; `-nodejs` और `-lean` हल्के बिल्ड हैं
+जिनमें इनमें से कम रनटाइम होते हैं
 ([विवरण](operations/advanced-deployments.md#image-tags-and-variants))।
 
 **आप पहले से रिवर्स प्रॉक्सी चलाते हैं** (एक प्रोग्राम जो आपकी सर्विसों के आगे
