@@ -5,16 +5,12 @@ on:
     branches:
       - main
       - master
-      # Beta/alpha test branches publish their own image tag (named after
-      # the branch, e.g. eveyproject/evey:beta-0.0.1). `latest` stays gated on
-      # semver tags below - beta builds never touch it.
+      # Beta/alpha branches publish their own tag; `latest` stays on semver tags.
       - 'beta-*'
       - 'alpha-*'
     # Release tags also trigger publish (vX.Y.Z → latest alias + semver tags).
     tags: ['v*.*.*']
-    # A docs/wiki-only push changes nothing the jobs below test or ship (the
-    # wiki has its own workflow); it used to cost a full backend+frontend run
-    # and an image build.
+    # Docs/wiki-only pushes change nothing the jobs test or ship.
     paths-ignore:
       - 'docs/**'
       - 'wiki/**'
@@ -25,8 +21,7 @@ on:
       - 'docs/**'
       - 'wiki/**'
       - '**/*.md'
-  # Manual re-run, mainly to force the arm64 half of the image without pushing
-  # a tag. Branch pushes build amd64 only - see "Resolve build platforms".
+  # Manual run, mainly to force the arm64 half of the image without a tag.
   workflow_dispatch:
     inputs:
       platforms:
@@ -34,8 +29,7 @@ on:
         required: false
         default: 'linux/amd64,linux/arm64'
 
-# Two pushes minutes apart ran side by side, each building its own image: only
-# the newest push of a branch is worth finishing. Tag builds are never cancelled.
+# Only the newest push of a branch is worth finishing; tag builds are never cancelled.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
@@ -50,17 +44,11 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # One backend job: quality (vet, govulncheck, lint, gosec) then build and
-  # tests. Split in two, the setup was paid twice and the quality half (3 min)
-  # never shortened the run - the frontend job (~17 min) sets the wall clock.
+  # One job: split in two, the setup was paid twice for no wall-clock gain.
   backend:
     name: Backend - quality, build & test
-    # fetch-depth: 0 below - the proto breaking-change check diffs against the
-    # pre-push SHA, which a depth-1 checkout would not contain.
-    # Self-hosted temporarily disabled 2026-07-03 - reusing GitHub-hosted runners
-    # for now. Restore the ternary below to route push + same-repo PRs back to the
-    # self-hosted workers (fork PRs stayed on GitHub-hosted so untrusted code never
-    # executes on the self-hosted runner - RCE guard):
+    # fetch-depth: 0 below - the proto breaking-change check diffs against the pre-push SHA.
+    # Self-hosted disabled; restore this ternary to keep fork PRs on GitHub-hosted (RCE guard):
     # runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'self-hosted' }}
     runs-on: ubuntu-latest
     steps:
@@ -84,23 +72,8 @@ jobs:
         run: buf generate
 
       - name: check proto breaking changes
-        # Diff current HEAD against the target branch tip (not HEAD~1, which
-        # silently passes on multi-commit pushes since it only looks at the last
-        # commit).
-        #
-        # This step used to be gated on `if: github.event_name == 'pull_request'`
-        # and therefore never ran once: this project merges locally and pushes
-        # branches straight to the remote, so no pull request is ever opened. A
-        # proto break would have reached already-deployed mobile and TV clients
-        # with the only guard against it structurally unreachable.
-        #
-        # On a push the target is the pre-push SHA, not the default branch. The
-        # contract that matters is whatever the clients are currently running,
-        # and for a release branch that is its own previous tip - diffing a long
-        # lived branch against master instead reports every deliberate removal
-        # it has ever accumulated, which would leave the gate permanently red
-        # and get it switched off again. A branch's first push has no `before`
-        # commit (all zeroes), so there is nothing to compare and we skip.
+        # Diff against the target tip, not HEAD~1 (silently passes on multi-commit pushes).
+        # A push targets the pre-push SHA: the contract in play is what clients run now; a first push has no `before`.
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             against="https://github.com/${{ github.repository }}.git#branch=${{ github.base_ref }}"
@@ -108,10 +81,7 @@ jobs:
             echo "new branch, no previous tip to compare against - skipping"
             exit 0
           elif [ "${{ github.ref }}" = "refs/heads/master" ]; then
-            # master is what ships: the contract that matters there is the
-            # last release, not the previous push (the first merge of a long
-            # release branch would otherwise report every removal it ever
-            # made). Before any release nothing is out there to break.
+            # master ships: diff against the last release, the contract clients actually run.
             last_tag="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
             if [ -z "${last_tag}" ]; then
               echo "no release tag yet - nothing shipped to break - skipping"
@@ -120,10 +90,7 @@ jobs:
             against=".git#tag=${last_tag}"
           else
             before="${{ github.event.before }}"
-            # A force-push (history rewrite) leaves `before` pointing at a
-            # commit this clone no longer contains, and buf then fails on a
-            # missing tree rather than on a proto break. Nothing survives under
-            # that history, so there is no contract left to diff against.
+            # A force-push leaves `before` missing from this clone; buf would fail on a missing tree, not on a break.
             if ! git cat-file -e "${before}^{commit}" 2>/dev/null; then
               echo "previous tip ${before} is gone (history rewritten) - skipping"
               exit 0
@@ -136,18 +103,8 @@ jobs:
       - name: vet
         run: go vet $(go list ./... | grep -v /gen/)
 
-      # Self-healing install + absolute-path invoke. The old actions/cache step
-      # was built for ephemeral GitHub-hosted runners and MISBEHAVED on the
-      # self-hosted box: it reported a cache HIT (so the conditional install was
-      # skipped) while the binary was absent → `127: no such file`. On the
-      # persistent self-hosted runner GOPATH/bin survives between runs, so we
-      # just ensure the binary exists (first run installs, later runs reuse) and
-      # call it by full path (GOPATH/bin isn't on PATH there, unlike GitHub
-      # runners). The version is pinned for reproducibility - and CHECKED, not
-      # just "does the file exist": the self-hosted runner keeps GOPATH/bin
-      # between runs, so a stale binary would survive a version bump forever.
-      # v1.7.0 is the floor that understands Go 1.27 syntax (v1.1.4 panics with
-      # "unexpected expr: *ast.KeyValueExpr" on this module).
+      # Pinned and version-checked, not just existence-checked, so a bump is not masked by a stale binary.
+      # v1.7.0 is the floor that parses Go 1.27 syntax.
       - name: govulncheck
         run: |
           VULN_VERSION=v1.7.0
@@ -155,26 +112,18 @@ jobs:
           "$BIN" -version 2>/dev/null | grep -q "${VULN_VERSION#v}" || go install golang.org/x/vuln/cmd/govulncheck@${VULN_VERSION}
           "$BIN" ./cmd/... ./internal/...
 
-      # Code-quality linters (.golangci.yml). Ratchet mode: only-new-issues
-      # means a pre-existing finding never blocks - only issues introduced by
-      # the pushed commits (push: before..after diff) or the PR diff fail the
-      # build. Skipped on release tags (no diff base → would report everything).
+      # Ratchet: only issues introduced by the push/PR diff fail; skipped on tags (no diff base).
       - name: lint (golangci-lint, new issues only)
-        # A branch's first push has no `before` (all zeros): there is no diff to
-        # ratchet against and the action 404s on the compare, so skip it there.
+        # A branch's first push has no `before`: the action 404s on the compare.
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.event.before != '0000000000000000000000000000000000000000')
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
         with:
           version: v2.14.0
           only-new-issues: true
 
-      # Curated gosec security scan (.golangci.gosec.yml - high-signal rules
-      # only; see gosec_eval). Same ratchet: the ~21 legacy findings (mostly
-      # already-triaged false positives) never block - only a newly introduced
-      # SQL/cookie/taint/secret regression does.
+      # Curated high-signal gosec rules (.golangci.gosec.yml), same ratchet.
       - name: gosec security scan (curated, new issues only)
-        # A branch's first push has no `before` (all zeros): there is no diff to
-        # ratchet against and the action 404s on the compare, so skip it there.
+        # A branch's first push has no `before`: the action 404s on the compare.
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.event.before != '0000000000000000000000000000000000000000')
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
         with:
@@ -186,43 +135,21 @@ jobs:
       - name: build
         run: go build ./...
 
-      # Unit tests keep -race: lots of goroutines (HTTP handlers, transcoder
-      # sessions, etc.) - race detection is high-value there.
-      #
-      # -timeout is PER PACKAGE binary. The ffmpeg package runs several real
-      # ffmpeg calibration benchmarks (BenchmarkRunner_*): each does a full
-      # SDR+HDR+AV1+HW encode ladder, ~30-60 s of subprocess time. On the fast
-      # GitHub-hosted amd64 boxes the package fit in 120 s; on the slower
-      # self-hosted runner it doesn't (the assertions are hardware-agnostic -
-      # they floor at 720p - so this is purely a wall-clock budget, not a
-      # failure). 600 s gives the ffmpeg package comfortable headroom while
-      # still catching a genuine hang.
+      # -race kept: many goroutines. -timeout is per package; the ffmpeg calibration benchmarks need the headroom.
       - name: test (unit)
         run: |
           go test \
             $(go list ./... | grep -v "adapters/driven/postgres" | grep -v /gen/) \
             -count=1 -timeout=600s -race
 
-      # Postgres tests run serialised through a shared testcontainer
-      # (no t.Parallel - truncateAll would race across tests). -race adds
-      # 2-3× overhead with little signal here (the postgres repo layer
-      # has no concurrent goroutines on its hot path), so it runs without
-      # -race in CI and is re-run with -race nightly (cf nightly-race.yml).
-      # 600s: the suite grew past the old 300s budget (403 tests × one
-      # multi-table TRUNCATE each), so the alarm expired MID-RUN and blamed
-      # whichever test happened to be executing - three different "victims"
-      # across three runs on 2026-07-10/11. fsync=off on the test containers
-      # brought the suite back to a fraction of that; the budget doubles so
-      # organic growth doesn't recreate the false-hang for a long while.
+      # Serialised through a shared testcontainer; no -race here (little signal), re-run nightly (nightly-race.yml).
+      # 600s so organic suite growth does not trip a false hang.
       - name: test (postgres - testcontainers)
         run: go test ./internal/adapters/driven/postgres/... -count=1 -timeout=600s
 
   frontend:
     name: Frontend - typecheck, test & build
-    # Self-hosted temporarily disabled 2026-07-03 - reusing GitHub-hosted runners
-    # for now. Restore the ternary below to route push + same-repo PRs back to the
-    # self-hosted workers (fork PRs stayed on GitHub-hosted so untrusted code never
-    # executes on the self-hosted runner - RCE guard):
+    # Self-hosted disabled; restore this ternary to keep fork PRs on GitHub-hosted (RCE guard):
     # runs-on: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'self-hosted' }}
     runs-on: ubuntu-latest
     steps:
@@ -264,12 +191,8 @@ jobs:
         working-directory: frontend
         run: pnpm run lint
 
-      # Runs every vitest project at once (web, mobile, tv, store, api). Until
-      # 2026-07-23 this job was typecheck+lint+build only, so the whole frontend
-      # suite gated nothing despite being the larger half of the project's tests.
-      # vitest defaults to (CPUs - 1) workers: on a 2-vCPU private-repo runner
-      # that is ONE worker, and the 2026-09-26 run spent 776 s wall for 675 s of
-      # summed worker time. nproc is printed so the log proves the count.
+      # All vitest projects; the default is CPUs-1 workers, i.e. one on a 2-vCPU runner.
+      # nproc is printed to show the count used.
       - name: unit tests
         working-directory: frontend
         run: |
@@ -283,11 +206,8 @@ jobs:
       - name: bundle budget
         run: sh scripts/bundle-budget.sh frontend/apps/web/dist
 
-  # Resolves everything the per-platform build legs and the merge job must agree
-  # on, once: the platform list (-> the leg matrix), the build timestamp, and the
-  # three variants' tags / labels / version. Computed per leg, the timestamp and
-  # the org.opencontainers.image.created label would differ between the amd64
-  # and arm64 halves of one manifest list.
+  # Resolves once what every leg and the merge job must agree on (platforms, timestamp, tags, labels),
+  # so the amd64 and arm64 halves of one manifest do not differ.
   docker-plan:
     name: Docker - plan
     runs-on: ubuntu-latest
@@ -308,29 +228,10 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      # Tag strategy:
-      # - push to master/main       → `master`  + `sha-<short>`
-      # - push git tag vX.Y.Z       → `X.Y.Z`   + `X.Y` + `X` + `latest` + `sha-<short>`
-      # - push git tag vX.Y.Z-beta.N → `X.Y.Z-beta.N` + `sha-<short>` (no `latest`, no X.Y)
-      # `latest` is gated on vX.Y.Z tags only so it always means "latest
-      # semver release", never "last commit on master that happened to build".
-      #
-      # Three image variants, ONE build per platform: they share every layer
-      # but the plugin runtimes (the Dockerfile's RUNTIMES arg, its own layer),
-      # so the full build - the default, every runtime - does the work and the
-      # lean/nodejs builds that follow it in the same leg reuse it from the
-      # builder's local cache. As a 3-job matrix each variant rebuilt Go, the
-      # frontend and wasm from scratch: 3 x ~10 min of runner per push.
-      #
-      # Branch pushes build `full` only - the variant prod runs. lean and
-      # nodejs cost ~7 min more per push (measured 2026-09-26, run
-      # 36279088790) and ship on release tags and manual runs.
-      #
-      # The variant suffix (`-lean`, `-nodejs`) is applied to every tag via
-      # `flavor.suffix`; the unsuffixed tag IS the full image:
-      #   beta-0.0.1, beta-0.0.1-lean, beta-0.0.1-nodejs
-      #   v1.2.3,     v1.2.3-lean,     v1.2.3-nodejs
-      #   latest,     latest-lean,     latest-nodejs   (release only)
+      # `latest` is gated on vX.Y.Z tags only: it always means the latest semver release.
+      # The three variants share every layer but the runtimes: one leg builds full, then lean/nodejs from cache.
+      # Branch pushes build full only (the variant prod runs); lean and nodejs ship on tags and manual runs.
+      # The unsuffixed tag is the full image; flavor.suffix adds -lean / -nodejs.
       - name: Docker meta (lean)
         id: meta-lean
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -343,10 +244,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha,prefix=sha-,format=short
-            # `latest` = the newest STABLE release only. A pre-release tag
-            # (v0.1.0-beta.1, v1.0.0-rc.2 - anything with a hyphen) publishes its
-            # own version tag and leaves `latest` alone, so a closed-beta cut can
-            # never land on the operators who track `latest`.
+            # `latest` = newest stable release only: a hyphenated pre-release never takes it.
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
           flavor: |
             suffix=-lean,onlatest=true
@@ -363,10 +261,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha,prefix=sha-,format=short
-            # `latest` = the newest STABLE release only. A pre-release tag
-            # (v0.1.0-beta.1, v1.0.0-rc.2 - anything with a hyphen) publishes its
-            # own version tag and leaves `latest` alone, so a closed-beta cut can
-            # never land on the operators who track `latest`.
+            # `latest` = newest stable release only: a hyphenated pre-release never takes it.
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
           flavor: |
             suffix=-nodejs,onlatest=true
@@ -383,10 +278,7 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha,prefix=sha-,format=short
-            # `latest` = the newest STABLE release only. A pre-release tag
-            # (v0.1.0-beta.1, v1.0.0-rc.2 - anything with a hyphen) publishes its
-            # own version tag and leaves `latest` alone, so a closed-beta cut can
-            # never land on the operators who track `latest`.
+            # `latest` = newest stable release only: a hyphenated pre-release never takes it.
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
           flavor: |
             suffix=,onlatest=true
@@ -395,10 +287,7 @@ jobs:
         id: stamp
         run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
-      # Besides the list, this emits the leg matrix: one leg per
-      # platform (the runner is picked in docker-build), and a platform that is not asked for gets no leg at all (a
-      # branch push never allocates an arm64 runner). Only amd64 and arm64 have
-      # a runner; any other platform in a manual dispatch is ignored.
+      # Also emits the leg matrix: one leg per requested platform; only amd64 and arm64 have a runner.
       - name: Resolve build platforms
         id: platforms
         env:
@@ -433,26 +322,12 @@ jobs:
             echo "matrix={\"include\":[$(IFS=,; echo "${legs[*]}")]}"
           } >> "$GITHUB_OUTPUT"
 
-  # One leg per platform, native where possible: the arm64 half used to always
-  # run emulated under QEMU on the amd64 runner and took 25-30 min. A leg pushes its
-  # images BY DIGEST (no tag at all) and hands the digests to the `docker` job,
-  # which assembles the one multi-arch manifest per tag. Pushing by digest
-  # touches nothing an operator can pull, so these legs do not wait for the
-  # backend and frontend jobs: they start at once and run alongside them, and
-  # `docker` (which does wait for both) is the first thing that makes a tag.
-  # A red test just leaves untagged blobs behind.
-  #
-  # ubuntu-24.04-arm is only provided to PUBLIC repositories. The arm64 leg
-  # therefore runs native there, and on ubuntu-latest under QEMU (emulated,
-  # 25-30 min) while the repo is private; the manifest merge is identical.
-  # A leg that never asks for arm64 is unaffected, it does not exist (see
-  # docker-plan).
+  # One leg per platform, pushed BY DIGEST (no tag): legs start alongside backend/frontend, `docker` merges and tags only after both pass.
+  # ubuntu-24.04-arm is public-repo only: arm64 is native there, QEMU-emulated while the repo is private.
   docker-build:
     name: Docker - build (${{ matrix.platform }})
     needs: [docker-plan]
-    # arm64 goes native only when the repo is public; a private repo gets the
-    # emulated path (QEMU step below). && binds tighter than ||, and the 'x'
-    # operand is truthy, so this reads (arm64 AND public ? native : ubuntu-latest).
+    # arm64 goes native only when the repo is public.
     runs-on: ${{ matrix.platform == 'linux/arm64' && github.event.repository.private == false && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
@@ -462,8 +337,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      # Emulation only for the arm64 leg when it landed on an amd64 runner
-      # (private repo); the native arm64 runner needs none.
+      # Emulation only for arm64 on an amd64 runner (private repo).
       - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         if: matrix.platform == 'linux/arm64' && github.event.repository.private != false
 
@@ -482,30 +356,10 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Two attempts for the first build: the failure mode seen is Docker Hub's
-      # auth endpoint resetting the runner's connection while fetching the base
-      # images' pull tokens, before the Dockerfile even starts - a retry a
-      # minute later passes. build-push-action has no retry input, so the step
-      # is doubled. The lean/nodejs builds run on the same builder with the
-      # base images already pulled.
-      #
-      # COMMIT/BUILD_DATE stamp the binary so /healthz and the admin API
-      # report the exact code they run - `VERSION` alone is a branch name
-      # and two images months apart both call themselves "beta-0.0.1".
-      # github.sha is always a full 40-char SHA here, so the Dockerfile's
-      # lie guard (which rejects an empty or malformed value) never fires
-      # in CI - it exists for hand-run builds outside a git checkout.
-      #
-      # One GHA cache scope PER PLATFORM (an amd64 and an arm64 layer must not
-      # overwrite each other), exported by the full build only: mode=max already
-      # holds every shared layer, and each export cost minutes (lean's first
-      # export took 340 s on 2026-09-26) for the one runtimes layer it added.
-      #
-      # ignore-error=true: the image build+push is the deliverable; the GHA
-      # cache export is a best-effort speedup. The GitHub Actions Cache
-      # service can be flaky/unavailable (400 "services aren't available" on
-      # export), which would otherwise red-fail the job AFTER the image already
-      # shipped. Don't let a cache hiccup mask a successful publish.
+      # Retried once: Docker Hub's auth endpoint sometimes resets the connection before the build starts; the action has no retry input.
+      # COMMIT/BUILD_DATE stamp the binary: VERSION alone is a branch name.
+      # Cache scope per platform, exported by the full build only (mode=max already holds the shared layers).
+      # ignore-error: a cache-service hiccup must not red-fail a build that already shipped.
       - name: Build and push by digest (full)
         id: build-full
         continue-on-error: true
@@ -542,8 +396,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=docker-${{ steps.pair.outputs.value }},ignore-error=true
           outputs: type=image,name=docker.io/eveyproject/evey,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=3,force-compression=true
 
-      # The digests travel as empty files named <variant>-<hash>: the name is
-      # all the merge job needs.
+      # Digests travel as empty files named <variant>-<hash>.
       - name: Record the full digest
         env:
           DIGEST: ${{ steps.build-full.outputs.digest || steps.build-full-retry.outputs.digest }}
@@ -553,10 +406,7 @@ jobs:
           mkdir -p /tmp/digests
           touch "/tmp/digests/full-${DIGEST#sha256:}"
 
-      # lean and nodejs (release tags and manual runs only) differ from full by
-      # the plugin runtimes layer alone, so they ride in the same leg, after
-      # full: same builder, every shared layer a local cache hit. Nothing is
-      # tagged here either - the merge job tags them only once full has booted.
+      # lean/nodejs ride in the same leg after full (shared layers hit the local cache); tagged only once full has booted.
       - name: Build and push by digest (lean)
         id: build-lean
         if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
@@ -608,18 +458,13 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # Assembles the manifest lists from the legs' digests, boots the result, and
-  # only then points any moving tag at it. This is the job that waits for
-  # backend AND frontend: no moving tag, `latest`, GHCR mirror or Hub
-  # description changes unless both passed.
+  # Merges the legs' digests, boots the result, then points moving tags at it; waits for backend AND frontend.
   docker:
     name: Docker - merge & push
-    runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
+    runs-on: ubuntu-latest  # GitHub-hosted
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
     needs: [backend, frontend, docker-plan, docker-build]
-    # Only publish on push events (branch push or release tag) and on an
-    # explicit manual run - never on PRs. The backend/frontend jobs gate this,
-    # so a failing test/lint blocks the image from reaching either registry.
+    # Never on PRs; backend/frontend gate this so a failing test blocks the image.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
@@ -640,11 +485,7 @@ jobs:
           pattern: digests-*
           merge-multiple: true
 
-      # The build pushed no tag. The immutable sha-<short> is created here from
-      # the per-platform digests, and the boot test below runs on it. The
-      # moving tags operators pull (beta-0.0.1, a release's version tags,
-      # latest) are pointed at it only once it has booted: a non-booting image
-      # never reaches them.
+      # The build pushed no tag: sha-<short> is created here and boot-tested; moving tags follow only once it boots.
       - name: Pick the immutable tag
         id: immutable
         env:
@@ -680,13 +521,7 @@ jobs:
           docker buildx imagetools create -t "$IMG" $refs
           docker buildx imagetools inspect "$IMG"
 
-      # Boot the image we just assembled and walk the real install / scan /
-      # playback / disk-full / SIGKILL scenarios (tests/ops). The gate never
-      # runs the image, so this is the check that catches one that builds green
-      # but does not start - the 2026-09-26 Dockerfile regression shipped a
-      # non-booting image because nothing launched it. Pulls the full tag just
-      # created (this runner's own architecture) and runs the harness; a failure
-      # here fails the job (and so the ci-pass gate).
+      # Boot the assembled image through the real scenarios (tests/ops): the gate never runs the image.
       - name: Operations harness (boot the built image)
         id: ops
         if: steps.merge-full.outcome == 'success'
@@ -698,8 +533,7 @@ jobs:
           docker pull "$IMG"
           make ops OPS_IMG="$IMG"
 
-      # The image booted: the moving tags now point at it (a manifest copy, no
-      # rebuild, every platform kept).
+      # Booted: the moving tags are manifest copies of it.
       - name: Promote the booted image to its moving tags
         if: steps.ops.outcome == 'success'
         env:
@@ -713,8 +547,7 @@ jobs:
             docker buildx imagetools create -t "$t" "$IMG"
           done
 
-      # lean and nodejs (release tags and manual runs only): their digests were
-      # built next to full's, and get their tags only now that full has booted.
+      # Built next to full, tagged only once full has booted.
       - name: Publish the lean manifest list
         id: build-lean
         if: steps.ops.outcome == 'success' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
@@ -739,12 +572,7 @@ jobs:
           # shellcheck disable=SC2086 # words are tags and refs, none contains a space
           docker buildx imagetools create $targs $refs
 
-      # GHCR is a mirror, not the deliverable: the builds above push Docker Hub
-      # only, then every tag they produced is copied here by manifest (no
-      # rebuild, multi-platform kept). A refused GHCR (the org package lost its
-      # repository link once and answered permission_denied for a day) shows up
-      # as a warning on this step and never fails a run whose image already
-      # shipped to Docker Hub.
+      # GHCR is a best-effort mirror: a refusal must not fail a run already shipped to Docker Hub.
       - name: Mirror tags to GHCR (best effort)
         if: steps.ops.outcome == 'success'
         continue-on-error: true
@@ -762,9 +590,7 @@ jobs:
             docker buildx imagetools create -t "$dst" "$src"
           done
 
-      # Docker Hub page: short blurb + docs/dockerhub.md as the full description.
-      # Once per run, and best-effort: the image is the deliverable, the page
-      # copy is not (a failure shows visibly here without blocking anything).
+      # Best-effort: the image is the deliverable, the page copy is not.
       - name: Sync Docker Hub description
         continue-on-error: true
         uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
@@ -777,14 +603,10 @@ jobs:
           enable-url-completion: false
 
 
-  # Sentinel job for branch protection. Required check should target this
-  # one job rather than each parallel job individually - that way `docker`
-  # being skipped on PRs (event_name != 'push') doesn't break the gate.
-  # Succeeds iff every required upstream job either passed or was correctly
-  # skipped for the event type.
+  # Single required check for branch protection; tolerates `docker` being skipped on PRs.
   ci-pass:
     name: CI passed
-    runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
+    runs-on: ubuntu-latest  # GitHub-hosted
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
     needs: [backend, frontend, docker-plan, docker-build, docker]
     if: always()
