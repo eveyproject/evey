@@ -40,6 +40,8 @@ import { useTranslation } from "react-i18next";
 import { toast, useAuthStore } from "@evey/store";
 import { ICON_SIZE } from "@evey/theme";
 import { BottomSheet } from "../../../src/components/BottomSheet";
+import { useParentalGate } from "../../../src/hooks/useParentalGate";
+import { ParentalPINModal } from "../../../src/components/ParentalPINModal";
 import {
   useLibraryServiceGetMediaItem,
   useLibraryServiceListMediaItems,
@@ -1123,14 +1125,45 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     [stopSession],
   );
 
+  // Every episode jump (countdown, play now, prev/next buttons, episodes panel)
+  // skips the media page where the PIN gate lives, so they all go through
+  // gatedNavigateEpisode. onNavigate is forwarded by ref: the gate needs
+  // nextEp's episodes, which only exist once useNextEpisode has run.
+  const gatedNavigateRef = useRef<(episodeId: string) => void>(() => {});
+  const forwardNavigate = useCallback((episodeId: string) => gatedNavigateRef.current(episodeId), []);
+
   const nextEp = useNextEpisode({
     media,
     currentTime,
     duration: effectiveDuration,
-    onNavigate: handleNavigateEpisode,
+    onNavigate: forwardNavigate,
     autoAdvance: autoplayNext,
     onStillWatchingTimeout: handleBack,
   });
+
+  const { needsPinFor: episodeNeedsPinFor, profileId: episodeGateProfileId } = useParentalGate(undefined);
+  const [pendingEpisodeId, setPendingEpisodeId] = useState<string | null>(null);
+
+  const gatedNavigateEpisode = useCallback(
+    (episodeId: string) => {
+      const target =
+        [nextEp.nextEpisode, nextEp.previousEpisode].find((e) => e?.id === episodeId) ??
+        panelEpisodes.find((e) => e.id === episodeId);
+      if (episodeNeedsPinFor(target?.officialRating)) {
+        setPendingEpisodeId(episodeId);
+        return;
+      }
+      handleNavigateEpisode(episodeId);
+    },
+    [nextEp.nextEpisode, nextEp.previousEpisode, panelEpisodes, episodeNeedsPinFor, handleNavigateEpisode],
+  );
+  gatedNavigateRef.current = gatedNavigateEpisode;
+
+  const handleEpisodePinVerified = useCallback(() => {
+    const id = pendingEpisodeId;
+    setPendingEpisodeId(null);
+    if (id) handleNavigateEpisode(id);
+  }, [pendingEpisodeId, handleNavigateEpisode]);
 
   // A film, or an episode with nothing after it: leave for its page once it has
   // played to the end, as the web and browser TV players do, instead of holding
@@ -1567,6 +1600,15 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
           cancelCountdownRef={cancelCountdownRef}
         />
 
+        {episodeGateProfileId ? (
+          <ParentalPINModal
+            visible={pendingEpisodeId !== null}
+            onClose={() => setPendingEpisodeId(null)}
+            onVerified={handleEpisodePinVerified}
+            profileId={episodeGateProfileId}
+          />
+        ) : null}
+
         {nextEp.visible && nextEp.nextEpisode && (
           <NextEpisodeOverlay nextEp={nextEp} bottomOffset={Math.max(controlsHeight, 96) + 16} />
         )}
@@ -1687,7 +1729,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
                     onToggleMute={toggleMute}
                     onVolumeChange={handleVolumeChange}
                     maxVolume={maxVolume}
-                    onEpisodeChange={handleNavigateEpisode}
+                    onEpisodeChange={gatedNavigateEpisode}
                     onPrevChapter={skipToPrevChapter}
                     onNextChapter={skipToNextChapter}
                     onOpenChapters={() => setActiveSheet("chapters")}
@@ -1808,7 +1850,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
           episodes={panelEpisodes}
           currentEpisodeId={mediaId}
           onSeasonChange={setSelectedSeasonId}
-          onEpisodeChange={(episodeId) => { handleNavigateEpisode(episodeId); setActiveSheet(null); }}
+          onEpisodeChange={(episodeId) => { gatedNavigateEpisode(episodeId); setActiveSheet(null); }}
         />
       </BottomSheet>
       )}

@@ -17,6 +17,7 @@ import { useServerUrlNullable } from "../../../src/hooks/useServerUrl";
 import { supportedLanguages } from "../../../src/i18n";
 import { ThemeSelector } from "../../../src/components/ThemeSelector";
 import { wikiUrl } from "@evey/client";
+import { clearUnlocked } from "../../../src/hooks/useParentalGate";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 
@@ -197,6 +198,9 @@ export default function SettingsScreen() {
           // Drop the persisted refresh token so a cold-start refresh on
           // bootstrap doesn't silently re-authenticate the user.
           await clearRefreshToken().catch(() => {});
+          // The next viewer starts locked and without this account's cached rows.
+          qc.clear();
+          clearUnlocked();
           logout();
           router.replace("/login");
         },
