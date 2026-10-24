@@ -5,8 +5,9 @@ packages:
 # node_modules is shared between the Alpine test container (musl) and the WSL
 # host that runs the Android release build (glibc): native optional deps
 # (lightningcss, ...) must ship BOTH libc variants or one of the two worlds
-# fails with "Cannot find module *.linux-x64-*.node".
+# fails with "Cannot find module *.linux-x64-*.node". arm64 too: the release
+# image's frontend is built on a native arm64 runner.
 supportedArchitectures:
   os: ["linux"]
-  cpu: ["x64"]
+  cpu: ["x64", "arm64"]
   libc: ["glibc", "musl"]
