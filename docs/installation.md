@@ -173,8 +173,9 @@ Release numbers follow [semantic versioning](https://semver.org/) and start
 at `0.1.0`; the 0.x line is the public beta. To change version, edit the
 line, then `docker compose pull && docker compose up -d`; your data stays in
 `./evey-data`. The running version shows in **Admin → Dashboard**, at
-`/healthz`, and with `docker exec evey-server evey version`. Each image also
-exists as `-nodejs` and `-lean`, slimmer builds with fewer plugin runtimes
+`/healthz`, and with `docker exec evey-server evey version`. A tag without a
+suffix is the full image, with every plugin runtime (Python, Node.js, PHP,
+Ruby and Lua); `-nodejs` and `-lean` are slimmer builds with fewer of them
 ([details](operations/advanced-deployments.md#image-tags-and-variants)).
 
 **You already run a reverse proxy** (a program that puts HTTPS in front of

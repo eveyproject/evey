@@ -1,5 +1,5 @@
 ---
-source_sha: a60b9bf26b8f2185669ef22ab5ea9503766f3f95c501055727691026e718f7f9
+source_sha: 24e90e68dbbd60f7111af4c4e2e50bf061e8c287d2c22f38fa970231c0d48959
 reviewed: true
 ---
 # 安装 { #install }
@@ -124,7 +124,7 @@ Evey 只在三种情况下向您的媒体文件夹写入内容：
 | `eveyproject/evey:sha-<commit>` | 某一个确切的构建，是唯一永不变动的标签 |
 | `eveyproject/evey:master` | 开发分支，每次推送都会重新构建：用于测试，不适合您依赖的服务器 |
 
-版本号遵循[语义化版本](https://semver.org/)，从 `0.1.0` 开始；0.x 系列是公开测试版。要更换版本，修改这一行，然后运行 `docker compose pull && docker compose up -d`；您的数据仍保存在 `./evey-data`。当前运行的版本可在 **管理 → 仪表盘**、`/healthz` 以及 `docker exec evey-server evey version` 中看到。每个镜像也有 `-nodejs` 和 `-lean` 版本，是插件运行时更少的精简构建（[详情](operations/advanced-deployments.md#image-tags-and-variants)）。
+版本号遵循[语义化版本](https://semver.org/)，从 `0.1.0` 开始；0.x 系列是公开测试版。要更换版本，修改这一行，然后运行 `docker compose pull && docker compose up -d`；您的数据仍保存在 `./evey-data`。当前运行的版本可在 **管理 → 仪表盘**、`/healthz` 以及 `docker exec evey-server evey version` 中看到。不带后缀的标签是完整镜像，包含全部插件运行时（Python、Node.js、PHP、Ruby 和 Lua）；`-nodejs` 和 `-lean` 是精简构建，包含的运行时更少（[详情](operations/advanced-deployments.md#image-tags-and-variants)）。
 
 **您已经在用反向代理**（一个在您的服务前面加上 HTTPS 的程序）：见[远程访问与 HTTPS](administration/remote-access.md)。
 
