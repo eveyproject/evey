@@ -119,9 +119,11 @@ That is the whole update.
 ??? info "Pin the exact version you run"
 
     `latest` follows the newest release and changes with every update. For a
-    server you rely on, put a release tag (`0.1.0`) or a fixed
-    `sha-<commit>` tag on the `image:` line, so that two pulls a day apart
-    run the same code.
+    server you rely on, put a release tag (`0.1.0`, or `0.1` to receive its
+    fixes only) or a fixed `sha-<commit>` tag on the `image:` line, so that
+    two pulls a day apart run the same code. The table in
+    [Installation](installation.md#common-variations) lists what each tag
+    gives you.
 
 ### Going back
 

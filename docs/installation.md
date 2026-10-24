@@ -159,6 +159,24 @@ container starts as root only to apply this; Evey itself never runs as root.
 **A graphics card for video conversion.** Give the container access to the
 card: see [Hardware acceleration](administration/hardware-acceleration.md).
 
+**Which version you run.** The `image:` line decides:
+
+| `image:` | You get |
+|---|---|
+| `eveyproject/evey:latest` | the newest release, each `docker compose pull` moves you to the next one |
+| `eveyproject/evey:0.1` | the newest fix of that minor line (0.1.0, 0.1.1, ...), never a new minor |
+| `eveyproject/evey:0.1.0` | exactly that release, until you change the line |
+| `eveyproject/evey:sha-<commit>` | one exact build, the only tag that never moves |
+| `eveyproject/evey:master` | the development branch, rebuilt at every push: for testing, not for a server you rely on |
+
+Release numbers follow [semantic versioning](https://semver.org/) and start
+at `0.1.0`; the 0.x line is the public beta. To change version, edit the
+line, then `docker compose pull && docker compose up -d`; your data stays in
+`./evey-data`. The running version shows in **Admin → Dashboard**, at
+`/healthz`, and with `docker exec evey-server evey version`. Each image also
+exists as `-nodejs` and `-lean`, slimmer builds with fewer plugin runtimes
+([details](operations/advanced-deployments.md#image-tags-and-variants)).
+
 **You already run a reverse proxy** (a program that puts HTTPS in front of
 your services): see [Remote access and HTTPS](administration/remote-access.md).
 

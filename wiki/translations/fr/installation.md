@@ -1,5 +1,5 @@
 ---
-source_sha: d6466c24262a137d7107741ff21ca1ce685f8aa99221f04a4c6f8b6ddfcb6a27
+source_sha: a60b9bf26b8f2185669ef22ab5ea9503766f3f95c501055727691026e718f7f9
 reviewed: true
 ---
 # Installation { #install }
@@ -175,6 +175,25 @@ seulement pour appliquer ce choix ; Evey lui-même ne tourne jamais en root.
 
 **Une carte graphique pour convertir la vidéo.** Donnez au conteneur l'accès
 à la carte : voir [Accélération matérielle](administration/hardware-acceleration.md).
+
+**La version que vous faites tourner.** La ligne `image:` en décide :
+
+| `image:` | Ce que vous obtenez |
+|---|---|
+| `eveyproject/evey:latest` | la dernière version publiée ; chaque `docker compose pull` vous fait passer à la suivante |
+| `eveyproject/evey:0.1` | le dernier correctif de cette ligne mineure (0.1.0, 0.1.1, ...), jamais une nouvelle version mineure |
+| `eveyproject/evey:0.1.0` | exactement cette version, tant que vous ne changez pas la ligne |
+| `eveyproject/evey:sha-<commit>` | un build précis, le seul tag qui ne bouge jamais |
+| `eveyproject/evey:master` | la branche de développement, reconstruite à chaque push : pour tester, pas pour un serveur sur lequel vous comptez |
+
+Les numéros de version suivent le [versionnage sémantique](https://semver.org/) et commencent à
+`0.1.0` ; la ligne 0.x est la bêta publique. Pour changer de version, modifiez la
+ligne, puis `docker compose pull && docker compose up -d` ; vos données restent
+dans `./evey-data`. La version en cours s'affiche dans **Administration → Tableau de bord**, sur
+`/healthz`, et avec `docker exec evey-server evey version`. Chaque image existe
+aussi en `-nodejs` et `-lean`, des builds plus légers avec moins d'environnements
+d'exécution de plugins
+([détails](operations/advanced-deployments.md#image-tags-and-variants)).
 
 **Vous avez déjà un reverse proxy** (un programme qui ajoute le HTTPS devant
 vos services) : voir [Accès distant et HTTPS](administration/remote-access.md).
