@@ -350,8 +350,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends gnupg \
     # The Vulkan/libplacebo tone-map route (GPU=all|amd, loader + Mesa ICDs
     # installed above) needs the filter and the hwaccel in THIS binary. Checked
     # without a GPU: presence in the build, never a claim that a device works -
-    # the calibration proves that on the host.
-    && case "$GPU" in all|amd) /usr/local/bin/ffmpeg -hide_banner -filters | grep -q libplacebo \
+    # the calibration proves that on the host. amd64 only: the arm64
+    # jellyfin-ffmpeg (7.1.4) ships neither libplacebo nor the vulkan hwaccel
+    # (measured 2026-10-24, the v0.1.0 arm64 build died here), and no arm64
+    # board runs the AMD route anyway.
+    && case "$TARGETARCH:$GPU" in amd64:all|amd64:amd) /usr/local/bin/ffmpeg -hide_banner -filters | grep -q libplacebo \
          && /usr/local/bin/ffmpeg -hide_banner -hwaccels | grep -q vulkan \
          && [ -e /usr/lib/*/libvulkan.so.1 ] ;; esac
 
