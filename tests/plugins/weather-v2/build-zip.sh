@@ -14,7 +14,15 @@
 #     they only widen the scan surface.
 #
 # The zip therefore contains exactly: plugin.yaml, main.js, dist/index.js,
-# node_modules (runtime deps only) and the minimal package.json.
+# node_modules (runtime deps only), the minimal package.json and, when the
+# build is signed, cosign.pub.
+#
+# Signing (optional): SIGN_KEY=<private PEM> SIGN_PUB=<public PEM> ./build-zip.sh
+# copies the public key into the ZIP as cosign.pub and writes
+# ../weather-v2.zip.sig, the detached signature Evey verifies (ECDSA P-256 over
+# the SHA-256 of the ZIP, what `cosign sign-blob --key` produces; openssl makes
+# the same bytes). Publish the .sig next to the ZIP. Without the two variables
+# the build is unsigned, as before.
 
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -81,7 +89,11 @@ node -e "
 "
 
 out="../weather-v2.zip"
-rm -f "$out"
+rm -f "$out" "$out.sig" cosign.pub
+if [ -n "${SIGN_KEY:-}" ] || [ -n "${SIGN_PUB:-}" ]; then
+  [ -n "${SIGN_KEY:-}" ] && [ -n "${SIGN_PUB:-}" ] || { echo "SIGN_KEY and SIGN_PUB go together" >&2; exit 1; }
+  cp "$SIGN_PUB" cosign.pub
+fi
 
 cp package.json package.json.dev
 node -e "
@@ -89,7 +101,7 @@ node -e "
   require('fs').writeFileSync('package.json',
     JSON.stringify({ name: p.name, version: p.version, private: true }, null, 2) + '\n');
 "
-trap 'mv package.json.dev package.json' EXIT
+trap 'mv package.json.dev package.json; rm -f cosign.pub' EXIT
 
 zip -q -X -r "$out" . \
   -x "src/*" \
@@ -101,6 +113,11 @@ zip -q -X -r "$out" . \
   -x "package.json.dev" \
   -x "package-lock.json" \
   -x "build-zip.sh"
+
+if [ -n "${SIGN_KEY:-}" ]; then
+  openssl dgst -sha256 -sign "$SIGN_KEY" "$out" | base64 | tr -d '\n' > "$out.sig"
+  echo "signed $out.sig (key $(openssl pkey -pubin -in "$SIGN_PUB" -outform DER | sha256sum | cut -c1-16)...)"
+fi
 
 echo "built $out"
 unzip -l "$out" | tail -2
