@@ -80,7 +80,7 @@ services:
       LD_LIBRARY_PATH: /usr/lib/wsl/lib
       # Dev plugins are unsigned; cosign ships in the image but the policy stays
       # off so local installs don't fail closed.
-      EVEY_PLUGINS_COSIGN_POLICY: "off"
+      EVEY_PLUGINS_COSIGN_POLICY: "${EVEY_PLUGINS_COSIGN_POLICY:-off}"
     volumes:
       - .:/app
       - ./evey-data:/data

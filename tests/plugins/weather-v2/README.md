@@ -75,6 +75,7 @@ expected informational warning about outbound fetch() (covered by the
 Moved out of the manifest description in 2.15.1: that field is what someone
 reads when deciding whether to install the plugin, not a changelog.
 
+- **2.19.0** - the package can be signed: `./build-zip.sh` takes the signing key pair (`SIGN_KEY`, `SIGN_PUB`), ships the public key as `cosign.pub` at the ZIP root and writes `weather-v2.zip.sig` next to the ZIP, so Evey pins the publisher at install and flags a later update signed by anyone else.
 - **2.15.0** - on a television the widget asks for a banner instead of a card, because a TV row is as wide as a desktop page while the panel has a fraction of the vertical room and the card height hid the library below the fold.
 - **2.14.0** - live SDO frames are re-cropped to the bundled skin's tight geometry (limb at 0.93) so the shader's disc mask lines up and the edge stops looking nibbled.
 - **2.13.0** - dark SDO frames are now rejected server-side (jpeg-js decode) before being persisted; the frontend pixel gate is blinded by Firefox resistFingerprinting.
