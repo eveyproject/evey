@@ -215,10 +215,15 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
   // The sleep timer the television has: a number of minutes, or the end of
   // this episode. Both stop the picture where it is.
   const sleep = useSleepTimer({ onMinutesFire: () => videoRef.current?.pause() });
+  // "End of episode" rides the same ended signal as the up-next card: the
+  // card's countdown is cancelled too, or it would start the next episode
+  // right after the pause, as the phone and the Android TV already do.
   useEffect(() => {
-    if (sleep.state?.kind !== "endOfEpisode") return;
-    if (duration > 0 && time >= duration - 1) videoRef.current?.pause();
-  }, [sleep.state, time, duration]);
+    if (sleep.state?.kind !== "endOfEpisode" || !nextEp.ended) return;
+    videoRef.current?.pause();
+    nextEp.cancel();
+    sleep.cancel();
+  }, [sleep, nextEp]);
 
   // A television sleeps on an idle remote and takes the sound with it: the
   // lock lives in @evey/client, shared with the music bar.

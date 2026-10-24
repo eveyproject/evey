@@ -206,12 +206,26 @@ vi.mock("../hooks/useChapters", () => ({ useChapters: () => ({ data: [] }) }));
 const nextEpHarness = {
   nextEpisode: null as { id: string } | null,
   args: null as { currentTime: number; duration: number } | null,
+  onNavigate: null as ((id: string) => void) | null,
 };
 vi.mock("../hooks/useNextEpisode", () => ({
-  useNextEpisode: (args: { currentTime: number; duration: number }) => {
+  useNextEpisode: (args: { currentTime: number; duration: number; onNavigate: (id: string) => void }) => {
     nextEpHarness.args = args;
+    nextEpHarness.onNavigate = args.onNavigate;
     return { visible: false, nextEpisode: nextEpHarness.nextEpisode, ended: false, cancel: vi.fn() };
   },
+}));
+const gateHarness = { needsPin: false };
+vi.mock("../hooks/useParentalGate", () => ({
+  useParentalGate: () => ({ needsPinFor: () => gateHarness.needsPin, needsPin: () => gateHarness.needsPin, profileId: "profile-1" }),
+}));
+vi.mock("../components/ParentalPINModal", () => ({
+  ParentalPINModal: ({ visible, onClose, onVerified }: any) =>
+    visible
+      ? React.createElement("div", { "data-testid": "pin-modal" },
+          React.createElement("button", { "aria-label": "verify-pin", onClick: onVerified }),
+          React.createElement("button", { "aria-label": "cancel-pin", onClick: onClose }))
+      : null,
 }));
 vi.mock("../hooks/useSleepTimer", () => ({ useSleepTimer: () => ({ state: null, setMinutes: vi.fn(), setEndOfEpisode: vi.fn(), cancel: vi.fn() }) }));
 vi.mock("../hooks/usePlayerGestures", () => ({
@@ -473,5 +487,50 @@ describe("player at the end of a film", () => {
     // what starts the countdown.
     expect(nextEpHarness.args?.currentTime).toBe(3600);
     nextEpHarness.nextEpisode = null;
+  });
+});
+
+// The up-next countdown, "play now" and the episode buttons jump past the media
+// page, so a PIN-protected episode must ask for the PIN here.
+describe("player episode parental gate", () => {
+  beforeEach(() => {
+    vi.mocked(router.replace).mockClear();
+    gateHarness.needsPin = false;
+  });
+  afterEach(() => {
+    cleanup();
+    gateHarness.needsPin = false;
+  });
+
+  async function mount() {
+    await act(async () => { render(React.createElement(PlayerScreen)); });
+  }
+
+  it("navigates straight away when no PIN is needed", async () => {
+    await mount();
+    act(() => { nextEpHarness.onNavigate?.("ep-2"); });
+    expect(router.replace).toHaveBeenCalledWith("/(auth)/player/ep-2");
+    expect(document.querySelector("[data-testid=pin-modal]")).toBeNull();
+  });
+
+  it("holds the navigation behind the PIN modal until it is verified", async () => {
+    gateHarness.needsPin = true;
+    await mount();
+    act(() => { nextEpHarness.onNavigate?.("ep-2"); });
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-testid=pin-modal]")).not.toBeNull();
+
+    act(() => { (document.querySelector("[aria-label=verify-pin]") as HTMLElement).click(); });
+    expect(router.replace).toHaveBeenCalledWith("/(auth)/player/ep-2");
+    expect(document.querySelector("[data-testid=pin-modal]")).toBeNull();
+  });
+
+  it("stays on the episode when the PIN modal is closed", async () => {
+    gateHarness.needsPin = true;
+    await mount();
+    act(() => { nextEpHarness.onNavigate?.("ep-2"); });
+    act(() => { (document.querySelector("[aria-label=cancel-pin]") as HTMLElement).click(); });
+    expect(router.replace).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-testid=pin-modal]")).toBeNull();
   });
 });
