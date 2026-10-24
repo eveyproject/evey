@@ -283,25 +283,30 @@ jobs:
       - name: bundle budget
         run: sh scripts/bundle-budget.sh frontend/apps/web/dist
 
-  docker:
-    name: Docker - build & push
-    runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
-    # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
-    needs: [backend, frontend]
-    # Only publish on push events (branch push or release tag) and on an
-    # explicit manual run - never on PRs. The backend/frontend jobs already
-    # gate this, so a failing test/lint blocks the image from reaching either
-    # registry.
+  # Resolves everything the per-platform build legs and the merge job must agree
+  # on, once: the platform list (-> the leg matrix), the build timestamp, and the
+  # three variants' tags / labels / version. Computed per leg, the timestamp and
+  # the org.opencontainers.image.created label would differ between the amd64
+  # and arm64 halves of one manifest list.
+  docker-plan:
+    name: Docker - plan
+    runs-on: ubuntu-latest
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    permissions:
-      contents: read
-      packages: write # required to push to ghcr.io
+    outputs:
+      platforms: ${{ steps.platforms.outputs.value }}
+      matrix: ${{ steps.platforms.outputs.matrix }}
+      date: ${{ steps.stamp.outputs.date }}
+      full-tags: ${{ steps.meta-full.outputs.tags }}
+      full-labels: ${{ steps.meta-full.outputs.labels }}
+      full-version: ${{ steps.meta-full.outputs.version }}
+      lean-tags: ${{ steps.meta-lean.outputs.tags }}
+      lean-labels: ${{ steps.meta-lean.outputs.labels }}
+      lean-version: ${{ steps.meta-lean.outputs.version }}
+      nodejs-tags: ${{ steps.meta-nodejs.outputs.tags }}
+      nodejs-labels: ${{ steps.meta-nodejs.outputs.labels }}
+      nodejs-version: ${{ steps.meta-nodejs.outputs.version }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-
-      - name: Lowercase owner (ghcr requires lowercase)
-        id: owner
-        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       # Tag strategy:
       # - push to master/main       → `master`  + `sha-<short>`
@@ -310,10 +315,11 @@ jobs:
       # `latest` is gated on vX.Y.Z tags only so it always means "latest
       # semver release", never "last commit on master that happened to build".
       #
-      # Three image variants, ONE job: they share every layer but the plugin
-      # runtimes (the Dockerfile's RUNTIMES arg, its own layer), so the full
-      # build - the default, every runtime - does the work and the lean/nodejs
-      # builds reuse it from the builder's local cache. As a 3-job matrix each variant rebuilt Go, the
+      # Three image variants, ONE build per platform: they share every layer
+      # but the plugin runtimes (the Dockerfile's RUNTIMES arg, its own layer),
+      # so the full build - the default, every runtime - does the work and the
+      # lean/nodejs builds that follow it in the same leg reuse it from the
+      # builder's local cache. As a 3-job matrix each variant rebuilt Go, the
       # frontend and wasm from scratch: 3 x ~10 min of runner per push.
       #
       # Branch pushes build `full` only - the variant prod runs. lean and
@@ -385,15 +391,14 @@ jobs:
           flavor: |
             suffix=,onlatest=true
 
-      # arm64 emulation for the multi-arch stable-release build (below). Cheap
-      # to register on every run; only actually used when arm64 is a target.
-      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-
       - name: Build timestamp
         id: stamp
         run: echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
 
+      # Besides the list, this emits the leg matrix: one leg per
+      # platform (the runner is picked in docker-build), and a platform that is not asked for gets no leg at all (a
+      # branch push never allocates an arm64 runner). Only amd64 and arm64 have
+      # a runner; any other platform in a manual dispatch is ignored.
       - name: Resolve build platforms
         id: platforms
         env:
@@ -401,6 +406,7 @@ jobs:
           HEAD_COMMIT_MSG: ${{ github.event.head_commit.message }}
           REF_TYPE: ${{ github.ref_type }}
         run: |
+          set -eu
           if [[ -n "${DISPATCH_PLATFORMS}" ]]; then
             value="${DISPATCH_PLATFORMS}"
             echo "manual dispatch - building ${value}"
@@ -414,16 +420,235 @@ jobs:
             value="linux/amd64"
             echo "branch push - building amd64 only (tag or [arm64] to get both)"
           fi
-          echo "value=${value}" >> "$GITHUB_OUTPUT"
+          legs=()
+          if [[ ",${value}," == *",linux/amd64,"* ]]; then
+            legs+=('{"platform":"linux/amd64"}')
+          fi
+          if [[ ",${value}," == *",linux/arm64,"* ]]; then
+            legs+=('{"platform":"linux/arm64"}')
+          fi
+          [ "${#legs[@]}" -gt 0 ] || { echo "::error::no buildable platform (amd64, arm64) in: ${value}"; exit 1; }
+          {
+            echo "value=${value}"
+            echo "matrix={\"include\":[$(IFS=,; echo "${legs[*]}")]}"
+          } >> "$GITHUB_OUTPUT"
 
-      # The build pushes ONE tag, the immutable sha-<short>, and the boot
-      # test below runs on it. The moving tags operators pull (beta-0.0.1,
-      # a release's version tags, latest) are pointed at it only once it has
-      # booted: a non-booting image never reaches them.
+  # One leg per platform, native where possible: the arm64 half used to always
+  # run emulated under QEMU on the amd64 runner and took 25-30 min. A leg pushes its
+  # images BY DIGEST (no tag at all) and hands the digests to the `docker` job,
+  # which assembles the one multi-arch manifest per tag. Pushing by digest
+  # touches nothing an operator can pull, so these legs do not wait for the
+  # backend and frontend jobs: they start at once and run alongside them, and
+  # `docker` (which does wait for both) is the first thing that makes a tag.
+  # A red test just leaves untagged blobs behind.
+  #
+  # ubuntu-24.04-arm is only provided to PUBLIC repositories. The arm64 leg
+  # therefore runs native there, and on ubuntu-latest under QEMU (emulated,
+  # 25-30 min) while the repo is private; the manifest merge is identical.
+  # A leg that never asks for arm64 is unaffected, it does not exist (see
+  # docker-plan).
+  docker-build:
+    name: Docker - build (${{ matrix.platform }})
+    needs: [docker-plan]
+    # arm64 goes native only when the repo is public; a private repo gets the
+    # emulated path (QEMU step below). && binds tighter than ||, and the 'x'
+    # operand is truthy, so this reads (arm64 AND public ? native : ubuntu-latest).
+    runs-on: ${{ matrix.platform == 'linux/arm64' && github.event.repository.private == false && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.docker-plan.outputs.matrix) }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # Emulation only for the arm64 leg when it landed on an amd64 runner
+      # (private repo); the native arm64 runner needs none.
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        if: matrix.platform == 'linux/arm64' && github.event.repository.private != false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Artifact and cache names cannot carry a slash.
+      - name: Platform pair
+        id: pair
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: echo "value=${PLATFORM//\//-}" >> "$GITHUB_OUTPUT"
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Two attempts for the first build: the failure mode seen is Docker Hub's
+      # auth endpoint resetting the runner's connection while fetching the base
+      # images' pull tokens, before the Dockerfile even starts - a retry a
+      # minute later passes. build-push-action has no retry input, so the step
+      # is doubled. The lean/nodejs builds run on the same builder with the
+      # base images already pulled.
+      #
+      # COMMIT/BUILD_DATE stamp the binary so /healthz and the admin API
+      # report the exact code they run - `VERSION` alone is a branch name
+      # and two images months apart both call themselves "beta-0.0.1".
+      # github.sha is always a full 40-char SHA here, so the Dockerfile's
+      # lie guard (which rejects an empty or malformed value) never fires
+      # in CI - it exists for hand-run builds outside a git checkout.
+      #
+      # One GHA cache scope PER PLATFORM (an amd64 and an arm64 layer must not
+      # overwrite each other), exported by the full build only: mode=max already
+      # holds every shared layer, and each export cost minutes (lean's first
+      # export took 340 s on 2026-09-26) for the one runtimes layer it added.
+      #
+      # ignore-error=true: the image build+push is the deliverable; the GHA
+      # cache export is a best-effort speedup. The GitHub Actions Cache
+      # service can be flaky/unavailable (400 "services aren't available" on
+      # export), which would otherwise red-fail the job AFTER the image already
+      # shipped. Don't let a cache hiccup mask a successful publish.
+      - name: Build and push by digest (full)
+        id: build-full
+        continue-on-error: true
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ needs.docker-plan.outputs.full-labels }}
+          build-args: |
+            VERSION=${{ needs.docker-plan.outputs.full-version }}
+            RUNTIMES=full
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ needs.docker-plan.outputs.date }}
+            IMAGE_REPO=docker.io/eveyproject/evey
+          cache-from: type=gha,scope=docker-${{ steps.pair.outputs.value }}
+          cache-to: type=gha,mode=max,scope=docker-${{ steps.pair.outputs.value }},ignore-error=true
+          outputs: type=image,name=docker.io/eveyproject/evey,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=3,force-compression=true
+
+      - name: Build and push by digest (full, retry)
+        id: build-full-retry
+        if: steps.build-full.outcome == 'failure'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ needs.docker-plan.outputs.full-labels }}
+          build-args: |
+            VERSION=${{ needs.docker-plan.outputs.full-version }}
+            RUNTIMES=full
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ needs.docker-plan.outputs.date }}
+            IMAGE_REPO=docker.io/eveyproject/evey
+          cache-from: type=gha,scope=docker-${{ steps.pair.outputs.value }}
+          cache-to: type=gha,mode=max,scope=docker-${{ steps.pair.outputs.value }},ignore-error=true
+          outputs: type=image,name=docker.io/eveyproject/evey,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=3,force-compression=true
+
+      # The digests travel as empty files named <variant>-<hash>: the name is
+      # all the merge job needs.
+      - name: Record the full digest
+        env:
+          DIGEST: ${{ steps.build-full.outputs.digest || steps.build-full-retry.outputs.digest }}
+        run: |
+          set -eu
+          [ -n "$DIGEST" ] || { echo "::error::the full build produced no digest"; exit 1; }
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/full-${DIGEST#sha256:}"
+
+      # lean and nodejs (release tags and manual runs only) differ from full by
+      # the plugin runtimes layer alone, so they ride in the same leg, after
+      # full: same builder, every shared layer a local cache hit. Nothing is
+      # tagged here either - the merge job tags them only once full has booted.
+      - name: Build and push by digest (lean)
+        id: build-lean
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ needs.docker-plan.outputs.lean-labels }}
+          build-args: |
+            VERSION=${{ needs.docker-plan.outputs.lean-version }}
+            RUNTIMES=lean
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ needs.docker-plan.outputs.date }}
+            IMAGE_REPO=docker.io/eveyproject/evey
+          cache-from: type=gha,scope=docker-${{ steps.pair.outputs.value }}
+          outputs: type=image,name=docker.io/eveyproject/evey,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=3,force-compression=true
+
+      - name: Build and push by digest (nodejs)
+        id: build-nodejs
+        if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ needs.docker-plan.outputs.nodejs-labels }}
+          build-args: |
+            VERSION=${{ needs.docker-plan.outputs.nodejs-version }}
+            RUNTIMES=nodejs
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ needs.docker-plan.outputs.date }}
+            IMAGE_REPO=docker.io/eveyproject/evey
+          cache-from: type=gha,scope=docker-${{ steps.pair.outputs.value }}
+          outputs: type=image,name=docker.io/eveyproject/evey,push-by-digest=true,name-canonical=true,push=true,compression=zstd,compression-level=3,force-compression=true
+
+      - name: Record the lean and nodejs digests
+        if: steps.build-lean.outcome == 'success' && steps.build-nodejs.outcome == 'success'
+        env:
+          LEAN: ${{ steps.build-lean.outputs.digest }}
+          NODEJS: ${{ steps.build-nodejs.outputs.digest }}
+        run: |
+          set -eu
+          touch "/tmp/digests/lean-${LEAN#sha256:}" "/tmp/digests/nodejs-${NODEJS#sha256:}"
+
+      - name: Upload digests
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: digests-${{ steps.pair.outputs.value }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Assembles the manifest lists from the legs' digests, boots the result, and
+  # only then points any moving tag at it. This is the job that waits for
+  # backend AND frontend: no moving tag, `latest`, GHCR mirror or Hub
+  # description changes unless both passed.
+  docker:
+    name: Docker - merge & push
+    runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
+    # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
+    needs: [backend, frontend, docker-plan, docker-build]
+    # Only publish on push events (branch push or release tag) and on an
+    # explicit manual run - never on PRs. The backend/frontend jobs gate this,
+    # so a failing test/lint blocks the image from reaching either registry.
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: write # required to push to ghcr.io
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - name: Lowercase owner (ghcr requires lowercase)
+        id: owner
+        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Download the digests
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      # The build pushed no tag. The immutable sha-<short> is created here from
+      # the per-platform digests, and the boot test below runs on it. The
+      # moving tags operators pull (beta-0.0.1, a release's version tags,
+      # latest) are pointed at it only once it has booted: a non-booting image
+      # never reaches them.
       - name: Pick the immutable tag
         id: immutable
         env:
-          TAGS_FULL: ${{ steps.meta-full.outputs.tags }}
+          TAGS_FULL: ${{ needs.docker-plan.outputs.full-tags }}
         run: |
           set -eu
           tag=$(printf '%s\n' "$TAGS_FULL" | grep ':sha-' | head -1)
@@ -443,79 +668,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Two attempts for the first build: the failure mode seen is Docker Hub's
-      # auth endpoint resetting the runner's connection while fetching the base
-      # images' pull tokens, before the Dockerfile even starts - a retry a
-      # minute later passes. build-push-action has no retry input, so the step
-      # is doubled. The lean/nodejs builds run on the same builder with the
-      # base images already pulled.
-      #
-      # COMMIT/BUILD_DATE stamp the binary so /healthz and the admin API
-      # report the exact code they run - `VERSION` alone is a branch name
-      # and two images months apart both call themselves "beta-0.0.1".
-      # github.sha is always a full 40-char SHA here, so the Dockerfile's
-      # lie guard (which rejects an empty or malformed value) never fires
-      # in CI - it exists for hand-run builds outside a git checkout.
-      #
-      # One GHA cache scope, exported by the full build only: mode=max already
-      # holds every shared layer, and each export cost minutes (lean's first
-      # export took 340 s on 2026-09-26) for the one runtimes layer it added.
-      #
-      # ignore-error=true: the image build+push is the deliverable; the GHA
-      # cache export is a best-effort speedup. The GitHub Actions Cache
-      # service is flaky/unavailable on this self-hosted + over-quota setup
-      # (400 "services aren't available" on export), which would otherwise
-      # red-fail the job AFTER the image already shipped. Don't let a cache
-      # hiccup mask a successful publish. (If the cache stays down, builds
-      # just run uncached - switch to type=local for persistent on-disk
-      # caching on the runner if speed becomes an issue.)
-      - name: Build and push (full)
-        id: build-full
-        continue-on-error: true
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.immutable.outputs.full }}
-          labels: ${{ steps.meta-full.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta-full.outputs.version }}
-            RUNTIMES=full
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/eveyproject/evey
-          cache-from: type=gha,scope=docker
-          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
-          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+      - name: Create the immutable manifest list (full)
+        id: merge-full
+        env:
+          IMG: ${{ steps.immutable.outputs.full }}
+        run: |
+          set -eu
+          refs=$(for f in /tmp/digests/full-*; do echo "docker.io/eveyproject/evey@sha256:${f##*/full-}"; done)
+          echo "$IMG <- $refs"
+          # shellcheck disable=SC2086 # one ref per word, none contains a space
+          docker buildx imagetools create -t "$IMG" $refs
+          docker buildx imagetools inspect "$IMG"
 
-      - name: Build and push (full, retry)
-        id: build-full-retry
-        if: steps.build-full.outcome == 'failure'
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.immutable.outputs.full }}
-          labels: ${{ steps.meta-full.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta-full.outputs.version }}
-            RUNTIMES=full
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/eveyproject/evey
-          cache-from: type=gha,scope=docker
-          cache-to: type=gha,mode=max,scope=docker,ignore-error=true
-          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
-
-      # Boot the image we just built and walk the real install / scan / playback
-      # / disk-full / SIGKILL scenarios (tests/ops). The gate never runs the
-      # image, so this is the check that catches one that builds green but does
-      # not start - the 2026-09-26 Dockerfile regression shipped a non-booting
-      # image because nothing launched it. Pulls the full tag just pushed and
-      # runs the harness; a failure here fails the job (and so the ci-pass gate).
+      # Boot the image we just assembled and walk the real install / scan /
+      # playback / disk-full / SIGKILL scenarios (tests/ops). The gate never
+      # runs the image, so this is the check that catches one that builds green
+      # but does not start - the 2026-09-26 Dockerfile regression shipped a
+      # non-booting image because nothing launched it. Pulls the full tag just
+      # created (this runner's own architecture) and runs the harness; a failure
+      # here fails the job (and so the ci-pass gate).
       - name: Operations harness (boot the built image)
         id: ops
-        if: steps.build-full.outcome == 'success' || steps.build-full-retry.outcome == 'success'
+        if: steps.merge-full.outcome == 'success'
         env:
           IMG: ${{ steps.immutable.outputs.full }}
         run: |
@@ -529,7 +703,7 @@ jobs:
       - name: Promote the booted image to its moving tags
         if: steps.ops.outcome == 'success'
         env:
-          TAGS_FULL: ${{ steps.meta-full.outputs.tags }}
+          TAGS_FULL: ${{ needs.docker-plan.outputs.full-tags }}
           IMG: ${{ steps.immutable.outputs.full }}
         run: |
           set -eu
@@ -539,43 +713,31 @@ jobs:
             docker buildx imagetools create -t "$t" "$IMG"
           done
 
-      # lean and nodejs (release tags and manual runs only) differ from full by
-      # the plugin runtimes layer alone: built once full has booted.
-      - name: Build and push (lean)
+      # lean and nodejs (release tags and manual runs only): their digests were
+      # built next to full's, and get their tags only now that full has booted.
+      - name: Publish the lean manifest list
         id: build-lean
         if: steps.ops.outcome == 'success' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.meta-lean.outputs.tags }}
-          labels: ${{ steps.meta-lean.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta-lean.outputs.version }}
-            RUNTIMES=lean
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/eveyproject/evey
-          cache-from: type=gha,scope=docker
-          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+        env:
+          TAGS: ${{ needs.docker-plan.outputs.lean-tags }}
+        run: |
+          set -eu
+          targs=$(printf '%s\n' "$TAGS" | while read -r t; do [ -z "$t" ] || printf -- '-t %s ' "$t"; done)
+          refs=$(for f in /tmp/digests/lean-*; do echo "docker.io/eveyproject/evey@sha256:${f##*/lean-}"; done)
+          # shellcheck disable=SC2086 # words are tags and refs, none contains a space
+          docker buildx imagetools create $targs $refs
 
-      - name: Build and push (nodejs)
+      - name: Publish the nodejs manifest list
         id: build-nodejs
         if: steps.ops.outcome == 'success' && (github.ref_type == 'tag' || github.event_name == 'workflow_dispatch')
-        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
-        with:
-          context: .
-          platforms: ${{ steps.platforms.outputs.value }}
-          tags: ${{ steps.meta-nodejs.outputs.tags }}
-          labels: ${{ steps.meta-nodejs.outputs.labels }}
-          build-args: |
-            VERSION=${{ steps.meta-nodejs.outputs.version }}
-            RUNTIMES=nodejs
-            COMMIT=${{ github.sha }}
-            BUILD_DATE=${{ steps.stamp.outputs.date }}
-            IMAGE_REPO=docker.io/eveyproject/evey
-          cache-from: type=gha,scope=docker
-          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,push=true
+        env:
+          TAGS: ${{ needs.docker-plan.outputs.nodejs-tags }}
+        run: |
+          set -eu
+          targs=$(printf '%s\n' "$TAGS" | while read -r t; do [ -z "$t" ] || printf -- '-t %s ' "$t"; done)
+          refs=$(for f in /tmp/digests/nodejs-*; do echo "docker.io/eveyproject/evey@sha256:${f##*/nodejs-}"; done)
+          # shellcheck disable=SC2086 # words are tags and refs, none contains a space
+          docker buildx imagetools create $targs $refs
 
       # GHCR is a mirror, not the deliverable: the builds above push Docker Hub
       # only, then every tag they produced is copied here by manifest (no
@@ -588,9 +750,9 @@ jobs:
         continue-on-error: true
         env:
           GHCR_IMAGE: ghcr.io/${{ steps.owner.outputs.name }}/evey
-          TAGS_FULL: ${{ steps.meta-full.outputs.tags }}
-          TAGS_LEAN: ${{ steps.build-lean.outcome == 'success' && steps.meta-lean.outputs.tags || '' }}
-          TAGS_NODEJS: ${{ steps.build-nodejs.outcome == 'success' && steps.meta-nodejs.outputs.tags || '' }}
+          TAGS_FULL: ${{ needs.docker-plan.outputs.full-tags }}
+          TAGS_LEAN: ${{ steps.build-lean.outcome == 'success' && needs.docker-plan.outputs.lean-tags || '' }}
+          TAGS_NODEJS: ${{ steps.build-nodejs.outcome == 'success' && needs.docker-plan.outputs.nodejs-tags || '' }}
         run: |
           set -eu
           printf '%s\n%s\n%s\n' "$TAGS_FULL" "$TAGS_LEAN" "$TAGS_NODEJS" | while read -r src; do
@@ -614,6 +776,7 @@ jobs:
           readme-filepath: ./docs/dockerhub.md
           enable-url-completion: false
 
+
   # Sentinel job for branch protection. Required check should target this
   # one job rather than each parallel job individually - that way `docker`
   # being skipped on PRs (event_name != 'push') doesn't break the gate.
@@ -623,18 +786,20 @@ jobs:
     name: CI passed
     runs-on: ubuntu-latest  # GitHub-hosted - self-hosted re-disabled 2026-07-03, reusing GitHub runners for now
     # runs-on: self-hosted  # re-enable to switch back to the self-hosted workers
-    needs: [backend, frontend, docker]
+    needs: [backend, frontend, docker-plan, docker-build, docker]
     if: always()
     steps:
       - name: verify required jobs
         env:
           BACKEND: ${{ needs.backend.result }}
           FRONTEND: ${{ needs.frontend.result }}
+          DOCKER_PLAN: ${{ needs.docker-plan.result }}
+          DOCKER_BUILD: ${{ needs.docker-build.result }}
           DOCKER: ${{ needs.docker.result }}
         run: |
           set -e
           fail=0
-          for kv in "backend=$BACKEND" "frontend=$FRONTEND" "docker=$DOCKER"; do
+          for kv in "backend=$BACKEND" "frontend=$FRONTEND" "docker-plan=$DOCKER_PLAN" "docker-build=$DOCKER_BUILD" "docker=$DOCKER"; do
             name="${kv%%=*}"
             result="${kv#*=}"
             if [[ "$result" != "success" && "$result" != "skipped" ]]; then
