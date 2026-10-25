@@ -26,6 +26,49 @@ interface EveyMediaCapsNative {
   getMaxH264Level?(): number;
   getUiScalePercent?(): number | null;
   setUiScalePercent?(percent: number): boolean;
+  getDeviceProfile?(): DeviceProfile | null;
+  setLiteMode?(mode: LiteMode): boolean;
+}
+
+/** The user's light-mode choice on a television: "auto" lets the device's memory decide. */
+export type LiteMode = "auto" | "on" | "off";
+
+export interface DeviceProfile {
+  /** ActivityManager.isLowRamDevice(): the platform's own low-memory flag. */
+  lowRam: boolean;
+  totalMb: number;
+  /** Heap the app may use, per the platform. */
+  memoryClassMb: number;
+  liteMode: LiteMode;
+}
+
+/**
+ * The device's memory and the stored light-mode choice, or null when the
+ * module is absent (web, tests, an older build). Synchronous on purpose: the
+ * TV reads it once before its first screen. Never throws.
+ */
+export function getDeviceProfile(): DeviceProfile | null {
+  try {
+    return nativeSync()?.getDeviceProfile?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persists the light-mode choice. False when the module is absent. */
+export function setLiteMode(mode: LiteMode): boolean {
+  try {
+    return nativeSync()?.setLiteMode?.(mode) === true;
+  } catch {
+    return false;
+  }
+}
+
+// Required lazily, like the async getters' import: at module scope it breaks
+// the web bundle and the vitest run, neither of which has a native side.
+function nativeSync(): EveyMediaCapsNative | null {
+  const { requireOptionalNativeModule } = require("expo-modules-core") as typeof import("expo-modules-core");
+  return requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
 }
 
 /**

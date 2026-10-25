@@ -36,6 +36,11 @@ settings:
   uiScale: "Interface size"
   uiScaleOptionA11y: "Interface size {{percent}} %"
   uiScaleHint: "The app restarts to apply a new size."
+  liteMode: "Light mode"
+  liteModeAuto: "Automatic"
+  liteModeOn: "On"
+  liteModeOff: "Off"
+  liteModeHint: "Turns off a few visual effects so a modest TV stays fluid. Automatic turns it on when this TV has little memory."
   biometricLogin: Biometric login
   themeLightBlue: Light Blue
   themeDarkRed: Dark Red

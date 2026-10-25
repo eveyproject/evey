@@ -1,5 +1,6 @@
 package com.evey.mediacaps
 
+import android.app.ActivityManager
 import android.content.Context
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -36,6 +37,7 @@ class EveyMediaCapsModule : Module() {
 
   private val UI_PREFS = "evey_ui"
   private val UI_SCALE_KEY = "scale"
+  private val LITE_MODE_KEY = "lite_mode"
 
   private fun uiPrefs() =
     appContext.reactContext?.getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE)
@@ -121,6 +123,26 @@ class EveyMediaCapsModule : Module() {
 
     Function("getMaxH264Level") {
       try { maxH264Level() } catch (e: Exception) { 0 }
+    }
+
+    // What the light mode (TV) decides from: the memory this device has, and
+    // the user's choice from Settings ("auto", "on", "off"), kept in the same
+    // preference file as the UI scale. The verdict is the JS side's.
+    Function("getDeviceProfile") {
+      val context = appContext.reactContext ?: return@Function null
+      val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+      val info = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+      mapOf(
+        "lowRam" to am.isLowRamDevice,
+        "totalMb" to (info.totalMem / (1024 * 1024)).toInt(),
+        "memoryClassMb" to am.memoryClass,
+        "liteMode" to (uiPrefs()?.getString(LITE_MODE_KEY, null) ?: "auto"),
+      )
+    }
+
+    Function("setLiteMode") { mode: String ->
+      val prefs = uiPrefs() ?: return@Function false
+      prefs.edit().putString(LITE_MODE_KEY, mode).commit()
     }
 
     // HDR formats the DISPLAY currently attached can render, as evey names.

@@ -36,6 +36,11 @@ settings:
   uiScale: "界面大小"
   uiScaleOptionA11y: "界面大小 {{percent}} %"
   uiScaleHint: "应用会重新启动以应用新的大小。"
+  liteMode: "轻量模式"
+  liteModeAuto: "自动"
+  liteModeOn: "开启"
+  liteModeOff: "关闭"
+  liteModeHint: "关闭部分视觉特效，让性能一般的电视保持流畅。设为自动时，会在这台电视内存较少时开启。"
   biometricLogin: "生物识别登录"
   themeLightBlue: 浅蓝
   themeDarkRed: "深红"

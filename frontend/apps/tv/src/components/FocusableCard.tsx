@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import { Pressable, StyleSheet, type ViewStyle, type StyleProp, type AccessibilityState } from "react-native";
 import { useTheme } from "../providers/ThemeProvider";
+import { useLiteMode } from "../lib/liteMode";
 
 interface FocusableCardProps {
   onPress?: () => void;
@@ -39,6 +40,9 @@ export const FocusableCard = React.memo(function FocusableCard({
 }: FocusableCardProps) {
   const [focused, setFocused] = useState(false);
   const theme = useTheme();
+  // The light mode keeps the accent border and drops the zoom: scaling a card
+  // re-rasterises it, poster included, on every focus move.
+  const lite = useLiteMode();
 
   const handleFocus = useCallback(() => { setFocused(true); onFocus?.(); }, [onFocus]);
   const handleBlur = useCallback(() => { setFocused(false); onBlur?.(); }, [onBlur]);
@@ -53,7 +57,8 @@ export const FocusableCard = React.memo(function FocusableCard({
       style={[
         styles.card,
         style,
-        focused && [styles.focused, { borderColor: theme.colors.accent }],
+        focused && { borderColor: theme.colors.accent },
+        focused && !lite && styles.focused,
         focused && focusedStyle,
       ]}
       accessible={true}

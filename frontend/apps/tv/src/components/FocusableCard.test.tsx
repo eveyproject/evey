@@ -10,12 +10,14 @@ vi.mock("react-native", () => ({
   Pressable: ({ children, onPress, onFocus, onBlur, disabled, accessibilityLabel, accessibilityState, style }: any) =>
     React.createElement(
       "button",
-      { onClick: onPress, onFocus, onBlur, disabled, "aria-label": accessibilityLabel, "data-state": JSON.stringify(accessibilityState ?? null), "data-border": String(flat(style).borderColor) },
+      { onClick: onPress, onFocus, onBlur, disabled, "aria-label": accessibilityLabel, "data-state": JSON.stringify(accessibilityState ?? null), "data-border": String(flat(style).borderColor), "data-zoom": JSON.stringify(flat(style).transform ?? null) },
       children,
     ),
   StyleSheet: { create: (s: any) => s },
 }));
 vi.mock("../providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { accent: "#88f" } }) }));
+const lite = vi.hoisted(() => ({ on: false }));
+vi.mock("../lib/liteMode", () => ({ useLiteMode: () => lite.on }));
 
 import { FocusableCard } from "./FocusableCard";
 
@@ -38,6 +40,21 @@ describe("FocusableCard", () => {
     expect(onBlur).toHaveBeenCalled();
     fireEvent.click(btn);
     expect(onPress).toHaveBeenCalled();
+  });
+
+  it("zooms the focused card, except in light mode where the ring alone marks it", () => {
+    lite.on = false;
+    render(<FocusableCard accessibilityLabel="Full">x</FocusableCard>);
+    const full = screen.getByLabelText("Full");
+    fireEvent.focus(full);
+    expect(full.getAttribute("data-zoom")).toBe(JSON.stringify([{ scale: 1.05 }]));
+    lite.on = true;
+    render(<FocusableCard accessibilityLabel="Lite">x</FocusableCard>);
+    const light = screen.getByLabelText("Lite");
+    fireEvent.focus(light);
+    expect(light.getAttribute("data-border")).toBe("#88f");
+    expect(light.getAttribute("data-zoom")).toBe("null");
+    lite.on = false;
   });
 
   it("disabled blocks the press and is merged into the accessibility state", () => {
