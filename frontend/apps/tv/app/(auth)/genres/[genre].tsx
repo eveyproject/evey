@@ -7,12 +7,13 @@ import { useLibraryServiceSearchMedia, IN_LIBRARY_SEARCH_LIMIT } from "@evey/api
 import type { V1MediaItem, LibraryServiceSearchMediaSortField, LibraryServiceSearchMediaSortOrder } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
-import { artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
 import { PosterImage } from "../../../src/components/PosterImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { genreTranslationKey } from "../../../src/lib/genres";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
+import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
 const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_GRID;
@@ -30,6 +31,7 @@ const genreGetItemLayout = (_: unknown, index: number) => ({
 });
 
 export default function GenreDetailScreen() {
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const { genre } = useLocalSearchParams<{ genre: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -59,12 +61,14 @@ export default function GenreDetailScreen() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {
-      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2, item) : undefined;
+      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
       const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
       const rating = item.communityRating ?? 0;
       return (
         <FocusableCard
           onPress={() => router.push(`/media/${item.id}`)}
+          onFocus={() => prefetchOnFocus(item.id)}
+          onBlur={cancelPrefetch}
           hasTVPreferredFocus={index === 0}
           style={styles.gridItem}
           accessibilityLabel={item.title}
@@ -91,7 +95,7 @@ export default function GenreDetailScreen() {
         </FocusableCard>
       );
     },
-    [theme, router, serverUrl, authHeaders],
+    [theme, router, serverUrl, authHeaders, prefetchOnFocus, cancelPrefetch],
   );
 
   if (isError) {

@@ -8,7 +8,7 @@ import { eveyFetch, useLibraryServiceListMediaItems } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
-import { artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { TV_SCREEN_WIDTH, POSTER_RATIO, GRID_GAP } from "../../../src/lib/tvLayout";
@@ -102,7 +102,6 @@ export default function PersonDetailScreen() {
             source={{ uri: person.thumbUrl }}
             style={styles.avatar}
             contentFit="cover"
-            transition={200}
           />
         ) : (
           <View style={[styles.avatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
@@ -167,7 +166,7 @@ export default function PersonDetailScreen() {
               >
                 {serverUrl && item.id ? (
                   <Image
-                    source={{ uri: artworkUrl(serverUrl, item.id, "poster", Math.round(POSTER_WIDTH * 2), item), headers: authHeaders }}
+                    source={{ uri: artworkUrl(serverUrl, item.id, "poster", artworkPx(POSTER_WIDTH), item), headers: authHeaders }}
                     style={{
                       width: POSTER_WIDTH,
                       height: POSTER_HEIGHT,
@@ -175,7 +174,6 @@ export default function PersonDetailScreen() {
                       borderRadius: theme.radii.sm,
                     }}
                     contentFit="cover"
-                    transition={200}
                     recyclingKey={item.id}
                   />
                 ) : (

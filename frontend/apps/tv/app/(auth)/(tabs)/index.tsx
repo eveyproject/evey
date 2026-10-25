@@ -26,7 +26,7 @@ import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 import { musicAlbumHref } from "../../../src/lib/musicRoutes";
 import { progressPercent } from "../../../src/lib/progressPercent";
-import { artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
 import { PosterImage } from "../../../src/components/PosterImage";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
@@ -38,6 +38,7 @@ import { useCollections } from "../../../src/api/collections";
 import { useMostPopular } from "../../../src/hooks/usePopular";
 import { buildHomeSections, placedPluginIds, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
 import { serverImageUri } from "@evey/client";
+import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
 // How long the home waits for its slower rows before showing what it has.
 const HOME_REVEAL_CAP_MS = 2500;
@@ -116,9 +117,10 @@ function MediaCardImpl({
   watchPercent?: number;
   onFocus?: () => void;
 }) {
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const { t } = useTranslation();
   const theme = useTheme();
-  const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2, item) : undefined;
+  const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
   const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
   // The recommended/popular projections carry no `year` (see recommendedItems
   // below), which left MediaCard's subtitle line blank on every card in those
@@ -130,7 +132,11 @@ function MediaCardImpl({
     <FocusableCard
       onPress={() => router.push(`/media/${item.id}`)}
       hasTVPreferredFocus={isFirst}
-      onFocus={onFocus}
+      onFocus={() => {
+        onFocus?.();
+        prefetchOnFocus(item.id);
+      }}
+      onBlur={cancelPrefetch}
       accessibilityLabel={displayTitle(item, t)}
       style={styles.card}
     >
@@ -357,7 +363,7 @@ function TileRow({
               }}
             >
               {tile.uri ? (
-                <Image source={{ uri: tile.uri }} style={{ width: CARD_WIDTH, height: tileHeight }} contentFit="cover" transition={200} />
+                <Image source={{ uri: tile.uri }} style={{ width: CARD_WIDTH, height: tileHeight }} contentFit="cover" />
               ) : (
                 // No artwork: an empty grey square used to be the tile. The
                 // first letter at least tells a scanning eye what it is

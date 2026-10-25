@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+vi.mock("../../../src/hooks/useMediaPrefetch", () => ({ useMediaPrefetch: () => ({ prefetchOnFocus: () => {}, cancelPrefetch: () => {} }) }));
 import { render, fireEvent, screen, waitFor } from "@testing-library/react";
 import React from "react";
 

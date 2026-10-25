@@ -110,7 +110,7 @@ function AlbumChip({
     >
       <View style={[styles.albumChipArt, { backgroundColor: theme.colors.surfaceRaised, borderRadius: theme.radii.sm, overflow: "hidden" }]}>
         {coverUri ? (
-          <Image source={{ uri: coverUri, headers: authHeaders }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} />
+          <Image source={{ uri: coverUri, headers: authHeaders }} style={StyleSheet.absoluteFill} contentFit="cover" />
         ) : (
           <Ionicons name="images-outline" size={28} color={theme.colors.textMuted} />
         )}
@@ -207,7 +207,6 @@ export default function PhotosScreen() {
                 source={{ uri, headers: authHeaders }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
-                transition={150}
                 recyclingKey={item.id}
                 placeholder={item.blurhash ? { blurhash: item.blurhash } : undefined}
                 placeholderContentFit="cover"

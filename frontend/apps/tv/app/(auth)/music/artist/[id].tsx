@@ -94,7 +94,6 @@ export default function ArtistDetailScreen() {
                       source={{ uri, headers: authHeaders }}
                       style={{ width: ART_SIZE, height: ART_SIZE, borderRadius: theme.radii.sm }}
                       contentFit="cover"
-                      transition={200}
                       recyclingKey={item.id}
                     />
                   ) : (
