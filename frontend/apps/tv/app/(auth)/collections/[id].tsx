@@ -10,6 +10,7 @@ import { ScreenState } from "../../../src/components/ScreenState";
 import { artworkUrl } from "../../../src/lib/artwork";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
+import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
 const NUM_COLUMNS = 5;
 
@@ -22,6 +23,7 @@ function TVColSeparator() {
 }
 
 export default function CollectionDetailScreen() {
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -39,6 +41,8 @@ export default function CollectionDetailScreen() {
       return (
         <FocusableCard
           onPress={() => router.push(`/media/${item.id}`)}
+          onFocus={() => prefetchOnFocus(item.id)}
+          onBlur={cancelPrefetch}
           hasTVPreferredFocus={index === 0}
           style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
           accessibilityLabel={item.title}
@@ -49,7 +53,6 @@ export default function CollectionDetailScreen() {
                 source={{ uri: poster, headers: authHeaders }}
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
-                transition={200}
               />
             ) : (
               <Text style={{ color: theme.colors.textMuted, fontSize: 13 }}>{t("common.noPoster")}</Text>
@@ -64,7 +67,7 @@ export default function CollectionDetailScreen() {
         </FocusableCard>
       );
     },
-    [theme, router, t, serverUrl, authHeaders],
+    [theme, router, t, serverUrl, authHeaders, prefetchOnFocus, cancelPrefetch],
   );
 
   if (isLoading || isError) {

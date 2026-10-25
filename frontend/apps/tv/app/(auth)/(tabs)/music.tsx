@@ -88,7 +88,6 @@ function ArtistCard({
             source={{ uri, headers: authHeaders }}
             style={{ width: ART_SIZE, height: ART_SIZE, borderRadius: ART_SIZE / 2 }}
             contentFit="cover"
-            transition={200}
             recyclingKey={artist.id}
           />
         ) : (
@@ -136,7 +135,6 @@ function AlbumCard({
             source={{ uri, headers: authHeaders }}
             style={{ width: ART_SIZE, height: ART_SIZE, borderRadius: theme.radii.sm }}
             contentFit="cover"
-            transition={200}
             recyclingKey={album.id}
           />
         ) : (
@@ -190,7 +188,6 @@ function TrackCard({
             source={{ uri, headers: authHeaders }}
             style={{ width: ART_SIZE, height: ART_SIZE, borderRadius: theme.radii.sm }}
             contentFit="cover"
-            transition={200}
             recyclingKey={track.id}
           />
         ) : (

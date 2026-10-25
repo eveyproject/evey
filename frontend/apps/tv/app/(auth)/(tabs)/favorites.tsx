@@ -6,11 +6,12 @@ import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useFavoritesList, type FavoriteItem } from "../../../src/hooks/useFavorite";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
-import { artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { PosterImage } from "../../../src/components/PosterImage";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
+import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
 const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_GRID;
@@ -28,6 +29,7 @@ const tvFavGetItemLayout = (_: unknown, index: number) => ({
 });
 
 export default function FavoritesScreen() {
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
@@ -39,13 +41,15 @@ export default function FavoritesScreen() {
     ({ item, index }: { item: FavoriteItem; index: number }) => (
       <FocusableCard
         onPress={() => router.push(`/media/${item.mediaItemId}`)}
+        onFocus={() => prefetchOnFocus(item.mediaItemId)}
+        onBlur={cancelPrefetch}
         hasTVPreferredFocus={index === 0}
         style={styles.gridItem}
         accessibilityLabel={item.title ?? t("common.untitled", "Untitled")}
       >
         <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
           <PosterImage
-            uri={artworkUrl(serverUrl, item.mediaItemId, "poster", CARD_WIDTH * 2)}
+            uri={artworkUrl(serverUrl, item.mediaItemId, "poster", artworkPx(CARD_WIDTH))}
             headers={authHeaders}
             style={StyleSheet.absoluteFill}
             recyclingKey={item.mediaItemId}
@@ -61,7 +65,7 @@ export default function FavoritesScreen() {
         )}
       </FocusableCard>
     ),
-    [theme, router, t, serverUrl, authHeaders],
+    [theme, router, t, serverUrl, authHeaders, prefetchOnFocus, cancelPrefetch],
   );
 
   if (isLoading || isError) {

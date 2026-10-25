@@ -29,13 +29,14 @@ import { toast } from "@evey/store";
 import { buildWatchProgressMaps, videoStream, isHdrStream, resolutionLabel } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
-import { artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
 import { PosterImage } from "../../../src/components/PosterImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useDebounce } from "../../../src/hooks/useDebounce";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
 import { canPlayAllForSelection, buildPlayAllQueue, pickRandomItem } from "../../../src/lib/librarySelection";
+import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
 const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_GRID;
@@ -149,6 +150,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 }
 
 export default function LibraryDetailScreen() {
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -323,7 +325,7 @@ export default function LibraryDetailScreen() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {
-      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2, item) : undefined;
+      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
       const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
       const vStream = videoStream(item.streams);
       const resLabel = resolutionLabel(vStream);
@@ -335,6 +337,8 @@ export default function LibraryDetailScreen() {
       return (
         <FocusableCard
           onPress={() => router.push(`/media/${item.id}`)}
+          onFocus={() => prefetchOnFocus(item.id)}
+          onBlur={cancelPrefetch}
           hasTVPreferredFocus={index === 0}
           style={styles.gridItem}
           accessibilityLabel={itemLabel(item, t)}
@@ -398,7 +402,7 @@ export default function LibraryDetailScreen() {
         </FocusableCard>
       );
     },
-    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t],
+    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t, prefetchOnFocus, cancelPrefetch],
   );
 
   const activeIsLoading = searchActive ? isSearchLoading : isLoading;
