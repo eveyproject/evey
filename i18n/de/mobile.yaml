@@ -36,6 +36,11 @@ settings:
   uiScale: "Größe der Oberfläche"
   uiScaleOptionA11y: "Größe der Oberfläche {{percent}} %"
   uiScaleHint: "Die App startet neu, um eine neue Größe anzuwenden."
+  liteMode: "Leichter Modus"
+  liteModeAuto: "Automatisch"
+  liteModeOn: "Ein"
+  liteModeOff: "Aus"
+  liteModeHint: "Schaltet einige visuelle Effekte ab, damit ein schwächerer Fernseher flüssig bleibt. Automatisch schaltet ihn ein, wenn dieser Fernseher wenig Speicher hat."
   biometricLogin: "Biometrische Anmeldung"
   themeLightBlue: Hellblau
   themeDarkRed: Dunkelrot
