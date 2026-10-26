@@ -456,6 +456,7 @@ func buildPluginSubsystem(ctx context.Context, infra *infraDeps, rootLog *slog.L
 		appplugin.InstallerWithAnalyzer(infra.pluginAnalyzer),
 		appplugin.InstallerWithSignatureVerifier(infra.pluginSigVerifier),
 		appplugin.InstallerWithTrustedPublishers(infra.pluginPublishers),
+		appplugin.InstallerWithServerVersion(buildID().Version),
 		appplugin.InstallerWithPermissionChecker(permChecker),
 		appplugin.InstallerWithFileSystem(pluginFS),
 		appplugin.InstallerWithCSSSanitizer(cssSanitizer),
