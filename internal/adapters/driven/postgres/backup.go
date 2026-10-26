@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lib/pq"
 
@@ -248,15 +249,38 @@ func (d *DatabaseDumper) allTables(ctx context.Context) ([]string, error) {
 	return out, rows.Err()
 }
 
+// RestoreTables validates the dump line by line while streaming it into psql,
+// so memory stays bounded whatever the dump size. psql only starts once the
+// pg_dump header is seen, and a rejected line kills it before its stdin closes:
+// --single-transaction commits on EOF, so a killed psql commits nothing.
 func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.backup.RestoreTables")
 	defer span.End()
-	validated, err := d.validateBackup(data)
-	if err != nil {
+
+	p := &psqlRestore{ctx: ctx, d: d}
+	if err := validateBackup(data, p); err != nil {
+		p.abort()
 		return err
 	}
+	return p.finish()
+}
 
-	cmd := exec.CommandContext(ctx, "psql",
+// psqlRestore is the validated-dump sink: it starts psql lazily and records
+// the first start or write failure instead of returning it, so the validator
+// still reaches a rejected line deterministically however fast psql fails.
+type psqlRestore struct {
+	ctx    context.Context
+	d      *DatabaseDumper
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	buf    *bufio.Writer
+	stderr bytes.Buffer
+	err    error
+}
+
+func (p *psqlRestore) start() error {
+	d := p.d
+	cmd := exec.CommandContext(p.ctx, "psql",
 		"-h", d.host,
 		"-p", strconv.Itoa(d.port),
 		"-U", d.user,
@@ -269,26 +293,90 @@ func (d *DatabaseDumper) RestoreTables(ctx context.Context, data io.Reader) erro
 		"-v", "ON_ERROR_STOP=1",
 	)
 	cmd.Env = d.pgEnv()
-	cmd.Stdin = bytes.NewReader(validated)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
+	cmd.Stderr = &p.stderr
+	cmd.WaitDelay = 10 * time.Second
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return fmt.Errorf("psql stdin pipe: %w", err)
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("psql start: %w", err)
+	}
+	p.cmd, p.stdin = cmd, stdin
+	p.buf = bufio.NewWriterSize(stdin, 256*1024)
+	return nil
+}
 
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("psql restore: %s: %w", strings.TrimSpace(stderr.String()), err)
+func (p *psqlRestore) Write(b []byte) (int, error) {
+	if p.err != nil {
+		return len(b), nil
+	}
+	if p.cmd == nil {
+		if p.err = p.start(); p.err != nil {
+			return len(b), nil
+		}
+	}
+	if _, err := p.buf.Write(b); err != nil {
+		p.err = err
+	}
+	return len(b), nil
+}
+
+// Flush pushes the buffered lines to psql.
+func (p *psqlRestore) Flush() {
+	if p.err == nil && p.buf != nil {
+		p.err = p.buf.Flush()
+	}
+}
+
+// abort kills psql before closing its stdin: the kill must land first or
+// psql would read EOF and commit the prefix it already received.
+func (p *psqlRestore) abort() {
+	if p.cmd == nil {
+		return
+	}
+	_ = p.cmd.Process.Kill()
+	_ = p.cmd.Wait()
+}
+
+func (p *psqlRestore) finish() error {
+	if p.cmd == nil {
+		if p.err != nil {
+			return fmt.Errorf("psql restore: %w", p.err)
+		}
+		return errors.New("psql restore: nothing to restore")
+	}
+	p.Flush()
+	if p.err != nil {
+		p.abort()
+		return fmt.Errorf("psql restore: %s: %w", strings.TrimSpace(p.stderr.String()), p.err)
+	}
+	if err := p.stdin.Close(); err != nil {
+		p.abort()
+		return fmt.Errorf("psql restore: close stdin: %w", err)
+	}
+	if err := p.cmd.Wait(); err != nil {
+		return fmt.Errorf("psql restore: %s: %w", strings.TrimSpace(p.stderr.String()), err)
 	}
 	return nil
 }
 
-// validateBackup reads the entire backup, checks the pg_dump header, and
-// allowlist-validates every line outside of COPY data blocks. COPY data (the
-// rows streamed between `COPY … FROM stdin;` and a lone `\.`) is opaque and
-// passed through verbatim; any non-data line that is not part of the safe
-// data-only grammar (see allowedDumpLine) is rejected.
-func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
+// validateBackup streams the backup into out, allowlist-validating every line
+// outside COPY data (see allowedDumpLine); COPY rows pass through verbatim.
+// Lines before the pg_dump header are held back (at most 50), so out receives
+// nothing from a headerless file.
+func validateBackup(data io.Reader, out *psqlRestore) error {
 	scanner := bufio.NewScanner(data)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
 
-	var buf bytes.Buffer
+	var pending bytes.Buffer
+	emit := func(line string) {
+		if pending.Len() > 0 {
+			_, _ = out.Write(pending.Bytes())
+			pending.Reset()
+		}
+		_, _ = out.Write([]byte(line + "\n"))
+	}
 	lineNum := 0
 	headerFound := false
 	inCopyData := false
@@ -304,8 +392,7 @@ func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 			if strings.TrimRight(line, "\r") == `\.` {
 				inCopyData = false
 			}
-			buf.WriteString(line)
-			buf.WriteByte('\n')
+			emit(line)
 			continue
 		}
 
@@ -314,30 +401,37 @@ func (d *DatabaseDumper) validateBackup(data io.Reader) ([]byte, error) {
 			headerFound = true
 		}
 		if lineNum == 50 && !headerFound {
-			return nil, errors.New("restore: invalid file: missing pg_dump header")
+			return errors.New("restore: invalid file: missing pg_dump header")
 		}
 
 		if !allowedDumpLine(trimmed) {
-			return nil, fmt.Errorf("restore: rejected: disallowed statement at line %d", lineNum)
+			return fmt.Errorf("restore: rejected: disallowed statement at line %d", lineNum)
 		}
 		if reDumpCopyStdin.MatchString(strings.TrimSpace(trimmed)) {
 			inCopyData = true
 		}
 
-		buf.WriteString(line)
-		buf.WriteByte('\n')
+		if !headerFound {
+			pending.WriteString(line)
+			pending.WriteByte('\n')
+			continue
+		}
+		wasStarted := out.cmd != nil
+		emit(line)
+		if !wasStarted {
+			out.Flush()
+		}
 	}
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("restore: scan backup: %w", err)
+		return fmt.Errorf("restore: scan backup: %w", err)
 	}
 	if lineNum == 0 {
-		return nil, errors.New("restore: invalid file: empty backup")
+		return errors.New("restore: invalid file: empty backup")
 	}
 	if !headerFound {
-		return nil, errors.New("restore: invalid file: missing pg_dump header")
+		return errors.New("restore: invalid file: missing pg_dump header")
 	}
-
-	return buf.Bytes(), nil
+	return nil
 }
 
 // CurrentSchemaVersion queries schema_migrations to return the current migration
