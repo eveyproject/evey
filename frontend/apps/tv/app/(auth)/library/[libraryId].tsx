@@ -45,6 +45,14 @@ import { buildMediaListParams, LIBRARY_DEFAULT_SORT_FIELD, LIBRARY_DEFAULT_SORT_
 // Room above the focused row for its focus zoom, kept when a row scrolls to
 // the top of the list.
 const GRID_TOP_INSET = 12;
+// The search field and the filter chips are a third of the screen's first
+// render on a small television (measured 2026-10-26: 1.3 s with them, 0.9 s
+// without), and nothing focuses them first: they render once the cards are
+// on screen, in a box of the height they will take. That height is measured
+// the first time they render and remembered for the session; before that, it
+// is the one these styles add up to on the reference television.
+const HEADER_HEIGHT_ESTIMATE = { movies: 194, shows: 259 } as const;
+const measuredHeaderHeight: { movies?: number; shows?: number } = {};
 // The next page is asked for when the focus is this many rows from the end:
 // a row a second on the remote, and the page lands before the focus does.
 const PAGE_AHEAD_ROWS = 3;
@@ -203,6 +211,8 @@ export default function LibraryDetailScreen() {
   // Asked once the grid's first page is on screen: its 500 entries used to be
   // parsed on the JS thread while the posters were still waiting.
   const gridPainted = useAfterFirstPaint(data ? libraryId : undefined);
+  const headerKind = isShowLibrary ? "shows" : "movies";
+  const headerReady = gridPainted;
   const { data: watchHistoryData } = usePlaybackServiceGetWatchHistory(
     { limit: WATCH_HISTORY_OVERLAY_LIMIT },
     { query: { enabled: !!libraryId && gridPainted, staleTime: 30_000 } },
@@ -450,6 +460,8 @@ export default function LibraryDetailScreen() {
         </View>
       ) : (
         <>
+          {headerReady ? (
+          <View onLayout={(e) => { measuredHeaderHeight[headerKind] = e.nativeEvent.layout.height; }}>
           <TextInput
             style={[
               styles.searchInput,
@@ -527,6 +539,10 @@ export default function LibraryDetailScreen() {
                 ))}
               </ScrollView>
             </View>
+          )}
+          </View>
+          ) : (
+            <View style={{ height: measuredHeaderHeight[headerKind] ?? HEADER_HEIGHT_ESTIMATE[headerKind] }} />
           )}
 
           {activeIsLoading && isFirstPage ? (
