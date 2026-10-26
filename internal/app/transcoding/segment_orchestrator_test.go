@@ -456,6 +456,48 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	}, time.Second, 20*time.Millisecond, "throttle should resume ffmpeg when client catches up")
 }
 
+// A reader served from disk past the rafale's window must slide that window:
+// the throttle only probes production up to endSeg, so a frozen window hid the
+// running ffmpeg from it and the next miss respawned a duplicate encoder.
+func TestOrchestrator_CacheHitPastWindow_SlidesWindowAndThrottleSeesProduction(t *testing.T) {
+	cache, dir := newTestCache(t)
+	proc := newFakeProcess()
+	src := stubSource{path: "/media/test.mkv"}
+	opts := testOpts()
+	opts.LookAheadSegments = 10
+	opts.ThrottleEnabled = true
+	opts.ThrottlePauseAhead = 6
+	opts.ThrottleResumeBelow = 2
+	opts.ThrottleTickInterval = 20 * time.Millisecond
+	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	hashDir := filepath.Join(dir, "segments", fp.Hash())
+	require.NoError(t, os.MkdirAll(hashDir, 0o755))
+	for i := range 26 {
+		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), fmp4Seg(), 0o644))
+	}
+	for i := 0; i <= 15; i++ {
+		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, i))
+	}
+	require.Equal(t, int32(1), proc.count.Load(), "every read was a cache hit")
+
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()][0]
+	o.mu.Unlock()
+	sess.mu.Lock()
+	endSeg := sess.endSeg
+	sess.mu.Unlock()
+	assert.GreaterOrEqual(t, endSeg, 15, "the window must follow the reader")
+	require.Eventually(t, func() bool {
+		sess.mu.Lock()
+		defer sess.mu.Unlock()
+		return sess.producedHighWater == endSeg
+	}, time.Second, 10*time.Millisecond, "the throttle must see production past the original window")
+}
+
 func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 	cache, dir := newTestCache(t)
 	proc := newFakeProcess()

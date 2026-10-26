@@ -1279,6 +1279,14 @@ func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx i
 	target := o.closestCoveringSessionLocked(hash, variantIdx, segmentIdx)
 	covered := target != nil
 	if target == nil {
+		// Just past a window: ffmpeg runs beyond endSeg, so the reader rides it
+		// from disk. Slide the window as a miss would, else the throttle (bounded
+		// by endSeg) never sees this production and the next miss respawns.
+		if reach, _, _ := o.reachableSessionLocked(hash, variantIdx, segmentIdx); reach != nil {
+			target, covered = reach, true
+		}
+	}
+	if target == nil {
 		// No exact cover. Bump the most-recently-touched rafale so the
 		// GC keeps at least one session warm for the hash.
 		var newest time.Time
@@ -1305,6 +1313,9 @@ func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx i
 	// A cache hit proves production through segmentIdx (the throttle only samples once a second).
 	if covered && segmentIdx > target.producedHighWater {
 		target.producedHighWater = segmentIdx
+	}
+	if covered && segmentIdx > target.endSeg {
+		target.endSeg = segmentIdx + o.opts.LookAheadSegments
 	}
 	target.mu.Unlock()
 }
