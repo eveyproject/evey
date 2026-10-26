@@ -137,3 +137,37 @@ func TestIndexMediaItem_FailedTaskIsAnError(t *testing.T) {
 		t.Fatalf("succeeded task: %v", err)
 	}
 }
+
+func TestRemoveLibrary_DeletesByLibraryFilter(t *testing.T) {
+	var gotPath, gotFilter string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/indexes/media_items":
+			_, _ = w.Write([]byte(`{"uid":"media_items","primaryKey":"id"}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/indexes/media_items/documents/delete":
+			var body struct {
+				Filter string `json:"filter"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			gotPath, gotFilter = r.URL.Path, body.Filter
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"taskUid":7,"indexUid":"media_items","status":"enqueued"}`))
+		case strings.HasPrefix(r.URL.Path, "/tasks/"):
+			_, _ = w.Write([]byte(`{"uid":7,"status":"succeeded"}`))
+		default:
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"taskUid":1,"status":"enqueued"}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	a, err := NewSearchAdapter(srv.URL, "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := a.RemoveLibrary(context.Background(), "lib-1'x"); err != nil {
+		t.Fatal(err)
+	}
+	if gotPath == "" || gotFilter != `library_id = 'lib-1\'x'` {
+		t.Fatalf("delete by filter = %q %q, want the escaped library_id filter", gotPath, gotFilter)
+	}
+}

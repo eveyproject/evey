@@ -454,6 +454,17 @@ func (s *CommandService) DeleteLibrary(ctx context.Context, id string) error {
 	if err := s.libraries.Delete(ctx, shared.LibraryID(id)); err != nil {
 		return fmt.Errorf("delete library: %w", err)
 	}
+	// The cascade removes the media rows without a per-item delete, so their
+	// search documents are purged by library here. Best-effort, like
+	// DeleteMediaItem: the library is already gone.
+	if rm, ok := s.search.(interface {
+		RemoveLibrary(ctx context.Context, libraryID string) error
+	}); ok {
+		if idxErr := rm.RemoveLibrary(ctx, id); idxErr != nil {
+			slog.WarnContext(ctx, "library: search index purge failed",
+				slog.String("libraryID", id), slog.Any("err", idxErr))
+		}
+	}
 	evtDeleted := library.LibraryDeleted{
 		LibraryID:  shared.LibraryID(id),
 		OccurredAt: time.Now(),
