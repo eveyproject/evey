@@ -20,6 +20,8 @@ import {
  * once the real playhead has caught up with it, not at the commit, so the bar
  * never jumps back to the old position while the player seeks.
  */
+const RELEASE_CHECK_MS = 500;
+
 export function useRemoteSeek({
   positionSec,
   getPosition,
@@ -128,12 +130,19 @@ export function useRemoteSeek({
 
   const isHolding = useCallback(() => holdRef.current !== null, []);
 
-  // The real playhead caught up: the bar follows the player again.
-  useEffect(() => {
+  // The real playhead caught up: the bar follows the player again. Checked
+  // on the host's position when it changes, and on a slow clock against the
+  // live one, for a host that commits its position rarely.
+  const releaseIfCaughtUp = useCallback((position: number) => {
     const preview = previewRef.current;
     if (preview === null || commitTimerRef.current || holdRef.current) return;
-    if (shouldReleaseSeekPreview(positionSec, preview)) setPreview(null);
-  }, [positionSec, setPreview]);
+    if (shouldReleaseSeekPreview(position, preview)) setPreview(null);
+  }, [setPreview]);
+  useEffect(() => { releaseIfCaughtUp(positionSec); }, [positionSec, releaseIfCaughtUp]);
+  useEffect(() => {
+    const id = setInterval(() => { if (previewRef.current !== null) releaseIfCaughtUp(cb.current.getPosition()); }, RELEASE_CHECK_MS);
+    return () => clearInterval(id);
+  }, [releaseIfCaughtUp]);
 
   useEffect(() => () => {
     stopHold();

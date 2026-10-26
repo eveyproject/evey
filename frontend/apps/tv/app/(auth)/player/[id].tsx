@@ -68,6 +68,8 @@ import { SyncplaySessionBadge } from "../../../src/components/SyncplaySessionBad
 const REMOTE_KEYS = new Set(["up", "down", "left", "right", "select", "longSelect", "playPause", "play", "pause", "fastForward", "rewind", "menu", "back", "longLeft", "longRight"]);
 
 const CONTROLS_TIMEOUT = 4000;
+const COARSE_CLOCK_SEC = 5;
+const NEAR_END_FINE_SEC = 90;
 // Longer while the controls hold the remote: the viewer is aiming at a button,
 // not glancing at the time.
 const CONTROLS_FOCUSED_TIMEOUT = 8000;
@@ -439,7 +441,11 @@ export default function PlayerScreen() {
       // overlay and the timeline alone; this screen's own copy moves once a
       // second, or every tick re-rendered the whole screen.
       setPlayhead(ev.currentTime);
-      if (Math.abs(ev.currentTime - committedTimeRef.current) >= 1) {
+      // What this screen keeps of the clock (watched threshold, chapter
+      // title, the next-episode card) does with a few seconds, except near
+      // the end, where that card's countdown wants the second.
+      const nearEnd = durationRef.current > 0 && durationRef.current - ev.currentTime < NEAR_END_FINE_SEC;
+      if (Math.abs(ev.currentTime - committedTimeRef.current) >= (nearEnd ? 1 : COARSE_CLOCK_SEC)) {
         committedTimeRef.current = ev.currentTime;
         setCurrentTime(ev.currentTime);
       }
@@ -1500,7 +1506,6 @@ export default function PlayerScreen() {
         visible={showChaptersPicker}
         onClose={() => setShowChaptersPicker(false)}
         chapters={chapters}
-        currentTimeMs={currentTime * 1000}
         onSeek={(sec) => withPlayer((p) => { p.currentTime = sec; })}
       />
 
@@ -1533,7 +1538,6 @@ export default function PlayerScreen() {
       <SkipIntroButton
         mediaId={mediaId}
         filePath={media?.filePath}
-        currentTime={currentTime}
         onSkip={handleSkipIntro}
         onVisibleChange={setSkipVisible}
         onFocusChange={setSkipFocused}
