@@ -76,6 +76,18 @@ func TestPluginTextRepo_DisplayedThroughTheFieldChoice(t *testing.T) {
 	var left int
 	require.NoError(t, db.QueryRowContext(ctx, `SELECT count(*) FROM plugin_metadata_settings WHERE plugin_id = 'pb'`).Scan(&left))
 	assert.Zero(t, left)
+
+	// One locale replaced or removed, the others kept.
+	require.NoError(t, repo.ReplaceForItem(ctx, "pt2", "pa", []library.PluginText{full("pt2", "pa", "fr"), full("pt2", "pa", "de")}))
+	require.NoError(t, settings.SetMetadataFields(ctx, "pa", []string{plugin.MetadataFieldOverview}))
+	require.NoError(t, repo.ReplaceLocale(ctx, library.PluginText{MediaItemID: "pt2", PluginID: "pa", Locale: "fr", Overview: "corrigé"}))
+	require.NoError(t, repo.ReplaceLocale(ctx, library.PluginText{MediaItemID: "pt2", PluginID: "pa", Locale: "de"}))
+	fr, err = repo.DisplayedForLocale(ctx, []string{"pt2"}, "fr")
+	require.NoError(t, err)
+	assert.Equal(t, "corrigé", fr["pt2"][0].Overview)
+	de, err = repo.DisplayedForLocale(ctx, []string{"pt2"}, "de")
+	require.NoError(t, err)
+	assert.Empty(t, de)
 }
 
 func TestPluginMetadataSettingsRepo_DefaultsThenChoice(t *testing.T) {

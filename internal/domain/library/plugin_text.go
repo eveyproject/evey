@@ -29,6 +29,9 @@ type PluginTextRepository interface {
 	// ReplaceForItem stores what one plugin gave for one item: its texts for
 	// every locale, and none of the locales it gave before and no longer does.
 	ReplaceForItem(ctx context.Context, mediaItemID, pluginID string, texts []PluginText) error
+	// ReplaceLocale stores what one plugin gives for one item in one locale,
+	// its other locales untouched; an empty text removes that locale.
+	ReplaceLocale(ctx context.Context, text PluginText) error
 	// DisplayedForLocale returns, for each item, the texts of one locale as
 	// they are to be shown: from enabled plugins only, each field kept only
 	// when the administrator lets that plugin replace it, in plugin id order.

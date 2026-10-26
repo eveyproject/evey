@@ -147,6 +147,8 @@ type engagementDeps struct {
 	pluginHostServer           *pluginhost.HostServer
 	pluginSecurityDashboardSvc *appplugin.SecurityDashboardService
 	pluginIdleMgr              *appplugin.IdleManager
+	pluginMetadataSettings     *appplugin.MetadataSettingsService
+	pluginMetadataRefresh      *appmetadata.PluginTextRefresher
 }
 
 // authDeps groups authentication infrastructure.

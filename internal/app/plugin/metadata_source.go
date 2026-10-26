@@ -69,6 +69,33 @@ func (m *MetadataSource) SetWaker(w pluginWaker) { m.waker = w }
 // LookupTexts is metadata.PluginMetadataSource: each enabled, running
 // metadata plugin in turn, in id order.
 func (m *MetadataSource) LookupTexts(ctx context.Context, req metadata.PluginTextRequest) []metadata.PluginTextAnswer {
+	providers := m.providers(ctx)
+	if len(providers) == 0 {
+		return nil
+	}
+	payload := metadataRequestPayload(req)
+	var answers []metadata.PluginTextAnswer
+	for _, p := range providers {
+		if answer, ok := m.ask(ctx, p, payload, req); ok {
+			answers = append(answers, answer)
+		}
+	}
+	return answers
+}
+
+// LookupTextsFrom is metadata.PluginMetadataSource: one plugin, when it is an
+// enabled, running metadata plugin.
+func (m *MetadataSource) LookupTextsFrom(ctx context.Context, pluginID string, req metadata.PluginTextRequest) (metadata.PluginTextAnswer, bool) {
+	for _, p := range m.providers(ctx) {
+		if p.ID == pluginID {
+			return m.ask(ctx, p, metadataRequestPayload(req), req)
+		}
+	}
+	return metadata.PluginTextAnswer{}, false
+}
+
+// providers lists the enabled, running metadata plugins in id order.
+func (m *MetadataSource) providers(ctx context.Context) []*plugin.Plugin {
 	all, err := m.plugins.List(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "metadata plugins: list plugins", slog.Any("err", err))
@@ -80,30 +107,27 @@ func (m *MetadataSource) LookupTexts(ctx context.Context, req metadata.PluginTex
 			providers = append(providers, p)
 		}
 	}
-	if len(providers) == 0 {
-		return nil
-	}
 	slices.SortFunc(providers, func(a, b *plugin.Plugin) int { return strings.Compare(a.ID, b.ID) })
-	payload := metadataRequestPayload(req)
-	var answers []metadata.PluginTextAnswer
-	for _, p := range providers {
-		if m.waker != nil {
-			m.waker.EnsureStarted(ctx, p.ID)
-			m.waker.Touch(p.ID)
-		}
-		result, handled, err := m.runner.Ask(ctx, p.ID, MetadataRequestEvent, payload, m.timeout)
-		if err != nil {
-			slog.WarnContext(ctx, "metadata plugin did not answer",
-				slog.String("plugin", p.Name), slog.String("media_item_id", req.MediaItemID), slog.Any("err", err))
-			continue
-		}
-		answer := metadata.PluginTextAnswer{PluginID: p.ID}
-		if handled {
-			answer.Texts = parseMetadataAnswer(result, req.Language)
-		}
-		answers = append(answers, answer)
+	return providers
+}
+
+// ask sends one plugin the request; ok is false when it did not answer.
+func (m *MetadataSource) ask(ctx context.Context, p *plugin.Plugin, payload map[string]any, req metadata.PluginTextRequest) (metadata.PluginTextAnswer, bool) {
+	if m.waker != nil {
+		m.waker.EnsureStarted(ctx, p.ID)
+		m.waker.Touch(p.ID)
 	}
-	return answers
+	result, handled, err := m.runner.Ask(ctx, p.ID, MetadataRequestEvent, payload, m.timeout)
+	if err != nil {
+		slog.WarnContext(ctx, "metadata plugin did not answer",
+			slog.String("plugin", p.Name), slog.String("media_item_id", req.MediaItemID), slog.Any("err", err))
+		return metadata.PluginTextAnswer{}, false
+	}
+	answer := metadata.PluginTextAnswer{PluginID: p.ID}
+	if handled {
+		answer.Texts = parseMetadataAnswer(result, req.Language)
+	}
+	return answer, true
 }
 
 // metadataRequestPayload is the request as the plugin reads it.
