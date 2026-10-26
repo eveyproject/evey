@@ -155,6 +155,13 @@ export default function LibraryDetailScreen() {
   const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>(LIBRARY_DEFAULT_SORT_ORDER);
   const [searchText, setSearchText] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
+  // The genre row scrolls sideways under the remote; a chevron at its end
+  // says so while chips are still hidden past the edge (owner, 2026-10-26:
+  // the row read as complete). Measured, not guessed from a count.
+  const [genreRowWidth, setGenreRowWidth] = useState(0);
+  const [genreContentWidth, setGenreContentWidth] = useState(0);
+  const [genreScrollX, setGenreScrollX] = useState(0);
+  const moreGenresRight = genreContentWidth > genreRowWidth + 1 && genreScrollX + genreRowWidth < genreContentWidth - 8;
   const debouncedSearch = useDebounce(searchText, 300);
   const [shuffling, setShuffling] = useState(false);
   // Ref latch, not just the state flag: a second remote OK press before the
@@ -462,35 +469,31 @@ export default function LibraryDetailScreen() {
         <>
           {headerReady ? (
           <View onLayout={(e) => { measuredHeaderHeight[headerKind] = e.nativeEvent.layout.height; }}>
-          <TextInput
-            style={[
-              styles.searchInput,
-              {
-                backgroundColor: theme.colors.surface,
-                color: theme.colors.text,
-                borderRadius: theme.radii.md,
-                borderColor: searchFocused ? theme.colors.accent : theme.colors.border,
-              },
-            ]}
-            placeholder={t("media.library.filterByName")}
-            placeholderTextColor={theme.colors.textMuted}
-            value={searchText}
-            onChangeText={setSearchText}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            accessibilityLabel={t("media.library.filterByName")}
-          />
-
-          <View style={styles.toolbar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
-              <Chip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
-              {genres.map((g) => (
-                <Chip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
-              ))}
-            </ScrollView>
+          <View style={styles.searchRow}>
+            <TextInput
+              style={[
+                styles.searchInput,
+                {
+                  backgroundColor: theme.colors.surface,
+                  color: theme.colors.text,
+                  borderRadius: theme.radii.md,
+                  borderColor: searchFocused ? theme.colors.accent : theme.colors.border,
+                },
+              ]}
+              placeholder={t("media.library.filterByName")}
+              placeholderTextColor={theme.colors.textMuted}
+              value={searchText}
+              onChangeText={setSearchText}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              accessibilityLabel={t("media.library.filterByName")}
+            />
+            {/* The actions sit by the search field, not at the end of the
+                genre row: there they read as the row's last chips and hid
+                that the genres went on (owner, 2026-10-26). */}
             {canPlayAll && (
               <FocusableCard
                 onPress={handlePlayAll}
@@ -513,6 +516,29 @@ export default function LibraryDetailScreen() {
               )}
               <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }}>{t("common.shufflePlay")}</Text>
             </FocusableCard>
+          </View>
+
+          <View style={styles.toolbar}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ gap: 10 }}
+              onLayout={(e) => setGenreRowWidth(e.nativeEvent.layout.width)}
+              onContentSizeChange={(w) => setGenreContentWidth(w)}
+              onScroll={(e) => setGenreScrollX(e.nativeEvent.contentOffset.x)}
+              scrollEventThrottle={50}
+            >
+              <Chip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
+              {genres.map((g) => (
+                <Chip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
+              ))}
+            </ScrollView>
+            {moreGenresRight && (
+              <View style={[styles.moreHint, { backgroundColor: theme.colors.surface }]} accessible={false} testID="more-genres-hint">
+                <Ionicons name="chevron-forward" size={22} color={theme.colors.textMuted} />
+              </View>
+            )}
           </View>
 
           <View style={styles.toolbar}>
@@ -603,13 +629,26 @@ export default function LibraryDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
-  searchInput: {
-    marginHorizontal: 24,
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 24,
     marginTop: 16,
+  },
+  searchInput: {
+    flex: 1,
     paddingHorizontal: 20,
     paddingVertical: 9,
     fontSize: 17,
     borderWidth: 3,
+  },
+  moreHint: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   toolbar: {
     flexDirection: "row",
