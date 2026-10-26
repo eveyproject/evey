@@ -904,3 +904,42 @@ func TestCreateBackup_ForwardsIncludeTelemetry(t *testing.T) {
 		}
 	})
 }
+
+// blockingDumper parks RestoreTables until release is closed, so a test can
+// hold a restore in flight.
+type blockingDumper struct {
+	*fakes.FakeDatabaseDumper
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (d *blockingDumper) RestoreTables(ctx context.Context, data io.Reader) error {
+	close(d.entered)
+	<-d.release
+	return d.FakeDatabaseDumper.RestoreTables(ctx, data)
+}
+
+func TestRestoreBackup_ExclusiveWithRestoreAndBackup(t *testing.T) {
+	d := &blockingDumper{FakeDatabaseDumper: fakes.NewFakeDatabaseDumper(), entered: make(chan struct{}), release: make(chan struct{})}
+	svc := NewService(fakes.NewFakeBackupStore(), d, "0.1.0")
+	dump := []byte("-- PostgreSQL database dump\n")
+	archive := buildTarGz(t, makeManifest(dump), dump, nil)
+
+	done := make(chan error, 1)
+	go func() { done <- svc.RestoreBackup(context.Background(), bytes.NewReader(archive)) }()
+	<-d.entered
+
+	if err := svc.RestoreBackup(context.Background(), bytes.NewReader(archive)); !errors.Is(err, ErrOperationInProgress) {
+		t.Fatalf("second restore during a restore: got %v, want ErrOperationInProgress", err)
+	}
+	if _, err := svc.CreateBackup(context.Background()); !errors.Is(err, ErrOperationInProgress) {
+		t.Fatalf("backup during a restore: got %v, want ErrOperationInProgress", err)
+	}
+	close(d.release)
+	if err := <-done; err != nil {
+		t.Fatalf("first restore: %v", err)
+	}
+	if _, err := svc.CreateBackup(context.Background()); err != nil {
+		t.Fatalf("backup after the restore: %v", err)
+	}
+}
