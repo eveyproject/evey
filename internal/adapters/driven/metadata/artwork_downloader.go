@@ -20,7 +20,9 @@ type ArtworkHTTPDownloader struct {
 
 func NewArtworkHTTPDownloader(httpClient *http.Client) *ArtworkHTTPDownloader {
 	if httpClient == nil {
-		httpClient = ssrf.SafeHTTPClient(60 * time.Second)
+		// NoProxy: the URLs come from external sources; behind a proxy the
+		// safe dialer would never see the real destination.
+		httpClient = ssrf.SafeHTTPClientNoProxy(60 * time.Second)
 	}
 	return &ArtworkHTTPDownloader{httpClient: httpClient}
 }

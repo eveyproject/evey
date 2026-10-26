@@ -44,6 +44,8 @@ type PluginDataRepository interface {
 	Set(ctx context.Context, pluginID, userID, profileID, key, value string) error
 	Delete(ctx context.Context, pluginID, userID, profileID, key string) error
 	List(ctx context.Context, pluginID, userID, profileID string) ([]*PluginDataEntry, error)
+	// Count is the number of keys in one scope, for the key-count cap.
+	Count(ctx context.Context, pluginID, userID, profileID string) (int, error)
 }
 
 type PluginRuntimeRepository interface {

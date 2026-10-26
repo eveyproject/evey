@@ -53,7 +53,7 @@ valor guardado en **Administración → Configuración del servidor → Datos y 
 
 | Variable | Por defecto | Qué hace | Panel |
 | --- | --- | --- | --- |
-| `EVEY_LOG_DEV_MODE` | `false` | Modo desarrollador: las comprobaciones de seguridad al arrancar solo avisan, y los plugins pueden ejecutarse sin la biblioteca del sandbox. Nunca en un servidor real; con `EVEY_ENV=production` el servidor se niega a arrancar. | ninguno |
+| `EVEY_LOG_DEV_MODE` | `false` | Modo desarrollador: las comprobaciones de seguridad al arrancar solo avisan, y los plugins pueden ejecutarse sin la biblioteca del sandbox. Solo surte efecto junto con `EVEY_ENV=dev`; por sí sola se ignora con un aviso. Nunca en un servidor real. | ninguno |
 
 <!-- sources
 internal/config/config.go - EVEY_BACKUP_*, EVEY_LOG_*, EVEY_*_RETENTION_DAYS, EVEY_METRICS_*, EVEY_OTLP_ENDPOINT, EVEY_TRACING_* ; ScrapeToken comment ; WarnValidate (DevMode, sample ratio)

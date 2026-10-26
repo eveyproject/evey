@@ -53,4 +53,4 @@ valeur enregistrée dans **Administration → Configuration du serveur → Donn�
 
 | Variable | Défaut | Effet | Panneau |
 | --- | --- | --- | --- |
-| `EVEY_LOG_DEV_MODE` | `false` | Mode développeur : les contrôles de sécurité du démarrage ne font qu'avertir, et les plugins peuvent tourner sans la bibliothèque de sandbox. Jamais sur un vrai serveur ; avec `EVEY_ENV=production`, le serveur refuse de démarrer. | aucun |
+| `EVEY_LOG_DEV_MODE` | `false` | Mode développeur : les contrôles de sécurité du démarrage ne font qu'avertir, et les plugins peuvent tourner sans la bibliothèque de sandbox. Ne prend effet qu'avec `EVEY_ENV=dev` ; seule, elle est ignorée avec un avertissement. Jamais sur un vrai serveur. | aucun |

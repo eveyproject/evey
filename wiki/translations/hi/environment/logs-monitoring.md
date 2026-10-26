@@ -51,7 +51,7 @@ reviewed: true
 
 | वेरिएबल | डिफ़ॉल्ट | यह क्या करता है | पैनल |
 | --- | --- | --- | --- |
-| `EVEY_LOG_DEV_MODE` | `false` | डेवलपर मोड: शुरू होते समय की सुरक्षा जाँचें सिर्फ़ चेतावनी देती हैं, और प्लगइन सैंडबॉक्स लाइब्रेरी के बिना चल सकते हैं। असली सर्वर पर कभी नहीं; `EVEY_ENV=production` के साथ सर्वर शुरू होने से मना करता है। | कोई नहीं |
+| `EVEY_LOG_DEV_MODE` | `false` | डेवलपर मोड: शुरू होते समय की सुरक्षा जाँचें सिर्फ़ चेतावनी देती हैं, और प्लगइन सैंडबॉक्स लाइब्रेरी के बिना चल सकते हैं। यह सिर्फ़ `EVEY_ENV=dev` के साथ असर करता है; अकेले सेट करने पर चेतावनी के साथ अनदेखा किया जाता है। असली सर्वर पर कभी नहीं। | कोई नहीं |
 
 <!-- sources
 internal/config/config.go - EVEY_BACKUP_*, EVEY_LOG_*, EVEY_*_RETENTION_DAYS, EVEY_METRICS_*, EVEY_OTLP_ENDPOINT, EVEY_TRACING_* ; ScrapeToken comment ; WarnValidate (DevMode, sample ratio)
