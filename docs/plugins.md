@@ -142,7 +142,7 @@ refreshed. **Fetch for the whole library**, on the same panel, asks it about
 the titles already there, one after the other, and shows how far it has gone
 and, at the end, how many it found and how many got no answer. A refresh of
 the title from TMDB never overwrites the plugin's text; disabling the plugin
-hides it, uninstalling it deletes it.
+hides that text, uninstalling it deletes it.
 
 Seasons and episodes keep TMDB's text, and search still matches TMDB's titles.
 

@@ -1,5 +1,5 @@
 ---
-source_sha: f7f285ec5b54df9dd7cb696c205e38b3ba09fc8a23a1c53ccad246f60c918158
+source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -116,7 +116,7 @@ enumeran para que un stub no te confunda.
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` o `media.read` | La ficha completa del medio, con `file_path`, `provider_ids` y `genres`. |
 | `Fetch(url, method, headers)` | `network` | La única salida del sandbox: `http` o `https`, `GET` o `HEAD`, un host de `external_fetch`, las direcciones privadas rechazadas después de la resolución y a través de las redirecciones. El cuerpo se limita a 8 MiB (`truncated` lo indica) y la petición entera a 20 segundos. El servidor no añade ninguna credencial propia. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` o `media.read` | *No servido.* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` o `media.write`, y la capacidad `metadata.provider` | Aporta tu texto para una película o una serie sin que te lo pidan, como lo haría una [respuesta de metadatos](#metadata-requests). `fields` lleva `locale` (obligatorio) y cualquiera de `title`, `overview`, `tagline`; el texto sustituye lo que aportaste para ese idioma, y uno sin ningún campo lo quita. `provider_ids` se rechaza: TMDB identifica el elemento. |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` o `media.write`, y la capacidad `metadata.provider` | Aporta tu texto para una película o una serie sin que te lo pidan, como lo haría una [respuesta de metadatos](#metadata-requests). `fields` lleva `locale` (obligatorio) y cualquiera de `title`, `overview`, `tagline`; el texto sustituye lo que aportaste para ese idioma, y un `fields` que solo lleva `locale` lo quita. `provider_ids` se rechaza: TMDB identifica el elemento. |
 | `GetUserPreferences` | `api.user` | *No servido.* |
 | `SendNotification` | `notification.sender` | *No servido.* |
 
@@ -151,13 +151,13 @@ Responde `handled: true` con un `result` de la forma:
 }
 ```
 
-Los campos de primer nivel están en `locale`, o en el `language` de la
-petición cuando falta `locale`; `translations` añade otros idiomas. Omite un
+Los campos de primer nivel están en el idioma `locale`, o en el `language`
+de la petición cuando falta `locale`; `translations` añade otros idiomas. Omite un
 campo que no cubras. Las etiquetas de idioma se reducen a su idioma (`fr-FR`
 se lee `fr`), y un campo de más de 8 KiB se ignora. Una respuesta sustituye
 todo lo que aportaste antes para el elemento; `handled: false`, o una
-respuesta sin texto, indica que no conoces el elemento y lo borra. Un error o
-un tiempo agotado conserva lo que aportaste.
+respuesta sin texto, indica que no conoces el elemento y borra lo que aportaste. Si hay un
+error o se agota el tiempo, se conserva lo que aportaste.
 
 El administrador elige cuáles de `title`, `overview` y `tagline` sustituye tu
 texto, y puede consultarte por toda la biblioteca de una vez

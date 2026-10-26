@@ -1,5 +1,5 @@
 ---
-source_sha: c893d5af47331de964c0067be032f345a649fa683f5c57669f68661aa76f66e0
+source_sha: 3ef56ca6884cb437782bd60a1bb1314f62db8602db661c29fca9d5f8cab4b4de
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -155,7 +155,7 @@ oder aktualisiert werden. **Für die ganze Bibliothek abrufen** im selben Bereic
 befragt es zu den bereits vorhandenen Titeln, einem nach dem anderen, zeigt
 den Fortschritt und am Ende, wie viele es gefunden hat und wie viele ohne
 Antwort blieben. Eine Aktualisierung des Titels von TMDB überschreibt den Text
-des Plugins nie; das Plugin zu deaktivieren blendet ihn aus, es zu
+des Plugins nie; das Plugin zu deaktivieren blendet diesen Text aus, es zu
 deinstallieren löscht ihn.
 
 Staffeln und Episoden behalten den Text von TMDB, und die Suche findet weiterhin

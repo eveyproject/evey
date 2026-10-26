@@ -1,5 +1,5 @@
 ---
-source_sha: c893d5af47331de964c0067be032f345a649fa683f5c57669f68661aa76f66e0
+source_sha: 3ef56ca6884cb437782bd60a1bb1314f62db8602db661c29fca9d5f8cab4b4de
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -153,7 +153,7 @@ identification ou de son actualisation. **Récupérer pour toute la
 bibliothèque**, sur le même panneau, l'interroge sur les titres déjà présents,
 l'un après l'autre, montre où il en est et, à la fin, combien il en a trouvé
 et combien sont restés sans réponse. Une actualisation du titre depuis TMDB
-n'écrase jamais le texte du plugin ; désactiver le plugin le masque, le
+n'écrase jamais le texte du plugin ; désactiver le plugin masque ce texte, le
 désinstaller le supprime.
 
 Les saisons et les épisodes gardent le texte de TMDB, et la recherche trouve

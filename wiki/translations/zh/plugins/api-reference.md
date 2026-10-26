@@ -1,5 +1,5 @@
 ---
-source_sha: f7f285ec5b54df9dd7cb696c205e38b3ba09fc8a23a1c53ccad246f60c918158
+source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -103,7 +103,7 @@ EVEY_HOST_SOCK=<path>     # 您的进程连接这里，调用 HostService
 | `GetMediaItem(id)`、`ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` 或 `media.read` | 完整的媒体记录，包括 `file_path`、`provider_ids` 和 `genres`。 |
 | `Fetch(url, method, headers)` | `network` | 访问沙箱外部的唯一途径：`http` 或 `https`，`GET` 或 `HEAD`，目标是 `external_fetch` 里的主机；私有地址在解析后和重定向时都会被拒绝。响应体最大 8 MiB（`truncated` 会注明是否被截断），整个请求最长 20 秒。服务器不会附加自己的任何凭据。 |
 | `SearchMedia`、`GetMediaStreams`、`GetChapters`、`GetSubtitles` | `api.library` 或 `media.read` | *未提供。* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` 或 `media.write`，以及 `metadata.provider` 能力 | 主动为一部电影或剧集提供您的文本，与[元数据回答](#metadata-requests)相同。`fields` 包含 `locale`（必填）以及 `title`、`overview`、`tagline` 中的任意几项；该文本替换您为这种语言提供过的内容，不含任何字段的文本会将其删除。`provider_ids` 会被拒绝：作品由 TMDB 识别。 |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` 或 `media.write`，以及 `metadata.provider` 能力 | 主动为一部电影或剧集提供您的文本，与[元数据回答](#metadata-requests)相同。`fields` 包含 `locale`（必填）以及 `title`、`overview`、`tagline` 中的任意几项；该文本替换您为这种语言提供过的内容，只含 `locale` 的 `fields` 会将其删除。`provider_ids` 会被拒绝：作品由 TMDB 识别。 |
 | `GetUserPreferences` | `api.user` | *未提供。* |
 | `SendNotification` | `notification.sender` | *未提供。* |
 
@@ -135,7 +135,7 @@ EVEY_HOST_SOCK=<path>     # 您的进程连接这里，调用 HostService
 }
 ```
 
-顶层字段使用 `locale` 指定的语言；没有 `locale` 时使用请求中的 `language`。`translations` 用于添加其他语言。您不覆盖的字段请省略。语言标签会被截为语言部分（`fr-FR` 视为 `fr`），超过 8 KiB 的字段会被忽略。一个回答会替换您之前为该作品提供的全部内容；`handled: false` 或不含文本的回答表示您不认识该作品，并会将其清除。出错或超时则保留您之前提供的内容。
+顶层字段使用 `locale` 指定的语言；没有 `locale` 时使用请求中的 `language`。`translations` 用于添加其他语言。您不覆盖的字段请省略。语言标签会被截为语言部分（`fr-FR` 视为 `fr`），超过 8 KiB 的字段会被忽略。一个回答会替换您之前为该作品提供的全部内容；`handled: false` 或不含文本的回答表示您不认识该作品，并会清除您为该作品提供的内容。出错或超时则保留您之前提供的内容。
 
 管理员选择您的文本替换 `title`、`overview` 和 `tagline` 中的哪些字段，并可以一次性就整个媒体库向您查询（[元数据插件](../plugins.md#metadata-plugins)）。季和单集不会发送。
 

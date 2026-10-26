@@ -1,5 +1,5 @@
 ---
-source_sha: f7f285ec5b54df9dd7cb696c205e38b3ba09fc8a23a1c53ccad246f60c918158
+source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -115,7 +115,7 @@ sont listées pour qu'un stub ne vous induise pas en erreur.
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` ou `media.read` | La fiche média complète, `file_path`, `provider_ids` et `genres` compris. |
 | `Fetch(url, method, headers)` | `network` | Le seul accès au réseau depuis la sandbox : `http` ou `https`, `GET` ou `HEAD`, un hôte de `external_fetch`, adresses privées refusées après résolution et à travers les redirections. Le corps est plafonné à 8 Mio (`truncated` le signale) et la requête entière à 20 secondes. Le serveur n'ajoute aucun identifiant qui lui appartienne. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` ou `media.read` | *Non servie.* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` ou `media.write`, et la capacité `metadata.provider` | Fournit votre texte pour un film ou une série sans qu'on vous le demande, comme le ferait une [réponse de métadonnées](#metadata-requests). `fields` porte `locale` (obligatoire) et tout ou partie de `title`, `overview`, `tagline` ; le texte remplace ce que vous aviez fourni pour cette langue, et un texte sans aucun champ la retire. `provider_ids` est refusé : c'est TMDB qui identifie l'élément. |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` ou `media.write`, et la capacité `metadata.provider` | Fournit votre texte pour un film ou une série sans qu'on vous le demande, comme le ferait une [réponse de métadonnées](#metadata-requests). `fields` porte `locale` (obligatoire) et tout ou partie de `title`, `overview`, `tagline` ; le texte remplace ce que vous aviez fourni pour cette langue, et un `fields` qui ne porte que `locale` retire ce que vous aviez fourni pour cette langue. `provider_ids` est refusé : c'est TMDB qui identifie l'élément. |
 | `GetUserPreferences` | `api.user` | *Non servie.* |
 | `SendNotification` | `notification.sender` | *Non servie.* |
 
@@ -156,7 +156,7 @@ d'autres langues. Omettez un champ que vous ne couvrez pas. Les étiquettes de
 langue sont ramenées à leur langue (`fr-FR` se lit `fr`), et un champ de plus
 de 8 Kio est ignoré. Une réponse remplace tout ce que vous aviez fourni pour
 l'élément ; `handled: false`, ou une réponse sans texte, signifie que vous ne
-connaissez pas l'élément et l'efface. Une erreur ou un délai dépassé conserve
+connaissez pas l'élément et efface ce que vous aviez fourni. Une erreur ou un délai dépassé conserve
 ce que vous aviez fourni.
 
 L'administrateur choisit lesquels de `title`, `overview` et `tagline` votre

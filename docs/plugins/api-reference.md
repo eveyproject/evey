@@ -110,7 +110,7 @@ does not mislead you.
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` or `media.read` | The full media record, including `file_path`, `provider_ids` and `genres`. |
 | `Fetch(url, method, headers)` | `network` | The only way out of the sandbox: `http` or `https`, `GET` or `HEAD`, a host of `external_fetch`, private addresses refused after resolution and through redirects. The body is capped at 8 MiB (`truncated` says so) and the whole request at 20 seconds. The server attaches no credential of its own. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` or `media.read` | *Not served.* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` or `media.write`, and the `metadata.provider` capability | Gives your text for one movie or series unasked, as a [metadata answer](#metadata-requests) would. `fields` carries `locale` (required) and any of `title`, `overview`, `tagline`; the text replaces what you gave for that locale, and one with no field removes it. `provider_ids` is refused: TMDB identifies the item. |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` or `media.write`, and the `metadata.provider` capability | Gives your text for one movie or series unasked, as a [metadata answer](#metadata-requests) would. `fields` carries `locale` (required) and any of `title`, `overview`, `tagline`; the text replaces what you gave for that locale, and `fields` holding only `locale` removes it. `provider_ids` is refused: TMDB identifies the item. |
 | `GetUserPreferences` | `api.user` | *Not served.* |
 | `SendNotification` | `notification.sender` | *Not served.* |
 
@@ -150,7 +150,7 @@ The top-level fields are in `locale`, or in the request's `language` when
 do not cover. Language tags are cut to their language (`fr-FR` reads `fr`),
 and a field over 8 KiB is ignored. An answer replaces everything you gave for
 the item before; `handled: false`, or an answer with no text, says you do not
-know the item and clears it. An error or a timeout keeps what you gave.
+know the item and clears what you gave for it. An error or a timeout keeps what you gave.
 
 The administrator chooses which of `title`, `overview` and `tagline` your text
 replaces, and can ask you about the whole library at once
