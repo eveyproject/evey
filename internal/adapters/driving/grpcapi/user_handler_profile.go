@@ -56,13 +56,9 @@ func (h *userHandler) CreateProfile(ctx context.Context, req *eveyv1.CreateProfi
 		user.WithProfilePreferences(req.Preferences),
 		user.WithProfileIsKids(req.IsKids),
 	}
-	if req.AvatarPath != "" {
-		if strings.Contains(req.AvatarPath, "..") || !strings.HasPrefix(req.AvatarPath, "avatars/") {
-			span.SetStatus(otelcodes.Error, "invalid avatar path")
-			return nil, h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.invalid_avatar_path")
-		}
-		opts = append(opts, user.WithProfileAvatar(req.AvatarPath))
-	}
+	// req.AvatarPath is ignored: only the upload handler sets the avatar, at a
+	// path it derives from the profile ID. A client path could name another
+	// profile's file, which the next upload deletes as "the old avatar".
 	if req.MaxRating != "" {
 		opts = append(opts, user.WithProfileMaxRating(req.MaxRating))
 	}
@@ -285,13 +281,7 @@ func (h *userHandler) applyProfileUpdateFields(ctx context.Context, span trace.S
 	if req.Name != nil {
 		p.Name = *req.Name
 	}
-	if req.AvatarPath != nil {
-		if strings.Contains(*req.AvatarPath, "..") || !strings.HasPrefix(*req.AvatarPath, "avatars/") {
-			span.SetStatus(otelcodes.Error, "invalid avatar path")
-			return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.user.invalid_avatar_path")
-		}
-		p.AvatarPath = req.AvatarPath
-	}
+	// req.AvatarPath is ignored, as in CreateProfile.
 	if req.MaxRating != nil {
 		p.MaxRating = req.MaxRating
 	}
