@@ -159,18 +159,10 @@ func (h *userHandler) loadProfileForUpdate(ctx context.Context, span trace.Span,
 	return p, nil
 }
 
-// enforceParentalUpdateGate blocks changes to any parental field (kids flag,
-// age cap, PIN) when the caller is currently operating FROM a kids profile -
-// that would let a kid lift its own restrictions in place. They must first
-// switch to a non-kids profile, which already requires the parental PIN
-// (RefreshToken's switch gate). Not gated on admin: in a single-user server
-// the kid uses the admin account's kid profile, so admin-status is the wrong
-// signal - the active PROFILE is. No-op when the request touches no parental
-// field.
 // refuseFromRestrictedProfile blocks an action when the caller's ACTIVE profile
-// is a kids profile, regardless of account ownership or admin status. Fails
-// closed: if the caller's profile cannot be loaded we cannot confirm it is
-// unrestricted, so we refuse.
+// is parental-restricted (kids, or non-kids with parental control and a PIN),
+// regardless of account ownership or admin status. Fails closed: if the
+// caller's profile cannot be loaded we cannot confirm it is unrestricted.
 func (h *userHandler) refuseFromRestrictedProfile(ctx context.Context, span trace.Span, claims *user.Claims) error {
 	if claims.ProfileID == "" {
 		return nil
@@ -179,32 +171,83 @@ func (h *userHandler) refuseFromRestrictedProfile(ctx context.Context, span trac
 	if err != nil || cp == nil {
 		return internalError(ctx, "parental gate: load caller profile", err)
 	}
-	if cp.IsKids {
-		span.SetStatus(otelcodes.Error, "profile management from kids profile")
+	if cp.IsParentalRestricted() {
+		span.SetStatus(otelcodes.Error, "profile management from restricted profile")
 		return h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.profiles_need_non_kids")
 	}
 	return nil
 }
 
+// enforceParentalUpdateGate blocks parental changes (kids flag, age cap, PIN)
+// made FROM a kids profile, and makes any loosening of a PIN-guarded or
+// restricted profile prove the current PIN, like the HTTP parental route.
+// Not gated on admin: the active PROFILE is the signal.
 func (h *userHandler) enforceParentalUpdateGate(ctx context.Context, span trace.Span, req *eveyv1.UpdateProfileRequest, claims *user.Claims, p *user.Profile) error {
 	if req.IsKids == nil && req.MaxAge == nil && req.Pin == nil {
 		return nil
 	}
-	callerIsKids := false
+	var caller *user.Profile
 	switch {
 	case claims.ProfileID == req.Id:
-		callerIsKids = p.IsKids // editing the profile we're on
+		caller = p // editing the profile we're on
 	case claims.ProfileID != "":
 		cp, cerr := h.query.GetProfileByID(ctx, claims.ProfileID)
 		if cerr != nil || cp == nil {
 			// Fail closed: can't confirm the caller isn't on a kids profile.
 			return internalError(ctx, "parental gate: load caller profile", cerr)
 		}
-		callerIsKids = cp.IsKids
+		caller = cp
 	}
-	if callerIsKids {
+	if caller != nil && caller.IsKids {
 		span.SetStatus(otelcodes.Error, "parental change from kids profile")
 		return h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.parental_needs_non_kids")
+	}
+	if !loosensProfileParental(p, req) {
+		return nil
+	}
+	guard := p
+	if !guard.HasPIN() && caller.IsParentalRestricted() {
+		guard = caller
+	}
+	if !guard.HasPIN() {
+		return nil
+	}
+	return h.verifyCurrentPIN(ctx, span, guard, req.GetCurrentPin())
+}
+
+// loosensProfileParental reports whether req relaxes what p enforces: the kids
+// flag dropped, or the effective age cap cleared or raised.
+func loosensProfileParental(p *user.Profile, req *eveyv1.UpdateProfileRequest) bool {
+	if req.IsKids != nil && !*req.IsKids && p.IsKids {
+		return true
+	}
+	eff := p.EffectiveParental()
+	if req.MaxAge == nil || eff == nil || eff.MaxAge == nil {
+		return false
+	}
+	return *req.MaxAge < 0 || int(*req.MaxAge) > *eff.MaxAge
+}
+
+// verifyCurrentPIN checks pin against guard's PIN under the per-profile
+// attempt budget (a 4-digit PIN is 10 000 guesses).
+func (h *userHandler) verifyCurrentPIN(ctx context.Context, span trace.Span, guard *user.Profile, pin string) error {
+	if strings.TrimSpace(pin) == "" {
+		span.SetStatus(otelcodes.Error, "current PIN required")
+		return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.current_pin_required")
+	}
+	if h.pinRL != nil && !h.pinRL.Allow(string(guard.ID)) {
+		span.SetStatus(otelcodes.Error, "PIN attempts rate limited")
+		return h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.auth.too_many_attempts")
+	}
+	ok, err := h.userSvc.VerifyPIN(pin, guard.Parental.PINHash)
+	if err != nil {
+		span.RecordError(err)
+		return internalError(ctx, "verify current PIN", err)
+	}
+	if !ok {
+		span.SetStatus(otelcodes.Error, "invalid current PIN")
+		// PermissionDenied, not Unauthenticated: clients sign out on a 401.
+		return h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.invalid_pin")
 	}
 	return nil
 }
@@ -229,25 +272,7 @@ func (h *userHandler) enforceProfilePINProof(ctx context.Context, span trace.Spa
 	if !hasPIN || string(p.UserID) != claims.UserID {
 		return h.reauthenticate(ctx, span, claims.UserID, req.GetCurrentPassword())
 	}
-	if strings.TrimSpace(req.GetCurrentPin()) == "" {
-		span.SetStatus(otelcodes.Error, "current PIN required")
-		return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.current_pin_required")
-	}
-	if h.pinRL != nil && !h.pinRL.Allow(string(p.ID)) {
-		span.SetStatus(otelcodes.Error, "PIN attempts rate limited")
-		return h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.auth.too_many_attempts")
-	}
-	ok, err := h.userSvc.VerifyPIN(req.GetCurrentPin(), p.Parental.PINHash)
-	if err != nil {
-		span.RecordError(err)
-		return internalError(ctx, "verify current PIN", err)
-	}
-	if !ok {
-		span.SetStatus(otelcodes.Error, "invalid current PIN")
-		// PermissionDenied, not Unauthenticated: clients sign out on a 401.
-		return h.translator.TranslatedError(ctx, codes.PermissionDenied, "errors.auth.invalid_pin")
-	}
-	return nil
+	return h.verifyCurrentPIN(ctx, span, p, req.GetCurrentPin())
 }
 
 // applyProfileUpdateFields patches every non-nil field of req onto p. Fields
