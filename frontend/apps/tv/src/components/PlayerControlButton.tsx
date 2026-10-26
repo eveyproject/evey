@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { FONT_SIZE } from "@evey/theme";
@@ -12,7 +12,7 @@ import { useTheme } from "../providers/ThemeProvider";
 // Evey's look, as on the web player: white glyphs on the picture, the brand
 // accent where the focus is. The lit control fills with the accent - a ring
 // alone was invisible on a bright frame from the sofa.
-export function PlayerControlButton({
+export const PlayerControlButton = memo(function PlayerControlButton({
   icon,
   text,
   caption,
@@ -82,7 +82,7 @@ export function PlayerControlButton({
       {caption ? <Text style={[styles.caption, { color }]}>{caption}</Text> : null}
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   button: { alignItems: "center", justifyContent: "center", backgroundColor: "transparent" },
