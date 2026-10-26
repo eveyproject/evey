@@ -97,9 +97,8 @@ function blobToDataUrl(blob: Blob): Promise<string> {
  */
 export function createPluginRpc(pluginId: string, transport: PluginRpcTransport) {
   let token: string | null = null;
-  // The issue in flight: a widget fires several calls at boot, and each one
-  // issued its own token (five identical requests on a television's start,
-  // 2026-10-26). The first issue is shared by every caller that finds it.
+  // The issue in flight: a widget fires several calls at boot and each one
+  // issued its own token. The first issue is shared by every caller that finds it.
   let issuing: Promise<string | null> | null = null;
   const issue = transport.issueToken ?? (async (id: string) => (await adminPluginServiceIssuePluginToken(id, {})).token ?? null);
 

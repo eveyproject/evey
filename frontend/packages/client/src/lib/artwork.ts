@@ -44,7 +44,7 @@ export function coverArtUri(serverUrl: string, coverArtUrl?: string, width?: num
   if (!coverArtUrl) return undefined;
   if (/^https?:/i.test(coverArtUrl)) return coverArtUrl;
   // The server not known yet (first render): a relative path would be
-  // requested as is and fail (television logcat, 2026-10-26).
+  // requested as is and fail.
   if (!serverUrl) return undefined;
   const abs = `${serverUrl}${coverArtUrl}`;
   if (!width || width <= 0) return abs;

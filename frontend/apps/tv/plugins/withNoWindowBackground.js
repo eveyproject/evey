@@ -1,13 +1,9 @@
 const { withMainActivity } = require("expo/config-plugins");
 
-// Drops the window's own background once the React root is in place. Every
+// Drops the window's own background once the React root is in place: every
 // screen paints the theme background itself (the Stack contentStyle), so the
-// window's was one more opaque full-screen layer under all of them: measured
-// on a TV box with the overdraw debug view, the home stacked four of them and
-// the GPU, not the CPU, set the frame time (2026-09-20).
-//
-// Before super.onCreate the theme background still shows as the launch
-// background; it is only dropped after, when the root view covers the window.
+// window's was one more opaque full-screen layer and the overdraw set the
+// frame time on a TV box. Before super.onCreate it still serves as the launch background.
 function applyNoWindowBackground(src) {
   if (src.includes("window.setBackgroundDrawable(null)")) return src;
   const out = src.replace(

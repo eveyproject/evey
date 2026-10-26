@@ -57,9 +57,8 @@ export const CONTROL = {
 } as const;
 
 // How many cards of `cardWidth` fit side by side in `availableWidth` with
-// `gap` between them. The grids used to hard-code five columns, which on a
-// 1200dp-wide television (density 1.6) left the right quarter of the screen
-// empty (owner, 2026-10-26); a 960dp one still gets five.
+// `gap` between them: a hard-coded five left the right quarter of a
+// 1200dp-wide screen empty, while a 960dp one still gets five.
 export function gridColumns(availableWidth: number, cardWidth: number, gap: number): number {
   return Math.max(1, Math.floor((availableWidth + gap) / (cardWidth + gap)));
 }

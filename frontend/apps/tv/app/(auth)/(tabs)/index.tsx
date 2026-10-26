@@ -551,14 +551,10 @@ export default function HomeScreen() {
     return map;
   }, [sections]);
 
-  // The row sizes and the library rows come from the feed config, which
-  // answers after these went out: a size in the request meant every row was
-  // fetched at the default and again at the configured size a moment later -
-  // twice the requests, the parsing and the render while the home opened
-  // (measured 2026-10-25, with rows set to 50). A row is asked for what the
-  // screen can show and cut to its size when it renders; a larger configured
-  // size is fetched only once the focus nears the row's end (these endpoints
-  // take a limit, not a cursor), the shown items staying put meanwhile.
+  // The feed config (row sizes, library rows) answers after these requests go
+  // out: sized from it, every row was fetched twice while the home opened. A
+  // row is asked for what the screen shows; a larger configured size is fetched
+  // once the focus nears its end (a limit, not a cursor), the shown items staying put.
   const layoutReady = (feedConfig.isFetched || feedConfig.isError) && (libraries.isFetched || libraries.isError);
   const rowSize = (feedType: string) => resolveMaxItems(maxItemsByType[feedType], HOME_ROW_DEFAULT_SIZE);
   const [grownRows, setGrownRows] = useState<ReadonlySet<string>>(() => new Set());
@@ -949,9 +945,9 @@ export default function HomeScreen() {
     .slice(0, HOME_EAGER_ROWS)
     .some((q) => (q as { isLoading?: boolean }).isLoading);
   const revealed = !isLoading && (revealCapPassed || (!transverseRowsPending && !libraryRowsLoading));
-  // The sections under the first screen render once it is painted: built in
-  // the same commit as the reveal, every row and its posters held the first
-  // card back for over a second on a modest set (2026-10-25).
+  // The sections under the first screen render once it is painted: in the same
+  // commit as the reveal, their rows and posters held the first card back by
+  // over a second on a modest set.
   const restRendered = useAfterFirstPaint(revealed ? "home" : undefined);
   const revealOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {

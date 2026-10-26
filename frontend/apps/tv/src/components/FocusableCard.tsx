@@ -66,11 +66,9 @@ export const FocusableCard = React.memo(function FocusableCard({
       accessibilityState={disabled ? { ...accessibilityState, disabled: true } : accessibilityState}
     >
       {children}
-      {/* The ring is drawn OVER the children, not as the card's own border:
-          a poster sized to the card's width sat on top of the border's left
-          and right edges and cut the ring to its top and bottom (owner,
-          2026-10-26). Offset by the border width so it hugs the card's
-          outer edge, with the card's own radius. */}
+      {/* Drawn OVER the children, not as the card's own border: a poster as
+          wide as the card covered the border's left and right edges. Offset by
+          the border width so it hugs the outer edge, with the card's radius. */}
       {focused && (
         <View
           pointerEvents="none"

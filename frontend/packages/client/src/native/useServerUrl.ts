@@ -6,10 +6,9 @@ import { getServerUrl } from "./server-config";
 const log = clientLogger("server-url");
 
 // The active server comes from the store, synchronously: read from the
-// keystore on every mount, the url was "" on a screen's first render, and the
-// posters that render landed as relative paths the image loader could not
-// fetch - blank rows on the television (logcat, 2026-10-26). The keystore is
-// only consulted for a legacy single-server install that never migrated.
+// keystore on every mount, the url was "" on a screen's first render and the
+// posters landed as relative paths the image loader could not fetch. The
+// keystore is only consulted for a legacy single-server install that never migrated.
 
 function useLegacyServerUrl(enabled: boolean): string | null | undefined {
   const [url, setUrl] = useState<string | null | undefined>(undefined);

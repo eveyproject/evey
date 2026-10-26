@@ -90,9 +90,8 @@ function PluginSlotEntry({ slot, entry, context }: { slot: string; entry: SlotEn
     }, []),
   );
   // While the remote moves the focus the widget's animation stands still: a
-  // WebGL frame it draws is one the app's own frame waits for, and on a
-  // modest set those waits froze the D-pad (2026-10-25). It resumes once the
-  // remote has been quiet for a moment.
+  // WebGL frame it draws is one the app's own frame waits for, which froze the
+  // D-pad on a modest set. It resumes once the remote has been quiet for a moment.
   const remoteActive = useRemoteActivity(REMOTE_QUIET_MS);
   // Held frames are not enough: the app draws the WebView itself, on every
   // one of its own frames, wherever the WebView sits. Scrolled off screen (the

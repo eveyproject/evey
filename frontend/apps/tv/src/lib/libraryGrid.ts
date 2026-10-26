@@ -11,11 +11,9 @@ import type { FetchQueryOptions } from "@tanstack/react-query";
 // The library grid's paging and first page, shared by the grid and by the
 // screens that fetch that first page ahead (the library list, on focus).
 
-// Two rows of the grid in the first request: what the screen shows when it
-// opens, so the first page lands and paints at once. The pages after it are
-// six rows each: two-row pages had the grid asking for one every other row
-// the remote crossed, and the focus caught up with the loading (television,
-// 2026-10-26).
+// Two rows of the grid in the first request, so the first page lands and
+// paints at once; six rows for the pages after it, since two-row pages had
+// the focus catching up with the loading.
 export const LIBRARY_PAGE_SIZE = 10;
 export const LIBRARY_NEXT_PAGE_SIZE = 30;
 

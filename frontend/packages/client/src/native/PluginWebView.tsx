@@ -56,9 +56,8 @@ export interface PluginWebViewProps {
   /**
    * Holds the plugin's animation frames (requestAnimationFrame) while true;
    * what it last drew stays on screen. The TV sets it while the remote is in
-   * use: every frame a WebGL widget drew was one the app's own frame waited
-   * for, and on a modest set that wait froze the D-pad until Android killed
-   * the app (2026-10-25).
+   * use: a frame a WebGL widget drew was one the app's own frame waited for,
+   * and on a modest set that froze the D-pad until Android killed the app.
    */
   framesHeld?: boolean;
 }
