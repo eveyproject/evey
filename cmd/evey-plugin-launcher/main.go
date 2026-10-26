@@ -74,6 +74,9 @@ type config struct {
 	denyFork bool // also EPERM process creation (threads stay allowed)
 }
 
+// installSeccomp is applySeccomp behind a seam so a test can make it fail.
+var installSeccomp = applySeccomp
+
 func main() {
 	os.Exit(run(os.Args[1:]))
 }
@@ -184,11 +187,17 @@ func run(argv []string) int {
 	}
 
 	// Syscall confinement, installed LAST (after path lookup, right before exec)
-	// so it can't interfere with the launcher's own setup. Best-effort: a kernel
-	// without seccomp degrades to Landlock + the LD_PRELOAD shim rather than
-	// refusing to run. The filter is inherited across execve into the plugin.
+	// so it can't interfere with the launcher's own setup. Best-effort unless
+	// -require-landlock: a kernel without seccomp then degrades to Landlock +
+	// the LD_PRELOAD shim rather than refusing to run. The filter is inherited across execve into the plugin.
 	if cfg.seccomp {
-		if err := applySeccomp(cfg.denyInet, cfg.denyFork); err != nil {
+		if err := installSeccomp(cfg.denyInet, cfg.denyFork); err != nil {
+			// -require-landlock is the fail-closed contract; the syscall layer
+			// (fork, namespaces, IP sockets) is part of it, not a bonus.
+			if cfg.requireLandlock {
+				fmt.Fprintf(os.Stderr, "evey-plugin-launcher: seccomp filter not installed, refusing to run: %v\n", err)
+				return 1
+			}
 			fmt.Fprintf(os.Stderr, "evey-plugin-launcher: WARNING seccomp filter not installed: %v\n", err)
 		}
 	}
