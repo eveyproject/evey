@@ -125,6 +125,15 @@ class EveyMediaCapsModule : Module() {
       try { maxH264Level() } catch (e: Exception) { 0 }
     }
 
+    // The video decoders' hard limits: the largest picture they open and the
+    // codecs they take at 10 bits. A Chromecast HD lists "hevc" but its
+    // decoder refuses 4K ("not support 4K for non-4K platform") and Main10
+    // ("not support 10bit"): declared by name alone, the server direct-played
+    // a 2160p 10-bit HEVC film into a decoder error (2026-10-26).
+    Function("getVideoDecoderLimits") {
+      try { videoDecoderLimits() } catch (e: Exception) { null }
+    }
+
     // What the light mode (TV) decides from: the memory this device has, and
     // the user's choice from Settings ("auto", "on", "off"), kept in the same
     // preference file as the UI scale. The verdict is the JS side's.
@@ -209,6 +218,72 @@ class EveyMediaCapsModule : Module() {
     MediaCodecInfo.CodecProfileLevel.AVCLevel61 to 61,
     MediaCodecInfo.CodecProfileLevel.AVCLevel62 to 62,
   )
+
+  private val videoMimes = linkedMapOf(
+    "h264" to "video/avc",
+    "hevc" to "video/hevc",
+    "vp9" to "video/x-vnd.on2.vp9",
+    "av1" to "video/av01",
+  )
+
+  // The profiles that mean "10-bit 4:2:0" per codec (HDR ones included: a
+  // decoder that takes Main10 HDR10 takes Main10).
+  private val tenBitProfiles = mapOf(
+    "hevc" to setOf(
+      MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10,
+      MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10,
+      MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10HDR10Plus,
+    ),
+    "vp9" to setOf(
+      MediaCodecInfo.CodecProfileLevel.VP9Profile2,
+      MediaCodecInfo.CodecProfileLevel.VP9Profile2HDR,
+      MediaCodecInfo.CodecProfileLevel.VP9Profile2HDR10Plus,
+    ),
+    "av1" to setOf(
+      MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10,
+      MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10HDR10,
+      MediaCodecInfo.CodecProfileLevel.AV1ProfileMain10HDR10Plus,
+    ),
+  )
+
+  // Same pool rule as maxH264Level: the hardware decoders when there are
+  // any, else whatever decodes the type. Per codec: the largest frame any
+  // decoder of the pool opens; overall: the largest across codecs.
+  private fun videoDecoderLimits(): Map<String, Any?> {
+    val infos = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filter { !it.isEncoder }
+    var maxWidth = 0
+    var maxHeight = 0
+    val tenBit = mutableListOf<String>()
+    val perCodec = linkedMapOf<String, Map<String, Int>>()
+    for ((codec, mime) in videoMimes) {
+      val all = infos.filter { it.supportedTypes.any { t -> t.equals(mime, ignoreCase = true) } }
+      if (all.isEmpty()) continue
+      val hardware = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) all.filter { it.isHardwareAccelerated } else emptyList()
+      val pool = if (hardware.isNotEmpty()) hardware else all
+      var w = 0
+      var h = 0
+      var ten = false
+      for (info in pool) {
+        val caps = runCatching { info.getCapabilitiesForType(mime) }.getOrNull() ?: continue
+        caps.videoCapabilities?.let { v ->
+          w = maxOf(w, v.supportedWidths.upper)
+          h = maxOf(h, v.supportedHeights.upper)
+        }
+        val profiles = tenBitProfiles[codec]
+        if (profiles != null && caps.profileLevels.any { profiles.contains(it.profile) }) ten = true
+      }
+      perCodec[codec] = mapOf("maxWidth" to w, "maxHeight" to h)
+      if (ten) tenBit += codec
+      maxWidth = maxOf(maxWidth, w)
+      maxHeight = maxOf(maxHeight, h)
+    }
+    return mapOf(
+      "maxWidth" to maxWidth,
+      "maxHeight" to maxHeight,
+      "tenBitCodecs" to tenBit,
+      "codecs" to perCodec,
+    )
+  }
 
   // A phone whose hardware stops at 4.1 would drop a 5.1 stream onto its
   // software decoder and stutter: the hardware ceiling is the honest one.
