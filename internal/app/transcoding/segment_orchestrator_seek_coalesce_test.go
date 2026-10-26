@@ -193,3 +193,24 @@ func TestOrchestrator_SeekCoalesce_AtCapacity_ReturnsCapacityErrorToCaller(t *te
 	assert.Equal(t, 0, o.pendingSeekCount(), "a refused seek must not stay parked")
 	assert.Equal(t, 0, proc.startCount())
 }
+
+// In single-variant mode each rung has its own encoder, so two rungs seeking at
+// once are two spawns: keying the debounce by hash alone let the second rung
+// overwrite the first, whose request then waited on a segment nobody encodes.
+func TestOrchestrator_SeekCoalesce_SingleVariant_RungsDoNotOverwriteEachOther(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := testOpts()
+	opts.SingleVariant = true
+	opts.SeekCoalesceWindow = 60 * time.Millisecond
+	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	fp.Profiles = append(fp.Profiles, ProfileFingerprint{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2500, AudioBitrate: 128})
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 100))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 1, 100))
+
+	require.Eventually(t, func() bool { return proc.startCount() == 2 }, time.Second, 5*time.Millisecond,
+		"each rung's seek must spawn its own encoder")
+}
