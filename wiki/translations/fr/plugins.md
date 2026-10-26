@@ -1,5 +1,5 @@
 ---
-source_sha: 3e8706d875387de097db25bae84c18a9439cf144e791b450e09bf54c3edf978d
+source_sha: c893d5af47331de964c0067be032f345a649fa683f5c57669f68661aa76f66e0
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -95,6 +95,7 @@ Chaque carte montre l'état du plugin (**Activé** ou **Désactivé**) et propos
 | **Activé** / **Désactivé** | Démarre ou arrête le processus du plugin. Un plugin désactivé garde ses fichiers et sa configuration. |
 | **Config** | Les réglages que le plugin déclare (une clé d'API, une ville, une unité...). Les champs secrets sont affichés masqués et ne sont jamais renvoyés au navigateur. |
 | **Logs** | Les dernières lignes que le plugin a écrites par l'intermédiaire de l'hôte. |
+| **Métadonnées** | Sur un plugin de métadonnées seulement : les champs qu'il remplace et la récupération de la bibliothèque existante ([plus bas](#metadata-plugins)). |
 | **Désinstaller** | Supprime le processus, les fichiers et les données stockées par le plugin. |
 
 **Limites de ressources**, en haut de la page, plafonne chaque processus de
@@ -123,6 +124,40 @@ plugins](plugins/sandbox-deployment.md) explique quoi changer.
 
 Les plugins sont activés par défaut. `EVEY_PLUGINS_ENABLED=false` désactive tout
 le sous-système.
+
+## Plugins de métadonnées { #metadata-plugins }
+
+Un plugin de métadonnées (capacité `metadata.provider`) fournit son propre
+texte pour vos films et séries, depuis une autre source que TMDB. Il ne
+remplace pas TMDB : TMDB identifie toujours chaque titre et fournit sa
+distribution, ses visuels, ses notes, ses collections et ses traductions. Le
+texte du plugin est conservé à côté de celui de TMDB, et affiché à sa place
+champ par champ.
+
+Ce que lit un spectateur, du plus faible au plus fort :
+
+1. le texte de TMDB, dans la langue du spectateur quand TMDB l'a ;
+2. le texte du plugin dans cette langue, pour les champs que le plugin a le
+   droit de remplacer ;
+3. votre propre correction du titre (**Modifier les métadonnées** sur sa page),
+   qui l'emporte toujours.
+
+**Métadonnées**, sur la carte du plugin, choisit les champs qu'il remplace
+parmi **Titre**, **Synopsis** et **Accroche**. Tant que vous n'avez rien
+choisi, un plugin remplace le synopsis et l'accroche, jamais le titre. Un
+changement s'applique tout de suite à ce que le plugin a déjà fourni ; rien
+n'est récupéré à nouveau.
+
+Le plugin est interrogé sur chaque film et chaque série au moment de son
+identification ou de son actualisation. **Récupérer pour toute la
+bibliothèque**, sur le même panneau, l'interroge sur les titres déjà présents,
+l'un après l'autre, montre où il en est et, à la fin, combien il en a trouvé
+et combien sont restés sans réponse. Une actualisation du titre depuis TMDB
+n'écrase jamais le texte du plugin ; désactiver le plugin le masque, le
+désinstaller le supprime.
+
+Les saisons et les épisodes gardent le texte de TMDB, et la recherche trouve
+toujours les titres de TMDB.
 
 ## Ce qu'un plugin peut faire sur votre machine { #what-a-plugin-can-do-on-your-host }
 
