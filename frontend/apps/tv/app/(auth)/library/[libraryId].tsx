@@ -68,9 +68,14 @@ function tvLibKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
 }
 
+// With numColumns the list's items ARE the rows: the index here is a row's,
+// not a card's. Dividing it again put every row at offset 0, so the list
+// believed its whole content was one row high - the focus moving to the
+// second row never scrolled it into view and the paging never fired
+// (television, 2026-10-26).
 const tvLibGetItemLayout = (_: unknown, index: number) => ({
   length: ROW_HEIGHT,
-  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  offset: ROW_HEIGHT * index,
   index,
 });
 
@@ -316,6 +321,20 @@ export default function LibraryDetailScreen() {
     if (!isFetching && hasMore && next && next !== cursor) setCursor(next);
   }, [searchActive, gridPainted, isFetching, hasMore, data, cursor]);
 
+  // The remote drives the grid: a focused card brings its row to the top of
+  // the list (the native scroll-into-view left a row half hidden under the
+  // screen's edge on a television) and, near the last rows, asks for the next
+  // page - a scroll event alone never fired it, the list hardly scrolls.
+  const listRef = useRef<FlatList<V1MediaItem>>(null);
+  const itemCount = displayItems.length;
+  const onCardFocus = useCallback(
+    (index: number) => {
+      listRef.current?.scrollToIndex({ index, viewPosition: 0, animated: true });
+      if (index >= itemCount - NUM_COLUMNS * 2) handleEndReached();
+    },
+    [itemCount, handleEndReached],
+  );
+
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {
       const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
@@ -330,7 +349,10 @@ export default function LibraryDetailScreen() {
       return (
         <FocusableCard
           onPress={() => router.push(`/media/${item.id}`)}
-          onFocus={() => prefetchOnFocus(item.id)}
+          onFocus={() => {
+            onCardFocus(index);
+            prefetchOnFocus(item.id);
+          }}
           onBlur={cancelPrefetch}
           hasTVPreferredFocus={index === 0}
           style={styles.gridItem}
@@ -395,7 +417,7 @@ export default function LibraryDetailScreen() {
         </FocusableCard>
       );
     },
-    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t, prefetchOnFocus, cancelPrefetch],
+    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t, prefetchOnFocus, cancelPrefetch, onCardFocus],
   );
 
   const activeIsLoading = searchActive ? isSearchLoading : isLoading;
@@ -510,6 +532,7 @@ export default function LibraryDetailScreen() {
             </View>
           ) : (
             <FlatList
+              ref={listRef}
               data={displayItems}
               keyExtractor={tvLibKeyExtractor}
               renderItem={renderItem}
