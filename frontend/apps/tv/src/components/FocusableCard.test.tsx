@@ -10,7 +10,7 @@ vi.mock("react-native", () => ({
   Pressable: ({ children, onPress, onFocus, onBlur, disabled, accessibilityLabel, accessibilityState, style }: any) =>
     React.createElement(
       "button",
-      { onClick: onPress, onFocus, onBlur, disabled, "aria-label": accessibilityLabel, "data-state": JSON.stringify(accessibilityState ?? null), "data-border": String(flat(style).borderColor), "data-zoom": JSON.stringify(flat(style).transform ?? null) },
+      { onClick: onPress, onFocus, onBlur, disabled, "aria-label": accessibilityLabel, "data-state": JSON.stringify(accessibilityState ?? null), "data-border": String(flat(style).borderColor), "data-zoom": JSON.stringify(flat(style).transform ?? null), "data-width": String(flat(style).width ?? "") },
       children,
     ),
   // The focus ring: a child drawn over the card, carrying the accent colour.
@@ -73,5 +73,12 @@ describe("FocusableCard", () => {
     expect(onPress).not.toHaveBeenCalled();
     render(<FocusableCard accessibilityLabel="Plain">x</FocusableCard>);
     expect(screen.getByLabelText("Plain").getAttribute("data-state")).toBe("null");
+  });
+
+  it("adds the ring around a numeric size, so content of that size sits inside it", () => {
+    render(<FocusableCard accessibilityLabel="Sized" style={{ width: 165, height: 250 }}>x</FocusableCard>);
+    expect(screen.getByLabelText("Sized").getAttribute("data-width")).toBe("171");
+    render(<FocusableCard accessibilityLabel="Free" style={{ padding: 4 }}>x</FocusableCard>);
+    expect(screen.getByLabelText("Free").getAttribute("data-width")).toBe("");
   });
 });
