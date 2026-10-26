@@ -1,5 +1,5 @@
 ---
-source_sha: 5e96cbd1483c320ab2ab021a2d894797d1cd5b0958ba8303a940db6026044ccb
+source_sha: f7f285ec5b54df9dd7cb696c205e38b3ba09fc8a23a1c53ccad246f60c918158
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -95,7 +95,7 @@ EVEY_HOST_SOCK=<path>     # आपका प्रोसेस HostService क�
 | `Initialize(plugin_id, config, host_version)` | जब प्रोसेस अपने socket से जुड़ जाए, एक बार। `config` में `config_schema` के वे मान होते हैं जो एडमिन ने सेट किए। शुरू होने से मना करने के लिए `error` के साथ `success: false` लौटाएँ। |
 | `HealthCheck()` | समय-समय पर, ताकि चलता हुआ प्रोसेस अटके हुए प्रोसेस से अलग पहचाना जा सके। जब तक आप जवाब दे सकते हैं, `healthy: true` लौटाएँ। |
 | `Shutdown(reason)` | जब प्लगइन अक्षम, अपडेट या अनइंस्टॉल हो, या सर्वर रुके। जवाब देने के बाद जल्दी बंद हो जाएँ। |
-| `OnEvent(event_type, payload, source)` | अनुबंध में है, पर सर्वर आज प्लगइन को कोई event नहीं भेजता: इसे `handled: true` लौटाने के लिए लागू करें, और कोई कॉल न आने की उम्मीद रखें। |
+| `OnEvent(event_type, payload, source)` | सिर्फ़ `metadata.request`, उस प्लगइन को जिसके पास `metadata.provider` क्षमता हो (नीचे [मेटाडेटा अनुरोध](#metadata-requests))। किसी दूसरे प्लगइन को कोई event नहीं मिलता: `handled: false` लौटाएँ। |
 | `GetCapabilities()` | अनुबंध में है; सर्वर आज इसे कॉल नहीं करता। |
 
 ### HostService: प्लगइन क्या कॉल कर सकता है { #hostservice-what-the-plugin-can-call }
@@ -114,9 +114,53 @@ EVEY_HOST_SOCK=<path>     # आपका प्रोसेस HostService क�
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` या `media.read` | मीडिया का पूरा रिकॉर्ड, `file_path`, `provider_ids` और `genres` के साथ। |
 | `Fetch(url, method, headers)` | `network` | सैंडबॉक्स से बाहर जाने का अकेला रास्ता: `http` या `https`, `GET` या `HEAD`, `external_fetch` का कोई होस्ट; पता निकालने के बाद और redirect में भी निजी पते मना हैं। body 8 MiB तक सीमित है (`truncated` यह बताता है) और पूरा request 20 सेकंड तक। सर्वर अपनी तरफ़ से कोई credential नहीं जोड़ता। |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` या `media.read` | *दिया नहीं जाता।* |
-| `UpdateMetadata` | `api.metadata` या `media.write` | *दिया नहीं जाता।* |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` या `media.write`, और `metadata.provider` क्षमता | बिना पूछे किसी फ़िल्म या सीरीज़ के लिए आपका टेक्स्ट देता है, जैसे [मेटाडेटा जवाब](#metadata-requests) देता। `fields` में `locale` (ज़रूरी) और `title`, `overview`, `tagline` में से कोई भी होता है; टेक्स्ट उस भाषा के लिए आपके पहले दिए टेक्स्ट की जगह लेता है, और बिना किसी फ़ील्ड वाला टेक्स्ट उसे हटा देता है। `provider_ids` मना है: आइटम की पहचान TMDB करता है। |
 | `GetUserPreferences` | `api.user` | *दिया नहीं जाता।* |
 | `SendNotification` | `notification.sender` | *दिया नहीं जाता।* |
+
+### मेटाडेटा अनुरोध { #metadata-requests }
+
+जब भी सर्वर TMDB से किसी फ़िल्म या सीरीज़ का मिलान या रीफ़्रेश करता है, वह हर
+सक्षम `metadata.provider` प्लगइन को `event_type` `metadata.request` वाला
+`OnEvent` भेजता है, एक के बाद एक प्लगइन को, और हर एक के लिए 15 सेकंड तक इंतज़ार
+करता है। सामग्री:
+
+| फ़ील्ड | सामग्री |
+|---|---|
+| `media_item_id` | आइटम की ID, बाद में `UpdateMetadata` के लिए। |
+| `type` | `movie` या `series`। |
+| `title`, `original_title` | सर्वर की भाषा में TMDB का शीर्षक, और मूल शीर्षक। |
+| `year` | पता न होने पर मौजूद नहीं होता। |
+| `provider_ids` | `tmdb`, `imdb` और आइटम की दूसरी ज्ञात ID। |
+| `language` | TMDB के टेक्स्ट की भाषा, जैसे `fr`। |
+| `locales` | सर्वर जो भी भाषाएँ दिखाता है। |
+
+`handled: true` के साथ इस रूप का `result` लौटाएँ:
+
+```json
+{
+  "locale": "fr",
+  "title": "...",
+  "overview": "...",
+  "tagline": "...",
+  "translations": {
+    "de": { "overview": "..." }
+  }
+}
+```
+
+ऊपरी स्तर के फ़ील्ड `locale` की भाषा में होते हैं, या `locale` न हो तो अनुरोध
+की `language` में; `translations` दूसरी भाषाएँ जोड़ता है। जो फ़ील्ड आप नहीं देते,
+उसे छोड़ दें। भाषा टैग सिर्फ़ भाषा तक छोटे किए जाते हैं (`fr-FR` को `fr` पढ़ा
+जाता है), और 8 KiB से बड़ा फ़ील्ड अनदेखा किया जाता है। एक जवाब उस आइटम के लिए
+आपके पहले दिए सब कुछ की जगह लेता है; `handled: false`, या बिना टेक्स्ट वाला
+जवाब, बताता है कि आप आइटम को नहीं जानते और उसे मिटा देता है। कोई error या
+समय सीमा पार होने पर आपका पहले दिया टेक्स्ट बना रहता है।
+
+एडमिन चुनता है कि आपका टेक्स्ट `title`, `overview` और `tagline` में से किनकी
+जगह ले, और आपसे एक साथ पूरी लाइब्रेरी के बारे में पूछ सकता है
+([मेटाडेटा प्लगइन](../plugins.md#metadata-plugins))। सीज़न और एपिसोड नहीं भेजे
+जाते।
 
 ### डेटा स्टोर { #data-store }
 
@@ -255,8 +299,9 @@ const data  = await evey.media.poster(id);  // पोस्टर, data: URL क
 क्षमता वह भूमिका बताती है जो प्लगइन निभाने का दावा करता है: `metadata.provider`,
 `media.read`, `media.write`, `webhook.receiver` या `notification.sender`। इंस्टॉलर
 नाम जाँचता है, एडमिन पूर्वावलोकन में सूची देखता है और अपडेट पर हर नई क्षमता
-देखता है, और सुरक्षा डैशबोर्ड उसे दर्ज करता है। सर्वर आज किसी क्षमता के आधार पर
-कुछ नहीं भेजता: `metadata.provider` को जानकारी जोड़ने का कोई कॉल नहीं मिलता,
+देखता है, और सुरक्षा डैशबोर्ड उसे दर्ज करता है। सर्वर इनमें से एक के आधार पर
+भेजता है: `metadata.provider` को [मेटाडेटा अनुरोध](#metadata-requests) मिलते हैं
+और वह `UpdateMetadata` कॉल कर सकता है। बाकी आज कुछ नहीं भेजतीं;
 `webhook.receiver` को कोई आने वाला request नहीं मिलता। प्लगइन असल में क्या कर
 सकता है, यह उसकी **अनुमतियाँ** तय करती हैं।
 

@@ -1,5 +1,5 @@
 ---
-source_sha: 5e96cbd1483c320ab2ab021a2d894797d1cd5b0958ba8303a940db6026044ccb
+source_sha: f7f285ec5b54df9dd7cb696c205e38b3ba09fc8a23a1c53ccad246f60c918158
 reviewed: true
 ---
 # Referencia de la API de plugins { #plugin-api-reference }
@@ -97,7 +97,7 @@ lenguajes incluidos se copian junto al entrypoint cuando arranca el plugin
 | `Initialize(plugin_id, config, host_version)` | En cuanto el proceso ha abierto su socket. `config` lleva los valores de `config_schema` que fijó el administrador. Responde `success: false` con un `error` para negarte a arrancar. |
 | `HealthCheck()` | De vez en cuando, para distinguir un proceso vivo de uno bloqueado. Responde `healthy: true` mientras puedas dar servicio. |
 | `Shutdown(reason)` | Cuando el plugin se desactiva, se actualiza, se desinstala o el servidor se para. Termina poco después de responder. |
-| `OnEvent(event_type, payload, source)` | Está definido en el contrato, pero hoy el servidor no entrega ningún evento a los plugins: impleméntalo para que responda `handled: true`, y no esperes ninguna llamada. |
+| `OnEvent(event_type, payload, source)` | Solo `metadata.request`, a un plugin con la capacidad `metadata.provider` ([peticiones de metadatos](#metadata-requests) más abajo). Cualquier otro plugin no recibe ningún evento: responde `handled: false`. |
 | `GetCapabilities()` | Está definido en el contrato; hoy el servidor no lo llama. |
 
 ### HostService: lo que puede llamar el plugin { #hostservice-what-the-plugin-can-call }
@@ -116,9 +116,53 @@ enumeran para que un stub no te confunda.
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` o `media.read` | La ficha completa del medio, con `file_path`, `provider_ids` y `genres`. |
 | `Fetch(url, method, headers)` | `network` | La única salida del sandbox: `http` o `https`, `GET` o `HEAD`, un host de `external_fetch`, las direcciones privadas rechazadas después de la resolución y a través de las redirecciones. El cuerpo se limita a 8 MiB (`truncated` lo indica) y la petición entera a 20 segundos. El servidor no añade ninguna credencial propia. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` o `media.read` | *No servido.* |
-| `UpdateMetadata` | `api.metadata` o `media.write` | *No servido.* |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` o `media.write`, y la capacidad `metadata.provider` | Aporta tu texto para una película o una serie sin que te lo pidan, como lo haría una [respuesta de metadatos](#metadata-requests). `fields` lleva `locale` (obligatorio) y cualquiera de `title`, `overview`, `tagline`; el texto sustituye lo que aportaste para ese idioma, y uno sin ningún campo lo quita. `provider_ids` se rechaza: TMDB identifica el elemento. |
 | `GetUserPreferences` | `api.user` | *No servido.* |
 | `SendNotification` | `notification.sender` | *No servido.* |
+
+### Peticiones de metadatos { #metadata-requests }
+
+Cada vez que el servidor identifica o actualiza una película o una serie desde
+TMDB, envía a cada plugin `metadata.provider` activado un `OnEvent` con
+`event_type` `metadata.request`, un plugin tras otro, y espera hasta 15
+segundos a cada uno. El contenido:
+
+| Campo | Contenido |
+|---|---|
+| `media_item_id` | El id del elemento, para un `UpdateMetadata` posterior. |
+| `type` | `movie` o `series`. |
+| `title`, `original_title` | El título de TMDB en el idioma del servidor, y el original. |
+| `year` | Ausente cuando se desconoce. |
+| `provider_ids` | `tmdb`, `imdb` y los demás ids conocidos del elemento. |
+| `language` | El idioma del texto de TMDB, por ejemplo `fr`. |
+| `locales` | Todos los idiomas que muestra el servidor. |
+
+Responde `handled: true` con un `result` de la forma:
+
+```json
+{
+  "locale": "fr",
+  "title": "...",
+  "overview": "...",
+  "tagline": "...",
+  "translations": {
+    "de": { "overview": "..." }
+  }
+}
+```
+
+Los campos de primer nivel están en `locale`, o en el `language` de la
+petición cuando falta `locale`; `translations` añade otros idiomas. Omite un
+campo que no cubras. Las etiquetas de idioma se reducen a su idioma (`fr-FR`
+se lee `fr`), y un campo de más de 8 KiB se ignora. Una respuesta sustituye
+todo lo que aportaste antes para el elemento; `handled: false`, o una
+respuesta sin texto, indica que no conoces el elemento y lo borra. Un error o
+un tiempo agotado conserva lo que aportaste.
+
+El administrador elige cuáles de `title`, `overview` y `tagline` sustituye tu
+texto, y puede consultarte por toda la biblioteca de una vez
+([Plugins de metadatos](../plugins.md#metadata-plugins)). Las temporadas y los
+episodios no se envían.
 
 ### Almacén de datos { #data-store }
 
@@ -272,8 +316,9 @@ Una capacidad declara el papel que el plugin dice cumplir:
 `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` o
 `notification.sender`. El instalador comprueba el nombre, el administrador ve
 la lista en la vista previa y cualquier añadido al actualizar, y el Panel de
-seguridad la registra. Hoy el servidor no encamina nada según una capacidad:
-un `metadata.provider` no recibe ninguna llamada de enriquecimiento, un
+seguridad la registra. El servidor encamina según una de ellas:
+un `metadata.provider` recibe las [peticiones de metadatos](#metadata-requests)
+y puede llamar a `UpdateMetadata`. Las demás no encaminan nada hoy; un
 `webhook.receiver` no recibe ninguna petición entrante. Lo que un plugin
 puede hacer de verdad lo deciden sus **permisos**.
 
