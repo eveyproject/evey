@@ -35,6 +35,12 @@ type compositeHandle struct {
 
 func (c *compositeHandle) reap() {
 	defer close(c.done)
+	// Every rung is gone: release procCtx so it leaves its parent's child set.
+	defer func() {
+		if c.cancel != nil {
+			c.cancel()
+		}
+	}()
 	defer func() {
 		if r := recover(); r != nil {
 			slog.ErrorContext(c.ctx, "panic in hls composite reap",
@@ -174,6 +180,8 @@ func (h *hlsHandle) closeReady() {
 
 func (h *hlsHandle) run(ctx context.Context) {
 	defer close(h.done)
+	// A natural exit never cancels processCtx; release it so it leaves its parent's child set.
+	defer h.cancel()
 	// A panic here (e.g. a bug in the file/segment polling below, or in a
 	// future change) would otherwise crash the whole server: this goroutine
 	// has no caller to propagate to. Recover, classify it as a failed
