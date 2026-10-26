@@ -56,3 +56,12 @@ func TestPINAttempts_SharedByDefault(t *testing.T) {
 	svc := NewUserService(nil, nil, nil, nil, nil, nil)
 	assert.Same(t, SharedPINAttempts(), svc.pinAttempts)
 }
+
+func TestSetSharedPINAttempts_IsWhatTheServicesCapture(t *testing.T) {
+	saved := SharedPINAttempts()
+	t.Cleanup(func() { SetSharedPINAttempts(saved) })
+	persisted := NewPINAttempts(newLoginAttemptLimiter(5, time.Minute))
+	SetSharedPINAttempts(persisted)
+	assert.Same(t, persisted, SharedPINAttempts())
+	assert.Same(t, persisted, NewUserService(nil, nil, nil, nil, nil, nil).pinAttempts)
+}
