@@ -157,6 +157,8 @@ vi.mock("@tanstack/react-query", () => ({
   // name them; these tests are about the shelves, not the plugin catalogue.
   useQuery: () => ({ data: { plugins: [] } }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  // A row grown to its configured size keeps its items on screen meanwhile.
+  keepPreviousData: (previous: unknown) => previous,
 }));
 
 // --- @evey/api mock --------------------------------------------------------------
@@ -365,6 +367,15 @@ describe("HomeScreen feed-config driven rows", () => {
       .map((n) => n.textContent)
       .filter((txt) => txt === "media.home.mostPopular" || txt === "media.home.collections");
     expect(titles).toEqual(["media.home.mostPopular", "media.home.collections"]);
+  });
+
+  it("asks a row configured for 50 items for what the screen shows first, so the config arriving refetches nothing", () => {
+    feedConfigMock.mockReturnValue({
+      data: { configs: [{ feedType: "resume_playback", enabled: true, displayOrder: 0, maxItems: 50 }] },
+    });
+    render(<HomeScreen />);
+    const limits = resumeMock.mock.calls.map((c) => (c[0] as { limit: number }).limit);
+    expect(new Set(limits)).toEqual(new Set([20]));
   });
 
   it("hides a row the server disabled", () => {
