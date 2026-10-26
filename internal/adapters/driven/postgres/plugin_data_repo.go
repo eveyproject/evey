@@ -171,4 +171,34 @@ func (r *PluginDataRepository) List(ctx context.Context, pluginID, userID, profi
 	return result, nil
 }
 
+func (r *PluginDataRepository) Count(ctx context.Context, pluginID, userID, profileID string) (int, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin_data.Count")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+
+	var n int
+	var err error
+	switch {
+	case profileID != "":
+		err = txFromCtx(ctx, r.db).QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM plugin_data WHERE plugin_id=$1 AND profile_id=$2`,
+			pluginID, profileID).Scan(&n)
+	case userID != "":
+		err = txFromCtx(ctx, r.db).QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM plugin_data WHERE plugin_id=$1 AND user_id=$2 AND profile_id IS NULL`,
+			pluginID, userID).Scan(&n)
+	default:
+		err = txFromCtx(ctx, r.db).QueryRowContext(ctx,
+			`SELECT COUNT(*) FROM plugin_data WHERE plugin_id=$1 AND user_id IS NULL AND profile_id IS NULL`,
+			pluginID).Scan(&n)
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, err
+	}
+	return n, nil
+}
+
 var _ plugin.PluginDataRepository = (*PluginDataRepository)(nil)
