@@ -35,6 +35,9 @@ vi.mock("@evey/api", () => ({
 
 vi.mock("@evey/store", () => ({
   useAuthStore: (sel: (s: { setTokens: () => void }) => unknown) => sel({ setTokens: vi.fn() }),
+  // The server url hook reads the active server from this store first.
+  useServerListStore: (sel: (s: { getActiveServer: () => { url: string } | null }) => unknown) =>
+    sel({ getActiveServer: () => ({ url: "http://srv.test" }) }),
 }));
 
 vi.mock("expo-router", () => ({ router: { back: vi.fn(), replace: vi.fn() } }));
