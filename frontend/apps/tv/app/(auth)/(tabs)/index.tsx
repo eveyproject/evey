@@ -40,6 +40,7 @@ import { useMostPopular } from "../../../src/hooks/usePopular";
 import { buildHomeSections, placedPluginIds, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
 import { serverImageUri } from "@evey/client";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
+import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
 
 // How long the home waits for its slower rows before showing what it has.
 const HOME_REVEAL_CAP_MS = 2500;
@@ -312,6 +313,8 @@ const HOME_ROW_NEXT_PAGE = 8;
 const ROW_END_AHEAD = 3;
 // Rows fetched with the top of the home; the others once it has loaded.
 const HOME_EAGER_ROWS = 2;
+// Sections rendered with the reveal; the rest follow a frame later.
+const HOME_FIRST_SECTIONS = 3;
 // A feed row's size when the admin set none (and its request size, at least).
 const HOME_ROW_DEFAULT_SIZE = 20;
 
@@ -906,6 +909,10 @@ export default function HomeScreen() {
     .slice(0, HOME_EAGER_ROWS)
     .some((q) => (q as { isLoading?: boolean }).isLoading);
   const revealed = !isLoading && (revealCapPassed || (!transverseRowsPending && !libraryRowsLoading));
+  // The sections under the first screen render once it is painted: built in
+  // the same commit as the reveal, every row and its posters held the first
+  // card back for over a second on a modest set (2026-10-25).
+  const restRendered = useAfterFirstPaint(revealed ? "home" : undefined);
   const revealOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     if (!revealed) return;
@@ -941,9 +948,10 @@ export default function HomeScreen() {
           place are rendered inline below, so they are excluded here or they
           would appear twice. */}
       <PluginSlot name="home.section" excludeRegistered={placedPlugins} />
-      {sections.map((section, i) =>
-        renderSection(section, i, section.kind === "library" ? renderCursor++ : -1),
-      )}
+      {sections.map((section, i) => {
+        const libraryIndex = section.kind === "library" ? renderCursor++ : -1;
+        return i < HOME_FIRST_SECTIONS || restRendered ? renderSection(section, i, libraryIndex) : null;
+      })}
 
       {/* Nothing loaded anywhere and nothing errored either: a fresh install
           with no library scanned yet, or every feed disabled. The screen used
