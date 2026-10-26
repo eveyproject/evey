@@ -802,12 +802,21 @@ func roleType(role string) string {
 // left to TMDB: their numbering is the series', which a plugin's catalogue may
 // not share.
 func (e *Enricher) enrichPluginTexts(ctx context.Context, item *domainlib.MediaItem) {
-	if e.pluginSource == nil || e.pluginTexts == nil {
+	if e.pluginSource == nil || e.pluginTexts == nil || !takesPluginTexts(item) {
 		return
 	}
-	if item.Type != domainlib.MovieItem && item.Type != domainlib.Series {
-		return
+	for _, answer := range e.pluginSource.LookupTexts(ctx, e.pluginTextRequest(item)) {
+		e.storePluginAnswer(ctx, string(item.ID), answer)
 	}
+}
+
+// takesPluginTexts: movies and series, see enrichPluginTexts.
+func takesPluginTexts(item *domainlib.MediaItem) bool {
+	return item.Type == domainlib.MovieItem || item.Type == domainlib.Series
+}
+
+// pluginTextRequest is what a metadata plugin is told about the item.
+func (e *Enricher) pluginTextRequest(item *domainlib.MediaItem) domainmetadata.PluginTextRequest {
 	req := domainmetadata.PluginTextRequest{
 		MediaItemID:   string(item.ID),
 		Type:          string(item.Type),
@@ -822,19 +831,25 @@ func (e *Enricher) enrichPluginTexts(ctx context.Context, item *domainlib.MediaI
 			req.Year = *item.Catalog.Year
 		}
 	}
-	for _, answer := range e.pluginSource.LookupTexts(ctx, req) {
-		texts := make([]domainlib.PluginText, 0, len(answer.Texts))
-		for _, t := range answer.Texts {
-			texts = append(texts, domainlib.PluginText{
-				MediaItemID: string(item.ID), PluginID: answer.PluginID, Locale: t.Locale,
-				Title: t.Title, Overview: t.Overview, Tagline: t.Tagline,
-			})
-		}
-		if err := e.pluginTexts.ReplaceForItem(ctx, string(item.ID), answer.PluginID, texts); err != nil {
-			slog.WarnContext(ctx, "store plugin metadata texts",
-				slog.String("item", string(item.ID)), slog.String("plugin", answer.PluginID), slog.Any("err", err))
-		}
+	return req
+}
+
+// storePluginAnswer replaces what the plugin gave for the item with its
+// answer; false when the store failed (said in a line).
+func (e *Enricher) storePluginAnswer(ctx context.Context, itemID string, answer domainmetadata.PluginTextAnswer) bool {
+	texts := make([]domainlib.PluginText, 0, len(answer.Texts))
+	for _, t := range answer.Texts {
+		texts = append(texts, domainlib.PluginText{
+			MediaItemID: itemID, PluginID: answer.PluginID, Locale: t.Locale,
+			Title: t.Title, Overview: t.Overview, Tagline: t.Tagline,
+		})
 	}
+	if err := e.pluginTexts.ReplaceForItem(ctx, itemID, answer.PluginID, texts); err != nil {
+		slog.WarnContext(ctx, "store plugin metadata texts",
+			slog.String("item", itemID), slog.String("plugin", answer.PluginID), slog.Any("err", err))
+		return false
+	}
+	return true
 }
 
 // textLanguage is the locale of the TMDB text (the primary provider's

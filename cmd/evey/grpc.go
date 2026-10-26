@@ -177,6 +177,8 @@ func buildGRPCServer(deps *appDeps, cfg *config.Config, rootLog *slog.Logger, lo
 		PluginRuntime:          deps.engagement.pluginRuntimeSvc,
 		PluginQuery:            deps.engagement.pluginQuerySvc,
 		PluginToken:            deps.engagement.pluginTokenSvc,
+		PluginMetadataSettings: deps.engagement.pluginMetadataSettings,
+		PluginMetadataRefresh:  deps.engagement.pluginMetadataRefresh,
 		PluginRunner:           deps.pluginRunner,
 		PluginResourceDefaults: deps.pluginResDefaults,
 		PluginData:             deps.repos.pluginDataRepo,

@@ -65,6 +65,33 @@ func (r *PluginTextRepository) ReplaceForItem(ctx context.Context, mediaItemID, 
 	return nil
 }
 
+// ReplaceLocale is library.PluginTextRepository.
+func (r *PluginTextRepository) ReplaceLocale(ctx context.Context, t library.PluginText) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.plugin_text.ReplaceLocale")
+	defer span.End()
+	span.SetAttributes(attribute.String("media_item.id", t.MediaItemID), attribute.String("plugin.id", t.PluginID), attribute.String("locale", t.Locale))
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var err error
+	if t.Empty() {
+		_, err = txFromCtx(ctx, r.db).ExecContext(ctx, `DELETE FROM media_item_plugin_texts WHERE media_item_id = $1 AND plugin_id = $2 AND locale = $3`,
+			t.MediaItemID, t.PluginID, t.Locale)
+	} else {
+		_, err = txFromCtx(ctx, r.db).ExecContext(ctx, `
+			INSERT INTO media_item_plugin_texts (media_item_id, plugin_id, locale, title, overview, tagline, fetched_at)
+			VALUES ($1, $2, $3, $4, $5, $6, now())
+			ON CONFLICT (media_item_id, plugin_id, locale)
+			DO UPDATE SET title = EXCLUDED.title, overview = EXCLUDED.overview, tagline = EXCLUDED.tagline, fetched_at = now()
+		`, t.MediaItemID, t.PluginID, t.Locale, t.Title, t.Overview, t.Tagline)
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
 // DisplayedForLocale is library.PluginTextRepository: the field filter runs in
 // the query, so a field the administrator did not allow never leaves the
 // database.

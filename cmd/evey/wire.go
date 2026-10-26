@@ -418,6 +418,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 
 	pluginInstallerSvc, pluginRuntimeSvc, pluginQuerySvc, pluginTokenSvc, pluginSecurityDashboardSvc, pluginIdleMgr, pluginHostSrv, memProfile := buildPluginSubsystem(ctx, infra, rootLog)
 	pluginMetadataSource.SetWaker(pluginIdleMgr)
+	// Before any plugin starts (AutoStartPlugins runs at boot, later): a
+	// metadata plugin may give its texts unasked (HostService.UpdateMetadata).
+	pluginHostSrv.WithPluginTexts(pluginTexts)
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	var webhookSender webhook.Sender = webhooksender.New()
@@ -1264,6 +1267,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			pluginHostServer:           pluginHostSrv,
 			pluginSecurityDashboardSvc: pluginSecurityDashboardSvc,
 			pluginIdleMgr:              pluginIdleMgr,
+			pluginMetadataSettings:     appplugin.NewMetadataSettingsService(r.Plugin, postgres.NewPluginMetadataSettingsRepository(db)),
+			pluginMetadataRefresh:      appmetadata.NewPluginTextRefresher(ctx, enricher),
 		},
 		auth: authDeps{
 			tokenGen:     infra.tokenGen,

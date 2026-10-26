@@ -23,6 +23,8 @@ func (f *fakePluginTexts) ReplaceForItem(context.Context, string, string, []libr
 	return nil
 }
 
+func (f *fakePluginTexts) ReplaceLocale(context.Context, library.PluginText) error { return nil }
+
 func (f *fakePluginTexts) DisplayedForLocale(_ context.Context, ids []string, locale string) (map[string][]library.PluginText, error) {
 	if f.err != nil {
 		return nil, f.err

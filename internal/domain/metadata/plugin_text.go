@@ -39,4 +39,7 @@ type PluginTextAnswer struct {
 // what it gave before.
 type PluginMetadataSource interface {
 	LookupTexts(ctx context.Context, req PluginTextRequest) []PluginTextAnswer
+	// LookupTextsFrom asks one plugin; ok is false when it is not a running
+	// metadata plugin or did not answer.
+	LookupTextsFrom(ctx context.Context, pluginID string, req PluginTextRequest) (answer PluginTextAnswer, ok bool)
 }
