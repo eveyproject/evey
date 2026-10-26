@@ -296,11 +296,15 @@ export default function LibraryDetailScreen() {
 
   const handleEndReached = useCallback(() => {
     if (searchActive) return; // search returns a single fixed-size page, no cursor to page through
+    // A short first page reads as "end reached" the moment the list mounts:
+    // the next pages wait until that page is on screen, or their parsing and
+    // their cards held the first paint back (measured 2026-10-26).
+    if (!gridPainted) return;
     // Guarding on isFetching and on the cursor actually changing keeps a held-
     // down remote from firing the same cursor twice before the fetch resolves.
     const next = data?.pagination?.nextCursor;
     if (!isFetching && hasMore && next && next !== cursor) setCursor(next);
-  }, [searchActive, isFetching, hasMore, data, cursor]);
+  }, [searchActive, gridPainted, isFetching, hasMore, data, cursor]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {

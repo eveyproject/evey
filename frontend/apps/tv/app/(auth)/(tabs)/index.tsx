@@ -40,6 +40,7 @@ import { useMostPopular } from "../../../src/hooks/usePopular";
 import { buildHomeSections, placedPluginIds, resolveMaxItems, type HomeSection } from "../../../src/lib/homeSections";
 import { serverImageUri } from "@evey/client";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
+import { libraryFirstPageQueries } from "../../../src/lib/libraryGrid";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
 
 // How long the home waits for its slower rows before showing what it has.
@@ -197,12 +198,22 @@ const MediaCard = memo(MediaCardImpl);
 // web home. The guide spans the row, so up from ANY card lands on the title
 // (a bare title is only "above" the cards under it); the cards' own guide
 // sends down back to the card left there.
-function RowTitle({ title, onOpen, onFocus }: { title: string; onOpen?: () => void; onFocus?: () => void }) {
+function RowTitle({
+  title,
+  onOpen,
+  onFocus,
+  onBlur,
+}: {
+  title: string;
+  onOpen?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}) {
   const theme = useTheme();
   if (!onOpen) return <Text style={[styles.rowTitle, { color: theme.colors.text }]}>{title}</Text>;
   return (
     <TVFocusGuideView autoFocus>
-      <FocusableCard onPress={onOpen} onFocus={onFocus} style={styles.rowTitleLink} accessibilityLabel={title}>
+      <FocusableCard onPress={onOpen} onFocus={onFocus} onBlur={onBlur} style={styles.rowTitleLink} accessibilityLabel={title}>
         <Text style={[styles.rowTitleText, { color: theme.colors.text }]}>{title}</Text>
         <Ionicons name="chevron-forward" size={22} color={theme.colors.textMuted} />
       </FocusableCard>
@@ -222,6 +233,8 @@ function MediaRow({
   onRetry,
   onOpen,
   onEndReached,
+  onTitleFocus,
+  onTitleBlur,
 }: {
   title: string;
   /** The page this row previews; its title opens it. */
@@ -240,6 +253,9 @@ function MediaRow({
   onRetry?: () => void;
   /** The focus is nearing the row's last cards: time to fetch the next ones. */
   onEndReached?: () => void;
+  /** The remote rests on the row's title: the page it opens can be fetched ahead. */
+  onTitleFocus?: () => void;
+  onTitleBlur?: () => void;
 }) {
   // Stable, so the list does not rebuild every visible card whenever this
   // screen re-renders - which it does on each of its half-dozen queries.
@@ -267,10 +283,14 @@ function MediaRow({
     ),
     [serverUrl, authHeaders, focusFirst, onCardFocus, watchPercents, onEndReached, itemCount],
   );
+  const titleFocus = useCallback(() => {
+    onCardFocus?.();
+    onTitleFocus?.();
+  }, [onCardFocus, onTitleFocus]);
   if (isError) {
     return (
       <View style={styles.rowContainer}>
-        <RowTitle title={title} onOpen={onOpen} onFocus={onCardFocus} />
+        <RowTitle title={title} onOpen={onOpen} onFocus={titleFocus} onBlur={onTitleBlur} />
         <RowFailure onRetry={onRetry} />
       </View>
     );
@@ -279,7 +299,7 @@ function MediaRow({
 
   return (
     <View style={styles.rowContainer}>
-      <RowTitle title={title} onOpen={onOpen} onFocus={onCardFocus} />
+      <RowTitle title={title} onOpen={onOpen} onFocus={titleFocus} onBlur={onTitleBlur} />
       {/* autoFocus: down from the title lands on the card last left here, or
           the first - not on whichever card sits under the title's centre. */}
       <TVFocusGuideView autoFocus>
@@ -346,7 +366,14 @@ function LibraryMediaRow({
     HOME_ROW_NEXT_PAGE,
     resolveMaxItems(row.maxItems, HOME_LIBRARY_ROW_PAGE_SIZE),
   );
-  return <MediaRow {...rowProps} items={items} onEndReached={loadMore} />;
+  // The grid behind the title, fetched while the remote rests on it: measured
+  // on a modest set, the grid opened on its requests otherwise.
+  const { prefetchQueriesOnFocus, cancelPrefetch } = useMediaPrefetch();
+  const onTitleFocus = useCallback(
+    () => prefetchQueriesOnFocus(libraryFirstPageQueries(row.libraryId)),
+    [prefetchQueriesOnFocus, row.libraryId],
+  );
+  return <MediaRow {...rowProps} items={items} onEndReached={loadMore} onTitleFocus={onTitleFocus} onTitleBlur={cancelPrefetch} />;
 }
 
 // A generic horizontal row of square-art cards (collections, music albums,
