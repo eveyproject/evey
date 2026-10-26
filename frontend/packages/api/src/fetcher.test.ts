@@ -63,6 +63,21 @@ describe("eveyFetch", () => {
     );
   });
 
+  it("asks the media lists for the trimmed item unless the call wants the whole one", async () => {
+    fetchMock.mockResolvedValue(mockResponse(200, { items: [] }));
+    await eveyFetch({ url: "/api/v1/media", method: "GET", params: { libraryId: "l" } });
+    await eveyFetch({ url: "/api/v1/media/search", method: "GET", params: { query: "q" } });
+    await eveyFetch({ url: "/api/v1/media", method: "GET", params: { libraryId: "l", summary: false } });
+    await eveyFetch({ url: "/api/v1/media/m1", method: "GET" });
+    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(urls).toEqual([
+      "/api/v1/media?libraryId=l&summary=true",
+      "/api/v1/media/search?query=q&summary=true",
+      "/api/v1/media?libraryId=l&summary=false",
+      "/api/v1/media/m1",
+    ]);
+  });
+
   it("handles 204 No Content response", async () => {
     fetchMock.mockResolvedValue(mockResponse(204, undefined, {}));
 

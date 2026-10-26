@@ -464,6 +464,11 @@ message ListMediaItemsRequest {
   SortOrder sort_order = 7;
   PaginationRequest pagination = 8;
   string person_id = 9;
+  // Trim each item to what a card shows (see summarizeMediaItems): one
+  // artwork per type, the video stream and the audio/subtitle languages; no
+  // trailers, certifications, studios, external ratings or ids, and no cast
+  // unless person_id is set. A grid page weighed ~8 KB per item without it.
+  bool summary = 10;
 }
 
 message ListMediaItemsResponse {
@@ -486,6 +491,8 @@ message SearchMediaRequest {
   // results to the library. Meilisearch + SQL fallback both filter on
   // library_id natively.
   string library_id = 9;
+  // Same trim as ListMediaItemsRequest.summary.
+  bool summary = 10;
 }
 
 message SearchMediaResponse {
