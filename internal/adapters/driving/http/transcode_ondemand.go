@@ -695,7 +695,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 			servePlanSourceGone(w, r, mediaID, name, span)
 			return
 		}
-		data, contentType, streamed, err = fetchPlanResource(r.Context(), plan, name)
+		data, contentType, streamed, err = fetchPlanResource(r.Context(), plan, name, r.Method == http.MethodHead)
 		if err == nil || replayed || h.onDemand == nil || !errors.Is(err, apptranscoding.ErrSourceChanged) {
 			break
 		}
@@ -713,7 +713,7 @@ func (h *hlsVODServe) servePlanResourceData(w http.ResponseWriter, r *http.Reque
 	// segment in a cache. A replaced source keeps its own answer above.
 	if err != nil && subtitleReadFailed(r.Context(), err) {
 		if track, idx, ok := planSubtitleSegment(name); ok {
-			data, contentType, streamed, err = fetchPlanResource(r.Context(), plan, name)
+			data, contentType, streamed, err = fetchPlanResource(r.Context(), plan, name, r.Method == http.MethodHead)
 			if err != nil {
 				h.serveEmptySubtitleWindow(w, r, mediaID, name, track, idx, err)
 				return
@@ -819,8 +819,10 @@ type planResourcer interface {
 // hands a media segment over as a handle read from the source while it is
 // written (transcode_ondemand_stream.go); anything it returns whole -
 // playlists, inits, subtitles, a segment it had to assemble - comes back as
-// bytes.
-func fetchPlanResource(ctx context.Context, plan planResourcer, name string) ([]byte, string, apptranscoding.OnDemandResource, error) {
+// bytes. On a HEAD a whole init or segment stays a handle too: the streamed
+// path answers it from Size and ETag, and bytes never taken are never counted
+// served. A subtitle keeps its bytes (Evey sanitizes it, its size is ours).
+func fetchPlanResource(ctx context.Context, plan planResourcer, name string, head bool) ([]byte, string, apptranscoding.OnDemandResource, error) {
 	opener, ok := plan.(apptranscoding.OnDemandOpener)
 	if !ok || isPlanPlaylist(name) {
 		data, ct, err := plan.Resource(ctx, name)
@@ -830,7 +832,7 @@ func fetchPlanResource(ctx context.Context, plan planResourcer, name string) ([]
 	if err != nil {
 		return nil, "", nil, err
 	}
-	if res.Bytes() == nil {
+	if !res.Whole() || (head && !strings.HasSuffix(name, ".vtt")) {
 		return nil, "", res, nil
 	}
 	data, ct := res.Bytes(), res.ContentType()

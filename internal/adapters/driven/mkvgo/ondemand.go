@@ -705,16 +705,13 @@ func (p *ondemandPlan) Resource(ctx context.Context, name string) ([]byte, strin
 // Open is apptranscoding.OnDemandOpener: a media segment streams from the file
 // as it is written, AES-128 encrypted ones included (mkvgo 0.52); everything
 // else - playlists, inits, subtitles, a converted segment - comes back whole,
-// as Resource would return it (Stats().StreamFallbacks counts those).
+// as Resource would return it (Stats().StreamFallbacks counts those). Either
+// way the plan counts what goes out, not what was opened: a HEAD answered off
+// a whole handle serves nothing.
 func (p *ondemandPlan) Open(ctx context.Context, name string) (apptranscoding.OnDemandResource, error) {
 	h, err := p.plan.Open(ctx, name)
 	if err != nil {
 		return nil, sourceChangedErr(err)
-	}
-	if b := h.Bytes(); b != nil {
-		// Handed out whole by the caller.
-		p.served(int64(len(b)))
-		return h, nil
 	}
 	return &countedResource{OnDemandResource: h, plan: p}, nil
 }
