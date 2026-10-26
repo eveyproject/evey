@@ -4,7 +4,7 @@ import { View, Text, ScrollView, FlatList, StyleSheet, Animated, DeviceEventEmit
 import { Image } from "expo-image";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import {
   usePlaybackServiceGetResumeItems,
@@ -518,14 +518,23 @@ export default function HomeScreen() {
   // answers after these went out: a size in the request meant every row was
   // fetched at the default and again at the configured size a moment later -
   // twice the requests, the parsing and the render while the home opened
-  // (measured 2026-10-25). The request size stays put (more only when an
-  // admin asks for more) and the row is cut to its size when it renders.
+  // (measured 2026-10-25, with rows set to 50). A row is asked for what the
+  // screen can show and cut to its size when it renders; a larger configured
+  // size is fetched only once the focus nears the row's end (these endpoints
+  // take a limit, not a cursor), the shown items staying put meanwhile.
   const layoutReady = (feedConfig.isFetched || feedConfig.isError) && (libraries.isFetched || libraries.isError);
   const rowSize = (feedType: string) => resolveMaxItems(maxItemsByType[feedType], HOME_ROW_DEFAULT_SIZE);
-  const fetchSize = (feedType: string) => Math.max(HOME_ROW_DEFAULT_SIZE, rowSize(feedType));
-  const resume = usePlaybackServiceGetResumeItems({ limit: fetchSize("resume_playback") });
-  const nextUp = usePlaybackServiceGetNextUp({ limit: fetchSize("next_episode") });
-  const recommended = useFeedServiceRecommended({ limit: fetchSize("recommended") });
+  const [grownRows, setGrownRows] = useState<ReadonlySet<string>>(() => new Set());
+  const growRow = useCallback(
+    (feedType: string) => setGrownRows((prev) => (prev.has(feedType) ? prev : new Set(prev).add(feedType))),
+    [],
+  );
+  const fetchSize = (feedType: string) =>
+    grownRows.has(feedType) ? rowSize(feedType) : Math.min(HOME_ROW_DEFAULT_SIZE, rowSize(feedType));
+  const keepRow = { query: { placeholderData: keepPreviousData } };
+  const resume = usePlaybackServiceGetResumeItems({ limit: fetchSize("resume_playback") }, keepRow);
+  const nextUp = usePlaybackServiceGetNextUp({ limit: fetchSize("next_episode") }, keepRow);
+  const recommended = useFeedServiceRecommended({ limit: fetchSize("recommended") }, keepRow);
   const popular = useMostPopular(fetchSize("most_popular"));
   const [resumeSize, nextUpSize, recommendedSize, popularSize] = [
     rowSize("resume_playback"),
@@ -805,6 +814,7 @@ export default function HomeScreen() {
             key={section.key}
             title={t("media.home.continueWatching")}
             items={resumeItems}
+            onEndReached={() => resumeItems.length >= fetchSize("resume_playback") && growRow("resume_playback")}
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             watchPercents={watchPercents}
@@ -820,6 +830,7 @@ export default function HomeScreen() {
             key={section.key}
             title={t("media.home.upNext")}
             items={nextUpItems}
+            onEndReached={() => nextUpItems.length >= fetchSize("next_episode") && growRow("next_episode")}
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
@@ -858,6 +869,7 @@ export default function HomeScreen() {
             key={section.key}
             title={t("media.home.recommendedForYou")}
             items={recommendedItems}
+            onEndReached={() => recommendedItems.length >= fetchSize("recommended") && growRow("recommended")}
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
