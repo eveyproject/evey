@@ -23,6 +23,7 @@ import type { V1Plugin, V1PluginState } from "@evey/api";
 import { PluginUpdateDialog } from "./PluginUpdateDialog";
 import { useDemoLock, useDemoLockFor } from "@/hooks/useDemoMode";
 import { DemoReadOnly } from "@/components/layout/DemoReadOnly";
+import { PluginMetadataSettings } from "./PluginMetadataSettings";
 import { PluginSignatureBadge } from "./PluginSignatureBadge";
 
 type PluginWithPermissions = V1Plugin & {
@@ -308,6 +309,8 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
   const { lock: updateLock } = useDemoLockFor("/evey.v1.AdminPluginService/PreviewPluginUpdate");
   const queryClient = useQueryClient();
   const [showConfig, setShowConfig] = useState(false);
+  const [showMetadata, setShowMetadata] = useState(false);
+  const isMetadataProvider = plugin.capabilities?.includes("metadata.provider") ?? false;
   const [showReport, setShowReport] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [updateSource, setUpdateSource] = useState<string | null>(null);
@@ -403,6 +406,11 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
         <Button variant="ghost" onClick={() => setShowConfig((v) => !v)}>
           {showConfig ? t("admin.plugin.hideConfig") : t("admin.plugin.config")}
         </Button>
+        {isMetadataProvider && (
+          <Button variant="ghost" onClick={() => setShowMetadata((v) => !v)} data-testid="plugin-metadata-toggle">
+            {t("admin.plugin.metadata.title")}
+          </Button>
+        )}
         <Button variant="ghost" onClick={() => setShowLogs((v) => !v)}>
           {showLogs ? t("admin.plugin.hideLogs") : t("admin.plugin.logs")}
         </Button>
@@ -541,6 +549,15 @@ export function PluginCard({ plugin, onEnable, onDisable, onUninstall, toggling 
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {showMetadata && isMetadataProvider && plugin.id && (
+        <div className="border-t pt-3 mt-1 border-[var(--border)]">
+          <p className="text-xs font-semibold mb-2 text-[var(--text-muted)]">
+            {t("admin.plugin.metadata.title")}
+          </p>
+          <PluginMetadataSettings pluginId={plugin.id} />
         </div>
       )}
 
