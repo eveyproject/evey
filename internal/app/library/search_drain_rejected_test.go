@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/eveyproject/evey/internal/domain/library"
@@ -93,5 +94,24 @@ func TestDrainSearchWriteQueue_RejectedDocumentIsDeadLetteredNotBlocking(t *test
 	}
 	if q.attempts["poison"] != maxSearchWriteAttempts {
 		t.Fatalf("poison retried %d times, want %d", q.attempts["poison"], maxSearchWriteAttempts)
+	}
+}
+
+// An engine-side failure blames no document: the page stays queued and no
+// attempt is counted, or an outage would dead-letter the whole backlog.
+func TestDrainSearchWriteQueue_EngineFailureCountsNoAttempt(t *testing.T) {
+	ctx := context.Background()
+	q := &attemptsQueue{fakeSearchQueue: newFakeSearchQueue(), attempts: map[string]int{}, dead: map[string]bool{}}
+	items := libfakes.NewFakeMediaItemQueryRepo()
+	q.ops["m1"] = library.SearchOpUpsert
+	items.Add(&library.MediaItem{ID: "m1", Title: "Title m1"})
+	search := libfakes.NewFakeSearchIndex()
+	search.Err = errors.New("meilisearch task failed: no space left on device")
+
+	if _, err := DrainSearchWriteQueue(ctx, q, items, search, nil, nil); err == nil {
+		t.Fatal("an engine failure must surface")
+	}
+	if _, ok := q.ops["m1"]; !ok || q.attempts["m1"] != 0 {
+		t.Fatalf("queued=%v attempts=%d, want still queued with no attempt", ok, q.attempts["m1"])
 	}
 }

@@ -324,8 +324,15 @@ func (a *SearchAdapter) IndexMediaItemsBatch(ctx context.Context, items []*libra
 // turns into an error the caller queues for replay instead of a hung writer.
 const taskWaitTimeout = 2 * time.Minute
 
-// errTaskFailed marks a write the engine accepted but then refused to apply.
-var errTaskFailed = errors.New("meilisearch task failed")
+// errDocumentRejected marks a task the engine failed because of a document
+// (bad id, bad field): only those are bisected and blamed on documents.
+var errDocumentRejected = errors.New("meilisearch refused a document")
+
+// isDocumentErrorCode reports whether a failed task's error code names the
+// documents rather than the engine (disk full, internal error, timeout).
+func isDocumentErrorCode(code string) bool {
+	return strings.HasPrefix(code, "invalid_document_") || code == "missing_document_id"
+}
 
 // RejectedDocumentsError lists the documents Meilisearch refused on their own
 // after a failed batch was split; the rest of the batch is indexed.
@@ -346,7 +353,7 @@ type taskWaiter interface {
 func (a *SearchAdapter) awaitTask(ctx context.Context, info *ms.TaskInfo) error {
 	w, ok := a.index.(taskWaiter)
 	if !ok || info == nil {
-		return nil
+		return nil // only the in-memory test fakes cannot wait; the real client always can
 	}
 	ctx, cancel := context.WithTimeout(ctx, taskWaitTimeout)
 	defer cancel()
@@ -354,9 +361,13 @@ func (a *SearchAdapter) awaitTask(ctx context.Context, info *ms.TaskInfo) error 
 	if err != nil {
 		return fmt.Errorf("wait for task %d: %w", info.TaskUID, err)
 	}
-	if task.Status != ms.TaskStatusSucceeded {
-		return fmt.Errorf("%w: task %d %s: %s", errTaskFailed, info.TaskUID, task.Status, task.Error.Message)
+	if task.Status == ms.TaskStatusSucceeded {
+		return nil
 	}
+	if task.Status == ms.TaskStatusFailed && isDocumentErrorCode(task.Error.Code) {
+		return fmt.Errorf("%w: task %d: %s: %s", errDocumentRejected, info.TaskUID, task.Error.Code, task.Error.Message)
+	}
+	return fmt.Errorf("meilisearch task %d %s: %s: %s", info.TaskUID, task.Status, task.Error.Code, task.Error.Message)
 	return nil
 }
 
@@ -368,12 +379,12 @@ func (a *SearchAdapter) addDocuments(ctx context.Context, docs []mediaDocument) 
 	return a.awaitTask(ctx, info)
 }
 
-// addBisecting splits a batch whose task failed until the refused documents
-// are isolated, so one bad document no longer keeps its whole batch out of
-// the index. Transport errors are returned as is (engine down: retry later).
+// addBisecting splits a batch refused for a document until the refused
+// documents are isolated, so one bad document no longer keeps its batch out
+// of the index. Any other error is returned as is (engine side: retry later).
 func (a *SearchAdapter) addBisecting(ctx context.Context, docs []mediaDocument, rejected *[]string) error {
 	err := a.addDocuments(ctx, docs)
-	if err == nil || !errors.Is(err, errTaskFailed) {
+	if err == nil || !errors.Is(err, errDocumentRejected) {
 		return err
 	}
 	if len(docs) == 1 {
