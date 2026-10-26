@@ -590,6 +590,10 @@ func (o *AudioSegmentOrchestrator) evictOldestLocked(audioHash string) {
 	var oldest *audioSession
 	live := 0
 	for _, sess := range o.byHash[audioHash] {
+		// Already being stopped, listed only until its reap: neither live nor a victim.
+		if sess.stopped {
+			continue
+		}
 		live++
 		if oldest == nil || sess.startedAt.Before(oldest.startedAt) {
 			oldest = sess

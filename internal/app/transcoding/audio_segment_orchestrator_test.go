@@ -931,3 +931,29 @@ func TestAudioOrchestrator_EvictionStopsOutsideTheLock(t *testing.T) {
 		t.Fatal("the orchestrator lock is held while the evicted session stops")
 	}
 }
+
+// A session already being stopped stays listed until its reap; the next
+// eviction must pick another victim instead of stopping the same one again.
+func TestAudioOrchestrator_SuccessiveEvictionsTargetDifferentSessions(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	release := make(chan struct{})
+	proc := &slowStopAudioProcess{fakeAudioProcess: newFakeAudioProcess(), release: release, handles: make(chan *slowStopAudioHandle, 8)}
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+	defer close(release)
+
+	for _, seg := range []int{100, 400, 700, 1000, 1300} {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		_ = o.EnsureAudioSegment(ctx, fp, seg)
+		cancel()
+	}
+	first, second := <-proc.handles, <-proc.handles
+	for i, h := range []*slowStopAudioHandle{first, second} {
+		select {
+		case <-h.stopping:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("session %d was never evicted", i)
+		}
+	}
+}
