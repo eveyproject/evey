@@ -443,10 +443,13 @@ export default function PlayerScreen() {
         committedTimeRef.current = ev.currentTime;
         setCurrentTime(ev.currentTime);
       }
-      // A tick can land between the release and the unsubscribe.
+      // A tick can land between the release and the unsubscribe. Same value,
+      // no state: a set per tick had React re-running the screen.
       withPlayer((p) => {
-        setDuration(p.duration);
-        durationRef.current = p.duration;
+        if (p.duration !== durationRef.current) {
+          durationRef.current = p.duration;
+          setDuration(p.duration);
+        }
       });
     });
     const statusSub = player.addListener("statusChange", (ev) => {
@@ -586,11 +589,20 @@ export default function PlayerScreen() {
   // hands the D-pad back to the surface (barFocused goes false), and a version
   // that always showed turned that into a loop - the controls blinked off and
   // straight back on, which is why they never left the picture.
+  // The timer is re-armed by every key and by the hooks' activity callbacks:
+  // setting the same value again still has React run this whole screen once
+  // before it bails out, so the state is only touched when it changes.
+  const shownRef = useRef(true);
   const armHideTimer = useCallback((wake: boolean) => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (wake) setShowControls(true);
+    if (wake && !shownRef.current) {
+      shownRef.current = true;
+      setShowControls(true);
+    }
     const delay = barFocusedRef.current ? CONTROLS_FOCUSED_TIMEOUT : CONTROLS_TIMEOUT;
     hideTimerRef.current = setTimeout(() => {
+      if (!shownRef.current) return;
+      shownRef.current = false;
       setShowControls(false);
       setBarFocused(false);
     }, delay);
