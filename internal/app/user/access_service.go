@@ -359,9 +359,14 @@ func (s *AccessService) RevokeLibraryAccess(ctx context.Context, userID shared.U
 func (s *AccessService) ReplaceLibraryAccess(ctx context.Context, userID string, libraryIDs []string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.ReplaceLibraryAccess")
 	defer span.End()
-	ids := make([]shared.LibraryID, len(libraryIDs))
-	for i, id := range libraryIDs {
-		ids[i] = shared.LibraryID(id)
+	ids := make([]shared.LibraryID, 0, len(libraryIDs))
+	for _, id := range libraryIDs {
+		if id != user.NoLibraryAccess { // a filter value, never a grant
+			ids = append(ids, shared.LibraryID(id))
+		}
+	}
+	if len(ids) == 0 && len(libraryIDs) > 0 {
+		return nil // only the sentinel echoed back: stay restricted to nothing
 	}
 	return s.libraryAccess.ReplaceAccess(ctx, shared.UserID(userID), ids)
 }
