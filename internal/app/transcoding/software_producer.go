@@ -681,10 +681,16 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 	// below a deep viewer, or a viewer jumping forward past the live frontier, must
 	// not yank a sibling another viewer consumes; they coexist, bounded by
 	// MaxSessionsPerHash (LRU-evicted).
-	err := p.startSession(ctx, fp, variantIdx, segmentIdx)
-	p.settlePendingSpawn(hash, claim, err)
-	return err
+	// Deferred so every exit, a panic included, settles the claim; until
+	// startSession returns, waiters see the spawn as aborted.
+	spawnErr := errSpawnAborted
+	defer func() { p.settlePendingSpawn(hash, claim, spawnErr) }()
+	spawnErr = p.startSession(ctx, fp, variantIdx, segmentIdx)
+	return spawnErr
 }
+
+// errSpawnAborted is what claim waiters receive when the spawn never returned.
+var errSpawnAborted = errors.New("software: spawn aborted")
 
 // pendingSpawnCoversLocked returns the in-flight spawn of the same rung that
 // starts at or below segmentIdx within reach of it, or nil. Caller holds p.mu.
