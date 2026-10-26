@@ -19,11 +19,14 @@ import (
 // fakeMeili answers like a Meilisearch server: every write is accepted as an
 // enqueued task, and the task FAILS when its batch holds a document whose id
 // starts with "bad" - the engine rejects the whole batch, not just that doc.
+// systemic makes every write task fail with an engine-side error code.
 type fakeMeili struct {
-	mu      sync.Mutex
-	tasks   map[int64]bool // uid -> failed
-	indexed map[string]bool
-	next    int64
+	mu       sync.Mutex
+	tasks    map[int64]bool // uid -> failed
+	indexed  map[string]bool
+	next     int64
+	systemic bool
+	posts    int
 }
 
 func newFakeMeili(t *testing.T) (*fakeMeili, *httptest.Server) {
@@ -54,7 +57,11 @@ func (f *fakeMeili) serve(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodPost && r.URL.Path == "/indexes/media_items/documents":
 		var docs []map[string]any
 		_ = json.NewDecoder(r.Body).Decode(&docs)
-		failed := false
+		f.mu.Lock()
+		f.posts++
+		systemic := f.systemic
+		f.mu.Unlock()
+		failed := systemic
 		for _, d := range docs {
 			if strings.HasPrefix(fmt.Sprint(d["id"]), "bad") {
 				failed = true
@@ -73,8 +80,13 @@ func (f *fakeMeili) serve(w http.ResponseWriter, r *http.Request) {
 		_, _ = fmt.Sscan(strings.TrimPrefix(r.URL.Path, "/tasks/"), &uid)
 		f.mu.Lock()
 		failed := f.tasks[uid]
+		systemic := f.systemic
 		f.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+		if failed && systemic {
+			_, _ = fmt.Fprintf(w, `{"uid":%d,"indexUid":"media_items","status":"failed","type":"documentAdditionOrUpdate","error":{"message":"no space left on device","code":"no_space_left_on_device","type":"system","link":""}}`, uid)
+			return
+		}
 		if failed {
 			_, _ = fmt.Fprintf(w, `{"uid":%d,"indexUid":"media_items","status":"failed","type":"documentAdditionOrUpdate","error":{"message":"invalid document","code":"invalid_document_fields","type":"invalid_request","link":""}}`, uid)
 			return
@@ -169,5 +181,32 @@ func TestRemoveLibrary_DeletesByLibraryFilter(t *testing.T) {
 	}
 	if gotPath == "" || gotFilter != `library_id = 'lib-1\'x'` {
 		t.Fatalf("delete by filter = %q %q, want the escaped library_id filter", gotPath, gotFilter)
+	}
+}
+
+// An engine-side failure (disk full, internal error) says nothing about the
+// documents: it must stay a plain error, without splitting the batch or
+// blaming any document, so the whole batch is replayed later.
+func TestIndexMediaItemsBatch_SystemicTaskFailureIsNotARejection(t *testing.T) {
+	f, srv := newFakeMeili(t)
+	a, err := NewSearchAdapter(srv.URL, "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	f.systemic = true
+	f.posts = 0
+	f.mu.Unlock()
+
+	err = a.IndexMediaItemsBatch(context.Background(), items("a", "b", "c", "d"))
+	if err == nil {
+		t.Fatal("a failed task must be an error")
+	}
+	var rejected interface{ RejectedIDs() []string }
+	if errors.As(err, &rejected) {
+		t.Fatalf("an engine failure was reported as refused documents %v", rejected.RejectedIDs())
+	}
+	if f.posts != 1 {
+		t.Fatalf("the batch was sent %d times, want 1 (no bisection on an engine failure)", f.posts)
 	}
 }
