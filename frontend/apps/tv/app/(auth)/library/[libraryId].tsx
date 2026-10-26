@@ -202,7 +202,12 @@ export default function LibraryDetailScreen() {
     { limit: WATCH_HISTORY_OVERLAY_LIMIT },
     { query: { enabled: !!libraryId && gridPainted, staleTime: 30_000 } },
   );
-  const { watchedMap, percentMap } = buildWatchProgressMaps(watchHistoryData?.items ?? []);
+  // Memoised: built on every render, the maps gave renderItem a new identity
+  // each time and the list re-rendered every visible card with the screen.
+  const { watchedMap, percentMap } = useMemo(
+    () => buildWatchProgressMaps(watchHistoryData?.items ?? []),
+    [watchHistoryData?.items],
+  );
 
   // Reset pagination when a filter/sort param changes. Declared BEFORE the
   // accumulate effect ON PURPOSE: React runs effects in declaration order, so
@@ -224,6 +229,7 @@ export default function LibraryDetailScreen() {
     prevDataRef.current = data;
     const newItems = data.items ?? [];
     if (!cursor) {
+      // The very array displayItems already shows, not a copy (see firstPage).
       setAllItems(newItems);
     } else {
       setAllItems((prev) => [...prev, ...newItems]);
@@ -231,9 +237,13 @@ export default function LibraryDetailScreen() {
     setHasMore(hasMoreFromCursor(data.pagination));
   }, [data, cursor]);
 
+  // The first page shows the render it lands on: the accumulate effect below
+  // then stores that same array, so the list's data keeps its identity and
+  // no card renders twice (measured 2026-10-26: a full extra pass on a set).
+  const firstPage = !cursor && allItems.length === 0 ? data?.items : undefined;
   const displayItems = useMemo(
-    () => (searchActive ? (searchData?.items ?? []) : allItems),
-    [searchActive, searchData?.items, allItems],
+    () => (searchActive ? (searchData?.items ?? []) : (firstPage ?? allItems)),
+    [searchActive, searchData?.items, firstPage, allItems],
   );
 
   // Shuffle play: with a search or type/genre facet active, shuffle among
