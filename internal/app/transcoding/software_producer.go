@@ -1014,6 +1014,8 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 			naturalExit = true
 		case <-sessionCtx.Done():
 		}
+		// A natural exit never cancels sessionCtx; release it from shutdownCtx's child set.
+		cancel()
 		close(session.done)
 		session.mu.Lock()
 		td := session.teardown

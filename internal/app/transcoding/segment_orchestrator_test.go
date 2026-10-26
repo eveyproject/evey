@@ -874,13 +874,16 @@ type fakeProcess struct {
 	// startErr, when set, makes Start itself fail (records the attempt, returns
 	// the error, no handle) - used by the whole-file retry/invariant tests.
 	startErr error
+	// lastCtx is the context the latest Start received.
+	lastCtx context.Context
 }
 
 func newFakeProcess() *fakeProcess { return &fakeProcess{} }
 
-func (p *fakeProcess) Start(_ context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
+func (p *fakeProcess) Start(ctx context.Context, opts transcoding.HLSProcessOpts) (transcoding.HLSProcessHandle, error) {
 	p.mu.Lock()
 	p.started = append(p.started, opts)
+	p.lastCtx = ctx
 	fail := p.failOnExit
 	serr := p.startErr
 	p.mu.Unlock()

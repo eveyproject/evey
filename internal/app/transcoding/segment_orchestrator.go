@@ -1086,6 +1086,8 @@ func (o *SegmentOrchestrator) spawnSession(
 			naturalExit = true
 		case <-sessionCtx.Done():
 		}
+		// A natural exit never cancels sessionCtx; release it from shutdownCtx's child set.
+		cancel()
 		session.mu.Lock()
 		if session.killed {
 			naturalExit = false
