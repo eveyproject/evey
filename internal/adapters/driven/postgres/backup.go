@@ -361,12 +361,10 @@ func (p *psqlRestore) finish() error {
 	return nil
 }
 
-// validateBackup streams the backup into out, checking the pg_dump header and
-// allowlist-validating every line outside of COPY data blocks. COPY data (the
-// rows streamed between `COPY … FROM stdin;` and a lone `\.`) is opaque and
-// passed through verbatim; any non-data line that is not part of the safe
-// data-only grammar (see allowedDumpLine) is rejected. Lines before the header
-// are held back (at most 50), so out receives nothing from a headerless file.
+// validateBackup streams the backup into out, allowlist-validating every line
+// outside COPY data (see allowedDumpLine); COPY rows pass through verbatim.
+// Lines before the pg_dump header are held back (at most 50), so out receives
+// nothing from a headerless file.
 func validateBackup(data io.Reader, out *psqlRestore) error {
 	scanner := bufio.NewScanner(data)
 	scanner.Buffer(make([]byte, 0, 64*1024), 10*1024*1024)
