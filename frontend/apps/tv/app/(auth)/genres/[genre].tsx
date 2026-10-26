@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { useGridColumns, DEEP_SCREEN_GRID_INSET } from "../../../src/hooks/useGridColumns";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -15,7 +16,6 @@ import { genreTranslationKey } from "../../../src/lib/genres";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
-const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
@@ -24,13 +24,15 @@ function genreMediaKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
 }
 
+// With columns, the list indexes its ROWS: the offset is the row's.
 const genreGetItemLayout = (_: unknown, index: number) => ({
   length: ROW_HEIGHT,
-  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  offset: ROW_HEIGHT * index,
   index,
 });
 
 export default function GenreDetailScreen() {
+  const numColumns = useGridColumns(CARD_WIDTH, DEEP_SCREEN_GRID_INSET);
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const { genre } = useLocalSearchParams<{ genre: string }>();
   const theme = useTheme();
@@ -121,7 +123,8 @@ export default function GenreDetailScreen() {
           data={items}
           keyExtractor={genreMediaKeyExtractor}
           renderItem={renderItem}
-          numColumns={NUM_COLUMNS}
+          key={numColumns}
+          numColumns={numColumns}
           contentContainerStyle={{ padding: 24 }}
           columnWrapperStyle={items.length > 0 ? { gap: 12, marginBottom: 16 } : undefined}
           getItemLayout={genreGetItemLayout}

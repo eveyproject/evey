@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { View, Text, FlatList, StyleSheet } from "react-native";
+import { useGridColumns, TAB_SCREEN_GRID_INSET } from "../../../src/hooks/useGridColumns";
 import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -13,7 +14,6 @@ import { ScreenState } from "../../../src/components/ScreenState";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
-const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP; // poster + text + gap
@@ -22,13 +22,16 @@ function tvFavKeyExtractor(item: FavoriteItem) {
   return item.mediaItemId;
 }
 
+// With columns, the list indexes its ROWS: the offset is the row's, not the
+// card's divided by the column count (every row came out at offset 0).
 const tvFavGetItemLayout = (_: unknown, index: number) => ({
   length: ROW_HEIGHT,
-  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  offset: ROW_HEIGHT * index,
   index,
 });
 
 export default function FavoritesScreen() {
+  const numColumns = useGridColumns(CARD_WIDTH, TAB_SCREEN_GRID_INSET);
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -79,7 +82,8 @@ export default function FavoritesScreen() {
         data={favorites ?? []}
         keyExtractor={tvFavKeyExtractor}
         renderItem={renderItem}
-        numColumns={NUM_COLUMNS}
+        key={numColumns}
+        numColumns={numColumns}
         contentContainerStyle={{ padding: 24 }}
         columnWrapperStyle={{ gap: 12, marginBottom: 16 }}
         getItemLayout={tvFavGetItemLayout}

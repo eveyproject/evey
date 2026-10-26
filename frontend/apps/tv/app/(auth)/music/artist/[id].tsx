@@ -1,4 +1,5 @@
 import { View, Text, FlatList, StyleSheet } from "react-native";
+import { useGridColumns, DEEP_SCREEN_GRID_INSET } from "../../../../src/hooks/useGridColumns";
 import { Image } from "expo-image";
 import { router, useLocalSearchParams, Stack } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -13,7 +14,6 @@ import { musicAlbumHref } from "../../../../src/lib/musicRoutes";
 import { CARD_WIDTH_FEATURED, GRID_GAP } from "../../../../src/lib/tvLayout";
 import { coverArtUri } from "../../../../src/lib/artwork";
 
-const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_FEATURED;
 const ART_SIZE = CARD_WIDTH;
 // Taller label block than LABEL_BLOCK_HEIGHT (40): this grid also shows an
@@ -24,13 +24,15 @@ function albumKeyExtractor(item: V1MusicAlbum) {
   return item.id ?? "";
 }
 
+// With columns, the list indexes its ROWS: the offset is the row's.
 const albumGetItemLayout = (_: unknown, index: number) => ({
   length: ROW_HEIGHT,
-  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  offset: ROW_HEIGHT * index,
   index,
 });
 
 export default function ArtistDetailScreen() {
+  const numColumns = useGridColumns(CARD_WIDTH, DEEP_SCREEN_GRID_INSET);
   const { id, libraryId } = useLocalSearchParams<{ id: string; libraryId?: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -74,7 +76,8 @@ export default function ArtistDetailScreen() {
         <FlatList
           data={items}
           keyExtractor={albumKeyExtractor}
-          numColumns={NUM_COLUMNS}
+          key={numColumns}
+          numColumns={numColumns}
           contentContainerStyle={{ padding: 24 }}
           columnWrapperStyle={{ gap: 12, marginBottom: 16 }}
           getItemLayout={albumGetItemLayout}

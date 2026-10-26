@@ -39,9 +39,9 @@ import { HOME_SHORTCUT_INSET } from "../../../src/components/HomeShortcutButton"
 import { canPlayAllForSelection, buildPlayAllQueue, pickRandomItem } from "../../../src/lib/librarySelection";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
+import { useGridColumns, DEEP_SCREEN_GRID_INSET } from "../../../src/hooks/useGridColumns";
 import { buildMediaListParams, LIBRARY_DEFAULT_SORT_FIELD, LIBRARY_DEFAULT_SORT_ORDER, LIBRARY_PAGE_SIZE, LIBRARY_NEXT_PAGE_SIZE, libraryGridRow } from "../../../src/lib/libraryGrid";
 
-const NUM_COLUMNS = 5;
 // Room above the focused row for its focus zoom, kept when a row scrolls to
 // the top of the list.
 const GRID_TOP_INSET = 12;
@@ -131,6 +131,7 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 
 export default function LibraryDetailScreen() {
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
+  const numColumns = useGridColumns(CARD_WIDTH, DEEP_SCREEN_GRID_INSET);
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -331,10 +332,10 @@ export default function LibraryDetailScreen() {
   const itemCount = displayItems.length;
   const onCardFocus = useCallback(
     (index: number) => {
-      listRef.current?.scrollToIndex({ index: libraryGridRow(index, NUM_COLUMNS), viewPosition: 0, viewOffset: GRID_TOP_INSET, animated: true });
-      if (index >= itemCount - NUM_COLUMNS * PAGE_AHEAD_ROWS) handleEndReached();
+      listRef.current?.scrollToIndex({ index: libraryGridRow(index, numColumns), viewPosition: 0, viewOffset: GRID_TOP_INSET, animated: true });
+      if (index >= itemCount - numColumns * PAGE_AHEAD_ROWS) handleEndReached();
     },
-    [itemCount, handleEndReached],
+    [itemCount, numColumns, handleEndReached],
   );
 
   const renderItem = useCallback(
@@ -535,10 +536,12 @@ export default function LibraryDetailScreen() {
           ) : (
             <FlatList
               ref={listRef}
+              // A list cannot change its column count in place.
+              key={numColumns}
               data={displayItems}
               keyExtractor={tvLibKeyExtractor}
               renderItem={renderItem}
-              numColumns={NUM_COLUMNS}
+              numColumns={numColumns}
               // The grid runs under the home shortcut's band (see _layout):
               // the band only holds a corner button, and the row below the
               // focused one shows there, which is how the viewer sees that
