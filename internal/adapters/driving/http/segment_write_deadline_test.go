@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -55,5 +56,44 @@ func TestServeSegmentFile_SlidingWriteDeadline(t *testing.T) {
 	}
 	if last := rec.deadlines[len(rec.deadlines)-1]; !last.IsZero() {
 		t.Fatalf("deadline left at %v after the segment, want cleared", last)
+	}
+}
+
+// readerFromRecorder also implements io.ReaderFrom, like the real response
+// writer whose ReadFrom is the sendfile path.
+type readerFromRecorder struct {
+	*deadlineRecorder
+	calls        int
+	sendfileable bool
+}
+
+func (r *readerFromRecorder) ReadFrom(src io.Reader) (int64, error) {
+	r.calls++
+	if lr, ok := src.(*io.LimitedReader); ok {
+		src = lr.R
+	}
+	_, r.sendfileable = src.(*os.File)
+	return io.Copy(struct{ io.Writer }{r.ResponseRecorder}, src)
+}
+
+// The deadline wrapper must keep the sendfile path: ServeFile copies through
+// io.ReaderFrom when the writer has it, with the file one LimitedReader deep.
+func TestServeSegmentFile_KeepsTheReaderFromPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stream_0_000.m4s")
+	body := bytes.Repeat([]byte{0x42}, 600<<10)
+	if err := os.WriteFile(path, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rec := &readerFromRecorder{deadlineRecorder: &deadlineRecorder{ResponseRecorder: httptest.NewRecorder()}}
+	serveSegmentFile(rec, httptest.NewRequest(http.MethodGet, "/seg", nil), path)
+
+	if !bytes.Equal(rec.Body.Bytes(), body) {
+		t.Fatalf("served %d bytes, want %d", rec.Body.Len(), len(body))
+	}
+	if rec.calls == 0 || !rec.sendfileable {
+		t.Fatalf("ReadFrom calls=%d sendfileable=%v, want the file handed to ReadFrom", rec.calls, rec.sendfileable)
+	}
+	if len(rec.deadlines) < rec.calls+1 {
+		t.Fatalf("%d deadline updates for %d ReadFrom chunks", len(rec.deadlines), rec.calls)
 	}
 }
