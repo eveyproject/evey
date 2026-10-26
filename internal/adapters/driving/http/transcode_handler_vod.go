@@ -1278,7 +1278,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		w.Header().Set("Content-Type", "video/mp4")
 	}
 	w.Header().Set("Cache-Control", "no-cache")
-	http.ServeFile(w, r, path)
+	serveSegmentFile(w, r, path)
 }
 
 // producerForRequest resolves the StreamProducer (software vs hardware) for the
