@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -203,5 +204,42 @@ func TestLocationFromResponder(t *testing.T) {
 		if got := locationFromResponder(loc, src); got != want {
 			t.Errorf("%q from %s: got %v, want %v", loc, src, got, want)
 		}
+	}
+}
+
+// A renderer is a LAN device: a responder on a public or loopback address is
+// never one, and fetching from it would turn discovery into a request relay.
+func TestLocationFromResponder_PrivateRangesOnly(t *testing.T) {
+	for loc, want := range map[string]bool{
+		"http://10.0.0.7:49152/desc.xml":    true,
+		"http://172.16.4.2:49152/desc.xml":  true,
+		"http://192.168.0.9:49152/desc.xml": true,
+		"http://169.254.10.1/desc.xml":      true,
+		"http://[fd00::7]:49152/desc.xml":   true,
+		"http://203.0.113.5:49152/desc.xml": false,
+		"http://8.8.8.8/desc.xml":           false,
+		"http://127.0.0.1:7700/":            false,
+		"http://[2001:db8::1]/desc.xml":     false,
+	} {
+		u, _ := url.Parse(loc)
+		src := net.ParseIP(u.Hostname())
+		if got := locationFromResponder(loc, src); got != want {
+			t.Errorf("%q from itself: got %v, want %v", loc, got, want)
+		}
+	}
+}
+
+func TestPlay_RefusesANonHTTPMediaURL(t *testing.T) {
+	rec := &recordingRenderer{}
+	srv := httptest.NewServer(rec)
+	defer srv.Close()
+	s := serviceWithRenderer(srv.URL + "/avt")
+	for _, bad := range []string{"file:///etc/passwd", "/relative/m.mp4", "", "ftp://h/m.mp4"} {
+		if err := s.Play(context.Background(), "tv", bad, "t"); err == nil {
+			t.Errorf("media url %q must be refused", bad)
+		}
+	}
+	if len(rec.actions) != 0 {
+		t.Fatalf("a refused url reached the renderer: %v", rec.actions)
 	}
 }
