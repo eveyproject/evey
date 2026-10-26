@@ -2,6 +2,7 @@ import React, { useState, useCallback } from "react";
 import { Pressable, StyleSheet, View, type ViewStyle, type StyleProp, type AccessibilityState } from "react-native";
 import { useTheme } from "../providers/ThemeProvider";
 import { useLiteMode } from "../lib/liteMode";
+import { FOCUS_RING_WIDTH } from "../lib/focusRing";
 
 interface FocusableCardProps {
   onPress?: () => void;
@@ -57,6 +58,7 @@ export const FocusableCard = React.memo(function FocusableCard({
       style={[
         styles.card,
         style,
+        outerSize(style),
         focused && !lite && styles.focused,
         focused && focusedStyle,
       ]}
@@ -79,13 +81,29 @@ export const FocusableCard = React.memo(function FocusableCard({
   );
 });
 
-const BORDER_WIDTH = 3;
+const BORDER_WIDTH = FOCUS_RING_WIDTH;
 const DEFAULT_RADIUS = 8;
 
+// Own flattening: the screens' tests mock react-native down to a few parts.
+function flatten(style: StyleProp<ViewStyle>): ViewStyle {
+  if (Array.isArray(style)) return Object.assign({}, ...(style as unknown[]).map((s) => flatten(s as StyleProp<ViewStyle>)));
+  return style && typeof style === "object" ? (style as ViewStyle) : {};
+}
+
 function ringRadius(style: StyleProp<ViewStyle>): number {
-  const flat = StyleSheet.flatten(style);
-  const r = flat?.borderRadius;
+  const r = flatten(style).borderRadius;
   return typeof r === "number" ? r : DEFAULT_RADIUS;
+}
+
+// A numeric size in the caller's style is the size of its content (a poster
+// as wide as the card): the border is added outside it, or the content sat
+// inside the left edge and past the right one.
+function outerSize(style: StyleProp<ViewStyle>): ViewStyle | null {
+  const flat = flatten(style);
+  const out: ViewStyle = {};
+  if (typeof flat.width === "number") out.width = flat.width + 2 * BORDER_WIDTH;
+  if (typeof flat.height === "number") out.height = flat.height + 2 * BORDER_WIDTH;
+  return out.width !== undefined || out.height !== undefined ? out : null;
 }
 
 const styles = StyleSheet.create({
