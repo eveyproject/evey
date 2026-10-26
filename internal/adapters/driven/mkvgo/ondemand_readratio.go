@@ -187,10 +187,21 @@ func (p *ondemandPlan) servedStats() (served int64, overBar bool) {
 	return planServed(st), p.watch.countedOver(overRead(st))
 }
 
-// countedResource counts what a streamed resource wrote to its client.
+// countedResource counts what a resource wrote to its client: a streamed one
+// as WriteRange goes, a whole one when its bytes are first handed out.
 type countedResource struct {
 	apptranscoding.OnDemandResource
-	plan *ondemandPlan
+	plan  *ondemandPlan
+	taken bool
+}
+
+func (c *countedResource) Bytes() []byte {
+	b := c.OnDemandResource.Bytes()
+	if b != nil && !c.taken {
+		c.taken = true
+		c.plan.served(int64(len(b)))
+	}
+	return b
 }
 
 func (c *countedResource) WriteRange(ctx context.Context, w io.Writer, off, n int64) (int64, error) {
