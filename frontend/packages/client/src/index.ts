@@ -67,6 +67,8 @@ export * from "./lib/trickplayCues";
 export * from "./lib/homeLibraryRows";
 export * from "./lib/homeSections";
 export * from "./lib/homeLayoutRefresh";
+export * from "./lib/queryPersist";
+export * from "./lib/queryPersistLocalStorage";
 export * from "./lib/feedCustomize";
 export * from "./lib/heroTitle";
 export * from "./lib/homeShortcut";
