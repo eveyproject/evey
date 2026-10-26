@@ -32,9 +32,8 @@ type Spec interface {
 // And conjoins specs; the empty And is always satisfied (identity).
 func And(specs ...Spec) Spec { return AndSpec{Specs: specs} }
 
-// The concrete specs are exported so a storage adapter can translate them to
-// its own query language; the domain keeps only their in-memory semantics.
-
+// AndSpec and the specs below are exported so a storage adapter can translate
+// them to its own query language; the domain keeps their in-memory semantics.
 type AndSpec struct{ Specs []Spec }
 
 func (a AndSpec) IsSatisfiedBy(c Candidate) bool {

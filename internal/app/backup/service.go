@@ -140,7 +140,7 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 
 func (s *Service) createBackup(ctx context.Context) (*backup.BackupManifest, error) {
 	if !s.opMu.TryRLock() {
-		return nil, fmt.Errorf("Service.CreateBackup: %w", ErrOperationInProgress)
+		return nil, fmt.Errorf("backup: %w", ErrOperationInProgress)
 	}
 	defer s.opMu.RUnlock()
 

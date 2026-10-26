@@ -265,11 +265,9 @@ func fetchDeviceDescription(ctx context.Context, location string) (*Renderer, er
 	}, nil
 }
 
-// locationFromResponder reports whether an SSDP LOCATION points at the host
-// that sent it, as an http(s) URL on its private LAN IP. Anything else
-// (another host, a name, another scheme, a public or loopback address) would
-// let a responder make the server fetch it. The control URL is then pinned to
-// this same host, so it inherits the check.
+// locationFromResponder reports whether an SSDP LOCATION is an http(s) URL on
+// the private LAN IP of the host that sent it. Anything else would let a
+// responder make the server fetch it; the control URL is pinned to this host.
 func locationFromResponder(location string, src net.IP) bool {
 	u, err := url.Parse(location)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
