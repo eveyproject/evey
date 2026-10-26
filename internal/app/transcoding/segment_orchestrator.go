@@ -508,7 +508,7 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 		// target; the last one standing spawns once, off the debounce timer. The
 		// `far != nil` path (a nearby rafale to ride or overtake) is left
 		// immediate - it is a continuation, not the storm, and must not stall.
-		if o.opts.SeekCoalesceWindow > 0 && far == nil {
+		if o.opts.SeekCoalesceWindow > 0 && far == nil && !o.spawnWouldBeRefused(hash, fp, variantIdx) {
 			o.coalesceSeekLocked(hash, fp, variantIdx, segmentIdx)
 			o.mu.Unlock()
 			// The caller blocks on cache.Wait as always; the deferred spawn
@@ -578,6 +578,23 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	// the lifetime of the process.
 	o.settlePendingSpawn(hash, claim, err)
 	return err
+}
+
+// spawnWouldBeRefused tells whether spawnSession would fail its capacity gates
+// right now. A deferred spawn reports its refusal to nobody, so a seek that
+// cannot be admitted takes the immediate path and its caller gets the error.
+func (o *SegmentOrchestrator) spawnWouldBeRefused(hash string, fp DecisionFingerprint, variantIdx int) bool {
+	if o.sessionSem != nil && len(o.sessionSem) >= cap(o.sessionSem) {
+		return true
+	}
+	if o.videoLimiter == nil {
+		return false
+	}
+	profiles := fp.Profiles
+	if o.opts.SingleVariant && variantIdx >= 0 && variantIdx < len(profiles) {
+		profiles = profiles[variantIdx : variantIdx+1]
+	}
+	return !o.videoLimiter.CanAdmitSession(hash, SessionCostOf(fp, topProfileHeight(profilesToDomain(profiles))))
 }
 
 // pendingSpawn records a spawn that has passed the covering-session check but

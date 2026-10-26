@@ -173,3 +173,23 @@ func TestOrchestrator_SeekCoalesce_LiveRafaleServedImmediately(t *testing.T) {
 	assert.Equal(t, 1, proc.startCount(), "the live rafale is ridden, not respawned")
 	assert.Equal(t, 1, o.ActiveCount())
 }
+
+// A seek the host has no encode slot for must be refused at once, not parked
+// behind the debounce: the deferred spawn's refusal only reached a log, and the
+// viewer waited out the whole segment budget instead of getting a 503.
+func TestOrchestrator_SeekCoalesce_AtCapacity_ReturnsCapacityErrorToCaller(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := testOpts()
+	opts.SeekCoalesceWindow = 60 * time.Millisecond
+	limiter := NewVideoSessionLimiter(1)
+	require.True(t, limiter.TryAcquire("another-stream", LadderClassSoftware, 720))
+	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger()).
+		WithVideoSessionLimiter(limiter)
+	defer o.Close()
+
+	err := o.EnsureSegmentRange(context.Background(), minimalFingerprint(t), 0, 100)
+	require.ErrorIs(t, err, ErrVideoCapacityExhausted)
+	assert.Equal(t, 0, o.pendingSeekCount(), "a refused seek must not stay parked")
+	assert.Equal(t, 0, proc.startCount())
+}
