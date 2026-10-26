@@ -13,7 +13,9 @@ vi.mock("react-native", () => ({
       { onClick: onPress, onFocus, onBlur, disabled, "aria-label": accessibilityLabel, "data-state": JSON.stringify(accessibilityState ?? null), "data-border": String(flat(style).borderColor), "data-zoom": JSON.stringify(flat(style).transform ?? null) },
       children,
     ),
-  StyleSheet: { create: (s: any) => s },
+  // The focus ring: a child drawn over the card, carrying the accent colour.
+  View: ({ style }: any) => React.createElement("div", { "data-testid": "ring", "data-ring": String(flat(style).borderColor) }),
+  StyleSheet: { create: (s: any) => s, flatten: flat },
 }));
 vi.mock("../providers/ThemeProvider", () => ({ useTheme: () => ({ colors: { accent: "#88f" } }) }));
 const lite = vi.hoisted(() => ({ on: false }));
@@ -31,12 +33,16 @@ describe("FocusableCard", () => {
     const onBlur = vi.fn();
     render(<FocusableCard onPress={onPress} onFocus={onFocus} onBlur={onBlur} accessibilityLabel="Play">x</FocusableCard>);
     const btn = screen.getByLabelText("Play");
+    // The card's own border stays transparent: the ring is an overlay above
+    // the children, so a poster as wide as the card cannot cover it.
     expect(btn.getAttribute("data-border")).toBe("transparent");
+    expect(screen.queryByTestId("ring")).toBeNull();
     fireEvent.focus(btn);
-    expect(btn.getAttribute("data-border")).toBe("#88f");
+    expect(btn.getAttribute("data-border")).toBe("transparent");
+    expect(screen.getByTestId("ring").getAttribute("data-ring")).toBe("#88f");
     expect(onFocus).toHaveBeenCalled();
     fireEvent.blur(btn);
-    expect(btn.getAttribute("data-border")).toBe("transparent");
+    expect(screen.queryByTestId("ring")).toBeNull();
     expect(onBlur).toHaveBeenCalled();
     fireEvent.click(btn);
     expect(onPress).toHaveBeenCalled();
@@ -52,7 +58,7 @@ describe("FocusableCard", () => {
     render(<FocusableCard accessibilityLabel="Lite">x</FocusableCard>);
     const light = screen.getByLabelText("Lite");
     fireEvent.focus(light);
-    expect(light.getAttribute("data-border")).toBe("#88f");
+    expect(screen.getAllByTestId("ring").length).toBeGreaterThan(0);
     expect(light.getAttribute("data-zoom")).toBe("null");
     lite.on = false;
   });
