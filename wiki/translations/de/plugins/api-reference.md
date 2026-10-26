@@ -1,5 +1,5 @@
 ---
-source_sha: f7f285ec5b54df9dd7cb696c205e38b3ba09fc8a23a1c53ccad246f60c918158
+source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
 reviewed: true
 ---
 # Plugin-API-Referenz { #plugin-api-reference }
@@ -116,7 +116,7 @@ und stehen hier, damit ein Stub Sie nicht in die Irre führt.
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` oder `media.read` | Der vollständige Datensatz des Mediums, mit `file_path`, `provider_ids` und `genres`. |
 | `Fetch(url, method, headers)` | `network` | Die einzige Verbindung aus der Sandbox nach außen: `http` oder `https`, `GET` oder `HEAD`, ein Host aus `external_fetch`, private Adressen nach der Auflösung und bei Weiterleitungen abgelehnt. Der Inhalt ist auf 8 MiB begrenzt (`truncated` zeigt es an), die ganze Anfrage auf 20 Sekunden. Der Server hängt keine eigenen Zugangsdaten an. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` oder `media.read` | *Nicht bedient.* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` oder `media.write`, und die Capability `metadata.provider` | Liefert Ihren Text für einen Film oder eine Serie unaufgefordert, so wie es eine [Metadatenantwort](#metadata-requests) täte. `fields` enthält `locale` (Pflicht) und beliebige von `title`, `overview`, `tagline`; der Text ersetzt, was Sie für diese Sprache geliefert haben, und einer ohne Feld entfernt sie. `provider_ids` wird abgelehnt: TMDB identifiziert das Element. |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` oder `media.write`, und die Capability `metadata.provider` | Liefert Ihren Text für einen Film oder eine Serie unaufgefordert, so wie es eine [Metadatenantwort](#metadata-requests) täte. `fields` enthält `locale` (Pflicht) und beliebige von `title`, `overview`, `tagline`; der Text ersetzt, was Sie für diese Sprache geliefert haben, und ein `fields` nur mit `locale` entfernt ihn. `provider_ids` wird abgelehnt: TMDB identifiziert das Element. |
 | `GetUserPreferences` | `api.user` | *Nicht bedient.* |
 | `SendNotification` | `notification.sender` | *Nicht bedient.* |
 
@@ -151,14 +151,14 @@ Antworten Sie `handled: true` mit einem `result` der Form:
 }
 ```
 
-Die Felder der obersten Ebene sind in `locale`, oder in der `language` der
-Anfrage, wenn `locale` fehlt; `translations` fügt weitere Sprachen hinzu.
+Die Felder der obersten Ebene sind in der Sprache `locale`, oder in der
+`language` der Anfrage, wenn `locale` fehlt; `translations` fügt weitere Sprachen hinzu.
 Lassen Sie ein Feld weg, das Sie nicht abdecken. Sprach-Tags werden auf ihre
 Sprache gekürzt (`fr-FR` gilt als `fr`), und ein Feld über 8 KiB wird
 ignoriert. Eine Antwort ersetzt alles, was Sie zuvor für das Element geliefert
 haben; `handled: false` oder eine Antwort ohne Text bedeutet, dass Sie das
-Element nicht kennen, und löscht es. Ein Fehler oder eine Zeitüberschreitung
-behält, was Sie geliefert haben.
+Element nicht kennen, und löscht Ihren Text dazu. Bei einem Fehler oder einer
+Zeitüberschreitung bleibt erhalten, was Sie geliefert haben.
 
 Der Administrator wählt, welche von `title`, `overview` und `tagline` Ihr Text
 ersetzt, und kann Sie zur ganzen Bibliothek auf einmal befragen
