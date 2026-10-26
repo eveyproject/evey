@@ -248,23 +248,18 @@ func (s *GRPCServer) RegisterServices() {
 		pluginCfgRepo = d.ServerCfgSvc
 	}
 	adminPlugins := &adminPluginHandler{
-		pluginInstaller: d.PluginInstaller,
-		pluginRuntime:   d.PluginRuntime,
-		pluginQuery:     d.PluginQuery,
-		tokenSvc:        d.PluginToken,
-		logDir:          d.LogDir,
-		translator:      d.Translator,
-		pluginRes:       d.PluginRunner,
-		serverCfg:       pluginCfgRepo,
-		resDefaults:     d.PluginResourceDefaults,
-		enabled:         d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
-	}
-	// Typed nils must not become non-nil interfaces.
-	if d.PluginMetadataSettings != nil {
-		adminPlugins.metadataSettings = d.PluginMetadataSettings
-	}
-	if d.PluginMetadataRefresh != nil {
-		adminPlugins.metadataRefresh = d.PluginMetadataRefresh
+		pluginInstaller:  d.PluginInstaller,
+		pluginRuntime:    d.PluginRuntime,
+		pluginQuery:      d.PluginQuery,
+		tokenSvc:         d.PluginToken,
+		logDir:           d.LogDir,
+		translator:       d.Translator,
+		pluginRes:        d.PluginRunner,
+		serverCfg:        pluginCfgRepo,
+		resDefaults:      d.PluginResourceDefaults,
+		enabled:          d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
+		metadataSettings: metadataSettingsOrNil(d.PluginMetadataSettings),
+		metadataRefresh:  metadataRefreshOrNil(d.PluginMetadataRefresh),
 	}
 	eveyv1.RegisterAdminPluginServiceServer(s.server, adminPlugins)
 	eveyv1.RegisterPluginUserDataServiceServer(s.server, newPluginUserDataHandler(d.PluginData))

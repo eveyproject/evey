@@ -29,6 +29,22 @@ type pluginMetadataSettings interface {
 	SetFields(ctx context.Context, pluginID string, fields []string) ([]string, error)
 }
 
+// metadataSettingsOrNil and metadataRefreshOrNil keep an absent service a
+// true nil interface: a typed nil would pass the handlers' nil checks.
+func metadataSettingsOrNil(s *appplugin.MetadataSettingsService) pluginMetadataSettings {
+	if s == nil {
+		return nil
+	}
+	return s
+}
+
+func metadataRefreshOrNil(r *appmetadata.PluginTextRefresher) pluginMetadataRefresher {
+	if r == nil {
+		return nil
+	}
+	return r
+}
+
 func (d *adminPluginHandler) GetPluginMetadataSettings(ctx context.Context, req *eveyv1.GetPluginMetadataSettingsRequest) (*eveyv1.PluginMetadataSettings, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.admin.GetPluginMetadataSettings")
 	defer span.End()
