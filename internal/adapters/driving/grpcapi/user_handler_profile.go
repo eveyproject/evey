@@ -228,18 +228,18 @@ func loosensProfileParental(p *user.Profile, req *eveyv1.UpdateProfileRequest) b
 	return *req.MaxAge < 0 || int(*req.MaxAge) > *eff.MaxAge
 }
 
-// verifyCurrentPIN checks pin against guard's PIN under the per-profile
-// attempt budget (a 4-digit PIN is 10 000 guesses).
+// verifyCurrentPIN checks pin against guard's PIN under the wrong-PIN lockout
+// shared with the HTTP parental routes (a 4-digit PIN is 10 000 guesses).
 func (h *userHandler) verifyCurrentPIN(ctx context.Context, span trace.Span, guard *user.Profile, pin string) error {
 	if strings.TrimSpace(pin) == "" {
 		span.SetStatus(otelcodes.Error, "current PIN required")
 		return h.translator.TranslatedError(ctx, codes.InvalidArgument, "errors.auth.current_pin_required")
 	}
-	if h.pinRL != nil && !h.pinRL.Allow(string(guard.ID)) {
-		span.SetStatus(otelcodes.Error, "PIN attempts rate limited")
+	ok, err := h.userSvc.VerifyProfilePIN(ctx, string(guard.ID), pin, guard.Parental.PINHash)
+	if errors.Is(err, appuser.ErrPINLocked) {
+		span.SetStatus(otelcodes.Error, "PIN attempts locked out")
 		return h.translator.TranslatedError(ctx, codes.ResourceExhausted, "errors.auth.too_many_attempts")
 	}
-	ok, err := h.userSvc.VerifyPIN(pin, guard.Parental.PINHash)
 	if err != nil {
 		span.RecordError(err)
 		return internalError(ctx, "verify current PIN", err)
