@@ -195,13 +195,13 @@ func (s *InstallerService) PreviewUpdate(ctx context.Context, pluginID, source s
 
 // candidateSignature verifies a candidate ZIP and sets its continuity against
 // the installed plugin (nil for a first install). Returns nil when verification
-// is disabled. An enforce-policy refusal still yields a status, so the admin
-// sees why instead of a bare error.
+// is disabled and nothing is pinned. An enforce-policy refusal still yields a
+// status, so the admin sees why instead of a bare error.
 func (s *InstallerService) candidateSignature(ctx context.Context, zipPath string, existing *plugin.Plugin) *plugin.SignatureStatus {
 	if s.sigVerifier == nil {
 		return nil
 	}
-	st, err := s.sigVerifier.VerifySignature(ctx, zipPath, "")
+	st, err := s.candidateSignatureStatus(ctx, zipPath, existing)
 	if st == nil {
 		if err == nil {
 			return nil

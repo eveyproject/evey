@@ -86,6 +86,6 @@ RUN CGO_ENABLED=0 go build \
 RUN ln -sf /app/tmp/evey /usr/local/bin/evey \
     && printf '\n# Evey admin shell: CLI completion + interactive launcher\nfor _f in /app/cmd/evey/evey-completion.bash /app/docker/mkvgo-completion.bash; do [ -r "$_f" ] && . "$_f"; done\n[ -r /app/docker/evey-shell.sh ] && . /app/docker/evey-shell.sh\n' >> /etc/bash.bashrc
 
-ENV EVEY_LOG_DEV_MODE=true
+ENV EVEY_LOG_DEV_MODE=true EVEY_ENV=dev
 
 CMD ["sh", "-c", "buf generate && air -c .air.toml"]

@@ -52,6 +52,19 @@ describe("document helpers", () => {
     expect(buildConnectSrc([])).toBe("'none'");
     expect(buildConnectSrc(["api.open-meteo.com", "http://localhost:8080"])).toBe("https://api.open-meteo.com http://localhost:8080");
   });
+  it("drops an entry that is not a plain host, since the list is written into a CSP meta tag", () => {
+    expect(
+      buildConnectSrc([
+        "api.open-meteo.com",
+        "evil.example.com; script-src 'unsafe-inline'",
+        'x.example.com"><script>alert(1)</script>',
+        "*",
+        "ftp://files.example.com",
+        "10.0.0.1",
+      ]),
+    ).toBe("https://api.open-meteo.com");
+    expect(buildConnectSrc(["a.example.com'", " "])).toBe("'none'");
+  });
   it("defuses a literal </script> in a bundle", () => {
     expect(inlineScriptSafe('x="</script><b>"; y="</SCRIPT>"')).toBe('x="<\\/script><b>"; y="<\\/script>"');
   });

@@ -74,6 +74,15 @@ func (h *pluginUserDataHandler) SetPref(ctx context.Context, req *eveyv1.SetPref
 	if h.data == nil {
 		return nil, status.Error(codes.Unimplemented, "plugin data store unavailable")
 	}
+	if err := plugin.CheckPluginDataWrite(ctx, h.data, pluginID, userID, profileID, req.Key, req.Value); err != nil {
+		switch {
+		case errors.Is(err, plugin.ErrPluginDataTooLarge):
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		case errors.Is(err, plugin.ErrPluginDataFull):
+			return nil, status.Error(codes.ResourceExhausted, err.Error())
+		}
+		return nil, internalError(ctx, "set pref", err)
+	}
 	if err := h.data.Set(ctx, pluginID, userID, profileID, req.Key, req.Value); err != nil {
 		return nil, internalError(ctx, "set pref", err)
 	}

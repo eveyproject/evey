@@ -1040,7 +1040,7 @@ func Load() (*Config, error) {
 			RetentionDays:       envInt("EVEY_LOG_RETENTION_DAYS", 90),
 			PluginRetentionDays: envInt("EVEY_LOG_PLUGIN_RETENTION_DAYS", 10),
 			AuditRetentionDays:  envInt("EVEY_AUDIT_LOG_RETENTION_DAYS", 0),
-			DevMode:             envBool("EVEY_LOG_DEV_MODE", false),
+			DevMode:             devModeFromEnv(),
 		},
 		RemoteAccess: RemoteAccessConfig{
 			Enabled: envBool("EVEY_REMOTE_ACCESS_ENABLED", false),
@@ -1211,6 +1211,20 @@ func validateExtendedDemoAccount(user, password string) []string {
 type demoSetting struct{ on, extended bool }
 
 // demoLevel reads EVEY_DEMO: a boolean (the public demo) or "extended".
+// devModeFromEnv turns the dev relaxations on only when EVEY_ENV=dev confirms
+// EVEY_LOG_DEV_MODE: the flag alone, copied onto a real server, must not
+// make the plugin sandbox optional or downgrade the hardening checks.
+func devModeFromEnv() bool {
+	if !envBool("EVEY_LOG_DEV_MODE", false) {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("EVEY_ENV")), "dev") {
+		return true
+	}
+	slog.Warn("config: EVEY_LOG_DEV_MODE is ignored without EVEY_ENV=dev - developer mode stays off")
+	return false
+}
+
 func demoLevel() demoSetting {
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("EVEY_DEMO")), "extended") {
 		return demoSetting{on: true, extended: true}
