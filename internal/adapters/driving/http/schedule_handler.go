@@ -18,7 +18,7 @@ import (
 // scheduleHandler serves a kids profile's opening hours: read them (the kids
 // profile itself may, to show when it opens), change them (an adult profile of
 // the account or an admin), and lift them until the next opening with a
-// parent's PIN. It shares the parental handler's PIN rate limit.
+// parent's PIN. It shares the parental handler's wrong-PIN lockout.
 type scheduleHandler struct {
 	parental *parentalHandler
 	hours    *appuser.ProfileSchedules
@@ -207,15 +207,16 @@ func (h *scheduleHandler) unlock(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
 	}
-	if !h.parental.pinRL.Allow(string(p.ID)) {
-		recordParentalPINThrottle(r, "schedule_unlock_pin", string(p.ID))
-		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
+	if !h.parental.pinNotLocked(w, r, span, "schedule_unlock_pin", string(p.ID)) {
 		return
 	}
 	if _, err := h.hours.Unlock(r.Context(), p, body.PIN); err != nil {
 		span.RecordError(err)
 		switch {
 		case errors.Is(err, appuser.ErrWrongParentPIN):
+			if body.PIN != "" { // a missing PIN is not a guess
+				h.parental.pinAttempts.Failed(r.Context(), string(p.ID))
+			}
 			http.Error(w, `{"message":"errors.profile.wrong_parent_pin"}`, http.StatusForbidden)
 		case errors.Is(err, appuser.ErrNoParentPIN):
 			http.Error(w, `{"message":"errors.profile.no_parent_pin"}`, http.StatusConflict)
@@ -225,6 +226,7 @@ func (h *scheduleHandler) unlock(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	h.parental.pinAttempts.Succeeded(r.Context(), string(p.ID))
 	slog.InfoContext(r.Context(), "kids profile opened by a parent PIN", slog.String("profile_id", string(p.ID)))
 	updated, acc, err := h.hours.Schedule(r.Context(), p.ID)
 	if err != nil {
