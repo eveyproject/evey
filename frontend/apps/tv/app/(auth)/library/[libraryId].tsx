@@ -37,12 +37,16 @@ import { useDebounce } from "../../../src/hooks/useDebounce";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
 import { canPlayAllForSelection, buildPlayAllQueue, pickRandomItem } from "../../../src/lib/librarySelection";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
+import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
 
 const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
-const PAGE_SIZE = 30;
+// Three rows of the grid per request: about what one screen shows, so the
+// first page arrives and paints quickly; the next is asked for well before
+// the focus gets there (onEndReachedThreshold below).
+const PAGE_SIZE = 15;
 // The dedicated screens this app implements. A photo library now has its own
 // grid and remote-driven slideshow (app/(auth)/photos), so it goes there
 // instead of being browsed as a wall of poster-shaped cards whose detail page
@@ -219,9 +223,12 @@ export default function LibraryDetailScreen() {
   // Watched/progress overlay data, same source used by the history screen.
   // Fetched at a generous limit so the map covers everything likely to be
   // visible in one library, mirroring mobile's equivalent (limit: 500).
+  // Asked once the grid's first page is on screen: its 500 entries used to be
+  // parsed on the JS thread while the posters were still waiting.
+  const gridPainted = useAfterFirstPaint(data ? libraryId : undefined);
   const { data: watchHistoryData } = usePlaybackServiceGetWatchHistory(
     { limit: WATCH_HISTORY_OVERLAY_LIMIT },
-    { query: { enabled: !!libraryId, staleTime: 30_000 } },
+    { query: { enabled: !!libraryId && gridPainted, staleTime: 30_000 } },
   );
   const { watchedMap, percentMap } = buildWatchProgressMaps(watchHistoryData?.items ?? []);
 
@@ -524,7 +531,7 @@ export default function LibraryDetailScreen() {
               contentContainerStyle={{ padding: 24 }}
               columnWrapperStyle={{ gap: 12, marginBottom: 16 }}
               onEndReached={handleEndReached}
-              onEndReachedThreshold={0.5}
+              onEndReachedThreshold={2}
               getItemLayout={searchActive ? undefined : tvLibGetItemLayout}
               initialNumToRender={10}
               maxToRenderPerBatch={15}

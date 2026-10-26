@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, waitFor, act } from "@testing-library/react";
 import React from "react";
 
@@ -130,14 +130,19 @@ function dispatchToWebView(payload: unknown) {
   });
 }
 
+// The last message posted to the page - not just the last script: the frame
+// hold injects its own, which can land after a reply.
 function lastInjectedMessage(): Record<string, unknown> | undefined {
-  const call = injectJavaScriptMock.mock.calls.at(-1);
-  if (!call) return undefined;
-  const script = call[0] as string;
-  const match = script.match(/^window\.postMessage\((.*), "\*"\); true;$/);
-  if (!match) return undefined;
-  return JSON.parse(match[1]);
+  for (const [script] of [...injectJavaScriptMock.mock.calls].reverse()) {
+    const match = String(script).match(/^window\.postMessage\((.*), "\*"\); true;$/);
+    if (match) return JSON.parse(match[1]);
+  }
+  return undefined;
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -156,8 +161,17 @@ beforeEach(() => {
   );
 });
 
+// A widget starts once the remote has rested (BOOT_IDLE_MS in PluginSlot):
+// the tests skip that wait.
+function renderBooted(ui: React.ReactElement) {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const r = render(ui);
+  act(() => vi.advanceTimersByTime(2500));
+  return r;
+}
+
 async function mountPluginWebView() {
-  render(<PluginSlot name="home.section" pluginId="plg-test1" />);
+  renderBooted(<PluginSlot name="home.section" pluginId="plg-test1" />);
   await waitFor(() => expect(capturedOnMessage).toBeTruthy());
 }
 
@@ -165,6 +179,23 @@ describe("PluginSlot (TV)", () => {
   it("renders nothing when no plugin matches the slot", () => {
     const { container } = render(<PluginSlot name="no.such.slot" />);
     expect(container.innerHTML).toBe("");
+  });
+
+  it("starts the widget only once the remote has rested, each key restarting the wait", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { container } = render(<PluginSlot name="home.section" pluginId="plg-test1" />);
+    const webview = () => container.querySelector('[data-testid="plugin-webview"]');
+    // Its box is there from the start, at the slot's height: nothing jumps.
+    expect((container.firstElementChild as HTMLElement).style.height).toBe(`${homeWidgetBudget(675)}px`);
+    act(() => vi.advanceTimersByTime(2000));
+    act(() => remote.press("right"));
+    // The quiet period after the key (one act each: React runs the effects
+    // between them, as it would between real frames), then the boot wait.
+    act(() => vi.advanceTimersByTime(1300));
+    act(() => vi.advanceTimersByTime(2000));
+    expect(webview()).toBeNull();
+    act(() => vi.advanceTimersByTime(600));
+    await waitFor(() => expect(webview()).not.toBeNull());
   });
 
   it("holds the widget's animation frames while the remote is in use, and releases them once it is quiet", async () => {
@@ -190,7 +221,7 @@ describe("PluginSlot (TV)", () => {
   it("takes the WebView out of the drawing once the page scrolled it off screen, and brings it back on return", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     try {
-      const { container } = render(<PluginSlot name="home.section" pluginId="plg-test1" />);
+      const { container } = renderBooted(<PluginSlot name="home.section" pluginId="plg-test1" />);
       await waitFor(() => expect(container.querySelector('[data-testid="plugin-webview"]')).not.toBeNull());
       const webviewBox = () => container.querySelector('[data-testid="plugin-webview"]')!.closest("div[style]") as HTMLElement | null;
       // The focus went down a row: the page scrolled the widget above the screen.
@@ -234,7 +265,7 @@ describe("PluginSlot (TV)", () => {
   });
 
   it("hides the WebView, frames held, while its screen is not shown (the player above it), without unmounting it", async () => {
-    const { container } = render(<PluginSlot name="home.section" pluginId="plg-test1" />);
+    const { container } = renderBooted(<PluginSlot name="home.section" pluginId="plg-test1" />);
     await waitFor(() => expect(container.querySelector('[data-testid="plugin-webview"]')).not.toBeNull());
     const effect = focusEffects.at(-1)!;
     let blur: void | (() => void);
