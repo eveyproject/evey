@@ -78,6 +78,25 @@ RULES: tuple[Rule, ...] = (
         message="unresolved merge conflict marker",
     ),
     Rule(
+        name="dated-line",
+        pattern=re.compile(r"\b20\d{2}-[01]\d(-[0-3]\d)?\b"),
+        message="a calendar date - the context behind a change belongs in the notes, not in a public tree",
+        skip=(
+            "docs/*",
+            "*.md",
+            "*.json",
+            "*.sum",
+            "*.lock",
+            "*pnpm-lock.yaml",
+            "*/generated/*",
+            "*/migrations/*",
+            "i18n/*",
+            "*.sql",
+            "*.csv",
+            "scripts/hygiene-guard.py",
+        ),
+    ),
+    Rule(
         name="elision",
         pattern=re.compile(
             r"\.\.\.\s*(existing|rest of|unchanged|same as)|"
@@ -278,6 +297,9 @@ SELFTEST: tuple[tuple[str, str | None], ...] = (
     ("# rest of the file unchanged", None),
     ("    // ... rest of the function", "elision"),
     ("a <<<<<<< inside prose is not a marker", None),
+    ("measured 2026-10-26 on a set", "dated-line"),
+    ("since 2026-10 the rows page", "dated-line"),
+    ("v1.2.3 shipped, port 2026", None),
     ("the canary hygiene-selftest-token must fire", DENYLIST_RULE),
     ("Hygiene-Selftest-Token, whatever the case", DENYLIST_RULE),
     ("a plain sentence with ordinary words", None),
