@@ -1,10 +1,10 @@
 ---
-source_sha: e527433cfc41c2cba1cfcb773095634c496390297f79ac7e7b368fa36d27d047
+source_sha: b190ab7985ddfa37e89a42378df8e93b54570bb6e51751fb52daa0e8570c4370
 reviewed: true
 ---
 # 隐私政策 { #privacy-policy }
 
-最后更新：2026-10-04。
+最后更新：2026-10-26。
 
 本政策适用于 Android 和 Android TV 版的 Evey 应用。
 
@@ -29,6 +29,7 @@ reviewed: true
 - **Android TV 上的语音搜索。** 麦克风按钮会调用电视自带的语音识别（通常是 Google 的）。应用只收到识别出的文字，从不接收录音。
 - **您打开的链接。** 预告片、The Movie Database 或 IMDb 的页面，或者用于更新的 Play 商店页面，会在相应的应用或浏览器中打开，适用该服务自己的政策。
 - **插件。** 插件由服务器管理员安装。插件可能会显示来自外部服务的内容（比如天气插件）。
+- **服务器的负载测试。** 这与应用无关：服务器管理员运行负载测试时，服务器会向 `speed.cloudflare.com` 上传大约十秒钟的全零数据，以测量其互联网连接。其中不包含任何关于您或您媒体库的内容；Cloudflare 能看到服务器的 IP 地址。
 
 ## 留在设备上的内容 { #what-stays-on-the-device }
 

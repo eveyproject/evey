@@ -1,6 +1,6 @@
 # Privacy policy
 
-Last updated: 2026-10-04.
+Last updated: 2026-10-26.
 
 This policy covers the Evey apps for Android and Android TV.
 
@@ -47,6 +47,10 @@ has no access to it.
   that service's own policy.
 - **Plugins.** Plugins are installed by the server's administrator. A plugin
   may show content from an outside service (a weather plugin, for instance).
+- **The server's load test.** Not the apps: when the server's administrator
+  runs a load test, the server uploads about ten seconds of zero-filled data
+  to `speed.cloudflare.com` to measure its internet connection. Nothing about
+  you or your library is in it; Cloudflare sees the server's IP address.
 
 ## What stays on the device
 
@@ -99,4 +103,5 @@ cover art: frontend/packages/client/src/lib/artwork.ts - coverArtUri
 cast receiver: docs/adr/0025-server-driven-cast.md
 voice search: frontend/packages/voice-search/android/src/main/java/com/evey/voicesearch/EveyVoiceSearchModule.kt
 store page: frontend/apps/tv/src/lib/appUpdate.ts - openStorePage
+load test upload: internal/app/loadtest/uplink.go - UplinkProbeURL, countingZeros
 -->

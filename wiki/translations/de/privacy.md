@@ -1,10 +1,10 @@
 ---
-source_sha: e527433cfc41c2cba1cfcb773095634c496390297f79ac7e7b368fa36d27d047
+source_sha: b190ab7985ddfa37e89a42378df8e93b54570bb6e51751fb52daa0e8570c4370
 reviewed: true
 ---
 # Datenschutzerklärung { #privacy-policy }
 
-Zuletzt aktualisiert: 2026-10-04.
+Zuletzt aktualisiert: 2026-10-26.
 
 Diese Erklärung gilt für die Evey-Apps für Android und Android TV.
 
@@ -56,6 +56,11 @@ betreibt. Das Evey-Projekt hat keinen Zugriff darauf.
 - **Plugins.** Plugins installiert der Administrator des Servers. Ein Plugin
   kann Inhalte eines externen Dienstes anzeigen (zum Beispiel ein
   Wetter-Plugin).
+- **Der Lasttest des Servers.** Nicht die Apps: Startet der Administrator des
+  Servers einen Lasttest, lädt der Server etwa zehn Sekunden lang mit Nullen
+  gefüllte Daten zu `speed.cloudflare.com` hoch, um seine Internetverbindung zu
+  messen. Darin ist nichts über Sie oder Ihre Bibliothek; Cloudflare sieht die
+  IP-Adresse des Servers.
 
 ## Was auf dem Gerät bleibt { #what-stays-on-the-device }
 
