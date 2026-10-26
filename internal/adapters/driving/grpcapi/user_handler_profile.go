@@ -157,7 +157,7 @@ func (h *userHandler) loadProfileForUpdate(ctx context.Context, span trace.Span,
 
 // refuseFromRestrictedProfile blocks an action when the caller's ACTIVE profile
 // is parental-restricted (kids, or non-kids with parental control and a PIN),
-// regardless of account ownership or admin status. Fails closed: if the
+// whatever account it belongs to and even for an admin. Fails closed: if the
 // caller's profile cannot be loaded we cannot confirm it is unrestricted.
 func (h *userHandler) refuseFromRestrictedProfile(ctx context.Context, span trace.Span, claims *user.Claims) error {
 	if claims.ProfileID == "" {
