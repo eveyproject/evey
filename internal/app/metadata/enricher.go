@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"maps"
 	"strconv"
+	"strings"
 	"time"
 
 	domainlib "github.com/eveyproject/evey/internal/domain/library"
@@ -67,6 +68,8 @@ type Enricher struct {
 	translationLocales  []string
 	personFetcher       personDetailFetcher
 	overrides           domainmetadata.MetadataOverrideRepository
+	pluginSource        domainmetadata.PluginMetadataSource
+	pluginTexts         domainlib.PluginTextRepository
 	artworkPostSaveHook ArtworkPostSaveHook
 	// uow makes EnrichItem's three writes (item update, artwork replace,
 	// people upsert) one transaction. nil (tests / no wiring) keeps the
@@ -78,6 +81,16 @@ type Enricher struct {
 }
 
 type EnricherOption func(*Enricher)
+
+// EnricherWithPluginTexts asks the metadata plugins about every movie and
+// series it enriches and keeps their texts beside TMDB's (see
+// enrichPluginTexts).
+func EnricherWithPluginTexts(source domainmetadata.PluginMetadataSource, texts domainlib.PluginTextRepository) EnricherOption {
+	return func(e *Enricher) {
+		e.pluginSource = source
+		e.pluginTexts = texts
+	}
+}
 
 func EnricherWithPersonFetcher(f personDetailFetcher) EnricherOption {
 	return func(e *Enricher) { e.personFetcher = f }
@@ -237,6 +250,7 @@ func (e *Enricher) EnrichItem(ctx context.Context, item *domainlib.MediaItem, re
 			e.enrichTranslations(ctx, item, tmdbID, mediaType)
 		}
 	}
+	e.enrichPluginTexts(ctx, item)
 	// Index LAST so the search doc carries the translated titles that
 	// enrichTranslations just populated on the item (a user can then find a
 	// title only stored in their own language).
@@ -779,4 +793,73 @@ func roleType(role string) string {
 	default:
 		return "actor"
 	}
+}
+
+// enrichPluginTexts asks the metadata plugins about a movie or a series and
+// stores each answer beside the TMDB text, replacing what that plugin gave
+// before. A plugin that failed keeps its old text; the read path decides which
+// fields show (the administrator's choice per plugin). Seasons and episodes are
+// left to TMDB: their numbering is the series', which a plugin's catalogue may
+// not share.
+func (e *Enricher) enrichPluginTexts(ctx context.Context, item *domainlib.MediaItem) {
+	if e.pluginSource == nil || e.pluginTexts == nil {
+		return
+	}
+	if item.Type != domainlib.MovieItem && item.Type != domainlib.Series {
+		return
+	}
+	req := domainmetadata.PluginTextRequest{
+		MediaItemID:   string(item.ID),
+		Type:          string(item.Type),
+		Title:         item.Title,
+		OriginalTitle: item.OriginalTitle,
+		Language:      e.textLanguage(),
+		Locales:       e.translationLocales,
+	}
+	if item.Catalog != nil {
+		req.ProviderIDs = item.Catalog.ProviderIDs
+		if item.Catalog.Year != nil {
+			req.Year = *item.Catalog.Year
+		}
+	}
+	for _, answer := range e.pluginSource.LookupTexts(ctx, req) {
+		texts := make([]domainlib.PluginText, 0, len(answer.Texts))
+		for _, t := range answer.Texts {
+			texts = append(texts, domainlib.PluginText{
+				MediaItemID: string(item.ID), PluginID: answer.PluginID, Locale: t.Locale,
+				Title: t.Title, Overview: t.Overview, Tagline: t.Tagline,
+			})
+		}
+		if err := e.pluginTexts.ReplaceForItem(ctx, string(item.ID), answer.PluginID, texts); err != nil {
+			slog.WarnContext(ctx, "store plugin metadata texts",
+				slog.String("item", string(item.ID)), slog.String("plugin", answer.PluginID), slog.Any("err", err))
+		}
+	}
+}
+
+// textLanguage is the locale of the TMDB text (the primary provider's
+// language, "en-US" read as "en"), "en" when it does not say.
+func (e *Enricher) textLanguage() string {
+	lang := ""
+	if p := e.chain.Primary(); p != nil {
+		var inner domainmetadata.MetadataProvider = p
+		for {
+			if la, ok := inner.(domainmetadata.LanguageAware); ok {
+				lang = la.Language()
+				break
+			}
+			u, ok := inner.(domainmetadata.ProviderUnwrapper)
+			if !ok {
+				break
+			}
+			inner = u.Unwrap()
+		}
+	}
+	if i := strings.IndexAny(lang, "-_"); i >= 0 {
+		lang = lang[:i]
+	}
+	if lang == "" {
+		return "en"
+	}
+	return strings.ToLower(lang)
 }
