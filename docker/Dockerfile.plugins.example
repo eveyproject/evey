@@ -54,6 +54,6 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-ENV EVEY_LOG_DEV_MODE=true
+ENV EVEY_LOG_DEV_MODE=true EVEY_ENV=dev
 
 CMD ["air", "-c", ".air.toml"]
