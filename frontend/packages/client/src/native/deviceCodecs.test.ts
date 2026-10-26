@@ -7,6 +7,7 @@ const rn = vi.hoisted(() => ({
 }));
 const caps = vi.hoisted(() => ({
   getMaxH264Level: vi.fn<() => Promise<number | null>>(),
+  getVideoDecoderLimits: vi.fn<() => Promise<unknown>>(),
   getAudioProbe: vi.fn<() => Promise<unknown>>(),
   // The shared display probe. Null is "not in this build", which is what sends
   // the module to the legacy old-bridge fallback below.
@@ -24,6 +25,7 @@ vi.mock("@evey/media-caps", async () => {
   return {
     ...real,
     getMaxH264Level: caps.getMaxH264Level,
+    getVideoDecoderLimits: caps.getVideoDecoderLimits,
     getAudioProbe: caps.getAudioProbe,
     getDisplayHdrTypes: caps.getDisplayHdrTypes,
     getPlayerAudioDecoders: caps.getPlayerAudioDecoders,
@@ -45,6 +47,7 @@ beforeEach(() => {
   rn.Platform.OS = "android";
   delete rn.NativeModules.MediaCaps;
   caps.getMaxH264Level.mockReset().mockResolvedValue(41);
+  caps.getVideoDecoderLimits.mockReset().mockResolvedValue(null);
   caps.getAudioProbe.mockReset().mockResolvedValue(null);
   caps.getDisplayHdrTypes.mockReset().mockResolvedValue(null);
   caps.getPlayerAudioDecoders.mockReset().mockResolvedValue([]);
@@ -163,5 +166,11 @@ describe("deviceCodecs", () => {
     expect(m.getDeviceHdrSupport()).toBe(false);
     expect(m.getDeviceMaxH264Level()).toBeUndefined();
     expect(caps.getMaxH264Level).not.toHaveBeenCalled();
+  });
+
+  it("keeps the video decoders' limits for the play session's declaration", async () => {
+    caps.getVideoDecoderLimits.mockResolvedValue({ maxWidth: 1920, maxHeight: 1088, tenBitCodecs: [], codecs: {} });
+    const mod = await load();
+    expect(mod.getDeviceVideoLimits()).toEqual({ maxWidth: 1920, maxHeight: 1088, tenBitCodecs: [], codecs: {} });
   });
 });
