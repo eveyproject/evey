@@ -363,7 +363,7 @@ export default function LibraryDetailScreen() {
         >
           <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
             {posterUri ? (
-              <PosterImage uri={posterUri} headers={authHeaders} style={StyleSheet.absoluteFill} blurhash={blurhash} recyclingKey={item.id} />
+              <PosterImage uri={posterUri} headers={authHeaders} style={StyleSheet.absoluteFill} blurhash={blurhash} recyclingKey={item.id} priority="high" />
             ) : (
               <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
             )}

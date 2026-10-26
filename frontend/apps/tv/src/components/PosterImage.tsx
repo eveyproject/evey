@@ -12,18 +12,28 @@ import { useImageRetry } from "@evey/client";
 // No fade-in: on a television every poster that scrolls in redrew its whole
 // row for 200 ms, and the GPU, not the CPU, is what a modest set runs out of.
 // The light mode also skips the blurhash, decoded per card before the poster.
+export type PosterPriority = "low" | "normal" | "high";
+
 export function PosterImage({
   uri,
   headers,
   style,
   blurhash,
   recyclingKey,
+  priority,
 }: {
   uri: string;
   headers?: { Authorization: string };
   style: StyleProp<ImageStyle>;
   blurhash?: string;
   recyclingKey?: string;
+  /**
+   * Where this poster queues among the others. The image loader decodes the
+   * cached posters one at a time, 200-400 ms each on a small television
+   * (Glide log, 2026-10-26): what is on screen goes first, what the home
+   * renders below the fold goes last.
+   */
+  priority?: PosterPriority;
 }) {
   const theme = useTheme();
   const lite = useLiteMode();
@@ -51,6 +61,7 @@ export function PosterImage({
       style={style}
       contentFit="cover"
       recyclingKey={recyclingKey}
+      priority={priority}
       placeholder={blurhash && !lite ? { blurhash } : undefined}
       placeholderContentFit="cover"
       onError={onError}

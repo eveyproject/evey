@@ -28,7 +28,7 @@ import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 import { musicAlbumHref } from "../../../src/lib/musicRoutes";
 import { progressPercent } from "../../../src/lib/progressPercent";
 import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
-import { PosterImage } from "../../../src/components/PosterImage";
+import { PosterImage, type PosterPriority } from "../../../src/components/PosterImage";
 import { ScreenState } from "../../../src/components/ScreenState";
 import { FeedCustomizePanel } from "../../../src/components/FeedCustomizePanel";
 import { FocusableCard } from "../../../src/components/FocusableCard";
@@ -112,6 +112,7 @@ function MediaCardImpl({
   isFirst,
   watchPercent,
   onFocus,
+  imagePriority,
 }: {
   item: V1MediaItem;
   serverUrl: string;
@@ -119,6 +120,7 @@ function MediaCardImpl({
   isFirst?: boolean;
   watchPercent?: number;
   onFocus?: () => void;
+  imagePriority?: PosterPriority;
 }) {
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const { t } = useTranslation();
@@ -154,6 +156,7 @@ function MediaCardImpl({
             style={{ width: CARD_WIDTH, height: CARD_HEIGHT, borderRadius: theme.radii.sm }}
             blurhash={blurhash}
             recyclingKey={item.id}
+            priority={imagePriority}
           />
         ) : (
           <View style={[styles.posterPlaceholder, { backgroundColor: theme.colors.surface }]}>
@@ -235,8 +238,11 @@ function MediaRow({
   onEndReached,
   onTitleFocus,
   onTitleBlur,
+  imagePriority,
 }: {
   title: string;
+  /** The row sits below the first screen: its posters queue behind the visible ones. */
+  imagePriority?: PosterPriority;
   /** The page this row previews; its title opens it. */
   onOpen?: () => void;
   items: V1MediaItem[];
@@ -279,9 +285,10 @@ function MediaRow({
             : onCardFocus
         }
         watchPercent={item.id ? watchPercents?.[item.id] : undefined}
+        imagePriority={imagePriority}
       />
     ),
-    [serverUrl, authHeaders, focusFirst, onCardFocus, watchPercents, onEndReached, itemCount],
+    [serverUrl, authHeaders, focusFirst, onCardFocus, watchPercents, onEndReached, itemCount, imagePriority],
   );
   const titleFocus = useCallback(() => {
     onCardFocus?.();
@@ -769,6 +776,7 @@ export default function HomeScreen() {
 
   function renderSection(section: HomeSection, index: number, libraryIndex: number) {
     const focusFirst = focusTarget === index;
+    const imagePriority: PosterPriority = index < HOME_FIRST_SECTIONS ? "normal" : "low";
     const onCardFocus = focusFirst ? snapTop : leaveTop;
     if (section.kind === "plugin") {
       return <PluginSlot key={section.key} name="home.section" pluginId={section.pluginId} />;
@@ -831,6 +839,7 @@ export default function HomeScreen() {
           serverUrl={serverUrl}
           authHeaders={authHeaders}
           focusFirst={focusFirst}
+          imagePriority={imagePriority}
           onCardFocus={onCardFocus}
         />
       );
@@ -849,6 +858,7 @@ export default function HomeScreen() {
             authHeaders={authHeaders}
             watchPercents={watchPercents}
             focusFirst={focusFirst}
+            imagePriority={imagePriority}
             onCardFocus={onCardFocus}
             isError={resume.isError}
             onRetry={() => void resume.refetch()}
@@ -864,6 +874,7 @@ export default function HomeScreen() {
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
+            imagePriority={imagePriority}
             onCardFocus={onCardFocus}
             isError={nextUp.isError}
             onRetry={() => void nextUp.refetch()}
@@ -903,6 +914,7 @@ export default function HomeScreen() {
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
+            imagePriority={imagePriority}
             onCardFocus={onCardFocus}
             isError={recommended.isError}
             onRetry={() => void recommended.refetch()}
@@ -917,6 +929,7 @@ export default function HomeScreen() {
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
+            imagePriority={imagePriority}
             onCardFocus={onCardFocus}
             isError={popular.isError}
             onRetry={() => void popular.refetch()}
