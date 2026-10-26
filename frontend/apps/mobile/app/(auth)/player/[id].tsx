@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
 import { VideoView, isPictureInPictureSupported } from "expo-video";
 import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer";
+import { playerBufferOptions } from "@evey/client/native/playerBufferOptions";
+import { getDeviceProfile } from "@evey/media-caps";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as NavigationBar from "expo-navigation-bar";
@@ -623,6 +625,8 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // player at all: see useSourcedVideoPlayer for why a sourceless one is unsafe.
   const player = useSourcedVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
+    const buffer = playerBufferOptions(getDeviceProfile());
+    if (buffer) p.bufferOptions = { ...p.bufferOptions, ...buffer };
     // An audio-offset restart takes priority: it always has a live playhead to
     // resume at, whereas resumePositionSec can be a stale server-reported
     // progress (see audioOffsetResumeRef's declaration above).

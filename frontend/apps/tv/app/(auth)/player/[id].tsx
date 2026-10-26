@@ -9,6 +9,8 @@ import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensio
 import { useLocalSearchParams, router } from "expo-router";
 import { VideoView } from "expo-video";
 import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer";
+import { playerBufferOptions } from "@evey/client/native/playerBufferOptions";
+import { getDeviceProfile } from "@evey/media-caps";
 import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetMediaItem,
@@ -341,6 +343,8 @@ export default function PlayerScreen() {
   // player at all: see useSourcedVideoPlayer for why a sourceless one is unsafe.
   const player = useSourcedVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
+    const buffer = playerBufferOptions(getDeviceProfile());
+    if (buffer) p.bufferOptions = { ...p.bufferOptions, ...buffer };
     if (resumePositionSec > 0) {
       p.currentTime = resumePositionSec;
     }
