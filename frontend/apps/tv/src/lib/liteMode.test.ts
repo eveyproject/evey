@@ -39,7 +39,7 @@ describe("liteMode", () => {
     expect(decideLite(profile({ totalMb: 3800, lowRam: true }))).toBe(true);
   });
 
-  it("the user's choice wins over the memory, both ways", () => {
+  it("the viewer's choice wins over the memory, both ways", () => {
     expect(decideLite(profile({ totalMb: 1400, liteMode: "off" }))).toBe(false);
     expect(decideLite(profile({ totalMb: 3800, liteMode: "on" }))).toBe(true);
   });

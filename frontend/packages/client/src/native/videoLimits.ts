@@ -3,8 +3,8 @@ import type { VideoDecoderLimits } from "@evey/media-caps";
 // What the device's video decoders can open, turned into the declaration the
 // server judges direct play on (?pixelFormats=, ?maxHeight=, ?maxWidth= on
 // the HLS master, the same fields on GetStreamInfo). Declared by codec name
-// alone, a Chromecast HD was handed a 2160p 10-bit HEVC film its decoder
-// refuses, and the viewer got "stream failed to load" (2026-10-26).
+// alone, a set whose decoder takes neither 4K nor 10 bits was handed such a
+// film and could not open it.
 
 // Below this the probe is nonsense (a decoder that opens nothing); the
 // server ignores it too.

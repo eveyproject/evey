@@ -126,16 +126,15 @@ class EveyMediaCapsModule : Module() {
     }
 
     // The video decoders' hard limits: the largest picture they open and the
-    // codecs they take at 10 bits. A Chromecast HD lists "hevc" but its
-    // decoder refuses 4K ("not support 4K for non-4K platform") and Main10
-    // ("not support 10bit"): declared by name alone, the server direct-played
-    // a 2160p 10-bit HEVC film into a decoder error (2026-10-26).
+    // codecs they take at 10 bits. A decoder listed as "hevc" may refuse 4K or
+    // Main10; declared by name alone, the server direct-played such streams
+    // into a decoder error.
     Function("getVideoDecoderLimits") {
       try { videoDecoderLimits() } catch (e: Exception) { null }
     }
 
     // What the light mode (TV) decides from: the memory this device has, and
-    // the user's choice from Settings ("auto", "on", "off"), kept in the same
+    // the viewer's choice from Settings ("auto", "on", "off"), kept in the same
     // preference file as the UI scale. The verdict is the JS side's.
     Function("getDeviceProfile") {
       val context = appContext.reactContext ?: return@Function null

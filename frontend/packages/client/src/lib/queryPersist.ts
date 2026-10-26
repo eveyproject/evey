@@ -1,11 +1,9 @@
 import { dehydrate, hydrate, type DehydratedState, type Query, type QueryClient } from "@tanstack/react-query";
 
-// A cold start used to wait for the network before showing anything: the
-// home's rows, the library list, the profile - each a round trip, on a
-// television several seconds (measured 2026-10-25). The screens a viewer
-// opens first are written to storage as they land and handed back to React
-// Query at the next start: the app opens on the last session's data and
-// refreshes it behind (stale data refetches on mount as usual).
+// A cold start used to wait for the network before showing anything, several
+// seconds on a television. The screens a viewer opens first are written to
+// storage as they land and handed back to React Query at the next start: the
+// app opens on the last session's data and refreshes it behind.
 
 export interface PersistStorage {
   read(): Promise<string | null>;

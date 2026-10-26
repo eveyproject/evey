@@ -2,9 +2,8 @@ import { useSyncExternalStore } from "react";
 import { getDeviceProfile, setLiteMode, type DeviceProfile, type LiteMode } from "@evey/media-caps";
 
 // Light mode: what a modest television gives up so the rest stays fluid - the
-// blurhash placeholders and the focus zoom on every card. A box with 2 GB runs
-// the full app well; a Chromecast HD or a set's built-in Android TV, with
-// less, did not (2026-10-25). Below this total memory, "auto" turns it on.
+// blurhash placeholders and the focus zoom on every card. Boxes with 2 GB run
+// the full app well, sets with less did not; below this total memory, "auto" turns it on.
 export const LITE_TOTAL_MB = 1700;
 
 export function decideLite(profile: DeviceProfile | null): boolean {

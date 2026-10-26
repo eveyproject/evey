@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-// A poster that failed to load was shown as a glyph for as long as the card
-// lived: on a television the server answered a row's posters with empty
-// bodies for a moment (2026-10-26, logcat: "offset (0) bigger than file size
-// (0)"), the image cache then held those empty files, and the row stayed
-// blank. Each failure is retried after a pause, on a URL the cache has not
-// seen (`r=<attempt>`), and the attempt that worked is remembered for the
-// rest of the session, so the next mount of that poster starts from it.
+// A failed poster used to stay a glyph for as long as the card lived, when the
+// server had answered with an empty body for a moment and the image cache kept
+// that empty file. Each failure is retried after a pause on a URL the cache has
+// not seen (`r=<attempt>`), and the attempt that worked is remembered for the session.
 
 export const IMAGE_RETRY_DELAYS_MS = [1_500, 5_000, 15_000];
 

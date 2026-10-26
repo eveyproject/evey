@@ -13,11 +13,10 @@ export const PREFETCH_DWELL_MS = 250;
 let pending: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Fetches the page behind a card while the focus (or the pointer) rests on
- * it, so the page opens on data already there - the web did it on hover, the
- * televisions waited for OK and then for the request, and a title's page took
- * seconds to come up (2026-10-25). The page's own query key, so the screen
- * reads the cache.
+ * Fetches the page behind a card while the focus (or the pointer) rests on it,
+ * so the page opens on data already there - the web did it on hover, the
+ * televisions waited for OK and then for the request. Same query key as the
+ * page, so the screen reads the cache.
  */
 export function useMediaPrefetch(dwellMs = PREFETCH_DWELL_MS) {
   const qc = useQueryClient();

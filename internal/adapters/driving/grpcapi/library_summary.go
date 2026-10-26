@@ -3,16 +3,12 @@ package grpcapi
 import eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 
 // summarizeMediaItems trims list items to what a card, a row or a grid shows
-// on any client (the summary flag of ListMediaItems and SearchMedia): every
-// scalar field, one artwork per type reduced to its type and blurhash, the
-// video stream's size, codec and colour (resolution and HDR badges, facet
-// filters) and the audio and subtitle languages (language facets). Trailers,
-// certifications, studios, tags, external ratings and ids go, and so does the
-// cast unless the list is a person's filmography (grouped by role).
-//
-// Measured 2026-10-25: a grid page of 30 films weighed 244 KB, 112 KB of
-// artwork entries and 83 KB of streams, all parsed on the clients' JS thread
-// before the first poster showed.
+// (the summary flag of ListMediaItems and SearchMedia): every scalar field, one
+// artwork per type as type and blurhash, the video stream's size, codec and
+// colour, the audio and subtitle languages. Trailers, certifications, studios,
+// tags, external ratings and ids go, and so does the cast unless the list is a
+// person's filmography. The full item was several KB per card, parsed before the first poster showed.
+
 func summarizeMediaItems(items []*eveyv1.MediaItem, keepPeople bool) {
 	for _, it := range items {
 		if it == nil {

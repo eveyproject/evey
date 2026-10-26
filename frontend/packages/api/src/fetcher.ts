@@ -383,7 +383,7 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
 
 // The media lists feed cards, rows and grids on every client: they ask for
 // the trimmed item (the server's summary flag), a few hundred bytes instead of
-// ~8 KB with every artwork, stream and trailer (measured 2026-10-25). A call
+// ~8 KB with every artwork, stream and trailer. A call
 // that needs the whole item says summary: false.
 const SUMMARY_LISTS = new Set(["/api/v1/media", "/api/v1/media/search"]);
 

@@ -28,10 +28,9 @@ export function PosterImage({
   blurhash?: string;
   recyclingKey?: string;
   /**
-   * Where this poster queues among the others. The image loader decodes the
-   * cached posters one at a time, 200-400 ms each on a small television
-   * (Glide log, 2026-10-26): what is on screen goes first, what the home
-   * renders below the fold goes last.
+   * Where this poster queues among the others: the image loader decodes cached
+   * posters one at a time, slowly on a small television, so what is on screen
+   * goes first and what the home renders below the fold goes last.
    */
   priority?: PosterPriority;
 }) {

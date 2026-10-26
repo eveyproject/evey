@@ -272,7 +272,7 @@ func (r *ArtworkRepository) UpdateLocalPath(ctx context.Context, id string, loca
 	}
 	// A poster that just landed is a change of the item: the clients version
 	// their artwork URLs by the item's updated_at, and Android's image cache
-	// had kept the "no artwork" answer for the old URL for good (2026-10-26).
+	// had kept the "no artwork" answer for the old URL for good.
 	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`UPDATE media_items SET updated_at = NOW() WHERE id = (SELECT media_item_id FROM artwork WHERE id = $1)`, id); err != nil {
 		span.RecordError(err)

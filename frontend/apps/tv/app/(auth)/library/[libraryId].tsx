@@ -46,11 +46,9 @@ import { buildMediaListParams, LIBRARY_DEFAULT_SORT_FIELD, LIBRARY_DEFAULT_SORT_
 // the top of the list.
 const GRID_TOP_INSET = 12;
 // The search field and the filter chips are a third of the screen's first
-// render on a small television (measured 2026-10-26: 1.3 s with them, 0.9 s
-// without), and nothing focuses them first: they render once the cards are
-// on screen, in a box of the height they will take. That height is measured
-// the first time they render and remembered for the session; before that, it
-// is the one these styles add up to on the reference television.
+// render on a small television, and nothing focuses them first: they render
+// once the cards are on screen, in a box of the height they will take, measured
+// the first time they render and remembered for the session (these styles' sum before).
 const HEADER_HEIGHT_ESTIMATE = { movies: 194, shows: 259 } as const;
 const measuredHeaderHeight: { movies?: number; shows?: number } = {};
 // The next page is asked for when the focus is this many rows from the end:
@@ -81,10 +79,9 @@ function tvLibKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
 }
 
-// No getItemLayout: the rows are not all the same height (a title wraps to
-// two lines, the row keeps a margin under it) and a declared height put the
-// focused row a row short of the top when the list scrolled to it; with the
-// rows measured, scrollToIndex lands exactly (television, 2026-10-26).
+// No getItemLayout: the rows are not all the same height (a wrapped title, the
+// margin under a row) and a declared height left the focused row a row short
+// of the top; measured rows land exactly.
 
 // --- Pure helpers (unit-tested in [libraryId].pure.test.ts) -----------------
 
@@ -155,9 +152,8 @@ export default function LibraryDetailScreen() {
   const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>(LIBRARY_DEFAULT_SORT_ORDER);
   const [searchText, setSearchText] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  // The genre row scrolls sideways under the remote; a chevron at its end
-  // says so while chips are still hidden past the edge (owner, 2026-10-26:
-  // the row read as complete). Measured, not guessed from a count.
+  // The genre row scrolls sideways under the remote: a chevron at its end says
+  // so while chips are still hidden past the edge. Measured, not guessed from a count.
   const [genreRowWidth, setGenreRowWidth] = useState(0);
   const [genreContentWidth, setGenreContentWidth] = useState(0);
   const [genreScrollX, setGenreScrollX] = useState(0);
@@ -261,7 +257,7 @@ export default function LibraryDetailScreen() {
 
   // The first page shows the render it lands on: the accumulate effect below
   // then stores that same array, so the list's data keeps its identity and
-  // no card renders twice (measured 2026-10-26: a full extra pass on a set).
+  // no card renders twice.
   const firstPage = !cursor && allItems.length === 0 ? data?.items : undefined;
   const displayItems = useMemo(
     () => (searchActive ? (searchData?.items ?? []) : (firstPage ?? allItems)),
@@ -329,8 +325,8 @@ export default function LibraryDetailScreen() {
   const handleEndReached = useCallback(() => {
     if (searchActive) return; // search returns a single fixed-size page, no cursor to page through
     // A short first page reads as "end reached" the moment the list mounts:
-    // the next pages wait until that page is on screen, or their parsing and
-    // their cards held the first paint back (measured 2026-10-26).
+    // the next pages wait until that page is on screen, or their parsing
+    // held the first paint back.
     if (!gridPainted) return;
     // Guarding on isFetching and on the cursor actually changing keeps a held-
     // down remote from firing the same cursor twice before the fetch resolves.
@@ -338,13 +334,10 @@ export default function LibraryDetailScreen() {
     if (!isFetching && hasMore && next && next !== cursor) setCursor(next);
   }, [searchActive, gridPainted, isFetching, hasMore, data, cursor]);
 
-  // The remote drives the grid: a focused card brings its row to the top of
-  // the list (the native scroll-into-view left a row half hidden under the
-  // screen's edge on a television) and, near the last rows, asks for the next
-  // page - a scroll event alone never fired it, the list hardly scrolls.
-  // With columns, the list's indices are ROW indices (one cell per row of
-  // cards): given the card's index, it scrolled to the wrong row or past the
-  // end (television, 2026-10-26).
+  // The remote drives the grid: a focused card brings its row to the top (the
+  // native scroll-into-view left a row half hidden under the screen's edge)
+  // and, near the last rows, asks for the next page, since the list hardly
+  // scrolls. With columns the list indexes ROWS, not cards.
   const listRef = useRef<FlatList<V1MediaItem>>(null);
   const itemCount = displayItems.length;
   const onCardFocus = useCallback(
@@ -491,9 +484,8 @@ export default function LibraryDetailScreen() {
               onBlur={() => setSearchFocused(false)}
               accessibilityLabel={t("media.library.filterByName")}
             />
-            {/* The actions sit by the search field, not at the end of the
-                genre row: there they read as the row's last chips and hid
-                that the genres went on (owner, 2026-10-26). */}
+            {/* By the search field, not at the end of the genre row, where they
+                read as the row's last chips and hid that the genres went on. */}
             {canPlayAll && (
               <FocusableCard
                 onPress={handlePlayAll}
@@ -601,10 +593,9 @@ export default function LibraryDetailScreen() {
               initialNumToRender={10}
               maxToRenderPerBatch={15}
               windowSize={5}
-              // The focused row sits at the top, so the row above it is off
-              // screen: clipped away, it had no native view for the remote's
-              // Up to land on, and the press scrolled the list instead of
-              // moving the focus (television, 2026-10-26).
+              // The focused row sits at the top, so the row above is off screen:
+              // clipped away it had no native view for Up to land on, and the
+              // press scrolled the list instead of moving the focus.
               removeClippedSubviews={false}
               ListFooterComponent={
                 isFetching && !isFirstPage && !searchActive ? (
