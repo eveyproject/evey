@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -227,4 +228,42 @@ func TestCleanOrphanLogs(t *testing.T) {
 	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(dir, "plg-orphan-"+today+".log"))
 	assert.True(t, os.IsNotExist(err))
+}
+
+// TestWriterDailyByteCap: a plugin spamming stdout fills at most its daily
+// budget on disk, across rotations and a server restart (a fresh writer counts
+// the day's existing files), and the pipe keeps draining past the cap.
+func TestWriterDailyByteCap(t *testing.T) {
+	dir := t.TempDir()
+	newWriter := func() *pluginLogWriter {
+		l := NewPluginLogger(dir, 10)
+		t.Cleanup(l.Close)
+		plw := l.Writer("plg-spam").(*pluginLogWriter)
+		plw.maxSize = 100
+		plw.maxDayBytes = 1000
+		return plw
+	}
+	line := []byte(strings.Repeat("a", 59) + "\n")
+	w := newWriter()
+	for range 100 {
+		n, err := w.Write(line)
+		require.NoError(t, err, "a capped write must not break the plugin's stdout pipe")
+		require.Equal(t, len(line), n)
+	}
+	w2 := newWriter()
+	for range 100 {
+		_, err := w2.Write(line)
+		require.NoError(t, err)
+	}
+
+	var total int64
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	for _, e := range entries {
+		info, err := e.Info()
+		require.NoError(t, err)
+		total += info.Size()
+	}
+	assert.LessOrEqual(t, total, int64(1000+len(logCapNotice)), "disk use must stay within the daily budget")
+	assert.Greater(t, total, int64(900))
 }
