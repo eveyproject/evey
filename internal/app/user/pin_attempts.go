@@ -50,16 +50,29 @@ func NewPINAttempts(repo user.LoginAttemptRepository) *PINAttempts {
 }
 
 var (
-	sharedPINOnce sync.Once
-	sharedPIN     *PINAttempts
+	sharedPINMu sync.Mutex
+	sharedPIN   *PINAttempts
 )
 
 // SharedPINAttempts is the process-wide counter both the HTTP parental routes
 // and the gRPC profile RPCs check, so a guesser cannot double the budget by
-// alternating transports.
+// alternating transports. In memory unless SetSharedPINAttempts ran first.
 func SharedPINAttempts() *PINAttempts {
-	sharedPINOnce.Do(func() { sharedPIN = NewPINAttempts(nil) })
+	sharedPINMu.Lock()
+	defer sharedPINMu.Unlock()
+	if sharedPIN == nil {
+		sharedPIN = NewPINAttempts(nil)
+	}
 	return sharedPIN
+}
+
+// SetSharedPINAttempts installs the process-wide counter, e.g. one persisted
+// with NewPINAttempts(loginAttemptRepo). Call it at composition, before the
+// user service and the HTTP routes are built: they capture the instance.
+func SetSharedPINAttempts(a *PINAttempts) {
+	sharedPINMu.Lock()
+	defer sharedPINMu.Unlock()
+	sharedPIN = a
 }
 
 // Locked reports whether profileID must not try a PIN now. Fails closed.
