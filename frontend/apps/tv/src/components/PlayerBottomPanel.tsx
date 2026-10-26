@@ -9,6 +9,7 @@ import { useTheme } from "../providers/ThemeProvider";
 import { PlayerControlButton } from "./PlayerControlButton";
 import { TrickplaySeekPreview } from "./TrickplaySeekPreview";
 import { PlayerScrim } from "./PlayerScrim";
+import { useLiteMode } from "../lib/liteMode";
 
 // Panel geometry, shared with the trickplay anchor math.
 const PANEL_PADDING_H = 40;
@@ -97,6 +98,10 @@ export const PlayerBottomPanel = memo(function PlayerBottomPanel({
 
   // The playhead store moves twice a second; only this panel follows it.
   const playhead = usePlayhead();
+  // A sprite sheet is a hundred tiles decoded to tens of megabytes: on a
+  // low-memory set each seek that crosses one stalled the remote for half a
+  // second and the heap churned. The light mode seeks by the clock alone.
+  const lite = useLiteMode();
   const displayTime = seekPreviewSec ?? playhead;
   const seekProgress = duration > 0 ? displayTime / duration : 0;
   // The thumbnail rides above the timeline at the playhead, kept inside the
@@ -120,14 +125,14 @@ export const PlayerBottomPanel = memo(function PlayerBottomPanel({
           has no live picture to look at, so the tile sits where the cursor
           is, not in the middle of the screen. Renders nothing on its own
           without a manifest or sprites. */}
-      {seekPreviewSec !== null && (
+      {!lite && seekPreviewSec !== null && (
         <View style={styles.trickplayLane} pointerEvents="none">
           <View style={[styles.trickplayAnchor, { left: trickplayLeft }]}>
             <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={seekPreviewSec} warm />
           </View>
         </View>
       )}
-      {seekPreviewSec === null && (
+      {!lite && seekPreviewSec === null && (
         <View style={styles.trickplayWarm} pointerEvents="none">
           <TrickplaySeekPreview mediaId={mediaId} previewTimeSec={null} warm />
         </View>
