@@ -706,6 +706,19 @@ func (f *fakeDataRepo) List(_ context.Context, p, u, pr string) ([]*plugindomain
 	return out, nil
 }
 
+func (f *fakeDataRepo) Count(_ context.Context, p, u, pr string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	prefix := p + "\x00" + u + "\x00" + pr + "\x00"
+	for k := range f.m {
+		if strings.HasPrefix(k, prefix) {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func TestHostDataStore_RoundTrip(t *testing.T) {
 	h := newTestHostServer().WithDataStore(newFakeDataRepo())
 	ctx := ctxWithPluginID("plg-1")
@@ -756,12 +769,12 @@ func TestHostDataStore_Bounded(t *testing.T) {
 	ctx := ctxWithPluginID("plg-1")
 	code := func(err error) codes.Code { st, _ := status.FromError(err); return st.Code() }
 
-	_, err := h.SetData(ctx, &pluginv1.SetDataRequest{Key: strings.Repeat("k", maxDataKeyLen+1), Value: "v"})
+	_, err := h.SetData(ctx, &pluginv1.SetDataRequest{Key: strings.Repeat("k", plugindomain.MaxPluginDataKeyLen+1), Value: "v"})
 	assert.Equal(t, codes.InvalidArgument, code(err), "oversized key")
-	_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: "big", Value: strings.Repeat("v", maxDataValueLen+1)})
+	_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: "big", Value: strings.Repeat("v", plugindomain.MaxPluginDataValueLen+1)})
 	assert.Equal(t, codes.InvalidArgument, code(err), "oversized value")
 
-	for i := range maxDataKeys {
+	for i := range plugindomain.MaxPluginDataKeys {
 		_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: fmt.Sprintf("k%d", i), Value: "v"})
 		require.NoError(t, err)
 	}
