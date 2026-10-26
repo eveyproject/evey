@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"testing"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -106,6 +107,9 @@ func seccompChild(denyInet bool) {
 	if failed {
 		os.Exit(17)
 	}
+	if !probeOtherProcessTuning() {
+		os.Exit(20)
+	}
 	// Namespaces stay closed even for a plugin allowed to fork: clone with a
 	// CLONE_NEW* flag is unshare by another name, and clone3 hides its flags
 	// from the filter. CLONE_NEWUSER|CLONE_FS is EINVAL in the kernel, so a
@@ -139,4 +143,67 @@ func seccompChild(denyInet bool) {
 		os.Exit(14)
 	}
 	os.Exit(0)
+}
+
+// probeOtherProcessTuning checks that resource and scheduling knobs only reach
+// the plugin itself. The foreign target never exists (pids stay below 2^22), so
+// a call that slips past the filter fails with ESRCH and touches nothing.
+func probeOtherProcessTuning() bool {
+	const missingPid = 1 << 22
+	const ioprioWhoProcess, ioprioWhoUser = 1, 3
+	var lim unix.Rlimit
+	var param [8]byte
+	var mask unix.CPUSet
+	if err := unix.SchedGetaffinity(0, &mask); err != nil {
+		fmt.Fprintf(os.Stderr, "sched_getaffinity: %v\n", err)
+		return false
+	}
+	nice, _, _ := unix.Syscall(unix.SYS_GETPRIORITY, unix.PRIO_PROCESS, 0, 0)
+	ioprio, _, _ := unix.Syscall(unix.SYS_IOPRIO_GET, ioprioWhoProcess, 0, 0)
+	limPtr := uintptr(unsafe.Pointer(&lim))
+	paramPtr := uintptr(unsafe.Pointer(&param))
+	maskPtr := uintptr(unsafe.Pointer(&mask))
+	ok := true
+	for _, sc := range []struct {
+		name string
+		nr   uintptr
+		args [4]uintptr
+	}{
+		{"prlimit64 other", unix.SYS_PRLIMIT64, [4]uintptr{missingPid, unix.RLIMIT_NOFILE, 0, limPtr}},
+		{"setpriority other", unix.SYS_SETPRIORITY, [4]uintptr{unix.PRIO_PROCESS, missingPid, 0}},
+		{"setpriority user", unix.SYS_SETPRIORITY, [4]uintptr{unix.PRIO_USER, missingPid, 0}},
+		{"sched_setaffinity other", unix.SYS_SCHED_SETAFFINITY, [4]uintptr{missingPid, unsafe.Sizeof(mask), maskPtr}},
+		{"sched_setparam other", unix.SYS_SCHED_SETPARAM, [4]uintptr{missingPid, paramPtr}},
+		{"sched_setscheduler other", unix.SYS_SCHED_SETSCHEDULER, [4]uintptr{missingPid, 0, paramPtr}},
+		{"sched_setattr other", unix.SYS_SCHED_SETATTR, [4]uintptr{missingPid, 0, 0}},
+		{"ioprio_set other", unix.SYS_IOPRIO_SET, [4]uintptr{ioprioWhoProcess, missingPid, ioprio}},
+		{"ioprio_set user", unix.SYS_IOPRIO_SET, [4]uintptr{ioprioWhoUser, 0, 7 << 13}},
+		{"migrate_pages other", unix.SYS_MIGRATE_PAGES, [4]uintptr{missingPid, 0, 0, 0}},
+		{"move_pages other", unix.SYS_MOVE_PAGES, [4]uintptr{missingPid, 0, 0, 0}},
+	} {
+		if _, _, errno := unix.Syscall6(sc.nr, sc.args[0], sc.args[1], sc.args[2], sc.args[3], 0, 0); errno != unix.EPERM {
+			fmt.Fprintf(os.Stderr, "%s not denied: errno=%v\n", sc.name, errno)
+			ok = false
+		}
+	}
+	self := uintptr(os.Getpid())
+	for _, sc := range []struct {
+		name string
+		nr   uintptr
+		args [4]uintptr
+	}{
+		{"prlimit64 self", unix.SYS_PRLIMIT64, [4]uintptr{0, unix.RLIMIT_NOFILE, 0, limPtr}},
+		{"prlimit64 own pid", unix.SYS_PRLIMIT64, [4]uintptr{self, unix.RLIMIT_NOFILE, 0, limPtr}},
+		{"setpriority self", unix.SYS_SETPRIORITY, [4]uintptr{unix.PRIO_PROCESS, 0, 20 - nice}},
+		{"sched_setaffinity self", unix.SYS_SCHED_SETAFFINITY, [4]uintptr{0, unsafe.Sizeof(mask), maskPtr}},
+		{"sched_setparam self", unix.SYS_SCHED_SETPARAM, [4]uintptr{0, paramPtr}},
+		{"ioprio_set self", unix.SYS_IOPRIO_SET, [4]uintptr{ioprioWhoProcess, self, ioprio}},
+		{"move_pages self", unix.SYS_MOVE_PAGES, [4]uintptr{0, 0, 0, 0}},
+	} {
+		if _, _, errno := unix.Syscall6(sc.nr, sc.args[0], sc.args[1], sc.args[2], sc.args[3], 0, 0); errno == unix.EPERM {
+			fmt.Fprintf(os.Stderr, "%s refused: errno=%v\n", sc.name, errno)
+			ok = false
+		}
+	}
+	return ok
 }
