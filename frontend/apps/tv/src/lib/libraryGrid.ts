@@ -11,10 +11,18 @@ import type { FetchQueryOptions } from "@tanstack/react-query";
 // The library grid's paging and first page, shared by the grid and by the
 // screens that fetch that first page ahead (the library list, on focus).
 
-// Two rows of the grid per request: what the screen shows when it opens, so
-// the first page lands and paints at once; the next is asked for well before
-// the focus gets there (the grid's onEndReachedThreshold).
+// Two rows of the grid in the first request: what the screen shows when it
+// opens, so the first page lands and paints at once. The pages after it are
+// six rows each: two-row pages had the grid asking for one every other row
+// the remote crossed, and the focus caught up with the loading (television,
+// 2026-10-26).
 export const LIBRARY_PAGE_SIZE = 10;
+export const LIBRARY_NEXT_PAGE_SIZE = 30;
+
+/** The list row a card sits on: a FlatList with columns indexes its rows. */
+export function libraryGridRow(cardIndex: number, numColumns: number): number {
+  return Math.floor(cardIndex / numColumns);
+}
 export const LIBRARY_DEFAULT_SORT_FIELD: LibraryServiceListMediaItemsSortField = "MEDIA_SORT_FIELD_TITLE";
 export const LIBRARY_DEFAULT_SORT_ORDER: LibraryServiceListMediaItemsSortOrder = "SORT_ORDER_ASC";
 

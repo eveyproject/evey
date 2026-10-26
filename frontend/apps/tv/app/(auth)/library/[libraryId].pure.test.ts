@@ -47,6 +47,20 @@ import {
   resolutionLabel,
 } from "./[libraryId]";
 
+import { libraryGridRow } from "../../../src/lib/libraryGrid";
+
+describe("libraryGridRow", () => {
+  // The list's scrollToIndex takes a ROW index once the grid has columns:
+  // given the card's own index, the focused row landed anywhere but at the
+  // top (television, 2026-10-26).
+  it("maps a card to the list row that holds it", () => {
+    expect(libraryGridRow(0, 5)).toBe(0);
+    expect(libraryGridRow(4, 5)).toBe(0);
+    expect(libraryGridRow(5, 5)).toBe(1);
+    expect(libraryGridRow(12, 5)).toBe(2);
+  });
+});
+
 describe("buildMediaListParams", () => {
   it("sends no cursor on the first page (server starts from the top)", () => {
     expect(
