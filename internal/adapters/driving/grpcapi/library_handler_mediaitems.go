@@ -381,6 +381,9 @@ func (h *libraryHandler) ListMediaItems(ctx context.Context, req *eveyv1.ListMed
 	streamsMap := h.fetchMediaItemsStreams(ctx, ids)
 	resp.Items = mediaItemsToProto(ctx, items, pf, artworkMap, castMap, streamsMap)
 	fillAncestorTitles(ctx, h.overlaidItemsFetch, resp.Items)
+	if req.GetSummary() {
+		summarizeMediaItems(resp.Items, req.GetPersonId() != "")
+	}
 	return resp, nil
 }
 
