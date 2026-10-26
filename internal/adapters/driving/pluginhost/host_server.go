@@ -529,6 +529,14 @@ func (h *HostServer) GetData(ctx context.Context, req *pluginv1.GetDataRequest) 
 	return &pluginv1.GetDataResponse{Value: e.Value, Found: true}, nil
 }
 
+// Bounds for the plugin-global data store: SetData needs no permission either,
+// so, like SetConfig, its growth cannot rest on the caller's restraint.
+const (
+	maxDataKeyLen   = 256
+	maxDataValueLen = 64 * 1024
+	maxDataKeys     = 1024
+)
+
 func (h *HostServer) SetData(ctx context.Context, req *pluginv1.SetDataRequest) (*pluginv1.SetDataResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "pluginhost.SetData")
 	defer span.End()
@@ -538,10 +546,39 @@ func (h *HostServer) SetData(ctx context.Context, req *pluginv1.SetDataRequest) 
 	if req.Key == "" {
 		return nil, status.Error(codes.InvalidArgument, "key is required")
 	}
-	if err := h.data.Set(ctx, pluginIDFromCtx(ctx), "", "", req.Key, req.Value); err != nil {
+	if len(req.Key) > maxDataKeyLen || len(req.Value) > maxDataValueLen {
+		return nil, status.Errorf(codes.InvalidArgument,
+			"data key must be <= %d bytes and value <= %d bytes", maxDataKeyLen, maxDataValueLen)
+	}
+	pluginID := pluginIDFromCtx(ctx)
+	if err := h.checkDataKeyRoom(ctx, pluginID, req.Key); err != nil {
+		return nil, err
+	}
+	if err := h.data.Set(ctx, pluginID, "", "", req.Key, req.Value); err != nil {
 		return nil, status.Errorf(codes.Internal, "set data: %v", err)
 	}
 	return &pluginv1.SetDataResponse{}, nil
+}
+
+// checkDataKeyRoom refuses a NEW key once the plugin holds maxDataKeys; an
+// existing key stays writable. The port has no count, so only a new key pays
+// for the listing.
+func (h *HostServer) checkDataKeyRoom(ctx context.Context, pluginID, key string) error {
+	_, err := h.data.Get(ctx, pluginID, "", "", key)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, shared.ErrNotFound) {
+		return status.Errorf(codes.Internal, "get data: %v", err)
+	}
+	entries, err := h.data.List(ctx, pluginID, "", "")
+	if err != nil {
+		return status.Errorf(codes.Internal, "list data: %v", err)
+	}
+	if len(entries) >= maxDataKeys {
+		return status.Errorf(codes.ResourceExhausted, "data store is limited to %d keys", maxDataKeys)
+	}
+	return nil
 }
 
 func (h *HostServer) DeleteData(ctx context.Context, req *pluginv1.DeleteDataRequest) (*pluginv1.DeleteDataResponse, error) {
