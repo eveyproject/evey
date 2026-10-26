@@ -1,6 +1,8 @@
+import { memo, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { formatTime } from "@evey/api";
+import { usePlayhead } from "@evey/client";
 import { FONT_SIZE } from "@evey/theme";
 import type { Chapter } from "../hooks/useChapters";
 import { useTheme } from "../providers/ThemeProvider";
@@ -39,10 +41,9 @@ export type PlayerBarRefs = {
 // obvious, something clean"). Focus lands on the play button on the first DOWN
 // press, walks the row left and right, and drops onto the timeline with
 // another DOWN.
-export function PlayerBottomPanel({
+export const PlayerBottomPanel = memo(function PlayerBottomPanel({
   mediaId,
   screenWidth,
-  displayTime,
   duration,
   seekPreviewSec,
   pendingSeekDelta,
@@ -67,7 +68,6 @@ export function PlayerBottomPanel({
   mediaId: string;
   screenWidth: number;
   // The preview position while a seek is pending, else the playhead.
-  displayTime: number;
   duration: number;
   seekPreviewSec: number | null;
   pendingSeekDelta: number;
@@ -95,6 +95,9 @@ export function PlayerBottomPanel({
   const { t } = useTranslation();
   const theme = useTheme();
 
+  // The playhead store moves twice a second; only this panel follows it.
+  const playhead = usePlayhead();
+  const displayTime = seekPreviewSec ?? playhead;
   const seekProgress = duration > 0 ? displayTime / duration : 0;
   // The thumbnail rides above the timeline at the playhead, kept inside the
   // panel's width so a seek near either edge never pushes it off screen.
@@ -107,6 +110,9 @@ export function PlayerBottomPanel({
     ? new Date(Date.now() + ((duration - displayTime) * 1000) / (playbackSpeed || 1)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : null;
 
+  // Stable, so the memoised buttons skip the panel's re-renders.
+  const seekBack = useCallback(() => onSeekBy(-skipBwd), [onSeekBy, skipBwd]);
+  const seekForward = useCallback(() => onSeekBy(skipFwd), [onSeekBy, skipFwd]);
   return (
     <View style={[styles.bottomPanel, style]}>
       <PlayerScrim edge="bottom" />
@@ -138,7 +144,7 @@ export function PlayerBottomPanel({
             nextFocusRight={focusTags.play}
             nextFocusUp={focusTags.rewind}
             nextFocusDown={focusTags.timeline ?? focusTags.rewind}
-            onPress={() => onSeekBy(-skipBwd)}
+            onPress={seekBack}
             accessibilityLabel={t("player.controls.rewind", { seconds: skipBwd })}
           />
           <PlayerControlButton
@@ -162,7 +168,7 @@ export function PlayerBottomPanel({
             nextFocusRight={focusTags.speed ?? focusTags.settings}
             nextFocusUp={focusTags.forward}
             nextFocusDown={focusTags.timeline ?? focusTags.forward}
-            onPress={() => onSeekBy(skipFwd)}
+            onPress={seekForward}
             accessibilityLabel={t("player.controls.forward", { seconds: skipFwd })}
           />
         </View>
@@ -259,7 +265,7 @@ export function PlayerBottomPanel({
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   bottomPanel: {

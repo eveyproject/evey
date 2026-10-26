@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { usePlayhead } from "@evey/client";
 import { useTranslation } from "react-i18next";
 import { View, Text, StyleSheet, Image, useWindowDimensions } from "react-native";
 import {
@@ -32,12 +33,15 @@ interface Props {
   mediaId: string;
   /** Subtitle-relative ordinal to render, or null for none. */
   subtitleIndex: number | null;
-  currentTimeSec: number;
+  /** Given by a caller that drives the time itself; the playhead store otherwise. */
+  currentTimeSec?: number;
   /** Appearance the viewer chose (colour, size, background, position). */
   style?: SubtitleStyle;
 }
 
-function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec, style }: Props) {
+function SubtitleOverlayImpl({ mediaId, subtitleIndex, currentTimeSec: givenTime, style }: Props) {
+  const playhead = usePlayhead();
+  const currentTimeSec = givenTime ?? playhead;
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   // The fetch and the text/bitmap sniff live in @evey/client, shared with the
   // browser television; only the painting below is this platform's.
