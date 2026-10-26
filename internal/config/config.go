@@ -1210,7 +1210,6 @@ func validateExtendedDemoAccount(user, password string) []string {
 
 type demoSetting struct{ on, extended bool }
 
-// demoLevel reads EVEY_DEMO: a boolean (the public demo) or "extended".
 // devModeFromEnv turns the dev relaxations on only when EVEY_ENV=dev confirms
 // EVEY_LOG_DEV_MODE: the flag alone, copied onto a real server, must not
 // make the plugin sandbox optional or downgrade the hardening checks.
@@ -1225,6 +1224,7 @@ func devModeFromEnv() bool {
 	return false
 }
 
+// demoLevel reads EVEY_DEMO: a boolean (the public demo) or "extended".
 func demoLevel() demoSetting {
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("EVEY_DEMO")), "extended") {
 		return demoSetting{on: true, extended: true}
