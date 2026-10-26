@@ -16,7 +16,6 @@ import (
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
 	"github.com/eveyproject/evey/internal/pkg/metrics"
 	"github.com/eveyproject/evey/internal/pkg/quickconnecthub"
-	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -33,10 +32,6 @@ type userHandler struct {
 	translator      *eveyi18n.Translator
 	quickConnectHub *quickconnecthub.Hub
 	cfg             *config.Config
-	// Per-profile budget for proving the current parental PIN through
-	// UpdateProfile, the same as the HTTP parental route's: a 4-digit PIN
-	// is 10 000 guesses, so each one has to cost a wait.
-	pinRL *ratelimit.Limiter
 }
 
 func (h *userHandler) audit(ctx context.Context, userID, action, resourceType string, resourceID *string, details map[string]any) {

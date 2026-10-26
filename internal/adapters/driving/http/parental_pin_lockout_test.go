@@ -70,3 +70,18 @@ func TestParentalVerifyPIN_SharesTheLockoutWithGRPC(t *testing.T) {
 		t.Fatalf("expected 429 after wrong PINs over gRPC, got %d", code)
 	}
 }
+
+// The parent-PIN override of a closed kids profile feeds the same lockout:
+// once locked, even the right PIN is refused.
+func TestScheduleUnlock_WrongPINsLockTheProfile(t *testing.T) {
+	mux, tok, _ := closedKidsFixture(t)
+	kid := tok(domainuser.Claims{UserID: "u1", ProfileID: "kid"})
+	for range 5 {
+		if w := do(mux, http.MethodPost, "/api/v1/profiles/kid/schedule/unlock", kid, `{"pin":"9999"}`, nil); w.Code != http.StatusForbidden {
+			t.Fatalf("wrong PIN: %d, want 403", w.Code)
+		}
+	}
+	if w := do(mux, http.MethodPost, "/api/v1/profiles/kid/schedule/unlock", kid, `{"pin":"1234"}`, nil); w.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 once locked, got %d", w.Code)
+	}
+}

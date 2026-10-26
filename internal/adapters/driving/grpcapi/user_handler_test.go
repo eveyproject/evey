@@ -16,7 +16,6 @@ import (
 	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/eveyproject/evey/internal/domain/user"
 	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
-	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -74,7 +73,6 @@ func setupUserHandler() *testUserEnv {
 		query:       query,
 		activitySvc: actSvc,
 		cfg:         &config.Config{JWT: config.JWTConfig{RefreshTokenLongTTL: 180 * 24 * time.Hour}},
-		pinRL:       ratelimit.NewWithBurst(15, 3.0),
 	}
 
 	return &testUserEnv{
