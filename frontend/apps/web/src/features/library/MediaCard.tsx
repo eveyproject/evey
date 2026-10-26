@@ -3,7 +3,8 @@ import { Star, Check, Play } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, libraryServiceGetMediaItem, displayTitle, itemLabel } from "@evey/api";
+import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, displayTitle, itemLabel } from "@evey/api";
+import { useMediaPrefetch } from "@evey/client";
 import type { V1Artwork } from "@evey/api";
 import { Blurhash } from "react-blurhash";
 import { toast, useAuthStore } from "@evey/store";
@@ -17,6 +18,10 @@ import { artworkUrl } from "./artworkUrl";
 import { PosterPlaceholder } from "./PosterPlaceholder";
 import { ICON } from "@/constants/iconSizes";
 import { useDemoLock } from "@/hooks/useDemoMode";
+
+// A pointer resting on a card means it: the page is fetched sooner than on a
+// television's focus.
+const HOVER_PREFETCH_MS = 100;
 
 const WATCHED_THRESHOLD_PCT = 95;
 
@@ -150,7 +155,9 @@ export const MediaCard = memo(function MediaCard({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
-  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The page behind the card, fetched while the pointer rests on it (shared
+  // with the televisions, which do it on focus).
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch(HOVER_PREFETCH_MS);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
 
@@ -160,10 +167,10 @@ export const MediaCard = memo(function MediaCard({
   useEffect(
     () => () => {
       if (hoverTimer.current) clearTimeout(hoverTimer.current);
-      if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+      cancelPrefetch();
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
     },
-    [],
+    [cancelPrefetch],
   );
 
   const hasProgressBar = showProgress && pct !== undefined;
@@ -186,20 +193,12 @@ export const MediaCard = memo(function MediaCard({
       data-evey="media-card"
       data-testid="media-card"
       onMouseEnter={() => {
-        if (item.id) {
-          prefetchTimer.current = setTimeout(() => {
-            qc.prefetchQuery({
-              queryKey: [`/api/v1/media/${item.id}`],
-              queryFn: ({ signal }) => libraryServiceGetMediaItem(item.id!, signal),
-              staleTime: 60_000,
-            });
-          }, 100);
-        }
+        prefetchOnFocus(item.id);
         if (!hasPreviewData) return;
         hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
       }}
       onMouseLeave={() => {
-        if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+        cancelPrefetch();
         if (hoverTimer.current) clearTimeout(hoverTimer.current);
         setShowPreview(false);
       }}
