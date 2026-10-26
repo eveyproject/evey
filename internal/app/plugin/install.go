@@ -345,7 +345,7 @@ func (s *InstallerService) verifyPluginIntegrity(ctx context.Context, zipPath, e
 	}
 
 	if s.sigVerifier != nil {
-		sigStatus, err = s.sigVerifier.VerifySignature(ctx, zipPath, "")
+		sigStatus, err = s.candidateSignatureStatus(ctx, zipPath, existing)
 		if err != nil {
 			// Only reached when policy is "enforce" and verification failed.
 			return "", nil, fmt.Errorf("plugin blocked: %w", err)
@@ -363,6 +363,24 @@ func (s *InstallerService) verifyPluginIntegrity(ctx context.Context, zipPath, e
 		}
 	}
 	return sourceHash, sigStatus, nil
+}
+
+// signatureInspector computes a signature status regardless of policy.
+type signatureInspector interface {
+	InspectSignature(ctx context.Context, zipPath, sigPath string) *plugin.SignatureStatus
+}
+
+// candidateSignatureStatus is VerifySignature, except that a plugin pinned to
+// a publisher key is still inspected when the policy is off: "off" stops a bad
+// signature from blocking an install, not the key-continuity guard.
+func (s *InstallerService) candidateSignatureStatus(ctx context.Context, zipPath string, existing *plugin.Plugin) (*plugin.SignatureStatus, error) {
+	st, err := s.sigVerifier.VerifySignature(ctx, zipPath, "")
+	if st == nil && err == nil && existing != nil && existing.PublisherKeyFingerprint != "" {
+		if in, ok := s.sigVerifier.(signatureInspector); ok {
+			st = in.InspectSignature(ctx, zipPath, "")
+		}
+	}
+	return st, err
 }
 
 // buildPluginRecord constructs the domain plugin.Plugin from the parsed
