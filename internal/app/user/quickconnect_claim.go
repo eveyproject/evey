@@ -12,11 +12,9 @@ import (
 // ErrQuickConnectConsumed: the authorized pairing already handed out its session.
 var ErrQuickConnectConsumed = errors.New("quick connect already redeemed")
 
-// ClaimQuickConnect returns the request behind code when it is authorized and
-// not yet redeemed, marking it consumed in the store; nil when it is still
-// pending. The store's conditional write decides: two collectors racing on one
-// code (gRPC poll and event stream alike), or a replay after a restart, mint
-// one session, not two.
+// ClaimQuickConnect returns the authorized request behind code and marks it
+// consumed in the store, nil while it is still pending. The store's conditional
+// write is what makes racing collectors or a replay after a restart mint once.
 func (s *CommandService) ClaimQuickConnect(ctx context.Context, code string) (*user.QuickConnectRequest, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.ClaimQuickConnect")
 	defer span.End()
