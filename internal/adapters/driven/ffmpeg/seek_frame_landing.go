@@ -28,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/transcoding"
 	"github.com/eveyproject/evey/internal/pkg/procfork"
@@ -70,6 +71,10 @@ var seekLandingCache = struct {
 	m map[string]int64
 }{m: map[string]int64{}}
 
+// seekLandingProbeTimeout bounds one landing probe: it runs under the session's
+// long-lived context, so a probe hung on a stalled source would wedge the start.
+const seekLandingProbeTimeout = 15 * time.Second
+
 // seekLandingProbe is the ffprobe measurement behind the cache (a test seam).
 var seekLandingProbe = probeTranscodeSeekLandingUs
 
@@ -79,6 +84,8 @@ var seekLandingProbe = probeTranscodeSeekLandingUs
 // frame rate source the value is snapped to the exact frame grid (k × period),
 // which is where the cold rafale's CFR output puts the same frame.
 func transcodeSeekLandingUs(ctx context.Context, filePath string, startSec float64) (int64, error) {
+	ctx, cancel := context.WithTimeout(ctx, seekLandingProbeTimeout)
+	defer cancel()
 	fi, err := os.Stat(filePath)
 	if err != nil {
 		return seekLandingProbe(ctx, filePath, startSec)
