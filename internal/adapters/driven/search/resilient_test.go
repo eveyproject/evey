@@ -282,3 +282,27 @@ func TestSearch_WithFiltersAndSort(t *testing.T) {
 	assert.Equal(t, int64(1), total)
 	assert.Equal(t, "hit-1", hits[0].ID)
 }
+
+type libraryRemover struct {
+	removed []string
+}
+
+func (l *libraryRemover) RemoveLibrary(_ context.Context, id string) error {
+	l.removed = append(l.removed, id)
+	return nil
+}
+
+func TestResilient_RemoveLibraryReachesThePrimary(t *testing.T) {
+	rm := &libraryRemover{}
+	primary := struct {
+		library.SearchIndex
+		*libraryRemover
+	}{&fakeSearchIndex{}, rm}
+	r := search.NewResilient(primary, &fakeSearchIndex{})
+	if err := r.RemoveLibrary(context.Background(), "lib-1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(rm.removed) != 1 || rm.removed[0] != "lib-1" {
+		t.Fatalf("primary purged %v, want [lib-1]", rm.removed)
+	}
+}

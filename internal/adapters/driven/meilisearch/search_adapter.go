@@ -398,6 +398,29 @@ func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
 	return nil
 }
 
+type filterDeleter interface {
+	DeleteDocumentsByFilterWithContext(ctx context.Context, filter any, opts *ms.DocumentOptions) (*ms.TaskInfo, error)
+}
+
+// RemoveLibrary deletes every document of a library in one filtered delete:
+// the database cascades the library's media away without a per-item event.
+func (a *SearchAdapter) RemoveLibrary(ctx context.Context, libraryID string) error {
+	ctx, span := tracing.StartSpan(ctx, "meilisearch.RemoveLibrary")
+	defer span.End()
+	d, ok := a.index.(filterDeleter)
+	if !ok {
+		return errors.New("remove library: index cannot delete by filter")
+	}
+	info, err := d.DeleteDocumentsByFilterWithContext(ctx, BuildFilterString(map[string]string{"library_id": libraryID}), nil)
+	if err != nil {
+		return fmt.Errorf("remove library: %w", err)
+	}
+	if err := a.awaitTask(ctx, info); err != nil {
+		return fmt.Errorf("remove library: %w", err)
+	}
+	return nil
+}
+
 // Clear deletes every document in the index. Used by the reconcile to evict
 // stale docs (a delete dropped during an outage) before a full reindex - an
 // upsert reindex alone can never shrink the index back to the DB count.
