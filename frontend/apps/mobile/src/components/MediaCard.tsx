@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo } from "react";
 import { View, Text, Pressable } from "react-native";
 import { ROW_CARD_WIDTH } from "../lib/rowCardWidth";
 import { Image } from "expo-image";
@@ -6,12 +6,13 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import type { V1MediaItem, V1Artwork } from "@evey/api";
 import { displayTitle } from "@evey/api";
-import { artworkUrl } from "@evey/client";
+import { artworkUrl, useImageRetry } from "@evey/client";
 import { useTheme } from "../providers/ThemeProvider";
 import { useServerUrl } from "../hooks/useServerUrl";
 import { useAuthenticatedImage } from "../hooks/useAuthenticatedImage";
 import { ProgressBar } from "./ProgressBar";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
+import { useAuthStore } from "@evey/store";
 
 interface MediaCardProps {
   item: V1MediaItem;
@@ -58,11 +59,11 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, onLongPr
   // Versioned by the item's updatedAt: artwork is served immutable for a year,
   // so a replaced poster must change its URL to reach the phone's image cache.
   const imageUri = serverUrl && item.id ? artworkUrl(serverUrl, item.id, "poster", 400, item) : undefined;
-  const imageSource = useAuthenticatedImage(imageUri);
-
-  // A title without a poster answers 404: show a film glyph instead of an empty rectangle.
-  const [posterFailed, setPosterFailed] = useState(false);
-  useEffect(() => setPosterFailed(false), [imageUri]);
+  // A title without a poster answers 404: show a film glyph instead of an
+  // empty rectangle. A failed load is retried first (see useImageRetry).
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const { src: retrySrc, failed: posterFailed, onError: onPosterError, onLoad: onPosterLoad } = useImageRetry(imageUri, accessToken);
+  const imageSource = useAuthenticatedImage(retrySrc);
 
   // Primary blurhash drives the expo-image placeholder; the explicit prop
   // (passed by feed sliders carrying FeedItem.primaryBlurhash) wins. Falls
@@ -96,7 +97,8 @@ export const MediaCard = React.memo(function MediaCard({ item, onPress, onLongPr
             source={imageSource}
             style={{ width: cardWidth, height: cardHeight }}
             contentFit="cover"
-            onError={() => setPosterFailed(true)}
+            onError={onPosterError}
+            onLoad={onPosterLoad}
             transition={200}
             placeholder={blurhash ? { blurhash } : undefined}
             placeholderContentFit="cover"

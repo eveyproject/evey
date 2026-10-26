@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
 import { View, type StyleProp, type ViewStyle } from "react-native";
 import { Image, type ImageStyle } from "expo-image";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../providers/ThemeProvider";
 import { useLiteMode } from "../lib/liteMode";
+import { useImageRetry } from "@evey/client";
 
 // A poster that falls back to a film glyph on the card surface when the
 // server has none (it answers 404) or the fetch fails, instead of leaving an
@@ -27,8 +27,11 @@ export function PosterImage({
 }) {
   const theme = useTheme();
   const lite = useLiteMode();
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [uri]);
+  // Retried on failure, revived on a new token (see useImageRetry). A path
+  // without a host is the server not known yet (a screen's first render):
+  // nothing to load, nothing to fail.
+  const absolute = /^https?:/i.test(uri) ? uri : undefined;
+  const { src, failed, onError, onLoad } = useImageRetry(absolute, headers?.Authorization);
 
   if (failed) {
     return (
@@ -40,16 +43,18 @@ export function PosterImage({
       </View>
     );
   }
+  if (!src) return <View style={[style as StyleProp<ViewStyle>, { backgroundColor: theme.colors.surface }]} />;
   return (
     <Image
       cachePolicy="memory-disk"
-      source={{ uri, headers }}
+      source={{ uri: src, headers }}
       style={style}
       contentFit="cover"
       recyclingKey={recyclingKey}
       placeholder={blurhash && !lite ? { blurhash } : undefined}
       placeholderContentFit="cover"
-      onError={() => setFailed(true)}
+      onError={onError}
+      onLoad={onLoad}
     />
   );
 }
