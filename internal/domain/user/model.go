@@ -17,11 +17,13 @@ const (
 	Pending    QuickConnectStatus = "pending"
 	Authorized QuickConnectStatus = "authorized"
 	Expired    QuickConnectStatus = "expired"
+	// Consumed: the authorized request has handed out its session.
+	Consumed QuickConnectStatus = "consumed"
 )
 
 func (s QuickConnectStatus) IsValid() bool {
 	switch s {
-	case Pending, Authorized, Expired:
+	case Pending, Authorized, Expired, Consumed:
 		return true
 	}
 	return false

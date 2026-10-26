@@ -118,6 +118,10 @@ type QuickConnectRepository interface {
 	GetByCode(ctx context.Context, code string) (*QuickConnectRequest, error)
 	GetByShortCode(ctx context.Context, shortCode string) (*QuickConnectRequest, error)
 	UpdateStatus(ctx context.Context, id, status string, userID *string) error
+	// Consume moves an authorized, unexpired request to consumed in one
+	// conditional write; anything else (pending, already consumed, gone) is
+	// shared.ErrNotFound. Of two concurrent callers exactly one succeeds.
+	Consume(ctx context.Context, code string) error
 	DeleteExpired(ctx context.Context) error
 }
 
