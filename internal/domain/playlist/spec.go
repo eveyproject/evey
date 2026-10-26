@@ -29,21 +29,16 @@ type Spec interface {
 	IsSatisfiedBy(c Candidate) bool
 }
 
-// SQLSpec is an optional capability: specs that can compile themselves to
-// a SQL WHERE fragment using the shared mediaItem query joins.
-// argIdx is the next positional placeholder number and is advanced by the
-// call; when clause is empty the spec contributes nothing (neutral element).
-type SQLSpec interface {
-	ToSQL(argIdx *int) (clause string, args []any)
-}
-
 // And conjoins specs; the empty And is always satisfied (identity).
-func And(specs ...Spec) Spec { return andSpec{specs: specs} }
+func And(specs ...Spec) Spec { return AndSpec{Specs: specs} }
 
-type andSpec struct{ specs []Spec }
+// The concrete specs are exported so a storage adapter can translate them to
+// its own query language; the domain keeps only their in-memory semantics.
 
-func (a andSpec) IsSatisfiedBy(c Candidate) bool {
-	for _, s := range a.specs {
+type AndSpec struct{ Specs []Spec }
+
+func (a AndSpec) IsSatisfiedBy(c Candidate) bool {
+	for _, s := range a.Specs {
 		if !s.IsSatisfiedBy(c) {
 			return false
 		}
@@ -51,127 +46,66 @@ func (a andSpec) IsSatisfiedBy(c Candidate) bool {
 	return true
 }
 
-func (a andSpec) ToSQL(argIdx *int) (string, []any) {
-	var parts []string
-	var args []any
-	for _, s := range a.specs {
-		sq, ok := s.(SQLSpec)
-		if !ok {
-			continue
-		}
-		clause, cargs := sq.ToSQL(argIdx)
-		if clause == "" {
-			continue
-		}
-		parts = append(parts, clause)
-		args = append(args, cargs...)
-	}
-	return strings.Join(parts, " AND "), args
-}
+type GenreSpec struct{ Genre string }
 
-type genreSpec struct{ genre string }
-
-func (g genreSpec) IsSatisfiedBy(c Candidate) bool {
+func (g GenreSpec) IsSatisfiedBy(c Candidate) bool {
 	for _, gr := range c.Genres {
-		if strings.EqualFold(gr, g.genre) {
+		if strings.EqualFold(gr, g.Genre) {
 			return true
 		}
 	}
 	return false
 }
 
-func (g genreSpec) ToSQL(argIdx *int) (string, []any) {
-	clause := fmt.Sprintf("mc.genres @> $%d::jsonb", *argIdx)
-	*argIdx++
-	return clause, []any{fmt.Sprintf(`["%s"]`, strings.ReplaceAll(g.genre, `"`, `\"`))}
-}
+type TypeSpec struct{ MediaType string }
 
-type typeSpec struct{ mediaType string }
+func (t TypeSpec) IsSatisfiedBy(c Candidate) bool { return c.Type == t.MediaType }
 
-func (t typeSpec) IsSatisfiedBy(c Candidate) bool { return c.Type == t.mediaType }
-
-func (t typeSpec) ToSQL(argIdx *int) (string, []any) {
-	clause := fmt.Sprintf("mi.type = $%d", *argIdx)
-	*argIdx++
-	return clause, []any{t.mediaType}
-}
-
-type yearOp string
+type YearOp string
 
 const (
-	yearEq  yearOp = "eq"
-	yearGt  yearOp = "gt"
-	yearLt  yearOp = "lt"
-	yearGte yearOp = "gte"
-	yearLte yearOp = "lte"
+	YearEq  YearOp = "eq"
+	YearGt  YearOp = "gt"
+	YearLt  YearOp = "lt"
+	YearGte YearOp = "gte"
+	YearLte YearOp = "lte"
 )
 
-type yearSpec struct {
-	op   yearOp
-	year int
+type YearSpec struct {
+	Op   YearOp
+	Year int
 }
 
-func (y yearSpec) IsSatisfiedBy(c Candidate) bool {
+func (y YearSpec) IsSatisfiedBy(c Candidate) bool {
 	if c.Year == nil {
 		return false
 	}
 	v := *c.Year
-	switch y.op {
-	case yearGt:
-		return v > y.year
-	case yearLt:
-		return v < y.year
-	case yearGte:
-		return v >= y.year
-	case yearLte:
-		return v <= y.year
+	switch y.Op {
+	case YearGt:
+		return v > y.Year
+	case YearLt:
+		return v < y.Year
+	case YearGte:
+		return v >= y.Year
+	case YearLte:
+		return v <= y.Year
 	default:
-		return v == y.year
+		return v == y.Year
 	}
 }
 
-func (y yearSpec) ToSQL(argIdx *int) (string, []any) {
-	var op string
-	switch y.op {
-	case yearGt:
-		op = ">"
-	case yearLt:
-		op = "<"
-	case yearGte:
-		op = ">="
-	case yearLte:
-		op = "<="
-	default:
-		op = "="
-	}
-	clause := fmt.Sprintf("mc.year %s $%d", op, *argIdx)
-	*argIdx++
-	return clause, []any{y.year}
-}
+type LibraryIDSpec struct{ ID string }
 
-type libraryIDSpec struct{ id string }
+func (l LibraryIDSpec) IsSatisfiedBy(c Candidate) bool { return c.LibraryID == l.ID }
 
-func (l libraryIDSpec) IsSatisfiedBy(c Candidate) bool { return c.LibraryID == l.id }
+type RatingGteSpec struct{ Min float64 }
 
-func (l libraryIDSpec) ToSQL(argIdx *int) (string, []any) {
-	clause := fmt.Sprintf("mi.library_id = $%d", *argIdx)
-	*argIdx++
-	return clause, []any{l.id}
-}
-
-type ratingGteSpec struct{ min float64 }
-
-func (r ratingGteSpec) IsSatisfiedBy(c Candidate) bool {
+func (r RatingGteSpec) IsSatisfiedBy(c Candidate) bool {
 	if c.CommunityRating == nil {
 		return false
 	}
-	return *c.CommunityRating >= r.min
-}
-
-func (r ratingGteSpec) ToSQL(argIdx *int) (string, []any) {
-	clause := fmt.Sprintf("mcl.community_rating >= $%d::double precision", *argIdx)
-	*argIdx++
-	return clause, []any{r.min}
+	return *c.CommunityRating >= r.Min
 }
 
 // ErrUnknownRuleField is returned when CompileRules encounters a field it
@@ -205,24 +139,24 @@ func compileRule(r Rule) (Spec, error) {
 		if r.Value == "" {
 			return nil, nil
 		}
-		return genreSpec{genre: r.Value}, nil
+		return GenreSpec{Genre: r.Value}, nil
 	case "type":
 		if r.Value == "" {
 			return nil, nil
 		}
-		return typeSpec{mediaType: r.Value}, nil
+		return TypeSpec{MediaType: r.Value}, nil
 	case "year":
 		y, err := strconv.Atoi(r.Value)
 		if err != nil {
 			return nil, fmt.Errorf("year rule: %w", err)
 		}
-		op := yearOp(r.Operator)
+		op := YearOp(r.Operator)
 		switch op {
-		case yearEq, yearGt, yearLt, yearGte, yearLte, "":
+		case YearEq, YearGt, YearLt, YearGte, YearLte, "":
 			if op == "" {
-				op = yearEq
+				op = YearEq
 			}
-			return yearSpec{op: op, year: y}, nil
+			return YearSpec{Op: op, Year: y}, nil
 		default:
 			return nil, fmt.Errorf("year rule: invalid operator %q", r.Operator)
 		}
@@ -230,13 +164,13 @@ func compileRule(r Rule) (Spec, error) {
 		if r.Value == "" {
 			return nil, nil
 		}
-		return libraryIDSpec{id: r.Value}, nil
+		return LibraryIDSpec{ID: r.Value}, nil
 	case "rating_gte":
 		f, err := strconv.ParseFloat(r.Value, 64)
 		if err != nil {
 			return nil, fmt.Errorf("rating_gte rule: %w", err)
 		}
-		return ratingGteSpec{min: f}, nil
+		return RatingGteSpec{Min: f}, nil
 	default:
 		return nil, fmt.Errorf("%w: %q", ErrUnknownRuleField, r.Field)
 	}

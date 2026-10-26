@@ -440,13 +440,10 @@ func (q *SmartPlaylistQuerier) Query(ctx context.Context, spec playlist.Spec, so
 	query := "SELECT mi.id " + mediaItemFromJoins
 
 	var args []any
-	if sq, ok := spec.(playlist.SQLSpec); ok {
-		argIdx := 1
-		clause, specArgs := sq.ToSQL(&argIdx)
-		if clause != "" {
-			query += " WHERE " + clause
-			args = specArgs
-		}
+	argIdx := 1
+	if clause, specArgs := playlistSpecSQL(spec, &argIdx); clause != "" {
+		query += " WHERE " + clause
+		args = specArgs
 	}
 
 	validSort := map[string]string{
