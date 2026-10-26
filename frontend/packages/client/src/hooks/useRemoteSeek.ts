@@ -26,6 +26,7 @@ export function useRemoteSeek({
   getDuration,
   seekTo,
   onActivity,
+  onPreviewChange,
 }: {
   /** The player's playhead, as rendered: drives the release of the preview. */
   positionSec: number;
@@ -36,6 +37,11 @@ export function useRemoteSeek({
   seekTo: (sec: number) => void;
   /** Every press: keeps the controls up. */
   onActivity?: () => void;
+  /**
+   * Given, the preview goes here instead of this hook's own state, so a host
+   * that only forwards it is not re-rendered on every press.
+   */
+  onPreviewChange?: (sec: number | null) => void;
 }) {
   const [previewSec, setPreviewSec] = useState<number | null>(null);
   const previewRef = useRef<number | null>(null);
@@ -43,13 +49,15 @@ export function useRemoteSeek({
   const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdRef = useRef<{ dir: 1 | -1; startedAt: number; lastAt: number; moved: boolean; timer: ReturnType<typeof setInterval> } | null>(null);
   // Read by the timers: the latest callbacks, not the ones of the render that armed them.
-  const cb = useRef({ getPosition, getDuration, seekTo, onActivity });
-  cb.current = { getPosition, getDuration, seekTo, onActivity };
+  const cb = useRef({ getPosition, getDuration, seekTo, onActivity, onPreviewChange });
+  cb.current = { getPosition, getDuration, seekTo, onActivity, onPreviewChange };
 
+  const external = onPreviewChange !== undefined;
   const setPreview = useCallback((sec: number | null) => {
     previewRef.current = sec;
-    setPreviewSec(sec);
-  }, []);
+    if (external) cb.current.onPreviewChange?.(sec);
+    else setPreviewSec(sec);
+  }, [external]);
 
   const land = useCallback(() => {
     commitTimerRef.current = null;
