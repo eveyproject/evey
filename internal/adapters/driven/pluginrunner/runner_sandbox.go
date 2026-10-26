@@ -3,6 +3,7 @@ package pluginrunner
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -70,7 +71,7 @@ func (r *Runner) effectiveMode() string {
 // images) it falls back to LD_PRELOAD-only, preserving prior behaviour.
 func (r *Runner) applyBasicSandbox(parentCtx context.Context, p *plugin.Plugin, cmd *exec.Cmd) error {
 	launcherApplied := false
-	du, dg := r.pluginDropArgs(true) // basic = the case uid-sep protects ("auto" enables here)
+	du, dg := r.pluginDropArgs(p.ID, true) // basic = the case uid-sep protects ("auto" enables here)
 	if launcher, err := launcherPath(); err == nil {
 		pluginDir := p.InstallDir
 		if pluginDir == "" {
@@ -278,11 +279,26 @@ const (
 // SysProcAttr.Credential) AND the mode says so: "on" always, "auto" only in
 // basic, "off"/unset never. The gid is the server's own group so the plugin can
 // write the group-shared socket dir.
-func (r *Runner) pluginDropArgs(isBasicMode bool) (uid, gid int) {
+func (r *Runner) pluginDropArgs(pluginID string, isBasicMode bool) (uid, gid int) {
 	if os.Getuid() == 0 || !uidSepApplies(r.uidSepMode, isBasicMode) {
 		return 0, 0
 	}
-	return pluginUID, os.Getgid()
+	return pluginUIDFor(pluginID), os.Getgid()
+}
+
+// pluginUIDFor maps a plugin id to its own uid: FNV-1a of the id folded into
+// [pluginUIDBase, +pluginUIDSpan), stable across restarts and below 65536 so a
+// userns-remapped container still maps it. Two ids may collide: they then share.
+func pluginUIDFor(pluginID string) int {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(pluginID))
+	return pluginUIDBase + int(h.Sum32()%pluginUIDSpan)
+}
+
+// isPluginUID reports whether uid runs plugin code: the shared uid a root
+// server drops to, or one of the per-plugin uids the launcher drops to.
+func isPluginUID(uid int) bool {
+	return uid == pluginUID || (uid >= pluginUIDBase && uid < pluginUIDBase+pluginUIDSpan)
 }
 
 // uidSepApplies decides whether to drop the plugin to a separate uid given the
