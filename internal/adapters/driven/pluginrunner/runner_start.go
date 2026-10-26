@@ -261,7 +261,7 @@ func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
 			return "", "", err
 		}
 	} else if uidSepApplies(r.uidSepMode, r.effectiveMode() == sandboxModeBasic) {
-		// Non-root + uid separation will drop the plugin to evey-plugin (1001):
+		// Non-root + uid separation will drop the plugin to its own uid:
 		// the server (the dir owner) can't chown to that uid (no CAP_CHOWN), so
 		// make the dir group-writable + setgid instead. The plugin runs in the
 		// server's group, so it can create plugin.sock here, and the setgid bit
@@ -274,7 +274,7 @@ func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
 		// ("listen EACCES /tmp/evey/plugins/<id>/plugin.sock"). Grant the group
 		// SEARCH (0710: traverse only, no listing → can't enumerate other plugins)
 		// on the parent. Holds only sockets, no secrets - the server's keys live
-		// under /data (0600 owned by the server) and stay unreadable to uid 1001.
+		// under /data (0600 owned by the server) and stay unreadable to plugin uids.
 		if err := r.makeSockParentTraversable(-1); err != nil {
 			return "", "", err
 		}

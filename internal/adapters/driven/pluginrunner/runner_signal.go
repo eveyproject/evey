@@ -48,7 +48,7 @@ func signalAsPluginUID(ctx context.Context, pid int, sig syscall.Signal) error {
 	if err != nil {
 		return nil // gone between the kill and the lookup
 	}
-	if owner != pluginUID {
+	if !isPluginUID(owner) {
 		return syscall.EPERM
 	}
 	name, ok := map[syscall.Signal]string{syscall.SIGTERM: "TERM", syscall.SIGKILL: "KILL"}[sig]
@@ -65,13 +65,13 @@ func signalAsPluginUID(ctx context.Context, pid int, sig syscall.Signal) error {
 	var attr *syscall.SysProcAttr
 	if os.Getuid() == 0 {
 		gid = pluginGID
-		attr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: pluginUID, Gid: pluginGID}}
+		attr = &syscall.SysProcAttr{Credential: &syscall.Credential{Uid: uint32(owner), Gid: pluginGID}} //nolint:gosec // G115: isPluginUID bounds owner below 65536
 	}
 	ctx, cancel := context.WithTimeout(ctx, pluginSignalTimeout)
 	defer cancel()
 	//nolint:gosec // G204: fixed binary (launcherPath), integer arguments only
 	cmd := exec.CommandContext(ctx, launcher, "signal",
-		"-uid", strconv.Itoa(pluginUID), "-gid", strconv.Itoa(gid), "-pid", strconv.Itoa(pid), "-sig", name)
+		"-uid", strconv.Itoa(owner), "-gid", strconv.Itoa(gid), "-pid", strconv.Itoa(pid), "-sig", name)
 	cmd.SysProcAttr = attr
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("signal plugin %d as its uid: %w: %s", pid, err, out)
