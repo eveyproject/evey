@@ -465,10 +465,8 @@ func TestOrchestrator_CacheHitPastWindow_SlidesWindowAndThrottleSeesProduction(t
 	src := stubSource{path: "/media/test.mkv"}
 	opts := testOpts()
 	opts.LookAheadSegments = 10
-	opts.ThrottleEnabled = true
 	opts.ThrottlePauseAhead = 6
 	opts.ThrottleResumeBelow = 2
-	opts.ThrottleTickInterval = 20 * time.Millisecond
 	o := NewSegmentOrchestrator(cache, proc, src, opts, discardLogger())
 	defer o.Close()
 
@@ -491,11 +489,11 @@ func TestOrchestrator_CacheHitPastWindow_SlidesWindowAndThrottleSeesProduction(t
 	endSeg := sess.endSeg
 	sess.mu.Unlock()
 	assert.GreaterOrEqual(t, endSeg, 15, "the window must follow the reader")
-	require.Eventually(t, func() bool {
-		sess.mu.Lock()
-		defer sess.mu.Unlock()
-		return sess.producedHighWater == endSeg
-	}, time.Second, 10*time.Millisecond, "the throttle must see production past the original window")
+	o.evaluateThrottle()
+	sess.mu.Lock()
+	produced := sess.producedHighWater
+	sess.mu.Unlock()
+	assert.Equal(t, endSeg, produced, "the throttle must see production past the original window")
 }
 
 func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
