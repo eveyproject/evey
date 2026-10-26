@@ -105,6 +105,32 @@ func (c *ipcClient) OnEvent(ctx context.Context, eventType string, payload map[s
 	return err
 }
 
+// Ask is OnEvent with the plugin's answer kept, under its own timeout: a
+// metadata lookup goes out to the network and takes longer than a
+// notification.
+func (c *ipcClient) Ask(ctx context.Context, eventType string, payload map[string]any, source string, timeout time.Duration) (map[string]any, bool, error) {
+	callCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	pbPayload, err := structpb.NewStruct(payload)
+	if err != nil {
+		return nil, false, fmt.Errorf("marshal event payload: %w", err)
+	}
+	resp, err := c.plugin.OnEvent(callCtx, &pluginv1.EventNotification{
+		EventType: eventType,
+		Payload:   pbPayload,
+		Timestamp: timestamppb.Now(),
+		Source:    source,
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	if !resp.GetHandled() {
+		return nil, false, nil
+	}
+	return resp.GetResult().AsMap(), true, nil
+}
+
 func (c *ipcClient) HealthCheck(ctx context.Context) (bool, error) {
 	callCtx, cancel := context.WithTimeout(ctx, ipcCallTimeout)
 	defer cancel()

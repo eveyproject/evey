@@ -169,9 +169,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
 	mediaItemCache.Register(bus)
 	cachingPersonRepo := applibrary.NewCachingPersonRepo(r.Person, infra.personFetcher, infra.personFetcher, r.PersonTranslation, eveyi18n.SupportedLocales())
+	// Metadata plugins' texts, kept beside TMDB's and laid over the
+	// translations on every read (applibrary.WithPluginTexts).
+	pluginTexts := postgres.NewPluginTextRepository(db)
 	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, infra.searchAdapter,
 		applibrary.WithPeople(cachingPersonRepo),
 		applibrary.WithTranslations(r.MediaItemTranslation, r.PersonTranslation),
+		applibrary.WithPluginTexts(pluginTexts),
 		applibrary.WithChapters(r.Chapter),
 		applibrary.WithTrickplay(r.Trickplay),
 		applibrary.WithSegments(r.MediaSegment),
@@ -337,6 +341,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	tvmazeWrapped := decorate(infra.tvmazeProvider)
 	imdbWrapped := decorate(infra.imdbProvider)
 	metaProviders := []metadata.MetadataProvider{tmdbWrapped, omdbWrapped, tvmazeWrapped, imdbWrapped}
+	// The metadata plugins are asked about every movie and series enriched;
+	// the low-memory profile's waker is set once the plugin subsystem exists.
+	pluginMetadataSource := appplugin.NewMetadataSource(r.Plugin, infra.pluginRunner, nil)
 	metadataQuerySvc := appmetadata.NewQueryService(r.MetadataOverride, r.Artwork, metaProviders)
 	enricher := appmetadata.NewEnricher(
 		r.Artwork, r.Person, r.MediaPerson, r.MediaItemQuery, r.MediaItem, infra.searchAdapter,
@@ -345,6 +352,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		collectionCmdSvc,
 		collectionQuerySvc,
 		appmetadata.EnricherWithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales()),
+		appmetadata.EnricherWithPluginTexts(pluginMetadataSource, pluginTexts),
 		appmetadata.EnricherWithPersonFetcher(infra.personFetcher),
 		appmetadata.EnricherWithOverrides(r.MetadataOverride),
 		// Item update + artwork replace + cast upsert commit or roll back
@@ -409,6 +417,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		WithSampleInterval(time.Duration(cfg.Metrics.SampleIntervalSec) * time.Second)
 
 	pluginInstallerSvc, pluginRuntimeSvc, pluginQuerySvc, pluginTokenSvc, pluginSecurityDashboardSvc, pluginIdleMgr, pluginHostSrv, memProfile := buildPluginSubsystem(ctx, infra, rootLog)
+	pluginMetadataSource.SetWaker(pluginIdleMgr)
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	var webhookSender webhook.Sender = webhooksender.New()
