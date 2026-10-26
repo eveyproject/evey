@@ -209,6 +209,34 @@ func TestRestoreBackup_InternalDumperError_500(t *testing.T) {
 	}
 }
 
+func TestRestoreBackup_WhileAnotherRestoreRuns_409(t *testing.T) {
+	mux, token, dumper := newBackupTestMuxWithDumper(t, true)
+	dumper.RestoreStarted = make(chan struct{})
+	dumper.RestoreRelease = make(chan struct{})
+	archive := buildValidArchive(t)
+	first := buildRestoreFormRequest(t, archive)
+	first.Header.Set("Authorization", "Bearer "+token)
+	second := buildRestoreFormRequest(t, archive)
+	second.Header.Set("Authorization", "Bearer "+token)
+
+	firstCode := make(chan int, 1)
+	go func() {
+		w := httptest.NewRecorder()
+		mux.ServeHTTP(w, first)
+		firstCode <- w.Code
+	}()
+	<-dumper.RestoreStarted
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, second)
+	close(dumper.RestoreRelease)
+	if w.Code != http.StatusConflict {
+		t.Errorf("expected 409 while a restore runs, got %d (body: %s)", w.Code, w.Body.String())
+	}
+	if code := <-firstCode; code != http.StatusOK {
+		t.Errorf("expected the running restore to finish with 200, got %d", code)
+	}
+}
+
 func TestRestoreBackup_ValidArchive_200(t *testing.T) {
 	// A well-formed archive with a matching sha256 must be accepted → 200.
 	mux, token := newBackupTestMux(t, true)
