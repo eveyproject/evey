@@ -49,3 +49,38 @@ func TestPendingSearchWriteRepo_LastOpWinsOldestFirst(t *testing.T) {
 	assert.Equal(t, "mi-1", got[0].MediaItemID)
 	require.NoError(t, repo.Delete(ctx, "mi-2"), "draining an already drained item is a no-op")
 }
+
+// A document the engine keeps refusing is counted per drain, then
+// dead-lettered out of the listing; a fresh write gives it a new chance.
+func TestPendingSearchWriteRepo_RecordFailureDeadLetters(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+	repo := postgres.NewPendingSearchWriteRepository(db)
+
+	require.NoError(t, repo.Enqueue(ctx, "mi-bad", library.SearchOpUpsert))
+	require.NoError(t, repo.Enqueue(ctx, "mi-ok", library.SearchOpUpsert))
+
+	dead, err := repo.RecordFailure(ctx, "mi-bad", 2)
+	require.NoError(t, err)
+	assert.False(t, dead, "first refusal only counts")
+	got, err := repo.List(ctx, 0)
+	require.NoError(t, err)
+	assert.Len(t, got, 2)
+
+	dead, err = repo.RecordFailure(ctx, "mi-bad", 2)
+	require.NoError(t, err)
+	assert.True(t, dead, "the second refusal reaches the limit")
+	got, err = repo.List(ctx, 0)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "mi-ok", got[0].MediaItemID, "a dead-lettered row is no longer replayed")
+
+	require.NoError(t, repo.Enqueue(ctx, "mi-bad", library.SearchOpUpsert))
+	got, err = repo.List(ctx, 0)
+	require.NoError(t, err)
+	assert.Len(t, got, 2, "a new write revives the dead-lettered row")
+	dead, err = repo.RecordFailure(ctx, "mi-bad", 2)
+	require.NoError(t, err)
+	assert.False(t, dead, "the revived row starts counting from zero")
+}

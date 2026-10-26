@@ -13,6 +13,7 @@ type FakePlaylistItemRepository struct {
 	mu    sync.RWMutex
 	items map[string][]*playlist.PlaylistItem // playlistID -> items
 	Err   error
+	purge int
 }
 
 func NewFakePlaylistItemRepository() *FakePlaylistItemRepository {
@@ -141,4 +142,21 @@ func (r *FakePlaylistItemRepository) Reorder(_ context.Context, playlistID strin
 	}
 	r.items[playlistID] = reordered
 	return nil
+}
+
+func (r *FakePlaylistItemRepository) PurgeOrphans(_ context.Context) (int64, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.purge++
+	return 0, nil
+}
+
+// PurgeOrphansCalls reports how many times PurgeOrphans ran.
+func (r *FakePlaylistItemRepository) PurgeOrphansCalls() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.purge
 }
