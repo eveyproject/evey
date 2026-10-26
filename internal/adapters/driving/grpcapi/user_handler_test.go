@@ -54,7 +54,7 @@ func setupUserHandler() *testUserEnv {
 		userRepo, profileRepo, refreshRepo,
 		roleRepo, userRoleRepo,
 		hasher, tokenGen, events,
-		7*24*time.Hour, userfakes.NewFakeQuickConnectRepository(),
+		7*24*time.Hour, qcRepo,
 	)
 	userSvc := appuser.NewUserService(userRepo, profileRepo, refreshRepo, hasher, events, sharedfakes.NewFakeTransactionalUnit())
 	access := appuser.NewAccessService(userRepo, apiKeyRepo, inviteRepo, qcRepo, hasher, events)

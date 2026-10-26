@@ -59,6 +59,10 @@ type CommandService struct {
 	tokenRevoker TokenRevoker // optional: bumps token_epoch on security events
 	// minPasswordLength is the floor Setup and ResetPassword enforce.
 	minPasswordLength int
+	// qcClaimed holds the authorized QuickConnect codes already redeemed,
+	// until they expire (see ClaimQuickConnect).
+	qcMu      sync.Mutex
+	qcClaimed map[string]time.Time
 }
 
 func NewCommandService(

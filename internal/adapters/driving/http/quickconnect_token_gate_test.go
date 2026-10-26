@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -83,7 +84,7 @@ func newQCGateFixture(t *testing.T) *qcGateFixture {
 		tokens,
 		events,
 		qcTestDefaultTTL,
-		ufakes.NewFakeQuickConnectRepository(),
+		qcRepo,
 	)
 
 	cfg := &config.Config{
@@ -291,4 +292,32 @@ func TestQCGate_GenerateTokensError_Propagated(t *testing.T) {
 	assert.False(t, ok)
 	assert.Empty(t, access)
 	assert.Empty(t, refresh)
+}
+
+// Two collectors racing on one authorized code: exactly one gets a session.
+func TestQCGate_ConcurrentChecksMintOnce(t *testing.T) {
+	t.Parallel()
+	f := newQCGateFixture(t)
+	uid := domainshared.UserID("usr-dave")
+	seedQCRecord(t, f.qcRepo, "code-once", domainuser.Authorized, &uid)
+	seedQCUser(t, f.userRepo, string(uid))
+
+	var wg sync.WaitGroup
+	var minted atomic.Int32
+	start := make(chan struct{})
+	for range 2 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, _, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-once", false)
+			if err == nil && ok {
+				minted.Add(1)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+	assert.Equal(t, int32(1), minted.Load())
+	assert.Equal(t, 1, f.refreshTkns.Count())
 }

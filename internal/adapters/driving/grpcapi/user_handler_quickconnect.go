@@ -80,15 +80,15 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQuickConnectRequest) (*eveyv1.CheckQuickConnectResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.CheckQuickConnect")
 	defer span.End()
-	qc, err := h.query.CheckQuickConnect(ctx, req.Code)
+	// Claimed, not just read: the tokens go to one collector only.
+	qc, err := h.auth.ClaimQuickConnect(ctx, req.Code)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "invalid expired code")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.invalid_expired_code")
 	}
-	authorized := qc.Status == user.Authorized
-	resp := &eveyv1.CheckQuickConnectResponse{Authorized: authorized}
-	if authorized && qc.UserID != nil {
+	resp := &eveyv1.CheckQuickConnectResponse{Authorized: qc != nil}
+	if qc != nil {
 		access, refresh, err := h.auth.GenerateTokensForUser(ctx, string(*qc.UserID), h.quickConnectTTL(ctx, qc)...)
 		if err != nil {
 			slog.ErrorContext(ctx, "generate tokens for quick connect", slog.Any("err", err))
