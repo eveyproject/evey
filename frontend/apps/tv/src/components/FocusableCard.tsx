@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from "react";
-import { Pressable, StyleSheet, type ViewStyle, type StyleProp, type AccessibilityState } from "react-native";
+import { Pressable, StyleSheet, View, type ViewStyle, type StyleProp, type AccessibilityState } from "react-native";
 import { useTheme } from "../providers/ThemeProvider";
 import { useLiteMode } from "../lib/liteMode";
 
@@ -57,7 +57,6 @@ export const FocusableCard = React.memo(function FocusableCard({
       style={[
         styles.card,
         style,
-        focused && { borderColor: theme.colors.accent },
         focused && !lite && styles.focused,
         focused && focusedStyle,
       ]}
@@ -67,15 +66,45 @@ export const FocusableCard = React.memo(function FocusableCard({
       accessibilityState={disabled ? { ...accessibilityState, disabled: true } : accessibilityState}
     >
       {children}
+      {/* The ring is drawn OVER the children, not as the card's own border:
+          a poster sized to the card's width sat on top of the border's left
+          and right edges and cut the ring to its top and bottom (owner,
+          2026-10-26). Offset by the border width so it hugs the card's
+          outer edge, with the card's own radius. */}
+      {focused && (
+        <View
+          pointerEvents="none"
+          style={[styles.ring, { borderColor: theme.colors.accent, borderRadius: ringRadius(style) }]}
+        />
+      )}
     </Pressable>
   );
 });
 
+const BORDER_WIDTH = 3;
+const DEFAULT_RADIUS = 8;
+
+function ringRadius(style: StyleProp<ViewStyle>): number {
+  const flat = StyleSheet.flatten(style);
+  const r = flat?.borderRadius;
+  return typeof r === "number" ? r : DEFAULT_RADIUS;
+}
+
 const styles = StyleSheet.create({
+  // The transparent border keeps the card's size whether or not it is
+  // focused; the visible ring is the overlay below.
   card: {
-    borderWidth: 3,
+    borderWidth: BORDER_WIDTH,
     borderColor: "transparent",
-    borderRadius: 8,
+    borderRadius: DEFAULT_RADIUS,
+  },
+  ring: {
+    position: "absolute",
+    top: -BORDER_WIDTH,
+    left: -BORDER_WIDTH,
+    right: -BORDER_WIDTH,
+    bottom: -BORDER_WIDTH,
+    borderWidth: BORDER_WIDTH,
   },
   focused: {
     transform: [{ scale: 1.05 }],
