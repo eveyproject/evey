@@ -55,6 +55,7 @@ services:
     env_file: .env.dev
     environment:
       EVEY_LOG_DEV_MODE: "true"
+      EVEY_ENV: dev
       EVEY_LOG_LEVEL: debug
       EVEY_RATELIMIT_LOGIN_MAX: "1000"
       EVEY_RATELIMIT_GLOBAL_MAX: "10000"
