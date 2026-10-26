@@ -521,7 +521,7 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan
 					}
 				}
 				dst := filepath.Join(pubDir, name)
-				if _, err := os.Stat(dst); err == nil {
+				if fmp4CompleteMoov(dst) {
 					_ = os.Remove(src) //nolint:errcheck // canonical init already pinned; best-effort cleanup
 				} else if err := os.Rename(src, dst); err != nil {
 					continue
