@@ -865,3 +865,69 @@ func TestAudioOrchestrator_Breaker_TripsAtExactlyTheStrikeLimit(t *testing.T) {
 		assert.False(t, stillTripped, "the cooled-down entry must be cleared, not merely bypassed")
 	})
 }
+
+// slowStopAudioHandle is a session whose Stop blocks until release closes,
+// like a real ffmpeg handle waiting out its exit grace period.
+type slowStopAudioHandle struct {
+	*audioFakeHandle
+	release  chan struct{}
+	stopping chan struct{}
+	once     sync.Once
+}
+
+func (h *slowStopAudioHandle) Stop() error {
+	h.once.Do(func() { close(h.stopping) })
+	<-h.release
+	return h.audioFakeHandle.Stop()
+}
+
+type slowStopAudioProcess struct {
+	*fakeAudioProcess
+	release chan struct{}
+	handles chan *slowStopAudioHandle
+}
+
+func (p *slowStopAudioProcess) StartAudioOnly(ctx context.Context, opts transcoding.AudioProcessOpts) (transcoding.HLSProcessHandle, error) {
+	_, _ = p.fakeAudioProcess.StartAudioOnly(ctx, opts)
+	h := &slowStopAudioHandle{audioFakeHandle: newAudioFakeHandle(), release: p.release, stopping: make(chan struct{})}
+	p.handles <- h
+	return h, nil
+}
+
+// Evicting the oldest session must not hold the orchestrator lock across the
+// victim's Stop: that wait lasts up to the exit grace period and froze every
+// other audio request behind it.
+func TestAudioOrchestrator_EvictionStopsOutsideTheLock(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	release := make(chan struct{})
+	proc := &slowStopAudioProcess{fakeAudioProcess: newFakeAudioProcess(), release: release, handles: make(chan *slowStopAudioHandle, 8)}
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+	defer close(release)
+
+	for _, seg := range []int{100, 400, 700} {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		_ = o.EnsureAudioSegment(ctx, fp, seg)
+		cancel()
+	}
+	first := <-proc.handles
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		_ = o.EnsureAudioSegment(ctx, fp, 1000)
+	}()
+	select {
+	case <-first.stopping:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the oldest session was never evicted")
+	}
+
+	got := make(chan int, 1)
+	go func() { got <- o.ActiveCount() }()
+	select {
+	case <-got:
+	case <-time.After(time.Second):
+		t.Fatal("the orchestrator lock is held while the evicted session stops")
+	}
+}
