@@ -34,17 +34,22 @@ import { PosterImage } from "../../../src/components/PosterImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useDebounce } from "../../../src/hooks/useDebounce";
-import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
+import { CARD_WIDTH_GRID, POSTER_RATIO } from "../../../src/lib/tvLayout";
+import { HOME_SHORTCUT_INSET } from "../../../src/components/HomeShortcutButton";
 import { canPlayAllForSelection, buildPlayAllQueue, pickRandomItem } from "../../../src/lib/librarySelection";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
-import { buildMediaListParams, LIBRARY_DEFAULT_SORT_FIELD, LIBRARY_DEFAULT_SORT_ORDER, LIBRARY_PAGE_SIZE } from "../../../src/lib/libraryGrid";
+import { buildMediaListParams, LIBRARY_DEFAULT_SORT_FIELD, LIBRARY_DEFAULT_SORT_ORDER, LIBRARY_PAGE_SIZE, LIBRARY_NEXT_PAGE_SIZE, libraryGridRow } from "../../../src/lib/libraryGrid";
 
 const NUM_COLUMNS = 5;
+// Room above the focused row for its focus zoom, kept when a row scrolls to
+// the top of the list.
+const GRID_TOP_INSET = 12;
+// The next page is asked for when the focus is this many rows from the end:
+// a row a second on the remote, and the page lands before the focus does.
+const PAGE_AHEAD_ROWS = 3;
 const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
-const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
-const PAGE_SIZE = LIBRARY_PAGE_SIZE;
 // The dedicated screens this app implements. A photo library now has its own
 // grid and remote-driven slideshow (app/(auth)/photos), so it goes there
 // instead of being browsed as a wall of poster-shaped cards whose detail page
@@ -68,16 +73,10 @@ function tvLibKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
 }
 
-// With numColumns the list's items ARE the rows: the index here is a row's,
-// not a card's. Dividing it again put every row at offset 0, so the list
-// believed its whole content was one row high - the focus moving to the
-// second row never scrolled it into view and the paging never fired
-// (television, 2026-10-26).
-const tvLibGetItemLayout = (_: unknown, index: number) => ({
-  length: ROW_HEIGHT,
-  offset: ROW_HEIGHT * index,
-  index,
-});
+// No getItemLayout: the rows are not all the same height (a title wraps to
+// two lines, the row keeps a margin under it) and a declared height put the
+// focused row a row short of the top when the list scrolled to it; with the
+// rows measured, scrollToIndex lands exactly (television, 2026-10-26).
 
 // --- Pure helpers (unit-tested in [libraryId].pure.test.ts) -----------------
 
@@ -176,7 +175,7 @@ export default function LibraryDetailScreen() {
   const hasActiveFilters = Boolean(genre || typeFilter || searchActive);
 
   const { data, isLoading, isError, isFetching, refetch } = useLibraryServiceListMediaItems(
-    buildMediaListParams({ libraryId: libraryId ?? "", type: typeFilter, genre, sortField, sortOrder, cursor, pageSize: PAGE_SIZE }),
+    buildMediaListParams({ libraryId: libraryId ?? "", type: typeFilter, genre, sortField, sortOrder, cursor, pageSize: cursor ? LIBRARY_NEXT_PAGE_SIZE : LIBRARY_PAGE_SIZE }),
     {
       query: {
         enabled: !!libraryId && !searchActive,
@@ -325,12 +324,15 @@ export default function LibraryDetailScreen() {
   // the list (the native scroll-into-view left a row half hidden under the
   // screen's edge on a television) and, near the last rows, asks for the next
   // page - a scroll event alone never fired it, the list hardly scrolls.
+  // With columns, the list's indices are ROW indices (one cell per row of
+  // cards): given the card's index, it scrolled to the wrong row or past the
+  // end (television, 2026-10-26).
   const listRef = useRef<FlatList<V1MediaItem>>(null);
   const itemCount = displayItems.length;
   const onCardFocus = useCallback(
     (index: number) => {
-      listRef.current?.scrollToIndex({ index, viewPosition: 0, animated: true });
-      if (index >= itemCount - NUM_COLUMNS * 2) handleEndReached();
+      listRef.current?.scrollToIndex({ index: libraryGridRow(index, NUM_COLUMNS), viewPosition: 0, viewOffset: GRID_TOP_INSET, animated: true });
+      if (index >= itemCount - NUM_COLUMNS * PAGE_AHEAD_ROWS) handleEndReached();
     },
     [itemCount, handleEndReached],
   );
@@ -537,11 +539,20 @@ export default function LibraryDetailScreen() {
               keyExtractor={tvLibKeyExtractor}
               renderItem={renderItem}
               numColumns={NUM_COLUMNS}
-              contentContainerStyle={{ padding: 24 }}
+              // The grid runs under the home shortcut's band (see _layout):
+              // the band only holds a corner button, and the row below the
+              // focused one shows there, which is how the viewer sees that
+              // the library goes on. The padding lets the last row clear it.
+              contentContainerStyle={{ paddingHorizontal: 24, paddingTop: GRID_TOP_INSET, paddingBottom: HOME_SHORTCUT_INSET + 24 }}
               columnWrapperStyle={{ gap: 12, marginBottom: 16 }}
               onEndReached={handleEndReached}
               onEndReachedThreshold={2}
-              getItemLayout={searchActive ? undefined : tvLibGetItemLayout}
+              // A row not measured yet (far past the rendered window): scroll
+              // by the average row and let the list try again once it is.
+              onScrollToIndexFailed={(info) => {
+                listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+                setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, viewPosition: 0, viewOffset: GRID_TOP_INSET, animated: true }), 100);
+              }}
               initialNumToRender={10}
               maxToRenderPerBatch={15}
               windowSize={5}
