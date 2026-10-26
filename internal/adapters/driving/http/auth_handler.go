@@ -352,6 +352,8 @@ type parentalHandler struct {
 	hasher      domainuser.PasswordHasher
 	tokenGen    domainuser.TokenGenerator
 	pinRL       *ratelimit.Limiter
+	// pinAttempts is the wrong-PIN lockout shared with the gRPC profile RPCs.
+	pinAttempts *appuser.PINAttempts
 }
 
 // pinProofTTL is how long a verified-PIN proof stays usable for a profile
@@ -620,16 +622,34 @@ func (h *parentalHandler) requireCurrentPIN(w http.ResponseWriter, r *http.Reque
 		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 		return false
 	}
+	if !h.pinNotLocked(w, r, span, "verify_current_pin", profileID) {
+		return false
+	}
 	valid, err := h.hasher.Verify(body.CurrentPIN, profile.Parental.PINHash)
 	if err != nil || !valid {
 		if err != nil {
 			span.RecordError(err)
+		} else if body.CurrentPIN != "" { // a missing PIN is not a guess
+			h.pinAttempts.Failed(r.Context(), profileID)
 		}
 		span.SetStatus(codes.Error, "invalid current PIN")
 		http.Error(w, `{"message":"errors.auth.invalid_pin"}`, http.StatusForbidden)
 		return false
 	}
+	h.pinAttempts.Succeeded(r.Context(), profileID)
 	return true
+}
+
+// pinNotLocked refuses a PIN check while the profile sits out a wrong-PIN
+// lockout (shared with the gRPC routes).
+func (h *parentalHandler) pinNotLocked(w http.ResponseWriter, r *http.Request, span trace.Span, op, profileID string) bool {
+	if !h.pinAttempts.Locked(r.Context(), profileID) {
+		return true
+	}
+	span.SetStatus(codes.Error, "PIN locked out")
+	recordParentalPINThrottle(r, op, profileID)
+	http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
+	return false
 }
 
 // requireAccountPassword gates a first-time PIN set behind proof of the
@@ -802,6 +822,9 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		h.writePINResult(w, profileID, true)
 		return
 	}
+	if !h.pinNotLocked(w, r, span, "switch_profile_pin", profileID) {
+		return
+	}
 	valid, err := h.hasher.Verify(body.PIN, profile.Parental.PINHash)
 	if err != nil {
 		span.RecordError(err)
@@ -809,6 +832,11 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		logInternal(r.Context(), "parental pin: verify", err)
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
+	}
+	if valid {
+		h.pinAttempts.Succeeded(r.Context(), profileID)
+	} else if body.PIN != "" {
+		h.pinAttempts.Failed(r.Context(), profileID)
 	}
 	h.writePINResult(w, profileID, valid)
 }
@@ -846,7 +874,8 @@ func registerParentalRoutes(
 		// 15 attempts up front, then refill 1 token every 20 seconds (3/min).
 		// Comfortable for a household with kids fat-fingering the PIN; after
 		// burnout still caps a brute-force attacker to ~180 tries/hour.
-		pinRL: ratelimit.NewWithBurst(15, 3.0),
+		pinRL:       ratelimit.NewWithBurst(15, 3.0),
+		pinAttempts: appuser.SharedPINAttempts(),
 	}
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
 	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))
