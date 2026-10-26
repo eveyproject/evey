@@ -508,6 +508,8 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 		// target; the last one standing spawns once, off the debounce timer. The
 		// `far != nil` path (a nearby rafale to ride or overtake) is left
 		// immediate - it is a continuation, not the storm, and must not stall.
+		// The pre-check races the debounce: a slot taken before the timer fires
+		// still refuses that spawn, and this caller (already answered) waits out its budget.
 		if o.opts.SeekCoalesceWindow > 0 && far == nil && !o.spawnWouldBeRefused(hash, fp, variantIdx) {
 			o.coalesceSeekLocked(hash, fp, variantIdx, segmentIdx)
 			o.mu.Unlock()
