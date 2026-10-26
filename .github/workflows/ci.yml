@@ -366,6 +366,8 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          sbom: true
+          provenance: mode=max
           labels: ${{ needs.docker-plan.outputs.full-labels }}
           build-args: |
             VERSION=${{ needs.docker-plan.outputs.full-version }}
@@ -384,6 +386,8 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          sbom: true
+          provenance: mode=max
           labels: ${{ needs.docker-plan.outputs.full-labels }}
           build-args: |
             VERSION=${{ needs.docker-plan.outputs.full-version }}
@@ -413,6 +417,8 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          sbom: true
+          provenance: mode=max
           labels: ${{ needs.docker-plan.outputs.lean-labels }}
           build-args: |
             VERSION=${{ needs.docker-plan.outputs.lean-version }}
@@ -430,6 +436,8 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          sbom: true
+          provenance: mode=max
           labels: ${{ needs.docker-plan.outputs.nodejs-labels }}
           build-args: |
             VERSION=${{ needs.docker-plan.outputs.nodejs-version }}
@@ -468,6 +476,7 @@ jobs:
     permissions:
       contents: read
       packages: write # required to push to ghcr.io
+      id-token: write # keyless cosign: the workflow's OIDC identity is the signer
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -570,6 +579,27 @@ jobs:
           refs=$(for f in /tmp/digests/nodejs-*; do echo "docker.io/eveyproject/evey@sha256:${f##*/nodejs-}"; done)
           # shellcheck disable=SC2086 # words are tags and refs, none contains a space
           docker buildx imagetools create $targs $refs
+
+      - name: Install cosign
+        if: steps.ops.outcome == 'success'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # Signed by digest, so every tag copied from the same manifest list is covered; only booted images get here.
+      - name: Sign the published manifest lists (keyless)
+        if: steps.ops.outcome == 'success'
+        env:
+          IMG: ${{ steps.immutable.outputs.full }}
+          TAG_LEAN: ${{ steps.build-lean.outcome == 'success' && needs.docker-plan.outputs.lean-tags || '' }}
+          TAG_NODEJS: ${{ steps.build-nodejs.outcome == 'success' && needs.docker-plan.outputs.nodejs-tags || '' }}
+        run: |
+          set -eu
+          for ref in "$IMG" "$(printf '%s\n' "$TAG_LEAN" | head -1)" "$(printf '%s\n' "$TAG_NODEJS" | head -1)"; do
+            [ -n "$ref" ] || continue
+            digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)
+            case "$digest" in sha256:*) ;; *) echo "::error::no digest for $ref"; exit 1 ;; esac
+            echo "sign ${ref%:*}@${digest}"
+            cosign sign --yes "${ref%:*}@${digest}"
+          done
 
       # GHCR is a best-effort mirror: a refusal must not fail a run already shipped to Docker Hub.
       - name: Mirror tags to GHCR (best effort)
