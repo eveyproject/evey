@@ -3,6 +3,7 @@ package meilisearch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -293,8 +294,7 @@ func (a *SearchAdapter) IndexMediaItem(ctx context.Context, item *library.MediaI
 	ctx, span := tracing.StartSpan(ctx, "meilisearch.IndexMediaItem")
 	defer span.End()
 	doc := ToDocument(item)
-	_, err := a.index.AddDocumentsWithContext(ctx, []mediaDocument{doc}, nil)
-	if err != nil {
+	if err := a.addDocuments(ctx, []mediaDocument{doc}); err != nil {
 		return fmt.Errorf("index media item: %w", err)
 	}
 	return nil
@@ -310,11 +310,82 @@ func (a *SearchAdapter) IndexMediaItemsBatch(ctx context.Context, items []*libra
 	for i, item := range items {
 		docs[i] = ToDocument(item)
 	}
-	_, err := a.index.AddDocumentsWithContext(ctx, docs, nil)
-	if err != nil {
+	var rejected []string
+	if err := a.addBisecting(ctx, docs, &rejected); err != nil {
 		return fmt.Errorf("index media items batch: %w", err)
 	}
+	if len(rejected) > 0 {
+		return &RejectedDocumentsError{IDs: rejected}
+	}
 	return nil
+}
+
+// taskWaitTimeout bounds the wait on one Meilisearch task, so a stuck engine
+// turns into an error the caller queues for replay instead of a hung writer.
+const taskWaitTimeout = 2 * time.Minute
+
+// errTaskFailed marks a write the engine accepted but then refused to apply.
+var errTaskFailed = errors.New("meilisearch task failed")
+
+// RejectedDocumentsError lists the documents Meilisearch refused on their own
+// after a failed batch was split; the rest of the batch is indexed.
+type RejectedDocumentsError struct{ IDs []string }
+
+func (e *RejectedDocumentsError) Error() string {
+	return fmt.Sprintf("meilisearch rejected %d document(s): %s", len(e.IDs), strings.Join(e.IDs, ", "))
+}
+
+func (e *RejectedDocumentsError) RejectedIDs() []string { return e.IDs }
+
+type taskWaiter interface {
+	WaitForTaskWithContext(ctx context.Context, taskUID int64, interval time.Duration) (*ms.Task, error)
+}
+
+// awaitTask waits for the task to finish: an enqueued task only means the
+// payload was received, and one failed document fails the whole batch.
+func (a *SearchAdapter) awaitTask(ctx context.Context, info *ms.TaskInfo) error {
+	w, ok := a.index.(taskWaiter)
+	if !ok || info == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, taskWaitTimeout)
+	defer cancel()
+	task, err := w.WaitForTaskWithContext(ctx, info.TaskUID, 50*time.Millisecond)
+	if err != nil {
+		return fmt.Errorf("wait for task %d: %w", info.TaskUID, err)
+	}
+	if task.Status != ms.TaskStatusSucceeded {
+		return fmt.Errorf("%w: task %d %s: %s", errTaskFailed, info.TaskUID, task.Status, task.Error.Message)
+	}
+	return nil
+}
+
+func (a *SearchAdapter) addDocuments(ctx context.Context, docs []mediaDocument) error {
+	info, err := a.index.AddDocumentsWithContext(ctx, docs, nil)
+	if err != nil {
+		return err
+	}
+	return a.awaitTask(ctx, info)
+}
+
+// addBisecting splits a batch whose task failed until the refused documents
+// are isolated, so one bad document no longer keeps its whole batch out of
+// the index. Transport errors are returned as is (engine down: retry later).
+func (a *SearchAdapter) addBisecting(ctx context.Context, docs []mediaDocument, rejected *[]string) error {
+	err := a.addDocuments(ctx, docs)
+	if err == nil || !errors.Is(err, errTaskFailed) {
+		return err
+	}
+	if len(docs) == 1 {
+		slog.WarnContext(ctx, "meilisearch refused a document", slog.String("id", docs[0].ID), slog.Any("err", err))
+		*rejected = append(*rejected, docs[0].ID)
+		return nil
+	}
+	mid := len(docs) / 2
+	if err := a.addBisecting(ctx, docs[:mid], rejected); err != nil {
+		return err
+	}
+	return a.addBisecting(ctx, docs[mid:], rejected)
 }
 
 func (a *SearchAdapter) RemoveMediaItem(ctx context.Context, id string) error {
