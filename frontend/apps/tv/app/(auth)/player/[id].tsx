@@ -9,7 +9,7 @@ import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensio
 import { useLocalSearchParams, router } from "expo-router";
 import { VideoView } from "expo-video";
 import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer";
-import { setPlayhead } from "@evey/client";
+import { setPlayhead, setSeekPreview } from "@evey/client";
 import { playerBufferOptions } from "@evey/client/native/playerBufferOptions";
 import { getDeviceProfile } from "@evey/media-caps";
 import { useTranslation } from "react-i18next";
@@ -613,6 +613,12 @@ export default function PlayerScreen() {
   // puts the remote down gets the picture back. The row simply gets longer
   // than a passing wake.
   const resetHideTimer = useCallback(() => armHideTimer(true), [armHideTimer]);
+  // The stores outlive this screen: a new title starts from nothing pending.
+  useEffect(() => {
+    setSeekPreview(null);
+    setPlayhead(0);
+    return () => setSeekPreview(null);
+  }, []);
   const openSettings = useCallback(() => setShowTrackMenu(true), []);
 
   // Entering the row shows them and gives them the long delay; leaving only
@@ -652,7 +658,6 @@ export default function PlayerScreen() {
   // player (useRemoteSeek): presses move a preview the bar and the clock show
   // live, ONE seek lands once the pressing stops, a held key scrubs.
   const {
-    previewSec: seekPreviewSec,
     bump: bumpSeek,
     beginHold,
     endHold,
@@ -664,8 +669,10 @@ export default function PlayerScreen() {
     getDuration: () => durationRef.current,
     seekTo: (sec) => withPlayer((p) => { p.currentTime = sec; }),
     onActivity: resetHideTimer,
+    // The bar and the seek badge read the preview from the store: held here,
+    // every press re-rendered this whole screen.
+    onPreviewChange: setSeekPreview,
   });
-  const pendingSeekDelta = seekPreviewSec === null ? 0 : Math.round(seekPreviewSec - currentTimeRef.current);
 
   // Which seek key is currently down, for the sets that never send a
   // longLeft/longRight and instead repeat the plain key while it is held: a
@@ -1603,8 +1610,6 @@ export default function PlayerScreen() {
             mediaId={mediaId}
             screenWidth={screenWidth}
             duration={duration}
-            seekPreviewSec={seekPreviewSec}
-            pendingSeekDelta={pendingSeekDelta}
             isPlaying={isPlaying}
             playbackSpeed={playbackSpeed}
             skipFwd={skipFwd}

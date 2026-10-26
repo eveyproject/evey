@@ -2,7 +2,7 @@ import { memo, useCallback } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { formatTime } from "@evey/api";
-import { usePlayhead } from "@evey/client";
+import { usePlayhead, useSeekPreview } from "@evey/client";
 import { FONT_SIZE } from "@evey/theme";
 import type { Chapter } from "../hooks/useChapters";
 import { useTheme } from "../providers/ThemeProvider";
@@ -46,8 +46,6 @@ export const PlayerBottomPanel = memo(function PlayerBottomPanel({
   mediaId,
   screenWidth,
   duration,
-  seekPreviewSec,
-  pendingSeekDelta,
   isPlaying,
   playbackSpeed,
   skipFwd,
@@ -70,8 +68,6 @@ export const PlayerBottomPanel = memo(function PlayerBottomPanel({
   screenWidth: number;
   // The preview position while a seek is pending, else the playhead.
   duration: number;
-  seekPreviewSec: number | null;
-  pendingSeekDelta: number;
   isPlaying: boolean;
   playbackSpeed: number;
   skipFwd: number;
@@ -98,6 +94,8 @@ export const PlayerBottomPanel = memo(function PlayerBottomPanel({
 
   // The playhead store moves twice a second; only this panel follows it.
   const playhead = usePlayhead();
+  const seekPreviewSec = useSeekPreview();
+  const pendingSeekDelta = seekPreviewSec === null ? 0 : Math.round(seekPreviewSec - playhead);
   // A sprite sheet is a hundred tiles decoded to tens of megabytes: on a
   // low-memory set each seek that crosses one stalled the remote for half a
   // second and the heap churned. The light mode seeks by the clock alone.
