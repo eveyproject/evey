@@ -168,6 +168,16 @@ func (r *Runner) applyBwrapSandbox(parentCtx context.Context, p *plugin.Plugin, 
 
 	// cmd.Args[0] is the program name; the original full argv is cmd.Args.
 	originalArgv := cmd.Args // e.g. ["/data/plugins/foo/plugin", "--arg"]
+	// bwrap has no syscall filter of its own: the launcher installs the seccomp
+	// denylist inside it. No uid drop, the user namespace already maps one.
+	if launcher, lerr := launcherPath(); lerr == nil {
+		prefix = withBwrapLauncher(prefix, launcher)
+		originalArgv = buildLauncherArgv(launcher, p, cmd, false, 0, 0)
+		cmd.Env = overrideEnv(cmd.Env, map[string]string{"HOME": pluginDir, "TMPDIR": pluginDir})
+	} else {
+		slog.WarnContext(parentCtx, "plugin launcher unavailable; bubblewrap sandbox runs without seccomp",
+			slog.String("plugin_id", p.ID), slog.Any("err", lerr))
+	}
 
 	// New argv: bwrap [flags] -- <original argv...>. prefix is freshly built by
 	// buildBwrapCmd and not reused, so appending into it is safe.

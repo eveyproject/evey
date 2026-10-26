@@ -1,10 +1,15 @@
 package pluginrunner
 
 import (
+	"context"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
+	"github.com/eveyproject/evey/internal/domain/plugin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -169,4 +174,49 @@ func TestReadBwrapChildPID(t *testing.T) {
 
 	_, err = read(t, "{}")
 	require.Error(t, err, "a report without child-pid must not arm PID 0")
+}
+
+// TestApplyBwrapSandbox_PayloadRunsThroughLauncher: bubblewrap alone has no
+// syscall filter, so the payload inside it is the launcher, which installs the
+// seccomp denylist (incl. -deny-inet) before exec'ing the plugin argv.
+func TestApplyBwrapSandbox_PayloadRunsThroughLauncher(t *testing.T) {
+	binDir := t.TempDir()
+	fakeBwrap := filepath.Join(binDir, "bwrap")
+	require.NoError(t, os.WriteFile(fakeBwrap, []byte("#!/bin/sh\n"), 0o755)) //nolint:gosec // test stub must be executable
+	t.Setenv("PATH", binDir)
+	launcher := filepath.Join(binDir, launcherBinaryName)
+	require.NoError(t, os.WriteFile(launcher, []byte("#!/bin/sh\n"), 0o755)) //nolint:gosec // test stub must be executable
+	t.Setenv("EVEY_PLUGIN_LAUNCHER", launcher)
+
+	r := NewRunner(t.TempDir()).WithAllowMissingSandbox(true)
+	p := &plugin.Plugin{ID: "bwrap-launcher", InstallDir: "/data/plugins/bwrap-launcher"}
+	cmd := exec.Command("/usr/bin/node", "main.js")
+	_, info, err := r.applyBwrapSandbox(context.Background(), p, cmd, sandboxModeBubblewrap)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = info.Close() })
+
+	sep := slices.Index(cmd.Args, "--")
+	require.Positive(t, sep)
+	bwrapFlags, payload := cmd.Args[:sep], cmd.Args[sep+1:]
+	assert.Contains(t, strings.Join(bwrapFlags, " "), "--ro-bind "+launcher+" "+launcher,
+		"the launcher must be visible inside the sandbox")
+	require.NotEmpty(t, payload)
+	assert.Equal(t, launcher, payload[0])
+	assert.Contains(t, payload, "-seccomp")
+	assert.Contains(t, payload, "-deny-inet")
+	assert.Equal(t, []string{"/usr/bin/node", "main.js"}, payload[len(payload)-2:])
+	assert.NotContains(t, payload, "-uid", "bwrap maps its own user namespace; no setuid inside")
+	assert.Contains(t, cmd.Env, "TMPDIR=/data/plugins/bwrap-launcher")
+}
+
+// TestBuildBwrapCmd_MasksTTY: /dev/tty (the terminal the server was started
+// from, TIOCSTI) is masked by an unopenable bind of /dev/null.
+func TestBuildBwrapCmd_MasksTTY(t *testing.T) {
+	for _, mode := range []string{sandboxModeBubblewrap, sandboxModeStrict} {
+		args := buildBwrapCmd("/data/plugins/foo", "/tmp/evey/plugins/test", mode)
+		joined := strings.Join(args, " ")
+		assert.Contains(t, joined, "--ro-bind /dev/null /dev/tty", mode)
+		assert.Less(t, strings.Index(joined, "--dev /dev"), strings.Index(joined, "--ro-bind /dev/null /dev/tty"),
+			"%s: the mask must come after --dev builds /dev", mode)
+	}
 }
