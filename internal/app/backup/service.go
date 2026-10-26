@@ -12,6 +12,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/backup"
@@ -24,6 +25,11 @@ import (
 // or fails integrity validation. Callers can distinguish this from genuine
 // internal/IO failures with errors.Is.
 var ErrInvalidBackup = errors.New("backup rejected: invalid or tampered archive")
+
+// ErrOperationInProgress refuses a restore while a backup or another restore
+// runs, and a backup while a restore runs: the restore TRUNCATEs and reloads
+// every table, so anything overlapping it reads or writes a half-loaded base.
+var ErrOperationInProgress = errors.New("backup or restore already in progress")
 
 // maxRestoreDumpBytes bounds the decompressed dump.sql during restore - a
 // gzip-bomb guard (G110). Package-level var so tests can lower it without
@@ -85,6 +91,8 @@ type Service struct {
 	version          string
 	events           shared.EventBus
 	includeTelemetry func() bool
+	// opMu: backups share it (RLock), a restore owns it (Lock).
+	opMu sync.RWMutex
 }
 
 type Option func(*Service)
@@ -131,6 +139,10 @@ func (s *Service) CreateBackup(ctx context.Context) (*backup.BackupManifest, err
 }
 
 func (s *Service) createBackup(ctx context.Context) (*backup.BackupManifest, error) {
+	if !s.opMu.TryRLock() {
+		return nil, fmt.Errorf("Service.CreateBackup: %w", ErrOperationInProgress)
+	}
+	defer s.opMu.RUnlock()
 
 	schemaVersion, err := s.dumper.CurrentSchemaVersion(ctx)
 	if err != nil {
@@ -196,6 +208,10 @@ func (s *Service) GetBackup(ctx context.Context, backupID string) (*backup.Backu
 func (s *Service) RestoreBackup(ctx context.Context, data io.Reader) error {
 	ctx, span := tracing.StartSpan(ctx, "app.backup.RestoreBackup")
 	defer span.End()
+	if !s.opMu.TryLock() {
+		return fmt.Errorf("restore: %w", ErrOperationInProgress)
+	}
+	defer s.opMu.Unlock()
 
 	// Obtain the current schema version before extracting the archive so that
 	// a dirty schema (failed migration) is caught immediately, before we spend
