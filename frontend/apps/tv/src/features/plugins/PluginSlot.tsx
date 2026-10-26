@@ -30,6 +30,8 @@ const REMOTE_QUIET_MS = 1200;
 // How long after a key the page has finished scrolling, before a widget
 // checks whether it is still on screen.
 const SCROLL_SETTLE_MS = 350;
+// How long the remote stays untouched before a widget is first started.
+const BOOT_IDLE_MS = 2500;
 
 interface PluginSlotProps {
   /** Slot name declared in the plugin manifest (e.g. "home.section"). */
@@ -114,7 +116,17 @@ function PluginSlotEntry({ slot, entry, context }: { slot: string; entry: SlotEn
     },
     [],
   );
+  // A widget's first start boots a browser engine and its bundle: measured on
+  // a modest set, seconds of frozen main thread right as the home appeared,
+  // the moment the viewer starts moving. It waits for the remote to rest.
+  const [booted, setBooted] = useState(false);
+  useEffect(() => {
+    if (booted || remoteActive) return;
+    const t = setTimeout(() => setBooted(true), BOOT_IDLE_MS);
+    return () => clearTimeout(t);
+  }, [booted, remoteActive]);
   const suggestedHeight = suggestedSlotHeight(slot, windowHeight);
+  if (!booted) return <View style={{ height: suggestedHeight ?? 0 }} />;
   const shown = screenFocused && onScreen;
   const framesHeld = remoteActive || !shown;
   return (

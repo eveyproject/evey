@@ -183,8 +183,9 @@ vi.mock("@evey/api", async (importOriginal) => ({
   usePlaybackServiceGetResumeItems: (...args: unknown[]) => resumeMock(...args),
   usePlaybackServiceGetNextUp: (...args: unknown[]) => nextUpMock(...args),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
-  useLibraryServiceListLibraries: (...args: unknown[]) => librariesMock(...args),
-  useFeedServiceGetFeedConfig: (...args: unknown[]) => feedConfigMock(...args),
+  // Answered by default: the home holds its rows until both have.
+  useLibraryServiceListLibraries: (...args: unknown[]) => ({ isFetched: true, ...librariesMock(...args) }),
+  useFeedServiceGetFeedConfig: (...args: unknown[]) => ({ isFetched: true, ...feedConfigMock(...args) }),
   useFeedServiceRecommended: (...args: unknown[]) => recommendedMock(...args),
   getLibraryServiceListMediaItemsQueryOptions: (...args: unknown[]) =>
     getLibraryServiceListMediaItemsQueryOptionsMock(

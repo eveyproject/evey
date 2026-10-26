@@ -18,7 +18,8 @@ import {
   getPhotoServiceListPhotoAlbumsQueryOptions,
   eveyFetch,
 } from "@evey/api";
-import type { V1MediaItem } from "@evey/api";
+import type { LibraryServiceListMediaItemsParams, V1ListMediaItemsResponse, V1MediaItem } from "@evey/api";
+import { useRowPages } from "../../../src/hooks/useRowPages";
 import { useAuthStore, useDemoStore } from "@evey/store";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
@@ -219,6 +220,7 @@ function MediaRow({
   isError,
   onRetry,
   onOpen,
+  onEndReached,
 }: {
   title: string;
   /** The page this row previews; its title opens it. */
@@ -235,9 +237,15 @@ function MediaRow({
    * empty one). */
   isError?: boolean;
   onRetry?: () => void;
+  /** The focus is nearing the row's last cards: time to fetch the next ones. */
+  onEndReached?: () => void;
 }) {
   // Stable, so the list does not rebuild every visible card whenever this
   // screen re-renders - which it does on each of its half-dozen queries.
+  // The next page is asked for when the focus comes within a few cards of
+  // the row's end - the list's own onEndReached fired on its first render,
+  // since a first page barely overflows the screen.
+  const itemCount = items.length;
   const renderCard = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => (
       <MediaCard
@@ -245,11 +253,18 @@ function MediaRow({
         serverUrl={serverUrl}
         authHeaders={authHeaders}
         isFirst={index === 0 && !!focusFirst}
-        onFocus={onCardFocus}
+        onFocus={
+          onEndReached
+            ? () => {
+                onCardFocus?.();
+                if (index >= itemCount - ROW_END_AHEAD) onEndReached();
+              }
+            : onCardFocus
+        }
         watchPercent={item.id ? watchPercents?.[item.id] : undefined}
       />
     ),
-    [serverUrl, authHeaders, focusFirst, onCardFocus, watchPercents],
+    [serverUrl, authHeaders, focusFirst, onCardFocus, watchPercents, onEndReached, itemCount],
   );
   if (isError) {
     return (
@@ -286,6 +301,49 @@ function MediaRow({
       </TVFocusGuideView>
     </View>
   );
+}
+
+// A library row asks for what the screen shows first, then a page more each
+// time the focus nears its end, up to the row's budget: twenty full items per
+// row, every row at once, was the home's opening cost on a modest set.
+const HOME_ROW_FIRST_PAGE = 8;
+const HOME_ROW_NEXT_PAGE = 8;
+// How many cards before a row's end the focus asks for its next page.
+const ROW_END_AHEAD = 3;
+// Rows fetched with the top of the home; the others once it has loaded.
+const HOME_EAGER_ROWS = 2;
+// A feed row's size when the admin set none (and its request size, at least).
+const HOME_ROW_DEFAULT_SIZE = 20;
+
+type LibrarySection = Extract<HomeSection, { kind: "library" }>;
+
+function libraryRowParams(row: LibrarySection, pageSize: number): LibraryServiceListMediaItemsParams {
+  return {
+    libraryId: row.libraryId,
+    ...(row.libraryType === "LIBRARY_TYPE_SHOWS" ? { type: "MEDIA_ITEM_TYPE_SERIES" as never } : {}),
+    ...(row.libraryType === "LIBRARY_TYPE_MOVIES" ? { type: "MEDIA_ITEM_TYPE_MOVIE" as never } : {}),
+    sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
+    sortOrder: "SORT_ORDER_DESC",
+    "pagination.pageSize": pageSize,
+  };
+}
+
+function LibraryMediaRow({
+  row,
+  firstPage,
+  ...rowProps
+}: { row: LibrarySection; firstPage: V1ListMediaItemsResponse | undefined } & Omit<
+  Parameters<typeof MediaRow>[0],
+  "items" | "onEndReached"
+>) {
+  const params = useMemo(() => libraryRowParams(row, HOME_ROW_NEXT_PAGE), [row]);
+  const { items, loadMore } = useRowPages(
+    params,
+    firstPage,
+    HOME_ROW_NEXT_PAGE,
+    resolveMaxItems(row.maxItems, HOME_LIBRARY_ROW_PAGE_SIZE),
+  );
+  return <MediaRow {...rowProps} items={items} onEndReached={loadMore} />;
 }
 
 // A generic horizontal row of square-art cards (collections, music albums,
@@ -398,7 +456,8 @@ export default function HomeScreen() {
   // feed types, same order, same per-section item counts. The TV used to
   // hardcode three rows plus one per library, so an admin who reordered the
   // home changed nothing on the television.
-  const { data: feedConfigData } = useFeedServiceGetFeedConfig({ profileId });
+  const feedConfig = useFeedServiceGetFeedConfig({ profileId });
+  const feedConfigData = feedConfig.data;
   const libraries = useLibraryServiceListLibraries();
   const sections = useMemo(
     () => buildHomeSections(feedConfigData?.configs ?? [], libraries.data?.libraries ?? []),
@@ -455,40 +514,59 @@ export default function HomeScreen() {
     return map;
   }, [sections]);
 
-  const resume = usePlaybackServiceGetResumeItems({ limit: resolveMaxItems(maxItemsByType.resume_playback, 20) });
-  const nextUp = usePlaybackServiceGetNextUp({ limit: resolveMaxItems(maxItemsByType.next_episode, 20) });
-  const recommended = useFeedServiceRecommended({ limit: resolveMaxItems(maxItemsByType.recommended, 20) });
-  const popular = useMostPopular(resolveMaxItems(maxItemsByType.most_popular, 20));
+  // The row sizes and the library rows come from the feed config, which
+  // answers after these went out: a size in the request meant every row was
+  // fetched at the default and again at the configured size a moment later -
+  // twice the requests, the parsing and the render while the home opened
+  // (measured 2026-10-25). The request size stays put (more only when an
+  // admin asks for more) and the row is cut to its size when it renders.
+  const layoutReady = (feedConfig.isFetched || feedConfig.isError) && (libraries.isFetched || libraries.isError);
+  const rowSize = (feedType: string) => resolveMaxItems(maxItemsByType[feedType], HOME_ROW_DEFAULT_SIZE);
+  const fetchSize = (feedType: string) => Math.max(HOME_ROW_DEFAULT_SIZE, rowSize(feedType));
+  const resume = usePlaybackServiceGetResumeItems({ limit: fetchSize("resume_playback") });
+  const nextUp = usePlaybackServiceGetNextUp({ limit: fetchSize("next_episode") });
+  const recommended = useFeedServiceRecommended({ limit: fetchSize("recommended") });
+  const popular = useMostPopular(fetchSize("most_popular"));
+  const [resumeSize, nextUpSize, recommendedSize, popularSize] = [
+    rowSize("resume_playback"),
+    rowSize("next_episode"),
+    rowSize("recommended"),
+    rowSize("most_popular"),
+  ];
+  const resumeItems = useMemo(() => (resume.data?.items ?? []).slice(0, resumeSize), [resume.data, resumeSize]);
+  const nextUpItems = useMemo(() => (nextUp.data?.items ?? []).slice(0, nextUpSize), [nextUp.data, nextUpSize]);
   const collections = useCollections();
   // The "recently added" shelf is the per-library
   // rows' job, which is why no client renders it as its own section.
+  // Only says whether the server holds anything at all (the empty state):
+  // one item answers that, and the screen no longer waits on twenty full ones.
   const recentlyAdded = useLibraryServiceListMediaItems({
     sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
     sortOrder: "SORT_ORDER_DESC",
-    "pagination.pageSize": 20,
+    "pagination.pageSize": 1,
   });
+  const isTopLoading = !layoutReady || resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
 
   // Every library row is fetched HERE rather than inside its component, so the
   // screen knows which rows have items - that is what lets the remote's
   // initial focus land on the first row that is actually there.
   const librarySections = useMemo(() => sections.filter((s) => s.kind === "library"), [sections]);
+  // The top of the home first: the rows past the second wait until it has
+  // loaded, so their payloads are not parsed on the JS thread while the
+  // screen is still trying to show its first rows.
   const libraryRowQueries = useQueries({
-    queries: librarySections.map((row) => {
-      const limit = resolveMaxItems(row.maxItems, HOME_LIBRARY_ROW_PAGE_SIZE);
+    queries: librarySections.map((row, i) => {
+      const enabled = layoutReady && (i < HOME_EAGER_ROWS || !isTopLoading);
       if (row.libraryType === "LIBRARY_TYPE_MUSIC") {
-        return getMusicServiceGetAlbumsQueryOptions({ libraryId: row.libraryId });
+        return { ...getMusicServiceGetAlbumsQueryOptions({ libraryId: row.libraryId }), enabled };
       }
       if (row.libraryType === "LIBRARY_TYPE_PHOTOS") {
-        return getPhotoServiceListPhotoAlbumsQueryOptions({ libraryId: row.libraryId });
+        return { ...getPhotoServiceListPhotoAlbumsQueryOptions({ libraryId: row.libraryId }), enabled };
       }
-      return getLibraryServiceListMediaItemsQueryOptions({
-        libraryId: row.libraryId,
-        ...(row.libraryType === "LIBRARY_TYPE_SHOWS" ? { type: "MEDIA_ITEM_TYPE_SERIES" as never } : {}),
-        ...(row.libraryType === "LIBRARY_TYPE_MOVIES" ? { type: "MEDIA_ITEM_TYPE_MOVIE" as never } : {}),
-        sortField: "MEDIA_SORT_FIELD_DATE_ADDED",
-        sortOrder: "SORT_ORDER_DESC",
-        "pagination.pageSize": limit,
-      });
+      return {
+        ...getLibraryServiceListMediaItemsQueryOptions(libraryRowParams(row, HOME_ROW_FIRST_PAGE)),
+        enabled,
+      };
     }),
   });
 
@@ -498,7 +576,7 @@ export default function HomeScreen() {
   // paint as soon as they are ready and library rows fill in behind them.
   // Focus is safe either way: it is claimed by the first row that HAS items
   // at render time, so a row arriving late cannot steal it.
-  const isLoading = resume.isLoading || nextUp.isLoading || recentlyAdded.isLoading;
+  const isLoading = isTopLoading;
   // The page is REVEALED once, not assembled in front of the viewer: rows
   // that landed one after another, each with its own jank on a television
   // GPU, read as a slow home (owner, 2026-09-20). The spinner stays until the
@@ -535,12 +613,16 @@ export default function HomeScreen() {
           title: i.title,
           type: i.type,
           artwork: i.primaryBlurhash ? [{ type: "ARTWORK_TYPE_PRIMARY", blurhash: i.primaryBlurhash }] : undefined,
-        }) as V1MediaItem),
-    [recommended.data],
+        }) as V1MediaItem)
+        .slice(0, recommendedSize),
+    [recommended.data, recommendedSize],
   );
   const popularItems = useMemo(
-    () => (popular.data ?? []).map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem),
-    [popular.data],
+    () =>
+      (popular.data ?? [])
+        .map((i) => ({ id: i.mediaItemId, title: i.title, type: i.type }) as V1MediaItem)
+        .slice(0, popularSize),
+    [popular.data, popularSize],
   );
 
   const recentlyAddedItems = recentlyAdded.data?.items ?? [];
@@ -558,9 +640,9 @@ export default function HomeScreen() {
         switch (section.feedType) {
           case "resume_playback":
           case "continue_watching":
-            return resume.data?.items?.length ?? 0;
+            return resumeItems.length;
           case "next_episode":
-            return nextUp.data?.items?.length ?? 0;
+            return nextUpItems.length;
           case "collections":
             return collections.data?.collections?.length ?? 0;
           case "recommended":
@@ -701,11 +783,12 @@ export default function HomeScreen() {
         );
       }
       return (
-        <MediaRow
+        <LibraryMediaRow
           key={section.key}
+          row={section}
+          firstPage={data as V1ListMediaItemsResponse | undefined}
           title={t("media.home.recentlyAddedInLibrary", { name: section.name })}
           onOpen={() => router.push(`/library/${section.libraryId}`)}
-          items={data?.items ?? []}
           serverUrl={serverUrl}
           authHeaders={authHeaders}
           focusFirst={focusFirst}
@@ -721,7 +804,7 @@ export default function HomeScreen() {
           <MediaRow
             key={section.key}
             title={t("media.home.continueWatching")}
-            items={resume.data?.items ?? []}
+            items={resumeItems}
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             watchPercents={watchPercents}
@@ -736,7 +819,7 @@ export default function HomeScreen() {
           <MediaRow
             key={section.key}
             title={t("media.home.upNext")}
-            items={nextUp.data?.items ?? []}
+            items={nextUpItems}
             serverUrl={serverUrl}
             authHeaders={authHeaders}
             focusFirst={focusFirst}
@@ -805,7 +888,11 @@ export default function HomeScreen() {
   // A home that fetched nothing used to render its empty rows, which reads as
   // "your library is empty" rather than "the server did not answer". The side
   // nav is drawn by the layout, so this keeps every tab reachable.
-  const libraryRowsLoading = libraryRowQueries.some((q) => (q as { isLoading?: boolean }).isLoading);
+  // Only the rows on the first screen hold the reveal back: the ones below it
+  // fill in out of sight, so the home still appears in one piece.
+  const libraryRowsLoading = libraryRowQueries
+    .slice(0, HOME_EAGER_ROWS)
+    .some((q) => (q as { isLoading?: boolean }).isLoading);
   const revealed = !isLoading && (revealCapPassed || (!transverseRowsPending && !libraryRowsLoading));
   const revealOpacity = useRef(new Animated.Value(0)).current;
   useEffect(() => {
