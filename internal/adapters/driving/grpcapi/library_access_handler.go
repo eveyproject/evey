@@ -3,10 +3,12 @@ package grpcapi
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
 	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/user"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
@@ -23,6 +25,9 @@ func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *ev
 	if err != nil {
 		return nil, internalError(ctx, "get library access", err)
 	}
+	// The no-library sentinel filters the list handlers; it is not an id the
+	// admin can tick (and echoing it back used to break the save on the FK).
+	ids = slices.DeleteFunc(ids, func(id string) bool { return id == user.NoLibraryAccess })
 	if ids == nil {
 		ids = []string{}
 	}

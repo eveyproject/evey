@@ -28,7 +28,8 @@ func (r *LibraryAccessRepository) Grant(ctx context.Context, userID shared.UserI
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO library_access (user_id, library_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+		`WITH flag AS (UPDATE users SET library_restricted = TRUE WHERE id = $1)
+		 INSERT INTO library_access (user_id, library_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
 		string(userID), string(libraryID))
 	return err
 }
@@ -55,9 +56,11 @@ func (r *LibraryAccessRepository) GrantMany(ctx context.Context, userID shared.U
 	// Joined against libraries: invite links carry their library ids as JSONB
 	// (no FK), so a library deleted after the invite was minted used to blow
 	// the FK here and fail the WHOLE registration transaction. Stale ids are
-	// skipped; surviving ones are granted.
+	// skipped; surviving ones are granted. The user is restricted even when
+	// none survives, so stale ids deny rather than widen.
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`INSERT INTO library_access (user_id, library_id)
+		`WITH flag AS (UPDATE users SET library_restricted = TRUE WHERE id = $1)
+		 INSERT INTO library_access (user_id, library_id)
 		 SELECT $1, l.id FROM libraries l WHERE l.id = ANY($2::text[])
 		 ON CONFLICT DO NOTHING`,
 		string(userID), pq.Array(ids))
@@ -90,6 +93,10 @@ func (r *LibraryAccessRepository) ReplaceAccess(ctx context.Context, userID shar
 	if _, err = tx.ExecContext(ctx, `DELETE FROM library_access WHERE user_id = $1`, string(userID)); err != nil {
 		return fmt.Errorf("replace access: delete existing: %w", err)
 	}
+	// An empty set is the admin's "unrestricted", same as DeleteByUserID.
+	if _, err = tx.ExecContext(ctx, `UPDATE users SET library_restricted = $2 WHERE id = $1`, string(userID), len(libraryIDs) > 0); err != nil {
+		return fmt.Errorf("replace access: flag: %w", err)
+	}
 	if len(libraryIDs) > 0 {
 		ids := make([]string, len(libraryIDs))
 		for i, id := range libraryIDs {
@@ -109,16 +116,17 @@ func (r *LibraryAccessRepository) ReplaceAccess(ctx context.Context, userID shar
 	return nil
 }
 
-// DeleteByUserID atomically revokes every grant for userID in a single
-// statement, replacing the per-library revoke loop that used to back
-// RevokeAllUserLibraryAccess.
+// DeleteByUserID atomically revokes every grant for userID and lifts the
+// restriction in a single statement: it backs RevokeAllUserLibraryAccess,
+// the admin's "unrestricted" action.
 func (r *LibraryAccessRepository) DeleteByUserID(ctx context.Context, userID shared.UserID) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.DeleteByUserID")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`DELETE FROM library_access WHERE user_id = $1`, string(userID))
+		`WITH flag AS (UPDATE users SET library_restricted = FALSE WHERE id = $1)
+		 DELETE FROM library_access WHERE user_id = $1`, string(userID))
 	return err
 }
 
@@ -160,21 +168,36 @@ func (r *LibraryAccessRepository) HasAccess(ctx context.Context, userID shared.U
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	// Single round-trip: COUNT(*) = total restrictions, matched = whether the
-	// requested library is in the user's set. Convention: zero restrictions =
-	// full access.
-	var total, matched int
+	// Fails closed: an unknown user has no row and gets no access.
+	var restricted, matched bool
 	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
-		`SELECT COUNT(*), COUNT(*) FILTER (WHERE library_id = $2)
-		 FROM library_access WHERE user_id = $1`,
-		string(userID), string(libraryID)).Scan(&total, &matched)
+		`SELECT u.library_restricted,
+		        EXISTS (SELECT 1 FROM library_access a WHERE a.user_id = u.id AND a.library_id = $2)
+		 FROM users u WHERE u.id = $1`,
+		string(userID), string(libraryID)).Scan(&restricted, &matched)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
-	if total == 0 {
-		return true, nil // no restrictions = full access
+	return !restricted || matched, nil
+}
+
+// IsRestricted reports whether userID is limited to its granted libraries,
+// even when no grant is left.
+func (r *LibraryAccessRepository) IsRestricted(ctx context.Context, userID shared.UserID) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.library_access.IsRestricted")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var restricted bool
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`SELECT library_restricted FROM users WHERE id = $1`, string(userID)).Scan(&restricted)
+	if errors.Is(err, sql.ErrNoRows) {
+		return true, nil
 	}
-	return matched > 0, nil
+	return restricted, err
 }
 
 func (r *LibraryAccessRepository) ListUsersWithRestrictions(ctx context.Context) (map[shared.UserID][]shared.LibraryID, error) {

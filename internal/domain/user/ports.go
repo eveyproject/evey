@@ -118,6 +118,10 @@ type QuickConnectRepository interface {
 	GetByCode(ctx context.Context, code string) (*QuickConnectRequest, error)
 	GetByShortCode(ctx context.Context, shortCode string) (*QuickConnectRequest, error)
 	UpdateStatus(ctx context.Context, id, status string, userID *string) error
+	// Consume moves an authorized, unexpired request to consumed in one
+	// conditional write; anything else (pending, already consumed, gone) is
+	// shared.ErrNotFound. Of two concurrent callers exactly one succeeds.
+	Consume(ctx context.Context, code string) error
 	DeleteExpired(ctx context.Context) error
 }
 
@@ -133,6 +137,10 @@ type UserRoleRepository interface {
 	RemoveRole(ctx context.Context, userID shared.UserID, roleID string) error
 	GetRolesByUserID(ctx context.Context, userID shared.UserID) ([]*Role, error)
 }
+
+// NoLibraryAccess is the library list of a restricted user with no grant
+// left: it matches no library, where an empty list means "unrestricted".
+const NoLibraryAccess = "!no-library"
 
 type LibraryAccessRepository interface {
 	Grant(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) error
@@ -150,6 +158,10 @@ type LibraryAccessRepository interface {
 	DeleteByUserID(ctx context.Context, userID shared.UserID) error
 	GetByUserID(ctx context.Context, userID shared.UserID) ([]shared.LibraryID, error)
 	HasAccess(ctx context.Context, userID shared.UserID, libraryID shared.LibraryID) (bool, error)
+	// IsRestricted reports whether userID is limited to its grants. It stays
+	// true when the last grant is gone (revoked, library deleted): no grant
+	// then means no library, never every library.
+	IsRestricted(ctx context.Context, userID shared.UserID) (bool, error)
 	ListUsersWithRestrictions(ctx context.Context) (map[shared.UserID][]shared.LibraryID, error)
 }
 

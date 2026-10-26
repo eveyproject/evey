@@ -111,6 +111,25 @@ func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status st
 	return nil
 }
 
+func (r *QuickConnectRepository) Consume(ctx context.Context, code string) error {
+	ctx, span := tracing.StartSpan(ctx, "postgres.quick_connect.Consume")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE quick_connect_requests SET status = 'consumed'
+		 WHERE code = $1 AND status = 'authorized' AND expires_at > now()`, code)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if n, nErr := res.RowsAffected(); nErr != nil || n != 1 {
+		return shared.ErrNotFound
+	}
+	return nil
+}
+
 func (r *QuickConnectRepository) DeleteExpired(ctx context.Context) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.quick_connect.DeleteExpired")
 	defer span.End()

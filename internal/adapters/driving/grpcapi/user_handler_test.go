@@ -16,7 +16,6 @@ import (
 	sharedfakes "github.com/eveyproject/evey/internal/domain/shared/fakes"
 	"github.com/eveyproject/evey/internal/domain/user"
 	userfakes "github.com/eveyproject/evey/internal/domain/user/fakes"
-	"github.com/eveyproject/evey/internal/pkg/ratelimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -54,9 +53,9 @@ func setupUserHandler() *testUserEnv {
 		userRepo, profileRepo, refreshRepo,
 		roleRepo, userRoleRepo,
 		hasher, tokenGen, events,
-		7*24*time.Hour, userfakes.NewFakeQuickConnectRepository(),
+		7*24*time.Hour, qcRepo,
 	)
-	userSvc := appuser.NewUserService(userRepo, profileRepo, refreshRepo, hasher, events, sharedfakes.NewFakeTransactionalUnit())
+	userSvc := appuser.NewUserService(userRepo, profileRepo, refreshRepo, hasher, events, sharedfakes.NewFakeTransactionalUnit(), appuser.WithPINAttempts(appuser.NewPINAttempts(nil)))
 	access := appuser.NewAccessService(userRepo, apiKeyRepo, inviteRepo, qcRepo, hasher, events)
 	query := appuser.NewQueryService(userRepo, profileRepo, apiKeyRepo, inviteRepo, qcRepo)
 
@@ -74,7 +73,6 @@ func setupUserHandler() *testUserEnv {
 		query:       query,
 		activitySvc: actSvc,
 		cfg:         &config.Config{JWT: config.JWTConfig{RefreshTokenLongTTL: 180 * 24 * time.Hour}},
-		pinRL:       ratelimit.NewWithBurst(15, 3.0),
 	}
 
 	return &testUserEnv{
@@ -1316,10 +1314,10 @@ func TestDeleteProfile_FromKidsProfileDenied(t *testing.T) {
 	assertCode(t, err, codes.PermissionDenied)
 }
 
-// The optional fields of a new profile land as given (avatar under avatars/,
-// region upper-cased, PIN hashed and max age kept as parental settings), an
-// escaping avatar path and a malformed PIN are refused before anything is
-// written, and the account's profile cap answers FailedPrecondition.
+// The optional fields of a new profile land as given (region upper-cased, PIN
+// hashed and max age kept as parental settings), a malformed PIN is refused
+// before anything is written, and the account's profile cap answers
+// FailedPrecondition.
 func TestCreateProfile_OptionsAndRefusals(t *testing.T) {
 	env := setupUserHandler()
 	seedUser(t, env, &user.User{ID: "usr-1", Username: "alice"}, "pass12345678")
@@ -1337,17 +1335,13 @@ func TestCreateProfile_OptionsAndRefusals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if stored.AvatarPath == nil || *stored.AvatarPath != "avatars/kid.png" || stored.Region == nil || *stored.Region != "FR" {
+	if stored.Region == nil || *stored.Region != "FR" {
 		t.Errorf("avatar/region: %+v", stored)
 	}
 	if stored.Parental == nil || stored.Parental.PINHash == "" || stored.Parental.PINHash == "1234" || stored.Parental.MaxAge == nil || *stored.Parental.MaxAge != 12 {
 		t.Errorf("parental: %+v", stored.Parental)
 	}
 
-	_, err = env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{UserId: "usr-1", Name: "Sneaky", AvatarPath: "avatars/../../etc/passwd"})
-	assertCode(t, err, codes.InvalidArgument)
-	_, err = env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{UserId: "usr-1", Name: "Elsewhere", AvatarPath: "/tmp/x.png"})
-	assertCode(t, err, codes.InvalidArgument)
 	badPIN := "12"
 	_, err = env.handler.CreateProfile(ctx, &eveyv1.CreateProfileRequest{UserId: "usr-1", Name: "BadPIN", Pin: &badPIN})
 	assertCode(t, err, codes.InvalidArgument)
@@ -1375,8 +1369,8 @@ func TestCreateProfile_OptionsAndRefusals(t *testing.T) {
 // The patch semantics of the remaining profile fields: an empty region
 // clears it, a bitrate cap rides the preferences map and is lifted out of
 // it (0 clears it), a negative max age clears the age cap, a new PIN is
-// hashed, an escaping avatar or a malformed PIN is refused with nothing
-// persisted, and removing the guardian PIN next to a kids profile is a
+// hashed, a client avatar path is ignored, a malformed PIN is refused with
+// nothing persisted, and removing the guardian PIN next to a kids profile is a
 // FailedPrecondition.
 func TestUpdateProfile_FieldSemantics(t *testing.T) {
 	env := setupUserHandler()
@@ -1415,7 +1409,8 @@ func TestUpdateProfile_FieldSemantics(t *testing.T) {
 
 	bad := "avatars/../secret"
 	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", AvatarPath: &bad})
-	assertCode(t, err, codes.InvalidArgument)
+	require.NoError(t, err)
+	assert.Nil(t, get().AvatarPath, "a client avatar path is never stored")
 	badPIN, rotated := "12ab", "4321"
 	_, err = env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", Pin: &badPIN, CurrentPin: &rotated})
 	assertCode(t, err, codes.InvalidArgument)

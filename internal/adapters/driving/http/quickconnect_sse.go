@@ -14,7 +14,6 @@ import (
 
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/config"
-	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"github.com/eveyproject/evey/internal/pkg/quickconnecthub"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
@@ -30,11 +29,12 @@ type qcCheckerAdapter struct {
 }
 
 func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code string, persistent bool) (string, string, bool, error) {
-	qc, err := a.query.CheckQuickConnect(ctx, code)
+	// Claimed, not just read: two collectors on one code mint one session.
+	qc, err := a.auth.ClaimQuickConnect(ctx, code)
 	if err != nil {
 		return "", "", false, err
 	}
-	if qc.Status != domainuser.Authorized || qc.UserID == nil {
+	if qc == nil {
 		return "", "", false, nil
 	}
 	// What the device asked for when it STARTED the pairing decides the
