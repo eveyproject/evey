@@ -93,8 +93,20 @@ func TestLibraryAccess_RevokeAll_RestoresFullAccess(t *testing.T) {
 	repo.Grant(ctx, "u1", "lib-a")
 	repo.Revoke(ctx, "u1", "lib-a")
 
-	// After revoking all, user should have full access again
+	// Revoking the last grant keeps the user restricted: no library.
 	ok, err := repo.HasAccess(ctx, "u1", "any-lib")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("expected no access after revoking the last grant")
+	}
+
+	// DeleteByUserID (RevokeAll) lifts the restriction.
+	if err := repo.DeleteByUserID(ctx, "u1"); err != nil {
+		t.Fatal(err)
+	}
+	ok, err = repo.HasAccess(ctx, "u1", "any-lib")
 	if err != nil {
 		t.Fatal(err)
 	}

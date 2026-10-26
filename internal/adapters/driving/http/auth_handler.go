@@ -352,6 +352,8 @@ type parentalHandler struct {
 	hasher      domainuser.PasswordHasher
 	tokenGen    domainuser.TokenGenerator
 	pinRL       *ratelimit.Limiter
+	// pinAttempts is the wrong-PIN lockout shared with the gRPC profile RPCs.
+	pinAttempts *appuser.PINAttempts
 }
 
 // pinProofTTL is how long a verified-PIN proof stays usable for a profile
@@ -437,7 +439,8 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	// request, no PIN and no profile switch. The gRPC twin of this mutation
 	// (enforceParentalUpdateGate) has always refused that; this route is the
 	// hand-written sibling that never got the gate.
-	if !h.refuseFromKidsProfile(w, r, span, claims, profile) {
+	caller, ok := h.callerOffKids(w, r, span, claims, profile)
+	if !ok {
 		return
 	}
 
@@ -445,7 +448,7 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !h.authorizeParentalChange(w, r, span, profile, body, profileID) {
+	if !h.authorizeParentalChange(w, r, span, profile, caller, body, profileID) {
 		return
 	}
 
@@ -519,25 +522,32 @@ func (h *parentalHandler) loadOwnedProfileForUpdate(w http.ResponseWriter, r *ht
 // Fails CLOSED: if the caller's profile can't be loaded we refuse, because the
 // only thing worse than a false refusal here is a silent bypass.
 func (h *parentalHandler) refuseFromKidsProfile(w http.ResponseWriter, r *http.Request, span trace.Span, claims *domainuser.Claims, target *domainuser.Profile) bool {
+	_, ok := h.callerOffKids(w, r, span, claims, target)
+	return ok
+}
+
+// callerOffKids is refuseFromKidsProfile that also hands back the caller's
+// profile (nil without a profile context), for the restricted-caller PIN gate.
+func (h *parentalHandler) callerOffKids(w http.ResponseWriter, r *http.Request, span trace.Span, claims *domainuser.Claims, target *domainuser.Profile) (*domainuser.Profile, bool) {
 	if claims == nil || claims.ProfileID == "" {
-		return true // no profile context (service/stream tokens): nothing to restrict
+		return nil, true // no profile context (service/stream tokens): nothing to restrict
 	}
-	callerIsKids := target.IsKids && claims.ProfileID == string(target.ID)
-	if !callerIsKids && claims.ProfileID != string(target.ID) {
-		caller, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(claims.ProfileID))
-		if err != nil || caller == nil {
+	caller := target
+	if claims.ProfileID != string(target.ID) {
+		cp, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(claims.ProfileID))
+		if err != nil || cp == nil {
 			span.SetStatus(codes.Error, "parental gate: caller profile unreadable")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return false
+			return nil, false
 		}
-		callerIsKids = caller.IsKids
+		caller = cp
 	}
-	if callerIsKids {
+	if caller.IsKids {
 		span.SetStatus(codes.Error, "parental change from kids profile")
 		http.Error(w, `{"message":"errors.auth.parental_needs_non_kids"}`, http.StatusForbidden)
-		return false
+		return nil, false
 	}
-	return true
+	return caller, true
 }
 
 // validateNewPINFormat rejects a proposed PIN that isn't 4 digits. An empty
@@ -561,7 +571,7 @@ func validateNewPINFormat(w http.ResponseWriter, span trace.Span, pin *string) b
 // first time requires the account password. Other updates (max age, blocked
 // tags, enabling) are not gated - the user already authenticated to reach
 // this endpoint.
-func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
+func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http.Request, span trace.Span, profile, caller *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
 	noExistingPIN := profile.Parental == nil || profile.Parental.PINHash == ""
 	settingNewPIN := body.PIN != nil && *body.PIN != ""
 	mutatingPIN := body.PIN != nil // rotation, clear, or first-time set
@@ -574,6 +584,10 @@ func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http
 	switch {
 	case (mutatingPIN || disablingProtection || loosening) && !noExistingPIN:
 		return h.requireCurrentPIN(w, r, span, profile, body, profileID)
+	case (disablingProtection || loosening) && caller != nil && caller.ID != profile.ID && caller.IsParentalRestricted():
+		// A PIN-less target edited from a restricted profile: the caller's own
+		// PIN is the proof, as on the gRPC route.
+		return h.requireCurrentPIN(w, r, span, caller, body, string(caller.ID))
 	case settingNewPIN && noExistingPIN && h.userRepo != nil:
 		// First-time PIN set: require the account password. Without this a
 		// stolen JWT could silently lock the owner out by enabling parental
@@ -620,16 +634,34 @@ func (h *parentalHandler) requireCurrentPIN(w http.ResponseWriter, r *http.Reque
 		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 		return false
 	}
+	if !h.pinNotLocked(w, r, span, "verify_current_pin", profileID) {
+		return false
+	}
 	valid, err := h.hasher.Verify(body.CurrentPIN, profile.Parental.PINHash)
 	if err != nil || !valid {
 		if err != nil {
 			span.RecordError(err)
+		} else if body.CurrentPIN != "" { // a missing PIN is not a guess
+			h.pinAttempts.Failed(r.Context(), profileID)
 		}
 		span.SetStatus(codes.Error, "invalid current PIN")
 		http.Error(w, `{"message":"errors.auth.invalid_pin"}`, http.StatusForbidden)
 		return false
 	}
+	h.pinAttempts.Succeeded(r.Context(), profileID)
 	return true
+}
+
+// pinNotLocked refuses a PIN check while the profile sits out a wrong-PIN
+// lockout (shared with the gRPC routes).
+func (h *parentalHandler) pinNotLocked(w http.ResponseWriter, r *http.Request, span trace.Span, op, profileID string) bool {
+	if !h.pinAttempts.Locked(r.Context(), profileID) {
+		return true
+	}
+	span.SetStatus(codes.Error, "PIN locked out")
+	recordParentalPINThrottle(r, op, profileID)
+	http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
+	return false
 }
 
 // requireAccountPassword gates a first-time PIN set behind proof of the
@@ -802,6 +834,9 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		h.writePINResult(w, profileID, true)
 		return
 	}
+	if !h.pinNotLocked(w, r, span, "switch_profile_pin", profileID) {
+		return
+	}
 	valid, err := h.hasher.Verify(body.PIN, profile.Parental.PINHash)
 	if err != nil {
 		span.RecordError(err)
@@ -809,6 +844,11 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		logInternal(r.Context(), "parental pin: verify", err)
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
+	}
+	if valid {
+		h.pinAttempts.Succeeded(r.Context(), profileID)
+	} else if body.PIN != "" {
+		h.pinAttempts.Failed(r.Context(), profileID)
 	}
 	h.writePINResult(w, profileID, valid)
 }
@@ -846,7 +886,8 @@ func registerParentalRoutes(
 		// 15 attempts up front, then refill 1 token every 20 seconds (3/min).
 		// Comfortable for a household with kids fat-fingering the PIN; after
 		// burnout still caps a brute-force attacker to ~180 tries/hour.
-		pinRL: ratelimit.NewWithBurst(15, 3.0),
+		pinRL:       ratelimit.NewWithBurst(15, 3.0),
+		pinAttempts: appuser.SharedPINAttempts(),
 	}
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
 	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))

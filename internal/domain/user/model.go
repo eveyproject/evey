@@ -3,6 +3,7 @@ package user
 import (
 	"errors"
 	"net/mail"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,11 +17,13 @@ const (
 	Pending    QuickConnectStatus = "pending"
 	Authorized QuickConnectStatus = "authorized"
 	Expired    QuickConnectStatus = "expired"
+	// Consumed: the authorized request has handed out its session.
+	Consumed QuickConnectStatus = "consumed"
 )
 
 func (s QuickConnectStatus) IsValid() bool {
 	switch s {
-	case Pending, Authorized, Expired:
+	case Pending, Authorized, Expired, Consumed:
 		return true
 	}
 	return false
@@ -103,6 +106,29 @@ func (p *Profile) IsParentalRestricted() bool {
 		return true
 	}
 	return p.EffectiveParental() != nil && p.HasPIN()
+}
+
+// LooserThan reports whether p enforces less than other: no restriction where
+// other has one, a higher or absent age cap, or a tag other blocks and p does
+// not. Leaving other for p then frees content and needs a guardian's PIN.
+func (p *Profile) LooserThan(other *Profile) bool {
+	o := other.EffectiveParental()
+	if o == nil {
+		return false
+	}
+	e := p.EffectiveParental()
+	if e == nil {
+		return true
+	}
+	if o.MaxAge != nil && (e.MaxAge == nil || *e.MaxAge > *o.MaxAge) {
+		return true
+	}
+	for _, tag := range o.BlockedTags {
+		if !slices.Contains(e.BlockedTags, tag) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Profile) HasPIN() bool {
