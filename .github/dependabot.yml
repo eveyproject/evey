@@ -1,0 +1,63 @@
+# Dependabot: security updates only, one grouped PR per ecosystem.
+# open-pull-requests-limit 0 turns version-update PRs off; security
+# updates still open, grouped by the security-updates groups below.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories:
+      - /frontend
+      - /tests/e2e
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    groups:
+      frontend-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directories:
+      - /examples/plugins/*
+      - /tests/plugins/*
+      - /tests/plugins/sandbox-escape/*
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    groups:
+      plugins-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: gomod
+    directories:
+      - /
+      - /frontend/packages/offline-audio/go
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    groups:
+      go-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directories:
+      - /examples/plugins/python-example
+      - /wiki
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    groups:
+      pip-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 0
+    groups:
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
