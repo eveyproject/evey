@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { View, Text, FlatList, StyleSheet } from "react-native";
+import { useGridColumns, DEEP_SCREEN_GRID_INSET } from "../../../src/hooks/useGridColumns";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -12,7 +13,6 @@ import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
-const NUM_COLUMNS = 5;
 
 function tvColKeyExtractor(item: CollectionItem) {
   return item.id;
@@ -22,7 +22,10 @@ function TVColSeparator() {
   return <View style={{ height: 16 }} />;
 }
 
+const COLLECTION_CARD_WIDTH = 160;
+
 export default function CollectionDetailScreen() {
+  const numColumns = useGridColumns(COLLECTION_CARD_WIDTH, DEEP_SCREEN_GRID_INSET);
   const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const { id } = useLocalSearchParams<{ id: string }>();
   const theme = useTheme();
@@ -86,7 +89,8 @@ export default function CollectionDetailScreen() {
         data={items}
         keyExtractor={tvColKeyExtractor}
         renderItem={renderItem}
-        numColumns={NUM_COLUMNS}
+        key={numColumns}
+        numColumns={numColumns}
         contentContainerStyle={{ padding: 24 }}
         ItemSeparatorComponent={TVColSeparator}
         initialNumToRender={10}
@@ -113,7 +117,7 @@ const styles = StyleSheet.create({
   header: { fontSize: 30, fontWeight: "700", paddingHorizontal: 24, paddingTop: 32, paddingBottom: 16 },
   overview: { fontSize: 17, paddingHorizontal: 24, marginTop: -8, marginBottom: 16 },
   card: { flex: 1, margin: 8, padding: 12, alignItems: "center" },
-  poster: { width: 160, height: 240, justifyContent: "center", alignItems: "center" },
+  poster: { width: COLLECTION_CARD_WIDTH, height: COLLECTION_CARD_WIDTH * 1.5, justifyContent: "center", alignItems: "center" },
   title: { fontSize: 15, fontWeight: "600", marginTop: 8, textAlign: "center" },
   year: { fontSize: 13, marginTop: 2 },
 });

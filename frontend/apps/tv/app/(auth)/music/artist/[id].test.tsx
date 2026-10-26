@@ -3,6 +3,7 @@ import { render, fireEvent, screen } from "@testing-library/react";
 import React from "react";
 
 vi.mock("react-native", () => ({
+  useWindowDimensions: () => ({ width: 1200, height: 675, scale: 1.6, fontScale: 1 }),
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "spinner", ...p }),
