@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// The filter header renders once the grid has painted; here the paint is immediate.
+vi.mock("../../../src/hooks/useAfterFirstPaint", () => ({ useAfterFirstPaint: (key: string | undefined) => key !== undefined }));
 vi.mock("../../../src/hooks/useMediaPrefetch", () => ({ useMediaPrefetch: () => ({ prefetchOnFocus: () => {}, cancelPrefetch: () => {} }) }));
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
