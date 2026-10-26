@@ -38,15 +38,13 @@ import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../
 import { canPlayAllForSelection, buildPlayAllQueue, pickRandomItem } from "../../../src/lib/librarySelection";
 import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
+import { buildMediaListParams, LIBRARY_DEFAULT_SORT_FIELD, LIBRARY_DEFAULT_SORT_ORDER, LIBRARY_PAGE_SIZE } from "../../../src/lib/libraryGrid";
 
 const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
-// Three rows of the grid per request: about what one screen shows, so the
-// first page arrives and paints quickly; the next is asked for well before
-// the focus gets there (onEndReachedThreshold below).
-const PAGE_SIZE = 15;
+const PAGE_SIZE = LIBRARY_PAGE_SIZE;
 // The dedicated screens this app implements. A photo library now has its own
 // grid and remote-driven slideshow (app/(auth)/photos), so it goes there
 // instead of being browsed as a wall of poster-shaped cards whose detail page
@@ -78,33 +76,7 @@ const tvLibGetItemLayout = (_: unknown, index: number) => ({
 
 // --- Pure helpers (unit-tested in [libraryId].pure.test.ts) -----------------
 
-export interface BuildMediaListParamsInput {
-  libraryId: string;
-  type?: LibraryServiceListMediaItemsType | "";
-  genre?: string;
-  sortField: LibraryServiceListMediaItemsSortField;
-  sortOrder: LibraryServiceListMediaItemsSortOrder;
-  cursor: string;
-  pageSize: number;
-}
-
-// Single source of truth for the ListMediaItems query params, so the sort/
-// type/genre wiring can be unit-tested without rendering the screen.
-// Keyset-paginated (opaque server cursor), like web and mobile: the previous
-// `pagination.page` + `totalPages` pairing could never advance, because the
-// server never populates total_pages (always 0), so the TV froze on the first
-// page of every library.
-export function buildMediaListParams(input: BuildMediaListParamsInput) {
-  return {
-    libraryId: input.libraryId,
-    ...(input.type ? { type: input.type } : {}),
-    ...(input.genre ? { genre: input.genre } : {}),
-    sortField: input.sortField,
-    sortOrder: input.sortOrder,
-    "pagination.pageSize": input.pageSize,
-    ...(input.cursor ? { "pagination.cursor": input.cursor } : {}),
-  };
-}
+export { buildMediaListParams, type BuildMediaListParamsInput } from "../../../src/lib/libraryGrid";
 
 export interface BuildLibrarySearchParamsInput {
   libraryId: string;
@@ -166,8 +138,8 @@ export default function LibraryDetailScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [genre, setGenre] = useState("");
   const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
-  const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>("MEDIA_SORT_FIELD_TITLE");
-  const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>("SORT_ORDER_ASC");
+  const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>(LIBRARY_DEFAULT_SORT_FIELD);
+  const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>(LIBRARY_DEFAULT_SORT_ORDER);
   const [searchText, setSearchText] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const debouncedSearch = useDebounce(searchText, 300);

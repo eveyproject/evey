@@ -10,6 +10,7 @@ export * from "./hooks/useSleepTimer";
 export * from "./hooks/useProfileLock";
 export * from "./hooks/useServerClock";
 export * from "./hooks/useDebounce";
+export * from "./hooks/useMediaPrefetch";
 export * from "./hooks/useMediaSegments";
 export * from "./hooks/useAdminSegments";
 export * from "./hooks/usePlaybackSettings";
