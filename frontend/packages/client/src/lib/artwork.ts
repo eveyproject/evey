@@ -43,6 +43,9 @@ export function artworkVersion(item: ArtworkVersioned | undefined): string {
 export function coverArtUri(serverUrl: string, coverArtUrl?: string, width?: number): string | undefined {
   if (!coverArtUrl) return undefined;
   if (/^https?:/i.test(coverArtUrl)) return coverArtUrl;
+  // The server not known yet (first render): a relative path would be
+  // requested as is and fail (television logcat, 2026-10-26).
+  if (!serverUrl) return undefined;
   const abs = `${serverUrl}${coverArtUrl}`;
   if (!width || width <= 0) return abs;
   return `${abs}${abs.includes("?") ? "&" : "?"}w=${Math.round(width)}`;
