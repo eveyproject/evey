@@ -439,7 +439,8 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 	// request, no PIN and no profile switch. The gRPC twin of this mutation
 	// (enforceParentalUpdateGate) has always refused that; this route is the
 	// hand-written sibling that never got the gate.
-	if !h.refuseFromKidsProfile(w, r, span, claims, profile) {
+	caller, ok := h.callerOffKids(w, r, span, claims, profile)
+	if !ok {
 		return
 	}
 
@@ -447,7 +448,7 @@ func (h *parentalHandler) updateSettings(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if !h.authorizeParentalChange(w, r, span, profile, body, profileID) {
+	if !h.authorizeParentalChange(w, r, span, profile, caller, body, profileID) {
 		return
 	}
 
@@ -521,25 +522,32 @@ func (h *parentalHandler) loadOwnedProfileForUpdate(w http.ResponseWriter, r *ht
 // Fails CLOSED: if the caller's profile can't be loaded we refuse, because the
 // only thing worse than a false refusal here is a silent bypass.
 func (h *parentalHandler) refuseFromKidsProfile(w http.ResponseWriter, r *http.Request, span trace.Span, claims *domainuser.Claims, target *domainuser.Profile) bool {
+	_, ok := h.callerOffKids(w, r, span, claims, target)
+	return ok
+}
+
+// callerOffKids is refuseFromKidsProfile that also hands back the caller's
+// profile (nil without a profile context), for the restricted-caller PIN gate.
+func (h *parentalHandler) callerOffKids(w http.ResponseWriter, r *http.Request, span trace.Span, claims *domainuser.Claims, target *domainuser.Profile) (*domainuser.Profile, bool) {
 	if claims == nil || claims.ProfileID == "" {
-		return true // no profile context (service/stream tokens): nothing to restrict
+		return nil, true // no profile context (service/stream tokens): nothing to restrict
 	}
-	callerIsKids := target.IsKids && claims.ProfileID == string(target.ID)
-	if !callerIsKids && claims.ProfileID != string(target.ID) {
-		caller, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(claims.ProfileID))
-		if err != nil || caller == nil {
+	caller := target
+	if claims.ProfileID != string(target.ID) {
+		cp, err := h.profileRepo.GetByID(r.Context(), shared.ProfileID(claims.ProfileID))
+		if err != nil || cp == nil {
 			span.SetStatus(codes.Error, "parental gate: caller profile unreadable")
 			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
-			return false
+			return nil, false
 		}
-		callerIsKids = caller.IsKids
+		caller = cp
 	}
-	if callerIsKids {
+	if caller.IsKids {
 		span.SetStatus(codes.Error, "parental change from kids profile")
 		http.Error(w, `{"message":"errors.auth.parental_needs_non_kids"}`, http.StatusForbidden)
-		return false
+		return nil, false
 	}
-	return true
+	return caller, true
 }
 
 // validateNewPINFormat rejects a proposed PIN that isn't 4 digits. An empty
@@ -563,7 +571,7 @@ func validateNewPINFormat(w http.ResponseWriter, span trace.Span, pin *string) b
 // first time requires the account password. Other updates (max age, blocked
 // tags, enabling) are not gated - the user already authenticated to reach
 // this endpoint.
-func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http.Request, span trace.Span, profile *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
+func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http.Request, span trace.Span, profile, caller *domainuser.Profile, body parentalUpdateBody, profileID string) bool {
 	noExistingPIN := profile.Parental == nil || profile.Parental.PINHash == ""
 	settingNewPIN := body.PIN != nil && *body.PIN != ""
 	mutatingPIN := body.PIN != nil // rotation, clear, or first-time set
@@ -576,6 +584,10 @@ func (h *parentalHandler) authorizeParentalChange(w http.ResponseWriter, r *http
 	switch {
 	case (mutatingPIN || disablingProtection || loosening) && !noExistingPIN:
 		return h.requireCurrentPIN(w, r, span, profile, body, profileID)
+	case (disablingProtection || loosening) && caller != nil && caller.ID != profile.ID && caller.IsParentalRestricted():
+		// A PIN-less target edited from a restricted profile: the caller's own
+		// PIN is the proof, as on the gRPC route.
+		return h.requireCurrentPIN(w, r, span, caller, body, string(caller.ID))
 	case settingNewPIN && noExistingPIN && h.userRepo != nil:
 		// First-time PIN set: require the account password. Without this a
 		// stolen JWT could silently lock the owner out by enabling parental
