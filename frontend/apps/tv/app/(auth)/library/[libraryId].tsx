@@ -556,7 +556,11 @@ export default function LibraryDetailScreen() {
               initialNumToRender={10}
               maxToRenderPerBatch={15}
               windowSize={5}
-              removeClippedSubviews={true}
+              // The focused row sits at the top, so the row above it is off
+              // screen: clipped away, it had no native view for the remote's
+              // Up to land on, and the press scrolled the list instead of
+              // moving the focus (television, 2026-10-26).
+              removeClippedSubviews={false}
               ListFooterComponent={
                 isFetching && !isFirstPage && !searchActive ? (
                   <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} />
