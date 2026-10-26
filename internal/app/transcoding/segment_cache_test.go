@@ -438,7 +438,7 @@ func TestSegmentCache_HighestReadyFrom_StopsAtFirstGap(t *testing.T) {
 func TestSegmentCache_HighestReadyFrom_ClampsToUntil(t *testing.T) {
 	c, _ := newTestCache(t)
 	writeSegs(t, c, "abcd", 0, 0, 1, 2, 3, 4, 5)
-	// A rafale never produces past endSeg, so the probe must not walk beyond it.
+	// The probe stops at the caller's bound even when later segments exist.
 	assert.Equal(t, 2, c.HighestReadyFrom("abcd", 0, true, 0, 2))
 }
 

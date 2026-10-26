@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/transcoding"
 )
@@ -212,5 +213,29 @@ func TestBackOffToVideo(t *testing.T) {
 				t.Errorf("%d probes, want %d", probes, tc.probes)
 			}
 		})
+	}
+}
+
+// The probe runs under the session's long-lived context: without its own
+// deadline an ffprobe stuck on a stalled source wedges the session start.
+func TestTranscodeSeekLandingUs_ProbeHasADeadline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "a.mkv")
+	if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	orig := seekLandingProbe
+	t.Cleanup(func() { seekLandingProbe = orig })
+	var deadline time.Time
+	var bounded bool
+	seekLandingProbe = func(ctx context.Context, _ string, _ float64) (int64, error) {
+		deadline, bounded = ctx.Deadline()
+		return 0, errors.New("probe failed")
+	}
+	_, _ = transcodeSeekLandingUs(context.Background(), path, 12)
+	if !bounded {
+		t.Fatal("the landing probe runs without a deadline")
+	}
+	if left := time.Until(deadline); left > seekLandingProbeTimeout {
+		t.Fatalf("probe deadline %v away, want at most %v", left, seekLandingProbeTimeout)
 	}
 }
