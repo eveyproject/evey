@@ -39,7 +39,7 @@ vi.mock("@evey/api", () => ({
       mutation.onSuccess({ code: "abc123", secret: "qc-secret-1" });
     },
   }),
-  userServiceCheckQuickConnect: (...a: unknown[]) => checkMock(...a),
+  checkQuickConnect: (...a: unknown[]) => checkMock(...a),
 }));
 
 const setTokensMock = vi.fn();
@@ -100,7 +100,7 @@ describe("quick connect - the session it opens must survive the access token", (
 
     await waitFor(() => expect(checkMock).toHaveBeenCalled());
     expect(initiateArgs[0]).toEqual({ params: { secretAware: true } });
-    expect(checkMock).toHaveBeenCalledWith("abc123", { secret: "qc-secret-1" });
+    expect(checkMock).toHaveBeenCalledWith("abc123", "qc-secret-1");
   });
 
   it("keeps polling and signs nobody in while the code is unauthorized", async () => {

@@ -3,7 +3,7 @@ import { View, Text, Pressable, ActivityIndicator, ScrollView, StyleSheet } from
 import QRCode from "react-native-qrcode-svg";
 import { router } from "expo-router";
 import { useTranslation } from "react-i18next";
-import { useUserServiceInitiateQuickConnect, userServiceCheckQuickConnect } from "@evey/api";
+import { useUserServiceInitiateQuickConnect, checkQuickConnect } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { useTheme } from "../src/providers/ThemeProvider";
 import { useServerUrlNullable } from "../src/hooks/useServerUrl";
@@ -18,7 +18,7 @@ export default function QuickConnectScreen() {
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
   const codeSetAt = useRef(0);
   // The secret comes back with the code and never leaves this device: the
-  // QR carries the code, the poll carries both, so a phone that scanned the
+  // QR carries the code, the poll carries it as a header, so a phone that scanned the
   // screen cannot collect the tokens in our place.
   const secretRef = useRef<string | null>(null);
   const setTokens = useAuthStore((s) => s.setTokens);
@@ -78,7 +78,7 @@ export default function QuickConnectScreen() {
       if (cancelled || !code || inFlight) return;
       inFlight = true;
       try {
-        const resp = await userServiceCheckQuickConnect(code, secretRef.current ? { secret: secretRef.current } : undefined);
+        const resp = await checkQuickConnect(code, secretRef.current);
         if (cancelled) return;
         if (resp.authorized && resp.auth?.accessToken) {
           if (resp.auth.refreshToken) await setRefreshToken(resp.auth.refreshToken);

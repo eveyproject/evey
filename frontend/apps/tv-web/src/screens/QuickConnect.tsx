@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import QRCode from "react-qr-code";
-import { useUserServiceInitiateQuickConnect, userServiceCheckQuickConnect } from "@evey/api";
+import { useUserServiceInitiateQuickConnect, checkQuickConnect } from "@evey/api";
 import { useAuthStore, useServerListStore } from "@evey/store";
 import { FocusRoot } from "../tv/focus";
 import { Pressable, Spinner } from "../components/ui";
@@ -24,7 +24,7 @@ export function QuickConnectScreen() {
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
   const codeSetAt = useRef(0);
   // The secret comes back with the code and never leaves this device: the
-  // QR carries the code, the poll carries both, so a phone that scanned the
+  // QR carries the code, the poll carries it as a header, so a phone that scanned the
   // screen cannot collect the tokens in our place.
   const secretRef = useRef<string | null>(null);
 
@@ -67,7 +67,7 @@ export function QuickConnectScreen() {
     async function tick() {
       if (cancelled || !code) return;
       try {
-        const resp = await userServiceCheckQuickConnect(code, secretRef.current ? { secret: secretRef.current } : undefined);
+        const resp = await checkQuickConnect(code, secretRef.current);
         if (cancelled) return;
         if (resp.authorized && resp.auth?.accessToken) {
           if (resp.auth.refreshToken) await refreshTokenStore.setRefreshToken(resp.auth.refreshToken);

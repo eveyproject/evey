@@ -413,3 +413,57 @@ func TestQuickConnectSSE_SecretFromQueryReachesTheChecker(t *testing.T) {
 		t.Fatalf("secret not forwarded, got %q", checker.lastSecret)
 	}
 }
+
+// The header the redaction middleware set (or a polling client sent) is what
+// the checker receives; the query is only a fallback.
+func TestQuickConnectSSE_SecretHeaderWinsOverQuery(t *testing.T) {
+	hub := quickconnecthub.New()
+	checker := &fakeChecker{access: "acc", refresh: "ref", authorized: true}
+	h := quickConnectSSEHandler(hub, checker)
+
+	mux := http.NewServeMux()
+	mux.Handle("/qc/{code}", h)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/qc/code123?secret=from-query", nil).WithContext(ctx)
+	req.Header.Set(quickConnectSecretHeader, "from-header")
+	rec := newSyncRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		mux.ServeHTTP(rec, req)
+		close(done)
+	}()
+	if !rec.waitForBody(t, ": ping", 2*time.Second) {
+		t.Fatalf("expected initial ping before notify, got %q", rec.body())
+	}
+	hub.Notify("code123")
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler did not return after notify+authorized")
+	}
+	checker.mu.Lock()
+	defer checker.mu.Unlock()
+	if checker.lastSecret != "from-header" {
+		t.Fatalf("header must win, got %q", checker.lastSecret)
+	}
+}
+
+// The generated poll route binds its request from the query string only, so
+// the header a client sent is handed back to it as a query parameter.
+func TestWithQuickConnectSecretQuery(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/auth/quick-connect/qc-code-1", nil)
+	if got := withQuickConnectSecretQuery(r); got.URL.Query().Get("secret") != "" {
+		t.Fatal("no header, no query")
+	}
+	r.Header.Set(quickConnectSecretHeader, "qc-secret-1")
+	got := withQuickConnectSecretQuery(r)
+	if got.URL.Query().Get("secret") != "qc-secret-1" {
+		t.Fatalf("header must reach the query, got %q", got.URL.RawQuery)
+	}
+	if r.URL.RawQuery != "" {
+		t.Fatal("the original request must stay untouched")
+	}
+}

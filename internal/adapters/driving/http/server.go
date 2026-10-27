@@ -736,7 +736,7 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		// shared LoginRL until 2026-09-19, whose 10/min prod default refused
 		// every other poll of a single television.
 		mux.HandleFunc("GET /api/v1/auth/quick-connect/{code}", ratelimit.MiddlewareFunc(s.QuickConnectPollRL, func(w http.ResponseWriter, r *http.Request) {
-			authCookieMiddleware(gwMux, s.https()).ServeHTTP(w, r)
+			authCookieMiddleware(gwMux, s.https()).ServeHTTP(w, withQuickConnectSecretQuery(r))
 		}))
 		if s.QuickConnectHub != nil {
 			// Same limiter as the polling QC route: each open SSE connection
