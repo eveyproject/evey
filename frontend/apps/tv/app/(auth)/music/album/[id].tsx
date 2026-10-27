@@ -84,7 +84,6 @@ export default function AlbumDetailScreen() {
                     source={{ uri: albumArt, headers: authHeaders }}
                     style={{ width: ALBUM_ART_SIZE, height: ALBUM_ART_SIZE, borderRadius: theme.radii.sm }}
                     contentFit="cover"
-                    transition={200}
                   />
                 ) : (
                   <Text style={{ fontSize: 48 }}>{"♪"}</Text>

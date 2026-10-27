@@ -34,7 +34,10 @@ vi.mock("../../../src/providers/ThemeProvider", () => ({
 }));
 vi.mock("../../../src/hooks/useServerUrl", () => ({ useServerUrl: () => "https://s" }));
 vi.mock("../../../src/hooks/useAuthenticatedImage", () => ({ useAuthHeaders: () => ({ Authorization: "Bearer t" }) }));
-vi.mock("../../../src/lib/artwork", () => ({ artworkUrl: (s: string, id: string, kind: string, w: number) => `${s}/art/${id}/${kind}/${w}` }));
+vi.mock("../../../src/lib/artwork", () => ({
+  artworkUrl: (s: string, id: string, kind: string, w: number) => `${s}/art/${id}/${kind}/${w}`,
+  artworkPx: (dp: number) => dp * 2,
+}));
 vi.mock("../../../src/components/FocusableCard", () => ({
   FocusableCard: ({ children, onPress, accessibilityLabel }: any) => React.createElement("button", { onClick: onPress, "aria-label": accessibilityLabel }, children),
 }));

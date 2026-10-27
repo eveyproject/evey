@@ -1,5 +1,6 @@
 import { Text, Modal, Pressable, ScrollView, StyleSheet } from "react-native";
 import { formatTime } from "@evey/api";
+import { usePlayhead } from "@evey/client";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../providers/ThemeProvider";
 import { FocusableCard } from "./FocusableCard";
@@ -10,14 +11,16 @@ interface ChaptersPickerProps {
   visible: boolean;
   onClose: () => void;
   chapters: Chapter[];
-  currentTimeMs: number;
+  /** Given by a caller that drives the time itself; the playhead store otherwise. */
+  currentTimeMs?: number;
   onSeek: (timeSec: number) => void;
 }
 
-export function ChaptersPicker({ visible, onClose, chapters, currentTimeMs, onSeek }: ChaptersPickerProps) {
+export function ChaptersPicker({ visible, onClose, chapters, currentTimeMs: givenMs, onSeek }: ChaptersPickerProps) {
   const { t } = useTranslation();
   const theme = useTheme();
-  const activeIndex = findCurrentChapterIndex(chapters, currentTimeMs);
+  const playhead = usePlayhead();
+  const activeIndex = findCurrentChapterIndex(chapters, givenMs ?? playhead * 1000);
 
   // A hidden RN Modal keeps its children mounted, so this picker re-rendered
   // on every ~2/s currentTime tick of the player while closed. Render nothing

@@ -11,7 +11,8 @@ import { currentDataSaverLimits, tighterCeiling } from "@evey/store";
 import { firstStartMs } from "../lib/resumePosition";
 import { isShedCode, type ShedReason } from "../lib/shed";
 import { pickedAudioStream } from "../lib/pickedAudioStream";
-import { getDeviceAudioCodecs, getDeviceMaxH264Level, getFmp4AudioPassthrough, getPlayerAudioCodecs } from "./deviceCodecs";
+import { getDeviceAudioCodecs, getDeviceMaxH264Level, getDeviceVideoLimits, getFmp4AudioPassthrough, getPlayerAudioCodecs } from "./deviceCodecs";
+import { decoderMaxHeight, decoderMaxWidth, devicePixelFormats, tighterOf } from "./videoLimits";
 
 // The play session of the two native players (phone and television). They
 // kept a copy each until 2026-09-24, and the copies had drifted apart: the TV
@@ -163,9 +164,19 @@ export function buildStreamUrl(
   // manifest still starts at 0 and the client must not offset its clock by it.
   const startSec = opts.startSec ?? 0;
   if (startSec > 0) params.set("startSec", String(Math.floor(startSec)));
-  // The quality the viewer picked: sent to GetStreamInfo alone, the master
-  // served the same ladder whatever the menu said.
-  if (opts.maxHeight && opts.maxHeight > 0) params.set("maxHeight", String(opts.maxHeight));
+  // The quality the viewer picked, and the decoders' own ceiling: sent to
+  // GetStreamInfo alone, the master served the same ladder whatever the menu
+  // said. The decoder ceiling IS a decode capability (unlike the screen,
+  // below): above it the device cannot open the picture at all.
+  const limits = getDeviceVideoLimits();
+  const heightCeiling = tighterOf(opts.maxHeight, decoderMaxHeight(limits));
+  if (heightCeiling) params.set("maxHeight", String(heightCeiling));
+  const widthCeiling = decoderMaxWidth(limits);
+  if (widthCeiling) params.set("maxWidth", String(widthCeiling));
+  // What the decoders take per codec at 8 and 10 bits: a 10-bit HEVC source
+  // on a decoder without Main10 is transcoded instead of handed over.
+  const pixelFormats = devicePixelFormats(limits, VIDEO_CODECS);
+  if (pixelFormats) params.set("pixelFormats", pixelFormats.join(","));
   // The panel's height trims the transcode ladder (no 2160p rung for a 1080p
   // panel) without turning a copy-playable title into a transcode.
   if (opts.screenHeight && opts.screenHeight > 0) params.set("screenHeight", String(opts.screenHeight));
@@ -359,6 +370,12 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         // picture, the line and the channels, whatever the menu says.
         const saver = currentDataSaverLimits();
         const explicitMaxHeight = tighterCeiling(maxHeight, saver?.maxHeight);
+        // The decoders' limits ride along with the explicit ceiling, the
+        // same declaration buildStreamUrl puts on the master URL.
+        const limits = getDeviceVideoLimits();
+        const verdictMaxHeight = tighterOf(explicitMaxHeight, decoderMaxHeight(limits));
+        const verdictMaxWidth = decoderMaxWidth(limits);
+        const supportedPixelFormats = devicePixelFormats(limits, VIDEO_CODECS);
 
         // The device probes run BEFORE the negotiation: GetStreamInfo has to
         // describe the same client the master URL will declare. They are local
@@ -378,7 +395,9 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
           fmp4AudioPassthrough: getFmp4AudioPassthrough(),
           supportsHdr,
           maxH264Level: getDeviceMaxH264Level(),
-          maxHeight: explicitMaxHeight,
+          maxHeight: verdictMaxHeight,
+          ...(verdictMaxWidth ? { maxWidth: verdictMaxWidth } : {}),
+          ...(supportedPixelFormats ? { supportedPixelFormats } : {}),
           audioStreamIndex,
           subtitleStreamIndex,
           ...(networkType ? { networkType } : {}),

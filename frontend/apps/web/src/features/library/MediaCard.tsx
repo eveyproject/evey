@@ -3,7 +3,8 @@ import { Star, Check, Play } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, libraryServiceGetMediaItem, displayTitle, itemLabel } from "@evey/api";
+import { usePlaybackServiceMarkAsWatched, usePlaybackServiceMarkAsUnwatched, displayTitle, itemLabel } from "@evey/api";
+import { useImageRetry, useMediaPrefetch } from "@evey/client";
 import type { V1Artwork } from "@evey/api";
 import { Blurhash } from "react-blurhash";
 import { toast, useAuthStore } from "@evey/store";
@@ -17,6 +18,10 @@ import { artworkUrl } from "./artworkUrl";
 import { PosterPlaceholder } from "./PosterPlaceholder";
 import { ICON } from "@/constants/iconSizes";
 import { useDemoLock } from "@/hooks/useDemoMode";
+
+// A pointer resting on a card means it: the page is fetched sooner than on a
+// television's focus.
+const HOVER_PREFETCH_MS = 100;
 
 const WATCHED_THRESHOLD_PCT = 95;
 
@@ -132,6 +137,8 @@ export const MediaCard = memo(function MediaCard({
     const sep = poster.includes("?") ? "&" : "?";
     return `${poster}${sep}w=185 185w, ${poster}${sep}w=342 342w, ${poster}${sep}w=500 500w`;
   }, [poster]);
+  // A poster that failed is retried, then falls back to the placeholder (see useImageRetry).
+  const posterRetry = useImageRetry(poster ?? undefined);
 
   const pct =
     progressPercent !== undefined
@@ -150,7 +157,9 @@ export const MediaCard = memo(function MediaCard({
   const menuBtnRef = useRef<HTMLButtonElement>(null);
   const hasPreviewData = !!(item.overview || item.communityRating || (item.genres && item.genres.length > 0));
 
-  const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The page behind the card, fetched while the pointer rests on it (shared
+  // with the televisions, which do it on focus).
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch(HOVER_PREFETCH_MS);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggered = useRef(false);
 
@@ -160,10 +169,10 @@ export const MediaCard = memo(function MediaCard({
   useEffect(
     () => () => {
       if (hoverTimer.current) clearTimeout(hoverTimer.current);
-      if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+      cancelPrefetch();
       if (longPressTimer.current) clearTimeout(longPressTimer.current);
     },
-    [],
+    [cancelPrefetch],
   );
 
   const hasProgressBar = showProgress && pct !== undefined;
@@ -186,20 +195,12 @@ export const MediaCard = memo(function MediaCard({
       data-evey="media-card"
       data-testid="media-card"
       onMouseEnter={() => {
-        if (item.id) {
-          prefetchTimer.current = setTimeout(() => {
-            qc.prefetchQuery({
-              queryKey: [`/api/v1/media/${item.id}`],
-              queryFn: ({ signal }) => libraryServiceGetMediaItem(item.id!, signal),
-              staleTime: 60_000,
-            });
-          }, 100);
-        }
+        prefetchOnFocus(item.id);
         if (!hasPreviewData) return;
         hoverTimer.current = setTimeout(() => setShowPreview(true), 400);
       }}
       onMouseLeave={() => {
-        if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+        cancelPrefetch();
         if (hoverTimer.current) clearTimeout(hoverTimer.current);
         setShowPreview(false);
       }}
@@ -264,21 +265,19 @@ export const MediaCard = memo(function MediaCard({
               </div>
             ) : null}
             <img
-              src={poster}
-              srcSet={posterSrcSet}
+              src={posterRetry.src}
+              srcSet={posterRetry.src === poster ? posterSrcSet : undefined}
               sizes="(max-width: 640px) 185px, (max-width: 1024px) 342px, 500px"
               alt={displayTitle(item, t)}
               loading="lazy"
               decoding="async"
               className="w-full h-full object-cover transition-opacity-fast duration-300 relative"
               style={{ opacity: imgLoaded ? 1 : 0 }}
-              onLoad={() => setImgLoaded(true)}
-              onError={(e) => {
-                const t = e.currentTarget;
-                t.style.display = "none";
-                const fb = t.nextElementSibling as HTMLElement | null;
-                if (fb) fb.style.display = "flex";
+              onLoad={() => {
+                setImgLoaded(true);
+                posterRetry.onLoad();
               }}
+              onError={posterRetry.onError}
             />
           </>
         ) : null}
@@ -286,7 +285,7 @@ export const MediaCard = memo(function MediaCard({
           title={itemLabel(item, t)}
           type={item.type}
           className="absolute inset-0"
-          style={{ display: poster ? "none" : "flex" }}
+          style={{ display: posterRetry.src ? "none" : "flex" }}
         />
 
         {showYear && !!item.year && (

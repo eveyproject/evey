@@ -42,6 +42,7 @@
       "./plugins/withoutOfflineAudioService",
       "./plugins/withTvHardwareFeatures",
       "./plugins/withWidgetFocusGuard",
+      "./plugins/withNoWindowBackground",
       "expo-router",
       "expo-video",
       [

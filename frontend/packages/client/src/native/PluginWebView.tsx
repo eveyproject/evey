@@ -53,7 +53,33 @@ export interface PluginWebViewProps {
   onNavigate?: (path: string) => void;
   /** Keep the slot out of the D-pad focus order (TV). */
   focusable?: boolean;
+  /**
+   * Holds the plugin's animation frames (requestAnimationFrame) while true;
+   * what it last drew stays on screen. The TV sets it while the remote is in
+   * use: a frame a WebGL widget drew was one the app's own frame waited for,
+   * and on a modest set that froze the D-pad until Android killed the app.
+   */
+  framesHeld?: boolean;
 }
+
+// Installed before the plugin's bundle: requestAnimationFrame callbacks are
+// queued while the host holds frames and handed back, all at once, on release.
+const FRAME_HOLD_SCRIPT = `(function(){
+  var raf = window.requestAnimationFrame.bind(window);
+  var queued = [];
+  var held = false;
+  window.requestAnimationFrame = function (cb) {
+    if (held) { queued.push(cb); return 0; }
+    return raf(cb);
+  };
+  window.__eveyHoldFrames = function (on) {
+    held = !!on;
+    if (held) return;
+    var q = queued;
+    queued = [];
+    for (var i = 0; i < q.length; i++) raf(q[i]);
+  };
+})();`;
 
 /**
  * A plugin's frontend bundle in its own WebView, on the phone and on the
@@ -75,6 +101,7 @@ export function PluginWebView({
   bundleCache,
   onNavigate,
   focusable,
+  framesHeld = false,
 }: PluginWebViewProps) {
   const { t, i18n } = useTranslation();
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -232,12 +259,20 @@ export function PluginWebView({
     html,body{margin:0;padding:0;width:100%;height:100%;background:transparent;color:${theme.text};font-family:-apple-system,BlinkMacSystemFont,sans-serif;font-size:14px;}
   </style>
   <script>${BRIDGE_SCRIPT}</script>
+  <script>${FRAME_HOLD_SCRIPT}</script>
 </head>
 <body>
   <script>${inlineScriptSafe(bundleCode)}</script>
 </body>
 </html>`;
   }, [bundleCode, externalFetch, pluginId, serverUrl, theme.text]);
+
+  // The page keeps its own state across a reload of the same html, so the
+  // hold is sent again whenever either changes.
+  useEffect(() => {
+    if (!html) return;
+    webviewRef.current?.injectJavaScript(`window.__eveyHoldFrames && window.__eveyHoldFrames(${framesHeld}); true;`);
+  }, [framesHeld, html]);
 
   // Host -> guest travels as an injected window.postMessage, so the same
   // bridge listener that receives parent messages on web works unchanged.

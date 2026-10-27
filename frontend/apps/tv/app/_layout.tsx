@@ -13,7 +13,9 @@ import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl } from "../src/lib/server-config";
 import { applyServerLanguage, initI18n } from "../src/i18n";
 import { refreshAccessTokenIfNeeded } from "../src/lib/auth-refresh";
-import { migrateFromSingleServer, useServerListStore } from "@evey/store";
+import { migrateFromSingleServer, useAuthStore, useServerListStore } from "@evey/store";
+import { persistQueryCache, queryCacheScope, restoreQueryCache } from "@evey/client";
+import { fileQueryStorage } from "@evey/client/native/queryPersistStorage";
 import { configureAudioSession } from "../src/lib/audio-session";
 import { installCrashGuard } from "../src/lib/crashGuard";
 import { bootMarker, logger } from "../src/lib/log";
@@ -28,6 +30,9 @@ setZustandStorage({
 });
 
 const bootLog = logger("boot");
+
+const currentQueryScope = () =>
+  queryCacheScope(useServerListStore.getState().activeServerId, useAuthStore.getState().profileId);
 
 // The root card carries the theme so no wrapper has to paint it again under
 // every screen (see the (auth) layout for the overdraw measurement).
@@ -69,8 +74,12 @@ export default function RootLayout() {
         // send the viewer: without this a cold start lands on /login, and a TV
         // has no keyboard to type a password with.
         await refreshAccessTokenIfNeeded();
+        // The last session's first screens, shown while they refresh: the
+        // home no longer waits for its round trips at each cold start.
+        await restoreQueryCache(queryClient, fileQueryStorage, currentQueryScope());
       }
     }
+    const stopPersisting = persistQueryCache(queryClient, fileQueryStorage, currentQueryScope);
     bootstrap()
       // Never block the app on a failed bootstrap: i18n or the audio session
       // failing must leave a usable screen, not a permanent null render.
@@ -84,7 +93,10 @@ export default function RootLayout() {
     const sub = AppState.addEventListener("change", (next) => {
       if (next === "active") void refreshAccessTokenIfNeeded();
     });
-    return () => sub.remove();
+    return () => {
+      sub.remove();
+      stopPersisting();
+    };
   }, []);
 
   if (!ready) return null;

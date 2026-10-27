@@ -29,19 +29,33 @@ import { toast } from "@evey/store";
 import { buildWatchProgressMaps, videoStream, isHdrStream, resolutionLabel } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
-import { artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
 import { PosterImage } from "../../../src/components/PosterImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { useDebounce } from "../../../src/hooks/useDebounce";
-import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
+import { CARD_WIDTH_GRID, POSTER_RATIO } from "../../../src/lib/tvLayout";
+import { HOME_SHORTCUT_INSET } from "../../../src/components/HomeShortcutButton";
 import { canPlayAllForSelection, buildPlayAllQueue, pickRandomItem } from "../../../src/lib/librarySelection";
+import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
+import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
+import { useGridColumns, DEEP_SCREEN_GRID_INSET } from "../../../src/hooks/useGridColumns";
+import { buildMediaListParams, LIBRARY_DEFAULT_SORT_FIELD, LIBRARY_DEFAULT_SORT_ORDER, LIBRARY_PAGE_SIZE, LIBRARY_NEXT_PAGE_SIZE, libraryGridRow } from "../../../src/lib/libraryGrid";
 
-const NUM_COLUMNS = 5;
+// Room above the focused row for its focus zoom, kept when a row scrolls to
+// the top of the list.
+const GRID_TOP_INSET = 12;
+// The search field and the filter chips are a third of the screen's first
+// render on a small television, and nothing focuses them first: they render
+// once the cards are on screen, in a box of the height they will take, measured
+// the first time they render and remembered for the session (these styles' sum before).
+const HEADER_HEIGHT_ESTIMATE = { movies: 194, shows: 259 } as const;
+const measuredHeaderHeight: { movies?: number; shows?: number } = {};
+// The next page is asked for when the focus is this many rows from the end:
+// a row a second on the remote, and the page lands before the focus does.
+const PAGE_AHEAD_ROWS = 3;
 const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
-const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
-const PAGE_SIZE = 30;
 // The dedicated screens this app implements. A photo library now has its own
 // grid and remote-driven slideshow (app/(auth)/photos), so it goes there
 // instead of being browsed as a wall of poster-shaped cards whose detail page
@@ -65,41 +79,13 @@ function tvLibKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
 }
 
-const tvLibGetItemLayout = (_: unknown, index: number) => ({
-  length: ROW_HEIGHT,
-  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
-  index,
-});
+// No getItemLayout: the rows are not all the same height (a wrapped title, the
+// margin under a row) and a declared height left the focused row a row short
+// of the top; measured rows land exactly.
 
 // --- Pure helpers (unit-tested in [libraryId].pure.test.ts) -----------------
 
-export interface BuildMediaListParamsInput {
-  libraryId: string;
-  type?: LibraryServiceListMediaItemsType | "";
-  genre?: string;
-  sortField: LibraryServiceListMediaItemsSortField;
-  sortOrder: LibraryServiceListMediaItemsSortOrder;
-  cursor: string;
-  pageSize: number;
-}
-
-// Single source of truth for the ListMediaItems query params, so the sort/
-// type/genre wiring can be unit-tested without rendering the screen.
-// Keyset-paginated (opaque server cursor), like web and mobile: the previous
-// `pagination.page` + `totalPages` pairing could never advance, because the
-// server never populates total_pages (always 0), so the TV froze on the first
-// page of every library.
-export function buildMediaListParams(input: BuildMediaListParamsInput) {
-  return {
-    libraryId: input.libraryId,
-    ...(input.type ? { type: input.type } : {}),
-    ...(input.genre ? { genre: input.genre } : {}),
-    sortField: input.sortField,
-    sortOrder: input.sortOrder,
-    "pagination.pageSize": input.pageSize,
-    ...(input.cursor ? { "pagination.cursor": input.cursor } : {}),
-  };
-}
+export { buildMediaListParams, type BuildMediaListParamsInput } from "../../../src/lib/libraryGrid";
 
 export interface BuildLibrarySearchParamsInput {
   libraryId: string;
@@ -149,6 +135,8 @@ function Chip({ label, active, onPress }: { label: string; active: boolean; onPr
 }
 
 export default function LibraryDetailScreen() {
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
+  const numColumns = useGridColumns(CARD_WIDTH, DEEP_SCREEN_GRID_INSET);
   const { libraryId } = useLocalSearchParams<{ libraryId: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -160,10 +148,16 @@ export default function LibraryDetailScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [genre, setGenre] = useState("");
   const [typeFilter, setTypeFilter] = useState<LibraryServiceListMediaItemsType | "">("");
-  const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>("MEDIA_SORT_FIELD_TITLE");
-  const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>("SORT_ORDER_ASC");
+  const [sortField, setSortField] = useState<LibraryServiceListMediaItemsSortField>(LIBRARY_DEFAULT_SORT_FIELD);
+  const [sortOrder, setSortOrder] = useState<LibraryServiceListMediaItemsSortOrder>(LIBRARY_DEFAULT_SORT_ORDER);
   const [searchText, setSearchText] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
+  // The genre row scrolls sideways under the remote: a chevron at its end says
+  // so while chips are still hidden past the edge. Measured, not guessed from a count.
+  const [genreRowWidth, setGenreRowWidth] = useState(0);
+  const [genreContentWidth, setGenreContentWidth] = useState(0);
+  const [genreScrollX, setGenreScrollX] = useState(0);
+  const moreGenresRight = genreContentWidth > genreRowWidth + 1 && genreScrollX + genreRowWidth < genreContentWidth - 8;
   const debouncedSearch = useDebounce(searchText, 300);
   const [shuffling, setShuffling] = useState(false);
   // Ref latch, not just the state flag: a second remote OK press before the
@@ -193,7 +187,7 @@ export default function LibraryDetailScreen() {
   const hasActiveFilters = Boolean(genre || typeFilter || searchActive);
 
   const { data, isLoading, isError, isFetching, refetch } = useLibraryServiceListMediaItems(
-    buildMediaListParams({ libraryId: libraryId ?? "", type: typeFilter, genre, sortField, sortOrder, cursor, pageSize: PAGE_SIZE }),
+    buildMediaListParams({ libraryId: libraryId ?? "", type: typeFilter, genre, sortField, sortOrder, cursor, pageSize: cursor ? LIBRARY_NEXT_PAGE_SIZE : LIBRARY_PAGE_SIZE }),
     {
       query: {
         enabled: !!libraryId && !searchActive,
@@ -217,11 +211,21 @@ export default function LibraryDetailScreen() {
   // Watched/progress overlay data, same source used by the history screen.
   // Fetched at a generous limit so the map covers everything likely to be
   // visible in one library, mirroring mobile's equivalent (limit: 500).
+  // Asked once the grid's first page is on screen: its 500 entries used to be
+  // parsed on the JS thread while the posters were still waiting.
+  const gridPainted = useAfterFirstPaint(data ? libraryId : undefined);
+  const headerKind = isShowLibrary ? "shows" : "movies";
+  const headerReady = gridPainted;
   const { data: watchHistoryData } = usePlaybackServiceGetWatchHistory(
     { limit: WATCH_HISTORY_OVERLAY_LIMIT },
-    { query: { enabled: !!libraryId, staleTime: 30_000 } },
+    { query: { enabled: !!libraryId && gridPainted, staleTime: 30_000 } },
   );
-  const { watchedMap, percentMap } = buildWatchProgressMaps(watchHistoryData?.items ?? []);
+  // Memoised: built on every render, the maps gave renderItem a new identity
+  // each time and the list re-rendered every visible card with the screen.
+  const { watchedMap, percentMap } = useMemo(
+    () => buildWatchProgressMaps(watchHistoryData?.items ?? []),
+    [watchHistoryData?.items],
+  );
 
   // Reset pagination when a filter/sort param changes. Declared BEFORE the
   // accumulate effect ON PURPOSE: React runs effects in declaration order, so
@@ -243,6 +247,7 @@ export default function LibraryDetailScreen() {
     prevDataRef.current = data;
     const newItems = data.items ?? [];
     if (!cursor) {
+      // The very array displayItems already shows, not a copy (see firstPage).
       setAllItems(newItems);
     } else {
       setAllItems((prev) => [...prev, ...newItems]);
@@ -250,9 +255,13 @@ export default function LibraryDetailScreen() {
     setHasMore(hasMoreFromCursor(data.pagination));
   }, [data, cursor]);
 
+  // The first page shows the render it lands on: the accumulate effect below
+  // then stores that same array, so the list's data keeps its identity and
+  // no card renders twice.
+  const firstPage = !cursor && allItems.length === 0 ? data?.items : undefined;
   const displayItems = useMemo(
-    () => (searchActive ? (searchData?.items ?? []) : allItems),
-    [searchActive, searchData?.items, allItems],
+    () => (searchActive ? (searchData?.items ?? []) : (firstPage ?? allItems)),
+    [searchActive, searchData?.items, firstPage, allItems],
   );
 
   // Shuffle play: with a search or type/genre facet active, shuffle among
@@ -315,15 +324,33 @@ export default function LibraryDetailScreen() {
 
   const handleEndReached = useCallback(() => {
     if (searchActive) return; // search returns a single fixed-size page, no cursor to page through
+    // A short first page reads as "end reached" the moment the list mounts:
+    // the next pages wait until that page is on screen, or their parsing
+    // held the first paint back.
+    if (!gridPainted) return;
     // Guarding on isFetching and on the cursor actually changing keeps a held-
     // down remote from firing the same cursor twice before the fetch resolves.
     const next = data?.pagination?.nextCursor;
     if (!isFetching && hasMore && next && next !== cursor) setCursor(next);
-  }, [searchActive, isFetching, hasMore, data, cursor]);
+  }, [searchActive, gridPainted, isFetching, hasMore, data, cursor]);
+
+  // The remote drives the grid: a focused card brings its row to the top (the
+  // native scroll-into-view left a row half hidden under the screen's edge)
+  // and, near the last rows, asks for the next page, since the list hardly
+  // scrolls. With columns the list indexes ROWS, not cards.
+  const listRef = useRef<FlatList<V1MediaItem>>(null);
+  const itemCount = displayItems.length;
+  const onCardFocus = useCallback(
+    (index: number) => {
+      listRef.current?.scrollToIndex({ index: libraryGridRow(index, numColumns), viewPosition: 0, viewOffset: GRID_TOP_INSET, animated: true });
+      if (index >= itemCount - numColumns * PAGE_AHEAD_ROWS) handleEndReached();
+    },
+    [itemCount, numColumns, handleEndReached],
+  );
 
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {
-      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2, item) : undefined;
+      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
       const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
       const vStream = videoStream(item.streams);
       const resLabel = resolutionLabel(vStream);
@@ -335,13 +362,18 @@ export default function LibraryDetailScreen() {
       return (
         <FocusableCard
           onPress={() => router.push(`/media/${item.id}`)}
+          onFocus={() => {
+            onCardFocus(index);
+            prefetchOnFocus(item.id);
+          }}
+          onBlur={cancelPrefetch}
           hasTVPreferredFocus={index === 0}
           style={styles.gridItem}
           accessibilityLabel={itemLabel(item, t)}
         >
           <View style={[styles.poster, { borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface, overflow: "hidden" }]}>
             {posterUri ? (
-              <PosterImage uri={posterUri} headers={authHeaders} style={StyleSheet.absoluteFill} blurhash={blurhash} recyclingKey={item.id} />
+              <PosterImage uri={posterUri} headers={authHeaders} style={StyleSheet.absoluteFill} blurhash={blurhash} recyclingKey={item.id} priority="high" />
             ) : (
               <Text style={{ color: theme.colors.textMuted, fontSize: 17 }}>?</Text>
             )}
@@ -398,7 +430,7 @@ export default function LibraryDetailScreen() {
         </FocusableCard>
       );
     },
-    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t],
+    [theme, router, serverUrl, authHeaders, watchedMap, percentMap, t, prefetchOnFocus, cancelPrefetch, onCardFocus],
   );
 
   const activeIsLoading = searchActive ? isSearchLoading : isLoading;
@@ -428,35 +460,32 @@ export default function LibraryDetailScreen() {
         </View>
       ) : (
         <>
-          <TextInput
-            style={[
-              styles.searchInput,
-              {
-                backgroundColor: theme.colors.surface,
-                color: theme.colors.text,
-                borderRadius: theme.radii.md,
-                borderColor: searchFocused ? theme.colors.accent : theme.colors.border,
-              },
-            ]}
-            placeholder={t("media.library.filterByName")}
-            placeholderTextColor={theme.colors.textMuted}
-            value={searchText}
-            onChangeText={setSearchText}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setSearchFocused(false)}
-            accessibilityLabel={t("media.library.filterByName")}
-          />
-
-          <View style={styles.toolbar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap: 10 }}>
-              <Chip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
-              {genres.map((g) => (
-                <Chip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
-              ))}
-            </ScrollView>
+          {headerReady ? (
+          <View onLayout={(e) => { measuredHeaderHeight[headerKind] = e.nativeEvent.layout.height; }}>
+          <View style={styles.searchRow}>
+            <TextInput
+              style={[
+                styles.searchInput,
+                {
+                  backgroundColor: theme.colors.surface,
+                  color: theme.colors.text,
+                  borderRadius: theme.radii.md,
+                  borderColor: searchFocused ? theme.colors.accent : theme.colors.border,
+                },
+              ]}
+              placeholder={t("media.library.filterByName")}
+              placeholderTextColor={theme.colors.textMuted}
+              value={searchText}
+              onChangeText={setSearchText}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="search"
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
+              accessibilityLabel={t("media.library.filterByName")}
+            />
+            {/* By the search field, not at the end of the genre row, where they
+                read as the row's last chips and hid that the genres went on. */}
             {canPlayAll && (
               <FocusableCard
                 onPress={handlePlayAll}
@@ -479,6 +508,29 @@ export default function LibraryDetailScreen() {
               )}
               <Text style={{ color: theme.colors.text, fontSize: 17, fontWeight: "600" }}>{t("common.shufflePlay")}</Text>
             </FocusableCard>
+          </View>
+
+          <View style={styles.toolbar}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ gap: 10 }}
+              onLayout={(e) => setGenreRowWidth(e.nativeEvent.layout.width)}
+              onContentSizeChange={(w) => setGenreContentWidth(w)}
+              onScroll={(e) => setGenreScrollX(e.nativeEvent.contentOffset.x)}
+              scrollEventThrottle={50}
+            >
+              <Chip label={t("media.search.allGenres") || "All"} active={!genre} onPress={() => setGenre("")} />
+              {genres.map((g) => (
+                <Chip key={g} label={g} active={genre === g} onPress={() => setGenre(genre === g ? "" : g)} />
+              ))}
+            </ScrollView>
+            {moreGenresRight && (
+              <View style={[styles.moreHint, { backgroundColor: theme.colors.surface }]} accessible={false} testID="more-genres-hint">
+                <Ionicons name="chevron-forward" size={22} color={theme.colors.textMuted} />
+              </View>
+            )}
           </View>
 
           <View style={styles.toolbar}>
@@ -506,6 +558,10 @@ export default function LibraryDetailScreen() {
               </ScrollView>
             </View>
           )}
+          </View>
+          ) : (
+            <View style={{ height: measuredHeaderHeight[headerKind] ?? HEADER_HEIGHT_ESTIMATE[headerKind] }} />
+          )}
 
           {activeIsLoading && isFirstPage ? (
             <View style={styles.center}>
@@ -513,19 +569,34 @@ export default function LibraryDetailScreen() {
             </View>
           ) : (
             <FlatList
+              ref={listRef}
+              // A list cannot change its column count in place.
+              key={numColumns}
               data={displayItems}
               keyExtractor={tvLibKeyExtractor}
               renderItem={renderItem}
-              numColumns={NUM_COLUMNS}
-              contentContainerStyle={{ padding: 24 }}
+              numColumns={numColumns}
+              // The grid runs under the home shortcut's band (see _layout):
+              // the band only holds a corner button, and the row below the
+              // focused one shows there, which is how the viewer sees that
+              // the library goes on. The padding lets the last row clear it.
+              contentContainerStyle={{ paddingHorizontal: 24, paddingTop: GRID_TOP_INSET, paddingBottom: HOME_SHORTCUT_INSET + 24 }}
               columnWrapperStyle={{ gap: 12, marginBottom: 16 }}
               onEndReached={handleEndReached}
-              onEndReachedThreshold={0.5}
-              getItemLayout={searchActive ? undefined : tvLibGetItemLayout}
+              onEndReachedThreshold={2}
+              // A row not measured yet (far past the rendered window): scroll
+              // by the average row and let the list try again once it is.
+              onScrollToIndexFailed={(info) => {
+                listRef.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+                setTimeout(() => listRef.current?.scrollToIndex({ index: info.index, viewPosition: 0, viewOffset: GRID_TOP_INSET, animated: true }), 100);
+              }}
               initialNumToRender={10}
               maxToRenderPerBatch={15}
               windowSize={5}
-              removeClippedSubviews={true}
+              // The focused row sits at the top, so the row above is off screen:
+              // clipped away it had no native view for Up to land on, and the
+              // press scrolled the list instead of moving the focus.
+              removeClippedSubviews={false}
               ListFooterComponent={
                 isFetching && !isFirstPage && !searchActive ? (
                   <ActivityIndicator color={theme.colors.accent} style={{ marginVertical: 24 }} />
@@ -549,13 +620,26 @@ export default function LibraryDetailScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   center: { flex: 1, justifyContent: "center", alignItems: "center", paddingTop: 80 },
-  searchInput: {
-    marginHorizontal: 24,
+  searchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 24,
     marginTop: 16,
+  },
+  searchInput: {
+    flex: 1,
     paddingHorizontal: 20,
     paddingVertical: 9,
     fontSize: 17,
     borderWidth: 3,
+  },
+  moreHint: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
   },
   toolbar: {
     flexDirection: "row",

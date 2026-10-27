@@ -2,7 +2,16 @@ import { Component, StrictMode, useEffect, useState, type ReactNode } from "reac
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useAuthStore, shouldRetryQuery } from "@evey/store";
-import { leaveOnlyWhenSessionGone, mutationErrorNet, onDocumentVisible, refreshHomeLayoutOnForeground } from "@evey/client";
+import {
+  leaveOnlyWhenSessionGone,
+  localQueryStorage,
+  mutationErrorNet,
+  onDocumentVisible,
+  persistQueryCache,
+  queryCacheScope,
+  refreshHomeLayoutOnForeground,
+  restoreQueryCache,
+} from "@evey/client";
 import { initTvNavigation, useTvKeys } from "./tv/focus";
 import { useRoute, navigate, replace, goBack, type Route } from "./app/router";
 import { bootSession, authRefresh, activeServerUrl } from "./lib/session";
@@ -80,6 +89,9 @@ const queryClient = new QueryClient({
     queries: { staleTime: 5 * 60 * 1000, retry: shouldRetryQuery },
   },
 });
+
+const currentQueryScope = () => queryCacheScope(activeServerUrl(), useAuthStore.getState().profileId);
+persistQueryCache(queryClient, localQueryStorage, currentQueryScope);
 refreshHomeLayoutOnForeground(queryClient, onDocumentVisible);
 
 const PUBLIC_ROUTES = new Set<Route["name"]>(["server", "login", "quickconnect"]);
@@ -154,6 +166,8 @@ function App() {
         // A refresh token from the last visit restores the session without a
         // password; "unavailable" (offline) keeps whatever the store held.
         await authRefresh.ensureAccessToken();
+        // The last visit's first screens, shown while they refresh.
+        await restoreQueryCache(queryClient, localQueryStorage, currentQueryScope());
       }
       setReady(true);
     })();

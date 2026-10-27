@@ -381,6 +381,18 @@ export async function eveyFetch<T>(request: FetcherRequest): Promise<T> {
   }
 }
 
+// The media lists feed cards, rows and grids on every client: they ask for
+// the trimmed item (the server's summary flag), a few hundred bytes instead of
+// ~8 KB with every artwork, stream and trailer. A call
+// that needs the whole item says summary: false.
+const SUMMARY_LISTS = new Set(["/api/v1/media", "/api/v1/media/search"]);
+
+function withListSummary(request: FetcherRequest): FetcherRequest["params"] {
+  if (request.method.toUpperCase() !== "GET" || !SUMMARY_LISTS.has(request.url)) return request.params;
+  if (request.params && "summary" in request.params) return request.params;
+  return { ...request.params, summary: true };
+}
+
 async function eveyFetchWithSignal<T>(request: FetcherRequest, signal: AbortSignal): Promise<T> {
   const token = await _ensureFreshToken(request.url);
   const headers: Record<string, string> = { ...extraHeaders, ...request.headers };
@@ -397,9 +409,10 @@ async function eveyFetchWithSignal<T>(request: FetcherRequest, signal: AbortSign
   }
 
   let url = resolveURL(request.url);
-  if (request.params) {
+  const params = withListSummary(request);
+  if (params) {
     const entries: [string, string][] = [];
-    for (const [k, v] of Object.entries(request.params)) {
+    for (const [k, v] of Object.entries(params)) {
       if (v === undefined || v === null) continue;
       if (Array.isArray(v)) {
         for (const item of v) entries.push([k, String(item)]);

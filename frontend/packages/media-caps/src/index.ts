@@ -24,8 +24,52 @@ interface EveyMediaCapsNative {
   deleteFile?(path: string): boolean;
   moveFile?(from: string, to: string): boolean;
   getMaxH264Level?(): number;
+  getVideoDecoderLimits?(): VideoDecoderLimits | null;
   getUiScalePercent?(): number | null;
   setUiScalePercent?(percent: number): boolean;
+  getDeviceProfile?(): DeviceProfile | null;
+  setLiteMode?(mode: LiteMode): boolean;
+}
+
+/** The user's light-mode choice on a television: "auto" lets the device's memory decide. */
+export type LiteMode = "auto" | "on" | "off";
+
+export interface DeviceProfile {
+  /** ActivityManager.isLowRamDevice(): the platform's own low-memory flag. */
+  lowRam: boolean;
+  totalMb: number;
+  /** Heap the app may use, per the platform. */
+  memoryClassMb: number;
+  liteMode: LiteMode;
+}
+
+/**
+ * The device's memory and the stored light-mode choice, or null when the
+ * module is absent (web, tests, an older build). Synchronous on purpose: the
+ * TV reads it once before its first screen. Never throws.
+ */
+export function getDeviceProfile(): DeviceProfile | null {
+  try {
+    return nativeSync()?.getDeviceProfile?.() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** Persists the light-mode choice. False when the module is absent. */
+export function setLiteMode(mode: LiteMode): boolean {
+  try {
+    return nativeSync()?.setLiteMode?.(mode) === true;
+  } catch {
+    return false;
+  }
+}
+
+// Required lazily, like the async getters' import: at module scope it breaks
+// the web bundle and the vitest run, neither of which has a native side.
+function nativeSync(): EveyMediaCapsNative | null {
+  const { requireOptionalNativeModule } = require("expo-modules-core") as typeof import("expo-modules-core");
+  return requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
 }
 
 /**
@@ -65,6 +109,36 @@ export async function setUiScalePercent(percent: number): Promise<boolean> {
  * takes, or null when unknown (module absent, older build, probe failure).
  * Same lazy-import contract as getAudioProbe: never throws.
  */
+/**
+ * The video decoders' hard limits (Android): the largest picture any of them
+ * opens, overall and per codec, and the codecs taken at 10 bits. The names
+ * are the app's ("h264", "hevc", "vp9", "av1"). Null when unknown: the
+ * module is absent, an older build, or the probe failed.
+ */
+export interface VideoDecoderLimits {
+  maxWidth: number;
+  maxHeight: number;
+  tenBitCodecs: string[];
+  codecs: Record<string, { maxWidth: number; maxHeight: number }>;
+}
+
+export async function getVideoDecoderLimits(): Promise<VideoDecoderLimits | null> {
+  try {
+    const { requireOptionalNativeModule } = await import("expo-modules-core");
+    const native = requireOptionalNativeModule<EveyMediaCapsNative>("EveyMediaCaps");
+    const limits = native?.getVideoDecoderLimits?.();
+    if (!limits || typeof limits !== "object") return null;
+    return {
+      maxWidth: Number(limits.maxWidth) || 0,
+      maxHeight: Number(limits.maxHeight) || 0,
+      tenBitCodecs: Array.isArray(limits.tenBitCodecs) ? limits.tenBitCodecs.filter((c): c is string => typeof c === "string") : [],
+      codecs: limits.codecs && typeof limits.codecs === "object" ? limits.codecs : {},
+    };
+  } catch {
+    return null;
+  }
+}
+
 export async function getMaxH264Level(): Promise<number | null> {
   try {
     const { requireOptionalNativeModule } = await import("expo-modules-core");

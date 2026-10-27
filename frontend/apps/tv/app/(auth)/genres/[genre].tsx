@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { View, Text, FlatList, ActivityIndicator, StyleSheet } from "react-native";
+import { useGridColumns, DEEP_SCREEN_GRID_INSET } from "../../../src/hooks/useGridColumns";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
@@ -7,14 +8,14 @@ import { useLibraryServiceSearchMedia, IN_LIBRARY_SEARCH_LIMIT } from "@evey/api
 import type { V1MediaItem, LibraryServiceSearchMediaSortField, LibraryServiceSearchMediaSortOrder } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { FocusableCard } from "../../../src/components/FocusableCard";
-import { artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
 import { PosterImage } from "../../../src/components/PosterImage";
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import { genreTranslationKey } from "../../../src/lib/genres";
 import { CARD_WIDTH_GRID, POSTER_RATIO, LABEL_BLOCK_HEIGHT, GRID_GAP } from "../../../src/lib/tvLayout";
+import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
-const NUM_COLUMNS = 5;
 const CARD_WIDTH = CARD_WIDTH_GRID;
 const POSTER_HEIGHT = CARD_WIDTH * POSTER_RATIO;
 const ROW_HEIGHT = POSTER_HEIGHT + LABEL_BLOCK_HEIGHT + GRID_GAP;
@@ -23,13 +24,16 @@ function genreMediaKeyExtractor(item: V1MediaItem) {
   return item.id ?? "";
 }
 
+// With columns, the list indexes its ROWS: the offset is the row's.
 const genreGetItemLayout = (_: unknown, index: number) => ({
   length: ROW_HEIGHT,
-  offset: ROW_HEIGHT * Math.floor(index / NUM_COLUMNS),
+  offset: ROW_HEIGHT * index,
   index,
 });
 
 export default function GenreDetailScreen() {
+  const numColumns = useGridColumns(CARD_WIDTH, DEEP_SCREEN_GRID_INSET);
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const { genre } = useLocalSearchParams<{ genre: string }>();
   const theme = useTheme();
   const { t } = useTranslation();
@@ -59,12 +63,14 @@ export default function GenreDetailScreen() {
 
   const renderItem = useCallback(
     ({ item, index }: { item: V1MediaItem; index: number }) => {
-      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", CARD_WIDTH * 2, item) : undefined;
+      const posterUri = item.id ? artworkUrl(serverUrl, item.id, "poster", artworkPx(CARD_WIDTH), item) : undefined;
       const blurhash = (item.artwork ?? []).find((a) => a.type === "ARTWORK_TYPE_PRIMARY")?.blurhash;
       const rating = item.communityRating ?? 0;
       return (
         <FocusableCard
           onPress={() => router.push(`/media/${item.id}`)}
+          onFocus={() => prefetchOnFocus(item.id)}
+          onBlur={cancelPrefetch}
           hasTVPreferredFocus={index === 0}
           style={styles.gridItem}
           accessibilityLabel={item.title}
@@ -91,7 +97,7 @@ export default function GenreDetailScreen() {
         </FocusableCard>
       );
     },
-    [theme, router, serverUrl, authHeaders],
+    [theme, router, serverUrl, authHeaders, prefetchOnFocus, cancelPrefetch],
   );
 
   if (isError) {
@@ -117,7 +123,8 @@ export default function GenreDetailScreen() {
           data={items}
           keyExtractor={genreMediaKeyExtractor}
           renderItem={renderItem}
-          numColumns={NUM_COLUMNS}
+          key={numColumns}
+          numColumns={numColumns}
           contentContainerStyle={{ padding: 24 }}
           columnWrapperStyle={items.length > 0 ? { gap: 12, marginBottom: 16 } : undefined}
           getItemLayout={genreGetItemLayout}

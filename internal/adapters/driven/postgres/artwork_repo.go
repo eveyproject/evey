@@ -66,6 +66,23 @@ func (r *ArtworkRepository) CreateBatch(ctx context.Context, records []*metadata
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
+	// New artwork is a change of its items (see UpdateLocalPath).
+	seen := make(map[string]bool, len(records))
+	itemIDs := make([]string, 0, len(records))
+	for _, a := range records {
+		if id := string(a.MediaItemID); id != "" && !seen[id] {
+			seen[id] = true
+			itemIDs = append(itemIDs, id)
+		}
+	}
+	if len(itemIDs) > 0 {
+		if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+			`UPDATE media_items SET updated_at = NOW() WHERE id = ANY($1)`, pq.Array(itemIDs)); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
+	}
 	return nil
 }
 
@@ -252,6 +269,15 @@ func (r *ArtworkRepository) UpdateLocalPath(ctx context.Context, id string, loca
 		span.RecordError(shared.ErrNotFound)
 		span.SetStatus(codes.Error, shared.ErrNotFound.Error())
 		return shared.ErrNotFound
+	}
+	// A poster that just landed is a change of the item: the clients version
+	// their artwork URLs by the item's updated_at, and Android's image cache
+	// had kept the "no artwork" answer for the old URL for good.
+	if _, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`UPDATE media_items SET updated_at = NOW() WHERE id = (SELECT media_item_id FROM artwork WHERE id = $1)`, id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
 	}
 	return nil
 }

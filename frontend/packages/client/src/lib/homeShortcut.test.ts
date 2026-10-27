@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isDeepScreenPath } from "./homeShortcut";
+import { isLibraryGridPath, isDeepScreenPath } from "./homeShortcut";
 
 describe("isDeepScreenPath", () => {
   it.each(["/", "", "/favorites", "/library", "/music", "/requests", "/search", "/settings"])(
@@ -30,5 +30,11 @@ describe("isDeepScreenPath", () => {
   it("is false inside the player - it owns its own exit contract (playerExit.ts), no shortcut should compete with it", () => {
     expect(isDeepScreenPath("/player")).toBe(false);
     expect(isDeepScreenPath("/player/123")).toBe(false);
+  });
+
+  it("names a library's grid, not the library tab nor a deeper screen", () => {
+    expect(isLibraryGridPath("/library/lib-1")).toBe(true);
+    expect(isLibraryGridPath("/library")).toBe(false);
+    expect(isLibraryGridPath("/media/m1")).toBe(false);
   });
 });

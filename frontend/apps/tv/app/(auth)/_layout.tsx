@@ -8,7 +8,7 @@ import { usePresenceHeartbeat } from "../../src/hooks/usePresenceHeartbeat";
 import { TVMusicPlayer, TV_MUSIC_BAR_HEIGHT } from "../../src/components/TVMusicPlayer";
 import { useMusicQueueStore } from "../../src/stores/musicQueue";
 import { HomeShortcutButton, HOME_SHORTCUT_INSET } from "../../src/components/HomeShortcutButton";
-import { isDeepScreenPath, HOME_PATH } from "../../src/lib/homeShortcut";
+import { isDeepScreenPath, isLibraryGridPath, HOME_PATH } from "../../src/lib/homeShortcut";
 import { ErrorBoundary } from "../../src/components/ErrorBoundary";
 import { DemoBanner } from "../../src/components/DemoBanner";
 import { ProfileLockScreen } from "../../src/components/ProfileLockScreen";
@@ -127,6 +127,9 @@ export default function AuthLayout() {
   // The slideshow is the one deep screen that must stay edge to edge: a band
   // of background under a full-bleed photo would be a frame nobody asked for.
   const fullBleed = pathname.startsWith("/photos/slideshow");
+  // A library's grid pads itself for the band instead: its rows run under
+  // the shortcut, so the row below the focused one stays in view.
+  const padsItself = isLibraryGridPath(pathname);
 
   return (
     <View style={{ flex: 1 }}>
@@ -141,7 +144,7 @@ export default function AuthLayout() {
           stacking four of them (overdraw measured on the box, 2026-09-20).
           The wrapper only paints the inset band below a deep screen, which is
           its own padding and would otherwise show white (box, 2026-09-19). */}
-      <View style={{ flex: 1, backgroundColor: deepScreen && !fullBleed ? theme.colors.bg : undefined, paddingBottom: (deepScreen && !fullBleed ? HOME_SHORTCUT_INSET : 0) + musicBarInset }}>
+      <View style={{ flex: 1, backgroundColor: deepScreen && !fullBleed ? theme.colors.bg : undefined, paddingBottom: (deepScreen && !fullBleed && !padsItself ? HOME_SHORTCUT_INSET : 0) + musicBarInset }}>
         <ErrorBoundary>
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.bg } }} />
         </ErrorBoundary>

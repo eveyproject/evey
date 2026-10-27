@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, waitFor, act } from "@testing-library/react";
 import React from "react";
 
@@ -6,12 +6,15 @@ import React from "react";
 // View fires onLayout synchronously on mount (height > 0) so PluginWebView's
 // "inViewport" gate opens without needing a real layout pass.
 vi.mock("react-native", () => ({
-  View: ({ children, onLayout, ...p }: any) => {
+  View: React.forwardRef(({ children, onLayout, collapsable: _c, ...p }: any, ref: any) => {
+    React.useImperativeHandle(ref, () => ({
+      measureInWindow: (cb: (x: number, y: number, w: number, h: number) => void) => cb(0, remote.boxY, 1200, 100),
+    }));
     React.useEffect(() => {
       onLayout?.({ nativeEvent: { layout: { height: 100 } } });
     }, [onLayout]);
     return React.createElement("div", p, children);
-  },
+  }),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ActivityIndicator: (p: any) => React.createElement("div", { "data-testid": "loading", ...p }),
   StyleSheet: { create: (s: any) => s },
@@ -25,6 +28,15 @@ vi.mock("react-native", () => ({
     },
   },
   Platform: { OS: "android", select: (o: any) => o.android },
+  useTVEventHandler: (handler: (evt: { eventType: string }) => void) => {
+    remote.handlers.add(handler);
+  },
+}));
+// Every handler the component registered, and where its box sits on screen.
+const remote = vi.hoisted(() => ({
+  handlers: new Set<(evt: { eventType: string }) => void>(),
+  boxY: 200,
+  press: (eventType: string) => remote.handlers.forEach((h) => h({ eventType })),
 }));
 
 // --- react-native-webview mock -----------------------------------------------------------
@@ -57,7 +69,9 @@ vi.mock("expo-file-system/legacy", () => ({
 
 vi.mock("expo-router", () => ({
   router: { push: vi.fn() },
+  useFocusEffect: (effect: () => void | (() => void)) => focusEffects.push(effect),
 }));
+const focusEffects = vi.hoisted(() => [] as Array<() => void | (() => void)>);
 
 // --- i18next ------------------------------------------------------------------------------
 vi.mock("react-i18next", () => ({
@@ -116,17 +130,25 @@ function dispatchToWebView(payload: unknown) {
   });
 }
 
+// The last message posted to the page - not just the last script: the frame
+// hold injects its own, which can land after a reply.
 function lastInjectedMessage(): Record<string, unknown> | undefined {
-  const call = injectJavaScriptMock.mock.calls.at(-1);
-  if (!call) return undefined;
-  const script = call[0] as string;
-  const match = script.match(/^window\.postMessage\((.*), "\*"\); true;$/);
-  if (!match) return undefined;
-  return JSON.parse(match[1]);
+  for (const [script] of [...injectJavaScriptMock.mock.calls].reverse()) {
+    const match = String(script).match(/^window\.postMessage\((.*), "\*"\); true;$/);
+    if (match) return JSON.parse(match[1]);
+  }
+  return undefined;
 }
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
+  focusEffects.length = 0;
+  remote.handlers.clear();
+  remote.boxY = 200;
   capturedOnMessage = null;
   capturedProps = {};
   queryData.current = { plugins: [PLUGIN_INFO] };
@@ -139,8 +161,17 @@ beforeEach(() => {
   );
 });
 
+// A widget starts once the remote has rested (BOOT_IDLE_MS in PluginSlot):
+// the tests skip that wait.
+function renderBooted(ui: React.ReactElement) {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const r = render(ui);
+  act(() => vi.advanceTimersByTime(2500));
+  return r;
+}
+
 async function mountPluginWebView() {
-  render(<PluginSlot name="home.section" pluginId="plg-test1" />);
+  renderBooted(<PluginSlot name="home.section" pluginId="plg-test1" />);
   await waitFor(() => expect(capturedOnMessage).toBeTruthy());
 }
 
@@ -148,6 +179,114 @@ describe("PluginSlot (TV)", () => {
   it("renders nothing when no plugin matches the slot", () => {
     const { container } = render(<PluginSlot name="no.such.slot" />);
     expect(container.innerHTML).toBe("");
+  });
+
+  it("starts the widget only once the remote has rested, each key restarting the wait", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const { container } = render(<PluginSlot name="home.section" pluginId="plg-test1" />);
+    const webview = () => container.querySelector('[data-testid="plugin-webview"]');
+    // Its box is there from the start, at the slot's height: nothing jumps.
+    expect((container.firstElementChild as HTMLElement).style.height).toBe(`${homeWidgetBudget(675)}px`);
+    act(() => vi.advanceTimersByTime(2000));
+    act(() => remote.press("right"));
+    // The quiet period after the key (one act each: React runs the effects
+    // between them, as it would between real frames), then the boot wait.
+    act(() => vi.advanceTimersByTime(1300));
+    act(() => vi.advanceTimersByTime(2000));
+    expect(webview()).toBeNull();
+    act(() => vi.advanceTimersByTime(600));
+    await waitFor(() => expect(webview()).not.toBeNull());
+  });
+
+  it("holds the widget's animation frames while the remote is in use, and releases them once it is quiet", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      await mountPluginWebView();
+      const holds = () =>
+        injectJavaScriptMock.mock.calls.map((c) => String(c[0])).filter((js) => js.includes("__eveyHoldFrames"));
+      act(() => remote.press("right"));
+      expect(holds().at(-1)).toContain("__eveyHoldFrames(true)");
+      // Each key restarts the quiet period.
+      act(() => vi.advanceTimersByTime(1000));
+      act(() => remote.press("right"));
+      act(() => vi.advanceTimersByTime(1000));
+      expect(holds().at(-1)).toContain("__eveyHoldFrames(true)");
+      act(() => vi.advanceTimersByTime(300));
+      expect(holds().at(-1)).toContain("__eveyHoldFrames(false)");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("takes the WebView out of the drawing once the page scrolled it off screen, and brings it back on return", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { container } = renderBooted(<PluginSlot name="home.section" pluginId="plg-test1" />);
+      await waitFor(() => expect(container.querySelector('[data-testid="plugin-webview"]')).not.toBeNull());
+      const webviewBox = () => container.querySelector('[data-testid="plugin-webview"]')!.closest("div[style]") as HTMLElement | null;
+      // The focus went down a row: the page scrolled the widget above the screen.
+      remote.boxY = -150;
+      act(() => remote.press("down"));
+      act(() => vi.advanceTimersByTime(400));
+      const outer = container.firstElementChild as HTMLElement;
+      expect(outer.style.height).toBe("100px");
+      expect((outer.firstElementChild as HTMLElement).style.display).toBe("none");
+      // Still mounted: it comes back as it was, no reload.
+      expect(container.querySelector('[data-testid="plugin-webview"]')).not.toBeNull();
+      remote.boxY = 200;
+      act(() => remote.press("up"));
+      act(() => vi.advanceTimersByTime(400));
+      expect((outer.firstElementChild as HTMLElement).style.display).toBe("");
+      expect(webviewBox()).not.toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the page's frame hold queues requestAnimationFrame callbacks and hands them back on release", async () => {
+    await mountPluginWebView();
+    const html = String((capturedProps.source as { html: string }).html);
+    const script = html.match(/<script>(\(function\(\)\{\s*var raf[\s\S]*?\}\)\(\);)<\/script>/)?.[1];
+    expect(script).toBeTruthy();
+    const ran: string[] = [];
+    const fakeWindow: Record<string, any> = {
+      requestAnimationFrame: (cb: () => void) => {
+        cb();
+        return 1;
+      },
+    };
+    new Function("window", script!)(fakeWindow);
+    fakeWindow.requestAnimationFrame(() => ran.push("free"));
+    fakeWindow.__eveyHoldFrames(true);
+    fakeWindow.requestAnimationFrame(() => ran.push("held"));
+    expect(ran).toEqual(["free"]);
+    fakeWindow.__eveyHoldFrames(false);
+    expect(ran).toEqual(["free", "held"]);
+  });
+
+  it("hides the WebView, frames held, while its screen is not shown (the player above it), without unmounting it", async () => {
+    const { container } = renderBooted(<PluginSlot name="home.section" pluginId="plg-test1" />);
+    await waitFor(() => expect(container.querySelector('[data-testid="plugin-webview"]')).not.toBeNull());
+    const effect = focusEffects.at(-1)!;
+    let blur: void | (() => void);
+    act(() => {
+      blur = effect();
+    });
+    act(() => {
+      (blur as () => void)();
+    });
+    const outer = container.firstElementChild as HTMLElement;
+    // Kept alive: no bundle reload and no WebGL boot on the way back.
+    expect(container.querySelector('[data-testid="plugin-webview"]')).not.toBeNull();
+    expect((outer.firstElementChild as HTMLElement).style.display).toBe("none");
+    // The box keeps its height: the page under it does not jump.
+    expect(outer.style.height).toBe("100px");
+    const holds = injectJavaScriptMock.mock.calls.map((c) => String(c[0])).filter((js) => js.includes("__eveyHoldFrames"));
+    expect(holds.at(-1)).toContain("__eveyHoldFrames(true)");
+    act(() => {
+      effect();
+    });
+    expect((outer.firstElementChild as HTMLElement).style.display).toBe("");
   });
 
   it("mounts the WebView as display-only (focusable=false) for the D-pad", async () => {

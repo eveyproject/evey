@@ -1,10 +1,11 @@
+import { memo } from "react";
 import { StyleSheet, View } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 // The fade the web player draws behind its bars (overlay-bg-strong to
 // transparent): the controls read on any frame and the picture between them
 // stays the picture, with no hard edge where a flat band used to stop.
-export function PlayerScrim({ edge, opacity = 0.85 }: { edge: "top" | "bottom"; opacity?: number }) {
+export const PlayerScrim = memo(function PlayerScrim({ edge, opacity = 0.85 }: { edge: "top" | "bottom"; opacity?: number }) {
   const id = `player-scrim-${edge}`;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -20,4 +21,4 @@ export function PlayerScrim({ edge, opacity = 0.85 }: { edge: "top" | "bottom"; 
       </Svg>
     </View>
   );
-}
+});

@@ -104,6 +104,7 @@ export type {
   V1Artwork, V1MediaItem, V1MediaPerson, V1Trailer, V1MediaStream,
   V1Library,
   LibraryServiceListMediaItemsType, LibraryServiceListMediaItemsSortField, LibraryServiceListMediaItemsSortOrder,
+  LibraryServiceListMediaItemsParams, V1ListMediaItemsResponse,
   LibraryServiceSearchMediaType, LibraryServiceSearchMediaSortField, LibraryServiceSearchMediaSortOrder,
 } from "./generated/library.schemas";
 export { V1LibraryType } from "./generated/library.schemas";
