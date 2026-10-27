@@ -1,5 +1,5 @@
 ---
-source_sha: a0eb85f44612fd3d234753208bf63c8a9fec91fc8d1020bfdb8109e199c59b19
+source_sha: cbb77f7bf06443976e7bc56f600217600725f9387abe71900e4c95e24ef4519e
 reviewed: true
 ---
 # Contribuir
@@ -42,6 +42,12 @@ de esas decisiones.
    incompatibles en los proto, una compilación desde una copia limpia, las
    puertas de integración del repositorio y de la transcodificación, y la
    auditoría de TV.
+   Un push a `dev` o a una rama de trabajo ejecuta `make pre-push-dev` en su
+   lugar: la misma puerta de control sin las suites largas que la CI de la
+   pull request vuelve a ejecutar sobre los mismos commits (análisis de
+   vulnerabilidades, tests y compilación del frontend, suite del
+   repositorio, auditoría de TV); un push a `master` ejecuta la puerta
+   completa.
 2. Añade tests para cada comportamiento nuevo y para cada corrección de un
    error.
 3. Si contribuyes desde fuera, acepta una vez el
