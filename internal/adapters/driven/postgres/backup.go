@@ -280,6 +280,7 @@ type psqlRestore struct {
 
 func (p *psqlRestore) start() error {
 	d := p.d
+	//nolint:gosec // G204: fixed binary; host, port, user and database come from the server's own config, never from the request
 	cmd := exec.CommandContext(p.ctx, "psql",
 		"-h", d.host,
 		"-p", strconv.Itoa(d.port),
