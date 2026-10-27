@@ -381,6 +381,8 @@ users:
   libraryAccessUpdated: "Accès aux bibliothèques mis à jour"
   failedLibraryAccess: "Échec de la mise à jour de l'accès aux bibliothèques"
   clearAllUnrestricted: "Tout effacer (non restreint)"
+  noLibraries: "Aucune bibliothèque"
+  noLibrariesDesc: "Cet utilisateur est restreint mais il ne lui reste aucune bibliothèque : tous les accès ont été retirés ou les bibliothèques supprimées. Cochez des bibliothèques pour lui donner accès, ou enregistrez sans sélection pour lever la restriction."
   bitrate: "Débit"
   maxBitrateTitle: "Débit maximal - {{name}}"
   maxBitrateDesc: "Limiter le débit de streaming maximal pour cet utilisateur. 0 = illimité."

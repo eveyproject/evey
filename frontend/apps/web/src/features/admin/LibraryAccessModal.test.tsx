@@ -101,6 +101,26 @@ describe("LibraryAccessModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("a restricted user with no library left is not shown as unrestricted", () => {
+    getMock.mockReturnValue({
+      data: { libraryIds: [], restricted: true, libraries: [{ id: "lib1", name: "Movies" }] },
+      isLoading: false,
+    });
+    render(<LibraryAccessModal user={user} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    expect(screen.getByText("No library")).toBeInTheDocument();
+    expect(screen.queryByText("Unrestricted")).not.toBeInTheDocument();
+  });
+
+  it("a user never restricted is shown as unrestricted", () => {
+    getMock.mockReturnValue({
+      data: { libraryIds: [], restricted: false, libraries: [{ id: "lib1", name: "Movies" }] },
+      isLoading: false,
+    });
+    render(<LibraryAccessModal user={user} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    expect(screen.getByText("Unrestricted")).toBeInTheDocument();
+    expect(screen.queryByText("No library")).not.toBeInTheDocument();
+  });
+
   it("Cancel calls onClose without mutation", async () => {
     const u = userEvent.setup();
     const onClose = vi.fn();
