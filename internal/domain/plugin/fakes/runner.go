@@ -3,6 +3,7 @@ package fakes
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/plugin"
 )
@@ -14,6 +15,8 @@ type FakePluginRunner struct {
 	Err     error
 	StopErr error
 	KillErr error
+	// AskFunc answers Ask; nil declines every event.
+	AskFunc func(ctx context.Context, pluginID, eventType string, payload map[string]any, timeout time.Duration) (map[string]any, bool, error)
 }
 
 func NewFakePluginRunner() *FakePluginRunner {
@@ -65,4 +68,12 @@ func (r *FakePluginRunner) Health(_ context.Context, pluginID string) (bool, err
 
 func (r *FakePluginRunner) SendEvent(_ context.Context, _ string, _ any) error {
 	return nil
+}
+
+// Ask answers with AskFunc when set, else declines.
+func (r *FakePluginRunner) Ask(ctx context.Context, pluginID, eventType string, payload map[string]any, timeout time.Duration) (map[string]any, bool, error) {
+	if r.AskFunc != nil {
+		return r.AskFunc(ctx, pluginID, eventType, payload, timeout)
+	}
+	return nil, false, nil
 }

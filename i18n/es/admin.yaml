@@ -138,6 +138,23 @@ artworks:
   purgeVariantsFailed: Error al purgar las variantes
 
 plugin:
+  metadata:
+    title: "Metadatos"
+    description: "Este plugin puede sustituir el texto de TMDB, campo por campo. TMDB sigue siendo la fuente de la identificación, el reparto y las imágenes."
+    fieldsLabel: "Campos que sustituye este plugin"
+    fields:
+      title: "Título"
+      overview: "Sinopsis"
+      tagline: "Eslogan"
+    save: "Guardar"
+    saved: "Campos de metadatos guardados"
+    saveFailed: "No se pudieron guardar los campos de metadatos"
+    refresh: "Obtener para toda la biblioteca"
+    refreshHint: "Las nuevas películas y series se obtienen al añadirse. Esto consulta al plugin por las que ya están en la biblioteca, una tras otra."
+    refreshStarted: "Obteniendo la biblioteca desde este plugin"
+    refreshFailed: "No se pudo iniciar la obtención"
+    running: "Obteniendo: {{done}} de {{total}}"
+    finished: "Última obtención: {{covered}} de {{total}} encontrados, {{failed}} sin respuesta"
   copySourceHash: "Copiar el hash de origen"
   enabled: Activado
   disabled: Desactivado
@@ -382,6 +399,8 @@ users:
   libraryAccessUpdated: "Acceso a bibliotecas actualizado"
   failedLibraryAccess: "Error al actualizar el acceso a bibliotecas"
   clearAllUnrestricted: "Limpiar todo (sin restricción)"
+  noLibraries: "Ninguna biblioteca"
+  noLibrariesDesc: "Este usuario está restringido pero no le queda ninguna biblioteca: se revocaron todos los accesos o se eliminaron las bibliotecas. Marque bibliotecas para darle acceso, o guarde sin selección para quitar la restricción."
   bitrate: "Bitrate"
   maxBitrateTitle: "Bitrate máximo - {{name}}"
   maxBitrateDesc: "Limitar el bitrate máximo de streaming para este usuario. 0 = ilimitado."

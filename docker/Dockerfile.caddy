@@ -1,4 +1,4 @@
 # Bundled reverse proxy: stock Caddy plus the Evey Caddyfile. The web UI is
 # served by the evey container itself, so nothing is built or copied here.
-FROM caddy:2.9-alpine
+FROM caddy:2.9-alpine@sha256:b4e3952384eb9524a887633ce65c752dd7c71314d2c2acf98cd5c715aaa534f0
 COPY docker/Caddyfile /etc/caddy/Caddyfile

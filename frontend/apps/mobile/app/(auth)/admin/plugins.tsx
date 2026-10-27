@@ -32,6 +32,7 @@ import {
   installPreviewHasWarnings,
 } from "../../../src/components/admin/plugins/pluginConfigUtils";
 import { PluginResourceLimitsCard } from "../../../src/components/admin/plugins/PluginResourceLimitsCard";
+import { PluginMetadataSection } from "../../../src/components/admin/plugins/PluginMetadataSection";
 import { PluginSecurityDashboard } from "../../../src/components/admin/plugins/PluginSecurityDashboard";
 import { PluginSignatureBadge } from "../../../src/components/admin/plugins/PluginSignatureBadge";
 import { TrustedPublishersCard } from "../../../src/components/admin/plugins/TrustedPublishersCard";
@@ -812,6 +813,8 @@ function PluginRow({
   const qc = useQueryClient();
   const updateLocked = useDemoStore((st) => demoLocks(st, "/evey.v1.AdminPluginService/PreviewPluginUpdate") || demoLocks(st, "/evey.v1.AdminPluginService/ApplyPluginUpdate"));
   const [showConfig, setShowConfig] = useState(false);
+  const [showMetadata, setShowMetadata] = useState(false);
+  const isMetadataProvider = plugin.capabilities?.includes("metadata.provider") ?? false;
   const [showLogs, setShowLogs] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
@@ -887,6 +890,13 @@ function PluginRow({
             {showConfig ? t("admin.plugin.hideConfig", "Masquer la configuration") : t("admin.plugin.config", "Configuration")}
           </Text>
         </Pressable>
+        {isMetadataProvider ? (
+          <Pressable onPress={() => setShowMetadata((v) => !v)} style={styles.chipBtn} testID="plugin-metadata-toggle">
+            <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "600" }}>
+              {t("admin.plugin.metadata.title")}
+            </Text>
+          </Pressable>
+        ) : null}
         <Pressable onPress={() => setShowLogs((v) => !v)} style={styles.chipBtn}>
           <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "600" }}>
             {showLogs ? t("admin.plugin.hideLogs", "Masquer les journaux") : t("admin.plugin.logs", "Journaux")}
@@ -991,6 +1001,15 @@ function PluginRow({
             {t("admin.plugin.configuration", "Configuration")}
           </Text>
           <PluginConfigSection pluginId={plugin.id} theme={theme} t={t} />
+        </View>
+      ) : null}
+
+      {showMetadata && isMetadataProvider ? (
+        <View style={{ borderTopWidth: 1, borderTopColor: theme.colors.border, marginTop: 10, paddingTop: 10 }}>
+          <Text style={{ color: theme.colors.textMuted, fontSize: 11, fontWeight: "700", marginBottom: 8 }}>
+            {t("admin.plugin.metadata.title")}
+          </Text>
+          <PluginMetadataSection pluginId={plugin.id} />
         </View>
       ) : null}
 

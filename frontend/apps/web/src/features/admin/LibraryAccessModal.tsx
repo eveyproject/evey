@@ -40,6 +40,10 @@ export function LibraryAccessModal({
   }, [data]);
 
   const isUnrestricted = selected.size === 0;
+  // Restricted with nothing left (grants revoked, libraries deleted): the
+  // server says so with a flag, since the empty list alone reads as unrestricted.
+  const restrictedToNothing = !!data?.restricted && (data.libraryIds?.length ?? 0) === 0;
+  const showNoLibrary = restrictedToNothing && isUnrestricted;
   const libraries = data?.libraries ?? [];
 
   const handleToggle = useCallback((libId: string) => {
@@ -87,14 +91,18 @@ export function LibraryAccessModal({
       ) : (
         <div className="flex flex-col gap-4">
           <p className="text-sm text-[var(--text-muted)]">
-            {isUnrestricted
-              ? t("admin.users.unrestrictedDesc")
-              : t("admin.users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
+            {showNoLibrary
+              ? t("admin.users.noLibrariesDesc")
+              : isUnrestricted
+                ? t("admin.users.unrestrictedDesc")
+                : t("admin.users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
           </p>
 
-          {isUnrestricted && (
+          {showNoLibrary ? (
+            <Badge variant="warning">{t("admin.users.noLibraries")}</Badge>
+          ) : isUnrestricted ? (
             <Badge variant="success">{t("admin.users.unrestricted")}</Badge>
-          )}
+          ) : null}
 
           <div className="flex flex-col gap-2">
             {libraries.map((lib) => (

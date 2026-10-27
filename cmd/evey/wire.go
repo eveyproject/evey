@@ -169,9 +169,13 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	mediaItemCache := applibrary.NewCachedMediaItemQueryRepo(r.MediaItemQuery, 30*time.Second)
 	mediaItemCache.Register(bus)
 	cachingPersonRepo := applibrary.NewCachingPersonRepo(r.Person, infra.personFetcher, infra.personFetcher, r.PersonTranslation, eveyi18n.SupportedLocales())
+	// Metadata plugins' texts, kept beside TMDB's and laid over the
+	// translations on every read (applibrary.WithPluginTexts).
+	pluginTexts := postgres.NewPluginTextRepository(db)
 	libQuerySvc := applibrary.NewQueryService(r.Library, mediaItemCache, r.MediaStream, infra.searchAdapter,
 		applibrary.WithPeople(cachingPersonRepo),
 		applibrary.WithTranslations(r.MediaItemTranslation, r.PersonTranslation),
+		applibrary.WithPluginTexts(pluginTexts),
 		applibrary.WithChapters(r.Chapter),
 		applibrary.WithTrickplay(r.Trickplay),
 		applibrary.WithSegments(r.MediaSegment),
@@ -244,6 +248,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// `demo` administrator through CreateUser when an administrator exists.
 		userSvcOpts = append(userSvcOpts, appuser.UserWithMinPasswordLength(demo.MinPasswordLength))
 	}
+	// Read once at construction by the gRPC user service and the HTTP parental
+	// routes: the PIN lockout survives a restart through the login attempt rows.
+	appuser.SetSharedPINAttempts(appuser.NewPINAttempts(r.LoginAttempt))
 	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), userSvcOpts...)
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess), appuser.WithAccessDefaultLocale(serverLocaleFn), appuser.WithAccessUnitOfWork(postgres.NewTxUnit(db)))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)
@@ -337,6 +344,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 	tvmazeWrapped := decorate(infra.tvmazeProvider)
 	imdbWrapped := decorate(infra.imdbProvider)
 	metaProviders := []metadata.MetadataProvider{tmdbWrapped, omdbWrapped, tvmazeWrapped, imdbWrapped}
+	// The metadata plugins are asked about every movie and series enriched;
+	// the low-memory profile's waker is set once the plugin subsystem exists.
+	pluginMetadataSource := appplugin.NewMetadataSource(r.Plugin, infra.pluginRunner, nil)
 	metadataQuerySvc := appmetadata.NewQueryService(r.MetadataOverride, r.Artwork, metaProviders)
 	enricher := appmetadata.NewEnricher(
 		r.Artwork, r.Person, r.MediaPerson, r.MediaItemQuery, r.MediaItem, infra.searchAdapter,
@@ -345,6 +355,7 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		collectionCmdSvc,
 		collectionQuerySvc,
 		appmetadata.EnricherWithTranslations(r.MediaItemTranslation, r.PersonTranslation, eveyi18n.SupportedLocales()),
+		appmetadata.EnricherWithPluginTexts(pluginMetadataSource, pluginTexts),
 		appmetadata.EnricherWithPersonFetcher(infra.personFetcher),
 		appmetadata.EnricherWithOverrides(r.MetadataOverride),
 		// Item update + artwork replace + cast upsert commit or roll back
@@ -409,6 +420,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		WithSampleInterval(time.Duration(cfg.Metrics.SampleIntervalSec) * time.Second)
 
 	pluginInstallerSvc, pluginRuntimeSvc, pluginQuerySvc, pluginTokenSvc, pluginSecurityDashboardSvc, pluginIdleMgr, pluginHostSrv, memProfile := buildPluginSubsystem(ctx, infra, rootLog)
+	pluginMetadataSource.SetWaker(pluginIdleMgr)
+	// Before any plugin starts (AutoStartPlugins runs at boot, later): a
+	// metadata plugin may give its texts unasked (HostService.UpdateMetadata).
+	pluginHostSrv.WithPluginTexts(pluginTexts)
 
 	webhookLog := eveylogger.NewWith(rootLog, "webhook")
 	var webhookSender webhook.Sender = webhooksender.New()
@@ -1255,6 +1270,8 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 			pluginHostServer:           pluginHostSrv,
 			pluginSecurityDashboardSvc: pluginSecurityDashboardSvc,
 			pluginIdleMgr:              pluginIdleMgr,
+			pluginMetadataSettings:     appplugin.NewMetadataSettingsService(r.Plugin, postgres.NewPluginMetadataSettingsRepository(db)),
+			pluginMetadataRefresh:      appmetadata.NewPluginTextRefresher(ctx, enricher),
 		},
 		auth: authDeps{
 			tokenGen:     infra.tokenGen,

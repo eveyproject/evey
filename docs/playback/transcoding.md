@@ -150,6 +150,36 @@ kept, each request extracts them again, and the administrators receive
 - **Load test** (**Admin → Transcoding**): simulates viewers to measure what
   the server sustains. It refuses to run while anyone is watching.
 
+## Load test
+
+The load test plays titles from your libraries to simulated viewers, adding
+them until something gives out, and names what gave out first: the processor,
+the memory, a disk, the server itself, or the network in front of it.
+
+**The path it takes.** The viewers reach the server through its public
+address, the way remote viewers do. When that address leads to a reverse proxy
+on your local network, the test connects to the proxy at its local address,
+under the same name and certificate. Otherwise every byte would go up to the
+router and be turned back to the proxy, a turn no outside viewer's traffic
+takes, and the test would measure the router. The report then says which local
+address it used. A proxy outside your network (a rented server, a tunnel) is
+on real viewers' path and is kept.
+
+**The connection's upload.** Viewers inside your network never use your
+internet connection's upload, so the simulated viewers cannot measure it.
+Before the viewers start, the server measures it on its own: for about ten
+seconds it uploads zero-filled data to `speed.cloudflare.com`, a speed-test
+service answered from the nearest point of Cloudflare's network. Nothing from
+your libraries or your accounts is sent. Cloudflare sees the server's public
+IP address, as any site the server contacts does.
+
+**From outside.** With both figures, the report gives the number of viewers
+outside your network that can be served: as many as the server held, or as
+many as the upload carries at the rate one test viewer used, keeping a fifth
+of the upload free, whichever is smaller. It says which of the two is the
+limit. If the speed test does not answer, the report says the upload could
+not be measured and gives no figure for outside viewers.
+
 <!-- sources
 disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After) ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full
 clear all empties extracted subtitles: internal/app/transcoding/service.go - WithDerivedCachePurge ; internal/adapters/driving/http/subtitle_cache.go - SubtitleCachePurger (/data/subtitles)
@@ -160,6 +190,6 @@ output codec: internal/app/transcoding/resolver_route.go ; internal/app/transcod
 single variant: internal/config/config.go (EVEY_TRANSCODING_SINGLE_VARIANT, default on)
 bench samples: internal/config/config.go (EVEY_BENCH_{SDR,HDR}_SAMPLE{,_URL,_SHA256})
 cache budget, clear while live: i18n admin.serverSettings.transcodeCacheMaxGB, admin.transcodeCache.clearConfirmLiveSessions ; automatic limits: admin.qoe.overrides.*
-load test: i18n admin.loadtest.idleWarning, errorActiveStreams
+load test: i18n admin.loadtest.idleWarning, errorActiveStreams, limiter.*, remote.* ; internal/app/loadtest/localproxy.go - skipRouterLoop ; internal/app/loadtest/uplink.go - UplinkProbeURL, measureUplink, remoteAudience, remoteHeadroom ; frontend/packages/client/src/lib/loadTest.ts - remoteLines
 plain opening, busy message: i18n errors max_concurrent_reached ; internal/app/transcoding/admission_shaper.go - VideoAdmissionShaper.GrantRoute
 -->

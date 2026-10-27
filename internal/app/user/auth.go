@@ -414,6 +414,14 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 			if !old.IsKids && old.HasPIN() && !target.IsParentalRestricted() {
 				authorisers = append(authorisers, string(old.ID))
 			}
+			// A restricted target that is still looser than the source (kids to
+			// kids with a higher age cap) needs a guardian: any adult PIN.
+			if len(authorisers) == 0 && target.IsParentalRestricted() && target.LooserThan(old) {
+				authorisers = guardianProfileIDs(profs)
+				if len(authorisers) == 0 {
+					return "", "", ErrPINRequired
+				}
+			}
 			if len(authorisers) > 0 {
 				provenID, perr := s.tokens.ParsePINToken(pinToken)
 				if perr != nil || !slices.Contains(authorisers, provenID) {
@@ -519,6 +527,12 @@ func (s *CommandService) RefreshToken(ctx context.Context, token, requestedProfi
 // validateRefreshToken) - this closes the UX hole that decision left open.
 const refreshRotationGrace = 30 * time.Second
 
+// rotationRecoveryWindow bounds how long an interrupted rotation can be
+// recovered from (rotationWasInterrupted). A television switched off
+// overnight still gets its session back; a token presented a day after the
+// successor was minted is an abandoned pairing, refused like a replay.
+const rotationRecoveryWindow = 24 * time.Hour
+
 // validateRefreshToken performs the hash-lookup + reuse/expiry gating (it does
 // NOT consume the token; see markRefreshTokenUsed). Any failure path returns
 // ErrInvalidCredentials. The bool reports a GRACED token: one already rotated
@@ -600,6 +614,15 @@ func (s *CommandService) rotationWasInterrupted(ctx context.Context, rt *user.Re
 		return false
 	}
 	if successor.Used || successor.IsExpired() {
+		return false
+	}
+	if time.Since(successor.CreatedAt) > rotationRecoveryWindow {
+		// Too old to be an answer still in flight. The orphan is burned all
+		// the same so nobody can spend it later; the caller refuses.
+		if delErr := s.refreshTkns.DeleteByID(ctx, successor.ID); delErr != nil {
+			slog.WarnContext(ctx, "refresh: could not burn the abandoned successor",
+				slog.String("tokenID", rt.ID), slog.String("successorID", successor.ID), slog.Any("err", delErr))
+		}
 		return false
 	}
 	if delErr := s.refreshTkns.DeleteByID(ctx, successor.ID); delErr != nil {
@@ -784,4 +807,16 @@ func (s *CommandService) generateAndStoreRefreshToken(ctx context.Context, userI
 // keyboards) hashes one way and verifies another.
 func normalizePassword(p string) string {
 	return strings.TrimSpace(p)
+}
+
+// guardianProfileIDs lists the non-kids profiles holding a PIN: the adults
+// whose PIN may authorise loosening a restricted profile's limits.
+func guardianProfileIDs(profs []*user.Profile) []string {
+	var ids []string
+	for _, p := range profs {
+		if !p.IsKids && p.HasPIN() {
+			ids = append(ids, string(p.ID))
+		}
+	}
+	return ids
 }

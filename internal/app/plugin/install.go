@@ -71,6 +71,7 @@ type PluginBlockedError struct {
 // anything else on the install path stays a sanitized internal error.
 var (
 	ErrInvalidManifest   = errors.New("invalid plugin manifest")
+	ErrServerTooOld      = errors.New("plugin requires a newer server")
 	ErrHashMismatch      = errors.New("plugin hash mismatch")
 	ErrSourceUnavailable = errors.New("plugin source unavailable")
 )
@@ -282,6 +283,9 @@ func (s *InstallerService) parseAndValidateManifest(zipPath string) (*plugin.Plu
 	if err := manifest.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid manifest: %w: %w", ErrInvalidManifest, err)
 	}
+	if err := s.checkMinEveyVersion(manifest); err != nil {
+		return nil, err
+	}
 
 	if s.runtimes != nil && manifest.Kind != plugin.KindTheme && manifest.Language != "" {
 		if !s.runtimes.IsAvailable(manifest.Language) {
@@ -345,7 +349,7 @@ func (s *InstallerService) verifyPluginIntegrity(ctx context.Context, zipPath, e
 	}
 
 	if s.sigVerifier != nil {
-		sigStatus, err = s.sigVerifier.VerifySignature(ctx, zipPath, "")
+		sigStatus, err = s.candidateSignatureStatus(ctx, zipPath, existing)
 		if err != nil {
 			// Only reached when policy is "enforce" and verification failed.
 			return "", nil, fmt.Errorf("plugin blocked: %w", err)
@@ -363,6 +367,39 @@ func (s *InstallerService) verifyPluginIntegrity(ctx context.Context, zipPath, e
 		}
 	}
 	return sourceHash, sigStatus, nil
+}
+
+// checkMinEveyVersion refuses a plugin whose min_evey_version is above the
+// running server's. An unknown server version (unset, or a dev build that is
+// not semver) checks nothing rather than refusing every plugin.
+func (s *InstallerService) checkMinEveyVersion(m *plugin.PluginManifest) error {
+	server := strings.TrimPrefix(strings.TrimSpace(s.serverVersion), "v")
+	minVersion := strings.TrimPrefix(strings.TrimSpace(m.MinEveyVersion), "v")
+	if minVersion == "" || server == "" || server[0] < '0' || server[0] > '9' {
+		return nil
+	}
+	if CompareSemver(minVersion, server) > 0 {
+		return fmt.Errorf("%w: %s needs Evey %s, this server is %s", ErrServerTooOld, m.Name, m.MinEveyVersion, s.serverVersion)
+	}
+	return nil
+}
+
+// signatureInspector computes a signature status regardless of policy.
+type signatureInspector interface {
+	InspectSignature(ctx context.Context, zipPath, sigPath string) *plugin.SignatureStatus
+}
+
+// candidateSignatureStatus is VerifySignature, except that a plugin pinned to
+// a publisher key is still inspected when the policy is off: "off" stops a bad
+// signature from blocking an install, not the key-continuity guard.
+func (s *InstallerService) candidateSignatureStatus(ctx context.Context, zipPath string, existing *plugin.Plugin) (*plugin.SignatureStatus, error) {
+	st, err := s.sigVerifier.VerifySignature(ctx, zipPath, "")
+	if st == nil && err == nil && existing != nil && existing.PublisherKeyFingerprint != "" {
+		if in, ok := s.sigVerifier.(signatureInspector); ok {
+			st = in.InspectSignature(ctx, zipPath, "")
+		}
+	}
+	return st, err
 }
 
 // buildPluginRecord constructs the domain plugin.Plugin from the parsed

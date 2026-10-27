@@ -1,5 +1,5 @@
 ---
-source_sha: 3e8706d875387de097db25bae84c18a9439cf144e791b450e09bf54c3edf978d
+source_sha: 3ef56ca6884cb437782bd60a1bb1314f62db8602db661c29fca9d5f8cab4b4de
 reviewed: true
 ---
 # Plugins { #plugins }
@@ -98,6 +98,7 @@ Jede Karte zeigt den Zustand des Plugins (**Aktiviert** oder
 | **Aktiviert** / **Deaktiviert** | Startet oder stoppt den Prozess des Plugins. Ein deaktiviertes Plugin behält seine Dateien und seine Konfiguration. |
 | **Konfiguration** | Die Einstellungen, die das Plugin angibt (ein API-Schlüssel, eine Stadt, eine Einheit...). Geheime Felder werden maskiert angezeigt und nie an den Browser zurückgeschickt. |
 | **Protokolle** | Die letzten Zeilen, die das Plugin über den Host geschrieben hat. |
+| **Metadaten** | Nur bei einem Metadaten-Plugin: die Felder, die es ersetzt, und der Abruf der vorhandenen Bibliothek ([weiter unten](#metadata-plugins)). |
 | **Deinstallieren** | Entfernt den Prozess, die Dateien und die gespeicherten Daten des Plugins. |
 
 **Ressourcenlimits** oben auf der Seite begrenzt jeden Plugin-Prozess. Die
@@ -126,6 +127,39 @@ erklärt, was zu ändern ist.
 
 Plugins sind standardmäßig eingeschaltet. `EVEY_PLUGINS_ENABLED=false`
 schaltet das gesamte Plugin-System ab.
+
+## Metadaten-Plugins { #metadata-plugins }
+
+Ein Metadaten-Plugin (Fähigkeit `metadata.provider`) liefert eigenen Text für
+Ihre Filme und Serien, aus einer anderen Quelle als TMDB. Es ersetzt TMDB
+nicht: TMDB erkennt weiterhin jeden Titel und liefert Besetzung, Bilder,
+Bewertungen, Sammlungen und Übersetzungen. Der Text des Plugins wird neben dem
+von TMDB gespeichert und Feld für Feld an seiner Stelle angezeigt.
+
+Was ein Zuschauer liest, vom schwächsten zum stärksten:
+
+1. der Text von TMDB, in der Sprache des Zuschauers, wenn TMDB ihn hat;
+2. der Text des Plugins in dieser Sprache, für die Felder, die das Plugin
+   ersetzen darf;
+3. Ihre eigene Korrektur des Titels (**Metadaten bearbeiten** auf seiner
+   Seite), die immer Vorrang hat.
+
+**Metadaten** auf der Karte des Plugins wählt die Felder, die es ersetzt,
+unter **Titel**, **Beschreibung** und **Slogan**. Solange Sie nichts gewählt
+haben, ersetzt ein Plugin die Beschreibung und den Slogan, nie den Titel. Eine
+Änderung gilt sofort für das, was das Plugin bereits geliefert hat; nichts wird
+erneut abgerufen.
+
+Das Plugin wird zu jedem Film und jeder Serie befragt, wenn sie zugeordnet
+oder aktualisiert werden. **Für die ganze Bibliothek abrufen** im selben Bereich
+befragt es zu den bereits vorhandenen Titeln, einem nach dem anderen, zeigt
+den Fortschritt und am Ende, wie viele es gefunden hat und wie viele ohne
+Antwort blieben. Eine Aktualisierung des Titels von TMDB überschreibt den Text
+des Plugins nie; das Plugin zu deaktivieren blendet diesen Text aus, es zu
+deinstallieren löscht ihn.
+
+Staffeln und Episoden behalten den Text von TMDB, und die Suche findet weiterhin
+die Titel von TMDB.
 
 ## Was ein Plugin auf Ihrem Host tun kann { #what-a-plugin-can-do-on-your-host }
 

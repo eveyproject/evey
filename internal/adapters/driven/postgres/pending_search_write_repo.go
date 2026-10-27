@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
@@ -19,7 +20,8 @@ func NewPendingSearchWriteRepository(db *sql.DB) *PendingSearchWriteRepository {
 }
 
 // Enqueue records a failed write, last-op-wins per item (a later op overwrites a
-// pending earlier one for the same item).
+// pending earlier one for the same item). A new write also clears the refusal
+// count and revives a dead-lettered row: the document it replays has changed.
 func (r *PendingSearchWriteRepository) Enqueue(ctx context.Context, mediaItemID, op string) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.pending_search_index.Enqueue")
 	defer span.End()
@@ -28,7 +30,8 @@ func (r *PendingSearchWriteRepository) Enqueue(ctx context.Context, mediaItemID,
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO pending_search_index (media_item_id, op, enqueued_at)
 		 VALUES ($1, $2, now())
-		 ON CONFLICT (media_item_id) DO UPDATE SET op = EXCLUDED.op, enqueued_at = now()`,
+		 ON CONFLICT (media_item_id) DO UPDATE SET op = EXCLUDED.op, enqueued_at = now(),
+		     attempts = 0, dead_lettered_at = NULL`,
 		mediaItemID, op)
 	return err
 }
@@ -43,7 +46,7 @@ func (r *PendingSearchWriteRepository) List(ctx context.Context, limit int) ([]l
 		limit = 500
 	}
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT media_item_id, op FROM pending_search_index ORDER BY enqueued_at LIMIT $1`, limit)
+		`SELECT media_item_id, op FROM pending_search_index WHERE dead_lettered_at IS NULL ORDER BY enqueued_at LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -68,4 +71,25 @@ func (r *PendingSearchWriteRepository) Delete(ctx context.Context, mediaItemID s
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
 		`DELETE FROM pending_search_index WHERE media_item_id = $1`, mediaItemID)
 	return err
+}
+
+// RecordFailure counts one refusal of the item's document by the engine and
+// dead-letters the row once maxAttempts is reached. Reports whether it did.
+func (r *PendingSearchWriteRepository) RecordFailure(ctx context.Context, mediaItemID string, maxAttempts int) (bool, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.pending_search_index.RecordFailure")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	var dead bool
+	err := txFromCtx(ctx, r.db).QueryRowContext(ctx,
+		`UPDATE pending_search_index
+		 SET attempts = attempts + 1,
+		     dead_lettered_at = CASE WHEN attempts + 1 >= $2 THEN now() END
+		 WHERE media_item_id = $1
+		 RETURNING dead_lettered_at IS NOT NULL`,
+		mediaItemID, maxAttempts).Scan(&dead)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return dead, err
 }

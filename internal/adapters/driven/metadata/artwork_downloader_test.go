@@ -92,3 +92,17 @@ func TestArtworkDownloader_SSRFBlocksLoopback(t *testing.T) {
 		t.Fatalf("expected ErrBlockedPrivateIP in chain, got %v", err)
 	}
 }
+
+// TestNewArtworkHTTPDownloader_DefaultClientIgnoresProxy: artwork URLs come
+// from external sources, and through an HTTP(S)_PROXY the safe dialer would
+// only ever see the proxy, never the real (possibly private) destination.
+func TestNewArtworkHTTPDownloader_DefaultClientIgnoresProxy(t *testing.T) {
+	d := NewArtworkHTTPDownloader(nil)
+	tr, ok := d.httpClient.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("default transport is %T, want *http.Transport", d.httpClient.Transport)
+	}
+	if tr.Proxy != nil {
+		t.Fatal("the artwork client must not route through an environment proxy")
+	}
+}

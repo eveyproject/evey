@@ -14,13 +14,12 @@ import (
 
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/config"
-	domainuser "github.com/eveyproject/evey/internal/domain/user"
 	"github.com/eveyproject/evey/internal/pkg/quickconnecthub"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
 type qcTokenChecker interface {
-	checkAndGenerateTokens(ctx context.Context, code string, persistent bool) (string, string, bool, error)
+	checkAndGenerateTokens(ctx context.Context, code, secret string, persistent bool) (string, string, bool, error)
 }
 
 type qcCheckerAdapter struct {
@@ -29,12 +28,13 @@ type qcCheckerAdapter struct {
 	cfg   *config.Config
 }
 
-func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code string, persistent bool) (string, string, bool, error) {
-	qc, err := a.query.CheckQuickConnect(ctx, code)
+func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code, secret string, persistent bool) (string, string, bool, error) {
+	// Claimed, not just read: two collectors on one code mint one session.
+	qc, err := a.auth.ClaimQuickConnect(ctx, code, secret)
 	if err != nil {
 		return "", "", false, err
 	}
-	if qc.Status != domainuser.Authorized || qc.UserID == nil {
+	if qc == nil {
 		return "", "", false, nil
 	}
 	// What the device asked for when it STARTED the pairing decides the
@@ -77,6 +77,12 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) ht
 		span.End()
 
 		persistent := strings.EqualFold(r.Header.Get("X-Persistent-Session"), "true")
+		// Normally lifted into the header by the redaction middleware; the
+		// query is read for a stream that reached this handler without it.
+		secret := r.Header.Get(quickConnectSecretHeader)
+		if secret == "" {
+			secret = r.URL.Query().Get("secret")
+		}
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -107,7 +113,7 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) ht
 				fmt.Fprintf(w, ": ping\n\n")
 				flusher.Flush()
 			case <-ch:
-				access, refresh, authorized, err := checker.checkAndGenerateTokens(r.Context(), code, persistent)
+				access, refresh, authorized, err := checker.checkAndGenerateTokens(r.Context(), code, secret, persistent)
 				if err != nil || !authorized {
 					slog.WarnContext(r.Context(), "quickconnect sse: check failed after notify", slog.Any("err", err))
 					fmt.Fprintf(w, "data: {\"event\":\"error\"}\n\n")
@@ -125,4 +131,19 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) ht
 			}
 		}
 	}
+}
+
+// withQuickConnectSecretQuery gives the gateway the secret a polling client
+// sent as a header (or that the redaction middleware lifted out of the URL):
+// the generated route only binds its request from the query string.
+func withQuickConnectSecretQuery(r *http.Request) *http.Request {
+	sec := r.Header.Get(quickConnectSecretHeader)
+	if sec == "" || r.URL.Query().Get("secret") != "" {
+		return r
+	}
+	r2 := r.Clone(r.Context())
+	q := r2.URL.Query()
+	q.Set("secret", sec)
+	r2.URL.RawQuery = q.Encode()
+	return r2
 }

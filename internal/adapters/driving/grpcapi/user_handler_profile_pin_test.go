@@ -128,15 +128,15 @@ func TestUpdateProfile_AdminOnAnotherUsersProfileProvesTheirPassword(t *testing.
 	assert.Equal(t, "hashed:2222", storedPINHash(t, env))
 }
 
-// 15 wrong PINs in a row and the profile's budget is spent: the 16th attempt
-// is refused before it is even compared, right PIN or not.
+// 5 wrong PINs in a row lock the profile: the next attempt is refused before
+// it is even compared, right PIN or not.
 func TestUpdateProfile_CurrentPINAttemptsAreRateLimited(t *testing.T) {
 	env := setupUserHandler()
 	seedPINProfile(t, env, "hashed:1111")
 	ctx := userCtx("usr-1", "prf-1")
 	newPIN, wrong := "2222", "0000"
 
-	for range 15 {
+	for range 5 {
 		_, err := env.handler.UpdateProfile(ctx, &eveyv1.UpdateProfileRequest{Id: "prf-1", Pin: &newPIN, CurrentPin: &wrong})
 		assertCode(t, err, codes.PermissionDenied)
 	}

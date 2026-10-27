@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches:
-      - main
       - master
       # Beta/alpha branches publish their own tag; `latest` stays on semver tags.
       - 'beta-*'
@@ -16,7 +15,7 @@ on:
       - 'wiki/**'
       - '**/*.md'
   pull_request:
-    branches: [main, master]
+    branches: [master, dev]
     paths-ignore:
       - 'docs/**'
       - 'wiki/**'
@@ -35,7 +34,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref_type != 'tag' }}
 
 # Least privilege by default; the docker job widens it for ghcr only.
-# pull-requests: read lets golangci-lint compute only-new-issues on a PR.
+# pull-requests: read is what the lint action asks for on a pull request.
 permissions:
   contents: read
   pull-requests: read
@@ -113,24 +112,36 @@ jobs:
           "$BIN" ./cmd/... ./internal/...
 
       # Ratchet: only issues introduced by the push/PR diff fail; skipped on tags (no diff base).
-      - name: lint (golangci-lint, new issues only)
-        # A branch's first push has no `before`: the action 404s on the compare.
+      # The base is a git revision, not the action's only-new-issues: that one reads the
+      # pull request's patch from the API, which stops at 300 files, so a release pull
+      # request (dev into master) lost its ratchet and every legacy finding failed it.
+      - name: lint base (merge-base of the pull request, or the pushed-from commit)
+        id: lintbase
         if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.event.before != '0000000000000000000000000000000000000000')
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base=$(git merge-base "${{ github.event.pull_request.base.sha }}" HEAD)
+          else
+            base="${{ github.event.before }}"
+          fi
+          echo "sha=$base" >> "$GITHUB_OUTPUT"
+      - name: lint (golangci-lint, new issues only)
+        if: steps.lintbase.outputs.sha != ''
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
         with:
           version: v2.14.0
-          only-new-issues: true
+          only-new-issues: false
+          args: --new-from-rev=${{ steps.lintbase.outputs.sha }}
 
       # Curated high-signal gosec rules (.golangci.gosec.yml), same ratchet.
       - name: gosec security scan (curated, new issues only)
-        # A branch's first push has no `before`: the action 404s on the compare.
-        if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch' && github.event.before != '0000000000000000000000000000000000000000')
+        if: steps.lintbase.outputs.sha != ''
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
         with:
           version: v2.14.0
-          only-new-issues: true
+          only-new-issues: false
           skip-save-cache: true
-          args: --config=.golangci.gosec.yml
+          args: --config=.golangci.gosec.yml --new-from-rev=${{ steps.lintbase.outputs.sha }}
 
       - name: build
         run: go build ./...
@@ -367,6 +378,8 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          sbom: true
+          provenance: mode=max
           labels: ${{ needs.docker-plan.outputs.full-labels }}
           build-args: |
             VERSION=${{ needs.docker-plan.outputs.full-version }}
@@ -385,6 +398,8 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          sbom: true
+          provenance: mode=max
           labels: ${{ needs.docker-plan.outputs.full-labels }}
           build-args: |
             VERSION=${{ needs.docker-plan.outputs.full-version }}
@@ -414,6 +429,8 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          sbom: true
+          provenance: mode=max
           labels: ${{ needs.docker-plan.outputs.lean-labels }}
           build-args: |
             VERSION=${{ needs.docker-plan.outputs.lean-version }}
@@ -431,6 +448,8 @@ jobs:
         with:
           context: .
           platforms: ${{ matrix.platform }}
+          sbom: true
+          provenance: mode=max
           labels: ${{ needs.docker-plan.outputs.nodejs-labels }}
           build-args: |
             VERSION=${{ needs.docker-plan.outputs.nodejs-version }}
@@ -469,6 +488,7 @@ jobs:
     permissions:
       contents: read
       packages: write # required to push to ghcr.io
+      id-token: write # keyless cosign: the workflow's OIDC identity is the signer
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
@@ -571,6 +591,27 @@ jobs:
           refs=$(for f in /tmp/digests/nodejs-*; do echo "docker.io/eveyproject/evey@sha256:${f##*/nodejs-}"; done)
           # shellcheck disable=SC2086 # words are tags and refs, none contains a space
           docker buildx imagetools create $targs $refs
+
+      - name: Install cosign
+        if: steps.ops.outcome == 'success'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # Signed by digest, so every tag copied from the same manifest list is covered; only booted images get here.
+      - name: Sign the published manifest lists (keyless)
+        if: steps.ops.outcome == 'success'
+        env:
+          IMG: ${{ steps.immutable.outputs.full }}
+          TAG_LEAN: ${{ steps.build-lean.outcome == 'success' && needs.docker-plan.outputs.lean-tags || '' }}
+          TAG_NODEJS: ${{ steps.build-nodejs.outcome == 'success' && needs.docker-plan.outputs.nodejs-tags || '' }}
+        run: |
+          set -eu
+          for ref in "$IMG" "$(printf '%s\n' "$TAG_LEAN" | head -1)" "$(printf '%s\n' "$TAG_NODEJS" | head -1)"; do
+            [ -n "$ref" ] || continue
+            digest=$(docker buildx imagetools inspect "$ref" --format '{{json .Manifest}}' | jq -r .digest)
+            case "$digest" in sha256:*) ;; *) echo "::error::no digest for $ref"; exit 1 ;; esac
+            echo "sign ${ref%:*}@${digest}"
+            cosign sign --yes "${ref%:*}@${digest}"
+          done
 
       # GHCR is a best-effort mirror: a refusal must not fail a run already shipped to Docker Hub.
       - name: Mirror tags to GHCR (best effort)

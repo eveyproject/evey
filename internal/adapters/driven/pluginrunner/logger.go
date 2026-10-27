@@ -17,6 +17,10 @@ import (
 const defaultLogDir = "/data/logs/plugins"
 const defaultMaxFileSize int64 = 5 << 20 // 5MB
 
+const defaultMaxDayBytes int64 = 50 << 20 // 50MB per plugin per day
+
+const logCapNotice = "[WARN] daily log budget reached; further plugin output is dropped until tomorrow\n"
+
 // PluginLister returns installed plugin IDs (used for orphan cleanup).
 type PluginLister interface {
 	ListIDs(ctx context.Context) ([]string, error)
@@ -30,6 +34,11 @@ type pluginLogWriter struct {
 	current  *os.File
 	curDate  string
 	curSize  int64
+	// Rotation alone never bounds disk use: past maxSize a plugin opens
+	// hourly files, and an hour's file keeps growing. This caps the day.
+	maxDayBytes int64
+	dayBytes    int64
+	capped      bool
 }
 
 func (w *pluginLogWriter) Write(p []byte) (int, error) {
@@ -43,15 +52,55 @@ func (w *pluginLogWriter) Write(p []byte) (int, error) {
 	if w.current == nil {
 		return 0, errors.New("no log file")
 	}
+	if w.dayBytes+int64(len(p)) > w.maxDayBytes {
+		if !w.capped {
+			w.capped = true
+			n, _ := io.WriteString(w.current, logCapNotice) //nolint:errcheck // best-effort notice; the capped write reports success anyway
+			w.curSize += int64(n)
+		}
+		// Report success: an error would break the copy from the plugin's
+		// stdout pipe and stall or kill the plugin on its next write.
+		return len(p), nil
+	}
 	n, err := w.current.Write(p)
 	w.curSize += int64(n)
+	w.dayBytes += int64(n)
 	return n, err
+}
+
+// existingDayBytes sums the plugin's files for day, so a restarted server
+// resumes the budget instead of granting a fresh one.
+func (w *pluginLogWriter) existingDayBytes(day string) int64 {
+	entries, err := os.ReadDir(w.dir)
+	if err != nil {
+		return 0
+	}
+	prefix := w.pluginID + "-" + day
+	var total int64
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, ".log") {
+			continue
+		}
+		if rest := strings.TrimSuffix(name[len(prefix):], ".log"); rest != "" && (len(rest) != 3 || rest[0] != '-') {
+			continue
+		}
+		if info, infoErr := e.Info(); infoErr == nil {
+			total += info.Size()
+		}
+	}
+	return total
 }
 
 func (w *pluginLogWriter) rotate(today string) {
 	if w.current != nil {
 		w.current.Close()
 		w.current = nil
+	}
+
+	if w.curDate != today {
+		w.dayBytes = w.existingDayBytes(today)
+		w.capped = w.dayBytes >= w.maxDayBytes
 	}
 
 	name := w.pluginID + "-" + today + ".log"
@@ -115,9 +164,10 @@ func (l *PluginLogger) getOrCreateWriter(pluginID string) *pluginLogWriter {
 		slog.Warn("plugin logger: create log dir", slog.Any("err", err))
 	}
 	w := &pluginLogWriter{
-		dir:      l.logDir,
-		pluginID: pluginID,
-		maxSize:  defaultMaxFileSize,
+		dir:         l.logDir,
+		pluginID:    pluginID,
+		maxSize:     defaultMaxFileSize,
+		maxDayBytes: defaultMaxDayBytes,
 	}
 	l.writers[pluginID] = w
 	return w

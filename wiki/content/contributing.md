@@ -35,6 +35,10 @@ start before proposing to change one of those choices.
    hygiene, secret scan, proto breaking-change check, a build from a clean
    checkout, the repository and transcoding integration gates, and the TV
    audit.
+   A push to `dev` or to a work branch runs `make pre-push-dev` instead: the
+   same gate without the long suites that the pull request's CI runs again
+   on the same commits (vulnerability scan, frontend tests and build, the
+   repository suite, the TV audit); a push to `master` runs the full gate.
 2. Add tests for new behaviour and for every bug fix.
 3. For an external contribution, accept the
    [contributor licence agreement](../CLA.md) once: Evey is AGPL-3.0-or-later
@@ -50,6 +54,6 @@ Security issues are not reported in public: write to
 `security@eveyproject.org` (see [SECURITY.md](../SECURITY.md)).
 
 <!-- sources
-gate: Makefile - pre-push, ci-fast-vet, ci-fast-vuln, ci-fast-build, ci-fast-unit, ci-fast-frontend, ci-fast-sec, ci-local-lint, ci-arch, ci-hygiene, ci-secrets, ci-proto-breaking, ci-clean-checkout, repo-itest-gate, transcode-itest-gate, tv-audit
+gate: Makefile - pre-push, pre-push-dev, ci-fast-vet, ci-fast-frontend-static, ci-fast-vuln, ci-fast-build, ci-fast-unit, ci-fast-frontend, ci-fast-sec, ci-local-lint, ci-arch, ci-hygiene, ci-secrets, ci-proto-breaking, ci-clean-checkout, repo-itest-gate, transcode-itest-gate, tv-audit
 documents: DEV.md ; CONTRIBUTING.md ; CLA.md ; SECURITY.md ; docs/CODEBASE_MAP.md ; docs/code-conventions.md ; docs/frontend-design-system.md ; docs/adr/README.md ; docs/runbooks/release.md
 -->

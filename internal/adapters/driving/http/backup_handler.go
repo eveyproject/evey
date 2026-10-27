@@ -155,6 +155,8 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 			if errors.Is(err, appbackup.ErrInvalidBackup) {
 				slog.WarnContext(ctx, "restore backup rejected: invalid or tampered archive", slog.Any("err", err))
 				http.Error(w, `{"message":"backup rejected: invalid or tampered archive"}`, http.StatusUnprocessableEntity)
+			} else if errors.Is(err, appbackup.ErrOperationInProgress) {
+				http.Error(w, `{"message":"a backup or restore is already running"}`, http.StatusConflict)
 			} else {
 				slog.ErrorContext(ctx, "restore backup failed", slog.Any("err", err))
 				http.Error(w, `{"message":"restore failed"}`, http.StatusInternalServerError)

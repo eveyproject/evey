@@ -42,7 +42,7 @@
     "expo-secure-store": "55.0.13",
     "expo-video": "55.0.16",
     "i18next": "26.4.0",
-    "i18next-http-backend": "4.0.0",
+    "i18next-http-backend": "4.0.6",
     "nativewind": "4.2.3",
     "react": "19.2.0",
     "react-i18next": "17.0.6",
@@ -63,7 +63,7 @@
     "@types/react": "19.2.14",
     "react-dom": "19.2.0",
     "typescript": "5.9.3",
-    "vitest": "4.0.18"
+    "vitest": "4.1.12"
   },
   "expo": {
     "autolinking": {

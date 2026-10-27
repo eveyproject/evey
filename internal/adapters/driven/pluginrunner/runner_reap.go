@@ -60,7 +60,7 @@ func (r *Runner) ReapStaleProcesses() int {
 			continue
 		}
 		uid, uidErr := procUID(pid)
-		if uidErr != nil || (uid != myUID && uid != pluginUID) {
+		if uidErr != nil || (uid != myUID && !isPluginUID(uid)) {
 			continue
 		}
 		victims = append(victims, pid)
@@ -132,7 +132,7 @@ func (r *Runner) stillReapable(pid, myUID int) bool {
 		return false
 	}
 	uid, err := procUID(pid)
-	return err == nil && (uid == myUID || uid == pluginUID)
+	return err == nil && (uid == myUID || isPluginUID(uid))
 }
 
 // procUID returns the real uid of pid from /proc/<pid>/status.

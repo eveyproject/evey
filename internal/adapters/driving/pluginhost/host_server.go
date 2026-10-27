@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -65,6 +66,7 @@ type HostServer struct {
 	rpcLimiter      *ratelimit.Limiter                // per-plugin HostService RPC rate limit (anti-flood)
 	data            plugindomain.PluginDataRepository // plugin-global key/value store; nil disables the data RPCs
 	activity        func(pluginID string)             // interaction signal for the idle manager; nil = disabled
+	pluginTexts     library.PluginTextRepository      // metadata plugins' texts; nil disables UpdateMetadata
 
 	mu       sync.RWMutex
 	registry map[string]*pluginEntry
@@ -106,6 +108,13 @@ func NewHostServer(
 // Unimplemented.
 func (h *HostServer) WithDataStore(repo plugindomain.PluginDataRepository) *HostServer {
 	h.data = repo
+	return h
+}
+
+// WithPluginTexts wires the metadata plugins' text store, enabling
+// UpdateMetadata. Without it that RPC returns Unimplemented.
+func (h *HostServer) WithPluginTexts(store library.PluginTextRepository) *HostServer {
+	h.pluginTexts = store
 	return h
 }
 
@@ -397,8 +406,87 @@ func (h *HostServer) ListMediaItems(ctx context.Context, req *pluginv1.ListMedia
 	return &pluginv1.ListMediaItemsResponse{Items: pbItems, Total: int32(total)}, nil
 }
 
-func (h *HostServer) UpdateMetadata(_ context.Context, _ *pluginv1.UpdateMetadataRequest) (*pluginv1.UpdateMetadataResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "UpdateMetadata not yet implemented")
+// UpdateMetadata lets a metadata plugin (capability metadata.provider) give
+// its text for one movie or series in one locale, at any time: a correction,
+// a catalogue it keeps up to date. It is the answer to metadata.request sent
+// unasked, stored the same way: beside TMDB's text, shown through the fields
+// the administrator allows. fields carries "locale" (required) and any of
+// "title", "overview", "tagline"; the text replaces what the plugin gave for
+// that locale, and a text with no field removes it. provider_ids is refused:
+// TMDB is the item's identity, a plugin does not rematch it.
+func (h *HostServer) UpdateMetadata(ctx context.Context, req *pluginv1.UpdateMetadataRequest) (*pluginv1.UpdateMetadataResponse, error) {
+	ctx, span := tracing.StartSpan(ctx, "pluginhost.UpdateMetadata")
+	defer span.End()
+	if h.pluginTexts == nil {
+		return nil, status.Error(codes.Unimplemented, "UpdateMetadata is not available on this server")
+	}
+	pluginID := pluginIDFromCtx(ctx)
+	p, err := h.plugins.GetByID(ctx, pluginID)
+	if err != nil || p == nil {
+		return nil, status.Error(codes.PermissionDenied, "unknown plugin")
+	}
+	if !slices.Contains(p.Capabilities, plugindomain.CapabilityMetadataProvider) {
+		return nil, status.Errorf(codes.PermissionDenied, "plugin %s lacks the %s capability", pluginID, plugindomain.CapabilityMetadataProvider)
+	}
+	if len(req.GetProviderIds()) > 0 {
+		return nil, status.Error(codes.InvalidArgument, "provider_ids cannot be set: TMDB is the item's identity")
+	}
+	text := library.PluginText{MediaItemID: req.GetMediaItemId(), PluginID: pluginID}
+	for k, v := range req.GetFields() {
+		v = strings.TrimSpace(v)
+		if len(v) > maxPluginTextField {
+			return nil, status.Errorf(codes.InvalidArgument, "field %q is longer than %d bytes", k, maxPluginTextField)
+		}
+		switch k {
+		case "locale":
+			text.Locale = normalizePluginLocale(v)
+		case plugindomain.MetadataFieldTitle:
+			text.Title = v
+		case plugindomain.MetadataFieldOverview:
+			text.Overview = v
+		case plugindomain.MetadataFieldTagline:
+			text.Tagline = v
+		default:
+			return nil, status.Errorf(codes.InvalidArgument, "unknown field %q (locale, title, overview, tagline)", k)
+		}
+	}
+	if text.Locale == "" {
+		return nil, status.Error(codes.InvalidArgument, `fields["locale"] is required (a language code such as "fr")`)
+	}
+	item, err := h.mediaItems.GetByID(ctx, shared.MediaItemID(req.GetMediaItemId()))
+	if err != nil || item == nil {
+		return nil, status.Error(codes.NotFound, "media item not found")
+	}
+	if item.Type != library.MovieItem && item.Type != library.Series {
+		return nil, status.Errorf(codes.FailedPrecondition, "a metadata plugin covers movies and series, not a %s", item.Type)
+	}
+	if err := h.pluginTexts.ReplaceLocale(ctx, text); err != nil {
+		span.RecordError(err)
+		return nil, status.Error(codes.Internal, "store the plugin's text")
+	}
+	return &pluginv1.UpdateMetadataResponse{Success: true}, nil
+}
+
+// maxPluginTextField bounds one field a plugin gives, as the answer to
+// metadata.request is bounded.
+const maxPluginTextField = 8 << 10
+
+// normalizePluginLocale keeps the language of a locale tag ("fr-FR" -> "fr"),
+// "" when it is not one.
+func normalizePluginLocale(l string) string {
+	l = strings.ToLower(l)
+	if i := strings.IndexAny(l, "-_"); i >= 0 {
+		l = l[:i]
+	}
+	if len(l) < 2 || len(l) > 3 {
+		return ""
+	}
+	for _, c := range l {
+		if c < 'a' || c > 'z' {
+			return ""
+		}
+	}
+	return l
 }
 
 func (h *HostServer) GetUserPreferences(_ context.Context, _ *pluginv1.GetUserPreferencesRequest) (*pluginv1.GetUserPreferencesResponse, error) {
@@ -538,10 +626,25 @@ func (h *HostServer) SetData(ctx context.Context, req *pluginv1.SetDataRequest) 
 	if req.Key == "" {
 		return nil, status.Error(codes.InvalidArgument, "key is required")
 	}
-	if err := h.data.Set(ctx, pluginIDFromCtx(ctx), "", "", req.Key, req.Value); err != nil {
+	pluginID := pluginIDFromCtx(ctx)
+	if err := plugindomain.CheckPluginDataWrite(ctx, h.data, pluginID, "", "", req.Key, req.Value); err != nil {
+		return nil, dataWriteStatus(err)
+	}
+	if err := h.data.Set(ctx, pluginID, "", "", req.Key, req.Value); err != nil {
 		return nil, status.Errorf(codes.Internal, "set data: %v", err)
 	}
 	return &pluginv1.SetDataResponse{}, nil
+}
+
+// dataWriteStatus maps a refused data write to its gRPC code.
+func dataWriteStatus(err error) error {
+	switch {
+	case errors.Is(err, plugindomain.ErrPluginDataTooLarge):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, plugindomain.ErrPluginDataFull):
+		return status.Error(codes.ResourceExhausted, err.Error())
+	}
+	return status.Errorf(codes.Internal, "set data: %v", err)
 }
 
 func (h *HostServer) DeleteData(ctx context.Context, req *pluginv1.DeleteDataRequest) (*pluginv1.DeleteDataResponse, error) {

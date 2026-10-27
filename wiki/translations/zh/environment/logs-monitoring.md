@@ -1,5 +1,5 @@
 ---
-source_sha: 0bab686b9f686329111402f3fd66ecca742fbcfae479769927962bdcf8eeadcd
+source_sha: 84d4aedb514ecf260e351de19cd0ddda1771d2b1ed9173179da8a7b9ff4e192a
 reviewed: true
 ---
 # 备份、日志和监控 { #backups-logs-and-monitoring }
@@ -49,7 +49,7 @@ reviewed: true
 
 | 变量 | 默认值 | 作用 | 面板 |
 | --- | --- | --- | --- |
-| `EVEY_LOG_DEV_MODE` | `false` | 开发者模式：启动时的安全检查只给出警告，插件可以在没有沙箱库的情况下运行。绝不要在真正的服务器上开启；如果设置了 `EVEY_ENV=production`，服务器会拒绝启动。 | 无 |
+| `EVEY_LOG_DEV_MODE` | `false` | 开发者模式：启动时的安全检查只给出警告，插件可以在没有沙箱库的情况下运行。只有同时设置 `EVEY_ENV=dev` 才会生效；单独设置时会被忽略并给出警告。绝不要在真正的服务器上开启。 | 无 |
 
 <!-- sources
 internal/config/config.go - EVEY_BACKUP_*, EVEY_LOG_*, EVEY_*_RETENTION_DAYS, EVEY_METRICS_*, EVEY_OTLP_ENDPOINT, EVEY_TRACING_* ; ScrapeToken comment ; WarnValidate (DevMode, sample ratio)

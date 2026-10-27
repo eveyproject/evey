@@ -44,7 +44,7 @@ func newParentalMux(t *testing.T) (*http.ServeMux, *auth.JWTGenerator) {
 	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "user-1", Username: "u1", PasswordHash: "hashed:secret"})
 	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "admin-1", Username: "a1", IsAdmin: true, PasswordHash: "hashed:secret"})
 	mux := http.NewServeMux()
-	registerParentalRoutes(mux, profileRepo, userRepo, hasher, gen)
+	isolatePINAttempts(registerParentalRoutes(mux, profileRepo, userRepo, hasher, gen))
 	return mux, gen
 }
 

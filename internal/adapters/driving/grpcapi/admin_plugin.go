@@ -53,6 +53,10 @@ type adminPluginHandler struct {
 	// FailedPrecondition. Listing/reading is left open so the admin UI
 	// can surface "plugins disabled" instead of breaking the page.
 	enabled bool
+	// metadata plugins: the fields each may replace and its library walk.
+	// nil when not wired (the RPCs then answer FailedPrecondition).
+	metadataSettings pluginMetadataSettings
+	metadataRefresh  pluginMetadataRefresher
 }
 
 // requireEnabled gates state-changing or executing plugin operations.
@@ -205,7 +209,7 @@ func (d *adminPluginHandler) installPluginError(ctx context.Context, err error) 
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, appplugin.ErrInvalidManifest), errors.Is(err, appplugin.ErrHashMismatch):
 		return status.Error(codes.InvalidArgument, err.Error())
-	case errors.Is(err, appplugin.ErrSourceUnavailable):
+	case errors.Is(err, appplugin.ErrSourceUnavailable), errors.Is(err, appplugin.ErrServerTooOld):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, appplugin.ErrPublisherChanged):
 		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.publisher_changed")

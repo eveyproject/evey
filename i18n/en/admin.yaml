@@ -138,6 +138,23 @@ artworks:
   purgeVariantsFailed: Failed to purge variants
 
 plugin:
+  metadata:
+    title: "Metadata"
+    description: "This plugin can replace the text TMDB gives, field by field. TMDB stays the source of the match, the cast and the artwork."
+    fieldsLabel: "Fields this plugin replaces"
+    fields:
+      title: "Title"
+      overview: "Overview"
+      tagline: "Tagline"
+    save: "Save"
+    saved: "Metadata fields saved"
+    saveFailed: "Failed to save the metadata fields"
+    refresh: "Fetch for the whole library"
+    refreshHint: "New movies and series are fetched as they are added. This asks the plugin about the ones already in the library, one after the other."
+    refreshStarted: "Fetching the library from this plugin"
+    refreshFailed: "Failed to start the fetch"
+    running: "Fetching: {{done}} of {{total}}"
+    finished: "Last fetch: {{covered}} of {{total}} found, {{failed}} without an answer"
   copySourceHash: "Copy source hash"
   enabled: Enabled
   disabled: Disabled
@@ -382,6 +399,8 @@ users:
   libraryAccessUpdated: Library access updated
   failedLibraryAccess: Failed to update library access
   clearAllUnrestricted: Clear all (unrestricted)
+  noLibraries: "No library"
+  noLibrariesDesc: "This user is restricted but no library is left: every grant was revoked or the libraries were deleted. Tick libraries to grant access, or save with none selected to lift the restriction."
   bitrate: Bitrate
   maxBitrateTitle: "Max Bitrate - {{name}}"
   maxBitrateDesc: "Limit the maximum streaming bitrate for this user. 0 = unlimited."

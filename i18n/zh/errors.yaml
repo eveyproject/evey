@@ -198,6 +198,9 @@ plugin:
   publisher_not_found: "未找到受信任的发布者"
   publisher_seeded: "服务器密钥不能从受信任的发布者中移除"
   publisher_changed: "此更新由与已安装版本不同的发布者签名 - 请接受新的发布者后再应用"
+  not_metadata_provider: "此插件不提供元数据"
+  metadata_field_unknown: "元数据插件只能替换标题、简介和宣传语"
+  metadata_refresh_running: "已在从此插件获取媒体库"
   signature_lost: "此更新不再签名，而已安装的版本是签名的 - 请接受未签名的更新后再应用"
 
 demo:
