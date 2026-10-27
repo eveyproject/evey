@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 
-const fetchMock = vi.fn(async () => ({ authorized: false }));
-vi.mock("./fetcher", () => ({ eveyFetch: (...a: unknown[]) => fetchMock(...a) }));
+const fetchMock = vi.fn(async (_req: unknown) => ({ authorized: false }));
+vi.mock("./fetcher", () => ({ eveyFetch: (req: unknown) => fetchMock(req) }));
 
 import { checkQuickConnect, QUICK_CONNECT_SECRET_HEADER } from "./quickConnectCheck";
 
