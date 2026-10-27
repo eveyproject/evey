@@ -26,6 +26,9 @@ export default defineConfig({
     // 4-vCPU CI runner the jsdom suite was the frontend job's 18 minutes.
     environment: "happy-dom",
     setupFiles: ["./src/test/setup.ts"],
+    // The admin settings page mounts every section in happy-dom: close to
+    // five seconds on a two-core machine, so the default limit flaked under load.
+    testTimeout: 15_000,
     css: false,
   },
 });

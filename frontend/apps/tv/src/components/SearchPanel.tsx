@@ -46,6 +46,7 @@ function TVSearchSeparator() {
 // (instead of an inline JSX ternary) proves by construction that exactly
 // one view - and so exactly one initial-focus claimant - is ever rendered.
 import { selectSearchResultsView, type SearchResultsView } from "@evey/client";
+import { useMediaPrefetch } from "../hooks/useMediaPrefetch";
 
 export { selectSearchResultsView };
 export type { SearchResultsView };
@@ -127,6 +128,7 @@ export interface SearchPanelProps {
 }
 
 export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchPanelProps) {
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const theme = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
@@ -210,7 +212,6 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
               source={{ uri, headers: authHeaders }}
               style={{ width: 72, height: 72 }}
               contentFit="cover"
-              transition={150}
               recyclingKey={item.id}
             />
           ) : (
@@ -240,6 +241,8 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
           onNavigate?.();
           router.push(`/media/${item.id}`);
         }}
+        onFocus={() => prefetchOnFocus(item.id)}
+        onBlur={cancelPrefetch}
         style={[styles.row, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
         hasTVPreferredFocus={index === 0 && !inputFocused}
         accessibilityLabel={displayTitle(item, t)}
@@ -251,7 +254,6 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
               source={{ uri: posterUri, headers: authHeaders }}
               style={{ width: 80, height: 120 }}
               contentFit="cover"
-              transition={150}
               recyclingKey={item.id}
             />
           ) : (
@@ -280,7 +282,7 @@ export function SearchPanel({ hasTVPreferredFocus = false, onNavigate }: SearchP
         </View>
       </FocusableCard>
     );
-  }, [theme, router, typeLabel, t, serverUrl, authHeaders, onNavigate, inputFocused]);
+  }, [theme, router, typeLabel, t, serverUrl, authHeaders, onNavigate, inputFocused, prefetchOnFocus, cancelPrefetch]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>

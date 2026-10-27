@@ -10,7 +10,7 @@ import { useLocaleStore } from "@evey/store";
 import { registerServiceWorker } from "@/lib/webpush";
 import { setupOnlineManager } from "@/lib/online-manager";
 import { mutationErrorNet } from "@/lib/mutationErrorNet";
-import { onDocumentVisible, refreshHomeLayoutOnForeground } from "@evey/client";
+import { localQueryStorage, onDocumentVisible, persistQueryCache, queryCacheScope, refreshHomeLayoutOnForeground, restoreQueryCache } from "@evey/client";
 import { shouldRetryQuery } from "@/lib/queryRetry";
 import { nextRefreshDelay } from "@/lib/tokenRefreshDelay";
 import { ThemeLoader } from "@/features/themes/ThemeLoader";
@@ -213,6 +213,10 @@ const queryClient = queryClientRef = new QueryClient({
 // The home layout changed from another device shows as soon as this tab is looked at again.
 refreshHomeLayoutOnForeground(queryClient, onDocumentVisible);
 
+// The last visit's first screens are shown while they refresh (see queryPersist).
+const currentQueryScope = () => queryCacheScope(location.origin, useAuthStore.getState().profileId);
+persistQueryCache(queryClient, localQueryStorage, currentQueryScope);
+
 // Fallback shown when a route render throws. Keeps the rest of the app
 // functional and gives the user an escape hatch (reload) instead of a blank
 // white page. The inner component receives `error` + `reset` via props; we
@@ -253,11 +257,13 @@ declare module "@tanstack/react-router" {
   interface Register { router: typeof router }
 }
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <ThemeLoader />
-      <RouterProvider router={router} />
-    </QueryClientProvider>
-  </StrictMode>
+void restoreQueryCache(queryClient, localQueryStorage, currentQueryScope()).finally(() =>
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <ThemeLoader />
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </StrictMode>,
+  ),
 );

@@ -100,7 +100,6 @@ function CollectionCard({
             source={{ uri: col.posterUrl, headers: authHeaders }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            transition={200}
             recyclingKey={col.id}
           />
         ) : (

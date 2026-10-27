@@ -1,5 +1,5 @@
 import { NativeModules, Platform } from "react-native";
-import { checkPlaybackDecoder, declarableAudioCodecs, displaySupportsHdr, getAudioProbe, getDisplayHdrTypes, getMaxH264Level, getPlayerAudioDecoders, type AudioProbe, type DecoderCheck } from "@evey/media-caps";
+import { checkPlaybackDecoder, declarableAudioCodecs, displaySupportsHdr, getAudioProbe, getDisplayHdrTypes, getMaxH264Level, getPlayerAudioDecoders, getVideoDecoderLimits, type AudioProbe, type DecoderCheck, type VideoDecoderLimits } from "@evey/media-caps";
 import { clientLogger } from "../log";
 
 const log = clientLogger("deviceCodecs");
@@ -174,6 +174,16 @@ let maxH264Level: number | undefined;
 export function getDeviceMaxH264Level(): number | undefined {
   return maxH264Level;
 }
+let videoLimits: VideoDecoderLimits | undefined;
+/**
+ * The video decoders' hard limits (largest picture, 10-bit codecs), for the
+ * `?maxHeight=`/`?maxWidth=`/`?pixelFormats=` declaration. Undefined until
+ * the probe lands or when the device cannot answer: the server then judges
+ * by codec name, exactly as before.
+ */
+export function getDeviceVideoLimits(): VideoDecoderLimits | undefined {
+  return videoLimits;
+}
 
 async function probe(): Promise<void> {
   if (Platform.OS === "android") {
@@ -181,6 +191,11 @@ async function probe(): Promise<void> {
       maxH264Level = (await getMaxH264Level()) ?? undefined;
     } catch {
       /* stay level-blind */
+    }
+    try {
+      videoLimits = (await getVideoDecoderLimits()) ?? undefined;
+    } catch {
+      /* stay limit-blind */
     }
   }
   let outcome: AudioProbeOutcome = { status: "unavailable" };

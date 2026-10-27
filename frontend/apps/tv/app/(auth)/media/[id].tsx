@@ -23,6 +23,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useAuthStore, useDemoStore, toast } from "@evey/store";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAfterFirstPaint } from "../../../src/hooks/useAfterFirstPaint";
 import { RESUME_PROGRESS_QUERY, buildWatchProgressMaps, invalidateWatchedState, useSeriesPlayTarget } from "@evey/client";
 import { useRefetchOnReturn } from "@evey/client/native/useRefetchOnReturn";
 import { useTheme } from "../../../src/providers/ThemeProvider";
@@ -30,7 +31,7 @@ import { useIsFavorite, useToggleFavorite } from "../../../src/hooks/useFavorite
 import { useServerUrl } from "../../../src/hooks/useServerUrl";
 import { useAuthHeaders } from "../../../src/hooks/useAuthenticatedImage";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { artworkUrl } from "../../../src/lib/artwork";
+import { artworkPx, artworkUrl } from "../../../src/lib/artwork";
 import { FocusableCard } from "../../../src/components/FocusableCard";
 import { AddToPlaylistSheet } from "../../../src/components/AddToPlaylistSheet";
 import { useParentalGate } from "../../../src/hooks/useParentalGate";
@@ -42,6 +43,7 @@ import { ScreenState } from "../../../src/components/ScreenState";
 import { SagaSection } from "../../../src/components/SagaSection";
 import { trailerUrl, sortTrailers } from "../../../src/lib/trailerUrl";
 import { personTypeLabelKey } from "../../../src/lib/personRole";
+import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
 
 // Sized so the action row lands ON the screen. At 420 the backdrop pushed
 // "Reprendre" to y=1027 of a 1080 panel: the viewer arrived on a media page
@@ -134,6 +136,7 @@ function PosterShelf({
   serverUrl: string;
   authHeaders?: { Authorization: string };
 }) {
+  const { prefetchOnFocus, cancelPrefetch } = useMediaPrefetch();
   const theme = useTheme();
   if (items.length === 0) return null;
   const w = CARD_WIDTH_GRID;
@@ -150,14 +153,15 @@ function PosterShelf({
         renderItem={({ item }) => (
           <FocusableCard
             onPress={() => router.push(`/media/${item.id}`)}
+            onFocus={() => prefetchOnFocus(item.id)}
+            onBlur={cancelPrefetch}
             style={{ width: w }}
             accessibilityLabel={item.title}
           >
             <Image
-              source={{ uri: artworkUrl(serverUrl, item.id, "poster", w * 2), headers: authHeaders }}
+              source={{ uri: artworkUrl(serverUrl, item.id, "poster", artworkPx(w)), headers: authHeaders }}
               style={{ width: w, height: h, borderRadius: theme.radii.sm, backgroundColor: theme.colors.surface }}
               contentFit="cover"
-              transition={200}
             />
             <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 8 }} numberOfLines={1}>
               {item.title}
@@ -212,6 +216,7 @@ export default function MediaDetailScreen() {
   const [focusedBtn, setFocusedBtn] = useState<string | null>(null);
 
   const { data: media, isLoading, error, refetch } = useLibraryServiceGetMediaItem(id ?? "");
+  const belowFoldReady = useAfterFirstPaint(media?.id);
   // Re-arm the play button's preferred focus AFTER the media loads: applied
   // statically at mount it intermittently lands while the view is not
   // attachable yet, native focus is lost and every select goes nowhere.
@@ -474,7 +479,6 @@ export default function MediaDetailScreen() {
             source={{ uri: artworkUrl(serverUrl, id, "backdrop", HERO_BACKDROP_WIDTH, media), headers: authHeaders }}
             style={StyleSheet.absoluteFillObject}
             contentFit="cover"
-            transition={300}
             placeholder={backdropBlurhash ? { blurhash: backdropBlurhash } : undefined}
             placeholderContentFit="cover"
           />
@@ -499,7 +503,7 @@ export default function MediaDetailScreen() {
       <View style={{ paddingHorizontal: 48, marginTop: -POSTER_HEIGHT * 0.5, flexDirection: "row", gap: 32 }}>
         {serverUrl && id ? (
           <Image
-            source={{ uri: artworkUrl(serverUrl, id, "poster", POSTER_WIDTH * 2, media), headers: authHeaders }}
+            source={{ uri: artworkUrl(serverUrl, id, "poster", artworkPx(POSTER_WIDTH), media), headers: authHeaders }}
             style={{
               width: POSTER_WIDTH,
               height: POSTER_HEIGHT,
@@ -507,7 +511,6 @@ export default function MediaDetailScreen() {
               backgroundColor: theme.colors.surface,
             }}
             contentFit="cover"
-            transition={200}
             placeholder={primaryBlurhash ? { blurhash: primaryBlurhash } : undefined}
             placeholderContentFit="cover"
           />
@@ -804,7 +807,7 @@ export default function MediaDetailScreen() {
                 accessibilityLabel={seasonLabel(season, t)}
               >
                 <Image
-                  source={{ uri: artworkUrl(serverUrl, season.id ?? "", "poster", CARD_WIDTH_GRID * 2, season), headers: authHeaders }}
+                  source={{ uri: artworkUrl(serverUrl, season.id ?? "", "poster", artworkPx(CARD_WIDTH_GRID), season), headers: authHeaders }}
                   style={{
                     width: CARD_WIDTH_GRID,
                     height: CARD_WIDTH_GRID * POSTER_RATIO,
@@ -812,7 +815,6 @@ export default function MediaDetailScreen() {
                     backgroundColor: theme.colors.surface,
                   }}
                   contentFit="cover"
-                  transition={200}
                 />
                 <Text style={{ color: theme.colors.text, fontSize: 17, marginTop: 8 }} numberOfLines={1}>
                   {seasonLabel(season, t)}
@@ -848,7 +850,7 @@ export default function MediaDetailScreen() {
             >
               <View>
               <Image
-                source={{ uri: artworkUrl(serverUrl, ep.id ?? "", "backdrop", EPISODE_THUMB_WIDTH * 2, ep), headers: authHeaders }}
+                source={{ uri: artworkUrl(serverUrl, ep.id ?? "", "backdrop", artworkPx(EPISODE_THUMB_WIDTH), ep), headers: authHeaders }}
                 style={{
                   width: EPISODE_THUMB_WIDTH,
                   height: EPISODE_THUMB_WIDTH * (9 / 16),
@@ -856,7 +858,6 @@ export default function MediaDetailScreen() {
                   backgroundColor: theme.colors.surface,
                 }}
                 contentFit="cover"
-                transition={200}
               />
               {watched ? (
                 <View style={[styles.episodeWatchedBadge, { backgroundColor: theme.colors.success }]}>
@@ -915,109 +916,114 @@ export default function MediaDetailScreen() {
         </View>
       )}
 
-      {/* Cast */}
-      {actors.length > 0 && (
-        <View style={{ marginTop: 32 }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.cast")}</Text>
-          <FlatList
-            horizontal
-            data={actors}
-            keyExtractor={(p) => p.id ?? p.name ?? ""}
-            showsHorizontalScrollIndicator={false}
-            renderItem={({ item: person }) => (
-              <FocusableCard
-                onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
-                // No id, no destination: a card the remote can select but
-                // that does nothing reads as a dead button. The name still
-                // renders below - it's information even without a link.
-                disabled={!person.id}
-                style={styles.castCard}
-                accessibilityLabel={person.name}
-              >
-                {person.thumbUrl ? (
-                  <Image
-                    source={{ uri: person.thumbUrl }}
-                    style={styles.castAvatar}
-                    contentFit="cover"
-                    transition={200}
-                  />
-                ) : (
-                  <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
-                    <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
-                  </View>
-                )}
-                <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
-                  {person.name}
-                </Text>
-                {person.role ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }} numberOfLines={1}>
-                    {person.role}
+      {/* Below the fold, rendered once the top of the page is on screen: on a
+          modest television these sections held the first paint back. */}
+      {belowFoldReady && (
+        <>
+        {/* Cast */}
+        {actors.length > 0 && (
+          <View style={{ marginTop: 32 }}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.cast")}</Text>
+            <FlatList
+              horizontal
+              data={actors}
+              keyExtractor={(p) => p.id ?? p.name ?? ""}
+              showsHorizontalScrollIndicator={false}
+              renderItem={({ item: person }) => (
+                <FocusableCard
+                  onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
+                  // No id, no destination: a card the remote can select but
+                  // that does nothing reads as a dead button. The name still
+                  // renders below - it's information even without a link.
+                  disabled={!person.id}
+                  style={styles.castCard}
+                  accessibilityLabel={person.name}
+                >
+                  {person.thumbUrl ? (
+                    <Image
+                      source={{ uri: person.thumbUrl }}
+                      style={styles.castAvatar}
+                      contentFit="cover"
+                    />
+                  ) : (
+                    <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
+                      <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
+                    </View>
+                  )}
+                  <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
+                    {person.name}
                   </Text>
-                ) : null}
-              </FocusableCard>
-            )}
-            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-          />
-        </View>
-      )}
+                  {person.role ? (
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }} numberOfLines={1}>
+                      {person.role}
+                    </Text>
+                  ) : null}
+                </FocusableCard>
+              )}
+              ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+            />
+          </View>
+        )}
 
-      {/* Crew, after the cast, exactly as web orders them. */}
-      {crew.length > 0 && (
-        <View style={{ marginTop: 32 }}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.crew")}</Text>
-          <FlatList
-            horizontal
-            data={crew}
-            keyExtractor={(p) => `${p.id ?? p.name ?? ""}-${p.type ?? ""}`}
-            showsHorizontalScrollIndicator={false}
-            ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
-            renderItem={({ item: person }) => (
-              <FocusableCard
-                onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
-                // No id, no destination: a card the remote can select but
-                // that does nothing reads as a dead button. The name still
-                // renders below - it's information even without a link.
-                disabled={!person.id}
-                style={styles.castCard}
-                accessibilityLabel={person.name}
-              >
-                {person.thumbUrl ? (
-                  <Image source={{ uri: person.thumbUrl }} style={styles.castAvatar} contentFit="cover" transition={200} />
-                ) : (
-                  <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
-                    <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
-                  </View>
-                )}
-                <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
-                  {person.name}
-                </Text>
-                {/* The crew's job, translated from its enum - `role` here is
-                    the raw database role_type ("director"), unlike the cast
-                    where it is the character name. */}
-                {personTypeLabelKey(person.type) || person.role ? (
-                  <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }} numberOfLines={1}>
-                    {(() => {
-                      const key = personTypeLabelKey(person.type);
-                      return key ? t(key) : person.role;
-                    })()}
+        {/* Crew, after the cast, exactly as web orders them. */}
+        {crew.length > 0 && (
+          <View style={{ marginTop: 32 }}>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t("media.detail.crew")}</Text>
+            <FlatList
+              horizontal
+              data={crew}
+              keyExtractor={(p) => `${p.id ?? p.name ?? ""}-${p.type ?? ""}`}
+              showsHorizontalScrollIndicator={false}
+              ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+              renderItem={({ item: person }) => (
+                <FocusableCard
+                  onPress={() => person.id && router.push(`/(auth)/person/${person.id}`)}
+                  // No id, no destination: a card the remote can select but
+                  // that does nothing reads as a dead button. The name still
+                  // renders below - it's information even without a link.
+                  disabled={!person.id}
+                  style={styles.castCard}
+                  accessibilityLabel={person.name}
+                >
+                  {person.thumbUrl ? (
+                    <Image source={{ uri: person.thumbUrl }} style={styles.castAvatar} contentFit="cover" />
+                  ) : (
+                    <View style={[styles.castAvatar, { backgroundColor: theme.colors.surface, justifyContent: "center", alignItems: "center" }]}>
+                      <Text style={{ color: theme.colors.textMuted, fontSize: 24 }}>?</Text>
+                    </View>
+                  )}
+                  <Text style={{ color: theme.colors.text, fontSize: 15, marginTop: 6, textAlign: "center" }} numberOfLines={1}>
+                    {person.name}
                   </Text>
-                ) : null}
-              </FocusableCard>
-            )}
-          />
-        </View>
+                  {/* The crew's job, translated from its enum - `role` here is
+                      the raw database role_type ("director"), unlike the cast
+                      where it is the character name. */}
+                  {personTypeLabelKey(person.type) || person.role ? (
+                    <Text style={{ color: theme.colors.textMuted, fontSize: 13, textAlign: "center" }} numberOfLines={1}>
+                      {(() => {
+                        const key = personTypeLabelKey(person.type);
+                        return key ? t(key) : person.role;
+                      })()}
+                    </Text>
+                  ) : null}
+                </FocusableCard>
+              )}
+            />
+          </View>
+        )}
+
+        {/* Sagas this title belongs to - just before Similar, as on the web. */}
+        {media.id ? <SagaSection mediaItemId={media.id} /> : null}
+
+        {/* A season page has no "similar seasons" to offer - same exclusion web
+            makes. */}
+        {media.id && !isSeason ? (
+          <SimilarShelf item={media} serverUrl={serverUrl} authHeaders={authHeaders} />
+        ) : null}
+
+        <PluginSlot name="media.detail.sidebar" context={{ mediaId: media.id }} />
+        </>
       )}
-
-      {/* Sagas this title belongs to - just before Similar, as on the web. */}
-      {media.id ? <SagaSection mediaItemId={media.id} /> : null}
-
-      {/* A season page has no "similar seasons" to offer - same exclusion web
-          makes. */}
-      {media.id && !isSeason ? (
-        <SimilarShelf item={media} serverUrl={serverUrl} authHeaders={authHeaders} />
-      ) : null}
-
-      <PluginSlot name="media.detail.sidebar" context={{ mediaId: media.id }} />
 
       <View style={{ height: 64 }} />
       </View>

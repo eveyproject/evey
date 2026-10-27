@@ -19,10 +19,10 @@ interface Sheet {
 const sheetCache = new Map<string, Sheet>();
 const sheetLoading = new Map<string, Promise<Sheet | null>>();
 
-// A decoded sheet is a bitmap of a few megabytes and the cache is keyed by
+// A decoded sheet is a bitmap of tens of megabytes and the cache is keyed by
 // cue URL, so it cannot be swept by media id: release them wholesale once
-// past a few titles' worth. Re-decoding one costs a single load.
-const SHEET_CACHE_MAX = 32;
+// past a title's worth. Re-decoding one costs a single load.
+const SHEET_CACHE_MAX = 6;
 
 function sweepSheets(): void {
   if (sheetCache.size <= SHEET_CACHE_MAX) return;

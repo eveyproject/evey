@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import React from "react";
 
 vi.mock("react-native", () => ({
@@ -22,6 +22,7 @@ vi.mock("../hooks/useAuthenticatedImage", () => ({ useAuthenticatedImage: (uri?:
 vi.mock("./ProgressBar", () => ({ ProgressBar: ({ percent }: any) => React.createElement("div", { "data-testid": "progress", "data-pct": percent }) }));
 vi.mock("@evey/theme", () => ({ FONT_SIZE: { xs: 10 }, ICON_SIZE: { sm: 16, "3xl": 40 } }));
 
+import { IMAGE_RETRY_DELAYS_MS } from "@evey/client";
 import { MediaCard } from "./MediaCard";
 
 // The card asks for a display-sized poster through the authenticated image
@@ -55,11 +56,23 @@ describe("MediaCard", () => {
     expect(screen.getAllByText("Film")).toHaveLength(1);
   });
 
-  it("swaps the empty rectangle for a film glyph when the poster fails to load", () => {
-    render(<MediaCard item={{ id: "m9", title: "No poster" } as any} />);
-    expect(document.querySelector("[data-icon='film-outline']")).toBeNull();
-    fireEvent.error(document.querySelector("img")!);
-    expect(document.querySelector("[data-icon='film-outline']")).toBeTruthy();
-    expect(document.querySelector("img")).toBeNull();
+  it("retries a failed poster, then swaps the empty rectangle for a film glyph", () => {
+    vi.useFakeTimers();
+    try {
+      render(<MediaCard item={{ id: "m9", title: "No poster" } as any} />);
+      expect(document.querySelector("[data-icon='film-outline']")).toBeNull();
+      // Each failure is retried after a pause (see useImageRetry); the glyph
+      // comes once every retry failed.
+      for (const delay of IMAGE_RETRY_DELAYS_MS) {
+        fireEvent.error(document.querySelector("img")!);
+        expect(document.querySelector("[data-icon='film-outline']")).toBeNull();
+        act(() => vi.advanceTimersByTime(delay));
+      }
+      fireEvent.error(document.querySelector("img")!);
+      expect(document.querySelector("[data-icon='film-outline']")).toBeTruthy();
+      expect(document.querySelector("img")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

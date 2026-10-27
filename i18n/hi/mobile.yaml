@@ -36,6 +36,11 @@ settings:
   uiScale: "इंटरफ़ेस का आकार"
   uiScaleOptionA11y: "इंटरफ़ेस का आकार {{percent}} %"
   uiScaleHint: "नया आकार लागू करने के लिए ऐप पुनः प्रारंभ होता है।"
+  liteMode: "हल्का मोड"
+  liteModeAuto: "स्वचालित"
+  liteModeOn: "चालू"
+  liteModeOff: "बंद"
+  liteModeHint: "कुछ दृश्य प्रभाव बंद करता है ताकि साधारण टीवी सुचारु रूप से चले। स्वचालित होने पर यह तब चालू होता है जब इस टीवी में कम मेमोरी हो।"
   biometricLogin: "बायोमेट्रिक लॉगिन"
   themeLightBlue: हल्का नीला
   themeDarkRed: "गहरा लाल"

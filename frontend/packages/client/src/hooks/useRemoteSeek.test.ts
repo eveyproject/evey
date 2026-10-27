@@ -78,4 +78,20 @@ describe("useRemoteSeek", () => {
     act(() => { result.current.bump(-300); });
     expect(result.current.previewSec).toBe(0);
   });
+
+  it("publishes the preview to the given sink and leaves the host's state alone", () => {
+    const sink = vi.fn();
+    const { result } = renderHook(() => useRemoteSeek({
+      positionSec: 100,
+      getPosition: () => position,
+      getDuration: () => 3600,
+      seekTo,
+      onPreviewChange: sink,
+    }));
+    act(() => result.current.bump(30));
+    expect(sink).toHaveBeenLastCalledWith(130);
+    expect(result.current.previewSec).toBeNull();
+    act(() => { vi.advanceTimersByTime(SEEK_COMMIT_DELAY_MS); });
+    expect(seekTo).toHaveBeenCalledWith(130);
+  });
 });

@@ -56,6 +56,13 @@ export const CONTROL = {
   gap: 12,
 } as const;
 
+// How many cards of `cardWidth` fit side by side in `availableWidth` with
+// `gap` between them: a hard-coded five left the right quarter of a
+// 1200dp-wide screen empty, while a 960dp one still gets five.
+export function gridColumns(availableWidth: number, cardWidth: number, gap: number): number {
+  return Math.max(1, Math.floor((availableWidth + gap) / (cardWidth + gap)));
+}
+
 // Height reserved below a CARD_WIDTH_GRID poster for its title/year label
 // block, used when computing FlatList getItemLayout row heights.
 export const LABEL_BLOCK_HEIGHT = 40;

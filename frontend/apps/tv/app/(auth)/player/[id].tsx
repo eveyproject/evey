@@ -9,6 +9,9 @@ import { View, Text, Pressable, ActivityIndicator, StyleSheet, useWindowDimensio
 import { useLocalSearchParams, router } from "expo-router";
 import { VideoView } from "expo-video";
 import { useSourcedVideoPlayer } from "@evey/client/native/useSourcedVideoPlayer";
+import { setPlayhead, setSeekPreview } from "@evey/client";
+import { playerBufferOptions } from "@evey/client/native/playerBufferOptions";
+import { getDeviceProfile } from "@evey/media-caps";
 import { useTranslation } from "react-i18next";
 import {
   useLibraryServiceGetMediaItem,
@@ -65,6 +68,8 @@ import { SyncplaySessionBadge } from "../../../src/components/SyncplaySessionBad
 const REMOTE_KEYS = new Set(["up", "down", "left", "right", "select", "longSelect", "playPause", "play", "pause", "fastForward", "rewind", "menu", "back", "longLeft", "longRight"]);
 
 const CONTROLS_TIMEOUT = 4000;
+const COARSE_CLOCK_SEC = 5;
+const NEAR_END_FINE_SEC = 90;
 // Longer while the controls hold the remote: the viewer is aiming at a button,
 // not glancing at the time.
 const CONTROLS_FOCUSED_TIMEOUT = 8000;
@@ -208,7 +213,6 @@ export default function PlayerScreen() {
   const [currentTime, setCurrentTime] = useState(0);
   const committedTimeRef = useRef(0);
   // Whether anything on screen follows the clock right now.
-  const needsFineTimeRef = useRef(true);
   const [duration, setDuration] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -341,6 +345,8 @@ export default function PlayerScreen() {
   // player at all: see useSourcedVideoPlayer for why a sourceless one is unsafe.
   const player = useSourcedVideoPlayer(videoSource, (p) => {
     p.timeUpdateEventInterval = 0.5;
+    const buffer = playerBufferOptions(getDeviceProfile());
+    if (buffer) p.bufferOptions = { ...p.bufferOptions, ...buffer };
     if (resumePositionSec > 0) {
       p.currentTime = resumePositionSec;
     }
@@ -431,21 +437,25 @@ export default function PlayerScreen() {
     const endSub = player.addListener("playToEnd", () => playedToEndRef.current());
     const timeSub = player.addListener("timeUpdate", (ev) => {
       currentTimeRef.current = ev.currentTime;
-      // Twice a second, this screen re-rendered whole - controls, overlays and
-      // all - for a number nothing on screen was showing. It is committed to
-      // state finely only while something follows it (the controls, a subtitle
-      // this client draws, a seek preview, a pause), and once a second
-      // otherwise: the progress reporter and every guard read the ref above,
-      // which is always current. Same rule as the browser television.
-      const followsTime = needsFineTimeRef.current;
-      if (followsTime || Math.abs(ev.currentTime - committedTimeRef.current) >= 1) {
+      // The fine position goes to the playhead store, read by the subtitle
+      // overlay and the timeline alone; this screen's own copy moves once a
+      // second, or every tick re-rendered the whole screen.
+      setPlayhead(ev.currentTime);
+      // What this screen keeps of the clock (watched threshold, chapter
+      // title, the next-episode card) does with a few seconds, except near
+      // the end, where that card's countdown wants the second.
+      const nearEnd = durationRef.current > 0 && durationRef.current - ev.currentTime < NEAR_END_FINE_SEC;
+      if (Math.abs(ev.currentTime - committedTimeRef.current) >= (nearEnd ? 1 : COARSE_CLOCK_SEC)) {
         committedTimeRef.current = ev.currentTime;
         setCurrentTime(ev.currentTime);
       }
-      // A tick can land between the release and the unsubscribe.
+      // A tick can land between the release and the unsubscribe. Same value,
+      // no state: a set per tick had React re-running the screen.
       withPlayer((p) => {
-        setDuration(p.duration);
-        durationRef.current = p.duration;
+        if (p.duration !== durationRef.current) {
+          durationRef.current = p.duration;
+          setDuration(p.duration);
+        }
       });
     });
     const statusSub = player.addListener("statusChange", (ev) => {
@@ -585,11 +595,20 @@ export default function PlayerScreen() {
   // hands the D-pad back to the surface (barFocused goes false), and a version
   // that always showed turned that into a loop - the controls blinked off and
   // straight back on, which is why they never left the picture.
+  // The timer is re-armed by every key and by the hooks' activity callbacks:
+  // setting the same value again still has React run this whole screen once
+  // before it bails out, so the state is only touched when it changes.
+  const shownRef = useRef(true);
   const armHideTimer = useCallback((wake: boolean) => {
     if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    if (wake) setShowControls(true);
+    if (wake && !shownRef.current) {
+      shownRef.current = true;
+      setShowControls(true);
+    }
     const delay = barFocusedRef.current ? CONTROLS_FOCUSED_TIMEOUT : CONTROLS_TIMEOUT;
     hideTimerRef.current = setTimeout(() => {
+      if (!shownRef.current) return;
+      shownRef.current = false;
       setShowControls(false);
       setBarFocused(false);
     }, delay);
@@ -600,6 +619,13 @@ export default function PlayerScreen() {
   // puts the remote down gets the picture back. The row simply gets longer
   // than a passing wake.
   const resetHideTimer = useCallback(() => armHideTimer(true), [armHideTimer]);
+  // The stores outlive this screen: a new title starts from nothing pending.
+  useEffect(() => {
+    setSeekPreview(null);
+    setPlayhead(0);
+    return () => setSeekPreview(null);
+  }, []);
+  const openSettings = useCallback(() => setShowTrackMenu(true), []);
 
   // Entering the row shows them and gives them the long delay; leaving only
   // restarts the short one - without re-showing what just went away.
@@ -638,7 +664,6 @@ export default function PlayerScreen() {
   // player (useRemoteSeek): presses move a preview the bar and the clock show
   // live, ONE seek lands once the pressing stops, a held key scrubs.
   const {
-    previewSec: seekPreviewSec,
     bump: bumpSeek,
     beginHold,
     endHold,
@@ -650,13 +675,10 @@ export default function PlayerScreen() {
     getDuration: () => durationRef.current,
     seekTo: (sec) => withPlayer((p) => { p.currentTime = sec; }),
     onActivity: resetHideTimer,
+    // The bar and the seek badge read the preview from the store: held here,
+    // every press re-rendered this whole screen.
+    onPreviewChange: setSeekPreview,
   });
-  const pendingSeekDelta = seekPreviewSec === null ? 0 : Math.round(seekPreviewSec - currentTime);
-
-  // Kept in a ref rather than a dependency: it is read inside the native
-  // listener, which must stay subscribed across renders.
-  needsFineTimeRef.current =
-    showControls || !isPlaying || seekPreviewSec !== null || clientSubtitleIndex !== null;
 
   // Which seek key is currently down, for the sets that never send a
   // longLeft/longRight and instead repeat the plain key while it is held: a
@@ -949,6 +971,7 @@ export default function PlayerScreen() {
     }
     currentTimeRef.current = duration;
     committedTimeRef.current = duration;
+    setPlayhead(duration);
     setCurrentTime(duration);
   };
 
@@ -1343,7 +1366,6 @@ export default function PlayerScreen() {
 
   // The preview position (set the instant a seek key fires) takes over the
   // display until the real playhead catches up - see playerSeek.ts.
-  const displayTime = seekPreviewSec ?? currentTime;
 
   return (
     <View style={[styles.container, { backgroundColor: "#000" }]}>
@@ -1362,7 +1384,6 @@ export default function PlayerScreen() {
       <SubtitleOverlay
         mediaId={mediaId}
         subtitleIndex={clientSubtitleIndex}
-        currentTimeSec={currentTime}
       />
 
       {isBuffering && (
@@ -1485,7 +1506,6 @@ export default function PlayerScreen() {
         visible={showChaptersPicker}
         onClose={() => setShowChaptersPicker(false)}
         chapters={chapters}
-        currentTimeMs={currentTime * 1000}
         onSeek={(sec) => withPlayer((p) => { p.currentTime = sec; })}
       />
 
@@ -1518,7 +1538,6 @@ export default function PlayerScreen() {
       <SkipIntroButton
         mediaId={mediaId}
         filePath={media?.filePath}
-        currentTime={currentTime}
         onSkip={handleSkipIntro}
         onVisibleChange={setSkipVisible}
         onFocusChange={setSkipFocused}
@@ -1594,10 +1613,7 @@ export default function PlayerScreen() {
           <PlayerBottomPanel
             mediaId={mediaId}
             screenWidth={screenWidth}
-            displayTime={displayTime}
             duration={duration}
-            seekPreviewSec={seekPreviewSec}
-            pendingSeekDelta={pendingSeekDelta}
             isPlaying={isPlaying}
             playbackSpeed={playbackSpeed}
             skipFwd={skipFwd}
@@ -1611,7 +1627,7 @@ export default function PlayerScreen() {
             onSeekBy={bumpSeek}
             onTogglePlayPause={togglePlayPause}
             onCycleSpeed={cycleSpeed}
-            onOpenSettings={() => setShowTrackMenu(true)}
+            onOpenSettings={openSettings}
             onCommitSeek={commitSeekNow}
             onActivity={resetHideTimer}
           />

@@ -1,7 +1,15 @@
-import { memo } from "react";
-import { POSTER_RATIO } from "@evey/client";
+import { memo, type ReactNode } from "react";
+import { POSTER_RATIO, useImageRetry } from "@evey/client";
 import { Pressable } from "./ui";
 import { Icon } from "./icons";
+
+// A card's picture: a failed load is retried before the fallback shows (see
+// useImageRetry; the Android television's PosterImage does the same).
+function CardImage({ url, fallback }: { url?: string; fallback: ReactNode }) {
+  const { src, onError, onLoad } = useImageRetry(url);
+  if (!src) return <>{fallback}</>;
+  return <img src={src} alt="" loading="lazy" onError={onError} onLoad={onLoad} />;
+}
 
 interface PosterCardProps {
   title: string;
@@ -26,11 +34,7 @@ function PosterCardImpl({ title, subtitle, imageUrl, width, aspect = "poster", r
   return (
     <Pressable className="tv-card poster-card" onPress={onPress} focusKey={focusKey} autoFocus={autoFocus} onFocus={onFocus} label={title}>
       <span className="poster" style={{ width: `${w}rem`, height: `${h}rem` }}>
-        {imageUrl ? (
-          <img src={imageUrl} alt="" loading="lazy" />
-        ) : (
-          <span className="poster-initial">{title.trim().charAt(0).toUpperCase() || "?"}</span>
-        )}
+        <CardImage url={imageUrl} fallback={<span className="poster-initial">{title.trim().charAt(0).toUpperCase() || "?"}</span>} />
         {rating != null && rating > 0 ? (
           <span className="rating-badge"><Icon name="star" size={12} />{rating.toFixed(1)}</span>
         ) : null}
@@ -69,7 +73,7 @@ function GridCardImpl({ title, subtitle, imageUrl, rating, resolution, hdr, watc
   return (
     <Pressable className="tv-card grid-card" onPress={onPress} focusKey={focusKey} autoFocus={autoFocus} onFocus={onFocus} label={title}>
       <span className="poster grid-poster">
-        {imageUrl ? <img src={imageUrl} alt="" loading="lazy" /> : <span className="muted">?</span>}
+        <CardImage url={imageUrl} fallback={<span className="muted">?</span>} />
         {rating != null && rating > 0 ? (
           <span className={`tech-badge rating ${low}`}><Icon name="star" size={11} />{rating.toFixed(1)}</span>
         ) : null}

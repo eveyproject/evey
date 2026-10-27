@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// The sections below the first screen render a frame after it (see the
+// home); the shelves under test are those, so the frame has passed here.
+const firstPaint = vi.hoisted(() => ({ done: true }));
+vi.mock("../../../src/hooks/useAfterFirstPaint", () => ({ useAfterFirstPaint: () => firstPaint.done }));
 import { render, fireEvent, screen, act } from "@testing-library/react";
 import React from "react";
 import { DeviceEventEmitter } from "react-native";
@@ -157,6 +161,8 @@ vi.mock("@tanstack/react-query", () => ({
   // name them; these tests are about the shelves, not the plugin catalogue.
   useQuery: () => ({ data: { plugins: [] } }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  // A row grown to its configured size keeps its items on screen meanwhile.
+  keepPreviousData: (previous: unknown) => previous,
 }));
 
 // --- @evey/api mock --------------------------------------------------------------
@@ -183,8 +189,9 @@ vi.mock("@evey/api", async (importOriginal) => ({
   usePlaybackServiceGetResumeItems: (...args: unknown[]) => resumeMock(...args),
   usePlaybackServiceGetNextUp: (...args: unknown[]) => nextUpMock(...args),
   useLibraryServiceListMediaItems: (...args: unknown[]) => listMediaItemsMock(...args),
-  useLibraryServiceListLibraries: (...args: unknown[]) => librariesMock(...args),
-  useFeedServiceGetFeedConfig: (...args: unknown[]) => feedConfigMock(...args),
+  // Answered by default: the home holds its rows until both have.
+  useLibraryServiceListLibraries: (...args: unknown[]) => ({ isFetched: true, ...librariesMock(...args) }),
+  useFeedServiceGetFeedConfig: (...args: unknown[]) => ({ isFetched: true, ...feedConfigMock(...args) }),
   useFeedServiceRecommended: (...args: unknown[]) => recommendedMock(...args),
   getLibraryServiceListMediaItemsQueryOptions: (...args: unknown[]) =>
     getLibraryServiceListMediaItemsQueryOptionsMock(
@@ -364,6 +371,37 @@ describe("HomeScreen feed-config driven rows", () => {
       .map((n) => n.textContent)
       .filter((txt) => txt === "media.home.mostPopular" || txt === "media.home.collections");
     expect(titles).toEqual(["media.home.mostPopular", "media.home.collections"]);
+  });
+
+  it("asks a row configured for 50 items for what the screen shows first, so the config arriving refetches nothing", () => {
+    feedConfigMock.mockReturnValue({
+      data: { configs: [{ feedType: "resume_playback", enabled: true, displayOrder: 0, maxItems: 50 }] },
+    });
+    render(<HomeScreen />);
+    const limits = resumeMock.mock.calls.map((c) => (c[0] as { limit: number }).limit);
+    expect(new Set(limits)).toEqual(new Set([20]));
+  });
+
+  it("renders only the first screen's sections with the reveal, the rest a frame later", () => {
+    firstPaint.done = false;
+    try {
+      feedConfigMock.mockReturnValue({
+        data: {
+          configs: [
+            { feedType: "most_popular", enabled: true, displayOrder: 0 },
+            { feedType: "collections", enabled: true, displayOrder: 1 },
+            { feedType: "recommended", enabled: true, displayOrder: 2 },
+            { feedType: "resume_playback", enabled: true, displayOrder: 3 },
+          ],
+        },
+      });
+      resumeMock.mockReturnValue({ data: { items: [{ id: "r1", title: "Resumed" }], progress: [] }, isLoading: false });
+      render(<HomeScreen />);
+      expect(screen.getByText("media.home.mostPopular")).toBeTruthy();
+      expect(screen.queryByText("Resumed")).toBeNull();
+    } finally {
+      firstPaint.done = true;
+    }
   });
 
   it("hides a row the server disabled", () => {

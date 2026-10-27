@@ -1185,20 +1185,21 @@ describe("skip-intro clamp (TV)", () => {
   // Twice a second, this screen used to re-render whole for a number nothing
   // was showing. The clock reaches state finely only while something follows
   // it; a weak television pays the rest of the film nothing.
-  it("stops re-rendering on every clock tick once the controls are away", () => {
+  it("commits the clock once a second, controls up or away, instead of on every tick", () => {
     vi.useFakeTimers();
     render(<PlayerScreen />);
     playerMock.duration = 1200;
     playerMock.playing = true;
     act(() => { playerListeners.get("statusChange")?.({ status: "readyToPlay" }); });
     act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 1 }); });
-    // Controls up: every tick is followed.
+    // Controls up: the bar's label and fill follow the seconds, not the ticks.
     const withControls = (() => {
       overlayRenders = 0;
       for (let i = 0; i < 6; i++) act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 10 + i * 0.5 }); });
       return overlayRenders;
     })();
-    expect(withControls).toBeGreaterThanOrEqual(6);
+    expect(withControls).toBeGreaterThanOrEqual(1);
+    expect(withControls).toBeLessThanOrEqual(3);
 
     // Controls hidden: only the ticks that cross a second commit.
     // The controls fold themselves after their own timeout (4s).
@@ -1208,7 +1209,7 @@ describe("skip-intro clamp (TV)", () => {
       for (let i = 0; i < 6; i++) act(() => { playerListeners.get("timeUpdate")?.({ currentTime: 100 + i * 0.25 }); });
       return overlayRenders;
     })();
-    expect(hidden).toBeLessThan(withControls);
+    expect(hidden).toBeLessThanOrEqual(withControls);
     vi.useRealTimers();
   });
 

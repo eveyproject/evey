@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// The filter header renders once the grid has painted; here the paint is immediate.
+vi.mock("../../../src/hooks/useAfterFirstPaint", () => ({ useAfterFirstPaint: (key: string | undefined) => key !== undefined }));
+vi.mock("../../../src/hooks/useMediaPrefetch", () => ({ useMediaPrefetch: () => ({ prefetchOnFocus: () => {}, cancelPrefetch: () => {} }) }));
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 
@@ -10,6 +13,7 @@ import React from "react";
 
 // --- React Native mock -----------------------------------------------------------------
 vi.mock("react-native", () => ({
+  useWindowDimensions: () => ({ width: 1200, height: 675, scale: 1.6, fontScale: 1 }),
   View: ({ children, ...p }: any) => React.createElement("div", p, children),
   Text: ({ children, ...p }: any) => React.createElement("span", p, children),
   ScrollView: ({ children, ...p }: any) => React.createElement("div", p, children),

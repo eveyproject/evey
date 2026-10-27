@@ -7,7 +7,8 @@ export interface PopularItem {
   playCount: number;
 }
 
-export function useMostPopular(limit = 20) {
+/** `enabled` false holds the request, e.g. until the home knows its row sizes. */
+export function useMostPopular(limit = 20, enabled = true) {
   return useActivityServiceGetPopularMedia(
     { limit },
     {
@@ -20,6 +21,7 @@ export function useMostPopular(limit = 20) {
             playCount: it.playCount ?? 0,
           })),
         staleTime: 5 * 60_000,
+        enabled,
       },
     },
   );

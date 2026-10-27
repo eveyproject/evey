@@ -21,6 +21,7 @@ import { supportedLanguages } from "../../../src/i18n";
 import { usePluginSlotEntries } from "../../../src/features/plugins/PluginSlot";
 import { getUiScalePercent, setUiScalePercent } from "@evey/media-caps";
 import { DEFAULT_UI_SCALE, UI_SCALE_OPTIONS, effectiveUiScale } from "../../../src/lib/uiScale";
+import { chooseLiteMode, useLiteModeChoice } from "../../../src/lib/liteMode";
 
 // labelKey/fallback pairs mirror mobile's ThemeSelector.tsx builtInI18nKeys
 // mapping - same three built-in themes this TV settings screen exposes.
@@ -83,6 +84,15 @@ export default function SettingsScreen() {
     setUiScale(value);
     void setUiScalePercent(value);
   }, [uiScale]);
+
+  // Light mode, like the scale, belongs to this television. It applies at
+  // once: what it turns off is read on every render, not at start.
+  const liteChoice = useLiteModeChoice();
+  const liteOptions = [
+    { mode: "auto", label: t("mobile.settings.liteModeAuto", "Automatic") },
+    { mode: "on", label: t("mobile.settings.liteModeOn", "On") },
+    { mode: "off", label: t("mobile.settings.liteModeOff", "Off") },
+  ] as const;
 
   // The theme belongs to the profile, not to this television: pick it on the
   // phone and the TV should follow. Persisted through the preferences map,
@@ -462,6 +472,31 @@ export default function SettingsScreen() {
         ))}
         <Text style={[styles.value, { color: theme.colors.textMuted, paddingHorizontal: 20, paddingBottom: 12 }]}>
           {t("mobile.settings.uiScaleHint", "The app restarts to apply a new size.")}
+        </Text>
+      </View>
+
+      <Text style={[styles.sectionTitle, { color: theme.colors.textMuted }]}>{t("mobile.settings.liteMode", "Light mode")}</Text>
+      <View style={[styles.section, { backgroundColor: theme.colors.surface }]}>
+        {liteOptions.map(({ mode, label }) => (
+          <Pressable
+            key={mode}
+            style={rowStyle(`lite-mode-${mode}`)}
+            onPress={() => chooseLiteMode(mode)}
+            onFocus={() => setFocusedItem(`lite-mode-${mode}`)}
+            onBlur={() => setFocusedItem(null)}
+            accessible={true}
+            accessibilityLabel={`${t("mobile.settings.liteMode", "Light mode")}: ${label}`}
+            accessibilityRole="button"
+            accessibilityState={{ selected: liteChoice === mode }}
+          >
+            <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
+            {liteChoice === mode && (
+              <Text style={{ color: theme.colors.accent, fontSize: 20, fontWeight: "600" }}>{"✓"}</Text>
+            )}
+          </Pressable>
+        ))}
+        <Text style={[styles.value, { color: theme.colors.textMuted, paddingHorizontal: 20, paddingBottom: 12 }]}>
+          {t("mobile.settings.liteModeHint", "Turns off a few visual effects so a modest TV stays fluid. Automatic turns it on when this TV has little memory.")}
         </Text>
       </View>
 

@@ -20,12 +20,15 @@ import {
  * once the real playhead has caught up with it, not at the commit, so the bar
  * never jumps back to the old position while the player seeks.
  */
+const RELEASE_CHECK_MS = 500;
+
 export function useRemoteSeek({
   positionSec,
   getPosition,
   getDuration,
   seekTo,
   onActivity,
+  onPreviewChange,
 }: {
   /** The player's playhead, as rendered: drives the release of the preview. */
   positionSec: number;
@@ -36,6 +39,11 @@ export function useRemoteSeek({
   seekTo: (sec: number) => void;
   /** Every press: keeps the controls up. */
   onActivity?: () => void;
+  /**
+   * Given, the preview goes here instead of this hook's own state, so a host
+   * that only forwards it is not re-rendered on every press.
+   */
+  onPreviewChange?: (sec: number | null) => void;
 }) {
   const [previewSec, setPreviewSec] = useState<number | null>(null);
   const previewRef = useRef<number | null>(null);
@@ -43,13 +51,15 @@ export function useRemoteSeek({
   const commitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holdRef = useRef<{ dir: 1 | -1; startedAt: number; lastAt: number; moved: boolean; timer: ReturnType<typeof setInterval> } | null>(null);
   // Read by the timers: the latest callbacks, not the ones of the render that armed them.
-  const cb = useRef({ getPosition, getDuration, seekTo, onActivity });
-  cb.current = { getPosition, getDuration, seekTo, onActivity };
+  const cb = useRef({ getPosition, getDuration, seekTo, onActivity, onPreviewChange });
+  cb.current = { getPosition, getDuration, seekTo, onActivity, onPreviewChange };
 
+  const external = onPreviewChange !== undefined;
   const setPreview = useCallback((sec: number | null) => {
     previewRef.current = sec;
-    setPreviewSec(sec);
-  }, []);
+    if (external) cb.current.onPreviewChange?.(sec);
+    else setPreviewSec(sec);
+  }, [external]);
 
   const land = useCallback(() => {
     commitTimerRef.current = null;
@@ -120,12 +130,19 @@ export function useRemoteSeek({
 
   const isHolding = useCallback(() => holdRef.current !== null, []);
 
-  // The real playhead caught up: the bar follows the player again.
-  useEffect(() => {
+  // The real playhead caught up: the bar follows the player again. Checked
+  // on the host's position when it changes, and on a slow clock against the
+  // live one, for a host that commits its position rarely.
+  const releaseIfCaughtUp = useCallback((position: number) => {
     const preview = previewRef.current;
     if (preview === null || commitTimerRef.current || holdRef.current) return;
-    if (shouldReleaseSeekPreview(positionSec, preview)) setPreview(null);
-  }, [positionSec, setPreview]);
+    if (shouldReleaseSeekPreview(position, preview)) setPreview(null);
+  }, [setPreview]);
+  useEffect(() => { releaseIfCaughtUp(positionSec); }, [positionSec, releaseIfCaughtUp]);
+  useEffect(() => {
+    const id = setInterval(() => { if (previewRef.current !== null) releaseIfCaughtUp(cb.current.getPosition()); }, RELEASE_CHECK_MS);
+    return () => clearInterval(id);
+  }, [releaseIfCaughtUp]);
 
   useEffect(() => () => {
     stopHold();

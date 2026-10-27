@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback, type MutableRefObject } from 
 import { Pressable, Text, View, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
+import { usePlayhead } from "@evey/client";
 import { useTheme } from "../providers/ThemeProvider";
 import { useMediaSegments } from "../hooks/useMediaSegments";
 import { FONT_SIZE } from "@evey/theme";
@@ -25,7 +26,8 @@ interface SkipIntroButtonProps {
   mediaId?: string;
   /** MKV chapters fallback while the server has no segment for this title. */
   filePath?: string;
-  currentTime: number;
+  /** Given by a caller that drives the time itself; the playhead store otherwise. */
+  currentTime?: number;
   onSkip: (toSec: number) => void;
   // Reports whether the button is currently showing, so the player screen can
   // include it in its overlay set (the button holds TV focus while visible, so
@@ -55,7 +57,7 @@ interface SkipIntroButtonProps {
 export function SkipIntroButton({
   mediaId,
   filePath,
-  currentTime,
+  currentTime: givenTime,
   onSkip,
   onVisibleChange,
   onFocusChange,
@@ -64,6 +66,8 @@ export function SkipIntroButton({
   autoAdvance = false,
   cancelCountdownRef,
 }: SkipIntroButtonProps) {
+  const playhead = usePlayhead();
+  const currentTime = givenTime ?? playhead;
   const { t } = useTranslation();
   const theme = useTheme();
   // Which of the (up to two) Pressables currently holds focus. Both report

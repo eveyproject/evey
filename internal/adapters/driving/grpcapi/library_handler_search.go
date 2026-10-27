@@ -194,6 +194,9 @@ func (h *libraryHandler) SearchMedia(ctx context.Context, req *eveyv1.SearchMedi
 	if dropped > 0 {
 		resp.TotalHits = int32(len(resp.Items))
 	}
+	if req.GetSummary() {
+		summarizeMediaItems(resp.Items, false)
+	}
 	return resp, nil
 }
 

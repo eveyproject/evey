@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+vi.mock("../../../src/hooks/useMediaPrefetch", () => ({ useMediaPrefetch: () => ({ prefetchOnFocus: () => {}, cancelPrefetch: () => {} }) }));
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
@@ -7,6 +8,7 @@ import React from "react";
 // card opens its title, an untitled one still has an accessible name, and
 // an empty list says so instead of showing a blank wall.
 vi.mock("react-native", () => ({
+  useWindowDimensions: () => ({ width: 1200, height: 675, scale: 1.6, fontScale: 1 }),
   View: ({ children }: any) => React.createElement("div", null, children),
   Text: ({ children }: any) => React.createElement("span", null, children),
   FlatList: ({ data, renderItem, keyExtractor, ListEmptyComponent }: any) =>

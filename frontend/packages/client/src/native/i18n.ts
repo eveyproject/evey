@@ -88,6 +88,12 @@ export function configureNativeI18n(next: NativeI18nConfig): void {
 // a boot whose single fetch failed is recognisable and retriable.
 let catalogueArrived = false;
 
+// The server the backend currently loads from (its loadPath's prefix).
+function loadPathServer(): string {
+  const backend = i18n.services?.backendConnector?.backend as { options?: { loadPath?: string } } | undefined;
+  return backend?.options?.loadPath?.replace("/api/v1/i18n/{{lng}}", "") ?? "";
+}
+
 // Re-entrant: the first launch runs it with no server, the server screen with
 // the chosen one, and each app gives it a second chance once signed in. It
 // re-points and reloads when the path changed or the catalogue never arrived.
@@ -111,26 +117,44 @@ export async function initI18n(serverUrl: string) {
   // language's catalogue, then applyServerLanguage fetched the viewer's own
   // pick - two bundles and a flash of the wrong language on each cold start.
   await Promise.all([storeHydrated(useAuthStore), storeHydrated(useLocaleStore)]);
-  i18n.on?.("loaded", () => { catalogueArrived = true; });
+  const lng = detectLanguage();
+  // The last catalogue this server sent for this language: the first screen
+  // renders on it instead of waiting for the fetch, which still runs and
+  // replaces it (see i18nCatalogueCache).
+  const cache = await import("./i18nCatalogueCache").catch(() => null);
+  const cached = cache ? await cache.readCatalogue(serverUrl, lng) : null;
+  i18n.on?.("loaded", (loaded: Record<string, unknown>) => {
+    catalogueArrived = true;
+    const server = loadPathServer();
+    for (const code of Object.keys(loaded ?? {})) {
+      void cache?.writeCatalogue(server, code, i18n.getResourceBundle?.(code, "translation"));
+    }
+  });
   i18n.on?.("failedLoading", (lng: string) => {
     catalogueArrived = false;
     config.onFailedLoading?.(lng);
   });
-  await i18n
+  const resources: Resource | undefined = cached
+    ? { ...config.resources, [lng]: { translation: { ...(config.resources?.[lng]?.translation as object), ...cached } } }
+    : config.resources;
+  const ready = i18n
     .use(HttpBackend)
     .use(initReactI18next)
     .init({
       backend: {
         loadPath: `${serverUrl}/api/v1/i18n/{{lng}}`,
       },
-      lng: detectLanguage(),
+      lng,
       fallbackLng: "en",
       ns: ["translation"],
       defaultNS: "translation",
       keySeparator: false,
       interpolation: { escapeValue: false },
-      ...(config.resources ? { partialBundledLanguages: true, resources: config.resources } : {}),
+      ...(resources ? { partialBundledLanguages: true, resources } : {}),
     });
+  // With the catalogue in hand nothing waits for the network.
+  if (cached) void ready.catch(() => {});
+  else await ready;
 
   return i18n;
 }

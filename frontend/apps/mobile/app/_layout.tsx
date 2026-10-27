@@ -11,7 +11,9 @@ import { ToastContainer } from "../src/components/ToastContainer";
 import { ErrorBoundary } from "../src/components/ErrorBoundary";
 import { initFetcher } from "../src/lib/fetcher-setup";
 import { getServerUrl, resolveServerUrl } from "../src/lib/server-config";
-import { migrateFromSingleServer, useServerListStore } from "@evey/store";
+import { migrateFromSingleServer, useAuthStore, useServerListStore } from "@evey/store";
+import { persistQueryCache, queryCacheScope, restoreQueryCache } from "@evey/client";
+import { fileQueryStorage } from "@evey/client/native/queryPersistStorage";
 import { applyServerLanguage, initI18n, storeHydrated } from "../src/i18n";
 import { configureAudioSession } from "../src/lib/audio-session";
 import { refreshAccessTokenIfNeeded } from "../src/lib/auth-refresh";
@@ -28,6 +30,9 @@ setZustandStorage({
 // supported way to start this app (a downloaded title must play on a plane),
 // so no step of the splash may wait on an answer that is not coming.
 const BOOT_NETWORK_BUDGET_MS = 6000;
+
+const currentQueryScope = () =>
+  queryCacheScope(useServerListStore.getState().activeServerId, useAuthStore.getState().profileId);
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -73,6 +78,9 @@ export default function RootLayout() {
         // Silently refresh a stale access token on cold start so the user
         // is not bounced to /login when the cached JWT has expired.
         await refreshAccessTokenIfNeeded();
+        // The last session's first screens, shown while they refresh: a cold
+        // start no longer waits for the home's round trips.
+        await restoreQueryCache(queryClient, fileQueryStorage, currentQueryScope());
       }
       // Re-attach JS callbacks to any background downloads that survived an
       // app kill - the native foreground service kept them alive, but JS
@@ -92,6 +100,7 @@ export default function RootLayout() {
         .then((m) => m.resumePendingAudioPasses())
         .catch((err) => console.warn("evey-audiopass sweep", err));
     }
+    const stopPersisting = persistQueryCache(queryClient, fileQueryStorage, currentQueryScope);
     bootstrap()
       .catch((err) => console.error("bootstrap failed:", err))
       .finally(() => setReady(true));
@@ -101,7 +110,10 @@ export default function RootLayout() {
         void refreshAccessTokenIfNeeded();
       }
     });
-    return () => sub.remove();
+    return () => {
+      sub.remove();
+      stopPersisting();
+    };
   }, []);
 
   if (!ready) return null;

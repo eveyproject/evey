@@ -5,6 +5,8 @@ import { useLibraryServiceListLibraries } from "@evey/api";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import type { V1Library, V1LibraryType } from "@evey/api";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { useMediaPrefetch } from "../../../src/hooks/useMediaPrefetch";
+import { libraryFirstPageQueries } from "../../../src/lib/libraryGrid";
 
 // Mirrors the mobile/web LIBRARY_TYPE_KEYS mapping (apps/mobile/app/(auth)/(tabs)/library.tsx,
 // apps/web/src/routes/_auth/library/index.lazy.tsx): reuse the same i18n keys rather than
@@ -28,9 +30,14 @@ export default function LibraryScreen() {
 
   const libraries = data?.libraries ?? [];
 
+  const { prefetchQueriesOnFocus, cancelPrefetch } = useMediaPrefetch();
+
   const renderItem = ({ item, index }: { item: V1Library; index: number }) => (
     <FocusableCard
       onPress={() => router.push(`/library/${item.id}`)}
+      // The grid's first page, fetched while the focus rests here: it opens on it.
+      onFocus={() => prefetchQueriesOnFocus(item.id ? libraryFirstPageQueries(item.id) : [])}
+      onBlur={cancelPrefetch}
       hasTVPreferredFocus={index === 0}
       style={[styles.card, { backgroundColor: theme.colors.surface, borderRadius: theme.radii.md }]}
       accessibilityLabel={item.name}
