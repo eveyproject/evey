@@ -40,14 +40,12 @@ func TestQuickConnectRepo_ConsumeIsOneShot(t *testing.T) {
 	var wg sync.WaitGroup
 	start := make(chan struct{})
 	for range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			if repo.Consume(ctx, "CONSUME1") == nil {
 				wins.Add(1)
 			}
-		}()
+		})
 	}
 	close(start)
 	wg.Wait()

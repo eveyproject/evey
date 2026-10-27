@@ -477,7 +477,7 @@ func TestOrchestrator_CacheHitPastWindow_SlidesWindowAndThrottleSeesProduction(t
 	for i := range 26 {
 		require.NoError(t, os.WriteFile(filepath.Join(hashDir, formatVariantSegment(0, i, ".m4s")), fmp4Seg(), 0o644))
 	}
-	for i := 0; i <= 15; i++ {
+	for i := range 16 {
 		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, i))
 	}
 	require.Equal(t, int32(1), proc.count.Load(), "every read was a cache hit")
