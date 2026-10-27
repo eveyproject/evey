@@ -12,6 +12,10 @@ export function QuickConnect() {
   const [code, setCode] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
   const codeSetAt = useRef<number>(0);
+  // The secret comes back with the code and never leaves this device: the
+  // QR carries the code, the event stream carries both, so a phone that scanned
+  // the screen cannot collect the tokens in our place.
+  const secretRef = useRef<string | null>(null);
   const { t } = useTranslation();
   const setTokens = useAuthStore((s) => s.setTokens);
   const navigate = useNavigate();
@@ -21,6 +25,7 @@ export function QuickConnect() {
       onSuccess: (data) => {
         if (data.code) {
           setCode(data.code);
+          secretRef.current = data.secret ?? null;
           codeSetAt.current = Date.now();
           setSecondsLeft(REFRESH_INTERVAL_S);
         }
@@ -32,7 +37,7 @@ export function QuickConnect() {
   useEffect(() => {
     if (initiated.current) return;
     initiated.current = true;
-    initiate.mutate();
+    initiate.mutate({ params: { secretAware: true } });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once on mount
   }, []);
 
@@ -40,7 +45,7 @@ export function QuickConnect() {
   useEffect(() => {
     const id = setInterval(() => {
       setCode(null);
-      initiate.mutate();
+      initiate.mutate({ params: { secretAware: true } });
     }, REFRESH_INTERVAL_S * 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fire-once on mount
@@ -65,7 +70,8 @@ export function QuickConnect() {
 
     function connectSSE() {
       if (closed) return;
-      const url = `/api/v1/auth/quick-connect/${code}/events`;
+      const secret = secretRef.current;
+      const url = `/api/v1/auth/quick-connect/${code}/events${secret ? `?secret=${encodeURIComponent(secret)}` : ""}`;
       es = new EventSource(url);
       // A successful (re)connection resets the retry budget; otherwise 3 transient
       // drops across the code's whole 120s window exhaust it and we stop listening
@@ -119,7 +125,7 @@ export function QuickConnect() {
           <div className="w-full h-full flex items-center justify-center">
             <button
               type="button"
-              onClick={() => initiate.mutate()}
+              onClick={() => initiate.mutate({ params: { secretAware: true } })}
               data-testid="quick-connect-retry"
               className="text-xs font-medium underline text-black"
             >

@@ -239,7 +239,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "video/mp4")
 	w.Header().Set("Cache-Control", "no-cache")
-	http.ServeFile(w, r, path)
+	serveSegmentFile(w, r, path)
 }
 
 func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx, segIdx int, videoCompositionDelay float64, copyCodec string) {
@@ -305,7 +305,7 @@ func (h *audioServe) serveSegmentFile(w http.ResponseWriter, r *http.Request, me
 	setCORSHeaders(w, r, "")
 	w.Header().Set("Content-Type", "video/iso.segment")
 	w.Header().Set("Cache-Control", "no-cache")
-	http.ServeFile(w, r, path)
+	serveSegmentFile(w, r, path)
 }
 
 // buildAudioFingerprint constructs the AudioFingerprint for an HTTP request.

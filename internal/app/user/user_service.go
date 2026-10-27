@@ -25,9 +25,15 @@ type UserService struct {
 	// minPassword is the floor CreateUser enforces; 0 means the production
 	// default. Lowered at composition on the demo instance only.
 	minPassword int
+	pinAttempts *PINAttempts
 }
 
 type UserServiceOption func(*UserService)
+
+// WithPINAttempts replaces the process-wide wrong-PIN counter (tests).
+func WithPINAttempts(a *PINAttempts) UserServiceOption {
+	return func(s *UserService) { s.pinAttempts = a }
+}
 
 // UserWithMinPasswordLength lowers the password floor CreateUser enforces.
 // Composition-level on purpose: the one caller is the demo bootstrap, whose
@@ -103,6 +109,7 @@ func NewUserService(
 		hasher:      hasher,
 		events:      events,
 		uow:         uow,
+		pinAttempts: SharedPINAttempts(),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -132,6 +139,24 @@ func (s *UserService) HashPIN(plain string) (string, error) {
 // caller rate-limits the attempts; this only answers the question.
 func (s *UserService) VerifyPIN(plain, hash string) (bool, error) {
 	return s.hasher.Verify(plain, hash)
+}
+
+// VerifyProfilePIN checks plain against profileID's PIN hash under the shared
+// wrong-PIN lockout: ErrPINLocked without comparing while locked.
+func (s *UserService) VerifyProfilePIN(ctx context.Context, profileID, plain, hash string) (bool, error) {
+	if s.pinAttempts.Locked(ctx, profileID) {
+		return false, ErrPINLocked
+	}
+	ok, err := s.hasher.Verify(plain, hash)
+	if err != nil {
+		return false, err
+	}
+	if ok {
+		s.pinAttempts.Succeeded(ctx, profileID)
+	} else {
+		s.pinAttempts.Failed(ctx, profileID)
+	}
+	return ok, nil
 }
 
 func (s *UserService) resolveDefaultLocale() string {

@@ -85,7 +85,7 @@ type SegmentOrchestrator struct {
 	// timer instead of each seek spawning-then-LRU-evicting an encoder before it
 	// produces. Guarded by mu; nil/empty when SeekCoalesceWindow is 0 (off) or no
 	// seek is pending. Entries fire (spawn once) then delete via fireCoalescedSeek.
-	pendingSeeks map[string]*pendingSeek
+	pendingSeeks map[pendingSeekKey]*pendingSeek
 
 	stopGC chan struct{}
 	gcDone chan struct{}
@@ -249,7 +249,7 @@ func NewSegmentOrchestrator(
 		shutdownCancel: shutdownCancel,
 		sessions:       make(map[string][]*orchestratorSession),
 		spawnedHashes:  make(map[string]struct{}),
-		pendingSeeks:   make(map[string]*pendingSeek),
+		pendingSeeks:   make(map[pendingSeekKey]*pendingSeek),
 		stopGC:         make(chan struct{}),
 		gcDone:         make(chan struct{}),
 		stopThrottle:   make(chan struct{}),
@@ -508,7 +508,9 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 		// target; the last one standing spawns once, off the debounce timer. The
 		// `far != nil` path (a nearby rafale to ride or overtake) is left
 		// immediate - it is a continuation, not the storm, and must not stall.
-		if o.opts.SeekCoalesceWindow > 0 && far == nil {
+		// The pre-check races the debounce: a slot taken before the timer fires
+		// still refuses that spawn, and this caller (already answered) waits out its budget.
+		if o.opts.SeekCoalesceWindow > 0 && far == nil && !o.spawnWouldBeRefused(hash, fp, variantIdx) {
 			o.coalesceSeekLocked(hash, fp, variantIdx, segmentIdx)
 			o.mu.Unlock()
 			// The caller blocks on cache.Wait as always; the deferred spawn
@@ -578,6 +580,23 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	// the lifetime of the process.
 	o.settlePendingSpawn(hash, claim, err)
 	return err
+}
+
+// spawnWouldBeRefused tells whether spawnSession would fail its capacity gates
+// right now. A deferred spawn reports its refusal to nobody, so a seek that
+// cannot be admitted takes the immediate path and its caller gets the error.
+func (o *SegmentOrchestrator) spawnWouldBeRefused(hash string, fp DecisionFingerprint, variantIdx int) bool {
+	if o.sessionSem != nil && len(o.sessionSem) >= cap(o.sessionSem) {
+		return true
+	}
+	if o.videoLimiter == nil {
+		return false
+	}
+	profiles := fp.Profiles
+	if o.opts.SingleVariant && variantIdx >= 0 && variantIdx < len(profiles) {
+		profiles = profiles[variantIdx : variantIdx+1]
+	}
+	return !o.videoLimiter.CanAdmitSession(hash, SessionCostOf(fp, topProfileHeight(profilesToDomain(profiles))))
 }
 
 // pendingSpawn records a spawn that has passed the covering-session check but
@@ -671,23 +690,39 @@ type pendingSeek struct {
 	timer    *time.Timer
 }
 
+// pendingSeekKey scopes a debounced seek. In single-variant mode each rung runs
+// its own encoder, so rungs must not overwrite each other's target; otherwise
+// one session serves every rung and the variant is irrelevant.
+type pendingSeekKey struct {
+	hash    string
+	variant int
+}
+
+func (o *SegmentOrchestrator) pendingSeekKeyOf(hash string, variantIdx int) pendingSeekKey {
+	if o.opts.SingleVariant {
+		return pendingSeekKey{hash: hash, variant: variantIdx}
+	}
+	return pendingSeekKey{hash: hash}
+}
+
 // coalesceSeekLocked records segmentIdx as the latest unserved-seek target for
 // hash and (re)arms the debounce. Last write wins. Caller holds o.mu.
 func (o *SegmentOrchestrator) coalesceSeekLocked(hash string, fp DecisionFingerprint, variantIdx, segmentIdx int) {
 	if o.pendingSeeks == nil {
-		o.pendingSeeks = map[string]*pendingSeek{}
+		o.pendingSeeks = map[pendingSeekKey]*pendingSeek{}
 	}
-	ps := o.pendingSeeks[hash]
+	key := o.pendingSeekKeyOf(hash, variantIdx)
+	ps := o.pendingSeeks[key]
 	if ps == nil {
 		ps = &pendingSeek{}
-		o.pendingSeeks[hash] = ps
+		o.pendingSeeks[key] = ps
 	}
 	ps.fp = fp
 	ps.variantIdx = variantIdx
 	ps.segmentIdx = segmentIdx
 	ps.deadline = time.Now().Add(o.opts.SeekCoalesceWindow)
 	if ps.timer == nil {
-		ps.timer = time.AfterFunc(o.opts.SeekCoalesceWindow, func() { o.fireCoalescedSeek(hash) })
+		ps.timer = time.AfterFunc(o.opts.SeekCoalesceWindow, func() { o.fireCoalescedSeek(key) })
 	}
 	// No Reset here: a newer seek only moves the deadline, and fireCoalescedSeek
 	// re-arms the timer for the remaining slice when it wakes too early.
@@ -700,9 +735,10 @@ func (o *SegmentOrchestrator) coalesceSeekLocked(hash string, fp DecisionFingerp
 // fireCoalescedSeek is the debounce timer callback: it spawns ONE rafale at the
 // last recorded target once the window has been quiet, or re-arms if a newer
 // seek pushed the deadline out. Runs detached (off the timer goroutine).
-func (o *SegmentOrchestrator) fireCoalescedSeek(hash string) {
+func (o *SegmentOrchestrator) fireCoalescedSeek(key pendingSeekKey) {
+	hash := key.hash
 	o.mu.Lock()
-	ps := o.pendingSeeks[hash]
+	ps := o.pendingSeeks[key]
 	if ps == nil {
 		o.mu.Unlock()
 		return
@@ -714,7 +750,7 @@ func (o *SegmentOrchestrator) fireCoalescedSeek(hash string) {
 		return
 	}
 	fp, variantIdx, segmentIdx := ps.fp, ps.variantIdx, ps.segmentIdx
-	delete(o.pendingSeeks, hash)
+	delete(o.pendingSeeks, key)
 	// Bail if the orchestrator is shutting down - shutdownCtx is already
 	// cancelled, so the spawn would only resolve-then-fail. Close stops timers
 	// too, but a fire racing shutdownCancel lands here.
@@ -1069,6 +1105,8 @@ func (o *SegmentOrchestrator) spawnSession(
 			naturalExit = true
 		case <-sessionCtx.Done():
 		}
+		// A natural exit never cancels sessionCtx; release it from shutdownCtx's child set.
+		cancel()
 		session.mu.Lock()
 		if session.killed {
 			naturalExit = false
@@ -1279,6 +1317,14 @@ func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx i
 	target := o.closestCoveringSessionLocked(hash, variantIdx, segmentIdx)
 	covered := target != nil
 	if target == nil {
+		// Just past a window: ffmpeg runs beyond endSeg, so the reader rides it
+		// from disk. Slide the window as a miss would, else the throttle (bounded
+		// by endSeg) never sees this production and the next miss respawns.
+		if reach, _, _ := o.reachableSessionLocked(hash, variantIdx, segmentIdx); reach != nil {
+			target, covered = reach, true
+		}
+	}
+	if target == nil {
 		// No exact cover. Bump the most-recently-touched rafale so the
 		// GC keeps at least one session warm for the hash.
 		var newest time.Time
@@ -1305,6 +1351,9 @@ func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx i
 	// A cache hit proves production through segmentIdx (the throttle only samples once a second).
 	if covered && segmentIdx > target.producedHighWater {
 		target.producedHighWater = segmentIdx
+	}
+	if covered && segmentIdx > target.endSeg {
+		target.endSeg = segmentIdx + o.opts.LookAheadSegments
 	}
 	target.mu.Unlock()
 }

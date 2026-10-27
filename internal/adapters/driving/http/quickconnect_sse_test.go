@@ -216,14 +216,16 @@ type fakeChecker struct {
 	err        error
 	calls      int
 	lastCode   string
+	lastSecret string
 	lastPersis bool
 }
 
-func (f *fakeChecker) checkAndGenerateTokens(_ context.Context, code string, persistent bool) (string, string, bool, error) {
+func (f *fakeChecker) checkAndGenerateTokens(_ context.Context, code, secret string, persistent bool) (string, string, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
 	f.lastCode = code
+	f.lastSecret = secret
 	f.lastPersis = persistent
 	return f.access, f.refresh, f.authorized, f.err
 }
@@ -373,5 +375,91 @@ func TestQuickConnectSSE_ConcurrentSubscribersSameCode(t *testing.T) {
 		if !strings.Contains(r.body(), `"event":"authorized"`) {
 			t.Errorf("sub %d missing authorized event: %q", i, r.body())
 		}
+	}
+}
+
+// An EventSource cannot send a header, so the secret the initiator was handed
+// rides the query string and reaches the checker as is.
+func TestQuickConnectSSE_SecretFromQueryReachesTheChecker(t *testing.T) {
+	hub := quickconnecthub.New()
+	checker := &fakeChecker{access: "acc", refresh: "ref", authorized: true}
+	h := quickConnectSSEHandler(hub, checker)
+
+	mux := http.NewServeMux()
+	mux.Handle("/qc/{code}", h)
+
+	req := httptest.NewRequest(http.MethodGet, "/qc/code123?secret=qc-secret-abc", nil).WithContext(t.Context())
+	rec := newSyncRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		mux.ServeHTTP(rec, req)
+		close(done)
+	}()
+	if !rec.waitForBody(t, ": ping", 2*time.Second) {
+		t.Fatalf("expected initial ping before notify, got %q", rec.body())
+	}
+	hub.Notify("code123")
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler did not return after notify+authorized")
+	}
+	checker.mu.Lock()
+	defer checker.mu.Unlock()
+	if checker.lastSecret != "qc-secret-abc" {
+		t.Fatalf("secret not forwarded, got %q", checker.lastSecret)
+	}
+}
+
+// The header the redaction middleware set (or a polling client sent) is what
+// the checker receives; the query is only a fallback.
+func TestQuickConnectSSE_SecretHeaderWinsOverQuery(t *testing.T) {
+	hub := quickconnecthub.New()
+	checker := &fakeChecker{access: "acc", refresh: "ref", authorized: true}
+	h := quickConnectSSEHandler(hub, checker)
+
+	mux := http.NewServeMux()
+	mux.Handle("/qc/{code}", h)
+
+	req := httptest.NewRequest(http.MethodGet, "/qc/code123?secret=from-query", nil).WithContext(t.Context())
+	req.Header.Set(quickConnectSecretHeader, "from-header")
+	rec := newSyncRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		mux.ServeHTTP(rec, req)
+		close(done)
+	}()
+	if !rec.waitForBody(t, ": ping", 2*time.Second) {
+		t.Fatalf("expected initial ping before notify, got %q", rec.body())
+	}
+	hub.Notify("code123")
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler did not return after notify+authorized")
+	}
+	checker.mu.Lock()
+	defer checker.mu.Unlock()
+	if checker.lastSecret != "from-header" {
+		t.Fatalf("header must win, got %q", checker.lastSecret)
+	}
+}
+
+// The generated poll route binds its request from the query string only, so
+// the header a client sent is handed back to it as a query parameter.
+func TestWithQuickConnectSecretQuery(t *testing.T) {
+	r := httptest.NewRequest(http.MethodGet, "/api/v1/auth/quick-connect/qc-code-1", nil)
+	if got := withQuickConnectSecretQuery(r); got.URL.Query().Get("secret") != "" {
+		t.Fatal("no header, no query")
+	}
+	r.Header.Set(quickConnectSecretHeader, "qc-secret-1")
+	got := withQuickConnectSecretQuery(r)
+	if got.URL.Query().Get("secret") != "qc-secret-1" {
+		t.Fatalf("header must reach the query, got %q", got.URL.RawQuery)
+	}
+	if r.URL.RawQuery != "" {
+		t.Fatal("the original request must stay untouched")
 	}
 }

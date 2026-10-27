@@ -7,7 +7,7 @@
 # Debian base (NOT Alpine): evey uses jellyfin-ffmpeg everywhere (tonemapx + HLS
 # patches, parity with prod), and jellyfin-ffmpeg7 ships ONLY as a Debian package.
 
-FROM golang:1.27.3-trixie
+FROM golang:1.27.3-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4
 
 RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends \
     ca-certificates curl gnupg postgresql-client-17 libchromaprint-tools \
@@ -54,6 +54,6 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-ENV EVEY_LOG_DEV_MODE=true
+ENV EVEY_LOG_DEV_MODE=true EVEY_ENV=dev
 
 CMD ["air", "-c", ".air.toml"]

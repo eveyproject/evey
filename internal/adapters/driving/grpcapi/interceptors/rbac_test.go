@@ -92,6 +92,9 @@ func TestDefaultRBACConfig_AdminMethods(t *testing.T) {
 		"/evey.v1.AdminPluginService/RemoveTrustedPublisher",
 		"/evey.v1.AdminPluginService/GetPluginResourceLimits",
 		"/evey.v1.AdminPluginService/UpdatePluginResourceLimits",
+		"/evey.v1.AdminPluginService/GetPluginMetadataSettings",
+		"/evey.v1.AdminPluginService/UpdatePluginMetadataSettings",
+		"/evey.v1.AdminPluginService/RefreshPluginMetadata",
 		// AdminMediaService
 		"/evey.v1.AdminMediaService/RefreshAllMetadata",
 		"/evey.v1.AdminMediaService/RelinkCollections",

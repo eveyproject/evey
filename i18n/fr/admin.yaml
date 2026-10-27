@@ -137,6 +137,23 @@ artworks:
   purgeVariantsSuccess_other: "{{count}} variantes corrompues supprimées."
   purgeVariantsFailed: Échec de la purge des variantes
 plugin:
+  metadata:
+    title: "Métadonnées"
+    description: "Ce plugin peut remplacer le texte fourni par TMDB, champ par champ. TMDB reste la source de l'identification, de la distribution et des visuels."
+    fieldsLabel: "Champs remplacés par ce plugin"
+    fields:
+      title: "Titre"
+      overview: "Synopsis"
+      tagline: "Accroche"
+    save: "Enregistrer"
+    saved: "Champs de métadonnées enregistrés"
+    saveFailed: "Échec de l'enregistrement des champs de métadonnées"
+    refresh: "Récupérer pour toute la bibliothèque"
+    refreshHint: "Les nouveaux films et séries sont récupérés à leur ajout. Ceci interroge le plugin sur ceux déjà présents dans la bibliothèque, l'un après l'autre."
+    refreshStarted: "Récupération de la bibliothèque depuis ce plugin"
+    refreshFailed: "Échec du lancement de la récupération"
+    running: "Récupération : {{done}} sur {{total}}"
+    finished: "Dernière récupération : {{covered}} sur {{total}} trouvés, {{failed}} sans réponse"
   copySourceHash: "Copier le hash de la source"
   enabled: Activé
   disabled: Désactivé
@@ -381,6 +398,8 @@ users:
   libraryAccessUpdated: "Accès aux bibliothèques mis à jour"
   failedLibraryAccess: "Échec de la mise à jour de l'accès aux bibliothèques"
   clearAllUnrestricted: "Tout effacer (non restreint)"
+  noLibraries: "Aucune bibliothèque"
+  noLibrariesDesc: "Cet utilisateur est restreint mais il ne lui reste aucune bibliothèque : tous les accès ont été retirés ou les bibliothèques supprimées. Cochez des bibliothèques pour lui donner accès, ou enregistrez sans sélection pour lever la restriction."
   bitrate: "Débit"
   maxBitrateTitle: "Débit maximal - {{name}}"
   maxBitrateDesc: "Limiter le débit de streaming maximal pour cet utilisateur. 0 = illimité."

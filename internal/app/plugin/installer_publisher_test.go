@@ -224,8 +224,12 @@ func TestUpdate_UnsignedThenSignedHasNoContinuityAndPins(t *testing.T) {
 	assert.Equal(t, k.fingerprint, p2.PublisherKeyFingerprint)
 }
 
-func TestInstall_PolicyOff_StoresNothingAndKeepsThePin(t *testing.T) {
-	k := newSigner(t)
+// Policy off only stops a bad signature from BLOCKING an install: a plugin
+// pinned to a key while the policy was on keeps its continuity guard, so an
+// unsigned or re-keyed update still needs the admin's acknowledgement, and the
+// preview says so before ApplyUpdate refuses.
+func TestUpdate_PolicyOff_KeepsTheContinuityGuard(t *testing.T) {
+	k, other := newSigner(t), newSigner(t)
 	rig := newPublisherRig(t, "warn")
 	p, err := rig.install(t, "1.0.0", pkg(t, &k, "v1"))
 	require.NoError(t, err)
@@ -237,10 +241,37 @@ func TestInstall_PolicyOff_StoresNothingAndKeepsThePin(t *testing.T) {
 		appplugin.InstallerWithFileSystem(plgfakes.NewFakePluginFileSystem()),
 		appplugin.InstallerWithSignatureVerifier(pluginrunner.NewCosignVerifier("off", nil)))
 	rig.parser.Result = goManifestVersioned("signed-plugin", "1.1.0")
-	p2, err := off.InstallPlugin(context.Background(), pkg(t, nil, "v2"))
+
+	unsigned := pkg(t, nil, "v2")
+	preview, err := off.PreviewUpdate(context.Background(), p.ID, unsigned)
 	require.NoError(t, err)
-	assert.Nil(t, p2.Signature)
-	assert.Equal(t, p.PublisherKeyFingerprint, p2.PublisherKeyFingerprint, "nothing was checked, so the pin is not erased")
+	assert.True(t, preview.RequiresAck, "the preview must ask for the acknowledgement ApplyUpdate needs")
+	_, err = off.ApplyUpdate(context.Background(), p.ID, unsigned, preview.SourceHash, false)
+	require.ErrorIs(t, err, appplugin.ErrSignatureLost)
+
+	rekeyed := pkg(t, &other, "v2")
+	preview, err = off.PreviewUpdate(context.Background(), p.ID, rekeyed)
+	require.NoError(t, err)
+	assert.True(t, preview.RequiresAck)
+	_, err = off.ApplyUpdate(context.Background(), p.ID, rekeyed, preview.SourceHash, false)
+	require.ErrorIs(t, err, appplugin.ErrPublisherChanged)
+
+	same := pkg(t, &k, "v2")
+	preview, err = off.PreviewUpdate(context.Background(), p.ID, same)
+	require.NoError(t, err)
+	assert.False(t, preview.RequiresAck)
+	p2, err := off.ApplyUpdate(context.Background(), p.ID, same, preview.SourceHash, false)
+	require.NoError(t, err)
+	assert.Equal(t, k.fingerprint, p2.PublisherKeyFingerprint, "the same key keeps the pin")
+}
+
+// With nothing pinned, policy off checks nothing and stores nothing.
+func TestInstall_PolicyOff_UnpinnedStoresNothing(t *testing.T) {
+	rig := newPublisherRig(t, "off")
+	p, err := rig.install(t, "1.0.0", pkg(t, nil, "v1"))
+	require.NoError(t, err)
+	assert.Nil(t, p.Signature)
+	assert.Empty(t, p.PublisherKeyFingerprint)
 }
 
 func TestInstall_EnforceBlocksUntrustedAndAdmitsTrusted(t *testing.T) {

@@ -48,7 +48,7 @@ in **Admin → Server Config → Data & retention** applies at the next sweep.
 
 | Variable | Default | What it does | Panel |
 | --- | --- | --- | --- |
-| `EVEY_LOG_DEV_MODE` | `false` | Developer mode: security checks at startup only warn, and plugins may run without the sandbox library. Never on a real server; with `EVEY_ENV=production` the server refuses to start. | none |
+| `EVEY_LOG_DEV_MODE` | `false` | Developer mode: security checks at startup only warn, and plugins may run without the sandbox library. Only takes effect together with `EVEY_ENV=dev`; on its own it is ignored with a warning. Never on a real server. | none |
 
 <!-- sources
 internal/config/config.go - EVEY_BACKUP_*, EVEY_LOG_*, EVEY_*_RETENTION_DAYS, EVEY_METRICS_*, EVEY_OTLP_ENDPOINT, EVEY_TRACING_* ; ScrapeToken comment ; WarnValidate (DevMode, sample ratio)

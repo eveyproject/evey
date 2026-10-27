@@ -84,6 +84,21 @@ func (r *ResilientSearch) RemoveMediaItem(ctx context.Context, id string) error 
 	return nil
 }
 
+// RemoveLibrary purges a deleted library's documents from the primary. Not
+// queued on failure: the outbox is per item, and the reconcile wipes and
+// rebuilds an index left larger than the database.
+func (r *ResilientSearch) RemoveLibrary(ctx context.Context, libraryID string) error {
+	ctx, span := tracing.StartSpan(ctx, "search.resilient.RemoveLibrary")
+	defer span.End()
+	rm, ok := r.primary.(interface {
+		RemoveLibrary(ctx context.Context, libraryID string) error
+	})
+	if !ok {
+		return nil
+	}
+	return rm.RemoveLibrary(ctx, libraryID)
+}
+
 func (r *ResilientSearch) Clear(ctx context.Context) error {
 	ctx, span := tracing.StartSpan(ctx, "search.resilient.Clear")
 	defer span.End()

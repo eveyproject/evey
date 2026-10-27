@@ -309,15 +309,71 @@ func TestHostGetUserPreferencesUnimplemented(t *testing.T) {
 
 // --- UpdateMetadata ---
 
-func TestHostUpdateMetadataUnimplemented(t *testing.T) {
-	h := newTestHostServer()
-	ctx := ctxWithPluginID("plg-1")
+// recordedTexts keeps what UpdateMetadata stores.
+type recordedTexts struct{ texts []library.PluginText }
 
-	_, err := h.UpdateMetadata(ctx, &pluginv1.UpdateMetadataRequest{})
-	require.Error(t, err)
-	st, ok := status.FromError(err)
-	require.True(t, ok)
-	assert.Equal(t, codes.Unimplemented, st.Code())
+func (r *recordedTexts) ReplaceForItem(context.Context, string, string, []library.PluginText) error {
+	return nil
+}
+
+func (r *recordedTexts) ReplaceLocale(_ context.Context, t library.PluginText) error {
+	r.texts = append(r.texts, t)
+	return nil
+}
+
+func (r *recordedTexts) DisplayedForLocale(context.Context, []string, string) (map[string][]library.PluginText, error) {
+	return nil, nil
+}
+
+func newMetadataHostServer() (*HostServer, *recordedTexts) {
+	h := newTestHostServer()
+	store := h.plugins.(*fakeConfigStore)
+	store.plugins["plg-meta"] = &plugindomain.Plugin{ID: "plg-meta", Capabilities: []string{plugindomain.CapabilityMetadataProvider}}
+	h.mediaItems.(*fakeMediaQuerier).items["e1"] = &library.MediaItem{ID: "e1", Type: library.Episode}
+	texts := &recordedTexts{}
+	return h.WithPluginTexts(texts), texts
+}
+
+func TestHostUpdateMetadataUnavailableWithoutStore(t *testing.T) {
+	h := newTestHostServer()
+	_, err := h.UpdateMetadata(ctxWithPluginID("plg-1"), &pluginv1.UpdateMetadataRequest{})
+	assert.Equal(t, codes.Unimplemented, status.Code(err))
+}
+
+// A metadata plugin's text for one locale is stored under its id, the locale
+// shortened to its language.
+func TestHostUpdateMetadataStoresTheText(t *testing.T) {
+	h, texts := newMetadataHostServer()
+	resp, err := h.UpdateMetadata(ctxWithPluginID("plg-meta"), &pluginv1.UpdateMetadataRequest{
+		MediaItemId: "m1",
+		Fields:      map[string]string{"locale": "fr-FR", "overview": " Un résumé. ", "tagline": "Accroche"},
+	})
+	require.NoError(t, err)
+	assert.True(t, resp.Success)
+	assert.Equal(t, []library.PluginText{{MediaItemID: "m1", PluginID: "plg-meta", Locale: "fr", Overview: "Un résumé.", Tagline: "Accroche"}}, texts.texts)
+}
+
+func TestHostUpdateMetadataRefusals(t *testing.T) {
+	h, texts := newMetadataHostServer()
+	big := string(make([]byte, 9000))
+	for name, tc := range map[string]struct {
+		plugin string
+		req    *pluginv1.UpdateMetadataRequest
+		code   codes.Code
+	}{
+		"not a metadata plugin": {"plg-1", &pluginv1.UpdateMetadataRequest{MediaItemId: "m1", Fields: map[string]string{"locale": "fr", "overview": "x"}}, codes.PermissionDenied},
+		"provider ids":          {"plg-meta", &pluginv1.UpdateMetadataRequest{MediaItemId: "m1", Fields: map[string]string{"locale": "fr"}, ProviderIds: map[string]string{"tmdb": "1"}}, codes.InvalidArgument},
+		"unknown field":         {"plg-meta", &pluginv1.UpdateMetadataRequest{MediaItemId: "m1", Fields: map[string]string{"locale": "fr", "poster": "x"}}, codes.InvalidArgument},
+		"no locale":             {"plg-meta", &pluginv1.UpdateMetadataRequest{MediaItemId: "m1", Fields: map[string]string{"overview": "x"}}, codes.InvalidArgument},
+		"bad locale":            {"plg-meta", &pluginv1.UpdateMetadataRequest{MediaItemId: "m1", Fields: map[string]string{"locale": "1x", "overview": "x"}}, codes.InvalidArgument},
+		"oversized":             {"plg-meta", &pluginv1.UpdateMetadataRequest{MediaItemId: "m1", Fields: map[string]string{"locale": "fr", "overview": big}}, codes.InvalidArgument},
+		"unknown item":          {"plg-meta", &pluginv1.UpdateMetadataRequest{MediaItemId: "nope", Fields: map[string]string{"locale": "fr", "overview": "x"}}, codes.NotFound},
+		"episode":               {"plg-meta", &pluginv1.UpdateMetadataRequest{MediaItemId: "e1", Fields: map[string]string{"locale": "fr", "overview": "x"}}, codes.FailedPrecondition},
+	} {
+		_, err := h.UpdateMetadata(ctxWithPluginID(tc.plugin), tc.req)
+		assert.Equal(t, tc.code, status.Code(err), name)
+	}
+	assert.Empty(t, texts.texts)
 }
 
 // --- EmitEvent ---
@@ -706,6 +762,19 @@ func (f *fakeDataRepo) List(_ context.Context, p, u, pr string) ([]*plugindomain
 	return out, nil
 }
 
+func (f *fakeDataRepo) Count(_ context.Context, p, u, pr string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	prefix := p + "\x00" + u + "\x00" + pr + "\x00"
+	for k := range f.m {
+		if strings.HasPrefix(k, prefix) {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func TestHostDataStore_RoundTrip(t *testing.T) {
 	h := newTestHostServer().WithDataStore(newFakeDataRepo())
 	ctx := ctxWithPluginID("plg-1")
@@ -747,6 +816,30 @@ func TestHostDataStore_PluginScoped(t *testing.T) {
 	assert.Equal(t, "two", got.Value)
 	got, _ = h.GetData(ctxWithPluginID("plg-1"), &pluginv1.GetDataRequest{Key: "k"})
 	assert.Equal(t, "one", got.Value)
+}
+
+// TestHostDataStore_Bounded: SetData needs no permission, so the store's
+// growth is capped per value and per number of distinct keys, like SetConfig.
+func TestHostDataStore_Bounded(t *testing.T) {
+	h := newTestHostServer().WithDataStore(newFakeDataRepo())
+	ctx := ctxWithPluginID("plg-1")
+	code := func(err error) codes.Code { st, _ := status.FromError(err); return st.Code() }
+
+	_, err := h.SetData(ctx, &pluginv1.SetDataRequest{Key: strings.Repeat("k", plugindomain.MaxPluginDataKeyLen+1), Value: "v"})
+	assert.Equal(t, codes.InvalidArgument, code(err), "oversized key")
+	_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: "big", Value: strings.Repeat("v", plugindomain.MaxPluginDataValueLen+1)})
+	assert.Equal(t, codes.InvalidArgument, code(err), "oversized value")
+
+	for i := range plugindomain.MaxPluginDataKeys {
+		_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: fmt.Sprintf("k%d", i), Value: "v"})
+		require.NoError(t, err)
+	}
+	_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: "one-too-many", Value: "v"})
+	assert.Equal(t, codes.ResourceExhausted, code(err), "key count cap")
+	_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: "k0", Value: "rewritten"})
+	require.NoError(t, err, "an existing key stays writable at the cap")
+	_, err = h.SetData(ctxWithPluginID("plg-2"), &pluginv1.SetDataRequest{Key: "k", Value: "v"})
+	require.NoError(t, err, "the cap is per plugin")
 }
 
 func TestHostDataStore_Unimplemented(t *testing.T) {

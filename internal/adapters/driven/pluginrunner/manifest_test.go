@@ -612,3 +612,27 @@ func TestValidateExternalFetch_KeepsAcceptingHostnames(t *testing.T) {
 		}
 	}
 }
+
+// TestValidateExternalFetch_RejectsNonHostSyntax: the entries end up in a CSP
+// source list (the native plugin WebView writes it into a meta tag), so
+// anything beyond a host, an optional scheme and port must not install.
+func TestValidateExternalFetch_RejectsNonHostSyntax(t *testing.T) {
+	for _, entry := range []string{
+		"api.example.com; script-src 'unsafe-inline'",
+		`api.example.com"><script>alert(1)</script>`,
+		"api.example.com'",
+		"api.example.com https://other.example.com",
+		"ftp://api.example.com",
+		"api.example.com:123456",
+		"-api.example.com",
+	} {
+		if err := validateExternalFetch([]string{entry}); err == nil {
+			t.Errorf("external_fetch %q is not a plain host and must be rejected", entry)
+		}
+	}
+	for _, entry := range []string{"API.Example.com", "https://api.example.com/v1/", "http://localhost:8080"} {
+		if err := validateExternalFetch([]string{entry}); err != nil {
+			t.Errorf("external_fetch %q normalises to a plain host, got %v", entry, err)
+		}
+	}
+}

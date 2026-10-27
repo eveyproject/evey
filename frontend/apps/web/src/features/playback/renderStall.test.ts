@@ -64,6 +64,16 @@ describe("formatCadence", () => {
   });
 });
 
+describe("formatPainted", () => {
+  it("adds Firefox's painted rate to both reports when it is known", () => {
+    const w = win({ fps: 21, longIntervals: 3, maxIntervalMs: 81, medianIntervalMs: 40.4, skippedFrames: 2, paintedFps: 25 });
+    expect(formatCadence(w, { frames: 100, longIntervals: 3, skippedFrames: 2 })).toBe(
+      "long=3 max=81ms med=40.4ms skip=2 fps=21.0/25.0 paint=25.0 tot=3/2/100",
+    );
+    expect(formatRenderWindow({ ...w, fps: 10 })).toBe("fps=10.0/25.0 lag=0ms paint=25.0 jit=3/81ms sk=2");
+  });
+});
+
 describe("createRenderStallWatch", () => {
   let clock = 0;
   const now = () => clock;
@@ -201,6 +211,27 @@ describe("createRenderStallWatch", () => {
     expect(Math.round(w.maxIntervalMs)).toBe(83);
     expect(totals).toEqual({ frames: 48, longIntervals: 3, skippedFrames: 1 });
     expect(watch.totals()).toEqual(totals);
+    watch.stop();
+  });
+
+  // Firefox's compositor count says whether a hitch reached the screen.
+  it("reads Firefox's painted frames over the same window", async () => {
+    const onCadence = vi.fn();
+    const { v, show } = fakeVideo();
+    const counted = v as HTMLVideoElement & { mozPaintedFrames: number };
+    counted.mozPaintedFrames = 100;
+    const watch = createRenderStallWatch(v, { onSlowdown: vi.fn(), onCadence, now });
+
+    let p = playSecond(show, 0, 0);
+    counted.mozPaintedFrames += 24;
+    await advance(1000);
+    p = playSecond(show, p.at, p.frame, { 4: 1, 11: 1, 19: 1 }, { 7: 1 });
+    counted.mozPaintedFrames += 22;
+    await advance(1000);
+
+    expect(onCadence).toHaveBeenCalledTimes(1);
+    expect(onCadence.mock.calls[0][0].paintedFps).toBe(22);
+    expect(watch.latest()?.paintedFps).toBe(22);
     watch.stop();
   });
 

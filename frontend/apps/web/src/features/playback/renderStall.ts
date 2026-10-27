@@ -67,6 +67,10 @@ export interface RenderWindow {
   medianIntervalMs: number;
   /** Media frames the screen never showed, read from the media-time steps. */
   skippedFrames: number;
+  /** Frames Firefox's compositor painted per second (mozPaintedFrames), absent
+   *  elsewhere. Next to fps it tells a frame the screen really missed from a
+   *  frame callback that was only coalesced. */
+  paintedFps?: number;
 }
 
 /** Session totals, counted over playing and visible windows only. */
@@ -94,7 +98,7 @@ export function isRenderSlowdown(w: RenderWindow): boolean {
  * Kept terse for that reason: `fps=11.0/25.0 lag=340ms`.
  */
 export function formatRenderWindow(w: RenderWindow): string {
-  const base = `fps=${w.fps.toFixed(1)}/${w.baselineFps.toFixed(1)} lag=${Math.round(w.lagMaxMs)}ms`;
+  const base = `fps=${w.fps.toFixed(1)}/${w.baselineFps.toFixed(1)} lag=${Math.round(w.lagMaxMs)}ms${formatPainted(w)}`;
   if (!w.longIntervals && !w.skippedFrames) return base;
   return `${base} jit=${w.longIntervals}/${Math.round(w.maxIntervalMs)}ms sk=${w.skippedFrames}`;
 }
@@ -112,9 +116,13 @@ export function isCadenceBroken(w: RenderWindow): boolean {
 export function formatCadence(w: RenderWindow, t: CadenceTotals): string {
   return (
     `long=${w.longIntervals} max=${Math.round(w.maxIntervalMs)}ms med=${w.medianIntervalMs.toFixed(1)}ms ` +
-    `skip=${w.skippedFrames} fps=${w.fps.toFixed(1)}/${w.baselineFps.toFixed(1)} ` +
+    `skip=${w.skippedFrames} fps=${w.fps.toFixed(1)}/${w.baselineFps.toFixed(1)}${formatPainted(w)} ` +
     `tot=${t.longIntervals}/${t.skippedFrames}/${t.frames}`
   );
+}
+
+function formatPainted(w: RenderWindow): string {
+  return w.paintedFps == null ? "" : ` paint=${w.paintedFps.toFixed(1)}`;
 }
 
 function median(sorted: number[]): number {
@@ -154,7 +162,9 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
   const v = video as HTMLVideoElement & {
     requestVideoFrameCallback?: (cb: (now?: number, meta?: FrameMeta) => void) => number;
     cancelVideoFrameCallback?: (h: number) => void;
+    mozPaintedFrames?: number;
   };
+  const painted = () => (typeof v.mozPaintedFrames === "number" ? v.mozPaintedFrames : null);
 
   let stopped = false;
   let frames = 0;
@@ -167,6 +177,7 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
   let mediaSteps: number[] = [];
   let lastShownAt: number | null = null;
   let lastMediaTime: number | null = null;
+  let paintedAtStart = painted();
   const totals: CadenceTotals = { frames: 0, longIntervals: 0, skippedFrames: 0 };
   let latest: RenderWindow | null = null;
   let rvfcHandle: number | null = null;
@@ -218,6 +229,11 @@ export function createRenderStallWatch(video: HTMLVideoElement, opts: WatchOpts)
             ? steps.reduce((n, s) => (s > medStep * SKIP_STEP_RATIO ? n + Math.round(s / medStep) - 1 : n), 0)
             : 0,
       };
+      const paintedNow = painted();
+      if (paintedNow != null && paintedAtStart != null && paintedNow >= paintedAtStart) {
+        w.paintedFps = ((paintedNow - paintedAtStart) * 1000) / elapsed;
+      }
+      paintedAtStart = paintedNow;
       // The baseline is the best rate seen while playing: the content's own
       // cadence. Taken from the same measurement so a 24 fps film and a 60 fps
       // clip are each judged against themselves.

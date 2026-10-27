@@ -180,12 +180,6 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 	// SECURITY: emit a prominent warning when the sandbox bypass is active so
 	// that ops can catch a misconfigured production instance immediately.
 	if cfg.Log.DevMode {
-		// Hard refusal: DevMode disables the sandbox; an operator who also
-		// declares EVEY_ENV=production almost certainly mis-set DevMode and
-		// would ship an unsandboxed plugin runtime. Fail closed.
-		if err := refuseDevModeInProd(os.Getenv("EVEY_ENV")); err != nil {
-			return nil, err
-		}
 		slog.Warn("SECURITY WARNING: plugin sandbox bypass is ENABLED - " +
 			"DevMode=true must NEVER be set in production; " +
 			"plugins without the 'subprocess' permission will start unsandboxed")

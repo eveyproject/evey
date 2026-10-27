@@ -1,5 +1,5 @@
 ---
-source_sha: e039606b33ab2207d3774f9bacb71ee3d18f0d12f52d9dc02bec1e9817e1c91e
+source_sha: 183de3f3debe04fa20962ddd47cf680476ffb11f924669acd3a1f78d1a1ad221
 reviewed: true
 ---
 # Transkodierung und Serverkapazität { #transcoding-and-server-capacity }
@@ -168,6 +168,40 @@ einmal pro Stunde, auch an Webhooks gesendet als
   lief.
 - **Lasttest** (**Verwaltung → Transkodierung**): simuliert Zuschauer, um zu
   messen, was der Server schafft. Er startet nicht, solange jemand schaut.
+
+## Lasttest { #load-test }
+
+Der Lasttest spielt Titel aus Ihren Bibliotheken für simulierte Zuschauer ab,
+fügt weitere hinzu, bis etwas nachgibt, und nennt, was zuerst nachgegeben hat:
+den Prozessor, den Arbeitsspeicher, eine Festplatte, den Server selbst oder das
+Netzwerk davor.
+
+**Der Weg.** Die Zuschauer erreichen den Server über seine öffentliche Adresse,
+so wie entfernte Zuschauer. Führt diese Adresse zu einem Reverse Proxy in Ihrem
+lokalen Netzwerk, verbindet sich der Test mit dem Proxy über dessen lokale
+Adresse, unter demselben Namen und mit demselben Zertifikat. Sonst ginge jedes
+Byte hinauf zum Router und zurück zum Proxy, ein Umweg, den der Datenverkehr
+keines Zuschauers von außen nimmt, und der Test würde den Router messen. Der
+Bericht nennt dann die verwendete lokale Adresse. Ein Proxy außerhalb Ihres
+Netzwerks (ein gemieteter Server, ein Tunnel) liegt auf dem Weg echter
+Zuschauer und bleibt erhalten.
+
+**Der Upload der Verbindung.** Zuschauer in Ihrem Netzwerk nutzen nie den
+Upload Ihrer Internetverbindung, deshalb können die simulierten Zuschauer ihn
+nicht messen. Bevor sie starten, misst der Server ihn selbst: etwa zehn
+Sekunden lang lädt er mit Nullen gefüllte Daten zu `speed.cloudflare.com` hoch,
+einem Geschwindigkeitstest, den der nächstgelegene Punkt des
+Cloudflare-Netzwerks beantwortet. Nichts aus Ihren Bibliotheken oder Konten
+wird gesendet. Cloudflare sieht die öffentliche IP-Adresse des Servers, wie
+jede Website, die der Server kontaktiert.
+
+**Von außen.** Mit beiden Werten nennt der Bericht, wie viele Zuschauer
+außerhalb Ihres Netzwerks bedient werden können: so viele, wie der Server
+gehalten hat, oder so viele, wie der Upload bei der Rate eines Testzuschauers
+trägt, wobei ein Fünftel des Uploads frei bleibt, je nachdem, was kleiner ist.
+Er sagt, welcher der beiden Werte die Grenze ist. Antwortet der
+Geschwindigkeitstest nicht, meldet der Bericht, dass der Upload nicht gemessen
+werden konnte, und nennt keine Zahl für Zuschauer von außen.
 
 <!-- sources
 disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After) ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full

@@ -2,6 +2,7 @@ package library
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -11,6 +12,16 @@ import (
 )
 
 const drainBatchSize = 500
+
+// maxSearchWriteAttempts is how many drains a document the engine refuses gets
+// before it is dead-lettered, so it stops being replayed every minute.
+const maxSearchWriteAttempts = 5
+
+// searchWriteFailureRecorder is the outbox side of a refused document: it
+// counts the attempt and dead-letters the row past maxAttempts.
+type searchWriteFailureRecorder interface {
+	RecordFailure(ctx context.Context, mediaItemID string, maxAttempts int) (deadLettered bool, err error)
+}
 
 // DrainSearchWriteQueue replays the durable outbox: writes the search engine
 // rejected while it was down (recorded by the resilient wrapper). Each op is
@@ -61,6 +72,8 @@ func DrainSearchWriteQueue(
 			}
 		}
 		found := make(map[shared.MediaItemID]*library.MediaItem, len(upsertIDs))
+		refused := map[string]bool{}
+		var recorder searchWriteFailureRecorder
 		if len(upsertIDs) > 0 {
 			dbItems, gerr := items.GetByIDs(ctx, upsertIDs)
 			if gerr != nil {
@@ -73,11 +86,21 @@ func DrainSearchWriteQueue(
 				attachTranslations(ctx, translations, dbItems)
 				attachCast(ctx, cast, dbItems)
 				if ierr := search.IndexMediaItemsBatch(ctx, dbItems); ierr != nil {
-					// Engine still down / transient - stop before deleting ANY op from
-					// this page (including delete-ops below), unlike the previous
-					// per-item stop. Every op here is idempotent (upsert/delete), so
-					// replaying the whole page again on the next tick is safe.
-					return drained, fmt.Errorf("drain: index batch: %w", ierr)
+					// The engine indexed the page except the documents it refused:
+					// count those instead of replaying the page forever behind them.
+					var rej interface{ RejectedIDs() []string }
+					rec, canRecord := queue.(searchWriteFailureRecorder)
+					if !errors.As(ierr, &rej) || !canRecord {
+						// Engine still down / transient - stop before deleting ANY op from
+						// this page (including delete-ops below), unlike the previous
+						// per-item stop. Every op here is idempotent (upsert/delete), so
+						// replaying the whole page again on the next tick is safe.
+						return drained, fmt.Errorf("drain: index batch: %w", ierr)
+					}
+					recorder = rec
+					for _, id := range rej.RejectedIDs() {
+						refused[id] = true
+					}
 				}
 			}
 		}
@@ -85,6 +108,17 @@ func DrainSearchWriteQueue(
 		for _, p := range pending {
 			if ctx.Err() != nil {
 				return drained, ctx.Err()
+			}
+			if refused[p.MediaItemID] {
+				dead, rerr := recorder.RecordFailure(ctx, p.MediaItemID, maxSearchWriteAttempts)
+				if rerr != nil {
+					return drained, fmt.Errorf("drain: record refused %s: %w", p.MediaItemID, rerr)
+				}
+				if dead {
+					slog.WarnContext(ctx, "search write dead-lettered: the engine keeps refusing the document",
+						slog.String("media_item_id", p.MediaItemID), slog.Int("attempts", maxSearchWriteAttempts))
+				}
+				continue
 			}
 			var opErr error
 			switch {
@@ -107,7 +141,8 @@ func DrainSearchWriteQueue(
 			}
 			drained++
 		}
-		if len(pending) < drainBatchSize {
+		// A refused row stays listed until dead-lettered: one attempt per run.
+		if len(pending) < drainBatchSize || len(refused) > 0 {
 			break
 		}
 	}

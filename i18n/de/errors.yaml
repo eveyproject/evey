@@ -198,6 +198,9 @@ plugin:
   publisher_not_found: "Vertrauenswürdiger Herausgeber nicht gefunden"
   publisher_seeded: "Der Serverschlüssel kann nicht aus den vertrauenswürdigen Herausgebern entfernt werden"
   publisher_changed: "Dieses Update ist von einem anderen Herausgeber signiert als die installierte Version - akzeptieren Sie den neuen Herausgeber, um es anzuwenden"
+  not_metadata_provider: "Dieses Plugin liefert keine Metadaten"
+  metadata_field_unknown: "Ein Metadaten-Plugin kann den Titel, die Beschreibung und den Slogan ersetzen, sonst nichts"
+  metadata_refresh_running: "Die Bibliothek wird bereits von diesem Plugin abgerufen"
   signature_lost: "Dieses Update ist nicht mehr signiert, die installierte Version war es - akzeptieren Sie das unsignierte Update, um es anzuwenden"
 
 demo:

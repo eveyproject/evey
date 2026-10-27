@@ -1,5 +1,5 @@
 ---
-source_sha: a0eb85f44612fd3d234753208bf63c8a9fec91fc8d1020bfdb8109e199c59b19
+source_sha: cbb77f7bf06443976e7bc56f600217600725f9387abe71900e4c95e24ef4519e
 reviewed: true
 ---
 # Mitwirken
@@ -41,6 +41,12 @@ sie zuerst, bevor Sie vorschlagen, eine dieser Entscheidungen zu ändern.
    Commit-Hygiene, Suche nach Geheimnissen, Prüfung auf inkompatible
    Proto-Änderungen, ein Build aus einem sauberen Checkout, die
    Integrationsprüfungen für Repository und Transkodierung und das TV-Audit.
+   Ein Push nach `dev` oder auf einen Arbeitszweig führt stattdessen
+   `make pre-push-dev` aus: dieselbe Prüfschranke ohne die langen Suiten,
+   die die CI des Pull Requests auf denselben Commits erneut ausführt (Suche
+   nach Schwachstellen, Frontend-Tests und -Build, Repository-Suite,
+   TV-Audit); ein Push nach `master` führt die vollständige Prüfschranke
+   aus.
 2. Schreiben Sie Tests für neues Verhalten und für jede Fehlerbehebung.
 3. Bei einem externen Beitrag akzeptieren Sie einmal die
    [Lizenzvereinbarung für Mitwirkende](../CLA.md): Evey steht unter

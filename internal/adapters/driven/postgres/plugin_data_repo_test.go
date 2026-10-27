@@ -161,3 +161,41 @@ func TestPluginDataRepo_CascadeOnUserDelete(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "x", g.Value, "global data must survive a user deletion")
 }
+
+// Count answers the per-scope key count the data RPCs cap on, without
+// reading every value back.
+func TestPluginDataRepo_CountPerScope(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	seedPlugin(t, db, "p1")
+	seedPlugin(t, db, "p2")
+	seedUser(t, db, "u1")
+	seedProfile(t, db, "prf-a", "u1")
+	repo := postgres.NewPluginDataRepository(db)
+	ctx := context.Background()
+
+	require.NoError(t, repo.Set(ctx, "p1", "", "", "a", "1"))
+	require.NoError(t, repo.Set(ctx, "p1", "", "", "b", "1"))
+	require.NoError(t, repo.Set(ctx, "p1", "", "", "b", "2"))
+	require.NoError(t, repo.Set(ctx, "p1", "u1", "", "a", "1"))
+	require.NoError(t, repo.Set(ctx, "p1", "u1", "prf-a", "a", "1"))
+	require.NoError(t, repo.Set(ctx, "p1", "u1", "prf-a", "b", "1"))
+	require.NoError(t, repo.Set(ctx, "p1", "u1", "prf-a", "c", "1"))
+	require.NoError(t, repo.Set(ctx, "p2", "", "", "a", "1"))
+
+	for _, c := range []struct {
+		name                  string
+		plugin, user, profile string
+		want                  int
+	}{
+		{"global", "p1", "", "", 2},
+		{"per user", "p1", "u1", "", 1},
+		{"per profile", "p1", "u1", "prf-a", 3},
+		{"other plugin", "p2", "", "", 1},
+		{"empty", "p2", "u1", "", 0},
+	} {
+		n, err := repo.Count(ctx, c.plugin, c.user, c.profile)
+		require.NoError(t, err, c.name)
+		assert.Equal(t, c.want, n, c.name)
+	}
+}

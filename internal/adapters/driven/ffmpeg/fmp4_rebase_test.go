@@ -431,3 +431,28 @@ func TestRebasePump_PublishesEveryVariantInit(t *testing.T) {
 		}
 	}
 }
+
+// A truncated init already in the cache (an aborted earlier write) must not be
+// pinned forever: a complete one from the scratch dir replaces it.
+func TestRebasePump_ReplacesIncompletePublishedInit(t *testing.T) {
+	priv := t.TempDir()
+	pub := t.TempDir()
+	init := bytes.Join([][]byte{box("ftyp", []byte("iso6")), box("moov", box("trak"))}, nil)
+	if err := os.WriteFile(filepath.Join(priv, "stream_0_init.mp4"), init, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pub, "stream_0_init.mp4"), box("ftyp", []byte("iso6")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stop := make(chan struct{})
+	close(stop)
+	runRebasePump(nil, stop, nil, priv, pub, 12_000_000, "stream", 0, nil, "transcode_seek")
+
+	got, err := os.ReadFile(filepath.Join(pub, "stream_0_init.mp4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, init) {
+		t.Errorf("published init = %d bytes, want the complete %d-byte init", len(got), len(init))
+	}
+}

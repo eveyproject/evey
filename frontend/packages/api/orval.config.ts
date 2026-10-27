@@ -22,6 +22,9 @@ export default defineConfig(
           mode: "tags-split",
           target: `./src/generated/${name}.ts`,
           client: "react-query",
+          // orval 8 defaults to the fetch client, which calls the mutator as
+          // (url, init); eveyFetch takes the request-config object.
+          httpClient: "axios",
           override: {
             mutator: {
               path: "./src/fetcher.ts",

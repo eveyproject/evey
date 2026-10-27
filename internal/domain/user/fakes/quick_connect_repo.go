@@ -108,3 +108,17 @@ func (r *FakeQuickConnectRepository) Count() int {
 	defer r.mu.RUnlock()
 	return len(r.items)
 }
+
+func (r *FakeQuickConnectRepository) Consume(_ context.Context, code string) error {
+	if r.Err != nil {
+		return r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	req, ok := r.items[code]
+	if !ok || req.Status != user.Authorized || !time.Now().Before(req.ExpiresAt) {
+		return shared.ErrNotFound
+	}
+	req.Status = user.Consumed
+	return nil
+}

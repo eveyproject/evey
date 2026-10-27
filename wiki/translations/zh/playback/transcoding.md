@@ -1,5 +1,5 @@
 ---
-source_sha: e039606b33ab2207d3774f9bacb71ee3d18f0d12f52d9dc02bec1e9817e1c91e
+source_sha: 183de3f3debe04fa20962ddd47cf680476ffb11f924669acd3a1f78d1a1ad221
 reviewed: true
 ---
 # 转码与服务器容量 { #transcoding-and-server-capacity }
@@ -87,6 +87,16 @@ services:
 - **管理 → 转码 → 编码校准**：测得的上限，以及正在使用的加速器。
 - **管理 → 流媒体质量**：真实观众的播放情况如何。
 - **负载测试**（**管理 → 转码**）：模拟观众，测量服务器能承受多少。有人在观看时，它会拒绝运行。
+
+## 负载测试 { #load-test }
+
+负载测试为模拟观众播放您媒体库中的影片，不断增加观众，直到某个环节撑不住，然后指出最先撑不住的是什么：处理器、内存、某块磁盘、服务器本身，或服务器前面的网络。
+
+**测试走的路径。** 模拟观众通过服务器的公网地址访问它，与远程观众一样。如果该地址指向您局域网内的反向代理，测试会以相同的域名和证书，通过代理的局域网地址连接它。否则每个字节都会先上行到路由器再折回代理，而外部观众的流量从不绕这一圈，测试测到的就成了路由器。此时报告会注明所用的局域网地址。位于您网络之外的代理（租用的服务器、隧道）在真实观众的路径上，会被保留。
+
+**连接的上行带宽。** 局域网内的观众从不使用您互联网连接的上行带宽，所以模拟观众无法测出它。在观众开始之前，服务器会自行测量：大约十秒钟内，它向 `speed.cloudflare.com` 上传全零数据。这是一个测速服务，由 Cloudflare 网络中离您最近的节点应答。不会发送您媒体库或账户中的任何内容。Cloudflare 能看到服务器的公网 IP 地址，与服务器访问的任何网站一样。
+
+**从外部看。** 有了这两个数值，报告会给出可以服务的外部观众人数：取服务器撑住的人数，与按单个测试观众的码率、并留出五分之一上行带宽后上行带宽能承载的人数，两者中较小的一个。报告会说明两者中哪一个是瓶颈。如果测速服务没有应答，报告会说明上行带宽无法测量，并且不给出外部观众的人数。
 
 <!-- sources
 disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After) ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full

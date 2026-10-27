@@ -1,10 +1,10 @@
 ---
-source_sha: e527433cfc41c2cba1cfcb773095634c496390297f79ac7e7b368fa36d27d047
+source_sha: b190ab7985ddfa37e89a42378df8e93b54570bb6e51751fb52daa0e8570c4370
 reviewed: true
 ---
 # Règles de confidentialité { #privacy-policy }
 
-Dernière mise à jour : 2026-10-04.
+Dernière mise à jour : 2026-10-26.
 
 Ces règles concernent les applications Evey pour Android et Android TV.
 
@@ -58,6 +58,11 @@ projet Evey n'y a pas accès.
 - **Plugins.** Les plugins sont installés par l'administrateur du serveur. Un
   plugin peut afficher du contenu qui vient d'un service extérieur (un plugin
   météo, par exemple).
+- **Le test de charge du serveur.** Pas les applications : quand
+  l'administrateur du serveur lance un test de charge, le serveur envoie une
+  dizaine de secondes de données remplies de zéros à `speed.cloudflare.com`
+  pour mesurer sa connexion internet. Rien sur vous ni sur votre bibliothèque
+  ne s'y trouve ; Cloudflare voit l'adresse IP du serveur.
 
 ## Ce qui reste sur l'appareil { #what-stays-on-the-device }
 

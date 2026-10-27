@@ -239,3 +239,23 @@ func TestTokenRedactMiddleware_RemembersQueryArrivalOnly(t *testing.T) {
 		t.Error("an untouched context reads false")
 	}
 }
+
+// The pairing secret leaves the URL on its way in, before any log line, and
+// travels on as a header; a URL outside the pairing routes is left alone.
+func TestTokenRedactMiddleware_LiftsQuickConnectSecretIntoHeader(t *testing.T) {
+	var gotHeader, gotQuery string
+	next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		gotHeader = r.Header.Get(quickConnectSecretHeader)
+		gotQuery = r.URL.RawQuery
+	})
+	h := tokenRedactMiddleware(nil, false, next)
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/auth/quick-connect/qc-code-1/events?secret=qc-secret-1", nil))
+	if gotHeader != "qc-secret-1" || gotQuery != "" {
+		t.Fatalf("secret must move to the header and leave the URL, got header=%q query=%q", gotHeader, gotQuery)
+	}
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/other?secret=keep", nil))
+	if gotHeader != "" || gotQuery != "secret=keep" {
+		t.Fatalf("other routes keep their query, got header=%q query=%q", gotHeader, gotQuery)
+	}
+}

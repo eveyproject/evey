@@ -87,6 +87,7 @@ Each card shows the plugin's state (**Enabled** or **Disabled**) and offers:
 | **Enabled** / **Disabled** | Starts or stops the plugin's process. A disabled plugin keeps its files and its configuration. |
 | **Config** | The settings the plugin declares (an API key, a city, a unit...). Secret fields are shown masked and are never sent back to the browser. |
 | **Logs** | The last lines the plugin wrote through the host. |
+| **Metadata** | On a metadata plugin only: the fields it replaces and the fetch of the existing library ([below](#metadata-plugins)). |
 | **Uninstall** | Removes the process, the files and the plugin's stored data. |
 
 **Resource limits**, at the top of the page, caps every plugin process. The
@@ -114,6 +115,36 @@ offers no per-path filesystem isolation, and
 
 Plugins are enabled by default. `EVEY_PLUGINS_ENABLED=false` turns the whole
 subsystem off.
+
+## Metadata plugins
+
+A metadata plugin (capability `metadata.provider`) gives its own text for your
+movies and series, from a source other than TMDB. It does not replace TMDB:
+TMDB still identifies each title and gives its cast, its artwork, its ratings,
+its collections and its translations. The plugin's text is kept beside TMDB's,
+and shown in its place field by field.
+
+What a viewer reads, from the weakest to the strongest:
+
+1. TMDB's text, in the viewer's language when TMDB has it;
+2. the plugin's text in that language, for the fields the plugin is allowed to
+   replace;
+3. your own edit of the title (**Edit metadata** on its page), which always
+   wins.
+
+**Metadata** on the plugin's card chooses the fields it replaces among
+**Title**, **Overview** and **Tagline**. Until you choose, a plugin replaces
+the overview and the tagline, never the title. A change applies at once to
+what the plugin already gave; nothing is fetched again.
+
+The plugin is asked about every movie and series as it is matched or
+refreshed. **Fetch for the whole library**, on the same panel, asks it about
+the titles already there, one after the other, and shows how far it has gone
+and, at the end, how many it found and how many got no answer. A refresh of
+the title from TMDB never overwrites the plugin's text; disabling the plugin
+hides that text, uninstalling it deletes it.
+
+Seasons and episodes keep TMDB's text, and search still matches TMDB's titles.
 
 ## What a plugin can do on your host
 
@@ -172,7 +203,9 @@ critical findings refuse, warnings: internal/app/plugin/install.go - validateSta
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go - runtimeBinaries ; i18n admin.plugins.availableRuntimes
 cosign policy: internal/config/config.go - CosignPolicy, CosignPublicKey ; internal/adapters/driven/pluginrunner/cosign.go
 update, version higher, escalation, hash re-checked: internal/app/plugin/install.go - resolveExistingPlugin ; internal/app/plugin/update.go - ApplyUpdate ; internal/app/plugin/permissions.go - DiffPermissions ; i18n admin.plugin.update, admin.plugins.permissionEscalation.*
-card actions: i18n admin.plugin.enabled, disabled, config, logs, uninstall ; secrets masked: internal/domain/plugin/model.go - IsSecretConfigField ; internal/adapters/driving/grpcapi/admin_plugin.go
+card actions: i18n admin.plugin.enabled, disabled, config, logs, uninstall, metadata.title ;
+metadata plugins: internal/app/metadata/enricher.go - enrichPluginTexts, takesPluginTexts ; internal/app/library/query_service.go - GetMediaItemTranslations, pluginTextsFor ; internal/domain/library/plugin_text.go - OverlayPluginTexts ; internal/adapters/driving/grpcapi/media_item_overlay.go - overlayItems (admin edits after) ; internal/domain/plugin/metadata_fields.go - DefaultMetadataFields ; internal/adapters/driven/postgres/plugin_text_repo.go - DisplayedForLocale (enabled plugins only) ; migration 000182 (ON DELETE CASCADE) ; internal/app/metadata/plugin_text_refresh.go ; i18n admin.plugin.metadata.* ; search: internal/app/library/search_reindex.go (TMDB translations only)
+ secrets masked: internal/domain/plugin/model.go - IsSecretConfigField ; internal/adapters/driving/grpcapi/admin_plugin.go
 resource limits defaults and env: internal/config/config.go - Plugins (MemoryMB, PIDsMax, DiskMaxMB, CPUNice, SandboxMode) ; i18n admin.plugins.resourceLimits.*
 security dashboard, host sandbox: i18n admin.plugins.security.* ; internal/app/plugin/security_dashboard_service.go
 plugins enabled flag: internal/config/config.go - PluginsEnabled

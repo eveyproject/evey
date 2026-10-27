@@ -35,6 +35,10 @@ suite and the transcode contract. It mirrors CI, so a green run here means a
 green pipeline. `make hooks` wires it to `git push`; bypass one push
 deliberately with `git push --no-verify`.
 
+A push to `dev` or to a work branch runs `make pre-push-dev` instead: the same
+gate without the long suites the pull request's CI reruns on the same commits.
+A push to `master` runs the full gate.
+
 For proto changes: `make proto-gen`.
 
 ## Contributor License Agreement

@@ -63,6 +63,9 @@ type GRPCServerDeps struct {
 	// Holds *pluginrunner.Runner; nil when the plugin system is disabled.
 	PluginRunner           pluginResourceController
 	PluginResourceDefaults appplugin.ResourceDefaults
+	// Metadata plugins: the fields each may replace and the library walk.
+	PluginMetadataSettings *appplugin.MetadataSettingsService
+	PluginMetadataRefresh  *appmetadata.PluginTextRefresher
 	// PluginData backs the iframe-facing plugin preference RPCs.
 	PluginData      plugin.PluginDataRepository
 	UserRatings     domainlibrary.UserRatingRepository
@@ -202,7 +205,7 @@ func (s *GRPCServer) RegisterServices() {
 	// admin PUT writes it under the same lock). nil cfg (tests) leaves it off.
 	playbackRemoteAccess := remoteAccessFromConfig(d.Cfg)
 	eveyv1.RegisterLibraryServiceServer(s.server, &libraryHandler{cmd: d.LibCmd, query: d.LibQuery, metadataSvc: d.MetadataQuery, userAccess: d.UserAccess, userQuery: d.UserQuery, scheduler: d.Scheduler, translator: d.Translator})
-	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg, pinRL: ratelimit.NewWithBurst(15, 3.0)})
+	eveyv1.RegisterUserServiceServer(s.server, &userHandler{auth: d.UserAuth, userSvc: d.UserSvc, access: d.UserAccess, query: d.UserQuery, activitySvc: d.ActivityCmd, translator: d.Translator, quickConnectHub: d.QuickConnectHub, cfg: d.Cfg})
 	s.playback = &playbackHandler{cmd: d.PlaybackCmd, query: d.PlaybackQuery, librarySvc: d.LibQuery, activitySvc: d.ActivityCmd, userQuery: d.UserQuery, userAccess: d.UserAccess, translator: d.Translator, metadataSvc: d.MetadataQuery, hlsManager: hlsMgr, keyframeOnDemand: d.KeyframeOnDemand, remoteAccess: playbackRemoteAccess, hours: d.ProfileHours}
 	eveyv1.RegisterPlaybackServiceServer(s.server, s.playback)
 	eveyv1.RegisterTranscodingServiceServer(s.server, &transcodingHandler{svc: d.Transcoding, userQuery: d.UserQuery, libQuery: d.LibQuery, userAccess: d.UserAccess, translator: d.Translator})
@@ -244,18 +247,21 @@ func (s *GRPCServer) RegisterServices() {
 	if d.ServerCfgSvc != nil { // keep a true-nil interface when the store is absent
 		pluginCfgRepo = d.ServerCfgSvc
 	}
-	eveyv1.RegisterAdminPluginServiceServer(s.server, &adminPluginHandler{
-		pluginInstaller: d.PluginInstaller,
-		pluginRuntime:   d.PluginRuntime,
-		pluginQuery:     d.PluginQuery,
-		tokenSvc:        d.PluginToken,
-		logDir:          d.LogDir,
-		translator:      d.Translator,
-		pluginRes:       d.PluginRunner,
-		serverCfg:       pluginCfgRepo,
-		resDefaults:     d.PluginResourceDefaults,
-		enabled:         d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
-	})
+	adminPlugins := &adminPluginHandler{
+		pluginInstaller:  d.PluginInstaller,
+		pluginRuntime:    d.PluginRuntime,
+		pluginQuery:      d.PluginQuery,
+		tokenSvc:         d.PluginToken,
+		logDir:           d.LogDir,
+		translator:       d.Translator,
+		pluginRes:        d.PluginRunner,
+		serverCfg:        pluginCfgRepo,
+		resDefaults:      d.PluginResourceDefaults,
+		enabled:          d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
+		metadataSettings: metadataSettingsOrNil(d.PluginMetadataSettings),
+		metadataRefresh:  metadataRefreshOrNil(d.PluginMetadataRefresh),
+	}
+	eveyv1.RegisterAdminPluginServiceServer(s.server, adminPlugins)
 	eveyv1.RegisterPluginUserDataServiceServer(s.server, newPluginUserDataHandler(d.PluginData))
 	eveyv1.RegisterAdminTaskServiceServer(s.server, &adminTaskHandler{
 		scheduler:  d.Scheduler,

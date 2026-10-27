@@ -138,6 +138,23 @@ artworks:
   purgeVariantsFailed: 清理变体失败
 
 plugin:
+  metadata:
+    title: "元数据"
+    description: "此插件可以逐个字段替换 TMDB 提供的文本。匹配、演职员和图片仍以 TMDB 为准。"
+    fieldsLabel: "此插件替换的字段"
+    fields:
+      title: "标题"
+      overview: "简介"
+      tagline: "宣传语"
+    save: "保存"
+    saved: "元数据字段已保存"
+    saveFailed: "无法保存元数据字段"
+    refresh: "为整个媒体库获取"
+    refreshHint: "新的电影和剧集在添加时获取。此操作会逐个向插件查询媒体库中已有的电影和剧集。"
+    refreshStarted: "正在从此插件获取媒体库"
+    refreshFailed: "无法开始获取"
+    running: "正在获取：{{done}} / {{total}}"
+    finished: "上次获取：{{total}} 个中找到 {{covered}} 个，{{failed}} 个无响应"
   copySourceHash: "复制源哈希"
   enabled: "已启用"
   disabled: "已禁用"
@@ -382,6 +399,8 @@ users:
   libraryAccessUpdated: "媒体库访问已更新"
   failedLibraryAccess: "更新媒体库访问失败"
   clearAllUnrestricted: "清除全部（无限制）"
+  noLibraries: "无媒体库"
+  noLibrariesDesc: "此用户受限制，但已没有任何媒体库：所有授权已撤销或媒体库已删除。勾选媒体库以授予访问权限，或不选任何项保存以解除限制。"
   bitrate: "码率"
   maxBitrateTitle: "最大码率 - {{name}}"
   maxBitrateDesc: "限制此用户的最大流媒体码率。0 = 无限制。"
