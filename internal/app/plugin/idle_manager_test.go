@@ -187,6 +187,9 @@ func (r *gatingRunner) Health(_ context.Context, id string) (bool, error) {
 	return r.running[id], nil
 }
 func (r *gatingRunner) SendEvent(context.Context, string, any) error { return nil }
+func (r *gatingRunner) Ask(context.Context, string, string, map[string]any, time.Duration) (map[string]any, bool, error) {
+	return nil, false, nil
+}
 func (r *gatingRunner) starts() int {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 
 	"github.com/eveyproject/evey/internal/domain/library"
@@ -44,6 +45,12 @@ func WithTranslations(
 	}
 }
 
+// WithPluginTexts lays the metadata plugins' texts over the TMDB
+// translations every read of a translation returns.
+func WithPluginTexts(texts library.PluginTextRepository) QueryServiceOption {
+	return func(s *QueryService) { s.pluginTexts = texts }
+}
+
 type QueryService struct {
 	libraries          library.LibraryQueryRepo
 	mediaItems         library.MediaItemQueryRepo
@@ -56,6 +63,7 @@ type QueryService struct {
 	trickplay          library.TrickplayQueryRepo
 	segments           library.MediaSegmentQueryRepo
 	serverConfig       shared.ServerConfigRepository
+	pluginTexts        library.PluginTextRepository
 }
 
 func NewQueryService(
@@ -83,7 +91,15 @@ func (s *QueryService) GetMediaItemTranslation(ctx context.Context, mediaItemID,
 	if s.mediaTranslations == nil {
 		return nil, shared.ErrNotConfigured
 	}
-	return s.mediaTranslations.GetByMediaItemAndLocale(ctx, mediaItemID, locale)
+	t, err := s.mediaTranslations.GetByMediaItemAndLocale(ctx, mediaItemID, locale)
+	if err != nil && !errors.Is(err, shared.ErrNotFound) {
+		return nil, err
+	}
+	texts := s.pluginTextsFor(ctx, []string{mediaItemID}, locale)
+	if overlaid := library.OverlayPluginTexts(t, mediaItemID, locale, texts[mediaItemID]); overlaid != nil {
+		return overlaid, nil
+	}
+	return nil, err
 }
 
 // GetMediaItemTranslations batch-fetches one locale's translations for many
@@ -95,7 +111,28 @@ func (s *QueryService) GetMediaItemTranslations(ctx context.Context, mediaItemID
 	if s.mediaTranslations == nil || locale == "" || len(mediaItemIDs) == 0 {
 		return map[string]*library.MediaItemTranslation{}, nil
 	}
-	return s.mediaTranslations.GetByMediaItemsAndLocale(ctx, mediaItemIDs, locale)
+	out, err := s.mediaTranslations.GetByMediaItemsAndLocale(ctx, mediaItemIDs, locale)
+	if err != nil {
+		return nil, err
+	}
+	for id, texts := range s.pluginTextsFor(ctx, mediaItemIDs, locale) {
+		out[id] = library.OverlayPluginTexts(out[id], id, locale, texts)
+	}
+	return out, nil
+}
+
+// pluginTextsFor reads the plugins' texts to lay over the translations.
+// Best-effort: an unreadable overlay leaves the TMDB text, said in a line.
+func (s *QueryService) pluginTextsFor(ctx context.Context, mediaItemIDs []string, locale string) map[string][]library.PluginText {
+	if s.pluginTexts == nil || locale == "" || len(mediaItemIDs) == 0 {
+		return nil
+	}
+	texts, err := s.pluginTexts.DisplayedForLocale(ctx, mediaItemIDs, locale)
+	if err != nil {
+		slog.WarnContext(ctx, "read plugin metadata texts", slog.Int("items", len(mediaItemIDs)), slog.Any("err", err))
+		return nil
+	}
+	return texts
 }
 
 func (s *QueryService) GetPersonTranslation(ctx context.Context, personID, locale string) (*library.PersonTranslation, error) {

@@ -64,6 +64,10 @@ type PluginRunner interface {
 	Kill(pluginID string) error
 	Health(ctx context.Context, pluginID string) (bool, error)
 	SendEvent(ctx context.Context, pluginID string, event any) error
+	// Ask sends one event the plugin answers (OnEvent's result) within
+	// timeout. handled is the plugin's own word that the event was its to
+	// answer; a plugin that declines returns handled false and no result.
+	Ask(ctx context.Context, pluginID, eventType string, payload map[string]any, timeout time.Duration) (result map[string]any, handled bool, err error)
 }
 
 type ManifestParser interface {

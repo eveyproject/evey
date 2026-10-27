@@ -53,6 +53,10 @@ type adminPluginHandler struct {
 	// FailedPrecondition. Listing/reading is left open so the admin UI
 	// can surface "plugins disabled" instead of breaking the page.
 	enabled bool
+	// metadata plugins: the fields each may replace and its library walk.
+	// nil when not wired (the RPCs then answer FailedPrecondition).
+	metadataSettings pluginMetadataSettings
+	metadataRefresh  pluginMetadataRefresher
 }
 
 // requireEnabled gates state-changing or executing plugin operations.

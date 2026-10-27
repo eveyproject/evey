@@ -198,6 +198,9 @@ plugin:
   publisher_not_found: "Trusted publisher not found"
   publisher_seeded: "The server key cannot be removed from the trusted publishers"
   publisher_changed: "This update is signed by a different publisher than the installed version - accept the new publisher to apply it"
+  not_metadata_provider: "This plugin does not provide metadata"
+  metadata_field_unknown: "A metadata plugin can replace the title, the overview and the tagline, nothing else"
+  metadata_refresh_running: "The library is already being fetched from this plugin"
   signature_lost: "This update is no longer signed, the installed version was - accept the unsigned update to apply it"
 
 demo:

@@ -1,5 +1,5 @@
 ---
-source_sha: 5e96cbd1483c320ab2ab021a2d894797d1cd5b0958ba8303a940db6026044ccb
+source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -86,7 +86,7 @@ EVEY_HOST_SOCK=<path>     # 您的进程连接这里，调用 HostService
 | `Initialize(plugin_id, config, host_version)` | 进程绑定好自己的套接字之后，调用一次。`config` 带着管理员设置的 `config_schema` 的值。回答 `success: false` 并附上 `error`，就表示拒绝启动。 |
 | `HealthCheck()` | 定期调用，用来区分正常运行的进程和无响应的进程。只要还能提供服务，就回答 `healthy: true`。 |
 | `Shutdown(reason)` | 插件被禁用、更新、卸载，或服务器停止时。回答之后请尽快退出。 |
-| `OnEvent(event_type, payload, source)` | 约定里有定义，但服务器目前不向插件投递任何事件：实现它并回答 `handled: true` 即可，目前它不会被调用。 |
+| `OnEvent(event_type, payload, source)` | 仅 `metadata.request`，发给具有 `metadata.provider` 能力的插件（见下文[元数据请求](#metadata-requests)）。其他插件不会收到任何事件：回答 `handled: false`。 |
 | `GetCapabilities()` | 约定里有定义；服务器目前不调用它。 |
 
 ### HostService：插件能调用什么 { #hostservice-what-the-plugin-can-call }
@@ -103,9 +103,41 @@ EVEY_HOST_SOCK=<path>     # 您的进程连接这里，调用 HostService
 | `GetMediaItem(id)`、`ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` 或 `media.read` | 完整的媒体记录，包括 `file_path`、`provider_ids` 和 `genres`。 |
 | `Fetch(url, method, headers)` | `network` | 访问沙箱外部的唯一途径：`http` 或 `https`，`GET` 或 `HEAD`，目标是 `external_fetch` 里的主机；私有地址在解析后和重定向时都会被拒绝。响应体最大 8 MiB（`truncated` 会注明是否被截断），整个请求最长 20 秒。服务器不会附加自己的任何凭据。 |
 | `SearchMedia`、`GetMediaStreams`、`GetChapters`、`GetSubtitles` | `api.library` 或 `media.read` | *未提供。* |
-| `UpdateMetadata` | `api.metadata` 或 `media.write` | *未提供。* |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` 或 `media.write`，以及 `metadata.provider` 能力 | 主动为一部电影或剧集提供您的文本，与[元数据回答](#metadata-requests)相同。`fields` 包含 `locale`（必填）以及 `title`、`overview`、`tagline` 中的任意几项；该文本替换您为这种语言提供过的内容，只含 `locale` 的 `fields` 会将其删除。`provider_ids` 会被拒绝：作品由 TMDB 识别。 |
 | `GetUserPreferences` | `api.user` | *未提供。* |
 | `SendNotification` | `notification.sender` | *未提供。* |
+
+### 元数据请求 { #metadata-requests }
+
+每当服务器从 TMDB 识别或刷新一部电影或剧集时，它会向每个已启用的 `metadata.provider` 插件逐个发送 `event_type` 为 `metadata.request` 的 `OnEvent`，每个插件最多等待 15 秒。内容如下：
+
+| 字段 | 内容 |
+|---|---|
+| `media_item_id` | 作品的 ID，供之后调用 `UpdateMetadata` 使用。 |
+| `type` | `movie` 或 `series`。 |
+| `title`、`original_title` | 服务器语言下的 TMDB 标题，以及原始标题。 |
+| `year` | 未知时不出现。 |
+| `provider_ids` | `tmdb`、`imdb` 以及该作品已知的其他 ID。 |
+| `language` | TMDB 文本的语言，例如 `fr`。 |
+| `locales` | 服务器显示的所有语言。 |
+
+回答 `handled: true`，并附上如下形式的 `result`：
+
+```json
+{
+  "locale": "fr",
+  "title": "...",
+  "overview": "...",
+  "tagline": "...",
+  "translations": {
+    "de": { "overview": "..." }
+  }
+}
+```
+
+顶层字段使用 `locale` 指定的语言；没有 `locale` 时使用请求中的 `language`。`translations` 用于添加其他语言。您不覆盖的字段请省略。语言标签会被截为语言部分（`fr-FR` 视为 `fr`），超过 8 KiB 的字段会被忽略。一个回答会替换您之前为该作品提供的全部内容；`handled: false` 或不含文本的回答表示您不认识该作品，并会清除您为该作品提供的内容。出错或超时则保留您之前提供的内容。
+
+管理员选择您的文本替换 `title`、`overview` 和 `tagline` 中的哪些字段，并可以一次性就整个媒体库向您查询（[元数据插件](../plugins.md#metadata-plugins)）。季和单集不会发送。
 
 ### 数据存储 { #data-store }
 
@@ -221,7 +253,7 @@ const data  = await evey.media.poster(id);  // 海报，以 data: URL 的形式
 
 能力声明的是插件自称承担的角色：`metadata.provider`、`media.read`、`media.write`、`webhook.receiver` 或 `notification.sender`。
 安装程序会检查名称，管理员会在预览里看到这份列表，以及更新时新增的项，**安全仪表板**也会记录它。
-服务器目前不会根据能力转发任何东西：`metadata.provider` 收不到任何补全元数据的调用，`webhook.receiver` 收不到任何传入的请求。
+服务器会根据其中一种能力转发：`metadata.provider` 会收到[元数据请求](#metadata-requests)，并可以调用 `UpdateMetadata`。其他能力目前不转发任何东西；`webhook.receiver` 收不到任何传入的请求。
 插件实际能做什么，由它的**权限**决定。
 
 ## 界面的权限 { #permissions-of-the-interface }

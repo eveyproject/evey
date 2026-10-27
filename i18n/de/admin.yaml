@@ -138,6 +138,23 @@ artworks:
   purgeVariantsFailed: Bereinigung der Varianten fehlgeschlagen
 
 plugin:
+  metadata:
+    title: "Metadaten"
+    description: "Dieses Plugin kann den Text von TMDB Feld für Feld ersetzen. TMDB bleibt die Quelle für die Zuordnung, die Besetzung und die Bilder."
+    fieldsLabel: "Von diesem Plugin ersetzte Felder"
+    fields:
+      title: "Titel"
+      overview: "Beschreibung"
+      tagline: "Slogan"
+    save: "Speichern"
+    saved: "Metadatenfelder gespeichert"
+    saveFailed: "Metadatenfelder konnten nicht gespeichert werden"
+    refresh: "Für die ganze Bibliothek abrufen"
+    refreshHint: "Neue Filme und Serien werden beim Hinzufügen abgerufen. Hiermit wird das Plugin zu den bereits vorhandenen befragt, einer nach dem anderen."
+    refreshStarted: "Bibliothek wird von diesem Plugin abgerufen"
+    refreshFailed: "Abruf konnte nicht gestartet werden"
+    running: "Abruf: {{done}} von {{total}}"
+    finished: "Letzter Abruf: {{covered}} von {{total}} gefunden, {{failed}} ohne Antwort"
   copySourceHash: "Quell-Hash kopieren"
   enabled: Aktiviert
   disabled: Deaktiviert

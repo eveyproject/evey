@@ -198,6 +198,9 @@ plugin:
   publisher_not_found: "Editor de confianza no encontrado"
   publisher_seeded: "La clave del servidor no se puede quitar de los editores de confianza"
   publisher_changed: "Esta actualización está firmada por un editor distinto del de la versión instalada - acepta al nuevo editor para aplicarla"
+  not_metadata_provider: "Este plugin no proporciona metadatos"
+  metadata_field_unknown: "Un plugin de metadatos puede sustituir el título, la sinopsis y el eslogan, nada más"
+  metadata_refresh_running: "La biblioteca ya se está obteniendo de este plugin"
   signature_lost: "Esta actualización ya no está firmada y la versión instalada sí lo estaba - acepta la actualización sin firma para aplicarla"
 
 demo:

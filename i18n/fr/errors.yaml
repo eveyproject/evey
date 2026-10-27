@@ -198,6 +198,9 @@ plugin:
   publisher_not_found: "Éditeur de confiance introuvable"
   publisher_seeded: "La clé du serveur ne peut pas être retirée des éditeurs de confiance"
   publisher_changed: "Cette mise à jour est signée par un autre éditeur que la version installée - acceptez le nouvel éditeur pour l'appliquer"
+  not_metadata_provider: "Ce plugin ne fournit pas de métadonnées"
+  metadata_field_unknown: "Un plugin de métadonnées peut remplacer le titre, le synopsis et l'accroche, rien d'autre"
+  metadata_refresh_running: "La bibliothèque est déjà en cours de récupération depuis ce plugin"
   signature_lost: "Cette mise à jour n'est plus signée alors que la version installée l'était - acceptez la mise à jour non signée pour l'appliquer"
 
 demo:
