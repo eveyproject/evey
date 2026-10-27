@@ -857,7 +857,7 @@ func (e *Enricher) storePluginAnswer(ctx context.Context, itemID string, answer 
 func (e *Enricher) textLanguage() string {
 	lang := ""
 	if p := e.chain.Primary(); p != nil {
-		var inner domainmetadata.MetadataProvider = p
+		inner := p
 		for {
 			if la, ok := inner.(domainmetadata.LanguageAware); ok {
 				lang = la.Language()

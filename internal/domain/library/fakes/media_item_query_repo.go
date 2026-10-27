@@ -221,7 +221,8 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 	desc := strings.EqualFold(filter.SortOrder, "desc")
 	sortMediaItems(result, sortKey, desc)
 	// Keyset by id, as Postgres does: ORDER BY id, id > AfterID.
-	if filter.KeysetByID || filter.AfterID != "" {
+	switch {
+	case filter.KeysetByID || filter.AfterID != "":
 		sort.SliceStable(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 		if filter.AfterID != "" {
 			kept := result[:0]
@@ -232,12 +233,12 @@ func (r *FakeMediaItemQueryRepo) List(_ context.Context, filter library.ListMedi
 			}
 			result = kept
 		}
-	} else if filter.Cursor.LastID != "" {
+	case filter.Cursor.LastID != "":
 		if filter.Cursor.SortField != sortKey {
 			return nil, shared.ErrCursorMismatch
 		}
 		result = applyCursor(result, sortKey, filter.Cursor, desc)
-	} else {
+	default:
 		if filter.Offset > 0 && filter.Offset < len(result) {
 			result = result[filter.Offset:]
 		} else if filter.Offset >= len(result) {

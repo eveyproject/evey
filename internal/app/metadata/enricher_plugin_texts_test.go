@@ -69,7 +69,9 @@ func (p *langProvider) Language() string { return p.lang }
 func TestEnrichItem_AsksThePluginsAndStoresTheirTexts(t *testing.T) {
 	ctx := context.Background()
 	// Wrapped as in production: the language is found through Unwrap.
-	primary := NewCachedProvider(&langProvider{fakeProvider: fakeProvider{name: "tmdb"}, lang: "fr-FR"}, time.Minute)
+	inner := &langProvider{lang: "fr-FR"}
+	inner.name = "tmdb"
+	primary := NewCachedProvider(inner, time.Minute)
 	e, _, _, _, miRepo, _ := newTestEnricher(&fakeProvider{name: "tmdb"}, nil, nil)
 	e.chain = NewProviderChain(primary)
 	source := &fakePluginSource{answers: []domain.PluginTextAnswer{
