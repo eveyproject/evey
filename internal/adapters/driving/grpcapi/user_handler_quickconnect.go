@@ -19,7 +19,7 @@ import (
 // user_handler_quickconnect.go holds the QuickConnect flow: initiate on the new
 // device, authorize from a logged-in one, and poll for completion.
 
-func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
+func (h *userHandler) InitiateQuickConnect(ctx context.Context, req *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.InitiateQuickConnect")
 	defer span.End()
 	qc := &user.QuickConnectRequest{
