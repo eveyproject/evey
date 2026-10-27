@@ -25,7 +25,7 @@ vi.mock("@evey/api", () => ({
     api.opts = o.mutation;
     return { mutate: api.mutate, isError: api.isError };
   },
-  userServiceCheckQuickConnect: (...a: unknown[]) => api.check(...a),
+  checkQuickConnect: (...a: unknown[]) => api.check(...a),
 }));
 const setTokens = vi.hoisted(() => vi.fn());
 vi.mock("@evey/store", () => ({ useAuthStore: (sel: (s: { setTokens: typeof setTokens }) => unknown) => sel({ setTokens }) }));
@@ -57,7 +57,7 @@ describe("quick connect screen (mobile)", () => {
     expect(screen.getByTestId("qr").textContent).toBe("https://s/quickconnect?code=long-quick-code-abc123");
     expect(screen.getByText("auth.settings.quickConnect.expiresIn:120")).toBeTruthy();
     await act(async () => {});
-    expect(api.check).toHaveBeenCalledWith("long-quick-code-abc123");
+    expect(api.check).toHaveBeenCalledWith("long-quick-code-abc123", null);
 
     api.check.mockResolvedValueOnce({ authorized: true, auth: { accessToken: "acc", refreshToken: "ref" } });
     await act(async () => { await vi.advanceTimersByTimeAsync(3000); });

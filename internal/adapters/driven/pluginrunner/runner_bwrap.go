@@ -40,6 +40,8 @@ func buildBwrapCmd(pluginDir, pluginSockDir, mode string) []string {
 		"--unshare-ipc",
 		"--unshare-cgroup",
 		"--unshare-net",
+		// No --disable-userns: it writes /proc/sys, read-only in a container.
+		// The launcher's seccomp filter refuses unshare and CLONE_NEW* instead.
 	}
 
 	// Selective read-only mounts: cover all supported plugin runtimes
@@ -62,8 +64,11 @@ func buildBwrapCmd(pluginDir, pluginSockDir, mode string) []string {
 		"--bind", pluginDir, pluginDir,
 		"--proc", "/proc",
 		// --dev synthesises a minimal /dev (null, zero, full, random, urandom,
-		// tty, pts) without exposing physical host devices like --dev-bind would.
+		// pts) without exposing physical host devices like --dev-bind would.
 		"--dev", "/dev",
+		// --dev binds the host /dev/tty, the server's terminal (TIOCSTI). A
+		// read-only bind is nodev, so the masked node cannot even be opened.
+		"--ro-bind", "/dev/null", "/dev/tty",
 		"--tmpfs", "/tmp",
 	)
 
@@ -93,6 +98,16 @@ func withBwrapInfoFD(prefix []string, fd int) []string {
 	out := make([]string, 0, len(prefix)+2)
 	out = append(out, prefix[:sep]...)
 	out = append(out, "--info-fd", fmt.Sprint(fd))
+	return append(out, prefix[sep:]...)
+}
+
+// withBwrapLauncher binds the launcher read-only at its own path before the
+// "--" that ends a buildBwrapCmd prefix: it lives outside the bound system dirs.
+func withBwrapLauncher(prefix []string, launcher string) []string {
+	sep := len(prefix) - 1
+	out := make([]string, 0, len(prefix)+3)
+	out = append(out, prefix[:sep]...)
+	out = append(out, "--ro-bind", launcher, launcher)
 	return append(out, prefix[sep:]...)
 }
 

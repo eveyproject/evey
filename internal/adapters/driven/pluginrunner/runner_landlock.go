@@ -164,7 +164,7 @@ func (r *Runner) applyLandlockSandbox(parentCtx context.Context, p *plugin.Plugi
 		pluginDir = defaultPluginDir
 	}
 	cmd.Path = launcher
-	du, dg := r.pluginDropArgs(false) // landlock confines the FS; uid-sep only via "on"
+	du, dg := r.pluginDropArgs(p.ID, false) // landlock confines the FS; uid-sep only via "on"
 	cmd.Args = buildLauncherArgv(launcher, p, cmd, true, du, dg)
 
 	// The plugin dir is the only writable allowlisted location the plugin owns,

@@ -626,10 +626,25 @@ func (h *HostServer) SetData(ctx context.Context, req *pluginv1.SetDataRequest) 
 	if req.Key == "" {
 		return nil, status.Error(codes.InvalidArgument, "key is required")
 	}
-	if err := h.data.Set(ctx, pluginIDFromCtx(ctx), "", "", req.Key, req.Value); err != nil {
+	pluginID := pluginIDFromCtx(ctx)
+	if err := plugindomain.CheckPluginDataWrite(ctx, h.data, pluginID, "", "", req.Key, req.Value); err != nil {
+		return nil, dataWriteStatus(err)
+	}
+	if err := h.data.Set(ctx, pluginID, "", "", req.Key, req.Value); err != nil {
 		return nil, status.Errorf(codes.Internal, "set data: %v", err)
 	}
 	return &pluginv1.SetDataResponse{}, nil
+}
+
+// dataWriteStatus maps a refused data write to its gRPC code.
+func dataWriteStatus(err error) error {
+	switch {
+	case errors.Is(err, plugindomain.ErrPluginDataTooLarge):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, plugindomain.ErrPluginDataFull):
+		return status.Error(codes.ResourceExhausted, err.Error())
+	}
+	return status.Errorf(codes.Internal, "set data: %v", err)
 }
 
 func (h *HostServer) DeleteData(ctx context.Context, req *pluginv1.DeleteDataRequest) (*pluginv1.DeleteDataResponse, error) {

@@ -77,6 +77,10 @@ type SoftwareProducer struct {
 	// spawnedHashes tracks every hash a session was ever spawned for so Close
 	// can purge the disk cache even after the GC swept the live entry.
 	spawnedHashes map[string]struct{}
+	// pendingSpawns: encoders past the cover check but not in sessions yet;
+	// a racer inside one's reach waits for its outcome instead of exec'ing a
+	// duplicate. Guarded by mu.
+	pendingSpawns map[string][]*pendingSpawn
 
 	prewarmWG sync.WaitGroup
 
@@ -607,7 +611,14 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 
 	p.mu.Lock()
 	covering, reachPoint := p.coveringWithinReachLocked(hash, variantIdx, segmentIdx)
+	var winner *pendingSpawn
+	if covering == nil {
+		winner = p.pendingSpawnCoversLocked(hash, variantIdx, segmentIdx)
+	}
 	p.mu.Unlock()
+	if winner != nil {
+		return waitPendingSpawn(ctx, winner)
+	}
 	p.logReachDecision(ctx, hash, variantIdx, segmentIdx, reachPoint, covering != nil)
 
 	if covering != nil {
@@ -652,6 +663,15 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 			return ErrRungBusy
 		}
 	}
+	if winner := p.pendingSpawnCoversLocked(hash, variantIdx, segmentIdx); winner != nil {
+		p.mu.Unlock()
+		return waitPendingSpawn(ctx, winner)
+	}
+	claim := &pendingSpawn{variantIdx: variantIdx, startSeg: segmentIdx, endSeg: segmentIdx + p.opts.SeekReachWindowSegs, done: make(chan struct{})}
+	if p.pendingSpawns == nil {
+		p.pendingSpawns = map[string][]*pendingSpawn{}
+	}
+	p.pendingSpawns[hash] = append(p.pendingSpawns[hash], claim)
 	p.mu.Unlock()
 
 	// Nothing reaches this position in time: either no session covers it, or the
@@ -661,7 +681,56 @@ func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFi
 	// below a deep viewer, or a viewer jumping forward past the live frontier, must
 	// not yank a sibling another viewer consumes; they coexist, bounded by
 	// MaxSessionsPerHash (LRU-evicted).
-	return p.startSession(ctx, fp, variantIdx, segmentIdx)
+	// Deferred so every exit, a panic included, settles the claim; until
+	// startSession returns, waiters see the spawn as aborted.
+	spawnErr := errSpawnAborted
+	defer func() { p.settlePendingSpawn(hash, claim, spawnErr) }()
+	spawnErr = p.startSession(ctx, fp, variantIdx, segmentIdx)
+	return spawnErr
+}
+
+// errSpawnAborted is what claim waiters receive when the spawn never returned.
+var errSpawnAborted = errors.New("software: spawn aborted")
+
+// pendingSpawnCoversLocked returns the in-flight spawn of the same rung that
+// starts at or below segmentIdx within reach of it, or nil. Caller holds p.mu.
+func (p *SoftwareProducer) pendingSpawnCoversLocked(hash string, variantIdx, segmentIdx int) *pendingSpawn {
+	for _, c := range p.pendingSpawns[hash] {
+		if c.variantIdx == variantIdx && segmentIdx >= c.startSeg && segmentIdx <= c.endSeg {
+			return c
+		}
+	}
+	return nil
+}
+
+// settlePendingSpawn publishes the spawn outcome to its waiters and drops the
+// claim. Runs on every path out of startSession: a stranded claim wedges the hash.
+func (p *SoftwareProducer) settlePendingSpawn(hash string, claim *pendingSpawn, err error) {
+	p.mu.Lock()
+	list := p.pendingSpawns[hash]
+	for i, c := range list {
+		if c == claim {
+			p.pendingSpawns[hash] = append(list[:i], list[i+1:]...)
+			break
+		}
+	}
+	if len(p.pendingSpawns[hash]) == 0 {
+		delete(p.pendingSpawns, hash)
+	}
+	claim.err = err
+	p.mu.Unlock()
+	close(claim.done)
+}
+
+// waitPendingSpawn blocks until the claimed spawn settles and returns its
+// outcome, so a capacity refusal reaches every racer, not only the winner.
+func waitPendingSpawn(ctx context.Context, c *pendingSpawn) error {
+	select {
+	case <-c.done:
+		return c.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // findCoveringSessionLocked returns the live session best placed to serve
@@ -1014,6 +1083,8 @@ func (p *SoftwareProducer) startSession(ctx context.Context, fp DecisionFingerpr
 			naturalExit = true
 		case <-sessionCtx.Done():
 		}
+		// A natural exit never cancels sessionCtx; release it from shutdownCtx's child set.
+		cancel()
 		close(session.done)
 		session.mu.Lock()
 		td := session.teardown

@@ -173,3 +173,44 @@ func TestOrchestrator_SeekCoalesce_LiveRafaleServedImmediately(t *testing.T) {
 	assert.Equal(t, 1, proc.startCount(), "the live rafale is ridden, not respawned")
 	assert.Equal(t, 1, o.ActiveCount())
 }
+
+// A seek the host has no encode slot for must be refused at once, not parked
+// behind the debounce: the deferred spawn's refusal only reached a log, and the
+// viewer waited out the whole segment budget instead of getting a 503.
+func TestOrchestrator_SeekCoalesce_AtCapacity_ReturnsCapacityErrorToCaller(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := testOpts()
+	opts.SeekCoalesceWindow = 60 * time.Millisecond
+	limiter := NewVideoSessionLimiter(1)
+	require.True(t, limiter.TryAcquire("another-stream", LadderClassSoftware, 720))
+	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger()).
+		WithVideoSessionLimiter(limiter)
+	defer o.Close()
+
+	err := o.EnsureSegmentRange(context.Background(), minimalFingerprint(t), 0, 100)
+	require.ErrorIs(t, err, ErrVideoCapacityExhausted)
+	assert.Equal(t, 0, o.pendingSeekCount(), "a refused seek must not stay parked")
+	assert.Equal(t, 0, proc.startCount())
+}
+
+// In single-variant mode each rung has its own encoder, so two rungs seeking at
+// once are two spawns: keying the debounce by hash alone let the second rung
+// overwrite the first, whose request then waited on a segment nobody encodes.
+func TestOrchestrator_SeekCoalesce_SingleVariant_RungsDoNotOverwriteEachOther(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := testOpts()
+	opts.SingleVariant = true
+	opts.SeekCoalesceWindow = 60 * time.Millisecond
+	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	fp.Profiles = append(fp.Profiles, ProfileFingerprint{Name: "720p", Width: 1280, Height: 720, VideoBitrate: 2500, AudioBitrate: 128})
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 100))
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 1, 100))
+
+	require.Eventually(t, func() bool { return proc.startCount() == 2 }, time.Second, 5*time.Millisecond,
+		"each rung's seek must spawn its own encoder")
+}

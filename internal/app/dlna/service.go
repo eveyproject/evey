@@ -265,16 +265,16 @@ func fetchDeviceDescription(ctx context.Context, location string) (*Renderer, er
 	}, nil
 }
 
-// locationFromResponder reports whether an SSDP LOCATION points at the host
-// that sent it, as an http(s) URL on its IP. Anything else (another host, a
-// name, another scheme) would let any LAN machine make the server fetch it.
+// locationFromResponder reports whether an SSDP LOCATION is an http(s) URL on
+// the private LAN IP of the host that sent it. Anything else would let a
+// responder make the server fetch it; the control URL is pinned to this host.
 func locationFromResponder(location string, src net.IP) bool {
 	u, err := url.Parse(location)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
 		return false
 	}
 	ip := net.ParseIP(u.Hostname())
-	return ip != nil && src != nil && ip.Equal(src)
+	return ip != nil && src != nil && ip.Equal(src) && (ip.IsPrivate() || ip.IsLinkLocalUnicast())
 }
 
 // sameHost reports whether two URLs name the same host (any port).
@@ -315,6 +315,9 @@ func (s *Service) Play(ctx context.Context, rendererID, mediaURL, title string) 
 	ctx, span := tracing.StartSpan(ctx, "app.dlna.Play")
 	defer span.End()
 
+	if u, err := url.Parse(mediaURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return errors.New("media url must be an absolute http(s) url")
+	}
 	r, err := s.findRenderer(rendererID)
 	if err != nil {
 		return err

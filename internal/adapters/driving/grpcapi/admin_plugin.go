@@ -209,7 +209,7 @@ func (d *adminPluginHandler) installPluginError(ctx context.Context, err error) 
 		return status.Error(codes.PermissionDenied, err.Error())
 	case errors.Is(err, appplugin.ErrInvalidManifest), errors.Is(err, appplugin.ErrHashMismatch):
 		return status.Error(codes.InvalidArgument, err.Error())
-	case errors.Is(err, appplugin.ErrSourceUnavailable):
+	case errors.Is(err, appplugin.ErrSourceUnavailable), errors.Is(err, appplugin.ErrServerTooOld):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	case errors.Is(err, appplugin.ErrPublisherChanged):
 		return d.translator.TranslatedError(ctx, codes.FailedPrecondition, "errors.plugin.publisher_changed")

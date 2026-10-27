@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -191,6 +192,11 @@ func NewPluginFromManifest(id, sourceHash string, manifest *PluginManifest) (*Pl
 	}
 	return p, nil
 }
+
+// ExternalFetchHostRe is the grammar of a normalised external_fetch entry: a
+// DNS name whose last label starts with a letter (no IP), optional port. The
+// entries land in CSP source lists, so nothing else (quote, space, ';') passes.
+var ExternalFetchHostRe = regexp.MustCompile(`^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z]([a-z0-9-]*[a-z0-9])?(:[0-9]{1,5})?$`)
 
 // NormalizeExternalFetch reduces each external_fetch entry to the bare host
 // (or "host:port", or "*.host" wildcard) the fetch allow-list compares against:

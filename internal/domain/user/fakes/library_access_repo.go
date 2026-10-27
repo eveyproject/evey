@@ -9,13 +9,17 @@ import (
 )
 
 type FakeLibraryAccessRepository struct {
-	mu    sync.RWMutex
-	items map[shared.UserID]map[shared.LibraryID]time.Time
-	Err   error
+	mu         sync.RWMutex
+	items      map[shared.UserID]map[shared.LibraryID]time.Time
+	restricted map[shared.UserID]bool
+	Err        error
 }
 
 func NewFakeLibraryAccessRepository() *FakeLibraryAccessRepository {
-	return &FakeLibraryAccessRepository{items: make(map[shared.UserID]map[shared.LibraryID]time.Time)}
+	return &FakeLibraryAccessRepository{
+		items:      make(map[shared.UserID]map[shared.LibraryID]time.Time),
+		restricted: make(map[shared.UserID]bool),
+	}
 }
 
 func (r *FakeLibraryAccessRepository) Grant(_ context.Context, userID shared.UserID, libraryID shared.LibraryID) error {
@@ -31,6 +35,7 @@ func (r *FakeLibraryAccessRepository) Grant(_ context.Context, userID shared.Use
 		r.items[userID] = make(map[shared.LibraryID]time.Time)
 	}
 	r.items[userID][libraryID] = time.Now()
+	r.restricted[userID] = true
 	return nil
 }
 
@@ -50,6 +55,7 @@ func (r *FakeLibraryAccessRepository) GrantMany(_ context.Context, userID shared
 	for _, id := range libraryIDs {
 		r.items[userID][id] = now
 	}
+	r.restricted[userID] = true
 	return nil
 }
 
@@ -68,6 +74,7 @@ func (r *FakeLibraryAccessRepository) ReplaceAccess(_ context.Context, userID sh
 	}
 	if len(libraryIDs) == 0 {
 		delete(r.items, userID)
+		delete(r.restricted, userID)
 		return nil
 	}
 	now := time.Now()
@@ -76,6 +83,7 @@ func (r *FakeLibraryAccessRepository) ReplaceAccess(_ context.Context, userID sh
 		next[id] = now
 	}
 	r.items[userID] = next
+	r.restricted[userID] = true
 	return nil
 }
 
@@ -126,12 +134,20 @@ func (r *FakeLibraryAccessRepository) HasAccess(_ context.Context, userID shared
 	if r.Err != nil {
 		return false, r.Err
 	}
-	libs := r.items[userID]
-	if len(libs) == 0 {
-		return true, nil // no restrictions = full access
+	if !r.restricted[userID] {
+		return true, nil
 	}
-	_, ok := libs[libraryID]
+	_, ok := r.items[userID][libraryID]
 	return ok, nil
+}
+
+func (r *FakeLibraryAccessRepository) IsRestricted(_ context.Context, userID shared.UserID) (bool, error) {
+	if r.Err != nil {
+		return false, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.restricted[userID], nil
 }
 
 func (r *FakeLibraryAccessRepository) ListUsersWithRestrictions(_ context.Context) (map[shared.UserID][]shared.LibraryID, error) {
@@ -164,5 +180,6 @@ func (r *FakeLibraryAccessRepository) DeleteByUserID(_ context.Context, userID s
 		return r.Err
 	}
 	delete(r.items, userID)
+	delete(r.restricted, userID)
 	return nil
 }

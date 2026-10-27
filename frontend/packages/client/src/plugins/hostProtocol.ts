@@ -33,6 +33,11 @@ export function isValidPluginId(pluginId: string): boolean {
   return pluginIdShape.test(pluginId);
 }
 
+// Same grammar as the server's plugin frame: optional http(s) scheme, a DNS
+// name whose last label starts with a letter, optional port. The list is
+// written into a CSP meta tag, so a quote, space or ';' must never pass.
+const connectHostShape = /^(https?:\/\/)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z]([a-z0-9-]*[a-z0-9])?(:[0-9]{1,5})?$/;
+
 /**
  * The `connect-src` a plugin document gets: the admin-approved external hosts,
  * or nothing. CSP origins must be absolute (scheme + host); the manifest
@@ -40,8 +45,9 @@ export function isValidPluginId(pluginId: string): boolean {
  * than letting the browser resolve them against the document's base.
  */
 export function buildConnectSrc(externalFetch: string[]): string {
-  if (externalFetch.length === 0) return "'none'";
-  return externalFetch.map((h) => (/^https?:\/\//i.test(h) ? h : `https://${h}`)).join(" ");
+  const hosts = externalFetch.map((h) => h.trim().toLowerCase()).filter((h) => connectHostShape.test(h));
+  if (hosts.length === 0) return "'none'";
+  return hosts.map((h) => (/^https?:\/\//.test(h) ? h : `https://${h}`)).join(" ");
 }
 
 /**

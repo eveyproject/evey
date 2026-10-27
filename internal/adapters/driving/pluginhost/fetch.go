@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	pluginv1 "github.com/eveyproject/evey/gen/plugin/v1"
 	"github.com/eveyproject/evey/internal/pkg/ssrf"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -33,6 +35,49 @@ const (
 	// redirect loop from pinning a goroutine even within allow-listed hosts.
 	maxFetchRedirects = 5
 )
+
+// In-flight bounds: a plugin holds at most maxFetchInFlightPerPlugin brokered
+// fetches, and every fetch reserves its worst-case body (maxFetchBytes) from a
+// host-wide budget, so plugins together cannot pin more than that in memory.
+const (
+	maxFetchInFlightPerPlugin = 4
+	maxFetchInFlightBytes     = 16 * maxFetchBytes
+)
+
+var fetchBytesBudget = semaphore.NewWeighted(maxFetchInFlightBytes)
+
+var fetchSlots = struct {
+	sync.Mutex
+	inFlight map[string]int
+}{inFlight: map[string]int{}}
+
+// acquireFetchSlot refuses a plugin already at its cap outright (no queue a
+// flood could grow), then waits on the shared byte budget for as long as the
+// request's ctx allows. The returned func releases both.
+func acquireFetchSlot(ctx context.Context, pluginID string) (func(), error) {
+	fetchSlots.Lock()
+	if fetchSlots.inFlight[pluginID] >= maxFetchInFlightPerPlugin {
+		fetchSlots.Unlock()
+		return nil, status.Errorf(codes.ResourceExhausted, "at most %d fetches in flight per plugin", maxFetchInFlightPerPlugin)
+	}
+	fetchSlots.inFlight[pluginID]++
+	fetchSlots.Unlock()
+	releaseSlot := func() {
+		fetchSlots.Lock()
+		if fetchSlots.inFlight[pluginID]--; fetchSlots.inFlight[pluginID] <= 0 {
+			delete(fetchSlots.inFlight, pluginID)
+		}
+		fetchSlots.Unlock()
+	}
+	if err := fetchBytesBudget.Acquire(ctx, maxFetchBytes); err != nil {
+		releaseSlot()
+		return nil, status.Error(codes.ResourceExhausted, "host fetch budget exhausted")
+	}
+	return func() {
+		fetchBytesBudget.Release(maxFetchBytes)
+		releaseSlot()
+	}, nil
+}
 
 // errFetchRedirectOffList is returned by the redirect guard when a hop targets
 // a host outside the plugin's allow-list. Wrapped in a *url.Error by the http
@@ -153,6 +198,12 @@ func (h *HostServer) Fetch(ctx context.Context, req *pluginv1.FetchRequest) (*pl
 	if headerBytes > maxFetchHeaderBytes {
 		return nil, status.Error(codes.InvalidArgument, "request headers too large")
 	}
+
+	release, err := acquireFetchSlot(ctx, pluginID)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 
 	httpReq, err := http.NewRequestWithContext(ctx, method, u.String(), nil)
 	if err != nil {

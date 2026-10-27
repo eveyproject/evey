@@ -3,10 +3,12 @@ package grpcapi
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
 	appuser "github.com/eveyproject/evey/internal/app/user"
+	"github.com/eveyproject/evey/internal/domain/user"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 )
 
@@ -23,10 +25,16 @@ func (h *libraryAccessHandler) GetUserLibraryAccess(ctx context.Context, req *ev
 	if err != nil {
 		return nil, internalError(ctx, "get library access", err)
 	}
+	// A non-empty list means the user is confined to it: either real grants
+	// or the no-library sentinel alone. The sentinel itself is a filter for
+	// the list handlers, not an id the admin can tick, so it is stripped and
+	// only the flag tells the admin "restricted to nothing" from "unrestricted".
+	restricted := len(ids) > 0
+	ids = slices.DeleteFunc(ids, func(id string) bool { return id == user.NoLibraryAccess })
 	if ids == nil {
 		ids = []string{}
 	}
-	resp := &eveyv1.UserLibraryAccess{UserId: req.UserId, LibraryIds: ids}
+	resp := &eveyv1.UserLibraryAccess{UserId: req.UserId, LibraryIds: ids, Restricted: restricted}
 	libs, err := h.libQuery.ListLibraries(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "list libraries for access", slog.Any("err", err))

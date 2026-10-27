@@ -314,29 +314,25 @@ func (s *AccessService) HasLibraryAccess(ctx context.Context, userID shared.User
 	return s.libraryAccess.HasAccess(ctx, userID, libraryID)
 }
 
-// GetLibraryAccessByUserID returns the list of library IDs the user may see.
-// Empty slice (non-nil) means "user has zero granted libraries"; nil means
-// "unrestricted".
-//
-// ⚠️ This method preserves that distinction, but EVERY caller deliberately
-// collapses it again: playback_handler.go:1041, library_handler.go:952,
-// collection_handler.go:354, notification_handler.go:262, playlist_handler.go:48,
-// feed_handler.go:75 and music_handler.go:46 all treat an empty result as
-// "unrestricted", because the product rule is opt-out - a user with no explicit
-// grants sees everything.
-//
-// The comment that used to sit here warned that returning nil "silently
-// promoted users with zero grants to admin-level visibility". That warning is
-// now FALSE as written: the promotion is the intended behaviour and is applied
-// uniformly by all seven callers. It is kept as this note rather than deleted,
-// because a future reader who "restores the invariant" here would change the
-// visibility rules of seven handlers at once without touching any of them.
+// GetLibraryAccessByUserID returns the library IDs the user may see. Every
+// caller reads an empty list as "unrestricted" (opt-out product rule), so a
+// restricted user with no grant left (last one revoked, library deleted)
+// gets []string{user.NoLibraryAccess}, which matches no library.
 func (s *AccessService) GetLibraryAccessByUserID(ctx context.Context, userID string) ([]string, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.user.GetLibraryAccessByUserID")
 	defer span.End()
 	ids, err := s.libraryAccess.GetByUserID(ctx, shared.UserID(userID))
 	if err != nil {
 		return nil, err
+	}
+	if len(ids) == 0 {
+		restricted, rErr := s.libraryAccess.IsRestricted(ctx, shared.UserID(userID))
+		if rErr != nil {
+			return nil, rErr
+		}
+		if restricted {
+			return []string{user.NoLibraryAccess}, nil
+		}
 	}
 	out := make([]string, len(ids))
 	for i, id := range ids {
@@ -363,9 +359,14 @@ func (s *AccessService) RevokeLibraryAccess(ctx context.Context, userID shared.U
 func (s *AccessService) ReplaceLibraryAccess(ctx context.Context, userID string, libraryIDs []string) error {
 	ctx, span := tracing.StartSpan(ctx, "app.user.ReplaceLibraryAccess")
 	defer span.End()
-	ids := make([]shared.LibraryID, len(libraryIDs))
-	for i, id := range libraryIDs {
-		ids[i] = shared.LibraryID(id)
+	ids := make([]shared.LibraryID, 0, len(libraryIDs))
+	for _, id := range libraryIDs {
+		if id != user.NoLibraryAccess { // a filter value, never a grant
+			ids = append(ids, shared.LibraryID(id))
+		}
+	}
+	if len(ids) == 0 && len(libraryIDs) > 0 {
+		return nil // only the sentinel echoed back: stay restricted to nothing
 	}
 	return s.libraryAccess.ReplaceAccess(ctx, shared.UserID(userID), ids)
 }

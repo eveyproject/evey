@@ -20,6 +20,8 @@ const (
 	hostVersion      = "0.1.0"
 	pluginUID        = 1001 // evey-plugin user
 	pluginGID        = 1001
+	pluginUIDBase    = 40000
+	pluginUIDSpan    = 20000
 	sandboxLibPath   = "/app/libevey-sandbox.so"
 	subprocessPerm   = "subprocess"
 	gpuPerm          = "hardware.gpu" // grants the DRM render node (highest-risk; admin-only, first-party tier)

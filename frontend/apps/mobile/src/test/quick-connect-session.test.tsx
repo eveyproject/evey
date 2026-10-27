@@ -31,11 +31,15 @@ vi.mock("react-i18next", () => ({
 }));
 
 const checkMock = vi.fn();
+const initiateArgs: unknown[] = [];
 vi.mock("@evey/api", () => ({
   useUserServiceInitiateQuickConnect: ({ mutation }: any) => ({
-    mutate: () => mutation.onSuccess({ code: "abc123" }),
+    mutate: (vars?: unknown) => {
+      initiateArgs.push(vars);
+      mutation.onSuccess({ code: "abc123", secret: "qc-secret-1" });
+    },
   }),
-  userServiceCheckQuickConnect: (...a: unknown[]) => checkMock(...a),
+  checkQuickConnect: (...a: unknown[]) => checkMock(...a),
 }));
 
 const setTokensMock = vi.fn();
@@ -87,6 +91,16 @@ describe("quick connect - the session it opens must survive the access token", (
 
     await waitFor(() => expect(setTokensMock).toHaveBeenCalledWith("acc-2"));
     expect(setRefreshTokenMock).not.toHaveBeenCalled();
+  });
+
+  it("declares itself secret-aware and sends the secret back with every check", async () => {
+    checkMock.mockResolvedValue({ authorized: false });
+
+    render(React.createElement(QuickConnectScreen));
+
+    await waitFor(() => expect(checkMock).toHaveBeenCalled());
+    expect(initiateArgs[0]).toEqual({ params: { secretAware: true } });
+    expect(checkMock).toHaveBeenCalledWith("abc123", "qc-secret-1");
   });
 
   it("keeps polling and signs nobody in while the code is unauthorized", async () => {

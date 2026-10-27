@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -30,6 +31,9 @@ func TestMain(m *testing.M) {
 		os.Exit(forkProbeMain())
 	}
 	if os.Getenv("EVEY_LAUNCHER_REEXEC") == "1" {
+		if os.Getenv("EVEY_LAUNCHER_SECCOMP_FAILS") == "1" {
+			installSeccomp = func(bool, bool) error { return errors.New("simulated seccomp failure") }
+		}
 		os.Exit(run(os.Args[1:]))
 	}
 	if os.Getenv("EVEY_PDEATHSIG_HELPER") == "1" {
@@ -415,4 +419,41 @@ func TestDropPrivileges_ReexecDropsUID(t *testing.T) {
 			t.Errorf("best-effort degradation should warn loudly: %q", out)
 		}
 	})
+}
+
+// TestRun_SeccompFailureIsFatalUnderRequireLandlock: the fail-closed contract
+// of -require-landlock covers the syscall layer too; a launcher that could not
+// install its seccomp filter must not exec the plugin with Landlock alone.
+func TestRun_SeccompFailureIsFatalUnderRequireLandlock(t *testing.T) {
+	if abi, err := landlockABI(); err != nil || abi < 1 {
+		t.Skipf("Landlock unavailable on this kernel (abi=%d err=%v)", abi, err)
+	}
+	for _, tc := range []struct {
+		name     string
+		require  bool
+		wantExit int
+	}{
+		{"require-landlock refuses", true, 1},
+		{"best effort still runs", false, 0},
+	} {
+		args := []string{"-ro", "/usr", "-ro", "/bin", "-ro", "/lib", "-ro", "/lib64", "-seccomp"}
+		if tc.require {
+			args = append(args, "-require-landlock")
+		}
+		cmd := exec.Command(os.Args[0], append(args, "--", "/bin/true")...)
+		cmd.Env = append(os.Environ(), "EVEY_LAUNCHER_REEXEC=1", "EVEY_LAUNCHER_SECCOMP_FAILS=1")
+		out, err := cmd.CombinedOutput()
+		code := 0
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+			code = exitErr.ExitCode()
+		} else if err != nil {
+			t.Fatalf("%s: run launcher: %v", tc.name, err)
+		}
+		if code != tc.wantExit {
+			t.Errorf("%s: exit %d, want %d\n%s", tc.name, code, tc.wantExit, out)
+		}
+		if !strings.Contains(string(out), "simulated seccomp failure") {
+			t.Errorf("%s: the seccomp failure must be reported\n%s", tc.name, out)
+		}
+	}
 }

@@ -2,6 +2,8 @@ package grpcapi
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -44,6 +46,16 @@ func (r *memPrefRepo) List(_ context.Context, p, u, pr string) ([]*plugin.Plugin
 		out = append(out, &plugin.PluginDataEntry{PluginID: p, UserID: u, ProfileID: pr, Key: k, Value: v})
 	}
 	return out, nil
+}
+
+func (r *memPrefRepo) Count(_ context.Context, p, u, pr string) (int, error) {
+	n := 0
+	for k := range r.m {
+		if strings.HasPrefix(k, p+"|"+u+"|"+pr+"|") {
+			n++
+		}
+	}
+	return n, nil
 }
 
 func pluginCtx(pluginID, userID string) context.Context {
@@ -112,4 +124,30 @@ func TestPluginPrefs_ScopedPerProfile(t *testing.T) {
 	none, err := h.GetPref(pluginCtx("plg-1", "u1"), &eveyv1.GetPrefRequest{Key: "city"})
 	require.NoError(t, err)
 	assert.False(t, none.Found, "per-profile rows must not leak into the per-user scope")
+}
+
+// TestPluginPrefs_Bounded: the iframe writes the per-user and per-profile
+// scopes with no permission, so they get the plugin-global store's caps.
+func TestPluginPrefs_Bounded(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		ctx  context.Context
+	}{
+		{"per user", pluginCtx("plg-1", "u1")},
+		{"per profile", pluginCtxProfile("plg-1", "u1", "prf-a")},
+	} {
+		h := newPluginUserDataHandler(newMemPrefRepo())
+		_, err := h.SetPref(tc.ctx, &eveyv1.SetPrefRequest{Key: strings.Repeat("k", plugin.MaxPluginDataKeyLen+1), Value: "v"})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "%s: oversized key", tc.name)
+		_, err = h.SetPref(tc.ctx, &eveyv1.SetPrefRequest{Key: "big", Value: strings.Repeat("v", plugin.MaxPluginDataValueLen+1)})
+		assert.Equal(t, codes.InvalidArgument, status.Code(err), "%s: oversized value", tc.name)
+		for i := range plugin.MaxPluginDataKeys {
+			_, err = h.SetPref(tc.ctx, &eveyv1.SetPrefRequest{Key: fmt.Sprintf("k%d", i), Value: "v"})
+			require.NoError(t, err, tc.name)
+		}
+		_, err = h.SetPref(tc.ctx, &eveyv1.SetPrefRequest{Key: "one-too-many", Value: "v"})
+		assert.Equal(t, codes.ResourceExhausted, status.Code(err), "%s: key count cap", tc.name)
+		_, err = h.SetPref(tc.ctx, &eveyv1.SetPrefRequest{Key: "k0", Value: "rewritten"})
+		require.NoError(t, err, "%s: an existing key stays writable at the cap", tc.name)
+	}
 }

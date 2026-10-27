@@ -4,7 +4,7 @@ import { useUserServiceLogin } from "@evey/api";
 import { useAuthStore } from "@evey/store";
 import { FocusRoot, useBackHandler } from "../tv/focus";
 import { Chip, Pressable, Spinner, TextField } from "../components/ui";
-import { clearSavedCredentials, getSavedCredentials, saveCredentials } from "../lib/savedCredentials";
+import { clearSavedUsername, getSavedUsername, saveUsername } from "../lib/savedCredentials";
 import { refreshTokenStore } from "../lib/session";
 import { navigate, replace } from "../app/router";
 
@@ -12,10 +12,10 @@ import { navigate, replace } from "../app/router";
 export function LoginScreen() {
   const { t } = useTranslation();
   const setTokens = useAuthStore((s) => s.setTokens);
-  // Filled from "remember me" when the viewer opted in, as on the phone.
-  const [saved] = useState(getSavedCredentials);
-  const [username, setUsername] = useState(saved?.username ?? "");
-  const [password, setPassword] = useState(saved?.password ?? "");
+  // Username filled from "remember me" when the viewer opted in.
+  const [saved] = useState(getSavedUsername);
+  const [username, setUsername] = useState(saved ?? "");
+  const [password, setPassword] = useState("");
   const [remember, setRemember] = useState(!!saved);
   const [error, setError] = useState<string | null>(null);
   const changeServer = useCallback(() => replace({ name: "server" }), []);
@@ -32,8 +32,8 @@ export function LoginScreen() {
         // The refresh token comes in the body (X-Persistent-Session): this
         // client keeps it itself, so the next boot needs no password.
         if (data.refreshToken) await refreshTokenStore.setRefreshToken(data.refreshToken);
-        if (remember) saveCredentials(username.trim(), password);
-        else clearSavedCredentials();
+        if (remember) saveUsername(username.trim());
+        else clearSavedUsername();
         setTokens(data.accessToken);
         replace({ name: "profiles" });
       },

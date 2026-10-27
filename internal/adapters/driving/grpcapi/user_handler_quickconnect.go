@@ -19,7 +19,7 @@ import (
 // user_handler_quickconnect.go holds the QuickConnect flow: initiate on the new
 // device, authorize from a logged-in one, and poll for completion.
 
-func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
+func (h *userHandler) InitiateQuickConnect(ctx context.Context, req *eveyv1.InitiateQuickConnectRequest) (*eveyv1.QuickConnectResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.InitiateQuickConnect")
 	defer span.End()
 	qc := &user.QuickConnectRequest{
@@ -33,6 +33,8 @@ func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.Initia
 		// event stream and an EventSource carries no headers, so those
 		// pairings used to fall back to a one-week session.
 		Persistent: interceptors.PersistentSessionFromCtx(ctx),
+		// Fixed here by the initiator: the collector cannot opt out.
+		SecretRequired: req.GetSecretAware(),
 	}
 	if err := h.access.InitiateQuickConnect(ctx, qc); err != nil {
 		slog.ErrorContext(ctx, "initiate quick connect", slog.Any("err", err))
@@ -80,15 +82,15 @@ func (h *userHandler) AuthorizeQuickConnect(ctx context.Context, req *eveyv1.Aut
 func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQuickConnectRequest) (*eveyv1.CheckQuickConnectResponse, error) {
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.CheckQuickConnect")
 	defer span.End()
-	qc, err := h.query.CheckQuickConnect(ctx, req.Code)
+	// Claimed, not just read: the tokens go to one collector only.
+	qc, err := h.auth.ClaimQuickConnect(ctx, req.Code, req.GetSecret())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "invalid expired code")
 		return nil, h.translator.TranslatedError(ctx, codes.NotFound, "errors.user.invalid_expired_code")
 	}
-	authorized := qc.Status == user.Authorized
-	resp := &eveyv1.CheckQuickConnectResponse{Authorized: authorized}
-	if authorized && qc.UserID != nil {
+	resp := &eveyv1.CheckQuickConnectResponse{Authorized: qc != nil}
+	if qc != nil {
 		access, refresh, err := h.auth.GenerateTokensForUser(ctx, string(*qc.UserID), h.quickConnectTTL(ctx, qc)...)
 		if err != nil {
 			slog.ErrorContext(ctx, "generate tokens for quick connect", slog.Any("err", err))

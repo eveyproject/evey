@@ -33,7 +33,7 @@ vi.mock("@evey/api", () => ({
     mutate: () => mutation.onError?.(new Error("network down")),
     isError: true,
   }),
-  userServiceCheckQuickConnect: (...a: unknown[]) => checkMock(...a),
+  checkQuickConnect: (...a: unknown[]) => checkMock(...a),
 }));
 
 vi.mock("@evey/store", () => ({

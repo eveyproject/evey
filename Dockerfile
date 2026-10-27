@@ -6,7 +6,7 @@
 # under QEMU on a multi-arch build. Measured on one host, same cold build cache,
 # same 4 CPUs: `go build ./cmd/evey` for arm64 takes 239 s emulated vs 16 s
 # cross-compiled - 15x, and that is one stage out of four.
-FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS gomod
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS gomod
 
 RUN apk add --no-cache gcc musl-dev linux-headers
 WORKDIR /src
@@ -32,7 +32,7 @@ RUN buf generate --template buf.gen.local.yaml
 # leaks every crossing value (+6.75 MB/segment measured 2026-07-28) - that
 # memory-killed the cast receiver at ~3 min. Ship wasm_exec.js from the same
 # compiler as the module.
-FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS wasmbuild
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS wasmbuild
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download github.com/gravity-zero/ac3go
@@ -43,7 +43,7 @@ RUN mkdir -p /tmp/out \
 # ── Stage 3: Build frontend ──
 # Output is static JS/CSS/HTML - identical on every target arch, so build it
 # natively (see the gomod stage note on $BUILDPLATFORM).
-FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend
+FROM --platform=$BUILDPLATFORM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS frontend
 
 WORKDIR /app
 ENV CI=true
@@ -136,7 +136,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
 # builder above is musl (golang:alpine); a musl .so won't load inside the glibc
 # Debian runtime, so compile it here on the same glibc the runtime ships. Kept
 # in its own thin stage so gcc + libc6-dev (~200 MB) never reach the final image.
-FROM debian:trixie-slim AS sandbox-glibc
+FROM debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS sandbox-glibc
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY sandbox/sandbox.c /tmp/sandbox.c
@@ -159,7 +159,7 @@ RUN gcc -shared -fPIC -nostartfiles -o /libevey-sandbox.so /tmp/sandbox.c
 # WE computed from that exact downloaded asset - it guards against a
 # corrupted download or a same-tag substitution, not against a compromise of
 # the release itself.
-FROM debian:trixie-slim AS meili-download
+FROM debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS meili-download
 
 ARG TARGETARCH
 ARG MEILI_VERSION=v1.12.8
@@ -208,7 +208,7 @@ RUN case "$TARGETARCH" in \
 # Build with:  docker build --build-arg RUNTIMES=lean .
 # The plugin installer refuses any plugin whose declared `language:` is not
 # present, with a message naming the right variant.
-FROM debian:trixie-slim AS runtime
+FROM debian:trixie-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS runtime
 
 # Set automatically by buildx per target platform ("amd64" | "arm64"). Used to
 # skip the x86-only Intel GPU driver packages and the AVX2 tonemapx assertion
@@ -381,6 +381,20 @@ RUN set -eu; rm -rf /usr/share/doc /usr/share/man /usr/share/info; \
            && curl -fsSLO https://github.com/intel/intel-graphics-compiler/releases/download/igc-${INTEL_IGC1_LEGACY_VER}/intel-igc-opencl_${INTEL_IGC1_LEGACY_VER}_amd64.deb \
            && curl -fsSLO https://github.com/intel/compute-runtime/releases/download/${INTEL_NEO_LEGACY_VER}/intel-opencl-icd-legacy1_${INTEL_NEO_LEGACY_VER}_amd64.deb; \
          fi \
+      # sha256 of each pinned version, as GitHub publishes for the release asset.
+      # A bumped version with no line here fails the build instead of going unchecked.
+      && printf '%s  %s\n' \
+           6031a63d6e8a12ce61c14efc15f2c8e727061286e3820b8594e6d00615e04d54 libigdgmm12_22.10.0_amd64.deb \
+           ebd795e9fddf303a9b24b7f04545d8ddd9ad1f85b3d0cb1166476fab24da6d44 intel-igc-core-2_2.40.13+22418_amd64.deb \
+           4f990874efc11c3f6091a663b08aef576c4af592dcd8f12e116f8c2fc92d34d9 intel-igc-opencl-2_2.40.13+22418_amd64.deb \
+           5a9c9e8fdca8a2f9e22754b1a4618c7babf21d7c3ab3503c680005007c7a8c44 intel-opencl-icd_26.31.39395.13-0_amd64.deb \
+           c1e1ecdfe2064c047c552651cfdcdafc504f2033afafba65654338b880048b67 intel-igc-core_1.0.17537.24_amd64.deb \
+           dd016400f87fa2b6a9fa9fbcca7eb4a2629174a29de679709f9bec5cede88b0e intel-igc-opencl_1.0.17537.24_amd64.deb \
+           bbe71e4f414259e06a10cde72c29a2bd78d41b2bb2f6f8463b1806797fe66e85 intel-opencl-icd-legacy1_24.35.30872.36_amd64.deb \
+           > SHA256SUMS \
+      && for f in *.deb; do awk -v f="$f" '$2 == f { n = 1 } END { exit !n }' SHA256SUMS \
+           || { echo "no pinned sha256 for $f" >&2; exit 1; }; done \
+      && sha256sum -c --ignore-missing SHA256SUMS \
       && apt-get update && apt-get install -y --no-install-recommends ./*.deb \
       && cd / && rm -rf /tmp/neo /var/lib/apt/lists/* /usr/share/doc /usr/share/man \
       # The legacy IGC ships libopencl-clang.so as a 137 MB COPY of the .so.14, not a link.

@@ -199,6 +199,9 @@ func validateExternalFetch(entries []string) error {
 		if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
 			return fmt.Errorf("manifest: external_fetch entry %q must be a hostname, not an IP address", entry)
 		}
+		if norm := plugin.NormalizeExternalFetch([]string{entry}); len(norm) != 1 || !plugin.ExternalFetchHostRe.MatchString(norm[0]) {
+			return fmt.Errorf("manifest: external_fetch entry %q must be a hostname with an optional http(s) scheme and port", entry)
+		}
 	}
 	return nil
 }
