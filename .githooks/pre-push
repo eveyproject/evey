@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Pre-push hook - runs the CI "Backend - quality & security" job locally
-# (`make pre-push`: vet + govulncheck + build + gosec ratchet + lint + hygiene +
-# secrets scan) before
-# letting `git push` proceed, so a regression never reaches GitHub Actions and
-# tanks the pipeline.
+# Pre-push hook - runs the CI gate locally before letting `git push` proceed,
+# so a regression never reaches GitHub Actions and tanks the pipeline. A push
+# to master runs `make pre-push` (the full mirror of CI); a push to dev or to
+# a work branch runs `make pre-push-dev` (the same minus the long suites the
+# pull request's CI reruns on those commits anyway).
 #
 # Activation (run once, per clone):
 #     make hooks            # sets core.hooksPath to .githooks
@@ -45,20 +45,34 @@ if ! docker inspect --format '{{.State.Status}}' evey-server >/dev/null 2>&1; th
     exit 1
 fi
 
-# A `make gate` receipt that is green for exactly this HEAD and this tree is the
-# same run already done: re-running it here only costs the ~5 minutes it takes.
-# The receipt is bound to HEAD, so it only stands in when what is pushed IS HEAD
-# (git hands the refs on stdin); any other ref gets the full run.
+# The destination picks the gate. master and tags get the full mirror of CI;
+# dev and work branches get pre-push-dev, which leaves out what the pull
+# request's CI reruns on the exact same commits (the long suites). dev only
+# merges on a green "CI passed", so nothing is skipped on the way in - it runs
+# once instead of twice. GATE=full forces the full run on any push.
+#
+# A green `make gate` receipt for exactly this HEAD and this tree is the same
+# run already done. It is bound to HEAD, so it only stands in when what is
+# pushed IS HEAD (git hands the refs on stdin); any other ref gets the run.
+target=pre-push-dev
 pushed_is_head=1
 head_sha=$(git rev-parse HEAD)
-while read -r _local_ref local_sha _remote_ref _remote_sha; do
+while read -r _local_ref local_sha remote_ref _remote_sha; do
     [ -z "$local_sha" ] && continue
     [ "$local_sha" = "$head_sha" ] || pushed_is_head=0
+    case "$remote_ref" in
+        refs/heads/master|refs/tags/*) target=pre-push ;;
+    esac
 done
-if [ "$pushed_is_head" = 1 ] && python3 scripts/gate-receipt.py --label pre-push status >/dev/null 2>&1; then
-    echo "pre-push: gate receipt is green for this exact HEAD and tree - not re-running it (make gate-status to see it)"
-    exit 0
+[ "${GATE:-}" = "full" ] && target=pre-push
+if [ "$pushed_is_head" = 1 ]; then
+    for label in pre-push "$target"; do
+        if python3 scripts/gate-receipt.py --label "$label" status >/dev/null 2>&1; then
+            echo "pre-push: $label receipt is green for this exact HEAD and tree - not re-running it (make gate-status to see it)"
+            exit 0
+        fi
+    done
 fi
 
-echo "pre-push: running make pre-push (~5 min) - bypass with 'git push --no-verify'"
-exec make pre-push
+echo "pre-push: running make $target - bypass with 'git push --no-verify'"
+exec make "$target"

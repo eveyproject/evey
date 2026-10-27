@@ -1,5 +1,5 @@
 ---
-source_sha: a0eb85f44612fd3d234753208bf63c8a9fec91fc8d1020bfdb8109e199c59b19
+source_sha: cbb77f7bf06443976e7bc56f600217600725f9387abe71900e4c95e24ef4519e
 reviewed: true
 ---
 # 参与贡献
@@ -32,6 +32,7 @@ reviewed: true
    带 `-race` 的单元测试、前端（类型检查、lint、单元测试）、安全扫描、lint、
    [架构检查](ARCHITECTURE.md#architecture-guards)、提交规范检查、密钥泄露扫描、proto 破坏性变更检查、
    从干净检出的代码构建、仓库和转码的集成测试检查，以及电视应用审计。
+   推送到 `dev` 或工作分支时改为运行 `make pre-push-dev`：同样的检查，但不含 pull request 的 CI 会在相同提交上再次运行的耗时套件（漏洞扫描、前端测试与构建、仓库套件、电视应用审计）；推送到 `master` 则运行完整检查。
 2. 为新的行为和每一个缺陷修复补上测试。
 3. 外部贡献需要一次性接受[贡献者许可协议](../CLA.md)：Evey 采用 AGPL-3.0-or-later 许可，
    也可能以商业许可提供。您的作品版权仍归您所有。

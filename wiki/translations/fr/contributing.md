@@ -1,5 +1,5 @@
 ---
-source_sha: a0eb85f44612fd3d234753208bf63c8a9fec91fc8d1020bfdb8109e199c59b19
+source_sha: cbb77f7bf06443976e7bc56f600217600725f9387abe71900e4c95e24ef4519e
 reviewed: true
 ---
 # Contribuer
@@ -42,6 +42,11 @@ changer l'un de ces choix.
    commits, recherche de secrets, détection de rupture des proto, build
    depuis un checkout propre, les contrôles d'intégration du dépôt et du
    transcodage, et l'audit TV.
+   Un push vers `dev` ou vers une branche de travail lance
+   `make pre-push-dev` à la place : le même contrôle sans les longues suites
+   que la CI de la pull request rejoue sur les mêmes commits (recherche de
+   vulnérabilités, tests et build du frontend, suite du dépôt, audit TV) ;
+   un push vers `master` lance le contrôle complet.
 2. Ajoutez des tests pour tout nouveau comportement et pour chaque
    correction de bug.
 3. Pour une contribution externe, acceptez une fois
