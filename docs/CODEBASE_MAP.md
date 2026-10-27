@@ -128,6 +128,8 @@ go test <package>               before every commit (NEVER go test ./...)
 make transcode-itest            if you touched transcode paths
 make pre-push                   before declaring anything ready (vet + vuln +
                                 build + gosec + lint + arch guards + itest gate)
+make pre-push-dev               what the hook runs for a push to dev or a work
+                                branch (the above minus the long suites CI reruns)
 make doctor                     when your environment misbehaves
 ```
 

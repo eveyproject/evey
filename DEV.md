@@ -94,6 +94,7 @@ refusing an AI attribution trailer).
 |---------|-------------|
 | `make gate` | Run `make pre-push` and record a receipt: command, exit code, HEAD, working-tree fingerprint |
 | `make gate-status` | Re-check that receipt against the repo now; exits non-zero once HEAD or the tree has moved |
+| `make gate-dev` / `make gate-dev-status` | The same receipt for `make pre-push-dev`, the gate the hook runs for a push to `dev` or to a work branch |
 | `make ci-hygiene` | The regex-decidable house rules (plain dashes, no attribution trailer, no conflict marker, no elision placeholder, no `.claude/`), ratcheted on the outgoing commits |
 | `make verify-commit REF=<sha>` | Check a commit from a clean detached worktree outside the repo: guards, `buf generate`, vet, build, unit `-race`. `FRONTEND=1` adds a frozen-lockfile install; `UNIT=0` skips the suite |
 
@@ -153,6 +154,13 @@ make pre-push
 
 Enable the hook once with `make hooks` so this runs on every push. To bypass it
 deliberately: `git push --no-verify`.
+
+The hook reads the destination. A push to `master` (or a tag) runs the full
+`make pre-push`. A push to `dev` or to a work branch runs `make pre-push-dev`:
+the same gate without the suites the pull request's CI reruns on the exact same
+commits (govulncheck, frontend tests and build, the Postgres suite, the TV
+audit). `dev` only merges on a green "CI passed", so nothing is skipped on the
+way in; `GATE=full git push ...` forces the full run anywhere.
 
 Hand-rolled subsets of the above are how a red pipeline gets discovered ten
 minutes after the push instead of before it.
