@@ -1872,6 +1872,8 @@
   "admin.users.never": "Never",
   "admin.users.newPassword": "New password",
   "admin.users.noInvites": "No invite links",
+  "admin.users.noLibraries": "No library",
+  "admin.users.noLibrariesDesc": "This user is restricted but no library is left: every grant was revoked or the libraries were deleted. Tick libraries to grant access, or save with none selected to lift the restriction.",
   "admin.users.noProfiles": "This user has no profiles yet.",
   "admin.users.noUsers": "No users found",
   "admin.users.password": "Password",

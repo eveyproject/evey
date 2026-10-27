@@ -1,4 +1,4 @@
-FROM golang:1.27.3-trixie
+FROM golang:1.27.3-trixie@sha256:fbb7ae40b62ff8afe31662df570d39b4f5052ac32b90dae8e60d7657a20a74f4
 
 # Full HW transcode parity with prod (one-image model): the SAME
 # NVENC/VAAPI/QSV ffmpeg + VA/oneVPL driver set as the runtime image, so the dev
@@ -86,6 +86,6 @@ RUN CGO_ENABLED=0 go build \
 RUN ln -sf /app/tmp/evey /usr/local/bin/evey \
     && printf '\n# Evey admin shell: CLI completion + interactive launcher\nfor _f in /app/cmd/evey/evey-completion.bash /app/docker/mkvgo-completion.bash; do [ -r "$_f" ] && . "$_f"; done\n[ -r /app/docker/evey-shell.sh ] && . /app/docker/evey-shell.sh\n' >> /etc/bash.bashrc
 
-ENV EVEY_LOG_DEV_MODE=true
+ENV EVEY_LOG_DEV_MODE=true EVEY_ENV=dev
 
 CMD ["sh", "-c", "buf generate && air -c .air.toml"]

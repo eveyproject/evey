@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-// "Remember me", as on the phone: opted in, the fields come back filled the
-// next time the viewer lands here; opted out, nothing is kept.
+// "Remember me": opted in, the username comes back the next time the viewer
+// lands here; the password is never kept in the browser's storage.
 const { mutate, replaceMock, setRefreshToken } = vi.hoisted(() => ({
   mutate: vi.fn(),
   replaceMock: vi.fn(),
@@ -48,26 +48,38 @@ describe("tv-web login, remember me", () => {
     expect(mutate).toHaveBeenCalledWith({ data: { username: "alice", password: "s3cret" } });
     await onSuccess({ accessToken: "a", refreshToken: "r" });
     expect(localStorage.getItem("evey-tv-saved-username")).toBe("alice");
-    expect(localStorage.getItem("evey-tv-saved-password")).toBe("s3cret");
+    expect(localStorage.getItem("evey-tv-saved-password")).toBeNull();
+    expect(JSON.stringify({ ...localStorage })).not.toContain("s3cret");
   });
 
-  it("fills the fields back in from what was kept", () => {
+  it("fills the username back in, never a password", () => {
+    localStorage.setItem("evey-tv-saved-username", "alice");
+    render(<LoginScreen />);
+    const [user, pass] = fields();
+    expect(user.value).toBe("alice");
+    expect(pass.value).toBe("");
+    expect(screen.getByRole("button", { name: "Remember me" }).className).toContain("active");
+  });
+
+  it("erases a password kept by an earlier version without using it", () => {
     localStorage.setItem("evey-tv-saved-username", "alice");
     localStorage.setItem("evey-tv-saved-password", "s3cret");
     render(<LoginScreen />);
     const [user, pass] = fields();
     expect(user.value).toBe("alice");
-    expect(pass.value).toBe("s3cret");
+    expect(pass.value).toBe("");
+    expect(localStorage.getItem("evey-tv-saved-password")).toBeNull();
   });
 
-  it("forgets them when the viewer signs in with the box unticked", async () => {
+  it("forgets the username when the viewer signs in with the box unticked", async () => {
     localStorage.setItem("evey-tv-saved-username", "alice");
-    localStorage.setItem("evey-tv-saved-password", "s3cret");
     render(<LoginScreen />);
+    const [, pass] = fields();
+    fireEvent.change(pass, { target: { value: "s3cret" } });
     fireEvent.click(screen.getByRole("button", { name: "Remember me" }));
     fireEvent.click(screen.getAllByRole("button", { name: "auth.login.signIn" })[0]);
     await onSuccess({ accessToken: "a", refreshToken: "r" });
-    expect(localStorage.getItem("evey-tv-saved-password")).toBeNull();
+    expect(localStorage.getItem("evey-tv-saved-username")).toBeNull();
   });
 
   it("keeps nothing by default", async () => {
@@ -77,6 +89,7 @@ describe("tv-web login, remember me", () => {
     fireEvent.change(pass, { target: { value: "pw" } });
     fireEvent.click(screen.getAllByRole("button", { name: "auth.login.signIn" })[0]);
     await onSuccess({ accessToken: "a" });
+    expect(localStorage.getItem("evey-tv-saved-username")).toBeNull();
     expect(localStorage.getItem("evey-tv-saved-password")).toBeNull();
   });
 });

@@ -248,6 +248,9 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		// `demo` administrator through CreateUser when an administrator exists.
 		userSvcOpts = append(userSvcOpts, appuser.UserWithMinPasswordLength(demo.MinPasswordLength))
 	}
+	// Read once at construction by the gRPC user service and the HTTP parental
+	// routes: the PIN lockout survives a restart through the login attempt rows.
+	appuser.SetSharedPINAttempts(appuser.NewPINAttempts(r.LoginAttempt))
 	userSvc := appuser.NewUserService(r.User, r.Profile, r.RefreshToken, infra.hasher, bus, postgres.NewTxUnit(db), userSvcOpts...)
 	userAccessSvc := appuser.NewAccessService(r.User, r.APIKey, r.InviteLink, r.QuickConnect, infra.hasher, bus, appuser.WithProfiles(r.Profile), appuser.WithLibraryAccess(r.LibraryAccess), appuser.WithAccessDefaultLocale(serverLocaleFn), appuser.WithAccessUnitOfWork(postgres.NewTxUnit(db)))
 	userQuerySvc := appuser.NewQueryService(r.User, r.Profile, r.APIKey, r.InviteLink, r.QuickConnect)

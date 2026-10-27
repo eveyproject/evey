@@ -371,7 +371,7 @@ func newKidsCallerMux(t *testing.T) (*http.ServeMux, *auth.JWTGenerator, string)
 	userRepo := userfakes.NewFakeUserRepository()
 	_ = userRepo.Create(context.Background(), &domainuser.User{ID: "user-1", Username: "u1", PasswordHash: "hashed:secret"})
 	mux := http.NewServeMux()
-	registerParentalRoutes(mux, profileRepo, userRepo, hasher, gen)
+	isolatePINAttempts(registerParentalRoutes(mux, profileRepo, userRepo, hasher, gen))
 	return mux, gen, "prof-kid"
 }
 

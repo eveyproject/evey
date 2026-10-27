@@ -762,6 +762,19 @@ func (f *fakeDataRepo) List(_ context.Context, p, u, pr string) ([]*plugindomain
 	return out, nil
 }
 
+func (f *fakeDataRepo) Count(_ context.Context, p, u, pr string) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	n := 0
+	prefix := p + "\x00" + u + "\x00" + pr + "\x00"
+	for k := range f.m {
+		if strings.HasPrefix(k, prefix) {
+			n++
+		}
+	}
+	return n, nil
+}
+
 func TestHostDataStore_RoundTrip(t *testing.T) {
 	h := newTestHostServer().WithDataStore(newFakeDataRepo())
 	ctx := ctxWithPluginID("plg-1")
@@ -803,6 +816,30 @@ func TestHostDataStore_PluginScoped(t *testing.T) {
 	assert.Equal(t, "two", got.Value)
 	got, _ = h.GetData(ctxWithPluginID("plg-1"), &pluginv1.GetDataRequest{Key: "k"})
 	assert.Equal(t, "one", got.Value)
+}
+
+// TestHostDataStore_Bounded: SetData needs no permission, so the store's
+// growth is capped per value and per number of distinct keys, like SetConfig.
+func TestHostDataStore_Bounded(t *testing.T) {
+	h := newTestHostServer().WithDataStore(newFakeDataRepo())
+	ctx := ctxWithPluginID("plg-1")
+	code := func(err error) codes.Code { st, _ := status.FromError(err); return st.Code() }
+
+	_, err := h.SetData(ctx, &pluginv1.SetDataRequest{Key: strings.Repeat("k", plugindomain.MaxPluginDataKeyLen+1), Value: "v"})
+	assert.Equal(t, codes.InvalidArgument, code(err), "oversized key")
+	_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: "big", Value: strings.Repeat("v", plugindomain.MaxPluginDataValueLen+1)})
+	assert.Equal(t, codes.InvalidArgument, code(err), "oversized value")
+
+	for i := range plugindomain.MaxPluginDataKeys {
+		_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: fmt.Sprintf("k%d", i), Value: "v"})
+		require.NoError(t, err)
+	}
+	_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: "one-too-many", Value: "v"})
+	assert.Equal(t, codes.ResourceExhausted, code(err), "key count cap")
+	_, err = h.SetData(ctx, &pluginv1.SetDataRequest{Key: "k0", Value: "rewritten"})
+	require.NoError(t, err, "an existing key stays writable at the cap")
+	_, err = h.SetData(ctxWithPluginID("plg-2"), &pluginv1.SetDataRequest{Key: "k", Value: "v"})
+	require.NoError(t, err, "the cap is per plugin")
 }
 
 func TestHostDataStore_Unimplemented(t *testing.T) {

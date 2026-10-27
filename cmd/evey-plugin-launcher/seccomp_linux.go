@@ -32,6 +32,7 @@ const (
 	offNR   = 0
 	offArch = 4
 	offArg0 = 16
+	offArg1 = 24
 )
 
 // seccomp_ret actions.
@@ -107,6 +108,53 @@ func appendSelfSignalRules(f []unix.SockFilter, self uint32) []unix.SockFilter {
 	return f
 }
 
+// selfTargetSyscalls tune limits, scheduling or memory placement of the
+// process named by args[0], where 0 means the caller. Under a shared uid the
+// kernel lets a plugin aim them at its neighbours, so only 0 and self pass.
+func selfTargetSyscalls() []uint32 {
+	return []uint32{
+		unix.SYS_PRLIMIT64, unix.SYS_SCHED_SETAFFINITY, unix.SYS_SCHED_SETPARAM,
+		unix.SYS_SCHED_SETSCHEDULER, unix.SYS_SCHED_SETATTR,
+		unix.SYS_MIGRATE_PAGES, unix.SYS_MOVE_PAGES,
+	}
+}
+
+// whichTargetSyscalls take (which, who): only the per-process selector passes,
+// since the group and user selectors with who=0 reach every same-uid process.
+var whichTargetSyscalls = []struct{ nr, perProcess uint32 }{
+	{unix.SYS_SETPRIORITY, unix.PRIO_PROCESS},
+	{unix.SYS_IOPRIO_SET, 1}, // IOPRIO_WHO_PROCESS
+}
+
+// appendSelfTargetRules ALLOWs those syscalls when the target pid (low 32
+// bits: the kernel reads a pid_t) is 0 or self and EPERMs them otherwise. A
+// non-matching syscall skips each block with A still holding its number.
+func appendSelfTargetRules(f []unix.SockFilter, self uint32) []unix.SockFilter {
+	for _, nr := range selfTargetSyscalls() {
+		f = append(f,
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 5, K: nr},
+			unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0},
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 2, Jf: 0, K: 0},
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: self},
+			unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
+			unix.SockFilter{Code: bpfRET | bpfK, K: retAllow},
+		)
+	}
+	for _, sc := range whichTargetSyscalls {
+		f = append(f,
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 7, K: sc.nr},
+			unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg0}, // which
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 3, K: sc.perProcess},
+			unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg1}, // who
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 2, Jf: 0, K: 0},
+			unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: self},
+			unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
+			unix.SockFilter{Code: bpfRET | bpfK, K: retAllow},
+		)
+	}
+	return f
+}
+
 // cloneNamespaceFlags are the CLONE_NEW* bits clone(2) shares with unshare(2).
 const cloneNamespaceFlags = unix.CLONE_NEWNS | unix.CLONE_NEWCGROUP | unix.CLONE_NEWUTS |
 	unix.CLONE_NEWIPC | unix.CLONE_NEWUSER | unix.CLONE_NEWPID | unix.CLONE_NEWNET
@@ -163,6 +211,7 @@ func buildSeccompFilter(self uint32, denyInet, denyFork bool) []unix.SockFilter 
 		)
 	}
 	f = appendSelfSignalRules(f, self)
+	f = appendSelfTargetRules(f, self)
 	f = appendDenyNamespaceRules(f)
 	if denyInet {
 		f = append(f,

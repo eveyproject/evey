@@ -40,6 +40,9 @@ interface LibraryInfo {
 interface LibraryAccessData {
   libraryIds: string[];
   libraries: LibraryInfo[];
+  // Set when the user is confined to libraryIds; an empty list with it means
+  // access to nothing, not to everything.
+  restricted?: boolean;
 }
 
 function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; visible: boolean; onClose: () => void; theme: ReturnType<typeof useTheme> }) {
@@ -52,6 +55,8 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
     queryFn: () => eveyFetch<LibraryAccessData>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "GET" }),
     enabled: visible,
   });
+
+  const showNoLibrary = !!data?.restricted && data.libraryIds.length === 0 && selected.size === 0;
 
   useEffect(() => {
     if (data) setSelected(new Set(data.libraryIds));
@@ -101,9 +106,11 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
           {t("admin.users.libraryAccessTitle", { name: user.username })}
         </Text>
         <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: 12 }}>
-          {selected.size === 0
-            ? t("admin.users.unrestrictedDesc")
-            : t("admin.users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
+          {showNoLibrary
+            ? t("admin.users.noLibrariesDesc")
+            : selected.size === 0
+              ? t("admin.users.unrestrictedDesc")
+              : t("admin.users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
         </Text>
         {isLoading ? (
           <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 24 }} />
@@ -144,7 +151,7 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
         )}
         {selected.size === 0 && !isLoading && (
           <View style={{ backgroundColor: theme.colors.accent + "22", borderRadius: theme.radii.md, paddingHorizontal: 10, paddingVertical: 4, alignSelf: "flex-start", marginBottom: 8 }}>
-            <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "600" }}>{t("admin.users.unrestricted")}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "600" }}>{t(showNoLibrary ? "admin.users.noLibraries" : "admin.users.unrestricted")}</Text>
           </View>
         )}
         <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>

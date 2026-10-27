@@ -399,6 +399,8 @@ users:
   libraryAccessUpdated: "媒体库访问已更新"
   failedLibraryAccess: "更新媒体库访问失败"
   clearAllUnrestricted: "清除全部（无限制）"
+  noLibraries: "无媒体库"
+  noLibrariesDesc: "此用户受限制，但已没有任何媒体库：所有授权已撤销或媒体库已删除。勾选媒体库以授予访问权限，或不选任何项保存以解除限制。"
   bitrate: "码率"
   maxBitrateTitle: "最大码率 - {{name}}"
   maxBitrateDesc: "限制此用户的最大流媒体码率。0 = 无限制。"

@@ -1,5 +1,5 @@
 ---
-source_sha: 0bab686b9f686329111402f3fd66ecca742fbcfae479769927962bdcf8eeadcd
+source_sha: 84d4aedb514ecf260e351de19cd0ddda1771d2b1ed9173179da8a7b9ff4e192a
 reviewed: true
 ---
 # बैकअप, लॉग और निगरानी { #backups-logs-and-monitoring }
@@ -51,7 +51,7 @@ reviewed: true
 
 | वेरिएबल | डिफ़ॉल्ट | यह क्या करता है | पैनल |
 | --- | --- | --- | --- |
-| `EVEY_LOG_DEV_MODE` | `false` | डेवलपर मोड: शुरू होते समय की सुरक्षा जाँचें सिर्फ़ चेतावनी देती हैं, और प्लगइन सैंडबॉक्स लाइब्रेरी के बिना चल सकते हैं। असली सर्वर पर कभी नहीं; `EVEY_ENV=production` के साथ सर्वर शुरू होने से मना करता है। | कोई नहीं |
+| `EVEY_LOG_DEV_MODE` | `false` | डेवलपर मोड: शुरू होते समय की सुरक्षा जाँचें सिर्फ़ चेतावनी देती हैं, और प्लगइन सैंडबॉक्स लाइब्रेरी के बिना चल सकते हैं। यह सिर्फ़ `EVEY_ENV=dev` के साथ असर करता है; अकेले सेट करने पर चेतावनी के साथ अनदेखा किया जाता है। असली सर्वर पर कभी नहीं। | कोई नहीं |
 
 <!-- sources
 internal/config/config.go - EVEY_BACKUP_*, EVEY_LOG_*, EVEY_*_RETENTION_DAYS, EVEY_METRICS_*, EVEY_OTLP_ENDPOINT, EVEY_TRACING_* ; ScrapeToken comment ; WarnValidate (DevMode, sample ratio)

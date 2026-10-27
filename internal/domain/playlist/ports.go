@@ -45,4 +45,7 @@ type PlaylistItemRepository interface {
 	// absent from the returned map.
 	GetByPlaylistIDs(ctx context.Context, playlistIDs []string) (map[string][]*PlaylistItem, error)
 	Reorder(ctx context.Context, playlistID string, mediaItemIDs []string) error
+	// PurgeOrphans deletes the items whose media item or music track no longer
+	// exists (no FK: an item points at either) and returns how many went.
+	PurgeOrphans(ctx context.Context) (int64, error)
 }

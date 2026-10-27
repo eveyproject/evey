@@ -4,8 +4,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"net/http"
-	"regexp"
 	"strings"
+
+	"github.com/eveyproject/evey/internal/domain/plugin"
 )
 
 // The page plugin UIs and theme scripts run in. It replaces a srcdoc iframe,
@@ -42,10 +43,6 @@ var (
 		`<meta name="viewport" content="width=device-width, initial-scale=1">` +
 		`<style>*,*::before,*::after{box-sizing:border-box}html,body{margin:0;padding:0;background:transparent;font-family:system-ui,-apple-system,sans-serif}</style>` +
 		`</head><body><script>` + pluginFrameLoader + `</script></body></html>`)
-	// A manifest's external_fetch entry: optional http(s) scheme, a DNS name
-	// whose last label starts with a letter (no bare IP, as the manifest
-	// rules), optional port. Nothing else: no path, no wildcard, no quote.
-	frameHostRe = regexp.MustCompile(`^(https?://)?([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)*[a-z]([a-z0-9-]*[a-z0-9])?(:[0-9]{1,5})?$`)
 )
 
 const maxFrameConnectHosts = 16
@@ -57,7 +54,9 @@ func frameConnectSrc(raw string) string {
 	var hosts []string
 	for h := range strings.SplitSeq(raw, ",") {
 		h = strings.ToLower(strings.TrimSpace(h))
-		if h == "" || !frameHostRe.MatchString(h) || len(hosts) == maxFrameConnectHosts {
+		// An optional http(s) scheme, then the manifest's own host grammar.
+		bare := strings.TrimPrefix(strings.TrimPrefix(h, "https://"), "http://")
+		if h == "" || !plugin.ExternalFetchHostRe.MatchString(bare) || len(hosts) == maxFrameConnectHosts {
 			continue
 		}
 		if !strings.Contains(h, "://") {

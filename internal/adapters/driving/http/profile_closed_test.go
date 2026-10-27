@@ -40,7 +40,7 @@ func closedKidsFixture(t *testing.T) (*http.ServeMux, func(claims domainuser.Cla
 	hours := appuser.NewProfileSchedules(repo, hasher, parisClock{loc}).WithNow(func() time.Time { return now })
 
 	mux := http.NewServeMux()
-	parental := registerParentalRoutes(mux, repo, userfakes.NewFakeUserRepository(), hasher, gen)
+	parental := isolatePINAttempts(registerParentalRoutes(mux, repo, userfakes.NewFakeUserRepository(), hasher, gen))
 	registerScheduleRoutes(mux, parental, hours)
 	authMw := httpAuthMiddleware(gen)
 	streamMw := httpStreamAuthMiddleware(gen)

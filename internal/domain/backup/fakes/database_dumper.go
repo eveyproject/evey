@@ -17,6 +17,10 @@ type FakeDatabaseDumper struct {
 	// LastIncludeTelemetry records the last value DumpAll was called with, so a
 	// test can assert the service forwarded the setting.
 	LastIncludeTelemetry bool
+	// RestoreStarted is closed when RestoreTables begins and RestoreRelease is
+	// then awaited, so a test can hold a restore open; both nil by default.
+	RestoreStarted chan struct{}
+	RestoreRelease chan struct{}
 }
 
 func NewFakeDatabaseDumper() *FakeDatabaseDumper {
@@ -39,6 +43,10 @@ func (d *FakeDatabaseDumper) DumpAll(_ context.Context, includeTelemetry bool) (
 func (d *FakeDatabaseDumper) RestoreTables(_ context.Context, data io.Reader) error {
 	if d.Err != nil {
 		return d.Err
+	}
+	if d.RestoreStarted != nil {
+		close(d.RestoreStarted)
+		<-d.RestoreRelease
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()

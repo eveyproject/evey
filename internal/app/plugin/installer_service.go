@@ -42,6 +42,15 @@ type InstallerService struct {
 	// listDirsFn lists names of plg-* subdirectories under a base dir.
 	// Defaults to an os.ReadDir-based implementation; injectable for tests.
 	listDirsFn func(baseDir string) ([]string, error)
+	// serverVersion is checked against a manifest's min_evey_version; empty
+	// (or a dev build) skips the check.
+	serverVersion string
+}
+
+// InstallerWithServerVersion sets the running server's version, which a
+// manifest's min_evey_version must not exceed.
+func InstallerWithServerVersion(v string) InstallerOption {
+	return func(s *InstallerService) { s.serverVersion = v }
 }
 
 type InstallerOption func(*InstallerService)

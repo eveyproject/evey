@@ -440,13 +440,10 @@ func (q *SmartPlaylistQuerier) Query(ctx context.Context, spec playlist.Spec, so
 	query := "SELECT mi.id " + mediaItemFromJoins
 
 	var args []any
-	if sq, ok := spec.(playlist.SQLSpec); ok {
-		argIdx := 1
-		clause, specArgs := sq.ToSQL(&argIdx)
-		if clause != "" {
-			query += " WHERE " + clause
-			args = specArgs
-		}
+	argIdx := 1
+	if clause, specArgs := playlistSpecSQL(spec, &argIdx); clause != "" {
+		query += " WHERE " + clause
+		args = specArgs
 	}
 
 	validSort := map[string]string{
@@ -500,3 +497,26 @@ func (q *SmartPlaylistQuerier) Query(ctx context.Context, spec playlist.Spec, so
 var _ playlist.PlaylistRepository = (*PlaylistRepository)(nil)
 var _ playlist.PlaylistItemRepository = (*PlaylistItemRepository)(nil)
 var _ playlist.SmartPlaylistQuerier = (*SmartPlaylistQuerier)(nil)
+
+// PurgeOrphans deletes the items left pointing at a removed media item or
+// music track. Set-based, so a library deletion that cascades thousands of
+// media away costs one statement.
+func (r *PlaylistItemRepository) PurgeOrphans(ctx context.Context) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.PurgeOrphans")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
+		`DELETE FROM playlist_items pi
+		 WHERE (pi.media_type = $1 AND NOT EXISTS (SELECT 1 FROM music_tracks t WHERE t.id = pi.media_item_id))
+		    OR (pi.media_type <> $1 AND NOT EXISTS (SELECT 1 FROM media_items m WHERE m.id = pi.media_item_id))`,
+		playlist.MediaTypeMusic,
+	)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, fmt.Errorf("PlaylistItemRepo.PurgeOrphans: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}

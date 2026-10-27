@@ -140,6 +140,7 @@ func buildPlaylistServices(infra *infraDeps) (*appplaylist.Service, *appplaylist
 	// the metadata of - media from a library it has no access to.
 	playlistSvc.WithMediaChecker(mediaItemCheckerAdapter{repo: r.MediaItemQuery})
 	playlistSvc.WithLibraryAccessChecker(playlistLibraryAccessAdapter{profiles: r.Profile, access: r.LibraryAccess})
+	playlistSvc.CommandService().SubscribeMediaRemovals(infra.bus)
 	playlistGenSvc := appplaylist.NewGeneratorService(r.MusicTrack, r.MusicPlay, r.Playlist, r.PlaylistItem)
 	return playlistSvc, playlistGenSvc
 }
@@ -455,6 +456,7 @@ func buildPluginSubsystem(ctx context.Context, infra *infraDeps, rootLog *slog.L
 		appplugin.InstallerWithAnalyzer(infra.pluginAnalyzer),
 		appplugin.InstallerWithSignatureVerifier(infra.pluginSigVerifier),
 		appplugin.InstallerWithTrustedPublishers(infra.pluginPublishers),
+		appplugin.InstallerWithServerVersion(buildID().Version),
 		appplugin.InstallerWithPermissionChecker(permChecker),
 		appplugin.InstallerWithFileSystem(pluginFS),
 		appplugin.InstallerWithCSSSanitizer(cssSanitizer),

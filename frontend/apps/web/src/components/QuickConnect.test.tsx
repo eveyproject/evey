@@ -3,14 +3,15 @@ import { render, screen, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockInitiateMutate = vi.fn();
-let onSuccessCallback: ((data: { code?: string }) => void) | null = null;
+let onSuccessCallback: ((data: { code?: string; secret?: string }) => void) | null = null;
+let lastEventSourceUrl = "";
 // Mirrors the real hook's result shape: the component reads isError to decide
 // between the spinner and a way out.
 let mockIsError = false;
 
 vi.mock("@evey/api", () => ({
   eveyFetch: vi.fn(),
-  useUserServiceInitiateQuickConnect: (opts: { mutation: { onSuccess: (d: { code?: string }) => void } }) => {
+  useUserServiceInitiateQuickConnect: (opts: { mutation: { onSuccess: (d: { code?: string; secret?: string }) => void } }) => {
     onSuccessCallback = opts.mutation.onSuccess;
     return { mutate: mockInitiateMutate, isError: mockIsError };
   },
@@ -18,6 +19,7 @@ vi.mock("@evey/api", () => ({
 
 // Mock EventSource (SSE)
 class MockEventSource {
+  constructor(url: string) { lastEventSourceUrl = url; }
   onmessage: ((e: MessageEvent) => void) | null = null;
   onerror: (() => void) | null = null;
   close = vi.fn();
@@ -74,6 +76,18 @@ describe("QuickConnect", () => {
     const { QuickConnect } = await import("./QuickConnect");
     render(<QuickConnect />);
     expect(screen.getByTestId("spinner")).toBeInTheDocument();
+  });
+
+  it("asks for the secret and sends it back on the event stream", async () => {
+    const { QuickConnect } = await import("./QuickConnect");
+    render(<QuickConnect />);
+    expect(mockInitiateMutate).toHaveBeenCalledWith({ params: { secretAware: true } });
+
+    await act(async () => {
+      onSuccessCallback?.({ code: "ABCDEF123456", secret: "qc-secret-9" });
+    });
+
+    expect(lastEventSourceUrl).toBe("/api/v1/auth/quick-connect/ABCDEF123456/events?secret=qc-secret-9");
   });
 
   it("shows QR code when code is received via onSuccess", async () => {

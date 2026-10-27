@@ -72,6 +72,15 @@ func (v *CosignVerifier) VerifySignature(ctx context.Context, zipPath, sigPath s
 	return status, nil
 }
 
+// InspectSignature computes the status whatever the policy, never refusing:
+// the installer's key-continuity guard holds even with verification off.
+func (v *CosignVerifier) InspectSignature(ctx context.Context, zipPath, sigPath string) *domainplugin.SignatureStatus {
+	if sigPath == "" {
+		sigPath = zipPath + ".sig"
+	}
+	return v.verify(ctx, zipPath, sigPath)
+}
+
 func (v *CosignVerifier) verify(ctx context.Context, zipPath, sigPath string) *domainplugin.SignatureStatus {
 	keyPEM, err := readPackageKey(zipPath)
 	if err != nil {

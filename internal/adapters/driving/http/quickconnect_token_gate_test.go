@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -83,7 +84,7 @@ func newQCGateFixture(t *testing.T) *qcGateFixture {
 		tokens,
 		events,
 		qcTestDefaultTTL,
-		ufakes.NewFakeQuickConnectRepository(),
+		qcRepo,
 	)
 
 	cfg := &config.Config{
@@ -146,7 +147,7 @@ func TestQCGate_CheckQuickConnectError_ReturnsError(t *testing.T) {
 
 	f.qcRepo.Err = errors.New("db connection lost")
 
-	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "any-code", false)
+	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "any-code", "", false)
 
 	require.Error(t, err)
 	assert.False(t, ok)
@@ -164,7 +165,7 @@ func TestQCGate_StatusPending_NoTokensMinted(t *testing.T) {
 	uid := domainshared.UserID("usr-alice")
 	seedQCRecord(t, f.qcRepo, "code-pending", domainuser.Pending, &uid)
 
-	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-pending", false)
+	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-pending", "", false)
 
 	require.NoError(t, err)
 	assert.False(t, ok, "Pending status must not pass the gate")
@@ -182,7 +183,7 @@ func TestQCGate_StatusExpired_NoTokensMinted(t *testing.T) {
 	uid := domainshared.UserID("usr-bob")
 	seedQCRecord(t, f.qcRepo, "code-expired", domainuser.Expired, &uid)
 
-	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-expired", false)
+	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-expired", "", false)
 
 	require.NoError(t, err)
 	assert.False(t, ok, "Expired status must not pass the gate")
@@ -199,7 +200,7 @@ func TestQCGate_AuthorizedButUserIDNil_NoTokensMinted(t *testing.T) {
 	// Authorized status but UserID is nil (record not yet bound to a user).
 	seedQCRecord(t, f.qcRepo, "code-authorized-noid", domainuser.Authorized, nil)
 
-	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-authorized-noid", false)
+	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-authorized-noid", "", false)
 
 	require.NoError(t, err)
 	assert.False(t, ok, "Authorized+nil UserID must not pass the gate")
@@ -218,7 +219,7 @@ func TestQCGate_Authorized_NonPersistent_MintsTokens(t *testing.T) {
 	seedQCUser(t, f.userRepo, string(uid))
 
 	before := time.Now()
-	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-ok", false)
+	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-ok", "", false)
 	after := time.Now()
 
 	require.NoError(t, err)
@@ -253,7 +254,7 @@ func TestQCGate_Authorized_Persistent_UsesLongTTL(t *testing.T) {
 	seedQCUser(t, f.userRepo, string(uid))
 
 	before := time.Now()
-	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-ok-long", true)
+	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-ok-long", "", true)
 	after := time.Now()
 
 	require.NoError(t, err)
@@ -285,10 +286,61 @@ func TestQCGate_GenerateTokensError_Propagated(t *testing.T) {
 	}
 	require.NoError(t, f.userRepo.Create(context.Background(), u))
 
-	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-fail", false)
+	access, refresh, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-fail", "", false)
 
 	require.Error(t, err)
 	assert.False(t, ok)
 	assert.Empty(t, access)
 	assert.Empty(t, refresh)
+}
+
+// Two collectors racing on one authorized code: exactly one gets a session.
+func TestQCGate_ConcurrentChecksMintOnce(t *testing.T) {
+	t.Parallel()
+	f := newQCGateFixture(t)
+	uid := domainshared.UserID("usr-dave")
+	seedQCRecord(t, f.qcRepo, "code-once", domainuser.Authorized, &uid)
+	seedQCUser(t, f.userRepo, string(uid))
+
+	var wg sync.WaitGroup
+	var minted atomic.Int32
+	start := make(chan struct{})
+	for range 2 {
+		wg.Go(func() {
+			<-start
+			_, _, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-once", "", false)
+			if err == nil && ok {
+				minted.Add(1)
+			}
+		})
+	}
+	close(start)
+	wg.Wait()
+	assert.Equal(t, int32(1), minted.Load())
+	assert.Equal(t, 1, f.refreshTkns.Count())
+}
+
+// The initiator asked for the secret: a collector without it is refused before
+// any token is minted, and the pairing is left intact for the real device.
+func TestQCGate_SecretRequired_WrongSecretMintsNothing(t *testing.T) {
+	t.Parallel()
+	f := newQCGateFixture(t)
+
+	uid := domainshared.UserID("usr-dave")
+	require.NoError(t, f.qcRepo.Create(context.Background(), &domainuser.QuickConnectRequest{
+		ID: "qcid-secret", Code: "code-secret", Secret: "qc-secret-real", SecretRequired: true,
+		Status: domainuser.Authorized, UserID: &uid, ExpiresAt: time.Now().Add(5 * time.Minute),
+	}))
+	seedQCUser(t, f.userRepo, string(uid))
+
+	_, _, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-secret", "", false)
+	require.ErrorIs(t, err, appuser.ErrQuickConnectSecret)
+	assert.False(t, ok)
+	assert.Equal(t, int64(0), f.userRepo.getByIDCalls.Load(), "no token path without the secret")
+	assert.Equal(t, 0, f.refreshTkns.Count())
+
+	access, _, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-secret", "qc-secret-real", false)
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.NotEmpty(t, access)
 }

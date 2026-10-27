@@ -502,3 +502,50 @@ func TestPlaylistItemRepo_Remove(t *testing.T) {
 	require.ErrorIs(t, plItemRepo.Remove(ctx, pl.ID, string(mi1.ID)), shared.ErrNotFound, "already gone")
 	require.ErrorIs(t, plItemRepo.Remove(ctx, "pl-other", string(mi2.ID)), shared.ErrNotFound, "another playlist's row is not touched")
 }
+
+// playlist_items has no FK (a row points at a media item OR a music track), so
+// a removed media used to leave its row behind, still counted by the cap.
+func TestPlaylistItemRepo_PurgeOrphans(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	u := newTestUser("plorph-u")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("plorph-p", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("plorph-lib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("plorph-kept", lib.ID)))
+	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("plorph-gone", lib.ID)))
+	trackID, err := postgres.NewMusicTrackRepository(db).Upsert(ctx, newTestTrack("plorph-track", lib.ID, "T", "A", "Alb"))
+	require.NoError(t, err)
+
+	pl := newTestPlaylist("plorph-pl", string(p.ID))
+	require.NoError(t, postgres.NewPlaylistRepository(db).Create(ctx, pl))
+	items := postgres.NewPlaylistItemRepository(db)
+	now := time.Now().UTC()
+	for i, it := range []struct{ id, mediaType string }{
+		{"plorph-kept", domainplaylist.MediaTypeVideo},
+		{"plorph-gone", domainplaylist.MediaTypeVideo},
+		{trackID, domainplaylist.MediaTypeMusic},
+		{"plorph-no-such-track", domainplaylist.MediaTypeMusic},
+	} {
+		require.NoError(t, items.Add(ctx, &domainplaylist.PlaylistItem{
+			PlaylistID: pl.ID, MediaItemID: shared.MediaItemID(it.id), SortOrder: i, AddedAt: now, MediaType: it.mediaType,
+		}))
+	}
+	require.NoError(t, itemRepo.Delete(ctx, "plorph-gone"))
+
+	n, err := items.PurgeOrphans(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(2), n)
+	got, err := items.GetByPlaylistID(ctx, pl.ID)
+	require.NoError(t, err)
+	var ids []string
+	for _, it := range got {
+		ids = append(ids, string(it.MediaItemID))
+	}
+	assert.Equal(t, []string{"plorph-kept", trackID}, ids)
+}
