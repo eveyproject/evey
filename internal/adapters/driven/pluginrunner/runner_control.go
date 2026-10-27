@@ -216,3 +216,21 @@ func (r *Runner) SendEvent(ctx context.Context, pluginID string, event any) erro
 	defer cancel()
 	return ipc.OnEvent(evtCtx, eventType, payload, "host")
 }
+
+// Ask is plugin.PluginRunner: one event the plugin answers, its result kept.
+func (r *Runner) Ask(ctx context.Context, pluginID, eventType string, payload map[string]any, timeout time.Duration) (map[string]any, bool, error) {
+	r.mu.RLock()
+	entry, ok := r.processes[pluginID]
+	var ipc *ipcClient
+	if ok {
+		ipc = entry.ipc
+	}
+	r.mu.RUnlock()
+	if !ok {
+		return nil, false, fmt.Errorf("plugin %s not running", pluginID)
+	}
+	if ipc == nil {
+		return nil, false, fmt.Errorf("plugin %s IPC not connected", pluginID)
+	}
+	return ipc.Ask(ctx, eventType, payload, "host", timeout)
+}

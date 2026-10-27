@@ -91,7 +91,7 @@ when the plugin starts ([prerequisites](dev-setup.md#1-prerequisites)).
 | `Initialize(plugin_id, config, host_version)` | Once the process has bound its socket. `config` carries the values of `config_schema` the administrator set. Answer `success: false` with an `error` to refuse to start. |
 | `HealthCheck()` | Periodically, to tell a live process from a hung one. Answer `healthy: true` while you can serve. |
 | `Shutdown(reason)` | When the plugin is disabled, updated, uninstalled or the server stops. Exit soon after answering. |
-| `OnEvent(event_type, payload, source)` | Defined in the contract, but the server delivers no event to plugins today: implement it to answer `handled: true`, and expect no call. |
+| `OnEvent(event_type, payload, source)` | Only `metadata.request`, to a plugin with the `metadata.provider` capability ([metadata requests](#metadata-requests) below). Any other plugin receives no event: answer `handled: false`. |
 | `GetCapabilities()` | Defined in the contract; the server does not call it today. |
 
 ### HostService: what the plugin can call
@@ -110,9 +110,52 @@ does not mislead you.
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` or `media.read` | The full media record, including `file_path`, `provider_ids` and `genres`. |
 | `Fetch(url, method, headers)` | `network` | The only way out of the sandbox: `http` or `https`, `GET` or `HEAD`, a host of `external_fetch`, private addresses refused after resolution and through redirects. The body is capped at 8 MiB (`truncated` says so) and the whole request at 20 seconds. The server attaches no credential of its own. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` or `media.read` | *Not served.* |
-| `UpdateMetadata` | `api.metadata` or `media.write` | *Not served.* |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` or `media.write`, and the `metadata.provider` capability | Gives your text for one movie or series unasked, as a [metadata answer](#metadata-requests) would. `fields` carries `locale` (required) and any of `title`, `overview`, `tagline`; the text replaces what you gave for that locale, and `fields` holding only `locale` removes it. `provider_ids` is refused: TMDB identifies the item. |
 | `GetUserPreferences` | `api.user` | *Not served.* |
 | `SendNotification` | `notification.sender` | *Not served.* |
+
+### Metadata requests
+
+Each time the server matches or refreshes a movie or a series from TMDB, it
+sends every enabled `metadata.provider` plugin an `OnEvent` with
+`event_type` `metadata.request`, one plugin after the other, and waits up to
+15 seconds for each. The payload:
+
+| Field | Content |
+|---|---|
+| `media_item_id` | The item's id, for a later `UpdateMetadata`. |
+| `type` | `movie` or `series`. |
+| `title`, `original_title` | TMDB's title in the server's language, and the original one. |
+| `year` | Absent when unknown. |
+| `provider_ids` | `tmdb`, `imdb` and the other ids known for the item. |
+| `language` | The language of TMDB's text, for example `fr`. |
+| `locales` | Every language the server shows. |
+
+Answer `handled: true` with a `result` of:
+
+```json
+{
+  "locale": "fr",
+  "title": "...",
+  "overview": "...",
+  "tagline": "...",
+  "translations": {
+    "de": { "overview": "..." }
+  }
+}
+```
+
+The top-level fields are in `locale`, or in the request's `language` when
+`locale` is absent; `translations` adds other languages. Leave out a field you
+do not cover. Language tags are cut to their language (`fr-FR` reads `fr`),
+and a field over 8 KiB is ignored. An answer replaces everything you gave for
+the item before; `handled: false`, or an answer with no text, says you do not
+know the item and clears what you gave for it. An error or a timeout keeps what you gave.
+
+The administrator chooses which of `title`, `overview` and `tagline` your text
+replaces, and can ask you about the whole library at once
+([Metadata plugins](../plugins.md#metadata-plugins)). Seasons and episodes are
+not sent.
 
 ### Data store
 
@@ -255,8 +298,9 @@ A capability declares the role the plugin says it fulfils:
 `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` or
 `notification.sender`. The installer checks the name, the administrator sees
 the list in the preview and any addition at update, and the Security
-Dashboard records it. The server does not route anything on a capability
-today: a `metadata.provider` receives no enrichment call, a
+Dashboard records it. The server routes on one of them: a
+`metadata.provider` receives the [metadata requests](#metadata-requests) and
+may call `UpdateMetadata`. The others route nothing today; a
 `webhook.receiver` receives no inbound request. What a plugin can actually
 do is decided by its **permissions**.
 
@@ -291,9 +335,10 @@ manifest fields, validation: internal/domain/plugin/model.go - PluginManifest, V
 runtimes: internal/adapters/driven/pluginrunner/runtime_availability.go ; interpreters: runner_start.go - knownInterpreters
 config field types: frontend/apps/web/src/features/admin/PluginCard.tsx ; examples/plugins/config-demo/plugin.yaml
 secrets masked: internal/adapters/driving/grpcapi/admin_plugin.go (SecretMask)
-env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent ; runner_control.go - SendEvent (no caller)
+env vars, Initialize call: internal/adapters/driven/pluginrunner/runner_start.go ; ipc_client.go - Initialize, Shutdown, HealthCheck, OnEvent, Ask ; runner_control.go - SendEvent (no caller), Ask
+metadata requests: internal/app/plugin/metadata_source.go - MetadataRequestEvent, metadataAskTimeout, metadataRequestPayload, parseMetadataAnswer, maxAnswerField, normalizeLocale ; internal/app/metadata/enricher.go - enrichPluginTexts, takesPluginTexts ; internal/app/plugin/metadata_source_test.go
 peer auth, rate limit: internal/adapters/driving/pluginhost/host_server.go - makePluginAuthInterceptor, pluginRPCRatePerMin ; peer_creds.go
-host RPCs and permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; pluginhost/host_server.go - Log, GetConfig, SetConfig (maxConfigKeys, maxConfigKeyLen, maxConfigValueLen), EmitEvent (pluginEmittedEvent.EventName), GetMediaItem, ListMediaItems, mediaItemToProto, UpdateMetadata, GetUserPreferences (Unimplemented), UnimplementedHostServiceServer ; fetch.go - Fetch, maxFetchBytes, fetchTimeout
+host RPCs and permissions: internal/adapters/driving/grpcapi/plugin_interceptor.go ; pluginhost/host_server.go - Log, GetConfig, SetConfig (maxConfigKeys, maxConfigKeyLen, maxConfigValueLen), EmitEvent (pluginEmittedEvent.EventName), GetMediaItem, ListMediaItems, mediaItemToProto, UpdateMetadata (maxPluginTextField, normalizePluginLocale), GetUserPreferences (Unimplemented), UnimplementedHostServiceServer ; fetch.go - Fetch, maxFetchBytes, fetchTimeout
 proto: proto/plugin/v1/plugin_api.proto - PluginService, HostService, InitRequest, FetchRequest, FetchResponse, MediaItem
 frame policy: internal/adapters/driving/http/plugin_frame_handler.go - pluginFramePolicy ; frontend/packages/client/src/plugins/hostProtocol.ts - buildConnectSrc, ALLOWED_NAV_PREFIXES, SLOT_MAX_HEIGHT, clampSlotHeight, TOAST_MAX, TOAST_WINDOW_MS, TOAST_MAX_LENGTH ; frontend/packages/client/src/web/PluginIframe.tsx - MIN_SLOT_HEIGHT, suggestedSlotHeight ; frontend/packages/client/src/native/PluginWebView.tsx (surface)
 bridge: frontend/packages/client/src/plugins/bridgeScript.ts - EveyBridge ; pluginRpc.ts - pluginRequestFor

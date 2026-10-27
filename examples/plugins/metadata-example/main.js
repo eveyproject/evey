@@ -2,12 +2,19 @@
 //
 // Flow:
 // 1. Evey host starts this process and calls Initialize via gRPC.
-// 2. When a library scan finds new or updated media, the host sends an
-//    OnEvent with event_type="metadata.request" and a payload containing
-//    the media item's title, year, type, and existing provider IDs.
-// 3. This plugin looks up metadata from an external source (stubbed here)
-//    and returns updated fields in the EventResponse.
-// 4. The host applies the returned metadata via UpdateMetadata.
+// 2. Each time Evey enriches a movie or a series from TMDB, it sends an
+//    OnEvent with event_type="metadata.request". The payload carries the
+//    item's media_item_id, type ("movie" or "series"), title, original_title,
+//    year (absent when unknown), provider_ids ({tmdb, imdb, ...}), language
+//    (the locale of the TMDB text) and locales (every locale the server shows).
+// 3. This plugin looks the item up in its own source (stubbed here) and
+//    answers in the EventResponse result: {locale, title, overview, tagline},
+//    plus {translations: {<locale>: {title, overview, tagline}}} for other
+//    locales. Leave out a field you do not cover; answer handled=false when
+//    you do not know the item.
+// 4. Evey keeps the answer beside TMDB's text and shows the fields the
+//    administrator lets this plugin replace (the overview and the tagline
+//    unless they choose otherwise). TMDB stays the item's identity.
 
 const grpc = require("@grpc/grpc-js");
 const protoLoader = require("@grpc/proto-loader");
@@ -49,6 +56,7 @@ const pluginImpl = {
     // Stub: in a real plugin, query an external API here
     const result = {
       fields: {
+        locale: { string_value: "en" },
         overview: { string_value: "Metadata fetched by example-metadata plugin" },
       },
     };

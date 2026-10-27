@@ -63,6 +63,9 @@ type GRPCServerDeps struct {
 	// Holds *pluginrunner.Runner; nil when the plugin system is disabled.
 	PluginRunner           pluginResourceController
 	PluginResourceDefaults appplugin.ResourceDefaults
+	// Metadata plugins: the fields each may replace and the library walk.
+	PluginMetadataSettings *appplugin.MetadataSettingsService
+	PluginMetadataRefresh  *appmetadata.PluginTextRefresher
 	// PluginData backs the iframe-facing plugin preference RPCs.
 	PluginData      plugin.PluginDataRepository
 	UserRatings     domainlibrary.UserRatingRepository
@@ -244,18 +247,21 @@ func (s *GRPCServer) RegisterServices() {
 	if d.ServerCfgSvc != nil { // keep a true-nil interface when the store is absent
 		pluginCfgRepo = d.ServerCfgSvc
 	}
-	eveyv1.RegisterAdminPluginServiceServer(s.server, &adminPluginHandler{
-		pluginInstaller: d.PluginInstaller,
-		pluginRuntime:   d.PluginRuntime,
-		pluginQuery:     d.PluginQuery,
-		tokenSvc:        d.PluginToken,
-		logDir:          d.LogDir,
-		translator:      d.Translator,
-		pluginRes:       d.PluginRunner,
-		serverCfg:       pluginCfgRepo,
-		resDefaults:     d.PluginResourceDefaults,
-		enabled:         d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
-	})
+	adminPlugins := &adminPluginHandler{
+		pluginInstaller:  d.PluginInstaller,
+		pluginRuntime:    d.PluginRuntime,
+		pluginQuery:      d.PluginQuery,
+		tokenSvc:         d.PluginToken,
+		logDir:           d.LogDir,
+		translator:       d.Translator,
+		pluginRes:        d.PluginRunner,
+		serverCfg:        pluginCfgRepo,
+		resDefaults:      d.PluginResourceDefaults,
+		enabled:          d.Cfg != nil && d.Cfg.Server.PluginsEnabled,
+		metadataSettings: metadataSettingsOrNil(d.PluginMetadataSettings),
+		metadataRefresh:  metadataRefreshOrNil(d.PluginMetadataRefresh),
+	}
+	eveyv1.RegisterAdminPluginServiceServer(s.server, adminPlugins)
 	eveyv1.RegisterPluginUserDataServiceServer(s.server, newPluginUserDataHandler(d.PluginData))
 	eveyv1.RegisterAdminTaskServiceServer(s.server, &adminTaskHandler{
 		scheduler:  d.Scheduler,

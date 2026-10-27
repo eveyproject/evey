@@ -127,6 +127,36 @@ service AdminPluginService {
     };
   }
 
+  // GetPluginMetadataSettings returns what a metadata plugin (capability
+  // metadata.provider) may replace on an item, and where the fetch of the
+  // existing library stands.
+  rpc GetPluginMetadataSettings(GetPluginMetadataSettingsRequest) returns (PluginMetadataSettings) {
+    option (google.api.http) = {
+      get: "/api/v1/admin/plugins/{plugin_id}/metadata-settings"
+    };
+  }
+
+  // UpdatePluginMetadataSettings sets the fields a metadata plugin may
+  // replace. It applies to what the plugin already gave: nothing is fetched
+  // again.
+  rpc UpdatePluginMetadataSettings(UpdatePluginMetadataSettingsRequest) returns (PluginMetadataSettings) {
+    option (google.api.http) = {
+      put: "/api/v1/admin/plugins/{plugin_id}/metadata-settings"
+      body: "*"
+    };
+  }
+
+  // RefreshPluginMetadata asks a metadata plugin about every movie and
+  // series of the libraries, in the background, one item after the other.
+  // New items are asked about as they are enriched; this is for the library
+  // the plugin found when it was installed.
+  rpc RefreshPluginMetadata(RefreshPluginMetadataRequest) returns (PluginMetadataSettings) {
+    option (google.api.http) = {
+      post: "/api/v1/admin/plugins/{plugin_id}/metadata-refresh"
+      body: "*"
+    };
+  }
+
   // Trusted publishers are the plugin signing keys this instance accepts: a
   // plugin signed by one of them shows its publisher's name, an unknown key
   // shows its fingerprint, and the enforce policy admits trusted keys only.
@@ -414,4 +444,42 @@ message ApplyPluginUpdateRequest {
   // accept_new_publisher lets an update signed by another key than the
   // installed version (or no longer signed) through; refused without it.
   bool accept_new_publisher = 4;
+}
+
+message GetPluginMetadataSettingsRequest {
+  string plugin_id = 1;
+}
+
+message UpdatePluginMetadataSettingsRequest {
+  string plugin_id = 1;
+  // fields the plugin may replace, among PluginMetadataSettings.available_fields.
+  repeated string fields = 2;
+}
+
+message RefreshPluginMetadataRequest {
+  string plugin_id = 1;
+}
+
+// PluginMetadataRefresh is where the fetch of the existing library stands for
+// one plugin since the server started.
+message PluginMetadataRefresh {
+  bool running = 1;
+  // done of total movies and series asked about; covered is how many of them
+  // the plugin gave a text for.
+  int32 done = 2;
+  int32 total = 3;
+  int32 covered = 4;
+  // failed counts the items the plugin did not answer (an error, a timeout).
+  int32 failed = 5;
+  google.protobuf.Timestamp finished_at = 6;
+}
+
+message PluginMetadataSettings {
+  string plugin_id = 1;
+  // fields the plugin may replace; TMDB keeps the others.
+  repeated string fields = 2;
+  // available_fields is every field a metadata plugin can replace, in display
+  // order: title, overview, tagline.
+  repeated string available_fields = 3;
+  PluginMetadataRefresh refresh = 4;
 }
