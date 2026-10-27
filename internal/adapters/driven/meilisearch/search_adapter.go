@@ -368,7 +368,6 @@ func (a *SearchAdapter) awaitTask(ctx context.Context, info *ms.TaskInfo) error 
 		return fmt.Errorf("%w: task %d: %s: %s", errDocumentRejected, info.TaskUID, task.Error.Code, task.Error.Message)
 	}
 	return fmt.Errorf("meilisearch task %d %s: %s: %s", info.TaskUID, task.Status, task.Error.Code, task.Error.Message)
-	return nil
 }
 
 func (a *SearchAdapter) addDocuments(ctx context.Context, docs []mediaDocument) error {
