@@ -382,6 +382,8 @@ users:
   libraryAccessUpdated: Library access updated
   failedLibraryAccess: Failed to update library access
   clearAllUnrestricted: Clear all (unrestricted)
+  noLibraries: "No library"
+  noLibrariesDesc: "This user is restricted but no library is left: every grant was revoked or the libraries were deleted. Tick libraries to grant access, or save with none selected to lift the restriction."
   bitrate: Bitrate
   maxBitrateTitle: "Max Bitrate - {{name}}"
   maxBitrateDesc: "Limit the maximum streaming bitrate for this user. 0 = unlimited."
