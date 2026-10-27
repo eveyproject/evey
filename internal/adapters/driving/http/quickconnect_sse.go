@@ -19,7 +19,7 @@ import (
 )
 
 type qcTokenChecker interface {
-	checkAndGenerateTokens(ctx context.Context, code string, persistent bool) (string, string, bool, error)
+	checkAndGenerateTokens(ctx context.Context, code, secret string, persistent bool) (string, string, bool, error)
 }
 
 type qcCheckerAdapter struct {
@@ -28,9 +28,9 @@ type qcCheckerAdapter struct {
 	cfg   *config.Config
 }
 
-func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code string, persistent bool) (string, string, bool, error) {
+func (a *qcCheckerAdapter) checkAndGenerateTokens(ctx context.Context, code, secret string, persistent bool) (string, string, bool, error) {
 	// Claimed, not just read: two collectors on one code mint one session.
-	qc, err := a.auth.ClaimQuickConnect(ctx, code)
+	qc, err := a.auth.ClaimQuickConnect(ctx, code, secret)
 	if err != nil {
 		return "", "", false, err
 	}
@@ -77,6 +77,8 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) ht
 		span.End()
 
 		persistent := strings.EqualFold(r.Header.Get("X-Persistent-Session"), "true")
+		// An EventSource sends no header, so the secret rides the query string.
+		secret := r.URL.Query().Get("secret")
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -107,7 +109,7 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) ht
 				fmt.Fprintf(w, ": ping\n\n")
 				flusher.Flush()
 			case <-ch:
-				access, refresh, authorized, err := checker.checkAndGenerateTokens(r.Context(), code, persistent)
+				access, refresh, authorized, err := checker.checkAndGenerateTokens(r.Context(), code, secret, persistent)
 				if err != nil || !authorized {
 					slog.WarnContext(r.Context(), "quickconnect sse: check failed after notify", slog.Any("err", err))
 					fmt.Fprintf(w, "data: {\"event\":\"error\"}\n\n")

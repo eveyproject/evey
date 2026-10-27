@@ -475,7 +475,13 @@ message ValidateInviteResponse {
   bool is_admin = 2; // the account this invite would create is an admin one
 }
 
-message InitiateQuickConnectRequest {}
+message InitiateQuickConnectRequest {
+  // The device starting the pairing says it will send back the secret it
+  // receives. The server then refuses any check or event stream for this
+  // code that lacks it, so a third party who read the code off the screen
+  // cannot collect the tokens. A client that stays silent keeps the old flow.
+  bool secret_aware = 1;
+}
 
 message AuthorizeQuickConnectRequest {
   string code = 1;
@@ -485,6 +491,8 @@ message AuthorizeQuickConnectResponse {}
 
 message CheckQuickConnectRequest {
   string code = 1;
+  // Required when the pairing was started with secret_aware.
+  string secret = 2;
 }
 
 message CheckQuickConnectResponse {

@@ -21,12 +21,13 @@ func TestQuickConnectRepo_Create_GetByCode(t *testing.T) {
 	ctx := context.Background()
 
 	req := &user.QuickConnectRequest{
-		ID:        "qc1",
-		Code:      "ABC123",
-		Secret:    "secret123",
-		Status:    user.Pending,
-		ExpiresAt: time.Now().Add(10 * time.Minute).UTC().Truncate(time.Millisecond),
-		CreatedAt: time.Now().UTC().Truncate(time.Millisecond),
+		ID:             "qc1",
+		Code:           "ABC123",
+		Secret:         "secret123",
+		SecretRequired: true,
+		Status:         user.Pending,
+		ExpiresAt:      time.Now().Add(10 * time.Minute).UTC().Truncate(time.Millisecond),
+		CreatedAt:      time.Now().UTC().Truncate(time.Millisecond),
 	}
 	require.NoError(t, repo.Create(ctx, req))
 
@@ -34,6 +35,11 @@ func TestQuickConnectRepo_Create_GetByCode(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "qc1", got.ID)
 	assert.Equal(t, user.Pending, got.Status)
+	assert.True(t, got.SecretRequired, "the initiator's declaration must survive the round trip")
+
+	short, err := repo.GetByShortCode(ctx, "ABC123")
+	require.NoError(t, err)
+	assert.True(t, short.SecretRequired)
 }
 
 // An expired code must be treated as non-existent - otherwise the 2-minute TTL
