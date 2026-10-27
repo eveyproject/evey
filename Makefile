@@ -1,6 +1,6 @@
 .PHONY: dash-harness directplay-harness dash-web dash-exoplayer proto-gen plugin-sdk plugin-zips build test test-image test-shell bench lint sec-scan clean \
 	ci-fast ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-sec \
-	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene ci-secrets pre-push hooks \
+	ci-local ci-local-lint ci-local-test ci-local-frontend ci-arch ci-hygiene ci-secrets pre-push pre-push-dev ci-fast-frontend-static gate-dev gate-dev-status hooks \
 	gate gate-status verify-commit \
 	migrate-up migrate-down migrate-version setup dev dev-down dev-logs \
 	infra frontend-typecheck \
@@ -385,11 +385,13 @@ ci-fast-unit:
 # target - ever ran them, so they could have been red for weeks unnoticed. The
 # root `vitest run` covers every project at once (web, mobile, tv, store, api)
 # in ~40s, which is why it is a single step rather than a per-app fan-out.
-ci-fast-frontend:
+ci-fast-frontend-static:
 	@echo "→ frontend typecheck (evey-web)"
 	@docker exec -w /app evey-web sh -c 'pnpm run typecheck'
 	@echo "→ frontend lint (oxlint, warnings are errors)"
 	@docker exec -w /app evey-web sh -c 'pnpm run lint'
+
+ci-fast-frontend: ci-fast-frontend-static
 	@echo "→ frontend unit tests (vitest, all projects)"
 	@docker exec -w /app evey-web sh -c 'pnpm run test'
 	@echo "→ frontend build (evey-web)"
@@ -450,6 +452,15 @@ perf:
 pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout repo-itest-gate transcode-itest-gate tv-audit
 	@echo "✅ pre-push OK - quality gate green (vet + govulncheck + build + unit -race + frontend + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + repo suite + transcode contract + audit TV)."
 
+# pre-push-dev: the gate for a push to dev or to a work branch (the hook picks it
+# from the destination). Everything above except what the pull request's CI
+# reruns on the exact same commits and costs minutes here: govulncheck, the
+# frontend tests and build, the Postgres suite, the TV audit. dev merges only on
+# a green "CI passed", so those still stand between a branch and the merge; this
+# target catches a red push in minutes instead of an hour.
+pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit ci-fast-frontend-static ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout transcode-itest-gate
+	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race + frontend typecheck/lint + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + transcode contract). The pull request's CI runs the rest."
+
 # ci-hygiene: the house rules a regex can decide - plain dashes, no AI attribution
 # trailer, no conflict marker, no elision placeholder, no .claude/ in
 # the repo. Ratcheted on the outgoing commits only (origin/<branch>..HEAD), like
@@ -479,6 +490,14 @@ gate:
 
 gate-status:
 	@python3 scripts/gate-receipt.py --label pre-push status
+
+# gate-dev / gate-dev-status: the same receipt for `make pre-push-dev`. The hook
+# accepts either receipt for a push to dev, only the full one for master.
+gate-dev:
+	@python3 scripts/gate-receipt.py --label pre-push-dev run -- $(MAKE) --no-print-directory pre-push-dev
+
+gate-dev-status:
+	@python3 scripts/gate-receipt.py --label pre-push-dev status
 
 # verify-commit: what a fresh clone of REF sees, checked in a detached worktree
 # outside the repo (see scripts/verify-commit.sh for the coverage and its limits).
@@ -635,7 +654,7 @@ transcode-itest-gate:
 # hooks: activate the committed git hooks (one-time, sets local core.hooksPath).
 hooks:
 	@git config core.hooksPath .githooks
-	@echo "✓ git hooks active (core.hooksPath=.githooks) - push runs 'make pre-push' first."
+	@echo "✓ git hooks active (core.hooksPath=.githooks) - push runs 'make pre-push' (to master) or 'make pre-push-dev' (elsewhere) first."
 	@echo "  Bypass one push intentionally: git push --no-verify"
 
 clean:

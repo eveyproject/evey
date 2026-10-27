@@ -1,5 +1,5 @@
 ---
-source_sha: a0eb85f44612fd3d234753208bf63c8a9fec91fc8d1020bfdb8109e199c59b19
+source_sha: cbb77f7bf06443976e7bc56f600217600725f9387abe71900e4c95e24ef4519e
 reviewed: true
 ---
 # योगदान
@@ -38,6 +38,10 @@ reviewed: true
    [आर्किटेक्चर की जाँचें](ARCHITECTURE.md#architecture-guards), commit के नियमों की जाँच,
    secret की जाँच, proto में breaking change की जाँच, साफ़ checkout से build,
    repository और ट्रांसकोडिंग के integration gate, और TV audit।
+   `dev` या किसी work branch पर push करने से इसके बजाय `make pre-push-dev`
+   चलता है: वही gate, पर उन लंबी suites के बिना जिन्हें pull request की CI
+   उन्हीं commits पर फिर से चलाती है (कमज़ोरियों की जाँच, फ़्रंटएंड टेस्ट और
+   build, repository suite, TV audit); `master` पर push पूरा gate चलाता है।
 2. नए बर्ताव के लिए और हर bug fix के लिए टेस्ट जोड़ें।
 3. बाहर से योगदान के लिए, एक बार
    [योगदानकर्ता लाइसेंस समझौता](../CLA.md) स्वीकार करें: Evey AGPL-3.0-or-later है
