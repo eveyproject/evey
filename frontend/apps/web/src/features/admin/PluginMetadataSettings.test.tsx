@@ -56,7 +56,7 @@ describe("PluginMetadataSettings", () => {
     expect((screen.getByTestId("metadata-refresh") as HTMLButtonElement).disabled).toBe(true);
     unmount();
 
-    mockData = { ...mockData, refresh: { done: 10, total: 10, covered: 8, failed: 1, finishedAt: "2026-10-26T12:00:00Z" } };
+    mockData = { ...mockData, refresh: { done: 10, total: 10, covered: 8, failed: 1, finishedAt: new Date(0).toISOString() } };
     render(<PluginMetadataSettings pluginId="allocine" />);
     expect(screen.getByTestId("metadata-refresh-finished")).toBeTruthy();
   });

@@ -61,7 +61,7 @@ describe("PluginMetadataSection", () => {
     expect(screen.getByTestId("metadata-refresh-running")).toBeTruthy();
     expect((screen.getByTestId("metadata-refresh") as HTMLButtonElement).disabled).toBe(true);
     unmount();
-    api.data = { ...api.data, refresh: { done: 4, total: 4, covered: 3, failed: 0, finishedAt: "2026-10-26T12:00:00Z" } };
+    api.data = { ...api.data, refresh: { done: 4, total: 4, covered: 3, failed: 0, finishedAt: new Date(0).toISOString() } };
     render(<PluginMetadataSection pluginId="allocine" />);
     expect(screen.getByTestId("metadata-refresh-finished")).toBeTruthy();
   });
