@@ -3,7 +3,6 @@ name: CI
 on:
   push:
     branches:
-      - main
       - master
       # Beta/alpha branches publish their own tag; `latest` stays on semver tags.
       - 'beta-*'
@@ -16,7 +15,7 @@ on:
       - 'wiki/**'
       - '**/*.md'
   pull_request:
-    branches: [main, master]
+    branches: [master, dev]
     paths-ignore:
       - 'docs/**'
       - 'wiki/**'
