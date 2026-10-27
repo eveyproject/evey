@@ -28,9 +28,7 @@ func TestCheckQuickConnect_TokensAreIssuedOnce(t *testing.T) {
 	issued := 0
 	start := make(chan struct{})
 	for range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			resp, cErr := env.handler.CheckQuickConnect(context.Background(), &eveyv1.CheckQuickConnectRequest{Code: initResp.Code})
 			if cErr == nil && resp.GetAuth().GetAccessToken() != "" {
@@ -38,7 +36,7 @@ func TestCheckQuickConnect_TokensAreIssuedOnce(t *testing.T) {
 				issued++
 				mu.Unlock()
 			}
-		}()
+		})
 	}
 	close(start)
 	wg.Wait()

@@ -29,7 +29,7 @@ func playlistSpecSQL(spec playlist.Spec, argIdx *int) (string, []any) {
 	case playlist.GenreSpec:
 		// json.Marshal, not hand quoting: a backslash or a control character in
 		// a genre made the jsonb literal invalid and the whole query fail.
-		arr, _ := json.Marshal([]string{s.Genre})
+		arr, _ := json.Marshal([]string{s.Genre}) //nolint:errcheck // a string slice always marshals
 		return fmt.Sprintf("mc.genres @> $%d::jsonb", next()), []any{string(arr)}
 	case playlist.TypeSpec:
 		return fmt.Sprintf("mi.type = $%d", next()), []any{s.MediaType}

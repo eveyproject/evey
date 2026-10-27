@@ -39,7 +39,7 @@ type PINAttempts struct {
 func NewPINAttempts(repo user.LoginAttemptRepository) *PINAttempts {
 	a := &PINAttempts{tiers: append([]pinTier(nil), pinTiers...)}
 	for _, t := range a.tiers {
-		var s user.LoginAttemptRepository = repo
+		s := repo
 		if s == nil {
 			// The in-memory limiter locks for its own window, so one per tier.
 			s = newLoginAttemptLimiter(t.maxFails, t.window)

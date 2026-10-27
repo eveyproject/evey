@@ -306,15 +306,13 @@ func TestQCGate_ConcurrentChecksMintOnce(t *testing.T) {
 	var minted atomic.Int32
 	start := make(chan struct{})
 	for range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			_, _, ok, err := f.adapter.checkAndGenerateTokens(context.Background(), "code-once", "", false)
 			if err == nil && ok {
 				minted.Add(1)
 			}
-		}()
+		})
 	}
 	close(start)
 	wg.Wait()

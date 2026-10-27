@@ -55,7 +55,7 @@ func (w *pluginLogWriter) Write(p []byte) (int, error) {
 	if w.dayBytes+int64(len(p)) > w.maxDayBytes {
 		if !w.capped {
 			w.capped = true
-			n, _ := io.WriteString(w.current, logCapNotice)
+			n, _ := io.WriteString(w.current, logCapNotice) //nolint:errcheck // best-effort notice; the capped write reports success anyway
 			w.curSize += int64(n)
 		}
 		// Report success: an error would break the copy from the plugin's

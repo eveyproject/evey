@@ -50,9 +50,9 @@ func TestClaimQuickConnect_SecretRequiredByTheInitiator(t *testing.T) {
 	svc := newClaimService(qc)
 
 	_, err := svc.ClaimQuickConnect(ctx, "code-1", "")
-	assert.ErrorIs(t, err, ErrQuickConnectSecret, "no secret")
+	require.ErrorIs(t, err, ErrQuickConnectSecret, "no secret")
 	_, err = svc.ClaimQuickConnect(ctx, "code-1", "guess")
-	assert.ErrorIs(t, err, ErrQuickConnectSecret, "wrong secret")
+	require.ErrorIs(t, err, ErrQuickConnectSecret, "wrong secret")
 
 	got, err := svc.ClaimQuickConnect(ctx, "code-1", "s3cret")
 	require.NoError(t, err)

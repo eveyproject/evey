@@ -29,7 +29,7 @@ func blockingFetchServer(t *testing.T) (h *HostServer, url string, arrived chan 
 	var once sync.Once
 	release = func() { once.Do(func() { close(gate) }) }
 	t.Cleanup(func() { release(); srv.Close() })
-	host := strings.Split(strings.TrimPrefix(srv.URL, "http://"), ":")[0]
+	host, _, _ := strings.Cut(strings.TrimPrefix(srv.URL, "http://"), ":")
 	prev := newFetchClient
 	newFetchClient = func() *http.Client { return srv.Client() }
 	t.Cleanup(func() { newFetchClient = prev })

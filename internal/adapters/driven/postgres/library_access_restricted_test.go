@@ -30,14 +30,14 @@ func TestLibraryAccessRepo_DeletedOnlyLibraryDoesNotWidenAccess(t *testing.T) {
 	other := newTestLibrary("la-r-other")
 	require.NoError(t, libRepo.Create(ctx, only))
 	require.NoError(t, libRepo.Create(ctx, other))
-	require.NoError(t, repo.Grant(ctx, shared.UserID(u.ID), shared.LibraryID(only.ID)))
+	require.NoError(t, repo.Grant(ctx, u.ID, only.ID))
 
-	require.NoError(t, libRepo.Delete(ctx, shared.LibraryID(only.ID)))
+	require.NoError(t, libRepo.Delete(ctx, only.ID))
 
-	has, err := repo.HasAccess(ctx, shared.UserID(u.ID), shared.LibraryID(other.ID))
+	has, err := repo.HasAccess(ctx, u.ID, other.ID)
 	require.NoError(t, err)
 	assert.False(t, has, "the cascade removed the grant, not the restriction")
-	restricted, err := repo.IsRestricted(ctx, shared.UserID(u.ID))
+	restricted, err := repo.IsRestricted(ctx, u.ID)
 	require.NoError(t, err)
 	assert.True(t, restricted)
 }
@@ -54,10 +54,10 @@ func TestLibraryAccessRepo_RevokingTheLastGrantDeniesAll(t *testing.T) {
 	require.NoError(t, userRepo.Create(ctx, u))
 	lib := newTestLibrary("la-r-lib2")
 	require.NoError(t, libRepo.Create(ctx, lib))
-	require.NoError(t, repo.Grant(ctx, shared.UserID(u.ID), shared.LibraryID(lib.ID)))
-	require.NoError(t, repo.Revoke(ctx, shared.UserID(u.ID), shared.LibraryID(lib.ID)))
+	require.NoError(t, repo.Grant(ctx, u.ID, lib.ID))
+	require.NoError(t, repo.Revoke(ctx, u.ID, lib.ID))
 
-	has, err := repo.HasAccess(ctx, shared.UserID(u.ID), shared.LibraryID(lib.ID))
+	has, err := repo.HasAccess(ctx, u.ID, lib.ID)
 	require.NoError(t, err)
 	assert.False(t, has)
 }
@@ -74,9 +74,9 @@ func TestLibraryAccessRepo_StaleInviteLibrariesDenyAll(t *testing.T) {
 	require.NoError(t, userRepo.Create(ctx, u))
 	lib := newTestLibrary("la-r-lib3")
 	require.NoError(t, libRepo.Create(ctx, lib))
-	require.NoError(t, repo.GrantMany(ctx, shared.UserID(u.ID), []shared.LibraryID{"la-r-gone"}))
+	require.NoError(t, repo.GrantMany(ctx, u.ID, []shared.LibraryID{"la-r-gone"}))
 
-	has, err := repo.HasAccess(ctx, shared.UserID(u.ID), shared.LibraryID(lib.ID))
+	has, err := repo.HasAccess(ctx, u.ID, lib.ID)
 	require.NoError(t, err)
 	assert.False(t, has)
 }
@@ -97,24 +97,24 @@ func TestLibraryAccessRepo_RevokeAllAndEmptyReplaceLiftTheRestriction(t *testing
 	b := newTestLibrary("la-r-b")
 	require.NoError(t, libRepo.Create(ctx, a))
 	require.NoError(t, libRepo.Create(ctx, b))
-	uid := shared.UserID(u.ID)
+	uid := u.ID
 
-	require.NoError(t, repo.ReplaceAccess(ctx, uid, []shared.LibraryID{shared.LibraryID(a.ID)}))
-	has, err := repo.HasAccess(ctx, uid, shared.LibraryID(b.ID))
+	require.NoError(t, repo.ReplaceAccess(ctx, uid, []shared.LibraryID{a.ID}))
+	has, err := repo.HasAccess(ctx, uid, b.ID)
 	require.NoError(t, err)
 	assert.False(t, has)
 
 	require.NoError(t, repo.DeleteByUserID(ctx, uid))
-	has, err = repo.HasAccess(ctx, uid, shared.LibraryID(b.ID))
+	has, err = repo.HasAccess(ctx, uid, b.ID)
 	require.NoError(t, err)
 	assert.True(t, has)
 	restricted, err := repo.IsRestricted(ctx, uid)
 	require.NoError(t, err)
 	assert.False(t, restricted)
 
-	require.NoError(t, repo.ReplaceAccess(ctx, uid, []shared.LibraryID{shared.LibraryID(a.ID)}))
+	require.NoError(t, repo.ReplaceAccess(ctx, uid, []shared.LibraryID{a.ID}))
 	require.NoError(t, repo.ReplaceAccess(ctx, uid, nil))
-	has, err = repo.HasAccess(ctx, uid, shared.LibraryID(b.ID))
+	has, err = repo.HasAccess(ctx, uid, b.ID)
 	require.NoError(t, err)
 	assert.True(t, has)
 }

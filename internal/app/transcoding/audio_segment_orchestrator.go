@@ -610,7 +610,7 @@ func (o *AudioSegmentOrchestrator) evictOldestLocked(audioHash string) {
 	oldest.stopped = true
 	// Stop waits out the exit grace period; off o.mu so other requests don't
 	// queue behind it. The reap goroutine cleans up once Done() fires.
-	go func(h transcoding.HLSProcessHandle) { _ = h.Stop() }(oldest.handle)
+	go func(h transcoding.HLSProcessHandle) { _ = h.Stop() }(oldest.handle) //nolint:errcheck // the reap goroutine handles the exit
 }
 
 // ActiveCount returns the number of live audio ffmpeg sessions. Useful for

@@ -444,7 +444,7 @@ func TestRun_SeccompFailureIsFatalUnderRequireLandlock(t *testing.T) {
 		cmd.Env = append(os.Environ(), "EVEY_LAUNCHER_REEXEC=1", "EVEY_LAUNCHER_SECCOMP_FAILS=1")
 		out, err := cmd.CombinedOutput()
 		code := 0
-		if exitErr, ok := err.(*exec.ExitError); ok {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			code = exitErr.ExitCode()
 		} else if err != nil {
 			t.Fatalf("%s: run launcher: %v", tc.name, err)

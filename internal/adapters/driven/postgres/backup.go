@@ -309,11 +309,11 @@ func (p *psqlRestore) start() error {
 
 func (p *psqlRestore) Write(b []byte) (int, error) {
 	if p.err != nil {
-		return len(b), nil
+		return len(b), nil //nolint:nilerr // the stored error is reported once the stream ends
 	}
 	if p.cmd == nil {
 		if p.err = p.start(); p.err != nil {
-			return len(b), nil
+			return len(b), nil //nolint:nilerr // the stored error is reported once the stream ends
 		}
 	}
 	if _, err := p.buf.Write(b); err != nil {
@@ -372,10 +372,10 @@ func validateBackup(data io.Reader, out *psqlRestore) error {
 	var pending bytes.Buffer
 	emit := func(line string) {
 		if pending.Len() > 0 {
-			_, _ = out.Write(pending.Bytes())
+			_, _ = out.Write(pending.Bytes()) //nolint:errcheck // out keeps its own error and reports it at the end
 			pending.Reset()
 		}
-		_, _ = out.Write([]byte(line + "\n"))
+		_, _ = out.Write([]byte(line + "\n")) //nolint:errcheck // out keeps its own error and reports it at the end
 	}
 	lineNum := 0
 	headerFound := false

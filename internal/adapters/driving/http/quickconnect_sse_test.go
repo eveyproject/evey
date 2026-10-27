@@ -388,9 +388,7 @@ func TestQuickConnectSSE_SecretFromQueryReachesTheChecker(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("/qc/{code}", h)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	req := httptest.NewRequest(http.MethodGet, "/qc/code123?secret=qc-secret-abc", nil).WithContext(ctx)
+	req := httptest.NewRequest(http.MethodGet, "/qc/code123?secret=qc-secret-abc", nil).WithContext(t.Context())
 	rec := newSyncRecorder()
 
 	done := make(chan struct{})
@@ -424,9 +422,7 @@ func TestQuickConnectSSE_SecretHeaderWinsOverQuery(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.Handle("/qc/{code}", h)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	req := httptest.NewRequest(http.MethodGet, "/qc/code123?secret=from-query", nil).WithContext(ctx)
+	req := httptest.NewRequest(http.MethodGet, "/qc/code123?secret=from-query", nil).WithContext(t.Context())
 	req.Header.Set(quickConnectSecretHeader, "from-header")
 	rec := newSyncRecorder()
 

@@ -21,7 +21,7 @@ func serveSegmentFile(w http.ResponseWriter, r *http.Request, path string) {
 	rc := http.NewResponseController(w)
 	// Cleared afterwards: a deadline left on a keep-alive connection would cut
 	// whatever the next request on it streams.
-	defer func() { _ = rc.SetWriteDeadline(time.Time{}) }()
+	defer func() { _ = rc.SetWriteDeadline(time.Time{}) }() //nolint:errcheck // no deadline control means none was set
 	http.ServeFile(&slidingDeadlineWriter{ResponseWriter: w, rc: rc}, r, path)
 }
 
@@ -32,7 +32,7 @@ type slidingDeadlineWriter struct {
 
 func (s *slidingDeadlineWriter) Write(b []byte) (int, error) {
 	// ErrNotSupported (a writer with no deadline control) just serves unbounded, as before.
-	_ = s.rc.SetWriteDeadline(time.Now().Add(segmentWriteIdleTimeout))
+	_ = s.rc.SetWriteDeadline(time.Now().Add(segmentWriteIdleTimeout)) //nolint:errcheck // see above
 	return s.ResponseWriter.Write(b)
 }
 
@@ -54,7 +54,7 @@ func (s *slidingDeadlineWriter) ReadFrom(src io.Reader) (int64, error) {
 		if remain > 0 {
 			step = min(step, remain)
 		}
-		_ = s.rc.SetWriteDeadline(time.Now().Add(segmentWriteIdleTimeout))
+		_ = s.rc.SetWriteDeadline(time.Now().Add(segmentWriteIdleTimeout)) //nolint:errcheck // ErrNotSupported serves unbounded
 		n, err := rf.ReadFrom(&io.LimitedReader{R: base, N: step})
 		total += n
 		if remain > 0 {

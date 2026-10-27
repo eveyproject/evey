@@ -103,7 +103,7 @@ func TestLibraryAccess_RevokeAll_RestoresFullAccess(t *testing.T) {
 	}
 
 	// DeleteByUserID (RevokeAll) lifts the restriction.
-	if err := repo.DeleteByUserID(ctx, "u1"); err != nil {
+	if err = repo.DeleteByUserID(ctx, "u1"); err != nil {
 		t.Fatal(err)
 	}
 	ok, err = repo.HasAccess(ctx, "u1", "any-lib")

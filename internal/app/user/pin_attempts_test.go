@@ -52,7 +52,8 @@ func TestPINAttempts_LockoutGrows(t *testing.T) {
 
 // HTTP and gRPC check PINs through the same process-wide counter by default.
 func TestPINAttempts_SharedByDefault(t *testing.T) {
-	assert.Same(t, SharedPINAttempts(), SharedPINAttempts())
+	first, second := SharedPINAttempts(), SharedPINAttempts()
+	assert.Same(t, first, second)
 	svc := NewUserService(nil, nil, nil, nil, nil, nil)
 	assert.Same(t, SharedPINAttempts(), svc.pinAttempts)
 }
