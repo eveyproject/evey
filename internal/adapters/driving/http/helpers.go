@@ -166,6 +166,30 @@ func checkLibraryAccess(ctx context.Context, w http.ResponseWriter, claims *doma
 // token's sliding TTL (which no query-baked token allows).
 const hlsCookieName = "evey_hls"
 
+// quickConnectSecretHeader carries the pairing secret. A polling client sends
+// it as this header; an EventSource cannot, so the stream passes it in the
+// query and the redaction middleware moves it here before anything logs the URL.
+const quickConnectSecretHeader = "X-Quick-Connect-Secret"
+
+const quickConnectPathPrefix = "/api/v1/auth/quick-connect/"
+
+// redactQuickConnectSecret lifts ?secret= off a pairing URL into the header.
+func redactQuickConnectSecret(r *http.Request) {
+	if !strings.HasPrefix(r.URL.Path, quickConnectPathPrefix) {
+		return
+	}
+	q := r.URL.Query()
+	sec := q.Get("secret")
+	if sec == "" {
+		return
+	}
+	if r.Header.Get(quickConnectSecretHeader) == "" {
+		r.Header.Set(quickConnectSecretHeader, sec)
+	}
+	q.Del("secret")
+	r.URL.RawQuery = q.Encode()
+}
+
 // TokenRedactMiddleware moves ?token= from URL query to Authorization header.
 // For opaque stream tokens (no "." = not a JWT), it resolves the token via the store
 // and injects synthetic claims into the context so handlers work unchanged.
@@ -234,6 +258,7 @@ func tokenRedactMiddlewareFn(store streamTokenValidator, httpsOnly func() bool, 
 		// channel a native HLS element has), or an opaque Bearer token (mobile
 		// expo-video passes it as a request header). Resolve whichever is present
 		// into the Authorization + context shape the downstream stream-auth wants.
+		redactQuickConnectSecret(r)
 		rawTok := r.URL.Query().Get("token")
 		fromQuery := rawTok != ""
 		if fromQuery {

@@ -77,8 +77,12 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) ht
 		span.End()
 
 		persistent := strings.EqualFold(r.Header.Get("X-Persistent-Session"), "true")
-		// An EventSource sends no header, so the secret rides the query string.
-		secret := r.URL.Query().Get("secret")
+		// Normally lifted into the header by the redaction middleware; the
+		// query is read for a stream that reached this handler without it.
+		secret := r.Header.Get(quickConnectSecretHeader)
+		if secret == "" {
+			secret = r.URL.Query().Get("secret")
+		}
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -127,4 +131,19 @@ func quickConnectSSEHandler(hub *quickconnecthub.Hub, checker qcTokenChecker) ht
 			}
 		}
 	}
+}
+
+// withQuickConnectSecretQuery gives the gateway the secret a polling client
+// sent as a header (or that the redaction middleware lifted out of the URL):
+// the generated route only binds its request from the query string.
+func withQuickConnectSecretQuery(r *http.Request) *http.Request {
+	sec := r.Header.Get(quickConnectSecretHeader)
+	if sec == "" || r.URL.Query().Get("secret") != "" {
+		return r
+	}
+	r2 := r.Clone(r.Context())
+	q := r2.URL.Query()
+	q.Set("secret", sec)
+	r2.URL.RawQuery = q.Encode()
+	return r2
 }

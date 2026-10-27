@@ -62,7 +62,7 @@ vi.mock("@evey/api", () => ({
   useUserServiceInitiateQuickConnect: (opts: { mutation: { onSuccess: (d: { code: string }) => void } }) => ({
     mutate: () => opts.mutation.onSuccess({ code: "abcdef123456" }),
   }),
-  userServiceCheckQuickConnect: (...a: unknown[]) => checkQuickConnect(...a),
+  checkQuickConnect: (...a: unknown[]) => checkQuickConnect(...a),
 }));
 
 import QuickConnectScreen from "./quick-connect";
@@ -92,7 +92,7 @@ describe("QuickConnectScreen", () => {
     });
 
     await waitFor(() => {
-      expect(checkQuickConnect).toHaveBeenCalledWith("abcdef123456");
+      expect(checkQuickConnect).toHaveBeenCalledWith("abcdef123456", null);
       expect(setTokens).toHaveBeenCalledWith("tok-123");
       expect(replace).toHaveBeenCalledWith("/(auth)/(tabs)");
     // The login page it was pushed over must go too, or BACK on the home shows it again.

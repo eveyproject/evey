@@ -35,7 +35,7 @@ vi.mock("@evey/api", () => ({
     },
     isError: false,
   }),
-  userServiceCheckQuickConnect: (...a: unknown[]) => checkMock(...a),
+  checkQuickConnect: (...a: unknown[]) => checkMock(...a),
 }));
 
 import { QuickConnectScreen } from "./QuickConnect";
@@ -50,6 +50,6 @@ describe("tv-web quick connect secret", () => {
     render(<QuickConnectScreen />);
     await waitFor(() => expect(checkMock).toHaveBeenCalled());
     expect(initiateArgs[0]).toEqual({ params: { secretAware: true } });
-    expect(checkMock).toHaveBeenCalledWith("qc-code-abc123", { secret: "qc-secret-1" });
+    expect(checkMock).toHaveBeenCalledWith("qc-code-abc123", "qc-secret-1");
   });
 });
