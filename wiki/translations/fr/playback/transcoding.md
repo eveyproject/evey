@@ -1,5 +1,5 @@
 ---
-source_sha: e039606b33ab2207d3774f9bacb71ee3d18f0d12f52d9dc02bec1e9817e1c91e
+source_sha: 183de3f3debe04fa20962ddd47cf680476ffb11f924669acd3a1f78d1a1ad221
 reviewed: true
 ---
 # Transcodage et capacité du serveur { #transcoding-and-server-capacity }
@@ -167,3 +167,37 @@ plein** (au plus une fois par heure, envoyé aussi aux webhooks sous
 - **Test de charge** (**Administration → Configuration transcodage**) : simule des
   spectateurs pour mesurer ce que le serveur supporte. Il refuse de démarrer tant
   que quelqu'un regarde.
+
+## Test de charge { #load-test }
+
+Le test de charge lit des titres de vos bibliothèques pour des spectateurs
+simulés, en ajoute jusqu'à ce que quelque chose cède, et nomme ce qui a cédé en
+premier : le processeur, la mémoire, un disque, le serveur lui-même ou le
+réseau devant lui.
+
+**Le chemin emprunté.** Les spectateurs joignent le serveur par son adresse
+publique, comme les spectateurs distants. Quand cette adresse mène à un proxy
+inverse sur votre réseau local, le test se connecte au proxy à son adresse
+locale, sous le même nom et avec le même certificat. Sinon chaque octet
+monterait jusqu'au routeur pour redescendre vers le proxy, un détour que le
+trafic d'aucun spectateur extérieur ne fait, et le test mesurerait le routeur.
+Le rapport indique alors l'adresse locale utilisée. Un proxy hors de votre
+réseau (un serveur loué, un tunnel) est sur le chemin des vrais spectateurs et
+il est conservé.
+
+**Le débit montant de la connexion.** Les spectateurs de votre réseau
+n'utilisent jamais le débit montant de votre connexion internet : les
+spectateurs simulés ne peuvent donc pas le mesurer. Avant leur démarrage, le
+serveur le mesure lui-même : pendant une dizaine de secondes, il envoie des
+données remplies de zéros à `speed.cloudflare.com`, un service de test de débit
+servi par le point du réseau Cloudflare le plus proche. Rien de vos
+bibliothèques ni de vos comptes n'est envoyé. Cloudflare voit l'adresse IP
+publique du serveur, comme tout site que le serveur contacte.
+
+**Depuis l'extérieur.** Avec ces deux mesures, le rapport donne le nombre de
+spectateurs hors de votre réseau qui peuvent être servis : autant que le
+serveur en a tenu, ou autant que le débit montant en porte au débit d'un
+spectateur du test, en gardant un cinquième du débit montant libre, le plus
+petit des deux. Il dit lequel des deux limite. Si le test de débit ne répond
+pas, le rapport indique que le débit montant n'a pas pu être mesuré et ne
+donne aucun chiffre pour l'extérieur.
