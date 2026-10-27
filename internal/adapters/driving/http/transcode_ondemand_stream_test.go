@@ -31,6 +31,7 @@ type streamingPlan struct {
 	mu     sync.Mutex
 	opened []string
 	closed atomic.Int32
+	taken  atomic.Int32 // Bytes calls: each one is a resource counted served
 	// strict records every WriteRange span that escapes the resource instead
 	// of slicing out of bounds (which would panic the handler and hide it).
 	strict bool
@@ -87,7 +88,8 @@ func (r *streamedResource) ETag() string {
 	}
 	return `W/"weak-seg"`
 }
-func (r *streamedResource) Bytes() []byte { return r.data }
+func (r *streamedResource) Bytes() []byte { r.p.taken.Add(1); return r.data }
+func (r *streamedResource) Whole() bool   { return r.data != nil }
 func (r *streamedResource) Close() error  { r.p.closed.Add(1); return nil }
 func (r *streamedResource) WriteRange(_ context.Context, w io.Writer, off, n int64) (int64, error) {
 	if off < 0 || n < 0 || off+n > int64(len(r.whole)) {
@@ -248,6 +250,40 @@ func TestServePlanResource_BufferedHandleKeepsTheOldPath(t *testing.T) {
 	}
 	if n := plan.closedCount(); n != 1 {
 		t.Fatalf("handle closed %d times, want 1", n)
+	}
+}
+
+// A HEAD of a resource Open holds whole is answered from its size, its bytes
+// never taken (taking them counts them served); a GET takes them once.
+func TestServePlanResource_HeadOfAWholeResourceTakesNoBytes(t *testing.T) {
+	plan := &streamingPlan{resources: map[string][]byte{"init_v.mp4": []byte("0123456789")}}
+	srv := newStreamingServer(t, plan)
+	req, _ := http.NewRequest(http.MethodHead, srv.URL+"/init_v.mp4", nil)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = res.Body.Close()
+	if res.StatusCode != http.StatusOK || res.Header.Get("Content-Length") != "10" || res.Header.Get("ETag") != `"strong"` {
+		t.Fatalf("HEAD: status %d, Content-Length %q, ETag %q", res.StatusCode, res.Header.Get("Content-Length"), res.Header.Get("ETag"))
+	}
+	if n := plan.closedCount(); n != 1 {
+		t.Fatalf("handle closed %d times, want 1", n)
+	}
+	if n := plan.taken.Load(); n != 0 {
+		t.Fatalf("HEAD took the bytes %d times, want 0", n)
+	}
+	res, err = http.Get(srv.URL + "/init_v.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(res.Body)
+	_ = res.Body.Close()
+	if string(body) != "0123456789" {
+		t.Fatalf("GET body %q", body)
+	}
+	if n := plan.taken.Load(); n != 1 {
+		t.Fatalf("GET took the bytes %d times, want 1", n)
 	}
 }
 

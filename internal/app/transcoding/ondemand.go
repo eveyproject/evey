@@ -68,8 +68,12 @@ type OnDemandResource interface {
 	Size() int64
 	// ETag is strong when the bytes are in hand, weak when they stream.
 	ETag() string
+	// Whole reports whether the handle holds the resource whole, which Bytes
+	// then hands out; asking counts nothing served.
+	Whole() bool
 	// Bytes is the whole resource when the handle holds it, nil when it
 	// streams from the source (then WriteRange is the only way to the bytes).
+	// Bytes handed out count served whole: a HEAD asks Whole, never Bytes.
 	Bytes() []byte
 	// WriteRange writes bytes [off, off+n). A streamed segment read from the
 	// source can fail midway and leave the output short: the caller must turn

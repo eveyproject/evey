@@ -232,7 +232,7 @@ func (h *hlsVODServe) serveConcatResourceData(w http.ResponseWriter, r *http.Req
 	if answerPlanResourceByStat(w, r, plan, name, "mkvgo-concat") {
 		return
 	}
-	data, contentType, streamed, err := fetchPlanResource(r.Context(), plan, name)
+	data, contentType, streamed, err := fetchPlanResource(r.Context(), plan, name, r.Method == http.MethodHead)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "concat resource")

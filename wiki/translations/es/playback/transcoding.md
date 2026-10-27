@@ -1,5 +1,5 @@
 ---
-source_sha: e039606b33ab2207d3774f9bacb71ee3d18f0d12f52d9dc02bec1e9817e1c91e
+source_sha: 183de3f3debe04fa20962ddd47cf680476ffb11f924669acd3a1f78d1a1ad221
 reviewed: true
 ---
 # Transcodificación y capacidad del servidor { #transcoding-and-server-capacity }
@@ -170,6 +170,38 @@ llena** (como mucho una vez por hora, también enviado a los webhooks como
 - **Prueba de carga** (**Administración → Transcodificación**): simula
   espectadores para medir lo que soporta el servidor. No se ejecuta mientras
   alguien esté viendo algo.
+
+## Prueba de carga { #load-test }
+
+La prueba de carga reproduce títulos de tus bibliotecas para espectadores
+simulados, añade más hasta que algo cede y nombra lo que cedió primero: el
+procesador, la memoria, un disco, el propio servidor o la red que tiene
+delante.
+
+**El camino que sigue.** Los espectadores llegan al servidor por su dirección
+pública, como los espectadores remotos. Cuando esa dirección lleva a un proxy
+inverso de tu red local, la prueba se conecta al proxy por su dirección local,
+con el mismo nombre y el mismo certificado. Si no, cada byte subiría hasta el
+router y volvería al proxy, un rodeo que el tráfico de ningún espectador de
+fuera hace, y la prueba mediría el router. El informe indica entonces la
+dirección local usada. Un proxy fuera de tu red (un servidor alquilado, un
+túnel) está en el camino de los espectadores reales y se mantiene.
+
+**La subida de la conexión.** Los espectadores de tu red nunca usan la subida
+de tu conexión a internet, así que los espectadores simulados no pueden
+medirla. Antes de que empiecen, el servidor la mide por su cuenta: durante unos
+diez segundos sube datos rellenos de ceros a `speed.cloudflare.com`, un
+servicio de test de velocidad que responde desde el punto más cercano de la
+red de Cloudflare. No se envía nada de tus bibliotecas ni de tus cuentas.
+Cloudflare ve la dirección IP pública del servidor, como cualquier sitio que el
+servidor contacte.
+
+**Desde fuera.** Con las dos cifras, el informe da el número de espectadores
+fuera de tu red que se pueden servir: tantos como aguantó el servidor, o tantos
+como la subida lleva al ritmo de un espectador de la prueba, dejando libre una
+quinta parte de la subida, lo que sea menor. Dice cuál de los dos es el
+límite. Si el test de velocidad no responde, el informe indica que no se pudo
+medir la subida y no da ninguna cifra para los espectadores de fuera.
 
 <!-- sources
 disk floor: cmd/evey/wire.go (EVEY_TRANSCODE_CACHE_MIN_FREE_MB, DefaultMinFreeBytes, SetWriteFloor, SetSubtitleCacheWriteFloor, OnSubtitleCacheFloorHit) ; internal/app/transcoding/segment_cache_admit.go - AdmitWrite, tryOnDemandEvict, ErrCacheFull ; internal/adapters/driving/http/transcode_vod_admission.go (503 + Retry-After) ; internal/domain/transcoding/events.go - DerivedCacheFull ; i18n notifications.cache_full

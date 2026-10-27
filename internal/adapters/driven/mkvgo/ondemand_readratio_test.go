@@ -168,6 +168,7 @@ func (fakeStream) ContentType() string { return "video/mp4" }
 func (fakeStream) Size() int64         { return 1000 }
 func (fakeStream) ETag() string        { return `W/"x"` }
 func (fakeStream) Bytes() []byte       { return nil }
+func (fakeStream) Whole() bool         { return false }
 func (fakeStream) Close() error        { return nil }
 func (fakeStream) WriteRange(_ context.Context, w io.Writer, _, n int64) (int64, error) {
 	m, err := w.Write(make([]byte, n))
@@ -186,6 +187,27 @@ func TestCountedResource_CountsWhatWentOut(t *testing.T) {
 	}
 	if b, r := p.watch.bytes.Load(), p.watch.resources.Load(); b != 500 || r != 2 {
 		t.Fatalf("served %d bytes over %d resources, want 500 over 2", b, r)
+	}
+}
+
+// fakeWhole is a resource held whole.
+type fakeWhole struct{ fakeStream }
+
+func (fakeWhole) Bytes() []byte { return make([]byte, 700) }
+func (fakeWhole) Whole() bool   { return true }
+
+// A whole resource counts served when its bytes are handed out, once, and not
+// when only asked whether it is whole (a HEAD).
+func TestCountedResource_CountsWholeBytesWhenTaken(t *testing.T) {
+	p := &ondemandPlan{}
+	c := &countedResource{OnDemandResource: fakeWhole{}, plan: p}
+	if !c.Whole() || p.watch.resources.Load() != 0 {
+		t.Fatalf("asking Whole counted %d resources", p.watch.resources.Load())
+	}
+	_ = c.Bytes()
+	_ = c.Bytes()
+	if b, r := p.watch.bytes.Load(), p.watch.resources.Load(); b != 700 || r != 1 {
+		t.Fatalf("served %d bytes over %d resources, want 700 over 1", b, r)
 	}
 }
 
