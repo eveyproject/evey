@@ -33,6 +33,8 @@ func (h *userHandler) InitiateQuickConnect(ctx context.Context, _ *eveyv1.Initia
 		// event stream and an EventSource carries no headers, so those
 		// pairings used to fall back to a one-week session.
 		Persistent: interceptors.PersistentSessionFromCtx(ctx),
+		// Fixed here by the initiator: the collector cannot opt out.
+		SecretRequired: req.GetSecretAware(),
 	}
 	if err := h.access.InitiateQuickConnect(ctx, qc); err != nil {
 		slog.ErrorContext(ctx, "initiate quick connect", slog.Any("err", err))
@@ -81,7 +83,7 @@ func (h *userHandler) CheckQuickConnect(ctx context.Context, req *eveyv1.CheckQu
 	ctx, span := tracing.StartSpan(ctx, "grpc.user.CheckQuickConnect")
 	defer span.End()
 	// Claimed, not just read: the tokens go to one collector only.
-	qc, err := h.auth.ClaimQuickConnect(ctx, req.Code)
+	qc, err := h.auth.ClaimQuickConnect(ctx, req.Code, req.GetSecret())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(otelcodes.Error, "invalid expired code")

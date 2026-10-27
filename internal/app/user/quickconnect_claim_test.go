@@ -29,10 +29,45 @@ func TestClaimQuickConnect_StaysSpentAcrossARestart(t *testing.T) {
 	uid := shared.UserID("u1")
 	require.NoError(t, qc.Create(ctx, &user.QuickConnectRequest{ID: "q1", Code: "code-1", Status: user.Authorized, UserID: &uid, ExpiresAt: time.Now().Add(time.Minute)}))
 
-	got, err := newClaimService(qc).ClaimQuickConnect(ctx, "code-1")
+	got, err := newClaimService(qc).ClaimQuickConnect(ctx, "code-1", "")
 	require.NoError(t, err)
 	require.NotNil(t, got)
 
-	_, err = newClaimService(qc).ClaimQuickConnect(ctx, "code-1")
+	_, err = newClaimService(qc).ClaimQuickConnect(ctx, "code-1", "")
 	assert.ErrorIs(t, err, ErrQuickConnectConsumed)
+}
+
+// The code is on the screen for anyone to read; the secret only ever went to
+// the device that started the pairing. When that device said it would send
+// it back, a collector without it gets nothing, and the pairing stays whole
+// for the real device.
+func TestClaimQuickConnect_SecretRequiredByTheInitiator(t *testing.T) {
+	ctx := context.Background()
+	qc := ufakes.NewFakeQuickConnectRepository()
+	uid := shared.UserID("u1")
+	require.NoError(t, qc.Create(ctx, &user.QuickConnectRequest{ID: "q1", Code: "code-1", Secret: "s3cret", SecretRequired: true,
+		Status: user.Authorized, UserID: &uid, ExpiresAt: time.Now().Add(time.Minute)}))
+	svc := newClaimService(qc)
+
+	_, err := svc.ClaimQuickConnect(ctx, "code-1", "")
+	assert.ErrorIs(t, err, ErrQuickConnectSecret, "no secret")
+	_, err = svc.ClaimQuickConnect(ctx, "code-1", "guess")
+	assert.ErrorIs(t, err, ErrQuickConnectSecret, "wrong secret")
+
+	got, err := svc.ClaimQuickConnect(ctx, "code-1", "s3cret")
+	require.NoError(t, err)
+	require.NotNil(t, got, "the refused attempts must not have spent the pairing")
+}
+
+// A device that never declared the capability keeps collecting without it.
+func TestClaimQuickConnect_LegacyInitiatorNeedsNoSecret(t *testing.T) {
+	ctx := context.Background()
+	qc := ufakes.NewFakeQuickConnectRepository()
+	uid := shared.UserID("u1")
+	require.NoError(t, qc.Create(ctx, &user.QuickConnectRequest{ID: "q1", Code: "code-1", Secret: "s3cret",
+		Status: user.Authorized, UserID: &uid, ExpiresAt: time.Now().Add(time.Minute)}))
+
+	got, err := newClaimService(qc).ClaimQuickConnect(ctx, "code-1", "")
+	require.NoError(t, err)
+	require.NotNil(t, got)
 }

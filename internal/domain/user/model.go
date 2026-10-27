@@ -255,6 +255,10 @@ type QuickConnectRequest struct {
 	// say it: a browser collects over an event stream, and an EventSource
 	// carries no headers.
 	Persistent bool
+	// SecretRequired records that the device which started the pairing will
+	// send Secret back when it collects the tokens. Set by the initiator and
+	// nobody else, so a collector cannot opt out of the check.
+	SecretRequired bool
 }
 
 type Role struct {

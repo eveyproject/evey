@@ -216,14 +216,16 @@ type fakeChecker struct {
 	err        error
 	calls      int
 	lastCode   string
+	lastSecret string
 	lastPersis bool
 }
 
-func (f *fakeChecker) checkAndGenerateTokens(_ context.Context, code string, persistent bool) (string, string, bool, error) {
+func (f *fakeChecker) checkAndGenerateTokens(_ context.Context, code, secret string, persistent bool) (string, string, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
 	f.lastCode = code
+	f.lastSecret = secret
 	f.lastPersis = persistent
 	return f.access, f.refresh, f.authorized, f.err
 }
@@ -373,5 +375,41 @@ func TestQuickConnectSSE_ConcurrentSubscribersSameCode(t *testing.T) {
 		if !strings.Contains(r.body(), `"event":"authorized"`) {
 			t.Errorf("sub %d missing authorized event: %q", i, r.body())
 		}
+	}
+}
+
+// An EventSource cannot send a header, so the secret the initiator was handed
+// rides the query string and reaches the checker as is.
+func TestQuickConnectSSE_SecretFromQueryReachesTheChecker(t *testing.T) {
+	hub := quickconnecthub.New()
+	checker := &fakeChecker{access: "acc", refresh: "ref", authorized: true}
+	h := quickConnectSSEHandler(hub, checker)
+
+	mux := http.NewServeMux()
+	mux.Handle("/qc/{code}", h)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	req := httptest.NewRequest(http.MethodGet, "/qc/code123?secret=qc-secret-abc", nil).WithContext(ctx)
+	rec := newSyncRecorder()
+
+	done := make(chan struct{})
+	go func() {
+		mux.ServeHTTP(rec, req)
+		close(done)
+	}()
+	if !rec.waitForBody(t, ": ping", 2*time.Second) {
+		t.Fatalf("expected initial ping before notify, got %q", rec.body())
+	}
+	hub.Notify("code123")
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler did not return after notify+authorized")
+	}
+	checker.mu.Lock()
+	defer checker.mu.Unlock()
+	if checker.lastSecret != "qc-secret-abc" {
+		t.Fatalf("secret not forwarded, got %q", checker.lastSecret)
 	}
 }
