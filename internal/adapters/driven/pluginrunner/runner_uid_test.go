@@ -29,5 +29,8 @@ func TestPluginDropArgs_OneUIDPerPlugin(t *testing.T) {
 		assert.True(t, isPluginUID(uid), "reap and signal must recognise %d", uid)
 	}
 	assert.True(t, isPluginUID(pluginUID), "plugins started by a root server keep the shared uid")
-	assert.False(t, isPluginUID(os.Getuid()))
+	// Explicit uids, not the host's: a CI runner may itself run as 1001.
+	for _, uid := range []int{1000, pluginUIDBase - 1, pluginUIDBase + pluginUIDSpan} {
+		assert.False(t, isPluginUID(uid), "uid %d is not a plugin uid", uid)
+	}
 }
