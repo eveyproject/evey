@@ -13,8 +13,8 @@
   },
   "comment": "The front module has ZERO runtime dependencies: raw WebGL + vanilla DOM, bundled by esbuild. Every poster texture is loaded straight from the host's own artwork URLs (same-origin, no fetch through the bridge). Only the nodejs backend stub (main.js) needs runtime deps, so only @grpc ships in node_modules.",
   "devDependencies": {
-    "esbuild": "0.25.0",
+    "esbuild": "0.28.2",
     "typescript": "5.7.3",
-    "vitest": "2.1.9"
+    "vitest": "4.1.12"
   }
 }

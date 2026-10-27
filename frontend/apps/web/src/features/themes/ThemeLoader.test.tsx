@@ -149,9 +149,13 @@ describe("ThemeLoader", () => {
     expect(iframe!.getAttribute("srcdoc")).toBeNull();
     expect(iframe!.getAttribute("src")).toBe("/plugin-frame.html");
 
-    const post = vi.spyOn(iframe!.contentWindow!, "postMessage");
+    // happy-dom 21 leaves contentWindow null for a frame whose page it never
+    // loads: a stand-in plays the frame's window the handshake is checked against.
+    const frameWindow = { postMessage: () => {} } as unknown as Window;
+    Object.defineProperty(iframe!, "contentWindow", { configurable: true, value: frameWindow });
+    const post = vi.spyOn(frameWindow, "postMessage");
     act(() => {
-      window.dispatchEvent(new MessageEvent("message", { data: { type: "evey-frame-shell" }, source: iframe!.contentWindow as Window }));
+      window.dispatchEvent(new MessageEvent("message", { data: { type: "evey-frame-shell" }, source: frameWindow }));
     });
     expect(post).toHaveBeenCalledWith({ type: "evey-frame-load", scripts: ["/* bridge */", "// theme js"] }, "*");
 

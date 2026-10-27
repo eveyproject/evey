@@ -15,8 +15,8 @@
   "comment": "The front module has ZERO runtime dependencies: raw WebGL + vanilla DOM, bundled by esbuild. Only the nodejs backend stub (main.js) needs runtime deps, so only @grpc ships in node_modules. This keeps the bundle ~25x smaller than v1 (three.js/React) and removes their memory overhead entirely.",
   "devDependencies": {
     "@types/node": "^26.1.1",
-    "esbuild": "0.25.0",
+    "esbuild": "0.28.2",
     "typescript": "5.7.3",
-    "vitest": "2.1.9"
+    "vitest": "4.1.12"
   }
 }
