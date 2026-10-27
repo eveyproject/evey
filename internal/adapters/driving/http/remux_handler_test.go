@@ -26,22 +26,42 @@ type fakeRemuxer struct {
 	canRemux bool
 	payload  []byte
 	err      error
-	calls    int
-	// The source's display orientation, and how many times it was read.
-	rotation    int
-	hflip       bool
+	// The source's display orientation.
+	rotation int
+	hflip    bool
+	// The counters are read by concurrent requests: one mutex covers them.
+	mu          sync.Mutex
+	calls       int
 	matrixReads int
 }
 
 func (f *fakeRemuxer) CanRemux(string) bool { return f.canRemux }
 
+// remuxCalls is how many times a remux was actually produced.
+func (f *fakeRemuxer) remuxCalls() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls
+}
+
+// orientationReads is how many times the display matrix was read.
+func (f *fakeRemuxer) orientationReads() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.matrixReads
+}
+
 func (f *fakeRemuxer) DisplayMatrix(context.Context, string) (int, bool, error) {
+	f.mu.Lock()
 	f.matrixReads++
+	f.mu.Unlock()
 	return f.rotation, f.hflip, nil
 }
 
 func (f *fakeRemuxer) RemuxToMP4(_ context.Context, _, dst string) error {
+	f.mu.Lock()
 	f.calls++
+	f.mu.Unlock()
 	if f.err != nil {
 		return f.err
 	}
@@ -82,7 +102,7 @@ func TestRemux_HappyPath_ServesMP4(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "video/mp4", w.Header().Get("Content-Type"))
 	assert.Equal(t, "FAKE-MP4-MOOV-FIRST", w.Body.String())
-	assert.Equal(t, 1, rmx.calls)
+	assert.Equal(t, 1, rmx.remuxCalls())
 }
 
 // The on-disk file IS the cache: a second request must serve the cached MP4
@@ -94,7 +114,7 @@ func TestRemux_CachedAfterFirstProduce(t *testing.T) {
 	require.Equal(t, http.StatusOK, doRemuxRequest(h, false, "").Code)
 	require.Equal(t, http.StatusOK, doRemuxRequest(h, false, "").Code)
 
-	assert.Equal(t, 1, rmx.calls, "second request must hit the on-disk cache, not remux again")
+	assert.Equal(t, 1, rmx.remuxCalls(), "second request must hit the on-disk cache, not remux again")
 }
 
 // Correctness guard: when the SOURCE changes (re-scan → new size+mtime
@@ -114,15 +134,15 @@ func TestRemux_SourceFingerprintChange_Reinvalidates(t *testing.T) {
 	}
 
 	require.Equal(t, http.StatusOK, doRemuxRequest(h, false, "").Code)
-	require.Equal(t, 1, rmx.calls)
+	require.Equal(t, 1, rmx.remuxCalls())
 	// Same fingerprint → cache hit, no re-remux.
 	require.Equal(t, http.StatusOK, doRemuxRequest(h, false, "").Code)
-	require.Equal(t, 1, rmx.calls)
+	require.Equal(t, 1, rmx.remuxCalls())
 
 	// Source replaced / re-scanned → fingerprint moves → must re-remux.
 	item.File.Fingerprint = "999-888"
 	require.Equal(t, http.StatusOK, doRemuxRequest(h, false, "").Code)
-	assert.Equal(t, 2, rmx.calls, "a changed source fingerprint must re-remux, not serve the stale cache")
+	assert.Equal(t, 2, rmx.remuxCalls(), "a changed source fingerprint must re-remux, not serve the stale cache")
 }
 
 // fast-start + ServeContent means Range requests (seeking) return 206 with the
@@ -197,7 +217,7 @@ func TestRemux_NonEBMLSource_Unsupported(t *testing.T) {
 	w := doRemuxRequest(h, false, "")
 
 	assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
-	assert.Equal(t, 0, rmx.calls)
+	assert.Equal(t, 0, rmx.remuxCalls())
 }
 
 // Parental guard: the remux serves the film itself, so a title hidden from the
@@ -210,7 +230,7 @@ func TestRemux_ParentalBlocked_NotFound(t *testing.T) {
 	w := doRemuxRequest(h, false, "")
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.Equal(t, 0, rmx.calls, "a parental-blocked title must never be remuxed")
+	assert.Equal(t, 0, rmx.remuxCalls(), "a parental-blocked title must never be remuxed")
 }
 
 // IDOR guard: a profile without access to the item's library gets 404 (not an
@@ -222,7 +242,7 @@ func TestRemux_LibraryAccessDenied_NotFound(t *testing.T) {
 	w := doRemuxRequest(h, false, "")
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
-	assert.Equal(t, 0, rmx.calls, "denied access must never trigger a remux")
+	assert.Equal(t, 0, rmx.remuxCalls(), "denied access must never trigger a remux")
 }
 
 // A stream token authenticates ONE media: presenting media A's token on media
@@ -240,7 +260,7 @@ func TestRemux_TokenScopeAndProduceFailure(t *testing.T) {
 	w := httptest.NewRecorder()
 	h.handle(w, req)
 	assert.Equal(t, http.StatusForbidden, w.Code)
-	assert.Equal(t, 0, rmx.calls)
+	assert.Equal(t, 0, rmx.remuxCalls())
 
 	failing := &fakeRemuxer{canRemux: true, err: errors.New("mkvgo: broken cluster")}
 	hf := newTestRemuxServe(t, failing, allowAll())
@@ -255,7 +275,7 @@ func TestRemux_TokenScopeAndProduceFailure(t *testing.T) {
 		wg.Go(func() { doRemuxRequest(h, false, "") })
 	}
 	wg.Wait()
-	assert.Equal(t, 1, rmx.calls, "concurrent first requests share one produce")
+	assert.Equal(t, 1, rmx.remuxCalls(), "concurrent first requests share one produce")
 }
 
 // The display orientation keys the remux cache only when it is set: an
@@ -292,8 +312,8 @@ func TestRemuxServe_MirroredSourceRemuxedUnderItsOwnName(t *testing.T) {
 	for range 3 {
 		require.Equal(t, http.StatusPartialContent, doRemuxRequest(hm, true, "bytes=0-3").Code)
 	}
-	assert.Equal(t, 1, mirrored.calls, "the mirrored source is remuxed once, not served the upright file")
-	assert.Equal(t, 1, mirrored.matrixReads, "the orientation is read once for every range of the file")
+	assert.Equal(t, 1, mirrored.remuxCalls(), "the mirrored source is remuxed once, not served the upright file")
+	assert.Equal(t, 1, mirrored.orientationReads(), "the orientation is read once for every range of the file")
 	files, err := os.ReadDir(h.cacheDir)
 	require.NoError(t, err)
 	assert.Len(t, files, 2, "the mirrored remux has a name of its own")
