@@ -30,6 +30,9 @@ message UserLibraryAccess {
   string user_id = 1;
   repeated string library_ids = 2;
   repeated LibraryRef libraries = 3;
+  // True when the user is confined to library_ids. An empty list with
+  // restricted set means access to nothing, not to everything.
+  bool restricted = 4;
 }
 
 message GetUserLibraryAccessRequest {

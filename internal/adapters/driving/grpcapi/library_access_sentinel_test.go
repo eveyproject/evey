@@ -22,6 +22,7 @@ func TestLibraryAccessHandler_NeverExposesOrStoresTheSentinel(t *testing.T) {
 	resp, err := h.GetUserLibraryAccess(ctx, &eveyv1.GetUserLibraryAccessRequest{UserId: "user-1"})
 	require.NoError(t, err)
 	assert.NotContains(t, resp.LibraryIds, user.NoLibraryAccess)
+	assert.True(t, resp.Restricted, "restricted to nothing must not read as unrestricted")
 
 	_, err = h.SetUserLibraryAccess(ctx, &eveyv1.SetUserLibraryAccessRequest{UserId: "user-1", LibraryIds: []string{user.NoLibraryAccess}})
 	require.NoError(t, err)
@@ -35,4 +36,22 @@ func TestLibraryAccessHandler_NeverExposesOrStoresTheSentinel(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, ids, 1)
 	assert.EqualValues(t, "lib-1", ids[0])
+}
+
+// The flag is what tells the two empty lists apart: a user never restricted
+// reads unrestricted, one with grants reads restricted.
+func TestLibraryAccessHandler_RestrictedFlag(t *testing.T) {
+	h, accessRepo, _ := newTestLibraryAccessHandler()
+	ctx := context.Background()
+
+	resp, err := h.GetUserLibraryAccess(ctx, &eveyv1.GetUserLibraryAccessRequest{UserId: "free-user"})
+	require.NoError(t, err)
+	assert.False(t, resp.Restricted)
+	assert.Empty(t, resp.LibraryIds)
+
+	_ = accessRepo.Grant(ctx, "user-2", "lib-1")
+	resp, err = h.GetUserLibraryAccess(ctx, &eveyv1.GetUserLibraryAccessRequest{UserId: "user-2"})
+	require.NoError(t, err)
+	assert.True(t, resp.Restricted)
+	assert.Equal(t, []string{"lib-1"}, resp.LibraryIds)
 }
