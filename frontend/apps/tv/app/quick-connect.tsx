@@ -17,6 +17,10 @@ export default function QuickConnectScreen() {
   const [code, setCode] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(REFRESH_INTERVAL_S);
   const codeSetAt = useRef(0);
+  // The secret comes back with the code and never leaves this device: the
+  // QR carries the code, the poll carries both, so a phone that scanned the
+  // screen cannot collect the tokens in our place.
+  const secretRef = useRef<string | null>(null);
   const setTokens = useAuthStore((s) => s.setTokens);
   const [backFocused, setBackFocused] = useState(false);
 
@@ -25,6 +29,7 @@ export default function QuickConnectScreen() {
       onSuccess: (data) => {
         if (data.code) {
           setCode(data.code);
+          secretRef.current = data.secret ?? null;
           codeSetAt.current = Date.now();
           setSecondsLeft(REFRESH_INTERVAL_S);
         }
@@ -33,7 +38,7 @@ export default function QuickConnectScreen() {
   });
 
   const doInitiate = useCallback(() => {
-    initiate.mutate();
+    initiate.mutate({ params: { secretAware: true } });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -73,7 +78,7 @@ export default function QuickConnectScreen() {
       if (cancelled || !code || inFlight) return;
       inFlight = true;
       try {
-        const resp = await userServiceCheckQuickConnect(code);
+        const resp = await userServiceCheckQuickConnect(code, secretRef.current ? { secret: secretRef.current } : undefined);
         if (cancelled) return;
         if (resp.authorized && resp.auth?.accessToken) {
           if (resp.auth.refreshToken) await setRefreshToken(resp.auth.refreshToken);
