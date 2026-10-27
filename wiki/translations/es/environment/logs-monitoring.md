@@ -1,5 +1,5 @@
 ---
-source_sha: 0bab686b9f686329111402f3fd66ecca742fbcfae479769927962bdcf8eeadcd
+source_sha: 84d4aedb514ecf260e351de19cd0ddda1771d2b1ed9173179da8a7b9ff4e192a
 reviewed: true
 ---
 # Copias de seguridad, registros y supervisión { #backups-logs-and-monitoring }
