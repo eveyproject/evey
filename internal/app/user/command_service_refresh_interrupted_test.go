@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"testing"
 	"time"
 
@@ -132,5 +133,41 @@ func TestRefreshToken_RotatedWithoutSuccessor_StaysRefused(t *testing.T) {
 
 	if _, _, err := d.svc.RefreshToken(ctx, "legacy-token", "", ""); err == nil {
 		t.Fatal("a rotated token with no recorded successor must stay refused")
+	}
+}
+
+// The alibi has a shelf life. A successor minted a day ago and never used is
+// no longer a lost answer in flight: it is a token the client abandoned, and
+// the old token presented with it is treated like any replay.
+func TestRefreshToken_InterruptedRotation_TooOldToRecover(t *testing.T) {
+	d := newAuthTestDeps()
+	ctx := context.Background()
+	seedAuthedUser(t, d)
+	seedRefreshToken(t, d, "rt1", "abandoned-token")
+
+	if _, _, err := d.svc.RefreshToken(ctx, "abandoned-token", "", ""); err != nil {
+		t.Fatalf("first refresh failed: %v", err)
+	}
+	rt, err := d.refreshTkns.GetByID(ctx, "rt1")
+	if err != nil || rt.SuccessorID == nil {
+		t.Fatalf("premise: the rotation must record its successor (err=%v)", err)
+	}
+	successor, err := d.refreshTkns.GetByID(ctx, *rt.SuccessorID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	long := time.Now().Add(-(rotationRecoveryWindow + time.Hour))
+	rt.UsedAt = &long
+	d.refreshTkns.Replace(rt)
+	successor.CreatedAt = long
+	successor.ExpiresAt = time.Now().Add(time.Hour)
+	d.refreshTkns.Replace(successor)
+
+	if _, _, err := d.svc.RefreshToken(ctx, "abandoned-token", "", ""); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("a rotation older than the recovery window must be refused, got: %v", err)
+	}
+	// Refused, and the stale successor is not left live either.
+	if _, gErr := d.refreshTkns.GetByID(ctx, successor.ID); gErr == nil {
+		t.Fatal("the abandoned successor must be burned along with the refusal")
 	}
 }
