@@ -1338,7 +1338,7 @@ export default function PlayerScreen() {
         icon="trash-outline"
         title={t(shedI18nKey(shedReason, "title"))}
         body={t(shedI18nKey(shedReason, "body"))}
-        actionLabel={next ? t("player.nextEpisode") : t("player.goBack")}
+        actionLabel={next ? t("player.controls.nextEpisode") : t("player.goBack")}
         onAction={next ? handleManualNextEpisode : handleBack}
         onBack={handleBack}
       />
