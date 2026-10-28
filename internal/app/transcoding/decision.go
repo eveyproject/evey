@@ -42,6 +42,8 @@ type StreamSpec struct {
 	PixelFormat *string
 	DoViProfile *int
 	Level       *int
+	// FrameRate of a video track, nil when the prober did not read one.
+	FrameRate *float64
 }
 
 // toStreamSpecs adapts the persistence-flavored library.MediaStream slice
@@ -92,6 +94,7 @@ func toStreamSpecs(streams []*library.MediaStream) []StreamSpec {
 			PixelFormat: s.PixelFormat,
 			DoViProfile: s.DoViProfile,
 			Level:       s.Level,
+			FrameRate:   s.Framerate,
 		})
 	}
 	return out
@@ -419,7 +422,7 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 		addReasonOnce(d, "pixel_format_unsupported")
 		d.VideoDecision = "transcode"
 	}
-	if client.MaxH264Level > 0 && normalizeVideoCodec(s.Codec) == "h264" && s.Level != nil && *s.Level > client.MaxH264Level {
+	if client.MaxH264Level > 0 && normalizeVideoCodec(s.Codec) == "h264" && h264NeededLevel(s) > client.MaxH264Level {
 		addReasonOnce(d, "level_exceeded")
 		d.VideoDecision = "transcode"
 	}
@@ -446,6 +449,21 @@ func evaluateVideo(d *transcoding.PlaybackDecision, s StreamSpec, client transco
 	if d.VideoDecision == "transcode" && d.VideoCodec == "" {
 		d.VideoCodec = transcoding.DefaultVideoCodec
 	}
+}
+
+// h264NeededLevel is the level a decoder needs for this H.264 track: the
+// header's, or the one its picture size at its frame rate calls for when that
+// is higher (a 2160p60 stream labelled 5.1 needs 5.2). The rate counts only
+// when the prober read it; 0 when neither is known.
+func h264NeededLevel(s StreamSpec) int {
+	level := 0
+	if s.Level != nil {
+		level = *s.Level
+	}
+	if s.Width != nil && s.Height != nil && s.FrameRate != nil && *s.FrameRate > 0 {
+		level = max(level, transcoding.H264Level(*s.Width, *s.Height, *s.FrameRate, 0, 0))
+	}
+	return level
 }
 
 // addReasonOnce appends a transcode reason unless it is already recorded, so a
