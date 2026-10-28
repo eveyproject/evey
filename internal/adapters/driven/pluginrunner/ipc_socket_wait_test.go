@@ -2,7 +2,9 @@ package pluginrunner
 
 import (
 	"context"
+	"errors"
 	"net"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -30,7 +32,7 @@ func TestWaitForSocketAbortsAsSoonAsTheProcessExits(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	err := waitForSocket(ctx, sock, procDone)
+	err := waitForSocket(ctx, sock, procDone, 0)
 	elapsed := time.Since(start)
 
 	if err == nil {
@@ -60,7 +62,43 @@ func TestWaitForSocketKeepsPollingUntilABindLands(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := waitForSocket(ctx, sock, procDone); err != nil {
+	if err := waitForSocket(ctx, sock, procDone, 0); err != nil {
 		t.Fatalf("un bind tardif mais réussi doit être vu : %v", err)
+	}
+}
+
+// A plugin socket served by any process other than the plugin is refused,
+// whoever got to the path first: the socket directories share a group, so a
+// neighbour plugin could otherwise sit on it and receive this plugin's events
+// and configuration. Here the listener is this test process.
+func TestPluginSockRefusesAListenerThatIsNotThePlugin(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "plugin.sock")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	go func() {
+		for {
+			c, err := l.Accept()
+			if err != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err = waitForSocket(ctx, sock, make(chan struct{}), os.Getppid())
+	if !errors.Is(err, errSockImpostor) {
+		t.Fatalf("listener is not the plugin: %v, want errSockImpostor", err)
+	}
+	if conn, err := dialPluginSock(ctx, sock, os.Getppid()); err == nil {
+		conn.Close()
+		t.Fatal("the gRPC dialer must refuse the impostor too")
+	}
+	if err := waitForSocket(ctx, sock, make(chan struct{}), os.Getpid()); err != nil {
+		t.Fatalf("the plugin's own listener must pass: %v", err)
 	}
 }
