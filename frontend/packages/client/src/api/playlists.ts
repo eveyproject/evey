@@ -52,6 +52,12 @@ export interface PlaylistItem {
   // "video" or "music": a playlist mixes both, and a track id means nothing to
   // the video page.
   media_type?: string;
+  // Music tracks only: a track is not a media item, so the server sends what a
+  // row and the music player show.
+  artist?: string;
+  album?: string;
+  cover_art_url?: string;
+  duration?: number;
 }
 
 // The API speaks its enum ("PLAYLIST_TYPE_MANUAL"); the screens speak
@@ -106,6 +112,10 @@ export function usePlaylistDetail(id: string) {
           type: it.type,
           year: it.year,
           media_type: it.mediaType,
+          artist: it.artist,
+          album: it.album,
+          cover_art_url: it.coverArtUrl,
+          duration: it.duration,
         })),
     },
   });
