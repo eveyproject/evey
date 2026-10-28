@@ -35,6 +35,20 @@ describe("playerEventReporter", () => {
     });
   });
 
+  it("sends a native player's diagnosis alongside, and nothing when there is none", () => {
+    const report = createPlayerEventReporter("media-1");
+    const diag = {
+      renderer: "video", formatSupported: "NO_EXCEEDS_CAPABILITIES", decoder: "c2.vendor.avc.decoder",
+      mime: "video/avc", codecs: "avc1.640033", width: 3840, height: 2160, fps: 60, bitrateKbps: 8000,
+      playMethod: "direct_play", errorCode: "", causes: ["Decoder init failed"],
+    };
+    report({ type: "native_player_error", details: "x", fatal: true, diag });
+    expect(mockEveyFetch.mock.calls[0][0]).toMatchObject({ data: { type: "native_player_error", diag } });
+
+    report({ type: "hls_fatal", details: "y" });
+    expect(mockEveyFetch.mock.calls[1][0]).not.toHaveProperty("data.diag");
+  });
+
   it("keeps the snapshot out of the dedupe key", () => {
     // The buffer picture changes on every stall; the stall itself is the same
     // event, and reporting each picture would drain the session budget.

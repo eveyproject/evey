@@ -26,6 +26,28 @@ export interface PlayerEventPayload {
   posSec?: number;
   /** Player snapshot at the event (buffer, readyState, dropped frames...). Not part of the dedupe key. */
   state?: string;
+  /** A native player error taken apart (renderer, format, verdict, decoder, causes). Not part of the dedupe key. */
+  diag?: PlayerEventDiag;
+}
+
+/** What a native player error is made of, as the server logs it in fields. */
+export interface PlayerEventDiag {
+  /** video, audio, text, or "" when no renderer failed. */
+  renderer: string;
+  /** ExoPlayer's verdict on the format: YES, NO_EXCEEDS_CAPABILITIES... */
+  formatSupported: string;
+  /** The decoder named by the failure (c2.*, OMX.*). */
+  decoder: string;
+  mime: string;
+  codecs: string;
+  width: number;
+  height: number;
+  fps: number;
+  bitrateKbps: number;
+  /** direct_play, direct_stream or transcode: how the stream was being played. */
+  playMethod: string;
+  errorCode: string;
+  causes: string[];
 }
 
 const DEDUPE_WINDOW_MS = 5_000;
@@ -61,6 +83,7 @@ export function createPlayerEventReporter(mediaId: string): PlayerEventReporter 
         segment: evt.segment ?? 0,
         posSec: evt.posSec ?? 0,
         state: evt.state ?? "",
+        ...(evt.diag ? { diag: evt.diag } : {}),
       },
     }).catch(() => {
       // Telemetry must never break playback. Rate-limited (429) or offline:

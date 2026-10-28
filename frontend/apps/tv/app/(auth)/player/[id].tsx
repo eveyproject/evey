@@ -22,6 +22,7 @@ import { dashUrlFor, devDashEnabled } from "../../../src/lib/devDash";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
+import { diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
@@ -146,6 +147,10 @@ export default function PlayerScreen() {
       restart: restart === "1",
       ...(Number(start) > 0 ? { startSec: Number(start) } : {}),
     });
+  // Read by the error listener, which outlives renders: how the stream that
+  // failed was being played, for the error beacon.
+  const playMethodRef = useRef("");
+  playMethodRef.current = playMethodName(streamInfo?.playMethod);
 
   // The running profile's languages and "auto-play next episode" choice, the
   // same reading on every player (usePlayerProfilePrefs). A track picked in
@@ -503,6 +508,7 @@ export default function PlayerScreen() {
           details: ev.error?.message ?? "",
           fatal: true,
           posSec,
+          diag: diagnoseNativePlayerError(ev.error?.message ?? "", playMethodRef.current),
         });
         setNativeError(ev.error?.message ?? "playback error");
       }
