@@ -564,6 +564,7 @@ libraries:
   namePlaceholder: "Bibliotheksname"
   pathRequired: "Mindestens ein Pfad ist erforderlich"
   realtimeMonitoring: "Echtzeit-Überwachung"
+  realtimeMonitoringHint: "Hinzugefügte und gelöschte Dateien erscheinen innerhalb von Sekunden statt erst beim nächsten regelmäßigen Scan."
   scanFailed: "Scan fehlgeschlagen"
   scanOnStartup: "Beim Start scannen"
 

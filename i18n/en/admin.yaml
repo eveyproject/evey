@@ -564,6 +564,7 @@ libraries:
   namePlaceholder: "Library name"
   pathRequired: "At least one path is required"
   realtimeMonitoring: "Realtime monitoring"
+  realtimeMonitoringHint: "Added and deleted files show up within seconds instead of at the next periodic scan."
   scanFailed: "Scan failed"
   scanOnStartup: "Scan on startup"
 

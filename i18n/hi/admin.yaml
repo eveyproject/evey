@@ -564,6 +564,7 @@ libraries:
   namePlaceholder: "लाइब्रेरी का नाम"
   pathRequired: "कम से कम एक पथ आवश्यक है"
   realtimeMonitoring: "रीयल-टाइम मॉनिटरिंग"
+  realtimeMonitoringHint: "जोड़ी या हटाई गई फ़ाइलें अगले नियमित स्कैन की बजाय कुछ ही सेकंड में दिखती हैं।"
   scanFailed: "स्कैन विफल"
   scanOnStartup: "स्टार्टअप पर स्कैन करें"
 
