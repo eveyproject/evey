@@ -892,3 +892,29 @@ func TestLevel_ClientCapForcesTranscode(t *testing.T) {
 	streams[0].Level = new(51)
 	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", transcoding.DefaultWebProfile, 0).PlayMethod, "no cap, no rule")
 }
+
+// A header level is what the encoder wrote, not what the stream needs: a
+// 3840x2160 picture at 60 fps is 1 944 000 macroblocks a second, level 5.2,
+// whatever the header says. Labelled 5.1, it went to a 5.1 decoder by direct
+// play and failed there. The rate counts only when it is known: an unknown
+// one must not re-encode every 4K film for a 5.1 device.
+func TestLevel_FrameSizeAndRateOutrankALowHeader(t *testing.T) {
+	fps := func(v float64) *float64 { return &v }
+	streams := []*library.MediaStream{
+		{StreamType: "video", Codec: "h264", Width: new(3840), Height: new(2160), Level: new(51), Framerate: fps(60), IsDefault: true},
+		{StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	}
+	capped := transcoding.DefaultWebProfile
+	capped.MaxH264Level = 51
+	d := apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0)
+	assert.Equal(t, "transcode", d.VideoDecision)
+	assert.Contains(t, d.TranscodeReasons, "level_exceeded")
+
+	streams[0].Framerate = fps(30)
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0).PlayMethod, "2160p30 fits level 5.1")
+	streams[0].Framerate = nil
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0).PlayMethod, "unknown rate: the header decides")
+	streams[0].Framerate = fps(60)
+	capped.MaxH264Level = 52
+	assert.Equal(t, "direct_play", apptranscode.MakePlaybackDecision(t.Context(), streams, "mp4", capped, 0).PlayMethod, "a 5.2 decoder plays it")
+}
