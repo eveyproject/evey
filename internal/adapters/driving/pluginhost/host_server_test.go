@@ -309,8 +309,34 @@ func TestHostGetUserPreferencesUnimplemented(t *testing.T) {
 
 // --- UpdateMetadata ---
 
-// recordedTexts keeps what UpdateMetadata stores.
-type recordedTexts struct{ texts []library.PluginText }
+// recordedTexts keeps what UpdateMetadata stores. base stands for what the
+// plugin already stores on other items.
+type recordedTexts struct {
+	texts []library.PluginText
+	base  library.PluginTextUsage
+}
+
+// Usage counts the latest text per item and locale, as the table keeps them.
+func (r *recordedTexts) Usage(_ context.Context, pluginID, item, locale string) (library.PluginTextUsage, error) {
+	u := r.base
+	latest := map[[2]string]library.PluginText{}
+	for _, t := range r.texts {
+		if t.PluginID == pluginID {
+			latest[[2]string{t.MediaItemID, t.Locale}] = t
+		}
+	}
+	for k, t := range latest {
+		if t.Empty() || (k[0] == item && (locale == "" || k[1] == locale)) {
+			continue
+		}
+		u.Rows++
+		u.Bytes += t.Size()
+		if k[0] == item {
+			u.ItemLocales++
+		}
+	}
+	return u, nil
+}
 
 func (r *recordedTexts) ReplaceForItem(context.Context, string, string, []library.PluginText) error {
 	return nil
@@ -910,4 +936,35 @@ func TestHostServer_PanicRecovered_ServerSurvives(t *testing.T) {
 	defer cancel2()
 	_, err = client.GetConfig(ctx2, &pluginv1.GetConfigRequest{Key: "k"})
 	require.NoError(t, err)
+}
+
+// UpdateMetadata needs no request from the server, so what a plugin stores is
+// bounded like its key/value store: locales per item, texts and bytes per
+// plugin. Replacing a locale it already gave stays possible at the bound.
+func TestHostUpdateMetadataQuotas(t *testing.T) {
+	h, texts := newMetadataHostServer()
+	ctx := ctxWithPluginID("plg-meta")
+	h.mediaItems.(*fakeMediaQuerier).items["m1"] = &library.MediaItem{ID: "m1", Type: library.MovieItem}
+	put := func(locale, overview string) error {
+		_, err := h.UpdateMetadata(ctx, &pluginv1.UpdateMetadataRequest{
+			MediaItemId: "m1", Fields: map[string]string{"locale": locale, "overview": overview},
+		})
+		return err
+	}
+	letters := "abcdefghijklmnop"
+	for i := range library.MaxPluginTextLocalesPerItem {
+		require.NoError(t, put("z"+string(letters[i]), "texte"))
+	}
+	assert.Equal(t, codes.ResourceExhausted, status.Code(put("yy", "texte")), "one locale too many")
+	require.NoError(t, put("za", "corrigé"), "a locale already given stays replaceable")
+	require.NoError(t, put("zb", ""), "removing never needs room")
+	require.NoError(t, put("yy", "texte"), "a removed locale frees its place")
+
+	texts.base = library.PluginTextUsage{Rows: library.MaxPluginTextRows}
+	assert.Equal(t, codes.ResourceExhausted, status.Code(put("xx", "texte")), "rows per plugin")
+	texts.base = library.PluginTextUsage{}
+	cur, _ := texts.Usage(context.Background(), "plg-meta", "m1", "zc")
+	texts.base = library.PluginTextUsage{Bytes: library.MaxPluginTextBytes - cur.Bytes - 3} // room for 3 bytes
+	assert.Equal(t, codes.ResourceExhausted, status.Code(put("zc", "texte")), "bytes per plugin")
+	require.NoError(t, put("zc", "ok"))
 }
