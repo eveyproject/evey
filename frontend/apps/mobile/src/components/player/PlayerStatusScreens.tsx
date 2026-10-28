@@ -31,7 +31,7 @@ export function ShedScreen({ shedReason, onRetry, onBack, onNextEpisode }: ShedS
       {fileMissing ? (
         onNextEpisode ? (
           <Pressable onPress={onNextEpisode} style={{ marginTop: 20 }}>
-            <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, fontWeight: "600" }}>{t("player.nextEpisode")}</Text>
+            <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, fontWeight: "600" }}>{t("player.controls.nextEpisode")}</Text>
           </Pressable>
         ) : null
       ) : (
