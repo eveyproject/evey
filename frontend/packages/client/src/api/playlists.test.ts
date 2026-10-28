@@ -221,4 +221,21 @@ describe("usePlaylistDetail", () => {
     const { result } = renderHook(() => usePlaylistDetail("p-1"), { wrapper });
     expect(result.current.data?.items.map((i) => i.media_type)).toEqual(["video", "music"]);
   });
+
+  // A track is not a media item: the server sends what a row and the music
+  // player need to show it (title, artist, album, cover, length).
+  it("keeps what a music row shows", async () => {
+    mockGet.mockReturnValue({ data: { id: "p-1", name: "Mixed", type: "PLAYLIST_TYPE_MANUAL" }, isLoading: false, isSuccess: true } as never);
+    mockGetItems.mockReturnValue({
+      data: { items: [{ mediaItemId: "t-1", mediaType: "music", title: "A song", artist: "An artist", album: "An album", coverArtUrl: "/api/v1/music/tracks/t-1/art", duration: 201.5 }] },
+      isLoading: false,
+      isSuccess: true,
+    } as never);
+    const { usePlaylistDetail } = await import("./playlists");
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => usePlaylistDetail("p-1"), { wrapper });
+    expect(result.current.data?.items[0]).toMatchObject({
+      title: "A song", artist: "An artist", album: "An album", cover_art_url: "/api/v1/music/tracks/t-1/art", duration: 201.5,
+    });
+  });
 });

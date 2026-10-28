@@ -74,14 +74,10 @@ vi.mock("../../../src/api/playlists", () => ({
 }));
 
 // --- music: a track of the playlist plays in the music player ---------------
-const getTrackMock = vi.fn();
-vi.mock("@evey/api", () => ({
-  musicServiceGetTrack: (id: string) => getTrackMock(id),
-}));
 const setQueueMock = vi.fn();
 vi.mock("../../../src/stores/musicQueue", () => ({
   useMusicQueueStore: (sel: (s: { setQueue: typeof setQueueMock }) => unknown) => sel({ setQueue: setQueueMock }),
-  trackToQueueTrack: (t: { id?: string; title?: string }) => ({ id: t.id ?? "", title: t.title ?? "" }),
+  trackToQueueTrack: (t: { id?: string; title?: string; artist?: string }) => ({ id: t.id ?? "", title: t.title ?? "", artist: t.artist ?? "" }),
 }));
 
 import PlaylistDetailScreen from "./[id]";
@@ -154,30 +150,44 @@ describe("PlaylistDetailScreen (TV) loaded state", () => {
 // id: /media/<track id> answers 404, so the viewer got an error screen for a
 // song that plays fine everywhere else.
 describe("PlaylistDetailScreen (TV) music items", () => {
-  it("plays a music track in the music player instead of opening the video page", async () => {
-    getTrackMock.mockResolvedValue({ track: { id: "t-9", title: "A song" } });
-    playlistDetailMock.mockReturnValue({
-      data: { id: "pl-1", name: "Mixed", items: [{ media_item_id: "t-9", media_type: "music", sort_order: 0 }] },
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+  const MIXED = {
+    id: "pl-1",
+    name: "Mixed",
+    items: [
+      { media_item_id: "t-1", media_type: "music", title: "First song", artist: "An artist", sort_order: 0 },
+      { media_item_id: "m-1", media_type: "video", title: "A film", sort_order: 1 },
+      { media_item_id: "t-2", media_type: "music", title: "Second song", artist: "Another artist", sort_order: 2 },
+    ],
+  };
+
+  // The playlist's own tracks, from the pressed one on: a music playlist plays
+  // through instead of stopping after one song, and the row's metadata is
+  // enough - no extra request per track.
+  it("plays the playlist's tracks in the music player from the pressed one, never the video page", () => {
+    playlistDetailMock.mockReturnValue({ data: MIXED, isLoading: false, isError: false, refetch: vi.fn() });
     render(<PlaylistDetailScreen />);
 
-    fireEvent.click(screen.getByText("t-9").closest("button")!);
+    fireEvent.click(screen.getByText("Second song").closest("button")!);
 
-    await vi.waitFor(() => expect(setQueueMock).toHaveBeenCalledWith([{ id: "t-9", title: "A song" }], 0));
-    expect(getTrackMock).toHaveBeenCalledWith("t-9");
+    expect(setQueueMock).toHaveBeenCalledWith(
+      [
+        { id: "t-1", title: "First song", artist: "An artist" },
+        { id: "t-2", title: "Second song", artist: "Another artist" },
+      ],
+      1,
+    );
     expect(pushMock).not.toHaveBeenCalled();
   });
 
+  it("names a track's artist on its row", () => {
+    playlistDetailMock.mockReturnValue({ data: MIXED, isLoading: false, isError: false, refetch: vi.fn() });
+    render(<PlaylistDetailScreen />);
+
+    expect(screen.getByText("An artist")).toBeTruthy();
+  });
+
   it("still opens the video page for a video item", () => {
-    playlistDetailMock.mockReturnValue({
-      data: { id: "pl-1", name: "Mixed", items: [{ media_item_id: "m-1", media_type: "video", title: "A film", sort_order: 0 }] },
-      isLoading: false,
-      isError: false,
-      refetch: vi.fn(),
-    });
+    playlistDetailMock.mockReturnValue({ data: MIXED, isLoading: false, isError: false, refetch: vi.fn() });
     render(<PlaylistDetailScreen />);
 
     fireEvent.click(screen.getByText("A film").closest("button")!);
