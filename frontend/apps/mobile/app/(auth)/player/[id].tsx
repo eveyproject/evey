@@ -61,6 +61,7 @@ import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
 import { diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
+import { subscribePlayerStatus } from "@evey/client/native/playerStatus";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
@@ -692,7 +693,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       currentTimeRef.current = ev.currentTime;
       try { setDuration(player.duration); } catch (err) { console.warn("released", err); }
     });
-    const statusSub = player.addListener("statusChange", (ev) => {
+    const statusSub = subscribePlayerStatus(player, (ev) => {
       if (!mountedRef.current) return;
       try { setIsPlaying(player.playing); setDuration(player.duration); } catch (err) { console.warn("released", err); }
       // "loading" while playing = network/segment stall: the web shows a
