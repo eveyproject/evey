@@ -23,6 +23,7 @@ import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
 import { diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
+import { subscribePlayerStatus } from "@evey/client/native/playerStatus";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlaybackSettings } from "../../../src/hooks/usePlaybackSettings";
@@ -463,7 +464,7 @@ export default function PlayerScreen() {
         }
       });
     });
-    const statusSub = player.addListener("statusChange", (ev) => {
+    const statusSub = subscribePlayerStatus(player, (ev) => {
       withPlayer((p) => {
         setIsPlaying(p.playing);
         setDuration(p.duration);
