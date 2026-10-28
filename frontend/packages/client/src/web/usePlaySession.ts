@@ -13,6 +13,7 @@ import { getBrowserCapabilities, canWasmDecodeAC3 } from "./codec";
 import { appendCodecParams, dataSaverStreamInfoParams, prefersNativeHLS, getFmp4AudioPassthrough } from "./hlsCodecParams";
 import { getMaxOutputChannels } from "./outputChannels";
 import { useStreamToken } from "../hooks/useStreamToken";
+import { goneReasonFromError, type ShedReason } from "../lib/shed";
 import { pickedAudioStream } from "../lib/pickedAudioStream";
 
 // postStopStream tears down the server-side play session with a raw keepalive
@@ -78,6 +79,11 @@ export interface PlaySessionResult {
   fetchStreamToken: (mediaId: string, opts?: { cast?: boolean }) => Promise<string>;
   isLoading: boolean;
   isError: boolean;
+  /**
+   * Set when the verdict was refused for a title gone from disk or from the
+   * catalogue: nothing to retry, the player offers the way back.
+   */
+  goneReason: ShedReason;
   progress: V1WatchProgress | null;
   stopSession: () => void;
   /**
@@ -162,7 +168,11 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
   const { data: progress } = usePlaybackServiceGetWatchProgress(mediaId, undefined, {
     query: { retry: false },
   });
-  const { data: rawStreamInfo } = usePlaybackServiceGetStreamInfo(mediaId, streamInfoParams);
+  const { data: rawStreamInfo, error: streamInfoError } = usePlaybackServiceGetStreamInfo(mediaId, streamInfoParams, {
+    // A gone title answers the same 404 on every retry.
+    query: { retry: (count, err) => goneReasonFromError(err) === null && count < 3 },
+  });
+  const goneReason = streamInfoError ? goneReasonFromError(streamInfoError) : null;
 
   // The verdict asked again for a track picked during playback, keyed to its
   // title so a next episode starts from its own first verdict.
@@ -297,8 +307,9 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice = WEB_
     sessionId,
     streamToken,
     fetchStreamToken,
-    isLoading: starting || (!rawStreamInfo && !startError),
-    isError: startError,
+    isLoading: starting || (!rawStreamInfo && !startError && !streamInfoError),
+    isError: startError || (!!streamInfoError && !rawStreamInfo && goneReason === null),
+    goneReason,
     progress: progress ?? null,
     stopSession,
     selectAudioStream,

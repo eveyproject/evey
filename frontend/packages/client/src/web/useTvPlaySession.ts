@@ -13,7 +13,7 @@ import { currentDataSaverLimits, tighterCeiling } from "@evey/store";
 import { appendCodecParams, dataSaverStreamInfoParams } from "./hlsCodecParams";
 import { getMaxOutputChannels } from "./outputChannels";
 import type { PlaySessionDevice } from "./usePlaySession";
-import { isShedCode, type ShedReason } from "../lib/shed";
+import { goneReasonFromError, isShedCode, type ShedReason } from "../lib/shed";
 
 // The television-browser play session: the same shape as the Android TV
 // one (apps/tv/src/hooks/usePlaySession.ts) so the player screen can be
@@ -199,8 +199,14 @@ export function useTvPlaySession(mediaId: string, device: PlaySessionDevice, ini
           setSessionId(session.id);
         }
       }
-    } catch {
-      setIsError(true);
+    } catch (err) {
+      // A title gone from disk or from the catalogue is a reason, not an error.
+      const gone = goneReasonFromError(err);
+      if (gone) {
+        if (!stoppedRef.current) setShedReason(gone);
+      } else {
+        setIsError(true);
+      }
     } finally {
       setIsLoading(false);
     }

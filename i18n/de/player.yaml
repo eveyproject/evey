@@ -118,6 +118,9 @@ shed:
   fileMissing:
     title: "Diese Datei wurde gelöscht"
     body: "Diese Datei ist nicht mehr auf dem Server und kann daher nicht abgespielt werden. Die Listen werden aktualisiert."
+  mediaUnavailable:
+    title: "Dieser Titel ist nicht mehr verfügbar"
+    body: "Er ist nicht mehr in der Mediathek und kann daher nicht abgespielt werden. Die Listen werden aktualisiert."
 retry: Erneut versuchen
 goBack: Zurück
 shareDesc: "Teilen Sie diesen Link mit Freunden, um zusammen zu schauen:"

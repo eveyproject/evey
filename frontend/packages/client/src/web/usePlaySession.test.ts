@@ -15,7 +15,7 @@ vi.mock("@evey/api", () => ({
   getBaseURL: () => "",
   getCredentialsMode: () => "include",
   usePlaybackServiceGetWatchProgress: () => ({ data: undefined }),
-  usePlaybackServiceGetStreamInfo: (...a: [string, unknown]) => getStreamInfoFn(...a),
+  usePlaybackServiceGetStreamInfo: (id: string, params: unknown) => getStreamInfoFn(id, params),
   playbackServiceGetStreamInfo: (...a: [string, unknown]) => askStreamInfoFn(...a),
   playbackServiceStartStream: startStreamFn,
 }));
@@ -239,5 +239,38 @@ describe("usePlaySession", () => {
     });
     expect(result!.current.streamToken).toBe("stream-tok-abc");
     expect(typeof result!.current.fetchStreamToken).toBe("function");
+  });
+
+  // A refused verdict used to leave the spinner up for 30 s and then offer a
+  // Retry that cannot help: the query error was never read.
+  it("reads a refused verdict for a gone title as its reason, without spinning", async () => {
+    getStreamInfoFn.mockImplementation(() => ({
+      data: undefined,
+      error: Object.assign(new Error("not found"), { httpStatus: 404 }),
+    }) as never);
+    const usePlaySession = await loadHook("");
+    let hook!: ReturnType<typeof renderHook<ReturnType<typeof usePlaySession>, unknown>>;
+    await act(async () => {
+      hook = renderHook(() => usePlaySession("media-gone"));
+    });
+    expect(hook.result.current.goneReason).toBe("media_unavailable");
+    expect(hook.result.current.isLoading).toBe(false);
+    expect(hook.result.current.isError).toBe(false);
+    expect(startStreamFn).not.toHaveBeenCalled();
+  });
+
+  it("reads any other refused verdict as an error, without spinning", async () => {
+    getStreamInfoFn.mockImplementation(() => ({
+      data: undefined,
+      error: Object.assign(new Error("boom"), { httpStatus: 500 }),
+    }) as never);
+    const usePlaySession = await loadHook("");
+    let hook!: ReturnType<typeof renderHook<ReturnType<typeof usePlaySession>, unknown>>;
+    await act(async () => {
+      hook = renderHook(() => usePlaySession("media-err"));
+    });
+    expect(hook.result.current.goneReason).toBeNull();
+    expect(hook.result.current.isLoading).toBe(false);
+    expect(hook.result.current.isError).toBe(true);
   });
 });

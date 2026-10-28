@@ -8,9 +8,12 @@
 //   it from the media-health page.
 // - file_missing: the title's file is gone from disk (GetStreamInfo's
 //   MEDIA_FILE_MISSING refusal, not a 503): nothing to retry.
+// - media_unavailable: GetStreamInfo answered a plain 404, the title is no
+//   longer in the catalogue (pruned while a list still showed it). Plain on
+//   purpose: a parental block answers the same 404, so the copy stays neutral.
 // Never surface the server's `message` (English, technical): the player picks
 // its copy from the code.
-export const SHED_CODES = ["too_many_streams", "file_not_ready", "calibrating", "file_needs_remux", "file_missing"] as const;
+export const SHED_CODES = ["too_many_streams", "file_not_ready", "calibrating", "file_needs_remux", "file_missing", "media_unavailable"] as const;
 export type ShedCode = (typeof SHED_CODES)[number];
 export type ShedReason = ShedCode | null;
 
@@ -24,7 +27,24 @@ const SHED_I18N_GROUP: Record<ShedCode, string> = {
   calibrating: "calibrating",
   file_needs_remux: "fileNeedsRemux",
   file_missing: "fileMissing",
+  media_unavailable: "mediaUnavailable",
 };
+
+// goneReasonFromError reads a refused playback start the shared fetcher threw:
+// MEDIA_FILE_MISSING is a deleted file, any other 404 a title out of the
+// catalogue (or not this profile's to play: the same 404 on purpose).
+export function goneReasonFromError(err: unknown): ShedCode | null {
+  const e = err as { httpStatus?: number; errorCode?: string } | null | undefined;
+  if (e?.errorCode === "media_file_missing") return "file_missing";
+  if (e?.httpStatus === 404) return "media_unavailable";
+  return null;
+}
+
+// isTitleGone: no retry brings the title back. The player offers the next
+// episode or the way back, and refreshes the lists that still show it.
+export function isTitleGone(reason: ShedReason | undefined): boolean {
+  return reason === "file_missing" || reason === "media_unavailable";
+}
 
 export function shedI18nKey(reason: ShedCode, part: "title" | "body"): string {
   return `player.shed.${SHED_I18N_GROUP[reason]}.${part}`;
