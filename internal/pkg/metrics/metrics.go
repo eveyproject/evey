@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -491,6 +492,17 @@ func (r *statusRecorder) Flush() {
 	if f, ok := r.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
+}
+
+// ReadFrom keeps the sendfile path: net/http's response writer implements
+// io.ReaderFrom, and http.ServeContent / io.Copy only reach it through a
+// wrapper that forwards it. Without this every file served behind
+// InstrumentHandler went through a userspace copy buffer.
+func (r *statusRecorder) ReadFrom(src io.Reader) (int64, error) {
+	if rf, ok := r.ResponseWriter.(io.ReaderFrom); ok {
+		return rf.ReadFrom(src)
+	}
+	return io.Copy(struct{ io.Writer }{r.ResponseWriter}, src)
 }
 
 // Unwrap lets http.ResponseController reach the real writer through this

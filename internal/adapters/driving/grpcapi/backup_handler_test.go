@@ -1,13 +1,23 @@
 package grpcapi
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	appbackup "github.com/eveyproject/evey/internal/app/backup"
+	domainbackup "github.com/eveyproject/evey/internal/domain/backup"
 	backupfakes "github.com/eveyproject/evey/internal/domain/backup/fakes"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func newTestBackupHandler() *backupHandler {
@@ -101,4 +111,63 @@ func TestBackupCreateBackup_DumperError(t *testing.T) {
 	if err == nil {
 		t.Error("expected error when dumper fails")
 	}
+}
+
+// A backup asked while a restore runs is Aborted (409 through the gateway),
+// not Internal: nothing failed, the database is busy.
+func TestBackupCreateBackup_WhileARestoreRuns(t *testing.T) {
+	store := backupfakes.NewFakeBackupStore()
+	dumper := backupfakes.NewFakeDatabaseDumper()
+	svc := appbackup.NewService(store, dumper, "test")
+	h := &backupHandler{svc: svc}
+	ctx := context.Background()
+
+	archive := bytes.NewReader(validBackupArchive(t))
+	dumper.RestoreStarted = make(chan struct{})
+	dumper.RestoreRelease = make(chan struct{})
+	done := make(chan error, 1)
+	go func() { done <- svc.RestoreBackup(ctx, archive) }()
+	select {
+	case <-dumper.RestoreStarted:
+	case err := <-done:
+		t.Fatalf("the restore ended before reaching the database: %v", err)
+	}
+
+	_, err := h.CreateBackup(ctx, &eveyv1.CreateBackupRequest{})
+	close(dumper.RestoreRelease)
+	if code := status.Code(err); code != codes.Aborted {
+		t.Fatalf("CreateBackup during a restore: %v, want Aborted", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("the running restore: %v", err)
+	}
+}
+
+// validBackupArchive is the smallest archive RestoreBackup accepts: a
+// manifest whose checksum matches the fake dump.
+func validBackupArchive(t *testing.T) []byte {
+	t.Helper()
+	dump := []byte("-- fake dump\n")
+	sum := sha256.Sum256(dump)
+	manifest, err := json.Marshal(&domainbackup.BackupManifest{
+		ID: "bk-test", CreatedAt: time.Now().UTC(), Version: "1.0.0",
+		Tables: appbackup.BackupTables, DumpSHA256: hex.EncodeToString(sum[:]),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	gw := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gw)
+	for name, data := range map[string][]byte{"manifest.json": manifest, "dump.sql": dump} {
+		if err := tw.WriteHeader(&tar.Header{Name: name, Size: int64(len(data)), Mode: 0o640}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write(data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = tw.Close()
+	_ = gw.Close()
+	return buf.Bytes()
 }

@@ -144,19 +144,14 @@ func (s *UserService) VerifyPIN(plain, hash string) (bool, error) {
 // VerifyProfilePIN checks plain against profileID's PIN hash under the shared
 // wrong-PIN lockout: ErrPINLocked without comparing while locked.
 func (s *UserService) VerifyProfilePIN(ctx context.Context, profileID, plain, hash string) (bool, error) {
-	if s.pinAttempts.Locked(ctx, profileID) {
-		return false, ErrPINLocked
-	}
-	ok, err := s.hasher.Verify(plain, hash)
-	if err != nil {
-		return false, err
-	}
-	if ok {
-		s.pinAttempts.Succeeded(ctx, profileID)
-	} else {
-		s.pinAttempts.Failed(ctx, profileID)
-	}
-	return ok, nil
+	hit, err := s.pinAttempts.Attempt(ctx, []string{profileID}, plain, func() (string, error) {
+		ok, err := s.hasher.Verify(plain, hash)
+		if err != nil || !ok {
+			return "", err
+		}
+		return profileID, nil
+	})
+	return hit != "", err
 }
 
 func (s *UserService) resolveDefaultLocale() string {

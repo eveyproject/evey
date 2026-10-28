@@ -85,3 +85,33 @@ func TestScheduleUnlock_WrongPINsLockTheProfile(t *testing.T) {
 		t.Fatalf("expected 429 once locked, got %d", w.Code)
 	}
 }
+
+// Unlocking an already-open profile is a no-op: it must not clear the wrong-PIN
+// counter, or one call between rounds hands a guesser a fresh budget forever.
+func TestScheduleUnlock_OnAnOpenProfileDoesNotResetTheLockout(t *testing.T) {
+	mux, tok, _ := closedKidsFixture(t)
+	parent := tok(domainuser.Claims{UserID: "u1", ProfileID: "parent"})
+	for range 4 {
+		_ = verifyPINCode(mux, parent, "parent", "0000")
+	}
+	if w := do(mux, http.MethodPost, "/api/v1/profiles/parent/schedule/unlock", parent, `{"pin":""}`, nil); w.Code != http.StatusOK {
+		t.Fatalf("unlock on an open profile: %d, want 200", w.Code)
+	}
+	_ = verifyPINCode(mux, parent, "parent", "0000")
+	if code := verifyPINCode(mux, parent, "parent", "1234"); code != http.StatusTooManyRequests {
+		t.Fatalf("after 5 wrong PINs: %d, want 429 (the open-profile unlock cleared the counter)", code)
+	}
+}
+
+// Wrong unlock PINs are guesses at the parent's PIN: they lock the parent
+// profile, so they cannot be spread across routes to multiply the budget.
+func TestScheduleUnlock_WrongPINsCountOnTheParentProfile(t *testing.T) {
+	mux, tok, _ := closedKidsFixture(t)
+	kid := tok(domainuser.Claims{UserID: "u1", ProfileID: "kid"})
+	for range 5 {
+		_ = do(mux, http.MethodPost, "/api/v1/profiles/kid/schedule/unlock", kid, `{"pin":"9999"}`, nil)
+	}
+	if code := verifyPINCode(mux, kid, "parent", "1234"); code != http.StatusTooManyRequests {
+		t.Fatalf("parent PIN after 5 wrong unlocks: %d, want 429", code)
+	}
+}

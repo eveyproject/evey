@@ -27,6 +27,10 @@ var ErrAudioPastEndOfStream = errors.New("audio: segment past the end of the sou
 // expires (audioSpawnStrikeTTL) so a transient cause self-heals.
 var ErrAudioSessionBroken = errors.New("audio: repeated dead sessions for this segment")
 
+// ErrAudioSessionsBusy: the rendition is at its per-hash cap with a session
+// still in its stop grace; the client retries once it is reaped (503).
+var ErrAudioSessionsBusy = errors.New("audio: rendition at its session cap, one still stopping")
+
 // AudioSegmentOrchestrator manages audio-only ffmpeg sessions for HLS EXT-X-MEDIA
 // renditions. Sessions are keyed by (AudioFingerprint.Hash(), start segment):
 // a seek spawns ffmpeg AT the requested position instead of waiting for a
@@ -397,8 +401,10 @@ func (o *AudioSegmentOrchestrator) ensureSessionForInit(fp AudioFingerprint, aud
 	defer o.mu.Unlock()
 
 	o.touchLocked(audioHash, startSeg)
-	if len(o.byHash[audioHash]) > 0 {
-		return nil
+	for _, sess := range o.byHash[audioHash] {
+		if !sess.stopped { // a stopping session publishes no init any more
+			return nil
+		}
 	}
 	return o.spawnSessionLocked(fp, audioHash, startSeg, 0)
 }
@@ -422,7 +428,9 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 		delete(o.strikes, key) // cooled down - allow a fresh attempt
 	}
 
-	o.evictOldestLocked(audioHash)
+	if err := o.makeRoomLocked(audioHash); err != nil {
+		return err
+	}
 
 	outputDir, err := o.cache.DirFor(audioHash)
 	if err != nil {
@@ -573,7 +581,9 @@ func (o *AudioSegmentOrchestrator) spawnSessionLocked(fp AudioFingerprint, audio
 // Caller holds o.mu.
 func (o *AudioSegmentOrchestrator) coveringSessionLocked(audioHash string, segIdx int) bool {
 	for _, sess := range o.byHash[audioHash] {
-		if sess.startSeg > segIdx {
+		// A session being stopped stays listed until its reap but produces
+		// nothing more: waiting on it is waiting for a timeout.
+		if sess.stopped || sess.startSeg > segIdx {
 			continue
 		}
 		if segIdx-sess.startSeg <= audioSessionLookahead {
@@ -583,15 +593,20 @@ func (o *AudioSegmentOrchestrator) coveringSessionLocked(audioHash string, segId
 	return false
 }
 
-// evictOldestLocked stops the oldest session for this hash once the per-hash cap
-// is reached, so repeated scrubbing can't pile up ffmpeg processes. Caller holds
-// o.mu; the reap goroutine removes the map entry when the process exits.
-func (o *AudioSegmentOrchestrator) evictOldestLocked(audioHash string) {
+// makeRoomLocked keeps the processes of one rendition under the per-hash cap,
+// sessions still stopping included: Stop waits out a grace period, and
+// repeated scrubbing used to pile up stopping ffmpegs beside a full set of
+// live ones. At the cap it stops the oldest live session to make room, so at
+// most one process sits in its stop grace beyond the cap; while one does, a
+// further spawn is refused (ErrAudioSessionsBusy, retried by the client).
+// Caller holds o.mu; the reap goroutine removes the map entry when the
+// process exits.
+func (o *AudioSegmentOrchestrator) makeRoomLocked(audioHash string) error {
 	var oldest *audioSession
-	live := 0
+	live, stopping := 0, 0
 	for _, sess := range o.byHash[audioHash] {
-		// Already being stopped, listed only until its reap: neither live nor a victim.
 		if sess.stopped {
+			stopping++
 			continue
 		}
 		live++
@@ -599,8 +614,14 @@ func (o *AudioSegmentOrchestrator) evictOldestLocked(audioHash string) {
 			oldest = sess
 		}
 	}
-	if live < maxAudioSessionsPerHash || oldest == nil || oldest.handle == nil {
-		return
+	if live+stopping < maxAudioSessionsPerHash {
+		return nil
+	}
+	if stopping > 0 {
+		return fmt.Errorf("%w (%d live, %d stopping)", ErrAudioSessionsBusy, live, stopping)
+	}
+	if oldest == nil || oldest.handle == nil {
+		return nil
 	}
 	o.logger.Debug("audio_orchestrator: evicting oldest session (per-hash cap)",
 		slog.String("hash", audioHash),
@@ -611,6 +632,7 @@ func (o *AudioSegmentOrchestrator) evictOldestLocked(audioHash string) {
 	// Stop waits out the exit grace period; off o.mu so other requests don't
 	// queue behind it. The reap goroutine cleans up once Done() fires.
 	go func(h transcoding.HLSProcessHandle) { _ = h.Stop() }(oldest.handle) //nolint:errcheck // the reap goroutine handles the exit
+	return nil
 }
 
 // ActiveCount returns the number of live audio ffmpeg sessions. Useful for

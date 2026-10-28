@@ -42,6 +42,20 @@ type ServiceClient interface {
 
 type SearchAdapter struct {
 	index IndexClient
+	// submitOnly returns once the engine accepted a write, without waiting
+	// for its task: see SubmitOnly.
+	submitOnly bool
+}
+
+// SubmitOnly returns an adapter on the same index whose writes return once
+// the engine has accepted them, without waiting for the task to run (up to
+// taskWaitTimeout). It is for the request and scan paths, which pair it with
+// the durable outbox: the drain replays every write there with the waiting
+// adapter, so a task that fails later is still caught.
+func (a *SearchAdapter) SubmitOnly() *SearchAdapter {
+	c := *a
+	c.submitOnly = true
+	return &c
 }
 
 func NewSearchAdapter(url, apiKey string) (*SearchAdapter, error) {
@@ -351,6 +365,9 @@ type taskWaiter interface {
 // awaitTask waits for the task to finish: an enqueued task only means the
 // payload was received, and one failed document fails the whole batch.
 func (a *SearchAdapter) awaitTask(ctx context.Context, info *ms.TaskInfo) error {
+	if a.submitOnly {
+		return nil
+	}
 	w, ok := a.index.(taskWaiter)
 	if !ok || info == nil {
 		return nil // only the in-memory test fakes cannot wait; the real client always can

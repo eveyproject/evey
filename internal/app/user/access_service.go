@@ -365,9 +365,8 @@ func (s *AccessService) ReplaceLibraryAccess(ctx context.Context, userID string,
 			ids = append(ids, shared.LibraryID(id))
 		}
 	}
-	if len(ids) == 0 && len(libraryIDs) > 0 {
-		return nil // only the sentinel echoed back: stay restricted to nothing
-	}
+	// An empty set (or the sentinel alone, echoed back) confines the user to
+	// no library; RevokeAllLibraryAccess is the explicit "every library".
 	return s.libraryAccess.ReplaceAccess(ctx, shared.UserID(userID), ids)
 }
 
