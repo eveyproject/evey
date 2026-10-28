@@ -177,7 +177,7 @@ namespace in `bubblewrap` and `strict`). A plugin with the `network`
 permission calls the host's `Fetch` method over its Unix socket. The host, in
 `internal/adapters/driving/pluginhost/fetch.go`:
 
-- checks the target against the plugin's `external_fetch` list (exact hosts, case-insensitive; a `*.example.com` wildcard is refused at install; a port suffix is ignored);
+- checks the target against the plugin's `external_fetch` list (exact hosts, case-insensitive; a `*.example.com` wildcard is refused at install; an entry without a port allows ports 80 and 443 only, `host:port` allows that port only);
 - allows only `http` and `https`, and only `GET` and `HEAD`;
 - connects through an SSRF-safe client (`internal/pkg/ssrf`) that refuses
   private, reserved and link-local addresses after DNS resolution, so DNS
