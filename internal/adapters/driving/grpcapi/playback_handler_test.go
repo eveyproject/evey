@@ -1831,8 +1831,8 @@ func TestGetStreamInfo_LogsTheCapabilitiesAndTheDecision(t *testing.T) {
 	ctx := pbAdminCtx()
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-log", Title: "Film", Type: "movie", File: &library.MediaFile{ContainerFormat: "mp4"}})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
-		{MediaItemID: "mi-log", StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
-		{MediaItemID: "mi-log", StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+		{MediaItemID: "mi-log", StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{MediaItemID: "mi-log", StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
 	})
 	_, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
 		MediaItemId: "mi-log", SupportedCodecs: []string{"h264", "hevc"}, SupportedAudioCodecs: []string{"aac"},
@@ -1842,7 +1842,7 @@ func TestGetStreamInfo_LogsTheCapabilitiesAndTheDecision(t *testing.T) {
 	require.NoError(t, err)
 
 	var line map[string]any
-	for _, raw := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+	for raw := range bytes.SplitSeq(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
 		var l map[string]any
 		if json.Unmarshal(raw, &l) == nil && l["msg"] == "playback decision" {
 			line = l
@@ -1871,7 +1871,7 @@ func TestGetStreamInfo_FileGoneFromDisk(t *testing.T) {
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-gone", LibraryID: "lib-1", Title: "Gone", Type: "episode", File: &library.MediaFile{Path: filepath.Join(t.TempDir(), "deleted.mkv"), ContainerFormat: "mkv"}})
 	mediaQuery.Seed(&library.MediaItem{ID: "mi-here", LibraryID: "lib-1", Title: "Here", Type: "movie", File: &library.MediaFile{Path: present, ContainerFormat: "mkv"}})
 	for _, id := range []string{"mi-gone", "mi-here"} {
-		streamRepo.CreateBatch(context.Background(), []*library.MediaStream{{MediaItemID: shared.MediaItemID(id), StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true}})
+		streamRepo.CreateBatch(context.Background(), []*library.MediaStream{{MediaItemID: shared.MediaItemID(id), StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true}})
 	}
 	rescanned := make(chan string, 2)
 	h.rescanLibrary = func(_ context.Context, libraryID string) { rescanned <- libraryID }
