@@ -78,15 +78,13 @@ func TestPINAttempts_ConcurrentGuessesStopAtTheLimit(t *testing.T) {
 	var compared atomic.Int32
 	var wg sync.WaitGroup
 	for range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, _ = a.Attempt(ctx, []string{"p1"}, "0000", func() (string, error) {
 				compared.Add(1)
 				time.Sleep(2 * time.Millisecond) // a hash compare takes time
 				return "", nil
 			})
-		}()
+		})
 	}
 	wg.Wait()
 	if n := compared.Load(); n != 5 {

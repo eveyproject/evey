@@ -124,7 +124,7 @@ func TestSoftwareProducer_ClaimantContextErrorIsNotTheWaitersOutcome(t *testing.
 	time.Sleep(10 * time.Millisecond) // the waiter parks on the claim
 	cancelClaimant()
 
-	assert.ErrorIs(t, <-claimantErr, context.Canceled)
+	require.ErrorIs(t, <-claimantErr, context.Canceled)
 	require.NoError(t, <-waiterErr, "the waiter's context is alive: it must not inherit the claimant's cancellation")
 	assert.Equal(t, 1, p.ActiveSessionCount())
 }

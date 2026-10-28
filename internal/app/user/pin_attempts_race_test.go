@@ -34,11 +34,9 @@ func TestVerifyProfilePIN_ConcurrentBurstStopsAtTheLockout(t *testing.T) {
 	svc := NewUserService(nil, nil, nil, h, sharedfakes.NewFakeEventBus(), nil, WithPINAttempts(NewPINAttempts(nil)))
 	var wg sync.WaitGroup
 	for range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, _ = svc.VerifyProfilePIN(context.Background(), "p-burst", "0000", "hashed:1357")
-		}()
+		})
 	}
 	wg.Wait()
 	if h.calls != 5 {

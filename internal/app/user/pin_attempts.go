@@ -177,11 +177,11 @@ func (a *PINAttempts) lockKeys(keys []string) func() {
 		held = append(held, l)
 	}
 	return func() {
-		for i := len(held) - 1; i >= 0; i-- {
-			held[i].mu.Unlock()
+		for i, l := range slices.Backward(held) {
+			l.mu.Unlock()
 			a.keyMu.Lock()
-			held[i].refs--
-			if held[i].refs == 0 {
+			l.refs--
+			if l.refs == 0 {
 				delete(a.keyLocks, sorted[i])
 			}
 			a.keyMu.Unlock()
