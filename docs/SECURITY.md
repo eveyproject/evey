@@ -218,6 +218,7 @@ Refused system calls:
 |---|---|
 | Debugging | `ptrace`, `process_vm_readv`, `process_vm_writev` |
 | Signals | `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo` towards any process but the plugin itself (both filters); `kill` likewise in the kernel filter, towards any target in the `LD_PRELOAD` filter; `tkill` in the kernel filter (the `LD_PRELOAD` filter allows it towards the plugin itself); `pidfd_send_signal`, `pidfd_getfd` (steals a file descriptor). A runtime re-raising a signal or preempting its own threads keeps working. On Landlock ABI 6+, a plugin also cannot signal a process outside its sandbox |
+| Signal owner of a file descriptor (kernel filter) | `fcntl` `F_SETOWN` towards any process but the plugin itself, `F_SETSIG` to any signal but the default `SIGIO`, `F_SETOWN_EX`, and `ioctl` `FIOSETOWN`/`SIOCSPGRP`: without this, an fd owned by the server with `SIGKILL` as its signal would kill the server on the next write |
 | Mounts | `mount`, `umount2`, `pivot_root`, `chroot` |
 | Namespaces | `unshare`, `setns`, and `clone` carrying a `CLONE_NEW*` flag (unshare by another name), for every plugin |
 | Kernel modules | `init_module`, `finit_module`, `delete_module` |
