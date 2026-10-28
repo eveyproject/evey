@@ -499,6 +499,13 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "summary",
+            "description": "Trim each item to what a card shows (see summarizeMediaItems): one\nartwork per type, the video stream and the audio/subtitle languages; no\ntrailers, certifications, studios, external ratings or ids, and no cast\nunless person_id is set. A grid page weighed ~8 KB per item without it.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -740,6 +747,13 @@
             "in": "query",
             "required": false,
             "type": "string"
+          },
+          {
+            "name": "summary",
+            "description": "Same trim as ListMediaItemsRequest.summary.",
+            "in": "query",
+            "required": false,
+            "type": "boolean"
           }
         ],
         "tags": [
@@ -963,6 +977,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "realtimeMonitoring": {
+          "type": "boolean",
+          "description": "Absent leaves the setting as it is."
         }
       }
     },

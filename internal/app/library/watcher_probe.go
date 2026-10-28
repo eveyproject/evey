@@ -109,6 +109,14 @@ func (p *probeState) setHealth(libID string, healthy bool) {
 	p.unhealthy[libID] = true
 }
 
+// forget drops a library's verdict when its watch is removed: the next probe
+// round judges the watch that replaces it, as it does at boot.
+func (p *probeState) forget(libID string) {
+	p.mu.Lock()
+	delete(p.unhealthy, libID)
+	p.mu.Unlock()
+}
+
 // UnhealthyLibraries returns the IDs whose watch failed its last probe. The
 // scan loop uses it to decide which libraries still need frequent walking.
 func (p *probeState) UnhealthyLibraries() map[string]bool {
