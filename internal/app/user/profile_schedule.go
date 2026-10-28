@@ -38,6 +38,9 @@ type ProfileSchedules struct {
 	hasher   user.PasswordHasher
 	clock    Clock
 	now      func() time.Time
+	// pins is the wrong-PIN lockout shared with the parental routes: unlock
+	// guesses count on the adult profiles whose PIN they test.
+	pins *PINAttempts
 
 	mu    sync.Mutex
 	cache map[shared.ProfileID]cachedProfile
@@ -49,7 +52,13 @@ type cachedProfile struct {
 }
 
 func NewProfileSchedules(profiles user.ProfileRepository, hasher user.PasswordHasher, clock Clock) *ProfileSchedules {
-	return &ProfileSchedules{profiles: profiles, hasher: hasher, clock: clock, now: time.Now, cache: map[shared.ProfileID]cachedProfile{}}
+	return &ProfileSchedules{profiles: profiles, hasher: hasher, clock: clock, now: time.Now, pins: SharedPINAttempts(), cache: map[shared.ProfileID]cachedProfile{}}
+}
+
+// WithPINAttempts swaps the wrong-PIN lockout (tests).
+func (s *ProfileSchedules) WithPINAttempts(a *PINAttempts) *ProfileSchedules {
+	s.pins = a
+	return s
 }
 
 // WithNow pins the clock (tests).
@@ -134,7 +143,10 @@ func (s *ProfileSchedules) SetSchedule(ctx context.Context, p *user.Profile, sch
 // Unlock opens a closed kids profile until its next opening, with the PIN of
 // an ADULT profile of the same account - the child's own PIN, if it has one,
 // does not count. Returns when the override ends; a profile already open is
-// left as it is (zero time).
+// left as it is (zero time) without comparing the PIN or touching any
+// counter. A wrong PIN counts as a failure on every adult profile it was
+// tested against, the same counters their own PIN dialogs use; ErrPINLocked
+// while any of them sits out a lockout.
 func (s *ProfileSchedules) Unlock(ctx context.Context, p *user.Profile, pin string) (time.Time, error) {
 	now := s.now()
 	loc := s.clock.Location()
@@ -145,27 +157,40 @@ func (s *ProfileSchedules) Unlock(ctx context.Context, p *user.Profile, pin stri
 	if err != nil {
 		return time.Time{}, err
 	}
-	anyPIN := false
+	var adults []*user.Profile
+	var keys []string
 	for _, sib := range siblings {
 		if sib.IsKids || !sib.HasPIN() {
 			continue
 		}
-		anyPIN = true
-		ok, err := s.hasher.Verify(pin, sib.Parental.PINHash)
-		if err != nil {
-			return time.Time{}, err
-		}
-		if ok {
-			until := p.OverrideUntil(now, loc)
-			if err := s.profiles.SetScheduleOverride(ctx, p.ID, &until); err != nil {
-				return time.Time{}, err
-			}
-			s.Invalidate(p.ID)
-			return until, nil
-		}
+		adults = append(adults, sib)
+		keys = append(keys, string(sib.ID))
 	}
-	if !anyPIN {
+	if len(adults) == 0 {
 		return time.Time{}, ErrNoParentPIN
 	}
-	return time.Time{}, ErrWrongParentPIN
+	hit, err := s.pins.Attempt(ctx, keys, pin, func() (string, error) {
+		for _, sib := range adults {
+			ok, err := s.hasher.Verify(pin, sib.Parental.PINHash)
+			if err != nil {
+				return "", err
+			}
+			if ok {
+				return string(sib.ID), nil
+			}
+		}
+		return "", nil
+	})
+	if err != nil {
+		return time.Time{}, err
+	}
+	if hit == "" {
+		return time.Time{}, ErrWrongParentPIN
+	}
+	until := p.OverrideUntil(now, loc)
+	if err := s.profiles.SetScheduleOverride(ctx, p.ID, &until); err != nil {
+		return time.Time{}, err
+	}
+	s.Invalidate(p.ID)
+	return until, nil
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -634,34 +635,41 @@ func (h *parentalHandler) requireCurrentPIN(w http.ResponseWriter, r *http.Reque
 		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 		return false
 	}
-	if !h.pinNotLocked(w, r, span, "verify_current_pin", profileID) {
+	valid, err := h.checkPIN(r, profileID, body.CurrentPIN, profile.Parental.PINHash)
+	if errors.Is(err, appuser.ErrPINLocked) {
+		h.writePINLocked(w, r, span, "verify_current_pin", profileID)
 		return false
 	}
-	valid, err := h.hasher.Verify(body.CurrentPIN, profile.Parental.PINHash)
 	if err != nil || !valid {
 		if err != nil {
 			span.RecordError(err)
-		} else if body.CurrentPIN != "" { // a missing PIN is not a guess
-			h.pinAttempts.Failed(r.Context(), profileID)
 		}
 		span.SetStatus(codes.Error, "invalid current PIN")
 		http.Error(w, `{"message":"errors.auth.invalid_pin"}`, http.StatusForbidden)
 		return false
 	}
-	h.pinAttempts.Succeeded(r.Context(), profileID)
 	return true
 }
 
-// pinNotLocked refuses a PIN check while the profile sits out a wrong-PIN
-// lockout (shared with the gRPC routes).
-func (h *parentalHandler) pinNotLocked(w http.ResponseWriter, r *http.Request, span trace.Span, op, profileID string) bool {
-	if !h.pinAttempts.Locked(r.Context(), profileID) {
-		return true
-	}
+// checkPIN compares pin with profileID's hash under the wrong-PIN lockout
+// shared with the gRPC routes, as one step: ErrPINLocked without comparing
+// while locked out.
+func (h *parentalHandler) checkPIN(r *http.Request, profileID, pin, hash string) (bool, error) {
+	hit, err := h.pinAttempts.Attempt(r.Context(), []string{profileID}, pin, func() (string, error) {
+		ok, err := h.hasher.Verify(pin, hash)
+		if err != nil || !ok {
+			return "", err
+		}
+		return profileID, nil
+	})
+	return hit != "", err
+}
+
+// writePINLocked answers a PIN check refused by the wrong-PIN lockout.
+func (h *parentalHandler) writePINLocked(w http.ResponseWriter, r *http.Request, span trace.Span, op, profileID string) {
 	span.SetStatus(codes.Error, "PIN locked out")
 	recordParentalPINThrottle(r, op, profileID)
 	http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
-	return false
 }
 
 // requireAccountPassword gates a first-time PIN set behind proof of the
@@ -834,10 +842,11 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		h.writePINResult(w, profileID, true)
 		return
 	}
-	if !h.pinNotLocked(w, r, span, "switch_profile_pin", profileID) {
+	valid, err := h.checkPIN(r, profileID, body.PIN, profile.Parental.PINHash)
+	if errors.Is(err, appuser.ErrPINLocked) {
+		h.writePINLocked(w, r, span, "switch_profile_pin", profileID)
 		return
 	}
-	valid, err := h.hasher.Verify(body.PIN, profile.Parental.PINHash)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "verify failed")
@@ -845,12 +854,45 @@ func (h *parentalHandler) verifyPIN(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"internal error"}`, http.StatusInternalServerError)
 		return
 	}
-	if valid {
-		h.pinAttempts.Succeeded(r.Context(), profileID)
-	} else if body.PIN != "" {
-		h.pinAttempts.Failed(r.Context(), profileID)
-	}
 	h.writePINResult(w, profileID, valid)
+}
+
+// resetLockout clears a profile's wrong-PIN lockout. A child can lock a
+// parent profile out for a day by guessing, and again once it ends, so the
+// lockout must not be the last word: an admin clears it, or the account owner
+// with the account password. Never from a kids profile.
+func (h *parentalHandler) resetLockout(w http.ResponseWriter, r *http.Request) {
+	ctx, span := tracing.StartSpan(r.Context(), "http.parental.ResetLockout")
+	defer span.End()
+	r = r.WithContext(ctx)
+	claims := HTTPClaimsFromContext(r.Context())
+	profileID := r.PathValue("id")
+	var body parentalUpdateBody
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<10)
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
+		return
+	}
+	profile, ok := h.loadOwnedProfileForUpdate(w, r, span, claims, profileID)
+	if !ok {
+		return
+	}
+	if _, ok := h.callerOffKids(w, r, span, claims, profile); !ok {
+		return
+	}
+	if !claims.IsAdmin {
+		if h.userRepo == nil {
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+			return
+		}
+		if !h.requireAccountPassword(w, r, span, profile, body, profileID) {
+			return
+		}
+	}
+	h.pinAttempts.Reset(r.Context(), profileID)
+	slog.InfoContext(r.Context(), "parental PIN lockout cleared",
+		slog.String("profile_id", profileID), slog.Bool("by_admin", claims.IsAdmin))
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // writePINResult encodes {valid, pinToken?}. On success it mints a short-lived
@@ -892,6 +934,7 @@ func registerParentalRoutes(
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
 	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))
 	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/verify-pin", authMw(h.verifyPIN))
+	mux.HandleFunc("POST /api/v1/profiles/{id}/parental/reset-lockout", authMw(h.resetLockout))
 	return h
 }
 
