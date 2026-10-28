@@ -84,6 +84,13 @@ What the child then sees:
       PIN of the profile in use.
     - Profiles and parental settings can only be managed from a profile that
       is not a kids profile.
+    - Wrong PINs lock the profile for a while, longer each time the guessing
+      goes on. A Parent PIN typed on a kids lock screen counts against the
+      adult profiles it was tried on. To lift a lockout early, an
+      administrator, or the account owner with the account password, calls
+      `POST /api/v1/profiles/{id}/parental/reset-lockout` (body
+      `{"currentPassword": "..."}` for the owner). It is refused from a kids
+      profile.
     - An administrator's account cannot have a kids profile: the limit would
       hide part of the administrator's own library.
 
@@ -230,6 +237,7 @@ downloads: internal/adapters/driving/http/compat_download_handler.go (checkParen
 library access: internal/app/user/access_service.go (GrantMany, RevokeAllLibraryAccess) ; UserRow hides the Libraries button for admins
 requests: i18n admin.mediaRequests.* (approve, reject, later, tabAccess, accessDefaultLabel, accessOverridesTitle) ; requests.*
 share links: internal/adapters/driving/grpcapi/interceptors/rbac.go (ShareService RoleAdmin) ; grpcapi/share_handler.go (48 h default) ; internal/app/media/share_service.go (max 72 h, maxViews) ; http/share_download_handler.go (no auth) ; cmd/evey/gateway.go - networkGateExempt (share not exempt) ; frontend/apps/web/src/features/library/ShareLinkButton.tsx, mobile media/[id].tsx (isAdmin) ; proto/evey/v1/share.proto
+PIN lockout: internal/app/user/pin_attempts.go - Attempt (lock check, compare and count as one step), pinTiers, Reset ; internal/adapters/driving/http/auth_handler.go - resetLockout ; profile_schedule.go Unlock counts on the adult profiles tried
 opening hours: internal/domain/user/schedule.go - AccessSchedule, DefaultKidsSchedule, Window, AccessAt, OverrideUntil ; internal/app/user/profile_schedule.go - Unlock (adult PIN only) ; internal/adapters/driving/http/profile_closed.go (httpAuthMiddleware, httpStreamAuthMiddleware) ; grpcapi/interceptors/profile_hours.go ; grpcapi/playback_closing_soon.go (closingWarnLead 10 min) ; internal/app/config/timezone.go - KeyServerTimezone ; postgres profile_repo.go - scheduleFromJSON (unreadable = closed) ; i18n auth.profile.schedule.*, auth.profile.locked.*, admin.serverConfig.timezone
 home: internal/app/feed/* ; i18n admin.serverConfig.feedConfig.*, media.home.*
 first profile named after the username: internal/app/user/user_service.go, access_service.go - RegisterWithInvite (NewProfile with u.Username)

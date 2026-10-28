@@ -2,6 +2,9 @@ package user
 
 import (
 	"context"
+	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -65,4 +68,51 @@ func TestSetSharedPINAttempts_IsWhatTheServicesCapture(t *testing.T) {
 	SetSharedPINAttempts(persisted)
 	assert.Same(t, persisted, SharedPINAttempts())
 	assert.Same(t, persisted, NewUserService(nil, nil, nil, nil, nil, nil).pinAttempts)
+}
+
+// A burst of concurrent guesses cannot all pass the lock check before the
+// first failure lands: once the tier fills, the rest are refused unseen.
+func TestPINAttempts_ConcurrentGuessesStopAtTheLimit(t *testing.T) {
+	a := NewPINAttempts(nil)
+	ctx := context.Background()
+	var compared atomic.Int32
+	var wg sync.WaitGroup
+	for range 50 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = a.Attempt(ctx, []string{"p1"}, "0000", func() (string, error) {
+				compared.Add(1)
+				time.Sleep(2 * time.Millisecond) // a hash compare takes time
+				return "", nil
+			})
+		}()
+	}
+	wg.Wait()
+	if n := compared.Load(); n != 5 {
+		t.Fatalf("%d PINs compared, want 5 (the first tier) then refusals", n)
+	}
+}
+
+// Reset clears a lockout without a PIN; an empty PIN never counts.
+func TestPINAttempts_ResetAndEmptyPIN(t *testing.T) {
+	a := NewPINAttempts(nil)
+	ctx := context.Background()
+	none := func() (string, error) { return "", nil }
+	for range 10 {
+		_, _ = a.Attempt(ctx, []string{"p1"}, "", none)
+	}
+	if a.Locked(ctx, "p1") {
+		t.Fatal("an empty PIN is no guess")
+	}
+	for range 5 {
+		_, _ = a.Attempt(ctx, []string{"p1"}, "0000", none)
+	}
+	if _, err := a.Attempt(ctx, []string{"p1"}, "0000", none); !errors.Is(err, ErrPINLocked) {
+		t.Fatalf("want ErrPINLocked, got %v", err)
+	}
+	a.Reset(ctx, "p1")
+	if a.Locked(ctx, "p1") {
+		t.Fatal("Reset must clear the lockout")
+	}
 }

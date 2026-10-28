@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -32,12 +33,22 @@ var pinTiers = []pinTier{
 type PINAttempts struct {
 	tiers  []pinTier
 	stores []user.LoginAttemptRepository
+
+	// keyMu guards keyLocks, the per-profile locks that make Attempt's
+	// lock check, compare and count one step.
+	keyMu    sync.Mutex
+	keyLocks map[string]*keyLock
+}
+
+type keyLock struct {
+	mu   sync.Mutex
+	refs int
 }
 
 // NewPINAttempts keeps the counters in repo (persistent across restarts), or
 // in memory when repo is nil.
 func NewPINAttempts(repo user.LoginAttemptRepository) *PINAttempts {
-	a := &PINAttempts{tiers: append([]pinTier(nil), pinTiers...)}
+	a := &PINAttempts{tiers: append([]pinTier(nil), pinTiers...), keyLocks: map[string]*keyLock{}}
 	for _, t := range a.tiers {
 		s := repo
 		if s == nil {
@@ -104,6 +115,76 @@ func (a *PINAttempts) Succeeded(ctx context.Context, profileID string) {
 	for i, t := range a.tiers {
 		if err := a.stores[i].Reset(ctx, t.prefix+profileID); err != nil {
 			slog.WarnContext(ctx, "pin attempts: reset failed", slog.Any("err", err))
+		}
+	}
+}
+
+// Reset clears profileID's lockout without a PIN, for an admin or the account
+// owner who proved the account password: a child can otherwise lock a parent
+// profile out for a day, again and again.
+func (a *PINAttempts) Reset(ctx context.Context, profileID string) {
+	a.Succeeded(ctx, profileID)
+}
+
+// Attempt runs one PIN guess against the profiles in keys as a single step per
+// profile: refuse while any is locked out, compare with match, then clear the
+// matching profile's counter or count a failure on every profile tried.
+// Concurrent guesses on the same profile queue behind each other, so a burst
+// cannot all pass the lock check before the first failure lands. match returns
+// the key whose PIN matched, "" for none. An empty pin is no guess and counts
+// nothing.
+func (a *PINAttempts) Attempt(ctx context.Context, keys []string, pin string, match func() (string, error)) (string, error) {
+	release := a.lockKeys(keys)
+	defer release()
+	for _, k := range keys {
+		if a.Locked(ctx, k) {
+			return "", ErrPINLocked
+		}
+	}
+	hit, err := match()
+	if err != nil {
+		return "", err
+	}
+	if hit != "" {
+		a.Succeeded(ctx, hit)
+		return hit, nil
+	}
+	if pin != "" {
+		for _, k := range keys {
+			a.Failed(ctx, k)
+		}
+	}
+	return "", nil
+}
+
+// lockKeys takes the per-profile locks in sorted order (no deadlock between two
+// multi-profile attempts) and returns their release.
+func (a *PINAttempts) lockKeys(keys []string) func() {
+	sorted := slices.Clone(keys)
+	slices.Sort(sorted)
+	sorted = slices.Compact(sorted)
+	held := make([]*keyLock, 0, len(sorted))
+	for _, k := range sorted {
+		a.keyMu.Lock()
+		l := a.keyLocks[k]
+		if l == nil {
+			l = &keyLock{}
+			a.keyLocks[k] = l
+		}
+		l.refs++
+		a.keyMu.Unlock()
+		l.mu.Lock()
+		held = append(held, l)
+	}
+	return func() {
+		for i := len(held) - 1; i >= 0; i-- {
+			held[i].mu.Unlock()
+			a.keyMu.Lock()
+			held[i].refs--
+			if held[i].refs == 0 {
+				delete(a.keyLocks, sorted[i])
+			}
+			a.keyMu.Unlock()
 		}
 	}
 }
