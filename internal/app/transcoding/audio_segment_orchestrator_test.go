@@ -2,6 +2,7 @@ package transcoding
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -932,28 +933,92 @@ func TestAudioOrchestrator_EvictionStopsOutsideTheLock(t *testing.T) {
 	}
 }
 
-// A session already being stopped stays listed until its reap; the next
-// eviction must pick another victim instead of stopping the same one again.
-func TestAudioOrchestrator_SuccessiveEvictionsTargetDifferentSessions(t *testing.T) {
+// A session being stopped counts in the per-hash cap until its reap: while
+// one sits in its stop grace, a further spawn is refused (503, retried)
+// instead of stacking ffmpegs; once it is reaped, the next eviction picks
+// another victim, never the same one again.
+func TestAudioOrchestrator_StoppingSessionsCountInTheCap(t *testing.T) {
 	cache, _ := newTestCache(t)
 	fp := minimalAudioFp()
 	release := make(chan struct{})
 	proc := &slowStopAudioProcess{fakeAudioProcess: newFakeAudioProcess(), release: release, handles: make(chan *slowStopAudioHandle, 8)}
 	o := NewAudioSegmentOrchestrator(cache, proc)
 	defer func() { _ = o.Close() }()
-	defer close(release)
-
-	for _, seg := range []int{100, 400, 700, 1000, 1300} {
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+	}()
+	ensure := func(seg int) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-		_ = o.EnsureAudioSegment(ctx, fp, seg)
-		cancel()
+		defer cancel()
+		return o.EnsureAudioSegment(ctx, fp, seg)
+	}
+
+	for _, seg := range []int{100, 400, 700, 1000} {
+		_ = ensure(seg)
 	}
 	first, second := <-proc.handles, <-proc.handles
-	for i, h := range []*slowStopAudioHandle{first, second} {
-		select {
-		case <-h.stopping:
-		case <-time.After(2 * time.Second):
-			t.Fatalf("session %d was never evicted", i)
-		}
+	select {
+	case <-first.stopping:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the oldest session was never evicted")
 	}
+	if err := ensure(1300); !errors.Is(err, ErrAudioSessionsBusy) {
+		t.Fatalf("spawn while one session is still stopping: %v, want ErrAudioSessionsBusy", err)
+	}
+	if n := proc.startCount(); n != 4 {
+		t.Fatalf("%d ffmpegs started, want 4: the cap counts the stopping one", n)
+	}
+	select {
+	case <-second.stopping:
+		t.Fatal("a second session was evicted while the first was still stopping")
+	default:
+	}
+
+	close(release)
+	released = true
+	require.Eventually(t, func() bool { return o.ActiveCount() == 3 }, 2*time.Second, 10*time.Millisecond, "the stopped session is reaped")
+	_ = ensure(1300)
+	select {
+	case <-second.stopping:
+	case <-time.After(2 * time.Second):
+		t.Fatal("after the reap, the next eviction must take the next oldest session")
+	}
+}
+
+// A session being stopped stays listed until its reap but produces nothing
+// more: a segment it would have covered, or the init, gets a fresh session
+// instead of a wait that can only time out.
+func TestAudioOrchestrator_StoppingSessionCoversNothing(t *testing.T) {
+	cache, _ := newTestCache(t)
+	fp := minimalAudioFp()
+	proc := newFakeAudioProcess()
+	o := NewAudioSegmentOrchestrator(cache, proc)
+	defer func() { _ = o.Close() }()
+	ensure := func(seg int) {
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		_ = o.EnsureAudioSegment(ctx, fp, seg)
+	}
+	stopAll := func() {
+		o.mu.Lock()
+		for _, sess := range o.byHash[fp.Hash()] {
+			sess.stopped = true // as eviction or the idle sweep leaves it until the reap
+		}
+		o.mu.Unlock()
+	}
+
+	ensure(100)
+	require.Equal(t, 1, proc.startCount())
+	stopAll()
+	ensure(101)
+	assert.Equal(t, 2, proc.startCount(), "a stopping session must not cover the next segment")
+
+	stopAll()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_ = o.EnsureAudioInit(ctx, fp)
+	assert.Equal(t, 3, proc.startCount(), "a stopping session publishes no init")
 }
