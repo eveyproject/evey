@@ -19,6 +19,7 @@ import { useDemoLock, DEMO_LOCKED_OPACITY, type DemoLockProps } from "../../../s
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { usePlaylistDetail, useDeletePlaylist, useRemoveFromPlaylist, useReorderPlaylistItems, useUpdatePlaylist, type PlaylistItem } from "../../../src/api/playlists";
 import { SmartRulesEditor, type SmartRule } from "../../../src/components/SmartRulesEditor";
+import { trackToQueueTrack, useMusicQueueStore } from "../../../src/stores/musicQueue";
 
 function PlaylistItemRow({
   item,
@@ -45,7 +46,8 @@ function PlaylistItemRow({
   onRemove: () => void;
   lock: DemoLockProps;
 }) {
-  const typeLabel = item.type?.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
+  // A track names its artist where a video names its type.
+  const typeLabel = item.media_type === "music" ? item.artist : item.type?.replace("MEDIA_ITEM_TYPE_", "").toLowerCase();
 
   return (
     <TouchableOpacity
@@ -102,6 +104,24 @@ export default function PlaylistDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const setQueue = useMusicQueueStore((s) => s.setQueue);
+  // A music track has no video page: /media/<track id> answers 404. It plays in
+  // the music player with the playlist's other tracks, from the pressed one on,
+  // using the metadata the playlist already carries.
+  const playTrack = (all: PlaylistItem[], trackId: string) => {
+    const tracks = all.filter((it) => it.media_type === "music");
+    const queue = tracks.map((it) =>
+      trackToQueueTrack({
+        id: it.media_item_id,
+        title: it.title,
+        artist: it.artist,
+        album: it.album,
+        duration: it.duration,
+        coverArtUrl: it.cover_art_url,
+      }),
+    );
+    setQueue(queue, Math.max(0, tracks.findIndex((it) => it.media_item_id === trackId)));
+  };
   const deleteMutation = useDeletePlaylist();
   const removeMutation = useRemoveFromPlaylist();
   const reorderMutation = useReorderPlaylistItems();
@@ -286,7 +306,9 @@ export default function PlaylistDetailScreen() {
             isManual={isManual}
             theme={theme}
             t={t}
-            onPress={() => router.push(`/media/${item.media_item_id}`)}
+            onPress={() =>
+              item.media_type === "music" ? playTrack(items, item.media_item_id) : router.push(`/media/${item.media_item_id}`)
+            }
             onMoveUp={() => handleMove(index, -1)}
             onMoveDown={() => handleMove(index, 1)}
             onRemove={() => handleRemove(item.media_item_id)}
