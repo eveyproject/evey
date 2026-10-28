@@ -72,11 +72,6 @@ func (r *FakeLibraryAccessRepository) ReplaceAccess(_ context.Context, userID sh
 	if r.Err != nil {
 		return r.Err
 	}
-	if len(libraryIDs) == 0 {
-		delete(r.items, userID)
-		delete(r.restricted, userID)
-		return nil
-	}
 	now := time.Now()
 	next := make(map[shared.LibraryID]time.Time, len(libraryIDs))
 	for _, id := range libraryIDs {

@@ -86,19 +86,41 @@ describe("LibraryAccessModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it("clearing every library then Save calls RevokeAll (unrestricted), not Set", async () => {
-    // Security-sensitive branch: an empty selection is treated as "grant access
-    // to ALL libraries" (revoke the per-library restriction), NOT "no access".
-    // lib1/Movies is pre-checked; unchecking it empties the selection.
+  it("clearing every library then Save confines the user to no library, never to all", async () => {
+    // Security-sensitive branch: an empty selection used to be saved as a
+    // RevokeAll, which lifts the restriction and opens every library.
     const u = userEvent.setup();
     const onClose = vi.fn();
     render(<LibraryAccessModal user={user} open={true} onClose={onClose} />, { wrapper: createWrapper() });
     await u.click(screen.getByLabelText("Movies"));
     expect(screen.getByLabelText("Movies")).not.toBeChecked();
+    expect(screen.getByText("No library")).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    expect(setMutateAsync).toHaveBeenCalledWith({ userId: "u1", data: { libraryIds: [] } });
+    expect(revokeMutateAsync).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("only the explicit All libraries choice lifts the restriction", async () => {
+    const u = userEvent.setup();
+    render(<LibraryAccessModal user={user} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    await u.click(screen.getByRole("radio", { name: "All libraries" }));
+    expect(screen.queryByLabelText("Movies")).not.toBeInTheDocument();
     await u.click(screen.getByRole("button", { name: "Save" }));
     expect(revokeMutateAsync).toHaveBeenCalledWith({ userId: "u1" });
     expect(setMutateAsync).not.toHaveBeenCalled();
-    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("saving a restricted user left with no library keeps them at no library", async () => {
+    getMock.mockReturnValue({
+      data: { libraryIds: [], restricted: true, libraries: [{ id: "lib1", name: "Movies" }] },
+      isLoading: false,
+    });
+    const u = userEvent.setup();
+    render(<LibraryAccessModal user={user} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    expect(setMutateAsync).toHaveBeenCalledWith({ userId: "u1", data: { libraryIds: [] } });
+    expect(revokeMutateAsync).not.toHaveBeenCalled();
   });
 
   it("a restricted user with no library left is not shown as unrestricted", () => {
