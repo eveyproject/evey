@@ -240,6 +240,22 @@ describe("usePlaySession resume", () => {
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.isError).toBe(true);
   });
+
+  // A title whose file was deleted from disk: the server refuses it with
+  // MEDIA_FILE_MISSING. It is a title that is gone, not a failure to retry.
+  it("reads a deleted file as file_missing, not as an error", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockRejectedValue(Object.assign(new Error("gone"), { httpStatus: 404, errorCode: "media_file_missing" }));
+    eveyFetchMock.mockResolvedValue({ positionMs: "0" });
+
+    const { result } = renderHook(() => usePlaySession("m3"));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.shedReason).toBe("file_missing");
+    expect(result.current.isError).toBe(false);
+  });
 });
 
 // Server-side load shed (HTTP 503): expo-video's native player only exposes a

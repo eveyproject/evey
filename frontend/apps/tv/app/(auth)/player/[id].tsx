@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   createPlayerEventReporter,
   itemLabel,
@@ -961,6 +962,19 @@ export default function PlayerScreen() {
     if (nextEp.previousEpisode?.id) handleNavigateEpisode(nextEp.previousEpisode.id);
   }, [nextEp.previousEpisode, handleNavigateEpisode]);
 
+  // A title whose file was deleted: every list this television holds may still
+  // carry it (the server drops it at the rescan it just started), so they are
+  // refetched; and with autoplay on, the series carries on with the next
+  // episode instead of stopping on the deleted one.
+  const queryClient = useQueryClient();
+  const fileMissingHandledRef = useRef(false);
+  useEffect(() => {
+    if (shedReason !== "file_missing" || fileMissingHandledRef.current) return;
+    fileMissingHandledRef.current = true;
+    void queryClient.invalidateQueries();
+    if (autoplayNext && nextEp.nextEpisode?.id) gatedNavigateEpisode(nextEp.nextEpisode.id);
+  }, [shedReason, queryClient, autoplayNext, nextEp.nextEpisode, gatedNavigateEpisode]);
+
   const sleepTimer = useSleepTimer({ onMinutesFire: () => withPlayer((p) => p.pause()) });
   // Both hooks return a fresh object every render; their cancel callbacks are
   // stable, so effects depend on those instead of the whole object.
@@ -1315,6 +1329,21 @@ export default function PlayerScreen() {
   // icon (not a red error) and copy that names neither "transcoding" nor any
   // other internal term.
   if (asleep) return <PlayerSleepScreen onWake={wake} />;
+
+  if (shedReason === "file_missing") {
+    // Nothing to retry: the way out is the next episode, when there is one.
+    const next = nextEp.nextEpisode;
+    return (
+      <PlayerStatusScreen
+        icon="trash-outline"
+        title={t(shedI18nKey(shedReason, "title"))}
+        body={t(shedI18nKey(shedReason, "body"))}
+        actionLabel={next ? t("player.nextEpisode") : t("player.goBack")}
+        onAction={next ? handleManualNextEpisode : handleBack}
+        onBack={handleBack}
+      />
+    );
+  }
 
   if (shedReason) {
     return (

@@ -500,6 +500,9 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         // httpStatus 401 (it has already tried the refresh by then).
         if ((err as { httpStatus?: number })?.httpStatus === 401) {
           setIsAuthError(true);
+        } else if ((err as { errorCode?: string })?.errorCode === "media_file_missing") {
+          // Deleted from disk: not a failure to retry, a title that is gone.
+          setShedReason("file_missing");
         } else {
           setIsError(true);
         }
