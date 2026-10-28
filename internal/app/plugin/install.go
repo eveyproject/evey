@@ -27,10 +27,14 @@ import (
 // is a method so InstallPlugin reads as an orchestration and each check is
 // independently testable.
 
-// uninstallRetryDelays are the back-off intervals used between RemoveAll
-// attempts during the in-place upgrade swap. Three attempts total
-// (initial + two retries).
+// uninstallRetryDelays are the back-off intervals used between attempts to
+// move the live dir aside during the in-place upgrade swap. Three attempts
+// total (initial + two retries).
 var uninstallRetryDelays = [2]time.Duration{500 * time.Millisecond, 2 * time.Second}
+
+// upgradeBackupSuffix names the dir the live version is renamed to while an
+// upgrade is swapped in. CleanupOrphans restores it if the swap never finished.
+const upgradeBackupSuffix = ".old"
 
 // nativeBinaryPerm is the manifest permission a plugin must declare to
 // be allowed to ship compiled binaries or embedded archives. Without it
@@ -571,40 +575,46 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 // swapAndPersistPlugin promotes a validated staging dir over the live
 // version on upgrade, then persists the plugin row (Update in place on
 // upgrade to keep the FK-referenced id stable and avoid cascade-deleting
-// plugin_data, or Create for a fresh install). The returned swapped is true
-// as soon as the staging dir has been swapped into finalDir, even if the
-// subsequent persist fails - the caller's deferred cleanup must not touch a
-// dir that has already been swapped into place.
+// plugin_data, or Create for a fresh install). On upgrade the previous version
+// stays on disk as <dir>.old until the row is written: a failed write renames
+// it back, so files and row never describe different versions. The returned
+// swapped is true once finalDir holds files the caller's deferred cleanup must
+// not touch - the new version, or the old one restored by a rollback.
 func (s *InstallerService) swapAndPersistPlugin(ctx context.Context, p *plugin.Plugin, existing *plugin.Plugin, stagingDir, finalDir string) (swapped bool, err error) {
-	// All validation on the staging dir passed: swap it over the live version
-	// (upgrade only). Any failure before this point left the live version fully
-	// intact - files, DB row and config all untouched.
-	if existing != nil {
-		if err := s.swapUpgradeIntoPlace(ctx, existing, stagingDir, finalDir); err != nil {
-			return false, fmt.Errorf("in-place upgrade: %w", err)
+	if existing == nil {
+		if err := s.plugins.Create(ctx, p); err != nil {
+			return false, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 		}
-		p.InstallDir = finalDir
-		swapped = true
+		return false, nil
 	}
 
-	if existing != nil {
-		if err := s.plugins.Update(ctx, p); err != nil {
-			return swapped, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
-		}
-	} else if err := s.plugins.Create(ctx, p); err != nil {
-		return swapped, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
+	// All validation on the staging dir passed: swap it over the live version.
+	// Any failure before this point left the live version fully intact - files,
+	// DB row and config all untouched.
+	backupDir, err := s.swapUpgradeIntoPlace(ctx, existing, stagingDir, finalDir)
+	if err != nil {
+		return false, fmt.Errorf("in-place upgrade: %w", err)
 	}
-	return swapped, nil
+	p.InstallDir = finalDir
+
+	if err := s.plugins.Update(ctx, p); err != nil {
+		s.restoreLiveDir(ctx, existing.ID, finalDir, backupDir)
+		return true, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
+	}
+	s.discardBackup(ctx, existing.ID, backupDir)
+	return true, nil
 }
 
-// swapUpgradeIntoPlace atomically promotes a validated, staged upgrade over the
-// live version: it stops the old runner, drops cached permissions, removes the
-// old install dir and renames the staging dir into finalDir. It deliberately
-// leaves the DB row (and its plugin_data, which FK-cascades on plugins.id ON
-// DELETE) intact - the caller reuses the same id and Updates the row, so config
-// survives. Called only after every validation on the staging dir has passed, so
-// a failed upgrade never reaches here and the live version stays untouched.
-func (s *InstallerService) swapUpgradeIntoPlace(ctx context.Context, existing *plugin.Plugin, stagingDir, finalDir string) error {
+// swapUpgradeIntoPlace promotes a validated, staged upgrade over the live
+// version: it stops the old runner, drops cached permissions, renames the live
+// dir aside to <finalDir>.old and renames the staging dir into finalDir. Both
+// steps are renames within the plugin dir, so the live version is never
+// half-deleted: if the second rename fails the first is undone. It returns the
+// backup dir, which the caller drops once the row is written or renames back
+// if that write fails. It deliberately leaves the DB row (and its plugin_data,
+// which FK-cascades on plugins.id ON DELETE) intact - the caller reuses the same
+// id and Updates the row, so config survives.
+func (s *InstallerService) swapUpgradeIntoPlace(ctx context.Context, existing *plugin.Plugin, stagingDir, finalDir string) (backupDir string, err error) {
 	if existing.Status == plugin.Running {
 		stopCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		stopErr := s.runner.Stop(stopCtx, existing.ID)
@@ -623,22 +633,58 @@ func (s *InstallerService) swapUpgradeIntoPlace(ctx context.Context, existing *p
 		s.permChecker.InvalidatePermissions(existing.ID)
 	}
 	if s.fs == nil {
-		return nil
+		return "", nil
 	}
-	// Remove the old dir, retrying the transient busy-file window (bwrap
+	backupDir = finalDir + upgradeBackupSuffix
+	// A leftover from an earlier interrupted upgrade would make the rename fail.
+	s.fs.RemoveAll(backupDir) //nolint:errcheck
+	// Move the live dir aside, retrying the transient busy-file window (bwrap
 	// unmount), then rename staging into place.
-	rmErr := s.fs.RemoveAll(finalDir)
-	for i := 0; rmErr != nil && i < len(uninstallRetryDelays); i++ {
+	mvErr := s.fs.Rename(finalDir, backupDir)
+	for i := 0; mvErr != nil && i < len(uninstallRetryDelays); i++ {
 		time.Sleep(uninstallRetryDelays[i])
-		rmErr = s.fs.RemoveAll(finalDir)
+		mvErr = s.fs.Rename(finalDir, backupDir)
 	}
-	if rmErr != nil {
-		return fmt.Errorf("remove old plugin dir: %w", rmErr)
+	if mvErr != nil {
+		return "", fmt.Errorf("move old plugin dir aside: %w", mvErr)
 	}
 	if err := s.fs.Rename(stagingDir, finalDir); err != nil {
-		return fmt.Errorf("swap upgraded plugin into place: %w", err)
+		if rbErr := s.fs.Rename(backupDir, finalDir); rbErr != nil {
+			slog.ErrorContext(ctx, "restore old plugin dir after failed swap",
+				slog.String("pluginID", existing.ID), slog.String("backup", backupDir), slog.Any("err", rbErr))
+		}
+		return "", fmt.Errorf("swap upgraded plugin into place: %w", err)
 	}
-	return nil
+	return backupDir, nil
+}
+
+// restoreLiveDir puts the previous version back after the swap succeeded but
+// the row could not be written.
+func (s *InstallerService) restoreLiveDir(ctx context.Context, pluginID, finalDir, backupDir string) {
+	if s.fs == nil || backupDir == "" {
+		return
+	}
+	if err := s.fs.RemoveAll(finalDir); err != nil {
+		slog.ErrorContext(ctx, "remove new plugin dir for rollback",
+			slog.String("pluginID", pluginID), slog.Any("err", err))
+		return
+	}
+	if err := s.fs.Rename(backupDir, finalDir); err != nil {
+		slog.ErrorContext(ctx, "restore old plugin dir after failed persist",
+			slog.String("pluginID", pluginID), slog.String("backup", backupDir), slog.Any("err", err))
+	}
+}
+
+// discardBackup drops the previous version once the upgrade is persisted. A
+// failure only leaves a dir behind for the next upgrade or the boot sweep.
+func (s *InstallerService) discardBackup(ctx context.Context, pluginID, backupDir string) {
+	if s.fs == nil || backupDir == "" {
+		return
+	}
+	if err := s.fs.RemoveAll(backupDir); err != nil {
+		slog.WarnContext(ctx, "remove previous plugin version",
+			slog.String("pluginID", pluginID), slog.String("dir", backupDir), slog.Any("err", err))
+	}
 }
 
 // startPluginAndUpdateStatus starts the runner (non-theme, enabled plugins
