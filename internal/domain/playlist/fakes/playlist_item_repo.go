@@ -154,6 +154,28 @@ func (r *FakePlaylistItemRepository) PurgeOrphans(_ context.Context) (int64, err
 	return 0, nil
 }
 
+// PurgeRemoved drops the items pointing at mediaItemID of the given kind.
+func (r *FakePlaylistItemRepository) PurgeRemoved(_ context.Context, mediaItemID string, music bool) (int64, error) {
+	if r.Err != nil {
+		return 0, r.Err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var n int64
+	for pl, list := range r.items {
+		kept := list[:0]
+		for _, it := range list {
+			if string(it.MediaItemID) == mediaItemID && (it.MediaType == playlist.MediaTypeMusic) == music {
+				n++
+				continue
+			}
+			kept = append(kept, it)
+		}
+		r.items[pl] = kept
+	}
+	return n, nil
+}
+
 // PurgeOrphansCalls reports how many times PurgeOrphans ran.
 func (r *FakePlaylistItemRepository) PurgeOrphansCalls() int {
 	r.mu.RLock()
