@@ -32,7 +32,7 @@ func scheduleFixture(t *testing.T) (*ProfileSchedules, *ufakes.FakeProfileReposi
 		}
 	}
 	now := time.Date(2026, 10, 5, 17, 55, 0, 0, loc) // a Monday, 5 min before opening
-	svc := NewProfileSchedules(repo, ufakes.NewFakePasswordHasher(), fixedClock{loc}).WithNow(func() time.Time { return now })
+	svc := NewProfileSchedules(repo, ufakes.NewFakePasswordHasher(), fixedClock{loc}).WithNow(func() time.Time { return now }).WithPINAttempts(NewPINAttempts(nil))
 	return svc, repo, &now, loc
 }
 
@@ -129,5 +129,46 @@ func TestProfileSchedules_SetScheduleAppliesNowAndKidsOnly(t *testing.T) {
 	bad := user.AccessSchedule{Enabled: true, Mode: "monthly"}
 	if err := svc.SetSchedule(ctx, kid, &bad); !errors.Is(err, user.ErrInvalidSchedule) {
 		t.Errorf("invalid schedule: %v, want ErrInvalidSchedule", err)
+	}
+}
+
+// Unlocking a profile that is already open compares nothing and leaves every
+// counter alone: it used to report success and clear the lockout, so a guesser
+// reset their budget between rounds with one call on an open profile.
+func TestProfileSchedules_UnlockOnAnOpenProfileLeavesTheLockoutAlone(t *testing.T) {
+	svc, repo, _, _ := scheduleFixture(t)
+	ctx := context.Background()
+	parent, _ := repo.GetByID(ctx, "parent")
+	for range 4 {
+		svc.pins.Failed(ctx, "parent")
+	}
+	if until, err := svc.Unlock(ctx, parent, ""); err != nil || !until.IsZero() {
+		t.Fatalf("open profile: %v %v, want a no-op", until, err)
+	}
+	svc.pins.Failed(ctx, "parent")
+	if !svc.pins.Locked(ctx, "parent") {
+		t.Fatal("the fifth failure must lock: the no-op unlock cleared the counter")
+	}
+}
+
+// A wrong unlock PIN counts on the adult profile it was tested against, not
+// on the kids profile being opened.
+func TestProfileSchedules_WrongUnlockPINCountsOnTheAdultProfile(t *testing.T) {
+	svc, repo, _, _ := scheduleFixture(t)
+	ctx := context.Background()
+	kid, _ := repo.GetByID(ctx, "kid")
+	for range 5 {
+		if _, err := svc.Unlock(ctx, kid, "9999"); !errors.Is(err, ErrWrongParentPIN) {
+			t.Fatalf("wrong PIN: %v", err)
+		}
+	}
+	if !svc.pins.Locked(ctx, "parent") {
+		t.Error("five wrong guesses at the parent PIN must lock the parent profile")
+	}
+	if svc.pins.Locked(ctx, "kid") {
+		t.Error("the kids profile holds no PIN that was guessed")
+	}
+	if _, err := svc.Unlock(ctx, kid, "1234"); !errors.Is(err, ErrPINLocked) {
+		t.Errorf("right PIN while the parent is locked out: %v, want ErrPINLocked", err)
 	}
 }

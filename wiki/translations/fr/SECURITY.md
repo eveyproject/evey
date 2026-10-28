@@ -1,5 +1,5 @@
 ---
-source_sha: 6363fc4fc30f333ce87a44681eb0db3e41164d111846551eb9a028b3cd37b61f
+source_sha: 7241887cc60dd618dc1b4da1af7ae17905008e463458472f9f827a57764dbb89
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace { #plugin-sandbox-and-threat-model }
@@ -235,6 +235,7 @@ Appels système refusés :
 |---|---|
 | Débogage | `ptrace`, `process_vm_readv`, `process_vm_writev` |
 | Signaux | `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo` vers tout processus autre que le plugin lui-même (les deux filtres) ; `kill` de même dans le filtre du noyau, vers toute cible dans le filtre `LD_PRELOAD` ; `tkill` dans le filtre du noyau (le filtre `LD_PRELOAD` l'autorise vers le plugin lui-même) ; `pidfd_send_signal`, `pidfd_getfd` (récupère un descripteur de fichier d'un autre processus). Un runtime qui se renvoie un signal ou préempte ses propres threads continue de fonctionner. Sur Landlock ABI 6+, un plugin ne peut pas non plus signaler un processus hors de sa sandbox |
+| Propriétaire des signaux d'un descripteur de fichier (filtre noyau) | `fcntl` `F_SETOWN` vers tout autre processus que le plugin lui-même, `F_SETSIG` vers tout autre signal que `SIGIO` par défaut, `F_SETOWN_EX`, et `ioctl` `FIOSETOWN`/`SIOCSPGRP` : sans cela, un descripteur dont le serveur serait propriétaire, avec `SIGKILL` pour signal, tuerait le serveur à la prochaine écriture |
 | Montages | `mount`, `umount2`, `pivot_root`, `chroot` |
 | Espaces de noms | `unshare`, `setns`, et `clone` portant un drapeau `CLONE_NEW*` (un unshare sous un autre nom), pour tous les plugins |
 | Modules du noyau | `init_module`, `finit_module`, `delete_module` |
@@ -260,10 +261,13 @@ espaces de noms et la liste blanche de montages.
 
 ### Un utilisateur séparé { #a-separate-user }
 
-Un plugin peut tourner sous l'utilisateur 1001 (`evey-plugin`), distinct du
-serveur (1000), de sorte que les secrets du serveur lui sont illisibles par
-les seules permissions de fichiers. `EVEY_PLUGINS_UID_SEPARATION` le
-contrôle :
+Un plugin peut tourner sous un utilisateur à lui, distinct du serveur (1000),
+de sorte que les secrets du serveur lui sont illisibles par les seules
+permissions de fichiers. Chaque plugin tire son uid de son identifiant, dans
+la plage 40000 à 59999, stable d'un redémarrage à l'autre ; il garde le groupe
+du serveur, qui ne fait que lire les fichiers installés. Deux identifiants
+peuvent tomber sur le même uid : ces deux plugins le partagent alors.
+`EVEY_PLUGINS_UID_SEPARATION` le contrôle :
 
 | Valeur | Quand le changement a lieu |
 |---|---|
@@ -280,9 +284,11 @@ inférieure à 1000. S'il ne peut pas changer d'utilisateur, un plugin en
 
 Quand elle est active, la clé de signature (`0600`) et les sauvegardes
 (dossier `0700`, fichiers `0600`) n'appartiennent qu'à leur propriétaire à
-l'exécution, ce qui reste vrai même sur un `/data` monté depuis l'hôte. Tous les
-plugins partagent l'utilisateur 1001 : ils sont isolés les uns des autres par
-la couche fichiers, pas par l'utilisateur.
+l'exécution, ce qui reste vrai même sur un `/data` monté depuis l'hôte. Les
+plugins sont isolés les uns des autres par leur uid, en plus de la couche
+fichiers. Un serveur lancé en root (déconseillé) abaisse au contraire tous les
+plugins vers le seul utilisateur 1001 : là, seule la couche fichiers sépare
+les plugins.
 
 ### Authentification de la socket hôte { #host-socket-authentication }
 
@@ -294,6 +300,13 @@ L'identité du plugin vient de la socket, jamais d'un en-tête. Un plugin ne
 peut donc pas se faire passer pour un autre, appeler la socket d'un autre
 plugin, ni faire passer ses appels par un processus enfant. Un PID qui ne
 correspond pas est consigné comme avertissement.
+
+L'autre sens est vérifié de la même façon : le serveur parle au plugin sur
+`plugin.sock`, dans le même dossier, et refuse la connexion si le processus
+qui l'écoute n'est pas le plugin lui-même (`SO_PEERCRED` là aussi). Avec un
+utilisateur par plugin, le dossier porte le sticky bit : un plugin voisin du
+groupe partagé ne peut pas supprimer cette socket pour lier la sienne à sa
+place.
 
 ### Limites de ressources { #resource-limits }
 
@@ -461,7 +474,7 @@ quelle machine, en termes simples :
 | Limite | Impact | Ce qui la limite aujourd'hui |
 |---|---|---|
 | Aucun confinement par chemin en `basic` sur un noyau sans Landlock | Un plugin peut lire les fichiers non sensibles lisibles par tous et les dossiers des autres plugins | Secrets protégés par l'utilisateur séparé et `PR_SET_DUMPABLE` ; `auto` préfère Landlock ou bubblewrap |
-| Tous les plugins partagent l'utilisateur 1001 | En mode `basic`, un plugin peut lire les fichiers que possèdent ses voisins | Signaler d'autres processus est bloqué (seccomp, `LD_PRELOAD` et bubblewrap le bloquent tous) ; `PR_SET_DUMPABLE` empêche de lire les autres processus via `/proc` ; Landlock et bubblewrap isolent les dossiers des plugins |
+| Les uid des plugins viennent d'un hachage de leur identifiant ; un serveur lancé en root abaisse tous les plugins vers l'utilisateur 1001 | Deux plugins dont les identifiants tombent sur le même uid, ou tous les plugins sous un serveur root, partagent un uid : en mode `basic`, l'un peut lire les fichiers que possède l'autre | Signaler d'autres processus est bloqué (seccomp, `LD_PRELOAD` et bubblewrap le bloquent tous) ; `PR_SET_DUMPABLE` empêche de lire les autres processus via `/proc` ; Landlock et bubblewrap isolent les dossiers des plugins |
 | Seccomp est une liste de refus | Les appels sur fichiers et sockets Unix restent autorisés | Les chemins sont confinés par Landlock ou bubblewrap ; les sockets IP sont refusées |
 | Le courtier déplace la surface SSRF vers l'hôte | Une faille dans la validation du courtier pourrait atteindre une adresse interne | Liste d'autorisation et client protégé contre le SSRF en Go ; une règle de sortie sur le conteneur comme couche indépendante |
 | Le courtier contrôle où va un appel, pas ce qu'il transporte | Des données peuvent partir vers un hôte de la liste du plugin | N'autorisez que des hôtes à qui vous confiez ces données |

@@ -207,16 +207,15 @@ func (h *scheduleHandler) unlock(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"bad request"}`, http.StatusBadRequest)
 		return
 	}
-	if !h.parental.pinNotLocked(w, r, span, "schedule_unlock_pin", string(p.ID)) {
-		return
-	}
-	if _, err := h.hours.Unlock(r.Context(), p, body.PIN); err != nil {
+	until, err := h.hours.Unlock(r.Context(), p, body.PIN)
+	if err != nil {
 		span.RecordError(err)
 		switch {
+		case errors.Is(err, appuser.ErrPINLocked):
+			span.SetStatus(codes.Error, "PIN locked out")
+			recordParentalPINThrottle(r, "schedule_unlock_pin", string(p.ID))
+			http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 		case errors.Is(err, appuser.ErrWrongParentPIN):
-			if body.PIN != "" { // a missing PIN is not a guess
-				h.parental.pinAttempts.Failed(r.Context(), string(p.ID))
-			}
 			http.Error(w, `{"message":"errors.profile.wrong_parent_pin"}`, http.StatusForbidden)
 		case errors.Is(err, appuser.ErrNoParentPIN):
 			http.Error(w, `{"message":"errors.profile.no_parent_pin"}`, http.StatusConflict)
@@ -226,8 +225,9 @@ func (h *scheduleHandler) unlock(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	h.parental.pinAttempts.Succeeded(r.Context(), string(p.ID))
-	slog.InfoContext(r.Context(), "kids profile opened by a parent PIN", slog.String("profile_id", string(p.ID)))
+	if !until.IsZero() {
+		slog.InfoContext(r.Context(), "kids profile opened by a parent PIN", slog.String("profile_id", string(p.ID)))
+	}
 	updated, acc, err := h.hours.Schedule(r.Context(), p.ID)
 	if err != nil {
 		logInternal(r.Context(), "schedule: read back", err)

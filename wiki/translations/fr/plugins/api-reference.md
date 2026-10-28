@@ -1,5 +1,5 @@
 ---
-source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
+source_sha: 158d06870a14e5afae5d1ed21a8f0969f64bf50c032410bba9bd178e72f8888a
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -115,7 +115,7 @@ sont listées pour qu'un stub ne vous induise pas en erreur.
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` ou `media.read` | La fiche média complète, `file_path`, `provider_ids` et `genres` compris. |
 | `Fetch(url, method, headers)` | `network` | Le seul accès au réseau depuis la sandbox : `http` ou `https`, `GET` ou `HEAD`, un hôte de `external_fetch`, adresses privées refusées après résolution et à travers les redirections. Le corps est plafonné à 8 Mio (`truncated` le signale) et la requête entière à 20 secondes. Le serveur n'ajoute aucun identifiant qui lui appartienne. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` ou `media.read` | *Non servie.* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` ou `media.write`, et la capacité `metadata.provider` | Fournit votre texte pour un film ou une série sans qu'on vous le demande, comme le ferait une [réponse de métadonnées](#metadata-requests). `fields` porte `locale` (obligatoire) et tout ou partie de `title`, `overview`, `tagline` ; le texte remplace ce que vous aviez fourni pour cette langue, et un `fields` qui ne porte que `locale` retire ce que vous aviez fourni pour cette langue. `provider_ids` est refusé : c'est TMDB qui identifie l'élément. |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` ou `media.write`, et la capacité `metadata.provider` | Fournit votre texte pour un film ou une série sans qu'on vous le demande, comme le ferait une [réponse de métadonnées](#metadata-requests). `fields` porte `locale` (obligatoire) et tout ou partie de `title`, `overview`, `tagline` ; le texte remplace ce que vous aviez fourni pour cette langue, et un `fields` qui ne porte que `locale` retire ce que vous aviez fourni pour cette langue. `provider_ids` est refusé : c'est TMDB qui identifie l'élément. Ce qu'un plugin stocke est borné : 16 langues par élément, 200 000 textes et 128 Mio en tout. Au-delà, l'appel répond `RESOURCE_EXHAUSTED` ; remplacer ou retirer un texte déjà fourni reste possible. |
 | `GetUserPreferences` | `api.user` | *Non servie.* |
 | `SendNotification` | `notification.sender` | *Non servie.* |
 

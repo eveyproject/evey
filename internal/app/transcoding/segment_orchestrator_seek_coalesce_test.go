@@ -42,7 +42,7 @@ func TestOrchestrator_SeekCoalesce_SingleSeekSpawnsOnceAtPosition(t *testing.T) 
 	assert.Equal(t, 0, proc.startCount(), "the spawn must be debounced, not synchronous")
 	assert.Equal(t, 1, o.pendingSeekCount(), "the seek must be parked pending the window")
 
-	require.Eventually(t, func() bool { return proc.startCount() == 1 }, time.Second, 5*time.Millisecond,
+	require.Eventually(t, func() bool { return proc.startCount() == 1 }, eventuallyWait, 5*time.Millisecond,
 		"one rafale must spawn once the window goes quiet")
 	// Give any (erroneous) second spawn a chance to appear.
 	time.Sleep(80 * time.Millisecond)
@@ -77,7 +77,7 @@ func TestOrchestrator_SeekCoalesce_BurstCollapsesToOneSpawnAtLastTarget(t *testi
 		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, lastSeg))
 	}
 
-	require.Eventually(t, func() bool { return proc.startCount() >= 1 }, 2*time.Second, 5*time.Millisecond,
+	require.Eventually(t, func() bool { return proc.startCount() >= 1 }, eventuallyWait, 5*time.Millisecond,
 		"the coalesced spawn must eventually fire")
 	// Let any extra spawn surface before asserting exactly one.
 	time.Sleep(2 * opts.SeekCoalesceWindow)
@@ -114,7 +114,7 @@ func TestOrchestrator_SeekCoalesce_Off_BurstSpawnsAndKillsPerSeek(t *testing.T) 
 	}
 
 	assert.Equal(t, seeks, proc.startCount(), "window off: every seek execs its own ffmpeg")
-	require.Eventually(t, func() bool { return o.ActiveCount() == opts.MaxRafalesPerHash }, time.Second, 5*time.Millisecond,
+	require.Eventually(t, func() bool { return o.ActiveCount() == opts.MaxRafalesPerHash }, eventuallyWait, 5*time.Millisecond,
 		"the cap evicts down to MaxRafalesPerHash")
 	// kills = spawns - survivors: 12 - 3 = 9 encoders started then killed before
 	// most produced a segment. That is the wasted work + 503 storm.
@@ -129,7 +129,9 @@ func TestOrchestrator_SeekCoalesce_LateSeekPushesTheWindow(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
 	opts := testOpts()
-	opts.SeekCoalesceWindow = 60 * time.Millisecond
+	// Wide against the scheduler: under -race on a loaded box a 30 ms sleep
+	// overran a 60 ms window, the first timer fired and the test saw 2 spawns.
+	opts.SeekCoalesceWindow = 300 * time.Millisecond
 	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger())
 	defer o.Close()
 
@@ -138,11 +140,11 @@ func TestOrchestrator_SeekCoalesce_LateSeekPushesTheWindow(t *testing.T) {
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 100))
 	// Land a second seek at ~half the window, before the first timer fires: it
 	// must move the target AND the deadline, not spawn a second encoder.
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 500))
 
-	require.Eventually(t, func() bool { return proc.startCount() == 1 }, time.Second, 5*time.Millisecond)
-	time.Sleep(80 * time.Millisecond)
+	require.Eventually(t, func() bool { return proc.startCount() == 1 }, eventuallyWait, 5*time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
 	assert.Equal(t, 1, proc.startCount(), "the late seek re-armed the window, it did not add a spawn")
 	assert.Equal(t, 500, proc.lastOpts().StartNumber, "the later seek is the one that wins")
 }
@@ -163,7 +165,7 @@ func TestOrchestrator_SeekCoalesce_LiveRafaleServedImmediately(t *testing.T) {
 
 	// Coalesced spawn at 200 -> a rafale covering [200, 200+LookAhead].
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 200))
-	require.Eventually(t, func() bool { return o.ActiveCount() == 1 }, time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return o.ActiveCount() == 1 }, eventuallyWait, 5*time.Millisecond)
 	require.Equal(t, 1, proc.startCount())
 
 	// A request just ahead, inside the live rafale's window, is served by it -
@@ -211,6 +213,6 @@ func TestOrchestrator_SeekCoalesce_SingleVariant_RungsDoNotOverwriteEachOther(t 
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 100))
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 1, 100))
 
-	require.Eventually(t, func() bool { return proc.startCount() == 2 }, time.Second, 5*time.Millisecond,
+	require.Eventually(t, func() bool { return proc.startCount() == 2 }, eventuallyWait, 5*time.Millisecond,
 		"each rung's seek must spawn its own encoder")
 }

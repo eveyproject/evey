@@ -85,7 +85,9 @@ func buildInfra(ctx context.Context, cfg *config.Config, db *sql.DB, rootLog *sl
 		slog.WarnContext(ctx, "meilisearch unavailable, using SQL search fallback", slog.Any("err", err))
 		searchAdapter = search.NewResilient(nil, sqlFallback)
 	} else {
-		searchAdapter = search.NewResilient(sa, sqlFallback).WithQueue(r.PendingSearchWrite)
+		// Request and scan paths only submit (the engine's task can take
+		// minutes under load); the outbox drain waits on sa and confirms.
+		searchAdapter = search.NewResilient(sa, sqlFallback).WithQueue(r.PendingSearchWrite).WithSubmitOnlyWriter(sa.SubmitOnly())
 		searchHealth = sa
 	}
 

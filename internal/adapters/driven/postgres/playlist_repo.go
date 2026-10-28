@@ -498,6 +498,33 @@ var _ playlist.PlaylistRepository = (*PlaylistRepository)(nil)
 var _ playlist.PlaylistItemRepository = (*PlaylistItemRepository)(nil)
 var _ playlist.SmartPlaylistQuerier = (*SmartPlaylistQuerier)(nil)
 
+// PurgeRemoved deletes the items pointing at one removed media item or music
+// track: the media_item_id index serves it, where PurgeOrphans scans every
+// playlist row. The NOT EXISTS keeps a replayed or early event from dropping
+// items of an id that still exists.
+func (r *PlaylistItemRepository) PurgeRemoved(ctx context.Context, mediaItemID string, music bool) (int64, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.playlist_item.PurgeRemoved")
+	defer span.End()
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	query := `DELETE FROM playlist_items pi
+		 WHERE pi.media_item_id = $1 AND pi.media_type <> $2
+		   AND NOT EXISTS (SELECT 1 FROM media_items m WHERE m.id = $1)`
+	if music {
+		query = `DELETE FROM playlist_items pi
+		 WHERE pi.media_item_id = $1 AND pi.media_type = $2
+		   AND NOT EXISTS (SELECT 1 FROM music_tracks t WHERE t.id = $1)`
+	}
+	res, err := txFromCtx(ctx, r.db).ExecContext(ctx, query, mediaItemID, playlist.MediaTypeMusic)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return 0, fmt.Errorf("PlaylistItemRepo.PurgeRemoved: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
 // PurgeOrphans deletes the items left pointing at a removed media item or
 // music track. Set-based, so a library deletion that cascades thousands of
 // media away costs one statement.

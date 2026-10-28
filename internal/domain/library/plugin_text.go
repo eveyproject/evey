@@ -2,6 +2,8 @@ package library
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
 )
@@ -24,6 +26,61 @@ func (t PluginText) Empty() bool {
 	return t.Title == "" && t.Overview == "" && t.Tagline == ""
 }
 
+// Size is the bytes the text stores.
+func (t PluginText) Size() int64 {
+	return int64(len(t.Title) + len(t.Overview) + len(t.Tagline))
+}
+
+// Bounds of what one metadata plugin stores. UpdateMetadata needs no request
+// from the server, so its growth cannot rest on the plugin's restraint, the
+// same stance as its key/value store.
+const (
+	MaxPluginTextLocalesPerItem = 16
+	MaxPluginTextRows           = 200_000
+	MaxPluginTextBytes          = 128 << 20
+)
+
+// ErrPluginTextQuota: the write would take the plugin past a bound above.
+var ErrPluginTextQuota = errors.New("plugin metadata text quota reached")
+
+// PluginTextUsage is what a plugin stores apart from the rows a write
+// replaces: Rows and Bytes over every item, ItemLocales on the written item.
+type PluginTextUsage struct {
+	Rows        int64
+	Bytes       int64
+	ItemLocales int
+}
+
+// CheckPluginTextQuota refuses texts for mediaItemID that would take
+// pluginID past a bound. locale names the one locale a write replaces, ""
+// when it replaces all of the item's locales.
+func CheckPluginTextQuota(ctx context.Context, repo PluginTextRepository, pluginID, mediaItemID, locale string, texts []PluginText) error {
+	var rows, bytes int64
+	for _, t := range texts {
+		if t.Empty() {
+			continue
+		}
+		rows++
+		bytes += t.Size()
+	}
+	if rows == 0 {
+		return nil // removing never needs room
+	}
+	u, err := repo.Usage(ctx, pluginID, mediaItemID, locale)
+	if err != nil {
+		return err
+	}
+	switch {
+	case u.ItemLocales+int(rows) > MaxPluginTextLocalesPerItem:
+		return fmt.Errorf("%w: at most %d locales per item", ErrPluginTextQuota, MaxPluginTextLocalesPerItem)
+	case u.Rows+rows > MaxPluginTextRows:
+		return fmt.Errorf("%w: at most %d texts per plugin", ErrPluginTextQuota, MaxPluginTextRows)
+	case u.Bytes+bytes > MaxPluginTextBytes:
+		return fmt.Errorf("%w: at most %d MiB of text per plugin", ErrPluginTextQuota, MaxPluginTextBytes>>20)
+	}
+	return nil
+}
+
 // PluginTextRepository keeps the plugins' texts.
 type PluginTextRepository interface {
 	// ReplaceForItem stores what one plugin gave for one item: its texts for
@@ -32,6 +89,10 @@ type PluginTextRepository interface {
 	// ReplaceLocale stores what one plugin gives for one item in one locale,
 	// its other locales untouched; an empty text removes that locale.
 	ReplaceLocale(ctx context.Context, text PluginText) error
+	// Usage counts what pluginID stores outside the rows a write on
+	// mediaItemID replaces: that one locale, or all of the item's when locale
+	// is "".
+	Usage(ctx context.Context, pluginID, mediaItemID, locale string) (PluginTextUsage, error)
 	// DisplayedForLocale returns, for each item, the texts of one locale as
 	// they are to be shown: from enabled plugins only, each field kept only
 	// when the administrator lets that plugin replace it, in plugin id order.

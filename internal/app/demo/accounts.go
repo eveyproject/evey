@@ -181,6 +181,9 @@ func (b *Bootstrapper) ConfineAccounts(ctx context.Context, libs map[string]shar
 				want = []shared.LibraryID{films}
 			}
 		}
+		if len(want) == 0 {
+			continue // no library yet: confining to the empty set would lock the account out
+		}
 		if err := b.access.ReplaceAccess(ctx, u.ID, want); err != nil {
 			return fmt.Errorf("library access for %s: %w", a.username, err)
 		}

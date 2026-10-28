@@ -596,6 +596,26 @@ func (p *SoftwareProducer) WaitBudget() time.Duration { return p.opts.WaitBudget
 //     a sibling another viewer is consuming. Bounded by MaxSessionsPerHash; the
 //     LRU is evicted only when that cap is exceeded.
 func (p *SoftwareProducer) EnsureSegmentRange(ctx context.Context, fp DecisionFingerprint, variantIdx, segmentIdx int) error {
+	for attempt := 1; ; attempt++ {
+		err := p.ensureSegmentRangeOnce(ctx, fp, variantIdx, segmentIdx)
+		if !errors.Is(err, errClaimantGone) || attempt >= maxClaimRetries {
+			return err
+		}
+		// The spawn this request waited on ended with its claimant's own
+		// context; this request is still wanted, so it starts over (and
+		// usually takes the claim itself).
+	}
+}
+
+// maxClaimRetries bounds how many abandoned claims one request starts over
+// from before it gives up with errClaimantGone.
+const maxClaimRetries = 3
+
+// errClaimantGone: the spawn a request waited on ended because its claimant's
+// context did, which says nothing about this request.
+var errClaimantGone = errors.New("software: the spawn's claimant went away")
+
+func (p *SoftwareProducer) ensureSegmentRangeOnce(ctx context.Context, fp DecisionFingerprint, variantIdx, segmentIdx int) error {
 	if segmentIdx < 0 {
 		return fmt.Errorf("software: EnsureSegmentRange: negative segmentIdx %d", segmentIdx)
 	}
@@ -724,9 +744,14 @@ func (p *SoftwareProducer) settlePendingSpawn(hash string, claim *pendingSpawn, 
 
 // waitPendingSpawn blocks until the claimed spawn settles and returns its
 // outcome, so a capacity refusal reaches every racer, not only the winner.
+// The claimant's own context ending is not an outcome for this waiter: it
+// gets errClaimantGone, and EnsureSegmentRange starts over.
 func waitPendingSpawn(ctx context.Context, c *pendingSpawn) error {
 	select {
 	case <-c.done:
+		if (errors.Is(c.err, context.Canceled) || errors.Is(c.err, context.DeadlineExceeded)) && ctx.Err() == nil {
+			return fmt.Errorf("%w: %w", errClaimantGone, c.err)
+		}
 		return c.err
 	case <-ctx.Done():
 		return ctx.Err()

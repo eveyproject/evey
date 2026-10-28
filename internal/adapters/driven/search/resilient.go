@@ -15,6 +15,12 @@ type ResilientSearch struct {
 	// replayed by the drain worker, instead of being silently lost (which the
 	// count-based reconcile can't always heal). nil keeps the legacy swallow.
 	queue library.PendingSearchWriteQueue
+	// writer, when set, takes the writes instead of primary: an adapter that
+	// returns once the engine accepted the write, without waiting for its
+	// task. Every upsert it takes is also queued, so the drain (which waits
+	// on primary) confirms it. Keeps a slow engine from holding a request,
+	// a library deletion or a scan for minutes.
+	writer library.SearchIndex
 }
 
 func NewResilient(primary, fallback library.SearchIndex) *ResilientSearch {
@@ -25,6 +31,24 @@ func NewResilient(primary, fallback library.SearchIndex) *ResilientSearch {
 func (r *ResilientSearch) WithQueue(q library.PendingSearchWriteQueue) *ResilientSearch {
 	r.queue = q
 	return r
+}
+
+// WithSubmitOnlyWriter routes the writes through w, which does not wait for
+// the engine's task, and queues every upsert so the drain confirms it with
+// primary. Needs WithQueue: without the outbox a failed task would be lost.
+// Chainable.
+func (r *ResilientSearch) WithSubmitOnlyWriter(w library.SearchIndex) *ResilientSearch {
+	r.writer = w
+	return r
+}
+
+// writeTarget is where writes go: the submit-only writer when wired (and an
+// outbox backs it), else primary.
+func (r *ResilientSearch) writeTarget() (library.SearchIndex, bool) {
+	if r.writer != nil && r.queue != nil {
+		return r.writer, true
+	}
+	return r.primary, false
 }
 
 // enqueue records a failed write for replay. It detaches from the caller's ctx
@@ -47,9 +71,12 @@ func (r *ResilientSearch) IndexMediaItem(ctx context.Context, item *library.Medi
 	if r.primary == nil {
 		return nil
 	}
-	if err := r.primary.IndexMediaItem(ctx, item); err != nil {
+	w, submitOnly := r.writeTarget()
+	if err := w.IndexMediaItem(ctx, item); err != nil {
 		slog.WarnContext(ctx, "search index: primary failed, queuing for replay", slog.Any("err", err))
 		r.enqueue(ctx, string(item.ID), library.SearchOpUpsert)
+	} else if submitOnly {
+		r.enqueue(ctx, string(item.ID), library.SearchOpUpsert) // the drain confirms the task
 	}
 	return nil
 }
@@ -61,8 +88,12 @@ func (r *ResilientSearch) IndexMediaItemsBatch(ctx context.Context, items []*lib
 	if r.primary == nil {
 		return nil
 	}
-	if err := r.primary.IndexMediaItemsBatch(ctx, items); err != nil {
+	w, submitOnly := r.writeTarget()
+	err := w.IndexMediaItemsBatch(ctx, items)
+	if err != nil {
 		slog.WarnContext(ctx, "search index batch: primary failed, queuing for replay", slog.Any("err", err), slog.Int("count", len(items)))
+	}
+	if err != nil || submitOnly {
 		for _, it := range items {
 			r.enqueue(ctx, string(it.ID), library.SearchOpUpsert)
 		}
@@ -77,20 +108,23 @@ func (r *ResilientSearch) RemoveMediaItem(ctx context.Context, id string) error 
 	if r.primary == nil {
 		return nil
 	}
-	if err := r.primary.RemoveMediaItem(ctx, id); err != nil {
+	w, _ := r.writeTarget()
+	if err := w.RemoveMediaItem(ctx, id); err != nil {
 		slog.WarnContext(ctx, "search remove: primary failed, queuing for replay", slog.Any("err", err))
 		r.enqueue(ctx, id, library.SearchOpDelete)
 	}
 	return nil
 }
 
-// RemoveLibrary purges a deleted library's documents from the primary. Not
-// queued on failure: the outbox is per item, and the reconcile wipes and
-// rebuilds an index left larger than the database.
+// RemoveLibrary purges a deleted library's documents from the primary,
+// through the submit-only writer when wired (the deletion does not wait for
+// the engine). Not queued on failure: the outbox is per item, and the
+// reconcile wipes and rebuilds an index left larger than the database.
 func (r *ResilientSearch) RemoveLibrary(ctx context.Context, libraryID string) error {
 	ctx, span := tracing.StartSpan(ctx, "search.resilient.RemoveLibrary")
 	defer span.End()
-	rm, ok := r.primary.(interface {
+	w, _ := r.writeTarget()
+	rm, ok := w.(interface {
 		RemoveLibrary(ctx context.Context, libraryID string) error
 	})
 	if !ok {

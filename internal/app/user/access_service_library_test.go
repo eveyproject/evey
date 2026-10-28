@@ -124,7 +124,7 @@ func TestAccessService_ReplaceLibraryAccess_SwapsSet(t *testing.T) {
 
 // ReplaceLibraryAccess with an empty list clears every grant, restoring
 // unrestricted access (same convention as zero grants elsewhere).
-func TestAccessService_ReplaceLibraryAccess_Empty_ClearsGrants(t *testing.T) {
+func TestAccessService_ReplaceLibraryAccess_Empty_MeansNoLibrary(t *testing.T) {
 	t.Parallel()
 	svc, _ := newAccessSvcWithLibraryAccess()
 	ctx := context.Background()
@@ -132,9 +132,16 @@ func TestAccessService_ReplaceLibraryAccess_Empty_ClearsGrants(t *testing.T) {
 	require.NoError(t, svc.GrantLibraryAccess(ctx, "u5", "lib-1"))
 	require.NoError(t, svc.ReplaceLibraryAccess(ctx, "u5", []string{}))
 
+	// Unticking every library confines the user to none: it used to lift the
+	// restriction and open the whole catalogue.
 	ok, err := svc.HasLibraryAccess(ctx, "u5", "any-lib")
 	require.NoError(t, err)
-	assert.True(t, ok, "clearing all grants restores unrestricted access")
+	assert.False(t, ok, "an empty set means no library")
+
+	require.NoError(t, svc.RevokeAllLibraryAccess(ctx, "u5"))
+	ok, err = svc.HasLibraryAccess(ctx, "u5", "any-lib")
+	require.NoError(t, err)
+	assert.True(t, ok, "revoking every grant is the explicit way back to every library")
 }
 
 // A repo error during ReplaceLibraryAccess must not mutate the existing
