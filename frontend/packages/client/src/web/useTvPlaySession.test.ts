@@ -133,6 +133,19 @@ describe("useTvPlaySession", () => {
     expect(startStream).not.toHaveBeenCalled();
   });
 
+  // A title gone from the catalogue or from disk is not an error to retry.
+  it("reads a refused verdict for a gone title as its reason, not as an error", async () => {
+    getStreamInfo.mockReset().mockRejectedValue(Object.assign(new Error("gone"), { httpStatus: 404, errorCode: "media_file_missing" }));
+    const { result } = renderHook(() => useTvPlaySession("m1", DEVICE));
+    await waitFor(() => expect(result.current.shedReason).toBe("file_missing"));
+    expect(result.current.isError).toBe(false);
+
+    getStreamInfo.mockReset().mockRejectedValue(Object.assign(new Error("not found"), { httpStatus: 404 }));
+    const second = renderHook(() => useTvPlaySession("m2", DEVICE));
+    await waitFor(() => expect(second.result.current.shedReason).toBe("media_unavailable"));
+    expect(second.result.current.isError).toBe(false);
+  });
+
   it("never probes direct play for shedding - the file streams with no orchestrator", async () => {
     getStreamInfo.mockResolvedValue({ playMethod: "PLAY_METHOD_DIRECT_PLAY", directPlayUrl: "/api/v1/media/m1/stream", mediaStreams: [] });
     const { result } = renderHook(() => useTvPlaySession("m1", DEVICE));

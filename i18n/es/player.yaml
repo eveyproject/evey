@@ -118,6 +118,9 @@ shed:
   fileMissing:
     title: "Este archivo se eliminó"
     body: "Este archivo ya no está en el servidor, así que no se puede reproducir. Las listas se están actualizando."
+  mediaUnavailable:
+    title: "Este título ya no está disponible"
+    body: "Ya no está en la biblioteca, así que no se puede reproducir. Las listas se están actualizando."
 retry: "Reintentar"
 goBack: "Volver"
 shareDesc: "Comparte este enlace con tus amigos para ver juntos:"

@@ -256,6 +256,24 @@ describe("usePlaySession resume", () => {
     expect(result.current.shedReason).toBe("file_missing");
     expect(result.current.isError).toBe(false);
   });
+
+  // The title already left the catalogue (the scan pruned it while a list
+  // still showed it): a plain 404, read as unavailable rather than as an
+  // error to retry. Plain, because a parental block answers the same 404 and
+  // must not be told apart from a title that does not exist.
+  it("reads a plain 404 as media_unavailable, not as an error", async () => {
+    const { renderHook, waitFor } = await import("@testing-library/react");
+    const { usePlaySession } = await import("./usePlaySession");
+
+    getStreamInfoMock.mockRejectedValue(Object.assign(new Error("Média introuvable"), { httpStatus: 404 }));
+    eveyFetchMock.mockResolvedValue({ positionMs: "0" });
+
+    const { result } = renderHook(() => usePlaySession("m4"));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.shedReason).toBe("media_unavailable");
+    expect(result.current.isError).toBe(false);
+  });
 });
 
 // Server-side load shed (HTTP 503): expo-video's native player only exposes a
