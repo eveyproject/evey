@@ -6,9 +6,11 @@
 // - calibrating: the server is benchmarking its encode capacity (~2 min).
 // - file_needs_remux: the file is stored in one-track blocks; an admin re-muxes
 //   it from the media-health page.
+// - file_missing: the title's file is gone from disk (GetStreamInfo's
+//   MEDIA_FILE_MISSING refusal, not a 503): nothing to retry.
 // Never surface the server's `message` (English, technical): the player picks
 // its copy from the code.
-export const SHED_CODES = ["too_many_streams", "file_not_ready", "calibrating", "file_needs_remux"] as const;
+export const SHED_CODES = ["too_many_streams", "file_not_ready", "calibrating", "file_needs_remux", "file_missing"] as const;
 export type ShedCode = (typeof SHED_CODES)[number];
 export type ShedReason = ShedCode | null;
 
@@ -21,6 +23,7 @@ const SHED_I18N_GROUP: Record<ShedCode, string> = {
   file_not_ready: "fileNotReady",
   calibrating: "calibrating",
   file_needs_remux: "fileNeedsRemux",
+  file_missing: "fileMissing",
 };
 
 export function shedI18nKey(reason: ShedCode, part: "title" | "body"): string {

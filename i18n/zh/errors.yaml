@@ -133,6 +133,7 @@ user:
   cannot_delete_default_profile: "无法删除默认个人资料"
 
 media:
+  file_missing: "此文件已不在服务器上"
   not_found: "媒体未找到"
   restricted_profile_edit: "请切换到未启用家长控制的个人资料以编辑标题和图片"
   id_required: "需要媒体 ID"

@@ -115,6 +115,9 @@ shed:
   fileNeedsRemux:
     title: "This video needs a repair"
     body: "This file was assembled in a way this device cannot read to the end (its sound and picture are stored in separate blocks). An administrator can repair it from Media health; nothing to retry until then."
+  fileMissing:
+    title: "This file was deleted"
+    body: "This file is no longer on the server, so it cannot play. The lists are being refreshed."
 retry: Retry
 goBack: Go back
 shareDesc: "Share this link with friends to watch together:"

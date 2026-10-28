@@ -254,13 +254,16 @@ async function fetchWithRefresh(
     let retryAfterSeconds: number | undefined;
     let errorCode: string | undefined;
     try {
-      const body = await response.clone().json() as { message?: string; retryAfterSeconds?: number; code?: unknown };
+      const body = await response.clone().json() as { message?: string; retryAfterSeconds?: number; code?: unknown; details?: unknown };
       if (body.message) message = body.message;
       if (typeof body.retryAfterSeconds === "number") retryAfterSeconds = body.retryAfterSeconds;
       // A server-supplied machine code beats prose: the UI can translate a known
       // cause instead of showing an English sentence from the API. Only string
       // codes count - gRPC-gateway errors put a NUMBER in `code`.
       if (typeof body.code === "string" && body.code !== "") errorCode = body.code;
+      // A gRPC refusal carries its machine reason in an ErrorInfo detail
+      // (MEDIA_FILE_MISSING -> media_file_missing).
+      if (!errorCode) errorCode = errorInfoReason(body.details);
     } catch {
       // ignore parse errors
     }
@@ -445,4 +448,14 @@ async function eveyFetchWithSignal<T>(request: FetcherRequest, signal: AbortSign
   const lines = text.split("\n").filter((l) => l.trim());
   if (lines.length === 0) return undefined as T;
   return JSON.parse(lines[lines.length - 1]) as T;
+}
+
+/** The reason of the first gRPC ErrorInfo detail, lower-cased; undefined without one. */
+function errorInfoReason(details: unknown): string | undefined {
+  if (!Array.isArray(details)) return undefined;
+  for (const d of details) {
+    const reason = (d as { reason?: unknown } | null)?.reason;
+    if (typeof reason === "string" && reason !== "") return reason.toLowerCase();
+  }
+  return undefined;
 }
