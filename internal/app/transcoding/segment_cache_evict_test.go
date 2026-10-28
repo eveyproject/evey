@@ -152,7 +152,7 @@ func TestStart_RunsAndStops(t *testing.T) {
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(filepath.Join(c.baseDir, "old"))
 		return os.IsNotExist(err)
-	}, 2*time.Second, 30*time.Millisecond)
+	}, eventuallyWait, 30*time.Millisecond)
 
 	// new must survive: written just now, inside the protect window
 	assert.DirExists(t, filepath.Join(c.baseDir, "new"))

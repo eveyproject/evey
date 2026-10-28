@@ -275,7 +275,7 @@ func TestAudioOrchestrator_ActiveCount_TracksSessionLifecycle(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return o.ActiveCount() == 0
-	}, 2*time.Second, 20*time.Millisecond, "active count must reach 0 after ffmpeg exits")
+	}, eventuallyWait, 20*time.Millisecond, "active count must reach 0 after ffmpeg exits")
 
 	_ = o.Close()
 }
@@ -979,7 +979,7 @@ func TestAudioOrchestrator_StoppingSessionsCountInTheCap(t *testing.T) {
 
 	close(release)
 	released = true
-	require.Eventually(t, func() bool { return o.ActiveCount() == 3 }, 2*time.Second, 10*time.Millisecond, "the stopped session is reaped")
+	require.Eventually(t, func() bool { return o.ActiveCount() == 3 }, eventuallyWait, 10*time.Millisecond, "the stopped session is reaped")
 	_ = ensure(1300)
 	select {
 	case <-second.stopping:
