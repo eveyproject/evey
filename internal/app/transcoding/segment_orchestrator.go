@@ -1305,7 +1305,8 @@ func (o *SegmentOrchestrator) closestCoveringSessionLocked(hash string, variantI
 // covers segmentIdx, falling back to the most-recently-accessed
 // rafale of the hash when no exact cover exists (cache-hit case: the
 // client is fetching from disk, but we still want to keep at least
-// one rafale warm for the upcoming segments). Used on cache hits so
+// one rafale warm for the upcoming segments). The fallback only bumps
+// lastAccess: the client is nowhere near that rafale's production. Used on cache hits so
 // the GC doesn't reap a session whose segments are still being
 // consumed from the cache, and so the throttle loop sees client
 // progress and resumes a paused ffmpeg in time.
@@ -1345,7 +1346,11 @@ func (o *SegmentOrchestrator) touchSession(hash string, variantIdx, segmentIdx i
 	target.mu.Lock()
 	target.lastAccess = time.Now()
 	target.clientRead = true
-	if segmentIdx > target.clientHighWater {
+	// Only a rafale whose window covers the hit learns where the client is.
+	// The newest-rafale fallback just keeps one warm: it is not producing
+	// there, and a high-water past its production made its buffer negative,
+	// so the throttle never paused it and the abandoned check never fired.
+	if covered && segmentIdx > target.clientHighWater {
 		target.clientHighWater = segmentIdx
 	}
 	// A cache hit proves production through segmentIdx (the throttle only samples once a second).

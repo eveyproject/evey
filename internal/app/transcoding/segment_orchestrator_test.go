@@ -1001,3 +1001,36 @@ func TestOrchestrator_DyingSessionIsNotAValidCover(t *testing.T) {
 	assert.Equal(t, 2, proc.startCount(),
 		"a session already claimed by killSession must not be reused - the segment would never be produced")
 }
+
+// A cache hit far past every rafale (an old encode served from disk, beyond
+// the seek reach) keeps the newest rafale alive but does not move its client
+// high-water: that rafale is not producing there, and a high-water past its
+// production made the buffer negative, so the throttle never paused it and
+// the abandoned-session check never fired.
+func TestOrchestrator_CacheHitOutsideEveryWindowLeavesTheClientHighWater(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	opts := testOpts()
+	opts.LookAheadSegments = 10
+	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger())
+	defer o.Close()
+
+	fp := minimalFingerprint(t)
+	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
+	o.mu.Lock()
+	sess := o.sessions[fp.Hash()][0]
+	o.mu.Unlock()
+	sess.mu.Lock()
+	before := sess.clientHighWater
+	sess.lastAccess = time.Now().Add(-time.Minute)
+	sess.mu.Unlock()
+
+	far := 10_000
+	o.touchSession(fp.Hash(), 0, far)
+
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	assert.Equal(t, before, sess.clientHighWater, "a hit outside every window says nothing about this rafale's client")
+	assert.Less(t, sess.endSeg, far, "nor does it slide the window")
+	assert.WithinDuration(t, time.Now(), sess.lastAccess, 5*time.Second, "the rafale stays warm for the hash")
+}
