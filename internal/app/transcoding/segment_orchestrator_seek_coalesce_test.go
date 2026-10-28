@@ -129,7 +129,9 @@ func TestOrchestrator_SeekCoalesce_LateSeekPushesTheWindow(t *testing.T) {
 	cache, _ := newTestCache(t)
 	proc := newFakeProcess()
 	opts := testOpts()
-	opts.SeekCoalesceWindow = 60 * time.Millisecond
+	// Wide against the scheduler: under -race on a loaded box a 30 ms sleep
+	// overran a 60 ms window, the first timer fired and the test saw 2 spawns.
+	opts.SeekCoalesceWindow = 300 * time.Millisecond
 	o := NewSegmentOrchestrator(cache, proc, stubSource{path: "/media/test.mkv"}, opts, discardLogger())
 	defer o.Close()
 
@@ -138,11 +140,11 @@ func TestOrchestrator_SeekCoalesce_LateSeekPushesTheWindow(t *testing.T) {
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 100))
 	// Land a second seek at ~half the window, before the first timer fires: it
 	// must move the target AND the deadline, not spawn a second encoder.
-	time.Sleep(30 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 500))
 
-	require.Eventually(t, func() bool { return proc.startCount() == 1 }, time.Second, 5*time.Millisecond)
-	time.Sleep(80 * time.Millisecond)
+	require.Eventually(t, func() bool { return proc.startCount() == 1 }, 2*time.Second, 5*time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
 	assert.Equal(t, 1, proc.startCount(), "the late seek re-armed the window, it did not add a spawn")
 	assert.Equal(t, 500, proc.lastOpts().StartNumber, "the later seek is the one that wins")
 }
