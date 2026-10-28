@@ -70,6 +70,21 @@ func (r *FakeMusicTrackRepository) GetByID(_ context.Context, id string) (*music
 	return &t, nil
 }
 
+func (r *FakeMusicTrackRepository) GetByIDs(_ context.Context, ids []string) ([]music.Track, error) {
+	if r.Err != nil {
+		return nil, r.Err
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []music.Track
+	for _, id := range ids {
+		if t, ok := r.tracks[id]; ok {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
 func (r *FakeMusicTrackRepository) Delete(_ context.Context, id string) error {
 	if r.Err != nil {
 		return r.Err
