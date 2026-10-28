@@ -10,9 +10,11 @@ import (
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
 	"github.com/eveyproject/evey/internal/adapters/driving/grpcapi/interceptors"
 	applibrary "github.com/eveyproject/evey/internal/app/library"
+	appmusic "github.com/eveyproject/evey/internal/app/music"
 	appplaylist "github.com/eveyproject/evey/internal/app/playlist"
 	appuser "github.com/eveyproject/evey/internal/app/user"
 	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/music"
 	"github.com/eveyproject/evey/internal/domain/playlist"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	eveyi18n "github.com/eveyproject/evey/internal/pkg/i18n"
@@ -32,6 +34,25 @@ type playlistHandler struct {
 	// is not allowed to see.
 	userQuery  *appuser.QueryService
 	translator *eveyi18n.Translator
+	// music resolves the playlist's music tracks, which are not media items:
+	// without it a track row carries nothing but its id. Optional (a server
+	// without the music module).
+	music playlistTrackReader
+}
+
+// playlistTrackReader reads a playlist's music tracks in one call.
+type playlistTrackReader interface {
+	GetTracksByIDs(ctx context.Context, ids []string) ([]music.Track, error)
+}
+
+// playlistTracksFrom keeps a server without the music module at a truly nil
+// reader: a nil *appmusic.Service stored in the interface would be non-nil,
+// and the nil check in playlistTracks would let it through to a nil call.
+func playlistTracksFrom(svc *appmusic.Service) playlistTrackReader {
+	if svc == nil {
+		return nil
+	}
+	return svc
 }
 
 // allowedLibraryIDs returns the library IDs the caller may see, or nil for full
@@ -249,10 +270,19 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 		}
 		return slices.Contains(allowedIDs, string(m.LibraryID))
 	}
+	tracks, err := h.playlistTracks(ctx, plItems)
+	if err != nil {
+		return nil, internalError(ctx, "get playlist items: resolve tracks", err)
+	}
 	resp := &eveyv1.GetPlaylistItemsResponse{}
 	for _, it := range plItems {
 		m := mediaByID[string(it.MediaItemID)]
 		if m != nil && !accessible(m) {
+			continue
+		}
+		tr := tracks[string(it.MediaItemID)]
+		// The library gate of a video row, applied to the track's library.
+		if tr != nil && allowedIDs != nil && !slices.Contains(allowedIDs, string(tr.LibraryID)) {
 			continue
 		}
 		mt := it.MediaType
@@ -265,6 +295,13 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 			SortOrder:   int32(it.SortOrder),
 			AddedAt:     toTimestamppb(it.AddedAt),
 			MediaType:   mt,
+		}
+		if tr != nil {
+			pi.Title = tr.Title
+			pi.Artist = tr.Artist
+			pi.Album = tr.Album
+			pi.CoverArtUrl = tr.CoverArtURL
+			pi.Duration = tr.Duration
 		}
 		if m != nil {
 			pi.Title = m.Title
@@ -292,6 +329,33 @@ func (h *playlistHandler) GetPlaylistItems(ctx context.Context, req *eveyv1.GetP
 		resp.Items = append(resp.Items, pi)
 	}
 	return resp, nil
+}
+
+// playlistTracks resolves the music entries of a playlist by id. Fail closed
+// like the media lookup above: a store that cannot be read is an error, not a
+// playlist of unnamed rows.
+func (h *playlistHandler) playlistTracks(ctx context.Context, items []*playlist.PlaylistItem) (map[string]*music.Track, error) {
+	if h.music == nil {
+		return nil, nil
+	}
+	var ids []string
+	for _, it := range items {
+		if it.MediaType == playlist.MediaTypeMusic {
+			ids = append(ids, string(it.MediaItemID))
+		}
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	found, err := h.music.GetTracksByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]*music.Track, len(found))
+	for i := range found {
+		byID[found[i].ID] = &found[i]
+	}
+	return byID, nil
 }
 
 func (h *playlistHandler) AddPlaylistItem(ctx context.Context, req *eveyv1.AddPlaylistItemRequest) (*eveyv1.AddPlaylistItemResponse, error) {
