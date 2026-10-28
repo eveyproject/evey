@@ -23,6 +23,9 @@ func (h *backupHandler) CreateBackup(ctx context.Context, _ *eveyv1.CreateBackup
 	defer span.End()
 	m, err := h.svc.CreateBackup(ctx)
 	if err != nil {
+		if errors.Is(err, appbackup.ErrOperationInProgress) {
+			return nil, status.Error(codes.Aborted, "a backup or restore is already running") // 409 through the gateway
+		}
 		return nil, internalError(ctx, "create backup", err)
 	}
 	return manifestToProto(m), nil

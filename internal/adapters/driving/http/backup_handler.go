@@ -56,6 +56,11 @@ func registerBackupRoutes(mux *http.ServeMux, svc *appbackup.Service, tokenGen d
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(otelcodes.Error, "create backup failed")
+			if errors.Is(err, appbackup.ErrOperationInProgress) {
+				// A restore holds the database: nothing failed, try again later.
+				http.Error(w, `{"message":"a backup or restore is already running"}`, http.StatusConflict)
+				return
+			}
 			internalError(ctx, w, "create backup failed", err)
 			return
 		}
