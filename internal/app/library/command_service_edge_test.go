@@ -199,3 +199,25 @@ func TestUpdateLibrary_RepoErrorPropagates(t *testing.T) {
 	assert.Contains(t, err.Error(), "update library")
 	assert.Contains(t, err.Error(), "db down")
 }
+
+// An update is announced, so the watcher can re-arm on new paths or on a
+// real-time monitoring switch without a restart.
+func TestUpdateLibrary_PublishesLibraryUpdated(t *testing.T) {
+	t.Parallel()
+	h := newHarness()
+	lib := &library.Library{ID: "lib-evt", Name: "Series", Type: "tvshow", Paths: []string{"/p"}}
+	h.libCmd.Seed(lib)
+	h.libQuery.Seed(lib)
+
+	lib.RealtimeMonitoring = true
+	require.NoError(t, h.svc.UpdateLibrary(context.Background(), lib))
+
+	var got []library.LibraryUpdated
+	for _, ev := range h.bus.PublishedEvents() {
+		if e, ok := ev.(library.LibraryUpdated); ok {
+			got = append(got, e)
+		}
+	}
+	require.Len(t, got, 1)
+	assert.Equal(t, shared.LibraryID("lib-evt"), got[0].LibraryID)
+}

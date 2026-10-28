@@ -22,6 +22,15 @@ type LibraryDeleted struct {
 
 func (e LibraryDeleted) EventName() string { return "library.deleted" }
 
+// LibraryUpdated is published after a library's name, paths or real-time
+// monitoring switch changed.
+type LibraryUpdated struct {
+	LibraryID  shared.LibraryID
+	OccurredAt time.Time
+}
+
+func (e LibraryUpdated) EventName() string { return "library.updated" }
+
 type LibraryScanStarted struct {
 	LibraryID  shared.LibraryID
 	OccurredAt time.Time

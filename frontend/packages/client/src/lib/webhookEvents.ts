@@ -11,6 +11,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "library.deleted",
   "library.scan.completed",
   "library.scan.started",
+  "library.updated",
   "media.item.added",
   "media.item.removed",
   "media.item.updated",

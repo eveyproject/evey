@@ -445,6 +445,12 @@ func (s *CommandService) UpdateLibrary(ctx context.Context, lib *library.Library
 	if err := s.libraries.Update(ctx, lib); err != nil {
 		return fmt.Errorf("update library: %w", err)
 	}
+	// The watcher re-arms on it: new paths or a monitoring switch take effect
+	// without a restart.
+	evt := library.LibraryUpdated{LibraryID: lib.ID, OccurredAt: lib.UpdatedAt}
+	if err := s.events.Publish(ctx, evt); err != nil {
+		slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+	}
 	return nil
 }
 
