@@ -36,10 +36,19 @@ import (
 
 const (
 	// playerEventMaxBody bounds one beacon. The payload is a handful of short
-	// fields; anything bigger is not a player talking.
-	playerEventMaxBody = 2 << 10
+	// fields plus, on an error, the native player's message and its causes;
+	// anything bigger is not a player talking.
+	playerEventMaxBody = 8 << 10
 	// playerEventMaxDetail clamps free-text fields going into the logs.
 	playerEventMaxDetail = 200
+	// playerEventErrorMaxDetail is the budget of an error's details: a native
+	// decoder error names the renderer and the whole format before its
+	// format_supported verdict and its cause, past 200 chars.
+	playerEventErrorMaxDetail = 2000
+	// playerEventMaxCause clamps one entry of diag.causes, and
+	// playerEventMaxCauses their count.
+	playerEventMaxCause  = 300
+	playerEventMaxCauses = 8
 	// playerEventQoESample is the native apps' QoE beacon: Details carries a
 	// CMCD string (bl=..., bs, su, sid="...") and the sample goes to the QoE
 	// sink, not to the logs.
@@ -73,6 +82,53 @@ type playerEventBody struct {
 	// where it decodes to false and the playhead alone decides. That fallback
 	// is the safe one: a stall stays a stall.
 	Paused bool `json:"paused,omitempty"`
+	// Diag is a native player's failure taken apart: which renderer, the
+	// format it was fed and whether it claimed to support it, the decoder,
+	// the cause chain, how the stream was being played. Absent elsewhere.
+	Diag *playerEventDiag `json:"diag,omitempty"`
+}
+
+// playerEventDiag is what a native player error is made of, as fields an
+// operator can filter on.
+type playerEventDiag struct {
+	Renderer        string   `json:"renderer"` // video, audio, text
+	FormatSupported string   `json:"formatSupported"`
+	Decoder         string   `json:"decoder"`
+	Mime            string   `json:"mime"`
+	Codecs          string   `json:"codecs"`
+	Width           int      `json:"width"`
+	Height          int      `json:"height"`
+	FPS             float64  `json:"fps"`
+	BitrateKbps     int      `json:"bitrateKbps"`
+	PlayMethod      string   `json:"playMethod"`
+	ErrorCode       string   `json:"errorCode"`
+	Causes          []string `json:"causes"`
+}
+
+// logAttr renders the diagnosis as one "diag" group, every string clamped.
+func (d *playerEventDiag) logAttr() slog.Attr {
+	causes := d.Causes
+	if len(causes) > playerEventMaxCauses {
+		causes = causes[:playerEventMaxCauses]
+	}
+	clamped := make([]string, len(causes))
+	for i, c := range causes {
+		clamped[i] = clampString(c, playerEventMaxCause)
+	}
+	return slog.Group("diag",
+		slog.String("renderer", clampString(d.Renderer, playerEventMaxDetail)),
+		slog.String("format_supported", clampString(d.FormatSupported, playerEventMaxDetail)),
+		slog.String("decoder", clampString(d.Decoder, playerEventMaxDetail)),
+		slog.String("mime", clampString(d.Mime, playerEventMaxDetail)),
+		slog.String("codecs", clampString(d.Codecs, playerEventMaxDetail)),
+		slog.Int("width", d.Width),
+		slog.Int("height", d.Height),
+		slog.Float64("fps", d.FPS),
+		slog.Int("bitrate_kbps", d.BitrateKbps),
+		slog.String("play_method", clampString(d.PlayMethod, playerEventMaxDetail)),
+		slog.String("error_code", clampString(d.ErrorCode, playerEventMaxDetail)),
+		slog.Any("causes", clamped),
+	)
 }
 
 // playerEventDeps carries the optional library/parental guard for
@@ -288,14 +344,16 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 		// where=player filter still shows the full story in one place.
 		logLine := logger.Info
 		msg := "player-client: playback event reported"
+		detailBudget := playerEventMaxDetail
 		// A receiver that stopped answering (cast_sender_stall) is an anomaly
 		// worth the WARN level, like a fatal error: it is what an operator
 		// searches for after "the phone kept spinning".
 		if body.Fatal || strings.Contains(body.Type, "error") || strings.Contains(body.Type, "fatal") || strings.Contains(body.Type, "stall") {
 			logLine = logger.Warn
 			msg = "player-client: playback error reported"
+			detailBudget = playerEventErrorMaxDetail
 		}
-		logLine(msg,
+		attrs := []any{
 			// The component drives the admin log search's where=player filter:
 			// an operator investigating an incident finds the client's view of
 			// it right next to the server's ffmpeg/session lines.
@@ -303,7 +361,7 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			slog.String("media_id", mediaID),
 			slog.String("user_id", userID),
 			slog.String("type", body.Type),
-			slog.String("details", clampString(body.Details, playerEventMaxDetail)),
+			slog.String("details", clampString(body.Details, detailBudget)),
 			slog.String("state", clampString(body.State, playerEventMaxDetail)),
 			slog.Bool("fatal", body.Fatal),
 			slog.Int("code", body.Code),
@@ -311,7 +369,11 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 			slog.Int("seg", body.Segment),
 			slog.Float64("pos_sec", body.PosSec),
 			slog.String("device", clampString(r.UserAgent(), playerEventMaxDetail)),
-		)
+		}
+		if body.Diag != nil {
+			attrs = append(attrs, body.Diag.logAttr())
+		}
+		logLine(msg, attrs...)
 		// The alive beacon doubles as the TV's command poll: a pending admin
 		// command rides back in the response body (200); the bare 204 stays
 		// the answer everywhere else - including for the deployed receivers
