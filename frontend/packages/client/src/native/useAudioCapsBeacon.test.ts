@@ -15,9 +15,9 @@ vi.mock("@evey/media-caps", async () => {
     reportAudioProbeOnce: (...args: unknown[]) => reportOnce(...args),
   };
 });
-vi.mock("./deviceCodecs", () => ({ getDecoderCheck: () => Promise.resolve(null) }));
+vi.mock("./deviceCodecs", () => ({ getDecoderCheck: () => Promise.resolve(null), getVideoCapsReport: () => Promise.resolve(null) }));
 
-import { reportDecoderCheckOnce, resetDecoderCheckLatch, useAudioCapsBeacon } from "./useAudioCapsBeacon";
+import { reportDecoderCheckOnce, reportVideoCapsOnce, resetDecoderCheckLatch, useAudioCapsBeacon } from "./useAudioCapsBeacon";
 
 beforeEach(() => {
   resetDecoderCheckLatch();
@@ -77,6 +77,31 @@ describe("reportDecoderCheckOnce", () => {
   it("sends nothing on a build without the check", async () => {
     const post = vi.fn();
     await reportDecoderCheckOnce(Promise.resolve(null), post);
+    expect(post).not.toHaveBeenCalled();
+  });
+});
+
+// What a decoder error is read against: the decoders' own declaration, sent
+// once per launch, off Android nothing.
+describe("reportVideoCapsOnce", () => {
+  it("reports the decoders' declaration once per launch", async () => {
+    resetDecoderCheckLatch();
+    const post = vi.fn().mockResolvedValue(undefined);
+    const report = Promise.resolve({
+      maxH264Level: 51,
+      limits: { maxWidth: 3840, maxHeight: 2160, tenBitCodecs: [], codecs: { h264: { maxWidth: 3840, maxHeight: 2160, sizeRate: { "2160p60": false } } } },
+    });
+    await reportVideoCapsOnce(report, post);
+    await reportVideoCapsOnce(report, post);
+    expect(post.mock.calls.map((c) => c[0])).toEqual([
+      { type: "video_caps", details: "h264_level=51 max=3840x2160 10bit=none | h264 3840x2160 2160p60=no", fatal: false },
+    ]);
+  });
+
+  it("sends nothing where there is nothing to report", async () => {
+    resetDecoderCheckLatch();
+    const post = vi.fn();
+    await reportVideoCapsOnce(Promise.resolve(null), post);
     expect(post).not.toHaveBeenCalled();
   });
 });
