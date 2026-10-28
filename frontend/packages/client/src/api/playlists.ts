@@ -49,6 +49,9 @@ export interface PlaylistItem {
   title?: string;
   type?: string;
   year?: number;
+  // "video" or "music": a playlist mixes both, and a track id means nothing to
+  // the video page.
+  media_type?: string;
 }
 
 // The API speaks its enum ("PLAYLIST_TYPE_MANUAL"); the screens speak
@@ -102,6 +105,7 @@ export function usePlaylistDetail(id: string) {
           title: it.title,
           type: it.type,
           year: it.year,
+          media_type: it.mediaType,
         })),
     },
   });

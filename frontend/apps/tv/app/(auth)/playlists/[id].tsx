@@ -5,6 +5,8 @@ import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaylistDetail, type PlaylistItem } from "../../../src/api/playlists";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { musicServiceGetTrack } from "@evey/api";
+import { trackToQueueTrack, useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { ScreenState } from "../../../src/components/ScreenState";
 
 export default function PlaylistDetailScreen() {
@@ -12,6 +14,15 @@ export default function PlaylistDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const setQueue = useMusicQueueStore((s) => s.setQueue);
+
+  // A music track has no video page: /media/<track id> answers 404. It plays in
+  // the music player, from its own metadata (the playlist carries only its id).
+  const playTrack = (trackId: string) => {
+    void musicServiceGetTrack(trackId)
+      .then((res) => setQueue([trackToQueueTrack(res.track ?? { id: trackId })], 0))
+      .catch(() => setQueue([trackToQueueTrack({ id: trackId })], 0));
+  };
 
   const { data: playlist, isLoading, isError, refetch } = usePlaylistDetail(id ?? "");
 
@@ -48,7 +59,9 @@ export default function PlaylistDetailScreen() {
             item={item}
             theme={theme}
             isFirst={index === 0}
-            onPress={() => router.push(`/media/${item.media_item_id}`)}
+            onPress={() =>
+              item.media_type === "music" ? playTrack(item.media_item_id) : router.push(`/media/${item.media_item_id}`)
+            }
           />
         )}
         ListEmptyComponent={
