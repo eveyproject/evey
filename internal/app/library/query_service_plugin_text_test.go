@@ -19,6 +19,10 @@ type fakePluginTexts struct {
 	err   error
 }
 
+func (f *fakePluginTexts) Usage(context.Context, string, string, string) (library.PluginTextUsage, error) {
+	return library.PluginTextUsage{}, nil
+}
+
 func (f *fakePluginTexts) ReplaceForItem(context.Context, string, string, []library.PluginText) error {
 	return nil
 }

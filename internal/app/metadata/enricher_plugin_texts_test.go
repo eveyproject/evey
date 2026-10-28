@@ -3,6 +3,7 @@ package metadata
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -42,6 +43,11 @@ type replaceCall struct {
 type recordingPluginTexts struct {
 	calls []replaceCall
 	err   error
+	usage domainlib.PluginTextUsage
+}
+
+func (r *recordingPluginTexts) Usage(context.Context, string, string, string) (domainlib.PluginTextUsage, error) {
+	return r.usage, nil
 }
 
 func (r *recordingPluginTexts) ReplaceForItem(_ context.Context, item, plugin string, texts []domainlib.PluginText) error {
@@ -173,4 +179,32 @@ func (g *gatedSource) LookupTextsFrom(_ context.Context, _ string, req domain.Pl
 	g.asked = append(g.asked, req.MediaItemID)
 	a, ok := g.answers[req.MediaItemID]
 	return a, ok
+}
+
+// An answer that would take the plugin past its text quota is not stored:
+// too many locales for one item, or a plugin already at its byte bound.
+func TestEnrichItem_PluginAnswerOverQuotaIsNotStored(t *testing.T) {
+	ctx := context.Background()
+	e, _, _, _, miRepo, _ := newTestEnricher(&fakeProvider{name: "tmdb"}, nil, nil)
+	many := make([]domain.PluginLocaleText, domainlib.MaxPluginTextLocalesPerItem+1)
+	for i := range many {
+		many[i] = domain.PluginLocaleText{Locale: fmt.Sprintf("l%02d", i), Overview: "x"}
+	}
+	source := &fakePluginSource{answers: []domain.PluginTextAnswer{
+		{PluginID: "flood", Texts: many},
+		{PluginID: "full", Texts: []domain.PluginLocaleText{{Locale: "fr", Overview: "x"}}},
+	}}
+	store := &recordingPluginTexts{}
+	EnricherWithPluginTexts(source, store)(e)
+	item := &domainlib.MediaItem{ID: "m1", Type: domainlib.MovieItem}
+	require.NoError(t, miRepo.Create(ctx, item))
+
+	require.NoError(t, e.EnrichItem(ctx, item, &domain.MetadataResult{Title: "Heat"}))
+	require.Len(t, store.calls, 1, "too many locales for one item: only the other answer is stored")
+	assert.Equal(t, "full", store.calls[0].plugin)
+
+	store.usage = domainlib.PluginTextUsage{Bytes: domainlib.MaxPluginTextBytes}
+	source.answers = source.answers[1:]
+	require.NoError(t, e.EnrichItem(ctx, item, &domain.MetadataResult{Title: "Heat"}))
+	assert.Len(t, store.calls, 1, "a plugin at its byte bound stores nothing more")
 }
