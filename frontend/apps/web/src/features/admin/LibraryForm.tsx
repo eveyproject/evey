@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { eveyFetch, useLibraryServiceCreateLibrary, useLibraryServiceUpdateLibrary, apiErrorMessage } from "@evey/api";
 import { toast } from "@evey/store";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Checkbox";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import type { V1Library, V1LibraryType } from "@evey/api";
@@ -19,6 +20,10 @@ export function LibraryForm({ onSuccess, library }: LibraryFormProps) {
   const [type, setType] = useState<V1LibraryType>((library?.type as V1LibraryType) ?? "LIBRARY_TYPE_MOVIES");
   const [paths, setPaths] = useState<string[]>(library?.paths?.length ? library.paths : [""]);
   const [mediaDirs, setMediaDirs] = useState<string[]>([]);
+  // On by default for a new library: without it a deleted or added file waits
+  // for the next periodic scan, and the server's probe already falls back to
+  // that scan where a watch cannot work (a network share, say).
+  const [realtimeMonitoring, setRealtimeMonitoring] = useState(library ? !!library.realtimeMonitoring : true);
 
   useEffect(() => {
     void (async () => {
@@ -66,11 +71,11 @@ export function LibraryForm({ onSuccess, library }: LibraryFormProps) {
     if (isEdit) {
       updateLib.mutate({
         id: library.id!,
-        data: { name, paths: cleanPaths },
+        data: { name, paths: cleanPaths, realtimeMonitoring },
       });
     } else {
       createLib.mutate({
-        data: { name, type, paths: cleanPaths },
+        data: { name, type, paths: cleanPaths, realtimeMonitoring },
       });
     }
   }
@@ -143,6 +148,15 @@ export function LibraryForm({ onSuccess, library }: LibraryFormProps) {
         <Button type="button" variant="secondary" onClick={addPath} className="self-start">
           {t("admin.libraries.addPath")}
         </Button>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <Checkbox
+          label={t("admin.libraries.realtimeMonitoring")}
+          checked={realtimeMonitoring}
+          onChange={setRealtimeMonitoring}
+        />
+        <span className="text-xs text-[var(--text-muted)]">{t("admin.libraries.realtimeMonitoringHint")}</span>
       </div>
 
       <div className="flex justify-end gap-2 pt-2">

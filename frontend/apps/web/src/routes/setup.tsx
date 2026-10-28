@@ -240,7 +240,7 @@ function SetupPage() {
       setLibraryError(t("admin.libraries.pathRequired") || "At least one path is required");
       return;
     }
-    createLibrary.mutate({ data: { name: libraryForm.name, type: libraryForm.type, paths: validPaths } });
+    createLibrary.mutate({ data: { name: libraryForm.name, type: libraryForm.type, paths: validPaths, realtimeMonitoring: true } });
   };
 
   const logoIcon = <EveyWordmark height={36} className="mb-4 text-[var(--text)]" />;

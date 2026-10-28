@@ -564,6 +564,7 @@ libraries:
   namePlaceholder: "Nombre de la biblioteca"
   pathRequired: "Se requiere al menos una ruta"
   realtimeMonitoring: "Monitoreo en tiempo real"
+  realtimeMonitoringHint: "Los archivos añadidos o eliminados aparecen en segundos en lugar de esperar al siguiente escaneo periódico."
   scanFailed: "Escaneo fallido"
   scanOnStartup: "Escanear al iniciar"
 

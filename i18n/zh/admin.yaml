@@ -564,6 +564,7 @@ libraries:
   namePlaceholder: "媒体库名称"
   pathRequired: "至少需要一个路径"
   realtimeMonitoring: "实时监控"
+  realtimeMonitoringHint: "新增或删除的文件会在几秒内显示，无需等待下一次定期扫描。"
   scanFailed: "扫描失败"
   scanOnStartup: "启动时扫描"
 

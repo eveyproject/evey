@@ -5,11 +5,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LibraryForm } from "./LibraryForm";
 
 const mutateMock = vi.fn();
+const updateMock = vi.fn();
 
 vi.mock("@evey/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@evey/api")>()),
   useLibraryServiceCreateLibrary: () => ({ mutate: mutateMock, isPending: false }),
-  useLibraryServiceUpdateLibrary: () => ({ mutate: vi.fn(), isPending: false }),
+  useLibraryServiceUpdateLibrary: () => ({ mutate: updateMock, isPending: false }),
   eveyFetch: vi.fn().mockRejectedValue(new Error("not found")),
 }));
 
@@ -52,7 +53,45 @@ describe("LibraryForm", () => {
         name: "My Movies",
         type: "LIBRARY_TYPE_MOVIES",
         paths: ["/media/movies"],
+        realtimeMonitoring: true,
       },
+    });
+  });
+
+  // A new library is watched by default; the operator can turn it off.
+  it("creates a library without real-time monitoring when unticked", async () => {
+    mutateMock.mockClear();
+    await renderForm();
+    await userEvent.type(screen.getByLabelText("Name"), "Share");
+    await userEvent.type(screen.getByPlaceholderText("/media/movies"), "/media/share");
+    const box = screen.getByRole("checkbox", { name: "Realtime monitoring" });
+    expect(box).toBeChecked();
+    await userEvent.click(box);
+    await userEvent.click(screen.getByRole("button", { name: "Create Library" }));
+    expect(mutateMock).toHaveBeenCalledWith({
+      data: { name: "Share", type: "LIBRARY_TYPE_MOVIES", paths: ["/media/share"], realtimeMonitoring: false },
+    });
+  });
+
+  // Editing shows the stored switch and sends it: the edit form had no such
+  // control, so a library created without it could never be watched.
+  it("edits the real-time monitoring switch of an existing library", async () => {
+    updateMock.mockClear();
+    render(
+      <LibraryForm
+        onSuccess={vi.fn()}
+        library={{ id: "lib-1", name: "Series", type: "LIBRARY_TYPE_SHOWS", paths: ["/media/series"], realtimeMonitoring: false }}
+      />,
+      { wrapper: createWrapper() },
+    );
+    await act(async () => {});
+    const box = screen.getByRole("checkbox", { name: "Realtime monitoring" });
+    expect(box).not.toBeChecked();
+    await userEvent.click(box);
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(updateMock).toHaveBeenCalledWith({
+      id: "lib-1",
+      data: { name: "Series", paths: ["/media/series"], realtimeMonitoring: true },
     });
   });
 
