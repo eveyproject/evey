@@ -65,6 +65,36 @@ func TestQuickConnectRepo_GetByCode_ExpiredIsNotFound(t *testing.T) {
 	require.ErrorIs(t, err, shared.ErrNotFound)
 }
 
+// A request that expires between the approver's lookup and the write must not
+// flip to authorized: the approver would be told the device is paired while
+// the device can never collect the session.
+func TestQuickConnectRepo_UpdateStatus_ExpiredIsNotFound(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	userRepo := postgres.NewUserRepository(db)
+	repo := postgres.NewQuickConnectRepository(db)
+	ctx := context.Background()
+
+	u := newTestUser("qc-exp-u")
+	require.NoError(t, userRepo.Create(ctx, u))
+	require.NoError(t, repo.Create(ctx, &user.QuickConnectRequest{
+		ID:        "qc-exp-upd",
+		Code:      "EXPIRED2",
+		Secret:    "s",
+		Status:    user.Pending,
+		ExpiresAt: time.Now().Add(-1 * time.Minute).UTC().Truncate(time.Millisecond),
+		CreatedAt: time.Now().Add(-3 * time.Minute).UTC().Truncate(time.Millisecond),
+	}))
+
+	userID := string(u.ID)
+	require.ErrorIs(t, repo.UpdateStatus(ctx, "qc-exp-upd", string(user.Authorized), &userID), shared.ErrNotFound)
+
+	var status string
+	require.NoError(t, db.QueryRowContext(ctx, `SELECT status FROM quick_connect_requests WHERE id = 'qc-exp-upd'`).Scan(&status))
+	assert.Equal(t, string(user.Pending), status)
+}
+
 func TestQuickConnectRepo_UpdateStatus(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

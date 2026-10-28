@@ -90,11 +90,12 @@ func (r *QuickConnectRepository) UpdateStatus(ctx context.Context, id, status st
 	span.SetAttributes(attribute.String("quick_connect.id", id), attribute.String("quick_connect.status", status))
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
-	// Only transition from 'pending' - authorizing a non-pending request
-	// (already used, expired, rejected) must be a no-op so a leaked-code
-	// replay can't overwrite user_id on a settled authorization.
+	// Only transition from a live 'pending' - authorizing a non-pending request
+	// (already used, rejected) must be a no-op so a leaked-code replay can't
+	// overwrite user_id on a settled authorization, and one that expired since
+	// the caller's lookup must not report a pairing the device can't collect.
 	res, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`UPDATE quick_connect_requests SET status = $1, user_id = $2 WHERE id = $3 AND status = 'pending'`,
+		`UPDATE quick_connect_requests SET status = $1, user_id = $2 WHERE id = $3 AND status = 'pending' AND expires_at > now()`,
 		status, userID, id)
 	if err != nil {
 		span.RecordError(err)
