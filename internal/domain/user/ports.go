@@ -150,7 +150,9 @@ type LibraryAccessRepository interface {
 	// libraryIDs (delete-then-insert in one transaction). Callers that used to
 	// revoke every existing grant in a loop then grant the new set in a second
 	// loop had a real window where a crash or error between the two loops left
-	// the user revoked from everything and re-granted nothing.
+	// the user revoked from everything and re-granted nothing. The user is
+	// restricted afterwards: an empty set means no library, never every one;
+	// DeleteByUserID is the only way back to unrestricted.
 	ReplaceAccess(ctx context.Context, userID shared.UserID, libraryIDs []shared.LibraryID) error
 	// DeleteByUserID atomically revokes every grant for userID in a single
 	// statement, replacing a per-library revoke loop that a mid-loop failure

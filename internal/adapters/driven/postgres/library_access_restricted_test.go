@@ -81,9 +81,9 @@ func TestLibraryAccessRepo_StaleInviteLibrariesDenyAll(t *testing.T) {
 	assert.False(t, has)
 }
 
-// RevokeAll and an empty replace are the admin's "unrestricted" action: they
-// clear the flag with the grants.
-func TestLibraryAccessRepo_RevokeAllAndEmptyReplaceLiftTheRestriction(t *testing.T) {
+// RevokeAll is the admin's "unrestricted" action: it clears the flag with the
+// grants. An empty replace confines the user to no library instead.
+func TestLibraryAccessRepo_RevokeAllLiftsTheRestrictionEmptyReplaceDoesNot(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()
 	userRepo := postgres.NewUserRepository(db)
@@ -116,5 +116,8 @@ func TestLibraryAccessRepo_RevokeAllAndEmptyReplaceLiftTheRestriction(t *testing
 	require.NoError(t, repo.ReplaceAccess(ctx, uid, nil))
 	has, err = repo.HasAccess(ctx, uid, b.ID)
 	require.NoError(t, err)
-	assert.True(t, has)
+	assert.False(t, has, "an empty set confines the user to no library")
+	restricted, err = repo.IsRestricted(ctx, uid)
+	require.NoError(t, err)
+	assert.True(t, restricted)
 }

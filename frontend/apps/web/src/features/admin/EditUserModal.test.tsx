@@ -165,4 +165,34 @@ describe("EditUserModal", () => {
     render(<EditUserModal user={baseUser} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
     expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
   });
+
+  it("unticking the last library confines the user to none, never to every library", async () => {
+    // An empty selection used to be saved as a revoke-all, which lifts the
+    // restriction and opens the whole catalogue.
+    getAccessMock.mockReturnValue({
+      data: { libraryIds: ["lib1"], restricted: true, libraries: [{ id: "lib1", name: "Movies" }] },
+      isLoading: false,
+    });
+    const u = userEvent.setup();
+    render(<EditUserModal user={baseUser} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    await u.click(screen.getByLabelText("Movies"));
+    expect(screen.getByText("No library")).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    expect(setAccessMutateAsync).toHaveBeenCalledWith({ userId: "u1", data: { libraryIds: [] } });
+    expect(revokeAccessMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("only the explicit All libraries choice lifts the restriction", async () => {
+    getAccessMock.mockReturnValue({
+      data: { libraryIds: [], restricted: true, libraries: [{ id: "lib1", name: "Movies" }] },
+      isLoading: false,
+    });
+    const u = userEvent.setup();
+    render(<EditUserModal user={baseUser} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    expect(screen.getByText("No library")).toBeInTheDocument();
+    await u.click(screen.getByRole("radio", { name: "All libraries" }));
+    await u.click(screen.getByRole("button", { name: "Save" }));
+    expect(revokeAccessMutateAsync).toHaveBeenCalledWith({ userId: "u1" });
+    expect(setAccessMutateAsync).not.toHaveBeenCalled();
+  });
 });
