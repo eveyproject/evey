@@ -442,6 +442,22 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 	variantIdx int,
 	segmentIdx int,
 ) error {
+	for attempt := 1; ; attempt++ {
+		err := o.ensureSegmentRangeOnce(ctx, fp, variantIdx, segmentIdx)
+		if !errors.Is(err, errClaimantGone) || attempt >= maxClaimRetries {
+			return err
+		}
+		// The spawn this request waited on ended with its claimant's own
+		// context; this request is still wanted, so it starts over.
+	}
+}
+
+func (o *SegmentOrchestrator) ensureSegmentRangeOnce(
+	ctx context.Context,
+	fp DecisionFingerprint,
+	variantIdx int,
+	segmentIdx int,
+) error {
 	if segmentIdx < 0 {
 		return fmt.Errorf("EnsureSegmentRange: negative segmentIdx %d", segmentIdx)
 	}
@@ -493,12 +509,7 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 			// of parking the viewer on a segment nobody is encoding. The wait is
 			// bounded by spawnSession's own work (resolve + exec), which is the
 			// work this goroutine would otherwise have duplicated.
-			select {
-			case <-winner.done:
-				return winner.err
-			case <-ctx.Done():
-				return ctx.Err()
-			}
+			return waitPendingSpawn(ctx, winner)
 		}
 		// Coalesce rapid unserved seeks. `far == nil` here means no live rafale
 		// even reaches this position - a genuine seek to fresh ground, which is
@@ -555,6 +566,11 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 			slog.String("hash", hash),
 			slog.Int("requested", segmentIdx))
 	}
+	// Deferred so every exit, a panic included, settles the claim: a stranded
+	// one would wedge the hash for the lifetime of the process. Until
+	// spawnSession returns, waiters see the spawn as aborted.
+	outcome := errSpawnAborted
+	defer func() { o.settlePendingSpawn(hash, claim, outcome) }()
 	err := o.spawnSession(ctx, fp, variantIdx, segmentIdx)
 	if err != nil && far != nil && (errors.Is(err, ErrVideoCapacityExhausted) || errors.Is(err, ErrCapacityExceeded)) {
 		// No room for a second encoder: ride the far one (slow, but not a 503).
@@ -572,13 +588,10 @@ func (o *SegmentOrchestrator) EnsureSegmentRange(
 			far.endSeg = segmentIdx + o.opts.LookAheadSegments
 		}
 		far.mu.Unlock()
-		o.settlePendingSpawn(hash, claim, nil)
+		outcome = nil
 		return nil
 	}
-	// Publish the outcome to whoever waited on this claim, then drop it. Runs on
-	// every path out of spawnSession - a stranded claim would wedge the hash for
-	// the lifetime of the process.
-	o.settlePendingSpawn(hash, claim, err)
+	outcome = err
 	return err
 }
 
