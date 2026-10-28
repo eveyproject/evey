@@ -36,7 +36,8 @@ green pipeline. `make hooks` wires it to `git push`; bypass one push
 deliberately with `git push --no-verify`.
 
 A push to `dev` or to a work branch runs `make pre-push-dev` instead: the same
-gate without the long suites the pull request's CI reruns on the same commits.
+gate without the long suites the pull request's CI reruns on the same commits,
+and with the Go unit tests of the changed packages only.
 A push to `master` runs the full gate.
 
 For proto changes: `make proto-gen`.
