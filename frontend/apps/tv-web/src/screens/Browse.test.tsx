@@ -7,6 +7,8 @@ const markRead = vi.fn();
 const markAllRead = vi.fn();
 const notifications = vi.fn();
 const infiniteQuery = vi.fn();
+const playlistDetail = vi.fn(() => ({ data: undefined as unknown, isLoading: false, isError: false, refetch: vi.fn() }));
+const setQueue = vi.fn();
 
 vi.mock("../tv/focus", () => ({
   useArrivalFocus: () => {},
@@ -49,10 +51,14 @@ vi.mock("@evey/client", async (importOriginal) => ({
   useCollection: () => ({ data: undefined, isLoading: false }),
   useFavoritesList: () => ({ data: [], isLoading: false }),
   usePlaylistList: () => ({ data: [], isLoading: false }),
-  usePlaylistDetail: () => ({ data: undefined, isLoading: false }),
+  usePlaylistDetail: () => playlistDetail(),
+}));
+vi.mock("../music/queue", () => ({
+  useMusicQueueStore: (sel: (s: { setQueue: typeof setQueue }) => unknown) => sel({ setQueue }),
+  trackToQueueTrack: (t: { id?: string; title?: string; artist?: string }) => ({ id: t.id ?? "", title: t.title ?? "", artist: t.artist ?? "" }),
 }));
 
-import { HistoryScreen, NotificationsScreen } from "./Browse";
+import { HistoryScreen, NotificationsScreen, PlaylistScreen } from "./Browse";
 
 beforeEach(() => {
   navigateMock.mockReset();
@@ -115,5 +121,40 @@ describe("the notifications", () => {
     } finally {
       demoState.demoMode = false;
     }
+  });
+});
+
+// A track of a mixed playlist opened the video page under its own id, which
+// answers 404: it plays in the music player with the playlist's other tracks,
+// from the pressed one on, and its row names the artist.
+describe("a playlist's music tracks", () => {
+  it("play in the music player instead of opening the video page", () => {
+    playlistDetail.mockReturnValue({
+      data: {
+        id: "pl-1", name: "Mixed",
+        items: [
+          { media_item_id: "t-1", media_type: "music", title: "First song", artist: "An artist" },
+          { media_item_id: "m-1", media_type: "video", title: "A film" },
+          { media_item_id: "t-2", media_type: "music", title: "Second song", artist: "Another artist" },
+        ],
+      },
+      isLoading: false, isError: false, refetch: vi.fn(),
+    });
+    setQueue.mockReset();
+    render(<PlaylistScreen playlistId="pl-1" />);
+
+    expect(screen.getByText("An artist")).toBeTruthy();
+    fireEvent.click(screen.getByText("Second song"));
+    expect(setQueue).toHaveBeenCalledWith(
+      [
+        { id: "t-1", title: "First song", artist: "An artist" },
+        { id: "t-2", title: "Second song", artist: "Another artist" },
+      ],
+      1,
+    );
+    expect(navigateMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("A film"));
+    expect(navigateMock).toHaveBeenCalledWith({ name: "media", mediaId: "m-1" });
   });
 });
