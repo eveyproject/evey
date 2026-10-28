@@ -115,6 +115,9 @@ shed:
   fileNeedsRemux:
     title: "Este vídeo necesita una reparación"
     body: "Este archivo se ensambló de una forma que este dispositivo no puede leer hasta el final (el sonido y la imagen están guardados en bloques separados). Un administrador puede repararlo desde Salud de los medios; no sirve reintentar hasta entonces."
+  fileMissing:
+    title: "Este archivo se eliminó"
+    body: "Este archivo ya no está en el servidor, así que no se puede reproducir. Las listas se están actualizando."
 retry: "Reintentar"
 goBack: "Volver"
 shareDesc: "Comparte este enlace con tus amigos para ver juntos:"

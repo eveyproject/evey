@@ -43,10 +43,11 @@ describe("playerEventReporter", () => {
       playMethod: "direct_play", errorCode: "", causes: ["Decoder init failed"],
     };
     report({ type: "native_player_error", details: "x", fatal: true, diag });
-    expect(mockEveyFetch.mock.calls[0][0]).toMatchObject({ data: { type: "native_player_error", diag } });
+    const calls = mockEveyFetch.mock.calls as unknown as unknown[][];
+    expect(calls[0][0]).toMatchObject({ data: { type: "native_player_error", diag } });
 
     report({ type: "hls_fatal", details: "y" });
-    expect(mockEveyFetch.mock.calls[1][0]).not.toHaveProperty("data.diag");
+    expect(calls[1][0]).not.toHaveProperty("data.diag");
   });
 
   it("keeps the snapshot out of the dedupe key", () => {

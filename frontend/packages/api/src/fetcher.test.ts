@@ -308,6 +308,19 @@ describe("eveyFetch: what a failed call tells the UI", () => {
     expect(err.errorCode).toBe("remote_access_disabled");
   });
 
+  it("reads a gRPC ErrorInfo reason as the error code", async () => {
+    fetchMock.mockResolvedValueOnce(
+      mockResponse(404, {
+        code: 5,
+        message: "Ce fichier n'est plus sur le serveur",
+        details: [{ "@type": "type.googleapis.com/google.rpc.ErrorInfo", reason: "MEDIA_FILE_MISSING", domain: "evey", metadata: { media_id: "m1" } }],
+      }),
+    );
+    const err = await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }));
+    expect(err.httpStatus).toBe(404);
+    expect(err.errorCode).toBe("media_file_missing");
+  });
+
   it("uses the server's message, and degrades to status text on an unparseable body", async () => {
     fetchMock.mockResolvedValueOnce(mockResponse(500, { message: "disk full" }));
     expect((await catchError(eveyFetch({ url: "/api/v1/x", method: "GET" }))).message).toBe("disk full");

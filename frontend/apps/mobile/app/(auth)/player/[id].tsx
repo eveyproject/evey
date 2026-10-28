@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -1170,6 +1171,20 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   );
   gatedNavigateRef.current = gatedNavigateEpisode;
 
+  // A title whose file was deleted: every list this phone holds may still carry
+  // it (the server drops it at the rescan it just started), so they are
+  // refetched; and with autoplay on, the series carries on with the next
+  // episode instead of stopping on the deleted one. A downloaded copy still
+  // plays (see useLocalSource), so nothing moves then.
+  const queryClient = useQueryClient();
+  const fileMissingHandledRef = useRef(false);
+  useEffect(() => {
+    if (shedReason !== "file_missing" || localFilePath || fileMissingHandledRef.current) return;
+    fileMissingHandledRef.current = true;
+    void queryClient.invalidateQueries();
+    if (autoplayNext && nextEp.nextEpisode?.id) gatedNavigateEpisode(nextEp.nextEpisode.id);
+  }, [shedReason, localFilePath, queryClient, autoplayNext, nextEp.nextEpisode, gatedNavigateEpisode]);
+
   const handleEpisodePinVerified = useCallback(() => {
     const id = pendingEpisodeId;
     setPendingEpisodeId(null);
@@ -1498,6 +1513,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     return (
       <ShedScreen
         shedReason={shedReason}
+        onNextEpisode={nextEp.nextEpisode?.id ? () => gatedNavigateEpisode(nextEp.nextEpisode!.id!) : undefined}
         onRetry={() => {
           // Retrying after a shed means the user wants playback back - always autoplay.
           resumeAfterRestartRef.current = true;
