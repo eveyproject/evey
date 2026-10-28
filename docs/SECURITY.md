@@ -243,9 +243,12 @@ whitelist.
 
 ### A separate user
 
-A plugin can run as user 1001 (`evey-plugin`), distinct from the server
-(1000), so the server's secrets are unreadable to it by file permissions
-alone. `EVEY_PLUGINS_UID_SEPARATION` controls it:
+A plugin can run as a user of its own, distinct from the server (1000), so
+the server's secrets are unreadable to it by file permissions alone. Each
+plugin gets its uid from its id, in the range 40000 to 59999, stable across
+restarts; it keeps the server's group, which only reads the installed files.
+Two ids can land on the same uid: those two plugins then share it.
+`EVEY_PLUGINS_UID_SEPARATION` controls it:
 
 | Value | When the switch happens |
 |---|---|
@@ -262,8 +265,10 @@ this role.
 
 When active, the signing key (`0600`) and the backups (`0700` directory,
 `0600` files) are owner-only at run time, which holds even on a bind-mounted
-`/data`. All plugins share user 1001: they are isolated from each other by
-the filesystem layer, not by the user.
+`/data`. Plugins are isolated from each other by their uid on top of the
+filesystem layer. A server run as root (not recommended) drops every plugin
+to the single user 1001 instead: there, only the filesystem layer separates
+the plugins.
 
 ### Host socket authentication
 
@@ -439,7 +444,7 @@ on the host. Which setup fits which machine, in plain terms:
 | Limit | Impact | What limits it today |
 |---|---|---|
 | No per-path confinement in `basic` on a kernel without Landlock | A plugin can read non-sensitive world-readable files and other plugins' directories | Secrets protected by the separate user and `PR_SET_DUMPABLE`; `auto` prefers Landlock or bubblewrap |
-| All plugins share user 1001 | In `basic` mode, a plugin can read files its siblings own | Signalling other processes is blocked (seccomp, `LD_PRELOAD` and bubblewrap all block it); `PR_SET_DUMPABLE` blocks reading other processes through `/proc`; Landlock and bubblewrap isolate plugin directories |
+| Plugin uids come from a hash of the id; a server run as root drops every plugin to user 1001 | Two plugins whose ids collide, or every plugin under a root server, share a uid: in `basic` mode, one can read files the other owns | Signalling other processes is blocked (seccomp, `LD_PRELOAD` and bubblewrap all block it); `PR_SET_DUMPABLE` blocks reading other processes through `/proc`; Landlock and bubblewrap isolate plugin directories |
 | Seccomp is a denylist | File and Unix socket calls stay allowed | Paths are confined by Landlock or bubblewrap; IP sockets are refused |
 | The broker moves the SSRF surface to the host | A flaw in the broker's validation could reach an internal address | Allowlist and SSRF-safe client in Go; an egress rule on the container as an independent layer |
 | The broker controls where a call goes, not what it carries | Data can leave towards a host on the plugin's list | Allow only hosts you trust with that data |
