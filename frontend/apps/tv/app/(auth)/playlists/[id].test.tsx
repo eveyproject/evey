@@ -73,6 +73,17 @@ vi.mock("../../../src/api/playlists", () => ({
   usePlaylistDetail: () => playlistDetailMock(),
 }));
 
+// --- music: a track of the playlist plays in the music player ---------------
+const getTrackMock = vi.fn();
+vi.mock("@evey/api", () => ({
+  musicServiceGetTrack: (id: string) => getTrackMock(id),
+}));
+const setQueueMock = vi.fn();
+vi.mock("../../../src/stores/musicQueue", () => ({
+  useMusicQueueStore: (sel: (s: { setQueue: typeof setQueueMock }) => unknown) => sel({ setQueue: setQueueMock }),
+  trackToQueueTrack: (t: { id?: string; title?: string }) => ({ id: t.id ?? "", title: t.title ?? "" }),
+}));
+
 import PlaylistDetailScreen from "./[id]";
 
 const PLAYLIST = {
@@ -136,5 +147,42 @@ describe("PlaylistDetailScreen (TV) loaded state", () => {
 
     expect(screen.getByText("Song A")).toBeTruthy();
     expect(screen.getByText("Song B")).toBeTruthy();
+  });
+});
+
+// A track of a mixed playlist used to open the video page under the track's
+// id: /media/<track id> answers 404, so the viewer got an error screen for a
+// song that plays fine everywhere else.
+describe("PlaylistDetailScreen (TV) music items", () => {
+  it("plays a music track in the music player instead of opening the video page", async () => {
+    getTrackMock.mockResolvedValue({ track: { id: "t-9", title: "A song" } });
+    playlistDetailMock.mockReturnValue({
+      data: { id: "pl-1", name: "Mixed", items: [{ media_item_id: "t-9", media_type: "music", sort_order: 0 }] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    render(<PlaylistDetailScreen />);
+
+    fireEvent.click(screen.getByText("t-9").closest("button")!);
+
+    await vi.waitFor(() => expect(setQueueMock).toHaveBeenCalledWith([{ id: "t-9", title: "A song" }], 0));
+    expect(getTrackMock).toHaveBeenCalledWith("t-9");
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("still opens the video page for a video item", () => {
+    playlistDetailMock.mockReturnValue({
+      data: { id: "pl-1", name: "Mixed", items: [{ media_item_id: "m-1", media_type: "video", title: "A film", sort_order: 0 }] },
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+    render(<PlaylistDetailScreen />);
+
+    fireEvent.click(screen.getByText("A film").closest("button")!);
+
+    expect(pushMock).toHaveBeenCalledWith("/media/m-1");
+    expect(setQueueMock).not.toHaveBeenCalled();
   });
 });
