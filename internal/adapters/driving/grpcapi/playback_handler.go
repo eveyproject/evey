@@ -330,6 +330,7 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	// (Reported), never the bare core.
 	decided := h.playbackDecider().Reported(ctx, preq)
 	decision := &decided
+	logPlaybackDecision(ctx, req.MediaItemId, interceptors.UserAgentFromCtx(ctx), client, maxBitrateKbps, decision)
 	resp.TranscodeReasons = decision.TranscodeReasons
 	resp.VideoDecision = decision.VideoDecision
 	resp.AudioDecision = decision.AudioDecision
@@ -377,6 +378,34 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	}
 
 	return resp, nil
+}
+
+// logPlaybackDecision writes one line per verdict: what the client declared
+// and what it was answered. A decoder error the player reports later (the
+// player-event beacon) is then read against the capabilities the device
+// claimed, instead of guessed at. Diagnostic only.
+func logPlaybackDecision(ctx context.Context, mediaID, userAgent string, client transcoding.ClientProfile, maxBitrateKbps int, d *transcoding.PlaybackDecision) {
+	slog.InfoContext(ctx, "playback decision",
+		slog.String("component", "playback_decision"),
+		slog.String("media_id", mediaID),
+		slog.String("device", userAgent),
+		slog.String("play_method", d.PlayMethod),
+		slog.String("video_decision", d.VideoDecision),
+		slog.String("audio_decision", d.AudioDecision),
+		slog.String("reasons", strings.Join(d.TranscodeReasons, ",")),
+		slog.Int("max_h264_level", client.MaxH264Level),
+		slog.Int("max_h264_height", client.MaxH264Height),
+		slog.Int("max_width", client.MaxWidth),
+		slog.Int("max_height", client.MaxHeight),
+		slog.Bool("hdr", client.SupportsHDR),
+		slog.Int("max_audio_channels", client.MaxAudioChannels),
+		slog.String("video_codecs", strings.Join(client.VideoCodecs, ",")),
+		slog.String("audio_codecs", strings.Join(client.AudioCodecs, ",")),
+		slog.String("pixel_formats", strings.Join(client.PixelFormats, ",")),
+		slog.String("containers", strings.Join(client.Containers, ",")),
+		slog.String("fmp4_audio_passthrough", strings.Join(client.FMP4AudioPassthrough, ",")),
+		slog.Int("max_bitrate_kbps", maxBitrateKbps),
+	)
 }
 
 // typeRelativeIndex converts an ABSOLUTE probed stream index (what the proto
