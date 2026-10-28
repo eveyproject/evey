@@ -87,13 +87,13 @@ func TestPlayerEvent_RejectsAndClamps(t *testing.T) {
 	if rec := postPlayerEvent(t, logger, `{"type":"weird type; DROP TABLE"}`); rec.Code != http.StatusBadRequest {
 		t.Fatalf("type outside [a-z0-9_]: status = %d, want 400", rec.Code)
 	}
-	if rec := postPlayerEvent(t, logger, `{"type":"x","details":"`+strings.Repeat("A", 5000)+`"}`); rec.Code != http.StatusBadRequest {
+	if rec := postPlayerEvent(t, logger, `{"type":"x","details":"`+strings.Repeat("A", playerEventMaxBody)+`"}`); rec.Code != http.StatusBadRequest {
 		t.Fatalf("oversized body: status = %d, want 400", rec.Code)
 	}
 
 	buf.Reset()
 	long := strings.Repeat("d", 500)
-	if rec := postPlayerEvent(t, logger, `{"type":"hls_fatal","details":"`+long+`"}`); rec.Code != http.StatusNoContent {
+	if rec := postPlayerEvent(t, logger, `{"type":"audio_mode","details":"`+long+`"}`); rec.Code != http.StatusNoContent {
 		t.Fatalf("long-but-in-budget details: status = %d, want 204", rec.Code)
 	}
 	var line map[string]any
@@ -653,5 +653,83 @@ func TestPlayerEvent_QoESampleWithoutSinkIsDropped(t *testing.T) {
 	}
 	if buf.Len() != 0 {
 		t.Fatalf("a QoE sample must not reach the logs, got: %s", buf.String())
+	}
+}
+
+// A native decoder error reads as "MediaCodecVideoRenderer error, index=0,
+// format=Format(...), format_supported=..." followed by its cause: 200 chars
+// cut it before format_supported and the cause, the two facts that say why.
+// An error keeps a longer budget, a routine event the short one.
+func TestPlayerEvent_AnErrorKeepsItsWholeMessage(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	msg := "MediaCodecVideoRenderer error, index=0, format=Format(1, null, video/mp4, video/avc, avc1.640033, 35117824, und, [3840, 2160, 60.0, ColorInfo(Unset color space)]" + strings.Repeat(" padding", 30) + ", format_supported=NO_EXCEEDS_CAPABILITIES"
+	body, _ := json.Marshal(map[string]any{"type": "native_player_error", "details": msg, "fatal": true})
+	if rec := postPlayerEvent(t, logger, string(body)); rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("log line: %v", err)
+	}
+	if got, _ := line["details"].(string); !strings.HasSuffix(got, "format_supported=NO_EXCEEDS_CAPABILITIES") {
+		t.Fatalf("details cut at %d chars, the format support is lost: %q", len(got), got)
+	}
+
+	buf.Reset()
+	huge, _ := json.Marshal(map[string]any{"type": "native_player_error", "details": strings.Repeat("e", 5000), "fatal": true})
+	if rec := postPlayerEvent(t, logger, string(huge)); rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	line = map[string]any{}
+	_ = json.Unmarshal(buf.Bytes(), &line)
+	if got, _ := line["details"].(string); len(got) != playerEventErrorMaxDetail {
+		t.Fatalf("an error's details logged at %d chars, want clamped to %d", len(got), playerEventErrorMaxDetail)
+	}
+}
+
+// The native players send what the decoder failure was made of as fields, so
+// a search can filter on the renderer or the format support instead of
+// parsing a sentence.
+func TestPlayerEvent_LogsTheStructuredDiagnosis(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	body := `{"type":"native_player_error","fatal":true,"posSec":2,"diag":{
+		"renderer":"video","formatSupported":"NO_EXCEEDS_CAPABILITIES","decoder":"c2.vendor.avc.decoder",
+		"mime":"video/avc","codecs":"avc1.640033","width":3840,"height":2160,"fps":60,"bitrateKbps":8000,
+		"playMethod":"direct_play","causes":["Decoder init failed","` + strings.Repeat("c", 600) + `"]}}`
+	if rec := postPlayerEvent(t, logger, body); rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d (%s)", rec.Code, rec.Body.String())
+	}
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("log line: %v", err)
+	}
+	d, ok := line["diag"].(map[string]any)
+	if !ok {
+		t.Fatalf("no diag group in %v", line)
+	}
+	for k, want := range map[string]any{
+		"renderer": "video", "format_supported": "NO_EXCEEDS_CAPABILITIES", "decoder": "c2.vendor.avc.decoder",
+		"mime": "video/avc", "codecs": "avc1.640033", "width": float64(3840), "height": float64(2160),
+		"fps": float64(60), "bitrate_kbps": float64(8000), "play_method": "direct_play",
+	} {
+		if d[k] != want {
+			t.Fatalf("diag.%s = %v, want %v", k, d[k], want)
+		}
+	}
+	causes, _ := d["causes"].([]any)
+	if len(causes) != 2 || causes[0] != "Decoder init failed" || len(causes[1].(string)) != playerEventMaxCause {
+		t.Fatalf("causes = %v, want both, the long one clamped to %d", causes, playerEventMaxCause)
+	}
+
+	buf.Reset()
+	if rec := postPlayerEvent(t, logger, `{"type":"native_player_error","fatal":true}`); rec.Code != http.StatusNoContent {
+		t.Fatal("an event without diag stays accepted")
+	}
+	line = map[string]any{}
+	_ = json.Unmarshal(buf.Bytes(), &line)
+	if _, has := line["diag"]; has {
+		t.Fatal("no diag sent, no diag group logged")
 	}
 }
