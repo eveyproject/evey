@@ -133,6 +133,7 @@ user:
   cannot_delete_default_profile: "Le profil par défaut ne peut pas être supprimé"
 
 media:
+  file_missing: "Ce fichier n'est plus sur le serveur"
   not_found: "Média introuvable"
   restricted_profile_edit: "Passez sur un profil sans contrôle parental pour modifier les titres et les visuels"
   id_required: "Un identifiant de média est requis"

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   View,
   Text,
@@ -60,6 +61,8 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
+import { diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
+import { subscribePlayerStatus } from "@evey/client/native/playerStatus";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
@@ -277,6 +280,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       // The encoder is pre-warmed where the player will start.
       restart: restart === "1",
     });
+  // Read by the error listener, which outlives renders: how the stream that
+  // failed was being played, for the error beacon.
+  const playMethodRef = useRef("");
   // A film starts, the album stops - the mini player is mounted for the whole
   // signed-in app and kept playing under the video otherwise.
   useEffect(() => {
@@ -564,6 +570,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // offline (isError), shed, or a stream that never arrives, where silent
   // video beats no playback at all.
   const useLocalSource = !!localFilePath && (localAudioOk || isError || !!shedReason || localFallbackDue);
+  playMethodRef.current = playMethodName(streamInfo?.playMethod, useLocalSource);
 
   // What ac3go handed the speakers, reported: a track decoded to silence is
   // otherwise invisible (the picture plays, progress ticks). A phone too slow
@@ -687,7 +694,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       currentTimeRef.current = ev.currentTime;
       try { setDuration(player.duration); } catch (err) { console.warn("released", err); }
     });
-    const statusSub = player.addListener("statusChange", (ev) => {
+    const statusSub = subscribePlayerStatus(player, (ev) => {
       if (!mountedRef.current) return;
       try { setIsPlaying(player.playing); setDuration(player.duration); } catch (err) { console.warn("released", err); }
       // "loading" while playing = network/segment stall: the web shows a
@@ -740,6 +747,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
           details: ev.error?.message ?? "",
           fatal: true,
           posSec: Math.round(currentTimeRef.current),
+          diag: diagnoseNativePlayerError(ev.error?.message ?? "", playMethodRef.current),
         });
         setNativeError(ev.error?.message ?? "playback error");
       }
@@ -1163,6 +1171,20 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   );
   gatedNavigateRef.current = gatedNavigateEpisode;
 
+  // A title whose file was deleted: every list this phone holds may still carry
+  // it (the server drops it at the rescan it just started), so they are
+  // refetched; and with autoplay on, the series carries on with the next
+  // episode instead of stopping on the deleted one. A downloaded copy still
+  // plays (see useLocalSource), so nothing moves then.
+  const queryClient = useQueryClient();
+  const fileMissingHandledRef = useRef(false);
+  useEffect(() => {
+    if (shedReason !== "file_missing" || localFilePath || fileMissingHandledRef.current) return;
+    fileMissingHandledRef.current = true;
+    void queryClient.invalidateQueries();
+    if (autoplayNext && nextEp.nextEpisode?.id) gatedNavigateEpisode(nextEp.nextEpisode.id);
+  }, [shedReason, localFilePath, queryClient, autoplayNext, nextEp.nextEpisode, gatedNavigateEpisode]);
+
   const handleEpisodePinVerified = useCallback(() => {
     const id = pendingEpisodeId;
     setPendingEpisodeId(null);
@@ -1491,6 +1513,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
     return (
       <ShedScreen
         shedReason={shedReason}
+        onNextEpisode={nextEp.nextEpisode?.id ? () => gatedNavigateEpisode(nextEp.nextEpisode!.id!) : undefined}
         onRetry={() => {
           // Retrying after a shed means the user wants playback back - always autoplay.
           resumeAfterRestartRef.current = true;
