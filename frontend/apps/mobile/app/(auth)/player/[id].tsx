@@ -60,6 +60,7 @@ import { usePlaySession } from "../../../src/hooks/usePlaySession";
 import { useAudioCapsBeacon } from "../../../src/hooks/useAudioCapsBeacon";
 import { useDecoderTelemetry } from "../../../src/hooks/useDecoderTelemetry";
 import { playbackReloadRetry, reloadableStatus, reloadAtPlayhead } from "@evey/client/native/playbackReload";
+import { diagnoseNativePlayerError, playMethodName } from "@evey/client/native/playerErrorDiag";
 import { useQoEBeacon } from "../../../src/hooks/useQoEBeacon";
 import { useProgressReporter } from "../../../src/hooks/useProgressReporter";
 import { usePlayerGestures } from "../../../src/hooks/usePlayerGestures";
@@ -277,6 +278,9 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
       // The encoder is pre-warmed where the player will start.
       restart: restart === "1",
     });
+  // Read by the error listener, which outlives renders: how the stream that
+  // failed was being played, for the error beacon.
+  const playMethodRef = useRef("");
   // A film starts, the album stops - the mini player is mounted for the whole
   // signed-in app and kept playing under the video otherwise.
   useEffect(() => {
@@ -564,6 +568,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   // offline (isError), shed, or a stream that never arrives, where silent
   // video beats no playback at all.
   const useLocalSource = !!localFilePath && (localAudioOk || isError || !!shedReason || localFallbackDue);
+  playMethodRef.current = playMethodName(streamInfo?.playMethod, useLocalSource);
 
   // What ac3go handed the speakers, reported: a track decoded to silence is
   // otherwise invisible (the picture plays, progress ticks). A phone too slow
@@ -740,6 +745,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
           details: ev.error?.message ?? "",
           fatal: true,
           posSec: Math.round(currentTimeRef.current),
+          diag: diagnoseNativePlayerError(ev.error?.message ?? "", playMethodRef.current),
         });
         setNativeError(ev.error?.message ?? "playback error");
       }
