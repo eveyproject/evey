@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net"
+	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -28,6 +31,7 @@ import (
 	"github.com/eveyproject/evey/internal/pkg/network"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
 	otelcodes "go.opentelemetry.io/otel/codes"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -60,6 +64,10 @@ type playbackHandler struct {
 	// request-time pins) - bound by the composition root once the HTTP
 	// pipeline that owns the resolver exists, before this server starts.
 	decider apptranscoding.PlaybackDecider
+	// rescanLibrary rescans a library in the background, called when a title's
+	// file is found gone at negotiation: the scan's orphan prune removes it,
+	// with its own guards against a degraded mount. Optional.
+	rescanLibrary func(ctx context.Context, libraryID string)
 	// hours warns a kids profile's player before its opening ends. Optional.
 	hours        ProfileHoursReader
 	closingWarns closingWarnings
@@ -267,6 +275,19 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 			}
 		}
 	}
+	// A file deleted from disk keeps its title until the next scan prunes it:
+	// negotiating it handed the player a direct play that could only 404, and
+	// the apps showed a generic failure. Refuse it here with a reason they
+	// read, and have the library rescanned so the title leaves the lists.
+	if item.File != nil && item.File.Path != "" && !mediaFileExists(item.File.Path) {
+		slog.WarnContext(ctx, "stream info: media file missing on disk",
+			slog.String("media_id", req.MediaItemId), slog.String("library_id", string(item.LibraryID)))
+		if h.rescanLibrary != nil && item.LibraryID != "" {
+			h.rescanLibrary(ctx, string(item.LibraryID))
+		}
+		span.SetStatus(otelcodes.Error, "media file missing")
+		return nil, mediaFileMissingError(ctx, h.translator, req.MediaItemId)
+	}
 	containerFormat := ""
 	if item.File != nil {
 		containerFormat = item.File.ContainerFormat
@@ -378,6 +399,69 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	}
 
 	return resp, nil
+}
+
+// backgroundLibraryRescan runs one library scan at a time per library, off the
+// request: the caller's answer never waits on a walk of the library, and a
+// viewer retrying a deleted title does not pile scans up.
+func backgroundLibraryRescan(cmd *applibrary.CommandService) func(ctx context.Context, libraryID string) {
+	if cmd == nil {
+		return nil
+	}
+	var mu sync.Mutex
+	running := map[string]bool{}
+	return func(ctx context.Context, libraryID string) {
+		mu.Lock()
+		if running[libraryID] {
+			mu.Unlock()
+			return
+		}
+		running[libraryID] = true
+		mu.Unlock()
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					slog.Error("library rescan after a missing file: panic", slog.Any("panic", r))
+				}
+				mu.Lock()
+				delete(running, libraryID)
+				mu.Unlock()
+			}()
+			if _, _, err := cmd.ScanLibrary(context.WithoutCancel(ctx), libraryID); err != nil && !errors.Is(err, applibrary.ErrScanInProgress) {
+				slog.WarnContext(ctx, "library rescan after a missing file failed", slog.String("library_id", libraryID), slog.Any("err", err))
+			}
+		}()
+	}
+}
+
+// MediaFileMissingReason is the ErrorInfo reason of a title whose file is gone
+// from disk: the apps show "this file was deleted" instead of a failure.
+const MediaFileMissingReason = "MEDIA_FILE_MISSING"
+
+// mediaFileExists reports whether path is on disk. An error other than "does
+// not exist" (permissions, an I/O hiccup) counts as present: only a proven
+// absence turns into a refusal.
+func mediaFileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil || !errors.Is(err, fs.ErrNotExist)
+}
+
+// mediaFileMissingError is NotFound with a translated message and the
+// MEDIA_FILE_MISSING reason.
+func mediaFileMissingError(ctx context.Context, translator *eveyi18n.Translator, mediaID string) error {
+	msg := "errors.media.file_missing"
+	if translator != nil {
+		msg = translator.T(eveyi18n.LocaleFromCtx(ctx), msg)
+	}
+	st, err := status.New(codes.NotFound, msg).WithDetails(&errdetails.ErrorInfo{
+		Reason:   MediaFileMissingReason,
+		Domain:   "evey",
+		Metadata: map[string]string{"media_id": mediaID},
+	})
+	if err != nil {
+		return status.Error(codes.NotFound, msg)
+	}
+	return st.Err()
 }
 
 // logPlaybackDecision writes one line per verdict: what the client declared

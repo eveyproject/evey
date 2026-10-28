@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -1854,4 +1857,43 @@ func TestGetStreamInfo_LogsTheCapabilitiesAndTheDecision(t *testing.T) {
 		assert.Equal(t, want, line[k], "field %s", k)
 	}
 	assert.Contains(t, line, "reasons")
+}
+
+// A title whose file is gone from disk (deleted by hand, before the library
+// rescan prunes it) is refused at negotiation with a reason the apps read,
+// instead of a direct play the player only learns about as a 404, and the
+// library is rescanned so the title leaves every list.
+func TestGetStreamInfo_FileGoneFromDisk(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	present := filepath.Join(t.TempDir(), "here.mkv")
+	require.NoError(t, os.WriteFile(present, []byte("x"), 0o644))
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-gone", LibraryID: "lib-1", Title: "Gone", Type: "episode", File: &library.MediaFile{Path: filepath.Join(t.TempDir(), "deleted.mkv"), ContainerFormat: "mkv"}})
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-here", LibraryID: "lib-1", Title: "Here", Type: "movie", File: &library.MediaFile{Path: present, ContainerFormat: "mkv"}})
+	for _, id := range []string{"mi-gone", "mi-here"} {
+		streamRepo.CreateBatch(context.Background(), []*library.MediaStream{{MediaItemID: shared.MediaItemID(id), StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), IsDefault: true}})
+	}
+	rescanned := make(chan string, 2)
+	h.rescanLibrary = func(_ context.Context, libraryID string) { rescanned <- libraryID }
+
+	_, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-gone"})
+	st, _ := status.FromError(err)
+	require.Equal(t, codes.NotFound, st.Code(), "%v", err)
+	var reason string
+	for _, d := range st.Details() {
+		if info, ok := d.(*errdetails.ErrorInfo); ok {
+			reason = info.Reason
+		}
+	}
+	assert.Equal(t, MediaFileMissingReason, reason)
+	select {
+	case lib := <-rescanned:
+		assert.Equal(t, "lib-1", lib)
+	case <-time.After(2 * time.Second):
+		t.Fatal("the library holding the missing file must be rescanned")
+	}
+
+	_, err = h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-here"})
+	require.NoError(t, err)
+	assert.Empty(t, rescanned, "a title whose file is there triggers nothing")
 }

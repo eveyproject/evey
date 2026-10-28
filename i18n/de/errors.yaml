@@ -133,6 +133,7 @@ user:
   cannot_delete_default_profile: "Das Standardprofil kann nicht gelöscht werden"
 
 media:
+  file_missing: "Diese Datei ist nicht mehr auf dem Server"
   not_found: "Medium nicht gefunden"
   restricted_profile_edit: "Wechseln Sie zu einem Profil ohne Jugendschutz, um Titel und Bilder zu bearbeiten"
   id_required: "Eine Medien-ID ist erforderlich"
