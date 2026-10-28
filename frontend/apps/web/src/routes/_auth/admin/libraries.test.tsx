@@ -116,6 +116,16 @@ describe("LibrariesPage", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  // No cron schedule does not mean no scan: the server walks every library on
+  // its own periodic pass. The column said "Off", which read as never scanned.
+  it("shows an unscheduled library as scanned automatically, not off", async () => {
+    mockListLibraries.mockReturnValue({ data: { libraries: [mockLibrary] }, isLoading: false });
+    const LibrariesPage = await getLibrariesPage();
+    render(React.createElement(LibrariesPage), { wrapper: createWrapper() });
+    expect(screen.getByText("Automatic")).toBeInTheDocument();
+    expect(screen.queryByText("Off")).not.toBeInTheDocument();
+  });
+
   it("shows scan and schedule buttons for library row", async () => {
     mockListLibraries.mockReturnValue({ data: { libraries: [mockLibrary] }, isLoading: false });
     const LibrariesPage = await getLibrariesPage();

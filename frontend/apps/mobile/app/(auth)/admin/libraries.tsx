@@ -367,9 +367,9 @@ function LibraryRow({
           </Text>
         )}
         <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-          {schedule?.enabled
-            ? t("admin.libraries.tableHeaders.nextScan", "Next scan") + ": " + (schedule.nextRunAt ? formatScheduleDate(schedule.nextRunAt) : t("common.enabled", "Enabled"))
-            : t("admin.libraries.off", "Scan schedule off")}
+          {t("admin.libraries.tableHeaders.nextScan", "Next scan") + ": " + (schedule?.enabled
+            ? (schedule.nextRunAt ? formatScheduleDate(schedule.nextRunAt) : t("common.enabled", "Enabled"))
+            : t("admin.libraries.autoScan"))}
         </Text>
       </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, justifyContent: "flex-end", maxWidth: 96 }}>
