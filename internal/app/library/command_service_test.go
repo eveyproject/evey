@@ -194,6 +194,24 @@ func TestDeleteMediaItem_RemovesItem(t *testing.T) {
 	require.ErrorIs(t, err, shared.ErrNotFound)
 }
 
+// An admin delete tells the rest of the server, as a scan prune does:
+// playlists, caches and notifications let go of the item.
+func TestDeleteMediaItem_PublishesMediaItemRemoved(t *testing.T) {
+	t.Parallel()
+	svc, _, _, mediaRepo, _, bus, _, _ := newCmdSvcWithSearch()
+	mediaRepo.Create(context.Background(), &library.MediaItem{ID: "item-to-delete", LibraryID: "lib-1"})
+
+	require.NoError(t, svc.DeleteMediaItem(context.Background(), "item-to-delete"))
+
+	var removed []shared.MediaItemID
+	for _, ev := range bus.PublishedEvents() {
+		if e, ok := ev.(library.MediaItemRemoved); ok {
+			removed = append(removed, e.MediaItemID)
+		}
+	}
+	assert.Equal(t, []shared.MediaItemID{"item-to-delete"}, removed)
+}
+
 func TestDeleteMediaItem_NotFound(t *testing.T) {
 	t.Parallel()
 	svc, _, _, _, _, _ := newCmdSvc()

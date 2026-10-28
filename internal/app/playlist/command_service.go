@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
+	"github.com/eveyproject/evey/internal/domain/music"
 	"github.com/eveyproject/evey/internal/domain/playlist"
 	"github.com/eveyproject/evey/internal/domain/shared"
 	"github.com/eveyproject/evey/internal/pkg/tracing"
@@ -229,19 +230,34 @@ func (s *CommandService) ReorderItems(ctx context.Context, playlistID string, pr
 	return s.items.Reorder(ctx, playlistID, mediaItemIDs)
 }
 
-// SubscribeMediaRemovals purges the playlist items orphaned by a media removal
-// or by a library deletion, whose cascade removes media without an event each.
+// SubscribeMediaRemovals purges the playlist items a removal leaves pointing
+// at nothing: one media item (scan prune or admin delete) or one music track
+// by id, a library deletion, whose cascade removes media without an event
+// each, by the full orphan sweep.
 func (s *CommandService) SubscribeMediaRemovals(bus shared.EventBus) {
-	purge := func(ctx context.Context, ev shared.Event) {
-		n, err := s.items.PurgeOrphans(ctx)
+	report := func(ctx context.Context, ev shared.Event, n int64, err error) {
 		if err != nil {
 			slog.WarnContext(ctx, "playlist: purge orphaned items failed", slog.String("event", ev.EventName()), slog.Any("err", err))
 			return
 		}
 		if n > 0 {
-			slog.InfoContext(ctx, "playlist: purged orphaned items", slog.Int64("count", n))
+			slog.InfoContext(ctx, "playlist: purged orphaned items", slog.String("event", ev.EventName()), slog.Int64("count", n))
 		}
 	}
-	bus.Subscribe(library.MediaItemRemoved{}.EventName(), purge)
-	bus.Subscribe(library.LibraryDeleted{}.EventName(), purge)
+	bus.Subscribe(library.MediaItemRemoved{}.EventName(), func(ctx context.Context, ev shared.Event) {
+		if e, ok := ev.(library.MediaItemRemoved); ok {
+			n, err := s.items.PurgeRemoved(ctx, string(e.MediaItemID), false)
+			report(ctx, ev, n, err)
+		}
+	})
+	bus.Subscribe(music.TrackDeleted{}.EventName(), func(ctx context.Context, ev shared.Event) {
+		if e, ok := ev.(music.TrackDeleted); ok {
+			n, err := s.items.PurgeRemoved(ctx, e.TrackID, true)
+			report(ctx, ev, n, err)
+		}
+	})
+	bus.Subscribe(library.LibraryDeleted{}.EventName(), func(ctx context.Context, ev shared.Event) {
+		n, err := s.items.PurgeOrphans(ctx)
+		report(ctx, ev, n, err)
+	})
 }

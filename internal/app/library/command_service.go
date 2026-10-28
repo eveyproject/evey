@@ -515,5 +515,13 @@ func (s *CommandService) DeleteMediaItem(ctx context.Context, id string) error {
 				slog.String("mediaItemID", id), slog.Any("err", idxErr))
 		}
 	}
+	// The same event as a scan prune: playlists, caches and notifications
+	// let go of the item. An admin delete used to tell none of them.
+	if s.events != nil {
+		evt := library.MediaItemRemoved{MediaItemID: shared.MediaItemID(id), OccurredAt: time.Now()}
+		if err := s.events.Publish(ctx, evt); err != nil {
+			slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", err))
+		}
+	}
 	return nil
 }
