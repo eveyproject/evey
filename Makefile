@@ -145,8 +145,15 @@ bench:
 # ffmpeg-image change: real producer + real ffmpeg/ffprobe on a synthetic
 # B-frame MKV, asserting served segments match the keyframe plan (timeline
 # AND audio content correlation).
+#
+# TRANSCODE_ITEST_SKIP names tests to leave out (go test -skip): the branch gate
+# skips the encoder sweep, which software-encodes every rung up to 4K HEVC
+# (~4 min on a laptop) and checks codec strings rather than the plan/ffmpeg
+# contract; gate-full runs it. The timeout covers that sweep plus the rest.
+TRANSCODE_ITEST_SKIP ?=
+TRANSCODE_ITEST_TIMEOUT ?= 900s
 transcode-itest:
-	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ ./internal/adapters/driven/prober/ -run Integration -count=1 -v -timeout=300s && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driving/http/ -run SourceReplacedIntegration -count=1 -v -timeout=300s'
+	docker exec -e GOTOOLCHAIN=auto evey-server sh -c 'cd /app && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driven/ffmpeg/ ./internal/adapters/driven/mkvgo/ ./internal/adapters/driven/prober/ -run Integration $(if $(TRANSCODE_ITEST_SKIP),-skip $(TRANSCODE_ITEST_SKIP)) -count=1 -v -timeout=$(TRANSCODE_ITEST_TIMEOUT) && EVEY_TRANSCODE_ITEST=1 go test ./internal/adapters/driving/http/ -run SourceReplacedIntegration -count=1 -v -timeout=300s'
 
 # dash-harness: plays manifest.mpd in REAL DASH players (Shaka, dash.js) in a
 # headless, muted Google Chrome (Playwright's Chromium has no H.264/AAC), against
@@ -486,6 +493,7 @@ pre-push: ci-fast-vet ci-fast-vuln ci-fast-build ci-fast-unit ci-fast-frontend c
 # of packages the branch does not change (ci-fast-unit-changed). dev merges only
 # on a green "CI passed", so those still stand between a branch and the merge;
 # this target catches a red push in minutes instead of an hour.
+pre-push-dev: TRANSCODE_ITEST_SKIP = TestCodecStringIntegration
 pre-push-dev: ci-fast-vet ci-fast-build ci-fast-unit-changed ci-fast-frontend-static ci-fast-sec ci-local-lint ci-arch ci-hygiene ci-secrets ci-proto-breaking ci-clean-checkout transcode-itest-gate
 	@echo "✅ pre-push-dev OK - branch gate green (vet + build + unit -race on changed packages + frontend typecheck/lint + gosec + lint + arch guards + hygiene + secrets + proto compat + clean checkout + transcode contract). The pull request's CI runs the rest."
 
@@ -678,7 +686,7 @@ transcode-itest-gate:
 	    echo "  test is the only gate that sees plan↔ffmpeg contract regressions.)"; \
 	    exit 1; \
 	  fi; \
-	  $(MAKE) --no-print-directory transcode-itest; \
+	  $(MAKE) --no-print-directory transcode-itest TRANSCODE_ITEST_SKIP="$(TRANSCODE_ITEST_SKIP)"; \
 	else \
 	  echo "→ no transcode-stack changes since $$base - skipping transcode-itest"; \
 	fi
