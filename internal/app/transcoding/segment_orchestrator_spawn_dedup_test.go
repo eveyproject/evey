@@ -232,7 +232,7 @@ func TestOrchestrator_ClaimantContextErrorIsNotTheWaitersOutcome(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	cancelClaimant()
 
-	assert.ErrorIs(t, <-claimantErr, context.Canceled)
+	require.ErrorIs(t, <-claimantErr, context.Canceled)
 	require.NoError(t, <-waiterErr, "the waiter's context is alive: it must not inherit the claimant's cancellation")
 	assert.Equal(t, 1, o.ActiveCount())
 }

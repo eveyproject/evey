@@ -171,9 +171,9 @@ func (s *ProfileSchedules) Unlock(ctx context.Context, p *user.Profile, pin stri
 	}
 	hit, err := s.pins.Attempt(ctx, keys, pin, func() (string, error) {
 		for _, sib := range adults {
-			ok, err := s.hasher.Verify(pin, sib.Parental.PINHash)
-			if err != nil {
-				return "", err
+			ok, verr := s.hasher.Verify(pin, sib.Parental.PINHash)
+			if verr != nil {
+				return "", verr
 			}
 			if ok {
 				return string(sib.ID), nil

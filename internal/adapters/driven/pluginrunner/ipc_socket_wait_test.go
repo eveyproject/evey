@@ -80,8 +80,8 @@ func TestPluginSockRefusesAListenerThatIsNotThePlugin(t *testing.T) {
 	defer l.Close()
 	go func() {
 		for {
-			c, err := l.Accept()
-			if err != nil {
+			c, acceptErr := l.Accept()
+			if acceptErr != nil {
 				return
 			}
 			c.Close()
