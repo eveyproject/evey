@@ -733,3 +733,26 @@ func TestPlayerEvent_LogsTheStructuredDiagnosis(t *testing.T) {
 		t.Fatal("no diag sent, no diag group logged")
 	}
 }
+
+// The launch report of the video decoders (level, frames, size-rate answers
+// per codec) runs past 200 chars on a box with four codecs: it keeps the
+// long budget, logged at INFO like any report.
+func TestPlayerEvent_TheVideoCapsReportIsKeptWhole(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&buf, nil))
+	report := "h264_level=51 max=4096x2304 10bit=hevc,vp9,av1"
+	for _, c := range []string{"h264", "hevc", "vp9", "av1"} {
+		report += " | " + c + " 4096x2304 2160p60=no 2160p30=yes 1080p60=yes"
+	}
+	body, _ := json.Marshal(map[string]any{"type": "video_caps", "details": report})
+	if rec := postPlayerEvent(t, logger, string(body)); rec.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("log line: %v", err)
+	}
+	if line["details"] != report || line["level"] != "INFO" {
+		t.Fatalf("video_caps logged as %v %q, want INFO and the whole %d-char report", line["level"], line["details"], len(report))
+	}
+}

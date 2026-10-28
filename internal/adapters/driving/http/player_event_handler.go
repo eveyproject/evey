@@ -53,6 +53,10 @@ const (
 	// CMCD string (bl=..., bs, su, sid="...") and the sample goes to the QoE
 	// sink, not to the logs.
 	playerEventQoESample = "qoe_sample"
+	// playerEventVideoCaps is the native apps' launch report of their video
+	// decoders (H.264 level, largest frames, size-rate answers per codec):
+	// what a later decoder error is read against. It gets the long budget.
+	playerEventVideoCaps = "video_caps"
 )
 
 type playerEventBody struct {
@@ -345,6 +349,9 @@ func playerEventHandler(logger *slog.Logger, opts ...PlayerEventOption) http.Han
 		logLine := logger.Info
 		msg := "player-client: playback event reported"
 		detailBudget := playerEventMaxDetail
+		if body.Type == playerEventVideoCaps {
+			detailBudget = playerEventErrorMaxDetail
+		}
 		// A receiver that stopped answering (cast_sender_stall) is an anomaly
 		// worth the WARN level, like a fatal error: it is what an operator
 		// searches for after "the phone kept spinning".
