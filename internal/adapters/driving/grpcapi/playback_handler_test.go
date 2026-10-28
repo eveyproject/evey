@@ -1,9 +1,12 @@
 package grpcapi
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -1810,4 +1813,45 @@ func TestGetStreamInfo_ServedBitrate_CopiedVideoSwapsTheAudio(t *testing.T) {
 	require.Positive(t, resp.AudioBitrate, "the served audio rate is known")
 	assert.Equal(t, int64(8_000_000-1_536_000)+resp.AudioBitrate, resp.Bitrate,
 		"total = source - the DTS that stays home + the audio actually served")
+}
+
+// Every playback decision is logged with what the client declared: a decoder
+// error reported later is then read against the capabilities the device
+// claimed and the verdict they produced, instead of being guessed at.
+func TestGetStreamInfo_LogsTheCapabilitiesAndTheDecision(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-log", Title: "Film", Type: "movie", File: &library.MediaFile{ContainerFormat: "mp4"}})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-log", StreamType: "video", Codec: "h264", Width: intPtr(1920), Height: intPtr(1080), Bitrate: int64Ptr(5000000), IsDefault: true},
+		{MediaItemID: "mi-log", StreamType: "audio", Codec: "aac", Channels: intPtr(2), IsDefault: true},
+	})
+	_, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId: "mi-log", SupportedCodecs: []string{"h264", "hevc"}, SupportedAudioCodecs: []string{"aac"},
+		MaxH264Level: 51, MaxWidth: 3840, MaxHeight: 2160, SupportsHdr: true, MaxAudioChannels: 6,
+		SupportedPixelFormats: []string{"yuv420p"},
+	})
+	require.NoError(t, err)
+
+	var line map[string]any
+	for _, raw := range bytes.Split(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var l map[string]any
+		if json.Unmarshal(raw, &l) == nil && l["msg"] == "playback decision" {
+			line = l
+		}
+	}
+	require.NotNil(t, line, "no playback decision line in %s", buf.String())
+	for k, want := range map[string]any{
+		"media_id": "mi-log", "play_method": "direct_play", "video_decision": "copy", "audio_decision": "copy",
+		"max_h264_level": float64(51), "max_width": float64(3840), "max_height": float64(2160), "hdr": true,
+		"max_audio_channels": float64(6), "video_codecs": "h264,hevc", "audio_codecs": "aac", "pixel_formats": "yuv420p",
+	} {
+		assert.Equal(t, want, line[k], "field %s", k)
+	}
+	assert.Contains(t, line, "reasons")
 }
