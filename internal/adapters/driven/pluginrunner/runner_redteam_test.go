@@ -336,9 +336,18 @@ func TestRedTeamSandboxEscape(t *testing.T) {
 	// so no -render-dev is emitted and open_drm_render reports BLOCKED - which is
 	// why open_drm_render is gated on the node existing.
 	t.Run("cryptominer-gpu-granted", func(t *testing.T) {
-		if resolveRenderNode() == "" {
+		node := resolveRenderNode()
+		if node == "" {
 			t.Skip("no DRM render node on this host; granted-case asserts nothing")
 		}
+		// The grant lifts Landlock, not file permissions: a node this user
+		// cannot open (not in its group) stays closed to the plugin too, and
+		// BLOCKED would then say nothing about the sandbox.
+		f, openErr := os.OpenFile(node, os.O_RDWR, 0)
+		if openErr != nil {
+			t.Skipf("render node %s not openable by this user (%v); granted-case asserts nothing", node, openErr)
+		}
+		_ = f.Close()
 		v := runEscapeFixture(t, nodePath, launcher, soPath, root, "cryptominer-gpu", []string{noNetNoSub, gpuPerm})
 		assert(t, v, []probeExpect{
 			{"open_drm_render", "BYPASSED", gateLandlock}, // granted: render node reachable
