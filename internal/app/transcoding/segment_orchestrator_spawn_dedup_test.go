@@ -170,7 +170,7 @@ func TestOrchestrator_UnreadPreWarm_ReapedBeforeAReadRafale(t *testing.T) {
 
 	// Keep the resume rafale read while the sweeper runs, so only the unread
 	// one can qualify.
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(eventuallyWait)
 	for time.Now().Before(deadline) {
 		require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 122))
 		if o.ActiveCount() == 1 {

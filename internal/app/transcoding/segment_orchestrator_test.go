@@ -135,7 +135,7 @@ func TestOrchestrator_MaxActiveSessions_SlotFreesWhenSessionExits(t *testing.T) 
 
 	require.Eventually(t, func() bool {
 		return o.EnsureSegmentRange(context.Background(), second, 0, 0) == nil
-	}, 2*time.Second, 10*time.Millisecond, "second media must spawn once the freed slot is released")
+	}, eventuallyWait, 10*time.Millisecond, "second media must spawn once the freed slot is released")
 }
 
 func TestOrchestrator_MaxActiveSessions_ZeroIsUnlimited(t *testing.T) {
@@ -205,7 +205,7 @@ func TestOrchestrator_VideoLimiter_ReleasedOnNaturalExit(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return limiter.Active() == 0
-	}, time.Second, 10*time.Millisecond, "the reap goroutine must free the video slot on natural exit")
+	}, eventuallyWait, 10*time.Millisecond, "the reap goroutine must free the video slot on natural exit")
 
 	second := minimalFingerprint(t)
 	second.MediaID = "media-2"
@@ -301,7 +301,7 @@ func TestOrchestrator_EnsureSegmentRange_SeekSpawnsAdditionalRafale(t *testing.T
 	// Both rafales should now coexist (MaxRafalesPerHash default = 3).
 	require.Eventually(t, func() bool {
 		return o.ActiveCount() == 2 && proc.startCount() == 2
-	}, time.Second, 10*time.Millisecond)
+	}, eventuallyWait, 10*time.Millisecond)
 
 	// The 2nd spawn's StartSec reflects the seek target, and StartNumber
 	// names the segment it starts at: that is what routes its 0-based fMP4
@@ -336,7 +336,7 @@ func TestOrchestrator_EnsureSegmentRange_LRUEvictsOldestBeyondCap(t *testing.T) 
 
 	require.Eventually(t, func() bool {
 		return o.ActiveCount() == 2 && proc.startCount() == 3
-	}, time.Second, 10*time.Millisecond, "third rafale should evict the oldest, capping at 2")
+	}, eventuallyWait, 10*time.Millisecond, "third rafale should evict the oldest, capping at 2")
 }
 
 // ============================================================================
@@ -361,7 +361,7 @@ func TestOrchestrator_InactivityGC_ReapsIdleSessions(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return o.ActiveCount() == 0
-	}, time.Second, 10*time.Millisecond, "GC must reap the idle session")
+	}, eventuallyWait, 10*time.Millisecond, "GC must reap the idle session")
 }
 
 func TestOrchestrator_InactivityGC_KeepsLiveSessions(t *testing.T) {
@@ -445,7 +445,7 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	require.Eventually(t, func() bool {
 		p, _, paused := handle.counts()
 		return p >= 1 && paused
-	}, time.Second, 20*time.Millisecond, "throttle should pause ffmpeg when produced - client >= PauseAhead")
+	}, eventuallyWait, 20*time.Millisecond, "throttle should pause ffmpeg when produced - client >= PauseAhead")
 
 	// Client catches up to within ResumeBelow → throttle must resume.
 	o.touchSession(fp.Hash(), 0, 9)
@@ -453,7 +453,7 @@ func TestOrchestrator_Throttle_PausesWhenClientFarBehind(t *testing.T) {
 	require.Eventually(t, func() bool {
 		_, r, paused := handle.counts()
 		return r >= 1 && !paused
-	}, time.Second, 20*time.Millisecond, "throttle should resume ffmpeg when client catches up")
+	}, eventuallyWait, 20*time.Millisecond, "throttle should resume ffmpeg when client catches up")
 }
 
 // A reader served from disk past the rafale's window must slide that window:
@@ -525,7 +525,7 @@ func TestOrchestrator_NotifyClientHint_ResumesPausedOnStarvation(t *testing.T) {
 	o.mu.Unlock()
 	handle := sess.handle.(*fakeHandle)
 
-	require.Eventually(t, func() bool { _, _, paused := handle.counts(); return paused }, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { _, _, paused := handle.counts(); return paused }, eventuallyWait, 10*time.Millisecond)
 
 	// CMCD bs=1 arrives - we must SIGCONT immediately, not wait the tick.
 	o.NotifyClientHint(fp.MediaID, 0, 0, true, 1)
@@ -639,7 +639,7 @@ func TestOrchestrator_Throttle_NoFlapWithHysteresis(t *testing.T) {
 
 	// Hold steady at buffer=5-0=5: ≥ PauseAhead(4), so we pause exactly once.
 	// Many ticks must NOT produce many pauses (hysteresis: stay paused).
-	require.Eventually(t, func() bool { p, _, _ := handle.counts(); return p >= 1 }, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { p, _, _ := handle.counts(); return p >= 1 }, eventuallyWait, 10*time.Millisecond)
 	// Hysteresis: once paused, no further pause and no resume may fire while the
 	// buffer stays above ResumeBelow. assert.Never fails fast on a stray
 	// pause/resume instead of a blind sleep-then-check.

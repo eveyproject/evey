@@ -915,7 +915,7 @@ func TestSoftwareProducer_IdleGCReapsSession(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return p.ActiveSessionCount() == 0
-	}, time.Second, 10*time.Millisecond, "idle session must be GC-reaped")
+	}, eventuallyWait, 10*time.Millisecond, "idle session must be GC-reaped")
 }
 
 // writeReadySegment writes a structurally valid fMP4 segment so IsReady accepts it.
@@ -1076,7 +1076,7 @@ func TestSoftwareProducer_VideoLimiter_ReleasedOnNaturalExit(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return limiter.Active() == 0
-	}, time.Second, 10*time.Millisecond, "the reap goroutine must free the video slot on natural exit")
+	}, eventuallyWait, 10*time.Millisecond, "the reap goroutine must free the video slot on natural exit")
 
 	fp2 := minimalFingerprint(t)
 	fp2.MediaID = "media-other"
