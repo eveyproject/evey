@@ -553,7 +553,6 @@ libraries:
     customCron: "Cron personalizado..."
   items_one: "{{count}} elemento"
   items_other: "{{count}} elementos"
-  "off": "Desactivado"
   paths: "Rutas"
   pathsHint: "(introduce la ruta completa dentro del contenedor, ej. /media/movies)"
   selectDirectory: "- seleccionar un directorio -"
@@ -565,6 +564,8 @@ libraries:
   pathRequired: "Se requiere al menos una ruta"
   realtimeMonitoring: "Monitoreo en tiempo real"
   realtimeMonitoringHint: "Los archivos añadidos o eliminados aparecen en segundos en lugar de esperar al siguiente escaneo periódico."
+  autoScan: "Automático"
+  autoScanHint: "Sin programación, el servidor escanea igualmente esta biblioteca por sí solo cada pocos minutos, y en segundos con el monitoreo en tiempo real."
   scanFailed: "Escaneo fallido"
   scanOnStartup: "Escanear al iniciar"
 

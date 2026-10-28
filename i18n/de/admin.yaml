@@ -553,7 +553,6 @@ libraries:
     customCron: "Benutzerdefinierter Cron..."
   items_one: "{{count}} Element"
   items_other: "{{count}} Elemente"
-  "off": Aus
   paths: Pfade
   pathsHint: "(vollständigen Pfad im Container eingeben, z.B. /media/movies)"
   selectDirectory: "- Verzeichnis auswählen -"
@@ -565,6 +564,8 @@ libraries:
   pathRequired: "Mindestens ein Pfad ist erforderlich"
   realtimeMonitoring: "Echtzeit-Überwachung"
   realtimeMonitoringHint: "Hinzugefügte und gelöschte Dateien erscheinen innerhalb von Sekunden statt erst beim nächsten regelmäßigen Scan."
+  autoScan: "Automatisch"
+  autoScanHint: "Ohne Zeitplan scannt der Server diese Mediathek trotzdem von selbst alle paar Minuten, mit Echtzeit-Überwachung innerhalb von Sekunden."
   scanFailed: "Scan fehlgeschlagen"
   scanOnStartup: "Beim Start scannen"
 

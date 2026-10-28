@@ -553,7 +553,6 @@ libraries:
     customCron: "Custom cron..."
   items_one: "{{count}} item"
   items_other: "{{count}} items"
-  "off": "Off"
   paths: Paths
   pathsHint: "(enter the full path inside the container, e.g. /media/movies)"
   selectDirectory: "- select a directory -"
@@ -565,6 +564,8 @@ libraries:
   pathRequired: "At least one path is required"
   realtimeMonitoring: "Realtime monitoring"
   realtimeMonitoringHint: "Added and deleted files show up within seconds instead of at the next periodic scan."
+  autoScan: "Automatic"
+  autoScanHint: "No schedule: the server still scans this library on its own every few minutes, and within seconds with real-time monitoring."
   scanFailed: "Scan failed"
   scanOnStartup: "Scan on startup"
 
