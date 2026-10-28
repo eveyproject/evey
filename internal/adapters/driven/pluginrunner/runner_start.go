@@ -265,8 +265,12 @@ func (r *Runner) setupSocketDir(pluginID string) (string, string, error) {
 		// the server (the dir owner) can't chown to that uid (no CAP_CHOWN), so
 		// make the dir group-writable + setgid instead. The plugin runs in the
 		// server's group, so it can create plugin.sock here, and the setgid bit
-		// keeps created sockets in that shared group.
-		if err := os.Chmod(pluginSockDir, os.FileMode(0o770)|os.ModeSetgid); err != nil {
+		// keeps created sockets in that shared group. The sticky bit keeps
+		// another plugin of the group from unlinking this plugin's socket to
+		// bind its own; connectIPC checks the listener's pid on top
+		// (SO_PEERCRED), which also covers a socket planted before the plugin
+		// started.
+		if err := os.Chmod(pluginSockDir, os.FileMode(0o770)|os.ModeSetgid|os.ModeSticky); err != nil {
 			return "", "", fmt.Errorf("chmod plugin sock dir for uid separation: %w", err)
 		}
 		// The per-plugin dir being group-writable is useless if the dropped uid
@@ -475,7 +479,7 @@ func (r *Runner) connectIPC(parentCtx context.Context, entry *processEntry, p *p
 			slog.ErrorContext(parentCtx, "panic in connectIPC", slog.Any("recover", rv), slog.String("plugin", p.ID))
 		}
 	}()
-	client, err := newIPCClient(entry.sockPath, entry.done)
+	client, err := newIPCClient(entry.sockPath, entry.done, entry.pid())
 	if err != nil {
 		// The socket never came up. The process has very likely already
 		// crashed - its exit reason (with captured output) is far more useful

@@ -275,6 +275,12 @@ identity comes from the socket, never from a header. A plugin therefore
 cannot impersonate another, call another plugin's socket, or route calls
 through a child process. A PID mismatch is logged as a warning.
 
+The other direction is checked the same way: the server talks to the plugin
+on `plugin.sock` in the same directory, and refuses the connection unless the
+process listening on it is the plugin itself (`SO_PEERCRED` again). With a
+separate user per plugin, the directory is sticky, so a neighbour plugin of
+the shared group cannot unlink that socket to bind its own.
+
 ### Resource limits
 
 A monitor in user space (cgroups are unavailable in an unprivileged
