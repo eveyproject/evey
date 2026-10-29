@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -208,5 +209,58 @@ func TestIndexMediaItemsBatch_SystemicTaskFailureIsNotARejection(t *testing.T) {
 	}
 	if f.posts != 1 {
 		t.Fatalf("the batch was sent %d times, want 1 (no bisection on an engine failure)", f.posts)
+	}
+}
+
+// The submit-only adapter returns once the engine accepted a write: an engine
+// slow to run its tasks no longer holds a request, a library deletion or a
+// scan for up to taskWaitTimeout. The waiting adapter still waits.
+func TestSubmitOnly_DoesNotWaitForTheTask(t *testing.T) {
+	var taskPolls int
+	var mu sync.Mutex
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/indexes/media_items":
+			_, _ = w.Write([]byte(`{"uid":"media_items","primaryKey":"id"}`))
+		case strings.HasPrefix(r.URL.Path, "/tasks/"):
+			mu.Lock()
+			taskPolls++
+			mu.Unlock()
+			<-release // a stuck engine
+			_, _ = w.Write([]byte(`{"uid":1,"status":"succeeded"}`))
+		default:
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = w.Write([]byte(`{"taskUid":1,"indexUid":"media_items","status":"enqueued"}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	a, err := NewSearchAdapter(srv.URL, "key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := a.SubmitOnly()
+	ctx := context.Background()
+	if err := s.IndexMediaItem(ctx, items("x")[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.IndexMediaItemsBatch(ctx, items("y", "z")); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.RemoveLibrary(ctx, "lib-1"); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	polls := taskPolls
+	mu.Unlock()
+	if polls != 0 {
+		t.Fatalf("submit-only adapter polled %d task(s), want none", polls)
+	}
+
+	wctx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	defer cancel()
+	if err := a.IndexMediaItem(wctx, items("w")[0]); err == nil {
+		t.Fatal("the waiting adapter must still wait for the task (here: until the deadline)")
 	}
 }

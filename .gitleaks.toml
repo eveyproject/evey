@@ -34,6 +34,9 @@ regexes = [
   '''eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9\.''',
   '''MIIBVQIBADANBgkq''',
   '''-----BEGIN RSA PRIVATE KEY-----\\nfake''',
+  # RFC 6455's published sample handshake nonce ("the sample nonce" in
+  # base64), sent by the device-socket handshake test.
+  '''dGhlIHNhbXBsZSBub25jZQ==''',
   # A prose line the generic rule misreads as a key assignment.
   '''VAAPI ?-> ?Vulkan/libplacebo''',
 ]

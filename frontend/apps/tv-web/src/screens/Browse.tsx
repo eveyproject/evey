@@ -34,6 +34,7 @@ import {
   useFavoritesList,
   usePlaylistDetail,
   usePlaylistList,
+  type PlaylistItem,
 } from "@evey/client";
 import { toast, useDemoStore } from "@evey/store";
 import { FocusRoot } from "../tv/focus";
@@ -43,6 +44,7 @@ import { GridCard } from "../components/cards";
 import { navigate } from "../app/router";
 import { posterSrc, serverImageSrc } from "../lib/media";
 import { Icon } from "../components/icons";
+import { trackToQueueTrack, useMusicQueueStore } from "../music/queue";
 
 const HISTORY_PAGE_SIZE = 30;
 const FILMOGRAPHY_PAGE = 24;
@@ -195,6 +197,24 @@ export function PlaylistsScreen() {
 export function PlaylistScreen({ playlistId }: { playlistId: string }) {
   const { t } = useTranslation();
   const { data, isLoading, isError, refetch } = usePlaylistDetail(playlistId);
+  const setQueue = useMusicQueueStore((s) => s.setQueue);
+  // A music track has no video page: /media/<track id> answers 404. It plays in
+  // the music player with the playlist's other tracks, from the pressed one on,
+  // using the metadata the playlist already carries.
+  const playTrack = (all: PlaylistItem[], trackId: string) => {
+    const tracks = all.filter((it) => it.media_type === "music");
+    const queue = tracks.map((it) =>
+      trackToQueueTrack({
+        id: it.media_item_id,
+        title: it.title,
+        artist: it.artist,
+        album: it.album,
+        duration: it.duration,
+        coverArtUrl: it.cover_art_url,
+      }),
+    );
+    setQueue(queue, Math.max(0, tracks.findIndex((it) => it.media_item_id === trackId)));
+  };
   if (isLoading || isError) return <ScreenState loading={isLoading} error={isError} onRetry={() => void refetch()} />;
   if (!data) return <div className="center-fill"><p className="muted big">{t("media.playlists.notFound")}</p></div>;
   const items = data.items ?? [];
@@ -209,12 +229,12 @@ export function PlaylistScreen({ playlistId }: { playlistId: string }) {
           {items.map((it, i) => {
             const typeKey = mediaTypeLabelKey(it.type);
             return (
-              <Pressable key={it.media_item_id} className="tv-card playlist-row" autoFocus={i === 0} label={it.title ?? it.media_item_id} onPress={() => navigate({ name: "media", mediaId: it.media_item_id })}>
+              <Pressable key={it.media_item_id} className="tv-card playlist-row" autoFocus={i === 0} label={it.title ?? it.media_item_id} onPress={() => (it.media_type === "music" ? playTrack(items, it.media_item_id) : navigate({ name: "media", mediaId: it.media_item_id }))}>
                 <span className="playlist-order">{it.sort_order != null ? it.sort_order + 1 : "-"}</span>
                 <span className="playlist-text">
                   <span className="playlist-row-title">{it.title ?? it.media_item_id}</span>
                   <span className="playlist-row-meta">
-                    {typeKey ? <span>{t(typeKey)}</span> : null}
+                    {it.media_type === "music" ? (it.artist ? <span>{it.artist}</span> : null) : typeKey ? <span>{t(typeKey)}</span> : null}
                     {it.year ? <span>{it.year}</span> : null}
                   </span>
                 </span>

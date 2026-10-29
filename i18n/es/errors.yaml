@@ -133,6 +133,7 @@ user:
   cannot_delete_default_profile: "El perfil predeterminado no se puede eliminar"
 
 media:
+  file_missing: "Este archivo ya no está en el servidor"
   not_found: "Medio no encontrado"
   restricted_profile_edit: "Cambia a un perfil sin control parental para editar títulos e imágenes"
   id_required: "Se requiere un identificador de medio"

@@ -1,6 +1,7 @@
 import { renderWithQueryClient } from "@/test/test-utils";
 import { screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
+import { useDemoStore } from "@evey/store";
 import { AdminNav } from "./AdminNav";
 
 let mockPathname = "/admin";
@@ -85,5 +86,25 @@ describe("AdminNav", () => {
     renderWithQueryClient(<AdminNav collapsed />);
     expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
     expect(screen.queryByText("Dashboard & System")).not.toBeInTheDocument();
+  });
+
+  // The server refuses every log route on the demos, so the entry would only
+  // lead to a refusal: it is not offered at all there.
+  it("hides the Logs entry when the server lists the log routes as locked", () => {
+    mockPathname = "/admin";
+    useDemoStore.getState().setDemoLocked(["GET /api/v1/admin/logs"]);
+    try {
+      renderWithQueryClient(<AdminNav />);
+      expect(screen.queryByTestId("link-/admin/logs")).not.toBeInTheDocument();
+      expect(screen.getByTestId("link-/admin/activity")).toBeInTheDocument();
+    } finally {
+      useDemoStore.getState().setDemoLocked([]);
+    }
+  });
+
+  it("offers the Logs entry off the demo", () => {
+    mockPathname = "/admin";
+    renderWithQueryClient(<AdminNav />);
+    expect(screen.getByTestId("link-/admin/logs")).toBeInTheDocument();
   });
 });

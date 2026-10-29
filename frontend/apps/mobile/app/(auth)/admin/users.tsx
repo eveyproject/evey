@@ -48,6 +48,10 @@ interface LibraryAccessData {
 function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; visible: boolean; onClose: () => void; theme: ReturnType<typeof useTheme> }) {
   const { t } = useTranslation();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // "All libraries" and "no library ticked" are two different answers, so the
+  // admin picks the mode explicitly: an empty selection used to be saved as a
+  // DELETE, which lifts the restriction and opens the whole catalogue.
+  const [mode, setMode] = useState<"all" | "selected">("all");
   const [saving, setSaving] = useState(false);
 
   const { data, isLoading } = useQuery<LibraryAccessData>({
@@ -56,10 +60,12 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
     enabled: visible,
   });
 
-  const showNoLibrary = !!data?.restricted && data.libraryIds.length === 0 && selected.size === 0;
+  const showNoLibrary = mode === "selected" && selected.size === 0;
 
   useEffect(() => {
-    if (data) setSelected(new Set(data.libraryIds));
+    if (!data) return;
+    setSelected(new Set(data.libraryIds));
+    setMode(data.restricted || data.libraryIds.length > 0 ? "selected" : "all");
   }, [data]);
 
   const handleToggle = useCallback((id: string) => {
@@ -73,7 +79,7 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      if (selected.size === 0) {
+      if (mode === "all") {
         await eveyFetch<void>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "DELETE" });
       } else {
         await eveyFetch<void>({
@@ -89,7 +95,7 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
     } finally {
       setSaving(false);
     }
-  }, [selected, user.id, onClose, t]);
+  }, [mode, selected, user.id, onClose, t]);
 
   const libraries = data?.libraries ?? [];
 
@@ -108,13 +114,29 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
         <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: 12 }}>
           {showNoLibrary
             ? t("admin.users.noLibrariesDesc")
-            : selected.size === 0
+            : mode === "all"
               ? t("admin.users.unrestrictedDesc")
               : t("admin.users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
         </Text>
+        <View accessibilityRole="radiogroup" style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+          {(["all", "selected"] as const).map((m) => (
+            <Pressable
+              key={m}
+              onPress={() => setMode(m)}
+              style={[styles.libRow, { flex: 1, backgroundColor: mode === m ? theme.colors.accent + "22" : theme.colors.bg, borderRadius: theme.radii.md }]}
+              accessible={true}
+              accessibilityLabel={t(m === "all" ? "admin.users.accessAll" : "admin.users.accessSelected")}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: mode === m }}
+            >
+              <Ionicons name={mode === m ? "radio-button-on" : "radio-button-off"} size={20} color={mode === m ? theme.colors.accent : theme.colors.textMuted} />
+              <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>{t(m === "all" ? "admin.users.accessAll" : "admin.users.accessSelected")}</Text>
+            </Pressable>
+          ))}
+        </View>
         {isLoading ? (
           <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 24 }} />
-        ) : (
+        ) : mode === "all" ? null : (
           <ScrollView style={{ maxHeight: 300 }}>
             {libraries.map((lib) => (
               <Pressable
@@ -136,20 +158,7 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
             ))}
           </ScrollView>
         )}
-        {selected.size > 0 && (
-          <Pressable
-            onPress={() => setSelected(new Set())}
-            style={{ paddingVertical: 8 }}
-            accessible={true}
-            accessibilityLabel={t("admin.users.clearAllUnrestricted")}
-            accessibilityRole="button"
-          >
-            <Text style={{ color: theme.colors.accent, fontSize: 13, textAlign: "center" }}>
-              {t("admin.users.clearAllUnrestricted")}
-            </Text>
-          </Pressable>
-        )}
-        {selected.size === 0 && !isLoading && (
+        {(mode === "all" || showNoLibrary) && !isLoading && (
           <View style={{ backgroundColor: theme.colors.accent + "22", borderRadius: theme.radii.md, paddingHorizontal: 10, paddingVertical: 4, alignSelf: "flex-start", marginBottom: 8 }}>
             <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "600" }}>{t(showNoLibrary ? "admin.users.noLibraries" : "admin.users.unrestricted")}</Text>
           </View>

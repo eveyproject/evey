@@ -33,6 +33,7 @@ const (
 	offArch = 4
 	offArg0 = 16
 	offArg1 = 24
+	offArg2 = 32
 )
 
 // seccomp_ret actions.
@@ -155,6 +156,49 @@ func appendSelfTargetRules(f []unix.SockFilter, self uint32) []unix.SockFilter {
 	return f
 }
 
+// Signal-owner commands: an fd's owner receives SIGIO (or the signal F_SETSIG
+// picks, SIGKILL included) when the fd becomes ready. Under a shared uid,
+// F_SETOWN(getppid()) + F_SETSIG(SIGKILL) + O_ASYNC let a plugin kill the
+// server with one write to its own pipe, a signal path kill(2)'s self-only
+// rule never sees.
+const (
+	fcntlSetOwn    = 8      // F_SETOWN (arg: pid, or -pgid)
+	fcntlSetSig    = 10     // F_SETSIG (arg: signal number, 0 = SIGIO)
+	fcntlSetOwnEx  = 15     // F_SETOWN_EX (arg: pointer, unreadable here)
+	ioctlFIOSetOwn = 0x8901 // FIOSETOWN (arg: pointer to the pid)
+	ioctlSIOCSPgrp = 0x8902 // SIOCSPGRP (arg: pointer to the pid)
+)
+
+// appendSignalOwnerRules keeps the fd signal owner on the plugin: F_SETOWN
+// passes only for 0 or self, F_SETSIG only back to the default SIGIO, and the
+// forms whose target sits behind a pointer (F_SETOWN_EX, FIOSETOWN,
+// SIOCSPGRP) are EPERM. Every other fcntl/ioctl command is untouched. Leaves
+// A = the syscall nr.
+func appendSignalOwnerRules(f []unix.SockFilter, self uint32) []unix.SockFilter {
+	return append(f,
+		// fcntl
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 10, K: uint32(unix.SYS_FCNTL)}, // 0: not fcntl → restore
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg1},                                // 1: A = cmd
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 7, Jf: 0, K: fcntlSetOwnEx},           // 2: → EPERM
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 2, K: fcntlSetSig},             // 3: not F_SETSIG → 6
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg2},                                // 4: A = signal
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 5, Jf: 4, K: 0},                       // 5: SIGIO → restore, else EPERM
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 4, K: fcntlSetOwn},             // 6: not F_SETOWN → restore
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg2},                                // 7: A = owner (the kernel reads an int)
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 2, Jf: 0, K: 0},                       // 8: 0 → restore
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: self},                    // 9: self → restore
+		unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},                           // 10: EPERM
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offNR},                                  // 11: restore A
+		// ioctl
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 4, K: uint32(unix.SYS_IOCTL)}, // not ioctl → restore
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offArg1},                               // A = request
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 1, Jf: 0, K: ioctlFIOSetOwn},
+		unix.SockFilter{Code: bpfJMP | bpfJEQ | bpfK, Jt: 0, Jf: 1, K: ioctlSIOCSPgrp},
+		unix.SockFilter{Code: bpfRET | bpfK, K: retErrno | epermData},
+		unix.SockFilter{Code: bpfLD | bpfW | bpfABS, K: offNR},
+	)
+}
+
 // cloneNamespaceFlags are the CLONE_NEW* bits clone(2) shares with unshare(2).
 const cloneNamespaceFlags = unix.CLONE_NEWNS | unix.CLONE_NEWCGROUP | unix.CLONE_NEWUTS |
 	unix.CLONE_NEWIPC | unix.CLONE_NEWUSER | unix.CLONE_NEWPID | unix.CLONE_NEWNET
@@ -212,6 +256,7 @@ func buildSeccompFilter(self uint32, denyInet, denyFork bool) []unix.SockFilter 
 	}
 	f = appendSelfSignalRules(f, self)
 	f = appendSelfTargetRules(f, self)
+	f = appendSignalOwnerRules(f, self)
 	f = appendDenyNamespaceRules(f)
 	if denyInet {
 		f = append(f,

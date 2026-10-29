@@ -1,5 +1,5 @@
 ---
-source_sha: 966bebcba12b15b7aa9682ef2f60b62c161622d98d6bd445ed664ef11f411f00
+source_sha: e016d46cbfda306ec5cb1c9dbbdef535ee12acea8711452911a11d22e66d34b1
 reviewed: true
 ---
 # Plugin-API-Referenz { #plugin-api-reference }
@@ -116,7 +116,7 @@ und stehen hier, damit ein Stub Sie nicht in die Irre führt.
 | `GetMediaItem(id)`, `ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` oder `media.read` | Der vollständige Datensatz des Mediums, mit `file_path`, `provider_ids` und `genres`. |
 | `Fetch(url, method, headers)` | `network` | Die einzige Verbindung aus der Sandbox nach außen: `http` oder `https`, `GET` oder `HEAD`, ein Host aus `external_fetch`, private Adressen nach der Auflösung und bei Weiterleitungen abgelehnt. Der Inhalt ist auf 8 MiB begrenzt (`truncated` zeigt es an), die ganze Anfrage auf 20 Sekunden. Der Server hängt keine eigenen Zugangsdaten an. |
 | `SearchMedia`, `GetMediaStreams`, `GetChapters`, `GetSubtitles` | `api.library` oder `media.read` | *Nicht bedient.* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` oder `media.write`, und die Capability `metadata.provider` | Liefert Ihren Text für einen Film oder eine Serie unaufgefordert, so wie es eine [Metadatenantwort](#metadata-requests) täte. `fields` enthält `locale` (Pflicht) und beliebige von `title`, `overview`, `tagline`; der Text ersetzt, was Sie für diese Sprache geliefert haben, und ein `fields` nur mit `locale` entfernt ihn. `provider_ids` wird abgelehnt: TMDB identifiziert das Element. |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` oder `media.write`, und die Capability `metadata.provider` | Liefert Ihren Text für einen Film oder eine Serie unaufgefordert, so wie es eine [Metadatenantwort](#metadata-requests) täte. `fields` enthält `locale` (Pflicht) und beliebige von `title`, `overview`, `tagline`; der Text ersetzt, was Sie für diese Sprache geliefert haben, und ein `fields` nur mit `locale` entfernt ihn. `provider_ids` wird abgelehnt: TMDB identifiziert das Element. Was ein Plugin speichert, ist begrenzt: 16 Sprachen pro Element, 200 000 Texte und 128 MiB insgesamt. Darüber hinaus antwortet der Aufruf mit `RESOURCE_EXHAUSTED`; einen bereits gelieferten Text zu ersetzen oder zu entfernen, bleibt möglich. |
 | `GetUserPreferences` | `api.user` | *Nicht bedient.* |
 | `SendNotification` | `notification.sender` | *Nicht bedient.* |
 

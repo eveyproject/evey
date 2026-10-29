@@ -111,3 +111,41 @@ func TestPluginMetadataSettingsRepo_DefaultsThenChoice(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"title", "overview"}, fields)
 }
+
+// Usage counts one plugin's texts, leaving out the rows a write replaces:
+// one locale of the item, or all of the item's locales.
+func TestPluginTextRepo_Usage(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	lib := newTestLibrary("ptulib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	items := postgres.NewMediaItemRepository(db)
+	for _, id := range []string{"pu1", "pu2"} {
+		require.NoError(t, items.Create(ctx, newTestMediaItem(id, lib.ID)))
+	}
+	plugins := postgres.NewPluginRepository(db)
+	for _, id := range []string{"pa", "pb"} {
+		require.NoError(t, plugins.Create(ctx, newTestPlugin(id)))
+	}
+	repo := postgres.NewPluginTextRepository(db)
+	text := func(item, pluginID, locale, overview string) library.PluginText {
+		return library.PluginText{MediaItemID: item, PluginID: pluginID, Locale: locale, Overview: overview}
+	}
+	require.NoError(t, repo.ReplaceForItem(ctx, "pu1", "pa", []library.PluginText{text("pu1", "pa", "fr", "1234"), text("pu1", "pa", "de", "12")}))
+	require.NoError(t, repo.ReplaceForItem(ctx, "pu2", "pa", []library.PluginText{text("pu2", "pa", "fr", "123456")}))
+	require.NoError(t, repo.ReplaceForItem(ctx, "pu1", "pb", []library.PluginText{text("pu1", "pb", "fr", "ignored")}))
+
+	u, err := repo.Usage(ctx, "pa", "pu1", "fr")
+	require.NoError(t, err)
+	assert.Equal(t, library.PluginTextUsage{Rows: 2, Bytes: 8, ItemLocales: 1}, u, "pu1/fr is replaced: pu1/de and pu2/fr remain")
+
+	u, err = repo.Usage(ctx, "pa", "pu1", "")
+	require.NoError(t, err)
+	assert.Equal(t, library.PluginTextUsage{Rows: 1, Bytes: 6}, u, "every pu1 locale is replaced")
+
+	u, err = repo.Usage(ctx, "pa", "other", "fr")
+	require.NoError(t, err)
+	assert.Equal(t, library.PluginTextUsage{Rows: 3, Bytes: 12}, u)
+}

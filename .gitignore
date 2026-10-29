@@ -119,6 +119,7 @@ scripts/*
 !scripts/hygiene-denylist.sha256
 !scripts/secrets-scan.sh
 !scripts/gate-receipt.py
+!scripts/gate-go-pkgs.py
 !scripts/verify-commit.sh
 !scripts/client-release-ldflags.sh
 !scripts/dash-harness/

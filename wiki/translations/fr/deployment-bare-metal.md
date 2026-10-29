@@ -1,5 +1,5 @@
 ---
-source_sha: 0b2dda412b186b3b40f33ea4027ceb0d328e5f8f39f87d2312a8c7bdab2edbed
+source_sha: db2460488aaf87451840f3608306cb44b04a66a7419ba222c08d88685348a4e7
 reviewed: true
 ---
 # Sans conteneur
@@ -70,24 +70,25 @@ deux vous-même et indiquez leur adresse dans `EVEY_DB_HOST` et `EVEY_MEILI_URL`
 
 ## Tourner sous un utilisateur dédié non root
 
-Ne lancez jamais le serveur en root. Créez un groupe et deux utilisateurs
-sans privilège, comme le fait l'image :
+Ne lancez jamais le serveur en root. Créez un groupe et un utilisateur sans
+privilège, comme le fait l'image :
 
 ```bash
 sudo groupadd --gid 1000 evey
 sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
-sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugin
 ```
 
 - `evey` (UID 1000) fait tourner le serveur.
-- `evey-plugin` (UID 1001) est l'utilisateur vers lequel les plugins sont
-  abaissés quand la séparation d'uid est active, pour qu'un plugin compromis
-  se retrouve sous un autre utilisateur sans privilège, incapable de lire les
-  secrets du serveur par simples permissions de fichiers.
+- Quand la séparation d'uid est active, chaque plugin est abaissé vers un uid
+  à lui, tiré de son identifiant dans la plage 40000 à 59999 : un plugin
+  compromis se retrouve sous un autre utilisateur sans privilège, incapable
+  de lire par simples permissions de fichiers les secrets du serveur, ni les
+  fichiers d'un autre plugin. Ces uid n'ont besoin d'aucun compte dans
+  `/etc/passwd`.
 
 !!! warning
-    L'identifiant du groupe compte : le launcher abaisse un plugin vers l'UID
-    1001 et vers le groupe du serveur lui-même, et refuse tout uid ou gid
+    L'identifiant du groupe compte : le launcher abaisse un plugin vers son
+    uid et vers le groupe du serveur lui-même, et refuse tout uid ou gid
     inférieur à 1000. Un groupe créé par `useradd --system` seul reçoit un
     identifiant système inférieur à 1000, et les plugins en mode `basic` sont
     alors refusés.
@@ -164,7 +165,7 @@ bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 `EVEY_PLUGINS_SANDBOX_MODE=basic` est un abaissement d'uid plus le module
 seccomp ; le launcher, quand il est présent, installe quand même sa liste de
 refus seccomp noyau et un Landlock appliqué au mieux. Il n'y a aucun confinement de
-fichiers par chemin : un plugin tourne sous l'UID 1001 avec seccomp seul.
+fichiers par chemin : un plugin tourne sous son propre uid avec seccomp seul.
 Réservez-le aux noyaux anciens ou verrouillés où ni Landlock ni bubblewrap ne
 fonctionnent, et comptez sur la séparation d'uid ci-dessous pour protéger les
 secrets.
@@ -176,8 +177,8 @@ démarrer plutôt que de tourner sans confinement.
 
 ## Garder les secrets hors de portée d'un plugin
 
-La séparation d'uid fait tourner chaque plugin sous `evey-plugin` (UID
-1001), distinct du serveur (UID 1000), pour qu'un plugin ne puisse pas lire
+La séparation d'uid fait tourner chaque plugin sous un uid à lui (40000 à
+59999, tiré de son identifiant), distinct du serveur (UID 1000), pour qu'un plugin ne puisse pas lire
 `jwt.key`, les sauvegardes ou les journaux par simples permissions de
 fichiers. Elle compte en mode `basic` ; sous Landlock ou bubblewrap le
 système de fichiers est déjà isolé, elle y est redondante.
@@ -192,7 +193,7 @@ système de fichiers est déjà isolé, elle y est redondante.
 
 L'abaissement est fait par le launcher, pas par le serveur. Le serveur reste
 non root et sans aucune capability ; le launcher porte une seule capability
-de fichier et bascule vers l'UID 1001 juste avant d'exécuter le plugin :
+de fichier et bascule vers l'uid du plugin juste avant de l'exécuter :
 
 ```bash
 sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
@@ -211,20 +212,22 @@ Landlock il journalise un avertissement et tourne sous l'uid du serveur.
     l'autre.
 
 Si le serveur tourne en root à la place (déconseillé), il abaisse lui-même
-les plugins vers 1001 et la capability n'est pas nécessaire. Le tableau en
+tous les plugins vers le seul utilisateur 1001 (à créer avec `useradd --system
+--uid 1001 --gid evey evey-plugin`) et la capability n'est pas nécessaire ;
+les plugins partagent alors cet uid. Le tableau en
 langage courant, scénario par scénario, est dans
 [Sandbox des plugins](plugins/sandbox-deployment.md).
 
 ## Permissions des fichiers secrets
 
 Reproduisez la configuration de l'image : les dossiers qui contiennent des
-secrets sont réservés à leur propriétaire, pour qu'un plugin abaissé vers l'UID 1001 ne puisse pas les
+secrets sont réservés à leur propriétaire, pour qu'un plugin abaissé vers son propre uid ne puisse pas les
 lire même sans Landlock.
 
 ```bash
 sudo chown -R evey:evey /var/lib/evey
 # le serveur possède plugins/ (il y extrait les installations) ; le groupe evey,
-# dont evey-plugin fait partie, ne fait que lire et exécuter les fichiers installés :
+# que les plugins gardent, ne fait que lire et exécuter les fichiers installés :
 sudo chmod 750 /var/lib/evey/plugins
 # propriétaire seul sur les dossiers de secrets :
 sudo chmod 700 /var/lib/evey/keys /var/lib/evey/logs /var/lib/evey/backups

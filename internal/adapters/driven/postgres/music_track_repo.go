@@ -268,6 +268,37 @@ func (r *MusicTrackRepository) ListByLibraryCursor(ctx context.Context, libraryI
 	return tracks, err
 }
 
+// GetByIDs returns the tracks among ids, in no particular order; an id with no
+// track is skipped. One query for a whole playlist's music rows.
+func (r *MusicTrackRepository) GetByIDs(ctx context.Context, ids []string) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.GetByIDs")
+	defer span.End()
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx, `
+		SELECT id, library_id, title, artist, album, album_artist,
+		       year, track_number, disk_number, duration, file_path,
+		       file_size, file_hash, mod_time, mime_type, bitrate, sample_rate, channels,
+		       genre, album_folder, cover_art_url, created_at, updated_at
+		FROM music_tracks WHERE id = ANY($1)`, pq.Array(ids))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+	tracks, err := scanTracks(rows)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return tracks, nil
+}
+
 func (r *MusicTrackRepository) ListByAlbum(ctx context.Context, album, artist string) ([]music.Track, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.musictrack.ListByAlbum")
 	defer span.End()

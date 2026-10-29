@@ -64,23 +64,23 @@ entrypoint, not of the binary: on bare metal you run both yourself and point
 
 ## Run as a dedicated non-root user
 
-Never run the server as root. Create a group and two unprivileged users, as
+Never run the server as root. Create a group and an unprivileged user, as
 the image does:
 
 ```bash
 sudo groupadd --gid 1000 evey
 sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
-sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugin
 ```
 
 - `evey` (UID 1000) runs the server.
-- `evey-plugin` (UID 1001) is the user plugins are dropped to when uid
-  separation is active, so a compromised plugin lands as a different
-  unprivileged user that cannot read the server's secrets by plain file
-  permissions.
+- When uid separation is active, each plugin is dropped to a uid of its own,
+  derived from its id in the range 40000 to 59999, so a compromised plugin
+  lands as a different unprivileged user that cannot read the server's
+  secrets, nor another plugin's files, by plain file permissions. These uids
+  need no account in `/etc/passwd`.
 
 !!! warning
-    The group id matters: the launcher drops a plugin to UID 1001 and to the
+    The group id matters: the launcher drops a plugin to its uid and to the
     server's own group, and refuses any uid or gid below 1000. A group
     created by `useradd --system` alone gets a system id below 1000, and
     plugins in `basic` mode are then refused.
@@ -152,7 +152,7 @@ bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 `EVEY_PLUGINS_SANDBOX_MODE=basic` is a uid drop plus the seccomp shim; the
 launcher, when present, still installs its kernel seccomp denylist and
 best-effort Landlock. There is no per-path filesystem confinement: a plugin
-runs at UID 1001 with seccomp only. Use it on old or locked-down kernels
+runs at its own uid with seccomp only. Use it on old or locked-down kernels
 where neither Landlock nor bubblewrap works, and rely on the uid separation
 below to protect the secrets.
 
@@ -163,9 +163,9 @@ refuses to start rather than run unconfined.
 
 ## Keep secrets out of a plugin's reach
 
-Uid separation runs each plugin under `evey-plugin` (UID 1001), distinct
-from the server (UID 1000), so a plugin cannot read `jwt.key`, the backups
-or the logs by plain file permissions. It matters in `basic` mode; under
+Uid separation runs each plugin under a uid of its own (40000 to 59999,
+from its id), distinct from the server (UID 1000), so a plugin cannot read
+`jwt.key`, the backups or the logs by plain file permissions. It matters in `basic` mode; under
 Landlock or bubblewrap the filesystem is already restricted, so it is
 redundant there.
 
@@ -179,7 +179,7 @@ redundant there.
 
 The drop is done by the launcher, not the server. The server stays non-root
 with no capability; the launcher carries one file capability and switches to
-UID 1001 just before executing the plugin:
+the plugin's uid just before executing it:
 
 ```bash
 sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
@@ -196,19 +196,21 @@ warning and runs at the server's uid.
     exec: plugins are refused in `basic` mode, and under Landlock uid
     separation degrades to same-uid. Pick one.
 
-If the server runs as root instead (not recommended), it drops plugins to
-1001 directly and the capability is not needed. The plain-language picture
+If the server runs as root instead (not recommended), it drops every plugin
+to the single user 1001 (create it with `useradd --system --uid 1001 --gid
+evey evey-plugin`) and the capability is not needed; plugins then share that
+uid. The plain-language picture
 per scenario is in [Plugin sandbox setup](plugins/sandbox-deployment.md).
 
 ## Secret file permissions
 
 Mirror the image: secret-bearing directories are owner-only, so a plugin
-dropped to UID 1001 cannot read them even without Landlock.
+dropped to its own uid cannot read them even without Landlock.
 
 ```bash
 sudo chown -R evey:evey /var/lib/evey
 # the server owns plugins/ (it extracts installs there); group evey,
-# which evey-plugin belongs to, only reads and executes the installed files:
+# which the plugins keep, only reads and executes the installed files:
 sudo chmod 750 /var/lib/evey/plugins
 # owner-only on the secret directories:
 sudo chmod 700 /var/lib/evey/keys /var/lib/evey/logs /var/lib/evey/backups

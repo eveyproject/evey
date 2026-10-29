@@ -298,3 +298,29 @@ func TestDeleteBackup_Success_204(t *testing.T) {
 		t.Errorf("expected 204 for successful delete, got %d (body: %s)", w.Code, w.Body.String())
 	}
 }
+
+// A backup asked while a restore runs is refused as a conflict, not reported
+// as a server error: nothing failed, the database is busy.
+func TestCreateBackup_WhileARestoreRuns_409(t *testing.T) {
+	mux, token, dumper := newBackupTestMuxWithDumper(t, true)
+	dumper.RestoreStarted = make(chan struct{})
+	dumper.RestoreRelease = make(chan struct{})
+	restore := buildRestoreFormRequest(t, buildValidArchive(t))
+	restore.Header.Set("Authorization", "Bearer "+token)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		mux.ServeHTTP(httptest.NewRecorder(), restore)
+	}()
+	<-dumper.RestoreStarted
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/backups", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	close(dumper.RestoreRelease)
+	<-done
+	if w.Code != http.StatusConflict {
+		t.Errorf("expected 409 while a restore runs, got %d (body: %s)", w.Code, w.Body.String())
+	}
+}

@@ -1,9 +1,15 @@
 package grpcapi
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -1810,4 +1816,84 @@ func TestGetStreamInfo_ServedBitrate_CopiedVideoSwapsTheAudio(t *testing.T) {
 	require.Positive(t, resp.AudioBitrate, "the served audio rate is known")
 	assert.Equal(t, int64(8_000_000-1_536_000)+resp.AudioBitrate, resp.Bitrate,
 		"total = source - the DTS that stays home + the audio actually served")
+}
+
+// Every playback decision is logged with what the client declared: a decoder
+// error reported later is then read against the capabilities the device
+// claimed and the verdict they produced, instead of being guessed at.
+func TestGetStreamInfo_LogsTheCapabilitiesAndTheDecision(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-log", Title: "Film", Type: "movie", File: &library.MediaFile{ContainerFormat: "mp4"}})
+	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
+		{MediaItemID: "mi-log", StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), Bitrate: new(int64(5000000)), IsDefault: true},
+		{MediaItemID: "mi-log", StreamType: "audio", Codec: "aac", Channels: new(2), IsDefault: true},
+	})
+	_, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{
+		MediaItemId: "mi-log", SupportedCodecs: []string{"h264", "hevc"}, SupportedAudioCodecs: []string{"aac"},
+		MaxH264Level: 51, MaxWidth: 3840, MaxHeight: 2160, SupportsHdr: true, MaxAudioChannels: 6,
+		SupportedPixelFormats: []string{"yuv420p"},
+	})
+	require.NoError(t, err)
+
+	var line map[string]any
+	for raw := range bytes.SplitSeq(bytes.TrimSpace(buf.Bytes()), []byte("\n")) {
+		var l map[string]any
+		if json.Unmarshal(raw, &l) == nil && l["msg"] == "playback decision" {
+			line = l
+		}
+	}
+	require.NotNil(t, line, "no playback decision line in %s", buf.String())
+	for k, want := range map[string]any{
+		"media_id": "mi-log", "play_method": "direct_play", "video_decision": "copy", "audio_decision": "copy",
+		"max_h264_level": float64(51), "max_width": float64(3840), "max_height": float64(2160), "hdr": true,
+		"max_audio_channels": float64(6), "video_codecs": "h264,hevc", "audio_codecs": "aac", "pixel_formats": "yuv420p",
+	} {
+		assert.Equal(t, want, line[k], "field %s", k)
+	}
+	assert.Contains(t, line, "reasons")
+}
+
+// A title whose file is gone from disk (deleted by hand, before the library
+// rescan prunes it) is refused at negotiation with a reason the apps read,
+// instead of a direct play the player only learns about as a 404, and the
+// library is rescanned so the title leaves every list.
+func TestGetStreamInfo_FileGoneFromDisk(t *testing.T) {
+	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
+	ctx := pbAdminCtx()
+	present := filepath.Join(t.TempDir(), "here.mkv")
+	require.NoError(t, os.WriteFile(present, []byte("x"), 0o644))
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-gone", LibraryID: "lib-1", Title: "Gone", Type: "episode", File: &library.MediaFile{Path: filepath.Join(t.TempDir(), "deleted.mkv"), ContainerFormat: "mkv"}})
+	mediaQuery.Seed(&library.MediaItem{ID: "mi-here", LibraryID: "lib-1", Title: "Here", Type: "movie", File: &library.MediaFile{Path: present, ContainerFormat: "mkv"}})
+	for _, id := range []string{"mi-gone", "mi-here"} {
+		streamRepo.CreateBatch(context.Background(), []*library.MediaStream{{MediaItemID: shared.MediaItemID(id), StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true}})
+	}
+	rescanned := make(chan string, 2)
+	h.rescanLibrary = func(_ context.Context, libraryID string) { rescanned <- libraryID }
+
+	_, err := h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-gone"})
+	st, _ := status.FromError(err)
+	require.Equal(t, codes.NotFound, st.Code(), "%v", err)
+	var reason string
+	for _, d := range st.Details() {
+		if info, ok := d.(*errdetails.ErrorInfo); ok {
+			reason = info.Reason
+		}
+	}
+	assert.Equal(t, MediaFileMissingReason, reason)
+	select {
+	case lib := <-rescanned:
+		assert.Equal(t, "lib-1", lib)
+	case <-time.After(2 * time.Second):
+		t.Fatal("the library holding the missing file must be rescanned")
+	}
+
+	_, err = h.GetStreamInfo(ctx, &eveyv1.GetStreamInfoRequest{MediaItemId: "mi-here"})
+	require.NoError(t, err)
+	assert.Empty(t, rescanned, "a title whose file is there triggers nothing")
 }

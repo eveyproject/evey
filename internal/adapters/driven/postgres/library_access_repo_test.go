@@ -211,7 +211,10 @@ func TestLibraryAccessRepo_ReplaceAccess_AtomicSwap(t *testing.T) {
 	require.NoError(t, repo.ReplaceAccess(ctx, u.ID, nil))
 	ids, err = repo.GetByUserID(ctx, u.ID)
 	require.NoError(t, err)
-	assert.Empty(t, ids, "an empty set lifts every restriction")
+	assert.Empty(t, ids, "an empty set leaves no grant")
+	restricted, err := repo.IsRestricted(ctx, u.ID)
+	require.NoError(t, err)
+	assert.True(t, restricted, "an empty set means no library, not every library")
 
 	require.NoError(t, repo.GrantMany(ctx, u.ID, []shared.LibraryID{libA.ID, libB.ID}))
 	require.NoError(t, repo.DeleteByUserID(ctx, u.ID))

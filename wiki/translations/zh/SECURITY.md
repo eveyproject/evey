@@ -1,5 +1,5 @@
 ---
-source_sha: 0776d8e607086abfe30d530ebd3868b9aac5051a34b9cf283dc0f7e8a86052be
+source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
 reviewed: true
 ---
 # 插件沙箱与威胁模型 { #plugin-sandbox-and-threat-model }
@@ -165,6 +165,7 @@ flowchart LR
 |---|---|
 | 调试 | `ptrace`、`process_vm_readv`、`process_vm_writev` |
 | 信号 | `tgkill`、`rt_sigqueueinfo`、`rt_tgsigqueueinfo`，目标是插件自己以外的任何进程时（两个过滤器都拒绝）；`kill` 在内核过滤器里同样如此，在 `LD_PRELOAD` 过滤器里则无论目标是谁都拒绝；`tkill` 在内核过滤器里拒绝（`LD_PRELOAD` 过滤器允许它发给插件自己）；`pidfd_send_signal`、`pidfd_getfd`（窃取文件描述符）。运行时重新抛出信号、或抢占自己的线程，仍然可以正常工作。在 Landlock ABI 6 及以上，插件也无法向沙箱外的进程发信号 |
+| 文件描述符的信号所有者（内核过滤器） | 指向插件自身以外任何进程的 `fcntl` `F_SETOWN`、指向默认 `SIGIO` 以外任何信号的 `F_SETSIG`、`F_SETOWN_EX`，以及 `ioctl` `FIOSETOWN`/`SIOCSPGRP`：没有这一条，一个所有者是服务器、信号是 `SIGKILL` 的描述符会在下一次写入时杀死服务器 |
 | 挂载 | `mount`、`umount2`、`pivot_root`、`chroot` |
 | 命名空间 | `unshare`、`setns`，以及带有 `CLONE_NEW*` 标志的 `clone`（换了个名字的 unshare），对所有插件都适用 |
 | 内核模块 | `init_module`、`finit_module`、`delete_module` |
@@ -185,8 +186,9 @@ flowchart LR
 
 ### 独立的用户 { #a-separate-user }
 
-插件可以以用户 1001（`evey-plugin`）运行，和服务器（1000）不同，这样仅凭文件权限，它就无法读取服务器的机密。
-由 `EVEY_PLUGINS_UID_SEPARATION` 控制：
+插件可以以它自己的用户运行，和服务器（1000）不同，这样仅凭文件权限，它就无法读取服务器的机密。
+每个插件根据自己的 id 得到 uid，范围是 40000 到 59999，重启后保持不变；它保留服务器的组，这个组只读取已安装的文件。
+两个 id 可能落到同一个 uid：这两个插件就共用它。由 `EVEY_PLUGINS_UID_SEPARATION` 控制：
 
 | 值 | 什么时候切换用户 |
 |---|---|
@@ -199,13 +201,16 @@ flowchart LR
 在 `bubblewrap` 和 `strict` 下，由用户命名空间承担这个角色。
 
 启用时，签名密钥（`0600`）和备份（`0700` 目录、`0600` 文件）在运行时只有所有者能访问，即使 `/data` 是绑定挂载的也一样。
-所有插件共用用户 1001：它们之间靠文件系统那一层隔离，而不是靠用户。
+插件之间靠各自的 uid 隔离，外加文件系统那一层。以 root 运行的服务器（不推荐）则把所有插件都切换到同一个用户 1001：那时只有文件系统那一层把插件隔开。
 
 ### 宿主套接字的身份验证 { #host-socket-authentication }
 
 每个插件都有自己的套接字 `/tmp/evey/plugins/<plugin_id>/host.sock`，由它自己的 gRPC 服务器提供服务。每次调用时，服务器从内核读取调用方的 PID
 （`SO_PEERCRED`，用户空间无法伪造），并和插件启动时记录的 PID 比较。插件的身份来自套接字，从不来自请求头。
 所以插件无法冒充另一个插件，无法调用另一个插件的套接字，也无法借子进程转发调用。PID 不匹配时会记录一条警告。
+
+另一个方向也以同样的方式检查：服务器通过同一目录下的 `plugin.sock` 和插件通信，如果在上面监听的进程不是插件本身，就拒绝连接（同样靠 `SO_PEERCRED`）。
+每个插件有独立用户时，该目录带有 sticky 位，共用组里的相邻插件无法删除这个套接字来绑定自己的套接字。
 
 ### 资源限制 { #resource-limits }
 
@@ -327,7 +332,7 @@ flowchart LR
 | 限制 | 影响 | 目前靠什么缓解 |
 |---|---|---|
 | 在没有 Landlock 的内核上，`basic` 没有按路径的限制 | 插件可以读取不敏感、所有人可读的文件，以及其他插件的目录 | 机密由独立的用户和 `PR_SET_DUMPABLE` 保护；`auto` 优先选择 Landlock 或 bubblewrap |
-| 所有插件共用用户 1001 | 在 `basic` 模式下，插件可以读取其他插件拥有的文件 | 向其他进程发信号会被阻止（seccomp、`LD_PRELOAD` 和 bubblewrap 都会阻止）；`PR_SET_DUMPABLE` 阻止通过 `/proc` 读取其他进程；Landlock 和 bubblewrap 隔离各个插件的目录 |
+| 插件的 uid 来自 id 的哈希；以 root 运行的服务器把所有插件切换到用户 1001 | id 冲突的两个插件，或 root 服务器下的所有插件，共用一个 uid：在 `basic` 模式下，一个插件可以读取另一个插件拥有的文件 | 向其他进程发信号会被阻止（seccomp、`LD_PRELOAD` 和 bubblewrap 都会阻止）；`PR_SET_DUMPABLE` 阻止通过 `/proc` 读取其他进程；Landlock 和 bubblewrap 隔离各个插件的目录 |
 | seccomp 是黑名单 | 文件调用和 Unix 套接字调用仍然允许 | 路径由 Landlock 或 bubblewrap 限制；IP 套接字被拒绝 |
 | 代理把 SSRF 暴露面转移到了宿主上 | 代理的校验一旦有漏洞，就可能访问到内部地址 | Go 写的允许列表和防 SSRF 客户端；容器上的出站规则作为独立的一层 |
 | 代理控制调用去哪里，而不控制它带了什么 | 数据可以发往插件列表里的某个主机 | 只允许那些您放心交给它这些数据的主机 |

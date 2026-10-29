@@ -5,6 +5,7 @@ import { mediaTypeLabelKey } from "../../../src/lib/mediaTypeLabel";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { usePlaylistDetail, type PlaylistItem } from "../../../src/api/playlists";
 import { FocusableCard } from "../../../src/components/FocusableCard";
+import { trackToQueueTrack, useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { ScreenState } from "../../../src/components/ScreenState";
 
 export default function PlaylistDetailScreen() {
@@ -12,6 +13,25 @@ export default function PlaylistDetailScreen() {
   const theme = useTheme();
   const { t } = useTranslation();
   const router = useRouter();
+  const setQueue = useMusicQueueStore((s) => s.setQueue);
+
+  // A music track has no video page: /media/<track id> answers 404. It plays in
+  // the music player with the playlist's other tracks, from the pressed one on,
+  // using the metadata the playlist already carries.
+  const playTrack = (items: PlaylistItem[], trackId: string) => {
+    const tracks = items.filter((it) => it.media_type === "music");
+    const queue = tracks.map((it) =>
+      trackToQueueTrack({
+        id: it.media_item_id,
+        title: it.title,
+        artist: it.artist,
+        album: it.album,
+        duration: it.duration,
+        coverArtUrl: it.cover_art_url,
+      }),
+    );
+    setQueue(queue, Math.max(0, tracks.findIndex((it) => it.media_item_id === trackId)));
+  };
 
   const { data: playlist, isLoading, isError, refetch } = usePlaylistDetail(id ?? "");
 
@@ -48,7 +68,9 @@ export default function PlaylistDetailScreen() {
             item={item}
             theme={theme}
             isFirst={index === 0}
-            onPress={() => router.push(`/media/${item.media_item_id}`)}
+            onPress={() =>
+              item.media_type === "music" ? playTrack(items, item.media_item_id) : router.push(`/media/${item.media_item_id}`)
+            }
           />
         )}
         ListEmptyComponent={
@@ -82,7 +104,8 @@ function PlaylistItemRow({
   const { t } = useTranslation();
   // Translated, never the raw enum: a viewer read "movie" in every language.
   const typeKey = mediaTypeLabelKey(item.type);
-  const typeLabel = typeKey ? t(typeKey) : "";
+  // A track names its artist where a video names its type.
+  const typeLabel = item.media_type === "music" ? (item.artist ?? "") : typeKey ? t(typeKey) : "";
 
   return (
     <FocusableCard

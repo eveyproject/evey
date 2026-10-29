@@ -115,7 +115,10 @@ vi.mock("@evey/store", () => ({
 // --- @tanstack/react-query -----------------------------------------------------------------
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  useQuery: () => ({ data: undefined, isLoading: false }),
+  useQuery: (o: { queryKey?: unknown[] }) => ({
+    data: o?.queryKey?.includes("library-access") ? mockLibraryAccess : undefined,
+    isLoading: false,
+  }),
 }));
 
 // --- @evey/api -----------------------------------------------------------------------------
@@ -123,6 +126,7 @@ vi.mock("@tanstack/react-query", () => ({
 // callback (which is where the buggy unconditional toast lives) before
 // resolving, exactly as the real hook would once the create POST completes.
 let libraryAccessShouldFail = false;
+let mockLibraryAccess: unknown = undefined;
 const eveyFetchMock = vi.fn(async (opts: { url: string; method: string }) => {
   if (opts.url.includes("library-access") && opts.method === "PUT") {
     if (libraryAccessShouldFail) throw new Error("library access failed");
@@ -169,6 +173,7 @@ import AdminUsersScreen from "./users";
 beforeEach(() => {
   vi.clearAllMocks();
   libraryAccessShouldFail = false;
+  mockLibraryAccess = undefined;
   mockUsers = [];
 });
 
@@ -332,5 +337,40 @@ describe("AdminUsersScreen - user row action sheet", () => {
     mockUsers = [alice, bob];
     render(<AdminUsersScreen />);
     expect(screen.queryByLabelText("Search users")).toBeNull();
+  });
+});
+
+describe("library access modal", () => {
+  async function openLibraryAccess() {
+    mockUsers = [alice];
+    render(<AdminUsersScreen />);
+    openSheetFor("alice");
+    fireEvent.click(screen.getByText("Library Access"));
+    // The sheet closes before the modal opens, then the loaded access ticks
+    // the granted library.
+    await screen.findByText("Movies", undefined, { timeout: 2000 });
+  }
+
+  const methods = () => eveyFetchMock.mock.calls.map(([o]) => (o as { method: string }).method);
+
+  it("unticking every library saves an empty set (no library), never a DELETE (every library)", async () => {
+    mockLibraryAccess = { libraryIds: ["lib1"], restricted: true, libraries: [{ id: "lib1", name: "Movies" }] };
+    await openLibraryAccess();
+    fireEvent.click(screen.getByText("Movies"));
+    expect(screen.getByText("admin.users.noLibraries")).toBeTruthy();
+    fireEvent.click(screen.getByText("common.save"));
+    await waitFor(() => expect(eveyFetchMock).toHaveBeenCalled());
+    expect(eveyFetchMock).toHaveBeenCalledWith(expect.objectContaining({ method: "PUT", data: { libraryIds: [] } }));
+    expect(methods()).not.toContain("DELETE");
+  });
+
+  it("only the explicit All libraries choice lifts the restriction", async () => {
+    mockLibraryAccess = { libraryIds: ["lib1"], restricted: true, libraries: [{ id: "lib1", name: "Movies" }] };
+    await openLibraryAccess();
+    fireEvent.click(screen.getByText("admin.users.accessAll"));
+    expect(screen.queryByText("Movies")).toBeNull();
+    fireEvent.click(screen.getByText("common.save"));
+    await waitFor(() => expect(methods()).toContain("DELETE"));
+    expect(methods()).not.toContain("PUT");
   });
 });

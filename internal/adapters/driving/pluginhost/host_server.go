@@ -460,6 +460,13 @@ func (h *HostServer) UpdateMetadata(ctx context.Context, req *pluginv1.UpdateMet
 	if item.Type != library.MovieItem && item.Type != library.Series {
 		return nil, status.Errorf(codes.FailedPrecondition, "a metadata plugin covers movies and series, not a %s", item.Type)
 	}
+	if err := library.CheckPluginTextQuota(ctx, h.pluginTexts, pluginID, text.MediaItemID, text.Locale, []library.PluginText{text}); err != nil {
+		if errors.Is(err, library.ErrPluginTextQuota) {
+			return nil, status.Error(codes.ResourceExhausted, err.Error())
+		}
+		span.RecordError(err)
+		return nil, status.Error(codes.Internal, "check the plugin's text quota")
+	}
 	if err := h.pluginTexts.ReplaceLocale(ctx, text); err != nil {
 		span.RecordError(err)
 		return nil, status.Error(codes.Internal, "store the plugin's text")

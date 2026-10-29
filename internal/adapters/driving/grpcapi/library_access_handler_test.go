@@ -97,6 +97,13 @@ func TestLibraryAccessHandler_SetUserLibraryAccess_Empty(t *testing.T) {
 	resp, err := h.GetUserLibraryAccess(context.Background(), &eveyv1.GetUserLibraryAccessRequest{UserId: "user-1"})
 	require.NoError(t, err)
 	assert.Empty(t, resp.LibraryIds)
+	// An empty set confines the user to no library: it used to lift the
+	// restriction, so unticking every box in the admin modal gave access to
+	// the whole catalogue.
+	assert.True(t, resp.Restricted, "an empty set means no library, not every library")
+	has, err := accessRepo.HasAccess(context.Background(), "user-1", "lib-2")
+	require.NoError(t, err)
+	assert.False(t, has)
 }
 
 func TestLibraryAccessHandler_RevokeAllUserLibraryAccess(t *testing.T) {
