@@ -1,5 +1,5 @@
 ---
-source_sha: 7be5d2c69f31e5a809a830f40949f2c4242950d173dfc5bf681d26c5be44e87f
+source_sha: e10872a44bc7a4594b78350969813e3dffa0a11bd28a8acc97dcfb617e5b019b
 reviewed: true
 ---
 # Permisos y slots { #permissions-and-slots }
@@ -87,12 +87,14 @@ que se rechace toda la instalación.
 
 Una entrada es un **nombre de host**. Un prefijo de esquema y una ruta final se
 descartan al analizar; solo se guarda el nombre de host. Los hosts coinciden
-exactamente, un comodín `*.example.com` se rechaza en la instalación y un sufijo de puerto se ignora.
+exactamente y un comodín `*.example.com` se rechaza en la instalación. Una entrada
+sin puerto solo permite los puertos 80 y 443; `host:port` solo permite ese puerto.
 
 | Entrada | Válida | Motivo |
 |---|---|---|
 | `api.tmdb.org` | Sí | Nombre de host exacto, la forma normal |
 | `https://api.tmdb.org` | Sí | El esquema y la ruta se descartan al analizar, se guarda el nombre de host |
+| `api.example.com:8443` | Sí | Ese host solo en el puerto 8443 |
 | `*.tmdb.org` | No | Los comodines se rechazan en la instalación; lista cada host |
 | `*` | No | Un comodín solo se rechaza |
 | `192.168.1.1`, `::1` | No | Las direcciones IP literales se rechazan, en las dos familias |
@@ -100,10 +102,11 @@ exactamente, un comodín `*.example.com` se rechaza en la instalación y un sufi
 Mientras funciona, el intermediario del servidor añade sus propios límites,
 que el manifiesto no puede ampliar: solo `http` y `https`, solo `GET` y
 `HEAD`, el host de destino se compara con tu lista sin distinguir mayúsculas
-de minúsculas (un sufijo `:port` en una entrada se ignora), las direcciones
+de minúsculas, el puerto de destino se compara con la entrada (80 o 443 si no
+declara puerto), las direcciones
 privadas o reservadas se rechazan después de la resolución DNS, el cuerpo se
 limita a 8 MiB y la petición a 20 segundos. Las redirecciones se vuelven a
-comprobar con la lista y con la regla de direcciones.
+comprobar con la lista, con la regla de puertos y con la regla de direcciones.
 
 La misma lista de hosts es el `connect-src` del marco del plugin, con el
 prefijo `https://`: un widget puede llamar directamente a esos hosts, solo por
