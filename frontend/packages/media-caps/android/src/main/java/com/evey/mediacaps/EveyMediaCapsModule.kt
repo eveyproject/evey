@@ -245,15 +245,26 @@ class EveyMediaCapsModule : Module() {
     ),
   )
 
+  // Picture size and frame rate couples the decoders are asked about, as
+  // label -> (width, height, fps). A level or a largest frame says nothing of
+  // the rate: a decoder that opens 3840x2160 may still not sustain 60 fps.
+  private val sizeRateProbes = linkedMapOf(
+    "2160p60" to Triple(3840, 2160, 60.0),
+    "2160p30" to Triple(3840, 2160, 30.0),
+    "1080p60" to Triple(1920, 1080, 60.0),
+  )
+
   // Same pool rule as maxH264Level: the hardware decoders when there are
   // any, else whatever decodes the type. Per codec: the largest frame any
-  // decoder of the pool opens; overall: the largest across codecs.
+  // decoder of the pool opens, and for each size-rate probe whether one of
+  // them claims it (areSizeAndRateSupported); overall: the largest across
+  // codecs. The size-rate answers are reported, not used to decide.
   private fun videoDecoderLimits(): Map<String, Any?> {
     val infos = MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.filter { !it.isEncoder }
     var maxWidth = 0
     var maxHeight = 0
     val tenBit = mutableListOf<String>()
-    val perCodec = linkedMapOf<String, Map<String, Int>>()
+    val perCodec = linkedMapOf<String, Map<String, Any>>()
     for ((codec, mime) in videoMimes) {
       val all = infos.filter { it.supportedTypes.any { t -> t.equals(mime, ignoreCase = true) } }
       if (all.isEmpty()) continue
@@ -262,16 +273,22 @@ class EveyMediaCapsModule : Module() {
       var w = 0
       var h = 0
       var ten = false
+      val sizeRate = linkedMapOf<String, Boolean>()
+      for (label in sizeRateProbes.keys) sizeRate[label] = false
       for (info in pool) {
         val caps = runCatching { info.getCapabilitiesForType(mime) }.getOrNull() ?: continue
         caps.videoCapabilities?.let { v ->
           w = maxOf(w, v.supportedWidths.upper)
           h = maxOf(h, v.supportedHeights.upper)
+          for ((label, probe) in sizeRateProbes) {
+            val ok = runCatching { v.areSizeAndRateSupported(probe.first, probe.second, probe.third) }.getOrDefault(false)
+            if (ok) sizeRate[label] = true
+          }
         }
         val profiles = tenBitProfiles[codec]
         if (profiles != null && caps.profileLevels.any { profiles.contains(it.profile) }) ten = true
       }
-      perCodec[codec] = mapOf("maxWidth" to w, "maxHeight" to h)
+      perCodec[codec] = mapOf("maxWidth" to w, "maxHeight" to h, "sizeRate" to sizeRate)
       if (ten) tenBit += codec
       maxWidth = maxOf(maxWidth, w)
       maxHeight = maxOf(maxHeight, h)

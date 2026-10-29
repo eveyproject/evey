@@ -48,4 +48,7 @@ type PlaylistItemRepository interface {
 	// PurgeOrphans deletes the items whose media item or music track no longer
 	// exists (no FK: an item points at either) and returns how many went.
 	PurgeOrphans(ctx context.Context) (int64, error)
+	// PurgeRemoved deletes the items pointing at one removed media item, or at
+	// one removed music track when music is set, provided it is really gone.
+	PurgeRemoved(ctx context.Context, mediaItemID string, music bool) (int64, error)
 }

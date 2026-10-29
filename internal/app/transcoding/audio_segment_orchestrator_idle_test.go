@@ -33,7 +33,7 @@ func TestAudioOrchestrator_IdleRenditionIsReaped(t *testing.T) {
 	// Nobody asks again: the session must be stopped and forgotten.
 	require.Eventually(t, func() bool {
 		return o.ActiveCount() == 0 && handle != nil && handle.isStopped()
-	}, 2*time.Second, 5*time.Millisecond, "an unrequested rendition must be reaped")
+	}, eventuallyWait, 5*time.Millisecond, "an unrequested rendition must be reaped")
 	assert.Equal(t, 1, proc.startCount(), "reaping must not respawn anything")
 }
 
@@ -127,7 +127,7 @@ func TestAudioOrchestrator_PreWarmStartsTheSessionInTheBackground(t *testing.T) 
 	defer func() { _ = o.Close() }()
 
 	o.PreWarmAudio(fp, 42)
-	require.Eventually(t, func() bool { return proc.startCount() == 1 }, time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return proc.startCount() == 1 }, eventuallyWait, 5*time.Millisecond)
 	assert.Equal(t, 42, proc.optsAt(0).StartNumber)
 	o.PreWarmAudio(fp, 44) // within lookahead of the live session: nothing new
 	time.Sleep(20 * time.Millisecond)
@@ -157,7 +157,7 @@ func TestAudioOrchestrator_HashIndexStaysInStepWithSessions(t *testing.T) {
 	require.Equal(t, 1, indexed, "a spawned session is indexed under its hash")
 	require.True(t, covered, "the index is what answers 'is this segment covered'")
 
-	require.Eventually(t, func() bool { return o.ActiveCount() == 0 }, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return o.ActiveCount() == 0 }, eventuallyWait, 5*time.Millisecond)
 	o.mu.Lock()
 	_, still := o.byHash[hash]
 	covered = o.coveringSessionLocked(hash, 0)

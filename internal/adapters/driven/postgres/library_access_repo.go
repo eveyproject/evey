@@ -93,8 +93,10 @@ func (r *LibraryAccessRepository) ReplaceAccess(ctx context.Context, userID shar
 	if _, err = tx.ExecContext(ctx, `DELETE FROM library_access WHERE user_id = $1`, string(userID)); err != nil {
 		return fmt.Errorf("replace access: delete existing: %w", err)
 	}
-	// An empty set is the admin's "unrestricted", same as DeleteByUserID.
-	if _, err = tx.ExecContext(ctx, `UPDATE users SET library_restricted = $2 WHERE id = $1`, string(userID), len(libraryIDs) > 0); err != nil {
+	// Confines the user to the set: an empty set is "no library". Only
+	// DeleteByUserID lifts the restriction, so an admin who unticks every box
+	// never hands out the whole catalogue by accident.
+	if _, err = tx.ExecContext(ctx, `UPDATE users SET library_restricted = TRUE WHERE id = $1`, string(userID)); err != nil {
 		return fmt.Errorf("replace access: flag: %w", err)
 	}
 	if len(libraryIDs) > 0 {

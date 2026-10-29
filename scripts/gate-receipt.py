@@ -43,6 +43,17 @@ def repo_root() -> Path:
     return Path(common).parent
 
 
+def make_dry_run(makeflags: str) -> bool:
+    """True when MAKEFLAGS carries -n/--just-print/--dry-run/--recon. GNU make
+    puts the single-letter flags first, as one word with no leading dash."""
+    words = makeflags.split()
+    if not words:
+        return False
+    if not words[0].startswith("-") and "n" in words[0]:
+        return True
+    return any(w in ("-n", "--just-print", "--dry-run", "--recon") for w in words)
+
+
 def receipts_dir(root: Path) -> Path:
     """Same slug convention as the rest of ~/.claude/projects."""
     slug = re.sub(r"[^A-Za-z0-9]", "-", str(root.resolve()))
@@ -73,6 +84,11 @@ def head_info() -> tuple[str, str, str]:
 def cmd_run(args: argparse.Namespace) -> int:
     if not args.command:
         sys.exit("gate-receipt: nothing to run (usage: run -- make pre-push)")
+    if make_dry_run(os.environ.get("MAKEFLAGS", "")):
+        # `make -n gate` still runs this recipe (it holds $(MAKE)), and the
+        # sub-make only prints its steps and exits 0: a green receipt for a
+        # gate that tested nothing, which the pre-push hook would then trust.
+        sys.exit("gate-receipt: refusing to record a receipt under make -n (dry run tests nothing)")
 
     root = receipts_dir(repo_root())
     head, subject, branch = head_info()
@@ -130,7 +146,8 @@ def cmd_run(args: argparse.Namespace) -> int:
 def cmd_status(args: argparse.Namespace) -> int:
     path = receipts_dir(repo_root()) / f"latest-{args.label}.json"
     if not path.exists():
-        print(f"❔ no {args.label} receipt yet - run `make gate` before claiming anything is green.")
+        cmd = "make gate-full" if args.label == "pre-push" else "make gate"
+        print(f"❔ no {args.label} receipt yet - run `{cmd}` before claiming anything is green.")
         return 1
     receipt = json.loads(path.read_text())
     head, _, _ = head_info()

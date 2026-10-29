@@ -6,7 +6,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { BackButton } from "@/components/ui/BackButton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FetchErrorState } from "@/components/ui/FetchErrorState";
-import { toast, useAuthStore } from "@evey/store";
+import { toast, useAuthStore, useMusicPlayerStore, type MusicTrack } from "@evey/store";
 import { startTokenDownload } from "@/utils/downloadToken";
 import { usePlaylistDetail, useRemoveFromPlaylist, type PlaylistItem } from "@/features/playlist/api";
 import { SmartPlaylistRulesEditor } from "@/features/playlist/SmartPlaylistRulesEditor";
@@ -16,7 +16,27 @@ export const Route = createLazyFileRoute("/_auth/playlists/$playlistId")({
   component: PlaylistDetail,
 });
 
-function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistItem; playlistId: string; playlistType: string }) {
+// A playlist row of a music track, as the music player takes it. A track is
+// not a media item: everything here comes from the playlist answer.
+function toMusicTrack(item: PlaylistItem): MusicTrack {
+  return {
+    ID: item.media_item_id,
+    Title: item.title ?? "",
+    Artist: item.artist ?? "",
+    Album: item.album ?? "",
+    AlbumArtist: "",
+    Year: 0,
+    TrackNumber: 0,
+    DiskNumber: 0,
+    Duration: item.duration ?? 0,
+    FilePath: "",
+    MimeType: "",
+    Genre: "",
+    CoverArtURL: item.cover_art_url ?? "",
+  };
+}
+
+function PlaylistItemRow({ item, playlistId, playlistType, onPlayTrack }: { item: PlaylistItem; playlistId: string; playlistType: string; onPlayTrack: (item: PlaylistItem) => void }) {
   const { t } = useTranslation();
   const { lock } = useDemoLock();
   const remove = useRemoveFromPlaylist();
@@ -28,13 +48,27 @@ function PlaylistItemRow({ item, playlistId, playlistType }: { item: PlaylistIte
       <span className="text-sm w-8 flex-shrink-0 font-mono text-[var(--accent)]">
         {item.sort_order != null ? item.sort_order + 1 : "-"}
       </span>
-      <Link
-        to="/media/$mediaId"
-        params={{ mediaId: item.media_item_id }}
-        className="text-sm flex-1 truncate hover:underline"
-      >
-        {item.title ?? item.media_item_id}
-      </Link>
+      {item.media_type === "music" ? (
+        // A track has no video page (/media/<track id> answers 404): it plays.
+        <button
+          type="button"
+          onClick={() => onPlayTrack(item)}
+          className="text-sm flex-1 truncate text-left hover:underline"
+        >
+          {item.title ?? item.media_item_id}
+        </button>
+      ) : (
+        <Link
+          to="/media/$mediaId"
+          params={{ mediaId: item.media_item_id }}
+          className="text-sm flex-1 truncate hover:underline"
+        >
+          {item.title ?? item.media_item_id}
+        </Link>
+      )}
+      {item.media_type === "music" && item.artist && (
+        <span className="text-xs flex-shrink-0 text-[var(--text-muted)]">{item.artist}</span>
+      )}
       {item.type && (
         <Badge variant="default">{item.type.replace("MEDIA_ITEM_TYPE_", "").toLowerCase()}</Badge>
       )}
@@ -70,6 +104,7 @@ function PlaylistDetail() {
   const { playlistId } = Route.useParams();
   const { data: playlist, isLoading, isError, error, refetch } = usePlaylistDetail(playlistId);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const play = useMusicPlayerStore((s) => s.play);
 
   if (isLoading) {
     return (
@@ -150,6 +185,11 @@ function PlaylistDetail() {
                 item={item}
                 playlistId={playlistId}
                 playlistType={playlist.type}
+                onPlayTrack={(picked) => {
+                  // The playlist's tracks, so the player carries on after this one.
+                  const queue = items.filter((it) => it.media_type === "music").map(toMusicTrack);
+                  play(toMusicTrack(picked), queue, { type: "playlist", id: playlistId, label: playlist.name });
+                }}
               />
             ))}
           </div>

@@ -1,4 +1,5 @@
 import { NativeModules, Platform } from "react-native";
+import type { VideoCapsReport } from "./videoCapsReport";
 import { checkPlaybackDecoder, declarableAudioCodecs, displaySupportsHdr, getAudioProbe, getDisplayHdrTypes, getMaxH264Level, getPlayerAudioDecoders, getVideoDecoderLimits, type AudioProbe, type DecoderCheck, type VideoDecoderLimits } from "@evey/media-caps";
 import { clientLogger } from "../log";
 
@@ -46,6 +47,18 @@ let playerCodecs: string[] = [];
 // What the declaration was resolved from, kept to resolve it again without
 // the player's decoders.
 let resolvedFrom: { outcome: AudioProbeOutcome; sink: AudioProbe | null } | null = null;
+let resolveVideoCaps: (r: VideoCapsReport | null) => void = () => {};
+const videoCaps = new Promise<VideoCapsReport | null>((r) => (resolveVideoCaps = r));
+
+/**
+ * What the video decoders declared (H.264 level, largest frames, size-rate
+ * answers), null off Android. Settles once the probe has asked them; for the
+ * video_caps beacon only.
+ */
+export function getVideoCapsReport(): Promise<VideoCapsReport | null> {
+  return videoCaps;
+}
+
 let resolveCheck: (c: DecoderCheck | null) => void = () => {};
 const decoderCheck = new Promise<DecoderCheck | null>((r) => (resolveCheck = r));
 
@@ -197,6 +210,9 @@ async function probe(): Promise<void> {
     } catch {
       /* stay limit-blind */
     }
+    resolveVideoCaps({ maxH264Level, limits: videoLimits });
+  } else {
+    resolveVideoCaps(null);
   }
   let outcome: AudioProbeOutcome = { status: "unavailable" };
   if (native) {

@@ -844,6 +844,11 @@ func (e *Enricher) storePluginAnswer(ctx context.Context, itemID string, answer 
 			Title: t.Title, Overview: t.Overview, Tagline: t.Tagline,
 		})
 	}
+	if err := domainlib.CheckPluginTextQuota(ctx, e.pluginTexts, answer.PluginID, itemID, "", texts); err != nil {
+		slog.WarnContext(ctx, "plugin metadata texts not stored",
+			slog.String("item", itemID), slog.String("plugin", answer.PluginID), slog.Any("err", err))
+		return false
+	}
 	if err := e.pluginTexts.ReplaceForItem(ctx, itemID, answer.PluginID, texts); err != nil {
 		slog.WarnContext(ctx, "store plugin metadata texts",
 			slog.String("item", itemID), slog.String("plugin", answer.PluginID), slog.Any("err", err))

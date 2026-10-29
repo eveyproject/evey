@@ -26,10 +26,10 @@ func TestOrchestrator_NaturalExitReleasesSessionContext(t *testing.T) {
 	defer o.Close()
 
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), minimalFingerprint(t), 0, 0))
-	require.Eventually(t, func() bool { return o.ActiveCount() == 0 }, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return o.ActiveCount() == 0 }, eventuallyWait, 5*time.Millisecond)
 	ctx := proc.startedCtx()
 	require.NotNil(t, ctx)
-	require.Eventually(t, func() bool { return ctx.Err() != nil }, time.Second, 5*time.Millisecond,
+	require.Eventually(t, func() bool { return ctx.Err() != nil }, eventuallyWait, 5*time.Millisecond,
 		"the session context is still live after a natural exit")
 }
 
@@ -41,9 +41,9 @@ func TestSoftwareProducer_NaturalExitReleasesSessionContext(t *testing.T) {
 	defer p.Close()
 
 	require.NoError(t, p.EnsureSegmentRange(context.Background(), minimalFingerprint(t), 0, 0))
-	require.Eventually(t, func() bool { return p.ActiveSessionCount() == 0 }, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return p.ActiveSessionCount() == 0 }, eventuallyWait, 5*time.Millisecond)
 	ctx := proc.startedCtx()
 	require.NotNil(t, ctx)
-	require.Eventually(t, func() bool { return ctx.Err() != nil }, time.Second, 5*time.Millisecond,
+	require.Eventually(t, func() bool { return ctx.Err() != nil }, eventuallyWait, 5*time.Millisecond,
 		"the session context is still live after a natural exit")
 }

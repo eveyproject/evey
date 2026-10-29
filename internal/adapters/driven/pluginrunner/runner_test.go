@@ -569,6 +569,9 @@ func TestSetupSocketDir_UIDSeparationParentTraversable(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, os.FileMode(0o770), sub.Mode().Perm(), "per-plugin dir must be group rwx")
 		assert.NotZero(t, sub.Mode()&os.ModeSetgid, "per-plugin dir must be setgid")
+		// Sticky: a neighbour plugin in the same group cannot unlink this
+		// plugin's socket to bind its own in its place.
+		assert.NotZero(t, sub.Mode()&os.ModeSticky, "per-plugin dir must be sticky")
 	})
 
 	t.Run("uid-sep off: parent not loosened", func(t *testing.T) {

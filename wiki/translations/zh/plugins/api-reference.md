@@ -1,5 +1,5 @@
 ---
-source_sha: 966bebcba12b15b7aa9682ef2f60b62c161622d98d6bd445ed664ef11f411f00
+source_sha: e016d46cbfda306ec5cb1c9dbbdef535ee12acea8711452911a11d22e66d34b1
 reviewed: true
 ---
 # 插件 API 参考 { #plugin-api-reference }
@@ -103,7 +103,7 @@ EVEY_HOST_SOCK=<path>     # 您的进程连接这里，调用 HostService
 | `GetMediaItem(id)`、`ListMediaItems(library_id, type, parent_id, limit, offset)` | `api.library` 或 `media.read` | 完整的媒体记录，包括 `file_path`、`provider_ids` 和 `genres`。 |
 | `Fetch(url, method, headers)` | `network` | 访问沙箱外部的唯一途径：`http` 或 `https`，`GET` 或 `HEAD`，目标是 `external_fetch` 里的主机；私有地址在解析后和重定向时都会被拒绝。响应体最大 8 MiB（`truncated` 会注明是否被截断），整个请求最长 20 秒。服务器不会附加自己的任何凭据。 |
 | `SearchMedia`、`GetMediaStreams`、`GetChapters`、`GetSubtitles` | `api.library` 或 `media.read` | *未提供。* |
-| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` 或 `media.write`，以及 `metadata.provider` 能力 | 主动为一部电影或剧集提供您的文本，与[元数据回答](#metadata-requests)相同。`fields` 包含 `locale`（必填）以及 `title`、`overview`、`tagline` 中的任意几项；该文本替换您为这种语言提供过的内容，只含 `locale` 的 `fields` 会将其删除。`provider_ids` 会被拒绝：作品由 TMDB 识别。 |
+| `UpdateMetadata(media_item_id, fields, provider_ids)` | `api.metadata` 或 `media.write`，以及 `metadata.provider` 能力 | 主动为一部电影或剧集提供您的文本，与[元数据回答](#metadata-requests)相同。`fields` 包含 `locale`（必填）以及 `title`、`overview`、`tagline` 中的任意几项；该文本替换您为这种语言提供过的内容，只含 `locale` 的 `fields` 会将其删除。`provider_ids` 会被拒绝：作品由 TMDB 识别。一个插件能存储的内容有上限：每个作品 16 种语言，总共 200 000 条文本和 128 MiB。超出后调用返回 `RESOURCE_EXHAUSTED`；替换或删除您已经提供的文本仍然可以。 |
 | `GetUserPreferences` | `api.user` | *未提供。* |
 | `SendNotification` | `notification.sender` | *未提供。* |
 

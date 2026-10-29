@@ -14,6 +14,9 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
+
+type AccessMode = "all" | "selected";
 
 export function LibraryAccessModal({
   user,
@@ -27,6 +30,10 @@ export function LibraryAccessModal({
   const { t } = useTranslation();
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // "All libraries" and "no library ticked" are two different answers, so the
+  // admin picks the mode explicitly: an empty selection used to be saved as
+  // a revoke-all, which lifts the restriction and opens the whole catalogue.
+  const [mode, setMode] = useState<AccessMode>("all");
   const [saving, setSaving] = useState(false);
 
   const { data, isLoading } = useLibraryAccessServiceGetUserLibraryAccess(user.id ?? "", {
@@ -36,14 +43,15 @@ export function LibraryAccessModal({
   useEffect(() => {
     if (data) {
       setSelected(new Set(data.libraryIds ?? []));
+      // Restricted with nothing left (grants revoked, libraries deleted): the
+      // server says so with a flag, since the empty list alone reads as
+      // unrestricted.
+      setMode(data.restricted || (data.libraryIds?.length ?? 0) > 0 ? "selected" : "all");
     }
   }, [data]);
 
-  const isUnrestricted = selected.size === 0;
-  // Restricted with nothing left (grants revoked, libraries deleted): the
-  // server says so with a flag, since the empty list alone reads as unrestricted.
-  const restrictedToNothing = !!data?.restricted && (data.libraryIds?.length ?? 0) === 0;
-  const showNoLibrary = restrictedToNothing && isUnrestricted;
+  const isUnrestricted = mode === "all";
+  const showNoLibrary = mode === "selected" && selected.size === 0;
   const libraries = data?.libraries ?? [];
 
   const handleToggle = useCallback((libId: string) => {
@@ -65,7 +73,7 @@ export function LibraryAccessModal({
     if (!user.id) return;
     setSaving(true);
     try {
-      if (selected.size === 0) {
+      if (mode === "all") {
         await revoke.mutateAsync({ userId: user.id });
       } else {
         await setAccess.mutateAsync({ userId: user.id, data: { libraryIds: Array.from(selected) } });
@@ -98,34 +106,37 @@ export function LibraryAccessModal({
                 : t("admin.users.restrictedDesc", { count: selected.size, libraryWord: selected.size === 1 ? "library" : "libraries" })}
           </p>
 
+          <SegmentedControl
+            label={t("admin.users.libraryAccessTitle", { name: user.username })}
+            options={[
+              { value: "all", label: t("admin.users.accessAll") },
+              { value: "selected", label: t("admin.users.accessSelected") },
+            ]}
+            value={mode}
+            onChange={(v) => setMode(v as AccessMode)}
+          />
+
           {showNoLibrary ? (
             <Badge variant="warning">{t("admin.users.noLibraries")}</Badge>
           ) : isUnrestricted ? (
             <Badge variant="success">{t("admin.users.unrestricted")}</Badge>
           ) : null}
 
-          <div className="flex flex-col gap-2">
-            {libraries.map((lib) => (
-              <div
-                key={lib.id}
-                className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]"
-              >
-                <Checkbox
-                  label={lib.name ?? ""}
-                  checked={selected.has(lib.id ?? "")}
-                  onChange={() => handleToggle(lib.id ?? "")}
-                />
-              </div>
-            ))}
-          </div>
-
-          {selected.size > 0 && (
-            <Button
-              variant="ghost"
-              onClick={() => setSelected(new Set())}
-            >
-              {t("admin.users.clearAllUnrestricted")}
-            </Button>
+          {!isUnrestricted && (
+            <div className="flex flex-col gap-2">
+              {libraries.map((lib) => (
+                <div
+                  key={lib.id}
+                  className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]"
+                >
+                  <Checkbox
+                    label={lib.name ?? ""}
+                    checked={selected.has(lib.id ?? "")}
+                    onChange={() => handleToggle(lib.id ?? "")}
+                  />
+                </div>
+              ))}
+            </div>
           )}
 
           <div className="flex justify-end gap-2 pt-2">

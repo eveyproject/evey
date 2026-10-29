@@ -549,3 +549,61 @@ func TestPlaylistItemRepo_PurgeOrphans(t *testing.T) {
 	}
 	assert.Equal(t, []string{"plorph-kept", trackID}, ids)
 }
+
+// PurgeRemoved drops the rows of one removed media item or music track, by
+// kind, and leaves an id that still exists alone.
+func TestPlaylistItemRepo_PurgeRemoved(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	u := newTestUser("plrm-u")
+	require.NoError(t, postgres.NewUserRepository(db).Create(ctx, u))
+	p := newTestProfile("plrm-p", u.ID)
+	require.NoError(t, postgres.NewProfileRepository(db).Create(ctx, p))
+	lib := newTestLibrary("plrm-lib")
+	require.NoError(t, postgres.NewLibraryRepository(db).Create(ctx, lib))
+	itemRepo := postgres.NewMediaItemRepository(db)
+	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("plrm-kept", lib.ID)))
+	require.NoError(t, itemRepo.Create(ctx, newTestMediaItem("plrm-gone", lib.ID)))
+	tracks := postgres.NewMusicTrackRepository(db)
+	trackID, err := tracks.Upsert(ctx, newTestTrack("plrm-track", lib.ID, "T", "A", "Alb"))
+	require.NoError(t, err)
+
+	pl := newTestPlaylist("plrm-pl", string(p.ID))
+	require.NoError(t, postgres.NewPlaylistRepository(db).Create(ctx, pl))
+	items := postgres.NewPlaylistItemRepository(db)
+	now := time.Now().UTC()
+	for i, it := range []struct{ id, mediaType string }{
+		{"plrm-kept", domainplaylist.MediaTypeVideo},
+		{"plrm-gone", domainplaylist.MediaTypeVideo},
+		{trackID, domainplaylist.MediaTypeMusic},
+		{"plrm-gone-track", domainplaylist.MediaTypeMusic},
+	} {
+		require.NoError(t, items.Add(ctx, &domainplaylist.PlaylistItem{
+			PlaylistID: pl.ID, MediaItemID: shared.MediaItemID(it.id), SortOrder: i, AddedAt: now, MediaType: it.mediaType,
+		}))
+	}
+	require.NoError(t, itemRepo.Delete(ctx, "plrm-gone"))
+
+	n, err := items.PurgeRemoved(ctx, "plrm-kept", false)
+	require.NoError(t, err)
+	assert.Zero(t, n, "an id that still exists keeps its rows")
+	n, err = items.PurgeRemoved(ctx, trackID, true)
+	require.NoError(t, err)
+	assert.Zero(t, n, "a track that still exists keeps its rows")
+	n, err = items.PurgeRemoved(ctx, "plrm-gone", false)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), n)
+	n, err = items.PurgeRemoved(ctx, "plrm-gone-track", true)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), n)
+
+	got, err := items.GetByPlaylistID(ctx, pl.ID)
+	require.NoError(t, err)
+	var ids []string
+	for _, it := range got {
+		ids = append(ids, string(it.MediaItemID))
+	}
+	assert.Equal(t, []string{"plrm-kept", trackID}, ids)
+}

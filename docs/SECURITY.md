@@ -218,6 +218,7 @@ Refused system calls:
 |---|---|
 | Debugging | `ptrace`, `process_vm_readv`, `process_vm_writev` |
 | Signals | `tgkill`, `rt_sigqueueinfo`, `rt_tgsigqueueinfo` towards any process but the plugin itself (both filters); `kill` likewise in the kernel filter, towards any target in the `LD_PRELOAD` filter; `tkill` in the kernel filter (the `LD_PRELOAD` filter allows it towards the plugin itself); `pidfd_send_signal`, `pidfd_getfd` (steals a file descriptor). A runtime re-raising a signal or preempting its own threads keeps working. On Landlock ABI 6+, a plugin also cannot signal a process outside its sandbox |
+| Signal owner of a file descriptor (kernel filter) | `fcntl` `F_SETOWN` towards any process but the plugin itself, `F_SETSIG` to any signal but the default `SIGIO`, `F_SETOWN_EX`, and `ioctl` `FIOSETOWN`/`SIOCSPGRP`: without this, an fd owned by the server with `SIGKILL` as its signal would kill the server on the next write |
 | Mounts | `mount`, `umount2`, `pivot_root`, `chroot` |
 | Namespaces | `unshare`, `setns`, and `clone` carrying a `CLONE_NEW*` flag (unshare by another name), for every plugin |
 | Kernel modules | `init_module`, `finit_module`, `delete_module` |
@@ -242,9 +243,12 @@ whitelist.
 
 ### A separate user
 
-A plugin can run as user 1001 (`evey-plugin`), distinct from the server
-(1000), so the server's secrets are unreadable to it by file permissions
-alone. `EVEY_PLUGINS_UID_SEPARATION` controls it:
+A plugin can run as a user of its own, distinct from the server (1000), so
+the server's secrets are unreadable to it by file permissions alone. Each
+plugin gets its uid from its id, in the range 40000 to 59999, stable across
+restarts; it keeps the server's group, which only reads the installed files.
+Two ids can land on the same uid: those two plugins then share it.
+`EVEY_PLUGINS_UID_SEPARATION` controls it:
 
 | Value | When the switch happens |
 |---|---|
@@ -261,8 +265,10 @@ this role.
 
 When active, the signing key (`0600`) and the backups (`0700` directory,
 `0600` files) are owner-only at run time, which holds even on a bind-mounted
-`/data`. All plugins share user 1001: they are isolated from each other by
-the filesystem layer, not by the user.
+`/data`. Plugins are isolated from each other by their uid on top of the
+filesystem layer. A server run as root (not recommended) drops every plugin
+to the single user 1001 instead: there, only the filesystem layer separates
+the plugins.
 
 ### Host socket authentication
 
@@ -273,6 +279,12 @@ compares it with the PID recorded when the plugin started. The plugin's
 identity comes from the socket, never from a header. A plugin therefore
 cannot impersonate another, call another plugin's socket, or route calls
 through a child process. A PID mismatch is logged as a warning.
+
+The other direction is checked the same way: the server talks to the plugin
+on `plugin.sock` in the same directory, and refuses the connection unless the
+process listening on it is the plugin itself (`SO_PEERCRED` again). With a
+separate user per plugin, the directory is sticky, so a neighbour plugin of
+the shared group cannot unlink that socket to bind its own.
 
 ### Resource limits
 
@@ -432,7 +444,7 @@ on the host. Which setup fits which machine, in plain terms:
 | Limit | Impact | What limits it today |
 |---|---|---|
 | No per-path confinement in `basic` on a kernel without Landlock | A plugin can read non-sensitive world-readable files and other plugins' directories | Secrets protected by the separate user and `PR_SET_DUMPABLE`; `auto` prefers Landlock or bubblewrap |
-| All plugins share user 1001 | In `basic` mode, a plugin can read files its siblings own | Signalling other processes is blocked (seccomp, `LD_PRELOAD` and bubblewrap all block it); `PR_SET_DUMPABLE` blocks reading other processes through `/proc`; Landlock and bubblewrap isolate plugin directories |
+| Plugin uids come from a hash of the id; a server run as root drops every plugin to user 1001 | Two plugins whose ids collide, or every plugin under a root server, share a uid: in `basic` mode, one can read files the other owns | Signalling other processes is blocked (seccomp, `LD_PRELOAD` and bubblewrap all block it); `PR_SET_DUMPABLE` blocks reading other processes through `/proc`; Landlock and bubblewrap isolate plugin directories |
 | Seccomp is a denylist | File and Unix socket calls stay allowed | Paths are confined by Landlock or bubblewrap; IP sockets are refused |
 | The broker moves the SSRF surface to the host | A flaw in the broker's validation could reach an internal address | Allowlist and SSRF-safe client in Go; an egress rule on the container as an independent layer |
 | The broker controls where a call goes, not what it carries | Data can leave towards a host on the plugin's list | Allow only hosts you trust with that data |

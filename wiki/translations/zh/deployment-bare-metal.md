@@ -1,5 +1,5 @@
 ---
-source_sha: 0b2dda412b186b3b40f33ea4027ceb0d328e5f8f39f87d2312a8c7bdab2edbed
+source_sha: db2460488aaf87451840f3608306cb44b04a66a7419ba222c08d88685348a4e7
 reviewed: true
 ---
 # 不使用容器
@@ -58,20 +58,19 @@ sudo install -D -m 0644 libevey-sandbox.so /app/libevey-sandbox.so
 
 ## 以专用的非 root 用户运行
 
-永远不要以 root 运行服务器。像镜像那样，创建一个组和两个无特权的用户：
+永远不要以 root 运行服务器。像镜像那样，创建一个组和一个无特权的用户：
 
 ```bash
 sudo groupadd --gid 1000 evey
 sudo useradd --system --uid 1000 --gid evey --shell /usr/sbin/nologin evey
-sudo useradd --system --uid 1001 --gid evey --shell /usr/sbin/nologin evey-plugin
 ```
 
 - `evey`（UID 1000）运行服务器。
-- `evey-plugin`（UID 1001）是开启 uid 分离时插件切换到的用户。这样，被攻破的插件会以另一个无特权用户的身份运行，
-  单凭普通的文件权限，它就无法读取服务器的密钥。
+- 开启 uid 分离时，每个插件切换到它自己的 uid，由它的 id 在 40000 到 59999 的范围内得出。这样，被攻破的插件会以另一个无特权用户的身份运行，
+  单凭普通的文件权限，它既无法读取服务器的密钥，也无法读取另一个插件的文件。这些 uid 不需要在 `/etc/passwd` 里有账户。
 
 !!! warning
-    组 id 很重要：启动器会把插件切换到 UID 1001 和服务器自己的组，并且拒绝任何小于 1000 的 uid 或 gid。
+    组 id 很重要：启动器会把插件切换到它的 uid 和服务器自己的组，并且拒绝任何小于 1000 的 uid 或 gid。
     只用 `useradd --system` 创建的组会得到一个小于 1000 的系统 id，这时 `basic` 模式下的插件就会被拒绝。
 
 服务器在启动时把自己标记为不可转储（`PR_SET_DUMPABLE=0`），这样同一台机器上的插件读不到 `/proc/<server-pid>/{mem,environ}`。
@@ -129,7 +128,7 @@ bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 ### basic（最后选择）
 
 `EVEY_PLUGINS_SANDBOX_MODE=basic` 就是切换用户（uid）加上 seccomp 垫片库；如果有启动器，它仍然会装上它的内核 seccomp 禁止清单，
-并尽力加上 Landlock。没有按路径的文件系统隔离：插件以 UID 1001 运行，只有 seccomp 保护。
+并尽力加上 Landlock。没有按路径的文件系统隔离：插件以它自己的 uid 运行，只有 seccomp 保护。
 请在 Landlock 和 bubblewrap 都不能用的旧内核或受限内核上使用它，并依靠下面的 uid 分离来保护密钥。
 
 获得了 `subprocess` 权限的插件，即使在 `basic` 模式下也需要启动器：垫片库在子进程 `exec` 之后就不再起作用，
@@ -137,7 +136,7 @@ bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK"
 
 ## 防止插件访问密钥
 
-uid 分离让每个插件以 `evey-plugin`（UID 1001）运行，和服务器（UID 1000）分开，这样，单凭普通的文件权限，
+uid 分离让每个插件以它自己的 uid（40000 到 59999，由它的 id 得出）运行，和服务器（UID 1000）分开，这样，单凭普通的文件权限，
 插件就无法读取 `jwt.key`、备份或日志。它在 `basic` 模式下很重要；在 Landlock 或 bubblewrap 下，文件系统已经受到限制，所以它在那里是多余的。
 
 `EVEY_PLUGINS_UID_SEPARATION`：
@@ -149,7 +148,7 @@ uid 分离让每个插件以 `evey-plugin`（UID 1001）运行，和服务器（
 | `off` | 从不开启 |
 
 切换用户由启动器完成，不由服务器完成。服务器始终不是 root，也没有任何能力（capability）；
-启动器带有一项文件能力，在执行插件之前切换到 UID 1001：
+启动器带有一项文件能力，在执行插件之前切换到插件的 uid：
 
 ```bash
 sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
@@ -162,17 +161,17 @@ sudo setcap cap_setuid+ep /opt/evey/evey-plugin-launcher
     uid 分离和 `no_new_privs` 不能同时使用。如果服务器在 systemd 的 `NoNewPrivileges=yes` 下运行，
     文件能力在 exec 时会被忽略：`basic` 模式下的插件会被拒绝，而在 Landlock 下，uid 分离会退化为使用同一个 uid。只能二选一。
 
-如果服务器改为以 root 运行（不推荐），它会直接把插件切换到 1001，就不需要这项能力了。
+如果服务器改为以 root 运行（不推荐），它会把所有插件切换到同一个用户 1001（用 `useradd --system --uid 1001 --gid evey evey-plugin` 创建），就不需要这项能力了；这时插件共用这个 uid。
 用简单的话说明每种情况，见[插件沙箱设置](plugins/sandbox-deployment.md)。
 
 ## 密钥文件的权限
 
-按照镜像的做法：存放密钥的目录只有所有者能访问，这样，即使没有 Landlock，切换到 UID 1001 的插件也无法读取它们。
+按照镜像的做法：存放密钥的目录只有所有者能访问，这样，即使没有 Landlock，切换到自己 uid 的插件也无法读取它们。
 
 ```bash
 sudo chown -R evey:evey /var/lib/evey
 # plugins/ 归服务器所有（安装的插件解压在这里）；evey 组
-# （evey-plugin 属于这个组）只能读取和执行已安装的文件：
+# （插件保留这个组）只能读取和执行已安装的文件：
 sudo chmod 750 /var/lib/evey/plugins
 # 密钥目录只有所有者能访问：
 sudo chmod 700 /var/lib/evey/keys /var/lib/evey/logs /var/lib/evey/backups

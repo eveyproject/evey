@@ -22,7 +22,7 @@ func TestOrchestrator_CacheHitCreditsTheClosestBehindRafale(t *testing.T) {
 	fp := minimalFingerprint(t)
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 0))
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 23))
-	require.Eventually(t, func() bool { return o.ActiveCount() == 2 }, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return o.ActiveCount() == 2 }, eventuallyWait, 10*time.Millisecond)
 
 	writeReadySegment(t, cache, SegmentKey{DecisionHash: fp.Hash(), VariantIdx: 0, SegmentIdx: 24}, fp.UseFMP4)
 	require.NoError(t, o.EnsureSegmentRange(context.Background(), fp, 0, 24))

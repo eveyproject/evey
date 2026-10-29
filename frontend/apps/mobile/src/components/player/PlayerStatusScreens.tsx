@@ -10,27 +10,38 @@ interface ShedScreenProps {
   shedReason: ShedCode;
   onRetry: () => void;
   onBack: () => void;
+  /** A deleted file: no retry; the way out is the next episode, when there is one. */
+  onNextEpisode?: () => void;
 }
 
-export function ShedScreen({ shedReason, onRetry, onBack }: ShedScreenProps) {
+export function ShedScreen({ shedReason, onRetry, onBack, onNextEpisode }: ShedScreenProps) {
+  const fileMissing = shedReason === "file_missing";
   const theme = useTheme();
   const { t } = useTranslation();
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <StatusBar hidden />
-      <Ionicons name="time-outline" size={ICON_SIZE["3xl"]} color={theme.colors.textMuted} />
+      <Ionicons name={fileMissing ? "trash-outline" : "time-outline"} size={ICON_SIZE["3xl"]} color={theme.colors.textMuted} />
       <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.lg, fontWeight: "600", marginTop: 16, textAlign: "center", paddingHorizontal: 24 }}>
         {t(shedI18nKey(shedReason, "title"))}
       </Text>
       <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm, marginTop: 8, textAlign: "center", paddingHorizontal: 32 }}>
         {t(shedI18nKey(shedReason, "body"))}
       </Text>
-      <Pressable
-        onPress={onRetry}
-        style={{ marginTop: 20 }}
-      >
-        <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, fontWeight: "600" }}>{t("player.retry")}</Text>
-      </Pressable>
+      {fileMissing ? (
+        onNextEpisode ? (
+          <Pressable onPress={onNextEpisode} style={{ marginTop: 20 }}>
+            <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, fontWeight: "600" }}>{t("player.controls.nextEpisode")}</Text>
+          </Pressable>
+        ) : null
+      ) : (
+        <Pressable
+          onPress={onRetry}
+          style={{ marginTop: 20 }}
+        >
+          <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, fontWeight: "600" }}>{t("player.retry")}</Text>
+        </Pressable>
+      )}
       <Pressable onPress={onBack} style={{ marginTop: 16 }}>
         <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm }}>{t("player.goBack")}</Text>
       </Pressable>

@@ -2,6 +2,8 @@ package grpcapi
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	eveyv1 "github.com/eveyproject/evey/gen/evey/v1"
@@ -31,6 +33,12 @@ func (d *recordingDecider) Reported(_ context.Context, req apptranscoding.Playba
 // HLS master will be planned from: the client's codecs, the line cap, the
 // selected audio track, the source facts.
 func TestPlaybackHandler_GetStreamInfo_DecidesThroughTheBoundDecider(t *testing.T) {
+	// The file must exist: a title whose file is gone is refused before the
+	// decider (TestGetStreamInfo_FileGoneFromDisk).
+	src := filepath.Join(t.TempDir(), "a.mp4")
+	if err := os.WriteFile(src, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	h, _, _, mediaQuery, _, streamRepo := newTestPlaybackHandler()
 	dec := &recordingDecider{decision: transcoding.PlaybackDecision{
 		PlayMethod: "transcode", VideoDecision: "transcode", AudioDecision: "copy",
@@ -39,7 +47,7 @@ func TestPlaybackHandler_GetStreamInfo_DecidesThroughTheBoundDecider(t *testing.
 	h.decider = dec
 	mediaQuery.Seed(&library.MediaItem{
 		ID: "mi-1", Title: "Test Movie", Type: "movie",
-		File: &library.MediaFile{Path: "/srv/a.mp4", ContainerFormat: "mp4", Size: 1 << 30, Bitrate: 8_000_000},
+		File: &library.MediaFile{Path: src, ContainerFormat: "mp4", Size: 1 << 30, Bitrate: 8_000_000},
 	})
 	streamRepo.CreateBatch(context.Background(), []*library.MediaStream{
 		{MediaItemID: "mi-1", StreamIndex: 0, StreamType: "video", Codec: "h264", Width: new(1920), Height: new(1080), IsDefault: true},
@@ -69,7 +77,7 @@ func TestPlaybackHandler_GetStreamInfo_DecidesThroughTheBoundDecider(t *testing.
 	// The request carries what the master's plan will read.
 	got := dec.got
 	assert.Equal(t, "mi-1", got.MediaID)
-	assert.Equal(t, "/srv/a.mp4", got.SourcePath)
+	assert.Equal(t, src, got.SourcePath)
 	assert.Equal(t, "mp4", got.Container)
 	assert.Len(t, got.Streams, 3)
 	assert.Equal(t, []string{"hevc"}, got.Client.VideoCodecs)

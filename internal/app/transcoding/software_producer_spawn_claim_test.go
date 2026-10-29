@@ -94,3 +94,37 @@ func TestSoftwareProducer_PanickingSpawnReleasesItsClaim(t *testing.T) {
 	require.NoError(t, p.EnsureSegmentRange(ctx, fp, 0, 10), "the second request must spawn, not wait on a stranded claim")
 	assert.Equal(t, 1, proc.startCount())
 }
+
+// The claimant's own context ending (its client went away mid-spawn) is not
+// an outcome for the requests parked on its claim: a waiter whose context is
+// alive spawns for itself instead of failing with the claimant's error.
+func TestSoftwareProducer_ClaimantContextErrorIsNotTheWaitersOutcome(t *testing.T) {
+	cache, _ := newTestCache(t)
+	proc := newFakeProcess()
+	claimed := make(chan struct{})
+	var once sync.Once
+	slowSource := SourceResolverFunc(func(ctx context.Context, _ DecisionFingerprint) (string, []SourceStream, error) {
+		once.Do(func() { close(claimed) })
+		time.Sleep(50 * time.Millisecond)
+		if err := ctx.Err(); err != nil {
+			return "", nil, err
+		}
+		return "/media/test.mkv", nil, nil
+	})
+	p := NewSoftwareProducer(cache, proc, slowSource, swTestOpts(), discardLogger())
+	defer p.Close()
+	fp := minimalFingerprint(t)
+
+	claimantCtx, cancelClaimant := context.WithCancel(context.Background())
+	claimantErr := make(chan error, 1)
+	go func() { claimantErr <- p.EnsureSegmentRange(claimantCtx, fp, 0, 10) }()
+	<-claimed
+	waiterErr := make(chan error, 1)
+	go func() { waiterErr <- p.EnsureSegmentRange(context.Background(), fp, 0, 10) }()
+	time.Sleep(10 * time.Millisecond) // the waiter parks on the claim
+	cancelClaimant()
+
+	require.ErrorIs(t, <-claimantErr, context.Canceled)
+	require.NoError(t, <-waiterErr, "the waiter's context is alive: it must not inherit the claimant's cancellation")
+	assert.Equal(t, 1, p.ActiveSessionCount())
+}

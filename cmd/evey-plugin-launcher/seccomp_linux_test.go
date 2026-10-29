@@ -110,6 +110,9 @@ func seccompChild(denyInet bool) {
 	if !probeOtherProcessTuning() {
 		os.Exit(20)
 	}
+	if !probeSignalOwner() {
+		os.Exit(21)
+	}
 	// Namespaces stay closed even for a plugin allowed to fork: clone with a
 	// CLONE_NEW* flag is unshare by another name, and clone3 hides its flags
 	// from the filter. CLONE_NEWUSER|CLONE_FS is EINVAL in the kernel, so a
@@ -201,6 +204,59 @@ func probeOtherProcessTuning() bool {
 		{"move_pages self", unix.SYS_MOVE_PAGES, [4]uintptr{0, 0, 0, 0}},
 	} {
 		if _, _, errno := unix.Syscall6(sc.nr, sc.args[0], sc.args[1], sc.args[2], sc.args[3], 0, 0); errno == unix.EPERM {
+			fmt.Fprintf(os.Stderr, "%s refused: errno=%v\n", sc.name, errno)
+			ok = false
+		}
+	}
+	return ok
+}
+
+// probeSignalOwner checks that an fd's signal owner stays on the plugin:
+// F_SETOWN(parent) + F_SETSIG(SIGKILL) + O_ASYNC would otherwise let one write
+// to its own pipe kill the server, which shares the uid.
+func probeSignalOwner() bool {
+	var p [2]int
+	if err := unix.Pipe(p[:]); err != nil {
+		fmt.Fprintf(os.Stderr, "pipe: %v\n", err)
+		return false
+	}
+	defer unix.Close(p[0])
+	defer unix.Close(p[1])
+	fd := uintptr(p[0])
+	self, parent := uintptr(os.Getpid()), uintptr(os.Getppid())
+	var owner [8]byte
+	ownerPtr := uintptr(unsafe.Pointer(&owner))
+	ok := true
+	for _, sc := range []struct {
+		name string
+		nr   uintptr
+		args [3]uintptr
+	}{
+		{"F_SETOWN parent", unix.SYS_FCNTL, [3]uintptr{fd, unix.F_SETOWN, parent}},
+		{"F_SETOWN parent group", unix.SYS_FCNTL, [3]uintptr{fd, unix.F_SETOWN, uintptr(-int(parent))}},
+		{"F_SETOWN_EX", unix.SYS_FCNTL, [3]uintptr{fd, unix.F_SETOWN_EX, ownerPtr}},
+		{"F_SETSIG SIGKILL", unix.SYS_FCNTL, [3]uintptr{fd, unix.F_SETSIG, uintptr(unix.SIGKILL)}},
+		{"ioctl FIOSETOWN", unix.SYS_IOCTL, [3]uintptr{fd, 0x8901, ownerPtr}},
+		{"ioctl SIOCSPGRP", unix.SYS_IOCTL, [3]uintptr{fd, 0x8902, ownerPtr}},
+	} {
+		if _, _, errno := unix.Syscall(sc.nr, sc.args[0], sc.args[1], sc.args[2]); errno != unix.EPERM {
+			fmt.Fprintf(os.Stderr, "%s not denied: errno=%v\n", sc.name, errno)
+			ok = false
+		}
+	}
+	for _, sc := range []struct {
+		name string
+		nr   uintptr
+		args [3]uintptr
+	}{
+		{"F_SETOWN self", unix.SYS_FCNTL, [3]uintptr{fd, unix.F_SETOWN, self}},
+		{"F_SETOWN 0", unix.SYS_FCNTL, [3]uintptr{fd, unix.F_SETOWN, 0}},
+		{"F_SETSIG default", unix.SYS_FCNTL, [3]uintptr{fd, unix.F_SETSIG, 0}},
+		{"F_GETFL", unix.SYS_FCNTL, [3]uintptr{fd, unix.F_GETFL, 0}},
+		{"F_SETFL O_NONBLOCK", unix.SYS_FCNTL, [3]uintptr{fd, unix.F_SETFL, unix.O_NONBLOCK}},
+		{"ioctl FIONREAD", unix.SYS_IOCTL, [3]uintptr{fd, 0x541B, ownerPtr}}, // same number on amd64 and arm64
+	} {
+		if _, _, errno := unix.Syscall(sc.nr, sc.args[0], sc.args[1], sc.args[2]); errno != 0 {
 			fmt.Fprintf(os.Stderr, "%s refused: errno=%v\n", sc.name, errno)
 			ok = false
 		}

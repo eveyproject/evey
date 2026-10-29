@@ -18,6 +18,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { Input } from "@/components/ui/Input";
 import { ProfileManagerList } from "@/features/profile/ProfileManagerList";
 import { CreateProfileDialog } from "@/features/profile/CreateProfileDialog";
@@ -38,6 +39,10 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
   const [maxProfiles, setMaxProfiles] = useState<string>(String(user.maxProfiles ?? 0));
   const [maxDevicesPerProfile, setMaxDevicesPerProfile] = useState<string>(String(user.maxDevicesPerProfile ?? 0));
   const [selectedLibs, setSelectedLibs] = useState<Set<string>>(new Set());
+  // "All libraries" and "no library ticked" are two different answers, so the
+  // admin picks the mode explicitly: an empty selection used to be saved as a
+  // revoke-all, which lifts the restriction and opens the whole catalogue.
+  const [libMode, setLibMode] = useState<"all" | "selected">("all");
   const [saving, setSaving] = useState(false);
   const [creatingProfile, setCreatingProfile] = useState(false);
 
@@ -66,6 +71,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
       // Clear stale library selection from a previously-edited user; the
       // accessData effect repopulates it once this user's access loads.
       setSelectedLibs(new Set());
+      setLibMode("all");
     }
     // Key on user.id, not the whole object: `user` is a list-query row whose
     // identity changes on any users-list refetch, and depending on it would wipe
@@ -77,6 +83,7 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
   useEffect(() => {
     if (accessData) {
       setSelectedLibs(new Set(accessData.libraryIds ?? []));
+      setLibMode(accessData.restricted || (accessData.libraryIds?.length ?? 0) > 0 ? "selected" : "all");
     }
   }, [accessData]);
 
@@ -122,9 +129,12 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
 
       if (!isAdmin) {
         const origIds = new Set(accessData?.libraryIds ?? []);
-        const changed = selectedLibs.size !== origIds.size || [...selectedLibs].some((id) => !origIds.has(id));
+        const origMode = accessData?.restricted || origIds.size > 0 ? "selected" : "all";
+        const changed =
+          libMode !== origMode ||
+          (libMode === "selected" && (selectedLibs.size !== origIds.size || [...selectedLibs].some((id) => !origIds.has(id))));
         if (changed) {
-          if (selectedLibs.size === 0) {
+          if (libMode === "all") {
             await revokeAccess.mutateAsync({ userId: user.id });
           } else {
             await setAccess.mutateAsync({ userId: user.id, data: { libraryIds: Array.from(selectedLibs) } });
@@ -187,28 +197,38 @@ export function EditUserModal({ user, open, onClose }: { user: V1User; open: boo
                 {t("admin.users.libraryAccessTitle", { name: "" }).replace(/\s*$/, "")}
               </p>
               <p className="text-sm text-[var(--text-muted)]">
-                {selectedLibs.size === 0
+                {libMode === "all"
                   ? t("admin.users.unrestrictedDesc")
-                  : t("admin.users.restrictedDesc", { count: selectedLibs.size, libraryWord: selectedLibs.size === 1 ? "library" : "libraries" })}
+                  : selectedLibs.size === 0
+                    ? t("admin.users.noLibrariesDesc")
+                    : t("admin.users.restrictedDesc", { count: selectedLibs.size, libraryWord: selectedLibs.size === 1 ? "library" : "libraries" })}
               </p>
-              {selectedLibs.size === 0 && (
+              <SegmentedControl
+                label={t("admin.users.libraryAccessTitle", { name: user.username })}
+                options={[
+                  { value: "all", label: t("admin.users.accessAll") },
+                  { value: "selected", label: t("admin.users.accessSelected") },
+                ]}
+                value={libMode}
+                onChange={(v) => setLibMode(v as "all" | "selected")}
+              />
+              {libMode === "all" ? (
                 <Badge variant="success">{t("admin.users.unrestricted")}</Badge>
-              )}
-              <div className="flex flex-col gap-2">
-                {libraries.map((lib) => (
-                  <div key={lib.id} className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]">
-                    <Checkbox
-                      label={lib.name ?? ""}
-                      checked={selectedLibs.has(lib.id ?? "")}
-                      onChange={() => handleToggleLib(lib.id ?? "")}
-                    />
-                  </div>
-                ))}
-              </div>
-              {selectedLibs.size > 0 && (
-                <Button variant="ghost" onClick={() => setSelectedLibs(new Set())} type="button">
-                  {t("admin.users.clearAllUnrestricted")}
-                </Button>
+              ) : selectedLibs.size === 0 ? (
+                <Badge variant="warning">{t("admin.users.noLibraries")}</Badge>
+              ) : null}
+              {libMode === "selected" && (
+                <div className="flex flex-col gap-2">
+                  {libraries.map((lib) => (
+                    <div key={lib.id} className="px-3 py-2 rounded-[var(--radius-md)] hover:opacity-80 bg-[var(--surface)]">
+                      <Checkbox
+                        label={lib.name ?? ""}
+                        checked={selectedLibs.has(lib.id ?? "")}
+                        onChange={() => handleToggleLib(lib.id ?? "")}
+                      />
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           ) : null

@@ -52,6 +52,10 @@ func (s *Service) GetTrack(ctx context.Context, trackID string) (*music.Track, e
 	return s.query.GetTrack(ctx, trackID)
 }
 
+func (s *Service) GetTracksByIDs(ctx context.Context, ids []string) ([]music.Track, error) {
+	return s.query.GetTracksByIDs(ctx, ids)
+}
+
 func (s *Service) GetTrackArt(ctx context.Context, trackID string) (data []byte, mimeType string, err error) {
 	return s.query.GetTrackArt(ctx, trackID)
 }

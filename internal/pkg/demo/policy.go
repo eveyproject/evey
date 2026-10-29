@@ -432,6 +432,7 @@ var LockedRoutes = map[string]string{ //nolint:gosec // G101: RPC and route name
 	"PUT /api/v1/profiles/{id}/parental":                 "a PIN set by one visitor locks every other visitor out of the shared profile",
 	"PUT /api/v1/profiles/{id}/schedule":                 "opening hours set by one visitor close the kids profile on every other visitor",
 	"POST /api/v1/profiles/{id}/schedule/unlock":         "same: the hours are locked, so is lifting them",
+	"POST /api/v1/profiles/{id}/parental/reset-lockout":  "a shared profile's PIN lockout, cleared by one visitor for every other",
 	"POST /api/v1/admin/media/{id}/reset-metadata":       "same",
 	"POST /api/v1/admin/media/{id}/refresh-metadata":     "re-identifies a title for everyone",
 	"POST /api/v1/media/{id}/artwork/{artworkId}/select": "changes a title's poster for everyone",
