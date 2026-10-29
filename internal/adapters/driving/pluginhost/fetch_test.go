@@ -20,25 +20,32 @@ func TestHostAllowed(t *testing.T) {
 	tests := []struct {
 		name  string
 		host  string
+		port  string
 		allow []string
 		want  bool
 	}{
-		{"exact match", "api.open-meteo.com", []string{"api.open-meteo.com"}, true},
-		{"case insensitive", "API.Open-Meteo.COM", []string{"api.open-meteo.com"}, true},
-		{"not listed", "evil.com", []string{"api.open-meteo.com"}, false},
-		{"empty host", "", []string{"api.open-meteo.com"}, false},
-		{"empty allow-list", "api.open-meteo.com", nil, false},
-		{"wildcard subdomain", "tiles.maps.example.com", []string{"*.example.com"}, true},
-		{"wildcard does not match apex", "example.com", []string{"*.example.com"}, false},
-		{"wildcard does not match suffix trick", "notexample.com", []string{"*.example.com"}, false},
-		{"entry with port ignored", "sdo.gsfc.nasa.gov", []string{"sdo.gsfc.nasa.gov:443"}, true},
-		{"multiple entries", "b.com", []string{"a.com", "b.com"}, true},
-		{"blank entry skipped", "b.com", []string{"", "b.com"}, true},
+		{"exact match", "api.open-meteo.com", "443", []string{"api.open-meteo.com"}, true},
+		{"case insensitive", "API.Open-Meteo.COM", "443", []string{"api.open-meteo.com"}, true},
+		{"not listed", "evil.com", "443", []string{"api.open-meteo.com"}, false},
+		{"empty host", "", "443", []string{"api.open-meteo.com"}, false},
+		{"empty allow-list", "api.open-meteo.com", "443", nil, false},
+		{"wildcard subdomain", "tiles.maps.example.com", "443", []string{"*.example.com"}, true},
+		{"wildcard does not match apex", "example.com", "443", []string{"*.example.com"}, false},
+		{"wildcard does not match suffix trick", "notexample.com", "443", []string{"*.example.com"}, false},
+		{"multiple entries", "b.com", "443", []string{"a.com", "b.com"}, true},
+		{"blank entry skipped", "b.com", "443", []string{"", "b.com"}, true},
+		{"bare entry allows http default port", "a.com", "80", []string{"a.com"}, true},
+		{"bare entry refuses another port", "a.com", "22", []string{"a.com"}, false},
+		{"bare entry refuses 8443", "a.com", "8443", []string{"a.com"}, false},
+		{"declared port allowed", "a.com", "8443", []string{"a.com:8443"}, true},
+		{"declared port is the only one", "a.com", "443", []string{"a.com:8443"}, false},
+		{"declared 443 matches default https", "sdo.gsfc.nasa.gov", "443", []string{"sdo.gsfc.nasa.gov:443"}, true},
+		{"wildcard bare entry refuses another port", "x.example.com", "6379", []string{"*.example.com"}, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := hostAllowed(strings.ToLower(tc.host), tc.allow); got != tc.want {
-				t.Fatalf("hostAllowed(%q, %v) = %v, want %v", tc.host, tc.allow, got, tc.want)
+			if got := hostAllowed(strings.ToLower(tc.host), tc.port, tc.allow); got != tc.want {
+				t.Fatalf("hostAllowed(%q, %q, %v) = %v, want %v", tc.host, tc.port, tc.allow, got, tc.want)
 			}
 		})
 	}
@@ -138,8 +145,7 @@ func TestFetch_HappyPath_AllowedHost(t *testing.T) {
 
 	// Allow the test server's host and point the fetch client at a plain client
 	// (the SSRF-safe one would reject the loopback test server).
-	host := strings.TrimPrefix(srv.URL, "http://")
-	host = strings.Split(host, ":")[0]
+	host := strings.TrimPrefix(srv.URL, "http://") // the test server listens on a random port, declared in the entry
 
 	h := newFetchTestServer(t, []string{host})
 	prev := newFetchClient
@@ -173,7 +179,7 @@ func TestFetch_RedirectToOffListHostBlocked(t *testing.T) {
 		http.Redirect(w, &http.Request{}, "https://evil.attacker.tld/exfil", http.StatusFound)
 	}))
 	defer srv.Close()
-	host, _, _ := strings.Cut(strings.TrimPrefix(srv.URL, "http://"), ":")
+	host := strings.TrimPrefix(srv.URL, "http://") // the test server listens on a random port, declared in the entry
 
 	h := newFetchTestServer(t, []string{host}) // only the redirecting host is allowed
 	prev := newFetchClient
@@ -198,7 +204,7 @@ func TestFetch_RedirectToAllowedHostFollowed(t *testing.T) {
 		http.Redirect(w, r, srv.URL+"/final", http.StatusFound)
 	}))
 	defer srv.Close()
-	host, _, _ := strings.Cut(strings.TrimPrefix(srv.URL, "http://"), ":")
+	host := strings.TrimPrefix(srv.URL, "http://") // the test server listens on a random port, declared in the entry
 
 	h := newFetchTestServer(t, []string{host})
 	prev := newFetchClient
@@ -228,7 +234,7 @@ func TestFetch_BodyCapTruncates(t *testing.T) {
 		_, _ = io.WriteString(w, big)
 	}))
 	defer srv.Close()
-	host, _, _ := strings.Cut(strings.TrimPrefix(srv.URL, "http://"), ":")
+	host := strings.TrimPrefix(srv.URL, "http://") // the test server listens on a random port, declared in the entry
 
 	h := newFetchTestServer(t, []string{host})
 	prev := newFetchClient
@@ -244,5 +250,47 @@ func TestFetch_BodyCapTruncates(t *testing.T) {
 	}
 	if len(resp.Body) != maxFetchBytes {
 		t.Fatalf("body len = %d, want cap %d", len(resp.Body), maxFetchBytes)
+	}
+}
+
+// An entry without a port grants the standard web ports only: "api.x.com"
+// must not open every other port of that host to the plugin.
+func TestFetch_UndeclaredPortRefused(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("reached"))
+	}))
+	defer srv.Close()
+	hostOnly, _, _ := strings.Cut(strings.TrimPrefix(srv.URL, "http://"), ":")
+
+	h := newFetchTestServer(t, []string{hostOnly})
+	prev := newFetchClient
+	newFetchClient = func() *http.Client { return srv.Client() }
+	defer func() { newFetchClient = prev }()
+
+	_, err := h.Fetch(authCtx("plg-weather"), &pluginv1.FetchRequest{Url: srv.URL})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("want PermissionDenied for a port the entry does not declare, got %v", err)
+	}
+}
+
+// The port rule holds on every redirect hop, not only the first request.
+func TestFetch_RedirectToUndeclaredPortBlocked(t *testing.T) {
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("reached"))
+	}))
+	defer other.Close()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.URL, http.StatusFound)
+	}))
+	defer srv.Close()
+
+	h := newFetchTestServer(t, []string{strings.TrimPrefix(srv.URL, "http://")})
+	prev := newFetchClient
+	newFetchClient = func() *http.Client { return srv.Client() }
+	defer func() { newFetchClient = prev }()
+
+	_, err := h.Fetch(authCtx("plg-weather"), &pluginv1.FetchRequest{Url: srv.URL})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("want PermissionDenied on a redirect to an undeclared port, got %v", err)
 	}
 }

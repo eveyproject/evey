@@ -52,7 +52,7 @@ config_schema:               # the fields of the Config panel on the plugin's ca
 | `language` | Required for `kind: plugin`: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` or `go`. It picks the runtime check and the stubs copied next to the entrypoint; it does not launch anything. |
 | `entrypoint` | Required for `kind: plugin`. The first token is the interpreter (or the binary, with `native-binary`), the rest its arguments; the process runs in the plugin's directory. |
 | `permissions` | Each value must be in the [permissions catalog](security-model.md#permissions-catalog). `network` requires a non-empty `external_fetch`. |
-| `external_fetch` | Hostnames. A scheme and a trailing path are dropped at parse; hosts match exactly, a `*.example.com` wildcard is refused at install and a port suffix is ignored; an IP literal refuses the install ([rules](security-model.md#external-fetch-rules)). |
+| `external_fetch` | Hostnames. A scheme and a trailing path are dropped at parse; hosts match exactly, a `*.example.com` wildcard is refused at install; an entry without a port allows ports 80 and 443 only, `host:port` allows that port only; an IP literal refuses the install ([rules](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` or `notification.sender`; anything else is refused. A theme may declare none. |
 | `web_root` | Required when `frontend` is non-empty; relative, no `..`, no backslash. `.` serves the whole plugin directory and only logs a warning. |
 | `frontend[]` | `slot` must be in the [slot list](#slots); `src` must be under `web_root`. |

@@ -18,7 +18,10 @@ type FakePluginFileSystem struct {
 	ChownedDirs     []string
 	// RenameErr, when set, makes Rename fail (to exercise the swap-failure path).
 	RenameErr error
-	Renamed   [][2]string
+	// RenameErrFor fails only the rename whose source is the key, so a test can
+	// break one step of a multi-rename swap and watch the rollback.
+	RenameErrFor map[string]error
+	Renamed      [][2]string
 }
 
 func NewFakePluginFileSystem() *FakePluginFileSystem {
@@ -61,6 +64,9 @@ func (f *FakePluginFileSystem) Rename(oldPath, newPath string) error {
 	defer f.mu.Unlock()
 	if f.RenameErr != nil {
 		return f.RenameErr
+	}
+	if err := f.RenameErrFor[oldPath]; err != nil {
+		return err
 	}
 	f.Renamed = append(f.Renamed, [2]string{oldPath, newPath})
 	return nil

@@ -77,24 +77,25 @@ Declared in `external_fetch: [...]` and checked at install
 whole install.
 
 An entry is a **hostname**. A scheme prefix and a trailing path are dropped at
-parse; only the hostname is kept. Hosts match exactly, a `*.example.com`
-wildcard is refused at install and a port suffix is
-ignored.
+parse; only the hostname is kept. Hosts match exactly and a `*.example.com`
+wildcard is refused at install. An entry without a port allows ports 80 and
+443 only; `host:port` allows that port only.
 
 | Entry | Valid | Reason |
 |---|---|---|
 | `api.tmdb.org` | Yes | Exact hostname, the normal form |
 | `https://api.tmdb.org` | Yes | Scheme and path dropped at parse, hostname kept |
+| `api.example.com:8443` | Yes | That host on port 8443 only |
 | `*.tmdb.org` | No | Wildcards are refused at install; list each host |
 | `*` | No | A bare wildcard is refused |
 | `192.168.1.1`, `::1` | No | IP literals are refused, both families |
 
 At run time the host broker adds its own limits, which the manifest cannot
 widen: `http` and `https` only, `GET` and `HEAD` only, the target host matched
-case-insensitively against your list (a `:port` suffix in an entry is
-ignored), private or reserved addresses refused after DNS resolution, a body
+case-insensitively against your list, the target port matched against the
+entry (80 or 443 without a declared port), private or reserved addresses refused after DNS resolution, a body
 capped at 8 MiB and a request at 20 seconds. Redirects are re-checked against
-both the list and the address rule.
+the list, the port rule and the address rule.
 
 The same host list is the `connect-src` of the plugin's frame, prefixed with
 `https://`: a widget may call those hosts directly, over `https` only.

@@ -1,5 +1,5 @@
 ---
-source_sha: 7241887cc60dd618dc1b4da1af7ae17905008e463458472f9f827a57764dbb89
+source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
 reviewed: true
 ---
 # Plugin-Sandbox und Bedrohungsmodell { #plugin-sandbox-and-threat-model }
@@ -198,7 +198,7 @@ Berechtigung `network` ruft die Methode `Fetch` des Hosts über seinen
 Unix-Socket auf. Der Host, in
 `internal/adapters/driving/pluginhost/fetch.go`:
 
-- prüft das Ziel gegen die Liste `external_fetch` des Plugins (genaue Hosts, ohne Beachtung von Groß- und Kleinschreibung; ein Platzhalter `*.example.com` wird bei der Installation abgelehnt; ein Port-Suffix wird ignoriert);
+- prüft das Ziel gegen die Liste `external_fetch` des Plugins (genaue Hosts, ohne Beachtung von Groß- und Kleinschreibung; ein Platzhalter `*.example.com` wird bei der Installation abgelehnt; ein Eintrag ohne Port erlaubt nur die Ports 80 und 443, `host:port` nur diesen Port);
 - erlaubt nur `http` und `https` und nur `GET` und `HEAD`;
 - verbindet sich über einen SSRF-sicheren Client (`internal/pkg/ssrf`), der
   private, reservierte und link-lokale Adressen nach der DNS-Auflösung

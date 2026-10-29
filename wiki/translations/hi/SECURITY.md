@@ -1,5 +1,5 @@
 ---
-source_sha: 7241887cc60dd618dc1b4da1af7ae17905008e463458472f9f827a57764dbb89
+source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
 reviewed: true
 ---
 # प्लगइन सैंडबॉक्स और ख़तरा मॉडल { #plugin-sandbox-and-threat-model }
@@ -179,7 +179,7 @@ namespace)। `network` अनुमति वाला प्लगइन अ�
 कॉल करता है। होस्ट, `internal/adapters/driving/pluginhost/fetch.go` में:
 
 - लक्ष्य को प्लगइन की `external_fetch` सूची से मिलाता है (पूरे होस्ट नाम, बड़े-छोटे
-  अक्षर का फ़र्क किए बिना; `*.example.com` wildcard इंस्टॉल पर मना हो जाता है; port का suffix अनदेखा किया जाता है);
+  अक्षर का फ़र्क किए बिना; `*.example.com` wildcard इंस्टॉल पर मना हो जाता है; बिना port वाली एंट्री सिर्फ़ port 80 और 443 की अनुमति देती है, `host:port` सिर्फ़ उसी port की);
 - सिर्फ़ `http` और `https`, और सिर्फ़ `GET` और `HEAD` की अनुमति देता है;
 - एक SSRF से सुरक्षित client (`internal/pkg/ssrf`) से जुड़ता है, जो DNS से पता निकालने
   के बाद निजी, आरक्षित और link-local पते मना करता है, इसलिए DNS rebinding और redirect
