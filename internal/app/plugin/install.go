@@ -582,7 +582,7 @@ func (s *InstallerService) validateStagedPlugin(ctx context.Context, p *plugin.P
 // not touch - the new version, or the old one restored by a rollback.
 func (s *InstallerService) swapAndPersistPlugin(ctx context.Context, p *plugin.Plugin, existing *plugin.Plugin, stagingDir, finalDir string) (swapped bool, err error) {
 	if existing == nil {
-		if err := s.plugins.Create(ctx, p); err != nil {
+		if err = s.plugins.Create(ctx, p); err != nil {
 			return false, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 		}
 		return false, nil
@@ -597,7 +597,7 @@ func (s *InstallerService) swapAndPersistPlugin(ctx context.Context, p *plugin.P
 	}
 	p.InstallDir = finalDir
 
-	if err := s.plugins.Update(ctx, p); err != nil {
+	if err = s.plugins.Update(ctx, p); err != nil {
 		s.restoreLiveDir(ctx, existing.ID, finalDir, backupDir)
 		return true, fmt.Errorf("InstallerService.InstallPlugin: %w", err)
 	}
