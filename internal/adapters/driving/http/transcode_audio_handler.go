@@ -117,10 +117,17 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		return
 	}
 
+	// The playlist declares the grid the segments are cut on, read from the
+	// fingerprint that cuts them: a player in sequence mode (Shaka, the cast
+	// receiver's engine) places segment N at the sum of the EXTINF before it,
+	// so 3.000 declared over 3.003 cut ran the audio 3 ms early per segment.
+	fp := h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay, copyCodec)
+
 	token := RawTokenFromContext(r.Context())
 	in := apptranscoding.ManifestInput{
 		MediaID:     mediaID,
 		DurationSec: float64(item.File.Duration.Milliseconds()) / 1000.0,
+		Grid:        fp.Grid,
 		// Profiles must be non-empty for ManifestInput.Validate().
 		// AudioPlaylist doesn't use the profiles list but Validate() requires
 		// at least one entry. We inject a placeholder that matches what a
@@ -167,7 +174,7 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 	// The player's next request is the segment at its position: start encoding it now.
 	if pw, ok := h.audioOrch.(audioStartAware); ok {
 		if seg := h.hintFor(r, mediaID); seg > 0 {
-			pw.PreWarmAudio(h.buildAudioFingerprint(r, mediaID, item, trackIdx, videoCompositionDelay, copyCodec), seg)
+			pw.PreWarmAudio(fp, seg)
 		}
 	}
 }
