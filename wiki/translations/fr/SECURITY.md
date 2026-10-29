@@ -1,5 +1,5 @@
 ---
-source_sha: 7241887cc60dd618dc1b4da1af7ae17905008e463458472f9f827a57764dbb89
+source_sha: 21bf9a51c67ca85fef03719220a32032a6c4f9d41840891b10eefdf5f28faa13
 reviewed: true
 ---
 # Sandbox des plugins et modèle de menace { #plugin-sandbox-and-threat-model }
@@ -192,7 +192,7 @@ réseau en `bubblewrap` et `strict`). Un plugin doté de la permission
 `network` appelle la méthode `Fetch` de l'hôte via sa socket Unix. L'hôte,
 dans `internal/adapters/driving/pluginhost/fetch.go` :
 
-- compare la cible à la liste `external_fetch` du plugin (hôtes exacts, sans distinction de casse ; un joker `*.example.com` est refusé à l'installation ; un suffixe de port est ignoré) ;
+- compare la cible à la liste `external_fetch` du plugin (hôtes exacts, sans distinction de casse ; un joker `*.example.com` est refusé à l'installation ; une entrée sans port n'autorise que les ports 80 et 443, `host:port` n'autorise que ce port) ;
 - n'autorise que `http` et `https`, et seulement `GET` et `HEAD` ;
 - se connecte par un client protégé contre le SSRF (`internal/pkg/ssrf`) qui
   refuse les adresses privées, réservées et de lien local après résolution

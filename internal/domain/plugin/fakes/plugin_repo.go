@@ -19,6 +19,8 @@ type FakePluginRepository struct {
 	// used to exercise the "DB write fails after extraction" cleanup path without
 	// short-circuiting the earlier existing-plugin lookup.
 	CreateErr error
+	// UpdateErr fails only Update, for the "files swapped, row not written" path.
+	UpdateErr error
 }
 
 func NewFakePluginRepository() *FakePluginRepository {
@@ -81,6 +83,9 @@ func (r *FakePluginRepository) List(_ context.Context) ([]*plugin.Plugin, error)
 func (r *FakePluginRepository) Update(_ context.Context, p *plugin.Plugin) error {
 	if r.Err != nil {
 		return r.Err
+	}
+	if r.UpdateErr != nil {
+		return r.UpdateErr
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

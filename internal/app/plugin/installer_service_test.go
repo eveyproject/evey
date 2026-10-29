@@ -404,7 +404,8 @@ func TestInstallPlugin_SuccessfulUpgradeSwapsStaging(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, pluginFS.Renamed, [2]string{staging, finalDir}, "staging must be renamed into the live dir")
-	assert.Contains(t, pluginFS.Removed, finalDir, "the old dir must be removed before the swap")
+	assert.Contains(t, pluginFS.Renamed, [2]string{finalDir, finalDir + ".old"}, "the old dir must be moved aside before the swap")
+	assert.Contains(t, pluginFS.Removed, finalDir+".old", "the old dir is dropped once the upgrade is persisted")
 }
 
 func TestInstallPlugin_UpgradeLowerVersionRejected(t *testing.T) {
