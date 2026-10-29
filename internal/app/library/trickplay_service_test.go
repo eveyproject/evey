@@ -52,6 +52,8 @@ type countingGen struct {
 	calls     []string
 	failOn    map[string]error
 	delay     time.Duration
+	// hold, when set, keeps Generate running until the test closes it.
+	hold chan struct{}
 }
 
 func (g *countingGen) Generate(_ context.Context, filePath, outputDir string, _, _, _, _, _ int, _ int64) (*library.TrickplayResult, error) {
@@ -61,6 +63,9 @@ func (g *countingGen) Generate(_ context.Context, filePath, outputDir string, _,
 	g.mu.Unlock()
 	if g.delay > 0 {
 		time.Sleep(g.delay)
+	}
+	if g.hold != nil {
+		<-g.hold
 	}
 	if err, ok := g.failOn[filePath]; ok {
 		return nil, err
@@ -339,9 +344,10 @@ func TestTrickplay_GenerateTrickplay_ContextErrorNotRecorded(t *testing.T) {
 func TestTrickplay_GenerateTrickplay_DedupsConcurrent(t *testing.T) {
 	t.Parallel()
 	repo := libfakes.NewFakeTrickplayRepository()
-	// delay keeps the first generation "running" (holding the per-media claim)
-	// long enough for the second concurrent call to observe it.
-	gen := &countingGen{delay: 300 * time.Millisecond}
+	// hold keeps the first generation running (holding the per-media claim)
+	// until the second call has been made: a timed delay could run out first
+	// on a loaded -race box.
+	gen := &countingGen{hold: make(chan struct{})}
 	media := libfakes.NewFakeMediaItemCommandRepo()
 	require.NoError(t, media.Create(context.Background(), &library.MediaItem{
 		ID: "m1", File: &library.MediaFile{Path: "/movies/a.mkv"}, Title: "A",
@@ -355,13 +361,14 @@ func TestTrickplay_GenerateTrickplay_DedupsConcurrent(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		return atomic.LoadInt32(&gen.callCount) >= 1
-	}, 2*time.Second, 10*time.Millisecond, "first generation must start")
+	}, 15*time.Second, 10*time.Millisecond, "first generation must start")
 
 	// B: a concurrent request for the same item must be skipped - two ffmpeg
 	// runs writing the same sprite dir would corrupt each other's output.
 	_ = svc.GenerateTrickplay(context.Background(), "m1")
 	assert.Equal(t, int32(1), atomic.LoadInt32(&gen.callCount), "concurrent generation should be deduped")
 
+	close(gen.hold)
 	<-doneA
 	// After the first finishes, the claim is released: a later call generates again.
 	_ = svc.GenerateTrickplay(context.Background(), "m1")

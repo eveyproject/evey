@@ -321,7 +321,7 @@ function LibraryRow({ library, stats }: { library: V1Library; stats: LibraryStat
             {schedule.nextRunAt ? formatDate(schedule.nextRunAt) : t("common.enabled")}
           </span>
         ) : (
-          <span className="opacity-50">{t("admin.libraries.off")}</span>
+          <span title={t("admin.libraries.autoScanHint")}>{t("admin.libraries.autoScan")}</span>
         )}
       </td>
       <td className="px-4 py-3 whitespace-nowrap" data-label={t("admin.libraries.tableHeaders.actions")}>

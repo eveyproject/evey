@@ -9,7 +9,7 @@ import {
 import type { V1StreamInfo, V1WatchProgress } from "@evey/api";
 import { currentDataSaverLimits, tighterCeiling } from "@evey/store";
 import { firstStartMs } from "../lib/resumePosition";
-import { isShedCode, type ShedReason } from "../lib/shed";
+import { goneReasonFromError, isShedCode, type ShedReason } from "../lib/shed";
 import { pickedAudioStream } from "../lib/pickedAudioStream";
 import { getDeviceAudioCodecs, getDeviceMaxH264Level, getDeviceVideoLimits, getFmp4AudioPassthrough, getPlayerAudioCodecs } from "./deviceCodecs";
 import { decoderMaxHeight, decoderMaxWidth, devicePixelFormats, tighterOf } from "./videoLimits";
@@ -500,9 +500,9 @@ export function usePlaySession(mediaId: string, device: PlaySessionDevice, initi
         // httpStatus 401 (it has already tried the refresh by then).
         if ((err as { httpStatus?: number })?.httpStatus === 401) {
           setIsAuthError(true);
-        } else if ((err as { errorCode?: string })?.errorCode === "media_file_missing") {
-          // Deleted from disk: not a failure to retry, a title that is gone.
-          setShedReason("file_missing");
+        } else if (goneReasonFromError(err)) {
+          // Deleted from disk or out of the catalogue: not a failure to retry.
+          setShedReason(goneReasonFromError(err));
         } else {
           setIsError(true);
         }

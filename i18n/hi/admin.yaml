@@ -553,7 +553,6 @@ libraries:
     customCron: "कस्टम cron..."
   items_one: "{{count}} आइटम"
   items_other: "{{count}} आइटम"
-  "off": "बंद"
   paths: "पथ"
   pathsHint: "(कंटेनर के अंदर पूरा पथ दर्ज करें, जैसे /media/movies)"
   selectDirectory: "- एक डायरेक्टरी चुनें -"
@@ -564,6 +563,9 @@ libraries:
   namePlaceholder: "लाइब्रेरी का नाम"
   pathRequired: "कम से कम एक पथ आवश्यक है"
   realtimeMonitoring: "रीयल-टाइम मॉनिटरिंग"
+  realtimeMonitoringHint: "जोड़ी या हटाई गई फ़ाइलें अगले नियमित स्कैन की बजाय कुछ ही सेकंड में दिखती हैं।"
+  autoScan: "स्वचालित"
+  autoScanHint: "कोई शेड्यूल नहीं: सर्वर फिर भी हर कुछ मिनट में इस लाइब्रेरी को अपने आप स्कैन करता है, और रीयल-टाइम मॉनिटरिंग के साथ कुछ ही सेकंड में।"
   scanFailed: "स्कैन विफल"
   scanOnStartup: "स्टार्टअप पर स्कैन करें"
 

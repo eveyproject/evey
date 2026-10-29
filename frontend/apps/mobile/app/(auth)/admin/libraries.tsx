@@ -24,6 +24,10 @@ import { scanFailedPaths } from "@evey/client";
 import { useTheme } from "../../../src/providers/ThemeProvider";
 import { LoadFailed } from "../../../src/components/LoadFailed";
 import { DirectoryPickerModal, type ServerDir } from "../../../src/components/admin/DirectoryPickerModal";
+import {
+  emptyLibraryForm, formFromLibrary, libraryCreateBody, libraryUpdateBody, libraryFormValid,
+  type LibraryFormData,
+} from "../../../src/features/admin/libraryFormBody";
 
 const TYPE_ICONS: Record<string, string> = {
   LIBRARY_TYPE_MOVIES: "film-outline",
@@ -38,32 +42,6 @@ const LIBRARY_TYPES: { value: V1LibraryType; labelKey: string; fallback: string 
   { value: "LIBRARY_TYPE_MUSIC", labelKey: "admin.libraries.types.music", fallback: "Music" },
   { value: "LIBRARY_TYPE_PHOTOS", labelKey: "admin.libraries.types.photos", fallback: "Photos" },
 ];
-
-interface LibraryFormData {
-  name: string;
-  type: V1LibraryType;
-  paths: string[];
-  scanOnStartup: boolean;
-  realtimeMonitoring: boolean;
-}
-
-const EMPTY_FORM: LibraryFormData = {
-  name: "",
-  type: "LIBRARY_TYPE_MOVIES",
-  paths: [""],
-  scanOnStartup: true,
-  realtimeMonitoring: false,
-};
-
-function formFromLibrary(lib: V1Library): LibraryFormData {
-  return {
-    name: lib.name ?? "",
-    type: (lib.type as V1LibraryType) ?? "LIBRARY_TYPE_MOVIES",
-    paths: lib.paths?.length ? [...lib.paths] : [""],
-    scanOnStartup: lib.scanOnStartup ?? true,
-    realtimeMonitoring: lib.realtimeMonitoring ?? false,
-  };
-}
 
 interface LibraryStat {
   id: string;
@@ -389,9 +367,9 @@ function LibraryRow({
           </Text>
         )}
         <Text style={{ color: theme.colors.textMuted, fontSize: 11 }}>
-          {schedule?.enabled
-            ? t("admin.libraries.tableHeaders.nextScan", "Next scan") + ": " + (schedule.nextRunAt ? formatScheduleDate(schedule.nextRunAt) : t("common.enabled", "Enabled"))
-            : t("admin.libraries.off", "Scan schedule off")}
+          {t("admin.libraries.tableHeaders.nextScan", "Next scan") + ": " + (schedule?.enabled
+            ? (schedule.nextRunAt ? formatScheduleDate(schedule.nextRunAt) : t("common.enabled", "Enabled"))
+            : t("admin.libraries.autoScan"))}
         </Text>
       </View>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, justifyContent: "flex-end", maxWidth: 96 }}>
@@ -482,7 +460,7 @@ export default function AdminLibrariesScreen() {
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingLibrary, setEditingLibrary] = useState<V1Library | null>(null);
-  const [form, setForm] = useState<LibraryFormData>(EMPTY_FORM);
+  const [form, setForm] = useState<LibraryFormData>(emptyLibraryForm);
   // Index of the path row whose directory picker is open, null = closed.
   const [pickerFor, setPickerFor] = useState<number | null>(null);
 
@@ -547,7 +525,7 @@ export default function AdminLibrariesScreen() {
 
   const openCreate = useCallback(() => {
     setEditingLibrary(null);
-    setForm(EMPTY_FORM);
+    setForm(emptyLibraryForm());
     setModalVisible(true);
   }, []);
 
@@ -568,7 +546,7 @@ export default function AdminLibrariesScreen() {
   const closeModal = useCallback(() => {
     setModalVisible(false);
     setEditingLibrary(null);
-    setForm(EMPTY_FORM);
+    setForm(emptyLibraryForm());
   }, []);
 
   const handleScan = useCallback((lib: V1Library) => {
@@ -599,24 +577,12 @@ export default function AdminLibrariesScreen() {
   }, [t, deleteLib]);
 
   const handleSubmit = useCallback(() => {
-    const cleanPaths = form.paths.filter((p) => p.trim() !== "");
-    if (!form.name.trim() || cleanPaths.length === 0) return;
+    if (!libraryFormValid(form)) return;
     try {
       if (editingLibrary?.id) {
-        updateLib.mutate({
-          id: editingLibrary.id,
-          data: { name: form.name.trim(), paths: cleanPaths },
-        });
+        updateLib.mutate({ id: editingLibrary.id, data: libraryUpdateBody(form) });
       } else {
-        createLib.mutate({
-          data: {
-            name: form.name.trim(),
-            type: form.type,
-            paths: cleanPaths,
-            scanOnStartup: form.scanOnStartup,
-            realtimeMonitoring: form.realtimeMonitoring,
-          },
-        });
+        createLib.mutate({ data: libraryCreateBody(form) });
       }
     } catch {
       // handled by onError
@@ -858,31 +824,21 @@ export default function AdminLibrariesScreen() {
               </Pressable>
             </View>
 
-            {/* Toggles (create only) */}
-            {!isEdit && (
-              <View style={{ gap: 12 }}>
-                <View style={styles.switchRow}>
-                  <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>
-                    {t("admin.libraries.scanOnStartup") || "Scan on startup"}
-                  </Text>
-                  <Switch
-                    value={form.scanOnStartup}
-                    onValueChange={(v) => setForm((prev) => ({ ...prev, scanOnStartup: v }))}
-                    trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
-                  />
-                </View>
-                <View style={styles.switchRow}>
-                  <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>
-                    {t("admin.libraries.realtimeMonitoring") || "Realtime monitoring"}
-                  </Text>
-                  <Switch
-                    value={form.realtimeMonitoring}
-                    onValueChange={(v) => setForm((prev) => ({ ...prev, realtimeMonitoring: v }))}
-                    trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
-                  />
-                </View>
+            <View style={{ gap: 4 }}>
+              <View style={styles.switchRow}>
+                <Text style={{ color: theme.colors.text, fontSize: 14, flex: 1 }}>
+                  {t("admin.libraries.realtimeMonitoring")}
+                </Text>
+                <Switch
+                  value={form.realtimeMonitoring}
+                  onValueChange={(v) => setForm((prev) => ({ ...prev, realtimeMonitoring: v }))}
+                  trackColor={{ true: theme.colors.accent, false: theme.colors.surfaceRaised }}
+                />
               </View>
-            )}
+              <Text style={{ color: theme.colors.textMuted, fontSize: 12 }}>
+                {t("admin.libraries.realtimeMonitoringHint")}
+              </Text>
+            </View>
           </ScrollView>
         </View>
         <DirectoryPickerModal

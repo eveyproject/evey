@@ -125,6 +125,11 @@ func (ws *WatcherService) Start(ctx context.Context) error {
 				ws.RemoveLibraryByID(string(e.LibraryID))
 			}
 		})
+		ws.bus.Subscribe("library.updated", func(ctx context.Context, ev shared.Event) {
+			if e, ok := ev.(library.LibraryUpdated); ok {
+				ws.rearmLibrary(ctx, string(e.LibraryID))
+			}
+		})
 	}
 
 	go ws.processEvents(ctx)
@@ -159,9 +164,25 @@ func (ws *WatcherService) AddLibrary(lib *library.Library) {
 	ws.watchLibrary(lib)
 }
 
+// rearmLibrary drops a library's watch and arms it again from what is stored
+// now: its paths may have moved, and its monitoring switch may have flipped
+// either way.
+func (ws *WatcherService) rearmLibrary(ctx context.Context, libraryID string) {
+	lib, err := ws.libraries.GetByID(ctx, shared.LibraryID(libraryID))
+	if err != nil {
+		ws.log.Warn("watcher: updated library not readable, watch left as it was", slog.String("library_id", libraryID), slog.Any("err", err))
+		return
+	}
+	ws.RemoveLibraryByID(libraryID)
+	ws.AddLibrary(lib)
+}
+
 // RemoveLibraryByID stops watching all paths for a library by ID (used when lib is already deleted).
+// Its watch failure and probe verdict go with it: they described those paths.
 func (ws *WatcherService) RemoveLibraryByID(libraryID string) {
+	ws.probes.forget(libraryID)
 	ws.mu.Lock()
+	delete(ws.failedLibs, libraryID)
 	var pathsToUnwatch []string
 	for p, id := range ws.pathToLib {
 		if id == libraryID {

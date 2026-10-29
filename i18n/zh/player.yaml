@@ -118,6 +118,9 @@ shed:
   fileMissing:
     title: "此文件已被删除"
     body: "此文件已不在服务器上，因此无法播放。列表正在更新。"
+  mediaUnavailable:
+    title: "此内容已不可用"
+    body: "它已不在媒体库中，因此无法播放。列表正在更新。"
 retry: "重试"
 goBack: "返回"
 shareDesc: "分享此链接给朋友一起观看："

@@ -13,7 +13,9 @@ import (
 
 func waitForBody(t *testing.T, rec *syncRecorder, want string) {
 	t.Helper()
-	deadline := time.Now().Add(4 * time.Second)
+	// Generous: a healthy run gets there in about a second, a loaded -race box
+	// needs more.
+	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		if strings.Contains(rec.body(), want) {
 			return
@@ -43,7 +45,10 @@ func TestHandleStreamLogs_FollowsAppendsRedactedAndRotation(t *testing.T) {
 		close(done)
 	}()
 
-	time.Sleep(50 * time.Millisecond)
+	// The tail starts at the size the file has when the handler opens it: a
+	// line appended before that is history, not news. Its first ping says the
+	// size is taken; a fixed sleep lost that race on a loaded box.
+	waitForBody(t, rec, ": ping")
 	f, err := os.OpenFile(first, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		t.Fatal(err)

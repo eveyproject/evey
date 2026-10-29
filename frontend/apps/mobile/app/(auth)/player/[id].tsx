@@ -75,7 +75,7 @@ import { SleepTimerPicker } from "../../../src/components/SleepTimerPicker";
 import { pickNativeAudioTrack } from "../../../src/lib/audioTrackMatch";
 import { reportedPlaybackState } from "../../../src/lib/castPlaybackState";
 import { backPressAction, playerExit } from "../../../src/lib/playerExit";
-import { noteViewerActivity, resolveStartPositionMs, servedVariant, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock, type AudioTrackPlayer } from "@evey/client";
+import { noteViewerActivity, resolveStartPositionMs, isTitleGone, servedVariant, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { ChaptersPicker } from "../../../src/components/ChaptersPicker";
 import { PlayerEpisodesPanel } from "../../../src/components/player/PlayerEpisodesPanel";
 import { StreamInfoPanel } from "../../../src/components/StreamInfoPanel";
@@ -1179,7 +1179,7 @@ const { id, restart, audio, subtitle } = useLocalSearchParams<{ id: string; rest
   const queryClient = useQueryClient();
   const fileMissingHandledRef = useRef(false);
   useEffect(() => {
-    if (shedReason !== "file_missing" || localFilePath || fileMissingHandledRef.current) return;
+    if (!isTitleGone(shedReason) || localFilePath || fileMissingHandledRef.current) return;
     fileMissingHandledRef.current = true;
     void queryClient.invalidateQueries();
     if (autoplayNext && nextEp.nextEpisode?.id) gatedNavigateEpisode(nextEp.nextEpisode.id);

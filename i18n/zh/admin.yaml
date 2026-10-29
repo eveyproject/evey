@@ -553,7 +553,6 @@ libraries:
     customCron: "自定义 cron..."
   items_one: "{{count}} 项"
   items_other: "{{count}} 项"
-  "off": "关闭"
   paths: "路径"
   pathsHint: "（输入容器内完整路径，如 /media/movies）"
   selectDirectory: "- 选择目录 -"
@@ -564,6 +563,9 @@ libraries:
   namePlaceholder: "媒体库名称"
   pathRequired: "至少需要一个路径"
   realtimeMonitoring: "实时监控"
+  realtimeMonitoringHint: "新增或删除的文件会在几秒内显示，无需等待下一次定期扫描。"
+  autoScan: "自动"
+  autoScanHint: "未设置计划：服务器仍会每隔几分钟自动扫描此媒体库，开启实时监控后则在几秒内完成。"
   scanFailed: "扫描失败"
   scanOnStartup: "启动时扫描"
 

@@ -508,3 +508,70 @@ func TestWatcherService_AliveWatchedLibraries_NamesOnlyEstablishedWatches(t *tes
 	require.True(t, alive["lib-watched"], "an established watch must be vouched for")
 	require.False(t, alive["lib-off"], "monitoring OFF must never read as a live watch - it would starve the periodic scan")
 }
+
+// Turning real-time monitoring on for an existing library arms its watch at
+// once, moving its paths re-points the watch, and turning it off drops it.
+// Before, only library.created and library.deleted reached the watcher, so an
+// edit changed the database and nothing the server was doing.
+func TestWatcherService_WithEventBus_LibraryUpdatedRearmsTheWatch(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	libRepo := libfakes.NewFakeLibraryRepository()
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	lib := &library.Library{
+		ID: "lib-upd", Name: "Series", Type: "tvshow",
+		Paths: []string{"/media/series"}, Enabled: true, RealtimeMonitoring: false,
+	}
+	require.NoError(t, libRepo.Create(ctx, lib))
+
+	ws := applib.NewWatcherService(watcher, libRepo, &fakeLibraryScanner{}, log, applib.WatcherWithEventBus(bus), applib.WatcherWithDebounce(testDebounceDelay))
+	require.NoError(t, ws.Start(ctx))
+	defer ws.Stop()
+	assert.NotContains(t, watcher.WatchedPaths(), "/media/series")
+
+	lib.RealtimeMonitoring = true
+	require.NoError(t, libRepo.Update(ctx, lib))
+	require.NoError(t, bus.Publish(ctx, library.LibraryUpdated{LibraryID: "lib-upd"}))
+	assert.Contains(t, watcher.WatchedPaths(), "/media/series")
+	assert.True(t, ws.AliveWatchedLibraries()["lib-upd"])
+
+	lib.Paths = []string{"/media/shows"}
+	require.NoError(t, libRepo.Update(ctx, lib))
+	require.NoError(t, bus.Publish(ctx, library.LibraryUpdated{LibraryID: "lib-upd"}))
+	assert.NotContains(t, watcher.WatchedPaths(), "/media/series")
+	assert.Contains(t, watcher.WatchedPaths(), "/media/shows")
+
+	lib.RealtimeMonitoring = false
+	require.NoError(t, libRepo.Update(ctx, lib))
+	require.NoError(t, bus.Publish(ctx, library.LibraryUpdated{LibraryID: "lib-upd"}))
+	assert.NotContains(t, watcher.WatchedPaths(), "/media/shows")
+	assert.False(t, ws.AliveWatchedLibraries()["lib-upd"])
+}
+
+// A library whose watch failed and is then fixed by an edit leaves the
+// periodic-scan fallback: the failure is the old paths', not the new ones'.
+func TestWatcherService_LibraryUpdatedClearsAnOldWatchFailure(t *testing.T) {
+	watcher := libfakes.NewFakeFileWatcher()
+	watcher.WatchErr = errors.New("inotify: no space")
+	libRepo := libfakes.NewFakeLibraryRepository()
+	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+	bus := sharedfakes.NewFakeEventBus()
+
+	ctx := context.Background()
+	lib := &library.Library{
+		ID: "lib-fix", Name: "Films", Type: "movie",
+		Paths: []string{"/media/films"}, Enabled: true, RealtimeMonitoring: true,
+	}
+	require.NoError(t, libRepo.Create(ctx, lib))
+	ws := applib.NewWatcherService(watcher, libRepo, &fakeLibraryScanner{}, log, applib.WatcherWithEventBus(bus), applib.WatcherWithDebounce(testDebounceDelay))
+	require.NoError(t, ws.Start(ctx))
+	defer ws.Stop()
+	require.True(t, ws.UnwatchedLibraries()["lib-fix"])
+
+	watcher.WatchErr = nil
+	require.NoError(t, bus.Publish(ctx, library.LibraryUpdated{LibraryID: "lib-fix"}))
+	assert.False(t, ws.UnwatchedLibraries()["lib-fix"])
+	assert.True(t, ws.AliveWatchedLibraries()["lib-fix"])
+}

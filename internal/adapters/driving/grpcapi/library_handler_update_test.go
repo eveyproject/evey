@@ -109,3 +109,32 @@ func TestGrpcLibraryUpdate_Success(t *testing.T) {
 		t.Fatalf("paths: %v", resp.Paths)
 	}
 }
+
+// Real-time monitoring can be switched on an existing library. The request
+// had no such field, so the only way to turn it on was to recreate the
+// library, and the phone form's switch was silently dropped on edit.
+func TestGrpcLibraryUpdate_SwitchesRealtimeMonitoring(t *testing.T) {
+	t.Parallel()
+	h, libCmd, libQuery := newUpdateLibHandler()
+	lib := &library.Library{ID: "lib-rt", Name: "Series", Type: "tvshow", Paths: []string{"/media/series"}}
+	libQuery.Seed(lib)
+	libCmd.Seed(lib)
+
+	on := true
+	resp, err := h.UpdateLibrary(context.Background(), &eveyv1.UpdateLibraryRequest{Id: "lib-rt", RealtimeMonitoring: &on})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if !resp.RealtimeMonitoring {
+		t.Fatal("realtime monitoring: want on in the response")
+	}
+
+	// Absent from the request: left as it is, like name and paths.
+	resp, err = h.UpdateLibrary(context.Background(), &eveyv1.UpdateLibraryRequest{Id: "lib-rt"})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if !resp.RealtimeMonitoring {
+		t.Fatal("realtime monitoring: an update without the field must not switch it off")
+	}
+}

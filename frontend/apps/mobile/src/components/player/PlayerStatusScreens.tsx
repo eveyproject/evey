@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
-import { shedI18nKey, type ShedCode } from "@evey/client";
+import { isTitleGone, shedI18nKey, type ShedCode } from "@evey/client";
 
 
 interface ShedScreenProps {
@@ -15,13 +15,13 @@ interface ShedScreenProps {
 }
 
 export function ShedScreen({ shedReason, onRetry, onBack, onNextEpisode }: ShedScreenProps) {
-  const fileMissing = shedReason === "file_missing";
+  const fileMissing = isTitleGone(shedReason);
   const theme = useTheme();
   const { t } = useTranslation();
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <StatusBar hidden />
-      <Ionicons name={fileMissing ? "trash-outline" : "time-outline"} size={ICON_SIZE["3xl"]} color={theme.colors.textMuted} />
+      <Ionicons name={shedReason === "file_missing" ? "trash-outline" : fileMissing ? "remove-circle-outline" : "time-outline"} size={ICON_SIZE["3xl"]} color={theme.colors.textMuted} />
       <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.lg, fontWeight: "600", marginTop: 16, textAlign: "center", paddingHorizontal: 24 }}>
         {t(shedI18nKey(shedReason, "title"))}
       </Text>

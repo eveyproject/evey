@@ -15,6 +15,7 @@ func TestEventNames(t *testing.T) {
 	}{
 		{library.LibraryCreated{}, "library.created"},
 		{library.LibraryDeleted{}, "library.deleted"},
+		{library.LibraryUpdated{}, "library.updated"},
 		{library.LibraryScanStarted{}, "library.scan.started"},
 		{library.LibraryScanCompleted{}, "library.scan.completed"},
 		{library.MediaItemAdded{}, "media.item.added"},

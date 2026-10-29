@@ -35,7 +35,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { noteViewerActivity, resolveStartPositionMs, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
+import { noteViewerActivity, resolveStartPositionMs, isTitleGone, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { useInterruptedPlaybackMarker } from "../../../src/hooks/useInterruptedPlaybackMarker";
@@ -969,7 +969,7 @@ export default function PlayerScreen() {
   const queryClient = useQueryClient();
   const fileMissingHandledRef = useRef(false);
   useEffect(() => {
-    if (shedReason !== "file_missing" || fileMissingHandledRef.current) return;
+    if (!isTitleGone(shedReason) || fileMissingHandledRef.current) return;
     fileMissingHandledRef.current = true;
     void queryClient.invalidateQueries();
     if (autoplayNext && nextEp.nextEpisode?.id) gatedNavigateEpisode(nextEp.nextEpisode.id);
@@ -1330,12 +1330,12 @@ export default function PlayerScreen() {
   // other internal term.
   if (asleep) return <PlayerSleepScreen onWake={wake} />;
 
-  if (shedReason === "file_missing") {
+  if (shedReason && isTitleGone(shedReason)) {
     // Nothing to retry: the way out is the next episode, when there is one.
     const next = nextEp.nextEpisode;
     return (
       <PlayerStatusScreen
-        icon="trash-outline"
+        icon={shedReason === "file_missing" ? "trash-outline" : "remove-circle-outline"}
         title={t(shedI18nKey(shedReason, "title"))}
         body={t(shedI18nKey(shedReason, "body"))}
         actionLabel={next ? t("player.controls.nextEpisode") : t("player.goBack")}

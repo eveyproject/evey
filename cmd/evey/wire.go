@@ -69,6 +69,7 @@ import (
 //   "library.scan.completed" → keyframe backfill worker (nudge after 10-min settle)
 //   "library.created"       → filesystem watcher (watch new library paths)
 //   "library.deleted"       → filesystem watcher (stop watching deleted library)
+//   "library.updated"       → filesystem watcher (re-arm on new paths or monitoring switch)
 //   "notification.created"  → email adapter (send email, only when SMTP configured)
 //   "*"                     → webhook dispatcher (delivers matching webhooks)
 //
