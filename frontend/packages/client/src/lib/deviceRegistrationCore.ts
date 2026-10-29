@@ -4,6 +4,13 @@ import { clientLogger } from "../log";
 
 const log = clientLogger("device");
 
+// A socket that has never opened after this many attempts is treated as one
+// the network will not let through (a proxy that drops the Upgrade header gets
+// a 400 from the server, every time) rather than as an outage: it is retried
+// at UNREACHABLE_RETRY_MS instead of every 30 s for as long as the app runs.
+const UNREACHABLE_AFTER = 6;
+const UNREACHABLE_RETRY_MS = 10 * 60_000;
+
 interface LoadAndPlayCommand {
   type: "loadAndPlay";
   mediaId: string;
@@ -62,6 +69,10 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
   // fresh values without restarting the WS on every render.
   const stateRef = useRef({ accessToken, serverUrl, deviceName, onLoadAndPlay, getDeviceId, subscribeBackground });
   stateRef.current = { accessToken, serverUrl, deviceName, onLoadAndPlay, getDeviceId, subscribeBackground };
+  // Consecutive attempts that never opened. A ref, not effect state: the effect
+  // restarts on every access-token refresh, and a socket that never gets
+  // through must not get a fresh burst of short retries each time.
+  const unopenedRef = useRef(0);
 
   useEffect(() => {
     if (!accessToken || !serverUrl) return;
@@ -92,7 +103,10 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
         return;
       }
 
+      let opened = false;
       ws.onopen = () => {
+        opened = true;
+        unopenedRef.current = 0;
         attempt = 0;
         ws?.send(JSON.stringify({
           type: "register",
@@ -124,14 +138,18 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
 
       ws.onclose = () => {
         ws = null;
+        if (!opened) unopenedRef.current += 1;
         scheduleReconnect();
       };
     }
 
     function scheduleReconnect() {
       if (cancelled || backgrounded) return;
-      // Capped exponential backoff: 1s, 2s, 4s, … up to 30s.
-      const delay = Math.min(30_000, 1000 * Math.pow(2, attempt));
+      // Capped exponential backoff: 1s, 2s, 4s, … up to 30s - or the long
+      // cadence once the socket looks unreachable.
+      const delay = unopenedRef.current >= UNREACHABLE_AFTER
+        ? UNREACHABLE_RETRY_MS
+        : Math.min(30_000, 1000 * Math.pow(2, attempt));
       attempt += 1;
       reconnectTimer = setTimeout(() => { void connect(); }, delay);
     }
@@ -161,7 +179,7 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
             if (backgrounded) {
               backgrounded = false;
               attempt = 0;
-              void connect();
+              start();
             }
           } else if (!backgrounded) {
             backgrounded = true;
@@ -170,7 +188,14 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
         })
       : undefined;
 
-    void connect();
+    // Connect now, unless the socket has looked unreachable: then the next
+    // attempt waits its turn, whatever restarted the effect.
+    function start() {
+      if (unopenedRef.current >= UNREACHABLE_AFTER) scheduleReconnect();
+      else void connect();
+    }
+
+    start();
 
     return () => {
       cancelled = true;

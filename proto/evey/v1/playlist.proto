@@ -94,6 +94,12 @@ message PlaylistItemProto {
   string type = 6;
   int32 year = 7;
   string media_type = 8;
+  // A music track (media_type "music") is not a media item: these come from
+  // the track itself, so a row can name it and show its cover. Empty for video.
+  string artist = 9;
+  string album = 10;
+  string cover_art_url = 11;
+  double duration = 12;
 }
 
 message ListPlaylistsRequest {

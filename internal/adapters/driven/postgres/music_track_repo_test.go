@@ -64,6 +64,37 @@ func TestMusicTrackRepo_Upsert_GetByID(t *testing.T) {
 	assert.Equal(t, "Artist A", got.Artist)
 }
 
+// A playlist names its music rows in one query, whatever their number: ids
+// that resolve come back, an id that does not (a deleted track) is skipped.
+func TestMusicTrackRepo_GetByIDs(t *testing.T) {
+	db, cleanup := testhelpers.StartPostgres(t)
+	defer cleanup()
+
+	libRepo := postgres.NewLibraryRepository(db)
+	repo := postgres.NewMusicTrackRepository(db)
+	ctx := context.Background()
+
+	lib := newTestLibrary("mt-lib-ids")
+	lib.Type = "music"
+	require.NoError(t, libRepo.Create(ctx, lib))
+	for _, tr := range []struct{ id, title string }{{"mt-ids-1", "Song One"}, {"mt-ids-2", "Song Two"}} {
+		_, err := repo.Upsert(ctx, newTestTrack(tr.id, lib.ID, tr.title, "Artist A", "Album X"))
+		require.NoError(t, err)
+	}
+
+	got, err := repo.GetByIDs(ctx, []string{"mt-ids-2", "mt-gone", "mt-ids-1"})
+	require.NoError(t, err)
+	titles := map[string]string{}
+	for _, tr := range got {
+		titles[tr.ID] = tr.Title
+	}
+	assert.Equal(t, map[string]string{"mt-ids-1": "Song One", "mt-ids-2": "Song Two"}, titles)
+
+	none, err := repo.GetByIDs(ctx, nil)
+	require.NoError(t, err)
+	assert.Empty(t, none)
+}
+
 func TestMusicTrackRepo_Delete(t *testing.T) {
 	db, cleanup := testhelpers.StartPostgres(t)
 	defer cleanup()

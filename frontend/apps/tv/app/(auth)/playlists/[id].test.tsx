@@ -73,6 +73,13 @@ vi.mock("../../../src/api/playlists", () => ({
   usePlaylistDetail: () => playlistDetailMock(),
 }));
 
+// --- music: a track of the playlist plays in the music player ---------------
+const setQueueMock = vi.fn();
+vi.mock("../../../src/stores/musicQueue", () => ({
+  useMusicQueueStore: (sel: (s: { setQueue: typeof setQueueMock }) => unknown) => sel({ setQueue: setQueueMock }),
+  trackToQueueTrack: (t: { id?: string; title?: string; artist?: string }) => ({ id: t.id ?? "", title: t.title ?? "", artist: t.artist ?? "" }),
+}));
+
 import PlaylistDetailScreen from "./[id]";
 
 const PLAYLIST = {
@@ -136,5 +143,56 @@ describe("PlaylistDetailScreen (TV) loaded state", () => {
 
     expect(screen.getByText("Song A")).toBeTruthy();
     expect(screen.getByText("Song B")).toBeTruthy();
+  });
+});
+
+// A track of a mixed playlist used to open the video page under the track's
+// id: /media/<track id> answers 404, so the viewer got an error screen for a
+// song that plays fine everywhere else.
+describe("PlaylistDetailScreen (TV) music items", () => {
+  const MIXED = {
+    id: "pl-1",
+    name: "Mixed",
+    items: [
+      { media_item_id: "t-1", media_type: "music", title: "First song", artist: "An artist", sort_order: 0 },
+      { media_item_id: "m-1", media_type: "video", title: "A film", sort_order: 1 },
+      { media_item_id: "t-2", media_type: "music", title: "Second song", artist: "Another artist", sort_order: 2 },
+    ],
+  };
+
+  // The playlist's own tracks, from the pressed one on: a music playlist plays
+  // through instead of stopping after one song, and the row's metadata is
+  // enough - no extra request per track.
+  it("plays the playlist's tracks in the music player from the pressed one, never the video page", () => {
+    playlistDetailMock.mockReturnValue({ data: MIXED, isLoading: false, isError: false, refetch: vi.fn() });
+    render(<PlaylistDetailScreen />);
+
+    fireEvent.click(screen.getByText("Second song").closest("button")!);
+
+    expect(setQueueMock).toHaveBeenCalledWith(
+      [
+        { id: "t-1", title: "First song", artist: "An artist" },
+        { id: "t-2", title: "Second song", artist: "Another artist" },
+      ],
+      1,
+    );
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it("names a track's artist on its row", () => {
+    playlistDetailMock.mockReturnValue({ data: MIXED, isLoading: false, isError: false, refetch: vi.fn() });
+    render(<PlaylistDetailScreen />);
+
+    expect(screen.getByText("An artist")).toBeTruthy();
+  });
+
+  it("still opens the video page for a video item", () => {
+    playlistDetailMock.mockReturnValue({ data: MIXED, isLoading: false, isError: false, refetch: vi.fn() });
+    render(<PlaylistDetailScreen />);
+
+    fireEvent.click(screen.getByText("A film").closest("button")!);
+
+    expect(pushMock).toHaveBeenCalledWith("/media/m-1");
+    expect(setQueueMock).not.toHaveBeenCalled();
   });
 });
