@@ -54,6 +54,12 @@ vi.mock("../../../src/api/playlists", () => ({
   useUpdatePlaylist: () => ({ mutate: api.update }),
 }));
 
+const setQueue = vi.hoisted(() => vi.fn());
+vi.mock("../../../src/stores/musicQueue", () => ({
+  useMusicQueueStore: (sel: (s: { setQueue: typeof setQueue }) => unknown) => sel({ setQueue }),
+  trackToQueueTrack: (t: { id?: string; title?: string; artist?: string }) => ({ id: t.id ?? "", title: t.title ?? "", artist: t.artist ?? "" }),
+}));
+
 import { useDemoStore } from "@evey/store";
 import PlaylistDetailScreen from "./[id]";
 
@@ -170,5 +176,37 @@ describe("playlist detail screen (mobile)", () => {
     api.detail = { data: undefined, isLoading: true, isError: false, refetch: vi.fn() };
     render(<PlaylistDetailScreen />);
     expect(screen.getByTestId("spinner")).toBeTruthy();
+  });
+
+  // A track of a mixed playlist opened the video page under its own id, which
+  // answers 404: it plays in the music player with the playlist's other
+  // tracks, from the pressed one on, and its row names the artist.
+  it("plays a music track in the music player and names its artist", () => {
+    api.detail = {
+      data: {
+        id: "pl-1", name: "Mixed", type: "manual",
+        items: [
+          { media_item_id: "t-1", media_type: "music", title: "First song", artist: "An artist" },
+          { media_item_id: "m-1", media_type: "video", title: "A film" },
+          { media_item_id: "t-2", media_type: "music", title: "Second song", artist: "Another artist" },
+        ],
+      },
+      isLoading: false, isError: false, refetch: vi.fn(),
+    };
+    render(<PlaylistDetailScreen />);
+
+    expect(screen.getByText("An artist")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Second song" }));
+    expect(setQueue).toHaveBeenCalledWith(
+      [
+        { id: "t-1", title: "First song", artist: "An artist" },
+        { id: "t-2", title: "Second song", artist: "Another artist" },
+      ],
+      1,
+    );
+    expect(router.push).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "A film" }));
+    expect(router.push).toHaveBeenCalledWith("/media/m-1");
   });
 });

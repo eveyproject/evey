@@ -457,6 +457,20 @@
         },
         "mediaType": {
           "type": "string"
+        },
+        "artist": {
+          "type": "string",
+          "description": "A music track (media_type \"music\") is not a media item: these come from\nthe track itself, so a row can name it and show its cover. Empty for video."
+        },
+        "album": {
+          "type": "string"
+        },
+        "coverArtUrl": {
+          "type": "string"
+        },
+        "duration": {
+          "type": "number",
+          "format": "double"
         }
       }
     },

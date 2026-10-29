@@ -40,6 +40,13 @@ func (s *QueryService) GetTrack(ctx context.Context, trackID string) (*music.Tra
 	return t, err
 }
 
+// GetTracksByIDs returns the tracks among ids, skipping an id with no track.
+func (s *QueryService) GetTracksByIDs(ctx context.Context, ids []string) ([]music.Track, error) {
+	ctx, span := tracing.StartSpan(ctx, "app.music.GetTracksByIDs")
+	defer span.End()
+	return s.tracks.GetByIDs(ctx, ids)
+}
+
 func (s *QueryService) GetTrackArt(ctx context.Context, trackID string) (data []byte, mimeType string, err error) {
 	ctx, span := tracing.StartSpan(ctx, "app.music.GetTrackArt")
 	defer span.End()
