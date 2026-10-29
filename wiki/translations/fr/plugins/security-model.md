@@ -1,5 +1,5 @@
 ---
-source_sha: 7be5d2c69f31e5a809a830f40949f2c4242950d173dfc5bf681d26c5be44e87f
+source_sha: e10872a44bc7a4594b78350969813e3dffa0a11bd28a8acc97dcfb617e5b019b
 reviewed: true
 ---
 # Permissions et emplacements { #permissions-and-slots }
@@ -90,23 +90,25 @@ toute l'installation.
 
 Une entrée est un **nom d'hôte**. Un préfixe de schéma et un chemin final sont
 retirés à l'analyse ; seul le nom d'hôte est conservé. Les hôtes correspondent
-exactement, un joker `*.example.com` est refusé à l'installation et un suffixe de port est ignoré.
+exactement et un joker `*.example.com` est refusé à l'installation. Une entrée
+sans port n'autorise que les ports 80 et 443 ; `host:port` n'autorise que ce port.
 
 | Entrée | Valide | Raison |
 |---|---|---|
 | `api.tmdb.org` | Oui | Nom d'hôte exact, la forme normale |
 | `https://api.tmdb.org` | Oui | Schéma et chemin retirés à l'analyse, nom d'hôte conservé |
+| `api.example.com:8443` | Oui | Cet hôte sur le port 8443 seulement |
 | `*.tmdb.org` | Non | Les jokers sont refusés à l'installation ; listez chaque hôte |
 | `*` | Non | Un joker seul est refusé |
 | `192.168.1.1`, `::1` | Non | Les adresses IP sont refusées, dans les deux familles |
 
 À l'exécution, le courtier de l'hôte ajoute ses propres limites, que le
 manifeste ne peut pas élargir : `http` et `https` seulement, `GET` et `HEAD`
-seulement, l'hôte cible comparé à votre liste sans tenir compte de la casse
-(un suffixe `:port` dans une entrée est ignoré), les adresses privées ou
+seulement, l'hôte cible comparé à votre liste sans tenir compte de la casse,
+le port cible comparé à l'entrée (80 ou 443 sans port déclaré), les adresses privées ou
 réservées refusées après résolution DNS, un corps plafonné à 8 Mio et une
-requête à 20 secondes. Les redirections sont revérifiées contre la liste et
-contre la règle d'adresse.
+requête à 20 secondes. Les redirections sont revérifiées contre la liste,
+la règle de port et la règle d'adresse.
 
 La même liste d'hôtes est le `connect-src` du cadre du plugin, préfixée de
 `https://` : un widget peut appeler ces hôtes directement, en `https`

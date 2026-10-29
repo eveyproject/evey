@@ -1,5 +1,5 @@
 ---
-source_sha: 6363fc4fc30f333ce87a44681eb0db3e41164d111846551eb9a028b3cd37b61f
+source_sha: 0776d8e607086abfe30d530ebd3868b9aac5051a34b9cf283dc0f7e8a86052be
 reviewed: true
 ---
 # 插件沙箱与威胁模型 { #plugin-sandbox-and-threat-model }
@@ -135,7 +135,7 @@ flowchart LR
 无论声明了什么，插件都**没有直接的网络访问**：所有 IP 套接字都会被拒绝（`landlock` 和 `basic` 下用 `-deny-inet`，`bubblewrap` 和 `strict` 下用网络命名空间）。
 带 `network` 权限的插件通过自己的 Unix 套接字调用宿主的 `Fetch` 方法。宿主在 `internal/adapters/driving/pluginhost/fetch.go` 里：
 
-- 按插件的 `external_fetch` 列表检查目标（精确的主机名，不区分大小写；`*.example.com` 通配符在安装时会被拒绝；端口后缀会被忽略）；
+- 按插件的 `external_fetch` 列表检查目标（精确的主机名，不区分大小写；`*.example.com` 通配符在安装时会被拒绝；不带端口的条目只允许 80 和 443 端口，`host:port` 只允许该端口）；
 - 只允许 `http` 和 `https`，只允许 `GET` 和 `HEAD`；
 - 通过一个防 SSRF 的客户端（`internal/pkg/ssrf`）连接，它在 DNS 解析之后拒绝私有、保留和链路本地地址，
   所以 DNS 重绑定和重定向都会被再次检查（重定向到列表之外的主机会被拒绝）；

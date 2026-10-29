@@ -1,5 +1,5 @@
 ---
-source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
+source_sha: 966bebcba12b15b7aa9682ef2f60b62c161622d98d6bd445ed664ef11f411f00
 reviewed: true
 ---
 # Référence de l'API des plugins { #plugin-api-reference }
@@ -57,7 +57,7 @@ config_schema:               # les champs du panneau Config sur la carte du plug
 | `language` | Obligatoire pour `kind: plugin` : `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` ou `go`. Il détermine la vérification de l'environnement et les stubs copiés à côté du point d'entrée ; il ne lance rien. |
 | `entrypoint` | Obligatoire pour `kind: plugin`. Le premier mot est l'interpréteur (ou le binaire, avec `native-binary`), le reste ses arguments ; le processus tourne dans le dossier du plugin. |
 | `permissions` | Chaque valeur doit figurer dans le [catalogue des permissions](security-model.md#permissions-catalog). `network` exige un `external_fetch` non vide. |
-| `external_fetch` | Des noms d'hôte. Un schéma et un chemin final sont retirés à l'analyse ; les hôtes correspondent exactement, un joker `*.example.com` est refusé à l'installation et un suffixe de port est ignoré ; une adresse IP fait refuser l'installation ([règles](security-model.md#external-fetch-rules)). |
+| `external_fetch` | Des noms d'hôte. Un schéma et un chemin final sont retirés à l'analyse ; les hôtes correspondent exactement, un joker `*.example.com` est refusé à l'installation ; une entrée sans port n'autorise que les ports 80 et 443, `host:port` n'autorise que ce port ; une adresse IP fait refuser l'installation ([règles](security-model.md#external-fetch-rules)). |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` ou `notification.sender` ; toute autre valeur est refusée. Un thème ne peut en déclarer aucune. |
 | `web_root` | Obligatoire quand `frontend` n'est pas vide ; relatif, sans `..`, sans barre oblique inverse. `.` sert tout le dossier du plugin et ne produit qu'un avertissement. |
 | `frontend[]` | `slot` doit figurer dans la [liste des emplacements](#slots) ; `src` doit être sous `web_root`. |

@@ -1,5 +1,5 @@
 ---
-source_sha: 80a8f1e7af0b63f58dc17bf891f70d949603710b71bbb60e301a17802e441fab
+source_sha: 966bebcba12b15b7aa9682ef2f60b62c161622d98d6bd445ed664ef11f411f00
 reviewed: true
 ---
 # प्लगइन API संदर्भ { #plugin-api-reference }
@@ -56,7 +56,7 @@ config_schema:               # प्लगइन के कार्ड पर 
 | `language` | `kind: plugin` के लिए ज़रूरी: `python`, `nodejs`, `php`, `ruby`, `lua`, `bash`, `sh` या `go`। इससे तय होता है कि कौन सा runtime जाँचा जाए और कौन से stub entrypoint के बगल में कॉपी हों; यह कुछ शुरू नहीं करता। |
 | `entrypoint` | `kind: plugin` के लिए ज़रूरी। पहला शब्द interpreter है (या `native-binary` के साथ binary), बाकी उसके arguments; प्रोसेस प्लगइन के फ़ोल्डर में चलता है। |
 | `permissions` | हर मान [अनुमतियों की सूची](security-model.md#permissions-catalog) में होना चाहिए। `network` के लिए `external_fetch` खाली नहीं होना चाहिए। |
-| `external_fetch` | होस्ट के नाम। scheme और अंत का path पार्स के समय हटा दिए जाते हैं; होस्ट ठीक-ठीक मिलने चाहिए, `*.example.com` जैसा wildcard इंस्टॉल पर मना हो जाता है और port का suffix अनदेखा किया जाता है; IP लिखने पर इंस्टॉल मना होता है ([नियम](security-model.md#external-fetch-rules))। |
+| `external_fetch` | होस्ट के नाम। scheme और अंत का path पार्स के समय हटा दिए जाते हैं; होस्ट ठीक-ठीक मिलने चाहिए, `*.example.com` जैसा wildcard इंस्टॉल पर मना हो जाता है; बिना port वाली एंट्री सिर्फ़ port 80 और 443 की अनुमति देती है, `host:port` सिर्फ़ उसी port की; IP लिखने पर इंस्टॉल मना होता है ([नियम](security-model.md#external-fetch-rules))। |
 | `capabilities` | `metadata.provider`, `media.read`, `media.write`, `webhook.receiver` या `notification.sender`; बाकी सब मना है। थीम कोई क्षमता नहीं बता सकती। |
 | `web_root` | `frontend` खाली न हो तो ज़रूरी; relative, बिना `..`, बिना backslash। `.` प्लगइन का पूरा फ़ोल्डर देता है और सिर्फ़ एक चेतावनी लॉग करता है। |
 | `frontend[]` | `slot` [स्लॉट की सूची](#slots) में होना चाहिए; `src` `web_root` के अंदर होना चाहिए। |
