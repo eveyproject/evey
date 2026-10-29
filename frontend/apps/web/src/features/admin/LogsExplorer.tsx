@@ -82,6 +82,19 @@ function levelBorder(level: string): string {
   }
 }
 
+// refusalMessage is what the server said when it refused a request: the
+// sentence it sends in the caller's language (the demo's lock answers
+// { code, message }), or the fallback when the body says nothing readable.
+async function refusalMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = (await res.json()) as { message?: unknown };
+    if (typeof body.message === "string" && body.message !== "") return body.message;
+  } catch {
+    /* not JSON */
+  }
+  return `${fallback} (HTTP ${res.status})`;
+}
+
 function fmtTime(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
@@ -269,6 +282,9 @@ export function LogsExplorer() {
   // search over history (toggle off for forensic queries).
   const [live, setLive] = useState(true);
   const [liveEntries, setLiveEntries] = useState<LogEntry[]>([]);
+  // The server's refusal of the live tail (a 4xx: the demo's lock, a lost
+  // admin right), shown in place of the stream. A refusal ends the tail.
+  const [liveRefusal, setLiveRefusal] = useState<string | null>(null);
   const [showAccess, setShowAccess] = useState(false);
   // Which rows are expanded, by entry uid. Lives here (not in the row) because
   // an open row is what pins the live viewport - see the anchor below.
@@ -361,6 +377,7 @@ export function LogsExplorer() {
   useEffect(() => {
     if (!live) return;
     setLiveEntries([]);
+    setLiveRefusal(null);
     setOpenUids(new Set());
     setHiddenAbove(0);
     anchorRef.current = null;
@@ -380,6 +397,14 @@ export function LogsExplorer() {
             headers: token ? { Authorization: `Bearer ${token}` } : undefined,
             signal: ctrl.signal,
           });
+          // A 4xx is the server's answer, not an outage: asking again every 2 s
+          // only repeats a refused admin request, which is what an intrusion
+          // detection in front of the server bans an address for. Only a 5xx or
+          // a dropped connection is worth waiting out.
+          if (res.status >= 400 && res.status < 500) {
+            setLiveRefusal(await refusalMessage(res, t("admin.logs.error")));
+            return;
+          }
           if (!res.ok || !res.body) throw new Error(`stream http ${res.status}`);
           const reader = res.body.getReader();
           const dec = new TextDecoder();
@@ -401,7 +426,7 @@ export function LogsExplorer() {
       }
     })();
     return () => ctrl.abort();
-  }, [live, filters]);
+  }, [live, filters, t]);
 
   // Search pages are append-only, so page+row position IS a stable identity
   // here - unlike the live list, where prepending shifts every index. Server
@@ -625,6 +650,10 @@ export function LogsExplorer() {
           </div>
         ) : isError && !live ? (
           <EmptyState icon={<AlertTriangle size={ICON["3xl"]} strokeWidth={1.5} />} title={t("admin.logs.error")} />
+        ) : live && liveRefusal ? (
+          <div role="alert">
+            <EmptyState icon={<AlertTriangle size={ICON["3xl"]} strokeWidth={1.5} />} title={liveRefusal} />
+          </div>
         ) : entries.length === 0 ? (
           <EmptyState icon={<Search size={ICON["3xl"]} strokeWidth={1.5} />} title={t("admin.logs.empty")} />
         ) : (
