@@ -25,6 +25,14 @@ func TestGridArgs_FrameExactVersusLegacy(t *testing.T) {
 	if got := videoTimescaleArgs(exact); !slices.Equal(got, []string{"-video_track_timescale", "24000"}) {
 		t.Fatalf("timescale: %v", got)
 	}
+	// The output runs at the grid's rate, not at the one probed from the
+	// container: a Matroska 59.94 reads 19001/317, a hair off the grid.
+	if got := videoRateArgs(exact); !slices.Equal(got, []string{"-r", "24000/1001"}) {
+		t.Fatalf("rate: %v", got)
+	}
+	if got := videoRateArgs(transcoding.HLSProcessOpts{VideoDecision: "transcode", Grid: transcoding.GridForFrameRate(19001.0 / 317)}); !slices.Equal(got, []string{"-r", "60000/1001"}) {
+		t.Fatalf("a millisecond-rounded 59.94 must run at 60000/1001: %v", got)
+	}
 
 	legacy := transcoding.HLSProcessOpts{VideoDecision: "transcode"}
 	if got := forceKeyframesArgsFor(legacy); !slices.Equal(got, hlsForceKeyframesArgs) {
@@ -36,6 +44,9 @@ func TestGridArgs_FrameExactVersusLegacy(t *testing.T) {
 	if got := videoTimescaleArgs(legacy); got != nil {
 		t.Fatalf("legacy grid pins no timescale: %v", got)
 	}
+	if got := videoRateArgs(legacy); got != nil {
+		t.Fatalf("legacy grid pins no rate: %v", got)
+	}
 
 	// The copy rung splits at every keyframe and keeps the source's own
 	// timescale, grid or not.
@@ -45,6 +56,9 @@ func TestGridArgs_FrameExactVersusLegacy(t *testing.T) {
 	}
 	if got := videoTimescaleArgs(copyRung); got != nil {
 		t.Fatalf("copy keeps the source timescale: %v", got)
+	}
+	if got := videoRateArgs(copyRung); got != nil {
+		t.Fatalf("copy keeps the source's frames: %v", got)
 	}
 }
 

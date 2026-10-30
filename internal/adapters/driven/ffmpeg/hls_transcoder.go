@@ -622,6 +622,18 @@ func videoTimescaleArgs(opts transcoding.HLSProcessOpts) []string {
 	return []string{"-video_track_timescale", strconv.Itoa(opts.Grid.Timescale)}
 }
 
+// videoRateArgs runs the encoded video at the grid's exact rate. The keyframe
+// cadence counts frames and the muxer cuts on time: at the rate probed from
+// the container, a Matroska 59.94 fps source (19001/317, its timestamps kept
+// to the millisecond) put frame 180 a hair before 3.003 s, the first cut fell
+// at 6.006 and every later segment ran one index ahead of the playlists.
+func videoRateArgs(opts transcoding.HLSProcessOpts) []string {
+	if !opts.Grid.Exact() || opts.VideoDecision == "copy" {
+		return nil
+	}
+	return []string{"-r", fmt.Sprintf("%d/%d", opts.Grid.FPSNum, opts.Grid.FPSDen)}
+}
+
 // appendInputModifiers is the hook for pre-`-i` flags. It emits `-readrate N`
 // (input pacing: read the source at N× real-time) ONLY when readRate > 0.
 //
@@ -1040,6 +1052,7 @@ func buildSingleTranscodeArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, eosFrameArgs(opts)...)
 	args = append(args, audioOutputArgsSingle(opts, p.AudioBitrate)...)
 	args = append(args, videoTimescaleArgs(opts)...)
+	args = append(args, videoRateArgs(opts)...)
 
 	return appendHLSOutputArgs(args, opts.OutputDir, opts.UseFMP4, !hasAudio(opts), hlsTimeFor(opts), startNumberFor(opts), opts.VariantIndex)
 }
@@ -1142,6 +1155,7 @@ func buildMultiVariantArgs(opts transcoding.HLSProcessOpts) []string {
 	args = append(args, forceKeyframesArgsFor(opts)...)
 	args = append(args, eosFrameArgs(opts)...)
 	args = append(args, videoTimescaleArgs(opts)...)
+	args = append(args, videoRateArgs(opts)...)
 
 	// -var_stream_map + HLS muxer tail (container choice, master playlist,
 	// segment naming). Shared with the hardware multi-variant builder so both
