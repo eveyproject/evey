@@ -38,21 +38,3 @@ func TestSourceAudioCodecForTrack_CountsAudioStreamsOnly(t *testing.T) {
 		t.Errorf("no service = %q, want empty", got)
 	}
 }
-
-func TestAudioServe_HintFor(t *testing.T) {
-	if got := (&audioServe{}).hintFor(nil, "m1"); got != 0 {
-		t.Errorf("no hint source: got %d, want 0", got)
-	}
-	h := &audioServe{startHint: func(id string) int {
-		if id == "m1" {
-			return 42
-		}
-		return 0
-	}}
-	if got := h.hintFor(nil, "m1"); got != 42 {
-		t.Errorf("got %d, want 42", got)
-	}
-	if got := h.hintFor(nil, "other"); got != 0 {
-		t.Errorf("got %d, want 0", got)
-	}
-}

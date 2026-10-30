@@ -40,9 +40,9 @@ type audioServe struct {
 	manifestGen   *apptranscoding.ManifestGenerator
 	cache         *apptranscoding.SegmentCache
 	audioOrch     AudioSegmentEnsurer
-	// startHint is the segment the master request said playback starts at
-	// (transcode_start_hint.go), 0 when unknown; it takes a startHintKey.
-	startHint func(mediaID string) int
+	// startHint is the second the master request said playback starts at
+	// (transcode_start_hint.go); it takes a startHintKey.
+	startHint func(key string) (float64, bool)
 
 	// audioNormalizeGetter mirrors the video pipeline knob.
 	audioNormalizeGetter func(ctx context.Context) bool
@@ -173,17 +173,23 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 
 	// The player's next request is the segment at its position: start encoding it now.
 	if pw, ok := h.audioOrch.(audioStartAware); ok {
-		if seg := h.hintFor(r, mediaID); seg > 0 {
+		if seg := h.hintFor(r, mediaID, fp.Grid); seg > 0 {
 			pw.PreWarmAudio(fp, seg)
 		}
 	}
 }
 
-func (h *audioServe) hintFor(r *http.Request, mediaID string) int {
+// hintFor is the announced start as a segment of the rendition's grid, 0 when
+// none was announced.
+func (h *audioServe) hintFor(r *http.Request, mediaID string, grid domaintranscoding.SegmentGrid) int {
 	if h.startHint == nil {
 		return 0
 	}
-	return h.startHint(startHintKey(r, mediaID))
+	sec, ok := h.startHint(startHintKey(r, mediaID))
+	if !ok || sec <= 0 {
+		return 0
+	}
+	return grid.SegmentIndexAt(sec)
 }
 
 func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, mediaID string, trackIdx int, videoCompositionDelay float64, copyCodec string) {
@@ -219,7 +225,7 @@ func (h *audioServe) serveInitFile(w http.ResponseWriter, r *http.Request, media
 	ensureInit := h.audioOrch.EnsureAudioInit
 	if at, ok := h.audioOrch.(audioStartAware); ok {
 		ensureInit = func(ctx context.Context, fp apptranscoding.AudioFingerprint) error {
-			return at.EnsureAudioInitAt(ctx, fp, h.hintFor(r, mediaID))
+			return at.EnsureAudioInitAt(ctx, fp, h.hintFor(r, mediaID, fp.Grid))
 		}
 	}
 	if err := ensureInit(waitCtx, fp); err != nil {

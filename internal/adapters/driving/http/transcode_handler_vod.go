@@ -50,8 +50,8 @@ type hlsVODServe struct {
 	// start, so the subtitle menu is not the thing that pays for a full read of
 	// the container. nil = disabled. See subtitle_prewarm.go.
 	subtitlePrewarm *subtitlePrewarmer
-	startHints      startPositionHints // master's ?startSec= -> variant pre-warm
-	livePositions   startPositionHints // decision hash -> last segment served, for a later init
+	startHints      positionHints[float64] // master's ?startSec= (seconds) -> variant pre-warm
+	livePositions   positionHints[int]     // decision hash -> last segment served, for a later init
 
 	// servingRecord: see SessionServingRecord; nil = not wired (tests).
 	servingRecord SessionServingRecord
@@ -592,8 +592,8 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 
 	// Absent = a start at 0, remembered as such so the variant fetch that
 	// follows still warms its rafale.
-	seg, _ := startSegmentHint(r)
-	h.startHints.remember(startHintKey(r, mediaID), seg, time.Now())
+	sec, _ := startSecondsHint(r)
+	h.startHints.remember(startHintKey(r, mediaID), sec, time.Now())
 
 	// ONE resolution: decision, route, shaped ladder, fingerprint and the
 	// delivery strategy - which engine carries the video and the audio. From
@@ -999,7 +999,7 @@ func (h *hlsVODServe) serveVariant(w http.ResponseWriter, r *http.Request, media
 	// No fresh master = a mid-viewing refetch: the segment request spawns at
 	// the right place, a warm-up here would only open an encoder at 0.
 	if producer := h.producerForPlan(rp); producer != nil {
-		if seg, ok := h.prewarmSegment(startHintKey(r, mediaID), in.DurationSec, time.Now()); ok {
+		if seg, ok := h.prewarmSegment(startHintKey(r, mediaID), in.DurationSec, h.segmentAtFor(r.Context(), rp, mediaID), time.Now()); ok {
 			producer.PreWarm(rp.FP, profileIdx, seg)
 		}
 	}
@@ -1126,7 +1126,7 @@ func (h *hlsVODServe) serveSegment(w http.ResponseWriter, r *http.Request, media
 		if item.File != nil {
 			durSec = item.File.Duration.Seconds()
 		}
-		ensureSeg = h.initSegment(startHintKey(r, mediaID), rp.FPHash, durSec, time.Now())
+		ensureSeg = h.initSegment(startHintKey(r, mediaID), rp.FPHash, durSec, h.segmentAtFor(r.Context(), rp, mediaID), time.Now())
 	} else {
 		h.livePositions.rememberWithin(rp.FPHash, segmentIdx, time.Now(), livePositionTTL)
 	}
@@ -1308,6 +1308,21 @@ func (h *hlsVODServe) producerForRequest(ctx context.Context, r *http.Request, s
 // plan.Route (ADR-0030), nothing is re-derived here.
 func (h *hlsVODServe) producerForPlan(rp *requestPlan) apptranscoding.StreamProducer {
 	return h.planResolver().ProducerForPlan(rp.Plan)
+}
+
+// segmentAtFor turns a position into a segment of THIS plan: a copy rung
+// indexes its keyframe plan, every other rung its grid.
+func (h *hlsVODServe) segmentAtFor(ctx context.Context, rp *requestPlan, mediaID string) func(sec float64) int {
+	if rp.IsCopy {
+		if planner, ok := h.copyProducer.(interface {
+			CopyPlan(context.Context, string) ([]apptranscoding.CopySegment, error)
+		}); ok {
+			if plan, err := planner.CopyPlan(ctx, mediaID); err == nil && len(plan) > 0 {
+				return func(sec float64) int { return copySegmentAt(plan, sec) }
+			}
+		}
+	}
+	return rp.FP.Grid.SegmentIndexAt
 }
 
 // isCopyRequest - the copy-rung routing moved to the app layer
