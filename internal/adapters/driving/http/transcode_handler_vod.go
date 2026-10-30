@@ -668,6 +668,7 @@ func (h *hlsVODServe) serveMaster(w http.ResponseWriter, r *http.Request, mediaI
 	// The ffmpeg path serves this plan (its strategy, or the fallback of one
 	// the packager could not build). Serving binds this token to the plan's
 	// hash and reclaims the one it left (resolvePlan's side of probePlan).
+	r, rp = h.planAsServed(r, mediaID, item, streams, rp)
 	h.reclaimSupersededHash(r, mediaID, rp)
 
 	// Tell a viewer the host is full BEFORE their player parses a ladder it can
@@ -1310,6 +1311,40 @@ func (h *hlsVODServe) producerForPlan(rp *requestPlan) apptranscoding.StreamProd
 	return h.planResolver().ProducerForPlan(rp.Plan)
 }
 
+// planAsServed is the plan an ffmpeg manifest serves. A copy the decision
+// judged possible but whose copy rung is closed (a variable frame rate, a
+// missing keyframe index) is served as a re-encode, and the manifest's URIs
+// pin vd=transcode: the manifest is resolved under that pin too, or it seals
+// the copy's fingerprint, every variant re-derives the transcode's, and each
+// one is refused 410 - a master the player refetched forever.
+func (h *hlsVODServe) planAsServed(r *http.Request, mediaID string, item *domainlibrary.MediaItem, streams []*domainlibrary.MediaStream, rp *requestPlan) (*http.Request, *requestPlan) {
+	if rp.IsCopy || rp.Decision.VideoDecision != "copy" || r.URL.Query().Get("vd") != "" {
+		return r, rp
+	}
+	pinned := r.Clone(r.Context())
+	q := pinned.URL.Query()
+	q.Set("vd", "transcode")
+	pinned.URL.RawQuery = q.Encode()
+	// The request already marshalled (profile prefs, track, streams), with the
+	// pin a variant request reads off its URI.
+	req := rp.Request
+	req.PinnedVideoDecision = "transcode"
+	plan, err := h.planResolver().Resolve(r.Context(), req)
+	if err != nil {
+		return r, rp
+	}
+	return pinned, &requestPlan{
+		Plan:       plan,
+		Decision:   plan.Decision,
+		Profiles:   plan.Ladder,
+		AudioTrack: rp.AudioTrack,
+		FP:         plan.Fingerprint,
+		FPHash:     plan.FingerprintHash,
+		IsCopy:     plan.Route.Copy,
+		Request:    req,
+	}
+}
+
 // segmentAtFor turns a position into a segment of THIS plan: a copy rung
 // indexes its keyframe plan, every other rung its grid.
 func (h *hlsVODServe) segmentAtFor(ctx context.Context, rp *requestPlan, mediaID string) func(sec float64) int {
@@ -1595,6 +1630,7 @@ func (h *hlsVODServe) serveManifestMPD(w http.ResponseWriter, r *http.Request, m
 	}
 	// Serving binds this token to the plan's hash and reclaims the one it
 	// left, and says what it served, exactly as the HLS master does.
+	r, rp = h.planAsServed(r, mediaID, item, streams, rp)
 	h.reclaimSupersededHash(r, mediaID, rp)
 	{
 		p := domainplayback.ServingPath{VideoDecision: "transcode", VideoEngine: "ffmpeg", VideoBackend: videoBackendLabel(rp.Plan.HWAccel), AudioDecision: "transcode", AudioEngine: "ffmpeg"}
