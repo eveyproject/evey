@@ -35,7 +35,7 @@ import { useSleepTimer } from "../../../src/hooks/useSleepTimer";
 import { seekDeltaForKey } from "../../../src/hooks/playerSeek";
 import { useMusicQueueStore } from "../../../src/stores/musicQueue";
 import { playerExit } from "../../../src/hooks/playerExit";
-import { noteViewerActivity, resolveStartPositionMs, isTitleGone, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
+import { canRetryShed, noteViewerActivity, resolveStartPositionMs, isTitleGone, servedVariant, shedI18nKey, useAutoMarkWatched, useFileAudioSelection, usePlayerProfilePrefs, usePlayerTrackSelection, usePlayingVideoTrack, useRemoteSeek, nextPlaybackSpeed, useProfileLock, type AudioTrackPlayer } from "@evey/client";
 import { playerTitle } from "../../../src/lib/playerTitle";
 import { useCastConnectBridge } from "../../../src/hooks/useCastConnectBridge";
 import { useInterruptedPlaybackMarker } from "../../../src/hooks/useInterruptedPlaybackMarker";
@@ -1340,6 +1340,20 @@ export default function PlayerScreen() {
         body={t(shedI18nKey(shedReason, "body"))}
         actionLabel={next ? t("player.controls.nextEpisode") : t("player.goBack")}
         onAction={next ? handleManualNextEpisode : handleBack}
+        onBack={handleBack}
+      />
+    );
+  }
+
+  if (shedReason && !canRetryShed(shedReason)) {
+    // This server can never prepare the file for this device: no retry.
+    return (
+      <PlayerStatusScreen
+        icon="alert-circle-outline"
+        title={t(shedI18nKey(shedReason, "title"))}
+        body={t(shedI18nKey(shedReason, "body"))}
+        actionLabel={t("player.goBack")}
+        onAction={handleBack}
         onBack={handleBack}
       />
     );

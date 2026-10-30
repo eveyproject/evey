@@ -110,7 +110,7 @@ func (l *VideoSessionLimiter) chargesFor(class LadderClass, topHeight int, src t
 	// A ZERO route is not "uncovered", it is "unnamed" (TryAcquire / CanAdmit):
 	// the documented contract is the table, as before route evidence existed.
 	// Refusing it turned every master-playlist shed probe away as soon as a
-	// host had route evidence (prod 2026-09-13 21:53: "host at video capacity"
+	// host had route evidence ("host at video capacity"
 	// on an idle server, every title).
 	if l.routeModel != nil && route != (transcoding.RouteCostKey{}) {
 		rc, ok := l.routeModel.Cost(route, topHeight, sourceFPS)
@@ -483,6 +483,26 @@ func (l *VideoSessionLimiter) CanAdmitRoute(key string, class LadderClass, topHe
 	return ok && l.fits(charges)
 }
 
+// FitsIdleHost reports whether a stream priced as c would be admitted with
+// nothing else playing: false means no amount of waiting lets this host encode
+// it, as opposed to CanAdmitSession's "not right now". Only a measured price
+// can say a stream is too heavy - an unpriced or uncovered route answers true,
+// so the caller keeps its retryable shed.
+func (l *VideoSessionLimiter) FitsIdleHost(c SessionCost) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	charges, ok := l.chargesFor(c.Class, c.TopHeight, c.Src, c.Route, c.SourceFPS)
+	if !ok {
+		return true
+	}
+	for _, ch := range charges {
+		if ch.cost > l.budgetFor(ch.pool)+budgetEpsilon {
+			return false
+		}
+	}
+	return true
+}
+
 // Release gives back the reference key took in TryAcquire; the stream's slot
 // (and its reserved cost, if any, credited back to the POOL it was reserved
 // from) frees when its last encoder is gone. A stray Release for an unknown
@@ -536,7 +556,7 @@ func (l *VideoSessionLimiter) AutoCountCapFor(pool ResourcePool) int {
 // The cheapest stream is taken across rungs AND source classes, not just rungs.
 // This is a BELT, not the gate: the per-pool budget already prices every stream
 // for what it actually decodes, so sizing the counter on the dearest source
-// would refuse streams the budget has room for. Seen live on 2026-08-08: the
+// would refuse streams the budget has room for. Seen live: the
 // budget allowed five 1080p H.264 sessions while the counter, built on the 4K
 // HEVC bench source, stopped at one - the counter silently undid the whole
 // point of pricing by source.

@@ -115,6 +115,9 @@ shed:
   fileNeedsRemux:
     title: "Cette vidéo doit être réparée"
     body: "Ce fichier a été assemblé d'une façon que cet appareil ne peut pas lire jusqu'au bout (le son et l'image sont rangés dans des blocs séparés). Un administrateur peut le réparer depuis Santé des médias ; inutile de réessayer avant."
+  sourceTooHeavy:
+    title: "Ce serveur n'est pas assez puissant pour ce fichier"
+    body: "Le serveur n'a pas la puissance nécessaire pour lire ce fichier sur cet appareil, même quand rien d'autre n'est en cours. Essayez sur un autre appareil : certains le lisent directement."
   fileMissing:
     title: "Ce fichier a été supprimé"
     body: "Ce fichier n'est plus sur le serveur, il ne peut donc pas être lu. Les listes sont en cours de mise à jour."

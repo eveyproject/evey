@@ -25,6 +25,7 @@ import {
   SLEEP_TIMER_PRESETS_MIN, isSleepPresetActive,
   resolveStartPositionMs,
   shedI18nKey,
+  canRetryShed,
   isTitleGone,
   playingFromHlsLevel,
   servedVariant,
@@ -795,8 +796,14 @@ function PlayerView({ mediaId, restart, audio, subtitle, roomId }: {
           <h1 className="title">{t(shedI18nKey(shedReason, "title"))}</h1>
           <p className="subtitle">{t(shedI18nKey(shedReason, "body"))}</p>
           <div className="actions">
-            <Button variant="primary" autoFocus onPress={() => restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality)}>{t("player.retry", "Retry")}</Button>
-            <Button onPress={goBack}>{t("common.back", "Back")}</Button>
+            {canRetryShed(shedReason) ? (
+              <>
+                <Button variant="primary" autoFocus onPress={() => restartKeepingPlace(selectedAudio, burnIn ?? undefined, quality)}>{t("player.retry", "Retry")}</Button>
+                <Button onPress={goBack}>{t("common.back", "Back")}</Button>
+              </>
+            ) : (
+              <Button variant="primary" autoFocus onPress={goBack}>{t("common.back", "Back")}</Button>
+            )}
           </div>
         </FocusRoot>
       </div>

@@ -642,3 +642,29 @@ func TestVideoSessionLimiter_AutoCountCap_NoDecodeEvidence_Unchanged(t *testing.
 	assert.Equal(t, 2, l.AutoCountCapFor(PoolCPU))
 	assert.Equal(t, 4, l.AutoCountCapFor(PoolGPU))
 }
+
+func TestVideoSessionLimiter_FitsIdleHost_SourceHeavierThanTheWholeBudgetNeverFits(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(0).WithCostModel(costModelFixture(t))
+	l.SetBudget(PoolCPU, 0.4)
+
+	heavy := SessionCost{Class: LadderClassSoftware, TopHeight: 1440}
+	light := SessionCost{Class: LadderClassSoftware, TopHeight: 720}
+	assert.False(t, l.FitsIdleHost(heavy), "1440p (0.530) exceeds a 0.4 budget even with nothing else playing")
+	assert.True(t, l.FitsIdleHost(light), "720p (0.366) fits a 0.4 budget on an idle host")
+}
+
+func TestVideoSessionLimiter_FitsIdleHost_IgnoresWhatIsPlayingNow(t *testing.T) {
+	t.Parallel()
+	l := NewVideoSessionLimiter(1).WithCostModel(costModelFixture(t))
+	require.True(t, l.TryAcquire("playing", LadderClassSoftware, 1440))
+
+	c := SessionCost{Class: LadderClassSoftware, TopHeight: 1080}
+	assert.False(t, l.CanAdmitSession("other", c), "the host is busy right now")
+	assert.True(t, l.FitsIdleHost(c), "busy is not too heavy: the stream fits once the other one ends")
+}
+
+func TestVideoSessionLimiter_FitsIdleHost_UnpricedStreamIsNeverCalledTooHeavy(t *testing.T) {
+	t.Parallel()
+	assert.True(t, NewVideoSessionLimiter(0).FitsIdleHost(SessionCost{Class: LadderClassSoftware, TopHeight: 2160}), "no cost model: nothing measured says it is too heavy")
+}

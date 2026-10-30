@@ -3,7 +3,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTranslation } from "react-i18next";
 import { useTheme } from "../../providers/ThemeProvider";
 import { FONT_SIZE, ICON_SIZE } from "@evey/theme";
-import { isTitleGone, shedI18nKey, type ShedCode } from "@evey/client";
+import { canRetryShed, isTitleGone, shedI18nKey, type ShedCode } from "@evey/client";
 
 
 interface ShedScreenProps {
@@ -21,7 +21,7 @@ export function ShedScreen({ shedReason, onRetry, onBack, onNextEpisode }: ShedS
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.bg }]}>
       <StatusBar hidden />
-      <Ionicons name={shedReason === "file_missing" ? "trash-outline" : fileMissing ? "remove-circle-outline" : "time-outline"} size={ICON_SIZE["3xl"]} color={theme.colors.textMuted} />
+      <Ionicons name={shedReason === "file_missing" ? "trash-outline" : fileMissing ? "remove-circle-outline" : canRetryShed(shedReason) ? "time-outline" : "alert-circle-outline"} size={ICON_SIZE["3xl"]} color={theme.colors.textMuted} />
       <Text style={{ color: theme.colors.text, fontSize: FONT_SIZE.lg, fontWeight: "600", marginTop: 16, textAlign: "center", paddingHorizontal: 24 }}>
         {t(shedI18nKey(shedReason, "title"))}
       </Text>
@@ -34,14 +34,14 @@ export function ShedScreen({ shedReason, onRetry, onBack, onNextEpisode }: ShedS
             <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, fontWeight: "600" }}>{t("player.controls.nextEpisode")}</Text>
           </Pressable>
         ) : null
-      ) : (
+      ) : canRetryShed(shedReason) ? (
         <Pressable
           onPress={onRetry}
           style={{ marginTop: 20 }}
         >
           <Text style={{ color: theme.colors.accent, fontSize: FONT_SIZE.base, fontWeight: "600" }}>{t("player.retry")}</Text>
         </Pressable>
-      )}
+      ) : null}
       <Pressable onPress={onBack} style={{ marginTop: 16 }}>
         <Text style={{ color: theme.colors.textMuted, fontSize: FONT_SIZE.sm }}>{t("player.goBack")}</Text>
       </Pressable>

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { RotateCcw, RotateCw, Play, Pause, Loader, TriangleAlert, Volume2, Sun, Clock, MessageSquare } from "lucide-react";
-import { shedI18nKey } from "@evey/client";
+import { canRetryShed, shedI18nKey } from "@evey/client";
 import { ICON } from "@/constants/iconSizes";
 import { DownloadButton } from "./DownloadButton";
 import type { ShedReason } from "./hooks/useTranscodePlayback";
@@ -139,19 +139,23 @@ export function ShedOverlay({ shedReason, onRetry }: { shedReason: NonNullable<S
   return (
     <div className="absolute inset-0 flex items-center justify-center z-[10] bg-[var(--overlay-bg-strong)]">
       <div className="flex flex-col items-center gap-4 text-white text-center px-6">
-        <Clock size={ICON["4xl"]} className="text-white/80" strokeWidth={1.5} />
+        {canRetryShed(shedReason)
+          ? <Clock size={ICON["4xl"]} className="text-white/80" strokeWidth={1.5} />
+          : <TriangleAlert size={ICON["4xl"]} className="text-white/80" strokeWidth={1.5} />}
         <p className="text-lg font-medium">
           {t(shedI18nKey(shedReason, "title"))}
         </p>
         <p className="text-sm text-[var(--overlay-text-muted)] max-w-sm">
           {t(shedI18nKey(shedReason, "body"))}
         </p>
-        <button
-          onClick={onRetry}
-          className="px-4 py-2 rounded text-sm font-medium bg-[var(--overlay-btn-hover-bg)]"
-        >
-          {t("player.retry")}
-        </button>
+        {canRetryShed(shedReason) && (
+          <button
+            onClick={onRetry}
+            className="px-4 py-2 rounded text-sm font-medium bg-[var(--overlay-btn-hover-bg)]"
+          >
+            {t("player.retry")}
+          </button>
+        )}
       </div>
     </div>
   );
