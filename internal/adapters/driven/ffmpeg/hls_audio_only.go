@@ -63,6 +63,11 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		// byte-identical AND CPU-profile-identical to the pre-pacing behaviour.
 		args = appendInputModifiers(args, opts.ReadRate)
 		args = appendCopyPacingBurst(args, opts.ReadRate)
+		if shift := audioOnlyShiftSec(opts); shift != 0 {
+			// ffmpeg compares the -ss target against the shifted timestamps:
+			// the seek needs no adjustment (see appendAudioDelayInput).
+			args = append(args, "-itsoffset", fmt.Sprintf("%.3f", shift))
+		}
 		args = append(args, "-i", opts.FilePath)
 	}
 
@@ -121,6 +126,15 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	// whatever the normalize knob says, and silence has nothing to fold or measure.
 	if !isCopy && !silence {
 		af := audioFilterOption("-af", opts.SourceAudioChannels, opts.MaxAudioChannels, opts.AudioNormalize)
+		// The track lands on the file's origin, its own start kept: the samples
+		// before it are silence, the ones before 0 dropped. Rebasing it onto its
+		// first sample (asetpts=PTS-STARTPTS, as this once did) erased every
+		// start offset and the user's resync with it.
+		if len(af) == 2 {
+			af[1] = audioOriginFilter + "," + af[1]
+		} else {
+			af = []string{"-af", audioOriginFilter}
+		}
 		// Past the encoder's priming the output is on the video's timeline only
 		// when the shift can hold it: below that, the muxer pushes the whole
 		// track late by what did not fit, so that much of the input is dropped,
@@ -203,6 +217,9 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 		opts.OutputDir = priv
 	}
 
+	if opts.SilenceDurationSec <= 0 && resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder) != "copy" {
+		opts.AudioStartDelaySec = probedAudioStartDelay(ctx, opts.FilePath, opts.SourceTrackIdx)
+	}
 	args := BuildFFmpegAudioOnlyArgs(opts)
 	slog.Info("hls: ffmpeg audio-only start",
 		slog.String("media_path", opts.FilePath),
@@ -457,8 +474,30 @@ func primingOverflowSec(opts transcoding.AudioProcessOpts) float64 {
 	return over
 }
 
-// primingTrimFilter drops the first sec of a decoded audio stream, whatever its
-// timestamps start at.
+// primingTrimFilter drops the first sec of a decoded audio stream that starts
+// at 0 (audioOriginFilter puts it there).
 func primingTrimFilter(sec float64) string {
-	return fmt.Sprintf("asetpts=PTS-STARTPTS,atrim=start=%.6f,asetpts=PTS-STARTPTS", sec)
+	return fmt.Sprintf("atrim=start=%.6f,asetpts=PTS-STARTPTS", sec)
+}
+
+// audioOriginFilter starts the decoded track at 0, padding with silence or
+// dropping samples by what its first timestamp is off; any gap past 1 ms is
+// filled the same way, so the track keeps its place against the video.
+const audioOriginFilter = "aresample=async=1:min_hard_comp=0.001:first_pts=0"
+
+// audioOnlyShiftSec is the rendition's input shift, the muxed ladder's rule
+// (audioNetShiftSec): a probed source start delay past the floor is cancelled,
+// a user resync is honored exactly, and the two compose. A copy or a silence
+// tail takes none.
+func audioOnlyShiftSec(opts transcoding.AudioProcessOpts) float64 {
+	if opts.SilenceDurationSec > 0 || resolveAudioEncoder(opts.AudioCodec, opts.AudioEncoder) == "copy" {
+		return 0
+	}
+	if opts.AudioUserOffsetSec != 0 {
+		return opts.AudioUserOffsetSec - opts.AudioStartDelaySec
+	}
+	if opts.AudioStartDelaySec > audioDelayCancelMinSec {
+		return -opts.AudioStartDelaySec
+	}
+	return 0
 }

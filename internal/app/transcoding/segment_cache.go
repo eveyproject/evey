@@ -325,6 +325,10 @@ type AudioFingerprint struct {
 	// 0 = unknown, which keeps the guard on.
 	SourceAudioChannels int
 
+	// AudioOffsetMs is the user's audio resync (positive = audio later), as on
+	// DecisionFingerprint; hashed when set.
+	AudioOffsetMs int
+
 	// SourceDurationSec is the container-declared media duration, in seconds.
 	// It bounds the silence generator the orchestrator spawns when the audio
 	// track proves to end before this duration (see AudioSegmentOrchestrator's
@@ -401,6 +405,12 @@ func (a AudioFingerprint) hashWithDownmixPolicy(downmixPolicy string) string {
 		// Encodes now skip the input past the encoder priming (see
 		// primingOverflowSec): their bytes moved, segments cut before must not be served.
 		b.WriteString("prime=trim\n")
+		// The track now keeps its start against the video (audioOriginFilter)
+		// instead of being rebased onto its first sample: bytes moved again.
+		b.WriteString("origin=file\n")
+	}
+	if a.AudioOffsetMs != 0 {
+		fmt.Fprintf(&b, "aoffset=%d\n", a.AudioOffsetMs)
 	}
 	if downmixPolicy != "" {
 		fmt.Fprintf(&b, "dmx=%s\n", downmixPolicy)

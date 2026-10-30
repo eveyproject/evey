@@ -128,6 +128,9 @@ func (h *audioServe) servePlaylistFile(w http.ResponseWriter, r *http.Request, m
 		MediaID:     mediaID,
 		DurationSec: float64(item.File.Duration.Milliseconds()) / 1000.0,
 		Grid:        fp.Grid,
+		// The resync rides the init and segment URIs like the plan's pins: they
+		// re-derive the fingerprint and the copy-or-encode verdict from it.
+		AudioOffsetMs: audioOffsetMsQuery(r),
 		// Profiles must be non-empty for ManifestInput.Validate().
 		// AudioPlaylist doesn't use the profiles list but Validate() requires
 		// at least one entry. We inject a placeholder that matches what a
@@ -408,6 +411,9 @@ func (h *audioServe) buildAudioFingerprint(r *http.Request, mediaID string, item
 		// Non-zero only when the video is packaged by the ffmpeg copy fallback
 		// instead of mkvgo - see transcode_audio_sync.go.
 		VideoCompositionDelay: videoCompositionDelay,
+		// The user's resync: a rendition is the only audio such a playback
+		// has, so the shift is applied here or nowhere.
+		AudioOffsetMs: audioOffsetMsQuery(r),
 	}
 }
 

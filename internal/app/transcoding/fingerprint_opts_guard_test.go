@@ -222,6 +222,7 @@ var (
 		// -output_ts_offset) and it changes the emitted bytes, so it belongs here
 		// rather than in the exempt map.
 		"VideoCompositionDelay": "AudioProcessOpts.VideoCompositionDelay",
+		"AudioOffsetMs":         "AudioProcessOpts.AudioUserOffsetSec",
 		"Grid":                  "AudioProcessOpts.Grid (-hls_time on the video's cadence)",
 		"SourceAudioCodec":      "AudioProcessOpts.SourceAudioCodec (-bsf:a aac_adtstoasc on a copied ADTS track)",
 	}

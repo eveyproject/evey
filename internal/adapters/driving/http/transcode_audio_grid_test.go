@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
@@ -111,4 +112,40 @@ func TestAudioRenditionPlaylist_DeclaresTheGridItsSegmentsAreCutOn(t *testing.T)
 			assert.InDelta(t, float64(durMs)/1000, total, 0.05)
 		})
 	}
+}
+
+// The user's resync reaches the rendition: its init and segment URIs carry it
+// and they are asked under a fingerprint that holds it. Dropped by the
+// playlist, the encode never saw it and the slider did nothing on any playback
+// whose audio is a rendition (a copied video, the cast receiver).
+func TestAudioRenditionPlaylist_CarriesTheResync(t *testing.T) {
+	item, streams := testMediaItemWithAudioStreams()
+	ensurer := &recordingAudioEnsurer{}
+	h := buildVODHandlerWithAudio(t, &testFakeStreamsGetter{item: item, streams: streams},
+		allowAll(), testFakeParentalChecker{}, ensurer)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_1.m3u8?audioOffsetMs=500", nil)
+	req.SetPathValue("id", "m1")
+	req.SetPathValue("file", "audio_1.m3u8")
+	req = withHTTPClaims(req, testClaims(false))
+	w := httptest.NewRecorder()
+	h.serveHTTP(w, req)
+	require.Equal(t, http.StatusOK, w.Code)
+	for line := range strings.SplitSeq(w.Body.String(), "\n") {
+		if strings.Contains(line, "audio_1_") {
+			assert.Contains(t, line, "audioOffsetMs=500", "child URI must carry the resync")
+		}
+	}
+
+	seg := httptest.NewRequest(http.MethodGet, "/api/v1/media/m1/hls/v2/audio_1_003.m4s?audioOffsetMs=500", nil)
+	seg.SetPathValue("id", "m1")
+	seg.SetPathValue("file", "audio_1_003.m4s")
+	seg = withHTTPClaims(seg, testClaims(false))
+	h.serveHTTP(httptest.NewRecorder(), seg)
+	require.NotEmpty(t, ensurer.fps)
+	got := ensurer.fps[len(ensurer.fps)-1]
+	assert.Equal(t, 500, got.AudioOffsetMs)
+	plain := got
+	plain.AudioOffsetMs = 0
+	assert.NotEqual(t, plain.Hash(), got.Hash(), "a resynced rendition must not share the plain one's cache")
 }
