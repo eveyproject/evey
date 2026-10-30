@@ -839,6 +839,11 @@ func (c *SegmentCache) Wait(ctx context.Context, k SegmentKey, useFMP4 bool, tim
 			return ctx.Err()
 		case <-cancelChIfNotNil(cancelCh, hasCancel):
 			timer.Stop()
+			// A session run to the end of the file writes its last segment as
+			// it exits, right before this teardown: it is served, not refused.
+			if c.IsReady(k, useFMP4) {
+				return nil
+			}
 			return fmt.Errorf("SegmentCache.Wait: session %s torn down", k.DecisionHash)
 		case <-timer.C:
 		}

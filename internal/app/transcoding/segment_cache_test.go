@@ -322,6 +322,24 @@ func TestSegmentCache_Wait_AbortsOnCleanupHash(t *testing.T) {
 	wg.Wait()
 }
 
+// The last segment of a session run to the end of the file is written as the
+// process exits, and the teardown follows at once: a Wait woken by the teardown
+// between two polls failed with "torn down" while the segment was on disk, and
+// the player got a 503 for the final segment of the film.
+func TestSegmentCache_Wait_TeardownAfterTheLastSegmentStillServesIt(t *testing.T) {
+	c, _ := newTestCache(t)
+	k := SegmentKey{DecisionHash: "abcd", VariantIdx: 0, SegmentIdx: 39}
+	require.NoError(t, os.MkdirAll(filepath.Dir(c.Path(k, true)), 0o755))
+	teardown := c.RegisterSession(k.DecisionHash)
+
+	errc := make(chan error, 1)
+	go func() { errc <- c.Wait(context.Background(), k, true, 5*time.Second) }()
+	time.Sleep(400 * time.Millisecond) // the poll has backed off to its longest sleep
+	require.NoError(t, os.WriteFile(c.Path(k, true), fmp4Seg(), 0o644))
+	teardown()
+	assert.NoError(t, <-errc)
+}
+
 func TestSegmentCache_Wait_DetectsSegmentAfterDelay(t *testing.T) {
 	// Simulates ffmpeg producing a segment a bit after the Wait starts: must
 	// pick it up via the poll loop and return success, not time out.
