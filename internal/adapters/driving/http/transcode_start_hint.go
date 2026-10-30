@@ -110,7 +110,7 @@ func startSecondsHint(r *http.Request) (float64, bool) {
 // when it lies inside the presentation, else 0. ok is false when no master
 // announced a start within startHintTTL: a variant playlist refetched
 // mid-viewing (token refresh after a long pause, level fallback) then warmed
-// segment 0 on a rung nobody read (prod 2026-10-12).
+// segment 0 on a rung nobody read.
 func (h *hlsVODServe) prewarmSegment(hintKey string, durationSec float64, segmentAt func(sec float64) int, now time.Time) (int, bool) {
 	sec, ok := h.startHints.peek(hintKey, now)
 	if !ok {
