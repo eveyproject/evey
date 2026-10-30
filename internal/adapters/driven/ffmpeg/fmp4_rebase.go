@@ -350,6 +350,33 @@ func fmp4CompleteMoov(path string) bool {
 	return false
 }
 
+// fmp4HasFragment reports whether a media segment holds a fragment (a moof
+// box) at its top level. A session seeked past the end of its track writes
+// one with none: an styp alone, no sample.
+func fmp4HasFragment(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	var off int64
+	for off < fi.Size() {
+		typ, size, err := boxHeader(f, off, fi.Size())
+		if err != nil {
+			return false
+		}
+		if typ == "moof" {
+			return true
+		}
+		off += size
+	}
+	return false
+}
+
 // copyDriftToleranceMs bounds the acceptable gap between a copy segment's
 // produced timeline (first traf tfdt) and the keyframe plan's start for that
 // index. Generous on purpose: legitimate skews are tiny (ms-rounded keyframe
@@ -555,6 +582,14 @@ func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan
 			}
 			if _, err := os.Stat(src + ".tmp"); err == nil {
 				continue // defence in depth; rename normally beats the scan
+			}
+			if !fmp4HasFragment(src) {
+				// No sample: published, it reads as a produced segment and hides
+				// the end of the track the orchestrator infers from a session
+				// that produced nothing.
+				_ = os.Remove(src) //nolint:errcheck // best-effort: privDir goes with the session
+				published[name] = true
+				continue
 			}
 			tfdtMs, err := rebaseFMP4Segment(src, deltaUs, initTS)
 			if err != nil {
