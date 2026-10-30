@@ -74,4 +74,12 @@ func TestAudioOnlyArgs_KeepTheTrackOnTheFilesOrigin(t *testing.T) {
 	if strings.Count(af, "asetpts=PTS-STARTPTS") != 1 || !strings.HasSuffix(af, "atrim=start=0.042667,asetpts=PTS-STARTPTS") && !strings.HasSuffix(af, "atrim=start=0.021333,asetpts=PTS-STARTPTS") {
 		t.Fatalf("only the priming trim rebases, at the end: %q", af)
 	}
+
+	// A seek starts its samples on the target already; aligned on the origin,
+	// a seek past the track's end produced silence where the orchestrator
+	// reads an empty session as the end of the stream.
+	seek := BuildFFmpegAudioOnlyArgs(transcoding.AudioProcessOpts{FilePath: "/f.mkv", OutputDir: "/o", AudioCodec: "aac", AudioBitrate: 192, MaxAudioChannels: 2, SourceAudioChannels: 6, StartSec: 30.03, StartNumber: 10})
+	if af := seek[slices.Index(seek, "-af")+1]; strings.Contains(af, audioOriginFilter) || !strings.Contains(af, "asetpts=PTS-STARTPTS,atrim=start=") {
+		t.Fatalf("a seek keeps the plain priming trim: %q", af)
+	}
 }

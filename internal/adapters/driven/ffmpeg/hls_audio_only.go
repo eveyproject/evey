@@ -126,14 +126,19 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 	// whatever the normalize knob says, and silence has nothing to fold or measure.
 	if !isCopy && !silence {
 		af := audioFilterOption("-af", opts.SourceAudioChannels, opts.MaxAudioChannels, opts.AudioNormalize)
-		// The track lands on the file's origin, its own start kept: the samples
-		// before it are silence, the ones before 0 dropped. Rebasing it onto its
-		// first sample (asetpts=PTS-STARTPTS, as this once did) erased every
-		// start offset and the user's resync with it.
-		if len(af) == 2 {
-			af[1] = audioOriginFilter + "," + af[1]
-		} else {
-			af = []string{"-af", audioOriginFilter}
+		// A cold session lands the track on the file's origin, its own start
+		// kept: the samples before it are silence, the ones before 0 dropped.
+		// Rebasing it onto its first sample (asetpts=PTS-STARTPTS, as this once
+		// did) erased every start offset and the user's resync with it. A seek
+		// needs none: the accurate seek already starts the samples on the target,
+		// and a seek past the track's end must still produce nothing (the
+		// orchestrator reads that as the end of the stream).
+		if fromOrigin := opts.StartSec <= 0; fromOrigin {
+			if len(af) == 2 {
+				af[1] = audioOriginFilter + "," + af[1]
+			} else {
+				af = []string{"-af", audioOriginFilter}
+			}
 		}
 		// Past the encoder's priming the output is on the video's timeline only
 		// when the shift can hold it: below that, the muxer pushes the whole
@@ -141,7 +146,7 @@ func BuildFFmpegAudioOnlyArgs(opts transcoding.AudioProcessOpts) []string {
 		// to the sample (an input -ss snaps to the codec frame: measured 6 ms of
 		// the 43 moved). After the fold, which keeps the head of the chain.
 		if over := primingOverflowSec(opts); over > 0 {
-			trim := primingTrimFilter(over)
+			trim := primingTrimFilter(over, opts.StartSec <= 0)
 			if len(af) == 2 {
 				af[1] += "," + trim
 			} else {
@@ -474,10 +479,14 @@ func primingOverflowSec(opts transcoding.AudioProcessOpts) float64 {
 	return over
 }
 
-// primingTrimFilter drops the first sec of a decoded audio stream that starts
-// at 0 (audioOriginFilter puts it there).
-func primingTrimFilter(sec float64) string {
-	return fmt.Sprintf("atrim=start=%.6f,asetpts=PTS-STARTPTS", sec)
+// primingTrimFilter drops the first sec of a decoded audio stream: one that
+// starts at 0 (audioOriginFilter puts it there), else whatever its timestamps
+// start at.
+func primingTrimFilter(sec float64, fromOrigin bool) string {
+	if fromOrigin {
+		return fmt.Sprintf("atrim=start=%.6f,asetpts=PTS-STARTPTS", sec)
+	}
+	return fmt.Sprintf("asetpts=PTS-STARTPTS,atrim=start=%.6f,asetpts=PTS-STARTPTS", sec)
 }
 
 // audioOriginFilter starts the decoded track at 0, padding with silence or
