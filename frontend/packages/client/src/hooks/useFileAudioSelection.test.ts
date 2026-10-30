@@ -33,15 +33,49 @@ function fakePlayer(initial: NativeAudioTrack[] = []) {
 
 describe("nativeTrackToApply", () => {
   it("switches to the picked stream when the player opened on another", () => {
-    expect(nativeTrackToApply(tracks, tracks[0], 1, "eng")?.label).toBe("ENG");
+    expect(nativeTrackToApply(tracks, tracks[0], streams[1], streams)?.label).toBe("ENG");
   });
 
   it("leaves the player alone when it already plays the picked stream", () => {
-    expect(nativeTrackToApply(tracks, tracks[1], 1, "eng")).toBeNull();
+    expect(nativeTrackToApply(tracks, tracks[1], streams[1], streams)).toBeNull();
   });
 
   it("waits for the native tracks", () => {
-    expect(nativeTrackToApply([], null, 1, "eng")).toBeNull();
+    expect(nativeTrackToApply([], null, streams[1], streams)).toBeNull();
+  });
+});
+
+// The player lists its tracks renderer by renderer, not in file order: with the
+// ac3go renderer ahead of MediaCodec, an E-AC-3 track comes first even when
+// it is the file's second audio track.
+describe("nativeTrackToApply on a player that reorders the file's tracks", () => {
+  const file: PlayerAudioStream[] = [
+    { index: 1, trackIndex: 0, language: "en", title: "VO", codec: "aac" },
+    { index: 2, trackIndex: 1, language: "fr-FR", title: "VF", codec: "eac3", isDefault: true },
+  ];
+  const reordered: NativeAudioTrack[] = [
+    { id: "2", language: "fr", label: "French", name: "VF" },
+    { id: "1", language: "en", label: "English", name: "VO" },
+  ];
+
+  it("plays the French track when the French track is picked", () => {
+    expect(nativeTrackToApply(reordered, null, file[1], file)?.id).toBe("2");
+  });
+
+  it("plays the original track when the original track is picked", () => {
+    expect(nativeTrackToApply(reordered, null, file[0], file)?.id).toBe("1");
+  });
+
+  it("tells two tracks of one language apart by their title", () => {
+    const twoFrench: PlayerAudioStream[] = [
+      { index: 1, trackIndex: 0, language: "fr", title: "VFQ", codec: "aac" },
+      { index: 2, trackIndex: 1, language: "fr", title: "VFF", codec: "eac3" },
+    ];
+    const native: NativeAudioTrack[] = [
+      { id: "2", language: "fr", name: "VFF" },
+      { id: "1", language: "fr", name: "VFQ" },
+    ];
+    expect(nativeTrackToApply(native, null, twoFrench[0], twoFrench)?.id).toBe("1");
   });
 });
 
