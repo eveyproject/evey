@@ -99,7 +99,7 @@ func TestAudioRenditionPlaylist_DeclaresTheGridItsSegmentsAreCutOn(t *testing.T)
 			require.NotEmpty(t, ensurer.fps, "the segment must reach the orchestrator")
 			grid := ensurer.fps[len(ensurer.fps)-1].Grid
 
-			require.Equal(t, grid.SegmentCount(durMs), len(starts),
+			require.Len(t, starts, grid.SegmentCount(durMs),
 				"the playlist must list as many segments as the encoder cuts")
 			for n, s := range starts {
 				if math.Abs(s-grid.SegmentStartSeconds(n)) > 0.0005 {
