@@ -105,8 +105,8 @@ func TestBuildFFmpegArgs_CarriesTheGrid(t *testing.T) {
 
 // With a declared duration on an exact grid every video output holds its last
 // frame up to it and stops on its last declared frame - counted from the
-// session's first segment. A copy, the legacy grid or no declared duration
-// keep the former arguments.
+// session's first segment; on the legacy clock it stops on the declared
+// seconds left. A copy or no declared duration keep the former arguments.
 func TestGridArgs_EndOfStreamTail(t *testing.T) {
 	t.Parallel()
 	grid := transcoding.GridForFrameRate(23.976)
@@ -130,8 +130,16 @@ func TestGridArgs_EndOfStreamTail(t *testing.T) {
 	if got := strings.Join(BuildFFmpegArgs(ladder), " "); strings.Count(got, "tpad=") != 2 || !strings.Contains(got, "-frames:v 2892") {
 		t.Fatalf("every rung of a ladder: %s", got)
 	}
+	legacy := base
+	legacy.Grid = transcoding.SegmentGrid{}
+	if got := strings.Join(BuildFFmpegArgs(legacy), " "); !strings.Contains(got, ",tpad=stop_mode=clone:stop=-1") || !strings.Contains(got, "-t 120.641") || strings.Contains(got, "-frames:v") {
+		t.Fatalf("legacy grid: the declared seconds, no frame count: %s", got)
+	}
+	legacy.StartSec, legacy.StartNumber = 117, 39
+	if got := strings.Join(BuildFFmpegArgs(legacy), " "); !strings.Contains(got, "-t 3.641") {
+		t.Fatalf("legacy grid from segment 39: the seconds left: %s", got)
+	}
 	for name, o := range map[string]transcoding.HLSProcessOpts{
-		"legacy grid":          func() transcoding.HLSProcessOpts { o := base; o.Grid = transcoding.SegmentGrid{}; return o }(),
 		"no declared duration": func() transcoding.HLSProcessOpts { o := base; o.DeclaredDurationMs = 0; return o }(),
 	} {
 		if got := strings.Join(BuildFFmpegArgs(o), " "); strings.Contains(got, "tpad") || strings.Contains(got, "-frames:v") {

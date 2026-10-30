@@ -591,20 +591,33 @@ func forceKeyframesArgsFor(opts transcoding.HLSProcessOpts) []string {
 // eosFrameArgs stops the rung on the declared last frame. Clone mode passes
 // hardware frames through by reference, so the GPU chains take it as is.
 func eosPadFilter(opts transcoding.HLSProcessOpts) string {
-	if eosFrames(opts) <= 0 {
+	if eosFrames(opts) <= 0 && eosLegacySec(opts) <= 0 {
 		return ""
 	}
 	return ",tpad=stop_mode=clone:stop=-1"
 }
 
 // eosFrameArgs caps every video output at the declared frames left from the
-// session's first segment (see eosPadFilter).
+// session's first segment (see eosPadFilter); on the legacy clock, with no
+// frame count, at the declared seconds left.
 func eosFrameArgs(opts transcoding.HLSProcessOpts) []string {
-	n := eosFrames(opts)
-	if n <= 0 {
-		return nil
+	if n := eosFrames(opts); n > 0 {
+		return []string{"-frames:v", strconv.FormatInt(n, 10)}
 	}
-	return []string{"-frames:v", strconv.FormatInt(n, 10)}
+	if sec := eosLegacySec(opts); sec > 0 {
+		return []string{"-t", fmt.Sprintf("%.3f", sec)}
+	}
+	return nil
+}
+
+// eosLegacySec is the declared duration left from the session's start on the
+// legacy clock (a variable or unknown frame rate): the audio outlasting the
+// picture past a 3 s boundary declared a last segment no encode produced.
+func eosLegacySec(opts transcoding.HLSProcessOpts) float64 {
+	if opts.Grid.Exact() || opts.DeclaredDurationMs <= 0 || opts.VideoDecision == "copy" {
+		return 0
+	}
+	return float64(opts.DeclaredDurationMs)/1000 - opts.StartSec
 }
 
 func eosFrames(opts transcoding.HLSProcessOpts) int64 {

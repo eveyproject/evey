@@ -35,7 +35,7 @@ func TestGridEOSIntegration(t *testing.T) {
 	defer cancel()
 	for _, tc := range []struct {
 		rate  string
-		fps   float64
+		fps   float64 // 0 with vfr: the legacy 3 s clock
 		video float64 // seconds of picture: a whole number of segments, the edge case
 		extra float64 // seconds of audio past the picture
 	}{
@@ -46,14 +46,22 @@ func TestGridEOSIntegration(t *testing.T) {
 		// put frame 180 a hair before 3.003 s and the first cut at 6.006.
 		{"60000/1001", 59.94, 12.012, 0.5}, {"120000/1001", 119.88, 12.012, 0.5},
 		{"30", 30, 12, 0.5}, {"50", 50, 12, 0.5}, {"60", 60, 12, 0.5},
+		// A variable frame rate keeps the legacy clock and no frame count: the
+		// audio outlasting the picture past a 3 s boundary declared a last
+		// segment no encode produced (a 21 ms one, a 30 s wait, a 503).
+		{"vfr", 0, 12, 0.5},
 	} {
 		t.Run(fmt.Sprintf("%s+%.2fs", tc.rate, tc.extra), func(t *testing.T) {
 			dir := t.TempDir()
 			src := filepath.Join(dir, "src.mkv")
-			gen := exec.CommandContext(ctx, "ffmpeg", "-hide_banner", "-v", "error", "-y",
-				"-f", "lavfi", "-t", fmt.Sprint(tc.video), "-i", "testsrc2=size=320x180:rate="+tc.rate,
-				"-f", "lavfi", "-t", fmt.Sprint(tc.video+tc.extra), "-i", "anoisesrc=color=pink:seed=7:sample_rate=48000",
-				"-c:v", "libx264", "-preset", "ultrafast", "-bf", "2", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", src)
+			rate, vfr := tc.rate, []string{}
+			if tc.rate == "vfr" {
+				rate, vfr = "30000/1001", []string{"-vf", "select='not(eq(mod(n\\,5)\\,4))'", "-fps_mode", "vfr"}
+			}
+			gen := exec.CommandContext(ctx, "ffmpeg", append(append([]string{"-hide_banner", "-v", "error", "-y",
+				"-f", "lavfi", "-t", fmt.Sprint(tc.video), "-i", "testsrc2=size=320x180:rate=" + rate,
+				"-f", "lavfi", "-t", fmt.Sprint(tc.video + tc.extra), "-i", "anoisesrc=color=pink:seed=7:sample_rate=48000"}, vfr...),
+				"-c:v", "libx264", "-preset", "ultrafast", "-bf", "2", "-pix_fmt", "yuv420p", "-c:a", "aac", "-ac", "2", src)...)
 			if out, err := gen.CombinedOutput(); err != nil {
 				t.Fatalf("source: %v\n%s", err, out)
 			}
@@ -78,6 +86,15 @@ func TestGridEOSIntegration(t *testing.T) {
 			}
 			video, _ := filepath.Glob(filepath.Join(vdir, "stream_0_[0-9]*.m4s"))
 			audio, _ := filepath.Glob(filepath.Join(adir, "audio_0_[0-9]*.m4s"))
+			if !grid.Exact() {
+				// No frame count on the legacy clock: every declared segment exists,
+				// the last one included.
+				t.Logf("container %d ms: declared %d segments, video produced %d, audio %d", durationMs, declared, len(video), len(audio))
+				if len(video) != declared || len(audio) < declared {
+					t.Errorf("the plan declares %d segments, the video rung produced %d, the audio rendition %d", declared, len(video), len(audio))
+				}
+				return
+			}
 			frames := 0
 			for _, v := range video {
 				out, _ := exec.CommandContext(ctx, "sh", "-c", fmt.Sprintf("cat %s %s | ffprobe -v error -count_packets -show_entries stream=nb_read_packets -of csv=p=0 -", filepath.Join(vdir, "stream_0_init.mp4"), v)).Output()
