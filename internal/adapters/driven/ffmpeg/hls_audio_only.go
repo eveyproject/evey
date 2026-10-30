@@ -248,7 +248,9 @@ func (t *HLSTranscoder) StartAudioOnly(ctx context.Context, opts transcoding.Aud
 		// Audio seeks are trimmed to the sample by ffmpeg's accurate seek, so
 		// the grid start is the exact landing (no frame-landing probe here).
 		deltaUs := int64(math.Round(opts.StartSec * 1e6))
-		go runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaUs, "audio", opts.SourceTrackIdx, nil, "audio")
+		h.finished = finishAfterPump(h.done, func() {
+			runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaUs, "audio", opts.SourceTrackIdx, nil, "audio")
+		})
 	}
 	return h, nil
 }
@@ -267,6 +269,7 @@ type audioHandle struct {
 	cancel       context.CancelFunc
 	ready        chan struct{}
 	done         chan struct{}
+	finished     chan struct{} // nil without a rebase pump; see finishAfterPump
 	err          error
 	exitErr      error // raw ffmpeg exit error, for classification (guarded by mu)
 	stderr       *ringBuffer
@@ -364,7 +367,12 @@ func (h *audioHandle) Stop() error {
 	return nil
 }
 
-func (h *audioHandle) Done() <-chan struct{} { return h.done }
+func (h *audioHandle) Done() <-chan struct{} {
+	if h.finished != nil {
+		return h.finished
+	}
+	return h.done
+}
 
 // Err/setErr guard h.err with the handle mutex: the orchestrator's natural
 // exit bookkeeping calls Err() at any moment, concurrently with run()'s error

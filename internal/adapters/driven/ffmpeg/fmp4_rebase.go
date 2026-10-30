@@ -476,6 +476,27 @@ func waitProcExit(procExited <-chan struct{}) {
 // exists so a wedged process cannot leak the directory forever.
 const procExitGrace = 5 * time.Second
 
+// finishAfterPump runs a seeked session's rebase pump and returns the channel
+// its handle's Done() reports: closed once the process is over (done) AND the
+// pump has published what it left. Done() is what the orchestrators reap on;
+// fired with the process exit, it raced the pump's last sweep and the final
+// segment of a session run to the end of the file was answered 503 while it
+// was being published.
+func finishAfterPump(done <-chan struct{}, pump func()) chan struct{} {
+	pumped := make(chan struct{})
+	go func() {
+		defer close(pumped)
+		pump()
+	}()
+	finished := make(chan struct{})
+	go func() {
+		<-done
+		<-pumped
+		close(finished)
+	}()
+	return finished
+}
+
 func runRebasePump(done <-chan struct{}, stop <-chan struct{}, procExited <-chan struct{}, privDir, pubDir string, deltaUs int64, namePrefix string, variantIdx int, expectedStartMs func(int) (int64, bool), driftKind string) {
 	// ADR-0007: both call sites spawn this as a bare goroutine, and a parent
 	// recover never covers a child goroutine - a panic here (file I/O races,

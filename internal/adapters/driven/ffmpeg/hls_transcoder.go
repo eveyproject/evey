@@ -164,7 +164,9 @@ func startOne(ctx context.Context, opts transcoding.HLSProcessOpts, noMaster boo
 		// already has it; the probe behind it (transcode seeks only) reads a
 		// second of packet headers, next to nothing beside the encode it gates.
 		deltaUs := rebaseDeltaUs(ctx, opts.FilePath, opts.VideoDecision, opts.StartSec)
-		go runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaUs, "stream", opts.VariantIndex, opts.ExpectedSegmentStartMs, opts.TimelineDriftKind)
+		h.finished = finishAfterPump(h.done, func() {
+			runRebasePump(h.done, processCtx.Done(), h.procExited, opts.OutputDir, pubDir, deltaUs, "stream", opts.VariantIndex, opts.ExpectedSegmentStartMs, opts.TimelineDriftKind)
+		})
 	}
 	return h, nil
 }
