@@ -45,7 +45,10 @@ func (q *fakeSearchQueue) List(_ context.Context, _ int) ([]library.PendingSearc
 	}
 	return out, nil
 }
-func (q *fakeSearchQueue) Delete(_ context.Context, w library.PendingSearchWrite) error { delete(q.ops, w.MediaItemID); return nil }
+func (q *fakeSearchQueue) Delete(_ context.Context, w library.PendingSearchWrite) error {
+	delete(q.ops, w.MediaItemID)
+	return nil
+}
 
 func TestDrainSearchWriteQueue(t *testing.T) {
 	ctx := context.Background()
