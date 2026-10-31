@@ -484,8 +484,9 @@ func mediaFileExists(path string) bool {
 	if !ok {
 		call = &statCall{done: make(chan struct{})}
 		statInflight[path] = call
+		stat := statFile
 		go func() {
-			_, call.err = statFile(path)
+			_, call.err = stat(path)
 			statMu.Lock()
 			delete(statInflight, path)
 			statMu.Unlock()
