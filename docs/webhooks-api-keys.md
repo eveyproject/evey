@@ -31,14 +31,27 @@ form offers every event the server publishes; among them:
 A plugin that calls `EmitEvent` publishes `plugin.event.<type>`, which a
 webhook on **All events** receives too.
 
-**Delivery.** Each event is a JSON `POST`, with two headers:
+**Delivery.** Each event is a JSON `POST`, with these headers:
 
 - `X-Evey-Delivery`: an identifier that stays the same across the retries of
   one delivery, so your receiver can ignore a duplicate;
 - `X-Evey-Signature`: `sha256=` followed by the HMAC-SHA256 of the body,
   computed with the webhook's secret. Verify it with the same secret to know
   the request comes from your server. Without a secret, the signature proves
-  nothing.
+  nothing. It covers the body only, so it does not stop a captured request
+  from being sent again: prefer the two headers below;
+- `X-Evey-Timestamp`: the time of the attempt, in Unix seconds. Each retry
+  carries a fresh one;
+- `X-Evey-Signature-V2`: `sha256=` followed by the HMAC-SHA256, computed with
+  the webhook's secret, of the text `<timestamp>.<delivery id>.<body>` (the
+  value of `X-Evey-Timestamp`, a dot, the value of `X-Evey-Delivery`, a dot,
+  then the raw body).
+
+To verify a delivery, recompute the V2 signature from the raw body and compare
+it in constant time, then refuse the request when the timestamp is more than
+5 minutes away from your clock (in either direction). For a receiver that
+also remembers the delivery ids it has seen for that window, a captured
+request cannot be replayed.
 
 Each attempt waits up to 30 seconds for an answer. A delivery that fails is
 retried after 1, 5 and 30 seconds. Every attempt is recorded; the history is

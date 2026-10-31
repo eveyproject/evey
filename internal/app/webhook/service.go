@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/shared"
@@ -31,6 +32,11 @@ const (
 const (
 	signatureHeader = "X-Evey-Signature"
 	deliveryHeader  = "X-Evey-Delivery"
+	// timestampHeader and signatureV2Header carry the replay-protected proof:
+	// the v2 HMAC covers "<timestamp>.<delivery id>.<body>". The legacy
+	// signature stays body-only so existing receivers keep verifying.
+	timestampHeader   = "X-Evey-Timestamp"
+	signatureV2Header = "X-Evey-Signature-V2"
 )
 
 var defaultRetryDelays = []time.Duration{1 * time.Second, 5 * time.Second, 30 * time.Second}
@@ -196,10 +202,10 @@ func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, deliv
 	// Configured headers go first and never under the signature or delivery
 	// names, in any case: the sender canonicalises keys in map order, so a
 	// "x-evey-signature" entry would otherwise replace the HMAC at random.
-	headers := make(map[string]string, len(cfg.Headers)+2)
+	headers := make(map[string]string, len(cfg.Headers)+4)
 	for k, v := range cfg.Headers {
 		switch http.CanonicalHeaderKey(k) {
-		case signatureHeader, deliveryHeader:
+		case signatureHeader, deliveryHeader, timestampHeader, signatureV2Header:
 			continue
 		}
 		headers[k] = v
@@ -215,6 +221,11 @@ func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, deliv
 				return ctx.Err().Error(), statusCode
 			}
 		}
+
+		// Stamped per attempt: a retry after the longest delay must still be fresh.
+		ts := strconv.FormatInt(time.Now().Unix(), 10)
+		headers[timestampHeader] = ts
+		headers[signatureV2Header] = signV2(cfg.Secret, ts, deliveryID, body)
 
 		attemptCtx, cancel := context.WithTimeout(ctx, attemptTimeout)
 		sc, err := s.sender.Send(attemptCtx, cfg.URL, headers, body)
@@ -238,6 +249,13 @@ func (s *Service) attemptDeliver(ctx context.Context, cfg *webhook.Config, deliv
 
 func sign(secret string, body []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	return fmt.Sprintf("sha256=%x", mac.Sum(nil))
+}
+
+func signV2(secret, timestamp, deliveryID string, body []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(timestamp + "." + deliveryID + "."))
 	mac.Write(body)
 	return fmt.Sprintf("sha256=%x", mac.Sum(nil))
 }
