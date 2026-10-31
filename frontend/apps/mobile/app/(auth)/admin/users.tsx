@@ -54,7 +54,7 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
   const [mode, setMode] = useState<"all" | "selected">("all");
   const [saving, setSaving] = useState(false);
 
-  const { data, isLoading } = useQuery<LibraryAccessData>({
+  const { data, isLoading, isError, refetch } = useQuery<LibraryAccessData>({
     queryKey: ["/api/v1/admin/users", user.id, "library-access"],
     queryFn: () => eveyFetch<LibraryAccessData>({ url: `/api/v1/admin/users/${user.id}/library-access`, method: "GET" }),
     enabled: visible,
@@ -98,6 +98,9 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
   }, [mode, selected, user.id, onClose, t]);
 
   const libraries = data?.libraries ?? [];
+  // Mode starts at "all" before anything is known; saving then would send a
+  // DELETE and lift the restriction, so Save waits for a successful load.
+  const loaded = !isLoading && !isError && !!data;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -111,6 +114,12 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
         <Text style={{ color: theme.colors.text, fontSize: 18, fontWeight: "700", marginBottom: 8 }}>
           {t("admin.users.libraryAccessTitle", { name: user.username })}
         </Text>
+        {isLoading ? (
+          <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 24 }} />
+        ) : !loaded ? (
+          <LoadFailed inline onRetry={() => void refetch()} />
+        ) : (
+          <>
         <Text style={{ color: theme.colors.textMuted, fontSize: 13, marginBottom: 12 }}>
           {showNoLibrary
             ? t("admin.users.noLibrariesDesc")
@@ -134,9 +143,7 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
             </Pressable>
           ))}
         </View>
-        {isLoading ? (
-          <ActivityIndicator color={theme.colors.accent} style={{ paddingVertical: 24 }} />
-        ) : mode === "all" ? null : (
+        {mode === "all" ? null : (
           <ScrollView style={{ maxHeight: 300 }}>
             {libraries.map((lib) => (
               <Pressable
@@ -158,10 +165,12 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
             ))}
           </ScrollView>
         )}
-        {(mode === "all" || showNoLibrary) && !isLoading && (
+        {(mode === "all" || showNoLibrary) && (
           <View style={{ backgroundColor: theme.colors.accent + "22", borderRadius: theme.radii.md, paddingHorizontal: 10, paddingVertical: 4, alignSelf: "flex-start", marginBottom: 8 }}>
             <Text style={{ color: theme.colors.accent, fontSize: 12, fontWeight: "600" }}>{t(showNoLibrary ? "admin.users.noLibraries" : "admin.users.unrestricted")}</Text>
           </View>
+        )}
+          </>
         )}
         <View style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
           <Pressable
@@ -175,8 +184,8 @@ function LibraryAccessModal({ user, visible, onClose, theme }: { user: V1User; v
           </Pressable>
           <Pressable
             onPress={handleSave}
-            disabled={saving}
-            style={[styles.createBtn, { flex: 1, backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: saving ? 0.5 : 1 }]}
+            disabled={saving || !loaded}
+            style={[styles.createBtn, { flex: 1, backgroundColor: theme.colors.accent, borderRadius: theme.radii.md, opacity: saving || !loaded ? 0.5 : 1 }]}
             accessible={true}
             accessibilityLabel={t("common.save")}
             accessibilityRole="button"

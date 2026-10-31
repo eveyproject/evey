@@ -36,7 +36,7 @@ export function LibraryAccessModal({
   const [mode, setMode] = useState<AccessMode>("all");
   const [saving, setSaving] = useState(false);
 
-  const { data, isLoading } = useLibraryAccessServiceGetUserLibraryAccess(user.id ?? "", {
+  const { data, isLoading, isError, refetch } = useLibraryAccessServiceGetUserLibraryAccess(user.id ?? "", {
     query: { enabled: open && !!user.id },
   });
 
@@ -95,6 +95,18 @@ export function LibraryAccessModal({
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Spinner size="md" />
+        </div>
+      ) : isError || !data ? (
+        <div className="flex flex-col gap-4">
+          <p role="alert" className="text-sm text-[var(--color-danger)]">
+            {t("common.loadError")}
+          </p>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={() => void refetch()}>{t("common.retry")}</Button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-4">
