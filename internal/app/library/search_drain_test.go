@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
 	libfakes "github.com/eveyproject/evey/internal/domain/library/fakes"
@@ -44,7 +45,7 @@ func (q *fakeSearchQueue) List(_ context.Context, _ int) ([]library.PendingSearc
 	}
 	return out, nil
 }
-func (q *fakeSearchQueue) Delete(_ context.Context, id string) error { delete(q.ops, id); return nil }
+func (q *fakeSearchQueue) Delete(_ context.Context, w library.PendingSearchWrite) error { delete(q.ops, w.MediaItemID); return nil }
 
 func TestDrainSearchWriteQueue(t *testing.T) {
 	ctx := context.Background()
@@ -179,4 +180,59 @@ func (f *staticCastReader) CastNamesByMediaItems(_ context.Context, ids []string
 		}
 	}
 	return out, nil
+}
+
+// versionedQueue mimics the real outbox: each Enqueue bumps the row version and
+// Delete only removes the row the drain listed.
+type versionedQueue struct {
+	op  map[string]string
+	ver map[string]int
+}
+
+func (q *versionedQueue) Enqueue(_ context.Context, id, op string) error {
+	q.op[id] = op
+	q.ver[id]++
+	return nil
+}
+
+func (q *versionedQueue) List(context.Context, int) ([]library.PendingSearchWrite, error) {
+	var out []library.PendingSearchWrite
+	for id, op := range q.op {
+		out = append(out, library.PendingSearchWrite{MediaItemID: id, Op: op, EnqueuedAt: time.Unix(int64(q.ver[id]), 0)})
+	}
+	return out, nil
+}
+
+func (q *versionedQueue) Delete(_ context.Context, w library.PendingSearchWrite) error {
+	if q.op[w.MediaItemID] == w.Op && int64(q.ver[w.MediaItemID]) <= w.EnqueuedAt.Unix() {
+		delete(q.op, w.MediaItemID)
+	}
+	return nil
+}
+
+// reenqueueingIndex enqueues the item again while the drain is indexing it.
+type reenqueueingIndex struct {
+	*libfakes.FakeSearchIndex
+	q *versionedQueue
+}
+
+func (r *reenqueueingIndex) IndexMediaItemsBatch(ctx context.Context, items []*library.MediaItem) error {
+	_ = r.q.Enqueue(ctx, "m1", library.SearchOpUpsert)
+	return r.FakeSearchIndex.IndexMediaItemsBatch(ctx, items)
+}
+
+func TestDrainSearchWriteQueue_ReEnqueuedDuringDrainStaysQueued(t *testing.T) {
+	ctx := context.Background()
+	q := &versionedQueue{op: map[string]string{}, ver: map[string]int{}}
+	_ = q.Enqueue(ctx, "m1", library.SearchOpUpsert)
+	items := libfakes.NewFakeMediaItemQueryRepo()
+	items.Add(&library.MediaItem{ID: "m1", Title: "Some Movie"})
+	search := &reenqueueingIndex{FakeSearchIndex: libfakes.NewFakeSearchIndex(), q: q}
+
+	if _, err := DrainSearchWriteQueue(ctx, q, items, search, nil, nil); err != nil {
+		t.Fatalf("drain: %v", err)
+	}
+	if _, ok := q.op["m1"]; !ok {
+		t.Fatal("a write re-enqueued during the drain was acknowledged without being replayed")
+	}
 }

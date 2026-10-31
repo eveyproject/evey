@@ -20,7 +20,7 @@ const maxSearchWriteAttempts = 5
 // searchWriteFailureRecorder is the outbox side of a refused document: it
 // counts the attempt and dead-letters the row past maxAttempts.
 type searchWriteFailureRecorder interface {
-	RecordFailure(ctx context.Context, mediaItemID string, maxAttempts int) (deadLettered bool, err error)
+	RecordFailure(ctx context.Context, w library.PendingSearchWrite, maxAttempts int) (deadLettered bool, err error)
 }
 
 // DrainSearchWriteQueue replays the durable outbox: writes the search engine
@@ -110,7 +110,7 @@ func DrainSearchWriteQueue(
 				return drained, ctx.Err()
 			}
 			if refused[p.MediaItemID] {
-				dead, rerr := recorder.RecordFailure(ctx, p.MediaItemID, maxSearchWriteAttempts)
+				dead, rerr := recorder.RecordFailure(ctx, p, maxSearchWriteAttempts)
 				if rerr != nil {
 					return drained, fmt.Errorf("drain: record refused %s: %w", p.MediaItemID, rerr)
 				}
@@ -136,7 +136,7 @@ func DrainSearchWriteQueue(
 				// next tick (returning the error surfaces it, unlike a swallowed write).
 				return drained, fmt.Errorf("drain: replay %s %s: %w", p.Op, p.MediaItemID, opErr)
 			}
-			if err := queue.Delete(ctx, p.MediaItemID); err != nil {
+			if err := queue.Delete(ctx, p); err != nil {
 				return drained, fmt.Errorf("drain: delete drained %s: %w", p.MediaItemID, err)
 			}
 			drained++
