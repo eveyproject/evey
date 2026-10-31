@@ -171,7 +171,9 @@ func (fw *FSWatcher) watchRecursiveCtx(ctx context.Context, root string) error {
 	})
 	if err != nil {
 		for _, p := range added {
-			_ = fw.watcher.Remove(p)
+			if rmErr := fw.watcher.Remove(p); rmErr != nil {
+				slog.Debug("watchRecursive: drop watch of a failed root", slog.String("path", p), slog.Any("err", rmErr))
+			}
 		}
 	}
 	return err

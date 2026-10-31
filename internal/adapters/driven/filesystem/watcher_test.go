@@ -154,7 +154,7 @@ func TestFSWatcher_QueueOverflowIsReportedAsOverflow(t *testing.T) {
 	var o interface{ Overflow() bool }
 	require.ErrorAs(t, err, &o)
 	assert.True(t, o.Overflow())
-	assert.ErrorIs(t, err, fsnotify.ErrEventOverflow)
+	require.ErrorIs(t, err, fsnotify.ErrEventOverflow)
 
 	plain := wrapWatchError(errors.New("boom"))
 	assert.False(t, errors.As(plain, &o) && o.Overflow())

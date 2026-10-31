@@ -16,7 +16,7 @@ import (
 func seedUnder(t *testing.T, items *libfakes.FakeMediaItemCommandRepo, root string, n int) []string {
 	t.Helper()
 	paths := make([]string, 0, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		p := fmt.Sprintf("%s/f%d.mkv", root, i)
 		if err := items.Create(context.Background(), &library.MediaItem{
 			ID: shared.MediaItemID(fmt.Sprintf("%s-%d", root, i)), LibraryID: "lib-1",
