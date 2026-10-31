@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/backup"
+	"github.com/eveyproject/evey/internal/domain/library"
 	"github.com/eveyproject/evey/internal/domain/mediarequest"
 	"github.com/eveyproject/evey/internal/domain/notification"
 	"github.com/eveyproject/evey/internal/domain/plugin"
@@ -283,4 +284,50 @@ func (s *CommandService) handleDerivedCacheFull(parentCtx context.Context, ev sh
 		s.persistAndDispatch(ctx, n, push, p.Locale, fanoutID)
 	}
 	slog.InfoContext(ctx, "derived cache full notified", slog.String("store", e.Store), slog.Int("admins", len(profiles)))
+}
+
+// handlePruneSuspended pages the admins that a library root lost so many files
+// at once that its deletions are held (typically a pool missing a disk).
+// Nothing is deleted until an admin confirms from the library page. The
+// publisher announces once per suspension.
+func (s *CommandService) handlePruneSuspended(parentCtx context.Context, ev shared.Event) {
+	defer func() {
+		if rv := recover(); rv != nil {
+			slog.ErrorContext(parentCtx, "handlePruneSuspended panic recovered", slog.Any("panic", rv))
+		}
+	}()
+	ctx, cancel := context.WithTimeout(parentCtx, 30*time.Second)
+	defer cancel()
+	e, ok := ev.(library.PruneSuspended)
+	if !ok {
+		return
+	}
+	profiles, err := s.listAdminTargetProfiles(ctx)
+	if err != nil {
+		slog.WarnContext(ctx, "notification: list admin profiles for library.prune.suspended", slog.Any("err", err))
+		return
+	}
+	title := "Library deletion suspended"
+	msg := fmt.Sprintf("%d files missing under %s, deletion suspended", e.Missing, e.Root)
+	push := pushSpec{
+		key:        "notifications.push.prune_suspended.title",
+		fallback:   title,
+		bodyKey:    "notifications.push.prune_suspended.body",
+		bodyParams: map[string]string{"count": fmt.Sprint(e.Missing), "root": e.Root},
+	}
+	expires := time.Now().AddDate(0, 0, defaultRetentionDays)
+	fanoutID := uuid.New().String()
+	for _, p := range profiles {
+		n, err := notification.NewNotification(uuid.New().String(), p.ID, notification.TypePruneSuspended, title,
+			notification.WithNotificationMessage(msg),
+			notification.WithNotificationLevel(notification.LevelAll),
+			notification.WithNotificationExpiresAt(&expires),
+		)
+		if err != nil {
+			slog.WarnContext(ctx, "notification build failed", slog.String("profileID", string(p.ID)), slog.Any("err", err))
+			continue
+		}
+		s.persistAndDispatch(ctx, n, push, p.Locale, fanoutID)
+	}
+	slog.InfoContext(ctx, "prune suspended notified", slog.String("library_id", string(e.LibraryID)), slog.Int("admins", len(profiles)))
 }

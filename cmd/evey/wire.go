@@ -66,6 +66,7 @@ import (
 //                           → trickplay worker (auto-generate on new media)
 //                           → metadata enricher (auto-enrich on new media)
 //   "backup.failed"         → notification (handleBackupFailed)
+//   "library.prune.suspended" → notification (handlePruneSuspended)
 //   "library.scan.completed" → keyframe backfill worker (nudge after 10-min settle)
 //   "library.created"       → filesystem watcher (watch new library paths)
 //   "library.deleted"       → filesystem watcher (stop watching deleted library)
@@ -158,6 +159,10 @@ func buildAppServices(ctx context.Context, cfg *config.Config, db *sql.DB, infra
 		applibrary.WithFileSettle(applibrary.DefaultFileSettle),
 	)
 	libCmdSvc.WithSubtitleScanner(infra.subScanner)
+	libCmdSvc.WithPruneGuard(applibrary.PruneGuard{
+		MaxMissingRatio: cfg.Library.PruneMaxMissingPercent / 100,
+		MinMissing:      cfg.Library.PruneMinMissing,
+	})
 	// Classification rows computed under other rating tables are hidden from
 	// kids profiles until rewritten (migration 000179). A few thousand rows,
 	// seconds at most, so it runs at every start, bench instance included.

@@ -39,6 +39,12 @@ var networkFSTypes = map[string]bool{
 	"fuse.rclone": true,
 	"glusterfs":   true,
 	"ceph":        true,
+	// Union and shared-folder filesystems fed by another host or the VM host:
+	// writes made outside the guest raise no local event.
+	"fuse.mergerfs": true,
+	"fuse.shfs":     true,
+	"virtiofs":      true,
+	"fuse.grpcfuse": true, // Docker Desktop's share
 }
 
 // mountEntry is one line of /proc/mounts, reduced to what we need.

@@ -166,6 +166,22 @@ func (s *CommandService) WithIngestActivePlayback(count func() int) {
 	s.scan.WithIngestActivePlayback(count)
 }
 
+// WithPruneGuard sets the thresholds past which a root's deletions are held.
+func (s *CommandService) WithPruneGuard(g PruneGuard) {
+	s.scan.WithPruneGuard(g)
+}
+
+// PruneSuspensions lists the library roots whose deletions are held back.
+func (s *CommandService) PruneSuspensions() []PruneSuspension {
+	return s.scan.pruner.AllSuspensions()
+}
+
+// ConfirmPrune lets the next scan of the library delete under its suspended
+// roots; false when none is suspended.
+func (s *CommandService) ConfirmPrune(libraryID string) bool {
+	return s.scan.pruner.ConfirmPrune(libraryID)
+}
+
 // WithPlayingMedia lets a version re-probe skip the files being watched.
 func (s *CommandService) WithPlayingMedia(list func(ctx context.Context) (map[shared.MediaItemID]bool, error)) {
 	s.scan.WithPlayingMedia(list)

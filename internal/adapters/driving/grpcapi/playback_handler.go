@@ -401,6 +401,11 @@ func (h *playbackHandler) GetStreamInfo(ctx context.Context, req *eveyv1.GetStre
 	return resp, nil
 }
 
+// rescanCooldown is how long a library is left alone after a rescan finished.
+// Without it every request for a deleted title started a full scan - endlessly
+// when the whole root is down, since the pruner keeps items it cannot verify.
+const rescanCooldown = 5 * time.Minute
+
 // backgroundLibraryRescan runs one library scan at a time per library, off the
 // request: the caller's answer never waits on a walk of the library, and a
 // viewer retrying a deleted title does not pile scans up.
@@ -408,11 +413,23 @@ func backgroundLibraryRescan(cmd *applibrary.CommandService) func(ctx context.Co
 	if cmd == nil {
 		return nil
 	}
+	return newLibraryRescanner(func(ctx context.Context, libraryID string) error {
+		_, _, err := cmd.ScanLibrary(ctx, libraryID)
+		return err
+	}, rescanCooldown, time.Now)
+}
+
+func newLibraryRescanner(scan func(ctx context.Context, libraryID string) error, cooldown time.Duration, now func() time.Time) func(ctx context.Context, libraryID string) {
 	var mu sync.Mutex
 	running := map[string]bool{}
+	finished := map[string]time.Time{}
 	return func(ctx context.Context, libraryID string) {
 		mu.Lock()
 		if running[libraryID] {
+			mu.Unlock()
+			return
+		}
+		if at, ok := finished[libraryID]; ok && now().Sub(at) < cooldown {
 			mu.Unlock()
 			return
 		}
@@ -425,9 +442,10 @@ func backgroundLibraryRescan(cmd *applibrary.CommandService) func(ctx context.Co
 				}
 				mu.Lock()
 				delete(running, libraryID)
+				finished[libraryID] = now()
 				mu.Unlock()
 			}()
-			if _, _, err := cmd.ScanLibrary(context.WithoutCancel(ctx), libraryID); err != nil && !errors.Is(err, applibrary.ErrScanInProgress) {
+			if err := scan(context.WithoutCancel(ctx), libraryID); err != nil && !errors.Is(err, applibrary.ErrScanInProgress) {
 				slog.WarnContext(ctx, "library rescan after a missing file failed", slog.String("library_id", libraryID), slog.Any("err", err))
 			}
 		}()
@@ -438,12 +456,53 @@ func backgroundLibraryRescan(cmd *applibrary.CommandService) func(ctx context.Co
 // from disk: the apps show "this file was deleted" instead of a failure.
 const MediaFileMissingReason = "MEDIA_FILE_MISSING"
 
+// statTimeout bounds the existence check: a stat on a hung network mount can
+// block for minutes, and it runs on the stream-info request.
+var statTimeout = 3 * time.Second
+
+// statFile is os.Stat, replaceable by tests.
+var statFile = os.Stat
+
+type statCall struct {
+	done chan struct{}
+	err  error
+}
+
+var (
+	statMu       sync.Mutex
+	statInflight = map[string]*statCall{}
+)
+
 // mediaFileExists reports whether path is on disk. An error other than "does
-// not exist" (permissions, an I/O hiccup) counts as present: only a proven
-// absence turns into a refusal.
+// not exist" (permissions, an I/O hiccup) counts as present, and so does a stat
+// that does not answer in time: only a proven absence turns into a refusal.
+// At most one stat per path is pending, so a dead mount costs one stuck
+// goroutine per path rather than one per request.
 func mediaFileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil || !errors.Is(err, fs.ErrNotExist)
+	statMu.Lock()
+	call, ok := statInflight[path]
+	if !ok {
+		call = &statCall{done: make(chan struct{})}
+		statInflight[path] = call
+		stat := statFile
+		go func() {
+			_, call.err = stat(path)
+			statMu.Lock()
+			delete(statInflight, path)
+			statMu.Unlock()
+			close(call.done)
+		}()
+	}
+	statMu.Unlock()
+
+	timer := time.NewTimer(statTimeout)
+	defer timer.Stop()
+	select {
+	case <-call.done:
+		return call.err == nil || !errors.Is(call.err, fs.ErrNotExist)
+	case <-timer.C:
+		return true
+	}
 }
 
 // mediaFileMissingError is NotFound with a translated message and the

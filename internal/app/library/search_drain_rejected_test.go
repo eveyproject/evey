@@ -56,7 +56,8 @@ func (q *attemptsQueue) List(ctx context.Context, limit int) ([]library.PendingS
 	return out, nil
 }
 
-func (q *attemptsQueue) RecordFailure(_ context.Context, id string, maxAttempts int) (bool, error) {
+func (q *attemptsQueue) RecordFailure(_ context.Context, w library.PendingSearchWrite, maxAttempts int) (bool, error) {
+	id := w.MediaItemID
 	q.attempts[id]++
 	if q.attempts[id] >= maxAttempts {
 		q.dead[id] = true

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/eveyproject/evey/internal/domain/library"
@@ -39,6 +41,37 @@ type OrphanPruner struct {
 	search     library.SearchIndex
 	events     shared.EventBus
 	files      fileChecker
+
+	guard PruneGuard
+	// mu guards the in-memory suspension state. A restart forgets it: the next
+	// pass re-suspends and re-announces once, which is safe.
+	mu        sync.Mutex
+	suspended map[string]map[string]PruneSuspension // library -> root -> state
+	confirmed map[string]bool                       // library -> admin override armed
+}
+
+// PruneGuard bounds how much of a root may vanish in one pass before the
+// prune stops deleting under it. A mount that is healthy but lost a branch
+// (a union pool missing one disk) makes files disappear for real from the
+// root's view, which the empty-root checks cannot tell from a deletion.
+type PruneGuard struct {
+	// MaxMissingRatio is the share of a root's items (0.05 = 5 %) that may be
+	// absent in one pass; above it, and past MinMissing, the root is held.
+	MaxMissingRatio float64
+	// MinMissing is the absolute floor: fewer missing files never suspend,
+	// so a small library can still lose a few titles.
+	MinMissing int
+}
+
+// DefaultPruneGuard is 5 % and 20 files.
+var DefaultPruneGuard = PruneGuard{MaxMissingRatio: 0.05, MinMissing: 20}
+
+// PruneSuspension is a root whose deletions are held back.
+type PruneSuspension struct {
+	LibraryID string
+	Root      string
+	Missing   int
+	Total     int
 }
 
 // fileChecker re-checks a prune candidate on disk before its row goes.
@@ -57,14 +90,146 @@ func NewOrphanPruner(
 		search:     search,
 		events:     events,
 		files:      files,
+		guard:      DefaultPruneGuard,
+		suspended:  make(map[string]map[string]PruneSuspension),
+		confirmed:  make(map[string]bool),
 	}
 }
 
+// WithGuard overrides the mass-disappearance thresholds.
+func (p *OrphanPruner) WithGuard(g PruneGuard) *OrphanPruner {
+	p.guard = g
+	return p
+}
+
+// Suspensions lists the roots of a library whose deletions are held, by root.
+func (p *OrphanPruner) Suspensions(libraryID string) []PruneSuspension {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := make([]PruneSuspension, 0, len(p.suspended[libraryID]))
+	for _, s := range p.suspended[libraryID] {
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Root < out[j].Root })
+	return out
+}
+
+// AllSuspensions lists the held roots of every library.
+func (p *OrphanPruner) AllSuspensions() []PruneSuspension {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var out []PruneSuspension
+	for _, roots := range p.suspended {
+		for _, s := range roots {
+			out = append(out, s)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].LibraryID != out[j].LibraryID {
+			return out[i].LibraryID < out[j].LibraryID
+		}
+		return out[i].Root < out[j].Root
+	})
+	return out
+}
+
+// ConfirmPrune arms a one-shot override: the next pass of the library deletes
+// under the suspended roots whatever the ratio. It reports false, arming
+// nothing, when no root of the library is suspended.
+func (p *OrphanPruner) ConfirmPrune(libraryID string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.suspended[libraryID]) == 0 {
+		return false
+	}
+	p.confirmed[libraryID] = true
+	return true
+}
+
+// rootOf returns the most specific of roots containing path, "" when none.
+func rootOf(path string, roots []string) string {
+	best := ""
+	for _, root := range roots {
+		if pathUnderAnyRoot(path, []string{root}) && len(filepath.Clean(root)) > len(best) {
+			best = filepath.Clean(root)
+		}
+	}
+	return best
+}
+
+// holdSuspendedRoots drops from orphanIDs every candidate under a root where
+// the missing share is past the guard, unless an admin confirmed; it returns
+// the kept candidates and publishes the event of each newly suspended root.
+func (p *OrphanPruner) holdSuspendedRoots(ctx context.Context, libraryID string, roots []string, dbPaths map[string]string, orphanIDs []string) []string {
+	if len(roots) == 0 {
+		return orphanIDs
+	}
+	total := map[string]int{}
+	for _, path := range dbPaths {
+		if r := rootOf(path, roots); r != "" {
+			total[r]++
+		}
+	}
+	missing := map[string]int{}
+	for _, id := range orphanIDs {
+		if r := rootOf(dbPaths[id], roots); r != "" {
+			missing[r]++
+		}
+	}
+
+	p.mu.Lock()
+	override := p.confirmed[libraryID]
+	delete(p.confirmed, libraryID)
+	previous := p.suspended[libraryID]
+	next := make(map[string]PruneSuspension)
+	var announce []PruneSuspension
+	for root, m := range missing {
+		t := total[root]
+		if override || m < p.guard.MinMissing || float64(m) <= p.guard.MaxMissingRatio*float64(t) {
+			continue
+		}
+		s := PruneSuspension{LibraryID: libraryID, Root: root, Missing: m, Total: t}
+		next[root] = s
+		if _, already := previous[root]; !already {
+			announce = append(announce, s)
+		}
+	}
+	if len(next) == 0 {
+		delete(p.suspended, libraryID)
+	} else {
+		p.suspended[libraryID] = next
+	}
+	p.mu.Unlock()
+
+	sort.Slice(announce, func(i, j int) bool { return announce[i].Root < announce[j].Root })
+	for _, s := range announce {
+		slog.WarnContext(ctx, "orphan prune suspended: too many files missing under a root (a mount missing a branch?); admin confirmation needed to delete",
+			slog.String("library_id", libraryID), slog.String("root", s.Root),
+			slog.Int("missing", s.Missing), slog.Int("total", s.Total))
+		evt := library.PruneSuspended{LibraryID: shared.LibraryID(libraryID), Root: s.Root, Missing: s.Missing, Total: s.Total, OccurredAt: time.Now()}
+		if pubErr := p.events.Publish(ctx, evt); pubErr != nil {
+			slog.WarnContext(ctx, "publish event", slog.String("event", evt.EventName()), slog.Any("err", pubErr))
+		}
+	}
+	if len(next) == 0 {
+		return orphanIDs
+	}
+	kept := orphanIDs[:0:0]
+	for _, id := range orphanIDs {
+		if _, held := next[rootOf(dbPaths[id], roots)]; !held {
+			kept = append(kept, id)
+		}
+	}
+	return kept
+}
+
 // Prune deletes media items whose paths are not in seenPaths and
-// removes empty seasons/series left behind. Returns total count of
+// removes empty seasons/series left behind. roots are the library's
+// configured paths: under a root where a large share of the items is absent
+// at once, nothing is deleted until an admin confirms (see PruneGuard). Returns total count of
 // deleted rows (orphans + pruned containers). Errors are logged, not
 // returned, except a fatal failure to list DB paths up-front.
-func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths map[string]struct{}, emptyRoots []string) (int, error) {
+func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, roots []string, seenPaths map[string]struct{}, emptyRoots []string) (int, error) {
 	ctx, span := tracing.StartSpan(ctx, "app.library.OrphanPruner.Prune")
 	defer span.End()
 
@@ -112,6 +277,7 @@ func (p *OrphanPruner) Prune(ctx context.Context, libraryID string, seenPaths ma
 		}
 		orphanIDs = append(orphanIDs, id)
 	}
+	orphanIDs = p.holdSuspendedRoots(ctx, libraryID, roots, dbPaths, orphanIDs)
 	if skippedDegraded > 0 {
 		slog.WarnContext(ctx, "orphan prune skipped items the scan did not see but that are not gone from disk (degraded mount or unreadable folder)",
 			slog.String("library_id", libraryID), slog.Int("skipped", skippedDegraded))

@@ -179,6 +179,9 @@ export function useDeviceRegistrationCore(options: DeviceRegistrationOptions) {
             if (backgrounded) {
               backgrounded = false;
               attempt = 0;
+              // A new foreground session starts fresh: the unreachable
+              // verdict came from the network the app was last on.
+              unopenedRef.current = 0;
               start();
             }
           } else if (!backgrounded) {

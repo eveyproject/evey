@@ -1,5 +1,5 @@
 ---
-source_sha: e3b24610d4942cf71d19babf82add41a0f2e47fd513b1cc840fba554421a75e9
+source_sha: bdf162710976e7ec41dc85bef68bc304a658396c9adac30a3d36e1b6074f4ecb
 reviewed: true
 ---
 # Bibliotecas y metadatos { #libraries-and-metadata }
@@ -15,6 +15,8 @@ que tiene prioridad en cuanto se guarda un valor ahí; la parte del panel se des
 | --- | --- | --- | --- |
 | `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | Vigilancia de los archivos en tiempo real. | Configuración del servidor → Bibliotecas → **Monitor de archivos de biblioteca**, al reiniciar |
 | `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | Cada cuánto se revisan las carpetas en busca de lo que la vigilancia no detectó (carpetas compartidas por red). | Configuración del servidor → Bibliotecas → **Intervalo de escaneo periódico**, al reiniciar |
+| `EVEY_LIBRARY_PRUNE_MAX_MISSING_PERCENT` | `5` | Parte de los elementos de una carpeta que pueden haber desaparecido en un escaneo. Por encima (y pasado el mínimo de abajo), no se borra nada de esa carpeta hasta que un administrador confirme, lo que protege frente a un pool que perdió un disco. | ninguno |
+| `EVEY_LIBRARY_PRUNE_MIN_MISSING` | `20` | Menor número de archivos ausentes que puede retener los borrados de una carpeta, para que una biblioteca pequeña aún pueda perder algunos títulos. | ninguno |
 | `EVEY_LIBRARY_SCAN_WORKERS` | según la parte de CPU | Archivos analizados en paralelo durante un escaneo. Si la defines a mano, no se aplica la parte de **Potencia asignada** para los escaneos. | ninguno |
 | `EVEY_SEEKINDEX_STATE_DIR` | `/data/seek-index` | Dónde guarda el escaneo de Salud de medios sus resultados y su tarea en curso entre reinicios. Vacía: no se guardan. | ninguno |
 

@@ -355,6 +355,21 @@ type parentalHandler struct {
 	pinRL       *ratelimit.Limiter
 	// pinAttempts is the wrong-PIN lockout shared with the gRPC profile RPCs.
 	pinAttempts *appuser.PINAttempts
+	// reauth proves the account password with the login lockout, trimming and
+	// SSO-only handling; nil only where the composition root has not wired it.
+	reauth passwordReauthenticator
+}
+
+// passwordReauthenticator is the user service's re-authentication check.
+type passwordReauthenticator interface {
+	VerifyCurrentPassword(ctx context.Context, userID, password string) error
+}
+
+type parentalOption func(*parentalHandler)
+
+// withPasswordReauth routes the account-password proofs through svc.
+func withPasswordReauth(svc passwordReauthenticator) parentalOption {
+	return func(h *parentalHandler) { h.reauth = svc }
 }
 
 // pinProofTTL is how long a verified-PIN proof stays usable for a profile
@@ -681,6 +696,9 @@ func (h *parentalHandler) requireAccountPassword(w http.ResponseWriter, r *http.
 		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
 		return false
 	}
+	if h.reauth != nil {
+		return h.reauthenticate(w, r, span, profile.UserID, body.CurrentPassword)
+	}
 	u, uerr := h.userRepo.GetByID(r.Context(), profile.UserID)
 	if uerr != nil || u == nil {
 		if uerr != nil {
@@ -700,6 +718,29 @@ func (h *parentalHandler) requireAccountPassword(w http.ResponseWriter, r *http.
 		return false
 	}
 	return true
+}
+
+// reauthenticate checks the account password through the user service, so a
+// stolen token cannot grind it past the login lockout. The status mapping
+// mirrors the gRPC reauthentication: 409 for an SSO-only account, 429 when locked.
+func (h *parentalHandler) reauthenticate(w http.ResponseWriter, r *http.Request, span trace.Span, userID shared.UserID, password string) bool {
+	err := h.reauth.VerifyCurrentPassword(r.Context(), string(userID), password)
+	if err == nil {
+		return true
+	}
+	span.SetStatus(codes.Error, err.Error())
+	switch {
+	case errors.Is(err, appuser.ErrNoLocalPassword):
+		http.Error(w, `{"message":"errors.user.no_local_password"}`, http.StatusConflict)
+	case errors.Is(err, appuser.ErrAccountLocked):
+		http.Error(w, `{"message":"errors.auth.too_many_attempts"}`, http.StatusTooManyRequests)
+	case errors.Is(err, appuser.ErrInvalidCredentials):
+		http.Error(w, `{"message":"errors.auth.invalid_password"}`, http.StatusForbidden)
+	default:
+		span.RecordError(err)
+		http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+	}
+	return false
 }
 
 // applyPINChange handles the PIN mutation itself: clearing an existing PIN or
@@ -918,6 +959,7 @@ func registerParentalRoutes(
 	userRepo domainuser.UserRepository,
 	hasher domainuser.PasswordHasher,
 	tokenGen domainuser.TokenGenerator,
+	opts ...parentalOption,
 ) *parentalHandler {
 	authMw := httpAuthMiddleware(tokenGen)
 	h := &parentalHandler{
@@ -930,6 +972,9 @@ func registerParentalRoutes(
 		// burnout still caps a brute-force attacker to ~180 tries/hour.
 		pinRL:       ratelimit.NewWithBurst(15, 3.0),
 		pinAttempts: appuser.SharedPINAttempts(),
+	}
+	for _, opt := range opts {
+		opt(h)
 	}
 	mux.HandleFunc("GET /api/v1/profiles/{id}/parental", authMw(h.getSettings))
 	mux.HandleFunc("PUT /api/v1/profiles/{id}/parental", authMw(h.updateSettings))

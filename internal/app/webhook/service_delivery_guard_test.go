@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -90,5 +91,48 @@ func TestHandleAny_DroppedDeliveryIsRecorded(t *testing.T) {
 	}
 	if dropped != 1 {
 		t.Fatalf("dropped records = %d, want 1", dropped)
+	}
+}
+
+// A captured delivery must not replay forever: the second signature covers the
+// timestamp and the delivery id along with the body, and the original header is
+// left as receivers already verify it.
+func TestDeliver_SignsTimestampAndDeliveryIDForReplayProtection(t *testing.T) {
+	t.Parallel()
+	repo := &fakeWebhookRepo{}
+	svc, sender := newTestService(repo, &fakeDeliveryRepo{}, sharedfakes.NewFakeEventBus())
+	ctx := context.Background()
+	cfg := &webhookdomain.Config{Name: "n", URL: "http://hook.example", Events: []string{"*"}, Enabled: true, Secret: "s3cret",
+		Headers: map[string]string{"x-evey-timestamp": "1", "X-EVEY-SIGNATURE-V2": "forged"}}
+	if err := svc.Create(ctx, cfg); err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now().Unix()
+	if _, err := svc.Test(ctx, cfg.ID); err != nil {
+		t.Fatal(err)
+	}
+	after := time.Now().Unix()
+
+	call := sender.Calls()[0]
+	ts := call.Headers["X-Evey-Timestamp"]
+	n, err := strconv.ParseInt(ts, 10, 64)
+	if err != nil || n < before || n > after {
+		t.Fatalf("X-Evey-Timestamp = %q, want unix seconds within [%d, %d]", ts, before, after)
+	}
+	mac := hmac.New(sha256.New, []byte("s3cret"))
+	mac.Write([]byte(ts + "." + call.Headers["X-Evey-Delivery"] + "."))
+	mac.Write(call.Body)
+	if want := fmt.Sprintf("sha256=%x", mac.Sum(nil)); call.Headers["X-Evey-Signature-V2"] != want {
+		t.Errorf("X-Evey-Signature-V2 = %q, want %q", call.Headers["X-Evey-Signature-V2"], want)
+	}
+	legacy := hmac.New(sha256.New, []byte("s3cret"))
+	legacy.Write(call.Body)
+	if want := fmt.Sprintf("sha256=%x", legacy.Sum(nil)); call.Headers["X-Evey-Signature"] != want {
+		t.Errorf("X-Evey-Signature = %q, want the unchanged body-only HMAC %q", call.Headers["X-Evey-Signature"], want)
+	}
+	for k := range call.Headers {
+		if http.CanonicalHeaderKey(k) != k && (strings.EqualFold(k, "x-evey-timestamp") || strings.EqualFold(k, "x-evey-signature-v2")) {
+			t.Errorf("configured header %q survived next to the minted one", k)
+		}
 	}
 }

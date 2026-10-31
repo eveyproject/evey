@@ -316,7 +316,7 @@ func (q *recordingQueue) Enqueue(_ context.Context, id, op string) error {
 func (q *recordingQueue) List(context.Context, int) ([]library.PendingSearchWrite, error) {
 	return nil, nil
 }
-func (q *recordingQueue) Delete(context.Context, string) error { return nil }
+func (q *recordingQueue) Delete(context.Context, library.PendingSearchWrite) error { return nil }
 
 // With a submit-only writer, the request and scan paths never wait on the
 // engine's task (that wait is up to minutes under load): writes go to the

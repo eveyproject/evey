@@ -418,6 +418,9 @@ const (
 type PendingSearchWrite struct {
 	MediaItemID string
 	Op          string // SearchOpUpsert | SearchOpDelete
+	// EnqueuedAt is the row version the drain read: acknowledging it removes the
+	// row only if no newer write replaced it since.
+	EnqueuedAt time.Time
 }
 
 // PendingSearchWriteQueue is the durable outbox the resilient search wrapper
@@ -427,7 +430,8 @@ type PendingSearchWrite struct {
 type PendingSearchWriteQueue interface {
 	Enqueue(ctx context.Context, mediaItemID, op string) error
 	List(ctx context.Context, limit int) ([]PendingSearchWrite, error)
-	Delete(ctx context.Context, mediaItemID string) error
+	// Delete acknowledges a drained op; a row re-enqueued since w was listed stays.
+	Delete(ctx context.Context, w PendingSearchWrite) error
 }
 
 type FileEvent struct {

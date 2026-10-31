@@ -152,4 +152,13 @@ describe("LibraryAccessModal", () => {
     expect(setMutateAsync).not.toHaveBeenCalled();
     expect(revokeMutateAsync).not.toHaveBeenCalled();
   });
+
+  it("a failed load shows an error with no Save, so nothing can lift the restriction", () => {
+    getMock.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch: vi.fn() });
+    render(<LibraryAccessModal user={user} open={true} onClose={vi.fn()} />, { wrapper: createWrapper() });
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument();
+    expect(revokeMutateAsync).not.toHaveBeenCalled();
+  });
 });

@@ -1,6 +1,8 @@
 package filesystem
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -100,4 +102,60 @@ func TestFSWatcher_ForwardsAudioAndImageEvents(t *testing.T) {
 	assert.True(t, got["song.mp3"], "an audio file must produce an event")
 	assert.True(t, got["cover.jpg"], "an image file must produce an event")
 	assert.True(t, got["movie.mkv"])
+}
+
+// cancelAfter reports a live context for the first n Err calls and Canceled
+// after, to stop a walk part-way through without timing.
+type cancelAfter struct {
+	context.Context
+	left int
+}
+
+func (c *cancelAfter) Err() error {
+	if c.left > 0 {
+		c.left--
+		return nil
+	}
+	return context.Canceled
+}
+
+func TestFSWatcher_WatchContext_CancelledWalkLeavesNoWatchBehind(t *testing.T) {
+	fw, err := NewFSWatcher()
+	if err != nil {
+		t.Skipf("fsnotify not available: %v", err)
+	}
+	defer fw.Close()
+
+	dir := t.TempDir()
+	for _, sub := range []string{"a", "b", "c", "d"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, sub), 0o755))
+	}
+
+	err = fw.WatchContext(&cancelAfter{Context: context.Background(), left: 3}, dir)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, fw.watcher.WatchList(), "a failed root must not keep the watches it added")
+}
+
+func TestFSWatcher_WatchContext_CompletesWithALiveContext(t *testing.T) {
+	fw, err := NewFSWatcher()
+	if err != nil {
+		t.Skipf("fsnotify not available: %v", err)
+	}
+	defer fw.Close()
+
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "a"), 0o755))
+	require.NoError(t, fw.WatchContext(context.Background(), dir))
+	assert.Len(t, fw.watcher.WatchList(), 2)
+}
+
+func TestFSWatcher_QueueOverflowIsReportedAsOverflow(t *testing.T) {
+	err := wrapWatchError(fsnotify.ErrEventOverflow)
+	var o interface{ Overflow() bool }
+	require.ErrorAs(t, err, &o)
+	assert.True(t, o.Overflow())
+	require.ErrorIs(t, err, fsnotify.ErrEventOverflow)
+
+	plain := wrapWatchError(errors.New("boom"))
+	assert.False(t, errors.As(plain, &o) && o.Overflow())
 }

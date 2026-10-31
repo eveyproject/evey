@@ -1,5 +1,5 @@
 ---
-source_sha: 09be615f048b42a5c91430ee4558b2bc906d1e19a1f0c51eb2577ffa9d579533
+source_sha: 44e8e90d77d0eb2abdd259fe7a12d693a5f6af4856125bd2b2da2194a7c6ef42
 reviewed: true
 ---
 # Webhooks et clés d'API
@@ -28,7 +28,7 @@ parmi eux :
 
 | Domaine | Événements |
 | --- | --- |
-| Bibliothèque | `library.scan.started`, `library.scan.completed`, `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
+| Bibliothèque | `library.scan.started`, `library.scan.completed`, `library.prune.suspended` (une racine a perdu trop de fichiers d'un coup, suppressions suspendues jusqu'à confirmation d'un administrateur), `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
 | Lecture | `playback.started`, `playback.stopped`, `media.marked.watched`, `transcode.started`, `transcode.failed` |
 | Comptes | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created`, `user.apikey.created` |
 | Demandes | `media.request.created`, `media.request.answered` |
@@ -37,14 +37,27 @@ parmi eux :
 Un plugin qui appelle `EmitEvent` publie `plugin.event.<type>`, qu'un
 webhook abonné à **Tous les événements** reçoit aussi.
 
-**Envoi.** Chaque événement est un `POST` JSON, accompagné de deux en-têtes :
+**Envoi.** Chaque événement est un `POST` JSON, accompagné de les en-têtes suivants :
 
 - `X-Evey-Delivery` : un identifiant identique pour toutes les tentatives
   d'un même envoi, qui permet à votre récepteur d'ignorer un doublon ;
 - `X-Evey-Signature` : `sha256=` suivi du HMAC-SHA256 du corps, calculé avec
   le secret du webhook. Vérifiez-le avec le même secret pour savoir que la
   requête vient bien de votre serveur. Sans secret, la signature ne prouve
-  rien.
+  rien. Elle ne couvre que le corps, donc elle n'empêche pas qu'une requête
+  interceptée soit renvoyée : préférez les deux en-têtes ci-dessous ;
+- `X-Evey-Timestamp` : l'heure de la tentative, en secondes Unix. Chaque nouvelle
+  tentative en porte une nouvelle ;
+- `X-Evey-Signature-V2` : `sha256=` suivi du HMAC-SHA256, calculé avec le secret
+  du webhook, du texte `<timestamp>.<delivery id>.<body>` (la valeur de
+  `X-Evey-Timestamp`, un point, la valeur de `X-Evey-Delivery`, un point, puis
+  le corps brut).
+
+Pour vérifier un envoi, recalculez la signature V2 à partir du corps brut et
+comparez-la en temps constant, puis refusez la requête si l'horodatage s'écarte
+de plus de 5 minutes de votre horloge (dans un sens comme dans l'autre). Avec
+un récepteur qui retient aussi les identifiants d'envoi vus pendant cette
+fenêtre, une requête interceptée ne peut pas être rejouée.
 
 Chaque tentative attend une réponse pendant 30 secondes au plus. Un envoi qui
 échoue est retenté après 1, 5 et 30 secondes. Chaque tentative est

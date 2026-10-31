@@ -46,7 +46,7 @@ func (r *PendingSearchWriteRepository) List(ctx context.Context, limit int) ([]l
 		limit = 500
 	}
 	rows, err := txFromCtx(ctx, r.db).QueryContext(ctx,
-		`SELECT media_item_id, op FROM pending_search_index WHERE dead_lettered_at IS NULL ORDER BY enqueued_at LIMIT $1`, limit)
+		`SELECT media_item_id, op, enqueued_at FROM pending_search_index WHERE dead_lettered_at IS NULL ORDER BY enqueued_at LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,7 @@ func (r *PendingSearchWriteRepository) List(ctx context.Context, limit int) ([]l
 	var out []library.PendingSearchWrite
 	for rows.Next() {
 		var w library.PendingSearchWrite
-		if err := rows.Scan(&w.MediaItemID, &w.Op); err != nil {
+		if err := rows.Scan(&w.MediaItemID, &w.Op, &w.EnqueuedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, w)
@@ -62,20 +62,23 @@ func (r *PendingSearchWriteRepository) List(ctx context.Context, limit int) ([]l
 	return out, rows.Err()
 }
 
-// Delete removes a drained op.
-func (r *PendingSearchWriteRepository) Delete(ctx context.Context, mediaItemID string) error {
+// Delete removes a drained op, unless the row was re-enqueued after w was
+// listed: its newer content was never confirmed, so it waits for the next drain.
+func (r *PendingSearchWriteRepository) Delete(ctx context.Context, w library.PendingSearchWrite) error {
 	ctx, span := tracing.StartSpan(ctx, "postgres.pending_search_index.Delete")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
 	defer cancel()
 	_, err := txFromCtx(ctx, r.db).ExecContext(ctx,
-		`DELETE FROM pending_search_index WHERE media_item_id = $1`, mediaItemID)
+		`DELETE FROM pending_search_index WHERE media_item_id = $1 AND op = $2 AND enqueued_at <= $3`,
+		w.MediaItemID, w.Op, w.EnqueuedAt)
 	return err
 }
 
 // RecordFailure counts one refusal of the item's document by the engine and
-// dead-letters the row once maxAttempts is reached. Reports whether it did.
-func (r *PendingSearchWriteRepository) RecordFailure(ctx context.Context, mediaItemID string, maxAttempts int) (bool, error) {
+// dead-letters the row once maxAttempts is reached. Reports whether it did. A row
+// re-enqueued after w was listed is left alone: the refused document is gone.
+func (r *PendingSearchWriteRepository) RecordFailure(ctx context.Context, w library.PendingSearchWrite, maxAttempts int) (bool, error) {
 	ctx, span := tracing.StartSpan(ctx, "postgres.pending_search_index.RecordFailure")
 	defer span.End()
 	ctx, cancel := withTimeout(ctx, defaultQueryTimeout)
@@ -85,9 +88,9 @@ func (r *PendingSearchWriteRepository) RecordFailure(ctx context.Context, mediaI
 		`UPDATE pending_search_index
 		 SET attempts = attempts + 1,
 		     dead_lettered_at = CASE WHEN attempts + 1 >= $2 THEN now() END
-		 WHERE media_item_id = $1
+		 WHERE media_item_id = $1 AND op = $3 AND enqueued_at <= $4
 		 RETURNING dead_lettered_at IS NOT NULL`,
-		mediaItemID, maxAttempts).Scan(&dead)
+		w.MediaItemID, maxAttempts, w.Op, w.EnqueuedAt).Scan(&dead)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
