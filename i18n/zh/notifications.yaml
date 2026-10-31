@@ -33,6 +33,9 @@ push:
     title: "计划备份失败"
   cache_full:
     title: "字幕缓存已满"
+  prune_suspended:
+    title: "媒体库删除已暂停"
+    body: "{root} 下缺失 {count} 个文件，已暂停删除"
   plugin_error:
     title: "插件错误"
   plugin_error_id:

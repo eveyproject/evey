@@ -37,7 +37,7 @@ func TestOrphanPruner_AllPresent_NothingRemoved(t *testing.T) {
 		"/movies/b.mkv": {},
 	}
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", seen, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, seen, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestOrphanPruner_PartialOrphans(t *testing.T) {
 
 	seen := map[string]struct{}{"/movies/keep.mkv": {}}
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", seen, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, seen, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestOrphanPruner_EmptyScanNonEmptyLibrary_RefusesToPrune(t *testing.T) {
 	})
 
 	// Empty seenPaths == the scanner saw nothing (dropped NFS mount, etc.).
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{}, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, map[string]struct{}{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestOrphanPruner_OneRootDropped_KeepsItemsUnderItButPrunesHealthyOrphan(t *
 	seen := map[string]struct{}{"/mnt/healthy/a.mkv": {}}
 	emptyRoots := []string{"/mnt/dropped"}
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", seen, emptyRoots)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, seen, emptyRoots)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestOrphanPruner_OneRootDropped_KeepsItemsUnderItButPrunesHealthyOrphan(t *
 func TestOrphanPruner_EmptyScanEmptyLibrary_NoOp(t *testing.T) {
 	t.Parallel()
 	pruner, _, _, _ := newPrunerHarness()
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{}, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, map[string]struct{}{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -199,7 +199,7 @@ func TestOrphanPruner_SearchIndexCleared_ForOrphans(t *testing.T) {
 
 	seen := map[string]struct{}{"/movies/kept.mkv": {}} // orph is the orphan
 
-	_, err := pruner.Prune(context.Background(), "lib-1", seen, nil)
+	_, err := pruner.Prune(context.Background(), "lib-1", nil, seen, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestOrphanPruner_EmptySeasonsPruned(t *testing.T) {
 		"/tv/show/s01": {},
 	}
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", seen, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, seen, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestOrphanPruner_SeriesWithRemainingSeason_NotPruned(t *testing.T) {
 		"/tv/other/s02/e01.mkv": {},
 	}
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", seen, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, seen, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestOrphanPruner_DeleteByIDsError_FailClosed(t *testing.T) {
 	search.IndexMediaItem(context.Background(), &library.MediaItem{ID: "orph", Title: "Orphan"})
 	items.ErrDelete = errors.New("db kaboom")
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/kept.mkv": {}}, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, map[string]struct{}{"/movies/kept.mkv": {}}, nil)
 	if err != nil {
 		t.Fatalf("Prune must not bubble batch-delete errors: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestOrphanPruner_SearchRemoveError_LoggedNotReturned(t *testing.T) {
 	})
 	search.Err = errors.New("meili down")
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/kept.mkv": {}}, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, map[string]struct{}{"/movies/kept.mkv": {}}, nil)
 	if err != nil {
 		t.Fatalf("search index errors must not fail Prune: %v", err)
 	}
@@ -352,7 +352,7 @@ func TestOrphanPruner_PublishError_LoggedNotReturned(t *testing.T) {
 	})
 	bus.PublishErr = errors.New("bus offline")
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/kept.mkv": {}}, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, map[string]struct{}{"/movies/kept.mkv": {}}, nil)
 	if err != nil {
 		t.Fatalf("event bus errors must not fail Prune: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestOrphanPruner_NilSearchIndex_StillPrunesAndPublishes(t *testing.T) {
 		File: &library.MediaFile{Path: "/movies/kept.mkv"},
 	})
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/kept.mkv": {}}, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, map[string]struct{}{"/movies/kept.mkv": {}}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -417,7 +417,7 @@ func TestOrphanPruner_UnseenButStillOnDisk_NotPruned(t *testing.T) {
 		})
 	}
 
-	removed, err := pruner.Prune(context.Background(), "lib-1", map[string]struct{}{"/movies/b.mkv": {}}, nil)
+	removed, err := pruner.Prune(context.Background(), "lib-1", nil, map[string]struct{}{"/movies/b.mkv": {}}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -22,7 +22,7 @@ form offers every event the server publishes; among them:
 
 | Area | Events |
 | --- | --- |
-| Library | `library.scan.started`, `library.scan.completed`, `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
+| Library | `library.scan.started`, `library.scan.completed`, `library.prune.suspended` (a root lost too many files at once, deletions held until an admin confirms), `media.item.added`, `media.item.updated`, `media.item.removed`, `metadata.refreshed` |
 | Playback | `playback.started`, `playback.stopped`, `media.marked.watched`, `transcode.started`, `transcode.failed` |
 | Accounts | `user.created`, `user.login.succeeded`, `user.login.failed`, `user.profile.created`, `user.apikey.created` |
 | Requests | `media.request.created`, `media.request.answered` |

@@ -9,6 +9,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "feed.config.removed",
   "library.created",
   "library.deleted",
+  "library.prune.suspended",
   "library.scan.completed",
   "library.scan.started",
   "library.updated",

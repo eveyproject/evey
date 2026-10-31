@@ -33,6 +33,9 @@ push:
     title: "Geplantes Backup fehlgeschlagen"
   cache_full:
     title: "Untertitel-Cache voll"
+  prune_suspended:
+    title: "Löschen in der Bibliothek ausgesetzt"
+    body: "{count} Dateien unter {root} fehlen, Löschen ausgesetzt"
   plugin_error:
     title: "Plugin-Fehler"
   plugin_error_id:

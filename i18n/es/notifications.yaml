@@ -33,6 +33,9 @@ push:
     title: "Copia de seguridad programada fallida"
   cache_full:
     title: "Caché de subtítulos llena"
+  prune_suspended:
+    title: "Eliminación de la biblioteca suspendida"
+    body: "{count} archivos faltan en {root}, eliminación suspendida"
   plugin_error:
     title: "Error del plugin"
   plugin_error_id:

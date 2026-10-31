@@ -96,6 +96,8 @@ func TestLoad_Defaults(t *testing.T) {
 
 	assert.Equal(t, 2*time.Minute, cfg.Library.PeriodicScanInterval)
 	assert.True(t, cfg.Library.WatcherEnabled)
+	assert.InDelta(t, 5.0, cfg.Library.PruneMaxMissingPercent, 0)
+	assert.Equal(t, 20, cfg.Library.PruneMinMissing)
 
 	assert.Equal(t, 30, cfg.Playback.SkipForwardSeconds)
 	assert.Equal(t, 30, cfg.Playback.SkipBackwardSeconds)

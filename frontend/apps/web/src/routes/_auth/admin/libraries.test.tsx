@@ -66,7 +66,7 @@ describe("LibrariesPage", () => {
     vi.clearAllMocks();
     mockUseQuery.mockImplementation((opts: { queryKey: unknown[] }) => {
       const key = opts?.queryKey?.[0];
-      if (key === "/api/v1/admin/library-stats") return { data: [], isLoading: false };
+      if (key === "/api/v1/admin/library-stats" || key === "/api/v1/admin/libraries/prune-suspended") return { data: [], isLoading: false };
       if (key === "/api/v1/admin/library-stats" || String(key).includes("schedule")) return { data: null, isLoading: false };
       // media items query
       return { data: { pagination: { totalItems: 5 } }, isLoading: false };

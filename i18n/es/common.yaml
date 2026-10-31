@@ -128,6 +128,7 @@ notifications:
   episodeCount_other: "{{count}} episodios"
   backupFailed: "Fallo en la copia de seguridad programada"
   cacheFull: "Caché de subtítulos llena"
+  pruneSuspended: "Eliminación de la biblioteca suspendida"
   mediaRequest: "Nueva solicitud de contenido: {{name}}"
   requestAnswered: "Tu solicitud de contenido se actualizó: {{name}}"
   clearConfirm: ¿Eliminar todas las notificaciones?

@@ -33,6 +33,9 @@ push:
     title: "Scheduled Backup Failed"
   cache_full:
     title: "Subtitle cache full"
+  prune_suspended:
+    title: "Library deletion suspended"
+    body: "{count} files missing under {root}, deletion suspended"
   plugin_error:
     title: "Plugin error"
   plugin_error_id:

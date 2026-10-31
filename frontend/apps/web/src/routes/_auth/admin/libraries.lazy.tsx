@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { LibraryForm } from "@/features/admin/LibraryForm";
+import { PruneSuspendedBanner } from "@/features/admin/PruneSuspendedBanner";
 import { useDemoLock } from "@/hooks/useDemoMode";
 
 export const Route = createLazyFileRoute("/_auth/admin/libraries")({
@@ -461,6 +462,8 @@ function LibrariesPage() {
           </div>
         }
       />
+
+      <PruneSuspendedBanner libraries={libraries} />
 
       {isLoading ? (
         <div className="flex justify-center py-16">

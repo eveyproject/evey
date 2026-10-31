@@ -38,6 +38,9 @@ const (
 	// floor and stopped keeping what it produces. Operational, admin-only.
 	TypeCacheFull Type = "cache_full"
 	TypeCustom    Type = "custom"
+	// TypePruneSuspended: a library root lost many files at once and its
+	// deletions are held until an admin confirms. Operational, admin-only.
+	TypePruneSuspended Type = "prune_suspended"
 	// TypeMediaRequest pages operators that a user submitted a media request
 	// (admin-only, like plugin_error). TypeRequestAnswered notifies the
 	// requester of the operator's decision (a personal notification).
@@ -48,7 +51,7 @@ const (
 func (t Type) IsValid() bool {
 	switch t {
 	case TypeNewMovie, TypeNewEpisode, TypeNewSeason, TypeNewSeries, TypeNewAlbum,
-		TypeLibraryScanned, TypeBackupFailed, TypePluginError, TypeCacheFull, TypeCustom,
+		TypeLibraryScanned, TypeBackupFailed, TypePluginError, TypeCacheFull, TypeCustom, TypePruneSuspended,
 		TypeMediaRequest, TypeRequestAnswered:
 		return true
 	}
@@ -67,7 +70,7 @@ func (t Type) IsValid() bool {
 // filters (the web bell hides plugin_error, which has its own dashboard).
 func (t Type) IsAdminOnly() bool {
 	switch t {
-	case TypeBackupFailed, TypePluginError, TypeCacheFull, TypeMediaRequest:
+	case TypeBackupFailed, TypePluginError, TypeCacheFull, TypePruneSuspended, TypeMediaRequest:
 		return true
 	}
 	return false

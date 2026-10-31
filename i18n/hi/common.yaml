@@ -128,6 +128,7 @@ notifications:
   episodeCount_other: "{{count}} एपिसोड"
   backupFailed: "निर्धारित बैकअप विफल"
   cacheFull: "उपशीर्षक कैश भर गया"
+  pruneSuspended: "लाइब्रेरी से हटाना रोका गया"
   mediaRequest: "नया मीडिया अनुरोध: {{name}}"
   requestAnswered: "आपका मीडिया अनुरोध अपडेट किया गया: {{name}}"
   clearConfirm: सभी सूचनाएं हटाएं?

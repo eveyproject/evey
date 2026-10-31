@@ -175,6 +175,12 @@ func (s *ScanService) isPlaying(ctx context.Context, id shared.MediaItemID) bool
 	return playing[id]
 }
 
+// WithPruneGuard sets the mass-disappearance thresholds of the orphan prune.
+func (s *ScanService) WithPruneGuard(g PruneGuard) *ScanService {
+	s.pruner.WithGuard(g)
+	return s
+}
+
 // WithStaleReprobePace overrides the version re-probe pace (tests).
 func (s *ScanService) WithStaleReprobePace(r rate.Limit, burst int) *ScanService {
 	s.staleReprobes = rate.NewLimiter(r, burst)
@@ -425,7 +431,7 @@ func (s *ScanService) ScanLibraryReport(ctx context.Context, libraryID string) (
 	added += a
 	updated += u
 
-	removed, pruneErr := s.pruner.Prune(ctx, libraryID, seenPaths, emptyRoots)
+	removed, pruneErr := s.pruner.Prune(ctx, libraryID, lib.Paths, seenPaths, emptyRoots)
 	if pruneErr != nil {
 		slog.WarnContext(ctx, "orphan cleanup failed", slog.String("libraryID", libraryID), slog.Any("err", pruneErr))
 	}

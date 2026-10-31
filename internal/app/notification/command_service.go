@@ -103,6 +103,7 @@ func (s *CommandService) Register() {
 	s.events.Subscribe("media.item.removed", s.handleMediaItemRemoved)
 	s.events.Subscribe("backup.failed", s.handleBackupFailed)
 	s.events.Subscribe("transcoding.derived_cache_full", s.handleDerivedCacheFull)
+	s.events.Subscribe("library.prune.suspended", s.handlePruneSuspended)
 	s.events.Subscribe("plugin.error", s.handlePluginError)
 	s.events.Subscribe("media.request.created", s.handleMediaRequestCreated)
 	s.events.Subscribe("media.request.answered", s.handleRequestAnswered)

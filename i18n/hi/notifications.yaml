@@ -33,6 +33,9 @@ push:
     title: "निर्धारित बैकअप विफल"
   cache_full:
     title: "उपशीर्षक कैश भर गया"
+  prune_suspended:
+    title: "लाइब्रेरी से हटाना रोका गया"
+    body: "{root} के अंतर्गत {count} फ़ाइलें गायब हैं, हटाना रोका गया"
   plugin_error:
     title: "प्लगइन त्रुटि"
   plugin_error_id:
