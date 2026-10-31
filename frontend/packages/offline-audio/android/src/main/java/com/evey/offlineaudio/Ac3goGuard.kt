@@ -13,7 +13,7 @@ import android.util.Log
 /**
  * Whether this device may declare ac3go to the server. ac3go decodes on the
  * CPU, and a box too slow for it does not fail cleanly: the audio clock falls
- * behind, the picture crawls, then the app stops (2026-10-01, a Chromecast HD).
+ * behind, the picture crawls, then the app stops (seen on a low-power TV box).
  * The server's own fallback - video copied, audio transcoded to AAC - is what
  * such a box played fine before ac3go, so every doubt here routes to it:
  *
@@ -172,9 +172,14 @@ object Ac3goGuard {
     Log.w(TAG, "previous run ended while ac3go was running: $report")
     if (!innocent) {
       val until = System.currentTimeMillis() + SUSPECT_MS
+      // Distrust the version that actually DIED, not the one that just started:
+      // a reinstall or an OS update kills the old version mid-playback, and
+      // stamping the current (new) version here disabled ac3go on a build that
+      // never misbehaved. The dying run's version is in the marker.
+      val deadVersion = (report["version"] as? String)?.takeIf { it.isNotEmpty() } ?: version
       p.edit()
         .putLong("suspectUntil", until)
-        .putString("suspectVersion", version)
+        .putString("suspectVersion", deadVersion)
         .putString("suspectReason", "exit:${report["reason"] ?: "unknown"}")
         .apply()
     }
