@@ -88,3 +88,16 @@ func TestParseMounts_SkipsMalformedLines(t *testing.T) {
 		t.Fatalf("malformed lines must be skipped, got %d entries", len(entries))
 	}
 }
+
+// Shares that look local to the kernel but are fed by another host: union and
+// shared-folder filesystems of NAS and VM setups.
+func TestNetworkFSTypes_CoversSharedFolderFilesystems(t *testing.T) {
+	for _, fsType := range []string{"fuse.mergerfs", "fuse.shfs", "virtiofs", "fuse.grpcfuse"} {
+		if !networkFSTypes[fsType] {
+			t.Errorf("%s must be treated as a network filesystem", fsType)
+		}
+	}
+	if networkFSTypes["ext4"] {
+		t.Error("a local filesystem must not be flagged")
+	}
+}
