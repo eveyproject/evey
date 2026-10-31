@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, type MutableRefObject } from 
 import { Pressable, Text, View, StyleSheet } from "react-native";
 import { useTranslation } from "react-i18next";
 import { toast } from "@evey/store";
-import { usePlayhead } from "@evey/client";
+import { getPlayhead, usePlayheadSelector } from "@evey/client";
 import { useTheme } from "../providers/ThemeProvider";
 import { useMediaSegments } from "../hooks/useMediaSegments";
 import { FONT_SIZE } from "@evey/theme";
@@ -66,8 +66,6 @@ export function SkipIntroButton({
   autoAdvance = false,
   cancelCountdownRef,
 }: SkipIntroButtonProps) {
-  const playhead = usePlayhead();
-  const currentTime = givenTime ?? playhead;
   const { t } = useTranslation();
   const theme = useTheme();
   // Which of the (up to two) Pressables currently holds focus. Both report
@@ -94,6 +92,15 @@ export function SkipIntroButton({
   const hasSegments = !!segments && segments.length > 0;
   const chapterCandidates = useChapterSkippables(filePath, !hasSegments);
   const candidates: ResolvedSegment[] = hasSegments ? skippableCandidates(segments) : chapterCandidates;
+  // Follow the playhead only while inside a skippable segment, and then only to
+  // the second: outside one (most of a film) the selector returns a constant so
+  // the button stops re-rendering twice a second for nothing. A caller that
+  // drives the time itself (givenTime) keeps that path, re-rendering on its prop.
+  const segmentTick = usePlayheadSelector((sec) => {
+    const at = givenTime ?? sec;
+    return active(candidates, at) ? Math.floor(at) : -1;
+  });
+  const currentTime = givenTime ?? (segmentTick === -1 ? getPlayhead() : segmentTick);
   const resolved = active(candidates, currentTime);
 
   // Auto-skip (admin toggle): jump the intro instead of waiting for OK. Intro
