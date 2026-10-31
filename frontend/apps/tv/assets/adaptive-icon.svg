@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Adaptive icon foreground layer: transparent, the V stays inside the 66/108
+       safe circle (radius 156 px here) so a round or squircle mask never cuts it. -->
+  <defs>
+    <mask id="cut">
+      <rect width="512" height="512" fill="white"/>
+      <rect x="130" y="263" width="252" height="13.6" fill="black"/>
+    </mask>
+  </defs>
+  <g mask="url(#cut)">
+    <g transform="translate(132.6, 379.5) scale(0.3176, -0.3176)">
+      <path d="M261 0 17 688H253L391 228H395L534 688H760L517 0Z" fill="#DC2626"/>
+    </g>
+  </g>
+</svg>

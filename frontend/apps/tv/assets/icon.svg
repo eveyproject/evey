@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Legacy launcher icon: full bleed, no baked corner radius, the launcher masks it. -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="36%" r="80%">
+      <stop offset="0" stop-color="#1B1B20"/>
+      <stop offset="0.55" stop-color="#101012"/>
+      <stop offset="1" stop-color="#050506"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="54%" r="44%">
+      <stop offset="0" stop-color="#DC2626" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#DC2626" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="cut">
+      <rect width="512" height="512" fill="white"/>
+      <rect x="84" y="246" width="344" height="19" fill="black"/>
+    </mask>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+  <g mask="url(#cut)">
+    <g transform="translate(83.45, 408.8) scale(0.44414, -0.44414)">
+      <path d="M261 0 17 688H253L391 228H395L534 688H760L517 0Z" fill="#DC2626"/>
+    </g>
+  </g>
+</svg>
