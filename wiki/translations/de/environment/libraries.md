@@ -1,5 +1,5 @@
 ---
-source_sha: e3b24610d4942cf71d19babf82add41a0f2e47fd513b1cc840fba554421a75e9
+source_sha: bdf162710976e7ec41dc85bef68bc304a658396c9adac30a3d36e1b6074f4ecb
 reviewed: true
 ---
 # Bibliotheken und Metadaten { #libraries-and-metadata }
@@ -16,6 +16,8 @@ Verwaltungsbereichs ist unter
 | --- | --- | --- | --- |
 | `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | Überwachung der Dateien in Echtzeit. | Serverkonfiguration → Bibliotheken → **Bibliotheks-Dateiüberwachung**, Neustart |
 | `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | Wie oft die Ordner auf das geprüft werden, was der Überwachung entgangen ist (Netzwerkfreigaben). | Serverkonfiguration → Bibliotheken → **Intervall für periodischen Scan**, Neustart |
+| `EVEY_LIBRARY_PRUNE_MAX_MISSING_PERCENT` | `5` | Anteil der Einträge eines Ordners, die bei einem Scan fehlen dürfen. Darüber (und über dem Minimum unten) wird unter diesem Ordner nichts gelöscht, bis ein Administrator bestätigt. Das schützt vor einem Pool, der eine Festplatte verloren hat. | keine |
+| `EVEY_LIBRARY_PRUNE_MIN_MISSING` | `20` | Geringste Zahl fehlender Dateien, die die Löschungen eines Ordners anhalten kann, damit eine kleine Bibliothek noch ein paar Titel verlieren darf. | keine |
 | `EVEY_LIBRARY_SCAN_WORKERS` | aus dem CPU-Anteil | Dateien, die bei einem Scan gleichzeitig analysiert werden. Von Hand gesetzt, umgeht der Wert für Scans den Anteil unter **Zugeteilte Rechenleistung**. | keine |
 | `EVEY_SEEKINDEX_STATE_DIR` | `/data/seek-index` | Wo der Scan unter Medienzustand seine Ergebnisse und seinen laufenden Auftrag über Neustarts hinweg aufbewahrt. Leer: wird nicht aufbewahrt. | keine |
 

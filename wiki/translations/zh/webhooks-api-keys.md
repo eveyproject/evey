@@ -1,5 +1,5 @@
 ---
-source_sha: 09be615f048b42a5c91430ee4558b2bc906d1e19a1f0c51eb2577ffa9d579533
+source_sha: 44e8e90d77d0eb2abdd259fe7a12d693a5f6af4856125bd2b2da2194a7c6ef42
 reviewed: true
 ---
 # Webhook 与 API 密钥
@@ -22,7 +22,7 @@ API 密钥让脚本以您的身份调用服务器。两者都由管理员在管�
 
 | 领域 | 事件 |
 | --- | --- |
-| 媒体库 | `library.scan.started`、`library.scan.completed`、`media.item.added`、`media.item.updated`、`media.item.removed`、`metadata.refreshed` |
+| 媒体库 | `library.scan.started`、`library.scan.completed`、`library.prune.suspended`（某个根目录一次丢失了太多文件，删除操作被搁置，直到管理员确认）、`media.item.added`、`media.item.updated`、`media.item.removed`、`metadata.refreshed` |
 | 播放 | `playback.started`、`playback.stopped`、`media.marked.watched`、`transcode.started`、`transcode.failed` |
 | 账户 | `user.created`、`user.login.succeeded`、`user.login.failed`、`user.profile.created`、`user.apikey.created` |
 | 请求 | `media.request.created`、`media.request.answered` |
@@ -30,11 +30,17 @@ API 密钥让脚本以您的身份调用服务器。两者都由管理员在管�
 
 调用 `EmitEvent` 的插件会发布 `plugin.event.<type>`，订阅了**所有事件**的 Webhook 也会收到它。
 
-**投递。** 每个事件都是一个 JSON 格式的 `POST` 请求，带有两个请求头：
+**投递。** 每个事件都是一个 JSON 格式的 `POST` 请求，带有以下请求头：
 
 - `X-Evey-Delivery`：一个标识符，同一次投递的多次重试都使用同一个值，这样您的接收端就能忽略重复的请求；
 - `X-Evey-Signature`：`sha256=` 后面跟着请求体的 HMAC-SHA256，用 Webhook 的密钥计算。
-  用同一个密钥验证它，就能确认请求来自您的服务器。没有设置密钥时，这个签名什么也证明不了。
+  用同一个密钥验证它，就能确认请求来自您的服务器。没有设置密钥时，这个签名什么也证明不了。它只覆盖请求体，所以挡不住被截获的请求被重新发送：请优先使用下面两个请求头；
+- `X-Evey-Timestamp`：本次尝试的时间，以 Unix 秒表示。每次重试都会带上新的值；
+- `X-Evey-Signature-V2`：`sha256=` 后面跟着 HMAC-SHA256，用 Webhook 的密钥对文本 `<timestamp>.<delivery id>.<body>` 计算
+  （即 `X-Evey-Timestamp` 的值、一个点、`X-Evey-Delivery` 的值、一个点，再加上原始请求体）。
+
+验证一次投递时，用原始请求体重新计算 V2 签名并以恒定时间比较，然后在时间戳与您的时钟相差超过 5 分钟（无论偏早还是偏晚）时拒绝该请求。
+如果接收端还记住了这段时间内见过的投递标识符，被截获的请求就无法被重放。
 
 每次尝试最多等待 30 秒的回应。投递失败后，会在 1 秒、5 秒和 30 秒后重试。每次尝试都会被记录；
 这份历史要通过 API 读取（[插件 API](api/plugins/README.md) 里的 `ListWebhookDeliveries`），在面板里看不到。

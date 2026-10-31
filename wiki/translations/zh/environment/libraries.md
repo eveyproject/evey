@@ -1,5 +1,5 @@
 ---
-source_sha: e3b24610d4942cf71d19babf82add41a0f2e47fd513b1cc840fba554421a75e9
+source_sha: bdf162710976e7ec41dc85bef68bc304a658396c9adac30a3d36e1b6074f4ecb
 reviewed: true
 ---
 # 媒体库与元数据 { #libraries-and-metadata }
@@ -13,6 +13,8 @@ reviewed: true
 | --- | --- | --- | --- |
 | `EVEY_LIBRARY_WATCHER_ENABLED` | `true` | 实时监视文件变化。 | 服务器配置 → 媒体库 → **媒体库文件监视**，需重启 |
 | `EVEY_LIBRARY_PERIODIC_SCAN_INTERVAL` | `2m` | 多久检查一次文件夹，找出监视遗漏的内容（网络共享常有这种情况）。 | 服务器配置 → 媒体库 → **定期扫描间隔**，需重启 |
+| `EVEY_LIBRARY_PRUNE_MAX_MISSING_PERCENT` | `5` | 一次扫描中，一个文件夹里可以消失的条目所占的比例。超过它（并且超过下面的最小值）时，在管理员确认之前，该文件夹下不会删除任何内容，以防存储池丢了一块磁盘。 | 无 |
+| `EVEY_LIBRARY_PRUNE_MIN_MISSING` | `20` | 能够搁置一个文件夹删除操作的最少缺失文件数，这样小型媒体库仍然可以丢掉几个条目。 | 无 |
 | `EVEY_LIBRARY_SCAN_WORKERS` | 根据 CPU 份额 | 扫描时同时分析的文件数。手动设置后，扫描就不再受**处理能力**份额的约束。 | 无 |
 | `EVEY_SEEKINDEX_STATE_DIR` | `/data/seek-index` | 媒体健康扫描保存结果和进行中任务的位置，重启后仍然保留。为空时：不保存。 | 无 |
 
