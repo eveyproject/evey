@@ -811,7 +811,11 @@ func (s *HTTPServer) RegisterRoutes(mux *http.ServeMux, gwMux http.Handler) {
 		}
 		registerPlaybackSettingsRoutes(mux, s.Cfg, s.TokenGen, s.AdminWriteRL, cfgSvc)
 	}()
-	parental := registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen)
+	var parentalOpts []parentalOption
+	if s.UserAuthSvc != nil {
+		parentalOpts = append(parentalOpts, withPasswordReauth(s.UserAuthSvc))
+	}
+	parental := registerParentalRoutes(mux, s.ProfileRepo, s.UserRepo, s.Hasher, s.TokenGen, parentalOpts...)
 	registerScheduleRoutes(mux, parental, s.ProfileHours)
 	// The web + mobile admin panels both call GET/PATCH
 	// .../admin/users/{id}/bitrate-limit, but neither the proto nor this mux
