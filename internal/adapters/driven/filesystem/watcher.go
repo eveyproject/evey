@@ -1,6 +1,8 @@
 package filesystem
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -80,7 +82,7 @@ func (fw *FSWatcher) loop() {
 			if !ok {
 				return
 			}
-			fw.errors <- err
+			fw.errors <- wrapWatchError(err)
 		}
 	}
 }
@@ -115,12 +117,43 @@ func (fw *FSWatcher) mapOp(op fsnotify.Op) library.FileOp {
 	return -1
 }
 
+// overflowError marks the kernel event queue overflowing: events were dropped,
+// so the consumer must rescan. The app layer recognises it by the Overflow
+// method alone, without importing fsnotify.
+type overflowError struct{ error }
+
+func (e overflowError) Unwrap() error  { return e.error }
+func (e overflowError) Overflow() bool { return true }
+
+func wrapWatchError(err error) error {
+	if errors.Is(err, fsnotify.ErrEventOverflow) {
+		return overflowError{err}
+	}
+	return err
+}
+
 func (fw *FSWatcher) Watch(path string) error {
-	return fw.watchRecursive(path)
+	return fw.WatchContext(context.Background(), path)
+}
+
+// WatchContext registers root and its subdirectories, stopping when ctx ends
+// (a hung network mount would otherwise block the walk forever). If it fails
+// part-way - ctx done, or the inotify limit hit - the watches it already added
+// are removed: a half-watched root would look established while going blind.
+func (fw *FSWatcher) WatchContext(ctx context.Context, root string) error {
+	return fw.watchRecursiveCtx(ctx, root)
 }
 
 func (fw *FSWatcher) watchRecursive(root string) error {
-	return filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+	return fw.watchRecursiveCtx(context.Background(), root)
+}
+
+func (fw *FSWatcher) watchRecursiveCtx(ctx context.Context, root string) error {
+	var added []string
+	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return ctxErr
+		}
 		if err != nil {
 			slog.Debug("watcher: walk error", slog.String("path", path), slog.Any("err", err))
 			return nil
@@ -129,10 +162,19 @@ func (fw *FSWatcher) watchRecursive(root string) error {
 			if d.Name() != "." && strings.HasPrefix(d.Name(), ".") {
 				return filepath.SkipDir
 			}
-			return fw.watcher.Add(path)
+			if addErr := fw.watcher.Add(path); addErr != nil {
+				return addErr
+			}
+			added = append(added, path)
 		}
 		return nil
 	})
+	if err != nil {
+		for _, p := range added {
+			_ = fw.watcher.Remove(p)
+		}
+	}
+	return err
 }
 
 func (fw *FSWatcher) Unwatch(path string) error {
